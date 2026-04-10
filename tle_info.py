@@ -4,7 +4,7 @@
 import math
 import sys
 
-# Suppress FutureWarning from TudatPy
+# Suppress Warnings from urllib3
 import warnings
 
 warnings.filterwarnings("ignore", module="urllib3")
