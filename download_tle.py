@@ -2,6 +2,8 @@
 
 
 import sys
+import urllib.parse
+import urllib.request
 
 
 def main():
@@ -16,14 +18,12 @@ def main():
         print(f"Downloading TLE for {satellite_id}")
 
         # Encode satellite ID for URL
-        import urllib.parse
 
         satellite_id = urllib.parse.quote(satellite_id, safe="*")
 
         url = f"https://celestrak.org/NORAD/elements/gp.php?INTDES={satellite_id}"
 
         try:
-            import urllib.request
 
             # Download the TLE data into a variable
             tle_data = urllib.request.urlopen(url).read()
