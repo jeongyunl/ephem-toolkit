@@ -50,6 +50,19 @@ def create_earth_rotation_model():
     return bodies.get(Earth).rotation_model
 
 
+def read_input_tokens_from_stdin():
+    stdin_data = sys.stdin.read().strip()
+    if not stdin_data:
+        return []
+    return stdin_data.split()
+
+
+def print_usage():
+    print(
+        "Usage: python gcrf_to_itrf.py [-r] [ <time> <x_km> <y_km> <z_km> [ <vx_km/s> <vy_km/s> <vz_km/s> ] ]"
+    )
+
+
 # Function to convert position and velocity from GCRF to ITRF at a given epoch using the Earth rotation model
 def convert_gcrf_to_itrf(
     earth_rotation_model,
@@ -137,28 +150,46 @@ def main():
         set_reverse_conversion = True
         sys.argv.pop(1)  # Remove the -r option from the arguments list
 
-    # Read time, 3d position and optionally 3d velocity from command line arguments
+    # Read time, 3d position and optionally 3d velocity from command line arguments or stdin.
 
-    if len(sys.argv) != 5 and len(sys.argv) != 8:
-        print(
-            "Usage: python gcrf_to_itrf.py [-r] <time> <x_km> <y_km> <z_km> [ <vx_km/s> <vy_km/s> <vz_km/s> ]"
-        )
+    if len(sys.argv) not in (1, 2, 5, 8):
+        print_usage()
         sys.exit(1)
 
-    # Read time string then convert to ephemeris time using TudatPy's Spice interface
+    # Read time string and position/velocity either from command line or from stdin.
+    input_time_string = None
+    input_position_km = None
+    input_velocity_kms = None
 
-    input_time_string = sys.argv[1]
+    if len(sys.argv) == 1:
+        # No command-line data except script name: read time + position/velocity from stdin.
+        tokens = read_input_tokens_from_stdin()
+        if len(tokens) not in (4, 7):
+            print_usage()
+            sys.exit(1)
+        input_time_string = tokens[0]
+        input_position_km = np.array([float(x) for x in tokens[1:4]])
+        if len(tokens) == 7:
+            input_velocity_kms = np.array([float(x) for x in tokens[4:7]])
+    elif len(sys.argv) == 2:
+        # Time provided on command line; read position/velocity from stdin.
+        input_time_string = sys.argv[1]
+        tokens = read_input_tokens_from_stdin()
+        if len(tokens) not in (3, 6):
+            print_usage()
+            sys.exit(1)
+        input_position_km = np.array([float(x) for x in tokens[0:3]])
+        if len(tokens) == 6:
+            input_velocity_kms = np.array([float(x) for x in tokens[3:6]])
+    else:
+        input_time_string = sys.argv[1]
+        input_position_km = np.array([float(x) for x in sys.argv[2:5]])
+        if len(sys.argv) == 8:
+            input_velocity_kms = np.array([float(x) for x in sys.argv[5:8]])
 
     load_spice_kernels()
 
     input_epoch_et = spice.convert_date_string_to_ephemeris_time(input_time_string)
-
-    # Read position and velocity from command line arguments
-
-    input_position_km = np.array([float(x) for x in sys.argv[2:5]])
-    input_velocity_kms = None
-    if len(sys.argv) == 8:
-        input_velocity_kms = np.array([float(x) for x in sys.argv[5:8]])
 
     # Create Earth rotation model
 
