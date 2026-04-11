@@ -40,7 +40,7 @@ def get_tle_epoch(tle):
         and convert it to a DateTime object."""
 
         # TLE set epoch in seconds from J2000
-        tle_epoch_et = tle.get_epoch()
+        tle_epoch_et = tle.reference_epoch
 
         tle_epoch_utc = spice.get_approximate_utc_from_tdb(tle_epoch_et)
         tle_epoch_dt = DateTime.from_epoch(tle_epoch_utc)
@@ -94,35 +94,60 @@ def main():
 
             # Print the TLE parameters
 
+            print(f"NORAD catalog number: {tle.norad_catalog_number}")
+            print(f"Element set number: {tle.element_set_number}")
+            print(f"Revolution number at epoch: {tle.revolution_number_at_epoch}")
+
+            # Convert the TLE epoch to a DateTime object and print it in ISO format
+
             tle_epoch_dt = get_tle_epoch(tle)
             tle_epoch_iso = tle_epoch_dt.to_iso_string(number_of_digits_seconds=3)
             print(f"Epoch: {tle_epoch_iso}")
 
             # B-Star coefficient
-            print(f"B* (B-star) Drag Term: {tle.get_b_star()}")
+            print(f"B* (B-star) Drag Term: {tle.b_star}")
 
             # Inclination of the orbit in radians
-            tle_inclination_deg = math.degrees(tle.get_inclination())
+            tle_inclination_deg = math.degrees(tle.inclination)
             print(f"Inclination: {tle_inclination_deg:.2f} degrees")
 
             # Right ascension of the orbit in radians
-            tle_right_ascension_deg = math.degrees(tle.get_right_ascension())
+            tle_right_ascension_deg = math.degrees(tle.right_ascension)
             print(f"Right Ascension: {tle_right_ascension_deg:.2f} degrees")
 
             # Eccentricity of the orbit
-            print(f"Eccentricity: {tle.get_eccentricity()}")
+            print(f"Eccentricity: {tle.eccentricity}")
 
             # Argument of perigee in radians
-            tle_arg_of_perigee_deg = math.degrees(tle.get_arg_of_perigee())
-            print(f"Argument of Perigee: {tle_arg_of_perigee_deg:.2f} degrees")
+            tle_argument_of_perigee_deg = math.degrees(tle.argument_of_perigee)
+            print(f"Argument of Perigee: {tle_argument_of_perigee_deg:.2f} degrees")
 
             # Mean anomaly in radians
-            tle_mean_anomaly_deg = math.degrees(tle.get_mean_anomaly())
+            tle_mean_anomaly_deg = math.degrees(tle.mean_anomaly)
             print(f"Mean Anomaly: {tle_mean_anomaly_deg:.2f} degrees")
 
             # Mean motion in radians per minute
             tle_mean_motion_deg_per_min = math.degrees(tle.mean_motion)
             print(f"Mean Motion: {tle_mean_motion_deg_per_min:.2f} degrees per minute")
+
+            tle_mean_motion_rev_per_day = float(tle.raw_line_2[52:63])
+            print(f"Mean Motion: {tle_mean_motion_rev_per_day:.2f} revolutions per day")
+
+            # First time derivative of the mean motion in radians per minute^2
+            tle_mean_motion_first_derivative_deg_per_min2 = math.degrees(
+                tle.mean_motion_first_derivative
+            )
+            print(
+                f"Mean Motion First Derivative: {tle_mean_motion_first_derivative_deg_per_min2:.2f} degrees per minute^2"
+            )
+
+            # Second time derivative of the mean motion in radians per minute^2
+            tle_mean_motion_second_derivative_deg_per_min2 = math.degrees(
+                tle.mean_motion_second_derivative
+            )
+            print(
+                f"Mean Motion Second Derivative: {tle_mean_motion_second_derivative_deg_per_min2:.2f} degrees per minute^2"
+            )
 
             # Break the line after each TLE file
             print()
