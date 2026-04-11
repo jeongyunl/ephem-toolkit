@@ -4,13 +4,70 @@
 import math
 import sys
 
-# Suppress Warnings from urllib3
 import warnings
 
+# Suppress Warnings from urllib3
 warnings.filterwarnings("ignore", module="urllib3")
+
+# Suppress SyntaxWarnings from TudatPy
+warnings.filterwarnings("ignore", category=SyntaxWarning)
 
 from tudatpy.dynamics import environment
 from tudatpy.astro.time_representation import DateTime
+from tudatpy.interface import spice
+
+
+def load_spice_kernels():
+    """Load required SPICE kernels for time conversion and Earth orientation."""
+
+    from tudatpy import data
+
+    spice_kernel_files = [
+        "naif0012.tls",  # LEAPSECONDS KERNEL FILE
+        # "pck00011.tpc",  # PLANETARY CONSTANTS KERNEL FILE: orientation and size/shape data for natural bodies(Sun, planets, asteroids, etc)
+    ]
+    for kernel_file in spice_kernel_files:
+        spice.load_kernel(data.get_spice_kernel_path() + "/" + kernel_file)
+
+
+def get_tle_epoch(tle):
+    """Convert the TLE epoch to a DateTime object."""
+
+    tle_epoch_dt = None
+
+    if True:
+        """Use the TLE epoch from the TLE object, which is in ephemeris time (aka TDB),
+        and convert it to a DateTime object."""
+
+        # TLE set epoch in seconds from J2000
+        tle_epoch_et = tle.get_epoch()
+
+        tle_epoch_utc = spice.get_approximate_utc_from_tdb(tle_epoch_et)
+        tle_epoch_dt = DateTime.from_epoch(tle_epoch_utc)
+    else:
+        """Parse the TLE epoch from the first line of the TLE data,
+        which is in the format YYDDD.DDDDDDDD,
+        where YY is the last two digits of the year
+        and DDD.DDDDDDDD is the day of the year with a fractional portion representing the time of day.
+        """
+
+        tle_epoch_year = int(tle.raw_line_1[18:20])
+
+        # Day of the year and fractional portion of the day
+        tle_epoch_days = float(tle.raw_line_1[20:32])
+
+        # Convert to seconds since J2000
+        # TLE day number starts with a 1, so a day fraction of 1.0 would mean Jan 1st, 0:00.
+        if tle_epoch_year < 57:
+            tle_epoch_year += 2000
+        else:
+            tle_epoch_year += 1900
+
+            # TLE day numbering starts with 1, whereas Tudat assumes January 1st to be number 0
+        tle_epoch_dt = DateTime(tle_epoch_year, 1, 1, 0, 0, 0.0)
+        tle_epoch_dt = tle_epoch_dt.add_days(tle_epoch_days - 1.0)
+
+    return tle_epoch_dt
 
 
 def main():
@@ -20,6 +77,8 @@ def main():
 
     tle_files = sys.argv[1:]
     print(f"TLE files: {tle_files}\n")
+
+    load_spice_kernels()
 
     for tle_file in tle_files:
         print(f"Loading TLE file: {tle_file}")
@@ -35,17 +94,14 @@ def main():
 
             # Print the TLE parameters
 
-            # TLE set epoch in seconds from J2000
-            tle_epoch_et = tle.get_epoch()
-            tle_epoch_dt = DateTime.from_epoch(tle_epoch_et)
-            tle_epoch_iso = tle_epoch_dt.iso_string(number_of_digits_seconds=3)
+            tle_epoch_dt = get_tle_epoch(tle)
+            tle_epoch_iso = tle_epoch_dt.to_iso_string(number_of_digits_seconds=3)
             print(f"Epoch: {tle_epoch_iso}")
 
             # B-Star coefficient
             print(f"B* (B-star) Drag Term: {tle.get_b_star()}")
 
             # Inclination of the orbit in radians
-            math.degrees
             tle_inclination_deg = math.degrees(tle.get_inclination())
             print(f"Inclination: {tle_inclination_deg:.2f} degrees")
 
@@ -65,7 +121,7 @@ def main():
             print(f"Mean Anomaly: {tle_mean_anomaly_deg:.2f} degrees")
 
             # Mean motion in radians per minute
-            tle_mean_motion_deg_per_min = math.degrees(tle.get_mean_motion())
+            tle_mean_motion_deg_per_min = math.degrees(tle.mean_motion)
             print(f"Mean Motion: {tle_mean_motion_deg_per_min:.2f} degrees per minute")
 
             # Break the line after each TLE file
