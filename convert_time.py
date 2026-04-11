@@ -15,6 +15,7 @@ class TimeFormat(StrEnum):
     UTC_YMDHMS = "ymdhms"  # Year, Month, Day, Hour, Minute, Seconds format in UTC: "YYYY,MM,DD,HH,MM,SS.sss"
     UTC_J2000 = "j2000"  # Time in UTC; in seconds since UTC J2000 epoch (2000-01-01 12:00:00.000 UTC)
     TAI_J2000 = "tai"  # Time in TAI; in seconds since TAI J2000 epoch (2000-01-01 12:00:00.000 TAI = 2000-01-01 11:59:28 UTC)
+    TT_J2000 = "tt"  # Terrestial Time; in seconds since TT J2000 epoch (2000-01-01 12:00:00.000 TT = 2000-01-01 11:58:55.816 UTC)
 
 
 SUPPORTED_FORMATS = [c.value for c in TimeFormat]
@@ -48,6 +49,9 @@ class TimeData:
     def to_tai_j2000(self) -> float:
         raise NotImplementedError("to_tai_j2000() not implemented for this time format")
 
+    def to_tt_j2000(self) -> float:
+        raise NotImplementedError("to_tt_j2000() not implemented for this time format")
+
 
 @dataclass
 class UtcIsoTimeData(TimeData):
@@ -72,6 +76,14 @@ class UtcIsoTimeData(TimeData):
             input_value=epoch_utc,
             input_scale=TimeScales.utc_scale,
             output_scale=TimeScales.tai_scale,
+        )
+
+    def to_tt_j2000(self) -> float:
+        epoch_utc = self.to_utc_j2000()
+        return time_representation.default_time_scale_converter().convert_time(
+            input_value=epoch_utc,
+            input_scale=TimeScales.utc_scale,
+            output_scale=TimeScales.tt_scale,
         )
 
 
@@ -106,6 +118,14 @@ class UtcYmdhmsTimeData(TimeData):
             output_scale=TimeScales.tai_scale,
         )
 
+    def to_tt_j2000(self) -> float:
+        epoch_utc = self.to_utc_j2000()
+        return time_representation.default_time_scale_converter().convert_time(
+            input_value=epoch_utc,
+            input_scale=TimeScales.utc_scale,
+            output_scale=TimeScales.tt_scale,
+        )
+
 
 @dataclass
 class UtcJ2000TimeData(TimeData):
@@ -130,6 +150,14 @@ class UtcJ2000TimeData(TimeData):
             input_value=epoch_utc,
             input_scale=TimeScales.utc_scale,
             output_scale=TimeScales.tai_scale,
+        )
+
+    def to_tt_j2000(self) -> float:
+        epoch_utc = float(self.time_string)
+        return time_representation.default_time_scale_converter().convert_time(
+            input_value=epoch_utc,
+            input_scale=TimeScales.utc_scale,
+            output_scale=TimeScales.tt_scale,
         )
 
 
@@ -160,6 +188,50 @@ class TaiTimeData(TimeData):
     def to_tai_j2000(self) -> float:
         return float(self.time_string)
 
+    def to_tt_j2000(self) -> float:
+        epoch_tai = self.to_tai_j2000()
+        return time_representation.default_time_scale_converter().convert_time(
+            input_value=epoch_tai,
+            input_scale=TimeScales.tai_scale,
+            output_scale=TimeScales.tt_scale,
+        )
+
+
+@dataclass
+class TtTimeData(TimeData):
+
+    def __init__(self, string: str):
+        super().__init__(TimeFormat.TT_J2000, string)
+
+    def to_utc_iso(self) -> str:
+        epoch_utc = self.to_utc_j2000()
+        date_time = DateTime.from_epoch(epoch_utc)
+        return date_time.to_iso_string(number_of_digits_seconds=3)
+
+    def to_utc_ymdhms(self) -> str:
+        epoch_utc = self.to_utc_j2000()
+        date_time = DateTime.from_epoch(epoch_utc)
+        return f"{date_time.year},{date_time.month},{date_time.day},{date_time.hour},{date_time.minute},{date_time.seconds}"
+
+    def to_utc_j2000(self) -> float:
+        epoch_tt = self.to_tt_j2000()
+        return time_representation.default_time_scale_converter().convert_time(
+            input_value=epoch_tt,
+            input_scale=TimeScales.tt_scale,
+            output_scale=TimeScales.utc_scale,
+        )
+
+    def to_tai_j2000(self) -> float:
+        epoch_tt = self.to_tt_j2000()
+        return time_representation.default_time_scale_converter().convert_time(
+            input_value=epoch_tt,
+            input_scale=TimeScales.tt_scale,
+            output_scale=TimeScales.tai_scale,
+        )
+
+    def to_tt_j2000(self) -> float:
+        return float(self.time_string)
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -174,10 +246,14 @@ def parse_args() -> argparse.Namespace:
         + ": UTC. Year, Month, Day, Hour, Minute, Seconds format (e.g., '2024,06,01,12,00,00.000')\n"
         + "  "
         + TimeFormat.UTC_J2000
-        + ": UTC. Seconds since J2000 epoch (January 1, 2000, 12:00:00 UTC) (e.g., '31557600.000')\n"
+        + ": UTC. Seconds since UTC J2000 epoch (January 1, 2000, 12:00:00 UTC) (e.g., '31557600.000')\n"
         + "  "
         + TimeFormat.TAI_J2000
-        + ": TAI",
+        + ": TAI. "
+        + "Seconds since TAI J2000 epoch (January 1, 2000, 12:00:00 TAI = January 1, 2000, 11:59:28 UTC) (e.g., '31557628.000')\n"
+        + "  "
+        + TimeFormat.TT_J2000
+        + ": Terrestrial Time. Seconds since TT J2000 epoch (January 1, 2000, 12:00:00 TT = January 1, 2000, 11:58:55.816 UTC) (e.g., '31558127.816')\n",
     )
     parser.add_argument(
         "-i",
@@ -222,6 +298,9 @@ def parse_time_value(value: str, fmt: str) -> TimeData:
         return UtcJ2000TimeData(value)
     if fmt == TimeFormat.TAI_J2000:
         return TaiTimeData(value)
+    if fmt == TimeFormat.TT_J2000:
+        return TtTimeData(value)
+
     raise ValueError(f"Unsupported input format: {fmt}")
 
 
@@ -234,6 +313,9 @@ def convert_time_value(time: TimeData, format_name: str) -> str:
         return str(time.to_utc_j2000())
     if format_name == TimeFormat.TAI_J2000:
         return str(time.to_tai_j2000())
+    if format_name == TimeFormat.TT_J2000:
+        return str(time.to_tt_j2000())
+
     raise ValueError(f"Unsupported output format: {format_name}")
 
 
