@@ -56,40 +56,31 @@ def create_earth_rotation_model():
     return bodies.get(Earth).rotation_model
 
 
-def read_input_tokens_from_stdin():
-    stdin_data = sys.stdin.read().strip()
-    if not stdin_data:
-        return []
-    return stdin_data.split()
-
-
 def read_ephemeris():
     if len(sys.argv) == 1:
         # No command-line data except script name: read time + position/velocity from stdin.
-        tokens = read_input_tokens_from_stdin()
-        if len(tokens) not in (4, 7):
-            print_usage()
-            sys.exit(1)
-        input_time_string = tokens[0]
-        input_position_km = np.array([float(x) for x in tokens[1:4]])
-        if len(tokens) == 7:
-            input_velocity_kms = np.array([float(x) for x in tokens[4:7]])
-    elif len(sys.argv) == 2:
-        # Time provided on command line; read position/velocity from stdin.
-        input_time_string = sys.argv[1]
-        tokens = read_input_tokens_from_stdin()
-        if len(tokens) not in (3, 6):
-            print_usage()
-            sys.exit(1)
-        input_position_km = np.array([float(x) for x in tokens[0:3]])
-        if len(tokens) == 6:
-            input_velocity_kms = np.array([float(x) for x in tokens[3:6]])
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+            tokens = line.split()
+            if len(tokens) not in (4, 7):
+                print_usage()
+                sys.exit(1)
+            input_time_string = tokens[0]
+            input_position_km = np.array([float(x) for x in tokens[1:4]])
+            input_velocity_kms = (
+                np.array([float(x) for x in tokens[4:7]]) if len(tokens) == 7 else None
+            )
+            yield input_time_string, input_position_km, input_velocity_kms
     else:
+        # Read time + position/velocity from command-line arguments. Expecting either 4 or 7 arguments after the script name (time + position, optionally followed by velocity).
         input_time_string = sys.argv[1]
         input_position_km = np.array([float(x) for x in sys.argv[2:5]])
-        if len(sys.argv) == 8:
-            input_velocity_kms = np.array([float(x) for x in sys.argv[5:8]])
-    return input_time_string, input_position_km, input_velocity_kms
+        input_velocity_kms = (
+            np.array([float(x) for x in sys.argv[5:8]]) if len(sys.argv) == 8 else None
+        )
+        yield input_time_string, input_position_km, input_velocity_kms
 
 
 # Function to convert position and velocity from GCRF to ITRF at a given epoch using the Earth rotation model
@@ -179,7 +170,7 @@ def main():
         set_reverse_conversion = True
         sys.argv.pop(1)  # Remove the -r option from the arguments list
 
-    if len(sys.argv) not in (1, 2, 5, 8):
+    if len(sys.argv) not in (1, 5, 8):
         print_usage()
         sys.exit(1)
 
@@ -189,52 +180,53 @@ def main():
 
     earth_rotation_model = create_earth_rotation_model()
 
-    # Read time string and position/velocity either from command line or from stdin.
+    # Read input ephemeris data (time + position/velocity) from command-line arguments or stdin, convert each entry, and print the results. Expecting either 4 or 7 arguments per entry (time + position, optionally followed by velocity).
 
-    input_time_string = None
-    input_position_km = None
-    input_velocity_kms = None
+    # Flag to track if we processed any input data, so we can print usage and exit if no valid data was provided
+    processed_any = False
 
-    input_time_string, input_position_km, input_velocity_kms = read_ephemeris()
+    for input_time_string, input_position_km, input_velocity_kms in read_ephemeris():
+        processed_any = True
+        # Convert input time string to ephemeris time (seconds past J2000) using SPICE function
+        input_epoch_et = spice.convert_date_string_to_ephemeris_time(input_time_string)
 
-    # Convert input time string to ephemeris time (seconds past J2000) using SPICE function
+        # Call the reference frame conversion function
+        if set_reverse_conversion:
+            output_position_km, output_velocity_kms = convert_itrf_to_gcrf(
+                earth_rotation_model,
+                input_epoch_et,
+                input_position_km,
+                input_velocity_kms,
+            )
+        else:
+            output_position_km, output_velocity_kms = convert_gcrf_to_itrf(
+                earth_rotation_model,
+                input_epoch_et,
+                input_position_km,
+                input_velocity_kms,
+            )
 
-    input_epoch_et = spice.convert_date_string_to_ephemeris_time(input_time_string)
-
-    # Call the reference frame conversion function
-
-    if set_reverse_conversion:
-        output_position_km, output_velocity_kms = convert_itrf_to_gcrf(
-            earth_rotation_model,
-            input_epoch_et,
-            input_position_km,
-            input_velocity_kms,
-        )
-    else:
-        output_position_km, output_velocity_kms = convert_gcrf_to_itrf(
-            earth_rotation_model,
-            input_epoch_et,
-            input_position_km,
-            input_velocity_kms,
-        )
-
-    print(
-        input_time_string,
-        output_position_km[0],
-        output_position_km[1],
-        output_position_km[2],
-        end="",
-    )
-
-    if output_velocity_kms is not None:
         print(
-            " ",
-            output_velocity_kms[0],
-            output_velocity_kms[1],
-            output_velocity_kms[2],
+            input_time_string,
+            output_position_km[0],
+            output_position_km[1],
+            output_position_km[2],
             end="",
         )
-    print()
+
+        if output_velocity_kms is not None:
+            print(
+                " ",
+                output_velocity_kms[0],
+                output_velocity_kms[1],
+                output_velocity_kms[2],
+                end="",
+            )
+        print()
+
+    if not processed_any:
+        print_usage()
+        sys.exit(1)
 
 
 if __name__ == "__main__":
