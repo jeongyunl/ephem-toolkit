@@ -35,6 +35,38 @@ class TimeData:
     def to_utc_iso(self) -> str:
         epoch_utc = self.to_utc_j2000()
         date_time = DateTime.from_epoch(epoch_utc)
+
+        # Check if this epoch might be leap second
+        if (
+            (date_time.month == 7 or date_time.month == 1)
+            and date_time.day == 1
+            and date_time.hour == 0
+            and date_time.minute == 0
+            and date_time.seconds <= 1.0
+        ):
+            epoch_utc_plus_1 = (
+                time_representation.default_time_scale_converter().convert_time(
+                    input_value=self.native_epoch + 1,
+                    input_scale=self.native_time_scale,
+                    output_scale=TimeScales.utc_scale,
+                )
+            )
+
+            # Leap second
+            if epoch_utc == epoch_utc_plus_1:
+                # It is leap second
+                epoch_utc_minus_1 = (
+                    time_representation.default_time_scale_converter().convert_time(
+                        input_value=self.native_epoch - 1,
+                        input_scale=self.native_time_scale,
+                        output_scale=TimeScales.utc_scale,
+                    )
+                )
+                date_time = DateTime.from_epoch(epoch_utc_minus_1)
+                # FIXME
+                # Due to tudat DateTime's bug, this will fail when date_time.seconds is greater than 59.0
+                date_time.seconds += 1.0
+
         return date_time.to_iso_string(number_of_digits_seconds=3)
 
     def to_utc_ymdhms(self) -> str:
@@ -272,6 +304,7 @@ def main() -> None:
     for value in iter_input_times(args):
         dt = parse_time_value(value, args.input_format)
         output = convert_time_value(dt, args.output_format)
+        print(f"{value}\t", end="")
         if isinstance(output, float):
             print(f"{output:.3f}")
         else:
