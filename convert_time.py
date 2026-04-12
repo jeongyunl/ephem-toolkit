@@ -80,6 +80,14 @@ class UtcTimeData(TimeData):
         self.date_time = None
         self.leap_second = 0.0
 
+    def update_date_time(self, date_time: DateTime):
+        self.date_time = date_time
+        self.native_epoch = self.date_time.to_epoch()
+
+        # If the seconds value is 60 or more, it indicates a leap second.
+        if self.date_time.seconds >= 60.0:
+            self.leap_second = 1.0
+
     def to_utc_iso(self) -> str:
         return self.date_time.to_iso_string(number_of_digits_seconds=3)
 
@@ -104,12 +112,7 @@ class UtcIsoTimeData(UtcTimeData):
     def __init__(self, string: str):
         super().__init__(TimeFormat.UTC_ISO, string)
 
-        self.date_time = DateTime.from_iso_string(self.time_string)
-        self.native_epoch = self.date_time.to_epoch()
-
-        # If the seconds value is 60 or more, it indicates a leap second.
-        if self.date_time.seconds >= 60.0:
-            self.leap_second = 1.0
+        self.update_date_time(DateTime.from_iso_string(self.time_string))
 
 
 class UtcYmdhmsTimeData(UtcTimeData):
@@ -118,20 +121,16 @@ class UtcYmdhmsTimeData(UtcTimeData):
         super().__init__(TimeFormat.UTC_YMDHMS, string)
 
         ymdhms = str.split(self.time_string, sep=",", maxsplit=6)
-        self.date_time = DateTime(
-            int(ymdhms[0]),
-            int(ymdhms[1]),
-            int(ymdhms[2]),
-            int(ymdhms[3]),
-            int(ymdhms[4]),
-            float(ymdhms[5]),
+        self.update_date_time(
+            DateTime(
+                int(ymdhms[0]),
+                int(ymdhms[1]),
+                int(ymdhms[2]),
+                int(ymdhms[3]),
+                int(ymdhms[4]),
+                float(ymdhms[5]),
+            )
         )
-
-        self.native_epoch = self.date_time.to_epoch()
-
-        # If the seconds value is 60 or more, it indicates a leap second.
-        if self.date_time.seconds >= 60.0:
-            self.leap_second = 1.0
 
 
 class UtcJ2000TimeData(UtcTimeData):
@@ -140,7 +139,7 @@ class UtcJ2000TimeData(UtcTimeData):
         super().__init__(TimeFormat.UTC_J2000, string)
 
         self.native_epoch = float(self.time_string)
-        self.date_time = DateTime.from_epoch(self.native_epoch)
+        self.update_date_time(DateTime.from_epoch(self.native_epoch))
 
 
 class TaiTimeData(TimeData):
