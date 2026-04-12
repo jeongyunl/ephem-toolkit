@@ -2,15 +2,15 @@
 
 import argparse
 import sys
-from dataclasses import dataclass
 from typing import Iterable
 
 import tudatpy.astro.time_representation as time_representation
 from tudatpy.astro.time_representation import DateTime, TimeScales
-from enum import StrEnum
+
+from enum import Enum
 
 
-class TimeFormat(StrEnum):
+class TimeFormat(Enum):
     UTC_ISO = "iso"  # ISO 8601 format in UTC: "YYYY-MM-DDTHH:MM:SS.sss"
     UTC_YMDHMS = "ymdhms"  # Year, Month, Day, Hour, Minute, Seconds format in UTC: "YYYY,MM,DD,HH,MM,SS.sss"
     UTC_J2000 = "j2000"  # Time in UTC; in seconds since UTC J2000 epoch (2000-01-01 12:00:00.000 UTC)
@@ -22,7 +22,6 @@ class TimeFormat(StrEnum):
 SUPPORTED_FORMATS = [c.value for c in TimeFormat]
 
 
-@dataclass
 class TimeData:
     """Container for time format and value."""
 
@@ -57,7 +56,6 @@ class TimeData:
         raise NotImplementedError("to_tdb_j2000() not implemented for this time format")
 
 
-@dataclass
 class UtcIsoTimeData(TimeData):
 
     def __init__(self, string: str):
@@ -99,7 +97,6 @@ class UtcIsoTimeData(TimeData):
         )
 
 
-@dataclass
 class UtcYmdhmsTimeData(TimeData):
 
     def __init__(self, string: str):
@@ -147,7 +144,6 @@ class UtcYmdhmsTimeData(TimeData):
         )
 
 
-@dataclass
 class UtcJ2000TimeData(TimeData):
 
     def __init__(self, string: str):
@@ -189,7 +185,6 @@ class UtcJ2000TimeData(TimeData):
         )
 
 
-@dataclass
 class TaiTimeData(TimeData):
 
     def __init__(self, string: str):
@@ -233,7 +228,6 @@ class TaiTimeData(TimeData):
         )
 
 
-@dataclass
 class TtTimeData(TimeData):
 
     def __init__(self, string: str):
@@ -277,7 +271,6 @@ class TtTimeData(TimeData):
         )
 
 
-@dataclass
 class TdbTimeData(TimeData):
 
     def __init__(self, string: str):
@@ -327,20 +320,20 @@ def parse_args() -> argparse.Namespace:
         description="Convert time values between supported TudatPy time formats.",
         epilog="Supported time formats:\n"
         + "  "
-        + TimeFormat.UTC_ISO
+        + TimeFormat.UTC_ISO.value
         + ": UTC. ISO 8601 format (e.g., '2024-06-01T12:00:00.000')\n"
         + "  "
-        + TimeFormat.UTC_YMDHMS
+        + TimeFormat.UTC_YMDHMS.value
         + ": UTC. Year, Month, Day, Hour, Minute, Seconds format (e.g., '2024,06,01,12,00,00.000')\n"
         + "  "
-        + TimeFormat.UTC_J2000
+        + TimeFormat.UTC_J2000.value
         + ": UTC. Seconds since UTC J2000 epoch (January 1, 2000, 12:00:00 UTC) (e.g., '31557600.000')\n"
         + "  "
-        + TimeFormat.TAI_J2000
+        + TimeFormat.TAI_J2000.value
         + ": TAI. "
         + "Seconds since TAI J2000 epoch (January 1, 2000, 12:00:00 TAI = January 1, 2000, 11:59:28 UTC) (e.g., '31557628.000')\n"
         + "  "
-        + TimeFormat.TT_J2000
+        + TimeFormat.TT_J2000.value
         + ": Terrestrial Time. Seconds since TT J2000 epoch (January 1, 2000, 12:00:00 TT = January 1, 2000, 11:58:55.816 UTC) (e.g., '31558127.816')\n",
     )
     parser.add_argument(
@@ -378,34 +371,34 @@ def iter_input_times(args: argparse.Namespace) -> Iterable[str]:
 
 
 def parse_time_value(value: str, fmt: str) -> TimeData:
-    if fmt == TimeFormat.UTC_ISO:
+    if fmt == TimeFormat.UTC_ISO.value:
         return UtcIsoTimeData(value)
-    if fmt == TimeFormat.UTC_YMDHMS:
+    if fmt == TimeFormat.UTC_YMDHMS.value:
         return UtcYmdhmsTimeData(value)
-    if fmt == TimeFormat.UTC_J2000:
+    if fmt == TimeFormat.UTC_J2000.value:
         return UtcJ2000TimeData(value)
-    if fmt == TimeFormat.TAI_J2000:
+    if fmt == TimeFormat.TAI_J2000.value:
         return TaiTimeData(value)
-    if fmt == TimeFormat.TT_J2000:
+    if fmt == TimeFormat.TT_J2000.value:
         return TtTimeData(value)
-    if fmt == TimeFormat.TDB_J2000:
+    if fmt == TimeFormat.TDB_J2000.value:
         return TdbTimeData(value)
 
     raise ValueError(f"Unsupported input format: {fmt}")
 
 
-def convert_time_value(time: TimeData, format_name: str) -> str | float:
-    if format_name == TimeFormat.UTC_ISO:
+def convert_time_value(time: TimeData, format_name: str):
+    if format_name == TimeFormat.UTC_ISO.value:
         return time.to_utc_iso()
-    if format_name == TimeFormat.UTC_YMDHMS:
+    if format_name == TimeFormat.UTC_YMDHMS.value:
         return time.to_utc_ymdhms()
-    if format_name == TimeFormat.UTC_J2000:
+    if format_name == TimeFormat.UTC_J2000.value:
         return time.to_utc_j2000()
-    if format_name == TimeFormat.TAI_J2000:
+    if format_name == TimeFormat.TAI_J2000.value:
         return time.to_tai_j2000()
-    if format_name == TimeFormat.TT_J2000:
+    if format_name == TimeFormat.TT_J2000.value:
         return time.to_tt_j2000()
-    if format_name == TimeFormat.TDB_J2000:
+    if format_name == TimeFormat.TDB_J2000.value:
         return time.to_tdb_j2000()
 
     raise ValueError(f"Unsupported output format: {format_name}")
