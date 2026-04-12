@@ -25,9 +25,9 @@ SUPPORTED_FORMATS = [c.value for c in TimeFormat]
 class TimeData:
     """Container for time format and value."""
 
-    def __init__(self, time_format: TimeFormat, string: str):
+    def __init__(self, time_format: TimeFormat, time_string: str):
         self.time_format = time_format
-        self.time_string = string
+        self.time_string = time_string
 
         self.native_time_scale = None
         self.native_epoch = None
@@ -73,15 +73,14 @@ class TimeData:
 
 class UtcTimeData(TimeData):
 
-    def __init__(self, time_format: TimeFormat, string: str):
-        super().__init__(time_format, string)
+    def __init__(self, time_format: TimeFormat, time_string: str):
+        super().__init__(time_format, time_string)
 
         self.native_time_scale = TimeScales.utc_scale
         self.date_time = None
         self.leap_second = 0.0
 
-    def update_date_time(self, date_time: DateTime):
-        self.date_time = date_time
+    def update_utc_epoch(self):
         self.native_epoch = self.date_time.to_epoch()
 
         # If the seconds value is 60 or more, it indicates a leap second.
@@ -109,49 +108,46 @@ class UtcTimeData(TimeData):
 
 class UtcIsoTimeData(UtcTimeData):
 
-    def __init__(self, string: str):
-        super().__init__(TimeFormat.UTC_ISO, string)
+    def __init__(self, time_string: str):
+        super().__init__(TimeFormat.UTC_ISO, time_string)
 
-        self.update_date_time(DateTime.from_iso_string(self.time_string))
+        self.date_time = DateTime.from_iso_string(self.time_string)
+        self.update_utc_epoch()
 
 
 class UtcYmdhmsTimeData(UtcTimeData):
 
-    def __init__(self, string: str):
-        super().__init__(TimeFormat.UTC_YMDHMS, string)
+    def __init__(self, time_string: str):
+        super().__init__(TimeFormat.UTC_YMDHMS, time_string)
 
         ymdhms = str.split(self.time_string, sep=",", maxsplit=6)
-        self.update_date_time(
-            DateTime(
-                int(ymdhms[0]),
-                int(ymdhms[1]),
-                int(ymdhms[2]),
-                int(ymdhms[3]),
-                int(ymdhms[4]),
-                float(ymdhms[5]),
-            )
+        self.date_time = DateTime(
+            int(ymdhms[0]),
+            int(ymdhms[1]),
+            int(ymdhms[2]),
+            int(ymdhms[3]),
+            int(ymdhms[4]),
+            float(ymdhms[5]),
         )
+        self.update_utc_epoch()
 
 
 class UtcJ2000TimeData(UtcTimeData):
 
-    def __init__(self, string: str):
-        super().__init__(TimeFormat.UTC_J2000, string)
+    def __init__(self, time_string: str):
+        super().__init__(TimeFormat.UTC_J2000, time_string)
 
-        self.native_epoch = float(self.time_string)
-        self.update_date_time(DateTime.from_epoch(self.native_epoch))
+        self.date_time = DateTime.from_epoch(float(self.time_string))
+        self.update_utc_epoch()
 
 
 class TaiTimeData(TimeData):
 
-    def __init__(self, string: str):
-        super().__init__(TimeFormat.TAI_J2000, string)
+    def __init__(self, time_string: str):
+        super().__init__(TimeFormat.TAI_J2000, time_string)
 
         self.native_time_scale = TimeScales.tai_scale
         self.native_epoch = float(self.time_string)
-
-    def get_native_epoch(self):
-        return self.to_tai_j2000()
 
     def to_tai_j2000(self) -> float:
         return self.native_epoch
@@ -159,14 +155,11 @@ class TaiTimeData(TimeData):
 
 class TtTimeData(TimeData):
 
-    def __init__(self, string: str):
-        super().__init__(TimeFormat.TT_J2000, string)
+    def __init__(self, time_string: str):
+        super().__init__(TimeFormat.TT_J2000, time_string)
 
         self.native_time_scale = TimeScales.tt_scale
         self.native_epoch = float(self.time_string)
-
-    def get_native_epoch(self):
-        return self.to_tt_j2000()
 
     def to_tt_j2000(self) -> float:
         return self.native_epoch
@@ -174,14 +167,11 @@ class TtTimeData(TimeData):
 
 class TdbTimeData(TimeData):
 
-    def __init__(self, string: str):
-        super().__init__(TimeFormat.TDB_J2000, string)
+    def __init__(self, time_string: str):
+        super().__init__(TimeFormat.TDB_J2000, time_string)
 
         self.native_time_scale = TimeScales.tdb_scale
         self.native_epoch = float(self.time_string)
-
-    def get_native_epoch(self):
-        return self.to_tdb_j2000()
 
     def to_tdb_j2000(self) -> float:
         return self.native_epoch
