@@ -33,12 +33,14 @@ class TimeData:
         self.native_epoch = None
 
     def to_utc_iso(self) -> str:
-        raise NotImplementedError("to_utc_iso() not implemented for this time format")
+        epoch_utc = self.to_utc_j2000()
+        date_time = DateTime.from_epoch(epoch_utc)
+        return date_time.to_iso_string(number_of_digits_seconds=3)
 
     def to_utc_ymdhms(self) -> str:
-        raise NotImplementedError(
-            "to_utc_ymdhms() not implemented for this time format"
-        )
+        epoch_utc = self.to_utc_j2000()
+        date_time = DateTime.from_epoch(epoch_utc)
+        return f"{date_time.year},{date_time.month},{date_time.day},{date_time.hour},{date_time.minute},{date_time.seconds}"
 
     def to_utc_j2000(self) -> float:
         return time_representation.default_time_scale_converter().convert_time(
@@ -69,22 +71,17 @@ class TimeData:
         )
 
 
-class UtcIsoTimeData(TimeData):
+class UtcTimeData(TimeData):
 
-    def __init__(self, string: str):
-        super().__init__(TimeFormat.UTC_ISO, string)
-        self.date_time = DateTime.from_iso_string(self.time_string)
+    def __init__(self, time_format: TimeFormat, string: str):
+        super().__init__(time_format, string)
 
         self.native_time_scale = TimeScales.utc_scale
-        self.native_epoch = self.date_time.to_epoch()
-
+        self.date_time = None
         self.leap_second = 0.0
-        # If the seconds value is 60 or more, it indicates a leap second.
-        if self.date_time.seconds >= 60.0:
-            self.leap_second = 1.0
 
     def to_utc_iso(self) -> str:
-        return self.time_string
+        return self.date_time.to_iso_string(number_of_digits_seconds=3)
 
     def to_utc_ymdhms(self) -> str:
         return f"{self.date_time.year},{self.date_time.month},{self.date_time.day},{self.date_time.hour},{self.date_time.minute},{self.date_time.seconds}"
@@ -102,7 +99,20 @@ class UtcIsoTimeData(TimeData):
         return super().to_tdb_j2000() - self.leap_second
 
 
-class UtcYmdhmsTimeData(TimeData):
+class UtcIsoTimeData(UtcTimeData):
+
+    def __init__(self, string: str):
+        super().__init__(TimeFormat.UTC_ISO, string)
+
+        self.date_time = DateTime.from_iso_string(self.time_string)
+        self.native_epoch = self.date_time.to_epoch()
+
+        # If the seconds value is 60 or more, it indicates a leap second.
+        if self.date_time.seconds >= 60.0:
+            self.leap_second = 1.0
+
+
+class UtcYmdhmsTimeData(UtcTimeData):
 
     def __init__(self, string: str):
         super().__init__(TimeFormat.UTC_YMDHMS, string)
@@ -117,56 +127,20 @@ class UtcYmdhmsTimeData(TimeData):
             float(ymdhms[5]),
         )
 
-        self.native_time_scale = TimeScales.utc_scale
         self.native_epoch = self.date_time.to_epoch()
 
-        self.leap_second = 0.0
         # If the seconds value is 60 or more, it indicates a leap second.
         if self.date_time.seconds >= 60.0:
             self.leap_second = 1.0
 
-    def get_native_epoch(self):
-        return self.to_utc_j2000()
 
-    def to_utc_iso(self) -> str:
-        return self.date_time.to_iso_string(number_of_digits_seconds=3)
-
-    def to_utc_ymdhms(self) -> str:
-        return self.time_string
-
-    def to_utc_j2000(self) -> float:
-        return self.native_epoch
-
-    def to_tai_j2000(self) -> float:
-        return super().to_tai_j2000() - self.leap_second
-
-    def to_tt_j2000(self) -> float:
-        return super().to_tt_j2000() - self.leap_second
-
-    def to_tdb_j2000(self) -> float:
-        return super().to_tdb_j2000() - self.leap_second
-
-
-class UtcJ2000TimeData(TimeData):
+class UtcJ2000TimeData(UtcTimeData):
 
     def __init__(self, string: str):
         super().__init__(TimeFormat.UTC_J2000, string)
-        self.native_time_scale = TimeScales.utc_scale
+
         self.native_epoch = float(self.time_string)
-
         self.date_time = DateTime.from_epoch(self.native_epoch)
-
-    def get_native_epoch(self):
-        return self.to_utc_j2000()
-
-    def to_utc_iso(self) -> str:
-        return self.date_time.to_iso_string(number_of_digits_seconds=3)
-
-    def to_utc_ymdhms(self) -> str:
-        return f"{self.date_time.year},{self.date_time.month},{self.date_time.day},{self.date_time.hour},{self.date_time.minute},{self.date_time.seconds}"
-
-    def to_utc_j2000(self) -> float:
-        return self.native_epoch
 
 
 class TaiTimeData(TimeData):
@@ -179,16 +153,6 @@ class TaiTimeData(TimeData):
 
     def get_native_epoch(self):
         return self.to_tai_j2000()
-
-    def to_utc_iso(self) -> str:
-        epoch_utc = self.to_utc_j2000()
-        date_time = DateTime.from_epoch(epoch_utc)
-        return date_time.to_iso_string(number_of_digits_seconds=3)
-
-    def to_utc_ymdhms(self) -> str:
-        epoch_utc = self.to_utc_j2000()
-        date_time = DateTime.from_epoch(epoch_utc)
-        return f"{date_time.year},{date_time.month},{date_time.day},{date_time.hour},{date_time.minute},{date_time.seconds}"
 
     def to_tai_j2000(self) -> float:
         return self.native_epoch
@@ -205,16 +169,6 @@ class TtTimeData(TimeData):
     def get_native_epoch(self):
         return self.to_tt_j2000()
 
-    def to_utc_iso(self) -> str:
-        epoch_utc = self.to_utc_j2000()
-        date_time = DateTime.from_epoch(epoch_utc)
-        return date_time.to_iso_string(number_of_digits_seconds=3)
-
-    def to_utc_ymdhms(self) -> str:
-        epoch_utc = self.to_utc_j2000()
-        date_time = DateTime.from_epoch(epoch_utc)
-        return f"{date_time.year},{date_time.month},{date_time.day},{date_time.hour},{date_time.minute},{date_time.seconds}"
-
     def to_tt_j2000(self) -> float:
         return self.native_epoch
 
@@ -229,16 +183,6 @@ class TdbTimeData(TimeData):
 
     def get_native_epoch(self):
         return self.to_tdb_j2000()
-
-    def to_utc_iso(self) -> str:
-        epoch_utc = self.to_utc_j2000()
-        date_time = DateTime.from_epoch(epoch_utc)
-        return date_time.to_iso_string(number_of_digits_seconds=3)
-
-    def to_utc_ymdhms(self) -> str:
-        epoch_utc = self.to_utc_j2000()
-        date_time = DateTime.from_epoch(epoch_utc)
-        return f"{date_time.year},{date_time.month},{date_time.day},{date_time.hour},{date_time.minute},{date_time.seconds}"
 
     def to_tdb_j2000(self) -> float:
         return self.native_epoch
