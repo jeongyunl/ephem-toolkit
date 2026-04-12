@@ -25,15 +25,12 @@ SUPPORTED_FORMATS = [c.value for c in TimeFormat]
 class TimeData:
     """Container for time format and value."""
 
-    time_format: TimeFormat
-    time_string: str = ""
-
     def __init__(self, time_format: TimeFormat, string: str):
         self.time_format = time_format
         self.time_string = string
 
-    def can_convert_to(self, other_format: TimeFormat) -> bool:
-        return self.time_format != other_format
+        self.native_time_scale = None
+        self.native_epoch = None
 
     def to_utc_iso(self) -> str:
         raise NotImplementedError("to_utc_iso() not implemented for this time format")
@@ -44,16 +41,32 @@ class TimeData:
         )
 
     def to_utc_j2000(self) -> float:
-        raise NotImplementedError("to_utc_j2000() not implemented for this time format")
+        return time_representation.default_time_scale_converter().convert_time(
+            input_value=self.native_epoch,
+            input_scale=self.native_time_scale,
+            output_scale=TimeScales.utc_scale,
+        )
 
     def to_tai_j2000(self) -> float:
-        raise NotImplementedError("to_tai_j2000() not implemented for this time format")
+        return time_representation.default_time_scale_converter().convert_time(
+            input_value=self.native_epoch,
+            input_scale=self.native_time_scale,
+            output_scale=TimeScales.tai_scale,
+        )
 
     def to_tt_j2000(self) -> float:
-        raise NotImplementedError("to_tt_j2000() not implemented for this time format")
+        return time_representation.default_time_scale_converter().convert_time(
+            input_value=self.native_epoch,
+            input_scale=self.native_time_scale,
+            output_scale=TimeScales.tt_scale,
+        )
 
     def to_tdb_j2000(self) -> float:
-        raise NotImplementedError("to_tdb_j2000() not implemented for this time format")
+        return time_representation.default_time_scale_converter().convert_time(
+            input_value=self.native_epoch,
+            input_scale=self.native_time_scale,
+            output_scale=TimeScales.tdb_scale,
+        )
 
 
 class UtcIsoTimeData(TimeData):
@@ -61,6 +74,9 @@ class UtcIsoTimeData(TimeData):
     def __init__(self, string: str):
         super().__init__(TimeFormat.UTC_ISO, string)
         self.date_time = DateTime.from_iso_string(self.time_string)
+
+        self.native_time_scale = TimeScales.utc_scale
+        self.native_epoch = self.date_time.to_epoch()
 
         self.leap_second = 0.0
         # If the seconds value is 60 or more, it indicates a leap second.
@@ -74,46 +90,23 @@ class UtcIsoTimeData(TimeData):
         return f"{self.date_time.year},{self.date_time.month},{self.date_time.day},{self.date_time.hour},{self.date_time.minute},{self.date_time.seconds}"
 
     def to_utc_j2000(self) -> float:
-        return self.date_time.to_epoch()
+        return self.native_epoch
 
     def to_tai_j2000(self) -> float:
-        epoch_utc = self.to_utc_j2000()
-        return (
-            time_representation.default_time_scale_converter().convert_time(
-                input_value=epoch_utc,
-                input_scale=TimeScales.utc_scale,
-                output_scale=TimeScales.tai_scale,
-            )
-            - self.leap_second
-        )
+        return super().to_tai_j2000() - self.leap_second
 
     def to_tt_j2000(self) -> float:
-        epoch_utc = self.to_utc_j2000()
-        return (
-            time_representation.default_time_scale_converter().convert_time(
-                input_value=epoch_utc,
-                input_scale=TimeScales.utc_scale,
-                output_scale=TimeScales.tt_scale,
-            )
-            - self.leap_second
-        )
+        return super().to_tt_j2000() - self.leap_second
 
     def to_tdb_j2000(self) -> float:
-        epoch_utc = self.to_utc_j2000()
-        return (
-            time_representation.default_time_scale_converter().convert_time(
-                input_value=epoch_utc,
-                input_scale=TimeScales.utc_scale,
-                output_scale=TimeScales.tdb_scale,
-            )
-            - self.leap_second
-        )
+        return super().to_tdb_j2000() - self.leap_second
 
 
 class UtcYmdhmsTimeData(TimeData):
 
     def __init__(self, string: str):
         super().__init__(TimeFormat.UTC_YMDHMS, string)
+
         ymdhms = str.split(self.time_string, sep=",", maxsplit=6)
         self.date_time = DateTime(
             int(ymdhms[0]),
@@ -124,10 +117,16 @@ class UtcYmdhmsTimeData(TimeData):
             float(ymdhms[5]),
         )
 
+        self.native_time_scale = TimeScales.utc_scale
+        self.native_epoch = self.date_time.to_epoch()
+
         self.leap_second = 0.0
         # If the seconds value is 60 or more, it indicates a leap second.
         if self.date_time.seconds >= 60.0:
             self.leap_second = 1.0
+
+    def get_native_epoch(self):
+        return self.to_utc_j2000()
 
     def to_utc_iso(self) -> str:
         return self.date_time.to_iso_string(number_of_digits_seconds=3)
@@ -136,47 +135,29 @@ class UtcYmdhmsTimeData(TimeData):
         return self.time_string
 
     def to_utc_j2000(self) -> float:
-        return self.date_time.to_epoch()
+        return self.native_epoch
 
     def to_tai_j2000(self) -> float:
-        epoch_utc = self.to_utc_j2000()
-        return (
-            time_representation.default_time_scale_converter().convert_time(
-                input_value=epoch_utc,
-                input_scale=TimeScales.utc_scale,
-                output_scale=TimeScales.tai_scale,
-            )
-            - self.leap_second
-        )
+        return super().to_tai_j2000() - self.leap_second
 
     def to_tt_j2000(self) -> float:
-        epoch_utc = self.to_utc_j2000()
-        return (
-            time_representation.default_time_scale_converter().convert_time(
-                input_value=epoch_utc,
-                input_scale=TimeScales.utc_scale,
-                output_scale=TimeScales.tt_scale,
-            )
-            - self.leap_second
-        )
+        return super().to_tt_j2000() - self.leap_second
 
     def to_tdb_j2000(self) -> float:
-        epoch_utc = self.to_utc_j2000()
-        return (
-            time_representation.default_time_scale_converter().convert_time(
-                input_value=epoch_utc,
-                input_scale=TimeScales.utc_scale,
-                output_scale=TimeScales.tdb_scale,
-            )
-            - self.leap_second
-        )
+        return super().to_tdb_j2000() - self.leap_second
 
 
 class UtcJ2000TimeData(TimeData):
 
     def __init__(self, string: str):
         super().__init__(TimeFormat.UTC_J2000, string)
-        self.date_time = DateTime.from_epoch(self.to_utc_j2000())
+        self.native_time_scale = TimeScales.utc_scale
+        self.native_epoch = float(self.time_string)
+
+        self.date_time = DateTime.from_epoch(self.native_epoch)
+
+    def get_native_epoch(self):
+        return self.to_utc_j2000()
 
     def to_utc_iso(self) -> str:
         return self.date_time.to_iso_string(number_of_digits_seconds=3)
@@ -185,31 +166,7 @@ class UtcJ2000TimeData(TimeData):
         return f"{self.date_time.year},{self.date_time.month},{self.date_time.day},{self.date_time.hour},{self.date_time.minute},{self.date_time.seconds}"
 
     def to_utc_j2000(self) -> float:
-        return float(self.time_string)
-
-    def to_tai_j2000(self) -> float:
-        epoch_utc = self.to_utc_j2000()
-        return time_representation.default_time_scale_converter().convert_time(
-            input_value=epoch_utc,
-            input_scale=TimeScales.utc_scale,
-            output_scale=TimeScales.tai_scale,
-        )
-
-    def to_tt_j2000(self) -> float:
-        epoch_utc = self.to_utc_j2000()
-        return time_representation.default_time_scale_converter().convert_time(
-            input_value=epoch_utc,
-            input_scale=TimeScales.utc_scale,
-            output_scale=TimeScales.tt_scale,
-        )
-
-    def to_tdb_j2000(self) -> float:
-        epoch_utc = self.to_utc_j2000()
-        return time_representation.default_time_scale_converter().convert_time(
-            input_value=epoch_utc,
-            input_scale=TimeScales.utc_scale,
-            output_scale=TimeScales.tdb_scale,
-        )
+        return self.native_epoch
 
 
 class TaiTimeData(TimeData):
@@ -217,6 +174,12 @@ class TaiTimeData(TimeData):
     def __init__(self, string: str):
         super().__init__(TimeFormat.TAI_J2000, string)
 
+        self.native_time_scale = TimeScales.tai_scale
+        self.native_epoch = float(self.time_string)
+
+    def get_native_epoch(self):
+        return self.to_tai_j2000()
+
     def to_utc_iso(self) -> str:
         epoch_utc = self.to_utc_j2000()
         date_time = DateTime.from_epoch(epoch_utc)
@@ -227,32 +190,8 @@ class TaiTimeData(TimeData):
         date_time = DateTime.from_epoch(epoch_utc)
         return f"{date_time.year},{date_time.month},{date_time.day},{date_time.hour},{date_time.minute},{date_time.seconds}"
 
-    def to_utc_j2000(self) -> float:
-        epoch_tai = self.to_tai_j2000()
-        return time_representation.default_time_scale_converter().convert_time(
-            input_value=epoch_tai,
-            input_scale=TimeScales.tai_scale,
-            output_scale=TimeScales.utc_scale,
-        )
-
     def to_tai_j2000(self) -> float:
-        return float(self.time_string)
-
-    def to_tt_j2000(self) -> float:
-        epoch_tai = self.to_tai_j2000()
-        return time_representation.default_time_scale_converter().convert_time(
-            input_value=epoch_tai,
-            input_scale=TimeScales.tai_scale,
-            output_scale=TimeScales.tt_scale,
-        )
-
-    def to_tdb_j2000(self) -> float:
-        epoch_tai = self.to_tai_j2000()
-        return time_representation.default_time_scale_converter().convert_time(
-            input_value=epoch_tai,
-            input_scale=TimeScales.tai_scale,
-            output_scale=TimeScales.tdb_scale,
-        )
+        return self.native_epoch
 
 
 class TtTimeData(TimeData):
@@ -260,6 +199,12 @@ class TtTimeData(TimeData):
     def __init__(self, string: str):
         super().__init__(TimeFormat.TT_J2000, string)
 
+        self.native_time_scale = TimeScales.tt_scale
+        self.native_epoch = float(self.time_string)
+
+    def get_native_epoch(self):
+        return self.to_tt_j2000()
+
     def to_utc_iso(self) -> str:
         epoch_utc = self.to_utc_j2000()
         date_time = DateTime.from_epoch(epoch_utc)
@@ -270,32 +215,8 @@ class TtTimeData(TimeData):
         date_time = DateTime.from_epoch(epoch_utc)
         return f"{date_time.year},{date_time.month},{date_time.day},{date_time.hour},{date_time.minute},{date_time.seconds}"
 
-    def to_utc_j2000(self) -> float:
-        epoch_tt = self.to_tt_j2000()
-        return time_representation.default_time_scale_converter().convert_time(
-            input_value=epoch_tt,
-            input_scale=TimeScales.tt_scale,
-            output_scale=TimeScales.utc_scale,
-        )
-
-    def to_tai_j2000(self) -> float:
-        epoch_tt = self.to_tt_j2000()
-        return time_representation.default_time_scale_converter().convert_time(
-            input_value=epoch_tt,
-            input_scale=TimeScales.tt_scale,
-            output_scale=TimeScales.tai_scale,
-        )
-
     def to_tt_j2000(self) -> float:
-        return float(self.time_string)
-
-    def to_tdb_j2000(self) -> float:
-        epoch_tt = self.to_tt_j2000()
-        return time_representation.default_time_scale_converter().convert_time(
-            input_value=epoch_tt,
-            input_scale=TimeScales.tt_scale,
-            output_scale=TimeScales.tdb_scale,
-        )
+        return self.native_epoch
 
 
 class TdbTimeData(TimeData):
@@ -303,6 +224,12 @@ class TdbTimeData(TimeData):
     def __init__(self, string: str):
         super().__init__(TimeFormat.TDB_J2000, string)
 
+        self.native_time_scale = TimeScales.tdb_scale
+        self.native_epoch = float(self.time_string)
+
+    def get_native_epoch(self):
+        return self.to_tdb_j2000()
+
     def to_utc_iso(self) -> str:
         epoch_utc = self.to_utc_j2000()
         date_time = DateTime.from_epoch(epoch_utc)
@@ -313,32 +240,8 @@ class TdbTimeData(TimeData):
         date_time = DateTime.from_epoch(epoch_utc)
         return f"{date_time.year},{date_time.month},{date_time.day},{date_time.hour},{date_time.minute},{date_time.seconds}"
 
-    def to_utc_j2000(self) -> float:
-        epoch_tdb = self.to_tdb_j2000()
-        return time_representation.default_time_scale_converter().convert_time(
-            input_value=epoch_tdb,
-            input_scale=TimeScales.tdb_scale,
-            output_scale=TimeScales.utc_scale,
-        )
-
-    def to_tai_j2000(self) -> float:
-        epoch_tdb = self.to_tdb_j2000()
-        return time_representation.default_time_scale_converter().convert_time(
-            input_value=epoch_tdb,
-            input_scale=TimeScales.tdb_scale,
-            output_scale=TimeScales.tai_scale,
-        )
-
-    def to_tt_j2000(self) -> float:
-        epoch_tdb = self.to_tdb_j2000()
-        return time_representation.default_time_scale_converter().convert_time(
-            input_value=epoch_tdb,
-            input_scale=TimeScales.tdb_scale,
-            output_scale=TimeScales.tt_scale,
-        )
-
     def to_tdb_j2000(self) -> float:
-        return float(self.time_string)
+        return self.native_epoch
 
 
 def parse_args() -> argparse.Namespace:
