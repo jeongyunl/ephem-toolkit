@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 
 import argparse
+import math
 import sys
 from typing import Iterable
+import logging
+
+logging.basicConfig(level=logging.WARNING)
 
 import tudatpy.astro.time_representation as time_representation
 from tudatpy.astro.time_representation import DateTime, TimeScales
@@ -64,8 +68,12 @@ class TimeData:
                 )
                 date_time = DateTime.from_epoch(epoch_utc_minus_1)
                 # FIXME
-                # Due to tudat DateTime's bug, this will fail when date_time.seconds is greater than 59.0
-                date_time.seconds += 1.0
+                # Due to tudat DateTime's bug, this will fail when date_time.seconds is greater than 60.0
+                try:
+                    date_time.seconds += 1.0
+                except RuntimeError as e:
+                    logging.error(f"Error setting leap second: {e}")
+                    return "ERROR"
 
         return date_time.to_iso_string(number_of_digits_seconds=3)
 
@@ -143,8 +151,15 @@ class UtcIsoTimeData(UtcTimeData):
     def __init__(self, time_string: str):
         super().__init__(TimeFormat.UTC_ISO, time_string)
 
-        self.date_time = DateTime.from_iso_string(self.time_string)
-        self.update_utc_epoch()
+        # FIXME
+        # Due to tudat DateTime's bug, this will fail when date_time.seconds is greater than 60.0
+        try:
+            self.date_time = DateTime.from_iso_string(self.time_string)
+            self.update_utc_epoch()
+        except RuntimeError as e:
+            logging.error(f"Error parsing time string {time_string}: {e}")
+            self.native_epoch = math.nan
+            self.date_time = None
 
 
 class UtcYmdhmsTimeData(UtcTimeData):
