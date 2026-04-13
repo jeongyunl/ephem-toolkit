@@ -257,20 +257,25 @@ def parse_args() -> argparse.Namespace:
         "-o",
         "--output-format",
         required=True,
+        nargs="+",
         choices=SUPPORTED_FORMATS,
-        help="Name of the output time format.",
+        help=(
+            "One or more output time formats. "
+            "Provide multiple values to print multiple converted outputs per input time."
+        ),
     )
     parser.add_argument(
-        "times",
-        nargs="*",
+        "-t",
+        "--time",
+        nargs="+",
         help="Time values to convert. If omitted, values are read from stdin.",
     )
     return parser.parse_args()
 
 
 def iter_input_times(args: argparse.Namespace) -> Iterable[str]:
-    if args.times:
-        yield from args.times
+    if args.time:
+        yield from args.time
     else:
         for line in sys.stdin:
             line = line.strip()
@@ -317,13 +322,19 @@ def convert_time_value(time: TimeData, format_name: str):
 def main() -> None:
     args = parse_args()
     for value in iter_input_times(args):
-        dt = parse_time_value(value, args.input_format)
-        output = convert_time_value(dt, args.output_format)
+        time_data = parse_time_value(value, args.input_format)
+
+        outputs = [convert_time_value(time_data, fmt) for fmt in args.output_format]
+
         print(f"{value}\t", end="")
-        if isinstance(output, float):
-            print(f"{output:.3f}")
-        else:
-            print(output)
+        formatted_outputs = []
+        for output in outputs:
+            if isinstance(output, float):
+                formatted_outputs.append(f"{output:.3f}")
+            else:
+                formatted_outputs.append(str(output))
+
+        print("\t".join(formatted_outputs))
 
 
 if __name__ == "__main__":
