@@ -97,8 +97,7 @@ class TudatTimeData(TimeData):
                     )
                 )
                 tudat_date_time = DateTime.from_epoch(epoch_utc_minus_1)
-                # FIXME
-                # Due to tudat DateTime's bug, this will fail when DateTime.seconds is greater than 60.0
+                # FIXME  Due to tudat DateTime's bug, this will fail when DateTime.seconds is greater than 60.0
                 try:
                     tudat_date_time.seconds += 1.0
                 except RuntimeError as e:
@@ -187,8 +186,7 @@ class TudatUtcIsoTimeData(UtcTimeData):
     def __init__(self, time_string: str):
         super().__init__(TimeFormat.UTC_ISO_TUDAT, time_string)
 
-        # FIXME
-        # Due to tudat DateTime's bug, this will fail when DateTime.seconds is greater than 60.0
+        # FIXME  Due to tudat DateTime's bug, this will fail when DateTime.seconds is greater than 60.0
         try:
             self.tudat_date_time = DateTime.from_iso_string(self.time_string)
             self.update_utc_epoch()
