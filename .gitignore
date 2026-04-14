@@ -2,3 +2,4 @@
 *.tle
 *.swp
 .vscode/
+build/
