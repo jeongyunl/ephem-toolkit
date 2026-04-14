@@ -1,13 +1,13 @@
 #!/bin/sh -x
 
 # POSIX epoch
-../convert_time2.py -i iso -o utc tai tt tdb -t \
+../convert_time2.py -i iso -o utc tai tt tdb tdb_apx -t \
 	'1969-12-31 23:59:59' \
 	'1970-01-01 00:00:00' \
 	'1970-01-01 00:00:01'
 
 # Leap seconds
-../convert_time2.py -i iso -o posix utc tai tt tdb -t \
+../convert_time2.py -i iso -o posix utc tai tt tdb tdb_apx -t \
 	'1972-06-30 23:59:59' \
 	'1972-06-30 23:59:60' \
 	'1972-07-01 00:00:00' \

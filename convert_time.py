@@ -14,6 +14,7 @@ import tudatpy.astro.time_representation as time_representation
 from tudatpy.astro.time_representation import DateTime, TimeScales
 
 POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH = 946728000.0  # POSIX epoch (1970-01-01 00:00:00 UTC) minus TUDAT UTC J2000 epoch (2000-01-01 12:00:00 UTC)
+TT_EPOCH_MINUS_TAI_EPOCH = 32.184  # TT epoch (2000-01-01 12:00:00 TT) minus TAI epoch (2000-01-01 12:00:00 TAI)
 
 
 class TimeFormat(Enum):
@@ -23,6 +24,7 @@ class TimeFormat(Enum):
     TAI_TUDAT = "tai"  # Time in TAI; in seconds since TAI J2000 epoch (2000-01-01 12:00:00.000 TAI = 2000-01-01 11:59:28 UTC)
     TT_TUDAT = "tt"  # Terrestial Time; in seconds since TT J2000 epoch (2000-01-01 12:00:00.000 TT = 2000-01-01 11:58:55.816 UTC)
     TDB_TUDAT = "tdb"  # Barycentric Dynamical Time; in seconds since TDB J2000 epoch (2000-01-01 12:00:00.000 TDB ≈ 2000-01-01 11:58:55.816 UTC)
+    TDB_APX_TUDAT = "tdb_apx"  # Approximate Barycentric Dynamical Time; in seconds since TDB J2000 epoch (2000-01-01 12:00:00.000 TDB ≈ 2000-01-01 11:58:55.816 UTC)
 
 
 SUPPORTED_FORMATS = [c.value for c in TimeFormat]
@@ -48,6 +50,9 @@ class TimeData:
         raise NotImplementedError
 
     def to_tt_tudat(self) -> float:
+        raise NotImplementedError
+
+    def to_tdb_tudat(self) -> float:
         raise NotImplementedError
 
     def to_tdb_tudat(self) -> float:
@@ -134,6 +139,9 @@ class TudatTimeData(TimeData):
             output_scale=TimeScales.tdb_scale,
         )
 
+    def to_tdb_apx_tudat(self) -> float:
+        return self.to_tt_tudat()
+
 
 class UtcTimeData(TudatTimeData):
 
@@ -165,6 +173,9 @@ class UtcTimeData(TudatTimeData):
 
     def to_tdb_tudat(self) -> float:
         return super().to_tdb_tudat() - self.leap_second
+
+    def to_tdb_apx_tudat(self) -> float:
+        return self.to_tt_tudat()
 
 
 class UtcPosixTimeData(UtcTimeData):
@@ -219,6 +230,9 @@ class TaiTudatTimeData(TudatTimeData):
     def to_tai_tudat(self) -> float:
         return self.native_tudat_epoch
 
+    def to_tt_tudat(self) -> float:
+        return self.native_tudat_epoch + TT_EPOCH_MINUS_TAI_EPOCH
+
 
 class TtTudatTimeData(TudatTimeData):
 
@@ -230,6 +244,9 @@ class TtTudatTimeData(TudatTimeData):
 
     def to_tt_tudat(self) -> float:
         return self.native_tudat_epoch
+
+    def to_tai_tudat(self) -> float:
+        return self.native_tudat_epoch - TT_EPOCH_MINUS_TAI_EPOCH
 
 
 class TdbTudatTimeData(TudatTimeData):
@@ -244,11 +261,32 @@ class TdbTudatTimeData(TudatTimeData):
         return self.native_tudat_epoch
 
 
+class TdbApxTudatTimeData(TudatTimeData):
+
+    def __init__(self, time_string: str):
+        super().__init__(TimeFormat.TDB_TUDAT, time_string)
+
+        self.native_time_scale = TimeScales.tdb_scale
+        self.native_tudat_epoch = float(self.time_string)
+
+    def to_tt_tudat(self) -> float:
+        return self.native_tudat_epoch
+
+    def to_tdb_tudat(self) -> float:
+        return self.native_tudat_epoch
+
+    def to_tdb_apx_tudat(self) -> float:
+        return self.native_tudat_epoch
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description="Convert time values between supported TudatPy time formats.",
         epilog="Supported time formats:\n"
+        + "  "
+        + TimeFormat.UTC_POSIX.value
+        + ": POSIX timestamp. Seconds since 1970-01-01 00:00:00 UTC (e.g., '1622548800.000')\n"
         + "  "
         + TimeFormat.UTC_ISO_TUDAT.value
         + ": UTC. ISO 8601 format (e.g., '2024-06-01T12:00:00.000')\n"
@@ -263,8 +301,11 @@ def parse_args() -> argparse.Namespace:
         + TimeFormat.TT_TUDAT.value
         + ": Terrestrial Time. Seconds since TT J2000 epoch (January 1, 2000, 12:00:00 TT = January 1, 2000, 11:58:55.816 UTC) (e.g., '31558127.816')\n"
         + "  "
-        + TimeFormat.UTC_POSIX.value
-        + ": POSIX timestamp. Seconds since 1970-01-01 00:00:00 UTC (e.g., '1622548800.000')\n",
+        + TimeFormat.TDB_TUDAT.value
+        + ": Barycentric Dynamical Time. Seconds since TDB J2000 epoch (January 1, 2000, 12:00:00 TDB ≈ January 1, 2000, 11:58:55.816 UTC) (e.g., '31558127.816')\n"
+        + "  "
+        + TimeFormat.TDB_APX_TUDAT.value
+        + ": Approximate Barycentric Dynamical Time. Seconds since TDB J2000 epoch (January 1, 2000, 12:00:00 TDB ≈ January 1, 2000, 11:58:55.816 UTC) (e.g., '31558127.816')\n",
     )
     parser.add_argument(
         "-i",
@@ -318,6 +359,8 @@ def parse_time_value(value: str, fmt: str) -> TudatTimeData:
         return TtTudatTimeData(value)
     if fmt == TimeFormat.TDB_TUDAT.value:
         return TdbTudatTimeData(value)
+    if fmt == TimeFormat.TDB_APX_TUDAT.value:
+        return TdbApxTudatTimeData(value)
 
     raise ValueError(f"Unsupported input format: {fmt}")
 
@@ -335,6 +378,8 @@ def convert_time_value(time: TudatTimeData, format_name: str):
         return time.to_tt_tudat()
     if format_name == TimeFormat.TDB_TUDAT.value:
         return time.to_tdb_tudat()
+    if format_name == TimeFormat.TDB_APX_TUDAT.value:
+        return time.to_tdb_apx_tudat()
 
     raise ValueError(f"Unsupported output format: {format_name}")
 

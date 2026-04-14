@@ -15,6 +15,7 @@ from tudatpy.astro.time_representation import DateTime, TimeScales
 from enum import Enum
 
 POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH = 946728000.0  # POSIX epoch (1970-01-01 00:00:00 UTC) minus TUDAT UTC J2000 epoch (2000-01-01 12:00:00 UTC)
+TT_EPOCH_MINUS_TAI_EPOCH = 32.184  # TT epoch (2000-01-01 12:00:00 TT) minus TAI epoch (2000-01-01 12:00:00 TAI)
 
 
 class TimeFormat(Enum):
@@ -24,6 +25,7 @@ class TimeFormat(Enum):
     TAI_TUDAT = "tai"  # Time in TAI; in seconds since TAI J2000 epoch (2000-01-01 12:00:00.000 TAI = 2000-01-01 11:59:28 UTC)
     TT_TUDAT = "tt"  # Terrestial Time; in seconds since TT J2000 epoch (2000-01-01 12:00:00.000 TT = 2000-01-01 11:58:55.816 UTC)
     TDB_TUDAT = "tdb"  # Barycentric Dynamical Time; in seconds since TDB J2000 epoch (2000-01-01 12:00:00.000 TDB ≈ 2000-01-01 11:58:55.816 UTC)
+    TDB_APX_TUDAT = "tdb_apx"  # Approximate Barycentric Dynamical Time; in seconds since TDB J2000 epoch (2000-01-01 12:00:00.000 TDB ≈ 2000-01-01 11:58:55.816 UTC)
 
 
 SUPPORTED_FORMATS = [c.value for c in TimeFormat]
@@ -160,6 +162,10 @@ class TimeConverter:
             - leap_second
         )
 
+    @staticmethod
+    def utc_iso_tudat_to_tdb_apx_tudat(iso_time: str) -> float:
+        return TimeConverter.utc_iso_tudat_to_tt_tudat(iso_time)
+
     #
     # Conversion functions for POSIX epoch
     #
@@ -194,6 +200,11 @@ class TimeConverter:
         # Convert POSIX timestamp to TDB J2000 seconds
         utc_tudat_epoch = TimeConverter.utc_posix_to_utc_tudat(utc_posix_epoch)
         return TimeConverter.utc_tudat_to_tdb_tudat(utc_tudat_epoch)
+
+    @staticmethod
+    def utc_posix_to_tdb_apx_tudat(utc_posix_epoch: float) -> float:
+        # Convert POSIX timestamp to approximate TDB J2000 seconds
+        return TimeConverter.utc_posix_to_tt_tudat(utc_posix_epoch)
 
     #
     # Conversion functions for UTC J2000 epoch
@@ -237,6 +248,11 @@ class TimeConverter:
             output_scale=TimeScales.tdb_scale,
         )
 
+    @staticmethod
+    def utc_tudat_to_tdb_apx_tudat(utc_tudat_epoch: float) -> float:
+        # Convert UTC J2000 seconds to approximate TDB J2000 seconds
+        return TimeConverter.utc_tudat_to_tt_tudat(utc_tudat_epoch)
+
     #
     # Conversion functions for TAI J2000 epoch
     #
@@ -265,11 +281,7 @@ class TimeConverter:
     @staticmethod
     def tai_tudat_to_tt_tudat(tai_tudat_epoch: float) -> float:
         # Convert TAI J2000 seconds to TT J2000 seconds
-        return time_representation.default_time_scale_converter().convert_time(
-            input_value=tai_tudat_epoch,
-            input_scale=TimeScales.tai_scale,
-            output_scale=TimeScales.tt_scale,
-        )
+        return tai_tudat_epoch + TT_EPOCH_MINUS_TAI_EPOCH
 
     @staticmethod
     def tai_tudat_to_tdb_tudat(tai_tudat_epoch: float) -> float:
@@ -279,6 +291,11 @@ class TimeConverter:
             input_scale=TimeScales.tai_scale,
             output_scale=TimeScales.tdb_scale,
         )
+
+    @staticmethod
+    def tai_tudat_to_tdb_apx_tudat(tai_tudat_epoch: float) -> float:
+        # Convert TAI J2000 seconds to approximate TDB J2000 seconds
+        return TimeConverter.tai_tudat_to_tt_tudat(tai_tudat_epoch)
 
     #
     # Conversion functions for TT J2000 epoch
@@ -308,11 +325,7 @@ class TimeConverter:
     @staticmethod
     def tt_tudat_to_tai_tudat(tt_tudat_epoch: float) -> float:
         # Convert TT J2000 seconds to TAI J2000 seconds
-        return time_representation.default_time_scale_converter().convert_time(
-            input_value=tt_tudat_epoch,
-            input_scale=TimeScales.tt_scale,
-            output_scale=TimeScales.tai_scale,
-        )
+        return tt_tudat_epoch - TT_EPOCH_MINUS_TAI_EPOCH
 
     @staticmethod
     def tt_tudat_to_tdb_tudat(tt_tudat_epoch: float) -> float:
@@ -322,6 +335,11 @@ class TimeConverter:
             input_scale=TimeScales.tt_scale,
             output_scale=TimeScales.tdb_scale,
         )
+
+    @staticmethod
+    def tt_tudat_to_tdb_apx_tudat(tt_tudat_epoch: float) -> float:
+        # Convert TT J2000 seconds to approximate TDB J2000 seconds
+        return tt_tudat_epoch
 
     #
     # Conversion functions for TDB J2000 epoch
@@ -366,6 +384,45 @@ class TimeConverter:
             output_scale=TimeScales.tt_scale,
         )
 
+    @staticmethod
+    def tdb_tudat_to_tdb_apx_tudat(tdb_tudat_epoch: float) -> float:
+        # Convert TDB J2000 seconds to approximate TDB J2000 seconds
+        return tdb_tudat_epoch
+
+    #
+    # Conversion functions for Approximate TDB J2000 epoch
+    #
+
+    @staticmethod
+    def tdb_apx_tudat_to_utc_posix(tdb_tudat_epoch: float) -> float:
+        # Convert approximate TDB J2000 seconds to POSIX timestamp
+        return TimeConverter.tt_tudat_to_utc_posix(tdb_tudat_epoch)
+
+    @staticmethod
+    def tdb_apx_tudat_to_utc_iso_tudat(tdb_tudat_epoch: float) -> str:
+        # Convert approximate TDB J2000 seconds to ISO format (via UTC)
+        return TimeConverter.tt_tudat_to_utc_iso_tudat(tdb_tudat_epoch)
+
+    @staticmethod
+    def tdb_apx_tudat_to_utc_tudat(tdb_tudat_epoch: float) -> float:
+        # Convert approximate TDB J2000 seconds to UTC J2000 seconds
+        return TimeConverter.tt_tudat_to_utc_tudat(tdb_tudat_epoch)
+
+    @staticmethod
+    def tdb_apx_tudat_to_tai_tudat(tdb_tudat_epoch: float) -> float:
+        # Convert approximate TDB J2000 seconds to TAI J2000 seconds
+        return TimeConverter.tt_tudat_to_tai_tudat(tdb_tudat_epoch)
+
+    @staticmethod
+    def tdb_apx_tudat_to_tt_tudat(tdb_tudat_epoch: float) -> float:
+        # Convert approximate TDB J2000 seconds to TT J2000 seconds
+        return tdb_tudat_epoch
+
+    @staticmethod
+    def tdb_apx_tudat_to_tdb_tudat(tdb_tudat_epoch: float) -> float:
+        # Convert approximate TDB J2000 seconds to TDB J2000 seconds
+        return tdb_tudat_epoch
+
     conversion_table = {
         TimeFormat.UTC_POSIX.value: {
             TimeFormat.UTC_ISO_TUDAT.value: utc_posix_to_utc_iso_tudat.__func__,
@@ -373,6 +430,7 @@ class TimeConverter:
             TimeFormat.TAI_TUDAT.value: utc_posix_to_tai_tudat.__func__,
             TimeFormat.TT_TUDAT.value: utc_posix_to_tt_tudat.__func__,
             TimeFormat.TDB_TUDAT.value: utc_posix_to_tdb_tudat.__func__,
+            TimeFormat.TDB_APX_TUDAT.value: utc_posix_to_tdb_apx_tudat.__func__,
         },
         TimeFormat.UTC_ISO_TUDAT.value: {
             TimeFormat.UTC_POSIX.value: utc_iso_tudat_to_utc_posix.__func__,
@@ -380,6 +438,7 @@ class TimeConverter:
             TimeFormat.TAI_TUDAT.value: utc_iso_tudat_to_tai_tudat.__func__,
             TimeFormat.TT_TUDAT.value: utc_iso_tudat_to_tt_tudat.__func__,
             TimeFormat.TDB_TUDAT.value: utc_iso_tudat_to_tdb_tudat.__func__,
+            TimeFormat.TDB_APX_TUDAT.value: utc_iso_tudat_to_tdb_apx_tudat.__func__,
         },
         TimeFormat.UTC_TUDAT.value: {
             TimeFormat.UTC_POSIX.value: utc_tudat_to_utc_posix.__func__,
@@ -387,6 +446,7 @@ class TimeConverter:
             TimeFormat.TAI_TUDAT.value: utc_tudat_to_tai_tudat.__func__,
             TimeFormat.TT_TUDAT.value: utc_tudat_to_tt_tudat.__func__,
             TimeFormat.TDB_TUDAT.value: utc_tudat_to_tdb_tudat.__func__,
+            TimeFormat.TDB_APX_TUDAT.value: utc_tudat_to_tdb_apx_tudat.__func__,
         },
         TimeFormat.TAI_TUDAT.value: {
             TimeFormat.UTC_POSIX.value: tai_tudat_to_utc_posix.__func__,
@@ -394,6 +454,7 @@ class TimeConverter:
             TimeFormat.UTC_TUDAT.value: tai_tudat_to_utc_tudat.__func__,
             TimeFormat.TT_TUDAT.value: tai_tudat_to_tt_tudat.__func__,
             TimeFormat.TDB_TUDAT.value: tai_tudat_to_tdb_tudat.__func__,
+            TimeFormat.TDB_APX_TUDAT.value: tai_tudat_to_tdb_apx_tudat.__func__,
         },
         TimeFormat.TT_TUDAT.value: {
             TimeFormat.UTC_POSIX.value: tt_tudat_to_utc_posix.__func__,
@@ -401,6 +462,7 @@ class TimeConverter:
             TimeFormat.UTC_TUDAT.value: tt_tudat_to_utc_tudat.__func__,
             TimeFormat.TAI_TUDAT.value: tt_tudat_to_tai_tudat.__func__,
             TimeFormat.TDB_TUDAT.value: tt_tudat_to_tdb_tudat.__func__,
+            TimeFormat.TDB_APX_TUDAT.value: tt_tudat_to_tdb_apx_tudat.__func__,
         },
         TimeFormat.TDB_TUDAT.value: {
             TimeFormat.UTC_POSIX.value: tdb_tudat_to_utc_posix.__func__,
@@ -408,6 +470,15 @@ class TimeConverter:
             TimeFormat.UTC_TUDAT.value: tdb_tudat_to_utc_tudat.__func__,
             TimeFormat.TAI_TUDAT.value: tdb_tudat_to_tai_tudat.__func__,
             TimeFormat.TT_TUDAT.value: tdb_tudat_to_tt_tudat.__func__,
+            TimeFormat.TDB_APX_TUDAT.value: tdb_tudat_to_tdb_apx_tudat.__func__,
+        },
+        TimeFormat.TDB_APX_TUDAT.value: {
+            TimeFormat.UTC_POSIX.value: tdb_apx_tudat_to_utc_posix.__func__,
+            TimeFormat.UTC_ISO_TUDAT.value: tdb_apx_tudat_to_utc_iso_tudat.__func__,
+            TimeFormat.UTC_TUDAT.value: tdb_apx_tudat_to_utc_tudat.__func__,
+            TimeFormat.TAI_TUDAT.value: tdb_apx_tudat_to_tai_tudat.__func__,
+            TimeFormat.TT_TUDAT.value: tdb_apx_tudat_to_tt_tudat.__func__,
+            TimeFormat.TDB_TUDAT.value: tdb_apx_tudat_to_tdb_tudat.__func__,
         },
     }
 
