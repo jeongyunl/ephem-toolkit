@@ -104,24 +104,10 @@ class TimeConverter:
 
     @staticmethod
     def utc_iso_tudat_to_utc_posix(iso_time: str) -> float:
-        if False:
-            # Convert ISO time to POSIX timestamp (seconds since 1970-01-01 00:00:00 UTC)
-            utc_tudat_date_time = DateTime.from_iso_string(iso_time)
 
-            # FIXME Due to tudat DateTime.to_python_datetime()'s bug,
-            # This workaround is needed to convert to posix epoch correctly when DateTime.seconds is 60.0 or greater
-            if True:
-                utc_tudat_epoch = DateTime.to_epoch(utc_tudat_date_time)
-                utc_tudat_date_time = DateTime.from_epoch(utc_tudat_epoch)
-
-            py_datetime = utc_tudat_date_time.to_python_datetime().replace(
-                tzinfo=timezone.utc
-            )
-            return py_datetime.timestamp()
-        else:
-            return TimeConverter.utc_tudat_to_utc_posix(
-                TimeConverter.utc_iso_tudat_to_utc_tudat(iso_time)
-            )
+        return TimeConverter.utc_tudat_to_utc_posix(
+            TimeConverter.utc_iso_tudat_to_utc_tudat(iso_time)
+        )
 
     @staticmethod
     def utc_iso_tudat_to_utc_tudat(iso_time: str) -> float:
