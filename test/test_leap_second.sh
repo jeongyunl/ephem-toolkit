@@ -7,7 +7,7 @@
 	'1970-01-01 00:00:01'
 
 # Leap seconds
-../convert_time.py -i iso -o j2000 tai tt tdb -t \
+../convert_time.py -i iso -o posix j2000 tai tt tdb -t \
 	'1972-06-30 23:59:59' \
 	'1972-06-30 23:59:60' \
 	'1972-07-01 00:00:00' \
