@@ -102,17 +102,24 @@ class TimeConverter:
 
     @staticmethod
     def utc_iso_to_posix(iso_time: str) -> float:
-        # Convert ISO time to POSIX timestamp (seconds since 1970-01-01 00:00:00 UTC)
-        tudat_date_time = DateTime.from_iso_string(iso_time)
+        if False:
+            # Convert ISO time to POSIX timestamp (seconds since 1970-01-01 00:00:00 UTC)
+            tudat_date_time = DateTime.from_iso_string(iso_time)
 
-        # FIXME Due to tudat DateTime.to_python_datetime()'s bug,
-        # This workaround is needed to convert to posix epoch correctly when DateTime.seconds is 60.0 or greater
-        if True:
-            tudat_epoch = DateTime.to_epoch(tudat_date_time)
-            tudat_date_time = DateTime.from_epoch(tudat_epoch)
+            # FIXME Due to tudat DateTime.to_python_datetime()'s bug,
+            # This workaround is needed to convert to posix epoch correctly when DateTime.seconds is 60.0 or greater
+            if True:
+                tudat_epoch = DateTime.to_epoch(tudat_date_time)
+                tudat_date_time = DateTime.from_epoch(tudat_epoch)
 
-        py_datetime = tudat_date_time.to_python_datetime().replace(tzinfo=timezone.utc)
-        return py_datetime.timestamp()
+            py_datetime = tudat_date_time.to_python_datetime().replace(
+                tzinfo=timezone.utc
+            )
+            return py_datetime.timestamp()
+        else:
+            return TimeConverter.utc_j2000_to_posix(
+                TimeConverter.utc_iso_to_utc_j2000(iso_time)
+            )
 
     @staticmethod
     def utc_iso_to_utc_j2000(iso_time: str) -> float:
@@ -139,8 +146,51 @@ class TimeConverter:
         return TimeConverter.utc_j2000_to_tdb_j2000(date_time.to_epoch())
 
     #
+    # Conversion functions for POSIX epoch
+    #
+
+    @staticmethod
+    def posix_to_utc_iso(posix_epoch: float) -> str:
+        # Convert POSIX timestamp to ISO format
+        py_datetime = datetime.fromtimestamp(posix_epoch, tz=timezone.utc)
+        tudat_date_time = DateTime.from_python_datetime(py_datetime)
+        return tudat_date_time.to_iso_string(number_of_digits_seconds=3)
+
+    @staticmethod
+    def posix_to_utc_j2000(posix_epoch: float) -> float:
+        # Convert POSIX timestamp to UTC J2000 seconds
+        py_datetime = datetime.fromtimestamp(posix_epoch, tz=timezone.utc)
+        tudat_date_time = DateTime.from_python_datetime(py_datetime)
+        return tudat_date_time.to_epoch()
+
+    @staticmethod
+    def posix_to_tai_j2000(posix_epoch: float) -> float:
+        # Convert POSIX timestamp to TAI J2000 seconds
+        utc_j2000_epoch = TimeConverter.posix_to_utc_j2000(posix_epoch)
+        return TimeConverter.utc_j2000_to_tai_j2000(utc_j2000_epoch)
+
+    @staticmethod
+    def posix_to_tt_j2000(posix_epoch: float) -> float:
+        # Convert POSIX timestamp to TT J2000 seconds
+        utc_j2000_epoch = TimeConverter.posix_to_utc_j2000(posix_epoch)
+        return TimeConverter.utc_j2000_to_tt_j2000(utc_j2000_epoch)
+
+    @staticmethod
+    def posix_to_tdb_j2000(posix_epoch: float) -> float:
+        # Convert POSIX timestamp to TDB J2000 seconds
+        utc_j2000_epoch = TimeConverter.posix_to_utc_j2000(posix_epoch)
+        return TimeConverter.utc_j2000_to_tdb_j2000(utc_j2000_epoch)
+
+    #
     # Conversion functions for UTC J2000 epoch
     #
+
+    @staticmethod
+    def utc_j2000_to_posix(utc_j2000_epoch: float) -> float:
+        # Convert UTC J2000 seconds to POSIX timestamp
+        date_time = DateTime.from_epoch(utc_j2000_epoch)
+        py_datetime = date_time.to_python_datetime().replace(tzinfo=timezone.utc)
+        return py_datetime.timestamp()
 
     @staticmethod
     def utc_j2000_to_iso(utc_j2000_epoch: float) -> str:
@@ -180,6 +230,12 @@ class TimeConverter:
     #
 
     @staticmethod
+    def tai_j2000_to_posix(tai_j2000_epoch: float) -> float:
+        # Convert TAI J2000 seconds to POSIX timestamp
+        utc_j2000_epoch = TimeConverter.tai_j2000_to_utc_j2000(tai_j2000_epoch)
+        return TimeConverter.utc_j2000_to_posix(utc_j2000_epoch)
+
+    @staticmethod
     def tai_j2000_to_iso(tai_j2000_epoch: float) -> str:
         # Convert TAI J2000 seconds to ISO format
         utc_j2000_epoch = TimeConverter.tai_j2000_to_utc_j2000(tai_j2000_epoch)
@@ -215,6 +271,12 @@ class TimeConverter:
     #
     # Conversion functions for TT J2000 epoch
     #
+
+    @staticmethod
+    def tt_j2000_to_posix(tt_j2000_epoch: float) -> float:
+        # Convert TT J2000 seconds to POSIX timestamp
+        utc_j2000_epoch = TimeConverter.tt_j2000_to_utc_j2000(tt_j2000_epoch)
+        return TimeConverter.utc_j2000_to_posix(utc_j2000_epoch)
 
     @staticmethod
     def tt_j2000_to_iso(tt_j2000_epoch: float) -> str:
@@ -254,6 +316,12 @@ class TimeConverter:
     #
 
     @staticmethod
+    def tdb_j2000_to_posix(tdb_j2000_epoch: float) -> float:
+        # Convert TDB J2000 seconds to POSIX timestamp
+        utc_j2000_epoch = TimeConverter.tdb_j2000_to_utc_j2000(tdb_j2000_epoch)
+        return TimeConverter.utc_j2000_to_posix(utc_j2000_epoch)
+
+    @staticmethod
     def tdb_j2000_to_iso(tdb_j2000_epoch: float) -> str:
         # Convert TDB J2000 seconds to ISO format (via UTC)
         utc_j2000_epoch = TimeConverter.tdb_j2000_to_utc_j2000(tdb_j2000_epoch)
@@ -287,6 +355,13 @@ class TimeConverter:
         )
 
     conversion_table = {
+        TimeFormat.UTC_POSIX.value: {
+            TimeFormat.UTC_ISO_TUDAT.value: posix_to_utc_iso.__func__,
+            TimeFormat.UTC_J2000_TUDAT.value: posix_to_utc_j2000.__func__,
+            TimeFormat.TAI_J2000_TUDAT.value: posix_to_tai_j2000.__func__,
+            TimeFormat.TT_J2000_TUDAT.value: posix_to_tt_j2000.__func__,
+            TimeFormat.TDB_J2000_TUDAT.value: posix_to_tdb_j2000.__func__,
+        },
         TimeFormat.UTC_ISO_TUDAT.value: {
             TimeFormat.UTC_POSIX.value: utc_iso_to_posix.__func__,
             TimeFormat.UTC_J2000_TUDAT.value: utc_iso_to_utc_j2000.__func__,
@@ -295,24 +370,28 @@ class TimeConverter:
             TimeFormat.TDB_J2000_TUDAT.value: utc_iso_to_tdb_j2000.__func__,
         },
         TimeFormat.UTC_J2000_TUDAT.value: {
+            TimeFormat.UTC_POSIX.value: utc_j2000_to_posix.__func__,
             TimeFormat.UTC_ISO_TUDAT.value: utc_j2000_to_iso.__func__,
             TimeFormat.TAI_J2000_TUDAT.value: utc_j2000_to_tai_j2000.__func__,
             TimeFormat.TT_J2000_TUDAT.value: utc_j2000_to_tt_j2000.__func__,
             TimeFormat.TDB_J2000_TUDAT.value: utc_j2000_to_tdb_j2000.__func__,
         },
         TimeFormat.TAI_J2000_TUDAT.value: {
+            TimeFormat.UTC_POSIX.value: tai_j2000_to_posix.__func__,
             TimeFormat.UTC_ISO_TUDAT.value: tai_j2000_to_iso.__func__,
             TimeFormat.UTC_J2000_TUDAT.value: tai_j2000_to_utc_j2000.__func__,
             TimeFormat.TT_J2000_TUDAT.value: tai_j2000_to_tt_j2000.__func__,
             TimeFormat.TDB_J2000_TUDAT.value: tai_j2000_to_tdb_j2000.__func__,
         },
         TimeFormat.TT_J2000_TUDAT.value: {
+            TimeFormat.UTC_POSIX.value: tt_j2000_to_posix.__func__,
             TimeFormat.UTC_ISO_TUDAT.value: tt_j2000_to_iso.__func__,
             TimeFormat.UTC_J2000_TUDAT.value: tt_j2000_to_utc_j2000.__func__,
             TimeFormat.TAI_J2000_TUDAT.value: tt_j2000_to_tai_j2000.__func__,
             TimeFormat.TDB_J2000_TUDAT.value: tt_j2000_to_tdb_j2000.__func__,
         },
         TimeFormat.TDB_J2000_TUDAT.value: {
+            TimeFormat.UTC_POSIX.value: tdb_j2000_to_posix.__func__,
             TimeFormat.UTC_ISO_TUDAT.value: tdb_j2000_to_iso.__func__,
             TimeFormat.UTC_J2000_TUDAT.value: tdb_j2000_to_utc_j2000.__func__,
             TimeFormat.TAI_J2000_TUDAT.value: tdb_j2000_to_tai_j2000.__func__,
