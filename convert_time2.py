@@ -14,6 +14,8 @@ from tudatpy.astro.time_representation import DateTime, TimeScales
 
 from enum import Enum
 
+POSIX_EPOCH_MINUS_UTC_J2000 = 946728000.0  # POSIX epoch (1970-01-01 00:00:00 UTC) minus UTC J2000 epoch (2000-01-01 12:00:00 UTC)
+
 
 class TimeFormat(Enum):
     UTC_POSIX = "posix"  # POSIX timestamp; in seconds since 1970-01-01 00:00:00 UTC
@@ -131,19 +133,37 @@ class TimeConverter:
     def utc_iso_to_tai_j2000(iso_time: str) -> float:
         # Convert ISO time to TAI J2000 seconds
         date_time = DateTime.from_iso_string(iso_time)
-        return TimeConverter.utc_j2000_to_tai_j2000(date_time.to_epoch())
+
+        if date_time.seconds >= 60.0:
+            leap_second = 1.0
+        else:
+            leap_second = 0.0
+
+        return TimeConverter.utc_j2000_to_tai_j2000(date_time.to_epoch()) - leap_second
 
     @staticmethod
     def utc_iso_to_tt_j2000(iso_time: str) -> float:
         # Convert ISO time to TT J2000 seconds
         date_time = DateTime.from_iso_string(iso_time)
-        return TimeConverter.utc_j2000_to_tt_j2000(date_time.to_epoch())
+
+        if date_time.seconds >= 60.0:
+            leap_second = 1.0
+        else:
+            leap_second = 0.0
+
+        return TimeConverter.utc_j2000_to_tt_j2000(date_time.to_epoch()) - leap_second
 
     @staticmethod
     def utc_iso_to_tdb_j2000(iso_time: str) -> float:
         # Convert ISO time to TDB J2000 seconds
         date_time = DateTime.from_iso_string(iso_time)
-        return TimeConverter.utc_j2000_to_tdb_j2000(date_time.to_epoch())
+
+        if date_time.seconds >= 60.0:
+            leap_second = 1.0
+        else:
+            leap_second = 0.0
+
+        return TimeConverter.utc_j2000_to_tdb_j2000(date_time.to_epoch()) - leap_second
 
     #
     # Conversion functions for POSIX epoch
@@ -152,16 +172,13 @@ class TimeConverter:
     @staticmethod
     def posix_to_utc_iso(posix_epoch: float) -> str:
         # Convert POSIX timestamp to ISO format
-        py_datetime = datetime.fromtimestamp(posix_epoch, tz=timezone.utc)
-        tudat_date_time = DateTime.from_python_datetime(py_datetime)
+        tudat_date_time = DateTime.from_epoch(posix_epoch - POSIX_EPOCH_MINUS_UTC_J2000)
         return tudat_date_time.to_iso_string(number_of_digits_seconds=3)
 
     @staticmethod
     def posix_to_utc_j2000(posix_epoch: float) -> float:
         # Convert POSIX timestamp to UTC J2000 seconds
-        py_datetime = datetime.fromtimestamp(posix_epoch, tz=timezone.utc)
-        tudat_date_time = DateTime.from_python_datetime(py_datetime)
-        return tudat_date_time.to_epoch()
+        return posix_epoch - POSIX_EPOCH_MINUS_UTC_J2000
 
     @staticmethod
     def posix_to_tai_j2000(posix_epoch: float) -> float:
@@ -188,9 +205,7 @@ class TimeConverter:
     @staticmethod
     def utc_j2000_to_posix(utc_j2000_epoch: float) -> float:
         # Convert UTC J2000 seconds to POSIX timestamp
-        date_time = DateTime.from_epoch(utc_j2000_epoch)
-        py_datetime = date_time.to_python_datetime().replace(tzinfo=timezone.utc)
-        return py_datetime.timestamp()
+        return utc_j2000_epoch + POSIX_EPOCH_MINUS_UTC_J2000
 
     @staticmethod
     def utc_j2000_to_iso(utc_j2000_epoch: float) -> str:

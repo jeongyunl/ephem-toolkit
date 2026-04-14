@@ -13,6 +13,8 @@ logging.basicConfig(level=logging.WARNING)
 import tudatpy.astro.time_representation as time_representation
 from tudatpy.astro.time_representation import DateTime, TimeScales
 
+POSIX_EPOCH_MINUS_UTC_J2000 = 946728000.0  # POSIX epoch (1970-01-01 00:00:00 UTC) minus UTC J2000 epoch (2000-01-01 12:00:00 UTC)
+
 
 class TimeFormat(Enum):
     UTC_POSIX = "posix"  # POSIX timestamp; in seconds since 1970-01-01 00:00:00 UTC
@@ -62,9 +64,7 @@ class TudatTimeData(TimeData):
 
     def to_utc_posix(self) -> float:
         epoch_utc = self.to_utc_j2000_tudat()
-        tudat_date_time = DateTime.from_epoch(epoch_utc)
-        py_datetime = tudat_date_time.to_python_datetime().replace(tzinfo=timezone.utc)
-        return py_datetime.timestamp()
+        return epoch_utc + POSIX_EPOCH_MINUS_UTC_J2000
 
     def to_utc_iso_tudat(self) -> str:
         epoch_utc = self.to_utc_j2000_tudat()
@@ -172,13 +172,14 @@ class UtcPosixTimeData(UtcTimeData):
         super().__init__(TimeFormat.UTC_POSIX, time_string)
 
         self.posix_epoch = float(self.time_string)
-        self.tudat_date_time = DateTime.from_python_datetime(
-            datetime.fromtimestamp(self.posix_epoch, tz=timezone.utc)
-        )
-        self.update_utc_epoch()
+        self.native_tudat_epoch = self.posix_epoch - POSIX_EPOCH_MINUS_UTC_J2000
+        self.tudat_date_time = DateTime.from_epoch(self.native_tudat_epoch)
 
     def to_utc_posix(self) -> float:
         return self.posix_epoch
+
+    def to_utc_j2000_tudat(self):
+        return self.native_tudat_epoch
 
 
 class TudatUtcIsoTimeData(UtcTimeData):
