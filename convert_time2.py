@@ -14,13 +14,13 @@ from tudatpy.astro.time_representation import DateTime, TimeScales
 
 from enum import Enum
 
-POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH = 946728000.0  # POSIX epoch (1970-01-01 00:00:00 UTC) minus UTC J2000 epoch (2000-01-01 12:00:00 UTC)
+POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH = 946728000.0  # POSIX epoch (1970-01-01 00:00:00 UTC) minus TUDAT UTC J2000 epoch (2000-01-01 12:00:00 UTC)
 
 
 class TimeFormat(Enum):
     UTC_POSIX = "posix"  # POSIX timestamp; in seconds since 1970-01-01 00:00:00 UTC
     UTC_ISO_TUDAT = "iso"  # ISO 8601 format in UTC: "YYYY-MM-DDTHH:MM:SS.sss"
-    UTC_TUDAT = "j2000"  # Time in UTC; in seconds since UTC J2000 epoch (2000-01-01 12:00:00.000 UTC)
+    UTC_TUDAT = "utc"  # Time in UTC; in seconds since UTC J2000 epoch (2000-01-01 12:00:00.000 UTC)
     TAI_TUDAT = "tai"  # Time in TAI; in seconds since TAI J2000 epoch (2000-01-01 12:00:00.000 TAI = 2000-01-01 11:59:28 UTC)
     TT_TUDAT = "tt"  # Terrestial Time; in seconds since TT J2000 epoch (2000-01-01 12:00:00.000 TT = 2000-01-01 11:58:55.816 UTC)
     TDB_TUDAT = "tdb"  # Barycentric Dynamical Time; in seconds since TDB J2000 epoch (2000-01-01 12:00:00.000 TDB ≈ 2000-01-01 11:58:55.816 UTC)
