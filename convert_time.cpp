@@ -55,12 +55,19 @@ using DispatchKey = std::pair<TimeFormat, TimeFormat>;
 class Handler
 {
 public:
+	enum class InputType
+	{
+		DOUBLE,
+		STRING
+	};
+
 	using WrappedCallable = std::function<TimeValue(const TimeValue&)>;
 
 	Handler() = default;
 
-	explicit Handler(WrappedCallable callable)
+	explicit Handler(WrappedCallable callable, InputType input_type = InputType::DOUBLE)
 		: callable_(std::move(callable))
+		, input_type_(input_type)
 	{
 	}
 
@@ -71,6 +78,7 @@ public:
 			Ret out = func(arg);
 			return TimeValue{ std::in_place_type<Ret>, std::move(out) };
 		})
+		, input_type_(std::is_same_v<Arg, std::string> ? InputType::STRING : InputType::DOUBLE)
 	{
 	}
 
@@ -81,6 +89,7 @@ public:
 			Ret out = func(arg);
 			return TimeValue{ std::in_place_type<Ret>, std::move(out) };
 		})
+		, input_type_(std::is_same_v<Arg, std::string> ? InputType::STRING : InputType::DOUBLE)
 	{
 	}
 
@@ -88,8 +97,11 @@ public:
 
 	explicit operator bool() const { return static_cast<bool>(callable_); }
 
+	InputType getInputType() const { return input_type_; }
+
 private:
 	WrappedCallable callable_;
+	InputType input_type_ = InputType::DOUBLE;
 };
 
 std::shared_ptr<tudat::earth_orientation::TerrestrialTimeScaleConverter> tudat_time_scale_converter = nullptr;
@@ -817,7 +829,7 @@ int main(int argc, char* argv[])
 				auto handler = dispatchTable[{ input_time_format, output_format }];
 
 				TimeValue input_time_value;
-				if(input_time_format == TimeFormat::UTC_ISO_TUDAT)
+				if(handler.getInputType() == Handler::InputType::STRING)
 				{
 					input_time_value = TimeValue{ std::in_place_type<std::string>, input_time_str };
 				}
