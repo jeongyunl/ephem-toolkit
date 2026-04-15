@@ -317,17 +317,14 @@ def parse_args() -> argparse.Namespace:
         "-o",
         "--output-format",
         required=True,
-        nargs="+",
-        choices=SUPPORTED_FORMATS,
         help=(
             "One or more output time formats. "
             "Provide multiple values to print multiple converted outputs per input time."
         ),
     )
     parser.add_argument(
-        "-t",
-        "--time",
-        nargs="+",
+        "time",
+        nargs="*",
         help="Time values to convert. If omitted, values are read from stdin.",
     )
     return parser.parse_args()
@@ -388,7 +385,9 @@ def main() -> None:
     for value in iter_input_times(args):
         time_data = parse_time_value(value, args.input_format)
 
-        outputs = [convert_time_value(time_data, fmt) for fmt in args.output_format]
+        outputs = [
+            convert_time_value(time_data, fmt) for fmt in args.output_format.split(",")
+        ]
 
         print(f"{value}\t", end="")
         formatted_outputs = []
