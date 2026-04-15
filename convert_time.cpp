@@ -62,7 +62,7 @@ TimeValue utc_iso_tudat_to_utc_posix(const TimeValue& input_time)
 	const auto iso_string = std::get<std::string>(input_time);
 	// ... (conversion logic here)
 
-	double utc_posix_epoch = std::nan("0");
+	double utc_posix_epoch = std::numeric_limits<double>::quiet_NaN();
 
 	// Unforunately, tudat::basic_astrodynamics::DateTime::timePoint() and
 	// tudat::basic_astrodynamics::DateTime::fromTimePoint() use std::localtime() and std::mktime()
@@ -113,7 +113,7 @@ TimeValue utc_iso_tudat_to_utc_posix(const TimeValue& input_time)
 TimeValue utc_iso_tudat_to_utc_tudat(const TimeValue& input_time)
 {
 	const auto iso_string = std::get<std::string>(input_time);
-	double utc_tudat_epoch = std::nan("0");
+	double utc_tudat_epoch = std::numeric_limits<double>::quiet_NaN();
 
 	try
 	{
@@ -130,8 +130,8 @@ TimeValue utc_iso_tudat_to_utc_tudat(const TimeValue& input_time)
 TimeValue utc_iso_tudat_to_tai_tudat(const TimeValue& input_time)
 {
 	const auto iso_string = std::get<std::string>(input_time);
-	double utc_tudat_epoch = std::nan("0");
-	double tai_tudat_epoch = std::nan("0");
+	double utc_tudat_epoch = std::numeric_limits<double>::quiet_NaN();
+	double tai_tudat_epoch = std::numeric_limits<double>::quiet_NaN();
 
 	{
 		tudat::basic_astrodynamics::DateTime tudat_date_time;
@@ -170,8 +170,8 @@ TimeValue utc_iso_tudat_to_tai_tudat(const TimeValue& input_time)
 TimeValue utc_iso_tudat_to_tt_tudat(const TimeValue& input_time)
 {
 	const auto iso_string = std::get<std::string>(input_time);
-	double utc_tudat_epoch = std::nan("0");
-	double tt_tudat_epoch = std::nan("0");
+	double utc_tudat_epoch = std::numeric_limits<double>::quiet_NaN();
+	double tt_tudat_epoch = std::numeric_limits<double>::quiet_NaN();
 
 	{
 		tudat::basic_astrodynamics::DateTime tudat_date_time;
