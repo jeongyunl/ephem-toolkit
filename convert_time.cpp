@@ -73,7 +73,9 @@ TimeValue utc_iso_tudat_to_utc_posix(const TimeValue& input_time)
 
 	try
 	{
-#if __cplusplus >= 202002L && defined(_LIBCPP_HAS_TIME_ZONE_DATABASE) && _LIBCPP_HAS_TIME_ZONE_DATABASE
+#if __cplusplus >= 202002L                                                          \
+	&& ((defined(_LIBCPP_HAS_TIME_ZONE_DATABASE) && _LIBCPP_HAS_TIME_ZONE_DATABASE) \
+		|| (_GLIBCXX_USE_CXX11_ABI || !_GLIBCXX_USE_DUAL_ABI))
 		// Code for C++20 and later
 		utc_posix_epoch =
 			std::chrono::duration<double>(
@@ -165,10 +167,51 @@ TimeValue utc_iso_tudat_to_tai_tudat(const TimeValue& input_time)
 	return TimeValue{ std::in_place_type<double>, tai_tudat_epoch };
 }
 
+TimeValue utc_iso_tudat_to_tt_tudat(const TimeValue& input_time)
+{
+	const auto iso_string = std::get<std::string>(input_time);
+	double utc_tudat_epoch = std::nan("0");
+	double tt_tudat_epoch = std::nan("0");
+
+	{
+		tudat::basic_astrodynamics::DateTime tudat_date_time;
+
+		try
+		{
+			tudat_date_time = tudat::basic_astrodynamics::DateTime::fromIsoString(iso_string);
+			utc_tudat_epoch = tudat_date_time.epoch<double>();
+		}
+		catch(const std::exception& e)
+		{
+			std::cerr << "Error converting ISO string to TUDAT TT timestamp: " << e.what() << "\n";
+			return TimeValue{ std::in_place_type<double>, tt_tudat_epoch };
+		}
+
+		double leap_second = 0.0;
+		if(tudat_date_time.getSeconds() >= 60.0)
+		{
+			leap_second = 1.0;
+		}
+		else
+		{
+			leap_second = 0.0;
+		}
+
+		tt_tudat_epoch = tudat_time_converter->getCurrentTime(
+							 tudat::basic_astrodynamics::TimeScales::utc_scale,
+							 tudat::basic_astrodynamics::TimeScales::tt_scale,
+							 utc_tudat_epoch
+						 )
+			- leap_second;
+	}
+	return TimeValue{ std::in_place_type<double>, tt_tudat_epoch };
+}
+
 std::map<DispatchKey, Handler> dispatchTable{
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::UTC_POSIX }, utc_iso_tudat_to_utc_posix },
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::UTC_TUDAT }, utc_iso_tudat_to_utc_tudat },
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TAI_TUDAT }, utc_iso_tudat_to_tai_tudat },
+	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TT_TUDAT }, utc_iso_tudat_to_tt_tudat },
 	// ... (other conversions)
 };
 
