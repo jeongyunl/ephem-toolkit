@@ -58,10 +58,9 @@ class TimeData:
     def to_tdb_tudat(self) -> float:
         raise NotImplementedError
 
-    def to_tdb_tudat(self) -> float:
+    def to_tdb_apx_tudat(self) -> float:
         raise NotImplementedError
-
-
+    
 class TudatTimeData(TimeData):
 
     def __init__(self, time_format: TimeFormat, time_string: str):
@@ -263,7 +262,7 @@ class TdbTudatTimeData(TudatTimeData):
 class TdbApxTudatTimeData(TudatTimeData):
 
     def __init__(self, time_string: str):
-        super().__init__(TimeFormat.TDB_TUDAT, time_string)
+        super().__init__(TimeFormat.TDB_APX_TUDAT, time_string)
 
         self.native_time_scale = TimeScales.tdb_scale
         self.native_tudat_epoch = float(self.time_string)

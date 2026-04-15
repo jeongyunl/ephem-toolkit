@@ -93,10 +93,6 @@ def iter_input_times(args: argparse.Namespace) -> Iterable[str]:
 
 class TimeConverter:
     """Utility conversion helpers.
-
-    Note: this class is currently not used by the CLI flow below (which uses the
-    TimeData classes + `convert_time_value`). It exists as an alternative
-    conversion API for direct ISO/J2000 conversions.
     """
 
     #
@@ -148,7 +144,7 @@ class TimeConverter:
 
     @staticmethod
     def utc_iso_tudat_to_tdb_tudat(iso_time: str) -> float:
-        # Convert ISO time to TDB J2000 secondsF
+        # Convert ISO time to TDB J2000 seconds
         tudat_date_time = DateTime.from_iso_string(iso_time)
 
         if tudat_date_time.seconds >= 60.0:

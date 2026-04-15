@@ -102,7 +102,7 @@ double utc_iso_tudat_to_utc_posix(const std::string& iso_string)
 
 #if __cplusplus >= 202002L                                                          \
 	&& ((defined(_LIBCPP_HAS_TIME_ZONE_DATABASE) && _LIBCPP_HAS_TIME_ZONE_DATABASE) \
-		|| (_GLIBCXX_USE_CXX11_ABI || !_GLIBCXX_USE_DUAL_ABI))
+		|| (defined(_GLIBCXX_USE_DUAL_ABI) && (_GLIBCXX_USE_CXX11_ABI || !_GLIBCXX_USE_DUAL_ABI)))
 		// Code for C++20 and later
 		const double utc_posix_epoch =
 			std::chrono::duration<double>(
@@ -215,14 +215,10 @@ double utc_iso_tudat_to_tdb_tudat(const std::string& iso_string)
 	}
 }
 
-#if 0
-TimeValue utc_iso_tudat_to_tdb_apx_tudat(const TimeValue& input_time)
+double utc_iso_tudat_to_tdb_apx_tudat(const std::string& iso_string)
 {
-	// Similar to utc_iso_tudat_to_tdb_tudat, but using an approximate conversion for TDB
-	// ... (implementation here)
-	return TimeValue{ std::in_place_type<double>, std::numeric_limits<double>::quiet_NaN() };
+	return utc_iso_tudat_to_tt_tudat(iso_string);
 }
-#endif
 
 std::string utc_posix_to_utc_iso_tudat(const double utc_posix_epoch)
 {
@@ -306,6 +302,11 @@ double utc_posix_to_tt_tudat(const double utc_posix_epoch)
 	}
 }
 
+double utc_posix_to_tdb_apx_tudat(const double utc_posix_epoch)
+{
+	return utc_posix_to_tt_tudat(utc_posix_epoch);
+}
+
 std::string utc_tudat_to_utc_iso_tudat(const double utc_tudat_epoch)
 {
 	try
@@ -378,6 +379,11 @@ double utc_tudat_to_tdb_tudat(const double utc_tudat_epoch)
 		std::cerr << "Error converting TUDAT UTC timestamp to TUDAT TDB timestamp: " << e.what() << "\n";
 		return std::numeric_limits<double>::quiet_NaN();
 	}
+}
+
+double utc_tudat_to_tdb_apx_tudat(const double utc_tudat_epoch)
+{
+	return utc_tudat_to_tt_tudat(utc_tudat_epoch);
 }
 
 std::string tai_tudat_to_utc_iso_tudat(const double tai_tudat_epoch)
@@ -462,6 +468,11 @@ double tai_tudat_to_tdb_tudat(const double tai_tudat_epoch)
 	}
 }
 
+double tai_tudat_to_tdb_apx_tudat(const double tai_tudat_epoch)
+{
+	return tai_tudat_to_tt_tudat(tai_tudat_epoch);
+}
+
 std::string tt_tudat_to_utc_iso_tudat(const double tt_tudat_epoch)
 {
 	try
@@ -542,6 +553,11 @@ double tt_tudat_to_tdb_tudat(const double tt_tudat_epoch)
 		std::cerr << "Error converting TUDAT TT timestamp to TUDAT TDB timestamp: " << e.what() << "\n";
 		return std::numeric_limits<double>::quiet_NaN();
 	}
+}
+
+double tt_tudat_to_tdb_apx_tudat(const double tt_tudat_epoch)
+{
+	return tt_tudat_epoch;
 }
 
 std::string tdb_tudat_to_utc_iso_tudat(const double tdb_tudat_epoch)
@@ -638,6 +654,41 @@ double tdb_tudat_to_tdb_tudat(const double tdb_tudat_epoch)
 	return tdb_tudat_epoch;
 }
 
+std::string tdb_apx_tudat_to_utc_iso_tudat(const double tdb_apx_tudat_epoch)
+{
+	return tt_tudat_to_utc_iso_tudat(tdb_apx_tudat_epoch);
+}
+
+double tdb_apx_tudat_to_utc_posix(const double tdb_apx_tudat_epoch)
+{
+	return tt_tudat_to_utc_posix(tdb_apx_tudat_epoch);
+}
+
+double tdb_apx_tudat_to_utc_tudat(const double tdb_apx_tudat_epoch)
+{
+	return tt_tudat_to_utc_tudat(tdb_apx_tudat_epoch);
+}
+
+double tdb_apx_tudat_to_tai_tudat(const double tdb_apx_tudat_epoch)
+{
+	return tt_tudat_to_tai_tudat(tdb_apx_tudat_epoch);
+}
+
+double tdb_apx_tudat_to_tt_tudat(const double tdb_apx_tudat_epoch)
+{
+	return tdb_apx_tudat_epoch;
+}
+
+double tdb_apx_tudat_to_tdb_tudat(const double tdb_apx_tudat_epoch)
+{
+	return tdb_apx_tudat_epoch;
+}
+
+double tdb_apx_tudat_to_tdb_apx_tudat(const double tdb_apx_tudat_epoch)
+{
+	return tdb_apx_tudat_epoch;
+}
+
 std::map<DispatchKey, Handler> dispatchTable{
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::UTC_ISO_TUDAT },
 	  make_handler(utc_iso_tudat_to_utc_iso_tudat) },
@@ -646,6 +697,7 @@ std::map<DispatchKey, Handler> dispatchTable{
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TAI_TUDAT }, make_handler(utc_iso_tudat_to_tai_tudat) },
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TT_TUDAT }, make_handler(utc_iso_tudat_to_tt_tudat) },
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TDB_TUDAT }, make_handler(utc_iso_tudat_to_tdb_tudat) },
+	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TDB_APX_TUDAT }, make_handler(utc_iso_tudat_to_tdb_apx_tudat) },
 
 	{ { TimeFormat::UTC_POSIX, TimeFormat::UTC_ISO_TUDAT }, make_handler(utc_posix_to_utc_iso_tudat) },
 	{ { TimeFormat::UTC_POSIX, TimeFormat::UTC_POSIX }, make_handler(utc_posix_to_utc_posix) },
@@ -653,6 +705,7 @@ std::map<DispatchKey, Handler> dispatchTable{
 	{ { TimeFormat::UTC_POSIX, TimeFormat::TAI_TUDAT }, make_handler(utc_posix_to_tai_tudat) },
 	{ { TimeFormat::UTC_POSIX, TimeFormat::TT_TUDAT }, make_handler(utc_posix_to_tt_tudat) },
 	{ { TimeFormat::UTC_POSIX, TimeFormat::TDB_TUDAT }, make_handler(utc_posix_to_tdb_tudat) },
+	{ { TimeFormat::UTC_POSIX, TimeFormat::TDB_APX_TUDAT }, make_handler(utc_posix_to_tdb_apx_tudat) },
 
 	{ { TimeFormat::UTC_TUDAT, TimeFormat::UTC_ISO_TUDAT }, make_handler(utc_tudat_to_utc_iso_tudat) },
 	{ { TimeFormat::UTC_TUDAT, TimeFormat::UTC_POSIX }, make_handler(utc_tudat_to_utc_posix) },
@@ -660,6 +713,7 @@ std::map<DispatchKey, Handler> dispatchTable{
 	{ { TimeFormat::UTC_TUDAT, TimeFormat::TAI_TUDAT }, make_handler(utc_tudat_to_tai_tudat) },
 	{ { TimeFormat::UTC_TUDAT, TimeFormat::TT_TUDAT }, make_handler(utc_tudat_to_tt_tudat) },
 	{ { TimeFormat::UTC_TUDAT, TimeFormat::TDB_TUDAT }, make_handler(utc_tudat_to_tdb_tudat) },
+	{ { TimeFormat::UTC_TUDAT, TimeFormat::TDB_APX_TUDAT }, make_handler(utc_tudat_to_tdb_apx_tudat) },
 
 	{ { TimeFormat::TAI_TUDAT, TimeFormat::UTC_ISO_TUDAT }, make_handler(tai_tudat_to_utc_iso_tudat) },
 	{ { TimeFormat::TAI_TUDAT, TimeFormat::UTC_POSIX }, make_handler(tai_tudat_to_utc_posix) },
@@ -667,6 +721,7 @@ std::map<DispatchKey, Handler> dispatchTable{
 	{ { TimeFormat::TAI_TUDAT, TimeFormat::TAI_TUDAT }, make_handler(tai_tudat_to_tai_tudat) },
 	{ { TimeFormat::TAI_TUDAT, TimeFormat::TT_TUDAT }, make_handler(tai_tudat_to_tt_tudat) },
 	{ { TimeFormat::TAI_TUDAT, TimeFormat::TDB_TUDAT }, make_handler(tai_tudat_to_tdb_tudat) },
+	{ { TimeFormat::TAI_TUDAT, TimeFormat::TDB_APX_TUDAT }, make_handler(tai_tudat_to_tdb_apx_tudat) },
 
 	{ { TimeFormat::TT_TUDAT, TimeFormat::UTC_ISO_TUDAT }, make_handler(tt_tudat_to_utc_iso_tudat) },
 	{ { TimeFormat::TT_TUDAT, TimeFormat::UTC_POSIX }, make_handler(tt_tudat_to_utc_posix) },
@@ -674,6 +729,7 @@ std::map<DispatchKey, Handler> dispatchTable{
 	{ { TimeFormat::TT_TUDAT, TimeFormat::TAI_TUDAT }, make_handler(tt_tudat_to_tai_tudat) },
 	{ { TimeFormat::TT_TUDAT, TimeFormat::TT_TUDAT }, make_handler(tt_tudat_to_tt_tudat) },
 	{ { TimeFormat::TT_TUDAT, TimeFormat::TDB_TUDAT }, make_handler(tt_tudat_to_tdb_tudat) },
+	{ { TimeFormat::TT_TUDAT, TimeFormat::TDB_APX_TUDAT }, make_handler(tt_tudat_to_tdb_apx_tudat) },
 
 	{ { TimeFormat::TDB_TUDAT, TimeFormat::UTC_ISO_TUDAT }, make_handler(tdb_tudat_to_utc_iso_tudat) },
 	{ { TimeFormat::TDB_TUDAT, TimeFormat::UTC_POSIX }, make_handler(tdb_tudat_to_utc_posix) },
@@ -681,6 +737,15 @@ std::map<DispatchKey, Handler> dispatchTable{
 	{ { TimeFormat::TDB_TUDAT, TimeFormat::TAI_TUDAT }, make_handler(tdb_tudat_to_tai_tudat) },
 	{ { TimeFormat::TDB_TUDAT, TimeFormat::TT_TUDAT }, make_handler(tdb_tudat_to_tt_tudat) },
 	{ { TimeFormat::TDB_TUDAT, TimeFormat::TDB_TUDAT }, make_handler(tdb_tudat_to_tdb_tudat) },
+	{ { TimeFormat::TDB_TUDAT, TimeFormat::TDB_APX_TUDAT }, make_handler(tdb_tudat_to_tt_tudat) },
+
+	{ { TimeFormat::TDB_APX_TUDAT, TimeFormat::UTC_ISO_TUDAT }, make_handler(tdb_apx_tudat_to_utc_iso_tudat) },
+	{ { TimeFormat::TDB_APX_TUDAT, TimeFormat::UTC_POSIX }, make_handler(tdb_apx_tudat_to_utc_posix) },
+	{ { TimeFormat::TDB_APX_TUDAT, TimeFormat::UTC_TUDAT }, make_handler(tdb_apx_tudat_to_utc_tudat) },
+	{ { TimeFormat::TDB_APX_TUDAT, TimeFormat::TAI_TUDAT }, make_handler(tdb_apx_tudat_to_tai_tudat) },
+	{ { TimeFormat::TDB_APX_TUDAT, TimeFormat::TT_TUDAT }, make_handler(tdb_apx_tudat_to_tt_tudat) },
+	{ { TimeFormat::TDB_APX_TUDAT, TimeFormat::TDB_TUDAT }, make_handler(tdb_apx_tudat_to_tdb_tudat) },
+	{ { TimeFormat::TDB_APX_TUDAT, TimeFormat::TDB_APX_TUDAT }, make_handler(tdb_apx_tudat_to_tdb_apx_tudat) },
 };
 
 int main(int argc, char* argv[])
