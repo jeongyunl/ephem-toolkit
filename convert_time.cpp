@@ -562,6 +562,11 @@ double tdb_tudat_to_tdb_tudat(const double tdb_tudat_epoch)
 	return tdb_tudat_epoch;
 }
 
+double tdb_tudat_to_tdb_apx_tudat(const double tdb_tudat_epoch)
+{
+	return tdb_tudat_epoch;
+}
+
 std::string tdb_apx_tudat_to_utc_iso_tudat(const double tdb_apx_tudat_epoch)
 {
 	return tt_tudat_to_utc_iso_tudat(tdb_apx_tudat_epoch);

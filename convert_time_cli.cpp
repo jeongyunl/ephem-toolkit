@@ -11,21 +11,6 @@
 #include <variant>
 #include <getopt.h>
 
-enum class TimeFormat
-{
-	UNKNOWN = -1,
-	UTC_ISO_TUDAT = 0, // ISO 8601 format in UTC: "YYYY-MM-DDTHH:MM:SS.sss"
-	UTC_POSIX, // POSIX timestamp; in seconds since 1970-01-01 00:00:00 UTC
-	UTC_TUDAT, // Time in UTC; in seconds since UTC J2000 epoch (2000-01-01 12:00:00.000 UTC)
-	TAI_TUDAT, // Time in TAI; in seconds since TAI J2000 epoch (2000-01-01 12:00:00.000 TAI =
-			   // 2000-01-01 11:59:28 UTC)
-	TT_TUDAT, // Terrestial Time; in seconds since TT J2000 epoch (2000-01-01 12:00:00.000 TT =
-			  // 2000-01-01 11:58:55.816 UTC)
-	TDB_TUDAT, // Barycentric Dynamical Time; in seconds since TDB J2000 epoch (2000-01-01
-			   // 12:00:00.000 TDB ≈ 2000-01-01 11:58:55.816 UTC)
-	TDB_APX_TUDAT, // Approximate TDB J2000 epoch
-};
-
 constexpr auto TimeFormatNames =
 	std::array<const char*, 7>{ "posix", "iso", "utc", "tai", "tt", "tdb", "tdb_apx" };
 
@@ -194,7 +179,7 @@ int main(int argc, char* argv[])
 				break;
 			case 'o':
 			{
-				for(const auto word : std::views::split(std::string_view(optarg), ','))
+				for(const auto word : std::views::split(std::string_view(optarg), std::string_view(",")))
 				{
 					output_format_list.emplace_back(std::string(word.begin(), word.end()));
 				}
