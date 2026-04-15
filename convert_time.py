@@ -40,10 +40,10 @@ class TimeData:
         self.time_format = time_format
         self.time_string = time_string
 
-    def to_utc_posix(self) -> float:
+    def to_utc_iso_tudat(self) -> str:
         raise NotImplementedError
 
-    def to_utc_iso_tudat(self) -> str:
+    def to_utc_posix(self) -> float:
         raise NotImplementedError
 
     def to_utc_tudat(self) -> float:
@@ -69,10 +69,6 @@ class TudatTimeData(TimeData):
 
         self.native_time_scale = None
         self.native_tudat_epoch = None
-
-    def to_utc_posix(self) -> float:
-        utc_tudat_epoch = self.to_utc_tudat()
-        return utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH
 
     def to_utc_iso_tudat(self) -> str:
         utc_tudat_epoch = self.to_utc_tudat()
@@ -109,6 +105,10 @@ class TudatTimeData(TimeData):
                     return "ERROR"
 
         return utc_tudat_date_time.to_iso_string(number_of_digits_seconds=3)
+
+    def to_utc_posix(self) -> float:
+        utc_tudat_epoch = self.to_utc_tudat()
+        return utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH
 
     def to_utc_tudat(self) -> float:
         return tudat_time_scale_converter.convert_time(
@@ -362,10 +362,10 @@ def parse_time_value(value: str, fmt: str) -> TudatTimeData:
 
 
 def convert_time_value(time: TudatTimeData, format_name: str):
-    if format_name == TimeFormat.UTC_POSIX.value:
-        return time.to_utc_posix()
     if format_name == TimeFormat.UTC_ISO_TUDAT.value:
         return time.to_utc_iso_tudat()
+    if format_name == TimeFormat.UTC_POSIX.value:
+        return time.to_utc_posix()
     if format_name == TimeFormat.UTC_TUDAT.value:
         return time.to_utc_tudat()
     if format_name == TimeFormat.TAI_TUDAT.value:
