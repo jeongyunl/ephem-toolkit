@@ -107,8 +107,9 @@ class TimeConverter:
     @staticmethod
     def utc_iso_tudat_to_utc_posix(iso_time: str) -> float:
 
-        return TimeConverter.utc_tudat_to_utc_posix(
+        return (
             TimeConverter.utc_iso_tudat_to_utc_tudat(iso_time)
+            + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH
         )
 
     @staticmethod
@@ -251,7 +252,7 @@ class TimeConverter:
     def tai_tudat_to_utc_posix(tai_tudat_epoch: float) -> float:
         # Convert TAI J2000 seconds to POSIX timestamp
         utc_tudat_epoch = TimeConverter.tai_tudat_to_utc_tudat(tai_tudat_epoch)
-        return TimeConverter.utc_tudat_to_utc_posix(utc_tudat_epoch)
+        return utc_tudat_epoch + +POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH
 
     @staticmethod
     def tai_tudat_to_utc_tudat(tai_tudat_epoch: float) -> float:
@@ -295,7 +296,7 @@ class TimeConverter:
     def tt_tudat_to_utc_posix(tt_tudat_epoch: float) -> float:
         # Convert TT J2000 seconds to POSIX timestamp
         utc_tudat_epoch = TimeConverter.tt_tudat_to_utc_tudat(tt_tudat_epoch)
-        return TimeConverter.utc_tudat_to_utc_posix(utc_tudat_epoch)
+        return utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH
 
     @staticmethod
     def tt_tudat_to_utc_tudat(tt_tudat_epoch: float) -> float:
@@ -339,7 +340,7 @@ class TimeConverter:
     def tdb_tudat_to_utc_posix(tdb_tudat_epoch: float) -> float:
         # Convert TDB J2000 seconds to POSIX timestamp
         utc_tudat_epoch = TimeConverter.tdb_tudat_to_utc_tudat(tdb_tudat_epoch)
-        return TimeConverter.utc_tudat_to_utc_posix(utc_tudat_epoch)
+        return utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH
 
     @staticmethod
     def tdb_tudat_to_utc_tudat(tdb_tudat_epoch: float) -> float:
