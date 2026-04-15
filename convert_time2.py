@@ -92,8 +92,13 @@ def iter_input_times(args: argparse.Namespace) -> Iterable[str]:
 
 
 class TimeConverter:
-    """Utility conversion helpers.
-    """
+    """Utility conversion helpers."""
+
+    @staticmethod
+    def _utc_iso_to_tudat_epoch_and_leap_second(iso_time: str) -> tuple[float, float]:
+        tudat_date_time = DateTime.from_iso_string(iso_time)
+        leap_second = 1.0 if tudat_date_time.seconds >= 60.0 else 0.0
+        return tudat_date_time.to_epoch(), leap_second
 
     #
     # Conversion functions for UTC ISO-8601 format
@@ -109,53 +114,37 @@ class TimeConverter:
     @staticmethod
     def utc_iso_tudat_to_utc_tudat(iso_time: str) -> float:
         # Convert ISO time to UTC J2000 seconds
-        tudat_date_time = DateTime.from_iso_string(iso_time)
-        return tudat_date_time.to_epoch()
+        utc_tudat_epoch, _ = TimeConverter._utc_iso_to_tudat_epoch_and_leap_second(
+            iso_time
+        )
+        return utc_tudat_epoch
 
     @staticmethod
     def utc_iso_tudat_to_tai_tudat(iso_time: str) -> float:
         # Convert ISO time to TAI J2000 seconds
-        tudat_date_time = DateTime.from_iso_string(iso_time)
-
-        if tudat_date_time.seconds >= 60.0:
-            leap_second = 1.0
-        else:
-            leap_second = 0.0
-
-        return (
-            TimeConverter.utc_tudat_to_tai_tudat(tudat_date_time.to_epoch())
-            - leap_second
+        utc_tudat_epoch, leap_second = (
+            TimeConverter._utc_iso_to_tudat_epoch_and_leap_second(iso_time)
         )
+
+        return TimeConverter.utc_tudat_to_tai_tudat(utc_tudat_epoch) - leap_second
 
     @staticmethod
     def utc_iso_tudat_to_tt_tudat(iso_time: str) -> float:
         # Convert ISO time to TT J2000 seconds
-        tudat_date_time = DateTime.from_iso_string(iso_time)
-
-        if tudat_date_time.seconds >= 60.0:
-            leap_second = 1.0
-        else:
-            leap_second = 0.0
-
-        return (
-            TimeConverter.utc_tudat_to_tt_tudat(tudat_date_time.to_epoch())
-            - leap_second
+        utc_tudat_epoch, leap_second = (
+            TimeConverter._utc_iso_to_tudat_epoch_and_leap_second(iso_time)
         )
+
+        return TimeConverter.utc_tudat_to_tt_tudat(utc_tudat_epoch) - leap_second
 
     @staticmethod
     def utc_iso_tudat_to_tdb_tudat(iso_time: str) -> float:
         # Convert ISO time to TDB J2000 seconds
-        tudat_date_time = DateTime.from_iso_string(iso_time)
-
-        if tudat_date_time.seconds >= 60.0:
-            leap_second = 1.0
-        else:
-            leap_second = 0.0
-
-        return (
-            TimeConverter.utc_tudat_to_tdb_tudat(tudat_date_time.to_epoch())
-            - leap_second
+        utc_tudat_epoch, leap_second = (
+            TimeConverter._utc_iso_to_tudat_epoch_and_leap_second(iso_time)
         )
+
+        return TimeConverter.utc_tudat_to_tdb_tudat(utc_tudat_epoch) - leap_second
 
     @staticmethod
     def utc_iso_tudat_to_tdb_apx_tudat(iso_time: str) -> float:
