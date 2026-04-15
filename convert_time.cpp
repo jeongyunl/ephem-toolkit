@@ -54,13 +54,23 @@ typedef std::variant<double, std::string> TimeValue;
 using DispatchKey = std::pair<TimeFormat, TimeFormat>;
 using Handler = std::function<TimeValue(const TimeValue&)>;
 
+// Wrap a strongly-typed conversion function into a generic dispatch handler.
+// Example: double f(const std::string&) -> Handler
+template <typename Arg, typename Ret>
+Handler make_handler(Ret (*func)(const Arg&))
+{
+	return [func](const TimeValue& input_time) -> TimeValue {
+		const auto& arg = std::get<Arg>(input_time);
+		Ret out = func(arg);
+		return TimeValue{ std::in_place_type<Ret>, std::move(out) };
+	};
+}
+
 std::shared_ptr<tudat::earth_orientation::TerrestrialTimeScaleConverter> tudat_time_scale_converter = nullptr;
 
-TimeValue utc_iso_tudat_to_utc_posix(const TimeValue& input_time)
+double utc_iso_tudat_to_utc_posix(const std::string& iso_string)
 {
 	// Convert ISO 8601 string to POSIX timestamp
-	const auto iso_string = std::get<std::string>(input_time);
-	// ... (conversion logic here)
 
 	double utc_posix_epoch = std::numeric_limits<double>::quiet_NaN();
 
@@ -107,7 +117,7 @@ TimeValue utc_iso_tudat_to_utc_posix(const TimeValue& input_time)
 		std::cerr << "Error converting ISO string to POSIX timestamp: " << e.what() << "\n";
 	}
 
-	return TimeValue{ std::in_place_type<double>, utc_posix_epoch };
+	return utc_posix_epoch;
 }
 
 TimeValue utc_iso_tudat_to_utc_tudat(const TimeValue& input_time)
@@ -428,7 +438,7 @@ TimeValue tai_tudat_to_utc_tudat(const TimeValue& input_time)
 }
 
 std::map<DispatchKey, Handler> dispatchTable{
-	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::UTC_POSIX }, utc_iso_tudat_to_utc_posix },
+	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::UTC_POSIX }, make_handler(utc_iso_tudat_to_utc_posix) },
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::UTC_TUDAT }, utc_iso_tudat_to_utc_tudat },
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TAI_TUDAT }, utc_iso_tudat_to_tai_tudat },
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TT_TUDAT }, utc_iso_tudat_to_tt_tudat },
