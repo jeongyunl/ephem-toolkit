@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.27)
 project(tudatpy-utils)
 find_package(tudat REQUIRED)
 find_package(Eigen3 REQUIRED)
-# find_package(nrlmsise00 REQUIRED)
+find_package(nrlmsise00 REQUIRED)
 
 include_directories(${EIGEN3_INCLUDE_DIRS})
 
