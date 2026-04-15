@@ -92,44 +92,8 @@ double utc_iso_tudat_to_utc_posix(const std::string& iso_string)
 
 	try
 	{
-		// Unforunately, tudat::basic_astrodynamics::DateTime::timePoint() and
-		// tudat::basic_astrodynamics::DateTime::fromTimePoint() use std::localtime() and std::mktime()
-		// internally, which are affected by the system's local timezone settings.
-
-		// To ensure that the conversion is correct, we need to account for the local time offset.
-		// The code below handles both C++20 and earlier versions, using the appropriate APIs to get the
-		// local time offset.
-
-#if __cplusplus >= 202002L                                                          \
-	&& ((defined(_LIBCPP_HAS_TIME_ZONE_DATABASE) && _LIBCPP_HAS_TIME_ZONE_DATABASE) \
-		|| (defined(_GLIBCXX_USE_DUAL_ABI) && (_GLIBCXX_USE_CXX11_ABI || !_GLIBCXX_USE_DUAL_ABI)))
-		// Code for C++20 and later
-		const double utc_posix_epoch =
-			std::chrono::duration<double>(
-				std::chrono::current_zone()
-					->to_local(tudat::basic_astrodynamics::DateTime::fromIsoString(iso_string).timePoint())
-					.time_since_epoch()
-			)
-				.count();
-#else
-		// Code for C++17 and earlier
-		long local_time_offset = 0;
-		{
-			const std::time_t posix_epoch_zero = 0;
-			std::tm local_tm = *std::localtime(&posix_epoch_zero);
-			std::tm utc_tm = *std::gmtime(&posix_epoch_zero);
-
-			local_time_offset = std::mktime(&local_tm) - std::mktime(&utc_tm); // seconds
-		}
-
-		const double utc_posix_epoch =
-			std::chrono::duration<double>(
-				tudat::basic_astrodynamics::DateTime::fromIsoString(iso_string).timePoint().time_since_epoch()
-			)
-				.count()
-			+ local_time_offset;
-#endif
-		return utc_posix_epoch;
+		return tudat::basic_astrodynamics::DateTime::fromIsoString(iso_string).epoch<double>()
+			+ POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
 	}
 	catch(const std::exception& e)
 	{
@@ -697,7 +661,8 @@ std::map<DispatchKey, Handler> dispatchTable{
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TAI_TUDAT }, make_handler(utc_iso_tudat_to_tai_tudat) },
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TT_TUDAT }, make_handler(utc_iso_tudat_to_tt_tudat) },
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TDB_TUDAT }, make_handler(utc_iso_tudat_to_tdb_tudat) },
-	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TDB_APX_TUDAT }, make_handler(utc_iso_tudat_to_tdb_apx_tudat) },
+	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TDB_APX_TUDAT },
+	  make_handler(utc_iso_tudat_to_tdb_apx_tudat) },
 
 	{ { TimeFormat::UTC_POSIX, TimeFormat::UTC_ISO_TUDAT }, make_handler(utc_posix_to_utc_iso_tudat) },
 	{ { TimeFormat::UTC_POSIX, TimeFormat::UTC_POSIX }, make_handler(utc_posix_to_utc_posix) },
@@ -739,13 +704,15 @@ std::map<DispatchKey, Handler> dispatchTable{
 	{ { TimeFormat::TDB_TUDAT, TimeFormat::TDB_TUDAT }, make_handler(tdb_tudat_to_tdb_tudat) },
 	{ { TimeFormat::TDB_TUDAT, TimeFormat::TDB_APX_TUDAT }, make_handler(tdb_tudat_to_tt_tudat) },
 
-	{ { TimeFormat::TDB_APX_TUDAT, TimeFormat::UTC_ISO_TUDAT }, make_handler(tdb_apx_tudat_to_utc_iso_tudat) },
+	{ { TimeFormat::TDB_APX_TUDAT, TimeFormat::UTC_ISO_TUDAT },
+	  make_handler(tdb_apx_tudat_to_utc_iso_tudat) },
 	{ { TimeFormat::TDB_APX_TUDAT, TimeFormat::UTC_POSIX }, make_handler(tdb_apx_tudat_to_utc_posix) },
 	{ { TimeFormat::TDB_APX_TUDAT, TimeFormat::UTC_TUDAT }, make_handler(tdb_apx_tudat_to_utc_tudat) },
 	{ { TimeFormat::TDB_APX_TUDAT, TimeFormat::TAI_TUDAT }, make_handler(tdb_apx_tudat_to_tai_tudat) },
 	{ { TimeFormat::TDB_APX_TUDAT, TimeFormat::TT_TUDAT }, make_handler(tdb_apx_tudat_to_tt_tudat) },
 	{ { TimeFormat::TDB_APX_TUDAT, TimeFormat::TDB_TUDAT }, make_handler(tdb_apx_tudat_to_tdb_tudat) },
-	{ { TimeFormat::TDB_APX_TUDAT, TimeFormat::TDB_APX_TUDAT }, make_handler(tdb_apx_tudat_to_tdb_apx_tudat) },
+	{ { TimeFormat::TDB_APX_TUDAT, TimeFormat::TDB_APX_TUDAT },
+	  make_handler(tdb_apx_tudat_to_tdb_apx_tudat) },
 };
 
 int main(int argc, char* argv[])
@@ -812,7 +779,6 @@ int main(int argc, char* argv[])
 
 	tudat_time_scale_converter = tudat::earth_orientation::createDefaultTimeConverter();
 
-	std::cout << "Input format: " << input_format_str << "\n";
 	auto input_time_format = parse_time_format(input_format_str);
 	if(input_time_format == TimeFormat::UNKNOWN)
 	{
