@@ -1,0 +1,89 @@
+---
+BasedOnStyle: WebKit
+---
+Language: Cpp
+AlignAfterOpenBracket: BlockIndent
+AlignEscapedNewlines: Left
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: InlineOnly
+AlwaysBreakBeforeMultilineStrings: true
+AlwaysBreakTemplateDeclarations: Yes
+BinPackArguments: false
+BinPackParameters: false
+BitFieldColonSpacing: Both
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel:         true
+  AfterClass:             true
+  AfterControlStatement:  Always
+  AfterEnum:              true
+  AfterExternBlock:       true
+  AfterFunction:          true
+  AfterNamespace:         true
+  AfterObjCDeclaration:   true
+  AfterStruct:            true
+  AfterUnion:             true
+  BeforeCatch:            true
+  BeforeElse:             true
+  BeforeLambdaBody:       false
+  BeforeWhile:            false
+  IndentBraces:           false
+  SplitEmptyFunction:     true
+  SplitEmptyRecord:       true
+  SplitEmptyNamespace:    true
+BreakBeforeBinaryOperators: NonAssignment
+BreakInheritanceList: BeforeComma
+ColumnLimit: 110
+FixNamespaceComments: true
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex:           '^<(asm|bits|linux|netinet|net|sys)/'
+    Priority:        3
+    SortPriority:    5
+    CaseSensitive:   true
+  - Regex:           '^<[^\./]+>$'
+    Priority:        3
+    SortPriority:    6
+    CaseSensitive:   true
+  - Regex:           '^<.+/'
+    Priority:        3
+    SortPriority:    4
+    CaseSensitive:   true
+  - Regex:           '^<.+\.(hpp|hxx)>'
+    Priority:        3
+    SortPriority:    4
+    CaseSensitive:   false
+  - Regex:           '^<'
+    Priority:        3
+    SortPriority:    7
+    CaseSensitive:   true
+  - Regex:           '^"[^/]+"'
+    Priority:        1
+    SortPriority:    1
+    CaseSensitive:   true
+  - Regex:           '.*'
+    Priority:        1
+    SortPriority:    2
+    CaseSensitive:   true
+IncludeIsMainRegex: '(_?[Uu]?[Tt]est)?$'
+IndentCaseLabels: true
+IndentExternBlock: NoIndent
+InsertBraces: true
+InsertNewlineAtEOF: true
+KeepEmptyLinesAtTheStartOfBlocks: false
+LineEnding: LF
+NamespaceIndentation: None
+PackConstructorInitializers: Never
+RemoveParentheses: MultipleParentheses
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeParens: Never
+SpaceInEmptyBlock: false
+SpaceInEmptyParentheses: false
+SpacesInConditionalStatement: false
+SpacesInCStyleCastParentheses: false
+SpacesInParentheses: false
+TabWidth: 4
+UseTab: ForContinuationAndIndentation
+...
