@@ -16,5 +16,5 @@ add_compile_options(
     -Wunused
 )
 
-add_executable(convert_time convert_time.cpp)
+add_executable(convert_time convert_time_cli.cpp convert_time.cpp)
 target_link_libraries(convert_time PUBLIC ${Tudat_PROPAGATION_LIBRARIES})
