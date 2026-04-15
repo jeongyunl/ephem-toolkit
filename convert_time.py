@@ -17,6 +17,9 @@ POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH = 946728000.0  # POSIX epoch (1970-01-01 00:00
 TT_EPOCH_MINUS_TAI_EPOCH = 32.184  # TT epoch (2000-01-01 12:00:00 TT) minus TAI epoch (2000-01-01 12:00:00 TAI)
 
 
+tudat_time_scale_converter = time_representation.default_time_scale_converter()
+
+
 class TimeFormat(Enum):
     UTC_POSIX = "posix"  # POSIX timestamp; in seconds since 1970-01-01 00:00:00 UTC
     UTC_ISO_TUDAT = "iso"  # ISO 8601 format in UTC: "YYYY-MM-DDTHH:MM:SS.sss"
@@ -83,23 +86,19 @@ class TudatTimeData(TimeData):
             and utc_tudat_date_time.minute == 0
             and utc_tudat_date_time.seconds <= 1.0
         ):
-            utc_tudat_epoch_plus_1 = (
-                time_representation.default_time_scale_converter().convert_time(
-                    input_value=self.native_tudat_epoch + 1,
-                    input_scale=self.native_time_scale,
-                    output_scale=TimeScales.utc_scale,
-                )
+            utc_tudat_epoch_plus_1 = tudat_time_scale_converter.convert_time(
+                input_value=self.native_tudat_epoch + 1,
+                input_scale=self.native_time_scale,
+                output_scale=TimeScales.utc_scale,
             )
 
             # Leap second
             if utc_tudat_epoch == utc_tudat_epoch_plus_1:
                 # It is leap second
-                utc_tudat_epoch_minus_1 = (
-                    time_representation.default_time_scale_converter().convert_time(
-                        input_value=self.native_tudat_epoch - 1,
-                        input_scale=self.native_time_scale,
-                        output_scale=TimeScales.utc_scale,
-                    )
+                utc_tudat_epoch_minus_1 = tudat_time_scale_converter.convert_time(
+                    input_value=self.native_tudat_epoch - 1,
+                    input_scale=self.native_time_scale,
+                    output_scale=TimeScales.utc_scale,
                 )
                 utc_tudat_date_time = DateTime.from_epoch(utc_tudat_epoch_minus_1)
                 # FIXME  Due to tudat DateTime's bug, this will fail when DateTime.seconds is greater than 60.0
@@ -112,28 +111,28 @@ class TudatTimeData(TimeData):
         return utc_tudat_date_time.to_iso_string(number_of_digits_seconds=3)
 
     def to_utc_tudat(self) -> float:
-        return time_representation.default_time_scale_converter().convert_time(
+        return tudat_time_scale_converter.convert_time(
             input_value=self.native_tudat_epoch,
             input_scale=self.native_time_scale,
             output_scale=TimeScales.utc_scale,
         )
 
     def to_tai_tudat(self) -> float:
-        return time_representation.default_time_scale_converter().convert_time(
+        return tudat_time_scale_converter.convert_time(
             input_value=self.native_tudat_epoch,
             input_scale=self.native_time_scale,
             output_scale=TimeScales.tai_scale,
         )
 
     def to_tt_tudat(self) -> float:
-        return time_representation.default_time_scale_converter().convert_time(
+        return tudat_time_scale_converter.convert_time(
             input_value=self.native_tudat_epoch,
             input_scale=self.native_time_scale,
             output_scale=TimeScales.tt_scale,
         )
 
     def to_tdb_tudat(self) -> float:
-        return time_representation.default_time_scale_converter().convert_time(
+        return tudat_time_scale_converter.convert_time(
             input_value=self.native_tudat_epoch,
             input_scale=self.native_time_scale,
             output_scale=TimeScales.tdb_scale,

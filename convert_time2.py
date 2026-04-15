@@ -17,6 +17,8 @@ from enum import Enum
 POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH = 946728000.0  # POSIX epoch (1970-01-01 00:00:00 UTC) minus TUDAT UTC J2000 epoch (2000-01-01 12:00:00 UTC)
 TT_EPOCH_MINUS_TAI_EPOCH = 32.184  # TT epoch (2000-01-01 12:00:00 TT) minus TAI epoch (2000-01-01 12:00:00 TAI)
 
+tudat_time_scale_converter = time_representation.default_time_scale_converter()
+
 
 class TimeFormat(Enum):
     UTC_POSIX = "posix"  # POSIX timestamp; in seconds since 1970-01-01 00:00:00 UTC
@@ -224,7 +226,7 @@ class TimeConverter:
     @staticmethod
     def utc_tudat_to_tai_tudat(utc_tudat_epoch: float) -> float:
         # Convert UTC J2000 seconds to TAI J2000 seconds
-        return time_representation.default_time_scale_converter().convert_time(
+        return tudat_time_scale_converter.convert_time(
             input_value=utc_tudat_epoch,
             input_scale=TimeScales.utc_scale,
             output_scale=TimeScales.tai_scale,
@@ -233,7 +235,7 @@ class TimeConverter:
     @staticmethod
     def utc_tudat_to_tt_tudat(utc_tudat_epoch: float) -> float:
         # Convert UTC J2000 seconds to TT J2000 seconds
-        return time_representation.default_time_scale_converter().convert_time(
+        return tudat_time_scale_converter.convert_time(
             input_value=utc_tudat_epoch,
             input_scale=TimeScales.utc_scale,
             output_scale=TimeScales.tt_scale,
@@ -242,7 +244,7 @@ class TimeConverter:
     @staticmethod
     def utc_tudat_to_tdb_tudat(utc_tudat_epoch: float) -> float:
         # Convert UTC J2000 seconds to TDB J2000 seconds
-        return time_representation.default_time_scale_converter().convert_time(
+        return tudat_time_scale_converter.convert_time(
             input_value=utc_tudat_epoch,
             input_scale=TimeScales.utc_scale,
             output_scale=TimeScales.tdb_scale,
@@ -272,7 +274,7 @@ class TimeConverter:
     @staticmethod
     def tai_tudat_to_utc_tudat(tai_tudat_epoch: float) -> float:
         # Convert TAI J2000 seconds to UTC J2000 seconds
-        return time_representation.default_time_scale_converter().convert_time(
+        return tudat_time_scale_converter.convert_time(
             input_value=tai_tudat_epoch,
             input_scale=TimeScales.tai_scale,
             output_scale=TimeScales.utc_scale,
@@ -286,7 +288,7 @@ class TimeConverter:
     @staticmethod
     def tai_tudat_to_tdb_tudat(tai_tudat_epoch: float) -> float:
         # Convert TAI J2000 seconds to TDB J2000 seconds
-        return time_representation.default_time_scale_converter().convert_time(
+        return tudat_time_scale_converter.convert_time(
             input_value=tai_tudat_epoch,
             input_scale=TimeScales.tai_scale,
             output_scale=TimeScales.tdb_scale,
@@ -316,7 +318,7 @@ class TimeConverter:
     @staticmethod
     def tt_tudat_to_utc_tudat(tt_tudat_epoch: float) -> float:
         # Convert TT J2000 seconds to UTC J2000 seconds
-        return time_representation.default_time_scale_converter().convert_time(
+        return tudat_time_scale_converter.convert_time(
             input_value=tt_tudat_epoch,
             input_scale=TimeScales.tt_scale,
             output_scale=TimeScales.utc_scale,
@@ -330,7 +332,7 @@ class TimeConverter:
     @staticmethod
     def tt_tudat_to_tdb_tudat(tt_tudat_epoch: float) -> float:
         # Convert TT J2000 seconds to TDB J2000 seconds
-        return time_representation.default_time_scale_converter().convert_time(
+        return tudat_time_scale_converter.convert_time(
             input_value=tt_tudat_epoch,
             input_scale=TimeScales.tt_scale,
             output_scale=TimeScales.tdb_scale,
@@ -360,7 +362,7 @@ class TimeConverter:
     @staticmethod
     def tdb_tudat_to_utc_tudat(tdb_tudat_epoch: float) -> float:
         # Convert TDB J2000 seconds to UTC J2000 seconds
-        return time_representation.default_time_scale_converter().convert_time(
+        return tudat_time_scale_converter.convert_time(
             input_value=tdb_tudat_epoch,
             input_scale=TimeScales.tdb_scale,
             output_scale=TimeScales.utc_scale,
@@ -369,7 +371,7 @@ class TimeConverter:
     @staticmethod
     def tdb_tudat_to_tai_tudat(tdb_tudat_epoch: float) -> float:
         # Convert TDB J2000 seconds to TAI J2000 seconds
-        return time_representation.default_time_scale_converter().convert_time(
+        return tudat_time_scale_converter.convert_time(
             input_value=tdb_tudat_epoch,
             input_scale=TimeScales.tdb_scale,
             output_scale=TimeScales.tai_scale,
@@ -378,7 +380,7 @@ class TimeConverter:
     @staticmethod
     def tdb_tudat_to_tt_tudat(tdb_tudat_epoch: float) -> float:
         # Convert TDB J2000 seconds to TT J2000 seconds
-        return time_representation.default_time_scale_converter().convert_time(
+        return tudat_time_scale_converter.convert_time(
             input_value=tdb_tudat_epoch,
             input_scale=TimeScales.tdb_scale,
             output_scale=TimeScales.tt_scale,
