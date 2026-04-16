@@ -20,12 +20,20 @@ add_compile_options(
 )
 
 # dispatch table-based implementation
-add_executable(convert_time convert_time_cli.cpp convert_time.cpp)
-target_link_libraries(convert_time PUBLIC ${Tudat_PROPAGATION_LIBRARIES})
+add_executable(
+    convert_time_disp_tbl_cli convert_time_disp_tbl_cli.cpp convert_time.cpp
+)
+target_link_libraries(
+    convert_time_disp_tbl_cli PUBLIC ${Tudat_PROPAGATION_LIBRARIES}
+)
 
 # convert_time() based implementation
-add_executable(convert_time2 convert_time_cli2.cpp convert_time.cpp)
-target_link_libraries(convert_time2 PUBLIC ${Tudat_PROPAGATION_LIBRARIES})
+add_executable(
+    convert_time_disp_fn_cli convert_time_disp_fn_cli.cpp convert_time.cpp
+)
+target_link_libraries(
+    convert_time_disp_fn_cli PUBLIC ${Tudat_PROPAGATION_LIBRARIES}
+)
 
 if(BUILD_TESTING)
     FetchContent_Declare(
@@ -35,31 +43,26 @@ if(BUILD_TESTING)
     FetchContent_MakeAvailable(googletest)
 
     add_executable(
-        convert_time_gtest
-        test/convert_time_gtest.cpp
-        convert_time.cpp
+        convert_time_gtest test/convert_time_gtest.cpp convert_time.cpp
     )
 
     target_link_libraries(
         convert_time_gtest
-        PRIVATE
-        ${Tudat_PROPAGATION_LIBRARIES}
-        GTest::gtest
-        GTest::gtest_main
+        PRIVATE ${Tudat_PROPAGATION_LIBRARIES}
+                GTest::gtest
+                GTest::gtest_main
     )
 
     target_include_directories(
-        convert_time_gtest
-        BEFORE
-        PRIVATE
-        ${googletest_SOURCE_DIR}/googletest/include
-        ${CMAKE_CURRENT_SOURCE_DIR}
+        convert_time_gtest BEFORE
+        PRIVATE ${googletest_SOURCE_DIR}/googletest/include
+                ${CMAKE_CURRENT_SOURCE_DIR}
     )
 
     target_compile_definitions(
         convert_time_gtest
         PRIVATE
-        NOTABLE_EPOCHS_FILE="${CMAKE_CURRENT_SOURCE_DIR}/test/notable_epochs.dat"
+            NOTABLE_EPOCHS_FILE="${CMAKE_CURRENT_SOURCE_DIR}/test/notable_epochs.dat"
     )
 
     include(GoogleTest)
