@@ -16,5 +16,10 @@ add_compile_options(
     -Wunused
 )
 
+# dispatch table-based implementation
 add_executable(convert_time convert_time_cli.cpp convert_time.cpp)
 target_link_libraries(convert_time PUBLIC ${Tudat_PROPAGATION_LIBRARIES})
+
+# convert_time() based implementation
+add_executable(convert_time2 convert_time_cli2.cpp convert_time.cpp)
+target_link_libraries(convert_time2 PUBLIC ${Tudat_PROPAGATION_LIBRARIES})
