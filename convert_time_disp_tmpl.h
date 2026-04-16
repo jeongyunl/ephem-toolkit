@@ -8,7 +8,7 @@ inline constexpr bool always_false_v = false;
 // Compile-time-based time conversion (input and output formats are template arguments)
 // Input must be std::string if In is UTC_ISO_TUDAT, otherwise double
 template <TimeFormat In, TimeFormat Out>
-auto convert_time(std::conditional_t<In == TimeFormat::UTC_ISO_TUDAT, const std::string&, double> input)
+auto convert_time_tmpl(std::conditional_t<In == TimeFormat::UTC_ISO_TUDAT, const std::string&, double> input)
 	-> std::conditional_t<Out == TimeFormat::UTC_ISO_TUDAT, std::string, double>
 {
 	if constexpr(In == TimeFormat::UTC_ISO_TUDAT)
