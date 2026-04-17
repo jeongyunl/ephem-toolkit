@@ -1,0 +1,52 @@
+```mermaid
+
+---
+title: UTC time conversions
+---
+flowchart LR
+
+    utc_iso8601 --> posix_epoch
+    utc_iso8601 --> std::chrono::sys_time
+    utc_iso8601 --> std::chrono::utc_time
+
+    std::chrono::sys_time --> std::chrono::tai_time
+    std::chrono::utc_time --> std::chrono::tai_time
+
+    utc_iso8601["UTC ISO-8601
+    <sub>(text format)</sub>"]
+
+    posix_epoch["POSIX/Unix epoch
+    <sub>non-leap seconds since
+    1970-01-01 00:00:00 UTC</sub>"]
+
+    std::chrono::sys_time["std::chrono::sys_time
+    <sub>non-leap seconds since
+    1970-01-01 00:00:00 UTC</sub>"]
+
+    std::chrono::utc_time["std::chrono::utc_time
+    <sub>seconds since
+    1970-01-01 00:00:00 UTC</sub>"]
+
+    std::chrono::tai_time["std::chrono::tai_time
+    <sub>seconds since
+    1958-01-01 00:00:00 TAI
+    (1957-12-31 23:59:50 UTC)</sub>"]
+
+    tudat_utc_epoch["Tudat UTC epoch
+    <sub>non-leap seconds since
+    2000-01-01 12:00:00 UTC</sub>"]
+
+    tudat_tai_epoch["Tudat TAI epoch
+    <sub>seconds since
+    2000-01-01 11:59:28 UTC
+    (2000-01-01 12:00:00 TAI)</sub>"]
+
+    tudat_tt_epoch["Tudat TT epoch
+    <sub>seconds since
+    2000-01-01 11:58:55.816 UTC
+    (2000-01-01 12:00:00 TT)</sub>"]
+
+    tudat_tdb_epoch["Tudat TDB epoch
+    <sub>seconds since
+    2000-01-01 11:58:55.816 UTC
+    (2000-01-01 12:00:00 TDB)</sub>"]
