@@ -3,11 +3,12 @@
 #include <cctype>
 #include <chrono>
 #include <cstdint>
+#include <iostream>
 #include <stdexcept>
 #include <string>
+
 // C++20 or later
 #if __cplusplus >= 202002L
-
 // If GNU C++ library, version 14 or later includes std::chrono::parse
 #if(!defined(_GLIBCXX_RELEASE)) || (defined(_GLIBCXX_RELEASE) && _GLIBCXX_RELEASE >= 14)
 std::chrono::utc_time<std::chrono::nanoseconds> parse_iso8601_utc(const std::string& s)
@@ -216,5 +217,15 @@ std::chrono::utc_time<std::chrono::nanoseconds> parse_iso8601_utc(const std::str
 
 int main()
 {
+	std::chrono::sys_time<std::chrono::milliseconds> sys_tp;
+	std::chrono::utc_time<std::chrono::milliseconds> utc_tp;
+	std::chrono::tai_time<std::chrono::milliseconds> tai_tp;
+	std::chrono::gps_time<std::chrono::milliseconds> gps_tp;
+
+	std::cout << std::format("sys_tp {}\n", sys_tp);
+	std::cout << std::format("utc_tp {}\n", utc_tp);
+	std::cout << std::format("tai_tp {}\n", tai_tp);
+	std::cout << std::format("gps_tp {}\n", gps_tp);
+
 	return 0;
 }

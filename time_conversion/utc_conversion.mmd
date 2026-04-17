@@ -3,14 +3,26 @@
 ---
 title: UTC time conversions
 ---
-flowchart LR
+flowchart
 
-    utc_iso8601 --> posix_epoch
-    utc_iso8601 --> std::chrono::sys_time
-    utc_iso8601 --> std::chrono::utc_time
+    utc_iso8601 -->|"std::chrono::parse(#quot;%FT%T%Z#quot;, sys_seconds); sys_seconds.time_since_epoch().count()"| posix_epoch
+    utc_iso8601 <--> std::chrono::utc_time
+    utc_iso8601 <--> std::chrono::sys_time
+    utc_iso8601 <--> tudat_tt_epoch
 
-    std::chrono::sys_time --> std::chrono::tai_time
-    std::chrono::utc_time --> std::chrono::tai_time
+    std::chrono::sys_time --> std::chrono::utc_time
+    std::chrono::utc_time --- std::chrono::tai_time
+    std::chrono::gps_time --- std::chrono::tai_time
+
+    %% std::chrono::sys_time --> tudat_utc_epoch
+    %% std::chrono::sys_time --> tudat_tai_epoch
+
+    std::chrono::sys_time --> tudat_tt_epoch
+    std::chrono::utc_time --> tudat_tt_epoch
+    std::chrono::utc_time --> tudat_tt_epoch
+    std::chrono::gps_time --> tudat_tt_epoch
+
+    tudat_tt_epoch <--> tudat_tdb_epoch
 
     utc_iso8601["UTC ISO-8601
     <sub>(text format)</sub>"]
@@ -31,6 +43,11 @@ flowchart LR
     <sub>seconds since
     1958-01-01 00:00:00 TAI
     (1957-12-31 23:59:50 UTC)</sub>"]
+
+    std::chrono::gps_time["std::chrono::gps_time
+    <sub>seconds since
+    1980-01-06 00:00:00 UTC</sub>"]
+
 
     tudat_utc_epoch["Tudat UTC epoch
     <sub>non-leap seconds since
