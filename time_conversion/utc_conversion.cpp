@@ -83,7 +83,7 @@ int parse_4(const std::string& s, std::size_t pos)
 
 // Parses: YYYY-MM-DD[ T]HH:MM:SS[.fffffffff](Z|(+|-)HH:MM)
 // Returns sys_time<nanoseconds> (Unix time). This does NOT model leap seconds.
-std::chrono::sys_time<std::chrono::nanoseconds> parse_iso8601_sys_ns(const std::string& s)
+std::chrono::system_clock::time_point parse_iso8601_sys_ns(const std::string& s)
 {
 	// Minimal length: "YYYY-MM-DDTHH:MM:SSZ" => 20
 	if(s.size() < 20)
@@ -148,10 +148,10 @@ std::chrono::sys_time<std::chrono::nanoseconds> parse_iso8601_sys_ns(const std::
 
 	// Time zone
 	int tz_offset_seconds = 0;
-	if(pos >= s.size())
-	{
-		throw std::runtime_error("Missing timezone designator in: " + s);
-	}
+	// if(pos >= s.size())
+	// {
+	// 	throw std::runtime_error("Missing timezone designator in: " + s);
+	// }
 
 	if(s[pos] == 'Z')
 	{
@@ -172,10 +172,10 @@ std::chrono::sys_time<std::chrono::nanoseconds> parse_iso8601_sys_ns(const std::
 		pos += 2;
 		tz_offset_seconds = sign * (tzh * 3600 + tzm * 60);
 	}
-	else
-	{
-		throw std::runtime_error("Unsupported timezone designator in: " + s);
-	}
+	// else
+	// {
+	// 	throw std::runtime_error("Unsupported timezone designator in: " + s);
+	// }
 
 	// Allow trailing whitespace only
 	while(pos < s.size() && std::isspace(static_cast<unsigned char>(s[pos])))
@@ -193,8 +193,11 @@ std::chrono::sys_time<std::chrono::nanoseconds> parse_iso8601_sys_ns(const std::
 		+ static_cast<std::int64_t>(minute) * 60 + static_cast<std::int64_t>(second);
 	const std::int64_t total_seconds = days * 86400 + sec_of_day - tz_offset_seconds;
 
-	return std::chrono::sys_time<std::chrono::nanoseconds>{ std::chrono::seconds{ total_seconds }
-															+ std::chrono::nanoseconds{ nanos } };
+	return std::chrono::system_clock::time_point{
+		std::chrono::duration_cast<std::chrono::system_clock::duration>(
+			std::chrono::seconds{ total_seconds } + std::chrono::nanoseconds{ nanos }
+		)
+	};
 }
 
 } // namespace
@@ -216,7 +219,10 @@ std::chrono::utc_time<std::chrono::nanoseconds> parse_iso8601_utc(const std::str
 
 int main()
 {
-	std::chrono::sys_time<std::chrono::milliseconds> sys_tp;
+	std::chrono::system_clock::time_point sys_tp;
+
+	auto posix_epoch_sys_tp = parse_iso8601_sys_ns("1970-01-01 00:00:00.000");
+	auto utc_j2000_sys_tp = parse_iso8601_sys_ns("2000-01-01 12:00:00.000");
 
 #ifdef HAS_CHRONO_UTC_CLOCK
 	std::chrono::utc_time<std::chrono::milliseconds> utc_tp;
@@ -225,6 +231,30 @@ int main()
 #endif
 
 	std::cout << std::format("sys_tp {}\n", sys_tp);
+	std::cout << std::format("sys_tp {}\n", sys_tp.time_since_epoch().count());
+	std::cout << std::format("sys_tp {}\n", std::chrono::system_clock::to_time_t(sys_tp));
+
+	std::cout << std::format("posix_epoch_sys_tp {}\n", posix_epoch_sys_tp);
+	std::cout << std::format("posix_epoch_sys_tp {}\n", posix_epoch_sys_tp.time_since_epoch().count());
+	std::cout << std::format(
+		"posix_epoch_sys_tp {}\n",
+		std::chrono::system_clock::to_time_t(
+			std::chrono::time_point_cast<std::chrono::system_clock::duration>(posix_epoch_sys_tp)
+		)
+	);
+
+	std::cout << std::format("utc_j2000_sys_tp {}\n", utc_j2000_sys_tp);
+	std::cout << std::format("utc_j2000_sys_tp {}\n", utc_j2000_sys_tp.time_since_epoch().count());
+	std::cout << std::format(
+		"utc_j2000_sys_tp {}\n",
+		std::chrono::duration_cast<std::chrono::seconds>(utc_j2000_sys_tp.time_since_epoch()).count()
+	);
+	std::cout << std::format(
+		"utc_j2000_sys_tp {}\n",
+		std::chrono::system_clock::to_time_t(
+			std::chrono::time_point_cast<std::chrono::system_clock::duration>(utc_j2000_sys_tp)
+		)
+	);
 
 #ifdef HAS_CHRONO_UTC_CLOCK
 	std::cout << std::format("utc_tp {}\n", utc_tp);

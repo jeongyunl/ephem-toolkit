@@ -11,6 +11,7 @@
 #define HAS_CHRONO_PARSE
 
 #ifdef _GLIBCXX_RELEASE
+
 // std::chrono::utc_clock was added in GNU C++ library version 13 (not fully functional until version 14)
 #if _GLIBCXX_RELEASE < 13
 #undef HAS_CHRONO_UTC_CLOCK
@@ -20,13 +21,14 @@
 #if _GLIBCXX_RELEASE < 14
 #undef HAS_CHRONO_PARSE
 #endif
-#endif
 
-#ifdef _LIBCPP_STD_VER
+#elif defined(_LIBCPP_STD_VER)
+
 #if _LIBCPP_STD_VER < 20 || !_LIBCPP_HAS_TIME_ZONE_DATABASE
 #undef HAS_CHRONO_UTC_CLOCK
 #undef HAS_CHRONO_PARSE
 #endif
+
 #endif
 
 #endif
