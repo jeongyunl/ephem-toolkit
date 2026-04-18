@@ -32,3 +32,5 @@
 #endif
 
 #endif
+
+constexpr auto POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH = 946728000;

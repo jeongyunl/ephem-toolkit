@@ -34,7 +34,15 @@ int main()
 		std::cout << '\n';
 	}
 
-	auto posix_epoch_sys_tp = iso_to_sys_time("1970-01-01 00:00:00.000");
+	const auto posix_epoch_str = "1970-01-01 00:00:00.000";
+	{
+		std::cout << std::format("posix_epoch_str {}\n", posix_epoch_str);
+		std::cout << std::format("posix_epoch {}\n", sys_time_to_posix(iso_to_sys_time(posix_epoch_str)));
+		std::cout << std::format("utc_tudat_epoch {}\n", iso_to_utc_tudat(posix_epoch_str));
+		std::cout << '\n';
+	}
+
+	auto posix_epoch_sys_tp = iso_to_sys_time(posix_epoch_str);
 	{
 		std::cout << std::format("posix_epoch_sys_tp {}\t(posix_epoch_sys_tp)\n", posix_epoch_sys_tp);
 		std::cout << std::format(
@@ -53,7 +61,15 @@ int main()
 		std::cout << '\n';
 	}
 
-	auto utc_j2000_sys_tp = iso_to_sys_time("2000-01-01 12:00:00.000");
+	const auto utc_j2000_str = "2000-01-01 12:00:00.000";
+	{
+		std::cout << std::format("utc_j2000_str {}\n", utc_j2000_str);
+		std::cout << std::format("utc_j2000 {}\n", sys_time_to_posix(iso_to_sys_time(utc_j2000_str)));
+		std::cout << std::format("utc_tudat_j2000 {}\n", iso_to_utc_tudat(utc_j2000_str));
+		std::cout << '\n';
+	}
+
+	auto utc_j2000_sys_tp = iso_to_sys_time(utc_j2000_str);
 	{
 		std::cout << std::format("utc_j2000_sys_tp {}\t(utc_j2000_sys_tp)\n", utc_j2000_sys_tp);
 		std::cout << std::format(
@@ -72,7 +88,15 @@ int main()
 		std::cout << '\n';
 	}
 
-	auto utc_j2000_0_5_sys_tp = iso_to_sys_time("2000-01-01 12:00:00.500");
+	const auto utc_j2000_0_5_str = "2000-01-01 12:00:00.500";
+	{
+		std::cout << std::format("utc_j2000_0_5_str {}\n", utc_j2000_0_5_str);
+		std::cout << std::format("utc_j2000_0_5 {}\n", sys_time_to_posix(iso_to_sys_time(utc_j2000_0_5_str)));
+		std::cout << std::format("utc_tudat_j2000_0_5 {}\n", iso_to_utc_tudat(utc_j2000_0_5_str));
+		std::cout << '\n';
+	}
+
+	auto utc_j2000_0_5_sys_tp = iso_to_sys_time(utc_j2000_0_5_str);
 	{
 		std::cout << std::format("utc_j2000_0_5_sys_tp {}\t(utc_j2000_0_5_sys_tp)\n", utc_j2000_0_5_sys_tp);
 		std::cout << std::format(

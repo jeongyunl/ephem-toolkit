@@ -5,7 +5,7 @@ title: UTC time conversions
 ---
 flowchart
 
-    utc_iso8601 -->|"std::chrono::parse(#quot;%FT%T%Z#quot;, sys_seconds); sys_seconds.time_since_epoch().count()"| posix_epoch
+    utc_iso8601 --> posix_epoch
     utc_iso8601 <--> std::chrono::utc_time
     utc_iso8601 <--> std::chrono::sys_time
     utc_iso8601 <--> tudat_tt_epoch

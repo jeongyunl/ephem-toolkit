@@ -210,3 +210,10 @@ std::chrono::utc_time<std::chrono::nanoseconds> iso_to_utc_time(const std::strin
 #endif
 
 #endif
+
+double iso_to_utc_tudat(const std::string& s)
+{
+	const auto sys_tp = iso_to_sys_time<std::chrono::nanoseconds>(s);
+	return std::chrono::duration<double>(sys_tp.time_since_epoch()).count()
+		- POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+}
