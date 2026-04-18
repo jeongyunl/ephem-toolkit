@@ -2,6 +2,9 @@ add_executable(utc_conversion utc_conversion.cpp)
 
 target_include_directories(utc_conversion PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
+add_executable(example_utc_iso8601_to_tai_zoneinfo
+    example_utc_iso8601_to_tai_zoneinfo.cpp)
+
 add_executable(
     convert_time_disp_fn_cli
     ../convert_time_disp_fn_cli.cpp
