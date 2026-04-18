@@ -7,10 +7,7 @@
 #include <stdexcept>
 #include <string>
 
-// C++20 or later
-#if __cplusplus >= 202002L
-// If GNU C++ library, version 14 or later includes std::chrono::parse
-#if(!defined(_GLIBCXX_RELEASE)) || (defined(_GLIBCXX_RELEASE) && _GLIBCXX_RELEASE >= 14)
+#ifdef HAS_CHRONO_PARSE
 std::chrono::utc_time<std::chrono::nanoseconds> parse_iso8601_utc(const std::string& s)
 {
 	// Accepts e.g. "2026-04-17T12:34:56Z" or "2026-04-17 12:34:56Z"
@@ -37,7 +34,6 @@ std::chrono::utc_time<std::chrono::nanoseconds> parse_iso8601_utc(const std::str
 
 	return tp;
 }
-#endif
 #else
 // Custom ISO-8601 parser for C++17 and earlier (does not model leap seconds
 namespace
@@ -203,6 +199,7 @@ std::chrono::sys_time<std::chrono::nanoseconds> parse_iso8601_sys_ns(const std::
 
 } // namespace
 
+#ifdef HAS_CHRONO_UTC_CLOCK
 // If your standard library lacks std::chrono::parse/from_stream, you can still parse ISO-8601
 // manually and then convert to utc_time.
 //
@@ -215,17 +212,25 @@ std::chrono::utc_time<std::chrono::nanoseconds> parse_iso8601_utc(const std::str
 }
 #endif
 
+#endif
+
 int main()
 {
 	std::chrono::sys_time<std::chrono::milliseconds> sys_tp;
+
+#ifdef HAS_CHRONO_UTC_CLOCK
 	std::chrono::utc_time<std::chrono::milliseconds> utc_tp;
 	std::chrono::tai_time<std::chrono::milliseconds> tai_tp;
 	std::chrono::gps_time<std::chrono::milliseconds> gps_tp;
+#endif
 
 	std::cout << std::format("sys_tp {}\n", sys_tp);
+
+#ifdef HAS_CHRONO_UTC_CLOCK
 	std::cout << std::format("utc_tp {}\n", utc_tp);
 	std::cout << std::format("tai_tp {}\n", tai_tp);
 	std::cout << std::format("gps_tp {}\n", gps_tp);
+#endif
 
 	return 0;
 }
