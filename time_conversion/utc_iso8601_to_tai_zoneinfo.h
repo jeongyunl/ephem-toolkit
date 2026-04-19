@@ -350,18 +350,16 @@ inline double utc_iso8601_to_tai_seconds_since_epoch(
 	const ParsedIsoUtc utc = parse_iso8601_utc(utc_iso8601);
 	const double utc_unix_seconds = iso_utc_to_unix_seconds_non_leap(utc);
 
-	const std::vector<LeapTransition> transitions = load_zoneinfo_leap_transitions(zoneinfo_leapseconds_path);
+	static const std::vector<LeapTransition> transitions =
+		load_zoneinfo_leap_transitions(zoneinfo_leapseconds_path);
 
 	// At 23:59:60, UTC maps to the same Unix second as 00:00:00 next day.
 	// For correct boundary behavior, that leap transition must not be counted yet.
 	const bool include_transition_now = (utc.second != 60);
 	const double utc_unix_for_leap_lookup =
 		(utc.second == 60) ? std::floor(utc_unix_seconds) : utc_unix_seconds;
-	const int leap_now = cumulative_leap_correction(
-		transitions,
-		utc_unix_for_leap_lookup,
-		include_transition_now
-	);
+	const int leap_now =
+		cumulative_leap_correction(transitions, utc_unix_for_leap_lookup, include_transition_now);
 	const int leap_epoch =
 		cumulative_leap_correction(transitions, static_cast<double>(tai_epoch_utc_unix), true);
 

@@ -28,13 +28,13 @@ int main(int argc, char* argv[])
 	};
 
 	const std::vector<ExampleCase> cases = {
-		{ "2000-01-01T11:59:28Z", "TAI epoch in UTC (expect 0)" },
-		{ "2016-12-31T23:59:59Z", "Second before leap-second instant" },
-		{ "2016-12-31T23:59:59.5Z", "A half second before leap-second instant" },
-		{ "2016-12-31T23:59:60Z", "Leap-second instant" },
-		{ "2016-12-31T23:59:60.5Z", "Halfway through leap second" },
-		{ "2017-01-01T00:00:00Z", "Immediately after leap second" },
-		{ "2017-01-01T00:00:00.5Z", "A half second after leap second" },
+		{ "2000-01-01T11:59:28", "TAI epoch in UTC (expect 0)" },
+		{ "2016-12-31 23:59:59", "Second before leap-second instant" },
+		{ "2016-12-31T23:59:59.5", "A half second before leap-second instant" },
+		{ "2016-12-31T23:59:60", "Leap-second instant" },
+		{ "2016-12-31T23:59:60.5", "Halfway through leap second" },
+		{ "2017-01-01T00:00:00", "Immediately after leap second" },
+		{ "2017-01-01T00:00:00.5", "A half second after leap second" },
 	};
 
 	std::cout << "Using leap-second file: " << leap_file << "\n\n";
