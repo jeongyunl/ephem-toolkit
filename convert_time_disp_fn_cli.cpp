@@ -1,26 +1,32 @@
 #include "convert_time.h"
-#include "convert_time_disp_tbl.h"
+#include "convert_time_disp_fn.h"
 
 #include <array>
 #include <format>
 #include <iostream>
 #include <list>
+#include <map>
 #include <ranges>
 #include <string_view>
 #include <variant>
 #include <getopt.h>
 
-constexpr auto TimeFormatNames =
-	std::array<const char*, 7>{ "posix", "iso", "utc", "tai", "tt", "tdb", "tdb_apx" };
+const std::map<std::string_view, TimeFormat> TimeFormatNames = {
+	{ "iso", TimeFormat::UTC_ISO_TUDAT }, //
+	{ "posix", TimeFormat::UTC_POSIX }, //
+	{ "utc", TimeFormat::UTC_TUDAT }, //
+	{ "tai", TimeFormat::TAI_TUDAT }, //
+	{ "tt", TimeFormat::TT_TUDAT }, //
+	{ "tdb", TimeFormat::TDB_TUDAT }, //
+	{ "tdb_apx", TimeFormat::TDB_APX_TUDAT }, //
+};
 
 TimeFormat parse_time_format(const std::string& format_str)
 {
-	for(size_t i = 0; i < TimeFormatNames.size(); ++i)
+	const auto it = TimeFormatNames.find(format_str);
+	if(it != TimeFormatNames.end())
 	{
-		if(format_str == TimeFormatNames[i])
-		{
-			return static_cast<TimeFormat>(i);
-		}
+		return it->second;
 	}
 
 	return TimeFormat::UNKNOWN;
