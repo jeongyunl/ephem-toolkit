@@ -15,6 +15,20 @@
 
 namespace utc_tai_zoneinfo
 {
+// Time unit constants
+constexpr std::int64_t SECONDS_PER_MINUTE = 60;
+constexpr std::int64_t SECONDS_PER_HOUR = 3600;
+constexpr std::int64_t SECONDS_PER_DAY = 86400;
+
+// Gregorian calendar constants (used in days_from_civil)
+constexpr int MONTH_LENGTH_ENCODING = 153; // Encodes non-uniform month lengths: (153*m+2)/5
+constexpr std::int64_t GREGORIAN_ERA_DAYS = 146097; // Days per 400-year Gregorian era
+constexpr std::int64_t UNIX_EPOCH_DAY_OFFSET = 719468; // Days from proleptic epoch to Unix epoch
+
+// Historical TAI-UTC offset constants (pre-1972 UTC scale)
+constexpr double PRE_1972_TAI_MINUS_UTC_AT_1970 = 8.000082; // TAI-UTC at 1970-01-01 00:00:00 UTC (s)
+constexpr double PRE_1972_DRIFT_RATE = 0.002592; // Linear drift rate before 1972 (s/day)
+constexpr double POST_1972_TAI_MINUS_UTC = 10.0; // TAI-UTC from 1972-01-01 onwards (s)
 
 struct LeapTransition
 {
@@ -51,17 +65,18 @@ inline constexpr std::int64_t days_from_civil(int year, unsigned month, unsigned
 	// Day within the shifted year [0, 365].
 	// The factor (153 * m + 2) / 5 encodes the non-uniform month lengths for
 	// March–February layout without any branching beyond the month shift above.
-	const unsigned day_of_year = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
+	const unsigned day_of_year = (MONTH_LENGTH_ENCODING * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
 
 	// Day within the era [0, 146096].
 	// Adds one leap day per 4 years, subtracts the century non-leap years,
 	// and the century-of-era correction is already embedded in year_of_era / 100.
 	const unsigned day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
 
-	// 146097 = days per 400-year era.
-	// 719468 = days from the proleptic Gregorian epoch (0000-03-01) to the
-	//          Unix epoch (1970-01-01), used to produce a Unix day count.
-	return static_cast<std::int64_t>(era) * 146097 + static_cast<std::int64_t>(day_of_era) - 719468;
+	// GREGORIAN_ERA_DAYS = days per 400-year era.
+	// UNIX_EPOCH_DAY_OFFSET = days from the proleptic Gregorian epoch (0000-03-01) to the
+	//                        Unix epoch (1970-01-01), used to produce a Unix day count.
+	return static_cast<std::int64_t>(era) * GREGORIAN_ERA_DAYS + static_cast<std::int64_t>(day_of_era)
+		- UNIX_EPOCH_DAY_OFFSET;
 }
 
 inline bool is_digit(char c)
@@ -206,7 +221,7 @@ inline ParsedIsoUtc parse_iso8601_utc(const std::string& iso)
 			throw std::runtime_error("Timezone offset out of range");
 		}
 
-		out.tz_offset_seconds = sign * (tzh * 3600 + tzm * 60);
+		out.tz_offset_seconds = sign * (tzh * SECONDS_PER_HOUR + tzm * SECONDS_PER_MINUTE);
 	}
 
 	while(pos < iso.size() && std::isspace(static_cast<unsigned char>(iso[pos])))
@@ -228,27 +243,27 @@ inline ParsedIsoUtc parse_iso8601_utc(const std::string& iso)
 
 inline std::chrono::sys_time<std::chrono::nanoseconds> iso_utc_to_unix_seconds_non_leap(const ParsedIsoUtc& p)
 {
-#if 1
+#if 0
 	// Number of days since the Unix epoch (1970-01-01) for the calendar date.
 	const std::int64_t days_since_unix_epoch = days_from_civil(p.year, p.month, p.day);
 
 	// Seconds elapsed within the day from midnight, treating leap second 60 as 59
 	// for the purpose of building a Unix timestamp (POSIX ignores the leap second).
-	std::int64_t seconds_within_day = static_cast<std::int64_t>(p.hour) * 3600
-		+ static_cast<std::int64_t>(p.minute) * 60 + static_cast<std::int64_t>(p.second);
+	std::int64_t seconds_within_day = static_cast<std::int64_t>(p.hour) * SECONDS_PER_HOUR
+		+ static_cast<std::int64_t>(p.minute) * SECONDS_PER_MINUTE + static_cast<std::int64_t>(p.second);
 
 	// A leap second (second == 60) does not exist in the POSIX/Unix time scale.
-	// Map it to 86400 so the resulting Unix timestamp equals midnight of the next day,
+	// Map it to SECONDS_PER_DAY so the resulting Unix timestamp equals midnight of the next day,
 	// which is the same value POSIX assigns to the next second after the leap second.
 	if(p.second == 60)
 	{
-		seconds_within_day = 86400;
+		seconds_within_day = SECONDS_PER_DAY;
 	}
 
 	// Convert to a Unix timestamp, applying the UTC offset so the result is always UTC.
 	// Subtracting the offset converts a local/offset time to UTC: e.g. +05:30 → subtract 19800 s.
 	const std::int64_t unix_seconds =
-		days_since_unix_epoch * 86400 + seconds_within_day - p.tz_offset_seconds;
+		days_since_unix_epoch * SECONDS_PER_DAY + seconds_within_day - p.tz_offset_seconds;
 #else
 	struct tm tm{
 		.tm_sec = (p.second == 60) ? 59 : p.second, // Map leap second to 59 for timegm
@@ -345,16 +360,16 @@ inline std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::str
 			throw std::runtime_error("Leap line time out of range: " + line);
 		}
 
-		std::int64_t sec_of_day = static_cast<std::int64_t>(hh) * 3600 + static_cast<std::int64_t>(mm) * 60
-			+ static_cast<std::int64_t>(ss);
+		std::int64_t sec_of_day = static_cast<std::int64_t>(hh) * SECONDS_PER_HOUR
+			+ static_cast<std::int64_t>(mm) * SECONDS_PER_MINUTE + static_cast<std::int64_t>(ss);
 		if(ss == 60)
 		{
-			sec_of_day = 86400;
+			sec_of_day = SECONDS_PER_DAY;
 		}
 
 		const int month = month_name_to_number(mon);
 		const std::int64_t unix_transition =
-			days_from_civil(year, static_cast<unsigned>(month), static_cast<unsigned>(day)) * 86400
+			days_from_civil(year, static_cast<unsigned>(month), static_cast<unsigned>(day)) * SECONDS_PER_DAY
 			+ sec_of_day;
 
 		out.push_back(LeapTransition{ unix_transition, sign == '+' ? 1 : -1 });
@@ -367,22 +382,35 @@ inline std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::str
 	return out;
 }
 
-inline int cumulative_leap_correction(
+inline double cumulative_leap_correction(
 	const std::vector<LeapTransition>& transitions,
 	double utc_unix_seconds,
 	bool include_transition_at_equal
 )
 {
-	int sum = 0;
+	// Before UTC and TAI synchronization in 1972, UTC drifted relative to TAI.
+	// Over 1970-01-01 <= UTC < 1972-01-01, use the historical linear segment
+	constexpr std::int64_t unix_1970_01_01 = days_from_civil(1970, 1, 1) * SECONDS_PER_DAY;
+	constexpr std::int64_t unix_1972_01_01 = days_from_civil(1972, 1, 1) * SECONDS_PER_DAY;
+
+	double tai_minus_utc_seconds = POST_1972_TAI_MINUS_UTC;
+	if(utc_unix_seconds < static_cast<double>(unix_1972_01_01))
+	{
+		const double elapsed_days_since_1970 =
+			(utc_unix_seconds - static_cast<double>(unix_1970_01_01)) / static_cast<double>(SECONDS_PER_DAY);
+		tai_minus_utc_seconds =
+			PRE_1972_TAI_MINUS_UTC_AT_1970 + elapsed_days_since_1970 * PRE_1972_DRIFT_RATE;
+	}
+
 	for(const LeapTransition& t : transitions)
 	{
 		const double transition = static_cast<double>(t.unix_transition_seconds);
 		if(transition < utc_unix_seconds || (include_transition_at_equal && transition == utc_unix_seconds))
 		{
-			sum += t.correction_seconds;
+			tai_minus_utc_seconds += static_cast<double>(t.correction_seconds);
 		}
 	}
-	return sum;
+	return tai_minus_utc_seconds;
 }
 
 template <typename Duration = std::chrono::system_clock::duration>
@@ -394,6 +422,12 @@ utc_iso8601_to_sys_time(const std::string& utc_iso8601)
 	return std::chrono::time_point_cast<Duration>(unix_tp);
 }
 
+inline double utc_iso8601_to_posix_epoch(const std::string& utc_iso8601)
+{
+	const auto unix_tp = utc_iso8601_to_sys_time(utc_iso8601);
+	return std::chrono::duration<double>(unix_tp.time_since_epoch()).count();
+}
+
 inline double utc_iso8601_to_tai_seconds_since_epoch(
 	const std::string& utc_iso8601,
 	const std::string& zoneinfo_leapseconds_path
@@ -402,7 +436,7 @@ inline double utc_iso8601_to_tai_seconds_since_epoch(
 	// Required epoch mapping:
 	// TAI epoch = 2000-01-01 12:00:00 TAI = 2000-01-01 11:59:28 UTC
 	constexpr std::int64_t tai_epoch_utc_unix =
-		days_from_civil(2000, 1, 1) * 86400 + 11 * 3600 + 59 * 60 + 28;
+		days_from_civil(2000, 1, 1) * SECONDS_PER_DAY + 11 * SECONDS_PER_HOUR + 59 * SECONDS_PER_MINUTE + 28;
 
 	const ParsedIsoUtc utc = parse_iso8601_utc(utc_iso8601);
 	const auto utc_unix_tp = iso_utc_to_unix_seconds_non_leap(utc);
@@ -419,15 +453,15 @@ inline double utc_iso8601_to_tai_seconds_since_epoch(
 			  std::chrono::time_point_cast<std::chrono::seconds>(utc_unix_tp).time_since_epoch().count()
 		  )
 		: utc_unix_seconds;
-	const int leap_now =
+	const double leap_now =
 		cumulative_leap_correction(transitions, utc_unix_for_leap_lookup, include_transition_now);
-	const int leap_epoch =
+	const double leap_epoch =
 		cumulative_leap_correction(transitions, static_cast<double>(tai_epoch_utc_unix), true);
 
 	const double utc_elapsed_non_leap = utc_unix_seconds - static_cast<double>(tai_epoch_utc_unix);
-	const int leap_delta = leap_now - leap_epoch;
+	const double leap_delta = leap_now - leap_epoch;
 
-	return utc_elapsed_non_leap + static_cast<double>(leap_delta);
+	return utc_elapsed_non_leap + leap_delta;
 }
 
 } // namespace utc_tai_zoneinfo

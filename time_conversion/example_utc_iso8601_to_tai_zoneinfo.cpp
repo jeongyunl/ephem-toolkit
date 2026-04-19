@@ -29,6 +29,11 @@ int main(int argc, char* argv[])
 
 	const std::vector<ExampleCase> cases = {
 		{ "1970-01-01 00:00:00", "Unix epoch in UTC" },
+		{ "1971-01-01 00:00:00", "" },
+		{ "1971-06-01 00:00:00", "" },
+		{ "1971-11-01 00:00:00", "" },
+		{ "1971-12-01 00:00:00", "" },
+		{ "1972-01-01 00:00:00", "" },
 		{ "2000-01-01 12:00:00", "UTC J2000 epoch" },
 		{ "2000-01-01T11:59:28", "TAI epoch in UTC (expect 0)" },
 		{ "2016-12-31 23:59:59", "Second before leap-second instant" },
@@ -52,7 +57,8 @@ int main(int argc, char* argv[])
 			std::cout << c.label << "\n";
 			std::cout << "  UTC ISO-8601: " << c.utc_iso << "\n";
 			std::cout << "  TAI seconds since 2000-01-01 12:00:00 TAI: " << tai_seconds << "\n";
-
+			std::cout << "  POSIX epoch seconds: " << utc_tai_zoneinfo::utc_iso8601_to_posix_epoch(c.utc_iso)
+					  << "\n";
 			std::cout << "  Sys time: " << utc_tai_zoneinfo::utc_iso8601_to_sys_time(c.utc_iso)
 					  << "\n"; // Also test that sys_time conversion works without exceptions
 
