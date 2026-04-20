@@ -25,7 +25,7 @@ inline constexpr std::variant<std::string, double> convert_time(
 			case TimeFormat::UTC_ISO_TUDAT:
 				return utc_iso_tudat_to_utc_iso_tudat(iso_string);
 			case TimeFormat::UTC_POSIX:
-				return utc_iso_tudat_to_utc_posix(iso_string);
+				return utc_iso_to_utc_posix(iso_string);
 			case TimeFormat::UTC_TUDAT:
 				return utc_iso_tudat_to_utc_tudat(iso_string);
 			case TimeFormat::TAI_TUDAT:

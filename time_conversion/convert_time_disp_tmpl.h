@@ -19,7 +19,7 @@ auto convert_time_tmpl(std::conditional_t<In == TimeFormat::UTC_ISO_TUDAT, const
 		}
 		else if constexpr(Out == TimeFormat::UTC_POSIX)
 		{
-			return utc_iso_tudat_to_utc_posix(input);
+			return utc_iso_to_utc_posix(input);
 		}
 		else if constexpr(Out == TimeFormat::UTC_TUDAT)
 		{

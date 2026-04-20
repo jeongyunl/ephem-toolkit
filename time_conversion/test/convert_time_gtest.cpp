@@ -41,7 +41,7 @@ TEST_F(ConvertTimeDataDrivenTest, IsoToAllNumericScalesMatchReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
-		EXPECT_NEAR(utc_iso_tudat_to_utc_posix(record.iso), record.posix, convert_time_test::kTolExactLike)
+		EXPECT_NEAR(utc_iso_to_utc_posix(record.iso), record.posix, convert_time_test::kTolExactLike)
 			<< record.iso;
 		EXPECT_NEAR(utc_iso_tudat_to_utc_tudat(record.iso), record.utc, convert_time_test::kTolExactLike)
 			<< record.iso;

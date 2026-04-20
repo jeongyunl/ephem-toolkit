@@ -1,4 +1,4 @@
-#include "utc_iso_to_x.h"
+#include "convert_time.h"
 
 #include <iomanip>
 #include <iostream>
@@ -42,14 +42,12 @@ int main(int argc, char* argv[])
 	{
 		for(const auto& c : cases)
 		{
-			const double tai_seconds = iso_to_tai_tudat(c.utc_iso);
-
-			std::cout << c.label << "\n";
-			std::cout << "  UTC ISO-8601: " << c.utc_iso << "\n";
-			std::cout << "  TAI seconds since 2000-01-01 12:00:00 TAI: " << tai_seconds << "\n";
-			std::cout << "  POSIX epoch seconds: " << utc_iso8601_to_posix_epoch(c.utc_iso) << "\n";
-			std::cout << "  Sys time: " << iso_to_sys_time(c.utc_iso)
-					  << "\n"; // Also test that sys_time conversion works without exceptions
+			// std::cout << c.label << "\n";
+			std::cout << c.utc_iso;
+			std::cout << std::format("\t{:.3f}", utc_iso_to_utc_posix(c.utc_iso));
+			std::cout << std::format("\t{:.3f}", iso_to_utc_tudat(c.utc_iso));
+			std::cout << std::format("\t{:.3f}", iso_to_tai_tudat(c.utc_iso));
+			std::cout << std::format("\t{}", iso_to_sys_time(c.utc_iso));
 
 			std::cout << "\n";
 		}

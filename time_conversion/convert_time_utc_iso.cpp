@@ -1,97 +1,13 @@
-#pragma once
+#include "convert_time.h"
 
-#include "utc_conversion.h"
-
-#include <algorithm>
-#include <array>
-#include <cctype>
+#include <tudat/astro/basic_astro/dateTime.h>
+#include <tudat/astro/earth_orientation/terrestrialTimeScaleConverter.h>
 #include <chrono>
-#include <cmath>
-#include <cstdint>
-#include <fstream>
-#include <sstream>
-#include <stdexcept>
-#include <string>
-#include <vector>
-#include <time.h>
 
-#ifdef _LIBCPP_STD_VER
-#include <tzfile.h>
-#endif
-
-#ifdef TZDIR
-// System tzdata directory is available at compile time.
-#define ZONEINFO_DIR TZDIR
-#elif defined(_GLIBCXX_ZONEINFO_DIR)
-// GNU libstdc++ provides a compile-time macro for the tzdata directory.
-#define ZONEINFO_DIR _GLIBCXX_ZONEINFO_DIR
-#else
-// Fallback default path (may not exist on all systems)
-#define ZONEINFO_DIR "/usr/share/zoneinfo"
-#endif
-
-#define LEAPSECONDS_PATH_DEFAULT ZONEINFO_DIR "/leapseconds"
-
-#ifdef HAS_CHRONO_PARSE
-std::chrono::utc_time<std::chrono::nanoseconds> iso_to_utc_time(const std::string& s)
+namespace
 {
-	// Accepts e.g. "2026-04-17T12:34:56Z" or "2026-04-17 12:34:56Z"
-	// %FT%T  -> YYYY-MM-DD'T'HH:MM:SS
-	// %Ez    -> ISO 8601 offset / 'Z'
-	std::chrono::utc_time<std::chrono::nanoseconds> tp;
-
-	std::istringstream in(s);
-
-	in >> std::chrono::parse("%FT%T%Ez", tp);
-
-	if(in.fail())
-	{
-		// Try a slightly more permissive variant (space instead of 'T')
-		in.clear();
-		in.str(s);
-		in >> std::chrono::parse("%F %T%Ez", tp);
-	}
-
-	if(in.fail())
-	{
-		throw std::runtime_error("Failed to parse ISO-8601 UTC time: " + s);
-	}
-
-	return tp;
-}
-#else
-// Time unit constants
-constexpr std::int64_t SECONDS_PER_MINUTE = 60;
-constexpr std::int64_t SECONDS_PER_HOUR = 3600;
-constexpr std::int64_t SECONDS_PER_DAY = 86400;
-
-// Gregorian calendar constants (used in days_from_civil)
-constexpr int MONTH_LENGTH_ENCODING = 153; // Encodes non-uniform month lengths: (153*m+2)/5
-constexpr std::int64_t GREGORIAN_ERA_DAYS = 146097; // Days per 400-year Gregorian era
-constexpr std::int64_t UNIX_EPOCH_DAY_OFFSET = 719468; // Days from proleptic epoch to Unix epoch
-
-// Historical TAI-UTC offset constants (pre-1972 UTC scale)
-constexpr double PRE_1972_TAI_MINUS_UTC_AT_1970 = 8.000082; // TAI-UTC at 1970-01-01 00:00:00 UTC (s)
-constexpr double PRE_1972_DRIFT_RATE = 0.002592; // Linear drift rate before 1972 (s/day)
-constexpr double POST_1972_TAI_MINUS_UTC = 10.0; // TAI-UTC from 1972-01-01 onwards (s)
-
-struct LeapTransition
-{
-	std::int64_t unix_transition_seconds;
-	int correction_seconds;
-};
-
-struct ParsedIsoUtc
-{
-	int year = 0;
-	unsigned month = 0;
-	unsigned day = 0;
-	int hour = 0;
-	int minute = 0;
-	int second = 0;
-	std::int64_t nanos = 0;
-	int tz_offset_seconds = 0;
-};
+static const std::vector<LeapTransition> transitions =
+	load_zoneinfo_leap_transitions(LEAPSECONDS_PATH_DEFAULT);
 
 inline constexpr std::int64_t days_from_civil(int year, unsigned month, unsigned day) noexcept
 {
@@ -145,7 +61,6 @@ inline std::string trim(const std::string& s)
 
 	return s.substr(first, last - first);
 }
-
 inline int parse_2(const std::string& s, std::size_t pos)
 {
 	if(pos + 2 > s.size() || !is_digit(s[pos]) || !is_digit(s[pos + 1]))
@@ -171,7 +86,24 @@ inline int parse_4(const std::string& s, std::size_t pos)
 	return (s[pos] - '0') * 1000 + (s[pos + 1] - '0') * 100 + (s[pos + 2] - '0') * 10 + (s[pos + 3] - '0');
 }
 
-inline ParsedIsoUtc parse_iso8601_utc(const std::string& iso)
+inline int month_name_to_number(const std::string& month_name)
+{
+	static const std::array<const char*, 12> names = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+													   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+
+	for(std::size_t i = 0; i < names.size(); ++i)
+	{
+		if(month_name == names[i])
+		{
+			return static_cast<int>(i) + 1;
+		}
+	}
+
+	throw std::runtime_error("Invalid month token in leap-second file: " + month_name);
+}
+} // namespace
+
+ParsedIsoUtc parse_iso8601_utc(const std::string& iso)
 {
 	if(iso.size() < 19)
 	{
@@ -286,65 +218,7 @@ inline ParsedIsoUtc parse_iso8601_utc(const std::string& iso)
 	return out;
 }
 
-inline std::chrono::sys_time<std::chrono::nanoseconds> iso_utc_to_unix_seconds_non_leap(const ParsedIsoUtc& p)
-{
-#if 0
-	// Number of days since the Unix epoch (1970-01-01) for the calendar date.
-	const std::int64_t days_since_unix_epoch = days_from_civil(p.year, p.month, p.day);
-
-	// Seconds elapsed within the day from midnight, treating leap second 60 as 59
-	// for the purpose of building a Unix timestamp (POSIX ignores the leap second).
-	std::int64_t seconds_within_day = static_cast<std::int64_t>(p.hour) * SECONDS_PER_HOUR
-		+ static_cast<std::int64_t>(p.minute) * SECONDS_PER_MINUTE + static_cast<std::int64_t>(p.second);
-
-	// A leap second (second == 60) does not exist in the POSIX/Unix time scale.
-	// Map it to SECONDS_PER_DAY so the resulting Unix timestamp equals midnight of the next day,
-	// which is the same value POSIX assigns to the next second after the leap second.
-	if(p.second == 60)
-	{
-		seconds_within_day = SECONDS_PER_DAY;
-	}
-
-	// Convert to a Unix timestamp, applying the UTC offset so the result is always UTC.
-	// Subtracting the offset converts a local/offset time to UTC: e.g. +05:30 → subtract 19800 s.
-	const std::int64_t unix_seconds =
-		days_since_unix_epoch * SECONDS_PER_DAY + seconds_within_day - p.tz_offset_seconds;
-#else
-	struct tm tm = {
-		.tm_sec = (p.second == 60) ? 59 : p.second, // Map leap second to 59 for timegm
-		.tm_min = p.minute, // 0-59
-		.tm_hour = p.hour, // 0-23
-		.tm_mday = static_cast<int>(p.day), // 1-31
-		.tm_mon = static_cast<int>(p.month) - 1, // 0-11
-		.tm_year = p.year - 1900, // years since 1900
-	};
-
-	const time_t unix_seconds = timegm(&tm) - p.tz_offset_seconds
-		+ ((p.second == 60) ? 1 : 0); // Add 1 second if it was a leap second
-#endif
-
-	// Combine the integer-second Unix timestamp with the sub-second nanosecond remainder.
-	return std::chrono::sys_time<std::chrono::nanoseconds>{ std::chrono::seconds{ unix_seconds }
-															+ std::chrono::nanoseconds{ p.nanos } };
-}
-
-inline int month_name_to_number(const std::string& month_name)
-{
-	static const std::array<const char*, 12> names = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-													   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-
-	for(std::size_t i = 0; i < names.size(); ++i)
-	{
-		if(month_name == names[i])
-		{
-			return static_cast<int>(i) + 1;
-		}
-	}
-
-	throw std::runtime_error("Invalid month token in leap-second file: " + month_name);
-}
-
-inline std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::string& leapseconds_path)
+std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::string& leapseconds_path)
 {
 	std::ifstream in(leapseconds_path);
 	if(!in)
@@ -461,24 +335,60 @@ inline double cumulative_leap_correction(
 	}
 	return tai_minus_utc_seconds;
 }
-template <typename Duration = std::chrono::system_clock::duration>
-std::chrono::time_point<std::chrono::system_clock, Duration> iso_to_sys_time(const std::string& utc_iso8601)
+double iso_to_utc_tudat(const std::string& utc_iso8601)
 {
 	const ParsedIsoUtc utc = parse_iso8601_utc(utc_iso8601);
-	const auto unix_tp = iso_utc_to_unix_seconds_non_leap(utc);
-	return std::chrono::time_point_cast<Duration>(unix_tp);
+	const auto utc_unix_tp = iso_utc_to_unix_seconds_non_leap(utc);
+	const double utc_unix_seconds = std::chrono::duration<double>(utc_unix_tp.time_since_epoch()).count();
+
+	return utc_unix_seconds - POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
 }
 
-inline double utc_iso8601_to_posix_epoch(const std::string& utc_iso8601)
+double iso_to_tai_tudat(const std::string& utc_iso8601)
 {
-	const auto unix_tp = iso_to_sys_time(utc_iso8601);
-	return std::chrono::duration<double>(unix_tp.time_since_epoch()).count();
+	// Required epoch mapping:
+	// TAI epoch = 2000-01-01 12:00:00 TAI = 2000-01-01 11:59:28 UTC
+	constexpr std::int64_t tai_epoch_utc_unix =
+		days_from_civil(2000, 1, 1) * SECONDS_PER_DAY + 11 * SECONDS_PER_HOUR + 59 * SECONDS_PER_MINUTE + 28;
+
+	const ParsedIsoUtc utc = parse_iso8601_utc(utc_iso8601);
+	const auto utc_unix_tp = iso_utc_to_unix_seconds_non_leap(utc);
+	const double utc_unix_seconds = std::chrono::duration<double>(utc_unix_tp.time_since_epoch()).count();
+
+	// At 23:59:60, UTC maps to the same Unix second as 00:00:00 next day.
+	// For correct boundary behavior, that leap transition must not be counted yet.
+	const bool include_transition_now = (utc.second != 60);
+	const double utc_unix_for_leap_lookup = (utc.second == 60)
+		? static_cast<double>(
+			std::chrono::time_point_cast<std::chrono::seconds>(utc_unix_tp).time_since_epoch().count()
+		)
+		: utc_unix_seconds;
+	const double leap_now =
+		cumulative_leap_correction(transitions, utc_unix_for_leap_lookup, include_transition_now);
+	const double leap_epoch =
+		cumulative_leap_correction(transitions, static_cast<double>(tai_epoch_utc_unix), true);
+
+	const double utc_elapsed_non_leap = utc_unix_seconds - static_cast<double>(tai_epoch_utc_unix);
+	const double leap_delta = leap_now - leap_epoch;
+
+	return utc_elapsed_non_leap + leap_delta;
 }
 
-static const std::vector<LeapTransition> transitions =
-	load_zoneinfo_leap_transitions(LEAPSECONDS_PATH_DEFAULT);
+// Tudat DateTime based implementations
 
-#endif // HAS_CHRONO_PARSE
+double utc_iso_tudat_to_utc_posix(const std::string& iso_string)
+{
+	// Convert ISO 8601 string to POSIX timestamp
 
-double iso_to_utc_tudat(const std::string& utc_iso8601);
-double iso_to_tai_tudat(const std::string& utc_iso8601);
+	try
+	{
+		return tudat::basic_astrodynamics::DateTime::fromIsoString(iso_string).epoch<double>()
+			+ POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << "Error converting ISO string to POSIX timestamp: " << e.what() << "\n";
+
+		return std::numeric_limits<double>::quiet_NaN();
+	}
+}

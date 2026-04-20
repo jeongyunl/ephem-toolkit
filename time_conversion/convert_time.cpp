@@ -3,14 +3,7 @@
 #include <tudat/astro/basic_astro/dateTime.h>
 #include <tudat/astro/earth_orientation/terrestrialTimeScaleConverter.h>
 
-// POSIX epoch (1970-01-01 00:00:00 UTC) minus TUDAT UTC J2000 epoch (2000-01-01 12:00:00 UTC)
-constexpr auto POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH = 946728000.0;
-
-// TT epoch (2000-01-01 12:00:00 TT) minus TAI epoch (2000-01-01 12:00:00 TAI)
-constexpr auto TT_EPOCH_MINUS_TAI_EPOCH = 32.184;
-
-static std::shared_ptr<tudat::earth_orientation::TerrestrialTimeScaleConverter>
-get_tudat_time_scale_converter()
+std::shared_ptr<tudat::earth_orientation::TerrestrialTimeScaleConverter> get_tudat_time_scale_converter()
 {
 	static std::shared_ptr<tudat::earth_orientation::TerrestrialTimeScaleConverter>
 		tudat_time_scale_converter = nullptr;
@@ -28,23 +21,6 @@ get_tudat_time_scale_converter()
 std::string utc_iso_tudat_to_utc_iso_tudat(const std::string& iso_string)
 {
 	return iso_string;
-}
-
-double utc_iso_tudat_to_utc_posix(const std::string& iso_string)
-{
-	// Convert ISO 8601 string to POSIX timestamp
-
-	try
-	{
-		return tudat::basic_astrodynamics::DateTime::fromIsoString(iso_string).epoch<double>()
-			+ POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
-	}
-	catch(const std::exception& e)
-	{
-		std::cerr << "Error converting ISO string to POSIX timestamp: " << e.what() << "\n";
-
-		return std::numeric_limits<double>::quiet_NaN();
-	}
 }
 
 double utc_iso_tudat_to_utc_tudat(const std::string& iso_string)
