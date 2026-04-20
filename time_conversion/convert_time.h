@@ -1,26 +1,9 @@
 #pragma once
 
 #include "convert_time_common.h"
+#include "convert_time_utc_iso.h"
 
 #include <chrono>
-
-// Historical TAI-UTC offset constants (pre-1972 UTC scale)
-constexpr double PRE_1972_TAI_MINUS_UTC_AT_1970 = 8.000082; // TAI-UTC at 1970-01-01 00:00:00 UTC (s)
-constexpr double PRE_1972_DRIFT_RATE = 0.002592; // Linear drift rate before 1972 (s/day)
-constexpr double POST_1972_TAI_MINUS_UTC = 10.0; // TAI-UTC from 1972-01-01 onwards (s)
-
-//
-// std::chrono::time_point to time_t conversion helpers
-//
-
-// duration_cast-based system_clock to floating-point POSIX time conversion helper
-template <typename Rep = double, typename Period = std::ratio<1>>
-double sys_time_to_posix(std::chrono::time_point<std::chrono::system_clock> tp)
-{
-	return std::chrono::duration_cast<std::chrono::duration<Rep, Period>>(tp.time_since_epoch()).count();
-}
-
-#include "convert_time_utc_iso.h"
 
 double utc_posix_to_utc_posix(double utc_posix_epoch);
 double utc_posix_to_utc_tudat(double utc_posix_epoch);

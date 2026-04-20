@@ -60,7 +60,7 @@ private:
 };
 
 std::map<DispatchKey, Handler> dispatchTable{
-	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::UTC_ISO_TUDAT }, utc_iso_tudat_to_utc_iso_tudat },
+	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::UTC_ISO_TUDAT }, utc_iso_to_utc_iso },
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::UTC_POSIX }, utc_iso_to_utc_posix },
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::UTC_TUDAT }, utc_iso_to_utc_tudat },
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TAI_TUDAT }, utc_iso_to_tai_tudat },

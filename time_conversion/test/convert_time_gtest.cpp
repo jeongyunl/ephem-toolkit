@@ -142,7 +142,7 @@ TEST_F(ConvertTimeDataDrivenTest, UtcIsoIdentityRoundTripForRecords)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
-		EXPECT_EQ(utc_iso_tudat_to_utc_iso_tudat(record.iso), record.iso);
+		EXPECT_EQ(utc_iso_to_utc_iso(record.iso), record.iso);
 	}
 }
 

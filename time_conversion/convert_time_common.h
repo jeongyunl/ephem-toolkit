@@ -10,6 +10,11 @@ constexpr auto POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH = 946728000.0;
 // See https://en.wikipedia.org/wiki/Terrestrial_Time
 constexpr auto TT_EPOCH_MINUS_TAI_EPOCH = 32.184;
 
+// Historical TAI-UTC offset constants (pre-1972 UTC scale)
+constexpr double PRE_1972_TAI_MINUS_UTC_AT_1970 = 8.000082; // TAI-UTC at 1970-01-01 00:00:00 UTC (s)
+constexpr double PRE_1972_DRIFT_RATE = 0.002592; // Linear drift rate before 1972 (s/day)
+constexpr double POST_1972_TAI_MINUS_UTC = 10.0; // TAI-UTC from 1972-01-01 onwards (s)
+
 // If C++20 or later
 #if __cplusplus >= 202002L
 
@@ -21,17 +26,11 @@ constexpr auto TT_EPOCH_MINUS_TAI_EPOCH = 32.184;
 #define HAS_CHRONO_UTC_CLOCK
 #endif
 
-// std::chrono::parse was added in GNU C++ library version 14
-#if _GLIBCXX_RELEASE >= 14
-#define HAS_CHRONO_PARSE
-#endif
-
 #elif defined(_LIBCPP_STD_VER)
 // If we are using LLVM libc++?
 
 #if _LIBCPP_STD_VER >= 20 && _LIBCPP_HAS_TIME_ZONE_DATABASE
 #define HAS_CHRONO_UTC_CLOCK
-#define HAS_CHRONO_PARSE
 #endif
 
 #endif

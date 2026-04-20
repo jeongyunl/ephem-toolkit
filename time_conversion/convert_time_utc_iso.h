@@ -10,44 +10,15 @@ constexpr std::int64_t SECONDS_PER_DAY = 86400;
 // Gregorian calendar constants (used in days_from_civil)
 constexpr int MONTH_LENGTH_ENCODING = 153; // Encodes non-uniform month lengths: (153*m+2)/5
 constexpr std::int64_t GREGORIAN_ERA_DAYS = 146097; // Days per 400-year Gregorian era
-constexpr std::int64_t UNIX_EPOCH_DAY_OFFSET = 719468; // Days from proleptic epoch to Unix epoch
-
-#ifdef HAS_CHRONO_PARSE
-std::chrono::utc_time<std::chrono::nanoseconds> iso_to_utc_time(const std::string& s)
-{
-	// Accepts e.g. "2026-04-17T12:34:56Z" or "2026-04-17 12:34:56Z"
-	// %FT%T  -> YYYY-MM-DD'T'HH:MM:SS
-	// %Ez    -> ISO 8601 offset / 'Z'
-	std::chrono::utc_time<std::chrono::nanoseconds> tp;
-
-	std::istringstream in(s);
-
-	in >> std::chrono::parse("%FT%T%Ez", tp);
-
-	if(in.fail())
-	{
-		// Try a slightly more permissive variant (space instead of 'T')
-		in.clear();
-		in.str(s);
-		in >> std::chrono::parse("%F %T%Ez", tp);
-	}
-
-	if(in.fail())
-	{
-		throw std::runtime_error("Failed to parse ISO-8601 UTC time: " + s);
-	}
-
-	return tp;
-}
-#else
+constexpr std::int64_t POSIX_EPOCH_DAY_OFFSET = 719468; // Days from proleptic epoch to POSIX epoch
 
 struct LeapTransition
 {
-	std::int64_t unix_transition_seconds;
+	std::int64_t transition_posix_epoch;
 	int correction_seconds;
 };
 
-struct ParsedIsoUtc
+struct ParsedUtcIso
 {
 	int year = 0;
 	unsigned month = 0;
@@ -84,72 +55,67 @@ constexpr std::int64_t days_from_civil(int year, unsigned month, unsigned day) n
 	const unsigned day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
 
 	// GREGORIAN_ERA_DAYS = days per 400-year era.
-	// UNIX_EPOCH_DAY_OFFSET = days from the proleptic Gregorian epoch (0000-03-01) to the
-	//                        Unix epoch (1970-01-01), used to produce a Unix day count.
+	// POSIX_EPOCH_DAY_OFFSET = days from the proleptic Gregorian epoch (0000-03-01) to the
+	//                        POSIX epoch (1970-01-01), used to produce a POSIX day count.
 	return static_cast<std::int64_t>(era) * GREGORIAN_ERA_DAYS + static_cast<std::int64_t>(day_of_era)
-		- UNIX_EPOCH_DAY_OFFSET;
+		- POSIX_EPOCH_DAY_OFFSET;
 }
 
-ParsedIsoUtc parse_iso8601_utc(const std::string& iso);
+ParsedUtcIso parse_iso8601_utc(const std::string& iso);
 
 template <typename Duration = std::chrono::system_clock::duration>
 std::chrono::time_point<std::chrono::system_clock, Duration>
-iso_utc_to_unix_seconds_non_leap(const ParsedIsoUtc& p)
+iso_utc_to_sys_time(const ParsedUtcIso& parsed_utc_iso)
 {
-#if 1
-	// Number of days since the Unix epoch (1970-01-01) for the calendar date.
-	const std::int64_t days_since_unix_epoch = days_from_civil(p.year, p.month, p.day);
+#if 0
+	// Number of days since the POSIX epoch (1970-01-01) for the calendar date.
+	const std::int64_t days_since_posix_epoch =
+		days_from_civil(parsed_utc_iso.year, parsed_utc_iso.month, parsed_utc_iso.day);
 
 	// Seconds elapsed within the day from midnight, treating leap second 60 as 59
-	// for the purpose of building a Unix timestamp (POSIX ignores the leap second).
-	std::int64_t seconds_within_day = static_cast<std::int64_t>(p.hour) * SECONDS_PER_HOUR
-		+ static_cast<std::int64_t>(p.minute) * SECONDS_PER_MINUTE + static_cast<std::int64_t>(p.second);
+	// for the purpose of building a POSIX timestamp (POSIX ignores the leap second).
+	std::int64_t seconds_within_day = static_cast<std::int64_t>(parsed_utc_iso.hour) * SECONDS_PER_HOUR
+		+ static_cast<std::int64_t>(parsed_utc_iso.minute) * SECONDS_PER_MINUTE
+		+ static_cast<std::int64_t>(parsed_utc_iso.second);
 
 	// A leap second (second == 60) does not exist in the POSIX/Unix time scale.
-	// Map it to SECONDS_PER_DAY so the resulting Unix timestamp equals midnight of the next day,
+	// Map it to SECONDS_PER_DAY so the resulting POSIX timestamp equals midnight of the next day,
 	// which is the same value POSIX assigns to the next second after the leap second.
-	if(p.second == 60)
+	if(parsed_utc_iso.second == 60)
 	{
 		seconds_within_day = SECONDS_PER_DAY;
 	}
 
-	// Convert to a Unix timestamp, applying the UTC offset so the result is always UTC.
+	// Convert to a POSIX timestamp, applying the UTC offset so the result is always UTC.
 	// Subtracting the offset converts a local/offset time to UTC: e.g. +05:30 → subtract 19800 s.
-	const std::int64_t unix_seconds =
-		days_since_unix_epoch * SECONDS_PER_DAY + seconds_within_day - p.tz_offset_seconds;
+	const std::int64_t posix_seconds =
+		days_since_posix_epoch * SECONDS_PER_DAY + seconds_within_day - parsed_utc_iso.tz_offset_seconds;
 #else
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 	struct tm tm = {
-		.tm_sec = (p.second == 60) ? 59 : p.second, // Map leap second to 59 for timegm
-		.tm_min = p.minute, // 0-59
-		.tm_hour = p.hour, // 0-23
-		.tm_mday = static_cast<int>(p.day), // 1-31
-		.tm_mon = static_cast<int>(p.month) - 1, // 0-11
-		.tm_year = p.year - 1900, // years since 1900
+		.tm_sec =
+			(parsed_utc_iso.second == 60) ? 59 : parsed_utc_iso.second, // Map leap second to 59 for timegm
+		.tm_min = parsed_utc_iso.minute, // 0-59
+		.tm_hour = parsed_utc_iso.hour, // 0-23
+		.tm_mday = static_cast<int>(parsed_utc_iso.day), // 1-31
+		.tm_mon = static_cast<int>(parsed_utc_iso.month) - 1, // 0-11
+		.tm_year = parsed_utc_iso.year - 1900, // years since 1900
 	};
 #pragma GCC diagnostic pop
 
-	const time_t unix_seconds = timegm(&tm) - p.tz_offset_seconds
-		+ ((p.second == 60) ? 1 : 0); // Add 1 second if it was a leap second
+	const time_t posix_seconds = timegm(&tm) - parsed_utc_iso.tz_offset_seconds
+		+ ((parsed_utc_iso.second == 60) ? 1 : 0); // Add 1 second if it was a leap second
 #endif
 
-	// Combine the integer-second Unix timestamp with the sub-second nanosecond remainder.
-	return std::chrono::sys_time<Duration>{ std::chrono::seconds{ unix_seconds }
-											+ std::chrono::nanoseconds{ p.nanos } };
+	// Combine the integer-second POSIX timestamp with the sub-second nanosecond remainder.
+	return std::chrono::sys_time<Duration>{ std::chrono::seconds{ posix_seconds }
+											+ std::chrono::nanoseconds{ parsed_utc_iso.nanos } };
 }
 
 std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::string& leapseconds_path);
 
-template <typename Duration = std::chrono::system_clock::duration>
-std::chrono::time_point<std::chrono::system_clock, Duration> iso_to_sys_time(const std::string& iso_string)
-{
-	const ParsedIsoUtc utc = parse_iso8601_utc(iso_string);
-	const auto unix_tp = iso_utc_to_unix_seconds_non_leap(utc);
-	return std::chrono::time_point_cast<Duration>(unix_tp);
-}
-
-#endif // HAS_CHRONO_PARSE
+// ISO-8601 parser based implementations
 
 double utc_iso_to_utc_posix(const std::string& iso_string);
 double utc_iso_to_utc_tudat(const std::string& iso_string);
@@ -163,7 +129,9 @@ std::string tai_tudat_to_utc_iso(double tai_tudat_epoch);
 std::string tt_tudat_to_utc_iso(double tt_tudat_epoch);
 std::string tdb_tudat_to_utc_iso(double tdb_tudat_epoch);
 
-std::string utc_iso_tudat_to_utc_iso_tudat(const std::string& iso_string);
+// Tudat DateTime based implementations
+
+std::string utc_iso_to_utc_iso(const std::string& iso_string);
 
 double utc_iso_tudat_to_utc_posix(const std::string& iso_string);
 double utc_iso_tudat_to_utc_tudat(const std::string& iso_string);
@@ -176,3 +144,12 @@ std::string utc_tudat_to_utc_iso_tudat(double utc_tudat_epoch);
 std::string tai_tudat_to_utc_iso_tudat(double tai_tudat_epoch);
 std::string tt_tudat_to_utc_iso_tudat(double tt_tudat_epoch);
 std::string tdb_tudat_to_utc_iso_tudat(double tdb_tudat_epoch);
+
+template <typename Duration = std::chrono::system_clock::duration>
+std::chrono::time_point<std::chrono::system_clock, Duration> utc_iso_to_sys_time(const std::string& iso_string
+)
+{
+	const ParsedUtcIso utc = parse_iso8601_utc(iso_string);
+	const auto sys_time = iso_utc_to_sys_time(utc);
+	return std::chrono::time_point_cast<Duration>(sys_time);
+}

@@ -76,14 +76,14 @@ inline int month_name_to_number(const std::string& month_name)
 }
 } // namespace
 
-ParsedIsoUtc parse_iso8601_utc(const std::string& iso)
+ParsedUtcIso parse_iso8601_utc(const std::string& iso)
 {
 	if(iso.size() < 19)
 	{
 		throw std::runtime_error("ISO-8601 input too short: " + iso);
 	}
 
-	ParsedIsoUtc out;
+	ParsedUtcIso out;
 
 	out.year = parse_4(iso, 0);
 	if(iso[4] != '-')
@@ -264,15 +264,15 @@ std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::string& le
 		}
 
 		const int month = month_name_to_number(mon);
-		const std::int64_t unix_transition =
+		const std::int64_t transition_posix_epoch =
 			days_from_civil(year, static_cast<unsigned>(month), static_cast<unsigned>(day)) * SECONDS_PER_DAY
 			+ sec_of_day;
 
-		out.push_back(LeapTransition{ unix_transition, sign == '+' ? 1 : -1 });
+		out.push_back(LeapTransition{ transition_posix_epoch, sign == '+' ? 1 : -1 });
 	}
 
 	std::sort(out.begin(), out.end(), [](const LeapTransition& a, const LeapTransition& b) {
-		return a.unix_transition_seconds < b.unix_transition_seconds;
+		return a.transition_posix_epoch < b.transition_posix_epoch;
 	});
 
 	return out;
@@ -280,7 +280,7 @@ std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::string& le
 
 inline double cumulative_leap_correction(
 	const std::vector<LeapTransition>& transitions,
-	double utc_unix_seconds,
+	double utc_posix_epoch,
 	bool include_transition_at_equal
 )
 {
@@ -290,18 +290,18 @@ inline double cumulative_leap_correction(
 	constexpr std::int64_t unix_1972_01_01 = days_from_civil(1972, 1, 1) * SECONDS_PER_DAY;
 
 	double tai_minus_utc_seconds = POST_1972_TAI_MINUS_UTC;
-	if(utc_unix_seconds < static_cast<double>(unix_1972_01_01))
+	if(utc_posix_epoch < static_cast<double>(unix_1972_01_01))
 	{
 		const double elapsed_days_since_1970 =
-			(utc_unix_seconds - static_cast<double>(unix_1970_01_01)) / static_cast<double>(SECONDS_PER_DAY);
+			(utc_posix_epoch - static_cast<double>(unix_1970_01_01)) / static_cast<double>(SECONDS_PER_DAY);
 		tai_minus_utc_seconds =
 			PRE_1972_TAI_MINUS_UTC_AT_1970 + elapsed_days_since_1970 * PRE_1972_DRIFT_RATE;
 	}
 
 	for(const LeapTransition& t : transitions)
 	{
-		const double transition = static_cast<double>(t.unix_transition_seconds);
-		if(transition < utc_unix_seconds || (include_transition_at_equal && transition == utc_unix_seconds))
+		const double transition = static_cast<double>(t.transition_posix_epoch);
+		if(transition < utc_posix_epoch || (include_transition_at_equal && transition == utc_posix_epoch))
 		{
 			tai_minus_utc_seconds += static_cast<double>(t.correction_seconds);
 		}
@@ -311,44 +311,44 @@ inline double cumulative_leap_correction(
 
 double utc_iso_to_utc_posix(const std::string& iso_string)
 {
-	const auto unix_tp = iso_to_sys_time(iso_string);
-	return std::chrono::duration<double>(unix_tp.time_since_epoch()).count();
+	const auto sys_time = utc_iso_to_sys_time(iso_string);
+	return std::chrono::duration<double>(sys_time.time_since_epoch()).count();
 }
 
 double utc_iso_to_utc_tudat(const std::string& iso_string)
 {
-	const ParsedIsoUtc utc = parse_iso8601_utc(iso_string);
-	const auto utc_unix_tp = iso_utc_to_unix_seconds_non_leap(utc);
-	const double utc_unix_seconds = std::chrono::duration<double>(utc_unix_tp.time_since_epoch()).count();
+	const ParsedUtcIso parsed_utc_iso = parse_iso8601_utc(iso_string);
+	const auto sys_time = iso_utc_to_sys_time(parsed_utc_iso);
+	const double posix_seconds = std::chrono::duration<double>(sys_time.time_since_epoch()).count();
 
-	return utc_unix_seconds - POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+	return posix_seconds - POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
 }
 
 double utc_iso_to_tai_tudat(const std::string& iso_string)
 {
 	// Required epoch mapping:
 	// TAI epoch = 2000-01-01 12:00:00 TAI = 2000-01-01 11:59:28 UTC
-	constexpr std::int64_t tai_epoch_utc_unix =
+	constexpr std::int64_t tai_epoch_in_posix_time =
 		days_from_civil(2000, 1, 1) * SECONDS_PER_DAY + 11 * SECONDS_PER_HOUR + 59 * SECONDS_PER_MINUTE + 28;
 
-	const ParsedIsoUtc utc = parse_iso8601_utc(iso_string);
-	const auto utc_unix_tp = iso_utc_to_unix_seconds_non_leap(utc);
-	const double utc_unix_seconds = std::chrono::duration<double>(utc_unix_tp.time_since_epoch()).count();
+	const ParsedUtcIso parsed_utc_iso = parse_iso8601_utc(iso_string);
+	const auto sys_time = iso_utc_to_sys_time(parsed_utc_iso);
+	const double posix_epoch = std::chrono::duration<double>(sys_time.time_since_epoch()).count();
 
-	// At 23:59:60, UTC maps to the same Unix second as 00:00:00 next day.
+	// At 23:59:60, UTC maps to the same POSIX second as 00:00:00 next day.
 	// For correct boundary behavior, that leap transition must not be counted yet.
-	const bool include_transition_now = (utc.second != 60);
-	const double utc_unix_for_leap_lookup = (utc.second == 60)
+	const bool include_transition_now = (parsed_utc_iso.second != 60);
+	const double posix_epoch_for_leap_lookup = (parsed_utc_iso.second == 60)
 		? static_cast<double>(
-			std::chrono::time_point_cast<std::chrono::seconds>(utc_unix_tp).time_since_epoch().count()
+			std::chrono::time_point_cast<std::chrono::seconds>(sys_time).time_since_epoch().count()
 		)
-		: utc_unix_seconds;
+		: posix_epoch;
 	const double leap_now =
-		cumulative_leap_correction(transitions, utc_unix_for_leap_lookup, include_transition_now);
+		cumulative_leap_correction(transitions, posix_epoch_for_leap_lookup, include_transition_now);
 	const double leap_epoch =
-		cumulative_leap_correction(transitions, static_cast<double>(tai_epoch_utc_unix), true);
+		cumulative_leap_correction(transitions, static_cast<double>(tai_epoch_in_posix_time), true);
 
-	const double utc_elapsed_non_leap = utc_unix_seconds - static_cast<double>(tai_epoch_utc_unix);
+	const double utc_elapsed_non_leap = posix_epoch - static_cast<double>(tai_epoch_in_posix_time);
 	const double leap_delta = leap_now - leap_epoch;
 
 	return utc_elapsed_non_leap + leap_delta;
@@ -393,7 +393,7 @@ std::string tdb_tudat_to_utc_iso(double tdb_tudat_epoch)
 // Tudat DateTime based implementations
 //
 
-std::string utc_iso_tudat_to_utc_iso_tudat(const std::string& iso_string)
+std::string utc_iso_to_utc_iso(const std::string& iso_string)
 {
 	return iso_string;
 }
