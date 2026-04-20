@@ -1,8 +1,10 @@
 #include "convert_time.h"
+#include "convert_time_chrono.h"
 #include "test/convert_time_common_gtest.h"
 
 #include <gtest/gtest.h>
 #include <tudat/interface/spice/spiceInterface.h>
+#include <chrono>
 #include <cmath>
 #include <unordered_map>
 
@@ -164,3 +166,166 @@ TEST_F(ConvertTimeDataDrivenTest, NumericRoundTripUsingUtcIsStableForNonLeapSeco
 		EXPECT_NEAR(utc_from_tai, record.utc, convert_time_test::kTolExactLike) << record.iso;
 	}
 }
+
+TEST(ConvertTimeChrono, SysTimeToUtcPosixMatchesChronoDurationSeconds)
+{
+	const auto sys_time = std::chrono::system_clock::time_point{ std::chrono::seconds{ 123456789 } };
+	EXPECT_DOUBLE_EQ(sys_time_to_utc_posix(sys_time), 123456789.0);
+}
+
+TEST(ConvertTimeChrono, SysTimeToUtcPosixSupportsSubSecondPrecision)
+{
+	using namespace std::chrono;
+	const auto sys_time = system_clock::time_point{ seconds{ 10 } + milliseconds{ 250 } };
+	EXPECT_NEAR(sys_time_to_utc_posix(sys_time), 10.25, 1.0e-12);
+}
+
+TEST(ConvertTimeChrono, UtcPosixToSysTimeRoundTripIsStable)
+{
+	using namespace std::chrono;
+	const double posix = 98765.4321;
+	const auto sys_time = utc_posix_to_sys_time(posix);
+	EXPECT_NEAR(sys_time_to_utc_posix(sys_time), posix, 1.0e-9);
+}
+
+TEST(ConvertTimeChrono, UtcPosixToSysTimeSupportsCustomDuration)
+{
+	using namespace std::chrono;
+	const double posix = 42.0;
+	const auto sys_time = utc_posix_to_sys_time<milliseconds>(posix);
+	EXPECT_EQ(sys_time.time_since_epoch(), milliseconds{ 42000 });
+}
+
+TEST(ConvertTimeChrono, SysTimeToUtcIsoFormatsWithoutTimezoneSuffix)
+{
+	using namespace std::chrono;
+
+	struct TestCase
+	{
+		sys_time<milliseconds> input;
+		const char* expected;
+	};
+
+	const TestCase cases[] = {
+		{ sys_days{ 1970y / January / 1 } + seconds{ 0 }, "1970-01-01T00:00:00.000" },
+		{ sys_days{ 1970y / January / 1 } + seconds{ 1 }, "1970-01-01T00:00:01.000" },
+		{ sys_days{ 1970y / January / 1 } + seconds{ 59 }, "1970-01-01T00:00:59.000" },
+		{ sys_days{ 1970y / January / 1 } + minutes{ 1 }, "1970-01-01T00:01:00.000" },
+		{ sys_days{ 1970y / January / 2 } + seconds{ 0 }, "1970-01-02T00:00:00.000" },
+
+		{ sys_days{ 2016y / December / 31 } + hours{ 23 } + minutes{ 59 } + seconds{ 59 },
+		  "2016-12-31T23:59:59.000" },
+		{ sys_days{ 2016y / December / 31 } + hours{ 23 } + minutes{ 59 } + seconds{ 60 },
+		  "2017-01-01T00:00:00.000" },
+	};
+
+	for(const auto& tc : cases)
+	{
+		EXPECT_EQ(sys_time_to_utc_iso(tc.input), tc.expected);
+	}
+}
+
+TEST(ConvertTimeChrono, SysTimeToUtcIsoSupportsCustomDurationSeconds)
+{
+	using namespace std::chrono;
+	const auto t = sys_time<seconds>{ sys_days{ 1970y / January / 1 } + seconds{ 1 } };
+	EXPECT_EQ(sys_time_to_utc_iso(t), "1970-01-01T00:00:01");
+}
+
+TEST(ConvertTimeChrono, SysTimeToUtcIsoSupportsCustomDurationMicroseconds)
+{
+	using namespace std::chrono;
+	const auto t =
+		sys_time<microseconds>{ sys_days{ 1970y / January / 1 } + seconds{ 1 } + microseconds{ 2 } };
+	EXPECT_EQ(sys_time_to_utc_iso(t), "1970-01-01T00:00:01.000002");
+}
+
+TEST(ConvertTimeChrono, UtcPosixToSysTimeTruncatesTowardZeroForMilliseconds)
+{
+	using namespace std::chrono;
+	const double posix = 1.2345;
+	const auto t = utc_posix_to_sys_time<milliseconds>(posix);
+	EXPECT_EQ(t.time_since_epoch(), milliseconds{ 1234 });
+}
+
+TEST(ConvertTimeChrono, UtcPosixToSysTimeHandlesNegativeEpochForMilliseconds)
+{
+	using namespace std::chrono;
+	const double posix = -1.25;
+	const auto t = utc_posix_to_sys_time<milliseconds>(posix);
+	EXPECT_EQ(t.time_since_epoch(), milliseconds{ -1250 });
+}
+
+TEST(ConvertTimeChrono, SysTimeToUtcPosixSupportsCustomRepAndPeriod)
+{
+	using namespace std::chrono;
+	const auto t = system_clock::time_point{ milliseconds{ 1500 } };
+	const auto ms = sys_time_to_utc_posix<long long, std::milli>(t);
+	EXPECT_EQ(ms, 1500);
+}
+
+TEST(ConvertTimeChrono, SysTimeToUtcPosixHandlesNegativeEpoch)
+{
+	using namespace std::chrono;
+	const auto t = system_clock::time_point{ milliseconds{ -1250 } };
+	EXPECT_NEAR(sys_time_to_utc_posix(t), -1.25, 1.0e-12);
+}
+
+#ifdef HAS_CHRONO_UTC_CLOCK
+TEST(ConvertTimeChrono, UtcPosixToUtcTimeSupportsCustomDuration)
+{
+	using namespace std::chrono;
+	const double posix = 42.0;
+	const auto t = utc_posix_to_utc_time<milliseconds>(posix);
+	EXPECT_EQ(t.time_since_epoch(), milliseconds{ 42000 });
+}
+
+TEST(ConvertTimeChrono, UtcPosixToUtcTimeTruncatesTowardZeroForMilliseconds)
+{
+	using namespace std::chrono;
+	const double posix = 1.2345;
+	const auto t = utc_posix_to_utc_time<milliseconds>(posix);
+	EXPECT_EQ(t.time_since_epoch(), milliseconds{ 1234 });
+}
+
+TEST(ConvertTimeChrono, UtcPosixToUtcTimeHandlesNegativeEpochForMilliseconds)
+{
+	using namespace std::chrono;
+	const double posix = -1.25;
+	const auto t = utc_posix_to_utc_time<milliseconds>(posix);
+	EXPECT_EQ(t.time_since_epoch(), milliseconds{ -1250 });
+}
+
+TEST(ConvertTimeChrono, UtcTimeToUtcIsoFormatsWithoutTimezoneSuffix)
+{
+	using namespace std::chrono;
+
+	struct TestCase
+	{
+		utc_time<milliseconds> input;
+		const char* expected;
+	};
+
+	const TestCase cases[] = {
+		{ utc_time<milliseconds>{ milliseconds{ 0 } }, "1970-01-01T00:00:00.000" },
+		{ utc_time<milliseconds>{ milliseconds{ 1000 } }, "1970-01-01T00:00:01.000" },
+		{ utc_time<milliseconds>{ milliseconds{ 86400000 } }, "1970-01-02T00:00:00.000" },
+
+		{ std::chrono::utc_clock::from_sys(
+			  sys_days{ 2016y / December / 31 } + hours{ 23 } + minutes{ 59 } + seconds{ 59 }
+		  ) + seconds(1),
+		  "2016-12-31T23:59:60.000" },
+
+		{ std::chrono::utc_clock::from_sys(
+			  sys_days{ 2016y / December / 31 } + hours{ 23 } + minutes{ 59 } + seconds{ 59 }
+		  ) + seconds(2),
+		  "2017-01-01T00:00:00.000" },
+
+	};
+
+	for(const auto& tc : cases)
+	{
+		EXPECT_EQ(utc_time_to_utc_iso(tc.input), tc.expected);
+	}
+}
+#endif
