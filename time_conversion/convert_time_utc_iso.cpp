@@ -364,6 +364,31 @@ double utc_iso_to_tdb_tudat(const std::string& iso_string)
 	return utc_iso_to_tt_tudat(iso_string);
 }
 
+std::string utc_posix_to_utc_iso(double utc_posix_epoch)
+{
+	return std::string();
+}
+
+std::string utc_tudat_to_utc_iso(double utc_tudat_epoch)
+{
+	return std::string();
+}
+
+std::string tai_tudat_to_utc_iso(double tai_tudat_epoch)
+{
+	return std::string();
+}
+
+std::string tt_tudat_to_utc_iso(double tt_tudat_epoch)
+{
+	return std::string();
+}
+
+std::string tdb_tudat_to_utc_iso(double tdb_tudat_epoch)
+{
+	return std::string();
+}
+
 //
 // Tudat DateTime based implementations
 //
@@ -462,5 +487,86 @@ double utc_iso_tudat_to_tdb_tudat(const std::string& iso_string)
 	{
 		std::cerr << "Error converting ISO string to TUDAT TDB timestamp: " << e.what() << "\n";
 		return std::numeric_limits<double>::quiet_NaN();
+	}
+}
+
+std::string utc_posix_to_utc_iso_tudat(const double utc_posix_epoch)
+{
+	try
+	{
+		const double utc_tudat_epoch = utc_posix_epoch - POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+
+		return tudat::basic_astrodynamics::DateTime::fromTime(utc_tudat_epoch).isoString(false, 3);
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << "Error converting POSIX timestamp to ISO string: " << e.what() << "\n";
+		return "";
+	}
+}
+std::string utc_tudat_to_utc_iso_tudat(const double utc_tudat_epoch)
+{
+	try
+	{
+		return tudat::basic_astrodynamics::DateTime::fromTime(utc_tudat_epoch).isoString(false, 3);
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << "Error converting TUDAT UTC timestamp to ISO string: " << e.what() << "\n";
+		return "";
+	}
+}
+std::string tai_tudat_to_utc_iso_tudat(const double tai_tudat_epoch)
+{
+	try
+	{
+		const double utc_tudat_epoch = get_tudat_time_scale_converter()->getCurrentTime(
+			tudat::basic_astrodynamics::TimeScales::tai_scale,
+			tudat::basic_astrodynamics::TimeScales::utc_scale,
+			tai_tudat_epoch
+		);
+
+		return tudat::basic_astrodynamics::DateTime::fromTime(utc_tudat_epoch).isoString(false, 3);
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << "Error converting TUDAT TAI timestamp to TUDAT UTC ISO timestamp: " << e.what() << "\n";
+		return "";
+	}
+}
+std::string tt_tudat_to_utc_iso_tudat(const double tt_tudat_epoch)
+{
+	try
+	{
+		const double utc_tudat_epoch = get_tudat_time_scale_converter()->getCurrentTime(
+			tudat::basic_astrodynamics::TimeScales::tt_scale,
+			tudat::basic_astrodynamics::TimeScales::utc_scale,
+			tt_tudat_epoch
+		);
+
+		return tudat::basic_astrodynamics::DateTime::fromTime(utc_tudat_epoch).isoString(false, 3);
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << "Error converting TUDAT TT timestamp to TUDAT UTC ISO timestamp: " << e.what() << "\n";
+		return "";
+	}
+}
+std::string tdb_tudat_to_utc_iso_tudat(const double tdb_tudat_epoch)
+{
+	try
+	{
+		const double utc_tudat_epoch = get_tudat_time_scale_converter()->getCurrentTime(
+			tudat::basic_astrodynamics::TimeScales::tdb_scale,
+			tudat::basic_astrodynamics::TimeScales::utc_scale,
+			tdb_tudat_epoch
+		);
+
+		return tudat::basic_astrodynamics::DateTime::fromTime(utc_tudat_epoch).isoString(false, 3);
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << "Error converting TUDAT TDB timestamp to TUDAT UTC ISO timestamp: " << e.what() << "\n";
+		return "";
 	}
 }
