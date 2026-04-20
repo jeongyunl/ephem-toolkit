@@ -4,15 +4,23 @@
 #include <iostream>
 #include <string>
 #include <vector>
+
+#ifdef _LIBCPP_STD_VER
 #include <tzfile.h>
+#endif
 
 #ifdef TZDIR
 // System tzdata directory is available at compile time.
-#define LEAPSECONDS_PATH_DEFAULT TZDIR "/leapseconds"
+#define ZONEINFO_DIR TZDIR
+#elif defined(_GLIBCXX_ZONEINFO_DIR)
+// GNU libstdc++ provides a compile-time macro for the tzdata directory.
+#define ZONEINFO_DIR _GLIBCXX_ZONEINFO_DIR
 #else
 // Fallback default path (may not exist on all systems)
-#define LEAPSECONDS_PATH_DEFAULT "/usr/share/zoneinfo/leapseconds"
+#define ZONEINFO_DIR "/usr/share/zoneinfo"
 #endif
+
+#define LEAPSECONDS_PATH_DEFAULT ZONEINFO_DIR "/leapseconds"
 
 int main(int argc, char* argv[])
 {

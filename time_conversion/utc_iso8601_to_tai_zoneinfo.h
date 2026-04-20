@@ -265,13 +265,13 @@ inline std::chrono::sys_time<std::chrono::nanoseconds> iso_utc_to_unix_seconds_n
 	const std::int64_t unix_seconds =
 		days_since_unix_epoch * SECONDS_PER_DAY + seconds_within_day - p.tz_offset_seconds;
 #else
-	struct tm tm{
+	struct tm tm = {
 		.tm_sec = (p.second == 60) ? 59 : p.second, // Map leap second to 59 for timegm
-		.tm_min = p.minute,
-		.tm_hour = p.hour,
-		.tm_mday = static_cast<int>(p.day),
-		.tm_mon = static_cast<int>(p.month) - 1,
-		.tm_year = p.year - 1900,
+		.tm_min = p.minute, // 0-59
+		.tm_hour = p.hour, // 0-23
+		.tm_mday = static_cast<int>(p.day), // 1-31
+		.tm_mon = static_cast<int>(p.month) - 1, // 0-11
+		.tm_year = p.year - 1900, // years since 1900
 	};
 
 	const time_t unix_seconds = timegm(&tm) - p.tz_offset_seconds
@@ -360,9 +360,13 @@ inline std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::str
 			throw std::runtime_error("Leap line time out of range: " + line);
 		}
 
-		std::int64_t sec_of_day = static_cast<std::int64_t>(hh) * SECONDS_PER_HOUR
-			+ static_cast<std::int64_t>(mm) * SECONDS_PER_MINUTE + static_cast<std::int64_t>(ss);
-		if(ss == 60)
+		std::int64_t sec_of_day = 0;
+		if(ss < 60)
+		{
+			sec_of_day = static_cast<std::int64_t>(hh) * SECONDS_PER_HOUR
+				+ static_cast<std::int64_t>(mm) * SECONDS_PER_MINUTE + static_cast<std::int64_t>(ss);
+		}
+		else
 		{
 			sec_of_day = SECONDS_PER_DAY;
 		}
@@ -450,8 +454,8 @@ inline double utc_iso8601_to_tai_seconds_since_epoch(
 	const bool include_transition_now = (utc.second != 60);
 	const double utc_unix_for_leap_lookup = (utc.second == 60)
 		? static_cast<double>(
-			  std::chrono::time_point_cast<std::chrono::seconds>(utc_unix_tp).time_since_epoch().count()
-		  )
+			std::chrono::time_point_cast<std::chrono::seconds>(utc_unix_tp).time_since_epoch().count()
+		)
 		: utc_unix_seconds;
 	const double leap_now =
 		cumulative_leap_correction(transitions, utc_unix_for_leap_lookup, include_transition_now);
