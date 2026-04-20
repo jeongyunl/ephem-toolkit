@@ -1,26 +1,9 @@
-#include "utc_iso8601_to_tai_zoneinfo.h"
+#include "utc_iso_to_x.h"
 
 #include <iomanip>
 #include <iostream>
 #include <string>
 #include <vector>
-
-#ifdef _LIBCPP_STD_VER
-#include <tzfile.h>
-#endif
-
-#ifdef TZDIR
-// System tzdata directory is available at compile time.
-#define ZONEINFO_DIR TZDIR
-#elif defined(_GLIBCXX_ZONEINFO_DIR)
-// GNU libstdc++ provides a compile-time macro for the tzdata directory.
-#define ZONEINFO_DIR _GLIBCXX_ZONEINFO_DIR
-#else
-// Fallback default path (may not exist on all systems)
-#define ZONEINFO_DIR "/usr/share/zoneinfo"
-#endif
-
-#define LEAPSECONDS_PATH_DEFAULT ZONEINFO_DIR "/leapseconds"
 
 int main(int argc, char* argv[])
 {
@@ -59,15 +42,13 @@ int main(int argc, char* argv[])
 	{
 		for(const auto& c : cases)
 		{
-			const double tai_seconds =
-				utc_tai_zoneinfo::utc_iso8601_to_tai_seconds_since_epoch(c.utc_iso, leap_file);
+			const double tai_seconds = iso_to_tai_tudat(c.utc_iso);
 
 			std::cout << c.label << "\n";
 			std::cout << "  UTC ISO-8601: " << c.utc_iso << "\n";
 			std::cout << "  TAI seconds since 2000-01-01 12:00:00 TAI: " << tai_seconds << "\n";
-			std::cout << "  POSIX epoch seconds: " << utc_tai_zoneinfo::utc_iso8601_to_posix_epoch(c.utc_iso)
-					  << "\n";
-			std::cout << "  Sys time: " << utc_tai_zoneinfo::utc_iso8601_to_sys_time(c.utc_iso)
+			std::cout << "  POSIX epoch seconds: " << utc_iso8601_to_posix_epoch(c.utc_iso) << "\n";
+			std::cout << "  Sys time: " << iso_to_sys_time(c.utc_iso)
 					  << "\n"; // Also test that sys_time conversion works without exceptions
 
 			std::cout << "\n";
