@@ -4,16 +4,7 @@ target_include_directories(convert_time PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(convert_time PUBLIC ${Tudat_PROPAGATION_LIBRARIES})
 
-add_executable(
-    convert_time_disp_fn_cli ../convert_time_disp_fn_cli.cpp
-                             convert_time_disp_tbl.cpp
-)
-
-target_include_directories(
-    convert_time_disp_fn_cli PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-target_link_libraries(convert_time_disp_fn_cli PRIVATE convert_time)
+add_subdirectory(tools)
 
 if(BUILD_TESTING)
     add_executable(
@@ -51,6 +42,7 @@ if(BUILD_TESTING)
         convert_time_disp_fn_gtest BEFORE
         PRIVATE ${googletest_SOURCE_DIR}/googletest/include
                 ${CMAKE_CURRENT_SOURCE_DIR}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tools
                 ${CMAKE_CURRENT_SOURCE_DIR}/..
     )
 
