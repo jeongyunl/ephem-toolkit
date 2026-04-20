@@ -109,8 +109,9 @@ iso_utc_to_sys_time(const ParsedUtcIso& parsed_utc_iso)
 #endif
 
 	// Combine the integer-second POSIX timestamp with the sub-second nanosecond remainder.
-	return std::chrono::sys_time<Duration>{ std::chrono::seconds{ posix_seconds }
-											+ std::chrono::nanoseconds{ parsed_utc_iso.nanos } };
+	return std::chrono::sys_time<Duration>{ std::chrono::duration_cast<Duration>(
+		std::chrono::seconds{ posix_seconds } + std::chrono::nanoseconds{ parsed_utc_iso.nanos }
+	) };
 }
 
 std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::string& leapseconds_path);
@@ -146,8 +147,8 @@ std::string tt_tudat_to_utc_iso_tudat(double tt_tudat_epoch);
 std::string tdb_tudat_to_utc_iso_tudat(double tdb_tudat_epoch);
 
 template <typename Duration = std::chrono::system_clock::duration>
-std::chrono::time_point<std::chrono::system_clock, Duration> utc_iso_to_sys_time(const std::string& iso_string
-)
+std::chrono::time_point<std::chrono::system_clock, Duration>
+utc_iso_to_sys_time(const std::string& iso_string)
 {
 	const ParsedUtcIso utc = parse_iso8601_utc(iso_string);
 	const auto sys_time = iso_utc_to_sys_time(utc);
