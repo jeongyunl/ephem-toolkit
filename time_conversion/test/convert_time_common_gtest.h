@@ -13,7 +13,6 @@ struct EpochRecord
 	double tai;
 	double tt;
 	double tdb;
-	double tdb_apx;
 };
 
 // Returns a cached view of the notable epochs dataset.

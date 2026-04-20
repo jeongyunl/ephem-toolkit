@@ -1,44 +1,17 @@
+#include "convert_time_utc_iso.h"
+
 #include "convert_time.h"
 
 #include <tudat/astro/basic_astro/dateTime.h>
 #include <tudat/astro/earth_orientation/terrestrialTimeScaleConverter.h>
+#include <array>
+#include <cctype>
 #include <chrono>
 
 namespace
 {
 static const std::vector<LeapTransition> transitions =
 	load_zoneinfo_leap_transitions(LEAPSECONDS_PATH_DEFAULT);
-
-inline constexpr std::int64_t days_from_civil(int year, unsigned month, unsigned day) noexcept
-{
-	// Shift January and February to months 13 and 14 of the previous year so that
-	// the leap day (Feb 29) always falls at the end of the shifted year, simplifying
-	// the day-of-year calculation below.
-	year -= (month <= 2 ? 1 : 0);
-
-	// A 400-year Gregorian era contains exactly 146097 days. This gives the era index
-	// and keeps subsequent offsets in the range [0, 146096].
-	const int era = (year >= 0 ? year : year - 399) / 400;
-
-	// Year within the era [0, 399].
-	const unsigned year_of_era = static_cast<unsigned>(year - era * 400);
-
-	// Day within the shifted year [0, 365].
-	// The factor (153 * m + 2) / 5 encodes the non-uniform month lengths for
-	// March–February layout without any branching beyond the month shift above.
-	const unsigned day_of_year = (MONTH_LENGTH_ENCODING * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
-
-	// Day within the era [0, 146096].
-	// Adds one leap day per 4 years, subtracts the century non-leap years,
-	// and the century-of-era correction is already embedded in year_of_era / 100.
-	const unsigned day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
-
-	// GREGORIAN_ERA_DAYS = days per 400-year era.
-	// UNIX_EPOCH_DAY_OFFSET = days from the proleptic Gregorian epoch (0000-03-01) to the
-	//                        Unix epoch (1970-01-01), used to produce a Unix day count.
-	return static_cast<std::int64_t>(era) * GREGORIAN_ERA_DAYS + static_cast<std::int64_t>(day_of_era)
-		- UNIX_EPOCH_DAY_OFFSET;
-}
 
 inline bool is_digit(char c)
 {
@@ -335,23 +308,30 @@ inline double cumulative_leap_correction(
 	}
 	return tai_minus_utc_seconds;
 }
-double iso_to_utc_tudat(const std::string& utc_iso8601)
+
+double utc_iso_to_utc_posix(const std::string& iso_string)
 {
-	const ParsedIsoUtc utc = parse_iso8601_utc(utc_iso8601);
+	const auto unix_tp = iso_to_sys_time(iso_string);
+	return std::chrono::duration<double>(unix_tp.time_since_epoch()).count();
+}
+
+double utc_iso_to_utc_tudat(const std::string& iso_string)
+{
+	const ParsedIsoUtc utc = parse_iso8601_utc(iso_string);
 	const auto utc_unix_tp = iso_utc_to_unix_seconds_non_leap(utc);
 	const double utc_unix_seconds = std::chrono::duration<double>(utc_unix_tp.time_since_epoch()).count();
 
 	return utc_unix_seconds - POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
 }
 
-double iso_to_tai_tudat(const std::string& utc_iso8601)
+double utc_iso_to_tai_tudat(const std::string& iso_string)
 {
 	// Required epoch mapping:
 	// TAI epoch = 2000-01-01 12:00:00 TAI = 2000-01-01 11:59:28 UTC
 	constexpr std::int64_t tai_epoch_utc_unix =
 		days_from_civil(2000, 1, 1) * SECONDS_PER_DAY + 11 * SECONDS_PER_HOUR + 59 * SECONDS_PER_MINUTE + 28;
 
-	const ParsedIsoUtc utc = parse_iso8601_utc(utc_iso8601);
+	const ParsedIsoUtc utc = parse_iso8601_utc(iso_string);
 	const auto utc_unix_tp = iso_utc_to_unix_seconds_non_leap(utc);
 	const double utc_unix_seconds = std::chrono::duration<double>(utc_unix_tp.time_since_epoch()).count();
 
@@ -374,7 +354,24 @@ double iso_to_tai_tudat(const std::string& utc_iso8601)
 	return utc_elapsed_non_leap + leap_delta;
 }
 
+double utc_iso_to_tt_tudat(const std::string& iso_string)
+{
+	return utc_iso_to_tai_tudat(iso_string) + TT_EPOCH_MINUS_TAI_EPOCH;
+}
+
+double utc_iso_to_tdb_tudat(const std::string& iso_string)
+{
+	return utc_iso_to_tt_tudat(iso_string);
+}
+
+//
 // Tudat DateTime based implementations
+//
+
+std::string utc_iso_tudat_to_utc_iso_tudat(const std::string& iso_string)
+{
+	return iso_string;
+}
 
 double utc_iso_tudat_to_utc_posix(const std::string& iso_string)
 {
@@ -389,6 +386,81 @@ double utc_iso_tudat_to_utc_posix(const std::string& iso_string)
 	{
 		std::cerr << "Error converting ISO string to POSIX timestamp: " << e.what() << "\n";
 
+		return std::numeric_limits<double>::quiet_NaN();
+	}
+}
+
+double utc_iso_tudat_to_utc_tudat(const std::string& iso_string)
+{
+	try
+	{
+		return tudat::basic_astrodynamics::DateTime::fromIsoString(iso_string).epoch<double>();
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << "Error converting ISO string to TUDAT UTC timestamp: " << e.what() << "\n";
+		return std::numeric_limits<double>::quiet_NaN();
+	}
+}
+double utc_iso_tudat_to_tai_tudat(const std::string& iso_string)
+{
+	try
+	{
+		const auto tudat_date_time = tudat::basic_astrodynamics::DateTime::fromIsoString(iso_string);
+		const double leap_second = (tudat_date_time.getSeconds() >= 60.0) ? 1.0 : 0.0;
+
+		return get_tudat_time_scale_converter()->getCurrentTime(
+				   tudat::basic_astrodynamics::TimeScales::utc_scale,
+				   tudat::basic_astrodynamics::TimeScales::tai_scale,
+				   tudat_date_time.epoch<double>()
+			   )
+			- leap_second;
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << "Error converting ISO string to TUDAT TAI timestamp: " << e.what() << "\n";
+		return std::numeric_limits<double>::quiet_NaN();
+	}
+}
+
+double utc_iso_tudat_to_tt_tudat(const std::string& iso_string)
+{
+	try
+	{
+		const auto tudat_date_time = tudat::basic_astrodynamics::DateTime::fromIsoString(iso_string);
+		const double leap_second = (tudat_date_time.getSeconds() >= 60.0) ? 1.0 : 0.0;
+
+		return get_tudat_time_scale_converter()->getCurrentTime(
+				   tudat::basic_astrodynamics::TimeScales::utc_scale,
+				   tudat::basic_astrodynamics::TimeScales::tt_scale,
+				   tudat_date_time.epoch<double>()
+			   )
+			- leap_second;
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << "Error converting ISO string to TUDAT TT timestamp: " << e.what() << "\n";
+		return std::numeric_limits<double>::quiet_NaN();
+	}
+}
+
+double utc_iso_tudat_to_tdb_tudat(const std::string& iso_string)
+{
+	try
+	{
+		const auto tudat_date_time = tudat::basic_astrodynamics::DateTime::fromIsoString(iso_string);
+		const double leap_second = (tudat_date_time.getSeconds() >= 60.0) ? 1.0 : 0.0;
+
+		return get_tudat_time_scale_converter()->getCurrentTime(
+				   tudat::basic_astrodynamics::TimeScales::utc_scale,
+				   tudat::basic_astrodynamics::TimeScales::tdb_scale,
+				   tudat_date_time.epoch<double>()
+			   )
+			- leap_second;
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << "Error converting ISO string to TUDAT TDB timestamp: " << e.what() << "\n";
 		return std::numeric_limits<double>::quiet_NaN();
 	}
 }

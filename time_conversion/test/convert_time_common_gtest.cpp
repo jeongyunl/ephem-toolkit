@@ -45,7 +45,7 @@ std::vector<EpochRecord> load_epoch_records(const std::string& path)
 		}
 
 		const auto fields = split_tab(line);
-		if(fields.size() != 7)
+		if(fields.size() != 6)
 		{
 			throw std::runtime_error("Unexpected column count in notable epochs line: " + line);
 		}
@@ -55,8 +55,7 @@ std::vector<EpochRecord> load_epoch_records(const std::string& path)
 									   std::stod(fields[2]),
 									   std::stod(fields[3]),
 									   std::stod(fields[4]),
-									   std::stod(fields[5]),
-									   std::stod(fields[6]) });
+									   std::stod(fields[5]) });
 	}
 
 	return records;

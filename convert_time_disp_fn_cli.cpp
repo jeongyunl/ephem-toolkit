@@ -1,7 +1,6 @@
 #include "convert_time.h"
 #include "convert_time_disp_fn.h"
 
-#include <array>
 #include <format>
 #include <iostream>
 #include <list>
@@ -17,8 +16,6 @@ const std::map<std::string_view, TimeFormat> TimeFormatNames = {
 	{ "utc", TimeFormat::UTC_TUDAT }, //
 	{ "tai", TimeFormat::TAI_TUDAT }, //
 	{ "tt", TimeFormat::TT_TUDAT }, //
-	{ "tdb", TimeFormat::TDB_TUDAT }, //
-	{ "tdb_apx", TimeFormat::TDB_APX_TUDAT }, //
 };
 
 TimeFormat parse_time_format(const std::string& format_str)
@@ -61,9 +58,9 @@ int main(int argc, char* argv[])
 						  << "Options:\n"
 						  << "  -h, --help                Show this help message and exit\n"
 						  << "  -i, --input-format FORMAT Specify the input time format (posix, iso, utc, "
-							 "tai, tt, tdb, tdb_apx)\n"
+							 "tai, tt, tdb)\n"
 						  << "  -o, --output-format FORMAT Specify the output time format (posix, iso, utc, "
-							 "tai, tt, tdb, tdb_apx)\n"
+							 "tai, tt, tdb)\n"
 						  << "  -t, --time TIME           Specify the time value to convert\n";
 				return 0;
 			case 'i':

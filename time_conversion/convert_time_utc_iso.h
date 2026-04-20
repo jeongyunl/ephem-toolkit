@@ -1,6 +1,17 @@
 #pragma once
 
 #include <chrono>
+
+// Time unit constants
+constexpr std::int64_t SECONDS_PER_MINUTE = 60;
+constexpr std::int64_t SECONDS_PER_HOUR = 3600;
+constexpr std::int64_t SECONDS_PER_DAY = 86400;
+
+// Gregorian calendar constants (used in days_from_civil)
+constexpr int MONTH_LENGTH_ENCODING = 153; // Encodes non-uniform month lengths: (153*m+2)/5
+constexpr std::int64_t GREGORIAN_ERA_DAYS = 146097; // Days per 400-year Gregorian era
+constexpr std::int64_t UNIX_EPOCH_DAY_OFFSET = 719468; // Days from proleptic epoch to Unix epoch
+
 #ifdef HAS_CHRONO_PARSE
 std::chrono::utc_time<std::chrono::nanoseconds> iso_to_utc_time(const std::string& s)
 {
@@ -48,13 +59,44 @@ struct ParsedIsoUtc
 	int tz_offset_seconds = 0;
 };
 
+constexpr std::int64_t days_from_civil(int year, unsigned month, unsigned day) noexcept
+{
+	// Shift January and February to months 13 and 14 of the previous year so that
+	// the leap day (Feb 29) always falls at the end of the shifted year, simplifying
+	// the day-of-year calculation below.
+	year -= (month <= 2 ? 1 : 0);
+
+	// A 400-year Gregorian era contains exactly 146097 days. This gives the era index
+	// and keeps subsequent offsets in the range [0, 146096].
+	const int era = (year >= 0 ? year : year - 399) / 400;
+
+	// Year within the era [0, 399].
+	const unsigned year_of_era = static_cast<unsigned>(year - era * 400);
+
+	// Day within the shifted year [0, 365].
+	// The factor (153 * m + 2) / 5 encodes the non-uniform month lengths for
+	// March–February layout without any branching beyond the month shift above.
+	const unsigned day_of_year = (MONTH_LENGTH_ENCODING * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
+
+	// Day within the era [0, 146096].
+	// Adds one leap day per 4 years, subtracts the century non-leap years,
+	// and the century-of-era correction is already embedded in year_of_era / 100.
+	const unsigned day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+
+	// GREGORIAN_ERA_DAYS = days per 400-year era.
+	// UNIX_EPOCH_DAY_OFFSET = days from the proleptic Gregorian epoch (0000-03-01) to the
+	//                        Unix epoch (1970-01-01), used to produce a Unix day count.
+	return static_cast<std::int64_t>(era) * GREGORIAN_ERA_DAYS + static_cast<std::int64_t>(day_of_era)
+		- UNIX_EPOCH_DAY_OFFSET;
+}
+
 ParsedIsoUtc parse_iso8601_utc(const std::string& iso);
 
 template <typename Duration = std::chrono::system_clock::duration>
 std::chrono::time_point<std::chrono::system_clock, Duration>
 iso_utc_to_unix_seconds_non_leap(const ParsedIsoUtc& p)
 {
-#if 0
+#if 1
 	// Number of days since the Unix epoch (1970-01-01) for the calendar date.
 	const std::int64_t days_since_unix_epoch = days_from_civil(p.year, p.month, p.day);
 
@@ -100,28 +142,25 @@ iso_utc_to_unix_seconds_non_leap(const ParsedIsoUtc& p)
 std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::string& leapseconds_path);
 
 template <typename Duration = std::chrono::system_clock::duration>
-std::chrono::time_point<std::chrono::system_clock, Duration> iso_to_sys_time(const std::string& utc_iso8601)
+std::chrono::time_point<std::chrono::system_clock, Duration> iso_to_sys_time(const std::string& iso_string)
 {
-	const ParsedIsoUtc utc = parse_iso8601_utc(utc_iso8601);
+	const ParsedIsoUtc utc = parse_iso8601_utc(iso_string);
 	const auto unix_tp = iso_utc_to_unix_seconds_non_leap(utc);
 	return std::chrono::time_point_cast<Duration>(unix_tp);
 }
 
-inline double utc_iso_to_utc_posix(const std::string& utc_iso8601)
-{
-	const auto unix_tp = iso_to_sys_time(utc_iso8601);
-	return std::chrono::duration<double>(unix_tp.time_since_epoch()).count();
-}
-
 #endif // HAS_CHRONO_PARSE
 
-double iso_to_utc_tudat(const std::string& utc_iso8601);
-double iso_to_tai_tudat(const std::string& utc_iso8601);
+double utc_iso_to_utc_posix(const std::string& iso_string);
+double utc_iso_to_utc_tudat(const std::string& iso_string);
+double utc_iso_to_tai_tudat(const std::string& iso_string);
+double utc_iso_to_tt_tudat(const std::string& iso_string);
+double utc_iso_to_tdb_tudat(const std::string& iso_string);
 
 std::string utc_iso_tudat_to_utc_iso_tudat(const std::string& iso_string);
+
 double utc_iso_tudat_to_utc_posix(const std::string& iso_string);
 double utc_iso_tudat_to_utc_tudat(const std::string& iso_string);
 double utc_iso_tudat_to_tai_tudat(const std::string& iso_string);
 double utc_iso_tudat_to_tt_tudat(const std::string& iso_string);
 double utc_iso_tudat_to_tdb_tudat(const std::string& iso_string);
-double utc_iso_tudat_to_tdb_apx_tudat(const std::string& iso_string);

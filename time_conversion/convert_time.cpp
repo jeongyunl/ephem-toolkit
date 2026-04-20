@@ -18,92 +18,6 @@ std::shared_ptr<tudat::earth_orientation::TerrestrialTimeScaleConverter> get_tud
 	return tudat_time_scale_converter;
 }
 
-std::string utc_iso_tudat_to_utc_iso_tudat(const std::string& iso_string)
-{
-	return iso_string;
-}
-
-double utc_iso_tudat_to_utc_tudat(const std::string& iso_string)
-{
-	try
-	{
-		return tudat::basic_astrodynamics::DateTime::fromIsoString(iso_string).epoch<double>();
-	}
-	catch(const std::exception& e)
-	{
-		std::cerr << "Error converting ISO string to TUDAT UTC timestamp: " << e.what() << "\n";
-		return std::numeric_limits<double>::quiet_NaN();
-	}
-}
-
-double utc_iso_tudat_to_tai_tudat(const std::string& iso_string)
-{
-	try
-	{
-		const auto tudat_date_time = tudat::basic_astrodynamics::DateTime::fromIsoString(iso_string);
-		const double leap_second = (tudat_date_time.getSeconds() >= 60.0) ? 1.0 : 0.0;
-
-		return get_tudat_time_scale_converter()->getCurrentTime(
-				   tudat::basic_astrodynamics::TimeScales::utc_scale,
-				   tudat::basic_astrodynamics::TimeScales::tai_scale,
-				   tudat_date_time.epoch<double>()
-			   )
-			- leap_second;
-	}
-	catch(const std::exception& e)
-	{
-		std::cerr << "Error converting ISO string to TUDAT TAI timestamp: " << e.what() << "\n";
-		return std::numeric_limits<double>::quiet_NaN();
-	}
-}
-
-double utc_iso_tudat_to_tt_tudat(const std::string& iso_string)
-{
-	try
-	{
-		const auto tudat_date_time = tudat::basic_astrodynamics::DateTime::fromIsoString(iso_string);
-		const double leap_second = (tudat_date_time.getSeconds() >= 60.0) ? 1.0 : 0.0;
-
-		return get_tudat_time_scale_converter()->getCurrentTime(
-				   tudat::basic_astrodynamics::TimeScales::utc_scale,
-				   tudat::basic_astrodynamics::TimeScales::tt_scale,
-				   tudat_date_time.epoch<double>()
-			   )
-			- leap_second;
-	}
-	catch(const std::exception& e)
-	{
-		std::cerr << "Error converting ISO string to TUDAT TT timestamp: " << e.what() << "\n";
-		return std::numeric_limits<double>::quiet_NaN();
-	}
-}
-
-double utc_iso_tudat_to_tdb_tudat(const std::string& iso_string)
-{
-	try
-	{
-		const auto tudat_date_time = tudat::basic_astrodynamics::DateTime::fromIsoString(iso_string);
-		const double leap_second = (tudat_date_time.getSeconds() >= 60.0) ? 1.0 : 0.0;
-
-		return get_tudat_time_scale_converter()->getCurrentTime(
-				   tudat::basic_astrodynamics::TimeScales::utc_scale,
-				   tudat::basic_astrodynamics::TimeScales::tdb_scale,
-				   tudat_date_time.epoch<double>()
-			   )
-			- leap_second;
-	}
-	catch(const std::exception& e)
-	{
-		std::cerr << "Error converting ISO string to TUDAT TDB timestamp: " << e.what() << "\n";
-		return std::numeric_limits<double>::quiet_NaN();
-	}
-}
-
-double utc_iso_tudat_to_tdb_apx_tudat(const std::string& iso_string)
-{
-	return utc_iso_tudat_to_tt_tudat(iso_string);
-}
-
 std::string utc_posix_to_utc_iso_tudat(const double utc_posix_epoch)
 {
 	try
@@ -186,11 +100,6 @@ double utc_posix_to_tt_tudat(const double utc_posix_epoch)
 	}
 }
 
-double utc_posix_to_tdb_apx_tudat(const double utc_posix_epoch)
-{
-	return utc_posix_to_tt_tudat(utc_posix_epoch);
-}
-
 std::string utc_tudat_to_utc_iso_tudat(const double utc_tudat_epoch)
 {
 	try
@@ -263,11 +172,6 @@ double utc_tudat_to_tdb_tudat(const double utc_tudat_epoch)
 		std::cerr << "Error converting TUDAT UTC timestamp to TUDAT TDB timestamp: " << e.what() << "\n";
 		return std::numeric_limits<double>::quiet_NaN();
 	}
-}
-
-double utc_tudat_to_tdb_apx_tudat(const double utc_tudat_epoch)
-{
-	return utc_tudat_to_tt_tudat(utc_tudat_epoch);
 }
 
 std::string tai_tudat_to_utc_iso_tudat(const double tai_tudat_epoch)
@@ -352,11 +256,6 @@ double tai_tudat_to_tdb_tudat(const double tai_tudat_epoch)
 	}
 }
 
-double tai_tudat_to_tdb_apx_tudat(const double tai_tudat_epoch)
-{
-	return tai_tudat_to_tt_tudat(tai_tudat_epoch);
-}
-
 std::string tt_tudat_to_utc_iso_tudat(const double tt_tudat_epoch)
 {
 	try
@@ -437,11 +336,6 @@ double tt_tudat_to_tdb_tudat(const double tt_tudat_epoch)
 		std::cerr << "Error converting TUDAT TT timestamp to TUDAT TDB timestamp: " << e.what() << "\n";
 		return std::numeric_limits<double>::quiet_NaN();
 	}
-}
-
-double tt_tudat_to_tdb_apx_tudat(const double tt_tudat_epoch)
-{
-	return tt_tudat_epoch;
 }
 
 std::string tdb_tudat_to_utc_iso_tudat(const double tdb_tudat_epoch)
@@ -536,44 +430,4 @@ double tdb_tudat_to_tt_tudat(const double tdb_tudat_epoch)
 double tdb_tudat_to_tdb_tudat(const double tdb_tudat_epoch)
 {
 	return tdb_tudat_epoch;
-}
-
-double tdb_tudat_to_tdb_apx_tudat(const double tdb_tudat_epoch)
-{
-	return tdb_tudat_epoch;
-}
-
-std::string tdb_apx_tudat_to_utc_iso_tudat(const double tdb_apx_tudat_epoch)
-{
-	return tt_tudat_to_utc_iso_tudat(tdb_apx_tudat_epoch);
-}
-
-double tdb_apx_tudat_to_utc_posix(const double tdb_apx_tudat_epoch)
-{
-	return tt_tudat_to_utc_posix(tdb_apx_tudat_epoch);
-}
-
-double tdb_apx_tudat_to_utc_tudat(const double tdb_apx_tudat_epoch)
-{
-	return tt_tudat_to_utc_tudat(tdb_apx_tudat_epoch);
-}
-
-double tdb_apx_tudat_to_tai_tudat(const double tdb_apx_tudat_epoch)
-{
-	return tt_tudat_to_tai_tudat(tdb_apx_tudat_epoch);
-}
-
-double tdb_apx_tudat_to_tt_tudat(const double tdb_apx_tudat_epoch)
-{
-	return tdb_apx_tudat_epoch;
-}
-
-double tdb_apx_tudat_to_tdb_tudat(const double tdb_apx_tudat_epoch)
-{
-	return tdb_apx_tudat_epoch;
-}
-
-double tdb_apx_tudat_to_tdb_apx_tudat(const double tdb_apx_tudat_epoch)
-{
-	return tdb_apx_tudat_epoch;
 }

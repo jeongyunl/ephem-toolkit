@@ -27,15 +27,11 @@ inline constexpr std::variant<std::string, double> convert_time(
 			case TimeFormat::UTC_POSIX:
 				return utc_iso_to_utc_posix(iso_string);
 			case TimeFormat::UTC_TUDAT:
-				return utc_iso_tudat_to_utc_tudat(iso_string);
+				return utc_iso_to_utc_tudat(iso_string);
 			case TimeFormat::TAI_TUDAT:
-				return utc_iso_tudat_to_tai_tudat(iso_string);
+				return utc_iso_to_tai_tudat(iso_string);
 			case TimeFormat::TT_TUDAT:
-				return utc_iso_tudat_to_tt_tudat(iso_string);
-			case TimeFormat::TDB_TUDAT:
-				return utc_iso_tudat_to_tdb_tudat(iso_string);
-			case TimeFormat::TDB_APX_TUDAT:
-				return utc_iso_tudat_to_tdb_apx_tudat(iso_string);
+				return utc_iso_to_tt_tudat(iso_string);
 			default:
 				throw std::invalid_argument("Unsupported output TimeFormat");
 		}
@@ -59,10 +55,6 @@ inline constexpr std::variant<std::string, double> convert_time(
 					return utc_posix_to_tai_tudat(epoch);
 				case TimeFormat::TT_TUDAT:
 					return utc_posix_to_tt_tudat(epoch);
-				case TimeFormat::TDB_TUDAT:
-					return utc_posix_to_tdb_tudat(epoch);
-				case TimeFormat::TDB_APX_TUDAT:
-					return utc_posix_to_tdb_apx_tudat(epoch);
 				default:
 					throw std::invalid_argument("Unsupported output TimeFormat");
 			}
@@ -79,10 +71,6 @@ inline constexpr std::variant<std::string, double> convert_time(
 					return utc_tudat_to_tai_tudat(epoch);
 				case TimeFormat::TT_TUDAT:
 					return utc_tudat_to_tt_tudat(epoch);
-				case TimeFormat::TDB_TUDAT:
-					return utc_tudat_to_tdb_tudat(epoch);
-				case TimeFormat::TDB_APX_TUDAT:
-					return utc_tudat_to_tdb_apx_tudat(epoch);
 				default:
 					throw std::invalid_argument("Unsupported output TimeFormat");
 			}
@@ -99,10 +87,6 @@ inline constexpr std::variant<std::string, double> convert_time(
 					return tai_tudat_to_tai_tudat(epoch);
 				case TimeFormat::TT_TUDAT:
 					return tai_tudat_to_tt_tudat(epoch);
-				case TimeFormat::TDB_TUDAT:
-					return tai_tudat_to_tdb_tudat(epoch);
-				case TimeFormat::TDB_APX_TUDAT:
-					return tai_tudat_to_tdb_apx_tudat(epoch);
 				default:
 					throw std::invalid_argument("Unsupported output TimeFormat");
 			}
@@ -119,50 +103,6 @@ inline constexpr std::variant<std::string, double> convert_time(
 					return tt_tudat_to_tai_tudat(epoch);
 				case TimeFormat::TT_TUDAT:
 					return tt_tudat_to_tt_tudat(epoch);
-				case TimeFormat::TDB_TUDAT:
-					return tt_tudat_to_tdb_tudat(epoch);
-				case TimeFormat::TDB_APX_TUDAT:
-					return tt_tudat_to_tdb_apx_tudat(epoch);
-				default:
-					throw std::invalid_argument("Unsupported output TimeFormat");
-			}
-		case TimeFormat::TDB_TUDAT:
-			switch(output_format)
-			{
-				case TimeFormat::UTC_ISO_TUDAT:
-					return tdb_tudat_to_utc_iso_tudat(epoch);
-				case TimeFormat::UTC_POSIX:
-					return tdb_tudat_to_utc_posix(epoch);
-				case TimeFormat::UTC_TUDAT:
-					return tdb_tudat_to_utc_tudat(epoch);
-				case TimeFormat::TAI_TUDAT:
-					return tdb_tudat_to_tai_tudat(epoch);
-				case TimeFormat::TT_TUDAT:
-					return tdb_tudat_to_tt_tudat(epoch);
-				case TimeFormat::TDB_TUDAT:
-					return tdb_tudat_to_tdb_tudat(epoch);
-				case TimeFormat::TDB_APX_TUDAT:
-					return tdb_tudat_to_tdb_apx_tudat(epoch);
-				default:
-					throw std::invalid_argument("Unsupported output TimeFormat");
-			}
-		case TimeFormat::TDB_APX_TUDAT:
-			switch(output_format)
-			{
-				case TimeFormat::UTC_ISO_TUDAT:
-					return tdb_apx_tudat_to_utc_iso_tudat(epoch);
-				case TimeFormat::UTC_POSIX:
-					return tdb_apx_tudat_to_utc_posix(epoch);
-				case TimeFormat::UTC_TUDAT:
-					return tdb_apx_tudat_to_utc_tudat(epoch);
-				case TimeFormat::TAI_TUDAT:
-					return tdb_apx_tudat_to_tai_tudat(epoch);
-				case TimeFormat::TT_TUDAT:
-					return tdb_apx_tudat_to_tt_tudat(epoch);
-				case TimeFormat::TDB_TUDAT:
-					return tdb_apx_tudat_to_tdb_tudat(epoch);
-				case TimeFormat::TDB_APX_TUDAT:
-					return tdb_apx_tudat_to_tdb_apx_tudat(epoch);
 				default:
 					throw std::invalid_argument("Unsupported output TimeFormat");
 			}

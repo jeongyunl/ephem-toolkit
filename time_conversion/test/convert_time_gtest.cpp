@@ -43,19 +43,14 @@ TEST_F(ConvertTimeDataDrivenTest, IsoToAllNumericScalesMatchReferenceData)
 	{
 		EXPECT_NEAR(utc_iso_to_utc_posix(record.iso), record.posix, convert_time_test::kTolExactLike)
 			<< record.iso;
-		EXPECT_NEAR(utc_iso_tudat_to_utc_tudat(record.iso), record.utc, convert_time_test::kTolExactLike)
+		EXPECT_NEAR(utc_iso_to_utc_tudat(record.iso), record.utc, convert_time_test::kTolExactLike)
 			<< record.iso;
-		EXPECT_NEAR(utc_iso_tudat_to_tai_tudat(record.iso), record.tai, convert_time_test::kTolTimeScale)
+		EXPECT_NEAR(utc_iso_to_tai_tudat(record.iso), record.tai, convert_time_test::kTolTimeScale)
 			<< record.iso;
-		EXPECT_NEAR(utc_iso_tudat_to_tt_tudat(record.iso), record.tt, convert_time_test::kTolTimeScale)
+		EXPECT_NEAR(utc_iso_to_tt_tudat(record.iso), record.tt, convert_time_test::kTolTimeScale)
 			<< record.iso;
 		EXPECT_NEAR(utc_iso_tudat_to_tdb_tudat(record.iso), record.tdb, convert_time_test::kTolTdb)
 			<< record.iso;
-		EXPECT_NEAR(
-			utc_iso_tudat_to_tdb_apx_tudat(record.iso),
-			record.tdb_apx,
-			convert_time_test::kTolTimeScale
-		) << record.iso;
 	}
 }
 
@@ -76,11 +71,6 @@ TEST_F(ConvertTimeDataDrivenTest, PosixToOtherScalesMatchReferenceData)
 			<< record.iso;
 		EXPECT_NEAR(utc_posix_to_tdb_tudat(record.posix), record.tdb, convert_time_test::kTolTdb)
 			<< record.iso;
-		EXPECT_NEAR(
-			utc_posix_to_tdb_apx_tudat(record.posix),
-			record.tdb_apx,
-			convert_time_test::kTolExactLike
-		) << record.iso;
 	}
 }
 
@@ -100,8 +90,6 @@ TEST_F(ConvertTimeDataDrivenTest, UtcToOtherScalesMatchReferenceData)
 		EXPECT_NEAR(utc_tudat_to_tt_tudat(record.utc), record.tt, convert_time_test::kTolExactLike)
 			<< record.iso;
 		EXPECT_NEAR(utc_tudat_to_tdb_tudat(record.utc), record.tdb, convert_time_test::kTolTdb) << record.iso;
-		EXPECT_NEAR(utc_tudat_to_tdb_apx_tudat(record.utc), record.tdb_apx, convert_time_test::kTolExactLike)
-			<< record.iso;
 	}
 }
 
@@ -116,8 +104,6 @@ TEST_F(ConvertTimeDataDrivenTest, TaiToOtherScalesMatchReferenceData)
 		EXPECT_NEAR(tai_tudat_to_tt_tudat(record.tai), record.tt, convert_time_test::kTolExactLike)
 			<< record.iso;
 		EXPECT_NEAR(tai_tudat_to_tdb_tudat(record.tai), record.tdb, convert_time_test::kTolTdb) << record.iso;
-		EXPECT_NEAR(tai_tudat_to_tdb_apx_tudat(record.tai), record.tdb_apx, convert_time_test::kTolExactLike)
-			<< record.iso;
 	}
 }
 
@@ -132,8 +118,6 @@ TEST_F(ConvertTimeDataDrivenTest, TtToOtherScalesMatchReferenceData)
 		EXPECT_NEAR(tt_tudat_to_tai_tudat(record.tt), record.tai, convert_time_test::kTolExactLike)
 			<< record.iso;
 		EXPECT_NEAR(tt_tudat_to_tdb_tudat(record.tt), record.tdb, convert_time_test::kTolTdb) << record.iso;
-		EXPECT_NEAR(tt_tudat_to_tdb_apx_tudat(record.tt), record.tdb_apx, convert_time_test::kTolExactLike)
-			<< record.iso;
 	}
 }
 
@@ -151,28 +135,6 @@ TEST_F(ConvertTimeDataDrivenTest, TdbToOtherScalesMatchReferenceData)
 
 		EXPECT_NEAR(tdb_tudat_to_tai_tudat(record.tdb), record.tai, convert_time_test::kTolTdb) << record.iso;
 		EXPECT_NEAR(tdb_tudat_to_tt_tudat(record.tdb), record.tt, convert_time_test::kTolTdb) << record.iso;
-		EXPECT_NEAR(tdb_tudat_to_tdb_apx_tudat(record.tdb), record.tdb_apx, convert_time_test::kTolTdb)
-			<< record.iso;
-	}
-}
-
-TEST_F(ConvertTimeDataDrivenTest, TdbApproxToOtherScalesMatchReferenceData)
-{
-	for(const auto& record : convert_time_test::epoch_records())
-	{
-		EXPECT_NEAR(
-			tdb_apx_tudat_to_utc_posix(record.tdb_apx),
-			record.posix,
-			convert_time_test::kTolExactLike
-		) << record.iso;
-		EXPECT_NEAR(tdb_apx_tudat_to_utc_tudat(record.tdb_apx), record.utc, convert_time_test::kTolExactLike)
-			<< record.iso;
-		EXPECT_NEAR(tdb_apx_tudat_to_tai_tudat(record.tdb_apx), record.tai, convert_time_test::kTolExactLike)
-			<< record.iso;
-		EXPECT_NEAR(tdb_apx_tudat_to_tt_tudat(record.tdb_apx), record.tt, convert_time_test::kTolExactLike)
-			<< record.iso;
-		EXPECT_NEAR(tdb_apx_tudat_to_tdb_tudat(record.tdb_apx), record.tdb, convert_time_test::kTolTdb)
-			<< record.iso;
 	}
 }
 
