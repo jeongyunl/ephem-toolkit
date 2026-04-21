@@ -277,7 +277,11 @@ double tdb_tudat_to_utc_posix(const double tdb_tudat_epoch)
 	try
 	{
 		const double utc_tudat_epoch = get_tudat_time_scale_converter()->getCurrentTime(
+#ifdef TUDAT_BUGGY_TDB_TO_UTC_CONVERSIONS
+			tudat::basic_astrodynamics::TimeScales::tt_scale,
+#else
 			tudat::basic_astrodynamics::TimeScales::tdb_scale,
+#endif
 			tudat::basic_astrodynamics::TimeScales::utc_scale,
 			tdb_tudat_epoch
 		);
@@ -296,7 +300,11 @@ double tdb_tudat_to_utc_tudat(const double tdb_tudat_epoch)
 	try
 	{
 		return get_tudat_time_scale_converter()->getCurrentTime(
+#ifdef TUDAT_BUGGY_TDB_TO_UTC_CONVERSIONS
+			tudat::basic_astrodynamics::TimeScales::tt_scale,
+#else
 			tudat::basic_astrodynamics::TimeScales::tdb_scale,
+#endif
 			tudat::basic_astrodynamics::TimeScales::utc_scale,
 			tdb_tudat_epoch
 		);

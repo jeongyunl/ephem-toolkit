@@ -55,3 +55,7 @@ constexpr double POST_1972_TAI_MINUS_UTC = 10.0; // TAI-UTC from 1972-01-01 onwa
 #define LEAPSECONDS_PATH_DEFAULT ZONEINFO_DIR "/leapseconds"
 
 std::shared_ptr<tudat::earth_orientation::TerrestrialTimeScaleConverter> get_tudat_time_scale_converter();
+
+// FIXME Currently Tudat's TDB to UTC conversions fail for the second after end-of-June leap second
+// insertions.
+#define TUDAT_BUGGY_TDB_TO_UTC_CONVERSIONS

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "convert_time_common.h"
+
 #include <chrono>
 
 // Time unit constants
