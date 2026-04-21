@@ -433,22 +433,69 @@ std::string utc_posix_to_utc_iso(double utc_posix_epoch)
 
 std::string utc_tudat_to_utc_iso(double utc_tudat_epoch)
 {
-	return std::string();
+	const double utc_posix_epoch = utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+
+	return utc_posix_to_utc_iso(utc_posix_epoch);
 }
 
 std::string tai_tudat_to_utc_iso(double tai_tudat_epoch)
 {
-	return std::string();
+	// TAI epoch = 2000-01-01 12:00:00 TAI = 2000-01-01 11:59:28 UTC
+	constexpr std::int64_t tai_epoch_in_posix_time =
+		days_from_civil(2000, 1, 1) * SECONDS_PER_DAY + 11 * SECONDS_PER_HOUR + 59 * SECONDS_PER_MINUTE + 28;
+
+	const double leap_epoch =
+		cumulative_leap_correction(transitions, static_cast<double>(tai_epoch_in_posix_time), true);
+
+	// Monotonically increasing TAI seconds since 1970-01-01 00:00:00 TAI
+	const double tai_posix = tai_tudat_epoch + static_cast<double>(tai_epoch_in_posix_time) + leap_epoch;
+
+	// Invert TAI POSIX → UTC POSIX via fixed-point iteration.
+	// Start conservatively below the correct UTC (TAI - UTC is at most ~50 s historically)
+	// and refine upward by re-evaluating the cumulative leap correction at the candidate epoch.
+	// Two iterations suffice because transitions are spaced years apart and N < 50 s.
+	double utc_posix = tai_posix - 50.0;
+	utc_posix = tai_posix - cumulative_leap_correction(transitions, utc_posix, true);
+	utc_posix = tai_posix - cumulative_leap_correction(transitions, utc_posix, true);
+
+	// Check whether we landed inside a positive leap second.
+	// At a leap second transition (UTC 23:59:60), the iteration converges to
+	// utc_posix = t + frac  (where t is the POSIX second of 23:59:59)
+	// because cumulative(t, true) = N (the new leap not yet counted),
+	// leaving residual = tai_posix - (utc_posix + N) == 1 + frac >= 1.
+	const double leap_at_utc = cumulative_leap_correction(transitions, utc_posix, true);
+	const double residual = tai_posix - (utc_posix + leap_at_utc);
+
+	if(residual > 1.0 - 1e-9)
+	{
+		// Inside a positive leap second (23:59:60.xxx).
+		// utc_posix = (POSIX second of 23:59:59) + fractional offset within the leap second.
+		const double base_posix = static_cast<double>(static_cast<std::int64_t>(utc_posix));
+		const double frac_in_leap = utc_posix - base_posix;
+		const std::int64_t leap_nanos = static_cast<std::int64_t>(frac_in_leap * 1e9 + 0.5);
+
+		// Format year/month/day/hour/minute from the 23:59:59 base time, then append ":60"
+		const auto base_sys_time = utc_posix_to_sys_time<std::chrono::nanoseconds>(base_posix);
+		const std::string base_iso = std::format("{:%FT%H:%M:}60", base_sys_time);
+		if(leap_nanos > 0)
+		{
+			return base_iso + std::format(".{:09}", leap_nanos);
+		}
+		return base_iso;
+	}
+
+	// Normal UTC second: convert utc_posix to a sys_time and format as ISO-8601
+	return sys_time_to_utc_iso(utc_posix_to_sys_time<std::chrono::nanoseconds>(utc_posix));
 }
 
 std::string tt_tudat_to_utc_iso(double tt_tudat_epoch)
 {
-	return std::string();
+	return tai_tudat_to_utc_iso(tt_tudat_epoch - TT_EPOCH_MINUS_TAI_EPOCH);
 }
 
 std::string tdb_tudat_to_utc_iso(double tdb_tudat_epoch)
 {
-	return std::string();
+	return tt_tudat_to_utc_iso(tdb_tudat_epoch);
 }
 
 //
