@@ -46,7 +46,7 @@ inline constexpr std::variant<std::string, double> convert_time(
 			switch(output_format)
 			{
 				case TimeFormat::UTC_ISO_TUDAT:
-					return utc_posix_to_utc_iso_tudat(epoch);
+					return utc_posix_to_utc_iso(epoch);
 				case TimeFormat::UTC_POSIX:
 					return utc_posix_to_utc_posix(epoch);
 				case TimeFormat::UTC_TUDAT:

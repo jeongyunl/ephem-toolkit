@@ -120,7 +120,13 @@ parsed_utc_iso_to_sys_time(const ParsedUtcIso& parsed_utc_iso)
 	) };
 }
 
-std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::string& leapseconds_path);
+const std::vector<LeapTransition>& get_zoneinfo_leap_transitions();
+
+double cumulative_leap_correction(
+	const std::vector<LeapTransition>& transitions,
+	double utc_posix_epoch,
+	bool include_transition_at_equal
+);
 
 // ISO-8601 parser based implementations
 

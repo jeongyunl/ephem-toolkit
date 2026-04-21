@@ -66,7 +66,7 @@ std::map<DispatchKey, Handler> dispatchTable{
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TAI_TUDAT }, utc_iso_to_tai_tudat },
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TT_TUDAT }, utc_iso_to_tt_tudat },
 
-	{ { TimeFormat::UTC_POSIX, TimeFormat::UTC_ISO_TUDAT }, utc_posix_to_utc_iso_tudat },
+	{ { TimeFormat::UTC_POSIX, TimeFormat::UTC_ISO_TUDAT }, utc_posix_to_utc_iso },
 	{ { TimeFormat::UTC_POSIX, TimeFormat::UTC_POSIX }, utc_posix_to_utc_posix },
 	{ { TimeFormat::UTC_POSIX, TimeFormat::UTC_TUDAT }, utc_posix_to_utc_tudat },
 	{ { TimeFormat::UTC_POSIX, TimeFormat::TAI_TUDAT }, utc_posix_to_tai_tudat },

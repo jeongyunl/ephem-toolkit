@@ -89,6 +89,25 @@ TEST_F(ConvertTimeDataDrivenTest, PosixToOtherScalesMatchReferenceData)
 			<< record.iso;
 		EXPECT_NEAR(utc_posix_to_tdb_tudat(record.posix), record.tdb, convert_time_test::kTolTdb)
 			<< record.iso;
+
+		const auto sys_time = utc_posix_to_sys_time(record.posix);
+		EXPECT_NEAR(
+			std::chrono::duration<double>(sys_time.time_since_epoch()).count(),
+			record.posix,
+			convert_time_test::kTolExactLike
+		) << record.iso;
+
+#ifdef HAS_CHRONO_UTC_CLOCK
+		const auto utc_time = utc_posix_to_utc_time(record.posix);
+		const auto iso_from_utc = std::format("{:%F %T}", utc_time);
+		EXPECT_TRUE(iso_8601_equal(record.iso, iso_from_utc, 3)) << record.iso << " != " << iso_from_utc;
+#endif
+
+#ifdef HAS_CHRONO_TAI_CLOCK
+		const auto tai_time = utc_posix_to_tai_time(record.posix);
+		const auto iso_from_tai = std::format("{:%F %T}", std::chrono::tai_clock::to_utc(tai_time));
+		EXPECT_TRUE(iso_8601_equal(record.iso, iso_from_tai, 3)) << record.iso << " != " << iso_from_tai;
+#endif
 	}
 }
 
@@ -289,16 +308,16 @@ TEST(ConvertTimeChrono, UtcPosixToSysTimeTruncatesTowardZeroForMilliseconds)
 {
 	using namespace std::chrono;
 	const double posix = 1.2345;
-	const auto t = utc_posix_to_sys_time<milliseconds>(posix);
-	EXPECT_EQ(t.time_since_epoch(), milliseconds{ 1234 });
+	const auto sys_time = utc_posix_to_sys_time<milliseconds>(posix);
+	EXPECT_EQ(sys_time.time_since_epoch(), milliseconds{ 1234 });
 }
 
 TEST(ConvertTimeChrono, UtcPosixToSysTimeHandlesNegativeEpochForMilliseconds)
 {
 	using namespace std::chrono;
 	const double posix = -1.25;
-	const auto t = utc_posix_to_sys_time<milliseconds>(posix);
-	EXPECT_EQ(t.time_since_epoch(), milliseconds{ -1250 });
+	const auto sys_time = utc_posix_to_sys_time<milliseconds>(posix);
+	EXPECT_EQ(sys_time.time_since_epoch(), milliseconds{ -1250 });
 }
 
 TEST(ConvertTimeChrono, SysTimeToUtcPosixSupportsCustomRepAndPeriod)

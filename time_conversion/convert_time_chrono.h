@@ -38,16 +38,33 @@ std::string utc_time_to_utc_iso(std::chrono::time_point<std::chrono::utc_clock, 
 template <typename Rep = double, typename Period = std::ratio<1>>
 Rep sys_time_to_utc_posix(std::chrono::time_point<std::chrono::utc_clock> utc_time)
 {
-	return std::chrono::duration_cast<std::chrono::duration<Rep, Period>>(utc_time.time_since_epoch())
+	return std::chrono::duration_cast<std::chrono::duration<Rep, Period>>(
+			   std::chrono::utc_clock::to_sys(utc_time).time_since_epoch()
+	)
 		.count();
 }
 
 template <typename Duration = std::chrono::utc_clock::duration>
 std::chrono::time_point<std::chrono::utc_clock, Duration> utc_posix_to_utc_time(double utc_posix_epoch)
 {
-	return std::chrono::utc_time<Duration>{
-		std::chrono::duration_cast<Duration>(std::chrono::duration<double>{ utc_posix_epoch })
-	};
+	return std::chrono::utc_clock::from_sys(utc_posix_to_sys_time<Duration>(utc_posix_epoch));
 }
 
+#endif // HAS_CHRONO_UTC_CLOCK
+
+#ifdef HAS_CHRONO_TAI_CLOCK
+// Convert POSIX UTC seconds to a std::chrono::tai_time.
+//
+// POSIX time is aligned with UTC (ignoring leap seconds), while tai_time is continuous.
+// A direct duration cast is therefore incorrect.
+//
+// We convert via posix time -> utc_time -> tai_time using chrono clock conversions.
+// Note: this does not preserve the leap-second label (23:59:60) because POSIX cannot represent it.
+template <typename Duration = std::chrono::tai_clock::duration>
+std::chrono::time_point<std::chrono::tai_clock, Duration> utc_posix_to_tai_time(double utc_posix_epoch)
+{
+	const auto utc_time = utc_posix_to_utc_time<std::chrono::utc_clock::duration>(utc_posix_epoch);
+	const auto tai_time = std::chrono::tai_clock::from_utc(utc_time);
+	return std::chrono::time_point_cast<Duration>(tai_time);
+}
 #endif

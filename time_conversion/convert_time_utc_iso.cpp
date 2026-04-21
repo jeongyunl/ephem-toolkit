@@ -11,8 +11,6 @@
 
 namespace
 {
-static const std::vector<LeapTransition> transitions =
-	load_zoneinfo_leap_transitions(LEAPSECONDS_PATH_DEFAULT);
 
 inline bool is_digit(char c)
 {
@@ -280,7 +278,21 @@ std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::string& le
 	return out;
 }
 
-inline double cumulative_leap_correction(
+namespace
+{
+static std::vector<LeapTransition> transitions = load_zoneinfo_leap_transitions(LEAPSECONDS_PATH_DEFAULT);
+}
+
+const std::vector<LeapTransition>& get_zoneinfo_leap_transitions()
+{
+	if(transitions.empty())
+	{
+		transitions = load_zoneinfo_leap_transitions(LEAPSECONDS_PATH_DEFAULT);
+	}
+	return transitions;
+}
+
+double cumulative_leap_correction(
 	const std::vector<LeapTransition>& transitions,
 	double utc_posix_epoch,
 	bool include_transition_at_equal
@@ -353,11 +365,11 @@ bool iso_8601_equal(const std::string& lhs, const std::string& rhs, std::size_t 
 		const ParsedUtcIso lhs_parsed = parse_iso8601_utc(lhs);
 		const ParsedUtcIso rhs_parsed = parse_iso8601_utc(rhs);
 
-		const auto lhs_time = parsed_utc_iso_to_sys_time<std::chrono::nanoseconds>(lhs_parsed);
-		const auto rhs_time = parsed_utc_iso_to_sys_time<std::chrono::nanoseconds>(rhs_parsed);
+		const auto lhs_sys_time = parsed_utc_iso_to_sys_time<std::chrono::nanoseconds>(lhs_parsed);
+		const auto rhs_sys_time = parsed_utc_iso_to_sys_time<std::chrono::nanoseconds>(rhs_parsed);
 
-		const std::int64_t lhs_ns = lhs_time.time_since_epoch().count();
-		const std::int64_t rhs_ns = rhs_time.time_since_epoch().count();
+		const std::int64_t lhs_ns = lhs_sys_time.time_since_epoch().count();
+		const std::int64_t rhs_ns = rhs_sys_time.time_since_epoch().count();
 
 		const std::int64_t ns_resolution = kNanosecondsPerSecond / pow10_i64(fractional_second_places);
 
