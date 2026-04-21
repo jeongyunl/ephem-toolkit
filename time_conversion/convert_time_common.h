@@ -24,6 +24,7 @@ constexpr double POST_1972_TAI_MINUS_UTC = 10.0; // TAI-UTC from 1972-01-01 onwa
 // std::chrono::utc_clock was added in GNU C++ library version 13 (not fully functional until version 14)
 #if _GLIBCXX_RELEASE >= 13
 #define HAS_CHRONO_UTC_CLOCK
+#define HAS_CHRONO_TAI_CLOCK
 #endif
 
 #if _GLIBCXX_RELEASE >= 14
@@ -35,6 +36,7 @@ constexpr double POST_1972_TAI_MINUS_UTC = 10.0; // TAI-UTC from 1972-01-01 onwa
 
 #if _LIBCPP_STD_VER >= 20 && _LIBCPP_HAS_TIME_ZONE_DATABASE
 #define HAS_CHRONO_UTC_CLOCK
+#define HAS_CHRONO_TAI_CLOCK
 #endif
 
 #endif

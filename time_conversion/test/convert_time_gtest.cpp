@@ -57,6 +57,12 @@ TEST_F(ConvertTimeDataDrivenTest, IsoToAllNumericScalesMatchReferenceData)
 			record.posix,
 			convert_time_test::kTolExactLike
 		) << record.iso;
+
+#ifdef HAS_CHRONO_TAI_CLOCK
+		const auto tai_time = utc_iso_to_tai_time(record.iso);
+		const auto iso_from_tai = std::format("{:%F %T}", std::chrono::tai_clock::to_utc(tai_time));
+		EXPECT_TRUE(iso_8601_equal(record.iso, iso_from_tai, 3)) << record.iso << " != " << iso_from_tai;
+#endif
 	}
 }
 

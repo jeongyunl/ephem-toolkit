@@ -222,4 +222,36 @@ std::chrono::time_point<std::chrono::utc_clock, Duration> utc_iso_to_utc_time(co
 #endif
 }
 
+#ifdef HAS_CHRONO_TAI_CLOCK
+template <typename Duration = std::chrono::tai_clock::duration>
+std::chrono::time_point<std::chrono::tai_clock, Duration> utc_iso_to_tai_time(const std::string& iso_string)
+{
+#ifdef HAS_CHRONO_FROM_STREAM
+	return utc_iso_to_chrono_time<std::chrono::tai_clock, Duration>(iso_string);
+#else
+
+	// Parse ISO-8601 UTC timestamp (supports leap second 23:59:60 and optional offset)
+	const ParsedUtcIso parsed = parse_iso8601_utc(iso_string);
+	const bool is_leap_second = (parsed.second == 60);
+
+	// Convert to sys_time first (POSIX-like, leap second mapped to next day's 00:00:00)
+	const auto sys_time = parsed_utc_iso_to_sys_time<std::chrono::system_clock::duration>(parsed);
+
+	// Convert sys_time -> TAI using chrono clocks
+	// (tai_clock::from_sys is not available in all standard library implementations;
+	// use utc_clock as an intermediate, which is required when HAS_CHRONO_UTC_CLOCK is set.)
+	const auto utc_time = std::chrono::utc_clock::from_sys(sys_time);
+	auto tai_time = std::chrono::tai_clock::from_utc(utc_time);
+
+	// Preserve the leap-second instant: map the sys_time instant back into the leap second
+	// so that formatting via tai->utc (if done) can round-trip correctly.
+	if(is_leap_second)
+	{
+		tai_time -= std::chrono::seconds{ 1 };
+	}
+
+	return std::chrono::time_point_cast<Duration>(tai_time);
 #endif
+}
+#endif // HAS_CHRONO_TAI_CLOCK
+#endif // HAS_CHRONO_UTC_CLOCK
