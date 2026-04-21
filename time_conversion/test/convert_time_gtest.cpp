@@ -31,7 +31,7 @@ bool has_ambiguous_posix(const double posix)
 class ConvertTimeDataDrivenTest : public ::testing::Test
 {
 protected:
-	static void SetUpTestSuite() { }
+	static void SetUpTestSuite() {}
 };
 
 } // namespace
@@ -50,6 +50,13 @@ TEST_F(ConvertTimeDataDrivenTest, IsoToAllNumericScalesMatchReferenceData)
 		EXPECT_NEAR(utc_iso_to_tt_tudat(record.iso), record.tt, convert_time_test::kTolTimeScale)
 			<< record.iso;
 		EXPECT_NEAR(utc_iso_to_tdb_tudat(record.iso), record.tdb, convert_time_test::kTolTdb) << record.iso;
+
+		const auto sys_time = utc_iso_to_sys_time(record.iso);
+		EXPECT_NEAR(
+			std::chrono::duration<double>(sys_time.time_since_epoch()).count(),
+			record.posix,
+			convert_time_test::kTolExactLike
+		) << record.iso;
 	}
 }
 
@@ -310,6 +317,20 @@ TEST(ConvertTimeChrono, UtcPosixToUtcTimeSupportsCustomDuration)
 	const double posix = 42.0;
 	const auto t = utc_posix_to_utc_time<milliseconds>(posix);
 	EXPECT_EQ(t.time_since_epoch(), milliseconds{ 42000 });
+}
+
+TEST(ConvertTimeChrono, UtcIsoToUtcTimePreservesLeapSeconds)
+{
+	using namespace std::chrono;
+
+	for(const auto& record : convert_time_test::epoch_records())
+	{
+		// Rount-trip conversion test
+		// ISO to chrono::utc_time and back to ISO should preserve the original string for all rows, including
+		// leap seconds.
+		const auto t = utc_iso_to_utc_time<milliseconds>(record.iso);
+		EXPECT_TRUE(iso_8601_equal(utc_time_to_utc_iso(t), record.iso, 3)) << record.iso;
+	}
 }
 
 TEST(ConvertTimeChrono, UtcPosixToUtcTimeTruncatesTowardZeroForMilliseconds)

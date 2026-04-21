@@ -353,8 +353,8 @@ bool iso_8601_equal(const std::string& lhs, const std::string& rhs, std::size_t 
 		const ParsedUtcIso lhs_parsed = parse_iso8601_utc(lhs);
 		const ParsedUtcIso rhs_parsed = parse_iso8601_utc(rhs);
 
-		const auto lhs_time = iso_utc_to_sys_time<std::chrono::nanoseconds>(lhs_parsed);
-		const auto rhs_time = iso_utc_to_sys_time<std::chrono::nanoseconds>(rhs_parsed);
+		const auto lhs_time = parsed_utc_iso_to_sys_time<std::chrono::nanoseconds>(lhs_parsed);
+		const auto rhs_time = parsed_utc_iso_to_sys_time<std::chrono::nanoseconds>(rhs_parsed);
 
 		const std::int64_t lhs_ns = lhs_time.time_since_epoch().count();
 		const std::int64_t rhs_ns = rhs_time.time_since_epoch().count();
@@ -371,14 +371,38 @@ bool iso_8601_equal(const std::string& lhs, const std::string& rhs, std::size_t 
 
 double utc_iso_to_utc_posix(const std::string& iso_string)
 {
+#ifdef HAS_CHRONO_UTC_CLOCK
+	std::chrono::system_clock::time_point sys_time;
+
+	const auto utc_time = utc_iso_to_utc_time(iso_string);
+
+	if(std::chrono::get_leap_second_info(utc_time).is_leap_second)
+	{
+		// For any time point during a leap second, std::chrono::utc_clock::to_sys() returns
+		// 23:59:59.999999999.
+		// e.g. The time points: 2016-12-31 23:59:60.0, 2016-12-31 23:59:60.1, 2016-12-31 23:59:60.999
+		// all map to 2016-12-31 23:59:59.999999999 in sys_time.
+		// To get the correct POSIX epoch, we must subtract one second from the UTC time point before
+		// conversion, then add it back afterward.
+		const auto utc_time_before_leap = utc_time - std::chrono::seconds{ 1 };
+		sys_time = std::chrono::utc_clock::to_sys(utc_time_before_leap) + std::chrono::seconds{ 1 };
+	}
+	else
+	{
+		sys_time = std::chrono::utc_clock::to_sys(utc_time);
+	}
+
+	return std::chrono::duration<double>(sys_time.time_since_epoch()).count();
+#else
 	const auto sys_time = utc_iso_to_sys_time(iso_string);
 	return std::chrono::duration<double>(sys_time.time_since_epoch()).count();
+#endif
 }
 
 double utc_iso_to_utc_tudat(const std::string& iso_string)
 {
 	const ParsedUtcIso parsed_utc_iso = parse_iso8601_utc(iso_string);
-	const auto sys_time = iso_utc_to_sys_time(parsed_utc_iso);
+	const auto sys_time = parsed_utc_iso_to_sys_time(parsed_utc_iso);
 	const double posix_seconds = std::chrono::duration<double>(sys_time.time_since_epoch()).count();
 
 	return posix_seconds - POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
@@ -392,7 +416,7 @@ double utc_iso_to_tai_tudat(const std::string& iso_string)
 		days_from_civil(2000, 1, 1) * SECONDS_PER_DAY + 11 * SECONDS_PER_HOUR + 59 * SECONDS_PER_MINUTE + 28;
 
 	const ParsedUtcIso parsed_utc_iso = parse_iso8601_utc(iso_string);
-	const auto sys_time = iso_utc_to_sys_time(parsed_utc_iso);
+	const auto sys_time = parsed_utc_iso_to_sys_time(parsed_utc_iso);
 	const double posix_epoch = std::chrono::duration<double>(sys_time.time_since_epoch()).count();
 
 	// At 23:59:60, UTC maps to the same POSIX second as 00:00:00 next day.
@@ -400,8 +424,8 @@ double utc_iso_to_tai_tudat(const std::string& iso_string)
 	const bool include_transition_now = (parsed_utc_iso.second != 60);
 	const double posix_epoch_for_leap_lookup = (parsed_utc_iso.second == 60)
 		? static_cast<double>(
-			  std::chrono::time_point_cast<std::chrono::seconds>(sys_time).time_since_epoch().count()
-		  )
+			std::chrono::time_point_cast<std::chrono::seconds>(sys_time).time_since_epoch().count()
+		)
 		: posix_epoch;
 	const double leap_now =
 		cumulative_leap_correction(transitions, posix_epoch_for_leap_lookup, include_transition_now);
@@ -421,6 +445,8 @@ double utc_iso_to_tt_tudat(const std::string& iso_string)
 
 double utc_iso_to_tdb_tudat(const std::string& iso_string)
 {
+	// TDB differs from TT in periodic terms, with a difference of at most 2 milliseconds
+	// We can ignore that
 	return utc_iso_to_tt_tudat(iso_string);
 }
 

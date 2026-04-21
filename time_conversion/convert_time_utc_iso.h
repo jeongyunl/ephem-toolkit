@@ -71,7 +71,7 @@ bool iso_8601_equal(const std::string& lhs, const std::string& rhs, std::size_t 
 
 template <typename Duration = std::chrono::system_clock::duration>
 std::chrono::time_point<std::chrono::system_clock, Duration>
-iso_utc_to_sys_time(const ParsedUtcIso& parsed_utc_iso)
+parsed_utc_iso_to_sys_time(const ParsedUtcIso& parsed_utc_iso)
 {
 #if 0
 	// Number of days since the POSIX epoch (1970-01-01) for the calendar date.
@@ -152,11 +152,74 @@ std::string tai_tudat_to_utc_iso_tudat(double tai_tudat_epoch);
 std::string tt_tudat_to_utc_iso_tudat(double tt_tudat_epoch);
 std::string tdb_tudat_to_utc_iso_tudat(double tdb_tudat_epoch);
 
-template <typename Duration = std::chrono::system_clock::duration>
-std::chrono::time_point<std::chrono::system_clock, Duration>
-utc_iso_to_sys_time(const std::string& iso_string)
+#ifdef HAS_CHRONO_FROM_STREAM
+template <typename Clock, typename Duration = typename Clock::duration>
+std::chrono::time_point<Clock, Duration> utc_iso_to_chrono_time(const std::string& iso_string)
 {
-	const ParsedUtcIso utc = parse_iso8601_utc(iso_string);
-	const auto sys_time = iso_utc_to_sys_time(utc);
-	return std::chrono::time_point_cast<Duration>(sys_time);
+	std::chrono::time_point<Clock, Duration> time_point;
+
+	std::istringstream is(std::string{ iso_string });
+	if(iso_string.find('T') == std::string::npos)
+	{
+		std::chrono::from_stream(is, "%F %T", time_point);
+	}
+	else
+	{
+		std::chrono::from_stream(is, "%FT%T", time_point);
+	}
+
+	return time_point;
 }
+#endif
+
+template <typename Duration = std::chrono::system_clock::duration>
+std::chrono::time_point<std::chrono::system_clock, Duration> utc_iso_to_sys_time(const std::string& iso_string
+)
+{
+#ifdef HAS_CHRONO_FROM_STREAM
+	return utc_iso_to_chrono_time<std::chrono::system_clock, Duration>(iso_string);
+#else
+	const ParsedUtcIso utc = parse_iso8601_utc(iso_string);
+	const auto sys_time = parsed_utc_iso_to_sys_time<Duration>(utc);
+	return std::chrono::time_point_cast<Duration>(sys_time);
+#endif
+}
+
+#ifdef HAS_CHRONO_UTC_CLOCK
+// Convert an ISO-8601 UTC timestamp (with optional offset) to a std::chrono::utc_time.
+//
+// Leap seconds:
+// - ISO-8601 allows "...:59:60" to represent an inserted leap second.
+// - Some standard library implementations normalize utc_time formatting such that the leap second
+//   is not preserved when converting from sys_time.
+// - To preserve the leap-second instant, we detect second==60 in the parsed input and, after
+//   converting to utc_time, subtract one second so that formatting via utc_time_to_utc_iso()
+//   yields "...:60".
+//
+// This relies on parse_iso8601_utc() and parsed_utc_iso_to_sys_time(const ParsedUtcIso&) already mapping
+// the leap second to the correct POSIX/sys_time instant (i.e., the first second of the next day).
+//
+// Note that std::chrono::from_stream() and std::chrono::parse() are avaialbe in GNU libstdc++ 14 or later
+//
+template <typename Duration = std::chrono::utc_clock::duration>
+std::chrono::time_point<std::chrono::utc_clock, Duration> utc_iso_to_utc_time(const std::string& iso_string)
+{
+#ifdef HAS_CHRONO_FROM_STREAM
+	return utc_iso_to_chrono_time<std::chrono::utc_clock, Duration>(iso_string);
+#else
+	const ParsedUtcIso parsed = parse_iso8601_utc(iso_string);
+	const bool is_leap_second = (parsed.second == 60);
+
+	const auto sys_time = parsed_utc_iso_to_sys_time<std::chrono::system_clock::duration>(parsed);
+	auto utc_time = std::chrono::utc_clock::from_sys(sys_time);
+
+	if(is_leap_second)
+	{
+		utc_time -= std::chrono::seconds{ 1 };
+	}
+
+	return std::chrono::time_point_cast<Duration>(utc_time);
+#endif
+}
+
+#endif

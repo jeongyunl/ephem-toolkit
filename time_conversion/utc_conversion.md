@@ -1,8 +1,12 @@
 
-| Source |ISO|POSIX time_t|chrono::sys_time|Tudat UTC time|Tudat TAI time|
-|:-------|---|------------|----------------|--------------|-------------|
-|ISO | N/A |iso_to_sys_time() + sys_time_to_posix()|iso_to_sys_time()|iso_to_utc_tudat()
-|POSX time_t| |
-|chrono::sys_time||sys_time_to_posix()|
-|Tudat UTC time|
-|Tudat TT time|
+| ISO-8601 converts to |  Conversions | Notes |
+|----------------------|--------------|-------|
+|ISO-8601            |       N/A
+|POSIX               |utc_iso_to_utc_posix()
+|Tudat UTC           |utc_iso_to_utc_tudat()
+|Tudat TAI           |utc_iso_to_tai_tudat()
+|Tudat TT            |utc_iso_to_tt_tudat()
+|Tudat TDB           |utc_iso_to_tdb_tudat()
+|chrono::sys_time    |utc_iso_to_sys_time()
+|chrono::utc_time    |utc_iso_to_utc_time()
+|chrono::tai_time    |utc_iso_to_tai_time()|WIP
