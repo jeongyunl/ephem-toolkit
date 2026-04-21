@@ -1,6 +1,7 @@
 #include "convert_time_utc_iso.h"
 
 #include "convert_time.h"
+#include "convert_time_chrono.h"
 
 #include <tudat/astro/basic_astro/dateTime.h>
 #include <tudat/astro/earth_orientation/terrestrialTimeScaleConverter.h>
@@ -34,6 +35,7 @@ inline std::string trim(const std::string& s)
 
 	return s.substr(first, last - first);
 }
+
 inline int parse_2(const std::string& s, std::size_t pos)
 {
 	if(pos + 2 > s.size() || !is_digit(s[pos]) || !is_digit(s[pos + 1]))
@@ -309,6 +311,64 @@ inline double cumulative_leap_correction(
 	return tai_minus_utc_seconds;
 }
 
+namespace
+{
+constexpr std::int64_t kNanosecondsPerSecond = 1000000000LL;
+
+inline std::int64_t pow10_i64(std::size_t exponent)
+{
+	std::int64_t value = 1;
+	for(std::size_t i = 0; i < exponent; ++i)
+	{
+		value *= 10;
+	}
+	return value;
+}
+
+inline std::int64_t truncate_toward_zero(std::int64_t value, std::int64_t divisor)
+{
+	if(divisor == 0)
+	{
+		throw std::runtime_error("Divisor must be non-zero");
+	}
+
+	if(value >= 0)
+	{
+		return (value / divisor) * divisor;
+	}
+
+	return -(((-value) / divisor) * divisor);
+}
+} // namespace
+
+bool iso_8601_equal(const std::string& lhs, const std::string& rhs, std::size_t fractional_second_places)
+{
+	if(fractional_second_places > 9)
+	{
+		return false;
+	}
+
+	try
+	{
+		const ParsedUtcIso lhs_parsed = parse_iso8601_utc(lhs);
+		const ParsedUtcIso rhs_parsed = parse_iso8601_utc(rhs);
+
+		const auto lhs_time = iso_utc_to_sys_time<std::chrono::nanoseconds>(lhs_parsed);
+		const auto rhs_time = iso_utc_to_sys_time<std::chrono::nanoseconds>(rhs_parsed);
+
+		const std::int64_t lhs_ns = lhs_time.time_since_epoch().count();
+		const std::int64_t rhs_ns = rhs_time.time_since_epoch().count();
+
+		const std::int64_t ns_resolution = kNanosecondsPerSecond / pow10_i64(fractional_second_places);
+
+		return truncate_toward_zero(lhs_ns, ns_resolution) == truncate_toward_zero(rhs_ns, ns_resolution);
+	}
+	catch(const std::exception&)
+	{
+		return false;
+	}
+}
+
 double utc_iso_to_utc_posix(const std::string& iso_string)
 {
 	const auto sys_time = utc_iso_to_sys_time(iso_string);
@@ -340,8 +400,8 @@ double utc_iso_to_tai_tudat(const std::string& iso_string)
 	const bool include_transition_now = (parsed_utc_iso.second != 60);
 	const double posix_epoch_for_leap_lookup = (parsed_utc_iso.second == 60)
 		? static_cast<double>(
-			std::chrono::time_point_cast<std::chrono::seconds>(sys_time).time_since_epoch().count()
-		)
+			  std::chrono::time_point_cast<std::chrono::seconds>(sys_time).time_since_epoch().count()
+		  )
 		: posix_epoch;
 	const double leap_now =
 		cumulative_leap_correction(transitions, posix_epoch_for_leap_lookup, include_transition_now);
@@ -366,7 +426,9 @@ double utc_iso_to_tdb_tudat(const std::string& iso_string)
 
 std::string utc_posix_to_utc_iso(double utc_posix_epoch)
 {
-	return std::string();
+	const auto sys_time = utc_posix_to_sys_time(utc_posix_epoch);
+
+	return sys_time_to_utc_iso(sys_time);
 }
 
 std::string utc_tudat_to_utc_iso(double utc_tudat_epoch)

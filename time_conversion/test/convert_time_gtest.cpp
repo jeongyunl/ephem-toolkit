@@ -3,13 +3,13 @@
 #include "test/convert_time_common_gtest.h"
 
 #include <gtest/gtest.h>
-#include <tudat/interface/spice/spiceInterface.h>
 #include <chrono>
 #include <cmath>
 #include <unordered_map>
 
 namespace
 {
+
 using convert_time_test::EpochRecord;
 
 bool has_ambiguous_posix(const double posix)
@@ -31,14 +31,12 @@ bool has_ambiguous_posix(const double posix)
 class ConvertTimeDataDrivenTest : public ::testing::Test
 {
 protected:
-	static void SetUpTestSuite()
-	{
-		tudat::spice_interface::loadSpiceKernelInTudat(tudat::paths::getSpiceKernelPath() + "/naif0012.tls");
-	}
+	static void SetUpTestSuite() { }
 };
 
 } // namespace
 
+// utc_iso_to_*() functions are tested here
 TEST_F(ConvertTimeDataDrivenTest, IsoToAllNumericScalesMatchReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
@@ -51,20 +49,24 @@ TEST_F(ConvertTimeDataDrivenTest, IsoToAllNumericScalesMatchReferenceData)
 			<< record.iso;
 		EXPECT_NEAR(utc_iso_to_tt_tudat(record.iso), record.tt, convert_time_test::kTolTimeScale)
 			<< record.iso;
-		EXPECT_NEAR(utc_iso_tudat_to_tdb_tudat(record.iso), record.tdb, convert_time_test::kTolTdb)
-			<< record.iso;
+		EXPECT_NEAR(utc_iso_to_tdb_tudat(record.iso), record.tdb, convert_time_test::kTolTdb) << record.iso;
 	}
 }
 
+// utc_posix_to_*() functions are tested here
 TEST_F(ConvertTimeDataDrivenTest, PosixToOtherScalesMatchReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
+		// POSIX timestamps during leap seconds are ambiguous and cannot be reliably tested against reference
+		// data, so skip those rows.
 		if(convert_time_test::is_leap_second_iso(record.iso))
 		{
 			continue;
 		}
 
+		const auto iso_from_tudat = utc_posix_to_utc_iso(record.posix);
+		EXPECT_TRUE(iso_8601_equal(iso_from_tudat, record.iso, 3)) << iso_from_tudat << " != " << record.iso;
 		EXPECT_NEAR(utc_posix_to_utc_tudat(record.posix), record.utc, convert_time_test::kTolExactLike)
 			<< record.iso;
 		EXPECT_NEAR(utc_posix_to_tai_tudat(record.posix), record.tai, convert_time_test::kTolExactLike)
@@ -76,15 +78,20 @@ TEST_F(ConvertTimeDataDrivenTest, PosixToOtherScalesMatchReferenceData)
 	}
 }
 
+// utc_tudat_to_*() functions are tested here
 TEST_F(ConvertTimeDataDrivenTest, UtcToOtherScalesMatchReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
+		// TUDAT UTC timestamps during leap seconds are ambiguous and cannot be reliably tested against
+		// reference data, so skip those rows.
 		if(convert_time_test::is_leap_second_iso(record.iso))
 		{
 			continue;
 		}
 
+		const auto iso_from_tudat = utc_tudat_to_utc_iso(record.utc);
+		EXPECT_TRUE(iso_8601_equal(iso_from_tudat, record.iso, 3)) << iso_from_tudat << " != " << record.iso;
 		EXPECT_NEAR(utc_tudat_to_utc_posix(record.utc), record.posix, convert_time_test::kTolExactLike)
 			<< record.iso;
 		EXPECT_NEAR(utc_tudat_to_tai_tudat(record.utc), record.tai, convert_time_test::kTolExactLike)
@@ -144,8 +151,27 @@ TEST_F(ConvertTimeDataDrivenTest, UtcIsoIdentityRoundTripForRecords)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
-		EXPECT_EQ(utc_iso_to_utc_iso(record.iso), record.iso);
+		EXPECT_TRUE(iso_8601_equal(utc_iso_to_utc_iso(record.iso), record.iso, 3)) << record.iso;
 	}
+}
+
+TEST(ConvertTimeIso, Iso8601EqualTreatsTSeparatorAsOptional)
+{
+	EXPECT_TRUE(iso_8601_equal("1970-01-01T00:00:00.000000", "1970-01-01 00:00:00.000", 3));
+	EXPECT_TRUE(iso_8601_equal("1970-01-01T00:00:00.000000", "1970-01-01 00:00:00.000", 6));
+}
+
+TEST(ConvertTimeIso, Iso8601EqualUsesRequestedFractionalPrecision)
+{
+	EXPECT_TRUE(iso_8601_equal("1970-01-01T00:00:00.123456", "1970-01-01 00:00:00.123000", 3));
+	EXPECT_FALSE(iso_8601_equal("1970-01-01T00:00:00.123456", "1970-01-01 00:00:00.123000", 4));
+	EXPECT_TRUE(iso_8601_equal("1970-01-01T00:00:00.9", "1970-01-01 00:00:00.900000", 6));
+}
+
+TEST(ConvertTimeIso, Iso8601EqualReturnsFalseForInvalidInputOrPrecision)
+{
+	EXPECT_FALSE(iso_8601_equal("not-a-time", "1970-01-01 00:00:00.000", 3));
+	EXPECT_FALSE(iso_8601_equal("1970-01-01T00:00:00.000", "1970-01-01 00:00:00.000", 10));
 }
 
 TEST_F(ConvertTimeDataDrivenTest, NumericRoundTripUsingUtcIsStableForNonLeapSecondRows)

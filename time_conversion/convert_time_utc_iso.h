@@ -63,6 +63,10 @@ constexpr std::int64_t days_from_civil(int year, unsigned month, unsigned day) n
 
 ParsedUtcIso parse_iso8601_utc(const std::string& iso);
 
+// Compares two ISO-8601 timestamps after parsing, allowing either 'T' or space between date/time.
+// Fractional seconds are compared at the requested precision (0-9 decimal places) by truncation.
+bool iso_8601_equal(const std::string& lhs, const std::string& rhs, std::size_t fractional_second_places = 3);
+
 template <typename Duration = std::chrono::system_clock::duration>
 std::chrono::time_point<std::chrono::system_clock, Duration>
 iso_utc_to_sys_time(const ParsedUtcIso& parsed_utc_iso)
