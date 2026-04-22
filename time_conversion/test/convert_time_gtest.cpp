@@ -31,7 +31,7 @@ bool has_ambiguous_posix(const double posix)
 class ConvertTimeDataDrivenTest : public ::testing::Test
 {
 protected:
-	static void SetUpTestSuite() {}
+	static void SetUpTestSuite() { }
 };
 
 } // namespace
@@ -133,6 +133,25 @@ TEST_F(ConvertTimeDataDrivenTest, UtcToOtherScalesMatchReferenceData)
 		EXPECT_NEAR(utc_tudat_to_tt_tudat(record.utc), record.tt, convert_time_test::kTolExactLike)
 			<< record.iso;
 		EXPECT_NEAR(utc_tudat_to_tdb_tudat(record.utc), record.tdb, convert_time_test::kTolTdb) << record.iso;
+
+		const auto sys_time = utc_tudat_to_sys_time(record.utc);
+		EXPECT_NEAR(
+			std::chrono::duration<double>(sys_time.time_since_epoch()).count(),
+			record.posix,
+			convert_time_test::kTolExactLike
+		) << record.iso;
+
+#ifdef HAS_CHRONO_UTC_CLOCK
+		const auto utc_time = utc_tudat_to_utc_time(record.utc);
+		const auto iso_from_utc = std::format("{:%F %T}", utc_time);
+		EXPECT_TRUE(iso_8601_equal(record.iso, iso_from_utc, 3)) << record.iso << " != " << iso_from_utc;
+#endif
+
+#ifdef HAS_CHRONO_TAI_CLOCK
+		const auto tai_time = utc_tudat_to_tai_time(record.utc);
+		const auto iso_from_tai = std::format("{:%F %T}", std::chrono::tai_clock::to_utc(tai_time));
+		EXPECT_TRUE(iso_8601_equal(record.iso, iso_from_tai, 3)) << record.iso << " != " << iso_from_tai;
+#endif
 	}
 }
 

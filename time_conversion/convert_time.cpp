@@ -103,13 +103,17 @@ double utc_tudat_to_utc_tudat(const double utc_tudat_epoch)
 
 double utc_tudat_to_tai_tudat(const double utc_tudat_epoch)
 {
+	// Convert TUDAT UTC seconds -> TUDAT TAI seconds without using Tudat's time scale converter.
+	//
+	// For any instant:
+	//   tai_tudat = utc_tudat + (TAI-UTC)(instant)
+	// where (TAI-UTC) includes the pre-1972 linear segment and post-1972 leap seconds.
 	try
 	{
-		return get_tudat_time_scale_converter()->getCurrentTime(
-			tudat::basic_astrodynamics::TimeScales::utc_scale,
-			tudat::basic_astrodynamics::TimeScales::tai_scale,
-			utc_tudat_epoch
-		);
+		const double utc_posix_epoch = utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+		const double tai_minus_utc =
+			cumulative_leap_correction(get_zoneinfo_leap_transitions(), utc_posix_epoch, true);
+		return utc_tudat_epoch + tai_minus_utc;
 	}
 	catch(const std::exception& e)
 	{
@@ -120,36 +124,12 @@ double utc_tudat_to_tai_tudat(const double utc_tudat_epoch)
 
 double utc_tudat_to_tt_tudat(const double utc_tudat_epoch)
 {
-	try
-	{
-		return get_tudat_time_scale_converter()->getCurrentTime(
-			tudat::basic_astrodynamics::TimeScales::utc_scale,
-			tudat::basic_astrodynamics::TimeScales::tt_scale,
-			utc_tudat_epoch
-		);
-	}
-	catch(const std::exception& e)
-	{
-		std::cerr << "Error converting TUDAT UTC timestamp to TUDAT TT timestamp: " << e.what() << "\n";
-		return std::numeric_limits<double>::quiet_NaN();
-	}
+	return utc_tudat_to_tai_tudat(utc_tudat_epoch) + TT_EPOCH_MINUS_TAI_EPOCH;
 }
 
 double utc_tudat_to_tdb_tudat(const double utc_tudat_epoch)
 {
-	try
-	{
-		return get_tudat_time_scale_converter()->getCurrentTime(
-			tudat::basic_astrodynamics::TimeScales::utc_scale,
-			tudat::basic_astrodynamics::TimeScales::tdb_scale,
-			utc_tudat_epoch
-		);
-	}
-	catch(const std::exception& e)
-	{
-		std::cerr << "Error converting TUDAT UTC timestamp to TUDAT TDB timestamp: " << e.what() << "\n";
-		return std::numeric_limits<double>::quiet_NaN();
-	}
+	return utc_tudat_to_tt_tudat(utc_tudat_epoch);
 }
 
 double tai_tudat_to_utc_posix(const double tai_tudat_epoch)

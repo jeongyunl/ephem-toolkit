@@ -6,19 +6,9 @@
 #include <format>
 #include <string>
 
-template <typename Duration = std::chrono::system_clock::duration>
-std::string sys_time_to_utc_iso(std::chrono::time_point<std::chrono::system_clock, Duration> sys_time)
-{
-	return std::format("{:%FT%T}", sys_time);
-}
-
-// duration_cast-based system_clock to floating-point POSIX time conversion helper
-template <typename Rep = double, typename Period = std::ratio<1>>
-Rep sys_time_to_utc_posix(std::chrono::time_point<std::chrono::system_clock> sys_time)
-{
-	return std::chrono::duration_cast<std::chrono::duration<Rep, Period>>(sys_time.time_since_epoch())
-		.count();
-}
+//
+// utc_posix_to_*_time()
+//
 
 template <typename Duration = std::chrono::system_clock::duration>
 std::chrono::time_point<std::chrono::system_clock, Duration> utc_posix_to_sys_time(double utc_posix_epoch)
@@ -30,27 +20,11 @@ std::chrono::time_point<std::chrono::system_clock, Duration> utc_posix_to_sys_ti
 
 #ifdef HAS_CHRONO_UTC_CLOCK
 template <typename Duration = std::chrono::utc_clock::duration>
-std::string utc_time_to_utc_iso(std::chrono::time_point<std::chrono::utc_clock, Duration> utc_time)
-{
-	return std::format("{:%FT%T}", utc_time);
-}
-
-template <typename Rep = double, typename Period = std::ratio<1>>
-Rep sys_time_to_utc_posix(std::chrono::time_point<std::chrono::utc_clock> utc_time)
-{
-	return std::chrono::duration_cast<std::chrono::duration<Rep, Period>>(
-			   std::chrono::utc_clock::to_sys(utc_time).time_since_epoch()
-	)
-		.count();
-}
-
-template <typename Duration = std::chrono::utc_clock::duration>
 std::chrono::time_point<std::chrono::utc_clock, Duration> utc_posix_to_utc_time(double utc_posix_epoch)
 {
 	return std::chrono::utc_clock::from_sys(utc_posix_to_sys_time<Duration>(utc_posix_epoch));
 }
-
-#endif // HAS_CHRONO_UTC_CLOCK
+#endif
 
 #ifdef HAS_CHRONO_TAI_CLOCK
 // Convert POSIX UTC seconds to a std::chrono::tai_time.
@@ -68,3 +42,64 @@ std::chrono::time_point<std::chrono::tai_clock, Duration> utc_posix_to_tai_time(
 	return std::chrono::time_point_cast<Duration>(tai_time);
 }
 #endif
+
+//
+// utc_tudat_to_*_time() functions
+//
+
+template <typename Duration = std::chrono::system_clock::duration>
+std::chrono::time_point<std::chrono::system_clock, Duration> utc_tudat_to_sys_time(double utc_tudat_epoch)
+{
+	const double utc_posix_epoch = utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+
+	return utc_posix_to_sys_time<Duration>(utc_posix_epoch);
+}
+
+#ifdef HAS_CHRONO_UTC_CLOCK
+template <typename Duration = std::chrono::utc_clock::duration>
+std::chrono::time_point<std::chrono::utc_clock, Duration> utc_tudat_to_utc_time(double utc_tudat_epoch)
+{
+	const double utc_posix_epoch = utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+
+	return utc_posix_to_utc_time<Duration>(utc_posix_epoch);
+}
+#endif
+
+#ifdef HAS_CHRONO_TAI_CLOCK
+template <typename Duration = std::chrono::tai_clock::duration>
+std::chrono::time_point<std::chrono::tai_clock, Duration> utc_tudat_to_tai_time(double utc_tudat_epoch)
+{
+	const double utc_posix_epoch = utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+	return utc_posix_to_tai_time<Duration>(utc_posix_epoch);
+}
+#endif
+
+//
+// sys_time_to_*() functions
+//
+
+template <typename Duration = std::chrono::system_clock::duration>
+std::string sys_time_to_utc_iso(std::chrono::time_point<std::chrono::system_clock, Duration> sys_time)
+{
+	return std::format("{:%FT%T}", sys_time);
+}
+
+// duration_cast-based system_clock to floating-point POSIX time conversion helper
+template <typename Rep = double, typename Period = std::ratio<1>>
+Rep sys_time_to_utc_posix(std::chrono::time_point<std::chrono::system_clock> sys_time)
+{
+	return std::chrono::duration_cast<std::chrono::duration<Rep, Period>>(sys_time.time_since_epoch())
+		.count();
+}
+
+//
+// utc_time_to_*() functions
+//
+
+#ifdef HAS_CHRONO_UTC_CLOCK
+template <typename Duration = std::chrono::utc_clock::duration>
+std::string utc_time_to_utc_iso(std::chrono::time_point<std::chrono::utc_clock, Duration> utc_time)
+{
+	return std::format("{:%FT%T}", utc_time);
+}
+#endif // HAS_CHRONO_UTC_CLOCK
