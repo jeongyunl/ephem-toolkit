@@ -1,6 +1,5 @@
 #pragma once
 
-#include <tudat/astro/earth_orientation/terrestrialTimeScaleConverter.h>
 #include <chrono>
 
 // POSIX epoch (1970-01-01 00:00:00 UTC) minus TUDAT UTC J2000 epoch (2000-01-01 12:00:00 UTC)
@@ -59,8 +58,6 @@ constexpr double POST_1972_TAI_MINUS_UTC = 10.0; // TAI-UTC from 1972-01-01 onwa
 #endif
 
 #define LEAPSECONDS_PATH_DEFAULT ZONEINFO_DIR "/leapseconds"
-
-std::shared_ptr<tudat::earth_orientation::TerrestrialTimeScaleConverter> get_tudat_time_scale_converter();
 
 // FIXME Currently Tudat's TDB to UTC conversions fail for the second after end-of-June leap second
 // insertions.

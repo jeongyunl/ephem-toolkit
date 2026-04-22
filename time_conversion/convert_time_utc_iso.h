@@ -1,73 +1,9 @@
 #pragma once
 
 #include "convert_time_common.h"
+#include "convert_time_iso8601.h"
 
 #include <chrono>
-
-// Time unit constants
-constexpr std::int64_t SECONDS_PER_MINUTE = 60;
-constexpr std::int64_t SECONDS_PER_HOUR = 3600;
-constexpr std::int64_t SECONDS_PER_DAY = 86400;
-
-// Gregorian calendar constants (used in days_from_civil)
-constexpr int MONTH_LENGTH_ENCODING = 153; // Encodes non-uniform month lengths: (153*m+2)/5
-constexpr std::int64_t GREGORIAN_ERA_DAYS = 146097; // Days per 400-year Gregorian era
-constexpr std::int64_t POSIX_EPOCH_DAY_OFFSET = 719468; // Days from proleptic epoch to POSIX epoch
-
-struct LeapTransition
-{
-	std::int64_t transition_posix_epoch;
-	int correction_seconds;
-};
-
-struct ParsedUtcIso
-{
-	int year = 0;
-	unsigned month = 0;
-	unsigned day = 0;
-	int hour = 0;
-	int minute = 0;
-	int second = 0;
-	std::int64_t nanos = 0;
-	int tz_offset_seconds = 0;
-};
-
-constexpr std::int64_t days_from_civil(int year, unsigned month, unsigned day) noexcept
-{
-	// Shift January and February to months 13 and 14 of the previous year so that
-	// the leap day (Feb 29) always falls at the end of the shifted year, simplifying
-	// the day-of-year calculation below.
-	year -= (month <= 2 ? 1 : 0);
-
-	// A 400-year Gregorian era contains exactly 146097 days. This gives the era index
-	// and keeps subsequent offsets in the range [0, 146096].
-	const int era = (year >= 0 ? year : year - 399) / 400;
-
-	// Year within the era [0, 399].
-	const unsigned year_of_era = static_cast<unsigned>(year - era * 400);
-
-	// Day within the shifted year [0, 365].
-	// The factor (153 * m + 2) / 5 encodes the non-uniform month lengths for
-	// March–February layout without any branching beyond the month shift above.
-	const unsigned day_of_year = (MONTH_LENGTH_ENCODING * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
-
-	// Day within the era [0, 146096].
-	// Adds one leap day per 4 years, subtracts the century non-leap years,
-	// and the century-of-era correction is already embedded in year_of_era / 100.
-	const unsigned day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
-
-	// GREGORIAN_ERA_DAYS = days per 400-year era.
-	// POSIX_EPOCH_DAY_OFFSET = days from the proleptic Gregorian epoch (0000-03-01) to the
-	//                        POSIX epoch (1970-01-01), used to produce a POSIX day count.
-	return static_cast<std::int64_t>(era) * GREGORIAN_ERA_DAYS + static_cast<std::int64_t>(day_of_era)
-		- POSIX_EPOCH_DAY_OFFSET;
-}
-
-ParsedUtcIso parse_iso8601_utc(const std::string& iso);
-
-// Compares two ISO-8601 timestamps after parsing, allowing either 'T' or space between date/time.
-// Fractional seconds are compared at the requested precision (0-9 decimal places) by truncation.
-bool iso_8601_equal(const std::string& lhs, const std::string& rhs, std::size_t fractional_second_places = 3);
 
 template <typename Duration = std::chrono::system_clock::duration>
 std::chrono::time_point<std::chrono::system_clock, Duration>
@@ -76,7 +12,7 @@ parsed_utc_iso_to_sys_time(const ParsedUtcIso& parsed_utc_iso)
 #if 0
 	// Number of days since the POSIX epoch (1970-01-01) for the calendar date.
 	const std::int64_t days_since_posix_epoch =
-		days_from_civil(parsed_utc_iso.year, parsed_utc_iso.month, parsed_utc_iso.day);
+		posix_days_from_civil(parsed_utc_iso.year, parsed_utc_iso.month, parsed_utc_iso.day);
 
 	// Seconds elapsed within the day from midnight, treating leap second 60 as 59
 	// for the purpose of building a POSIX timestamp (POSIX ignores the leap second).
@@ -120,13 +56,35 @@ parsed_utc_iso_to_sys_time(const ParsedUtcIso& parsed_utc_iso)
 	) };
 }
 
-const std::vector<LeapTransition>& get_zoneinfo_leap_transitions();
+#ifdef HAS_CHRONO_UTC_CLOCK
+// Convert a parsed ISO-8601 UTC timestamp to a std::chrono::utc_time, preserving leap-second information.
+//
+// Rationale:
+// - parsed_utc_iso_to_sys_time() maps an ISO leap second (..:59:60) to the POSIX/sys_time instant
+//   of the following second (00:00:00 of the next day), because POSIX has no leap seconds.
+// - std::chrono::utc_clock::from_sys() will therefore yield a utc_time that is normalized and
+//   typically not marked as a leap second.
+// - To preserve the leap-second label for round-tripping/formatting, we detect second==60 and
+//   subtract one second after conversion, so the resulting utc_time falls into the leap second.
+//
+// Note: timezone offsets are already applied in parsed_utc_iso_to_sys_time().
+template <typename Duration = std::chrono::utc_clock::duration>
+std::chrono::time_point<std::chrono::utc_clock, Duration>
+parsed_utc_iso_to_utc_time(const ParsedUtcIso& parsed_utc_iso)
+{
+	const bool is_leap_second = (parsed_utc_iso.second == 60);
 
-double cumulative_leap_correction(
-	const std::vector<LeapTransition>& transitions,
-	double utc_posix_epoch,
-	bool include_transition_at_equal
-);
+	const auto sys_time = parsed_utc_iso_to_sys_time<std::chrono::system_clock::duration>(parsed_utc_iso);
+	auto utc_time = std::chrono::utc_clock::from_sys(sys_time);
+
+	if(is_leap_second)
+	{
+		utc_time -= std::chrono::seconds{ 1 };
+	}
+
+	return std::chrono::time_point_cast<Duration>(utc_time);
+}
+#endif
 
 // ISO-8601 parser based implementations
 

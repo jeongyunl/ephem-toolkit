@@ -34,8 +34,8 @@
 |Tudat TT            |utc_tudat_to_tt_tudat()
 |Tudat TDB           |utc_tudat_to_tdb_tudat()
 |chrono::sys_time    |utc_tudat_to_sys_time()
-|chrono::utc_time    |utc_tudat_to_utc_time()|To test
-|chrono::tai_time    |utc_tudat_to_tai_time()|To test
+|chrono::utc_time    |utc_tudat_to_utc_time()
+|chrono::tai_time    |utc_tudat_to_tai_time()
 
 | Tudat TAI converts to |  Conversions | Notes |
 |----------------------|--------------|-------|

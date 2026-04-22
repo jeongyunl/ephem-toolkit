@@ -1,24 +1,9 @@
 #include "convert_time.h"
 
+#include "convert_time_tudat.h"
 #include "convert_time_utc_iso.h" // Leap-second table + ISO parser based UTC<->TAI logic
 
-#include <tudat/astro/basic_astro/dateTime.h>
-#include <tudat/astro/earth_orientation/terrestrialTimeScaleConverter.h>
-
-std::shared_ptr<tudat::earth_orientation::TerrestrialTimeScaleConverter> get_tudat_time_scale_converter()
-{
-	static std::shared_ptr<tudat::earth_orientation::TerrestrialTimeScaleConverter>
-		tudat_time_scale_converter = nullptr;
-
-	if(tudat_time_scale_converter != nullptr)
-	{
-		return tudat_time_scale_converter;
-	}
-
-	tudat_time_scale_converter = tudat::earth_orientation::createDefaultTimeConverter();
-
-	return tudat_time_scale_converter;
-}
+#include <iostream>
 
 double utc_posix_to_utc_posix(const double utc_posix_epoch)
 {

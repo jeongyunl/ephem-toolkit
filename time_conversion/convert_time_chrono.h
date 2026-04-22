@@ -75,6 +75,33 @@ std::chrono::time_point<std::chrono::tai_clock, Duration> utc_tudat_to_tai_time(
 #endif
 
 //
+// tai_tudat_to_*() functions
+//
+
+extern double tai_tudat_to_utc_posix(double tai_tudat_epoch);
+
+template <typename Duration = std::chrono::system_clock::duration>
+std::chrono::time_point<std::chrono::system_clock, Duration> tai_tudat_to_sys_time(double tai_tudat_epoch)
+{
+	// TUDAT epochs:
+	// - UTC TUDAT epoch is J2000: 2000-01-01 12:00:00 UTC
+	// - TAI TUDAT epoch is J2000: 2000-01-01 12:00:00 TAI
+	//
+	// Convert TAI(TUDAT) -> UTC(POSIX) using the existing numeric conversion, then map to sys_time.
+	const double utc_posix_epoch = tai_tudat_to_utc_posix(tai_tudat_epoch);
+	return utc_posix_to_sys_time<Duration>(utc_posix_epoch);
+}
+
+#ifdef HAS_CHRONO_UTC_CLOCK
+template <typename Duration = std::chrono::utc_clock::duration>
+std::chrono::time_point<std::chrono::utc_clock, Duration> tai_tudat_to_utc_time(double tai_tudat_epoch)
+{
+	const double utc_posix_epoch = tai_tudat_to_utc_posix(tai_tudat_epoch);
+	return utc_posix_to_utc_time<Duration>(utc_posix_epoch);
+}
+#endif
+
+//
 // sys_time_to_*() functions
 //
 

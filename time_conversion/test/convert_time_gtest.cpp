@@ -1,5 +1,7 @@
 #include "convert_time.h"
 #include "convert_time_chrono.h"
+#include "convert_time_j2000.h"
+#include "convert_time_utc_iso.h"
 #include "test/convert_time_common_gtest.h"
 
 #include <gtest/gtest.h>
@@ -31,7 +33,7 @@ bool has_ambiguous_posix(const double posix)
 class ConvertTimeDataDrivenTest : public ::testing::Test
 {
 protected:
-	static void SetUpTestSuite() { }
+	static void SetUpTestSuite() {}
 };
 
 } // namespace
@@ -169,6 +171,19 @@ TEST_F(ConvertTimeDataDrivenTest, TaiToOtherScalesMatchReferenceData)
 		EXPECT_NEAR(tai_tudat_to_tt_tudat(record.tai), record.tt, convert_time_test::kTolExactLike)
 			<< record.iso;
 		EXPECT_NEAR(tai_tudat_to_tdb_tudat(record.tai), record.tdb, convert_time_test::kTolTdb) << record.iso;
+
+		const auto sys_time = tai_tudat_to_sys_time(record.tai);
+		EXPECT_NEAR(
+			std::chrono::duration<double>(sys_time.time_since_epoch()).count(),
+			record.posix,
+			convert_time_test::kTolExactLike
+		) << record.iso;
+
+#ifdef HAS_CHRONO_UTC_CLOCK
+		const auto utc_time = tai_tudat_to_utc_time(record.tai);
+		const auto iso_from_utc = std::format("{:%F %T}", utc_time);
+		EXPECT_TRUE(iso_8601_equal(record.iso, iso_from_utc, 3)) << record.iso << " != " << iso_from_utc;
+#endif
 	}
 }
 
@@ -373,6 +388,18 @@ TEST(ConvertTimeChrono, UtcIsoToUtcTimePreservesLeapSeconds)
 		// ISO to chrono::utc_time and back to ISO should preserve the original string for all rows, including
 		// leap seconds.
 		const auto t = utc_iso_to_utc_time<milliseconds>(record.iso);
+		EXPECT_TRUE(iso_8601_equal(utc_time_to_utc_iso(t), record.iso, 3)) << record.iso;
+	}
+}
+
+TEST(ConvertTimeChrono, ParsedUtcIsoToUtcTimePreservesLeapSeconds)
+{
+	using namespace std::chrono;
+
+	for(const auto& record : convert_time_test::epoch_records())
+	{
+		const ParsedUtcIso parsed = parse_iso8601_utc(record.iso);
+		const auto t = parsed_utc_iso_to_utc_time<milliseconds>(parsed);
 		EXPECT_TRUE(iso_8601_equal(utc_time_to_utc_iso(t), record.iso, 3)) << record.iso;
 	}
 }
