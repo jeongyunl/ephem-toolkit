@@ -87,9 +87,9 @@ double cumulative_leap_correction(
 ParsedUtcIso parse_iso8601_utc(const std::string& iso);
 
 // UTC J2000 epoch: 2000-01-01 12:00:00 UTC
-constexpr std::int64_t utc_j2000_epoch_in_posix_time =
+constexpr auto UTC_J2000_EPOCH_IN_POSIX_TIME =
 	posix_days_from_civil(2000, 1, 1) * SECONDS_PER_DAY + 12 * SECONDS_PER_HOUR;
 
 // TAI epoch = 2000-01-01 12:00:00 TAI = 2000-01-01 11:59:28 UTC
-constexpr std::int64_t tai_j2000_epoch_in_posix_time = posix_days_from_civil(2000, 1, 1) * SECONDS_PER_DAY
+constexpr auto TAI_J2000_EPOCH_IN_POSIX_TIME = posix_days_from_civil(2000, 1, 1) * SECONDS_PER_DAY
 	+ 11 * SECONDS_PER_HOUR + 59 * SECONDS_PER_MINUTE + 28;

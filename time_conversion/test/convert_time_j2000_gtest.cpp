@@ -25,8 +25,8 @@ TEST(ConvertTimeJ2000, LeapSecondIsHandledAndDoesNotCountTransitionYet)
 	// Library behavior: 23:59:60 maps to the POSIX second of the following 00:00:00,
 	// but the leap transition at that boundary is not counted yet.
 	// Therefore, the leap second should be exactly 1 second before the next midnight.
-	const double t_leap = utc_iso_to_utc_j2000("2016-12-31T23:59:60Z");
-	const double t_next = utc_iso_to_utc_j2000("2017-01-01T00:00:00Z");
+	const double t_leap = utc_iso_to_tai_j2000("2016-12-31T23:59:60Z");
+	const double t_next = utc_iso_to_tai_j2000("2017-01-01T00:00:00Z");
 	EXPECT_DOUBLE_EQ(t_next - t_leap, 1.0);
 }
 

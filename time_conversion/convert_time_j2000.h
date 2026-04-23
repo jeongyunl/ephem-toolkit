@@ -17,9 +17,11 @@
 // Returns: seconds (including fractional nanoseconds) since J2000 UTC.
 double parsed_utc_iso_to_utc_j2000(const ParsedUtcIso& parsed_utc_iso);
 double utc_iso_to_utc_j2000(const std::string& iso_string);
+std::string utc_j2000_to_utc_iso(double utc_j2000);
 
 double parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc_iso);
 double utc_iso_to_tai_j2000(const std::string& iso_string);
+std::string tai_j2000_to_utc_iso(double tai_j2000);
 
 // Compares two ISO-8601 timestamps after parsing, allowing either 'T' or space between date/time.
 // Fractional seconds are compared at the requested precision (0-9 decimal places) by truncation.

@@ -28,27 +28,18 @@ double parsed_utc_iso_to_utc_j2000(const ParsedUtcIso& parsed_utc_iso)
 	const double posix_epoch =
 		static_cast<double>(posix_seconds) + static_cast<double>(parsed_utc_iso.nanos) * 1.0e-9;
 
-	// At 23:59:60, UTC maps to the same POSIX second as 00:00:00 next day.
-	// For correct boundary behavior, that leap transition must not be counted yet.
-	const bool include_transition_now = (parsed_utc_iso.second != 60);
-	const double posix_epoch_for_leap_lookup =
-		(parsed_utc_iso.second == 60) ? static_cast<double>(posix_seconds) : posix_epoch;
-
-	const double leap_now =
-		cumulative_leap_correction(transitions, posix_epoch_for_leap_lookup, include_transition_now);
-	const double leap_epoch =
-		cumulative_leap_correction(transitions, static_cast<double>(utc_j2000_epoch_in_posix_time), true);
-
-	const double utc_elapsed_non_leap = posix_epoch - static_cast<double>(utc_j2000_epoch_in_posix_time);
-	const double leap_delta = leap_now - leap_epoch;
-
-	return utc_elapsed_non_leap + leap_delta;
+	return posix_epoch - static_cast<double>(UTC_J2000_EPOCH_IN_POSIX_TIME);
 }
 
 double utc_iso_to_utc_j2000(const std::string& iso_string)
 {
 	ParsedUtcIso parsed_utc_iso = parse_iso8601_utc(iso_string);
 	return parsed_utc_iso_to_utc_j2000(parsed_utc_iso);
+}
+
+std::string utc_j2000_to_utc_iso(double utc_j2000)
+{
+	return std::string();
 }
 
 double parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc_iso)
@@ -81,9 +72,9 @@ double parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc_iso)
 	const double leap_now =
 		cumulative_leap_correction(transitions, posix_epoch_for_leap_lookup, include_transition_now);
 	const double leap_epoch =
-		cumulative_leap_correction(transitions, static_cast<double>(tai_j2000_epoch_in_posix_time), true);
+		cumulative_leap_correction(transitions, static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME), true);
 
-	const double utc_elapsed_non_leap = posix_epoch - static_cast<double>(tai_j2000_epoch_in_posix_time);
+	const double utc_elapsed_non_leap = posix_epoch - static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME);
 	const double leap_delta = leap_now - leap_epoch;
 
 	return utc_elapsed_non_leap + leap_delta;
@@ -93,6 +84,11 @@ double utc_iso_to_tai_j2000(const std::string& iso_string)
 {
 	ParsedUtcIso parsed_utc_iso = parse_iso8601_utc(iso_string);
 	return parsed_utc_iso_to_tai_j2000(parsed_utc_iso);
+}
+
+std::string tai_j2000_to_utc_iso(double tai_j2000)
+{
+	return std::string();
 }
 
 bool iso_8601_equal(const std::string& lhs, const std::string& rhs, std::size_t fractional_second_places)

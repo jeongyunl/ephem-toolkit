@@ -71,11 +71,11 @@ double utc_iso_to_tai_tudat(const std::string& iso_string)
 	);
 	const double leap_epoch = cumulative_leap_correction(
 		get_zoneinfo_leap_transitions(),
-		static_cast<double>(tai_j2000_epoch_in_posix_time),
+		static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME),
 		true
 	);
 
-	const double utc_elapsed_non_leap = posix_epoch - static_cast<double>(tai_j2000_epoch_in_posix_time);
+	const double utc_elapsed_non_leap = posix_epoch - static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME);
 	const double leap_delta = leap_now - leap_epoch;
 
 	return utc_elapsed_non_leap + leap_delta;
@@ -109,19 +109,15 @@ std::string utc_tudat_to_utc_iso(double utc_tudat_epoch)
 
 std::string tai_tudat_to_utc_iso(double tai_tudat_epoch)
 {
-	// TAI epoch = 2000-01-01 12:00:00 TAI = 2000-01-01 11:59:28 UTC
-	constexpr std::int64_t tai_j2000_epoch_in_posix_time =
-		posix_days_from_civil(2000, 1, 1) * SECONDS_PER_DAY + 11 * SECONDS_PER_HOUR + 59 * SECONDS_PER_MINUTE + 28;
-
 	const double leap_epoch = cumulative_leap_correction(
 		get_zoneinfo_leap_transitions(),
-		static_cast<double>(tai_j2000_epoch_in_posix_time),
+		static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME),
 		true
 	);
 
 	// Monotonically increasing TAI seconds since 1970-01-01 00:00:00 TAI
 	const double tai_posix =
-		tai_tudat_epoch + static_cast<double>(tai_j2000_epoch_in_posix_time) + leap_epoch;
+		tai_tudat_epoch + static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME) + leap_epoch;
 
 	// Invert TAI POSIX → UTC POSIX via fixed-point iteration.
 	// Start conservatively below the correct UTC (TAI - UTC is at most ~50 s historically)
