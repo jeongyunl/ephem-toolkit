@@ -26,7 +26,7 @@ double parsed_utc_iso_to_utc_j2000(const ParsedUtcIso& parsed_utc_iso)
 	}
 
 	const double posix_epoch =
-		static_cast<double>(posix_seconds) /* + static_cast<double>(parsed_utc_iso.nanos) * 1.0e-9 */;
+		static_cast<double>(posix_seconds) + static_cast<double>(parsed_utc_iso.nanos) * 1.0e-9;
 
 	// At 23:59:60, UTC maps to the same POSIX second as 00:00:00 next day.
 	// For correct boundary behavior, that leap transition must not be counted yet.
@@ -70,7 +70,7 @@ double parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc_iso)
 	}
 
 	const double posix_epoch =
-		static_cast<double>(posix_seconds) /* + static_cast<double>(parsed_utc_iso.nanos) * 1.0e-9 */;
+		static_cast<double>(posix_seconds) + static_cast<double>(parsed_utc_iso.nanos) * 1.0e-9;
 
 	// At 23:59:60, UTC maps to the same POSIX second as 00:00:00 next day.
 	// For correct boundary behavior, that leap transition must not be counted yet.
@@ -110,16 +110,16 @@ bool iso_8601_equal(const std::string& lhs, const std::string& rhs, std::size_t 
 		const double lhs_tai = utc_iso_to_tai_j2000(lhs);
 		const double rhs_tai = utc_iso_to_tai_j2000(rhs);
 
-		// Convert to integer nanoseconds for truncation-based comparison.
+		// Convert to integer nanoseconds.
 		const auto lhs_ns = static_cast<std::int64_t>(lhs_tai * 1.0e9);
 		const auto rhs_ns = static_cast<std::int64_t>(rhs_tai * 1.0e9);
 
+		// Truncate to the requested fractional-second precision.
 		const std::int64_t ns_resolution = NANOSECONDS_PER_SECOND / pow10_i64(fractional_second_places);
+		const std::int64_t lhs_trunc = (lhs_ns / ns_resolution) * ns_resolution;
+		const std::int64_t rhs_trunc = (rhs_ns / ns_resolution) * ns_resolution;
 
-		// Compare using absolute difference at the requested resolution.
-		// This avoids edge cases around truncation for negative epochs.
-		const auto diff = std::abs(lhs_ns - rhs_ns);
-		return (diff < ns_resolution);
+		return lhs_trunc == rhs_trunc;
 	}
 	catch(const std::exception&)
 	{
