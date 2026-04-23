@@ -4,24 +4,198 @@
 
 #include <string>
 
-// Convert a parsed ISO-8601 UTC timestamp to seconds since the UTC J2000 epoch
-// (2000-01-01 12:00:00 UTC), accounting for leap seconds.
-//
-// Notes:
-// - This function does not use std::chrono.
-// - Leap-second notation (..:59:60) is handled consistently with the rest of this library:
-//   the leap second maps to the POSIX second of the following 00:00:00, but the leap transition
-//   at that boundary is not counted yet.
-// - Timezone offsets in ParsedUtcIso are applied (i.e., the input instant is converted to UTC).
-//
-// Returns: seconds (including fractional nanoseconds) since J2000 UTC.
-double parsed_utc_iso_to_utc_j2000(const ParsedUtcIso& parsed_utc_iso);
-double utc_iso_to_utc_j2000(const std::string& iso_string);
-std::string utc_j2000_to_utc_iso(double utc_j2000);
+// Simple direct conversions
 
+constexpr double posix_to_utc_j2000(double posix_time)
+{
+	return posix_time - static_cast<double>(UTC_J2000_EPOCH_IN_POSIX_TIME);
+}
+
+constexpr double utc_j2000_to_posix(double utc_j2000)
+{
+	return utc_j2000 + static_cast<double>(UTC_J2000_EPOCH_IN_POSIX_TIME);
+}
+
+constexpr double tai_j2000_to_tt_j2000(double tai_j2000)
+{
+	// TT is exactly 32.184 seconds ahead of TAI.
+	return tai_j2000 + TT_EPOCH_MINUS_TAI_EPOCH;
+}
+
+constexpr double tt_j2000_to_tai_j2000(double tt_j2000)
+{
+	// TT is exactly 32.184 seconds ahead of TAI.
+	return tt_j2000 - TT_EPOCH_MINUS_TAI_EPOCH;
+}
+
+//
+// ParsedUtcIso Time to X
+//
+
+// Direct conversions
+
+double parsed_utc_iso_to_posix(const ParsedUtcIso& parsed_utc_iso);
 double parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc_iso);
-double utc_iso_to_tai_j2000(const std::string& iso_string);
-std::string tai_j2000_to_utc_iso(double tai_j2000);
+
+// Indirect conversions
+
+inline double parsed_utc_iso_to_utc_j2000(const ParsedUtcIso& parsed_utc_iso)
+{
+	const double posix_time = parsed_utc_iso_to_posix(parsed_utc_iso);
+	return posix_to_utc_j2000(posix_time);
+}
+
+inline double parsed_utc_iso_to_tt_j2000(const ParsedUtcIso& parsed_utc_iso)
+{
+	const double tai_j2000 = parsed_utc_iso_to_tai_j2000(parsed_utc_iso);
+	return tai_j2000_to_tt_j2000(tai_j2000);
+}
+
+//
+// ISO-8601 Time to X
+//
+
+// Indirect conversions
+
+inline double utc_iso_to_posix(const std::string& iso_string)
+{
+	const ParsedUtcIso parsed_utc_iso = utc_iso_to_parsed_utc_iso(iso_string);
+	return parsed_utc_iso_to_posix(parsed_utc_iso);
+}
+
+inline double utc_iso_to_utc_j2000(const std::string& iso_string)
+{
+	const ParsedUtcIso parsed_utc_iso = utc_iso_to_parsed_utc_iso(iso_string);
+	const double posix_time = parsed_utc_iso_to_posix(parsed_utc_iso);
+	return posix_to_utc_j2000(posix_time);
+}
+
+inline double utc_iso_to_tai_j2000(const std::string& iso_string)
+{
+	const ParsedUtcIso parsed_utc_iso = utc_iso_to_parsed_utc_iso(iso_string);
+	return parsed_utc_iso_to_tai_j2000(parsed_utc_iso);
+}
+
+inline double utc_iso_to_tt_j2000(const std::string& iso_string)
+{
+	const ParsedUtcIso parsed_utc_iso = utc_iso_to_parsed_utc_iso(iso_string);
+	const double tai_j2000 = parsed_utc_iso_to_tai_j2000(parsed_utc_iso);
+	return tai_j2000_to_tt_j2000(tai_j2000);
+}
+
+//
+// POSIX Time to X
+//
+
+// Direct conversions
+
+ParsedUtcIso posix_to_parsed_utc_iso(double posix_time);
+double posix_to_tai_j2000(double posix_time);
+
+// Indirect conversions
+
+inline std::string posix_to_utc_iso(double posix_time)
+{
+	const ParsedUtcIso parsed_utc_iso = posix_to_parsed_utc_iso(posix_time);
+	return parsed_utc_iso_to_utc_iso(parsed_utc_iso);
+}
+
+inline double posix_to_tt_j2000(double posix_time)
+{
+	const double tai_j2000 = posix_to_tai_j2000(posix_time);
+	return tai_j2000_to_tt_j2000(tai_j2000);
+}
+
+//
+// UTC J2000 Time to X
+//
+
+// Indirect conversions
+
+inline ParsedUtcIso utc_j2000_to_parsed_utc_iso(double utc_j2000)
+{
+	const double posix_time = utc_j2000_to_posix(utc_j2000);
+	return posix_to_parsed_utc_iso(posix_time);
+}
+
+inline std::string utc_j2000_to_utc_iso(double utc_j2000)
+{
+	const double posix_time = utc_j2000_to_posix(utc_j2000);
+	const ParsedUtcIso parsed_utc_iso = posix_to_parsed_utc_iso(posix_time);
+	return parsed_utc_iso_to_utc_iso(parsed_utc_iso);
+}
+
+inline double utc_j2000_to_tai_j2000(double utc_j2000)
+{
+	const double posix_time = utc_j2000_to_posix(utc_j2000);
+	return posix_to_tai_j2000(posix_time);
+}
+
+inline double utc_j2000_to_tt_j2000(double utc_j2000)
+{
+	const double posix_time = utc_j2000_to_posix(utc_j2000);
+	const double tai_j2000 = posix_to_tai_j2000(posix_time);
+	return tai_j2000_to_tt_j2000(tai_j2000);
+}
+
+//
+// TAI J2000 Time to X
+//
+
+// Direct conversions
+
+ParsedUtcIso tai_j2000_to_parsed_utc_iso(double tai_j2000);
+double tai_j2000_to_posix(double tai_j2000);
+
+// Indirect conversions
+
+inline std::string tai_j2000_to_utc_iso(double tai_j2000)
+{
+	const ParsedUtcIso parsed_utc_iso = tai_j2000_to_parsed_utc_iso(tai_j2000);
+	return parsed_utc_iso_to_utc_iso(parsed_utc_iso);
+}
+
+inline double tai_j2000_to_utc_j2000(double tai_j2000)
+{
+	const double posix_time = tai_j2000_to_posix(tai_j2000);
+	return posix_to_utc_j2000(posix_time);
+}
+
+//
+// TT J2000 Time to X
+//
+
+// Indirect conversions
+
+inline ParsedUtcIso tt_j2000_to_parsed_utc_iso(double tt_j2000)
+{
+	const double tai_j2000 = tt_j2000_to_tai_j2000(tt_j2000);
+	return tai_j2000_to_parsed_utc_iso(tai_j2000);
+}
+
+inline std::string tt_j2000_to_utc_iso(double tt_j2000)
+{
+	const double tai_j2000 = tt_j2000_to_tai_j2000(tt_j2000);
+	const ParsedUtcIso parsed_utc_iso = tai_j2000_to_parsed_utc_iso(tai_j2000);
+	return parsed_utc_iso_to_utc_iso(parsed_utc_iso);
+}
+
+inline double tt_j2000_to_posix(double tt_j2000)
+{
+	const double tai_j2000 = tt_j2000_to_tai_j2000(tt_j2000);
+	return tai_j2000_to_posix(tai_j2000);
+}
+
+inline double tt_j2000_to_utc_j2000(double tt_j2000)
+{
+	const double tai_j2000 = tt_j2000_to_tai_j2000(tt_j2000);
+	const double posix_time = tai_j2000_to_posix(tai_j2000);
+	return posix_to_utc_j2000(posix_time);
+}
+
+//
+// Utility for testing
+//
 
 // Compares two ISO-8601 timestamps after parsing, allowing either 'T' or space between date/time.
 // Fractional seconds are compared at the requested precision (0-9 decimal places) by truncation.

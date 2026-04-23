@@ -5,6 +5,7 @@ add_library(
     convert_time_tudat.cpp
     convert_time_iso8601.cpp
     convert_time_j2000.cpp
+    convert_time_leap_transition.cpp
 )
 
 target_include_directories(convert_time PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

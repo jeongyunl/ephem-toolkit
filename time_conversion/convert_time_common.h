@@ -2,6 +2,12 @@
 
 #include <chrono>
 
+// Time unit constants
+constexpr std::int64_t NANOSECONDS_PER_SECOND = 1000000000LL;
+constexpr std::int64_t SECONDS_PER_MINUTE = 60;
+constexpr std::int64_t SECONDS_PER_HOUR = 3600;
+constexpr std::int64_t SECONDS_PER_DAY = 86400;
+
 // POSIX epoch (1970-01-01 00:00:00 UTC) minus TUDAT UTC J2000 epoch (2000-01-01 12:00:00 UTC)
 constexpr auto POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH = 946728000.0;
 
@@ -13,6 +19,7 @@ constexpr auto TT_EPOCH_MINUS_TAI_EPOCH = 32.184;
 constexpr double PRE_1972_TAI_MINUS_UTC_AT_1970 = 8.000082; // TAI-UTC at 1970-01-01 00:00:00 UTC (s)
 constexpr double PRE_1972_DRIFT_RATE = 0.002592; // Linear drift rate before 1972 (s/day)
 constexpr double POST_1972_TAI_MINUS_UTC = 10.0; // TAI-UTC from 1972-01-01 onwards (s)
+constexpr double J2000_TAI_MINUS_UTC = 32.0; // TAI-UTC at J2000 epoch (s)
 
 // If C++20 or later
 #if __cplusplus >= 202002L

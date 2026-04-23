@@ -14,26 +14,10 @@ namespace
 
 using convert_time_test::EpochRecord;
 
-bool has_ambiguous_posix(const double posix)
-{
-	static const auto posix_counts = [] {
-		std::unordered_map<std::string, int> counts;
-		for(const auto& record : convert_time_test::epoch_records())
-		{
-			const std::string key = std::to_string(record.posix);
-			++counts[key];
-		}
-		return counts;
-	}();
-
-	const auto it = posix_counts.find(std::to_string(posix));
-	return it != posix_counts.end() && it->second > 1;
-}
-
 class ConvertTimeDataDrivenTest : public ::testing::Test
 {
 protected:
-	static void SetUpTestSuite() {}
+	static void SetUpTestSuite() { }
 };
 
 } // namespace
@@ -398,7 +382,7 @@ TEST(ConvertTimeChrono, ParsedUtcIsoToUtcTimePreservesLeapSeconds)
 
 	for(const auto& record : convert_time_test::epoch_records())
 	{
-		const ParsedUtcIso parsed = parse_iso8601_utc(record.iso);
+		const ParsedUtcIso parsed = utc_iso_to_parsed_utc_iso(record.iso);
 		const auto t = parsed_utc_iso_to_utc_time<milliseconds>(parsed);
 		EXPECT_TRUE(iso_8601_equal(utc_time_to_utc_iso(t), record.iso, 3)) << record.iso;
 	}

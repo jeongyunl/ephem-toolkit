@@ -1,5 +1,6 @@
 #include "convert_time.h"
 
+#include "convert_time_leap_transition.h"
 #include "convert_time_tudat.h"
 #include "convert_time_utc_iso.h" // Leap-second table + ISO parser based UTC<->TAI logic
 

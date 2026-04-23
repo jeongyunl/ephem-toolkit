@@ -4,7 +4,9 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <fstream>
+#include <iomanip>
 #include <sstream>
 #include <stdexcept>
 
@@ -14,23 +16,6 @@ namespace
 inline bool is_digit(char c)
 {
 	return c >= '0' && c <= '9';
-}
-
-inline std::string trim(const std::string& s)
-{
-	std::size_t first = 0;
-	while(first < s.size() && std::isspace(static_cast<unsigned char>(s[first])))
-	{
-		++first;
-	}
-
-	std::size_t last = s.size();
-	while(last > first && std::isspace(static_cast<unsigned char>(s[last - 1])))
-	{
-		--last;
-	}
-
-	return s.substr(first, last - first);
 }
 
 inline int parse_2_digits(const std::string& s, std::size_t pos)
@@ -58,84 +43,69 @@ inline int parse_4_digits(const std::string& s, std::size_t pos)
 	return (s[pos] - '0') * 1000 + (s[pos + 1] - '0') * 100 + (s[pos + 2] - '0') * 10 + (s[pos + 3] - '0');
 }
 
-inline int month_name_to_number(const std::string& month_name)
-{
-	static const std::array<const char*, 12> names = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-													   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-
-	for(std::size_t i = 0; i < names.size(); ++i)
-	{
-		if(month_name == names[i])
-		{
-			return static_cast<int>(i) + 1;
-		}
-	}
-
-	throw std::runtime_error("Invalid month token in leap-second file: " + month_name);
-}
 } // namespace
 
-ParsedUtcIso parse_iso8601_utc(const std::string& iso)
+ParsedUtcIso utc_iso_to_parsed_utc_iso(const std::string& utc_iso)
 {
-	if(iso.size() < 19)
+	if(utc_iso.size() < 19)
 	{
-		throw std::runtime_error("ISO-8601 input too short: " + iso);
+		throw std::runtime_error("ISO-8601 input too short: " + utc_iso);
 	}
 
 	ParsedUtcIso out;
 
-	out.year = parse_4_digits(iso, 0);
-	if(iso[4] != '-')
+	out.year = parse_4_digits(utc_iso, 0);
+	if(utc_iso[4] != '-')
 	{
 		throw std::runtime_error("Expected '-' at position 4");
 	}
 
-	out.month = static_cast<unsigned>(parse_2_digits(iso, 5));
-	if(iso[7] != '-')
+	out.month = static_cast<unsigned>(parse_2_digits(utc_iso, 5));
+	if(utc_iso[7] != '-')
 	{
 		throw std::runtime_error("Expected '-' at position 7");
 	}
 
-	out.day = static_cast<unsigned>(parse_2_digits(iso, 8));
+	out.day = static_cast<unsigned>(parse_2_digits(utc_iso, 8));
 
-	const char sep = iso[10];
+	const char sep = utc_iso[10];
 	if(sep != 'T' && sep != ' ')
 	{
 		throw std::runtime_error("Expected 'T' or space at position 10");
 	}
 
-	out.hour = parse_2_digits(iso, 11);
-	if(iso[13] != ':')
+	out.hour = parse_2_digits(utc_iso, 11);
+	if(utc_iso[13] != ':')
 	{
 		throw std::runtime_error("Expected ':' at position 13");
 	}
 
-	out.minute = parse_2_digits(iso, 14);
-	if(iso[16] != ':')
+	out.minute = parse_2_digits(utc_iso, 14);
+	if(utc_iso[16] != ':')
 	{
 		throw std::runtime_error("Expected ':' at position 16");
 	}
 
-	out.second = parse_2_digits(iso, 17);
+	out.second = parse_2_digits(utc_iso, 17);
 
 	if(out.month < 1 || out.month > 12 || out.day < 1 || out.day > 31 || out.hour < 0 || out.hour > 23
 	   || out.minute < 0 || out.minute > 59 || out.second < 0 || out.second > 60)
 	{
-		throw std::runtime_error("ISO-8601 field out of range: " + iso);
+		throw std::runtime_error("ISO-8601 field out of range: " + utc_iso);
 	}
 
 	std::size_t pos = 19;
-	if(pos < iso.size() && iso[pos] == '.')
+	if(pos < utc_iso.size() && utc_iso[pos] == '.')
 	{
 		++pos;
 		std::size_t digits = 0;
-		while(pos < iso.size() && is_digit(iso[pos]) && digits < 9)
+		while(pos < utc_iso.size() && is_digit(utc_iso[pos]) && digits < 9)
 		{
-			out.nanos = out.nanos * 10 + (iso[pos] - '0');
+			out.nanos = out.nanos * 10 + (utc_iso[pos] - '0');
 			++pos;
 			++digits;
 		}
-		while(pos < iso.size() && is_digit(iso[pos]))
+		while(pos < utc_iso.size() && is_digit(utc_iso[pos]))
 		{
 			++pos;
 		}
@@ -147,22 +117,22 @@ ParsedUtcIso parse_iso8601_utc(const std::string& iso)
 	}
 
 	out.tz_offset_seconds = 0;
-	if(pos < iso.size() && iso[pos] == 'Z')
+	if(pos < utc_iso.size() && utc_iso[pos] == 'Z')
 	{
 		++pos;
 	}
-	else if(pos < iso.size() && (iso[pos] == '+' || iso[pos] == '-'))
+	else if(pos < utc_iso.size() && (utc_iso[pos] == '+' || utc_iso[pos] == '-'))
 	{
-		const int sign = (iso[pos] == '-') ? -1 : 1;
+		const int sign = (utc_iso[pos] == '-') ? -1 : 1;
 		++pos;
-		const int tzh = parse_2_digits(iso, pos);
+		const int tzh = parse_2_digits(utc_iso, pos);
 		pos += 2;
-		if(pos >= iso.size() || iso[pos] != ':')
+		if(pos >= utc_iso.size() || utc_iso[pos] != ':')
 		{
 			throw std::runtime_error("Expected ':' in timezone offset");
 		}
 		++pos;
-		const int tzm = parse_2_digits(iso, pos);
+		const int tzm = parse_2_digits(utc_iso, pos);
 		pos += 2;
 
 		if(tzh > 23 || tzm > 59)
@@ -173,13 +143,13 @@ ParsedUtcIso parse_iso8601_utc(const std::string& iso)
 		out.tz_offset_seconds = sign * (tzh * SECONDS_PER_HOUR + tzm * SECONDS_PER_MINUTE);
 	}
 
-	while(pos < iso.size() && std::isspace(static_cast<unsigned char>(iso[pos])))
+	while(pos < utc_iso.size() && std::isspace(static_cast<unsigned char>(utc_iso[pos])))
 	{
 		++pos;
 	}
-	if(pos != iso.size())
+	if(pos != utc_iso.size())
 	{
-		throw std::runtime_error("Unexpected trailing characters in ISO-8601 string: " + iso);
+		throw std::runtime_error("Unexpected trailing characters in ISO-8601 string: " + utc_iso);
 	}
 
 	if(out.second == 60 && !(out.hour == 23 && out.minute == 59))
@@ -190,135 +160,79 @@ ParsedUtcIso parse_iso8601_utc(const std::string& iso)
 	return out;
 }
 
-std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::string& leapseconds_path)
-{
-	std::ifstream in(leapseconds_path);
-	if(!in)
-	{
-		throw std::runtime_error("Failed to open leap-second file: " + leapseconds_path);
-	}
-
-	std::vector<LeapTransition> out;
-	std::string raw;
-	while(std::getline(in, raw))
-	{
-		const std::string line = trim(raw);
-		if(line.empty() || line[0] == '#')
-		{
-			continue;
-		}
-
-		std::istringstream iss(line);
-		std::string keyword;
-		iss >> keyword;
-		if(keyword != "Leap")
-		{
-			continue;
-		}
-
-		int year = 0;
-		std::string mon;
-		int day = 0;
-		std::string hhmmss;
-		char sign = '\0';
-		std::string unit;
-
-		iss >> year >> mon >> day >> hhmmss >> sign >> unit;
-		if(iss.fail())
-		{
-			throw std::runtime_error("Malformed Leap line: " + line);
-		}
-		if(sign != '+' && sign != '-')
-		{
-			throw std::runtime_error("Leap line must contain '+' or '-': " + line);
-		}
-		if(unit != "S")
-		{
-			throw std::runtime_error("Leap line unit must be 'S': " + line);
-		}
-
-		if(hhmmss.size() != 8 || hhmmss[2] != ':' || hhmmss[5] != ':')
-		{
-			throw std::runtime_error("Invalid Leap time field: " + line);
-		}
-
-		const int hh = (hhmmss[0] - '0') * 10 + (hhmmss[1] - '0');
-		const int mm = (hhmmss[3] - '0') * 10 + (hhmmss[4] - '0');
-		const int ss = (hhmmss[6] - '0') * 10 + (hhmmss[7] - '0');
-
-		if(hh < 0 || hh > 23 || mm < 0 || mm > 59 || ss < 0 || ss > 60)
-		{
-			throw std::runtime_error("Leap line time out of range: " + line);
-		}
-
-		std::int64_t sec_of_day = 0;
-		if(ss < 60)
-		{
-			sec_of_day = static_cast<std::int64_t>(hh) * SECONDS_PER_HOUR
-				+ static_cast<std::int64_t>(mm) * SECONDS_PER_MINUTE + static_cast<std::int64_t>(ss);
-		}
-		else
-		{
-			sec_of_day = SECONDS_PER_DAY;
-		}
-
-		const int month = month_name_to_number(mon);
-		const std::int64_t transition_posix_epoch =
-			posix_days_from_civil(year, static_cast<unsigned>(month), static_cast<unsigned>(day))
-				* SECONDS_PER_DAY
-			+ sec_of_day;
-
-		out.push_back(LeapTransition{ transition_posix_epoch, sign == '+' ? 1 : -1 });
-	}
-
-	std::sort(out.begin(), out.end(), [](const LeapTransition& a, const LeapTransition& b) {
-		return a.transition_posix_epoch < b.transition_posix_epoch;
-	});
-
-	return out;
-}
-
-namespace
-{
-static std::vector<LeapTransition> transitions = load_zoneinfo_leap_transitions(LEAPSECONDS_PATH_DEFAULT);
-}
-
-const std::vector<LeapTransition>& get_zoneinfo_leap_transitions()
-{
-	if(transitions.empty())
-	{
-		transitions = load_zoneinfo_leap_transitions(LEAPSECONDS_PATH_DEFAULT);
-	}
-	return transitions;
-}
-
-double cumulative_leap_correction(
-	const std::vector<LeapTransition>& transitions,
-	double utc_posix_epoch,
-	bool include_transition_at_equal
+std::string parsed_utc_iso_to_utc_iso(
+	const ParsedUtcIso& parsed_utc_iso,
+	bool use_t_separator,
+	int fractional_second_places
 )
 {
-	// Before UTC and TAI synchronization in 1972, UTC drifted relative to TAI.
-	// Over 1970-01-01 <= UTC < 1972-01-01, use the historical linear segment
-	constexpr std::int64_t posix_1970_01_01 = posix_days_from_civil(1970, 1, 1) * SECONDS_PER_DAY;
-	constexpr std::int64_t posix_1972_01_01 = posix_days_from_civil(1972, 1, 1) * SECONDS_PER_DAY;
-
-	double tai_minus_utc_seconds = POST_1972_TAI_MINUS_UTC;
-	if(utc_posix_epoch < static_cast<double>(posix_1972_01_01))
+	if(parsed_utc_iso.month < 1 || parsed_utc_iso.month > 12 || parsed_utc_iso.day < 1
+	   || parsed_utc_iso.day > 31 || parsed_utc_iso.hour < 0 || parsed_utc_iso.hour > 23
+	   || parsed_utc_iso.minute < 0 || parsed_utc_iso.minute > 59 || parsed_utc_iso.second < 0
+	   || parsed_utc_iso.second > 60 || parsed_utc_iso.nanos < 0
+	   || parsed_utc_iso.nanos >= NANOSECONDS_PER_SECOND)
 	{
-		const double elapsed_days_since_1970 =
-			(utc_posix_epoch - static_cast<double>(posix_1970_01_01)) / static_cast<double>(SECONDS_PER_DAY);
-		tai_minus_utc_seconds =
-			PRE_1972_TAI_MINUS_UTC_AT_1970 + elapsed_days_since_1970 * PRE_1972_DRIFT_RATE;
+		throw std::runtime_error("ParsedUtcIso field out of range");
 	}
 
-	for(const LeapTransition& t : transitions)
+	if(parsed_utc_iso.second == 60 && !(parsed_utc_iso.hour == 23 && parsed_utc_iso.minute == 59))
 	{
-		const double transition = static_cast<double>(t.transition_posix_epoch);
-		if(transition < utc_posix_epoch || (include_transition_at_equal && transition == utc_posix_epoch))
+		throw std::runtime_error("Leap-second notation is only valid at 23:59:60");
+	}
+
+	if(parsed_utc_iso.tz_offset_seconds <= -SECONDS_PER_DAY
+	   || parsed_utc_iso.tz_offset_seconds >= SECONDS_PER_DAY
+	   || std::abs(parsed_utc_iso.tz_offset_seconds) % SECONDS_PER_MINUTE != 0)
+	{
+		throw std::runtime_error("Timezone offset out of range");
+	}
+
+	if(fractional_second_places < 0 || fractional_second_places > 9)
+	{
+		throw std::runtime_error("fractional_second_places must be between 0 and 9");
+	}
+
+	const char separator = use_t_separator ? 'T' : ' ';
+
+	std::ostringstream out;
+	out << std::setfill('0') << std::setw(4) << parsed_utc_iso.year << '-' << std::setw(2)
+		<< parsed_utc_iso.month << '-' << std::setw(2) << parsed_utc_iso.day << separator << std::setw(2)
+		<< parsed_utc_iso.hour << ':' << std::setw(2) << parsed_utc_iso.minute << ':' << std::setw(2)
+		<< parsed_utc_iso.second;
+
+	if(fractional_second_places > 0 && parsed_utc_iso.nanos != 0)
+	{
+		std::string fractional = std::to_string(parsed_utc_iso.nanos + NANOSECONDS_PER_SECOND).substr(1);
+
+		if(fractional_second_places < 9)
 		{
-			tai_minus_utc_seconds += static_cast<double>(t.correction_seconds);
+			fractional = fractional.substr(0, fractional_second_places);
+		}
+
+		while(!fractional.empty() && fractional.back() == '0')
+		{
+			fractional.pop_back();
+		}
+
+		if(!fractional.empty())
+		{
+			out << '.' << fractional;
 		}
 	}
-	return tai_minus_utc_seconds;
+
+	if(parsed_utc_iso.tz_offset_seconds == 0)
+	{
+		out << 'Z';
+	}
+	else
+	{
+		const int offset_seconds = parsed_utc_iso.tz_offset_seconds;
+		const char sign = (offset_seconds < 0) ? '-' : '+';
+		const int abs_offset_seconds = std::abs(offset_seconds);
+		const int offset_hours = abs_offset_seconds / SECONDS_PER_HOUR;
+		const int offset_minutes = (abs_offset_seconds % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE;
+		out << sign << std::setw(2) << offset_hours << ':' << std::setw(2) << offset_minutes;
+	}
+
+	return out.str();
 }

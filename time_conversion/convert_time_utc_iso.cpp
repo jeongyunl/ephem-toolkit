@@ -3,6 +3,7 @@
 #include "convert_time.h"
 #include "convert_time_chrono.h"
 #include "convert_time_iso8601.h"
+#include "convert_time_leap_transition.h"
 #include "convert_time_tudat.h"
 
 #include <tudat/astro/basic_astro/dateTime.h>
@@ -43,7 +44,7 @@ double utc_iso_to_utc_posix(const std::string& iso_string)
 
 double utc_iso_to_utc_tudat(const std::string& iso_string)
 {
-	const ParsedUtcIso parsed_utc_iso = parse_iso8601_utc(iso_string);
+	const ParsedUtcIso parsed_utc_iso = utc_iso_to_parsed_utc_iso(iso_string);
 	const auto sys_time = parsed_utc_iso_to_sys_time(parsed_utc_iso);
 	const double posix_seconds = std::chrono::duration<double>(sys_time.time_since_epoch()).count();
 
@@ -52,31 +53,26 @@ double utc_iso_to_utc_tudat(const std::string& iso_string)
 
 double utc_iso_to_tai_tudat(const std::string& iso_string)
 {
-	const ParsedUtcIso parsed_utc_iso = parse_iso8601_utc(iso_string);
+	const ParsedUtcIso parsed_utc_iso = utc_iso_to_parsed_utc_iso(iso_string);
 	const auto sys_time = parsed_utc_iso_to_sys_time(parsed_utc_iso);
-	const double posix_epoch = std::chrono::duration<double>(sys_time.time_since_epoch()).count();
+	const double posix_time = std::chrono::duration<double>(sys_time.time_since_epoch()).count();
 
 	// At 23:59:60, UTC maps to the same POSIX second as 00:00:00 next day.
 	// For correct boundary behavior, that leap transition must not be counted yet.
 	const bool include_transition_now = (parsed_utc_iso.second != 60);
 	const double posix_epoch_for_leap_lookup = (parsed_utc_iso.second == 60)
 		? static_cast<double>(
-			std::chrono::time_point_cast<std::chrono::seconds>(sys_time).time_since_epoch().count()
-		)
-		: posix_epoch;
+			  std::chrono::time_point_cast<std::chrono::seconds>(sys_time).time_since_epoch().count()
+		  )
+		: posix_time;
 	const double leap_now = cumulative_leap_correction(
 		get_zoneinfo_leap_transitions(),
 		posix_epoch_for_leap_lookup,
 		include_transition_now
 	);
-	const double leap_epoch = cumulative_leap_correction(
-		get_zoneinfo_leap_transitions(),
-		static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME),
-		true
-	);
 
-	const double utc_elapsed_non_leap = posix_epoch - static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME);
-	const double leap_delta = leap_now - leap_epoch;
+	const double utc_elapsed_non_leap = posix_time - static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME);
+	const double leap_delta = leap_now - J2000_TAI_MINUS_UTC;
 
 	return utc_elapsed_non_leap + leap_delta;
 }
@@ -109,15 +105,9 @@ std::string utc_tudat_to_utc_iso(double utc_tudat_epoch)
 
 std::string tai_tudat_to_utc_iso(double tai_tudat_epoch)
 {
-	const double leap_epoch = cumulative_leap_correction(
-		get_zoneinfo_leap_transitions(),
-		static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME),
-		true
-	);
-
 	// Monotonically increasing TAI seconds since 1970-01-01 00:00:00 TAI
 	const double tai_posix =
-		tai_tudat_epoch + static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME) + leap_epoch;
+		tai_tudat_epoch + static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME) + J2000_TAI_MINUS_UTC;
 
 	// Invert TAI POSIX → UTC POSIX via fixed-point iteration.
 	// Start conservatively below the correct UTC (TAI - UTC is at most ~50 s historically)

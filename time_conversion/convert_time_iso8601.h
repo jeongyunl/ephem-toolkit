@@ -1,25 +1,15 @@
 #pragma once
 
+#include "convert_time_common.h"
+
 #include <cstdint>
 #include <string>
 #include <vector>
 
-// Time unit constants
-constexpr std::int64_t NANOSECONDS_PER_SECOND = 1000000000LL;
-constexpr std::int64_t SECONDS_PER_MINUTE = 60;
-constexpr std::int64_t SECONDS_PER_HOUR = 3600;
-constexpr std::int64_t SECONDS_PER_DAY = 86400;
-
-// Gregorian calendar constants (used in posix_days_from_civil)
+// Gregorian calendar constants (used in calendar_date_to_posix_days)
 constexpr int MONTH_LENGTH_ENCODING = 153; // Encodes non-uniform month lengths: (153*m+2)/5
 constexpr std::int64_t GREGORIAN_ERA_DAYS = 146097; // Days per 400-year Gregorian era
 constexpr std::int64_t POSIX_EPOCH_DAY_OFFSET = 719468; // Days from proleptic epoch to POSIX epoch
-
-struct LeapTransition
-{
-	std::int64_t transition_posix_epoch;
-	int correction_seconds;
-};
 
 struct ParsedUtcIso
 {
@@ -45,7 +35,7 @@ inline std::int64_t pow10_i64(std::size_t exponent)
 }
 
 // Convert a calendar date to the number of days since the POSIX epoch (1970-01-01).
-constexpr std::int64_t posix_days_from_civil(int year, unsigned month, unsigned day) noexcept
+constexpr std::int64_t calendar_date_to_posix_days(int year, unsigned month, unsigned day) noexcept
 {
 	// Shift January and February to months 13 and 14 of the previous year so that
 	// the leap day (Feb 29) always falls at the end of the shifted year, simplifying
@@ -76,20 +66,73 @@ constexpr std::int64_t posix_days_from_civil(int year, unsigned month, unsigned 
 		- POSIX_EPOCH_DAY_OFFSET;
 }
 
-const std::vector<LeapTransition>& get_zoneinfo_leap_transitions();
+// Inverse of calendar_date_to_posix_days: converts POSIX days to calendar date.
+// This implementation carefully reverses the forward algorithm.
+constexpr void
+posix_days_to_calendar_date(std::int64_t posix_days, int& year, unsigned& month, unsigned& day) noexcept
+{
+	// Add back POSIX_EPOCH_DAY_OFFSET to get days from proleptic Gregorian epoch
+	std::int64_t days = posix_days + POSIX_EPOCH_DAY_OFFSET;
 
-double cumulative_leap_correction(
-	const std::vector<LeapTransition>& transitions,
-	double utc_posix_epoch,
-	bool include_transition_at_equal
+	// Calculate 400-year era
+	std::int64_t era;
+	std::int64_t day_of_era;
+	if(days >= 0)
+	{
+		era = days / GREGORIAN_ERA_DAYS;
+		day_of_era = days % GREGORIAN_ERA_DAYS;
+	}
+	else
+	{
+		// For negative days, we need careful handling of the division
+		era = (days - (GREGORIAN_ERA_DAYS - 1)) / GREGORIAN_ERA_DAYS;
+		day_of_era = days - era * GREGORIAN_ERA_DAYS;
+	}
+
+	// Calculate year within 400-year era
+	// day_of_era ranges from 0 to 146096
+	std::int64_t year_of_era = (day_of_era * 400) / GREGORIAN_ERA_DAYS;
+	if(year_of_era >= 400)
+	{
+		year_of_era = 399;
+	}
+
+	// Calculate day within year (0-365)
+	std::int64_t day_of_year = day_of_era - (year_of_era * 365 + year_of_era / 4 - year_of_era / 100);
+
+	// Convert day_of_year to month and day using the inverse of the shifted-month formula
+	// Forward: (153*m + 2)/5 where m is shifted month (0=Mar, 1=Apr, ..., 9=Dec, 10=Jan, 11=Feb)
+	std::int64_t month_shifted = (5 * day_of_year + 2) / 153;
+
+	// Map shifted month back to actual month and year
+	// Shifted month 0-9 maps to months 3-12 in the same year
+	// Shifted month 10-11 maps to months 1-2 in the NEXT year
+	year = static_cast<int>(era * 400 + year_of_era);
+	if(month_shifted < 10)
+	{
+		month = static_cast<unsigned>(month_shifted + 3);
+	}
+	else
+	{
+		month = static_cast<unsigned>(month_shifted - 9);
+		year += 1;
+	}
+
+	// Calculate day within month (1-based)
+	day = static_cast<unsigned>(day_of_year - (153 * month_shifted + 2) / 5 + 1);
+}
+
+ParsedUtcIso utc_iso_to_parsed_utc_iso(const std::string& utc_iso);
+std::string parsed_utc_iso_to_utc_iso(
+	const ParsedUtcIso& parsed_utc_iso,
+	bool use_t_separator = true,
+	int fractional_second_places = 9
 );
-
-ParsedUtcIso parse_iso8601_utc(const std::string& iso);
 
 // UTC J2000 epoch: 2000-01-01 12:00:00 UTC
 constexpr auto UTC_J2000_EPOCH_IN_POSIX_TIME =
-	posix_days_from_civil(2000, 1, 1) * SECONDS_PER_DAY + 12 * SECONDS_PER_HOUR;
+	calendar_date_to_posix_days(2000, 1, 1) * SECONDS_PER_DAY + 12 * SECONDS_PER_HOUR;
 
 // TAI epoch = 2000-01-01 12:00:00 TAI = 2000-01-01 11:59:28 UTC
-constexpr auto TAI_J2000_EPOCH_IN_POSIX_TIME = posix_days_from_civil(2000, 1, 1) * SECONDS_PER_DAY
+constexpr auto TAI_J2000_EPOCH_IN_POSIX_TIME = calendar_date_to_posix_days(2000, 1, 1) * SECONDS_PER_DAY
 	+ 11 * SECONDS_PER_HOUR + 59 * SECONDS_PER_MINUTE + 28;
