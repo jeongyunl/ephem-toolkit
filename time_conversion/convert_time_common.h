@@ -33,10 +33,6 @@ constexpr double J2000_TAI_MINUS_UTC = 32.0; // TAI-UTC at J2000 epoch (s)
 #define HAS_CHRONO_TAI_CLOCK
 #endif
 
-#if _GLIBCXX_RELEASE >= 14
-#define HAS_CHRONO_FROM_STREAM
-#endif
-
 #elif defined(_LIBCPP_STD_VER)
 // If we are using LLVM libc++?
 

@@ -1,7 +1,5 @@
 add_library(
     convert_time STATIC
-    convert_time.cpp
-    convert_time_utc_iso.cpp
     convert_time_tudat.cpp
     convert_time_iso8601.cpp
     convert_time_j2000.cpp

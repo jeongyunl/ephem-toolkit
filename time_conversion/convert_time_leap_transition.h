@@ -5,7 +5,7 @@
 
 struct LeapTransition
 {
-	std::int64_t transition_posix_epoch;
+	std::int64_t transition_posix_time;
 	int correction_seconds;
 };
 

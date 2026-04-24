@@ -1,28 +1,35 @@
 #pragma once
 
 #include "convert_time_common.h"
+#include "convert_time_j2000.h"
 
 #include <chrono>
 #include <format>
 #include <string>
 
+template <typename Duration = std::chrono::utc_clock::duration>
+constexpr std::chrono::time_point<std::chrono::utc_clock, Duration> TAI_J2000_EPOCH_IN_UTC_TIME =
+	std::chrono::utc_time<Duration>{ std::chrono::duration_cast<Duration>(std::chrono::duration<double>{
+		static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME + J2000_TAI_MINUS_UTC - POST_1972_TAI_MINUS_UTC) }
+	) };
+
 //
-// utc_posix_to_*_time()
+// posix_to_*_time()
 //
 
 template <typename Duration = std::chrono::system_clock::duration>
-std::chrono::time_point<std::chrono::system_clock, Duration> utc_posix_to_sys_time(double utc_posix_time)
+std::chrono::time_point<std::chrono::system_clock, Duration> posix_to_sys_time(double posix_time)
 {
 	return std::chrono::sys_time<Duration>{
-		std::chrono::duration_cast<Duration>(std::chrono::duration<double>{ utc_posix_time })
+		std::chrono::duration_cast<Duration>(std::chrono::duration<double>{ posix_time })
 	};
 }
 
 #ifdef HAS_CHRONO_UTC_CLOCK
 template <typename Duration = std::chrono::utc_clock::duration>
-std::chrono::time_point<std::chrono::utc_clock, Duration> utc_posix_to_utc_time(double utc_posix_time)
+std::chrono::time_point<std::chrono::utc_clock, Duration> posix_to_utc_time(double posix_time)
 {
-	return std::chrono::utc_clock::from_sys(utc_posix_to_sys_time<Duration>(utc_posix_time));
+	return std::chrono::utc_clock::from_sys(posix_to_sys_time<Duration>(posix_time));
 }
 #endif
 
@@ -35,69 +42,106 @@ std::chrono::time_point<std::chrono::utc_clock, Duration> utc_posix_to_utc_time(
 // We convert via posix time -> utc_time -> tai_time using chrono clock conversions.
 // Note: this does not preserve the leap-second label (23:59:60) because POSIX cannot represent it.
 template <typename Duration = std::chrono::tai_clock::duration>
-std::chrono::time_point<std::chrono::tai_clock, Duration> utc_posix_to_tai_time(double utc_posix_time)
+std::chrono::time_point<std::chrono::tai_clock, Duration> posix_to_tai_time(double posix_time)
 {
-	const auto utc_time = utc_posix_to_utc_time<std::chrono::utc_clock::duration>(utc_posix_time);
-	const auto tai_time = std::chrono::tai_clock::from_utc(utc_time);
-	return std::chrono::time_point_cast<Duration>(tai_time);
+	const auto utc_time = posix_to_utc_time<Duration>(posix_time);
+	return std::chrono::tai_clock::from_utc(utc_time);
 }
 #endif
 
 //
-// utc_tudat_to_*_time() functions
+// utc_j2000_to_*_time() functions
 //
 
 template <typename Duration = std::chrono::system_clock::duration>
-std::chrono::time_point<std::chrono::system_clock, Duration> utc_tudat_to_sys_time(double utc_tudat_epoch)
+std::chrono::time_point<std::chrono::system_clock, Duration> utc_j2000_to_sys_time(double utc_j2000)
 {
-	const double utc_posix_time = utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_J200_EPOCH;
-
-	return utc_posix_to_sys_time<Duration>(utc_posix_time);
+	const double posix_time = utc_j2000_to_posix(utc_j2000);
+	return posix_to_sys_time<Duration>(posix_time);
 }
 
 #ifdef HAS_CHRONO_UTC_CLOCK
 template <typename Duration = std::chrono::utc_clock::duration>
-std::chrono::time_point<std::chrono::utc_clock, Duration> utc_tudat_to_utc_time(double utc_tudat_epoch)
+std::chrono::time_point<std::chrono::utc_clock, Duration> utc_j2000_to_utc_time(double utc_j2000)
 {
-	const double utc_posix_time = utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_J200_EPOCH;
-
-	return utc_posix_to_utc_time<Duration>(utc_posix_time);
+	const double posix_time = utc_j2000_to_posix(utc_j2000);
+	return posix_to_utc_time<Duration>(posix_time);
 }
 #endif
 
 #ifdef HAS_CHRONO_TAI_CLOCK
 template <typename Duration = std::chrono::tai_clock::duration>
-std::chrono::time_point<std::chrono::tai_clock, Duration> utc_tudat_to_tai_time(double utc_tudat_epoch)
+std::chrono::time_point<std::chrono::tai_clock, Duration> utc_j2000_to_tai_time(double utc_j2000)
 {
-	const double utc_posix_time = utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_J200_EPOCH;
-	return utc_posix_to_tai_time<Duration>(utc_posix_time);
+	const double posix_time = utc_j2000_to_posix(utc_j2000);
+	return posix_to_tai_time<Duration>(posix_time);
 }
 #endif
 
 //
-// tai_tudat_to_*() functions
+// tai_j2000_to_*_time() functions
 //
 
-extern double tai_tudat_to_utc_posix(double tai_tudat_epoch);
-
 template <typename Duration = std::chrono::system_clock::duration>
-std::chrono::time_point<std::chrono::system_clock, Duration> tai_tudat_to_sys_time(double tai_tudat_epoch)
+std::chrono::time_point<std::chrono::system_clock, Duration> tai_j2000_to_sys_time(double tai_j2000)
 {
 	// TUDAT epochs:
 	// - UTC TUDAT epoch is J2000: 2000-01-01 12:00:00 UTC
 	// - TAI TUDAT epoch is J2000: 2000-01-01 12:00:00 TAI
 	//
 	// Convert TAI(TUDAT) -> UTC(POSIX) using the existing numeric conversion, then map to sys_time.
-	const double utc_posix_time = tai_tudat_to_utc_posix(tai_tudat_epoch);
-	return utc_posix_to_sys_time<Duration>(utc_posix_time);
+	const double posix_time = tai_j2000_to_posix(tai_j2000);
+	return posix_to_sys_time<Duration>(posix_time);
 }
 
 #ifdef HAS_CHRONO_UTC_CLOCK
 template <typename Duration = std::chrono::utc_clock::duration>
-std::chrono::time_point<std::chrono::utc_clock, Duration> tai_tudat_to_utc_time(double tai_tudat_epoch)
+std::chrono::time_point<std::chrono::utc_clock, Duration> tai_j2000_to_utc_time(double tai_j2000)
 {
-	const double utc_posix_time = tai_tudat_to_utc_posix(tai_tudat_epoch);
-	return utc_posix_to_utc_time<Duration>(utc_posix_time);
+	return TAI_J2000_EPOCH_IN_UTC_TIME<Duration>
+		+ std::chrono::duration_cast<Duration>(std::chrono::duration<double>{ tai_j2000 });
+}
+#endif
+
+//
+// tt_j2000_to_*_time() functions
+//
+
+template <typename Duration = std::chrono::system_clock::duration>
+std::chrono::time_point<std::chrono::system_clock, Duration> tt_j2000_to_sys_time(double tt_j2000)
+{
+	// Convert TT(TUDAT) -> UTC(POSIX) using the existing numeric conversion, then map to sys_time.
+	const double posix_time = tt_j2000_to_posix(tt_j2000);
+	return posix_to_sys_time<Duration>(posix_time);
+}
+
+#ifdef HAS_CHRONO_UTC_CLOCK
+template <typename Duration = std::chrono::utc_clock::duration>
+std::chrono::time_point<std::chrono::utc_clock, Duration> tt_j2000_to_utc_time(double tt_j2000)
+{
+	const auto tai_j2000 = tt_j2000_to_tai_j2000(tt_j2000);
+	return tai_j2000_to_utc_time<Duration>(tai_j2000);
+}
+#endif
+
+//
+// tdb_j2000_to_*_time() functions
+//
+
+template <typename Duration = std::chrono::system_clock::duration>
+std::chrono::time_point<std::chrono::system_clock, Duration> tdb_j2000_to_sys_time(double tdb_j2000)
+{
+	// Convert TDB(TUDAT) -> UTC(POSIX) using the existing numeric conversion, then map to sys_time.
+	const double posix_time = tdb_j2000_to_posix(tdb_j2000);
+	return posix_to_sys_time<Duration>(posix_time);
+}
+
+#ifdef HAS_CHRONO_UTC_CLOCK
+template <typename Duration = std::chrono::utc_clock::duration>
+std::chrono::time_point<std::chrono::utc_clock, Duration> tdb_j2000_to_utc_time(double tdb_j2000)
+{
+	const auto tai_j2000 = tdb_j2000_to_tai_j2000(tdb_j2000);
+	return tai_j2000_to_utc_time<Duration>(tai_j2000);
 }
 #endif
 
@@ -130,3 +174,76 @@ std::string utc_time_to_utc_iso(std::chrono::time_point<std::chrono::utc_clock, 
 	return std::format("{:%FT%T}", utc_time);
 }
 #endif // HAS_CHRONO_UTC_CLOCK
+
+template <typename Duration = std::chrono::system_clock::duration>
+std::chrono::time_point<std::chrono::system_clock, Duration>
+parsed_utc_iso_to_sys_time(const ParsedUtcIso& parsed_utc_iso)
+{
+	// Convert the parsed ISO-8601 time to a POSIX epoch, then map to sys_time.
+	const double posix_time = parsed_utc_iso_to_posix(parsed_utc_iso);
+	return posix_to_sys_time<Duration>(posix_time);
+}
+
+template <typename Duration = std::chrono::system_clock::duration>
+std::chrono::time_point<std::chrono::system_clock, Duration> utc_iso_to_sys_time(const std::string& iso_string
+)
+{
+	const ParsedUtcIso parsed_utc_iso = utc_iso_to_parsed_utc_iso(iso_string);
+	return parsed_utc_iso_to_sys_time<Duration>(parsed_utc_iso);
+}
+
+#ifdef HAS_CHRONO_UTC_CLOCK
+// Convert a parsed ISO-8601 UTC timestamp to a std::chrono::utc_time, preserving leap-second information.
+//
+// Rationale:
+// - parsed_utc_iso_to_sys_time() maps an ISO leap second (..:59:60) to the POSIX/sys_time instant
+//   of the following second (00:00:00 of the next day), because POSIX has no leap seconds.
+// - std::chrono::utc_clock::from_sys() will therefore yield a utc_time that is normalized and
+//   typically not marked as a leap second.
+// - To preserve the leap-second label for round-tripping/formatting, we detect second==60 and
+//   subtract one second after conversion, so the resulting utc_time falls into the leap second.
+//
+// Note: timezone offsets are already applied in parsed_utc_iso_to_sys_time().
+template <typename Duration = std::chrono::utc_clock::duration>
+std::chrono::time_point<std::chrono::utc_clock, Duration>
+parsed_utc_iso_to_utc_time(const ParsedUtcIso& parsed_utc_iso)
+{
+	const double posix_time = parsed_utc_iso_to_posix(parsed_utc_iso);
+	const auto sys_time = posix_to_sys_time<Duration>(posix_time);
+	auto utc_time = std::chrono::utc_clock::from_sys(sys_time);
+
+	const bool is_leap_second = (parsed_utc_iso.second == 60);
+	if(is_leap_second)
+	{
+		utc_time -= std::chrono::seconds{ 1 };
+	}
+
+	return utc_time;
+}
+
+template <typename Duration = std::chrono::utc_clock::duration>
+std::chrono::time_point<std::chrono::utc_clock, Duration> utc_iso_to_utc_time(const std::string& iso_string)
+{
+	const ParsedUtcIso parsed_utc_iso = utc_iso_to_parsed_utc_iso(iso_string);
+	return parsed_utc_iso_to_utc_time<Duration>(parsed_utc_iso);
+}
+
+#ifdef HAS_CHRONO_TAI_CLOCK
+template <typename Duration = std::chrono::tai_clock::duration>
+std::chrono::time_point<std::chrono::tai_clock, Duration>
+parsed_utc_iso_to_tai_time(const ParsedUtcIso& parsed_utc_iso)
+{
+	const auto utc_time = parsed_utc_iso_to_utc_time<Duration>(parsed_utc_iso);
+	return std::chrono::tai_clock::from_utc(utc_time);
+}
+
+template <typename Duration = std::chrono::tai_clock::duration>
+std::chrono::time_point<std::chrono::tai_clock, Duration> utc_iso_to_tai_time(const std::string& iso_string)
+{
+	const ParsedUtcIso parsed_utc_iso = utc_iso_to_parsed_utc_iso(iso_string);
+	return parsed_utc_iso_to_tai_time<Duration>(parsed_utc_iso);
+}
+
+#endif // HAS_CHRONO_TAI_CLOCK
+
+#endif

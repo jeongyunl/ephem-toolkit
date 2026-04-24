@@ -3,7 +3,6 @@
 
 #include "convert_time_iso8601.h"
 #include "convert_time_leap_transition.h"
-#include "convert_time_utc_iso.h"
 
 #include <cmath>
 #include <cstdint>
@@ -54,9 +53,9 @@ ParsedUtcIso posix_to_parsed_utc_iso(double posix_time)
 {
 	ParsedUtcIso result;
 
-	const double floored_posix_epoch = std::floor(posix_time);
-	std::int64_t posix_seconds = static_cast<std::int64_t>(floored_posix_epoch);
-	result.nanos = extract_nanoseconds(posix_time - floored_posix_epoch);
+	const double floored_posix_time = std::floor(posix_time);
+	std::int64_t posix_seconds = static_cast<std::int64_t>(floored_posix_time);
+	result.nanos = extract_nanoseconds(posix_time - floored_posix_time);
 
 	std::int64_t posix_days = posix_seconds / SECONDS_PER_DAY;
 	std::int64_t seconds_within_day = posix_seconds % SECONDS_PER_DAY;
@@ -106,11 +105,11 @@ double posix_to_tai_j2000(double posix_time)
 
 // construct a 23:59:60 representation with fractional offset within the leap second
 static ParsedUtcIso
-posix_leap_second_transition_to_parsed_utc_iso(double transition_posix_epoch, double fractional_second)
+posix_leap_second_transition_to_parsed_utc_iso(double transition_posix_time, double fractional_second)
 {
 	ParsedUtcIso result;
 
-	const std::int64_t transition_days = static_cast<std::int64_t>(transition_posix_epoch) / SECONDS_PER_DAY;
+	const std::int64_t transition_days = static_cast<std::int64_t>(transition_posix_time) / SECONDS_PER_DAY;
 
 	posix_days_to_calendar_date(transition_days - 1, result.year, result.month, result.day);
 
@@ -175,10 +174,10 @@ ParsedUtcIso tai_j2000_to_parsed_utc_iso(double tai_j2000)
 
 	// Convert input TAI J2000 to TAI POSIX epoch (seconds since 1970-01-01 00:00:00 in TAI)
 	// = J2000 offset + TAI J2000 epoch in POSIX + accumulated leap corrections at epoch
-	const double tai_posix_epoch =
+	const double tai_j2000_in_posix_time =
 		tai_j2000 + static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME) + J2000_TAI_MINUS_UTC;
 
-	// PHASE 1: Check if tai_posix_epoch falls within a leap-second interval (23:59:60)
+	// PHASE 1: Check if tai_j2000_in_posix_time falls within a leap-second interval (23:59:60)
 	// A leap second occupies exactly 1 second in TAI immediately before the UTC transition
 	for(const LeapTransition& transition : transitions)
 	{
@@ -189,24 +188,24 @@ ParsedUtcIso tai_j2000_to_parsed_utc_iso(double tai_j2000)
 		}
 
 		// This transition marks the boundary where UTC jumps (e.g., 23:59:59 → 00:00:00 next day)
-		const double transition_posix_epoch = static_cast<double>(transition.transition_posix_epoch);
+		const double transition_posix_time = static_cast<double>(transition.transition_posix_time);
 
 		// Leap correction just before this transition (does not include this leap second itself)
-		const double leap_before = cumulative_leap_correction(transitions, transition_posix_epoch, false);
+		const double leap_before = cumulative_leap_correction(transitions, transition_posix_time, false);
 
 		// In TAI, the leap-second interval spans [transition + leap_before, transition + leap_before + 1)
 		// This maps to UTC 23:59:60 (and fractional seconds within that interval)
-		const double leap_second_tai_start = transition_posix_epoch + leap_before;
+		const double leap_second_tai_start = transition_posix_time + leap_before;
 		// Leap-second duration is exactly 1 SI second.
 		const double leap_second_tai_end = leap_second_tai_start + 1.0;
 
 		// Check if our input instant falls within this leap-second interval
-		if(tai_posix_epoch >= leap_second_tai_start && tai_posix_epoch < leap_second_tai_end)
+		if(tai_j2000_in_posix_time >= leap_second_tai_start && tai_j2000_in_posix_time < leap_second_tai_end)
 		{
 			// Yes: construct a 23:59:60 representation with fractional offset within the leap second
 			return posix_leap_second_transition_to_parsed_utc_iso(
-				transition_posix_epoch,
-				tai_posix_epoch - leap_second_tai_start // Fractional position within leap second
+				transition_posix_time,
+				tai_j2000_in_posix_time - leap_second_tai_start // Fractional position within leap second
 			);
 		}
 	}
@@ -214,8 +213,8 @@ ParsedUtcIso tai_j2000_to_parsed_utc_iso(double tai_j2000)
 	// PHASE 2: TAI instant is not in a leap-second interval; use binary search to find UTC POSIX epoch
 	// Initial bounds: Presumably, TAI can differ from UTC by at most ~64 seconds
 	// We search for the UTC POSIX instant whose corresponding TAI value equals our input
-	double lower = tai_posix_epoch - BINARY_SEARCH_LOWER_MARGIN_SECONDS;
-	double upper = tai_posix_epoch + BINARY_SEARCH_UPPER_MARGIN_SECONDS;
+	double lower = tai_j2000_in_posix_time - BINARY_SEARCH_LOWER_MARGIN_SECONDS;
+	double upper = tai_j2000_in_posix_time + BINARY_SEARCH_UPPER_MARGIN_SECONDS;
 
 	// Binary search converges in ~32 iterations for the known leap-second table size
 	for(int iteration = 0; iteration < BINARY_SEARCH_ITERATIONS; ++iteration)
@@ -235,7 +234,7 @@ ParsedUtcIso tai_j2000_to_parsed_utc_iso(double tai_j2000)
 		const double midpoint_tai = midpoint + cumulative_leap_correction(transitions, midpoint, true);
 
 		// Adjust search interval based on whether midpoint's TAI is too small or too large
-		if(midpoint_tai < tai_posix_epoch)
+		if(midpoint_tai < tai_j2000_in_posix_time)
 		{
 			lower = midpoint; // Move search interval up
 		}

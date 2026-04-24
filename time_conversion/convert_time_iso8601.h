@@ -122,17 +122,26 @@ posix_days_to_calendar_date(std::int64_t posix_days, int& year, unsigned& month,
 	day = static_cast<unsigned>(day_of_year - (153 * month_shifted + 2) / 5 + 1);
 }
 
-ParsedUtcIso utc_iso_to_parsed_utc_iso(const std::string& utc_iso);
+extern ParsedUtcIso utc_iso_to_parsed_utc_iso(const std::string& utc_iso);
+
 std::string parsed_utc_iso_to_utc_iso(
 	const ParsedUtcIso& parsed_utc_iso,
 	bool use_t_separator = true,
 	int fractional_second_places = 9
 );
 
+inline std::string utc_iso_to_utc_iso(const std::string& iso_string)
+{
+	return iso_string;
+}
+
 // UTC J2000 epoch: 2000-01-01 12:00:00 UTC
 constexpr auto UTC_J2000_EPOCH_IN_POSIX_TIME =
 	calendar_date_to_posix_days(2000, 1, 1) * SECONDS_PER_DAY + 12 * SECONDS_PER_HOUR;
 
-// TAI epoch = 2000-01-01 12:00:00 TAI = 2000-01-01 11:59:28 UTC
+// TAI J2000 epoch = 2000-01-01 12:00:00 TAI = 2000-01-01 11:59:28 UTC
 constexpr auto TAI_J2000_EPOCH_IN_POSIX_TIME = calendar_date_to_posix_days(2000, 1, 1) * SECONDS_PER_DAY
 	+ 11 * SECONDS_PER_HOUR + 59 * SECONDS_PER_MINUTE + 28;
+
+// 1972-01-01 00:00:00 UTC is the synchronization point of UTC and TAI (with 10 seconds offset)
+constexpr auto UTC_1972_EPOCH_IN_POSIX_TIME = calendar_date_to_posix_days(1972, 1, 1) * SECONDS_PER_DAY;

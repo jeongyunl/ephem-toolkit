@@ -1,7 +1,6 @@
 #include "convert_time.h"
 #include "convert_time_chrono.h"
 #include "convert_time_j2000.h"
-#include "convert_time_utc_iso.h"
 #include "test/convert_time_common_gtest.h"
 
 #include <gtest/gtest.h>
@@ -17,7 +16,7 @@ using convert_time_test::EpochRecord;
 class ConvertTimeDataDrivenTest : public ::testing::Test
 {
 protected:
-	static void SetUpTestSuite() { }
+	static void SetUpTestSuite() {}
 };
 
 } // namespace
@@ -27,15 +26,15 @@ TEST_F(ConvertTimeDataDrivenTest, IsoToAllNumericScalesMatchReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
-		EXPECT_NEAR(utc_iso_to_utc_posix(record.iso), record.posix, convert_time_test::kTolExactLike)
+		EXPECT_NEAR(utc_iso_to_posix(record.iso), record.posix, convert_time_test::kTolExactLike)
 			<< record.iso;
-		EXPECT_NEAR(utc_iso_to_utc_tudat(record.iso), record.utc, convert_time_test::kTolExactLike)
+		EXPECT_NEAR(utc_iso_to_utc_j2000(record.iso), record.utc, convert_time_test::kTolExactLike)
 			<< record.iso;
-		EXPECT_NEAR(utc_iso_to_tai_tudat(record.iso), record.tai, convert_time_test::kTolTimeScale)
+		EXPECT_NEAR(utc_iso_to_tai_j2000(record.iso), record.tai, convert_time_test::kTolTimeScale)
 			<< record.iso;
-		EXPECT_NEAR(utc_iso_to_tt_tudat(record.iso), record.tt, convert_time_test::kTolTimeScale)
+		EXPECT_NEAR(utc_iso_to_tt_j2000(record.iso), record.tt, convert_time_test::kTolTimeScale)
 			<< record.iso;
-		EXPECT_NEAR(utc_iso_to_tdb_tudat(record.iso), record.tdb, convert_time_test::kTolTdb) << record.iso;
+		EXPECT_NEAR(utc_iso_to_tdb_j2000(record.iso), record.tdb, convert_time_test::kTolTdb) << record.iso;
 
 		const auto sys_time = utc_iso_to_sys_time(record.iso);
 		EXPECT_NEAR(
@@ -52,7 +51,7 @@ TEST_F(ConvertTimeDataDrivenTest, IsoToAllNumericScalesMatchReferenceData)
 	}
 }
 
-// utc_posix_to_*() functions are tested here
+// posix_to_*() functions are tested here
 TEST_F(ConvertTimeDataDrivenTest, PosixToOtherScalesMatchReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
@@ -64,19 +63,18 @@ TEST_F(ConvertTimeDataDrivenTest, PosixToOtherScalesMatchReferenceData)
 			continue;
 		}
 
-		const auto iso_from_tudat = utc_posix_to_utc_iso(record.posix);
+		const auto iso_from_tudat = posix_to_utc_iso(record.posix);
 		EXPECT_TRUE(iso_8601_equal(iso_from_tudat, record.iso, 3)) << iso_from_tudat << " != " << record.iso;
 
-		EXPECT_NEAR(utc_posix_to_utc_tudat(record.posix), record.utc, convert_time_test::kTolExactLike)
+		EXPECT_NEAR(posix_to_utc_j2000(record.posix), record.utc, convert_time_test::kTolExactLike)
 			<< record.iso;
-		EXPECT_NEAR(utc_posix_to_tai_tudat(record.posix), record.tai, convert_time_test::kTolExactLike)
+		EXPECT_NEAR(posix_to_tai_j2000(record.posix), record.tai, convert_time_test::kTolExactLike)
 			<< record.iso;
-		EXPECT_NEAR(utc_posix_to_tt_tudat(record.posix), record.tt, convert_time_test::kTolExactLike)
+		EXPECT_NEAR(posix_to_tt_j2000(record.posix), record.tt, convert_time_test::kTolExactLike)
 			<< record.iso;
-		EXPECT_NEAR(utc_posix_to_tdb_tudat(record.posix), record.tdb, convert_time_test::kTolTdb)
-			<< record.iso;
+		EXPECT_NEAR(posix_to_tdb_j2000(record.posix), record.tdb, convert_time_test::kTolTdb) << record.iso;
 
-		const auto sys_time = utc_posix_to_sys_time(record.posix);
+		const auto sys_time = posix_to_sys_time(record.posix);
 		EXPECT_NEAR(
 			std::chrono::duration<double>(sys_time.time_since_epoch()).count(),
 			record.posix,
@@ -84,20 +82,20 @@ TEST_F(ConvertTimeDataDrivenTest, PosixToOtherScalesMatchReferenceData)
 		) << record.iso;
 
 #ifdef HAS_CHRONO_UTC_CLOCK
-		const auto utc_time = utc_posix_to_utc_time(record.posix);
+		const auto utc_time = posix_to_utc_time(record.posix);
 		const auto iso_from_utc = std::format("{:%F %T}", utc_time);
 		EXPECT_TRUE(iso_8601_equal(record.iso, iso_from_utc, 3)) << record.iso << " != " << iso_from_utc;
 #endif
 
 #ifdef HAS_CHRONO_TAI_CLOCK
-		const auto tai_time = utc_posix_to_tai_time(record.posix);
+		const auto tai_time = posix_to_tai_time(record.posix);
 		const auto iso_from_tai = std::format("{:%F %T}", std::chrono::tai_clock::to_utc(tai_time));
 		EXPECT_TRUE(iso_8601_equal(record.iso, iso_from_tai, 3)) << record.iso << " != " << iso_from_tai;
 #endif
 	}
 }
 
-// utc_tudat_to_*() functions are tested here
+// utc_j2000_to_*() functions are tested here
 TEST_F(ConvertTimeDataDrivenTest, UtcToOtherScalesMatchReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
@@ -109,18 +107,19 @@ TEST_F(ConvertTimeDataDrivenTest, UtcToOtherScalesMatchReferenceData)
 			continue;
 		}
 
-		const auto iso_from_tudat = utc_tudat_to_utc_iso(record.utc);
-		EXPECT_TRUE(iso_8601_equal(iso_from_tudat, record.iso, 3)) << iso_from_tudat << " != " << record.iso;
+		const auto iso_from_utc_j2000 = utc_j2000_to_utc_iso(record.utc);
+		EXPECT_TRUE(iso_8601_equal(iso_from_utc_j2000, record.iso, 3))
+			<< iso_from_utc_j2000 << " != " << record.iso;
 
-		EXPECT_NEAR(utc_tudat_to_utc_posix(record.utc), record.posix, convert_time_test::kTolExactLike)
+		EXPECT_NEAR(utc_j2000_to_posix(record.utc), record.posix, convert_time_test::kTolExactLike)
 			<< record.iso;
-		EXPECT_NEAR(utc_tudat_to_tai_tudat(record.utc), record.tai, convert_time_test::kTolExactLike)
+		EXPECT_NEAR(utc_j2000_to_tai_j2000(record.utc), record.tai, convert_time_test::kTolExactLike)
 			<< record.iso;
-		EXPECT_NEAR(utc_tudat_to_tt_tudat(record.utc), record.tt, convert_time_test::kTolExactLike)
+		EXPECT_NEAR(utc_j2000_to_tt_j2000(record.utc), record.tt, convert_time_test::kTolExactLike)
 			<< record.iso;
-		EXPECT_NEAR(utc_tudat_to_tdb_tudat(record.utc), record.tdb, convert_time_test::kTolTdb) << record.iso;
+		EXPECT_NEAR(utc_j2000_to_tdb_j2000(record.utc), record.tdb, convert_time_test::kTolTdb) << record.iso;
 
-		const auto sys_time = utc_tudat_to_sys_time(record.utc);
+		const auto sys_time = utc_j2000_to_sys_time(record.utc);
 		EXPECT_NEAR(
 			std::chrono::duration<double>(sys_time.time_since_epoch()).count(),
 			record.posix,
@@ -128,13 +127,13 @@ TEST_F(ConvertTimeDataDrivenTest, UtcToOtherScalesMatchReferenceData)
 		) << record.iso;
 
 #ifdef HAS_CHRONO_UTC_CLOCK
-		const auto utc_time = utc_tudat_to_utc_time(record.utc);
+		const auto utc_time = utc_j2000_to_utc_time(record.utc);
 		const auto iso_from_utc = std::format("{:%F %T}", utc_time);
 		EXPECT_TRUE(iso_8601_equal(record.iso, iso_from_utc, 3)) << record.iso << " != " << iso_from_utc;
 #endif
 
 #ifdef HAS_CHRONO_TAI_CLOCK
-		const auto tai_time = utc_tudat_to_tai_time(record.utc);
+		const auto tai_time = utc_j2000_to_tai_time(record.utc);
 		const auto iso_from_tai = std::format("{:%F %T}", std::chrono::tai_clock::to_utc(tai_time));
 		EXPECT_TRUE(iso_8601_equal(record.iso, iso_from_tai, 3)) << record.iso << " != " << iso_from_tai;
 #endif
@@ -145,29 +144,35 @@ TEST_F(ConvertTimeDataDrivenTest, TaiToOtherScalesMatchReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
-		const auto iso_from_tudat = tai_tudat_to_utc_iso(record.tai);
-		EXPECT_TRUE(iso_8601_equal(iso_from_tudat, record.iso, 3)) << iso_from_tudat << " != " << record.iso;
+		EXPECT_NEAR(tai_j2000_to_posix(record.tai), record.posix, convert_time_test::kTolExactLike)
+			<< record.iso;
+		EXPECT_NEAR(tai_j2000_to_utc_j2000(record.tai), record.utc, convert_time_test::kTolExactLike)
+			<< record.iso;
+		EXPECT_NEAR(tai_j2000_to_tt_j2000(record.tai), record.tt, convert_time_test::kTolExactLike)
+			<< record.iso;
+		EXPECT_NEAR(tai_j2000_to_tdb_j2000(record.tai), record.tdb, convert_time_test::kTolTdb) << record.iso;
 
-		EXPECT_NEAR(tai_tudat_to_utc_posix(record.tai), record.posix, convert_time_test::kTolExactLike)
-			<< record.iso;
-		EXPECT_NEAR(tai_tudat_to_utc_tudat(record.tai), record.utc, convert_time_test::kTolExactLike)
-			<< record.iso;
-		EXPECT_NEAR(tai_tudat_to_tt_tudat(record.tai), record.tt, convert_time_test::kTolExactLike)
-			<< record.iso;
-		EXPECT_NEAR(tai_tudat_to_tdb_tudat(record.tai), record.tdb, convert_time_test::kTolTdb) << record.iso;
-
-		const auto sys_time = tai_tudat_to_sys_time(record.tai);
+		const auto sys_time = tai_j2000_to_sys_time(record.tai);
 		EXPECT_NEAR(
 			std::chrono::duration<double>(sys_time.time_since_epoch()).count(),
 			record.posix,
 			convert_time_test::kTolExactLike
 		) << record.iso;
 
+		// Before 1972, UTC and TAI were not synchronized, so the ISO string derived from TAI may not match
+		// the reference UTC ISO string.
+		if(record.posix >= UTC_1972_EPOCH_IN_POSIX_TIME)
+		{
+			const auto iso_from_tai_j2000 = tai_j2000_to_utc_iso(record.tai);
+			EXPECT_TRUE(iso_8601_equal(iso_from_tai_j2000, record.iso, 3))
+				<< iso_from_tai_j2000 << " != " << record.iso;
+
 #ifdef HAS_CHRONO_UTC_CLOCK
-		const auto utc_time = tai_tudat_to_utc_time(record.tai);
-		const auto iso_from_utc = std::format("{:%F %T}", utc_time);
-		EXPECT_TRUE(iso_8601_equal(record.iso, iso_from_utc, 3)) << record.iso << " != " << iso_from_utc;
+			const auto utc_time = tai_j2000_to_utc_time(record.tai);
+			const auto iso_from_utc = std::format("{:%F %T}", utc_time);
+			EXPECT_TRUE(iso_8601_equal(record.iso, iso_from_utc, 3)) << record.iso << " != " << iso_from_utc;
 #endif
+		}
 	}
 }
 
@@ -175,16 +180,28 @@ TEST_F(ConvertTimeDataDrivenTest, TtToOtherScalesMatchReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
-		const auto iso_from_tudat = tt_tudat_to_utc_iso(record.tt);
-		EXPECT_TRUE(iso_8601_equal(iso_from_tudat, record.iso, 3)) << iso_from_tudat << " != " << record.iso;
+		EXPECT_NEAR(tt_j2000_to_posix(record.tt), record.posix, convert_time_test::kTolExactLike)
+			<< record.iso;
+		EXPECT_NEAR(tt_j2000_to_utc_j2000(record.tt), record.utc, convert_time_test::kTolExactLike)
+			<< record.iso;
+		EXPECT_NEAR(tt_j2000_to_tai_j2000(record.tt), record.tai, convert_time_test::kTolExactLike)
+			<< record.iso;
+		EXPECT_NEAR(tt_j2000_to_tdb_j2000(record.tt), record.tdb, convert_time_test::kTolTdb) << record.iso;
 
-		EXPECT_NEAR(tt_tudat_to_utc_posix(record.tt), record.posix, convert_time_test::kTolExactLike)
-			<< record.iso;
-		EXPECT_NEAR(tt_tudat_to_utc_tudat(record.tt), record.utc, convert_time_test::kTolExactLike)
-			<< record.iso;
-		EXPECT_NEAR(tt_tudat_to_tai_tudat(record.tt), record.tai, convert_time_test::kTolExactLike)
-			<< record.iso;
-		EXPECT_NEAR(tt_tudat_to_tdb_tudat(record.tt), record.tdb, convert_time_test::kTolTdb) << record.iso;
+		// Before 1972, UTC and TAI (TT as well by proxy) were not synchronized, so the ISO string derived
+		// from TT may not match the reference UTC ISO string.
+		if(record.posix >= UTC_1972_EPOCH_IN_POSIX_TIME)
+		{
+			const auto iso_from_tt_j2000 = tt_j2000_to_utc_iso(record.tt);
+			EXPECT_TRUE(iso_8601_equal(iso_from_tt_j2000, record.iso, 3))
+				<< iso_from_tt_j2000 << " != " << record.iso;
+
+#ifdef HAS_CHRONO_UTC_CLOCK
+			const auto utc_time = tt_j2000_to_utc_time(record.tt);
+			const auto iso_from_utc = std::format("{:%F %T}", utc_time);
+			EXPECT_TRUE(iso_8601_equal(record.iso, iso_from_utc, 3)) << record.iso << " != " << iso_from_utc;
+#endif
+		}
 	}
 }
 
@@ -192,14 +209,25 @@ TEST_F(ConvertTimeDataDrivenTest, TdbToOtherScalesMatchReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
-		const auto iso_from_tudat = tdb_tudat_to_utc_iso(record.tdb);
-		EXPECT_TRUE(iso_8601_equal(iso_from_tudat, record.iso, 3)) << iso_from_tudat << " != " << record.iso;
+		EXPECT_NEAR(tdb_j2000_to_posix(record.tdb), record.posix, convert_time_test::kTolTdb) << record.iso;
+		EXPECT_NEAR(tdb_j2000_to_utc_j2000(record.tdb), record.utc, convert_time_test::kTolTdb) << record.iso;
+		EXPECT_NEAR(tdb_j2000_to_tai_j2000(record.tdb), record.tai, convert_time_test::kTolTdb) << record.iso;
+		EXPECT_NEAR(tdb_j2000_to_tt_j2000(record.tdb), record.tt, convert_time_test::kTolTdb) << record.iso;
 
-		EXPECT_NEAR(tdb_tudat_to_utc_posix(record.tdb), record.posix, convert_time_test::kTolTdb)
-			<< record.iso;
-		EXPECT_NEAR(tdb_tudat_to_utc_tudat(record.tdb), record.utc, convert_time_test::kTolTdb) << record.iso;
-		EXPECT_NEAR(tdb_tudat_to_tai_tudat(record.tdb), record.tai, convert_time_test::kTolTdb) << record.iso;
-		EXPECT_NEAR(tdb_tudat_to_tt_tudat(record.tdb), record.tt, convert_time_test::kTolTdb) << record.iso;
+		// Before 1972, UTC and TAI (TDB as well by proxy) were not synchronized, so the ISO string derived
+		// from TDB may not match the reference UTC ISO string.
+		if(record.posix >= UTC_1972_EPOCH_IN_POSIX_TIME)
+		{
+			const auto iso_from_tdb_j2000 = tdb_j2000_to_utc_iso(record.tdb);
+			EXPECT_TRUE(iso_8601_equal(iso_from_tdb_j2000, record.iso, 3))
+				<< iso_from_tdb_j2000 << " != " << record.iso;
+
+#ifdef HAS_CHRONO_UTC_CLOCK
+			const auto utc_time = tdb_j2000_to_utc_time(record.tdb);
+			const auto iso_from_utc = std::format("{:%F %T}", utc_time);
+			EXPECT_TRUE(iso_8601_equal(record.iso, iso_from_utc, 3)) << record.iso << " != " << iso_from_utc;
+#endif
+		}
 	}
 }
 
@@ -239,12 +267,12 @@ TEST_F(ConvertTimeDataDrivenTest, NumericRoundTripUsingUtcIsStableForNonLeapSeco
 			continue;
 		}
 
-		const double utc_from_posix = utc_posix_to_utc_tudat(record.posix);
-		const double posix_from_utc = utc_tudat_to_utc_posix(utc_from_posix);
+		const double utc_from_posix = posix_to_utc_j2000(record.posix);
+		const double posix_from_utc = utc_j2000_to_posix(utc_from_posix);
 		EXPECT_NEAR(posix_from_utc, record.posix, convert_time_test::kTolExactLike) << record.iso;
 
-		const double tai_from_utc = utc_tudat_to_tai_tudat(record.utc);
-		const double utc_from_tai = tai_tudat_to_utc_tudat(tai_from_utc);
+		const double tai_from_utc = utc_j2000_to_tai_j2000(record.utc);
+		const double utc_from_tai = tai_j2000_to_utc_j2000(tai_from_utc);
 		EXPECT_NEAR(utc_from_tai, record.utc, convert_time_test::kTolExactLike) << record.iso;
 	}
 }
@@ -266,7 +294,7 @@ TEST(ConvertTimeChrono, UtcPosixToSysTimeRoundTripIsStable)
 {
 	using namespace std::chrono;
 	const double posix = 98765.4321;
-	const auto sys_time = utc_posix_to_sys_time(posix);
+	const auto sys_time = posix_to_sys_time(posix);
 	EXPECT_NEAR(sys_time_to_utc_posix(sys_time), posix, 1.0e-9);
 }
 
@@ -274,7 +302,7 @@ TEST(ConvertTimeChrono, UtcPosixToSysTimeSupportsCustomDuration)
 {
 	using namespace std::chrono;
 	const double posix = 42.0;
-	const auto sys_time = utc_posix_to_sys_time<milliseconds>(posix);
+	const auto sys_time = posix_to_sys_time<milliseconds>(posix);
 	EXPECT_EQ(sys_time.time_since_epoch(), milliseconds{ 42000 });
 }
 
@@ -326,7 +354,7 @@ TEST(ConvertTimeChrono, UtcPosixToSysTimeTruncatesTowardZeroForMilliseconds)
 {
 	using namespace std::chrono;
 	const double posix = 1.2345;
-	const auto sys_time = utc_posix_to_sys_time<milliseconds>(posix);
+	const auto sys_time = posix_to_sys_time<milliseconds>(posix);
 	EXPECT_EQ(sys_time.time_since_epoch(), milliseconds{ 1234 });
 }
 
@@ -334,7 +362,7 @@ TEST(ConvertTimeChrono, UtcPosixToSysTimeHandlesNegativeEpochForMilliseconds)
 {
 	using namespace std::chrono;
 	const double posix = -1.25;
-	const auto sys_time = utc_posix_to_sys_time<milliseconds>(posix);
+	const auto sys_time = posix_to_sys_time<milliseconds>(posix);
 	EXPECT_EQ(sys_time.time_since_epoch(), milliseconds{ -1250 });
 }
 
@@ -358,7 +386,7 @@ TEST(ConvertTimeChrono, UtcPosixToUtcTimeSupportsCustomDuration)
 {
 	using namespace std::chrono;
 	const double posix = 42.0;
-	const auto t = utc_posix_to_utc_time<milliseconds>(posix);
+	const auto t = posix_to_utc_time<milliseconds>(posix);
 	EXPECT_EQ(t.time_since_epoch(), milliseconds{ 42000 });
 }
 
@@ -392,7 +420,7 @@ TEST(ConvertTimeChrono, UtcPosixToUtcTimeTruncatesTowardZeroForMilliseconds)
 {
 	using namespace std::chrono;
 	const double posix = 1.2345;
-	const auto t = utc_posix_to_utc_time<milliseconds>(posix);
+	const auto t = posix_to_utc_time<milliseconds>(posix);
 	EXPECT_EQ(t.time_since_epoch(), milliseconds{ 1234 });
 }
 
@@ -400,7 +428,7 @@ TEST(ConvertTimeChrono, UtcPosixToUtcTimeHandlesNegativeEpochForMilliseconds)
 {
 	using namespace std::chrono;
 	const double posix = -1.25;
-	const auto t = utc_posix_to_utc_time<milliseconds>(posix);
+	const auto t = posix_to_utc_time<milliseconds>(posix);
 	EXPECT_EQ(t.time_since_epoch(), milliseconds{ -1250 });
 }
 

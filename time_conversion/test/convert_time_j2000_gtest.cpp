@@ -78,16 +78,13 @@ TEST(ConvertTimeJ2000, IsoToJ2000MatchesReferenceData)
 		}
 
 		{
-			const auto utc_j2000_from_parsed = parsed_utc_iso_to_utc_j2000(
-				parsed_utc_iso
+			const auto utc_j2000_from_parsed = parsed_utc_iso_to_utc_j2000(parsed_utc_iso
 			); // Test that conversion from parsed struct doesn't throw
 
-			const ParsedUtcIso parsed_utc_iso_back = utc_j2000_to_parsed_utc_iso(
-				utc_j2000_from_parsed
+			const ParsedUtcIso parsed_utc_iso_back = utc_j2000_to_parsed_utc_iso(utc_j2000_from_parsed
 			); // Test that conversion back to parsed struct doesn't throw
 
-			const auto utc_j2000_from_back = parsed_utc_iso_to_utc_j2000(
-				parsed_utc_iso_back
+			const auto utc_j2000_from_back = parsed_utc_iso_to_utc_j2000(parsed_utc_iso_back
 			); // Test that conversion from parsed struct back to J2000 doesn't throw
 
 			EXPECT_NEAR(utc_j2000_from_back, utc_j2000_from_parsed, 1.0e-6)
@@ -98,16 +95,13 @@ TEST(ConvertTimeJ2000, IsoToJ2000MatchesReferenceData)
 			<< record.iso << " tai=" << record.tai;
 
 		{
-			const auto tai_j2000_from_parsed = parsed_utc_iso_to_tai_j2000(
-				parsed_utc_iso
+			const auto tai_j2000_from_parsed = parsed_utc_iso_to_tai_j2000(parsed_utc_iso
 			); // Test that conversion from parsed struct doesn't throw
 
-			const ParsedUtcIso parsed_utc_iso_back = tai_j2000_to_parsed_utc_iso(
-				tai_j2000_from_parsed
+			const ParsedUtcIso parsed_utc_iso_back = tai_j2000_to_parsed_utc_iso(tai_j2000_from_parsed
 			); // Test that conversion back to parsed struct doesn't throw
 
-			const auto tai_j2000_from_back = parsed_utc_iso_to_tai_j2000(
-				parsed_utc_iso_back
+			const auto tai_j2000_from_back = parsed_utc_iso_to_tai_j2000(parsed_utc_iso_back
 			); // Test that conversion from parsed struct back to J2000 doesn't throw
 
 			EXPECT_NEAR(tai_j2000_from_back, tai_j2000_from_parsed, 1.0e-6)

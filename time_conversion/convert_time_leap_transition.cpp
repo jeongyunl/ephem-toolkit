@@ -119,16 +119,16 @@ std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::string& le
 		}
 
 		const int month = month_name_to_number(mon);
-		const std::int64_t transition_posix_epoch =
+		const std::int64_t transition_posix_time =
 			calendar_date_to_posix_days(year, static_cast<unsigned>(month), static_cast<unsigned>(day))
 				* SECONDS_PER_DAY
 			+ sec_of_day;
 
-		out.push_back(LeapTransition{ transition_posix_epoch, sign == '+' ? 1 : -1 });
+		out.push_back(LeapTransition{ transition_posix_time, sign == '+' ? 1 : -1 });
 	}
 
 	std::sort(out.begin(), out.end(), [](const LeapTransition& a, const LeapTransition& b) {
-		return a.transition_posix_epoch < b.transition_posix_epoch;
+		return a.transition_posix_time < b.transition_posix_time;
 	});
 
 	return out;
@@ -172,7 +172,7 @@ double cumulative_leap_correction(
 
 	for(const LeapTransition& t : transitions)
 	{
-		const double transition = static_cast<double>(t.transition_posix_epoch);
+		const double transition = static_cast<double>(t.transition_posix_time);
 		const double delta = transition - posix_time;
 
 		if(delta > TRANSITION_COMPARISON_EPSILON_SECONDS)

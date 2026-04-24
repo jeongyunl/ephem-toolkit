@@ -7,11 +7,11 @@ ISO-8601 Time to
 - POSIX Time: `utc_iso_to_posix()`
   - via `utc_iso_to_parsed_utc_iso()` + `parsed_utc_iso_to_posix()`
 - UTC J2000 Time: `utc_iso_to_utc_j2000()`
-  - via `utc_iso_to_parsed_utc_iso()` + `parsed_utc_iso_to_posix()` + `posix_to_utc_j2000()`
+  - via `utc_iso_to_posix()` + `posix_to_utc_j2000()`
 - TAI J2000 Time: `utc_iso_to_tai_j2000()`
   - via `utc_iso_to_parsed_utc_iso()` + `parsed_utc_iso_to_tai_j2000()`
 - TT J2000 Time: `utc_iso_to_tt_j2000()`
-  - via `utc_iso_to_parsed_utc_iso()` + `parsed_utc_iso_to_tai_j2000()` + `tai_j2000_to_tt_j2000()`
+  - via `utc_iso_to_tai_j2000()` + `tai_j2000_to_tt_j2000()`
 <br>
 
 ParsedUtcIso Time to
@@ -36,14 +36,14 @@ POSIX Time to
 
 UTC J2000 Time to
 - ISO-8601: `utc_j2000_to_utc_iso()`
-  - via `utc_j2000_to_posix()` + `posix_to_parsed_utc_iso()` + `parsed_utc_iso_to_utc_iso()`
+  - via `utc_j2000_to_parsed_utc_iso()` + `parsed_utc_iso_to_utc_iso()`
 - ParsedUtcIso: `utc_j2000_to_parsed_utc_iso()` 
   - via `utc_j2000_to_posix()` + `posix_to_parsed_utc_iso()`
 - POSIX Time: **`utc_j2000_to_posix()`**
 - TAI J2000 Time: `utc_j2000_to_tai_j2000()` 
   - via `utc_j2000_to_posix()` + `posix_to_tai_j2000()`
 - TT J2000 Time: `utc_j2000_to_tt_j2000()`
-  - via `utc_j2000_to_posix()` + `posix_to_tai_j2000()` + `tai_j2000_to_tt_j2000()`
+  - via `utc_j2000_to_tai_j2000()` + `tai_j2000_to_tt_j2000()`
 <br>
 
 TAI J2000 Time to
@@ -64,5 +64,5 @@ TT J2000 Time to
 - POSIX Time: `tt_j2000_to_posix()`
   - via `tt_j2000_to_tai_j2000()` + `tai_j2000_to_posix()`
 - UTC J2000 Time: `tt_j2000_to_utc_j2000()`
-  - via `tt_j2000_to_tai_j2000()` + `tai_j2000_to_posix()` + `posix_to_utc_j2000()`
+  - via `tt_j2000_to_posix()` + `posix_to_utc_j2000()`
 - TAI J2000 Time: **`tt_j2000_to_tai_j2000()`**
