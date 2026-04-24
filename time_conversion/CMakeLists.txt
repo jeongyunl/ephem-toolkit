@@ -6,6 +6,11 @@ add_library(
     convert_time_leap_transition.cpp
 )
 
+# Apply coverage flags only to this project targets when enabled
+if(BUILD_TESTING AND ENABLE_COVERAGE)
+    target_link_libraries(convert_time PUBLIC coverage_config)
+endif()
+
 target_include_directories(convert_time PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(convert_time PUBLIC ${Tudat_PROPAGATION_LIBRARIES})
@@ -24,6 +29,10 @@ if(BUILD_TESTING)
                 GTest::gtest
                 GTest::gtest_main
     )
+
+    if(ENABLE_COVERAGE)
+        target_link_libraries(convert_time_gtest PRIVATE coverage_config)
+    endif()
 
     target_include_directories(
         convert_time_gtest BEFORE
@@ -53,6 +62,10 @@ if(BUILD_TESTING)
                 GTest::gtest_main
     )
 
+    if(ENABLE_COVERAGE)
+        target_link_libraries(convert_time_j2000_gtest PRIVATE coverage_config)
+    endif()
+
     target_include_directories(
         convert_time_j2000_gtest BEFORE
         PRIVATE ${googletest_SOURCE_DIR}/googletest/include
@@ -67,6 +80,12 @@ if(BUILD_TESTING)
                 GTest::gtest_main
     )
 
+    if(ENABLE_COVERAGE)
+        target_link_libraries(
+            convert_time_iso8601_gtest PRIVATE coverage_config
+        )
+    endif()
+
     target_include_directories(
         convert_time_iso8601_gtest BEFORE
         PRIVATE ${googletest_SOURCE_DIR}/googletest/include
@@ -80,6 +99,12 @@ if(BUILD_TESTING)
                 GTest::gtest
                 GTest::gtest_main
     )
+
+    if(ENABLE_COVERAGE)
+        target_link_libraries(
+            convert_time_disp_fn_gtest PRIVATE coverage_config
+        )
+    endif()
 
     target_include_directories(
         convert_time_disp_fn_gtest BEFORE

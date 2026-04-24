@@ -38,34 +38,57 @@ if(BUILD_TESTING)
            "GNU|Clang"
         )
             message(STATUS "Code coverage enabled")
-            add_compile_options(
-                -O0
-                -g
+
+            # Coverage flags must be applied to *targets* (not globally),
+            # otherwise external dependencies (e.g. Tudat) may be rebuilt with
+            # coverage.
+            add_library(coverage_config INTERFACE)
+            target_compile_options(
+                coverage_config
+                INTERFACE -O0
+                          -g
+                          --coverage
+            )
+            target_link_options(
+                coverage_config
+                INTERFACE
                 --coverage
             )
-            add_link_options(--coverage)
+
+            # Tools
+            find_program(LCOV_EXECUTABLE lcov)
+            find_program(GENHTML_EXECUTABLE genhtml)
+            find_program(GCOVR_EXECUTABLE gcovr)
+
+            if(NOT GCOVR_EXECUTABLE)
+                message(
+                    WARNING
+                        "gcovr not found; 'coverage' target will be unavailable"
+                )
+            endif()
+
+            # A convenient target that: 1) runs all tests 2) generates an HTML
+            # report in <build>/coverage/
+            if(GCOVR_EXECUTABLE)
+                add_custom_target(
+                    coverage
+                    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+                    COMMAND
+                        ${GCOVR_EXECUTABLE} -r ${CMAKE_CURRENT_SOURCE_DIR}
+                        --object-directory ${CMAKE_BINARY_DIR} --exclude
+                        '.*_deps/.*' --exclude '.*CMakeFiles/.*' --exclude
+                        '.*googletest.*' --exclude '.*test/.*' --html
+                        --html-details -o
+                        ${CMAKE_BINARY_DIR}/coverage/index.html
+                    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+                    USES_TERMINAL
+                    COMMENT "Running tests and generating coverage report"
+                )
+            endif()
         else()
             message(
                 WARNING
                     "ENABLE_COVERAGE is ON but compiler is not GCC/Clang; coverage flags not applied"
-            )
-        endif()
-
-        find_program(LCOV_EXECUTABLE lcov)
-        find_program(GENHTML_EXECUTABLE genhtml)
-
-        if(NOT LCOV_EXECUTABLE OR NOT GENHTML_EXECUTABLE)
-            message(
-                WARNING
-                    "lcov/genhtml not found; 'coverage' target will be unavailable"
-            )
-        endif()
-
-        find_program(GCOVR_EXECUTABLE gcovr)
-        if(NOT GCOVR_EXECUTABLE)
-            message(
-                WARNING
-                    "gcovr not found; 'coverage' target will be unavailable"
             )
         endif()
     endif()

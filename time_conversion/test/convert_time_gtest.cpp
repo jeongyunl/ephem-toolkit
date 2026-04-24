@@ -63,8 +63,8 @@ TEST_F(ConvertTimeDataDrivenTest, PosixToOtherScalesMatchReferenceData)
 			continue;
 		}
 
-		const auto iso_from_tudat = posix_to_utc_iso(record.posix);
-		EXPECT_TRUE(iso_8601_equal(iso_from_tudat, record.iso, 3)) << iso_from_tudat << " != " << record.iso;
+		const auto iso_from_posix = posix_to_utc_iso(record.posix);
+		EXPECT_TRUE(iso_8601_equal(iso_from_posix, record.iso, 3)) << iso_from_posix << " != " << record.iso;
 
 		EXPECT_NEAR(posix_to_utc_j2000(record.posix), record.utc, convert_time_test::kTolExactLike)
 			<< record.iso;
