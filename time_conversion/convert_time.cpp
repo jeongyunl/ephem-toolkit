@@ -13,7 +13,7 @@ double utc_posix_to_utc_posix(const double utc_posix_epoch)
 
 double utc_posix_to_utc_tudat(const double utc_posix_epoch)
 {
-	return utc_posix_epoch - POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+	return utc_posix_epoch - POSIX_EPOCH_MINUS_UTC_J200_EPOCH;
 }
 
 double utc_posix_to_tai_tudat(const double utc_posix_epoch)
@@ -30,7 +30,7 @@ double utc_posix_to_tai_tudat(const double utc_posix_epoch)
 	try
 	{
 		// Convert POSIX epoch seconds to UTC seconds since the TUDAT epoch.
-		const double utc_tudat_epoch = utc_posix_epoch - POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+		const double utc_tudat_epoch = utc_posix_epoch - POSIX_EPOCH_MINUS_UTC_J200_EPOCH;
 
 		// Compute TAI-UTC at this instant using the same leap-second table logic as the ISO parser.
 		// The leap-second transitions are defined in POSIX time at the *end* of the day.
@@ -59,7 +59,7 @@ double utc_posix_to_tt_tudat(const double utc_posix_epoch)
 	//   tt_tudat = utc_tudat + (TAI-UTC)(instant) + (TT-TAI)
 	try
 	{
-		const double utc_tudat_epoch = utc_posix_epoch - POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+		const double utc_tudat_epoch = utc_posix_epoch - POSIX_EPOCH_MINUS_UTC_J200_EPOCH;
 		const double tai_minus_utc =
 			cumulative_leap_correction(get_zoneinfo_leap_transitions(), utc_posix_epoch, true);
 
@@ -79,7 +79,7 @@ double utc_posix_to_tdb_tudat(const double utc_posix_epoch)
 
 double utc_tudat_to_utc_posix(const double utc_tudat_epoch)
 {
-	return utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+	return utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_J200_EPOCH;
 }
 
 double utc_tudat_to_utc_tudat(const double utc_tudat_epoch)
@@ -96,7 +96,7 @@ double utc_tudat_to_tai_tudat(const double utc_tudat_epoch)
 	// where (TAI-UTC) includes the pre-1972 linear segment and post-1972 leap seconds.
 	try
 	{
-		const double utc_posix_epoch = utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+		const double utc_posix_epoch = utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_J200_EPOCH;
 		const double tai_minus_utc =
 			cumulative_leap_correction(get_zoneinfo_leap_transitions(), utc_posix_epoch, true);
 		return utc_tudat_epoch + tai_minus_utc;
@@ -128,7 +128,7 @@ double tai_tudat_to_utc_posix(const double tai_tudat_epoch)
 			tai_tudat_epoch
 		);
 
-		return utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+		return utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_J200_EPOCH;
 	}
 	catch(const std::exception& e)
 	{
@@ -191,7 +191,7 @@ double tt_tudat_to_utc_posix(const double tt_tudat_epoch)
 			tt_tudat_epoch
 		);
 
-		return utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+		return utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_J200_EPOCH;
 	}
 	catch(const std::exception& e)
 	{
@@ -258,7 +258,7 @@ double tdb_tudat_to_utc_posix(const double tdb_tudat_epoch)
 			tdb_tudat_epoch
 		);
 
-		return utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+		return utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_J200_EPOCH;
 	}
 	catch(const std::exception& e)
 	{

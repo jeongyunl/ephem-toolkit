@@ -50,7 +50,7 @@ std::chrono::time_point<std::chrono::tai_clock, Duration> utc_posix_to_tai_time(
 template <typename Duration = std::chrono::system_clock::duration>
 std::chrono::time_point<std::chrono::system_clock, Duration> utc_tudat_to_sys_time(double utc_tudat_epoch)
 {
-	const double utc_posix_epoch = utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+	const double utc_posix_epoch = utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_J200_EPOCH;
 
 	return utc_posix_to_sys_time<Duration>(utc_posix_epoch);
 }
@@ -59,7 +59,7 @@ std::chrono::time_point<std::chrono::system_clock, Duration> utc_tudat_to_sys_ti
 template <typename Duration = std::chrono::utc_clock::duration>
 std::chrono::time_point<std::chrono::utc_clock, Duration> utc_tudat_to_utc_time(double utc_tudat_epoch)
 {
-	const double utc_posix_epoch = utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+	const double utc_posix_epoch = utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_J200_EPOCH;
 
 	return utc_posix_to_utc_time<Duration>(utc_posix_epoch);
 }
@@ -69,7 +69,7 @@ std::chrono::time_point<std::chrono::utc_clock, Duration> utc_tudat_to_utc_time(
 template <typename Duration = std::chrono::tai_clock::duration>
 std::chrono::time_point<std::chrono::tai_clock, Duration> utc_tudat_to_tai_time(double utc_tudat_epoch)
 {
-	const double utc_posix_epoch = utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+	const double utc_posix_epoch = utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_J200_EPOCH;
 	return utc_posix_to_tai_time<Duration>(utc_posix_epoch);
 }
 #endif

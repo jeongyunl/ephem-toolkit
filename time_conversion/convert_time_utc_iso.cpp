@@ -48,7 +48,7 @@ double utc_iso_to_utc_tudat(const std::string& iso_string)
 	const auto sys_time = parsed_utc_iso_to_sys_time(parsed_utc_iso);
 	const double posix_seconds = std::chrono::duration<double>(sys_time.time_since_epoch()).count();
 
-	return posix_seconds - POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+	return posix_seconds - POSIX_EPOCH_MINUS_UTC_J200_EPOCH;
 }
 
 double utc_iso_to_tai_tudat(const std::string& iso_string)
@@ -98,7 +98,7 @@ std::string utc_posix_to_utc_iso(double utc_posix_epoch)
 
 std::string utc_tudat_to_utc_iso(double utc_tudat_epoch)
 {
-	const double utc_posix_epoch = utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+	const double utc_posix_epoch = utc_tudat_epoch + POSIX_EPOCH_MINUS_UTC_J200_EPOCH;
 
 	return utc_posix_to_utc_iso(utc_posix_epoch);
 }
@@ -173,7 +173,7 @@ double utc_iso_tudat_to_utc_posix(const std::string& iso_string)
 	try
 	{
 		return tudat::basic_astrodynamics::DateTime::fromIsoString(iso_string).epoch<double>()
-			+ POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+			+ POSIX_EPOCH_MINUS_UTC_J200_EPOCH;
 	}
 	catch(const std::exception& e)
 	{
@@ -262,7 +262,7 @@ std::string utc_posix_to_utc_iso_tudat(const double utc_posix_epoch)
 {
 	try
 	{
-		const double utc_tudat_epoch = utc_posix_epoch - POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
+		const double utc_tudat_epoch = utc_posix_epoch - POSIX_EPOCH_MINUS_UTC_J200_EPOCH;
 
 		return tudat::basic_astrodynamics::DateTime::fromTime(utc_tudat_epoch).isoString(false, 3);
 	}
