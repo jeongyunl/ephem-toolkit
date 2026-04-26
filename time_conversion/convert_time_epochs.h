@@ -15,8 +15,8 @@ using namespace std::chrono_literals;
 constexpr auto UTC_J2000_EPOCH_IN_ISO8601 = "2000-01-01T12:00:00";
 constexpr auto UTC_J2000_EPOCH_IN_POSIX_TIME =
 	calendar_date_to_posix_days(2000, 1, 1) * SECONDS_PER_DAY + 12 * SECONDS_PER_HOUR;
-constexpr auto UTC_J2000_EPOCH_IN_TAI_J2000_TIME = static_cast<int64_t>(J2000_TAI_MINUS_UTC);
-constexpr auto UTC_J2000_EPOCH_IN_TT_J2000_TIME = J2000_TAI_MINUS_UTC + TT_EPOCH_MINUS_TAI_EPOCH;
+constexpr auto UTC_J2000_EPOCH_IN_TAI_J2000_TIME = static_cast<int64_t>(TAI_MINUS_UTC_AT_J2000);
+constexpr auto UTC_J2000_EPOCH_IN_TT_J2000_TIME = TAI_MINUS_UTC_AT_J2000 + TT_MINUS_TAI;
 
 template <typename Duration = std::chrono::system_clock::duration>
 constexpr std::chrono::time_point<std::chrono::system_clock, Duration> UTC_J2000_EPOCH_IN_SYS_TIME = {
@@ -30,8 +30,8 @@ constexpr std::chrono::time_point<std::chrono::system_clock, Duration> UTC_J2000
 constexpr auto TAI_J2000_EPOCH_IN_ISO8601 = "2000-01-01T11:59:28";
 constexpr auto TAI_J2000_EPOCH_IN_POSIX_TIME = calendar_date_to_posix_days(2000, 1, 1) * SECONDS_PER_DAY
 	+ 11 * SECONDS_PER_HOUR + 59 * SECONDS_PER_MINUTE + 28;
-constexpr auto TAI_J2000_EPOCH_IN_UTC_J2000_TIME = -J2000_TAI_MINUS_UTC;
-constexpr auto TAI_J2000_EPOCH_IN_TT_J2000_TIME = TT_EPOCH_MINUS_TAI_EPOCH;
+constexpr auto TAI_J2000_EPOCH_IN_UTC_J2000_TIME = -TAI_MINUS_UTC_AT_J2000;
+constexpr auto TAI_J2000_EPOCH_IN_TT_J2000_TIME = TT_MINUS_TAI;
 
 template <typename Duration = std::chrono::system_clock::duration>
 constexpr std::chrono::time_point<std::chrono::system_clock, Duration> TAI_J2000_EPOCH_IN_SYS_TIME = {
@@ -43,7 +43,7 @@ template <typename Duration = std::chrono::utc_clock::duration>
 constexpr std::chrono::time_point<std::chrono::utc_clock, Duration> TAI_J2000_EPOCH_IN_UTC_TIME =
 	std::chrono::utc_time<Duration>{ std::chrono::duration_cast<Duration>(std::chrono::duration<double>{
 		static_cast<double>(
-			TAI_J2000_EPOCH_IN_POSIX_TIME + J2000_TAI_MINUS_UTC - POST_1972_TAI_MINUS_UTC
+			TAI_J2000_EPOCH_IN_POSIX_TIME + TAI_MINUS_UTC_AT_J2000 - TAI_MINUS_UTC_AT_1972
 		) }) };
 #endif
 
@@ -54,8 +54,8 @@ constexpr std::chrono::time_point<std::chrono::utc_clock, Duration> TAI_J2000_EP
 constexpr auto TT_J2000_EPOCH_IN_ISO8601 = "2000-01-01T11:58:55.816";
 constexpr auto TT_J2000_EPOCH_IN_POSIX_TIME = calendar_date_to_posix_days(2000, 1, 1) * SECONDS_PER_DAY
 	+ 11 * SECONDS_PER_HOUR + 58 * SECONDS_PER_MINUTE + 55.816;
-constexpr auto TT_J2000_EPOCH_IN_UTC_J2000_TIME = -J2000_TAI_MINUS_UTC - TT_EPOCH_MINUS_TAI_EPOCH;
-constexpr auto TT_J2000_EPOCH_IN_TAI_J2000_TIME = -TT_EPOCH_MINUS_TAI_EPOCH;
+constexpr auto TT_J2000_EPOCH_IN_UTC_J2000_TIME = -TAI_MINUS_UTC_AT_J2000 - TT_MINUS_TAI;
+constexpr auto TT_J2000_EPOCH_IN_TAI_J2000_TIME = -TT_MINUS_TAI;
 
 template <typename Duration = std::chrono::system_clock::duration>
 constexpr std::chrono::time_point<std::chrono::system_clock, Duration> TT_J2000_EPOCH_IN_SYS_TIME = {
@@ -69,8 +69,8 @@ constexpr std::chrono::time_point<std::chrono::system_clock, Duration> TT_J2000_
 constexpr auto POSIX_EPOCH_IN_ISO8601 = "1970-01-01T00:00:00";
 constexpr auto POSIX_EPOCH_IN_UTC_J2000_TIME = -UTC_J2000_EPOCH_IN_POSIX_TIME;
 constexpr auto POSIX_EPOCH_IN_TAI_J2000_TIME =
-	-UTC_J2000_EPOCH_IN_POSIX_TIME + static_cast<int64_t>(PRE_1972_TAI_MINUS_UTC_AT_1970);
-constexpr auto POSIX_EPOCH_IN_TT_J2000_TIME = POSIX_EPOCH_IN_TAI_J2000_TIME + TT_EPOCH_MINUS_TAI_EPOCH;
+	-UTC_J2000_EPOCH_IN_POSIX_TIME + static_cast<int64_t>(TAI_MINUS_UTC_AT_1970);
+constexpr auto POSIX_EPOCH_IN_TT_J2000_TIME = POSIX_EPOCH_IN_TAI_J2000_TIME + TT_MINUS_TAI;
 
 template <typename Duration = std::chrono::system_clock::duration>
 constexpr std::chrono::time_point<std::chrono::system_clock, Duration> POSIX_EPOCH_IN_SYS_TIME = { sys_days{

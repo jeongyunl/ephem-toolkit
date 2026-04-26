@@ -45,7 +45,7 @@ constexpr double utc_j2000_to_posix(double utc_j2000_time)
 constexpr double tai_j2000_to_tt_j2000(double tai_j2000_time)
 {
 	// TT is exactly 32.184 seconds ahead of TAI.
-	return tai_j2000_time + TT_EPOCH_MINUS_TAI_EPOCH;
+	return tai_j2000_time + TT_MINUS_TAI;
 }
 
 constexpr double tai_j2000_to_tdb_j2000(double tai_j2000_time)
@@ -57,7 +57,7 @@ constexpr double tai_j2000_to_tdb_j2000(double tai_j2000_time)
 constexpr double tt_j2000_to_tai_j2000(double tt_j2000_time)
 {
 	// TT is exactly 32.184 seconds ahead of TAI.
-	return tt_j2000_time - TT_EPOCH_MINUS_TAI_EPOCH;
+	return tt_j2000_time - TT_MINUS_TAI;
 }
 
 //

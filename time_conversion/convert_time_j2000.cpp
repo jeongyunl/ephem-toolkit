@@ -93,7 +93,7 @@ double posix_to_tai_j2000(double posix_time)
 		posix_time - static_cast<double>(epochs::TAI_J2000_EPOCH_IN_POSIX_TIME);
 
 	// Calculate the difference in leap corrections between now and epoch
-	const double leap_delta = leap_now - J2000_TAI_MINUS_UTC;
+	const double leap_delta = leap_now - TAI_MINUS_UTC_AT_J2000;
 
 	// TAI J2000 = UTC elapsed + leap correction difference
 	return utc_elapsed_non_leap + leap_delta;
@@ -155,7 +155,7 @@ double parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc_iso)
 
 	const double utc_elapsed_non_leap =
 		posix_time - static_cast<double>(epochs::TAI_J2000_EPOCH_IN_POSIX_TIME);
-	const double leap_delta = leap_now - J2000_TAI_MINUS_UTC;
+	const double leap_delta = leap_now - TAI_MINUS_UTC_AT_J2000;
 
 	return utc_elapsed_non_leap + leap_delta;
 }
@@ -177,7 +177,7 @@ ParsedUtcIso tai_j2000_to_parsed_utc_iso(double tai_j2000_time)
 	// Convert input TAI J2000 to TAI POSIX epoch (seconds since 1970-01-01 00:00:00 in TAI)
 	// = J2000 offset + TAI J2000 epoch in POSIX + accumulated leap corrections at epoch
 	const double tai_j2000_time_in_posix_time =
-		tai_j2000_time + static_cast<double>(epochs::TAI_J2000_EPOCH_IN_POSIX_TIME) + J2000_TAI_MINUS_UTC;
+		tai_j2000_time + static_cast<double>(epochs::TAI_J2000_EPOCH_IN_POSIX_TIME) + TAI_MINUS_UTC_AT_J2000;
 
 	// PHASE 1: Check if tai_j2000_time_in_posix_time falls within a leap-second interval (23:59:60)
 	// A leap second occupies exactly 1 second in TAI immediately before the UTC transition

@@ -170,6 +170,10 @@ std::string utc_time_to_utc_iso(std::chrono::time_point<std::chrono::utc_clock, 
 }
 #endif // HAS_CHRONO_UTC_CLOCK
 
+//
+// parsed_utc_iso_to_*_time() functions
+//
+
 template <typename Duration = std::chrono::system_clock::duration>
 std::chrono::time_point<std::chrono::system_clock, Duration>
 parsed_utc_iso_to_sys_time(const ParsedUtcIso& parsed_utc_iso)
@@ -177,14 +181,6 @@ parsed_utc_iso_to_sys_time(const ParsedUtcIso& parsed_utc_iso)
 	// Convert the parsed ISO-8601 time to a POSIX epoch, then map to sys_time.
 	const double posix_time = parsed_utc_iso_to_posix(parsed_utc_iso);
 	return posix_to_sys_time<Duration>(posix_time);
-}
-
-template <typename Duration = std::chrono::system_clock::duration>
-std::chrono::time_point<std::chrono::system_clock, Duration>
-utc_iso_to_sys_time(const std::string& iso_string)
-{
-	const ParsedUtcIso parsed_utc_iso = utc_iso_to_parsed_utc_iso(iso_string);
-	return parsed_utc_iso_to_sys_time<Duration>(parsed_utc_iso);
 }
 
 #ifdef HAS_CHRONO_UTC_CLOCK
@@ -215,13 +211,7 @@ parsed_utc_iso_to_utc_time(const ParsedUtcIso& parsed_utc_iso)
 
 	return utc_time;
 }
-
-template <typename Duration = std::chrono::utc_clock::duration>
-std::chrono::time_point<std::chrono::utc_clock, Duration> utc_iso_to_utc_time(const std::string& iso_string)
-{
-	const ParsedUtcIso parsed_utc_iso = utc_iso_to_parsed_utc_iso(iso_string);
-	return parsed_utc_iso_to_utc_time<Duration>(parsed_utc_iso);
-}
+#endif
 
 #ifdef HAS_CHRONO_TAI_CLOCK
 template <typename Duration = std::chrono::tai_clock::duration>
@@ -231,14 +221,34 @@ parsed_utc_iso_to_tai_time(const ParsedUtcIso& parsed_utc_iso)
 	const auto utc_time = parsed_utc_iso_to_utc_time<Duration>(parsed_utc_iso);
 	return std::chrono::tai_clock::from_utc(utc_time);
 }
+#endif
 
+//
+// utc_iso_to_*_time() functions
+//
+
+template <typename Duration = std::chrono::system_clock::duration>
+std::chrono::time_point<std::chrono::system_clock, Duration>
+utc_iso_to_sys_time(const std::string& iso_string)
+{
+	const ParsedUtcIso parsed_utc_iso = utc_iso_to_parsed_utc_iso(iso_string);
+	return parsed_utc_iso_to_sys_time<Duration>(parsed_utc_iso);
+}
+
+#ifdef HAS_CHRONO_UTC_CLOCK
+template <typename Duration = std::chrono::utc_clock::duration>
+std::chrono::time_point<std::chrono::utc_clock, Duration> utc_iso_to_utc_time(const std::string& iso_string)
+{
+	const ParsedUtcIso parsed_utc_iso = utc_iso_to_parsed_utc_iso(iso_string);
+	return parsed_utc_iso_to_utc_time<Duration>(parsed_utc_iso);
+}
+#endif
+
+#ifdef HAS_CHRONO_TAI_CLOCK
 template <typename Duration = std::chrono::tai_clock::duration>
 std::chrono::time_point<std::chrono::tai_clock, Duration> utc_iso_to_tai_time(const std::string& iso_string)
 {
 	const ParsedUtcIso parsed_utc_iso = utc_iso_to_parsed_utc_iso(iso_string);
 	return parsed_utc_iso_to_tai_time<Duration>(parsed_utc_iso);
 }
-
 #endif // HAS_CHRONO_TAI_CLOCK
-
-#endif

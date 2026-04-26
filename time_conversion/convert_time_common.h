@@ -10,13 +10,13 @@ constexpr std::int64_t SECONDS_PER_DAY = 86400;
 
 // the TAI realization of TT is defined as: TT = TAI + 32.184 seconds
 // See https://en.wikipedia.org/wiki/Terrestrial_Time
-constexpr auto TT_EPOCH_MINUS_TAI_EPOCH = 32.184;
+constexpr auto TT_MINUS_TAI = 32.184;
 
 // Historical TAI-UTC offset constants (pre-1972 UTC scale)
-constexpr double PRE_1972_TAI_MINUS_UTC_AT_1970 = 8.000082; // TAI-UTC at 1970-01-01 00:00:00 UTC (s)
-constexpr double PRE_1972_DRIFT_RATE = 0.002592; // Linear drift rate before 1972 (s/day)
-constexpr double POST_1972_TAI_MINUS_UTC = 10.0; // TAI-UTC from 1972-01-01 onwards (s)
-constexpr double J2000_TAI_MINUS_UTC = 32.0; // TAI-UTC at J2000 epoch (s)
+constexpr double TAI_MINUS_UTC_AT_1970 = 8.000082; // TAI-UTC at 1970-01-01 00:00:00 UTC (s)
+constexpr double UTC_DRIFT_RATE_PRE_1972 = 0.002592; // Linear drift rate before 1972 (s/day)
+constexpr double TAI_MINUS_UTC_AT_1972 = 10.0; // TAI-UTC at 1972-01-01 (s)
+constexpr double TAI_MINUS_UTC_AT_J2000 = 32.0; // TAI-UTC at J2000 epoch (s)
 
 // If C++20 or later
 #if __cplusplus >= 202002L

@@ -161,13 +161,12 @@ double cumulative_leap_correction(
 	constexpr std::int64_t posix_1970_01_01 = calendar_date_to_posix_days(1970, 1, 1) * SECONDS_PER_DAY;
 	constexpr std::int64_t posix_1972_01_01 = calendar_date_to_posix_days(1972, 1, 1) * SECONDS_PER_DAY;
 
-	double tai_minus_utc_seconds = POST_1972_TAI_MINUS_UTC;
+	double tai_minus_utc_seconds = TAI_MINUS_UTC_AT_1972;
 	if(posix_time < static_cast<double>(posix_1972_01_01))
 	{
 		const double elapsed_days_since_1970 =
 			(posix_time - static_cast<double>(posix_1970_01_01)) / static_cast<double>(SECONDS_PER_DAY);
-		tai_minus_utc_seconds =
-			PRE_1972_TAI_MINUS_UTC_AT_1970 + elapsed_days_since_1970 * PRE_1972_DRIFT_RATE;
+		tai_minus_utc_seconds = TAI_MINUS_UTC_AT_1970 + elapsed_days_since_1970 * UTC_DRIFT_RATE_PRE_1972;
 	}
 
 	for(const LeapTransition& t : transitions)
