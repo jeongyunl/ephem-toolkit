@@ -12,7 +12,7 @@ endif()
 
 target_include_directories(convert_time PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_link_libraries(convert_time PUBLIC ${Tudat_PROPAGATION_LIBRARIES})
+# target_link_libraries(convert_time PUBLIC ${Tudat_PROPAGATION_LIBRARIES})
 
 add_subdirectory(tools)
 
@@ -54,6 +54,10 @@ if(BUILD_TESTING)
     )
 
     add_executable(
+        convert_time_epochs_gtest test/convert_time_epochs_gtest.cpp
+    )
+
+    add_executable(
         convert_time_j2000_gtest test/convert_time_j2000_gtest.cpp
                                  test/convert_time_gtest_common.cpp
     )
@@ -83,6 +87,13 @@ if(BUILD_TESTING)
                 GTest::gtest_main
     )
 
+    target_link_libraries(
+        convert_time_epochs_gtest
+        PRIVATE convert_time
+                GTest::gtest
+                GTest::gtest_main
+    )
+
     if(ENABLE_COVERAGE)
         target_link_libraries(
             convert_time_iso8601_gtest PRIVATE coverage_config
@@ -91,6 +102,13 @@ if(BUILD_TESTING)
 
     target_include_directories(
         convert_time_iso8601_gtest BEFORE
+        PRIVATE ${googletest_SOURCE_DIR}/googletest/include
+                ${CMAKE_CURRENT_SOURCE_DIR}
+                ${CMAKE_CURRENT_SOURCE_DIR}/..
+    )
+
+    target_include_directories(
+        convert_time_epochs_gtest BEFORE
         PRIVATE ${googletest_SOURCE_DIR}/googletest/include
                 ${CMAKE_CURRENT_SOURCE_DIR}
                 ${CMAKE_CURRENT_SOURCE_DIR}/..
@@ -121,5 +139,6 @@ if(BUILD_TESTING)
     gtest_discover_tests(convert_time_gtest)
     gtest_discover_tests(convert_time_disp_tbl_gtest)
     gtest_discover_tests(convert_time_iso8601_gtest)
+    gtest_discover_tests(convert_time_epochs_gtest)
     gtest_discover_tests(convert_time_j2000_gtest)
 endif()

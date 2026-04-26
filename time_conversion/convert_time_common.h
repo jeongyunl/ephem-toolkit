@@ -8,9 +8,6 @@ constexpr std::int64_t SECONDS_PER_MINUTE = 60;
 constexpr std::int64_t SECONDS_PER_HOUR = 3600;
 constexpr std::int64_t SECONDS_PER_DAY = 86400;
 
-// POSIX epoch (1970-01-01 00:00:00 UTC) minus UTC J2000 epoch (2000-01-01 12:00:00 UTC)
-constexpr auto POSIX_EPOCH_MINUS_UTC_J200_EPOCH = 946728000.0;
-
 // the TAI realization of TT is defined as: TT = TAI + 32.184 seconds
 // See https://en.wikipedia.org/wiki/Terrestrial_Time
 constexpr auto TT_EPOCH_MINUS_TAI_EPOCH = 32.184;
@@ -61,7 +58,3 @@ constexpr double J2000_TAI_MINUS_UTC = 32.0; // TAI-UTC at J2000 epoch (s)
 #endif
 
 #define LEAPSECONDS_PATH_DEFAULT ZONEINFO_DIR "/leapseconds"
-
-// FIXME Currently Tudat's TDB to UTC conversions fail for the second after end-of-June leap second
-// insertions.
-#define TUDAT_BUGGY_TDB_TO_UTC_CONVERSIONS

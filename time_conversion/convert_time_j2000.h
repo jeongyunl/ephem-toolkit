@@ -1,5 +1,6 @@
 #pragma once
 
+#include "convert_time_epochs.h"
 #include "convert_time_iso8601.h"
 
 #include <string>
@@ -33,12 +34,12 @@ constexpr double tdb_j2000_to_tdb_j2000(const double tdb_j2000_time)
 
 constexpr double posix_to_utc_j2000(double posix_time)
 {
-	return posix_time - static_cast<double>(UTC_J2000_EPOCH_IN_POSIX_TIME);
+	return posix_time - static_cast<double>(epochs::UTC_J2000_EPOCH_IN_POSIX_TIME);
 }
 
 constexpr double utc_j2000_to_posix(double utc_j2000_time)
 {
-	return utc_j2000_time + static_cast<double>(UTC_J2000_EPOCH_IN_POSIX_TIME);
+	return utc_j2000_time + static_cast<double>(epochs::UTC_J2000_EPOCH_IN_POSIX_TIME);
 }
 
 constexpr double tai_j2000_to_tt_j2000(double tai_j2000_time)

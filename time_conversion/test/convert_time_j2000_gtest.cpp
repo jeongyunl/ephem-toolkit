@@ -230,7 +230,7 @@ TEST(ConvertTimeJ2000, TaiJ2000ToParsedReturnsLeapSecondLabel)
 TEST(ConvertTimeJ2000, PosixToTaiJ2000AtEpoch)
 {
 	// TAI J2000 epoch in POSIX time (2000-01-01 11:59:28 UTC) should convert to 0.0 in TAI J2000
-	const double tai_j2000_epoch_posix = static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME);
+	const double tai_j2000_epoch_posix = static_cast<double>(epochs::TAI_J2000_EPOCH_IN_POSIX_TIME);
 	EXPECT_DOUBLE_EQ(posix_to_tai_j2000(tai_j2000_epoch_posix), 0.0);
 }
 
@@ -316,7 +316,7 @@ TEST(ConvertTimeJ2000, TaiJ2000ToPosixAtEpoch)
 {
 	// TAI J2000 zero should map to the configured TAI J2000 POSIX epoch instant.
 	const double posix_time = tai_j2000_to_posix(0.0);
-	EXPECT_DOUBLE_EQ(posix_time, static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME));
+	EXPECT_DOUBLE_EQ(posix_time, static_cast<double>(epochs::TAI_J2000_EPOCH_IN_POSIX_TIME));
 }
 
 TEST(ConvertTimeJ2000, TaiJ2000ToPosixConsistentWithUtcIsoPath)

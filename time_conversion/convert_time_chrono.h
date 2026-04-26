@@ -1,20 +1,12 @@
 #pragma once
 
 #include "convert_time_common.h"
+#include "convert_time_epochs.h"
 #include "convert_time_j2000.h"
 
 #include <chrono>
 #include <format>
 #include <string>
-
-#ifdef HAS_CHRONO_UTC_CLOCK
-template <typename Duration = std::chrono::utc_clock::duration>
-constexpr std::chrono::time_point<std::chrono::utc_clock, Duration> TAI_J2000_EPOCH_IN_UTC_TIME =
-	std::chrono::utc_time<Duration>{ std::chrono::duration_cast<Duration>(std::chrono::duration<double>{
-		static_cast<double>(
-			TAI_J2000_EPOCH_IN_POSIX_TIME + J2000_TAI_MINUS_UTC - POST_1972_TAI_MINUS_UTC
-		) }) };
-#endif
 
 //
 // posix_to_*_time()

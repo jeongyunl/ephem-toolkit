@@ -161,7 +161,7 @@ TEST_F(ConvertTimeDataDrivenTest, TaiToOtherScalesMatchReferenceData)
 
 		// Before 1972, UTC and TAI were not synchronized, so the ISO string derived from TAI may not match
 		// the reference UTC ISO string.
-		if(record.posix >= UTC_1972_EPOCH_IN_POSIX_TIME)
+		if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
 		{
 			const auto iso_from_tai_j2000 = tai_j2000_to_utc_iso(record.tai);
 			EXPECT_TRUE(iso_8601_equal(iso_from_tai_j2000, record.iso, 3))
@@ -190,7 +190,7 @@ TEST_F(ConvertTimeDataDrivenTest, TtToOtherScalesMatchReferenceData)
 
 		// Before 1972, UTC and TAI (TT as well by proxy) were not synchronized, so the ISO string derived
 		// from TT may not match the reference UTC ISO string.
-		if(record.posix >= UTC_1972_EPOCH_IN_POSIX_TIME)
+		if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
 		{
 			const auto iso_from_tt_j2000 = tt_j2000_to_utc_iso(record.tt);
 			EXPECT_TRUE(iso_8601_equal(iso_from_tt_j2000, record.iso, 3))
@@ -216,7 +216,7 @@ TEST_F(ConvertTimeDataDrivenTest, TdbToOtherScalesMatchReferenceData)
 
 		// Before 1972, UTC and TAI (TDB as well by proxy) were not synchronized, so the ISO string derived
 		// from TDB may not match the reference UTC ISO string.
-		if(record.posix >= UTC_1972_EPOCH_IN_POSIX_TIME)
+		if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
 		{
 			const auto iso_from_tdb_j2000 = tdb_j2000_to_utc_iso(record.tdb);
 			EXPECT_TRUE(iso_8601_equal(iso_from_tdb_j2000, record.iso, 3))
