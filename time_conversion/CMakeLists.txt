@@ -18,8 +18,10 @@ add_subdirectory(tools)
 
 if(BUILD_TESTING)
     add_executable(
-        convert_time_gtest test/convert_time_gtest.cpp
-                           test/convert_time_common_gtest.cpp
+        convert_time_gtest
+        test/convert_time_gtest.cpp
+        test/convert_time_gtest_common.cpp
+        tools/convert_time_disp_tbl.cpp
     )
 
     target_link_libraries(
@@ -41,8 +43,10 @@ if(BUILD_TESTING)
     )
 
     add_executable(
-        convert_time_disp_fn_gtest test/convert_time_disp_fn_gtest.cpp
-                                   test/convert_time_common_gtest.cpp
+        convert_time_disp_tbl_gtest
+        test/convert_time_disp_tbl_gtest.cpp
+        test/convert_time_gtest_common.cpp
+        tools/convert_time_disp_tbl.cpp
     )
 
     add_executable(
@@ -51,7 +55,7 @@ if(BUILD_TESTING)
 
     add_executable(
         convert_time_j2000_gtest test/convert_time_j2000_gtest.cpp
-                                 test/convert_time_common_gtest.cpp
+                                 test/convert_time_gtest_common.cpp
     )
 
     target_link_libraries(
@@ -93,7 +97,7 @@ if(BUILD_TESTING)
     )
 
     target_link_libraries(
-        convert_time_disp_fn_gtest
+        convert_time_disp_tbl_gtest
         PRIVATE convert_time
                 GTest::gtest
                 GTest::gtest_main
@@ -101,12 +105,12 @@ if(BUILD_TESTING)
 
     if(ENABLE_COVERAGE)
         target_link_libraries(
-            convert_time_disp_fn_gtest PRIVATE coverage_config
+            convert_time_disp_tbl_gtest PRIVATE coverage_config
         )
     endif()
 
     target_include_directories(
-        convert_time_disp_fn_gtest BEFORE
+        convert_time_disp_tbl_gtest BEFORE
         PRIVATE ${googletest_SOURCE_DIR}/googletest/include
                 ${CMAKE_CURRENT_SOURCE_DIR}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tools
@@ -115,7 +119,7 @@ if(BUILD_TESTING)
 
     include(GoogleTest)
     gtest_discover_tests(convert_time_gtest)
-    gtest_discover_tests(convert_time_disp_fn_gtest)
+    gtest_discover_tests(convert_time_disp_tbl_gtest)
     gtest_discover_tests(convert_time_iso8601_gtest)
     gtest_discover_tests(convert_time_j2000_gtest)
 endif()

@@ -1,4 +1,4 @@
-#include "convert_time_disp_fn.h"
+#include "convert_time_disp_tbl.h"
 #include "convert_time_j2000.h"
 
 #include <gtest/gtest.h>
@@ -36,7 +36,7 @@ TEST(ConvertTimeDispFn, ShouldThrowBadVariantAccessWhenUtcIsoFormatButDoubleProv
 	const std::variant<std::string, double> input = 946728000.0;
 	EXPECT_THROW(
 		{ (void)convert_time(input, TimeFormat::UTC_ISO_TUDAT, TimeFormat::UTC_POSIX); },
-		std::bad_variant_access
+		std::invalid_argument
 	);
 }
 
@@ -45,7 +45,7 @@ TEST(ConvertTimeDispFn, ShouldThrowBadVariantAccessWhenNumericFormatButStringPro
 	const std::variant<std::string, double> input = std::string("2000-01-01T12:00:00");
 	EXPECT_THROW(
 		{ (void)convert_time(input, TimeFormat::UTC_POSIX, TimeFormat::UTC_TUDAT); },
-		std::bad_variant_access
+		std::invalid_argument
 	);
 }
 

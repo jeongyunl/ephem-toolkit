@@ -1,5 +1,5 @@
 #include "convert_time.h"
-#include "convert_time_disp_fn.h"
+#include "convert_time_disp_tbl.h"
 
 #include <format>
 #include <iostream>

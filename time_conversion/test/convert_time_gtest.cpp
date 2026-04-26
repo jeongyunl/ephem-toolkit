@@ -1,7 +1,7 @@
 #include "convert_time.h"
 #include "convert_time_chrono.h"
 #include "convert_time_j2000.h"
-#include "test/convert_time_common_gtest.h"
+#include "test/convert_time_gtest_common.h"
 
 #include <gtest/gtest.h>
 #include <chrono>
@@ -16,7 +16,7 @@ using convert_time_test::EpochRecord;
 class ConvertTimeDataDrivenTest : public ::testing::Test
 {
 protected:
-	static void SetUpTestSuite() {}
+	static void SetUpTestSuite() { }
 };
 
 } // namespace

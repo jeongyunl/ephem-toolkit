@@ -158,7 +158,7 @@ double parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc_iso)
 	return utc_elapsed_non_leap + leap_delta;
 }
 
-ParsedUtcIso tai_j2000_to_parsed_utc_iso(double tai_j2000)
+ParsedUtcIso tai_j2000_to_parsed_utc_iso(double tai_j2000_time)
 {
 	// Largest historical UTC-TAI offset is well below this; keep a safe search margin.
 	constexpr double BINARY_SEARCH_LOWER_MARGIN_SECONDS = 64.0;
@@ -174,10 +174,10 @@ ParsedUtcIso tai_j2000_to_parsed_utc_iso(double tai_j2000)
 
 	// Convert input TAI J2000 to TAI POSIX epoch (seconds since 1970-01-01 00:00:00 in TAI)
 	// = J2000 offset + TAI J2000 epoch in POSIX + accumulated leap corrections at epoch
-	const double tai_j2000_in_posix_time =
-		tai_j2000 + static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME) + J2000_TAI_MINUS_UTC;
+	const double tai_j2000_time_in_posix_time =
+		tai_j2000_time + static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME) + J2000_TAI_MINUS_UTC;
 
-	// PHASE 1: Check if tai_j2000_in_posix_time falls within a leap-second interval (23:59:60)
+	// PHASE 1: Check if tai_j2000_time_in_posix_time falls within a leap-second interval (23:59:60)
 	// A leap second occupies exactly 1 second in TAI immediately before the UTC transition
 	for(const LeapTransition& transition : transitions)
 	{
@@ -200,12 +200,13 @@ ParsedUtcIso tai_j2000_to_parsed_utc_iso(double tai_j2000)
 		const double leap_second_tai_end = leap_second_tai_start + 1.0;
 
 		// Check if our input instant falls within this leap-second interval
-		if(tai_j2000_in_posix_time >= leap_second_tai_start && tai_j2000_in_posix_time < leap_second_tai_end)
+		if(tai_j2000_time_in_posix_time >= leap_second_tai_start
+		   && tai_j2000_time_in_posix_time < leap_second_tai_end)
 		{
 			// Yes: construct a 23:59:60 representation with fractional offset within the leap second
 			return posix_leap_second_transition_to_parsed_utc_iso(
 				transition_posix_time,
-				tai_j2000_in_posix_time - leap_second_tai_start // Fractional position within leap second
+				tai_j2000_time_in_posix_time - leap_second_tai_start // Fractional position within leap second
 			);
 		}
 	}
@@ -213,8 +214,8 @@ ParsedUtcIso tai_j2000_to_parsed_utc_iso(double tai_j2000)
 	// PHASE 2: TAI instant is not in a leap-second interval; use binary search to find UTC POSIX epoch
 	// Initial bounds: Presumably, TAI can differ from UTC by at most ~64 seconds
 	// We search for the UTC POSIX instant whose corresponding TAI value equals our input
-	double lower = tai_j2000_in_posix_time - BINARY_SEARCH_LOWER_MARGIN_SECONDS;
-	double upper = tai_j2000_in_posix_time + BINARY_SEARCH_UPPER_MARGIN_SECONDS;
+	double lower = tai_j2000_time_in_posix_time - BINARY_SEARCH_LOWER_MARGIN_SECONDS;
+	double upper = tai_j2000_time_in_posix_time + BINARY_SEARCH_UPPER_MARGIN_SECONDS;
 
 	// Binary search converges in ~32 iterations for the known leap-second table size
 	for(int iteration = 0; iteration < BINARY_SEARCH_ITERATIONS; ++iteration)
@@ -234,7 +235,7 @@ ParsedUtcIso tai_j2000_to_parsed_utc_iso(double tai_j2000)
 		const double midpoint_tai = midpoint + cumulative_leap_correction(transitions, midpoint, true);
 
 		// Adjust search interval based on whether midpoint's TAI is too small or too large
-		if(midpoint_tai < tai_j2000_in_posix_time)
+		if(midpoint_tai < tai_j2000_time_in_posix_time)
 		{
 			lower = midpoint; // Move search interval up
 		}
@@ -249,9 +250,9 @@ ParsedUtcIso tai_j2000_to_parsed_utc_iso(double tai_j2000)
 	return posix_to_parsed_utc_iso(upper);
 }
 
-double tai_j2000_to_posix(double tai_j2000)
+double tai_j2000_to_posix(double tai_j2000_time)
 {
-	const ParsedUtcIso parsed_utc_iso = tai_j2000_to_parsed_utc_iso(tai_j2000);
+	const ParsedUtcIso parsed_utc_iso = tai_j2000_to_parsed_utc_iso(tai_j2000_time);
 	return parsed_utc_iso_to_posix(parsed_utc_iso);
 }
 
