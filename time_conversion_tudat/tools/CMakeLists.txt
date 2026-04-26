@@ -2,7 +2,7 @@
 
 add_executable(
     convert_time_tudat_cli convert_time_tudat_cli.cpp
-                           convert_time_disp_tbl.cpp
+                           convert_time_tudat_disp_tbl.cpp
 )
 
 # Allow includes like: #include "convert_time_disp_fn.h" (header lives in this

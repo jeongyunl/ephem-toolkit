@@ -7,11 +7,14 @@
 #include <format>
 #include <string>
 
+#ifdef HAS_CHRONO_UTC_CLOCK
 template <typename Duration = std::chrono::utc_clock::duration>
 constexpr std::chrono::time_point<std::chrono::utc_clock, Duration> TAI_J2000_EPOCH_IN_UTC_TIME =
 	std::chrono::utc_time<Duration>{ std::chrono::duration_cast<Duration>(std::chrono::duration<double>{
-		static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME + J2000_TAI_MINUS_UTC - POST_1972_TAI_MINUS_UTC) }
-	) };
+		static_cast<double>(
+			TAI_J2000_EPOCH_IN_POSIX_TIME + J2000_TAI_MINUS_UTC - POST_1972_TAI_MINUS_UTC
+		) }) };
+#endif
 
 //
 // posix_to_*_time()
@@ -185,8 +188,8 @@ parsed_utc_iso_to_sys_time(const ParsedUtcIso& parsed_utc_iso)
 }
 
 template <typename Duration = std::chrono::system_clock::duration>
-std::chrono::time_point<std::chrono::system_clock, Duration> utc_iso_to_sys_time(const std::string& iso_string
-)
+std::chrono::time_point<std::chrono::system_clock, Duration>
+utc_iso_to_sys_time(const std::string& iso_string)
 {
 	const ParsedUtcIso parsed_utc_iso = utc_iso_to_parsed_utc_iso(iso_string);
 	return parsed_utc_iso_to_sys_time<Duration>(parsed_utc_iso);

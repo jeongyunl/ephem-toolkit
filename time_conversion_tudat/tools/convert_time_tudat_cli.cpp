@@ -1,5 +1,5 @@
 #include "convert_time_tudat.h"
-#include "convert_time_disp_tbl.h"
+#include "convert_time_tudat_disp_tbl.h"
 
 #include <format>
 #include <iostream>
@@ -9,6 +9,8 @@
 #include <string_view>
 #include <variant>
 #include <getopt.h>
+
+using namespace convert_time_tudat;
 
 const std::map<std::string_view, TimeFormat> TimeFormatNames = {
 	{ "iso", TimeFormat::UTC_ISO_TUDAT }, //

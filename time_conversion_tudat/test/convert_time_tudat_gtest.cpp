@@ -1,5 +1,5 @@
 #include "convert_time_tudat.h"
-#include "test/convert_time_common_gtest.h"
+#include "test/convert_time_gtest_common.h"
 
 #include <gtest/gtest.h>
 #include <chrono>
@@ -11,32 +11,18 @@ namespace
 
 using convert_time_test::EpochRecord;
 
-bool has_ambiguous_posix(const double posix)
-{
-	static const auto posix_counts = [] {
-		std::unordered_map<std::string, int> counts;
-		for(const auto& record : convert_time_test::epoch_records())
-		{
-			const std::string key = std::to_string(record.posix);
-			++counts[key];
-		}
-		return counts;
-	}();
-
-	const auto it = posix_counts.find(std::to_string(posix));
-	return it != posix_counts.end() && it->second > 1;
-}
-
-class ConvertTimeDataDrivenTest : public ::testing::Test
+class ConvertTimeTudatTest : public ::testing::Test
 {
 protected:
-	static void SetUpTestSuite() {}
+	static void SetUpTestSuite() { }
 };
 
 } // namespace
 
+using namespace convert_time_tudat;
+
 // utc_posix_to_*() functions are tested here
-TEST_F(ConvertTimeDataDrivenTest, PosixToOtherScalesMatchReferenceData)
+TEST_F(ConvertTimeTudatTest, PosixToOtherScalesMatchReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
@@ -47,19 +33,18 @@ TEST_F(ConvertTimeDataDrivenTest, PosixToOtherScalesMatchReferenceData)
 			continue;
 		}
 
-		EXPECT_NEAR(utc_posix_to_utc_tudat(record.posix), record.utc, convert_time_test::kTolExactLike)
+		EXPECT_NEAR(posix_to_utc_tudat(record.posix), record.utc, convert_time_test::kTolExactLike)
 			<< record.iso;
-		EXPECT_NEAR(utc_posix_to_tai_tudat(record.posix), record.tai, convert_time_test::kTolExactLike)
+		EXPECT_NEAR(posix_to_tai_tudat(record.posix), record.tai, convert_time_test::kTolExactLike)
 			<< record.iso;
-		EXPECT_NEAR(utc_posix_to_tt_tudat(record.posix), record.tt, convert_time_test::kTolExactLike)
+		EXPECT_NEAR(posix_to_tt_tudat(record.posix), record.tt, convert_time_test::kTolExactLike)
 			<< record.iso;
-		EXPECT_NEAR(utc_posix_to_tdb_tudat(record.posix), record.tdb, convert_time_test::kTolTdb)
-			<< record.iso;
+		EXPECT_NEAR(posix_to_tdb_tudat(record.posix), record.tdb, convert_time_test::kTolTdb) << record.iso;
 	}
 }
 
 // utc_tudat_to_*() functions are tested here
-TEST_F(ConvertTimeDataDrivenTest, UtcToOtherScalesMatchReferenceData)
+TEST_F(ConvertTimeTudatTest, UtcToOtherScalesMatchReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
@@ -70,7 +55,7 @@ TEST_F(ConvertTimeDataDrivenTest, UtcToOtherScalesMatchReferenceData)
 			continue;
 		}
 
-		EXPECT_NEAR(utc_tudat_to_utc_posix(record.utc), record.posix, convert_time_test::kTolExactLike)
+		EXPECT_NEAR(utc_tudat_to_posix(record.utc), record.posix, convert_time_test::kTolExactLike)
 			<< record.iso;
 		EXPECT_NEAR(utc_tudat_to_tai_tudat(record.utc), record.tai, convert_time_test::kTolExactLike)
 			<< record.iso;
@@ -80,11 +65,11 @@ TEST_F(ConvertTimeDataDrivenTest, UtcToOtherScalesMatchReferenceData)
 	}
 }
 
-TEST_F(ConvertTimeDataDrivenTest, TaiToOtherScalesMatchReferenceData)
+TEST_F(ConvertTimeTudatTest, TaiToOtherScalesMatchReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
-		EXPECT_NEAR(tai_tudat_to_utc_posix(record.tai), record.posix, convert_time_test::kTolExactLike)
+		EXPECT_NEAR(tai_tudat_to_posix(record.tai), record.posix, convert_time_test::kTolExactLike)
 			<< record.iso;
 		EXPECT_NEAR(tai_tudat_to_utc_tudat(record.tai), record.utc, convert_time_test::kTolExactLike)
 			<< record.iso;
@@ -94,11 +79,11 @@ TEST_F(ConvertTimeDataDrivenTest, TaiToOtherScalesMatchReferenceData)
 	}
 }
 
-TEST_F(ConvertTimeDataDrivenTest, TtToOtherScalesMatchReferenceData)
+TEST_F(ConvertTimeTudatTest, TtToOtherScalesMatchReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
-		EXPECT_NEAR(tt_tudat_to_utc_posix(record.tt), record.posix, convert_time_test::kTolExactLike)
+		EXPECT_NEAR(tt_tudat_to_posix(record.tt), record.posix, convert_time_test::kTolExactLike)
 			<< record.iso;
 		EXPECT_NEAR(tt_tudat_to_utc_tudat(record.tt), record.utc, convert_time_test::kTolExactLike)
 			<< record.iso;
@@ -108,19 +93,18 @@ TEST_F(ConvertTimeDataDrivenTest, TtToOtherScalesMatchReferenceData)
 	}
 }
 
-TEST_F(ConvertTimeDataDrivenTest, TdbToOtherScalesMatchReferenceData)
+TEST_F(ConvertTimeTudatTest, TdbToOtherScalesMatchReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
-		EXPECT_NEAR(tdb_tudat_to_utc_posix(record.tdb), record.posix, convert_time_test::kTolTdb)
-			<< record.iso;
+		EXPECT_NEAR(tdb_tudat_to_posix(record.tdb), record.posix, convert_time_test::kTolTdb) << record.iso;
 		EXPECT_NEAR(tdb_tudat_to_utc_tudat(record.tdb), record.utc, convert_time_test::kTolTdb) << record.iso;
 		EXPECT_NEAR(tdb_tudat_to_tai_tudat(record.tdb), record.tai, convert_time_test::kTolTdb) << record.iso;
 		EXPECT_NEAR(tdb_tudat_to_tt_tudat(record.tdb), record.tt, convert_time_test::kTolTdb) << record.iso;
 	}
 }
 
-TEST_F(ConvertTimeDataDrivenTest, NumericRoundTripUsingUtcIsStableForNonLeapSecondRows)
+TEST_F(ConvertTimeTudatTest, NumericRoundTripUsingUtcIsStableForNonLeapSecondRows)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
@@ -129,8 +113,8 @@ TEST_F(ConvertTimeDataDrivenTest, NumericRoundTripUsingUtcIsStableForNonLeapSeco
 			continue;
 		}
 
-		const double utc_from_posix = utc_posix_to_utc_tudat(record.posix);
-		const double posix_from_utc = utc_tudat_to_utc_posix(utc_from_posix);
+		const double utc_from_posix = posix_to_utc_tudat(record.posix);
+		const double posix_from_utc = utc_tudat_to_posix(utc_from_posix);
 		EXPECT_NEAR(posix_from_utc, record.posix, convert_time_test::kTolExactLike) << record.iso;
 
 		const double tai_from_utc = utc_tudat_to_tai_tudat(record.utc);
