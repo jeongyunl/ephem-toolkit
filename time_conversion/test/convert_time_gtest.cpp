@@ -331,7 +331,7 @@ TEST(ConvertTimeChrono, SysTimeToUtcIsoFormatsWithoutTimezoneSuffix)
 
 	for(const auto& tc : cases)
 	{
-		EXPECT_EQ(sys_time_to_utc_iso(tc.input), tc.expected);
+		EXPECT_EQ(sys_time_to_utc_iso(tc.input, true), tc.expected);
 	}
 }
 
@@ -339,7 +339,7 @@ TEST(ConvertTimeChrono, SysTimeToUtcIsoSupportsCustomDurationSeconds)
 {
 	using namespace std::chrono;
 	const auto t = sys_time<seconds>{ sys_days{ 1970y / January / 1 } + seconds{ 1 } };
-	EXPECT_EQ(sys_time_to_utc_iso(t), "1970-01-01T00:00:01");
+	EXPECT_EQ(sys_time_to_utc_iso(t), "1970-01-01 00:00:01");
 }
 
 TEST(ConvertTimeChrono, SysTimeToUtcIsoSupportsCustomDurationMicroseconds)
@@ -347,7 +347,7 @@ TEST(ConvertTimeChrono, SysTimeToUtcIsoSupportsCustomDurationMicroseconds)
 	using namespace std::chrono;
 	const auto t =
 		sys_time<microseconds>{ sys_days{ 1970y / January / 1 } + seconds{ 1 } + microseconds{ 2 } };
-	EXPECT_EQ(sys_time_to_utc_iso(t), "1970-01-01T00:00:01.000002");
+	EXPECT_EQ(sys_time_to_utc_iso(t), "1970-01-01 00:00:01.000002");
 }
 
 TEST(ConvertTimeChrono, UtcPosixToSysTimeTruncatesTowardZeroForMilliseconds)

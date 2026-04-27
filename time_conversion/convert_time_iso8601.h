@@ -7,9 +7,14 @@
 #include <vector>
 
 // Gregorian calendar constants (used in calendar_date_to_posix_days)
+
 constexpr int MONTH_LENGTH_ENCODING = 153; // Encodes non-uniform month lengths: (153*m+2)/5
-constexpr std::int64_t GREGORIAN_ERA_DAYS = 146097; // Days per 400-year Gregorian era
-constexpr std::int64_t POSIX_EPOCH_DAY_OFFSET = 719468; // Days from proleptic epoch to POSIX epoch
+
+// Gregorian Era = 400 years = 146097 days (365(d) * 400(y) + 100 leap days - 3 century non-leap days)
+constexpr std::int64_t GREGORIAN_ERA_DAYS = 365 * 400 + 100 - 3; // Days per 400-year Gregorian era
+
+// Number of days from the proleptic Gregorian epoch (0000-03-01) to the POSIX epoch (1970-01-01).
+constexpr std::int64_t POSIX_EPOCH_DAY_OFFSET = 719468;
 
 struct ParsedUtcIso
 {

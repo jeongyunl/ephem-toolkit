@@ -7,7 +7,7 @@
 
 TEST(ParseIso8601Utc, BasicZulu)
 {
-	const ParsedUtcIso p = utc_iso_to_parsed_utc_iso("2020-01-02T03:04:05Z");
+	const ParsedUtcIso p = utc_iso_to_parsed_utc_iso("2020-01-02T03:04:05");
 	EXPECT_EQ(p.year, 2020);
 	EXPECT_EQ(p.month, 1);
 	EXPECT_EQ(p.day, 2);
@@ -20,7 +20,7 @@ TEST(ParseIso8601Utc, BasicZulu)
 
 TEST(ParseIso8601Utc, SpaceSeparator)
 {
-	const ParsedUtcIso p = utc_iso_to_parsed_utc_iso("2020-01-02 03:04:05Z");
+	const ParsedUtcIso p = utc_iso_to_parsed_utc_iso("2020-01-02 03:04:05");
 	EXPECT_EQ(p.year, 2020);
 	EXPECT_EQ(p.month, 1);
 	EXPECT_EQ(p.day, 2);
@@ -33,13 +33,13 @@ TEST(ParseIso8601Utc, SpaceSeparator)
 
 TEST(ParseIso8601Utc, FractionalSecondsPadsToNanos)
 {
-	const ParsedUtcIso p = utc_iso_to_parsed_utc_iso("2020-01-02T03:04:05.1Z");
+	const ParsedUtcIso p = utc_iso_to_parsed_utc_iso("2020-01-02T03:04:05.1");
 	EXPECT_EQ(p.nanos, NANOSECONDS_PER_SECOND / 10);
 }
 
 TEST(ParseIso8601Utc, FractionalSecondsTruncatesBeyondNanos)
 {
-	const ParsedUtcIso p = utc_iso_to_parsed_utc_iso("2020-01-02T03:04:05.123456789123Z");
+	const ParsedUtcIso p = utc_iso_to_parsed_utc_iso("2020-01-02T03:04:05.123456789123");
 	EXPECT_EQ(p.nanos, 123456789);
 }
 
@@ -62,12 +62,12 @@ TEST(ParseIso8601Utc, RejectsTrailingGarbage)
 
 TEST(ParseIso8601Utc, RejectsInvalidLeapSecondPlacement)
 {
-	EXPECT_THROW(utc_iso_to_parsed_utc_iso("2020-01-02T23:58:60Z"), std::runtime_error);
+	EXPECT_THROW(utc_iso_to_parsed_utc_iso("2020-01-02T23:58:60"), std::runtime_error);
 }
 
 TEST(ParseIso8601Utc, AllowsLeapSecondAtEndOfDay)
 {
-	const ParsedUtcIso p = utc_iso_to_parsed_utc_iso("2016-12-31T23:59:60Z");
+	const ParsedUtcIso p = utc_iso_to_parsed_utc_iso("2016-12-31T23:59:60");
 	EXPECT_EQ(p.second, 60);
 	EXPECT_EQ(p.tz_offset_seconds, 0);
 }
@@ -82,7 +82,8 @@ TEST(FormatIso8601Utc, CanonicalZulu)
 	p.minute = 4;
 	p.second = 5;
 
-	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p), "2020-01-02T03:04:05Z");
+	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, true), "2020-01-02T03:04:05");
+	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, false), "2020-01-02 03:04:05");
 }
 
 TEST(FormatIso8601Utc, TrimsFractionalTrailingZeros)
@@ -96,7 +97,7 @@ TEST(FormatIso8601Utc, TrimsFractionalTrailingZeros)
 	p.second = 5;
 	p.nanos = 120000000;
 
-	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p), "2020-01-02T03:04:05.12Z");
+	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, true, 2), "2020-01-02T03:04:05.12");
 }
 
 TEST(FormatIso8601Utc, PreservesTimezoneOffset)
@@ -110,7 +111,7 @@ TEST(FormatIso8601Utc, PreservesTimezoneOffset)
 	p.second = 5;
 	p.tz_offset_seconds = -(5 * SECONDS_PER_HOUR + 30 * SECONDS_PER_MINUTE);
 
-	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p), "2020-01-02T03:04:05-05:30");
+	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p), "2020-01-02 03:04:05-05:30");
 }
 
 TEST(FormatIso8601Utc, FormatsLeapSecond)
@@ -124,13 +125,13 @@ TEST(FormatIso8601Utc, FormatsLeapSecond)
 	p.second = 60;
 	p.nanos = 250000000;
 
-	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p), "2016-12-31T23:59:60.25Z");
+	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, true), "2016-12-31T23:59:60.25");
 }
 
 TEST(FormatIso8601Utc, ParseFormatRoundTripCanonicalizesSeparator)
 {
 	const ParsedUtcIso parsed = utc_iso_to_parsed_utc_iso("2020-01-02 03:04:05.123400000+02:30");
-	EXPECT_EQ(parsed_utc_iso_to_utc_iso(parsed), "2020-01-02T03:04:05.1234+02:30");
+	EXPECT_EQ(parsed_utc_iso_to_utc_iso(parsed, true, 4), "2020-01-02T03:04:05.1234+02:30");
 }
 
 TEST(FormatIso8601Utc, UseSpaceSeparator)
@@ -143,7 +144,7 @@ TEST(FormatIso8601Utc, UseSpaceSeparator)
 	p.minute = 4;
 	p.second = 5;
 
-	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, false), "2020-01-02 03:04:05Z");
+	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, false), "2020-01-02 03:04:05");
 }
 
 TEST(FormatIso8601Utc, LimitsFractionalSecondPlaces)
@@ -157,9 +158,9 @@ TEST(FormatIso8601Utc, LimitsFractionalSecondPlaces)
 	p.second = 5;
 	p.nanos = 123456789;
 
-	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, true, 3), "2020-01-02T03:04:05.123Z");
-	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, true, 6), "2020-01-02T03:04:05.123456Z");
-	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, true, 9), "2020-01-02T03:04:05.123456789Z");
+	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, true, 3), "2020-01-02T03:04:05.123");
+	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, true, 6), "2020-01-02T03:04:05.123456");
+	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, true, 9), "2020-01-02T03:04:05.123456789");
 }
 
 TEST(FormatIso8601Utc, OmitsFractionalWhenZeroPlaces)
@@ -173,7 +174,7 @@ TEST(FormatIso8601Utc, OmitsFractionalWhenZeroPlaces)
 	p.second = 5;
 	p.nanos = 123456789;
 
-	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, true, 0), "2020-01-02T03:04:05Z");
+	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, true, 0), "2020-01-02T03:04:05");
 }
 
 TEST(FormatIso8601Utc, CombineSpaceSeparatorAndFractional)
@@ -187,7 +188,7 @@ TEST(FormatIso8601Utc, CombineSpaceSeparatorAndFractional)
 	p.second = 5;
 	p.nanos = 500000000;
 
-	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, false, 3), "2020-01-02 03:04:05.5Z");
+	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, false, 3), "2020-01-02 03:04:05.5");
 }
 
 TEST(CumulativeLeapCorrection, Pre1972UsesLinearModel)
