@@ -17,6 +17,7 @@ const std::map<std::string_view, TimeFormat> TimeFormatNames = {
 	{ "tai", TimeFormat::TAI_J2000 }, //
 	{ "tt", TimeFormat::TT_J2000 }, //
 	{ "chrono_sys", TimeFormat::CHRONO_SYS_TIME }, //
+	{ "chrono_utc", TimeFormat::CHRONO_UTC_TIME }, //
 };
 
 TimeFormat parse_time_format(const std::string& format_str)
@@ -115,7 +116,7 @@ int main(int argc, char* argv[])
 
 		for(const auto& output_format_str : output_format_list)
 		{
-			auto output_format = parse_time_format(output_format_str);
+			const auto output_format = parse_time_format(output_format_str);
 
 			if(output_format == TimeFormat::UNKNOWN)
 			{
@@ -123,7 +124,7 @@ int main(int argc, char* argv[])
 				return 1;
 			}
 
-			auto result = convert_time(input_time_value, input_time_format, output_format);
+			const auto result = convert_time(input_time_value, input_time_format, output_format);
 
 			std::cout << '\t';
 
@@ -137,7 +138,28 @@ int main(int argc, char* argv[])
 			}
 			else if(std::holds_alternative<std::chrono::system_clock::time_point>(result))
 			{
-				std::cout << std::get<std::chrono::system_clock::time_point>(result);
+				const auto& sys_time = std::get<std::chrono::system_clock::time_point>(result);
+				std::cout << std::format(
+					"{} ({:.3f}x seconds since {})",
+					std::chrono::floor<std::chrono::milliseconds>(sys_time),
+					std::chrono::duration<double>(sys_time.time_since_epoch()).count(),
+					std::chrono::floor<std::chrono::milliseconds>(std::chrono::system_clock::time_point{})
+				);
+			}
+			else if(std::holds_alternative<std::chrono::utc_clock::time_point>(result))
+			{
+				const auto& utc_time = std::get<std::chrono::utc_clock::time_point>(result);
+				std::cout << std::format(
+					"{} ({:.3f} seconds since {})",
+					std::chrono::floor<std::chrono::milliseconds>(utc_time),
+					std::chrono::duration<double>(utc_time.time_since_epoch()).count(),
+					std::chrono::floor<std::chrono::milliseconds>(std::chrono::utc_clock::time_point{})
+				);
+			}
+			else
+			{
+				std::cerr << "Unimplemented output type in result variant\n";
+				return 1;
 			}
 		}
 		std::cout << '\n';

@@ -15,10 +15,13 @@ enum class TimeFormat
 	TT_J2000, // Terrestial Time; in seconds since TT J2000 epoch (2000-01-01 12:00:00.000 TT =
 			  // 2000-01-01 11:58:55.816 UTC)
 	CHRONO_SYS_TIME, // ISO 8601 format in chrono::sys_time
+	CHRONO_UTC_TIME, // ISO 8601 format in chrono::utc_time
 };
 
 #include <chrono>
 
-typedef std::variant<std::string, double, std::chrono::system_clock::time_point> TimeValue;
+typedef std::
+	variant<std::string, double, std::chrono::system_clock::time_point, std::chrono::utc_clock::time_point>
+		TimeValue;
 
 TimeValue convert_time(const TimeValue& input, TimeFormat input_format, TimeFormat output_format);
