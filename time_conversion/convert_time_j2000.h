@@ -130,10 +130,11 @@ double posix_to_tai_j2000(double posix_time);
 
 // Indirect conversions
 
-inline std::string posix_to_utc_iso(double posix_time)
+inline std::string
+posix_to_utc_iso(double posix_time, bool use_t_separator = false, int fractional_second_places = 3)
 {
 	const ParsedUtcIso parsed_utc_iso = posix_to_parsed_utc_iso(posix_time);
-	return parsed_utc_iso_to_utc_iso(parsed_utc_iso);
+	return parsed_utc_iso_to_utc_iso(parsed_utc_iso, use_t_separator, fractional_second_places);
 }
 
 inline double posix_to_tt_j2000(double posix_time)
@@ -159,10 +160,11 @@ inline ParsedUtcIso utc_j2000_to_parsed_utc_iso(double utc_j2000_time)
 	return posix_to_parsed_utc_iso(posix_time);
 }
 
-inline std::string utc_j2000_to_utc_iso(double utc_j2000_time)
+inline std::string
+utc_j2000_to_utc_iso(double utc_j2000_time, bool use_t_separator = false, int fractional_second_places = 3)
 {
 	const ParsedUtcIso parsed_utc_iso = utc_j2000_to_parsed_utc_iso(utc_j2000_time);
-	return parsed_utc_iso_to_utc_iso(parsed_utc_iso);
+	return parsed_utc_iso_to_utc_iso(parsed_utc_iso, use_t_separator, fractional_second_places);
 }
 
 inline double utc_j2000_to_tai_j2000(double utc_j2000_time)
@@ -193,10 +195,11 @@ double tai_j2000_to_posix(double tai_j2000_time);
 
 // Indirect conversions
 
-inline std::string tai_j2000_to_utc_iso(double tai_j2000_time)
+inline std::string
+tai_j2000_to_utc_iso(double tai_j2000_time, bool use_t_separator = false, int fractional_second_places = 3)
 {
 	const ParsedUtcIso parsed_utc_iso = tai_j2000_to_parsed_utc_iso(tai_j2000_time);
-	return parsed_utc_iso_to_utc_iso(parsed_utc_iso);
+	return parsed_utc_iso_to_utc_iso(parsed_utc_iso, use_t_separator, fractional_second_places);
 }
 
 inline double tai_j2000_to_utc_j2000(double tai_j2000_time)
@@ -217,11 +220,12 @@ inline ParsedUtcIso tt_j2000_to_parsed_utc_iso(double tt_j2000_time)
 	return tai_j2000_to_parsed_utc_iso(tai_j2000_time);
 }
 
-inline std::string tt_j2000_to_utc_iso(double tt_j2000_time)
+inline std::string
+tt_j2000_to_utc_iso(double tt_j2000_time, bool use_t_separator = false, int fractional_second_places = 3)
 {
 	const double tai_j2000_time = tt_j2000_to_tai_j2000(tt_j2000_time);
 	const ParsedUtcIso parsed_utc_iso = tai_j2000_to_parsed_utc_iso(tai_j2000_time);
-	return parsed_utc_iso_to_utc_iso(parsed_utc_iso);
+	return parsed_utc_iso_to_utc_iso(parsed_utc_iso, use_t_separator, fractional_second_places);
 }
 
 inline double tt_j2000_to_posix(double tt_j2000_time)
@@ -245,9 +249,10 @@ inline double tt_j2000_to_tdb_j2000(double tt_j2000_time)
 // TDB J2000 Time to X
 //
 
-inline std::string tdb_j2000_to_utc_iso(double tdb_j2000_time)
+inline std::string
+tdb_j2000_to_utc_iso(double tdb_j2000_time, bool use_t_separator = false, int fractional_second_places = 3)
 {
-	return tt_j2000_to_utc_iso(tdb_j2000_time);
+	return tt_j2000_to_utc_iso(tdb_j2000_time, use_t_separator, fractional_second_places);
 }
 
 inline double tdb_j2000_to_posix(double tdb_j2000_time)

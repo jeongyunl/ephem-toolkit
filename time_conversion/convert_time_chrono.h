@@ -145,9 +145,19 @@ std::chrono::time_point<std::chrono::utc_clock, Duration> tdb_j2000_to_utc_time(
 //
 
 template <typename Duration = std::chrono::system_clock::duration>
-std::string sys_time_to_utc_iso(std::chrono::time_point<std::chrono::system_clock, Duration> sys_time)
+std::string sys_time_to_utc_iso(
+	std::chrono::time_point<std::chrono::system_clock, Duration> sys_time,
+	bool use_t_separator = false
+)
 {
-	return std::format("{:%FT%T}", sys_time);
+	if(use_t_separator)
+	{
+		return std::format("{:%FT%T}", sys_time);
+	}
+	else
+	{
+		return std::format("{:%F %T}", sys_time);
+	}
 }
 
 // duration_cast-based system_clock to floating-point POSIX time conversion helper
@@ -164,9 +174,19 @@ Rep sys_time_to_utc_posix(std::chrono::time_point<std::chrono::system_clock> sys
 
 #ifdef HAS_CHRONO_UTC_CLOCK
 template <typename Duration = std::chrono::utc_clock::duration>
-std::string utc_time_to_utc_iso(std::chrono::time_point<std::chrono::utc_clock, Duration> utc_time)
+std::string utc_time_to_utc_iso(
+	std::chrono::time_point<std::chrono::utc_clock, Duration> utc_time,
+	bool use_t_separator = false
+)
 {
-	return std::format("{:%FT%T}", utc_time);
+	if(use_t_separator)
+	{
+		return std::format("{:%FT%T}", utc_time);
+	}
+	else
+	{
+		return std::format("{:%F %T}", utc_time);
+	}
 }
 #endif // HAS_CHRONO_UTC_CLOCK
 

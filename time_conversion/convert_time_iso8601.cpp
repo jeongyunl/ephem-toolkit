@@ -4,23 +4,18 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
+#include <format>
 #include <fstream>
-#include <iomanip>
-#include <sstream>
 #include <stdexcept>
 
 namespace
 {
 
-inline bool is_digit(char c)
-{
-	return c >= '0' && c <= '9';
-}
-
 inline int parse_2_digits(const std::string& s, std::size_t pos)
 {
-	if(pos + 2 > s.size() || !is_digit(s[pos]) || !is_digit(s[pos + 1]))
+	if(pos + 2 > s.size() || !std::isdigit(s[pos]) || !std::isdigit(s[pos + 1]))
 	{
 		throw std::runtime_error("Invalid 2-digit ISO field at position " + std::to_string(pos));
 	}
@@ -35,7 +30,7 @@ inline int parse_4_digits(const std::string& s, std::size_t pos)
 	}
 	for(std::size_t i = 0; i < 4; ++i)
 	{
-		if(!is_digit(s[pos + i]))
+		if(!std::isdigit(s[pos + i]))
 		{
 			throw std::runtime_error("Invalid 4-digit ISO field at position " + std::to_string(pos));
 		}
@@ -99,13 +94,13 @@ ParsedUtcIso utc_iso_to_parsed_utc_iso(const std::string& utc_iso)
 	{
 		++pos;
 		std::size_t digits = 0;
-		while(pos < utc_iso.size() && is_digit(utc_iso[pos]) && digits < 9)
+		while(pos < utc_iso.size() && std::isdigit(utc_iso[pos]) && digits < 9)
 		{
 			out.nanos = out.nanos * 10 + (utc_iso[pos] - '0');
 			++pos;
 			++digits;
 		}
-		while(pos < utc_iso.size() && is_digit(utc_iso[pos]))
+		while(pos < utc_iso.size() && std::isdigit(utc_iso[pos]))
 		{
 			++pos;
 		}
@@ -194,11 +189,16 @@ std::string parsed_utc_iso_to_utc_iso(
 
 	const char separator = use_t_separator ? 'T' : ' ';
 
-	std::ostringstream out;
-	out << std::setfill('0') << std::setw(4) << parsed_utc_iso.year << '-' << std::setw(2)
-		<< parsed_utc_iso.month << '-' << std::setw(2) << parsed_utc_iso.day << separator << std::setw(2)
-		<< parsed_utc_iso.hour << ':' << std::setw(2) << parsed_utc_iso.minute << ':' << std::setw(2)
-		<< parsed_utc_iso.second;
+	std::string out = std::format(
+		"{:04}-{:02}-{:02}{}{:02}:{:02}:{:02}",
+		parsed_utc_iso.year,
+		parsed_utc_iso.month,
+		parsed_utc_iso.day,
+		separator,
+		parsed_utc_iso.hour,
+		parsed_utc_iso.minute,
+		parsed_utc_iso.second
+	);
 
 	if(fractional_second_places > 0 && parsed_utc_iso.nanos != 0)
 	{
@@ -216,13 +216,14 @@ std::string parsed_utc_iso_to_utc_iso(
 
 		if(!fractional.empty())
 		{
-			out << '.' << fractional;
+			out += '.' + fractional;
 		}
 	}
 
 	if(parsed_utc_iso.tz_offset_seconds == 0)
 	{
-		out << 'Z';
+		// Keep UTC output without an explicit timezone suffix.
+		// out += 'Z';
 	}
 	else
 	{
@@ -231,8 +232,8 @@ std::string parsed_utc_iso_to_utc_iso(
 		const int abs_offset_seconds = std::abs(offset_seconds);
 		const int offset_hours = abs_offset_seconds / SECONDS_PER_HOUR;
 		const int offset_minutes = (abs_offset_seconds % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE;
-		out << sign << std::setw(2) << offset_hours << ':' << std::setw(2) << offset_minutes;
+		out += std::format("{}{:02}:{:02}", sign, offset_hours, offset_minutes);
 	}
 
-	return out.str();
+	return out;
 }

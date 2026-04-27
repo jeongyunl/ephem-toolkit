@@ -48,6 +48,19 @@ public:
 	{
 	}
 
+	template <typename Arg, typename Ret>
+	Handler(Ret (*func)(Arg, bool, int), bool use_t_separator = false, int fractional_second_places = 3)
+		: callable_(
+			  [func, use_t_separator, fractional_second_places](const TimeValue& input_time) -> TimeValue {
+				  Arg arg = std::get<Arg>(input_time);
+				  Ret out = func(arg, use_t_separator, fractional_second_places);
+				  return TimeValue{ std::in_place_type<Ret>, std::move(out) };
+			  }
+		  )
+		, input_type_(std::is_same_v<Arg, std::string> ? InputType::STRING : InputType::DOUBLE)
+	{
+	}
+
 	TimeValue operator()(const TimeValue& input_time) const { return callable_(input_time); }
 
 	explicit operator bool() const { return static_cast<bool>(callable_); }
@@ -107,7 +120,9 @@ std::variant<std::string, double> convert_time(
 		{
 			throw std::invalid_argument("Expected input of type std::string for the given input TimeFormat");
 		}
-		else if(handler.getInputType() == Handler::InputType::DOUBLE && !std::holds_alternative<double>(input))
+		else if(
+			handler.getInputType() == Handler::InputType::DOUBLE && !std::holds_alternative<double>(input)
+		)
 		{
 			throw std::invalid_argument("Expected input of type double for the given input TimeFormat");
 		}

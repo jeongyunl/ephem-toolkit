@@ -126,8 +126,8 @@ extern ParsedUtcIso utc_iso_to_parsed_utc_iso(const std::string& utc_iso);
 
 std::string parsed_utc_iso_to_utc_iso(
 	const ParsedUtcIso& parsed_utc_iso,
-	bool use_t_separator = true,
-	int fractional_second_places = 9
+	bool use_t_separator = false,
+	int fractional_second_places = 3
 );
 
 inline std::string utc_iso_to_utc_iso(const std::string& iso_string)
