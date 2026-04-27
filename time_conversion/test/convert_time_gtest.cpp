@@ -16,7 +16,7 @@ using convert_time_test::EpochRecord;
 class ConvertTimeDataDrivenTest : public ::testing::Test
 {
 protected:
-	static void SetUpTestSuite() { }
+	static void SetUpTestSuite() {}
 };
 
 } // namespace
@@ -461,7 +461,7 @@ TEST(ConvertTimeChrono, UtcTimeToUtcIsoFormatsWithoutTimezoneSuffix)
 
 	for(const auto& tc : cases)
 	{
-		EXPECT_EQ(utc_time_to_utc_iso(tc.input), tc.expected);
+		EXPECT_EQ(utc_time_to_utc_iso(tc.input, true), tc.expected);
 	}
 }
 #endif

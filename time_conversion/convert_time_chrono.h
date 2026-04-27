@@ -93,7 +93,7 @@ std::chrono::time_point<std::chrono::system_clock, Duration> tai_j2000_to_sys_ti
 template <typename Duration = std::chrono::utc_clock::duration>
 std::chrono::time_point<std::chrono::utc_clock, Duration> tai_j2000_to_utc_time(double tai_j2000_time)
 {
-	return TAI_J2000_EPOCH_IN_UTC_TIME<Duration>
+	return epochs::TAI_J2000_EPOCH_IN_UTC_TIME<Duration>
 		+ std::chrono::duration_cast<Duration>(std::chrono::duration<double>{ tai_j2000_time });
 }
 #endif
@@ -248,8 +248,8 @@ parsed_utc_iso_to_tai_time(const ParsedUtcIso& parsed_utc_iso)
 //
 
 template <typename Duration = std::chrono::system_clock::duration>
-std::chrono::time_point<std::chrono::system_clock, Duration>
-utc_iso_to_sys_time(const std::string& iso_string)
+std::chrono::time_point<std::chrono::system_clock, Duration> utc_iso_to_sys_time(const std::string& iso_string
+)
 {
 	const ParsedUtcIso parsed_utc_iso = utc_iso_to_parsed_utc_iso(iso_string);
 	return parsed_utc_iso_to_sys_time<Duration>(parsed_utc_iso);
