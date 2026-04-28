@@ -16,8 +16,16 @@ const std::map<std::string_view, TimeFormat> TimeFormatNames = {
 	{ "utc", TimeFormat::UTC_J2000 }, //
 	{ "tai", TimeFormat::TAI_J2000 }, //
 	{ "tt", TimeFormat::TT_J2000 }, //
+	{ "chrono_sys_iso", TimeFormat::CHRONO_SYS_TIME_ISO }, //
 	{ "chrono_sys", TimeFormat::CHRONO_SYS_TIME }, //
+#ifdef HAS_CHRONO_UTC_CLOCK
+	{ "chrono_utc_iso", TimeFormat::CHRONO_UTC_TIME_ISO }, //
 	{ "chrono_utc", TimeFormat::CHRONO_UTC_TIME }, //
+#endif
+#ifdef HAS_CHRONO_TAI_CLOCK
+	{ "chrono_tai_iso", TimeFormat::CHRONO_TAI_TIME_ISO }, //
+	{ "chrono_tai", TimeFormat::CHRONO_TAI_TIME }, //
+#endif
 };
 
 TimeFormat parse_time_format(const std::string& format_str)
@@ -139,23 +147,70 @@ int main(int argc, char* argv[])
 			else if(std::holds_alternative<std::chrono::system_clock::time_point>(result))
 			{
 				const auto& sys_time = std::get<std::chrono::system_clock::time_point>(result);
-				std::cout << std::format(
-					"{} ({:.3f}x seconds since {})",
-					std::chrono::floor<std::chrono::milliseconds>(sys_time),
-					std::chrono::duration<double>(sys_time.time_since_epoch()).count(),
-					std::chrono::floor<std::chrono::milliseconds>(std::chrono::system_clock::time_point{})
-				);
+				switch(output_format)
+				{
+					case TimeFormat::CHRONO_SYS_TIME:
+						std::cout << std::format(
+							"{:.3f} (since {} UTC)",
+							std::chrono::duration<double>(sys_time.time_since_epoch()).count(),
+							std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::time_point{})
+						);
+						break;
+					case TimeFormat::CHRONO_SYS_TIME_ISO:
+					default:
+						std::cout
+							<< std::format("{} UTC", std::chrono::floor<std::chrono::milliseconds>(sys_time));
+						break;
+				}
 			}
+#ifdef HAS_CHRONO_UTC_CLOCK
 			else if(std::holds_alternative<std::chrono::utc_clock::time_point>(result))
 			{
 				const auto& utc_time = std::get<std::chrono::utc_clock::time_point>(result);
-				std::cout << std::format(
-					"{} ({:.3f} seconds since {})",
-					std::chrono::floor<std::chrono::milliseconds>(utc_time),
-					std::chrono::duration<double>(utc_time.time_since_epoch()).count(),
-					std::chrono::floor<std::chrono::milliseconds>(std::chrono::utc_clock::time_point{})
-				);
+				switch(output_format)
+				{
+					case TimeFormat::CHRONO_UTC_TIME:
+						std::cout << std::format(
+							"{:.3f} (since {} UTC)",
+							std::chrono::duration<double>(utc_time.time_since_epoch()).count(),
+							std::chrono::floor<std::chrono::seconds>(std::chrono::utc_clock::time_point{})
+						);
+						break;
+					case TimeFormat::CHRONO_UTC_TIME_ISO:
+					default:
+						std::cout
+							<< std::format("{} UTC", std::chrono::floor<std::chrono::milliseconds>(utc_time));
+						break;
+				}
 			}
+#endif
+#ifdef HAS_CHRONO_TAI_CLOCK
+			else if(std::holds_alternative<std::chrono::tai_clock::time_point>(result))
+			{
+				const auto& tai_time = std::get<std::chrono::tai_clock::time_point>(result);
+				switch(output_format)
+				{
+					case TimeFormat::CHRONO_TAI_TIME:
+						std::cout << std::format(
+							"{:.3f} (since {} UTC)",
+							std::chrono::duration<double>(tai_time.time_since_epoch()).count(),
+							std::chrono::floor<std::chrono::seconds>(
+								std::chrono::tai_clock::to_utc(std::chrono::tai_clock::time_point{})
+							)
+						);
+						break;
+					case TimeFormat::CHRONO_TAI_TIME_ISO:
+					default:
+						std::cout << std::format(
+							"{} UTC",
+							std::chrono::floor<std::chrono::milliseconds>(
+								std::chrono::tai_clock::to_utc(tai_time)
+							)
+						);
+						break;
+				}
+			}
+#endif
 			else
 			{
 				std::cerr << "Unimplemented output type in result variant\n";

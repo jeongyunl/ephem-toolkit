@@ -78,7 +78,8 @@ public:
 	{
 	}
 
-	// Overload to accept functions returning std::chrono::utc_clock::time_point (e.g. posix_to_sys_time).
+#ifdef HAS_CHRONO_UTC_CLOCK
+	// Overload to accept functions returning std::chrono::utc_clock::time_point (e.g. posix_to_utc_time).
 	Handler(std::chrono::utc_clock::time_point (*func)(double))
 		: callable_([func](const TimeValue& input_time) -> TimeValue {
 			double arg = std::get<double>(input_time);
@@ -100,6 +101,32 @@ public:
 		, input_type_(InputType::STRING)
 	{
 	}
+#endif
+
+#ifdef HAS_CHRONO_TAI_CLOCK
+	// Overload to accept functions returning std::chrono::tai_clock::time_point (e.g. posix_to_tai_time).
+	Handler(std::chrono::tai_clock::time_point (*func)(double))
+		: callable_([func](const TimeValue& input_time) -> TimeValue {
+			double arg = std::get<double>(input_time);
+			auto out = func(arg);
+			return TimeValue{ std::in_place_type<std::chrono::tai_clock::time_point>, std::move(out) };
+		})
+		, input_type_(InputType::DOUBLE)
+	{
+	}
+
+	// Overload to accept functions returning std::chrono::tai_clock::time_point (e.g.
+	// utc_iso_to_tai_time).
+	Handler(std::chrono::tai_clock::time_point (*func)(const std::string&))
+		: callable_([func](const TimeValue& input_time) -> TimeValue {
+			const auto& arg = std::get<std::string>(input_time);
+			auto out = func(arg);
+			return TimeValue{ std::in_place_type<std::chrono::tai_clock::time_point>, std::move(out) };
+		})
+		, input_type_(InputType::STRING)
+	{
+	}
+#endif
 
 	TimeValue operator()(const TimeValue& input_time) const { return callable_(input_time); }
 
@@ -118,40 +145,80 @@ std::map<DispatchKey, Handler> dispatchTable{
 	{ { TimeFormat::UTC_ISO8601, TimeFormat::UTC_J2000 }, utc_iso_to_utc_j2000 },
 	{ { TimeFormat::UTC_ISO8601, TimeFormat::TAI_J2000 }, utc_iso_to_tai_j2000 },
 	{ { TimeFormat::UTC_ISO8601, TimeFormat::TT_J2000 }, utc_iso_to_tt_j2000 },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_SYS_TIME_ISO }, utc_iso_to_sys_time },
 	{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_SYS_TIME }, utc_iso_to_sys_time },
+#ifdef HAS_CHRONO_UTC_CLOCK
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_UTC_TIME_ISO }, utc_iso_to_utc_time },
 	{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_UTC_TIME }, utc_iso_to_utc_time },
+#endif
+#ifdef HAS_CHRONO_TAI_CLOCK
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_TAI_TIME_ISO }, utc_iso_to_tai_time },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_TAI_TIME }, utc_iso_to_tai_time },
+#endif
 
 	{ { TimeFormat::POSIX, TimeFormat::UTC_ISO8601 }, posix_to_utc_iso },
 	{ { TimeFormat::POSIX, TimeFormat::POSIX }, posix_to_posix },
 	{ { TimeFormat::POSIX, TimeFormat::UTC_J2000 }, posix_to_utc_j2000 },
 	{ { TimeFormat::POSIX, TimeFormat::TAI_J2000 }, posix_to_tai_j2000 },
 	{ { TimeFormat::POSIX, TimeFormat::TT_J2000 }, posix_to_tt_j2000 },
+	{ { TimeFormat::POSIX, TimeFormat::CHRONO_SYS_TIME_ISO }, posix_to_sys_time },
 	{ { TimeFormat::POSIX, TimeFormat::CHRONO_SYS_TIME }, posix_to_sys_time },
+#ifdef HAS_CHRONO_UTC_CLOCK
+	{ { TimeFormat::POSIX, TimeFormat::CHRONO_UTC_TIME_ISO }, posix_to_utc_time },
 	{ { TimeFormat::POSIX, TimeFormat::CHRONO_UTC_TIME }, posix_to_utc_time },
+#endif
+#ifdef HAS_CHRONO_TAI_CLOCK
+	{ { TimeFormat::POSIX, TimeFormat::CHRONO_TAI_TIME_ISO }, posix_to_tai_time },
+	{ { TimeFormat::POSIX, TimeFormat::CHRONO_TAI_TIME }, posix_to_tai_time },
+#endif
 
 	{ { TimeFormat::UTC_J2000, TimeFormat::UTC_ISO8601 }, utc_j2000_to_utc_iso },
 	{ { TimeFormat::UTC_J2000, TimeFormat::POSIX }, utc_j2000_to_posix },
 	{ { TimeFormat::UTC_J2000, TimeFormat::UTC_J2000 }, utc_j2000_to_utc_j2000 },
 	{ { TimeFormat::UTC_J2000, TimeFormat::TAI_J2000 }, utc_j2000_to_tai_j2000 },
 	{ { TimeFormat::UTC_J2000, TimeFormat::TT_J2000 }, utc_j2000_to_tt_j2000 },
+	{ { TimeFormat::UTC_J2000, TimeFormat::CHRONO_SYS_TIME_ISO }, utc_j2000_to_sys_time },
 	{ { TimeFormat::UTC_J2000, TimeFormat::CHRONO_SYS_TIME }, utc_j2000_to_sys_time },
+#ifdef HAS_CHRONO_UTC_CLOCK
+	{ { TimeFormat::UTC_J2000, TimeFormat::CHRONO_UTC_TIME_ISO }, utc_j2000_to_utc_time },
 	{ { TimeFormat::UTC_J2000, TimeFormat::CHRONO_UTC_TIME }, utc_j2000_to_utc_time },
+#endif
+#ifdef HAS_CHRONO_TAI_CLOCK
+	{ { TimeFormat::UTC_J2000, TimeFormat::CHRONO_TAI_TIME_ISO }, utc_j2000_to_tai_time },
+	{ { TimeFormat::UTC_J2000, TimeFormat::CHRONO_TAI_TIME }, utc_j2000_to_tai_time },
+#endif
 
 	{ { TimeFormat::TAI_J2000, TimeFormat::UTC_ISO8601 }, tai_j2000_to_utc_iso },
 	{ { TimeFormat::TAI_J2000, TimeFormat::POSIX }, tai_j2000_to_posix },
 	{ { TimeFormat::TAI_J2000, TimeFormat::UTC_J2000 }, tai_j2000_to_utc_j2000 },
 	{ { TimeFormat::TAI_J2000, TimeFormat::TAI_J2000 }, tai_j2000_to_tai_j2000 },
 	{ { TimeFormat::TAI_J2000, TimeFormat::TT_J2000 }, tai_j2000_to_tt_j2000 },
+	{ { TimeFormat::TAI_J2000, TimeFormat::CHRONO_SYS_TIME_ISO }, tai_j2000_to_sys_time },
 	{ { TimeFormat::TAI_J2000, TimeFormat::CHRONO_SYS_TIME }, tai_j2000_to_sys_time },
+#ifdef HAS_CHRONO_UTC_CLOCK
+	{ { TimeFormat::TAI_J2000, TimeFormat::CHRONO_UTC_TIME_ISO }, tai_j2000_to_utc_time },
 	{ { TimeFormat::TAI_J2000, TimeFormat::CHRONO_UTC_TIME }, tai_j2000_to_utc_time },
+#endif
+#ifdef HAS_CHRONO_TAI_CLOCK
+	{ { TimeFormat::TAI_J2000, TimeFormat::CHRONO_TAI_TIME_ISO }, tai_j2000_to_tai_time },
+	{ { TimeFormat::TAI_J2000, TimeFormat::CHRONO_TAI_TIME }, tai_j2000_to_tai_time },
+#endif
 
 	{ { TimeFormat::TT_J2000, TimeFormat::UTC_ISO8601 }, tt_j2000_to_utc_iso },
 	{ { TimeFormat::TT_J2000, TimeFormat::POSIX }, tt_j2000_to_posix },
 	{ { TimeFormat::TT_J2000, TimeFormat::UTC_J2000 }, tt_j2000_to_utc_j2000 },
 	{ { TimeFormat::TT_J2000, TimeFormat::TAI_J2000 }, tt_j2000_to_tai_j2000 },
 	{ { TimeFormat::TT_J2000, TimeFormat::TT_J2000 }, tt_j2000_to_tt_j2000 },
+	{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_SYS_TIME_ISO }, tt_j2000_to_sys_time },
 	{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_SYS_TIME }, tt_j2000_to_sys_time },
+#ifdef HAS_CHRONO_UTC_CLOCK
+	{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_UTC_TIME_ISO }, tt_j2000_to_utc_time },
 	{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_UTC_TIME }, tt_j2000_to_utc_time },
+#endif
+#ifdef HAS_CHRONO_TAI_CLOCK
+	{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_TAI_TIME_ISO }, tt_j2000_to_tai_time },
+	{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_TAI_TIME }, tt_j2000_to_tai_time },
+#endif
 };
 
 TimeValue convert_time(const TimeValue& input, TimeFormat input_format, TimeFormat output_format)

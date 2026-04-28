@@ -63,7 +63,7 @@ TEST(ConvertTimeDispFn, ShouldReturnChronoSysTimeForPosixInput)
 	using namespace std::chrono;
 	const double posix = 946728000.0; // 2000-01-01T12:00:00 UTC
 	const TimeValue input = posix;
-	const auto output = convert_time(input, TimeFormat::POSIX, TimeFormat::CHRONO_SYS_TIME);
+	const auto output = convert_time(input, TimeFormat::POSIX, TimeFormat::CHRONO_SYS_TIME_ISO);
 
 	ASSERT_TRUE(std::holds_alternative<system_clock::time_point>(output));
 	const auto tp = std::get<system_clock::time_point>(output);
@@ -75,7 +75,7 @@ TEST(ConvertTimeDispFn, ChronoSysTimeRoundTripToPosix)
 	using namespace std::chrono;
 	const double posix = 98765.4321;
 	const TimeValue input = posix;
-	const auto chrono_out = convert_time(input, TimeFormat::POSIX, TimeFormat::CHRONO_SYS_TIME);
+	const auto chrono_out = convert_time(input, TimeFormat::POSIX, TimeFormat::CHRONO_SYS_TIME_ISO);
 	ASSERT_TRUE(std::holds_alternative<system_clock::time_point>(chrono_out));
 	const auto tp = std::get<system_clock::time_point>(chrono_out);
 

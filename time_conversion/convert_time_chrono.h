@@ -98,6 +98,14 @@ std::chrono::time_point<std::chrono::utc_clock, Duration> tai_j2000_to_utc_time(
 }
 #endif
 
+#ifdef HAS_CHRONO_TAI_CLOCK
+template <typename Duration = std::chrono::tai_clock::duration>
+std::chrono::time_point<std::chrono::tai_clock, Duration> tai_j2000_to_tai_time(double tai_j2000_time)
+{
+	return std::chrono::tai_clock::from_utc(tai_j2000_to_utc_time<Duration>(tai_j2000_time));
+}
+#endif
+
 //
 // tt_j2000_to_*_time() functions
 //
@@ -116,6 +124,15 @@ std::chrono::time_point<std::chrono::utc_clock, Duration> tt_j2000_to_utc_time(d
 {
 	const auto tai_j2000_time = tt_j2000_to_tai_j2000(tt_j2000_time);
 	return tai_j2000_to_utc_time<Duration>(tai_j2000_time);
+}
+#endif
+
+#ifdef HAS_CHRONO_TAI_CLOCK
+template <typename Duration = std::chrono::tai_clock::duration>
+std::chrono::time_point<std::chrono::tai_clock, Duration> tt_j2000_to_tai_time(double tt_j2000_time)
+{
+	const auto tai_j2000_time = tt_j2000_to_tai_j2000(tt_j2000_time);
+	return tai_j2000_to_tai_time<Duration>(tai_j2000_time);
 }
 #endif
 
