@@ -32,11 +32,16 @@ enum class TimeFormat
 typedef std::variant<
 	std::string,
 	double,
-	std::chrono::system_clock::time_point,
+	std::chrono::system_clock::time_point
 #ifdef HAS_CHRONO_UTC_CLOCK
-	std::chrono::utc_clock::time_point,
+	,
+	std::chrono::utc_clock::time_point
 #endif
-	std::chrono::tai_clock::time_point>
+#ifdef HAS_CHRONO_TAI_CLOCK
+	,
+	std::chrono::tai_clock::time_point
+#endif
+	>
 	TimeValue;
 
 TimeValue convert_time(const TimeValue& input, TimeFormat input_format, TimeFormat output_format);
