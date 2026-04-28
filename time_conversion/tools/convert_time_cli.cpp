@@ -39,6 +39,21 @@ TimeFormat parse_time_format(const std::string& format_str)
 	return TimeFormat::UNKNOWN;
 }
 
+void print_usage(const char* program_name)
+{
+	std::cout << "Usage: " << program_name << " [OPTIONS] input_time ...\n"
+			  << "Options:\n"
+			  << "  -h, --help                Show this help message and exit\n"
+			  << "  -i, --input-format FORMAT Specify the input time format\n"
+			  << "  -o, --output-format FORMAT Specify the output time format\n";
+
+	std::cout << "\nSupported time formats:\n";
+	for(const auto& [name, format] : TimeFormatNames)
+	{
+		std::cout << "  " << name << '\n';
+	}
+}
+
 int main(int argc, char* argv[])
 {
 	std::string input_format_str;
@@ -54,7 +69,7 @@ int main(int argc, char* argv[])
 												{ "output-format", required_argument, 0, 'o' },
 												{ 0, 0, 0, 0 } };
 
-		opt_char = getopt_long(argc, argv, "hi:o:t:", long_options, &option_index);
+		opt_char = getopt_long(argc, argv, "hi:o:", long_options, &option_index);
 
 		if(opt_char == -1)
 		{
@@ -64,14 +79,7 @@ int main(int argc, char* argv[])
 		switch(opt_char)
 		{
 			case 'h':
-				std::cout << "Usage: " << argv[0] << " [OPTIONS]\n"
-						  << "Options:\n"
-						  << "  -h, --help                Show this help message and exit\n"
-						  << "  -i, --input-format FORMAT Specify the input time format (posix, iso, utc, "
-							 "tai, tt, tdb)\n"
-						  << "  -o, --output-format FORMAT Specify the output time format (posix, iso, utc, "
-							 "tai, tt, tdb)\n"
-						  << "  -t, --time TIME           Specify the time value to convert\n";
+				print_usage(argv[0]);
 				return 0;
 			case 'i':
 				input_format_str = optarg;
@@ -97,6 +105,12 @@ int main(int argc, char* argv[])
 			input_time_list.emplace_back(argv[optind]);
 			optind++;
 		}
+	}
+	else
+	{
+		std::cerr << "No input times provided\n";
+		print_usage(argv[0]);
+		return 1;
 	}
 
 	// Your code here
