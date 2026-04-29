@@ -3,7 +3,9 @@
 
 #include "convert_time_chrono.h"
 #include "convert_time_iso8601.h"
+#if !defined(HAS_CHRONO_UTC_CLOCK)
 #include "convert_time_leap_transition.h"
+#endif
 
 #include <cmath>
 #include <cstdint>
@@ -109,6 +111,7 @@ double posix_to_tai_j2000(double posix_time)
 // TAI J2000
 //
 
+#if !defined(HAS_CHRONO_UTC_CLOCK)
 // construct a 23:59:60 representation with fractional offset within the leap second
 static ParsedUtcIso
 posix_leap_second_transition_to_parsed_utc_iso(double transition_posix_time, double fractional_second)
@@ -126,9 +129,17 @@ posix_leap_second_transition_to_parsed_utc_iso(double transition_posix_time, dou
 	result.tz_offset_seconds = 0;
 	return result;
 }
+#endif
 
 double parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc_iso)
 {
+#ifdef HAS_CHRONO_UTC_CLOCK
+	const auto utc_time = parsed_utc_iso_to_utc_time(parsed_utc_iso);
+	return std::chrono::duration<
+			   double>(utc_time - epochs::TAI_J2000_EPOCH_IN_UTC_TIME<decltype(utc_time)::duration>)
+		.count();
+
+#else
 	const auto& transitions = get_zoneinfo_leap_transitions();
 
 	// POSIX-like seconds since 1970-01-01 for the UTC instant.
@@ -163,10 +174,43 @@ double parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc_iso)
 	const double leap_delta = leap_now - TAI_MINUS_UTC_AT_J2000;
 
 	return utc_elapsed_non_leap + leap_delta;
+#endif
 }
 
 ParsedUtcIso tai_j2000_to_parsed_utc_iso(double tai_j2000_time)
 {
+#ifdef HAS_CHRONO_UTC_CLOCK
+	const auto utc_time = tai_j2000_to_utc_time(tai_j2000_time);
+
+	auto leap_second_info = std::chrono::get_leap_second_info(utc_time);
+
+	std::chrono::system_clock::time_point sys_time;
+
+	if(not leap_second_info.is_leap_second)
+	{
+		sys_time = std::chrono::utc_clock::to_sys(utc_time);
+	}
+	else
+	{
+		// During a leap second, map to the previous second in sys_time
+		sys_time = std::chrono::utc_clock::to_sys(utc_time - std::chrono::seconds{ 1 });
+	}
+
+	const auto sys_days = std::chrono::floor<std::chrono::days>(sys_time);
+	std::chrono::year_month_day ymd{ sys_days };
+	std::chrono::hh_mm_ss time_of_day{ sys_time - sys_days };
+
+	const ParsedUtcIso parsed_utc_iso{ .year = int(ymd.year()),
+									   .month = unsigned(ymd.month()),
+									   .day = unsigned(ymd.day()),
+									   .hour = time_of_day.hours().count(),
+									   .minute = time_of_day.minutes().count(),
+									   .second = time_of_day.seconds().count()
+										   + (leap_second_info.is_leap_second ? 1 : 0),
+									   .nanos = time_of_day.subseconds().count(),
+									   .tz_offset_seconds = 0 };
+	return parsed_utc_iso;
+#else
 	// Largest historical UTC-TAI offset is well below this; keep a safe search margin.
 	constexpr double BINARY_SEARCH_LOWER_MARGIN_SECONDS = 64.0;
 	// UTC is never ahead of TAI, but a small positive margin keeps the upper bracket robust.
@@ -255,6 +299,7 @@ ParsedUtcIso tai_j2000_to_parsed_utc_iso(double tai_j2000_time)
 	// After 32 iterations, upper converges to the correct UTC POSIX instant (within floating-point precision)
 	// Convert the UTC POSIX instant to calendar representation
 	return posix_to_parsed_utc_iso(upper);
+#endif
 }
 
 double tai_j2000_to_posix(double tai_j2000_time)

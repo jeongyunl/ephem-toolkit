@@ -159,7 +159,7 @@ TEST(FormatIso8601Utc, LimitsFractionalSecondPlaces)
 	p.nanos = 123456789;
 
 	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, true, 3), "2020-01-02T03:04:05.123");
-	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, true, 6), "2020-01-02T03:04:05.123456");
+	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, true, 6), "2020-01-02T03:04:05.123457");
 	EXPECT_EQ(parsed_utc_iso_to_utc_iso(p, true, 9), "2020-01-02T03:04:05.123456789");
 }
 
@@ -195,7 +195,7 @@ TEST(CumulativeLeapCorrection, Pre1972UsesLinearModel)
 {
 	// Ensure the pre-1972 branch is exercised and returns a finite value.
 	const double utc_1971 = static_cast<double>(calendar_date_to_posix_days(1971, 1, 1) * SECONDS_PER_DAY);
-	const double corr = cumulative_leap_correction({ }, utc_1971, false);
+	const double corr = cumulative_leap_correction({}, utc_1971, false);
 	EXPECT_TRUE(std::isfinite(corr));
 }
 

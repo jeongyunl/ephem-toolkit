@@ -202,7 +202,23 @@ std::string parsed_utc_iso_to_utc_iso(
 
 	if(fractional_second_places > 0 && parsed_utc_iso.nanos != 0)
 	{
-		std::string fractional = std::to_string(parsed_utc_iso.nanos + NANOSECONDS_PER_SECOND).substr(1);
+		// Round the nanoseconds to the requested number of fractional second places.
+		int rounding_places = fractional_second_places;
+		int64_t factor = 1;
+		for(int i = 0; i < 9 - rounding_places; ++i)
+		{
+			factor *= 10;
+		}
+		// Compute rounded nanoseconds (round half-up)
+		int64_t rounded_nanos = ((parsed_utc_iso.nanos + factor / 2) / factor) * factor;
+		if(rounded_nanos >= NANOSECONDS_PER_SECOND)
+		{
+			// Rounding carried into the next whole second; adjust string to represent exactly 1.000... as
+			// fractional part
+			rounded_nanos = NANOSECONDS_PER_SECOND;
+		}
+
+		std::string fractional = std::to_string(rounded_nanos + NANOSECONDS_PER_SECOND).substr(1);
 
 		if(fractional_second_places < 9)
 		{

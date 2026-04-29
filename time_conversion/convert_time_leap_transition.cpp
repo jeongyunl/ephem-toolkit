@@ -44,8 +44,6 @@ inline int month_name_to_number(const std::string& month_name)
 	throw std::runtime_error("Invalid month token in leap-second file: " + month_name);
 }
 
-} // namespace
-
 std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::string& leapseconds_path)
 {
 	std::ifstream in(leapseconds_path);
@@ -134,10 +132,8 @@ std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::string& le
 	return out;
 }
 
-namespace
-{
 static std::vector<LeapTransition> transitions = load_zoneinfo_leap_transitions(LEAPSECONDS_PATH_DEFAULT);
-}
+} // namespace
 
 const std::vector<LeapTransition>& get_zoneinfo_leap_transitions()
 {
