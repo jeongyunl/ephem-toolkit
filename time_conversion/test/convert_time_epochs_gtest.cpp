@@ -18,6 +18,10 @@ TEST(ConvertTimeEpochs, Iso8601LabelsMatchExpected)
 		std::format("{:%FT%T}", epochs::TAI_J2000_EPOCH_IN_SYS_TIME<std::chrono::seconds>).c_str()
 	);
 	EXPECT_STREQ(
+		epochs::TAI_J2000_EPOCH_IN_ISO8601,
+		std::format("{:%FT%T}", epochs::TAI_J2000_EPOCH_IN_UTC_TIME<std::chrono::seconds>).c_str()
+	);
+	EXPECT_STREQ(
 		epochs::TT_J2000_EPOCH_IN_ISO8601,
 		std::format("{:%FT%T}", epochs::TT_J2000_EPOCH_IN_SYS_TIME<std::chrono::milliseconds>).c_str()
 	);

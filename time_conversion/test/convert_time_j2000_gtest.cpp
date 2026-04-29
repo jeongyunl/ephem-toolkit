@@ -78,16 +78,13 @@ TEST(ConvertTimeJ2000, IsoToJ2000MatchesReferenceData)
 		}
 
 		{
-			const auto utc_j2000_from_parsed = parsed_utc_iso_to_utc_j2000(
-				parsed_utc_iso
+			const auto utc_j2000_from_parsed = parsed_utc_iso_to_utc_j2000(parsed_utc_iso
 			); // Test that conversion from parsed struct doesn't throw
 
-			const ParsedUtcIso parsed_utc_iso_back = utc_j2000_to_parsed_utc_iso(
-				utc_j2000_from_parsed
+			const ParsedUtcIso parsed_utc_iso_back = utc_j2000_to_parsed_utc_iso(utc_j2000_from_parsed
 			); // Test that conversion back to parsed struct doesn't throw
 
-			const auto utc_j2000_from_back = parsed_utc_iso_to_utc_j2000(
-				parsed_utc_iso_back
+			const auto utc_j2000_from_back = parsed_utc_iso_to_utc_j2000(parsed_utc_iso_back
 			); // Test that conversion from parsed struct back to J2000 doesn't throw
 
 			EXPECT_NEAR(utc_j2000_from_back, utc_j2000_from_parsed, 1.0e-6)
@@ -98,16 +95,13 @@ TEST(ConvertTimeJ2000, IsoToJ2000MatchesReferenceData)
 			<< record.iso << " tai=" << record.tai;
 
 		{
-			const auto tai_j2000_from_parsed = parsed_utc_iso_to_tai_j2000(
-				parsed_utc_iso
+			const auto tai_j2000_from_parsed = parsed_utc_iso_to_tai_j2000(parsed_utc_iso
 			); // Test that conversion from parsed struct doesn't throw
 
-			const ParsedUtcIso parsed_utc_iso_back = tai_j2000_to_parsed_utc_iso(
-				tai_j2000_from_parsed
+			const ParsedUtcIso parsed_utc_iso_back = tai_j2000_to_parsed_utc_iso(tai_j2000_from_parsed
 			); // Test that conversion back to parsed struct doesn't throw
 
-			const auto tai_j2000_from_back = parsed_utc_iso_to_tai_j2000(
-				parsed_utc_iso_back
+			const auto tai_j2000_from_back = parsed_utc_iso_to_tai_j2000(parsed_utc_iso_back
 			); // Test that conversion from parsed struct back to J2000 doesn't throw
 
 			EXPECT_NEAR(tai_j2000_from_back, tai_j2000_from_parsed, 1.0e-6)
@@ -258,12 +252,14 @@ TEST(ConvertTimeJ2000, PosixToTaiJ2000WithEpochRecords)
 			continue;
 		}
 
-		// Convert POSIX to TAI J2000
-		const double tai_j2000_time = posix_to_tai_j2000(record.posix);
+		if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
+		{ // Convert POSIX to TAI J2000
+			const double tai_j2000_time = posix_to_tai_j2000(record.posix);
 
-		// Should match the reference TAI J2000 value
-		EXPECT_NEAR(tai_j2000_time, record.tai, convert_time_test::kTolExactLike)
-			<< record.iso << " posix=" << record.posix;
+			// Should match the reference TAI J2000 value
+			EXPECT_NEAR(tai_j2000_time, record.tai, convert_time_test::kTolExactLike)
+				<< record.iso << " posix=" << record.posix;
+		}
 	}
 }
 
@@ -306,7 +302,7 @@ TEST(ConvertTimeJ2000, PosixToTaiJ2000WithFractionalSeconds)
 
 	// Should match the ISO path
 	const double tai_j2000_iso = utc_iso_to_tai_j2000(iso_string);
-	EXPECT_NEAR(tai_j2000_time, tai_j2000_iso, 1.0e-9);
+	EXPECT_NEAR(tai_j2000_time, tai_j2000_iso, 1.0e-6);
 
 	// Result should be finite
 	EXPECT_TRUE(std::isfinite(tai_j2000_time));

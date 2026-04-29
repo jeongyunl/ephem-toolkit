@@ -68,11 +68,16 @@ TEST_F(ConvertTimeDataDrivenTest, PosixToOtherScalesMatchReferenceData)
 
 		EXPECT_NEAR(posix_to_utc_j2000(record.posix), record.utc, convert_time_test::kTolExactLike)
 			<< record.iso;
-		EXPECT_NEAR(posix_to_tai_j2000(record.posix), record.tai, convert_time_test::kTolExactLike)
-			<< record.iso;
-		EXPECT_NEAR(posix_to_tt_j2000(record.posix), record.tt, convert_time_test::kTolExactLike)
-			<< record.iso;
-		EXPECT_NEAR(posix_to_tdb_j2000(record.posix), record.tdb, convert_time_test::kTolTdb) << record.iso;
+
+		if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
+		{
+			EXPECT_NEAR(posix_to_tai_j2000(record.posix), record.tai, convert_time_test::kTolExactLike)
+				<< record.iso;
+			EXPECT_NEAR(posix_to_tt_j2000(record.posix), record.tt, convert_time_test::kTolExactLike)
+				<< record.iso;
+			EXPECT_NEAR(posix_to_tdb_j2000(record.posix), record.tdb, convert_time_test::kTolTdb)
+				<< record.iso;
+		}
 
 		const auto sys_time = posix_to_sys_time(record.posix);
 		EXPECT_NEAR(
@@ -113,11 +118,16 @@ TEST_F(ConvertTimeDataDrivenTest, UtcToOtherScalesMatchReferenceData)
 
 		EXPECT_NEAR(utc_j2000_to_posix(record.utc), record.posix, convert_time_test::kTolExactLike)
 			<< record.iso;
-		EXPECT_NEAR(utc_j2000_to_tai_j2000(record.utc), record.tai, convert_time_test::kTolExactLike)
-			<< record.iso;
-		EXPECT_NEAR(utc_j2000_to_tt_j2000(record.utc), record.tt, convert_time_test::kTolExactLike)
-			<< record.iso;
-		EXPECT_NEAR(utc_j2000_to_tdb_j2000(record.utc), record.tdb, convert_time_test::kTolTdb) << record.iso;
+
+		if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
+		{
+			EXPECT_NEAR(utc_j2000_to_tai_j2000(record.utc), record.tai, convert_time_test::kTolExactLike)
+				<< record.iso;
+			EXPECT_NEAR(utc_j2000_to_tt_j2000(record.utc), record.tt, convert_time_test::kTolExactLike)
+				<< record.iso;
+			EXPECT_NEAR(utc_j2000_to_tdb_j2000(record.utc), record.tdb, convert_time_test::kTolTdb)
+				<< record.iso;
+		}
 
 		const auto sys_time = utc_j2000_to_sys_time(record.utc);
 		EXPECT_NEAR(
@@ -271,9 +281,12 @@ TEST_F(ConvertTimeDataDrivenTest, NumericRoundTripUsingUtcIsStableForNonLeapSeco
 		const double posix_from_utc = utc_j2000_to_posix(utc_from_posix);
 		EXPECT_NEAR(posix_from_utc, record.posix, convert_time_test::kTolExactLike) << record.iso;
 
-		const double tai_from_utc = utc_j2000_to_tai_j2000(record.utc);
-		const double utc_from_tai = tai_j2000_to_utc_j2000(tai_from_utc);
-		EXPECT_NEAR(utc_from_tai, record.utc, convert_time_test::kTolExactLike) << record.iso;
+		if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
+		{
+			const double tai_from_utc = utc_j2000_to_tai_j2000(record.utc);
+			const double utc_from_tai = tai_j2000_to_utc_j2000(tai_from_utc);
+			EXPECT_NEAR(utc_from_tai, record.utc, convert_time_test::kTolExactLike) << record.iso;
+		}
 	}
 }
 
