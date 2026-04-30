@@ -84,9 +84,8 @@ double TimeConverter::posix_to_tai_j2000(double posix_time) const
 	// If chrono::utc_clock is available, we can get the TAI-UTC offset directly from the clock
 	// without needing to maintain our own leap second table or perform binary search.
 	const auto utc_time = this->posix_to_utc_time(posix_time);
-	return std::chrono::duration<double>(
-			   utc_time - epochs::TAI_J2000_EPOCH_IN_UTC_TIME<decltype(utc_time)::duration>
-	)
+	return std::chrono::duration<
+			   double>(utc_time - epochs::TAI_J2000_EPOCH_IN_UTC_TIME<decltype(utc_time)::duration>)
 		.count();
 #else
 	const auto& transitions = get_zoneinfo_leap_transitions();
@@ -134,9 +133,8 @@ double TimeConverter::parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc
 {
 #ifdef HAS_CHRONO_UTC_CLOCK
 	const auto utc_time = this->parsed_utc_iso_to_utc_time(parsed_utc_iso);
-	return std::chrono::duration<double>(
-			   utc_time - epochs::TAI_J2000_EPOCH_IN_UTC_TIME<decltype(utc_time)::duration>
-	)
+	return std::chrono::duration<
+			   double>(utc_time - epochs::TAI_J2000_EPOCH_IN_UTC_TIME<decltype(utc_time)::duration>)
 		.count();
 
 #else
@@ -200,15 +198,16 @@ ParsedUtcIso TimeConverter::tai_j2000_to_parsed_utc_iso(double tai_j2000_time) c
 	std::chrono::year_month_day ymd{ sys_days };
 	std::chrono::hh_mm_ss time_of_day{ sys_time - sys_days };
 
-	const ParsedUtcIso parsed_utc_iso{ .year = int(ymd.year()),
-									   .month = unsigned(ymd.month()),
-									   .day = unsigned(ymd.day()),
-									   .hour = time_of_day.hours().count(),
-									   .minute = time_of_day.minutes().count(),
-									   .second = time_of_day.seconds().count()
-										   + (leap_second_info.is_leap_second ? 1 : 0),
-									   .nanos = time_of_day.subseconds().count(),
-									   .tz_offset_seconds = 0 };
+	const ParsedUtcIso parsed_utc_iso{
+		.year = int(ymd.year()),
+		.month = unsigned(ymd.month()),
+		.day = unsigned(ymd.day()),
+		.hour = static_cast<int>(time_of_day.hours().count()),
+		.minute = static_cast<int>(time_of_day.minutes().count()),
+		.second = static_cast<int>(time_of_day.seconds().count() + (leap_second_info.is_leap_second ? 1 : 0)),
+		.nanos = time_of_day.subseconds().count(),
+		.tz_offset_seconds = 0
+	};
 	return parsed_utc_iso;
 #else
 	// Largest historical UTC-TAI offset is well below this; keep a safe search margin.
