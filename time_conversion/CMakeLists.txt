@@ -3,6 +3,7 @@ add_library(
     convert_time_iso8601.cpp
     convert_time_j2000.cpp
     convert_time_leap_transition.cpp
+    convert_time_disp_tbl.cpp
 )
 
 # Apply coverage flags only to this project targets when enabled
@@ -21,7 +22,7 @@ if(BUILD_TESTING)
         convert_time_gtest
         test/convert_time_gtest.cpp
         test/convert_time_gtest_common.cpp
-        tools/convert_time_disp_tbl.cpp
+        convert_time_disp_tbl.cpp
     )
 
     target_link_libraries(
@@ -46,7 +47,7 @@ if(BUILD_TESTING)
         convert_time_disp_tbl_gtest
         test/convert_time_disp_tbl_gtest.cpp
         test/convert_time_gtest_common.cpp
-        tools/convert_time_disp_tbl.cpp
+        convert_time_disp_tbl.cpp
     )
 
     add_executable(

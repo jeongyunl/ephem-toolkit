@@ -254,4 +254,3 @@ std::string TimeConverter::parsed_utc_iso_to_utc_iso(
 
 	return out;
 }
-

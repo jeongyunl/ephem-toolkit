@@ -1,4 +1,3 @@
-#include "convert_time_tudat_disp_tbl.h"
 #include "time_converter_tudat.h"
 
 #include <format>
@@ -9,8 +8,6 @@
 #include <string_view>
 #include <variant>
 #include <getopt.h>
-
-using namespace convert_time_tudat;
 
 const std::map<std::string_view, TimeFormat> TimeFormatNames = {
 	{ "iso", TimeFormat::UTC_ISO_TUDAT }, //
@@ -124,7 +121,8 @@ int main(int argc, char* argv[])
 				return 1;
 			}
 
-			auto result = convert_time(input_time_value, input_time_format, output_format);
+			auto result = TimeConverterTudat::instance()
+							  .convert_time(input_time_value, input_time_format, output_format);
 
 			std::cout << '\t';
 

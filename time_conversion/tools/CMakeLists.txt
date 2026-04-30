@@ -1,6 +1,6 @@
 # Tools
 
-add_executable(convert_time_cli convert_time_cli.cpp convert_time_disp_tbl.cpp)
+add_executable(convert_time_cli convert_time_cli.cpp)
 
 # Allow includes like: #include "convert_time_disp_fn.h" (header lives in this
 # directory)

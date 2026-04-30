@@ -25,9 +25,6 @@ std::shared_ptr<tudat::earth_orientation::TerrestrialTimeScaleConverter> get_tud
 }
 } // namespace
 
-namespace convert_time_tudat
-{
-
 //
 // utc_iso_to_*() functions
 //
@@ -571,5 +568,3 @@ double TimeConverterTudat::tdb_j2000_to_tt_j2000(const double tdb_tudat_time) co
 		return std::numeric_limits<double>::quiet_NaN();
 	}
 }
-
-} // namespace convert_time_tudat

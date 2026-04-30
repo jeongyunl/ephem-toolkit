@@ -19,8 +19,6 @@ protected:
 
 } // namespace
 
-using namespace convert_time_tudat;
-
 // utc_posix_to_*() functions are tested here
 TEST_F(ConvertTimeTudatTest, PosixToOtherScalesMatchReferenceData)
 {

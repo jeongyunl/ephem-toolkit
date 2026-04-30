@@ -3,9 +3,23 @@
 #include "../time_conversion/time_converter_base.h"
 
 #include <string>
+#include <variant>
 
-namespace convert_time_tudat
+enum class TimeFormat
 {
+	UNKNOWN = -1,
+	UTC_ISO_TUDAT = 0, // ISO 8601 format in UTC: "YYYY-MM-DDTHH:MM:SS.sss"
+	UTC_POSIX, // POSIX timestamp; in seconds since 1970-01-01 00:00:00 UTC
+	UTC_TUDAT, // Time in UTC; in seconds since UTC J2000 epoch (2000-01-01 12:00:00.000 UTC)
+	TAI_TUDAT, // Time in TAI; in seconds since TAI J2000 epoch (2000-01-01 12:00:00.000 TAI =
+			   // 2000-01-01 11:59:28 UTC)
+	TT_TUDAT, // Terrestial Time; in seconds since TT J2000 epoch (2000-01-01 12:00:00.000 TT =
+			  // 2000-01-01 11:58:55.816 UTC)
+	TDB_TUDAT, // Barycentric Dynamical Time; in seconds since TDB J2000 epoch (2000-01-01
+			   // 12:00:00.000 TDB ≈ 2000-01-01 11:58:55.816 UTC)
+};
+
+typedef std::variant<std::string, double> TimeValue;
 
 class TimeConverterTudat : public TimeConverterBase
 {
@@ -30,9 +44,11 @@ public:
 	double utc_iso_to_tt_j2000(const std::string& iso_string) const override;
 	double utc_iso_to_tdb_j2000(const std::string& iso_string) const override;
 
-	std::string
-	posix_to_utc_iso(double posix_time, bool use_t_separator = false, int fractional_second_places = 3)
-		const override;
+	std::string posix_to_utc_iso(
+		double posix_time,
+		bool use_t_separator = false,
+		int fractional_second_places = 3
+	) const override;
 	double posix_to_posix(const double posix_time) const override { return posix_time; }
 	double posix_to_utc_j2000(double posix_time) const override
 	{
@@ -67,9 +83,11 @@ public:
 	double tai_j2000_to_tt_j2000(double tai_tudat_time) const override;
 	double tai_j2000_to_tdb_j2000(double tai_tudat_time) const override;
 
-	std::string
-	tt_j2000_to_utc_iso(double tt_tudat_time, bool use_t_separator = false, int fractional_second_places = 3)
-		const override;
+	std::string tt_j2000_to_utc_iso(
+		double tt_tudat_time,
+		bool use_t_separator = false,
+		int fractional_second_places = 3
+	) const override;
 	double tt_j2000_to_posix(double tt_tudat_time) const override;
 	double tt_j2000_to_utc_j2000(double tt_tudat_time) const override;
 	double tt_j2000_to_tai_j2000(double tt_tudat_time) const override;
@@ -89,6 +107,7 @@ public:
 
 private:
 	TimeConverterTudat() = default;
-};
 
-} // namespace convert_time_tudat
+public:
+	TimeValue convert_time(const TimeValue& input, TimeFormat input_format, TimeFormat output_format) const;
+};

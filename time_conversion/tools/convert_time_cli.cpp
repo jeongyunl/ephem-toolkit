@@ -1,4 +1,4 @@
-#include "convert_time_disp_tbl.h"
+#include "time_converter.h"
 
 #include <format>
 #include <iostream>
@@ -145,7 +145,8 @@ int main(int argc, char* argv[])
 				return 1;
 			}
 
-			const auto result = convert_time(input_time_value, input_time_format, output_format);
+			const auto result =
+				TimeConverter::instance().convert_time(input_time_value, input_time_format, output_format);
 
 			std::cout << '\t';
 

@@ -1,4 +1,9 @@
-add_library(convert_time_tudat STATIC convert_time_tudat.cpp)
+add_library(
+    convert_time_tudat STATIC
+    convert_time_tudat.cpp
+    convert_time_tudat.cpp
+    convert_time_tudat_disp_tbl.cpp
+)
 
 target_include_directories(
     convert_time_tudat PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
@@ -32,7 +37,7 @@ if(BUILD_TESTING)
         convert_time_tudat_disp_tbl_gtest
         test/convert_time_tudat_disp_tbl_gtest.cpp
         test/convert_time_gtest_common.cpp
-        tools/convert_time_tudat_disp_tbl.cpp
+        convert_time_tudat_disp_tbl.cpp
     )
 
     target_link_libraries(
