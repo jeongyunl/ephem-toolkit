@@ -1,7 +1,10 @@
-#include "convert_time_tudat.h"
+#include "time_converter_tudat.h"
 
 #include <tudat/astro/basic_astro/dateTime.h>
 #include <tudat/astro/earth_orientation/terrestrialTimeScaleConverter.h>
+#include <iostream>
+#include <limits>
+#include <memory>
 
 namespace
 {
@@ -29,12 +32,12 @@ namespace convert_time_tudat
 // utc_iso_to_*() functions
 //
 
-std::string utc_iso_to_utc_iso(const std::string& iso_string)
+std::string TimeConverterTudat::utc_iso_to_utc_iso(const std::string& iso_string) const
 {
 	return iso_string;
 }
 
-double utc_iso_to_posix(const std::string& iso_string)
+double TimeConverterTudat::utc_iso_to_posix(const std::string& iso_string) const
 {
 	// Convert ISO 8601 string to POSIX timestamp
 
@@ -52,7 +55,7 @@ double utc_iso_to_posix(const std::string& iso_string)
 	}
 }
 
-double utc_iso_to_utc_tudat(const std::string& iso_string)
+double TimeConverterTudat::utc_iso_to_utc_tudat(const std::string& iso_string) const
 {
 	try
 	{
@@ -64,7 +67,7 @@ double utc_iso_to_utc_tudat(const std::string& iso_string)
 		return std::numeric_limits<double>::quiet_NaN();
 	}
 }
-double utc_iso_to_tai_tudat(const std::string& iso_string)
+double TimeConverterTudat::utc_iso_to_tai_tudat(const std::string& iso_string) const
 {
 	try
 	{
@@ -83,7 +86,7 @@ double utc_iso_to_tai_tudat(const std::string& iso_string)
 	}
 }
 
-double utc_iso_to_tt_tudat(const std::string& iso_string)
+double TimeConverterTudat::utc_iso_to_tt_tudat(const std::string& iso_string) const
 {
 	try
 	{
@@ -102,7 +105,7 @@ double utc_iso_to_tt_tudat(const std::string& iso_string)
 	}
 }
 
-double utc_iso_to_tdb_tudat(const std::string& iso_string)
+double TimeConverterTudat::utc_iso_to_tdb_tudat(const std::string& iso_string) const
 {
 	try
 	{
@@ -125,7 +128,7 @@ double utc_iso_to_tdb_tudat(const std::string& iso_string)
 // posix_to_*() functions
 //
 
-std::string posix_to_utc_iso(const double posix_time)
+std::string TimeConverterTudat::posix_to_utc_iso(const double posix_time) const
 {
 	try
 	{
@@ -140,7 +143,7 @@ std::string posix_to_utc_iso(const double posix_time)
 	}
 }
 
-double posix_to_tai_tudat(const double posix_time)
+double TimeConverterTudat::posix_to_tai_tudat(const double posix_time) const
 {
 	try
 	{
@@ -159,7 +162,7 @@ double posix_to_tai_tudat(const double posix_time)
 	}
 }
 
-double posix_to_tt_tudat(const double posix_time)
+double TimeConverterTudat::posix_to_tt_tudat(const double posix_time) const
 {
 	try
 	{
@@ -178,7 +181,7 @@ double posix_to_tt_tudat(const double posix_time)
 	}
 }
 
-double posix_to_tdb_tudat(const double posix_time)
+double TimeConverterTudat::posix_to_tdb_tudat(const double posix_time) const
 {
 	try
 	{
@@ -201,7 +204,7 @@ double posix_to_tdb_tudat(const double posix_time)
 // utc_tudat_to_*() functions
 //
 
-std::string utc_tudat_to_utc_iso(const double utc_tudat_time)
+std::string TimeConverterTudat::utc_tudat_to_utc_iso(const double utc_tudat_time) const
 {
 	try
 	{
@@ -214,7 +217,7 @@ std::string utc_tudat_to_utc_iso(const double utc_tudat_time)
 	}
 }
 
-double utc_tudat_to_tai_tudat(const double utc_tudat_time)
+double TimeConverterTudat::utc_tudat_to_tai_tudat(const double utc_tudat_time) const
 {
 	try
 	{
@@ -231,7 +234,7 @@ double utc_tudat_to_tai_tudat(const double utc_tudat_time)
 	}
 }
 
-double utc_tudat_to_tt_tudat(const double utc_tudat_time)
+double TimeConverterTudat::utc_tudat_to_tt_tudat(const double utc_tudat_time) const
 {
 	try
 	{
@@ -248,7 +251,7 @@ double utc_tudat_to_tt_tudat(const double utc_tudat_time)
 	}
 }
 
-double utc_tudat_to_tdb_tudat(const double utc_tudat_time)
+double TimeConverterTudat::utc_tudat_to_tdb_tudat(const double utc_tudat_time) const
 {
 	try
 	{
@@ -269,7 +272,7 @@ double utc_tudat_to_tdb_tudat(const double utc_tudat_time)
 // tai_tudat_to_*() functions
 //
 
-std::string tai_tudat_to_utc_iso(const double tai_tudat_time)
+std::string TimeConverterTudat::tai_tudat_to_utc_iso(const double tai_tudat_time) const
 {
 	try
 	{
@@ -288,7 +291,7 @@ std::string tai_tudat_to_utc_iso(const double tai_tudat_time)
 	}
 }
 
-double tai_tudat_to_posix(const double tai_tudat_time)
+double TimeConverterTudat::tai_tudat_to_posix(const double tai_tudat_time) const
 {
 	try
 	{
@@ -307,7 +310,7 @@ double tai_tudat_to_posix(const double tai_tudat_time)
 	}
 }
 
-double tai_tudat_to_utc_tudat(const double tai_tudat_time)
+double TimeConverterTudat::tai_tudat_to_utc_tudat(const double tai_tudat_time) const
 {
 	try
 	{
@@ -324,7 +327,7 @@ double tai_tudat_to_utc_tudat(const double tai_tudat_time)
 	}
 }
 
-double tai_tudat_to_tt_tudat(const double tai_tudat_time)
+double TimeConverterTudat::tai_tudat_to_tt_tudat(const double tai_tudat_time) const
 {
 	try
 	{
@@ -341,7 +344,7 @@ double tai_tudat_to_tt_tudat(const double tai_tudat_time)
 	}
 }
 
-double tai_tudat_to_tdb_tudat(const double tai_tudat_time)
+double TimeConverterTudat::tai_tudat_to_tdb_tudat(const double tai_tudat_time) const
 {
 	try
 	{
@@ -362,7 +365,7 @@ double tai_tudat_to_tdb_tudat(const double tai_tudat_time)
 // tt_tudat_to_*() functions
 //
 
-std::string tt_tudat_to_utc_iso(const double tt_tudat_time)
+std::string TimeConverterTudat::tt_tudat_to_utc_iso(const double tt_tudat_time) const
 {
 	try
 	{
@@ -381,7 +384,7 @@ std::string tt_tudat_to_utc_iso(const double tt_tudat_time)
 	}
 }
 
-double tt_tudat_to_posix(const double tt_tudat_time)
+double TimeConverterTudat::tt_tudat_to_posix(const double tt_tudat_time) const
 {
 	try
 	{
@@ -400,7 +403,7 @@ double tt_tudat_to_posix(const double tt_tudat_time)
 	}
 }
 
-double tt_tudat_to_utc_tudat(const double tt_tudat_time)
+double TimeConverterTudat::tt_tudat_to_utc_tudat(const double tt_tudat_time) const
 {
 	try
 	{
@@ -417,7 +420,7 @@ double tt_tudat_to_utc_tudat(const double tt_tudat_time)
 	}
 }
 
-double tt_tudat_to_tai_tudat(const double tt_tudat_time)
+double TimeConverterTudat::tt_tudat_to_tai_tudat(const double tt_tudat_time) const
 {
 	try
 	{
@@ -434,7 +437,7 @@ double tt_tudat_to_tai_tudat(const double tt_tudat_time)
 	}
 }
 
-double tt_tudat_to_tdb_tudat(const double tt_tudat_time)
+double TimeConverterTudat::tt_tudat_to_tdb_tudat(const double tt_tudat_time) const
 {
 	try
 	{
@@ -455,7 +458,7 @@ double tt_tudat_to_tdb_tudat(const double tt_tudat_time)
 // tdb_tudat_to_*() functions
 //
 
-std::string tdb_tudat_to_utc_iso(const double tdb_tudat_time)
+std::string TimeConverterTudat::tdb_tudat_to_utc_iso(const double tdb_tudat_time) const
 {
 	try
 	{
@@ -474,7 +477,7 @@ std::string tdb_tudat_to_utc_iso(const double tdb_tudat_time)
 	}
 }
 
-double tdb_tudat_to_posix(const double tdb_tudat_time)
+double TimeConverterTudat::tdb_tudat_to_posix(const double tdb_tudat_time) const
 {
 	try
 	{
@@ -493,7 +496,7 @@ double tdb_tudat_to_posix(const double tdb_tudat_time)
 	}
 }
 
-double tdb_tudat_to_utc_tudat(const double tdb_tudat_time)
+double TimeConverterTudat::tdb_tudat_to_utc_tudat(const double tdb_tudat_time) const
 {
 	try
 	{
@@ -510,7 +513,7 @@ double tdb_tudat_to_utc_tudat(const double tdb_tudat_time)
 	}
 }
 
-double tdb_tudat_to_tai_tudat(const double tdb_tudat_time)
+double TimeConverterTudat::tdb_tudat_to_tai_tudat(const double tdb_tudat_time) const
 {
 	try
 	{
@@ -527,7 +530,7 @@ double tdb_tudat_to_tai_tudat(const double tdb_tudat_time)
 	}
 }
 
-double tdb_tudat_to_tt_tudat(const double tdb_tudat_time)
+double TimeConverterTudat::tdb_tudat_to_tt_tudat(const double tdb_tudat_time) const
 {
 	try
 	{
