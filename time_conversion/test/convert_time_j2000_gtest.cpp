@@ -1,6 +1,5 @@
-#include "convert_time_j2000.h"
-#include "test/convert_time_gtest_common.h"
 #include "time_converter.h"
+#include "test/convert_time_gtest_common.h"
 
 #include <gtest/gtest.h>
 #include <cmath>
@@ -38,7 +37,9 @@ TEST(ConvertTimeJ2000, Iso8601EqualTreatsTSeparatorAsOptional)
 
 TEST(ConvertTimeJ2000, Iso8601EqualRejectsInvalidPrecision)
 {
-	EXPECT_FALSE(TimeConverter::instance().iso_8601_equal("2000-01-01T12:00:00Z", "2000-01-01T12:00:00Z", 10));
+	EXPECT_FALSE(
+		TimeConverter::instance().iso_8601_equal("2000-01-01T12:00:00Z", "2000-01-01T12:00:00Z", 10)
+	);
 }
 
 TEST(ConvertTimeJ2000, Iso8601EqualRespectsFractionalPrecision)
@@ -65,11 +66,15 @@ TEST(ConvertTimeJ2000, IsoToJ2000MatchesReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
-		const ParsedUtcIso parsed_utc_iso =
-			TimeConverter::instance().utc_iso_to_parsed_utc_iso(record.iso); // Just test that parsing doesn't throw for valid input
+		const ParsedUtcIso parsed_utc_iso = TimeConverter::instance().utc_iso_to_parsed_utc_iso(
+			record.iso
+		); // Just test that parsing doesn't throw for valid input
 
-		EXPECT_NEAR(TimeConverter::instance().utc_iso_to_utc_j2000(record.iso), record.utc, convert_time_test::kTolExactLike)
-			<< record.iso;
+		EXPECT_NEAR(
+			TimeConverter::instance().utc_iso_to_utc_j2000(record.iso),
+			record.utc,
+			convert_time_test::kTolExactLike
+		) << record.iso;
 
 		if(parsed_utc_iso.second != 60)
 		{
@@ -79,13 +84,16 @@ TEST(ConvertTimeJ2000, IsoToJ2000MatchesReferenceData)
 		}
 
 		{
-			const auto utc_j2000_from_parsed = TimeConverter::instance().parsed_utc_iso_to_utc_j2000(parsed_utc_iso
+			const auto utc_j2000_from_parsed = TimeConverter::instance().parsed_utc_iso_to_utc_j2000(
+				parsed_utc_iso
 			); // Test that conversion from parsed struct doesn't throw
 
-			const ParsedUtcIso parsed_utc_iso_back = TimeConverter::instance().utc_j2000_to_parsed_utc_iso(utc_j2000_from_parsed
+			const ParsedUtcIso parsed_utc_iso_back = TimeConverter::instance().utc_j2000_to_parsed_utc_iso(
+				utc_j2000_from_parsed
 			); // Test that conversion back to parsed struct doesn't throw
 
-			const auto utc_j2000_from_back = TimeConverter::instance().parsed_utc_iso_to_utc_j2000(parsed_utc_iso_back
+			const auto utc_j2000_from_back = TimeConverter::instance().parsed_utc_iso_to_utc_j2000(
+				parsed_utc_iso_back
 			); // Test that conversion from parsed struct back to J2000 doesn't throw
 
 			EXPECT_NEAR(utc_j2000_from_back, utc_j2000_from_parsed, 1.0e-6)
@@ -94,16 +102,23 @@ TEST(ConvertTimeJ2000, IsoToJ2000MatchesReferenceData)
 
 		if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
 		{
-			EXPECT_NEAR(TimeConverter::instance().utc_iso_to_tai_j2000(record.iso), record.tai, convert_time_test::kTolExactLike)
-				<< record.iso << " tai=" << record.tai;
+			EXPECT_NEAR(
+				TimeConverter::instance().utc_iso_to_tai_j2000(record.iso),
+				record.tai,
+				convert_time_test::kTolExactLike
+			) << record.iso
+			  << " tai=" << record.tai;
 
-			const auto tai_j2000_from_parsed = TimeConverter::instance().parsed_utc_iso_to_tai_j2000(parsed_utc_iso
+			const auto tai_j2000_from_parsed = TimeConverter::instance().parsed_utc_iso_to_tai_j2000(
+				parsed_utc_iso
 			); // Test that conversion from parsed struct doesn't throw
 
-			const ParsedUtcIso parsed_utc_iso_back = TimeConverter::instance().tai_j2000_to_parsed_utc_iso(tai_j2000_from_parsed
+			const ParsedUtcIso parsed_utc_iso_back = TimeConverter::instance().tai_j2000_to_parsed_utc_iso(
+				tai_j2000_from_parsed
 			); // Test that conversion back to parsed struct doesn't throw
 
-			const auto tai_j2000_from_back = TimeConverter::instance().parsed_utc_iso_to_tai_j2000(parsed_utc_iso_back
+			const auto tai_j2000_from_back = TimeConverter::instance().parsed_utc_iso_to_tai_j2000(
+				parsed_utc_iso_back
 			); // Test that conversion from parsed struct back to J2000 doesn't throw
 
 			EXPECT_NEAR(tai_j2000_from_back, tai_j2000_from_parsed, 1.0e-6)
@@ -210,7 +225,8 @@ TEST(ConvertTimeJ2000, TaiJ2000ToParsedHandlesNegativeJ2000)
 
 TEST(ConvertTimeJ2000, TaiJ2000ToParsedReturnsLeapSecondLabel)
 {
-	const double tai_j2000_time = TimeConverter::instance().utc_iso_to_tai_j2000("2016-12-31T23:59:60.250000000Z");
+	const double tai_j2000_time =
+		TimeConverter::instance().utc_iso_to_tai_j2000("2016-12-31T23:59:60.250000000Z");
 	const ParsedUtcIso parsed = TimeConverter::instance().tai_j2000_to_parsed_utc_iso(tai_j2000_time);
 
 	EXPECT_EQ(parsed.year, 2016);

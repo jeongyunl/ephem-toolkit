@@ -1,4 +1,4 @@
-#include "convert_time_tudat.h"
+#include "time_converter_tudat.h"
 #include "test/convert_time_gtest_common.h"
 
 #include <gtest/gtest.h>
@@ -14,7 +14,7 @@ using convert_time_test::EpochRecord;
 class ConvertTimeTudatTest : public ::testing::Test
 {
 protected:
-	static void SetUpTestSuite() {}
+	static void SetUpTestSuite() { }
 };
 
 } // namespace

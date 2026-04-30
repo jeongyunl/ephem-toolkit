@@ -1,7 +1,4 @@
 
-#include "convert_time_j2000.h"
-
-#include "convert_time_chrono.h"
 #include "convert_time_iso8601.h"
 #include "time_converter.h"
 #if !defined(HAS_CHRONO_UTC_CLOCK)
@@ -87,8 +84,9 @@ double TimeConverter::posix_to_tai_j2000(double posix_time) const
 	// If chrono::utc_clock is available, we can get the TAI-UTC offset directly from the clock
 	// without needing to maintain our own leap second table or perform binary search.
 	const auto utc_time = this->posix_to_utc_time(posix_time);
-	return std::chrono::duration<
-			   double>(utc_time - epochs::TAI_J2000_EPOCH_IN_UTC_TIME<decltype(utc_time)::duration>)
+	return std::chrono::duration<double>(
+			   utc_time - epochs::TAI_J2000_EPOCH_IN_UTC_TIME<decltype(utc_time)::duration>
+	)
 		.count();
 #else
 	const auto& transitions = get_zoneinfo_leap_transitions();
@@ -136,8 +134,9 @@ double TimeConverter::parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc
 {
 #ifdef HAS_CHRONO_UTC_CLOCK
 	const auto utc_time = this->parsed_utc_iso_to_utc_time(parsed_utc_iso);
-	return std::chrono::duration<
-			   double>(utc_time - epochs::TAI_J2000_EPOCH_IN_UTC_TIME<decltype(utc_time)::duration>)
+	return std::chrono::duration<double>(
+			   utc_time - epochs::TAI_J2000_EPOCH_IN_UTC_TIME<decltype(utc_time)::duration>
+	)
 		.count();
 
 #else
@@ -346,4 +345,3 @@ bool TimeConverter::iso_8601_equal(
 		return false;
 	}
 }
-
