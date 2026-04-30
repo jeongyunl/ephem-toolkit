@@ -1,6 +1,7 @@
 #include "convert_time_iso8601.h"
 
 #include "convert_time_common.h"
+#include "time_converter.h"
 
 #include <algorithm>
 #include <array>
@@ -40,7 +41,7 @@ inline int parse_4_digits(const std::string& s, std::size_t pos)
 
 } // namespace
 
-ParsedUtcIso utc_iso_to_parsed_utc_iso(const std::string& utc_iso)
+ParsedUtcIso TimeConverter::utc_iso_to_parsed_utc_iso(const std::string& utc_iso) const
 {
 	if(utc_iso.size() < 19)
 	{
@@ -155,11 +156,11 @@ ParsedUtcIso utc_iso_to_parsed_utc_iso(const std::string& utc_iso)
 	return out;
 }
 
-std::string parsed_utc_iso_to_utc_iso(
+std::string TimeConverter::parsed_utc_iso_to_utc_iso(
 	const ParsedUtcIso& parsed_utc_iso,
 	bool use_t_separator,
 	int fractional_second_places
-)
+) const
 {
 	if(parsed_utc_iso.month < 1 || parsed_utc_iso.month > 12 || parsed_utc_iso.day < 1
 	   || parsed_utc_iso.day > 31 || parsed_utc_iso.hour < 0 || parsed_utc_iso.hour > 23
@@ -253,3 +254,4 @@ std::string parsed_utc_iso_to_utc_iso(
 
 	return out;
 }
+

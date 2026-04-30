@@ -3,6 +3,7 @@
 
 #include "convert_time_chrono.h"
 #include "convert_time_iso8601.h"
+#include "time_converter.h"
 #if !defined(HAS_CHRONO_UTC_CLOCK)
 #include "convert_time_leap_transition.h"
 #endif
@@ -28,7 +29,7 @@ static inline std::int64_t extract_nanoseconds(double fractional_seconds) noexce
 // POSIX
 //
 
-double parsed_utc_iso_to_posix(const ParsedUtcIso& parsed_utc_iso)
+double TimeConverter::parsed_utc_iso_to_posix(const ParsedUtcIso& parsed_utc_iso) const
 {
 	// Compute POSIX-like seconds since 1970-01-01 for the UTC instant.
 	// Leap second 23:59:60 is mapped to the POSIX second of the following 00:00:00.
@@ -52,7 +53,7 @@ double parsed_utc_iso_to_posix(const ParsedUtcIso& parsed_utc_iso)
 	return posix_time;
 }
 
-ParsedUtcIso posix_to_parsed_utc_iso(double posix_time)
+ParsedUtcIso TimeConverter::posix_to_parsed_utc_iso(double posix_time) const
 {
 	ParsedUtcIso result;
 
@@ -80,12 +81,12 @@ ParsedUtcIso posix_to_parsed_utc_iso(double posix_time)
 	return result;
 }
 
-double posix_to_tai_j2000(double posix_time)
+double TimeConverter::posix_to_tai_j2000(double posix_time) const
 {
 #ifdef HAS_CHRONO_UTC_CLOCK
 	// If chrono::utc_clock is available, we can get the TAI-UTC offset directly from the clock
 	// without needing to maintain our own leap second table or perform binary search.
-	const auto utc_time = posix_to_utc_time(posix_time);
+	const auto utc_time = this->posix_to_utc_time(posix_time);
 	return std::chrono::duration<
 			   double>(utc_time - epochs::TAI_J2000_EPOCH_IN_UTC_TIME<decltype(utc_time)::duration>)
 		.count();
@@ -131,10 +132,10 @@ posix_leap_second_transition_to_parsed_utc_iso(double transition_posix_time, dou
 }
 #endif
 
-double parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc_iso)
+double TimeConverter::parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc_iso) const
 {
 #ifdef HAS_CHRONO_UTC_CLOCK
-	const auto utc_time = parsed_utc_iso_to_utc_time(parsed_utc_iso);
+	const auto utc_time = this->parsed_utc_iso_to_utc_time(parsed_utc_iso);
 	return std::chrono::duration<
 			   double>(utc_time - epochs::TAI_J2000_EPOCH_IN_UTC_TIME<decltype(utc_time)::duration>)
 		.count();
@@ -177,10 +178,10 @@ double parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc_iso)
 #endif
 }
 
-ParsedUtcIso tai_j2000_to_parsed_utc_iso(double tai_j2000_time)
+ParsedUtcIso TimeConverter::tai_j2000_to_parsed_utc_iso(double tai_j2000_time) const
 {
 #ifdef HAS_CHRONO_UTC_CLOCK
-	const auto utc_time = tai_j2000_to_utc_time(tai_j2000_time);
+	const auto utc_time = this->tai_j2000_to_utc_time(tai_j2000_time);
 
 	auto leap_second_info = std::chrono::get_leap_second_info(utc_time);
 
@@ -298,11 +299,11 @@ ParsedUtcIso tai_j2000_to_parsed_utc_iso(double tai_j2000_time)
 
 	// After 32 iterations, upper converges to the correct UTC POSIX instant (within floating-point precision)
 	// Convert the UTC POSIX instant to calendar representation
-	return posix_to_parsed_utc_iso(upper);
+	return this->posix_to_parsed_utc_iso(upper);
 #endif
 }
 
-double tai_j2000_to_posix(double tai_j2000_time)
+double TimeConverter::tai_j2000_to_posix(double tai_j2000_time) const
 {
 	const ParsedUtcIso parsed_utc_iso = tai_j2000_to_parsed_utc_iso(tai_j2000_time);
 	return parsed_utc_iso_to_posix(parsed_utc_iso);
@@ -312,7 +313,11 @@ double tai_j2000_to_posix(double tai_j2000_time)
 // Utility for testing
 //
 
-bool iso_8601_equal(const std::string& lhs, const std::string& rhs, std::size_t fractional_second_places)
+bool TimeConverter::iso_8601_equal(
+	const std::string& lhs,
+	const std::string& rhs,
+	std::size_t fractional_second_places
+) const
 {
 	if(fractional_second_places > 9)
 	{
@@ -322,8 +327,8 @@ bool iso_8601_equal(const std::string& lhs, const std::string& rhs, std::size_t 
 	try
 	{
 		// Compare instants in a continuous time scale (TAI) so leap seconds are handled naturally.
-		const double lhs_tai = utc_iso_to_tai_j2000(lhs);
-		const double rhs_tai = utc_iso_to_tai_j2000(rhs);
+		const double lhs_tai = this->utc_iso_to_tai_j2000(lhs);
+		const double rhs_tai = this->utc_iso_to_tai_j2000(rhs);
 
 		// Convert to integer nanoseconds.
 		const auto lhs_ns = static_cast<std::int64_t>(lhs_tai * 1.0e9);
@@ -341,3 +346,4 @@ bool iso_8601_equal(const std::string& lhs, const std::string& rhs, std::size_t 
 		return false;
 	}
 }
+

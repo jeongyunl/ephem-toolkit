@@ -126,16 +126,3 @@ posix_days_to_calendar_date(std::int64_t posix_days, int& year, unsigned& month,
 	// Calculate day within month (1-based)
 	day = static_cast<unsigned>(day_of_year - (153 * month_shifted + 2) / 5 + 1);
 }
-
-extern ParsedUtcIso utc_iso_to_parsed_utc_iso(const std::string& utc_iso);
-
-std::string parsed_utc_iso_to_utc_iso(
-	const ParsedUtcIso& parsed_utc_iso,
-	bool use_t_separator = false,
-	int fractional_second_places = 3
-);
-
-inline std::string utc_iso_to_utc_iso(const std::string& iso_string)
-{
-	return iso_string;
-}

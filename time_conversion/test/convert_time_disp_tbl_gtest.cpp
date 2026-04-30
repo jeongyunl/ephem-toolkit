@@ -1,5 +1,5 @@
 #include "convert_time_disp_tbl.h"
-#include "convert_time_j2000.h"
+#include "time_converter.h"
 
 #include <gtest/gtest.h>
 #include <string>
@@ -27,7 +27,7 @@ TEST(ConvertTimeDispFn, ShouldConvertUtcPosixToUtcIso)
 	ASSERT_TRUE(std::holds_alternative<std::string>(output));
 	;
 
-	EXPECT_TRUE(iso_8601_equal(std::get<std::string>(output), "2000-01-01T12:00:00.000", 3))
+	EXPECT_TRUE(TimeConverter::instance().iso_8601_equal(std::get<std::string>(output), "2000-01-01T12:00:00.000", 3))
 		<< std::get<std::string>(output) << " != 2000-01-01T12:00:00.000";
 }
 
@@ -80,6 +80,6 @@ TEST(ConvertTimeDispFn, ChronoSysTimeRoundTripToPosix)
 	const auto tp = std::get<system_clock::time_point>(chrono_out);
 
 	// Convert back using existing handler for chrono -> posix via sys_time_to_utc_posix
-	const auto back_posix = sys_time_to_utc_posix(tp);
+	const auto back_posix = TimeConverter::instance().sys_time_to_utc_posix(tp);
 	EXPECT_NEAR(back_posix, posix, 1.0e-9);
 }

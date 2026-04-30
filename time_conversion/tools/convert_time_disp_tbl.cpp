@@ -129,85 +129,240 @@ private:
 	InputType input_type_ = InputType::DOUBLE;
 };
 
+namespace
+{
+
+std::string tc_utc_iso_to_utc_iso(const std::string& input)
+{
+	return TimeConverter::instance().utc_iso_to_utc_iso(input);
+}
+
+double tc_utc_iso_to_posix(const std::string& input) { return TimeConverter::instance().utc_iso_to_posix(input); }
+double tc_utc_iso_to_utc_j2000(const std::string& input)
+{
+	return TimeConverter::instance().utc_iso_to_utc_j2000(input);
+}
+double tc_utc_iso_to_tai_j2000(const std::string& input)
+{
+	return TimeConverter::instance().utc_iso_to_tai_j2000(input);
+}
+double tc_utc_iso_to_tt_j2000(const std::string& input)
+{
+	return TimeConverter::instance().utc_iso_to_tt_j2000(input);
+}
+std::chrono::system_clock::time_point tc_utc_iso_to_sys_time(const std::string& input)
+{
+	return TimeConverter::instance().utc_iso_to_sys_time<>(input);
+}
+#ifdef HAS_CHRONO_UTC_CLOCK
+std::chrono::utc_clock::time_point tc_utc_iso_to_utc_time(const std::string& input)
+{
+	return TimeConverter::instance().utc_iso_to_utc_time<>(input);
+}
+#endif
+#ifdef HAS_CHRONO_TAI_CLOCK
+std::chrono::tai_clock::time_point tc_utc_iso_to_tai_time(const std::string& input)
+{
+	return TimeConverter::instance().utc_iso_to_tai_time<>(input);
+}
+#endif
+
+std::string tc_posix_to_utc_iso(double input) { return TimeConverter::instance().posix_to_utc_iso(input); }
+double tc_posix_to_posix(double input) { return TimeConverter::instance().posix_to_posix(input); }
+double tc_posix_to_utc_j2000(double input) { return TimeConverter::instance().posix_to_utc_j2000(input); }
+double tc_posix_to_tai_j2000(double input) { return TimeConverter::instance().posix_to_tai_j2000(input); }
+double tc_posix_to_tt_j2000(double input) { return TimeConverter::instance().posix_to_tt_j2000(input); }
+std::chrono::system_clock::time_point tc_posix_to_sys_time(double input)
+{
+	return TimeConverter::instance().posix_to_sys_time<>(input);
+}
+#ifdef HAS_CHRONO_UTC_CLOCK
+std::chrono::utc_clock::time_point tc_posix_to_utc_time(double input)
+{
+	return TimeConverter::instance().posix_to_utc_time<>(input);
+}
+#endif
+#ifdef HAS_CHRONO_TAI_CLOCK
+std::chrono::tai_clock::time_point tc_posix_to_tai_time(double input)
+{
+	return TimeConverter::instance().posix_to_tai_time<>(input);
+}
+#endif
+
+std::string tc_utc_j2000_to_utc_iso(double input) { return TimeConverter::instance().utc_j2000_to_utc_iso(input); }
+double tc_utc_j2000_to_posix(double input) { return TimeConverter::instance().utc_j2000_to_posix(input); }
+double tc_utc_j2000_to_utc_j2000(double input)
+{
+	return TimeConverter::instance().utc_j2000_to_utc_j2000(input);
+}
+double tc_utc_j2000_to_tai_j2000(double input)
+{
+	return TimeConverter::instance().utc_j2000_to_tai_j2000(input);
+}
+double tc_utc_j2000_to_tt_j2000(double input)
+{
+	return TimeConverter::instance().utc_j2000_to_tt_j2000(input);
+}
+std::chrono::system_clock::time_point tc_utc_j2000_to_sys_time(double input)
+{
+	return TimeConverter::instance().utc_j2000_to_sys_time<>(input);
+}
+#ifdef HAS_CHRONO_UTC_CLOCK
+std::chrono::utc_clock::time_point tc_utc_j2000_to_utc_time(double input)
+{
+	return TimeConverter::instance().utc_j2000_to_utc_time<>(input);
+}
+#endif
+#ifdef HAS_CHRONO_TAI_CLOCK
+std::chrono::tai_clock::time_point tc_utc_j2000_to_tai_time(double input)
+{
+	return TimeConverter::instance().utc_j2000_to_tai_time<>(input);
+}
+#endif
+
+std::string tc_tai_j2000_to_utc_iso(double input) { return TimeConverter::instance().tai_j2000_to_utc_iso(input); }
+double tc_tai_j2000_to_posix(double input) { return TimeConverter::instance().tai_j2000_to_posix(input); }
+double tc_tai_j2000_to_utc_j2000(double input)
+{
+	return TimeConverter::instance().tai_j2000_to_utc_j2000(input);
+}
+double tc_tai_j2000_to_tai_j2000(double input)
+{
+	return TimeConverter::instance().tai_j2000_to_tai_j2000(input);
+}
+double tc_tai_j2000_to_tt_j2000(double input)
+{
+	return TimeConverter::instance().tai_j2000_to_tt_j2000(input);
+}
+std::chrono::system_clock::time_point tc_tai_j2000_to_sys_time(double input)
+{
+	return TimeConverter::instance().tai_j2000_to_sys_time<>(input);
+}
+#ifdef HAS_CHRONO_UTC_CLOCK
+std::chrono::utc_clock::time_point tc_tai_j2000_to_utc_time(double input)
+{
+	return TimeConverter::instance().tai_j2000_to_utc_time<>(input);
+}
+#endif
+#ifdef HAS_CHRONO_TAI_CLOCK
+std::chrono::tai_clock::time_point tc_tai_j2000_to_tai_time(double input)
+{
+	return TimeConverter::instance().tai_j2000_to_tai_time<>(input);
+}
+#endif
+
+std::string tc_tt_j2000_to_utc_iso(double input) { return TimeConverter::instance().tt_j2000_to_utc_iso(input); }
+double tc_tt_j2000_to_posix(double input) { return TimeConverter::instance().tt_j2000_to_posix(input); }
+double tc_tt_j2000_to_utc_j2000(double input)
+{
+	return TimeConverter::instance().tt_j2000_to_utc_j2000(input);
+}
+double tc_tt_j2000_to_tai_j2000(double input)
+{
+	return TimeConverter::instance().tt_j2000_to_tai_j2000(input);
+}
+double tc_tt_j2000_to_tt_j2000(double input)
+{
+	return TimeConverter::instance().tt_j2000_to_tt_j2000(input);
+}
+std::chrono::system_clock::time_point tc_tt_j2000_to_sys_time(double input)
+{
+	return TimeConverter::instance().tt_j2000_to_sys_time<>(input);
+}
+#ifdef HAS_CHRONO_UTC_CLOCK
+std::chrono::utc_clock::time_point tc_tt_j2000_to_utc_time(double input)
+{
+	return TimeConverter::instance().tt_j2000_to_utc_time<>(input);
+}
+#endif
+#ifdef HAS_CHRONO_TAI_CLOCK
+std::chrono::tai_clock::time_point tc_tt_j2000_to_tai_time(double input)
+{
+	return TimeConverter::instance().tt_j2000_to_tai_time<>(input);
+}
+#endif
+
+} // namespace
+
 std::map<DispatchKey, Handler> dispatchTable{
-	{ { TimeFormat::UTC_ISO8601, TimeFormat::UTC_ISO8601 }, utc_iso_to_utc_iso },
-	{ { TimeFormat::UTC_ISO8601, TimeFormat::POSIX }, utc_iso_to_posix },
-	{ { TimeFormat::UTC_ISO8601, TimeFormat::UTC_J2000 }, utc_iso_to_utc_j2000 },
-	{ { TimeFormat::UTC_ISO8601, TimeFormat::TAI_J2000 }, utc_iso_to_tai_j2000 },
-	{ { TimeFormat::UTC_ISO8601, TimeFormat::TT_J2000 }, utc_iso_to_tt_j2000 },
-	{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_SYS_TIME_ISO }, utc_iso_to_sys_time<> },
-	{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_SYS_TIME }, utc_iso_to_sys_time<> },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::UTC_ISO8601 }, tc_utc_iso_to_utc_iso },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::POSIX }, tc_utc_iso_to_posix },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::UTC_J2000 }, tc_utc_iso_to_utc_j2000 },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::TAI_J2000 }, tc_utc_iso_to_tai_j2000 },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::TT_J2000 }, tc_utc_iso_to_tt_j2000 },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_SYS_TIME_ISO }, tc_utc_iso_to_sys_time },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_SYS_TIME }, tc_utc_iso_to_sys_time },
 #ifdef HAS_CHRONO_UTC_CLOCK
-	{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_UTC_TIME_ISO }, utc_iso_to_utc_time<> },
-	{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_UTC_TIME }, utc_iso_to_utc_time<> },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_UTC_TIME_ISO }, tc_utc_iso_to_utc_time },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_UTC_TIME }, tc_utc_iso_to_utc_time },
 #endif
 #ifdef HAS_CHRONO_TAI_CLOCK
-	{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_TAI_TIME_ISO }, utc_iso_to_tai_time<> },
-	{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_TAI_TIME }, utc_iso_to_tai_time<> },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_TAI_TIME_ISO }, tc_utc_iso_to_tai_time },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_TAI_TIME }, tc_utc_iso_to_tai_time },
 #endif
 
-	{ { TimeFormat::POSIX, TimeFormat::UTC_ISO8601 }, posix_to_utc_iso },
-	{ { TimeFormat::POSIX, TimeFormat::POSIX }, posix_to_posix },
-	{ { TimeFormat::POSIX, TimeFormat::UTC_J2000 }, posix_to_utc_j2000 },
-	{ { TimeFormat::POSIX, TimeFormat::TAI_J2000 }, posix_to_tai_j2000 },
-	{ { TimeFormat::POSIX, TimeFormat::TT_J2000 }, posix_to_tt_j2000 },
-	{ { TimeFormat::POSIX, TimeFormat::CHRONO_SYS_TIME_ISO }, posix_to_sys_time<> },
-	{ { TimeFormat::POSIX, TimeFormat::CHRONO_SYS_TIME }, posix_to_sys_time<> },
+	{ { TimeFormat::POSIX, TimeFormat::UTC_ISO8601 }, tc_posix_to_utc_iso },
+	{ { TimeFormat::POSIX, TimeFormat::POSIX }, tc_posix_to_posix },
+	{ { TimeFormat::POSIX, TimeFormat::UTC_J2000 }, tc_posix_to_utc_j2000 },
+	{ { TimeFormat::POSIX, TimeFormat::TAI_J2000 }, tc_posix_to_tai_j2000 },
+	{ { TimeFormat::POSIX, TimeFormat::TT_J2000 }, tc_posix_to_tt_j2000 },
+	{ { TimeFormat::POSIX, TimeFormat::CHRONO_SYS_TIME_ISO }, tc_posix_to_sys_time },
+	{ { TimeFormat::POSIX, TimeFormat::CHRONO_SYS_TIME }, tc_posix_to_sys_time },
 #ifdef HAS_CHRONO_UTC_CLOCK
-	{ { TimeFormat::POSIX, TimeFormat::CHRONO_UTC_TIME_ISO }, posix_to_utc_time<> },
-	{ { TimeFormat::POSIX, TimeFormat::CHRONO_UTC_TIME }, posix_to_utc_time<> },
+	{ { TimeFormat::POSIX, TimeFormat::CHRONO_UTC_TIME_ISO }, tc_posix_to_utc_time },
+	{ { TimeFormat::POSIX, TimeFormat::CHRONO_UTC_TIME }, tc_posix_to_utc_time },
 #endif
 #ifdef HAS_CHRONO_TAI_CLOCK
-	{ { TimeFormat::POSIX, TimeFormat::CHRONO_TAI_TIME_ISO }, posix_to_tai_time<> },
-	{ { TimeFormat::POSIX, TimeFormat::CHRONO_TAI_TIME }, posix_to_tai_time<> },
+	{ { TimeFormat::POSIX, TimeFormat::CHRONO_TAI_TIME_ISO }, tc_posix_to_tai_time },
+	{ { TimeFormat::POSIX, TimeFormat::CHRONO_TAI_TIME }, tc_posix_to_tai_time },
 #endif
 
-	{ { TimeFormat::UTC_J2000, TimeFormat::UTC_ISO8601 }, utc_j2000_to_utc_iso },
-	{ { TimeFormat::UTC_J2000, TimeFormat::POSIX }, utc_j2000_to_posix },
-	{ { TimeFormat::UTC_J2000, TimeFormat::UTC_J2000 }, utc_j2000_to_utc_j2000 },
-	{ { TimeFormat::UTC_J2000, TimeFormat::TAI_J2000 }, utc_j2000_to_tai_j2000 },
-	{ { TimeFormat::UTC_J2000, TimeFormat::TT_J2000 }, utc_j2000_to_tt_j2000 },
-	{ { TimeFormat::UTC_J2000, TimeFormat::CHRONO_SYS_TIME_ISO }, utc_j2000_to_sys_time<> },
-	{ { TimeFormat::UTC_J2000, TimeFormat::CHRONO_SYS_TIME }, utc_j2000_to_sys_time<> },
+	{ { TimeFormat::UTC_J2000, TimeFormat::UTC_ISO8601 }, tc_utc_j2000_to_utc_iso },
+	{ { TimeFormat::UTC_J2000, TimeFormat::POSIX }, tc_utc_j2000_to_posix },
+	{ { TimeFormat::UTC_J2000, TimeFormat::UTC_J2000 }, tc_utc_j2000_to_utc_j2000 },
+	{ { TimeFormat::UTC_J2000, TimeFormat::TAI_J2000 }, tc_utc_j2000_to_tai_j2000 },
+	{ { TimeFormat::UTC_J2000, TimeFormat::TT_J2000 }, tc_utc_j2000_to_tt_j2000 },
+	{ { TimeFormat::UTC_J2000, TimeFormat::CHRONO_SYS_TIME_ISO }, tc_utc_j2000_to_sys_time },
+	{ { TimeFormat::UTC_J2000, TimeFormat::CHRONO_SYS_TIME }, tc_utc_j2000_to_sys_time },
 #ifdef HAS_CHRONO_UTC_CLOCK
-	{ { TimeFormat::UTC_J2000, TimeFormat::CHRONO_UTC_TIME_ISO }, utc_j2000_to_utc_time<> },
-	{ { TimeFormat::UTC_J2000, TimeFormat::CHRONO_UTC_TIME }, utc_j2000_to_utc_time<> },
+	{ { TimeFormat::UTC_J2000, TimeFormat::CHRONO_UTC_TIME_ISO }, tc_utc_j2000_to_utc_time },
+	{ { TimeFormat::UTC_J2000, TimeFormat::CHRONO_UTC_TIME }, tc_utc_j2000_to_utc_time },
 #endif
 #ifdef HAS_CHRONO_TAI_CLOCK
-	{ { TimeFormat::UTC_J2000, TimeFormat::CHRONO_TAI_TIME_ISO }, utc_j2000_to_tai_time<> },
-	{ { TimeFormat::UTC_J2000, TimeFormat::CHRONO_TAI_TIME }, utc_j2000_to_tai_time<> },
+	{ { TimeFormat::UTC_J2000, TimeFormat::CHRONO_TAI_TIME_ISO }, tc_utc_j2000_to_tai_time },
+	{ { TimeFormat::UTC_J2000, TimeFormat::CHRONO_TAI_TIME }, tc_utc_j2000_to_tai_time },
 #endif
 
-	{ { TimeFormat::TAI_J2000, TimeFormat::UTC_ISO8601 }, tai_j2000_to_utc_iso },
-	{ { TimeFormat::TAI_J2000, TimeFormat::POSIX }, tai_j2000_to_posix },
-	{ { TimeFormat::TAI_J2000, TimeFormat::UTC_J2000 }, tai_j2000_to_utc_j2000 },
-	{ { TimeFormat::TAI_J2000, TimeFormat::TAI_J2000 }, tai_j2000_to_tai_j2000 },
-	{ { TimeFormat::TAI_J2000, TimeFormat::TT_J2000 }, tai_j2000_to_tt_j2000 },
-	{ { TimeFormat::TAI_J2000, TimeFormat::CHRONO_SYS_TIME_ISO }, tai_j2000_to_sys_time<> },
-	{ { TimeFormat::TAI_J2000, TimeFormat::CHRONO_SYS_TIME }, tai_j2000_to_sys_time<> },
+	{ { TimeFormat::TAI_J2000, TimeFormat::UTC_ISO8601 }, tc_tai_j2000_to_utc_iso },
+	{ { TimeFormat::TAI_J2000, TimeFormat::POSIX }, tc_tai_j2000_to_posix },
+	{ { TimeFormat::TAI_J2000, TimeFormat::UTC_J2000 }, tc_tai_j2000_to_utc_j2000 },
+	{ { TimeFormat::TAI_J2000, TimeFormat::TAI_J2000 }, tc_tai_j2000_to_tai_j2000 },
+	{ { TimeFormat::TAI_J2000, TimeFormat::TT_J2000 }, tc_tai_j2000_to_tt_j2000 },
+	{ { TimeFormat::TAI_J2000, TimeFormat::CHRONO_SYS_TIME_ISO }, tc_tai_j2000_to_sys_time },
+	{ { TimeFormat::TAI_J2000, TimeFormat::CHRONO_SYS_TIME }, tc_tai_j2000_to_sys_time },
 #ifdef HAS_CHRONO_UTC_CLOCK
-	{ { TimeFormat::TAI_J2000, TimeFormat::CHRONO_UTC_TIME_ISO }, tai_j2000_to_utc_time<> },
-	{ { TimeFormat::TAI_J2000, TimeFormat::CHRONO_UTC_TIME }, tai_j2000_to_utc_time<> },
+	{ { TimeFormat::TAI_J2000, TimeFormat::CHRONO_UTC_TIME_ISO }, tc_tai_j2000_to_utc_time },
+	{ { TimeFormat::TAI_J2000, TimeFormat::CHRONO_UTC_TIME }, tc_tai_j2000_to_utc_time },
 #endif
 #ifdef HAS_CHRONO_TAI_CLOCK
-	{ { TimeFormat::TAI_J2000, TimeFormat::CHRONO_TAI_TIME_ISO }, tai_j2000_to_tai_time<> },
-	{ { TimeFormat::TAI_J2000, TimeFormat::CHRONO_TAI_TIME }, tai_j2000_to_tai_time<> },
+	{ { TimeFormat::TAI_J2000, TimeFormat::CHRONO_TAI_TIME_ISO }, tc_tai_j2000_to_tai_time },
+	{ { TimeFormat::TAI_J2000, TimeFormat::CHRONO_TAI_TIME }, tc_tai_j2000_to_tai_time },
 #endif
 
-	{ { TimeFormat::TT_J2000, TimeFormat::UTC_ISO8601 }, tt_j2000_to_utc_iso },
-	{ { TimeFormat::TT_J2000, TimeFormat::POSIX }, tt_j2000_to_posix },
-	{ { TimeFormat::TT_J2000, TimeFormat::UTC_J2000 }, tt_j2000_to_utc_j2000 },
-	{ { TimeFormat::TT_J2000, TimeFormat::TAI_J2000 }, tt_j2000_to_tai_j2000 },
-	{ { TimeFormat::TT_J2000, TimeFormat::TT_J2000 }, tt_j2000_to_tt_j2000 },
-	{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_SYS_TIME_ISO }, tt_j2000_to_sys_time<> },
-	{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_SYS_TIME }, tt_j2000_to_sys_time<> },
+	{ { TimeFormat::TT_J2000, TimeFormat::UTC_ISO8601 }, tc_tt_j2000_to_utc_iso },
+	{ { TimeFormat::TT_J2000, TimeFormat::POSIX }, tc_tt_j2000_to_posix },
+	{ { TimeFormat::TT_J2000, TimeFormat::UTC_J2000 }, tc_tt_j2000_to_utc_j2000 },
+	{ { TimeFormat::TT_J2000, TimeFormat::TAI_J2000 }, tc_tt_j2000_to_tai_j2000 },
+	{ { TimeFormat::TT_J2000, TimeFormat::TT_J2000 }, tc_tt_j2000_to_tt_j2000 },
+	{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_SYS_TIME_ISO }, tc_tt_j2000_to_sys_time },
+	{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_SYS_TIME }, tc_tt_j2000_to_sys_time },
 #ifdef HAS_CHRONO_UTC_CLOCK
-	{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_UTC_TIME_ISO }, tt_j2000_to_utc_time<> },
-	{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_UTC_TIME }, tt_j2000_to_utc_time<> },
+	{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_UTC_TIME_ISO }, tc_tt_j2000_to_utc_time },
+	{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_UTC_TIME }, tc_tt_j2000_to_utc_time },
 #endif
 #ifdef HAS_CHRONO_TAI_CLOCK
-	{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_TAI_TIME_ISO }, tt_j2000_to_tai_time<> },
-	{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_TAI_TIME }, tt_j2000_to_tai_time<> },
+	{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_TAI_TIME_ISO }, tc_tt_j2000_to_tai_time },
+	{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_TAI_TIME }, tc_tt_j2000_to_tai_time },
 #endif
 };
 
