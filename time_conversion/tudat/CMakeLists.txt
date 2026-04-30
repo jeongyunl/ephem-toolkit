@@ -1,8 +1,6 @@
 add_library(
-    convert_time_tudat STATIC
-    convert_time_tudat.cpp
-    convert_time_tudat.cpp
-    convert_time_tudat_disp_tbl.cpp
+    convert_time_tudat STATIC time_converter_tudat.cpp
+                              time_converter_tudat_disp_tbl.cpp
 )
 
 target_include_directories(
@@ -10,8 +8,6 @@ target_include_directories(
 )
 
 target_link_libraries(convert_time_tudat PUBLIC ${Tudat_PROPAGATION_LIBRARIES})
-
-add_subdirectory(tools)
 
 if(BUILD_TESTING)
     add_executable(
@@ -37,7 +33,6 @@ if(BUILD_TESTING)
         convert_time_tudat_disp_tbl_gtest
         test/convert_time_tudat_disp_tbl_gtest.cpp
         test/convert_time_gtest_common.cpp
-        convert_time_tudat_disp_tbl.cpp
     )
 
     target_link_libraries(
