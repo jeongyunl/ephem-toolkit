@@ -1,11 +1,13 @@
 #pragma once
 
+#include "../time_conversion/time_converter_base.h"
+
 #include <string>
 
 namespace convert_time_tudat
 {
 
-class TimeConverterTudat
+class TimeConverterTudat : public TimeConverterBase
 {
 public:
 	static TimeConverterTudat& instance()
@@ -21,57 +23,72 @@ public:
 
 	static constexpr double POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH = 946728000.0;
 
-	std::string utc_iso_to_utc_iso(const std::string& iso_string) const;
-	double utc_iso_to_posix(const std::string& iso_string) const;
-	double utc_iso_to_utc_tudat(const std::string& iso_string) const;
-	double utc_iso_to_tai_tudat(const std::string& iso_string) const;
-	double utc_iso_to_tt_tudat(const std::string& iso_string) const;
-	double utc_iso_to_tdb_tudat(const std::string& iso_string) const;
+	std::string utc_iso_to_utc_iso(const std::string& iso_string) const override;
+	double utc_iso_to_posix(const std::string& iso_string) const override;
+	double utc_iso_to_utc_j2000(const std::string& iso_string) const override;
+	double utc_iso_to_tai_j2000(const std::string& iso_string) const override;
+	double utc_iso_to_tt_j2000(const std::string& iso_string) const override;
+	double utc_iso_to_tdb_j2000(const std::string& iso_string) const override;
 
-	std::string posix_to_utc_iso(double posix_time) const;
-	double posix_to_posix(const double posix_time) const { return posix_time; }
-	double posix_to_utc_tudat(const double posix_time) const
+	std::string
+	posix_to_utc_iso(double posix_time, bool use_t_separator = false, int fractional_second_places = 3)
+		const override;
+	double posix_to_posix(const double posix_time) const override { return posix_time; }
+	double posix_to_utc_j2000(double posix_time) const override
 	{
 		return posix_time - POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
 	}
-	double posix_to_tai_tudat(double posix_time) const;
-	double posix_to_tt_tudat(double posix_time) const;
-	double posix_to_tdb_tudat(double posix_time) const;
+	double posix_to_tai_j2000(double posix_time) const override;
+	double posix_to_tt_j2000(double posix_time) const override;
+	double posix_to_tdb_j2000(double posix_time) const override;
 
-	std::string utc_tudat_to_utc_iso(double utc_tudat_time) const;
-	double utc_tudat_to_posix(const double utc_tudat_time) const
+	std::string utc_j2000_to_utc_iso(
+		double utc_tudat_time,
+		bool use_t_separator = false,
+		int fractional_second_places = 3
+	) const override;
+	double utc_j2000_to_posix(const double utc_tudat_time) const override
 	{
 		return utc_tudat_time + POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH;
 	}
-	double utc_tudat_to_utc_tudat(const double utc_tudat_time) const { return utc_tudat_time; }
-	double utc_tudat_to_tai_tudat(double utc_tudat_time) const;
-	double utc_tudat_to_tt_tudat(double utc_tudat_time) const;
-	double utc_tudat_to_tdb_tudat(double utc_tudat_time) const;
+	double utc_j2000_to_utc_j2000(const double utc_tudat_time) const override { return utc_tudat_time; }
+	double utc_j2000_to_tai_j2000(double utc_tudat_time) const override;
+	double utc_j2000_to_tt_j2000(double utc_tudat_time) const override;
+	double utc_j2000_to_tdb_j2000(double utc_tudat_time) const override;
 
-	std::string tai_tudat_to_utc_iso(double tai_tudat_time) const;
-	double tai_tudat_to_posix(double tai_tudat_time) const;
-	double tai_tudat_to_utc_tudat(double tai_tudat_time) const;
-	double tai_tudat_to_tai_tudat(const double tai_tudat_time) const { return tai_tudat_time; }
-	double tai_tudat_to_tt_tudat(double tai_tudat_time) const;
-	double tai_tudat_to_tdb_tudat(double tai_tudat_time) const;
+	std::string tai_j2000_to_utc_iso(
+		double tai_tudat_time,
+		bool use_t_separator = false,
+		int fractional_second_places = 3
+	) const override;
+	double tai_j2000_to_posix(double tai_tudat_time) const override;
+	double tai_j2000_to_utc_j2000(double tai_tudat_time) const override;
+	double tai_j2000_to_tai_j2000(const double tai_tudat_time) const override { return tai_tudat_time; }
+	double tai_j2000_to_tt_j2000(double tai_tudat_time) const override;
+	double tai_j2000_to_tdb_j2000(double tai_tudat_time) const override;
 
-	std::string tt_tudat_to_utc_iso(double tt_tudat_time) const;
-	double tt_tudat_to_posix(double tt_tudat_time) const;
-	double tt_tudat_to_utc_tudat(double tt_tudat_time) const;
-	double tt_tudat_to_tai_tudat(double tt_tudat_time) const;
-	double tt_tudat_to_tt_tudat(const double tt_tudat_time) const { return tt_tudat_time; }
-	double tt_tudat_to_tdb_tudat(double tt_tudat_time) const;
+	std::string
+	tt_j2000_to_utc_iso(double tt_tudat_time, bool use_t_separator = false, int fractional_second_places = 3)
+		const override;
+	double tt_j2000_to_posix(double tt_tudat_time) const override;
+	double tt_j2000_to_utc_j2000(double tt_tudat_time) const override;
+	double tt_j2000_to_tai_j2000(double tt_tudat_time) const override;
+	double tt_j2000_to_tt_j2000(const double tt_tudat_time) const override { return tt_tudat_time; }
+	double tt_j2000_to_tdb_j2000(double tt_tudat_time) const override;
 
-	std::string tdb_tudat_to_utc_iso(double tdb_tudat_time) const;
-	double tdb_tudat_to_posix(double tdb_tudat_time) const;
-	double tdb_tudat_to_utc_tudat(double tdb_tudat_time) const;
-	double tdb_tudat_to_tai_tudat(double tdb_tudat_time) const;
-	double tdb_tudat_to_tt_tudat(double tdb_tudat_time) const;
-	double tdb_tudat_to_tdb_tudat(const double tdb_tudat_time) const { return tdb_tudat_time; }
+	std::string tdb_j2000_to_utc_iso(
+		double tdb_tudat_time,
+		bool use_t_separator = false,
+		int fractional_second_places = 3
+	) const override;
+	double tdb_j2000_to_posix(double tdb_tudat_time) const override;
+	double tdb_j2000_to_utc_j2000(double tdb_tudat_time) const override;
+	double tdb_j2000_to_tai_j2000(double tdb_tudat_time) const override;
+	double tdb_j2000_to_tt_j2000(double tdb_tudat_time) const override;
+	double tdb_j2000_to_tdb_j2000(const double tdb_tudat_time) const override { return tdb_tudat_time; }
 
 private:
 	TimeConverterTudat() = default;
 };
 
 } // namespace convert_time_tudat
-

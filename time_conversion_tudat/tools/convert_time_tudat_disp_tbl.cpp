@@ -69,21 +69,21 @@ double tc_utc_iso_to_posix(const std::string& input)
 {
 	return TimeConverterTudat::instance().utc_iso_to_posix(input);
 }
-double tc_utc_iso_to_utc_tudat(const std::string& input)
+double tc_utc_iso_to_utc_j2000(const std::string& input)
 {
-	return TimeConverterTudat::instance().utc_iso_to_utc_tudat(input);
+	return TimeConverterTudat::instance().utc_iso_to_utc_j2000(input);
 }
-double tc_utc_iso_to_tai_tudat(const std::string& input)
+double tc_utc_iso_to_tai_j2000(const std::string& input)
 {
-	return TimeConverterTudat::instance().utc_iso_to_tai_tudat(input);
+	return TimeConverterTudat::instance().utc_iso_to_tai_j2000(input);
 }
-double tc_utc_iso_to_tt_tudat(const std::string& input)
+double tc_utc_iso_to_tt_j2000(const std::string& input)
 {
-	return TimeConverterTudat::instance().utc_iso_to_tt_tudat(input);
+	return TimeConverterTudat::instance().utc_iso_to_tt_j2000(input);
 }
-double tc_utc_iso_to_tdb_tudat(const std::string& input)
+double tc_utc_iso_to_tdb_j2000(const std::string& input)
 {
-	return TimeConverterTudat::instance().utc_iso_to_tdb_tudat(input);
+	return TimeConverterTudat::instance().utc_iso_to_tdb_j2000(input);
 }
 
 std::string tc_posix_to_utc_iso(double input)
@@ -94,113 +94,113 @@ double tc_posix_to_posix(double input)
 {
 	return TimeConverterTudat::instance().posix_to_posix(input);
 }
-double tc_posix_to_utc_tudat(double input)
+double tc_posix_to_utc_j2000(double input)
 {
-	return TimeConverterTudat::instance().posix_to_utc_tudat(input);
+	return TimeConverterTudat::instance().posix_to_utc_j2000(input);
 }
-double tc_posix_to_tai_tudat(double input)
+double tc_posix_to_tai_j2000(double input)
 {
-	return TimeConverterTudat::instance().posix_to_tai_tudat(input);
+	return TimeConverterTudat::instance().posix_to_tai_j2000(input);
 }
-double tc_posix_to_tt_tudat(double input)
+double tc_posix_to_tt_j2000(double input)
 {
-	return TimeConverterTudat::instance().posix_to_tt_tudat(input);
+	return TimeConverterTudat::instance().posix_to_tt_j2000(input);
 }
 
 std::string tc_utc_tudat_to_utc_iso(double input)
 {
-	return TimeConverterTudat::instance().utc_tudat_to_utc_iso(input);
+	return TimeConverterTudat::instance().utc_j2000_to_utc_iso(input);
 }
 double tc_utc_tudat_to_posix(double input)
 {
-	return TimeConverterTudat::instance().utc_tudat_to_posix(input);
+	return TimeConverterTudat::instance().utc_j2000_to_posix(input);
 }
-double tc_utc_tudat_to_utc_tudat(double input)
+double tc_utc_tudat_to_utc_j2000(double input)
 {
-	return TimeConverterTudat::instance().utc_tudat_to_utc_tudat(input);
+	return TimeConverterTudat::instance().utc_j2000_to_utc_j2000(input);
 }
-double tc_utc_tudat_to_tai_tudat(double input)
+double tc_utc_tudat_to_tai_j2000(double input)
 {
-	return TimeConverterTudat::instance().utc_tudat_to_tai_tudat(input);
+	return TimeConverterTudat::instance().utc_j2000_to_tai_j2000(input);
 }
-double tc_utc_tudat_to_tt_tudat(double input)
+double tc_utc_tudat_to_tt_j2000(double input)
 {
-	return TimeConverterTudat::instance().utc_tudat_to_tt_tudat(input);
+	return TimeConverterTudat::instance().utc_j2000_to_tt_j2000(input);
 }
 
 std::string tc_tai_tudat_to_utc_iso(double input)
 {
-	return TimeConverterTudat::instance().tai_tudat_to_utc_iso(input);
+	return TimeConverterTudat::instance().tai_j2000_to_utc_iso(input);
 }
 double tc_tai_tudat_to_posix(double input)
 {
-	return TimeConverterTudat::instance().tai_tudat_to_posix(input);
+	return TimeConverterTudat::instance().tai_j2000_to_posix(input);
 }
-double tc_tai_tudat_to_utc_tudat(double input)
+double tc_tai_tudat_to_utc_j2000(double input)
 {
-	return TimeConverterTudat::instance().tai_tudat_to_utc_tudat(input);
+	return TimeConverterTudat::instance().tai_j2000_to_utc_j2000(input);
 }
-double tc_tai_tudat_to_tai_tudat(double input)
+double tc_tai_tudat_to_tai_j2000(double input)
 {
-	return TimeConverterTudat::instance().tai_tudat_to_tai_tudat(input);
+	return TimeConverterTudat::instance().tai_j2000_to_tai_j2000(input);
 }
-double tc_tai_tudat_to_tt_tudat(double input)
+double tc_tai_tudat_to_tt_j2000(double input)
 {
-	return TimeConverterTudat::instance().tai_tudat_to_tt_tudat(input);
+	return TimeConverterTudat::instance().tai_j2000_to_tt_j2000(input);
 }
 
 std::string tc_tt_tudat_to_utc_iso(double input)
 {
-	return TimeConverterTudat::instance().tt_tudat_to_utc_iso(input);
+	return TimeConverterTudat::instance().tt_j2000_to_utc_iso(input);
 }
 double tc_tt_tudat_to_posix(double input)
 {
-	return TimeConverterTudat::instance().tt_tudat_to_posix(input);
+	return TimeConverterTudat::instance().tt_j2000_to_posix(input);
 }
-double tc_tt_tudat_to_utc_tudat(double input)
+double tc_tt_tudat_to_utc_j2000(double input)
 {
-	return TimeConverterTudat::instance().tt_tudat_to_utc_tudat(input);
+	return TimeConverterTudat::instance().tt_j2000_to_utc_j2000(input);
 }
-double tc_tt_tudat_to_tai_tudat(double input)
+double tc_tt_tudat_to_tai_j2000(double input)
 {
-	return TimeConverterTudat::instance().tt_tudat_to_tai_tudat(input);
+	return TimeConverterTudat::instance().tt_j2000_to_tai_j2000(input);
 }
-double tc_tt_tudat_to_tt_tudat(double input)
+double tc_tt_tudat_to_tt_j2000(double input)
 {
-	return TimeConverterTudat::instance().tt_tudat_to_tt_tudat(input);
+	return TimeConverterTudat::instance().tt_j2000_to_tt_j2000(input);
 }
 
 std::map<DispatchKey, Handler> dispatchTable{
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::UTC_ISO_TUDAT }, tc_utc_iso_to_utc_iso },
 	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::UTC_POSIX }, tc_utc_iso_to_posix },
-	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::UTC_TUDAT }, tc_utc_iso_to_utc_tudat },
-	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TAI_TUDAT }, tc_utc_iso_to_tai_tudat },
-	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TT_TUDAT }, tc_utc_iso_to_tt_tudat },
-	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TDB_TUDAT }, tc_utc_iso_to_tdb_tudat },
+	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::UTC_TUDAT }, tc_utc_iso_to_utc_j2000 },
+	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TAI_TUDAT }, tc_utc_iso_to_tai_j2000 },
+	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TT_TUDAT }, tc_utc_iso_to_tt_j2000 },
+	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TDB_TUDAT }, tc_utc_iso_to_tdb_j2000 },
 
 	{ { TimeFormat::UTC_POSIX, TimeFormat::UTC_ISO_TUDAT }, tc_posix_to_utc_iso },
 	{ { TimeFormat::UTC_POSIX, TimeFormat::UTC_POSIX }, tc_posix_to_posix },
-	{ { TimeFormat::UTC_POSIX, TimeFormat::UTC_TUDAT }, tc_posix_to_utc_tudat },
-	{ { TimeFormat::UTC_POSIX, TimeFormat::TAI_TUDAT }, tc_posix_to_tai_tudat },
-	{ { TimeFormat::UTC_POSIX, TimeFormat::TT_TUDAT }, tc_posix_to_tt_tudat },
+	{ { TimeFormat::UTC_POSIX, TimeFormat::UTC_TUDAT }, tc_posix_to_utc_j2000 },
+	{ { TimeFormat::UTC_POSIX, TimeFormat::TAI_TUDAT }, tc_posix_to_tai_j2000 },
+	{ { TimeFormat::UTC_POSIX, TimeFormat::TT_TUDAT }, tc_posix_to_tt_j2000 },
 
 	{ { TimeFormat::UTC_TUDAT, TimeFormat::UTC_ISO_TUDAT }, tc_utc_tudat_to_utc_iso },
 	{ { TimeFormat::UTC_TUDAT, TimeFormat::UTC_POSIX }, tc_utc_tudat_to_posix },
-	{ { TimeFormat::UTC_TUDAT, TimeFormat::UTC_TUDAT }, tc_utc_tudat_to_utc_tudat },
-	{ { TimeFormat::UTC_TUDAT, TimeFormat::TAI_TUDAT }, tc_utc_tudat_to_tai_tudat },
-	{ { TimeFormat::UTC_TUDAT, TimeFormat::TT_TUDAT }, tc_utc_tudat_to_tt_tudat },
+	{ { TimeFormat::UTC_TUDAT, TimeFormat::UTC_TUDAT }, tc_utc_tudat_to_utc_j2000 },
+	{ { TimeFormat::UTC_TUDAT, TimeFormat::TAI_TUDAT }, tc_utc_tudat_to_tai_j2000 },
+	{ { TimeFormat::UTC_TUDAT, TimeFormat::TT_TUDAT }, tc_utc_tudat_to_tt_j2000 },
 
 	{ { TimeFormat::TAI_TUDAT, TimeFormat::UTC_ISO_TUDAT }, tc_tai_tudat_to_utc_iso },
 	{ { TimeFormat::TAI_TUDAT, TimeFormat::UTC_POSIX }, tc_tai_tudat_to_posix },
-	{ { TimeFormat::TAI_TUDAT, TimeFormat::UTC_TUDAT }, tc_tai_tudat_to_utc_tudat },
-	{ { TimeFormat::TAI_TUDAT, TimeFormat::TAI_TUDAT }, tc_tai_tudat_to_tai_tudat },
-	{ { TimeFormat::TAI_TUDAT, TimeFormat::TT_TUDAT }, tc_tai_tudat_to_tt_tudat },
+	{ { TimeFormat::TAI_TUDAT, TimeFormat::UTC_TUDAT }, tc_tai_tudat_to_utc_j2000 },
+	{ { TimeFormat::TAI_TUDAT, TimeFormat::TAI_TUDAT }, tc_tai_tudat_to_tai_j2000 },
+	{ { TimeFormat::TAI_TUDAT, TimeFormat::TT_TUDAT }, tc_tai_tudat_to_tt_j2000 },
 
 	{ { TimeFormat::TT_TUDAT, TimeFormat::UTC_ISO_TUDAT }, tc_tt_tudat_to_utc_iso },
 	{ { TimeFormat::TT_TUDAT, TimeFormat::UTC_POSIX }, tc_tt_tudat_to_posix },
-	{ { TimeFormat::TT_TUDAT, TimeFormat::UTC_TUDAT }, tc_tt_tudat_to_utc_tudat },
-	{ { TimeFormat::TT_TUDAT, TimeFormat::TAI_TUDAT }, tc_tt_tudat_to_tai_tudat },
-	{ { TimeFormat::TT_TUDAT, TimeFormat::TT_TUDAT }, tc_tt_tudat_to_tt_tudat },
+	{ { TimeFormat::TT_TUDAT, TimeFormat::UTC_TUDAT }, tc_tt_tudat_to_utc_j2000 },
+	{ { TimeFormat::TT_TUDAT, TimeFormat::TAI_TUDAT }, tc_tt_tudat_to_tai_j2000 },
+	{ { TimeFormat::TT_TUDAT, TimeFormat::TT_TUDAT }, tc_tt_tudat_to_tt_j2000 },
 };
 
 std::variant<std::string, double> convert_time(
@@ -219,9 +219,7 @@ std::variant<std::string, double> convert_time(
 		{
 			throw std::invalid_argument("Expected input of type std::string for the given input TimeFormat");
 		}
-		else if(
-			handler.getInputType() == Handler::InputType::DOUBLE && !std::holds_alternative<double>(input)
-		)
+		else if(handler.getInputType() == Handler::InputType::DOUBLE && !std::holds_alternative<double>(input))
 		{
 			throw std::invalid_argument("Expected input of type double for the given input TimeFormat");
 		}
