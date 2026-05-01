@@ -7,16 +7,7 @@ add_executable(convert_time_cli convert_time_cli.cpp)
 target_include_directories(
     convert_time_cli PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
                              ${CMAKE_CURRENT_SOURCE_DIR}/..
+                             ${CMAKE_CURRENT_SOURCE_DIR}/../tudat
 )
 
-target_link_libraries(convert_time_cli PRIVATE convert_time)
-
-add_executable(convert_time_tudat_cli convert_time_tudat_cli.cpp)
-
-target_include_directories(
-    convert_time_tudat_cli PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
-                                   ${CMAKE_CURRENT_SOURCE_DIR}/../tudat
-                                   ${CMAKE_CURRENT_SOURCE_DIR}/..
-)
-
-target_link_libraries(convert_time_tudat_cli PRIVATE convert_time_tudat)
+target_link_libraries(convert_time_cli PRIVATE convert_time convert_time_tudat)

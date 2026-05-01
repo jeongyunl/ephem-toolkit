@@ -1,41 +1,87 @@
 #include "time_converter.h"
+#include "time_converter_tudat.h"
 
 #include <format>
+#include <getopt.h>
 #include <iostream>
 #include <list>
 #include <map>
 #include <ranges>
 #include <string_view>
 #include <variant>
-#include <getopt.h>
 
-const std::map<std::string_view, TimeFormat> TimeFormatNames = {
-	{ "iso", TimeFormat::UTC_ISO8601 }, //
-	{ "posix", TimeFormat::POSIX }, //
-	{ "utc", TimeFormat::UTC_J2000 }, //
-	{ "tai", TimeFormat::TAI_J2000 }, //
-	{ "tt", TimeFormat::TT_J2000 }, //
-	{ "chrono_sys_iso", TimeFormat::CHRONO_SYS_TIME_ISO }, //
-	{ "chrono_sys", TimeFormat::CHRONO_SYS_TIME }, //
+namespace
+{
+enum class BackendType
+{
+	BASE,
+	TUDAT,
+	UNKNOWN
+};
+
+const std::map<std::string_view, TimeFormat> BaseTimeFormatNames = {
+	{ "iso", TimeFormat::UTC_ISO8601 },
+	{ "posix", TimeFormat::POSIX },
+	{ "utc", TimeFormat::UTC_J2000 },
+	{ "tai", TimeFormat::TAI_J2000 },
+	{ "tt", TimeFormat::TT_J2000 },
+	{ "chrono_sys_iso", TimeFormat::CHRONO_SYS_TIME_ISO },
+	{ "chrono_sys", TimeFormat::CHRONO_SYS_TIME },
 #ifdef HAS_CHRONO_UTC_CLOCK
-	{ "chrono_utc_iso", TimeFormat::CHRONO_UTC_TIME_ISO }, //
-	{ "chrono_utc", TimeFormat::CHRONO_UTC_TIME }, //
+	{ "chrono_utc_iso", TimeFormat::CHRONO_UTC_TIME_ISO },
+	{ "chrono_utc", TimeFormat::CHRONO_UTC_TIME },
 #endif
 #ifdef HAS_CHRONO_TAI_CLOCK
-	{ "chrono_tai_iso", TimeFormat::CHRONO_TAI_TIME_ISO }, //
-	{ "chrono_tai", TimeFormat::CHRONO_TAI_TIME }, //
+	{ "chrono_tai_iso", TimeFormat::CHRONO_TAI_TIME_ISO },
+	{ "chrono_tai", TimeFormat::CHRONO_TAI_TIME },
 #endif
 };
 
-TimeFormat parse_time_format(const std::string& format_str)
+const std::map<std::string_view, TimeFormat> TudatTimeFormatNames = {
+	{ "iso", TimeFormat::UTC_ISO8601 },
+	{ "posix", TimeFormat::POSIX },
+	{ "utc", TimeFormat::UTC_J2000 },
+	{ "tai", TimeFormat::TAI_J2000 },
+	{ "tt", TimeFormat::TT_J2000 },
+	{ "tdb", TimeFormat::TDB_J2000 },
+};
+
+BackendType parse_backend(const std::string& backend_str)
 {
-	const auto it = TimeFormatNames.find(format_str);
-	if(it != TimeFormatNames.end())
+	if(backend_str == "base")
+	{
+		return BackendType::BASE;
+	}
+	if(backend_str == "tudat")
+	{
+		return BackendType::TUDAT;
+	}
+	return BackendType::UNKNOWN;
+}
+
+const std::map<std::string_view, TimeFormat>& get_format_names(BackendType backend)
+{
+	return (backend == BackendType::TUDAT) ? TudatTimeFormatNames : BaseTimeFormatNames;
+}
+
+TimeFormat parse_time_format(const std::string& format_str, BackendType backend)
+{
+	const auto& format_names = get_format_names(backend);
+	const auto it = format_names.find(format_str);
+	if(it != format_names.end())
 	{
 		return it->second;
 	}
-
 	return TimeFormat::UNKNOWN;
+}
+
+void print_formats(const std::map<std::string_view, TimeFormat>& format_names)
+{
+	for(const auto& [name, format] : format_names)
+	{
+		(void)format;
+		std::cout << "  " << name << '\n';
+	}
 }
 
 void print_usage(const char* program_name)
@@ -43,18 +89,35 @@ void print_usage(const char* program_name)
 	std::cout << "Usage: " << program_name << " [OPTIONS] input_time ...\n"
 			  << "Options:\n"
 			  << "  -h, --help                Show this help message and exit\n"
+			  << "  -b, --backend BACKEND     Select backend (base or tudat)\n"
 			  << "  -i, --input-format FORMAT Specify the input time format\n"
 			  << "  -o, --output-format FORMAT Specify the output time format\n";
 
-	std::cout << "\nSupported time formats:\n";
-	for(const auto& [name, format] : TimeFormatNames)
-	{
-		std::cout << "  " << name << '\n';
-	}
+	std::cout << "\nBase backend formats:\n";
+	print_formats(BaseTimeFormatNames);
+
+	std::cout << "\nTudat backend formats:\n";
+	print_formats(TudatTimeFormatNames);
 }
+
+TimeValue run_conversion(
+	BackendType backend,
+	const TimeValue& input,
+	TimeFormat input_format,
+	TimeFormat output_format
+)
+{
+	if(backend == BackendType::TUDAT)
+	{
+		return TimeConverterTudat::instance().convert_time(input, input_format, output_format);
+	}
+	return TimeConverter::instance().convert_time(input, input_format, output_format);
+}
+} // namespace
 
 int main(int argc, char* argv[])
 {
+	std::string backend_str = "base";
 	std::string input_format_str;
 	std::list<std::string> output_format_list;
 	std::list<std::string> input_time_list;
@@ -64,11 +127,12 @@ int main(int argc, char* argv[])
 		int opt_char = 0;
 		int option_index = 0;
 		static struct option long_options[] = { { "help", no_argument, 0, 'h' },
+												{ "backend", required_argument, 0, 'b' },
 												{ "input-format", required_argument, 0, 'i' },
 												{ "output-format", required_argument, 0, 'o' },
 												{ 0, 0, 0, 0 } };
 
-		opt_char = getopt_long(argc, argv, "hi:o:", long_options, &option_index);
+		opt_char = getopt_long(argc, argv, "hb:i:o:", long_options, &option_index);
 
 		if(opt_char == -1)
 		{
@@ -80,6 +144,9 @@ int main(int argc, char* argv[])
 			case 'h':
 				print_usage(argv[0]);
 				return 0;
+			case 'b':
+				backend_str = optarg;
+				break;
 			case 'i':
 				input_format_str = optarg;
 				break;
@@ -97,6 +164,13 @@ int main(int argc, char* argv[])
 		}
 	}
 
+	const BackendType backend = parse_backend(backend_str);
+	if(backend == BackendType::UNKNOWN)
+	{
+		std::cerr << "Unknown backend: " << backend_str << "\n";
+		return 1;
+	}
+
 	if(optind < argc)
 	{
 		while(optind < argc)
@@ -112,12 +186,10 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
-	// Your code here
-
-	auto input_time_format = parse_time_format(input_format_str);
+	auto input_time_format = parse_time_format(input_format_str, backend);
 	if(input_time_format == TimeFormat::UNKNOWN)
 	{
-		std::cerr << "Unknown input time format: " << input_format_str << "\n";
+		std::cerr << "Unknown input time format for selected backend: " << input_format_str << "\n";
 		return 1;
 	}
 
@@ -137,16 +209,16 @@ int main(int argc, char* argv[])
 
 		for(const auto& output_format_str : output_format_list)
 		{
-			const auto output_format = parse_time_format(output_format_str);
+			const auto output_format = parse_time_format(output_format_str, backend);
 
 			if(output_format == TimeFormat::UNKNOWN)
 			{
-				std::cerr << "Unknown output time format: " << output_format_str << "\n";
+				std::cerr << "Unknown output time format for selected backend: " << output_format_str
+						  << "\n";
 				return 1;
 			}
 
-			const auto result =
-				TimeConverter::instance().convert_time(input_time_value, input_time_format, output_format);
+			const auto result = run_conversion(backend, input_time_value, input_time_format, output_format);
 
 			std::cout << '\t';
 

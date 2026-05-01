@@ -16,7 +16,10 @@ std::map<DispatchKey, Handler> make_dispatch_table()
 }
 } // namespace
 
+namespace
+{
 std::map<DispatchKey, Handler> dispatchTable = make_dispatch_table();
+}
 
 TimeValue
 TimeConverter::convert_time(const TimeValue& input, TimeFormat input_format, TimeFormat output_format) const
