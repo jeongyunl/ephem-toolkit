@@ -10,11 +10,11 @@
 #include <getopt.h>
 
 const std::map<std::string_view, TimeFormat> TimeFormatNames = {
-	{ "iso", TimeFormat::UTC_ISO_TUDAT }, //
-	{ "posix", TimeFormat::UTC_POSIX }, //
-	{ "utc", TimeFormat::UTC_TUDAT }, //
-	{ "tai", TimeFormat::TAI_TUDAT }, //
-	{ "tt", TimeFormat::TT_TUDAT }, //
+	{ "iso", TimeFormat::UTC_ISO8601 }, //
+	{ "posix", TimeFormat::POSIX }, //
+	{ "utc", TimeFormat::UTC_J2000 }, //
+	{ "tai", TimeFormat::TAI_J2000 }, //
+	{ "tt", TimeFormat::TT_J2000 }, //
 };
 
 TimeFormat parse_time_format(const std::string& format_str)
@@ -101,8 +101,8 @@ int main(int argc, char* argv[])
 	{
 		std::cout << input_time_str;
 
-		std::variant<std::string, double> input_time_value;
-		if(input_time_format == TimeFormat::UTC_ISO_TUDAT)
+		TimeValue input_time_value;
+		if(input_time_format == TimeFormat::UTC_ISO8601)
 		{
 			input_time_value = input_time_str;
 		}

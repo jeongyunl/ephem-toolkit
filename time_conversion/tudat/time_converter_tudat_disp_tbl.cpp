@@ -1,4 +1,5 @@
 #include "time_converter_tudat.h"
+#include "../convert_time_common.h"
 
 #include <functional>
 #include <map>
@@ -82,36 +83,36 @@ private:
 };
 
 std::map<DispatchKey, Handler> dispatchTable{
-	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::UTC_ISO_TUDAT }, &TimeConverterTudat::utc_iso_to_utc_iso },
-	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::UTC_POSIX }, &TimeConverterTudat::utc_iso_to_posix },
-	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::UTC_TUDAT }, &TimeConverterTudat::utc_iso_to_utc_j2000 },
-	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TAI_TUDAT }, &TimeConverterTudat::utc_iso_to_tai_j2000 },
-	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TT_TUDAT }, &TimeConverterTudat::utc_iso_to_tt_j2000 },
-	{ { TimeFormat::UTC_ISO_TUDAT, TimeFormat::TDB_TUDAT }, &TimeConverterTudat::utc_iso_to_tdb_j2000 },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::UTC_ISO8601 }, &TimeConverterTudat::utc_iso_to_utc_iso },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::POSIX }, &TimeConverterTudat::utc_iso_to_posix },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::UTC_J2000 }, &TimeConverterTudat::utc_iso_to_utc_j2000 },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::TAI_J2000 }, &TimeConverterTudat::utc_iso_to_tai_j2000 },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::TT_J2000 }, &TimeConverterTudat::utc_iso_to_tt_j2000 },
+	{ { TimeFormat::UTC_ISO8601, TimeFormat::TDB_J2000 }, &TimeConverterTudat::utc_iso_to_tdb_j2000 },
 
-	{ { TimeFormat::UTC_POSIX, TimeFormat::UTC_ISO_TUDAT }, &TimeConverterTudat::posix_to_utc_iso },
-	{ { TimeFormat::UTC_POSIX, TimeFormat::UTC_POSIX }, &TimeConverterTudat::posix_to_posix },
-	{ { TimeFormat::UTC_POSIX, TimeFormat::UTC_TUDAT }, &TimeConverterTudat::posix_to_utc_j2000 },
-	{ { TimeFormat::UTC_POSIX, TimeFormat::TAI_TUDAT }, &TimeConverterTudat::posix_to_tai_j2000 },
-	{ { TimeFormat::UTC_POSIX, TimeFormat::TT_TUDAT }, &TimeConverterTudat::posix_to_tt_j2000 },
+	{ { TimeFormat::POSIX, TimeFormat::UTC_ISO8601 }, &TimeConverterTudat::posix_to_utc_iso },
+	{ { TimeFormat::POSIX, TimeFormat::POSIX }, &TimeConverterTudat::posix_to_posix },
+	{ { TimeFormat::POSIX, TimeFormat::UTC_J2000 }, &TimeConverterTudat::posix_to_utc_j2000 },
+	{ { TimeFormat::POSIX, TimeFormat::TAI_J2000 }, &TimeConverterTudat::posix_to_tai_j2000 },
+	{ { TimeFormat::POSIX, TimeFormat::TT_J2000 }, &TimeConverterTudat::posix_to_tt_j2000 },
 
-	{ { TimeFormat::UTC_TUDAT, TimeFormat::UTC_ISO_TUDAT }, &TimeConverterTudat::utc_j2000_to_utc_iso },
-	{ { TimeFormat::UTC_TUDAT, TimeFormat::UTC_POSIX }, &TimeConverterTudat::utc_j2000_to_posix },
-	{ { TimeFormat::UTC_TUDAT, TimeFormat::UTC_TUDAT }, &TimeConverterTudat::utc_j2000_to_utc_j2000 },
-	{ { TimeFormat::UTC_TUDAT, TimeFormat::TAI_TUDAT }, &TimeConverterTudat::utc_j2000_to_tai_j2000 },
-	{ { TimeFormat::UTC_TUDAT, TimeFormat::TT_TUDAT }, &TimeConverterTudat::utc_j2000_to_tt_j2000 },
+	{ { TimeFormat::UTC_J2000, TimeFormat::UTC_ISO8601 }, &TimeConverterTudat::utc_j2000_to_utc_iso },
+	{ { TimeFormat::UTC_J2000, TimeFormat::POSIX }, &TimeConverterTudat::utc_j2000_to_posix },
+	{ { TimeFormat::UTC_J2000, TimeFormat::UTC_J2000 }, &TimeConverterTudat::utc_j2000_to_utc_j2000 },
+	{ { TimeFormat::UTC_J2000, TimeFormat::TAI_J2000 }, &TimeConverterTudat::utc_j2000_to_tai_j2000 },
+	{ { TimeFormat::UTC_J2000, TimeFormat::TT_J2000 }, &TimeConverterTudat::utc_j2000_to_tt_j2000 },
 
-	{ { TimeFormat::TAI_TUDAT, TimeFormat::UTC_ISO_TUDAT }, &TimeConverterTudat::tai_j2000_to_utc_iso },
-	{ { TimeFormat::TAI_TUDAT, TimeFormat::UTC_POSIX }, &TimeConverterTudat::tai_j2000_to_posix },
-	{ { TimeFormat::TAI_TUDAT, TimeFormat::UTC_TUDAT }, &TimeConverterTudat::tai_j2000_to_utc_j2000 },
-	{ { TimeFormat::TAI_TUDAT, TimeFormat::TAI_TUDAT }, &TimeConverterTudat::tai_j2000_to_tai_j2000 },
-	{ { TimeFormat::TAI_TUDAT, TimeFormat::TT_TUDAT }, &TimeConverterTudat::tai_j2000_to_tt_j2000 },
+	{ { TimeFormat::TAI_J2000, TimeFormat::UTC_ISO8601 }, &TimeConverterTudat::tai_j2000_to_utc_iso },
+	{ { TimeFormat::TAI_J2000, TimeFormat::POSIX }, &TimeConverterTudat::tai_j2000_to_posix },
+	{ { TimeFormat::TAI_J2000, TimeFormat::UTC_J2000 }, &TimeConverterTudat::tai_j2000_to_utc_j2000 },
+	{ { TimeFormat::TAI_J2000, TimeFormat::TAI_J2000 }, &TimeConverterTudat::tai_j2000_to_tai_j2000 },
+	{ { TimeFormat::TAI_J2000, TimeFormat::TT_J2000 }, &TimeConverterTudat::tai_j2000_to_tt_j2000 },
 
-	{ { TimeFormat::TT_TUDAT, TimeFormat::UTC_ISO_TUDAT }, &TimeConverterTudat::tt_j2000_to_utc_iso },
-	{ { TimeFormat::TT_TUDAT, TimeFormat::UTC_POSIX }, &TimeConverterTudat::tt_j2000_to_posix },
-	{ { TimeFormat::TT_TUDAT, TimeFormat::UTC_TUDAT }, &TimeConverterTudat::tt_j2000_to_utc_j2000 },
-	{ { TimeFormat::TT_TUDAT, TimeFormat::TAI_TUDAT }, &TimeConverterTudat::tt_j2000_to_tai_j2000 },
-	{ { TimeFormat::TT_TUDAT, TimeFormat::TT_TUDAT }, &TimeConverterTudat::tt_j2000_to_tt_j2000 },
+	{ { TimeFormat::TT_J2000, TimeFormat::UTC_ISO8601 }, &TimeConverterTudat::tt_j2000_to_utc_iso },
+	{ { TimeFormat::TT_J2000, TimeFormat::POSIX }, &TimeConverterTudat::tt_j2000_to_posix },
+	{ { TimeFormat::TT_J2000, TimeFormat::UTC_J2000 }, &TimeConverterTudat::tt_j2000_to_utc_j2000 },
+	{ { TimeFormat::TT_J2000, TimeFormat::TAI_J2000 }, &TimeConverterTudat::tt_j2000_to_tai_j2000 },
+	{ { TimeFormat::TT_J2000, TimeFormat::TT_J2000 }, &TimeConverterTudat::tt_j2000_to_tt_j2000 },
 };
 
 TimeValue TimeConverterTudat::convert_time(

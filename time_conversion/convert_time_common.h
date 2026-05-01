@@ -72,6 +72,8 @@ enum class TimeFormat
 			   // 2000-01-01 11:59:28 UTC)
 	TT_J2000, // Terrestial Time; in seconds since TT J2000 epoch (2000-01-01 12:00:00.000 TT =
 			  // 2000-01-01 11:58:55.816 UTC)
+	TDB_J2000, // Barycentric Dynamical Time; in seconds since TDB J2000 epoch (2000-01-01
+			   // 12:00:00.000 TDB ≈ 2000-01-01 11:58:55.816 UTC)
 	CHRONO_SYS_TIME_ISO, // ISO 8601 format in chrono::sys_time
 	CHRONO_SYS_TIME, // Seconds since chrono::sys_time epoch. Ignores leap seconds (1970-01-01 00:00:00 UTC)
 #ifdef HAS_CHRONO_UTC_CLOCK
