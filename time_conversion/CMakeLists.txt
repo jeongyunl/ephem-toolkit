@@ -1,9 +1,12 @@
 add_library(
     convert_time STATIC
+    base_dispatch_entries.cpp
     convert_time_iso8601.cpp
     convert_time_j2000.cpp
     convert_time_leap_transition.cpp
     convert_time_disp_tbl.cpp
+    chrono_utc/chrono_dispatch_entries.cpp
+    chrono_utc/time_converter_chrono_utc.cpp
 )
 
 # Apply coverage flags only to this project targets when enabled
