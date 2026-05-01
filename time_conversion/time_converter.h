@@ -429,9 +429,5 @@ private:
 	TimeConverter() = default;
 
 public:
-	TimeValue convert_time(
-		const TimeValue& input,
-		TimeFormat input_format,
-		TimeFormat output_format
-	) const;
+	TimeValue convert_time(const TimeValue& input, TimeFormat input_format, TimeFormat output_format) const;
 };
