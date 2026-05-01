@@ -1,14 +1,15 @@
 #include "time_converter.h"
 #include "time_converter_tudat.h"
+#include "chrono_utc/time_converter_chrono_utc.h"
 
 #include <format>
-#include <getopt.h>
 #include <iostream>
 #include <list>
 #include <map>
 #include <ranges>
 #include <string_view>
 #include <variant>
+#include <getopt.h>
 
 namespace
 {
@@ -16,6 +17,7 @@ enum class BackendType
 {
 	BASE,
 	TUDAT,
+	CHRONO_UTC,
 	UNKNOWN
 };
 
@@ -38,12 +40,8 @@ const std::map<std::string_view, TimeFormat> BaseTimeFormatNames = {
 };
 
 const std::map<std::string_view, TimeFormat> TudatTimeFormatNames = {
-	{ "iso", TimeFormat::UTC_ISO8601 },
-	{ "posix", TimeFormat::POSIX },
-	{ "utc", TimeFormat::UTC_J2000 },
-	{ "tai", TimeFormat::TAI_J2000 },
-	{ "tt", TimeFormat::TT_J2000 },
-	{ "tdb", TimeFormat::TDB_J2000 },
+	{ "iso", TimeFormat::UTC_ISO8601 }, { "posix", TimeFormat::POSIX }, { "utc", TimeFormat::UTC_J2000 },
+	{ "tai", TimeFormat::TAI_J2000 },   { "tt", TimeFormat::TT_J2000 }, { "tdb", TimeFormat::TDB_J2000 },
 };
 
 BackendType parse_backend(const std::string& backend_str)
@@ -56,12 +54,20 @@ BackendType parse_backend(const std::string& backend_str)
 	{
 		return BackendType::TUDAT;
 	}
+	if(backend_str == "chrono_utc")
+	{
+		return BackendType::CHRONO_UTC;
+	}
 	return BackendType::UNKNOWN;
 }
 
 const std::map<std::string_view, TimeFormat>& get_format_names(BackendType backend)
 {
-	return (backend == BackendType::TUDAT) ? TudatTimeFormatNames : BaseTimeFormatNames;
+	if(backend == BackendType::TUDAT)
+	{
+		return TudatTimeFormatNames;
+	}
+	return BaseTimeFormatNames;
 }
 
 TimeFormat parse_time_format(const std::string& format_str, BackendType backend)
@@ -89,27 +95,30 @@ void print_usage(const char* program_name)
 	std::cout << "Usage: " << program_name << " [OPTIONS] input_time ...\n"
 			  << "Options:\n"
 			  << "  -h, --help                Show this help message and exit\n"
-			  << "  -b, --backend BACKEND     Select backend (base or tudat)\n"
+			  << "  -b, --backend BACKEND     Select backend (base, chrono_utc, or tudat)\n"
 			  << "  -i, --input-format FORMAT Specify the input time format\n"
 			  << "  -o, --output-format FORMAT Specify the output time format\n";
 
 	std::cout << "\nBase backend formats:\n";
 	print_formats(BaseTimeFormatNames);
 
+	std::cout << "\nChrono UTC backend formats:\n";
+	print_formats(BaseTimeFormatNames);
+
 	std::cout << "\nTudat backend formats:\n";
 	print_formats(TudatTimeFormatNames);
 }
 
-TimeValue run_conversion(
-	BackendType backend,
-	const TimeValue& input,
-	TimeFormat input_format,
-	TimeFormat output_format
-)
+TimeValue
+run_conversion(BackendType backend, const TimeValue& input, TimeFormat input_format, TimeFormat output_format)
 {
 	if(backend == BackendType::TUDAT)
 	{
 		return TimeConverterTudat::instance().convert_time(input, input_format, output_format);
+	}
+	if(backend == BackendType::CHRONO_UTC)
+	{
+		return TimeConverterChronoUtc::instance().convert_time(input, input_format, output_format);
 	}
 	return TimeConverter::instance().convert_time(input, input_format, output_format);
 }
@@ -213,8 +222,7 @@ int main(int argc, char* argv[])
 
 			if(output_format == TimeFormat::UNKNOWN)
 			{
-				std::cerr << "Unknown output time format for selected backend: " << output_format_str
-						  << "\n";
+				std::cerr << "Unknown output time format for selected backend: " << output_format_str << "\n";
 				return 1;
 			}
 
