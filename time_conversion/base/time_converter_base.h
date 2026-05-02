@@ -37,11 +37,9 @@ public:
 
 	void make_dispatch_table() override;
 
-	bool iso_8601_equal(
-		const std::string& lhs,
-		const std::string& rhs,
-		std::size_t fractional_second_places = 3
-	) const;
+	bool
+	iso_8601_equal(const std::string& lhs, const std::string& rhs, std::size_t fractional_second_places = 3)
+		const;
 
 	//
 	// parsed_utc_iso_to_*() functions
@@ -57,14 +55,16 @@ public:
 
 	double parsed_utc_iso_to_utc_j2000(const ParsedUtcIso& parsed_utc_iso) const
 	{
-		return posix_to_utc_j2000(parsed_utc_iso_to_posix(parsed_utc_iso));
+		const auto posix_time = parsed_utc_iso_to_posix(parsed_utc_iso);
+		return posix_to_utc_j2000(posix_time);
 	}
 
 	virtual double parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc_iso) const;
 
 	double parsed_utc_iso_to_tt_j2000(const ParsedUtcIso& parsed_utc_iso) const
 	{
-		return tai_j2000_to_tt_j2000(parsed_utc_iso_to_tai_j2000(parsed_utc_iso));
+		const auto tai_j2000_time = parsed_utc_iso_to_tai_j2000(parsed_utc_iso);
+		return tai_j2000_to_tt_j2000(tai_j2000_time);
 	}
 
 	//
@@ -75,23 +75,32 @@ public:
 
 	double utc_iso_to_posix(const std::string& iso_string) const override
 	{
-		return parsed_utc_iso_to_posix(utc_iso_to_parsed_utc_iso(iso_string));
+		const auto parsed_utc_iso = utc_iso_to_parsed_utc_iso(iso_string);
+		return parsed_utc_iso_to_posix(parsed_utc_iso);
 	}
+
 	double utc_iso_to_utc_j2000(const std::string& iso_string) const override
 	{
-		return posix_to_utc_j2000(utc_iso_to_posix(iso_string));
+		const auto posix_time = utc_iso_to_posix(iso_string);
+		return posix_to_utc_j2000(posix_time);
 	}
+
 	double utc_iso_to_tai_j2000(const std::string& iso_string) const override
 	{
-		return parsed_utc_iso_to_tai_j2000(utc_iso_to_parsed_utc_iso(iso_string));
+		const auto parsed_utc_iso = utc_iso_to_parsed_utc_iso(iso_string);
+		return parsed_utc_iso_to_tai_j2000(parsed_utc_iso);
 	}
+
 	double utc_iso_to_tt_j2000(const std::string& iso_string) const override
 	{
-		return tai_j2000_to_tt_j2000(utc_iso_to_tai_j2000(iso_string));
+		const auto tai_j2000_time = utc_iso_to_tai_j2000(iso_string);
+		return tai_j2000_to_tt_j2000(tai_j2000_time);
 	}
+
 	double utc_iso_to_tdb_j2000(const std::string& iso_string) const override
 	{
-		return tai_j2000_to_tdb_j2000(utc_iso_to_tai_j2000(iso_string));
+		const auto tai_j2000_time = utc_iso_to_tai_j2000(iso_string);
+		return tai_j2000_to_tdb_j2000(tai_j2000_time);
 	}
 
 	//
@@ -100,17 +109,12 @@ public:
 
 	ParsedUtcIso posix_to_parsed_utc_iso(double posix_time) const;
 
-	std::string posix_to_utc_iso(
-		double posix_time,
-		bool use_t_separator = false,
-		int fractional_second_places = 3
-	) const override
+	std::string
+	posix_to_utc_iso(double posix_time, bool use_t_separator = false, int fractional_second_places = 3)
+		const override
 	{
-		return parsed_utc_iso_to_utc_iso(
-			posix_to_parsed_utc_iso(posix_time),
-			use_t_separator,
-			fractional_second_places
-		);
+		const auto parsed_utc_iso = posix_to_parsed_utc_iso(posix_time);
+		return parsed_utc_iso_to_utc_iso(parsed_utc_iso, use_t_separator, fractional_second_places);
 	}
 
 	double posix_to_utc_j2000(double posix_time) const override
@@ -122,7 +126,8 @@ public:
 
 	double posix_to_tt_j2000(double posix_time) const override
 	{
-		return tai_j2000_to_tt_j2000(posix_to_tai_j2000(posix_time));
+		const auto tai_j2000_time = posix_to_tai_j2000(posix_time);
+		return tai_j2000_to_tt_j2000(tai_j2000_time);
 	}
 
 	double posix_to_tdb_j2000(double posix_time) const override { return posix_to_tt_j2000(posix_time); }
@@ -133,7 +138,8 @@ public:
 
 	ParsedUtcIso utc_j2000_to_parsed_utc_iso(double utc_j2000_time) const
 	{
-		return posix_to_parsed_utc_iso(utc_j2000_to_posix(utc_j2000_time));
+		const auto posix_time = utc_j2000_to_posix(utc_j2000_time);
+		return posix_to_parsed_utc_iso(posix_time);
 	}
 
 	std::string utc_j2000_to_utc_iso(
@@ -142,11 +148,8 @@ public:
 		int fractional_second_places = 3
 	) const override
 	{
-		return parsed_utc_iso_to_utc_iso(
-			utc_j2000_to_parsed_utc_iso(utc_j2000_time),
-			use_t_separator,
-			fractional_second_places
-		);
+		const auto parsed_utc_iso = utc_j2000_to_parsed_utc_iso(utc_j2000_time);
+		return parsed_utc_iso_to_utc_iso(parsed_utc_iso, use_t_separator, fractional_second_places);
 	}
 
 	double utc_j2000_to_posix(double utc_j2000_time) const override
@@ -156,12 +159,14 @@ public:
 
 	double utc_j2000_to_tai_j2000(double utc_j2000_time) const override
 	{
-		return posix_to_tai_j2000(utc_j2000_to_posix(utc_j2000_time));
+		const auto posix_time = utc_j2000_to_posix(utc_j2000_time);
+		return posix_to_tai_j2000(posix_time);
 	}
 
 	double utc_j2000_to_tt_j2000(double utc_j2000_time) const override
 	{
-		return tai_j2000_to_tt_j2000(utc_j2000_to_tai_j2000(utc_j2000_time));
+		const auto tai_j2000_time = utc_j2000_to_tai_j2000(utc_j2000_time);
+		return tai_j2000_to_tt_j2000(tai_j2000_time);
 	}
 
 	double utc_j2000_to_tdb_j2000(double utc_j2000_time) const override
@@ -181,19 +186,18 @@ public:
 		int fractional_second_places = 3
 	) const override
 	{
-		return parsed_utc_iso_to_utc_iso(
-			tai_j2000_to_parsed_utc_iso(tai_j2000_time),
-			use_t_separator,
-			fractional_second_places
-		);
+		const auto parsed_utc_iso = tai_j2000_to_parsed_utc_iso(tai_j2000_time);
+		return parsed_utc_iso_to_utc_iso(parsed_utc_iso, use_t_separator, fractional_second_places);
 	}
 
 	double tai_j2000_to_posix(double tai_j2000_time) const override;
 
 	double tai_j2000_to_utc_j2000(double tai_j2000_time) const override
 	{
-		return posix_to_utc_j2000(tai_j2000_to_posix(tai_j2000_time));
+		const auto posix_time = tai_j2000_to_posix(tai_j2000_time);
+		return posix_to_utc_j2000(posix_time);
 	}
+
 	double tai_j2000_to_tt_j2000(double tai_j2000_time) const override
 	{
 		return tai_j2000_time + TT_MINUS_TAI;
@@ -210,30 +214,28 @@ public:
 
 	ParsedUtcIso tt_j2000_to_parsed_utc_iso(double tt_j2000_time) const
 	{
-		return tai_j2000_to_parsed_utc_iso(tt_j2000_to_tai_j2000(tt_j2000_time));
+		const auto tai_j2000_time = tt_j2000_to_tai_j2000(tt_j2000_time);
+		return tai_j2000_to_parsed_utc_iso(tai_j2000_time);
 	}
 
-	std::string tt_j2000_to_utc_iso(
-		double tt_j2000_time,
-		bool use_t_separator = false,
-		int fractional_second_places = 3
-	) const override
+	std::string
+	tt_j2000_to_utc_iso(double tt_j2000_time, bool use_t_separator = false, int fractional_second_places = 3)
+		const override
 	{
-		return parsed_utc_iso_to_utc_iso(
-			tt_j2000_to_parsed_utc_iso(tt_j2000_time),
-			use_t_separator,
-			fractional_second_places
-		);
+		const auto parsed_utc_iso = tt_j2000_to_parsed_utc_iso(tt_j2000_time);
+		return parsed_utc_iso_to_utc_iso(parsed_utc_iso, use_t_separator, fractional_second_places);
 	}
 
 	double tt_j2000_to_posix(double tt_j2000_time) const override
 	{
-		return tai_j2000_to_posix(tt_j2000_to_tai_j2000(tt_j2000_time));
+		const auto tai_j2000_time = tt_j2000_to_tai_j2000(tt_j2000_time);
+		return tai_j2000_to_posix(tai_j2000_time);
 	}
 
 	double tt_j2000_to_utc_j2000(double tt_j2000_time) const override
 	{
-		return posix_to_utc_j2000(tt_j2000_to_posix(tt_j2000_time));
+		const auto posix_time = tt_j2000_to_posix(tt_j2000_time);
+		return posix_to_utc_j2000(posix_time);
 	}
 
 	double tt_j2000_to_tai_j2000(double tt_j2000_time) const override { return tt_j2000_time - TT_MINUS_TAI; }

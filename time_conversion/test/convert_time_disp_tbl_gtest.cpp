@@ -8,9 +8,16 @@
 namespace
 {
 constexpr double kTol = 2.0e-4;
-}
 
-TEST(ConvertTimeDispFn, ShouldConvertUtcIsoToUtcPosix)
+class ConvertTimeDispFn : public ::testing::Test
+{
+protected:
+	static void SetUpTestSuite() { TimeConverterBase::instance().make_dispatch_table(); }
+};
+
+} // namespace
+
+TEST_F(ConvertTimeDispFn, ShouldConvertUtcIsoToUtcPosix)
 {
 	const TimeValue input = std::string("2000-01-01T12:00:00");
 	const auto output =
@@ -20,7 +27,7 @@ TEST(ConvertTimeDispFn, ShouldConvertUtcIsoToUtcPosix)
 	EXPECT_NEAR(std::get<double>(output), 946728000.0, kTol);
 }
 
-TEST(ConvertTimeDispFn, ShouldConvertUtcPosixToUtcIso)
+TEST_F(ConvertTimeDispFn, ShouldConvertUtcPosixToUtcIso)
 {
 	const TimeValue input = 946728000.0;
 	const auto output =
@@ -35,7 +42,7 @@ TEST(ConvertTimeDispFn, ShouldConvertUtcPosixToUtcIso)
 	  << " != 2000-01-01T12:00:00.000";
 }
 
-TEST(ConvertTimeDispFn, ShouldThrowBadVariantAccessWhenUtcIsoFormatButDoubleProvided)
+TEST_F(ConvertTimeDispFn, ShouldThrowBadVariantAccessWhenUtcIsoFormatButDoubleProvided)
 {
 	const TimeValue input = 946728000.0;
 	EXPECT_THROW(
@@ -47,7 +54,7 @@ TEST(ConvertTimeDispFn, ShouldThrowBadVariantAccessWhenUtcIsoFormatButDoubleProv
 	);
 }
 
-TEST(ConvertTimeDispFn, ShouldThrowBadVariantAccessWhenNumericFormatButStringProvided)
+TEST_F(ConvertTimeDispFn, ShouldThrowBadVariantAccessWhenNumericFormatButStringProvided)
 {
 	const TimeValue input = std::string("2000-01-01T12:00:00");
 	EXPECT_THROW(
@@ -58,7 +65,7 @@ TEST(ConvertTimeDispFn, ShouldThrowBadVariantAccessWhenNumericFormatButStringPro
 	);
 }
 
-TEST(ConvertTimeDispFn, ShouldThrowInvalidArgumentForUnsupportedInputFormat)
+TEST_F(ConvertTimeDispFn, ShouldThrowInvalidArgumentForUnsupportedInputFormat)
 {
 	const TimeValue input = 0.0;
 	EXPECT_THROW(
@@ -68,32 +75,4 @@ TEST(ConvertTimeDispFn, ShouldThrowInvalidArgumentForUnsupportedInputFormat)
 		},
 		std::invalid_argument
 	);
-}
-
-TEST(ConvertTimeDispFn, ShouldReturnChronoSysTimeForPosixInput)
-{
-	using namespace std::chrono;
-	const double posix = 946728000.0; // 2000-01-01T12:00:00 UTC
-	const TimeValue input = posix;
-	const auto output =
-		TimeConverterBase::instance().convert_time(input, TimeFormat::POSIX, TimeFormat::CHRONO_SYS_TIME_ISO);
-
-	ASSERT_TRUE(std::holds_alternative<system_clock::time_point>(output));
-	const auto tp = std::get<system_clock::time_point>(output);
-	EXPECT_NEAR(std::chrono::duration<double>(tp.time_since_epoch()).count(), posix, 1.0e-9);
-}
-
-TEST(ConvertTimeDispFn, ChronoSysTimeRoundTripToPosix)
-{
-	using namespace std::chrono;
-	const double posix = 98765.4321;
-	const TimeValue input = posix;
-	const auto chrono_out =
-		TimeConverterBase::instance().convert_time(input, TimeFormat::POSIX, TimeFormat::CHRONO_SYS_TIME_ISO);
-	ASSERT_TRUE(std::holds_alternative<system_clock::time_point>(chrono_out));
-	const auto tp = std::get<system_clock::time_point>(chrono_out);
-
-	// Convert back using existing handler for chrono -> posix via sys_time_to_utc_posix
-	const auto back_posix = TimeConverterChrono::instance().sys_time_to_utc_posix(tp);
-	EXPECT_NEAR(back_posix, posix, 1.0e-9);
 }

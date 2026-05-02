@@ -7,9 +7,16 @@
 namespace
 {
 constexpr double kTol = 2.0e-4;
-}
 
-TEST(ConvertTimeTudatDispTbl, ShouldConvertUtcIsoToUtcPosix)
+class ConvertTimeTudatDispTbl : public ::testing::Test
+{
+protected:
+	static void SetUpTestSuite() { TimeConverterTudat::instance().make_dispatch_table(); }
+};
+
+} // namespace
+
+TEST_F(ConvertTimeTudatDispTbl, ShouldConvertUtcIsoToUtcPosix)
 {
 	const TimeValue input = std::string("2000-01-01T12:00:00");
 	const auto output =
@@ -19,7 +26,7 @@ TEST(ConvertTimeTudatDispTbl, ShouldConvertUtcIsoToUtcPosix)
 	EXPECT_NEAR(std::get<double>(output), 946728000.0, kTol);
 }
 
-TEST(ConvertTimeTudatDispTbl, ShouldConvertUtcPosixToUtcIso)
+TEST_F(ConvertTimeTudatDispTbl, ShouldConvertUtcPosixToUtcIso)
 {
 	const TimeValue input = 946728000.0;
 	const auto output =
@@ -29,7 +36,7 @@ TEST(ConvertTimeTudatDispTbl, ShouldConvertUtcPosixToUtcIso)
 	EXPECT_EQ(std::get<std::string>(output), "2000-01-01 12:00:00.000");
 }
 
-TEST(ConvertTimeTudatDispTbl, ShouldThrowInvalidArgumentWhenUtcIsoFormatButDoubleProvided)
+TEST_F(ConvertTimeTudatDispTbl, ShouldThrowInvalidArgumentWhenUtcIsoFormatButDoubleProvided)
 {
 	const TimeValue input = 946728000.0;
 	EXPECT_THROW(
@@ -41,7 +48,7 @@ TEST(ConvertTimeTudatDispTbl, ShouldThrowInvalidArgumentWhenUtcIsoFormatButDoubl
 	);
 }
 
-TEST(ConvertTimeTudatDispTbl, ShouldThrowInvalidArgumentWhenNumericFormatButStringProvided)
+TEST_F(ConvertTimeTudatDispTbl, ShouldThrowInvalidArgumentWhenNumericFormatButStringProvided)
 {
 	const TimeValue input = std::string("2000-01-01T12:00:00");
 	EXPECT_THROW(
@@ -53,7 +60,7 @@ TEST(ConvertTimeTudatDispTbl, ShouldThrowInvalidArgumentWhenNumericFormatButStri
 	);
 }
 
-TEST(ConvertTimeTudatDispTbl, ShouldThrowInvalidArgumentForUnsupportedInputFormat)
+TEST_F(ConvertTimeTudatDispTbl, ShouldThrowInvalidArgumentForUnsupportedInputFormat)
 {
 	const TimeValue input = 0.0;
 	EXPECT_THROW(
