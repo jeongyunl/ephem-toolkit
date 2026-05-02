@@ -1,6 +1,6 @@
 #include "time_converter.h"
 #include "time_converter_tudat.h"
-#include "chrono_utc/time_converter_chrono_utc.h"
+#include "chrono/time_converter_chrono.h"
 
 #include <format>
 #include <iostream>
@@ -17,11 +17,16 @@ enum class BackendType
 {
 	BASE,
 	TUDAT,
-	CHRONO_UTC,
+	CHRONO,
 	UNKNOWN
 };
 
 const std::map<std::string_view, TimeFormat> BaseTimeFormatNames = {
+	{ "iso", TimeFormat::UTC_ISO8601 }, { "posix", TimeFormat::POSIX }, { "utc", TimeFormat::UTC_J2000 },
+	{ "tai", TimeFormat::TAI_J2000 },   { "tt", TimeFormat::TT_J2000 },
+};
+
+const std::map<std::string_view, TimeFormat> ChronoUtcTimeFormatNames = {
 	{ "iso", TimeFormat::UTC_ISO8601 },
 	{ "posix", TimeFormat::POSIX },
 	{ "utc", TimeFormat::UTC_J2000 },
@@ -54,9 +59,9 @@ BackendType parse_backend(const std::string& backend_str)
 	{
 		return BackendType::TUDAT;
 	}
-	if(backend_str == "chrono_utc")
+	if(backend_str == "chrono")
 	{
-		return BackendType::CHRONO_UTC;
+		return BackendType::CHRONO;
 	}
 	return BackendType::UNKNOWN;
 }
@@ -66,6 +71,10 @@ const std::map<std::string_view, TimeFormat>& get_format_names(BackendType backe
 	if(backend == BackendType::TUDAT)
 	{
 		return TudatTimeFormatNames;
+	}
+	if(backend == BackendType::CHRONO)
+	{
+		return ChronoUtcTimeFormatNames;
 	}
 	return BaseTimeFormatNames;
 }
@@ -83,11 +92,22 @@ TimeFormat parse_time_format(const std::string& format_str, BackendType backend)
 
 void print_formats(const std::map<std::string_view, TimeFormat>& format_names)
 {
+	int i = 0;
+
 	for(const auto& [name, format] : format_names)
 	{
 		(void)format;
-		std::cout << "  " << name << '\n';
+		std::cout << "  " << name;
+		if(++i % 4 == 0)
+		{
+			std::cout << '\n';
+		}
+		else
+		{
+			std::cout << '\t';
+		}
 	}
+	std::cout << '\n';
 }
 
 void print_usage(const char* program_name)
@@ -95,7 +115,7 @@ void print_usage(const char* program_name)
 	std::cout << "Usage: " << program_name << " [OPTIONS] input_time ...\n"
 			  << "Options:\n"
 			  << "  -h, --help                Show this help message and exit\n"
-			  << "  -b, --backend BACKEND     Select backend (base, chrono_utc, or tudat)\n"
+			  << "  -b, --backend BACKEND     Select backend (base, chrono, or tudat)\n"
 			  << "  -i, --input-format FORMAT Specify the input time format\n"
 			  << "  -o, --output-format FORMAT Specify the output time format\n";
 
@@ -103,7 +123,7 @@ void print_usage(const char* program_name)
 	print_formats(BaseTimeFormatNames);
 
 	std::cout << "\nChrono UTC backend formats:\n";
-	print_formats(BaseTimeFormatNames);
+	print_formats(ChronoUtcTimeFormatNames);
 
 	std::cout << "\nTudat backend formats:\n";
 	print_formats(TudatTimeFormatNames);
@@ -116,9 +136,9 @@ run_conversion(BackendType backend, const TimeValue& input, TimeFormat input_for
 	{
 		return TimeConverterTudat::instance().convert_time(input, input_format, output_format);
 	}
-	if(backend == BackendType::CHRONO_UTC)
+	if(backend == BackendType::CHRONO)
 	{
-		return TimeConverterChronoUtc::instance().convert_time(input, input_format, output_format);
+		return TimeConverterChrono::instance().convert_time(input, input_format, output_format);
 	}
 	return TimeConverter::instance().convert_time(input, input_format, output_format);
 }
@@ -247,7 +267,7 @@ int main(int argc, char* argv[])
 						std::cout << std::format(
 							"{:.3f} (since {} UTC)",
 							std::chrono::duration<double>(sys_time.time_since_epoch()).count(),
-							std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::time_point{ })
+							std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::time_point{})
 						);
 						break;
 					case TimeFormat::CHRONO_SYS_TIME_ISO:
@@ -267,7 +287,7 @@ int main(int argc, char* argv[])
 						std::cout << std::format(
 							"{:.3f} (since {} UTC)",
 							std::chrono::duration<double>(utc_time.time_since_epoch()).count(),
-							std::chrono::floor<std::chrono::seconds>(std::chrono::utc_clock::time_point{ })
+							std::chrono::floor<std::chrono::seconds>(std::chrono::utc_clock::time_point{})
 						);
 						break;
 					case TimeFormat::CHRONO_UTC_TIME_ISO:
@@ -289,7 +309,7 @@ int main(int argc, char* argv[])
 							"{:.3f} (since {} UTC)",
 							std::chrono::duration<double>(tai_time.time_since_epoch()).count(),
 							std::chrono::floor<std::chrono::seconds>(
-								std::chrono::tai_clock::to_utc(std::chrono::tai_clock::time_point{ })
+								std::chrono::tai_clock::to_utc(std::chrono::tai_clock::time_point{})
 							)
 						);
 						break;

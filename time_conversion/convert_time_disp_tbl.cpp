@@ -1,8 +1,8 @@
-#include "time_converter.h"
-#include "dispatch_handler.h"
 #include "base_dispatch_entries.h"
-#include "chrono_utc/chrono_dispatch_entries.h"
-#include "chrono_utc/time_converter_chrono_utc.h"
+#include "dispatch_handler.h"
+#include "time_converter.h"
+#include "chrono/chrono_dispatch_entries.h"
+#include "chrono/time_converter_chrono.h"
 
 #include <stdexcept>
 namespace
@@ -42,8 +42,7 @@ TimeConverter::convert_time(const TimeValue& input, TimeFormat input_format, Tim
 			case Handler::InputType::DOUBLE:
 				if(!std::holds_alternative<double>(input))
 				{
-					throw std::invalid_argument(
-						"Expected input of type double for the given input TimeFormat"
+					throw std::invalid_argument("Expected input of type double for the given input TimeFormat"
 					);
 				}
 				break;
@@ -80,9 +79,9 @@ TimeConverter::convert_time(const TimeValue& input, TimeFormat input_format, Tim
 #endif
 		}
 		const TimeConverterBase* converter_backend = this;
-		if(handler.getBackendType() == Handler::BackendType::CHRONO_UTC)
+		if(handler.getBackendType() == Handler::BackendType::CHRONO)
 		{
-			converter_backend = &TimeConverterChronoUtc::instance();
+			converter_backend = &TimeConverterChrono::instance();
 		}
 
 		return handler(input, converter_backend);

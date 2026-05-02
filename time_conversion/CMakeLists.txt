@@ -5,8 +5,8 @@ add_library(
     convert_time_j2000.cpp
     convert_time_leap_transition.cpp
     convert_time_disp_tbl.cpp
-    chrono_utc/chrono_dispatch_entries.cpp
-    chrono_utc/time_converter_chrono_utc.cpp
+    chrono/chrono_dispatch_entries.cpp
+    chrono/time_converter_chrono.cpp
 )
 
 # Apply coverage flags only to this project targets when enabled

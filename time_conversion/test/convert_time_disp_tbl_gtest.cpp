@@ -1,4 +1,5 @@
 #include "time_converter.h"
+#include "chrono/time_converter_chrono.h"
 
 #include <gtest/gtest.h>
 #include <string>
@@ -88,6 +89,6 @@ TEST(ConvertTimeDispFn, ChronoSysTimeRoundTripToPosix)
 	const auto tp = std::get<system_clock::time_point>(chrono_out);
 
 	// Convert back using existing handler for chrono -> posix via sys_time_to_utc_posix
-	const auto back_posix = TimeConverter::instance().sys_time_to_utc_posix(tp);
+	const auto back_posix = TimeConverterChrono::instance().sys_time_to_utc_posix(tp);
 	EXPECT_NEAR(back_posix, posix, 1.0e-9);
 }

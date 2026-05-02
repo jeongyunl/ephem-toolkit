@@ -29,11 +29,6 @@ std::shared_ptr<tudat::earth_orientation::TerrestrialTimeScaleConverter> get_tud
 // utc_iso_to_*() functions
 //
 
-std::string TimeConverterTudat::utc_iso_to_utc_iso(const std::string& iso_string) const
-{
-	return iso_string;
-}
-
 double TimeConverterTudat::utc_iso_to_posix(const std::string& iso_string) const
 {
 	// Convert ISO 8601 string to POSIX timestamp

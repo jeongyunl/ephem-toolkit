@@ -7,7 +7,7 @@
 #include <type_traits>
 #include <variant>
 
-class TimeConverterChronoUtc;
+class TimeConverterChrono;
 
 using DispatchKey = std::pair<TimeFormat, TimeFormat>;
 
@@ -17,7 +17,7 @@ public:
 	enum class BackendType
 	{
 		BASE,
-		CHRONO_UTC
+		CHRONO
 	};
 
 	enum class InputType
@@ -80,9 +80,9 @@ public:
 	template <typename Obj>
 	static constexpr BackendType deduceBackendType()
 	{
-		if constexpr(std::is_same_v<Obj, TimeConverterChronoUtc>)
+		if constexpr(std::is_same_v<Obj, TimeConverterChrono>)
 		{
-			return BackendType::CHRONO_UTC;
+			return BackendType::CHRONO;
 		}
 		else
 		{
@@ -147,17 +147,17 @@ public:
 		int fractional_second_places = 3
 	)
 		: callable_(
-			  [func, use_t_separator, fractional_second_places](
-				  const TimeValue& input_time,
-				  const TimeConverterBase* tc_ptr
-			  ) -> TimeValue {
-				  const auto* obj_ptr = static_cast<const Obj*>(tc_ptr);
-				  using BareArg = std::remove_cvref_t<Arg>;
-				  Arg arg = static_cast<Arg>(std::get<BareArg>(input_time));
-				  Ret out = (obj_ptr->*func)(arg, use_t_separator, fractional_second_places);
-				  return TimeValue{ std::in_place_type<Ret>, std::move(out) };
-			  }
-		  )
+			[func, use_t_separator, fractional_second_places](
+				const TimeValue& input_time,
+				const TimeConverterBase* tc_ptr
+			) -> TimeValue {
+				const auto* obj_ptr = static_cast<const Obj*>(tc_ptr);
+				using BareArg = std::remove_cvref_t<Arg>;
+				Arg arg = static_cast<Arg>(std::get<BareArg>(input_time));
+				Ret out = (obj_ptr->*func)(arg, use_t_separator, fractional_second_places);
+				return TimeValue{ std::in_place_type<Ret>, std::move(out) };
+			}
+		)
 		, backend_type_(deduceBackendType<Obj>())
 		, input_type_(deduceInputType<Arg>())
 	{

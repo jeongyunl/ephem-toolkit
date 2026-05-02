@@ -1,7 +1,7 @@
 
 #include "convert_time_iso8601.h"
-#include "time_converter.h"
 #include "convert_time_leap_transition.h"
+#include "time_converter.h"
 
 #include <cmath>
 #include <cstdint>
@@ -243,7 +243,7 @@ ParsedUtcIso TimeConverter::tai_j2000_to_parsed_utc_iso(double tai_j2000_time) c
 
 	// After 32 iterations, upper converges to the correct UTC POSIX instant (within floating-point precision)
 	// Convert the UTC POSIX instant to calendar representation
-	return this->posix_to_parsed_utc_iso(upper);
+	return posix_to_parsed_utc_iso(upper);
 }
 
 double TimeConverter::tai_j2000_to_posix(double tai_j2000_time) const
@@ -270,8 +270,8 @@ bool TimeConverter::iso_8601_equal(
 	try
 	{
 		// Compare instants in a continuous time scale (TAI) so leap seconds are handled naturally.
-		const double lhs_tai = this->utc_iso_to_tai_j2000(lhs);
-		const double rhs_tai = this->utc_iso_to_tai_j2000(rhs);
+		const double lhs_tai = TimeConverter::utc_iso_to_tai_j2000(lhs);
+		const double rhs_tai = TimeConverter::utc_iso_to_tai_j2000(rhs);
 
 		// Convert to integer nanoseconds.
 		const auto lhs_ns = static_cast<std::int64_t>(lhs_tai * 1.0e9);
