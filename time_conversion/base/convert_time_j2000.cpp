@@ -1,7 +1,7 @@
 
 #include "convert_time_iso8601.h"
 #include "convert_time_leap_transition.h"
-#include "time_converter.h"
+#include "base/time_converter_base.h"
 
 #include <cmath>
 #include <cstdint>
@@ -24,7 +24,7 @@ static inline std::int64_t extract_nanoseconds(double fractional_seconds) noexce
 // POSIX
 //
 
-double TimeConverter::parsed_utc_iso_to_posix(const ParsedUtcIso& parsed_utc_iso) const
+double TimeConverterBase::parsed_utc_iso_to_posix(const ParsedUtcIso& parsed_utc_iso) const
 {
 	// Compute POSIX-like seconds since 1970-01-01 for the UTC instant.
 	// Leap second 23:59:60 is mapped to the POSIX second of the following 00:00:00.
@@ -48,7 +48,7 @@ double TimeConverter::parsed_utc_iso_to_posix(const ParsedUtcIso& parsed_utc_iso
 	return posix_time;
 }
 
-ParsedUtcIso TimeConverter::posix_to_parsed_utc_iso(double posix_time) const
+ParsedUtcIso TimeConverterBase::posix_to_parsed_utc_iso(double posix_time) const
 {
 	ParsedUtcIso result;
 
@@ -76,7 +76,7 @@ ParsedUtcIso TimeConverter::posix_to_parsed_utc_iso(double posix_time) const
 	return result;
 }
 
-double TimeConverter::posix_to_tai_j2000(double posix_time) const
+double TimeConverterBase::posix_to_tai_j2000(double posix_time) const
 {
 	const auto& transitions = get_zoneinfo_leap_transitions();
 
@@ -116,7 +116,7 @@ posix_leap_second_transition_to_parsed_utc_iso(double transition_posix_time, dou
 	return result;
 }
 
-double TimeConverter::parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc_iso) const
+double TimeConverterBase::parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc_iso) const
 {
 	const auto& transitions = get_zoneinfo_leap_transitions();
 
@@ -154,7 +154,7 @@ double TimeConverter::parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc
 	return utc_elapsed_non_leap + leap_delta;
 }
 
-ParsedUtcIso TimeConverter::tai_j2000_to_parsed_utc_iso(double tai_j2000_time) const
+ParsedUtcIso TimeConverterBase::tai_j2000_to_parsed_utc_iso(double tai_j2000_time) const
 {
 	// Largest historical UTC-TAI offset is well below this; keep a safe search margin.
 	constexpr double BINARY_SEARCH_LOWER_MARGIN_SECONDS = 64.0;
@@ -246,7 +246,7 @@ ParsedUtcIso TimeConverter::tai_j2000_to_parsed_utc_iso(double tai_j2000_time) c
 	return posix_to_parsed_utc_iso(upper);
 }
 
-double TimeConverter::tai_j2000_to_posix(double tai_j2000_time) const
+double TimeConverterBase::tai_j2000_to_posix(double tai_j2000_time) const
 {
 	const ParsedUtcIso parsed_utc_iso = tai_j2000_to_parsed_utc_iso(tai_j2000_time);
 	return parsed_utc_iso_to_posix(parsed_utc_iso);
@@ -256,7 +256,7 @@ double TimeConverter::tai_j2000_to_posix(double tai_j2000_time) const
 // Utility for testing
 //
 
-bool TimeConverter::iso_8601_equal(
+bool TimeConverterBase::iso_8601_equal(
 	const std::string& lhs,
 	const std::string& rhs,
 	std::size_t fractional_second_places
@@ -270,8 +270,8 @@ bool TimeConverter::iso_8601_equal(
 	try
 	{
 		// Compare instants in a continuous time scale (TAI) so leap seconds are handled naturally.
-		const double lhs_tai = TimeConverter::utc_iso_to_tai_j2000(lhs);
-		const double rhs_tai = TimeConverter::utc_iso_to_tai_j2000(rhs);
+		const double lhs_tai = TimeConverterBase::utc_iso_to_tai_j2000(lhs);
+		const double rhs_tai = TimeConverterBase::utc_iso_to_tai_j2000(rhs);
 
 		// Convert to integer nanoseconds.
 		const auto lhs_ns = static_cast<std::int64_t>(lhs_tai * 1.0e9);

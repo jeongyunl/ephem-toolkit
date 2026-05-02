@@ -1,7 +1,7 @@
 #include "time_converter_chrono.h"
 
 #include "chrono_dispatch_entries.h"
-#include "../base_dispatch_entries.h"
+#include "../base/base_dispatch_entries.h"
 #include "../dispatch_handler.h"
 
 #include <stdexcept>

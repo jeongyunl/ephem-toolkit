@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../time_converter.h"
+#include "../base/time_converter_base.h"
 
-class TimeConverterChrono : public TimeConverter
+class TimeConverterChrono : public TimeConverterBase
 {
 	TimeConverterChrono() = default;
 	~TimeConverterChrono() = default;

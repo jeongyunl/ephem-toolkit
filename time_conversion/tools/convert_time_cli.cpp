@@ -1,4 +1,4 @@
-#include "time_converter.h"
+#include "base/time_converter_base.h"
 #include "time_converter_tudat.h"
 #include "chrono/time_converter_chrono.h"
 
@@ -140,7 +140,7 @@ run_conversion(BackendType backend, const TimeValue& input, TimeFormat input_for
 	{
 		return TimeConverterChrono::instance().convert_time(input, input_format, output_format);
 	}
-	return TimeConverter::instance().convert_time(input, input_format, output_format);
+	return TimeConverterBase::instance().convert_time(input, input_format, output_format);
 }
 } // namespace
 

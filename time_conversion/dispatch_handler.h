@@ -1,6 +1,6 @@
 #pragma once
 
-#include "time_converter.h"
+#include "base/time_converter_base.h"
 
 #include <functional>
 #include <map>
@@ -33,7 +33,7 @@ public:
 #endif
 	};
 
-	using WrappedCallable = std::function<TimeValue(const TimeValue&, const TimeConverterBase*)>;
+	using WrappedCallable = std::function<TimeValue(const TimeValue&, const TimeConverter*)>;
 
 	template <typename T>
 	struct IsChronoTimePoint : std::false_type
@@ -96,7 +96,7 @@ public:
 		typename Ret,
 		std::enable_if_t<!IsChronoTimePoint<Ret>::value, int> = 0>
 	Handler(Ret (Obj::*func)(Arg) const)
-		: callable_([func](const TimeValue& input_time, const TimeConverterBase* tc_ptr) -> TimeValue {
+		: callable_([func](const TimeValue& input_time, const TimeConverter* tc_ptr) -> TimeValue {
 			const auto* obj_ptr = static_cast<const Obj*>(tc_ptr);
 			using BareArg = std::remove_cvref_t<Arg>;
 			Arg arg = static_cast<Arg>(std::get<BareArg>(input_time));
@@ -114,7 +114,7 @@ public:
 		typename Ret,
 		std::enable_if_t<!IsChronoTimePoint<Ret>::value, int> = 0>
 	Handler(Ret (Obj::*func)(const Arg&) const)
-		: callable_([func](const TimeValue& input_time, const TimeConverterBase* tc_ptr) -> TimeValue {
+		: callable_([func](const TimeValue& input_time, const TimeConverter* tc_ptr) -> TimeValue {
 			const auto* obj_ptr = static_cast<const Obj*>(tc_ptr);
 			const auto& arg = std::get<std::remove_cvref_t<Arg>>(input_time);
 			Ret out = (obj_ptr->*func)(arg);
@@ -127,7 +127,7 @@ public:
 
 	template <typename Obj, typename Arg, typename Clock>
 	Handler(std::chrono::time_point<Clock, typename Clock::duration> (Obj::*func)(Arg) const)
-		: callable_([func](const TimeValue& input_time, const TimeConverterBase* tc_ptr) -> TimeValue {
+		: callable_([func](const TimeValue& input_time, const TimeConverter* tc_ptr) -> TimeValue {
 			const auto* obj_ptr = static_cast<const Obj*>(tc_ptr);
 			using BareArg = std::remove_cvref_t<Arg>;
 			Arg arg = static_cast<Arg>(std::get<BareArg>(input_time));
@@ -149,7 +149,7 @@ public:
 		: callable_(
 			[func, use_t_separator, fractional_second_places](
 				const TimeValue& input_time,
-				const TimeConverterBase* tc_ptr
+				const TimeConverter* tc_ptr
 			) -> TimeValue {
 				const auto* obj_ptr = static_cast<const Obj*>(tc_ptr);
 				using BareArg = std::remove_cvref_t<Arg>;
@@ -163,7 +163,7 @@ public:
 	{
 	}
 
-	TimeValue operator()(const TimeValue& input_time, const TimeConverterBase* tc_ptr) const
+	TimeValue operator()(const TimeValue& input_time, const TimeConverter* tc_ptr) const
 	{
 		return callable_(input_time, tc_ptr);
 	}

@@ -1,6 +1,6 @@
 #include "base_dispatch_entries.h"
 #include "dispatch_handler.h"
-#include "time_converter.h"
+#include "base/time_converter_base.h"
 #include "chrono/chrono_dispatch_entries.h"
 #include "chrono/time_converter_chrono.h"
 
@@ -22,7 +22,8 @@ std::map<DispatchKey, Handler> dispatchTable = make_dispatch_table();
 }
 
 TimeValue
-TimeConverter::convert_time(const TimeValue& input, TimeFormat input_format, TimeFormat output_format) const
+TimeConverterBase::convert_time(const TimeValue& input, TimeFormat input_format, TimeFormat output_format)
+	const
 {
 	DispatchKey key{ input_format, output_format };
 	auto it = dispatchTable.find(key);
@@ -78,7 +79,7 @@ TimeConverter::convert_time(const TimeValue& input, TimeFormat input_format, Tim
 				break;
 #endif
 		}
-		const TimeConverterBase* converter_backend = this;
+		const TimeConverter* converter_backend = this;
 		if(handler.getBackendType() == Handler::BackendType::CHRONO)
 		{
 			converter_backend = &TimeConverterChrono::instance();

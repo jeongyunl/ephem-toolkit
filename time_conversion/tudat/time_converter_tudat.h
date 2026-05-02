@@ -1,12 +1,12 @@
 #pragma once
 
 #include "../convert_time_common.h"
-#include "../time_converter_base.h"
+#include "../time_converter.h"
 
 #include <string>
 #include <variant>
 
-class TimeConverterTudat : public TimeConverterBase
+class TimeConverterTudat : public TimeConverter
 {
 public:
 	static TimeConverterTudat& instance()

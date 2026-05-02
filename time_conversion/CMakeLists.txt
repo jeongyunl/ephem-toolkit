@@ -1,10 +1,10 @@
 add_library(
     convert_time STATIC
-    base_dispatch_entries.cpp
     convert_time_iso8601.cpp
-    convert_time_j2000.cpp
     convert_time_leap_transition.cpp
-    convert_time_disp_tbl.cpp
+    base/convert_time_j2000.cpp
+    base/base_dispatch_entries.cpp
+    base/convert_time_disp_tbl.cpp
     chrono/chrono_dispatch_entries.cpp
     chrono/time_converter_chrono.cpp
 )
@@ -25,7 +25,7 @@ if(BUILD_TESTING)
         convert_time_gtest
         test/convert_time_gtest.cpp
         test/convert_time_gtest_common.cpp
-        convert_time_disp_tbl.cpp
+        base/convert_time_disp_tbl.cpp
     )
 
     target_link_libraries(
@@ -50,7 +50,7 @@ if(BUILD_TESTING)
         convert_time_disp_tbl_gtest
         test/convert_time_disp_tbl_gtest.cpp
         test/convert_time_gtest_common.cpp
-        convert_time_disp_tbl.cpp
+        base/convert_time_disp_tbl.cpp
     )
 
     add_executable(
@@ -140,9 +140,8 @@ if(BUILD_TESTING)
     )
 
     add_executable(
-        convert_time_chrono_gtest
-        chrono/test/time_converter_chrono_gtest.cpp
-        test/convert_time_gtest_common.cpp
+        convert_time_chrono_gtest chrono/test/time_converter_chrono_gtest.cpp
+                                  test/convert_time_gtest_common.cpp
     )
 
     target_link_libraries(
@@ -153,7 +152,9 @@ if(BUILD_TESTING)
     )
 
     if(ENABLE_COVERAGE)
-        target_link_libraries(convert_time_chrono_gtest PRIVATE coverage_config)
+        target_link_libraries(
+            convert_time_chrono_gtest PRIVATE coverage_config
+        )
     endif()
 
     target_include_directories(
