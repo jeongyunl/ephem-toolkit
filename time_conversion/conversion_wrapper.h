@@ -1,25 +1,19 @@
 #pragma once
 
-#include "base/time_converter_base.h"
+#include "convert_time_common.h"
 
 #include <functional>
 #include <map>
 #include <type_traits>
 #include <variant>
 
-class TimeConverterChrono;
+class TimeConverter;
 
 using DispatchKey = std::pair<TimeFormat, TimeFormat>;
 
-class Handler
+class ConversionWrapper
 {
 public:
-	enum class BackendType
-	{
-		BASE,
-		CHRONO
-	};
-
 	enum class InputType
 	{
 		DOUBLE,
@@ -45,7 +39,7 @@ public:
 	{
 	};
 
-	Handler() = default;
+	ConversionWrapper() = default;
 
 	template <typename Arg>
 	static constexpr InputType deduceInputType()
@@ -77,25 +71,12 @@ public:
 		}
 	}
 
-	template <typename Obj>
-	static constexpr BackendType deduceBackendType()
-	{
-		if constexpr(std::is_same_v<Obj, TimeConverterChrono>)
-		{
-			return BackendType::CHRONO;
-		}
-		else
-		{
-			return BackendType::BASE;
-		}
-	}
-
 	template <
 		typename Obj,
 		typename Arg,
 		typename Ret,
 		std::enable_if_t<!IsChronoTimePoint<Ret>::value, int> = 0>
-	Handler(Ret (Obj::*func)(Arg) const)
+	ConversionWrapper(Ret (Obj::*func)(Arg) const)
 		: callable_([func](const TimeValue& input_time, const TimeConverter* tc_ptr) -> TimeValue {
 			const auto* obj_ptr = static_cast<const Obj*>(tc_ptr);
 			using BareArg = std::remove_cvref_t<Arg>;
@@ -103,7 +84,6 @@ public:
 			Ret out = (obj_ptr->*func)(arg);
 			return TimeValue{ std::in_place_type<Ret>, std::move(out) };
 		})
-		, backend_type_(deduceBackendType<Obj>())
 		, input_type_(deduceInputType<Arg>())
 	{
 	}
@@ -113,20 +93,19 @@ public:
 		typename Arg,
 		typename Ret,
 		std::enable_if_t<!IsChronoTimePoint<Ret>::value, int> = 0>
-	Handler(Ret (Obj::*func)(const Arg&) const)
+	ConversionWrapper(Ret (Obj::*func)(const Arg&) const)
 		: callable_([func](const TimeValue& input_time, const TimeConverter* tc_ptr) -> TimeValue {
 			const auto* obj_ptr = static_cast<const Obj*>(tc_ptr);
 			const auto& arg = std::get<std::remove_cvref_t<Arg>>(input_time);
 			Ret out = (obj_ptr->*func)(arg);
 			return TimeValue{ std::in_place_type<Ret>, std::move(out) };
 		})
-		, backend_type_(deduceBackendType<Obj>())
 		, input_type_(deduceInputType<Arg>())
 	{
 	}
 
 	template <typename Obj, typename Arg, typename Clock>
-	Handler(std::chrono::time_point<Clock, typename Clock::duration> (Obj::*func)(Arg) const)
+	ConversionWrapper(std::chrono::time_point<Clock, typename Clock::duration> (Obj::*func)(Arg) const)
 		: callable_([func](const TimeValue& input_time, const TimeConverter* tc_ptr) -> TimeValue {
 			const auto* obj_ptr = static_cast<const Obj*>(tc_ptr);
 			using BareArg = std::remove_cvref_t<Arg>;
@@ -135,30 +114,28 @@ public:
 			using Ret = std::chrono::time_point<Clock, typename Clock::duration>;
 			return TimeValue{ std::in_place_type<Ret>, std::move(out) };
 		})
-		, backend_type_(deduceBackendType<Obj>())
 		, input_type_(deduceInputType<Arg>())
 	{
 	}
 
 	template <typename Obj, typename Arg, typename Ret>
-	Handler(
+	ConversionWrapper(
 		Ret (Obj::*func)(Arg, bool, int) const,
 		bool use_t_separator = false,
 		int fractional_second_places = 3
 	)
 		: callable_(
-			[func, use_t_separator, fractional_second_places](
-				const TimeValue& input_time,
-				const TimeConverter* tc_ptr
-			) -> TimeValue {
-				const auto* obj_ptr = static_cast<const Obj*>(tc_ptr);
-				using BareArg = std::remove_cvref_t<Arg>;
-				Arg arg = static_cast<Arg>(std::get<BareArg>(input_time));
-				Ret out = (obj_ptr->*func)(arg, use_t_separator, fractional_second_places);
-				return TimeValue{ std::in_place_type<Ret>, std::move(out) };
-			}
-		)
-		, backend_type_(deduceBackendType<Obj>())
+			  [func, use_t_separator, fractional_second_places](
+				  const TimeValue& input_time,
+				  const TimeConverter* tc_ptr
+			  ) -> TimeValue {
+				  const auto* obj_ptr = static_cast<const Obj*>(tc_ptr);
+				  using BareArg = std::remove_cvref_t<Arg>;
+				  Arg arg = static_cast<Arg>(std::get<BareArg>(input_time));
+				  Ret out = (obj_ptr->*func)(arg, use_t_separator, fractional_second_places);
+				  return TimeValue{ std::in_place_type<Ret>, std::move(out) };
+			  }
+		  )
 		, input_type_(deduceInputType<Arg>())
 	{
 	}
@@ -170,12 +147,9 @@ public:
 
 	explicit operator bool() const { return static_cast<bool>(callable_); }
 
-	BackendType getBackendType() const { return backend_type_; }
-
 	InputType getInputType() const { return input_type_; }
 
 private:
 	WrappedCallable callable_;
-	BackendType backend_type_ = BackendType::BASE;
 	InputType input_type_ = InputType::DOUBLE;
 };

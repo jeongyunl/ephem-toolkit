@@ -19,8 +19,7 @@ public:
 		return singleton;
 	}
 
-	TimeValue
-	convert_time(const TimeValue& input, TimeFormat input_format, TimeFormat output_format) const override;
+	void make_dispatch_table() override;
 
 #ifdef HAS_CHRONO_UTC_CLOCK
 	double posix_to_tai_j2000(double posix_time) const override;
@@ -57,32 +56,32 @@ public:
 	}
 
 	template <typename Duration = std::chrono::system_clock::duration>
-	std::chrono::time_point<std::chrono::system_clock, Duration> utc_j2000_to_sys_time(double utc_j2000_time
-	) const
+	std::chrono::time_point<std::chrono::system_clock, Duration>
+	utc_j2000_to_sys_time(double utc_j2000_time) const
 	{
 		const auto posix_time = utc_j2000_to_posix(utc_j2000_time);
 		return posix_to_sys_time<Duration>(posix_time);
 	}
 
 	template <typename Duration = std::chrono::system_clock::duration>
-	std::chrono::time_point<std::chrono::system_clock, Duration> tai_j2000_to_sys_time(double tai_j2000_time
-	) const
+	std::chrono::time_point<std::chrono::system_clock, Duration>
+	tai_j2000_to_sys_time(double tai_j2000_time) const
 	{
 		const auto posix_time = tai_j2000_to_posix(tai_j2000_time);
 		return posix_to_sys_time<Duration>(posix_time);
 	}
 
 	template <typename Duration = std::chrono::system_clock::duration>
-	std::chrono::time_point<std::chrono::system_clock, Duration> tt_j2000_to_sys_time(double tt_j2000_time
-	) const
+	std::chrono::time_point<std::chrono::system_clock, Duration>
+	tt_j2000_to_sys_time(double tt_j2000_time) const
 	{
 		const auto posix_time = tt_j2000_to_posix(tt_j2000_time);
 		return posix_to_sys_time<Duration>(posix_time);
 	}
 
 	template <typename Duration = std::chrono::system_clock::duration>
-	std::chrono::time_point<std::chrono::system_clock, Duration> tdb_j2000_to_sys_time(double tdb_j2000_time
-	) const
+	std::chrono::time_point<std::chrono::system_clock, Duration>
+	tdb_j2000_to_sys_time(double tdb_j2000_time) const
 	{
 		const auto posix_time = tdb_j2000_to_posix(tdb_j2000_time);
 		return posix_to_sys_time<Duration>(posix_time);
@@ -152,16 +151,16 @@ public:
 	}
 
 	template <typename Duration = std::chrono::utc_clock::duration>
-	std::chrono::time_point<std::chrono::utc_clock, Duration> utc_j2000_to_utc_time(double utc_j2000_time
-	) const
+	std::chrono::time_point<std::chrono::utc_clock, Duration>
+	utc_j2000_to_utc_time(double utc_j2000_time) const
 	{
 		const auto posix_time = utc_j2000_to_posix(utc_j2000_time);
 		return posix_to_utc_time<Duration>(posix_time);
 	}
 
 	template <typename Duration = std::chrono::utc_clock::duration>
-	std::chrono::time_point<std::chrono::utc_clock, Duration> tai_j2000_to_utc_time(double tai_j2000_time
-	) const
+	std::chrono::time_point<std::chrono::utc_clock, Duration>
+	tai_j2000_to_utc_time(double tai_j2000_time) const
 	{
 		return epochs::TAI_J2000_EPOCH_IN_UTC_TIME<Duration>
 			+ std::chrono::duration_cast<Duration>(std::chrono::duration<double>{ tai_j2000_time });
@@ -175,8 +174,8 @@ public:
 	}
 
 	template <typename Duration = std::chrono::utc_clock::duration>
-	std::chrono::time_point<std::chrono::utc_clock, Duration> tdb_j2000_to_utc_time(double tdb_j2000_time
-	) const
+	std::chrono::time_point<std::chrono::utc_clock, Duration>
+	tdb_j2000_to_utc_time(double tdb_j2000_time) const
 	{
 		const auto tai_j2000_time = tdb_j2000_to_tai_j2000(tdb_j2000_time);
 		return tai_j2000_to_utc_time<Duration>(tai_j2000_time);
@@ -234,16 +233,16 @@ public:
 	}
 
 	template <typename Duration = std::chrono::tai_clock::duration>
-	std::chrono::time_point<std::chrono::tai_clock, Duration> utc_j2000_to_tai_time(double utc_j2000_time
-	) const
+	std::chrono::time_point<std::chrono::tai_clock, Duration>
+	utc_j2000_to_tai_time(double utc_j2000_time) const
 	{
 		const auto posix_time = utc_j2000_to_posix(utc_j2000_time);
 		return posix_to_tai_time<Duration>(posix_time);
 	}
 
 	template <typename Duration = std::chrono::tai_clock::duration>
-	std::chrono::time_point<std::chrono::tai_clock, Duration> tai_j2000_to_tai_time(double tai_j2000_time
-	) const
+	std::chrono::time_point<std::chrono::tai_clock, Duration>
+	tai_j2000_to_tai_time(double tai_j2000_time) const
 	{
 		const auto utc_time = tai_j2000_to_utc_time<Duration>(tai_j2000_time);
 		return std::chrono::tai_clock::from_utc(utc_time);

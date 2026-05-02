@@ -128,9 +128,9 @@ std::string TimeConverterTudat::posix_to_utc_iso(
 {
 	try
 	{
-		const double utc_tudat_time = posix_to_utc_j2000(posix_time);
+		const double utc_j2000_time = posix_to_utc_j2000(posix_time);
 
-		return tudat::basic_astrodynamics::DateTime::fromTime(utc_tudat_time)
+		return tudat::basic_astrodynamics::DateTime::fromTime(utc_j2000_time)
 			.isoString(use_t_separator, fractional_second_places);
 	}
 	catch(const std::exception& e)
@@ -144,12 +144,12 @@ double TimeConverterTudat::posix_to_tai_j2000(const double posix_time) const
 {
 	try
 	{
-		const double utc_tudat_time = posix_to_utc_j2000(posix_time);
+		const double utc_j2000_time = posix_to_utc_j2000(posix_time);
 
 		return get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::utc_scale,
 			tudat::basic_astrodynamics::TimeScales::tai_scale,
-			utc_tudat_time
+			utc_j2000_time
 		);
 	}
 	catch(const std::exception& e)
@@ -163,12 +163,12 @@ double TimeConverterTudat::posix_to_tt_j2000(const double posix_time) const
 {
 	try
 	{
-		const double utc_tudat_time = posix_to_utc_j2000(posix_time);
+		const double utc_j2000_time = posix_to_utc_j2000(posix_time);
 
 		return get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::utc_scale,
 			tudat::basic_astrodynamics::TimeScales::tt_scale,
-			utc_tudat_time
+			utc_j2000_time
 		);
 	}
 	catch(const std::exception& e)
@@ -182,12 +182,12 @@ double TimeConverterTudat::posix_to_tdb_j2000(const double posix_time) const
 {
 	try
 	{
-		const double utc_tudat_time = posix_to_utc_j2000(posix_time);
+		const double utc_j2000_time = posix_to_utc_j2000(posix_time);
 
 		return get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::utc_scale,
 			tudat::basic_astrodynamics::TimeScales::tdb_scale,
-			utc_tudat_time
+			utc_j2000_time
 		);
 	}
 	catch(const std::exception& e)
@@ -202,14 +202,14 @@ double TimeConverterTudat::posix_to_tdb_j2000(const double posix_time) const
 //
 
 std::string TimeConverterTudat::utc_j2000_to_utc_iso(
-	const double utc_tudat_time,
+	const double utc_j2000_time,
 	bool use_t_separator,
 	int fractional_second_places
 ) const
 {
 	try
 	{
-		return tudat::basic_astrodynamics::DateTime::fromTime(utc_tudat_time)
+		return tudat::basic_astrodynamics::DateTime::fromTime(utc_j2000_time)
 			.isoString(use_t_separator, fractional_second_places);
 	}
 	catch(const std::exception& e)
@@ -219,14 +219,14 @@ std::string TimeConverterTudat::utc_j2000_to_utc_iso(
 	}
 }
 
-double TimeConverterTudat::utc_j2000_to_tai_j2000(const double utc_tudat_time) const
+double TimeConverterTudat::utc_j2000_to_tai_j2000(const double utc_j2000_time) const
 {
 	try
 	{
 		return get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::utc_scale,
 			tudat::basic_astrodynamics::TimeScales::tai_scale,
-			utc_tudat_time
+			utc_j2000_time
 		);
 	}
 	catch(const std::exception& e)
@@ -236,14 +236,14 @@ double TimeConverterTudat::utc_j2000_to_tai_j2000(const double utc_tudat_time) c
 	}
 }
 
-double TimeConverterTudat::utc_j2000_to_tt_j2000(const double utc_tudat_time) const
+double TimeConverterTudat::utc_j2000_to_tt_j2000(const double utc_j2000_time) const
 {
 	try
 	{
 		return get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::utc_scale,
 			tudat::basic_astrodynamics::TimeScales::tt_scale,
-			utc_tudat_time
+			utc_j2000_time
 		);
 	}
 	catch(const std::exception& e)
@@ -253,14 +253,14 @@ double TimeConverterTudat::utc_j2000_to_tt_j2000(const double utc_tudat_time) co
 	}
 }
 
-double TimeConverterTudat::utc_j2000_to_tdb_j2000(const double utc_tudat_time) const
+double TimeConverterTudat::utc_j2000_to_tdb_j2000(const double utc_j2000_time) const
 {
 	try
 	{
 		return get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::utc_scale,
 			tudat::basic_astrodynamics::TimeScales::tdb_scale,
-			utc_tudat_time
+			utc_j2000_time
 		);
 	}
 	catch(const std::exception& e)
@@ -275,20 +275,20 @@ double TimeConverterTudat::utc_j2000_to_tdb_j2000(const double utc_tudat_time) c
 //
 
 std::string TimeConverterTudat::tai_j2000_to_utc_iso(
-	const double tai_tudat_time,
+	const double tai_j2000_time,
 	bool use_t_separator,
 	int fractional_second_places
 ) const
 {
 	try
 	{
-		const double utc_tudat_time = get_tudat_time_scale_converter()->getCurrentTime(
+		const double utc_j2000_time = get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::tai_scale,
 			tudat::basic_astrodynamics::TimeScales::utc_scale,
-			tai_tudat_time
+			tai_j2000_time
 		);
 
-		return tudat::basic_astrodynamics::DateTime::fromTime(utc_tudat_time)
+		return tudat::basic_astrodynamics::DateTime::fromTime(utc_j2000_time)
 			.isoString(use_t_separator, fractional_second_places);
 	}
 	catch(const std::exception& e)
@@ -298,17 +298,17 @@ std::string TimeConverterTudat::tai_j2000_to_utc_iso(
 	}
 }
 
-double TimeConverterTudat::tai_j2000_to_posix(const double tai_tudat_time) const
+double TimeConverterTudat::tai_j2000_to_posix(const double tai_j2000_time) const
 {
 	try
 	{
-		const double utc_tudat_time = get_tudat_time_scale_converter()->getCurrentTime(
+		const double utc_j2000_time = get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::tai_scale,
 			tudat::basic_astrodynamics::TimeScales::utc_scale,
-			tai_tudat_time
+			tai_j2000_time
 		);
 
-		return utc_j2000_to_posix(utc_tudat_time);
+		return utc_j2000_to_posix(utc_j2000_time);
 	}
 	catch(const std::exception& e)
 	{
@@ -317,14 +317,14 @@ double TimeConverterTudat::tai_j2000_to_posix(const double tai_tudat_time) const
 	}
 }
 
-double TimeConverterTudat::tai_j2000_to_utc_j2000(const double tai_tudat_time) const
+double TimeConverterTudat::tai_j2000_to_utc_j2000(const double tai_j2000_time) const
 {
 	try
 	{
 		return get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::tai_scale,
 			tudat::basic_astrodynamics::TimeScales::utc_scale,
-			tai_tudat_time
+			tai_j2000_time
 		);
 	}
 	catch(const std::exception& e)
@@ -334,14 +334,14 @@ double TimeConverterTudat::tai_j2000_to_utc_j2000(const double tai_tudat_time) c
 	}
 }
 
-double TimeConverterTudat::tai_j2000_to_tt_j2000(const double tai_tudat_time) const
+double TimeConverterTudat::tai_j2000_to_tt_j2000(const double tai_j2000_time) const
 {
 	try
 	{
 		return get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::tai_scale,
 			tudat::basic_astrodynamics::TimeScales::tt_scale,
-			tai_tudat_time
+			tai_j2000_time
 		);
 	}
 	catch(const std::exception& e)
@@ -351,14 +351,14 @@ double TimeConverterTudat::tai_j2000_to_tt_j2000(const double tai_tudat_time) co
 	}
 }
 
-double TimeConverterTudat::tai_j2000_to_tdb_j2000(const double tai_tudat_time) const
+double TimeConverterTudat::tai_j2000_to_tdb_j2000(const double tai_j2000_time) const
 {
 	try
 	{
 		return get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::tai_scale,
 			tudat::basic_astrodynamics::TimeScales::tdb_scale,
-			tai_tudat_time
+			tai_j2000_time
 		);
 	}
 	catch(const std::exception& e)
@@ -373,20 +373,20 @@ double TimeConverterTudat::tai_j2000_to_tdb_j2000(const double tai_tudat_time) c
 //
 
 std::string TimeConverterTudat::tt_j2000_to_utc_iso(
-	const double tt_tudat_time,
+	const double tt_j2000_time,
 	bool use_t_separator,
 	int fractional_second_places
 ) const
 {
 	try
 	{
-		const double utc_tudat_time = get_tudat_time_scale_converter()->getCurrentTime(
+		const double utc_j2000_time = get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::tt_scale,
 			tudat::basic_astrodynamics::TimeScales::utc_scale,
-			tt_tudat_time
+			tt_j2000_time
 		);
 
-		return tudat::basic_astrodynamics::DateTime::fromTime(utc_tudat_time)
+		return tudat::basic_astrodynamics::DateTime::fromTime(utc_j2000_time)
 			.isoString(use_t_separator, fractional_second_places);
 	}
 	catch(const std::exception& e)
@@ -396,17 +396,17 @@ std::string TimeConverterTudat::tt_j2000_to_utc_iso(
 	}
 }
 
-double TimeConverterTudat::tt_j2000_to_posix(const double tt_tudat_time) const
+double TimeConverterTudat::tt_j2000_to_posix(const double tt_j2000_time) const
 {
 	try
 	{
-		const double utc_tudat_time = get_tudat_time_scale_converter()->getCurrentTime(
+		const double utc_j2000_time = get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::tt_scale,
 			tudat::basic_astrodynamics::TimeScales::utc_scale,
-			tt_tudat_time
+			tt_j2000_time
 		);
 
-		return utc_j2000_to_posix(utc_tudat_time);
+		return utc_j2000_to_posix(utc_j2000_time);
 	}
 	catch(const std::exception& e)
 	{
@@ -415,14 +415,14 @@ double TimeConverterTudat::tt_j2000_to_posix(const double tt_tudat_time) const
 	}
 }
 
-double TimeConverterTudat::tt_j2000_to_utc_j2000(const double tt_tudat_time) const
+double TimeConverterTudat::tt_j2000_to_utc_j2000(const double tt_j2000_time) const
 {
 	try
 	{
 		return get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::tt_scale,
 			tudat::basic_astrodynamics::TimeScales::utc_scale,
-			tt_tudat_time
+			tt_j2000_time
 		);
 	}
 	catch(const std::exception& e)
@@ -432,14 +432,14 @@ double TimeConverterTudat::tt_j2000_to_utc_j2000(const double tt_tudat_time) con
 	}
 }
 
-double TimeConverterTudat::tt_j2000_to_tai_j2000(const double tt_tudat_time) const
+double TimeConverterTudat::tt_j2000_to_tai_j2000(const double tt_j2000_time) const
 {
 	try
 	{
 		return get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::tt_scale,
 			tudat::basic_astrodynamics::TimeScales::tai_scale,
-			tt_tudat_time
+			tt_j2000_time
 		);
 	}
 	catch(const std::exception& e)
@@ -449,14 +449,14 @@ double TimeConverterTudat::tt_j2000_to_tai_j2000(const double tt_tudat_time) con
 	}
 }
 
-double TimeConverterTudat::tt_j2000_to_tdb_j2000(const double tt_tudat_time) const
+double TimeConverterTudat::tt_j2000_to_tdb_j2000(const double tt_j2000_time) const
 {
 	try
 	{
 		return get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::tt_scale,
 			tudat::basic_astrodynamics::TimeScales::tdb_scale,
-			tt_tudat_time
+			tt_j2000_time
 		);
 	}
 	catch(const std::exception& e)
@@ -471,20 +471,20 @@ double TimeConverterTudat::tt_j2000_to_tdb_j2000(const double tt_tudat_time) con
 //
 
 std::string TimeConverterTudat::tdb_j2000_to_utc_iso(
-	const double tdb_tudat_time,
+	const double tdb_j2000_time,
 	bool use_t_separator,
 	int fractional_second_places
 ) const
 {
 	try
 	{
-		const double utc_tudat_time = get_tudat_time_scale_converter()->getCurrentTime(
+		const double utc_j2000_time = get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::tdb_scale,
 			tudat::basic_astrodynamics::TimeScales::utc_scale,
-			tdb_tudat_time
+			tdb_j2000_time
 		);
 
-		return tudat::basic_astrodynamics::DateTime::fromTime(utc_tudat_time)
+		return tudat::basic_astrodynamics::DateTime::fromTime(utc_j2000_time)
 			.isoString(use_t_separator, fractional_second_places);
 	}
 	catch(const std::exception& e)
@@ -494,17 +494,17 @@ std::string TimeConverterTudat::tdb_j2000_to_utc_iso(
 	}
 }
 
-double TimeConverterTudat::tdb_j2000_to_posix(const double tdb_tudat_time) const
+double TimeConverterTudat::tdb_j2000_to_posix(const double tdb_j2000_time) const
 {
 	try
 	{
-		const double utc_tudat_time = get_tudat_time_scale_converter()->getCurrentTime(
+		const double utc_j2000_time = get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::tdb_scale,
 			tudat::basic_astrodynamics::TimeScales::utc_scale,
-			tdb_tudat_time
+			tdb_j2000_time
 		);
 
-		return utc_j2000_to_posix(utc_tudat_time);
+		return utc_j2000_to_posix(utc_j2000_time);
 	}
 	catch(const std::exception& e)
 	{
@@ -513,14 +513,14 @@ double TimeConverterTudat::tdb_j2000_to_posix(const double tdb_tudat_time) const
 	}
 }
 
-double TimeConverterTudat::tdb_j2000_to_utc_j2000(const double tdb_tudat_time) const
+double TimeConverterTudat::tdb_j2000_to_utc_j2000(const double tdb_j2000_time) const
 {
 	try
 	{
 		return get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::tdb_scale,
 			tudat::basic_astrodynamics::TimeScales::utc_scale,
-			tdb_tudat_time
+			tdb_j2000_time
 		);
 	}
 	catch(const std::exception& e)
@@ -530,14 +530,14 @@ double TimeConverterTudat::tdb_j2000_to_utc_j2000(const double tdb_tudat_time) c
 	}
 }
 
-double TimeConverterTudat::tdb_j2000_to_tai_j2000(const double tdb_tudat_time) const
+double TimeConverterTudat::tdb_j2000_to_tai_j2000(const double tdb_j2000_time) const
 {
 	try
 	{
 		return get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::tdb_scale,
 			tudat::basic_astrodynamics::TimeScales::tai_scale,
-			tdb_tudat_time
+			tdb_j2000_time
 		);
 	}
 	catch(const std::exception& e)
@@ -547,14 +547,14 @@ double TimeConverterTudat::tdb_j2000_to_tai_j2000(const double tdb_tudat_time) c
 	}
 }
 
-double TimeConverterTudat::tdb_j2000_to_tt_j2000(const double tdb_tudat_time) const
+double TimeConverterTudat::tdb_j2000_to_tt_j2000(const double tdb_j2000_time) const
 {
 	try
 	{
 		return get_tudat_time_scale_converter()->getCurrentTime(
 			tudat::basic_astrodynamics::TimeScales::tdb_scale,
 			tudat::basic_astrodynamics::TimeScales::tt_scale,
-			tdb_tudat_time
+			tdb_j2000_time
 		);
 	}
 	catch(const std::exception& e)

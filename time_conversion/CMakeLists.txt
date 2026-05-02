@@ -1,12 +1,13 @@
 add_library(
     convert_time STATIC
     convert_time_leap_transition.cpp
+    time_converter.cpp
     base/time_converter_base.cpp
     base/iso8601.cpp
-    base/base_dispatch_entries.cpp
-    base/convert_time_base.cpp
-    chrono/chrono_dispatch_entries.cpp
-    chrono/convert_time_chrono.cpp
+    base/base_dispatch_table.cpp
+    chrono/chrono_dispatch_table.cpp
+    tudat/time_converter_tudat.cpp
+    tudat/tudat_dispatch_table.cpp
 )
 
 # Apply coverage flags only to this project targets when enabled
@@ -16,18 +17,7 @@ endif()
 
 target_include_directories(convert_time PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-# target_link_libraries(convert_time PUBLIC ${Tudat_PROPAGATION_LIBRARIES})
-
-add_library(
-    convert_time_tudat STATIC tudat/time_converter_tudat.cpp
-                              tudat/convert_time_tudat.cpp
-)
-
-target_include_directories(
-    convert_time_tudat PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-target_link_libraries(convert_time_tudat PUBLIC ${Tudat_PROPAGATION_LIBRARIES})
+target_link_libraries(convert_time PUBLIC ${Tudat_PROPAGATION_LIBRARIES})
 
 add_subdirectory(tools)
 
@@ -36,7 +26,6 @@ if(BUILD_TESTING)
         convert_time_gtest
         test/convert_time_gtest.cpp
         test/convert_time_gtest_common.cpp
-        base/convert_time_base.cpp
     )
 
     target_link_libraries(
@@ -61,7 +50,6 @@ if(BUILD_TESTING)
         convert_time_disp_tbl_gtest
         test/convert_time_disp_tbl_gtest.cpp
         test/convert_time_gtest_common.cpp
-        base/convert_time_base.cpp
     )
 
     add_executable(
@@ -182,7 +170,7 @@ if(BUILD_TESTING)
 
     target_link_libraries(
         convert_time_tudat_gtest
-        PRIVATE convert_time_tudat
+        PRIVATE convert_time
                 GTest::gtest
                 GTest::gtest_main
     )
@@ -202,7 +190,7 @@ if(BUILD_TESTING)
 
     target_link_libraries(
         convert_time_tudat_disp_tbl_gtest
-        PRIVATE convert_time_tudat
+        PRIVATE convert_time
                 GTest::gtest
                 GTest::gtest_main
     )

@@ -1,10 +1,12 @@
-#include "base_dispatch_entries.h"
-
+#include "conversion_wrapper.h"
 #include "base/time_converter_base.h"
+#include "chrono/time_converter_chrono.h"
 
-void register_base_dispatch_entries(std::map<DispatchKey, Handler>& dispatch_table)
+#include <stdexcept>
+
+void TimeConverterBase::make_dispatch_table()
 {
-	std::map<DispatchKey, Handler> base_dispatch_table{
+	dispatchTable = {
 		{ { TimeFormat::UTC_ISO8601, TimeFormat::UTC_ISO8601 }, &TimeConverterBase::utc_iso_to_utc_iso },
 		{ { TimeFormat::UTC_ISO8601, TimeFormat::POSIX }, &TimeConverterBase::utc_iso_to_posix },
 		{ { TimeFormat::UTC_ISO8601, TimeFormat::UTC_J2000 }, &TimeConverterBase::utc_iso_to_utc_j2000 },
@@ -35,6 +37,4 @@ void register_base_dispatch_entries(std::map<DispatchKey, Handler>& dispatch_tab
 		{ { TimeFormat::TT_J2000, TimeFormat::TAI_J2000 }, &TimeConverterBase::tt_j2000_to_tai_j2000 },
 		{ { TimeFormat::TT_J2000, TimeFormat::TT_J2000 }, &TimeConverterBase::tt_j2000_to_tt_j2000 },
 	};
-
-	dispatch_table.insert(base_dispatch_table.begin(), base_dispatch_table.end());
 }

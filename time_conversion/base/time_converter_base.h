@@ -35,12 +35,13 @@ public:
 		return singleton;
 	}
 
-	TimeValue
-	convert_time(const TimeValue& input, TimeFormat input_format, TimeFormat output_format) const override;
+	void make_dispatch_table() override;
 
-	bool
-	iso_8601_equal(const std::string& lhs, const std::string& rhs, std::size_t fractional_second_places = 3)
-		const;
+	bool iso_8601_equal(
+		const std::string& lhs,
+		const std::string& rhs,
+		std::size_t fractional_second_places = 3
+	) const;
 
 	//
 	// parsed_utc_iso_to_*() functions
@@ -99,9 +100,11 @@ public:
 
 	ParsedUtcIso posix_to_parsed_utc_iso(double posix_time) const;
 
-	std::string
-	posix_to_utc_iso(double posix_time, bool use_t_separator = false, int fractional_second_places = 3)
-		const override
+	std::string posix_to_utc_iso(
+		double posix_time,
+		bool use_t_separator = false,
+		int fractional_second_places = 3
+	) const override
 	{
 		return parsed_utc_iso_to_utc_iso(
 			posix_to_parsed_utc_iso(posix_time),
@@ -210,9 +213,11 @@ public:
 		return tai_j2000_to_parsed_utc_iso(tt_j2000_to_tai_j2000(tt_j2000_time));
 	}
 
-	std::string
-	tt_j2000_to_utc_iso(double tt_j2000_time, bool use_t_separator = false, int fractional_second_places = 3)
-		const override
+	std::string tt_j2000_to_utc_iso(
+		double tt_j2000_time,
+		bool use_t_separator = false,
+		int fractional_second_places = 3
+	) const override
 	{
 		return parsed_utc_iso_to_utc_iso(
 			tt_j2000_to_parsed_utc_iso(tt_j2000_time),

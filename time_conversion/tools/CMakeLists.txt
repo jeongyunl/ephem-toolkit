@@ -10,4 +10,4 @@ target_include_directories(
                              ${CMAKE_CURRENT_SOURCE_DIR}/../tudat
 )
 
-target_link_libraries(convert_time_cli PRIVATE convert_time convert_time_tudat)
+target_link_libraries(convert_time_cli PRIVATE convert_time)

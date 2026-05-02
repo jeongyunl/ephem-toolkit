@@ -1,5 +1,5 @@
-#include "base/time_converter_base.h"
 #include "time_converter_tudat.h"
+#include "base/time_converter_base.h"
 #include "chrono/time_converter_chrono.h"
 
 #include <format>
@@ -222,6 +222,10 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
+	TimeConverterBase::instance().make_dispatch_table();
+	TimeConverterChrono::instance().make_dispatch_table();
+	TimeConverterTudat::instance().make_dispatch_table();
+
 	for(const auto& input_time_str : input_time_list)
 	{
 		std::cout << input_time_str;
@@ -267,7 +271,7 @@ int main(int argc, char* argv[])
 						std::cout << std::format(
 							"{:.3f} (since {} UTC)",
 							std::chrono::duration<double>(sys_time.time_since_epoch()).count(),
-							std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::time_point{})
+							std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::time_point{ })
 						);
 						break;
 					case TimeFormat::CHRONO_SYS_TIME_ISO:
@@ -287,7 +291,7 @@ int main(int argc, char* argv[])
 						std::cout << std::format(
 							"{:.3f} (since {} UTC)",
 							std::chrono::duration<double>(utc_time.time_since_epoch()).count(),
-							std::chrono::floor<std::chrono::seconds>(std::chrono::utc_clock::time_point{})
+							std::chrono::floor<std::chrono::seconds>(std::chrono::utc_clock::time_point{ })
 						);
 						break;
 					case TimeFormat::CHRONO_UTC_TIME_ISO:
@@ -309,7 +313,7 @@ int main(int argc, char* argv[])
 							"{:.3f} (since {} UTC)",
 							std::chrono::duration<double>(tai_time.time_since_epoch()).count(),
 							std::chrono::floor<std::chrono::seconds>(
-								std::chrono::tai_clock::to_utc(std::chrono::tai_clock::time_point{})
+								std::chrono::tai_clock::to_utc(std::chrono::tai_clock::time_point{ })
 							)
 						);
 						break;
