@@ -4,9 +4,9 @@ add_library(
     base/time_converter_base.cpp
     base/iso8601.cpp
     base/base_dispatch_entries.cpp
-    base/convert_time_disp_tbl.cpp
+    base/convert_time_base.cpp
     chrono/chrono_dispatch_entries.cpp
-    chrono/time_converter_chrono.cpp
+    chrono/convert_time_chrono.cpp
 )
 
 # Apply coverage flags only to this project targets when enabled
@@ -20,7 +20,7 @@ target_include_directories(convert_time PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_library(
     convert_time_tudat STATIC tudat/time_converter_tudat.cpp
-                              tudat/time_converter_tudat_disp_tbl.cpp
+                              tudat/convert_time_tudat.cpp
 )
 
 target_include_directories(
@@ -36,7 +36,7 @@ if(BUILD_TESTING)
         convert_time_gtest
         test/convert_time_gtest.cpp
         test/convert_time_gtest_common.cpp
-        base/convert_time_disp_tbl.cpp
+        base/convert_time_base.cpp
     )
 
     target_link_libraries(
@@ -61,7 +61,7 @@ if(BUILD_TESTING)
         convert_time_disp_tbl_gtest
         test/convert_time_disp_tbl_gtest.cpp
         test/convert_time_gtest_common.cpp
-        base/convert_time_disp_tbl.cpp
+        base/convert_time_base.cpp
     )
 
     add_executable(
