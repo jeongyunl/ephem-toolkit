@@ -139,10 +139,35 @@ if(BUILD_TESTING)
                 ${CMAKE_CURRENT_SOURCE_DIR}/..
     )
 
+    add_executable(
+        convert_time_chrono_gtest
+        chrono/test/time_converter_chrono_gtest.cpp
+        test/convert_time_gtest_common.cpp
+    )
+
+    target_link_libraries(
+        convert_time_chrono_gtest
+        PRIVATE convert_time
+                GTest::gtest
+                GTest::gtest_main
+    )
+
+    if(ENABLE_COVERAGE)
+        target_link_libraries(convert_time_chrono_gtest PRIVATE coverage_config)
+    endif()
+
+    target_include_directories(
+        convert_time_chrono_gtest BEFORE
+        PRIVATE ${googletest_SOURCE_DIR}/googletest/include
+                ${CMAKE_CURRENT_SOURCE_DIR}
+                ${CMAKE_CURRENT_SOURCE_DIR}/..
+    )
+
     include(GoogleTest)
     gtest_discover_tests(convert_time_gtest)
     gtest_discover_tests(convert_time_disp_tbl_gtest)
     gtest_discover_tests(convert_time_iso8601_gtest)
     gtest_discover_tests(convert_time_epochs_gtest)
     gtest_discover_tests(convert_time_j2000_gtest)
+    gtest_discover_tests(convert_time_chrono_gtest)
 endif()
