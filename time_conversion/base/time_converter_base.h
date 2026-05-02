@@ -1,11 +1,22 @@
 #pragma once
 
 #include "convert_time_epochs.h"
-#include "convert_time_iso8601.h"
 #include "time_converter.h"
 
 #include <format>
 #include <string>
+
+struct ParsedUtcIso
+{
+	int year = 0;
+	unsigned month = 0;
+	unsigned day = 0;
+	int hour = 0;
+	int minute = 0;
+	int second = 0;
+	std::int64_t nanos = 0;
+	int tz_offset_seconds = 0;
+};
 
 class TimeConverterBase : public TimeConverter
 {

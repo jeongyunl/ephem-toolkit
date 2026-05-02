@@ -1,22 +1,8 @@
 #pragma once
 
 #include <chrono>
-
-// Time unit constants
-constexpr std::int64_t NANOSECONDS_PER_SECOND = 1000000000LL;
-constexpr std::int64_t SECONDS_PER_MINUTE = 60;
-constexpr std::int64_t SECONDS_PER_HOUR = 3600;
-constexpr std::int64_t SECONDS_PER_DAY = 86400;
-
-// the TAI realization of TT is defined as: TT = TAI + 32.184 seconds
-// See https://en.wikipedia.org/wiki/Terrestrial_Time
-constexpr auto TT_MINUS_TAI = 32.184;
-
-// Historical TAI-UTC offset constants (pre-1972 UTC scale)
-constexpr double TAI_MINUS_UTC_AT_1970 = 8.000082; // TAI-UTC at 1970-01-01 00:00:00 UTC (s)
-constexpr double UTC_DRIFT_RATE_PRE_1972 = 0.002592; // Linear drift rate before 1972 (s/day)
-constexpr double TAI_MINUS_UTC_AT_1972 = 10.0; // TAI-UTC at 1972-01-01 (s)
-constexpr double TAI_MINUS_UTC_AT_J2000 = 32.0; // TAI-UTC at J2000 epoch (s)
+#include <string>
+#include <variant>
 
 // If C++20 or later
 #if __cplusplus >= 202002L
@@ -59,8 +45,35 @@ constexpr double TAI_MINUS_UTC_AT_J2000 = 32.0; // TAI-UTC at J2000 epoch (s)
 
 #define LEAPSECONDS_PATH_DEFAULT ZONEINFO_DIR "/leapseconds"
 
-#include <string>
-#include <variant>
+//
+// Common definitions and utilities for time conversion implementations
+//
+
+// Time unit constants
+constexpr std::int64_t NANOSECONDS_PER_SECOND = 1000000000LL;
+constexpr std::int64_t SECONDS_PER_MINUTE = 60;
+constexpr std::int64_t SECONDS_PER_HOUR = 3600;
+constexpr std::int64_t SECONDS_PER_DAY = 86400;
+
+// the TAI realization of TT is defined as: TT = TAI + 32.184 seconds
+// See https://en.wikipedia.org/wiki/Terrestrial_Time
+constexpr auto TT_MINUS_TAI = 32.184;
+
+// Historical TAI-UTC offset constants (pre-1972 UTC scale)
+constexpr double TAI_MINUS_UTC_AT_1970 = 8.000082; // TAI-UTC at 1970-01-01 00:00:00 UTC (s)
+constexpr double UTC_DRIFT_RATE_PRE_1972 = 0.002592; // Linear drift rate before 1972 (s/day)
+constexpr double TAI_MINUS_UTC_AT_1972 = 10.0; // TAI-UTC at 1972-01-01 (s)
+constexpr double TAI_MINUS_UTC_AT_J2000 = 32.0; // TAI-UTC at J2000 epoch (s)
+
+// Gregorian calendar constants (used in calendar_date_to_posix_days)
+
+constexpr int MONTH_LENGTH_ENCODING = 153; // Encodes non-uniform month lengths: (153*m+2)/5
+
+// Gregorian Era = 400 years = 146097 days (365(d) * 400(y) + 100 leap days - 3 century non-leap days)
+constexpr std::int64_t GREGORIAN_ERA_DAYS = 365 * 400 + 100 - 3; // Days per 400-year Gregorian era
+
+// Number of days from the proleptic Gregorian epoch (0000-03-01) to the POSIX epoch (1970-01-01).
+constexpr std::int64_t POSIX_EPOCH_DAY_OFFSET = 719468;
 
 enum class TimeFormat
 {
@@ -101,3 +114,91 @@ typedef std::variant<
 #endif
 	>
 	TimeValue;
+
+// Convert a calendar date to the number of days since the POSIX epoch (1970-01-01).
+constexpr std::int64_t calendar_date_to_posix_days(int year, unsigned month, unsigned day) noexcept
+{
+	// Shift January and February to months 13 and 14 of the previous year so that
+	// the leap day (Feb 29) always falls at the end of the shifted year, simplifying
+	// the day-of-year calculation below.
+	year -= (month <= 2 ? 1 : 0);
+
+	// A 400-year Gregorian era contains exactly 146097 days. This gives the era index
+	// and keeps subsequent offsets in the range [0, 146096].
+	const int era = (year >= 0 ? year : year - 399) / 400;
+
+	// Year within the era [0, 399].
+	const unsigned year_of_era = static_cast<unsigned>(year - era * 400);
+
+	// Day within the shifted year [0, 365].
+	// The factor (153 * m + 2) / 5 encodes the non-uniform month lengths for
+	// March–February layout without any branching beyond the month shift above.
+	const unsigned day_of_year = (MONTH_LENGTH_ENCODING * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1;
+
+	// Day within the era [0, 146096].
+	// Adds one leap day per 4 years, subtracts the century non-leap years,
+	// and the century-of-era correction is already embedded in year_of_era / 100.
+	const unsigned day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+
+	// GREGORIAN_ERA_DAYS = days per 400-year era.
+	// POSIX_EPOCH_DAY_OFFSET = days from the proleptic Gregorian epoch (0000-03-01) to the
+	//                        POSIX epoch (1970-01-01), used to produce a POSIX day count.
+	return static_cast<std::int64_t>(era) * GREGORIAN_ERA_DAYS + static_cast<std::int64_t>(day_of_era)
+		- POSIX_EPOCH_DAY_OFFSET;
+}
+
+// Inverse of calendar_date_to_posix_days: converts POSIX days to calendar date.
+// This implementation carefully reverses the forward algorithm.
+constexpr void
+posix_days_to_calendar_date(std::int64_t posix_days, int& year, unsigned& month, unsigned& day) noexcept
+{
+	// Add back POSIX_EPOCH_DAY_OFFSET to get days from proleptic Gregorian epoch
+	std::int64_t days = posix_days + POSIX_EPOCH_DAY_OFFSET;
+
+	// Calculate 400-year era
+	std::int64_t era;
+	std::int64_t day_of_era;
+	if(days >= 0)
+	{
+		era = days / GREGORIAN_ERA_DAYS;
+		day_of_era = days % GREGORIAN_ERA_DAYS;
+	}
+	else
+	{
+		// For negative days, we need careful handling of the division
+		era = (days - (GREGORIAN_ERA_DAYS - 1)) / GREGORIAN_ERA_DAYS;
+		day_of_era = days - era * GREGORIAN_ERA_DAYS;
+	}
+
+	// Calculate year within 400-year era
+	// day_of_era ranges from 0 to 146096
+	std::int64_t year_of_era = (day_of_era * 400) / GREGORIAN_ERA_DAYS;
+	if(year_of_era >= 400)
+	{
+		year_of_era = 399;
+	}
+
+	// Calculate day within year (0-365)
+	std::int64_t day_of_year = day_of_era - (year_of_era * 365 + year_of_era / 4 - year_of_era / 100);
+
+	// Convert day_of_year to month and day using the inverse of the shifted-month formula
+	// Forward: (153*m + 2)/5 where m is shifted month (0=Mar, 1=Apr, ..., 9=Dec, 10=Jan, 11=Feb)
+	std::int64_t month_shifted = (5 * day_of_year + 2) / 153;
+
+	// Map shifted month back to actual month and year
+	// Shifted month 0-9 maps to months 3-12 in the same year
+	// Shifted month 10-11 maps to months 1-2 in the NEXT year
+	year = static_cast<int>(era * 400 + year_of_era);
+	if(month_shifted < 10)
+	{
+		month = static_cast<unsigned>(month_shifted + 3);
+	}
+	else
+	{
+		month = static_cast<unsigned>(month_shifted - 9);
+		year += 1;
+	}
+
+	// Calculate day within month (1-based)
+	day = static_cast<unsigned>(day_of_year - (153 * month_shifted + 2) / 5 + 1);
+}

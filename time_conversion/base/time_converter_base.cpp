@@ -1,12 +1,25 @@
 
-#include "convert_time_iso8601.h"
 #include "convert_time_leap_transition.h"
 #include "base/time_converter_base.h"
 
 #include <cmath>
 #include <cstdint>
 
-static inline std::int64_t extract_nanoseconds(double fractional_seconds) noexcept
+namespace
+{
+
+// power of 10 as a 64-bit integer
+inline std::int64_t pow10_i64(std::size_t exponent)
+{
+	std::int64_t value = 1;
+	for(std::size_t i = 0; i < exponent; ++i)
+	{
+		value *= 10;
+	}
+	return value;
+}
+
+inline std::int64_t extract_nanoseconds(double fractional_seconds) noexcept
 {
 	std::int64_t nanos = static_cast<std::int64_t>(std::llround(fractional_seconds * 1.0e9));
 	if(nanos >= NANOSECONDS_PER_SECOND)
@@ -19,6 +32,7 @@ static inline std::int64_t extract_nanoseconds(double fractional_seconds) noexce
 	}
 	return nanos;
 }
+} // namespace
 
 //
 // POSIX

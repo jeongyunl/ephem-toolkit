@@ -1,7 +1,6 @@
 #pragma once
 
 #include "convert_time_common.h"
-#include "convert_time_iso8601.h"
 
 namespace epochs
 {
@@ -42,9 +41,8 @@ constexpr std::chrono::time_point<std::chrono::system_clock, Duration> TAI_J2000
 template <typename Duration = std::chrono::utc_clock::duration>
 constexpr std::chrono::time_point<std::chrono::utc_clock, Duration> TAI_J2000_EPOCH_IN_UTC_TIME =
 	std::chrono::utc_time<Duration>{ std::chrono::duration_cast<Duration>(std::chrono::duration<double>{
-		static_cast<double>(
-			TAI_J2000_EPOCH_IN_POSIX_TIME + TAI_MINUS_UTC_AT_J2000 - TAI_MINUS_UTC_AT_1972
-		) }) };
+		static_cast<double>(TAI_J2000_EPOCH_IN_POSIX_TIME + TAI_MINUS_UTC_AT_J2000 - TAI_MINUS_UTC_AT_1972) }
+	) };
 #endif
 
 //
