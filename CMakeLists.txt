@@ -101,4 +101,3 @@ if(BUILD_TESTING)
 endif()
 
 add_subdirectory(time_conversion)
-add_subdirectory(time_conversion/tudat)
