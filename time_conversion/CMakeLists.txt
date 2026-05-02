@@ -5,6 +5,7 @@ add_library(
     base/time_converter_base.cpp
     base/iso8601.cpp
     base/base_dispatch_table.cpp
+    chrono/time_converter_chrono.cpp
     chrono/chrono_dispatch_table.cpp
     tudat/time_converter_tudat.cpp
     tudat/tudat_dispatch_table.cpp
@@ -23,9 +24,8 @@ add_subdirectory(tools)
 
 if(BUILD_TESTING)
     add_executable(
-        convert_time_gtest
-        test/convert_time_gtest.cpp
-        test/convert_time_gtest_common.cpp
+        convert_time_gtest test/convert_time_gtest.cpp
+                           test/convert_time_gtest_common.cpp
     )
 
     target_link_libraries(
@@ -47,9 +47,8 @@ if(BUILD_TESTING)
     )
 
     add_executable(
-        convert_time_disp_tbl_gtest
-        test/convert_time_disp_tbl_gtest.cpp
-        test/convert_time_gtest_common.cpp
+        convert_time_disp_tbl_gtest test/convert_time_disp_tbl_gtest.cpp
+                                    test/convert_time_gtest_common.cpp
     )
 
     add_executable(
