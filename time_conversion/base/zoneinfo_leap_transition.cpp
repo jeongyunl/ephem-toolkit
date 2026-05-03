@@ -1,6 +1,4 @@
-#include "convert_time_leap_transition.h"
-
-#include "convert_time_common.h"
+#include "time_converter_base.h"
 
 #include <algorithm>
 #include <fstream>
@@ -43,7 +41,8 @@ inline int month_name_to_number(const std::string& month_name)
 	throw std::runtime_error("Invalid month token in leap-second file: " + month_name);
 }
 
-std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::string& leapseconds_path)
+std::vector<TimeConverterBase::LeapTransition>
+load_zoneinfo_leap_transitions(const std::string& leapseconds_path)
 {
 	std::ifstream in(leapseconds_path);
 	if(!in)
@@ -51,7 +50,7 @@ std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::string& le
 		throw std::runtime_error("Failed to open leap-second file: " + leapseconds_path);
 	}
 
-	std::vector<LeapTransition> out;
+	std::vector<TimeConverterBase::LeapTransition> out;
 	std::string raw;
 	while(std::getline(in, raw))
 	{
@@ -121,20 +120,25 @@ std::vector<LeapTransition> load_zoneinfo_leap_transitions(const std::string& le
 				* SECONDS_PER_DAY
 			+ sec_of_day;
 
-		out.push_back(LeapTransition{ transition_posix_time, sign == '+' ? 1 : -1 });
+		out.push_back(TimeConverterBase::LeapTransition{ transition_posix_time, sign == '+' ? 1 : -1 });
 	}
 
-	std::sort(out.begin(), out.end(), [](const LeapTransition& a, const LeapTransition& b) {
-		return a.transition_posix_time < b.transition_posix_time;
-	});
+	std::sort(
+		out.begin(),
+		out.end(),
+		[](const TimeConverterBase::LeapTransition& a, const TimeConverterBase::LeapTransition& b) {
+			return a.transition_posix_time < b.transition_posix_time;
+		}
+	);
 
 	return out;
 }
 
-static std::vector<LeapTransition> transitions = load_zoneinfo_leap_transitions(LEAPSECONDS_PATH_DEFAULT);
+static std::vector<TimeConverterBase::LeapTransition> transitions =
+	load_zoneinfo_leap_transitions(LEAPSECONDS_PATH_DEFAULT);
 } // namespace
 
-const std::vector<LeapTransition>& get_zoneinfo_leap_transitions()
+const std::vector<TimeConverterBase::LeapTransition>& TimeConverterBase::get_zoneinfo_leap_transitions() const
 {
 	if(transitions.empty())
 	{
@@ -143,11 +147,11 @@ const std::vector<LeapTransition>& get_zoneinfo_leap_transitions()
 	return transitions;
 }
 
-double cumulative_leap_correction(
-	const std::vector<LeapTransition>& transitions,
+double TimeConverterBase::cumulative_leap_correction(
+	const std::vector<TimeConverterBase::LeapTransition>& transitions,
 	double posix_time,
 	bool include_transition_at_equal
-)
+) const
 {
 	constexpr double TRANSITION_COMPARISON_EPSILON_SECONDS = 1.0e-12;
 

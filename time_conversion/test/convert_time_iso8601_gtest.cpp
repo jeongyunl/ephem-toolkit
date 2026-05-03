@@ -1,4 +1,3 @@
-#include "convert_time_leap_transition.h"
 #include "base/time_converter_base.h"
 
 #include <gtest/gtest.h>
@@ -214,17 +213,19 @@ TEST(CumulativeLeapCorrection, Pre1972UsesLinearModel)
 {
 	// Ensure the pre-1972 branch is exercised and returns a finite value.
 	const double utc_1971 = static_cast<double>(calendar_date_to_posix_days(1971, 1, 1) * SECONDS_PER_DAY);
-	const double corr = cumulative_leap_correction({}, utc_1971, false);
+	const double corr = TimeConverterBase::instance().cumulative_leap_correction({}, utc_1971, false);
 	EXPECT_TRUE(std::isfinite(corr));
 }
 
 TEST(CumulativeLeapCorrection, IncludeTransitionAtEqual)
 {
 	const std::int64_t t0 = calendar_date_to_posix_days(2017, 1, 1) * SECONDS_PER_DAY;
-	const std::vector<LeapTransition> tr = { LeapTransition{ t0, 1 } };
+	const std::vector<TimeConverterBase::LeapTransition> tr = { TimeConverterBase::LeapTransition{ t0, 1 } };
 
-	const double corr_exclusive = cumulative_leap_correction(tr, static_cast<double>(t0), false);
-	const double corr_inclusive = cumulative_leap_correction(tr, static_cast<double>(t0), true);
+	const double corr_exclusive =
+		TimeConverterBase::instance().cumulative_leap_correction(tr, static_cast<double>(t0), false);
+	const double corr_inclusive =
+		TimeConverterBase::instance().cumulative_leap_correction(tr, static_cast<double>(t0), true);
 	EXPECT_NE(corr_exclusive, corr_inclusive);
 	EXPECT_EQ(corr_inclusive, corr_exclusive + 1.0);
 }

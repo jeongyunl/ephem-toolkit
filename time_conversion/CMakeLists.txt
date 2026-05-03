@@ -1,9 +1,9 @@
 add_library(
     convert_time STATIC
-    convert_time_leap_transition.cpp
     time_converter.cpp
     base/time_converter_base.cpp
     base/iso8601.cpp
+    base/zoneinfo_leap_transition.cpp
     base/base_dispatch_table.cpp
     chrono/time_converter_chrono.cpp
     chrono/chrono_dispatch_table.cpp
