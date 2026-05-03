@@ -73,48 +73,42 @@ TEST(ConvertTimeJ2000, IsoToJ2000MatchesReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
-		for(const auto* converter : (const TimeConverter*[]){ &TimeConverterBase::instance(),
-															  &TimeConverterChrono::instance(),
-															  &TimeConverterTudat::instance() })
+		const ParsedUtcIso parsed_utc_iso = TimeConverterBase::instance().utc_iso_to_parsed_utc_iso(record.iso
+		); // Just test that parsing doesn't throw for valid input
+
 		{
-			const ParsedUtcIso parsed_utc_iso =
-				TimeConverterBase::instance().utc_iso_to_parsed_utc_iso(record.iso
-				); // Just test that parsing doesn't throw for valid input
+			const auto utc_j2000_from_parsed =
+				TimeConverterBase::instance().parsed_utc_iso_to_utc_j2000(parsed_utc_iso
+				); // Test that conversion from parsed struct doesn't throw
 
-			{
-				const auto utc_j2000_from_parsed =
-					TimeConverterBase::instance().parsed_utc_iso_to_utc_j2000(parsed_utc_iso
-					); // Test that conversion from parsed struct doesn't throw
+			const ParsedUtcIso parsed_utc_iso_back =
+				TimeConverterBase::instance().utc_j2000_to_parsed_utc_iso(utc_j2000_from_parsed
+				); // Test that conversion back to parsed struct doesn't throw
 
-				const ParsedUtcIso parsed_utc_iso_back =
-					TimeConverterBase::instance().utc_j2000_to_parsed_utc_iso(utc_j2000_from_parsed
-					); // Test that conversion back to parsed struct doesn't throw
+			const auto utc_j2000_from_back =
+				TimeConverterBase::instance().parsed_utc_iso_to_utc_j2000(parsed_utc_iso_back
+				); // Test that conversion from parsed struct back to J2000 doesn't throw
 
-				const auto utc_j2000_from_back =
-					TimeConverterBase::instance().parsed_utc_iso_to_utc_j2000(parsed_utc_iso_back
-					); // Test that conversion from parsed struct back to J2000 doesn't throw
+			EXPECT_NEAR(utc_j2000_from_back, utc_j2000_from_parsed, 1.0e-6)
+				<< record.iso << " round-trip utc_j2000_time=" << utc_j2000_from_parsed;
+		}
 
-				EXPECT_NEAR(utc_j2000_from_back, utc_j2000_from_parsed, 1.0e-6)
-					<< record.iso << " round-trip utc_j2000_time=" << utc_j2000_from_parsed;
-			}
+		if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
+		{
+			const auto tai_j2000_from_parsed =
+				TimeConverterBase::instance().parsed_utc_iso_to_tai_j2000(parsed_utc_iso
+				); // Test that conversion from parsed struct doesn't throw
 
-			if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
-			{
-				const auto tai_j2000_from_parsed =
-					TimeConverterBase::instance().parsed_utc_iso_to_tai_j2000(parsed_utc_iso
-					); // Test that conversion from parsed struct doesn't throw
+			const ParsedUtcIso parsed_utc_iso_back =
+				TimeConverterBase::instance().tai_j2000_to_parsed_utc_iso(tai_j2000_from_parsed
+				); // Test that conversion back to parsed struct doesn't throw
 
-				const ParsedUtcIso parsed_utc_iso_back =
-					TimeConverterBase::instance().tai_j2000_to_parsed_utc_iso(tai_j2000_from_parsed
-					); // Test that conversion back to parsed struct doesn't throw
+			const auto tai_j2000_from_back =
+				TimeConverterBase::instance().parsed_utc_iso_to_tai_j2000(parsed_utc_iso_back
+				); // Test that conversion from parsed struct back to J2000 doesn't throw
 
-				const auto tai_j2000_from_back =
-					TimeConverterBase::instance().parsed_utc_iso_to_tai_j2000(parsed_utc_iso_back
-					); // Test that conversion from parsed struct back to J2000 doesn't throw
-
-				EXPECT_NEAR(tai_j2000_from_back, tai_j2000_from_parsed, 1.0e-6)
-					<< record.iso << " round-trip tai_j2000_time=" << tai_j2000_from_parsed;
-			}
+			EXPECT_NEAR(tai_j2000_from_back, tai_j2000_from_parsed, 1.0e-6)
+				<< record.iso << " round-trip tai_j2000_time=" << tai_j2000_from_parsed;
 		}
 	}
 }
