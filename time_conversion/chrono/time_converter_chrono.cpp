@@ -4,18 +4,16 @@
 double TimeConverterChrono::posix_to_tai_j2000(double posix_time) const
 {
 	const auto utc_time = posix_to_utc_time(posix_time);
-	return std::chrono::duration<double>(
-			   utc_time - epochs::TAI_J2000_EPOCH_IN_UTC_TIME<decltype(utc_time)::duration>
-	)
+	return std::chrono::duration<
+			   double>(utc_time - epochs::TAI_J2000_EPOCH_IN_UTC_TIME<decltype(utc_time)::duration>)
 		.count();
 }
 
 double TimeConverterChrono::parsed_utc_iso_to_tai_j2000(const ParsedUtcIso& parsed_utc_iso) const
 {
 	const auto utc_time = parsed_utc_iso_to_utc_time(parsed_utc_iso);
-	return std::chrono::duration<double>(
-			   utc_time - epochs::TAI_J2000_EPOCH_IN_UTC_TIME<decltype(utc_time)::duration>
-	)
+	return std::chrono::duration<
+			   double>(utc_time - epochs::TAI_J2000_EPOCH_IN_UTC_TIME<decltype(utc_time)::duration>)
 		.count();
 }
 
