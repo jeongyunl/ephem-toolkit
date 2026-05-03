@@ -1,6 +1,6 @@
 #pragma once
 
-#include "convert_time_common.h"
+#include "time_conversion_common.h"
 
 #include <functional>
 #include <map>
@@ -125,17 +125,17 @@ public:
 		int fractional_second_places = 3
 	)
 		: callable_(
-			  [func, use_t_separator, fractional_second_places](
-				  const TimeValue& input_time,
-				  const TimeConverter* tc_ptr
-			  ) -> TimeValue {
-				  const auto* obj_ptr = static_cast<const Obj*>(tc_ptr);
-				  using BareArg = std::remove_cvref_t<Arg>;
-				  Arg arg = static_cast<Arg>(std::get<BareArg>(input_time));
-				  Ret out = (obj_ptr->*func)(arg, use_t_separator, fractional_second_places);
-				  return TimeValue{ std::in_place_type<Ret>, std::move(out) };
-			  }
-		  )
+			[func, use_t_separator, fractional_second_places](
+				const TimeValue& input_time,
+				const TimeConverter* tc_ptr
+			) -> TimeValue {
+				const auto* obj_ptr = static_cast<const Obj*>(tc_ptr);
+				using BareArg = std::remove_cvref_t<Arg>;
+				Arg arg = static_cast<Arg>(std::get<BareArg>(input_time));
+				Ret out = (obj_ptr->*func)(arg, use_t_separator, fractional_second_places);
+				return TimeValue{ std::in_place_type<Ret>, std::move(out) };
+			}
+		)
 		, input_type_(deduceInputType<Arg>())
 	{
 	}

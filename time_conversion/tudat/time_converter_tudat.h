@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../convert_time_common.h"
-#include "../convert_time_epochs.h"
+#include "../time_conversion_common.h"
+#include "../time_conversion_epochs.h"
 #include "../time_converter.h"
 
 class TimeConverterTudat : public TimeConverter
@@ -30,11 +30,9 @@ public:
 	double utc_iso_to_tt_j2000(const std::string& iso_string) const override;
 	double utc_iso_to_tdb_j2000(const std::string& iso_string) const override;
 
-	std::string posix_to_utc_iso(
-		double posix_time,
-		bool use_t_separator = false,
-		int fractional_second_places = 3
-	) const override;
+	std::string
+	posix_to_utc_iso(double posix_time, bool use_t_separator = false, int fractional_second_places = 3)
+		const override;
 	double posix_to_utc_j2000(double posix_time) const override
 	{
 		return posix_time - epochs::UTC_J2000_EPOCH_IN_POSIX_TIME;
@@ -66,11 +64,9 @@ public:
 	double tai_j2000_to_tt_j2000(double tai_j2000_time) const override;
 	double tai_j2000_to_tdb_j2000(double tai_j2000_time) const override;
 
-	std::string tt_j2000_to_utc_iso(
-		double tt_j2000_time,
-		bool use_t_separator = false,
-		int fractional_second_places = 3
-	) const override;
+	std::string
+	tt_j2000_to_utc_iso(double tt_j2000_time, bool use_t_separator = false, int fractional_second_places = 3)
+		const override;
 	double tt_j2000_to_posix(double tt_j2000_time) const override;
 	double tt_j2000_to_utc_j2000(double tt_j2000_time) const override;
 	double tt_j2000_to_tai_j2000(double tt_j2000_time) const override;
