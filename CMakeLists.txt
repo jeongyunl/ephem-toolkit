@@ -79,7 +79,8 @@ if(BUILD_TESTING)
                         ${GCOVR_EXECUTABLE} -r ${CMAKE_CURRENT_SOURCE_DIR}
                         --object-directory ${CMAKE_BINARY_DIR} --exclude
                         '.*_deps/.*' --exclude '.*CMakeFiles/.*' --exclude
-                        '.*googletest.*' --exclude '.*test/.*' --html
+                        '.*googletest.*' --exclude '.*test/.*' --exclude
+                        '.*_dispatch_table\..*' --exclude '.*_cli\..*' --html
                         --html-details -o
                         ${CMAKE_BINARY_DIR}/coverage/index.html
                     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}

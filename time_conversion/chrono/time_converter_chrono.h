@@ -56,32 +56,32 @@ public:
 	}
 
 	template <typename Duration = std::chrono::system_clock::duration>
-	std::chrono::time_point<std::chrono::system_clock, Duration>
-	utc_j2000_to_sys_time(double utc_j2000_time) const
+	std::chrono::time_point<std::chrono::system_clock, Duration> utc_j2000_to_sys_time(double utc_j2000_time
+	) const
 	{
 		const auto posix_time = utc_j2000_to_posix(utc_j2000_time);
 		return posix_to_sys_time<Duration>(posix_time);
 	}
 
 	template <typename Duration = std::chrono::system_clock::duration>
-	std::chrono::time_point<std::chrono::system_clock, Duration>
-	tai_j2000_to_sys_time(double tai_j2000_time) const
+	std::chrono::time_point<std::chrono::system_clock, Duration> tai_j2000_to_sys_time(double tai_j2000_time
+	) const
 	{
 		const auto posix_time = tai_j2000_to_posix(tai_j2000_time);
 		return posix_to_sys_time<Duration>(posix_time);
 	}
 
 	template <typename Duration = std::chrono::system_clock::duration>
-	std::chrono::time_point<std::chrono::system_clock, Duration>
-	tt_j2000_to_sys_time(double tt_j2000_time) const
+	std::chrono::time_point<std::chrono::system_clock, Duration> tt_j2000_to_sys_time(double tt_j2000_time
+	) const
 	{
 		const auto posix_time = tt_j2000_to_posix(tt_j2000_time);
 		return posix_to_sys_time<Duration>(posix_time);
 	}
 
 	template <typename Duration = std::chrono::system_clock::duration>
-	std::chrono::time_point<std::chrono::system_clock, Duration>
-	tdb_j2000_to_sys_time(double tdb_j2000_time) const
+	std::chrono::time_point<std::chrono::system_clock, Duration> tdb_j2000_to_sys_time(double tdb_j2000_time
+	) const
 	{
 		const auto posix_time = tdb_j2000_to_posix(tdb_j2000_time);
 		return posix_to_sys_time<Duration>(posix_time);
@@ -94,9 +94,14 @@ public:
 	template <typename Duration = std::chrono::system_clock::duration>
 	std::string sys_time_to_utc_iso(
 		std::chrono::time_point<std::chrono::system_clock, Duration> sys_time,
-		bool use_t_separator = false
+		bool use_t_separator = false,
+		int fractional_second_places = 3
+
 	) const
 	{
+		// Ignored since std::format does not support fractional seconds formatting
+		(void)fractional_second_places;
+
 		if(use_t_separator)
 		{
 			return std::format("{:%FT%T}", sys_time);
@@ -108,7 +113,7 @@ public:
 	}
 
 	template <typename Rep = double, typename Period = std::ratio<1>>
-	Rep sys_time_to_utc_posix(std::chrono::time_point<std::chrono::system_clock> sys_time) const
+	Rep sys_time_to_posix(std::chrono::time_point<std::chrono::system_clock> sys_time) const
 	{
 		return std::chrono::duration_cast<std::chrono::duration<Rep, Period>>(sys_time.time_since_epoch())
 			.count();
@@ -151,16 +156,16 @@ public:
 	}
 
 	template <typename Duration = std::chrono::utc_clock::duration>
-	std::chrono::time_point<std::chrono::utc_clock, Duration>
-	utc_j2000_to_utc_time(double utc_j2000_time) const
+	std::chrono::time_point<std::chrono::utc_clock, Duration> utc_j2000_to_utc_time(double utc_j2000_time
+	) const
 	{
 		const auto posix_time = utc_j2000_to_posix(utc_j2000_time);
 		return posix_to_utc_time<Duration>(posix_time);
 	}
 
 	template <typename Duration = std::chrono::utc_clock::duration>
-	std::chrono::time_point<std::chrono::utc_clock, Duration>
-	tai_j2000_to_utc_time(double tai_j2000_time) const
+	std::chrono::time_point<std::chrono::utc_clock, Duration> tai_j2000_to_utc_time(double tai_j2000_time
+	) const
 	{
 		return epochs::TAI_J2000_EPOCH_IN_UTC_TIME<Duration>
 			+ std::chrono::duration_cast<Duration>(std::chrono::duration<double>{ tai_j2000_time });
@@ -174,8 +179,8 @@ public:
 	}
 
 	template <typename Duration = std::chrono::utc_clock::duration>
-	std::chrono::time_point<std::chrono::utc_clock, Duration>
-	tdb_j2000_to_utc_time(double tdb_j2000_time) const
+	std::chrono::time_point<std::chrono::utc_clock, Duration> tdb_j2000_to_utc_time(double tdb_j2000_time
+	) const
 	{
 		const auto tai_j2000_time = tdb_j2000_to_tai_j2000(tdb_j2000_time);
 		return tai_j2000_to_utc_time<Duration>(tai_j2000_time);
@@ -188,9 +193,14 @@ public:
 	template <typename Duration = std::chrono::utc_clock::duration>
 	std::string utc_time_to_utc_iso(
 		std::chrono::time_point<std::chrono::utc_clock, Duration> utc_time,
-		bool use_t_separator = false
+		bool use_t_separator = false,
+		int fractional_second_places = 3
+
 	) const
 	{
+		// Ignored since std::format does not support fractional seconds formatting
+		(void)fractional_second_places;
+
 		if(use_t_separator)
 		{
 			return std::format("{:%FT%T}", utc_time);
@@ -233,16 +243,16 @@ public:
 	}
 
 	template <typename Duration = std::chrono::tai_clock::duration>
-	std::chrono::time_point<std::chrono::tai_clock, Duration>
-	utc_j2000_to_tai_time(double utc_j2000_time) const
+	std::chrono::time_point<std::chrono::tai_clock, Duration> utc_j2000_to_tai_time(double utc_j2000_time
+	) const
 	{
 		const auto posix_time = utc_j2000_to_posix(utc_j2000_time);
 		return posix_to_tai_time<Duration>(posix_time);
 	}
 
 	template <typename Duration = std::chrono::tai_clock::duration>
-	std::chrono::time_point<std::chrono::tai_clock, Duration>
-	tai_j2000_to_tai_time(double tai_j2000_time) const
+	std::chrono::time_point<std::chrono::tai_clock, Duration> tai_j2000_to_tai_time(double tai_j2000_time
+	) const
 	{
 		const auto utc_time = tai_j2000_to_utc_time<Duration>(tai_j2000_time);
 		return std::chrono::tai_clock::from_utc(utc_time);

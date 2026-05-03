@@ -313,21 +313,6 @@ TEST_F(ConvertTimeDataDrivenTest, TdbToOtherScalesMatchReferenceData)
 	}
 }
 
-TEST_F(ConvertTimeDataDrivenTest, UtcIsoIdentityRoundTripForRecords)
-{
-	for(const auto& record : convert_time_test::epoch_records())
-	{
-		for(const auto* converter : (const TimeConverter*[]){ &TimeConverterBase::instance(),
-															  &TimeConverterChrono::instance(),
-															  &TimeConverterTudat::instance() })
-		{
-			EXPECT_TRUE(TimeConverterBase::instance()
-							.iso_8601_equal(converter->utc_iso_to_utc_iso(record.iso), record.iso, 3)
-			) << record.iso;
-		}
-	}
-}
-
 TEST(ConvertTimeIso, Iso8601EqualTreatsTSeparatorAsOptional)
 {
 	EXPECT_TRUE(TimeConverterBase::instance()
@@ -378,6 +363,23 @@ TEST_F(ConvertTimeDataDrivenTest, NumericRoundTripUsingUtcIsStableForNonLeapSeco
 				const double utc_from_tai = converter->tai_j2000_to_utc_j2000(tai_from_utc);
 				EXPECT_NEAR(utc_from_tai, record.utc, convert_time_test::kTolExactLike) << record.iso;
 			}
+		}
+	}
+}
+
+TEST_F(ConvertTimeDataDrivenTest, IdentityRoundTrip)
+{
+	for(const auto& record : convert_time_test::epoch_records())
+	{
+		for(const auto* converter : (const TimeConverter*[]){ &TimeConverterBase::instance(),
+															  &TimeConverterChrono::instance(),
+															  &TimeConverterTudat::instance() })
+		{
+			EXPECT_EQ(converter->utc_iso_to_utc_iso(record.iso), record.iso) << record.iso;
+			EXPECT_EQ(converter->posix_to_posix(record.posix), record.posix) << record.iso;
+			EXPECT_EQ(converter->utc_j2000_to_utc_j2000(record.utc), record.utc) << record.iso;
+			EXPECT_EQ(converter->tai_j2000_to_tai_j2000(record.tai), record.tai) << record.iso;
+			EXPECT_EQ(converter->tt_j2000_to_tt_j2000(record.tt), record.tt) << record.iso;
 		}
 	}
 }

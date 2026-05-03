@@ -2,6 +2,7 @@
 #include "chrono/time_converter_chrono.h"
 #include "test/convert_time_gtest_common.h"
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <chrono>
 #include <cmath>
@@ -21,14 +22,14 @@ protected:
 TEST_F(ConvertTimeChrono, SysTimeToUtcPosixMatchesChronoDurationSeconds)
 {
 	const auto sys_time = std::chrono::system_clock::time_point{ std::chrono::seconds{ 123456789 } };
-	EXPECT_DOUBLE_EQ(TimeConverterChrono::instance().sys_time_to_utc_posix(sys_time), 123456789.0);
+	EXPECT_DOUBLE_EQ(TimeConverterChrono::instance().sys_time_to_posix(sys_time), 123456789.0);
 }
 
 TEST_F(ConvertTimeChrono, SysTimeToUtcPosixSupportsSubSecondPrecision)
 {
 	using namespace std::chrono;
 	const auto sys_time = system_clock::time_point{ seconds{ 10 } + milliseconds{ 250 } };
-	EXPECT_NEAR(TimeConverterChrono::instance().sys_time_to_utc_posix(sys_time), 10.25, 1.0e-12);
+	EXPECT_NEAR(TimeConverterChrono::instance().sys_time_to_posix(sys_time), 10.25, 1.0e-12);
 }
 
 TEST_F(ConvertTimeChrono, UtcPosixToSysTimeRoundTripIsStable)
@@ -36,7 +37,7 @@ TEST_F(ConvertTimeChrono, UtcPosixToSysTimeRoundTripIsStable)
 	using namespace std::chrono;
 	const double posix = 98765.4321;
 	const auto sys_time = TimeConverterChrono::instance().posix_to_sys_time(posix);
-	EXPECT_NEAR(TimeConverterChrono::instance().sys_time_to_utc_posix(sys_time), posix, 1.0e-9);
+	EXPECT_NEAR(TimeConverterChrono::instance().sys_time_to_posix(sys_time), posix, 1.0e-9);
 }
 
 TEST_F(ConvertTimeChrono, UtcPosixToSysTimeSupportsCustomDuration)
@@ -58,21 +59,27 @@ TEST_F(ConvertTimeChrono, SysTimeToUtcIsoFormatsWithoutTimezoneSuffix)
 	};
 
 	const TestCase cases[] = {
-		{ sys_days{ 1970y / January / 1 } + seconds{ 0 }, "1970-01-01T00:00:00.000" },
-		{ sys_days{ 1970y / January / 1 } + seconds{ 1 }, "1970-01-01T00:00:01.000" },
-		{ sys_days{ 1970y / January / 1 } + seconds{ 59 }, "1970-01-01T00:00:59.000" },
-		{ sys_days{ 1970y / January / 1 } + minutes{ 1 }, "1970-01-01T00:01:00.000" },
-		{ sys_days{ 1970y / January / 2 } + seconds{ 0 }, "1970-01-02T00:00:00.000" },
+		{ sys_days{ 1970y / January / 1 } + seconds{ 0 }, "1970-01-01 00:00:00.000" },
+		{ sys_days{ 1970y / January / 1 } + seconds{ 1 }, "1970-01-01 00:00:01.000" },
+		{ sys_days{ 1970y / January / 1 } + seconds{ 59 }, "1970-01-01 00:00:59.000" },
+		{ sys_days{ 1970y / January / 1 } + minutes{ 1 }, "1970-01-01 00:01:00.000" },
+		{ sys_days{ 1970y / January / 2 } + seconds{ 0 }, "1970-01-02 00:00:00.000" },
 
 		{ sys_days{ 2016y / December / 31 } + hours{ 23 } + minutes{ 59 } + seconds{ 59 },
-		  "2016-12-31T23:59:59.000" },
+		  "2016-12-31 23:59:59.000" },
 		{ sys_days{ 2016y / December / 31 } + hours{ 23 } + minutes{ 59 } + seconds{ 60 },
-		  "2017-01-01T00:00:00.000" },
+		  "2017-01-01 00:00:00.000" },
 	};
 
 	for(const auto& tc : cases)
 	{
-		EXPECT_EQ(TimeConverterChrono::instance().sys_time_to_utc_iso(tc.input, true), tc.expected);
+		EXPECT_EQ(TimeConverterChrono::instance().sys_time_to_utc_iso(tc.input, false), tc.expected);
+
+		const auto utc_tp = std::chrono::utc_clock::from_sys(tc.input);
+		const auto output = TimeConverterChrono::instance()
+								.convert_time(utc_tp, TimeFormat::CHRONO_UTC_TIME, TimeFormat::UTC_ISO8601);
+		ASSERT_TRUE(std::holds_alternative<std::string>(output));
+		EXPECT_THAT(std::get<std::string>(output), ::testing::StartsWith(tc.expected));
 	}
 }
 
@@ -111,7 +118,7 @@ TEST_F(ConvertTimeChrono, SysTimeToUtcPosixSupportsCustomRepAndPeriod)
 {
 	using namespace std::chrono;
 	const auto t = system_clock::time_point{ milliseconds{ 1500 } };
-	const auto ms = TimeConverterChrono::instance().sys_time_to_utc_posix<long long, std::milli>(t);
+	const auto ms = TimeConverterChrono::instance().sys_time_to_posix<long long, std::milli>(t);
 	EXPECT_EQ(ms, 1500);
 }
 
@@ -119,7 +126,7 @@ TEST_F(ConvertTimeChrono, SysTimeToUtcPosixHandlesNegativeEpoch)
 {
 	using namespace std::chrono;
 	const auto t = system_clock::time_point{ milliseconds{ -1250 } };
-	EXPECT_NEAR(TimeConverterChrono::instance().sys_time_to_utc_posix(t), -1.25, 1.0e-12);
+	EXPECT_NEAR(TimeConverterChrono::instance().sys_time_to_posix(t), -1.25, 1.0e-12);
 }
 
 #ifdef HAS_CHRONO_UTC_CLOCK
@@ -265,6 +272,22 @@ TEST_F(ConvertTimeChrono, IsoToAllNumericScalesMatchReferenceData)
 					<< record.iso << " != " << iso_from_utc;
 			}
 #endif
+
+#ifdef HAS_CHRONO_TAI_CLOCK
+			{
+				const auto tai_time = TimeConverterChrono::instance().tai_j2000_to_tai_time(record.tai);
+				const auto iso_from_tai = std::format("{:%F %T}", std::chrono::tai_clock::to_utc(tai_time));
+				EXPECT_TRUE(TimeConverterChrono::instance().iso_8601_equal(record.iso, iso_from_tai, 3))
+					<< record.iso << " != " << iso_from_tai;
+			}
+
+			{
+				const auto tai_time = TimeConverterChrono::instance().tt_j2000_to_tai_time(record.tt);
+				const auto iso_from_tai = std::format("{:%F %T}", std::chrono::tai_clock::to_utc(tai_time));
+				EXPECT_TRUE(TimeConverterChrono::instance().iso_8601_equal(record.iso, iso_from_tai, 3))
+					<< record.iso << " != " << iso_from_tai;
+			}
+#endif
 		}
 
 		// POSIX timestamps during leap seconds are ambiguous and cannot be reliably tested against reference
@@ -349,7 +372,11 @@ TEST_F(ConvertTimeChrono, ChronoSysTimeRoundTripToPosix)
 	ASSERT_TRUE(std::holds_alternative<system_clock::time_point>(chrono_out));
 	const auto tp = std::get<system_clock::time_point>(chrono_out);
 
-	// Convert back using existing handler for chrono -> posix via sys_time_to_utc_posix
-	const auto back_posix = TimeConverterChrono::instance().sys_time_to_utc_posix(tp);
-	EXPECT_NEAR(back_posix, posix, 1.0e-9);
+	{
+		// Convert back using existing handler for chrono -> posix via sys_time_to_posix
+		const auto back_posix =
+			TimeConverterChrono::instance().convert_time(tp, TimeFormat::CHRONO_SYS_TIME, TimeFormat::POSIX);
+		ASSERT_TRUE(std::holds_alternative<double>(back_posix));
+		EXPECT_NEAR(std::get<double>(back_posix), posix, 1.0e-9);
+	}
 }

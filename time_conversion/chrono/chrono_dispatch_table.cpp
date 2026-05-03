@@ -54,6 +54,13 @@ void TimeConverterChrono::make_dispatch_table()
 		{ { TimeFormat::TT_J2000, TimeFormat::CHRONO_SYS_TIME },
 		  &TimeConverterChrono::tt_j2000_to_sys_time<> },
 
+		{ { TimeFormat::CHRONO_SYS_TIME, TimeFormat::POSIX }, &TimeConverterChrono::sys_time_to_posix<> },
+		{ { TimeFormat::CHRONO_SYS_TIME, TimeFormat::UTC_ISO8601 },
+		  &TimeConverterChrono::sys_time_to_utc_iso<> },
+
+		{ { TimeFormat::CHRONO_UTC_TIME, TimeFormat::UTC_ISO8601 },
+		  &TimeConverterChrono::utc_time_to_utc_iso<> },
+
 #ifdef HAS_CHRONO_UTC_CLOCK
 		{ { TimeFormat::UTC_ISO8601, TimeFormat::CHRONO_UTC_TIME_ISO },
 		  &TimeConverterChrono::utc_iso_to_utc_time<> },
