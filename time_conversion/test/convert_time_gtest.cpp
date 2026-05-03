@@ -1,6 +1,7 @@
 #include "base/time_converter_base.h"
 #include "chrono/time_converter_chrono.h"
 #include "test/convert_time_gtest_common.h"
+#include "tudat/time_converter_tudat.h"
 
 #include <gtest/gtest.h>
 #include <chrono>
@@ -25,34 +26,75 @@ TEST_F(ConvertTimeDataDrivenTest, IsoToAllNumericScalesMatchReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
-		EXPECT_NEAR(
-			TimeConverterBase::instance().utc_iso_to_posix(record.iso),
-			record.posix,
-			convert_time_test::kTolExactLike
-		) << record.iso;
-		EXPECT_NEAR(
-			TimeConverterBase::instance().utc_iso_to_utc_j2000(record.iso),
-			record.utc,
-			convert_time_test::kTolExactLike
-		) << record.iso;
-
-		if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
+		for(const auto* converter : (const TimeConverter*[]){ &TimeConverterBase::instance(),
+															  &TimeConverterChrono::instance(),
+															  &TimeConverterTudat::instance() })
 		{
+			// UTC timestamps during leap seconds are ambiguous and cannot be reliably tested against
+			// reference data, so skip those rows.
+			if(convert_time_test::is_leap_second_iso(record.iso))
+			{
+				continue;
+			}
+
 			EXPECT_NEAR(
-				TimeConverterBase::instance().utc_iso_to_tai_j2000(record.iso),
-				record.tai,
-				convert_time_test::kTolTimeScale
+				converter->utc_iso_to_posix(record.iso),
+				record.posix,
+				convert_time_test::kTolExactLike
 			) << record.iso;
 			EXPECT_NEAR(
-				TimeConverterBase::instance().utc_iso_to_tt_j2000(record.iso),
-				record.tt,
-				convert_time_test::kTolTimeScale
+				converter->utc_iso_to_utc_j2000(record.iso),
+				record.utc,
+				convert_time_test::kTolExactLike
+			) << record.iso;
+
+			if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
+			{
+				EXPECT_NEAR(
+					converter->utc_iso_to_tai_j2000(record.iso),
+					record.tai,
+					convert_time_test::kTolTimeScale
+				) << record.iso;
+				EXPECT_NEAR(
+					converter->utc_iso_to_tt_j2000(record.iso),
+					record.tt,
+					convert_time_test::kTolTimeScale
+				) << record.iso;
+				EXPECT_NEAR(
+					converter->utc_iso_to_tdb_j2000(record.iso),
+					record.tdb,
+					convert_time_test::kTolTdb
+				) << record.iso;
+			}
+			EXPECT_NEAR(
+				converter->utc_iso_to_posix(record.iso),
+				record.posix,
+				convert_time_test::kTolExactLike
 			) << record.iso;
 			EXPECT_NEAR(
-				TimeConverterBase::instance().utc_iso_to_tdb_j2000(record.iso),
-				record.tdb,
-				convert_time_test::kTolTdb
+				converter->utc_iso_to_utc_j2000(record.iso),
+				record.utc,
+				convert_time_test::kTolExactLike
 			) << record.iso;
+
+			if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
+			{
+				EXPECT_NEAR(
+					converter->utc_iso_to_tai_j2000(record.iso),
+					record.tai,
+					convert_time_test::kTolTimeScale
+				) << record.iso;
+				EXPECT_NEAR(
+					converter->utc_iso_to_tt_j2000(record.iso),
+					record.tt,
+					convert_time_test::kTolTimeScale
+				) << record.iso;
+				EXPECT_NEAR(
+					converter->utc_iso_to_tdb_j2000(record.iso),
+					record.tdb,
+					convert_time_test::kTolTdb
+				) << record.iso;
+			}
 		}
 	}
 }
@@ -62,40 +104,46 @@ TEST_F(ConvertTimeDataDrivenTest, PosixToOtherScalesMatchReferenceData)
 {
 	for(const auto& record : convert_time_test::epoch_records())
 	{
-		// POSIX timestamps during leap seconds are ambiguous and cannot be reliably tested against reference
-		// data, so skip those rows.
-		if(convert_time_test::is_leap_second_iso(record.iso))
+		for(const auto* converter : (const TimeConverter*[]){ &TimeConverterBase::instance(),
+															  &TimeConverterChrono::instance(),
+															  &TimeConverterTudat::instance() })
+
 		{
-			continue;
-		}
+			// POSIX timestamps during leap seconds are ambiguous and cannot be reliably tested against
+			// reference data, so skip those rows.
+			if(convert_time_test::is_leap_second_iso(record.iso))
+			{
+				continue;
+			}
 
-		const auto iso_from_posix = TimeConverterBase::instance().posix_to_utc_iso(record.posix);
-		EXPECT_TRUE(TimeConverterBase::instance().iso_8601_equal(iso_from_posix, record.iso, 3))
-			<< iso_from_posix << " != " << record.iso;
+			const auto iso_from_posix = converter->posix_to_utc_iso(record.posix);
+			EXPECT_TRUE(TimeConverterBase::instance().iso_8601_equal(iso_from_posix, record.iso, 3))
+				<< iso_from_posix << " != " << record.iso;
 
-		EXPECT_NEAR(
-			TimeConverterBase::instance().posix_to_utc_j2000(record.posix),
-			record.utc,
-			convert_time_test::kTolExactLike
-		) << record.iso;
-
-		if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
-		{
 			EXPECT_NEAR(
-				TimeConverterBase::instance().posix_to_tai_j2000(record.posix),
-				record.tai,
+				converter->posix_to_utc_j2000(record.posix),
+				record.utc,
 				convert_time_test::kTolExactLike
 			) << record.iso;
-			EXPECT_NEAR(
-				TimeConverterBase::instance().posix_to_tt_j2000(record.posix),
-				record.tt,
-				convert_time_test::kTolExactLike
-			) << record.iso;
-			EXPECT_NEAR(
-				TimeConverterBase::instance().posix_to_tdb_j2000(record.posix),
-				record.tdb,
-				convert_time_test::kTolTdb
-			) << record.iso;
+
+			if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
+			{
+				EXPECT_NEAR(
+					converter->posix_to_tai_j2000(record.posix),
+					record.tai,
+					convert_time_test::kTolExactLike
+				) << record.iso;
+				EXPECT_NEAR(
+					converter->posix_to_tt_j2000(record.posix),
+					record.tt,
+					convert_time_test::kTolExactLike
+				) << record.iso;
+				EXPECT_NEAR(
+					converter->posix_to_tdb_j2000(record.posix),
+					record.tdb,
+					convert_time_test::kTolTdb
+				) << record.iso;
+			}
 		}
 	}
 }

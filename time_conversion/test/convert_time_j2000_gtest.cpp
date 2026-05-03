@@ -262,29 +262,6 @@ TEST(ConvertTimeJ2000, PosixToTaiJ2000ConsistentWithUtcIsoPath)
 	EXPECT_NEAR(tai_j2000_direct, tai_j2000_iso_path, 1.0e-9);
 }
 
-TEST(ConvertTimeJ2000, PosixToTaiJ2000WithEpochRecords)
-{
-	// Test with all reference data
-	for(const auto& record : convert_time_test::epoch_records())
-	{
-		// POSIX timestamps for leap seconds are ambiguous (same POSIX value as the following
-		// 00:00:00), so they cannot be deterministically mapped back to a unique UTC label.
-		if(convert_time_test::is_leap_second_iso(record.iso))
-		{
-			continue;
-		}
-
-		if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
-		{ // Convert POSIX to TAI J2000
-			const double tai_j2000_time = TimeConverterBase::instance().posix_to_tai_j2000(record.posix);
-
-			// Should match the reference TAI J2000 value
-			EXPECT_NEAR(tai_j2000_time, record.tai, convert_time_test::kTolExactLike)
-				<< record.iso << " posix=" << record.posix;
-		}
-	}
-}
-
 TEST(ConvertTimeJ2000, PosixToTaiJ2000RoundTripViaIso)
 {
 	// Test round-trip: ISO -> POSIX -> TAI J2000 -> back to ISO should be consistent
