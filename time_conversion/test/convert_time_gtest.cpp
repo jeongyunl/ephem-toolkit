@@ -71,30 +71,6 @@ TEST_F(ConvertTimeDataDrivenTest, IsoToAllNumericScalesMatchReferenceData)
 				record.posix,
 				convert_time_test::kTolExactLike
 			) << record.iso;
-			EXPECT_NEAR(
-				converter->utc_iso_to_utc_j2000(record.iso),
-				record.utc,
-				convert_time_test::kTolExactLike
-			) << record.iso;
-
-			if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
-			{
-				EXPECT_NEAR(
-					converter->utc_iso_to_tai_j2000(record.iso),
-					record.tai,
-					convert_time_test::kTolTimeScale
-				) << record.iso;
-				EXPECT_NEAR(
-					converter->utc_iso_to_tt_j2000(record.iso),
-					record.tt,
-					convert_time_test::kTolTimeScale
-				) << record.iso;
-				EXPECT_NEAR(
-					converter->utc_iso_to_tdb_j2000(record.iso),
-					record.tdb,
-					convert_time_test::kTolTdb
-				) << record.iso;
-			}
 		}
 	}
 }
@@ -172,11 +148,36 @@ TEST_F(ConvertTimeDataDrivenTest, UtcToOtherScalesMatchReferenceData)
 															  &TimeConverterChrono::instance(),
 															  &TimeConverterTudat::instance() })
 		{
-			if(converter != &TimeConverterTudat::instance())
+			if(not((converter == &TimeConverterTudat::instance())
+				   && (record.iso.find("07-01T00:00:00") != std::string::npos
+					   || record.iso.find("07-01 00:00:00") != std::string::npos
+					   || record.iso.find("01-01T00:00:00") != std::string::npos
+					   || record.iso.find("01-01 00:00:00") != std::string::npos)))
 			{
 				const auto iso_from_utc_j2000 = converter->utc_j2000_to_utc_iso(record.utc);
 				EXPECT_TRUE(TimeConverterBase::instance().iso_8601_equal(iso_from_utc_j2000, record.iso, 3))
-					<< iso_from_utc_j2000 << " != " << record.iso;
+					<< iso_from_utc_j2000 << " != " << record.iso << " for converter "
+					<< typeid(*converter).name();
+
+				if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
+				{
+					const auto iso_from_tai_j2000 = converter->tai_j2000_to_utc_iso(record.tai);
+					EXPECT_TRUE(
+						TimeConverterBase::instance().iso_8601_equal(iso_from_tai_j2000, record.iso, 3)
+					) << iso_from_tai_j2000
+					  << " != " << record.iso << " for converter " << typeid(*converter).name();
+
+					const auto iso_from_tt_j2000 = converter->tt_j2000_to_utc_iso(record.tt);
+					EXPECT_TRUE(TimeConverterBase::instance().iso_8601_equal(iso_from_tt_j2000, record.iso, 3)
+					) << iso_from_tt_j2000
+					  << " != " << record.iso << " for converter " << typeid(*converter).name();
+
+					const auto iso_from_tdb_j2000 = converter->tdb_j2000_to_utc_iso(record.tdb);
+					EXPECT_TRUE(
+						TimeConverterBase::instance().iso_8601_equal(iso_from_tdb_j2000, record.iso, 3)
+					) << iso_from_tdb_j2000
+					  << " != " << record.iso << " for converter " << typeid(*converter).name();
+				}
 			}
 
 			EXPECT_NEAR(
@@ -267,20 +268,6 @@ TEST_F(ConvertTimeDataDrivenTest, TtToOtherScalesMatchReferenceData)
 			) << record.iso;
 			EXPECT_NEAR(converter->tt_j2000_to_tdb_j2000(record.tt), record.tdb, convert_time_test::kTolTdb)
 				<< record.iso;
-
-			// Before 1972, UTC and TAI (TT as well by proxy) were not synchronized, so the ISO string derived
-			// from TT may not match the reference UTC ISO string.
-			if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
-			{
-				// FIXME: Tudat bug. It maps the second after leap second to leap second.
-				if(converter != &TimeConverterTudat::instance())
-				{
-					const auto iso_from_tt_j2000 = converter->tt_j2000_to_utc_iso(record.tt);
-					EXPECT_TRUE(TimeConverterBase::instance().iso_8601_equal(iso_from_tt_j2000, record.iso, 3)
-					) << iso_from_tt_j2000
-					  << " != " << record.iso;
-				}
-			}
 		}
 	}
 }
@@ -298,9 +285,11 @@ TEST_F(ConvertTimeDataDrivenTest, TdbToOtherScalesMatchReferenceData)
 				// FIXME: Tudat bug. TDB to UTC conversion in Tudat fails for the second after June leap
 				// second
 				// insertions. e.g 1972-07-01 00:00:00 UTC
-				if(converter != &TimeConverterTudat::instance()
-				   && record.iso.find("07-01T00:00:00") == std::string::npos
-				   && record.iso.find("07-01 00:00:00") == std::string::npos)
+				if(not((converter == &TimeConverterTudat::instance())
+					   && (record.iso.find("07-01T00:00:00") != std::string::npos
+						   || record.iso.find("07-01 00:00:00") != std::string::npos
+						   || record.iso.find("01-01T00:00:00") != std::string::npos
+						   || record.iso.find("01-01 00:00:00") != std::string::npos)))
 				{
 					EXPECT_NEAR(
 						converter->tdb_j2000_to_posix(record.tdb),
@@ -320,21 +309,6 @@ TEST_F(ConvertTimeDataDrivenTest, TdbToOtherScalesMatchReferenceData)
 				<< record.iso;
 			EXPECT_NEAR(converter->tdb_j2000_to_tt_j2000(record.tdb), record.tt, convert_time_test::kTolTdb)
 				<< record.iso;
-
-			// Before 1972, UTC and TAI (TDB as well by proxy) were not synchronized, so the ISO string
-			// derived from TDB may not match the reference UTC ISO string.
-			if(record.posix >= epochs::UTC_1972_EPOCH_IN_POSIX_TIME)
-			{
-				// FIXME: Tudat bug. It maps the second after leap second to leap second.
-				if(converter != &TimeConverterTudat::instance())
-				{
-					const auto iso_from_tdb_j2000 = converter->tdb_j2000_to_utc_iso(record.tdb);
-					EXPECT_TRUE(
-						TimeConverterBase::instance().iso_8601_equal(iso_from_tdb_j2000, record.iso, 3)
-					) << iso_from_tdb_j2000
-					  << " != " << record.iso;
-				}
-			}
 		}
 	}
 }

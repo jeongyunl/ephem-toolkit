@@ -243,13 +243,6 @@ TEST_F(ConvertTimeChrono, IsoToAllNumericScalesMatchReferenceData)
 				) << record.iso;
 			}
 
-			{
-				const auto iso_from_tai_j2000 =
-					TimeConverterChrono::instance().tai_j2000_to_utc_iso(record.tai);
-				EXPECT_TRUE(TimeConverterChrono::instance().iso_8601_equal(iso_from_tai_j2000, record.iso, 3))
-					<< iso_from_tai_j2000 << " != " << record.iso;
-			}
-
 #ifdef HAS_CHRONO_UTC_CLOCK
 			{
 				const auto utc_time = TimeConverterChrono::instance().tai_j2000_to_utc_time(record.tai);

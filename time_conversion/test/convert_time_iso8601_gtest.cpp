@@ -1,4 +1,7 @@
 #include "base/time_converter_base.h"
+#include "chrono/time_converter_chrono.h"
+#include "test/convert_time_gtest_common.h"
+#include "tudat/time_converter_tudat.h"
 
 #include <gtest/gtest.h>
 #include <cmath>
@@ -57,20 +60,38 @@ TEST(ParseIso8601Utc, TimezoneOffsetNegative)
 	EXPECT_EQ(p.tz_offset_seconds, -(5 * SECONDS_PER_HOUR));
 }
 
-TEST(ParseIso8601Utc, RejectsTrailingGarbage)
+TEST(ParseIso8601Utc, RejectsIllformedString)
 {
-	EXPECT_THROW(
-		TimeConverterBase::instance().utc_iso_to_parsed_utc_iso("2020-01-02T03:04:05Z trailing"),
-		std::runtime_error
-	);
-}
+	for(const char* s : { "2020-01-02T03:04:05Z trailing",
+						  "2020-01-02T23:58:60",
+						  "2020-13-02T23:58:60",
+						  "2020-A2-02T23:58:60",
+						  "2016_12-31T23:59:59",
+						  "2016-12 31T23:59:59",
+						  "2020-01-02 03-04:05",
+						  "2020-01-02 03:04-05" })
+	{
+		for(const auto* converter : (const TimeConverter*[]){ &TimeConverterBase::instance(),
+															  &TimeConverterChrono::instance(),
+															  &TimeConverterTudat::instance() })
 
-TEST(ParseIso8601Utc, RejectsInvalidLeapSecondPlacement)
-{
-	EXPECT_THROW(
-		TimeConverterBase::instance().utc_iso_to_parsed_utc_iso("2020-01-02T23:58:60"),
-		std::runtime_error
-	);
+		{
+			EXPECT_THROW(converter->utc_iso_to_posix(s), std::runtime_error)
+				<< " converter " << typeid(*converter).name() << " did not reject ill-formed string: " << s;
+
+			EXPECT_THROW(converter->utc_iso_to_utc_j2000(s), std::runtime_error)
+				<< " converter " << typeid(*converter).name() << " did not reject ill-formed string: " << s;
+
+			EXPECT_THROW(converter->utc_iso_to_tai_j2000(s), std::runtime_error)
+				<< " converter " << typeid(*converter).name() << " did not reject ill-formed string: " << s;
+
+			EXPECT_THROW(converter->utc_iso_to_tt_j2000(s), std::runtime_error)
+				<< " converter " << typeid(*converter).name() << " did not reject ill-formed string: " << s;
+
+			EXPECT_THROW(converter->utc_iso_to_tdb_j2000(s), std::runtime_error)
+				<< " converter " << typeid(*converter).name() << " did not reject ill-formed string: " << s;
+		}
+	}
 }
 
 TEST(ParseIso8601Utc, AllowsLeapSecondAtEndOfDay)

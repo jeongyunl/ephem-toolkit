@@ -73,6 +73,8 @@ if(BUILD_TESTING)
                 add_custom_target(
                     coverage
                     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+                    COMMAND test -d ${CMAKE_BINARY_DIR}/coverage || mkdir -p
+                            ${CMAKE_BINARY_DIR}/coverage
                     COMMAND
                         ${GCOVR_EXECUTABLE} -r ${CMAKE_CURRENT_SOURCE_DIR}
                         --object-directory ${CMAKE_BINARY_DIR} --exclude
