@@ -9,8 +9,6 @@
 
 namespace
 {
-constexpr double kTol = 2.0e-4;
-
 class ConvertTimeChrono : public ::testing::Test
 {
 protected:
@@ -75,11 +73,13 @@ TEST_F(ConvertTimeChrono, SysTimeToUtcIsoFormatsWithoutTimezoneSuffix)
 	{
 		EXPECT_EQ(TimeConverterChrono::instance().sys_time_to_utc_iso(tc.input, false), tc.expected);
 
+#ifdef HAS_CHRONO_UTC_CLOCK
 		const auto utc_tp = std::chrono::utc_clock::from_sys(tc.input);
 		const auto output = TimeConverterChrono::instance()
 								.convert_time(utc_tp, TimeFormat::CHRONO_UTC_TIME, TimeFormat::UTC_ISO8601);
 		ASSERT_TRUE(std::holds_alternative<std::string>(output));
 		EXPECT_THAT(std::get<std::string>(output), ::testing::StartsWith(tc.expected));
+#endif
 	}
 }
 
@@ -145,8 +145,9 @@ TEST_F(ConvertTimeChrono, UtcIsoToUtcTimePreservesLeapSeconds)
 	for(const auto& record : convert_time_test::epoch_records())
 	{
 		const auto t = TimeConverterChrono::instance().utc_iso_to_utc_time<milliseconds>(record.iso);
-		EXPECT_TRUE(TimeConverterChrono::instance()
-						.iso_8601_equal(TimeConverterChrono::instance().utc_time_to_utc_iso(t), record.iso, 3)
+		EXPECT_TRUE(
+			TimeConverterChrono::instance()
+				.iso_8601_equal(TimeConverterChrono::instance().utc_time_to_utc_iso(t), record.iso, 3)
 		) << record.iso;
 	}
 }
@@ -159,8 +160,9 @@ TEST_F(ConvertTimeChrono, ParsedUtcIsoToUtcTimePreservesLeapSeconds)
 	{
 		const ParsedUtcIso parsed = TimeConverterChrono::instance().utc_iso_to_parsed_utc_iso(record.iso);
 		const auto t = TimeConverterChrono::instance().parsed_utc_iso_to_utc_time<milliseconds>(parsed);
-		EXPECT_TRUE(TimeConverterChrono::instance()
-						.iso_8601_equal(TimeConverterChrono::instance().utc_time_to_utc_iso(t), record.iso, 3)
+		EXPECT_TRUE(
+			TimeConverterChrono::instance()
+				.iso_8601_equal(TimeConverterChrono::instance().utc_time_to_utc_iso(t), record.iso, 3)
 		) << record.iso;
 	}
 }
