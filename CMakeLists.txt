@@ -5,7 +5,7 @@ include(CTest)
 
 find_package(tudat REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(nrlmsise00)
+find_package(nrlmsise00 QUIET)
 
 include_directories(${EIGEN3_INCLUDE_DIRS})
 
