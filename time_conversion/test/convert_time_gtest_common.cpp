@@ -50,14 +50,12 @@ std::vector<EpochRecord> load_epoch_records(const std::string& path)
 			throw std::runtime_error("Unexpected column count in notable epochs line: " + line);
 		}
 
-		records.push_back(
-			EpochRecord{ fields[0],
-						 std::stod(fields[1]),
-						 std::stod(fields[2]),
-						 std::stod(fields[3]),
-						 std::stod(fields[4]),
-						 std::stod(fields[5]) }
-		);
+		records.push_back(EpochRecord{ fields[0],
+									   std::stod(fields[1]),
+									   std::stod(fields[2]),
+									   std::stod(fields[3]),
+									   std::stod(fields[4]),
+									   std::stod(fields[5]) });
 	}
 
 	return records;

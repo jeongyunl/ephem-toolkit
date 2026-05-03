@@ -23,8 +23,7 @@ TimeConverter::convert_time(const TimeValue& input, TimeFormat input_format, Tim
 			case ConversionWrapper::InputType::DOUBLE:
 				if(!std::holds_alternative<double>(input))
 				{
-					throw std::invalid_argument(
-						"Expected input of type double for the given input TimeFormat"
+					throw std::invalid_argument("Expected input of type double for the given input TimeFormat"
 					);
 				}
 				break;

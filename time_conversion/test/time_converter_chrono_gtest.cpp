@@ -145,9 +145,8 @@ TEST_F(ConvertTimeChrono, UtcIsoToUtcTimePreservesLeapSeconds)
 	for(const auto& record : convert_time_test::epoch_records())
 	{
 		const auto t = TimeConverterChrono::instance().utc_iso_to_utc_time<milliseconds>(record.iso);
-		EXPECT_TRUE(
-			TimeConverterChrono::instance()
-				.iso_8601_equal(TimeConverterChrono::instance().utc_time_to_utc_iso(t), record.iso, 3)
+		EXPECT_TRUE(TimeConverterChrono::instance()
+						.iso_8601_equal(TimeConverterChrono::instance().utc_time_to_utc_iso(t), record.iso, 3)
 		) << record.iso;
 	}
 }
@@ -160,9 +159,8 @@ TEST_F(ConvertTimeChrono, ParsedUtcIsoToUtcTimePreservesLeapSeconds)
 	{
 		const ParsedUtcIso parsed = TimeConverterChrono::instance().utc_iso_to_parsed_utc_iso(record.iso);
 		const auto t = TimeConverterChrono::instance().parsed_utc_iso_to_utc_time<milliseconds>(parsed);
-		EXPECT_TRUE(
-			TimeConverterChrono::instance()
-				.iso_8601_equal(TimeConverterChrono::instance().utc_time_to_utc_iso(t), record.iso, 3)
+		EXPECT_TRUE(TimeConverterChrono::instance()
+						.iso_8601_equal(TimeConverterChrono::instance().utc_time_to_utc_iso(t), record.iso, 3)
 		) << record.iso;
 	}
 }
