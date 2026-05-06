@@ -13,7 +13,10 @@ warnings.filterwarnings("ignore", module="urllib3")
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 
 from tudatpy.dynamics import environment
+from tudatpy.dynamics import environment_setup
 from tudatpy.astro.time_representation import DateTime
+from tudatpy.astro import element_conversion
+from tudatpy.astro.element_conversion import KeplerianElementIndices
 from tudatpy.interface import spice
 
 
@@ -24,7 +27,7 @@ def load_spice_kernels():
 
     spice_kernel_files = [
         "naif0012.tls",  # LEAPSECONDS KERNEL FILE
-        # "pck00011.tpc",  # PLANETARY CONSTANTS KERNEL FILE: orientation and size/shape data for natural bodies(Sun, planets, asteroids, etc)
+        "pck00011.tpc",  # PLANETARY CONSTANTS KERNEL FILE: orientation and size/shape data for natural bodies(Sun, planets, asteroids, etc)
     ]
     for kernel_file in spice_kernel_files:
         spice.load_kernel(data.get_spice_kernel_path() + "/" + kernel_file)
@@ -40,9 +43,8 @@ def get_tle_epoch(tle):
         and convert it to a DateTime object."""
 
         # TLE set epoch in seconds from J2000
-        tle_epoch_et = tle.reference_epoch
-
-        tle_epoch_utc = spice.get_approximate_utc_from_tdb(tle_epoch_et)
+        tle_epoch_tdb = tle.reference_epoch
+        tle_epoch_utc = spice.get_approximate_utc_from_tdb(tle_epoch_tdb)
         tle_epoch_dt = DateTime.from_epoch(tle_epoch_utc)
     else:
         """Parse the TLE epoch from the first line of the TLE data,
@@ -67,7 +69,7 @@ def get_tle_epoch(tle):
         tle_epoch_dt = DateTime(tle_epoch_year, 1, 1, 0, 0, 0.0)
         tle_epoch_dt = tle_epoch_dt.add_days(tle_epoch_days - 1.0)
 
-    return tle_epoch_dt
+    return tle_epoch_dt, tle_epoch_tdb
 
 
 def main():
@@ -80,6 +82,16 @@ def main():
 
     load_spice_kernels()
 
+    bodies_to_create = ["Earth"]
+    global_frame_origin = "Earth"
+    global_frame_orientation = "J2000"
+    body_settings = environment_setup.get_default_body_settings(
+        bodies_to_create, global_frame_origin, global_frame_orientation
+    )
+
+    bodies = environment_setup.create_system_of_bodies(body_settings)
+    earth_gravitational_parameter = bodies.get("Earth").gravitational_parameter
+
     for tle_file in tle_files:
         print(f"Loading TLE file: {tle_file}")
 
@@ -88,9 +100,19 @@ def main():
             with open(tle_file, "r") as f:
                 tle_data = f.read()
                 f.close()
-            tle_lines = tle_data.splitlines()
+            tle_lines = tle_data.splitlines()[
+                -2:
+            ]  # Get the last two lines of the TLE file, which contain the TLE data
+
             # Load the TLE file using TudatPy
-            tle = environment.Tle(tle_lines[0], tle_lines[1])
+
+            tle_ephemeris_settings = environment_setup.ephemeris.sgp4(
+                tle_lines[0], tle_lines[1]
+            )
+            tle_ephemeris = environment_setup.create_body_ephemeris(
+                tle_ephemeris_settings, body_name=tle_file
+            )
+            tle = tle_ephemeris.tle
 
             # Print the TLE parameters
 
@@ -100,7 +122,7 @@ def main():
 
             # Convert the TLE epoch to a DateTime object and print it in ISO format
 
-            tle_epoch_dt = get_tle_epoch(tle)
+            tle_epoch_dt, tle_epoch_tdb = get_tle_epoch(tle)
             tle_epoch_iso = tle_epoch_dt.to_iso_string(number_of_digits_seconds=3)
             print(f"Epoch: {tle_epoch_iso}")
 
@@ -148,6 +170,55 @@ def main():
             print(
                 f"Mean Motion Second Derivative: {tle_mean_motion_second_derivative_deg_per_min2:.2f} degrees per minute^2"
             )
+
+            cartesian_state_j2000 = tle_ephemeris.cartesian_state(tle_epoch_tdb)
+            print(
+                f"Cartesian state at initial epoch:\n{cartesian_state_j2000[0:3]/1000} km\n{cartesian_state_j2000[3:6]/1000} km/s"
+            )
+            keplerian_state = element_conversion.cartesian_to_keplerian(
+                cartesian_state_j2000, earth_gravitational_parameter
+            )
+            """
+            keplerianElements( 0 ) = semiMajorAxis,                   [m] \n
+            keplerianElements( 1 ) = eccentricity,                    [-] \n
+            keplerianElements( 2 ) = inclination,                   [rad] \n
+            keplerianElements( 3 ) = argument of periapsis,         [rad] \n
+            keplerianElements( 4 ) = longitude of ascending node,   [rad] \n
+            keplerianElements( 5 ) = true anomaly.                  [rad] \n
+            """
+            print(f"Keplerian state at initial epoch:")
+
+            semi_major_axis_km = (
+                keplerian_state[KeplerianElementIndices.semi_major_axis_index] / 1000
+            )
+            print(f"\tSemi-major axis: {semi_major_axis_km:.2f} km")
+
+            eccentricity = keplerian_state[KeplerianElementIndices.eccentricity_index]
+            print(f"\tEccentricity: {eccentricity:.6f}")
+
+            inclination_deg = math.degrees(
+                keplerian_state[KeplerianElementIndices.inclination_index]
+            )
+            print(f"\tInclination: {inclination_deg:.2f} degrees")
+
+            argument_of_perigee_deg = math.degrees(
+                keplerian_state[KeplerianElementIndices.argument_of_periapsis_index]
+            )
+            print(f"\tArgument of Perigee: {argument_of_perigee_deg:.2f} degrees")
+
+            longitude_of_ascending_node_deg = math.degrees(
+                keplerian_state[
+                    KeplerianElementIndices.longitude_of_ascending_node_index
+                ]
+            )
+            print(
+                f"\tLongitude of Ascending Node: {longitude_of_ascending_node_deg:.2f} degrees"
+            )
+
+            true_anomaly_deg = math.degrees(
+                keplerian_state[KeplerianElementIndices.true_anomaly_index]
+            )
+            print(f"\tTrue Anomaly: {true_anomaly_deg:.2f} degrees")
 
             # Break the line after each TLE file
             print()
