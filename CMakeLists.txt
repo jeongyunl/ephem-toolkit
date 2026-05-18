@@ -77,11 +77,12 @@ if(BUILD_TESTING)
                             ${CMAKE_BINARY_DIR}/coverage
                     COMMAND
                         ${GCOVR_EXECUTABLE} -r ${CMAKE_CURRENT_SOURCE_DIR}
-                        --object-directory ${CMAKE_BINARY_DIR} --exclude
-                        '.*_deps/.*' --exclude '.*CMakeFiles/.*' --exclude
-                        '.*googletest.*' --exclude '.*test/.*' --exclude
-                        '.*_dispatch_table\..*' --exclude '.*_cli\..*' --html
-                        --html-details -o
+                        --object-directory ${CMAKE_BINARY_DIR} --sort
+                        uncovered-number --exclude-unreachable-branches
+                        --exclude-noncode-lines --exclude '.*_deps/.*'
+                        --exclude '.*CMakeFiles/.*' --exclude '.*googletest.*'
+                        --exclude '.*test/.*' --exclude '.*_dispatch_table\..*'
+                        --exclude '.*_cli\..*' --html --html-details -o
                         ${CMAKE_BINARY_DIR}/coverage/index.html
                     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
                     USES_TERMINAL
