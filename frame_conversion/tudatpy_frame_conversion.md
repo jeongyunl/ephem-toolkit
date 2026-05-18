@@ -11,7 +11,6 @@
 * `tudatpy.dynamics.environment.Body.inertial_to_body_fixed_frame_derivative`
 * `tudatpy.dynamics.environment.Body.body_fixed_to_inertial_frame_derivative`
 * `tudatpy.interface.spice.compute_rotation_matrix_between_frames(original_frame: str, new_frame: str, ephemeris_time: float | SupportsIndex) → numpy.ndarray[numpy.float64[3, 3]]`
-* `tudatpy.interface.spice.compute_rotation_matrix_derivative_between_frames(original_frame: str, new_frame: str, ephemeris_time: float | SupportsIndex) → numpy.ndarray[numpy.float64[3, 3]]`
 * `tudatpy.interface.spice.compute_rotation_quaternion_and_rotation_matrix_derivative_between_frames(original_frame: str, new_frame: str, ephemeris_time: float | SupportsIndex) → tuple[Eigen::Quaternion<double, 0>, numpy.ndarray[numpy.float64[3, 3]]]`
 
 ## Derivative of Rotation Matrix
