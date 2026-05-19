@@ -76,6 +76,82 @@ Produces ITRF state vectors (position in km, velocity in km/s) for each epoch.
 
 The script automatically loads the required SPICE kernels (`naif0012.tls` and `earth_200101_990825_predict.bpc`) from the TudatPy data directory.
 
+### `frame_conversion/gcrf_to_itrf_iau.py`
+
+Converts satellite state vectors between **GCRF** and **ITRF** using the **IAU 2006** Earth rotation model via TudatPy. Unlike the SPICE-based script, this uses TudatPy's full precession-nutation model (`gcrs_to_itrs` with `IAUConventions.iau_2006`).
+
+#### Synopsis
+
+```
+python frame_conversion/gcrf_to_itrf_iau.py [-h] [-r] [input_file]
+```
+
+#### Options
+
+| Option | Description |
+|---|---|
+| `-h`, `--help` | Show help message and exit |
+| `-r` | Reverse conversion (ITRF → GCRF instead of GCRF → ITRF) |
+
+#### Input Format
+
+Same OEM-style format as `gcrf_to_itrf_spice.py` — 7 whitespace- or comma-separated fields per line:
+
+```
+<ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>
+```
+
+Blank lines and lines starting with `#` are skipped. A trailing `Z` on the epoch is accepted and stripped.
+
+#### Output Format
+
+Each line of output contains the converted state:
+
+```
+<ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>
+```
+
+Fields are separated by two spaces.
+
+#### Usage
+
+**GCRF → ITRF from a file:**
+
+```bash
+python frame_conversion/gcrf_to_itrf_iau.py LEO_1MinInt_GCRF.txt
+```
+
+**GCRF → ITRF from stdin:**
+
+```bash
+cat LEO_1MinInt_GCRF.txt | python frame_conversion/gcrf_to_itrf_iau.py
+```
+
+**Reverse conversion (ITRF → GCRF):**
+
+```bash
+python frame_conversion/gcrf_to_itrf_iau.py -r LEO_1MinInt_ITRF.txt
+```
+
+**Save output to a file:**
+
+```bash
+python frame_conversion/gcrf_to_itrf_iau.py LEO_1MinInt_GCRF.txt > LEO_1MinInt_ITRF_iau.txt
+```
+
+**Show help:**
+
+```bash
+python frame_conversion/gcrf_to_itrf_iau.py -h
+```
+
+#### Dependencies
+
+- [TudatPy](https://docs.tudat.space/en/latest/) (`tudatpy`)
+- NumPy
+
+The script loads SPICE kernels `naif0012.tls` (leap seconds) and `pck00011.tpc` (planetary constants) from the TudatPy data directory, and creates an IAU 2006 Earth rotation model for the GCRS-to-ITRS transformation.
+
 ---
 
 ## Time Conversion

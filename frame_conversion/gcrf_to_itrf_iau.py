@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from datetime import datetime
 import sys
 
 # Suppress Warnings from TudatPy
@@ -9,20 +10,16 @@ warnings.filterwarnings("ignore", category=SyntaxWarning)
 
 import numpy as np
 from tudatpy.interface import spice
+from tudatpy import data
+from tudatpy.astro import time_representation
+from tudatpy.astro.time_representation import TimeScales
 
-
-def print_usage():
-    """Print the script usage message to standard output."""
-
-    print(
-        "Usage: python gcrf_to_itrf.py [-r] [ <time> <x_km> <y_km> <z_km> [ <vx_km/s> <vy_km/s> <vz_km/s> ] ]"
-    )
+tudat_time_scale_converter = time_representation.default_time_scale_converter()
+UTC_J2000_DATETIME = datetime(2000, 1, 1, 12, 0, 0)
 
 
 def load_spice_kernels():
     """Load required SPICE kernels for time conversion and Earth orientation."""
-
-    from tudatpy import data
 
     spice_kernel_files = [
         "naif0012.tls",  # LEAPSECONDS KERNEL FILE
@@ -64,45 +61,53 @@ def create_earth_rotation_model():
     return bodies.get(Earth).rotation_model
 
 
-def read_ephemeris():
-    """Yield input ephemeris records from command-line arguments or stdin.
+def parse_line(line: str):
+    """Parse a single line of OEM-style data.
 
-    Supported modes:
-    - no args: read lines from stdin with `time x y z [vx vy vz]`
-    - 4 or 7 args: Read time + position/velocity from command-line arguments
+    Accepts whitespace or comma separated values.
 
-    Yields:
-        tuple[str, numpy.ndarray, numpy.ndarray | None]: time string, position vector in km, and
-            optional velocity vector in km/s.
+    Returns
+    -------
+    tuple | None
+        ``(epoch, position_km, velocity_km_s)`` where *position_km* and
+        *velocity_km_s* are 3-element numpy arrays in km / km·s⁻¹,
+        or ``None`` for blank / comment lines.
     """
+    if not line.strip():
+        return None
+    if line.strip().startswith("#"):
+        return None
 
-    if len(sys.argv) == 1:
-        # No command-line data except script name: read time + position/velocity from stdin.
-        for line in sys.stdin:
-            line = line.strip()
-            if not line:
-                continue
-            tokens = line.split()
-            if len(tokens) not in (4, 7):
-                print_usage()
-                sys.exit(1)
-            input_time_string = tokens[0]
-            input_position_km = np.array([float(x) for x in tokens[1:4]])
-            input_velocity_kms = (
-                np.array([float(x) for x in tokens[4:7]]) if len(tokens) == 7 else None
-            )
-            yield input_time_string, input_position_km, input_velocity_kms
-    else:
-        # Read time + position/velocity from command-line arguments. Expecting either 4 or 7 arguments after the script name (time + position, optionally followed by velocity).
-        input_time_string = sys.argv[1]
-        input_position_km = np.array([float(x) for x in sys.argv[2:5]])
-        input_velocity_kms = (
-            np.array([float(x) for x in sys.argv[5:8]]) if len(sys.argv) == 8 else None
-        )
-        yield input_time_string, input_position_km, input_velocity_kms
+    parts = [p for tok in line.strip().split() for p in tok.split(",")]
+    if len(parts) < 7:
+        raise ValueError(f"Line does not contain 7 fields: '{line}'")
+
+    epoch_str = parts[0]
+    if epoch_str.endswith("Z"):
+        epoch_str = epoch_str[:-1]
+    try:
+        epoch_dt = datetime.fromisoformat(epoch_str)
+    except Exception:
+        epoch_dt = datetime.strptime(epoch_str, "%Y-%m-%dT%H:%M:%S")
+
+    vals = [float(x) for x in parts[1:7]]
+    position_km = np.array(vals[:3])
+    velocity_km_s = np.array(vals[3:])
+
+    return epoch_dt, position_km, velocity_km_s
 
 
-def convert_gcrf_to_itrf(
+def datetime_to_tdb(dt: datetime):
+    """Convert a datetime object to TDB (ephemeris time) seconds since J2000."""
+    utc_j2000 = (dt - UTC_J2000_DATETIME).total_seconds()
+    return tudat_time_scale_converter.convert_time(
+        input_value=utc_j2000,
+        input_scale=TimeScales.utc_scale,
+        output_scale=TimeScales.tdb_scale,
+    )
+
+
+def convert_gcrf_to_itrf_iau(
     earth_rotation_model,
     input_epoch_et,
     input_gcrf_position_km,
@@ -131,8 +136,8 @@ def convert_gcrf_to_itrf(
     # Get Earth's rotational velocity in the ITRF frame at the given epoch,
     # which is needed to correctly transform the velocity vector from GCRF to ITRF
     # by accounting for the fact that the ITRF frame is rotating with respect to the inertial GCRF frame.
-    itrf_earth_rotational_velocity = (
-        earth_rotation_model.angular_velocity_in_body_fixed_frame(input_epoch_et)
+    itrf_earth_rotational_velocity = earth_rotation_model.angular_velocity_in_body_fixed_frame(
+        input_epoch_et
     )
 
     # Convert input position from km to m
@@ -156,9 +161,8 @@ def convert_gcrf_to_itrf(
         # r_ITRF is the position in the ITRF frame.
         # The cross product term accounts for the fact that the ITRF frame is rotating with respect to the inertial GCRF frame.
 
-        output_itrf_velocity = (
-            gcrf_to_itrf_rotation_matrix @ input_gcrf_velocity
-            - np.cross(itrf_earth_rotational_velocity, output_itrf_position)
+        output_itrf_velocity = gcrf_to_itrf_rotation_matrix @ input_gcrf_velocity - np.cross(
+            itrf_earth_rotational_velocity, output_itrf_position
         )
 
         # Convert output velocity from m/s back to km/s
@@ -168,7 +172,7 @@ def convert_gcrf_to_itrf(
 
 
 # Function to convert position and velocity from ITRF to GCRF at a given epoch using the Earth rotation model
-def convert_itrf_to_gcrf(
+def convert_itrf_to_gcrf_iau(
     earth_rotation_model,
     input_epoch_et,
     input_itrf_position_km,
@@ -197,8 +201,8 @@ def convert_itrf_to_gcrf(
     # Get Earth's rotational velocity in the GCRF frame at the given epoch,
     # which is needed to correctly transform the velocity vector from ITRF to GCRF
     # by accounting for the fact that the ITRF frame is rotating with respect to the inertial GCRF frame.
-    gcrf_earth_rotational_velocity = (
-        earth_rotation_model.angular_velocity_in_inertial_frame(input_epoch_et)
+    gcrf_earth_rotational_velocity = earth_rotation_model.angular_velocity_in_inertial_frame(
+        input_epoch_et
     )
 
     # Convert input position from km to m
@@ -222,9 +226,8 @@ def convert_itrf_to_gcrf(
         # r_GCRF is the position in the GCRF frame.
         # The cross product term accounts for the fact that the ITRF frame is rotating with respect to the inertial GCRF frame.
 
-        output_gcrf_velocity = (
-            itrf_to_gcrf_rotation_matrix @ input_itrf_velocity
-            + np.cross(gcrf_earth_rotational_velocity, output_gcrf_position)
+        output_gcrf_velocity = itrf_to_gcrf_rotation_matrix @ input_itrf_velocity + np.cross(
+            gcrf_earth_rotational_velocity, output_gcrf_position
         )
 
         # Convert output velocity from m/s back to km/s
@@ -233,75 +236,91 @@ def convert_itrf_to_gcrf(
     return output_gcrf_position_km, output_gcrf_velocity_kms
 
 
-def main():
-    """Parse inputs, perform frame conversion, and print transformed outputs."""
+def process_stream(stream, reverse=False):
+    """Read lines from *stream*, convert each epoch, and print transformed state vectors.
 
-    # Check options command line arguments
-    # See if -r option was given to specify reverse conversion (ITRF to GCRF instead of GCRF to ITRF) and set a flag accordingly
-    set_reverse_conversion = False
-    if len(sys.argv) > 1 and sys.argv[1] == "-r":
-        set_reverse_conversion = True
-        sys.argv.pop(1)  # Remove the -r option from the arguments list
-
-    if len(sys.argv) not in (1, 5, 8):
-        print_usage()
-        sys.exit(1)
+    Args:
+        stream: An iterable of text lines (file object or sys.stdin).
+        reverse: If True, perform ITRF→GCRF conversion instead of GCRF→ITRF.
+    """
 
     load_spice_kernels()
-
-    # Create Earth rotation model
-
     earth_rotation_model = create_earth_rotation_model()
 
-    # Read input ephemeris data (time + position/velocity) from command-line arguments or stdin, convert each entry, and print the results. Expecting either 4 or 7 arguments per entry (time + position, optionally followed by velocity).
+    for line in stream:
+        try:
+            parsed = parse_line(line)
+        except Exception as exc:
+            print(f"Skipping line (parse error): {line.strip()} -- {exc}")
+            continue
+        if parsed is None:
+            continue
 
-    # Flag to track if we processed any input data, so we can print usage and exit if no valid data was provided
-    processed_any = False
+        epoch_dt, position_km, velocity_km_s = parsed
+        epoch_tdb = datetime_to_tdb(epoch_dt)
 
-    for input_time_string, input_position_km, input_velocity_kms in read_ephemeris():
-        processed_any = True
-
-        # Convert input time string to ephemeris time (TDB) using SPICE function
-        input_epoch_et = spice.convert_date_string_to_ephemeris_time(input_time_string)
-
-        # Call the reference frame conversion function
-        if set_reverse_conversion:
-            output_position_km, output_velocity_kms = convert_itrf_to_gcrf(
+        if reverse:
+            output_position_km, output_velocity_kms = convert_itrf_to_gcrf_iau(
                 earth_rotation_model,
-                input_epoch_et,
-                input_position_km,
-                input_velocity_kms,
+                epoch_tdb,
+                position_km,
+                velocity_km_s,
             )
         else:
-            output_position_km, output_velocity_kms = convert_gcrf_to_itrf(
+            output_position_km, output_velocity_kms = convert_gcrf_to_itrf_iau(
                 earth_rotation_model,
-                input_epoch_et,
-                input_position_km,
-                input_velocity_kms,
+                epoch_tdb,
+                position_km,
+                velocity_km_s,
             )
 
-        print(
-            input_time_string,
-            output_position_km[0],
-            output_position_km[1],
-            output_position_km[2],
-            end="",
-        )
+        print(epoch_dt.isoformat(), *output_position_km, sep="  ", end="")
 
         if output_velocity_kms is not None:
-            print(
-                " ",
-                output_velocity_kms[0],
-                output_velocity_kms[1],
-                output_velocity_kms[2],
-                end="",
-            )
+            print("  ", *output_velocity_kms, sep="  ", end="")
         print()
 
-    if not processed_any:
-        print_usage()
-        sys.exit(1)
+
+def print_usage():
+    """Print the script usage message to standard output."""
+    print(
+        "Usage: python gcrf_to_itrf_iau.py [-h] [-r] [input_file]\n"
+        "\n"
+        "Convert satellite state vectors between GCRF and ITRF using the\n"
+        "IAU 2006 Earth rotation model.\n"
+        "\n"
+        "Positional arguments:\n"
+        "  input_file    Path to an OEM-style ephemeris file. If omitted,\n"
+        "                lines are read from stdin.\n"
+        "\n"
+        "Options:\n"
+        "  -h, --help    Show this help message and exit.\n"
+        "  -r            Reverse conversion (ITRF to GCRF instead of GCRF\n"
+        "                to ITRF).\n"
+        "\n"
+        "Input format (one record per line, 7 whitespace- or comma-separated fields):\n"
+        "  <ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>\n"
+        "\n"
+        "Blank lines and lines starting with '#' are skipped."
+    )
 
 
 if __name__ == "__main__":
-    main()
+    # Check for -h/--help and -r options
+    set_reverse_conversion = False
+    args = sys.argv[1:]
+
+    if "-h" in args or "--help" in args:
+        print_usage()
+        sys.exit(0)
+
+    if args and args[0] == "-r":
+        set_reverse_conversion = True
+        args = args[1:]
+
+    if args:
+        infile = args[0]
+        with open(infile, "r") as f:
+            process_stream(f, reverse=set_reverse_conversion)
+    else:
+        process_stream(sys.stdin, reverse=set_reverse_conversion)
