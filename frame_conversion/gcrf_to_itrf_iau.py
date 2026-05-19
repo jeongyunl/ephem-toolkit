@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-from datetime import datetime
 import sys
 
 # Suppress Warnings from TudatPy
@@ -11,11 +10,8 @@ warnings.filterwarnings("ignore", category=SyntaxWarning)
 import numpy as np
 from tudatpy.interface import spice
 from tudatpy import data
-from tudatpy.astro import time_representation
-from tudatpy.astro.time_representation import TimeScales
 
-tudat_time_scale_converter = time_representation.default_time_scale_converter()
-UTC_J2000_DATETIME = datetime(2000, 1, 1, 12, 0, 0)
+from common import parse_line, datetime_to_tdb
 
 
 def load_spice_kernels():
@@ -61,55 +57,9 @@ def create_earth_rotation_model():
     return bodies.get(Earth).rotation_model
 
 
-def parse_line(line: str):
-    """Parse a single line of OEM-style data.
-
-    Accepts whitespace or comma separated values.
-
-    Returns
-    -------
-    tuple | None
-        ``(epoch, position_km, velocity_km_s)`` where *position_km* and
-        *velocity_km_s* are 3-element numpy arrays in km / km·s⁻¹,
-        or ``None`` for blank / comment lines.
-    """
-    if not line.strip():
-        return None
-    if line.strip().startswith("#"):
-        return None
-
-    parts = [p for tok in line.strip().split() for p in tok.split(",")]
-    if len(parts) < 7:
-        raise ValueError(f"Line does not contain 7 fields: '{line}'")
-
-    epoch_str = parts[0]
-    if epoch_str.endswith("Z"):
-        epoch_str = epoch_str[:-1]
-    try:
-        epoch_dt = datetime.fromisoformat(epoch_str)
-    except Exception:
-        epoch_dt = datetime.strptime(epoch_str, "%Y-%m-%dT%H:%M:%S")
-
-    vals = [float(x) for x in parts[1:7]]
-    position_km = np.array(vals[:3])
-    velocity_km_s = np.array(vals[3:])
-
-    return epoch_dt, position_km, velocity_km_s
-
-
-def datetime_to_tdb(dt: datetime):
-    """Convert a datetime object to TDB (ephemeris time) seconds since J2000."""
-    utc_j2000 = (dt - UTC_J2000_DATETIME).total_seconds()
-    return tudat_time_scale_converter.convert_time(
-        input_value=utc_j2000,
-        input_scale=TimeScales.utc_scale,
-        output_scale=TimeScales.tdb_scale,
-    )
-
-
 def convert_gcrf_to_itrf_iau(
     earth_rotation_model,
-    input_epoch_et,
+    input_epoch_et_s,
     input_gcrf_position_m,
     input_gcrf_velocity_m_s=None,
 ):
@@ -117,7 +67,7 @@ def convert_gcrf_to_itrf_iau(
 
     Args:
         earth_rotation_model: TudatPy Earth rotation model instance.
-        input_epoch_et: Epoch in ephemeris time (aka TDB, Barycentric Dynamical Time).
+        input_epoch_et_s: Epoch in ephemeris time (TDB seconds since J2000).
         input_gcrf_position_m: 3-element numpy array position in metres.
         input_gcrf_velocity_m_s: Optional 3-element numpy array velocity in m/s.
 
@@ -130,14 +80,14 @@ def convert_gcrf_to_itrf_iau(
     # GCRF is an inertial frame, ITRF is a body-fixed frame, so this rotation matrix accounts for Earth's rotation at the given epoch
     # Thus the name of the function is `inertial_to_body_fixed_rotation'
     gcrf_to_itrf_rotation_matrix = earth_rotation_model.inertial_to_body_fixed_rotation(
-        input_epoch_et
+        input_epoch_et_s
     )
 
     # Get Earth's rotational velocity in the ITRF frame at the given epoch,
     # which is needed to correctly transform the velocity vector from GCRF to ITRF
     # by accounting for the fact that the ITRF frame is rotating with respect to the inertial GCRF frame.
-    itrf_earth_rotational_velocity = earth_rotation_model.angular_velocity_in_body_fixed_frame(
-        input_epoch_et
+    itrf_earth_rotational_velocity_rad_s = (
+        earth_rotation_model.angular_velocity_in_body_fixed_frame(input_epoch_et_s)
     )
 
     # Rotate the position vector from GCRF to ITRF using the rotation matrix
@@ -155,7 +105,7 @@ def convert_gcrf_to_itrf_iau(
 
         output_itrf_velocity_m_s = (
             gcrf_to_itrf_rotation_matrix @ input_gcrf_velocity_m_s
-            - np.cross(itrf_earth_rotational_velocity, output_itrf_position_m)
+            - np.cross(itrf_earth_rotational_velocity_rad_s, output_itrf_position_m)
         )
 
     return output_itrf_position_m, output_itrf_velocity_m_s
@@ -164,7 +114,7 @@ def convert_gcrf_to_itrf_iau(
 # Function to convert position and velocity from ITRF to GCRF at a given epoch using the Earth rotation model
 def convert_itrf_to_gcrf_iau(
     earth_rotation_model,
-    input_epoch_et,
+    input_epoch_et_s,
     input_itrf_position_m,
     input_itrf_velocity_m_s=None,
 ):
@@ -172,7 +122,7 @@ def convert_itrf_to_gcrf_iau(
 
     Args:
         earth_rotation_model: TudatPy Earth rotation model instance.
-        input_epoch_et: Epoch in ephemeris time (aka TDB, Barycentric Dynamical Time).
+        input_epoch_et_s: Epoch in ephemeris time (TDB seconds since J2000).
         input_itrf_position_m: 3-element numpy array position in metres.
         input_itrf_velocity_m_s: Optional 3-element numpy array velocity in m/s.
 
@@ -185,14 +135,14 @@ def convert_itrf_to_gcrf_iau(
     # GCRF is an inertial frame, ITRF is a body-fixed frame, so this rotation matrix accounts for Earth's rotation at the given epoch
     # Thus the name of the function is `body_fixed_to_inertial_rotation'
     itrf_to_gcrf_rotation_matrix = earth_rotation_model.body_fixed_to_inertial_rotation(
-        input_epoch_et
+        input_epoch_et_s
     )
 
     # Get Earth's rotational velocity in the GCRF frame at the given epoch,
     # which is needed to correctly transform the velocity vector from ITRF to GCRF
     # by accounting for the fact that the ITRF frame is rotating with respect to the inertial GCRF frame.
-    gcrf_earth_rotational_velocity = earth_rotation_model.angular_velocity_in_inertial_frame(
-        input_epoch_et
+    gcrf_earth_rotational_velocity_rad_s = earth_rotation_model.angular_velocity_in_inertial_frame(
+        input_epoch_et_s
     )
 
     # Rotate the position vector from ITRF to GCRF using the rotation matrix
@@ -210,7 +160,7 @@ def convert_itrf_to_gcrf_iau(
 
         output_gcrf_velocity_m_s = (
             itrf_to_gcrf_rotation_matrix @ input_itrf_velocity_m_s
-            + np.cross(gcrf_earth_rotational_velocity, output_gcrf_position_m)
+            + np.cross(gcrf_earth_rotational_velocity_rad_s, output_gcrf_position_m)
         )
 
     return output_gcrf_position_m, output_gcrf_velocity_m_s
@@ -237,7 +187,7 @@ def process_stream(stream, reverse=False):
             continue
 
         epoch_dt, position_km, velocity_km_s = parsed
-        epoch_tdb = datetime_to_tdb(epoch_dt)
+        epoch_tdb_s = datetime_to_tdb(epoch_dt)
 
         # Convert km / km·s⁻¹ → m / m·s⁻¹ for the conversion functions
         position_m = position_km * 1e3
@@ -246,14 +196,14 @@ def process_stream(stream, reverse=False):
         if reverse:
             output_position_m, output_velocity_m_s = convert_itrf_to_gcrf_iau(
                 earth_rotation_model,
-                epoch_tdb,
+                epoch_tdb_s,
                 position_m,
                 velocity_m_s,
             )
         else:
             output_position_m, output_velocity_m_s = convert_gcrf_to_itrf_iau(
                 earth_rotation_model,
-                epoch_tdb,
+                epoch_tdb_s,
                 position_m,
                 velocity_m_s,
             )

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-from datetime import datetime
 import sys
 
 # Suppress Warnings from TudatPy
@@ -11,11 +10,8 @@ warnings.filterwarnings("ignore", category=SyntaxWarning)
 import numpy as np
 from tudatpy.interface import spice
 from tudatpy import data
-from tudatpy.astro import time_representation
-from tudatpy.astro.time_representation import TimeScales
 
-tudat_time_scale_converter = time_representation.default_time_scale_converter()
-UTC_J2000_DATETIME = datetime(2000, 1, 1, 12, 0, 0)
+from common import parse_line, datetime_to_tdb
 
 
 def load_spice_kernels():
@@ -29,62 +25,7 @@ def load_spice_kernels():
         spice.load_kernel(data.get_spice_kernel_path() + "/" + kernel_file)
 
 
-def parse_line(line: str):
-    """Parse a single line of OEM-style data.
-
-    Accepts whitespace or comma separated values.
-
-    Returns
-    -------
-    tuple | None
-        ``(epoch, position_m, velocity_m_s)`` where *position_m* and
-        *velocity_m_s* are 3-element lists in SI units, or ``None`` for
-        blank / comment lines.
-    """
-    if not line.strip():
-        return None
-    if line.strip().startswith("#"):
-        return None
-
-    parts = [p for tok in line.strip().split() for p in tok.split(",")]
-    if len(parts) < 7:
-        raise ValueError(f"Line does not contain 7 fields: '{line}'")
-
-    epoch_str = parts[0]
-    if epoch_str.endswith("Z"):
-        epoch_str = epoch_str[:-1]
-    try:
-        epoch_dt = datetime.fromisoformat(epoch_str)
-    except Exception:
-        epoch_dt = datetime.strptime(epoch_str, "%Y-%m-%dT%H:%M:%S")
-
-    vals = [float(x) for x in parts[1:7]]
-    position_km = vals[:3]
-    velocity_km_s = vals[3:]
-
-    # Convert km / km·s⁻¹ → m / m·s⁻¹
-    position_m = [c * 1e3 for c in position_km]
-    velocity_m_s = [c * 1e3 for c in velocity_km_s]
-
-    return epoch_dt, position_m, velocity_m_s
-
-
-def datetime_to_tdb(dt: datetime):
-    utc_j2000 = (dt - UTC_J2000_DATETIME).total_seconds()
-    return tudat_time_scale_converter.convert_time(
-        input_value=utc_j2000,
-        input_scale=TimeScales.utc_scale,
-        output_scale=TimeScales.tdb_scale,
-    )
-
-
-# tudatpy.interface.spice.compute_rotation_matrix_between_frames(original_frame: str, new_frame: str, ephemeris_time: float | SupportsIndex) → numpy.ndarray[numpy.float64[3, 3]]
-# tudatpy.interface.spice.compute_rotation_quaternion_and_rotation_matrix_derivative_between_frames(original_frame: str, new_frame: str, ephemeris_time: float | SupportsIndex) → tuple[Eigen::Quaternion<double, 0>, numpy.ndarray[numpy.float64[3, 3]]]
-# tudatpy.interface.spice.compute_rotation_matrix_derivative_between_frames(original_frame: str, new_frame: str, ephemeris_time: float | SupportsIndex) → numpy.ndarray[numpy.float64[3, 3]]
-# tudatpy.interface.spice.get_angular_velocity_vector_of_frame_in_original_frame(original_frame: str, new_frame: str, ephemeris_time: float | SupportsIndex) → numpy.ndarray[numpy.float64[3, 1]]
-
-
-def convert_frames_spice(base_frame, target_frame, input_epoch_et, input_state):
+def convert_frames_spice(base_frame, target_frame, input_epoch_et_s, input_state_m):
     """Convert a state vector from one SPICE frame to another.
 
     Uses SPICE rotation matrices and their time derivatives to build a
@@ -94,8 +35,8 @@ def convert_frames_spice(base_frame, target_frame, input_epoch_et, input_state):
     Args:
         base_frame: Name of the source SPICE frame (e.g. ``"J2000"``).
         target_frame: Name of the destination SPICE frame (e.g. ``"ITRF93"``).
-        input_epoch_et: Epoch in ephemeris time (TDB seconds since J2000).
-        input_state: 6-element array-like ``[x, y, z, vx, vy, vz]`` in
+        input_epoch_et_s: Epoch in ephemeris time (TDB seconds since J2000).
+        input_state_m: 6-element array-like ``[x, y, z, vx, vy, vz]`` in
             metres and m/s in the *base_frame*.
 
     Returns:
@@ -110,10 +51,10 @@ def convert_frames_spice(base_frame, target_frame, input_epoch_et, input_state):
     # tudat::spice_interface::computeStateRotationMatrixBetweenFrames(),
     # but tudatPy does not yet expose a Python binding for it.
     rotation_matrix = spice.compute_rotation_matrix_between_frames(
-        base_frame, target_frame, input_epoch_et
+        base_frame, target_frame, input_epoch_et_s
     )
     rotation_matrix_derivative = spice.compute_rotation_matrix_derivative_between_frames(
-        base_frame, target_frame, input_epoch_et
+        base_frame, target_frame, input_epoch_et_s
     )
 
     state_conversion_matrix = np.zeros((6, 6))
@@ -121,9 +62,9 @@ def convert_frames_spice(base_frame, target_frame, input_epoch_et, input_state):
     state_conversion_matrix[3:6, 0:3] = rotation_matrix_derivative
     state_conversion_matrix[3:6, 3:6] = rotation_matrix
 
-    output_state = state_conversion_matrix @ np.asarray(input_state)
+    output_state_m = state_conversion_matrix @ np.asarray(input_state_m)
 
-    return output_state
+    return output_state_m
 
 
 def process_stream(stream, reverse=False):
@@ -150,14 +91,14 @@ def process_stream(stream, reverse=False):
         if parsed is None:
             continue
 
-        epoch_dt, input_position_m, input_velocity_m_s = parsed
-        epoch_tdb = datetime_to_tdb(epoch_dt)
+        epoch_dt, input_position_km, input_velocity_km_s = parsed
+        epoch_tdb_s = datetime_to_tdb(epoch_dt)
 
-        input_state = np.array(input_position_m + input_velocity_m_s)
-        output_state = convert_frames_spice(base_frame, target_frame, epoch_tdb, input_state)
+        input_state_m = np.concatenate([input_position_km, input_velocity_km_s]) * 1e3
+        output_state_m = convert_frames_spice(base_frame, target_frame, epoch_tdb_s, input_state_m)
 
-        output_position_km = output_state[0:3] / 1000.0
-        output_velocity_km_s = output_state[3:6] / 1000.0
+        output_position_km = output_state_m[0:3] / 1e3
+        output_velocity_km_s = output_state_m[3:6] / 1e3
 
         print(epoch_dt.isoformat(), *output_position_km, *output_velocity_km_s, sep="  ")
 
