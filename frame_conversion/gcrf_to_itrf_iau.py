@@ -110,20 +110,20 @@ def datetime_to_tdb(dt: datetime):
 def convert_gcrf_to_itrf_iau(
     earth_rotation_model,
     input_epoch_et,
-    input_gcrf_position_km,
-    input_gcrf_velocity_kms=None,
+    input_gcrf_position_m,
+    input_gcrf_velocity_m_s=None,
 ):
     """Convert a GCRF position/velocity vector to the ITRF frame.
 
     Args:
         earth_rotation_model: TudatPy Earth rotation model instance.
         input_epoch_et: Epoch in ephemeris time (aka TDB, Barycentric Dynamical Time).
-        input_gcrf_position_km: 3-element numpy array position in km.
-        input_gcrf_velocity_kms: Optional 3-element numpy array velocity in km/s.
+        input_gcrf_position_m: 3-element numpy array position in metres.
+        input_gcrf_velocity_m_s: Optional 3-element numpy array velocity in m/s.
 
     Returns:
-        tuple[numpy.ndarray, numpy.ndarray | None]: position and optional velocity in ITRF,
-            both in kilometers / kilometers per second.
+        tuple[numpy.ndarray, numpy.ndarray | None]: position (m) and optional
+            velocity (m/s) in ITRF.
     """
 
     # Get rotation matrix for GCRS to ITRS transformation at the given epoch
@@ -140,20 +140,12 @@ def convert_gcrf_to_itrf_iau(
         input_epoch_et
     )
 
-    # Convert input position from km to m
-    input_gcrf_position = input_gcrf_position_km * 1000.0
-
     # Rotate the position vector from GCRF to ITRF using the rotation matrix
-    output_itrf_position = gcrf_to_itrf_rotation_matrix @ input_gcrf_position
+    output_itrf_position_m = gcrf_to_itrf_rotation_matrix @ input_gcrf_position_m
 
-    # Convert output position from m back to km
-    output_itrf_position_km = output_itrf_position / 1000.0
+    output_itrf_velocity_m_s = None
 
-    output_itrf_velocity_kms = None
-
-    if input_gcrf_velocity_kms is not None:
-        input_gcrf_velocity = input_gcrf_velocity_kms * 1000.0  # Convert to m/s
-
+    if input_gcrf_velocity_m_s is not None:
         # Rotate the velocity vector from GCRF to ITRF and account for Earth's rotation using the formula:
         #  v_ITRF = R * v_GCRF - w x r_ITRF
         # where R is the rotation matrix,
@@ -161,34 +153,32 @@ def convert_gcrf_to_itrf_iau(
         # r_ITRF is the position in the ITRF frame.
         # The cross product term accounts for the fact that the ITRF frame is rotating with respect to the inertial GCRF frame.
 
-        output_itrf_velocity = gcrf_to_itrf_rotation_matrix @ input_gcrf_velocity - np.cross(
-            itrf_earth_rotational_velocity, output_itrf_position
+        output_itrf_velocity_m_s = (
+            gcrf_to_itrf_rotation_matrix @ input_gcrf_velocity_m_s
+            - np.cross(itrf_earth_rotational_velocity, output_itrf_position_m)
         )
 
-        # Convert output velocity from m/s back to km/s
-        output_itrf_velocity_kms = output_itrf_velocity / 1000.0
-
-    return output_itrf_position_km, output_itrf_velocity_kms
+    return output_itrf_position_m, output_itrf_velocity_m_s
 
 
 # Function to convert position and velocity from ITRF to GCRF at a given epoch using the Earth rotation model
 def convert_itrf_to_gcrf_iau(
     earth_rotation_model,
     input_epoch_et,
-    input_itrf_position_km,
-    input_itrf_velocity_kms=None,
+    input_itrf_position_m,
+    input_itrf_velocity_m_s=None,
 ):
     """Convert an ITRF position/velocity vector to the GCRF frame.
 
     Args:
         earth_rotation_model: TudatPy Earth rotation model instance.
         input_epoch_et: Epoch in ephemeris time (aka TDB, Barycentric Dynamical Time).
-        input_itrf_position_km: 3-element numpy array position in km.
-        input_itrf_velocity_kms: Optional 3-element numpy array velocity in km/s.
+        input_itrf_position_m: 3-element numpy array position in metres.
+        input_itrf_velocity_m_s: Optional 3-element numpy array velocity in m/s.
 
     Returns:
-        tuple[numpy.ndarray, numpy.ndarray | None]: position and optional velocity in GCRF,
-            both in kilometers / kilometers per second.
+        tuple[numpy.ndarray, numpy.ndarray | None]: position (m) and optional
+            velocity (m/s) in GCRF.
     """
 
     # Get rotation matrix for ITRS to GCRS transformation at the given epoch
@@ -205,20 +195,12 @@ def convert_itrf_to_gcrf_iau(
         input_epoch_et
     )
 
-    # Convert input position from km to m
-    input_itrf_position = input_itrf_position_km * 1000.0
-
     # Rotate the position vector from ITRF to GCRF using the rotation matrix
-    output_gcrf_position = itrf_to_gcrf_rotation_matrix @ input_itrf_position
+    output_gcrf_position_m = itrf_to_gcrf_rotation_matrix @ input_itrf_position_m
 
-    # Convert output position from m back to km
-    output_gcrf_position_km = output_gcrf_position / 1000.0
+    output_gcrf_velocity_m_s = None
 
-    output_gcrf_velocity_kms = None
-
-    if input_itrf_velocity_kms is not None:
-        input_itrf_velocity = input_itrf_velocity_kms * 1000.0  # Convert to m/s
-
+    if input_itrf_velocity_m_s is not None:
         # Rotate the velocity vector from ITRF to GCRF and account for Earth's rotation using the formula:
         #  v_GCRF = R * v_ITRF + w x r_GCRF
         # where R is the rotation matrix,
@@ -226,14 +208,12 @@ def convert_itrf_to_gcrf_iau(
         # r_GCRF is the position in the GCRF frame.
         # The cross product term accounts for the fact that the ITRF frame is rotating with respect to the inertial GCRF frame.
 
-        output_gcrf_velocity = itrf_to_gcrf_rotation_matrix @ input_itrf_velocity + np.cross(
-            gcrf_earth_rotational_velocity, output_gcrf_position
+        output_gcrf_velocity_m_s = (
+            itrf_to_gcrf_rotation_matrix @ input_itrf_velocity_m_s
+            + np.cross(gcrf_earth_rotational_velocity, output_gcrf_position_m)
         )
 
-        # Convert output velocity from m/s back to km/s
-        output_gcrf_velocity_kms = output_gcrf_velocity / 1000.0
-
-    return output_gcrf_position_km, output_gcrf_velocity_kms
+    return output_gcrf_position_m, output_gcrf_velocity_m_s
 
 
 def process_stream(stream, reverse=False):
@@ -259,25 +239,33 @@ def process_stream(stream, reverse=False):
         epoch_dt, position_km, velocity_km_s = parsed
         epoch_tdb = datetime_to_tdb(epoch_dt)
 
+        # Convert km / km·s⁻¹ → m / m·s⁻¹ for the conversion functions
+        position_m = position_km * 1e3
+        velocity_m_s = velocity_km_s * 1e3
+
         if reverse:
-            output_position_km, output_velocity_kms = convert_itrf_to_gcrf_iau(
+            output_position_m, output_velocity_m_s = convert_itrf_to_gcrf_iau(
                 earth_rotation_model,
                 epoch_tdb,
-                position_km,
-                velocity_km_s,
+                position_m,
+                velocity_m_s,
             )
         else:
-            output_position_km, output_velocity_kms = convert_gcrf_to_itrf_iau(
+            output_position_m, output_velocity_m_s = convert_gcrf_to_itrf_iau(
                 earth_rotation_model,
                 epoch_tdb,
-                position_km,
-                velocity_km_s,
+                position_m,
+                velocity_m_s,
             )
+
+        # Convert m / m·s⁻¹ → km / km·s⁻¹ for output
+        output_position_km = output_position_m / 1e3
 
         print(epoch_dt.isoformat(), *output_position_km, sep="  ", end="")
 
-        if output_velocity_kms is not None:
-            print("  ", *output_velocity_kms, sep="  ", end="")
+        if output_velocity_m_s is not None:
+            output_velocity_km_s = output_velocity_m_s / 1e3
+            print("  ", *output_velocity_km_s, sep="  ", end="")
         print()
 
 

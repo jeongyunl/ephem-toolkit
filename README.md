@@ -6,7 +6,20 @@ Utility scripts for working with TudatPy.
 
 ### `frame_conversion/gcrf_to_itrf_spice.py`
 
-Converts satellite state vectors (position and velocity) from the **GCRF** (Geocentric Celestial Reference Frame) to the **ITRF** (International Terrestrial Reference Frame) using SPICE rotation matrices via TudatPy.
+Converts satellite state vectors between **GCRF** (J2000) and **ITRF** (ITRF93) using SPICE rotation matrices via TudatPy.
+
+#### Synopsis
+
+```
+python frame_conversion/gcrf_to_itrf_spice.py [-h] [-r] [input_file]
+```
+
+#### Options
+
+| Option | Description |
+|---|---|
+| `-h`, `--help` | Show help message and exit |
+| `-r` | Reverse conversion (ITRF93 → J2000 instead of J2000 → ITRF93) |
 
 #### Input Format
 
@@ -17,14 +30,14 @@ The script reads OEM-style ephemeris data with 7 whitespace- or comma-separated 
 ```
 
 - **Epoch**: ISO 8601 timestamp (e.g., `2025-11-10T15:42:27.000000`). A trailing `Z` is accepted and stripped.
-- **Position**: X, Y, Z in **kilometres** (GCRF).
-- **Velocity**: VX, VY, VZ in **km/s** (GCRF).
+- **Position**: X, Y, Z in **kilometres**.
+- **Velocity**: VX, VY, VZ in **km/s**.
 
-Lines that are blank or start with `#` are skipped.
+Blank lines and lines starting with `#` are skipped.
 
 #### Output Format
 
-Each line of output contains the converted state in ITRF:
+Each line of output contains the converted state:
 
 ```
 <ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>
@@ -34,16 +47,22 @@ Fields are separated by two spaces.
 
 #### Usage
 
-**From a file:**
+**GCRF → ITRF from a file:**
 
 ```bash
 python frame_conversion/gcrf_to_itrf_spice.py LEO_1MinInt_GCRF.txt
 ```
 
-**From stdin (pipe):**
+**GCRF → ITRF from stdin:**
 
 ```bash
 cat LEO_1MinInt_GCRF.txt | python frame_conversion/gcrf_to_itrf_spice.py
+```
+
+**Reverse conversion (ITRF → GCRF):**
+
+```bash
+python frame_conversion/gcrf_to_itrf_spice.py -r LEO_1MinInt_ITRF.txt
 ```
 
 **Save output to a file:**
@@ -52,22 +71,11 @@ cat LEO_1MinInt_GCRF.txt | python frame_conversion/gcrf_to_itrf_spice.py
 python frame_conversion/gcrf_to_itrf_spice.py LEO_1MinInt_GCRF.txt > LEO_1MinInt_ITRF_result.txt
 ```
 
-#### Example
-
-Given an input file `LEO_1MinInt_GCRF.txt`:
-
-```
-2025-11-10T15:42:27.000000   2.070058475322879e+03   4.729228905683604e+03   5.291073944519138e+03  -4.526864928985522e-01  -5.378340397167571e+00   4.970075197986098e+00
-2025-11-10T15:43:27.000000   2.039244758072811e+03   4.398338130542555e+03   5.579702355150183e+03  -5.741321702569117e-01  -5.648088862971277e+00   4.648027399977921e+00
-```
-
-Running:
+**Show help:**
 
 ```bash
-python frame_conversion/gcrf_to_itrf_spice.py LEO_1MinInt_GCRF.txt
+python frame_conversion/gcrf_to_itrf_spice.py -h
 ```
-
-Produces ITRF state vectors (position in km, velocity in km/s) for each epoch.
 
 #### Dependencies
 
@@ -78,7 +86,7 @@ The script automatically loads the required SPICE kernels (`naif0012.tls` and `e
 
 ### `frame_conversion/gcrf_to_itrf_iau.py`
 
-Converts satellite state vectors between **GCRF** and **ITRF** using the **IAU 2006** Earth rotation model via TudatPy. Unlike the SPICE-based script, this uses TudatPy's full precession-nutation model (`gcrs_to_itrs` with `IAUConventions.iau_2006`).
+Converts satellite state vectors between **GCRF** (GCRS) and **ITRF** (ITRS) using the **IAU 2006** Earth rotation model via TudatPy. Unlike the SPICE-based script, this uses TudatPy's full precession-nutation model.
 
 #### Synopsis
 
@@ -95,13 +103,17 @@ python frame_conversion/gcrf_to_itrf_iau.py [-h] [-r] [input_file]
 
 #### Input Format
 
-Same OEM-style format as `gcrf_to_itrf_spice.py` — 7 whitespace- or comma-separated fields per line:
+The script reads OEM-style ephemeris data with 7 whitespace- or comma-separated fields per line:
 
 ```
 <ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>
 ```
 
-Blank lines and lines starting with `#` are skipped. A trailing `Z` on the epoch is accepted and stripped.
+- **Epoch**: ISO 8601 timestamp (e.g., `2025-11-10T15:42:27.000000`). A trailing `Z` is accepted and stripped.
+- **Position**: X, Y, Z in **kilometres**.
+- **Velocity**: VX, VY, VZ in **km/s**.
+
+Blank lines and lines starting with `#` are skipped.
 
 #### Output Format
 
