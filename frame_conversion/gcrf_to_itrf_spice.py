@@ -81,7 +81,6 @@ def datetime_to_tdb(dt: datetime):
 # tudatpy.interface.spice.compute_rotation_matrix_between_frames(original_frame: str, new_frame: str, ephemeris_time: float | SupportsIndex) → numpy.ndarray[numpy.float64[3, 3]]
 # tudatpy.interface.spice.compute_rotation_quaternion_and_rotation_matrix_derivative_between_frames(original_frame: str, new_frame: str, ephemeris_time: float | SupportsIndex) → tuple[Eigen::Quaternion<double, 0>, numpy.ndarray[numpy.float64[3, 3]]]
 # tudatpy.interface.spice.compute_rotation_matrix_derivative_between_frames(original_frame: str, new_frame: str, ephemeris_time: float | SupportsIndex) → numpy.ndarray[numpy.float64[3, 3]]
-# tudatpy.interface.spice.compute_rotation_quaternion_and_rotation_matrix_derivative_between_frames(original_frame: str, new_frame: str, ephemeris_time: float | SupportsIndex) → tuple[Eigen::Quaternion<double, 0>, numpy.ndarray[numpy.float64[3, 3]]]
 # tudatpy.interface.spice.get_angular_velocity_vector_of_frame_in_original_frame(original_frame: str, new_frame: str, ephemeris_time: float | SupportsIndex) → numpy.ndarray[numpy.float64[3, 1]]
 
 
