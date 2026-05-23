@@ -10,6 +10,9 @@ warnings.filterwarnings("ignore", category=SyntaxWarning)
 import numpy as np
 from tudatpy.interface import spice
 from tudatpy import data
+from tudatpy.dynamics import environment_setup
+from tudatpy.dynamics.environment_setup.rotation_model import RotationModelSettings
+
 
 from common import parse_line, datetime_to_tdb
 
@@ -25,14 +28,14 @@ def load_spice_kernels():
         spice.load_kernel(data.get_spice_kernel_path() + "/" + kernel_file)
 
 
-def create_earth_rotation_model():
+def create_earth_rotation_model(
+    rotation_model_settings: RotationModelSettings,
+):
     """Create and return an Earth rotation model using TudatPy.
 
     The rotation model is configured for the Earth body in the GCRS inertial frame
     and can be used to convert between inertial (GCRF/ICRF) and body-fixed (ECEF) coordinate systems.
     """
-
-    from tudatpy.dynamics import environment_setup
 
     Earth = "Earth"
     global_frame_origin = Earth
