@@ -23,23 +23,30 @@ def load_spice_kernels():
     spice_kernel_files = [
         "naif0012.tls",  # LEAPSECONDS KERNEL FILE
         "pck00011.tpc",  # PLANETARY CONSTANTS KERNEL FILE: orientation and size/shape data for natural bodies(Sun, planets, asteroids, etc)
+        "earth_200101_990825_predict.bpc",  # Earth rotation prediction. Covers Jan, 2001 to Aug, 2099
     ]
     for kernel_file in spice_kernel_files:
         spice.load_kernel(data.get_spice_kernel_path() + "/" + kernel_file)
 
 
 def create_earth_rotation_model(
+    global_frame_orientation: str,
     rotation_model_settings: RotationModelSettings,
 ):
     """Create and return an Earth rotation model using TudatPy.
 
-    The rotation model is configured for the Earth body in the GCRS inertial frame
-    and can be used to convert between inertial (GCRF/ICRF) and body-fixed (ECEF) coordinate systems.
+    The rotation model is configured for the Earth body in the given inertial
+    frame orientation and can be used to convert between inertial (GCRF/ICRF)
+    and body-fixed (ECEF) coordinate systems.
+
+    Args:
+        global_frame_orientation: Inertial frame orientation string (e.g. "GCRS").
+        rotation_model_settings: Pre-configured rotation model settings
+            (e.g. GCRS-to-ITRS IAU 2006).
     """
 
     Earth = "Earth"
     global_frame_origin = Earth
-    global_frame_orientation = "GCRS"
     bodies_to_create = [Earth]
 
     body_settings = environment_setup.get_default_body_settings(
@@ -51,22 +58,22 @@ def create_earth_rotation_model(
     environment_setup.add_rotation_model(
         bodies,
         Earth,
-        environment_setup.rotation_model.gcrs_to_itrs(
-            environment_setup.rotation_model.IAUConventions.iau_2006,
-            global_frame_orientation,
-        ),
+        rotation_model_settings,
     )
 
     return bodies.get(Earth).rotation_model
 
 
-def convert_gcrf_to_itrf_iau(
+def convert_gcrf_to_itrf_erm(
     earth_rotation_model,
     input_epoch_et_s,
     input_gcrf_position_m,
     input_gcrf_velocity_m_s=None,
 ):
-    """Convert a GCRF position/velocity vector to the ITRF frame.
+    """Convert an inertial (GCRF/J2000) position/velocity vector to the body-fixed (ITRF/IAU_Earth) frame.
+
+    Works with any Earth rotation model (GCRS-to-ITRS IAU 2006, SPICE IAU_Earth,
+    SPICE ITRF93, etc.) provided via *earth_rotation_model*.
 
     Args:
         earth_rotation_model: TudatPy Earth rotation model instance.
@@ -76,35 +83,38 @@ def convert_gcrf_to_itrf_iau(
 
     Returns:
         tuple[numpy.ndarray, numpy.ndarray | None]: position (m) and optional
-            velocity (m/s) in ITRF.
+            velocity (m/s) in the body-fixed frame.
     """
 
-    # Get rotation matrix for GCRS to ITRS transformation at the given epoch
-    # GCRF is an inertial frame, ITRF is a body-fixed frame, so this rotation matrix accounts for Earth's rotation at the given epoch
-    # Thus the name of the function is `inertial_to_body_fixed_rotation'
+    # Get rotation matrix for inertial to body-fixed transformation at the given epoch.
+    # The inertial frame is GCRF (or J2000) and the body-fixed frame is ITRF (or IAU_Earth),
+    # so this rotation matrix accounts for Earth's rotation at the given epoch.
     gcrf_to_itrf_rotation_matrix = earth_rotation_model.inertial_to_body_fixed_rotation(
         input_epoch_et_s
     )
 
-    # Get Earth's rotational velocity in the ITRF frame at the given epoch,
-    # which is needed to correctly transform the velocity vector from GCRF to ITRF
-    # by accounting for the fact that the ITRF frame is rotating with respect to the inertial GCRF frame.
+    # Get Earth's rotational velocity in the body-fixed frame at the given epoch,
+    # which is needed to correctly transform the velocity vector from the inertial
+    # frame to the body-fixed frame by accounting for the rotation of the body-fixed
+    # frame with respect to the inertial frame.
     itrf_earth_rotational_velocity_rad_s = (
         earth_rotation_model.angular_velocity_in_body_fixed_frame(input_epoch_et_s)
     )
 
-    # Rotate the position vector from GCRF to ITRF using the rotation matrix
+    # Rotate the position vector from the inertial frame to the body-fixed frame using the rotation matrix
     output_itrf_position_m = gcrf_to_itrf_rotation_matrix @ input_gcrf_position_m
 
     output_itrf_velocity_m_s = None
 
     if input_gcrf_velocity_m_s is not None:
-        # Rotate the velocity vector from GCRF to ITRF and account for Earth's rotation using the formula:
-        #  v_ITRF = R * v_GCRF - w x r_ITRF
+        # Rotate the velocity vector from the inertial frame to the body-fixed frame
+        # and account for Earth's rotation using the formula:
+        #  v_body = R * v_inertial - w x r_body
         # where R is the rotation matrix,
-        # w is the Earth's rotational velocity in the ITRF frame, and
-        # r_ITRF is the position in the ITRF frame.
-        # The cross product term accounts for the fact that the ITRF frame is rotating with respect to the inertial GCRF frame.
+        # w is the Earth's rotational velocity in the body-fixed frame, and
+        # r_body is the position in the body-fixed frame.
+        # The cross product term accounts for the rotation of the body-fixed frame
+        # with respect to the inertial frame.
 
         output_itrf_velocity_m_s = (
             gcrf_to_itrf_rotation_matrix @ input_gcrf_velocity_m_s
@@ -114,14 +124,18 @@ def convert_gcrf_to_itrf_iau(
     return output_itrf_position_m, output_itrf_velocity_m_s
 
 
-# Function to convert position and velocity from ITRF to GCRF at a given epoch using the Earth rotation model
-def convert_itrf_to_gcrf_iau(
+# Function to convert position and velocity from the body-fixed frame (ITRF/IAU_Earth)
+# to the inertial frame (GCRF/J2000) at a given epoch using the Earth Rotation Model
+def convert_itrf_to_gcrf_erm(
     earth_rotation_model,
     input_epoch_et_s,
     input_itrf_position_m,
     input_itrf_velocity_m_s=None,
 ):
-    """Convert an ITRF position/velocity vector to the GCRF frame.
+    """Convert a body-fixed (ITRF/IAU_Earth) position/velocity vector to the inertial (GCRF/J2000) frame.
+
+    Works with any Earth rotation model (GCRS-to-ITRS IAU 2006, SPICE IAU_Earth,
+    SPICE ITRF93, etc.) provided via *earth_rotation_model*.
 
     Args:
         earth_rotation_model: TudatPy Earth rotation model instance.
@@ -131,35 +145,38 @@ def convert_itrf_to_gcrf_iau(
 
     Returns:
         tuple[numpy.ndarray, numpy.ndarray | None]: position (m) and optional
-            velocity (m/s) in GCRF.
+            velocity (m/s) in the inertial frame.
     """
 
-    # Get rotation matrix for ITRS to GCRS transformation at the given epoch
-    # GCRF is an inertial frame, ITRF is a body-fixed frame, so this rotation matrix accounts for Earth's rotation at the given epoch
-    # Thus the name of the function is `body_fixed_to_inertial_rotation'
+    # Get rotation matrix for body-fixed to inertial transformation at the given epoch.
+    # The inertial frame is GCRF (or J2000) and the body-fixed frame is ITRF (or IAU_Earth),
+    # so this rotation matrix accounts for Earth's rotation at the given epoch.
     itrf_to_gcrf_rotation_matrix = earth_rotation_model.body_fixed_to_inertial_rotation(
         input_epoch_et_s
     )
 
-    # Get Earth's rotational velocity in the GCRF frame at the given epoch,
-    # which is needed to correctly transform the velocity vector from ITRF to GCRF
-    # by accounting for the fact that the ITRF frame is rotating with respect to the inertial GCRF frame.
+    # Get Earth's rotational velocity in the inertial frame at the given epoch,
+    # which is needed to correctly transform the velocity vector from the body-fixed
+    # frame to the inertial frame by accounting for the rotation of the body-fixed
+    # frame with respect to the inertial frame.
     gcrf_earth_rotational_velocity_rad_s = earth_rotation_model.angular_velocity_in_inertial_frame(
         input_epoch_et_s
     )
 
-    # Rotate the position vector from ITRF to GCRF using the rotation matrix
+    # Rotate the position vector from the body-fixed frame to the inertial frame using the rotation matrix
     output_gcrf_position_m = itrf_to_gcrf_rotation_matrix @ input_itrf_position_m
 
     output_gcrf_velocity_m_s = None
 
     if input_itrf_velocity_m_s is not None:
-        # Rotate the velocity vector from ITRF to GCRF and account for Earth's rotation using the formula:
-        #  v_GCRF = R * v_ITRF + w x r_GCRF
+        # Rotate the velocity vector from the body-fixed frame to the inertial frame
+        # and account for Earth's rotation using the formula:
+        #  v_inertial = R * v_body + w x r_inertial
         # where R is the rotation matrix,
-        # w is the Earth's rotational velocity in the GCRF frame, and
-        # r_GCRF is the position in the GCRF frame.
-        # The cross product term accounts for the fact that the ITRF frame is rotating with respect to the inertial GCRF frame.
+        # w is the Earth's rotational velocity in the inertial frame, and
+        # r_inertial is the position in the inertial frame.
+        # The cross product term accounts for the rotation of the body-fixed frame
+        # with respect to the inertial frame.
 
         output_gcrf_velocity_m_s = (
             itrf_to_gcrf_rotation_matrix @ input_itrf_velocity_m_s
@@ -169,16 +186,26 @@ def convert_itrf_to_gcrf_iau(
     return output_gcrf_position_m, output_gcrf_velocity_m_s
 
 
-def process_stream(stream, reverse=False):
+def process_stream(
+    global_frame_orientation: str,
+    rotation_model_settings: RotationModelSettings,
+    stream,
+    reverse=False,
+):
     """Read lines from *stream*, convert each epoch, and print transformed state vectors.
 
     Args:
+        global_frame_orientation: Inertial frame orientation string
+            (e.g. "GCRS" or "J2000").
+        rotation_model_settings: Pre-configured rotation model settings
+            (e.g. GCRS-to-ITRS IAU 2006, SPICE IAU_Earth, SPICE ITRF93).
         stream: An iterable of text lines (file object or sys.stdin).
         reverse: If True, perform ITRF→GCRF conversion instead of GCRF→ITRF.
     """
 
-    load_spice_kernels()
-    earth_rotation_model = create_earth_rotation_model()
+    earth_rotation_model = create_earth_rotation_model(
+        global_frame_orientation, rotation_model_settings
+    )
 
     for line in stream:
         try:
@@ -197,14 +224,14 @@ def process_stream(stream, reverse=False):
         velocity_m_s = velocity_km_s * 1e3
 
         if reverse:
-            output_position_m, output_velocity_m_s = convert_itrf_to_gcrf_iau(
+            output_position_m, output_velocity_m_s = convert_itrf_to_gcrf_erm(
                 earth_rotation_model,
                 epoch_tdb_s,
                 position_m,
                 velocity_m_s,
             )
         else:
-            output_position_m, output_velocity_m_s = convert_gcrf_to_itrf_iau(
+            output_position_m, output_velocity_m_s = convert_gcrf_to_itrf_erm(
                 earth_rotation_model,
                 epoch_tdb_s,
                 position_m,
@@ -225,10 +252,10 @@ def process_stream(stream, reverse=False):
 def print_usage():
     """Print the script usage message to standard output."""
     print(
-        "Usage: python gcrf_to_itrf_iau.py [-h] [-r] [input_file]\n"
+        "Usage: python gcrf_to_itrf_rot_model.py [-h] [-r] [-m MODEL] [input_file]\n"
         "\n"
         "Convert satellite state vectors between GCRF and ITRF using the\n"
-        "IAU 2006 Earth rotation model.\n"
+        "specified Earth rotation model.\n"
         "\n"
         "Positional arguments:\n"
         "  input_file    Path to an OEM-style ephemeris file. If omitted,\n"
@@ -238,6 +265,12 @@ def print_usage():
         "  -h, --help    Show this help message and exit.\n"
         "  -r            Reverse conversion (ITRF to GCRF instead of GCRF\n"
         "                to ITRF).\n"
+        "  -m MODEL      Name of the rotation model to use. Valid names:\n"
+        "                  spice_iau_earth  SPICE IAU_Earth model (J2000 frame)\n"
+        "                  spice_itrf93     SPICE ITRF93 model (J2000 frame)\n"
+        "                  spice            Alias for spice_itrf93\n"
+        "                  gcrs_to_itrs     IAU 2006 GCRS-to-ITRS model (GCRS frame)\n"
+        "                (default: gcrs_to_itrs).\n"
         "\n"
         "Input format (one record per line, 7 whitespace- or comma-separated fields):\n"
         "  <ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>\n"
@@ -247,21 +280,69 @@ def print_usage():
 
 
 if __name__ == "__main__":
-    # Check for -h/--help and -r options
+    # Parse command-line options: -h/--help, -r, -m MODEL
     set_reverse_conversion = False
+    rotation_model_name = "gcrs_to_itrs"
     args = sys.argv[1:]
 
     if "-h" in args or "--help" in args:
         print_usage()
         sys.exit(0)
 
-    if args and args[0] == "-r":
+    if "-r" in args:
         set_reverse_conversion = True
-        args = args[1:]
+        args.remove("-r")
+
+    if "-m" in args:
+        m_index = args.index("-m")
+        if m_index + 1 >= len(args):
+            print("Error: -m requires a rotation model name argument.", file=sys.stderr)
+            sys.exit(1)
+        rotation_model_name = args[m_index + 1]
+        del args[m_index : m_index + 2]
+
+    load_spice_kernels()
+
+    # Configure rotation model settings and inertial frame orientation
+    # based on the selected rotation model name.
+    if rotation_model_name == "spice_iau_earth":
+        original_frame = "J2000"
+        target_frame = "IAU_Earth"
+
+        rotation_model_settings = environment_setup.rotation_model.spice(
+            original_frame,
+            target_frame,
+        )
+        global_frame_orientation = original_frame
+
+    elif rotation_model_name == "spice_itrf93" or rotation_model_name == "spice":
+        original_frame = "J2000"
+        target_frame = "ITRF93"
+
+        rotation_model_settings = environment_setup.rotation_model.spice(
+            original_frame,
+            target_frame,
+        )
+        global_frame_orientation = original_frame
+
+    elif rotation_model_name == "gcrs_to_itrs":
+        global_frame_orientation = "GCRS"
+
+        rotation_model_settings = environment_setup.rotation_model.gcrs_to_itrs(
+            environment_setup.rotation_model.IAUConventions.iau_2006,
+            global_frame_orientation,
+        )
 
     if args:
         infile = args[0]
         with open(infile, "r") as f:
-            process_stream(f, reverse=set_reverse_conversion)
+            process_stream(
+                global_frame_orientation, rotation_model_settings, f, reverse=set_reverse_conversion
+            )
     else:
-        process_stream(sys.stdin, reverse=set_reverse_conversion)
+        process_stream(
+            global_frame_orientation,
+            rotation_model_settings,
+            sys.stdin,
+            reverse=set_reverse_conversion,
+        )
