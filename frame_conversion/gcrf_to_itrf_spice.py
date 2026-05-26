@@ -100,7 +100,8 @@ def process_stream(stream, reverse=False):
         output_position_km = output_state_m[0:3] / 1e3
         output_velocity_km_s = output_state_m[3:6] / 1e3
 
-        print(epoch_dt.isoformat(), *output_position_km, *output_velocity_km_s, sep="  ")
+        print(epoch_dt.isoformat(), *output_position_km, sep="  ", end="")
+        print("  ", *output_velocity_km_s, sep="  ")
 
 
 def print_usage():
