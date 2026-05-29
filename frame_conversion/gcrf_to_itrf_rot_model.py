@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 # Suppress Warnings from TudatPy
 import warnings
 
 warnings.filterwarnings("ignore", category=SyntaxWarning)
+warnings.filterwarnings(
+    "ignore",
+    module=r"urllib3(\..*)?",
+)
 
 import numpy as np
 from tudatpy.interface import spice
@@ -14,7 +21,7 @@ from tudatpy.dynamics import environment_setup
 from tudatpy.dynamics.environment_setup.rotation_model import RotationModelSettings
 
 
-from common import parse_line, datetime_to_tdb
+from common.common import parse_oem_state_line, datetime_to_tdb
 
 
 def load_spice_kernels():
@@ -209,7 +216,7 @@ def process_stream(
 
     for line in stream:
         try:
-            parsed = parse_line(line)
+            parsed = parse_oem_state_line(line)
         except Exception as exc:
             print(f"Skipping line (parse error): {line.strip()} -- {exc}")
             continue

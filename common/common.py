@@ -10,7 +10,7 @@ _tudat_time_scale_converter = time_representation.default_time_scale_converter()
 _UTC_J2000_DATETIME = datetime(2000, 1, 1, 12, 0, 0)
 
 
-def parse_line(line: str):
+def parse_oem_state_line(line: str):
     """Parse a single line of OEM-style data.
 
     Accepts whitespace or comma separated values.
