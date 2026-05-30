@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
 """
 # Perturbed satellite orbit
@@ -12,52 +13,17 @@ It also demonstrates and motivates the usage of dependent variables. By keeping 
 
 """
 ## Import statements
-The required import statements are made here, at the very beginning.
 
-Some standard modules are first loaded. These are `numpy` and `matplotlib.pyplot`.
-
-Then, the different modules of `tudatpy` that will be used are imported.
+Only the bare minimum needed for CLI argument parsing (`argparse`, `re`) is
+imported at the top of the file.  Every other module -- including standard
+library, numpy, tudatpy, and matplotlib -- is imported as late as possible,
+immediately before its first use.  This keeps ``--help`` and argument
+validation instant and defers heavy library initialisation until the point
+where it is actually required.
 """
 
-
-# Load standard modules
 import argparse
-import io
 import re
-import sys
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-# Suppress Warnings from TudatPy
-import warnings
-
-warnings.filterwarnings("ignore", category=SyntaxWarning)
-warnings.filterwarnings(
-    "ignore",
-    module=r"urllib3(\..*)?",
-)
-
-import numpy as np
-
-import matplotlib
-from matplotlib import pyplot as plt
-
-# Load tudatpy modules
-from tudatpy.interface import spice
-from tudatpy import data
-from tudatpy import dynamics
-from tudatpy.dynamics import environment
-from tudatpy.dynamics import environment_setup, propagation_setup, simulator
-from tudatpy.astro import element_conversion
-from tudatpy import constants
-from tudatpy.util import result2array
-from tudatpy.astro.time_representation import DateTime
-
-from common.common import parse_oem_state_line, datetime_to_tdb
-
 
 # Time and unit conversion constants
 SECONDS_PER_MINUTE = 60.0
@@ -66,6 +32,7 @@ HOURS_PER_DAY = 24.0
 SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR
 SECONDS_PER_DAY = SECONDS_PER_HOUR * HOURS_PER_DAY
 KILOMETERS_TO_METERS = 1e3
+
 
 # CLI and model defaults
 DEFAULT_SATELLITE_NAME = "Satellite"
@@ -90,61 +57,13 @@ DEFAULT_BODIES_TO_CREATE = ["Sun", "Earth", "Moon", "Mars", "Venus"]
 DEFAULT_GLOBAL_FRAME_ORIGIN = "Earth"
 DEFAULT_GLOBAL_FRAME_ORIENTATION = "J2000"
 
+# Plotting constants (values only -- matplotlib is imported later, just before use)
 PLOT_STANDARD_FIGURE_SIZE_IN = (9, 5)
 PLOT_KEPLER_FIGURE_SIZE_IN = (9, 12)
 PLOT_GROUND_TRACK_H = 3
 PLOT_SCATTER_MARKER_SIZE_PT2 = 1
 PLOT_LATITUDE_TICK_STEP_DEG = 45
 PLOT_TRUE_ANOMALY_TICK_STEP_DEG = 60
-
-
-@dataclass
-class PropagationInputs:
-    """Container for propagation input options and parsed initial-state data.
-
-    Attributes
-    ----------
-    satellite_name : str
-        Name of the propagated vehicle body added to the Tudat environment.
-    satellite_mass_kg : float
-        Spacecraft mass in kilograms used by dynamics propagation.
-    drag_coefficient : float
-        Dimensionless aerodynamic drag coefficient (Cd).
-    drag_area_m2 : float
-        Effective drag/reference area in square meters.
-    srp_coefficient : float
-        Dimensionless solar radiation pressure coefficient (Cr).
-    simulation_duration_s : float
-        Total propagation duration in seconds.
-    initial_epoch_datetime_utc : datetime
-        Start epoch parsed from OEM input, represented as UTC datetime.
-    initial_state_m_mps : numpy.ndarray
-        Initial translational state vector [x, y, z, vx, vy, vz] in SI units,
-        where position is in meters and velocity is in meters per second.
-    """
-
-    satellite_name: str
-    satellite_mass_kg: float
-    drag_coefficient: float
-    drag_area_m2: float
-    srp_coefficient: float
-    simulation_duration_s: float
-    initial_epoch_datetime_utc: datetime
-    initial_state_m_mps: np.ndarray
-
-
-def load_spice_kernels():
-    """Load required SPICE kernels for time conversion and Earth orientation."""
-
-    spice_kernel_files = [
-        "naif0012.tls",  # LEAPSECONDS KERNEL FILE
-        "pck00011.tpc",  # PLANETARY CONSTANTS KERNEL FILE: orientation and size/shape data for natural bodies(Sun, planets, asteroids, etc)
-        "gm_de431.tpc",  # PLANETARY CONSTANTS KERNEL FILE: gravitational parameters for natural bodies
-        "earth_200101_990825_predict.bpc",  # Earth rotation prediction. Covers Jan, 2001 to Aug, 2099
-        "tudat_merged_spk_kernel.bsp",  # Merged SPK kernel containing ephemerides for various bodies, including Earth, Sun, Moon, Mars, Venus
-        ]
-    for kernel_file in spice_kernel_files:
-        spice.load_kernel(data.get_spice_kernel_path() + "/" + kernel_file)
 
 
 def parse_duration_to_seconds(value: str) -> float:
@@ -201,9 +120,7 @@ def parse_drag_coefficient(value: str) -> float:
     try:
         drag_coefficient = float(value)
     except ValueError as exc:
-        raise argparse.ArgumentTypeError(
-            "drag coefficient must be a valid number"
-        ) from exc
+        raise argparse.ArgumentTypeError("drag coefficient must be a valid number") from exc
 
     if drag_coefficient <= 0.0:
         raise argparse.ArgumentTypeError("drag coefficient must be a positive value")
@@ -239,96 +156,6 @@ def parse_drag_area_m2(value: str) -> float:
         raise argparse.ArgumentTypeError("drag area must be a positive value in m^2")
 
     return drag_area_m2
-
-
-def read_initial_state_from_stream(stream):
-    """Read exactly one OEM-like state record from stream.
-
-    Returns
-    -------
-    tuple[float, numpy.ndarray, str, datetime.datetime]
-        ``(initial_epoch_tdb_s, initial_state_m_mps, initial_epoch_iso8601, initial_epoch_datetime_utc)`` where
-        ``initial_state_m_mps`` is a 6-element cartesian state in SI units.
-    """
-    line = stream.readline()
-    if line == "":
-        raise ValueError("No input line available in stream")
-
-    parsed = parse_oem_state_line(line)
-    if parsed is None:
-        raise ValueError("The first input line is blank/comment and was not parsed")
-
-    epoch_dt, position_km, velocity_km_s = parsed
-    initial_epoch_tdb_s = datetime_to_tdb(epoch_dt)
-    initial_epoch_iso8601 = epoch_dt.isoformat()
-    initial_epoch_datetime_utc = epoch_dt
-    initial_state_m_mps = (
-        np.concatenate([position_km, velocity_km_s]) * KILOMETERS_TO_METERS
-    )
-    return (
-        initial_epoch_tdb_s,
-        initial_state_m_mps,
-        initial_epoch_iso8601,
-        initial_epoch_datetime_utc,
-    )
-
-
-def read_initial_state_from_cli_or_stdin(cli_args):
-    """Read one OEM-like state record from --initial-state or stdin."""
-    if cli_args.initial_state is not None:
-        try:
-            return read_initial_state_from_stream(
-                io.StringIO(cli_args.initial_state + "\n")
-            )
-        except ValueError as exc:
-            print(f"Error: invalid --initial-state value: {exc}", file=sys.stderr)
-            sys.exit(1)
-
-    if not sys.stdin.isatty():
-        try:
-            return read_initial_state_from_stream(sys.stdin)
-        except ValueError as exc:
-            print(f"Error: invalid stdin input: {exc}", file=sys.stderr)
-            sys.exit(1)
-
-    print(
-        "Error: missing input data. Provide one OEM-style state line via --initial-state or stdin.",
-        file=sys.stderr,
-    )
-    print(
-        "Example (CLI): .../perturbed_satellite_orbit.py --duration 86400 --initial-state '2023-04-10T00:00:00.000 7000 0 0 0 7.5 1.0'",
-        file=sys.stderr,
-    )
-    print(
-        "Example (stdin): echo '2023-04-10T00:00:00.000 7000 0 0 0 7.5 1.0' | .../perturbed_satellite_orbit.py -d 86400",
-        file=sys.stderr,
-    )
-    sys.exit(1)
-
-
-def build_propagation_inputs(cli_args) -> PropagationInputs:
-    """Build consolidated propagation inputs from CLI options and parsed state data."""
-    satellite_name = cli_args.name.strip() if cli_args.name is not None else ""
-    if not satellite_name:
-        satellite_name = DEFAULT_SATELLITE_NAME
-
-    (
-        initial_epoch_tdb_s,
-        initial_state_m_mps,
-        _initial_epoch_iso8601,
-        initial_epoch_datetime_utc,
-    ) = read_initial_state_from_cli_or_stdin(cli_args)
-
-    return PropagationInputs(
-        satellite_name=satellite_name,
-        satellite_mass_kg=cli_args.mass,
-        drag_coefficient=cli_args.drag_coeff,
-        drag_area_m2=cli_args.drag_area,
-        srp_coefficient=cli_args.srp_coeff,
-        simulation_duration_s=cli_args.duration,
-        initial_epoch_datetime_utc=initial_epoch_datetime_utc,
-        initial_state_m_mps=initial_state_m_mps,
-    )
 
 
 def build_cli_parser():
@@ -403,6 +230,170 @@ def parse_cli_args():
     return build_cli_parser().parse_args()
 
 
+# Parse CLI arguments once for script-wide configuration.
+# Only argparse and re have been imported so far, so --help and validation
+# errors are returned instantly without waiting for heavy library loads.
+cli_args = parse_cli_args()
+
+
+# Standard-library modules -- imported just after CLI parsing succeeds,
+# right before they are first needed by the code that follows.
+import io
+import sys
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+# Suppress warnings that tudatpy / urllib3 may emit on import.
+import warnings
+
+warnings.filterwarnings("ignore", category=SyntaxWarning)
+warnings.filterwarnings(
+    "ignore",
+    module=r"urllib3(\..*)?",
+)
+
+# numpy -- imported just before PropagationInputs and state-vector construction.
+import numpy as np
+
+
+@dataclass
+class PropagationInputs:
+    """Container for propagation input options and parsed initial-state data.
+
+    Attributes
+    ----------
+    satellite_name : str
+        Name of the propagated vehicle body added to the Tudat environment.
+    satellite_mass_kg : float
+        Spacecraft mass in kilograms used by dynamics propagation.
+    drag_coefficient : float
+        Dimensionless aerodynamic drag coefficient (Cd).
+    drag_area_m2 : float
+        Effective drag/reference area in square meters.
+    srp_coefficient : float
+        Dimensionless solar radiation pressure coefficient (Cr).
+    simulation_duration_s : float
+        Total propagation duration in seconds.
+    initial_epoch_datetime_utc : datetime
+        Start epoch parsed from OEM input, represented as UTC datetime.
+    initial_state_m_mps : numpy.ndarray
+        Initial translational state vector [x, y, z, vx, vy, vz] in SI units,
+        where position is in meters and velocity is in meters per second.
+    """
+
+    satellite_name: str
+    satellite_mass_kg: float
+    drag_coefficient: float
+    drag_area_m2: float
+    srp_coefficient: float
+    simulation_duration_s: float
+    initial_epoch_datetime_utc: datetime
+    initial_state_m_mps: np.ndarray
+
+
+def load_spice_kernels():
+    """Load required SPICE kernels for time conversion and Earth orientation."""
+
+    spice_kernel_files = [
+        "naif0012.tls",  # LEAPSECONDS KERNEL FILE
+        "pck00011.tpc",  # PLANETARY CONSTANTS KERNEL FILE: orientation and size/shape data for natural bodies(Sun, planets, asteroids, etc)
+        "gm_de431.tpc",  # PLANETARY CONSTANTS KERNEL FILE: gravitational parameters for natural bodies
+        "earth_200101_990825_predict.bpc",  # Earth rotation prediction. Covers Jan, 2001 to Aug, 2099
+        "tudat_merged_spk_kernel.bsp",  # Merged SPK kernel containing ephemerides for various bodies, including Earth, Sun, Moon, Mars, Venus
+    ]
+    for kernel_file in spice_kernel_files:
+        spice.load_kernel(data.get_spice_kernel_path() + "/" + kernel_file)
+
+
+def read_initial_state_from_stream(stream):
+    """Read exactly one OEM-like state record from stream.
+
+    Returns
+    -------
+    tuple[float, numpy.ndarray, str, datetime.datetime]
+        ``(initial_epoch_tdb_s, initial_state_m_mps, initial_epoch_iso8601, initial_epoch_datetime_utc)`` where
+        ``initial_state_m_mps`` is a 6-element cartesian state in SI units.
+    """
+    line = stream.readline()
+    if line == "":
+        raise ValueError("No input line available in stream")
+
+    parsed = parse_oem_state_line(line)
+    if parsed is None:
+        raise ValueError("The first input line is blank/comment and was not parsed")
+
+    epoch_dt, position_km, velocity_km_s = parsed
+    initial_epoch_tdb_s = datetime_to_tdb(epoch_dt)
+    initial_epoch_iso8601 = epoch_dt.isoformat()
+    initial_epoch_datetime_utc = epoch_dt
+    initial_state_m_mps = np.concatenate([position_km, velocity_km_s]) * KILOMETERS_TO_METERS
+    return (
+        initial_epoch_tdb_s,
+        initial_state_m_mps,
+        initial_epoch_iso8601,
+        initial_epoch_datetime_utc,
+    )
+
+
+def read_initial_state_from_cli_or_stdin(cli_args):
+    """Read one OEM-like state record from --initial-state or stdin."""
+    if cli_args.initial_state is not None:
+        try:
+            return read_initial_state_from_stream(io.StringIO(cli_args.initial_state + "\n"))
+        except ValueError as exc:
+            print(f"Error: invalid --initial-state value: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+    if not sys.stdin.isatty():
+        try:
+            return read_initial_state_from_stream(sys.stdin)
+        except ValueError as exc:
+            print(f"Error: invalid stdin input: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+    print(
+        "Error: missing input data. Provide one OEM-style state line via --initial-state or stdin.",
+        file=sys.stderr,
+    )
+    print(
+        "Example (CLI): .../perturbed_satellite_orbit.py --duration 86400 --initial-state '2023-04-10T00:00:00.000 7000 0 0 0 7.5 1.0'",
+        file=sys.stderr,
+    )
+    print(
+        "Example (stdin): echo '2023-04-10T00:00:00.000 7000 0 0 0 7.5 1.0' | .../perturbed_satellite_orbit.py -d 86400",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+
+def build_propagation_inputs(cli_args) -> PropagationInputs:
+    """Build consolidated propagation inputs from CLI options and parsed state data."""
+    satellite_name = cli_args.name.strip() if cli_args.name is not None else ""
+    if not satellite_name:
+        satellite_name = DEFAULT_SATELLITE_NAME
+
+    (
+        initial_epoch_tdb_s,
+        initial_state_m_mps,
+        _initial_epoch_iso8601,
+        initial_epoch_datetime_utc,
+    ) = read_initial_state_from_cli_or_stdin(cli_args)
+
+    return PropagationInputs(
+        satellite_name=satellite_name,
+        satellite_mass_kg=cli_args.mass,
+        drag_coefficient=cli_args.drag_coeff,
+        drag_area_m2=cli_args.drag_area,
+        srp_coefficient=cli_args.srp_coeff,
+        simulation_duration_s=cli_args.duration,
+        initial_epoch_datetime_utc=initial_epoch_datetime_utc,
+        initial_state_m_mps=initial_state_m_mps,
+    )
+
+
 def print_pre_propagation_summary(propagation_inputs: PropagationInputs, input_source: str):
     """Print selected options and parsed input data before propagation."""
 
@@ -418,10 +409,7 @@ def print_pre_propagation_summary(propagation_inputs: PropagationInputs, input_s
         seconds=propagation_inputs.simulation_duration_s
     )
     print(f"Initial epoch [ISO-8601]: {propagation_inputs.initial_epoch_datetime_utc.isoformat()}")
-    print(
-        "Simulation end epoch [ISO-8601]: "
-        f"{simulation_end_epoch_datetime_utc.isoformat()}"
-    )
+    print("Simulation end epoch [ISO-8601]: " f"{simulation_end_epoch_datetime_utc.isoformat()}")
     print(
         "Initial epoch TDB [s since J2000]: "
         f"{datetime_to_tdb(propagation_inputs.initial_epoch_datetime_utc)}"
@@ -479,9 +467,9 @@ def create_environment_and_bodies(propagation_inputs: PropagationInputs):
         propagation_inputs.drag_area_m2,
         [propagation_inputs.drag_coefficient, 0.0, 0.0],
     )
-    body_settings.get(
-        propagation_inputs.satellite_name
-    ).aerodynamic_coefficient_settings = aero_coefficient_settings
+    body_settings.get(propagation_inputs.satellite_name).aerodynamic_coefficient_settings = (
+        aero_coefficient_settings
+    )
 
     occulting_bodies_dict = {"Sun": ["Earth"]}
     vehicle_target_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
@@ -489,9 +477,9 @@ def create_environment_and_bodies(propagation_inputs: PropagationInputs):
         propagation_inputs.srp_coefficient,
         occulting_bodies_dict,
     )
-    body_settings.get(
-        propagation_inputs.satellite_name
-    ).radiation_pressure_target_settings = vehicle_target_settings
+    body_settings.get(propagation_inputs.satellite_name).radiation_pressure_target_settings = (
+        vehicle_target_settings
+    )
 
     bodies = environment_setup.create_system_of_bodies(body_settings)
     bodies.get(propagation_inputs.satellite_name).mass = propagation_inputs.satellite_mass_kg
@@ -507,8 +495,8 @@ def plot_total_acceleration(dep_var_dict, relative_time_h, satellite_name):
     )
     total_acceleration_norm_mps2 = np.linalg.norm(satellite_total_acceleration_mps2, axis=1)
     plt.plot(relative_time_h, total_acceleration_norm_mps2)
-    plt.xlabel('Time [hr]')
-    plt.ylabel('Total Acceleration [m/s$^2$]')
+    plt.xlabel("Time [hr]")
+    plt.ylabel("Total Acceleration [m/s$^2$]")
     plt.grid()
     plt.tight_layout()
 
@@ -523,8 +511,8 @@ def plot_ground_track(dep_var_dict, relative_time_h, satellite_name):
     latitude_deg = np.rad2deg(latitude_rad[0:subset_count])
     longitude_deg = np.rad2deg(longitude_rad[0:subset_count])
     plt.scatter(longitude_deg, latitude_deg, s=PLOT_SCATTER_MARKER_SIZE_PT2)
-    plt.xlabel('Longitude [deg]')
-    plt.ylabel('Latitude [deg]')
+    plt.xlabel("Longitude [deg]")
+    plt.ylabel("Latitude [deg]")
     plt.yticks(np.arange(-90, 91, step=PLOT_LATITUDE_TICK_STEP_DEG))
     plt.grid()
     plt.tight_layout()
@@ -535,7 +523,7 @@ def plot_kepler_elements(dep_var_dict, relative_time_h, satellite_name):
     fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(
         3, 2, figsize=PLOT_KEPLER_FIGURE_SIZE_IN
     )
-    fig.suptitle('Evolution of Kepler elements over the course of the propagation.')
+    fig.suptitle("Evolution of Kepler elements over the course of the propagation.")
 
     kepler_elements = dep_var_dict.asarray(
         dependent_variable.keplerian_state(satellite_name, "Earth")
@@ -543,31 +531,31 @@ def plot_kepler_elements(dep_var_dict, relative_time_h, satellite_name):
 
     semi_major_axis_km = kepler_elements[:, 0] / KILOMETERS_TO_METERS
     ax1.plot(relative_time_h, semi_major_axis_km)
-    ax1.set_ylabel('Semi-major axis [km]')
+    ax1.set_ylabel("Semi-major axis [km]")
 
     eccentricity = kepler_elements[:, 1]
     ax2.plot(relative_time_h, eccentricity)
-    ax2.set_ylabel('Eccentricity [-]')
+    ax2.set_ylabel("Eccentricity [-]")
 
     inclination_deg = np.rad2deg(kepler_elements[:, 2])
     ax3.plot(relative_time_h, inclination_deg)
-    ax3.set_ylabel('Inclination [deg]')
+    ax3.set_ylabel("Inclination [deg]")
 
     argument_of_periapsis_deg = np.rad2deg(kepler_elements[:, 3])
     ax4.plot(relative_time_h, argument_of_periapsis_deg)
-    ax4.set_ylabel('Argument of Periapsis [deg]')
+    ax4.set_ylabel("Argument of Periapsis [deg]")
 
     raan_deg = np.rad2deg(kepler_elements[:, 4])
     ax5.plot(relative_time_h, raan_deg)
-    ax5.set_ylabel('RAAN [deg]')
+    ax5.set_ylabel("RAAN [deg]")
 
     true_anomaly_deg = np.rad2deg(kepler_elements[:, 5])
     ax6.scatter(relative_time_h, true_anomaly_deg, s=PLOT_SCATTER_MARKER_SIZE_PT2)
-    ax6.set_ylabel('True Anomaly [deg]')
+    ax6.set_ylabel("True Anomaly [deg]")
     ax6.set_yticks(np.arange(0, 361, step=PLOT_TRUE_ANOMALY_TICK_STEP_DEG))
 
     for ax in fig.get_axes():
-        ax.set_xlabel('Time [hr]')
+        ax.set_xlabel("Time [hr]")
         ax.grid()
     plt.tight_layout()
 
@@ -608,26 +596,39 @@ def plot_acceleration_components(
     plt.tight_layout()
 
 
+# ===================================================================
+# Main execution
+# ===================================================================
+
 """
 ## Configuration
-NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth can be make known to `tudatpy`.
+NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth can be made known to `tudatpy`.
 See [SPICE in Tudat](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup/default_env_models.html#spice-in-tudat) for an overview of the use of SPICE in Tudat.
 """
 
+# common.common -- first module that pulls in tudatpy (via tudatpy.astro.time_representation).
+# Imported here, just before build_propagation_inputs() which is its first caller.
+from common.common import parse_oem_state_line, datetime_to_tdb
 
-# Load spice kernels
-load_spice_kernels()
-
-# Parse CLI arguments once for script-wide configuration.
-cli_args = parse_cli_args()
 propagation_inputs = build_propagation_inputs(cli_args)
 input_source = "--initial-state" if cli_args.initial_state is not None else "stdin"
 satellite_name = propagation_inputs.satellite_name
 
+print_pre_propagation_summary(propagation_inputs, input_source)
+
+# tudatpy SPICE interface -- imported just before loading kernels.
+from tudatpy.interface import spice
+from tudatpy import data
+
+# Load spice kernels
+load_spice_kernels()
+
+# tudatpy dynamics modules -- imported just before environment/body creation.
+from tudatpy.dynamics import environment_setup, propagation_setup, simulator
 
 """
 ## Environment setup
-Let’s create the environment for our simulation. This setup covers the creation of (celestial) bodies, vehicle(s), and environment interfaces.
+Let's create the environment for our simulation. This setup covers the creation of (celestial) bodies, vehicle(s), and environment interfaces.
 
 For more information on how to create and customize settings, see the [user guide on how to create bodies](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup.html#body-creation-procedure).
 
@@ -676,28 +677,22 @@ This dictionary is finally input to the propagation setup to create the accelera
 """
 
 
-# Define accelerations acting on the propagated satellite by Sun and Earth.
+# Define accelerations acting on the propagated satellite by Sun, Earth, Moon, Mars, and Venus.
 satellite_acceleration_settings = dict(
     Sun=[
         propagation_setup.acceleration.radiation_pressure(),
-        propagation_setup.acceleration.point_mass_gravity()
+        propagation_setup.acceleration.point_mass_gravity(),
     ],
     Earth=[
         propagation_setup.acceleration.spherical_harmonic_gravity(
             DEFAULT_SPHERICAL_HARMONICS_DEGREE,
             DEFAULT_SPHERICAL_HARMONICS_ORDER,
         ),
-        propagation_setup.acceleration.aerodynamic()
+        propagation_setup.acceleration.aerodynamic(),
     ],
-    Moon=[
-        propagation_setup.acceleration.point_mass_gravity()
-    ],
-    Mars=[
-        propagation_setup.acceleration.point_mass_gravity()
-    ],
-    Venus=[
-        propagation_setup.acceleration.point_mass_gravity()
-    ]
+    Moon=[propagation_setup.acceleration.point_mass_gravity()],
+    Mars=[propagation_setup.acceleration.point_mass_gravity()],
+    Venus=[propagation_setup.acceleration.point_mass_gravity()],
 )
 
 # Create global accelerations settings dictionary.
@@ -705,10 +700,8 @@ acceleration_settings = {propagation_inputs.satellite_name: satellite_accelerati
 
 # Create acceleration models.
 acceleration_models = propagation_setup.create_acceleration_models(
-    bodies,
-    acceleration_settings,
-    bodies_to_propagate,
-    central_bodies)
+    bodies, acceleration_settings, bodies_to_propagate, central_bodies
+)
 
 
 """
@@ -716,8 +709,10 @@ acceleration_models = propagation_setup.create_acceleration_models(
 
 Next, the start and end simulation epochs are specified.
 In Tudat, all epochs are defined as seconds since J2000.
-For ease of use, the start and end epochs are derived from calender dates using the `DateTime` class.
-Please refer to the [API documentation](https://py.api.tudat.space/en/latest/time_representation.html) of the `time_representation` module for more information on this.
+The start epoch is derived from the OEM input line and converted to TDB
+seconds since J2000 via `datetime_to_tdb`.  The end epoch is computed by
+adding the CLI-provided simulation duration to the start epoch using
+Python's `datetime` and `timedelta`.
 """
 
 
@@ -728,7 +723,9 @@ Please refer to the [API documentation](https://py.api.tudat.space/en/latest/tim
 ### Define the initial state
 The initial state of the vehicle that will be propagated is now defined. 
 
-This initial state always has to be provided as a cartesian state, in the form of a list with the first three elements representing the initial position, and the three remaining elements representing the initial velocity.
+This initial state always has to be provided as a cartesian state, in the form of a
+numpy array with the first three elements representing the initial position (in meters),
+and the three remaining elements representing the initial velocity (in meters per second).
 
 Within this script, the initial state is read from exactly one OEM-style state line
 provided either through `--initial-state`/`-i` or stdin.
@@ -744,7 +741,8 @@ In this example, we are interested in saving not only the propagated state of th
 For later post-processing, we first define all single acceleration norm settings in the `acceleration_dependent_variables_to_save` variable (which we will reuse later) and then combine it with all other dependent variables saved in the `dependent_variables_to_save` variable.
 """
 
-
+# dependent_variable and acceleration sub-modules -- imported just before
+# defining the dependent variable list.
 from tudatpy.dynamics.propagation_setup import dependent_variable, acceleration
 
 # Define list of dependent variables to save
@@ -817,22 +815,18 @@ The results will be analyzed in the following post-processing section.
 
 """
 ## Post-process the propagation results
-The results of the propagation will now be extracted from the `dynamics_simulator` variable.
+The results of the propagation are extracted from the `dynamics_simulator` instance.
 
-As shown in the [Keplerian satellite orbit example](keplerian_satellite_orbit.ipynb), the cartesian states of the propagated spacecraft are stored in the `propagation_results.state_history` attribute of the `dynamics_simulator` variable.
-In this example, we will focus on retrieving the dependent variables from the propagation results.
+The dependent variables are retrieved via a `DependentVariableDictionary` created by
+`create_dependent_variable_dictionary`.  This dictionary allows retrieval of a specific
+dependent variable by passing the corresponding `SingleDependentVariableSaveSettings`
+object to its `asarray()` method, avoiding manual column-index book-keeping.
 
-In principle, the dependent variable history are stored and retrieved in a similar format as the state history.
-The dependent variable history is a dictionary, which stores the epochs of the integration in the keys, and the dependent variables in the corresponding values.
-Using the `result2array()` utility we could convert the dictionary to an array, which has the time history in the first column (indexed 0), and all dependent variables in the subsequent columns, ordered by their definition in the `dependent_variables_to_save` list.
-However, this requires careful book-keeping to retrieve the dependent variables correctly.
-
-Alternatively, the dependent variables can be retrieved from a `DependentVariableDictionary`, which allows to retrieve a specific dependent variable by the corresponding `SingleDependentVariableSaveSettings` object.
-While slightly more verbose, this avoids indexing errors and will therefore be used in the following example.
-
+Each row of the returned array stores the dependent variable values at one integration
+step, with the corresponding epochs available through the `time_history` attribute.
 """
 
-
+# create_dependent_variable_dictionary -- imported just before post-processing.
 from tudatpy.dynamics.propagation import create_dependent_variable_dictionary
 
 propagator_settings = create_translational_propagator_settings(
@@ -843,13 +837,9 @@ propagator_settings = create_translational_propagator_settings(
     dependent_variables_to_save=dependent_variables_to_save,
 )
 
-print_pre_propagation_summary(propagation_inputs, input_source)
-
 dynamics_simulator = simulator.create_dynamics_simulator(bodies, propagator_settings)
 dep_var_dict = create_dependent_variable_dictionary(dynamics_simulator)
-relative_time_h = (
-    dep_var_dict.time_history - dep_var_dict.time_history[0]
-) / SECONDS_PER_HOUR
+relative_time_h = (dep_var_dict.time_history - dep_var_dict.time_history[0]) / SECONDS_PER_HOUR
 
 
 """
@@ -859,6 +849,8 @@ For an in-depth documentation of how to retrieve information from the `Dependent
 In short, by passing a `SingleDependentVariableSaveSettings` object to the `asarray()` method, the dependent variables will be retrieved and returned as an array, where each row stores the dependent variables of an integration step (with the corresponding epochs stored in the `time_history` attribute).
 """
 
+# matplotlib -- imported as late as possible, just before the first plot call.
+from matplotlib import pyplot as plt
 
 plot_total_acceleration(dep_var_dict, relative_time_h, satellite_name)
 plot_ground_track(dep_var_dict, relative_time_h, satellite_name)
