@@ -240,7 +240,17 @@ def build_cli_parser():
         ),
     )
     parser.add_argument(
-        "--moon",
+        "--sun-gravity",
+        type=parse_bool_flag,
+        default=True,
+        help=(
+            "Enable or disable Sun point-mass gravity perturbation. "
+            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
+        ),
+    )
+    parser.add_argument(
+        "--moon-gravity",
+        dest="moon_gravity",
         type=parse_bool_flag,
         default=True,
         help=(
@@ -249,7 +259,8 @@ def build_cli_parser():
         ),
     )
     parser.add_argument(
-        "--mars",
+        "--mars-gravity",
+        dest="mars_gravity",
         type=parse_bool_flag,
         default=True,
         help=(
@@ -258,7 +269,8 @@ def build_cli_parser():
         ),
     )
     parser.add_argument(
-        "--venus",
+        "--venus-gravity",
+        dest="venus_gravity",
         type=parse_bool_flag,
         default=True,
         help=(
@@ -337,6 +349,8 @@ class PropagationInputs:
         Dimensionless aerodynamic drag coefficient (Cd).
     satellite_drag_area_m2 : float
         Effective drag/reference area in square meters.
+    sun_gravity_on : bool
+        Whether Sun point-mass gravity perturbation is enabled.
     moon_gravity_on : bool
         Whether Moon point-mass gravity perturbation is enabled.
     mars_gravity_on : bool
@@ -361,6 +375,7 @@ class PropagationInputs:
     earth_drag_on: bool
     satellite_drag_coefficient: float
     satellite_drag_area_m2: float
+    sun_gravity_on: bool
     moon_gravity_on: bool
     mars_gravity_on: bool
     venus_gravity_on: bool
@@ -465,9 +480,10 @@ def build_propagation_inputs(cli_args) -> PropagationInputs:
         earth_drag_on=cli_args.drag,
         satellite_drag_coefficient=cli_args.drag_coeff,
         satellite_drag_area_m2=cli_args.drag_area,
-        moon_gravity_on=cli_args.moon,
-        mars_gravity_on=cli_args.mars,
-        venus_gravity_on=cli_args.venus,
+        sun_gravity_on=cli_args.sun_gravity,
+        moon_gravity_on=cli_args.moon_gravity,
+        mars_gravity_on=cli_args.mars_gravity,
+        venus_gravity_on=cli_args.venus_gravity,
         srp_on=cli_args.srp,
         srp_coefficient=cli_args.srp_coeff,
         simulation_duration_s=cli_args.duration,
@@ -488,7 +504,8 @@ def print_pre_propagation_summary(propagation_inputs: PropagationInputs, input_s
     if propagation_inputs.earth_drag_on:
         print(f"Drag coefficient [-]: {propagation_inputs.satellite_drag_coefficient}")
         print(f"Drag area [m^2]: {propagation_inputs.satellite_drag_area_m2}")
-    # moon_gravity_on / mars_gravity_on / venus_gravity_on: display third-body gravity status.
+    # sun_gravity_on / moon_gravity_on / mars_gravity_on / venus_gravity_on: display third-body gravity status.
+    print(f"Sun gravity: {'on' if propagation_inputs.sun_gravity_on else 'off'}")
     print(f"Moon gravity: {'on' if propagation_inputs.moon_gravity_on else 'off'}")
     print(f"Mars gravity: {'on' if propagation_inputs.mars_gravity_on else 'off'}")
     print(f"Venus gravity: {'on' if propagation_inputs.venus_gravity_on else 'off'}")
@@ -550,7 +567,7 @@ def create_environment_and_bodies(propagation_inputs: PropagationInputs):
     # Build the list of celestial bodies dynamically.  Sun and Earth are always
     # required; Moon, Mars, and Venus are only included when their respective
     # gravity perturbation is enabled.
-    bodies_to_create = DEFAULT_BODIES_TO_CREATE
+    bodies_to_create = list(DEFAULT_BODIES_TO_CREATE)
     if propagation_inputs.moon_gravity_on:
         bodies_to_create.append("Moon")
     if propagation_inputs.mars_gravity_on:
@@ -675,9 +692,9 @@ def plot_acceleration_components(
 ):
     """Plot acceleration norms by type and source body."""
     acceleration_type_to_string = {
-        acceleration.AvailableAcceleration.point_mass_gravity_type: "PM",
-        acceleration.AvailableAcceleration.spherical_harmonic_gravity_type: "SH",
-        acceleration.AvailableAcceleration.aerodynamic_type: "Aerodynamic",
+        acceleration.AvailableAcceleration.point_mass_gravity_type: "Point Mass",
+        acceleration.AvailableAcceleration.spherical_harmonic_gravity_type: "SphHarm Grav",
+        acceleration.AvailableAcceleration.aerodynamic_type: "Aerodynamic Drag",
         acceleration.AvailableAcceleration.radiation_pressure_type: "Radiation Pressure",
     }
 
@@ -686,7 +703,7 @@ def plot_acceleration_components(
     for acceleration_dep_var_setting in acceleration_dependent_variables_to_save:
         acceleration_norm_mps2 = dep_var_dict.asarray(acceleration_dep_var_setting)
         label = (
-            f"{acceleration_type_to_string[acceleration_dep_var_setting.acceleration_model_type]} "
+            f"{acceleration_type_to_string[acceleration_dep_var_setting.acceleration_model_type]}: "
             f"{acceleration_dep_var_setting.secondary_body}"
         )
 
@@ -792,13 +809,16 @@ This dictionary is finally input to the propagation setup to create the accelera
 
 
 # Define accelerations acting on the propagated satellite by Sun, Earth, Moon, Mars, and Venus.
+# sun_gravity_on: include Sun point-mass gravity only when enabled.
 # srp_on: include radiation pressure acceleration from the Sun only when SRP is enabled.
-sun_accelerations = [propagation_setup.acceleration.point_mass_gravity()]
+sun_accelerations = []
+if propagation_inputs.sun_gravity_on:
+    sun_accelerations.append(propagation_setup.acceleration.point_mass_gravity())
 if propagation_inputs.srp_on:
     sun_accelerations.insert(0, propagation_setup.acceleration.radiation_pressure())
 
 satellite_acceleration_settings = dict(
-    Sun=sun_accelerations,
+    **({"Sun": sun_accelerations} if sun_accelerations else {}),
     # earth_drag_on: include aerodynamic drag acceleration from Earth only when drag is enabled.
     Earth=[
         propagation_setup.acceleration.spherical_harmonic_gravity(
@@ -884,6 +904,7 @@ dependent_variables_to_save = [
     dependent_variable.latitude(propagation_inputs.satellite_name, "Earth"),
     dependent_variable.longitude(propagation_inputs.satellite_name, "Earth"),
 ]
+
 acceleration_dependent_variables_to_save = [
     dependent_variable.single_acceleration_norm(
         propagation_setup.acceleration.spherical_harmonic_gravity_type,
@@ -891,13 +912,7 @@ acceleration_dependent_variables_to_save = [
         "Earth",
     ),
 ]
-acceleration_dependent_variables_to_save += [
-    dependent_variable.single_acceleration_norm(
-        propagation_setup.acceleration.point_mass_gravity_type,
-        propagation_inputs.satellite_name,
-        "Sun",
-    ),
-]
+
 # moon_gravity_on: track Moon gravity acceleration norm only when Moon gravity is enabled.
 if propagation_inputs.moon_gravity_on:
     acceleration_dependent_variables_to_save.append(
@@ -907,24 +922,27 @@ if propagation_inputs.moon_gravity_on:
             "Moon",
         ),
     )
-# mars_gravity_on: track Mars gravity acceleration norm only when Mars gravity is enabled.
-if propagation_inputs.mars_gravity_on:
+
+# sun_gravity_on: track Sun gravity acceleration norm only when Sun gravity is enabled.
+if propagation_inputs.sun_gravity_on:
     acceleration_dependent_variables_to_save.append(
         dependent_variable.single_acceleration_norm(
             propagation_setup.acceleration.point_mass_gravity_type,
             propagation_inputs.satellite_name,
-            "Mars",
+            "Sun",
         ),
     )
-# venus_gravity_on: track Venus gravity acceleration norm only when Venus gravity is enabled.
-if propagation_inputs.venus_gravity_on:
+
+# srp_on: track SRP acceleration norm as a dependent variable only when SRP is enabled.
+if propagation_inputs.srp_on:
     acceleration_dependent_variables_to_save.append(
         dependent_variable.single_acceleration_norm(
-            propagation_setup.acceleration.point_mass_gravity_type,
+            propagation_setup.acceleration.radiation_pressure_type,
             propagation_inputs.satellite_name,
-            "Venus",
+            "Sun",
         ),
     )
+
 # earth_drag_on: track aerodynamic drag acceleration norm only when drag is enabled.
 if propagation_inputs.earth_drag_on:
     acceleration_dependent_variables_to_save.append(
@@ -934,13 +952,24 @@ if propagation_inputs.earth_drag_on:
             "Earth",
         ),
     )
-# srp_on: track SRP acceleration norm as a dependent variable only when SRP is enabled.
-if propagation_inputs.srp_on:
+
+# venus_gravity_on: track Venus gravity acceleration norm only when Venus gravity is enabled.
+if propagation_inputs.venus_gravity_on:
     acceleration_dependent_variables_to_save.append(
         dependent_variable.single_acceleration_norm(
-            propagation_setup.acceleration.radiation_pressure_type,
+            propagation_setup.acceleration.point_mass_gravity_type,
             propagation_inputs.satellite_name,
-            "Sun",
+            "Venus",
+        ),
+    )
+
+# mars_gravity_on: track Mars gravity acceleration norm only when Mars gravity is enabled.
+if propagation_inputs.mars_gravity_on:
+    acceleration_dependent_variables_to_save.append(
+        dependent_variable.single_acceleration_norm(
+            propagation_setup.acceleration.point_mass_gravity_type,
+            propagation_inputs.satellite_name,
+            "Mars",
         ),
     )
 
