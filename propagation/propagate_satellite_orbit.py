@@ -690,7 +690,14 @@ def plot_acceleration_components(
             f"{acceleration_dep_var_setting.secondary_body}"
         )
 
-        plt.plot(relative_time_h, acceleration_norm_mps2, label=label)
+        # Use dashed lines for point-mass gravity contributions.
+        linestyle = (
+            "--"
+            if acceleration_dep_var_setting.acceleration_model_type
+            == acceleration.AvailableAcceleration.point_mass_gravity_type
+            else "-"
+        )
+        plt.plot(relative_time_h, acceleration_norm_mps2, label=label, linestyle=linestyle)
 
     plt.xlabel("Time [hr]")
     plt.ylabel("Acceleration Norm [m/s$^2$]")
@@ -879,6 +886,13 @@ dependent_variables_to_save = [
 ]
 acceleration_dependent_variables_to_save = [
     dependent_variable.single_acceleration_norm(
+        propagation_setup.acceleration.spherical_harmonic_gravity_type,
+        propagation_inputs.satellite_name,
+        "Earth",
+    ),
+]
+acceleration_dependent_variables_to_save += [
+    dependent_variable.single_acceleration_norm(
         propagation_setup.acceleration.point_mass_gravity_type,
         propagation_inputs.satellite_name,
         "Sun",
@@ -911,13 +925,6 @@ if propagation_inputs.venus_gravity_on:
             "Venus",
         ),
     )
-acceleration_dependent_variables_to_save += [
-    dependent_variable.single_acceleration_norm(
-        propagation_setup.acceleration.spherical_harmonic_gravity_type,
-        propagation_inputs.satellite_name,
-        "Earth",
-    ),
-]
 # earth_drag_on: track aerodynamic drag acceleration norm only when drag is enabled.
 if propagation_inputs.earth_drag_on:
     acceleration_dependent_variables_to_save.append(
