@@ -50,8 +50,8 @@ DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2 = (
 ) / 4
 
 # Propagation and plotting settings
-DEFAULT_SPHERICAL_HARMONICS_DEGREE = 5
-DEFAULT_SPHERICAL_HARMONICS_ORDER = 5
+DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE = 5
+DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER = 5
 DEFAULT_INTEGRATOR_FIXED_STEP_SIZE_S = 10.0
 DEFAULT_BODIES_TO_CREATE = ["Sun", "Earth"]
 DEFAULT_GLOBAL_FRAME_ORIGIN = "Earth"
@@ -143,6 +143,30 @@ def parse_srp_coefficient(value: str) -> float:
         )
 
     return srp_coefficient
+
+
+def parse_earth_spherical_harmonic_gravity_degree_order(value: str) -> tuple[int, int]:
+    """Parse Earth spherical harmonic gravity degree/order from ``DxO`` format.
+
+    Examples: ``5x5``, ``8X6``
+    """
+    match = re.fullmatch(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
+    if not match:
+        raise argparse.ArgumentTypeError(
+            "earth gravity must be in DxO format (e.g., 5x5, 8x6)"
+        )
+
+    degree = int(match.group(1))
+    order = int(match.group(2))
+
+    if degree < 0:
+        raise argparse.ArgumentTypeError("earth gravity degree must be non-negative")
+    if order < 0:
+        raise argparse.ArgumentTypeError("earth gravity order must be non-negative")
+    if order > degree:
+        raise argparse.ArgumentTypeError("earth gravity order must be less than or equal to degree")
+
+    return degree, order
 
 
 def parse_bool_flag(value: str) -> bool:
@@ -296,6 +320,20 @@ def build_cli_parser():
             f"(default: {DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT})."
         ),
     )
+    parser.add_argument(
+        "--earth-gravity",
+        type=parse_earth_spherical_harmonic_gravity_degree_order,
+        default=(
+            DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE,
+            DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER,
+        ),
+        help=(
+            "Earth spherical harmonic gravity degree/order in DxO format "
+            "(default: "
+            f"{DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE}x"
+            f"{DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER})."
+        ),
+    )
     return parser
 
 
@@ -358,6 +396,10 @@ class PropagationInputs:
         Whether Mars point-mass gravity perturbation is enabled.
     is_venus_gravity_on : bool
         Whether Venus point-mass gravity perturbation is enabled.
+    earth_spherical_harmonic_gravity_degree : int
+        Degree used for Earth's spherical harmonic gravity field.
+    earth_spherical_harmonic_gravity_order : int
+        Order used for Earth's spherical harmonic gravity field.
     is_srp_on : bool
         Whether solar radiation pressure acceleration is enabled.
     srp_coefficient : float
@@ -385,6 +427,9 @@ class PropagationInputs:
     is_moon_gravity_on: bool
     is_mars_gravity_on: bool
     is_venus_gravity_on: bool
+
+    earth_spherical_harmonic_gravity_degree: int
+    earth_spherical_harmonic_gravity_order: int
 
     simulation_duration_s: float
 
@@ -471,6 +516,10 @@ def build_propagation_inputs(cli_args) -> PropagationInputs:
         satellite_name = DEFAULT_SATELLITE_NAME
 
     initial_state_m_mps, initial_epoch_datetime_utc = read_initial_state_from_cli_or_stdin(cli_args)
+    (
+        earth_spherical_harmonic_gravity_degree,
+        earth_spherical_harmonic_gravity_order,
+    ) = cli_args.earth_gravity
 
     return PropagationInputs(
         satellite_name=satellite_name,
@@ -482,6 +531,8 @@ def build_propagation_inputs(cli_args) -> PropagationInputs:
         is_moon_gravity_on=cli_args.moon_gravity,
         is_mars_gravity_on=cli_args.mars_gravity,
         is_venus_gravity_on=cli_args.venus_gravity,
+        earth_spherical_harmonic_gravity_degree=earth_spherical_harmonic_gravity_degree,
+        earth_spherical_harmonic_gravity_order=earth_spherical_harmonic_gravity_order,
         is_srp_on=cli_args.srp,
         srp_coefficient=cli_args.srp_coeff,
         simulation_duration_s=cli_args.duration,
@@ -507,6 +558,11 @@ def print_pre_propagation_summary(propagation_inputs: PropagationInputs, input_s
     print(f"Moon gravity: {'on' if propagation_inputs.is_moon_gravity_on else 'off'}")
     print(f"Mars gravity: {'on' if propagation_inputs.is_mars_gravity_on else 'off'}")
     print(f"Venus gravity: {'on' if propagation_inputs.is_venus_gravity_on else 'off'}")
+    print(
+        "Earth spherical harmonic gravity [degree x order]: "
+        f"{propagation_inputs.earth_spherical_harmonic_gravity_degree}x"
+        f"{propagation_inputs.earth_spherical_harmonic_gravity_order}"
+    )
     # srp_on: display SRP status; only show coefficient when SRP is enabled.
     print(f"Solar radiation pressure: {'on' if propagation_inputs.is_srp_on else 'off'}")
     if propagation_inputs.is_srp_on:
@@ -795,7 +851,7 @@ central_bodies = ["Earth"]
 First off, the acceleration settings that act on the propagated satellite are to be defined.
 In this case, these consist in the followings:
 
-- Gravitational acceleration of Earth modeled as Spherical Harmonics, taken up to a degree and order 5.
+- Gravitational acceleration of Earth modeled as spherical harmonic gravity, taken up to a degree and order 5.
 - Gravitational acceleration of the Sun, the Moon, Mars, and Venus, modeled as a Point Mass.
 - Aerodynamic acceleration caused by the atmosphere of the Earth (using the aerodynamic interface defined earlier).
 - Radiation pressure acceleration caused by the Sun (using the radiation interface defined earlier).
@@ -823,8 +879,8 @@ if sun_accelerations:
 # earth_drag_on: include aerodynamic drag acceleration from Earth only when drag is enabled.
 earth_accelerations = [
     propagation_setup.acceleration.spherical_harmonic_gravity(
-        DEFAULT_SPHERICAL_HARMONICS_DEGREE,
-        DEFAULT_SPHERICAL_HARMONICS_ORDER,
+        propagation_inputs.earth_spherical_harmonic_gravity_degree,
+        propagation_inputs.earth_spherical_harmonic_gravity_order,
     ),
 ]
 if propagation_inputs.is_earth_drag_on:
