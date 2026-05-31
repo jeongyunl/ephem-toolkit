@@ -303,6 +303,7 @@ def build_cli_parser():
     parser.add_argument(
         "-i",
         "--initial-state",
+        metavar="<oem_state_line>",
         help=(
             "One OEM-style state line provided directly on the command line. "
             "If omitted, one line is read from stdin."
@@ -312,6 +313,7 @@ def build_cli_parser():
         "-d",
         "--duration",
         type=parse_duration_to_seconds,
+        metavar="<value[s|m|h|d]>",
         required=True,
         help=(
             "Simulation duration (default seconds). "
@@ -323,11 +325,13 @@ def build_cli_parser():
     parser.add_argument(
         "--name",
         default=DEFAULT_SATELLITE_NAME,
+        metavar="<name>",
         help=f"Name of the propagated satellite body (default: {DEFAULT_SATELLITE_NAME}).",
     )
     parser.add_argument(
         "--mass",
         type=parse_mass_kg,
+        metavar="<kg>",
         default=DEFAULT_SATELLITE_MASS_KG,
         help=(
             "Mass of the propagated satellite in kilograms "
@@ -339,6 +343,7 @@ def build_cli_parser():
     parser.add_argument(
         "--integrator",
         type=parse_integrator_method,
+        metavar=f"<{ '|'.join(SUPPORTED_INTEGRATOR_METHODS) }>",
         default=DEFAULT_INTEGRATOR_METHOD,
         help=(
             "Numerical integrator method "
@@ -349,6 +354,7 @@ def build_cli_parser():
     parser.add_argument(
         "--integrator-step-size",
         type=parse_integrator_step_size_values,
+        metavar="<fixed|init,max|init,min,max>",
         default=(DEFAULT_INTEGRATOR_FIXED_STEP_SIZE_S,),
         help=(
             "Integrator step sizes in seconds as a single comma-separated token. "
@@ -366,6 +372,7 @@ def build_cli_parser():
     parser.add_argument(
         "--earth-gravity",
         type=parse_earth_spherical_harmonic_gravity_degree_order,
+        metavar="<DxO>",
         default=(
             DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE,
             DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER,
@@ -383,6 +390,7 @@ def build_cli_parser():
     parser.add_argument(
         "--drag-area",
         type=parse_drag_area_m2,
+        metavar="<m^2>",
         default=DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2,
         help=(
             "Drag area / average projection area of the propagated satellite in m^2 "
@@ -394,15 +402,14 @@ def build_cli_parser():
     parser.add_argument(
         "--srp",
         type=parse_bool_flag,
+        metavar="<on|off>",
         default=True,
-        help=(
-            "Enable or disable solar radiation pressure acceleration. "
-            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
-        ),
+        help=("Enable or disable solar radiation pressure acceleration (default: on)."),
     )
     parser.add_argument(
         "--srp-coeff",
         type=parse_srp_coefficient,
+        metavar="<coefficient>",
         default=DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT,
         help=(
             "Solar radiation pressure coefficient of the propagated satellite "
@@ -414,15 +421,14 @@ def build_cli_parser():
     parser.add_argument(
         "--drag",
         type=parse_bool_flag,
+        metavar="<on|off>",
         default=True,
-        help=(
-            "Enable or disable aerodynamic drag acceleration. "
-            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
-        ),
+        help=("Enable or disable aerodynamic drag acceleration (default: on)."),
     )
     parser.add_argument(
         "--drag-coeff",
         type=parse_drag_coefficient,
+        metavar="<coefficient>",
         default=DEFAULT_SATELLITE_DRAG_COEFFICIENT,
         help=f"Drag coefficient of the propagated satellite (default: {DEFAULT_SATELLITE_DRAG_COEFFICIENT}).",
     )
@@ -431,40 +437,32 @@ def build_cli_parser():
         "--moon-gravity",
         dest="moon_gravity",
         type=parse_bool_flag,
+        metavar="<on|off>",
         default=True,
-        help=(
-            "Enable or disable Moon point-mass gravity perturbation. "
-            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
-        ),
+        help=("Enable or disable Moon point-mass gravity perturbation (default: on)."),
     )
     parser.add_argument(
         "--sun-gravity",
         type=parse_bool_flag,
+        metavar="<on|off>",
         default=True,
-        help=(
-            "Enable or disable Sun point-mass gravity perturbation. "
-            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
-        ),
+        help=("Enable or disable Sun point-mass gravity perturbation (default: on)."),
     )
     parser.add_argument(
         "--venus-gravity",
         dest="venus_gravity",
         type=parse_bool_flag,
+        metavar="<on|off>",
         default=True,
-        help=(
-            "Enable or disable Venus point-mass gravity perturbation. "
-            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
-        ),
+        help=("Enable or disable Venus point-mass gravity perturbation (default: on)."),
     )
     parser.add_argument(
         "--mars-gravity",
         dest="mars_gravity",
         type=parse_bool_flag,
+        metavar="<on|off>",
         default=True,
-        help=(
-            "Enable or disable Mars point-mass gravity perturbation. "
-            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
-        ),
+        help=("Enable or disable Mars point-mass gravity perturbation (default: on)."),
     )
     return parser
 
