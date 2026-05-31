@@ -4,7 +4,7 @@ Utility scripts for working with TudatPy.
 
 ## Overview
 
-This repository provides a collection of command-line tools built on top of [TudatPy](https://docs.tudat.space/en/latest/) and [Tudat](https://docs.tudat.space/) for common astrodynamics tasks. The tools are organised into three areas:
+This repository provides a collection of command-line tools built on top of [TudatPy](https://docs.tudat.space/en/latest/) and [Tudat](https://docs.tudat.space/) for common astrodynamics tasks. The tools are organised into four areas:
 
 ### Frame Conversion
 
@@ -30,6 +30,15 @@ A Python script for propagating a perturbed satellite orbit around Earth. It acc
 - `propagation/propagate_satellite_orbit.py` — perturbed orbit propagation with configurable perturbation toggles.
 
 See [PROPAGATION.md](PROPAGATION.md) for full usage details.
+
+### TLE Build and Parse
+
+Python scripts for constructing and parsing Two-Line Element (TLE) sets. The build tool assembles fixed-width TLE lines from explicit CLI arguments and computes checksums. The parse tool reads TLE data from stdin, prints parsed element summaries, generates a reconstruction command, and can verify byte-identical reconstruction.
+
+- `tle/write_tle.py` — build a TLE file from explicit TLE element CLI arguments.
+- `tle/parse_tle.py` — parse stdin TLE input, print summaries, generate reconstruction command, and optionally verify reconstruction.
+
+See [TLE.md](TLE.md) for full usage details.
 
 ## Dependencies
 
