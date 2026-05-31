@@ -135,11 +135,7 @@ def parse_duration_to_seconds(value: str) -> float:
 
 
 def parse_integrator_method(value: str) -> str:
-    """Parse integrator method from CLI.
-
-    Currently accepted values include ``rk_3`` and ``rk_4`` (default),
-    plus selected ``rkf_*`` sets.
-    """
+    """Parse integrator method from CLI."""
     method = value.strip().lower()
     if method not in SUPPORTED_INTEGRATOR_METHODS:
         raise argparse.ArgumentTypeError(
@@ -729,7 +725,7 @@ def print_pre_propagation_summary(
     # satellite_drag_area_m2: display drag area, which is used for both drag and SRP in this script.
     print(f"Drag area [m^2]: {propagation_inputs.satellite_drag_area_m2}")
 
-    # srp_on: display SRP status; only show coefficient when SRP is enabled.
+    # is_srp_on: display SRP status; only show coefficient when SRP is enabled.
     print(
         f"Solar radiation pressure: {'on' if propagation_inputs.is_srp_on else 'off'}"
     )
@@ -738,12 +734,12 @@ def print_pre_propagation_summary(
             f"Solar radiation pressure coefficient: {propagation_inputs.srp_coefficient}"
         )
 
-    # earth_drag_on: display drag status; only show coefficient when drag is enabled.
+    # is_earth_drag_on: display drag status; only show coefficient when drag is enabled.
     print(f"Aerodynamic drag: {'on' if propagation_inputs.is_earth_drag_on else 'off'}")
     if propagation_inputs.is_earth_drag_on:
         print(f"Drag coefficient: {propagation_inputs.satellite_drag_coefficient}")
 
-    # sun_gravity_on / moon_gravity_on / mars_gravity_on / venus_gravity_on: display third-body gravity status.
+    # is_sun_gravity_on / is_moon_gravity_on / is_mars_gravity_on / is_venus_gravity_on: display third-body gravity status.
     print(f"Moon gravity: {'on' if propagation_inputs.is_moon_gravity_on else 'off'}")
     print(f"Sun gravity: {'on' if propagation_inputs.is_sun_gravity_on else 'off'}")
     print(f"Venus gravity: {'on' if propagation_inputs.is_venus_gravity_on else 'off'}")
@@ -771,6 +767,7 @@ def create_translational_propagator_settings(
     dependent_variables_to_save,
 ):
     """Create translational propagator settings for the configured run."""
+    # Resolve the CoefficientSets entry by integrator method name.
     try:
         coefficient_set = getattr(
             propagation_setup.integrator.CoefficientSets,
@@ -784,6 +781,7 @@ def create_translational_propagator_settings(
             f"Default is {DEFAULT_INTEGRATOR_METHOD}."
         ) from exc
 
+    # Configure fixed-step or variable-step integrator based on the number of step-size values.
     if len(propagation_inputs.integrator_step_size_values_s) == 1:
         fixed_step_size_s = propagation_inputs.integrator_step_size_values_s[0]
         integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
@@ -855,9 +853,10 @@ def create_environment_and_bodies(propagation_inputs: PropagationInputs):
         DEFAULT_GLOBAL_FRAME_ORIENTATION,
     )
 
+    # Add the satellite as an empty body, then attach force-model interfaces based on enabled options.
     body_settings.add_empty_settings(propagation_inputs.satellite_name)
 
-    # srp_on: only attach radiation pressure target settings when SRP is enabled.
+    # is_srp_on: only attach radiation pressure target settings when SRP is enabled.
     if propagation_inputs.is_srp_on:
         occulting_bodies_dict = {"Sun": ["Earth"]}
         vehicle_target_settings = (
@@ -871,7 +870,7 @@ def create_environment_and_bodies(propagation_inputs: PropagationInputs):
             propagation_inputs.satellite_name
         ).radiation_pressure_target_settings = vehicle_target_settings
 
-    # earth_drag_on: only attach aerodynamic coefficient settings when drag is enabled.
+    # is_earth_drag_on: only attach aerodynamic coefficient settings when drag is enabled.
     if propagation_inputs.is_earth_drag_on:
         aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
             propagation_inputs.satellite_drag_area_m2,
@@ -1099,6 +1098,7 @@ This dictionary is finally input to the propagation setup to create the accelera
 # Define accelerations acting on the propagated satellite by Sun, Earth, Moon, Mars, and Venus.
 satellite_acceleration_settings = {}
 
+# Sun accelerations: radiation pressure and/or point-mass gravity.
 sun_accelerations = []
 if propagation_inputs.is_srp_on:
     sun_accelerations.insert(0, propagation_setup.acceleration.radiation_pressure())
@@ -1108,7 +1108,7 @@ if propagation_inputs.is_sun_gravity_on:
 if sun_accelerations:
     satellite_acceleration_settings["Sun"] = sun_accelerations
 
-# earth_drag_on: include aerodynamic drag acceleration from Earth only when drag is enabled.
+# is_earth_drag_on: include aerodynamic drag acceleration from Earth only when drag is enabled.
 earth_accelerations = [
     propagation_setup.acceleration.spherical_harmonic_gravity(
         propagation_inputs.earth_spherical_harmonic_gravity_degree,
@@ -1119,19 +1119,19 @@ if propagation_inputs.is_earth_drag_on:
     earth_accelerations.append(propagation_setup.acceleration.aerodynamic())
 satellite_acceleration_settings["Earth"] = earth_accelerations
 
-# moon_gravity_on: include Moon point-mass gravity only when enabled.
+# is_moon_gravity_on: include Moon point-mass gravity only when enabled.
 if propagation_inputs.is_moon_gravity_on:
     satellite_acceleration_settings["Moon"] = [
         propagation_setup.acceleration.point_mass_gravity()
     ]
 
-# venus_gravity_on: include Venus point-mass gravity only when enabled.
+# is_venus_gravity_on: include Venus point-mass gravity only when enabled.
 if propagation_inputs.is_venus_gravity_on:
     satellite_acceleration_settings["Venus"] = [
         propagation_setup.acceleration.point_mass_gravity()
     ]
 
-# mars_gravity_on: include Mars point-mass gravity only when enabled.
+# is_mars_gravity_on: include Mars point-mass gravity only when enabled.
 if propagation_inputs.is_mars_gravity_on:
     satellite_acceleration_settings["Mars"] = [
         propagation_setup.acceleration.point_mass_gravity()
@@ -1198,6 +1198,7 @@ dependent_variables_to_save = [
     dependent_variable.longitude(propagation_inputs.satellite_name, "Earth"),
 ]
 
+# Earth spherical harmonic gravity is always tracked; other norms are added conditionally.
 acceleration_dependent_variables_to_save = [
     dependent_variable.single_acceleration_norm(
         propagation_setup.acceleration.spherical_harmonic_gravity_type,
@@ -1206,7 +1207,7 @@ acceleration_dependent_variables_to_save = [
     ),
 ]
 
-# moon_gravity_on: track Moon gravity acceleration norm only when Moon gravity is enabled.
+# is_moon_gravity_on: track Moon gravity acceleration norm only when Moon gravity is enabled.
 if propagation_inputs.is_moon_gravity_on:
     acceleration_dependent_variables_to_save.append(
         dependent_variable.single_acceleration_norm(
@@ -1216,7 +1217,7 @@ if propagation_inputs.is_moon_gravity_on:
         ),
     )
 
-# sun_gravity_on: track Sun gravity acceleration norm only when Sun gravity is enabled.
+# is_sun_gravity_on: track Sun gravity acceleration norm only when Sun gravity is enabled.
 if propagation_inputs.is_sun_gravity_on:
     acceleration_dependent_variables_to_save.append(
         dependent_variable.single_acceleration_norm(
@@ -1226,7 +1227,7 @@ if propagation_inputs.is_sun_gravity_on:
         ),
     )
 
-# srp_on: track SRP acceleration norm as a dependent variable only when SRP is enabled.
+# is_srp_on: track SRP acceleration norm as a dependent variable only when SRP is enabled.
 if propagation_inputs.is_srp_on:
     acceleration_dependent_variables_to_save.append(
         dependent_variable.single_acceleration_norm(
@@ -1236,7 +1237,7 @@ if propagation_inputs.is_srp_on:
         ),
     )
 
-# earth_drag_on: track aerodynamic drag acceleration norm only when drag is enabled.
+# is_earth_drag_on: track aerodynamic drag acceleration norm only when drag is enabled.
 if propagation_inputs.is_earth_drag_on:
     acceleration_dependent_variables_to_save.append(
         dependent_variable.single_acceleration_norm(
@@ -1247,7 +1248,7 @@ if propagation_inputs.is_earth_drag_on:
     )
 
 
-# venus_gravity_on: track Venus gravity acceleration norm only when Venus gravity is enabled.
+# is_venus_gravity_on: track Venus gravity acceleration norm only when Venus gravity is enabled.
 if propagation_inputs.is_venus_gravity_on:
     acceleration_dependent_variables_to_save.append(
         dependent_variable.single_acceleration_norm(
@@ -1257,7 +1258,7 @@ if propagation_inputs.is_venus_gravity_on:
         ),
     )
 
-# mars_gravity_on: track Mars gravity acceleration norm only when Mars gravity is enabled.
+# is_mars_gravity_on: track Mars gravity acceleration norm only when Mars gravity is enabled.
 if propagation_inputs.is_mars_gravity_on:
     acceleration_dependent_variables_to_save.append(
         dependent_variable.single_acceleration_norm(
@@ -1306,6 +1307,7 @@ step, with the corresponding epochs available through the `time_history` attribu
 # create_dependent_variable_dictionary -- imported just before post-processing.
 from tudatpy.dynamics.propagation import create_dependent_variable_dictionary
 
+# Create propagator settings.
 propagator_settings = create_translational_propagator_settings(
     propagation_inputs=propagation_inputs,
     central_bodies=central_bodies,
@@ -1314,6 +1316,7 @@ propagator_settings = create_translational_propagator_settings(
     dependent_variables_to_save=dependent_variables_to_save,
 )
 
+# Run the propagation and extract results.
 dynamics_simulator = simulator.create_dynamics_simulator(bodies, propagator_settings)
 dep_var_dict = create_dependent_variable_dictionary(dynamics_simulator)
 relative_time_h = (
@@ -1331,6 +1334,7 @@ In short, by passing a `SingleDependentVariableSaveSettings` object to the `asar
 # matplotlib -- imported as late as possible, just before the first plot call.
 from matplotlib import pyplot as plt
 
+# Generate and display plots.
 plot_total_acceleration(dep_var_dict, relative_time_h, satellite_name)
 plot_ground_track(dep_var_dict, relative_time_h, satellite_name)
 plot_kepler_elements(dep_var_dict, relative_time_h, satellite_name)
