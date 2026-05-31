@@ -106,10 +106,22 @@ PLOT_TRUE_ANOMALY_TICK_STEP_DEG = 60
 
 
 def parse_bool_flag(value: str) -> bool:
-    """Parse a boolean flag from CLI.
+    """Parse a CLI boolean token.
 
-    Accepted true values: ``on``, ``true``, ``yes``, ``enable``
-    Accepted false values: ``off``, ``false``, ``no``, ``disable``
+    Parameters
+    ----------
+    value : str
+        Input token to parse.
+
+    Returns
+    -------
+    bool
+        Parsed boolean value.
+
+    Notes
+    -----
+    Accepted true values are ``on``, ``true``, ``yes``, and ``enable``.
+    Accepted false values are ``off``, ``false``, ``no``, and ``disable``.
     """
     lower = value.strip().lower()
     if lower in ("on", "true", "yes", "enable"):
@@ -123,14 +135,22 @@ def parse_bool_flag(value: str) -> bool:
 
 
 def parse_duration_to_seconds(value: str) -> float:
-    """Parse duration strings to seconds.
+    """Parse a duration token and convert it to seconds.
 
-    Accepted formats:
-    - ``<number>`` (defaults to seconds)
-    - ``<number>s`` seconds
-    - ``<number>m`` minutes
-    - ``<number>h`` hours
-    - ``<number>d`` days
+    Parameters
+    ----------
+    value : str
+        Duration token in ``<number>[s|m|h|d]`` format.
+
+    Returns
+    -------
+    float
+        Duration in seconds.
+
+    Notes
+    -----
+    Accepted formats are ``<number>`` (seconds), ``<number>s``,
+    ``<number>m``, ``<number>h``, and ``<number>d``.
     """
     match = re.fullmatch(r"\s*([0-9]*\.?[0-9]+)\s*([smhdSMHD]?)\s*", value)
     if not match:
@@ -159,7 +179,18 @@ def parse_duration_to_seconds(value: str) -> float:
 
 
 def parse_integrator_method(value: str) -> str:
-    """Parse integrator method from CLI."""
+    """Parse the integrator method identifier from CLI input.
+
+    Parameters
+    ----------
+    value : str
+        Integrator method token.
+
+    Returns
+    -------
+    str
+        Normalized method identifier.
+    """
     method = value.strip().lower()
     if method not in SUPPORTED_INTEGRATOR_METHODS:
         raise argparse.ArgumentTypeError(
@@ -169,15 +200,26 @@ def parse_integrator_method(value: str) -> str:
 
 
 def parse_integrator_step_size_values(value: str) -> tuple[float, ...]:
-    """Parse comma-separated integrator step sizes in seconds.
+    """Parse integrator step-size values from CLI input.
 
-    Accepts either:
-    - ``<fixed_step>``
-    - ``<initial_and_minimum_step>,<maximum_step>``
-    - ``<initial_step>,<minimum_step>,<maximum_step>``
+    Parameters
+    ----------
+    value : str
+        Comma-separated step-size token in seconds.
 
-    For the two-value form, the first value is reused for both initial and
-    minimum step size.
+    Returns
+    -------
+    tuple[float, ...]
+        Parsed step-size values in seconds. One value selects fixed-step
+        integration; three values represent ``(initial, minimum, maximum)`` for
+        variable-step integration.
+
+    Notes
+    -----
+    Accepted forms are ``<fixed_step>``,
+    ``<initial_and_minimum_step>,<maximum_step>``, and
+    ``<initial_step>,<minimum_step>,<maximum_step>``. For the two-value form,
+    the first value is reused for both initial and minimum step size.
     """
     parts = [part.strip() for part in value.split(",") if part.strip()]
     try:
@@ -228,7 +270,18 @@ def parse_integrator_step_size_values(value: str) -> tuple[float, ...]:
 
 
 def parse_mass_kg(value: str) -> float:
-    """Parse satellite mass from CLI as a positive value in kilograms."""
+    """Parse satellite mass from CLI input.
+
+    Parameters
+    ----------
+    value : str
+        Mass token in kilograms.
+
+    Returns
+    -------
+    float
+        Positive mass in kilograms.
+    """
     try:
         mass_kg = float(value)
     except ValueError as exc:
@@ -241,11 +294,22 @@ def parse_mass_kg(value: str) -> float:
 
 
 def parse_earth_spherical_harmonic_gravity_degree_order(value: str) -> tuple[int, int]:
-    """Parse Earth spherical harmonic gravity degree/order from ``DxO`` format.
+    """Parse Earth spherical-harmonic gravity degree and order.
 
-    In ``DxO``, ``D`` means degree and ``O`` means order.
+    Parameters
+    ----------
+    value : str
+        Degree/order token in ``DxO`` format.
 
-    Examples: ``5x5``, ``8X6``
+    Returns
+    -------
+    tuple[int, int]
+        Parsed ``(degree, order)`` pair.
+
+    Notes
+    -----
+    In ``DxO``, ``D`` means degree and ``O`` means order. Examples include
+    ``5x5`` and ``8X6``.
     """
     match = re.fullmatch(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
     if not match:
@@ -269,7 +333,18 @@ def parse_earth_spherical_harmonic_gravity_degree_order(value: str) -> tuple[int
 
 
 def parse_drag_area_m2(value: str) -> float:
-    """Parse drag area from CLI as a positive value in square meters."""
+    """Parse drag/reference area from CLI input.
+
+    Parameters
+    ----------
+    value : str
+        Area token in square meters.
+
+    Returns
+    -------
+    float
+        Positive area value in square meters.
+    """
     try:
         drag_area_m2 = float(value)
     except ValueError as exc:
@@ -284,7 +359,18 @@ def parse_drag_area_m2(value: str) -> float:
 
 
 def parse_srp_coefficient(value: str) -> float:
-    """Parse solar radiation pressure coefficient from CLI as a positive value."""
+    """Parse the solar radiation pressure coefficient from CLI input.
+
+    Parameters
+    ----------
+    value : str
+        Coefficient token.
+
+    Returns
+    -------
+    float
+        Positive SRP coefficient.
+    """
     try:
         srp_coefficient = float(value)
     except ValueError as exc:
@@ -301,7 +387,18 @@ def parse_srp_coefficient(value: str) -> float:
 
 
 def parse_drag_coefficient(value: str) -> float:
-    """Parse drag coefficient from CLI as a positive value."""
+    """Parse the aerodynamic drag coefficient from CLI input.
+
+    Parameters
+    ----------
+    value : str
+        Coefficient token.
+
+    Returns
+    -------
+    float
+        Positive drag coefficient.
+    """
     try:
         drag_coefficient = float(value)
     except ValueError as exc:
@@ -316,7 +413,13 @@ def parse_drag_coefficient(value: str) -> float:
 
 
 def build_cli_parser():
-    """Create and return the argument parser for this script."""
+    """Create the command-line argument parser for this script.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        Configured parser for all supported CLI options.
+    """
     parser = argparse.ArgumentParser(
         description=(
             "Run perturbed orbit propagation from one OEM-style state line and "
@@ -601,10 +704,15 @@ class PropagationInputs:
 
 
 def load_spice_kernels():
-    """Load required SPICE kernels for time conversion, ephemerides, and orientation.
+    """Load required SPICE kernels for propagation support.
 
     Kernels are loaded from Tudat's managed kernel directory returned by
     ``tudatpy.data.get_spice_kernel_path()``.
+
+    Returns
+    -------
+    None
+        This function mutates the global SPICE kernel pool.
     """
 
     spice_kernel_files = [
@@ -619,7 +727,12 @@ def load_spice_kernels():
 
 
 def read_initial_state_from_stream(stream):
-    """Read exactly one OEM-like state record from stream.
+    """Read one OEM-like state record from a text stream.
+
+    Parameters
+    ----------
+    stream : IO[str]
+        Input stream providing one state line.
 
     Expected line format is:
     ``YYYY-MM-DDTHH:MM:SS.sss x y z vx vy vz`` where position is in km and
@@ -648,7 +761,12 @@ def read_initial_state_from_stream(stream):
 
 
 def read_initial_state_from_cli_or_stdin(cli_args):
-    """Read one OEM-like state record from ``--initial-state`` or stdin.
+    """Read one OEM-like state record from CLI input sources.
+
+    Parameters
+    ----------
+    cli_args : argparse.Namespace
+        Parsed CLI arguments.
 
     Source precedence is:
     1. ``--initial-state`` value, if provided.
@@ -656,6 +774,11 @@ def read_initial_state_from_cli_or_stdin(cli_args):
 
     This function prints a user-facing error and exits with status 1 when no
     valid input line is available.
+
+    Returns
+    -------
+    tuple[numpy.ndarray, datetime.datetime]
+        ``(initial_state_m_mps, initial_epoch_datetime_utc)``.
     """
     if cli_args.initial_state is not None:
         try:
@@ -689,13 +812,23 @@ def read_initial_state_from_cli_or_stdin(cli_args):
 
 
 def build_propagation_inputs(cli_args) -> PropagationInputs:
-    """Build consolidated propagation inputs from CLI options and parsed state data.
+    """Build propagation inputs from CLI options and parsed state data.
+
+    Parameters
+    ----------
+    cli_args : argparse.Namespace
+        Parsed CLI arguments.
 
     The initial-state reader returns only the SI state vector and the parsed UTC
     epoch, which are the only values needed downstream.
 
     Empty or whitespace-only satellite names are normalized to
     ``DEFAULT_SATELLITE_NAME``.
+
+    Returns
+    -------
+    PropagationInputs
+        Consolidated, validated propagation inputs.
     """
     satellite_name = cli_args.name.strip() if cli_args.name is not None else ""
     if not satellite_name:
@@ -737,7 +870,20 @@ def build_propagation_inputs(cli_args) -> PropagationInputs:
 def print_pre_propagation_summary(
     propagation_inputs: PropagationInputs, input_source: str
 ):
-    """Print selected options and parsed input data before propagation."""
+    """Print the pre-propagation configuration summary.
+
+    Parameters
+    ----------
+    propagation_inputs : PropagationInputs
+        Consolidated propagation options.
+    input_source : str
+        Input source label displayed to the user.
+
+    Returns
+    -------
+    None
+        This function prints a formatted summary to stdout.
+    """
 
     print("=== Propagation Configuration ===")
     print(f"Input source: {input_source}")
@@ -827,10 +973,28 @@ def create_translational_propagator_settings(
 ):
     """Create translational propagator settings for the configured run.
 
+    Parameters
+    ----------
+    propagation_inputs : PropagationInputs
+        Consolidated propagation options.
+    central_bodies : list[str]
+        Central bodies for translational dynamics.
+    acceleration_models : object
+        Acceleration model map returned by Tudat setup utilities.
+    bodies_to_propagate : list[str]
+        Bodies whose translational states are propagated.
+    dependent_variables_to_save : list
+        Dependent-variable save settings passed to the propagator.
+
     Fixed-step integration is selected when one step-size value is provided.
     Variable-step integration is selected when three values are provided and
     uses element-wise scalar tolerances of ``1e-10`` for both absolute and
     relative error control.
+
+    Returns
+    -------
+    object
+        Tudat translational propagator settings object.
     """
     # Resolve the CoefficientSets entry by integrator method name.
     try:
@@ -902,9 +1066,19 @@ def create_translational_propagator_settings(
 def create_environment_and_bodies(propagation_inputs: PropagationInputs):
     """Create environment settings, add spacecraft interfaces, and build bodies.
 
+    Parameters
+    ----------
+    propagation_inputs : PropagationInputs
+        Consolidated propagation options.
+
     Sun and Earth are always present. Moon, Mars, and Venus are included only
     when their corresponding gravity flags are enabled. The spacecraft drag area
     is reused as the cannonball reference area for SRP.
+
+    Returns
+    -------
+    object
+        Tudat system-of-bodies object.
     """
     # Build the list of celestial bodies dynamically.  Sun and Earth are always
     # required; Moon, Mars, and Venus are only included when their respective
@@ -957,8 +1131,202 @@ def create_environment_and_bodies(propagation_inputs: PropagationInputs):
     return bodies
 
 
+def create_acceleration_models(
+    propagation_inputs: PropagationInputs,
+    bodies,
+    bodies_to_propagate,
+    central_bodies,
+):
+    """Create acceleration models for the propagated satellite.
+
+    Parameters
+    ----------
+    propagation_inputs : PropagationInputs
+        Consolidated propagation options.
+    bodies : object
+        Tudat system-of-bodies object.
+    bodies_to_propagate : list[str]
+        Bodies whose translational states are propagated.
+    central_bodies : list[str]
+        Central bodies for translational dynamics.
+
+    The model always includes Earth spherical-harmonic gravity and conditionally
+    includes drag, SRP, and third-body point-mass perturbations according to
+    CLI-derived flags.
+
+    Returns
+    -------
+    object
+        Tudat acceleration-model map.
+    """
+    # Define accelerations acting on the propagated satellite by Sun, Earth,
+    # Moon, Mars, and Venus.
+    satellite_acceleration_settings = {}
+
+    # Sun accelerations: radiation pressure and/or point-mass gravity.
+    sun_accelerations = []
+    if propagation_inputs.is_srp_on:
+        sun_accelerations.insert(0, propagation_setup.acceleration.radiation_pressure())
+    if propagation_inputs.is_sun_gravity_on:
+        sun_accelerations.append(propagation_setup.acceleration.point_mass_gravity())
+
+    if sun_accelerations:
+        satellite_acceleration_settings["Sun"] = sun_accelerations
+
+    # is_earth_drag_on: include aerodynamic drag acceleration from Earth only
+    # when drag is enabled.
+    earth_accelerations = [
+        propagation_setup.acceleration.spherical_harmonic_gravity(
+            propagation_inputs.earth_spherical_harmonic_gravity_degree,
+            propagation_inputs.earth_spherical_harmonic_gravity_order,
+        ),
+    ]
+    if propagation_inputs.is_earth_drag_on:
+        earth_accelerations.append(propagation_setup.acceleration.aerodynamic())
+    satellite_acceleration_settings["Earth"] = earth_accelerations
+
+    # is_moon_gravity_on: include Moon point-mass gravity only when enabled.
+    if propagation_inputs.is_moon_gravity_on:
+        satellite_acceleration_settings["Moon"] = [
+            propagation_setup.acceleration.point_mass_gravity()
+        ]
+
+    # is_venus_gravity_on: include Venus point-mass gravity only when enabled.
+    if propagation_inputs.is_venus_gravity_on:
+        satellite_acceleration_settings["Venus"] = [
+            propagation_setup.acceleration.point_mass_gravity()
+        ]
+
+    # is_mars_gravity_on: include Mars point-mass gravity only when enabled.
+    if propagation_inputs.is_mars_gravity_on:
+        satellite_acceleration_settings["Mars"] = [
+            propagation_setup.acceleration.point_mass_gravity()
+        ]
+
+    # Create global accelerations settings dictionary.
+    acceleration_settings = {
+        propagation_inputs.satellite_name: satellite_acceleration_settings
+    }
+
+    return propagation_setup.create_acceleration_models(
+        bodies, acceleration_settings, bodies_to_propagate, central_bodies
+    )
+
+
+def create_dependent_variables_to_save(propagation_inputs: PropagationInputs):
+    """Create dependent-variable save settings for propagation and plotting.
+
+    Parameters
+    ----------
+    propagation_inputs : PropagationInputs
+        Consolidated propagation options.
+
+    Returns
+    -------
+    tuple[list, list]
+        ``(dependent_variables_to_save, acceleration_dependent_variables_to_save)``
+        where the first list is passed to the propagator and the second list is
+        reused later for acceleration-component plotting.
+    """
+    # Define list of dependent variables to save.
+    dependent_variables_to_save = [
+        dependent_variable.total_acceleration(propagation_inputs.satellite_name),
+        dependent_variable.keplerian_state(propagation_inputs.satellite_name, "Earth"),
+        dependent_variable.latitude(propagation_inputs.satellite_name, "Earth"),
+        dependent_variable.longitude(propagation_inputs.satellite_name, "Earth"),
+    ]
+
+    # Earth spherical harmonic gravity is always tracked; other norms are added
+    # conditionally.
+    acceleration_dependent_variables_to_save = [
+        dependent_variable.single_acceleration_norm(
+            propagation_setup.acceleration.spherical_harmonic_gravity_type,
+            propagation_inputs.satellite_name,
+            "Earth",
+        ),
+    ]
+
+    # is_moon_gravity_on: track Moon gravity acceleration norm only when enabled.
+    if propagation_inputs.is_moon_gravity_on:
+        acceleration_dependent_variables_to_save.append(
+            dependent_variable.single_acceleration_norm(
+                propagation_setup.acceleration.point_mass_gravity_type,
+                propagation_inputs.satellite_name,
+                "Moon",
+            ),
+        )
+
+    # is_sun_gravity_on: track Sun gravity acceleration norm only when enabled.
+    if propagation_inputs.is_sun_gravity_on:
+        acceleration_dependent_variables_to_save.append(
+            dependent_variable.single_acceleration_norm(
+                propagation_setup.acceleration.point_mass_gravity_type,
+                propagation_inputs.satellite_name,
+                "Sun",
+            ),
+        )
+
+    # is_srp_on: track SRP acceleration norm only when SRP is enabled.
+    if propagation_inputs.is_srp_on:
+        acceleration_dependent_variables_to_save.append(
+            dependent_variable.single_acceleration_norm(
+                propagation_setup.acceleration.radiation_pressure_type,
+                propagation_inputs.satellite_name,
+                "Sun",
+            ),
+        )
+
+    # is_earth_drag_on: track aerodynamic drag acceleration norm only when enabled.
+    if propagation_inputs.is_earth_drag_on:
+        acceleration_dependent_variables_to_save.append(
+            dependent_variable.single_acceleration_norm(
+                propagation_setup.acceleration.aerodynamic_type,
+                propagation_inputs.satellite_name,
+                "Earth",
+            ),
+        )
+
+    # is_venus_gravity_on: track Venus gravity acceleration norm only when enabled.
+    if propagation_inputs.is_venus_gravity_on:
+        acceleration_dependent_variables_to_save.append(
+            dependent_variable.single_acceleration_norm(
+                propagation_setup.acceleration.point_mass_gravity_type,
+                propagation_inputs.satellite_name,
+                "Venus",
+            ),
+        )
+
+    # is_mars_gravity_on: track Mars gravity acceleration norm only when enabled.
+    if propagation_inputs.is_mars_gravity_on:
+        acceleration_dependent_variables_to_save.append(
+            dependent_variable.single_acceleration_norm(
+                propagation_setup.acceleration.point_mass_gravity_type,
+                propagation_inputs.satellite_name,
+                "Mars",
+            ),
+        )
+
+    dependent_variables_to_save += acceleration_dependent_variables_to_save
+    return dependent_variables_to_save, acceleration_dependent_variables_to_save
+
+
 def plot_total_acceleration(dep_var_dict, relative_time_h, satellite_name):
-    """Plot total acceleration norm over time in m/s^2 against hours."""
+    """Plot total acceleration norm over time.
+
+    Parameters
+    ----------
+    dep_var_dict : result2array.Result2ArrayLike
+        Dependent-variable history accessor returned by Tudat.
+    relative_time_h : numpy.ndarray
+        Time history in hours from propagation start.
+    satellite_name : str
+        Name of the propagated satellite.
+
+    Returns
+    -------
+    None
+        This function creates a matplotlib figure.
+    """
     plt.figure(figsize=PLOT_STANDARD_FIGURE_SIZE_IN)
     plt.title(
         f"Total acceleration norm on {satellite_name} over the course of propagation."
@@ -979,8 +1347,22 @@ def plot_total_acceleration(dep_var_dict, relative_time_h, satellite_name):
 def plot_ground_track(dep_var_dict, relative_time_h, satellite_name):
     """Plot ground track for the first configured window (default: 3 hours).
 
+    Parameters
+    ----------
+    dep_var_dict : result2array.Result2ArrayLike
+        Dependent-variable history accessor returned by Tudat.
+    relative_time_h : numpy.ndarray
+        Time history in hours from propagation start.
+    satellite_name : str
+        Name of the propagated satellite.
+
     If the propagation is shorter than the configured window, all available
     points are shown.
+
+    Returns
+    -------
+    None
+        This function creates a matplotlib figure.
     """
     plt.figure(figsize=PLOT_STANDARD_FIGURE_SIZE_IN)
     plt.title(f"3 hour ground track of {satellite_name}")
@@ -1004,7 +1386,21 @@ def plot_ground_track(dep_var_dict, relative_time_h, satellite_name):
 def plot_kepler_elements(dep_var_dict, relative_time_h, satellite_name):
     """Plot osculating Keplerian elements over time.
 
+    Parameters
+    ----------
+    dep_var_dict : result2array.Result2ArrayLike
+        Dependent-variable history accessor returned by Tudat.
+    relative_time_h : numpy.ndarray
+        Time history in hours from propagation start.
+    satellite_name : str
+        Name of the propagated satellite.
+
     Semi-major axis is shown in km. Angular elements are shown in degrees.
+
+    Returns
+    -------
+    None
+        This function creates a matplotlib figure.
     """
     fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(
         3, 2, figsize=PLOT_KEPLER_FIGURE_SIZE_IN
@@ -1052,7 +1448,24 @@ def plot_acceleration_components(
     acceleration_dependent_variables_to_save,
     satellite_name,
 ):
-    """Plot acceleration norms by model type and source body on a log scale."""
+    """Plot acceleration norms by type and source body on a log scale.
+
+    Parameters
+    ----------
+    dep_var_dict : result2array.Result2ArrayLike
+        Dependent-variable history accessor returned by Tudat.
+    relative_time_h : numpy.ndarray
+        Time history in hours from propagation start.
+    acceleration_dependent_variables_to_save : list
+        Acceleration dependent-variable settings used for extraction and labels.
+    satellite_name : str
+        Name of the propagated satellite.
+
+    Returns
+    -------
+    None
+        This function creates a matplotlib figure.
+    """
     acceleration_type_to_string = {
         acceleration.AvailableAcceleration.point_mass_gravity_type: "Point Mass",
         acceleration.AvailableAcceleration.spherical_harmonic_gravity_type: "SphHarm Grav",
@@ -1163,69 +1576,23 @@ central_bodies = ["Earth"]
 First off, the acceleration settings that act on the propagated satellite are to be defined.
 In this case, these consist in the followings:
 
-- Gravitational acceleration of Earth modeled as spherical harmonic gravity, taken up to a degree and order 5.
 - Gravitational acceleration of Earth modeled as spherical harmonic gravity,
   with degree/order taken from ``--earth-gravity``.
 - Gravitational acceleration of the Sun, the Moon, Mars, and Venus, modeled as a Point Mass.
 - Aerodynamic acceleration caused by the atmosphere of the Earth (using the aerodynamic interface defined earlier).
 - Radiation pressure acceleration caused by the Sun (using the radiation interface defined earlier).
 
-The acceleration settings defined are then applied to the propagated satellite in a dictionary.
-
-This dictionary is finally input to the propagation setup to create the acceleration models.
+The acceleration settings dictionary and resulting models are built by
+``create_acceleration_models(...)``.
 """
 
 
-# Define accelerations acting on the propagated satellite by Sun, Earth, Moon, Mars, and Venus.
-satellite_acceleration_settings = {}
-
-# Sun accelerations: radiation pressure and/or point-mass gravity.
-sun_accelerations = []
-if propagation_inputs.is_srp_on:
-    sun_accelerations.insert(0, propagation_setup.acceleration.radiation_pressure())
-if propagation_inputs.is_sun_gravity_on:
-    sun_accelerations.append(propagation_setup.acceleration.point_mass_gravity())
-
-if sun_accelerations:
-    satellite_acceleration_settings["Sun"] = sun_accelerations
-
-# is_earth_drag_on: include aerodynamic drag acceleration from Earth only when drag is enabled.
-earth_accelerations = [
-    propagation_setup.acceleration.spherical_harmonic_gravity(
-        propagation_inputs.earth_spherical_harmonic_gravity_degree,
-        propagation_inputs.earth_spherical_harmonic_gravity_order,
-    ),
-]
-if propagation_inputs.is_earth_drag_on:
-    earth_accelerations.append(propagation_setup.acceleration.aerodynamic())
-satellite_acceleration_settings["Earth"] = earth_accelerations
-
-# is_moon_gravity_on: include Moon point-mass gravity only when enabled.
-if propagation_inputs.is_moon_gravity_on:
-    satellite_acceleration_settings["Moon"] = [
-        propagation_setup.acceleration.point_mass_gravity()
-    ]
-
-# is_venus_gravity_on: include Venus point-mass gravity only when enabled.
-if propagation_inputs.is_venus_gravity_on:
-    satellite_acceleration_settings["Venus"] = [
-        propagation_setup.acceleration.point_mass_gravity()
-    ]
-
-# is_mars_gravity_on: include Mars point-mass gravity only when enabled.
-if propagation_inputs.is_mars_gravity_on:
-    satellite_acceleration_settings["Mars"] = [
-        propagation_setup.acceleration.point_mass_gravity()
-    ]
-
-# Create global accelerations settings dictionary.
-acceleration_settings = {
-    propagation_inputs.satellite_name: satellite_acceleration_settings
-}
-
-# Create acceleration models.
-acceleration_models = propagation_setup.create_acceleration_models(
-    bodies, acceleration_settings, bodies_to_propagate, central_bodies
+# Create acceleration models via helper.
+acceleration_models = create_acceleration_models(
+    propagation_inputs=propagation_inputs,
+    bodies=bodies,
+    bodies_to_propagate=bodies_to_propagate,
+    central_bodies=central_bodies,
 )
 
 
@@ -1271,92 +1638,19 @@ variables that are available.
 For later post-processing, we first define all single acceleration norm settings
 in the `acceleration_dependent_variables_to_save` variable (which we will reuse
 later) and then combine it with all other dependent variables saved in the
-`dependent_variables_to_save` variable.
+`dependent_variables_to_save` variable. This setup is built by
+``create_dependent_variables_to_save(...)``.
 """
 
 # dependent_variable and acceleration sub-modules -- imported just before
 # defining the dependent variable list.
 from tudatpy.dynamics.propagation_setup import dependent_variable, acceleration
 
-# Define list of dependent variables to save
-dependent_variables_to_save = [
-    dependent_variable.total_acceleration(propagation_inputs.satellite_name),
-    dependent_variable.keplerian_state(propagation_inputs.satellite_name, "Earth"),
-    dependent_variable.latitude(propagation_inputs.satellite_name, "Earth"),
-    dependent_variable.longitude(propagation_inputs.satellite_name, "Earth"),
-]
-
-# Earth spherical harmonic gravity is always tracked; other norms are added conditionally.
-acceleration_dependent_variables_to_save = [
-    dependent_variable.single_acceleration_norm(
-        propagation_setup.acceleration.spherical_harmonic_gravity_type,
-        propagation_inputs.satellite_name,
-        "Earth",
-    ),
-]
-
-# is_moon_gravity_on: track Moon gravity acceleration norm only when Moon gravity is enabled.
-if propagation_inputs.is_moon_gravity_on:
-    acceleration_dependent_variables_to_save.append(
-        dependent_variable.single_acceleration_norm(
-            propagation_setup.acceleration.point_mass_gravity_type,
-            propagation_inputs.satellite_name,
-            "Moon",
-        ),
-    )
-
-# is_sun_gravity_on: track Sun gravity acceleration norm only when Sun gravity is enabled.
-if propagation_inputs.is_sun_gravity_on:
-    acceleration_dependent_variables_to_save.append(
-        dependent_variable.single_acceleration_norm(
-            propagation_setup.acceleration.point_mass_gravity_type,
-            propagation_inputs.satellite_name,
-            "Sun",
-        ),
-    )
-
-# is_srp_on: track SRP acceleration norm as a dependent variable only when SRP is enabled.
-if propagation_inputs.is_srp_on:
-    acceleration_dependent_variables_to_save.append(
-        dependent_variable.single_acceleration_norm(
-            propagation_setup.acceleration.radiation_pressure_type,
-            propagation_inputs.satellite_name,
-            "Sun",
-        ),
-    )
-
-# is_earth_drag_on: track aerodynamic drag acceleration norm only when drag is enabled.
-if propagation_inputs.is_earth_drag_on:
-    acceleration_dependent_variables_to_save.append(
-        dependent_variable.single_acceleration_norm(
-            propagation_setup.acceleration.aerodynamic_type,
-            propagation_inputs.satellite_name,
-            "Earth",
-        ),
-    )
-
-
-# is_venus_gravity_on: track Venus gravity acceleration norm only when Venus gravity is enabled.
-if propagation_inputs.is_venus_gravity_on:
-    acceleration_dependent_variables_to_save.append(
-        dependent_variable.single_acceleration_norm(
-            propagation_setup.acceleration.point_mass_gravity_type,
-            propagation_inputs.satellite_name,
-            "Venus",
-        ),
-    )
-
-# is_mars_gravity_on: track Mars gravity acceleration norm only when Mars gravity is enabled.
-if propagation_inputs.is_mars_gravity_on:
-    acceleration_dependent_variables_to_save.append(
-        dependent_variable.single_acceleration_norm(
-            propagation_setup.acceleration.point_mass_gravity_type,
-            propagation_inputs.satellite_name,
-            "Mars",
-        ),
-    )
-
-dependent_variables_to_save += acceleration_dependent_variables_to_save
+# Build propagation and acceleration-specific dependent variable settings.
+(
+    dependent_variables_to_save,
+    acceleration_dependent_variables_to_save,
+) = create_dependent_variables_to_save(propagation_inputs)
 
 
 """
