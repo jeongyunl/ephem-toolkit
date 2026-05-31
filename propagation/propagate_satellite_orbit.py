@@ -1009,8 +1009,12 @@ def print_pre_propagation_summary(
     print(f"Mars gravity: {'on' if propagation_inputs.is_mars_gravity_on else 'off'}")
 
     print(f"Initial epoch: {propagation_inputs.initial_epoch_datetime_utc.isoformat()}")
-    initial_position_km = propagation_inputs.initial_state_m_mps[:3] / KILOMETERS_TO_METERS
-    initial_velocity_kmps = propagation_inputs.initial_state_m_mps[3:] / KILOMETERS_TO_METERS
+    initial_position_km = (
+        propagation_inputs.initial_state_m_mps[:3] / KILOMETERS_TO_METERS
+    )
+    initial_velocity_kmps = (
+        propagation_inputs.initial_state_m_mps[3:] / KILOMETERS_TO_METERS
+    )
     print(
         "Initial position vector [km]: "
         f"{np.array2string(initial_position_km, precision=6, separator=', ')}"
@@ -1579,9 +1583,12 @@ def plot_satellite_position_history_3d(dep_var_dict, satellite_name):
 
     Returns
     -------
-    None
-        This function creates a matplotlib 3D figure.
+    matplotlib.animation.FuncAnimation | None
+        Animation object for the 3D trajectory, or ``None`` when no samples
+        are available.
     """
+    from matplotlib.animation import FuncAnimation
+
     positions_m = dep_var_dict.asarray(
         dependent_variable.central_body_fixed_cartesian_position(
             satellite_name,
@@ -1614,13 +1621,40 @@ def plot_satellite_position_history_3d(dep_var_dict, satellite_name):
         linewidth=1.5,
         label="Earth polar axis",
     )
+    polar_axis_label_offset_km = 0.03 * polar_axis_extent_km
+    ax.text(
+        0.0,
+        0.0,
+        polar_axis_extent_km + polar_axis_label_offset_km,
+        "N",
+        color="tab:blue",
+        ha="center",
+        va="bottom",
+    )
+    ax.text(
+        0.0,
+        0.0,
+        -polar_axis_extent_km - polar_axis_label_offset_km,
+        "S",
+        color="tab:blue",
+        ha="center",
+        va="top",
+    )
 
-    ax.plot(
-        positions_km[:, 0],
-        positions_km[:, 1],
-        positions_km[:, 2],
+    (trajectory_line,) = ax.plot(
+        [],
+        [],
+        [],
         color="tab:red",
         label=f"{satellite_name} trajectory",
+    )
+    moving_satellite_marker = ax.scatter(
+        [],
+        [],
+        [],
+        color="tab:orange",
+        s=22,
+        label="current",
     )
     ax.scatter(
         positions_km[0, 0],
@@ -1640,7 +1674,14 @@ def plot_satellite_position_history_3d(dep_var_dict, satellite_name):
     )
 
     # Keep an equal visual scale on all axes.
-    max_extent_km = max(np.max(np.abs(positions_km)), EARTH_MEAN_RADIUS_KM) * 1.05
+    max_extent_km = (
+        max(
+            np.max(np.abs(positions_km)),
+            EARTH_MEAN_RADIUS_KM,
+            polar_axis_extent_km + polar_axis_label_offset_km,
+        )
+        * 1.05
+    )
     ax.set_xlim(-max_extent_km, max_extent_km)
     ax.set_ylim(-max_extent_km, max_extent_km)
     ax.set_zlim(-max_extent_km, max_extent_km)
@@ -1649,8 +1690,54 @@ def plot_satellite_position_history_3d(dep_var_dict, satellite_name):
     ax.set_xlabel("X [km]")
     ax.set_ylabel("Y [km]")
     ax.set_zlabel("Z [km]")
-    ax.set_title(f"3D state history of {satellite_name} around Earth")
+    ax.set_title(f"3D animated position history of {satellite_name} around Earth")
     ax.legend(loc="upper left", bbox_to_anchor=(-0.22, 1.0))
+
+    sample_count = positions_km.shape[0]
+    max_animation_frames = 1000
+    if sample_count > max_animation_frames:
+        frame_indices = np.linspace(
+            0,
+            sample_count - 1,
+            num=max_animation_frames,
+            dtype=int,
+        )
+    else:
+        frame_indices = np.arange(sample_count)
+
+    def initialize_animation():
+        trajectory_line.set_data([], [])
+        trajectory_line.set_3d_properties([])
+        moving_satellite_marker._offsets3d = ([], [], [])
+        return trajectory_line, moving_satellite_marker
+
+    def update_animation(frame_number):
+        sample_index = frame_indices[frame_number]
+        visible_positions_km = positions_km[: sample_index + 1]
+
+        trajectory_line.set_data(
+            visible_positions_km[:, 0],
+            visible_positions_km[:, 1],
+        )
+        trajectory_line.set_3d_properties(visible_positions_km[:, 2])
+
+        moving_satellite_marker._offsets3d = (
+            [positions_km[sample_index, 0]],
+            [positions_km[sample_index, 1]],
+            [positions_km[sample_index, 2]],
+        )
+        return trajectory_line, moving_satellite_marker
+
+    trajectory_animation = FuncAnimation(
+        fig,
+        update_animation,
+        frames=len(frame_indices),
+        init_func=initialize_animation,
+        interval=30,
+        blit=False,
+        repeat=True,
+    )
+    return trajectory_animation
 
 
 # ===================================================================
@@ -1909,7 +1996,10 @@ plot_acceleration_components(
     acceleration_dependent_variables_to_save,
     satellite_name,
 )
-plot_satellite_position_history_3d(dep_var_dict, satellite_name)
+_trajectory_animation = plot_satellite_position_history_3d(
+    dep_var_dict,
+    satellite_name,
+)
 
 
 plt.show()
