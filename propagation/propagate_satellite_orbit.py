@@ -237,17 +237,29 @@ def parse_integrator_step_size_values(value: str) -> tuple[float, ...]:
 
     Accepts either:
     - ``<fixed_step>``
+    - ``<initial_and_minimum_step>,<maximum_step>``
     - ``<initial_step>,<minimum_step>,<maximum_step>``
     """
     parts = [part.strip() for part in value.split(",") if part.strip()]
-    if len(parts) not in (1, 3):
-        raise argparse.ArgumentTypeError(
-            "integrator step size must be either one value or three comma-separated values "
-            "(initial_step,minimum_step,maximum_step)"
-        )
-
     try:
-        step_size_values = tuple(float(part) for part in parts)
+        if len(parts) == 1:
+            step_size_values = (float(parts[0]),)
+        elif len(parts) == 2:
+            step_size_values = (
+                float(
+                    parts[0]
+                ),  # initial_step. initial_and_minimum_step normalized to initial_step = minimum_step
+                float(parts[0]),  # minimum_step
+                float(parts[1]),  # maximum_step
+            )
+        elif len(parts) == 3:
+            step_size_values = tuple(float(part) for part in parts)
+        else:
+            raise argparse.ArgumentTypeError(
+                "integrator step size must be one, two, or three comma-separated values "
+                "(<fixed_step> or <initial_and_minimum_step>,<maximum_step> or "
+                "<initial_step>,<minimum_step>,<maximum_step>)"
+            )
     except ValueError as exc:
         raise argparse.ArgumentTypeError(
             "integrator step size values must be valid numbers in seconds"
@@ -258,18 +270,20 @@ def parse_integrator_step_size_values(value: str) -> tuple[float, ...]:
             "integrator step size values must be positive numbers in seconds"
         )
 
-    if len(step_size_values) == 3:
-        initial_step_size_s, minimum_step_size_s, maximum_step_size_s = step_size_values
-        if minimum_step_size_s > maximum_step_size_s:
-            raise argparse.ArgumentTypeError(
-                "for variable-step integrator, minimum_step must be less than or equal to "
-                "maximum_step"
-            )
-        if not (minimum_step_size_s <= initial_step_size_s <= maximum_step_size_s):
-            raise argparse.ArgumentTypeError(
-                "for variable-step integrator, initial_step must be between minimum_step "
-                "and maximum_step"
-            )
+    if len(step_size_values) == 1:
+        return step_size_values
+
+    initial_step_size_s, minimum_step_size_s, maximum_step_size_s = step_size_values
+    if minimum_step_size_s > maximum_step_size_s:
+        raise argparse.ArgumentTypeError(
+            "for variable-step integrator, minimum_step must be less than or equal to "
+            "maximum_step"
+        )
+    if not (minimum_step_size_s <= initial_step_size_s <= maximum_step_size_s):
+        raise argparse.ArgumentTypeError(
+            "for variable-step integrator, initial_step must be between minimum_step "
+            "and maximum_step"
+        )
 
     return step_size_values
 
@@ -426,6 +440,8 @@ def build_cli_parser():
         help=(
             "Integrator step sizes in seconds as a single comma-separated token. "
             "Provide either one value for fixed-step (for example, 10) "
+            "or two values for variable-step as <initial_and_minimum_step>,<maximum_step> "
+            "(for example, 0.001,1000), "
             "or three values for variable-step in this order: "
             "<initial_step>,<minimum_step>,<maximum_step> "
             "(for example, 30,0.001,1000). "
