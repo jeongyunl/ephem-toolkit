@@ -105,6 +105,7 @@ PLOT_GROUND_TRACK_H = 3
 PLOT_SCATTER_MARKER_SIZE_PT2 = 1
 PLOT_LATITUDE_TICK_STEP_DEG = 45
 PLOT_TRUE_ANOMALY_TICK_STEP_DEG = 60
+EARTH_MEAN_RADIUS_KM = 6378.137
 
 
 def parse_bool_flag(value: str) -> bool:
@@ -1242,6 +1243,9 @@ def create_dependent_variables_to_save(propagation_inputs: PropagationInputs):
         dependent_variable.keplerian_state(propagation_inputs.satellite_name, "Earth"),
         dependent_variable.latitude(propagation_inputs.satellite_name, "Earth"),
         dependent_variable.longitude(propagation_inputs.satellite_name, "Earth"),
+        dependent_variable.central_body_fixed_cartesian_position(
+            propagation_inputs.satellite_name, "Earth"
+        ),
     ]
 
     # Earth spherical harmonic gravity is always tracked; other norms are added
@@ -1503,6 +1507,92 @@ def plot_acceleration_components(
     plt.tight_layout()
 
 
+def plot_satellite_position_history_3d(dep_var_dict, satellite_name):
+    """Plot propagated 3D trajectory in Earth-fixed coordinates with Earth.
+
+    Parameters
+    ----------
+    dep_var_dict : result2array.Result2ArrayLike
+        Dependent-variable history accessor returned by Tudat.
+    satellite_name : str
+        Name of the propagated satellite.
+
+    Returns
+    -------
+    None
+        This function creates a matplotlib 3D figure.
+    """
+    positions_m = dep_var_dict.asarray(
+        dependent_variable.central_body_fixed_cartesian_position(
+            satellite_name,
+            "Earth",
+        )
+    )
+    if positions_m.size == 0:
+        return
+    positions_km = positions_m / KILOMETERS_TO_METERS
+
+    fig = plt.figure(figsize=PLOT_STANDARD_FIGURE_SIZE_IN)
+    ax = fig.add_subplot(111, projection="3d")
+
+    # Draw Earth as a semi-transparent sphere centered at the origin.
+    azimuth = np.linspace(0.0, 2.0 * np.pi, 60)
+    polar = np.linspace(0.0, np.pi, 30)
+    earth_x = EARTH_MEAN_RADIUS_KM * np.outer(np.cos(azimuth), np.sin(polar))
+    earth_y = EARTH_MEAN_RADIUS_KM * np.outer(np.sin(azimuth), np.sin(polar))
+    earth_z = EARTH_MEAN_RADIUS_KM * np.outer(np.ones_like(azimuth), np.cos(polar))
+    ax.plot_surface(earth_x, earth_y, earth_z, color="lightskyblue", alpha=0.35)
+
+    # Draw Earth's polar axis (Earth-fixed +Z / -Z axis).
+    polar_axis_extent_km = 1.5 * EARTH_MEAN_RADIUS_KM
+    ax.plot(
+        [0.0, 0.0],
+        [0.0, 0.0],
+        [-polar_axis_extent_km, polar_axis_extent_km],
+        color="tab:blue",
+        linestyle=":",
+        linewidth=1.5,
+        label="Earth polar axis",
+    )
+
+    ax.plot(
+        positions_km[:, 0],
+        positions_km[:, 1],
+        positions_km[:, 2],
+        color="tab:red",
+        label=f"{satellite_name} trajectory",
+    )
+    ax.scatter(
+        positions_km[0, 0],
+        positions_km[0, 1],
+        positions_km[0, 2],
+        color="tab:green",
+        s=20,
+        label="start",
+    )
+    ax.scatter(
+        positions_km[-1, 0],
+        positions_km[-1, 1],
+        positions_km[-1, 2],
+        color="tab:purple",
+        s=20,
+        label="end",
+    )
+
+    # Keep an equal visual scale on all axes.
+    max_extent_km = max(np.max(np.abs(positions_km)), EARTH_MEAN_RADIUS_KM) * 1.05
+    ax.set_xlim(-max_extent_km, max_extent_km)
+    ax.set_ylim(-max_extent_km, max_extent_km)
+    ax.set_zlim(-max_extent_km, max_extent_km)
+    ax.set_box_aspect((1.0, 1.0, 1.0))
+
+    ax.set_xlabel("X [km]")
+    ax.set_ylabel("Y [km]")
+    ax.set_zlabel("Z [km]")
+    ax.set_title(f"3D state history of {satellite_name} around Earth")
+    ax.legend(loc="upper left", bbox_to_anchor=(-0.22, 1.0))
+
+
 # ===================================================================
 # Main execution
 # ===================================================================
@@ -1698,7 +1788,7 @@ step, with the corresponding epochs available through the `time_history` attribu
 """
 
 # create_dependent_variable_dictionary -- imported just before post-processing.
-from tudatpy.dynamics.propagation import create_dependent_variable_dictionary
+import tudatpy.dynamics.propagation as propagation
 
 # Create propagator settings.
 propagator_settings = create_translational_propagator_settings(
@@ -1711,7 +1801,11 @@ propagator_settings = create_translational_propagator_settings(
 
 # Run the propagation and extract results.
 dynamics_simulator = simulator.create_dynamics_simulator(bodies, propagator_settings)
-dep_var_dict = create_dependent_variable_dictionary(dynamics_simulator)
+
+# state_history: dict[time(float), state(numpy.ndarray)] with time in seconds since J2000 and state as a 6-element array of cartesian state.
+state_history = dynamics_simulator.propagation_results.state_history
+
+dep_var_dict = propagation.create_dependent_variable_dictionary(dynamics_simulator)
 relative_time_h = (
     dep_var_dict.time_history - dep_var_dict.time_history[0]
 ) / SECONDS_PER_HOUR
@@ -1742,6 +1836,7 @@ plot_acceleration_components(
     acceleration_dependent_variables_to_save,
     satellite_name,
 )
+plot_satellite_position_history_3d(dep_var_dict, satellite_name)
 
 
 plt.show()

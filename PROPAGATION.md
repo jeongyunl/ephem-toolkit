@@ -58,7 +58,7 @@ The state is provided either via the `--initial-state`/`-i` option or piped thro
 #### Output
 
 The script prints a pre-propagation configuration summary to stdout and, after
-propagation, displays four matplotlib plots.
+propagation, displays five matplotlib plots.
 
 The pre-propagation summary includes:
 
@@ -74,6 +74,7 @@ The plots are:
 2. **Ground track** (latitude vs. longitude) for the first 3 hours.
 3. **Keplerian elements** (semi-major axis, eccentricity, inclination, argument of periapsis, RAAN, true anomaly) over time.
 4. **Acceleration components** (norms by type and source body, log scale) over time.
+5. **3D state history** (cartesian trajectory around an Earth sphere).
 
 #### Propagation Model
 

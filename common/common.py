@@ -1,6 +1,6 @@
 """Common utilities shared by frame-conversion scripts."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
 from tudatpy.astro import time_representation
@@ -56,3 +56,11 @@ def datetime_to_tdb(dt: datetime):
     )
 
 
+def tdb_to_datetime(tdb_s: float):
+    """Convert TDB (ephemeris time) seconds since J2000 to a datetime object."""
+    utc_j2000_s = _tudat_time_scale_converter.convert_time(
+        input_value=tdb_s,
+        input_scale=TimeScales.tdb_scale,
+        output_scale=TimeScales.utc_scale,
+    )
+    return _UTC_J2000_DATETIME + timedelta(seconds=utc_j2000_s)
