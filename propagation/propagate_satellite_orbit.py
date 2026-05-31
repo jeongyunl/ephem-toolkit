@@ -1740,6 +1740,115 @@ def plot_satellite_position_history_3d(dep_var_dict, satellite_name):
     return trajectory_animation
 
 
+def plot_satellite_state_history_3d(state_history, satellite_name):
+    """Plot propagated 3D state history in the ECI frame with Earth.
+
+    Parameters
+    ----------
+    state_history : dict[float, numpy.ndarray]
+        State history mapping TDB seconds since J2000 to 6-element cartesian
+        state vectors in SI units.
+    satellite_name : str
+        Name of the propagated satellite.
+
+    Returns
+    -------
+    None
+        This function creates a static matplotlib 3D figure.
+    """
+    if not state_history:
+        return
+
+    epochs_tdb_s = np.array(sorted(state_history))
+    state_vectors_m_mps = np.array([state_history[epoch] for epoch in epochs_tdb_s])
+    positions_km = state_vectors_m_mps[:, :3] / KILOMETERS_TO_METERS
+
+    fig = plt.figure(figsize=PLOT_STANDARD_FIGURE_SIZE_IN)
+    ax = fig.add_subplot(111, projection="3d")
+
+    # Draw Earth as a semi-transparent sphere centered at the origin.
+    azimuth = np.linspace(0.0, 2.0 * np.pi, 60)
+    polar = np.linspace(0.0, np.pi, 30)
+    earth_x = EARTH_MEAN_RADIUS_KM * np.outer(np.cos(azimuth), np.sin(polar))
+    earth_y = EARTH_MEAN_RADIUS_KM * np.outer(np.sin(azimuth), np.sin(polar))
+    earth_z = EARTH_MEAN_RADIUS_KM * np.outer(np.ones_like(azimuth), np.cos(polar))
+    ax.plot_surface(earth_x, earth_y, earth_z, color="lightskyblue", alpha=0.35)
+
+    # Draw the inertial Z axis aligned with Earth's mean spin axis.
+    polar_axis_extent_km = 1.5 * EARTH_MEAN_RADIUS_KM
+    ax.plot(
+        [0.0, 0.0],
+        [0.0, 0.0],
+        [-polar_axis_extent_km, polar_axis_extent_km],
+        color="tab:blue",
+        linestyle=":",
+        linewidth=1.5,
+        label="ECI Z axis",
+    )
+    polar_axis_label_offset_km = 0.03 * polar_axis_extent_km
+    ax.text(
+        0.0,
+        0.0,
+        polar_axis_extent_km + polar_axis_label_offset_km,
+        "N",
+        color="tab:blue",
+        ha="center",
+        va="bottom",
+    )
+    ax.text(
+        0.0,
+        0.0,
+        -polar_axis_extent_km - polar_axis_label_offset_km,
+        "S",
+        color="tab:blue",
+        ha="center",
+        va="top",
+    )
+
+    ax.plot(
+        positions_km[:, 0],
+        positions_km[:, 1],
+        positions_km[:, 2],
+        color="tab:red",
+        label=f"{satellite_name} state history",
+    )
+    ax.scatter(
+        positions_km[0, 0],
+        positions_km[0, 1],
+        positions_km[0, 2],
+        color="tab:green",
+        s=20,
+        label="start",
+    )
+    ax.scatter(
+        positions_km[-1, 0],
+        positions_km[-1, 1],
+        positions_km[-1, 2],
+        color="tab:purple",
+        s=20,
+        label="end",
+    )
+
+    max_extent_km = (
+        max(
+            np.max(np.abs(positions_km)),
+            EARTH_MEAN_RADIUS_KM,
+            polar_axis_extent_km + polar_axis_label_offset_km,
+        )
+        * 1.05
+    )
+    ax.set_xlim(-max_extent_km, max_extent_km)
+    ax.set_ylim(-max_extent_km, max_extent_km)
+    ax.set_zlim(-max_extent_km, max_extent_km)
+    ax.set_box_aspect((1.0, 1.0, 1.0))
+
+    ax.set_xlabel("X [km]")
+    ax.set_ylabel("Y [km]")
+    ax.set_zlabel("Z [km]")
+    ax.set_title(f"3D state history of {satellite_name} in the ECI frame")
+    ax.legend(loc="upper left", bbox_to_anchor=(-0.22, 1.0))
+
+
 # ===================================================================
 # Main execution
 # ===================================================================
@@ -1955,12 +2064,10 @@ propagator_settings = create_translational_propagator_settings(
 dynamics_simulator = simulator.create_dynamics_simulator(bodies, propagator_settings)
 
 # state_history: dict[time(float), state(numpy.ndarray)] with time in seconds since J2000 and state as a 6-element array of cartesian state.
+state_history = dynamics_simulator.propagation_results.state_history
 if output_state_history_path is not None:
     try:
-        write_state_history_oem_like(
-            dynamics_simulator.propagation_results.state_history,
-            output_state_history_path,
-        )
+        write_state_history_oem_like(state_history, output_state_history_path)
     except OSError as exc:
         print(f"Error: failed to write state-history output: {exc}", file=sys.stderr)
         sys.exit(1)
@@ -2000,6 +2107,7 @@ _trajectory_animation = plot_satellite_position_history_3d(
     dep_var_dict,
     satellite_name,
 )
+plot_satellite_state_history_3d(state_history, satellite_name)
 
 
 plt.show()
