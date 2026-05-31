@@ -4,11 +4,30 @@ from __future__ import annotations
 """
 # Perturbed satellite orbit
 ## Objectives
-This example demonstrates the propagation of a (quasi-massless) body dominated by a central point-mass attractor, but also including multiple perturbing accelerations exerted by the central body as well as third bodies.
+This example demonstrates the propagation of a (quasi-massless) body dominated by
+a central point-mass attractor, but also including multiple perturbing
+accelerations exerted by the central body as well as third bodies.
 
-The example showcases the ease with which a simulation environment can be extended to a multi-body system. It also demonstrates the wide variety of acceleration types that can be modelled using the `propagation_setup.acceleration` module, including accelerations from non-conservative forces such as drag and radiation pressure. Note that the modelling of these acceleration types requires special environment interfaces (implemented via [AerodynamicCoefficientSettings](https://py.api.tudat.space/en/latest/aerodynamic_coefficients.html#tudatpy.dynamics.environment_setup.aerodynamic_coefficients.AerodynamicCoefficientSettings) and [RadiationPressureTargetModelSettings](https://py.api.tudat.space/en/latest/radiation_pressure.html#tudatpy.dynamics.environment_setup.radiation_pressure.RadiationPressureTargetModelSettings)) of the body undergoing the accelerations.
+The example showcases the ease with which a simulation environment can be
+extended to a multi-body system. It also demonstrates the wide variety of
+acceleration types that can be modelled using the `propagation_setup.acceleration`
+module, including accelerations from non-conservative forces such as drag and
+radiation pressure. Note that the modelling of these acceleration types requires
+special environment interfaces (implemented via
+[AerodynamicCoefficientSettings](https://py.api.tudat.space/en/latest/aerodynamic_coefficients.html)
+and
+[RadiationPressureTargetModelSettings](https://py.api.tudat.space/en/latest/radiation_pressure.html))
+of the body undergoing the accelerations.
 
-It also demonstrates and motivates the usage of dependent variables. By keeping track of such variables throughout the propagation, valuable insight, such as contributions of individual acceleration types, ground tracks or the evolution of Kepler elements, can be derived in the post-propagation analysis.
+It also demonstrates and motivates the usage of dependent variables. By keeping
+track of such variables throughout the propagation, valuable insight, such as
+contributions of individual acceleration types, ground tracks or the evolution
+of Kepler elements, can be derived in the post-propagation analysis.
+
+The script expects exactly one OEM-like state line as input with epoch and six
+cartesian components: ``UTC_ISO x y z vx vy vz`` where position is in km and
+velocity in km/s. Input is read from ``--initial-state`` when provided,
+otherwise from stdin.
 """
 
 """
@@ -151,6 +170,9 @@ def parse_integrator_step_size_values(value: str) -> tuple[float, ...]:
     - ``<fixed_step>``
     - ``<initial_and_minimum_step>,<maximum_step>``
     - ``<initial_step>,<minimum_step>,<maximum_step>``
+
+    For the two-value form, the first value is reused for both initial and
+    minimum step size.
     """
     parts = [part.strip() for part in value.split(",") if part.strip()]
     try:
@@ -569,7 +591,11 @@ class PropagationInputs:
 
 
 def load_spice_kernels():
-    """Load required SPICE kernels for time conversion and Earth orientation."""
+    """Load required SPICE kernels for time conversion, ephemerides, and orientation.
+
+    Kernels are loaded from Tudat's managed kernel directory returned by
+    ``tudatpy.data.get_spice_kernel_path()``.
+    """
 
     spice_kernel_files = [
         "naif0012.tls",  # LEAPSECONDS KERNEL FILE
@@ -584,6 +610,10 @@ def load_spice_kernels():
 
 def read_initial_state_from_stream(stream):
     """Read exactly one OEM-like state record from stream.
+
+    Expected line format is:
+    ``YYYY-MM-DDTHH:MM:SS.sss x y z vx vy vz`` where position is in km and
+    velocity is in km/s.
 
     Returns
     -------
@@ -608,7 +638,15 @@ def read_initial_state_from_stream(stream):
 
 
 def read_initial_state_from_cli_or_stdin(cli_args):
-    """Read one OEM-like state record from --initial-state or stdin."""
+    """Read one OEM-like state record from ``--initial-state`` or stdin.
+
+    Source precedence is:
+    1. ``--initial-state`` value, if provided.
+    2. One line from stdin, when stdin is piped.
+
+    This function prints a user-facing error and exits with status 1 when no
+    valid input line is available.
+    """
     if cli_args.initial_state is not None:
         try:
             return read_initial_state_from_stream(
@@ -645,6 +683,9 @@ def build_propagation_inputs(cli_args) -> PropagationInputs:
 
     The initial-state reader returns only the SI state vector and the parsed UTC
     epoch, which are the only values needed downstream.
+
+    Empty or whitespace-only satellite names are normalized to
+    ``DEFAULT_SATELLITE_NAME``.
     """
     satellite_name = cli_args.name.strip() if cli_args.name is not None else ""
     if not satellite_name:
@@ -694,7 +735,8 @@ def print_pre_propagation_summary(
     print(f"Satellite mass [kg]: {propagation_inputs.satellite_mass_kg}")
 
     # integrator_method and integrator_step_size_values_s
-    # display integrator method and step size(s), with mode (fixed or variable) inferred from the number of step size values provided.
+    # display integrator method and step size(s), with mode (fixed or variable)
+    # inferred from the number of step size values provided.
     print(f"Integrator method: {propagation_inputs.integrator_method}")
     if len(propagation_inputs.integrator_step_size_values_s) == 1:
         print("Integrator mode: fixed-step")
@@ -739,7 +781,8 @@ def print_pre_propagation_summary(
     if propagation_inputs.is_earth_drag_on:
         print(f"Drag coefficient: {propagation_inputs.satellite_drag_coefficient}")
 
-    # is_sun_gravity_on / is_moon_gravity_on / is_mars_gravity_on / is_venus_gravity_on: display third-body gravity status.
+    # is_sun_gravity_on / is_moon_gravity_on / is_mars_gravity_on /
+    # is_venus_gravity_on: display third-body gravity status.
     print(f"Moon gravity: {'on' if propagation_inputs.is_moon_gravity_on else 'off'}")
     print(f"Sun gravity: {'on' if propagation_inputs.is_sun_gravity_on else 'off'}")
     print(f"Venus gravity: {'on' if propagation_inputs.is_venus_gravity_on else 'off'}")
@@ -766,7 +809,13 @@ def create_translational_propagator_settings(
     bodies_to_propagate,
     dependent_variables_to_save,
 ):
-    """Create translational propagator settings for the configured run."""
+    """Create translational propagator settings for the configured run.
+
+    Fixed-step integration is selected when one step-size value is provided.
+    Variable-step integration is selected when three values are provided and
+    uses element-wise scalar tolerances of ``1e-10`` for both absolute and
+    relative error control.
+    """
     # Resolve the CoefficientSets entry by integrator method name.
     try:
         coefficient_set = getattr(
@@ -835,7 +884,12 @@ def create_translational_propagator_settings(
 
 
 def create_environment_and_bodies(propagation_inputs: PropagationInputs):
-    """Create environment settings, add spacecraft interfaces, and build bodies."""
+    """Create environment settings, add spacecraft interfaces, and build bodies.
+
+    Sun and Earth are always present. Moon, Mars, and Venus are included only
+    when their corresponding gravity flags are enabled. The spacecraft drag area
+    is reused as the cannonball reference area for SRP.
+    """
     # Build the list of celestial bodies dynamically.  Sun and Earth are always
     # required; Moon, Mars, and Venus are only included when their respective
     # gravity perturbation is enabled.
@@ -888,7 +942,7 @@ def create_environment_and_bodies(propagation_inputs: PropagationInputs):
 
 
 def plot_total_acceleration(dep_var_dict, relative_time_h, satellite_name):
-    """Plot total acceleration norm over time."""
+    """Plot total acceleration norm over time in m/s^2 against hours."""
     plt.figure(figsize=PLOT_STANDARD_FIGURE_SIZE_IN)
     plt.title(
         f"Total acceleration norm on {satellite_name} over the course of propagation."
@@ -907,7 +961,11 @@ def plot_total_acceleration(dep_var_dict, relative_time_h, satellite_name):
 
 
 def plot_ground_track(dep_var_dict, relative_time_h, satellite_name):
-    """Plot ground track over the configured time window."""
+    """Plot ground track for the first configured window (default: 3 hours).
+
+    If the propagation is shorter than the configured window, all available
+    points are shown.
+    """
     plt.figure(figsize=PLOT_STANDARD_FIGURE_SIZE_IN)
     plt.title(f"3 hour ground track of {satellite_name}")
     latitude_rad = dep_var_dict.asarray(
@@ -928,7 +986,10 @@ def plot_ground_track(dep_var_dict, relative_time_h, satellite_name):
 
 
 def plot_kepler_elements(dep_var_dict, relative_time_h, satellite_name):
-    """Plot Keplerian elements over time."""
+    """Plot osculating Keplerian elements over time.
+
+    Semi-major axis is shown in km. Angular elements are shown in degrees.
+    """
     fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(
         3, 2, figsize=PLOT_KEPLER_FIGURE_SIZE_IN
     )
@@ -975,7 +1036,7 @@ def plot_acceleration_components(
     acceleration_dependent_variables_to_save,
     satellite_name,
 ):
-    """Plot acceleration norms by type and source body."""
+    """Plot acceleration norms by model type and source body on a log scale."""
     acceleration_type_to_string = {
         acceleration.AvailableAcceleration.point_mass_gravity_type: "Point Mass",
         acceleration.AvailableAcceleration.spherical_harmonic_gravity_type: "SphHarm Grav",
@@ -1020,8 +1081,11 @@ def plot_acceleration_components(
 
 """
 ## Configuration
-NAIF's `SPICE` kernels are first loaded, so that the position of various bodies such as the Earth can be made known to `tudatpy`.
-See [SPICE in Tudat](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup/default_env_models.html#spice-in-tudat) for an overview of the use of SPICE in Tudat.
+NAIF's `SPICE` kernels are first loaded, so that the position of various bodies
+such as the Earth can be made known to `tudatpy`.
+See SPICE in Tudat docs:
+https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup/default_env_models.html
+for an overview of the use of SPICE in Tudat.
 """
 
 # common.common -- first module that pulls in tudatpy (via tudatpy.astro.time_representation).
@@ -1046,17 +1110,25 @@ from tudatpy.dynamics import environment_setup, propagation_setup, simulator
 
 """
 ## Environment setup
-Let's create the environment for our simulation. This setup covers the creation of (celestial) bodies, vehicle(s), and environment interfaces.
+Let's create the environment for our simulation. This setup covers the creation
+of (celestial) bodies, vehicle(s), and environment interfaces.
 
-For more information on how to create and customize settings, see the [user guide on how to create bodies](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup.html#body-creation-procedure).
+For more information on how to create and customize settings, see the user guide:
+https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup.html
 
 ### Create the bodies
-**Celestial** bodies can be created by making a list of strings with the bodies that is to be included in the simulation.
+**Celestial** bodies can be created by making a list of strings with the bodies
+that is to be included in the simulation.
 
-For the most common celestial bodies in our Solar system, default settings (such as atmosphere, body shape, rotation model) come predefined in Tudat.
-See the [user guide on default environment models](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup.html#body-creation-procedure) for a comprehensive list of default models.
+For the most common celestial bodies in our Solar system, default settings (such
+as atmosphere, body shape, rotation model) come predefined in Tudat.
+See the user guide on default environment models:
+https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup.html
+for a comprehensive list of default models.
 
-These settings can be adjusted. Please refer to the [Available Environment Models](https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup/environment_models.html#available-model-types) in the user guide for more details.
+These settings can be adjusted. Please refer to Available Environment Models:
+https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment_setup/environment_models.html
+in the user guide for more details.
 """
 
 
@@ -1085,6 +1157,8 @@ First off, the acceleration settings that act on the propagated satellite are to
 In this case, these consist in the followings:
 
 - Gravitational acceleration of Earth modeled as spherical harmonic gravity, taken up to a degree and order 5.
+- Gravitational acceleration of Earth modeled as spherical harmonic gravity,
+  with degree/order taken from ``--earth-gravity``.
 - Gravitational acceleration of the Sun, the Moon, Mars, and Venus, modeled as a Point Mass.
 - Aerodynamic acceleration caused by the atmosphere of the Earth (using the aerodynamic interface defined earlier).
 - Radiation pressure acceleration caused by the Sun (using the radiation interface defined earlier).
@@ -1179,11 +1253,18 @@ provided either through `--initial-state`/`-i` or stdin.
 
 """
 ### Define dependent variables to save
-In this example, we are interested in saving not only the propagated state of the satellite over time, but also a set of so-called dependent variables, that are to be computed (or extracted and saved) at each integration step.
+In this example, we are interested in saving not only the propagated state of
+the satellite over time, but also a set of so-called dependent variables, that
+are to be computed (or extracted and saved) at each integration step.
 
-[This page](https://py.api.tudat.space/en/latest/dependent_variable.html) of the tudatpy API website provides a detailed explanation of all the dependent variables that are available.
+[This page](https://py.api.tudat.space/en/latest/dependent_variable.html) of the
+tudatpy API website provides a detailed explanation of all the dependent
+variables that are available.
 
-For later post-processing, we first define all single acceleration norm settings in the `acceleration_dependent_variables_to_save` variable (which we will reuse later) and then combine it with all other dependent variables saved in the `dependent_variables_to_save` variable.
+For later post-processing, we first define all single acceleration norm settings
+in the `acceleration_dependent_variables_to_save` variable (which we will reuse
+later) and then combine it with all other dependent variables saved in the
+`dependent_variables_to_save` variable.
 """
 
 # dependent_variable and acceleration sub-modules -- imported just before
@@ -1283,8 +1364,11 @@ constructed together through a dedicated helper function.
 ## Propagate the orbit
 The orbit is now ready to be propagated.
 
-The propagation is done by calling the `create_dynamics_simulator()` function of the `dynamics.simulator` module, which requires the `bodies` and `propagator_settings` that have all been defined earlier.
-After successful propagation, results are stored in the `propagation_results` attribute of each `dynamics_simulator` instance.
+The propagation is done by calling the `create_dynamics_simulator()` function of
+the `dynamics.simulator` module, which requires the `bodies` and
+`propagator_settings` that have all been defined earlier.
+After successful propagation, results are stored in the `propagation_results`
+attribute of each `dynamics_simulator` instance.
 
 The results will be analyzed in the following post-processing section.
 
@@ -1327,8 +1411,13 @@ relative_time_h = (
 """
 ### Retrieve information from the dependent variable dictionary
 
-For an in-depth documentation of how to retrieve information from the `DependentVariableDictionary`, see the corresponding API reference [here](https://py.api.tudat.space/en/latest/dynamics/propagation.html#tudatpy.dynamics.propagation.dependent_variable_dictionary.DependentVariableDictionary).
-In short, by passing a `SingleDependentVariableSaveSettings` object to the `asarray()` method, the dependent variables will be retrieved and returned as an array, where each row stores the dependent variables of an integration step (with the corresponding epochs stored in the `time_history` attribute).
+For an in-depth documentation of how to retrieve information from the
+`DependentVariableDictionary`, see the corresponding API reference:
+https://py.api.tudat.space/en/latest/dynamics/propagation.html.
+In short, by passing a `SingleDependentVariableSaveSettings` object to the
+`asarray()` method, the dependent variables will be retrieved and returned as an
+array, where each row stores the dependent variables of an integration step
+(with the corresponding epochs stored in the `time_history` attribute).
 """
 
 # matplotlib -- imported as late as possible, just before the first plot call.
