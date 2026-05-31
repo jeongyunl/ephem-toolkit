@@ -11,7 +11,7 @@ Propagates a perturbed satellite orbit around Earth using TudatPy. The script re
 #### Synopsis
 
 ```
-python3 propagation/propagate_satellite_orbit.py [-h] [-i <oem_state_line>] [-d <value[s|m|h|d]>]
+python3 propagation/propagate_satellite_orbit.py [-h] [-i <oem_state_line>] [-d <value[s|m|h|d]>] [-o <file|->]
   [--name <name>] [--mass <kg>]
   [--integrator <rk_3|rk_4|rkf_45|rkf_56|rkf_78|rkf_89|rkf_108|rkf_1210|rkf_1412|rkdp_87|rkv_89>]
   [--integrator-step-size <fixed|init,max|init,min,max>] [--earth-gravity <DxO>] [--drag-area <m^2>]
@@ -26,6 +26,7 @@ python3 propagation/propagate_satellite_orbit.py [-h] [-i <oem_state_line>] [-d 
 | `-h`, `--help` | Show help message and exit | None |
 | `-i`, `--initial-state` | One OEM-style state line provided directly on the command line. If omitted, one line is read from stdin. | stdin (when piped) |
 | `-d`, `--duration` | Simulation duration. Accepts a number optionally followed by a unit suffix: `s` (seconds, default), `m` (minutes), `h` (hours), `d` (days). E.g. `90`, `90s`, `2m`, `1.5h`, `1d`. | `1d` |
+| `-o`, `--output` | Write propagated state history in OEM-like format. Use `-` to write to stdout; otherwise provide a file path. If omitted, no state-history output is written. | None |
 | `--name` | Name of the propagated satellite body. | `Satellite` |
 | `--mass` | Mass of the satellite in kilograms. | `30` |
 | `--integrator` | Integrator method identifier. Supported methods: `rk_3`, `rk_4`, `rkf_45`, `rkf_56`, `rkf_78`, `rkf_89`, `rkf_108`, `rkf_1210`, `rkf_1412`, `rkdp_87`, `rkv_89`. | `rk_4` |
@@ -59,6 +60,15 @@ The state is provided either via the `--initial-state`/`-i` option or piped thro
 
 The script prints a pre-propagation configuration summary to stdout and, after
 propagation, displays five matplotlib plots.
+
+When `-o/--output` is provided, the propagated state history is also exported in
+OEM-like text format:
+
+```
+<ISO-8601 UTC epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>
+```
+
+`--output -` writes this export to stdout.
 
 The pre-propagation summary includes:
 

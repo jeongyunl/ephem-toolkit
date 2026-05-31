@@ -449,6 +449,16 @@ def build_cli_parser():
             "Use -d/--duration, e.g. -d 90, --duration 90s, -d 2m, --duration 1.5h, -d 1d."
         ),
     )
+    parser.add_argument(
+        "-o",
+        "--output",
+        metavar="<file|->",
+        default=None,
+        help=(
+            "Write propagated state history in OEM-like format to a file. "
+            "Use '-' to write to stdout. If omitted, no state-history output is written."
+        ),
+    )
 
     # Satellite properties
     parser.add_argument(
@@ -870,8 +880,51 @@ def build_propagation_inputs(cli_args) -> PropagationInputs:
     )
 
 
+def write_state_history_oem_like(state_history, output_path):
+    """Write state history as OEM-like lines.
+
+    Parameters
+    ----------
+    state_history : dict[float, numpy.ndarray]
+        Mapping of TDB seconds since J2000 to 6-element cartesian state vectors
+        in SI units ``[x, y, z, vx, vy, vz]``.
+    output_path : str
+        Output file path, or ``'-'`` to write to stdout.
+
+    Returns
+    -------
+    None
+        Writes one line per epoch in ``UTC_ISO x y z vx vy vz`` format, where
+        position is in km and velocity in km/s.
+    """
+    if output_path == "-":
+        stream = sys.stdout
+        should_close = False
+    else:
+        stream = open(output_path, "w", encoding="utf-8")
+        should_close = True
+
+    try:
+        for epoch_tdb_s, state_m_mps in sorted(state_history.items()):
+            epoch_utc_iso = tdb_to_datetime(epoch_tdb_s).isoformat(
+                timespec="microseconds"
+            )
+            position_km = state_m_mps[:3] / KILOMETERS_TO_METERS
+            velocity_km_s = state_m_mps[3:] / KILOMETERS_TO_METERS
+            stream.write(
+                f"{epoch_utc_iso} "
+                f"{position_km[0]:.9f} {position_km[1]:.9f} {position_km[2]:.9f} "
+                f"{velocity_km_s[0]:.9f} {velocity_km_s[1]:.9f} {velocity_km_s[2]:.9f}\n"
+            )
+    finally:
+        if should_close:
+            stream.close()
+
+
 def print_pre_propagation_summary(
-    propagation_inputs: PropagationInputs, input_source: str
+    propagation_inputs: PropagationInputs,
+    input_source: str,
+    output_state_history_path: str | None = None,
 ):
     """Print the pre-propagation configuration summary.
 
@@ -881,6 +934,8 @@ def print_pre_propagation_summary(
         Consolidated propagation options.
     input_source : str
         Input source label displayed to the user.
+    output_state_history_path : str | None, optional
+        State-history output destination. Use ``'-'`` for stdout.
 
     Returns
     -------
@@ -954,15 +1009,15 @@ def print_pre_propagation_summary(
     print(f"Mars gravity: {'on' if propagation_inputs.is_mars_gravity_on else 'off'}")
 
     print(f"Initial epoch: {propagation_inputs.initial_epoch_datetime_utc.isoformat()}")
-    initial_position_m = propagation_inputs.initial_state_m_mps[:3]
-    initial_velocity_mps = propagation_inputs.initial_state_m_mps[3:]
+    initial_position_km = propagation_inputs.initial_state_m_mps[:3] / KILOMETERS_TO_METERS
+    initial_velocity_kmps = propagation_inputs.initial_state_m_mps[3:] / KILOMETERS_TO_METERS
     print(
-        "Initial position vector [m]: "
-        f"{np.array2string(initial_position_m, precision=6, separator=', ')}"
+        "Initial position vector [km]: "
+        f"{np.array2string(initial_position_km, precision=6, separator=', ')}"
     )
     print(
-        "Initial velocity vector [m/s]: "
-        f"{np.array2string(initial_velocity_mps, precision=6, separator=', ')}"
+        "Initial velocity vector [km/s]: "
+        f"{np.array2string(initial_velocity_kmps, precision=6, separator=', ')}"
     )
     print(f"Simulation duration [s]: {propagation_inputs.simulation_duration_s}")
     simulation_end_epoch_datetime_utc = (
@@ -970,6 +1025,11 @@ def print_pre_propagation_summary(
         + timedelta(seconds=propagation_inputs.simulation_duration_s)
     )
     print("Simulation end epoch: " f"{simulation_end_epoch_datetime_utc.isoformat()}")
+    if output_state_history_path is not None:
+        output_destination = (
+            "stdout" if output_state_history_path == "-" else output_state_history_path
+        )
+        print(f"State-history output: {output_destination}")
     print("=================================")
 
 
@@ -1608,13 +1668,18 @@ for an overview of the use of SPICE in Tudat.
 
 # common.common -- first module that pulls in tudatpy (via tudatpy.astro.time_representation).
 # Imported here, just before build_propagation_inputs() which is its first caller.
-from common.common import parse_oem_state_line, datetime_to_tdb
+from common.common import parse_oem_state_line, datetime_to_tdb, tdb_to_datetime
 
 propagation_inputs = build_propagation_inputs(cli_args)
 input_source = "--initial-state" if cli_args.initial_state is not None else "stdin"
 satellite_name = propagation_inputs.satellite_name
+output_state_history_path = cli_args.output
 
-print_pre_propagation_summary(propagation_inputs, input_source)
+print_pre_propagation_summary(
+    propagation_inputs,
+    input_source,
+    output_state_history_path,
+)
 
 # tudatpy SPICE interface -- imported just before loading kernels.
 from tudatpy.interface import spice
@@ -1803,7 +1868,15 @@ propagator_settings = create_translational_propagator_settings(
 dynamics_simulator = simulator.create_dynamics_simulator(bodies, propagator_settings)
 
 # state_history: dict[time(float), state(numpy.ndarray)] with time in seconds since J2000 and state as a 6-element array of cartesian state.
-state_history = dynamics_simulator.propagation_results.state_history
+if output_state_history_path is not None:
+    try:
+        write_state_history_oem_like(
+            dynamics_simulator.propagation_results.state_history,
+            output_state_history_path,
+        )
+    except OSError as exc:
+        print(f"Error: failed to write state-history output: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 dep_var_dict = propagation.create_dependent_variable_dictionary(dynamics_simulator)
 relative_time_h = (
