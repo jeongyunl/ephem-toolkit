@@ -4,6 +4,11 @@ Utility scripts for working with TudatPy.
 
 ## Propagation
 
+### Available Scripts
+
+- [propagation/propagate_satellite_orbit.py](#propagationpropagate_satellite_orbitpy)
+- [propagation/propagate_tle.py](#propagationpropagate_tlepy)
+
 ### `propagation/propagate_satellite_orbit.py`
 
 Propagates a perturbed satellite orbit around Earth using TudatPy. The script reads a single OEM-style state line (epoch + Cartesian position/velocity) and propagates it forward in time under a configurable set of perturbations including spherical-harmonic gravity, third-body gravity (Sun, Moon, Mars, Venus), aerodynamic drag, and solar radiation pressure (SRP). Post-propagation plots of total acceleration, ground track, Keplerian elements, and individual acceleration contributions are displayed automatically.
@@ -150,5 +155,84 @@ python propagation/propagate_satellite_orbit.py -h
 - Matplotlib
 
 The script automatically loads the required SPICE kernels (`naif0012.tls`, `pck00011.tpc`, `gm_de431.tpc`, `earth_200101_990825_predict.bpc`, and `tudat_merged_spk_kernel.bsp`) from the TudatPy data directory.
+
+### `propagation/propagate_tle.py`
+
+Propagates a TLE-derived orbit using TudatPy's SGP4 TLE ephemeris and prints
+state vectors in OEM-like text format. Input can be provided as a TLE file
+path or as raw TLE text from stdin.
+
+#### Synopsis
+
+```
+python3 propagation/propagate_tle.py [-h] [-d <value[s|m|h|d]>] [-s <value[s|m]>] [--oem] [<tle_file>]
+```
+
+#### Options
+
+| Option | Description | Default |
+|---|---|---|
+| `-h`, `--help` | Show help message and exit | None |
+| `<tle_file>` | Path to a TLE file. If omitted, TLE text is read from stdin. | stdin (when piped) |
+| `-d`, `--duration` | Propagation duration. Accepts a number optionally followed by `s` (seconds, default), `m` (minutes), `h` (hours), or `d` (days). E.g. `90`, `90s`, `2m`, `1.5h`, `1d`. | `1d` |
+| `-s`, `--step` | Output interval. Accepts a number optionally followed by `s` (seconds, default) or `m` (minutes). E.g. `60`, `60s`, `15m`. | `15m` |
+| `--oem` | Print OEM metadata header before state lines. If omitted, only propagated state lines are printed. | off |
+
+#### Input Format
+
+The script consumes one TLE line pair (`line 1` and `line 2`) as follows:
+
+1. If `<tle_file>` is provided, the final two non-empty lines of the file are used.
+2. If `<tle_file>` is omitted, stdin is read and the final two non-empty lines are used.
+
+The selected pair must start with `1 ` and `2 ` respectively.
+
+#### Output
+
+By default, the script prints only propagated state lines:
+
+```
+<ISO-8601 UTC epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>
+```
+
+- Epoch is printed as an ISO-like UTC timestamp (without a trailing `Z`).
+- Position is in kilometres.
+- Velocity is in km/s.
+
+When `--oem` is provided, an OEM metadata header is printed before the state
+lines.
+
+#### Usage
+
+**Propagate from a TLE file for 1 day with 15-minute output step (defaults):**
+
+```bash
+python propagation/propagate_tle.py tle/ISS-(ZARYA)_1998-067A.tle
+```
+
+**Propagate from stdin TLE content for 2 hours with 1-minute step:**
+
+```bash
+cat tle/ISS-(ZARYA)_1998-067A.tle | python propagation/propagate_tle.py -d 2h -s 1m
+```
+
+**Propagate for 30 minutes with 10-second output step:**
+
+```bash
+python propagation/propagate_tle.py tle/ISS-(ZARYA)_1998-067A.tle -d 30m -s 10s
+```
+
+**Print full OEM-style output including header:**
+
+```bash
+python propagation/propagate_tle.py tle/ISS-(ZARYA)_1998-067A.tle --oem
+```
+
+#### Dependencies
+
+- [TudatPy](https://docs.tudat.space/en/latest/) (`tudatpy`)
+
+The script loads required SPICE kernels (`naif0012.tls` and `pck00011.tpc`)
+from the TudatPy data directory.
 
 ---
