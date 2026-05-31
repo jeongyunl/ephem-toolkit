@@ -210,9 +210,9 @@ def parse_integrator_step_size_values(value: str) -> tuple[float, ...]:
     Returns
     -------
     tuple[float, ...]
-        Parsed step-size values in seconds. One value selects fixed-step
+        Parsed step-size values in seconds. One value selects fixed-step size
         integration; three values represent ``(initial, minimum, maximum)`` for
-        variable-step integration.
+        variable-step size integration.
 
     Notes
     -----
@@ -257,12 +257,12 @@ def parse_integrator_step_size_values(value: str) -> tuple[float, ...]:
     initial_step_size_s, minimum_step_size_s, maximum_step_size_s = step_size_values
     if minimum_step_size_s > maximum_step_size_s:
         raise argparse.ArgumentTypeError(
-            "for variable-step integrator, minimum_step must be less than or equal to "
+            "for variable-step size integrator, minimum_step must be less than or equal to "
             "maximum_step"
         )
     if not (minimum_step_size_s <= initial_step_size_s <= maximum_step_size_s):
         raise argparse.ArgumentTypeError(
-            "for variable-step integrator, initial_step must be between minimum_step "
+            "for variable-step size integrator, initial_step must be between minimum_step "
             "and maximum_step"
         )
 
@@ -489,10 +489,10 @@ def build_cli_parser():
         default=(DEFAULT_INTEGRATOR_FIXED_STEP_SIZE_S,),
         help=(
             "Integrator step sizes in seconds as a single comma-separated token. "
-            "Provide either one value for fixed-step (for example, 10) "
-            "or two values for variable-step as <initial_and_minimum_step>,<maximum_step> "
+            "Provide either one value for fixed-step size (for example, 10) "
+            "or two values for variable-step size as <initial_and_minimum_step>,<maximum_step> "
             "(for example, 0.001,1000), "
-            "or three values for variable-step in this order: "
+            "or three values for variable-step size in this order: "
             "<initial_step>,<minimum_step>,<maximum_step> "
             "(for example, 30,0.001,1000). "
             f"(default: {DEFAULT_INTEGRATOR_FIXED_STEP_SIZE_S})."
@@ -640,9 +640,9 @@ class PropagationInputs:
     integrator_method : str
         Numerical integrator method identifier used by propagation settings.
     integrator_step_size_values_s : tuple[float, ...]
-        Step-size input in seconds from CLI. One value selects fixed-step
+        Step-size input in seconds from CLI. One value selects fixed-step size
         integration; three values ``(initial, minimum, maximum)`` select
-        variable-step integration.
+        variable-step size integration.
     earth_spherical_harmonic_gravity_degree : int
         Degree used for Earth's spherical harmonic gravity field.
     earth_spherical_harmonic_gravity_order : int
@@ -901,13 +901,13 @@ def print_pre_propagation_summary(
         f"{propagation_inputs.integrator_method} ({integrator_description})"
     )
     if len(propagation_inputs.integrator_step_size_values_s) == 1:
-        print("Integrator mode: fixed-step")
+        print("Integrator mode: fixed-step size")
         print(
             "Integrator step size [s]: "
             f"{propagation_inputs.integrator_step_size_values_s[0]}"
         )
     else:
-        print("Integrator mode: variable-step")
+        print("Integrator mode: variable-step size")
         (
             initial_step_size_s,
             minimum_step_size_s,
@@ -951,9 +951,15 @@ def print_pre_propagation_summary(
     print(f"Mars gravity: {'on' if propagation_inputs.is_mars_gravity_on else 'off'}")
 
     print(f"Initial epoch: {propagation_inputs.initial_epoch_datetime_utc.isoformat()}")
+    initial_position_m = propagation_inputs.initial_state_m_mps[:3]
+    initial_velocity_mps = propagation_inputs.initial_state_m_mps[3:]
     print(
-        "Initial state [m, m/s]: "
-        f"{np.array2string(propagation_inputs.initial_state_m_mps, precision=6, separator=', ')}"
+        "Initial position vector [m]: "
+        f"{np.array2string(initial_position_m, precision=6, separator=', ')}"
+    )
+    print(
+        "Initial velocity vector [m/s]: "
+        f"{np.array2string(initial_velocity_mps, precision=6, separator=', ')}"
     )
     print(f"Simulation duration [s]: {propagation_inputs.simulation_duration_s}")
     simulation_end_epoch_datetime_utc = (
@@ -1010,7 +1016,7 @@ def create_translational_propagator_settings(
             f"Default is {DEFAULT_INTEGRATOR_METHOD}."
         ) from exc
 
-    # Configure fixed-step or variable-step integrator based on the number of step-size values.
+    # Configure fixed-step size or variable-step size integrator based on the number of step-size values.
     if len(propagation_inputs.integrator_step_size_values_s) == 1:
         fixed_step_size_s = propagation_inputs.integrator_step_size_values_s[0]
         integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
