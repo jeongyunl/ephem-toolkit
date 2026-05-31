@@ -78,17 +78,22 @@ DEFAULT_GLOBAL_FRAME_ORIENTATION = "J2000"
 DEFAULT_INTEGRATOR_FIXED_STEP_SIZE_S = 10.0
 # Supported integrator method identifiers accepted by the CLI.
 # Values should match names in propagation_setup.integrator.CoefficientSets.
-SUPPORTED_INTEGRATOR_METHODS = (
-    "rk_3",
-    "rk_4",
-    "rkf_45",
-    "rkf_56",
-    "rkf_78",
-    "rkf_89",
-    "rkf_108",
-    "rkf_1210",
-    "rkf_1412",
-)
+#
+# Method descriptions are the single source of truth for supported methods.
+INTEGRATOR_METHOD_DESCRIPTIONS = {
+    "rk_3": "classic RK3",
+    "rk_4": "classic RK4",
+    "rkf_45": "Fehlberg 4(5)",
+    "rkf_56": "Fehlberg 5(6)",
+    "rkf_78": "Fehlberg 7(8)",
+    "rkf_89": "Fehlberg 8(9)",
+    "rkf_108": "Fehlberg 10(8)",
+    "rkf_1210": "Fehlberg 12(10)",
+    "rkf_1412": "Fehlberg 14(12)",
+    "rkdp_87": "Dormand-Prince 8(7)",
+    "rkv_89": "Verner 8(9)",
+}
+SUPPORTED_INTEGRATOR_METHODS = tuple(INTEGRATOR_METHOD_DESCRIPTIONS)
 DEFAULT_INTEGRATOR_METHOD = "rk_4"
 
 # Plotting constants (values only -- matplotlib is imported later, just before use)
@@ -364,9 +369,14 @@ def build_cli_parser():
         metavar=f"<{ '|'.join(SUPPORTED_INTEGRATOR_METHODS) }>",
         default=DEFAULT_INTEGRATOR_METHOD,
         help=(
-            "Numerical integrator method "
+            "Numerical integrator method identifier. "
             f"(default: {DEFAULT_INTEGRATOR_METHOD}; "
-            f"currently supported: {', '.join(SUPPORTED_INTEGRATOR_METHODS)})."
+            "methods: "
+            + "; ".join(
+                f"{method}={INTEGRATOR_METHOD_DESCRIPTIONS[method]}"
+                for method in SUPPORTED_INTEGRATOR_METHODS
+            )
+            + ")."
         ),
     )
     parser.add_argument(
@@ -737,7 +747,13 @@ def print_pre_propagation_summary(
     # integrator_method and integrator_step_size_values_s
     # display integrator method and step size(s), with mode (fixed or variable)
     # inferred from the number of step size values provided.
-    print(f"Integrator method: {propagation_inputs.integrator_method}")
+    integrator_description = INTEGRATOR_METHOD_DESCRIPTIONS.get(
+        propagation_inputs.integrator_method, "unknown method"
+    )
+    print(
+        "Integrator method: "
+        f"{propagation_inputs.integrator_method} ({integrator_description})"
+    )
     if len(propagation_inputs.integrator_step_size_values_s) == 1:
         print("Integrator mode: fixed-step")
         print(
@@ -1053,16 +1069,7 @@ def plot_acceleration_components(
             f"{acceleration_dep_var_setting.secondary_body}"
         )
 
-        # Use dashed lines for point-mass gravity contributions.
-        linestyle = (
-            "--"
-            if acceleration_dep_var_setting.acceleration_model_type
-            == acceleration.AvailableAcceleration.point_mass_gravity_type
-            else "-"
-        )
-        plt.plot(
-            relative_time_h, acceleration_norm_mps2, label=label, linestyle=linestyle
-        )
+        plt.plot(relative_time_h, acceleration_norm_mps2, label=label)
 
     plt.xlabel("Time [hr]")
     plt.ylabel("Acceleration Norm [m/s$^2$]")
