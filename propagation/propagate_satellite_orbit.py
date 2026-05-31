@@ -52,10 +52,23 @@ DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2 = (
 # Propagation and plotting settings
 DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE = 5
 DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER = 5
-DEFAULT_INTEGRATOR_FIXED_STEP_SIZE_S = 10.0
 DEFAULT_BODIES_TO_CREATE = ["Sun", "Earth"]
 DEFAULT_GLOBAL_FRAME_ORIGIN = "Earth"
 DEFAULT_GLOBAL_FRAME_ORIENTATION = "J2000"
+
+DEFAULT_INTEGRATOR_FIXED_STEP_SIZE_S = 10.0
+SUPPORTED_INTEGRATOR_METHODS = (
+    "rk_3",
+    "rk_4",
+    "rkf_45",
+    "rkf_56",
+    "rkf_78",
+    "rkf_89",
+    "rkf_108",
+    "rkf_1210",
+    "rkf_1412",
+)
+DEFAULT_INTEGRATOR_METHOD = "rk_4"
 
 # Plotting constants (values only -- matplotlib is imported later, just before use)
 PLOT_STANDARD_FIGURE_SIZE_IN = (9, 5)
@@ -120,7 +133,9 @@ def parse_drag_coefficient(value: str) -> float:
     try:
         drag_coefficient = float(value)
     except ValueError as exc:
-        raise argparse.ArgumentTypeError("drag coefficient must be a valid number") from exc
+        raise argparse.ArgumentTypeError(
+            "drag coefficient must be a valid number"
+        ) from exc
 
     if drag_coefficient <= 0.0:
         raise argparse.ArgumentTypeError("drag coefficient must be a positive value")
@@ -164,7 +179,9 @@ def parse_earth_spherical_harmonic_gravity_degree_order(value: str) -> tuple[int
     if order < 0:
         raise argparse.ArgumentTypeError("earth gravity order must be non-negative")
     if order > degree:
-        raise argparse.ArgumentTypeError("earth gravity order must be less than or equal to degree")
+        raise argparse.ArgumentTypeError(
+            "earth gravity order must be less than or equal to degree"
+        )
 
     return degree, order
 
@@ -191,12 +208,70 @@ def parse_drag_area_m2(value: str) -> float:
     try:
         drag_area_m2 = float(value)
     except ValueError as exc:
-        raise argparse.ArgumentTypeError("drag area must be a valid number in m^2") from exc
+        raise argparse.ArgumentTypeError(
+            "drag area must be a valid number in m^2"
+        ) from exc
 
     if drag_area_m2 <= 0.0:
         raise argparse.ArgumentTypeError("drag area must be a positive value in m^2")
 
     return drag_area_m2
+
+
+def parse_integrator_method(value: str) -> str:
+    """Parse integrator method from CLI.
+
+    Currently accepted values include ``rk_3`` and ``rk_4`` (default),
+    plus selected ``rkf_*`` sets.
+    """
+    method = value.strip().lower()
+    if method not in SUPPORTED_INTEGRATOR_METHODS:
+        raise argparse.ArgumentTypeError(
+            "integrator must be one of: " + ", ".join(SUPPORTED_INTEGRATOR_METHODS)
+        )
+    return method
+
+
+def parse_integrator_step_size_values(value: str) -> tuple[float, ...]:
+    """Parse comma-separated integrator step sizes in seconds.
+
+    Accepts either:
+    - ``<fixed_step>``
+    - ``<initial_step>,<minimum_step>,<maximum_step>``
+    """
+    parts = [part.strip() for part in value.split(",") if part.strip()]
+    if len(parts) not in (1, 3):
+        raise argparse.ArgumentTypeError(
+            "integrator step size must be either one value or three comma-separated values "
+            "(initial_step,minimum_step,maximum_step)"
+        )
+
+    try:
+        step_size_values = tuple(float(part) for part in parts)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "integrator step size values must be valid numbers in seconds"
+        ) from exc
+
+    if any(step_size_s <= 0.0 for step_size_s in step_size_values):
+        raise argparse.ArgumentTypeError(
+            "integrator step size values must be positive numbers in seconds"
+        )
+
+    if len(step_size_values) == 3:
+        initial_step_size_s, minimum_step_size_s, maximum_step_size_s = step_size_values
+        if minimum_step_size_s > maximum_step_size_s:
+            raise argparse.ArgumentTypeError(
+                "for variable-step integrator, minimum_step must be less than or equal to "
+                "maximum_step"
+            )
+        if not (minimum_step_size_s <= initial_step_size_s <= maximum_step_size_s):
+            raise argparse.ArgumentTypeError(
+                "for variable-step integrator, initial_step must be between minimum_step "
+                "and maximum_step"
+            )
+
+    return step_size_values
 
 
 def build_cli_parser():
@@ -334,6 +409,29 @@ def build_cli_parser():
             f"{DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER})."
         ),
     )
+    parser.add_argument(
+        "--integrator",
+        type=parse_integrator_method,
+        default=DEFAULT_INTEGRATOR_METHOD,
+        help=(
+            "Numerical integrator method "
+            f"(default: {DEFAULT_INTEGRATOR_METHOD}; "
+            f"currently supported: {', '.join(SUPPORTED_INTEGRATOR_METHODS)})."
+        ),
+    )
+    parser.add_argument(
+        "--integrator-step-size",
+        type=parse_integrator_step_size_values,
+        default=(DEFAULT_INTEGRATOR_FIXED_STEP_SIZE_S,),
+        help=(
+            "Integrator step sizes in seconds as a single comma-separated token. "
+            "Provide either one value for fixed-step (for example, 10) "
+            "or three values for variable-step in this order: "
+            "<initial_step>,<minimum_step>,<maximum_step> "
+            "(for example, 30,0.001,1000). "
+            f"(default: {DEFAULT_INTEGRATOR_FIXED_STEP_SIZE_S})."
+        ),
+    )
     return parser
 
 
@@ -400,6 +498,12 @@ class PropagationInputs:
         Degree used for Earth's spherical harmonic gravity field.
     earth_spherical_harmonic_gravity_order : int
         Order used for Earth's spherical harmonic gravity field.
+    integrator_method : str
+        Numerical integrator method identifier used by propagation settings.
+    integrator_step_size_values_s : tuple[float, ...]
+        Step-size input in seconds from CLI. One value selects fixed-step
+        integration; three values ``(initial, minimum, maximum)`` select
+        variable-step integration.
     is_srp_on : bool
         Whether solar radiation pressure acceleration is enabled.
     srp_coefficient : float
@@ -430,6 +534,9 @@ class PropagationInputs:
 
     earth_spherical_harmonic_gravity_degree: int
     earth_spherical_harmonic_gravity_order: int
+
+    integrator_method: str
+    integrator_step_size_values_s: tuple[float, ...]
 
     simulation_duration_s: float
 
@@ -470,7 +577,9 @@ def read_initial_state_from_stream(stream):
 
     epoch_dt, position_km, velocity_km_s = parsed
     initial_epoch_datetime_utc = epoch_dt
-    initial_state_m_mps = np.concatenate([position_km, velocity_km_s]) * KILOMETERS_TO_METERS
+    initial_state_m_mps = (
+        np.concatenate([position_km, velocity_km_s]) * KILOMETERS_TO_METERS
+    )
     return initial_state_m_mps, initial_epoch_datetime_utc
 
 
@@ -478,7 +587,9 @@ def read_initial_state_from_cli_or_stdin(cli_args):
     """Read one OEM-like state record from --initial-state or stdin."""
     if cli_args.initial_state is not None:
         try:
-            return read_initial_state_from_stream(io.StringIO(cli_args.initial_state + "\n"))
+            return read_initial_state_from_stream(
+                io.StringIO(cli_args.initial_state + "\n")
+            )
         except ValueError as exc:
             print(f"Error: invalid --initial-state value: {exc}", file=sys.stderr)
             sys.exit(1)
@@ -515,11 +626,16 @@ def build_propagation_inputs(cli_args) -> PropagationInputs:
     if not satellite_name:
         satellite_name = DEFAULT_SATELLITE_NAME
 
-    initial_state_m_mps, initial_epoch_datetime_utc = read_initial_state_from_cli_or_stdin(cli_args)
+    (
+        initial_state_m_mps,
+        initial_epoch_datetime_utc,
+    ) = read_initial_state_from_cli_or_stdin(cli_args)
     (
         earth_spherical_harmonic_gravity_degree,
         earth_spherical_harmonic_gravity_order,
     ) = cli_args.earth_gravity
+
+    integrator_step_size_values = tuple(cli_args.integrator_step_size)
 
     return PropagationInputs(
         satellite_name=satellite_name,
@@ -533,6 +649,8 @@ def build_propagation_inputs(cli_args) -> PropagationInputs:
         is_venus_gravity_on=cli_args.venus_gravity,
         earth_spherical_harmonic_gravity_degree=earth_spherical_harmonic_gravity_degree,
         earth_spherical_harmonic_gravity_order=earth_spherical_harmonic_gravity_order,
+        integrator_method=cli_args.integrator,
+        integrator_step_size_values_s=integrator_step_size_values,
         is_srp_on=cli_args.srp,
         srp_coefficient=cli_args.srp_coeff,
         simulation_duration_s=cli_args.duration,
@@ -541,7 +659,9 @@ def build_propagation_inputs(cli_args) -> PropagationInputs:
     )
 
 
-def print_pre_propagation_summary(propagation_inputs: PropagationInputs, input_source: str):
+def print_pre_propagation_summary(
+    propagation_inputs: PropagationInputs, input_source: str
+):
     """Print selected options and parsed input data before propagation."""
 
     print("=== Propagation Configuration ===")
@@ -563,16 +683,45 @@ def print_pre_propagation_summary(propagation_inputs: PropagationInputs, input_s
         f"{propagation_inputs.earth_spherical_harmonic_gravity_degree}x"
         f"{propagation_inputs.earth_spherical_harmonic_gravity_order}"
     )
+    print(f"Integrator method: {propagation_inputs.integrator_method}")
+    if len(propagation_inputs.integrator_step_size_values_s) == 1:
+        print("Integrator mode: fixed-step")
+        print(
+            "Integrator step size [s]: "
+            f"{propagation_inputs.integrator_step_size_values_s[0]}"
+        )
+    else:
+        print("Integrator mode: variable-step")
+        (
+            initial_step_size_s,
+            minimum_step_size_s,
+            maximum_step_size_s,
+        ) = propagation_inputs.integrator_step_size_values_s
+        print(
+            "Integrator step sizes [s] "
+            f"(initial, minimum, maximum): {initial_step_size_s}, "
+            f"{minimum_step_size_s}, {maximum_step_size_s}"
+        )
     # srp_on: display SRP status; only show coefficient when SRP is enabled.
-    print(f"Solar radiation pressure: {'on' if propagation_inputs.is_srp_on else 'off'}")
-    if propagation_inputs.is_srp_on:
-        print(f"Solar radiation pressure coefficient [-]: {propagation_inputs.srp_coefficient}")
-    print(f"Simulation duration [s]: {propagation_inputs.simulation_duration_s}")
-    simulation_end_epoch_datetime_utc = propagation_inputs.initial_epoch_datetime_utc + timedelta(
-        seconds=propagation_inputs.simulation_duration_s
+    print(
+        f"Solar radiation pressure: {'on' if propagation_inputs.is_srp_on else 'off'}"
     )
-    print(f"Initial epoch [ISO-8601]: {propagation_inputs.initial_epoch_datetime_utc.isoformat()}")
-    print("Simulation end epoch [ISO-8601]: " f"{simulation_end_epoch_datetime_utc.isoformat()}")
+    if propagation_inputs.is_srp_on:
+        print(
+            f"Solar radiation pressure coefficient [-]: {propagation_inputs.srp_coefficient}"
+        )
+    print(f"Simulation duration [s]: {propagation_inputs.simulation_duration_s}")
+    simulation_end_epoch_datetime_utc = (
+        propagation_inputs.initial_epoch_datetime_utc
+        + timedelta(seconds=propagation_inputs.simulation_duration_s)
+    )
+    print(
+        f"Initial epoch [ISO-8601]: {propagation_inputs.initial_epoch_datetime_utc.isoformat()}"
+    )
+    print(
+        "Simulation end epoch [ISO-8601]: "
+        f"{simulation_end_epoch_datetime_utc.isoformat()}"
+    )
     print(
         "Initial epoch TDB [s since J2000]: "
         f"{datetime_to_tdb(propagation_inputs.initial_epoch_datetime_utc)}"
@@ -592,13 +741,65 @@ def create_translational_propagator_settings(
     dependent_variables_to_save,
 ):
     """Create translational propagator settings for the configured run."""
-    integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
-        DEFAULT_INTEGRATOR_FIXED_STEP_SIZE_S,
-        coefficient_set=propagation_setup.integrator.CoefficientSets.rk_4,
-    )
+    integrator_method_to_coefficient_set = {
+        "rk_3": propagation_setup.integrator.CoefficientSets.rk_3,
+        "rk_4": propagation_setup.integrator.CoefficientSets.rk_4,
+        "rkf_45": propagation_setup.integrator.CoefficientSets.rkf_45,
+        "rkf_56": propagation_setup.integrator.CoefficientSets.rkf_56,
+        "rkf_78": propagation_setup.integrator.CoefficientSets.rkf_78,
+        "rkf_89": propagation_setup.integrator.CoefficientSets.rkf_89,
+        "rkf_108": propagation_setup.integrator.CoefficientSets.rkf_108,
+        "rkf_1210": propagation_setup.integrator.CoefficientSets.rkf_1210,
+        "rkf_1412": propagation_setup.integrator.CoefficientSets.rkf_1412,
+    }
 
-    simulation_end_epoch_datetime_utc = propagation_inputs.initial_epoch_datetime_utc + timedelta(
-        seconds=propagation_inputs.simulation_duration_s
+    try:
+        coefficient_set = integrator_method_to_coefficient_set[
+            propagation_inputs.integrator_method
+        ]
+    except KeyError as exc:
+        raise ValueError(
+            "Unsupported integrator method "
+            f"'{propagation_inputs.integrator_method}'. Supported methods are: "
+            f"{', '.join(SUPPORTED_INTEGRATOR_METHODS)}. "
+            f"Default is {DEFAULT_INTEGRATOR_METHOD}."
+        ) from exc
+
+    if len(propagation_inputs.integrator_step_size_values_s) == 1:
+        fixed_step_size_s = propagation_inputs.integrator_step_size_values_s[0]
+        integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
+            fixed_step_size_s,
+            coefficient_set=coefficient_set,
+        )
+    else:
+        (
+            initial_step_size_s,
+            minimum_step_size_s,
+            maximum_step_size_s,
+        ) = propagation_inputs.integrator_step_size_values_s
+
+        step_size_validation_settings = (
+            propagation_setup.integrator.step_size_validation(
+                minimum_step_size_s, maximum_step_size_s
+            )
+        )
+
+        step_size_control_settings = (
+            propagation_setup.integrator.step_size_control_elementwise_scalar_tolerance(
+                1.0e-10, 1.0e-10
+            )
+        )
+
+        integrator_settings = propagation_setup.integrator.runge_kutta_variable_step(
+            initial_time_step=initial_step_size_s,
+            coefficient_set=coefficient_set,
+            step_size_validation_settings=step_size_validation_settings,
+            step_size_control_settings=step_size_control_settings,
+        )
+
+    simulation_end_epoch_datetime_utc = (
+        propagation_inputs.initial_epoch_datetime_utc
+        + timedelta(seconds=propagation_inputs.simulation_duration_s)
     )
     termination_condition = propagation_setup.propagator.time_termination(
         datetime_to_tdb(simulation_end_epoch_datetime_utc)
@@ -643,35 +844,43 @@ def create_environment_and_bodies(propagation_inputs: PropagationInputs):
             propagation_inputs.satellite_drag_area_m2,
             [propagation_inputs.satellite_drag_coefficient, 0.0, 0.0],
         )
-        body_settings.get(propagation_inputs.satellite_name).aerodynamic_coefficient_settings = (
-            aero_coefficient_settings
-        )
+        body_settings.get(
+            propagation_inputs.satellite_name
+        ).aerodynamic_coefficient_settings = aero_coefficient_settings
 
     # srp_on: only attach radiation pressure target settings when SRP is enabled.
     if propagation_inputs.is_srp_on:
         occulting_bodies_dict = {"Sun": ["Earth"]}
-        vehicle_target_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
-            propagation_inputs.satellite_drag_area_m2,
-            propagation_inputs.srp_coefficient,
-            occulting_bodies_dict,
+        vehicle_target_settings = (
+            environment_setup.radiation_pressure.cannonball_radiation_target(
+                propagation_inputs.satellite_drag_area_m2,
+                propagation_inputs.srp_coefficient,
+                occulting_bodies_dict,
+            )
         )
-        body_settings.get(propagation_inputs.satellite_name).radiation_pressure_target_settings = (
-            vehicle_target_settings
-        )
+        body_settings.get(
+            propagation_inputs.satellite_name
+        ).radiation_pressure_target_settings = vehicle_target_settings
 
     bodies = environment_setup.create_system_of_bodies(body_settings)
-    bodies.get(propagation_inputs.satellite_name).mass = propagation_inputs.satellite_mass_kg
+    bodies.get(
+        propagation_inputs.satellite_name
+    ).mass = propagation_inputs.satellite_mass_kg
     return bodies
 
 
 def plot_total_acceleration(dep_var_dict, relative_time_h, satellite_name):
     """Plot total acceleration norm over time."""
     plt.figure(figsize=PLOT_STANDARD_FIGURE_SIZE_IN)
-    plt.title(f"Total acceleration norm on {satellite_name} over the course of propagation.")
+    plt.title(
+        f"Total acceleration norm on {satellite_name} over the course of propagation."
+    )
     satellite_total_acceleration_mps2 = dep_var_dict.asarray(
         dependent_variable.total_acceleration(satellite_name)
     )
-    total_acceleration_norm_mps2 = np.linalg.norm(satellite_total_acceleration_mps2, axis=1)
+    total_acceleration_norm_mps2 = np.linalg.norm(
+        satellite_total_acceleration_mps2, axis=1
+    )
     plt.plot(relative_time_h, total_acceleration_norm_mps2)
     plt.xlabel("Time [hr]")
     plt.ylabel("Total Acceleration [m/s$^2$]")
@@ -683,8 +892,12 @@ def plot_ground_track(dep_var_dict, relative_time_h, satellite_name):
     """Plot ground track over the configured time window."""
     plt.figure(figsize=PLOT_STANDARD_FIGURE_SIZE_IN)
     plt.title(f"3 hour ground track of {satellite_name}")
-    latitude_rad = dep_var_dict.asarray(dependent_variable.latitude(satellite_name, "Earth"))
-    longitude_rad = dep_var_dict.asarray(dependent_variable.longitude(satellite_name, "Earth"))
+    latitude_rad = dep_var_dict.asarray(
+        dependent_variable.latitude(satellite_name, "Earth")
+    )
+    longitude_rad = dep_var_dict.asarray(
+        dependent_variable.longitude(satellite_name, "Earth")
+    )
     subset_count = int(len(relative_time_h) / HOURS_PER_DAY * PLOT_GROUND_TRACK_H)
     latitude_deg = np.rad2deg(latitude_rad[0:subset_count])
     longitude_deg = np.rad2deg(longitude_rad[0:subset_count])
@@ -768,7 +981,9 @@ def plot_acceleration_components(
             == acceleration.AvailableAcceleration.point_mass_gravity_type
             else "-"
         )
-        plt.plot(relative_time_h, acceleration_norm_mps2, label=label, linestyle=linestyle)
+        plt.plot(
+            relative_time_h, acceleration_norm_mps2, label=label, linestyle=linestyle
+        )
 
     plt.xlabel("Time [hr]")
     plt.ylabel("Acceleration Norm [m/s$^2$]")
@@ -889,18 +1104,26 @@ satellite_acceleration_settings["Earth"] = earth_accelerations
 
 # moon_gravity_on: include Moon point-mass gravity only when enabled.
 if propagation_inputs.is_moon_gravity_on:
-    satellite_acceleration_settings["Moon"] = [propagation_setup.acceleration.point_mass_gravity()]
+    satellite_acceleration_settings["Moon"] = [
+        propagation_setup.acceleration.point_mass_gravity()
+    ]
 
 # mars_gravity_on: include Mars point-mass gravity only when enabled.
 if propagation_inputs.is_mars_gravity_on:
-    satellite_acceleration_settings["Mars"] = [propagation_setup.acceleration.point_mass_gravity()]
+    satellite_acceleration_settings["Mars"] = [
+        propagation_setup.acceleration.point_mass_gravity()
+    ]
 
 # venus_gravity_on: include Venus point-mass gravity only when enabled.
 if propagation_inputs.is_venus_gravity_on:
-    satellite_acceleration_settings["Venus"] = [propagation_setup.acceleration.point_mass_gravity()]
+    satellite_acceleration_settings["Venus"] = [
+        propagation_setup.acceleration.point_mass_gravity()
+    ]
 
 # Create global accelerations settings dictionary.
-acceleration_settings = {propagation_inputs.satellite_name: satellite_acceleration_settings}
+acceleration_settings = {
+    propagation_inputs.satellite_name: satellite_acceleration_settings
+}
 
 # Create acceleration models.
 acceleration_models = propagation_setup.create_acceleration_models(
@@ -1075,7 +1298,9 @@ propagator_settings = create_translational_propagator_settings(
 
 dynamics_simulator = simulator.create_dynamics_simulator(bodies, propagator_settings)
 dep_var_dict = create_dependent_variable_dictionary(dynamics_simulator)
-relative_time_h = (dep_var_dict.time_history - dep_var_dict.time_history[0]) / SECONDS_PER_HOUR
+relative_time_h = (
+    dep_var_dict.time_history - dep_var_dict.time_history[0]
+) / SECONDS_PER_HOUR
 
 
 """
