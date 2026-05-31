@@ -21,7 +21,7 @@ def main():
 
         satellite_id = urllib.parse.quote(satellite_id, safe="*")
 
-        url = f"https://celestrak.org/NORAD/elements/gp.php?INTDES={satellite_id}"
+        url = f"https://celestrak.org/NORAD/elements/gp.php?INTDES={satellite_id}&FORMAT=TLE"
 
         try:
 
