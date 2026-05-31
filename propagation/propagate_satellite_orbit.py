@@ -76,6 +76,8 @@ DEFAULT_GLOBAL_FRAME_ORIGIN = "Earth"
 DEFAULT_GLOBAL_FRAME_ORIENTATION = "J2000"
 
 DEFAULT_INTEGRATOR_FIXED_STEP_SIZE_S = 10.0
+DEFAULT_SIMULATION_DURATION_S = SECONDS_PER_DAY
+
 # Supported integrator method identifiers accepted by the CLI.
 # Values should match names in propagation_setup.integrator.CoefficientSets.
 #
@@ -440,9 +442,9 @@ def build_cli_parser():
         "--duration",
         type=parse_duration_to_seconds,
         metavar="<value[s|m|h|d]>",
-        required=True,
+        default=DEFAULT_SIMULATION_DURATION_S,
         help=(
-            "Simulation duration (default seconds). "
+            "Simulation duration (default: 1d). "
             "Use -d/--duration, e.g. -d 90, --duration 90s, -d 2m, --duration 1.5h, -d 1d."
         ),
     )

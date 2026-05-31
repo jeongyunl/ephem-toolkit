@@ -11,30 +11,35 @@ Propagates a perturbed satellite orbit around Earth using TudatPy. The script re
 #### Synopsis
 
 ```
-python propagation/propagate_satellite_orbit.py [-h] [-i INITIAL_STATE] -d DURATION
-    [--name NAME] [--mass MASS] [--drag on|off] [--drag-coeff CD] [--drag-area AREA]
-    [--sun-gravity on|off] [--moon-gravity on|off] [--mars-gravity on|off]
-    [--venus-gravity on|off] [--srp on|off] [--srp-coeff CR]
+python3 propagation/propagate_satellite_orbit.py [-h] [-i <oem_state_line>] [-d <value[s|m|h|d]>]
+  [--name <name>] [--mass <kg>]
+  [--integrator <rk_3|rk_4|rkf_45|rkf_56|rkf_78|rkf_89|rkf_108|rkf_1210|rkf_1412|rkdp_87|rkv_89>]
+  [--integrator-step-size <fixed|init,max|init,min,max>] [--earth-gravity <DxO>] [--drag-area <m^2>]
+  [--srp <on|off>] [--srp-coeff <coefficient>] [--drag <on|off>] [--drag-coeff <coefficient>]
+  [--moon-gravity <on|off>] [--sun-gravity <on|off>] [--venus-gravity <on|off>] [--mars-gravity <on|off>]
 ```
 
 #### Options
 
-| Option | Description |
-|---|---|
-| `-h`, `--help` | Show help message and exit |
-| `-i`, `--initial-state` | One OEM-style state line provided directly on the command line. If omitted, one line is read from stdin. |
-| `-d`, `--duration` | Simulation duration (required). Accepts a number optionally followed by a unit suffix: `s` (seconds, default), `m` (minutes), `h` (hours), `d` (days). E.g. `90`, `90s`, `2m`, `1.5h`, `1d`. |
-| `--name` | Name of the propagated satellite body (default: `Satellite`). |
-| `--mass` | Mass of the satellite in kilograms (default: `30`). |
-| `--drag` | Enable or disable aerodynamic drag acceleration. Accepts `on`/`off`, `true`/`false`, `yes`/`no`, `enable`/`disable` (default: `on`). |
-| `--drag-coeff` | Drag coefficient Cd of the satellite (default: `2.2`). |
-| `--drag-area` | Drag / average projection area of the satellite in m² (default: `0.18`, based on a 3U CubeSat). |
-| `--sun-gravity` | Enable or disable Sun point-mass gravity perturbation (default: `on`). |
-| `--moon-gravity` | Enable or disable Moon point-mass gravity perturbation (default: `on`). |
-| `--mars-gravity` | Enable or disable Mars point-mass gravity perturbation (default: `on`). |
-| `--venus-gravity` | Enable or disable Venus point-mass gravity perturbation (default: `on`). |
-| `--srp` | Enable or disable solar radiation pressure acceleration (default: `on`). |
-| `--srp-coeff` | Solar radiation pressure coefficient Cr of the satellite (default: `1.2`). |
+| Option | Description | Default |
+|---|---|---|
+| `-h`, `--help` | Show help message and exit | None |
+| `-i`, `--initial-state` | One OEM-style state line provided directly on the command line. If omitted, one line is read from stdin. | stdin (when piped) |
+| `-d`, `--duration` | Simulation duration. Accepts a number optionally followed by a unit suffix: `s` (seconds, default), `m` (minutes), `h` (hours), `d` (days). E.g. `90`, `90s`, `2m`, `1.5h`, `1d`. | `1d` |
+| `--name` | Name of the propagated satellite body. | `Satellite` |
+| `--mass` | Mass of the satellite in kilograms. | `30` |
+| `--integrator` | Integrator method identifier. Supported methods: `rk_3`, `rk_4`, `rkf_45`, `rkf_56`, `rkf_78`, `rkf_89`, `rkf_108`, `rkf_1210`, `rkf_1412`, `rkdp_87`, `rkv_89`. | `rk_4` |
+| `--integrator-step-size` | Integrator step size specification in seconds as one token. Forms: `<fixed>`, `<init,max>`, or `<init,min,max>`. | `10` |
+| `--earth-gravity` | Earth spherical harmonic gravity degree/order in `DxO` format (e.g. `5x5`, `8x6`). | `5x5` |
+| `--drag-area` | Drag / average projection area of the satellite in m² (based on a 3U CubeSat). | `0.18` |
+| `--srp` | Enable or disable solar radiation pressure acceleration. | `on` |
+| `--srp-coeff` | Solar radiation pressure coefficient Cr of the satellite. | `1.2` |
+| `--drag` | Enable or disable aerodynamic drag acceleration. Accepts `on`/`off`, `true`/`false`, `yes`/`no`, `enable`/`disable`. | `on` |
+| `--drag-coeff` | Drag coefficient Cd of the satellite. | `2.2` |
+| `--moon-gravity` | Enable or disable Moon point-mass gravity perturbation. | `on` |
+| `--sun-gravity` | Enable or disable Sun point-mass gravity perturbation. | `on` |
+| `--venus-gravity` | Enable or disable Venus point-mass gravity perturbation. | `on` |
+| `--mars-gravity` | Enable or disable Mars point-mass gravity perturbation. | `on` |
 
 #### Input Format
 
@@ -52,7 +57,18 @@ The state is provided either via the `--initial-state`/`-i` option or piped thro
 
 #### Output
 
-The script prints a pre-propagation configuration summary to stdout and, after propagation, displays four matplotlib plots:
+The script prints a pre-propagation configuration summary to stdout and, after
+propagation, displays four matplotlib plots.
+
+The pre-propagation summary includes:
+
+1. Selected force-model and integrator options.
+2. Initial epoch.
+3. Initial position vector `[m]`.
+4. Initial velocity vector `[m/s]`.
+5. Simulation duration and end epoch.
+
+The plots are:
 
 1. **Total acceleration norm** over time.
 2. **Ground track** (latitude vs. longitude) for the first 3 hours.
@@ -61,11 +77,12 @@ The script prints a pre-propagation configuration summary to stdout and, after p
 
 #### Propagation Model
 
-- **Central body gravity**: Earth spherical harmonics up to degree and order 5.
+- **Central body gravity**: Earth spherical harmonics with configurable degree/order (`--earth-gravity`, default `5x5`).
 - **Third-body gravity**: Sun, Moon, Mars, Venus point-mass gravity (each individually toggleable).
 - **Aerodynamic drag**: Earth atmosphere drag using a constant drag coefficient and reference area (toggleable).
 - **Solar radiation pressure**: Cannonball SRP model with Earth as an occulting body (toggleable).
-- **Integrator**: Fixed-step RK4 with a 10 s step size.
+- **Integrator**: Configurable Runge-Kutta method (`--integrator`) with fixed-step or variable-step size (`--integrator-step-size`).
+- **Default integrator setup**: Fixed-step RK4 with a 10 s step size.
 - **Reference frame**: J2000 inertial, centred on Earth.
 
 #### Usage
@@ -98,6 +115,14 @@ python propagation/propagate_satellite_orbit.py \
 ```bash
 python propagation/propagate_satellite_orbit.py \
   -d 12h --name MySat --mass 500 --drag-coeff 2.5 --drag-area 0.5 --srp-coeff 1.5 \
+  -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
+```
+
+**Propagate with a variable-step RKF 7(8) integrator and custom Earth gravity:**
+
+```bash
+python propagation/propagate_satellite_orbit.py \
+  -d 12h --integrator rkf_78 --integrator-step-size 30,0.001,1000 --earth-gravity 8x8 \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
 
