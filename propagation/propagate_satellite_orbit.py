@@ -57,6 +57,8 @@ DEFAULT_GLOBAL_FRAME_ORIGIN = "Earth"
 DEFAULT_GLOBAL_FRAME_ORIENTATION = "J2000"
 
 DEFAULT_INTEGRATOR_FIXED_STEP_SIZE_S = 10.0
+# Supported integrator method identifiers accepted by the CLI.
+# Values should match names in propagation_setup.integrator.CoefficientSets.
 SUPPORTED_INTEGRATOR_METHODS = (
     "rk_3",
     "rk_4",
@@ -77,6 +79,23 @@ PLOT_GROUND_TRACK_H = 3
 PLOT_SCATTER_MARKER_SIZE_PT2 = 1
 PLOT_LATITUDE_TICK_STEP_DEG = 45
 PLOT_TRUE_ANOMALY_TICK_STEP_DEG = 60
+
+
+def parse_bool_flag(value: str) -> bool:
+    """Parse a boolean flag from CLI.
+
+    Accepted true values: ``on``, ``true``, ``yes``, ``enable``
+    Accepted false values: ``off``, ``false``, ``no``, ``disable``
+    """
+    lower = value.strip().lower()
+    if lower in ("on", "true", "yes", "enable"):
+        return True
+    if lower in ("off", "false", "no", "disable"):
+        return False
+    raise argparse.ArgumentTypeError(
+        f"invalid boolean value: '{value}' "
+        "(expected on/off, true/false, yes/no, or enable/disable)"
+    )
 
 
 def parse_duration_to_seconds(value: str) -> float:
@@ -113,109 +132,6 @@ def parse_duration_to_seconds(value: str) -> float:
         raise argparse.ArgumentTypeError("duration must be a positive value")
 
     return duration_s
-
-
-def parse_mass_kg(value: str) -> float:
-    """Parse satellite mass from CLI as a positive value in kilograms."""
-    try:
-        mass_kg = float(value)
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError("mass must be a valid number in kg") from exc
-
-    if mass_kg <= 0.0:
-        raise argparse.ArgumentTypeError("mass must be a positive value in kg")
-
-    return mass_kg
-
-
-def parse_drag_coefficient(value: str) -> float:
-    """Parse drag coefficient from CLI as a positive value."""
-    try:
-        drag_coefficient = float(value)
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError(
-            "drag coefficient must be a valid number"
-        ) from exc
-
-    if drag_coefficient <= 0.0:
-        raise argparse.ArgumentTypeError("drag coefficient must be a positive value")
-
-    return drag_coefficient
-
-
-def parse_srp_coefficient(value: str) -> float:
-    """Parse solar radiation pressure coefficient from CLI as a positive value."""
-    try:
-        srp_coefficient = float(value)
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError(
-            "solar radiation pressure coefficient must be a valid number"
-        ) from exc
-
-    if srp_coefficient <= 0.0:
-        raise argparse.ArgumentTypeError(
-            "solar radiation pressure coefficient must be a positive value"
-        )
-
-    return srp_coefficient
-
-
-def parse_earth_spherical_harmonic_gravity_degree_order(value: str) -> tuple[int, int]:
-    """Parse Earth spherical harmonic gravity degree/order from ``DxO`` format.
-
-    Examples: ``5x5``, ``8X6``
-    """
-    match = re.fullmatch(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
-    if not match:
-        raise argparse.ArgumentTypeError(
-            "earth gravity must be in DxO format (e.g., 5x5, 8x6)"
-        )
-
-    degree = int(match.group(1))
-    order = int(match.group(2))
-
-    if degree < 0:
-        raise argparse.ArgumentTypeError("earth gravity degree must be non-negative")
-    if order < 0:
-        raise argparse.ArgumentTypeError("earth gravity order must be non-negative")
-    if order > degree:
-        raise argparse.ArgumentTypeError(
-            "earth gravity order must be less than or equal to degree"
-        )
-
-    return degree, order
-
-
-def parse_bool_flag(value: str) -> bool:
-    """Parse a boolean flag from CLI.
-
-    Accepted true values: ``on``, ``true``, ``yes``, ``enable``
-    Accepted false values: ``off``, ``false``, ``no``, ``disable``
-    """
-    lower = value.strip().lower()
-    if lower in ("on", "true", "yes", "enable"):
-        return True
-    if lower in ("off", "false", "no", "disable"):
-        return False
-    raise argparse.ArgumentTypeError(
-        f"invalid boolean value: '{value}' "
-        "(expected on/off, true/false, yes/no, or enable/disable)"
-    )
-
-
-def parse_drag_area_m2(value: str) -> float:
-    """Parse drag area from CLI as a positive value in square meters."""
-    try:
-        drag_area_m2 = float(value)
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError(
-            "drag area must be a valid number in m^2"
-        ) from exc
-
-    if drag_area_m2 <= 0.0:
-        raise argparse.ArgumentTypeError("drag area must be a positive value in m^2")
-
-    return drag_area_m2
 
 
 def parse_integrator_method(value: str) -> str:
@@ -288,6 +204,94 @@ def parse_integrator_step_size_values(value: str) -> tuple[float, ...]:
     return step_size_values
 
 
+def parse_mass_kg(value: str) -> float:
+    """Parse satellite mass from CLI as a positive value in kilograms."""
+    try:
+        mass_kg = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("mass must be a valid number in kg") from exc
+
+    if mass_kg <= 0.0:
+        raise argparse.ArgumentTypeError("mass must be a positive value in kg")
+
+    return mass_kg
+
+
+def parse_earth_spherical_harmonic_gravity_degree_order(value: str) -> tuple[int, int]:
+    """Parse Earth spherical harmonic gravity degree/order from ``DxO`` format.
+
+    In ``DxO``, ``D`` means degree and ``O`` means order.
+
+    Examples: ``5x5``, ``8X6``
+    """
+    match = re.fullmatch(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
+    if not match:
+        raise argparse.ArgumentTypeError(
+            "earth gravity must be in DxO format (D=degree, O=order; e.g., 5x5, 8x6)"
+        )
+
+    degree = int(match.group(1))
+    order = int(match.group(2))
+
+    if degree < 0:
+        raise argparse.ArgumentTypeError("earth gravity degree must be non-negative")
+    if order < 0:
+        raise argparse.ArgumentTypeError("earth gravity order must be non-negative")
+    if order > degree:
+        raise argparse.ArgumentTypeError(
+            "earth gravity order must be less than or equal to degree"
+        )
+
+    return degree, order
+
+
+def parse_drag_area_m2(value: str) -> float:
+    """Parse drag area from CLI as a positive value in square meters."""
+    try:
+        drag_area_m2 = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "drag area must be a valid number in m^2"
+        ) from exc
+
+    if drag_area_m2 <= 0.0:
+        raise argparse.ArgumentTypeError("drag area must be a positive value in m^2")
+
+    return drag_area_m2
+
+
+def parse_srp_coefficient(value: str) -> float:
+    """Parse solar radiation pressure coefficient from CLI as a positive value."""
+    try:
+        srp_coefficient = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "solar radiation pressure coefficient must be a valid number"
+        ) from exc
+
+    if srp_coefficient <= 0.0:
+        raise argparse.ArgumentTypeError(
+            "solar radiation pressure coefficient must be a positive value"
+        )
+
+    return srp_coefficient
+
+
+def parse_drag_coefficient(value: str) -> float:
+    """Parse drag coefficient from CLI as a positive value."""
+    try:
+        drag_coefficient = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "drag coefficient must be a valid number"
+        ) from exc
+
+    if drag_coefficient <= 0.0:
+        raise argparse.ArgumentTypeError("drag coefficient must be a positive value")
+
+    return drag_coefficient
+
+
 def build_cli_parser():
     """Create and return the argument parser for this script."""
     parser = argparse.ArgumentParser(
@@ -314,6 +318,8 @@ def build_cli_parser():
             "Use -d/--duration, e.g. -d 90, --duration 90s, -d 2m, --duration 1.5h, -d 1d."
         ),
     )
+
+    # Satellite properties
     parser.add_argument(
         "--name",
         default=DEFAULT_SATELLITE_NAME,
@@ -328,101 +334,8 @@ def build_cli_parser():
             f"(default: {DEFAULT_SATELLITE_MASS_KG})."
         ),
     )
-    parser.add_argument(
-        "--drag",
-        type=parse_bool_flag,
-        default=True,
-        help=(
-            "Enable or disable aerodynamic drag acceleration. "
-            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
-        ),
-    )
-    parser.add_argument(
-        "--drag-coeff",
-        type=parse_drag_coefficient,
-        default=DEFAULT_SATELLITE_DRAG_COEFFICIENT,
-        help=f"Drag coefficient of the propagated satellite (default: {DEFAULT_SATELLITE_DRAG_COEFFICIENT}).",
-    )
-    parser.add_argument(
-        "--drag-area",
-        type=parse_drag_area_m2,
-        default=DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2,
-        help=(
-            "Drag area / average projection area of the propagated satellite in m^2 "
-            f"(default: {DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2})."
-        ),
-    )
-    parser.add_argument(
-        "--sun-gravity",
-        type=parse_bool_flag,
-        default=True,
-        help=(
-            "Enable or disable Sun point-mass gravity perturbation. "
-            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
-        ),
-    )
-    parser.add_argument(
-        "--moon-gravity",
-        dest="moon_gravity",
-        type=parse_bool_flag,
-        default=True,
-        help=(
-            "Enable or disable Moon point-mass gravity perturbation. "
-            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
-        ),
-    )
-    parser.add_argument(
-        "--mars-gravity",
-        dest="mars_gravity",
-        type=parse_bool_flag,
-        default=True,
-        help=(
-            "Enable or disable Mars point-mass gravity perturbation. "
-            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
-        ),
-    )
-    parser.add_argument(
-        "--venus-gravity",
-        dest="venus_gravity",
-        type=parse_bool_flag,
-        default=True,
-        help=(
-            "Enable or disable Venus point-mass gravity perturbation. "
-            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
-        ),
-    )
-    parser.add_argument(
-        "--srp",
-        type=parse_bool_flag,
-        default=True,
-        help=(
-            "Enable or disable solar radiation pressure acceleration. "
-            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
-        ),
-    )
-    parser.add_argument(
-        "--srp-coeff",
-        type=parse_srp_coefficient,
-        default=DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT,
-        help=(
-            "Solar radiation pressure coefficient of the propagated satellite "
-            f"(default: {DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT})."
-        ),
-    )
-    parser.add_argument(
-        "--earth-gravity",
-        type=parse_earth_spherical_harmonic_gravity_degree_order,
-        default=(
-            DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE,
-            DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER,
-        ),
-        help=(
-            "Earth spherical harmonic gravity degree/order in DxO format "
-            "(default: "
-            f"{DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE}x"
-            f"{DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER})."
-        ),
-    )
+
+    # Integrator method and step size
     parser.add_argument(
         "--integrator",
         type=parse_integrator_method,
@@ -448,18 +361,118 @@ def build_cli_parser():
             f"(default: {DEFAULT_INTEGRATOR_FIXED_STEP_SIZE_S})."
         ),
     )
+
+    # Earth spherical harmonic gravity degree/order
+    parser.add_argument(
+        "--earth-gravity",
+        type=parse_earth_spherical_harmonic_gravity_degree_order,
+        default=(
+            DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE,
+            DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER,
+        ),
+        help=(
+            "Earth spherical harmonic gravity degree/order in DxO format "
+            "(D=degree, O=order) "
+            "(default: "
+            f"{DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE}x"
+            f"{DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER})."
+        ),
+    )
+
+    # Drag area (also used as the cannonball reference area for SRP)
+    parser.add_argument(
+        "--drag-area",
+        type=parse_drag_area_m2,
+        default=DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2,
+        help=(
+            "Drag area / average projection area of the propagated satellite in m^2 "
+            f"(default: {DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2})."
+        ),
+    )
+
+    # Solar radiation pressure
+    parser.add_argument(
+        "--srp",
+        type=parse_bool_flag,
+        default=True,
+        help=(
+            "Enable or disable solar radiation pressure acceleration. "
+            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
+        ),
+    )
+    parser.add_argument(
+        "--srp-coeff",
+        type=parse_srp_coefficient,
+        default=DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT,
+        help=(
+            "Solar radiation pressure coefficient of the propagated satellite "
+            f"(default: {DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT})."
+        ),
+    )
+
+    # Aerodynamic drag
+    parser.add_argument(
+        "--drag",
+        type=parse_bool_flag,
+        default=True,
+        help=(
+            "Enable or disable aerodynamic drag acceleration. "
+            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
+        ),
+    )
+    parser.add_argument(
+        "--drag-coeff",
+        type=parse_drag_coefficient,
+        default=DEFAULT_SATELLITE_DRAG_COEFFICIENT,
+        help=f"Drag coefficient of the propagated satellite (default: {DEFAULT_SATELLITE_DRAG_COEFFICIENT}).",
+    )
+
+    parser.add_argument(
+        "--moon-gravity",
+        dest="moon_gravity",
+        type=parse_bool_flag,
+        default=True,
+        help=(
+            "Enable or disable Moon point-mass gravity perturbation. "
+            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
+        ),
+    )
+    parser.add_argument(
+        "--sun-gravity",
+        type=parse_bool_flag,
+        default=True,
+        help=(
+            "Enable or disable Sun point-mass gravity perturbation. "
+            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
+        ),
+    )
+    parser.add_argument(
+        "--venus-gravity",
+        dest="venus_gravity",
+        type=parse_bool_flag,
+        default=True,
+        help=(
+            "Enable or disable Venus point-mass gravity perturbation. "
+            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
+        ),
+    )
+    parser.add_argument(
+        "--mars-gravity",
+        dest="mars_gravity",
+        type=parse_bool_flag,
+        default=True,
+        help=(
+            "Enable or disable Mars point-mass gravity perturbation. "
+            "Accepts on/off, true/false, yes/no, enable/disable (default: on)."
+        ),
+    )
     return parser
-
-
-def parse_cli_args():
-    """Parse CLI arguments for input source and simulation duration."""
-    return build_cli_parser().parse_args()
 
 
 # Parse CLI arguments once for script-wide configuration.
 # Only argparse and re have been imported so far, so --help and validation
 # errors are returned instantly without waiting for heavy library loads.
-cli_args = parse_cli_args()
+cli_args = build_cli_parser().parse_args()
 
 
 # Standard-library modules -- imported just after CLI parsing succeeds,
@@ -495,69 +508,70 @@ class PropagationInputs:
         Name of the propagated vehicle body added to the Tudat environment.
     satellite_mass_kg : float
         Spacecraft mass in kilograms used by dynamics propagation.
-    is_earth_drag_on : bool
-        Whether aerodynamic drag acceleration from Earth's atmosphere is enabled.
-    satellite_drag_coefficient : float
-        Dimensionless aerodynamic drag coefficient (Cd) used when drag is enabled.
-    satellite_drag_area_m2 : float
-        Effective drag/reference area in square meters used for aerodynamic drag
-        and, in this script, also reused as the cannonball reference area for SRP.
-    is_sun_gravity_on : bool
-        Whether Sun point-mass gravity perturbation is enabled.
-    is_moon_gravity_on : bool
-        Whether Moon point-mass gravity perturbation is enabled.
-    is_mars_gravity_on : bool
-        Whether Mars point-mass gravity perturbation is enabled.
-    is_venus_gravity_on : bool
-        Whether Venus point-mass gravity perturbation is enabled.
-    earth_spherical_harmonic_gravity_degree : int
-        Degree used for Earth's spherical harmonic gravity field.
-    earth_spherical_harmonic_gravity_order : int
-        Order used for Earth's spherical harmonic gravity field.
     integrator_method : str
         Numerical integrator method identifier used by propagation settings.
     integrator_step_size_values_s : tuple[float, ...]
         Step-size input in seconds from CLI. One value selects fixed-step
         integration; three values ``(initial, minimum, maximum)`` select
         variable-step integration.
+    earth_spherical_harmonic_gravity_degree : int
+        Degree used for Earth's spherical harmonic gravity field.
+    earth_spherical_harmonic_gravity_order : int
+        Order used for Earth's spherical harmonic gravity field.
+    satellite_drag_area_m2 : float
+        Effective drag/reference area in square meters used for aerodynamic drag
+        and, in this script, also reused as the cannonball reference area for SRP.
     is_srp_on : bool
         Whether solar radiation pressure acceleration is enabled.
     srp_coefficient : float
         Dimensionless solar radiation pressure coefficient (Cr) used when SRP is enabled.
-    simulation_duration_s : float
-        Total propagation duration in seconds.
+    is_earth_drag_on : bool
+        Whether aerodynamic drag acceleration from Earth's atmosphere is enabled.
+    satellite_drag_coefficient : float
+        Dimensionless aerodynamic drag coefficient (Cd) used when drag is enabled.
+    is_moon_gravity_on : bool
+        Whether Moon point-mass gravity perturbation is enabled.
+    is_sun_gravity_on : bool
+        Whether Sun point-mass gravity perturbation is enabled.
+    is_venus_gravity_on : bool
+        Whether Venus point-mass gravity perturbation is enabled.
+    is_mars_gravity_on : bool
+        Whether Mars point-mass gravity perturbation is enabled.
     initial_epoch_datetime_utc : datetime
         Start epoch parsed from OEM input, represented as UTC datetime.
     initial_state_m_mps : numpy.ndarray
         Initial translational state vector [x, y, z, vx, vy, vz] in SI units,
         where position is in meters and velocity is in meters per second.
+    simulation_duration_s : float
+        Total propagation duration in seconds.
     """
 
     satellite_name: str
     satellite_mass_kg: float
 
-    is_earth_drag_on: bool
-    satellite_drag_coefficient: float
+    integrator_method: str
+    integrator_step_size_values_s: tuple[float, ...]
+
+    earth_spherical_harmonic_gravity_degree: int
+    earth_spherical_harmonic_gravity_order: int
+
     satellite_drag_area_m2: float
 
     is_srp_on: bool
     srp_coefficient: float
 
-    is_sun_gravity_on: bool
+    is_earth_drag_on: bool
+    satellite_drag_coefficient: float
+
     is_moon_gravity_on: bool
-    is_mars_gravity_on: bool
+    is_sun_gravity_on: bool
     is_venus_gravity_on: bool
-
-    earth_spherical_harmonic_gravity_degree: int
-    earth_spherical_harmonic_gravity_order: int
-
-    integrator_method: str
-    integrator_step_size_values_s: tuple[float, ...]
-
-    simulation_duration_s: float
+    is_mars_gravity_on: bool
 
     initial_epoch_datetime_utc: datetime
     initial_state_m_mps: np.ndarray
+
+    simulation_duration_s: float
 
 
 def load_spice_kernels():
@@ -656,22 +670,22 @@ def build_propagation_inputs(cli_args) -> PropagationInputs:
     return PropagationInputs(
         satellite_name=satellite_name,
         satellite_mass_kg=cli_args.mass,
-        is_earth_drag_on=cli_args.drag,
-        satellite_drag_coefficient=cli_args.drag_coeff,
-        satellite_drag_area_m2=cli_args.drag_area,
-        is_sun_gravity_on=cli_args.sun_gravity,
-        is_moon_gravity_on=cli_args.moon_gravity,
-        is_mars_gravity_on=cli_args.mars_gravity,
-        is_venus_gravity_on=cli_args.venus_gravity,
-        earth_spherical_harmonic_gravity_degree=earth_spherical_harmonic_gravity_degree,
-        earth_spherical_harmonic_gravity_order=earth_spherical_harmonic_gravity_order,
         integrator_method=cli_args.integrator,
         integrator_step_size_values_s=integrator_step_size_values,
+        earth_spherical_harmonic_gravity_degree=earth_spherical_harmonic_gravity_degree,
+        earth_spherical_harmonic_gravity_order=earth_spherical_harmonic_gravity_order,
+        satellite_drag_area_m2=cli_args.drag_area,
         is_srp_on=cli_args.srp,
         srp_coefficient=cli_args.srp_coeff,
-        simulation_duration_s=cli_args.duration,
+        is_earth_drag_on=cli_args.drag,
+        satellite_drag_coefficient=cli_args.drag_coeff,
+        is_moon_gravity_on=cli_args.moon_gravity,
+        is_sun_gravity_on=cli_args.sun_gravity,
+        is_venus_gravity_on=cli_args.venus_gravity,
+        is_mars_gravity_on=cli_args.mars_gravity,
         initial_epoch_datetime_utc=initial_epoch_datetime_utc,
         initial_state_m_mps=initial_state_m_mps,
+        simulation_duration_s=cli_args.duration,
     )
 
 
@@ -684,21 +698,9 @@ def print_pre_propagation_summary(
     print(f"Input source: {input_source}")
     print(f"Satellite name: {propagation_inputs.satellite_name}")
     print(f"Satellite mass [kg]: {propagation_inputs.satellite_mass_kg}")
-    # earth_drag_on: display drag status; only show coefficient and area when drag is enabled.
-    print(f"Aerodynamic drag: {'on' if propagation_inputs.is_earth_drag_on else 'off'}")
-    if propagation_inputs.is_earth_drag_on:
-        print(f"Drag coefficient [-]: {propagation_inputs.satellite_drag_coefficient}")
-        print(f"Drag area [m^2]: {propagation_inputs.satellite_drag_area_m2}")
-    # sun_gravity_on / moon_gravity_on / mars_gravity_on / venus_gravity_on: display third-body gravity status.
-    print(f"Sun gravity: {'on' if propagation_inputs.is_sun_gravity_on else 'off'}")
-    print(f"Moon gravity: {'on' if propagation_inputs.is_moon_gravity_on else 'off'}")
-    print(f"Mars gravity: {'on' if propagation_inputs.is_mars_gravity_on else 'off'}")
-    print(f"Venus gravity: {'on' if propagation_inputs.is_venus_gravity_on else 'off'}")
-    print(
-        "Earth spherical harmonic gravity [degree x order]: "
-        f"{propagation_inputs.earth_spherical_harmonic_gravity_degree}x"
-        f"{propagation_inputs.earth_spherical_harmonic_gravity_order}"
-    )
+
+    # integrator_method and integrator_step_size_values_s
+    # display integrator method and step size(s), with mode (fixed or variable) inferred from the number of step size values provided.
     print(f"Integrator method: {propagation_inputs.integrator_method}")
     if len(propagation_inputs.integrator_step_size_values_s) == 1:
         print("Integrator mode: fixed-step")
@@ -718,34 +720,48 @@ def print_pre_propagation_summary(
             f"(initial, minimum, maximum): {initial_step_size_s}, "
             f"{minimum_step_size_s}, {maximum_step_size_s}"
         )
+
+    # earth_spherical_harmonic_gravity_degree and earth_spherical_harmonic_gravity_order
+    print(
+        "Earth spherical harmonic gravity [degree x order]: "
+        f"{propagation_inputs.earth_spherical_harmonic_gravity_degree}x"
+        f"{propagation_inputs.earth_spherical_harmonic_gravity_order}"
+    )
+
+    # satellite_drag_area_m2: display drag area, which is used for both drag and SRP in this script.
+    print(f"Drag area [m^2]: {propagation_inputs.satellite_drag_area_m2}")
+
     # srp_on: display SRP status; only show coefficient when SRP is enabled.
     print(
         f"Solar radiation pressure: {'on' if propagation_inputs.is_srp_on else 'off'}"
     )
     if propagation_inputs.is_srp_on:
         print(
-            f"Solar radiation pressure coefficient [-]: {propagation_inputs.srp_coefficient}"
+            f"Solar radiation pressure coefficient: {propagation_inputs.srp_coefficient}"
         )
+
+    # earth_drag_on: display drag status; only show coefficient when drag is enabled.
+    print(f"Aerodynamic drag: {'on' if propagation_inputs.is_earth_drag_on else 'off'}")
+    if propagation_inputs.is_earth_drag_on:
+        print(f"Drag coefficient: {propagation_inputs.satellite_drag_coefficient}")
+
+    # sun_gravity_on / moon_gravity_on / mars_gravity_on / venus_gravity_on: display third-body gravity status.
+    print(f"Moon gravity: {'on' if propagation_inputs.is_moon_gravity_on else 'off'}")
+    print(f"Sun gravity: {'on' if propagation_inputs.is_sun_gravity_on else 'off'}")
+    print(f"Venus gravity: {'on' if propagation_inputs.is_venus_gravity_on else 'off'}")
+    print(f"Mars gravity: {'on' if propagation_inputs.is_mars_gravity_on else 'off'}")
+
+    print(f"Initial epoch: {propagation_inputs.initial_epoch_datetime_utc.isoformat()}")
+    print(
+        "Initial state [m, m/s]: "
+        f"{np.array2string(propagation_inputs.initial_state_m_mps, precision=6, separator=', ')}"
+    )
     print(f"Simulation duration [s]: {propagation_inputs.simulation_duration_s}")
     simulation_end_epoch_datetime_utc = (
         propagation_inputs.initial_epoch_datetime_utc
         + timedelta(seconds=propagation_inputs.simulation_duration_s)
     )
-    print(
-        f"Initial epoch [ISO-8601]: {propagation_inputs.initial_epoch_datetime_utc.isoformat()}"
-    )
-    print(
-        "Simulation end epoch [ISO-8601]: "
-        f"{simulation_end_epoch_datetime_utc.isoformat()}"
-    )
-    print(
-        "Initial epoch TDB [s since J2000]: "
-        f"{datetime_to_tdb(propagation_inputs.initial_epoch_datetime_utc)}"
-    )
-    print(
-        "Initial state [m, m/s]: "
-        f"{np.array2string(propagation_inputs.initial_state_m_mps, precision=6, separator=', ')}"
-    )
+    print("Simulation end epoch: " f"{simulation_end_epoch_datetime_utc.isoformat()}")
     print("=================================")
 
 
@@ -757,23 +773,12 @@ def create_translational_propagator_settings(
     dependent_variables_to_save,
 ):
     """Create translational propagator settings for the configured run."""
-    integrator_method_to_coefficient_set = {
-        "rk_3": propagation_setup.integrator.CoefficientSets.rk_3,
-        "rk_4": propagation_setup.integrator.CoefficientSets.rk_4,
-        "rkf_45": propagation_setup.integrator.CoefficientSets.rkf_45,
-        "rkf_56": propagation_setup.integrator.CoefficientSets.rkf_56,
-        "rkf_78": propagation_setup.integrator.CoefficientSets.rkf_78,
-        "rkf_89": propagation_setup.integrator.CoefficientSets.rkf_89,
-        "rkf_108": propagation_setup.integrator.CoefficientSets.rkf_108,
-        "rkf_1210": propagation_setup.integrator.CoefficientSets.rkf_1210,
-        "rkf_1412": propagation_setup.integrator.CoefficientSets.rkf_1412,
-    }
-
     try:
-        coefficient_set = integrator_method_to_coefficient_set[
-            propagation_inputs.integrator_method
-        ]
-    except KeyError as exc:
+        coefficient_set = getattr(
+            propagation_setup.integrator.CoefficientSets,
+            propagation_inputs.integrator_method,
+        )
+    except AttributeError as exc:
         raise ValueError(
             "Unsupported integrator method "
             f"'{propagation_inputs.integrator_method}'. Supported methods are: "
@@ -854,16 +859,6 @@ def create_environment_and_bodies(propagation_inputs: PropagationInputs):
 
     body_settings.add_empty_settings(propagation_inputs.satellite_name)
 
-    # earth_drag_on: only attach aerodynamic coefficient settings when drag is enabled.
-    if propagation_inputs.is_earth_drag_on:
-        aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
-            propagation_inputs.satellite_drag_area_m2,
-            [propagation_inputs.satellite_drag_coefficient, 0.0, 0.0],
-        )
-        body_settings.get(
-            propagation_inputs.satellite_name
-        ).aerodynamic_coefficient_settings = aero_coefficient_settings
-
     # srp_on: only attach radiation pressure target settings when SRP is enabled.
     if propagation_inputs.is_srp_on:
         occulting_bodies_dict = {"Sun": ["Earth"]}
@@ -877,6 +872,16 @@ def create_environment_and_bodies(propagation_inputs: PropagationInputs):
         body_settings.get(
             propagation_inputs.satellite_name
         ).radiation_pressure_target_settings = vehicle_target_settings
+
+    # earth_drag_on: only attach aerodynamic coefficient settings when drag is enabled.
+    if propagation_inputs.is_earth_drag_on:
+        aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
+            propagation_inputs.satellite_drag_area_m2,
+            [propagation_inputs.satellite_drag_coefficient, 0.0, 0.0],
+        )
+        body_settings.get(
+            propagation_inputs.satellite_name
+        ).aerodynamic_coefficient_settings = aero_coefficient_settings
 
     bodies = environment_setup.create_system_of_bodies(body_settings)
     bodies.get(
@@ -1094,15 +1099,13 @@ This dictionary is finally input to the propagation setup to create the accelera
 
 
 # Define accelerations acting on the propagated satellite by Sun, Earth, Moon, Mars, and Venus.
-# sun_gravity_on: include Sun point-mass gravity only when enabled.
-# srp_on: include radiation pressure acceleration from the Sun only when SRP is enabled.
 satellite_acceleration_settings = {}
 
 sun_accelerations = []
-if propagation_inputs.is_sun_gravity_on:
-    sun_accelerations.append(propagation_setup.acceleration.point_mass_gravity())
 if propagation_inputs.is_srp_on:
     sun_accelerations.insert(0, propagation_setup.acceleration.radiation_pressure())
+if propagation_inputs.is_sun_gravity_on:
+    sun_accelerations.append(propagation_setup.acceleration.point_mass_gravity())
 
 if sun_accelerations:
     satellite_acceleration_settings["Sun"] = sun_accelerations
@@ -1124,15 +1127,15 @@ if propagation_inputs.is_moon_gravity_on:
         propagation_setup.acceleration.point_mass_gravity()
     ]
 
-# mars_gravity_on: include Mars point-mass gravity only when enabled.
-if propagation_inputs.is_mars_gravity_on:
-    satellite_acceleration_settings["Mars"] = [
-        propagation_setup.acceleration.point_mass_gravity()
-    ]
-
 # venus_gravity_on: include Venus point-mass gravity only when enabled.
 if propagation_inputs.is_venus_gravity_on:
     satellite_acceleration_settings["Venus"] = [
+        propagation_setup.acceleration.point_mass_gravity()
+    ]
+
+# mars_gravity_on: include Mars point-mass gravity only when enabled.
+if propagation_inputs.is_mars_gravity_on:
+    satellite_acceleration_settings["Mars"] = [
         propagation_setup.acceleration.point_mass_gravity()
     ]
 
@@ -1244,6 +1247,7 @@ if propagation_inputs.is_earth_drag_on:
             "Earth",
         ),
     )
+
 
 # venus_gravity_on: track Venus gravity acceleration norm only when Venus gravity is enabled.
 if propagation_inputs.is_venus_gravity_on:
