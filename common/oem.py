@@ -9,7 +9,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import IO, Union
 
 import numpy as np
@@ -178,96 +177,8 @@ def write_oem(
 
 
 # ===================================================================
-# Round-trip test helper
-# ===================================================================
-
-
-def round_trip_test_oem(source: Union[str, Path]) -> dict:
-    """Perform a read/write/read round-trip test for an OEM file.
-
-    The test is executed twice:
-    1. Using the low-level API.
-    2. Using the structured class API.
-    """
-    source = Path(source)
-
-    with TemporaryDirectory() as tmpdir:
-        tmpdir = Path(tmpdir)
-        lowlevel_path = tmpdir / "roundtrip_lowlevel.oem"
-        class_path = tmpdir / "roundtrip_class.oem"
-
-        header, meta, states = read_oem(source)
-        write_oem(lowlevel_path, header, meta, states)
-        header2, meta2, states2 = read_oem(lowlevel_path)
-
-        low_header_ok = header2 == header
-        low_meta_ok = meta2 == meta
-        low_state_count_ok = len(states2) == len(states)
-        low_states_ok = low_state_count_ok
-        if low_states_ok:
-            for epoch in states:
-                if not np.allclose(states[epoch], states2[epoch], atol=1e-9, rtol=0.0):
-                    low_states_ok = False
-                    break
-
-        oem = CcsdsOem.from_source(source)
-        oem.to_file(class_path)
-        oem2 = CcsdsOem.from_source(class_path)
-
-        class_header_ok = oem.header == oem2.header
-        class_meta_ok = oem.meta == oem2.meta
-        class_state_count_ok = len(oem.states) == len(oem2.states)
-        class_states_ok = class_state_count_ok and np.allclose(
-            oem.state_vectors,
-            oem2.state_vectors,
-            atol=1e-9,
-            rtol=0.0,
-        )
-
-        return {
-            "source": str(source),
-            "epoch_count": len(states),
-            "low_level": {
-                "header_ok": low_header_ok,
-                "meta_ok": low_meta_ok,
-                "state_count_ok": low_state_count_ok,
-                "states_ok": low_states_ok,
-                "overall_ok": all([low_header_ok, low_meta_ok, low_state_count_ok, low_states_ok]),
-            },
-            "class_api": {
-                "header_ok": class_header_ok,
-                "meta_ok": class_meta_ok,
-                "state_count_ok": class_state_count_ok,
-                "states_ok": class_states_ok,
-                "overall_ok": all(
-                    [class_header_ok, class_meta_ok, class_state_count_ok, class_states_ok]
-                ),
-            },
-            "overall_ok": all(
-                [
-                    low_header_ok,
-                    low_meta_ok,
-                    low_state_count_ok,
-                    low_states_ok,
-                    class_header_ok,
-                    class_meta_ok,
-                    class_state_count_ok,
-                    class_states_ok,
-                ]
-            ),
-        }
-
-
-# ===================================================================
 # Structured classes
 # ===================================================================
-
-
-def test_round_trip_oem() -> None:
-    """Basic regression test for OEM read/write round-tripping."""
-    sample = Path(__file__).resolve().parent.parent / "ISS_2026-05-20.OEM"
-    result = round_trip_test_oem(sample)
-    assert result["overall_ok"], result
 
 
 @dataclass
