@@ -736,7 +736,7 @@ def load_spice_kernels():
         "tudat_merged_spk_kernel.bsp",  # Merged SPK kernel containing ephemerides for various bodies, including Earth, Sun, Moon, Mars, Venus
     ]
     for kernel_file in spice_kernel_files:
-        spice.load_kernel(get_spice_kernel_path() + "/" + kernel_file)
+        spice.load_kernel(common.get_spice_kernel_path() + "/" + kernel_file)
 
 
 def read_initial_state_from_stream(stream):
@@ -761,7 +761,7 @@ def read_initial_state_from_stream(stream):
     if line == "":
         raise ValueError("No input line available in stream")
 
-    parsed = parse_oem_state_line(line)
+    parsed = common.parse_oem_state_line(line)
     if parsed is None:
         raise ValueError("The first input line is blank/comment and was not parsed")
 
@@ -906,7 +906,7 @@ def write_state_history_oem_like(state_history, output_path):
 
     try:
         for epoch_tdb_s, state_m_mps in sorted(state_history.items()):
-            epoch_utc_iso = tdb_to_datetime(epoch_tdb_s).isoformat(
+            epoch_utc_iso = common.tdb_to_datetime(epoch_tdb_s).isoformat(
                 timespec="microseconds"
             )
             position_km = state_m_mps[:3] / KILOMETERS_TO_METERS
@@ -1121,7 +1121,7 @@ def create_translational_propagator_settings(
         + timedelta(seconds=propagation_inputs.simulation_duration_s)
     )
     termination_condition = propagation_setup.propagator.time_termination(
-        datetime_to_tdb(simulation_end_epoch_datetime_utc)
+        common.datetime_to_tdb(simulation_end_epoch_datetime_utc)
     )
 
     return propagation_setup.propagator.translational(
@@ -1129,7 +1129,7 @@ def create_translational_propagator_settings(
         acceleration_models,
         bodies_to_propagate,
         propagation_inputs.initial_state_m_mps,
-        datetime_to_tdb(propagation_inputs.initial_epoch_datetime_utc),
+        common.datetime_to_tdb(propagation_inputs.initial_epoch_datetime_utc),
         integrator_settings,
         termination_condition,
         output_variables=dependent_variables_to_save,
@@ -1864,12 +1864,7 @@ for an overview of the use of SPICE in Tudat.
 
 # common.common -- first module that pulls in tudatpy (via tudatpy.astro.time_representation).
 # Imported here, just before build_propagation_inputs() which is its first caller.
-from common.common import (
-    parse_oem_state_line,
-    datetime_to_tdb,
-    tdb_to_datetime,
-    get_spice_kernel_path,
-)
+import common.common as common
 
 propagation_inputs = build_propagation_inputs(cli_args)
 input_source = "--initial-state" if cli_args.initial_state is not None else "stdin"

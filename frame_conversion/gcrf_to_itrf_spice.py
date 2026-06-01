@@ -17,7 +17,7 @@ warnings.filterwarnings(
 import numpy as np
 from tudatpy.interface import spice
 
-from common.common import parse_oem_state_line, datetime_to_tdb, get_spice_kernel_path
+import common.common as common
 
 
 def load_spice_kernels():
@@ -28,7 +28,7 @@ def load_spice_kernels():
         "earth_200101_990825_predict.bpc",  # Earth rotation prediction. Covers Jan, 2001 to Aug, 2099
     ]
     for kernel_file in spice_kernel_files:
-        spice.load_kernel(get_spice_kernel_path() + "/" + kernel_file)
+        spice.load_kernel(common.get_spice_kernel_path() + "/" + kernel_file)
 
 
 def convert_frames_spice(base_frame, target_frame, input_epoch_et_s, input_state_m):
@@ -92,7 +92,7 @@ def process_stream(stream, reverse=False):
 
     for line in stream:
         try:
-            parsed = parse_oem_state_line(line)
+            parsed = common.parse_oem_state_line(line)
         except Exception as exc:
             print(f"Skipping line (parse error): {line.strip()} -- {exc}")
             continue
@@ -100,7 +100,7 @@ def process_stream(stream, reverse=False):
             continue
 
         epoch_dt, input_position_km, input_velocity_km_s = parsed
-        epoch_tdb_s = datetime_to_tdb(epoch_dt)
+        epoch_tdb_s = common.datetime_to_tdb(epoch_dt)
 
         input_state_m = np.concatenate([input_position_km, input_velocity_km_s]) * 1e3
         output_state_m = convert_frames_spice(

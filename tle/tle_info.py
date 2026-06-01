@@ -21,11 +21,11 @@ from tudatpy.astro.element_conversion import KeplerianElementIndices
 from tudatpy.interface import spice
 
 try:
-    from common.common import get_spice_kernel_path
+    import common.common as common
 except ModuleNotFoundError:
     # Support direct execution from the `tle` directory.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from common.common import get_spice_kernel_path
+    import common.common as common
 
 
 def load_spice_kernels():
@@ -36,7 +36,7 @@ def load_spice_kernels():
         "pck00011.tpc",  # PLANETARY CONSTANTS KERNEL FILE: orientation and size/shape data for natural bodies(Sun, planets, asteroids, etc)
     ]
     for kernel_file in spice_kernel_files:
-        spice.load_kernel(get_spice_kernel_path() + "/" + kernel_file)
+        spice.load_kernel(common.get_spice_kernel_path() + "/" + kernel_file)
 
 
 def get_tle_epoch(tle):

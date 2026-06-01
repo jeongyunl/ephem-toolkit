@@ -20,7 +20,7 @@ from tudatpy.dynamics import environment_setup
 from tudatpy.dynamics.environment_setup.rotation_model import RotationModelSettings
 
 
-from common.common import parse_oem_state_line, datetime_to_tdb, get_spice_kernel_path
+import common.common as common
 
 
 def load_spice_kernels():
@@ -32,7 +32,7 @@ def load_spice_kernels():
         "earth_200101_990825_predict.bpc",  # Earth rotation prediction. Covers Jan, 2001 to Aug, 2099
     ]
     for kernel_file in spice_kernel_files:
-        spice.load_kernel(get_spice_kernel_path() + "/" + kernel_file)
+        spice.load_kernel(common.get_spice_kernel_path() + "/" + kernel_file)
 
 
 def create_earth_rotation_model(
@@ -215,7 +215,7 @@ def process_stream(
 
     for line in stream:
         try:
-            parsed = parse_oem_state_line(line)
+            parsed = common.parse_oem_state_line(line)
         except Exception as exc:
             print(f"Skipping line (parse error): {line.strip()} -- {exc}")
             continue
@@ -223,7 +223,7 @@ def process_stream(
             continue
 
         epoch_dt, position_km, velocity_km_s = parsed
-        epoch_tdb_s = datetime_to_tdb(epoch_dt)
+        epoch_tdb_s = common.datetime_to_tdb(epoch_dt)
 
         # Convert km / km·s⁻¹ → m / m·s⁻¹ for the conversion functions
         position_m = position_km * 1e3
