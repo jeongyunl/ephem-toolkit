@@ -1,119 +1,12 @@
 #!/usr/bin/env python3
 
 import argparse
-import re
+import os
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-def compute_tle_checksum(line_without_checksum):
-    """Compute checksum for a 68-character TLE line."""
-    checksum = 0
-    for char in line_without_checksum:
-        if char.isdigit():
-            checksum += int(char)
-        elif char == "-":
-            checksum += 1
-    return str(checksum % 10)
-
-
-def parse_tle_exponential(field_value, field_name):
-    """Validate TLE exponential format, e.g. '00000-0' or '29661-4'."""
-    value = field_value.strip()
-
-    # Allow either 7 chars (implicit positive sign) or 8 chars (explicit sign)
-    if len(value) == 7:
-        value = " " + value
-
-    if len(value) != 8:
-        raise ValueError(
-            f"{field_name} must be 7 or 8 chars in TLE format (e.g. 00000-0,  29661-4, -12345-6)"
-        )
-
-    if not re.fullmatch(r"[ +\-]\d{5}[+\-]\d", value):
-        raise ValueError(
-            f"{field_name} must match [sign]#####<+|-># in TLE notation; got '{field_value}'"
-        )
-
-    return value
-
-
-def format_first_derivative(value):
-    """Format first time derivative of mean motion for TLE line 1 (10 chars)."""
-    sign = "-" if value < 0 else " "
-    magnitude = f"{abs(value):.8f}"
-
-    # TLE uses '.xxxxxxxx' (without leading zero) in this field.
-    if magnitude.startswith("0"):
-        magnitude = magnitude[1:]
-
-    formatted = sign + magnitude
-    if len(formatted) != 10:
-        raise ValueError(
-            "mean-motion-first-derivative cannot be represented in 10-char TLE field"
-        )
-    return formatted
-
-
-def build_tle_lines(args):
-    satellite_number = f"{args.satellite_number:05d}"
-    classification = args.classification.upper()
-
-    international_designator_year = f"{args.int_designator_year:02d}"
-    international_designator_launch_number = f"{args.int_designator_launch_number:03d}"
-    international_designator_piece = args.int_designator_piece.strip().upper().ljust(3)
-    international_designator_piece = international_designator_piece[:3]
-
-    epoch_year = f"{args.epoch_year:02d}"
-    epoch_day = f"{args.epoch_day:012.8f}"
-
-    mean_motion_first_derivative = format_first_derivative(
-        args.mean_motion_first_derivative
-    )
-    mean_motion_second_derivative = parse_tle_exponential(
-        args.mean_motion_second_derivative, "mean-motion-second-derivative"
-    )
-    bstar = parse_tle_exponential(args.bstar, "bstar")
-
-    ephemeris_type = str(args.ephemeris_type)
-    element_set_number = f"{args.element_set_number:4d}"
-
-    inclination_deg = f"{args.inclination_deg:8.4f}"
-    raan_deg = f"{args.raan_deg:8.4f}"
-    eccentricity = f"{int(round(args.eccentricity * 1e7)):07d}"
-    arg_perigee_deg = f"{args.arg_perigee_deg:8.4f}"
-    mean_anomaly_deg = f"{args.mean_anomaly_deg:8.4f}"
-    mean_motion_rev_per_day = f"{args.mean_motion_rev_per_day:11.8f}"
-    revolution_number_at_epoch = f"{args.revolution_number_at_epoch:05d}"
-
-    line1_without_checksum = (
-        f"1 {satellite_number}{classification} "
-        f"{international_designator_year}{international_designator_launch_number}{international_designator_piece} "
-        f"{epoch_year}{epoch_day} "
-        f"{mean_motion_first_derivative} {mean_motion_second_derivative} {bstar} "
-        f"{ephemeris_type} "
-        f"{element_set_number}"
-    )
-
-    line2_without_checksum = (
-        f"2 {satellite_number} "
-        f"{inclination_deg} {raan_deg} {eccentricity} {arg_perigee_deg} {mean_anomaly_deg} "
-        f"{mean_motion_rev_per_day}{revolution_number_at_epoch}"
-    )
-
-    if len(line1_without_checksum) != 68:
-        raise ValueError(
-            f"Internal formatting error: line 1 length is {len(line1_without_checksum)} (expected 68)"
-        )
-
-    if len(line2_without_checksum) != 68:
-        raise ValueError(
-            f"Internal formatting error: line 2 length is {len(line2_without_checksum)} (expected 68)"
-        )
-
-    line1 = line1_without_checksum + compute_tle_checksum(line1_without_checksum)
-    line2 = line2_without_checksum + compute_tle_checksum(line2_without_checksum)
-
-    return line1, line2
+from common.tle import Tle, write_tle
 
 
 def print_tle_summary(args, line1, line2):
@@ -168,9 +61,7 @@ def parse_arguments():
         "--name",
         metavar="<name>",
         default="",
-        help=(
-            "Optional satellite name line written above TLE line 1 " "(default: none)."
-        ),
+        help=("Optional satellite name line written above TLE line 1 " "(default: none)."),
     )
 
     # Line 1 fields
@@ -336,28 +227,46 @@ def parse_arguments():
     return args
 
 
+def build_tle_data(args):
+    return Tle(
+        name=args.name,
+        satellite_number=args.satellite_number,
+        classification=args.classification,
+        int_designator_year=args.int_designator_year,
+        int_designator_launch_number=args.int_designator_launch_number,
+        int_designator_piece=args.int_designator_piece,
+        epoch_year=args.epoch_year,
+        epoch_day=args.epoch_day,
+        mean_motion_first_derivative=args.mean_motion_first_derivative,
+        mean_motion_second_derivative=args.mean_motion_second_derivative,
+        bstar=args.bstar,
+        ephemeris_type=args.ephemeris_type,
+        element_set_number=args.element_set_number,
+        inclination_deg=args.inclination_deg,
+        raan_deg=args.raan_deg,
+        eccentricity=args.eccentricity,
+        arg_perigee_deg=args.arg_perigee_deg,
+        mean_anomaly_deg=args.mean_anomaly_deg,
+        mean_motion_rev_per_day=args.mean_motion_rev_per_day,
+        revolution_number_at_epoch=args.revolution_number_at_epoch,
+    )
+
+
 def main():
     try:
         args = parse_arguments()
-        line1, line2 = build_tle_lines(args)
-        print_tle_summary(args, line1, line2)
+        tle_data = build_tle_data(args)
 
         if args.output == "-":
-            if args.name:
-                print(args.name.strip())
-            print(line1)
-            print(line2)
+            line1, line2 = write_tle(sys.stdout, tle_data)
+            print_tle_summary(args, line1, line2)
             print("Printed TLE to stdout")
         else:
             with open(args.output, "w") as output_file:
-                if args.name:
-                    output_file.write(args.name.strip() + "\n")
-                output_file.write(line1 + "\n")
-                output_file.write(line2 + "\n")
+                line1, line2 = write_tle(output_file, tle_data)
 
+            print_tle_summary(args, line1, line2)
             print(f"Saved TLE file: {args.output}")
-            print(line1)
-            print(line2)
 
     except ValueError as error:
         print(f"Error: {error}")

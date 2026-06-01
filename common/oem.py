@@ -14,7 +14,6 @@ from typing import IO, Union
 
 import numpy as np
 
-
 # ===================================================================
 # Internal helpers
 # ===================================================================
@@ -240,18 +239,22 @@ def round_trip_test_oem(source: Union[str, Path]) -> dict:
                 "meta_ok": class_meta_ok,
                 "state_count_ok": class_state_count_ok,
                 "states_ok": class_states_ok,
-                "overall_ok": all([class_header_ok, class_meta_ok, class_state_count_ok, class_states_ok]),
+                "overall_ok": all(
+                    [class_header_ok, class_meta_ok, class_state_count_ok, class_states_ok]
+                ),
             },
-            "overall_ok": all([
-                low_header_ok,
-                low_meta_ok,
-                low_state_count_ok,
-                low_states_ok,
-                class_header_ok,
-                class_meta_ok,
-                class_state_count_ok,
-                class_states_ok,
-            ]),
+            "overall_ok": all(
+                [
+                    low_header_ok,
+                    low_meta_ok,
+                    low_state_count_ok,
+                    low_states_ok,
+                    class_header_ok,
+                    class_meta_ok,
+                    class_state_count_ok,
+                    class_states_ok,
+                ]
+            ),
         }
 
 
@@ -330,8 +333,7 @@ class CcsdsOem:
         )
 
         state_list = [
-            OemStateVector(epoch=epoch, state=sv)
-            for epoch, sv in sorted(raw_states.items())
+            OemStateVector(epoch=epoch, state=sv) for epoch, sv in sorted(raw_states.items())
         ]
         return cls(header=header, meta=meta, states=state_list)
 

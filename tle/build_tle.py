@@ -2,6 +2,7 @@
 
 import argparse
 from datetime import datetime
+import io
 import math
 import os
 import shlex
@@ -18,11 +19,7 @@ except Exception:
     environment_setup = None
     spice = None
 
-try:
-    from write_tle import build_tle_lines
-except ImportError:
-    from tle.write_tle import build_tle_lines
-
+from common.tle import Tle, write_tle
 
 EARTH_GRAVITATIONAL_PARAMETER_KM3_S2 = 398600.4418
 EARTH_EQUATORIAL_RADIUS_KM = 6378.1363
@@ -101,9 +98,7 @@ def parse_oem_state_line(line):
     try:
         x, y, z, vx, vy, vz = (float(value) for value in parts[1:7])
     except ValueError as error:
-        raise ValueError(
-            f"Invalid numeric state fields in line: '{line.rstrip()}'"
-        ) from error
+        raise ValueError(f"Invalid numeric state fields in line: '{line.rstrip()}'") from error
 
     return epoch_dt, [x, y, z], [vx, vy, vz]
 
@@ -180,8 +175,7 @@ def angle_difference_rad(target, reference):
 def circular_blend_angle_rad(primary_angle, correction_angle, correction_weight):
     """Blend angles along the shortest arc."""
     return wrap_angle_rad(
-        primary_angle
-        + correction_weight * angle_difference_rad(correction_angle, primary_angle)
+        primary_angle + correction_weight * angle_difference_rad(correction_angle, primary_angle)
     )
 
 
@@ -206,9 +200,7 @@ def phase_match_epoch_angles(records, first_u_rad, orbit_period_day, tolerance_d
             if abs(record["t_day"] - target_time_day) > 0.15 * orbit_period_day:
                 continue
 
-            score = abs(
-                angle_difference_rad(record["mean_argument_latitude_rad"], first_u_rad)
-            )
+            score = abs(angle_difference_rad(record["mean_argument_latitude_rad"], first_u_rad))
             if score > tolerance_rad:
                 continue
 
@@ -224,9 +216,7 @@ def phase_match_epoch_angles(records, first_u_rad, orbit_period_day, tolerance_d
 
     return {
         "count": len(matched_records),
-        "raan_rad": circular_mean_angle_rad(
-            [record["raan_rad"] for record in matched_records]
-        ),
+        "raan_rad": circular_mean_angle_rad([record["raan_rad"] for record in matched_records]),
         "arg_perigee_rad": circular_mean_angle_rad(
             [record["arg_perigee_rad"] for record in matched_records]
         ),
@@ -330,9 +320,7 @@ def solve_linear_system(matrix, vector):
                 continue
             factor = augmented[row_index][pivot_index]
             for column_index in range(pivot_index, size + 1):
-                augmented[row_index][column_index] -= (
-                    factor * augmented[pivot_index][column_index]
-                )
+                augmented[row_index][column_index] -= factor * augmented[pivot_index][column_index]
 
     return [augmented[row_index][size] for row_index in range(size)]
 
@@ -355,9 +343,8 @@ def solve_weighted_least_squares(design_matrix, target_vector):
     return solve_linear_system(normal_matrix, normal_vector)
 
 
-def build_tle_namespace(args, estimated):
-    return argparse.Namespace(
-        output="-",
+def build_tle_data(args, estimated):
+    return Tle(
         name=args.name,
         satellite_number=args.satellite_number,
         classification=args.classification,
@@ -381,6 +368,12 @@ def build_tle_namespace(args, estimated):
     )
 
 
+def build_tle_lines(args, estimated):
+    buffer = io.StringIO()
+    line1, line2 = write_tle(buffer, build_tle_data(args, estimated))
+    return line1, line2
+
+
 def evaluate_tle_epoch_states_km(line_pairs, python_executable=STATE_MATCH_PYTHON):
     """Evaluate SGP4 Cartesian states at each TLE's reference epoch.
 
@@ -397,9 +390,7 @@ def evaluate_tle_epoch_states_km(line_pairs, python_executable=STATE_MATCH_PYTHO
         states = []
         for line1, line2 in line_pairs:
             settings = environment_setup.ephemeris.sgp4(line1, line2)
-            ephemeris = environment_setup.create_body_ephemeris(
-                settings, body_name="state_match"
-            )
+            ephemeris = environment_setup.create_body_ephemeris(settings, body_name="state_match")
             tle = ephemeris.tle
             state = ephemeris.cartesian_state(tle.reference_epoch) / 1000.0
             states.append([float(value) for value in state])
@@ -426,9 +417,7 @@ def evaluate_tle_states_for_offsets_km(
 
     try:
         settings = environment_setup.ephemeris.sgp4(line1, line2)
-        ephemeris = environment_setup.create_body_ephemeris(
-            settings, body_name="state_match_arc"
-        )
+        ephemeris = environment_setup.create_body_ephemeris(settings, body_name="state_match_arc")
         tle = ephemeris.tle
         epoch = tle.reference_epoch
 
@@ -559,12 +548,8 @@ def clamp_refined_elements(params):
 
 def compute_state_match_score(residual_state):
     """Return weighted score plus position/velocity residual magnitudes."""
-    position_error_km = math.sqrt(
-        sum(component * component for component in residual_state[:3])
-    )
-    velocity_error_km_s = math.sqrt(
-        sum(component * component for component in residual_state[3:])
-    )
+    position_error_km = math.sqrt(sum(component * component for component in residual_state[:3]))
+    velocity_error_km_s = math.sqrt(sum(component * component for component in residual_state[3:]))
     score = (
         STATE_MATCH_POSITION_WEIGHT * position_error_km
         + STATE_MATCH_VELOCITY_WEIGHT * velocity_error_km_s
@@ -595,12 +580,8 @@ def refine_estimated_fields_to_match_epoch_state(args, estimated, target_state_k
         state = None if states is None else states[0]
         if state is None:
             return None, None, None, None
-        residual = [
-            target - value for target, value in zip(target_state_km_km_s, state)
-        ]
-        score, position_error_km, velocity_error_km_s = compute_state_match_score(
-            residual
-        )
+        residual = [target - value for target, value in zip(target_state_km_km_s, state)]
+        score, position_error_km, velocity_error_km_s = compute_state_match_score(residual)
         return state, residual, score, (position_error_km, velocity_error_km_s)
 
     current_params = {name: estimated[name] for name in parameter_names}
@@ -629,9 +610,7 @@ def refine_estimated_fields_to_match_epoch_state(args, estimated, target_state_k
             minus_params[parameter_name] -= step_size
             plus_params = clamp_refined_elements(plus_params)
             minus_params = clamp_refined_elements(minus_params)
-            finite_difference_specs.append(
-                (parameter_index, step_size, plus_params, minus_params)
-            )
+            finite_difference_specs.append((parameter_index, step_size, plus_params, minus_params))
 
         finite_difference_pairs = []
         for _, _, plus_params, minus_params in finite_difference_specs:
@@ -649,9 +628,7 @@ def refine_estimated_fields_to_match_epoch_state(args, estimated, target_state_k
             estimated["state_match_velocity_error_km_s"] = best_errors[1]
             return estimated
 
-        for spec_index, (parameter_index, step_size, _, _) in enumerate(
-            finite_difference_specs
-        ):
+        for spec_index, (parameter_index, step_size, _, _) in enumerate(finite_difference_specs):
             plus_state = finite_difference_states[2 * spec_index]
             minus_state = finite_difference_states[2 * spec_index + 1]
             if plus_state is None or minus_state is None:
@@ -666,19 +643,11 @@ def refine_estimated_fields_to_match_epoch_state(args, estimated, target_state_k
                 ) / (2.0 * step_size)
 
         for state_index, residual_value in enumerate(residual):
-            weight = (
-                STATE_MATCH_POSITION_WEIGHT
-                if state_index < 3
-                else STATE_MATCH_VELOCITY_WEIGHT
-            )
-            weighted_design_matrix.append(
-                [weight * value for value in jacobian[state_index]]
-            )
+            weight = STATE_MATCH_POSITION_WEIGHT if state_index < 3 else STATE_MATCH_VELOCITY_WEIGHT
+            weighted_design_matrix.append([weight * value for value in jacobian[state_index]])
             weighted_target_vector.append(weight * residual_value)
 
-        delta = solve_weighted_least_squares(
-            weighted_design_matrix, weighted_target_vector
-        )
+        delta = solve_weighted_least_squares(weighted_design_matrix, weighted_target_vector)
         if delta is None:
             break
 
@@ -691,9 +660,7 @@ def refine_estimated_fields_to_match_epoch_state(args, estimated, target_state_k
                 delta,
                 step_sizes,
             ):
-                limited_step = clamp(
-                    raw_step * line_search_scale, -5.0 * max_step, 5.0 * max_step
-                )
+                limited_step = clamp(raw_step * line_search_scale, -5.0 * max_step, 5.0 * max_step)
                 trial_params[parameter_name] += limited_step
             trial_params = clamp_refined_elements(trial_params)
             line_search_params.append((line_search_scale, trial_params))
@@ -702,22 +669,17 @@ def refine_estimated_fields_to_match_epoch_state(args, estimated, target_state_k
         for _, trial_params in line_search_params:
             trial_estimated = estimated.copy()
             trial_estimated.update(trial_params)
-            line_search_pairs.append(
-                build_tle_lines(build_tle_namespace(args, trial_estimated))
-            )
+            line_search_pairs.append(build_tle_lines(build_tle_namespace(args, trial_estimated)))
 
         line_search_states = evaluate_tle_epoch_states_km(line_search_pairs)
         if line_search_states is None:
             break
 
-        for (_, trial_params), trial_state in zip(
-            line_search_params, line_search_states
-        ):
+        for (_, trial_params), trial_state in zip(line_search_params, line_search_states):
             if trial_state is None:
                 continue
             trial_residual = [
-                target - value
-                for target, value in zip(target_state_km_km_s, trial_state)
+                target - value for target, value in zip(target_state_km_km_s, trial_state)
             ]
             (
                 trial_score,
@@ -835,9 +797,7 @@ def state_to_orbital_elements(position_km, velocity_km_s):
             math.sqrt(max(0.0, 1.0 - eccentricity)) * math.sin(true_anomaly_rad / 2.0),
             math.sqrt(1.0 + eccentricity) * math.cos(true_anomaly_rad / 2.0),
         )
-        mean_anomaly_rad = eccentric_anomaly_rad - eccentricity * math.sin(
-            eccentric_anomaly_rad
-        )
+        mean_anomaly_rad = eccentric_anomaly_rad - eccentricity * math.sin(eccentric_anomaly_rad)
     else:
         raise ValueError("Eccentricity >= 1 is not supported for TLE estimation")
 
@@ -1010,9 +970,7 @@ def read_input_text(input_path):
         with open(input_path, "r") as input_file:
             text = input_file.read()
     except OSError as error:
-        raise ValueError(
-            f"Could not read input file '{input_path}': {error}"
-        ) from error
+        raise ValueError(f"Could not read input file '{input_path}': {error}") from error
 
     if not text.strip():
         raise ValueError(f"Input file '{input_path}' is empty")
@@ -1053,24 +1011,18 @@ def estimate_tle_fields(records):
         raan_series_rad.append(raan_rad)
         arg_perigee_series_rad.append(arg_perigee_rad)
         mean_anomaly_series_rad.append(mean_anomaly_rad)
-        mean_argument_latitude_series_rad.append(
-            wrap_angle_rad(arg_perigee_rad + mean_anomaly_rad)
-        )
+        mean_argument_latitude_series_rad.append(wrap_angle_rad(arg_perigee_rad + mean_anomaly_rad))
         mean_motion_rad_s_series.append(
             elements["mean_motion_rev_per_day"] * 2.0 * math.pi / SECONDS_PER_DAY
         )
-        p_km_series.append(
-            elements["semi_major_axis_km"] * (1.0 - elements["eccentricity"] ** 2)
-        )
+        p_km_series.append(elements["semi_major_axis_km"] * (1.0 - elements["eccentricity"] ** 2))
         records_with_elements.append(
             {
                 "t_day": dt_day,
                 "raan_rad": raan_rad,
                 "arg_perigee_rad": arg_perigee_rad,
                 "mean_anomaly_rad": mean_anomaly_rad,
-                "mean_argument_latitude_rad": wrap_angle_rad(
-                    arg_perigee_rad + mean_anomaly_rad
-                ),
+                "mean_argument_latitude_rad": wrap_angle_rad(arg_perigee_rad + mean_anomaly_rad),
             }
         )
 
@@ -1079,9 +1031,7 @@ def estimate_tle_fields(records):
         wrap_angle_rad(linear_regression_intercept(times_s, raan_unwrapped))
     )
 
-    mean_argument_latitude_unwrapped = unwrap_angles_rad(
-        mean_argument_latitude_series_rad
-    )
+    mean_argument_latitude_unwrapped = unwrap_angles_rad(mean_argument_latitude_series_rad)
     mean_argument_latitude_rate_rad_s = linear_regression_slope(
         times_s, mean_argument_latitude_unwrapped
     )
@@ -1109,12 +1059,8 @@ def estimate_tle_fields(records):
         wrap_angle_rad(m - mean_motion_phase_rate_rad_s * dt_s)
         for m, dt_s in zip(mean_anomaly_series_rad, times_s)
     ]
-    mean_anomaly_phase_at_epoch_rad = circular_mean_angle_rad(
-        mean_anomaly_phase_residuals
-    )
-    mean_anomaly_osculating_at_epoch_rad = math.radians(
-        elements_first["mean_anomaly_deg"]
-    )
+    mean_anomaly_phase_at_epoch_rad = circular_mean_angle_rad(mean_anomaly_phase_residuals)
+    mean_anomaly_osculating_at_epoch_rad = math.radians(elements_first["mean_anomaly_deg"])
     mean_anomaly_at_epoch_rad = circular_mean_angle_rad(
         [
             mean_anomaly_phase_at_epoch_rad,
@@ -1168,8 +1114,7 @@ def estimate_tle_fields(records):
     # - regression of energy-derived mean motion,
     # - rate of argument of latitude from angle-fit.
     mean_motion_at_epoch_rev_per_day = 0.5 * (
-        mean_motion_regression_at_epoch_rev_per_day
-        + mean_argument_latitude_rate_rev_per_day
+        mean_motion_regression_at_epoch_rev_per_day + mean_argument_latitude_rate_rev_per_day
     )
 
     inclination_deg_estimated = estimate_inclination_from_nodal_drift(
@@ -1208,12 +1153,8 @@ def estimate_tle_fields(records):
         "mean_motion_rev_per_day": mean_motion_at_epoch_rev_per_day,
         "mean_motion_rev_per_day_regression_at_epoch": mean_motion_regression_at_epoch_rev_per_day,
         "mean_argument_latitude_rate_rev_per_day": mean_argument_latitude_rate_rev_per_day,
-        "mean_motion_rev_per_day_osculating_at_epoch": elements_first[
-            "mean_motion_rev_per_day"
-        ],
-        "phase_match_count": 0
-        if phase_matched_angles is None
-        else phase_matched_angles["count"],
+        "mean_motion_rev_per_day_osculating_at_epoch": elements_first["mean_motion_rev_per_day"],
+        "phase_match_count": 0 if phase_matched_angles is None else phase_matched_angles["count"],
         "phase_match_weight": phase_match_weight,
         "mean_motion_first_derivative": mean_motion_first_derivative,
         "mean_motion_first_derivative_raw": mean_motion_first_derivative_raw,
@@ -1299,10 +1240,7 @@ def print_summary(records, estimated, args):
         f"{estimated['inclination_deg_osculating_at_epoch']:.6f}"
     )
     print(f"  raan-deg: {estimated['raan_deg']:.6f}")
-    print(
-        "  raan-deg (osculating at epoch): "
-        f"{estimated['raan_deg_osculating_at_epoch']:.6f}"
-    )
+    print("  raan-deg (osculating at epoch): " f"{estimated['raan_deg_osculating_at_epoch']:.6f}")
     print(f"  eccentricity: {estimated['eccentricity']:.9f}")
     print(f"  arg-perigee-deg: {estimated['arg_perigee_deg']:.6f}")
     print(
@@ -1331,8 +1269,7 @@ def print_summary(records, estimated, args):
     print(f"  phase-match-weight: {estimated['phase_match_weight']:.6f}")
     if estimated.get("state_match_position_error_km") is not None:
         print(
-            "  state-match-position-error-km: "
-            f"{estimated['state_match_position_error_km']:.6f}"
+            "  state-match-position-error-km: " f"{estimated['state_match_position_error_km']:.6f}"
         )
         print(
             "  state-match-velocity-error-km-s: "
@@ -1342,22 +1279,16 @@ def print_summary(records, estimated, args):
             "  state-match-refinement: "
             f"{'used' if estimated.get('state_match_refinement_used') else 'not-used'}"
         )
-        print(
-            "  state-match-iterations: " f"{estimated.get('state_match_iterations', 0)}"
-        )
+        print("  state-match-iterations: " f"{estimated.get('state_match_iterations', 0)}")
     print(f"  semi-major-axis-km: {estimated['semi_major_axis_km']:.6f}")
     print(
-        "  d(mean-motion)/dt [rev/day^2] (fit): "
-        f"{estimated['dataset_slope_rev_per_day2']:.12f}"
+        "  d(mean-motion)/dt [rev/day^2] (fit): " f"{estimated['dataset_slope_rev_per_day2']:.12f}"
     )
     print(
         "  mean-motion-first-derivative (TLE field): "
         f"{estimated['mean_motion_first_derivative']:.12f}"
     )
-    if (
-        abs(estimated["mean_motion_first_derivative_raw"])
-        > MAX_TLE_MEAN_MOTION_FIRST_DERIVATIVE
-    ):
+    if abs(estimated["mean_motion_first_derivative_raw"]) > MAX_TLE_MEAN_MOTION_FIRST_DERIVATIVE:
         print(
             "  note: first derivative was clamped to TLE field range "
             f"[-{MAX_TLE_MEAN_MOTION_FIRST_DERIVATIVE:.8f}, {MAX_TLE_MEAN_MOTION_FIRST_DERIVATIVE:.8f}]"
@@ -1368,8 +1299,7 @@ def print_summary(records, estimated, args):
     if estimated.get("bstar_fit_score") is not None:
         print(f"  bstar-fit-score: {estimated['bstar_fit_score']:.9f}")
     print(
-        "  mean-motion-second-derivative (input/default): "
-        f"{args.mean_motion_second_derivative}"
+        "  mean-motion-second-derivative (input/default): " f"{args.mean_motion_second_derivative}"
     )
     print()
 

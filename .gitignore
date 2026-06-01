@@ -1,5 +1,4 @@
 *.pyc
-*.tle
 *.swp
 a.out
 .vscode/
