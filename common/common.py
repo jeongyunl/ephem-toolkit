@@ -1,6 +1,8 @@
 """Common utilities shared by frame-conversion scripts."""
 
 from datetime import datetime, timedelta
+import os
+from pathlib import Path
 
 import numpy as np
 from tudatpy.astro import time_representation
@@ -8,6 +10,11 @@ from tudatpy.astro.time_representation import TimeScales
 
 _tudat_time_scale_converter = time_representation.default_time_scale_converter()
 _UTC_J2000_DATETIME = datetime(2000, 1, 1, 12, 0, 0)
+_SPICE_CACHE_FILE = (
+    Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+    / "tudatpy-utils"
+    / "spice_kernel_path"
+)
 
 
 def parse_oem_state_line(line: str):
@@ -64,3 +71,26 @@ def tdb_to_datetime(tdb_s: float):
         output_scale=TimeScales.utc_scale,
     )
     return _UTC_J2000_DATETIME + timedelta(seconds=utc_j2000_s)
+
+
+def get_spice_kernel_path() -> str:
+    """Return the Tudatpy SPICE kernel path using an XDG-style cache file."""
+    try:
+        cached_path = _SPICE_CACHE_FILE.read_text(encoding="utf-8").strip()
+        if cached_path and Path(cached_path).is_dir():
+            return cached_path
+    except OSError:
+        pass
+
+    from tudatpy import data
+
+    resolved_path = data.get_spice_kernel_path()
+
+    try:
+        _SPICE_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _SPICE_CACHE_FILE.write_text(resolved_path, encoding="utf-8")
+    except OSError:
+        # Cache writes are best effort; continue with the resolved path.
+        pass
+
+    return resolved_path

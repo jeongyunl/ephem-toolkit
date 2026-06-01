@@ -16,9 +16,8 @@ warnings.filterwarnings(
 
 import numpy as np
 from tudatpy.interface import spice
-from tudatpy import data
 
-from common.common import parse_oem_state_line, datetime_to_tdb
+from common.common import parse_oem_state_line, datetime_to_tdb, get_spice_kernel_path
 
 
 def load_spice_kernels():
@@ -29,7 +28,7 @@ def load_spice_kernels():
         "earth_200101_990825_predict.bpc",  # Earth rotation prediction. Covers Jan, 2001 to Aug, 2099
     ]
     for kernel_file in spice_kernel_files:
-        spice.load_kernel(data.get_spice_kernel_path() + "/" + kernel_file)
+        spice.load_kernel(get_spice_kernel_path() + "/" + kernel_file)
 
 
 def convert_frames_spice(base_frame, target_frame, input_epoch_et_s, input_state_m):
@@ -60,8 +59,10 @@ def convert_frames_spice(base_frame, target_frame, input_epoch_et_s, input_state
     rotation_matrix = spice.compute_rotation_matrix_between_frames(
         base_frame, target_frame, input_epoch_et_s
     )
-    rotation_matrix_derivative = spice.compute_rotation_matrix_derivative_between_frames(
-        base_frame, target_frame, input_epoch_et_s
+    rotation_matrix_derivative = (
+        spice.compute_rotation_matrix_derivative_between_frames(
+            base_frame, target_frame, input_epoch_et_s
+        )
     )
 
     state_conversion_matrix = np.zeros((6, 6))
@@ -102,7 +103,9 @@ def process_stream(stream, reverse=False):
         epoch_tdb_s = datetime_to_tdb(epoch_dt)
 
         input_state_m = np.concatenate([input_position_km, input_velocity_km_s]) * 1e3
-        output_state_m = convert_frames_spice(base_frame, target_frame, epoch_tdb_s, input_state_m)
+        output_state_m = convert_frames_spice(
+            base_frame, target_frame, epoch_tdb_s, input_state_m
+        )
 
         output_position_km = output_state_m[0:3] / 1e3
         output_velocity_km_s = output_state_m[3:6] / 1e3

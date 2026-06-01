@@ -3,6 +3,7 @@
 # Read TLE file names from command line arguments and load each TLE file using TudatPy, then print the initial epoch and all the TLE parameters
 import math
 import sys
+from pathlib import Path
 
 import warnings
 
@@ -19,18 +20,23 @@ from tudatpy.astro import element_conversion
 from tudatpy.astro.element_conversion import KeplerianElementIndices
 from tudatpy.interface import spice
 
+try:
+    from common.common import get_spice_kernel_path
+except ModuleNotFoundError:
+    # Support direct execution from the `tle` directory.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from common.common import get_spice_kernel_path
+
 
 def load_spice_kernels():
     """Load required SPICE kernels for time conversion and Earth orientation."""
-
-    from tudatpy import data
 
     spice_kernel_files = [
         "naif0012.tls",  # LEAPSECONDS KERNEL FILE
         "pck00011.tpc",  # PLANETARY CONSTANTS KERNEL FILE: orientation and size/shape data for natural bodies(Sun, planets, asteroids, etc)
     ]
     for kernel_file in spice_kernel_files:
-        spice.load_kernel(data.get_spice_kernel_path() + "/" + kernel_file)
+        spice.load_kernel(get_spice_kernel_path() + "/" + kernel_file)
 
 
 def get_tle_epoch(tle):

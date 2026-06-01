@@ -16,12 +16,11 @@ warnings.filterwarnings(
 
 import numpy as np
 from tudatpy.interface import spice
-from tudatpy import data
 from tudatpy.dynamics import environment_setup
 from tudatpy.dynamics.environment_setup.rotation_model import RotationModelSettings
 
 
-from common.common import parse_oem_state_line, datetime_to_tdb
+from common.common import parse_oem_state_line, datetime_to_tdb, get_spice_kernel_path
 
 
 def load_spice_kernels():
@@ -33,7 +32,7 @@ def load_spice_kernels():
         "earth_200101_990825_predict.bpc",  # Earth rotation prediction. Covers Jan, 2001 to Aug, 2099
     ]
     for kernel_file in spice_kernel_files:
-        spice.load_kernel(data.get_spice_kernel_path() + "/" + kernel_file)
+        spice.load_kernel(get_spice_kernel_path() + "/" + kernel_file)
 
 
 def create_earth_rotation_model(
@@ -166,8 +165,8 @@ def convert_itrf_to_gcrf_erm(
     # which is needed to correctly transform the velocity vector from the body-fixed
     # frame to the inertial frame by accounting for the rotation of the body-fixed
     # frame with respect to the inertial frame.
-    gcrf_earth_rotational_velocity_rad_s = earth_rotation_model.angular_velocity_in_inertial_frame(
-        input_epoch_et_s
+    gcrf_earth_rotational_velocity_rad_s = (
+        earth_rotation_model.angular_velocity_in_inertial_frame(input_epoch_et_s)
     )
 
     # Rotate the position vector from the body-fixed frame to the inertial frame using the rotation matrix
@@ -344,7 +343,10 @@ if __name__ == "__main__":
         infile = args[0]
         with open(infile, "r") as f:
             process_stream(
-                global_frame_orientation, rotation_model_settings, f, reverse=set_reverse_conversion
+                global_frame_orientation,
+                rotation_model_settings,
+                f,
+                reverse=set_reverse_conversion,
             )
     else:
         process_stream(

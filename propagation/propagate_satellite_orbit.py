@@ -720,7 +720,7 @@ def load_spice_kernels():
     """Load required SPICE kernels for propagation support.
 
     Kernels are loaded from Tudat's managed kernel directory returned by
-    ``tudatpy.data.get_spice_kernel_path()``.
+    ``common.common.get_spice_kernel_path()``.
 
     Returns
     -------
@@ -736,7 +736,7 @@ def load_spice_kernels():
         "tudat_merged_spk_kernel.bsp",  # Merged SPK kernel containing ephemerides for various bodies, including Earth, Sun, Moon, Mars, Venus
     ]
     for kernel_file in spice_kernel_files:
-        spice.load_kernel(data.get_spice_kernel_path() + "/" + kernel_file)
+        spice.load_kernel(get_spice_kernel_path() + "/" + kernel_file)
 
 
 def read_initial_state_from_stream(stream):
@@ -1864,7 +1864,12 @@ for an overview of the use of SPICE in Tudat.
 
 # common.common -- first module that pulls in tudatpy (via tudatpy.astro.time_representation).
 # Imported here, just before build_propagation_inputs() which is its first caller.
-from common.common import parse_oem_state_line, datetime_to_tdb, tdb_to_datetime
+from common.common import (
+    parse_oem_state_line,
+    datetime_to_tdb,
+    tdb_to_datetime,
+    get_spice_kernel_path,
+)
 
 propagation_inputs = build_propagation_inputs(cli_args)
 input_source = "--initial-state" if cli_args.initial_state is not None else "stdin"
@@ -1879,7 +1884,6 @@ print_pre_propagation_summary(
 
 # tudatpy SPICE interface -- imported just before loading kernels.
 from tudatpy.interface import spice
-from tudatpy import data
 
 # Load spice kernels
 load_spice_kernels()
