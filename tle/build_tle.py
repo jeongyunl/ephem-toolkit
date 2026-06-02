@@ -19,7 +19,7 @@ except Exception:
     environment_setup = None
     spice = None
 
-from common.tle import Tle, write_tle
+import common.tle as tle
 
 EARTH_GRAVITATIONAL_PARAMETER_KM3_S2 = 398600.4418
 EARTH_EQUATORIAL_RADIUS_KM = 6378.1363
@@ -344,7 +344,7 @@ def solve_weighted_least_squares(design_matrix, target_vector):
 
 
 def build_tle_data(args, estimated):
-    return Tle(
+    return tle.Tle(
         name=args.name,
         satellite_number=args.satellite_number,
         classification=args.classification,
@@ -370,7 +370,7 @@ def build_tle_data(args, estimated):
 
 def build_tle_lines(args, estimated):
     buffer = io.StringIO()
-    line1, line2 = write_tle(buffer, build_tle_data(args, estimated))
+    line1, line2 = tle.write_tle(buffer, build_tle_data(args, estimated))
     return line1, line2
 
 
@@ -391,8 +391,8 @@ def evaluate_tle_epoch_states_km(line_pairs, python_executable=STATE_MATCH_PYTHO
         for line1, line2 in line_pairs:
             settings = environment_setup.ephemeris.sgp4(line1, line2)
             ephemeris = environment_setup.create_body_ephemeris(settings, body_name="state_match")
-            tle = ephemeris.tle
-            state = ephemeris.cartesian_state(tle.reference_epoch) / 1000.0
+            tle_obj = ephemeris.tle
+            state = ephemeris.cartesian_state(tle_obj.reference_epoch) / 1000.0
             states.append([float(value) for value in state])
         return states
     except Exception:
@@ -418,8 +418,8 @@ def evaluate_tle_states_for_offsets_km(
     try:
         settings = environment_setup.ephemeris.sgp4(line1, line2)
         ephemeris = environment_setup.create_body_ephemeris(settings, body_name="state_match_arc")
-        tle = ephemeris.tle
-        epoch = tle.reference_epoch
+        tle_obj = ephemeris.tle
+        epoch = tle_obj.reference_epoch
 
         states = []
         for dt in time_offsets_s:

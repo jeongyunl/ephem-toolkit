@@ -6,7 +6,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from common.tle import Tle, write_tle
+import common.tle as tle
 
 
 def print_tle_summary(args, line1, line2):
@@ -228,7 +228,7 @@ def parse_arguments():
 
 
 def build_tle_data(args):
-    return Tle(
+    return tle.Tle(
         name=args.name,
         satellite_number=args.satellite_number,
         classification=args.classification,
@@ -258,12 +258,12 @@ def main():
         tle_data = build_tle_data(args)
 
         if args.output == "-":
-            line1, line2 = write_tle(sys.stdout, tle_data)
+            line1, line2 = tle.write_tle(sys.stdout, tle_data)
             print_tle_summary(args, line1, line2)
             print("Printed TLE to stdout")
         else:
             with open(args.output, "w") as output_file:
-                line1, line2 = write_tle(output_file, tle_data)
+                line1, line2 = tle.write_tle(output_file, tle_data)
 
             print_tle_summary(args, line1, line2)
             print(f"Saved TLE file: {args.output}")

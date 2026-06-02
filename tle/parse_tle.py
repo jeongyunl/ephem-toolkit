@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import io
 
-from common.tle import Tle, compute_tle_checksum, read_tle
+import common.tle as tle
 
 
 def make_reconstruction_command_parts(elements, output_path, name, write_tle_script):
@@ -221,7 +221,7 @@ def main():
             sys.exit(1)
 
     try:
-        elements = read_tle(io.StringIO(input_text))
+        elements = tle.read_tle(io.StringIO(input_text))
         name = elements.name
     except ValueError as error:
         print(f"Error: {error}")

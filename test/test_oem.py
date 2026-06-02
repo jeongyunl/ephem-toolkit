@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 import numpy as np
 import pytest
 
-from common.oem import CcsdsOem, OemHeader, OemMeta, OemStateVector, read_oem, write_oem
+import common.oem as oem
 
 TEST_DIR = Path(__file__).parent
 OEM_PATH = TEST_DIR / "ISS_2026-05-20.OEM"
@@ -23,7 +23,7 @@ OEM_PATH = TEST_DIR / "ISS_2026-05-20.OEM"
 
 def test_read_oem_from_test_file_returns_header_meta_states() -> None:
     """Should parse the sample OEM file into header, meta, and state dicts."""
-    header, meta, states = read_oem(OEM_PATH)
+    header, meta, states = oem.read_oem(OEM_PATH)
 
     assert isinstance(header, dict)
     assert isinstance(meta, dict)
@@ -54,8 +54,8 @@ def test_read_oem_from_stream_matches_file_read() -> None:
     """Should produce identical parsed content from a text stream."""
     text = OEM_PATH.read_text(encoding="utf-8")
 
-    header1, meta1, states1 = read_oem(OEM_PATH)
-    header2, meta2, states2 = read_oem(io.StringIO(text))
+    header1, meta1, states1 = oem.read_oem(OEM_PATH)
+    header2, meta2, states2 = oem.read_oem(io.StringIO(text))
 
     assert header2 == header1
     assert meta2 == meta1
@@ -71,11 +71,11 @@ def test_read_oem_from_stream_matches_file_read() -> None:
 
 def test_write_oem_round_trip_preserves_content(tmp_path: Path) -> None:
     """Should preserve header, meta, and state vectors through write/read."""
-    header1, meta1, states1 = read_oem(OEM_PATH)
+    header1, meta1, states1 = oem.read_oem(OEM_PATH)
     out_path = tmp_path / "roundtrip.oem"
 
-    write_oem(out_path, header1, meta1, states1)
-    header2, meta2, states2 = read_oem(out_path)
+    oem.write_oem(out_path, header1, meta1, states1)
+    header2, meta2, states2 = oem.read_oem(out_path)
 
     assert header2 == header1
     assert meta2 == meta1
@@ -91,20 +91,20 @@ def test_write_oem_round_trip_preserves_content(tmp_path: Path) -> None:
 
 def test_ccsds_oem_from_source_exposes_structured_fields() -> None:
     """Should load the sample OEM into the structured class representation."""
-    oem = CcsdsOem.from_source(OEM_PATH)
+    ccsds_oem = oem.CcsdsOem.from_source(OEM_PATH)
 
-    assert isinstance(oem.header, OemHeader)
-    assert isinstance(oem.meta, OemMeta)
-    assert len(oem) > 0
-    assert len(oem.epochs) == len(oem)
-    assert oem.state_vectors.shape == (len(oem), 6)
-    assert oem.header.version == pytest.approx(2.0)
-    assert oem.meta.object_name == "ISS"
-    assert oem.meta.object_id == "1998-067-A"
-    assert oem.meta.ref_frame == "EME2000"
-    assert isinstance(oem.states[0], OemStateVector)
-    assert isinstance(oem.states[0].epoch, datetime)
-    assert oem.states[0].state.shape == (6,)
+    assert isinstance(ccsds_oem.header, oem.OemHeader)
+    assert isinstance(ccsds_oem.meta, oem.OemMeta)
+    assert len(ccsds_oem) > 0
+    assert len(ccsds_oem.epochs) == len(ccsds_oem)
+    assert ccsds_oem.state_vectors.shape == (len(ccsds_oem), 6)
+    assert ccsds_oem.header.version == pytest.approx(2.0)
+    assert ccsds_oem.meta.object_name == "ISS"
+    assert ccsds_oem.meta.object_id == "1998-067-A"
+    assert ccsds_oem.meta.ref_frame == "EME2000"
+    assert isinstance(ccsds_oem.states[0], oem.OemStateVector)
+    assert isinstance(ccsds_oem.states[0].epoch, datetime)
+    assert ccsds_oem.states[0].state.shape == (6,)
 
 
 # ===================================================================
@@ -114,11 +114,11 @@ def test_ccsds_oem_from_source_exposes_structured_fields() -> None:
 
 def test_ccsds_oem_to_file_round_trip_preserves_structured_content(tmp_path: Path) -> None:
     """Should preserve structured OEM content through class-based serialization."""
-    oem1 = CcsdsOem.from_source(OEM_PATH)
+    oem1 = oem.CcsdsOem.from_source(OEM_PATH)
     out_path = tmp_path / "class_roundtrip.oem"
 
     oem1.to_file(out_path)
-    oem2 = CcsdsOem.from_source(out_path)
+    oem2 = oem.CcsdsOem.from_source(out_path)
 
     assert oem2.header == oem1.header
     assert oem2.meta == oem1.meta
@@ -133,13 +133,13 @@ def test_ccsds_oem_to_file_round_trip_preserves_structured_content(tmp_path: Pat
 
 def test_ccsds_oem_repr_contains_summary_information() -> None:
     """Should include object name, frame, and epoch count in repr output."""
-    oem = CcsdsOem.from_source(OEM_PATH)
-    text = repr(oem)
+    ccsds_oem = oem.CcsdsOem.from_source(OEM_PATH)
+    text = repr(ccsds_oem)
 
     assert "CcsdsOem" in text
-    assert oem.meta.object_name in text
-    assert oem.meta.ref_frame in text
-    assert str(len(oem)) in text
+    assert ccsds_oem.meta.object_name in text
+    assert ccsds_oem.meta.ref_frame in text
+    assert str(len(ccsds_oem)) in text
 
 
 # ===================================================================
@@ -154,9 +154,9 @@ def _round_trip_test_oem(source: Path) -> dict:
         lowlevel_path = tmp / "roundtrip_lowlevel.oem"
         class_path = tmp / "roundtrip_class.oem"
 
-        header, meta, states = read_oem(source)
-        write_oem(lowlevel_path, header, meta, states)
-        header2, meta2, states2 = read_oem(lowlevel_path)
+        header, meta, states = oem.read_oem(source)
+        oem.write_oem(lowlevel_path, header, meta, states)
+        header2, meta2, states2 = oem.read_oem(lowlevel_path)
 
         low_header_ok = header2 == header
         low_meta_ok = meta2 == meta
@@ -168,15 +168,15 @@ def _round_trip_test_oem(source: Path) -> dict:
                     low_states_ok = False
                     break
 
-        oem = CcsdsOem.from_source(source)
-        oem.to_file(class_path)
-        oem2 = CcsdsOem.from_source(class_path)
+        ccsds_oem = oem.CcsdsOem.from_source(source)
+        ccsds_oem.to_file(class_path)
+        oem2 = oem.CcsdsOem.from_source(class_path)
 
-        class_header_ok = oem.header == oem2.header
-        class_meta_ok = oem.meta == oem2.meta
-        class_state_count_ok = len(oem.states) == len(oem2.states)
+        class_header_ok = ccsds_oem.header == oem2.header
+        class_meta_ok = ccsds_oem.meta == oem2.meta
+        class_state_count_ok = len(ccsds_oem.states) == len(oem2.states)
         class_states_ok = class_state_count_ok and np.allclose(
-            oem.state_vectors,
+            ccsds_oem.state_vectors,
             oem2.state_vectors,
             atol=1e-9,
             rtol=0.0,
