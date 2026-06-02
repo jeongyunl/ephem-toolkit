@@ -18,41 +18,41 @@ graph LR
     end
 
     subgraph frame_conversion
-        mod_frame_conversion_gcrf_to_itrf_rot_model([frame_conversion.gcrf_to_itrf_rot_model])
-        mod_frame_conversion_gcrf_to_itrf_spice([frame_conversion.gcrf_to_itrf_spice])
+        mod_frame_conversion_gcrf_to_itrf_rot_model([gcrf_to_itrf_rot_model])
+        mod_frame_conversion_gcrf_to_itrf_spice([gcrf_to_itrf_spice])
     end
 
     subgraph propagation
-        mod_propagation_propagate_satellite_orbit([propagation.propagate_satellite_orbit])
-        mod_propagation_propagate_tle([propagation.propagate_tle])
+        mod_propagation_propagate_satellite_orbit([propagate_satellite_orbit])
+        mod_propagation_propagate_tle([propagate_tle])
     end
 
     subgraph tle
-        mod_tle_build_tle([tle.build_tle])
-        mod_tle_download_tle([tle.download_tle])
-        mod_tle_parse_tle([tle.parse_tle])
-        mod_tle_tle_info([tle.tle_info])
-        mod_tle_write_tle([tle.write_tle])
-        mod_tle_omm_to_tle([tle.omm_to_tle])
-        mod_tle_tle_to_omm([tle.tle_to_omm])
+        mod_tle_build_tle([build_tle])
+        mod_tle_download_tle([download_tle])
+        mod_tle_parse_tle([parse_tle])
+        mod_tle_tle_info([tle_info])
+        mod_tle_write_tle([write_tle])
+        mod_tle_omm_to_tle([omm_to_tle])
+        mod_tle_tle_to_omm([tle_to_omm])
     end
 
     subgraph test
-        mod_test_test_convert_tle([test.test_convert_tle])
-        mod_test_test_oem([test.test_oem])
-        mod_test_test_omm([test.test_omm])
-        mod_test_test_tle([test.test_tle])
+        mod_test_test_convert_tle([test_convert_tle])
+        mod_test_test_oem([test_oem])
+        mod_test_test_omm([test_omm])
+        mod_test_test_tle([test_tle])
     end
 
     subgraph time_conversion
-        mod_time_conversion_tools_convert_time([time_conversion.tools.convert_time])
-        mod_time_conversion_tools_convert_time2([time_conversion.tools.convert_time2])
+        mod_time_conversion_tools_convert_time([convert_time])
+        mod_time_conversion_tools_convert_time2([convert_time2])
     end
 
     subgraph misc
-        mod_misc_tudat_datetime_bug_60plus_seconds([misc.tudat_datetime_bug_60plus_seconds])
-        mod_misc_tudat_datetime_bug_incorrect_py_datetime([misc.tudat_datetime_bug_incorrect_py_datetime])
-        mod_misc_tudat_tdb_conversion_bug([misc.tudat_tdb_conversion_bug])
+        mod_misc_tudat_datetime_bug_60plus_seconds([tudat_datetime_bug_60plus_seconds])
+        mod_misc_tudat_datetime_bug_incorrect_py_datetime([tudat_datetime_bug_incorrect_py_datetime])
+        mod_misc_tudat_tdb_conversion_bug([tudat_tdb_conversion_bug])
     end
 
     %% Edges
