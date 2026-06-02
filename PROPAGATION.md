@@ -207,25 +207,25 @@ lines.
 **Propagate from a TLE file for 1 day with 15-minute output step (defaults):**
 
 ```bash
-python propagation/propagate_tle.py tle/ISS-(ZARYA)_1998-067A.tle
+python propagation/propagate_tle.py tle/ISS-ZARYA_1998-067A.tle
 ```
 
 **Propagate from stdin TLE content for 2 hours with 1-minute step:**
 
 ```bash
-cat tle/ISS-(ZARYA)_1998-067A.tle | python propagation/propagate_tle.py -d 2h -s 1m
+cat tle/ISS-ZARYA_1998-067A.tle | python propagation/propagate_tle.py -d 2h -s 1m
 ```
 
 **Propagate for 30 minutes with 10-second output step:**
 
 ```bash
-python propagation/propagate_tle.py tle/ISS-(ZARYA)_1998-067A.tle -d 30m -s 10s
+python propagation/propagate_tle.py tle/ISS-ZARYA_1998-067A.tle -d 30m -s 10s
 ```
 
 **Print full OEM-style output including header:**
 
 ```bash
-python propagation/propagate_tle.py tle/ISS-(ZARYA)_1998-067A.tle --oem
+python propagation/propagate_tle.py tle/ISS-ZARYA_1998-067A.tle --oem
 ```
 
 #### Dependencies

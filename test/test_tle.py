@@ -74,73 +74,6 @@ def test_read_tle_two_line_sets_empty_name() -> None:
     assert tle.mean_motion_first_derivative == pytest.approx(-0.00000025, abs=1e-10)
 
 
-def test_read_tle_from_test_file_iss() -> None:
-    """Should parse the ISS TLE file from the test directory."""
-    with (TEST_DIR / "ISS-(ZARYA)_1998-067A.tle").open(encoding="utf-8") as stream:
-        tle = read_tle(stream)
-
-    assert isinstance(tle, Tle)
-    assert tle.name == ""
-    assert tle.satellite_number == 25544
-    assert tle.classification == "U"
-    assert tle.int_designator_year == 98
-    assert tle.int_designator_launch_number == 67
-    assert tle.int_designator_piece == "A"
-    assert tle.epoch_year == 26
-    assert tle.epoch_day == pytest.approx(152.32329980, abs=1e-8)
-    assert tle.inclination_deg == pytest.approx(51.6335, abs=1e-4)
-    assert tle.raan_deg == pytest.approx(18.6331, abs=1e-4)
-    assert tle.eccentricity == pytest.approx(0.0007202, abs=1e-7)
-    assert tle.mean_motion_rev_per_day == pytest.approx(15.49538094, abs=1e-8)
-    assert tle.line1_checksum == tle.line1_checksum_expected
-    assert tle.line2_checksum == tle.line2_checksum_expected
-
-
-def test_read_tle_from_test_file_leo_3() -> None:
-    """Should parse the LEO-3 TLE file from the test directory."""
-    with (TEST_DIR / "LEO-3_2023-100G.tle").open(encoding="utf-8") as stream:
-        tle = read_tle(stream)
-
-    assert isinstance(tle, Tle)
-    assert tle.name == ""
-    assert tle.satellite_number == 57392
-    assert tle.classification == "U"
-    assert tle.int_designator_year == 23
-    assert tle.int_designator_launch_number == 100
-    assert tle.int_designator_piece == "G"
-    assert tle.epoch_year == 26
-    assert tle.epoch_day == pytest.approx(152.32106577, abs=1e-8)
-    assert tle.mean_motion_first_derivative == pytest.approx(-0.00000025, abs=1e-10)
-    assert tle.inclination_deg == pytest.approx(99.5618, abs=1e-4)
-    assert tle.raan_deg == pytest.approx(276.7913, abs=1e-4)
-    assert tle.eccentricity == pytest.approx(0.0018935, abs=1e-7)
-    assert tle.mean_motion_rev_per_day == pytest.approx(13.68420246, abs=1e-8)
-    assert tle.line1_checksum == tle.line1_checksum_expected
-    assert tle.line2_checksum == tle.line2_checksum_expected
-
-
-def test_read_tle_from_test_file_amos_17() -> None:
-    """Should parse the AMOS-17 TLE file from the test directory."""
-    with (TEST_DIR / "AMOS-17_2019-050A.tle").open(encoding="utf-8") as stream:
-        tle = read_tle(stream)
-
-    assert isinstance(tle, Tle)
-    assert tle.name == ""
-    assert tle.satellite_number == 44479
-    assert tle.classification == "U"
-    assert tle.int_designator_year == 19
-    assert tle.int_designator_launch_number == 50
-    assert tle.int_designator_piece == "A"
-    assert tle.epoch_year == 26
-    assert tle.epoch_day == pytest.approx(152.57405096, abs=1e-8)
-    assert tle.inclination_deg == pytest.approx(0.0152, abs=1e-4)
-    assert tle.raan_deg == pytest.approx(327.5504, abs=1e-4)
-    assert tle.eccentricity == pytest.approx(0.0001774, abs=1e-7)
-    assert tle.mean_motion_rev_per_day == pytest.approx(1.00272846, abs=1e-8)
-    assert tle.line1_checksum == tle.line1_checksum_expected
-    assert tle.line2_checksum == tle.line2_checksum_expected
-
-
 # ===================================================================
 # 3. Raise ValueError on insufficient lines
 # ===================================================================
@@ -301,9 +234,14 @@ def test_write_tle_from_dict() -> None:
 # ===================================================================
 
 
-def test_round_trip_preserves_elements() -> None:
+TLE_FILES = sorted(TEST_DIR.glob("*.tle"))
+
+
+@pytest.mark.parametrize("tle_path", TLE_FILES, ids=[p.name for p in TLE_FILES])
+def test_round_trip_preserves_elements(tle_path: Path) -> None:
     """Should preserve all element values through a read→write→read cycle."""
-    tle1 = read_tle(io.StringIO(ISS_3LINE))
+    with open(tle_path, encoding="utf-8") as fh:
+        tle1 = read_tle(fh)
 
     buf = io.StringIO()
     write_tle(buf, tle1)

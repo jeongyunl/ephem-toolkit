@@ -186,7 +186,7 @@ def read_tle(stream: IO[str]) -> Tle:
         line1: str = lines[0]
         line2: str = lines[1]
     elif len(lines) >= 3 and lines[1].startswith("1 ") and lines[2].startswith("2 "):
-        name = lines[0]
+        name = lines[0].strip()
         line1 = lines[1]
         line2 = lines[2]
     else:
@@ -340,7 +340,7 @@ def write_tle(
     w = dest.write
 
     if name:
-        w(name.strip() + "\n")
+        w(name + "\n")
     w(line1 + "\n")
     w(line2 + "\n")
 
