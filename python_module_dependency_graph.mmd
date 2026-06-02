@@ -1,0 +1,80 @@
+---
+config:
+  flowchart:
+    curve: basis
+---
+graph LR
+
+%% Internal Python module dependencies
+%% Standalone scripts use stadium shape ([...])
+%% Library modules use default rectangle shape [...]
+
+    subgraph common
+        mod_common_common[common.common]
+        mod_common_oem[common.oem]
+        mod_common_tle[common.tle]
+        mod_common_omm[common.omm]
+        mod_common_convert_tle[common.convert_tle]
+    end
+
+    subgraph frame_conversion
+        mod_frame_conversion_gcrf_to_itrf_rot_model([frame_conversion.gcrf_to_itrf_rot_model])
+        mod_frame_conversion_gcrf_to_itrf_spice([frame_conversion.gcrf_to_itrf_spice])
+    end
+
+    subgraph propagation
+        mod_propagation_propagate_satellite_orbit([propagation.propagate_satellite_orbit])
+        mod_propagation_propagate_tle([propagation.propagate_tle])
+    end
+
+    subgraph tle
+        mod_tle_build_tle([tle.build_tle])
+        mod_tle_download_tle([tle.download_tle])
+        mod_tle_parse_tle([tle.parse_tle])
+        mod_tle_tle_info([tle.tle_info])
+        mod_tle_write_tle([tle.write_tle])
+        mod_tle_omm_to_tle([tle.omm_to_tle])
+        mod_tle_tle_to_omm([tle.tle_to_omm])
+    end
+
+    subgraph test
+        mod_test_test_convert_tle([test.test_convert_tle])
+        mod_test_test_oem([test.test_oem])
+        mod_test_test_omm([test.test_omm])
+        mod_test_test_tle([test.test_tle])
+    end
+
+    subgraph time_conversion
+        mod_time_conversion_tools_convert_time([time_conversion.tools.convert_time])
+        mod_time_conversion_tools_convert_time2([time_conversion.tools.convert_time2])
+    end
+
+    subgraph misc
+        mod_misc_tudat_datetime_bug_60plus_seconds([misc.tudat_datetime_bug_60plus_seconds])
+        mod_misc_tudat_datetime_bug_incorrect_py_datetime([misc.tudat_datetime_bug_incorrect_py_datetime])
+        mod_misc_tudat_tdb_conversion_bug([misc.tudat_tdb_conversion_bug])
+    end
+
+    %% Edges
+    mod_common_convert_tle --> mod_common_common
+    mod_common_convert_tle --> mod_common_tle
+    mod_common_convert_tle --> mod_common_omm
+    mod_frame_conversion_gcrf_to_itrf_rot_model --> mod_common_common
+    mod_frame_conversion_gcrf_to_itrf_spice --> mod_common_common
+    mod_propagation_propagate_satellite_orbit --> mod_common_common
+    mod_test_test_convert_tle --> mod_common_convert_tle
+    mod_test_test_convert_tle --> mod_common_omm
+    mod_test_test_convert_tle --> mod_common_tle
+    mod_test_test_oem --> mod_common_oem
+    mod_test_test_omm --> mod_common_omm
+    mod_test_test_tle --> mod_common_tle
+    mod_tle_build_tle --> mod_common_tle
+    mod_tle_omm_to_tle --> mod_common_convert_tle
+    mod_tle_omm_to_tle --> mod_common_omm
+    mod_tle_omm_to_tle --> mod_common_tle
+    mod_tle_parse_tle --> mod_common_tle
+    mod_tle_tle_info --> mod_common_common
+    mod_tle_tle_to_omm --> mod_common_convert_tle
+    mod_tle_tle_to_omm --> mod_common_tle
+    mod_tle_tle_to_omm --> mod_common_omm
+    mod_tle_write_tle --> mod_common_tle
