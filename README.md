@@ -71,12 +71,11 @@ The repository contains more than just TLE build/parse helpers. Current Python t
 
 Current Python tools include:
 
-- `tle/write_tle.py` — build a TLE from explicit CLI fields
-- `tle/parse_tle.py` — parse a TLE, print a summary, and generate a reconstruction command
 - `tle/build_tle.py` — estimate a TLE from an OEM-like Cartesian arc
 - `tle/download_tle.py` — download TLE data
 - `tle/omm_to_tle.py` — convert OMM to TLE
 - `tle/tle_to_omm.py` — convert TLE to OMM
+- `tle/tle_info.py` — inspect TLE information
 - `common/convert_tle.py` — shared conversion helper script
 - `common/oem.py`, `common/omm.py`, `common/tle.py` — shared parsers / writers
 

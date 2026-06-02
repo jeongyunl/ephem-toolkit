@@ -10,7 +10,7 @@ UTC_ISO x y z vx vy vz
 
 with position in km and velocity in km/s.
 
-Unlike `tle/write_tle.py`, which formats a TLE from explicit user-supplied TLE fields, `tle/build_tle.py` attempts to infer a TLE from a Cartesian arc.
+Unlike directly calling `common.tle.write_tle()` with explicit fields, `tle/build_tle.py` attempts to infer a TLE from a Cartesian arc.
 
 This is fundamentally an estimation problem because TLEs encode SGP4-compatible mean elements rather than raw osculating Cartesian states.
 
@@ -19,8 +19,7 @@ This is fundamentally an estimation problem because TLEs encode SGP4-compatible 
 Related scripts in the current repository:
 
 - `tle/build_tle.py` — estimate a TLE from an OEM-like arc
-- `tle/write_tle.py` — format and write a TLE from explicit fields
-- `tle/parse_tle.py` — parse a TLE and generate a reconstruction command
+- `common/tle.py` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions
 - `propagation/propagate_tle.py` — propagate a TLE with TudatPy SGP4 and print OEM-like states
 
 ## Overall pipeline
@@ -32,7 +31,7 @@ The script follows a four-stage workflow:
 3. Refine the line-2 elements so the TLE epoch state better matches the source epoch state.
 4. Estimate `B*` by minimizing propagation error over the arc.
 
-Finally, it prints diagnostics and either emits TLE text directly or delegates final formatting to `tle/write_tle.py`.
+Finally, it prints diagnostics and writes the TLE using `common.tle.write_tle()`.
 
 ---
 
@@ -168,7 +167,7 @@ This is a pragmatic scalar optimization over the drag-like parameter.
 ## Design choices
 
 - The script separates estimation from final TLE formatting.
-- `tle/write_tle.py` remains the formatting/checksum authority.
+- `common.tle.write_tle()` is the formatting/checksum authority.
 - Circular statistics are used extensively to avoid 0°/360° discontinuity problems.
 - The estimator is designed to degrade gracefully when some higher-fidelity refinement steps are unavailable.
 
@@ -176,6 +175,6 @@ This is a pragmatic scalar optimization over the drag-like parameter.
 
 Use:
 
-- `tle/write_tle.py` when you already know the TLE fields
+- `common.tle.write_tle()` when you already know the TLE fields and want to write them programmatically
 - `tle/build_tle.py` when you have an OEM-like Cartesian arc and want an estimated TLE
-- `tle/parse_tle.py` when you want to inspect or reconstruct an existing TLE
+- `common.tle.read_tle()` when you want to parse an existing TLE into structured fields

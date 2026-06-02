@@ -4,9 +4,6 @@ import argparse
 from datetime import datetime
 import io
 import math
-import os
-import shlex
-import subprocess
 import sys
 import warnings
 
@@ -27,8 +24,7 @@ EARTH_J2 = 1.08262668e-3
 SECONDS_PER_DAY = 86400.0
 MAX_TLE_MEAN_MOTION_FIRST_DERIVATIVE = 0.99999999
 PHASE_MATCH_BLEND_SOFTENING = 6.0
-STATE_MATCH_PYTHON = "/usr/bin/python3"
-STATE_MATCH_MAX_ITERATIONS = 80
+STATE_MATCH_MAX_ITERATIONS = 200
 STATE_MATCH_POSITION_WEIGHT = 1.0
 STATE_MATCH_VELOCITY_WEIGHT = 1000.0
 BSTAR_FIT_MAX_ABS = 1.0e-3
@@ -237,7 +233,16 @@ def estimate_inclination_from_nodal_drift(
 
     Uses:
       dOmega/dt = -1.5 * J2 * n * (Re/p)^2 * cos(i)
+
+    For near-equatorial orbits (inclination < 1 degree), the nodal drift
+    signal is too weak relative to short-period noise, so the osculating
+    inclination is used directly as a more reliable estimate.
     """
+    # For near-equatorial orbits, nodal precession is dominated by noise.
+    # Use the osculating inclination directly.
+    if fallback_inclination_deg < 1.0 or fallback_inclination_deg > 179.0:
+        return fallback_inclination_deg
+
     if len(times_s) < 2:
         return fallback_inclination_deg
 
@@ -258,7 +263,15 @@ def estimate_inclination_from_nodal_drift(
     if cos_inclination < -1.0 or cos_inclination > 1.0:
         return fallback_inclination_deg
 
-    return math.degrees(math.acos(cos_inclination))
+    estimated_deg = math.degrees(math.acos(cos_inclination))
+
+    # Sanity check: if the nodal-drift estimate deviates too far from the
+    # osculating value, it is likely corrupted by noise or insufficient arc.
+    # In that case, fall back to the osculating inclination.
+    if abs(estimated_deg - fallback_inclination_deg) > 5.0:
+        return fallback_inclination_deg
+
+    return estimated_deg
 
 
 def linear_regression_slope(xs, ys):
@@ -374,15 +387,12 @@ def build_tle_lines(args, estimated):
     return line1, line2
 
 
-def evaluate_tle_epoch_states_km(line_pairs, python_executable=STATE_MATCH_PYTHON):
+def evaluate_tle_epoch_states_km(line_pairs):
     """Evaluate SGP4 Cartesian states at each TLE's reference epoch.
 
     Returns a list of [x, y, z, vx, vy, vz] in km and km/s, or None on
     environment/runtime failure.
     """
-    if python_executable and not os.path.exists(python_executable):
-        return None
-
     if environment_setup is None or spice is None:
         return None
 
@@ -399,19 +409,12 @@ def evaluate_tle_epoch_states_km(line_pairs, python_executable=STATE_MATCH_PYTHO
         return None
 
 
-def evaluate_tle_states_for_offsets_km(
-    line1,
-    line2,
-    time_offsets_s,
-    python_executable=STATE_MATCH_PYTHON,
-):
+def evaluate_tle_states_for_offsets_km(line1, line2, time_offsets_s):
     """Evaluate one TLE at multiple offsets from its reference epoch.
 
     Returns a list of [x, y, z, vx, vy, vz] in km and km/s, or None on
     environment/runtime failure.
     """
-    if python_executable and not os.path.exists(python_executable):
-        return None
     if environment_setup is None or spice is None:
         return None
 
@@ -484,7 +487,7 @@ def estimate_bstar_from_arc(args, estimated, records):
     def evaluate_bstar_cost(bstar_value):
         trial_estimated = estimated.copy()
         trial_estimated["bstar"] = format_tle_exponential_from_float(bstar_value)
-        line1, line2 = build_tle_lines(build_tle_namespace(args, trial_estimated))
+        line1, line2 = build_tle_lines(args, trial_estimated)
         states = evaluate_tle_states_for_offsets_km(line1, line2, time_offsets_s)
         if states is None:
             return None
@@ -575,7 +578,7 @@ def refine_estimated_fields_to_match_epoch_state(args, estimated, target_state_k
     def evaluate_with_params(current_params):
         trial_estimated = estimated.copy()
         trial_estimated.update(current_params)
-        line1, line2 = build_tle_lines(build_tle_namespace(args, trial_estimated))
+        line1, line2 = build_tle_lines(args, trial_estimated)
         states = evaluate_tle_epoch_states_km([(line1, line2)])
         state = None if states is None else states[0]
         if state is None:
@@ -618,7 +621,7 @@ def refine_estimated_fields_to_match_epoch_state(args, estimated, target_state_k
                 trial_estimated = estimated.copy()
                 trial_estimated.update(trial_params)
                 finite_difference_pairs.append(
-                    build_tle_lines(build_tle_namespace(args, trial_estimated))
+                    build_tle_lines(args, trial_estimated)
                 )
 
         finite_difference_states = evaluate_tle_epoch_states_km(finite_difference_pairs)
@@ -655,13 +658,8 @@ def refine_estimated_fields_to_match_epoch_state(args, estimated, target_state_k
         line_search_params = []
         for line_search_scale in [1.0, 0.5, 0.25, 0.1]:
             trial_params = current_params.copy()
-            for parameter_name, raw_step, max_step in zip(
-                parameter_names,
-                delta,
-                step_sizes,
-            ):
-                limited_step = clamp(raw_step * line_search_scale, -5.0 * max_step, 5.0 * max_step)
-                trial_params[parameter_name] += limited_step
+            for parameter_name, raw_step in zip(parameter_names, delta):
+                trial_params[parameter_name] += raw_step * line_search_scale
             trial_params = clamp_refined_elements(trial_params)
             line_search_params.append((line_search_scale, trial_params))
 
@@ -669,7 +667,7 @@ def refine_estimated_fields_to_match_epoch_state(args, estimated, target_state_k
         for _, trial_params in line_search_params:
             trial_estimated = estimated.copy()
             trial_estimated.update(trial_params)
-            line_search_pairs.append(build_tle_lines(build_tle_namespace(args, trial_estimated)))
+            line_search_pairs.append(build_tle_lines(args, trial_estimated))
 
         line_search_states = evaluate_tle_epoch_states_km(line_search_pairs)
         if line_search_states is None:
@@ -860,7 +858,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         description=(
             "Read a set of OEM-like state vectors, estimate TLE element values, "
-            "and print a write_tle.py command that can write the TLE file."
+            "and write the resulting TLE to a file or stdout."
         )
     )
     parser.add_argument(
@@ -879,15 +877,15 @@ def parse_arguments():
         metavar="<file|->",
         default="-",
         help=(
-            "Output path to pass to write_tle.py (default: '-'). "
-            "Use '-' to have write_tle.py print TLE text to stdout."
+            "Output TLE file path (default: '-'). "
+            "Use '-' to print TLE text to stdout."
         ),
     )
     parser.add_argument(
         "--name",
         metavar="<name>",
         default="",
-        help="Optional satellite name to pass to write_tle.py.",
+        help="Optional satellite name written above line 1.",
     )
     parser.add_argument(
         "--satellite-number",
@@ -1137,18 +1135,23 @@ def estimate_tle_fields(records):
 
     epoch_year, epoch_day = datetime_to_tle_epoch(epoch_dt)
 
+    # Use osculating values as the initial guess for the state-match refinement.
+    # The osculating elements at epoch are the closest to the target Cartesian
+    # state and provide a much better starting point for the Gauss-Newton
+    # optimizer than the averaged/blended values, which can be biased by
+    # short-period perturbations (especially for ω and M in near-circular orbits).
     return {
         "epoch_datetime": epoch_dt,
         "epoch_year": epoch_year,
         "epoch_day": epoch_day,
         "inclination_deg": inclination_deg_estimated,
         "inclination_deg_osculating_at_epoch": elements_first["inclination_deg"],
-        "raan_deg": raan_mean_at_epoch_deg,
+        "raan_deg": elements_first["raan_deg"],
         "raan_deg_osculating_at_epoch": elements_first["raan_deg"],
         "eccentricity": max(0.0, min(elements_first["eccentricity"], 0.9999999)),
-        "arg_perigee_deg": arg_perigee_at_epoch_deg,
+        "arg_perigee_deg": elements_first["arg_perigee_deg"],
         "arg_perigee_deg_osculating_at_epoch": elements_first["arg_perigee_deg"],
-        "mean_anomaly_deg": mean_anomaly_at_epoch_deg,
+        "mean_anomaly_deg": elements_first["mean_anomaly_deg"],
         "mean_anomaly_deg_osculating_at_epoch": elements_first["mean_anomaly_deg"],
         "mean_motion_rev_per_day": mean_motion_at_epoch_rev_per_day,
         "mean_motion_rev_per_day_regression_at_epoch": mean_motion_regression_at_epoch_rev_per_day,
@@ -1163,63 +1166,6 @@ def estimate_tle_fields(records):
     }
 
 
-def get_write_tle_script_paths():
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    abs_path = os.path.join(script_dir, "write_tle.py")
-    display_path = os.path.relpath(abs_path, os.getcwd())
-    return display_path, abs_path
-
-
-def build_write_command(args, estimated, write_tle_script):
-    int_piece = sanitize_piece(args.int_designator_piece)
-
-    command_parts = [
-        "python3",
-        write_tle_script,
-        "--output",
-        args.output,
-        "--satellite-number",
-        str(args.satellite_number),
-        "--classification",
-        args.classification,
-        "--int-designator-year",
-        str(args.int_designator_year),
-        "--int-designator-launch-number",
-        str(args.int_designator_launch_number),
-        "--int-designator-piece",
-        int_piece,
-        "--epoch-year",
-        str(estimated["epoch_year"]),
-        "--epoch-day",
-        f"{estimated['epoch_day']:.8f}",
-        "--mean-motion-first-derivative",
-        f"{estimated['mean_motion_first_derivative']:.8f}",
-        f"--mean-motion-second-derivative={args.mean_motion_second_derivative}",
-        f"--bstar={estimated.get('bstar', args.bstar)}",
-        "--ephemeris-type",
-        str(args.ephemeris_type),
-        "--element-set-number",
-        str(args.element_set_number),
-        "--inclination-deg",
-        f"{estimated['inclination_deg']:.4f}",
-        "--raan-deg",
-        f"{estimated['raan_deg']:.4f}",
-        "--eccentricity",
-        f"{estimated['eccentricity']:.7f}",
-        "--arg-perigee-deg",
-        f"{estimated['arg_perigee_deg']:.4f}",
-        "--mean-anomaly-deg",
-        f"{estimated['mean_anomaly_deg']:.4f}",
-        "--mean-motion-rev-per-day",
-        f"{estimated['mean_motion_rev_per_day']:.8f}",
-        "--revolution-number-at-epoch",
-        str(args.revolution_number_at_epoch),
-    ]
-
-    if args.name:
-        command_parts.extend(["--name", args.name])
-
-    return command_parts
 
 
 def print_summary(records, estimated, args):
@@ -1344,26 +1290,12 @@ def main():
 
     print_summary(records, estimated, args)
 
-    write_tle_display_path, write_tle_abs_path = get_write_tle_script_paths()
-    command_parts = build_write_command(args, estimated, write_tle_display_path)
-    command = " ".join(shlex.quote(part) for part in command_parts)
+    tle_data = build_tle_data(args, estimated)
 
-    print("write_tle.py command and options:")
-    print(command)
-
-    if args.output != "-":
-        command_parts_exec = build_write_command(args, estimated, write_tle_abs_path)
-        process = subprocess.run(command_parts_exec, capture_output=True, text=True)
-        if process.returncode != 0:
-            print("Error: write_tle.py failed while saving output file")
-            if process.stdout.strip():
-                print("write_tle.py stdout:")
-                print(process.stdout.rstrip())
-            if process.stderr.strip():
-                print("write_tle.py stderr:")
-                print(process.stderr.rstrip())
-            sys.exit(2)
-
+    if args.output == "-":
+        tle.write_tle(sys.stdout, tle_data)
+    else:
+        tle.write_tle(args.output, tle_data)
         print(f"Saved TLE file: {args.output}")
 
 

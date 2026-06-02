@@ -17,7 +17,6 @@ flowchart LR
     fmt_tle{{"TLE (.tle)"}}
     fmt_omm{{"OMM (.omm)"}}
     fmt_oem{{"OEM-like State Vectors <br/> (epoch x y z vx vy vz)"}}
-    fmt_cli_params{{"CLI Parameters<br/>(orbital elements + metadata values)"}}
     fmt_time{{"Time Values <br/> (ISO / POSIX / UTC / TAI / TT / TDB)"}}
     fmt_celestrak{{"CelesTrak<br/>(HTTP download)"}}
 
@@ -25,8 +24,6 @@ flowchart LR
 
     %% tle/ scripts
     download_tle(["download_tle.py"])
-    parse_tle(["parse_tle.py"])
-    write_tle(["write_tle.py"])
     build_tle(["build_tle.py"])
     omm_to_tle(["omm_to_tle.py"])
     tle_to_omm(["tle_to_omm.py"])
@@ -51,17 +48,9 @@ flowchart LR
     download_tle -->|"TLE format"| fmt_tle
     download_tle -->|"OMM format"| fmt_omm
 
-    %% parse_tle.py: TLE → parsed summary (+ generates write_tle.py command)
-    fmt_tle --> parse_tle
-    parse_tle -.->|"--verify calls"| write_tle
-
-    %% write_tle.py: CLI params → TLE file
-    fmt_cli_params --> write_tle
-    write_tle --> fmt_tle
-
-    %% build_tle.py: OEM state vectors → TLE (via write_tle.py)
+    %% build_tle.py: OEM state vectors → TLE (via common.tle.write_tle)
     fmt_oem --> build_tle
-    build_tle -.->|"calls"| write_tle
+    build_tle --> fmt_tle
 
     %% omm_to_tle.py: OMM → TLE
     fmt_omm --> omm_to_tle

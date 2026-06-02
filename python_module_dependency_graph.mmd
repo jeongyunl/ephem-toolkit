@@ -30,9 +30,7 @@ graph LR
     subgraph tle
         mod_tle_build_tle([build_tle])
         mod_tle_download_tle([download_tle])
-        mod_tle_parse_tle([parse_tle])
         mod_tle_tle_info([tle_info])
-        mod_tle_write_tle([write_tle])
         mod_tle_omm_to_tle([omm_to_tle])
         mod_tle_tle_to_omm([tle_to_omm])
     end
@@ -72,9 +70,7 @@ graph LR
     mod_tle_omm_to_tle --> mod_common_convert_tle
     mod_tle_omm_to_tle --> mod_common_omm
     mod_tle_omm_to_tle --> mod_common_tle
-    mod_tle_parse_tle --> mod_common_tle
     mod_tle_tle_info --> mod_common_common
     mod_tle_tle_to_omm --> mod_common_convert_tle
     mod_tle_tle_to_omm --> mod_common_tle
     mod_tle_tle_to_omm --> mod_common_omm
-    mod_tle_write_tle --> mod_common_tle
