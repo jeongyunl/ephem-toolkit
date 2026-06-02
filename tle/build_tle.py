@@ -5,8 +5,10 @@ from datetime import datetime
 import io
 import math
 import sys
+import os
 import warnings
 
+warnings.filterwarnings("ignore", category=SyntaxWarning)
 warnings.filterwarnings("ignore", module="urllib3")
 
 try:
@@ -15,6 +17,8 @@ try:
 except Exception:
     environment_setup = None
     spice = None
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 import common.tle as tle
 
@@ -620,9 +624,7 @@ def refine_estimated_fields_to_match_epoch_state(args, estimated, target_state_k
             for trial_params in (plus_params, minus_params):
                 trial_estimated = estimated.copy()
                 trial_estimated.update(trial_params)
-                finite_difference_pairs.append(
-                    build_tle_lines(args, trial_estimated)
-                )
+                finite_difference_pairs.append(build_tle_lines(args, trial_estimated))
 
         finite_difference_states = evaluate_tle_epoch_states_km(finite_difference_pairs)
         if finite_difference_states is None:
@@ -876,10 +878,7 @@ def parse_arguments():
         "--output",
         metavar="<file|->",
         default="-",
-        help=(
-            "Output TLE file path (default: '-'). "
-            "Use '-' to print TLE text to stdout."
-        ),
+        help=("Output TLE file path (default: '-'). " "Use '-' to print TLE text to stdout."),
     )
     parser.add_argument(
         "--name",
@@ -1164,8 +1163,6 @@ def estimate_tle_fields(records):
         "semi_major_axis_km": elements_first["semi_major_axis_km"],
         "dataset_slope_rev_per_day2": slope_rev_per_day2,
     }
-
-
 
 
 def print_summary(records, estimated, args):
