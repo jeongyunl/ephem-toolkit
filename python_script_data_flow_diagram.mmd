@@ -1,0 +1,99 @@
+---
+config:
+  flowchart:
+    curve: basis
+---
+%% Data Flow Diagram of Executable Python Scripts
+%% Shows how scripts connect through shared data formats (input → script → output)
+%%
+%% Legend:
+%%   Rounded rectangles ([...]) = executable scripts
+%%   Hexagons {{...}} = data formats
+%%   Arrows show data flow direction with format labels
+
+flowchart LR
+
+    %% ===== Data Format Nodes =====
+    fmt_tle{{"TLE (.tle)"}}
+    fmt_omm{{"OMM (.omm)"}}
+    fmt_oem{{"OEM-like State Vectors <br/> (epoch x y z vx vy vz)"}}
+    fmt_cli_params{{"CLI Parameters<br/>(orbital elements + metadata values)"}}
+    fmt_time{{"Time Values <br/> (ISO / POSIX / UTC / TAI / TT / TDB)"}}
+    fmt_celestrak{{"CelesTrak<br/>(HTTP download)"}}
+
+    %% ===== Script Nodes =====
+
+    %% tle/ scripts
+    download_tle(["download_tle.py"])
+    parse_tle(["parse_tle.py"])
+    write_tle(["write_tle.py"])
+    build_tle(["build_tle.py"])
+    omm_to_tle(["omm_to_tle.py"])
+    tle_to_omm(["tle_to_omm.py"])
+    tle_info(["tle_info.py"])
+
+    %% propagation/ scripts
+    propagate_tle(["propagate_tle.py"])
+    propagate_sat(["propagate_satellite_orbit.py"])
+
+    %% frame_conversion/ scripts
+    gcrf_to_itrf_rot(["gcrf_to_itrf_rot_model.py"])
+    gcrf_to_itrf_spice(["gcrf_to_itrf_spice.py"])
+
+    %% time_conversion/tools/ scripts
+    convert_time(["convert_time.py"])
+    convert_time2(["convert_time2.py"])
+
+    %% ===== Data Flows =====
+
+    %% download_tle.py: CelesTrak → TLE or OMM files
+    fmt_celestrak -->|"satellite ID"| download_tle
+    download_tle -->|"TLE format"| fmt_tle
+    download_tle -->|"OMM format"| fmt_omm
+
+    %% parse_tle.py: TLE → parsed summary (+ generates write_tle.py command)
+    fmt_tle --> parse_tle
+    parse_tle -.->|"--verify calls"| write_tle
+
+    %% write_tle.py: CLI params → TLE file
+    fmt_cli_params --> write_tle
+    write_tle --> fmt_tle
+
+    %% build_tle.py: OEM state vectors → TLE (via write_tle.py)
+    fmt_oem --> build_tle
+    build_tle -.->|"calls"| write_tle
+
+    %% omm_to_tle.py: OMM → TLE
+    fmt_omm --> omm_to_tle
+    omm_to_tle --> fmt_tle
+
+    %% tle_to_omm.py: TLE → OMM
+    fmt_tle --> tle_to_omm
+    tle_to_omm --> fmt_omm
+
+    %% tle_info.py: TLE → console summary
+    fmt_tle --> tle_info
+
+    %% propagate_tle.py: TLE → OEM state vectors
+    fmt_tle --> propagate_tle
+    propagate_tle --> fmt_oem
+
+    %% propagate_satellite_orbit.py: single OEM state line → OEM state history
+    fmt_oem -->|"single state line"| propagate_sat
+    propagate_sat -->|"state history"| fmt_oem
+
+    %% gcrf_to_itrf_rot_model.py: OEM (GCRF↔ITRF)
+    fmt_oem -->|"GCRF or ITRF"| gcrf_to_itrf_rot
+    gcrf_to_itrf_rot -->|"ITRF or GCRF"| fmt_oem
+
+    %% gcrf_to_itrf_spice.py: OEM (J2000↔ITRF93)
+    fmt_oem -->|"J2000 or ITRF93"| gcrf_to_itrf_spice
+    gcrf_to_itrf_spice -->|"ITRF93 or J2000"| fmt_oem
+
+    %% convert_time.py: time values → converted time values
+    fmt_time --> convert_time
+    convert_time --> fmt_time
+
+    %% convert_time2.py: time values → converted time values
+    fmt_time --> convert_time2
+    convert_time2 --> fmt_time
