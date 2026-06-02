@@ -1,71 +1,108 @@
 # tudatpy-utils
 
-Utility scripts for working with TudatPy.
+Frame-conversion utilities for OEM-like Cartesian state vectors.
 
-## Frame Conversion
+## Overview
 
-### `frame_conversion/gcrf_to_itrf_spice.py`
+The repository currently provides two Python frame-conversion scripts:
 
-Converts satellite state vectors between **GCRF** (J2000) and **ITRF** (ITRF93) using SPICE rotation matrices via TudatPy.
+- `frame_conversion/gcrf_to_itrf_spice.py`
+- `frame_conversion/gcrf_to_itrf_rot_model.py`
 
-#### Synopsis
+Both scripts:
 
+- read OEM-like state lines from a file or stdin
+- accept blank lines and `#` comments
+- accept whitespace- or comma-separated fields
+- interpret position in **km** and velocity in **km/s**
+- print converted states in the same OEM-like text layout
+
+Input/output line format:
+
+```text
+<ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>
 ```
+
+## `frame_conversion/gcrf_to_itrf_spice.py`
+
+Converts satellite state vectors between **GCRF / J2000** and **ITRF93** using SPICE rotation matrices via TudatPy.
+
+### Synopsis
+
+```bash
 python frame_conversion/gcrf_to_itrf_spice.py [-h] [-r] [input_file]
 ```
 
-#### Options
+### Options
 
 | Option | Description |
 |---|---|
 | `-h`, `--help` | Show help message and exit |
-| `-r` | Reverse conversion (ITRF93 → J2000 instead of J2000 → ITRF93) |
+| `-r` | Reverse conversion: `ITRF93 -> J2000` instead of `J2000 -> ITRF93` |
+| `input_file` | Optional path to an OEM-like ephemeris text file; if omitted, stdin is used |
 
-#### Input Format
+### Behavior
 
-The script reads OEM-style ephemeris data with 7 whitespace- or comma-separated fields per line:
+- Default direction: `J2000 -> ITRF93`
+- Reverse direction with `-r`: `ITRF93 -> J2000`
+- Epochs are converted internally to TDB seconds since J2000 before calling SPICE
+- Position and velocity are transformed with a full 6x6 state conversion matrix assembled from:
+  - the rotation matrix
+  - the rotation-matrix derivative
 
-```
+### Input format
+
+Each non-comment line must contain 7 fields:
+
+```text
 <ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>
 ```
 
-- **Epoch**: ISO 8601 timestamp (e.g., `2025-11-10T15:42:27.000000`). A trailing `Z` is accepted and stripped.
-- **Position**: X, Y, Z in **kilometres**.
-- **Velocity**: VX, VY, VZ in **km/s**.
+Notes:
 
-Blank lines and lines starting with `#` are skipped.
+- **Epoch**: ISO 8601 timestamp such as `2025-11-10T15:42:27.000000`
+- A trailing `Z` on the epoch is accepted by the shared parser.
+- **Position**: X, Y, Z in kilometres.
+- **Velocity**: VX, VY, VZ in km/s.
+- Blank lines and lines beginning with `#` are skipped.
+- Parse failures are reported and the offending line is skipped.
 
-#### Output Format
+### Output format
 
-Each line of output contains the converted state:
+Each successfully converted line is printed as:
 
-```
+```text
 <ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>
 ```
 
-Fields are separated by two spaces.
+The epoch is echoed in ISO format and fields are separated by double spaces.
 
-#### Usage
+### Usage
 
-**GCRF → ITRF from inline data:**
+**Convert from stdin, J2000 -> ITRF93:**
 
 ```bash
-echo "2025-11-10T15:42:27.000000   2.070058475322879e+03   4.729228905683604e+03   5.291073944519138e+03  -4.526864928985522e-01  -5.378340397167571e+00   4.970075197986098e+00" \
+echo "2025-11-10T15:42:27.000000 2070.058475323 4729.228905684 5291.073944519 -0.452686493 -5.378340397 4.970075198" \
   | python frame_conversion/gcrf_to_itrf_spice.py
 ```
 
-**Reverse conversion (ITRF → GCRF) from inline data:**
+**Reverse conversion, ITRF93 -> J2000:**
 
 ```bash
-echo "2025-11-10T15:42:27.000000  -4.016835021863700e+03   3.234040363774085e+03   5.296435683796034e+03   5.299868461486320e+00  -1.578004407441781e+00   4.968732514953014e+00" \
+echo "2025-11-10T15:42:27.000000 -4016.835021864 3234.040363774 5296.435683796 5.299868461 -1.578004407 4.968732515" \
   | python frame_conversion/gcrf_to_itrf_spice.py -r
+```
+
+**Convert from a file:**
+
+```bash
+python frame_conversion/gcrf_to_itrf_spice.py input.oem
 ```
 
 **Save output to a file:**
 
 ```bash
-echo "2025-11-10T15:42:27.000000   2.070058475322879e+03   4.729228905683604e+03   5.291073944519138e+03  -4.526864928985522e-01  -5.378340397167571e+00   4.970075197986098e+00" \
-  | python frame_conversion/gcrf_to_itrf_spice.py > output.txt
+python frame_conversion/gcrf_to_itrf_spice.py input.oem > output.oem
 ```
 
 **Show help:**
@@ -74,99 +111,117 @@ echo "2025-11-10T15:42:27.000000   2.070058475322879e+03   4.729228905683604e+03
 python frame_conversion/gcrf_to_itrf_spice.py -h
 ```
 
-#### Dependencies
+### Dependencies
 
-- [TudatPy](https://docs.tudat.space/en/latest/) (`tudatpy`)
+- TudatPy
 - NumPy
+- local helper module `common.common`
 
-The script automatically loads the required SPICE kernels (`naif0012.tls` and `earth_200101_990825_predict.bpc`) from the TudatPy data directory.
+The script loads these SPICE kernels from TudatPy's SPICE kernel directory:
 
-### `frame_conversion/gcrf_to_itrf_rot_model.py`
+- `naif0012.tls`
+- `earth_200101_990825_predict.bpc`
 
-Converts satellite state vectors between an inertial frame (**GCRF**/J2000) and a body-fixed frame (**ITRF**/IAU_Earth) using a selectable Earth rotation model via TudatPy. Supports the IAU 2006 GCRS-to-ITRS precession-nutation model as well as SPICE-based rotation models.
+## `frame_conversion/gcrf_to_itrf_rot_model.py`
 
-#### Synopsis
+Converts satellite state vectors between an inertial frame and an Earth-fixed frame using a selectable TudatPy Earth rotation model. The current implementation supports the IAU 2006 GCRS-to-ITRS model as well as SPICE-based Earth rotation models.
 
-```
+### Synopsis
+
+```bash
 python frame_conversion/gcrf_to_itrf_rot_model.py [-h] [-r] [-m MODEL] [input_file]
 ```
 
-#### Options
+### Options
 
 | Option | Description |
 |---|---|
 | `-h`, `--help` | Show help message and exit |
-| `-r` | Reverse conversion (ITRF → GCRF instead of GCRF → ITRF) |
-| `-m MODEL` | Name of the rotation model to use (see table below; default: `gcrs_to_itrs`) |
+| `-r` | Reverse conversion: body-fixed -> inertial instead of inertial -> body-fixed |
+| `-m MODEL` | Rotation model name; valid values are `spice_iau_earth`, `spice_itrf93`, `spice`, `gcrs_to_itrs` |
+| `input_file` | Optional path to an OEM-like ephemeris text file; if omitted, stdin is used |
 
-#### Rotation Models
+### Supported rotation models
 
-| Model name | Description | Inertial frame |
-|---|---|---|
-| `gcrs_to_itrs` | IAU 2006 GCRS-to-ITRS precession-nutation model | GCRS |
-| `spice_iau_earth` | SPICE IAU_Earth rotation model | J2000 |
-| `spice_itrf93` | SPICE ITRF93 rotation model | J2000 |
-| `spice` | Alias for `spice_itrf93` | J2000 |
+| Model | Inertial frame | Body-fixed frame | Notes |
+|---|---|---|---|
+| `gcrs_to_itrs` | `GCRS` | `ITRS` | Default; IAU 2006 GCRS-to-ITRS model |
+| `spice_itrf93` | `J2000` | `ITRF93` | SPICE rotation model |
+| `spice` | `J2000` | `ITRF93` | Alias for `spice_itrf93` |
+| `spice_iau_earth` | `J2000` | `IAU_Earth` | SPICE rotation model |
 
-#### Input Format
+### Behavior
 
-The script reads OEM-style ephemeris data with 7 whitespace- or comma-separated fields per line:
+- Default model: `gcrs_to_itrs`
+- Default direction: inertial -> body-fixed
+- Reverse direction with `-r`: body-fixed -> inertial
+- Velocity conversion includes the rotational transport term using the Earth angular velocity returned by the selected rotation model
 
-```
+### Input format
+
+Each non-comment line must contain 7 fields:
+
+```text
 <ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>
 ```
 
-- **Epoch**: ISO 8601 timestamp (e.g., `2025-11-10T15:42:27.000000`). A trailing `Z` is accepted and stripped.
-- **Position**: X, Y, Z in **kilometres**.
-- **Velocity**: VX, VY, VZ in **km/s**.
+Notes:
 
-Blank lines and lines starting with `#` are skipped.
+- **Epoch**: ISO 8601 timestamp such as `2025-11-10T15:42:27.000000`
+- A trailing `Z` on the epoch is accepted by the shared parser.
+- **Position**: X, Y, Z in kilometres.
+- **Velocity**: VX, VY, VZ in km/s.
+- Blank lines and lines beginning with `#` are skipped.
+- Parse failures are reported and the offending line is skipped.
 
-#### Output Format
+### Output format
 
-Each line of output contains the converted state:
+Each successfully converted line is printed as:
 
-```
+```text
 <ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>
 ```
 
-Fields are separated by two spaces.
+### Usage
 
-#### Usage
-
-**GCRF → ITRF from inline data (default model: `gcrs_to_itrs`):**
+**Default model (`gcrs_to_itrs`) from stdin:**
 
 ```bash
-echo "2025-11-10T15:42:27.000000   2.070058475322879e+03   4.729228905683604e+03   5.291073944519138e+03  -4.526864928985522e-01  -5.378340397167571e+00   4.970075197986098e+00" \
+echo "2025-11-10T15:42:27.000000 2070.058475323 4729.228905684 5291.073944519 -0.452686493 -5.378340397 4.970075198" \
   | python frame_conversion/gcrf_to_itrf_rot_model.py
 ```
 
-**GCRF → ITRF using the SPICE ITRF93 model:**
+**Use the SPICE `ITRF93` model:**
 
 ```bash
-echo "2025-11-10T15:42:27.000000   2.070058475322879e+03   4.729228905683604e+03   5.291073944519138e+03  -4.526864928985522e-01  -5.378340397167571e+00   4.970075197986098e+00" \
+echo "2025-11-10T15:42:27.000000 2070.058475323 4729.228905684 5291.073944519 -0.452686493 -5.378340397 4.970075198" \
   | python frame_conversion/gcrf_to_itrf_rot_model.py -m spice_itrf93
 ```
 
-**GCRF → ITRF using the SPICE IAU_Earth model:**
+**Use the SPICE `IAU_Earth` model:**
 
 ```bash
-echo "2025-11-10T15:42:27.000000   2.070058475322879e+03   4.729228905683604e+03   5.291073944519138e+03  -4.526864928985522e-01  -5.378340397167571e+00   4.970075197986098e+00" \
+echo "2025-11-10T15:42:27.000000 2070.058475323 4729.228905684 5291.073944519 -0.452686493 -5.378340397 4.970075198" \
   | python frame_conversion/gcrf_to_itrf_rot_model.py -m spice_iau_earth
 ```
 
-**Reverse conversion (ITRF → GCRF) from inline data:**
+**Reverse conversion:**
 
 ```bash
-echo "2025-11-10T15:42:27.000000  -4.016835021863700e+03   3.234040363774085e+03   5.296435683796034e+03   5.299868461486320e+00  -1.578004407441781e+00   4.968732514953014e+00" \
+echo "2025-11-10T15:42:27.000000 -4016.835021864 3234.040363774 5296.435683796 5.299868461 -1.578004407 4.968732515" \
   | python frame_conversion/gcrf_to_itrf_rot_model.py -r
+```
+
+**Convert from a file:**
+
+```bash
+python frame_conversion/gcrf_to_itrf_rot_model.py -m gcrs_to_itrs input.oem
 ```
 
 **Save output to a file:**
 
 ```bash
-echo "2025-11-10T15:42:27.000000   2.070058475322879e+03   4.729228905683604e+03   5.291073944519138e+03  -4.526864928985522e-01  -5.378340397167571e+00   4.970075197986098e+00" \
-  | python frame_conversion/gcrf_to_itrf_rot_model.py > output.txt
+python frame_conversion/gcrf_to_itrf_rot_model.py -m gcrs_to_itrs input.oem > output.oem
 ```
 
 **Show help:**
@@ -175,12 +230,16 @@ echo "2025-11-10T15:42:27.000000   2.070058475322879e+03   4.729228905683604e+03
 python frame_conversion/gcrf_to_itrf_rot_model.py -h
 ```
 
-#### Dependencies
+### Dependencies
 
-- [TudatPy](https://docs.tudat.space/en/latest/) (`tudatpy`)
+- TudatPy
 - NumPy
+- local helper module `common.common`
 
-The script loads SPICE kernels `naif0012.tls` (leap seconds), `pck00011.tpc` (planetary constants), and `earth_200101_990825_predict.bpc` (Earth rotation prediction, Jan 2001 – Aug 2099) from the TudatPy data directory. The rotation model is selected via the `-m` option and defaults to the IAU 2006 GCRS-to-ITRS model.
+The script loads these SPICE kernels from TudatPy's SPICE kernel directory:
+
+- `naif0012.tls`
+- `pck00011.tpc`
+- `earth_200101_990825_predict.bpc`
 
 ---
-

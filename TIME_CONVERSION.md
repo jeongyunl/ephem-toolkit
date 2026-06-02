@@ -1,117 +1,192 @@
 # tudatpy-utils
 
-Utility scripts for working with TudatPy.
+Time-conversion utilities built around the `time_conversion/` C++ code.
 
-## Time Conversion
+## Overview
 
-### `convert_time_cli`
+The repository contains a C++ command-line tool for converting between multiple time representations. The current implementation supports several conversion backends and a range of time formats including ISO 8601, POSIX, UTC/TAI/TT seconds since J2000, and backend-specific chrono or TDB formats.
 
-A C++ command-line tool for converting between various time representations. It supports multiple conversion backends and a wide range of time formats.
+The main user-facing tool is:
 
-#### Building
+- `build/time_conversion/tools/convert_time_cli`
 
-The tool is built with CMake as part of the project:
+It is built from:
+
+- `time_conversion/tools/convert_time_cli.cpp`
+
+The CLI supports three backends:
+
+- `base`
+- `chrono`
+- `tudat`
+
+and converts between backend-specific time formats.
+
+## Building
+
+From the repository root:
 
 ```bash
-mkdir build && cd build
-cmake ..
-make convert_time_cli
+cmake -S . -B build
+cmake --build build --target convert_time_cli
 ```
 
-The resulting binary is located at `build/time_conversion/tools/convert_time_cli`.
+Expected output binary:
 
-#### Synopsis
-
-```
-convert_time_cli [OPTIONS] input_time [input_time ...]
+```text
+build/time_conversion/tools/convert_time_cli
 ```
 
-#### Options
+## `convert_time_cli`
+
+Convert one or more input times using the selected backend.
+
+### Synopsis
+
+```bash
+build/time_conversion/tools/convert_time_cli [OPTIONS] input_time [input_time ...]
+```
+
+### Options
 
 | Option | Description |
 |---|---|
 | `-h`, `--help` | Show help message and exit |
-| `-b`, `--backend BACKEND` | Select conversion backend (`base`, `chrono`, or `tudat`) |
+| `-b`, `--backend BACKEND` | Select backend: `base`, `chrono`, or `tudat` |
 | `-i`, `--input-format FORMAT` | Specify the input time format |
-| `-o`, `--output-format FORMAT` | Specify the output time format(s), comma-separated for multiple |
+| `-o`, `--output-format FORMAT` | Specify one or more output formats; multiple formats are comma-separated |
 
-#### Backends and Formats
+### Important CLI behavior
 
-**`base` backend** (default) — leap-second-aware conversions without external dependencies:
+- Default backend: `base`
+- `--input-format` is required in practice; if omitted, the format is unknown and the tool exits with an error.
+- At least one `input_time` is required.
+- `--output-format` should be provided; if omitted, the tool prints only the original input value and a newline.
+- Multiple input times are supported.
+- Multiple output formats are supported via a comma-separated list such as `iso,utc,tai`.
 
-| Format name | Description |
+### Backends and formats
+
+#### `base` backend
+
+The `base` backend provides leap-second-aware conversions without relying on the Tudat backend.
+
+Formats accepted by the current source:
+
+| Format | Meaning |
 |---|---|
-| `iso` | ISO 8601 UTC string (`YYYY-MM-DDTHH:MM:SS.sss`) |
-| `posix` | POSIX timestamp (seconds since 1970-01-01 00:00:00 UTC) |
-| `utc` | Seconds since UTC J2000 epoch (2000-01-01 12:00:00.000 UTC) |
-| `tai` | Seconds since TAI J2000 epoch (2000-01-01 12:00:00.000 TAI) |
-| `tt` | Seconds since TT J2000 epoch (2000-01-01 12:00:00.000 TT) |
+| `iso` | UTC ISO 8601 string |
+| `posix` | POSIX seconds since Unix epoch |
+| `utc` | UTC seconds since J2000 |
+| `tai` | TAI seconds since J2000 |
+| `tt` | TT seconds since J2000 |
 
-**`chrono` backend** — uses C++ `<chrono>` clocks (availability of `chrono_utc_*` and `chrono_tai_*` depends on compiler support):
+#### `chrono` backend
 
-| Format name | Description |
+The `chrono` backend uses C++ `<chrono>` clocks and exposes additional chrono-specific formats when supported by the compiler and standard library.
+
+Formats accepted by the current source:
+
+| Format | Meaning |
 |---|---|
-| `iso` | ISO 8601 UTC string |
-| `posix` | POSIX timestamp |
-| `utc` | UTC J2000 seconds |
-| `tai` | TAI J2000 seconds |
-| `tt` | TT J2000 seconds |
-| `chrono_sys_iso` | `std::chrono::system_clock` time point as ISO string |
-| `chrono_sys` | `std::chrono::system_clock` time point as seconds since epoch |
-| `chrono_utc_iso` | `std::chrono::utc_clock` time point as ISO string (if available) |
-| `chrono_utc` | `std::chrono::utc_clock` time point as seconds since epoch (if available) |
-| `chrono_tai_iso` | `std::chrono::tai_clock` time point as ISO string (if available) |
-| `chrono_tai` | `std::chrono::tai_clock` time point as seconds since epoch (if available) |
+| `iso` | UTC ISO 8601 string |
+| `posix` | POSIX seconds since Unix epoch |
+| `utc` | UTC seconds since J2000 |
+| `tai` | TAI seconds since J2000 |
+| `tt` | TT seconds since J2000 |
+| `chrono_sys_iso` | `std::chrono::system_clock` time point rendered as an ISO-like UTC string |
+| `chrono_sys` | `std::chrono::system_clock` time point rendered as seconds since its epoch |
+| `chrono_utc_iso` | `std::chrono::utc_clock` time point rendered as an ISO-like UTC string, when supported by the compiler/library |
+| `chrono_utc` | `std::chrono::utc_clock` time point rendered as seconds since its epoch, when supported |
+| `chrono_tai_iso` | `std::chrono::tai_clock` time point rendered as an ISO-like UTC string, when supported |
+| `chrono_tai` | `std::chrono::tai_clock` time point rendered as seconds since its epoch, when supported |
 
-**`tudat` backend** — uses Tudat's time conversion routines, adds TDB support:
+Notes:
 
-| Format name | Description |
+- `chrono_utc_*` formats are compiled only when `HAS_CHRONO_UTC_CLOCK` is available.
+- `chrono_tai_*` formats are compiled only when `HAS_CHRONO_TAI_CLOCK` is available.
+
+#### `tudat` backend
+
+The `tudat` backend uses Tudat time-conversion routines and adds support for TDB seconds since J2000.
+
+Formats accepted by the current source:
+
+| Format | Meaning |
 |---|---|
-| `iso` | ISO 8601 UTC string |
-| `posix` | POSIX timestamp |
-| `utc` | UTC J2000 seconds |
-| `tai` | TAI J2000 seconds |
-| `tt` | TT J2000 seconds |
-| `tdb` | TDB (Barycentric Dynamical Time) J2000 seconds |
+| `iso` | UTC ISO 8601 string |
+| `posix` | POSIX seconds since Unix epoch |
+| `utc` | UTC seconds since J2000 |
+| `tai` | TAI seconds since J2000 |
+| `tt` | TT seconds since J2000 |
+| `tdb` | TDB seconds since J2000 |
 
-#### Usage Examples
+### Input interpretation
 
-**Convert an ISO 8601 timestamp to POSIX time:**
+- If the input format is `iso`, each `input_time` is treated as a string.
+- For all other formats, each `input_time` is parsed as a floating-point number.
 
-```bash
-convert_time_cli -i iso -o posix "2000-01-01T12:00:00"
+### Output format
+
+For each input time, the tool prints one tab-separated line:
+
+```text
+<input>\t<output1>\t<output2> ...
 ```
 
-**Convert a POSIX timestamp to multiple output formats:**
+Formatting details from the current implementation:
+
+- numeric outputs stored as `double` are printed with 3 decimal places
+- string outputs are printed as returned by the backend
+- chrono time-point outputs are rendered as human-readable strings by the CLI
+
+### Usage examples
+
+**ISO -> POSIX using the default `base` backend:**
 
 ```bash
-convert_time_cli -i posix -o iso,utc,tai 946728000
+build/time_conversion/tools/convert_time_cli \
+  -i iso -o posix \
+  "2000-01-01T12:00:00"
 ```
 
-**Use the Tudat backend to convert UTC J2000 to TDB J2000:**
+**POSIX -> multiple outputs:**
 
 ```bash
-convert_time_cli -b tudat -i utc -o tdb 0.0
+build/time_conversion/tools/convert_time_cli \
+  -i posix -o iso,utc,tai \
+  946728000
 ```
 
-**Convert multiple input times at once:**
+**UTC J2000 -> TDB using the `tudat` backend:**
 
 ```bash
-convert_time_cli -i iso -o posix,utc "2000-01-01T12:00:00" "2025-11-10T15:42:27"
+build/time_conversion/tools/convert_time_cli \
+  -b tudat -i utc -o tdb \
+  0.0
 ```
 
-**Show all available formats and help:**
+**Multiple input times:**
 
 ```bash
-convert_time_cli -h
+build/time_conversion/tools/convert_time_cli \
+  -i iso -o posix,utc \
+  "2000-01-01T12:00:00" "2025-11-10T15:42:27"
 ```
 
-#### Output
+**Inspect supported formats via help:**
 
-Each input time produces one line of tab-separated output. The first column is the input value, followed by one column per requested output format.
+```bash
+build/time_conversion/tools/convert_time_cli -h
+```
 
-#### Dependencies
+## Dependencies
 
+Current top-level CMake configuration requires:
+
+- CMake
 - C++20 compiler
-- [Tudat](https://docs.tudat.space/) (required for the `tudat` backend and for building)
+- Tudat
 - Eigen3
+
+The repository also optionally looks for `nrlmsise00`, but the time-conversion CLI target itself is built from the `time_conversion/` subtree and linked against the local `convert_time` library target.

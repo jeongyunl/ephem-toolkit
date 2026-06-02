@@ -1,9 +1,13 @@
-1. Add Python satellite-orbit propagation examples.
-    1. Interpolate propagated ephemeris results to generate fixed-step outputs (for example, OEM records at 1-minute intervals).
-1. Add C++ satellite-orbit propagation examples.
-    1. Recreate the Python example behavior using Tudat's C++ API as a reference for C++ users and C++ codebase integration.
-1. Add C++ frame-conversion examples.
-1. TLE tools
-    1. TLE <-> OMM
-    1. TLE <-> OEM ✅
-        1. More options (eg Select TLE epoch)
+1. Propagation tools
+    1. Add fixed-step resampling / interpolation for propagated state histories so OEM-like exports can be generated at user-selected output intervals.
+    1. Consider a non-plotting / batch mode for `propagation/propagate_satellite_orbit.py`.
+1. C++ propagation examples
+    1. Recreate the Python propagation example behavior using Tudat's C++ API as a reference for C++ users and integration work.
+1. Frame-conversion examples
+    1. Add C++ frame-conversion examples comparable to the current Python scripts.
+1. TLE / OMM / OEM tools
+    1. Continue improving TLE <-> OMM workflows.
+    1. Continue improving TLE <-> OEM workflows.
+        1. More options, for example selecting the TLE epoch explicitly.
+1. Documentation
+    1. Keep top-level and nested Markdown files aligned with the current source tree and CLI behavior.

@@ -1,49 +1,117 @@
 # tudatpy-utils
 
-Utility scripts for working with TudatPy.
+Utility scripts and small C++ tools for working with TudatPy and Tudat.
 
 ## Overview
 
-This repository provides a collection of command-line tools built on top of [TudatPy](https://docs.tudat.space/en/latest/) and [Tudat](https://docs.tudat.space/) for common astrodynamics tasks. The tools are organised into four areas:
+This repository provides a collection of command-line tools and helper scripts built on top of [TudatPy](https://docs.tudat.space/en/latest/) and [Tudat](https://docs.tudat.space/) for common astrodynamics tasks.
 
-### Frame Conversion
+The repository currently contains utilities in four main areas:
 
-Python scripts for converting satellite state vectors between inertial (GCRF/J2000) and Earth-fixed (ITRF/IAU_Earth) reference frames. Multiple rotation models are supported, including SPICE-based rotations and the IAU 2006 GCRS-to-ITRS precession-nutation model.
+- Frame conversion
+- Time conversion
+- Orbit propagation
+- TLE / OMM / OEM utilities
 
-- `frame_conversion/gcrf_to_itrf_spice.py` — GCRF ↔ ITRF conversion using SPICE rotation matrices.
-- `frame_conversion/gcrf_to_itrf_rot_model.py` — GCRF ↔ ITRF conversion with a selectable Earth rotation model.
+The repository layout is source-oriented:
+
+- `frame_conversion/` — Python frame-conversion scripts and notes
+- `time_conversion/` — C++ time-conversion library, CLI, tests, and helper scripts
+- `propagation/` — Python propagation scripts
+- `tle/` — TLE-related Python tools
+- `common/` — shared Python helpers for OEM/OMM/TLE parsing and time conversion
+- `test/` — sample TLE / OMM / OEM files and Python tests
+
+## Frame Conversion
+
+Python scripts for converting OEM-like Cartesian state vectors between inertial and Earth-fixed reference frames. Multiple rotation approaches are supported, including direct SPICE frame rotations and TudatPy Earth rotation models.
+
+Two Python scripts convert OEM-like Cartesian state lines between inertial and Earth-fixed frames:
+
+- `frame_conversion/gcrf_to_itrf_spice.py`
+  - Uses SPICE rotation matrices and rotation-matrix derivatives.
+  - Converts between `J2000` and `ITRF93`.
+- `frame_conversion/gcrf_to_itrf_rot_model.py`
+  - Uses TudatPy Earth rotation models.
+  - Supports `gcrs_to_itrs`, `spice_itrf93` / `spice`, and `spice_iau_earth`.
 
 See [FRAME_CONVERSION.md](FRAME_CONVERSION.md) for full usage details.
 
-### Time Conversion
+## Time Conversion
 
-A C++ command-line tool for converting between time representations (ISO 8601, POSIX, UTC/TAI/TT/TDB seconds since J2000). Three backends are available: a standalone leap-second-aware converter, a C++ `<chrono>`-based converter, and a Tudat-based converter that adds TDB support.
+A C++ command-line tool for converting between time representations. The current CLI supports multiple backends and a range of time formats including ISO 8601, POSIX, UTC/TAI/TT J2000, and backend-specific chrono or TDB formats.
 
-- `time_conversion/tools/convert_time_cli` — multi-backend time conversion CLI (built with CMake).
+The C++ time-conversion tool is built from the `time_conversion/` subtree:
+
+- `time_conversion/tools/convert_time_cli`
+  - Multi-backend CLI for converting between ISO 8601, POSIX, UTC/TAI/TT J2000, and backend-specific formats.
+  - Backends: `base`, `chrono`, `tudat`.
 
 See [TIME_CONVERSION.md](TIME_CONVERSION.md) for full usage details.
 
-### Orbit Propagation
+## Orbit Propagation
 
-A Python script for propagating a perturbed satellite orbit around Earth. It accepts a single OEM-style Cartesian state line and propagates it forward under configurable perturbations (spherical-harmonic gravity, third-body gravity, aerodynamic drag, solar radiation pressure). Post-propagation plots of accelerations, ground track, and Keplerian elements are generated automatically.
+Python scripts for propagating either a Cartesian initial state or a TLE-derived orbit. The current tools support configurable perturbation models, OEM-like text output, and TLE-based SGP4 propagation.
 
-- `propagation/propagate_satellite_orbit.py` — perturbed orbit propagation with configurable perturbation toggles.
+Two Python propagation scripts are currently present:
+
+- `propagation/propagate_satellite_orbit.py`
+  - Propagates one OEM-like Cartesian state under configurable perturbations.
+  - Can optionally export propagated state history in OEM-like text format.
+  - Produces plots after propagation.
+- `propagation/propagate_tle.py`
+  - Propagates a TLE with TudatPy's SGP4 ephemeris.
+  - Prints OEM-like state lines and can optionally prepend an OEM metadata header.
 
 See [PROPAGATION.md](PROPAGATION.md) for full usage details.
 
-### TLE Build and Parse
+## TLE / OMM / OEM Utilities
 
-Python scripts for constructing and parsing Two-Line Element (TLE) sets. The build tool assembles fixed-width TLE lines from explicit CLI arguments and computes checksums. The parse tool reads TLE data from stdin, prints parsed element summaries, generates a reconstruction command, and can verify byte-identical reconstruction.
+The repository contains more than just TLE build/parse helpers. Current Python tools include TLE formatting, parsing, estimation from Cartesian arcs, and format-conversion helpers for related orbital data products.
 
-- `tle/write_tle.py` — build a TLE file from explicit TLE element CLI arguments.
-- `tle/parse_tle.py` — parse stdin TLE input, print summaries, generate reconstruction command, and optionally verify reconstruction.
+Current Python tools include:
+
+- `tle/write_tle.py` — build a TLE from explicit CLI fields
+- `tle/parse_tle.py` — parse a TLE, print a summary, and generate a reconstruction command
+- `tle/build_tle.py` — estimate a TLE from an OEM-like Cartesian arc
+- `tle/download_tle.py` — download TLE data
+- `tle/omm_to_tle.py` — convert OMM to TLE
+- `tle/tle_to_omm.py` — convert TLE to OMM
+- `common/convert_tle.py` — shared conversion helper script
+- `common/oem.py`, `common/omm.py`, `common/tle.py` — shared parsers / writers
 
 See [TLE.md](TLE.md) for full usage details.
 
-## Dependencies
+## Build and Dependencies
 
-- [TudatPy](https://docs.tudat.space/en/latest/) (`tudatpy`) — Python tools
-- [Tudat](https://docs.tudat.space/) — C++ tools (time conversion)
+### Python tools
+
+Typical Python dependencies used by the scripts:
+
+- [TudatPy](https://docs.tudat.space/en/latest/) (`tudatpy`)
 - NumPy
-- Matplotlib (propagation script)
-- C++20 compiler and CMake (time conversion tool)
+- Matplotlib (for `propagation/propagate_satellite_orbit.py`)
+
+Some scripts use only the Python standard library plus local helpers.
+
+### C++ tools
+
+The C++ time-conversion code is built with CMake and currently depends on:
+
+- CMake
+- A C++20 compiler
+- [Tudat](https://docs.tudat.space/)
+- Eigen3
+
+Top-level build example:
+
+```bash
+cmake -S . -B build
+cmake --build build --target convert_time_cli
+```
+
+The resulting executable is typically:
+
+```text
+build/time_conversion/tools/convert_time_cli
+```

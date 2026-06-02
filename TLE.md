@@ -1,77 +1,104 @@
 # tudatpy-utils
 
-Utility scripts for building and parsing TLE files.
+TLE-related utilities for building, parsing, estimating, and converting orbital data.
 
-## TLE
+## Overview
 
-### `tle/write_tle.py`
+Current TLE-related scripts in this repository include:
 
-Builds a Two-Line Element (TLE) set from explicit command-line arguments, computes both line checksums, prints a summary of all provided elements plus compiled lines, and writes the result to a `.tle` file.
+- `tle/write_tle.py`
+- `tle/parse_tle.py`
+- `tle/build_tle.py`
+- `tle/download_tle.py`
+- `tle/omm_to_tle.py`
+- `tle/tle_to_omm.py`
+- `tle/tle_info.py`
+- `common/convert_tle.py`
 
-#### Synopsis
+This document focuses on the primary user-facing build/parse tools and the current repository context around them.
+
+## `tle/write_tle.py`
+
+Build a Two-Line Element (TLE) set from explicit command-line fields and write it to stdout or a file.
+
+### Synopsis
 
 ```bash
 python3 tle/write_tle.py [-h] [--output <file|->] [--name <name>]
   --satellite-number <0..99999> --classification <U|C|S>
-  --int-designator-year <0..99> --int-designator-launch-number <0..999> --int-designator-piece <1..3 chars>
-  --epoch-year <0..99> --epoch-day <float>
-  --mean-motion-first-derivative <float> --mean-motion-second-derivative <tle-exp>
+  --int-designator-year <0..99> --int-designator-launch-number <0..999> --int-designator-piece <piece>
+  --epoch-year <0..99> --epoch-day <day.fraction>
+  --mean-motion-first-derivative <value> --mean-motion-second-derivative <tle-exp>
   --bstar <tle-exp> --ephemeris-type <0..9> --element-set-number <0..9999>
-  --inclination-deg <float> --raan-deg <float> --eccentricity <0.0..1.0)
-  --arg-perigee-deg <float> --mean-anomaly-deg <float>
-  --mean-motion-rev-per-day <float> --revolution-number-at-epoch <0..99999>
+  --inclination-deg <deg> --raan-deg <deg> --eccentricity <0.0..1.0)
+  --arg-perigee-deg <deg> --mean-anomaly-deg <deg>
+  --mean-motion-rev-per-day <rev/day> --revolution-number-at-epoch <0..99999>
 ```
 
-#### Options
+### Options
 
 | Option | Description | Default |
 |---|---|---|
-| `-h`, `--help` | Show help message and exit | None |
-| `--output` | Output `.tle` file path to write. Use `-` or omit to print TLE to stdout. | `-` |
-| `--name` | Optional name line written before TLE line 1 | None |
-| `--satellite-number` | NORAD catalog number (0 to 99999) | Required |
-| `--classification` | Classification code (`U`, `C`, `S`) | Required |
-| `--int-designator-year` | International designator launch year (2-digit) | Required |
-| `--int-designator-launch-number` | Launch number of year (3-digit field) | Required |
-| `--int-designator-piece` | Launch piece identifier (1 to 3 chars) | Required |
-| `--epoch-year` | Epoch year (2-digit) | Required |
-| `--epoch-day` | Epoch day-of-year with fractional day | Required |
-| `--mean-motion-first-derivative` | First derivative of mean motion (line 1 field) | Required |
-| `--mean-motion-second-derivative` | Second derivative in TLE compact exponential notation (e.g. `00000+0`, `29661-4`) | Required |
-| `--bstar` | BSTAR drag term in TLE compact exponential notation | Required |
-| `--ephemeris-type` | Ephemeris type digit (0 to 9) | Required |
-| `--element-set-number` | Element set number (0 to 9999) | Required |
-| `--inclination-deg` | Inclination in degrees | Required |
-| `--raan-deg` | Right ascension of ascending node in degrees | Required |
-| `--eccentricity` | Eccentricity in decimal form (converted to 7-digit TLE field) | Required |
-| `--arg-perigee-deg` | Argument of perigee in degrees | Required |
-| `--mean-anomaly-deg` | Mean anomaly in degrees | Required |
-| `--mean-motion-rev-per-day` | Mean motion in revolutions per day | Required |
-| `--revolution-number-at-epoch` | Revolution number at epoch (0 to 99999) | Required |
+| `-h`, `--help` | Show help message and exit | none |
+| `--output` | Output TLE file path; use `-` to print TLE text to stdout | `-` |
+| `--name` | Optional name line written above line 1 | none |
+| `--satellite-number` | NORAD catalog number | required |
+| `--classification` | Classification code: `U`, `C`, or `S` | required |
+| `--int-designator-year` | International designator launch year | required |
+| `--int-designator-launch-number` | International designator launch number of year | required |
+| `--int-designator-piece` | International designator piece identifier | required |
+| `--epoch-year` | Epoch year | required |
+| `--epoch-day` | Epoch day-of-year with fractional day | required |
+| `--mean-motion-first-derivative` | First derivative of mean motion | required |
+| `--mean-motion-second-derivative` | Second derivative in compact TLE exponential notation | required |
+| `--bstar` | BSTAR drag term in compact TLE exponential notation | required |
+| `--ephemeris-type` | Ephemeris type digit | required |
+| `--element-set-number` | Element set number | required |
+| `--inclination-deg` | Inclination in degrees | required |
+| `--raan-deg` | Right ascension of ascending node in degrees | required |
+| `--eccentricity` | Eccentricity in decimal form | required |
+| `--arg-perigee-deg` | Argument of perigee in degrees | required |
+| `--mean-anomaly-deg` | Mean anomaly in degrees | required |
+| `--mean-motion-rev-per-day` | Mean motion in revolutions per day | required |
+| `--revolution-number-at-epoch` | Revolution number at epoch | required |
 
-#### Output
+### Validation behavior
 
-The script prints:
+The current source validates, among other things:
 
-1. A full summary of all input data elements.
-2. The compiled TLE line 1 and line 2 (including checksum).
-3. A save confirmation message.
+- `satellite-number` in `[0, 99999]`
+- `int-designator-year` in `[0, 99]`
+- `int-designator-launch-number` in `[0, 999]`
+- `int-designator-piece` length in `[1, 3]`
+- `epoch-year` in `[0, 99]`
+- `epoch-day` in `[0.0, 367.0)`
+- `ephemeris-type` in `[0, 9]`
+- `element-set-number` in `[0, 9999]`
+- `eccentricity` in `[0.0, 1.0)`
+- `revolution-number-at-epoch` in `[0, 99999]`
 
-The script writes:
+### Output
 
-- A `.tle` file containing either:
-  - line 1 + line 2, or
-  - name + line 1 + line 2 (when `--name` is provided).
+The script prints a summary including:
 
-When `--output -` is used or `--output` is omitted, the script prints the TLE text to stdout instead of writing a file.
+1. output destination
+2. optional name
+3. all line-1 fields
+4. all line-2 fields
+5. compiled line 1 and line 2
 
-#### Usage
+Then it either:
 
-**Build a TLE without a name line:**
+- prints the TLE text to stdout when `--output -` is used, or
+- writes the TLE text to the requested file
+
+### Examples
+
+**Write a TLE to a file:**
 
 ```bash
 python3 tle/write_tle.py \
-  --output tle/LEO-3_2023-100G.tle \
+  --output test/LEO-3_2023-100G.tle \
   --satellite-number 57392 \
   --classification U \
   --int-designator-year 23 \
@@ -93,11 +120,11 @@ python3 tle/write_tle.py \
   --revolution-number-at-epoch 14333
 ```
 
-**Build a TLE with a satellite name line:**
+**Print a named TLE to stdout:**
 
 ```bash
 python3 tle/write_tle.py \
-  --output mysat.tle \
+  --output - \
   --name MYSAT-1 \
   --satellite-number 12345 \
   --classification U \
@@ -120,39 +147,35 @@ python3 tle/write_tle.py \
   --revolution-number-at-epoch 1
 ```
 
----
+## `tle/parse_tle.py`
 
-### `tle/parse_tle.py`
+Parse a TLE from a file or stdin, print a full summary, and generate the equivalent `tle/write_tle.py` reconstruction command.
 
-Parses a TLE from stdin, prints a full summary of extracted data elements and checksums, prints a `tle/write_tle.py` command that reconstructs the same TLE, and can optionally verify exact reconstruction.
-
-#### Synopsis
+### Synopsis
 
 ```bash
-python3 tle/parse_tle.py [-h] [input.tle] [--output <file>] [--verify]
+python3 tle/parse_tle.py [-h] [<input.tle>] [--output <file>] [--verify]
 ```
 
-#### Options
+### Options
 
 | Option | Description | Default |
 |---|---|---|
-| `-h`, `--help` | Show help message and exit | None |
-| `input` | Positional input TLE file path. Use `-` or omit to read from stdin. | `-` |
-| `--output` | Output path used in the generated `tle/write_tle.py` command; also used as verification target when `--verify` is enabled | `reconstructed.tle` |
-| `--verify` | Execute the generated `tle/write_tle.py` command and verify the rebuilt content is identical to the parsed source | `off` |
+| `-h`, `--help` | Show help message and exit | none |
+| `<input.tle>` | Input TLE file path; use `-` or omit to read from stdin | `-` |
+| `--output` | Output path inserted into the generated reconstruction command | `reconstructed.tle` |
+| `--verify` | Run the generated reconstruction command and compare rebuilt text to the parsed source | off |
 
-#### Input Format
+### Input format
 
-The script reads from stdin and accepts either:
-
-1. Two-line form:
+The parser accepts standard two-line or three-line named TLE text:
 
 ```text
 <line1>
 <line2>
 ```
 
-2. Three-line form with a name:
+or
 
 ```text
 <name>
@@ -160,58 +183,94 @@ The script reads from stdin and accepts either:
 <line2>
 ```
 
-Where `line1` starts with `1 ` and `line2` starts with `2 `.
+The actual parsing is delegated to `common.tle.read_tle(...)`.
 
-#### Output
+### Output
 
 The script prints:
 
-1. Parsed source lines (and optional name).
-2. All extracted TLE data elements for line 1 and line 2.
-3. Source and computed checksums for both lines.
-4. A ready-to-run `tle/write_tle.py` command that should reproduce the source TLE.
-5. If `--verify` is set: a `PASS`/`FAIL` reconstruction result.
+1. parsed name, if present
+2. source line 1 and line 2
+3. extracted line-1 elements
+4. extracted line-2 elements
+5. source and expected checksums for both lines
+6. a ready-to-run `tle/write_tle.py` command
 
-#### Usage
+When `--verify` is enabled, it also:
 
-**Parse a TLE from a positional file argument and print summary + reconstruction command:**
+- runs the generated reconstruction command
+- reads the rebuilt output file
+- compares rebuilt text against the parsed source text
+- prints `PASS` or `FAIL`
+
+### Exit codes
+
+Current behavior from the source:
+
+- `0` on success
+- `1` on input/read/parse errors
+- `2` when `--verify` is requested and reconstruction does not match
+
+### Examples
+
+**Parse a sample TLE file and print the reconstruction command:**
 
 ```bash
-python3 tle/parse_tle.py tle/LEO-3_2023-100G.tle --output tle/rebuilt.tle
+python3 tle/parse_tle.py test/LEO-3_2023-100G.tle --output rebuilt.tle
 ```
 
-**Parse a TLE from file via stdin and print summary + reconstruction command:**
+**Parse from stdin:**
 
 ```bash
-cat tle/LEO-3_2023-100G.tle | python3 tle/parse_tle.py --output tle/rebuilt.tle
+cat test/LEO-3_2023-100G.tle | python3 tle/parse_tle.py --output rebuilt.tle
 ```
 
-**Parse and verify exact reconstruction in one step:**
+**Parse and verify exact reconstruction:**
 
 ```bash
-cat tle/LEO-3_2023-100G.tle | python3 tle/parse_tle.py --output tle/rebuilt.tle --verify
+cat test/LEO-3_2023-100G.tle | python3 tle/parse_tle.py --output rebuilt.tle --verify
 ```
 
 **Parse a named TLE provided inline:**
 
 ```bash
-cat << 'EOF' | python3 tle/parse_tle.py --output tle/out.tle --verify
+cat << 'EOF' | python3 tle/parse_tle.py --output out.tle --verify
 MYSAT-1
 1 12345U 25001A   26120.25000000  .00001234  00000+0  12345-5 0   421
 2 12345  97.5000  12.3456 0012345 200.0000 150.0000 14.12345678    19
 EOF
 ```
 
-#### Verification Behavior (`--verify`)
+## `tle/build_tle.py`
 
-When enabled, `tle/parse_tle.py` runs the generated reconstruction command and compares output text against the parsed source text.
+This repository also contains `tle/build_tle.py`, which estimates a TLE from an OEM-like Cartesian arc rather than from explicit TLE fields.
 
-- Exit code `0`: verification succeeded.
-- Exit code `2`: verification failed.
-- Exit code `1`: input/parse error.
+That script is documented separately in:
 
-#### Dependencies
+- [`tle/build_tle.md`](tle/build_tle.md)
 
-- Python 3 standard library only (`argparse`, `sys`, `re`, `subprocess`, `shlex`).
+## Related conversion utilities
 
----
+Additional scripts currently present in the repository:
+
+- `tle/omm_to_tle.py` — convert OMM input to TLE output
+- `tle/tle_to_omm.py` — convert TLE input to OMM output
+- `tle/download_tle.py` — download TLE data
+- `tle/tle_info.py` — inspect TLE information
+- `common/convert_tle.py` — shared conversion helper script
+
+## Dependencies
+
+### `tle/write_tle.py`
+
+- Python standard library
+- local helper module `common.tle`
+
+### `tle/parse_tle.py`
+
+- Python standard library
+- local helper module `common.tle`
+
+### Other TLE-related scripts
+
+Dependencies vary by script. Some use only the standard library and local helpers, while others may rely on TudatPy for propagation or conversion workflows.
