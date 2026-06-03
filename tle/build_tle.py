@@ -20,6 +20,7 @@ except Exception:
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
+import common.kepler as kepler
 import common.oem as oem
 import common.tle as tle
 
@@ -713,6 +714,227 @@ def refine_estimated_fields_to_match_epoch_state(args, estimated, target_state_k
     return estimated
 
 
+def compute_keplerian_match_score(tle_kep, ref_kep):
+    """Compute a scalar score from osculating Keplerian element residuals.
+
+    Compares the TLE-derived osculating elements (from tle_to_osculating_keplerian)
+    against reference osculating elements (from cartesian_to_keplerian).
+
+    Weights are chosen so that semi-major axis (in km), eccentricity (scaled),
+    and angular elements (in degrees) contribute comparably.
+
+    Returns (score, element_errors_dict).
+    """
+    import numpy as np
+
+    mu = kepler.MU_EARTH
+
+    # Semi-major axis difference in km
+    da_km = (tle_kep["semi_major_axis_m"] - ref_kep[kepler.SEMI_MAJOR_AXIS_INDEX]) / 1000.0
+
+    # Eccentricity difference
+    de = tle_kep["eccentricity"] - ref_kep[kepler.ECCENTRICITY_INDEX]
+
+    # Inclination difference in degrees
+    di_deg = math.degrees(tle_kep["inclination_rad"] - ref_kep[kepler.INCLINATION_INDEX])
+
+    # Angle differences wrapped to [-180, 180] degrees
+    def _angle_diff_deg(a_rad, b_rad):
+        d = math.degrees(a_rad - b_rad) % 360.0
+        if d > 180.0:
+            d -= 360.0
+        return d
+
+    draan_deg = _angle_diff_deg(tle_kep["raan_rad"], ref_kep[kepler.RAAN_INDEX])
+    domega_deg = _angle_diff_deg(
+        tle_kep["arg_periapsis_rad"], ref_kep[kepler.ARGUMENT_OF_PERIAPSIS_INDEX]
+    )
+    dtheta_deg = _angle_diff_deg(
+        tle_kep["true_anomaly_rad"], ref_kep[kepler.TRUE_ANOMALY_INDEX]
+    )
+
+    # Argument of latitude (well-defined for near-circular)
+    tle_u = (tle_kep["arg_periapsis_rad"] + tle_kep["true_anomaly_rad"]) % (2.0 * math.pi)
+    ref_u = (
+        ref_kep[kepler.ARGUMENT_OF_PERIAPSIS_INDEX] + ref_kep[kepler.TRUE_ANOMALY_INDEX]
+    ) % (2.0 * math.pi)
+    du_deg = _angle_diff_deg(tle_u, ref_u)
+
+    # Weighted score: semi-major axis in km, eccentricity scaled by 1e4,
+    # angles in degrees. This gives roughly comparable magnitudes for LEO.
+    score = (
+        abs(da_km)
+        + 1e4 * abs(de)
+        + abs(di_deg)
+        + abs(draan_deg)
+        + abs(du_deg)
+    )
+
+    errors = {
+        "semi_major_axis_error_km": da_km,
+        "eccentricity_error": de,
+        "inclination_error_deg": di_deg,
+        "raan_error_deg": draan_deg,
+        "arg_perigee_error_deg": domega_deg,
+        "true_anomaly_error_deg": dtheta_deg,
+        "arg_latitude_error_deg": du_deg,
+    }
+
+    return score, errors
+
+
+def refine_estimated_fields_keplerian_match(args, estimated, records):
+    """Refine TLE fields by minimizing osculating Keplerian element residuals.
+
+    Uses common.kepler.tle_to_osculating_keplerian to convert the candidate
+    TLE to osculating elements, and compares against the reference osculating
+    elements derived from the input Cartesian state at epoch via
+    common.kepler.cartesian_to_keplerian.
+
+    This approach does NOT require SGP4/tudatpy — it uses pure two-body
+    Keplerian mechanics for the TLE-to-osculating conversion.
+    """
+    import numpy as np
+
+    mu = kepler.MU_EARTH
+
+    # Compute reference osculating Keplerian elements from input state
+    ref_pos_km = records[0][1]
+    ref_vel_km_s = records[0][2]
+    ref_state_m = np.array([
+        ref_pos_km[0] * 1000.0, ref_pos_km[1] * 1000.0, ref_pos_km[2] * 1000.0,
+        ref_vel_km_s[0] * 1000.0, ref_vel_km_s[1] * 1000.0, ref_vel_km_s[2] * 1000.0,
+    ])
+
+    try:
+        ref_kep = kepler.cartesian_to_keplerian(ref_state_m, mu)
+    except ValueError:
+        estimated["keplerian_match_refinement_used"] = False
+        return estimated
+
+    parameter_names = [
+        "inclination_deg",
+        "raan_deg",
+        "eccentricity",
+        "arg_perigee_deg",
+        "mean_anomaly_deg",
+        "mean_motion_rev_per_day",
+    ]
+    step_sizes = [STATE_MATCH_PARAMETER_STEPS[name] for name in parameter_names]
+
+    def evaluate_keplerian_score(current_params):
+        """Build TLE from params, convert to osculating, compute score."""
+        trial_estimated = estimated.copy()
+        trial_estimated.update(current_params)
+        tle_data = build_tle_data(args, trial_estimated)
+        try:
+            tle_kep = kepler.tle_to_osculating_keplerian(tle_data, mu)
+        except Exception:
+            return None, None
+        score, errors = compute_keplerian_match_score(tle_kep, ref_kep)
+        return score, errors
+
+    current_params = {name: estimated[name] for name in parameter_names}
+    best_score, best_errors = evaluate_keplerian_score(current_params)
+    if best_score is None:
+        estimated["keplerian_match_refinement_used"] = False
+        return estimated
+
+    best_params = current_params.copy()
+    iteration_count = 0
+
+    for _ in range(STATE_MATCH_MAX_ITERATIONS):
+        # Build Jacobian via finite differences (6 elements output, 6 params input)
+        # We use a 6-element residual vector: [da_km, de*1e4, di_deg, draan_deg, domega_deg, du_deg]
+        def get_residual_vector(params):
+            trial_estimated = estimated.copy()
+            trial_estimated.update(params)
+            tle_data = build_tle_data(args, trial_estimated)
+            try:
+                tle_kep = kepler.tle_to_osculating_keplerian(tle_data, mu)
+            except Exception:
+                return None
+            score, errors = compute_keplerian_match_score(tle_kep, ref_kep)
+            # Residual vector (target - current = negative of errors)
+            return [
+                -errors["semi_major_axis_error_km"],
+                -errors["eccentricity_error"] * 1e4,
+                -errors["inclination_error_deg"],
+                -errors["raan_error_deg"],
+                -errors["arg_latitude_error_deg"],
+                -errors["arg_perigee_error_deg"],
+            ]
+
+        residual = get_residual_vector(current_params)
+        if residual is None:
+            break
+
+        jacobian = [[0.0 for _ in parameter_names] for _ in range(6)]
+        jacobian_valid = True
+        for param_idx, (param_name, step_size) in enumerate(zip(parameter_names, step_sizes)):
+            plus_params = clamp_refined_elements(current_params.copy())
+            minus_params = clamp_refined_elements(current_params.copy())
+            plus_params[param_name] += step_size
+            minus_params[param_name] -= step_size
+            plus_params = clamp_refined_elements(plus_params)
+            minus_params = clamp_refined_elements(minus_params)
+
+            plus_residual = get_residual_vector(plus_params)
+            minus_residual = get_residual_vector(minus_params)
+            if plus_residual is None or minus_residual is None:
+                jacobian_valid = False
+                break
+
+            for res_idx in range(6):
+                # Jacobian of (target - f(x)) w.r.t. x
+                # d(residual)/d(param) = -(d(error)/d(param))
+                # But we compute it directly from finite differences of the residual
+                jacobian[res_idx][param_idx] = (
+                    plus_residual[res_idx] - minus_residual[res_idx]
+                ) / (2.0 * step_size)
+
+        if not jacobian_valid:
+            break
+
+        # Solve least-squares: J * delta = residual
+        delta = solve_weighted_least_squares(jacobian, residual)
+        if delta is None:
+            break
+
+        # Line search
+        accepted = False
+        for line_search_scale in [1.0, 0.5, 0.25, 0.1]:
+            trial_params = current_params.copy()
+            for param_name, raw_step in zip(parameter_names, delta):
+                trial_params[param_name] += raw_step * line_search_scale
+            trial_params = clamp_refined_elements(trial_params)
+
+            trial_score, trial_errors = evaluate_keplerian_score(trial_params)
+            if trial_score is None:
+                continue
+            if trial_score < best_score:
+                current_params = trial_params
+                best_score = trial_score
+                best_errors = trial_errors
+                best_params = trial_params.copy()
+                accepted = True
+                iteration_count += 1
+                break
+
+        if not accepted:
+            break
+
+    for param_name, value in best_params.items():
+        estimated[param_name] = value
+
+    estimated["keplerian_match_refinement_used"] = iteration_count > 0
+    estimated["keplerian_match_iterations"] = iteration_count
+    estimated["keplerian_match_score"] = best_score
+    if best_errors is not None:
+        estimated["keplerian_match_errors"] = best_errors
+    return estimated
+
+
 def parse_dataset_from_oem(source):
     """Parse a CCSDS OEM source into (epoch, position_km, velocity_km_s) records.
 
@@ -994,12 +1216,17 @@ def parse_arguments():
         help="Revolution number at epoch for generated command (default: 0).",
     )
     parser.add_argument(
-        "--no-state-match",
-        action="store_true",
-        default=False,
+        "--refinement",
+        choices=["none", "cartesian", "keplerian"],
+        default="cartesian",
+        metavar="<none|cartesian|keplerian>",
         help=(
-            "Disable SGP4 epoch-state matching refinement "
-            "(skips evaluate_tle_epoch_states_km calls)."
+            "Refinement method for matching TLE elements to the epoch state. "
+            "'cartesian' (default): minimize SGP4 Cartesian state residual "
+            "(requires tudatpy). "
+            "'keplerian': minimize osculating Keplerian element residual via "
+            "common.kepler.tle_to_osculating_keplerian (no SGP4 needed). "
+            "'none': skip refinement entirely."
         ),
     )
     return parser.parse_args()
@@ -1236,7 +1463,101 @@ def estimate_tle_fields(records, use_state_match=True):
     }
 
 
-def print_summary(records, estimated, args):
+def verify_accuracy_keplerian(args, estimated, records):
+    """Verify TLE accuracy using osculating Keplerian elements from common.kepler.
+
+    Uses common.kepler.tle_to_osculating_keplerian to convert the TLE directly
+    to osculating elements (two-body), and compares against the reference
+    osculating elements derived from the input Cartesian state at epoch via
+    common.kepler.cartesian_to_keplerian.
+
+    This does NOT require SGP4/tudatpy — it uses pure two-body Keplerian
+    mechanics via common.kepler.
+
+    Returns a dict with element-wise residuals, or None on failure.
+    """
+    import numpy as np
+
+    mu = kepler.MU_EARTH
+
+    # Reference state at epoch (convert km, km/s -> m, m/s)
+    ref_pos_km = records[0][1]
+    ref_vel_km_s = records[0][2]
+    ref_state_m = np.array([
+        ref_pos_km[0] * 1000.0, ref_pos_km[1] * 1000.0, ref_pos_km[2] * 1000.0,
+        ref_vel_km_s[0] * 1000.0, ref_vel_km_s[1] * 1000.0, ref_vel_km_s[2] * 1000.0,
+    ])
+
+    # Compute reference osculating Keplerian elements
+    try:
+        ref_kep = kepler.cartesian_to_keplerian(ref_state_m, mu)
+    except ValueError:
+        return None
+
+    # Convert TLE to osculating Keplerian elements via common.kepler
+    tle_data = build_tle_data(args, estimated)
+    try:
+        tle_kep = kepler.tle_to_osculating_keplerian(tle_data, mu)
+    except Exception:
+        return None
+
+    # Extract TLE osculating elements into array form for comparison
+    tle_kep_array = np.array([
+        tle_kep["semi_major_axis_m"],
+        tle_kep["eccentricity"],
+        tle_kep["inclination_rad"],
+        tle_kep["raan_rad"],
+        tle_kep["arg_periapsis_rad"],
+        tle_kep["true_anomaly_rad"],
+    ])
+
+    # Element-wise differences
+    da_m = tle_kep_array[0] - ref_kep[kepler.SEMI_MAJOR_AXIS_INDEX]
+    de = tle_kep_array[1] - ref_kep[kepler.ECCENTRICITY_INDEX]
+    di_rad = tle_kep_array[2] - ref_kep[kepler.INCLINATION_INDEX]
+
+    # Angle differences wrapped to [-pi, pi]
+    def _angle_diff(a, b):
+        d = (a - b) % (2.0 * np.pi)
+        if d > np.pi:
+            d -= 2.0 * np.pi
+        return d
+
+    domega_rad = _angle_diff(tle_kep_array[4], ref_kep[kepler.ARGUMENT_OF_PERIAPSIS_INDEX])
+    draan_rad = _angle_diff(tle_kep_array[3], ref_kep[kepler.RAAN_INDEX])
+    dtheta_rad = _angle_diff(tle_kep_array[5], ref_kep[kepler.TRUE_ANOMALY_INDEX])
+
+    # Argument of latitude difference (well-defined for near-circular orbits)
+    ref_u = (ref_kep[kepler.ARGUMENT_OF_PERIAPSIS_INDEX]
+             + ref_kep[kepler.TRUE_ANOMALY_INDEX]) % (2.0 * np.pi)
+    tle_u = (tle_kep_array[4] + tle_kep_array[5]) % (2.0 * np.pi)
+    du_rad = _angle_diff(tle_u, ref_u)
+
+    return {
+        "semi_major_axis_error_m": float(da_m),
+        "semi_major_axis_error_km": float(da_m) / 1000.0,
+        "eccentricity_error": float(de),
+        "inclination_error_deg": float(np.degrees(di_rad)),
+        "raan_error_deg": float(np.degrees(draan_rad)),
+        "arg_perigee_error_deg": float(np.degrees(domega_rad)),
+        "true_anomaly_error_deg": float(np.degrees(dtheta_rad)),
+        "arg_latitude_error_deg": float(np.degrees(du_rad)),
+        "ref_semi_major_axis_km": float(ref_kep[kepler.SEMI_MAJOR_AXIS_INDEX]) / 1000.0,
+        "ref_eccentricity": float(ref_kep[kepler.ECCENTRICITY_INDEX]),
+        "ref_inclination_deg": float(np.degrees(ref_kep[kepler.INCLINATION_INDEX])),
+        "ref_raan_deg": float(np.degrees(ref_kep[kepler.RAAN_INDEX])),
+        "ref_arg_perigee_deg": float(np.degrees(ref_kep[kepler.ARGUMENT_OF_PERIAPSIS_INDEX])),
+        "ref_true_anomaly_deg": float(np.degrees(ref_kep[kepler.TRUE_ANOMALY_INDEX])),
+        "tle_semi_major_axis_km": float(tle_kep_array[0]) / 1000.0,
+        "tle_eccentricity": float(tle_kep_array[1]),
+        "tle_inclination_deg": float(np.degrees(tle_kep_array[2])),
+        "tle_raan_deg": float(np.degrees(tle_kep_array[3])),
+        "tle_arg_perigee_deg": float(np.degrees(tle_kep_array[4])),
+        "tle_true_anomaly_deg": float(np.degrees(tle_kep_array[5])),
+    }
+
+
+def print_summary(records, estimated, args, keplerian_accuracy=None):
     start_epoch = records[0][0]
     end_epoch = records[-1][0]
     span_s = (end_epoch - start_epoch).total_seconds()
@@ -1315,6 +1636,37 @@ def print_summary(records, estimated, args):
     print(
         "  mean-motion-second-derivative (input/default): " f"{args.mean_motion_second_derivative}"
     )
+
+    # Keplerian element accuracy verification (via common.kepler)
+    if keplerian_accuracy is not None:
+        print()
+        print("  Accuracy verification (osculating Keplerian elements via common.kepler):")
+        print(
+            f"    semi-major-axis error:    {keplerian_accuracy['semi_major_axis_error_km']:+.6f} km"
+            f"  ({keplerian_accuracy['semi_major_axis_error_m']:+.3f} m)"
+        )
+        print(
+            f"    eccentricity error:       {keplerian_accuracy['eccentricity_error']:+.10f}"
+        )
+        print(
+            f"    inclination error:        {keplerian_accuracy['inclination_error_deg']:+.6f} deg"
+        )
+        print(
+            f"    RAAN error:               {keplerian_accuracy['raan_error_deg']:+.6f} deg"
+        )
+        print(
+            f"    arg-perigee error:        {keplerian_accuracy['arg_perigee_error_deg']:+.6f} deg"
+        )
+        print(
+            f"    true-anomaly error:       {keplerian_accuracy['true_anomaly_error_deg']:+.6f} deg"
+        )
+        print(
+            f"    arg-latitude (ω+θ) error: {keplerian_accuracy['arg_latitude_error_deg']:+.6f} deg"
+        )
+    elif keplerian_accuracy is None and environment_setup is not None:
+        print()
+        print("  Accuracy verification (osculating Keplerian): SGP4 evaluation failed")
+
     print()
 
 
@@ -1346,18 +1698,27 @@ def main():
     try:
         input_text = read_input_text(args.input)
         records = parse_dataset(input_text)
-        estimated = estimate_tle_fields(records, use_state_match=not args.no_state_match)
-        if not args.no_state_match:
+        if args.refinement == "keplerian":
+            estimated = estimate_tle_fields(records, use_state_match=True)
+            estimated = refine_estimated_fields_keplerian_match(args, estimated, records)
+        elif args.refinement == "cartesian":
+            estimated = estimate_tle_fields(records, use_state_match=True)
             target_state_km_km_s = records[0][1] + records[0][2]
             estimated = refine_estimated_fields_to_match_epoch_state(
                 args, estimated, target_state_km_km_s
             )
+        else:
+            # refinement == "none"
+            estimated = estimate_tle_fields(records, use_state_match=False)
         estimated = estimate_bstar_from_arc(args, estimated, records)
     except ValueError as error:
         print(f"Error: {error}")
         sys.exit(1)
 
-    print_summary(records, estimated, args)
+    # Verify accuracy using osculating Keplerian elements (common.kepler)
+    keplerian_accuracy = verify_accuracy_keplerian(args, estimated, records)
+
+    print_summary(records, estimated, args, keplerian_accuracy=keplerian_accuracy)
 
     tle_data = build_tle_data(args, estimated)
 

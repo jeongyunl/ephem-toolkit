@@ -9,7 +9,7 @@ Workflow:
   5. Print position and velocity difference statistics.
 
 Usage:
-    python misc/evaluate_build_tle_from_oem.py [--no-state-match]
+    python misc/evaluate_build_tle_from_oem.py [--refinement none|cartesian|keplerian]
 """
 
 from __future__ import annotations
@@ -40,10 +40,16 @@ def parse_args():
         help="Path to the reference OEM file (default: test/ISS_2026-05-20.OEM).",
     )
     parser.add_argument(
-        "--no-state-match",
-        action="store_true",
-        default=False,
-        help="Pass --no-state-match to build_tle.py.",
+        "--refinement",
+        choices=["none", "cartesian", "keplerian"],
+        default="cartesian",
+        metavar="<none|cartesian|keplerian>",
+        help=(
+            "Refinement method passed to build_tle.py. "
+            "'cartesian' (default): SGP4 Cartesian state matching. "
+            "'keplerian': osculating Keplerian element matching via common.kepler. "
+            "'none': skip refinement."
+        ),
     )
     parser.add_argument(
         "-d",
@@ -74,7 +80,7 @@ def read_oem_states(oem_path):
     return records, header, meta
 
 
-def run_build_tle(oem_records, duration_s, no_state_match):
+def run_build_tle(oem_records, duration_s, refinement):
     """Run build_tle.py on OEM records (limited to duration_s) via stdin."""
     # Select records within the fit duration
     t0 = oem_records[0][0]
@@ -108,9 +114,9 @@ def run_build_tle(oem_records, duration_s, no_state_match):
         "0",
         "--int-designator-piece",
         "A",
+        "--refinement",
+        refinement,
     ]
-    if no_state_match:
-        cmd.append("--no-state-match")
 
     env = os.environ.copy()
     env["PYTHONPATH"] = str(PROJECT_ROOT) + ":" + env.get("PYTHONPATH", "")
@@ -278,7 +284,7 @@ def main():
 
     print(f"=== build_tle.py Round-Trip Evaluation ===")
     print(f"  OEM file: {oem_path.name}")
-    print(f"  Mode:     {'no-state-match' if args.no_state_match else 'state-match (default)'}")
+    print(f"  Refinement: {args.refinement}")
     print()
 
     # Step 1: Read OEM reference
@@ -303,7 +309,7 @@ def main():
 
     # Step 2: Generate TLE from OEM (limited to duration)
     print("Step 1: Generating TLE from OEM with build_tle.py...")
-    tle_text, line1, line2 = run_build_tle(oem_records, duration_s, args.no_state_match)
+    tle_text, line1, line2 = run_build_tle(oem_records, duration_s, args.refinement)
     print(f"  Generated TLE:")
     print(f"    {line1}")
     print(f"    {line2}")

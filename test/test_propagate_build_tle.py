@@ -64,7 +64,7 @@ def run_propagate_tle(tle_path):
     return result.stdout
 
 
-def run_build_tle(oem_text, original):
+def run_build_tle(oem_text, original, refinement="cartesian"):
     cmd = [
         sys.executable,
         str(PROJECT_ROOT / "tle" / "build_tle.py"),
@@ -82,6 +82,8 @@ def run_build_tle(oem_text, original):
         original.int_designator_piece or "A",
         "--revolution-number-at-epoch",
         str(original.revolution_number_at_epoch),
+        "--refinement",
+        refinement,
     ]
     result = subprocess.run(
         cmd,
