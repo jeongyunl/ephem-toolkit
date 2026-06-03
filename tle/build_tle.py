@@ -43,7 +43,7 @@ STATE_MATCH_PARAMETER_STEPS = {
     "eccentricity": 2.0e-5,
     "arg_perigee_deg": 0.01,
     "mean_anomaly_deg": 0.01,
-    "mean_motion_rev_per_day": 5.0e-6,
+    "mean_motion_rev_per_day": 1.0e-4,
 }
 _SPICE_KERNELS_LOADED = False
 

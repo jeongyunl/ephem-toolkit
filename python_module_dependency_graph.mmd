@@ -11,6 +11,7 @@ graph LR
 
     subgraph common
         mod_common_common[common.common]
+        mod_common_kepler[common.kepler]
         mod_common_oem[common.oem]
         mod_common_tle[common.tle]
         mod_common_omm[common.omm]
@@ -37,6 +38,7 @@ graph LR
 
     subgraph test
         mod_test_test_common([test_common])
+        mod_test_test_kepler([test_kepler])
         mod_test_test_oem([test_oem])
         mod_test_test_omm([test_omm])
         mod_test_test_tle([test_tle])
@@ -60,6 +62,7 @@ graph LR
     mod_common_convert_tle --> mod_common_common
     mod_common_convert_tle --> mod_common_tle
     mod_common_convert_tle --> mod_common_omm
+    mod_common_kepler --> mod_common_tle
     mod_frame_conversion_gcrf_to_itrf_rot_model --> mod_common_common
     mod_frame_conversion_gcrf_to_itrf_spice --> mod_common_common
     mod_propagation_propagate_satellite_orbit --> mod_common_common
@@ -67,9 +70,12 @@ graph LR
     mod_test_test_convert_tle --> mod_common_convert_tle
     mod_test_test_convert_tle --> mod_common_omm
     mod_test_test_convert_tle --> mod_common_tle
+    mod_test_test_kepler --> mod_common_kepler
+    mod_test_test_kepler --> mod_common_tle
     mod_test_test_oem --> mod_common_oem
     mod_test_test_omm --> mod_common_omm
     mod_test_test_tle --> mod_common_tle
+    mod_tle_build_tle --> mod_common_kepler
     mod_tle_build_tle --> mod_common_tle
     mod_tle_build_tle --> mod_common_oem
     mod_tle_omm_to_tle --> mod_common_convert_tle

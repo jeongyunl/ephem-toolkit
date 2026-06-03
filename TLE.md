@@ -36,6 +36,7 @@ Additional scripts currently present in the repository:
 ## Common library
 
 - `common/tle.py` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions used by all TLE-related scripts
+- `common/kepler.py` — Keplerian element conversions (`cartesian_to_keplerian`, `keplerian_to_cartesian`, `tle_to_osculating_keplerian` with J2 short-period corrections, `osculating_to_mean_keplerian`)
 - `common/common.py` — shared utilities
 
 ## Evaluation tool
@@ -47,9 +48,10 @@ Additional scripts currently present in the repository:
 ### `tle/build_tle.py`
 
 - Python standard library
-- local helper module `common.tle`
-- TudatPy (optional, for SGP4 state-match refinement and B* estimation)
-- Supports `--no-state-match` flag to skip the Gauss–Newton epoch-state refinement step
+- NumPy (for `common.kepler` Keplerian element conversions)
+- local helper modules `common.tle`, `common.kepler`, `common.oem`
+- TudatPy (optional, for SGP4 Cartesian refinement and B* estimation)
+- Supports `--refinement` flag: `cartesian` (default, requires TudatPy), `keplerian` (no TudatPy needed, uses J2 short-period corrections), or `none`
 
 ### Other TLE-related scripts
 

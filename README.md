@@ -78,6 +78,7 @@ Current Python tools include:
 - `tle/tle_info.py` — inspect TLE information
 - `common/convert_tle.py` — shared conversion helper script
 - `common/oem.py`, `common/omm.py`, `common/tle.py` — shared parsers / writers
+- `common/kepler.py` — Keplerian element conversions with J2 short-period corrections
 - `common/common.py` — shared utilities (OEM state-line parsing, time conversion, duration/step parsing)
 - `misc/evaluate_build_tle_from_oem.py` — evaluate `build_tle.py` round-trip accuracy against an OEM reference
 

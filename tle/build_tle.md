@@ -109,7 +109,11 @@ The slope of mean motion versus time is converted into the TLE `ndot/2` field an
 
 ---
 
-## Stage 3 — Gauss–Newton epoch-state refinement
+## Stage 3 — epoch-state refinement
+
+Two refinement methods are available, selected via `--refinement`:
+
+### 3a. Cartesian refinement (`--refinement cartesian`, default)
 
 ### `refine_estimated_fields_to_match_epoch_state`
 
@@ -130,6 +134,30 @@ Implementation notes captured in the original investigation:
 - position and velocity residuals are weighted differently to balance km and km/s scales
 - Tikhonov-style regularization is used in the normal equations
 - multiple TLE evaluations are batched where possible to reduce overhead
+
+### 3b. Keplerian refinement (`--refinement keplerian`)
+
+### `refine_estimated_fields_keplerian_match`
+
+An alternative refinement that does **not** require SGP4/TudatPy. Instead, it minimizes the residual between the TLE's osculating Keplerian elements (computed via `common.kepler.tle_to_osculating_keplerian` with J2 short-period corrections) and the reference osculating elements derived from the input Cartesian state.
+
+### Algorithm outline
+
+1. Compute reference osculating Keplerian elements from the epoch Cartesian state using `common.kepler.cartesian_to_keplerian`.
+2. Build a candidate TLE from the current parameter estimate.
+3. Convert TLE mean elements to osculating elements via `common.kepler.tle_to_osculating_keplerian` (applies Brouwer first-order J2 short-period corrections).
+4. Compute a 6-component residual vector (semi-major axis, eccentricity, inclination, RAAN, argument of latitude, argument of periapsis).
+5. Estimate a 6×6 Jacobian by central finite differences.
+6. Solve a weighted least-squares update.
+7. Apply a backtracking line search.
+8. Repeat until convergence or iteration limit.
+
+Key advantages:
+
+- No external propagator dependency (pure Python + NumPy)
+- J2 short-period corrections provide a differentiable mapping from TLE mean elements to osculating elements
+- Angular accuracy is excellent (sub-millidegree for argument of latitude)
+- Semi-major axis accuracy is limited to ~2 km by the first-order Brouwer approximation vs SGP4's more complex model
 
 ---
 

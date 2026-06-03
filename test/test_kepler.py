@@ -100,9 +100,9 @@ def test_tle_to_osculating_keplerian_semi_major_axis_iss() -> None:
 
 
 def test_tle_to_osculating_keplerian_preserves_eccentricity() -> None:
-    """Should preserve the eccentricity value directly from the TLE."""
+    """Should preserve the eccentricity value directly from the TLE (no J2)."""
     tle = _make_tle_fixture()
-    result = tle_to_osculating_keplerian(tle)
+    result = tle_to_osculating_keplerian(tle, apply_j2=False)
 
     assert result["eccentricity"] == pytest.approx(tle.eccentricity, abs=1e-10)
 
@@ -113,9 +113,9 @@ def test_tle_to_osculating_keplerian_preserves_eccentricity() -> None:
 
 
 def test_tle_to_osculating_keplerian_angles_in_radians() -> None:
-    """Should convert inclination, RAAN, and arg_periapsis from degrees to radians."""
+    """Should convert inclination, RAAN, and arg_periapsis from degrees to radians (no J2)."""
     tle = _make_tle_fixture()
-    result = tle_to_osculating_keplerian(tle)
+    result = tle_to_osculating_keplerian(tle, apply_j2=False)
 
     assert result["inclination_rad"] == pytest.approx(np.radians(tle.inclination_deg), abs=1e-12)
     assert result["raan_rad"] == pytest.approx(np.radians(tle.raan_deg), abs=1e-12)
