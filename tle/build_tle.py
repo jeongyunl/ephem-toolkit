@@ -20,6 +20,7 @@ except Exception:
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
+import common.oem as oem
 import common.tle as tle
 
 EARTH_GRAVITATIONAL_PARAMETER_KM3_S2 = 398600.4418
@@ -712,8 +713,47 @@ def refine_estimated_fields_to_match_epoch_state(args, estimated, target_state_k
     return estimated
 
 
+def parse_dataset_from_oem(source):
+    """Parse a CCSDS OEM source into (epoch, position_km, velocity_km_s) records.
+
+    *source* may be a file path (str/Path) or a file-like object.
+    Returns the record list, or None if the source is not a valid CCSDS OEM.
+    """
+    try:
+        _, _, states = oem.read_oem(source)
+    except Exception:
+        return None
+
+    if not states:
+        return None
+
+    records = []
+    for epoch in sorted(states):
+        sv = states[epoch]
+        if len(sv) < 6:
+            continue
+        position_km = [float(sv[0]), float(sv[1]), float(sv[2])]
+        velocity_km_s = [float(sv[3]), float(sv[4]), float(sv[5])]
+        records.append((epoch, position_km, velocity_km_s))
+
+    if len(records) < 2:
+        return None
+
+    return records
+
+
 def parse_dataset(input_text):
-    """Parse OEM-like text input into (epoch, position, velocity) records."""
+    """Parse input text into (epoch, position, velocity) records.
+
+    First attempts to parse as a CCSDS OEM file using common.oem.read_oem.
+    Falls back to the legacy line-by-line parser for simple state-vector files.
+    """
+    # Try CCSDS OEM format first.
+    oem_records = parse_dataset_from_oem(io.StringIO(input_text))
+    if oem_records is not None:
+        return oem_records
+
+    # Fall back to legacy line-by-line parsing.
     records = []
     for raw_line in input_text.splitlines():
         parsed = parse_oem_state_line(raw_line)
@@ -953,6 +993,15 @@ def parse_arguments():
         metavar="<0..99999>",
         help="Revolution number at epoch for generated command (default: 0).",
     )
+    parser.add_argument(
+        "--no-state-match",
+        action="store_true",
+        default=False,
+        help=(
+            "Disable SGP4 epoch-state matching refinement "
+            "(skips evaluate_tle_epoch_states_km calls)."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -975,7 +1024,7 @@ def read_input_text(input_path):
     return text
 
 
-def estimate_tle_fields(records):
+def estimate_tle_fields(records, use_state_match=True):
     # Use the first epoch/state as the epoch of the estimated TLE.
     epoch_dt = records[0][0]
     first_position_km = records[0][1]
@@ -987,6 +1036,7 @@ def estimate_tle_fields(records):
     times_day = []
     times_s = []
     mean_motion_series = []
+    eccentricity_series = []
     raan_series_rad = []
     arg_perigee_series_rad = []
     mean_anomaly_series_rad = []
@@ -1001,6 +1051,7 @@ def estimate_tle_fields(records):
         times_s.append(dt_s)
         times_day.append(dt_day)
         mean_motion_series.append(elements["mean_motion_rev_per_day"])
+        eccentricity_series.append(elements["eccentricity"])
         raan_rad = math.radians(elements["raan_deg"])
         arg_perigee_rad = math.radians(elements["arg_perigee_deg"])
         mean_anomaly_rad = math.radians(elements["mean_anomaly_deg"])
@@ -1134,23 +1185,43 @@ def estimate_tle_fields(records):
 
     epoch_year, epoch_day = datetime_to_tle_epoch(epoch_dt)
 
-    # Use osculating values as the initial guess for the state-match refinement.
-    # The osculating elements at epoch are the closest to the target Cartesian
-    # state and provide a much better starting point for the Gauss-Newton
-    # optimizer than the averaged/blended values, which can be biased by
-    # short-period perturbations (especially for ω and M in near-circular orbits).
+    # Compute mean eccentricity from regression intercept for no-state-match mode.
+    eccentricity_mean_at_epoch = linear_regression_intercept(times_day, eccentricity_series)
+    eccentricity_mean_at_epoch = max(0.0, min(eccentricity_mean_at_epoch, 0.9999999))
+
+    if use_state_match:
+        # Use osculating values as the initial guess for the state-match
+        # refinement.  The osculating elements at epoch are the closest to the
+        # target Cartesian state and provide a much better starting point for
+        # the Gauss-Newton optimizer than the averaged/blended values, which
+        # can be biased by short-period perturbations (especially for ω and M
+        # in near-circular orbits).
+        chosen_raan_deg = elements_first["raan_deg"]
+        chosen_arg_perigee_deg = elements_first["arg_perigee_deg"]
+        chosen_mean_anomaly_deg = elements_first["mean_anomaly_deg"]
+        chosen_eccentricity = max(0.0, min(elements_first["eccentricity"], 0.9999999))
+    else:
+        # Without state-match refinement, use the averaged/blended values that
+        # better approximate SGP4 "mean" elements.  Osculating values contain
+        # short-period J2 perturbations that bias the TLE when no optimizer
+        # corrects them.
+        chosen_raan_deg = raan_mean_at_epoch_deg
+        chosen_arg_perigee_deg = arg_perigee_at_epoch_deg
+        chosen_mean_anomaly_deg = mean_anomaly_at_epoch_deg
+        chosen_eccentricity = eccentricity_mean_at_epoch
+
     return {
         "epoch_datetime": epoch_dt,
         "epoch_year": epoch_year,
         "epoch_day": epoch_day,
         "inclination_deg": inclination_deg_estimated,
         "inclination_deg_osculating_at_epoch": elements_first["inclination_deg"],
-        "raan_deg": elements_first["raan_deg"],
+        "raan_deg": chosen_raan_deg,
         "raan_deg_osculating_at_epoch": elements_first["raan_deg"],
-        "eccentricity": max(0.0, min(elements_first["eccentricity"], 0.9999999)),
-        "arg_perigee_deg": elements_first["arg_perigee_deg"],
+        "eccentricity": chosen_eccentricity,
+        "arg_perigee_deg": chosen_arg_perigee_deg,
         "arg_perigee_deg_osculating_at_epoch": elements_first["arg_perigee_deg"],
-        "mean_anomaly_deg": elements_first["mean_anomaly_deg"],
+        "mean_anomaly_deg": chosen_mean_anomaly_deg,
         "mean_anomaly_deg_osculating_at_epoch": elements_first["mean_anomaly_deg"],
         "mean_motion_rev_per_day": mean_motion_at_epoch_rev_per_day,
         "mean_motion_rev_per_day_regression_at_epoch": mean_motion_regression_at_epoch_rev_per_day,
@@ -1275,11 +1346,12 @@ def main():
     try:
         input_text = read_input_text(args.input)
         records = parse_dataset(input_text)
-        estimated = estimate_tle_fields(records)
-        target_state_km_km_s = records[0][1] + records[0][2]
-        estimated = refine_estimated_fields_to_match_epoch_state(
-            args, estimated, target_state_km_km_s
-        )
+        estimated = estimate_tle_fields(records, use_state_match=not args.no_state_match)
+        if not args.no_state_match:
+            target_state_km_km_s = records[0][1] + records[0][2]
+            estimated = refine_estimated_fields_to_match_epoch_state(
+                args, estimated, target_state_km_km_s
+            )
         estimated = estimate_bstar_from_arc(args, estimated, records)
     except ValueError as error:
         print(f"Error: {error}")
