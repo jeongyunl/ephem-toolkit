@@ -153,63 +153,47 @@ def test_propagate_tle_produces_valid_state_vectors(tle_path):
         assert len(parts) == 7, f"Expected 7 fields per line, got {len(parts)}: {line}"
 
 
-def test_reconstructed_tle_preserves_mean_motion(tle_round_trip):
-    """Should reconstruct a TLE that preserves the mean motion within tolerance."""
+def test_reconstructed_tle_preserves_elements(tle_round_trip):
+    """Should reconstruct a TLE that preserves all orbital elements within tolerance."""
     original, reconstructed = tle_round_trip
+
+    # Mean motion
     assert reconstructed.mean_motion_rev_per_day == pytest.approx(
         original.mean_motion_rev_per_day, abs=MEAN_MOTION_TOL_REV_PER_DAY
     )
 
+    # Inclination
+    inc_tol = GEO_INCLINATION_TOL_DEG if is_geo_orbit(original) else INCLINATION_TOL_DEG
+    assert reconstructed.inclination_deg == pytest.approx(original.inclination_deg, abs=inc_tol)
 
-def test_reconstructed_tle_preserves_inclination(tle_round_trip):
-    """Should reconstruct a TLE that preserves the inclination within tolerance."""
-    original, reconstructed = tle_round_trip
-    tol = GEO_INCLINATION_TOL_DEG if is_geo_orbit(original) else INCLINATION_TOL_DEG
-    assert reconstructed.inclination_deg == pytest.approx(original.inclination_deg, abs=tol)
-
-
-def test_reconstructed_tle_preserves_raan(tle_round_trip):
-    """Should reconstruct a TLE that preserves the RAAN within tolerance."""
-    original, reconstructed = tle_round_trip
-    tol = GEO_RAAN_TOL_DEG if is_geo_orbit(original) else RAAN_TOL_DEG
-    diff = angle_difference(reconstructed.raan_deg, original.raan_deg)
-    assert diff < tol, (
-        f"RAAN diff={diff:.4f} > tol={tol} "
+    # RAAN
+    raan_tol = GEO_RAAN_TOL_DEG if is_geo_orbit(original) else RAAN_TOL_DEG
+    raan_diff = angle_difference(reconstructed.raan_deg, original.raan_deg)
+    assert raan_diff < raan_tol, (
+        f"RAAN diff={raan_diff:.4f} > tol={raan_tol} "
         f"(orig={original.raan_deg:.4f}, recon={reconstructed.raan_deg:.4f})"
     )
 
-
-def test_reconstructed_tle_preserves_eccentricity(tle_round_trip):
-    """Should reconstruct a TLE that preserves the eccentricity within tolerance."""
-    original, reconstructed = tle_round_trip
+    # Eccentricity
     assert reconstructed.eccentricity == pytest.approx(original.eccentricity, abs=ECCENTRICITY_TOL)
 
-
-def test_reconstructed_tle_preserves_arg_perigee(tle_round_trip):
-    """Should reconstruct a TLE that preserves the argument of perigee."""
-    original, reconstructed = tle_round_trip
-    tol = GEO_ARG_PERIGEE_TOL_DEG if is_geo_orbit(original) else ARG_PERIGEE_TOL_DEG
-    diff = angle_difference(reconstructed.arg_perigee_deg, original.arg_perigee_deg)
-    assert diff < tol, (
-        f"Arg perigee diff={diff:.4f} > tol={tol} "
+    # Argument of perigee
+    aop_tol = GEO_ARG_PERIGEE_TOL_DEG if is_geo_orbit(original) else ARG_PERIGEE_TOL_DEG
+    aop_diff = angle_difference(reconstructed.arg_perigee_deg, original.arg_perigee_deg)
+    assert aop_diff < aop_tol, (
+        f"Arg perigee diff={aop_diff:.4f} > tol={aop_tol} "
         f"(orig={original.arg_perigee_deg:.4f}, recon={reconstructed.arg_perigee_deg:.4f})"
     )
 
-
-def test_reconstructed_tle_preserves_mean_anomaly(tle_round_trip):
-    """Should reconstruct a TLE that preserves the mean anomaly."""
-    original, reconstructed = tle_round_trip
-    tol = GEO_MEAN_ANOMALY_TOL_DEG if is_geo_orbit(original) else MEAN_ANOMALY_TOL_DEG
-    diff = angle_difference(reconstructed.mean_anomaly_deg, original.mean_anomaly_deg)
-    assert diff < tol, (
-        f"Mean anomaly diff={diff:.4f} > tol={tol} "
+    # Mean anomaly
+    ma_tol = GEO_MEAN_ANOMALY_TOL_DEG if is_geo_orbit(original) else MEAN_ANOMALY_TOL_DEG
+    ma_diff = angle_difference(reconstructed.mean_anomaly_deg, original.mean_anomaly_deg)
+    assert ma_diff < ma_tol, (
+        f"Mean anomaly diff={ma_diff:.4f} > tol={ma_tol} "
         f"(orig={original.mean_anomaly_deg:.4f}, recon={reconstructed.mean_anomaly_deg:.4f})"
     )
 
-
-def test_reconstructed_tle_has_valid_format(tle_round_trip):
-    """Should produce a reconstructed TLE with valid format and correct checksums."""
-    _, reconstructed = tle_round_trip
+    # Valid format and checksums
     assert len(reconstructed.line1) == 69
     assert len(reconstructed.line2) == 69
     assert reconstructed.line1[0] == "1"
