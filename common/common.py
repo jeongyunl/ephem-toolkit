@@ -1,7 +1,11 @@
 """Common utilities shared by frame-conversion scripts."""
 
+from __future__ import annotations
+
+import argparse
 from datetime import datetime, timedelta
 import os
+import re
 from pathlib import Path
 
 import numpy as np
@@ -94,3 +98,96 @@ def get_spice_kernel_path() -> str:
         pass
 
     return resolved_path
+
+
+# ===================================================================
+# CLI duration / step-size parsing
+# ===================================================================
+
+SECONDS_PER_MINUTE = 60.0
+SECONDS_PER_HOUR = 3600.0
+SECONDS_PER_DAY = 86400.0
+
+
+def parse_duration_to_seconds(value: str) -> float:
+    """Parse a duration token and convert it to seconds.
+
+    Parameters
+    ----------
+    value : str
+        Duration token in ``<number>[s|m|h|d]`` format.
+
+    Returns
+    -------
+    float
+        Duration in seconds.
+
+    Notes
+    -----
+    Accepted formats are ``<number>`` (seconds), ``<number>s``,
+    ``<number>m``, ``<number>h``, and ``<number>d``.
+    """
+    match = re.fullmatch(r"\s*([0-9]*\.?[0-9]+)\s*([smhdSMHD]?)\s*", value)
+    if not match:
+        raise argparse.ArgumentTypeError(
+            "duration must be a positive number optionally followed by s, m, h, or d"
+        )
+
+    magnitude = float(match.group(1))
+    unit = match.group(2).lower() if match.group(2) else "s"
+
+    if unit == "s":
+        duration_s = magnitude
+    elif unit == "m":
+        duration_s = magnitude * SECONDS_PER_MINUTE
+    elif unit == "h":
+        duration_s = magnitude * SECONDS_PER_HOUR
+    elif unit == "d":
+        duration_s = magnitude * SECONDS_PER_DAY
+    else:
+        raise argparse.ArgumentTypeError("duration unit must be one of: s, m, h, d")
+
+    if duration_s <= 0.0:
+        raise argparse.ArgumentTypeError("duration must be a positive value")
+
+    return duration_s
+
+
+def parse_step_to_seconds(value: str) -> float:
+    """Parse output step-size token and convert it to seconds.
+
+    Parameters
+    ----------
+    value : str
+        Step-size token in ``<number>[s|m]`` format.
+
+    Returns
+    -------
+    float
+        Step size in seconds.
+
+    Notes
+    -----
+    Accepted formats are ``<number>`` (seconds), ``<number>s``, and
+    ``<number>m``.
+    """
+    match = re.fullmatch(r"\s*([0-9]*\.?[0-9]+)\s*([smSM]?)\s*", value)
+    if not match:
+        raise argparse.ArgumentTypeError(
+            "step size must be a positive number optionally followed by s or m"
+        )
+
+    magnitude = float(match.group(1))
+    unit = match.group(2).lower() if match.group(2) else "s"
+
+    if unit == "s":
+        step_s = magnitude
+    elif unit == "m":
+        step_s = magnitude * SECONDS_PER_MINUTE
+    else:
+        raise argparse.ArgumentTypeError("step-size unit must be one of: s, m")
+
+    if step_s <= 0.0:
+        raise argparse.ArgumentTypeError("step size must be a positive value")
+
+    return step_s

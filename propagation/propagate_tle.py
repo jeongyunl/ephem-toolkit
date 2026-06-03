@@ -22,7 +22,6 @@ modules are imported only when propagation is actually requested. This keeps
 import argparse
 import datetime as dt
 import pathlib
-import re
 import sys
 import warnings
 
@@ -31,12 +30,15 @@ warnings.filterwarnings("ignore", module="urllib3")
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 
 
-# Time conversion constants used by CLI duration parsing.
-SECONDS_PER_MINUTE = 60.0
-MINUTES_PER_HOUR = 60.0
-HOURS_PER_DAY = 24.0
-SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR
-SECONDS_PER_DAY = SECONDS_PER_HOUR * HOURS_PER_DAY
+import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from common.common import (
+    parse_duration_to_seconds,
+    parse_step_to_seconds,
+    SECONDS_PER_DAY,
+    SECONDS_PER_MINUTE,
+)
 
 # CLI defaults
 DEFAULT_PROPAGATION_DURATION_S = SECONDS_PER_DAY
@@ -58,90 +60,6 @@ def import_tudat_modules():
     from tudatpy.interface import spice
 
     return data, DateTime, environment_setup, spice
-
-
-def parse_duration_to_seconds(value: str) -> float:
-    """Parse a duration token and convert it to seconds.
-
-    Parameters
-    ----------
-    value : str
-            Duration token in ``<number>[s|m|h|d]`` format.
-
-    Returns
-    -------
-    float
-            Duration in seconds.
-
-    Notes
-    -----
-    Accepted formats are ``<number>`` (seconds), ``<number>s``,
-    ``<number>m``, ``<number>h``, and ``<number>d``.
-    """
-    match = re.fullmatch(r"\s*([0-9]*\.?[0-9]+)\s*([smhdSMHD]?)\s*", value)
-    if not match:
-        raise argparse.ArgumentTypeError(
-            "duration must be a positive number optionally followed by s, m, h, or d"
-        )
-
-    magnitude = float(match.group(1))
-    unit = match.group(2).lower() if match.group(2) else "s"
-
-    if unit == "s":
-        duration_s = magnitude
-    elif unit == "m":
-        duration_s = magnitude * SECONDS_PER_MINUTE
-    elif unit == "h":
-        duration_s = magnitude * SECONDS_PER_HOUR
-    elif unit == "d":
-        duration_s = magnitude * SECONDS_PER_DAY
-    else:
-        raise argparse.ArgumentTypeError("duration unit must be one of: s, m, h, d")
-
-    if duration_s <= 0.0:
-        raise argparse.ArgumentTypeError("duration must be a positive value")
-
-    return duration_s
-
-
-def parse_step_to_seconds(value: str) -> float:
-    """Parse output step-size token and convert it to seconds.
-
-    Parameters
-    ----------
-    value : str
-            Step-size token in ``<number>[s|m]`` format.
-
-    Returns
-    -------
-    float
-            Step size in seconds.
-
-    Notes
-    -----
-    Accepted formats are ``<number>`` (seconds), ``<number>s``, and
-    ``<number>m``.
-    """
-    match = re.fullmatch(r"\s*([0-9]*\.?[0-9]+)\s*([smSM]?)\s*", value)
-    if not match:
-        raise argparse.ArgumentTypeError(
-            "step size must be a positive number optionally followed by s or m"
-        )
-
-    magnitude = float(match.group(1))
-    unit = match.group(2).lower() if match.group(2) else "s"
-
-    if unit == "s":
-        step_s = magnitude
-    elif unit == "m":
-        step_s = magnitude * SECONDS_PER_MINUTE
-    else:
-        raise argparse.ArgumentTypeError("step-size unit must be one of: s, m")
-
-    if step_s <= 0.0:
-        raise argparse.ArgumentTypeError("step size must be a positive value")
-
-    return step_s
 
 
 def parse_args() -> argparse.Namespace:
@@ -181,10 +99,7 @@ def parse_args() -> argparse.Namespace:
         type=parse_step_to_seconds,
         metavar="<value[s|m]>",
         default=DEFAULT_OUTPUT_STEP_S,
-        help=(
-            "Output interval (default: 1m). "
-            "Use -s/--step, e.g. -s 60, --step 60s, -s 1m."
-        ),
+        help=("Output interval (default: 1m). " "Use -s/--step, e.g. -s 60, --step 60s, -s 1m."),
     )
     parser.add_argument(
         "--oem",
@@ -218,9 +133,7 @@ def extract_tle_line_pair(lines: list[str], source_label: str) -> tuple[str, str
             If fewer than two lines are available or TLE line tags are invalid.
     """
     if len(lines) < 2:
-        raise ValueError(
-            f"TLE source '{source_label}' must contain at least 2 non-empty lines."
-        )
+        raise ValueError(f"TLE source '{source_label}' must contain at least 2 non-empty lines.")
 
     line1 = lines[-2]
     line2 = lines[-1]
@@ -286,9 +199,7 @@ def read_tle_input(cli_value: str | None) -> tuple[str, str, str]:
         return line1, line2, tle_path.stem
 
     if sys.stdin.isatty():
-        raise ValueError(
-            "TLE input not provided. Pass <tle_file> or pipe TLE text on stdin."
-        )
+        raise ValueError("TLE input not provided. Pass <tle_file> or pipe TLE text on stdin.")
 
     stdin_text = sys.stdin.read()
     if not stdin_text.strip():

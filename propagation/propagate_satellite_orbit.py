@@ -42,14 +42,19 @@ where it is actually required.
 """
 
 import argparse
+import os
 import re
+import sys
 
-# Time and unit conversion constants
-SECONDS_PER_MINUTE = 60.0
-MINUTES_PER_HOUR = 60.0
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from common.common import (
+    parse_duration_to_seconds,
+    SECONDS_PER_MINUTE,
+    SECONDS_PER_HOUR,
+    SECONDS_PER_DAY,
+)
+
 HOURS_PER_DAY = 24.0
-SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR
-SECONDS_PER_DAY = SECONDS_PER_HOUR * HOURS_PER_DAY
 KILOMETERS_TO_METERS = 1e3
 
 
@@ -135,50 +140,6 @@ def parse_bool_flag(value: str) -> bool:
         f"invalid boolean value: '{value}' "
         "(expected on/off, true/false, yes/no, or enable/disable)"
     )
-
-
-def parse_duration_to_seconds(value: str) -> float:
-    """Parse a duration token and convert it to seconds.
-
-    Parameters
-    ----------
-    value : str
-        Duration token in ``<number>[s|m|h|d]`` format.
-
-    Returns
-    -------
-    float
-        Duration in seconds.
-
-    Notes
-    -----
-    Accepted formats are ``<number>`` (seconds), ``<number>s``,
-    ``<number>m``, ``<number>h``, and ``<number>d``.
-    """
-    match = re.fullmatch(r"\s*([0-9]*\.?[0-9]+)\s*([smhdSMHD]?)\s*", value)
-    if not match:
-        raise argparse.ArgumentTypeError(
-            "duration must be a positive number optionally followed by s, m, h, or d"
-        )
-
-    magnitude = float(match.group(1))
-    unit = match.group(2).lower() if match.group(2) else "s"
-
-    if unit == "s":
-        duration_s = magnitude
-    elif unit == "m":
-        duration_s = magnitude * SECONDS_PER_MINUTE
-    elif unit == "h":
-        duration_s = magnitude * SECONDS_PER_HOUR
-    elif unit == "d":
-        duration_s = magnitude * SECONDS_PER_DAY
-    else:
-        raise argparse.ArgumentTypeError("duration unit must be one of: s, m, h, d")
-
-    if duration_s <= 0.0:
-        raise argparse.ArgumentTypeError("duration must be a positive value")
-
-    return duration_s
 
 
 def parse_integrator_method(value: str) -> str:
@@ -328,9 +289,7 @@ def parse_earth_spherical_harmonic_gravity_degree_order(value: str) -> tuple[int
     if order < 0:
         raise argparse.ArgumentTypeError("earth gravity order must be non-negative")
     if order > degree:
-        raise argparse.ArgumentTypeError(
-            "earth gravity order must be less than or equal to degree"
-        )
+        raise argparse.ArgumentTypeError("earth gravity order must be less than or equal to degree")
 
     return degree, order
 
@@ -351,9 +310,7 @@ def parse_drag_area_m2(value: str) -> float:
     try:
         drag_area_m2 = float(value)
     except ValueError as exc:
-        raise argparse.ArgumentTypeError(
-            "drag area must be a valid number in m^2"
-        ) from exc
+        raise argparse.ArgumentTypeError("drag area must be a valid number in m^2") from exc
 
     if drag_area_m2 <= 0.0:
         raise argparse.ArgumentTypeError("drag area must be a positive value in m^2")
@@ -405,9 +362,7 @@ def parse_drag_coefficient(value: str) -> float:
     try:
         drag_coefficient = float(value)
     except ValueError as exc:
-        raise argparse.ArgumentTypeError(
-            "drag coefficient must be a valid number"
-        ) from exc
+        raise argparse.ArgumentTypeError("drag coefficient must be a valid number") from exc
 
     if drag_coefficient <= 0.0:
         raise argparse.ArgumentTypeError("drag coefficient must be a positive value")
@@ -767,9 +722,7 @@ def read_initial_state_from_stream(stream):
 
     epoch_dt, position_km, velocity_km_s = parsed
     initial_epoch_datetime_utc = epoch_dt
-    initial_state_m_mps = (
-        np.concatenate([position_km, velocity_km_s]) * KILOMETERS_TO_METERS
-    )
+    initial_state_m_mps = np.concatenate([position_km, velocity_km_s]) * KILOMETERS_TO_METERS
     return initial_state_m_mps, initial_epoch_datetime_utc
 
 
@@ -795,9 +748,7 @@ def read_initial_state_from_cli_or_stdin(cli_args):
     """
     if cli_args.initial_state is not None:
         try:
-            return read_initial_state_from_stream(
-                io.StringIO(cli_args.initial_state + "\n")
-            )
+            return read_initial_state_from_stream(io.StringIO(cli_args.initial_state + "\n"))
         except ValueError as exc:
             print(f"Error: invalid --initial-state value: {exc}", file=sys.stderr)
             sys.exit(1)
@@ -906,9 +857,7 @@ def write_state_history_oem_like(state_history, output_path):
 
     try:
         for epoch_tdb_s, state_m_mps in sorted(state_history.items()):
-            epoch_utc_iso = common.tdb_to_datetime(epoch_tdb_s).isoformat(
-                timespec="microseconds"
-            )
+            epoch_utc_iso = common.tdb_to_datetime(epoch_tdb_s).isoformat(timespec="microseconds")
             position_km = state_m_mps[:3] / KILOMETERS_TO_METERS
             velocity_km_s = state_m_mps[3:] / KILOMETERS_TO_METERS
             stream.write(
@@ -955,15 +904,11 @@ def print_pre_propagation_summary(
         propagation_inputs.integrator_method, "unknown method"
     )
     print(
-        "Integrator method: "
-        f"{propagation_inputs.integrator_method} ({integrator_description})"
+        "Integrator method: " f"{propagation_inputs.integrator_method} ({integrator_description})"
     )
     if len(propagation_inputs.integrator_step_size_values_s) == 1:
         print("Integrator mode: fixed-step size")
-        print(
-            "Integrator step size [s]: "
-            f"{propagation_inputs.integrator_step_size_values_s[0]}"
-        )
+        print("Integrator step size [s]: " f"{propagation_inputs.integrator_step_size_values_s[0]}")
     else:
         print("Integrator mode: variable-step size")
         (
@@ -988,13 +933,9 @@ def print_pre_propagation_summary(
     print(f"Drag area [m^2]: {propagation_inputs.satellite_drag_area_m2}")
 
     # is_srp_on: display SRP status; only show coefficient when SRP is enabled.
-    print(
-        f"Solar radiation pressure: {'on' if propagation_inputs.is_srp_on else 'off'}"
-    )
+    print(f"Solar radiation pressure: {'on' if propagation_inputs.is_srp_on else 'off'}")
     if propagation_inputs.is_srp_on:
-        print(
-            f"Solar radiation pressure coefficient: {propagation_inputs.srp_coefficient}"
-        )
+        print(f"Solar radiation pressure coefficient: {propagation_inputs.srp_coefficient}")
 
     # is_earth_drag_on: display drag status; only show coefficient when drag is enabled.
     print(f"Aerodynamic drag: {'on' if propagation_inputs.is_earth_drag_on else 'off'}")
@@ -1009,12 +950,8 @@ def print_pre_propagation_summary(
     print(f"Mars gravity: {'on' if propagation_inputs.is_mars_gravity_on else 'off'}")
 
     print(f"Initial epoch: {propagation_inputs.initial_epoch_datetime_utc.isoformat()}")
-    initial_position_km = (
-        propagation_inputs.initial_state_m_mps[:3] / KILOMETERS_TO_METERS
-    )
-    initial_velocity_kmps = (
-        propagation_inputs.initial_state_m_mps[3:] / KILOMETERS_TO_METERS
-    )
+    initial_position_km = propagation_inputs.initial_state_m_mps[:3] / KILOMETERS_TO_METERS
+    initial_velocity_kmps = propagation_inputs.initial_state_m_mps[3:] / KILOMETERS_TO_METERS
     print(
         "Initial position vector [km]: "
         f"{np.array2string(initial_position_km, precision=6, separator=', ')}"
@@ -1024,9 +961,8 @@ def print_pre_propagation_summary(
         f"{np.array2string(initial_velocity_kmps, precision=6, separator=', ')}"
     )
     print(f"Simulation duration [s]: {propagation_inputs.simulation_duration_s}")
-    simulation_end_epoch_datetime_utc = (
-        propagation_inputs.initial_epoch_datetime_utc
-        + timedelta(seconds=propagation_inputs.simulation_duration_s)
+    simulation_end_epoch_datetime_utc = propagation_inputs.initial_epoch_datetime_utc + timedelta(
+        seconds=propagation_inputs.simulation_duration_s
     )
     print("Simulation end epoch: " f"{simulation_end_epoch_datetime_utc.isoformat()}")
     if output_state_history_path is not None:
@@ -1097,10 +1033,8 @@ def create_translational_propagator_settings(
             maximum_step_size_s,
         ) = propagation_inputs.integrator_step_size_values_s
 
-        step_size_validation_settings = (
-            propagation_setup.integrator.step_size_validation(
-                minimum_step_size_s, maximum_step_size_s
-            )
+        step_size_validation_settings = propagation_setup.integrator.step_size_validation(
+            minimum_step_size_s, maximum_step_size_s
         )
 
         step_size_control_settings = (
@@ -1116,9 +1050,8 @@ def create_translational_propagator_settings(
             step_size_control_settings=step_size_control_settings,
         )
 
-    simulation_end_epoch_datetime_utc = (
-        propagation_inputs.initial_epoch_datetime_utc
-        + timedelta(seconds=propagation_inputs.simulation_duration_s)
+    simulation_end_epoch_datetime_utc = propagation_inputs.initial_epoch_datetime_utc + timedelta(
+        seconds=propagation_inputs.simulation_duration_s
     )
     termination_condition = propagation_setup.propagator.time_termination(
         common.datetime_to_tdb(simulation_end_epoch_datetime_utc)
@@ -1176,16 +1109,14 @@ def create_environment_and_bodies(propagation_inputs: PropagationInputs):
     # is_srp_on: only attach radiation pressure target settings when SRP is enabled.
     if propagation_inputs.is_srp_on:
         occulting_bodies_dict = {"Sun": ["Earth"]}
-        vehicle_target_settings = (
-            environment_setup.radiation_pressure.cannonball_radiation_target(
-                propagation_inputs.satellite_drag_area_m2,
-                propagation_inputs.srp_coefficient,
-                occulting_bodies_dict,
-            )
+        vehicle_target_settings = environment_setup.radiation_pressure.cannonball_radiation_target(
+            propagation_inputs.satellite_drag_area_m2,
+            propagation_inputs.srp_coefficient,
+            occulting_bodies_dict,
         )
-        body_settings.get(
-            propagation_inputs.satellite_name
-        ).radiation_pressure_target_settings = vehicle_target_settings
+        body_settings.get(propagation_inputs.satellite_name).radiation_pressure_target_settings = (
+            vehicle_target_settings
+        )
 
     # is_earth_drag_on: only attach aerodynamic coefficient settings when drag is enabled.
     if propagation_inputs.is_earth_drag_on:
@@ -1193,14 +1124,12 @@ def create_environment_and_bodies(propagation_inputs: PropagationInputs):
             propagation_inputs.satellite_drag_area_m2,
             [propagation_inputs.satellite_drag_coefficient, 0.0, 0.0],
         )
-        body_settings.get(
-            propagation_inputs.satellite_name
-        ).aerodynamic_coefficient_settings = aero_coefficient_settings
+        body_settings.get(propagation_inputs.satellite_name).aerodynamic_coefficient_settings = (
+            aero_coefficient_settings
+        )
 
     bodies = environment_setup.create_system_of_bodies(body_settings)
-    bodies.get(
-        propagation_inputs.satellite_name
-    ).mass = propagation_inputs.satellite_mass_kg
+    bodies.get(propagation_inputs.satellite_name).mass = propagation_inputs.satellite_mass_kg
     return bodies
 
 
@@ -1277,9 +1206,7 @@ def create_acceleration_models(
         ]
 
     # Create global accelerations settings dictionary.
-    acceleration_settings = {
-        propagation_inputs.satellite_name: satellite_acceleration_settings
-    }
+    acceleration_settings = {propagation_inputs.satellite_name: satellite_acceleration_settings}
 
     return propagation_setup.create_acceleration_models(
         bodies, acceleration_settings, bodies_to_propagate, central_bodies
@@ -1404,15 +1331,11 @@ def plot_total_acceleration(dep_var_dict, relative_time_h, satellite_name):
         This function creates a matplotlib figure.
     """
     plt.figure(figsize=PLOT_STANDARD_FIGURE_SIZE_IN)
-    plt.title(
-        f"Total acceleration norm on {satellite_name} over the course of propagation."
-    )
+    plt.title(f"Total acceleration norm on {satellite_name} over the course of propagation.")
     satellite_total_acceleration_mps2 = dep_var_dict.asarray(
         dependent_variable.total_acceleration(satellite_name)
     )
-    total_acceleration_norm_mps2 = np.linalg.norm(
-        satellite_total_acceleration_mps2, axis=1
-    )
+    total_acceleration_norm_mps2 = np.linalg.norm(satellite_total_acceleration_mps2, axis=1)
     plt.plot(relative_time_h, total_acceleration_norm_mps2)
     plt.xlabel("Time [hr]")
     plt.ylabel("Total Acceleration [m/s$^2$]")
@@ -1442,12 +1365,8 @@ def plot_ground_track(dep_var_dict, relative_time_h, satellite_name):
     """
     plt.figure(figsize=PLOT_STANDARD_FIGURE_SIZE_IN)
     plt.title(f"3 hour ground track of {satellite_name}")
-    latitude_rad = dep_var_dict.asarray(
-        dependent_variable.latitude(satellite_name, "Earth")
-    )
-    longitude_rad = dep_var_dict.asarray(
-        dependent_variable.longitude(satellite_name, "Earth")
-    )
+    latitude_rad = dep_var_dict.asarray(dependent_variable.latitude(satellite_name, "Earth"))
+    longitude_rad = dep_var_dict.asarray(dependent_variable.longitude(satellite_name, "Earth"))
     subset_count = int(len(relative_time_h) / HOURS_PER_DAY * PLOT_GROUND_TRACK_H)
     latitude_deg = np.rad2deg(latitude_rad[0:subset_count])
     longitude_deg = np.rad2deg(longitude_rad[0:subset_count])
@@ -2072,9 +1991,7 @@ if output_state_history_path is not None:
         sys.exit(1)
 
 dep_var_dict = propagation.create_dependent_variable_dictionary(dynamics_simulator)
-relative_time_h = (
-    dep_var_dict.time_history - dep_var_dict.time_history[0]
-) / SECONDS_PER_HOUR
+relative_time_h = (dep_var_dict.time_history - dep_var_dict.time_history[0]) / SECONDS_PER_HOUR
 
 
 """

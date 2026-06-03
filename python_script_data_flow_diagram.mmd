@@ -86,3 +86,9 @@ flowchart LR
     %% convert_time2.py: time values → converted time values
     fmt_time --> convert_time2
     convert_time2 --> fmt_time
+
+    %% evaluate_build_tle_from_oem.py: OEM → build_tle → propagate_tle → comparison
+    evaluate_build_tle(["evaluate_build_tle_from_oem.py"])
+    fmt_oem --> evaluate_build_tle
+    evaluate_build_tle -->|"calls"| build_tle
+    evaluate_build_tle -->|"calls"| propagate_tle

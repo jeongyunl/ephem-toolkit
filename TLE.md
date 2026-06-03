@@ -35,7 +35,12 @@ Additional scripts currently present in the repository:
 
 ## Common library
 
-The `common/tle.py` module provides the shared `Tle` dataclass and the `read_tle()` / `write_tle()` functions used by all TLE-related scripts.
+- `common/tle.py` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions used by all TLE-related scripts
+- `common/common.py` — shared utilities
+
+## Evaluation tool
+
+- `misc/evaluate_build_tle_from_oem.py` — evaluates `build_tle.py` round-trip accuracy by generating a TLE from an OEM reference, propagating it, and comparing position/velocity errors
 
 ## Dependencies
 
@@ -44,6 +49,7 @@ The `common/tle.py` module provides the shared `Tle` dataclass and the `read_tle
 - Python standard library
 - local helper module `common.tle`
 - TudatPy (optional, for SGP4 state-match refinement and B* estimation)
+- Supports `--no-state-match` flag to skip the Gauss–Newton epoch-state refinement step
 
 ### Other TLE-related scripts
 

@@ -311,6 +311,7 @@ python propagation/propagate_tle.py -h
 
 - TudatPy
 - Python standard library
+- local helper module `common.common`
 
 The script loads these SPICE kernels via TudatPy data paths:
 
