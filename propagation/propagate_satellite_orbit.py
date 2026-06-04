@@ -1993,6 +1993,53 @@ if output_state_history_path is not None:
 dep_var_dict = propagation.create_dependent_variable_dictionary(dynamics_simulator)
 relative_time_h = (dep_var_dict.time_history - dep_var_dict.time_history[0]) / SECONDS_PER_HOUR
 
+# Save dependent variables to a CSV file using the base of the output file name.
+if output_state_history_path is not None and output_state_history_path != "-":
+    import csv
+
+    output_base = Path(output_state_history_path).stem
+    dep_var_csv_path = str(Path(output_state_history_path).parent / (output_base + "_dep_vars.csv"))
+
+    # Build header row using the dependent_variable_type enum name for each saved variable.
+    # Each dependent variable may be multi-dimensional (e.g., vectors have 3 components,
+    # Keplerian state has 6). We expand the header accordingly.
+    headers = ["epoch_tdb_s"]
+    for dep_var_setting in dependent_variables_to_save:
+        dep_var_type_name = dep_var_setting.dependent_variable_type.name.removesuffix("_type")
+        dep_var_array = dep_var_dict.asarray(dep_var_setting)
+        if dep_var_array.ndim == 1 or (dep_var_array.ndim == 2 and dep_var_array.shape[1] == 1):
+            headers.append(dep_var_type_name)
+        else:
+            n_cols = dep_var_array.shape[1]
+            for col_idx in range(n_cols):
+                headers.append(f"{dep_var_type_name}_{col_idx}")
+
+    # Write CSV rows.
+    time_history = dep_var_dict.time_history
+    try:
+        with open(dep_var_csv_path, "w", newline="", encoding="utf-8") as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(headers)
+            for row_idx, epoch_tdb_s in enumerate(time_history):
+                row = [epoch_tdb_s]
+                for dep_var_setting in dependent_variables_to_save:
+                    dep_var_array = dep_var_dict.asarray(dep_var_setting)
+                    if dep_var_array.ndim == 1 or (
+                        dep_var_array.ndim == 2 and dep_var_array.shape[1] == 1
+                    ):
+                        row.append(
+                            float(dep_var_array[row_idx])
+                            if dep_var_array.ndim == 1
+                            else float(dep_var_array[row_idx, 0])
+                        )
+                    else:
+                        for col_idx in range(dep_var_array.shape[1]):
+                            row.append(float(dep_var_array[row_idx, col_idx]))
+                writer.writerow(row)
+        print(f"Dependent variables saved to: {dep_var_csv_path}")
+    except OSError as exc:
+        print(f"Error: failed to write dependent variables CSV: {exc}", file=sys.stderr)
+
 
 """
 ### Retrieve information from the dependent variable dictionary
