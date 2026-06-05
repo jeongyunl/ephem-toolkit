@@ -102,9 +102,12 @@ def test_ccsds_oem_from_source_exposes_structured_fields() -> None:
     assert ccsds_oem.meta.object_name == "ISS"
     assert ccsds_oem.meta.object_id == "1998-067-A"
     assert ccsds_oem.meta.ref_frame == "EME2000"
-    assert isinstance(ccsds_oem.states[0], oem.OemStateVector)
-    assert isinstance(ccsds_oem.states[0].epoch, datetime)
-    assert ccsds_oem.states[0].state.shape == (6,)
+    assert isinstance(ccsds_oem.states[0], tuple)
+    assert len(ccsds_oem.states[0]) == 2
+    first_epoch, first_state = ccsds_oem.states[0]
+    assert isinstance(first_epoch, datetime)
+    assert isinstance(first_state, np.ndarray)
+    assert first_state.shape == (6,)
 
 
 # ===================================================================
@@ -112,7 +115,9 @@ def test_ccsds_oem_from_source_exposes_structured_fields() -> None:
 # ===================================================================
 
 
-def test_ccsds_oem_to_file_round_trip_preserves_structured_content(tmp_path: Path) -> None:
+def test_ccsds_oem_to_file_round_trip_preserves_structured_content(
+    tmp_path: Path,
+) -> None:
     """Should preserve structured OEM content through class-based serialization."""
     oem1 = oem.CcsdsOem.from_source(OEM_PATH)
     out_path = tmp_path / "class_roundtrip.oem"

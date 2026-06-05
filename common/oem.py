@@ -169,7 +169,7 @@ def write_oem(
     w("META_STOP\n")
     w("\n")
 
-    for epoch in sorted(states):
+    for epoch in states:
         sv = states[epoch]
         epoch_str = epoch.strftime("%Y-%m-%dT%H:%M:%S.%f")
         vals = " ".join(f"{v:.15g}" for v in sv)
@@ -205,14 +205,13 @@ class OemMeta:
     comments: list[str] = field(default_factory=list)
 
 
-@dataclass
-class OemStateVector:
-    epoch: datetime
-    state: np.ndarray
-
-
 class CcsdsOem:
-    def __init__(self, header: OemHeader, meta: OemMeta, states: list[OemStateVector]) -> None:
+    def __init__(
+        self,
+        header: OemHeader,
+        meta: OemMeta,
+        states: list[tuple[datetime, np.ndarray]],
+    ) -> None:
         self.header = header
         self.meta = meta
         self.states = states
@@ -243,18 +242,16 @@ class CcsdsOem:
             comments=raw_meta.get("COMMENT", []),
         )
 
-        state_list = [
-            OemStateVector(epoch=epoch, state=sv) for epoch, sv in sorted(raw_states.items())
-        ]
+        state_list = [(epoch, sv) for epoch, sv in raw_states.items()]
         return cls(header=header, meta=meta, states=state_list)
 
     @property
     def epochs(self) -> list[datetime]:
-        return [sv.epoch for sv in self.states]
+        return [epoch for epoch, _ in self.states]
 
     @property
     def state_vectors(self) -> np.ndarray:
-        return np.array([sv.state for sv in self.states])
+        return np.array([state for _, state in self.states])
 
     def to_file(self, dest: Union[IO[str], str, Path]) -> None:
         hdr = {
@@ -274,7 +271,7 @@ class CcsdsOem:
             if val is not None and val != "" and val != 0:
                 mt[key] = val
 
-        st = {sv.epoch: sv.state for sv in self.states}
+        st = {epoch: state for epoch, state in self.states}
         write_oem(dest, hdr, mt, st)
 
     def __len__(self) -> int:
