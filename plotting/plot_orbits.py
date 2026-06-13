@@ -14,13 +14,11 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
-from mpl_toolkits.mplot3d import Axes3D
 
 try:
     import tudatpy.math.interpolators as interpolators
@@ -147,63 +145,6 @@ def transform_to_rsw(states: np.ndarray) -> np.ndarray:
     return rsw_states
 
 
-def compute_relative_state(
-    reference_state: np.ndarray, comparison_state: np.ndarray
-) -> np.ndarray:
-    """Compute relative state between reference and comparison orbits.
-
-    Parameters
-    ----------
-    reference_state : np.ndarray
-        Reference state vector [x, y, z, vx, vy, vz].
-    comparison_state : np.ndarray
-        Comparison state vector [x, y, z, vx, vy, vz].
-
-    Returns
-    -------
-    np.ndarray
-        Relative state vector (comparison - reference).
-    """
-    return comparison_state - reference_state
-
-
-def filter_by_duration(
-    state_history: dict[float, np.ndarray],
-    duration_seconds: float,
-) -> dict[float, np.ndarray]:
-    """Filter orbit data to only include the specified duration from start.
-
-    Parameters
-    ----------
-    state_history : dict[float, np.ndarray]
-        State history dictionary mapping timestamps to state vectors.
-    duration_seconds : float
-        Duration in seconds from the first timestamp to include.
-
-    Returns
-    -------
-    dict[float, np.ndarray]
-        Filtered state history containing only data within the duration.
-    """
-    if not state_history:
-        return state_history
-
-    timestamps = sorted(state_history.keys())
-    start_ts = timestamps[0]
-    end_ts = start_ts + duration_seconds
-
-    # Filter timestamps within the duration
-    filtered_state_history = {
-        ts: state_history[ts] for ts in timestamps if ts <= end_ts
-    }
-
-    if not filtered_state_history:
-        print(f"Warning: No data found within duration {duration_seconds}s")
-        return {start_ts: state_history[start_ts]}
-
-    return filtered_state_history
-
-
 def create_state_interpolator(state_history: dict[float, np.ndarray]):
     """Create a tudatpy interpolator for state history.
 
@@ -275,12 +216,21 @@ def plot_orbits(
     # Create figure with subplots
     fig = plt.figure(figsize=(16, 12))
 
-    # Extract reference positions
+    # Extract reference positions and states
     ref_timestamps = sorted(reference_state_history.keys())
     ref_pos = np.array([reference_state_history[ts][:3] for ts in ref_timestamps])
+    ref_states = np.array([reference_state_history[ts] for ts in ref_timestamps])
+    ref_rsw = transform_to_rsw(ref_states)
 
-    # Plot 1: 3D Orbit
+    # Create all axes
     ax1 = fig.add_subplot(2, 3, 1, projection="3d")
+    ax2 = fig.add_subplot(2, 3, 2)
+    ax3 = fig.add_subplot(2, 3, 3)
+    ax4 = fig.add_subplot(2, 3, 4)
+    ax5 = fig.add_subplot(2, 3, 5)
+    ax6 = fig.add_subplot(2, 3, 6)
+
+    # Plot reference data on all axes
     ax1.plot(
         ref_pos[:, 0],
         ref_pos[:, 1],
@@ -308,38 +258,54 @@ def plot_orbits(
         label="End",
     )
 
-    for label, state_history in comparison_data:
-        # Filter to only timestamps that exist in comparison data
-        comp_timestamps = sorted(state_history.keys())
-        valid_indices = [
-            i for i, ts in enumerate(ref_timestamps) if ts in state_history
-        ]
-        if valid_indices:
-            valid_ref_timestamps = [ref_timestamps[i] for i in valid_indices]
-            pos = np.array([state_history[ts][:3] for ts in valid_ref_timestamps])
-            ax1.plot(pos[:, 0], pos[:, 1], pos[:, 2], linewidth=2, label=label)
+    ax2.plot(ref_pos[:, 0], ref_pos[:, 1], "b-", linewidth=2, label="Reference")
+    ax2.scatter(ref_pos[0, 0], ref_pos[0, 1], c="b", s=100, marker="o", label="Start")
+    ax2.scatter(ref_pos[-1, 0], ref_pos[-1, 1], c="b", s=100, marker="x", label="End")
 
+    ax3.plot(ref_pos[:, 0], ref_pos[:, 2], "b-", linewidth=2, label="Reference")
+    ax3.scatter(ref_pos[0, 0], ref_pos[0, 2], c="b", s=100, marker="o", label="Start")
+    ax3.scatter(ref_pos[-1, 0], ref_pos[-1, 2], c="b", s=100, marker="x", label="End")
+
+    ax4.plot(ref_pos[:, 1], ref_pos[:, 2], "b-", linewidth=2, label="Reference")
+    ax4.scatter(ref_pos[0, 1], ref_pos[0, 2], c="b", s=100, marker="o", label="Start")
+    ax4.scatter(ref_pos[-1, 1], ref_pos[-1, 2], c="b", s=100, marker="x", label="End")
+
+    ax5.plot(ref_rsw[:, 1], ref_rsw[:, 0], "b-", linewidth=2, label="Reference")
+    ax5.scatter(ref_rsw[0, 1], ref_rsw[0, 0], c="b", s=100, marker="o", label="Start")
+    ax5.scatter(ref_rsw[-1, 1], ref_rsw[-1, 0], c="b", s=100, marker="x", label="End")
+
+    ax6.plot(ref_rsw[:, 2], ref_rsw[:, 0], "b-", linewidth=2, label="Reference")
+    ax6.scatter(ref_rsw[0, 2], ref_rsw[0, 0], c="b", s=100, marker="o", label="Start")
+    ax6.scatter(ref_rsw[-1, 2], ref_rsw[-1, 0], c="b", s=100, marker="x", label="End")
+
+    # Plot comparison data in a single loop
+    for label, state_history in comparison_data:
+        comp_timestamps = sorted(state_history.keys())
+
+        # Extract positions for Cartesian plots
+        pos_data = np.array([state_history[ts][:3] for ts in comp_timestamps])
+
+        # Extract and transform states for RSW plots
+        states = np.array([state_history[ts] for ts in comp_timestamps])
+        rsw_data = transform_to_rsw(states)
+
+        # Plot on all axes
+        ax1.plot(
+            pos_data[:, 0], pos_data[:, 1], pos_data[:, 2], linewidth=2, label=label
+        )
+        ax2.plot(pos_data[:, 0], pos_data[:, 1], linewidth=2, label=label)
+        ax3.plot(pos_data[:, 0], pos_data[:, 2], linewidth=2, label=label)
+        ax4.plot(pos_data[:, 1], pos_data[:, 2], linewidth=2, label=label)
+        ax5.plot(rsw_data[:, 1], rsw_data[:, 0], linewidth=2, label=label)
+        ax6.plot(rsw_data[:, 2], rsw_data[:, 0], linewidth=2, label=label)
+
+    # Configure all axes
     ax1.set_xlabel("X (km)")
     ax1.set_ylabel("Y (km)")
     ax1.set_zlabel("Z (km)")
     ax1.set_title("3D Orbit Trajectory")
     ax1.legend()
     ax1.grid(True)
-
-    # Plot 2: XY Plane
-    ax2 = fig.add_subplot(2, 3, 2)
-    ax2.plot(ref_pos[:, 0], ref_pos[:, 1], "b-", linewidth=2, label="Reference")
-    ax2.scatter(ref_pos[0, 0], ref_pos[0, 1], c="b", s=100, marker="o", label="Start")
-    ax2.scatter(ref_pos[-1, 0], ref_pos[-1, 1], c="b", s=100, marker="x", label="End")
-
-    for label, state_history in comparison_data:
-        valid_indices = [
-            i for i, ts in enumerate(ref_timestamps) if ts in state_history
-        ]
-        if valid_indices:
-            valid_ref_timestamps = [ref_timestamps[i] for i in valid_indices]
-            pos = np.array([state_history[ts][:3] for ts in valid_ref_timestamps])
-            ax2.plot(pos[:, 0], pos[:, 1], linewidth=2, label=label)
 
     ax2.set_xlabel("X (km)")
     ax2.set_ylabel("Y (km)")
@@ -348,42 +314,12 @@ def plot_orbits(
     ax2.grid(True)
     ax2.axis("equal")
 
-    # Plot 3: XZ Plane
-    ax3 = fig.add_subplot(2, 3, 3)
-    ax3.plot(ref_pos[:, 0], ref_pos[:, 2], "b-", linewidth=2, label="Reference")
-    ax3.scatter(ref_pos[0, 0], ref_pos[0, 2], c="b", s=100, marker="o", label="Start")
-    ax3.scatter(ref_pos[-1, 0], ref_pos[-1, 2], c="b", s=100, marker="x", label="End")
-
-    for label, state_history in comparison_data:
-        valid_indices = [
-            i for i, ts in enumerate(ref_timestamps) if ts in state_history
-        ]
-        if valid_indices:
-            valid_ref_timestamps = [ref_timestamps[i] for i in valid_indices]
-            pos = np.array([state_history[ts][:3] for ts in valid_ref_timestamps])
-            ax3.plot(pos[:, 0], pos[:, 2], linewidth=2, label=label)
-
     ax3.set_xlabel("X (km)")
     ax3.set_ylabel("Z (km)")
     ax3.set_title("XZ Plane")
     ax3.legend()
     ax3.grid(True)
     ax3.axis("equal")
-
-    # Plot 4: YZ Plane
-    ax4 = fig.add_subplot(2, 3, 4)
-    ax4.plot(ref_pos[:, 1], ref_pos[:, 2], "b-", linewidth=2, label="Reference")
-    ax4.scatter(ref_pos[0, 1], ref_pos[0, 2], c="b", s=100, marker="o", label="Start")
-    ax4.scatter(ref_pos[-1, 1], ref_pos[-1, 2], c="b", s=100, marker="x", label="End")
-
-    for label, state_history in comparison_data:
-        valid_indices = [
-            i for i, ts in enumerate(ref_timestamps) if ts in state_history
-        ]
-        if valid_indices:
-            valid_ref_timestamps = [ref_timestamps[i] for i in valid_indices]
-            pos = np.array([state_history[ts][:3] for ts in valid_ref_timestamps])
-            ax4.plot(pos[:, 1], pos[:, 2], linewidth=2, label=label)
 
     ax4.set_xlabel("Y (km)")
     ax4.set_ylabel("Z (km)")
@@ -392,46 +328,12 @@ def plot_orbits(
     ax4.grid(True)
     ax4.axis("equal")
 
-    # Plot 5: RTN Radial-Transverse
-    ax5 = fig.add_subplot(2, 3, 5)
-    ref_states = np.array([reference_state_history[ts] for ts in ref_timestamps])
-    ref_rsw = transform_to_rsw(ref_states)
-    ax5.plot(ref_rsw[:, 1], ref_rsw[:, 0], "b-", linewidth=2, label="Reference")
-    ax5.scatter(ref_rsw[0, 1], ref_rsw[0, 0], c="b", s=100, marker="o", label="Start")
-    ax5.scatter(ref_rsw[-1, 1], ref_rsw[-1, 0], c="b", s=100, marker="x", label="End")
-
-    for label, state_history in comparison_data:
-        valid_indices = [
-            i for i, ts in enumerate(ref_timestamps) if ts in state_history
-        ]
-        if valid_indices:
-            valid_ref_timestamps = [ref_timestamps[i] for i in valid_indices]
-            states = np.array([state_history[ts] for ts in valid_ref_timestamps])
-            comp_rsw = transform_to_rsw(states)
-            ax5.plot(comp_rsw[:, 1], comp_rsw[:, 0], linewidth=2, label=label)
-
     ax5.set_xlabel("Transverse (km)")
     ax5.set_ylabel("Radial (km)")
     ax5.set_title("RTN: Radial-Transverse Plane")
     ax5.legend()
     ax5.grid(True)
     ax5.axis("equal")
-
-    # Plot 6: RTN Radial-Normal
-    ax6 = fig.add_subplot(2, 3, 6)
-    ax6.plot(ref_rsw[:, 2], ref_rsw[:, 0], "b-", linewidth=2, label="Reference")
-    ax6.scatter(ref_rsw[0, 2], ref_rsw[0, 0], c="b", s=100, marker="o", label="Start")
-    ax6.scatter(ref_rsw[-1, 2], ref_rsw[-1, 0], c="b", s=100, marker="x", label="End")
-
-    for label, state_history in comparison_data:
-        valid_indices = [
-            i for i, ts in enumerate(ref_timestamps) if ts in state_history
-        ]
-        if valid_indices:
-            valid_ref_timestamps = [ref_timestamps[i] for i in valid_indices]
-            states = np.array([state_history[ts] for ts in valid_ref_timestamps])
-            comp_rsw = transform_to_rsw(states)
-            ax6.plot(comp_rsw[:, 2], comp_rsw[:, 0], linewidth=2, label=label)
 
     ax6.set_xlabel("Normal (km)")
     ax6.set_ylabel("Radial (km)")
@@ -468,152 +370,74 @@ def plot_relative_cartesian_timeseries(
     """
     fig = plt.figure(figsize=(16, 12))
 
-    # Plot 1: Position X Delta vs Time
+    # Create all axes
     ax1 = fig.add_subplot(3, 2, 1)
+    ax2 = fig.add_subplot(3, 2, 2)
+    ax3 = fig.add_subplot(3, 2, 3)
+    ax4 = fig.add_subplot(3, 2, 4)
+    ax5 = fig.add_subplot(3, 2, 5)
+    ax6 = fig.add_subplot(3, 2, 6)
+
+    # Add reference lines
+    ax1.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
+    ax2.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
+    ax3.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
+    ax4.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
+    ax5.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
+    ax6.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
+
+    # Plot comparison data in a single loop
     for label, state_history in comparison_data:
         comp_timestamps = sorted(state_history.keys())
 
-        delta_x_comp_times = []
-        deltas_x = []
+        # Compute deltas for all 6 components
+        delta_times = []
+        deltas = [[], [], [], [], [], []]  # x, y, z, vx, vy, vz
+
         for ts in comp_timestamps:
             ref_state = get_interpolated_state(reference_interpolator, ts)
             if ref_state is not None:
                 comp_state = state_history[ts]
-                delta_x = comp_state[0] - ref_state[0]
-                delta_x_comp_times.append(ts)
-                deltas_x.append(delta_x)
+                delta_times.append(ts)
+                for i in range(6):
+                    deltas[i].append(comp_state[i] - ref_state[i])
 
-        if deltas_x:
-            ax1.plot(delta_x_comp_times, deltas_x, linewidth=2, label=label, alpha=0.7)
+        # Plot on all axes if data exists
+        if delta_times:
+            ax1.plot(delta_times, deltas[0], linewidth=2, label=label, alpha=0.7)
+            ax2.plot(delta_times, deltas[1], linewidth=2, label=label, alpha=0.7)
+            ax3.plot(delta_times, deltas[2], linewidth=2, label=label, alpha=0.7)
+            ax4.plot(delta_times, deltas[3], linewidth=2, label=label, alpha=0.7)
+            ax5.plot(delta_times, deltas[4], linewidth=2, label=label, alpha=0.7)
+            ax6.plot(delta_times, deltas[5], linewidth=2, label=label, alpha=0.7)
 
-    ax1.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
+    # Configure all axes
     ax1.set_ylabel("X Position Delta (km)")
     ax1.set_title("X Position Delta vs Time")
     ax1.legend()
     ax1.grid(True)
 
-    # Plot 2: Position Y Delta vs Time
-    ax2 = fig.add_subplot(3, 2, 2)
-    for label, state_history in comparison_data:
-        comp_timestamps = sorted(state_history.keys())
-
-        delta_y_comp_times = []
-        deltas_y = []
-        for ts in comp_timestamps:
-            ref_state = get_interpolated_state(reference_interpolator, ts)
-            if ref_state is not None:
-                comp_state = state_history[ts]
-                delta_y = comp_state[1] - ref_state[1]
-                delta_y_comp_times.append(ts)
-                deltas_y.append(delta_y)
-
-        if deltas_y:
-            ax2.plot(delta_y_comp_times, deltas_y, linewidth=2, label=label, alpha=0.7)
-
-    ax2.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
     ax2.set_ylabel("Y Position Delta (km)")
     ax2.set_title("Y Position Delta vs Time")
     ax2.legend()
     ax2.grid(True)
 
-    # Plot 3: Position Z Delta vs Time
-    ax3 = fig.add_subplot(3, 2, 3)
-    for label, state_history in comparison_data:
-        comp_timestamps = sorted(state_history.keys())
-
-        delta_z_comp_times = []
-        deltas_z = []
-        for ts in comp_timestamps:
-            ref_state = get_interpolated_state(reference_interpolator, ts)
-            if ref_state is not None:
-                comp_state = state_history[ts]
-                delta_z = comp_state[2] - ref_state[2]
-                delta_z_comp_times.append(ts)
-                deltas_z.append(delta_z)
-
-        if deltas_z:
-            ax3.plot(delta_z_comp_times, deltas_z, linewidth=2, label=label, alpha=0.7)
-
-    ax3.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
     ax3.set_ylabel("Z Position Delta (km)")
     ax3.set_title("Z Position Delta vs Time")
     ax3.legend()
     ax3.grid(True)
 
-    # Plot 4: Velocity X Delta vs Time
-    ax4 = fig.add_subplot(3, 2, 4)
-    for label, state_history in comparison_data:
-        comp_timestamps = sorted(state_history.keys())
-
-        delta_vx_comp_times = []
-        deltas_vx = []
-        for ts in comp_timestamps:
-            ref_state = get_interpolated_state(reference_interpolator, ts)
-            if ref_state is not None:
-                comp_state = state_history[ts]
-                delta_vx = comp_state[3] - ref_state[3]
-                delta_vx_comp_times.append(ts)
-                deltas_vx.append(delta_vx)
-
-        if deltas_vx:
-            ax4.plot(
-                delta_vx_comp_times, deltas_vx, linewidth=2, label=label, alpha=0.7
-            )
-
-    ax4.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
     ax4.set_ylabel("Vx Velocity Delta (km/s)")
     ax4.set_title("Vx Velocity Delta vs Time")
     ax4.legend()
     ax4.grid(True)
 
-    # Plot 5: Velocity Y Delta vs Time
-    ax5 = fig.add_subplot(3, 2, 5)
-    for label, state_history in comparison_data:
-        comp_timestamps = sorted(state_history.keys())
-
-        delta_vy_comp_times = []
-        deltas_vy = []
-        for ts in comp_timestamps:
-            ref_state = get_interpolated_state(reference_interpolator, ts)
-            if ref_state is not None:
-                comp_state = state_history[ts]
-                delta_vy = comp_state[4] - ref_state[4]
-                delta_vy_comp_times.append(ts)
-                deltas_vy.append(delta_vy)
-
-        if deltas_vy:
-            ax5.plot(
-                delta_vy_comp_times, deltas_vy, linewidth=2, label=label, alpha=0.7
-            )
-
-    ax5.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
     ax5.set_xlabel("Time from Start (seconds)")
     ax5.set_ylabel("Vy Velocity Delta (km/s)")
     ax5.set_title("Vy Velocity Delta vs Time")
     ax5.legend()
     ax5.grid(True)
 
-    # Plot 6: Velocity Z Delta vs Time
-    ax6 = fig.add_subplot(3, 2, 6)
-    for label, state_history in comparison_data:
-        comp_timestamps = sorted(state_history.keys())
-
-        delta_vz_comp_times = []
-        deltas_vz = []
-        for ts in comp_timestamps:
-            ref_state = get_interpolated_state(reference_interpolator, ts)
-            if ref_state is not None:
-                comp_state = state_history[ts]
-                delta_vz = comp_state[5] - ref_state[5]
-                delta_vz_comp_times.append(ts)
-                deltas_vz.append(delta_vz)
-
-        if deltas_vz:
-            ax6.plot(
-                delta_vz_comp_times, deltas_vz, linewidth=2, label=label, alpha=0.7
-            )
-
-    ax6.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
     ax6.set_xlabel("Time from Start (seconds)")
     ax6.set_ylabel("Vz Velocity Delta (km/s)")
     ax6.set_title("Vz Velocity Delta vs Time")
@@ -648,15 +472,30 @@ def plot_relative_rtn_timeseries(
     """
     fig = plt.figure(figsize=(16, 12))
 
-    # Plot 1: Radial Position Delta vs Time
+    # Create all axes
     ax1 = fig.add_subplot(3, 2, 1)
+    ax2 = fig.add_subplot(3, 2, 2)
+    ax3 = fig.add_subplot(3, 2, 3)
+    ax4 = fig.add_subplot(3, 2, 4)
+    ax5 = fig.add_subplot(3, 2, 5)
+    ax6 = fig.add_subplot(3, 2, 6)
+
+    # Add reference lines
+    ax1.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
+    ax2.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
+    ax3.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
+    ax4.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
+    ax5.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
+    ax6.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
+
+    # Plot comparison data in a single loop
     for label, state_history in comparison_data:
         comp_timestamps = sorted(state_history.keys())
-        comp_start_ts = comp_timestamps[0]
-        comp_times = np.array([ts - comp_start_ts for ts in comp_timestamps])
 
-        delta_r_comp_times = []
-        deltas_r = []
+        # Compute deltas for all 6 RTN components
+        delta_times = []
+        deltas = [[], [], [], [], [], []]  # r, s, w, vr, vs, vw
+
         for ts in comp_timestamps:
             ref_state = get_interpolated_state(reference_interpolator, ts)
             if ref_state is not None:
@@ -664,161 +503,46 @@ def plot_relative_rtn_timeseries(
                 # Transform to RTN
                 ref_rsw = transform_to_rsw(np.array([ref_state]))[0]
                 comp_rsw = transform_to_rsw(np.array([comp_state]))[0]
-                delta_r = comp_rsw[0] - ref_rsw[0]
-                delta_r_comp_times.append(ts)
-                deltas_r.append(delta_r)
+                delta_times.append(ts)
+                for i in range(6):
+                    deltas[i].append(comp_rsw[i] - ref_rsw[i])
 
-        if deltas_r:
-            ax1.plot(delta_r_comp_times, deltas_r, linewidth=2, label=label, alpha=0.7)
+        # Plot on all axes if data exists
+        if delta_times:
+            ax1.plot(delta_times, deltas[0], linewidth=2, label=label, alpha=0.7)
+            ax2.plot(delta_times, deltas[1], linewidth=2, label=label, alpha=0.7)
+            ax3.plot(delta_times, deltas[2], linewidth=2, label=label, alpha=0.7)
+            ax4.plot(delta_times, deltas[3], linewidth=2, label=label, alpha=0.7)
+            ax5.plot(delta_times, deltas[4], linewidth=2, label=label, alpha=0.7)
+            ax6.plot(delta_times, deltas[5], linewidth=2, label=label, alpha=0.7)
 
-    ax1.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
+    # Configure all axes
     ax1.set_ylabel("Radial Delta (km)")
     ax1.set_title("Radial Position Delta vs Time")
     ax1.legend()
     ax1.grid(True)
 
-    # Plot 2: Transverse Position Delta vs Time
-    ax2 = fig.add_subplot(3, 2, 2)
-    for label, state_history in comparison_data:
-        comp_timestamps = sorted(state_history.keys())
-        comp_start_ts = comp_timestamps[0]
-        comp_times = np.array([ts - comp_start_ts for ts in comp_timestamps])
-
-        delta_s_comp_times = []
-        deltas_s = []
-        for ts in comp_timestamps:
-            ref_state = get_interpolated_state(reference_interpolator, ts)
-            if ref_state is not None:
-                comp_state = state_history[ts]
-                ref_rsw = transform_to_rsw(np.array([ref_state]))[0]
-                comp_rsw = transform_to_rsw(np.array([comp_state]))[0]
-                delta_s = comp_rsw[1] - ref_rsw[1]
-                delta_s_comp_times.append(ts)
-                deltas_s.append(delta_s)
-
-        if deltas_s:
-            ax2.plot(delta_s_comp_times, deltas_s, linewidth=2, label=label, alpha=0.7)
-
-    ax2.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
     ax2.set_ylabel("Transverse Delta (km)")
     ax2.set_title("Transverse Position Delta vs Time")
     ax2.legend()
     ax2.grid(True)
 
-    # Plot 3: Normal Position Delta vs Time
-    ax3 = fig.add_subplot(3, 2, 3)
-    for label, state_history in comparison_data:
-        comp_timestamps = sorted(state_history.keys())
-        comp_start_ts = comp_timestamps[0]
-        comp_times = np.array([ts - comp_start_ts for ts in comp_timestamps])
-
-        delta_w_comp_times = []
-        deltas_w = []
-        for ts in comp_timestamps:
-            ref_state = get_interpolated_state(reference_interpolator, ts)
-            if ref_state is not None:
-                comp_state = state_history[ts]
-                ref_rsw = transform_to_rsw(np.array([ref_state]))[0]
-                comp_rsw = transform_to_rsw(np.array([comp_state]))[0]
-                delta_w = comp_rsw[2] - ref_rsw[2]
-                delta_w_comp_times.append(ts)
-                deltas_w.append(delta_w)
-
-        if deltas_w:
-            ax3.plot(delta_w_comp_times, deltas_w, linewidth=2, label=label, alpha=0.7)
-
-    ax3.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
     ax3.set_ylabel("Normal Delta (km)")
     ax3.set_title("Normal Position Delta vs Time")
     ax3.legend()
     ax3.grid(True)
 
-    # Plot 4: Radial Velocity Delta vs Time
-    ax4 = fig.add_subplot(3, 2, 4)
-    for label, state_history in comparison_data:
-        comp_timestamps = sorted(state_history.keys())
-        comp_start_ts = comp_timestamps[0]
-        comp_times = np.array([ts - comp_start_ts for ts in comp_timestamps])
-
-        delta_vr_comp_times = []
-        deltas_vr = []
-        for ts in comp_timestamps:
-            ref_state = get_interpolated_state(reference_interpolator, ts)
-            if ref_state is not None:
-                comp_state = state_history[ts]
-                ref_rsw = transform_to_rsw(np.array([ref_state]))[0]
-                comp_rsw = transform_to_rsw(np.array([comp_state]))[0]
-                delta_vr = comp_rsw[3] - ref_rsw[3]
-                delta_vr_comp_times.append(ts)
-                deltas_vr.append(delta_vr)
-
-        if deltas_vr:
-            ax4.plot(
-                delta_vr_comp_times, deltas_vr, linewidth=2, label=label, alpha=0.7
-            )
-
-    ax4.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
     ax4.set_ylabel("Radial Velocity Delta (km/s)")
     ax4.set_title("Radial Velocity Delta vs Time")
     ax4.legend()
     ax4.grid(True)
 
-    # Plot 5: Transverse Velocity Delta vs Time
-    ax5 = fig.add_subplot(3, 2, 5)
-    for label, state_history in comparison_data:
-        comp_timestamps = sorted(state_history.keys())
-        comp_start_ts = comp_timestamps[0]
-        comp_times = np.array([ts - comp_start_ts for ts in comp_timestamps])
-
-        delta_vs_comp_times = []
-        deltas_vs = []
-        for ts in comp_timestamps:
-            ref_state = get_interpolated_state(reference_interpolator, ts)
-            if ref_state is not None:
-                comp_state = state_history[ts]
-                ref_rsw = transform_to_rsw(np.array([ref_state]))[0]
-                comp_rsw = transform_to_rsw(np.array([comp_state]))[0]
-                delta_vs = comp_rsw[4] - ref_rsw[4]
-                delta_vs_comp_times.append(ts)
-                deltas_vs.append(delta_vs)
-
-        if deltas_vs:
-            ax5.plot(
-                delta_vs_comp_times, deltas_vs, linewidth=2, label=label, alpha=0.7
-            )
-
-    ax5.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
     ax5.set_xlabel("Time from Start (seconds)")
     ax5.set_ylabel("Transverse Velocity Delta (km/s)")
     ax5.set_title("Transverse Velocity Delta vs Time")
     ax5.legend()
     ax5.grid(True)
 
-    # Plot 6: Normal Velocity Delta vs Time
-    ax6 = fig.add_subplot(3, 2, 6)
-    for label, state_history in comparison_data:
-        comp_timestamps = sorted(state_history.keys())
-        comp_start_ts = comp_timestamps[0]
-        comp_times = np.array([ts - comp_start_ts for ts in comp_timestamps])
-
-        delta_vw_comp_times = []
-        deltas_vw = []
-        for ts in comp_timestamps:
-            ref_state = get_interpolated_state(reference_interpolator, ts)
-            if ref_state is not None:
-                comp_state = state_history[ts]
-                ref_rsw = transform_to_rsw(np.array([ref_state]))[0]
-                comp_rsw = transform_to_rsw(np.array([comp_state]))[0]
-                delta_vw = comp_rsw[5] - ref_rsw[5]
-                delta_vw_comp_times.append(ts)
-                deltas_vw.append(delta_vw)
-
-        if deltas_vw:
-            ax6.plot(
-                delta_vw_comp_times, deltas_vw, linewidth=2, label=label, alpha=0.7
-            )
-
-    ax6.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
     ax6.set_xlabel("Time from Start (seconds)")
     ax6.set_ylabel("Normal Velocity Delta (km/s)")
     ax6.set_title("Normal Velocity Delta vs Time")
@@ -833,7 +557,7 @@ def plot_relative_rtn_timeseries(
 
 
 def plot_relative_rtn_orbits(
-    reference_state_history: dict[float, np.ndarray],
+    reference_interpolator,
     comparison_data: list[tuple[str, dict[float, np.ndarray]]],
     output_file: Optional[str] = None,
 ) -> None:
@@ -843,8 +567,8 @@ def plot_relative_rtn_orbits(
 
     Parameters
     ----------
-    reference_state_history : dict[float, np.ndarray]
-        State history for reference orbit (timestamp -> state vector).
+    reference_interpolator : interpolator or None
+        Interpolator for reference orbit state history.
     comparison_data : list[tuple[str, dict[float, np.ndarray]]]
         List of (label, state_history) tuples for comparison orbits.
     output_file : str, optional
@@ -852,80 +576,102 @@ def plot_relative_rtn_orbits(
     """
     fig = plt.figure(figsize=(14, 10))
 
-    # Extract reference timestamps and transform to RTN
-    ref_timestamps = sorted(reference_state_history.keys())
-    ref_states = np.array([reference_state_history[ts] for ts in ref_timestamps])
-    ref_rsw = transform_to_rsw(ref_states)
-
-    # Plot 1: Relative position in RTN (R-S plane)
+    # Create all axes
     ax1 = fig.add_subplot(2, 2, 1)
-    ax1.scatter(0, 0, c="b", s=200, marker="*", label="Reference", zorder=5)
+    ax2 = fig.add_subplot(2, 2, 2)
+    ax3 = fig.add_subplot(2, 2, 3)
+    ax4 = fig.add_subplot(2, 2, 4)
 
+    # Add reference points
+    ax1.scatter(0, 0, c="b", s=200, marker="*", label="Reference", zorder=5)
+    ax2.scatter(0, 0, c="b", s=200, marker="*", label="Reference", zorder=5)
+    ax3.scatter(0, 0, c="b", s=200, marker="*", label="Reference", zorder=5)
+    ax4.scatter(0, 0, c="b", s=200, marker="*", label="Reference", zorder=5)
+
+    # Plot comparison data in a single loop
     for label, state_history in comparison_data:
         comp_timestamps = sorted(state_history.keys())
-        comp_states = np.array([state_history[ts] for ts in comp_timestamps])
-        comp_rsw = transform_to_rsw(comp_states)
 
-        # Compute deltas
-        deltas_rs = []
-        for ts in ref_timestamps:
-            ref_state_rsw = ref_rsw[ref_timestamps.index(ts)]
-            # Find closest comparison timestamp
-            closest_ts = min(comp_timestamps, key=lambda t: abs(t - ts))
-            comp_state_rsw = comp_rsw[comp_timestamps.index(closest_ts)]
+        # Compute all deltas for all 4 plots
+        deltas_rs = []  # Radial-Transverse position
+        deltas_rw = []  # Radial-Normal position
+        deltas_vrs = []  # Radial-Transverse velocity
+        deltas_vrw = []  # Radial-Normal velocity
 
-            delta_r = comp_state_rsw[0] - ref_state_rsw[0]
-            delta_s = comp_state_rsw[1] - ref_state_rsw[1]
-            deltas_rs.append([delta_s, delta_r])
+        for ts in comp_timestamps:
+            ref_state = get_interpolated_state(reference_interpolator, ts)
+            if ref_state is not None:
+                comp_state = state_history[ts]
+                # Transform to RTN
+                ref_rsw = transform_to_rsw(np.array([ref_state]))[0]
+                comp_rsw = transform_to_rsw(np.array([comp_state]))[0]
 
-        deltas_rs = np.array(deltas_rs)
-        ax1.plot(
-            deltas_rs[:, 0],
-            deltas_rs[:, 1],
-            "o-",
-            linewidth=2,
-            markersize=4,
-            label=label,
-            alpha=0.7,
-        )
+                # Compute position deltas
+                delta_r = comp_rsw[0] - ref_rsw[0]
+                delta_s = comp_rsw[1] - ref_rsw[1]
+                delta_w = comp_rsw[2] - ref_rsw[2]
 
+                # Compute velocity deltas
+                delta_vr = comp_rsw[3] - ref_rsw[3]
+                delta_vs = comp_rsw[4] - ref_rsw[4]
+                delta_vw = comp_rsw[5] - ref_rsw[5]
+
+                deltas_rs.append([delta_s, delta_r])
+                deltas_rw.append([delta_w, delta_r])
+                deltas_vrs.append([delta_vs, delta_vr])
+                deltas_vrw.append([delta_vw, delta_vr])
+
+        # Convert to arrays and plot on all axes if data exists
+        if deltas_rs:
+            deltas_rs = np.array(deltas_rs)
+            deltas_rw = np.array(deltas_rw)
+            deltas_vrs = np.array(deltas_vrs)
+            deltas_vrw = np.array(deltas_vrw)
+
+            ax1.plot(
+                deltas_rs[:, 0],
+                deltas_rs[:, 1],
+                "o-",
+                linewidth=2,
+                markersize=4,
+                label=label,
+                alpha=0.7,
+            )
+            ax2.plot(
+                deltas_rw[:, 0],
+                deltas_rw[:, 1],
+                "o-",
+                linewidth=2,
+                markersize=4,
+                label=label,
+                alpha=0.7,
+            )
+            ax3.plot(
+                deltas_vrs[:, 0],
+                deltas_vrs[:, 1],
+                "o-",
+                linewidth=2,
+                markersize=4,
+                label=label,
+                alpha=0.7,
+            )
+            ax4.plot(
+                deltas_vrw[:, 0],
+                deltas_vrw[:, 1],
+                "o-",
+                linewidth=2,
+                markersize=4,
+                label=label,
+                alpha=0.7,
+            )
+
+    # Configure all axes
     ax1.set_xlabel("Transverse Delta (km)")
     ax1.set_ylabel("Radial Delta (km)")
     ax1.set_title("Relative Position Delta: Radial-Transverse")
     ax1.legend()
     ax1.grid(True)
     ax1.axis("equal")
-
-    # Plot 2: Relative position in RTN (R-W plane)
-    ax2 = fig.add_subplot(2, 2, 2)
-    ax2.scatter(0, 0, c="b", s=200, marker="*", label="Reference", zorder=5)
-
-    for label, state_history in comparison_data:
-        comp_timestamps = sorted(state_history.keys())
-        comp_states = np.array([state_history[ts] for ts in comp_timestamps])
-        comp_rsw = transform_to_rsw(comp_states)
-
-        # Compute deltas
-        deltas_rw = []
-        for ts in ref_timestamps:
-            ref_state_rsw = ref_rsw[ref_timestamps.index(ts)]
-            closest_ts = min(comp_timestamps, key=lambda t: abs(t - ts))
-            comp_state_rsw = comp_rsw[comp_timestamps.index(closest_ts)]
-
-            delta_r = comp_state_rsw[0] - ref_state_rsw[0]
-            delta_w = comp_state_rsw[2] - ref_state_rsw[2]
-            deltas_rw.append([delta_w, delta_r])
-
-        deltas_rw = np.array(deltas_rw)
-        ax2.plot(
-            deltas_rw[:, 0],
-            deltas_rw[:, 1],
-            "o-",
-            linewidth=2,
-            markersize=4,
-            label=label,
-            alpha=0.7,
-        )
 
     ax2.set_xlabel("Normal Delta (km)")
     ax2.set_ylabel("Radial Delta (km)")
@@ -934,73 +680,11 @@ def plot_relative_rtn_orbits(
     ax2.grid(True)
     ax2.axis("equal")
 
-    # Plot 3: Relative velocity in RTN (vR-vS plane)
-    ax3 = fig.add_subplot(2, 2, 3)
-    ax3.scatter(0, 0, c="b", s=200, marker="*", label="Reference", zorder=5)
-
-    for label, state_history in comparison_data:
-        comp_timestamps = sorted(state_history.keys())
-        comp_states = np.array([state_history[ts] for ts in comp_timestamps])
-        comp_rsw = transform_to_rsw(comp_states)
-
-        # Compute velocity deltas
-        deltas_vrs = []
-        for ts in ref_timestamps:
-            ref_state_rsw = ref_rsw[ref_timestamps.index(ts)]
-            closest_ts = min(comp_timestamps, key=lambda t: abs(t - ts))
-            comp_state_rsw = comp_rsw[comp_timestamps.index(closest_ts)]
-
-            delta_vr = comp_state_rsw[3] - ref_state_rsw[3]
-            delta_vs = comp_state_rsw[4] - ref_state_rsw[4]
-            deltas_vrs.append([delta_vs, delta_vr])
-
-        deltas_vrs = np.array(deltas_vrs)
-        ax3.plot(
-            deltas_vrs[:, 0],
-            deltas_vrs[:, 1],
-            "o-",
-            linewidth=2,
-            markersize=4,
-            label=label,
-            alpha=0.7,
-        )
-
     ax3.set_xlabel("Transverse Velocity Delta (km/s)")
     ax3.set_ylabel("Radial Velocity Delta (km/s)")
     ax3.set_title("Relative Velocity Delta: Radial-Transverse")
     ax3.legend()
     ax3.grid(True)
-
-    # Plot 4: Relative velocity in RTN (vR-vW plane)
-    ax4 = fig.add_subplot(2, 2, 4)
-    ax4.scatter(0, 0, c="b", s=200, marker="*", label="Reference", zorder=5)
-
-    for label, state_history in comparison_data:
-        comp_timestamps = sorted(state_history.keys())
-        comp_states = np.array([state_history[ts] for ts in comp_timestamps])
-        comp_rsw = transform_to_rsw(comp_states)
-
-        # Compute velocity deltas
-        deltas_vrw = []
-        for ts in ref_timestamps:
-            ref_state_rsw = ref_rsw[ref_timestamps.index(ts)]
-            closest_ts = min(comp_timestamps, key=lambda t: abs(t - ts))
-            comp_state_rsw = comp_rsw[comp_timestamps.index(closest_ts)]
-
-            delta_vr = comp_state_rsw[3] - ref_state_rsw[3]
-            delta_vw = comp_state_rsw[5] - ref_state_rsw[5]
-            deltas_vrw.append([delta_vw, delta_vr])
-
-        deltas_vrw = np.array(deltas_vrw)
-        ax4.plot(
-            deltas_vrw[:, 0],
-            deltas_vrw[:, 1],
-            "o-",
-            linewidth=2,
-            markersize=4,
-            label=label,
-            alpha=0.7,
-        )
 
     ax4.set_xlabel("Normal Velocity Delta (km/s)")
     ax4.set_ylabel("Radial Velocity Delta (km/s)")
@@ -1078,11 +762,6 @@ Examples:
     ref_state_history = read_orbit_file(args.files[0])
     print(f"  Loaded {len(ref_state_history)} states")
 
-    # Apply duration filter if specified
-    if duration_seconds is not None:
-        ref_state_history = filter_by_duration(ref_state_history, duration_seconds)
-        print(f"  Filtered to {len(ref_state_history)} states within duration")
-
     # Read comparison orbits
     comparison_data = []
     for filepath in args.files[1:]:
@@ -1092,6 +771,29 @@ Examples:
 
         label = Path(filepath).name
         comparison_data.append((label, state_history))
+
+    # Calculate end timestamp from reference state history and duration option
+    ref_timestamps = sorted(ref_state_history.keys())
+    start_timestamp = ref_timestamps[0]
+
+    if duration_seconds is not None:
+        end_timestamp = start_timestamp + duration_seconds
+    else:
+        end_timestamp = ref_timestamps[-1]
+
+    print(f"Reference orbit end timestamp: {end_timestamp}")
+
+    # Filter reference and comparison data using end timestamp
+    ref_state_history = {
+        ts: state for ts, state in ref_state_history.items() if ts <= end_timestamp
+    }
+    filtered_comparison_data = []
+    for label, state_history in comparison_data:
+        filtered_state_history = {
+            ts: state for ts, state in state_history.items() if ts <= end_timestamp
+        }
+        filtered_comparison_data.append((label, filtered_state_history))
+    comparison_data = filtered_comparison_data
 
     # Determine output files
     def get_output_filename(base_output: Optional[str], suffix: str) -> Optional[str]:
@@ -1113,7 +815,7 @@ Examples:
 
     print("Plotting relative orbits in RTN coordinates...")
     relative_rtn_output = get_output_filename(args.output, "relative_rtn")
-    plot_relative_rtn_orbits(ref_state_history, comparison_data, relative_rtn_output)
+    plot_relative_rtn_orbits(ref_interpolator, comparison_data, relative_rtn_output)
 
     print(
         "Plotting time series of relative position and velocity in Cartesian coordinates..."
