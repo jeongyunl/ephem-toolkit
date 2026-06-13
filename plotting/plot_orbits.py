@@ -20,12 +20,7 @@ from typing import Optional
 import matplotlib.pyplot as plt
 import numpy as np
 
-try:
-    import tudatpy.math.interpolators as interpolators
-
-    TUDATPY_AVAILABLE = True
-except ImportError:
-    TUDATPY_AVAILABLE = False
+import tudatpy.math.interpolators as interpolators
 
 # Add parent directory to path to import common utilities
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -145,33 +140,6 @@ def transform_to_rsw(states: np.ndarray) -> np.ndarray:
     return rsw_states
 
 
-def create_state_interpolator(state_history: dict[float, np.ndarray]):
-    """Create a tudatpy interpolator for state history.
-
-    Parameters
-    ----------
-    state_history : dict[float, np.ndarray]
-        State history dictionary mapping timestamps to state vectors.
-
-    Returns
-    -------
-    interpolator or None
-        Interpolator object if tudatpy is available, None otherwise.
-    """
-    if not TUDATPY_AVAILABLE:
-        return None
-
-    try:
-        # Create interpolator using Lagrange interpolation of order 2
-        interpolator = interpolators.create_one_dimensional_vector_interpolator(
-            state_history, interpolators.lagrange_interpolation(2)
-        )
-        return interpolator
-    except Exception as e:
-        print(f"Warning: Could not create interpolator: {e}")
-        return None
-
-
 def get_interpolated_state(interpolator, timestamp: float) -> np.ndarray | None:
     """Get interpolated state at a given timestamp.
 
@@ -187,6 +155,8 @@ def get_interpolated_state(interpolator, timestamp: float) -> np.ndarray | None:
     np.ndarray
         Interpolated state vector.
     """
+
+    # TODO improve get_interpolated_state. Dedicated interpolator for the last N points?
 
     if (
         timestamp < interpolator.independent_values[0]
@@ -378,6 +348,13 @@ def plot_relative_cartesian_timeseries(
     ax5 = fig.add_subplot(3, 2, 5)
     ax6 = fig.add_subplot(3, 2, 6)
 
+    ax1.ticklabel_format(style="plain", axis="y")
+    ax2.ticklabel_format(style="plain", axis="y")
+    ax3.ticklabel_format(style="plain", axis="y")
+    ax4.ticklabel_format(style="plain", axis="y")
+    ax5.ticklabel_format(style="plain", axis="y")
+    ax6.ticklabel_format(style="plain", axis="y")
+
     # Add reference lines
     ax1.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
     ax2.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
@@ -480,6 +457,13 @@ def plot_relative_rtn_timeseries(
     ax5 = fig.add_subplot(3, 2, 5)
     ax6 = fig.add_subplot(3, 2, 6)
 
+    ax1.ticklabel_format(style="plain", axis="y")
+    ax2.ticklabel_format(style="plain", axis="y")
+    ax3.ticklabel_format(style="plain", axis="y")
+    ax4.ticklabel_format(style="plain", axis="y")
+    ax5.ticklabel_format(style="plain", axis="y")
+    ax6.ticklabel_format(style="plain", axis="y")
+
     # Add reference lines
     ax1.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
     ax2.axhline(y=0, color="b", linestyle="--", linewidth=1, alpha=0.5)
@@ -581,6 +565,11 @@ def plot_relative_rtn_orbits(
     ax2 = fig.add_subplot(2, 2, 2)
     ax3 = fig.add_subplot(2, 2, 3)
     ax4 = fig.add_subplot(2, 2, 4)
+
+    ax1.ticklabel_format(style="plain", axis="y")
+    ax2.ticklabel_format(style="plain", axis="y")
+    ax3.ticklabel_format(style="plain", axis="y")
+    ax4.ticklabel_format(style="plain", axis="y")
 
     # Add reference points
     ax1.scatter(0, 0, c="b", s=200, marker="*", label="Reference", zorder=5)
@@ -783,9 +772,26 @@ Examples:
 
     print(f"Reference orbit end timestamp: {end_timestamp}")
 
+    interpolator_number_of_points = 8
+
+    # TODO improve interpolation
+
     # Filter reference and comparison data using end timestamp
+    # Include up to interpolator_number_of_points/2 additional states past end_timestamp for reference orbit
+    ref_timestamps_sorted = sorted(ref_state_history.keys())
+    end_idx = next(
+        (i for i, ts in enumerate(ref_timestamps_sorted) if ts > end_timestamp),
+        len(ref_timestamps_sorted),
+    )
+    # Include states up to end_timestamp plus up to interpolator_number_of_points more states
+    include_count = min(
+        int(interpolator_number_of_points / 2), len(ref_timestamps_sorted) - end_idx
+    )
+    cutoff_idx = end_idx + include_count
     ref_state_history = {
-        ts: state for ts, state in ref_state_history.items() if ts <= end_timestamp
+        ts: state
+        for ts, state in ref_state_history.items()
+        if ts in ref_timestamps_sorted[:cutoff_idx]
     }
     filtered_comparison_data = []
     for label, state_history in comparison_data:
@@ -807,7 +813,13 @@ Examples:
 
     # Create interpolator for reference orbit
     print("Creating interpolator for reference orbit...")
-    ref_interpolator = create_state_interpolator(ref_state_history)
+    ref_interpolator = interpolators.create_one_dimensional_vector_interpolator(
+        ref_state_history,
+        interpolators.lagrange_interpolation(
+            interpolator_number_of_points,
+            # boundary_interpolation=interpolators.BoundaryInterpolationType.use_boundary_value,
+        ),
+    )
 
     # Plot orbits - save all output files by default
     print("Plotting absolute orbits in multiple views...")
