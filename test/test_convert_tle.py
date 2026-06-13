@@ -174,26 +174,21 @@ def test_omm_to_tle_to_omm_round_trip(omm_path: Path) -> None:
 
 def test_epoch_to_iso8601_iss() -> None:
     """Should convert ISS TLE epoch to the expected ISO 8601 datetime string."""
-    # ISS epoch: year=26, day=152.32329980
     result = conv._epoch_to_iso8601(26, 152.32329980)
     assert result == "2026-06-01T07:45:33.102720"
 
 
 def test_epoch_to_iso8601_handles_year_boundary() -> None:
     """Should correctly resolve 2-digit years across the 57/00 boundary."""
-    # Year 99 → 1999
     result_99 = conv._epoch_to_iso8601(99, 1.0)
     assert result_99.startswith("1999-01-01")
 
-    # Year 0 → 2000
     result_00 = conv._epoch_to_iso8601(0, 1.0)
     assert result_00.startswith("2000-01-01")
 
-    # Year 56 → 2056
     result_56 = conv._epoch_to_iso8601(56, 1.0)
     assert result_56.startswith("2056-01-01")
 
-    # Year 57 → 1957
     result_57 = conv._epoch_to_iso8601(57, 1.0)
     assert result_57.startswith("1957-01-01")
 
@@ -208,3 +203,102 @@ def test_iso8601_to_epoch_round_trip() -> None:
 
     assert recovered_year == original_year
     assert recovered_day == pytest.approx(original_day, abs=1e-6)
+
+
+# ===================================================================
+# 6. Exponential notation conversion helpers — TLE ↔ float
+# ===================================================================
+
+
+def test_tle_exponential_to_float_positive() -> None:
+    """Should convert positive TLE exponential notation to float."""
+    result = conv._tle_exponential_to_float("17978-3")
+    assert result == pytest.approx(0.17978e-3, rel=1e-10)
+
+
+def test_tle_exponential_to_float_negative() -> None:
+    """Should convert negative TLE exponential notation to float."""
+    result = conv._tle_exponential_to_float("-12345-6")
+    assert result == pytest.approx(-0.12345e-6, rel=1e-10)
+
+
+def test_tle_exponential_to_float_zero() -> None:
+    """Should handle zero values in TLE exponential notation."""
+    assert conv._tle_exponential_to_float("00000+0") == 0.0
+    assert conv._tle_exponential_to_float("00000-0") == 0.0
+
+
+def test_float_to_tle_exponential_round_trip() -> None:
+    """Should round-trip float ↔ TLE exponential notation."""
+    original = 0.17978e-3
+    tle_exp = conv._float_to_tle_exponential(original)
+    recovered = conv._tle_exponential_to_float(tle_exp)
+    assert recovered == pytest.approx(original, rel=1e-5)
+
+
+def test_float_to_tle_exponential_zero() -> None:
+    """Should convert zero to TLE exponential notation."""
+    result = conv._float_to_tle_exponential(0.0)
+    assert result == "00000+0"
+
+
+# ===================================================================
+# 7. OMM scientific notation conversion helpers — float ↔ OMM
+# ===================================================================
+
+
+def test_float_to_omm_scientific_positive() -> None:
+    """Should convert positive float to OMM scientific notation."""
+    result = conv._float_to_omm_scientific(0.17978e-3)
+    assert "E" in result or "e" in result.upper()
+
+
+def test_float_to_omm_scientific_zero() -> None:
+    """Should convert zero to OMM scientific notation."""
+    result = conv._float_to_omm_scientific(0.0)
+    assert result == "0"
+
+
+def test_omm_scientific_to_float_positive() -> None:
+    """Should convert OMM scientific notation to float."""
+    result = conv._omm_scientific_to_float(".1797805E-3")
+    assert result == pytest.approx(0.1797805e-3, rel=1e-10)
+
+
+def test_omm_scientific_to_float_negative() -> None:
+    """Should convert negative OMM scientific notation to float."""
+    result = conv._omm_scientific_to_float("-.25E-6")
+    assert result == pytest.approx(-0.25e-6, rel=1e-10)
+
+
+def test_omm_scientific_to_float_zero() -> None:
+    """Should handle zero in OMM scientific notation."""
+    assert conv._omm_scientific_to_float("0") == 0.0
+    assert conv._omm_scientific_to_float("") == 0.0
+
+
+# ===================================================================
+# 8. Object ID conversion helpers — COSPAR ↔ TLE designator
+# ===================================================================
+
+
+def test_build_object_id() -> None:
+    """Should build COSPAR Object ID from TLE designator components."""
+    result = conv._build_object_id(98, 67, "A")
+    assert result == "1998-067A"
+
+
+def test_parse_object_id() -> None:
+    """Should parse COSPAR Object ID into TLE designator components."""
+    year, launch, piece = conv._parse_object_id("1998-067A")
+    assert year == 98
+    assert launch == 67
+    assert piece == "A"
+
+
+def test_parse_object_id_invalid() -> None:
+    """Should return zeros for invalid Object ID."""
+    year, launch, piece = conv._parse_object_id("invalid")
+    assert year == 0
+    assert launch == 0
+    assert piece == ""

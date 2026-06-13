@@ -205,3 +205,50 @@ def test_round_trip_oem() -> None:
     """Basic regression test for OEM read/write round-tripping."""
     result = _round_trip_test_oem(OEM_PATH)
     assert result["overall_ok"], result
+
+
+# ===================================================================
+# 8. Edge cases and additional coverage
+# ===================================================================
+
+
+def test_ccsds_oem_len_matches_state_count() -> None:
+    """Should return correct length via __len__."""
+    ccsds_oem = oem.CcsdsOem.from_source(OEM_PATH)
+
+    assert len(ccsds_oem) == len(ccsds_oem.states)
+    assert len(ccsds_oem) > 0
+
+
+def test_ccsds_oem_epochs_property() -> None:
+    """Should extract epochs list from states."""
+    ccsds_oem = oem.CcsdsOem.from_source(OEM_PATH)
+
+    epochs = ccsds_oem.epochs
+    assert len(epochs) == len(ccsds_oem.states)
+    assert all(isinstance(e, datetime) for e in epochs)
+
+
+def test_ccsds_oem_state_vectors_property() -> None:
+    """Should extract state vectors as numpy array."""
+    ccsds_oem = oem.CcsdsOem.from_source(OEM_PATH)
+
+    state_vecs = ccsds_oem.state_vectors
+    assert isinstance(state_vecs, np.ndarray)
+    assert state_vecs.shape == (len(ccsds_oem), 6)
+
+
+def test_write_states_to_stream() -> None:
+    """Should write state vectors to a file handle."""
+    header, meta, states = oem.read_oem(OEM_PATH)
+
+    output = io.StringIO()
+    oem.write_states(output, states)
+    content = output.getvalue()
+
+    # Should have written multiple lines (one per state)
+    lines = content.strip().split("\n")
+    assert len(lines) == len(states)
+    # Each line should have 7 fields (epoch + 6 state components)
+    for line in lines:
+        assert len(line.split()) == 7
