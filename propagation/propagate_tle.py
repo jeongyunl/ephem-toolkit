@@ -39,6 +39,9 @@ from common.common import (
     SECONDS_PER_DAY,
     SECONDS_PER_MINUTE,
 )
+from common.oem import CcsdsOem, OemHeader, OemMeta
+
+import numpy as np
 
 # CLI defaults
 DEFAULT_PROPAGATION_DURATION_S = SECONDS_PER_DAY
@@ -99,7 +102,10 @@ def parse_args() -> argparse.Namespace:
         type=parse_step_to_seconds,
         metavar="<value[s|m]>",
         default=DEFAULT_OUTPUT_STEP_S,
-        help=("Output interval (default: 1m). " "Use -s/--step, e.g. -s 60, --step 60s, -s 1m."),
+        help=(
+            "Output interval (default: 1m). "
+            "Use -s/--step, e.g. -s 60, --step 60s, -s 1m."
+        ),
     )
     parser.add_argument(
         "--oem",
@@ -133,7 +139,9 @@ def extract_tle_line_pair(lines: list[str], source_label: str) -> tuple[str, str
             If fewer than two lines are available or TLE line tags are invalid.
     """
     if len(lines) < 2:
-        raise ValueError(f"TLE source '{source_label}' must contain at least 2 non-empty lines.")
+        raise ValueError(
+            f"TLE source '{source_label}' must contain at least 2 non-empty lines."
+        )
 
     line1 = lines[-2]
     line2 = lines[-1]
@@ -199,7 +207,9 @@ def read_tle_input(cli_value: str | None) -> tuple[str, str, str]:
         return line1, line2, tle_path.stem
 
     if sys.stdin.isatty():
-        raise ValueError("TLE input not provided. Pass <tle_file> or pipe TLE text on stdin.")
+        raise ValueError(
+            "TLE input not provided. Pass <tle_file> or pipe TLE text on stdin."
+        )
 
     stdin_text = sys.stdin.read()
     if not stdin_text.strip():
@@ -275,42 +285,56 @@ def print_oem_like(
     start_utc_iso = epoch_to_utc_iso(start_tdb, spice_module, datetime_class)
     stop_utc_iso = epoch_to_utc_iso(stop_tdb, spice_module, datetime_class)
 
-    if include_oem_header:
-        print("CCSDS_OEM_VERS = 2.0")
-        print(f"CREATION_DATE = {now}")
-        print("ORIGINATOR = tudatpy-utils")
-        print()
-        print("META_START")
-        print(f"OBJECT_NAME = {object_name}")
-        print(f"OBJECT_ID = {object_name}")
-        print("CENTER_NAME = EARTH")
-        print("REF_FRAME = EME2000")
-        print("TIME_SYSTEM = UTC")
-        print(f"START_TIME = {start_utc_iso}")
-        print(f"STOP_TIME = {stop_utc_iso}")
-        print("META_STOP")
-        print()
-
-    # OEM-like data lines: UTC epoch followed by Cartesian state in km and km/s.
+    # Propagate and collect state vectors
+    states_list = []
     current_tdb = start_tdb
     while current_tdb <= stop_tdb + 1.0e-12:
         state_m = tle_ephemeris.cartesian_state(current_tdb)
         epoch_iso = epoch_to_utc_iso(current_tdb, spice_module, datetime_class)
-        x_km, y_km, z_km = (
-            state_m[0] / 1000.0,
-            state_m[1] / 1000.0,
-            state_m[2] / 1000.0,
+
+        # Convert from meters to km
+        state_km = np.array(
+            [
+                state_m[0] / 1000.0,
+                state_m[1] / 1000.0,
+                state_m[2] / 1000.0,
+                state_m[3] / 1000.0,
+                state_m[4] / 1000.0,
+                state_m[5] / 1000.0,
+            ]
         )
-        vx_kmps, vy_kmps, vz_kmps = (
-            state_m[3] / 1000.0,
-            state_m[4] / 1000.0,
-            state_m[5] / 1000.0,
-        )
-        print(
-            f"{epoch_iso} {x_km: .9f} {y_km: .9f} {z_km: .9f} "
-            f"{vx_kmps: .12f} {vy_kmps: .12f} {vz_kmps: .12f}"
-        )
+
+        # Parse epoch string to datetime
+        epoch_dt = dt.datetime.fromisoformat(epoch_iso.rstrip("Z"))
+        states_list.append((epoch_dt, state_km))
         current_tdb += step
+
+    if include_oem_header:
+        # Create OEM object with metadata
+        header = OemHeader(
+            version=2.0,
+            creation_date=now,
+            originator="tudatpy-utils",
+        )
+
+        meta = OemMeta(
+            object_name=object_name,
+            object_id=object_name,
+            center_name="EARTH",
+            ref_frame="EME2000",
+            time_system="UTC",
+            start_time=start_utc_iso,
+            stop_time=stop_utc_iso,
+        )
+
+        oem = CcsdsOem(header=header, meta=meta, states=states_list)
+        oem.to_file(sys.stdout)
+    else:
+        # Print only state lines
+        from common.oem import write_states
+
+        states_dict = {epoch: state for epoch, state in states_list}
+        write_states(sys.stdout, states_dict)
 
 
 def main() -> int:

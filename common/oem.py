@@ -126,6 +126,18 @@ def read_oem(
 # ===================================================================
 
 
+def write_states(
+    dest: IO[str],
+    states: dict[datetime, np.ndarray],
+) -> None:
+    """Write state vectors to a file handle."""
+    for epoch in states:
+        sv = states[epoch]
+        epoch_str = epoch.strftime("%Y-%m-%dT%H:%M:%S.%f")
+        vals = " ".join(f"{v:.15g}" for v in sv)
+        dest.write(f"{epoch_str} {vals}\n")
+
+
 def write_oem(
     dest: Union[IO[str], str, Path],
     header: dict,
@@ -169,11 +181,7 @@ def write_oem(
     w("META_STOP\n")
     w("\n")
 
-    for epoch in states:
-        sv = states[epoch]
-        epoch_str = epoch.strftime("%Y-%m-%dT%H:%M:%S.%f")
-        vals = " ".join(f"{v:.15g}" for v in sv)
-        w(f"{epoch_str} {vals}\n")
+    write_states(dest, states)
 
 
 # ===================================================================
