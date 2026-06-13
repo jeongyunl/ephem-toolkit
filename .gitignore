@@ -1,6 +1,10 @@
-*.pyc
-*.swp
-a.out
 .vscode/
 build/
 coverage/
+propagation/*.oem
+*.pyc
+*.swp
+*.csv
+*.png
+a.out
+ISS.OEM_J2K_EPH.txt

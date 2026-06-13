@@ -17,6 +17,9 @@ flowchart LR
     fmt_tle{{"TLE (.tle)"}}
     fmt_omm{{"OMM (.omm)"}}
     fmt_oem{{"OEM-like State Vectors <br/> (epoch x y z vx vy vz)"}}
+    fmt_ccsds_oem{{"CCSDS OEM <br/> (header + metadata + state history)"}}
+    fmt_dep_vars_csv{{"Dependent Variables CSV"}}
+    fmt_plots{{"Plots / Animations <br/> (Matplotlib figures)"}}
     fmt_time{{"Time Values <br/> (ISO / POSIX / UTC / TAI / TT / TDB)"}}
     fmt_celestrak{{"CelesTrak<br/>(HTTP download)"}}
 
@@ -32,6 +35,7 @@ flowchart LR
     %% propagation/ scripts
     propagate_tle(["propagate_tle.py"])
     propagate_sat(["propagate_satellite_orbit.py"])
+    plot_dep_vars(["plot_dependent_variables.py"])
 
     %% frame_conversion/ scripts
     gcrf_to_itrf_rot(["gcrf_to_itrf_rot_model.py"])
@@ -63,13 +67,19 @@ flowchart LR
     %% tle_info.py: TLE → console summary
     fmt_tle --> tle_info
 
-    %% propagate_tle.py: TLE → OEM state vectors
+    %% propagate_tle.py: TLE → OEM-like state vectors
     fmt_tle --> propagate_tle
     propagate_tle --> fmt_oem
 
-    %% propagate_satellite_orbit.py: single OEM state line → OEM state history
+    %% propagate_satellite_orbit.py: single OEM state line → propagated outputs
     fmt_oem -->|"single state line"| propagate_sat
-    propagate_sat -->|"state history"| fmt_oem
+    propagate_sat -->|"raw state history"| fmt_oem
+    propagate_sat -->|"CCSDS OEM export"| fmt_ccsds_oem
+    propagate_sat -->|"dependent variables"| fmt_dep_vars_csv
+
+    %% plot_dependent_variables.py: dependent-variable CSV → plots/animations
+    fmt_dep_vars_csv --> plot_dep_vars
+    plot_dep_vars --> fmt_plots
 
     %% gcrf_to_itrf_rot_model.py: OEM (GCRF↔ITRF)
     fmt_oem -->|"GCRF or ITRF"| gcrf_to_itrf_rot

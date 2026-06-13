@@ -51,14 +51,14 @@ See [TIME_CONVERSION.md](TIME_CONVERSION.md) for full usage details.
 
 ## Orbit Propagation
 
-Python scripts for propagating either a Cartesian initial state or a TLE-derived orbit. The current tools support configurable perturbation models, OEM-like text output, and TLE-based SGP4 propagation.
+Python scripts for propagating either a Cartesian initial state or a TLE-derived orbit. The current tools support configurable perturbation models, CCSDS OEM export, raw state-vector output, dependent-variable CSV export, and TLE-based SGP4 propagation.
 
 Two Python propagation scripts are currently present:
 
 - `propagation/propagate_satellite_orbit.py`
   - Propagates one OEM-like Cartesian state under configurable perturbations.
-  - Can optionally export propagated state history in OEM-like text format.
-  - Produces plots after propagation.
+  - Can optionally export propagated state history as CCSDS OEM or raw state-vector lines.
+  - Can optionally export dependent variables to CSV.
 - `propagation/propagate_tle.py`
   - Propagates a TLE with TudatPy's SGP4 ephemeris.
   - Prints OEM-like state lines and can optionally prepend an OEM metadata header.
@@ -92,7 +92,6 @@ Typical Python dependencies used by the scripts:
 
 - [TudatPy](https://docs.tudat.space/en/latest/) (`tudatpy`)
 - NumPy
-- Matplotlib (for `propagation/propagate_satellite_orbit.py`)
 
 Some scripts use only the Python standard library plus local helpers.
 

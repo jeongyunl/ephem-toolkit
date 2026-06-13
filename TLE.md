@@ -51,7 +51,7 @@ Additional scripts currently present in the repository:
 - NumPy (for `common.kepler` Keplerian element conversions)
 - local helper modules `common.tle`, `common.kepler`, `common.oem`
 - TudatPy (optional, for SGP4 Cartesian refinement and B* estimation)
-- Supports `--refinement` flag: `cartesian` (default, requires TudatPy), `keplerian` (no TudatPy needed, uses J2 short-period corrections), or `none`
+- Supports `--refinement` flag: `cartesian` (default; requires TudatPy), `keplerian` (no TudatPy needed; uses J2 short-period corrections), or `none`
 
 ### Other TLE-related scripts
 

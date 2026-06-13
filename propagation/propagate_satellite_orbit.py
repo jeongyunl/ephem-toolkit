@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 from __future__ import annotations
 
 """
@@ -35,7 +36,7 @@ otherwise from stdin.
 
 Only the bare minimum needed for CLI argument parsing (`argparse`, `re`) is
 imported at the top of the file.  Every other module -- including standard
-library, numpy, tudatpy, and matplotlib -- is imported as late as possible,
+library, numpy, and tudatpy -- is imported as late as possible,
 immediately before its first use.  This keeps ``--help`` and argument
 validation instant and defers heavy library initialisation until the point
 where it is actually required.
@@ -49,12 +50,10 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from common.common import (
     parse_duration_to_seconds,
-    SECONDS_PER_MINUTE,
-    SECONDS_PER_HOUR,
+    parse_step_to_seconds,
     SECONDS_PER_DAY,
 )
 
-HOURS_PER_DAY = 24.0
 KILOMETERS_TO_METERS = 1e3
 
 
@@ -73,14 +72,14 @@ DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2 = (
     + 2 * DEFAULT_CUBESAT_WIDTH_M * DEFAULT_CUBESAT_HEIGHT_M
 ) / 4
 
-# Propagation and plotting settings
+# Propagation settings
 DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE = 5
 DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER = 5
 DEFAULT_BODIES_TO_CREATE = ["Sun", "Earth"]
 DEFAULT_GLOBAL_FRAME_ORIGIN = "Earth"
 DEFAULT_GLOBAL_FRAME_ORIENTATION = "J2000"
 
-DEFAULT_INTEGRATOR_FIXED_STEP_SIZE_S = 10.0
+DEFAULT_OEM_STEP_SIZE_S = 10 * 60
 DEFAULT_SIMULATION_DURATION_S = SECONDS_PER_DAY
 
 # Supported integrator method identifiers accepted by the CLI.
@@ -101,17 +100,8 @@ INTEGRATOR_METHOD_DESCRIPTIONS = {
     "rkv_89": "Verner 8(9)",
 }
 SUPPORTED_INTEGRATOR_METHODS = tuple(INTEGRATOR_METHOD_DESCRIPTIONS)
-DEFAULT_INTEGRATOR_METHOD = "rk_4"
-
-# Plotting constants (values only -- matplotlib is imported later, just before use)
-PLOT_STANDARD_FIGURE_SIZE_IN = (9, 5)
-PLOT_KEPLER_FIGURE_SIZE_IN = (9, 12)
-PLOT_GROUND_TRACK_H = 3
-PLOT_SCATTER_MARKER_SIZE_PT2 = 1
-PLOT_LATITUDE_TICK_STEP_DEG = 45
-PLOT_TRUE_ANOMALY_TICK_STEP_DEG = 60
-EARTH_MEAN_RADIUS_KM = 6378.137
-
+DEFAULT_INTEGRATOR_METHOD = "rkdp_87"
+DEFAULT_INTEGRATOR_STEP_SIZE_S = (10, 1, 300)
 
 def parse_bool_flag(value: str) -> bool:
     """Parse a CLI boolean token.
@@ -411,13 +401,42 @@ def build_cli_parser():
         ),
     )
     parser.add_argument(
-        "-o",
-        "--output",
+        "--oem",
         metavar="<file|->",
         default=None,
         help=(
-            "Write propagated state history in OEM-like format to a file. "
-            "Use '-' to write to stdout. If omitted, no state-history output is written."
+            "Write propagated state history in CCSDS OEM format. "
+            "Use '-' to write to stdout. If omitted, no OEM output is written."
+        ),
+    )
+    parser.add_argument(
+        "--raw",
+        metavar="<file|->",
+        default=None,
+        help=(
+            "Write propagated state history as raw state-vector lines "
+            "(UTC_ISO x y z vx vy vz, km and km/s). "
+            "Use '-' to write to stdout. If omitted, no raw output is written."
+        ),
+    )
+    parser.add_argument(
+        "--dep-vars",
+        metavar="<file>",
+        default=None,
+        help=(
+            "Write dependent variables to a CSV file. "
+            "If omitted, dependent variables are not written unless no output option is provided, "
+            "in which case the default is dep_vars.csv."
+        ),
+    )
+    parser.add_argument(
+        "--oem-step-size",
+        type=parse_step_to_seconds,
+        metavar="<value[s|m>",
+        default=DEFAULT_OEM_STEP_SIZE_S,
+        help=(
+            "OEM file data step sizes in seconds. "
+            f"(default: {DEFAULT_OEM_STEP_SIZE_S})."
         ),
     )
 
@@ -460,7 +479,7 @@ def build_cli_parser():
         "--integrator-step-size",
         type=parse_integrator_step_size_values,
         metavar="<fixed|init,max|init,min,max>",
-        default=(DEFAULT_INTEGRATOR_FIXED_STEP_SIZE_S,),
+        default=DEFAULT_INTEGRATOR_STEP_SIZE_S,
         help=(
             "Integrator step sizes in seconds as a single comma-separated token. "
             "Provide either one value for fixed-step size (for example, 10) "
@@ -469,7 +488,7 @@ def build_cli_parser():
             "or three values for variable-step size in this order: "
             "<initial_step>,<minimum_step>,<maximum_step> "
             "(for example, 30,0.001,1000). "
-            f"(default: {DEFAULT_INTEGRATOR_FIXED_STEP_SIZE_S})."
+            f"(default: {DEFAULT_INTEGRATOR_STEP_SIZE_S})."
         ),
     )
 
@@ -583,7 +602,7 @@ cli_args = build_cli_parser().parse_args()
 import io
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -841,8 +860,8 @@ def build_propagation_inputs(cli_args) -> PropagationInputs:
     )
 
 
-def write_state_history_oem_like(state_history, output_path):
-    """Write state history as OEM-like lines.
+def write_state_history_raw(state_history, output_path):
+    """Write state history as raw state-vector lines (no OEM metadata).
 
     Parameters
     ----------
@@ -882,10 +901,138 @@ def write_state_history_oem_like(state_history, output_path):
             stream.close()
 
 
+def write_state_history_oem(
+    state_history, output_path, propagation_inputs, oem_step_size_s
+):
+    """Write state history as a CCSDS OEM file using :class:`common.oem.CcsdsOem`.
+
+    Parameters
+    ----------
+    state_history : dict[float, numpy.ndarray]
+        Mapping of TDB seconds since J2000 to 6-element cartesian state vectors
+        in SI units ``[x, y, z, vx, vy, vz]``.
+    output_path : str
+        Output file path, or ``'-'`` to write to stdout.
+    propagation_inputs : PropagationInputs
+        Propagation configuration used to populate OEM metadata fields.
+
+    Returns
+    -------
+    None
+        Writes a CCSDS OEM formatted file with header, metadata, and state data
+        where position is in km and velocity in km/s.
+    """
+    from common.oem import CcsdsOem, OemHeader, OemMeta
+
+    tudat_time_scale_converter = time_representation.default_time_scale_converter()
+
+    interpolator = interpolators.create_one_dimensional_vector_interpolator(
+        state_history, interpolators.lagrange_interpolation(2)
+    )
+    epochs_tdb_s = sorted(state_history.keys())
+    start_epoch_tdb_s = epochs_tdb_s[0]
+    stop_epoch_tdb_s = epochs_tdb_s[-1]
+
+    # Build state list: convert SI (m, m/s) to OEM units (km, km/s) and
+    # convert TDB epochs to UTC datetimes.
+    oem_states = []
+    epoch_tdb_s = start_epoch_tdb_s
+    while epoch_tdb_s <= stop_epoch_tdb_s:
+        epoch_datetime = common.tdb_to_datetime(epoch_tdb_s)
+        state_km_kms = interpolator.interpolate(epoch_tdb_s) / KILOMETERS_TO_METERS
+        oem_states.append((epoch_datetime, state_km_kms))
+
+        epoch_tt_s = tudat_time_scale_converter.convert_time(
+            input_value=epoch_tdb_s,
+            input_scale=TimeScales.tdb_scale,
+            output_scale=TimeScales.tt_scale,
+        )
+
+        epoch_tt_s += oem_step_size_s
+
+        epoch_tdb_s = tudat_time_scale_converter.convert_time(
+            input_value=epoch_tt_s,
+            input_scale=TimeScales.tt_scale,
+            output_scale=TimeScales.tdb_scale,
+        )
+
+    # Determine start/stop times from the state epochs.
+    start_time = oem_states[0][0].strftime("%Y-%m-%dT%H:%M:%S.%f")
+    stop_time = oem_states[-1][0].strftime("%Y-%m-%dT%H:%M:%S.%f")
+
+    header = OemHeader(
+        version=2.0,
+        comments=["Generated by propagate_satellite_orbit.py"],
+        creation_date=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
+        originator="tudatpy-utils",
+    )
+
+    meta = OemMeta(
+        object_name=propagation_inputs.satellite_name,
+        object_id="",
+        center_name=DEFAULT_GLOBAL_FRAME_ORIGIN,
+        ref_frame=DEFAULT_GLOBAL_FRAME_ORIENTATION,
+        time_system="UTC",
+        start_time=start_time,
+        stop_time=stop_time,
+    )
+
+    oem = CcsdsOem(header=header, meta=meta, states=oem_states)
+
+    if output_path == "-":
+        oem.to_file(sys.stdout)
+    else:
+        oem.to_file(output_path)
+
+
+def build_dependent_variable_csv_header_prefix(dep_var_setting) -> str:
+    """Build the dependent-variable CSV header prefix for one setting.
+
+    Parameters
+    ----------
+    dep_var_setting : object
+        Tudat dependent-variable save setting.
+
+    Returns
+    -------
+    str
+        Header prefix in the format
+        ``dep_var_type/acceleration_model_type/associated_body/secondary_body/component_index``.
+    """
+    dep_var_type_name = dep_var_setting.dependent_variable_type.name.removesuffix(
+        "_type"
+    )
+
+    acceleration_model_type = ""
+    if hasattr(dep_var_setting, "acceleration_model_type"):
+        acceleration_model_type = (
+            dep_var_setting.acceleration_model_type.name.removesuffix("_type")
+        )
+
+    associated_body = ""
+    if dep_var_setting.associated_body is not None and dep_var_setting.associated_body:
+        associated_body = dep_var_setting.associated_body
+
+    secondary_body = ""
+    if dep_var_setting.secondary_body is not None and dep_var_setting.secondary_body:
+        secondary_body = dep_var_setting.secondary_body
+
+    component_index = ""
+    if dep_var_setting.component_index >= 0:
+        component_index = str(dep_var_setting.component_index)
+
+    return (
+        f"{dep_var_type_name}/{acceleration_model_type}/"
+        f"{associated_body}/{secondary_body}/{component_index}"
+    )
+
+
 def print_pre_propagation_summary(
     propagation_inputs: PropagationInputs,
     input_source: str,
-    output_state_history_path: str | None = None,
+    output_oem_path: str | None = None,
+    output_raw_path: str | None = None,
+    dep_var_csv_path: str | None = None,
 ):
     """Print the pre-propagation configuration summary.
 
@@ -895,8 +1042,12 @@ def print_pre_propagation_summary(
         Consolidated propagation options.
     input_source : str
         Input source label displayed to the user.
-    output_state_history_path : str | None, optional
-        State-history output destination. Use ``'-'`` for stdout.
+    output_oem_path : str | None, optional
+        OEM output destination. Use ``'-'`` for stdout.
+    output_raw_path : str | None, optional
+        Raw state-history output destination. Use ``'-'`` for stdout.
+    dep_var_csv_path : str | None, optional
+        Dependent-variable CSV output destination.
 
     Returns
     -------
@@ -990,11 +1141,14 @@ def print_pre_propagation_summary(
         + timedelta(seconds=propagation_inputs.simulation_duration_s)
     )
     print("Simulation end epoch: " f"{simulation_end_epoch_datetime_utc.isoformat()}")
-    if output_state_history_path is not None:
-        output_destination = (
-            "stdout" if output_state_history_path == "-" else output_state_history_path
-        )
-        print(f"State-history output: {output_destination}")
+    if output_oem_path is not None:
+        output_destination = "stdout" if output_oem_path == "-" else output_oem_path
+        print(f"OEM output: {output_destination}")
+    if output_raw_path is not None:
+        output_destination = "stdout" if output_raw_path == "-" else output_raw_path
+        print(f"Raw output: {output_destination}")
+    if dep_var_csv_path is not None:
+        print(f"Dependent variables CSV output: {dep_var_csv_path}")
     print("=================================")
 
 
@@ -1159,9 +1313,9 @@ def create_environment_and_bodies(propagation_inputs: PropagationInputs):
         ).aerodynamic_coefficient_settings = aero_coefficient_settings
 
     bodies = environment_setup.create_system_of_bodies(body_settings)
-    bodies.get(
-        propagation_inputs.satellite_name
-    ).mass = propagation_inputs.satellite_mass_kg
+    bodies.get(propagation_inputs.satellite_name).mass = (
+        propagation_inputs.satellite_mass_kg
+    )
     return bodies
 
 
@@ -1257,35 +1411,39 @@ def create_dependent_variables_to_save(propagation_inputs: PropagationInputs):
 
     Returns
     -------
-    tuple[list, list]
-        ``(dependent_variables_to_save, acceleration_dependent_variables_to_save)``
+    ``dependent_variables_to_save``
         where the first list is passed to the propagator and the second list is
-        reused later for acceleration-component plotting.
+        reused later for plotting.
     """
     # Define list of dependent variables to save.
     dependent_variables_to_save = [
         dependent_variable.total_acceleration(propagation_inputs.satellite_name),
         dependent_variable.keplerian_state(propagation_inputs.satellite_name, "Earth"),
-        dependent_variable.latitude(propagation_inputs.satellite_name, "Earth"),
+        dependent_variable.geodetic_latitude(
+            propagation_inputs.satellite_name, "Earth"
+        ),
         dependent_variable.longitude(propagation_inputs.satellite_name, "Earth"),
         dependent_variable.central_body_fixed_cartesian_position(
+            propagation_inputs.satellite_name, "Earth"
+        ),
+        dependent_variable.relative_position(
             propagation_inputs.satellite_name, "Earth"
         ),
     ]
 
     # Earth spherical harmonic gravity is always tracked; other norms are added
     # conditionally.
-    acceleration_dependent_variables_to_save = [
+    dependent_variables_to_save.append(
         dependent_variable.single_acceleration_norm(
             propagation_setup.acceleration.spherical_harmonic_gravity_type,
             propagation_inputs.satellite_name,
             "Earth",
         ),
-    ]
+    )
 
     # is_moon_gravity_on: track Moon gravity acceleration norm only when enabled.
     if propagation_inputs.is_moon_gravity_on:
-        acceleration_dependent_variables_to_save.append(
+        dependent_variables_to_save.append(
             dependent_variable.single_acceleration_norm(
                 propagation_setup.acceleration.point_mass_gravity_type,
                 propagation_inputs.satellite_name,
@@ -1295,7 +1453,7 @@ def create_dependent_variables_to_save(propagation_inputs: PropagationInputs):
 
     # is_sun_gravity_on: track Sun gravity acceleration norm only when enabled.
     if propagation_inputs.is_sun_gravity_on:
-        acceleration_dependent_variables_to_save.append(
+        dependent_variables_to_save.append(
             dependent_variable.single_acceleration_norm(
                 propagation_setup.acceleration.point_mass_gravity_type,
                 propagation_inputs.satellite_name,
@@ -1305,7 +1463,7 @@ def create_dependent_variables_to_save(propagation_inputs: PropagationInputs):
 
     # is_srp_on: track SRP acceleration norm only when SRP is enabled.
     if propagation_inputs.is_srp_on:
-        acceleration_dependent_variables_to_save.append(
+        dependent_variables_to_save.append(
             dependent_variable.single_acceleration_norm(
                 propagation_setup.acceleration.radiation_pressure_type,
                 propagation_inputs.satellite_name,
@@ -1315,7 +1473,7 @@ def create_dependent_variables_to_save(propagation_inputs: PropagationInputs):
 
     # is_earth_drag_on: track aerodynamic drag acceleration norm only when enabled.
     if propagation_inputs.is_earth_drag_on:
-        acceleration_dependent_variables_to_save.append(
+        dependent_variables_to_save.append(
             dependent_variable.single_acceleration_norm(
                 propagation_setup.acceleration.aerodynamic_type,
                 propagation_inputs.satellite_name,
@@ -1325,7 +1483,7 @@ def create_dependent_variables_to_save(propagation_inputs: PropagationInputs):
 
     # is_venus_gravity_on: track Venus gravity acceleration norm only when enabled.
     if propagation_inputs.is_venus_gravity_on:
-        acceleration_dependent_variables_to_save.append(
+        dependent_variables_to_save.append(
             dependent_variable.single_acceleration_norm(
                 propagation_setup.acceleration.point_mass_gravity_type,
                 propagation_inputs.satellite_name,
@@ -1335,7 +1493,7 @@ def create_dependent_variables_to_save(propagation_inputs: PropagationInputs):
 
     # is_mars_gravity_on: track Mars gravity acceleration norm only when enabled.
     if propagation_inputs.is_mars_gravity_on:
-        acceleration_dependent_variables_to_save.append(
+        dependent_variables_to_save.append(
             dependent_variable.single_acceleration_norm(
                 propagation_setup.acceleration.point_mass_gravity_type,
                 propagation_inputs.satellite_name,
@@ -1343,471 +1501,7 @@ def create_dependent_variables_to_save(propagation_inputs: PropagationInputs):
             ),
         )
 
-    dependent_variables_to_save += acceleration_dependent_variables_to_save
-    return dependent_variables_to_save, acceleration_dependent_variables_to_save
-
-
-def plot_total_acceleration(dep_var_dict, relative_time_h, satellite_name):
-    """Plot total acceleration norm over time.
-
-    Parameters
-    ----------
-    dep_var_dict : result2array.Result2ArrayLike
-        Dependent-variable history accessor returned by Tudat.
-    relative_time_h : numpy.ndarray
-        Time history in hours from propagation start.
-    satellite_name : str
-        Name of the propagated satellite.
-
-    Returns
-    -------
-    None
-        This function creates a matplotlib figure.
-    """
-    plt.figure(figsize=PLOT_STANDARD_FIGURE_SIZE_IN)
-    plt.title(
-        f"Total acceleration norm on {satellite_name} over the course of propagation."
-    )
-    satellite_total_acceleration_mps2 = dep_var_dict.asarray(
-        dependent_variable.total_acceleration(satellite_name)
-    )
-    total_acceleration_norm_mps2 = np.linalg.norm(
-        satellite_total_acceleration_mps2, axis=1
-    )
-    plt.plot(relative_time_h, total_acceleration_norm_mps2)
-    plt.xlabel("Time [hr]")
-    plt.ylabel("Total Acceleration [m/s$^2$]")
-    plt.grid()
-    plt.tight_layout()
-
-
-def plot_ground_track(dep_var_dict, relative_time_h, satellite_name):
-    """Plot ground track for the first configured window (default: 3 hours).
-
-    Parameters
-    ----------
-    dep_var_dict : result2array.Result2ArrayLike
-        Dependent-variable history accessor returned by Tudat.
-    relative_time_h : numpy.ndarray
-        Time history in hours from propagation start.
-    satellite_name : str
-        Name of the propagated satellite.
-
-    If the propagation is shorter than the configured window, all available
-    points are shown.
-
-    Returns
-    -------
-    None
-        This function creates a matplotlib figure.
-    """
-    plt.figure(figsize=PLOT_STANDARD_FIGURE_SIZE_IN)
-    plt.title(f"3 hour ground track of {satellite_name}")
-    latitude_rad = dep_var_dict.asarray(
-        dependent_variable.latitude(satellite_name, "Earth")
-    )
-    longitude_rad = dep_var_dict.asarray(
-        dependent_variable.longitude(satellite_name, "Earth")
-    )
-    subset_count = int(len(relative_time_h) / HOURS_PER_DAY * PLOT_GROUND_TRACK_H)
-    latitude_deg = np.rad2deg(latitude_rad[0:subset_count])
-    longitude_deg = np.rad2deg(longitude_rad[0:subset_count])
-    plt.scatter(longitude_deg, latitude_deg, s=PLOT_SCATTER_MARKER_SIZE_PT2)
-    plt.xlabel("Longitude [deg]")
-    plt.ylabel("Latitude [deg]")
-    plt.yticks(np.arange(-90, 91, step=PLOT_LATITUDE_TICK_STEP_DEG))
-    plt.grid()
-    plt.tight_layout()
-
-
-def plot_kepler_elements(dep_var_dict, relative_time_h, satellite_name):
-    """Plot osculating Keplerian elements over time.
-
-    Parameters
-    ----------
-    dep_var_dict : result2array.Result2ArrayLike
-        Dependent-variable history accessor returned by Tudat.
-    relative_time_h : numpy.ndarray
-        Time history in hours from propagation start.
-    satellite_name : str
-        Name of the propagated satellite.
-
-    Semi-major axis is shown in km. Angular elements are shown in degrees.
-
-    Returns
-    -------
-    None
-        This function creates a matplotlib figure.
-    """
-    fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(
-        3, 2, figsize=PLOT_KEPLER_FIGURE_SIZE_IN
-    )
-    fig.suptitle("Evolution of Kepler elements over the course of the propagation.")
-
-    kepler_elements = dep_var_dict.asarray(
-        dependent_variable.keplerian_state(satellite_name, "Earth")
-    )
-
-    semi_major_axis_km = kepler_elements[:, 0] / KILOMETERS_TO_METERS
-    ax1.plot(relative_time_h, semi_major_axis_km)
-    ax1.set_ylabel("Semi-major axis [km]")
-
-    eccentricity = kepler_elements[:, 1]
-    ax2.plot(relative_time_h, eccentricity)
-    ax2.set_ylabel("Eccentricity [-]")
-
-    inclination_deg = np.rad2deg(kepler_elements[:, 2])
-    ax3.plot(relative_time_h, inclination_deg)
-    ax3.set_ylabel("Inclination [deg]")
-
-    argument_of_periapsis_deg = np.rad2deg(kepler_elements[:, 3])
-    ax4.plot(relative_time_h, argument_of_periapsis_deg)
-    ax4.set_ylabel("Argument of Periapsis [deg]")
-
-    raan_deg = np.rad2deg(kepler_elements[:, 4])
-    ax5.plot(relative_time_h, raan_deg)
-    ax5.set_ylabel("RAAN [deg]")
-
-    true_anomaly_deg = np.rad2deg(kepler_elements[:, 5])
-    ax6.scatter(relative_time_h, true_anomaly_deg, s=PLOT_SCATTER_MARKER_SIZE_PT2)
-    ax6.set_ylabel("True Anomaly [deg]")
-    ax6.set_yticks(np.arange(0, 361, step=PLOT_TRUE_ANOMALY_TICK_STEP_DEG))
-
-    for ax in fig.get_axes():
-        ax.set_xlabel("Time [hr]")
-        ax.grid()
-    plt.tight_layout()
-
-
-def plot_acceleration_components(
-    dep_var_dict,
-    relative_time_h,
-    acceleration_dependent_variables_to_save,
-    satellite_name,
-):
-    """Plot acceleration norms by type and source body on a log scale.
-
-    Parameters
-    ----------
-    dep_var_dict : result2array.Result2ArrayLike
-        Dependent-variable history accessor returned by Tudat.
-    relative_time_h : numpy.ndarray
-        Time history in hours from propagation start.
-    acceleration_dependent_variables_to_save : list
-        Acceleration dependent-variable settings used for extraction and labels.
-    satellite_name : str
-        Name of the propagated satellite.
-
-    Returns
-    -------
-    None
-        This function creates a matplotlib figure.
-    """
-    acceleration_type_to_string = {
-        acceleration.AvailableAcceleration.point_mass_gravity_type: "Point Mass",
-        acceleration.AvailableAcceleration.spherical_harmonic_gravity_type: "SphHarm Grav",
-        acceleration.AvailableAcceleration.aerodynamic_type: "Aerodynamic Drag",
-        acceleration.AvailableAcceleration.radiation_pressure_type: "Radiation Pressure",
-    }
-
-    plt.figure(figsize=PLOT_STANDARD_FIGURE_SIZE_IN)
-
-    for acceleration_dep_var_setting in acceleration_dependent_variables_to_save:
-        acceleration_norm_mps2 = dep_var_dict.asarray(acceleration_dep_var_setting)
-        label = (
-            f"{acceleration_type_to_string[acceleration_dep_var_setting.acceleration_model_type]}: "
-            f"{acceleration_dep_var_setting.secondary_body}"
-        )
-
-        plt.plot(relative_time_h, acceleration_norm_mps2, label=label)
-
-    plt.xlabel("Time [hr]")
-    plt.ylabel("Acceleration Norm [m/s$^2$]")
-    plt.legend(bbox_to_anchor=(1.005, 1))
-    plt.suptitle(
-        f"Accelerations norms on {satellite_name}, distinguished by type and origin, over the course of propagation."
-    )
-    plt.yscale("log")
-    plt.grid()
-    plt.tight_layout()
-
-
-def plot_satellite_position_history_3d(dep_var_dict, satellite_name):
-    """Plot propagated 3D trajectory in Earth-fixed coordinates with Earth.
-
-    Parameters
-    ----------
-    dep_var_dict : result2array.Result2ArrayLike
-        Dependent-variable history accessor returned by Tudat.
-    satellite_name : str
-        Name of the propagated satellite.
-
-    Returns
-    -------
-    matplotlib.animation.FuncAnimation | None
-        Animation object for the 3D trajectory, or ``None`` when no samples
-        are available.
-    """
-    from matplotlib.animation import FuncAnimation
-
-    positions_m = dep_var_dict.asarray(
-        dependent_variable.central_body_fixed_cartesian_position(
-            satellite_name,
-            "Earth",
-        )
-    )
-    if positions_m.size == 0:
-        return
-    positions_km = positions_m / KILOMETERS_TO_METERS
-
-    fig = plt.figure(figsize=PLOT_STANDARD_FIGURE_SIZE_IN)
-    ax = fig.add_subplot(111, projection="3d")
-
-    # Draw Earth as a semi-transparent sphere centered at the origin.
-    azimuth = np.linspace(0.0, 2.0 * np.pi, 60)
-    polar = np.linspace(0.0, np.pi, 30)
-    earth_x = EARTH_MEAN_RADIUS_KM * np.outer(np.cos(azimuth), np.sin(polar))
-    earth_y = EARTH_MEAN_RADIUS_KM * np.outer(np.sin(azimuth), np.sin(polar))
-    earth_z = EARTH_MEAN_RADIUS_KM * np.outer(np.ones_like(azimuth), np.cos(polar))
-    ax.plot_surface(earth_x, earth_y, earth_z, color="lightskyblue", alpha=0.35)
-
-    # Draw Earth's polar axis (Earth-fixed +Z / -Z axis).
-    polar_axis_extent_km = 1.5 * EARTH_MEAN_RADIUS_KM
-    ax.plot(
-        [0.0, 0.0],
-        [0.0, 0.0],
-        [-polar_axis_extent_km, polar_axis_extent_km],
-        color="tab:blue",
-        linestyle=":",
-        linewidth=1.5,
-        label="Earth polar axis",
-    )
-    polar_axis_label_offset_km = 0.03 * polar_axis_extent_km
-    ax.text(
-        0.0,
-        0.0,
-        polar_axis_extent_km + polar_axis_label_offset_km,
-        "N",
-        color="tab:blue",
-        ha="center",
-        va="bottom",
-    )
-    ax.text(
-        0.0,
-        0.0,
-        -polar_axis_extent_km - polar_axis_label_offset_km,
-        "S",
-        color="tab:blue",
-        ha="center",
-        va="top",
-    )
-
-    (trajectory_line,) = ax.plot(
-        [],
-        [],
-        [],
-        color="tab:red",
-        label=f"{satellite_name} trajectory",
-    )
-    moving_satellite_marker = ax.scatter(
-        [],
-        [],
-        [],
-        color="tab:orange",
-        s=22,
-        label="current",
-    )
-    ax.scatter(
-        positions_km[0, 0],
-        positions_km[0, 1],
-        positions_km[0, 2],
-        color="tab:green",
-        s=20,
-        label="start",
-    )
-    ax.scatter(
-        positions_km[-1, 0],
-        positions_km[-1, 1],
-        positions_km[-1, 2],
-        color="tab:purple",
-        s=20,
-        label="end",
-    )
-
-    # Keep an equal visual scale on all axes.
-    max_extent_km = (
-        max(
-            np.max(np.abs(positions_km)),
-            EARTH_MEAN_RADIUS_KM,
-            polar_axis_extent_km + polar_axis_label_offset_km,
-        )
-        * 1.05
-    )
-    ax.set_xlim(-max_extent_km, max_extent_km)
-    ax.set_ylim(-max_extent_km, max_extent_km)
-    ax.set_zlim(-max_extent_km, max_extent_km)
-    ax.set_box_aspect((1.0, 1.0, 1.0))
-
-    ax.set_xlabel("X [km]")
-    ax.set_ylabel("Y [km]")
-    ax.set_zlabel("Z [km]")
-    ax.set_title(f"3D animated position history of {satellite_name} around Earth")
-    ax.legend(loc="upper left", bbox_to_anchor=(-0.22, 1.0))
-
-    sample_count = positions_km.shape[0]
-    max_animation_frames = 1000
-    if sample_count > max_animation_frames:
-        frame_indices = np.linspace(
-            0,
-            sample_count - 1,
-            num=max_animation_frames,
-            dtype=int,
-        )
-    else:
-        frame_indices = np.arange(sample_count)
-
-    def initialize_animation():
-        trajectory_line.set_data([], [])
-        trajectory_line.set_3d_properties([])
-        moving_satellite_marker._offsets3d = ([], [], [])
-        return trajectory_line, moving_satellite_marker
-
-    def update_animation(frame_number):
-        sample_index = frame_indices[frame_number]
-        visible_positions_km = positions_km[: sample_index + 1]
-
-        trajectory_line.set_data(
-            visible_positions_km[:, 0],
-            visible_positions_km[:, 1],
-        )
-        trajectory_line.set_3d_properties(visible_positions_km[:, 2])
-
-        moving_satellite_marker._offsets3d = (
-            [positions_km[sample_index, 0]],
-            [positions_km[sample_index, 1]],
-            [positions_km[sample_index, 2]],
-        )
-        return trajectory_line, moving_satellite_marker
-
-    trajectory_animation = FuncAnimation(
-        fig,
-        update_animation,
-        frames=len(frame_indices),
-        init_func=initialize_animation,
-        interval=30,
-        blit=False,
-        repeat=True,
-    )
-    return trajectory_animation
-
-
-def plot_satellite_state_history_3d(state_history, satellite_name):
-    """Plot propagated 3D state history in the ECI frame with Earth.
-
-    Parameters
-    ----------
-    state_history : dict[float, numpy.ndarray]
-        State history mapping TDB seconds since J2000 to 6-element cartesian
-        state vectors in SI units.
-    satellite_name : str
-        Name of the propagated satellite.
-
-    Returns
-    -------
-    None
-        This function creates a static matplotlib 3D figure.
-    """
-    if not state_history:
-        return
-
-    epochs_tdb_s = np.array(sorted(state_history))
-    state_vectors_m_mps = np.array([state_history[epoch] for epoch in epochs_tdb_s])
-    positions_km = state_vectors_m_mps[:, :3] / KILOMETERS_TO_METERS
-
-    fig = plt.figure(figsize=PLOT_STANDARD_FIGURE_SIZE_IN)
-    ax = fig.add_subplot(111, projection="3d")
-
-    # Draw Earth as a semi-transparent sphere centered at the origin.
-    azimuth = np.linspace(0.0, 2.0 * np.pi, 60)
-    polar = np.linspace(0.0, np.pi, 30)
-    earth_x = EARTH_MEAN_RADIUS_KM * np.outer(np.cos(azimuth), np.sin(polar))
-    earth_y = EARTH_MEAN_RADIUS_KM * np.outer(np.sin(azimuth), np.sin(polar))
-    earth_z = EARTH_MEAN_RADIUS_KM * np.outer(np.ones_like(azimuth), np.cos(polar))
-    ax.plot_surface(earth_x, earth_y, earth_z, color="lightskyblue", alpha=0.35)
-
-    # Draw the inertial Z axis aligned with Earth's mean spin axis.
-    polar_axis_extent_km = 1.5 * EARTH_MEAN_RADIUS_KM
-    ax.plot(
-        [0.0, 0.0],
-        [0.0, 0.0],
-        [-polar_axis_extent_km, polar_axis_extent_km],
-        color="tab:blue",
-        linestyle=":",
-        linewidth=1.5,
-        label="ECI Z axis",
-    )
-    polar_axis_label_offset_km = 0.03 * polar_axis_extent_km
-    ax.text(
-        0.0,
-        0.0,
-        polar_axis_extent_km + polar_axis_label_offset_km,
-        "N",
-        color="tab:blue",
-        ha="center",
-        va="bottom",
-    )
-    ax.text(
-        0.0,
-        0.0,
-        -polar_axis_extent_km - polar_axis_label_offset_km,
-        "S",
-        color="tab:blue",
-        ha="center",
-        va="top",
-    )
-
-    ax.plot(
-        positions_km[:, 0],
-        positions_km[:, 1],
-        positions_km[:, 2],
-        color="tab:red",
-        label=f"{satellite_name} state history",
-    )
-    ax.scatter(
-        positions_km[0, 0],
-        positions_km[0, 1],
-        positions_km[0, 2],
-        color="tab:green",
-        s=20,
-        label="start",
-    )
-    ax.scatter(
-        positions_km[-1, 0],
-        positions_km[-1, 1],
-        positions_km[-1, 2],
-        color="tab:purple",
-        s=20,
-        label="end",
-    )
-
-    max_extent_km = (
-        max(
-            np.max(np.abs(positions_km)),
-            EARTH_MEAN_RADIUS_KM,
-            polar_axis_extent_km + polar_axis_label_offset_km,
-        )
-        * 1.05
-    )
-    ax.set_xlim(-max_extent_km, max_extent_km)
-    ax.set_ylim(-max_extent_km, max_extent_km)
-    ax.set_zlim(-max_extent_km, max_extent_km)
-    ax.set_box_aspect((1.0, 1.0, 1.0))
-
-    ax.set_xlabel("X [km]")
-    ax.set_ylabel("Y [km]")
-    ax.set_zlabel("Z [km]")
-    ax.set_title(f"3D state history of {satellite_name} in the ECI frame")
-    ax.legend(loc="upper left", bbox_to_anchor=(-0.22, 1.0))
+    return dependent_variables_to_save
 
 
 # ===================================================================
@@ -1830,12 +1524,16 @@ import common.common as common
 propagation_inputs = build_propagation_inputs(cli_args)
 input_source = "--initial-state" if cli_args.initial_state is not None else "stdin"
 satellite_name = propagation_inputs.satellite_name
-output_state_history_path = cli_args.output
+output_oem_path = cli_args.oem
+output_raw_path = cli_args.raw
+output_dep_vars_path = cli_args.dep_vars
 
 print_pre_propagation_summary(
     propagation_inputs,
     input_source,
-    output_state_history_path,
+    output_oem_path,
+    output_raw_path,
+    output_dep_vars_path,
 )
 
 # tudatpy SPICE interface -- imported just before loading kernels.
@@ -1953,23 +1651,14 @@ are to be computed (or extracted and saved) at each integration step.
 [This page](https://py.api.tudat.space/en/latest/dependent_variable.html) of the
 tudatpy API website provides a detailed explanation of all the dependent
 variables that are available.
-
-For later post-processing, we first define all single acceleration norm settings
-in the `acceleration_dependent_variables_to_save` variable (which we will reuse
-later) and then combine it with all other dependent variables saved in the
-`dependent_variables_to_save` variable. This setup is built by
-``create_dependent_variables_to_save(...)``.
 """
 
 # dependent_variable and acceleration sub-modules -- imported just before
 # defining the dependent variable list.
 from tudatpy.dynamics.propagation_setup import dependent_variable, acceleration
 
-# Build propagation and acceleration-specific dependent variable settings.
-(
-    dependent_variables_to_save,
-    acceleration_dependent_variables_to_save,
-) = create_dependent_variables_to_save(propagation_inputs)
+# Build dependent variable settings.
+dependent_variables_to_save = create_dependent_variables_to_save(propagation_inputs)
 
 
 """
@@ -2010,6 +1699,9 @@ step, with the corresponding epochs available through the `time_history` attribu
 
 # create_dependent_variable_dictionary -- imported just before post-processing.
 import tudatpy.dynamics.propagation as propagation
+import tudatpy.math.interpolators as interpolators
+import tudatpy.astro.time_representation as time_representation
+from tudatpy.astro.time_representation import TimeScales
 
 # Create propagator settings.
 propagator_settings = create_translational_propagator_settings(
@@ -2025,61 +1717,53 @@ dynamics_simulator = simulator.create_dynamics_simulator(bodies, propagator_sett
 
 # state_history: dict[time(float), state(numpy.ndarray)] with time in seconds since J2000 and state as a 6-element array of cartesian state.
 state_history = dynamics_simulator.propagation_results.state_history
-if output_state_history_path is not None:
+if output_oem_path is not None:
     try:
-        write_state_history_oem_like(state_history, output_state_history_path)
+        write_state_history_oem(
+            state_history,
+            output_oem_path,
+            propagation_inputs,
+            cli_args.oem_step_size,
+        )
     except OSError as exc:
-        print(f"Error: failed to write state-history output: {exc}", file=sys.stderr)
+        print(f"Error: failed to write OEM output: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+if output_raw_path is not None:
+    try:
+        write_state_history_raw(state_history, output_raw_path)
+    except OSError as exc:
+        print(f"Error: failed to write raw output: {exc}", file=sys.stderr)
         sys.exit(1)
 
 dep_var_dict = propagation.create_dependent_variable_dictionary(dynamics_simulator)
-relative_time_h = (
-    dep_var_dict.time_history - dep_var_dict.time_history[0]
-) / SECONDS_PER_HOUR
+dep_var_csv_path = None
+import csv
 
-# Save dependent variables to a CSV file using the base of the output file name.
-if output_state_history_path is not None and output_state_history_path != "-":
-    import csv
+# Save dependent variables to an explicit CSV path when provided.
+# If no output option is provided at all, preserve previous behavior by writing
+# to a default dep_vars.csv.
+if output_dep_vars_path is not None:
+    dep_var_csv_path = output_dep_vars_path
+elif output_oem_path is None and output_raw_path is None:
+    dep_var_csv_path = "dep_vars.csv"
 
-    output_base = Path(output_state_history_path).stem
-    dep_var_csv_path = str(
-        Path(output_state_history_path).parent / (output_base + "_dep_vars.csv")
-    )
-
+if dep_var_csv_path is not None:
     # Build header row using the dependent_variable_type enum name for each saved variable.
     # Each dependent variable may be multi-dimensional (e.g., vectors have 3 components,
     # Keplerian state has 6). We expand the header accordingly.
     headers = ["epoch_tdb_s"]
     for dep_var_setting in dependent_variables_to_save:
-        dep_var_type_name = dep_var_setting.dependent_variable_type.name.removesuffix(
-            "_type"
-        )
+        if False:
+            # debug code
+            for attr in dir(dep_var_setting):
+                # Optional: Skip built-in dunder attributes like __init__
+                if not attr.startswith("__"):
+                    value = getattr(dep_var_setting, attr)
+                    print(f"{attr} = {value}")
+            print()
 
-        acceleration_model_type = ""
-        if hasattr(dep_var_setting, "acceleration_model_type"):
-            acceleration_model_type = (
-                dep_var_setting.acceleration_model_type.name.removesuffix("_type")
-            )
-
-        associated_body = ""
-        if (
-            dep_var_setting.associated_body is not None
-            and dep_var_setting.associated_body
-        ):
-            associated_body = dep_var_setting.associated_body
-
-        secondary_body = ""
-        if (
-            dep_var_setting.secondary_body is not None
-            and dep_var_setting.secondary_body
-        ):
-            secondary_body = dep_var_setting.secondary_body
-
-        component_index = ""
-        if dep_var_setting.component_index >= 0:
-            component_index = str(dep_var_setting.component_index)
-
-        header = f"{dep_var_type_name}/{acceleration_model_type}/{associated_body}/{secondary_body}/{component_index}"
+        header = build_dependent_variable_csv_header_prefix(dep_var_setting)
 
         # multi-column
         dep_var_array = dep_var_dict.asarray(dep_var_setting)
@@ -2117,38 +1801,3 @@ if output_state_history_path is not None and output_state_history_path != "-":
         print(f"Dependent variables saved to: {dep_var_csv_path}")
     except OSError as exc:
         print(f"Error: failed to write dependent variables CSV: {exc}", file=sys.stderr)
-
-
-"""
-### Retrieve information from the dependent variable dictionary
-
-For an in-depth documentation of how to retrieve information from the
-`DependentVariableDictionary`, see the corresponding API reference:
-https://py.api.tudat.space/en/latest/dynamics/propagation.html.
-In short, by passing a `SingleDependentVariableSaveSettings` object to the
-`asarray()` method, the dependent variables will be retrieved and returned as an
-array, where each row stores the dependent variables of an integration step
-(with the corresponding epochs stored in the `time_history` attribute).
-"""
-
-# matplotlib -- imported as late as possible, just before the first plot call.
-from matplotlib import pyplot as plt
-
-# Generate and display plots.
-plot_total_acceleration(dep_var_dict, relative_time_h, satellite_name)
-plot_ground_track(dep_var_dict, relative_time_h, satellite_name)
-plot_kepler_elements(dep_var_dict, relative_time_h, satellite_name)
-plot_acceleration_components(
-    dep_var_dict,
-    relative_time_h,
-    acceleration_dependent_variables_to_save,
-    satellite_name,
-)
-_trajectory_animation = plot_satellite_position_history_3d(
-    dep_var_dict,
-    satellite_name,
-)
-plot_satellite_state_history_3d(state_history, satellite_name)
-
-
-plt.show()

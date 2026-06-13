@@ -1,6 +1,16 @@
+# TO-do list
+
+1. OEM file tools
+    1. Query & retrieve ephemeris/ephemerides
+        1. Index or time range
+        1. Start/stop times. Useable start/stop times
+    1. Calculate interpolated ephemeris
+        1. Index or time range
+        1. Step size
+1. Implement a more robust interpolation method
+    1. Solve Runge's phenominon towards the end of OEM data
 1. Propagation tools
     1. Add fixed-step resampling / interpolation for propagated state histories so OEM-like exports can be generated at user-selected output intervals.
-    1. Consider a non-plotting / batch mode for `propagation/propagate_satellite_orbit.py`.
 1. C++ propagation examples
     1. Recreate the Python propagation example behavior using Tudat's C++ API as a reference for C++ users and integration work.
 1. Frame-conversion examples

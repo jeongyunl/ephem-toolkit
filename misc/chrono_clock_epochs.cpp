@@ -21,13 +21,26 @@ int main()
 	std::cout << " tai_time epoch: " << tai_clock::time_point{} << "\n";
 	std::cout << " tai_time epoch as chrono::duration: " << tai_clock::time_point{}.time_since_epoch()
 			  << "\n";
-	std::cout << " tai_time epoch as utc_time: " << tai_clock::to_utc(tai_clock::time_point{}) << "\n";
+	std::cout << " tai_time epoch as utc_time: " << tai_clock::to_utc(tai_clock::time_point{}) << " UTC\n";
 	std::cout << "\n";
 
 	auto tai_from_utc = std::chrono::tai_clock::from_utc(utc_clock::time_point{});
-	std::cout << " tai_from_utc (utc_time epoch): " << tai_from_utc << "\n";
+	std::cout << " tai_from_utc (utc_time epoch): " << tai_from_utc << " TAI\n";
 	std::cout << " tai_from_utc as chrono::duration: " << tai_from_utc.time_since_epoch();
-	std::cout << " tai_from_utc as utc_time: " << tai_clock::to_utc(tai_from_utc) << "\n";
+	std::cout << " tai_from_utc as utc_time: " << tai_clock::to_utc(tai_from_utc) << " UTC\n";
+	std::cout << "\n";
+
+
+	std::cout << " gps_time epoch: " << gps_clock::time_point{} << "\n";
+	std::cout << " gps_time epoch as chrono::duration: " << gps_clock::time_point{}.time_since_epoch()
+			  << "\n";
+	std::cout << " gps_time epoch as utc_time: " << gps_clock::to_utc(gps_clock::time_point{}) << " UTC\n";
+	std::cout << "\n";
+
+	auto gps_from_utc = std::chrono::gps_clock::from_utc(utc_clock::time_point{});
+	std::cout << " gps_from_utc (utc_time epoch): " << gps_from_utc << " GPS\n";
+	std::cout << " gps_from_utc as chrono::duration: " << gps_from_utc.time_since_epoch();
+	std::cout << " gps_from_utc as utc_time: " << gps_clock::to_utc(gps_from_utc) << " UTC\n";
 	std::cout << "\n";
 
 	return 0;
