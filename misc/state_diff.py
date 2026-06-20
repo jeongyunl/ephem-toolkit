@@ -27,7 +27,8 @@ def read_state_from_file(filepath: str):
     Returns
     -------
     tuple
-        ``(epoch_dt, position_km, velocity_km_s)`` tuple.
+        ``(epoch_dt, state_km)`` tuple where *state_km* is a 6-element vector
+        ``[x, y, z, vx, vy, vz]`` in km / km·s⁻¹.
 
     Raises
     ------
@@ -52,7 +53,8 @@ def read_state_from_stdin():
     Returns
     -------
     tuple
-        ``(epoch_dt, position_km, velocity_km_s)`` tuple.
+        ``(epoch_dt, state_km)`` tuple where *state_km* is a 6-element vector
+        ``[x, y, z, vx, vy, vz]`` in km / km·s⁻¹.
 
     Raises
     ------
@@ -73,9 +75,11 @@ def compare_states(state1, state2):
     Parameters
     ----------
     state1 : tuple
-        First state: ``(epoch_dt, position_km, velocity_km_s)``
+        First state: ``(epoch_dt, state_km)`` where *state_km* is a 6-element
+        vector ``[x, y, z, vx, vy, vz]`` in km / km·s⁻¹.
     state2 : tuple
-        Second state: ``(epoch_dt, position_km, velocity_km_s)``
+        Second state: ``(epoch_dt, state_km)`` where *state_km* is a 6-element
+        vector ``[x, y, z, vx, vy, vz]`` in km / km·s⁻¹.
 
     Returns
     -------
@@ -88,8 +92,10 @@ def compare_states(state1, state2):
         - velocity_diff_km_s: 3-element array of velocity differences
         - velocity_diff_magnitude_km_s: magnitude of velocity difference
     """
-    epoch1, pos1, vel1 = state1
-    epoch2, pos2, vel2 = state2
+    epoch1, state1_km = state1
+    epoch2, state2_km = state2
+    pos1, vel1 = state1_km[0:3], state1_km[3:6]
+    pos2, vel2 = state2_km[0:3], state2_km[3:6]
 
     # Time difference
     time_diff_s = (epoch2 - epoch1).total_seconds()

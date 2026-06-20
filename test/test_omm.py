@@ -10,11 +10,12 @@ import pytest
 import common.omm as omm
 
 TEST_DIR = Path(__file__).parent
-ISS_OMM_PATH = TEST_DIR / "ISS-ZARYA_1998-067A.omm"
-AMOS_OMM_PATH = TEST_DIR / "AMOS-17_2019-050A.omm"
-LEO_OMM_PATH = TEST_DIR / "LEO-3_2023-100G.omm"
+TEST_DATA_DIR = TEST_DIR / "data"
+ISS_OMM_PATH = TEST_DATA_DIR / "ISS-ZARYA_1998-067A.omm"
+AMOS_OMM_PATH = TEST_DATA_DIR / "AMOS-17_2019-050A.omm"
+LEO_OMM_PATH = TEST_DATA_DIR / "LEO-3_2023-100G.omm"
 
-OMM_FILES = sorted(TEST_DIR.glob("*.omm"))
+OMM_FILES = sorted(TEST_DATA_DIR.glob("*.omm"))
 
 
 # ===================================================================

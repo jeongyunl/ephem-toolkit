@@ -13,14 +13,17 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import pytest
 
 import common.tle as tle
 
 TEST_DIR = Path(__file__).parent
 PROJECT_ROOT = TEST_DIR.parent
+TEST_DATA_DIR = TEST_DIR / "data"
 
-TLE_FILES = sorted(TEST_DIR.glob("*.tle"))
+TLE_FILES = sorted(TEST_DATA_DIR.glob("*.tle"))
 
 MEAN_MOTION_TOL_REV_PER_DAY = 0.005
 INCLINATION_TOL_DEG = 0.1
@@ -59,8 +62,12 @@ def run_propagate_tle(tle_path):
         cwd=str(PROJECT_ROOT),
         env=_build_env(),
     )
-    assert result.returncode == 0, f"propagate_tle.py failed for {tle_path.name}:\n{result.stderr}"
-    assert result.stdout.strip(), f"propagate_tle.py produced no output for {tle_path.name}"
+    assert (
+        result.returncode == 0
+    ), f"propagate_tle.py failed for {tle_path.name}:\n{result.stderr}"
+    assert (
+        result.stdout.strip()
+    ), f"propagate_tle.py produced no output for {tle_path.name}"
     return result.stdout
 
 
@@ -117,7 +124,9 @@ def parse_generated_tle_from_output(output):
         ):
             name_line = candidate
     tle_text = (
-        f"{name_line}\n{tle_line1}\n{tle_line2}\n" if name_line else f"{tle_line1}\n{tle_line2}\n"
+        f"{name_line}\n{tle_line1}\n{tle_line2}\n"
+        if name_line
+        else f"{tle_line1}\n{tle_line2}\n"
     )
     return tle.read_tle(io.StringIO(tle_text))
 
@@ -149,7 +158,9 @@ def test_propagate_tle_produces_valid_state_vectors(tle_path):
     """Should propagate each TLE for 1 day and produce valid OEM-like state vectors."""
     oem_text = run_propagate_tle(tle_path)
     lines = [line for line in oem_text.strip().splitlines() if line.strip()]
-    assert len(lines) >= 90, f"Expected ~97 state lines, got {len(lines)} for {tle_path.name}"
+    assert (
+        len(lines) >= 90
+    ), f"Expected ~97 state lines, got {len(lines)} for {tle_path.name}"
     for line in lines[:5]:
         parts = line.split()
         assert len(parts) == 7, f"Expected 7 fields per line, got {len(parts)}: {line}"
@@ -166,7 +177,9 @@ def test_reconstructed_tle_preserves_elements(tle_round_trip):
 
     # Inclination
     inc_tol = GEO_INCLINATION_TOL_DEG if is_geo_orbit(original) else INCLINATION_TOL_DEG
-    assert reconstructed.inclination_deg == pytest.approx(original.inclination_deg, abs=inc_tol)
+    assert reconstructed.inclination_deg == pytest.approx(
+        original.inclination_deg, abs=inc_tol
+    )
 
     # RAAN
     raan_tol = GEO_RAAN_TOL_DEG if is_geo_orbit(original) else RAAN_TOL_DEG
@@ -177,7 +190,9 @@ def test_reconstructed_tle_preserves_elements(tle_round_trip):
     )
 
     # Eccentricity
-    assert reconstructed.eccentricity == pytest.approx(original.eccentricity, abs=ECCENTRICITY_TOL)
+    assert reconstructed.eccentricity == pytest.approx(
+        original.eccentricity, abs=ECCENTRICITY_TOL
+    )
 
     # Argument of perigee
     aop_tol = GEO_ARG_PERIGEE_TOL_DEG if is_geo_orbit(original) else ARG_PERIGEE_TOL_DEG
@@ -188,8 +203,12 @@ def test_reconstructed_tle_preserves_elements(tle_round_trip):
     )
 
     # Mean anomaly
-    ma_tol = GEO_MEAN_ANOMALY_TOL_DEG if is_geo_orbit(original) else MEAN_ANOMALY_TOL_DEG
-    ma_diff = angle_difference(reconstructed.mean_anomaly_deg, original.mean_anomaly_deg)
+    ma_tol = (
+        GEO_MEAN_ANOMALY_TOL_DEG if is_geo_orbit(original) else MEAN_ANOMALY_TOL_DEG
+    )
+    ma_diff = angle_difference(
+        reconstructed.mean_anomaly_deg, original.mean_anomaly_deg
+    )
     assert ma_diff < ma_tol, (
         f"Mean anomaly diff={ma_diff:.4f} > tol={ma_tol} "
         f"(orig={original.mean_anomaly_deg:.4f}, recon={reconstructed.mean_anomaly_deg:.4f})"

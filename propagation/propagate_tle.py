@@ -304,9 +304,10 @@ def print_oem_like(
             ]
         )
 
-        # Parse epoch string to datetime
+        # Parse epoch string and convert to POSIX timestamp (UTC)
         epoch_dt = dt.datetime.fromisoformat(epoch_iso.rstrip("Z"))
-        states_list.append((epoch_dt, state_km))
+        epoch_ts = epoch_dt.replace(tzinfo=dt.timezone.utc).timestamp()
+        states_list.append((epoch_ts, state_km))
         current_tdb += step
 
     if include_oem_header:
@@ -327,7 +328,7 @@ def print_oem_like(
             stop_time=stop_utc_iso,
         )
 
-        oem = CcsdsOem(header=header, meta=meta, states=states_list)
+        oem = CcsdsOem(header=header, meta=meta, states=dict(states_list))
         oem.to_file(sys.stdout)
     else:
         # Print only state lines

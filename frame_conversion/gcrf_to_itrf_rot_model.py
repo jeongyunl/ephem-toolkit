@@ -222,12 +222,12 @@ def process_stream(
         if parsed is None:
             continue
 
-        epoch_dt, position_km, velocity_km_s = parsed
+        epoch_dt, state_km = parsed
         epoch_tdb_s = common.datetime_to_tdb(epoch_dt)
 
         # Convert km / km·s⁻¹ → m / m·s⁻¹ for the conversion functions
-        position_m = position_km * 1e3
-        velocity_m_s = velocity_km_s * 1e3
+        position_m = state_km[0:3] * 1e3
+        velocity_m_s = state_km[3:6] * 1e3
 
         if reverse:
             output_position_m, output_velocity_m_s = convert_itrf_to_gcrf_erm(

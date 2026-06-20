@@ -7,7 +7,7 @@ operate on plain dictionaries, and a structured :class:`CcsdsOem` class.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import IO, Union
 
@@ -63,9 +63,15 @@ _META_KEY_ORDER = [
 # ===================================================================
 
 
+def _epoch_to_timestamp(epoch: datetime) -> float:
+    if epoch.tzinfo is None:
+        epoch = epoch.replace(tzinfo=timezone.utc)
+    return epoch.timestamp()
+
+
 def read_oem(
     source: Union[IO[str], str, Path],
-) -> tuple[dict, dict, dict[datetime, np.ndarray]]:
+) -> tuple[dict, dict, dict[float, np.ndarray]]:
     """Read an OEM file and return *(header, meta, states)*."""
     if isinstance(source, (str, Path)):
         with open(source, "r", encoding="utf-8") as fh:
@@ -73,7 +79,7 @@ def read_oem(
 
     header: dict = {}
     meta: dict = {}
-    states: dict[datetime, np.ndarray] = {}
+    states: dict[float, np.ndarray] = {}
     in_meta = False
 
     for raw_line in source:
@@ -116,7 +122,9 @@ def read_oem(
             if len(parts) < 7:
                 continue
             epoch = _parse_epoch(parts[0])
-            states[epoch] = np.array([float(v) for v in parts[1:7]])
+            states[_epoch_to_timestamp(epoch)] = np.array(
+                [float(v) for v in parts[1:7]]
+            )
 
     return header, meta, states
 
@@ -128,12 +136,15 @@ def read_oem(
 
 def write_states(
     dest: IO[str],
-    states: dict[datetime, np.ndarray],
+    states: dict[float, np.ndarray],
 ) -> None:
     """Write state vectors to a file handle."""
-    for epoch in states:
-        sv = states[epoch]
-        epoch_str = epoch.strftime("%Y-%m-%dT%H:%M:%S.%f")
+    for epoch, sv in states.items():
+        if isinstance(epoch, datetime):
+            dt = epoch
+        else:
+            dt = datetime.utcfromtimestamp(epoch)
+        epoch_str = dt.strftime("%Y-%m-%dT%H:%M:%S.%f")
         vals = " ".join(f"{v:.15g}" for v in sv)
         dest.write(f"{epoch_str} {vals}\n")
 
@@ -142,7 +153,7 @@ def write_oem(
     dest: Union[IO[str], str, Path],
     header: dict,
     meta: dict,
-    states: dict[datetime, np.ndarray],
+    states: dict[float, np.ndarray],
 ) -> None:
     """Write an OEM file from *(header, meta, states)* dicts."""
     if isinstance(dest, (str, Path)):
@@ -218,7 +229,7 @@ class CcsdsOem:
         self,
         header: OemHeader,
         meta: OemMeta,
-        states: list[tuple[datetime, np.ndarray]],
+        states: dict[float, np.ndarray],
     ) -> None:
         self.header = header
         self.meta = meta
@@ -250,16 +261,15 @@ class CcsdsOem:
             comments=raw_meta.get("COMMENT", []),
         )
 
-        state_list = [(epoch, sv) for epoch, sv in raw_states.items()]
-        return cls(header=header, meta=meta, states=state_list)
+        return cls(header=header, meta=meta, states=raw_states)
 
     @property
-    def epochs(self) -> list[datetime]:
-        return [epoch for epoch, _ in self.states]
+    def epochs(self) -> list[float]:
+        return sorted(self.states.keys())
 
     @property
     def state_vectors(self) -> np.ndarray:
-        return np.array([state for _, state in self.states])
+        return np.array([self.states[epoch] for epoch in self.epochs])
 
     def to_file(self, dest: Union[IO[str], str, Path]) -> None:
         hdr = {
@@ -279,8 +289,7 @@ class CcsdsOem:
             if val is not None and val != "" and val != 0:
                 mt[key] = val
 
-        st = {epoch: state for epoch, state in self.states}
-        write_oem(dest, hdr, mt, st)
+        write_oem(dest, hdr, mt, self.states)
 
     def __len__(self) -> int:
         return len(self.states)

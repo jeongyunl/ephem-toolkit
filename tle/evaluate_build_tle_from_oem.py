@@ -19,7 +19,7 @@ import math
 import subprocess
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -74,6 +74,8 @@ def read_oem_states(oem_path):
         sv = states[epoch]
         if len(sv) < 6:
             continue
+        if isinstance(epoch, (int, float)):
+            epoch = datetime.fromtimestamp(epoch, tz=timezone.utc)
         records.append(
             (epoch, [float(sv[i]) for i in range(3)], [float(sv[i]) for i in range(3, 6)])
         )
@@ -84,13 +86,18 @@ def run_build_tle(oem_records, duration_s, refinement):
     """Run build_tle.py on OEM records (limited to duration_s) via stdin."""
     # Select records within the fit duration
     t0 = oem_records[0][0]
-    fit_records = [rec for rec in oem_records if (rec[0] - t0).total_seconds() <= duration_s]
+    if isinstance(t0, (int, float)):
+        fit_records = [rec for rec in oem_records if rec[0] - t0 <= duration_s]
+    else:
+        fit_records = [rec for rec in oem_records if (rec[0] - t0).total_seconds() <= duration_s]
     if len(fit_records) < 2:
         fit_records = oem_records[:2]
 
     # Format as simple state-vector lines for build_tle.py stdin
     input_lines = []
     for epoch, pos, vel in fit_records:
+        if isinstance(epoch, (int, float)):
+            epoch = datetime.fromtimestamp(epoch, tz=timezone.utc)
         epoch_str = epoch.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
         input_lines.append(
             f"{epoch_str} {pos[0]:.12f} {pos[1]:.12f} {pos[2]:.12f} "

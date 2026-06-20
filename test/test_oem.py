@@ -13,7 +13,7 @@ import pytest
 import common.oem as oem
 
 TEST_DIR = Path(__file__).parent
-OEM_PATH = TEST_DIR / "ISS_2026-05-20.OEM"
+OEM_PATH = TEST_DIR / "data" / "ISS_2026-05-20.OEM"
 
 
 # ===================================================================
@@ -40,7 +40,7 @@ def test_read_oem_from_test_file_returns_header_meta_states() -> None:
 
     first_epoch = min(states)
     first_state = states[first_epoch]
-    assert isinstance(first_epoch, datetime)
+    assert isinstance(first_epoch, float)
     assert isinstance(first_state, np.ndarray)
     assert first_state.shape == (6,)
 
@@ -102,10 +102,11 @@ def test_ccsds_oem_from_source_exposes_structured_fields() -> None:
     assert ccsds_oem.meta.object_name == "ISS"
     assert ccsds_oem.meta.object_id == "1998-067-A"
     assert ccsds_oem.meta.ref_frame == "EME2000"
-    assert isinstance(ccsds_oem.states[0], tuple)
-    assert len(ccsds_oem.states[0]) == 2
-    first_epoch, first_state = ccsds_oem.states[0]
-    assert isinstance(first_epoch, datetime)
+    assert isinstance(ccsds_oem.states, dict)
+    assert len(ccsds_oem.states) == len(ccsds_oem)
+    first_epoch = next(iter(ccsds_oem.states))
+    first_state = ccsds_oem.states[first_epoch]
+    assert isinstance(first_epoch, float)
     assert isinstance(first_state, np.ndarray)
     assert first_state.shape == (6,)
 
@@ -226,7 +227,7 @@ def test_ccsds_oem_epochs_property() -> None:
 
     epochs = ccsds_oem.epochs
     assert len(epochs) == len(ccsds_oem.states)
-    assert all(isinstance(e, datetime) for e in epochs)
+    assert all(isinstance(e, float) for e in epochs)
 
 
 def test_ccsds_oem_state_vectors_property() -> None:
@@ -236,6 +237,23 @@ def test_ccsds_oem_state_vectors_property() -> None:
     state_vecs = ccsds_oem.state_vectors
     assert isinstance(state_vecs, np.ndarray)
     assert state_vecs.shape == (len(ccsds_oem), 6)
+
+
+def test_ccsds_oem_epochs_and_state_vectors_sorted() -> None:
+    """Should return epochs and state vectors ordered by increasing epoch."""
+    ccsds_oem = oem.CcsdsOem.from_source(OEM_PATH)
+
+    epochs = ccsds_oem.epochs
+    assert epochs == sorted(epochs)
+    assert len(epochs) == len(ccsds_oem)
+
+    state_vecs = ccsds_oem.state_vectors
+    assert state_vecs.shape == (len(ccsds_oem), 6)
+
+    for idx, epoch in enumerate(epochs):
+        assert np.allclose(
+            state_vecs[idx], ccsds_oem.states[epoch], atol=1e-12, rtol=0.0
+        )
 
 
 def test_write_states_to_stream() -> None:

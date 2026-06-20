@@ -10,6 +10,7 @@ import pytest
 import common.tle as tle
 
 TEST_DIR = Path(__file__).parent
+TEST_DATA_DIR = TEST_DIR / "data"
 
 # ===================================================================
 # Shared fixtures / constants
@@ -234,7 +235,7 @@ def test_write_tle_from_dict() -> None:
 # ===================================================================
 
 
-TLE_FILES = sorted(TEST_DIR.glob("*.tle"))
+TLE_FILES = sorted(TEST_DATA_DIR.glob("*.tle"))
 
 
 @pytest.mark.parametrize("tle_path", TLE_FILES, ids=[p.name for p in TLE_FILES])

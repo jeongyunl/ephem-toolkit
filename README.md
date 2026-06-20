@@ -6,12 +6,13 @@ Utility scripts and small C++ tools for working with TudatPy and Tudat.
 
 This repository provides a collection of command-line tools and helper scripts built on top of [TudatPy](https://docs.tudat.space/en/latest/) and [Tudat](https://docs.tudat.space/) for common astrodynamics tasks.
 
-The repository currently contains utilities in four main areas:
+The repository currently contains utilities in five main areas:
 
 - Frame conversion
 - Time conversion
 - Orbit propagation
 - TLE / OMM / OEM utilities
+- Miscellaneous utilities (state comparison, OEM slicing, orbit plotting)
 
 The repository layout is source-oriented:
 
@@ -83,6 +84,18 @@ Current Python tools include:
 - `misc/evaluate_build_tle_from_oem.py` — evaluate `build_tle.py` round-trip accuracy against an OEM reference
 
 See [TLE.md](TLE.md) for full usage details.
+
+## Miscellaneous Utilities
+
+The repository includes several utility scripts for orbit analysis, comparison, and manipulation:
+
+- `misc/state_diff.py` — compare two OEM-like Cartesian states
+- `misc/compare_interpolations.py` — compare different interpolation methods
+- `misc/evaluate_build_tle_from_oem.py` — evaluate TLE estimation accuracy
+- `oem/oem_slice.py` — slice OEM files by index or time range
+- `plotting/plot_orbits.py` — plot and compare multiple orbits
+
+See [MISC.md](MISC.md) for full usage details.
 
 ## Build and Dependencies
 

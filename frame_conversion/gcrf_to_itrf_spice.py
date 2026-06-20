@@ -99,10 +99,10 @@ def process_stream(stream, reverse=False):
         if parsed is None:
             continue
 
-        epoch_dt, input_position_km, input_velocity_km_s = parsed
+        epoch_dt, input_state_km = parsed
         epoch_tdb_s = common.datetime_to_tdb(epoch_dt)
 
-        input_state_m = np.concatenate([input_position_km, input_velocity_km_s]) * 1e3
+        input_state_m = input_state_km * 1e3
         output_state_m = convert_frames_spice(
             base_frame, target_frame, epoch_tdb_s, input_state_m
         )

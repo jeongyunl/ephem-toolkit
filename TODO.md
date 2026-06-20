@@ -1,14 +1,14 @@
-# TO-do list
+# To-do list
 
 1. OEM file tools
-    1. Query & retrieve ephemeris/ephemerides
-        1. Index or time range
-        1. Start/stop times. Useable start/stop times
+    1. ~~Query & retrieve ephemeris/ephemerides~~
+        1. ~~Index or time range~~
+        1. ~~Start/stop times.~~ Useable start/stop times
     1. Calculate interpolated ephemeris
-        1. Index or time range
-        1. Step size
+        1. Index or ~~time range~~
+        1. ~~Step size~~
 1. Implement a more robust interpolation method
-    1. Solve Runge's phenominon towards the end of OEM data
+    1. Solve Runge's phenomenon towards the end of OEM data
 1. Propagation tools
     1. Add fixed-step resampling / interpolation for propagated state histories so OEM-like exports can be generated at user-selected output intervals.
 1. C++ propagation examples

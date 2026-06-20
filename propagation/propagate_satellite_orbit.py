@@ -103,6 +103,7 @@ SUPPORTED_INTEGRATOR_METHODS = tuple(INTEGRATOR_METHOD_DESCRIPTIONS)
 DEFAULT_INTEGRATOR_METHOD = "rkdp_87"
 DEFAULT_INTEGRATOR_STEP_SIZE_S = (10, 1, 300)
 
+
 def parse_bool_flag(value: str) -> bool:
     """Parse a CLI boolean token.
 
@@ -745,11 +746,9 @@ def read_initial_state_from_stream(stream):
     if parsed is None:
         raise ValueError("The first input line is blank/comment and was not parsed")
 
-    epoch_dt, position_km, velocity_km_s = parsed
+    epoch_dt, state_km = parsed
     initial_epoch_datetime_utc = epoch_dt
-    initial_state_m_mps = (
-        np.concatenate([position_km, velocity_km_s]) * KILOMETERS_TO_METERS
-    )
+    initial_state_m_mps = state_km * KILOMETERS_TO_METERS
     return initial_state_m_mps, initial_epoch_datetime_utc
 
 
@@ -927,7 +926,7 @@ def write_state_history_oem(
     tudat_time_scale_converter = time_representation.default_time_scale_converter()
 
     interpolator = interpolators.create_one_dimensional_vector_interpolator(
-        state_history, interpolators.lagrange_interpolation(2)
+        state_history, interpolators.lagrange_interpolation(8)
     )
     epochs_tdb_s = sorted(state_history.keys())
     start_epoch_tdb_s = epochs_tdb_s[0]
@@ -940,7 +939,9 @@ def write_state_history_oem(
     while epoch_tdb_s <= stop_epoch_tdb_s:
         epoch_datetime = common.tdb_to_datetime(epoch_tdb_s)
         state_km_kms = interpolator.interpolate(epoch_tdb_s) / KILOMETERS_TO_METERS
-        oem_states.append((epoch_datetime, state_km_kms))
+        oem_states.append(
+            (epoch_datetime.replace(tzinfo=timezone.utc).timestamp(), state_km_kms)
+        )
 
         epoch_tt_s = tudat_time_scale_converter.convert_time(
             input_value=epoch_tdb_s,
@@ -957,8 +958,12 @@ def write_state_history_oem(
         )
 
     # Determine start/stop times from the state epochs.
-    start_time = oem_states[0][0].strftime("%Y-%m-%dT%H:%M:%S.%f")
-    stop_time = oem_states[-1][0].strftime("%Y-%m-%dT%H:%M:%S.%f")
+    start_time = datetime.fromtimestamp(oem_states[0][0], tz=timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%S.%f"
+    )
+    stop_time = datetime.fromtimestamp(oem_states[-1][0], tz=timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%S.%f"
+    )
 
     header = OemHeader(
         version=2.0,
@@ -977,7 +982,7 @@ def write_state_history_oem(
         stop_time=stop_time,
     )
 
-    oem = CcsdsOem(header=header, meta=meta, states=oem_states)
+    oem = CcsdsOem(header=header, meta=meta, states=dict(oem_states))
 
     if output_path == "-":
         oem.to_file(sys.stdout)
