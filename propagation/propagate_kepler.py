@@ -34,7 +34,7 @@ from common.common import (
     SECONDS_PER_DAY,
     SECONDS_PER_MINUTE,
 )
-from common.oem import CcsdsOem, OemHeader, OemMeta, write_states
+import common.oem as oem
 import common.kepler as kepler
 
 import numpy as np
@@ -98,7 +98,48 @@ def parse_args() -> argparse.Namespace:
             "If omitted, only propagated state lines are printed."
         ),
     )
+    parser.add_argument(
+        "--use-mean",
+        action="store_true",
+        help=(
+            "Convert input osculating Keplerian elements to mean Keplerian "
+            "elements using common.kepler.osculating_to_mean_keplerian before "
+            "propagation."
+        ),
+    )
     return parser.parse_args()
+
+
+def convert_osculating_to_mean_keplerian(kepler_m: np.ndarray) -> np.ndarray:
+    """Convert osculating Keplerian elements to a mean Keplerian element vector.
+
+    The TudatPy propagator expects Keplerian elements in the standard order
+    [a, e, i, omega, RAAN, theta], with theta as the current true anomaly.
+    When ``--use-mean`` is enabled, the osculating input is converted to Brouwer
+    mean elements and the mean anomaly is converted back to true anomaly for
+    propagation.
+    """
+    mean_elements = kepler.osculating_to_mean_keplerian(
+        osculating_semi_major_axis=float(kepler_m[0]),
+        osculating_eccentricity=float(kepler_m[1]),
+        osculating_inclination=float(kepler_m[2]),
+        osculating_raan=float(kepler_m[4]),
+        osculating_argument_of_periapsis=float(kepler_m[3]),
+        osculating_true_anomaly=float(kepler_m[5]),
+    )
+    return np.array(
+        [
+            mean_elements["semi_major_axis_m"],
+            mean_elements["eccentricity"],
+            mean_elements["inclination_rad"],
+            mean_elements["arg_periapsis_rad"],
+            mean_elements["raan_rad"],
+            kepler.mean_to_true_anomaly(
+                mean_elements["mean_anomaly_rad"], mean_elements["eccentricity"]
+            ),
+        ],
+        dtype=np.float64,
+    )
 
 
 def read_kepler_input(cli_value: str | None) -> tuple[dt.datetime, np.ndarray, str]:
@@ -146,10 +187,13 @@ def propagate_kepler_elements(
     two_body_dynamics_module,
     include_oem_header: bool,
     object_name: str,
+    use_mean: bool,
 ) -> None:
     """Propagate the given Keplerian elements and write output lines."""
     initial_kepler_m = initial_kepler_km.astype(np.float64).copy()
     initial_kepler_m[0] *= 1e3
+    if use_mean:
+        initial_kepler_m = convert_osculating_to_mean_keplerian(initial_kepler_m)
     initial_kepler_m = initial_kepler_m.reshape((6, 1))
 
     stop_time = duration
@@ -178,13 +222,13 @@ def propagate_kepler_elements(
         now = dt.datetime.now(tz=dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
         stop_epoch = initial_epoch + dt.timedelta(seconds=duration)
 
-        header = OemHeader(
+        header = oem.OemHeader(
             version=2.0,
             creation_date=now,
             originator="tudatpy-utils",
         )
 
-        meta = OemMeta(
+        meta = oem.OemMeta(
             object_name=object_name,
             object_id=object_name,
             center_name="EARTH",
@@ -193,15 +237,15 @@ def propagate_kepler_elements(
             start_time=initial_epoch.replace(tzinfo=dt.timezone.utc).isoformat(),
             stop_time=stop_epoch.replace(tzinfo=dt.timezone.utc).isoformat(),
         )
-        oem = CcsdsOem(
+        oem_message = oem.CcsdsOem(
             header=header,
             meta=meta,
             states={state[0].timestamp(): state[1] for state in propagated_states},
         )
-        oem.to_file(sys.stdout)
+        oem_message.to_file(sys.stdout)
     else:
         states_dict = {state[0]: state[1] for state in propagated_states}
-        write_states(sys.stdout, states_dict)
+        oem.write_states(sys.stdout, states_dict)
 
 
 def main() -> int:
@@ -222,6 +266,7 @@ def main() -> int:
         two_body_dynamics_module=two_body_dynamics_module,
         include_oem_header=args.oem,
         object_name=object_name,
+        use_mean=args.use_mean,
     )
     return 0
 
