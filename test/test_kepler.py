@@ -15,6 +15,16 @@ import common.tle as tle
 TEST_DIR = Path(__file__).parent
 TEST_DATA_DIR = TEST_DIR / "data"
 
+
+def _build_env() -> dict[str, str]:
+    env = {}
+    existing = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1]) + (
+        (":" + existing) if existing else ""
+    )
+    return env
+
+
 # ===================================================================
 # Shared fixtures / constants
 # ===================================================================
@@ -116,6 +126,38 @@ def test_tle_to_osculating_keplerian_true_anomaly_range() -> None:
 
     theta = kep_elements[5]
     assert 0.0 <= theta < 2.0 * np.pi
+
+
+def test_cartesian_to_keplerian_cli_supports_mean_flag(tmp_path: Path, capsys) -> None:
+    """The CLI should convert Cartesian states to mean Keplerian elements with --mean."""
+    from pathlib import Path
+
+    import element_conversion.cartesian_to_keplerian as script
+
+    input_file = tmp_path / "input.oem"
+    input_file.write_text("2026-06-21T00:00:00Z  7000 0 0 0 7.5 0\n")
+
+    exit_code = script.main(["--mean", str(input_file)])
+    assert exit_code == 0
+
+    captured = capsys.readouterr()
+    output_values = captured.out.strip().split()
+    assert len(output_values) == 7
+    assert float(output_values[1]) > 0.0  # a_km
+    assert float(output_values[2]) >= 0.0  # e
+    assert float(output_values[5]) >= 0.0  # omega_rad
+    assert float(output_values[6]) >= 0.0  # M_rad
+
+
+def test_cartesian_to_keplerian_cli_rejects_mean_with_reverse(capsys) -> None:
+    """The CLI should reject using --mean together with -r/reverse."""
+    import element_conversion.cartesian_to_keplerian as script
+
+    exit_code = script.main(["-r", "--mean"])
+    assert exit_code != 0
+
+    captured = capsys.readouterr()
+    assert "cannot be used" in captured.err.lower()
 
 
 # ===================================================================

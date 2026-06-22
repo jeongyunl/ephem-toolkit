@@ -3,7 +3,7 @@
 import sys
 
 
-def process_stream(stream, reverse=False):
+def process_stream(stream, reverse=False, mean=False):
 
     import numpy as np
     from pathlib import Path
@@ -55,12 +55,15 @@ def process_stream(stream, reverse=False):
             # 2 Inclination
             # 3 Argument of periapsis
             # 4 Longitude of ascending node
-            # 5 True anomaly
+            # 5 True anomaly / mean anomaly
 
             output_keplerian = kepler.cartesian_to_keplerian(
                 input_state_m,
                 kepler.MU_EARTH,
             ).flatten()
+
+            if mean:
+                output_keplerian = kepler.osculating_to_mean_keplerian(output_keplerian)
 
             output_keplerian[0] *= 1e-3
 
@@ -71,7 +74,7 @@ def print_usage():
     """Print the script usage message to standard output."""
 
     print(
-        "Usage: python cartesian_to_keplerian.py [-h] [-r] [input_file]\n"
+        "Usage: python cartesian_to_keplerian.py [-h] [-r] [--mean] [input_file]\n"
         "\n"
         "Convert satellite states between Cartesian and Keplerian elements.\n"
         "\n"
@@ -83,12 +86,15 @@ def print_usage():
         "  -h, --help    Show this help message and exit.\n"
         "  -r            Reverse conversion (Keplerian to Cartesian instead\n"
         "                of Cartesian to Keplerian).\n"
+        "  --mean        Convert the resulting Keplerian elements to mean\n"
+        "                Keplerian elements using Brouwer short-period\n"
+        "                inversion. Only valid for Cartesian-to-Keplerian.\n"
         "\n"
         "Input format (one record per line, 7 whitespace- or comma-separated fields):\n"
         "  <ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>\n"
         "\n"
         "Output format (one record per line):\n"
-        "  <ISO-8601 epoch>  <a_km>  <e>  <i_rad>  <omega_rad>  <RAAN_rad>  <theta_rad>\n"
+        "  <ISO-8601 epoch>  <a_km>  <e>  <i_rad>  <omega_rad>  <RAAN_rad>  <theta_rad/M_rad>\n"
         "\n"
         "Keplerian elements are printed in the TudatPy convention:\n"
         "  a = semi-major axis (km, or semi-latus rectum if e = 1),\n"
@@ -96,28 +102,67 @@ def print_usage():
         "  i = inclination (rad),\n"
         "  omega = argument of periapsis (rad),\n"
         "  RAAN = longitude of ascending node (rad),\n"
-        "  theta = true anomaly (rad).\n"
+        "  theta = true anomaly (rad) or M = mean anomaly (rad) when --mean is used.\n"
         "\n"
         "Blank lines and lines starting with '#' are skipped.\n"
     )
 
 
-if __name__ == "__main__":
-    # Check for -h/--help and -r options
+def main(argv=None) -> int:
+    """Entry point for the cartesian_to_keplerian CLI.
+
+    Parameters
+    ----------
+    argv : list[str] | None
+        Arguments to parse. If None, uses sys.argv[1:].
+
+    Returns
+    -------
+    int
+        Exit code.
+    """
+    if argv is None:
+        argv = sys.argv[1:]
+
     set_reverse_conversion = False
-    args = sys.argv[1:]
+    set_mean_keplerian = False
+    args = list(argv)
 
     if "-h" in args or "--help" in args:
         print_usage()
-        sys.exit(0)
+        return 0
 
-    if args and args[0] == "-r":
-        set_reverse_conversion = True
+    while args and args[0].startswith("-"):
+        option = args[0]
+        if option == "-r":
+            set_reverse_conversion = True
+        elif option == "--mean":
+            set_mean_keplerian = True
+        else:
+            break
         args = args[1:]
+
+    if set_reverse_conversion and set_mean_keplerian:
+        print("Error: --mean cannot be used with -r/--reverse", file=sys.stderr)
+        return 1
 
     if args:
         infile = args[0]
         with open(infile, "r") as f:
-            process_stream(f, reverse=set_reverse_conversion)
+            process_stream(
+                f,
+                reverse=set_reverse_conversion,
+                mean=set_mean_keplerian,
+            )
     else:
-        process_stream(sys.stdin, reverse=set_reverse_conversion)
+        process_stream(
+            sys.stdin,
+            reverse=set_reverse_conversion,
+            mean=set_mean_keplerian,
+        )
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
