@@ -767,15 +767,15 @@ def compute_keplerian_match_score(tle_kep, ref_kep):
 
     # Semi-major axis difference in km
     da_km = (
-        tle_kep["semi_major_axis_m"] - ref_kep[kepler.SEMI_MAJOR_AXIS_INDEX]
+        tle_kep[kepler.SEMI_MAJOR_AXIS_INDEX] - ref_kep[kepler.SEMI_MAJOR_AXIS_INDEX]
     ) / 1000.0
 
     # Eccentricity difference
-    de = tle_kep["eccentricity"] - ref_kep[kepler.ECCENTRICITY_INDEX]
+    de = tle_kep[kepler.ECCENTRICITY_INDEX] - ref_kep[kepler.ECCENTRICITY_INDEX]
 
     # Inclination difference in degrees
     di_deg = math.degrees(
-        tle_kep["inclination_rad"] - ref_kep[kepler.INCLINATION_INDEX]
+        tle_kep[kepler.INCLINATION_INDEX] - ref_kep[kepler.INCLINATION_INDEX]
     )
 
     # Angle differences wrapped to [-180, 180] degrees
@@ -785,18 +785,19 @@ def compute_keplerian_match_score(tle_kep, ref_kep):
             d -= 360.0
         return d
 
-    draan_deg = _angle_diff_deg(tle_kep["raan_rad"], ref_kep[kepler.RAAN_INDEX])
+    draan_deg = _angle_diff_deg(tle_kep[kepler.RAAN_INDEX], ref_kep[kepler.RAAN_INDEX])
     domega_deg = _angle_diff_deg(
-        tle_kep["arg_periapsis_rad"], ref_kep[kepler.ARGUMENT_OF_PERIAPSIS_INDEX]
+        tle_kep[kepler.ARGUMENT_OF_PERIAPSIS_INDEX],
+        ref_kep[kepler.ARGUMENT_OF_PERIAPSIS_INDEX],
     )
     dtheta_deg = _angle_diff_deg(
-        tle_kep["true_anomaly_rad"], ref_kep[kepler.TRUE_ANOMALY_INDEX]
+        tle_kep[kepler.TRUE_ANOMALY_INDEX], ref_kep[kepler.TRUE_ANOMALY_INDEX]
     )
 
     # Argument of latitude (well-defined for near-circular)
-    tle_u = (tle_kep["arg_periapsis_rad"] + tle_kep["true_anomaly_rad"]) % (
-        2.0 * math.pi
-    )
+    tle_u = (
+        tle_kep[kepler.ARGUMENT_OF_PERIAPSIS_INDEX] + tle_kep[kepler.TRUE_ANOMALY_INDEX]
+    ) % (2.0 * math.pi)
     ref_u = (
         ref_kep[kepler.ARGUMENT_OF_PERIAPSIS_INDEX] + ref_kep[kepler.TRUE_ANOMALY_INDEX]
     ) % (2.0 * math.pi)
@@ -1583,17 +1584,7 @@ def verify_accuracy_keplerian(args, estimated, records):
     except Exception:
         return None
 
-    # Extract TLE osculating elements into array form for comparison
-    tle_kep_array = np.array(
-        [
-            tle_kep["semi_major_axis_m"],
-            tle_kep["eccentricity"],
-            tle_kep["inclination_rad"],
-            tle_kep["raan_rad"],
-            tle_kep["arg_periapsis_rad"],
-            tle_kep["true_anomaly_rad"],
-        ]
-    )
+    tle_kep_array = np.array(tle_kep)
 
     # Element-wise differences
     da_m = tle_kep_array[0] - ref_kep[kepler.SEMI_MAJOR_AXIS_INDEX]

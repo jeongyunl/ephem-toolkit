@@ -119,27 +119,18 @@ def convert_osculating_to_mean_keplerian(kepler_m: np.ndarray) -> np.ndarray:
     mean elements and the mean anomaly is converted back to true anomaly for
     propagation.
     """
-    mean_elements = kepler.osculating_to_mean_keplerian(
-        osculating_semi_major_axis=float(kepler_m[0]),
-        osculating_eccentricity=float(kepler_m[1]),
-        osculating_inclination=float(kepler_m[2]),
-        osculating_raan=float(kepler_m[4]),
-        osculating_argument_of_periapsis=float(kepler_m[3]),
-        osculating_true_anomaly=float(kepler_m[5]),
-    )
-    return np.array(
+    mean_elements = kepler.osculating_to_mean_keplerian(kepler_m)
+    return np.concatenate(
         [
-            mean_elements["semi_major_axis_m"],
-            mean_elements["eccentricity"],
-            mean_elements["inclination_rad"],
-            mean_elements["arg_periapsis_rad"],
-            mean_elements["raan_rad"],
-            kepler.mean_to_true_anomaly(
-                mean_elements["mean_anomaly_rad"], mean_elements["eccentricity"]
-            ),
-        ],
-        dtype=np.float64,
-    )
+            mean_elements[:5],
+            [
+                kepler.mean_to_true_anomaly(
+                    mean_elements[kepler.MEAN_ANOMALY_INDEX],
+                    mean_elements[kepler.ECCENTRICITY_INDEX],
+                )
+            ],
+        ]
+    ).astype(np.float64)
 
 
 def read_kepler_input(cli_value: str | None) -> tuple[dt.datetime, np.ndarray, str]:
@@ -191,7 +182,7 @@ def propagate_kepler_elements(
 ) -> None:
     """Propagate the given Keplerian elements and write output lines."""
     initial_kepler_m = initial_kepler_km.astype(np.float64).copy()
-    initial_kepler_m[0] *= 1e3
+    initial_kepler_m[kepler.SEMI_MAJOR_AXIS_INDEX] *= 1e3
     if use_mean:
         initial_kepler_m = convert_osculating_to_mean_keplerian(initial_kepler_m)
     initial_kepler_m = initial_kepler_m.reshape((6, 1))

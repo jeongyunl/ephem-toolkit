@@ -25,7 +25,7 @@ Reference:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -57,6 +57,7 @@ INCLINATION_INDEX: int = 2
 ARGUMENT_OF_PERIAPSIS_INDEX: int = 3
 RAAN_INDEX: int = 4
 TRUE_ANOMALY_INDEX: int = 5
+MEAN_ANOMALY_INDEX: int = TRUE_ANOMALY_INDEX
 
 
 # ===================================================================
@@ -546,15 +547,10 @@ def tle_epoch_to_datetime_string(epoch_year: int, epoch_day: float) -> str:
 
 
 def brouwer_short_period_corrections(
-    mean_semi_major_axis: float,
-    mean_eccentricity: float,
-    mean_inclination: float,
-    mean_argument_of_periapsis: float,
-    mean_anomaly: float,
-    mu: float = MU_EARTH,
+    mean_keplerian_elements: np.ndarray,
     R_e: float = RE_EARTH,
     J2: float = J2_EARTH,
-) -> dict:
+) -> np.ndarray:
     """Compute Brouwer first-order J2 short-period corrections.
 
     Converts mean Keplerian elements (as used in TLE/SGP4) to osculating
@@ -565,18 +561,9 @@ def brouwer_short_period_corrections(
 
     Parameters
     ----------
-    mean_semi_major_axis : float
-        Mean semi-major axis (m).
-    mean_eccentricity : float
-        Mean eccentricity (dimensionless).
-    mean_inclination : float
-        Mean inclination (rad).
-    mean_argument_of_periapsis : float
-        Mean argument of periapsis (rad).
-    mean_anomaly : float
-        Mean anomaly (rad).
-    mu : float
-        Gravitational parameter (m^3/s^2).
+    mean_keplerian_elements : np.ndarray, shape (6,)
+        Mean Keplerian element vector [a, e, i, omega, RAAN, M].
+        Element ordering follows the predefined Kepler index constants.
     R_e : float
         Earth equatorial radius (m).
     J2 : float
@@ -584,14 +571,9 @@ def brouwer_short_period_corrections(
 
     Returns
     -------
-    dict
-        Osculating elements:
-            - semi_major_axis_m: float
-            - eccentricity: float
-            - inclination_rad: float
-            - raan_correction_rad: float (additive correction to RAAN)
-            - arg_periapsis_rad: float
-            - true_anomaly_rad: float
+    np.ndarray, shape (6,)
+        Osculating Keplerian elements [a, e, i, omega, RAAN, theta].
+        Element ordering follows the predefined Kepler index constants.
 
     Reference
     ---------
@@ -600,6 +582,19 @@ def brouwer_short_period_corrections(
     Hoots, F.R. & Roehrich, R.L. "Spacetrack Report No. 3", 1980.
     Vallado, D.A. "Fundamentals of Astrodynamics and Applications", Ch. 9.
     """
+    mean_elements = np.asarray(mean_keplerian_elements, dtype=float)
+    if mean_elements.shape != (6,):
+        raise ValueError(
+            f"Mean Keplerian elements must have shape (6,), got {mean_elements.shape}"
+        )
+
+    mean_semi_major_axis = mean_elements[SEMI_MAJOR_AXIS_INDEX]
+    mean_eccentricity = mean_elements[ECCENTRICITY_INDEX]
+    mean_inclination = mean_elements[INCLINATION_INDEX]
+    mean_argument_of_periapsis = mean_elements[ARGUMENT_OF_PERIAPSIS_INDEX]
+    mean_raan = mean_elements[RAAN_INDEX]
+    mean_anomaly = mean_elements[MEAN_ANOMALY_INDEX]
+
     # Semi-latus rectum and related quantities
     p_mean = mean_semi_major_axis * (1.0 - mean_eccentricity**2)
     eta = np.sqrt(1.0 - mean_eccentricity**2)
@@ -636,7 +631,7 @@ def brouwer_short_period_corrections(
     # The osculating semi-major axis differs from the Kozai mean by the
     # short-period radial perturbation. Using the standard result from
     # Brouwer/Kozai theory (consistent with SGP4's near-earth model):
-    #   a_osc = mean_semi_major_axis * (1 + delta)
+    #   osculating_semi_major_axis = mean_semi_major_axis * (1 + delta)
     # where delta captures the instantaneous energy perturbation.
     # The dominant term is the radial correction scaled by the orbit geometry.
     a_over_r = one_plus_e_cos_f / (1.0 - mean_eccentricity**2)
@@ -644,7 +639,7 @@ def brouwer_short_period_corrections(
         (1.0 - 3.0 * cos2i) * (3.0 * a_over_r - 1.0 / eta - 1.0)
         + 3.0 * sin2i * a_over_r * cos_2u
     )
-    a_osc = mean_semi_major_axis * (1.0 + delta_a_over_a)
+    osculating_semi_major_axis = mean_semi_major_axis * (1.0 + delta_a_over_a)
 
     # Short-period correction to eccentricity
     # de = gamma * eta * sin2i * [cos(2w+f) + e*cos(2w)/2 + e*cos(2w+2f)/2]
@@ -660,25 +655,26 @@ def brouwer_short_period_corrections(
             + 0.5 * mean_eccentricity * np.cos(two_omega + 2.0 * theta_mean)
         )
     )
-    e_osc = mean_eccentricity + delta_e
+    osculating_eccentricity = mean_eccentricity + delta_e
 
     # Short-period correction to inclination
     # di = gamma/2 * sin(2i) * cos(2u)
-    delta_i = 0.5 * gamma * np.sin(2.0 * mean_inclination) * cos_2u
-    i_osc = mean_inclination + delta_i
+    delta_inclination = 0.5 * gamma * np.sin(2.0 * mean_inclination) * cos_2u
+    osculating_inclination = mean_inclination + delta_inclination
 
     # Short-period correction to RAAN
-    # dOmega = -gamma * cos_i * sin(2u)
-    delta_raan = -gamma * cos_i * sin_2u
+    # dRAAN = -gamma * cos_i * sin(2u)
+    raan_correction = -gamma * cos_i * sin_2u
+    osculating_raan = mean_raan + raan_correction
 
     # Short-period correction to argument of periapsis
-    # dw = gamma * [(5*cos2i - 1)/2 * sin(2u)/eta
+    # dω = gamma * [(5*cos2i - 1)/2 * sin(2u)/eta
     #       + (1-5cos2i)/(2*eta) * e*sin(2u)  ... ]
     # Simplified dominant form:
-    # dw = gamma * [(2+e*cos_f)/one_plus_e_cos_f * sin(2u) * (5cos2i-1)/2
+    # dω = gamma * [(2+e*cos_f)/one_plus_e_cos_f * sin(2u) * (5cos2i-1)/2
     #       - e*sin_f*(1-3cos2i)/(2*eta)]
     # Standard Brouwer form for argument of periapsis short-period:
-    delta_omega = gamma * (
+    argument_of_periapsis_correction = gamma * (
         (5.0 * cos2i - 1.0) * sin_2u * one_plus_e_cos_f / (2.0 * eta)
         + (5.0 * cos2i - 1.0)
         * mean_eccentricity
@@ -689,57 +685,58 @@ def brouwer_short_period_corrections(
 
     # Short-period correction to mean anomaly -> affects true anomaly
     # The along-track correction modifies the argument of latitude:
-    # du = dw + df, where df is the true anomaly correction
+    # dU = dw + df, where df is the true anomaly correction
     # Total argument of latitude correction:
-    # du_sp = gamma * [(7*cos2i - 1)/2 * sin(2u) / eta]
-    delta_u_total = gamma * (
+    # dU = gamma * [(7*cos2i - 1)/2 * sin(2u) / eta]
+    argument_of_latitude_correction = gamma * (
         (7.0 * cos2i - 1.0) * sin_2u * one_plus_e_cos_f / (2.0 * eta)
     )
 
     # Osculating argument of latitude
-    u_osc = u_mean + delta_u_total
+    osculating_argument_of_latitude = u_mean + argument_of_latitude_correction
 
     # Osculating argument of periapsis
-    omega_osc = mean_argument_of_periapsis + delta_omega
+    osculating_argument_of_periapsis = (
+        mean_argument_of_periapsis + argument_of_periapsis_correction
+    )
 
-    # Osculating true anomaly from u_osc - omega_osc
-    theta_osc = u_osc - omega_osc
+    # Osculating true anomaly from osculating argument of latitude and periapsis
+    osculating_true_anomaly = (
+        osculating_argument_of_latitude - osculating_argument_of_periapsis
+    )
 
     # Normalize angles to [0, 2pi)
-    omega_osc = omega_osc % (2.0 * np.pi)
-    if omega_osc < 0.0:
-        omega_osc += 2.0 * np.pi
+    osculating_argument_of_periapsis = osculating_argument_of_periapsis % (2.0 * np.pi)
+    if osculating_argument_of_periapsis < 0.0:
+        osculating_argument_of_periapsis += 2.0 * np.pi
 
-    theta_osc = theta_osc % (2.0 * np.pi)
-    if theta_osc < 0.0:
-        theta_osc += 2.0 * np.pi
+    osculating_true_anomaly = osculating_true_anomaly % (2.0 * np.pi)
+    if osculating_true_anomaly < 0.0:
+        osculating_true_anomaly += 2.0 * np.pi
 
-    # Clamp eccentricity
-    e_osc = max(0.0, min(e_osc, 0.9999999))
+    # Clamp osculating eccentricity
+    osculating_eccentricity = max(0.0, min(osculating_eccentricity, 0.9999999))
 
-    return {
-        "semi_major_axis_m": a_osc,
-        "eccentricity": e_osc,
-        "inclination_rad": i_osc,
-        "raan_correction_rad": delta_raan,
-        "arg_periapsis_rad": omega_osc,
-        "true_anomaly_rad": theta_osc,
-    }
+    return np.array(
+        [
+            osculating_semi_major_axis,
+            osculating_eccentricity,
+            osculating_inclination,
+            osculating_argument_of_periapsis,
+            osculating_raan,
+            osculating_true_anomaly,
+        ],
+        dtype=float,
+    )
 
 
 def osculating_to_mean_keplerian(
-    osculating_semi_major_axis: float,
-    osculating_eccentricity: float,
-    osculating_inclination: float,
-    osculating_raan: float,
-    osculating_argument_of_periapsis: float,
-    osculating_true_anomaly: float,
-    mu: float = MU_EARTH,
+    osculating_keplerian_elements: np.ndarray,
     R_e: float = RE_EARTH,
     J2: float = J2_EARTH,
     max_iter: int = 20,
     tol: float = 1e-12,
-) -> dict:
+) -> np.ndarray:
     """Convert osculating Keplerian elements to mean (Brouwer) elements.
 
     Uses iterative inversion of the Brouwer short-period corrections.
@@ -749,22 +746,13 @@ def osculating_to_mean_keplerian(
 
     Parameters
     ----------
-    osculating_semi_major_axis : float
-        Osculating semi-major axis (m).
-    osculating_eccentricity : float
-        Osculating eccentricity.
-    osculating_inclination : float
-        Osculating inclination (rad).
-    osculating_raan : float
-        Osculating RAAN (rad).
-    osculating_argument_of_periapsis : float
-        Osculating argument of periapsis (rad).
-    osculating_true_anomaly : float
-        Osculating true anomaly (rad).
-    mu : float
-        Gravitational parameter (m^3/s^2).
+    osculating_keplerian_elements : np.ndarray, shape (6,)
+        Osculating Keplerian element vector [a, e, i, omega, RAAN, theta].
+        Element ordering follows the predefined Kepler index constants.
     R_e : float
         Earth equatorial radius (m).
+    J2 : float
+        J2 zonal harmonic coefficient.
     J2 : float
         J2 zonal harmonic coefficient.
     max_iter : int
@@ -774,51 +762,63 @@ def osculating_to_mean_keplerian(
 
     Returns
     -------
-    dict
-        Mean elements:
-            - semi_major_axis_m: float
-            - eccentricity: float
-            - inclination_rad: float
-            - raan_rad: float
-            - arg_periapsis_rad: float
-            - mean_anomaly_rad: float
-            - mean_motion_rev_per_day: float
+    np.ndarray, shape (6,)
+        Mean Keplerian elements [a, e, i, omega, RAAN, M].
+        Angles are in radians and semi-major axis is in meters.
     """
-    # Convert osculating true anomaly to mean anomaly
-    mean_anomaly_osc = true_to_mean_anomaly(
+    osculating_elements = np.asarray(osculating_keplerian_elements, dtype=float)
+    if osculating_elements.shape != (6,):
+        raise ValueError(
+            f"Osculating Keplerian elements must have shape (6,), got {osculating_elements.shape}"
+        )
+
+    osculating_semi_major_axis = osculating_elements[SEMI_MAJOR_AXIS_INDEX]
+    osculating_eccentricity = osculating_elements[ECCENTRICITY_INDEX]
+    osculating_inclination = osculating_elements[INCLINATION_INDEX]
+    osculating_argument_of_periapsis = osculating_elements[ARGUMENT_OF_PERIAPSIS_INDEX]
+    osculating_raan = osculating_elements[RAAN_INDEX]
+    osculating_true_anomaly = osculating_elements[TRUE_ANOMALY_INDEX]
+
+    # Convert osculating true anomaly to an initial mean anomaly guess
+    initial_mean_anomaly = true_to_mean_anomaly(
         osculating_true_anomaly, osculating_eccentricity
     )
 
     # Initial guess: mean = osculating
-    semi_major_axis_mean = osculating_semi_major_axis
-    eccentricity_mean = osculating_eccentricity
-    inclination_mean = osculating_inclination
-    raan_mean = osculating_raan
-    argument_of_periapsis_mean = osculating_argument_of_periapsis
-    mean_anomaly_mean = mean_anomaly_osc
+    mean_semi_major_axis = osculating_semi_major_axis
+    mean_eccentricity = osculating_eccentricity
+    mean_inclination = osculating_inclination
+    mean_raan = osculating_raan
+    mean_argument_of_periapsis = osculating_argument_of_periapsis
+    mean_anomaly_estimate = initial_mean_anomaly
 
     for _ in range(max_iter):
         # Apply forward correction
         osc = brouwer_short_period_corrections(
-            mean_semi_major_axis=semi_major_axis_mean,
-            mean_eccentricity=eccentricity_mean,
-            mean_inclination=inclination_mean,
-            mean_argument_of_periapsis=argument_of_periapsis_mean,
-            mean_anomaly=mean_anomaly_mean,
-            mu=mu,
+            np.array(
+                [
+                    mean_semi_major_axis,
+                    mean_eccentricity,
+                    mean_inclination,
+                    mean_argument_of_periapsis,
+                    mean_raan,
+                    mean_anomaly_estimate,
+                ],
+                dtype=float,
+            ),
             R_e=R_e,
             J2=J2,
         )
 
         # Compute residuals (osculating_target - osculating_from_mean)
-        delta_semimajor = osculating_semi_major_axis - osc["semi_major_axis_m"]
-        delta_eccentricity = osculating_eccentricity - osc["eccentricity"]
-        delta_inclination = osculating_inclination - osc["inclination_rad"]
-        delta_raan = osculating_raan - (raan_mean + osc["raan_correction_rad"])
+        delta_semimajor = osculating_semi_major_axis - osc[SEMI_MAJOR_AXIS_INDEX]
+        delta_eccentricity = osculating_eccentricity - osc[ECCENTRICITY_INDEX]
+        delta_inclination = osculating_inclination - osc[INCLINATION_INDEX]
+        delta_raan = osculating_raan - osc[RAAN_INDEX]
         delta_argument_of_periapsis = (
-            osculating_argument_of_periapsis - osc["arg_periapsis_rad"]
+            osculating_argument_of_periapsis - osc[ARGUMENT_OF_PERIAPSIS_INDEX]
         )
-        delta_true_anomaly = osculating_true_anomaly - osc["true_anomaly_rad"]
+        delta_true_anomaly = osculating_true_anomaly - osc[TRUE_ANOMALY_INDEX]
 
         # Wrap angle differences to [-pi, pi]
         delta_raan = (delta_raan + np.pi) % (2.0 * np.pi) - np.pi
@@ -828,55 +828,52 @@ def osculating_to_mean_keplerian(
         delta_true_anomaly = (delta_true_anomaly + np.pi) % (2.0 * np.pi) - np.pi
 
         # Update mean elements
-        semi_major_axis_mean += delta_semimajor
-        eccentricity_mean += delta_eccentricity
-        inclination_mean += delta_inclination
-        raan_mean += delta_raan
-        argument_of_periapsis_mean += delta_argument_of_periapsis
+        mean_semi_major_axis += delta_semimajor
+        mean_eccentricity += delta_eccentricity
+        mean_inclination += delta_inclination
+        mean_raan += delta_raan
+        mean_argument_of_periapsis += delta_argument_of_periapsis
 
         # Update mean anomaly from corrected true anomaly
         target_theta_for_mean = osculating_true_anomaly - (
-            osc["true_anomaly_rad"]
-            - mean_to_true_anomaly(mean_anomaly_mean, eccentricity_mean)
+            osc[TRUE_ANOMALY_INDEX]
+            - mean_to_true_anomaly(mean_anomaly_estimate, mean_eccentricity)
         )
-        mean_anomaly_mean = true_to_mean_anomaly(
-            target_theta_for_mean, eccentricity_mean
+        mean_anomaly_estimate = true_to_mean_anomaly(
+            target_theta_for_mean, mean_eccentricity
         )
-
-        # Clamp eccentricity
-        eccentricity_mean = max(1e-10, min(eccentricity_mean, 0.9999999))
 
         # Check convergence
         if abs(delta_semimajor) < tol and abs(delta_eccentricity) < 1e-14:
             break
 
     # Normalize angles
-    raan_mean = raan_mean % (2.0 * np.pi)
-    if raan_mean < 0.0:
-        raan_mean += 2.0 * np.pi
-    argument_of_periapsis_mean = argument_of_periapsis_mean % (2.0 * np.pi)
-    if argument_of_periapsis_mean < 0.0:
-        argument_of_periapsis_mean += 2.0 * np.pi
-    mean_anomaly_mean = mean_anomaly_mean % (2.0 * np.pi)
-    if mean_anomaly_mean < 0.0:
-        mean_anomaly_mean += 2.0 * np.pi
+    mean_raan = mean_raan % (2.0 * np.pi)
+    if mean_raan < 0.0:
+        mean_raan += 2.0 * np.pi
+    mean_argument_of_periapsis = mean_argument_of_periapsis % (2.0 * np.pi)
+    if mean_argument_of_periapsis < 0.0:
+        mean_argument_of_periapsis += 2.0 * np.pi
+    mean_anomaly_estimate = mean_anomaly_estimate % (2.0 * np.pi)
+    if mean_anomaly_estimate < 0.0:
+        mean_anomaly_estimate += 2.0 * np.pi
 
-    mean_motion_rev_per_day = semi_major_axis_to_mean_motion(semi_major_axis_mean, mu)
-
-    return {
-        "semi_major_axis_m": semi_major_axis_mean,
-        "eccentricity": eccentricity_mean,
-        "inclination_rad": inclination_mean,
-        "raan_rad": raan_mean,
-        "arg_periapsis_rad": argument_of_periapsis_mean,
-        "mean_anomaly_rad": mean_anomaly_mean,
-        "mean_motion_rev_per_day": mean_motion_rev_per_day,
-    }
+    return np.array(
+        [
+            mean_semi_major_axis,
+            mean_eccentricity,
+            mean_inclination,
+            mean_argument_of_periapsis,
+            mean_raan,
+            mean_anomaly_estimate,
+        ],
+        dtype=float,
+    )
 
 
 def tle_to_osculating_keplerian(
     tle_obj: "Tle", mu: float = MU_EARTH, apply_j2: bool = True
-) -> dict:
+) -> np.ndarray:
     """Extract osculating Keplerian elements at the TLE epoch.
 
     Converts the TLE mean elements to osculating elements. When *apply_j2*
@@ -898,17 +895,9 @@ def tle_to_osculating_keplerian(
 
     Returns
     -------
-    dict
-        Dictionary with osculating Keplerian elements:
-            - semi_major_axis_m: float (meters)
-            - eccentricity: float (dimensionless)
-            - inclination_rad: float (radians)
-            - raan_rad: float (radians)
-            - arg_periapsis_rad: float (radians)
-            - true_anomaly_rad: float (radians)
-            - epoch_year: int
-            - epoch_day: float
-            - epoch_string: str
+    np.ndarray, shape (6,)
+        Osculating Keplerian elements [semi_major_axis_m, eccentricity,
+        inclination_rad, raan_rad, arg_periapsis_rad, true_anomaly_rad].
 
     Reference
     ---------
@@ -933,43 +922,35 @@ def tle_to_osculating_keplerian(
     # Semi-major axis from mean motion (Kepler's third law)
     semi_major_axis_m = mean_motion_to_semi_major_axis(mean_motion_rev_per_day, mu)
 
-    # Epoch string
-    epoch_string = tle_epoch_to_datetime_string(tle_obj.epoch_year, tle_obj.epoch_day)
-
     if apply_j2:
         # Apply Brouwer J2 short-period corrections
         osc = brouwer_short_period_corrections(
-            mean_semi_major_axis=semi_major_axis_m,
-            mean_eccentricity=mean_eccentricity,
-            mean_inclination=inclination_rad,
-            mean_argument_of_periapsis=argument_of_perigee_rad,
-            mean_anomaly=mean_anomaly_rad,
-            mu=mu,
+            np.array(
+                [
+                    semi_major_axis_m,
+                    mean_eccentricity,
+                    inclination_rad,
+                    argument_of_perigee_rad,
+                    raan_rad,
+                    mean_anomaly_rad,
+                ],
+                dtype=float,
+            )
         )
 
-        return {
-            "semi_major_axis_m": osc["semi_major_axis_m"],
-            "eccentricity": osc["eccentricity"],
-            "inclination_rad": osc["inclination_rad"],
-            "raan_rad": raan_rad + osc["raan_correction_rad"],
-            "arg_periapsis_rad": osc["arg_periapsis_rad"],
-            "true_anomaly_rad": osc["true_anomaly_rad"],
-            "epoch_year": tle_obj.epoch_year,
-            "epoch_day": tle_obj.epoch_day,
-            "epoch_string": epoch_string,
-        }
+        return osc
     else:
         # Simple two-body conversion (legacy behavior)
         true_anomaly_rad = mean_to_true_anomaly(mean_anomaly_rad, mean_eccentricity)
 
-        return {
-            "semi_major_axis_m": semi_major_axis_m,
-            "eccentricity": mean_eccentricity,
-            "inclination_rad": inclination_rad,
-            "raan_rad": raan_rad,
-            "arg_periapsis_rad": argument_of_perigee_rad,
-            "true_anomaly_rad": true_anomaly_rad,
-            "epoch_year": tle_obj.epoch_year,
-            "epoch_day": tle_obj.epoch_day,
-            "epoch_string": epoch_string,
-        }
+        return np.array(
+            [
+                semi_major_axis_m,
+                mean_eccentricity,
+                inclination_rad,
+                argument_of_perigee_rad,
+                raan_rad,
+                true_anomaly_rad,
+            ],
+            dtype=float,
+        )

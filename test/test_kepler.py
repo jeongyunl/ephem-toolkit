@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from datetime import timedelta
 from pathlib import Path
 
 import numpy as np
@@ -43,27 +44,17 @@ def _make_tle_fixture() -> tle.Tle:
 
 
 # ===================================================================
-# 1. kepler.tle_to_osculating_keplerian returns all expected keys
+# 1. kepler.tle_to_osculating_keplerian returns keplerian element list and epoch
 # ===================================================================
 
 
 def test_tle_to_osculating_keplerian_returns_all_keys() -> None:
-    """Should return a dict with all 9 expected Keplerian element keys."""
+    """Should return a 6-element Keplerian list and a UTC-aware epoch datetime."""
     tle_obj = _make_tle_fixture()
-    result = kepler.tle_to_osculating_keplerian(tle_obj)
+    kep_elements = kepler.tle_to_osculating_keplerian(tle_obj)
 
-    expected_keys = {
-        "semi_major_axis_m",
-        "eccentricity",
-        "inclination_rad",
-        "raan_rad",
-        "arg_periapsis_rad",
-        "true_anomaly_rad",
-        "epoch_year",
-        "epoch_day",
-        "epoch_string",
-    }
-    assert set(result.keys()) == expected_keys
+    assert isinstance(kep_elements, np.ndarray)
+    assert kep_elements.shape == (6,)
 
 
 # ===================================================================
@@ -74,9 +65,9 @@ def test_tle_to_osculating_keplerian_returns_all_keys() -> None:
 def test_tle_to_osculating_keplerian_semi_major_axis_iss() -> None:
     """Should compute ISS semi-major axis ~6780 km from mean motion ~15.5 rev/day."""
     tle_obj = _make_tle_fixture()
-    result = kepler.tle_to_osculating_keplerian(tle_obj)
+    kep_elements = kepler.tle_to_osculating_keplerian(tle_obj)
 
-    a_km = result["semi_major_axis_m"] / 1000.0
+    a_km = kep_elements[0] / 1000.0
     # ISS orbits at ~408 km altitude -> a ~ 6786 km
     assert 6750.0 < a_km < 6850.0
 
@@ -89,9 +80,9 @@ def test_tle_to_osculating_keplerian_semi_major_axis_iss() -> None:
 def test_tle_to_osculating_keplerian_preserves_eccentricity() -> None:
     """Should preserve the eccentricity value directly from the TLE (no J2)."""
     tle_obj = _make_tle_fixture()
-    result = kepler.tle_to_osculating_keplerian(tle_obj, apply_j2=False)
+    kep_elements = kepler.tle_to_osculating_keplerian(tle_obj, apply_j2=False)
 
-    assert result["eccentricity"] == pytest.approx(tle_obj.eccentricity, abs=1e-10)
+    assert kep_elements[1] == pytest.approx(tle_obj.eccentricity, abs=1e-10)
 
 
 # ===================================================================
@@ -102,15 +93,15 @@ def test_tle_to_osculating_keplerian_preserves_eccentricity() -> None:
 def test_tle_to_osculating_keplerian_angles_in_radians() -> None:
     """Should convert inclination, RAAN, and arg_periapsis from degrees to radians (no J2)."""
     tle_obj = _make_tle_fixture()
-    result = kepler.tle_to_osculating_keplerian(tle_obj, apply_j2=False)
+    kep_elements = kepler.tle_to_osculating_keplerian(tle_obj, apply_j2=False)
 
-    assert result["inclination_rad"] == pytest.approx(
+    assert kep_elements[2] == pytest.approx(
         np.radians(tle_obj.inclination_deg), abs=1e-12
     )
-    assert result["raan_rad"] == pytest.approx(np.radians(tle_obj.raan_deg), abs=1e-12)
-    assert result["arg_periapsis_rad"] == pytest.approx(
+    assert kep_elements[3] == pytest.approx(
         np.radians(tle_obj.arg_perigee_deg), abs=1e-12
     )
+    assert kep_elements[4] == pytest.approx(np.radians(tle_obj.raan_deg), abs=1e-12)
 
 
 # ===================================================================
@@ -121,9 +112,9 @@ def test_tle_to_osculating_keplerian_angles_in_radians() -> None:
 def test_tle_to_osculating_keplerian_true_anomaly_range() -> None:
     """Should produce a true anomaly in the range [0, 2pi)."""
     tle_obj = _make_tle_fixture()
-    result = kepler.tle_to_osculating_keplerian(tle_obj)
+    kep_elements = kepler.tle_to_osculating_keplerian(tle_obj)
 
-    theta = result["true_anomaly_rad"]
+    theta = kep_elements[5]
     assert 0.0 <= theta < 2.0 * np.pi
 
 
@@ -175,6 +166,17 @@ def test_mean_motion_semi_major_axis_round_trip() -> None:
     assert n_recovered == pytest.approx(n_original, rel=1e-12)
 
 
+def test_osculating_to_mean_keplerian_returns_six_element_array() -> None:
+    """Should return a NumPy array of six mean Keplerian elements."""
+    result = kepler.osculating_to_mean_keplerian(
+        np.array([7000e3, 0.01, 0.1, 0.3, 0.2, 1.0], dtype=float)
+    )
+
+    assert isinstance(result, np.ndarray)
+    assert result.shape == (6,)
+    assert 0.0 <= result[5] < 2.0 * np.pi
+
+
 # ===================================================================
 # 10. kepler.tle_to_osculating_keplerian with real TLE file
 # ===================================================================
@@ -186,26 +188,23 @@ def test_tle_to_osculating_keplerian_with_real_tle_file() -> None:
     with open(tle_path, "r") as f:
         tle_obj = tle.read_tle(f)
 
-    result = kepler.tle_to_osculating_keplerian(tle_obj)
+    kep_elements = kepler.tle_to_osculating_keplerian(tle_obj)
 
     # Semi-major axis should be reasonable for LEO (6400-7200 km)
-    a_km = result["semi_major_axis_m"] / 1000.0
+    a_km = kep_elements[0] / 1000.0
     assert 6400.0 < a_km < 7200.0
 
     # Eccentricity should be near-circular for ISS
-    assert 0.0 <= result["eccentricity"] < 0.01
+    assert 0.0 <= kep_elements[1] < 0.01
 
     # Inclination should be ~51.6 degrees for ISS
-    inc_deg = np.degrees(result["inclination_rad"])
+    inc_deg = np.degrees(kep_elements[2])
     assert 51.0 < inc_deg < 52.0
 
     # All angles should be in valid range
-    assert 0.0 <= result["true_anomaly_rad"] < 2.0 * np.pi
-    assert 0.0 <= result["raan_rad"] < 2.0 * np.pi
-    assert 0.0 <= result["arg_periapsis_rad"] < 2.0 * np.pi
-
-    # Epoch string should be non-empty and contain "UTC"
-    assert "UTC" in result["epoch_string"]
+    assert 0.0 <= kep_elements[5] < 2.0 * np.pi
+    assert 0.0 <= kep_elements[3] < 2.0 * np.pi
+    assert 0.0 <= kep_elements[4] < 2.0 * np.pi
 
 
 # ===================================================================
@@ -551,21 +550,21 @@ def test_round_trip_tle_osculating_vs_tudatpy_keplerian(tudatpy_tle_round_trip) 
 
     # Semi-major axis: SGP4 vs two-body Kepler's third law
     # Expect agreement within ~50 km due to SGP4 mean-to-osculating differences
-    a_diff_km = abs(kep_from_tle["semi_major_axis_m"] - kep_tudatpy[0]) / 1000.0
+    a_diff_km = abs(kep_from_tle[0] - kep_tudatpy[0]) / 1000.0
     assert a_diff_km < 50.0, f"Semi-major axis difference too large: {a_diff_km:.2f} km"
 
     # Eccentricity: should be close (ISS is near-circular)
-    assert kep_from_tle["eccentricity"] == pytest.approx(
+    assert kep_from_tle[1] == pytest.approx(
         kep_tudatpy[1], abs=1e-3
     ), "Eccentricity difference too large between TLE mean and SGP4 osculating"
 
     # Inclination: should agree well (secular perturbation is small)
-    assert kep_from_tle["inclination_rad"] == pytest.approx(
+    assert kep_from_tle[2] == pytest.approx(
         kep_tudatpy[2], abs=np.radians(0.1)
     ), "Inclination difference too large"
 
     # RAAN: may differ due to J2 nodal regression, allow 1 degree
-    raan_diff = abs(kep_from_tle["raan_rad"] - kep_tudatpy[4])
+    raan_diff = abs(kep_from_tle[4] - kep_tudatpy[4])
     # Handle wrap-around
     if raan_diff > np.pi:
         raan_diff = 2.0 * np.pi - raan_diff
@@ -576,9 +575,7 @@ def test_round_trip_tle_osculating_vs_tudatpy_keplerian(tudatpy_tle_round_trip) 
     # For near-circular orbits, argument of periapsis and true anomaly are
     # individually poorly defined. Compare the argument of latitude (u = omega + theta)
     # which is well-defined regardless of eccentricity.
-    u_from_tle = (
-        kep_from_tle["arg_periapsis_rad"] + kep_from_tle["true_anomaly_rad"]
-    ) % (2.0 * np.pi)
+    u_from_tle = (kep_from_tle[3] + kep_from_tle[5]) % (2.0 * np.pi)
     u_tudatpy = (kep_tudatpy[3] + kep_tudatpy[5]) % (2.0 * np.pi)
 
     u_diff = abs(u_from_tle - u_tudatpy)
