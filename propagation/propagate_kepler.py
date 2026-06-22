@@ -98,39 +98,7 @@ def parse_args() -> argparse.Namespace:
             "If omitted, only propagated state lines are printed."
         ),
     )
-    parser.add_argument(
-        "--use-mean",
-        action="store_true",
-        help=(
-            "Convert input osculating Keplerian elements to mean Keplerian "
-            "elements using common.kepler.osculating_to_mean_keplerian before "
-            "propagation."
-        ),
-    )
     return parser.parse_args()
-
-
-def convert_osculating_to_mean_keplerian(kepler_m: np.ndarray) -> np.ndarray:
-    """Convert osculating Keplerian elements to a mean Keplerian element vector.
-
-    The TudatPy propagator expects Keplerian elements in the standard order
-    [a, e, i, omega, RAAN, theta], with theta as the current true anomaly.
-    When ``--use-mean`` is enabled, the osculating input is converted to Brouwer
-    mean elements and the mean anomaly is converted back to true anomaly for
-    propagation.
-    """
-    mean_elements = kepler.osculating_to_mean_keplerian(kepler_m)
-    return np.concatenate(
-        [
-            mean_elements[:5],
-            [
-                kepler.mean_to_true_anomaly(
-                    mean_elements[kepler.MEAN_ANOMALY_INDEX],
-                    mean_elements[kepler.ECCENTRICITY_INDEX],
-                )
-            ],
-        ]
-    ).astype(np.float64)
 
 
 def read_kepler_input(cli_value: str | None) -> tuple[dt.datetime, np.ndarray, str]:
@@ -178,13 +146,10 @@ def propagate_kepler_elements(
     two_body_dynamics_module,
     include_oem_header: bool,
     object_name: str,
-    use_mean: bool,
 ) -> None:
     """Propagate the given Keplerian elements and write output lines."""
     initial_kepler_m = initial_kepler_km.astype(np.float64).copy()
     initial_kepler_m[kepler.SEMI_MAJOR_AXIS_INDEX] *= 1e3
-    if use_mean:
-        initial_kepler_m = convert_osculating_to_mean_keplerian(initial_kepler_m)
     initial_kepler_m = initial_kepler_m.reshape((6, 1))
 
     stop_time = duration
@@ -257,7 +222,6 @@ def main() -> int:
         two_body_dynamics_module=two_body_dynamics_module,
         include_oem_header=args.oem,
         object_name=object_name,
-        use_mean=args.use_mean,
     )
     return 0
 
