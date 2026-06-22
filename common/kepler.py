@@ -64,12 +64,12 @@ TRUE_ANOMALY_INDEX: int = 5
 # ===================================================================
 
 
-def cartesian_to_keplerian(state: np.ndarray, mu: float) -> np.ndarray:
+def cartesian_to_keplerian(cartesian_state_vector: np.ndarray, mu: float) -> np.ndarray:
     """Convert a Cartesian state vector to osculating Keplerian elements.
 
     Parameters
     ----------
-    state : np.ndarray, shape (6,)
+    cartesian_state_vector : np.ndarray, shape (6,)
         Cartesian state vector [x, y, z, vx, vy, vz].
         Position in meters, velocity in m/s.
     mu : float
@@ -88,96 +88,119 @@ def cartesian_to_keplerian(state: np.ndarray, mu: float) -> np.ndarray:
         If the state vector does not have 6 elements or if the orbit is
         degenerate (zero angular momentum).
     """
-    state = np.asarray(state, dtype=float)
-    if state.shape != (6,):
-        raise ValueError(f"State vector must have shape (6,), got {state.shape}")
+    state_vector = np.asarray(cartesian_state_vector, dtype=float)
+    if state_vector.shape != (6,):
+        raise ValueError(f"State vector must have shape (6,), got {state_vector.shape}")
 
-    r_vec = state[0:3]
-    v_vec = state[3:6]
+    position_vector = state_vector[0:3]
+    velocity_vector = state_vector[3:6]
 
-    r = np.linalg.norm(r_vec)
-    v = np.linalg.norm(v_vec)
+    position_norm = np.linalg.norm(position_vector)
+    velocity_norm = np.linalg.norm(velocity_vector)
 
-    if r < 1e-10:
+    if position_norm < 1e-10:
         raise ValueError("Position vector has zero magnitude — degenerate orbit.")
 
     # --- Specific angular momentum ---
-    h_vec = np.cross(r_vec, v_vec)
-    h = np.linalg.norm(h_vec)
+    angular_momentum_vector = np.cross(position_vector, velocity_vector)
+    angular_momentum = np.linalg.norm(angular_momentum_vector)
 
-    if h < 1e-10:
+    if angular_momentum < 1e-10:
         raise ValueError(
-            "Angular momentum is zero — rectilinear orbit, " "Keplerian elements are undefined."
+            "Angular momentum is zero — rectilinear orbit, "
+            "Keplerian elements are undefined."
         )
 
     # --- Node vector (points toward ascending node) ---
     K = np.array([0.0, 0.0, 1.0])
-    n_vec = np.cross(K, h_vec)
-    n = np.linalg.norm(n_vec)
+    node_vector = np.cross(K, angular_momentum_vector)
+    node_norm = np.linalg.norm(node_vector)
 
     # --- Eccentricity vector (points toward periapsis) ---
-    e_vec = ((v**2 - mu / r) * r_vec - np.dot(r_vec, v_vec) * v_vec) / mu
-    e = np.linalg.norm(e_vec)
+    eccentricity_vector = (
+        (velocity_norm**2 - mu / position_norm) * position_vector
+        - np.dot(position_vector, velocity_vector) * velocity_vector
+    ) / mu
+    eccentricity = np.linalg.norm(eccentricity_vector)
 
     # --- Specific mechanical energy ---
-    energy = 0.5 * v**2 - mu / r
+    energy = 0.5 * velocity_norm**2 - mu / position_norm
 
     # --- Semi-major axis ---
-    if abs(1.0 - e) > 1e-10:  # elliptic or hyperbolic
-        a = -mu / (2.0 * energy)
+    if abs(1.0 - eccentricity) > 1e-10:  # elliptic or hyperbolic
+        semi_major_axis = -mu / (2.0 * energy)
     else:
         # Parabolic orbit — semi-major axis is undefined (infinite)
-        a = np.inf
+        semi_major_axis = np.inf
 
     # --- Inclination ---
-    i = np.arccos(np.clip(h_vec[2] / h, -1.0, 1.0))
+    inclination = np.arccos(
+        np.clip(angular_momentum_vector[2] / angular_momentum, -1.0, 1.0)
+    )
 
     # --- Right Ascension of the Ascending Node (RAAN / Ω) ---
-    if n > 1e-10:
-        RAAN = np.arccos(np.clip(n_vec[0] / n, -1.0, 1.0))
-        if n_vec[1] < 0.0:
-            RAAN = 2.0 * np.pi - RAAN
+    if node_norm > 1e-10:
+        raan = np.arccos(np.clip(node_vector[0] / node_norm, -1.0, 1.0))
+        if node_vector[1] < 0.0:
+            raan = 2.0 * np.pi - raan
     else:
         # Equatorial orbit — RAAN is undefined, conventionally set to 0
-        RAAN = 0.0
+        raan = 0.0
 
     # --- Argument of Periapsis (ω) ---
-    if n > 1e-10 and e > 1e-10:
-        cos_omega = np.dot(n_vec, e_vec) / (n * e)
-        omega = np.arccos(np.clip(cos_omega, -1.0, 1.0))
-        if e_vec[2] < 0.0:
-            omega = 2.0 * np.pi - omega
-    elif e > 1e-10:
+    if node_norm > 1e-10 and eccentricity > 1e-10:
+        cos_argument_of_periapsis = np.dot(node_vector, eccentricity_vector) / (
+            node_norm * eccentricity
+        )
+        argument_of_periapsis = np.arccos(np.clip(cos_argument_of_periapsis, -1.0, 1.0))
+        if eccentricity_vector[2] < 0.0:
+            argument_of_periapsis = 2.0 * np.pi - argument_of_periapsis
+    elif eccentricity > 1e-10:
         # Equatorial orbit with nonzero eccentricity:
-        # use longitude of periapsis (angle from x-axis to e_vec)
-        omega = np.arctan2(e_vec[1], e_vec[0])
-        if omega < 0.0:
-            omega += 2.0 * np.pi
+        # use longitude of periapsis (angle from x-axis to eccentricity_vector)
+        argument_of_periapsis = np.arctan2(
+            eccentricity_vector[1], eccentricity_vector[0]
+        )
+        if argument_of_periapsis < 0.0:
+            argument_of_periapsis += 2.0 * np.pi
     else:
         # Circular orbit — argument of periapsis is undefined, set to 0
-        omega = 0.0
+        argument_of_periapsis = 0.0
 
     # --- True Anomaly (θ / ν) ---
-    if e > 1e-10:
-        cos_theta = np.dot(e_vec, r_vec) / (e * r)
-        theta = np.arccos(np.clip(cos_theta, -1.0, 1.0))
+    if eccentricity > 1e-10:
+        cos_true_anomaly = np.dot(eccentricity_vector, position_vector) / (
+            eccentricity * position_norm
+        )
+        true_anomaly = np.arccos(np.clip(cos_true_anomaly, -1.0, 1.0))
         # Quadrant check: if r·v < 0, spacecraft is approaching periapsis
-        if np.dot(r_vec, v_vec) < 0.0:
-            theta = 2.0 * np.pi - theta
-    elif n > 1e-10:
+        if np.dot(position_vector, velocity_vector) < 0.0:
+            true_anomaly = 2.0 * np.pi - true_anomaly
+    elif node_norm > 1e-10:
         # Circular, non-equatorial: use argument of latitude (u = ω + θ)
-        cos_u = np.dot(n_vec, r_vec) / (n * r)
-        theta = np.arccos(np.clip(cos_u, -1.0, 1.0))
-        if r_vec[2] < 0.0:
-            theta = 2.0 * np.pi - theta
+        cos_argument_of_latitude = np.dot(node_vector, position_vector) / (
+            node_norm * position_norm
+        )
+        true_anomaly = np.arccos(np.clip(cos_argument_of_latitude, -1.0, 1.0))
+        if position_vector[2] < 0.0:
+            true_anomaly = 2.0 * np.pi - true_anomaly
     else:
         # Circular, equatorial: use true longitude (l = Ω + ω + θ)
-        theta = np.arctan2(r_vec[1], r_vec[0])
-        if theta < 0.0:
-            theta += 2.0 * np.pi
+        true_anomaly = np.arctan2(position_vector[1], position_vector[0])
+        if true_anomaly < 0.0:
+            true_anomaly += 2.0 * np.pi
 
     # Return in tudatpy order: [a, e, i, omega, RAAN, theta]
-    return np.array([a, e, i, omega, RAAN, theta])
+    return np.array(
+        [
+            semi_major_axis,
+            eccentricity,
+            inclination,
+            argument_of_periapsis,
+            raan,
+            true_anomaly,
+        ]
+    )
 
 
 # ===================================================================
@@ -185,12 +208,12 @@ def cartesian_to_keplerian(state: np.ndarray, mu: float) -> np.ndarray:
 # ===================================================================
 
 
-def keplerian_to_cartesian(elements: np.ndarray, mu: float) -> np.ndarray:
+def keplerian_to_cartesian(keplerian_elements: np.ndarray, mu: float) -> np.ndarray:
     """Convert osculating Keplerian elements to a Cartesian state vector.
 
     Parameters
     ----------
-    elements : np.ndarray, shape (6,)
+    keplerian_elements : np.ndarray, shape (6,)
         Keplerian elements [a, e, i, omega, RAAN, theta].
         Angles in radians, semi-major axis in meters.
         Element ordering matches tudatpy convention.
@@ -207,66 +230,74 @@ def keplerian_to_cartesian(elements: np.ndarray, mu: float) -> np.ndarray:
     ValueError
         If the orbit is parabolic (infinite semi-major axis).
     """
-    a = elements[SEMI_MAJOR_AXIS_INDEX]
-    e = elements[ECCENTRICITY_INDEX]
-    i = elements[INCLINATION_INDEX]
-    omega = elements[ARGUMENT_OF_PERIAPSIS_INDEX]
-    RAAN = elements[RAAN_INDEX]
-    theta = elements[TRUE_ANOMALY_INDEX]
+    semi_major_axis = keplerian_elements[SEMI_MAJOR_AXIS_INDEX]
+    eccentricity = keplerian_elements[ECCENTRICITY_INDEX]
+    inclination = keplerian_elements[INCLINATION_INDEX]
+    argument_of_periapsis = keplerian_elements[ARGUMENT_OF_PERIAPSIS_INDEX]
+    raan = keplerian_elements[RAAN_INDEX]
+    true_anomaly = keplerian_elements[TRUE_ANOMALY_INDEX]
 
-    if np.isinf(a):
+    if np.isinf(semi_major_axis):
         raise ValueError("Parabolic orbits not supported in inverse conversion.")
 
     # Semi-latus rectum
-    p = a * (1.0 - e**2)
+    semi_latus_rectum = semi_major_axis * (1.0 - eccentricity**2)
 
     # Position and velocity in the perifocal frame (PQW)
-    r_mag = p / (1.0 + e * np.cos(theta))
+    r_mag = semi_latus_rectum / (1.0 + eccentricity * np.cos(true_anomaly))
 
-    r_pqw = np.array(
+    position_perifocal = np.array(
         [
-            r_mag * np.cos(theta),
-            r_mag * np.sin(theta),
+            r_mag * np.cos(true_anomaly),
+            r_mag * np.sin(true_anomaly),
             0.0,
         ]
     )
 
-    v_pqw = np.sqrt(mu / p) * np.array(
+    velocity_perifocal = np.sqrt(mu / semi_latus_rectum) * np.array(
         [
-            -np.sin(theta),
-            e + np.cos(theta),
+            -np.sin(true_anomaly),
+            eccentricity + np.cos(true_anomaly),
             0.0,
         ]
     )
 
     # Rotation matrix from perifocal to inertial (3-1-3: RAAN, i, omega)
-    cos_O = np.cos(RAAN)
-    sin_O = np.sin(RAAN)
-    cos_i = np.cos(i)
-    sin_i = np.sin(i)
-    cos_w = np.cos(omega)
-    sin_w = np.sin(omega)
+    cos_raan = np.cos(raan)
+    sin_raan = np.sin(raan)
+    cos_inclination = np.cos(inclination)
+    sin_inclination = np.sin(inclination)
+    cos_argument_of_periapsis = np.cos(argument_of_periapsis)
+    sin_argument_of_periapsis = np.sin(argument_of_periapsis)
 
-    R = np.array(
+    rotation_matrix_perifocal_to_inertial = np.array(
         [
             [
-                cos_O * cos_w - sin_O * sin_w * cos_i,
-                -cos_O * sin_w - sin_O * cos_w * cos_i,
-                sin_O * sin_i,
+                cos_raan * cos_argument_of_periapsis
+                - sin_raan * sin_argument_of_periapsis * cos_inclination,
+                -cos_raan * sin_argument_of_periapsis
+                - sin_raan * cos_argument_of_periapsis * cos_inclination,
+                sin_raan * sin_inclination,
             ],
             [
-                sin_O * cos_w + cos_O * sin_w * cos_i,
-                -sin_O * sin_w + cos_O * cos_w * cos_i,
-                -cos_O * sin_i,
+                sin_raan * cos_argument_of_periapsis
+                + cos_raan * sin_argument_of_periapsis * cos_inclination,
+                -sin_raan * sin_argument_of_periapsis
+                + cos_raan * cos_argument_of_periapsis * cos_inclination,
+                -cos_raan * sin_inclination,
             ],
-            [sin_w * sin_i, cos_w * sin_i, cos_i],
+            [
+                sin_argument_of_periapsis * sin_inclination,
+                cos_argument_of_periapsis * sin_inclination,
+                cos_inclination,
+            ],
         ]
     )
 
-    r_vec = R @ r_pqw
-    v_vec = R @ v_pqw
+    position_inertial = rotation_matrix_perifocal_to_inertial @ position_perifocal
+    velocity_inertial = rotation_matrix_perifocal_to_inertial @ velocity_perifocal
 
-    return np.concatenate([r_vec, v_vec])
+    return np.concatenate([position_inertial, velocity_inertial])
 
 
 # ===================================================================
@@ -274,83 +305,85 @@ def keplerian_to_cartesian(elements: np.ndarray, mu: float) -> np.ndarray:
 # ===================================================================
 
 
-def true_to_eccentric_anomaly(theta: float, e: float) -> float:
+def true_to_eccentric_anomaly(true_anomaly: float, eccentricity: float) -> float:
     """Convert true anomaly to eccentric anomaly.
 
     Parameters
     ----------
-    theta : float
+    true_anomaly : float
         True anomaly (rad).
-    e : float
-        Eccentricity (0 ≤ e < 1).
+    eccentricity : float
+        Eccentricity (0 ≤ eccentricity < 1).
 
     Returns
     -------
     float
         Eccentric anomaly E (rad) in [0, 2π).
     """
-    E = 2.0 * np.arctan2(
-        np.sqrt(1.0 - e) * np.sin(theta / 2.0),
-        np.sqrt(1.0 + e) * np.cos(theta / 2.0),
+    eccentric_anomaly = 2.0 * np.arctan2(
+        np.sqrt(1.0 - eccentricity) * np.sin(true_anomaly / 2.0),
+        np.sqrt(1.0 + eccentricity) * np.cos(true_anomaly / 2.0),
     )
-    if E < 0.0:
-        E += 2.0 * np.pi
-    return E
+    if eccentric_anomaly < 0.0:
+        eccentric_anomaly += 2.0 * np.pi
+    return eccentric_anomaly
 
 
-def eccentric_to_true_anomaly(E: float, e: float) -> float:
+def eccentric_to_true_anomaly(eccentric_anomaly: float, eccentricity: float) -> float:
     """Convert eccentric anomaly to true anomaly.
 
     Parameters
     ----------
-    E : float
+    eccentric_anomaly : float
         Eccentric anomaly (rad).
-    e : float
-        Eccentricity (0 ≤ e < 1).
+    eccentricity : float
+        Eccentricity (0 ≤ eccentricity < 1).
 
     Returns
     -------
     float
         True anomaly θ (rad) in [0, 2π).
     """
-    theta = 2.0 * np.arctan2(
-        np.sqrt(1.0 + e) * np.sin(E / 2.0),
-        np.sqrt(1.0 - e) * np.cos(E / 2.0),
+    true_anomaly = 2.0 * np.arctan2(
+        np.sqrt(1.0 + eccentricity) * np.sin(eccentric_anomaly / 2.0),
+        np.sqrt(1.0 - eccentricity) * np.cos(eccentric_anomaly / 2.0),
     )
-    if theta < 0.0:
-        theta += 2.0 * np.pi
-    return theta
+    if true_anomaly < 0.0:
+        true_anomaly += 2.0 * np.pi
+    return true_anomaly
 
 
-def eccentric_to_mean_anomaly(E: float, e: float) -> float:
+def eccentric_to_mean_anomaly(eccentric_anomaly: float, eccentricity: float) -> float:
     """Convert eccentric anomaly to mean anomaly (Kepler's equation).
 
     Parameters
     ----------
-    E : float
+    eccentric_anomaly : float
         Eccentric anomaly (rad).
-    e : float
-        Eccentricity (0 ≤ e < 1).
+    eccentricity : float
+        Eccentricity (0 ≤ eccentricity < 1).
 
     Returns
     -------
     float
         Mean anomaly M (rad).
     """
-    return E - e * np.sin(E)
+    return eccentric_anomaly - eccentricity * np.sin(eccentric_anomaly)
 
 
-def mean_to_eccentric_anomaly(M: float, e: float, tol: float = 1e-12, max_iter: int = 50) -> float:
-    """Solve Kepler's equation M = E − e·sin(E) for eccentric anomaly E.
+def mean_to_eccentric_anomaly(
+    mean_anomaly: float, eccentricity: float, tol: float = 1e-12, max_iter: int = 50
+) -> float:
+    """Solve Kepler's equation mean_anomaly = E − e·sin(E) for eccentric anomaly E.
 
     Uses Newton-Raphson iteration.
 
     Parameters
     ----------
-    M : float
+    mean_anomaly : float
         Mean anomaly (rad).
-    e : float
-        Eccentricity (0 ≤ e < 1).
+    eccentricity : float
+        Eccentricity (0 ≤ eccentricity < 1).
     tol : float
         Convergence tolerance.
     max_iter : int
@@ -367,34 +400,38 @@ def mean_to_eccentric_anomaly(M: float, e: float, tol: float = 1e-12, max_iter: 
         If Newton-Raphson does not converge.
     """
     # Initial guess
-    if e < 0.8:
-        E = M
+    if eccentricity < 0.8:
+        eccentric_anomaly = mean_anomaly
     else:
-        E = np.pi
+        eccentric_anomaly = np.pi
 
     for _ in range(max_iter):
-        f = E - e * np.sin(E) - M
-        f_prime = 1.0 - e * np.cos(E)
-        delta = f / f_prime
-        E = E - delta
+        residual = (
+            eccentric_anomaly - eccentricity * np.sin(eccentric_anomaly) - mean_anomaly
+        )
+        residual_derivative = 1.0 - eccentricity * np.cos(eccentric_anomaly)
+        delta = residual / residual_derivative
+        eccentric_anomaly = eccentric_anomaly - delta
         if abs(delta) < tol:
-            return E
+            return eccentric_anomaly
 
     raise RuntimeError(
         f"Kepler's equation did not converge after {max_iter} iterations "
-        f"(M={M:.10f}, e={e:.10f})"
+        f"(mean_anomaly={mean_anomaly:.10f}, eccentricity={eccentricity:.10f})"
     )
 
 
-def mean_to_true_anomaly(M: float, e: float, tol: float = 1e-12) -> float:
+def mean_to_true_anomaly(
+    mean_anomaly: float, eccentricity: float, tol: float = 1e-12
+) -> float:
     """Convert mean anomaly to true anomaly via eccentric anomaly.
 
     Parameters
     ----------
-    M : float
+    mean_anomaly : float
         Mean anomaly (rad).
-    e : float
-        Eccentricity (0 ≤ e < 1).
+    eccentricity : float
+        Eccentricity (0 ≤ eccentricity < 1).
     tol : float
         Convergence tolerance for Kepler's equation.
 
@@ -403,27 +440,27 @@ def mean_to_true_anomaly(M: float, e: float, tol: float = 1e-12) -> float:
     float
         True anomaly θ (rad) in [0, 2π).
     """
-    E = mean_to_eccentric_anomaly(M, e, tol=tol)
-    return eccentric_to_true_anomaly(E, e)
+    eccentric_anomaly = mean_to_eccentric_anomaly(mean_anomaly, eccentricity, tol=tol)
+    return eccentric_to_true_anomaly(eccentric_anomaly, eccentricity)
 
 
-def true_to_mean_anomaly(theta: float, e: float) -> float:
+def true_to_mean_anomaly(true_anomaly: float, eccentricity: float) -> float:
     """Convert true anomaly to mean anomaly via eccentric anomaly.
 
     Parameters
     ----------
-    theta : float
+    true_anomaly : float
         True anomaly (rad).
-    e : float
-        Eccentricity (0 ≤ e < 1).
+    eccentricity : float
+        Eccentricity (0 ≤ eccentricity < 1).
 
     Returns
     -------
     float
         Mean anomaly M (rad).
     """
-    E = true_to_eccentric_anomaly(theta, e)
-    return eccentric_to_mean_anomaly(E, e)
+    eccentric_anomaly = true_to_eccentric_anomaly(true_anomaly, eccentricity)
+    return eccentric_to_mean_anomaly(eccentric_anomaly, eccentricity)
 
 
 # ===================================================================
@@ -431,7 +468,9 @@ def true_to_mean_anomaly(theta: float, e: float) -> float:
 # ===================================================================
 
 
-def mean_motion_to_semi_major_axis(n_rev_per_day: float, mu: float = MU_EARTH) -> float:
+def mean_motion_to_semi_major_axis(
+    mean_motion_rev_per_day: float, mu: float = MU_EARTH
+) -> float:
     """Convert mean motion (rev/day) to semi-major axis (m).
 
     Uses Kepler's third law: a = (mu / n^2)^(1/3).
@@ -448,11 +487,13 @@ def mean_motion_to_semi_major_axis(n_rev_per_day: float, mu: float = MU_EARTH) -
     float
         Semi-major axis in meters.
     """
-    n_rad_per_sec = n_rev_per_day * 2.0 * np.pi / 86400.0
+    n_rad_per_sec = mean_motion_rev_per_day * 2.0 * np.pi / 86400.0
     return (mu / n_rad_per_sec**2) ** (1.0 / 3.0)
 
 
-def semi_major_axis_to_mean_motion(a: float, mu: float = MU_EARTH) -> float:
+def semi_major_axis_to_mean_motion(
+    semi_major_axis: float, mu: float = MU_EARTH
+) -> float:
     """Convert semi-major axis (m) to mean motion (rev/day).
 
     Uses Kepler's third law: n = sqrt(mu / a^3).
@@ -469,7 +510,7 @@ def semi_major_axis_to_mean_motion(a: float, mu: float = MU_EARTH) -> float:
     float
         Mean motion in revolutions per day.
     """
-    n_rad_per_sec = np.sqrt(mu / a**3)
+    n_rad_per_sec = np.sqrt(mu / semi_major_axis**3)
     return n_rad_per_sec * 86400.0 / (2.0 * np.pi)
 
 
@@ -505,11 +546,11 @@ def tle_epoch_to_datetime_string(epoch_year: int, epoch_day: float) -> str:
 
 
 def brouwer_short_period_corrections(
-    a_mean: float,
-    e_mean: float,
-    i_mean: float,
-    omega_mean: float,
-    M_mean: float,
+    mean_semi_major_axis: float,
+    mean_eccentricity: float,
+    mean_inclination: float,
+    mean_argument_of_periapsis: float,
+    mean_anomaly: float,
     mu: float = MU_EARTH,
     R_e: float = RE_EARTH,
     J2: float = J2_EARTH,
@@ -524,16 +565,16 @@ def brouwer_short_period_corrections(
 
     Parameters
     ----------
-    a_mean : float
+    mean_semi_major_axis : float
         Mean semi-major axis (m).
-    e_mean : float
+    mean_eccentricity : float
         Mean eccentricity (dimensionless).
-    i_mean : float
+    mean_inclination : float
         Mean inclination (rad).
-    omega_mean : float
+    mean_argument_of_periapsis : float
         Mean argument of periapsis (rad).
-    M_mean : float
-        Mean mean anomaly (rad).
+    mean_anomaly : float
+        Mean anomaly (rad).
     mu : float
         Gravitational parameter (m^3/s^2).
     R_e : float
@@ -560,21 +601,21 @@ def brouwer_short_period_corrections(
     Vallado, D.A. "Fundamentals of Astrodynamics and Applications", Ch. 9.
     """
     # Semi-latus rectum and related quantities
-    p_mean = a_mean * (1.0 - e_mean**2)
-    eta = np.sqrt(1.0 - e_mean**2)
+    p_mean = mean_semi_major_axis * (1.0 - mean_eccentricity**2)
+    eta = np.sqrt(1.0 - mean_eccentricity**2)
 
     # Solve Kepler's equation for mean elements: M -> E -> theta
-    E_mean = mean_to_eccentric_anomaly(M_mean, e_mean)
-    theta_mean = eccentric_to_true_anomaly(E_mean, e_mean)
+    E_mean = mean_to_eccentric_anomaly(mean_anomaly, mean_eccentricity)
+    theta_mean = eccentric_to_true_anomaly(E_mean, mean_eccentricity)
 
     # Trigonometric quantities
-    cos_i = np.cos(i_mean)
-    sin_i = np.sin(i_mean)
+    cos_i = np.cos(mean_inclination)
+    sin_i = np.sin(mean_inclination)
     cos_theta = np.cos(theta_mean)
     sin_theta = np.sin(theta_mean)
 
     # Argument of latitude u = omega + theta
-    u_mean = omega_mean + theta_mean
+    u_mean = mean_argument_of_periapsis + theta_mean
     cos_2u = np.cos(2.0 * u_mean)
     sin_2u = np.sin(2.0 * u_mean)
 
@@ -582,7 +623,7 @@ def brouwer_short_period_corrections(
     gamma = 0.5 * J2 * (R_e / p_mean) ** 2
 
     # Convenience
-    one_plus_e_cos_f = 1.0 + e_mean * cos_theta
+    one_plus_e_cos_f = 1.0 + mean_eccentricity * cos_theta
     sin2i = sin_i**2
     cos2i = cos_i**2
 
@@ -595,31 +636,36 @@ def brouwer_short_period_corrections(
     # The osculating semi-major axis differs from the Kozai mean by the
     # short-period radial perturbation. Using the standard result from
     # Brouwer/Kozai theory (consistent with SGP4's near-earth model):
-    #   a_osc = a_mean * (1 + delta)
+    #   a_osc = mean_semi_major_axis * (1 + delta)
     # where delta captures the instantaneous energy perturbation.
     # The dominant term is the radial correction scaled by the orbit geometry.
-    a_over_r = one_plus_e_cos_f / (1.0 - e_mean**2)
+    a_over_r = one_plus_e_cos_f / (1.0 - mean_eccentricity**2)
     delta_a_over_a = gamma * (
         (1.0 - 3.0 * cos2i) * (3.0 * a_over_r - 1.0 / eta - 1.0)
         + 3.0 * sin2i * a_over_r * cos_2u
     )
-    a_osc = a_mean * (1.0 + delta_a_over_a)
+    a_osc = mean_semi_major_axis * (1.0 + delta_a_over_a)
 
     # Short-period correction to eccentricity
     # de = gamma * eta * sin2i * [cos(2w+f) + e*cos(2w)/2 + e*cos(2w+2f)/2]
     # where w = omega, f = theta
-    two_omega = 2.0 * omega_mean
-    delta_e = gamma * eta * sin2i * (
-        np.cos(two_omega + theta_mean)
-        + 0.5 * e_mean * np.cos(two_omega)
-        + 0.5 * e_mean * np.cos(two_omega + 2.0 * theta_mean)
+    two_omega = 2.0 * mean_argument_of_periapsis
+    delta_e = (
+        gamma
+        * eta
+        * sin2i
+        * (
+            np.cos(two_omega + theta_mean)
+            + 0.5 * mean_eccentricity * np.cos(two_omega)
+            + 0.5 * mean_eccentricity * np.cos(two_omega + 2.0 * theta_mean)
+        )
     )
-    e_osc = e_mean + delta_e
+    e_osc = mean_eccentricity + delta_e
 
     # Short-period correction to inclination
     # di = gamma/2 * sin(2i) * cos(2u)
-    delta_i = 0.5 * gamma * np.sin(2.0 * i_mean) * cos_2u
-    i_osc = i_mean + delta_i
+    delta_i = 0.5 * gamma * np.sin(2.0 * mean_inclination) * cos_2u
+    i_osc = mean_inclination + delta_i
 
     # Short-period correction to RAAN
     # dOmega = -gamma * cos_i * sin(2u)
@@ -634,8 +680,11 @@ def brouwer_short_period_corrections(
     # Standard Brouwer form for argument of periapsis short-period:
     delta_omega = gamma * (
         (5.0 * cos2i - 1.0) * sin_2u * one_plus_e_cos_f / (2.0 * eta)
-        + (5.0 * cos2i - 1.0) * e_mean * np.sin(2.0 * u_mean - theta_mean) / (2.0 * eta)
-        - (1.0 - 3.0 * cos2i) * e_mean * sin_theta / eta
+        + (5.0 * cos2i - 1.0)
+        * mean_eccentricity
+        * np.sin(2.0 * u_mean - theta_mean)
+        / (2.0 * eta)
+        - (1.0 - 3.0 * cos2i) * mean_eccentricity * sin_theta / eta
     )
 
     # Short-period correction to mean anomaly -> affects true anomaly
@@ -651,7 +700,7 @@ def brouwer_short_period_corrections(
     u_osc = u_mean + delta_u_total
 
     # Osculating argument of periapsis
-    omega_osc = omega_mean + delta_omega
+    omega_osc = mean_argument_of_periapsis + delta_omega
 
     # Osculating true anomaly from u_osc - omega_osc
     theta_osc = u_osc - omega_osc
@@ -679,12 +728,12 @@ def brouwer_short_period_corrections(
 
 
 def osculating_to_mean_keplerian(
-    a_osc: float,
-    e_osc: float,
-    i_osc: float,
-    raan_osc: float,
-    omega_osc: float,
-    theta_osc: float,
+    osculating_semi_major_axis: float,
+    osculating_eccentricity: float,
+    osculating_inclination: float,
+    osculating_raan: float,
+    osculating_argument_of_periapsis: float,
+    osculating_true_anomaly: float,
     mu: float = MU_EARTH,
     R_e: float = RE_EARTH,
     J2: float = J2_EARTH,
@@ -700,17 +749,17 @@ def osculating_to_mean_keplerian(
 
     Parameters
     ----------
-    a_osc : float
+    osculating_semi_major_axis : float
         Osculating semi-major axis (m).
-    e_osc : float
+    osculating_eccentricity : float
         Osculating eccentricity.
-    i_osc : float
+    osculating_inclination : float
         Osculating inclination (rad).
-    raan_osc : float
+    osculating_raan : float
         Osculating RAAN (rad).
-    omega_osc : float
+    osculating_argument_of_periapsis : float
         Osculating argument of periapsis (rad).
-    theta_osc : float
+    osculating_true_anomaly : float
         Osculating true anomaly (rad).
     mu : float
         Gravitational parameter (m^3/s^2).
@@ -736,80 +785,97 @@ def osculating_to_mean_keplerian(
             - mean_motion_rev_per_day: float
     """
     # Convert osculating true anomaly to mean anomaly
-    M_osc = true_to_mean_anomaly(theta_osc, e_osc)
+    mean_anomaly_osc = true_to_mean_anomaly(
+        osculating_true_anomaly, osculating_eccentricity
+    )
 
     # Initial guess: mean = osculating
-    a_m = a_osc
-    e_m = e_osc
-    i_m = i_osc
-    raan_m = raan_osc
-    omega_m = omega_osc
-    M_m = M_osc
+    semi_major_axis_mean = osculating_semi_major_axis
+    eccentricity_mean = osculating_eccentricity
+    inclination_mean = osculating_inclination
+    raan_mean = osculating_raan
+    argument_of_periapsis_mean = osculating_argument_of_periapsis
+    mean_anomaly_mean = mean_anomaly_osc
 
     for _ in range(max_iter):
         # Apply forward correction
-        osc = brouwer_short_period_corrections(a_m, e_m, i_m, omega_m, M_m, mu, R_e, J2)
+        osc = brouwer_short_period_corrections(
+            mean_semi_major_axis=semi_major_axis_mean,
+            mean_eccentricity=eccentricity_mean,
+            mean_inclination=inclination_mean,
+            mean_argument_of_periapsis=argument_of_periapsis_mean,
+            mean_anomaly=mean_anomaly_mean,
+            mu=mu,
+            R_e=R_e,
+            J2=J2,
+        )
 
         # Compute residuals (osculating_target - osculating_from_mean)
-        da = a_osc - osc["semi_major_axis_m"]
-        de = e_osc - osc["eccentricity"]
-        di = i_osc - osc["inclination_rad"]
-        draan = raan_osc - (raan_m + osc["raan_correction_rad"])
-        domega = omega_osc - osc["arg_periapsis_rad"]
-        dtheta = theta_osc - osc["true_anomaly_rad"]
+        delta_semimajor = osculating_semi_major_axis - osc["semi_major_axis_m"]
+        delta_eccentricity = osculating_eccentricity - osc["eccentricity"]
+        delta_inclination = osculating_inclination - osc["inclination_rad"]
+        delta_raan = osculating_raan - (raan_mean + osc["raan_correction_rad"])
+        delta_argument_of_periapsis = (
+            osculating_argument_of_periapsis - osc["arg_periapsis_rad"]
+        )
+        delta_true_anomaly = osculating_true_anomaly - osc["true_anomaly_rad"]
 
         # Wrap angle differences to [-pi, pi]
-        draan = (draan + np.pi) % (2.0 * np.pi) - np.pi
-        domega = (domega + np.pi) % (2.0 * np.pi) - np.pi
-        dtheta = (dtheta + np.pi) % (2.0 * np.pi) - np.pi
+        delta_raan = (delta_raan + np.pi) % (2.0 * np.pi) - np.pi
+        delta_argument_of_periapsis = (delta_argument_of_periapsis + np.pi) % (
+            2.0 * np.pi
+        ) - np.pi
+        delta_true_anomaly = (delta_true_anomaly + np.pi) % (2.0 * np.pi) - np.pi
 
         # Update mean elements
-        a_m += da
-        e_m += de
-        i_m += di
-        raan_m += draan
-        omega_m += domega
+        semi_major_axis_mean += delta_semimajor
+        eccentricity_mean += delta_eccentricity
+        inclination_mean += delta_inclination
+        raan_mean += delta_raan
+        argument_of_periapsis_mean += delta_argument_of_periapsis
 
         # Update mean anomaly from corrected true anomaly
-        theta_m_corrected = theta_osc - dtheta
-        # Actually, adjust M_m based on the true anomaly residual
-        # Convert the target theta to mean anomaly with current e_m
-        target_theta_for_mean = theta_osc - (osc["true_anomaly_rad"] - mean_to_true_anomaly(M_m, e_m))
-        M_m = true_to_mean_anomaly(target_theta_for_mean, e_m)
+        target_theta_for_mean = osculating_true_anomaly - (
+            osc["true_anomaly_rad"]
+            - mean_to_true_anomaly(mean_anomaly_mean, eccentricity_mean)
+        )
+        mean_anomaly_mean = true_to_mean_anomaly(
+            target_theta_for_mean, eccentricity_mean
+        )
 
         # Clamp eccentricity
-        e_m = max(1e-10, min(e_m, 0.9999999))
+        eccentricity_mean = max(1e-10, min(eccentricity_mean, 0.9999999))
 
         # Check convergence
-        if abs(da) < tol and abs(de) < 1e-14:
+        if abs(delta_semimajor) < tol and abs(delta_eccentricity) < 1e-14:
             break
 
     # Normalize angles
-    raan_m = raan_m % (2.0 * np.pi)
-    if raan_m < 0.0:
-        raan_m += 2.0 * np.pi
-    omega_m = omega_m % (2.0 * np.pi)
-    if omega_m < 0.0:
-        omega_m += 2.0 * np.pi
-    M_m = M_m % (2.0 * np.pi)
-    if M_m < 0.0:
-        M_m += 2.0 * np.pi
+    raan_mean = raan_mean % (2.0 * np.pi)
+    if raan_mean < 0.0:
+        raan_mean += 2.0 * np.pi
+    argument_of_periapsis_mean = argument_of_periapsis_mean % (2.0 * np.pi)
+    if argument_of_periapsis_mean < 0.0:
+        argument_of_periapsis_mean += 2.0 * np.pi
+    mean_anomaly_mean = mean_anomaly_mean % (2.0 * np.pi)
+    if mean_anomaly_mean < 0.0:
+        mean_anomaly_mean += 2.0 * np.pi
 
-    n_rev_per_day = semi_major_axis_to_mean_motion(a_m, mu)
+    mean_motion_rev_per_day = semi_major_axis_to_mean_motion(semi_major_axis_mean, mu)
 
     return {
-        "semi_major_axis_m": a_m,
-        "eccentricity": e_m,
-        "inclination_rad": i_m,
-        "raan_rad": raan_m,
-        "arg_periapsis_rad": omega_m,
-        "mean_anomaly_rad": M_m,
-        "mean_motion_rev_per_day": n_rev_per_day,
+        "semi_major_axis_m": semi_major_axis_mean,
+        "eccentricity": eccentricity_mean,
+        "inclination_rad": inclination_mean,
+        "raan_rad": raan_mean,
+        "arg_periapsis_rad": argument_of_periapsis_mean,
+        "mean_anomaly_rad": mean_anomaly_mean,
+        "mean_motion_rev_per_day": mean_motion_rev_per_day,
     }
 
 
 def tle_to_osculating_keplerian(
-    tle: "Tle", mu: float = MU_EARTH, apply_j2: bool = True
+    tle_obj: "Tle", mu: float = MU_EARTH, apply_j2: bool = True
 ) -> dict:
     """Extract osculating Keplerian elements at the TLE epoch.
 
@@ -821,7 +887,7 @@ def tle_to_osculating_keplerian(
 
     Parameters
     ----------
-    tle : Tle
+    tle_obj : Tle
         Parsed TLE dataclass (from common.tle.read_tle).
     mu : float
         Gravitational parameter (m^3/s^2).
@@ -851,33 +917,33 @@ def tle_to_osculating_keplerian(
     Without Drag", Astronomical Journal, 64, 1959.
     """
     # Extract mean elements from TLE
-    e = tle.eccentricity
-    i_deg = tle.inclination_deg
-    raan_deg = tle.raan_deg
-    omega_deg = tle.arg_perigee_deg
-    M_deg = tle.mean_anomaly_deg
-    n_rev_per_day = tle.mean_motion_rev_per_day
+    mean_eccentricity = tle_obj.eccentricity
+    inclination_deg = tle_obj.inclination_deg
+    raan_deg = tle_obj.raan_deg
+    argument_of_perigee_deg = tle_obj.arg_perigee_deg
+    mean_anomaly_deg = tle_obj.mean_anomaly_deg
+    mean_motion_rev_per_day = tle_obj.mean_motion_rev_per_day
 
     # Convert to radians
-    i_rad = np.radians(i_deg)
+    inclination_rad = np.radians(inclination_deg)
     raan_rad = np.radians(raan_deg)
-    omega_rad = np.radians(omega_deg)
-    M_rad = np.radians(M_deg)
+    argument_of_perigee_rad = np.radians(argument_of_perigee_deg)
+    mean_anomaly_rad = np.radians(mean_anomaly_deg)
 
     # Semi-major axis from mean motion (Kepler's third law)
-    a = mean_motion_to_semi_major_axis(n_rev_per_day, mu)
+    semi_major_axis_m = mean_motion_to_semi_major_axis(mean_motion_rev_per_day, mu)
 
     # Epoch string
-    epoch_string = tle_epoch_to_datetime_string(tle.epoch_year, tle.epoch_day)
+    epoch_string = tle_epoch_to_datetime_string(tle_obj.epoch_year, tle_obj.epoch_day)
 
     if apply_j2:
         # Apply Brouwer J2 short-period corrections
         osc = brouwer_short_period_corrections(
-            a_mean=a,
-            e_mean=e,
-            i_mean=i_rad,
-            omega_mean=omega_rad,
-            M_mean=M_rad,
+            mean_semi_major_axis=semi_major_axis_m,
+            mean_eccentricity=mean_eccentricity,
+            mean_inclination=inclination_rad,
+            mean_argument_of_periapsis=argument_of_perigee_rad,
+            mean_anomaly=mean_anomaly_rad,
             mu=mu,
         )
 
@@ -888,118 +954,22 @@ def tle_to_osculating_keplerian(
             "raan_rad": raan_rad + osc["raan_correction_rad"],
             "arg_periapsis_rad": osc["arg_periapsis_rad"],
             "true_anomaly_rad": osc["true_anomaly_rad"],
-            "epoch_year": tle.epoch_year,
-            "epoch_day": tle.epoch_day,
+            "epoch_year": tle_obj.epoch_year,
+            "epoch_day": tle_obj.epoch_day,
             "epoch_string": epoch_string,
         }
     else:
         # Simple two-body conversion (legacy behavior)
-        theta = mean_to_true_anomaly(M_rad, e)
+        true_anomaly_rad = mean_to_true_anomaly(mean_anomaly_rad, mean_eccentricity)
 
         return {
-            "semi_major_axis_m": a,
-            "eccentricity": e,
-            "inclination_rad": i_rad,
+            "semi_major_axis_m": semi_major_axis_m,
+            "eccentricity": mean_eccentricity,
+            "inclination_rad": inclination_rad,
             "raan_rad": raan_rad,
-            "arg_periapsis_rad": omega_rad,
-            "true_anomaly_rad": theta,
-            "epoch_year": tle.epoch_year,
-            "epoch_day": tle.epoch_day,
+            "arg_periapsis_rad": argument_of_perigee_rad,
+            "true_anomaly_rad": true_anomaly_rad,
+            "epoch_year": tle_obj.epoch_year,
+            "epoch_day": tle_obj.epoch_day,
             "epoch_string": epoch_string,
         }
-
-
-# ===================================================================
-# CLI entry point
-# ===================================================================
-
-
-if __name__ == "__main__":
-    import sys
-
-    # Example: ISS-like orbit (approx 408 km altitude, 51.6 deg inclination)
-    state_iss = np.array(
-        [
-            -2700816.14,
-            -3314092.80,
-            5266346.42,  # position [m]
-            5168.606550,
-            -5597.546618,
-            -2131.981798,  # velocity [m/s]
-        ]
-    )
-
-    print("=" * 65)
-    print("Cartesian to Keplerian Conversion")
-    print("=" * 65)
-    print()
-    print("Input Cartesian state (ISS-like orbit):")
-    print(f"  r = [{state_iss[0]:.3f}, {state_iss[1]:.3f}, {state_iss[2]:.3f}] m")
-    print(f"  v = [{state_iss[3]:.6f}, {state_iss[4]:.6f}, {state_iss[5]:.6f}] m/s")
-    print(f"  mu = {MU_EARTH:.6e} m^3/s^2")
-    print()
-
-    # Convert to Keplerian
-    kep = cartesian_to_keplerian(state_iss, MU_EARTH)
-
-    print("Osculating Keplerian Elements [a, e, i, omega, RAAN, theta]:")
-    print(f"  Semi-major axis   a     = {kep[SEMI_MAJOR_AXIS_INDEX] / 1000:.6f} km")
-    print(f"  Eccentricity      e     = {kep[ECCENTRICITY_INDEX]:.10f}")
-    print(f"  Inclination       i     = {np.degrees(kep[INCLINATION_INDEX]):.6f} deg")
-    print(f"  Arg. of periapsis omega  = {np.degrees(kep[ARGUMENT_OF_PERIAPSIS_INDEX]):.6f} deg")
-    print(f"  RAAN              RAAN   = {np.degrees(kep[RAAN_INDEX]):.6f} deg")
-    print(f"  True anomaly      theta  = {np.degrees(kep[TRUE_ANOMALY_INDEX]):.6f} deg")
-    print()
-
-    # Verify round-trip
-    state_reconstructed = keplerian_to_cartesian(kep, MU_EARTH)
-    pos_err = np.linalg.norm(state_reconstructed[0:3] - state_iss[0:3])
-    vel_err = np.linalg.norm(state_reconstructed[3:6] - state_iss[3:6])
-
-    print("Round-trip verification (Cartesian -> Keplerian -> Cartesian):")
-    print(f"  Position error: {pos_err:.6e} m")
-    print(f"  Velocity error: {vel_err:.6e} m/s")
-    print()
-
-    # Verify against tudatpy if available
-    try:
-        from tudatpy.astro.element_conversion import (
-            cartesian_to_keplerian as tudat_c2k,
-            keplerian_to_cartesian as tudat_k2c,
-        )
-
-        kep_tudat = tudat_c2k(state_iss, MU_EARTH)
-
-        print("Comparison with tudatpy.astro.element_conversion:")
-        print(f"  {'Element':<20} {'This module':<18} {'tudatpy':<18} {'delta':<12}")
-        print(f"  {'-'*20} {'-'*18} {'-'*18} {'-'*12}")
-
-        labels = ["a (km)", "e", "i (deg)", "omega (deg)", "RAAN (deg)", "theta (deg)"]
-        scales = [1e-3, 1.0, np.degrees(1), np.degrees(1), np.degrees(1), np.degrees(1)]
-
-        for idx, (label, scale) in enumerate(zip(labels, scales)):
-            val_ours = kep[idx] * scale
-            val_tudat = kep_tudat[idx] * scale
-            delta = abs(val_ours - val_tudat)
-            print(f"  {label:<20} {val_ours:<18.10f} {val_tudat:<18.10f} {delta:<12.2e}")
-
-        print()
-
-        # Also verify keplerian_to_cartesian against tudatpy
-        state_from_tudat = tudat_k2c(kep, MU_EARTH)
-        state_from_ours = keplerian_to_cartesian(kep, MU_EARTH)
-
-        pos_diff = np.linalg.norm(state_from_ours[0:3] - state_from_tudat[0:3])
-        vel_diff = np.linalg.norm(state_from_ours[3:6] - state_from_tudat[3:6])
-
-        print("keplerian_to_cartesian vs tudatpy:")
-        print(f"  Position difference: {pos_diff:.6e} m")
-        print(f"  Velocity difference: {vel_diff:.6e} m/s")
-
-    except ImportError:
-        print("(tudatpy not available -- skipping cross-validation)")
-
-    # Exit with error if round-trip failed
-    if pos_err > 1e-6 or vel_err > 1e-9:
-        print("\nERROR: Round-trip error exceeds tolerance!", file=sys.stderr)
-        sys.exit(1)
