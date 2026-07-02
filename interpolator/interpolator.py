@@ -58,9 +58,9 @@ class Interpolator:
         # Slice the dependent data to the configured dependent dimension.
         self.dependent_values.append(dependent_data[: self.dependent_dimension])
 
-    def add_point(self, independent_value: float, dependent_data: np.ndarray) -> None:
-        """Alias for add_data_point to simplify external usage."""
-        self.add_data_point(independent_value, dependent_data)
+    def set_data(self, data: dict[float, np.ndarray]) -> None:
+        self.independent_values, self.dependent_values = zip(*sorted(data.items()))
+        self.previous_independent_value = self.independent_values[-1]
 
     def reset_state(self) -> None:
         """Reset sequential state while keeping buffered samples intact."""

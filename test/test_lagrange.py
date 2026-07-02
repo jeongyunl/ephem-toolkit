@@ -17,7 +17,9 @@ from interpolator.lagrange import LagrangeInterpolator
 def test_lagrange_interpolator_interpolates_linear_data() -> None:
     interpolator = LagrangeInterpolator(dimension=2, degree=8)
     for x in range(10):
-        interpolator.add_point(float(x), np.array([float(x), float(x)], dtype=float))
+        interpolator.add_data_point(
+            float(x), np.array([float(x), float(x)], dtype=float)
+        )
 
     success, estimated = interpolator.interpolate(4.5)
     assert success is True
@@ -39,8 +41,7 @@ def test_interpolated_oem_velocity_norm_matches_original_oem() -> None:
     first_n_timestamps = all_timestamps[:number_of_data_points]
 
     interpolator = LagrangeInterpolator(dimension=6, degree=interpolation_degree)
-    for timestamp in first_n_timestamps:
-        interpolator.add_point(timestamp, all_states[timestamp])
+    interpolator.set_data({ts: all_states[ts] for ts in first_n_timestamps})
 
     start_time = first_n_timestamps[0]
     end_time = first_n_timestamps[-1]
@@ -92,7 +93,7 @@ def test_independent_variable_range() -> None:
 
     interpolator = LagrangeInterpolator(dimension=6, degree=8)
     for timestamp in first_n_timestamps:
-        interpolator.add_point(timestamp, states[timestamp])
+        interpolator.add_data_point(timestamp, states[timestamp])
 
     start_time = first_n_timestamps[0]
     end_time = first_n_timestamps[-1]
@@ -118,9 +119,7 @@ def test_independent_variable_range() -> None:
     assert success == False and estimated == None
 
 
-def test_internal_cache_validity() -> None:
-    """Should interpolate OEM states and preserve velocity norm accuracy."""
-
+def test_internal_cache_integrity() -> None:
     number_of_data_points = 80
     step_size_sec = 5.0
 
@@ -133,7 +132,7 @@ def test_internal_cache_validity() -> None:
 
     interpolator = LagrangeInterpolator(dimension=6, degree=8)
     for timestamp in first_n_timestamps:
-        interpolator.add_point(timestamp, all_states[timestamp])
+        interpolator.add_data_point(timestamp, all_states[timestamp])
 
     start_time = first_n_timestamps[0]
     end_time = first_n_timestamps[-1]
@@ -165,7 +164,7 @@ def test_internal_cache_validity() -> None:
 def test_closest_data_index_validity_check() -> None:
     interpolator = LagrangeInterpolator(dimension=1, degree=4)
     for x in range(5):
-        interpolator.add_point(float(x), np.array([float(x)], dtype=float))
+        interpolator.add_data_point(float(x), np.array([float(x)], dtype=float))
 
     interpolator.closest_data_index = 2
     assert interpolator.is_closest_data_index_valid(2.4) is True
