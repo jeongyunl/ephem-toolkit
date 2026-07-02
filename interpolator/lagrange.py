@@ -106,13 +106,11 @@ class LagrangeInterpolator(Interpolator):
         """Append a new sample to the base interpolator storage."""
         return super().add_data_point(independent_value, data)
 
-    def interpolate_value(
-        self, independent_value: float
-    ) -> tuple[bool, np.ndarray | None]:
+    def interpolate_value(self, independent_value: float) -> np.ndarray | None:
         """Compute the interpolated dependent vector for the requested value."""
         feasibility_flag = self.check_interpolation_feasibility(independent_value)
         if feasibility_flag != 1:
-            return False, None
+            return None
 
         # Choose a local set of sample points around the query point.
         if len(self.independent_values) >= self.required_points:
@@ -121,13 +119,13 @@ class LagrangeInterpolator(Interpolator):
 
             self.select_candidate_window(independent_value)
         elif not self.force_interpolation:
-            return False, None
+            return None
 
         # If the interpolator is allowed to refuse poor interpolations, verify
         # the query remains within the centered window.
         if not self.force_interpolation:
             if not self.is_query_centered():
-                return False, None
+                return None
 
         self.choose_evaluation_start_index(independent_value)
 
@@ -161,7 +159,7 @@ class LagrangeInterpolator(Interpolator):
             for dim in range(self.dependent_dimension):
                 estimates[dim] += products[dim]
 
-        return True, estimates
+        return estimates
 
     def clear_storage(self) -> None:
         """Clear stored sample data and reset state for a fresh interpolation run."""

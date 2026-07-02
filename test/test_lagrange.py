@@ -21,8 +21,7 @@ def test_lagrange_interpolator_interpolates_linear_data() -> None:
             float(x), np.array([float(x), float(x)], dtype=float)
         )
 
-    success, estimated = interpolator.interpolate(4.5)
-    assert success is True
+    estimated = interpolator.interpolate(4.5)
     assert estimated == pytest.approx([4.5, 4.5])
 
 
@@ -51,8 +50,7 @@ def test_interpolated_oem_velocity_norm_matches_original_oem() -> None:
     evaluation_times = np.arange((start_time + step_size_sec), end_time, step_size_sec)
 
     for time in evaluation_times:
-        success, interpolated_state = interpolator.interpolate(time)
-        assert success is True
+        interpolated_state = interpolator.interpolate(time)
 
         nearest_idx = int(np.argmin(np.abs(np.asarray(first_n_timestamps) - time)))
         reference_timestamp = first_n_timestamps[nearest_idx]
@@ -100,23 +98,23 @@ def test_independent_variable_range() -> None:
 
     # Bounds test
 
-    success, estimated = interpolator.interpolate(start_time - 10.0)
-    assert success == False and estimated == None
+    estimated = interpolator.interpolate(start_time - 10.0)
+    assert estimated == None
 
-    success, estimated = interpolator.interpolate(start_time)
-    assert success is True and estimated is not None
+    estimated = interpolator.interpolate(start_time)
+    assert estimated is not None
 
-    success, estimated = interpolator.interpolate(start_time + 10.0)
-    assert success is True and estimated is not None
+    estimated = interpolator.interpolate(start_time + 10.0)
+    assert estimated is not None
 
-    success, estimated = interpolator.interpolate(end_time - 10.0)
-    assert success is True and estimated is not None
+    estimated = interpolator.interpolate(end_time - 10.0)
+    assert estimated is not None
 
-    success, estimated = interpolator.interpolate(end_time)
-    assert success is True and estimated is not None
+    estimated = interpolator.interpolate(end_time)
+    assert estimated is not None
 
-    success, estimated = interpolator.interpolate(end_time + 10.0)
-    assert success == False and estimated == None
+    estimated = interpolator.interpolate(end_time + 10.0)
+    assert estimated == None
 
 
 def test_internal_cache_integrity() -> None:
@@ -144,8 +142,7 @@ def test_internal_cache_integrity() -> None:
     interpolated_states = {}
 
     for time in evaluation_times:
-        success, interpolated_state = interpolator.interpolate(time)
-        assert success is True
+        interpolated_state = interpolator.interpolate(time)
         interpolated_states[time] = interpolated_state
 
     import random
@@ -154,8 +151,7 @@ def test_internal_cache_integrity() -> None:
     random.shuffle(shuffled_times)
 
     for time in shuffled_times:
-        success, interpolated_state = interpolator.interpolate(time)
-        assert success is True
+        interpolated_state = interpolator.interpolate(time)
         np.testing.assert_allclose(
             interpolated_state, interpolated_states[time], atol=1e-10
         )
