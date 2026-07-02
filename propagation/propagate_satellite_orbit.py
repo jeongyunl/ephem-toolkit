@@ -43,16 +43,19 @@ where it is actually required.
 """
 
 import argparse
-import os
 import re
 import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from common.common import (
     parse_duration_to_seconds,
     parse_step_to_seconds,
     SECONDS_PER_DAY,
 )
+
+from interpolator.lagrange import LagrangeInterpolator
 
 KILOMETERS_TO_METERS = 1e3
 
@@ -102,6 +105,8 @@ INTEGRATOR_METHOD_DESCRIPTIONS = {
 SUPPORTED_INTEGRATOR_METHODS = tuple(INTEGRATOR_METHOD_DESCRIPTIONS)
 DEFAULT_INTEGRATOR_METHOD = "rkdp_87"
 DEFAULT_INTEGRATOR_STEP_SIZE_S = (10, 1, 300)
+
+INTERPOLATOR_NUMBER_OF_POINTS = 8
 
 
 def parse_bool_flag(value: str) -> bool:
@@ -925,9 +930,11 @@ def write_state_history_oem(
 
     tudat_time_scale_converter = time_representation.default_time_scale_converter()
 
-    interpolator = interpolators.create_one_dimensional_vector_interpolator(
-        state_history, interpolators.lagrange_interpolation(8)
+    interpolator = LagrangeInterpolator(
+        dimension=6, degree=INTERPOLATOR_NUMBER_OF_POINTS
     )
+    interpolator.set_data(state_history)
+
     epochs_tdb_s = sorted(state_history.keys())
     start_epoch_tdb_s = epochs_tdb_s[0]
     stop_epoch_tdb_s = epochs_tdb_s[-1]
@@ -1704,7 +1711,6 @@ step, with the corresponding epochs available through the `time_history` attribu
 
 # create_dependent_variable_dictionary -- imported just before post-processing.
 import tudatpy.dynamics.propagation as propagation
-import tudatpy.math.interpolators as interpolators
 import tudatpy.astro.time_representation as time_representation
 from tudatpy.astro.time_representation import TimeScales
 

@@ -10,10 +10,12 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import tudatpy.math.interpolators as interpolators
-
 # Add parent directory to path to import common utilities
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from interpolator.lagrange import LagrangeInterpolator
+
+INTERPOLATOR_NUMBER_OF_POINTS = 8
 
 
 @dataclass
@@ -130,9 +132,10 @@ def slice_states_by_time(
     if step_size is None:
         return state_list[start_idx:stop_idx]
 
-    interpolator = interpolators.create_one_dimensional_vector_interpolator(
-        states, interpolators.lagrange_interpolation(8)
+    interpolator = LagrangeInterpolator(
+        dimension=6, degree=INTERPOLATOR_NUMBER_OF_POINTS
     )
+    interpolator.set_data(states)
 
     state_list = []
     timestamp = start_time.timestamp()

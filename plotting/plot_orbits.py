@@ -24,7 +24,6 @@ from typing import Optional
 import matplotlib.pyplot as plt
 import numpy as np
 
-import tudatpy.math.interpolators as interpolators
 import tudatpy.exceptions as exceptions
 
 # Add parent directory to path to import common utilities
@@ -32,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.common as common
 import common.oem as oem
+from interpolator.lagrange import LagrangeInterpolator
 
 INTERPOLATOR_NUMBER_OF_POINTS = 6
 
@@ -138,14 +138,10 @@ class StateHistory:
 
         # TODO Improve boundary interpolation
         if self.interpolator is None:
-            self.interpolator = interpolators.create_one_dimensional_vector_interpolator(
-                self.state_history,
-                interpolators.lagrange_interpolation(
-                    INTERPOLATOR_NUMBER_OF_POINTS,
-                    # lagrange_boundary_handling=interpolators.LagrangeInterpolatorBoundaryHandling.lagrange_no_boundary_interpolation,
-                    lagrange_boundary_handling=interpolators.LagrangeInterpolatorBoundaryHandling.lagrange_cubic_spline_boundary_interpolation,
-                ),
+            self.interpolator = LagrangeInterpolator(
+                dimension=6, degree=INTERPOLATOR_NUMBER_OF_POINTS
             )
+            self.interpolator.set_data(self.state_history)
 
         # Check if timestamp is within lagrange interpolator bounds
         # if (
