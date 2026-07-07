@@ -1,4 +1,4 @@
-"""Tests for :mod:`common.kepler` — kepler.cartesian_to_keplerian, kepler.tle_to_osculating_keplerian, and helpers."""
+"""Tests for :mod:`common.kepler` — kepler.cartesian_to_keplerian, convert_tle.tle_to_osculating_keplerian, and helpers."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import common.convert_tle as convert_tle
 import common.kepler as kepler
 import common.tle as tle
 
@@ -54,28 +55,28 @@ def _make_tle_fixture() -> tle.Tle:
 
 
 # ===================================================================
-# 1. kepler.tle_to_osculating_keplerian returns keplerian element list and epoch
+# 1. convert_tle.tle_to_osculating_keplerian returns keplerian element list and epoch
 # ===================================================================
 
 
 def test_tle_to_osculating_keplerian_returns_all_keys() -> None:
     """Should return a 6-element Keplerian list and a UTC-aware epoch datetime."""
     tle_obj = _make_tle_fixture()
-    kep_elements = kepler.tle_to_osculating_keplerian(tle_obj)
+    kep_elements = convert_tle.tle_to_osculating_keplerian(tle_obj)
 
     assert isinstance(kep_elements, np.ndarray)
     assert kep_elements.shape == (6,)
 
 
 # ===================================================================
-# 2. kepler.tle_to_osculating_keplerian computes correct semi-major axis
+# 2. convert_tle.tle_to_osculating_keplerian computes correct semi-major axis
 # ===================================================================
 
 
 def test_tle_to_osculating_keplerian_semi_major_axis_iss() -> None:
     """Should compute ISS semi-major axis ~6780 km from mean motion ~15.5 rev/day."""
     tle_obj = _make_tle_fixture()
-    kep_elements = kepler.tle_to_osculating_keplerian(tle_obj)
+    kep_elements = convert_tle.tle_to_osculating_keplerian(tle_obj)
 
     a_km = kep_elements[0] / 1000.0
     # ISS orbits at ~408 km altitude -> a ~ 6786 km
@@ -83,27 +84,27 @@ def test_tle_to_osculating_keplerian_semi_major_axis_iss() -> None:
 
 
 # ===================================================================
-# 3. kepler.tle_to_osculating_keplerian preserves eccentricity from TLE
+# 3. convert_tle.tle_to_osculating_keplerian preserves eccentricity from TLE
 # ===================================================================
 
 
 def test_tle_to_osculating_keplerian_preserves_eccentricity() -> None:
     """Should preserve the eccentricity value directly from the TLE (no J2)."""
     tle_obj = _make_tle_fixture()
-    kep_elements = kepler.tle_to_osculating_keplerian(tle_obj, apply_j2=False)
+    kep_elements = convert_tle.tle_to_osculating_keplerian(tle_obj, apply_j2=False)
 
     assert kep_elements[1] == pytest.approx(tle_obj.eccentricity, abs=1e-10)
 
 
 # ===================================================================
-# 4. kepler.tle_to_osculating_keplerian converts angles to radians correctly
+# 4. convert_tle.tle_to_osculating_keplerian converts angles to radians correctly
 # ===================================================================
 
 
 def test_tle_to_osculating_keplerian_angles_in_radians() -> None:
     """Should convert inclination, RAAN, and arg_periapsis from degrees to radians (no J2)."""
     tle_obj = _make_tle_fixture()
-    kep_elements = kepler.tle_to_osculating_keplerian(tle_obj, apply_j2=False)
+    kep_elements = convert_tle.tle_to_osculating_keplerian(tle_obj, apply_j2=False)
 
     assert kep_elements[2] == pytest.approx(
         np.radians(tle_obj.inclination_deg), abs=1e-12
@@ -115,14 +116,14 @@ def test_tle_to_osculating_keplerian_angles_in_radians() -> None:
 
 
 # ===================================================================
-# 5. kepler.tle_to_osculating_keplerian true anomaly is in [0, 2pi)
+# 5. convert_tle.tle_to_osculating_keplerian true anomaly is in [0, 2pi)
 # ===================================================================
 
 
 def test_tle_to_osculating_keplerian_true_anomaly_range() -> None:
     """Should produce a true anomaly in the range [0, 2pi)."""
     tle_obj = _make_tle_fixture()
-    kep_elements = kepler.tle_to_osculating_keplerian(tle_obj)
+    kep_elements = convert_tle.tle_to_osculating_keplerian(tle_obj)
 
     theta = kep_elements[5]
     assert 0.0 <= theta < 2.0 * np.pi
@@ -161,37 +162,37 @@ def test_cartesian_to_keplerian_cli_rejects_mean_with_reverse(capsys) -> None:
 
 
 # ===================================================================
-# 6. kepler.tle_epoch_to_datetime_string handles year 2000+ correctly
+# 6. tle.tle_epoch_to_datetime handles year 2000+ correctly
 # ===================================================================
 
 
-def test_tle_epoch_to_datetime_string_year_2000_plus() -> None:
+def test_tle_epoch_to_datetime_year_2000_plus() -> None:
     """Should interpret epoch_year < 57 as 2000+year."""
-    result = kepler.tle_epoch_to_datetime_string(26, 1.0)
+    result = tle.tle_epoch_to_iso8601(26, 1.0)
     assert result.startswith("2026-01-01")
 
 
 # ===================================================================
-# 7. kepler.tle_epoch_to_datetime_string handles year 1900+ correctly
+# 7. tle.tle_epoch_to_datetime handles year 1900+ correctly
 # ===================================================================
 
 
-def test_tle_epoch_to_datetime_string_year_1900_plus() -> None:
+def test_tle_epoch_to_datetime_year_1900_plus() -> None:
     """Should interpret epoch_year >= 57 as 1900+year."""
-    result = kepler.tle_epoch_to_datetime_string(99, 1.0)
+    result = tle.tle_epoch_to_iso8601(99, 1.0)
     assert result.startswith("1999-01-01")
 
 
 # ===================================================================
-# 8. kepler.tle_epoch_to_datetime_string fractional day conversion
+# 8. tle.tle_epoch_to_datetime fractional day conversion
 # ===================================================================
 
 
-def test_tle_epoch_to_datetime_string_fractional_day() -> None:
+def test_tle_epoch_to_datetime_fractional_day() -> None:
     """Should correctly convert fractional day-of-year to date-time."""
     # Day 32.5 of 2024 -> Feb 1 at 12:00:00
-    result = kepler.tle_epoch_to_datetime_string(24, 32.5)
-    assert "2024-02-01 12:00:00" in result
+    result = tle.tle_epoch_to_iso8601(24, 32.5)
+    assert "2024-02-01T12:00:00" in result
 
 
 # ===================================================================
@@ -220,7 +221,7 @@ def test_osculating_to_mean_keplerian_returns_six_element_array() -> None:
 
 
 # ===================================================================
-# 10. kepler.tle_to_osculating_keplerian with real TLE file
+# 10. convert_tle.tle_to_osculating_keplerian with real TLE file
 # ===================================================================
 
 
@@ -230,7 +231,7 @@ def test_tle_to_osculating_keplerian_with_real_tle_file() -> None:
     with open(tle_path, "r") as f:
         tle_obj = tle.read_tle(f)
 
-    kep_elements = kepler.tle_to_osculating_keplerian(tle_obj)
+    kep_elements = convert_tle.tle_to_osculating_keplerian(tle_obj)
 
     # Semi-major axis should be reasonable for LEO (6400-7200 km)
     a_km = kep_elements[0] / 1000.0
@@ -569,10 +570,10 @@ def test_round_trip_keplerian_to_cartesian_vs_tudatpy(tudatpy_tle_round_trip) ->
 
 
 def test_round_trip_tle_osculating_vs_tudatpy_keplerian(tudatpy_tle_round_trip) -> None:
-    """Compare common.kepler.tle_to_osculating_keplerian with tudatpy's
+    """Compare common.convert_tle.tle_to_osculating_keplerian with tudatpy's
     Keplerian elements derived from the SGP4 Cartesian state.
 
-    Note: kepler.tle_to_osculating_keplerian uses two-body (Kepler's third law)
+    Note: convert_tle.tle_to_osculating_keplerian uses two-body (Kepler's third law)
     conversion from mean elements, while tudatpy uses SGP4 propagation
     to get the actual osculating state. Differences are expected due to
     SGP4's perturbation model (J2, drag, etc.), so tolerances are relaxed.
@@ -588,7 +589,7 @@ def test_round_trip_tle_osculating_vs_tudatpy_keplerian(tudatpy_tle_round_trip) 
     tle_path = TEST_DATA_DIR / "ISS-ZARYA_1998-067A.tle"
     with open(tle_path, "r") as f:
         tle_obj = tle.read_tle(f)
-    kep_from_tle = kepler.tle_to_osculating_keplerian(tle_obj)
+    kep_from_tle = convert_tle.tle_to_osculating_keplerian(tle_obj)
 
     # Semi-major axis: SGP4 vs two-body Kepler's third law
     # Expect agreement within ~50 km due to SGP4 mean-to-osculating differences

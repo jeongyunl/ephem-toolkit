@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+"""Slice and extract subsets of CCSDS OEM ephemeris data by index or time range.
+
+Provides :func:`parse_slice` and :func:`parse_time_slice` to parse slice
+specifications, :func:`slice_states_by_time` to extract time-windowed states,
+and a CLI entry point to read OEM files and output sliced state vectors.
+"""
 
 from __future__ import annotations
 
@@ -13,26 +19,49 @@ from pathlib import Path
 # Add parent directory to path to import common utilities
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from interpolator.lagrange import LagrangeInterpolator
+import common.common as common
+import common.oem as oem
+import interpolator.lagrange as lagrange
 
-INTERPOLATOR_NUMBER_OF_POINTS = 8
+INTERPOLATOR_NUMBER_OF_POINTS: int = 8
+"""Polynomial degree for Lagrange interpolation when resampling states."""
 
 
 @dataclass
 class TimeSliceOptions:
+    """Parsed options for a time-based OEM slice operation."""
+
     start_time: datetime | timedelta | None = None
+    """Start of the time window; absolute datetime or relative timedelta offset from the OEM start/stop."""
+
     stop_time: datetime | timedelta | None = None
+    """End of the time window; absolute datetime or relative timedelta offset from the OEM start/stop."""
+
     step_size: timedelta | None = None
+    """Resampling interval; if set, states are interpolated at this fixed step."""
+
     interpolate: bool = False
-
-
-from common.oem import CcsdsOem, write_states
+    """Whether to enable Lagrange interpolation when step_size is provided."""
 
 
 def parse_slice(slice_str: str) -> slice | int:
-    """Parse a Python-style slice string (e.g., '0:10', '::2', '5', '-5:').
+    """Parse a Python-style slice string into a slice object or integer index.
 
-    Returns either a slice object or an int for single indices.
+    Parameters
+    ----------
+    slice_str : str
+        Slice notation string (e.g. ``"0:10"``, ``"::2"``, ``"5"``, ``"-5:"``).
+
+    Returns
+    -------
+    slice | int
+        A :class:`slice` object for range notation, or an :class:`int` for
+        single-index notation.
+
+    Raises
+    ------
+    ValueError
+        If the slice string is malformed.
     """
     # Handle single index
     if ":" not in slice_str:
@@ -42,18 +71,18 @@ def parse_slice(slice_str: str) -> slice | int:
             raise ValueError(f"Invalid index: {slice_str}")
 
     # Handle slice notation
-    parts = slice_str.split(":")
+    parts: list[str] = slice_str.split(":")
     if len(parts) > 3:
         raise ValueError(f"Invalid slice: {slice_str}")
 
-    start = int(parts[0]) if parts[0] else None
-    stop = int(parts[1]) if len(parts) > 1 and parts[1] else None
-    step = int(parts[2]) if len(parts) > 2 and parts[2] else None
+    start: int | None = int(parts[0]) if parts[0] else None
+    stop: int | None = int(parts[1]) if len(parts) > 1 and parts[1] else None
+    step: int | None = int(parts[2]) if len(parts) > 2 and parts[2] else None
 
     return slice(start, stop, step)
 
 
-ISO_DATETIME_RE = re.compile(
+ISO_DATETIME_RE: re.Pattern[str] = re.compile(
     r"^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?)(?:Z|[+-]\d{2}:\d{2})?$"
 )
 
@@ -63,12 +92,28 @@ def parse_time_slice(
 ) -> TimeSliceOptions:
     """Parse an ISO-8601 time slice string using comma separators.
 
-    Examples:
-        start_time,stop_time
-        start_time,stop_time,step_size
-        ,stop_time,step_size
-        start_time,,step_size
-        start_time,stop_time,
+    Parameters
+    ----------
+    time_slice_str : str
+        Comma-separated time slice specification. Format:
+        ``start[,stop[,step]]`` where start/stop are ISO-8601 datetimes or
+        durations, and step is a duration.
+
+    Returns
+    -------
+    TimeSliceOptions
+        Parsed time slice options with ``start_time``, ``stop_time``, and
+        ``step_size`` fields.
+
+    Raises
+    ------
+    ValueError
+        If the time slice string is malformed.
+
+    Notes
+    -----
+    Examples: ``"start_time,stop_time"``, ``"start_time,stop_time,step_size"``,
+    ``",stop_time,step_size"``, ``"start_time,,step_size"``.
     """
     text = time_slice_str.strip()
     if not text:
@@ -99,52 +144,63 @@ def slice_states_by_time(
     stop_time: datetime | None,
     step_size: timedelta | None = None,
 ) -> list[tuple[float, any]]:
-    """Return the sublist of states within [start_time, stop_time] using bisect.
+    """Extract states within a time window, optionally resampling at a fixed step.
 
-    If stop_time is missing, return only one matching state at or after start_time.
+    Uses binary search to efficiently locate the start and stop indices. If
+    *step_size* is provided, interpolates states at regular intervals using
+    Lagrange polynomial interpolation.
+
+    Parameters
+    ----------
+    states : dict[float, any]
+        Mapping of POSIX timestamps (float, seconds since epoch) to state vectors.
+    start_time : datetime | None
+        Start of the time window. If None, starts from the first state.
+    stop_time : datetime | None
+        End of the time window. If None and *start_time* is provided, returns
+        only one state at or after *start_time*.
+    step_size : timedelta | None
+        If provided, resample states at this fixed interval using interpolation.
+
+    Returns
+    -------
+    list[tuple[float, any]]
+        List of ``(timestamp, state)`` tuples within the specified window.
     """
-    state_list = sorted(states.items(), key=lambda item: item[0])
-    epochs = [epoch for epoch, _ in state_list]
-    if start_time is not None and stop_time is None:
-        start_idx = bisect.bisect_left(
-            epochs,
-            start_time.timestamp() if isinstance(start_time, datetime) else start_time,
-        )
-        return state_list[start_idx : start_idx + 1]
+    sorted_states = sorted(states.items(), key=lambda item: item[0])
+    timestamps = [ts for ts, _ in sorted_states]
 
-    start_idx = (
-        bisect.bisect_left(
-            epochs,
-            start_time.timestamp() if isinstance(start_time, datetime) else start_time,
-        )
-        if start_time is not None
-        else 0
-    )
+    # Convert datetime bounds to float timestamps for comparison
+    start_ts: float | None = start_time.timestamp() if start_time is not None else None
+    stop_ts: float | None = stop_time.timestamp() if stop_time is not None else None
+
+    if start_ts is not None and stop_ts is None:
+        start_idx = bisect.bisect_left(timestamps, start_ts)
+        return sorted_states[start_idx : start_idx + 1]
+
+    start_idx = bisect.bisect_left(timestamps, start_ts) if start_ts is not None else 0
     stop_idx = (
-        bisect.bisect_right(
-            epochs,
-            stop_time.timestamp() if isinstance(stop_time, datetime) else stop_time,
-        )
-        if stop_time is not None
-        else len(state_list)
+        bisect.bisect_right(timestamps, stop_ts)
+        if stop_ts is not None
+        else len(sorted_states)
     )
 
     if step_size is None:
-        return state_list[start_idx:stop_idx]
+        return sorted_states[start_idx:stop_idx]
 
-    interpolator = LagrangeInterpolator(
+    # states already uses float timestamps — use directly for interpolation
+    interpolator = lagrange.LagrangeInterpolator(
         dimension=6, degree=INTERPOLATOR_NUMBER_OF_POINTS
     )
-    interpolator.set_data(states)
+    interpolator.set_data(sorted_states)
 
-    state_list = []
-    timestamp = start_time.timestamp()
-    while timestamp <= stop_time.timestamp():
-        state_list.append((timestamp, interpolator.interpolate(timestamp)))
-
+    result: list[tuple[float, any]] = []
+    timestamp = start_ts
+    while timestamp <= stop_ts:
+        result.append((timestamp, interpolator.interpolate(timestamp)))
         timestamp += step_size.total_seconds()
 
-    return state_list
+    return result
 
 
 def _parse_duration_with_default_minutes(
@@ -156,13 +212,13 @@ def _parse_duration_with_default_minutes(
 
     Bare numeric values are treated as minutes.
     """
-    token = value.strip()
+    token: str = value.strip()
     if not token:
         raise ValueError(
             "step duration must be a number optionally followed by s, m, h, or d"
         )
 
-    sign = 1
+    sign: int = 1
     if token[0] in "+-":
         if token[0] == "-":
             sign = -1
@@ -173,19 +229,19 @@ def _parse_duration_with_default_minutes(
             "step duration must be a number optionally followed by s, m, h, or d"
         )
 
-    component_re = re.compile(r"([0-9]*\.?[0-9]+)\s*([smhdSMHD]?)")
-    pos = 0
-    total_seconds = 0.0
-    components = []
+    component_re: re.Pattern[str] = re.compile(r"([0-9]*\.?[0-9]+)\s*([smhdSMHD]?)")
+    pos: int = 0
+    total_seconds: float = 0.0
+    components: list[tuple[float, str]] = []
 
     while pos < len(token):
-        match = component_re.match(token, pos)
+        match: re.Match[str] | None = component_re.match(token, pos)
         if not match:
             raise ValueError(
                 "step duration must be a number optionally followed by s, m, h, or d"
             )
-        magnitude = float(match.group(1))
-        unit = match.group(2).lower() if match.group(2) else "m"
+        magnitude: float = float(match.group(1))
+        unit: str = match.group(2).lower() if match.group(2) else "m"
         components.append((magnitude, unit))
         pos = match.end()
 
@@ -219,7 +275,7 @@ def _parse_duration_with_default_minutes(
 def _parse_time_or_duration(value: str) -> datetime | timedelta:
     """Parse either an ISO datetime or a duration token."""
     try:
-        return _parse_iso_datetime(value)
+        return common.iso8601_to_datetime(value)
     except ValueError:
         return _parse_duration_with_default_minutes(
             value, allow_negative=True, allow_zero=True
@@ -231,37 +287,28 @@ def _format_time_or_duration(value: datetime | timedelta | None) -> str:
         return ""
     if isinstance(value, timedelta):
         return _format_duration(value)
-    return value.isoformat()
+    return common.datetime_to_iso8601(value)
 
 
 def _format_duration(duration: timedelta) -> str:
     """Return a canonical duration string for the given timedelta."""
-    total_seconds = duration.total_seconds()
+    total_seconds: float = duration.total_seconds()
     if total_seconds % 3600 == 0:
-        hours = total_seconds / 3600
+        hours: float = total_seconds / 3600
         return f"{hours:g}h"
     if total_seconds % 60 == 0:
-        minutes = total_seconds / 60
+        minutes: float = total_seconds / 60
         return f"{minutes:g}m"
     return f"{total_seconds:g}s"
 
 
-def _parse_iso_datetime(value: str) -> datetime:
-    """Parse an ISO-8601-ish datetime string into a datetime object."""
-    token = value.strip()
-    if token.endswith("Z"):
-        token = token[:-1]
-    try:
-        return datetime.fromisoformat(token)
-    except ValueError as error:
-        raise ValueError(f"Invalid ISO-8601 datetime: {value}") from error
-
-
 def main() -> None:
     """Read OEM file name from CLI argument and load it."""
-    parser = argparse.ArgumentParser(description="Load and slice CCSDS OEM file states")
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        description="Load and slice CCSDS OEM file states"
+    )
     parser.add_argument("oem_file", nargs="?", help="Path to OEM file")
-    exclusive = parser.add_mutually_exclusive_group()
+    exclusive: argparse._MutuallyExclusiveGroup = parser.add_mutually_exclusive_group()
     exclusive.add_argument(
         "-s",
         "--slice",
@@ -307,10 +354,11 @@ def main() -> None:
             return
 
         oem_file = Path(args.oem_file)
-        oem = CcsdsOem.from_source(oem_file)
+        oem_data = oem.CcsdsOem.from_source(oem_file)
 
-        base_start = _parse_iso_datetime(oem.meta.start_time)
-        base_stop = _parse_iso_datetime(oem.meta.stop_time)
+        base_start = common.iso8601_to_datetime(oem_data.meta.start_time)
+        base_stop = common.iso8601_to_datetime(oem_data.meta.stop_time)
+
         resolved_start = None
         if isinstance(time_slice_opts.start_time, timedelta):
             resolved_start = (
@@ -320,6 +368,9 @@ def main() -> None:
             )
         else:
             resolved_start = time_slice_opts.start_time
+            # Ensure timezone-aware datetime
+            if resolved_start is not None and resolved_start.tzinfo is None:
+                resolved_start = resolved_start.replace(tzinfo=timezone.utc)
 
         resolved_stop = time_slice_opts.stop_time
         if isinstance(time_slice_opts.stop_time, timedelta):
@@ -328,8 +379,14 @@ def main() -> None:
                 if time_slice_opts.stop_time > timedelta(0)
                 else base_stop + time_slice_opts.stop_time
             )
+        else:
+            resolved_stop = time_slice_opts.stop_time
+            # Ensure timezone-aware datetime
+            if resolved_stop is not None and resolved_stop.tzinfo is None:
+                resolved_stop = resolved_stop.replace(tzinfo=timezone.utc)
+
         sliced_states = slice_states_by_time(
-            oem.states, resolved_start, resolved_stop, time_slice_opts.step_size
+            oem_data.states, resolved_start, resolved_stop, time_slice_opts.step_size
         )
         if sliced_states:
             first_epoch = sliced_states[0][0]
@@ -338,24 +395,24 @@ def main() -> None:
                 first_epoch = datetime.fromtimestamp(first_epoch, tz=timezone.utc)
             if isinstance(last_epoch, (int, float)):
                 last_epoch = datetime.fromtimestamp(last_epoch, tz=timezone.utc)
-            oem.meta.start_time = first_epoch.isoformat()
-            oem.meta.stop_time = last_epoch.isoformat()
-            oem.meta.useable_start_time = ""
-            oem.meta.useable_stop_time = ""
+            oem_data.meta.start_time = common.datetime_to_iso8601(first_epoch)
+            oem_data.meta.stop_time = common.datetime_to_iso8601(last_epoch)
+            oem_data.meta.useable_start_time = ""
+            oem_data.meta.useable_stop_time = ""
         if args.oem:
-            oem.states = dict(sliced_states)
-            oem.to_file(sys.stdout)
+            oem_data.states = dict(sliced_states)
+            oem_data.to_file(sys.stdout)
         else:
             states_dict = dict(sliced_states)
-            write_states(sys.stdout, states_dict)
+            oem.write_states(sys.stdout, states_dict)
         return
 
     oem_file = Path(args.oem_file)
-    oem = CcsdsOem.from_source(oem_file)
+    oem_data = oem.CcsdsOem.from_source(oem_file)
 
     if args.slice:
         slice_obj = parse_slice(args.slice)
-        state_items = list(oem.states.items())
+        state_items = list(oem_data.states.items())
         sliced_states = state_items[slice_obj]
 
         # Handle both single index (returns tuple) and slice (returns list)
@@ -376,19 +433,19 @@ def main() -> None:
             if isinstance(last_epoch, (int, float)):
                 last_epoch = datetime.fromtimestamp(last_epoch, tz=timezone.utc)
 
-            oem.meta.start_time = first_epoch.isoformat()
-            oem.meta.stop_time = last_epoch.isoformat()
-            oem.meta.useable_start_time = ""
-            oem.meta.useable_stop_time = ""
+            oem_data.meta.start_time = common.datetime_to_iso8601(first_epoch)
+            oem_data.meta.stop_time = common.datetime_to_iso8601(last_epoch)
+            oem_data.meta.useable_start_time = ""
+            oem_data.meta.useable_stop_time = ""
 
         if args.oem:
             # Output in OEM file format
-            oem.states = dict(sliced_states_list)
-            oem.to_file(sys.stdout)
+            oem_data.states = dict(sliced_states_list)
+            oem_data.to_file(sys.stdout)
         else:
             # Output raw states
             states_dict = dict(sliced_states_list)
-            write_states(sys.stdout, states_dict)
+            oem.write_states(sys.stdout, states_dict)
 
 
 if __name__ == "__main__":

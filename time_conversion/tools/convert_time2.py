@@ -21,13 +21,22 @@ tudat_time_scale_converter = time_representation.default_time_scale_converter()
 
 
 class TimeFormat(Enum):
-    UTC_ISO_TUDAT = "iso"  # ISO 8601 format in UTC: "YYYY-MM-DDTHH:MM:SS.sss"
-    UTC_POSIX = "posix"  # POSIX timestamp; in seconds since 1970-01-01 00:00:00 UTC
-    UTC_TUDAT = "utc"  # Time in UTC; in seconds since UTC J2000 epoch (2000-01-01 12:00:00.000 UTC)
-    TAI_TUDAT = "tai"  # Time in TAI; in seconds since TAI J2000 epoch (2000-01-01 12:00:00.000 TAI = 2000-01-01 11:59:28 UTC)
-    TT_TUDAT = "tt"  # Terrestial Time; in seconds since TT J2000 epoch (2000-01-01 12:00:00.000 TT = 2000-01-01 11:58:55.816 UTC)
-    TDB_TUDAT = "tdb"  # Barycentric Dynamical Time; in seconds since TDB J2000 epoch (2000-01-01 12:00:00.000 TDB ≈ 2000-01-01 11:58:55.816 UTC)
-    TDB_APX_TUDAT = "tdb_apx"  # Approximate Barycentric Dynamical Time; in seconds since TDB J2000 epoch (2000-01-01 12:00:00.000 TDB ≈ 2000-01-01 11:58:55.816 UTC)
+    """Supported time format identifiers for conversion."""
+
+    UTC_ISO_TUDAT = "iso"
+    """ISO 8601 format in UTC: 'YYYY-MM-DDTHH:MM:SS.sss'"""
+    UTC_POSIX = "posix"
+    """POSIX timestamp; seconds since 1970-01-01 00:00:00 UTC"""
+    UTC_TUDAT = "utc"
+    """UTC seconds since UTC J2000 epoch (2000-01-01 12:00:00.000 UTC)"""
+    TAI_TUDAT = "tai"
+    """TAI seconds since TAI J2000 epoch (2000-01-01 12:00:00.000 TAI = 2000-01-01 11:59:28 UTC)"""
+    TT_TUDAT = "tt"
+    """Terrestrial Time seconds since TT J2000 epoch (2000-01-01 12:00:00.000 TT = 2000-01-01 11:58:55.816 UTC)"""
+    TDB_TUDAT = "tdb"
+    """Barycentric Dynamical Time seconds since TDB J2000 epoch (2000-01-01 12:00:00.000 TDB ≈ 2000-01-01 11:58:55.816 UTC)"""
+    TDB_APX_TUDAT = "tdb_apx"
+    """Approximate Barycentric Dynamical Time seconds since TDB J2000 epoch"""
 
 
 SUPPORTED_FORMATS = [c.value for c in TimeFormat]
@@ -466,6 +475,7 @@ class TimeConverter:
             TimeFormat.TDB_TUDAT.value: tdb_apx_tudat_to_tdb_tudat.__func__,
         },
     }
+    """Nested dict mapping input format → output format → static conversion function"""
 
     @staticmethod
     def convert(input_value, input_format: str, output_format: str):

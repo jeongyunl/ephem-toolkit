@@ -38,9 +38,10 @@ def test_read_oem_from_test_file_returns_header_meta_states() -> None:
     assert meta["TIME_SYSTEM"] == "UTC"
     assert len(states) > 0
 
-    first_epoch = min(states)
-    first_state = states[first_epoch]
-    assert isinstance(first_epoch, float)
+    # states now has float (POSIX timestamp) keys
+    first_timestamp = min(states)
+    first_state = states[first_timestamp]
+    assert isinstance(first_timestamp, float)
     assert isinstance(first_state, np.ndarray)
     assert first_state.shape == (6,)
 
@@ -154,7 +155,19 @@ def test_ccsds_oem_repr_contains_summary_information() -> None:
 
 
 def _round_trip_test_oem(source: Path) -> dict:
-    """Perform a read/write/read round-trip test for an OEM file."""
+    """Perform a read/write/read round-trip test for an OEM file.
+
+    Parameters
+    ----------
+    source : Path
+        Path to the OEM file to test.
+
+    Returns
+    -------
+    dict
+        Dictionary with key ``'overall_ok'`` (bool) indicating whether all
+        round-trip checks passed (header, metadata, and state vectors).
+    """
     with TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         lowlevel_path = tmp / "roundtrip_lowlevel.oem"

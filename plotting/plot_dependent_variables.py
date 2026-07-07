@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-
-from __future__ import annotations
-
 """Plot dependent-variable results from a saved Tudat CSV file.
 
 This script reads the ``*_dep_vars.csv`` format produced by
 ``propagate_satellite_orbit.py`` and recreates the dependent-variable plots.
 """
+
+from __future__ import annotations
 
 import argparse
 import csv
@@ -20,19 +19,37 @@ from matplotlib.animation import FuncAnimation
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from common.common import parse_duration_to_seconds
+import common.common as common
 
-SECONDS_PER_HOUR = 3600.0
-HOURS_PER_DAY = 24.0
-KILOMETERS_TO_METERS = 1e3
+SECONDS_PER_HOUR: float = 3600.0
+"""Conversion factor from seconds to hours."""
 
-PLOT_STANDARD_FIGURE_SIZE_IN = (9, 5)
-PLOT_KEPLER_FIGURE_SIZE_IN = (9, 12)
-PLOT_GROUND_TRACK_H = 3
-PLOT_SCATTER_MARKER_SIZE_PT2 = 1
-PLOT_LATITUDE_TICK_STEP_DEG = 45
-PLOT_TRUE_ANOMALY_TICK_STEP_DEG = 60
-EARTH_MEAN_RADIUS_KM = 6378.137
+HOURS_PER_DAY: float = 24.0
+"""Number of hours in one day."""
+
+KILOMETERS_TO_METERS: float = 1e3
+"""Conversion factor from kilometers to meters."""
+
+PLOT_STANDARD_FIGURE_SIZE_IN: tuple[int, int] = (9, 5)
+"""Default figure size (width, height) in inches for standard plots."""
+
+PLOT_KEPLER_FIGURE_SIZE_IN: tuple[int, int] = (9, 12)
+"""Figure size (width, height) in inches for Keplerian element plots."""
+
+PLOT_GROUND_TRACK_H: int = 3
+"""Duration in hours to display for ground track plots."""
+
+PLOT_SCATTER_MARKER_SIZE_PT2: int = 1
+"""Marker size in points² for scatter plots."""
+
+PLOT_LATITUDE_TICK_STEP_DEG: int = 45
+"""Tick spacing in degrees for latitude axes."""
+
+PLOT_TRUE_ANOMALY_TICK_STEP_DEG: int = 60
+"""Tick spacing in degrees for true anomaly axes."""
+
+EARTH_MEAN_RADIUS_KM: float = 6378.137
+"""Earth mean radius in kilometers (WGS-84)."""
 
 
 @dataclass(frozen=True)
@@ -40,14 +57,23 @@ class DepVarColumnMeta:
     """Parsed metadata for one dependent-variable CSV column."""
 
     header: str
+    """Original CSV column header string"""
     dep_type: str
+    """Dependent-variable type identifier (e.g., 'keplerian_state', 'total_acceleration')"""
     acceleration_model_type: str
+    """Acceleration model type (e.g., 'point_mass_gravity', 'aerodynamic'); empty for non-acceleration types"""
     associated_body: str
+    """Primary body associated with this variable (e.g., satellite name)"""
     secondary_body: str
+    """Secondary body (e.g., 'Earth'); empty when not applicable"""
     component_index: str
+    """Raw component index string from the header; empty for scalar quantities"""
     vector_component_index: int | None
+    """Integer component index for vector quantities (0, 1, 2, …); None for scalars"""
     column_key: str
+    """Unique dictionary key used to look up this column in dep_var_columns; may include a '#dup' suffix for duplicates"""
     occurrence_index: int
+    """Zero-based count of how many times this header appeared before this column"""
 
 
 @dataclass
@@ -55,8 +81,11 @@ class CsvDependentVariableData:
     """CSV-backed dependent-variable data and parsed metadata."""
 
     time_history_tdb_s: np.ndarray
+    """Epoch timestamps in TDB seconds, shape (N,)"""
     dep_var_columns: dict[str, np.ndarray]
+    """Mapping of column_key to 1-D data array, each of shape (N,)"""
     metadata: list[DepVarColumnMeta]
+    """Per-column metadata in the same order as the CSV columns"""
 
 
 def read_dependent_variables_csv(
@@ -112,14 +141,14 @@ def parse_dep_var_column_metadata(
     occurrence_index: int,
 ) -> DepVarColumnMeta:
     """Parse one dependent-variable header into structured metadata."""
-    parts = header.split("/")
-    dep_type = parts[0] if len(parts) > 0 else ""
-    acceleration_model_type = parts[1] if len(parts) > 1 else ""
-    associated_body = parts[2] if len(parts) > 2 else ""
-    secondary_body = parts[3] if len(parts) > 3 else ""
-    component_index = parts[4] if len(parts) > 4 else ""
+    parts: list[str] = header.split("/")
+    dep_type: str = parts[0] if len(parts) > 0 else ""
+    acceleration_model_type: str = parts[1] if len(parts) > 1 else ""
+    associated_body: str = parts[2] if len(parts) > 2 else ""
+    secondary_body: str = parts[3] if len(parts) > 3 else ""
+    component_index: str = parts[4] if len(parts) > 4 else ""
 
-    vector_component_index = None
+    vector_component_index: int | None = None
     if parts and parts[-1].isdigit():
         vector_component_index = int(parts[-1])
 
@@ -832,7 +861,7 @@ def plot_dependent_variables_from_csv(
     duration_s: float | None = None,
 ):
     """Generate all dependent-variable plots from a CSV file.
-    
+
     Parameters
     ----------
     dep_var_csv_path : str | Path
@@ -865,7 +894,7 @@ def plot_dependent_variables_from_csv(
         duration_h = duration_s / SECONDS_PER_HOUR
         mask = relative_time_h <= duration_h
         relative_time_h = relative_time_h[mask]
-        
+
         # Create a filtered copy of data with only the selected time range
         filtered_data = CsvDependentVariableData(
             time_history_tdb_s=data.time_history_tdb_s[mask],
@@ -912,7 +941,7 @@ def build_cli_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "-d",
         "--duration",
-        type=parse_duration_to_seconds,
+        type=common.parse_duration_to_seconds,
         default=None,
         metavar="<duration>",
         help="Duration to plot in format <number>[s|m|h|d] (e.g., 1h, 30m, 3600s). If not specified, plots all data.",

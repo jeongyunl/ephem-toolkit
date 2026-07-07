@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+"""Compare two OEM-like Cartesian state vectors and report differences.
+
+Provides :func:`compare_states` to compute time, position, and velocity
+differences between two state vectors, and a CLI entry point to read states
+from files or stdin and display the comparison results.
+"""
 
 from __future__ import annotations
 
@@ -11,10 +17,11 @@ import numpy as np
 # Add parent directory to path to import common module
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from common.common import parse_oem_state_line
+import common.common as common
+import common.oem as oem
 
 
-def read_state_from_file(filepath: str):
+def read_state_from_file(filepath: str) -> tuple:
     """Read a single OEM-like state line from a file.
 
     Skips comments and blank lines, returns the first valid state found.
@@ -38,7 +45,7 @@ def read_state_from_file(filepath: str):
     try:
         with open(filepath, "r") as f:
             for line in f:
-                parsed = parse_oem_state_line(line)
+                parsed: tuple | None = oem.parse_oem_state_line(line)
                 if parsed is not None:
                     return parsed
     except OSError as error:
@@ -47,7 +54,7 @@ def read_state_from_file(filepath: str):
     raise ValueError(f"No valid OEM-like state found in '{filepath}'")
 
 
-def read_state_from_stdin():
+def read_state_from_stdin() -> tuple:
     """Read a single OEM-like state line from stdin.
 
     Returns
@@ -62,14 +69,14 @@ def read_state_from_stdin():
         If no valid state is found in stdin.
     """
     for line in sys.stdin:
-        parsed = parse_oem_state_line(line)
+        parsed: tuple | None = oem.parse_oem_state_line(line)
         if parsed is not None:
             return parsed
 
     raise ValueError("No valid OEM-like state found in stdin")
 
 
-def compare_states(state1, state2):
+def compare_states(state1: tuple, state2: tuple) -> dict:
     """Compare two OEM-like states and return differences.
 
     Parameters
@@ -94,19 +101,21 @@ def compare_states(state1, state2):
     """
     epoch1, state1_km = state1
     epoch2, state2_km = state2
-    pos1, vel1 = state1_km[0:3], state1_km[3:6]
-    pos2, vel2 = state2_km[0:3], state2_km[3:6]
+    pos1: np.ndarray = state1_km[0:3]
+    vel1: np.ndarray = state1_km[3:6]
+    pos2: np.ndarray = state2_km[0:3]
+    vel2: np.ndarray = state2_km[3:6]
 
     # Time difference
-    time_diff_s = (epoch2 - epoch1).total_seconds()
+    time_diff_s: float = (epoch2 - epoch1).total_seconds()
 
     # Position difference
-    pos_diff = pos2 - pos1
-    pos_diff_magnitude = np.linalg.norm(pos_diff)
+    pos_diff: np.ndarray = pos2 - pos1
+    pos_diff_magnitude: np.floating = np.linalg.norm(pos_diff)
 
     # Velocity difference
-    vel_diff = vel2 - vel1
-    vel_diff_magnitude = np.linalg.norm(vel_diff)
+    vel_diff: np.ndarray = vel2 - vel1
+    vel_diff_magnitude: np.floating = np.linalg.norm(vel_diff)
 
     return {
         "epoch1": epoch1,
@@ -119,9 +128,16 @@ def compare_states(state1, state2):
     }
 
 
-def parse_arguments():
-    """Parse command-line arguments."""
-    parser = argparse.ArgumentParser(
+def parse_arguments() -> argparse.Namespace:
+    """Parse command-line arguments.
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed command-line arguments with attributes ``state1``, ``state2``,
+        and ``verbose``.
+    """
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
         description=(
             "Compare two OEM-like Cartesian states and report differences in time, "
             "position, and velocity."
@@ -156,7 +172,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def print_results(diff, verbose=False):
+def print_results(diff: dict, verbose: bool = False) -> None:
     """Print comparison results.
 
     Parameters
@@ -168,8 +184,8 @@ def print_results(diff, verbose=False):
     """
     print("State Comparison Results:")
     print("=" * 70)
-    print(f"State 1 Epoch: {diff['epoch1'].isoformat()}")
-    print(f"State 2 Epoch: {diff['epoch2'].isoformat()}")
+    print(f"State 1 Epoch: {common.datetime_to_iso8601(diff['epoch1'])}")
+    print(f"State 2 Epoch: {common.datetime_to_iso8601(diff['epoch2'])}")
     print()
     print(f"Time Difference: {diff['time_diff_s']:.6f} seconds")
     print()
@@ -189,25 +205,30 @@ def print_results(diff, verbose=False):
     print("=" * 70)
 
 
-def main():
-    """Main entry point."""
-    args = parse_arguments()
+def main() -> None:
+    """Main entry point for the state comparison CLI.
+
+    Parses command-line arguments, reads two OEM-like state vectors from
+    files or stdin, compares them, and prints the differences to stdout.
+    Exits with status 1 on error.
+    """
+    args: argparse.Namespace = parse_arguments()
 
     try:
         # Read first state
         if args.state1 == "-":
-            state1 = read_state_from_stdin()
+            state1: tuple = read_state_from_stdin()
         else:
             state1 = read_state_from_file(args.state1)
 
         # Read second state
         if args.state2 == "-":
-            state2 = read_state_from_stdin()
+            state2: tuple = read_state_from_stdin()
         else:
             state2 = read_state_from_file(args.state2)
 
         # Compare states
-        diff = compare_states(state1, state2)
+        diff: dict = compare_states(state1, state2)
 
         # Print results
         print_results(diff, verbose=args.verbose)

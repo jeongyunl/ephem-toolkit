@@ -19,40 +19,57 @@ import sys
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
-
-import tudatpy.exceptions as exceptions
 
 # Add parent directory to path to import common utilities
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.common as common
 import common.oem as oem
-from interpolator.lagrange import LagrangeInterpolator
+import interpolator.lagrange as lagrange
 
-INTERPOLATOR_NUMBER_OF_POINTS = 6
+INTERPOLATOR_NUMBER_OF_POINTS: int = 6
+"""Polynomial degree for Lagrange interpolation of reference orbit states."""
 
 
 def _sanitize_filename_component(value: str) -> str:
-    """Sanitize a string for safe use as a filename component."""
+    """Sanitize a string for safe use as a filename component.
 
-    safe = []
+    Parameters
+    ----------
+    value : str
+        String to sanitize.
+
+    Returns
+    -------
+    str
+        Sanitized string safe for use in filenames.
+    """
+    safe: list[str] = []
     for ch in value:
         if ch.isalnum() or ch in ("-", "_", "."):
             safe.append(ch)
         else:
             safe.append("_")
 
-    result = "".join(safe).strip("._")
+    result: str = "".join(safe).strip("._")
     return result or "data"
 
 
 def _write_csv(path: Path, header: list[str], rows: list[list[object]]) -> None:
-    """Write rows to CSV with a header."""
+    """Write rows to CSV with a header.
 
+    Parameters
+    ----------
+    path : Path
+        Output CSV file path.
+    header : list[str]
+        Column header names.
+    rows : list[list[object]]
+        Data rows to write.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -61,15 +78,26 @@ def _write_csv(path: Path, header: list[str], rows: list[list[object]]) -> None:
 
 
 def _default_csv_path(
-    output_file: Optional[str],
+    output_file: str | None,
     plot_suffix: str,
     dataset_label: str,
-) -> Optional[Path]:
+) -> Path | None:
     """Create a CSV output path derived from the plot output filename.
 
-    If output_file is None, returns None (no CSVs are written).
-    """
+    Parameters
+    ----------
+    output_file : str | None
+        Base output filename, or None to skip CSV generation.
+    plot_suffix : str
+        Suffix identifying the plot type.
+    dataset_label : str
+        Label identifying the dataset.
 
+    Returns
+    -------
+    Path | None
+        Generated CSV path, or None if output_file is None.
+    """
     if output_file is None:
         return None
 
@@ -85,35 +113,43 @@ def _default_csv_path(
 
 @dataclass
 class StateHistory:
-    """Dataclass representing a comparison orbit trajectory.
-
-    Attributes
-    ----------
-    label : str
-        Label or identifier for the comparison orbit (e.g., filename).
-    state_history : dict[float, np.ndarray]
-        State history: dictionary mapping epoch timestamps (float, seconds since epoch) to
-        state vectors (6-element numpy arrays [x, y, z, vx, vy, vz] in km and km/s).
-    interpolator : object, optional
-        Interpolator object from tudatpy for interpolating state at arbitrary timestamps.
-    timestamps : list[float], optional
-        List of epoch timestamps from state_history keys. Populated automatically in __post_init__.
-    """
+    """Orbit trajectory with state history and optional interpolator."""
 
     label: str
-    state_history: dict[float, np.ndarray]
-    interpolator: Optional[object] = None
-    timestamps: Optional[list[float]] = None
+    """Label or identifier for the orbit (e.g., filename)."""
 
-    def __post_init__(self):
+    state_history: dict[float, np.ndarray]
+    """Mapping of POSIX epoch timestamps (seconds) to 6-element state vectors [x, y, z, vx, vy, vz] (km, km/s)."""
+
+    interpolator: lagrange.LagrangeInterpolator | None = None
+    """Lagrange interpolator for querying state at arbitrary timestamps; initialised lazily on first use."""
+
+    timestamps: list[float] | None = None
+    """Sorted list of epoch timestamps from state_history keys; populated automatically in __post_init__."""
+
+    def __post_init__(self) -> None:
         """Initialize epochs field from state_history keys."""
         if not self.timestamps:
             self.timestamps = list(self.state_history.keys())
 
     def get_start_time(self) -> float:
+        """Return the earliest timestamp in the stored state history.
+
+        Returns
+        -------
+        float
+            Earliest timestamp (seconds since epoch).
+        """
         return self.timestamps[0]
 
     def get_stop_time(self) -> float:
+        """Return the latest timestamp in the stored state history.
+
+        Returns
+        -------
+        float
+            Latest timestamp (seconds since epoch).
+        """
         return self.timestamps[-1]
 
     def get_interpolated_state(self, timestamp: float) -> np.ndarray | None:
@@ -126,7 +162,7 @@ class StateHistory:
 
         Returns
         -------
-        np.ndarray or None
+        np.ndarray | None
             Interpolated state vector [x, y, z, vx, vy, vz] if timestamp is within
             interpolator bounds, None otherwise.
 
@@ -136,39 +172,21 @@ class StateHistory:
             If no interpolator has been set for this StateHistory object.
         """
 
-        # TODO Improve boundary interpolation
         if self.interpolator is None:
-            self.interpolator = LagrangeInterpolator(
+            interp: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
                 dimension=6, degree=INTERPOLATOR_NUMBER_OF_POINTS
             )
-            self.interpolator.set_data(self.state_history)
+            interp.set_data(self.state_history)
+            self.interpolator = interp
 
-        # Check if timestamp is within lagrange interpolator bounds
-        # if (
-        #     timestamp
-        #     < self.interpolator.independent_values[
-        #         int(INTERPOLATOR_NUMBER_OF_POINTS / 2)
-        #     ]
-        #     or timestamp
-        #     >= self.interpolator.independent_values[
-        #         -int(INTERPOLATOR_NUMBER_OF_POINTS / 2)
-        #     ]
-        # ):
-        #     return None
-
-        # TODO Improve boundary interpolation
         if (
             timestamp < self.interpolator.independent_values[2]
             or timestamp > self.interpolator.independent_values[-3]
         ):
             return None
 
-        interpolated_state = None
-        try:
-            interpolated_state = self.interpolator.interpolate(timestamp)
-        except exceptions.TudatError as e:
-            print(e)
-            pass
+        interpolated_state: np.ndarray | None = None
+        interpolated_state = self.interpolator.interpolate(timestamp)
 
         return interpolated_state
 
@@ -177,28 +195,31 @@ class TimeUnit(Enum):
     """Enumeration for time units in plots."""
 
     MINUTES = "minutes"
+    """Time unit in minutes; divisor 60 s/min."""
+
     HOURS = "hours"
+    """Time unit in hours; divisor 3600 s/h."""
 
     @classmethod
-    def from_string(cls, value: str) -> "TimeUnit":
+    def from_string(cls, value: str) -> TimeUnit:
         """Convert string to TimeUnit enum.
 
         Parameters
         ----------
         value : str
-            String representation: 'm', 'minute', 'minutes', 'h', 'hour', or 'hours'
+            String representation: 'm', 'minute', 'minutes', 'h', 'hour', or 'hours'.
 
         Returns
         -------
         TimeUnit
-            Corresponding TimeUnit enum value
+            Corresponding TimeUnit enum value.
 
         Raises
         ------
         ValueError
-            If the string doesn't match any known time unit
+            If the string doesn't match any known time unit.
         """
-        value_lower = value.lower()
+        value_lower: str = value.lower()
         if value_lower in ["m", "minute", "minutes"]:
             return cls.MINUTES
         elif value_lower in ["h", "hour", "hours"]:
@@ -214,7 +235,7 @@ class TimeUnit(Enum):
         Returns
         -------
         float
-            Divisor value (60 for minutes, 3600 for hours)
+            Divisor value (60 for minutes, 3600 for hours).
         """
         if self == TimeUnit.MINUTES:
             return 60.0
@@ -229,7 +250,7 @@ class TimeUnit(Enum):
         Returns
         -------
         str
-            Label string for use in plot axes
+            Label string for use in plot axes.
         """
         if self == TimeUnit.MINUTES:
             return "Time from Start (minutes)"
@@ -253,38 +274,40 @@ def read_orbit_file(filepath: str | Path) -> dict[float, np.ndarray]:
         State history: dictionary mapping epoch timestamps (float, seconds since epoch) to
         state vectors (6-element numpy arrays [x, y, z, vx, vy, vz] in km and km/s).
     """
-    filepath = Path(filepath)
+    filepath_obj: Path = Path(filepath)
 
-    if not filepath.exists():
-        raise FileNotFoundError(f"File not found: {filepath}")
+    if not filepath_obj.exists():
+        raise FileNotFoundError(f"File not found: {filepath_obj}")
 
-    state_history = {}
+    state_history: dict[float, np.ndarray] = {}
 
     # Try reading as OEM file first (more robust)
     try:
-        header, meta, raw_states = oem.read_oem(filepath)
-        for epoch, state in raw_states.items():
-            timestamp = float(epoch)
-            state_history[timestamp] = state
+        header: dict
+        meta: dict
+        raw_states: dict
+        header, meta, raw_states = oem.read_oem(filepath_obj)
+        # raw_states is now dict[float, np.ndarray] (POSIX timestamps)
+        state_history = raw_states
         return state_history
     except Exception:
         pass
 
     # Fall back to line-by-line parsing for raw state files
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(filepath_obj, "r", encoding="utf-8") as f:
         for line in f:
             try:
-                result = common.parse_oem_state_line(line)
+                result: tuple | None = oem.parse_oem_state_line(line)
                 if result is not None:
                     epoch_dt, state_km = result
-                    timestamp = epoch_dt.timestamp()
+                    timestamp: float = epoch_dt.timestamp()
                     state_history[timestamp] = state_km
             except ValueError:
                 # Skip lines that don't parse (headers, comments, etc.)
                 continue
 
     if not state_history:
-        raise ValueError(f"Could not parse any state data from {filepath}")
+        raise ValueError(f"Could not parse any state data from {filepath_obj}")
 
     return state_history
 
@@ -292,7 +315,7 @@ def read_orbit_file(filepath: str | Path) -> dict[float, np.ndarray]:
 def plot_orbits(
     reference_state_history: StateHistory,
     comparison_data: list[StateHistory],
-    output_file: Optional[str] = None,
+    output_file: str | None = None,
 ) -> None:
     """Plot multiple orbits in various views.
 
@@ -302,14 +325,14 @@ def plot_orbits(
         StateHistory object for reference orbit.
     comparison_data : list[StateHistory]
         List of StateHistory objects for comparison orbits.
-    output_file : str, optional
+    output_file : str | None, optional
         Path to save the figure. If None, displays interactively.
     """
     # Create figure with subplots
-    fig = plt.figure(figsize=(16, 12))
+    fig: plt.Figure = plt.figure(figsize=(16, 12))
 
     # Extract reference positions and states
-    ref_pos = np.array(
+    ref_pos: np.ndarray = np.array(
         [
             reference_state_history.state_history[ts][:3]
             for ts in reference_state_history.timestamps
@@ -317,9 +340,11 @@ def plot_orbits(
     )
 
     # Save plot data to CSV (one file per dataset) if output_file is provided
-    csv_path = _default_csv_path(output_file, "absolute_orbits", "reference")
+    csv_path: Path | None = _default_csv_path(
+        output_file, "absolute_orbits", "reference"
+    )
     if csv_path is not None:
-        rows = [
+        rows: list[list[object]] = [
             [ts, *reference_state_history.state_history[ts].tolist()]
             for ts in reference_state_history.timestamps
         ]
@@ -379,9 +404,13 @@ def plot_orbits(
     # Plot comparison data in a single loop
     for orbit in comparison_data:
         # Save plot data to CSV (one file per dataset) if output_file is provided
-        csv_path = _default_csv_path(output_file, "absolute_orbits", orbit.label)
+        csv_path: Path | None = _default_csv_path(
+            output_file, "absolute_orbits", orbit.label
+        )
         if csv_path is not None:
-            rows = [[ts, *orbit.state_history[ts].tolist()] for ts in orbit.timestamps]
+            rows: list[list[object]] = [
+                [ts, *orbit.state_history[ts].tolist()] for ts in orbit.timestamps
+            ]
             _write_csv(
                 csv_path,
                 [
@@ -398,7 +427,9 @@ def plot_orbits(
             print(f"CSV saved to {csv_path}")
 
         # Extract positions for Cartesian plots
-        pos_data = np.array([orbit.state_history[ts][:3] for ts in orbit.timestamps])
+        pos_data: np.ndarray = np.array(
+            [orbit.state_history[ts][:3] for ts in orbit.timestamps]
+        )
 
         # Plot on all axes
         ax1.plot(
@@ -451,7 +482,7 @@ def plot_orbits(
 def plot_relative_cartesian_timeseries(
     reference_state_history: StateHistory,
     comparison_data: list[StateHistory],
-    output_file: Optional[str] = None,
+    output_file: str | None = None,
     time_unit: TimeUnit = TimeUnit.HOURS,
 ) -> None:
     """Plot time series of relative position and velocity in Cartesian coordinates.
@@ -465,7 +496,7 @@ def plot_relative_cartesian_timeseries(
         StateHistory object for reference orbit.
     comparison_data : list[StateHistory]
         List of StateHistory objects for comparison orbits.
-    output_file : str, optional
+    output_file : str | None, optional
         Path to save the figure. If None, displays interactively.
     time_unit : TimeUnit, optional
         Time unit for x-axis (default: TimeUnit.HOURS).
@@ -649,7 +680,7 @@ def plot_relative_cartesian_timeseries(
 def plot_relative_rtn_timeseries(
     reference_state_history: StateHistory,
     comparison_data: list[StateHistory],
-    output_file: Optional[str] = None,
+    output_file: str | None = None,
     time_unit: TimeUnit = TimeUnit.HOURS,
 ) -> None:
     """Plot time series of relative position and velocity in RTN coordinates.
@@ -663,7 +694,7 @@ def plot_relative_rtn_timeseries(
         StateHistory object for reference orbit.
     comparison_data : list[StateHistory]
         List of StateHistory objects for comparison orbits.
-    output_file : str, optional
+    output_file : str | None, optional
         Path to save the figure. If None, displays interactively.
     time_unit : TimeUnit, optional
         Time unit for x-axis (default: TimeUnit.HOURS).
@@ -849,7 +880,7 @@ def plot_relative_rtn_timeseries(
 def plot_relative_rtn_orbits(
     reference_state_history: StateHistory,
     comparison_data: list[StateHistory],
-    output_file: Optional[str] = None,
+    output_file: str | None = None,
 ) -> None:
     """Plot relative RTN orbits (deltas) in RTN coordinates.
 
@@ -861,7 +892,7 @@ def plot_relative_rtn_orbits(
         StateHistory object for reference orbit.
     comparison_data : list[StateHistory]
         List of StateHistory objects for comparison orbits.
-    output_file : str, optional
+    output_file : str | None, optional
         Path to save the figure. If None, displays interactively.
     """
     fig = plt.figure(figsize=(14, 10))
@@ -1026,7 +1057,7 @@ def plot_relative_rtn_orbits(
         print(f"Figure saved to {output_file}")
 
 
-def main():
+def main() -> None:
     """Main entry point for the script."""
     parser = argparse.ArgumentParser(
         description="Plot multiple orbit trajectories with various views and RTN coordinates.",
@@ -1081,7 +1112,7 @@ Examples:
         sys.exit(1)
 
     # Parse duration if provided
-    duration_seconds = None
+    duration_seconds: float | None = None
     if args.duration:
         try:
             duration_seconds = common.parse_duration_to_seconds(args.duration)
@@ -1094,52 +1125,52 @@ Examples:
 
     # Read reference orbit
     print(f"Reading reference orbit from {args.files[0]}...")
-    ref_state_history = read_orbit_file(args.files[0])
+    ref_state_history: dict[float, np.ndarray] = read_orbit_file(args.files[0])
     print(f"  Loaded {len(ref_state_history)} states")
 
     # Read comparison orbits
-    comparison_data = []
+    comparison_data: list[StateHistory] = []
     for filepath in args.files[1:]:
         print(f"Reading comparison orbit from {filepath}...")
-        state_history = read_orbit_file(filepath)
+        state_history: dict[float, np.ndarray] = read_orbit_file(filepath)
         print(f"  Loaded {len(state_history)} states")
 
-        label = Path(filepath).name
+        label: str = Path(filepath).name
         comparison_data.append(StateHistory(label=label, state_history=state_history))
 
     # Calculate end timestamp from reference state history and duration option
-    ref_timestamps_sorted = sorted(ref_state_history.keys())
-    start_timestamp = ref_timestamps_sorted[0]
+    ref_timestamps_sorted: list[float] = sorted(ref_state_history.keys())
+    start_timestamp: float = ref_timestamps_sorted[0]
 
     if duration_seconds is not None:
-        end_timestamp = start_timestamp + duration_seconds
+        end_timestamp: float = start_timestamp + duration_seconds
     else:
-        end_timestamp = ref_timestamps_sorted[-1]
+        end_timestamp: float = ref_timestamps_sorted[-1]
 
     print(f"Reference orbit end timestamp: {end_timestamp}")
 
     # Filter reference and comparison data using end timestamp
     # Include up to interpolator_number_of_points/2 additional states past end_timestamp for reference orbit
-    end_idx = bisect.bisect_left(ref_timestamps_sorted, end_timestamp)
+    end_idx: int = bisect.bisect_left(ref_timestamps_sorted, end_timestamp)
 
     # Include states up to end_timestamp plus up to interpolator_number_of_points more states
-    include_count = min(
+    include_count: int = min(
         int(INTERPOLATOR_NUMBER_OF_POINTS / 2), len(ref_timestamps_sorted) - end_idx
     )
-    cutoff_idx = end_idx + include_count
+    cutoff_idx: int = end_idx + include_count
     ref_state_history = {
         ts: state
         for ts, state in ref_state_history.items()
         if ts in ref_timestamps_sorted[:cutoff_idx]
     }
 
-    reference_state_history_obj = StateHistory(
+    reference_state_history_obj: StateHistory = StateHistory(
         label=Path(args.files[0]).name, state_history=ref_state_history
     )
 
-    filtered_comparison_data = []
+    filtered_comparison_data: list[StateHistory] = []
     for orbit in comparison_data:
-        filtered_state_history = {
+        filtered_state_history: dict[float, np.ndarray] = {
             ts: state
             for ts, state in orbit.state_history.items()
             if ts <= end_timestamp
@@ -1150,8 +1181,21 @@ Examples:
     comparison_data = filtered_comparison_data
 
     # Determine output files
-    def get_output_filename(base_output: Optional[str], suffix: str) -> Optional[str]:
-        """Generate output filename with suffix if base output is provided."""
+    def get_output_filename(base_output: str | None, suffix: str) -> str | None:
+        """Generate output filename with suffix if base output is provided.
+
+        Parameters
+        ----------
+        base_output : str | None
+            Base output filename, or None.
+        suffix : str
+            Suffix to append to the filename stem.
+
+        Returns
+        -------
+        str | None
+            Generated filename with suffix, or None if base_output is None.
+        """
         if base_output is None:
             return None
         path = Path(base_output)
@@ -1159,12 +1203,12 @@ Examples:
         suffix_str = f"_{suffix}"
         return str(path.parent / f"{stem}{suffix_str}{path.suffix}")
 
-    time_unit = TimeUnit.from_string(args.time_unit)
+    time_unit: TimeUnit = TimeUnit.from_string(args.time_unit)
 
     print(
         "Plotting time series of relative position and velocity in RTN coordinates..."
     )
-    relative_rtn_timeseries_output = get_output_filename(
+    relative_rtn_timeseries_output: str | None = get_output_filename(
         args.output, "relative_rtn_timeseries"
     )
     plot_relative_rtn_timeseries(
@@ -1175,7 +1219,7 @@ Examples:
     )
 
     print("Plotting relative orbits in RTN coordinates...")
-    relative_rtn_output = get_output_filename(args.output, "relative_rtn")
+    relative_rtn_output: str | None = get_output_filename(args.output, "relative_rtn")
     plot_relative_rtn_orbits(
         reference_state_history_obj, comparison_data, relative_rtn_output
     )
@@ -1183,7 +1227,7 @@ Examples:
     print(
         "Plotting time series of relative position and velocity in Cartesian coordinates..."
     )
-    relative_cartesian_timeseries_output = get_output_filename(
+    relative_cartesian_timeseries_output: str | None = get_output_filename(
         args.output, "relative_cartesian_timeseries"
     )
 

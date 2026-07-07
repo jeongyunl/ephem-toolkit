@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import IO, Union
+from typing import Callable, TextIO
 
 # ===================================================================
 # Internal helpers
@@ -37,7 +37,7 @@ def _try_numeric(value: str) -> int | float | str:
 
 
 # Canonical key ordering for the OMM metadata section
-_META_KEY_ORDER = [
+_META_KEY_ORDER: list[str] = [
     "OBJECT_NAME",
     "OBJECT_ID",
     "CENTER_NAME",
@@ -47,7 +47,7 @@ _META_KEY_ORDER = [
 ]
 
 # Canonical key ordering for the mean elements section
-_MEAN_ELEMENTS_KEY_ORDER = [
+_MEAN_ELEMENTS_KEY_ORDER: list[str] = [
     "EPOCH",
     "MEAN_MOTION",
     "ECCENTRICITY",
@@ -58,7 +58,7 @@ _MEAN_ELEMENTS_KEY_ORDER = [
 ]
 
 # Canonical key ordering for the TLE-related parameters section
-_TLE_PARAMS_KEY_ORDER = [
+_TLE_PARAMS_KEY_ORDER: list[str] = [
     "EPHEMERIS_TYPE",
     "CLASSIFICATION_TYPE",
     "NORAD_CAT_ID",
@@ -76,13 +76,13 @@ _TLE_PARAMS_KEY_ORDER = [
 
 
 def read_omm(
-    source: Union[IO[str], str, Path],
+    source: TextIO | str | Path,
 ) -> tuple[dict, dict]:
     """Read an OMM file and return *(header, data)*.
 
     Parameters
     ----------
-    source:
+    source : TextIO | str | Path
         A readable text stream, file path string, or :class:`Path`.
 
     Returns
@@ -100,21 +100,21 @@ def read_omm(
     header: dict = {}
     data: dict = {}
 
-    _HEADER_KEYS = {"CCSDS_OMM_VERS", "CREATION_DATE", "ORIGINATOR"}
+    _HEADER_KEYS: set[str] = {"CCSDS_OMM_VERS", "CREATION_DATE", "ORIGINATOR"}
 
     for raw_line in source:
-        line = raw_line.strip()
+        line: str = raw_line.strip()
         if not line:
             continue
 
         # Handle COMMENT lines
         if line.startswith("COMMENT"):
-            comment_text = line[len("COMMENT") :].strip()
+            comment_text: str = line[len("COMMENT") :].strip()
             header.setdefault("COMMENT", [])
             header["COMMENT"].append(comment_text)
             continue
 
-        kv = _parse_kv_line(line)
+        kv: tuple[str, str] | None = _parse_kv_line(line)
         if kv is None:
             continue
 
@@ -134,7 +134,7 @@ def read_omm(
 
 
 def write_omm(
-    dest: Union[IO[str], str, Path],
+    dest: TextIO | str | Path,
     header: dict,
     data: dict,
 ) -> None:
@@ -142,12 +142,12 @@ def write_omm(
 
     Parameters
     ----------
-    dest:
+    dest : TextIO | str | Path
         A writable text stream, file path string, or :class:`Path`.
-    header:
+    header : dict
         File-level keywords (``CCSDS_OMM_VERS``, ``CREATION_DATE``,
         ``ORIGINATOR``, and optionally ``COMMENT``).
-    data:
+    data : dict
         All remaining keyword-value pairs (metadata, mean elements,
         and TLE parameters).
     """
@@ -155,16 +155,16 @@ def write_omm(
         with open(dest, "w", encoding="utf-8") as fh:
             return write_omm(fh, header, data)
 
-    w = dest.write
+    w: Callable[[str], int] = dest.write
 
     # --- Header ---
-    version = header.get("CCSDS_OMM_VERS", 2.0)
+    version: float | int = header.get("CCSDS_OMM_VERS", 2.0)
     w(f"CCSDS_OMM_VERS = {version}\n")
 
-    creation_date = header.get("CREATION_DATE", "")
+    creation_date: str | int | float = header.get("CREATION_DATE", "")
     w(f"CREATION_DATE  = {creation_date}\n")
 
-    originator = header.get("ORIGINATOR", "")
+    originator: str | int | float = header.get("ORIGINATOR", "")
     w(f"ORIGINATOR     = {originator}\n")
 
     for comment in header.get("COMMENT", []):
@@ -192,8 +192,10 @@ def write_omm(
             w(f"{key:<{max(14, len(key))}} = {data[key]}\n")
 
     # --- Any extra keys not in the canonical ordering ---
-    all_ordered = set(_META_KEY_ORDER + _MEAN_ELEMENTS_KEY_ORDER + _TLE_PARAMS_KEY_ORDER)
-    extra_keys = [k for k in data if k not in all_ordered and k != "COMMENT"]
+    all_ordered: set[str] = set(
+        _META_KEY_ORDER + _MEAN_ELEMENTS_KEY_ORDER + _TLE_PARAMS_KEY_ORDER
+    )
+    extra_keys: list[str] = [k for k in data if k not in all_ordered and k != "COMMENT"]
     for key in extra_keys:
         w(f"{key:<{max(14, len(key))}} = {data[key]}\n")
 
@@ -213,52 +215,80 @@ class CcsdsOmm:
     revolutions per day, matching the native OMM/TLE representation.
     """
 
-    # Header
     version: float = 2.0
+    """CCSDS OMM format version number"""
     creation_date: str = ""
+    """File creation date (ISO 8601 format)"""
     originator: str = ""
+    """Organization or entity that created the OMM file"""
     comments: list[str] = field(default_factory=list)
+    """List of comment lines from the OMM header"""
 
-    # Metadata
     object_name: str = ""
+    """Satellite or object name"""
     object_id: str = ""
+    """International designator or NORAD catalog number"""
     center_name: str = "EARTH"
+    """Central body name (e.g., EARTH, MOON)"""
     ref_frame: str = "TEME"
+    """Reference frame (e.g., TEME, J2000, ITRF)"""
     time_system: str = "UTC"
+    """Time system (e.g., UTC, GPS, TAI)"""
     mean_element_theory: str = "SGP/SGP4"
+    """Mean element theory used (e.g., SGP/SGP4, SGP8)"""
 
-    # Mean Keplerian elements
     epoch: str = ""
+    """Epoch time (ISO 8601 format)"""
     mean_motion: float = 0.0
+    """Mean motion (revolutions per day)"""
     eccentricity: float = 0.0
+    """Eccentricity (dimensionless, 0.0 to 1.0)"""
     inclination: float = 0.0
+    """Inclination (degrees)"""
     ra_of_asc_node: float = 0.0
+    """Right ascension of ascending node (degrees)"""
     arg_of_pericenter: float = 0.0
+    """Argument of pericenter (degrees)"""
     mean_anomaly: float = 0.0
+    """Mean anomaly (degrees)"""
 
-    # TLE-related parameters
     ephemeris_type: int = 0
+    """Ephemeris type (0=SGP, 2=SGP4, 4=SGP8, 6=SP)"""
     classification_type: str = "U"
+    """Classification (U=Unclassified, C=Classified, S=Secret)"""
     norad_cat_id: int = 0
+    """NORAD catalog ID number"""
     element_set_no: int = 999
+    """Element set number"""
     rev_at_epoch: int = 0
+    """Revolution number at epoch"""
     bstar: str = "0"
+    """BSTAR drag term"""
     mean_motion_dot: str = "0"
+    """First time derivative of mean motion"""
     mean_motion_ddot: str = "0"
+    """Second time derivative of mean motion"""
 
     def to_dict(self) -> dict[str, object]:
         """Convert to a plain dictionary."""
         return asdict(self)
 
     @classmethod
-    def from_source(cls, source: Union[IO[str], str, Path]) -> CcsdsOmm:
+    def from_source(cls, source: TextIO | str | Path) -> CcsdsOmm:
         """Construct a :class:`CcsdsOmm` from a file or stream.
 
         Parameters
         ----------
-        source:
+        source : TextIO | str | Path
             A readable text stream, file path string, or :class:`Path`.
+
+        Returns
+        -------
+        CcsdsOmm
+            Parsed OMM instance.
         """
+        header: dict
+        data: dict
         header, data = read_omm(source)
 
         return cls(
@@ -289,12 +319,12 @@ class CcsdsOmm:
             mean_motion_ddot=str(data.get("MEAN_MOTION_DDOT", "0")),
         )
 
-    def to_file(self, dest: Union[IO[str], str, Path]) -> None:
+    def to_file(self, dest: TextIO | str | Path) -> None:
         """Write this OMM to a file or stream.
 
         Parameters
         ----------
-        dest:
+        dest : TextIO | str | Path
             A writable text stream, file path string, or :class:`Path`.
         """
         hdr: dict = {
@@ -332,25 +362,9 @@ class CcsdsOmm:
         write_omm(dest, hdr, data)
 
     def __repr__(self) -> str:
+        """Return a concise string representation of this OMM instance."""
         return (
             f"CcsdsOmm(object={self.object_name!r}, "
             f"norad_cat_id={self.norad_cat_id}, "
             f"epoch={self.epoch!r})"
         )
-
-
-if __name__ == "__main__":
-    import sys
-
-    if len(sys.argv) < 2:
-        print("Usage: python -m common.omm <omm_file>", file=sys.stderr)
-        sys.exit(1)
-
-    omm = CcsdsOmm.from_source(Path(sys.argv[1]))
-    print(omm)
-    print(f"  mean_motion:       {omm.mean_motion}")
-    print(f"  eccentricity:      {omm.eccentricity}")
-    print(f"  inclination:       {omm.inclination}")
-    print(f"  ra_of_asc_node:    {omm.ra_of_asc_node}")
-    print(f"  arg_of_pericenter: {omm.arg_of_pericenter}")
-    print(f"  mean_anomaly:      {omm.mean_anomaly}")

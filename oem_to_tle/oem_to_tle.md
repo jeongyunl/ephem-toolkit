@@ -1,8 +1,8 @@
-# `build_tle.py` — approach, algorithms, and strategy
+# `oem_to_tle.py` — approach, algorithms, and strategy
 
 ## Purpose
 
-`tle/build_tle.py` estimates a valid Two-Line Element (TLE) set from a time series of OEM-like Cartesian state vectors:
+`oem_to_tle/oem_to_tle.py` estimates a valid Two-Line Element (TLE) set from a time series of OEM-like Cartesian state vectors:
 
 ```text
 UTC_ISO x y z vx vy vz
@@ -10,7 +10,7 @@ UTC_ISO x y z vx vy vz
 
 with position in km and velocity in km/s.
 
-Unlike directly calling `common.tle.write_tle()` with explicit fields, `tle/build_tle.py` attempts to infer a TLE from a Cartesian arc.
+Unlike directly calling `common.tle.write_tle()` with explicit fields, `oem_to_tle/oem_to_tle.py` attempts to infer a TLE from a Cartesian arc.
 
 This is fundamentally an estimation problem because TLEs encode SGP4-compatible mean elements rather than raw osculating Cartesian states.
 
@@ -18,7 +18,7 @@ This is fundamentally an estimation problem because TLEs encode SGP4-compatible 
 
 Related scripts in the current repository:
 
-- `tle/build_tle.py` — estimate a TLE from an OEM-like arc
+- `oem_to_tle/oem_to_tle.py` — estimate a TLE from an OEM-like arc
 - `common/tle.py` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions
 - `propagation/propagate_tle.py` — propagate a TLE with TudatPy SGP4 and print OEM-like states
 
@@ -204,5 +204,5 @@ This is a pragmatic scalar optimization over the drag-like parameter.
 Use:
 
 - `common.tle.write_tle()` when you already know the TLE fields and want to write them programmatically
-- `tle/build_tle.py` when you have an OEM-like Cartesian arc and want an estimated TLE
+- `oem_to_tle/oem_to_tle.py` when you have an OEM-like Cartesian arc and want an estimated TLE
 - `common.tle.read_tle()` when you want to parse an existing TLE into structured fields

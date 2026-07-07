@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 import common.common as common
+import common.oem as oem
 
 # ===================================================================
 # 1. parse_duration_to_seconds — valid conversions
@@ -163,7 +164,7 @@ def test_parse_step_invalid_raises(token: str) -> None:
 def test_parse_oem_state_line_valid() -> None:
     """Should parse a valid OEM-style state line into epoch and a 6-element state vector."""
     line = "2026-05-20T12:00:00.000 -2345.678 4567.890 1234.567 -1.234 5.678 -3.456"
-    result = common.parse_oem_state_line(line)
+    result = oem.parse_oem_state_line(line)
 
     assert result is not None
     epoch_dt, state_km = result
@@ -179,7 +180,7 @@ def test_parse_oem_state_line_valid() -> None:
 def test_parse_oem_state_line_with_trailing_z() -> None:
     """Should strip trailing Z from epoch before parsing."""
     line = "2026-05-20T12:00:00.000Z -2345.678 4567.890 1234.567 -1.234 5.678 -3.456"
-    result = common.parse_oem_state_line(line)
+    result = oem.parse_oem_state_line(line)
     assert result is not None
     epoch_dt, state_km = result
     from datetime import datetime, timezone
@@ -190,25 +191,184 @@ def test_parse_oem_state_line_with_trailing_z() -> None:
 
 def test_parse_oem_state_line_blank_returns_none() -> None:
     """Should return None for blank lines."""
-    assert common.parse_oem_state_line("") is None
-    assert common.parse_oem_state_line("   ") is None
-    assert common.parse_oem_state_line("\n") is None
+    assert oem.parse_oem_state_line("") is None
+    assert oem.parse_oem_state_line("   ") is None
+    assert oem.parse_oem_state_line("\n") is None
 
 
 def test_parse_oem_state_line_comment_returns_none() -> None:
     """Should return None for comment lines starting with #."""
-    assert common.parse_oem_state_line("# this is a comment") is None
-    assert common.parse_oem_state_line("  # indented comment") is None
+    assert oem.parse_oem_state_line("# this is a comment") is None
+    assert oem.parse_oem_state_line("  # indented comment") is None
 
 
 def test_parse_oem_state_line_too_few_fields_raises() -> None:
     """Should raise ValueError when line has fewer than 7 fields."""
     with pytest.raises(ValueError, match="does not contain 7 fields"):
-        common.parse_oem_state_line("2026-05-20T12:00:00.000 1.0 2.0 3.0")
+        oem.parse_oem_state_line("2026-05-20T12:00:00.000 1.0 2.0 3.0")
 
 
 # ===================================================================
-# 6. datetime_to_tdb and tdb_to_datetime — round-trip conversions
+# 6. iso8601_to_datetime — ISO 8601 epoch string parsing
+# ===================================================================
+
+
+@pytest.mark.parametrize(
+    "epoch_str, expected_year, expected_month, expected_day, expected_hour, expected_minute, expected_second, expected_microsecond",
+    [
+        ("2000-01-01T12:00:00", 2000, 1, 1, 12, 0, 0, 0),
+        ("2000-01-01 12:00:00", 2000, 1, 1, 12, 0, 0, 0),
+        ("2000-01-01T12:00:00Z", 2000, 1, 1, 12, 0, 0, 0),
+        ("2000-01-01 12:00:00Z", 2000, 1, 1, 12, 0, 0, 0),
+        ("2026-05-20T12:30:45", 2026, 5, 20, 12, 30, 45, 0),
+        ("2026-05-20 12:30:45", 2026, 5, 20, 12, 30, 45, 0),
+        ("1999-12-31T23:59:59", 1999, 12, 31, 23, 59, 59, 0),
+        ("2000-01-01T00:00:00", 2000, 1, 1, 0, 0, 0, 0),
+    ],
+    ids=[
+        "t-separator-no-fractional",
+        "space-separator-no-fractional",
+        "t-separator-with-z",
+        "space-separator-with-z",
+        "future-date-t-separator",
+        "future-date-space-separator",
+        "end-of-year",
+        "start-of-year",
+    ],
+)
+def test_iso8601_to_datetime_valid_no_fractional(
+    epoch_str: str,
+    expected_year: int,
+    expected_month: int,
+    expected_day: int,
+    expected_hour: int,
+    expected_minute: int,
+    expected_second: int,
+    expected_microsecond: int,
+) -> None:
+    """Should parse ISO 8601 strings without fractional seconds."""
+    from datetime import datetime
+
+    result = common.iso8601_to_datetime(epoch_str)
+
+    assert result.year == expected_year
+    assert result.month == expected_month
+    assert result.day == expected_day
+    assert result.hour == expected_hour
+    assert result.minute == expected_minute
+    assert result.second == expected_second
+    assert result.microsecond == expected_microsecond
+
+
+@pytest.mark.parametrize(
+    "epoch_str, expected_microsecond",
+    [
+        ("2000-01-01T12:00:00.1", 100000),
+        ("2000-01-01T12:00:00.12", 120000),
+        ("2000-01-01T12:00:00.123", 123000),
+        ("2000-01-01T12:00:00.1234", 123400),
+        ("2000-01-01T12:00:00.12345", 123450),
+        ("2000-01-01T12:00:00.123456", 123456),
+        ("2000-01-01 12:00:00.123", 123000),
+        ("2000-01-01T12:00:00.123Z", 123000),
+        ("2000-01-01 12:00:00.123Z", 123000),
+        ("2026-05-20T12:30:45.999999", 999999),
+        ("2000-01-01T00:00:00.000001", 1),
+    ],
+    ids=[
+        "one-digit-fractional",
+        "two-digit-fractional",
+        "three-digit-fractional",
+        "four-digit-fractional",
+        "five-digit-fractional",
+        "six-digit-fractional",
+        "space-separator-with-fractional",
+        "t-separator-fractional-with-z",
+        "space-separator-fractional-with-z",
+        "max-microseconds",
+        "min-microseconds",
+    ],
+)
+def test_iso8601_to_datetime_valid_with_fractional(
+    epoch_str: str, expected_microsecond: int
+) -> None:
+    """Should parse ISO 8601 strings with fractional seconds."""
+    from datetime import datetime
+
+    result = common.iso8601_to_datetime(epoch_str)
+
+    assert result.microsecond == expected_microsecond
+
+
+@pytest.mark.parametrize(
+    "epoch_str",
+    [
+        "",
+        "   ",
+        "2000-01-01",
+        "12:00:00",
+        "2000-1-1T12:00:00",
+        "2000-01-01T12:00",
+        "2000-01-01T12:00:00.123.456",
+        "2000-01-01X12:00:00",
+        "2000-01-01T12:00:00.123X",
+        "not-a-date",
+        "2000-13-01T12:00:00",
+        "2000-01-32T12:00:00",
+        "2000-01-01T25:00:00",
+        "2000-01-01T12:60:00",
+        "2000-01-01T12:00:60",
+    ],
+    ids=[
+        "empty-string",
+        "whitespace-only",
+        "date-only",
+        "time-only",
+        "single-digit-month-day",
+        "missing-seconds",
+        "double-fractional-separator",
+        "invalid-separator-x",
+        "invalid-fractional-suffix",
+        "non-date-string",
+        "invalid-month",
+        "invalid-day",
+        "invalid-hour",
+        "invalid-minute",
+        "invalid-second",
+    ],
+)
+def test_iso8601_to_datetime_invalid_raises(epoch_str: str) -> None:
+    """Should raise ValueError for invalid ISO 8601 strings."""
+    with pytest.raises(ValueError, match="Unable to parse epoch string"):
+        common.iso8601_to_datetime(epoch_str)
+
+
+def test_iso8601_to_datetime_with_leading_trailing_whitespace() -> None:
+    """Should handle leading and trailing whitespace."""
+    from datetime import datetime
+
+    result = common.iso8601_to_datetime("  2000-01-01T12:00:00  ")
+
+    assert result.year == 2000
+    assert result.month == 1
+    assert result.day == 1
+    assert result.hour == 12
+    assert result.minute == 0
+    assert result.second == 0
+
+
+def test_iso8601_to_datetime_z_suffix_stripped() -> None:
+    """Should correctly strip 'Z' timezone indicator."""
+    from datetime import datetime
+
+    result_with_z = common.iso8601_to_datetime("2000-01-01T12:00:00Z")
+    result_without_z = common.iso8601_to_datetime("2000-01-01T12:00:00")
+
+    assert result_with_z == result_without_z
+
+
+# ===================================================================
+# 7. datetime_to_tdb and tdb_to_datetime — round-trip conversions
 # ===================================================================
 
 
@@ -278,7 +438,7 @@ def test_datetime_to_tdb_past_date() -> None:
 
 
 # ===================================================================
-# 7. transform_to_rtn — RTN frame state vector transformation
+# 8. transform_to_rtn — RTN frame state vector transformation
 # ===================================================================
 
 

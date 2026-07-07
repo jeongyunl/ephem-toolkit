@@ -27,10 +27,12 @@ flowchart LR
 
     %% tle/ scripts
     download_tle(["download_tle.py"])
-    build_tle(["build_tle.py"])
     omm_to_tle(["omm_to_tle.py"])
     tle_to_omm(["tle_to_omm.py"])
     tle_info(["tle_info.py"])
+
+    %% oem_to_tle/ scripts
+    oem_to_tle(["oem_to_tle.py"])
 
     %% propagation/ scripts
     propagate_tle(["propagate_tle.py"])
@@ -52,9 +54,9 @@ flowchart LR
     download_tle -->|"TLE format"| fmt_tle
     download_tle -->|"OMM format"| fmt_omm
 
-    %% build_tle.py: OEM state vectors → TLE (via common.tle.write_tle)
-    fmt_oem --> build_tle
-    build_tle --> fmt_tle
+    %% oem_to_tle.py: OEM state vectors → TLE (via common.tle.write_tle)
+    fmt_oem --> oem_to_tle
+    oem_to_tle --> fmt_tle
 
     %% omm_to_tle.py: OMM → TLE
     fmt_omm --> omm_to_tle
@@ -97,8 +99,8 @@ flowchart LR
     fmt_time --> convert_time2
     convert_time2 --> fmt_time
 
-    %% evaluate_build_tle_from_oem.py: OEM → build_tle → propagate_tle → comparison
+    %% evaluate_build_tle_from_oem.py: OEM → oem_to_tle → propagate_tle → comparison
     evaluate_build_tle(["evaluate_build_tle_from_oem.py"])
     fmt_oem --> evaluate_build_tle
-    evaluate_build_tle -->|"calls"| build_tle
+    evaluate_build_tle -->|"calls"| oem_to_tle
     evaluate_build_tle -->|"calls"| propagate_tle

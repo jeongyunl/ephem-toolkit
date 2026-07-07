@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+"""Convert a Two-Line Element (TLE) set to a CCSDS OMM file.
+
+Reads a TLE from a file path or stdin and writes the resulting OMM to
+stdout or a file.
+"""
+
+from __future__ import annotations
 
 import argparse
 import io
@@ -11,7 +18,14 @@ import common.convert_tle as convert_tle
 import common.tle as tle
 
 
-def parse_arguments():
+def parse_arguments() -> argparse.Namespace:
+    """Parse command-line arguments for TLE-to-OMM conversion.
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed arguments with attributes ``input`` and ``output``.
+    """
     parser = argparse.ArgumentParser(
         description=(
             "Convert a Two-Line Element (TLE) set to a CCSDS Orbit Mean-Elements "
@@ -39,11 +53,16 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def main():
-    args = parse_arguments()
+def main() -> None:
+    """Execute the TLE-to-OMM conversion workflow.
+
+    Reads TLE from the configured source, converts to OMM, and writes the
+    result to the configured destination. Exits with status 1 on error.
+    """
+    args: argparse.Namespace = parse_arguments()
 
     if args.input == "-":
-        input_text = sys.stdin.read()
+        input_text: str = sys.stdin.read()
         if not input_text.strip():
             print("Error: no input from stdin", file=sys.stderr)
             sys.exit(1)
@@ -52,7 +71,10 @@ def main():
             with open(args.input, "r") as input_file:
                 input_text = input_file.read()
         except OSError as error:
-            print(f"Error: could not read input file '{args.input}': {error}", file=sys.stderr)
+            print(
+                f"Error: could not read input file '{args.input}': {error}",
+                file=sys.stderr,
+            )
             sys.exit(1)
 
         if not input_text.strip():
@@ -60,12 +82,12 @@ def main():
             sys.exit(1)
 
     try:
-        tle_data = tle.read_tle(io.StringIO(input_text))
+        tle_data: tle.Tle = tle.read_tle(io.StringIO(input_text))
     except ValueError as error:
         print(f"Error: {error}", file=sys.stderr)
         sys.exit(1)
 
-    omm_data = convert_tle.tle_to_omm(tle_data)
+    omm_data: object = convert_tle.tle_to_omm(tle_data)
 
     if args.output:
         omm_data.to_file(args.output)

@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import IO, Mapping, Union
+from typing import Callable, Mapping, TextIO
 
 # ===================================================================
 # Structured dataclass
@@ -26,40 +27,63 @@ class Tle:
     the native TLE representation.
     """
 
-    # Satellite name (may be empty if not present in the TLE source)
     name: str = ""
+    """Satellite name (may be empty if not present in the TLE source)"""
 
-    # Raw TLE lines
     line1: str = ""
+    """Raw TLE line 1"""
     line2: str = ""
+    """Raw TLE line 2"""
 
-    # Line 1 elements
     satellite_number: int = 0
+    """NORAD catalog number (satellite number)"""
     classification: str = "U"
+    """Classification (U=Unclassified, C=Classified, S=Secret)"""
     int_designator_year: int = 0
+    """International designator launch year (2-digit)"""
     int_designator_launch_number: int = 0
+    """International designator launch number of the year"""
     int_designator_piece: str = ""
+    """International designator piece of the launch"""
     epoch_year: int = 0
+    """Epoch year (2-digit)"""
     epoch_day: float = 0.0
+    """Epoch day of year with fractional portion"""
     mean_motion_first_derivative: float = 0.0
+    """First time derivative of mean motion (revolutions per day²)"""
     mean_motion_second_derivative: str = "00000+0"
+    """Second time derivative of mean motion (TLE exponential format)"""
     bstar: str = "00000+0"
+    """BSTAR drag term (TLE exponential format)"""
     ephemeris_type: int = 0
+    """Ephemeris type (0=SGP, 2=SGP4, 4=SGP8, 6=SP)"""
     element_set_number: int = 0
+    """Element set number (incremented for each new TLE)"""
     line1_checksum: str = ""
+    """Modulo-10 checksum for line 1 (as read from TLE)"""
     line1_checksum_expected: str = ""
+    """Computed modulo-10 checksum for line 1"""
 
-    # Line 2 elements
     inclination_deg: float = 0.0
+    """Inclination (degrees)"""
     raan_deg: float = 0.0
+    """Right ascension of ascending node (degrees)"""
     eccentricity_raw: str = ""
+    """Eccentricity (raw 7-digit string from TLE, without leading decimal point)"""
     eccentricity: float = 0.0
+    """Eccentricity (decimal value, 0.0 to 1.0)"""
     arg_perigee_deg: float = 0.0
+    """Argument of perigee (degrees)"""
     mean_anomaly_deg: float = 0.0
+    """Mean anomaly (degrees)"""
     mean_motion_rev_per_day: float = 0.0
+    """Mean motion (revolutions per day)"""
     revolution_number_at_epoch: int = 0
+    """Revolution number at epoch"""
     line2_checksum: str = ""
+    """Modulo-10 checksum for line 2 (as read from TLE)"""
     line2_checksum_expected: str = ""
+    """Computed modulo-10 checksum for line 2"""
 
     def to_dict(self) -> dict[str, object]:
         """Convert to a plain dictionary (for backward compatibility)."""
@@ -98,7 +122,18 @@ class Tle:
 
 
 def compute_tle_checksum(line_without_checksum: str) -> str:
-    """Return the single-digit TLE checksum character for *line_without_checksum*."""
+    """Return the single-digit TLE checksum character for *line_without_checksum*.
+
+    Parameters
+    ----------
+    line_without_checksum : str
+        TLE line without the trailing checksum digit (68 characters).
+
+    Returns
+    -------
+    str
+        Single-digit checksum character (0-9).
+    """
     checksum: int = 0
     for char in line_without_checksum:
         if char.isdigit():
@@ -123,7 +158,8 @@ def _parse_tle_exponential(field_value: str, field_name: str) -> str:
 
     if not re.fullmatch(r"[ +\-]\d{5}[+\-]\d", value):
         raise ValueError(
-            f"{field_name} must match [sign]#####<+|-># in TLE notation; " f"got '{field_value}'"
+            f"{field_name} must match [sign]#####<+|-># in TLE notation; "
+            f"got '{field_value}'"
         )
 
     return value
@@ -139,7 +175,9 @@ def _format_first_derivative(value: float) -> str:
 
     formatted: str = sign + magnitude
     if len(formatted) != 10:
-        raise ValueError("mean-motion-first-derivative cannot be represented in 10-char TLE field")
+        raise ValueError(
+            "mean-motion-first-derivative cannot be represented in 10-char TLE field"
+        )
     return formatted
 
 
@@ -162,11 +200,70 @@ def _tle_field_opt(
 
 
 # ===================================================================
+# Epoch utilities
+# ===================================================================
+
+
+def tle_epoch_to_iso8601(epoch_year: int, epoch_day: float) -> str:
+    """Convert TLE epoch (2-digit year + fractional day) to a human-readable string.
+
+    Parameters
+    ----------
+    epoch_year : int
+        Two-digit year from TLE.
+    epoch_day : float
+        Fractional day of year.
+
+    Returns
+    -------
+    str
+        ISO 8601 date-time string.
+    """
+    # Convert 2-digit year to 4-digit year
+    if epoch_year >= 57:
+        year: int = 1900 + epoch_year
+    else:
+        year = 2000 + epoch_year
+
+    # Day 1 = Jan 1, so day-of-year offset is (epoch_day - 1)
+    dt: datetime = datetime(year, 1, 1) + timedelta(days=epoch_day - 1.0)
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.%f")
+
+
+def iso8601_to_tle_epoch(iso_str: str) -> tuple[int, float]:
+    """Convert ISO 8601 datetime string to TLE epoch (2-digit year + fractional day).
+
+    Parameters
+    ----------
+    iso_str : str
+        ISO 8601 datetime string, e.g. ``"2026-06-01T07:45:33.102720"``.
+
+    Returns
+    -------
+    tuple[int, float]
+        ``(epoch_year, epoch_day)`` where epoch_year is 2-digit and
+        epoch_day is the 1-based fractional day of year.
+    """
+    dt: datetime = datetime.fromisoformat(iso_str)
+    full_year: int = dt.year
+    jan1: datetime = datetime(full_year, 1, 1, tzinfo=dt.tzinfo if dt.tzinfo else None)
+    epoch_day: float = (dt - jan1).total_seconds() / 86400.0 + 1.0
+
+    # 2-digit year
+    if full_year >= 2000:
+        epoch_year: int = full_year - 2000
+    else:
+        epoch_year = full_year - 1900
+
+    return epoch_year, epoch_day
+
+
+# ===================================================================
 # Reader
 # ===================================================================
 
 
-def read_tle(stream: IO[str]) -> Tle:
+def read_tle(stream: TextIO) -> Tle:
     """Parse TLE elements from a text stream (file-like object).
 
     The stream should contain either:
@@ -174,7 +271,15 @@ def read_tle(stream: IO[str]) -> Tle:
     * Two lines: *line1* and *line2* of the TLE.
     * Three lines: *name*, *line1*, and *line2* of the TLE.
 
-    Returns a :class:`Tle` dataclass instance with all parsed elements.
+    Parameters
+    ----------
+    stream : TextIO
+        Readable text stream containing TLE data.
+
+    Returns
+    -------
+    Tle
+        A :class:`Tle` dataclass instance with all parsed elements.
     """
     lines: list[str] = [line.rstrip("\n") for line in stream if line.strip()]
 
@@ -243,16 +348,16 @@ def read_tle(stream: IO[str]) -> Tle:
 
 
 def write_tle(
-    dest: Union[IO[str], str, Path],
+    dest: TextIO | str | Path,
     tle_data: Tle | Mapping[str, object],
 ) -> tuple[str, str]:
     """Write a TLE to a text stream or file path.
 
     Parameters
     ----------
-    dest:
+    dest : TextIO | str | Path
         Writable text stream or destination file path.
-    tle_data:
+    tle_data : Tle | Mapping[str, object]
         A :class:`Tle` dataclass instance or a mapping containing the
         parsed TLE fields returned by :func:`read_tle`.
 
@@ -322,22 +427,26 @@ def write_tle(
         f"{elem_set}"
     )
 
-    line2_no_cksum: str = f"2 {sat_num} " f"{inc} {raan} {ecc} {argp} {ma} " f"{mm}{rev_num}"
+    line2_no_cksum: str = (
+        f"2 {sat_num} " f"{inc} {raan} {ecc} {argp} {ma} " f"{mm}{rev_num}"
+    )
 
     if len(line1_no_cksum) != 68:
         raise ValueError(
-            f"Internal formatting error: line 1 length is " f"{len(line1_no_cksum)} (expected 68)"
+            f"Internal formatting error: line 1 length is "
+            f"{len(line1_no_cksum)} (expected 68)"
         )
 
     if len(line2_no_cksum) != 68:
         raise ValueError(
-            f"Internal formatting error: line 2 length is " f"{len(line2_no_cksum)} (expected 68)"
+            f"Internal formatting error: line 2 length is "
+            f"{len(line2_no_cksum)} (expected 68)"
         )
 
     line1: str = line1_no_cksum + compute_tle_checksum(line1_no_cksum)
     line2: str = line2_no_cksum + compute_tle_checksum(line2_no_cksum)
 
-    w = dest.write
+    w: Callable[[str], int] = dest.write
 
     if name:
         w(name + "\n")

@@ -1,21 +1,48 @@
 #!/usr/bin/env python3
+"""Convert satellite states between Cartesian and Keplerian elements.
+
+Provides :func:`process_stream` to read OEM-style state lines and convert
+each record between Cartesian and osculating (or mean) Keplerian elements,
+and a :func:`main` CLI entry point.
+"""
+
+from __future__ import annotations
 
 import sys
+from typing import TextIO
 
 
-def process_stream(stream, reverse=False, mean=False):
+def process_stream(stream: TextIO, reverse: bool = False, mean: bool = False) -> None:
+    """Read OEM-style state lines from *stream* and print converted elements.
+
+    Each non-blank, non-comment line is parsed as an OEM-style record
+    ``<epoch> <x> <y> <z> <vx> <vy> <vz>`` (km and km/s).  By default the
+    Cartesian state is converted to osculating Keplerian elements; with
+    *reverse* the direction is inverted.
+
+    Parameters
+    ----------
+    stream : TextIO
+        Readable text stream of OEM-style state lines.
+    reverse : bool
+        If True, convert Keplerian → Cartesian instead of Cartesian → Keplerian.
+    mean : bool
+        If True, convert the osculating Keplerian output to mean elements via
+        Brouwer short-period inversion.  Only valid when *reverse* is False.
+    """
 
     import numpy as np
     from pathlib import Path
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-    import common.common as common
     import common.kepler as kepler
+    import common.oem as oem
+    import common.common as common
 
     for line in stream:
         try:
-            parsed = common.parse_oem_state_line(line)
+            parsed: tuple | None = oem.parse_oem_state_line(line)
         except Exception as exc:
             print(f"Skipping line (parse error): {line.strip()} -- {exc}")
             continue
@@ -33,21 +60,21 @@ def process_stream(stream, reverse=False, mean=False):
         if reverse:
             epoch_dt, input_state_km = parsed
 
-            input_keplerian = input_state_km
+            input_keplerian: np.ndarray = input_state_km
             input_keplerian[0] *= 1e3
 
-            output_cartesian = kepler.keplerian_to_cartesian(
+            output_cartesian: np.ndarray = kepler.keplerian_to_cartesian(
                 input_keplerian,
                 kepler.MU_EARTH,
             ).flatten()
 
             output_cartesian *= 1e-3
 
-            print(epoch_dt.isoformat(), *output_cartesian, sep="  ")
+            print(common.datetime_to_iso8601(epoch_dt), *output_cartesian, sep="  ")
         else:
             epoch_dt, input_state_km = parsed
 
-            input_state_m = input_state_km * 1e3
+            input_state_m: np.ndarray = input_state_km * 1e3
 
             # Index Keplerian Element
             # 0 Semi-major axis (except if eccentricity = 1.0, then represents semi-latus rectum)
@@ -57,7 +84,7 @@ def process_stream(stream, reverse=False, mean=False):
             # 4 Longitude of ascending node
             # 5 True anomaly / mean anomaly
 
-            output_keplerian = kepler.cartesian_to_keplerian(
+            output_keplerian: np.ndarray = kepler.cartesian_to_keplerian(
                 input_state_m,
                 kepler.MU_EARTH,
             ).flatten()
@@ -67,7 +94,7 @@ def process_stream(stream, reverse=False, mean=False):
 
             output_keplerian[0] *= 1e-3
 
-            print(epoch_dt.isoformat(), *output_keplerian, sep="  ")
+            print(common.datetime_to_iso8601(epoch_dt), *output_keplerian, sep="  ")
 
 
 def print_usage():
@@ -108,7 +135,7 @@ def print_usage():
     )
 
 
-def main(argv=None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """Entry point for the cartesian_to_keplerian CLI.
 
     Parameters
@@ -124,16 +151,16 @@ def main(argv=None) -> int:
     if argv is None:
         argv = sys.argv[1:]
 
-    set_reverse_conversion = False
-    set_mean_keplerian = False
-    args = list(argv)
+    set_reverse_conversion: bool = False
+    set_mean_keplerian: bool = False
+    args: list[str] = list(argv)
 
     if "-h" in args or "--help" in args:
         print_usage()
         return 0
 
     while args and args[0].startswith("-"):
-        option = args[0]
+        option: str = args[0]
         if option == "-r":
             set_reverse_conversion = True
         elif option == "--mean":
@@ -147,7 +174,7 @@ def main(argv=None) -> int:
         return 1
 
     if args:
-        infile = args[0]
+        infile: str = args[0]
         with open(infile, "r") as f:
             process_stream(
                 f,

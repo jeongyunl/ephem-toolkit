@@ -11,54 +11,70 @@ import numpy as np
 import pytest
 
 import common.oem as oem
-from interpolator.lagrange import LagrangeInterpolator
+import interpolator.lagrange as lagrange
 
 
 def test_lagrange_interpolator_interpolates_linear_data() -> None:
-    interpolator = LagrangeInterpolator(dimension=2, degree=8)
+    """Test that Lagrange interpolator correctly interpolates linear data."""
+    interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
+        dimension=2, degree=8
+    )
     for x in range(10):
         interpolator.add_data_point(
             float(x), np.array([float(x), float(x)], dtype=float)
         )
 
-    estimated = interpolator.interpolate(4.5)
+    estimated: np.ndarray = interpolator.interpolate(4.5)
     assert estimated == pytest.approx([4.5, 4.5])
 
 
 def test_interpolated_oem_velocity_norm_matches_original_oem() -> None:
-    """Should interpolate OEM states and preserve velocity norm accuracy."""
+    """Test that interpolated OEM states preserve velocity norm accuracy."""
 
-    number_of_data_points = 80
-    step_size_sec = 2.0
-    interpolation_degree = 6
+    number_of_data_points: int = 80
+    step_size_sec: float = 2.0
+    interpolation_degree: int = 6
 
-    test_dir = Path(__file__).parent
-    oem_path = test_dir / "data" / "ISS_2026-05-20.OEM"
+    test_dir: Path = Path(__file__).parent
+    oem_path: Path = test_dir / "data" / "ISS_2026-05-20.OEM"
 
-    header, meta, all_states = oem.read_oem(oem_path)
-    all_timestamps = sorted(all_states)
-    first_n_timestamps = all_timestamps[:number_of_data_points]
+    header: dict
+    meta: dict
+    all_states_float: dict
+    header, meta, all_states_float = oem.read_oem(oem_path)
+    # all_states_float is now dict[float, np.ndarray] (POSIX timestamps)
+    all_timestamps: list = sorted(all_states_float.keys())
+    first_n_timestamps: list[float] = all_timestamps[:number_of_data_points]
 
-    interpolator = LagrangeInterpolator(dimension=6, degree=interpolation_degree)
-    interpolator.set_data({ts: all_states[ts] for ts in first_n_timestamps})
+    interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
+        dimension=6, degree=interpolation_degree
+    )
+    # Use list of tuples (already sorted) instead of dict comprehension
+    interpolator.set_data([(ts, all_states_float[ts]) for ts in first_n_timestamps])
 
-    start_time = first_n_timestamps[0]
-    end_time = first_n_timestamps[-1]
+    start_time: float = first_n_timestamps[0]
+    end_time: float = first_n_timestamps[-1]
 
-    previous_interpolated_position = np.asarray(all_states[start_time][0:3])
+    previous_interpolated_position: np.ndarray = np.asarray(
+        all_states_float[start_time][0:3]
+    )
 
-    evaluation_times = np.arange((start_time + step_size_sec), end_time, step_size_sec)
+    evaluation_times: np.ndarray = np.arange(
+        (start_time + step_size_sec), end_time, step_size_sec
+    )
 
     for time in evaluation_times:
-        interpolated_state = interpolator.interpolate(time)
+        interpolated_state: np.ndarray = interpolator.interpolate(time)
 
-        nearest_idx = int(np.argmin(np.abs(np.asarray(first_n_timestamps) - time)))
-        reference_timestamp = first_n_timestamps[nearest_idx]
-        reference_velocity_norm = np.linalg.norm(all_states[reference_timestamp][3:6])
+        nearest_idx: int = int(np.argmin(np.abs(np.asarray(first_n_timestamps) - time)))
+        reference_timestamp: float = first_n_timestamps[nearest_idx]
+        reference_velocity_norm: float = np.linalg.norm(
+            all_states_float[reference_timestamp][3:6]
+        )
 
         # Calculate velocity using two adjacent interpolated positions
-        interpolated_position = np.asarray(interpolated_state[0:3])
-        calculated_velocity_norm_from_interpolated_positions = (
+        interpolated_position: np.ndarray = np.asarray(interpolated_state[0:3])
+        calculated_velocity_norm_from_interpolated_positions: float = (
             np.linalg.norm(interpolated_position - previous_interpolated_position)
             / step_size_sec
         )
@@ -71,8 +87,8 @@ def test_interpolated_oem_velocity_norm_matches_original_oem() -> None:
             < 1e-2
         )
 
-        interpolated_velocity = np.asarray(interpolated_state[3:6])
-        interpolated_velocity_norm = np.linalg.norm(interpolated_velocity)
+        interpolated_velocity: np.ndarray = np.asarray(interpolated_state[3:6])
+        interpolated_velocity_norm: float = np.linalg.norm(interpolated_velocity)
 
         assert abs(interpolated_velocity_norm - reference_velocity_norm) < 1e-2
 
@@ -80,26 +96,33 @@ def test_interpolated_oem_velocity_norm_matches_original_oem() -> None:
 
 
 def test_independent_variable_range() -> None:
-    number_of_data_points = 40
+    """Test that interpolator respects independent variable range bounds."""
+    number_of_data_points: int = 40
 
-    test_dir = Path(__file__).parent
-    oem_path = test_dir / "data" / "ISS_2026-05-20.OEM"
+    test_dir: Path = Path(__file__).parent
+    oem_path: Path = test_dir / "data" / "ISS_2026-05-20.OEM"
 
-    header, meta, states = oem.read_oem(oem_path)
-    timestamps = sorted(states)
-    first_n_timestamps = timestamps[:number_of_data_points]
+    header: dict
+    meta: dict
+    states_float: dict
+    header, meta, states_float = oem.read_oem(oem_path)
+    # states_float is now dict[float, np.ndarray] (POSIX timestamps)
+    timestamps: list = sorted(states_float.keys())
+    first_n_timestamps: list[float] = timestamps[:number_of_data_points]
 
-    interpolator = LagrangeInterpolator(dimension=6, degree=8)
+    interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
+        dimension=6, degree=8
+    )
     for timestamp in first_n_timestamps:
-        interpolator.add_data_point(timestamp, states[timestamp])
+        interpolator.add_data_point(timestamp, states_float[timestamp])
 
-    start_time = first_n_timestamps[0]
-    end_time = first_n_timestamps[-1]
+    start_time: float = first_n_timestamps[0]
+    end_time: float = first_n_timestamps[-1]
 
     # Bounds test
 
-    estimated = interpolator.interpolate(start_time - 10.0)
-    assert estimated == None
+    estimated: np.ndarray | None = interpolator.interpolate(start_time - 10.0)
+    assert estimated is None
 
     estimated = interpolator.interpolate(start_time)
     assert estimated is not None
@@ -114,51 +137,65 @@ def test_independent_variable_range() -> None:
     assert estimated is not None
 
     estimated = interpolator.interpolate(end_time + 10.0)
-    assert estimated == None
+    assert estimated is None
 
 
 def test_internal_cache_integrity() -> None:
-    number_of_data_points = 80
-    step_size_sec = 5.0
+    """Test that interpolator cache maintains consistency across repeated queries."""
+    number_of_data_points: int = 80
+    step_size_sec: float = 5.0
 
-    test_dir = Path(__file__).parent
-    oem_path = test_dir / "data" / "ISS_2026-05-20.OEM"
+    test_dir: Path = Path(__file__).parent
+    oem_path: Path = test_dir / "data" / "ISS_2026-05-20.OEM"
 
-    header, meta, all_states = oem.read_oem(oem_path)
-    all_timestamps = sorted(all_states)
-    first_n_timestamps = all_timestamps[:number_of_data_points]
+    header: dict
+    meta: dict
+    all_states_float: dict
+    header, meta, all_states_float = oem.read_oem(oem_path)
+    # all_states_float is now dict[float, np.ndarray] (POSIX timestamps)
+    all_timestamps: list = sorted(all_states_float.keys())
+    first_n_timestamps: list[float] = all_timestamps[:number_of_data_points]
 
-    interpolator = LagrangeInterpolator(dimension=6, degree=8)
+    interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
+        dimension=6, degree=8
+    )
     for timestamp in first_n_timestamps:
-        interpolator.add_data_point(timestamp, all_states[timestamp])
+        interpolator.add_data_point(timestamp, all_states_float[timestamp])
 
-    start_time = first_n_timestamps[0]
-    end_time = first_n_timestamps[-1]
+    start_time: float = first_n_timestamps[0]
+    end_time: float = first_n_timestamps[-1]
 
-    previous_interpolated_position = np.asarray(all_states[start_time][0:3])
+    previous_interpolated_position: np.ndarray = np.asarray(
+        all_states_float[start_time][0:3]
+    )
 
-    evaluation_times = np.arange((start_time + step_size_sec), end_time, step_size_sec)
+    evaluation_times: np.ndarray = np.arange(
+        (start_time + step_size_sec), end_time, step_size_sec
+    )
 
-    interpolated_states = {}
+    interpolated_states: dict[float, np.ndarray] = {}
 
     for time in evaluation_times:
-        interpolated_state = interpolator.interpolate(time)
+        interpolated_state: np.ndarray = interpolator.interpolate(time)
         interpolated_states[time] = interpolated_state
 
     import random
 
-    shuffled_times = evaluation_times.tolist()
+    shuffled_times: list[float] = evaluation_times.tolist()
     random.shuffle(shuffled_times)
 
     for time in shuffled_times:
-        interpolated_state = interpolator.interpolate(time)
+        interpolated_state: np.ndarray = interpolator.interpolate(time)
         np.testing.assert_allclose(
             interpolated_state, interpolated_states[time], atol=1e-10
         )
 
 
 def test_closest_data_index_validity_check() -> None:
-    interpolator = LagrangeInterpolator(dimension=1, degree=4)
+    """Test that closest data index validity check works correctly."""
+    interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
+        dimension=1, degree=4
+    )
     for x in range(5):
         interpolator.add_data_point(float(x), np.array([float(x)], dtype=float))
 

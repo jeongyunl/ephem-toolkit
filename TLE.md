@@ -6,7 +6,7 @@ TLE-related utilities for building, estimating, and converting orbital data.
 
 Current TLE-related scripts in this repository include:
 
-- `tle/build_tle.py`
+- `oem_to_tle/oem_to_tle.py`
 - `tle/download_tle.py`
 - `tle/omm_to_tle.py`
 - `tle/tle_to_omm.py`
@@ -15,13 +15,14 @@ Current TLE-related scripts in this repository include:
 
 This document focuses on the primary user-facing tools and the current repository context around them.
 
-## `tle/build_tle.py`
+## `oem_to_tle/oem_to_tle.py`
 
 This script estimates a TLE from an OEM-like Cartesian arc rather than from explicit TLE fields. It uses `common.tle.write_tle()` directly to format and write the resulting TLE.
 
 That script is documented separately in:
 
-- [`tle/build_tle.md`](tle/build_tle.md)
+- [`oem_to_tle/build_tle.md`](oem_to_tle/build_tle.md)
+- [OEM_TO_TLE.md](OEM_TO_TLE.md)
 
 ## `tle/download_tle.py`
 
@@ -295,11 +296,11 @@ Additional scripts currently present in the repository:
 
 ## Evaluation tool
 
-- `misc/evaluate_build_tle_from_oem.py` — evaluates `build_tle.py` round-trip accuracy by generating a TLE from an OEM reference, propagating it, and comparing position/velocity errors
+- `oem_to_tle/evaluate_build_tle_from_oem.py` — evaluates OEM-to-TLE round-trip accuracy by generating a TLE from an OEM reference, propagating it, and comparing position/velocity errors
 
 ## Dependencies
 
-### `tle/build_tle.py`
+### `oem_to_tle/oem_to_tle.py`
 
 - Python standard library
 - NumPy (for `common.kepler` Keplerian element conversions)

@@ -1,55 +1,53 @@
+"""Lagrange polynomial interpolator for scalar or vector dependent data.
+
+Provides :class:`LagrangeInterpolator`, which selects a local polynomial
+window around each query point and evaluates the classical Lagrange basis
+formula to produce an interpolated dependent vector.
+"""
+
 from __future__ import annotations
 
 import numpy as np
 from dataclasses import dataclass, field
-from interpolator.interpolator import Interpolator
 
-# Lagrange interpolation implementation for scalar or vector dependent data.
-# The interpolator maintains an ordered set of samples and computes an
-# approximate polynomial value at a query point using Lagrange basis terms.
+import interpolator.interpolator as interpolator
 
-RANGE_OVERSHOOT_TOLERANCE = 1e-8
-MIN_DIFFERENCE_FOR_START = 1.0e30
+RANGE_OVERSHOOT_TOLERANCE: float = 1e-8
+"""Tolerance for allowing queries marginally outside the stored data range."""
+
+MIN_DIFFERENCE_FOR_START: float = 1.0e30
+"""Sentinel initial value used when searching for the minimum window bias."""
 
 
-class LagrangeInterpolator(Interpolator):
+class LagrangeInterpolator(interpolator.Interpolator):
     """Lagrange interpolator that selects a local polynomial window for interpolation.
 
-    The implementation chooses a contiguous subset of recent points centered
-    near the query and computes the interpolated dependent vector using
-    the classical Lagrange polynomial formula.
-
-    Attributes:
-        degree: Current interpolation polynomial degree.
-        base_degree: Base degree used to reset degree after temporary adjustments.
-        reset_to_base_degree: Whether to restore the base degree after each call.
-        required_points: Number of sample points required for interpolation.
-        candidate_window_start_index: First index of the candidate interpolation window.
-        evaluation_start_index: Starting index used in the final polynomial evaluation.
-        candidate_window_end_index: Last index of the candidate interpolation window.
-        closest_data_index: Index of the sample closest to the query value.
+    Chooses a contiguous subset of stored points centered near the query and
+    evaluates the classical Lagrange polynomial formula to produce an
+    interpolated dependent vector.
     """
 
-    MAX_BUFFER_SIZE = 80  # maximum allowed buffer size for interpolation
+    MAX_BUFFER_SIZE: int = 80
+    """Maximum allowed number of buffered samples."""
 
     def __init__(self, dimension: int = 1, degree: int = 8) -> None:
         super().__init__(dimension)
 
-        # Current interpolation polynomial degree.
-        self.degree = degree
-        # Base degree to restore when the buffer returns to full capacity.
-        self.base_degree = degree
-        # Reset degree to base_degree after an interpolation pass.
-        self.reset_to_base_degree = True
+        self.degree: int = degree
+        """Current interpolation polynomial degree."""
+        self.base_degree: int = degree
+        """Base degree to restore when the buffer returns to full capacity."""
+        self.reset_to_base_degree: bool = True
+        """Reset degree to base_degree after an interpolation pass."""
 
-        # Required points for an Nth degree polynomial is N.
-        self.required_points = degree
+        self.required_points: int = degree
+        """Required points for an Nth degree polynomial is N."""
 
-        # Indices used to select the interpolation window.
-        self.candidate_window_start_index = 0
-        self.evaluation_start_index = 0
-        self.candidate_window_end_index = 0
-        self.closest_data_index = 0
+        self.candidate_window_start_index: int = 0
+        """Indices used to select the interpolation window."""
+        self.evaluation_start_index: int = 0
+        self.candidate_window_end_index: int = 0
+        self.closest_data_index: int = 0
 
     def check_interpolation_feasibility(self, independent_value: float) -> int:
         """Verify the query is within range and enough samples exist."""
@@ -108,7 +106,7 @@ class LagrangeInterpolator(Interpolator):
 
     def interpolate_value(self, independent_value: float) -> np.ndarray | None:
         """Compute the interpolated dependent vector for the requested value."""
-        feasibility_flag = self.check_interpolation_feasibility(independent_value)
+        feasibility_flag: int = self.check_interpolation_feasibility(independent_value)
         if feasibility_flag != 1:
             return None
 
@@ -129,8 +127,8 @@ class LagrangeInterpolator(Interpolator):
 
         self.choose_evaluation_start_index(independent_value)
 
-        products = np.zeros(self.dependent_dimension, dtype=float)
-        estimates = np.zeros(self.dependent_dimension, dtype=float)
+        products: np.ndarray = np.zeros(self.dependent_dimension, dtype=float)
+        estimates: np.ndarray = np.zeros(self.dependent_dimension, dtype=float)
 
         for i in range(
             self.evaluation_start_index, self.candidate_window_end_index + 1
@@ -202,12 +200,21 @@ class LagrangeInterpolator(Interpolator):
         return True
 
     def update_closest_data_index(self, independent_value: float) -> None:
-        closest_data_index = 0
-        distance_to_data_index = abs(
+        """Update the closest_data_index to the sample nearest to independent_value.
+
+        Parameters
+        ----------
+        independent_value : float
+            Query point for which to find the nearest stored sample.
+        """
+        closest_data_index: int = 0
+        distance_to_data_index: float = abs(
             self.independent_values[closest_data_index] - independent_value
         )
         for i in range(1, len(self.independent_values)):
-            current_distance = abs(self.independent_values[i] - independent_value)
+            current_distance: float = abs(
+                self.independent_values[i] - independent_value
+            )
             if current_distance < distance_to_data_index:
                 closest_data_index = i
                 distance_to_data_index = current_distance
@@ -215,9 +222,15 @@ class LagrangeInterpolator(Interpolator):
         self.closest_data_index = closest_data_index
 
     def select_candidate_window(self, independent_value: float) -> None:
-        """Select the contiguous point window that best surrounds the query."""
+        """Select the contiguous point window that best surrounds the query.
 
-        candidate_window_start_index = 0
+        Parameters
+        ----------
+        independent_value : float
+            Query point around which to center the interpolation window.
+        """
+
+        candidate_window_start_index: int = 0
 
         if self.required_points % 2 == 0:
             candidate_window_start_index = self.closest_data_index - (
@@ -233,7 +246,7 @@ class LagrangeInterpolator(Interpolator):
         if candidate_window_start_index < 0:
             candidate_window_start_index = 0
 
-        candidate_window_end_index = (
+        candidate_window_end_index: int = (
             candidate_window_start_index + self.required_points - 1
         )
         if candidate_window_end_index >= len(self.independent_values):
@@ -247,7 +260,7 @@ class LagrangeInterpolator(Interpolator):
 
     def is_query_centered(self) -> bool:
         """Return True when the query lies near the center of the selected window."""
-        retval = False
+        retval: bool = False
 
         if (self.candidate_window_start_index >= 0) and (
             self.candidate_window_end_index < len(self.independent_values)
@@ -260,26 +273,32 @@ class LagrangeInterpolator(Interpolator):
         return retval
 
     def choose_evaluation_start_index(self, independent_value: float) -> None:
-        """Pick the starting index for the interpolation window that minimizes bias."""
+        """Pick the starting index for the interpolation window that minimizes bias.
 
-        min_difference = MIN_DIFFERENCE_FOR_START
-        q_min_index = 0
-        q_end_index = min(
+        Parameters
+        ----------
+        independent_value : float
+            Query point for which to optimize the window placement.
+        """
+
+        min_difference: float = MIN_DIFFERENCE_FOR_START
+        q_min_index: int = 0
+        q_end_index: int = min(
             self.candidate_window_start_index + self.degree - 1,
             len(self.independent_values) - self.degree - 2,
         )
 
         for q in range(self.candidate_window_start_index, q_end_index + 1):
-            mean_independent = (
+            mean_independent: float = (
                 self.independent_values[q + self.degree - 1]
                 + self.independent_values[q]
             ) / 2
-            diff = abs(mean_independent - independent_value)
+            diff: float = abs(mean_independent - independent_value)
             if diff < min_difference:
                 q_min_index = q
                 min_difference = diff
 
-        start_index = q_min_index
+        start_index: int = q_min_index
 
         if (q_min_index + self.required_points) > (len(self.independent_values) - 1):
             start_index = len(self.independent_values) - self.degree + 1

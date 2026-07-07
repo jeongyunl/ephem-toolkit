@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 import common.oem as oem
-from oem.oem_slice import slice_states_by_time
+from oem.slice_oem import slice_states_by_time
 
 TEST_DIR = Path(__file__).parent
 PROJECT_ROOT = TEST_DIR.parent
@@ -26,7 +26,7 @@ def _build_env() -> dict[str, str]:
 
 
 def test_time_slice_prints_start_stop_step(tmp_path: Path) -> None:
-    script = PROJECT_ROOT / "oem" / "oem_slice.py"
+    script = PROJECT_ROOT / "oem" / "slice_oem.py"
     result = subprocess.run(
         [
             sys.executable,
@@ -41,17 +41,17 @@ def test_time_slice_prints_start_stop_step(tmp_path: Path) -> None:
         env=_build_env(),
     )
 
-    assert result.returncode == 0, f"oem_slice.py failed: {result.stderr}"
+    assert result.returncode == 0, f"slice_oem.py failed: {result.stderr}"
     lines = result.stdout.strip().splitlines()
     assert lines == [
-        "2026-05-20T12:00:00",
-        "2026-05-20T12:10:00",
+        "2026-05-20T12:00:00.000",
+        "2026-05-20T12:10:00.000",
         "5m",
     ]
 
 
 def test_time_slice_default_step_unit_is_minutes() -> None:
-    script = PROJECT_ROOT / "oem" / "oem_slice.py"
+    script = PROJECT_ROOT / "oem" / "slice_oem.py"
     result = subprocess.run(
         [
             sys.executable,
@@ -66,17 +66,17 @@ def test_time_slice_default_step_unit_is_minutes() -> None:
         env=_build_env(),
     )
 
-    assert result.returncode == 0, f"oem_slice.py failed: {result.stderr}"
+    assert result.returncode == 0, f"slice_oem.py failed: {result.stderr}"
     lines = result.stdout.strip().splitlines()
     assert lines == [
-        "2026-05-20T12:00:00",
-        "2026-05-20T12:10:00",
+        "2026-05-20T12:00:00.000",
+        "2026-05-20T12:10:00.000",
         "5m",
     ]
 
 
 def test_time_slice_prints_empty_components_for_missing_values() -> None:
-    script = PROJECT_ROOT / "oem" / "oem_slice.py"
+    script = PROJECT_ROOT / "oem" / "slice_oem.py"
     result = subprocess.run(
         [
             sys.executable,
@@ -90,14 +90,14 @@ def test_time_slice_prints_empty_components_for_missing_values() -> None:
         env=_build_env(),
     )
 
-    assert result.returncode == 0, f"oem_slice.py failed: {result.stderr}"
+    assert result.returncode == 0, f"slice_oem.py failed: {result.stderr}"
     lines = result.stdout.splitlines()
-    assert lines == ["", "2026-05-20T12:10:00", ""]
+    assert lines == ["", "2026-05-20T12:10:00.000", ""]
 
 
 def test_time_slice_missing_stop_returns_one_state_only() -> None:
     sample_oem = TEST_DIR / "data" / "ISS_2026-05-20.OEM"
-    script = PROJECT_ROOT / "oem" / "oem_slice.py"
+    script = PROJECT_ROOT / "oem" / "slice_oem.py"
     result = subprocess.run(
         [
             sys.executable,
@@ -112,16 +112,21 @@ def test_time_slice_missing_stop_returns_one_state_only() -> None:
         env=_build_env(),
     )
 
-    assert result.returncode == 0, f"oem_slice.py failed: {result.stderr}"
+    assert result.returncode == 0, f"slice_oem.py failed: {result.stderr}"
     lines = [line for line in result.stdout.splitlines() if line.strip()]
     assert len(lines) == 1
 
 
 def test_slice_states_by_time_dict_ordered_and_filtered() -> None:
+    ts1 = 5.0
+    ts2 = 10.0
+    ts3 = 20.0
+
+    # states now uses float POSIX timestamps as keys
     states = {
-        10.0: np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
-        5.0: np.array([5.0, 4.0, 3.0, 2.0, 1.0, 0.0]),
-        20.0: np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+        ts2: np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
+        ts1: np.array([5.0, 4.0, 3.0, 2.0, 1.0, 0.0]),
+        ts3: np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
     }
 
     sliced = slice_states_by_time(
@@ -131,7 +136,7 @@ def test_slice_states_by_time_dict_ordered_and_filtered() -> None:
     )
 
     assert len(sliced) == 2
-    assert sliced[0][0] == 5.0
-    assert sliced[1][0] == 10.0
-    assert np.allclose(sliced[0][1], states[5.0], atol=1e-12, rtol=0.0)
-    assert np.allclose(sliced[1][1], states[10.0], atol=1e-12, rtol=0.0)
+    assert sliced[0][0] == ts1
+    assert sliced[1][0] == ts2
+    assert np.allclose(sliced[0][1], states[ts1], atol=1e-12, rtol=0.0)
+    assert np.allclose(sliced[1][1], states[ts2], atol=1e-12, rtol=0.0)

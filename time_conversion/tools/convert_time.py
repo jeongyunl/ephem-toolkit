@@ -21,13 +21,22 @@ tudat_time_scale_converter = time_representation.default_time_scale_converter()
 
 
 class TimeFormat(Enum):
-    UTC_ISO_TUDAT = "iso"  # ISO 8601 format in UTC: "YYYY-MM-DDTHH:MM:SS.sss"
-    UTC_POSIX = "posix"  # POSIX timestamp; in seconds since 1970-01-01 00:00:00 UTC
-    UTC_TUDAT = "utc"  # Time in UTC; in seconds since UTC J2000 epoch (2000-01-01 12:00:00.000 UTC)
-    TAI_TUDAT = "tai"  # Time in TAI; in seconds since TAI J2000 epoch (2000-01-01 12:00:00.000 TAI = 2000-01-01 11:59:28 UTC)
-    TT_TUDAT = "tt"  # Terrestial Time; in seconds since TT J2000 epoch (2000-01-01 12:00:00.000 TT = 2000-01-01 11:58:55.816 UTC)
-    TDB_TUDAT = "tdb"  # Barycentric Dynamical Time; in seconds since TDB J2000 epoch (2000-01-01 12:00:00.000 TDB ≈ 2000-01-01 11:58:55.816 UTC)
-    TDB_APX_TUDAT = "tdb_apx"  # Approximate Barycentric Dynamical Time; in seconds since TDB J2000 epoch (2000-01-01 12:00:00.000 TDB ≈ 2000-01-01 11:58:55.816 UTC)
+    """Supported time format identifiers for conversion."""
+
+    UTC_ISO_TUDAT = "iso"
+    """ISO 8601 format in UTC: 'YYYY-MM-DDTHH:MM:SS.sss'"""
+    UTC_POSIX = "posix"
+    """POSIX timestamp; seconds since 1970-01-01 00:00:00 UTC"""
+    UTC_TUDAT = "utc"
+    """UTC seconds since UTC J2000 epoch (2000-01-01 12:00:00.000 UTC)"""
+    TAI_TUDAT = "tai"
+    """TAI seconds since TAI J2000 epoch (2000-01-01 12:00:00.000 TAI = 2000-01-01 11:59:28 UTC)"""
+    TT_TUDAT = "tt"
+    """Terrestrial Time seconds since TT J2000 epoch (2000-01-01 12:00:00.000 TT = 2000-01-01 11:58:55.816 UTC)"""
+    TDB_TUDAT = "tdb"
+    """Barycentric Dynamical Time seconds since TDB J2000 epoch (2000-01-01 12:00:00.000 TDB ≈ 2000-01-01 11:58:55.816 UTC)"""
+    TDB_APX_TUDAT = "tdb_apx"
+    """Approximate Barycentric Dynamical Time seconds since TDB J2000 epoch"""
 
 
 SUPPORTED_FORMATS = [c.value for c in TimeFormat]
@@ -38,7 +47,9 @@ class TimeData:
 
     def __init__(self, time_format: TimeFormat, time_string: str):
         self.time_format = time_format
+        """The time format identifier for this value"""
         self.time_string = time_string
+        """The raw input time string as provided by the caller"""
 
     def to_utc_iso_tudat(self) -> str:
         raise NotImplementedError
@@ -63,12 +74,15 @@ class TimeData:
 
 
 class TudatTimeData(TimeData):
+    """Base class for time data backed by a Tudat time scale and epoch."""
 
     def __init__(self, time_format: TimeFormat, time_string: str):
         super().__init__(time_format, time_string)
 
         self.native_time_scale = None
+        """Tudat TimeScales constant for this time representation; set by subclasses"""
         self.native_tudat_epoch = None
+        """Epoch value in the native time scale (seconds since J2000); set by subclasses"""
 
     def to_utc_iso_tudat(self) -> str:
         utc_tudat_epoch = self.to_utc_tudat()
@@ -143,13 +157,17 @@ class TudatTimeData(TimeData):
 
 
 class UtcTimeData(TudatTimeData):
+    """UTC-based time data with leap-second awareness."""
 
     def __init__(self, time_format: TimeFormat, time_string: str):
         super().__init__(time_format, time_string)
 
         self.native_time_scale = TimeScales.utc_scale
+        """Always TimeScales.utc_scale for UTC-based subclasses"""
         self.tudat_date_time = None
+        """Tudat DateTime object representing this instant; set by subclasses"""
         self.leap_second = 0.0
+        """1.0 if this instant falls within a leap second, 0.0 otherwise"""
 
     def update_utc_tudat_epoch(self):
         self.native_tudat_epoch = self.tudat_date_time.to_epoch()
@@ -178,14 +196,19 @@ class UtcTimeData(TudatTimeData):
 
 
 class UtcPosixTimeData(UtcTimeData):
+    """UTC time data parsed from a POSIX timestamp string."""
+
     def __init__(self, time_string: str):
         super().__init__(TimeFormat.UTC_POSIX, time_string)
 
         self.utc_posix_epoch = float(self.time_string)
+        """POSIX timestamp (seconds since 1970-01-01 00:00:00 UTC)"""
         self.native_tudat_epoch = (
             self.utc_posix_epoch - POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH
         )
+        """UTC epoch in Tudat J2000 seconds, derived from the POSIX timestamp"""
         self.tudat_date_time = DateTime.from_epoch(self.native_tudat_epoch)
+        """Tudat DateTime object for this instant"""
 
     def to_utc_posix(self) -> float:
         return self.utc_posix_epoch
@@ -195,6 +218,7 @@ class UtcPosixTimeData(UtcTimeData):
 
 
 class UtcIsoTudatTimeData(UtcTimeData):
+    """UTC time data parsed from an ISO 8601 string."""
 
     def __init__(self, time_string: str):
         super().__init__(TimeFormat.UTC_ISO_TUDAT, time_string)
@@ -210,21 +234,26 @@ class UtcIsoTudatTimeData(UtcTimeData):
 
 
 class UtcTudatTimeData(UtcTimeData):
+    """UTC time data parsed from a Tudat UTC J2000 epoch string."""
 
     def __init__(self, time_string: str):
         super().__init__(TimeFormat.UTC_TUDAT, time_string)
 
         self.tudat_date_time = DateTime.from_epoch(float(self.time_string))
+        """Tudat DateTime constructed from the UTC J2000 epoch value"""
         self.update_utc_tudat_epoch()
 
 
 class TaiTudatTimeData(TudatTimeData):
+    """TAI time data parsed from a Tudat TAI J2000 epoch string."""
 
     def __init__(self, time_string: str):
         super().__init__(TimeFormat.TAI_TUDAT, time_string)
 
         self.native_time_scale = TimeScales.tai_scale
+        """TAI time scale constant"""
         self.native_tudat_epoch = float(self.time_string)
+        """TAI epoch in seconds since TAI J2000"""
 
     def to_tai_tudat(self) -> float:
         return self.native_tudat_epoch
@@ -234,12 +263,15 @@ class TaiTudatTimeData(TudatTimeData):
 
 
 class TtTudatTimeData(TudatTimeData):
+    """Terrestrial Time data parsed from a Tudat TT J2000 epoch string."""
 
     def __init__(self, time_string: str):
         super().__init__(TimeFormat.TT_TUDAT, time_string)
 
         self.native_time_scale = TimeScales.tt_scale
+        """TT time scale constant"""
         self.native_tudat_epoch = float(self.time_string)
+        """TT epoch in seconds since TT J2000"""
 
     def to_tt_tudat(self) -> float:
         return self.native_tudat_epoch
@@ -249,24 +281,30 @@ class TtTudatTimeData(TudatTimeData):
 
 
 class TdbTudatTimeData(TudatTimeData):
+    """Barycentric Dynamical Time data parsed from a Tudat TDB J2000 epoch string."""
 
     def __init__(self, time_string: str):
         super().__init__(TimeFormat.TDB_TUDAT, time_string)
 
         self.native_time_scale = TimeScales.tdb_scale
+        """TDB time scale constant"""
         self.native_tudat_epoch = float(self.time_string)
+        """TDB epoch in seconds since TDB J2000"""
 
     def to_tdb_tudat(self) -> float:
         return self.native_tudat_epoch
 
 
 class TdbApxTudatTimeData(TudatTimeData):
+    """Approximate TDB time data; uses TT as a proxy for TDB."""
 
     def __init__(self, time_string: str):
         super().__init__(TimeFormat.TDB_APX_TUDAT, time_string)
 
         self.native_time_scale = TimeScales.tdb_scale
+        """TDB time scale constant (used as the native scale for storage)"""
         self.native_tudat_epoch = float(self.time_string)
+        """Epoch in seconds since TDB J2000 (treated as TT for approximate conversion)"""
 
     def to_tt_tudat(self) -> float:
         return self.native_tudat_epoch

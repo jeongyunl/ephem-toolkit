@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
+"""Convert satellite state vectors between GCRF (J2000) and ITRF (ITRF93) using SPICE.
+
+Provides :func:`convert_frames_spice` to transform a 6-element state vector
+between any two SPICE frames, and :func:`process_stream` to apply the
+conversion to a stream of OEM-style state lines.
+"""
+
+from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import TextIO
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -18,12 +27,13 @@ import numpy as np
 from tudatpy.interface import spice
 
 import common.common as common
+import common.oem as oem
 
 
-def load_spice_kernels():
+def load_spice_kernels() -> None:
     """Load required SPICE kernels for time conversion and Earth orientation."""
 
-    spice_kernel_files = [
+    spice_kernel_files: list[str] = [
         "naif0012.tls",  # LEAPSECONDS KERNEL FILE
         "earth_200101_990825_predict.bpc",  # Earth rotation prediction. Covers Jan, 2001 to Aug, 2099
     ]
@@ -31,23 +41,35 @@ def load_spice_kernels():
         spice.load_kernel(common.get_spice_kernel_path() + "/" + kernel_file)
 
 
-def convert_frames_spice(base_frame, target_frame, input_epoch_et_s, input_state_m):
+def convert_frames_spice(
+    base_frame: str,
+    target_frame: str,
+    input_epoch_et_s: float,
+    input_state_m: np.ndarray,
+) -> np.ndarray:
     """Convert a state vector from one SPICE frame to another.
 
     Uses SPICE rotation matrices and their time derivatives to build a
     6×6 state conversion matrix that correctly transforms both position
     and velocity (accounting for the rotating-frame transport term).
 
-    Args:
-        base_frame: Name of the source SPICE frame (e.g. ``"J2000"``).
-        target_frame: Name of the destination SPICE frame (e.g. ``"ITRF93"``).
-        input_epoch_et_s: Epoch in ephemeris time (TDB seconds since J2000).
-        input_state_m: 6-element array-like ``[x, y, z, vx, vy, vz]`` in
-            metres and m/s in the *base_frame*.
+    Parameters
+    ----------
+    base_frame : str
+        Name of the source SPICE frame (e.g. ``"J2000"``).
+    target_frame : str
+        Name of the destination SPICE frame (e.g. ``"ITRF93"``).
+    input_epoch_et_s : float
+        Epoch in ephemeris time (TDB seconds since J2000).
+    input_state_m : array-like, shape (6,)
+        State vector ``[x, y, z, vx, vy, vz]`` in metres and m/s in
+        *base_frame*.
 
-    Returns:
-        numpy.ndarray: 6-element state vector ``[x, y, z, vx, vy, vz]``
-            in metres and m/s in the *target_frame*.
+    Returns
+    -------
+    np.ndarray
+        6-element state vector ``[x, y, z, vx, vy, vz]`` in metres and
+        m/s in *target_frame*.
     """
     # NOTE on inefficiency:
     # spice.compute_rotation_matrix_between_frames() and
@@ -56,43 +78,49 @@ def convert_frames_spice(base_frame, target_frame, input_epoch_et_s, input_state
     # invoked twice.  This could be avoided by calling
     # tudat::spice_interface::computeStateRotationMatrixBetweenFrames(),
     # but tudatPy does not yet expose a Python binding for it.
-    rotation_matrix = spice.compute_rotation_matrix_between_frames(
+    rotation_matrix: np.ndarray = spice.compute_rotation_matrix_between_frames(
         base_frame, target_frame, input_epoch_et_s
     )
-    rotation_matrix_derivative = (
+    rotation_matrix_derivative: np.ndarray = (
         spice.compute_rotation_matrix_derivative_between_frames(
             base_frame, target_frame, input_epoch_et_s
         )
     )
 
-    state_conversion_matrix = np.zeros((6, 6))
+    state_conversion_matrix: np.ndarray = np.zeros((6, 6))
     state_conversion_matrix[0:3, 0:3] = rotation_matrix
     state_conversion_matrix[3:6, 0:3] = rotation_matrix_derivative
     state_conversion_matrix[3:6, 3:6] = rotation_matrix
 
-    output_state_m = state_conversion_matrix @ np.asarray(input_state_m)
+    output_state_m: np.ndarray = state_conversion_matrix @ np.asarray(input_state_m)
 
     return output_state_m
 
 
-def process_stream(stream, reverse=False):
+def process_stream(stream: TextIO, reverse: bool = False) -> None:
     """Read lines from *stream*, convert each state vector, and print results.
 
-    Args:
-        stream: An iterable of text lines (file object or sys.stdin).
-        reverse: If True, convert ITRF93 → J2000 instead of J2000 → ITRF93.
+    Parameters
+    ----------
+    stream : TextIO
+        An iterable of text lines (file object or sys.stdin).
+    reverse : bool
+        If True, convert ITRF93 → J2000 instead of J2000 → ITRF93.
     """
 
     load_spice_kernels()
 
     if reverse:
+        base_frame: str
+        target_frame: str
         base_frame, target_frame = "ITRF93", "J2000"
     else:
-        base_frame, target_frame = "J2000", "ITRF93"
+        base_frame = "J2000"
+        target_frame = "ITRF93"
 
     for line in stream:
         try:
-            parsed = common.parse_oem_state_line(line)
+            parsed: tuple | None = oem.parse_oem_state_line(line)
         except Exception as exc:
             print(f"Skipping line (parse error): {line.strip()} -- {exc}")
             continue
@@ -100,17 +128,19 @@ def process_stream(stream, reverse=False):
             continue
 
         epoch_dt, input_state_km = parsed
-        epoch_tdb_s = common.datetime_to_tdb(epoch_dt)
+        epoch_tdb_s: float = common.datetime_to_tdb(epoch_dt)
 
-        input_state_m = input_state_km * 1e3
-        output_state_m = convert_frames_spice(
+        input_state_m: np.ndarray = input_state_km * 1e3
+        output_state_m: np.ndarray = convert_frames_spice(
             base_frame, target_frame, epoch_tdb_s, input_state_m
         )
 
-        output_position_km = output_state_m[0:3] / 1e3
-        output_velocity_km_s = output_state_m[3:6] / 1e3
+        output_position_km: np.ndarray = output_state_m[0:3] / 1e3
+        output_velocity_km_s: np.ndarray = output_state_m[3:6] / 1e3
 
-        print(epoch_dt.isoformat(), *output_position_km, sep="  ", end="")
+        print(
+            common.datetime_to_iso8601(epoch_dt), *output_position_km, sep="  ", end=""
+        )
         print("  ", *output_velocity_km_s, sep="  ")
 
 
@@ -140,8 +170,8 @@ def print_usage():
 
 if __name__ == "__main__":
     # Check for -h/--help and -r options
-    set_reverse_conversion = False
-    args = sys.argv[1:]
+    set_reverse_conversion: bool = False
+    args: list[str] = sys.argv[1:]
 
     if "-h" in args or "--help" in args:
         print_usage()
@@ -152,7 +182,7 @@ if __name__ == "__main__":
         args = args[1:]
 
     if args:
-        infile = args[0]
+        infile: str = args[0]
         with open(infile, "r") as f:
             process_stream(f, reverse=set_reverse_conversion)
     else:

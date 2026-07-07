@@ -1,7 +1,17 @@
 #!/usr/bin/env python3
+"""Convert satellite state vectors between GCRF and ITRF using a TudatPy Earth rotation model.
+
+Provides :func:`convert_gcrf_to_itrf_erm` and :func:`convert_itrf_to_gcrf_erm`
+for single-epoch frame conversions, and :func:`process_stream` to apply the
+conversion to a stream of OEM-style state lines using a configurable rotation
+model (GCRS-to-ITRS IAU 2006, SPICE IAU_Earth, or SPICE ITRF93).
+"""
+
+from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import TextIO
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -21,12 +31,13 @@ from tudatpy.dynamics.environment_setup.rotation_model import RotationModelSetti
 
 
 import common.common as common
+import common.oem as oem
 
 
-def load_spice_kernels():
+def load_spice_kernels() -> None:
     """Load required SPICE kernels for time conversion and Earth orientation."""
 
-    spice_kernel_files = [
+    spice_kernel_files: list[str] = [
         "naif0012.tls",  # LEAPSECONDS KERNEL FILE
         "pck00011.tpc",  # PLANETARY CONSTANTS KERNEL FILE: orientation and size/shape data for natural bodies(Sun, planets, asteroids, etc)
         "earth_200101_990825_predict.bpc",  # Earth rotation prediction. Covers Jan, 2001 to Aug, 2099
@@ -38,22 +49,29 @@ def load_spice_kernels():
 def create_earth_rotation_model(
     global_frame_orientation: str,
     rotation_model_settings: RotationModelSettings,
-):
+) -> object:
     """Create and return an Earth rotation model using TudatPy.
 
     The rotation model is configured for the Earth body in the given inertial
     frame orientation and can be used to convert between inertial (GCRF/ICRF)
     and body-fixed (ECEF) coordinate systems.
 
-    Args:
-        global_frame_orientation: Inertial frame orientation string (e.g. "GCRS").
-        rotation_model_settings: Pre-configured rotation model settings
-            (e.g. GCRS-to-ITRS IAU 2006).
+    Parameters
+    ----------
+    global_frame_orientation : str
+        Inertial frame orientation string (e.g. ``"GCRS"``).
+    rotation_model_settings : RotationModelSettings
+        Pre-configured rotation model settings (e.g. GCRS-to-ITRS IAU 2006).
+
+    Returns
+    -------
+    object
+        TudatPy Earth rotation model instance.
     """
 
-    Earth = "Earth"
-    global_frame_origin = Earth
-    bodies_to_create = [Earth]
+    Earth: str = "Earth"
+    global_frame_origin: str = Earth
+    bodies_to_create: list[str] = [Earth]
 
     body_settings = environment_setup.get_default_body_settings(
         bodies_to_create, global_frame_origin, global_frame_orientation
@@ -72,7 +90,7 @@ def create_earth_rotation_model(
 
 def convert_gcrf_to_itrf_erm(
     earth_rotation_model,
-    input_epoch_et_s,
+    input_epoch_et_s: float,
     input_gcrf_position_m,
     input_gcrf_velocity_m_s=None,
 ):
@@ -81,15 +99,21 @@ def convert_gcrf_to_itrf_erm(
     Works with any Earth rotation model (GCRS-to-ITRS IAU 2006, SPICE IAU_Earth,
     SPICE ITRF93, etc.) provided via *earth_rotation_model*.
 
-    Args:
-        earth_rotation_model: TudatPy Earth rotation model instance.
-        input_epoch_et_s: Epoch in ephemeris time (TDB seconds since J2000).
-        input_gcrf_position_m: 3-element numpy array position in metres.
-        input_gcrf_velocity_m_s: Optional 3-element numpy array velocity in m/s.
+    Parameters
+    ----------
+    earth_rotation_model : object
+        TudatPy Earth rotation model instance.
+    input_epoch_et_s : float
+        Epoch in ephemeris time (TDB seconds since J2000).
+    input_gcrf_position_m : np.ndarray, shape (3,)
+        Position vector in metres in the inertial (GCRF) frame.
+    input_gcrf_velocity_m_s : np.ndarray, shape (3,), optional
+        Velocity vector in m/s in the inertial (GCRF) frame.
 
-    Returns:
-        tuple[numpy.ndarray, numpy.ndarray | None]: position (m) and optional
-            velocity (m/s) in the body-fixed frame.
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray | None]
+        Position (m) and optional velocity (m/s) in the body-fixed frame.
     """
 
     # Get rotation matrix for inertial to body-fixed transformation at the given epoch.
@@ -134,7 +158,7 @@ def convert_gcrf_to_itrf_erm(
 # to the inertial frame (GCRF/J2000) at a given epoch using the Earth Rotation Model
 def convert_itrf_to_gcrf_erm(
     earth_rotation_model,
-    input_epoch_et_s,
+    input_epoch_et_s: float,
     input_itrf_position_m,
     input_itrf_velocity_m_s=None,
 ):
@@ -143,15 +167,21 @@ def convert_itrf_to_gcrf_erm(
     Works with any Earth rotation model (GCRS-to-ITRS IAU 2006, SPICE IAU_Earth,
     SPICE ITRF93, etc.) provided via *earth_rotation_model*.
 
-    Args:
-        earth_rotation_model: TudatPy Earth rotation model instance.
-        input_epoch_et_s: Epoch in ephemeris time (TDB seconds since J2000).
-        input_itrf_position_m: 3-element numpy array position in metres.
-        input_itrf_velocity_m_s: Optional 3-element numpy array velocity in m/s.
+    Parameters
+    ----------
+    earth_rotation_model : object
+        TudatPy Earth rotation model instance.
+    input_epoch_et_s : float
+        Epoch in ephemeris time (TDB seconds since J2000).
+    input_itrf_position_m : np.ndarray, shape (3,)
+        Position vector in metres in the body-fixed (ITRF) frame.
+    input_itrf_velocity_m_s : np.ndarray, shape (3,), optional
+        Velocity vector in m/s in the body-fixed (ITRF) frame.
 
-    Returns:
-        tuple[numpy.ndarray, numpy.ndarray | None]: position (m) and optional
-            velocity (m/s) in the inertial frame.
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray | None]
+        Position (m) and optional velocity (m/s) in the inertial frame.
     """
 
     # Get rotation matrix for body-fixed to inertial transformation at the given epoch.
@@ -195,18 +225,22 @@ def convert_itrf_to_gcrf_erm(
 def process_stream(
     global_frame_orientation: str,
     rotation_model_settings: RotationModelSettings,
-    stream,
-    reverse=False,
-):
+    stream: TextIO,
+    reverse: bool = False,
+) -> None:
     """Read lines from *stream*, convert each epoch, and print transformed state vectors.
 
-    Args:
-        global_frame_orientation: Inertial frame orientation string
-            (e.g. "GCRS" or "J2000").
-        rotation_model_settings: Pre-configured rotation model settings
-            (e.g. GCRS-to-ITRS IAU 2006, SPICE IAU_Earth, SPICE ITRF93).
-        stream: An iterable of text lines (file object or sys.stdin).
-        reverse: If True, perform ITRF→GCRF conversion instead of GCRF→ITRF.
+    Parameters
+    ----------
+    global_frame_orientation : str
+        Inertial frame orientation string (e.g. ``"GCRS"`` or ``"J2000"``).
+    rotation_model_settings : RotationModelSettings
+        Pre-configured rotation model settings (e.g. GCRS-to-ITRS IAU 2006,
+        SPICE IAU_Earth, SPICE ITRF93).
+    stream : TextIO
+        An iterable of text lines (file object or sys.stdin).
+    reverse : bool
+        If True, perform ITRF→GCRF conversion instead of GCRF→ITRF.
     """
 
     earth_rotation_model = create_earth_rotation_model(
@@ -215,7 +249,7 @@ def process_stream(
 
     for line in stream:
         try:
-            parsed = common.parse_oem_state_line(line)
+            parsed = oem.parse_oem_state_line(line)
         except Exception as exc:
             print(f"Skipping line (parse error): {line.strip()} -- {exc}")
             continue
@@ -247,7 +281,9 @@ def process_stream(
         # Convert m / m·s⁻¹ → km / km·s⁻¹ for output
         output_position_km = output_position_m / 1e3
 
-        print(epoch_dt.isoformat(), *output_position_km, sep="  ", end="")
+        print(
+            common.datetime_to_iso8601(epoch_dt), *output_position_km, sep="  ", end=""
+        )
 
         if output_velocity_m_s is not None:
             output_velocity_km_s = output_velocity_m_s / 1e3
@@ -287,9 +323,9 @@ def print_usage():
 
 if __name__ == "__main__":
     # Parse command-line options: -h/--help, -r, -m MODEL
-    set_reverse_conversion = False
-    rotation_model_name = "gcrs_to_itrs"
-    args = sys.argv[1:]
+    set_reverse_conversion: bool = False
+    rotation_model_name: str = "gcrs_to_itrs"
+    args: list[str] = sys.argv[1:]
 
     if "-h" in args or "--help" in args:
         print_usage()
@@ -300,7 +336,7 @@ if __name__ == "__main__":
         args.remove("-r")
 
     if "-m" in args:
-        m_index = args.index("-m")
+        m_index: int = args.index("-m")
         if m_index + 1 >= len(args):
             print("Error: -m requires a rotation model name argument.", file=sys.stderr)
             sys.exit(1)
@@ -312,14 +348,16 @@ if __name__ == "__main__":
     # Configure rotation model settings and inertial frame orientation
     # based on the selected rotation model name.
     if rotation_model_name == "spice_iau_earth":
-        original_frame = "J2000"
-        target_frame = "IAU_Earth"
+        original_frame: str = "J2000"
+        target_frame: str = "IAU_Earth"
 
-        rotation_model_settings = environment_setup.rotation_model.spice(
-            original_frame,
-            target_frame,
+        rotation_model_settings: RotationModelSettings = (
+            environment_setup.rotation_model.spice(
+                original_frame,
+                target_frame,
+            )
         )
-        global_frame_orientation = original_frame
+        global_frame_orientation: str = original_frame
 
     elif rotation_model_name == "spice_itrf93" or rotation_model_name == "spice":
         original_frame = "J2000"
@@ -340,7 +378,7 @@ if __name__ == "__main__":
         )
 
     if args:
-        infile = args[0]
+        infile: str = args[0]
         with open(infile, "r") as f:
             process_stream(
                 global_frame_orientation,

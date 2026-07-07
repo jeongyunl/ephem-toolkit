@@ -1,46 +1,24 @@
 #!/usr/bin/env python3
+"""Perturbed satellite orbit propagation.
 
-from __future__ import annotations
-
-"""
-# Perturbed satellite orbit
-## Objectives
-This example demonstrates the propagation of a (quasi-massless) body dominated by
-a central point-mass attractor, but also including multiple perturbing
-accelerations exerted by the central body as well as third bodies.
-
-The example showcases the ease with which a simulation environment can be
-extended to a multi-body system. It also demonstrates the wide variety of
-acceleration types that can be modelled using the `propagation_setup.acceleration`
-module, including accelerations from non-conservative forces such as drag and
-radiation pressure. Note that the modelling of these acceleration types requires
-special environment interfaces (implemented via
-[AerodynamicCoefficientSettings](https://py.api.tudat.space/en/latest/aerodynamic_coefficients.html)
-and
-[RadiationPressureTargetModelSettings](https://py.api.tudat.space/en/latest/radiation_pressure.html))
-of the body undergoing the accelerations.
-
-It also demonstrates and motivates the usage of dependent variables. By keeping
-track of such variables throughout the propagation, valuable insight, such as
-contributions of individual acceleration types, ground tracks or the evolution
-of Kepler elements, can be derived in the post-propagation analysis.
+Propagates a (quasi-massless) body dominated by a central point-mass attractor,
+including multiple perturbing accelerations from the central body and third bodies
+(drag, radiation pressure, spherical-harmonic gravity, and point-mass gravity from
+Moon, Sun, Mars, and Venus).
 
 The script expects exactly one OEM-like state line as input with epoch and six
-cartesian components: ``UTC_ISO x y z vx vy vz`` where position is in km and
-velocity in km/s. Input is read from ``--initial-state`` when provided,
-otherwise from stdin.
+Cartesian components: ``UTC_ISO x y z vx vy vz`` where position is in km and
+velocity in km/s. Input is read from ``--initial-state`` when provided, otherwise
+from stdin.
+
+Only the bare minimum needed for CLI argument parsing (``argparse``, ``re``) is
+imported at the top of the file. Every other module — including standard library,
+NumPy, and TudatPy — is imported as late as possible, immediately before its
+first use. This keeps ``--help`` and argument validation instant and defers heavy
+library initialisation until the point where it is actually required.
 """
 
-"""
-## Import statements
-
-Only the bare minimum needed for CLI argument parsing (`argparse`, `re`) is
-imported at the top of the file.  Every other module -- including standard
-library, numpy, and tudatpy -- is imported as late as possible,
-immediately before its first use.  This keeps ``--help`` and argument
-validation instant and defers heavy library initialisation until the point
-where it is actually required.
-"""
+from __future__ import annotations
 
 import argparse
 import re
@@ -49,41 +27,62 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from common.common import (
-    parse_duration_to_seconds,
-    parse_step_to_seconds,
-    SECONDS_PER_DAY,
-)
-
-from interpolator.lagrange import LagrangeInterpolator
+import common.common as common
+import interpolator.lagrange as lagrange
 
 KILOMETERS_TO_METERS = 1e3
-
+"""Conversion factor from kilometers to meters."""
 
 # CLI and model defaults
 DEFAULT_SATELLITE_NAME = "Satellite"
+"""Default satellite body name used in the Tudat environment."""
+
 DEFAULT_SATELLITE_DRAG_COEFFICIENT = 2.2
+"""Default aerodynamic drag coefficient (Cd)."""
+
 DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT = 1.2
+"""Default solar radiation pressure coefficient (Cr)."""
+
 DEFAULT_SATELLITE_MASS_KG = 30
+"""Default satellite mass in kilograms."""
 
 # 3U CubeSat geometry assumptions used for average projection area
 DEFAULT_CUBESAT_LENGTH_M = 0.45
+"""Default 3U CubeSat length in meters."""
+
 DEFAULT_CUBESAT_WIDTH_M = 0.3
+"""Default 3U CubeSat width in meters."""
+
 DEFAULT_CUBESAT_HEIGHT_M = 0.3
+"""Default 3U CubeSat height in meters."""
+
 DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2 = (
     4 * DEFAULT_CUBESAT_LENGTH_M * DEFAULT_CUBESAT_WIDTH_M
     + 2 * DEFAULT_CUBESAT_WIDTH_M * DEFAULT_CUBESAT_HEIGHT_M
 ) / 4
+"""Default average projection area of a 3U CubeSat in m²."""
 
 # Propagation settings
 DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE = 5
+"""Default degree for Earth's spherical harmonic gravity field."""
+
 DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER = 5
+"""Default order for Earth's spherical harmonic gravity field."""
+
 DEFAULT_BODIES_TO_CREATE = ["Sun", "Earth"]
+"""Default list of celestial bodies always included in the environment."""
+
 DEFAULT_GLOBAL_FRAME_ORIGIN = "Earth"
+"""Default global frame origin for the Tudat environment."""
+
 DEFAULT_GLOBAL_FRAME_ORIENTATION = "J2000"
+"""Default global frame orientation for the Tudat environment."""
 
 DEFAULT_OEM_STEP_SIZE_S = 10 * 60
-DEFAULT_SIMULATION_DURATION_S = SECONDS_PER_DAY
+"""Default OEM output step size in seconds (10 minutes)."""
+
+DEFAULT_SIMULATION_DURATION_S = common.SECONDS_PER_DAY
+"""Default simulation duration in seconds (1 day)."""
 
 # Supported integrator method identifiers accepted by the CLI.
 # Values should match names in propagation_setup.integrator.CoefficientSets.
@@ -102,11 +101,19 @@ INTEGRATOR_METHOD_DESCRIPTIONS = {
     "rkdp_87": "Dormand-Prince 8(7)",
     "rkv_89": "Verner 8(9)",
 }
+"""Mapping of integrator method identifiers to human-readable descriptions."""
+
 SUPPORTED_INTEGRATOR_METHODS = tuple(INTEGRATOR_METHOD_DESCRIPTIONS)
+"""Tuple of all supported integrator method identifier strings."""
+
 DEFAULT_INTEGRATOR_METHOD = "rkdp_87"
+"""Default numerical integrator method (Dormand-Prince 8(7))."""
+
 DEFAULT_INTEGRATOR_STEP_SIZE_S = (10, 1, 300)
+"""Default integrator step sizes in seconds: ``(initial, minimum, maximum)``."""
 
 INTERPOLATOR_NUMBER_OF_POINTS = 8
+"""Polynomial degree for Lagrange interpolation when resampling OEM states."""
 
 
 def parse_bool_flag(value: str) -> bool:
@@ -398,7 +405,7 @@ def build_cli_parser():
     parser.add_argument(
         "-d",
         "--duration",
-        type=parse_duration_to_seconds,
+        type=common.parse_duration_to_seconds,
         metavar="<value[s|m|h|d]>",
         default=DEFAULT_SIMULATION_DURATION_S,
         help=(
@@ -437,7 +444,7 @@ def build_cli_parser():
     )
     parser.add_argument(
         "--oem-step-size",
-        type=parse_step_to_seconds,
+        type=common.parse_step_to_seconds,
         metavar="<value[s|m>",
         default=DEFAULT_OEM_STEP_SIZE_S,
         help=(
@@ -628,78 +635,52 @@ import numpy as np
 
 @dataclass
 class PropagationInputs:
-    """Container for propagation input options and parsed initial-state data.
-
-    Attributes
-    ----------
-    satellite_name : str
-        Name of the propagated vehicle body added to the Tudat environment.
-    satellite_mass_kg : float
-        Spacecraft mass in kilograms used by dynamics propagation.
-    integrator_method : str
-        Numerical integrator method identifier used by propagation settings.
-    integrator_step_size_values_s : tuple[float, ...]
-        Step-size input in seconds from CLI. One value selects fixed-step size
-        integration; three values ``(initial, minimum, maximum)`` select
-        variable-step size integration.
-    earth_spherical_harmonic_gravity_degree : int
-        Degree used for Earth's spherical harmonic gravity field.
-    earth_spherical_harmonic_gravity_order : int
-        Order used for Earth's spherical harmonic gravity field.
-    satellite_drag_area_m2 : float
-        Effective drag/reference area in square meters used for aerodynamic drag
-        and, in this script, also reused as the cannonball reference area for SRP.
-    is_srp_on : bool
-        Whether solar radiation pressure acceleration is enabled.
-    srp_coefficient : float
-        Dimensionless solar radiation pressure coefficient (Cr) used when SRP is enabled.
-    is_earth_drag_on : bool
-        Whether aerodynamic drag acceleration from Earth's atmosphere is enabled.
-    satellite_drag_coefficient : float
-        Dimensionless aerodynamic drag coefficient (Cd) used when drag is enabled.
-    is_moon_gravity_on : bool
-        Whether Moon point-mass gravity perturbation is enabled.
-    is_sun_gravity_on : bool
-        Whether Sun point-mass gravity perturbation is enabled.
-    is_venus_gravity_on : bool
-        Whether Venus point-mass gravity perturbation is enabled.
-    is_mars_gravity_on : bool
-        Whether Mars point-mass gravity perturbation is enabled.
-    initial_epoch_datetime_utc : datetime
-        Start epoch parsed from OEM input, represented as UTC datetime.
-    initial_state_m_mps : numpy.ndarray
-        Initial translational state vector [x, y, z, vx, vy, vz] in SI units,
-        where position is in meters and velocity is in meters per second.
-    simulation_duration_s : float
-        Total propagation duration in seconds.
-    """
+    """Container for propagation input options and parsed initial-state data."""
 
     satellite_name: str
+    """Name of the propagated vehicle body added to the Tudat environment"""
     satellite_mass_kg: float
+    """Spacecraft mass (kg) used by dynamics propagation"""
 
     integrator_method: str
+    """Numerical integrator method identifier used by propagation settings"""
     integrator_step_size_values_s: tuple[float, ...]
+    """Step-size input (seconds) from CLI; one value = fixed step, three values (initial, min, max) = variable step"""
 
     earth_spherical_harmonic_gravity_degree: int
+    """Degree used for Earth's spherical harmonic gravity field"""
     earth_spherical_harmonic_gravity_order: int
+    """Order used for Earth's spherical harmonic gravity field"""
 
     satellite_drag_area_m2: float
+    """Effective drag/reference area (m²) used for aerodynamic drag and SRP cannonball model"""
 
     is_srp_on: bool
+    """Whether solar radiation pressure acceleration is enabled"""
     srp_coefficient: float
+    """Dimensionless solar radiation pressure coefficient (Cr) used when SRP is enabled"""
 
     is_earth_drag_on: bool
+    """Whether aerodynamic drag acceleration from Earth's atmosphere is enabled"""
     satellite_drag_coefficient: float
+    """Dimensionless aerodynamic drag coefficient (Cd) used when drag is enabled"""
 
     is_moon_gravity_on: bool
+    """Whether Moon point-mass gravity perturbation is enabled"""
     is_sun_gravity_on: bool
+    """Whether Sun point-mass gravity perturbation is enabled"""
     is_venus_gravity_on: bool
+    """Whether Venus point-mass gravity perturbation is enabled"""
     is_mars_gravity_on: bool
+    """Whether Mars point-mass gravity perturbation is enabled"""
 
     initial_epoch_datetime_utc: datetime
+    """Start epoch parsed from OEM input, represented as a UTC datetime"""
     initial_state_m_mps: np.ndarray
+    """Initial translational state vector [x, y, z, vx, vy, vz] in SI units (m, m/s)"""
 
     simulation_duration_s: float
+    """Total propagation duration (seconds)"""
 
 
 def load_spice_kernels():
@@ -725,12 +706,14 @@ def load_spice_kernels():
         spice.load_kernel(common.get_spice_kernel_path() + "/" + kernel_file)
 
 
-def read_initial_state_from_stream(stream):
+def read_initial_state_from_stream(
+    stream: io.TextIOBase,
+) -> tuple[np.ndarray, datetime]:
     """Read one OEM-like state record from a text stream.
 
     Parameters
     ----------
-    stream : IO[str]
+    stream : io.TextIOBase
         Input stream providing one state line.
 
     Expected line format is:
@@ -739,25 +722,29 @@ def read_initial_state_from_stream(stream):
 
     Returns
     -------
-    tuple[numpy.ndarray, datetime.datetime]
+    tuple[numpy.ndarray, datetime]
         ``(initial_state_m_mps, initial_epoch_datetime_utc)`` where
         ``initial_state_m_mps`` is a 6-element cartesian state in SI units.
     """
-    line = stream.readline()
+    line: str = stream.readline()
     if line == "":
         raise ValueError("No input line available in stream")
 
-    parsed = common.parse_oem_state_line(line)
+    parsed: tuple[datetime, np.ndarray] | None = common_oem.parse_oem_state_line(line)
     if parsed is None:
         raise ValueError("The first input line is blank/comment and was not parsed")
 
+    epoch_dt: datetime
+    state_km: np.ndarray
     epoch_dt, state_km = parsed
-    initial_epoch_datetime_utc = epoch_dt
-    initial_state_m_mps = state_km * KILOMETERS_TO_METERS
+    initial_epoch_datetime_utc: datetime = epoch_dt
+    initial_state_m_mps: np.ndarray = state_km * KILOMETERS_TO_METERS
     return initial_state_m_mps, initial_epoch_datetime_utc
 
 
-def read_initial_state_from_cli_or_stdin(cli_args):
+def read_initial_state_from_cli_or_stdin(
+    cli_args: argparse.Namespace,
+) -> tuple[np.ndarray, datetime]:
     """Read one OEM-like state record from CLI input sources.
 
     Parameters
@@ -774,7 +761,7 @@ def read_initial_state_from_cli_or_stdin(cli_args):
 
     Returns
     -------
-    tuple[numpy.ndarray, datetime.datetime]
+    tuple[numpy.ndarray, datetime]
         ``(initial_state_m_mps, initial_epoch_datetime_utc)``.
     """
     if cli_args.initial_state is not None:
@@ -890,8 +877,8 @@ def write_state_history_raw(state_history, output_path):
 
     try:
         for epoch_tdb_s, state_m_mps in sorted(state_history.items()):
-            epoch_utc_iso = common.tdb_to_datetime(epoch_tdb_s).isoformat(
-                timespec="microseconds"
+            epoch_utc_iso = common.datetime_to_iso8601(
+                common.tdb_to_datetime(epoch_tdb_s)
             )
             position_km = state_m_mps[:3] / KILOMETERS_TO_METERS
             velocity_km_s = state_m_mps[3:] / KILOMETERS_TO_METERS
@@ -930,7 +917,7 @@ def write_state_history_oem(
 
     tudat_time_scale_converter = time_representation.default_time_scale_converter()
 
-    interpolator = LagrangeInterpolator(
+    interpolator = lagrange.LagrangeInterpolator(
         dimension=6, degree=INTERPOLATOR_NUMBER_OF_POINTS
     )
     interpolator.set_data(state_history)
@@ -1132,7 +1119,9 @@ def print_pre_propagation_summary(
     print(f"Venus gravity: {'on' if propagation_inputs.is_venus_gravity_on else 'off'}")
     print(f"Mars gravity: {'on' if propagation_inputs.is_mars_gravity_on else 'off'}")
 
-    print(f"Initial epoch: {propagation_inputs.initial_epoch_datetime_utc.isoformat()}")
+    print(
+        f"Initial epoch: {common.datetime_to_iso8601(propagation_inputs.initial_epoch_datetime_utc)}"
+    )
     initial_position_km = (
         propagation_inputs.initial_state_m_mps[:3] / KILOMETERS_TO_METERS
     )
@@ -1152,7 +1141,10 @@ def print_pre_propagation_summary(
         propagation_inputs.initial_epoch_datetime_utc
         + timedelta(seconds=propagation_inputs.simulation_duration_s)
     )
-    print("Simulation end epoch: " f"{simulation_end_epoch_datetime_utc.isoformat()}")
+    print(
+        "Simulation end epoch: "
+        f"{common.datetime_to_iso8601(simulation_end_epoch_datetime_utc)}"
+    )
     if output_oem_path is not None:
         output_destination = "stdout" if output_oem_path == "-" else output_oem_path
         print(f"OEM output: {output_destination}")
@@ -1532,13 +1524,14 @@ for an overview of the use of SPICE in Tudat.
 # common.common -- first module that pulls in tudatpy (via tudatpy.astro.time_representation).
 # Imported here, just before build_propagation_inputs() which is its first caller.
 import common.common as common
+import common.oem as common_oem
 
-propagation_inputs = build_propagation_inputs(cli_args)
-input_source = "--initial-state" if cli_args.initial_state is not None else "stdin"
-satellite_name = propagation_inputs.satellite_name
-output_oem_path = cli_args.oem
-output_raw_path = cli_args.raw
-output_dep_vars_path = cli_args.dep_vars
+propagation_inputs: PropagationInputs = build_propagation_inputs(cli_args)
+input_source: str = "--initial-state" if cli_args.initial_state is not None else "stdin"
+satellite_name: str = propagation_inputs.satellite_name
+output_oem_path: str | None = cli_args.oem
+output_raw_path: str | None = cli_args.raw
+output_dep_vars_path: str | None = cli_args.dep_vars
 
 print_pre_propagation_summary(
     propagation_inputs,

@@ -72,7 +72,7 @@ The repository contains more than just TLE build/parse helpers. Current Python t
 
 Current Python tools include:
 
-- `tle/build_tle.py` — estimate a TLE from an OEM-like Cartesian arc
+- `oem_to_tle/oem_to_tle.py` — estimate a TLE from an OEM-like Cartesian arc
 - `tle/download_tle.py` — download TLE data
 - `tle/omm_to_tle.py` — convert OMM to TLE
 - `tle/tle_to_omm.py` — convert TLE to OMM
@@ -81,7 +81,7 @@ Current Python tools include:
 - `common/oem.py`, `common/omm.py`, `common/tle.py` — shared parsers / writers
 - `common/kepler.py` — Keplerian element conversions with J2 short-period corrections
 - `common/common.py` — shared utilities (OEM state-line parsing, time conversion, duration/step parsing)
-- `misc/evaluate_build_tle_from_oem.py` — evaluate `build_tle.py` round-trip accuracy against an OEM reference
+- `oem_to_tle/evaluate_build_tle_from_oem.py` — evaluate OEM-to-TLE round-trip accuracy against an OEM reference
 
 See [TLE.md](TLE.md) for full usage details.
 
@@ -92,7 +92,7 @@ The repository includes several utility scripts for orbit analysis, comparison, 
 - `misc/state_diff.py` — compare two OEM-like Cartesian states
 - `misc/compare_interpolations.py` — compare different interpolation methods
 - `misc/evaluate_build_tle_from_oem.py` — evaluate TLE estimation accuracy
-- `oem/oem_slice.py` — slice OEM files by index or time range
+- `oem/slice_oem.py` — slice OEM files by index or time range
 - `plotting/plot_orbits.py` — plot and compare multiple orbits
 
 See [MISC.md](MISC.md) for full usage details.

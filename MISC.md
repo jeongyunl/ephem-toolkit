@@ -7,7 +7,7 @@ Miscellaneous utilities for orbit analysis and comparison.
 - `misc/state_diff.py`
 - `misc/compare_interpolations.py`
 - `misc/evaluate_build_tle_from_oem.py`
-- `oem/oem_slice.py`
+- `oem/slice_oem.py`
 - `plotting/plot_orbits.py`
 
 ## `misc/state_diff.py`
@@ -170,14 +170,14 @@ python misc/compare_interpolations.py -h
 - TudatPy (for interpolators)
 - local helper modules `common.common`, `common.oem`
 
-## `oem/oem_slice.py`
+## `oem/slice_oem.py`
 
 Slices CCSDS OEM files by index or time range, with optional interpolation.
 
 ### Synopsis
 
 ```bash
-python oem/oem_slice.py [-h] [-s <slice>] [-t <start[,stop[,step]]>] [-i] [--oem] <oem_file>
+python oem/slice_oem.py [-h] [-s <slice>] [-t <start[,stop[,step]]>] [-i] [--oem] <oem_file>
 ```
 
 ### Options
@@ -231,43 +231,43 @@ With `--oem`, outputs a valid CCSDS OEM file with updated metadata.
 **Slice by index (first 10 states):**
 
 ```bash
-python oem/oem_slice.py -s 0:10 propagated.oem
+python oem/slice_oem.py -s 0:10 propagated.oem
 ```
 
 **Slice by index (every other state):**
 
 ```bash
-python oem/oem_slice.py -s ::2 propagated.oem
+python oem/slice_oem.py -s ::2 propagated.oem
 ```
 
 **Slice by time (first hour):**
 
 ```bash
-python oem/oem_slice.py -t "0,1h" propagated.oem
+python oem/slice_oem.py -t "0,1h" propagated.oem
 ```
 
 **Slice by time with interpolation (10-minute steps):**
 
 ```bash
-python oem/oem_slice.py -t "0,1h,10m" -i propagated.oem
+python oem/slice_oem.py -t "0,1h,10m" -i propagated.oem
 ```
 
 **Slice by time (last 30 minutes):**
 
 ```bash
-python oem/oem_slice.py -t "-30m," propagated.oem
+python oem/slice_oem.py -t "-30m," propagated.oem
 ```
 
 **Output in OEM format:**
 
 ```bash
-python oem/oem_slice.py -s 0:100 --oem propagated.oem > sliced.oem
+python oem/slice_oem.py -s 0:100 --oem propagated.oem > sliced.oem
 ```
 
 **Show help:**
 
 ```bash
-python oem/oem_slice.py -h
+python oem/slice_oem.py -h
 ```
 
 ### Dependencies
@@ -379,7 +379,7 @@ python plotting/plot_orbits.py -h
 
 ## `misc/evaluate_build_tle_from_oem.py`
 
-Evaluates `build_tle.py` round-trip accuracy by generating a TLE from an OEM reference, propagating it, and comparing position/velocity errors.
+Evaluates OEM-to-TLE round-trip accuracy by generating a TLE from an OEM reference, propagating it, and comparing position/velocity errors.
 
 ### Synopsis
 
@@ -402,7 +402,7 @@ python misc/evaluate_build_tle_from_oem.py [-h] [--refinement <none|cartesian|ke
 The script performs a round-trip evaluation workflow:
 
 1. Reads an OEM reference file containing state vectors
-2. Generates a TLE from the OEM using `build_tle.py` with specified refinement method
+2. Generates a TLE from the OEM using `oem_to_tle/oem_to_tle.py` with specified refinement method
 3. Propagates the generated TLE using `propagate_tle.py` over the evaluation span
 4. Compares propagated states against the original OEM at matching epochs
 5. Prints position and velocity error statistics
@@ -469,6 +469,6 @@ python misc/evaluate_build_tle_from_oem.py -h
 - TudatPy (for SGP4 propagation and Cartesian refinement)
 - NumPy
 - local helper modules `common.oem`, `common.common`
-- Requires `tle/build_tle.py` and `propagation/propagate_tle.py` to be available
+- Requires `oem_to_tle/oem_to_tle.py` and `propagation/propagate_tle.py` to be available
 
 ---

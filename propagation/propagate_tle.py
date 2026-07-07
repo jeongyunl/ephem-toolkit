@@ -1,68 +1,43 @@
 #!/usr/bin/env python3
-from __future__ import annotations
+"""TLE propagation to OEM-like output.
 
-"""
-# TLE propagation to OEM-like output
-## Objectives
 Load one TLE file, propagate the orbit with TudatPy's SGP4 TLE ephemeris, and
 print state vectors in an OEM-like text format.
 
 The script accepts a TLE file path as a positional CLI argument. When the
 positional argument is omitted, TLE text is read directly from stdin.
-"""
-
-"""
-## Import statements
 
 Only light standard-library modules are imported at file import time. TudatPy
 modules are imported only when propagation is actually requested. This keeps
 ``--help`` and early argument validation responsive.
 """
 
+from __future__ import annotations
+
 import argparse
 import datetime as dt
+import os
 import pathlib
 import sys
 import warnings
+
+import numpy as np
 
 # Suppress warnings that tudatpy / urllib3 may emit on import.
 warnings.filterwarnings("ignore", module="urllib3")
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 
-
-import os
-
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from common.common import (
-    parse_duration_to_seconds,
-    parse_step_to_seconds,
-    SECONDS_PER_DAY,
-    SECONDS_PER_MINUTE,
-)
-from common.oem import CcsdsOem, OemHeader, OemMeta
 
-import numpy as np
+import common.common as common
+import common.oem as oem
 
 # CLI defaults
-DEFAULT_PROPAGATION_DURATION_S = SECONDS_PER_DAY
-DEFAULT_OUTPUT_STEP_S = 15.0 * SECONDS_PER_MINUTE
+DEFAULT_PROPAGATION_DURATION_S = common.SECONDS_PER_DAY
+"""Default propagation duration in seconds (1 day)."""
 
-
-def import_tudat_modules():
-    """Import TudatPy modules lazily at runtime.
-
-    Returns
-    -------
-    tuple
-            ``(data, DateTime, environment_setup, spice)`` modules/classes used by
-            the propagation workflow.
-    """
-    from tudatpy import data
-    from tudatpy.astro.time_representation import DateTime
-    from tudatpy.dynamics import environment_setup
-    from tudatpy.interface import spice
-
-    return data, DateTime, environment_setup, spice
+DEFAULT_OUTPUT_STEP_S = 15.0 * common.SECONDS_PER_MINUTE
+"""Default output sampling interval in seconds (15 minutes)."""
 
 
 def parse_args() -> argparse.Namespace:
@@ -71,7 +46,7 @@ def parse_args() -> argparse.Namespace:
     Returns
     -------
     argparse.Namespace
-            Parsed command-line arguments.
+        Parsed command-line arguments.
     """
     parser = argparse.ArgumentParser(
         description=(
@@ -88,7 +63,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "-d",
         "--duration",
-        type=parse_duration_to_seconds,
+        type=common.parse_duration_to_seconds,
         metavar="<value[s|m|h|d]>",
         default=DEFAULT_PROPAGATION_DURATION_S,
         help=(
@@ -99,7 +74,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "-s",
         "--step",
-        type=parse_step_to_seconds,
+        type=common.parse_step_to_seconds,
         metavar="<value[s|m]>",
         default=DEFAULT_OUTPUT_STEP_S,
         help=(
@@ -124,27 +99,27 @@ def extract_tle_line_pair(lines: list[str], source_label: str) -> tuple[str, str
     Parameters
     ----------
     lines : list[str]
-            Non-empty candidate lines.
+        Non-empty candidate lines.
     source_label : str
-            Human-readable source used in error messages.
+        Human-readable source used in error messages.
 
     Returns
     -------
     tuple[str, str]
-            Two TLE lines in ``(line1, line2)`` order.
+        Two TLE lines in ``(line1, line2)`` order.
 
     Raises
     ------
     ValueError
-            If fewer than two lines are available or TLE line tags are invalid.
+        If fewer than two lines are available or TLE line tags are invalid.
     """
     if len(lines) < 2:
         raise ValueError(
             f"TLE source '{source_label}' must contain at least 2 non-empty lines."
         )
 
-    line1 = lines[-2]
-    line2 = lines[-1]
+    line1: str = lines[-2]
+    line2: str = lines[-1]
     if not line1.startswith("1 ") or not line2.startswith("2 "):
         raise ValueError(
             "Could not find TLE line pair at end of input "
@@ -160,14 +135,9 @@ def load_spice_kernels(data_module, spice_module) -> None:
     Parameters
     ----------
     data_module : module
-            TudatPy data module used to resolve kernel directory paths.
+        TudatPy data module used to resolve kernel directory paths.
     spice_module : module
-            TudatPy SPICE interface module used to load kernels.
-
-    Returns
-    -------
-    None
-            This function mutates the global SPICE kernel pool.
+        TudatPy SPICE interface module used to load kernels.
     """
     spice_module.load_kernel(
         str(pathlib.Path(data_module.get_spice_kernel_path()) / "naif0012.tls")
@@ -183,13 +153,13 @@ def read_tle_input(cli_value: str | None) -> tuple[str, str, str]:
     Parameters
     ----------
     cli_value : str | None
-            Positional CLI value for TLE file path.
+        Positional CLI value for TLE file path.
 
     Returns
     -------
     tuple[str, str, str]
-            ``(line1, line2, object_name)`` where ``object_name`` is derived from
-            the file stem for file input, or ``TLE_STDIN`` for stdin input.
+        ``(line1, line2, object_name)`` where ``object_name`` is derived from
+        the file stem for file input, or ``TLE_STDIN`` for stdin input.
 
     Notes
     -----
@@ -197,12 +167,14 @@ def read_tle_input(cli_value: str | None) -> tuple[str, str, str]:
     as the TLE pair.
     """
     if cli_value:
-        tle_path = pathlib.Path(cli_value.strip()).expanduser().resolve()
+        tle_path: pathlib.Path = pathlib.Path(cli_value.strip()).expanduser().resolve()
         if not tle_path.is_file():
             raise FileNotFoundError(f"TLE file not found: {tle_path}")
 
         with tle_path.open("r", encoding="utf-8") as handle:
-            lines = [line.strip() for line in handle if line.strip()]
+            lines: list[str] = [line.strip() for line in handle if line.strip()]
+        line1: str
+        line2: str
         line1, line2 = extract_tle_line_pair(lines, str(tle_path))
         return line1, line2, tle_path.stem
 
@@ -211,10 +183,14 @@ def read_tle_input(cli_value: str | None) -> tuple[str, str, str]:
             "TLE input not provided. Pass <tle_file> or pipe TLE text on stdin."
         )
 
-    stdin_text = sys.stdin.read()
+    stdin_text: str = sys.stdin.read()
     if not stdin_text.strip():
         raise ValueError("Empty stdin input. Provide TLE text on stdin.")
-    lines = [line.strip() for line in stdin_text.splitlines() if line.strip()]
+    lines: list[str] = [
+        line.strip() for line in stdin_text.splitlines() if line.strip()
+    ]
+    line1: str
+    line2: str
     line1, line2 = extract_tle_line_pair(lines, "stdin")
     return line1, line2, "TLE_STDIN"
 
@@ -225,20 +201,20 @@ def epoch_to_utc_iso(epoch_tdb: float, spice_module, datetime_class) -> str:
     Parameters
     ----------
     epoch_tdb : float
-            TDB epoch in seconds since J2000.
+        TDB epoch in seconds since J2000.
     spice_module : module
-            TudatPy SPICE interface module.
+        TudatPy SPICE interface module.
     datetime_class : type
-            TudatPy DateTime class.
+        TudatPy DateTime class.
 
     Returns
     -------
     str
-            UTC epoch string in ISO-like form with trailing ``Z``.
+        UTC epoch string in ISO-like form with trailing ``Z``.
     """
-    epoch_utc = spice_module.get_approximate_utc_from_tdb(epoch_tdb)
-    dt_utc = datetime_class.from_epoch(epoch_utc)
-    iso = dt_utc.to_iso_string(number_of_digits_seconds=3)
+    epoch_utc: float = spice_module.get_approximate_utc_from_tdb(epoch_tdb)
+    dt_utc: object = datetime_class.from_epoch(epoch_utc)
+    iso: str = dt_utc.to_iso_string(number_of_digits_seconds=3)
     if "T" not in iso:
         iso = iso.replace(" ", "T")
     return iso
@@ -259,41 +235,36 @@ def print_oem_like(
     Parameters
     ----------
     object_name : str
-            Object name/id written to OEM metadata.
+        Object name/id written to OEM metadata.
     tle_ephemeris : object
-            TudatPy ephemeris object exposing ``cartesian_state(epoch)``.
+        TudatPy ephemeris object exposing ``cartesian_state(epoch)``.
     start_tdb : float
-            Start epoch in TDB seconds since J2000.
+        Start epoch in TDB seconds since J2000.
     duration : float
-            Propagation duration in seconds.
+        Propagation duration in seconds.
     step : float
-            Output sampling interval in seconds.
+        Output sampling interval in seconds.
     spice_module : module
-            TudatPy SPICE interface module.
+        TudatPy SPICE interface module.
     datetime_class : type
-            TudatPy DateTime class.
+        TudatPy DateTime class.
     include_oem_header : bool
-            Whether to print OEM metadata header before state lines.
-
-    Returns
-    -------
-    None
-            Writes an OEM-like header and data lines to stdout.
+        Whether to print OEM metadata header before state lines.
     """
-    now = dt.datetime.now(tz=dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
-    stop_tdb = start_tdb + duration
-    start_utc_iso = epoch_to_utc_iso(start_tdb, spice_module, datetime_class)
-    stop_utc_iso = epoch_to_utc_iso(stop_tdb, spice_module, datetime_class)
+    now: str = dt.datetime.now(tz=dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+    stop_tdb: float = start_tdb + duration
+    start_utc_iso: str = epoch_to_utc_iso(start_tdb, spice_module, datetime_class)
+    stop_utc_iso: str = epoch_to_utc_iso(stop_tdb, spice_module, datetime_class)
 
     # Propagate and collect state vectors
-    states_list = []
-    current_tdb = start_tdb
+    states_list: list[tuple[float, np.ndarray]] = []
+    current_tdb: float = start_tdb
     while current_tdb <= stop_tdb + 1.0e-12:
-        state_m = tle_ephemeris.cartesian_state(current_tdb)
-        epoch_iso = epoch_to_utc_iso(current_tdb, spice_module, datetime_class)
+        state_m: np.ndarray = tle_ephemeris.cartesian_state(current_tdb)
+        epoch_iso: str = epoch_to_utc_iso(current_tdb, spice_module, datetime_class)
 
         # Convert from meters to km
-        state_km = np.array(
+        state_km: np.ndarray = np.array(
             [
                 state_m[0] / 1000.0,
                 state_m[1] / 1000.0,
@@ -304,21 +275,23 @@ def print_oem_like(
             ]
         )
 
-        # Parse epoch string and convert to POSIX timestamp (UTC)
-        epoch_dt = dt.datetime.fromisoformat(epoch_iso.rstrip("Z"))
-        epoch_ts = epoch_dt.replace(tzinfo=dt.timezone.utc).timestamp()
-        states_list.append((epoch_ts, state_km))
+        # Parse epoch string and convert to datetime (UTC)
+        epoch_dt: dt.datetime = dt.datetime.fromisoformat(epoch_iso.rstrip("Z"))
+        epoch_dt = epoch_dt.replace(tzinfo=dt.timezone.utc)
+        # Convert to POSIX timestamp for CcsdsOem
+        timestamp: float = epoch_dt.timestamp()
+        states_list.append((timestamp, state_km))
         current_tdb += step
 
     if include_oem_header:
         # Create OEM object with metadata
-        header = OemHeader(
+        header: oem.OemHeader = oem.OemHeader(
             version=2.0,
             creation_date=now,
             originator="tudatpy-utils",
         )
 
-        meta = OemMeta(
+        meta: oem.OemMeta = oem.OemMeta(
             object_name=object_name,
             object_id=object_name,
             center_name="EARTH",
@@ -328,14 +301,16 @@ def print_oem_like(
             stop_time=stop_utc_iso,
         )
 
-        oem = CcsdsOem(header=header, meta=meta, states=dict(states_list))
-        oem.to_file(sys.stdout)
+        oem_obj: oem.CcsdsOem = oem.CcsdsOem(
+            header=header, meta=meta, states=dict(states_list)
+        )
+        oem_obj.to_file(sys.stdout)
     else:
         # Print only state lines
-        from common.oem import write_states
-
-        states_dict = {epoch: state for epoch, state in states_list}
-        write_states(sys.stdout, states_dict)
+        states_dict: dict[float, np.ndarray] = {
+            timestamp: state for timestamp, state in states_list
+        }
+        oem.write_states(sys.stdout, states_dict)
 
 
 def main() -> int:
@@ -344,29 +319,36 @@ def main() -> int:
     Returns
     -------
     int
-            Process return code. ``0`` on success.
+        Process return code (0 on success).
     """
     # Parse CLI input and validate scalar settings first so invalid requests
     # fail quickly before importing TudatPy.
-    args = parse_args()
+    args: argparse.Namespace = parse_args()
 
     if args.duration <= 0.0:
         raise ValueError("--duration must be > 0")
     if args.step <= 0.0:
         raise ValueError("--step must be > 0")
 
+    line1: str
+    line2: str
+    object_name: str
     line1, line2, object_name = read_tle_input(args.tle_file)
 
     # Heavy TudatPy imports are intentionally delayed until after cheap input
     # validation is complete.
-    data, date_time, environment_setup, spice = import_tudat_modules()
+    from tudatpy import data
+    from tudatpy.astro.time_representation import DateTime
+    from tudatpy.dynamics import environment_setup
+    from tudatpy.interface import spice
+
     load_spice_kernels(data, spice)
 
-    tle_ephemeris_settings = environment_setup.ephemeris.sgp4(line1, line2)
-    tle_ephemeris = environment_setup.create_body_ephemeris(
+    tle_ephemeris_settings: object = environment_setup.ephemeris.sgp4(line1, line2)
+    tle_ephemeris: object = environment_setup.create_body_ephemeris(
         tle_ephemeris_settings, body_name=object_name
     )
-    start_tdb = tle_ephemeris.tle.reference_epoch
+    start_tdb: float = tle_ephemeris.tle.reference_epoch
 
     print_oem_like(
         object_name=object_name,
@@ -375,7 +357,7 @@ def main() -> int:
         duration=args.duration,
         step=args.step,
         spice_module=spice,
-        datetime_class=date_time,
+        datetime_class=DateTime,
         include_oem_header=args.oem,
     )
 

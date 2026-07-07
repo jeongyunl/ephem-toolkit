@@ -1,5 +1,6 @@
 """Interpolators package exports."""
 
-from .lagrange import Interpolator, LagrangeInterpolator
+from .interpolator import Interpolator
+from .lagrange import LagrangeInterpolator
 
 __all__ = ["Interpolator", "LagrangeInterpolator"]
