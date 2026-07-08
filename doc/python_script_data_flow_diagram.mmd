@@ -17,6 +17,7 @@ flowchart LR
     fmt_tle{{"TLE (.tle)"}}
     fmt_omm{{"OMM (.omm)"}}
     fmt_oem{{"OEM-like State Vectors <br/> (epoch x y z vx vy vz)"}}
+    fmt_kepler{{"OEM-like Keplerian Elements <br/> (epoch a e i ω Ω θ)"}}
     fmt_ccsds_oem{{"CCSDS OEM <br/> (header + metadata + state history)"}}
     fmt_dep_vars_csv{{"Dependent Variables CSV"}}
     fmt_plots{{"Plots / Animations <br/> (Matplotlib figures)"}}
@@ -37,7 +38,14 @@ flowchart LR
     %% propagation/ scripts
     propagate_tle(["propagate_tle.py"])
     propagate_sat(["propagate_satellite_orbit.py"])
+    propagate_kepler(["propagate_kepler.py"])
     plot_dep_vars(["plot_dependent_variables.py"])
+    plot_orbits(["plot_orbits.py"])
+
+    %% conversion/ utilities
+    cartesian_to_keplerian(["cartesian_to_keplerian.py"])
+    slice_oem(["slice_oem.py"])
+    state_diff(["state_diff.py"])
 
     %% frame_conversion/ scripts
     gcrf_to_itrf_rot(["gcrf_to_itrf_rot_model.py"])
@@ -47,6 +55,9 @@ flowchart LR
     convert_time(["convert_time.py"])
     convert_time2(["convert_time2.py"])
 
+    %% evaluation scripts
+    evaluate_oem_to_tle(["evaluate_oem_to_tle.py"])
+
     %% ===== Data Flows =====
 
     %% download_tle.py: CelesTrak → TLE or OMM files
@@ -54,7 +65,7 @@ flowchart LR
     download_tle -->|"TLE format"| fmt_tle
     download_tle -->|"OMM format"| fmt_omm
 
-    %% oem_to_tle.py: OEM state vectors → TLE (via common.tle.write_tle)
+    %% oem_to_tle.py: OEM state vectors → TLE
     fmt_oem --> oem_to_tle
     oem_to_tle --> fmt_tle
 
@@ -79,6 +90,27 @@ flowchart LR
     propagate_sat -->|"CCSDS OEM export"| fmt_ccsds_oem
     propagate_sat -->|"dependent variables"| fmt_dep_vars_csv
 
+    %% propagate_kepler.py: Keplerian elements → OEM-like state vectors
+    fmt_kepler --> propagate_kepler
+    propagate_kepler --> fmt_oem
+    propagate_kepler -->|"optional OEM metadata"| fmt_ccsds_oem
+
+    %% cartesian_to_keplerian.py: OEM-like state vectors ↔ Keplerian elements
+    fmt_oem --> cartesian_to_keplerian
+    cartesian_to_keplerian --> fmt_kepler
+
+    %% plot_orbits.py: OEM/raw state files → plots
+    fmt_oem --> plot_orbits
+    fmt_ccsds_oem --> plot_orbits
+    plot_orbits --> fmt_plots
+
+    %% slice_oem.py: CCSDS OEM → sliced OEM-like states
+    fmt_ccsds_oem --> slice_oem
+    slice_oem --> fmt_oem
+
+    %% state_diff.py: OEM-like state vectors → comparison summary
+    fmt_oem --> state_diff
+
     %% plot_dependent_variables.py: dependent-variable CSV → plots/animations
     fmt_dep_vars_csv --> plot_dep_vars
     plot_dep_vars --> fmt_plots
@@ -99,8 +131,7 @@ flowchart LR
     fmt_time --> convert_time2
     convert_time2 --> fmt_time
 
-    %% evaluate_build_tle_from_oem.py: OEM → oem_to_tle → propagate_tle → comparison
-    evaluate_build_tle(["evaluate_build_tle_from_oem.py"])
-    fmt_oem --> evaluate_build_tle
-    evaluate_build_tle -->|"calls"| oem_to_tle
-    evaluate_build_tle -->|"calls"| propagate_tle
+    %% evaluate_oem_to_tle.py: OEM → oem_to_tle → propagate_tle → comparison
+    fmt_oem --> evaluate_oem_to_tle
+    evaluate_oem_to_tle -->|"calls"| oem_to_tle
+    evaluate_oem_to_tle -->|"calls"| propagate_tle
