@@ -81,7 +81,6 @@ Current Python tools include:
 - `common/oem.py`, `common/omm.py`, `common/tle.py` — shared parsers / writers
 - `common/kepler.py` — Keplerian element conversions with J2 short-period corrections
 - `common/common.py` — shared utilities (OEM state-line parsing, time conversion, duration/step parsing)
-- `oem_to_tle/evaluate_build_tle_from_oem.py` — evaluate OEM-to-TLE round-trip accuracy against an OEM reference
 
 See [TLE.md](TLE.md) for full usage details.
 
@@ -90,8 +89,7 @@ See [TLE.md](TLE.md) for full usage details.
 The repository includes several utility scripts for orbit analysis, comparison, and manipulation:
 
 - `misc/state_diff.py` — compare two OEM-like Cartesian states
-- `misc/compare_interpolations.py` — compare different interpolation methods
-- `misc/evaluate_build_tle_from_oem.py` — evaluate TLE estimation accuracy
+- `oem_to_tle/evaluate_oem_to_tle.py` — evaluate TLE estimation accuracy
 - `oem/slice_oem.py` — slice OEM files by index or time range
 - `plotting/plot_orbits.py` — plot and compare multiple orbits
 
