@@ -56,7 +56,7 @@ Python scripts for propagating either a Cartesian initial state or a TLE-derived
 
 Two Python propagation scripts are currently present:
 
-- `propagation/propagate_satellite_orbit.py`
+- `propagation/propagate_orbit.py`
   - Propagates one OEM-like Cartesian state under configurable perturbations.
   - Can optionally export propagated state history as CCSDS OEM or raw state-vector lines.
   - Can optionally export dependent variables to CSV.

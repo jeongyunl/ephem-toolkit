@@ -14,7 +14,7 @@ fi
 
 INPUT_FILE="$1"
 
-head -n 50 "$INPUT_FILE" | grep "^[0-9]" | head -n 1 | ../propagation/propagate_satellite_orbit.py --name "ISS_prop" \
+head -n 50 "$INPUT_FILE" | grep "^[0-9]" | head -n 1 | ../propagation/propagate_orbit.py --name "ISS_prop" \
 	--oem ${INPUT_FILE}.oem --oem-step-size 10m \
 	--raw ${INPUT_FILE}.txt \
 	--dep-vars ${INPUT_FILE}.csv \

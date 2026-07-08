@@ -37,7 +37,7 @@ flowchart LR
 
     %% propagation/ scripts
     propagate_tle(["propagate_tle.py"])
-    propagate_sat(["propagate_satellite_orbit.py"])
+    propagate_sat(["propagate_orbit.py"])
     propagate_kepler(["propagate_kepler.py"])
     plot_dep_vars(["plot_dependent_variables.py"])
     plot_orbits(["plot_orbits.py"])
@@ -84,7 +84,7 @@ flowchart LR
     fmt_tle --> propagate_tle
     propagate_tle --> fmt_oem
 
-    %% propagate_satellite_orbit.py: single OEM state line → propagated outputs
+    %% propagate_orbit.py: single OEM state line → propagated outputs
     fmt_oem -->|"single state line"| propagate_sat
     propagate_sat -->|"raw state history"| fmt_oem
     propagate_sat -->|"CCSDS OEM export"| fmt_ccsds_oem

@@ -2,7 +2,7 @@
 """Plot dependent-variable results from a saved Tudat CSV file.
 
 This script reads the ``*_dep_vars.csv`` format produced by
-``propagate_satellite_orbit.py`` and recreates the dependent-variable plots.
+``propagate_orbit.py`` and recreates the dependent-variable plots.
 """
 
 from __future__ import annotations
@@ -930,7 +930,7 @@ def build_cli_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "dep_vars_csv",
         metavar="<dep_vars_csv>",
-        help="Path to *_dep_vars.csv produced by propagate_satellite_orbit.py",
+        help="Path to *_dep_vars.csv produced by propagate_orbit.py",
     )
     parser.add_argument(
         "--name",

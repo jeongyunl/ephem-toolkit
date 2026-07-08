@@ -4,18 +4,18 @@ Propagation utilities for OEM-like Cartesian states and TLEs.
 
 ## Available scripts
 
-- `propagation/propagate_satellite_orbit.py`
+- `propagation/propagate_orbit.py`
 - `propagation/plot_dependent_variables.py`
 - `propagation/propagate_tle.py`
 
-## `propagation/propagate_satellite_orbit.py`
+## `propagation/propagate_orbit.py`
 
 Propagates a perturbed satellite orbit around Earth using TudatPy. The script reads a single OEM-like state line containing epoch plus Cartesian position and velocity, then propagates it forward under a configurable set of perturbations including spherical-harmonic Earth gravity, third-body gravity, aerodynamic drag, and solar radiation pressure.
 
 ### Synopsis
 
 ```bash
-python propagation/propagate_satellite_orbit.py [-h] [-i <oem_state_line>] [-d <value[s|m|h|d]>] [--oem <file|->]
+python propagation/propagate_orbit.py [-h] [-i <oem_state_line>] [-d <value[s|m|h|d]>] [--oem <file|->]
   [--raw <file|->] [--dep-vars <file>] [--oem-step-size <value[s|m]>] [--name <name>] [--mass <kg>]
   [--integrator <rk_3|rk_4|rkf_45|rkf_56|rkf_78|rkf_89|rkf_108|rkf_1210|rkf_1412|rkdp_87|rkv_89>]
   [--integrator-step-size <fixed|init,max|init,min,max>] [--earth-gravity <DxO>] [--drag-area <m^2>]
@@ -135,7 +135,7 @@ Additional implementation notes:
 **Propagate from inline state for 1 day:**
 
 ```bash
-python propagation/propagate_satellite_orbit.py \
+python propagation/propagate_orbit.py \
   -d 1d \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -144,13 +144,13 @@ python propagation/propagate_satellite_orbit.py \
 
 ```bash
 echo "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217" \
-  | python propagation/propagate_satellite_orbit.py -d 2h
+  | python propagation/propagate_orbit.py -d 2h
 ```
 
 **Disable drag and SRP:**
 
 ```bash
-python propagation/propagate_satellite_orbit.py \
+python propagation/propagate_orbit.py \
   -d 1d --drag off --srp off \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -158,7 +158,7 @@ python propagation/propagate_satellite_orbit.py \
 **Use custom satellite properties:**
 
 ```bash
-python propagation/propagate_satellite_orbit.py \
+python propagation/propagate_orbit.py \
   -d 12h --name MySat --mass 500 --drag-coeff 2.5 --drag-area 0.5 --srp-coeff 1.5 \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -166,7 +166,7 @@ python propagation/propagate_satellite_orbit.py \
 **Export propagated state history as CCSDS OEM:**
 
 ```bash
-python propagation/propagate_satellite_orbit.py \
+python propagation/propagate_orbit.py \
   -d 6h --oem propagated.oem \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -174,7 +174,7 @@ python propagation/propagate_satellite_orbit.py \
 **Write raw propagated state history to stdout:**
 
 ```bash
-python propagation/propagate_satellite_orbit.py \
+python propagation/propagate_orbit.py \
   -d 30m --raw - \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -182,7 +182,7 @@ python propagation/propagate_satellite_orbit.py \
 **Write dependent variables to CSV:**
 
 ```bash
-python propagation/propagate_satellite_orbit.py \
+python propagation/propagate_orbit.py \
   -d 6h --dep-vars dep_vars.csv \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -196,7 +196,7 @@ python propagation/plot_dependent_variables.py dep_vars.csv
 **Use a variable-step RKF 7(8) integrator:**
 
 ```bash
-python propagation/propagate_satellite_orbit.py \
+python propagation/propagate_orbit.py \
   -d 12h --integrator rkf_78 --integrator-step-size 30,0.001,1000 --earth-gravity 8x8 \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -204,7 +204,7 @@ python propagation/propagate_satellite_orbit.py \
 **Show help:**
 
 ```bash
-python propagation/propagate_satellite_orbit.py -h
+python propagation/propagate_orbit.py -h
 ```
 
 ### Dependencies
@@ -224,7 +224,7 @@ The script loads these SPICE kernels from TudatPy's SPICE kernel directory:
 
 ## `propagation/plot_dependent_variables.py`
 
-Plots dependent-variable histories from a saved Tudat CSV file. The script reads the dependent-variable CSV produced by `propagate_satellite_orbit.py` and recreates the standard dependent-variable plots, including total acceleration, ground track, Keplerian elements, acceleration-component norms, and animated 3D trajectory views.
+Plots dependent-variable histories from a saved Tudat CSV file. The script reads the dependent-variable CSV produced by `propagate_orbit.py` and recreates the standard dependent-variable plots, including total acceleration, ground track, Keplerian elements, acceleration-component norms, and animated 3D trajectory views.
 
 ### Synopsis
 
@@ -237,7 +237,7 @@ python propagation/plot_dependent_variables.py [-h] [--name <name>] [-d <duratio
 | Option | Description | Default |
 |---|---|---|
 | `-h`, `--help` | Show help message and exit | none |
-| `<dep_vars_csv>` | Path to the dependent-variable CSV file produced by `propagate_satellite_orbit.py` | none |
+| `<dep_vars_csv>` | Path to the dependent-variable CSV file produced by `propagate_orbit.py` | none |
 | `--name` | Satellite name used in plot labels and CSV header filtering. Auto-detected from CSV if not provided. | `Satellite` |
 | `-d`, `--duration` | Duration to plot in format `<number>[s\|m\|h\|d]` (e.g., `1h`, `30m`, `3600s`). If not specified, plots all data. | all data |
 
@@ -249,7 +249,7 @@ The script expects a dependent-variable CSV file whose first header column is:
 epoch_tdb_s
 ```
 
-All remaining columns are dependent-variable data columns encoded using slash-separated metadata fields written by `propagate_satellite_orbit.py`.
+All remaining columns are dependent-variable data columns encoded using slash-separated metadata fields written by `propagate_orbit.py`.
 
 Validation rules:
 
@@ -309,7 +309,7 @@ python propagation/plot_dependent_variables.py --name ISS_prop -d 2h dep_vars.cs
 **Generate the CSV and then plot it:**
 
 ```bash
-python propagation/propagate_satellite_orbit.py \
+python propagation/propagate_orbit.py \
   -d 6h --dep-vars dep_vars.csv \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 python propagation/plot_dependent_variables.py dep_vars.csv
