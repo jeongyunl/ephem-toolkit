@@ -430,8 +430,12 @@ def transform_to_rtn(
     reference_position_magnitudes: np.ndarray = np.linalg.norm(
         reference_positions, axis=1
     )  # shape (N,)
-    radial_unit_vectors: np.ndarray = (
-        reference_positions / reference_position_magnitudes[:, np.newaxis]
+    radial_unit_vectors: np.ndarray = np.zeros_like(reference_positions)
+    np.divide(
+        reference_positions,
+        reference_position_magnitudes[:, np.newaxis],
+        out=radial_unit_vectors,
+        where=reference_position_magnitudes[:, np.newaxis] != 0.0,
     )
 
     # Normal unit vector (from angular momentum): shape (N, 3)
@@ -441,8 +445,13 @@ def transform_to_rtn(
     angular_momentum_magnitudes: np.ndarray = np.linalg.norm(
         angular_momentum_vectors, axis=1
     )  # shape (N,)
-    normal_unit_vectors: np.ndarray = (
-        angular_momentum_vectors / angular_momentum_magnitudes[:, np.newaxis]
+    normal_unit_vectors: np.ndarray = np.zeros_like(angular_momentum_vectors)
+    valid_normals: np.ndarray = angular_momentum_magnitudes > 0.0
+    np.divide(
+        angular_momentum_vectors,
+        angular_momentum_magnitudes[:, np.newaxis],
+        out=normal_unit_vectors,
+        where=valid_normals[:, np.newaxis],
     )
 
     # Transverse unit vector: shape (N, 3)
@@ -463,8 +472,12 @@ def transform_to_rtn(
     )
 
     # 6. Compute relative velocity vector in RTN (Transport Theorem): shape (N, 3)
-    angular_velocity_z: np.ndarray = angular_momentum_magnitudes / (
-        reference_position_magnitudes**2
+    angular_velocity_z: np.ndarray = np.zeros(state_arr.shape[0])
+    np.divide(
+        angular_momentum_magnitudes,
+        reference_position_magnitudes**2,
+        out=angular_velocity_z,
+        where=reference_position_magnitudes > 0.0,
     )  # shape (N,)
     angular_velocity_rtn: np.ndarray = np.column_stack(
         [np.zeros(state_arr.shape[0]), np.zeros(state_arr.shape[0]), angular_velocity_z]
@@ -482,6 +495,7 @@ def transform_to_rtn(
 
     # Return single vector if input was single
     return result[0] if single_input else result
+
 
 # ===================================================================
 # Angle utilities
@@ -608,4 +622,3 @@ def circular_blend_angle_rad(
         primary_angle
         + correction_weight * angle_difference_rad(correction_angle, primary_angle)
     )
-
