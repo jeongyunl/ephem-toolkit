@@ -17,12 +17,7 @@ This document focuses on the primary user-facing tools and the current repositor
 
 ## `oem_to_tle/oem_to_tle.py`
 
-This script estimates a TLE from an OEM-like Cartesian arc rather than from explicit TLE fields. It uses `common.tle.write_tle()` directly to format and write the resulting TLE.
-
-That script is documented separately in:
-
-- [`oem_to_tle/build_tle.md`](oem_to_tle/build_tle.md)
-- [OEM_TO_TLE.md](OEM_TO_TLE.md)
+This script estimates a TLE from an OEM-like Cartesian arc. For complete usage and algorithm documentation, see [OEM_TO_TLE.md](OEM_TO_TLE.md).
 
 ## `tle/download_tle.py`
 
@@ -293,20 +288,6 @@ Additional scripts currently present in the repository:
 - `common/tle.py` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions used by all TLE-related scripts
 - `common/kepler.py` — Keplerian element conversions (`cartesian_to_keplerian`, `keplerian_to_cartesian`, `tle_to_osculating_keplerian` with J2 short-period corrections, `osculating_to_mean_keplerian`)
 - `common/common.py` — shared utilities
-
-## Evaluation tool
-
-- `oem_to_tle/evaluate_build_tle_from_oem.py` — evaluates OEM-to-TLE round-trip accuracy by generating a TLE from an OEM reference, propagating it, and comparing position/velocity errors
-
-## Dependencies
-
-### `oem_to_tle/oem_to_tle.py`
-
-- Python standard library
-- NumPy (for `common.kepler` Keplerian element conversions)
-- local helper modules `common.tle`, `common.kepler`, `common.oem`
-- TudatPy (optional, for SGP4 Cartesian refinement and B* estimation)
-- Supports `--refinement` flag: `cartesian` (default; requires TudatPy), `keplerian` (no TudatPy needed; uses J2 short-period corrections), or `none`
 
 ### Other TLE-related scripts
 
