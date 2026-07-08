@@ -9,7 +9,7 @@ Workflow:
   5. Print position and velocity difference statistics.
 
 Usage:
-    python misc/evaluate_build_tle_from_oem.py [--refinement none|cartesian|keplerian]
+    python oem_to_tle/evaluate_oem_to_tle.py [--refinement none|cartesian|keplerian]
 """
 
 from __future__ import annotations
@@ -76,7 +76,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run_build_tle(
+def run_oem_to_tle(
     oem_records: dict[float, np.ndarray], duration_s: float, refinement: str
 ) -> tuple[str, str, str]:
     """Run oem_to_tle.py on OEM records (limited to duration_s) via stdin.
@@ -463,7 +463,7 @@ def main() -> None:
     tle_text: str
     line1: str
     line2: str
-    tle_text, line1, line2 = run_build_tle(
+    tle_text, line1, line2 = run_oem_to_tle(
         oem_records_float, duration_s, args.refinement
     )
     print(f"  Generated TLE:")
