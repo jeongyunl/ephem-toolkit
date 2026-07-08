@@ -1,7 +1,7 @@
 """Integration tests: propagate_tle -> oem_to_tle round-trip accuracy.
 
 For each TLE file in the test directory, propagate with SGP4 for 1 day,
-feed the resulting OEM-like state vectors into build_tle, and compare
+feed the resulting OEM-like state vectors into oem_to_tle, and compare
 the reconstructed TLE against the original.
 """
 
@@ -91,7 +91,7 @@ def run_propagate_tle(tle_path: Path) -> str:
     return result.stdout
 
 
-def run_build_tle(
+def run_oem_to_tle(
     oem_text: str, original: tle.Tle, refinement: str = "cartesian"
 ) -> str:
     """Run oem_to_tle script and return output.
@@ -237,7 +237,7 @@ def tle_round_trip(request) -> tuple[tle.Tle, tle.Tle]:
     with open(tle_path, encoding="utf-8") as fh:
         original: tle.Tle = tle.read_tle(fh)
     oem_text: str = run_propagate_tle(tle_path)
-    build_output: str = run_build_tle(oem_text, original)
+    build_output: str = run_oem_to_tle(oem_text, original)
     reconstructed: tle.Tle = parse_generated_tle_from_output(build_output)
     return original, reconstructed
 
