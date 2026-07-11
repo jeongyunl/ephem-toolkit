@@ -15,8 +15,10 @@ from datetime import datetime, timedelta, timezone
 import numpy as np
 
 import common.kepler as kepler
+import common.mean_kepler as mean_kepler
 import common.omm as omm
 import common.tle as tle
+import common.consts as consts
 
 # ===================================================================
 # Internal helpers
@@ -50,10 +52,7 @@ def _tle_exponential_to_float(tle_exp: str) -> float:
 
     # Parse sign
     sign_char: str = value[0]
-    if sign_char == "-":
-        sign: float = -1.0
-    else:
-        sign = 1.0
+    sign: float = -1.0 if sign_char == "-" else 1.0
 
     # Mantissa digits (5 digits)
     mantissa_str: str = value[1:6]
@@ -62,10 +61,7 @@ def _tle_exponential_to_float(tle_exp: str) -> float:
     exp_sign_char: str = value[6]
     exp_digit: str = value[7]
 
-    if exp_sign_char == "-":
-        exponent: int = -int(exp_digit)
-    else:
-        exponent = int(exp_digit)
+    exponent: int = -int(exp_digit) if exp_sign_char == "-" else int(exp_digit)
 
     # The mantissa is an assumed decimal: ##### -> 0.#####
     mantissa: float = int(mantissa_str) * 1e-5
@@ -415,7 +411,9 @@ def omm_to_tle(omm_obj: omm.CcsdsOmm) -> tle.Tle:
 
 
 def tle_to_osculating_keplerian(
-    tle_obj: tle.Tle, mu: float = kepler.MU_EARTH, apply_j2: bool = True
+    tle_obj: tle.Tle,
+    mu_m3_s2: float = consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2,
+    apply_j2: bool = True,
 ) -> np.ndarray:
     """Extract osculating Keplerian elements at the TLE epoch.
 
@@ -429,7 +427,7 @@ def tle_to_osculating_keplerian(
     ----------
     tle_obj : tle.Tle
         Parsed TLE dataclass (from common.tle.read_tle).
-    mu : float
+    mu_m3_s2 : float
         Gravitational parameter (m³/s²).
     apply_j2 : bool
         If True, apply Brouwer J2 short-period corrections to convert
@@ -457,19 +455,19 @@ def tle_to_osculating_keplerian(
     mean_motion_rev_per_day: float = tle_obj.mean_motion_rev_per_day
 
     # Convert to radians
-    inclination_rad: np.ndarray = np.radians(inclination_deg)
-    raan_rad: np.ndarray = np.radians(raan_deg)
-    argument_of_perigee_rad: np.ndarray = np.radians(argument_of_perigee_deg)
-    mean_anomaly_rad: np.ndarray = np.radians(mean_anomaly_deg)
+    inclination_rad: float = np.radians(inclination_deg)
+    raan_rad: float = np.radians(raan_deg)
+    argument_of_perigee_rad: float = np.radians(argument_of_perigee_deg)
+    mean_anomaly_rad: float = np.radians(mean_anomaly_deg)
 
     # Semi-major axis from mean motion (Kepler's third law)
     semi_major_axis_m: float = kepler.mean_motion_to_semi_major_axis(
-        mean_motion_rev_per_day, mu
+        mean_motion_rev_per_day, mu_m3_s2
     )
 
     if apply_j2:
         # Apply Brouwer J2 short-period corrections
-        osc: np.ndarray = kepler.compute_brouwer_short_period_corrections(
+        osc: np.ndarray = mean_kepler.compute_brouwer_short_period_corrections(
             np.array(
                 [
                     semi_major_axis_m,
@@ -485,7 +483,7 @@ def tle_to_osculating_keplerian(
         return osc
     else:
         # Simple two-body conversion (legacy behavior)
-        true_anomaly_rad: np.ndarray = kepler.mean_to_true_anomaly(
+        true_anomaly_rad: float = kepler.mean_to_true_anomaly(
             mean_anomaly_rad, mean_eccentricity
         )
         return np.array(

@@ -1,4 +1,9 @@
-"""Data models for TLE estimation."""
+"""Data models for TLE estimation.
+
+Provides dataclasses for representing orbital elements, TLE parameters,
+refinement results, and diagnostic quantities computed during the TLE
+estimation process.
+"""
 
 from __future__ import annotations
 
@@ -19,8 +24,8 @@ class OrbitalElements:
     matching the native TLE representation.
     """
 
-    semi_major_axis_km: float
-    """Semi-major axis in km."""
+    semi_major_axis_m: float
+    """Semi-major axis in m."""
     eccentricity: float
     """Eccentricity (dimensionless, 0 to <1)."""
     inclination_deg: float
@@ -34,6 +39,13 @@ class OrbitalElements:
     mean_motion_rev_per_day: float
     """Mean motion in revolutions per day."""
 
+    def __repr__(self) -> str:
+        return (
+            f"OrbitalElements(semi_major_axis_m={self.semi_major_axis_m}, "
+            f"eccentricity={self.eccentricity}, "
+            f"inclination_deg={self.inclination_deg})"
+        )
+
 
 @dataclass
 class KeplerianMatchErrors:
@@ -42,8 +54,8 @@ class KeplerianMatchErrors:
     All angular quantities are in degrees; semi-major axis in km.
     """
 
-    semi_major_axis_error_km: float
-    """Semi-major axis error in km (TLE minus reference)."""
+    semi_major_axis_error_m: float
+    """Semi-major axis error in m (TLE minus reference)."""
     eccentricity_error: float
     """Eccentricity error (dimensionless)."""
     inclination_error_deg: float
@@ -56,6 +68,13 @@ class KeplerianMatchErrors:
     """True anomaly error in degrees."""
     arg_latitude_error_deg: float
     """Argument of latitude (ω+θ) error in degrees."""
+
+    def __repr__(self) -> str:
+        return (
+            f"KeplerianMatchErrors(semi_major_axis_error_m={self.semi_major_axis_error_m}, "
+            f"eccentricity_error={self.eccentricity_error}, "
+            f"inclination_error_deg={self.inclination_error_deg})"
+        )
 
 
 @dataclass
@@ -103,6 +122,13 @@ class TleDeltas:
             mean_motion_rev_per_day=float(arr[5]),
         )
 
+    def __repr__(self) -> str:
+        return (
+            f"TleDeltas(inclination_deg={self.inclination_deg}, "
+            f"raan_deg={self.raan_deg}, "
+            f"eccentricity={self.eccentricity})"
+        )
+
 
 @dataclass
 class TleParameters:
@@ -113,11 +139,17 @@ class TleParameters:
     """
 
     inclination_deg: float
+    """Inclination in degrees."""
     raan_deg: float
+    """Right ascension of ascending node in degrees."""
     eccentricity: float
+    """Eccentricity (dimensionless, 0 to <1)."""
     arg_perigee_deg: float
+    """Argument of perigee in degrees."""
     mean_anomaly_deg: float
+    """Mean anomaly in degrees."""
     mean_motion_rev_per_day: float
+    """Mean motion in revolutions per day."""
 
     @classmethod
     def from_estimated(cls, estimated: Estimated) -> TleParameters:
@@ -215,6 +247,13 @@ class TleParameters:
             + deltas.mean_motion_rev_per_day * scale,
         )
 
+    def __repr__(self) -> str:
+        return (
+            f"TleParameters(inclination_deg={self.inclination_deg}, "
+            f"raan_deg={self.raan_deg}, "
+            f"eccentricity={self.eccentricity})"
+        )
+
 
 @dataclass
 class OrbitalRecord:
@@ -235,6 +274,13 @@ class OrbitalRecord:
     mean_argument_latitude_rad: float
     """Mean argument of latitude (ω+M) in radians."""
 
+    def __repr__(self) -> str:
+        return (
+            f"OrbitalRecord(t_day={self.t_day}, "
+            f"raan_rad={self.raan_rad}, "
+            f"arg_perigee_rad={self.arg_perigee_rad})"
+        )
+
 
 @dataclass
 class PhaseMatchResult:
@@ -253,6 +299,13 @@ class PhaseMatchResult:
     mean_anomaly_rad: float
     """Averaged mean anomaly in radians."""
 
+    def __repr__(self) -> str:
+        return (
+            f"PhaseMatchResult(count={self.count}, "
+            f"raan_rad={self.raan_rad}, "
+            f"arg_perigee_rad={self.arg_perigee_rad})"
+        )
+
 
 @dataclass
 class KeplerianAccuracy:
@@ -265,9 +318,7 @@ class KeplerianAccuracy:
 
     # Element-wise errors (TLE minus reference)
     semi_major_axis_error_m: float
-    """Semi-major axis error in metres."""
-    semi_major_axis_error_km: float
-    """Semi-major axis error in km."""
+    """Semi-major axis error in m."""
     eccentricity_error: float
     """Eccentricity error (dimensionless)."""
     inclination_error_deg: float
@@ -282,8 +333,8 @@ class KeplerianAccuracy:
     """Argument of latitude (ω+θ) error in degrees."""
 
     # Reference osculating elements
-    ref_semi_major_axis_km: float
-    """Reference semi-major axis in km."""
+    ref_semi_major_axis_m: float
+    """Reference semi-major axis in m."""
     ref_eccentricity: float
     """Reference eccentricity (dimensionless)."""
     ref_inclination_deg: float
@@ -296,8 +347,8 @@ class KeplerianAccuracy:
     """Reference true anomaly in degrees."""
 
     # TLE-derived osculating elements
-    tle_semi_major_axis_km: float
-    """TLE-derived semi-major axis in km."""
+    tle_semi_major_axis_m: float
+    """TLE-derived semi-major axis in m."""
     tle_eccentricity: float
     """TLE-derived eccentricity (dimensionless)."""
     tle_inclination_deg: float
@@ -308,6 +359,13 @@ class KeplerianAccuracy:
     """TLE-derived argument of perigee in degrees."""
     tle_true_anomaly_deg: float
     """TLE-derived true anomaly in degrees."""
+
+    def __repr__(self) -> str:
+        return (
+            f"KeplerianAccuracy(semi_major_axis_error_m={self.semi_major_axis_error_m}, "
+            f"eccentricity_error={self.eccentricity_error}, "
+            f"inclination_error_deg={self.inclination_error_deg})"
+        )
 
 
 @dataclass
@@ -351,7 +409,7 @@ class Estimated:
     mean_motion_first_derivative_raw: float
 
     # Orbital characteristics
-    semi_major_axis_km: float
+    semi_major_axis_m: float
     dataset_slope_rev_per_day2: float
 
     # Optional B* drag term fields
@@ -363,11 +421,18 @@ class Estimated:
     # Optional state-match refinement fields
     state_match_refinement_used: bool | None = None
     state_match_iterations: int | None = None
-    state_match_position_error_km: float | None = None
-    state_match_velocity_error_km_s: float | None = None
+    state_match_position_error_m: float | None = None
+    state_match_velocity_error_m_s: float | None = None
 
     # Optional Keplerian-match refinement fields
     keplerian_match_refinement_used: bool | None = None
     keplerian_match_iterations: int | None = None
     keplerian_match_score: float | None = None
     keplerian_match_errors: KeplerianMatchErrors | None = None
+
+    def __repr__(self) -> str:
+        return (
+            f"Estimated(epoch_year={self.epoch_year}, "
+            f"epoch_day={self.epoch_day}, "
+            f"inclination_deg={self.inclination_deg})"
+        )

@@ -2,6 +2,9 @@
 
 Provides low-level functions (:func:`read_omm`, :func:`write_omm`) that
 operate on plain dictionaries, and a structured :class:`CcsdsOmm` class.
+
+References:
+    CCSDS 502.0-B-2 "Orbit Mean-Elements Message (OMM)" standard.
 """
 
 from __future__ import annotations
@@ -10,17 +13,11 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Callable, TextIO
 
+import common.common as common
+
 # ===================================================================
 # Internal helpers
 # ===================================================================
-
-
-def _parse_kv_line(line: str) -> tuple[str, str] | None:
-    """Return (key, value) from ``KEY = VALUE`` lines, or *None*."""
-    if "=" not in line:
-        return None
-    key, _, value = line.partition("=")
-    return key.strip(), value.strip()
 
 
 def _try_numeric(value: str) -> int | float | str:
@@ -36,7 +33,6 @@ def _try_numeric(value: str) -> int | float | str:
     return value
 
 
-# Canonical key ordering for the OMM metadata section
 _META_KEY_ORDER: list[str] = [
     "OBJECT_NAME",
     "OBJECT_ID",
@@ -45,8 +41,8 @@ _META_KEY_ORDER: list[str] = [
     "TIME_SYSTEM",
     "MEAN_ELEMENT_THEORY",
 ]
+"""Canonical key ordering for the OMM metadata section."""
 
-# Canonical key ordering for the mean elements section
 _MEAN_ELEMENTS_KEY_ORDER: list[str] = [
     "EPOCH",
     "MEAN_MOTION",
@@ -56,8 +52,8 @@ _MEAN_ELEMENTS_KEY_ORDER: list[str] = [
     "ARG_OF_PERICENTER",
     "MEAN_ANOMALY",
 ]
+"""Canonical key ordering for the mean elements section."""
 
-# Canonical key ordering for the TLE-related parameters section
 _TLE_PARAMS_KEY_ORDER: list[str] = [
     "EPHEMERIS_TYPE",
     "CLASSIFICATION_TYPE",
@@ -68,6 +64,7 @@ _TLE_PARAMS_KEY_ORDER: list[str] = [
     "MEAN_MOTION_DOT",
     "MEAN_MOTION_DDOT",
 ]
+"""Canonical key ordering for the TLE-related parameters section."""
 
 
 # ===================================================================
@@ -114,7 +111,7 @@ def read_omm(
             header["COMMENT"].append(comment_text)
             continue
 
-        kv: tuple[str, str] | None = _parse_kv_line(line)
+        kv: tuple[str, str] | None = common.parse_key_value_line(line)
         if kv is None:
             continue
 

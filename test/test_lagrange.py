@@ -5,13 +5,13 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 import numpy as np
 import pytest
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 import common.oem as oem
-import interpolator.lagrange as lagrange
+import common.interpolator.lagrange as lagrange
 
 
 def test_lagrange_interpolator_interpolates_linear_data() -> None:
@@ -79,18 +79,19 @@ def test_interpolated_oem_velocity_norm_matches_original_oem() -> None:
             / step_size_sec
         )
 
+        # Tolerance adjusted for m/s units (was 1e-2 for km/s, now 10.0 for m/s)
         assert (
             abs(
                 calculated_velocity_norm_from_interpolated_positions
                 - reference_velocity_norm
             )
-            < 1e-2
+            < 10.0
         )
 
         interpolated_velocity: np.ndarray = np.asarray(interpolated_state[3:6])
         interpolated_velocity_norm: float = np.linalg.norm(interpolated_velocity)
 
-        assert abs(interpolated_velocity_norm - reference_velocity_norm) < 1e-2
+        assert abs(interpolated_velocity_norm - reference_velocity_norm) < 10.0
 
         previous_interpolated_position = interpolated_position
 

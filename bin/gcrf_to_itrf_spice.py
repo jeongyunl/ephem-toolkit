@@ -12,8 +12,6 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 # Suppress Warnings from TudatPy
 import warnings
 
@@ -26,8 +24,11 @@ warnings.filterwarnings(
 import numpy as np
 from tudatpy.interface import spice
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 import common.common as common
 import common.oem as oem
+import common.time_utils as time_utils
 
 
 def load_spice_kernels() -> None:
@@ -111,9 +112,8 @@ def process_stream(stream: TextIO, reverse: bool = False) -> None:
     load_spice_kernels()
 
     if reverse:
-        base_frame: str
-        target_frame: str
-        base_frame, target_frame = "ITRF93", "J2000"
+        base_frame: str = "ITRF93"
+        target_frame: str = "J2000"
     else:
         base_frame = "J2000"
         target_frame = "ITRF93"
@@ -128,7 +128,7 @@ def process_stream(stream: TextIO, reverse: bool = False) -> None:
             continue
 
         epoch_dt, input_state_km = parsed
-        epoch_tdb_s: float = common.datetime_to_tdb(epoch_dt)
+        epoch_tdb_s: float = time_utils.datetime_to_tdb(epoch_dt)
 
         input_state_m: np.ndarray = input_state_km * 1e3
         output_state_m: np.ndarray = convert_frames_spice(
@@ -139,13 +139,20 @@ def process_stream(stream: TextIO, reverse: bool = False) -> None:
         output_velocity_km_s: np.ndarray = output_state_m[3:6] / 1e3
 
         print(
-            common.datetime_to_iso8601(epoch_dt), *output_position_km, sep="  ", end=""
+            time_utils.datetime_to_iso8601(epoch_dt),
+            *output_position_km,
+            sep="  ",
+            end="",
         )
         print("  ", *output_velocity_km_s, sep="  ")
 
 
-def print_usage():
-    """Print the script usage message to standard output."""
+def print_usage() -> None:
+    """Print the script usage message to standard output.
+
+    Displays usage information for the gcrf_to_itrf_spice CLI tool,
+    including positional arguments, options, and input/output formats.
+    """
     print(
         "Usage: python gcrf_to_itrf_spice.py [-h] [-r] [input_file]\n"
         "\n"

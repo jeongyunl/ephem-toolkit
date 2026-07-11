@@ -31,10 +31,31 @@ FORMAT_ALIASES = {
 """Aliases that map user-facing format names to CelesTrak API format tokens."""
 
 
+# ===================================================================
+# Utilities
+# ===================================================================
+
+
 def safe_name(name: str) -> str:
-    """Escape a satellite name for use in a filename."""
+    """Escape a satellite name for use in a filename.
+
+    Parameters
+    ----------
+    name : str
+        Satellite name to escape.
+
+    Returns
+    -------
+    str
+        Escaped name suitable for use in a filename.
+    """
     result = name.replace(" ", "-").replace("(", "-").replace(")", "")
     return re.sub(r"-+", "-", result)
+
+
+# ===================================================================
+# CLI entry point
+# ===================================================================
 
 
 def main() -> None:
@@ -42,6 +63,10 @@ def main() -> None:
 
     Parses CLI arguments, fetches data in the requested format, and saves each
     result to a file named after the satellite and its international designator.
+
+    Returns
+    -------
+    None
     """
     parser: argparse.ArgumentParser = argparse.ArgumentParser(
         description="Download TLE/OMM data from CelesTrak"
@@ -104,8 +129,8 @@ def main() -> None:
             print(f"Saved {filename}")
             print()
 
-        except Exception as e:
-            print(f"Error downloading data for {satellite_id}: {e}")
+        except Exception as exception:
+            print(f"Error downloading data for {satellite_id}: {exception}")
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 from dataclasses import dataclass, field
 
-import interpolator.interpolator as interpolator
+import common.interpolator.interpolator as interpolator
 
 RANGE_OVERSHOOT_TOLERANCE: float = 1e-8
 """Tolerance for allowing queries marginally outside the stored data range."""

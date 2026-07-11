@@ -20,6 +20,7 @@ from matplotlib.animation import FuncAnimation
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import common.common as common
+import common.time_utils as time_utils
 
 SECONDS_PER_HOUR: float = 3600.0
 """Conversion factor from seconds to hours."""
@@ -50,6 +51,11 @@ PLOT_TRUE_ANOMALY_TICK_STEP_DEG: int = 60
 
 EARTH_MEAN_RADIUS_KM: float = 6378.137
 """Earth mean radius in kilometers (WGS-84)."""
+
+
+# ===================================================================
+# Data structures
+# ===================================================================
 
 
 @dataclass(frozen=True)
@@ -88,10 +94,26 @@ class CsvDependentVariableData:
     """Per-column metadata in the same order as the CSV columns"""
 
 
+# ===================================================================
+# CSV I/O functions
+# ===================================================================
+
+
 def read_dependent_variables_csv(
     dep_var_csv_path: str | Path,
 ) -> tuple[np.ndarray, list[str], np.ndarray]:
-    """Read dependent-variable CSV data into numeric arrays."""
+    """Read dependent-variable CSV data into numeric arrays.
+
+    Parameters
+    ----------
+    dep_var_csv_path : str | Path
+        Path to the dependent-variable CSV file.
+
+    Returns
+    -------
+    tuple[np.ndarray, list[str], np.ndarray]
+        A tuple of (time_history_tdb_s, dep_var_headers, dep_var_matrix).
+    """
     with open(dep_var_csv_path, "r", newline="", encoding="utf-8") as csv_file:
         reader = csv.reader(csv_file)
         try:
@@ -140,7 +162,22 @@ def parse_dep_var_column_metadata(
     column_key: str,
     occurrence_index: int,
 ) -> DepVarColumnMeta:
-    """Parse one dependent-variable header into structured metadata."""
+    """Parse one dependent-variable header into structured metadata.
+
+    Parameters
+    ----------
+    header : str
+        The CSV column header string.
+    column_key : str
+        The unique dictionary key for this column.
+    occurrence_index : int
+        Zero-based count of how many times this header appeared before.
+
+    Returns
+    -------
+    DepVarColumnMeta
+        Parsed metadata for the column.
+    """
     parts: list[str] = header.split("/")
     dep_type: str = parts[0] if len(parts) > 0 else ""
     acceleration_model_type: str = parts[1] if len(parts) > 1 else ""
@@ -168,7 +205,18 @@ def parse_dep_var_column_metadata(
 def load_csv_dependent_variable_data(
     dep_var_csv_path: str | Path,
 ) -> CsvDependentVariableData:
-    """Load CSV dependent-variable data and parse per-column metadata."""
+    """Load CSV dependent-variable data and parse per-column metadata.
+
+    Parameters
+    ----------
+    dep_var_csv_path : str | Path
+        Path to the dependent-variable CSV file.
+
+    Returns
+    -------
+    CsvDependentVariableData
+        Loaded data with parsed metadata.
+    """
     time_history_tdb_s, dep_var_headers, dep_var_matrix = read_dependent_variables_csv(
         dep_var_csv_path
     )
@@ -198,6 +246,11 @@ def load_csv_dependent_variable_data(
     )
 
 
+# ===================================================================
+# Data extraction helpers
+# ===================================================================
+
+
 def _filter_metadata(
     data: CsvDependentVariableData,
     dep_type: str,
@@ -205,6 +258,26 @@ def _filter_metadata(
     associated_body: str | None = None,
     secondary_body: str | None = None,
 ) -> list[DepVarColumnMeta]:
+    """Filter metadata by dependent-variable type and optional constraints.
+
+    Parameters
+    ----------
+    data : CsvDependentVariableData
+        The loaded CSV data.
+    dep_type : str
+        Dependent-variable type to match.
+    acceleration_model_type : str | None, optional
+        Acceleration model type filter (default: None).
+    associated_body : str | None, optional
+        Associated body filter (default: None).
+    secondary_body : str | None, optional
+        Secondary body filter (default: None).
+
+    Returns
+    -------
+    list[DepVarColumnMeta]
+        Matching metadata entries.
+    """
     matching = []
     for meta in data.metadata:
         if meta.dep_type != dep_type:
@@ -230,6 +303,33 @@ def _extract_scalar(
     secondary_body: str | None = None,
     occurrence_index: int = 0,
 ) -> np.ndarray:
+    """Extract a scalar dependent-variable column.
+
+    Parameters
+    ----------
+    data : CsvDependentVariableData
+        The loaded CSV data.
+    dep_type : str
+        Dependent-variable type to extract.
+    acceleration_model_type : str | None, optional
+        Acceleration model type filter (default: None).
+    associated_body : str | None, optional
+        Associated body filter (default: None).
+    secondary_body : str | None, optional
+        Secondary body filter (default: None).
+    occurrence_index : int, optional
+        Which occurrence to extract if multiple matches (default: 0).
+
+    Returns
+    -------
+    np.ndarray
+        The scalar data array.
+
+    Raises
+    ------
+    KeyError
+        If no matching column is found.
+    """
     matches = [
         meta
         for meta in _filter_metadata(
@@ -261,6 +361,29 @@ def _extract_vector(
     associated_body: str | None = None,
     secondary_body: str | None = None,
 ) -> np.ndarray:
+    """Extract a vector dependent-variable (3 components).
+
+    Parameters
+    ----------
+    data : CsvDependentVariableData
+        The loaded CSV data.
+    dep_type : str
+        Dependent-variable type to extract.
+    associated_body : str | None, optional
+        Associated body filter (default: None).
+    secondary_body : str | None, optional
+        Secondary body filter (default: None).
+
+    Returns
+    -------
+    np.ndarray
+        The vector data array with shape (N, 3).
+
+    Raises
+    ------
+    KeyError
+        If no matching columns are found.
+    """
     matches = [
         meta
         for meta in _filter_metadata(
@@ -292,6 +415,23 @@ def _extract_latitude_longitude(
     and longitude as either ``longitude`` or
     ``relative_body_aerodynamic_orientation_angle``.  This function tries
     multiple known combinations to locate the correct columns.
+
+    Parameters
+    ----------
+    data : CsvDependentVariableData
+        The loaded CSV data.
+    satellite_name : str
+        Name of the satellite for filtering.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        Latitude and longitude arrays in radians.
+
+    Raises
+    ------
+    KeyError
+        If no matching latitude/longitude columns are found.
     """
     # Known dep_type names that represent latitude
     latitude_dep_types = ["latitude", "geodetic_latitude"]
@@ -376,7 +516,25 @@ def _extract_central_body_fixed_position(
     data: CsvDependentVariableData,
     satellite_name: str,
 ) -> np.ndarray:
-    """Extract Earth-fixed cartesian position with compatibility for header variants."""
+    """Extract Earth-fixed cartesian position with compatibility for header variants.
+
+    Parameters
+    ----------
+    data : CsvDependentVariableData
+        The loaded CSV data.
+    satellite_name : str
+        Name of the satellite for filtering.
+
+    Returns
+    -------
+    np.ndarray
+        Earth-fixed position array with shape (N, 3).
+
+    Raises
+    ------
+    KeyError
+        If no matching position columns are found.
+    """
     candidate_dep_types = [
         "central_body_fixed_cartesian_position",
         "body_fixed_relative_cartesian_position",
@@ -411,7 +569,25 @@ def _extract_relative_position(
     data: CsvDependentVariableData,
     satellite_name: str,
 ) -> np.ndarray:
-    """Extract relative cartesian position with compatibility for header variants."""
+    """Extract relative cartesian position with compatibility for header variants.
+
+    Parameters
+    ----------
+    data : CsvDependentVariableData
+        The loaded CSV data.
+    satellite_name : str
+        Name of the satellite for filtering.
+
+    Returns
+    -------
+    np.ndarray
+        Relative position array with shape (N, 3).
+
+    Raises
+    ------
+    KeyError
+        If no matching position columns are found.
+    """
     candidate_dep_types = ["relative_position"]
     fallback_constraints = [
         (satellite_name, "Earth"),
@@ -438,9 +614,25 @@ def _extract_relative_position(
     )
 
 
+# ===================================================================
+# Plotting functions
+# ===================================================================
+
+
 def plot_total_acceleration(
     data: CsvDependentVariableData, relative_time_h: np.ndarray, satellite_name: str
 ) -> None:
+    """Plot total acceleration norm over time.
+
+    Parameters
+    ----------
+    data : CsvDependentVariableData
+        The loaded CSV data.
+    relative_time_h : np.ndarray
+        Time array in hours relative to start.
+    satellite_name : str
+        Name of the satellite for labels.
+    """
     plt.figure(figsize=PLOT_STANDARD_FIGURE_SIZE_IN)
     plt.title(
         f"Total acceleration norm on {satellite_name} over the course of propagation."
@@ -463,6 +655,17 @@ def plot_total_acceleration(
 def plot_ground_track(
     data: CsvDependentVariableData, relative_time_h: np.ndarray, satellite_name: str
 ) -> None:
+    """Plot ground track (latitude/longitude) for first 3 hours.
+
+    Parameters
+    ----------
+    data : CsvDependentVariableData
+        The loaded CSV data.
+    relative_time_h : np.ndarray
+        Time array in hours relative to start.
+    satellite_name : str
+        Name of the satellite for labels.
+    """
     plt.figure(figsize=PLOT_STANDARD_FIGURE_SIZE_IN)
     plt.title(f"3 hour ground track of {satellite_name}")
     latitude_rad, longitude_rad = _extract_latitude_longitude(data, satellite_name)
@@ -480,6 +683,17 @@ def plot_ground_track(
 def plot_kepler_elements(
     data: CsvDependentVariableData, relative_time_h: np.ndarray, satellite_name: str
 ) -> None:
+    """Plot evolution of Keplerian orbital elements.
+
+    Parameters
+    ----------
+    data : CsvDependentVariableData
+        The loaded CSV data.
+    relative_time_h : np.ndarray
+        Time array in hours relative to start.
+    satellite_name : str
+        Name of the satellite for labels.
+    """
     fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(
         3, 2, figsize=PLOT_KEPLER_FIGURE_SIZE_IN
     )
@@ -526,6 +740,17 @@ def plot_kepler_elements(
 def plot_acceleration_components(
     data: CsvDependentVariableData, relative_time_h: np.ndarray, satellite_name: str
 ) -> None:
+    """Plot acceleration components by type and origin.
+
+    Parameters
+    ----------
+    data : CsvDependentVariableData
+        The loaded CSV data.
+    relative_time_h : np.ndarray
+        Time array in hours relative to start.
+    satellite_name : str
+        Name of the satellite for labels.
+    """
     acceleration_type_to_string = {
         "point_mass_gravity": "Point Mass",
         "spherical_harmonic_gravity": "SphHarm Grav",
@@ -564,7 +789,21 @@ def plot_acceleration_components(
 
 def plot_satellite_body_fixed_position_history_3d(
     data: CsvDependentVariableData, satellite_name: str
-):
+) -> FuncAnimation | None:
+    """Create 3D animated plot of satellite position in Earth-fixed frame.
+
+    Parameters
+    ----------
+    data : CsvDependentVariableData
+        The loaded CSV data.
+    satellite_name : str
+        Name of the satellite for labels.
+
+    Returns
+    -------
+    FuncAnimation | None
+        Animation object, or None if no position data available.
+    """
     positions_m = _extract_central_body_fixed_position(data, satellite_name)
     if positions_m.size == 0:
         return None
@@ -709,7 +948,21 @@ def plot_satellite_body_fixed_position_history_3d(
 
 def plot_satellite_relative_position_history_3d(
     data: CsvDependentVariableData, satellite_name: str
-):
+) -> FuncAnimation | None:
+    """Create 3D animated plot of satellite relative position.
+
+    Parameters
+    ----------
+    data : CsvDependentVariableData
+        The loaded CSV data.
+    satellite_name : str
+        Name of the satellite for labels.
+
+    Returns
+    -------
+    FuncAnimation | None
+        Animation object, or None if no position data available.
+    """
     positions_m = _extract_relative_position(data, satellite_name)
     if positions_m.size == 0:
         return None
@@ -854,12 +1107,17 @@ def plot_satellite_relative_position_history_3d(
     )
 
 
+# ===================================================================
+# Main entry point
+# ===================================================================
+
+
 def plot_dependent_variables_from_csv(
     dep_var_csv_path: str | Path,
     satellite_name: str,
     show: bool = True,
     duration_s: float | None = None,
-):
+) -> list[FuncAnimation | None]:
     """Generate all dependent-variable plots from a CSV file.
 
     Parameters
@@ -872,6 +1130,16 @@ def plot_dependent_variables_from_csv(
         Whether to display plots (default: True).
     duration_s : float | None, optional
         Duration in seconds to plot. If None, plots all data (default: None).
+
+    Returns
+    -------
+    list[FuncAnimation | None]
+        List of animation objects for 3D trajectory plots.
+
+    Raises
+    ------
+    ValueError
+        If the CSV file has no data rows.
     """
     data = load_csv_dependent_variable_data(dep_var_csv_path)
     if data.time_history_tdb_s.size == 0:
@@ -924,6 +1192,13 @@ def plot_dependent_variables_from_csv(
 
 
 def build_cli_parser() -> argparse.ArgumentParser:
+    """Build command-line argument parser.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        Configured argument parser.
+    """
     parser = argparse.ArgumentParser(
         description="Plot dependent-variable histories from a saved Tudat CSV file."
     )
@@ -941,7 +1216,7 @@ def build_cli_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "-d",
         "--duration",
-        type=common.parse_duration_to_seconds,
+        type=time_utils.parse_duration_to_seconds,
         default=None,
         metavar="<duration>",
         help="Duration to plot in format <number>[s|m|h|d] (e.g., 1h, 30m, 3600s). If not specified, plots all data.",
@@ -950,6 +1225,7 @@ def build_cli_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    """Main entry point for the script."""
     cli_args = build_cli_parser().parse_args()
 
     # Keep animation objects alive until plt.show() returns.

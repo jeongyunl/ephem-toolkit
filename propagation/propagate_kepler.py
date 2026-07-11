@@ -2,13 +2,13 @@
 """Keplerian element propagation.
 
 Read one OEM-like line of Keplerian elements from a file or stdin, then
-propagate the orbit using TudatPy's two-body propagator.
+propagate the orbit using the two-body Kepler propagator.
 
 Expected input format:
     <ISO-8601 epoch>  <a_km>  <e>  <i_rad>  <omega_rad>  <RAAN_rad>  <theta_rad>
 
 The semi-major axis is interpreted in kilometers and converted to meters before
-calling the TudatPy propagator. Output is emitted as the same OEM-like format.
+calling the propagator. Output is emitted as the same OEM-like format.
 """
 
 from __future__ import annotations
@@ -24,28 +24,30 @@ import warnings
 warnings.filterwarnings("ignore", module="urllib3")
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 
+import numpy as np
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 import common.common as common
 import common.oem as oem
 import common.kepler as kepler
+import common.consts as consts
+import common.time_utils as time_utils
 
-import numpy as np
+# ===================================================================
+# Constants
+# ===================================================================
 
-# CLI defaults
-DEFAULT_PROPAGATION_DURATION_S: float = common.SECONDS_PER_DAY
+DEFAULT_PROPAGATION_DURATION_S: float = time_utils.SECONDS_PER_DAY
 """Default propagation duration in seconds (1 day)."""
 
-DEFAULT_OUTPUT_STEP_S: float = 15.0 * common.SECONDS_PER_MINUTE
+DEFAULT_OUTPUT_STEP_S: float = 15.0 * time_utils.SECONDS_PER_MINUTE
 """Default output sampling interval in seconds (15 minutes)."""
 
 
-def import_tudat_modules() -> object:
-    """Import TudatPy modules lazily at runtime."""
-
-    from tudatpy.astro import two_body_dynamics
-
-    return two_body_dynamics
+# ===================================================================
+# Command-line interface
+# ===================================================================
 
 
 def parse_args() -> argparse.Namespace:
@@ -54,13 +56,13 @@ def parse_args() -> argparse.Namespace:
     Returns
     -------
     argparse.Namespace
-        Parsed arguments with attributes ``input_file``, ``duration``,
-        ``step``, and ``oem``.
+        Parsed arguments with attributes ``input_file``, ``duration_s``,
+        ``step_s``, and ``oem``.
     """
     parser = argparse.ArgumentParser(
         description=(
-            "Load one OEM-like line of Keplerian elements, propagate using TudatPy, "
-            "and write propagated keplerian elements in OEM-like format."
+            "Load one OEM-like line of Keplerian elements, propagate using two-body "
+            "Kepler dynamics, and write propagated keplerian elements in OEM-like format."
         )
     )
     parser.add_argument(
@@ -75,20 +77,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "-d",
         "--duration",
-        type=common.parse_duration_to_seconds,
+        type=time_utils.parse_duration_to_seconds,
         metavar="<value[s|m|h|d]>",
         default=DEFAULT_PROPAGATION_DURATION_S,
+        dest="duration_s",
         help=(
             "Propagation duration (default: 1d). "
-            "Use -d/--duration, e.g. -d 90, --duration 90s, -d 2m, -d 1.5h, -d 1d."
+            "Use -d/--duration, e.g. -d 90 (90 seconds), --duration 90s, -d 2m, -d 1.5h, -d 1d."
         ),
     )
     parser.add_argument(
         "-s",
         "--step",
-        type=common.parse_step_to_seconds,
+        type=time_utils.parse_duration_to_seconds,
         metavar="<value[s|m]>",
         default=DEFAULT_OUTPUT_STEP_S,
+        dest="step_s",
         help=(
             "Output interval (default: 15m). "
             "Use -s/--step, e.g. -s 60, --step 60s, -s 1m."
@@ -134,14 +138,14 @@ def read_kepler_input(cli_value: str | None) -> tuple[dt.datetime, np.ndarray, s
         if not input_path.is_file():
             raise FileNotFoundError(f"Input file not found: {input_path}")
 
-        with input_path.open("r", encoding="utf-8") as handle:
-            lines: list[str] = [line.strip() for line in handle if line.strip()]
-        parsed: tuple[dt.datetime, np.ndarray] | None = oem.parse_oem_state_line(
+        with input_path.open("r", encoding="utf-8") as file_stream:
+            lines: list[str] = [line.strip() for line in file_stream if line.strip()]
+        parsed_state: tuple[dt.datetime, np.ndarray] | None = oem.parse_oem_state_line(
             lines[-1]
         )
-        if parsed is None:
+        if parsed_state is None:
             raise ValueError(f"No valid Keplerian element line found in {input_path}")
-        epoch_dt, kepler_km = parsed
+        epoch_dt, kepler_km = parsed_state
         return epoch_dt, kepler_km, input_path.stem
 
     if sys.stdin.isatty():
@@ -157,10 +161,12 @@ def read_kepler_input(cli_value: str | None) -> tuple[dt.datetime, np.ndarray, s
     lines: list[str] = [
         line.strip() for line in stdin_text.splitlines() if line.strip()
     ]
-    parsed: tuple[dt.datetime, np.ndarray] | None = oem.parse_oem_state_line(lines[-1])
-    if parsed is None:
+    parsed_state: tuple[dt.datetime, np.ndarray] | None = oem.parse_oem_state_line(
+        lines[-1]
+    )
+    if parsed_state is None:
         raise ValueError("No valid Keplerian element line found on stdin")
-    epoch_dt, kepler_km = parsed
+    epoch_dt, kepler_km = parsed_state
     if epoch_dt.tzinfo is None:
         epoch_dt = epoch_dt.replace(tzinfo=dt.timezone.utc)
     else:
@@ -168,12 +174,16 @@ def read_kepler_input(cli_value: str | None) -> tuple[dt.datetime, np.ndarray, s
     return epoch_dt, kepler_km, "KEPLER_STDIN"
 
 
+# ===================================================================
+# Propagation
+# ===================================================================
+
+
 def propagate_kepler_elements(
     initial_epoch: dt.datetime,
     initial_kepler_km: np.ndarray,
-    duration: float,
-    step: float,
-    two_body_dynamics_module,
+    duration_s: float,
+    step_s: float,
     include_oem_header: bool,
     object_name: str,
 ) -> None:
@@ -190,12 +200,10 @@ def propagate_kepler_elements(
     initial_kepler_km : np.ndarray
         6-element initial Keplerian state vector in km/rad
         ``[a_km, e, i_rad, omega_rad, RAAN_rad, theta_rad]``.
-    duration : float
-        Propagation duration in seconds.
-    step : float
-        Output sampling interval in seconds.
-    two_body_dynamics_module : module
-        TudatPy ``two_body_dynamics`` module used for Keplerian propagation.
+    duration_s : float
+        Propagation duration (s).
+    step_s : float
+        Output sampling interval (s).
     include_oem_header : bool
         If True, write a CCSDS OEM header before the state lines.
     object_name : str
@@ -205,37 +213,35 @@ def propagate_kepler_elements(
     initial_kepler_m[kepler.SEMI_MAJOR_AXIS_INDEX] *= 1e3
     initial_kepler_m = initial_kepler_m.reshape((6, 1))
 
-    stop_time: float = duration
-    current_time: float = 0.0
+    stop_time_s: float = duration_s
+    current_time_s: float = 0.0
     propagated_states: list[tuple[dt.datetime, np.ndarray]] = []
-    while current_time <= stop_time + 1.0e-12:
-        propagated_kepler: np.ndarray = two_body_dynamics_module.propagate_kepler_orbit(
+    while current_time_s <= stop_time_s + 1.0e-12:
+        propagated_kepler: np.ndarray = kepler.propagate_kepler(
             initial_kepler_m,
-            current_time,
-            kepler.MU_EARTH,
+            current_time_s,
         ).flatten()
         propagated_cartesian_m: np.ndarray = kepler.keplerian_to_cartesian(
-            propagated_kepler,
-            kepler.MU_EARTH,
+            propagated_kepler
         ).flatten()
         propagated_cartesian_km: np.ndarray = propagated_cartesian_m * 1e-3
         propagated_states.append(
             (
-                initial_epoch + dt.timedelta(seconds=current_time),
+                initial_epoch + dt.timedelta(seconds=current_time_s),
                 propagated_cartesian_km,
             )
         )
-        current_time += step
+        current_time_s += step_s
 
     if include_oem_header:
-        now: str = dt.datetime.now(tz=dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[
-            :-3
-        ]
-        stop_epoch: dt.datetime = initial_epoch + dt.timedelta(seconds=duration)
+        creation_date_iso: str = dt.datetime.now(tz=dt.timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%S.%f"
+        )[:-3]
+        stop_epoch: dt.datetime = initial_epoch + dt.timedelta(seconds=duration_s)
 
         header: oem.OemHeader = oem.OemHeader(
             version=2.0,
-            creation_date=now,
+            creation_date=creation_date_iso,
             originator="tudatpy-utils",
         )
 
@@ -245,8 +251,8 @@ def propagate_kepler_elements(
             center_name="EARTH",
             ref_frame="KEPLERIAN",
             time_system="UTC",
-            start_time=common.datetime_to_iso8601(initial_epoch),
-            stop_time=common.datetime_to_iso8601(stop_epoch),
+            start_time=time_utils.datetime_to_iso8601(initial_epoch),
+            stop_time=time_utils.datetime_to_iso8601(stop_epoch),
         )
         oem_message: oem.CcsdsOem = oem.CcsdsOem(
             header=header,
@@ -261,6 +267,11 @@ def propagate_kepler_elements(
         oem.write_states(sys.stdout, states_dict)
 
 
+# ===================================================================
+# Main entry point
+# ===================================================================
+
+
 def main() -> int:
     """Execute the Keplerian propagation workflow.
 
@@ -270,23 +281,21 @@ def main() -> int:
         Process return code. ``0`` on success.
     """
     args: argparse.Namespace = parse_args()
-    if args.duration <= 0.0:
+    if args.duration_s <= 0.0:
         raise ValueError("--duration must be > 0")
-    if args.step <= 0.0:
+    if args.step_s <= 0.0:
         raise ValueError("--step must be > 0")
 
     initial_epoch: dt.datetime
     initial_kepler_km: np.ndarray
     object_name: str
     initial_epoch, initial_kepler_km, object_name = read_kepler_input(args.input_file)
-    two_body_dynamics_module: object = import_tudat_modules()
 
     propagate_kepler_elements(
         initial_epoch=initial_epoch,
         initial_kepler_km=initial_kepler_km,
-        duration=args.duration,
-        step=args.step,
-        two_body_dynamics_module=two_body_dynamics_module,
+        duration_s=args.duration_s,
+        step_s=args.step_s,
         include_oem_header=args.oem,
         object_name=object_name,
     )
@@ -296,6 +305,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except Exception as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+    except Exception as error:
+        print(f"Error: {error}", file=sys.stderr)
         raise SystemExit(1)

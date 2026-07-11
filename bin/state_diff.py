@@ -14,14 +14,14 @@ from pathlib import Path
 
 import numpy as np
 
-# Add parent directory to path to import common module
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.common as common
 import common.oem as oem
+import common.time_utils as time_utils
 
 
-def read_state_from_file(filepath: str) -> tuple:
+def read_state_from_file(filepath: str) -> tuple[object, object]:
     """Read a single OEM-like state line from a file.
 
     Skips comments and blank lines, returns the first valid state found.
@@ -33,7 +33,7 @@ def read_state_from_file(filepath: str) -> tuple:
 
     Returns
     -------
-    tuple
+    tuple[object, object]
         ``(epoch_dt, state_km)`` tuple where *state_km* is a 6-element vector
         ``[x, y, z, vx, vy, vz]`` in km / km·s⁻¹.
 
@@ -54,12 +54,12 @@ def read_state_from_file(filepath: str) -> tuple:
     raise ValueError(f"No valid OEM-like state found in '{filepath}'")
 
 
-def read_state_from_stdin() -> tuple:
+def read_state_from_stdin() -> tuple[object, object]:
     """Read a single OEM-like state line from stdin.
 
     Returns
     -------
-    tuple
+    tuple[object, object]
         ``(epoch_dt, state_km)`` tuple where *state_km* is a 6-element vector
         ``[x, y, z, vx, vy, vz]`` in km / km·s⁻¹.
 
@@ -184,8 +184,8 @@ def print_results(diff: dict, verbose: bool = False) -> None:
     """
     print("State Comparison Results:")
     print("=" * 70)
-    print(f"State 1 Epoch: {common.datetime_to_iso8601(diff['epoch1'])}")
-    print(f"State 2 Epoch: {common.datetime_to_iso8601(diff['epoch2'])}")
+    print(f"State 1 Epoch: {time_utils.datetime_to_iso8601(diff['epoch1'])}")
+    print(f"State 2 Epoch: {time_utils.datetime_to_iso8601(diff['epoch2'])}")
     print()
     print(f"Time Difference: {diff['time_diff_s']:.6f} seconds")
     print()

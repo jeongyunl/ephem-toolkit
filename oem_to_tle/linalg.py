@@ -1,4 +1,13 @@
-"""Linear algebra utilities for TLE estimation."""
+"""Linear algebra utilities for TLE estimation.
+
+Provides functions for solving dense linear systems and weighted least-squares
+problems using Gaussian elimination and normal equations. Designed for small
+systems typical in TLE parameter estimation workflows.
+
+References:
+    Golub, G.H. and Van Loan, C.F. "Matrix Computations", 4th ed., Johns Hopkins University Press.
+    Strang, G. "Introduction to Linear Algebra", 5th ed., Wellesley-Cambridge Press.
+"""
 
 from __future__ import annotations
 

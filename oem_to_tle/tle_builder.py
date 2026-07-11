@@ -5,15 +5,15 @@ from __future__ import annotations
 import argparse
 import io
 import math
+from pathlib import Path
+import sys
 
 import numpy as np
 
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import common.tle as tle
-from .models import Estimated
+from . import models
 
 
 def format_tle_exponential_from_float(value: float) -> str:
@@ -70,7 +70,7 @@ def sanitize_piece(piece: str) -> str:
     return letters_digits[:3]
 
 
-def build_tle_data(args: argparse.Namespace, estimated: Estimated) -> tle.Tle:
+def build_tle_data(args: argparse.Namespace, estimated: models.Estimated) -> tle.Tle:
     """Build a TLE dataclass from arguments and estimated elements.
 
     Parameters
@@ -109,7 +109,9 @@ def build_tle_data(args: argparse.Namespace, estimated: Estimated) -> tle.Tle:
     )
 
 
-def build_tle_lines(args: argparse.Namespace, estimated: Estimated) -> tuple[str, str]:
+def build_tle_lines(
+    args: argparse.Namespace, estimated: models.Estimated
+) -> tuple[str, str]:
     """Build TLE line1 and line2 strings from arguments and estimated elements.
 
     Parameters

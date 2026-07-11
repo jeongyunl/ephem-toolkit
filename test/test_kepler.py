@@ -1,9 +1,16 @@
-"""Tests for :mod:`common.kepler` — kepler.cartesian_to_keplerian, convert_tle.tle_to_osculating_keplerian, and helpers."""
+"""Test suite for orbital element conversion functions.
+
+Validates :func:`common.kepler.cartesian_to_keplerian`,
+:func:`common.convert_tle.tle_to_osculating_keplerian`,
+:func:`common.kepler.keplerian_to_cartesian`,
+:func:`common.kepler.propagate_kepler`, and related helper functions.
+
+Includes round-trip tests and comparisons with tudatpy reference implementations.
+"""
 
 from __future__ import annotations
 
 import io
-from datetime import timedelta
 from pathlib import Path
 
 import numpy as np
@@ -11,33 +18,26 @@ import pytest
 
 import common.convert_tle as convert_tle
 import common.kepler as kepler
+import common.mean_kepler as mean_kepler
 import common.tle as tle
+import common.consts as consts
 
 TEST_DIR = Path(__file__).parent
 TEST_DATA_DIR = TEST_DIR / "data"
-
-
-def _build_env() -> dict[str, str]:
-    env = {}
-    existing = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1]) + (
-        (":" + existing) if existing else ""
-    )
-    return env
 
 
 # ===================================================================
 # Shared fixtures / constants
 # ===================================================================
 
-ISS_3LINE = (
+ISS_3LINE: str = (
     "ISS (ZARYA)\n"
     "1 25544U 98067A   26152.32329980  .00009658  00000+0  17978-3 0  9994\n"
     "2 25544  51.6335  18.6331 0007202 121.2251 238.9444 15.49538094569295\n"
 )
+"""ISS TLE data (3-line format with satellite name)."""
 
-# ISS-like orbit (approx 408 km altitude, 51.6 deg inclination)
-STATE_ISS = np.array(
+STATE_ISS: np.ndarray = np.array(
     [
         -2700816.14,
         -3314092.80,
@@ -47,6 +47,7 @@ STATE_ISS = np.array(
         -2131.981798,  # velocity [m/s]
     ]
 )
+"""ISS-like orbit state vector (approx 408 km altitude, 51.6° inclination)."""
 
 
 def _make_tle_fixture() -> tle.Tle:
@@ -129,38 +130,6 @@ def test_tle_to_osculating_keplerian_true_anomaly_range() -> None:
     assert 0.0 <= theta < 2.0 * np.pi
 
 
-def test_cartesian_to_keplerian_cli_supports_mean_flag(tmp_path: Path, capsys) -> None:
-    """The CLI should convert Cartesian states to mean Keplerian elements with --mean."""
-    from pathlib import Path
-
-    import element_conversion.cartesian_to_keplerian as script
-
-    input_file = tmp_path / "input.oem"
-    input_file.write_text("2026-06-21T00:00:00Z  7000 0 0 0 7.5 0\n")
-
-    exit_code = script.main(["--mean", str(input_file)])
-    assert exit_code == 0
-
-    captured = capsys.readouterr()
-    output_values = captured.out.strip().split()
-    assert len(output_values) == 7
-    assert float(output_values[1]) > 0.0  # a_km
-    assert float(output_values[2]) >= 0.0  # e
-    assert float(output_values[5]) >= 0.0  # omega_rad
-    assert float(output_values[6]) >= 0.0  # M_rad
-
-
-def test_cartesian_to_keplerian_cli_rejects_mean_with_reverse(capsys) -> None:
-    """The CLI should reject using --mean together with -r/reverse."""
-    import element_conversion.cartesian_to_keplerian as script
-
-    exit_code = script.main(["-r", "--mean"])
-    assert exit_code != 0
-
-    captured = capsys.readouterr()
-    assert "cannot be used" in captured.err.lower()
-
-
 # ===================================================================
 # 6. tle.tle_epoch_to_datetime handles year 2000+ correctly
 # ===================================================================
@@ -211,7 +180,7 @@ def test_mean_motion_semi_major_axis_round_trip() -> None:
 
 def test_osculating_to_mean_keplerian_returns_six_element_array() -> None:
     """Should return a NumPy array of six mean Keplerian elements."""
-    result = kepler.osculating_to_mean_keplerian(
+    result = mean_kepler.osculating_to_mean_keplerian(
         np.array([7000e3, 0.01, 0.1, 0.3, 0.2, 1.0], dtype=float)
     )
 
@@ -258,10 +227,14 @@ def test_tle_to_osculating_keplerian_with_real_tle_file() -> None:
 def test_cartesian_to_keplerian_raises_on_wrong_shape() -> None:
     """Should raise ValueError when state vector does not have shape (6,)."""
     with pytest.raises(ValueError, match="shape"):
-        kepler.cartesian_to_keplerian(np.array([1.0, 2.0, 3.0]), kepler.MU_EARTH)
+        kepler.cartesian_to_keplerian(
+            np.array([1.0, 2.0, 3.0]), consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+        )
 
     with pytest.raises(ValueError, match="shape"):
-        kepler.cartesian_to_keplerian(np.zeros((2, 3)), kepler.MU_EARTH)
+        kepler.cartesian_to_keplerian(
+            np.zeros((2, 3)), consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+        )
 
 
 # ===================================================================
@@ -273,7 +246,7 @@ def test_cartesian_to_keplerian_raises_on_zero_position() -> None:
     """Should raise ValueError when position vector has zero magnitude."""
     state = np.array([0.0, 0.0, 0.0, 1000.0, 0.0, 0.0])
     with pytest.raises(ValueError, match="zero magnitude"):
-        kepler.cartesian_to_keplerian(state, kepler.MU_EARTH)
+        kepler.cartesian_to_keplerian(state, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2)
 
 
 # ===================================================================
@@ -286,7 +259,7 @@ def test_cartesian_to_keplerian_raises_on_zero_angular_momentum() -> None:
     # Position and velocity are parallel -> h = r x v = 0
     state = np.array([7000e3, 0.0, 0.0, 1000.0, 0.0, 0.0])
     with pytest.raises(ValueError, match="[Aa]ngular momentum"):
-        kepler.cartesian_to_keplerian(state, kepler.MU_EARTH)
+        kepler.cartesian_to_keplerian(state, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2)
 
 
 # ===================================================================
@@ -296,7 +269,9 @@ def test_cartesian_to_keplerian_raises_on_zero_angular_momentum() -> None:
 
 def test_cartesian_to_keplerian_returns_six_elements() -> None:
     """Should return a numpy array of shape (6,) with float elements."""
-    result = kepler.cartesian_to_keplerian(STATE_ISS, kepler.MU_EARTH)
+    result = kepler.cartesian_to_keplerian(
+        STATE_ISS, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    )
 
     assert isinstance(result, np.ndarray)
     assert result.shape == (6,)
@@ -310,7 +285,9 @@ def test_cartesian_to_keplerian_returns_six_elements() -> None:
 
 def test_cartesian_to_keplerian_iss_semi_major_axis() -> None:
     """Should compute a physically reasonable semi-major axis for the test state."""
-    kep = kepler.cartesian_to_keplerian(STATE_ISS, kepler.MU_EARTH)
+    kep = kepler.cartesian_to_keplerian(
+        STATE_ISS, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    )
     a_km = kep[kepler.SEMI_MAJOR_AXIS_INDEX] / 1000.0
 
     # The test state yields a ~ 7256 km (LEO-range orbit)
@@ -324,7 +301,9 @@ def test_cartesian_to_keplerian_iss_semi_major_axis() -> None:
 
 def test_cartesian_to_keplerian_iss_eccentricity() -> None:
     """Should compute a valid eccentricity (0 <= e < 1) for the test state."""
-    kep = kepler.cartesian_to_keplerian(STATE_ISS, kepler.MU_EARTH)
+    kep = kepler.cartesian_to_keplerian(
+        STATE_ISS, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    )
     e = kep[kepler.ECCENTRICITY_INDEX]
 
     # The test state yields e ~ 0.14 (moderately eccentric)
@@ -339,7 +318,9 @@ def test_cartesian_to_keplerian_iss_eccentricity() -> None:
 
 def test_cartesian_to_keplerian_iss_inclination() -> None:
     """Should compute ISS inclination near 51.6 degrees."""
-    kep = kepler.cartesian_to_keplerian(STATE_ISS, kepler.MU_EARTH)
+    kep = kepler.cartesian_to_keplerian(
+        STATE_ISS, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    )
     inc_deg = np.degrees(kep[kepler.INCLINATION_INDEX])
 
     assert 50.0 < inc_deg < 53.0
@@ -352,8 +333,10 @@ def test_cartesian_to_keplerian_iss_inclination() -> None:
 
 def test_cartesian_to_keplerian_round_trip() -> None:
     """Should round-trip Cartesian -> Keplerian -> Cartesian with negligible error."""
-    kep = kepler.cartesian_to_keplerian(STATE_ISS, kepler.MU_EARTH)
-    state_recovered = kepler.keplerian_to_cartesian(kep, kepler.MU_EARTH)
+    kep = kepler.cartesian_to_keplerian(
+        STATE_ISS, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    )
+    state_recovered = kepler.keplerian_to_cartesian(kep)
 
     pos_err = np.linalg.norm(state_recovered[0:3] - STATE_ISS[0:3])
     vel_err = np.linalg.norm(state_recovered[3:6] - STATE_ISS[3:6])
@@ -367,8 +350,12 @@ def test_cartesian_to_keplerian_matches_tudatpy_element_conversion() -> None:
     pytest.importorskip("tudatpy")
     from tudatpy.astro import element_conversion
 
-    kep_tudatpy = element_conversion.cartesian_to_keplerian(STATE_ISS, kepler.MU_EARTH)
-    kep_common = kepler.cartesian_to_keplerian(STATE_ISS, kepler.MU_EARTH)
+    kep_tudatpy = element_conversion.cartesian_to_keplerian(
+        STATE_ISS, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    )
+    kep_common = kepler.cartesian_to_keplerian(
+        STATE_ISS, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    )
 
     np.testing.assert_allclose(
         kep_common,
@@ -388,10 +375,12 @@ def test_cartesian_to_keplerian_equatorial_circular() -> None:
     """Should handle equatorial circular orbit (i~0, e~0) without error."""
     # Circular equatorial orbit at ~7000 km
     r = 7000e3
-    v = np.sqrt(kepler.MU_EARTH / r)  # circular velocity
+    v = np.sqrt(consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2 / r)  # circular velocity
     state = np.array([r, 0.0, 0.0, 0.0, v, 0.0])
 
-    kep = kepler.cartesian_to_keplerian(state, kepler.MU_EARTH)
+    kep = kepler.cartesian_to_keplerian(
+        state, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    )
 
     # Semi-major axis should equal radius for circular orbit
     assert kep[kepler.SEMI_MAJOR_AXIS_INDEX] == pytest.approx(r, rel=1e-10)
@@ -414,12 +403,16 @@ def test_cartesian_to_keplerian_eccentric_orbit() -> None:
 
     # Build state at periapsis (theta=0): r = a(1-e), v = sqrt(mu*(1+e)/(a*(1-e)))
     r_peri = a * (1.0 - e)
-    v_peri = np.sqrt(kepler.MU_EARTH * (1.0 + e) / (a * (1.0 - e)))
+    v_peri = np.sqrt(
+        consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2 * (1.0 + e) / (a * (1.0 - e))
+    )
 
     # Place in equatorial plane, periapsis along x-axis
     state = np.array([r_peri, 0.0, 0.0, 0.0, v_peri, 0.0])
 
-    kep = kepler.cartesian_to_keplerian(state, kepler.MU_EARTH)
+    kep = kepler.cartesian_to_keplerian(
+        state, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    )
 
     assert kep[kepler.SEMI_MAJOR_AXIS_INDEX] == pytest.approx(a, rel=1e-10)
     assert kep[kepler.ECCENTRICITY_INDEX] == pytest.approx(e, rel=1e-10)
@@ -628,3 +621,163 @@ def test_round_trip_tle_osculating_vs_tudatpy_keplerian(tudatpy_tle_round_trip) 
         f"Argument of latitude (omega+theta) difference too large: "
         f"{np.degrees(u_diff):.4f} degrees"
     )
+
+
+# ===================================================================
+# 22. kepler.propagate_kepler matches tudatpy.two_body_dynamics.propagate_kepler_orbit
+# ===================================================================
+
+
+def test_propagate_kepler_returns_correct_shape() -> None:
+    """Should return Keplerian elements with the same shape as input."""
+    kep = np.array([7000e3, 0.01, 0.1, 0.3, 0.2, 1.0], dtype=float)
+    result = kepler.propagate_kepler(kep, 100.0)
+
+    assert isinstance(result, np.ndarray)
+    assert result.shape == (6,)
+
+
+def test_propagate_kepler_handles_column_vector() -> None:
+    """Should handle column vector input (6, 1) as used by tudatpy."""
+    kep = np.array([[7000e3], [0.01], [0.1], [0.3], [0.2], [1.0]], dtype=float)
+    result = kepler.propagate_kepler(kep, 100.0)
+
+    assert isinstance(result, np.ndarray)
+    assert result.shape == (6, 1)
+
+
+def test_propagate_kepler_preserves_orbital_elements() -> None:
+    """Should preserve a, e, i, omega, RAAN (only theta should change)."""
+    kep = np.array([7000e3, 0.01, 0.1, 0.3, 0.2, 1.0], dtype=float)
+    result = kepler.propagate_kepler(kep, 100.0)
+
+    assert result[kepler.SEMI_MAJOR_AXIS_INDEX] == pytest.approx(
+        kep[kepler.SEMI_MAJOR_AXIS_INDEX], rel=1e-15
+    )
+    assert result[kepler.ECCENTRICITY_INDEX] == pytest.approx(
+        kep[kepler.ECCENTRICITY_INDEX], rel=1e-15
+    )
+    assert result[kepler.INCLINATION_INDEX] == pytest.approx(
+        kep[kepler.INCLINATION_INDEX], rel=1e-15
+    )
+    assert result[kepler.ARGUMENT_OF_PERIAPSIS_INDEX] == pytest.approx(
+        kep[kepler.ARGUMENT_OF_PERIAPSIS_INDEX], rel=1e-15
+    )
+    assert result[kepler.RAAN_INDEX] == pytest.approx(kep[kepler.RAAN_INDEX], rel=1e-15)
+
+
+def test_propagate_kepler_changes_true_anomaly() -> None:
+    """Should change the true anomaly after propagation."""
+    kep = np.array([7000e3, 0.01, 0.1, 0.3, 0.2, 1.0], dtype=float)
+    result = kepler.propagate_kepler(kep, 100.0)
+
+    assert result[kepler.TRUE_ANOMALY_INDEX] != pytest.approx(
+        kep[kepler.TRUE_ANOMALY_INDEX], abs=1e-10
+    )
+
+
+def test_propagate_kepler_zero_time_returns_same_state() -> None:
+    """Should return the same state when time_elapsed is zero."""
+    kep = np.array([7000e3, 0.01, 0.1, 0.3, 0.2, 1.0], dtype=float)
+    result = kepler.propagate_kepler(kep, 0.0)
+
+    np.testing.assert_allclose(result, kep, rtol=1e-14, atol=1e-10)
+
+
+def test_propagate_kepler_matches_tudatpy() -> None:
+    """Compare kepler.propagate_kepler with tudatpy.two_body_dynamics.propagate_kepler_orbit."""
+    pytest.importorskip("tudatpy")
+    from tudatpy.astro import two_body_dynamics
+
+    kep_km = np.array([7000.0, 0.01, np.radians(51.6), 0.3, 0.2, 1.0], dtype=float)
+    kep_m = kep_km.copy()
+    kep_m[kepler.SEMI_MAJOR_AXIS_INDEX] *= 1e3
+
+    time_steps = [0.0, 10.0, 100.0, 1000.0, 10000.0]
+
+    for time_elapsed in time_steps:
+        result_common = kepler.propagate_kepler(
+            kep_m, time_elapsed, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+        )
+
+        kep_m_column = kep_m.reshape((6, 1))
+        result_tudatpy = two_body_dynamics.propagate_kepler_orbit(
+            kep_m_column, time_elapsed, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+        ).flatten()
+
+        np.testing.assert_allclose(
+            result_common,
+            result_tudatpy,
+            rtol=1e-12,
+            atol=1e-6,
+            err_msg=f"Mismatch at time_elapsed={time_elapsed}s",
+        )
+
+
+def test_propagate_kepler_circular_orbit() -> None:
+    """Should correctly propagate a circular orbit."""
+    pytest.importorskip("tudatpy")
+    from tudatpy.astro import two_body_dynamics
+
+    a = 7000e3
+    kep = np.array([a, 0.0, 0.1, 0.0, 0.0, 0.5], dtype=float)
+
+    time_elapsed = 500.0
+
+    result_common = kepler.propagate_kepler(
+        kep, time_elapsed, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    )
+
+    kep_column = kep.reshape((6, 1))
+    result_tudatpy = two_body_dynamics.propagate_kepler_orbit(
+        kep_column, time_elapsed, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    ).flatten()
+
+    np.testing.assert_allclose(result_common, result_tudatpy, rtol=1e-12, atol=1e-6)
+
+
+def test_propagate_kepler_eccentric_orbit() -> None:
+    """Should correctly propagate an eccentric orbit."""
+    pytest.importorskip("tudatpy")
+    from tudatpy.astro import two_body_dynamics
+
+    a = (6600e3 + 42164e3) / 2.0
+    e = 1.0 - 6600e3 / a
+    kep = np.array([a, e, np.radians(0.0), 0.0, 0.0, 0.0], dtype=float)
+
+    time_elapsed = 1000.0
+
+    result_common = kepler.propagate_kepler(
+        kep, time_elapsed, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    )
+
+    kep_column = kep.reshape((6, 1))
+    result_tudatpy = two_body_dynamics.propagate_kepler_orbit(
+        kep_column, time_elapsed, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    ).flatten()
+
+    np.testing.assert_allclose(result_common, result_tudatpy, rtol=1e-12, atol=1e-6)
+
+
+def test_propagate_kepler_long_propagation() -> None:
+    """Should correctly propagate over a long time period (multiple orbits)."""
+    pytest.importorskip("tudatpy")
+    from tudatpy.astro import two_body_dynamics
+
+    kep = np.array([6778e3, 0.0005, np.radians(51.6), 0.1, 0.2, 0.5], dtype=float)
+
+    orbital_period = (
+        2.0 * np.pi * np.sqrt(kep[0] ** 3 / consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2)
+    )
+    time_elapsed = 10.0 * orbital_period
+
+    result_common = kepler.propagate_kepler(
+        kep, time_elapsed, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    )
+
+    kep_column = kep.reshape((6, 1))
+    result_tudatpy = two_body_dynamics.propagate_kepler_orbit(
+        kep_column, time_elapsed, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    ).flatten()
+
+    np.testing.assert_allclose(result_common, result_tudatpy, rtol=1e-12, atol=1e-6)

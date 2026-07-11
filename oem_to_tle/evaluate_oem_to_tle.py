@@ -24,11 +24,13 @@ from pathlib import Path
 
 import numpy as np
 
-PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import common.common as common
 import common.oem as oem
+import common.time_utils as time_utils
+
+TEST_DIR: Path = Path(__file__).parent
+PROJECT_ROOT: Path = TEST_DIR.parent
 
 
 def parse_args() -> argparse.Namespace:
@@ -109,11 +111,12 @@ def run_oem_to_tle(
         fit_epochs = sorted_epochs[:2]
 
     # Format as simple state-vector lines for oem_to_tle.py stdin
+    # oem_to_tle.py expects km and km/s (OEM standard), so convert from SI (m, m/s)
     input_lines: list[str] = []
     for epoch_ts in fit_epochs:
         state = oem_records[epoch_ts]
-        pos = state[:3]  # position (x, y, z)
-        vel = state[3:]  # velocity (vx, vy, vz)
+        pos = state[:3] / 1000.0  # Convert m → km
+        vel = state[3:] / 1000.0  # Convert m/s → km/s
         # Convert POSIX timestamp to datetime for formatting
         epoch_dt = datetime.fromtimestamp(epoch_ts, tz=timezone.utc)
         epoch_str: str = epoch_dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
@@ -161,8 +164,10 @@ def run_oem_to_tle(
 
     # Extract TLE lines from output
     lines: list[str] = result.stdout.strip().splitlines()
-    tle_line1: str | None = None
-    tle_line2: str | None = None
+    tle_line1: str | None
+    tle_line2: str | None
+    tle_line1 = None
+    tle_line2 = None
     for i in range(len(lines) - 1):
         if lines[i].startswith("1 ") and lines[i + 1].startswith("2 "):
             tle_line1 = lines[i]
@@ -185,7 +190,9 @@ def run_oem_to_tle(
     return f"GENERATED\n{tle_line1}\n{tle_line2}\n", tle_line1, tle_line2
 
 
-def run_propagate_tle(tle_text: str, duration_s: float, step_s: float) -> list:
+def run_propagate_tle(
+    tle_text: str, duration_s: float, step_s: float
+) -> list[tuple[datetime, list[float], list[float]]]:
     """Run propagate_tle.py on the generated TLE and return state records.
 
     Parameters
@@ -199,7 +206,7 @@ def run_propagate_tle(tle_text: str, duration_s: float, step_s: float) -> list:
 
     Returns
     -------
-    list
+    list[tuple[datetime, list[float], list[float]]]
         List of ``(epoch_dt, pos_km, vel_km_s)`` tuples from the propagated
         state history.
     """
@@ -227,7 +234,7 @@ def run_propagate_tle(tle_text: str, duration_s: float, step_s: float) -> list:
         print(f"ERROR: propagate_tle.py failed:\n{result.stderr}", file=sys.stderr)
         sys.exit(1)
 
-    records: list = []
+    records: list[tuple[datetime, list[float], list[float]]] = []
     for line in result.stdout.strip().splitlines():
         parts: list[str] = line.strip().split()
         if len(parts) < 7:
@@ -322,8 +329,10 @@ def evaluate_differences(
 
     for oem_epoch in sorted(oem_records.keys()):
         oem_state = oem_records[oem_epoch]
-        oem_pos = oem_state[:3]  # position (x, y, z)
-        oem_vel = oem_state[3:]  # velocity (vx, vy, vz)
+        # OEM states are in meters (SI); convert to km for comparison with
+        # propagated output (which is in km from propagate_tle.py OEM output)
+        oem_pos = oem_state[:3] / 1000.0  # Convert m → km
+        oem_vel = oem_state[3:] / 1000.0  # Convert m/s → km/s
 
         match: tuple | None
         dt: float | None
@@ -455,7 +464,9 @@ def main() -> None:
 
     # Parse duration early so we can pass it to oem_to_tle
     duration_s: float = (
-        common.parse_duration_to_seconds(args.duration) if args.duration else 86400.0
+        time_utils.parse_duration_to_seconds(args.duration)
+        if args.duration
+        else 86400.0
     )
 
     # Step 2: Generate TLE from OEM (limited to duration)
@@ -472,7 +483,9 @@ def main() -> None:
     print()
 
     # Step 3: Propagate generated TLE over the evaluation span
-    step_s: float = common.parse_step_to_seconds(args.step) if args.step else oem_step_s
+    step_s: float = (
+        time_utils.parse_duration_to_seconds(args.step) if args.step else oem_step_s
+    )
 
     print(
         f"Step 2: Propagating generated TLE for {duration_s/3600:.2f}h at {step_s:.0f}s steps..."

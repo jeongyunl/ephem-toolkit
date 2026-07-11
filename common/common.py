@@ -1,39 +1,30 @@
 """Common utilities shared across frame-conversion and propagation scripts.
 
-Provides time-conversion helpers (:func:`datetime_to_tdb`,
-:func:`tdb_to_datetime`), a SPICE kernel path resolver
-(:func:`get_spice_kernel_path`), CLI duration/step-size parsers
-(:func:`parse_duration_to_seconds`, :func:`parse_step_to_seconds`),
+Provides a SPICE kernel path resolver (:func:`get_spice_kernel_path`),
+CCSDS keyword-value parsing (:func:`parse_key_value_line`),
 an RTN frame transformation (:func:`transform_to_rtn`), and angle
 utilities (:func:`wrap_angle_rad`, :func:`unwrap_angles_rad`,
 :func:`circular_mean_angle_rad`, :func:`angle_difference_rad`,
 :func:`circular_blend_angle_rad`).
+
+Time-related functions (time conversion, ISO 8601 parsing, duration
+parsing) live in :mod:`common.time_utils`.
+
+References:
+    ISO 8601 "Date and time representations".
 """
 
 from __future__ import annotations
 
-import argparse
-from datetime import datetime, timedelta, timezone
 import math
 import os
 from pathlib import Path
-import re
 
 import numpy as np
-from tudatpy.astro import time_representation
-from tudatpy.astro.time_representation import TimeScales
 
 # ===================================================================
 # Module-level state
 # ===================================================================
-
-_tudat_time_scale_converter: time_representation.TimeScaleConverter = (
-    time_representation.default_time_scale_converter()
-)
-"""Tudat time scale converter for UTC ↔ TDB conversions."""
-
-_UTC_J2000_DATETIME: datetime = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-"""J2000 epoch in UTC (2000-01-01 12:00:00 UTC)."""
 
 _SPICE_CACHE_FILE: Path = (
     Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
@@ -42,61 +33,10 @@ _SPICE_CACHE_FILE: Path = (
 )
 """XDG cache file path for resolved SPICE kernel directory."""
 
-_ISO8601_PATTERN: re.Pattern[str] = re.compile(
-    r"^(\d{4})-(\d{2})-(\d{2})(T| )(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?$"
-)
-"""Regex pattern for ISO 8601 datetime format validation."""
-
 
 # ===================================================================
-# Time conversion
+# SPICE kernel path resolution
 # ===================================================================
-
-
-def datetime_to_tdb(dt: datetime) -> float:
-    """Convert a datetime object to TDB (ephemeris time) seconds since J2000.
-
-    Parameters
-    ----------
-    dt : datetime
-        Datetime object to convert.
-
-    Returns
-    -------
-    float
-        TDB seconds since J2000 epoch.
-    """
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    else:
-        dt = dt.astimezone(timezone.utc)
-    utc_j2000_s: float = (dt - _UTC_J2000_DATETIME).total_seconds()
-    return _tudat_time_scale_converter.convert_time(
-        input_value=utc_j2000_s,
-        input_scale=TimeScales.utc_scale,
-        output_scale=TimeScales.tdb_scale,
-    )
-
-
-def tdb_to_datetime(tdb_s: float) -> datetime:
-    """Convert TDB (ephemeris time) seconds since J2000 to a UTC datetime object.
-
-    Parameters
-    ----------
-    tdb_s : float
-        TDB seconds since J2000 epoch.
-
-    Returns
-    -------
-    datetime
-        UTC datetime object.
-    """
-    utc_j2000_s: float = _tudat_time_scale_converter.convert_time(
-        input_value=tdb_s,
-        input_scale=TimeScales.tdb_scale,
-        output_scale=TimeScales.utc_scale,
-    )
-    return _UTC_J2000_DATETIME + timedelta(seconds=utc_j2000_s)
 
 
 def get_spice_kernel_path() -> str:
@@ -128,210 +68,39 @@ def get_spice_kernel_path() -> str:
     return resolved_path
 
 
-def iso8601_to_datetime(epoch_str: str) -> datetime:
-    """Parse an ISO-8601-ish epoch string into a :class:`datetime`.
-
-    Parameters
-    ----------
-    epoch_str : str
-        ISO 8601 formatted datetime string to parse.
-
-    Returns
-    -------
-    datetime
-        Parsed datetime object with UTC timezone.
-
-    Notes
-    -----
-    Supports various ISO 8601 formats including:
-    - With 'T' separator: 2000-01-01T12:00:00, 2000-01-01T12:00:00.123
-    - With space separator: 2000-01-01 12:00:00, 2000-01-01 12:00:00.123
-    - With 'Z' timezone indicator: 2000-01-01T12:00:00Z
-    - With fractional seconds: 2000-01-01T12:00:00.123456
-    """
-    s: str = epoch_str.strip()
-    if s.endswith("Z"):
-        s = s[:-1]
-
-    # Use regex to detect format: YYYY-MM-DD[T| ]HH:MM:SS[.ffffff]
-    match: re.Match[str] | None = _ISO8601_PATTERN.match(s)
-
-    if not match:
-        raise ValueError(
-            f"Unable to parse epoch string '{epoch_str}'. "
-            "Expected ISO 8601 format like '2000-01-01T12:00:00' or '2000-01-01 12:00:00' "
-            "with optional fractional seconds and 'Z' timezone indicator."
-        )
-
-    # Determine separator (T or space)
-    separator_char: str = match.group(4)
-    separator: str = "T" if separator_char == "T" else " "
-
-    # Determine if fractional seconds are present
-    has_fractional: bool = match.group(8) is not None
-
-    # Build the format string based on detected format
-    if has_fractional:
-        format_str: str = f"%Y-%m-%d{separator}%H:%M:%S.%f"
-    else:
-        format_str = f"%Y-%m-%d{separator}%H:%M:%S"
-
-    try:
-        return datetime.strptime(s, format_str).replace(tzinfo=timezone.utc)
-    except ValueError as e:
-        raise ValueError(
-            f"Unable to parse epoch string '{epoch_str}'. "
-            "Expected ISO 8601 format like '2000-01-01T12:00:00' or '2000-01-01 12:00:00' "
-            "with optional fractional seconds and 'Z' timezone indicator."
-        ) from e
-
-
-def datetime_to_iso8601(
-    dt: datetime, use_t_separator: bool = True, fractional_second_places: int = 3
-) -> str:
-    """Convert a datetime object to an ISO 8601 formatted string in UTC.
-
-    Parameters
-    ----------
-    dt : datetime
-        Datetime object to convert.
-    use_t_separator : bool, optional
-        If True, use 'T' as separator between date and time (ISO 8601 standard).
-        If False, use a space instead. Default is True.
-    fractional_second_places : int, optional
-        Number of decimal places for fractional seconds. Default is 3.
-
-    Returns
-    -------
-    str
-        ISO 8601 formatted datetime string in UTC.
-    """
-    # Convert to UTC timezone
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    else:
-        dt = dt.astimezone(timezone.utc)
-
-    separator: str = "T" if use_t_separator else " "
-
-    # Format the datetime with full microseconds
-    formatted: str = dt.strftime(f"%Y-%m-%d{separator}%H:%M:%S.%f")
-
-    # Adjust fractional seconds to the requested number of places
-    if fractional_second_places == 0:
-        # Remove the decimal point and fractional part
-        formatted = formatted.rsplit(".", 1)[0]
-    else:
-        # Truncate or pad fractional seconds to the requested number of places
-        date_time_part, fractional_part = formatted.rsplit(".", 1)
-        fractional_part = fractional_part[:fractional_second_places].ljust(
-            fractional_second_places, "0"
-        )
-        formatted = f"{date_time_part}.{fractional_part}"
-
-    return formatted
-
-
 # ===================================================================
-# CLI duration / step-size parsing
+# CCSDS keyword-value parsing
 # ===================================================================
 
-SECONDS_PER_MINUTE: float = 60.0
-"""Seconds in one minute."""
 
-SECONDS_PER_HOUR: float = 3600.0
-"""Seconds in one hour."""
+def parse_key_value_line(line: str) -> tuple[str, str] | None:
+    """Return (key, value) from ``KEY = VALUE`` lines, or *None*.
 
-SECONDS_PER_DAY: float = 86400.0
-"""Seconds in one day."""
-
-
-def parse_duration_to_seconds(value: str) -> float:
-    """Parse a duration token and convert it to seconds.
+    This is a shared utility used by OEM and OMM parsers for reading
+    CCSDS keyword-value formatted files.
 
     Parameters
     ----------
-    value : str
-        Duration token in ``<number>[s|m|h|d]`` format.
+    line : str
+        A single line of text to parse.
 
     Returns
     -------
-    float
-        Duration in seconds.
+    tuple[str, str] | None
+        A ``(key, value)`` tuple with whitespace stripped from both parts,
+        or ``None`` if the line does not contain an ``=`` character.
 
-    Notes
-    -----
-    Accepted formats are ``<number>`` (seconds), ``<number>s``,
-    ``<number>m``, ``<number>h``, and ``<number>d``.
+    Examples
+    --------
+    >>> parse_key_value_line("OBJECT_NAME = ISS")
+    ('OBJECT_NAME', 'ISS')
+    >>> parse_key_value_line("some line without equals") is None
+    True
     """
-    match: re.Match[str] | None = re.fullmatch(
-        r"\s*([0-9]*\.?[0-9]+)\s*([smhdSMHD]?)\s*", value
-    )
-    if not match:
-        raise argparse.ArgumentTypeError(
-            "duration must be a positive number optionally followed by s, m, h, or d"
-        )
-
-    magnitude: float = float(match.group(1))
-    unit: str = match.group(2).lower() if match.group(2) else "s"
-
-    if unit == "s":
-        duration_s: float = magnitude
-    elif unit == "m":
-        duration_s = magnitude * SECONDS_PER_MINUTE
-    elif unit == "h":
-        duration_s = magnitude * SECONDS_PER_HOUR
-    elif unit == "d":
-        duration_s = magnitude * SECONDS_PER_DAY
-    else:
-        raise argparse.ArgumentTypeError("duration unit must be one of: s, m, h, d")
-
-    if duration_s <= 0.0:
-        raise argparse.ArgumentTypeError("duration must be a positive value")
-
-    return duration_s
-
-
-def parse_step_to_seconds(value: str) -> float:
-    """Parse output step-size token and convert it to seconds.
-
-    Parameters
-    ----------
-    value : str
-        Step-size token in ``<number>[s|m]`` format.
-
-    Returns
-    -------
-    float
-        Step size in seconds.
-
-    Notes
-    -----
-    Accepted formats are ``<number>`` (seconds), ``<number>s``, and
-    ``<number>m``.
-    """
-    match: re.Match[str] | None = re.fullmatch(
-        r"\s*([0-9]*\.?[0-9]+)\s*([smSM]?)\s*", value
-    )
-    if not match:
-        raise argparse.ArgumentTypeError(
-            "step size must be a positive number optionally followed by s or m"
-        )
-
-    magnitude: float = float(match.group(1))
-    unit: str = match.group(2).lower() if match.group(2) else "s"
-
-    if unit == "s":
-        step_s: float = magnitude
-    elif unit == "m":
-        step_s = magnitude * SECONDS_PER_MINUTE
-    else:
-        raise argparse.ArgumentTypeError("step-size unit must be one of: s, m")
-
-    if step_s <= 0.0:
-        raise argparse.ArgumentTypeError("step size must be a positive value")
-
-    return step_s
+    if "=" not in line:
+        return None
+    key, _, value = line.partition("=")
+    return key.strip(), value.strip()
 
 
 # ===================================================================

@@ -3,32 +3,32 @@
 from __future__ import annotations
 
 import math
+import os
+import sys
 from datetime import datetime, timezone
 
 import numpy as np
 
-import sys
-import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 import common.common as common
+import common.consts as consts
+
 from . import constants
 from .models import OrbitalElements, OrbitalRecord, PhaseMatchResult
 
 
 def state_to_orbital_elements(
-    position_km: np.ndarray, velocity_km_s: np.ndarray
+    state_vector_m: np.ndarray
 ) -> OrbitalElements:
     """Compute osculating Keplerian elements from one Cartesian state.
 
-    Units: km, km/s in; angular outputs in degrees; mean motion in rev/day.
+    Units: m, m/s in; angular outputs in degrees; mean motion in rev/day.
 
     Parameters
     ----------
-    position_km : np.ndarray
-        Position vector (3,) in km.
-    velocity_km_s : np.ndarray
-        Velocity vector (3,) in km/s.
+    state_vector_m : np.ndarray
+        State vector (6,) in m and m/s: [x, y, z, vx, vy, vz].
 
     Returns
     -------
@@ -40,9 +40,10 @@ def state_to_orbital_elements(
     ValueError
         If state is invalid (zero position/momentum, parabolic, hyperbolic, or e>=1).
     """
-    mu: float = constants.EARTH_GRAVITATIONAL_PARAMETER_KM3_S2
-    r: np.ndarray = np.asarray(position_km, dtype=float)  # (3,) position
-    v: np.ndarray = np.asarray(velocity_km_s, dtype=float)  # (3,) velocity
+    mu: float = consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    state: np.ndarray = np.asarray(state_vector_m, dtype=float)  # (6,) state vector
+    r: np.ndarray = state[:3]  # (3,) position
+    v: np.ndarray = state[3:6]  # (3,) velocity
 
     r_norm: float = float(np.linalg.norm(r))
     v_norm: float = float(np.linalg.norm(v))
@@ -66,8 +67,8 @@ def state_to_orbital_elements(
     if abs(specific_energy) < 1e-15:
         raise ValueError("Parabolic trajectory not supported for TLE estimation")
 
-    semi_major_axis_km: float = -mu / (2.0 * specific_energy)
-    if semi_major_axis_km <= 0.0:
+    semi_major_axis_m: float = -mu / (2.0 * specific_energy)
+    if semi_major_axis_m <= 0.0:
         raise ValueError("Hyperbolic trajectory not supported for TLE estimation")
 
     inclination_rad: float = math.acos(
@@ -120,13 +121,13 @@ def state_to_orbital_elements(
 
     mean_anomaly_rad = common.wrap_angle_rad(mean_anomaly_rad)
 
-    mean_motion_rad_s: float = math.sqrt(mu / (semi_major_axis_km**3))
+    mean_motion_rad_s: float = math.sqrt(mu / (semi_major_axis_m**3))
     mean_motion_rev_per_day: float = (
-        mean_motion_rad_s * constants.SECONDS_PER_DAY / (2.0 * math.pi)
+        mean_motion_rad_s * constants.SECONDS_PER_DAY_S / (2.0 * math.pi)
     )
 
     return OrbitalElements(
-        semi_major_axis_km=semi_major_axis_km,
+        semi_major_axis_m=semi_major_axis_m,
         eccentricity=eccentricity,
         inclination_deg=math.degrees(inclination_rad),
         raan_deg=math.degrees(common.wrap_angle_rad(raan_rad)),
@@ -270,7 +271,7 @@ def estimate_inclination_from_nodal_drift(
     times_s: list[float],
     raan_series_rad: list[float],
     mean_motion_rad_s_series: list[float],
-    p_km_series: list[float],
+    p_m_series: list[float],
     fallback_inclination_deg: float,
 ) -> float:
     """Estimate mean inclination from J2 nodal precession rate.
@@ -290,8 +291,8 @@ def estimate_inclination_from_nodal_drift(
         RAAN series in radians.
     mean_motion_rad_s_series : list[float]
         Mean motion series in radians per second.
-    p_km_series : list[float]
-        Semi-latus rectum series in km.
+    p_m_series : list[float]
+        Semi-latus rectum series in m.
     fallback_inclination_deg : float
         Fallback inclination value in degrees.
 
@@ -312,13 +313,16 @@ def estimate_inclination_from_nodal_drift(
     domega_dt: float = linear_regression_slope(times_s, raan_unwrapped)
 
     mean_n: float = sum(mean_motion_rad_s_series) / len(mean_motion_rad_s_series)
-    mean_p: float = sum(p_km_series) / len(p_km_series)
+    mean_p: float = sum(p_m_series) / len(p_m_series)
 
     if mean_n <= 0.0 or mean_p <= 0.0:
         return fallback_inclination_deg
 
     coefficient: float = (
-        1.5 * constants.EARTH_J2 * mean_n * (constants.EARTH_EQUATORIAL_RADIUS_KM / mean_p) ** 2
+        1.5
+        * consts.EARTH_J2
+        * mean_n
+        * (consts.EARTH_EQUATORIAL_RADIUS_M / mean_p) ** 2
     )
     if coefficient <= 0.0:
         return fallback_inclination_deg
@@ -360,5 +364,5 @@ def datetime_to_tle_epoch(epoch_dt: datetime) -> tuple[int, float]:
         start_of_year = datetime(epoch_dt.year, 1, 1)
     day_of_year: float = (
         epoch_dt - start_of_year
-    ).total_seconds() / constants.SECONDS_PER_DAY + 1.0
+    ).total_seconds() / constants.SECONDS_PER_DAY_S + 1.0
     return year_two_digit, day_of_year

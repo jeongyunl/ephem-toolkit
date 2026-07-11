@@ -2,47 +2,45 @@
 
 from __future__ import annotations
 
+import argparse
 import math
-from datetime import datetime
+import os
+import sys
+from datetime import datetime, timezone
 
 import numpy as np
 
-import sys
-import os
-
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-
-import argparse
 
 import common.common as common
 import common.convert_tle as convert_tle
 import common.kepler as kepler
+import common.consts as consts
 import oem_to_tle.constants as constants
 import oem_to_tle.models as models
 import oem_to_tle.orbital_mechanics as orbital_mechanics
-import oem_to_tle.refinement as refinement
 import oem_to_tle.tle_builder as tle_builder
 
 
 def select_bstar_fit_samples(
-    records: list[tuple[datetime, np.ndarray, np.ndarray]],
-) -> list[tuple[datetime, np.ndarray, np.ndarray]]:
+    records: list[tuple[datetime, np.ndarray]],
+) -> list[tuple[datetime, np.ndarray]]:
     """Select evenly spaced post-epoch records used for B* fitting.
 
     Parameters
     ----------
-    records : list[tuple[datetime, np.ndarray, np.ndarray]]
-        List of (epoch, position_km (3,), velocity_km_s (3,)) tuples.
+    records : list[tuple[datetime, np.ndarray]]
+        List of (epoch, state_vector_m (6,)) tuples.
 
     Returns
     -------
-    list[tuple[datetime, np.ndarray, np.ndarray]]
-        Selected subset of records (epoch, position_km (3,), velocity_km_s (3,)) for B* fitting.
+    list[tuple[datetime, np.ndarray]]
+        Selected subset of records (epoch, state_vector_m (6,)) for B* fitting.
     """
     if len(records) <= 1:
         return []
 
-    selected: list[tuple[datetime, np.ndarray, np.ndarray]]
+    selected: list[tuple[datetime, np.ndarray]]
     if len(records) <= constants.BSTAR_SAMPLE_COUNT:
         selected = records[1:]
     else:
@@ -53,16 +51,13 @@ def select_bstar_fit_samples(
             index = min(max(index, 1), last_index)
             selected.append(records[index])
         # Preserve order while removing duplicates.
-        seen: set = set()
+        seen: set[tuple] = set()
         selected = [
             record
             for record in selected
             if not (
-                (record[0], tuple(record[1].tolist()), tuple(record[2].tolist()))
-                in seen
-                or seen.add(
-                    (record[0], tuple(record[1].tolist()), tuple(record[2].tolist()))
-                )
+                (record[0], tuple(record[1].tolist())) in seen
+                or seen.add((record[0], tuple(record[1].tolist())))
             )
         ]
 
@@ -72,7 +67,7 @@ def select_bstar_fit_samples(
 def estimate_bstar_from_arc(
     args: argparse.Namespace,
     estimated: models.Estimated,
-    records: list[tuple[datetime, np.ndarray, np.ndarray]],
+    records: list[tuple[datetime, np.ndarray]],
 ) -> models.Estimated:
     """Estimate B* by minimizing propagated state mismatch over the OEM arc.
 
@@ -85,8 +80,8 @@ def estimate_bstar_from_arc(
         Parsed command-line arguments.
     estimated : Estimated
         Estimated TLE elements dataclass.
-    records : list[tuple[datetime, np.ndarray, np.ndarray]]
-        List of (epoch, position_km, velocity_km_s) tuples.
+    records : list[tuple[datetime, np.ndarray]]
+        List of (epoch, state_vector_m (6,)) tuples.
 
     Returns
     -------
@@ -95,7 +90,7 @@ def estimate_bstar_from_arc(
     """
     from .refinement import (
         compute_state_match_score,
-        evaluate_tle_states_for_offsets_km,
+        evaluate_tle_states_for_offsets_m,
     )
     from .tle_builder import build_tle_lines
     from dataclasses import replace
@@ -105,21 +100,18 @@ def estimate_bstar_from_arc(
         estimated.bstar_source = "input"
         return estimated
 
-    sampled_records: list[tuple[datetime, np.ndarray, np.ndarray]] = (
-        select_bstar_fit_samples(records)
+    sampled_records: list[tuple[datetime, np.ndarray]] = select_bstar_fit_samples(
+        records
     )
     if not sampled_records:
         estimated.bstar = args.bstar
         estimated.bstar_source = "default"
         return estimated
 
-    t0: datetime = records[0][0]
-    time_offsets_s: list[float] = [
-        (epoch - t0).total_seconds() for epoch, _, _ in sampled_records
-    ]
+    t0: float = records[0][0]
+    time_offsets_s: list[float] = [(ts - t0) for ts, _ in sampled_records]
     target_states: list[np.ndarray] = [  # List of (6,)
-        np.concatenate([position_km, velocity_km_s])  # (3,) + (3,) -> (6,)
-        for _, position_km, velocity_km_s in sampled_records
+        state_vector_m for _, state_vector_m in sampled_records  # Already (6,)
     ]
 
     def evaluate_bstar_cost(bstar_value: float) -> float | None:
@@ -129,7 +121,7 @@ def estimate_bstar_from_arc(
         line1: str
         line2: str
         line1, line2 = build_tle_lines(args, trial_estimated)
-        states: list[np.ndarray] | None = evaluate_tle_states_for_offsets_km(
+        states: list[np.ndarray] | None = evaluate_tle_states_for_offsets_m(
             line1, line2, time_offsets_s
         )
         if states is None:
@@ -144,7 +136,7 @@ def estimate_bstar_from_arc(
         return total_score
 
     bstar_value: float = 0.0
-    step: float = constants.BSTAR_FIT_INITIAL_STEP
+    step: float = constants.BSTAR_FIT_INITIAL_STEP_1_ER
     best_score: float | None = evaluate_bstar_cost(bstar_value)
     if best_score is None:
         estimated.bstar = args.bstar
@@ -182,15 +174,15 @@ def estimate_bstar_from_arc(
 
 
 def estimate_tle_fields(
-    records: list[tuple[datetime, np.ndarray, np.ndarray]],
+    records: list[tuple[datetime, np.ndarray]],
     use_state_match: bool = True,
 ) -> models.Estimated:
     """Estimate TLE orbital elements from a sequence of Cartesian state records.
 
     Parameters
     ----------
-    records : list[tuple[datetime, np.ndarray, np.ndarray]]
-        List of (epoch, position_km (3,), velocity_km_s (3,)) tuples.
+    records : list[tuple[datetime, np.ndarray]]
+        List of (epoch, state_vector_m (6,)) tuples.
     use_state_match : bool
         If True, use osculating values as initial guess for state-match refinement.
 
@@ -200,17 +192,14 @@ def estimate_tle_fields(
         Estimated TLE elements and diagnostic quantities.
     """
     # Use the first epoch/state as the epoch of the estimated TLE.
-    epoch_dt: datetime = records[0][0]
-    first_position_km: np.ndarray = records[0][1]  # (3,)
-    first_velocity_km_s: np.ndarray = records[0][2]  # (3,)
+    t0: float = records[0][0]  # POSIX timestamp of epoch
+    epoch_dt: datetime = datetime.fromtimestamp(t0, tz=timezone.utc)
+    first_state_vector_m: np.ndarray = records[0][1]  # (6,)
 
     elements_first: models.OrbitalElements = (
-        orbital_mechanics.state_to_orbital_elements(
-            first_position_km, first_velocity_km_s
-        )
+        orbital_mechanics.state_to_orbital_elements(first_state_vector_m)
     )
 
-    t0: datetime = records[0][0]
     times_day: list[float] = []
     times_s: list[float] = []
     mean_motion_series: list[float] = []
@@ -220,13 +209,13 @@ def estimate_tle_fields(
     mean_anomaly_series_rad: list[float] = []
     mean_argument_latitude_series_rad: list[float] = []
     mean_motion_rad_s_series: list[float] = []
-    p_km_series: list[float] = []
+    p_m_series: list[float] = []
     records_with_elements: list[models.OrbitalRecord] = []
-    for epoch, position_km, velocity_km_s in records:
-        dt_s: float = (epoch - t0).total_seconds()
-        dt_day: float = dt_s / constants.SECONDS_PER_DAY
+    for ts, state_vector_m in records:
+        dt_s: float = ts - t0
+        dt_day: float = dt_s / constants.SECONDS_PER_DAY_S
         elements: models.OrbitalElements = orbital_mechanics.state_to_orbital_elements(
-            position_km, velocity_km_s
+            state_vector_m
         )
         times_s.append(dt_s)
         times_day.append(dt_day)
@@ -243,11 +232,12 @@ def estimate_tle_fields(
             common.wrap_angle_rad(arg_perigee_rad + mean_anomaly_rad)
         )
         mean_motion_rad_s_series.append(
-            elements.mean_motion_rev_per_day * 2.0 * math.pi / constants.SECONDS_PER_DAY
+            elements.mean_motion_rev_per_day
+            * 2.0
+            * math.pi
+            / constants.SECONDS_PER_DAY_S
         )
-        p_km_series.append(
-            elements.semi_major_axis_km * (1.0 - elements.eccentricity**2)
-        )
+        p_m_series.append(elements.semi_major_axis_m * (1.0 - elements.eccentricity**2))
         records_with_elements.append(
             models.OrbitalRecord(
                 t_day=dt_day,
@@ -274,7 +264,9 @@ def estimate_tle_fields(
         times_s, mean_argument_latitude_unwrapped
     )
     mean_argument_latitude_rate_rev_per_day = (
-        mean_argument_latitude_rate_rad_s * constants.SECONDS_PER_DAY / (2.0 * math.pi)
+        mean_argument_latitude_rate_rad_s
+        * constants.SECONDS_PER_DAY_S
+        / (2.0 * math.pi)
     )
 
     # Remove fitted short-period phase progression and circular-average the
@@ -291,7 +283,7 @@ def estimate_tle_fields(
     # orbits. Anchor its phase detrending with epoch osculating mean motion.
     mean_motion_phase_rate_rev_per_day = elements_first.mean_motion_rev_per_day
     mean_motion_phase_rate_rad_s = (
-        mean_motion_phase_rate_rev_per_day * 2.0 * math.pi / constants.SECONDS_PER_DAY
+        mean_motion_phase_rate_rev_per_day * 2.0 * math.pi / constants.SECONDS_PER_DAY_S
     )
     mean_anomaly_phase_residuals = [
         common.wrap_angle_rad(m - mean_motion_phase_rate_rad_s * dt_s)
@@ -364,7 +356,7 @@ def estimate_tle_fields(
         times_s=times_s,
         raan_series_rad=raan_series_rad,
         mean_motion_rad_s_series=mean_motion_rad_s_series,
-        p_km_series=p_km_series,
+        p_m_series=p_m_series,
         fallback_inclination_deg=elements_first.inclination_deg,
     )
 
@@ -434,7 +426,7 @@ def estimate_tle_fields(
         phase_match_weight=phase_match_weight,
         mean_motion_first_derivative=mean_motion_first_derivative,
         mean_motion_first_derivative_raw=mean_motion_first_derivative_raw,
-        semi_major_axis_km=elements_first.semi_major_axis_km,
+        semi_major_axis_m=elements_first.semi_major_axis_m,
         dataset_slope_rev_per_day2=slope_rev_per_day2,
     )
 
@@ -442,7 +434,7 @@ def estimate_tle_fields(
 def verify_accuracy_keplerian(
     args: argparse.Namespace,
     estimated: models.Estimated,
-    records: list[tuple[datetime, np.ndarray, np.ndarray]],
+    records: list[tuple[datetime, np.ndarray]],
 ) -> models.KeplerianAccuracy | None:
     """Verify TLE accuracy using osculating Keplerian elements from common.kepler.
 
@@ -460,22 +452,18 @@ def verify_accuracy_keplerian(
         Parsed command-line arguments.
     estimated : Estimated
         Estimated TLE elements dataclass.
-    records : list[tuple[datetime, np.ndarray, np.ndarray]]
-        List of (epoch, position_km (3,), velocity_km_s (3,)) tuples.
+    records : list[tuple[datetime, np.ndarray]]
+        List of (epoch, state_vector_m (6,)) tuples.
 
     Returns
     -------
     KeplerianAccuracy | None
         Keplerian accuracy dataclass with element-wise residuals, or None on failure.
     """
-    mu: float = kepler.MU_EARTH
+    mu: float = consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
 
-    # Reference state at epoch (convert km, km/s -> m, m/s)
-    ref_pos_km: np.ndarray = records[0][1]  # (3,)
-    ref_vel_km_s: np.ndarray = records[0][2]  # (3,)
-    ref_state_m: np.ndarray = np.concatenate(  # (6,) state in meters
-        [ref_pos_km * 1000.0, ref_vel_km_s * 1000.0]  # (3,) + (3,) -> (6,)
-    )
+    # Reference state at epoch (already in m, m/s)
+    ref_state_m: np.ndarray = records[0][1]  # (6,) state vector
 
     # Compute reference osculating Keplerian elements
     try:
@@ -501,6 +489,7 @@ def verify_accuracy_keplerian(
 
     # Angle differences wrapped to [-pi, pi]
     def _angle_diff(a, b):
+        """Compute angle difference wrapped to [-π, π]."""
         d = (a - b) % (2.0 * np.pi)
         if d > np.pi:
             d -= 2.0 * np.pi
@@ -521,14 +510,13 @@ def verify_accuracy_keplerian(
 
     return models.KeplerianAccuracy(
         semi_major_axis_error_m=float(da_m),
-        semi_major_axis_error_km=float(da_m) / 1000.0,
         eccentricity_error=float(de),
         inclination_error_deg=float(np.degrees(di_rad)),
         raan_error_deg=float(np.degrees(draan_rad)),
         arg_perigee_error_deg=float(np.degrees(domega_rad)),
         true_anomaly_error_deg=float(np.degrees(dtheta_rad)),
         arg_latitude_error_deg=float(np.degrees(du_rad)),
-        ref_semi_major_axis_km=float(ref_kep[kepler.SEMI_MAJOR_AXIS_INDEX]) / 1000.0,
+        ref_semi_major_axis_m=float(ref_kep[kepler.SEMI_MAJOR_AXIS_INDEX]),
         ref_eccentricity=float(ref_kep[kepler.ECCENTRICITY_INDEX]),
         ref_inclination_deg=float(np.degrees(ref_kep[kepler.INCLINATION_INDEX])),
         ref_raan_deg=float(np.degrees(ref_kep[kepler.RAAN_INDEX])),
@@ -536,7 +524,7 @@ def verify_accuracy_keplerian(
             np.degrees(ref_kep[kepler.ARGUMENT_OF_PERIAPSIS_INDEX])
         ),
         ref_true_anomaly_deg=float(np.degrees(ref_kep[kepler.TRUE_ANOMALY_INDEX])),
-        tle_semi_major_axis_km=float(tle_kep_array[0]) / 1000.0,
+        tle_semi_major_axis_m=float(tle_kep_array[0]),
         tle_eccentricity=float(tle_kep_array[1]),
         tle_inclination_deg=float(np.degrees(tle_kep_array[2])),
         tle_raan_deg=float(np.degrees(tle_kep_array[3])),

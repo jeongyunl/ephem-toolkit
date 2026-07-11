@@ -212,7 +212,7 @@ python propagation/propagate_orbit.py -h
 - TudatPy
 - NumPy
 - Matplotlib
-- local helper module `common.common`
+- local helper modules `common.common`, `common.time_utils`
 
 The script loads these SPICE kernels from TudatPy's SPICE kernel directory:
 
@@ -429,7 +429,7 @@ python propagation/propagate_tle.py -h
 
 - TudatPy
 - Python standard library
-- local helper module `common.common`
+- local helper modules `common.common`, `common.time_utils`
 
 The script loads these SPICE kernels via TudatPy data paths:
 

@@ -2,6 +2,22 @@
 
 Provides low-level functions (:func:`read_oem`, :func:`write_oem`) that
 operate on plain dictionaries, and a structured :class:`CcsdsOem` class.
+
+Unit Conversion
+---------------
+OEM files use kilometers (km) and km/s per the CCSDS standard. This module
+converts state vectors to SI units (meters and m/s) when reading, and converts
+back to km/km·s⁻¹ when writing. This ensures:
+
+- **Internal consistency:** All state vectors use SI units (m, m/s)
+- **File compliance:** OEM files remain CCSDS-compliant (km, km/s)
+- **Project alignment:** Follows the project-wide SI unit convention
+
+Example
+-------
+>>> oem = CcsdsOem.from_source("orbit.oem")
+>>> oem.states[timestamp]  # Returns state in meters and m/s
+array([6.7e6, 0.0, 0.0, 0.0, 7.5e3, 0.0])  # Position in m, velocity in m/s
 """
 
 from __future__ import annotations
@@ -14,18 +30,20 @@ from typing import Callable, TextIO
 import numpy as np
 
 import common.common as common
+import common.time_utils as time_utils
+
+# ===================================================================
+# Constants
+# ===================================================================
+
+
+KILOMETERS_TO_METERS: float = 1000.0
+"""Conversion factor from kilometers to meters."""
+
 
 # ===================================================================
 # Internal helpers
 # ===================================================================
-
-
-def _parse_kv_line(line: str) -> tuple[str, str] | None:
-    """Return (key, value) from ``KEY = VALUE`` lines, or *None*."""
-    if "=" not in line:
-        return None
-    key, _, value = line.partition("=")
-    return key.strip(), value.strip()
 
 
 def _is_state_line(line: str) -> bool:
@@ -47,6 +65,7 @@ _META_KEY_ORDER: list[str] = [
     "INTERPOLATION",
     "INTERPOLATION_DEGREE",
 ]
+"""Preferred ordering of metadata keys when writing OEM files."""
 
 
 # ===================================================================
@@ -54,10 +73,13 @@ _META_KEY_ORDER: list[str] = [
 # ===================================================================
 
 
-def parse_oem_state_line(line: str) -> tuple[datetime, np.ndarray] | None:
+def parse_oem_state_line(line: str) -> tuple[float, np.ndarray] | None:
     """Parse a single line of OEM-style data.
 
     Accepts whitespace or comma separated values.
+
+    OEM files use km and km/s (CCSDS standard), but this function converts
+    to SI units (m and m/s) for internal use.
 
     Parameters
     ----------
@@ -66,9 +88,9 @@ def parse_oem_state_line(line: str) -> tuple[datetime, np.ndarray] | None:
 
     Returns
     -------
-    tuple[datetime, np.ndarray] | None
-        ``(epoch_dt, state_km)`` where *state_km* is a 6-element numpy array
-        ``[x, y, z, vx, vy, vz]`` in km / km·s⁻¹,
+    tuple[float, np.ndarray] | None
+        ``(timestamp, state_m)`` where *timestamp* is a POSIX timestamp (float, seconds since epoch)
+        and *state_m* is a 6-element numpy array ``[x, y, z, vx, vy, vz]`` in meters (m) and m/s,
         or ``None`` for blank / comment lines.
     """
     if not line.strip():
@@ -81,18 +103,25 @@ def parse_oem_state_line(line: str) -> tuple[datetime, np.ndarray] | None:
         raise ValueError(f"Line does not contain 7 fields: '{line}'")
 
     epoch_str: str = parts[0]
-    epoch_dt = common.iso8601_to_datetime(epoch_str)
+    epoch_dt: datetime = time_utils.iso8601_to_datetime(epoch_str)
+    timestamp: float = epoch_dt.timestamp()
 
     vals: list[float] = [float(x) for x in parts[1:7]]
     state_km: np.ndarray = np.array(vals)
 
-    return epoch_dt, state_km
+    # Convert from km/km·s⁻¹ (OEM standard) to m/m·s⁻¹ (SI units)
+    state_m: np.ndarray = state_km * KILOMETERS_TO_METERS
+
+    return timestamp, state_m
 
 
 def read_oem(
     source: TextIO | str | Path,
 ) -> tuple[dict, dict, dict[float, np.ndarray]]:
     """Read an OEM file and return *(header, meta, states)*.
+
+    OEM files use km and km/s (CCSDS standard), but state vectors are converted
+    to SI units (m and m/s) for internal use.
 
     Parameters
     ----------
@@ -104,7 +133,7 @@ def read_oem(
     tuple[dict, dict, dict[float, np.ndarray]]
         A 3-tuple of ``(header, meta, states)`` where *header* and *meta*
         are dictionaries, and *states* maps epoch POSIX timestamps (float, seconds since epoch)
-        to state vectors.
+        to state vectors in meters (m) and m/s.
     """
     if isinstance(source, (str, Path)):
         with open(source, "r", encoding="utf-8") as fh:
@@ -113,7 +142,7 @@ def read_oem(
     header: dict = {}
     meta: dict = {}
     states: dict[float, np.ndarray] = {}
-    in_meta = False
+    in_meta: bool = False
 
     for raw_line in source:
         line: str = raw_line.strip()
@@ -134,7 +163,7 @@ def read_oem(
             target["COMMENT"].append(comment_text)
             continue
 
-        kv: tuple[str, str] | None = _parse_kv_line(line)
+        kv: tuple[str, str] | None = common.parse_key_value_line(line)
         if kv is not None and (in_meta or not _is_state_line(line)):
             key, value = kv
             try:
@@ -154,9 +183,11 @@ def read_oem(
             parts: list[str] = line.split()
             if len(parts) < 7:
                 continue
-            epoch: datetime = common.iso8601_to_datetime(parts[0])
+            epoch: datetime = time_utils.iso8601_to_datetime(parts[0])
             timestamp: float = epoch.timestamp()
-            states[timestamp] = np.array([float(v) for v in parts[1:7]])
+            state_km: np.ndarray = np.array([float(v) for v in parts[1:7]])
+            # Convert from km/km·s⁻¹ (OEM standard) to m/m·s⁻¹ (SI units)
+            states[timestamp] = state_km * KILOMETERS_TO_METERS
 
     return header, meta, states
 
@@ -169,9 +200,11 @@ def read_oem(
 def write_state(
     dest: TextIO,
     epoch: datetime,
-    sv: np.ndarray,
+    state_vector: np.ndarray,
 ) -> None:
     """Write a single state vector to a file handle.
+
+    Converts from internal SI units (m, m/s) to OEM standard units (km, km/s).
 
     Parameters
     ----------
@@ -179,14 +212,18 @@ def write_state(
         Writable text stream.
     epoch : datetime
         Epoch datetime object.
-    sv : np.ndarray
-        State vector (6-element array).
+    state_vector : np.ndarray
+        State vector (6-element array) [x, y, z, vx, vy, vz] in meters (m) and m/s.
     """
     dt: datetime = epoch
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     epoch_str: str = dt.strftime("%Y-%m-%dT%H:%M:%S.%f")
-    vals: str = " ".join(f"{v:.15g}" for v in sv)
+
+    # Convert from m/m·s⁻¹ (SI units) to km/km·s⁻¹ (OEM standard)
+    state_km: np.ndarray = state_vector / KILOMETERS_TO_METERS
+
+    vals: str = " ".join(f"{v:.15g}" for v in state_km)
     dest.write(f"{epoch_str} {vals}\n")
 
 
@@ -201,24 +238,26 @@ def write_states(
 ) -> None:
     """Write state vectors to a file handle.
 
+    Converts from internal SI units (m, m/s) to OEM standard units (km, km/s).
+
     Parameters
     ----------
     dest : TextIO
         Writable text stream.
     states : dict[datetime, np.ndarray] | dict[float, np.ndarray] | list[tuple[datetime, np.ndarray]] | list[tuple[float, np.ndarray]]
-        Dictionary mapping epoch datetimes or POSIX timestamps to state vectors,
-        or a sorted list of (epoch, state_vector) tuples.
+        Dictionary mapping epoch datetimes or POSIX timestamps to state vectors
+        in meters (m) and m/s, or a sorted list of (epoch, state_vector) tuples.
     """
     if isinstance(states, dict):
-        items = sorted(states.items())
+        items: list[tuple[datetime | float, np.ndarray]] = sorted(states.items())
     else:
-        items = states
+        items: list[tuple[datetime | float, np.ndarray]] = states
 
-    for epoch, sv in items:
+    for epoch, state_vector in items:
         # Convert float timestamp to datetime if needed
         if isinstance(epoch, float):
             epoch = datetime.fromtimestamp(epoch, tz=timezone.utc)
-        write_state(dest, epoch, sv)
+        write_state(dest, epoch, state_vector)
 
 
 def write_oem(
@@ -229,6 +268,9 @@ def write_oem(
 ) -> None:
     """Write an OEM file from *(header, meta, states)* dicts.
 
+    Converts state vectors from internal SI units (m, m/s) to OEM standard
+    units (km, km/s) when writing.
+
     Parameters
     ----------
     dest : TextIO | str | Path
@@ -238,7 +280,8 @@ def write_oem(
     meta : dict
         Dictionary containing OEM metadata fields.
     states : dict[datetime, np.ndarray] | dict[float, np.ndarray]
-        Dictionary mapping epoch datetimes or POSIX timestamps to state vectors.
+        Dictionary mapping epoch datetimes or POSIX timestamps to state vectors
+        in meters (m) and m/s.
     """
     if isinstance(dest, (str, Path)):
         with open(dest, "w", encoding="utf-8") as fh:
@@ -362,7 +405,8 @@ class CcsdsOem:
         meta : OemMeta
             Metadata block fields.
         states : dict[float, np.ndarray]
-            Mapping of epoch POSIX timestamps (float, seconds since epoch) to 6-element state vectors.
+            Mapping of epoch POSIX timestamps (float, seconds since epoch) to 6-element state vectors
+            in meters (m) and m/s.
         """
         self.header = header
         """File-level header fields."""
@@ -371,7 +415,7 @@ class CcsdsOem:
         """Metadata block fields."""
 
         self.states = states
-        """Mapping of epoch POSIX timestamps (float, seconds since epoch) to 6-element state vectors [x, y, z, vx, vy, vz] in km and km·s⁻¹."""
+        """Mapping of epoch POSIX timestamps (float, seconds since epoch) to 6-element state vectors [x, y, z, vx, vy, vz] in meters (m) and m/s."""
 
     @classmethod
     def from_source(cls, source: TextIO | str | Path) -> CcsdsOem:
@@ -423,7 +467,7 @@ class CcsdsOem:
 
     @property
     def state_vectors(self) -> np.ndarray:
-        """State vectors ordered by epoch, shape ``(N, 6)``."""
+        """State vectors ordered by epoch, shape ``(N, 6)`` in meters (m) and m/s."""
         return np.array([self.states[epoch] for epoch in self.epochs])
 
     def to_file(self, dest: TextIO | str | Path) -> None:

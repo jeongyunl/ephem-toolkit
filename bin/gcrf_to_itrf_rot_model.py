@@ -13,8 +13,6 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 # Suppress Warnings from TudatPy
 import warnings
 
@@ -29,9 +27,11 @@ from tudatpy.interface import spice
 from tudatpy.dynamics import environment_setup
 from tudatpy.dynamics.environment_setup.rotation_model import RotationModelSettings
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import common.common as common
 import common.oem as oem
+import common.time_utils as time_utils
 
 
 def load_spice_kernels() -> None:
@@ -89,11 +89,11 @@ def create_earth_rotation_model(
 
 
 def convert_gcrf_to_itrf_erm(
-    earth_rotation_model,
+    earth_rotation_model: object,
     input_epoch_et_s: float,
-    input_gcrf_position_m,
-    input_gcrf_velocity_m_s=None,
-):
+    input_gcrf_position_m: np.ndarray,
+    input_gcrf_velocity_m_s: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray | None]:
     """Convert an inertial (GCRF/J2000) position/velocity vector to the body-fixed (ITRF/IAU_Earth) frame.
 
     Works with any Earth rotation model (GCRS-to-ITRS IAU 2006, SPICE IAU_Earth,
@@ -154,14 +154,12 @@ def convert_gcrf_to_itrf_erm(
     return output_itrf_position_m, output_itrf_velocity_m_s
 
 
-# Function to convert position and velocity from the body-fixed frame (ITRF/IAU_Earth)
-# to the inertial frame (GCRF/J2000) at a given epoch using the Earth Rotation Model
 def convert_itrf_to_gcrf_erm(
-    earth_rotation_model,
+    earth_rotation_model: object,
     input_epoch_et_s: float,
-    input_itrf_position_m,
-    input_itrf_velocity_m_s=None,
-):
+    input_itrf_position_m: np.ndarray,
+    input_itrf_velocity_m_s: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray | None]:
     """Convert a body-fixed (ITRF/IAU_Earth) position/velocity vector to the inertial (GCRF/J2000) frame.
 
     Works with any Earth rotation model (GCRS-to-ITRS IAU 2006, SPICE IAU_Earth,
@@ -257,7 +255,7 @@ def process_stream(
             continue
 
         epoch_dt, state_km = parsed
-        epoch_tdb_s = common.datetime_to_tdb(epoch_dt)
+        epoch_tdb_s = time_utils.datetime_to_tdb(epoch_dt)
 
         # Convert km / km·s⁻¹ → m / m·s⁻¹ for the conversion functions
         position_m = state_km[0:3] * 1e3
@@ -282,7 +280,10 @@ def process_stream(
         output_position_km = output_position_m / 1e3
 
         print(
-            common.datetime_to_iso8601(epoch_dt), *output_position_km, sep="  ", end=""
+            time_utils.datetime_to_iso8601(epoch_dt),
+            *output_position_km,
+            sep="  ",
+            end="",
         )
 
         if output_velocity_m_s is not None:
@@ -291,8 +292,13 @@ def process_stream(
         print()
 
 
-def print_usage():
-    """Print the script usage message to standard output."""
+def print_usage() -> None:
+    """Print the script usage message to standard output.
+
+    Displays usage information for the gcrf_to_itrf_rot_model CLI tool,
+    including positional arguments, options, rotation model selection,
+    and input/output formats.
+    """
     print(
         "Usage: python gcrf_to_itrf_rot_model.py [-h] [-r] [-m MODEL] [input_file]\n"
         "\n"

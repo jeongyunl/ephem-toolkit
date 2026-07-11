@@ -7,10 +7,12 @@ TLE-related utilities for building, estimating, and converting orbital data.
 Current TLE-related scripts in this repository include:
 
 - `oem_to_tle/oem_to_tle.py`
-- `tle/download_tle.py`
-- `tle/omm_to_tle.py`
-- `tle/tle_to_omm.py`
-- `tle/tle_info.py`
+- `oem_to_kepler/oem_to_kepler.py`
+- `bin/download_tle.py`
+- `bin/omm_to_tle.py`
+- `bin/tle_to_omm.py`
+- `bin/tle_info.py`
+- `bin/cartesian_to_keplerian.py`
 - `common/convert_tle.py`
 
 This document focuses on the primary user-facing tools and the current repository context around them.
@@ -19,14 +21,14 @@ This document focuses on the primary user-facing tools and the current repositor
 
 This script estimates a TLE from an OEM-like Cartesian arc. For complete usage and algorithm documentation, see [OEM_TO_TLE.md](OEM_TO_TLE.md).
 
-## `tle/download_tle.py`
+## `bin/download_tle.py`
 
 Downloads TLE or OMM data from CelesTrak for specified satellites.
 
 ### Synopsis
 
 ```bash
-python tle/download_tle.py [-h] [--format <format>] <satellite_id> [<satellite_id2>] ...
+python bin/download_tle.py [-h] [--format <format>] <satellite_id> [<satellite_id2>] ...
 ```
 
 ### Options
@@ -49,45 +51,45 @@ python tle/download_tle.py [-h] [--format <format>] <satellite_id> [<satellite_i
 **Download TLE for ISS:**
 
 ```bash
-python tle/download_tle.py 1998-067A
+python bin/download_tle.py 1998-067A
 ```
 
 **Download TLE for multiple satellites:**
 
 ```bash
-python tle/download_tle.py 1998-067A 2019-050A 2023-100G
+python bin/download_tle.py 1998-067A 2019-050A 2023-100G
 ```
 
 **Download in OMM format:**
 
 ```bash
-python tle/download_tle.py --format omm 1998-067A
+python bin/download_tle.py --format omm 1998-067A
 ```
 
 **Download in JSON format:**
 
 ```bash
-python tle/download_tle.py --format json 1998-067A
+python bin/download_tle.py --format json 1998-067A
 ```
 
 **Show help:**
 
 ```bash
-python tle/download_tle.py -h
+python bin/download_tle.py -h
 ```
 
 ### Dependencies
 
 - Python standard library (urllib)
 
-## `tle/tle_info.py`
+## `bin/tle_info.py`
 
 Inspects and displays detailed TLE information including orbital elements and Cartesian state.
 
 ### Synopsis
 
 ```bash
-python tle/tle_info.py [-h] <tle_file> [<tle_file2>] ...
+python bin/tle_info.py [-h] <tle_file> [<tle_file2>] ...
 ```
 
 ### Options
@@ -128,34 +130,34 @@ For each TLE file, prints:
 **Display TLE information:**
 
 ```bash
-python tle/tle_info.py test/ISS-ZARYA_1998-067A.tle
+python bin/tle_info.py test/ISS-ZARYA_1998-067A.tle
 ```
 
 **Display information for multiple TLE files:**
 
 ```bash
-python tle/tle_info.py test/ISS-ZARYA_1998-067A.tle test/AMOS-17_2019-050A.tle
+python bin/tle_info.py test/ISS-ZARYA_1998-067A.tle test/AMOS-17_2019-050A.tle
 ```
 
 **Show help:**
 
 ```bash
-python tle/tle_info.py -h
+python bin/tle_info.py -h
 ```
 
 ### Dependencies
 
 - TudatPy
-- local helper module `common.common`
+- local helper modules `common.common`, `common.time_utils`
 
-## `tle/omm_to_tle.py`
+## `bin/omm_to_tle.py`
 
 Converts CCSDS Orbit Mean-Elements Message (OMM) format to Two-Line Element (TLE) format.
 
 ### Synopsis
 
 ```bash
-python tle/omm_to_tle.py [-h] [-o <output.tle>] [<input.omm>]
+python bin/omm_to_tle.py [-h] [-o <output.tle>] [<input.omm>]
 ```
 
 ### Options
@@ -190,39 +192,39 @@ Outputs standard two-line element format:
 **Convert OMM file to TLE:**
 
 ```bash
-python tle/omm_to_tle.py test/ISS-ZARYA_1998-067A.omm
+python bin/omm_to_tle.py test/ISS-ZARYA_1998-067A.omm
 ```
 
 **Convert OMM file and save to output file:**
 
 ```bash
-python tle/omm_to_tle.py test/ISS-ZARYA_1998-067A.omm -o output.tle
+python bin/omm_to_tle.py test/ISS-ZARYA_1998-067A.omm -o output.tle
 ```
 
 **Convert OMM from stdin:**
 
 ```bash
-cat test/ISS-ZARYA_1998-067A.omm | python tle/omm_to_tle.py
+cat test/ISS-ZARYA_1998-067A.omm | python bin/omm_to_tle.py
 ```
 
 **Show help:**
 
 ```bash
-python tle/omm_to_tle.py -h
+python bin/omm_to_tle.py -h
 ```
 
 ### Dependencies
 
 - local helper modules `common.convert_tle`, `common.omm`, `common.tle`
 
-## `tle/tle_to_omm.py`
+## `bin/tle_to_omm.py`
 
 Converts Two-Line Element (TLE) format to CCSDS Orbit Mean-Elements Message (OMM) format.
 
 ### Synopsis
 
 ```bash
-python tle/tle_to_omm.py [-h] [-o <output.omm>] [<input.tle>]
+python bin/tle_to_omm.py [-h] [-o <output.omm>] [<input.tle>]
 ```
 
 ### Options
@@ -252,25 +254,25 @@ Outputs CCSDS OMM format (KVN).
 **Convert TLE file to OMM:**
 
 ```bash
-python tle/tle_to_omm.py test/ISS-ZARYA_1998-067A.tle
+python bin/tle_to_omm.py test/ISS-ZARYA_1998-067A.tle
 ```
 
 **Convert TLE file and save to output file:**
 
 ```bash
-python tle/tle_to_omm.py test/ISS-ZARYA_1998-067A.tle -o output.omm
+python bin/tle_to_omm.py test/ISS-ZARYA_1998-067A.tle -o output.omm
 ```
 
 **Convert TLE from stdin:**
 
 ```bash
-cat test/ISS-ZARYA_1998-067A.tle | python tle/tle_to_omm.py
+cat test/ISS-ZARYA_1998-067A.tle | python bin/tle_to_omm.py
 ```
 
 **Show help:**
 
 ```bash
-python tle/tle_to_omm.py -h
+python bin/tle_to_omm.py -h
 ```
 
 ### Dependencies

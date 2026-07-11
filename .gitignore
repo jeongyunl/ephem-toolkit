@@ -8,3 +8,4 @@ propagation/*.oem
 *.png
 a.out
 ISS.OEM_J2K_EPH.txt
+common/interpolator/cpp/*

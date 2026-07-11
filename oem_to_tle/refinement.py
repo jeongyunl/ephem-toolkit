@@ -4,23 +4,29 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
+import sys
+from dataclasses import replace
 from datetime import datetime
 
 import numpy as np
 
-import sys
-import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 import common.common as common
 import common.convert_tle as convert_tle
 import common.kepler as kepler
 import common.tle as tle
+import common.consts as consts
 
 from . import constants
 from .linalg import solve_weighted_least_squares
 from .models import Estimated, KeplerianMatchErrors, TleDeltas, TleParameters
-from .tle_builder import build_tle_data, build_tle_lines, format_tle_exponential_from_float
+from .tle_builder import (
+    build_tle_data,
+    build_tle_lines,
+    format_tle_exponential_from_float,
+)
 
 try:
     from tudatpy.dynamics import environment_setup
@@ -30,7 +36,7 @@ except Exception:
     spice = None
 
 
-def evaluate_tle_epoch_states_km(
+def evaluate_tle_epoch_states_m(
     line_pairs: list[tuple[str, str]],
 ) -> list[np.ndarray] | None:
     """Evaluate SGP4 Cartesian states at each TLE's reference epoch.
@@ -43,7 +49,7 @@ def evaluate_tle_epoch_states_km(
     Returns
     -------
     list[np.ndarray] | None
-        List of state vectors (6,) [x, y, z, vx, vy, vz] in km and km/s, or None on failure.
+        List of state vectors (6,) [x, y, z, vx, vy, vz] in m and m/s, or None on failure.
     """
     if environment_setup is None or spice is None:
         return None
@@ -56,14 +62,14 @@ def evaluate_tle_epoch_states_km(
                 settings, body_name="state_match"
             )
             tle_obj = ephemeris.tle
-            state = ephemeris.cartesian_state(tle_obj.reference_epoch) / 1000.0  # (6,)
+            state = ephemeris.cartesian_state(tle_obj.reference_epoch)  # (6,) in meters
             states.append(np.asarray(state, dtype=float))  # (6,)
         return states
     except Exception:
         return None
 
 
-def evaluate_tle_states_for_offsets_km(
+def evaluate_tle_states_for_offsets_m(
     line1: str, line2: str, time_offsets_s: list[float]
 ) -> list[np.ndarray] | None:
     """Evaluate one TLE at multiple offsets from its reference epoch.
@@ -80,7 +86,7 @@ def evaluate_tle_states_for_offsets_km(
     Returns
     -------
     list[np.ndarray] | None
-        List of state vectors (6,) [x, y, z, vx, vy, vz] in km and km/s, or None on failure.
+        List of state vectors (6,) [x, y, z, vx, vy, vz] in m and m/s, or None on failure.
     """
     if environment_setup is None or spice is None:
         return None
@@ -95,7 +101,7 @@ def evaluate_tle_states_for_offsets_km(
 
         states: list[np.ndarray] = []
         for dt in time_offsets_s:
-            state = ephemeris.cartesian_state(epoch + dt) / 1000.0  # (6,)
+            state = ephemeris.cartesian_state(epoch + dt)  # (6,) in meters
             states.append(np.asarray(state, dtype=float))  # (6,)
         return states
     except Exception:
@@ -117,8 +123,6 @@ def clamp_refined_elements(params: TleParameters) -> TleParameters:
     """
     assert isinstance(params, TleParameters)
 
-    # Work with TleParameters object
-    from dataclasses import replace
     return replace(
         params,
         inclination_deg=float(np.clip(params.inclination_deg, 0.0, 180.0)),
@@ -142,29 +146,29 @@ def compute_state_match_score(
     Parameters
     ----------
     residual_state : np.ndarray
-        State residual vector (6,) [dx, dy, dz, dvx, dvy, dvz].
+        State residual vector (6,) [dx, dy, dz, dvx, dvy, dvz] in m and m/s.
 
     Returns
     -------
     tuple[float, float, float]
-        Weighted score, position error (km), velocity error (km/s).
+        Weighted score, position error (m), velocity error (m/s).
     """
     r: np.ndarray = np.asarray(residual_state, dtype=float)  # (6,)
-    position_error_km: float = float(np.linalg.norm(r[:3]))  # norm of (3,)
-    velocity_error_km_s: float = float(np.linalg.norm(r[3:]))  # norm of (3,)
+    position_error_m: float = float(np.linalg.norm(r[:3]))  # norm of (3,)
+    velocity_error_m_s: float = float(np.linalg.norm(r[3:]))  # norm of (3,)
     score: float = (
-        constants.STATE_MATCH_POSITION_WEIGHT * position_error_km
-        + constants.STATE_MATCH_VELOCITY_WEIGHT * velocity_error_km_s
+        constants.STATE_MATCH_POSITION_WEIGHT * position_error_m
+        + constants.STATE_MATCH_VELOCITY_WEIGHT * velocity_error_m_s
     )
-    return score, position_error_km, velocity_error_km_s
+    return score, position_error_m, velocity_error_m_s
 
 
 def refine_estimated_fields_to_match_epoch_state(
-    args: argparse.Namespace, estimated: Estimated, target_state_km_km_s: np.ndarray
+    args: argparse.Namespace, estimated: Estimated, target_state_m_m_s: np.ndarray
 ) -> Estimated:
     """Refine line-2 fields using finite-difference Gauss-Newton iterations.
 
-    The objective is weighted epoch-state residual in km and km/s.
+    The objective is weighted epoch-state residual in m and m/s.
 
     Parameters
     ----------
@@ -172,8 +176,8 @@ def refine_estimated_fields_to_match_epoch_state(
         Parsed command-line arguments.
     estimated : Estimated
         Estimated TLE elements dataclass.
-    target_state_km_km_s : np.ndarray
-        Target state vector (6,) [x, y, z, vx, vy, vz] in km and km/s.
+    target_state_m_m_s : np.ndarray
+        Target state vector (6,) [x, y, z, vx, vy, vz] in m and m/s.
 
     Returns
     -------
@@ -181,7 +185,8 @@ def refine_estimated_fields_to_match_epoch_state(
         Updated estimated dataclass with refined elements and error metrics.
     """
     step_sizes: list[float] = [
-        constants.STATE_MATCH_PARAMETER_STEPS[name] for name in TleParameters.__dataclass_fields__
+        constants.STATE_MATCH_PARAMETER_STEPS[name]
+        for name in TleParameters.__dataclass_fields__
     ]
 
     def evaluate_with_params(
@@ -193,18 +198,18 @@ def refine_estimated_fields_to_match_epoch_state(
         line1: str
         line2: str
         line1, line2 = build_tle_lines(args, trial_estimated)
-        states: list[np.ndarray] | None = evaluate_tle_epoch_states_km([(line1, line2)])
+        states: list[np.ndarray] | None = evaluate_tle_epoch_states_m([(line1, line2)])
         state: np.ndarray | None = None if states is None else states[0]  # (6,)
         if state is None:
             return None, None, None, None
-        residual: np.ndarray = target_state_km_km_s - state  # (6,) - (6,) = (6,)
+        residual: np.ndarray = target_state_m_m_s - state  # (6,) - (6,) = (6,)
         score: float
-        position_error_km: float
-        velocity_error_km_s: float
-        score, position_error_km, velocity_error_km_s = compute_state_match_score(
+        position_error_m: float
+        velocity_error_m_s: float
+        score, position_error_m, velocity_error_m_s = compute_state_match_score(
             residual
         )
-        return state, residual, score, (position_error_km, velocity_error_km_s)
+        return state, residual, score, (position_error_m, velocity_error_m_s)
 
     current_params: TleParameters = TleParameters.from_estimated(estimated)
     _: np.ndarray | None
@@ -214,8 +219,8 @@ def refine_estimated_fields_to_match_epoch_state(
     _, residual, best_score, best_errors = evaluate_with_params(current_params)
     if residual is None:
         estimated.state_match_refinement_used = False
-        estimated.state_match_position_error_km = None
-        estimated.state_match_velocity_error_km_s = None
+        estimated.state_match_position_error_m = None
+        estimated.state_match_velocity_error_m_s = None
         return estimated
 
     best_params: TleParameters = current_params
@@ -245,13 +250,13 @@ def refine_estimated_fields_to_match_epoch_state(
                 trial_estimated: Estimated = trial_params.apply_to_estimated(estimated)
                 finite_difference_pairs.append(build_tle_lines(args, trial_estimated))
 
-        finite_difference_states: list[np.ndarray] | None = (
-            evaluate_tle_epoch_states_km(finite_difference_pairs)
+        finite_difference_states: list[np.ndarray] | None = evaluate_tle_epoch_states_m(
+            finite_difference_pairs
         )
         if finite_difference_states is None:
             estimated.state_match_refinement_used = False
-            estimated.state_match_position_error_km = best_errors[0]
-            estimated.state_match_velocity_error_km_s = best_errors[1]
+            estimated.state_match_position_error_m = best_errors[0]
+            estimated.state_match_velocity_error_m_s = best_errors[1]
             return estimated
 
         for spec_index, (parameter_index, step_size, _, _) in enumerate(
@@ -261,8 +266,8 @@ def refine_estimated_fields_to_match_epoch_state(
             minus_state: np.ndarray = finite_difference_states[2 * spec_index + 1]
             if plus_state is None or minus_state is None:
                 estimated.state_match_refinement_used = False
-                estimated.state_match_position_error_km = best_errors[0]
-                estimated.state_match_velocity_error_km_s = best_errors[1]
+                estimated.state_match_position_error_m = best_errors[0]
+                estimated.state_match_velocity_error_m_s = best_errors[1]
                 return estimated
 
             jacobian[:, parameter_index] = (plus_state - minus_state) / (  # (6,) column
@@ -271,7 +276,9 @@ def refine_estimated_fields_to_match_epoch_state(
 
         # Build weighted normal equations using numpy
         weights: np.ndarray = np.where(  # (6,) weight vector
-            np.arange(6) < 3, constants.STATE_MATCH_POSITION_WEIGHT, constants.STATE_MATCH_VELOCITY_WEIGHT
+            np.arange(6) < 3,
+            constants.STATE_MATCH_POSITION_WEIGHT,
+            constants.STATE_MATCH_VELOCITY_WEIGHT,
         )
         W: np.ndarray = np.diag(weights)  # (6×6) diagonal weight matrix
         Jw: np.ndarray = W @ jacobian  # (6×6) @ (6×6) = (6×6) weighted Jacobian
@@ -297,7 +304,7 @@ def refine_estimated_fields_to_match_epoch_state(
             trial_estimated: Estimated = trial_params.apply_to_estimated(estimated)
             line_search_pairs.append(build_tle_lines(args, trial_estimated))
 
-        line_search_states: list[np.ndarray] | None = evaluate_tle_epoch_states_km(
+        line_search_states: list[np.ndarray] | None = evaluate_tle_epoch_states_m(
             line_search_pairs
         )
         if line_search_states is None:
@@ -309,17 +316,17 @@ def refine_estimated_fields_to_match_epoch_state(
             if trial_state is None:
                 continue
             trial_residual: np.ndarray = (
-                target_state_km_km_s - trial_state
+                target_state_m_m_s - trial_state
             )  # (6,) - (6,) = (6,)
             trial_score: float
-            position_error_km: float
-            velocity_error_km_s: float
+            position_error_m: float
+            velocity_error_m_s: float
             (
                 trial_score,
-                position_error_km,
-                velocity_error_km_s,
+                position_error_m,
+                velocity_error_m_s,
             ) = compute_state_match_score(trial_residual)
-            trial_errors: tuple[float, float] = (position_error_km, velocity_error_km_s)
+            trial_errors: tuple[float, float] = (position_error_m, velocity_error_m_s)
             if trial_score < best_score:
                 current_params = trial_params
                 residual = trial_residual
@@ -337,8 +344,8 @@ def refine_estimated_fields_to_match_epoch_state(
 
     estimated.state_match_refinement_used = iteration_count > 0
     estimated.state_match_iterations = iteration_count
-    estimated.state_match_position_error_km = best_errors[0]
-    estimated.state_match_velocity_error_km_s = best_errors[1]
+    estimated.state_match_position_error_m = best_errors[0]
+    estimated.state_match_velocity_error_m_s = best_errors[1]
     return estimated
 
 
@@ -365,12 +372,12 @@ def compute_keplerian_match_score(
     tuple[float, KeplerianMatchErrors]
         Weighted score and element-wise errors dataclass.
     """
-    mu: float = kepler.MU_EARTH
+    mu: float = consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
 
-    # Semi-major axis difference in km
-    da_km: float = (
+    # Semi-major axis difference in m
+    da_m: float = (
         tle_kep[kepler.SEMI_MAJOR_AXIS_INDEX] - ref_kep[kepler.SEMI_MAJOR_AXIS_INDEX]
-    ) / 1000.0
+    )
 
     # Eccentricity difference
     de: float = tle_kep[kepler.ECCENTRICITY_INDEX] - ref_kep[kepler.ECCENTRICITY_INDEX]
@@ -407,14 +414,14 @@ def compute_keplerian_match_score(
     ) % (2.0 * math.pi)
     du_deg: float = _angle_diff_deg(tle_u, ref_u)
 
-    # Weighted score: semi-major axis in km, eccentricity scaled by 1e4,
+    # Weighted score: semi-major axis in m, eccentricity scaled by 1e4,
     # angles in degrees. This gives roughly comparable magnitudes for LEO.
     score: float = (
-        abs(da_km) + 1e4 * abs(de) + abs(di_deg) + abs(draan_deg) + abs(du_deg)
+        abs(da_m) / 1000.0 + 1e4 * abs(de) + abs(di_deg) + abs(draan_deg) + abs(du_deg)
     )
 
     errors: KeplerianMatchErrors = KeplerianMatchErrors(
-        semi_major_axis_error_km=da_km,
+        semi_major_axis_error_m=da_m,
         eccentricity_error=de,
         inclination_error_deg=di_deg,
         raan_error_deg=draan_deg,
@@ -448,20 +455,20 @@ def refine_estimated_fields_keplerian_match(
     estimated : Estimated
         Estimated TLE elements dataclass.
     records : list[tuple[datetime, np.ndarray, np.ndarray]]
-        List of (epoch, position_km, velocity_km_s) tuples.
+        List of (epoch, position_m, velocity_m_s) tuples.
 
     Returns
     -------
     Estimated
         Updated estimated dataclass with refined elements and error metrics.
     """
-    mu: float = kepler.MU_EARTH
+    mu: float = consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
 
     # Compute reference osculating Keplerian elements from input state
-    ref_pos_km: np.ndarray = records[0][1]  # (3,)
-    ref_vel_km_s: np.ndarray = records[0][2]  # (3,)
+    ref_pos_m: np.ndarray = records[0][1]  # (3,)
+    ref_vel_m_s: np.ndarray = records[0][2]  # (3,)
     ref_state_m: np.ndarray = np.concatenate(  # (6,) state in meters
-        [ref_pos_km * 1000.0, ref_vel_km_s * 1000.0]  # (3,) + (3,) -> (6,)
+        [ref_pos_m, ref_vel_m_s]  # (3,) + (3,) -> (6,)
     )
 
     try:
@@ -473,7 +480,8 @@ def refine_estimated_fields_keplerian_match(
         return estimated
 
     step_sizes: list[float] = [
-        constants.STATE_MATCH_PARAMETER_STEPS[name] for name in TleParameters.__dataclass_fields__
+        constants.STATE_MATCH_PARAMETER_STEPS[name]
+        for name in TleParameters.__dataclass_fields__
     ]
 
     def evaluate_keplerian_score(
@@ -520,7 +528,8 @@ def refine_estimated_fields_keplerian_match(
             # Residual vector (6,) (target - current = negative of errors)
             return np.array(
                 [
-                    -errors.semi_major_axis_error_km,
+                    -errors.semi_major_axis_error_m
+                    / 1000.0,  # Scale to km for comparable magnitudes
                     -errors.eccentricity_error * 1e4,
                     -errors.inclination_error_deg,
                     -errors.raan_error_deg,

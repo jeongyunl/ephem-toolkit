@@ -13,9 +13,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import common.tle as tle
 
@@ -37,7 +37,7 @@ GEO_ARG_PERIGEE_TOL_DEG: float = 180.0
 GEO_MEAN_ANOMALY_TOL_DEG: float = 180.0
 GEO_RAAN_TOL_DEG: float = 1.0
 GEO_INCLINATION_TOL_DEG: float = 0.5
-"""Near-equatorial: use osculating directly."""
+"""GEO inclination tolerance in degrees (relaxed for near-equatorial orbits)."""
 
 
 def _build_env() -> dict[str, str]:
@@ -114,6 +114,7 @@ def run_oem_to_tle(
         sys.executable,
         "-m",
         "oem_to_tle.oem_to_tle",
+        "-",
         "--name",
         original.name if original.name else "",
         "--satellite-number",

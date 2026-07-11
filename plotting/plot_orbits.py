@@ -28,10 +28,19 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.common as common
 import common.oem as oem
-import interpolator.lagrange as lagrange
+import common.interpolator.lagrange as lagrange
+import common.time_utils as time_utils
 
-INTERPOLATOR_NUMBER_OF_POINTS: int = 6
+INTERPOLATION_DEGREE: int = 6
 """Polynomial degree for Lagrange interpolation of reference orbit states."""
+
+METERS_TO_KILOMETERS: float = 0.001
+"""Conversion factor from meters to kilometers for display purposes."""
+
+
+# ===================================================================
+# Internal helpers
+# ===================================================================
 
 
 def _sanitize_filename_component(value: str) -> str:
@@ -111,6 +120,27 @@ def _default_csv_path(
     return base_dir / f"{base_stem}_{suffix_part}_{label_part}.csv"
 
 
+def _convert_state_to_km(state_m: np.ndarray) -> np.ndarray:
+    """Convert state vector from meters to kilometers.
+
+    Parameters
+    ----------
+    state_m : np.ndarray
+        State vector in meters and m/s: [x, y, z, vx, vy, vz].
+
+    Returns
+    -------
+    np.ndarray
+        State vector in kilometers and km/s: [x, y, z, vx, vy, vz].
+    """
+    return state_m * METERS_TO_KILOMETERS
+
+
+# ===================================================================
+# Data structures
+# ===================================================================
+
+
 @dataclass
 class StateHistory:
     """Orbit trajectory with state history and optional interpolator."""
@@ -119,7 +149,11 @@ class StateHistory:
     """Label or identifier for the orbit (e.g., filename)."""
 
     state_history: dict[float, np.ndarray]
-    """Mapping of POSIX epoch timestamps (seconds) to 6-element state vectors [x, y, z, vx, vy, vz] (km, km/s)."""
+    """Mapping of POSIX epoch timestamps (seconds) to 6-element state vectors [x, y, z, vx, vy, vz] in meters (m) and m/s.
+    
+    Data is stored internally in SI units (m, m/s) as returned by the OEM reader,
+    but will be converted to km and km/s for plotting and CSV export.
+    """
 
     interpolator: lagrange.LagrangeInterpolator | None = None
     """Lagrange interpolator for querying state at arbitrary timestamps; initialised lazily on first use."""
@@ -174,7 +208,7 @@ class StateHistory:
 
         if self.interpolator is None:
             interp: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
-                dimension=6, degree=INTERPOLATOR_NUMBER_OF_POINTS
+                dimension=6, degree=INTERPOLATION_DEGREE
             )
             interp.set_data(self.state_history)
             self.interpolator = interp
@@ -185,8 +219,7 @@ class StateHistory:
         ):
             return None
 
-        interpolated_state: np.ndarray | None = None
-        interpolated_state = self.interpolator.interpolate(timestamp)
+        interpolated_state: np.ndarray = self.interpolator.interpolate(timestamp)
 
         return interpolated_state
 
@@ -260,6 +293,11 @@ class TimeUnit(Enum):
             raise ValueError(f"Unknown time unit: {self}")
 
 
+# ===================================================================
+# File I/O
+# ===================================================================
+
+
 def read_orbit_file(filepath: str | Path) -> dict[float, np.ndarray]:
     """Read an OEM or raw-state file and return state history.
 
@@ -272,7 +310,12 @@ def read_orbit_file(filepath: str | Path) -> dict[float, np.ndarray]:
     -------
     dict[float, np.ndarray]
         State history: dictionary mapping epoch timestamps (float, seconds since epoch) to
-        state vectors (6-element numpy arrays [x, y, z, vx, vy, vz] in km and km/s).
+        state vectors (6-element numpy arrays [x, y, z, vx, vy, vz] in m and m/s).
+        
+    Note
+    ----
+    The OEM reader returns state vectors in SI units (m, m/s). These will be converted
+    to km and km/s for plotting and CSV export by the plotting functions.
     """
     filepath_obj: Path = Path(filepath)
 
@@ -283,10 +326,7 @@ def read_orbit_file(filepath: str | Path) -> dict[float, np.ndarray]:
 
     # Try reading as OEM file first (more robust)
     try:
-        header: dict
-        meta: dict
-        raw_states: dict
-        header, meta, raw_states = oem.read_oem(filepath_obj)
+        _, _, raw_states = oem.read_oem(filepath_obj)
         # raw_states is now dict[float, np.ndarray] (POSIX timestamps)
         state_history = raw_states
         return state_history
@@ -299,8 +339,7 @@ def read_orbit_file(filepath: str | Path) -> dict[float, np.ndarray]:
             try:
                 result: tuple | None = oem.parse_oem_state_line(line)
                 if result is not None:
-                    epoch_dt, state_km = result
-                    timestamp: float = epoch_dt.timestamp()
+                    timestamp, state_km = result
                     state_history[timestamp] = state_km
             except ValueError:
                 # Skip lines that don't parse (headers, comments, etc.)
@@ -310,6 +349,11 @@ def read_orbit_file(filepath: str | Path) -> dict[float, np.ndarray]:
         raise ValueError(f"Could not parse any state data from {filepath_obj}")
 
     return state_history
+
+
+# ===================================================================
+# Plotting functions
+# ===================================================================
 
 
 def plot_orbits(
@@ -331,10 +375,10 @@ def plot_orbits(
     # Create figure with subplots
     fig: plt.Figure = plt.figure(figsize=(16, 12))
 
-    # Extract reference positions and states
+    # Extract reference positions and states (convert from m to km)
     ref_pos: np.ndarray = np.array(
         [
-            reference_state_history.state_history[ts][:3]
+            _convert_state_to_km(reference_state_history.state_history[ts])[:3]
             for ts in reference_state_history.timestamps
         ]
     )
@@ -345,7 +389,7 @@ def plot_orbits(
     )
     if csv_path is not None:
         rows: list[list[object]] = [
-            [ts, *reference_state_history.state_history[ts].tolist()]
+            [ts, *_convert_state_to_km(reference_state_history.state_history[ts]).tolist()]
             for ts in reference_state_history.timestamps
         ]
         _write_csv(
@@ -409,7 +453,7 @@ def plot_orbits(
         )
         if csv_path is not None:
             rows: list[list[object]] = [
-                [ts, *orbit.state_history[ts].tolist()] for ts in orbit.timestamps
+                [ts, *_convert_state_to_km(orbit.state_history[ts]).tolist()] for ts in orbit.timestamps
             ]
             _write_csv(
                 csv_path,
@@ -426,9 +470,9 @@ def plot_orbits(
             )
             print(f"CSV saved to {csv_path}")
 
-        # Extract positions for Cartesian plots
+        # Extract positions for Cartesian plots (convert from m to km)
         pos_data: np.ndarray = np.array(
-            [orbit.state_history[ts][:3] for ts in orbit.timestamps]
+            [_convert_state_to_km(orbit.state_history[ts])[:3] for ts in orbit.timestamps]
         )
 
         # Plot on all axes
@@ -539,8 +583,11 @@ def plot_relative_cartesian_timeseries(
                 comp_state = orbit.state_history[ts]
                 delta_times.append(ts)
 
+                # Compute delta and convert from m to km
+                delta_state = comp_state - ref_state
+                delta_state_km = _convert_state_to_km(delta_state)
                 for i in range(6):
-                    deltas[i].append(comp_state[i] - ref_state[i])
+                    deltas[i].append(delta_state_km[i])
 
         # Plot on all axes if data exists
         if delta_times:
@@ -591,8 +638,6 @@ def plot_relative_cartesian_timeseries(
                     rows,
                 )
                 print(f"CSV saved to {csv_path}")
-
-            time_label = time_unit.get_label()
 
             ax1.plot(
                 delta_times_converted,
@@ -737,10 +782,11 @@ def plot_relative_rtn_timeseries(
                 comp_state = orbit.state_history[ts]
                 delta_times.append(ts)
 
-                # Transform to RTN
+                # Transform to RTN and convert from m to km
                 delta_rtn = common.transform_to_rtn(comp_state, ref_state)
+                delta_rtn_km = _convert_state_to_km(delta_rtn)
                 for i in range(6):
-                    deltas[i].append(delta_rtn[i])
+                    deltas[i].append(delta_rtn_km[i])
 
         # Plot on all axes if data exists
         if delta_times:
@@ -791,8 +837,6 @@ def plot_relative_rtn_timeseries(
                     rows,
                 )
                 print(f"CSV saved to {csv_path}")
-
-            time_label = time_unit.get_label()
 
             ax1.plot(
                 delta_times_converted,
@@ -928,12 +972,13 @@ def plot_relative_rtn_orbits(
             if ref_state is not None:
                 comp_state = orbit.state_history[ts]
 
-                # Transform to RTN
+                # Transform to RTN and convert from m to km
                 delta_rtn = common.transform_to_rtn(comp_state, ref_state)
-                deltas_rt.append([delta_rtn[1], delta_rtn[0]])
-                deltas_rn.append([delta_rtn[2], delta_rtn[0]])
-                deltas_vrt.append([delta_rtn[4], delta_rtn[3]])
-                deltas_vrn.append([delta_rtn[5], delta_rtn[3]])
+                delta_rtn_km = _convert_state_to_km(delta_rtn)
+                deltas_rt.append([delta_rtn_km[1], delta_rtn_km[0]])
+                deltas_rn.append([delta_rtn_km[2], delta_rtn_km[0]])
+                deltas_vrt.append([delta_rtn_km[4], delta_rtn_km[3]])
+                deltas_vrn.append([delta_rtn_km[5], delta_rtn_km[3]])
 
         # Convert to arrays and plot on all axes if data exists
         if deltas_rt:
@@ -1057,6 +1102,11 @@ def plot_relative_rtn_orbits(
         print(f"Figure saved to {output_file}")
 
 
+# ===================================================================
+# Main entry point
+# ===================================================================
+
+
 def main() -> None:
     """Main entry point for the script."""
     parser = argparse.ArgumentParser(
@@ -1115,7 +1165,7 @@ Examples:
     duration_seconds: float | None = None
     if args.duration:
         try:
-            duration_seconds = common.parse_duration_to_seconds(args.duration)
+            duration_seconds = time_utils.parse_duration_to_seconds(args.duration)
             print(
                 f"Analyzing data for duration: {args.duration} ({duration_seconds:.0f} seconds)"
             )
@@ -1155,7 +1205,7 @@ Examples:
 
     # Include states up to end_timestamp plus up to interpolator_number_of_points more states
     include_count: int = min(
-        int(INTERPOLATOR_NUMBER_OF_POINTS / 2), len(ref_timestamps_sorted) - end_idx
+        int(INTERPOLATION_DEGREE / 2), len(ref_timestamps_sorted) - end_idx
     )
     cutoff_idx: int = end_idx + include_count
     ref_state_history = {

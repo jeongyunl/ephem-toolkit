@@ -10,10 +10,17 @@ from __future__ import annotations
 
 import sys
 import warnings
+from argparse import Namespace
+from datetime import datetime, timezone
+from pathlib import Path
 
 import numpy as np
+from tudatpy.interface import spice
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import common.common as common
+import common.time_utils as time_utils
 import common.tle as tle
 import oem_to_tle.constants as constants
 import oem_to_tle.estimation as estimation
@@ -25,68 +32,61 @@ import oem_to_tle.tle_builder as tle_builder
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 warnings.filterwarnings("ignore", module="urllib3")
 
-try:
-    from tudatpy.interface import spice
-except Exception:
-    spice = None
 
-_SPICE_KERNELS_LOADED = False
-"""Module-level flag tracking whether SPICE kernels have been loaded."""
+def load_spice_kernels():
+    """Load required SPICE kernels for propagation support.
 
-
-def ensure_spice_kernels_loaded() -> bool:
-    """Load SPICE kernels once per process.
+    Kernels are loaded from Tudat's managed kernel directory returned by
+    ``common.common.get_spice_kernel_path()``.
 
     Returns
     -------
-    bool
-        True when kernels are available for subsequent TudatPy calls, False otherwise.
+    None
+        This function mutates the global SPICE kernel pool.
     """
-    global _SPICE_KERNELS_LOADED
-    if _SPICE_KERNELS_LOADED:
-        return True
-    if spice is None:
-        return False
 
-    try:
-        spice.load_standard_kernels()
-    except Exception:
-        return False
-
-    _SPICE_KERNELS_LOADED = True
-    return True
+    spice_kernel_files = [
+        "naif0012.tls",  # LEAPSECONDS KERNEL FILE
+    ]
+    for kernel_file in spice_kernel_files:
+        spice.load_kernel(common.get_spice_kernel_path() + "/" + kernel_file)
 
 
 def print_summary(
-    records: list,
-    estimated,
-    args,
+    records: list[tuple[float, np.ndarray]],
+    estimated: models.Estimated,
+    args: Namespace,
     keplerian_accuracy: models.KeplerianAccuracy | None = None,
 ) -> None:
     """Print a summary of the TLE estimation results.
 
     Parameters
     ----------
-    records : list
-        List of (epoch, position_km, velocity_km_s) tuples.
-    estimated : Estimated
+    records : list[tuple[float, np.ndarray]]
+        List of (epoch_timestamp, state_vector_m) tuples where epoch_timestamp
+        is a POSIX float (seconds since 1970-01-01 UTC) and state_vector_m is (6,).
+    estimated : models.Estimated
         Estimated TLE elements dataclass.
-    args : argparse.Namespace
+    args : Namespace
         Parsed command-line arguments.
-    keplerian_accuracy : KeplerianAccuracy | None
+    keplerian_accuracy : models.KeplerianAccuracy | None
         Optional Keplerian accuracy verification results.
     """
-    start_epoch = records[0][0]
-    end_epoch = records[-1][0]
-    span_s = (end_epoch - start_epoch).total_seconds()
+    start_ts: float = records[0][0]
+    end_ts: float = records[-1][0]
+    span_s = end_ts - start_ts
+    start_epoch = datetime.fromtimestamp(start_ts, tz=timezone.utc)
+    end_epoch = datetime.fromtimestamp(end_ts, tz=timezone.utc)
 
     print("Estimated TLE elements from OEM-like dataset:")
     print(f"  records: {len(records)}")
     print(
-        f"  epoch range: {common.datetime_to_iso8601(start_epoch)} -> {common.datetime_to_iso8601(end_epoch)}"
+        f"  epoch range: {time_utils.datetime_to_iso8601(start_epoch)} -> {time_utils.datetime_to_iso8601(end_epoch)}"
     )
     print(f"  span [s]: {span_s:.3f}")
-    print(f"  chosen TLE epoch: {common.datetime_to_iso8601(estimated.epoch_datetime)}")
+    print(
+        f"  chosen TLE epoch: {time_utils.datetime_to_iso8601(estimated.epoch_datetime)}"
+    )
     print(f"  epoch-year: {estimated.epoch_year}")
     print(f"  epoch-day: {estimated.epoch_day:.8f}")
     print(f"  inclination-deg: {estimated.inclination_deg:.6f}")
@@ -125,14 +125,14 @@ def print_summary(
     )
     print(f"  phase-match-count: {estimated.phase_match_count}")
     print(f"  phase-match-weight: {estimated.phase_match_weight:.6f}")
-    if estimated.state_match_position_error_km is not None:
+    if estimated.state_match_position_error_m is not None:
         print(
-            "  state-match-position-error-km: "
-            f"{estimated.state_match_position_error_km:.6f}"
+            "  state-match-position-error-m: "
+            f"{estimated.state_match_position_error_m:.3f}"
         )
         print(
-            "  state-match-velocity-error-km-s: "
-            f"{estimated.state_match_velocity_error_km_s:.9f}"
+            "  state-match-velocity-error-m-s: "
+            f"{estimated.state_match_velocity_error_m_s:.6f}"
         )
         print(
             "  state-match-refinement: "
@@ -142,7 +142,7 @@ def print_summary(
             "  state-match-iterations: "
             f"{estimated.state_match_iterations if estimated.state_match_iterations is not None else 0}"
         )
-    print(f"  semi-major-axis-km: {estimated.semi_major_axis_km:.6f}")
+    print(f"  semi-major-axis-m: {estimated.semi_major_axis_m:.3f}")
     print(
         "  d(mean-motion)/dt [rev/day^2] (fit): "
         f"{estimated.dataset_slope_rev_per_day2:.12f}"
@@ -176,8 +176,7 @@ def print_summary(
             "  Accuracy verification (osculating Keplerian elements via common.kepler):"
         )
         print(
-            f"    semi-major-axis error:    {keplerian_accuracy.semi_major_axis_error_km:+.6f} km"
-            f"  ({keplerian_accuracy.semi_major_axis_error_m:+.3f} m)"
+            f"    semi-major-axis error:    {keplerian_accuracy.semi_major_axis_error_m:+.3f} m"
         )
         print(
             f"    eccentricity error:       {keplerian_accuracy.eccentricity_error:+.10f}"
@@ -212,7 +211,7 @@ def main() -> None:
     args = io_utils.parse_arguments()
 
     # SPICE kernels are initialized once here and reused by all evaluations.
-    ensure_spice_kernels_loaded()
+    load_spice_kernels()
 
     if not (0 <= args.satellite_number <= 99999):
         print("Error: --satellite-number must be in [0, 99999]")
@@ -247,11 +246,9 @@ def main() -> None:
             estimated: models.Estimated = estimation.estimate_tle_fields(
                 records, use_state_match=True
             )
-            target_state_km_km_s: np.ndarray = np.concatenate(  # (6,) target state
-                [records[0][1], records[0][2]]  # (3,) + (3,) -> (6,)
-            )
+            target_state_m_m_s: np.ndarray = records[0][1]  # (6,) target state
             estimated = refinement.refine_estimated_fields_to_match_epoch_state(
-                args, estimated, target_state_km_km_s
+                args, estimated, target_state_m_m_s
             )
         else:
             # refinement == "none"

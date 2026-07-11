@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Convert a Two-Line Element (TLE) set to a CCSDS OMM file.
+"""Convert a CCSDS OMM file to a Two-Line Element (TLE) set.
 
-Reads a TLE from a file path or stdin and writes the resulting OMM to
+Reads an OMM from a file path or stdin and writes the resulting TLE to
 stdout or a file.
 """
 
@@ -9,17 +9,18 @@ from __future__ import annotations
 
 import argparse
 import io
-import os
 import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.convert_tle as convert_tle
+import common.omm as omm
 import common.tle as tle
 
 
 def parse_arguments() -> argparse.Namespace:
-    """Parse command-line arguments for TLE-to-OMM conversion.
+    """Parse command-line arguments for OMM-to-TLE conversion.
 
     Returns
     -------
@@ -28,35 +29,35 @@ def parse_arguments() -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser(
         description=(
-            "Convert a Two-Line Element (TLE) set to a CCSDS Orbit Mean-Elements "
-            "Message (OMM). Reads TLE from a file path or stdin and writes OMM to "
-            "stdout or a file."
+            "Convert a CCSDS Orbit Mean-Elements Message (OMM) to a Two-Line Element "
+            "(TLE) set. Reads OMM from a file path or stdin and writes TLE to stdout "
+            "or a file."
         )
     )
     parser.add_argument(
         "input",
         nargs="?",
         default="-",
-        metavar="<input.tle>",
+        metavar="<input.omm>",
         help=(
-            "Input TLE file path. Use '-' or omit this argument to read TLE text "
+            "Input OMM file path. Use '-' or omit this argument to read OMM text "
             "from stdin (default: '-')."
         ),
     )
     parser.add_argument(
         "-o",
         "--output",
-        metavar="<output.omm>",
+        metavar="<output.tle>",
         default=None,
-        help="Output OMM file path. If omitted, OMM is printed to stdout.",
+        help="Output TLE file path. If omitted, TLE is printed to stdout.",
     )
     return parser.parse_args()
 
 
 def main() -> None:
-    """Execute the TLE-to-OMM conversion workflow.
+    """Execute the OMM-to-TLE conversion workflow.
 
-    Reads TLE from the configured source, converts to OMM, and writes the
+    Reads OMM from the configured source, converts to TLE, and writes the
     result to the configured destination. Exits with status 1 on error.
     """
     args: argparse.Namespace = parse_arguments()
@@ -82,17 +83,17 @@ def main() -> None:
             sys.exit(1)
 
     try:
-        tle_data: tle.Tle = tle.read_tle(io.StringIO(input_text))
-    except ValueError as error:
+        omm_data: omm.CcsdsOmm = omm.CcsdsOmm.from_source(io.StringIO(input_text))
+    except (ValueError, KeyError) as error:
         print(f"Error: {error}", file=sys.stderr)
         sys.exit(1)
 
-    omm_data: object = convert_tle.tle_to_omm(tle_data)
+    tle_data: tle.Tle = convert_tle.omm_to_tle(omm_data)
 
     if args.output:
-        omm_data.to_file(args.output)
+        tle.write_tle(args.output, tle_data)
     else:
-        omm_data.to_file(sys.stdout)
+        tle.write_tle(sys.stdout, tle_data)
 
 
 if __name__ == "__main__":

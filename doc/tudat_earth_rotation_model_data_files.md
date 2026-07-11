@@ -4,8 +4,8 @@
 
 The frame-conversion scripts in this repository are:
 
-- `frame_conversion/gcrf_to_itrf_spice.py`
-- `frame_conversion/gcrf_to_itrf_rot_model.py`
+- `bin/gcrf_to_itrf_spice.py`
+- `bin/gcrf_to_itrf_rot_model.py`
 
 They load SPICE kernels through TudatPy's configured SPICE kernel directory rather than through hard-coded repository-local files.
 
@@ -13,14 +13,14 @@ In practice, the exact absolute paths depend on the local Tudat / TudatPy instal
 
 ## Kernels used directly by the current scripts
 
-### `frame_conversion/gcrf_to_itrf_spice.py`
+### `bin/gcrf_to_itrf_spice.py`
 
 Loads:
 
 - `naif0012.tls`
 - `earth_200101_990825_predict.bpc`
 
-### `frame_conversion/gcrf_to_itrf_rot_model.py`
+### `bin/gcrf_to_itrf_rot_model.py`
 
 Loads:
 

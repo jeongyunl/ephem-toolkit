@@ -28,7 +28,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.common as common
-import interpolator.lagrange as lagrange
+import common.interpolator.lagrange as lagrange
+import common.time_utils as time_utils
 
 KILOMETERS_TO_METERS = 1e3
 """Conversion factor from kilometers to meters."""
@@ -81,7 +82,7 @@ DEFAULT_GLOBAL_FRAME_ORIENTATION = "J2000"
 DEFAULT_OEM_STEP_SIZE_S = 10 * 60
 """Default OEM output step size in seconds (10 minutes)."""
 
-DEFAULT_SIMULATION_DURATION_S = common.SECONDS_PER_DAY
+DEFAULT_SIMULATION_DURATION_S = time_utils.SECONDS_PER_DAY
 """Default simulation duration in seconds (1 day)."""
 
 # Supported integrator method identifiers accepted by the CLI.
@@ -112,7 +113,7 @@ DEFAULT_INTEGRATOR_METHOD = "rkdp_87"
 DEFAULT_INTEGRATOR_STEP_SIZE_S = (10, 1, 300)
 """Default integrator step sizes in seconds: ``(initial, minimum, maximum)``."""
 
-INTERPOLATOR_NUMBER_OF_POINTS = 8
+INTERPOLATION_DEGREE = 8
 """Polynomial degree for Lagrange interpolation when resampling OEM states."""
 
 
@@ -405,12 +406,12 @@ def build_cli_parser():
     parser.add_argument(
         "-d",
         "--duration",
-        type=common.parse_duration_to_seconds,
+        type=time_utils.parse_duration_to_seconds,
         metavar="<value[s|m|h|d]>",
         default=DEFAULT_SIMULATION_DURATION_S,
         help=(
             "Simulation duration (default: 1d). "
-            "Use -d/--duration, e.g. -d 90, --duration 90s, -d 2m, --duration 1.5h, -d 1d."
+            "Use -d/--duration, e.g. -d 90 (90 seconds), --duration 90s, -d 2m, --duration 1.5h, -d 1d."
         ),
     )
     parser.add_argument(
@@ -444,7 +445,7 @@ def build_cli_parser():
     )
     parser.add_argument(
         "--oem-step-size",
-        type=common.parse_step_to_seconds,
+        type=time_utils.parse_duration_to_seconds,
         metavar="<value[s|m>",
         default=DEFAULT_OEM_STEP_SIZE_S,
         help=(
@@ -618,8 +619,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 # Suppress warnings that tudatpy / urllib3 may emit on import.
 import warnings
 
@@ -631,6 +630,8 @@ warnings.filterwarnings(
 
 # numpy -- imported just before PropagationInputs and state-vector construction.
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 @dataclass
@@ -724,21 +725,22 @@ def read_initial_state_from_stream(
     -------
     tuple[numpy.ndarray, datetime]
         ``(initial_state_m_mps, initial_epoch_datetime_utc)`` where
-        ``initial_state_m_mps`` is a 6-element cartesian state in SI units.
+        ``initial_state_m_mps`` is a 6-element cartesian state in SI units (m, m/s).
     """
     line: str = stream.readline()
     if line == "":
         raise ValueError("No input line available in stream")
 
-    parsed: tuple[datetime, np.ndarray] | None = common_oem.parse_oem_state_line(line)
+    parsed: tuple[float, np.ndarray] | None = common_oem.parse_oem_state_line(line)
     if parsed is None:
         raise ValueError("The first input line is blank/comment and was not parsed")
 
-    epoch_dt: datetime
-    state_km: np.ndarray
-    epoch_dt, state_km = parsed
-    initial_epoch_datetime_utc: datetime = epoch_dt
-    initial_state_m_mps: np.ndarray = state_km * KILOMETERS_TO_METERS
+    timestamp: float
+    state_m: np.ndarray
+    timestamp, state_m = parsed
+    initial_epoch_datetime_utc: datetime = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+    # parse_oem_state_line now returns meters (SI units), no conversion needed
+    initial_state_m_mps: np.ndarray = state_m
     return initial_state_m_mps, initial_epoch_datetime_utc
 
 
@@ -877,8 +879,8 @@ def write_state_history_raw(state_history, output_path):
 
     try:
         for epoch_tdb_s, state_m_mps in sorted(state_history.items()):
-            epoch_utc_iso = common.datetime_to_iso8601(
-                common.tdb_to_datetime(epoch_tdb_s)
+            epoch_utc_iso = time_utils.datetime_to_iso8601(
+                time_utils.tdb_s_to_datetime(epoch_tdb_s)
             )
             position_km = state_m_mps[:3] / KILOMETERS_TO_METERS
             velocity_km_s = state_m_mps[3:] / KILOMETERS_TO_METERS
@@ -918,7 +920,7 @@ def write_state_history_oem(
     tudat_time_scale_converter = time_representation.default_time_scale_converter()
 
     interpolator = lagrange.LagrangeInterpolator(
-        dimension=6, degree=INTERPOLATOR_NUMBER_OF_POINTS
+        dimension=6, degree=INTERPOLATION_DEGREE
     )
     interpolator.set_data(state_history)
 
@@ -926,15 +928,15 @@ def write_state_history_oem(
     start_epoch_tdb_s = epochs_tdb_s[0]
     stop_epoch_tdb_s = epochs_tdb_s[-1]
 
-    # Build state list: convert SI (m, m/s) to OEM units (km, km/s) and
-    # convert TDB epochs to UTC datetimes.
+    # Build state list: state vectors are already in SI units (m, m/s).
+    # OEM writer will convert to km/km·s⁻¹ automatically.
     oem_states = []
     epoch_tdb_s = start_epoch_tdb_s
     while epoch_tdb_s <= stop_epoch_tdb_s:
-        epoch_datetime = common.tdb_to_datetime(epoch_tdb_s)
-        state_km_kms = interpolator.interpolate(epoch_tdb_s) / KILOMETERS_TO_METERS
+        epoch_datetime = time_utils.tdb_s_to_datetime(epoch_tdb_s)
+        state_m_mps = interpolator.interpolate(epoch_tdb_s)
         oem_states.append(
-            (epoch_datetime.replace(tzinfo=timezone.utc).timestamp(), state_km_kms)
+            (epoch_datetime.replace(tzinfo=timezone.utc).timestamp(), state_m_mps)
         )
 
         epoch_tt_s = tudat_time_scale_converter.convert_time(
@@ -1120,7 +1122,7 @@ def print_pre_propagation_summary(
     print(f"Mars gravity: {'on' if propagation_inputs.is_mars_gravity_on else 'off'}")
 
     print(
-        f"Initial epoch: {common.datetime_to_iso8601(propagation_inputs.initial_epoch_datetime_utc)}"
+        f"Initial epoch: {time_utils.datetime_to_iso8601(propagation_inputs.initial_epoch_datetime_utc)}"
     )
     initial_position_km = (
         propagation_inputs.initial_state_m_mps[:3] / KILOMETERS_TO_METERS
@@ -1143,7 +1145,7 @@ def print_pre_propagation_summary(
     )
     print(
         "Simulation end epoch: "
-        f"{common.datetime_to_iso8601(simulation_end_epoch_datetime_utc)}"
+        f"{time_utils.datetime_to_iso8601(simulation_end_epoch_datetime_utc)}"
     )
     if output_oem_path is not None:
         output_destination = "stdout" if output_oem_path == "-" else output_oem_path
@@ -1240,7 +1242,7 @@ def create_translational_propagator_settings(
         + timedelta(seconds=propagation_inputs.simulation_duration_s)
     )
     termination_condition = propagation_setup.propagator.time_termination(
-        common.datetime_to_tdb(simulation_end_epoch_datetime_utc)
+        time_utils.datetime_to_tdb_s(simulation_end_epoch_datetime_utc)
     )
 
     return propagation_setup.propagator.translational(
@@ -1248,7 +1250,7 @@ def create_translational_propagator_settings(
         acceleration_models,
         bodies_to_propagate,
         propagation_inputs.initial_state_m_mps,
-        common.datetime_to_tdb(propagation_inputs.initial_epoch_datetime_utc),
+        time_utils.datetime_to_tdb_s(propagation_inputs.initial_epoch_datetime_utc),
         integrator_settings,
         termination_condition,
         output_variables=dependent_variables_to_save,

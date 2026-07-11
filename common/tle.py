@@ -3,6 +3,10 @@
 Provides a structured :class:`Tle` dataclass and low-level functions
 (:func:`read_tle`, :func:`write_tle`) that operate on :class:`Tle`
 instances or plain dictionaries.
+
+References:
+    NORAD Two-Line Element Set Format.
+    Celestrak: https://celestrak.org/NORAD/documentation/tle-fmt.php
 """
 
 from __future__ import annotations
@@ -12,6 +16,9 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Mapping, TextIO
+
+import common.common as common
+import common.time_utils as time_utils
 
 # ===================================================================
 # Structured dataclass
@@ -144,7 +151,25 @@ def compute_tle_checksum(line_without_checksum: str) -> str:
 
 
 def _parse_tle_exponential(field_value: str, field_name: str) -> str:
-    """Validate TLE exponential format, e.g. ``'00000-0'`` or ``'29661-4'``."""
+    """Validate TLE exponential format, e.g. ``'00000-0'`` or ``'29661-4'``.
+
+    Parameters
+    ----------
+    field_value : str
+        Raw field value from TLE (7 or 8 characters).
+    field_name : str
+        Name of the field for error messages.
+
+    Returns
+    -------
+    str
+        Validated 8-character exponential format string.
+
+    Raises
+    ------
+    ValueError
+        If the format is invalid.
+    """
     value: str = field_value.strip()
 
     if len(value) == 7:
@@ -166,7 +191,23 @@ def _parse_tle_exponential(field_value: str, field_name: str) -> str:
 
 
 def _format_first_derivative(value: float) -> str:
-    """Format first time derivative of mean motion for TLE line 1 (10 chars)."""
+    """Format first time derivative of mean motion for TLE line 1 (10 chars).
+
+    Parameters
+    ----------
+    value : float
+        First time derivative of mean motion (revolutions per day²).
+
+    Returns
+    -------
+    str
+        Formatted 10-character string for TLE line 1.
+
+    Raises
+    ------
+    ValueError
+        If the value cannot be represented in the 10-character field.
+    """
     sign: str = "-" if value < 0 else " "
     magnitude: str = f"{abs(value):.8f}"
 
@@ -182,7 +223,27 @@ def _format_first_derivative(value: float) -> str:
 
 
 def _tle_field(tle_data: Tle | Mapping[str, object], field_name: str) -> object:
-    """Retrieve a field from a :class:`Tle` instance or a :class:`Mapping`."""
+    """Retrieve a field from a :class:`Tle` instance or a :class:`Mapping`.
+
+    Parameters
+    ----------
+    tle_data : Tle | Mapping[str, object]
+        A :class:`Tle` instance or a mapping.
+    field_name : str
+        Name of the field to retrieve.
+
+    Returns
+    -------
+    object
+        The field value.
+
+    Raises
+    ------
+    AttributeError
+        If the field does not exist in a :class:`Tle` instance.
+    KeyError
+        If the field does not exist in a mapping.
+    """
     if isinstance(tle_data, Tle):
         return getattr(tle_data, field_name)
     return tle_data[field_name]
@@ -193,7 +254,22 @@ def _tle_field_opt(
     field_name: str,
     default: object = None,
 ) -> object:
-    """Retrieve an optional field from a :class:`Tle` or :class:`Mapping`."""
+    """Retrieve an optional field from a :class:`Tle` or :class:`Mapping`.
+
+    Parameters
+    ----------
+    tle_data : Tle | Mapping[str, object]
+        A :class:`Tle` instance or a mapping.
+    field_name : str
+        Name of the field to retrieve.
+    default : object, optional
+        Default value if the field does not exist (default: None).
+
+    Returns
+    -------
+    object
+        The field value or the default if not found.
+    """
     if isinstance(tle_data, Tle):
         return getattr(tle_data, field_name, default)
     return tle_data.get(field_name, default)  # type: ignore[union-attr]
@@ -207,6 +283,9 @@ def _tle_field_opt(
 def tle_epoch_to_iso8601(epoch_year: int, epoch_day: float) -> str:
     """Convert TLE epoch (2-digit year + fractional day) to a human-readable string.
 
+    Uses :func:`common.time_utils.datetime_to_iso8601` for consistent ISO 8601
+    formatting across the library.
+
     Parameters
     ----------
     epoch_year : int
@@ -217,7 +296,12 @@ def tle_epoch_to_iso8601(epoch_year: int, epoch_day: float) -> str:
     Returns
     -------
     str
-        ISO 8601 date-time string.
+        ISO 8601 date-time string with 6 fractional-second digits.
+
+    See Also
+    --------
+    iso8601_to_tle_epoch : Inverse operation.
+    common.time_utils.datetime_to_iso8601 : Shared ISO 8601 formatting utility.
     """
     # Convert 2-digit year to 4-digit year
     if epoch_year >= 57:
@@ -227,11 +311,14 @@ def tle_epoch_to_iso8601(epoch_year: int, epoch_day: float) -> str:
 
     # Day 1 = Jan 1, so day-of-year offset is (epoch_day - 1)
     dt: datetime = datetime(year, 1, 1) + timedelta(days=epoch_day - 1.0)
-    return dt.strftime("%Y-%m-%dT%H:%M:%S.%f")
+    return time_utils.datetime_to_iso8601(dt, fractional_second_places=6)
 
 
 def iso8601_to_tle_epoch(iso_str: str) -> tuple[int, float]:
     """Convert ISO 8601 datetime string to TLE epoch (2-digit year + fractional day).
+
+    Uses :func:`common.time_utils.iso8601_to_datetime` for consistent ISO 8601
+    parsing across the library.
 
     Parameters
     ----------
@@ -243,8 +330,13 @@ def iso8601_to_tle_epoch(iso_str: str) -> tuple[int, float]:
     tuple[int, float]
         ``(epoch_year, epoch_day)`` where epoch_year is 2-digit and
         epoch_day is the 1-based fractional day of year.
+
+    See Also
+    --------
+    tle_epoch_to_iso8601 : Inverse operation.
+    common.time_utils.iso8601_to_datetime : Shared ISO 8601 parsing utility.
     """
-    dt: datetime = datetime.fromisoformat(iso_str)
+    dt: datetime = time_utils.iso8601_to_datetime(iso_str)
     full_year: int = dt.year
     jan1: datetime = datetime(full_year, 1, 1, tzinfo=dt.tzinfo if dt.tzinfo else None)
     epoch_day: float = (dt - jan1).total_seconds() / 86400.0 + 1.0

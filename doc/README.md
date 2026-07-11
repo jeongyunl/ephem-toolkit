@@ -16,11 +16,13 @@ The repository currently contains utilities in five main areas:
 
 The repository layout is source-oriented:
 
-- `frame_conversion/` — Python frame-conversion scripts and notes
+- `bin/` — Python command-line utilities for TLE/OMM/OEM conversion, frame conversion, state comparison, and orbit analysis
 - `time_conversion/` — C++ time-conversion library, CLI, tests, and helper scripts
 - `propagation/` — Python propagation scripts
-- `tle/` — TLE-related Python tools
-- `common/` — shared Python helpers for OEM/OMM/TLE parsing and time conversion
+- `oem_to_tle/` — TLE estimation from OEM Cartesian arcs
+- `oem_to_kepler/` — Keplerian element extraction from OEM files
+- `common/` — shared Python helpers for OEM/OMM/TLE parsing, time conversion, and Keplerian conversions
+- `plotting/` — Python scripts for orbit visualization
 - `test/` — sample TLE / OMM / OEM files and Python tests
 
 ## Frame Conversion
@@ -29,10 +31,10 @@ Python scripts for converting OEM-like Cartesian state vectors between inertial 
 
 Two Python scripts convert OEM-like Cartesian state lines between inertial and Earth-fixed frames:
 
-- `frame_conversion/gcrf_to_itrf_spice.py`
+- `bin/gcrf_to_itrf_spice.py`
   - Uses SPICE rotation matrices and rotation-matrix derivatives.
   - Converts between `J2000` and `ITRF93`.
-- `frame_conversion/gcrf_to_itrf_rot_model.py`
+- `bin/gcrf_to_itrf_rot_model.py`
   - Uses TudatPy Earth rotation models.
   - Supports `gcrs_to_itrs`, `spice_itrf93` / `spice`, and `spice_iau_earth`.
 
@@ -73,13 +75,16 @@ The repository contains more than just TLE build/parse helpers. Current Python t
 Current Python tools include:
 
 - `oem_to_tle/oem_to_tle.py` — estimate a TLE from an OEM-like Cartesian arc
-- `tle/download_tle.py` — download TLE data
-- `tle/omm_to_tle.py` — convert OMM to TLE
-- `tle/tle_to_omm.py` — convert TLE to OMM
-- `tle/tle_info.py` — inspect TLE information
+- `oem_to_kepler/oem_to_kepler.py` — extract Keplerian elements from OEM files
+- `bin/download_tle.py` — download TLE data
+- `bin/omm_to_tle.py` — convert OMM to TLE
+- `bin/tle_to_omm.py` — convert TLE to OMM
+- `bin/tle_info.py` — inspect TLE information
+- `bin/cartesian_to_keplerian.py` — convert Cartesian states to Keplerian elements
 - `common/convert_tle.py` — shared conversion helper script
 - `common/oem.py`, `common/omm.py`, `common/tle.py` — shared parsers / writers
 - `common/kepler.py` — Keplerian element conversions with J2 short-period corrections
+- `common/mean_kepler.py` — mean Keplerian element conversions
 - `common/common.py` — shared utilities (OEM state-line parsing, time conversion, duration/step parsing)
 
 See [TLE.md](TLE.md) for full usage details.
@@ -88,10 +93,11 @@ See [TLE.md](TLE.md) for full usage details.
 
 The repository includes several utility scripts for orbit analysis, comparison, and manipulation:
 
-- `misc/state_diff.py` — compare two OEM-like Cartesian states
+- `bin/state_diff.py` — compare two OEM-like Cartesian states
+- `bin/slice_oem.py` — slice OEM files by index or time range
 - `oem_to_tle/evaluate_oem_to_tle.py` — evaluate TLE estimation accuracy
-- `oem/slice_oem.py` — slice OEM files by index or time range
 - `plotting/plot_orbits.py` — plot and compare multiple orbits
+- `plotting/plot_dependent_variables.py` — plot dependent variables from propagation
 
 See [MISC.md](MISC.md) for full usage details.
 
