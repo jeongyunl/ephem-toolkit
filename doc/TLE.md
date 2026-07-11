@@ -12,7 +12,6 @@ Current TLE-related scripts in this repository include:
 - `bin/omm_to_tle.py`
 - `bin/tle_to_omm.py`
 - `bin/tle_info.py`
-- `bin/cartesian_to_keplerian.py`
 - `common/convert_tle.py`
 
 This document focuses on the primary user-facing tools and the current repository context around them.

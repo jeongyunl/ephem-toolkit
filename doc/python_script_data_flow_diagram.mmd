@@ -43,7 +43,6 @@ flowchart LR
     plot_orbits(["plot_orbits.py"])
 
     %% conversion/ utilities
-    cartesian_to_keplerian(["cartesian_to_keplerian.py"])
     slice_oem(["slice_oem.py"])
     state_diff(["state_diff.py"])
 
@@ -94,10 +93,6 @@ flowchart LR
     fmt_kepler --> propagate_kepler
     propagate_kepler --> fmt_oem
     propagate_kepler -->|"optional OEM metadata"| fmt_ccsds_oem
-
-    %% cartesian_to_keplerian.py: OEM-like state vectors ↔ Keplerian elements
-    fmt_oem --> cartesian_to_keplerian
-    cartesian_to_keplerian --> fmt_kepler
 
     %% plot_orbits.py: OEM/raw state files → plots
     fmt_oem --> plot_orbits

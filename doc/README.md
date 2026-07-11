@@ -80,7 +80,6 @@ Current Python tools include:
 - `bin/omm_to_tle.py` — convert OMM to TLE
 - `bin/tle_to_omm.py` — convert TLE to OMM
 - `bin/tle_info.py` — inspect TLE information
-- `bin/cartesian_to_keplerian.py` — convert Cartesian states to Keplerian elements
 - `common/convert_tle.py` — shared conversion helper script
 - `common/oem.py`, `common/omm.py`, `common/tle.py` — shared parsers / writers
 - `common/kepler.py` — Keplerian element conversions with J2 short-period corrections
