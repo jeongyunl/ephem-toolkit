@@ -8,6 +8,7 @@ conversion to a stream of OEM-style state lines.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import sys
 from pathlib import Path
 from typing import TextIO
@@ -35,8 +36,8 @@ def load_spice_kernels() -> None:
     """Load required SPICE kernels for time conversion and Earth orientation."""
 
     spice_kernel_files: list[str] = [
-        "naif0012.tls",  # LEAPSECONDS KERNEL FILE
-        "earth_200101_990825_predict.bpc",  # Earth rotation prediction. Covers Jan, 2001 to Aug, 2099
+        "naif0012.tls",  # Leap seconds kernel file
+        "earth_200101_990825_predict.bpc",  # Earth rotation prediction (covers Jan 2001 to Aug 2099)
     ]
     for kernel_file in spice_kernel_files:
         spice.load_kernel(common.get_spice_kernel_path() + "/" + kernel_file)
@@ -62,8 +63,8 @@ def convert_frames_spice(
         Name of the destination SPICE frame (e.g. ``"ITRF93"``).
     input_epoch_et_s : float
         Epoch in ephemeris time (TDB seconds since J2000).
-    input_state_m : array-like, shape (6,)
-        State vector ``[x, y, z, vx, vy, vz]`` in metres and m/s in
+    input_state_m : np.ndarray
+        State vector ``[x, y, z, vx, vy, vz]`` (6,) in metres and m/s in
         *base_frame*.
 
     Returns
@@ -81,14 +82,14 @@ def convert_frames_spice(
     # but tudatPy does not yet expose a Python binding for it.
     rotation_matrix: np.ndarray = spice.compute_rotation_matrix_between_frames(
         base_frame, target_frame, input_epoch_et_s
-    )
+    )  # (3, 3) rotation matrix
     rotation_matrix_derivative: np.ndarray = (
         spice.compute_rotation_matrix_derivative_between_frames(
             base_frame, target_frame, input_epoch_et_s
         )
-    )
+    )  # (3, 3) time derivative of rotation matrix
 
-    state_conversion_matrix: np.ndarray = np.zeros((6, 6))
+    state_conversion_matrix: np.ndarray = np.zeros((6, 6))  # (6, 6) state transformation matrix
     state_conversion_matrix[0:3, 0:3] = rotation_matrix
     state_conversion_matrix[3:6, 0:3] = rotation_matrix_derivative
     state_conversion_matrix[3:6, 3:6] = rotation_matrix
@@ -101,12 +102,16 @@ def convert_frames_spice(
 def process_stream(stream: TextIO, reverse: bool = False) -> None:
     """Read lines from *stream*, convert each state vector, and print results.
 
+    Input lines use OEM format (km and km/s). The function converts to SI units
+    (m and m/s) for SPICE computation, then converts back to km for output.
+
     Parameters
     ----------
     stream : TextIO
         An iterable of text lines (file object or sys.stdin).
-    reverse : bool
+    reverse : bool, optional
         If True, convert ITRF93 → J2000 instead of J2000 → ITRF93.
+        Default: False (J2000 → ITRF93).
     """
 
     load_spice_kernels()
@@ -127,16 +132,18 @@ def process_stream(stream: TextIO, reverse: bool = False) -> None:
         if parsed is None:
             continue
 
-        epoch_dt, input_state_km = parsed
-        epoch_tdb_s: float = time_utils.datetime_to_tdb(epoch_dt)
+        epoch_timestamp, input_state_m = parsed
+        epoch_dt: datetime = datetime.fromtimestamp(epoch_timestamp, tz=timezone.utc)
+        epoch_tdb_s: float = time_utils.datetime_to_tdb_s(epoch_dt)
 
-        input_state_m: np.ndarray = input_state_km * 1e3
+        # input_state_m is already in meters (converted by oem.parse_oem_state_line)
         output_state_m: np.ndarray = convert_frames_spice(
             base_frame, target_frame, epoch_tdb_s, input_state_m
         )
 
-        output_position_km: np.ndarray = output_state_m[0:3] / 1e3
-        output_velocity_km_s: np.ndarray = output_state_m[3:6] / 1e3
+        # Convert back to km for output
+        output_position_km: np.ndarray = output_state_m[0:3] / 1e3  # (3,) position in km
+        output_velocity_km_s: np.ndarray = output_state_m[3:6] / 1e3  # (3,) velocity in km/s
 
         print(
             time_utils.datetime_to_iso8601(epoch_dt),
