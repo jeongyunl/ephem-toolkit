@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Convert satellite state vectors between GCRF (J2000) and ITRF (ITRF93) using SPICE.
 
-Provides :func:`convert_frames_spice` to transform a 6-element state vector
-between any two SPICE frames, and :func:`process_stream` to apply the
-conversion to a stream of OEM-style state lines.
+Usage:
+    python3 gcrf_to_itrf_spice.py [-h] [-r] [input_file]
+
+Reads OEM-format state vectors and transforms them between J2000 (GCRF) and
+ITRF93 reference frames using SPICE rotation matrices.
 """
 
 from __future__ import annotations
@@ -89,7 +91,9 @@ def convert_frames_spice(
         )
     )  # (3, 3) time derivative of rotation matrix
 
-    state_conversion_matrix: np.ndarray = np.zeros((6, 6))  # (6, 6) state transformation matrix
+    state_conversion_matrix: np.ndarray = np.zeros(
+        (6, 6)
+    )  # (6, 6) state transformation matrix
     state_conversion_matrix[0:3, 0:3] = rotation_matrix
     state_conversion_matrix[3:6, 0:3] = rotation_matrix_derivative
     state_conversion_matrix[3:6, 3:6] = rotation_matrix
@@ -142,8 +146,12 @@ def process_stream(stream: TextIO, reverse: bool = False) -> None:
         )
 
         # Convert back to km for output
-        output_position_km: np.ndarray = output_state_m[0:3] / 1e3  # (3,) position in km
-        output_velocity_km_s: np.ndarray = output_state_m[3:6] / 1e3  # (3,) velocity in km/s
+        output_position_km: np.ndarray = (
+            output_state_m[0:3] / 1e3
+        )  # (3,) position in km
+        output_velocity_km_s: np.ndarray = (
+            output_state_m[3:6] / 1e3
+        )  # (3,) velocity in km/s
 
         print(
             time_utils.datetime_to_iso8601(epoch_dt),
@@ -161,7 +169,7 @@ def print_usage() -> None:
     including positional arguments, options, and input/output formats.
     """
     print(
-        "Usage: python gcrf_to_itrf_spice.py [-h] [-r] [input_file]\n"
+        "Usage: python3 gcrf_to_itrf_spice.py [-h] [-r] [input_file]\n"
         "\n"
         "Convert satellite state vectors between GCRF (J2000) and ITRF\n"
         "(ITRF93) using SPICE rotation matrices.\n"
@@ -196,8 +204,8 @@ if __name__ == "__main__":
         args = args[1:]
 
     if args:
-        infile: str = args[0]
-        with open(infile, "r") as f:
-            process_stream(f, reverse=set_reverse_conversion)
+        input_file: str = args[0]
+        with open(input_file, "r") as fh:
+            process_stream(fh, reverse=set_reverse_conversion)
     else:
         process_stream(sys.stdin, reverse=set_reverse_conversion)

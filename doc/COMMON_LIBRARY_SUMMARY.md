@@ -24,7 +24,7 @@ This document provides a comprehensive overview of the libraries and functions a
 
 ### Key Dependencies
 - `tudatpy.astro.time_representation`
-- `datetime`, `argparse`, `re`
+- `datetime`, `re`
 
 ### Time Conversion Functions
 
@@ -131,6 +131,7 @@ Blend angles along the shortest arc.
 
 - `EARTH_GRAVITATIONAL_PARAMETER_M3_S2 = 3.986004418e14` - Earth gravitational parameter (m³/s²), WGS-84
 - `EARTH_EQUATORIAL_RADIUS_M = 6378136.3` - Earth equatorial radius (m), WGS-84
+- `EARTH_MEAN_RADIUS_M = 6371000.0` - Earth mean radius (m), approximately 6371 km
 - `EARTH_J2 = 1.08262668e-3` - Earth J2 zonal harmonic coefficient (dimensionless), WGS-84
 
 ---
@@ -216,7 +217,7 @@ Propagate Keplerian elements forward in time using the two-body solution. Only t
 - `common.kepler`
 - `common.consts`
 
-### Brouwer Short-Period Corrections
+### Mean to Osculating Conversion
 
 #### `compute_brouwer_short_period_corrections(mean_keplerian_elements: np.ndarray, R_e_m: float, J2: float) -> np.ndarray`
 Compute Brouwer first-order J2 short-period corrections to convert mean Keplerian elements (as used in TLE/SGP4) to osculating elements.
@@ -228,15 +229,18 @@ Compute Brouwer first-order J2 short-period corrections to convert mean Kepleria
 
 **Returns:** Osculating Keplerian elements [a, e, i, omega, RAAN, theta]
 
+#### `mean_to_osculating_keplerian(mean_keplerian_elements: np.ndarray, R_e_m: float, J2: float) -> np.ndarray`
+Alias for `compute_brouwer_short_period_corrections` provided for API consistency. Same parameters and return value.
+
 ### Osculating to Mean Conversion
 
-#### `osculating_to_mean_keplerian(osculating_keplerian_elements: np.ndarray, R_e_m: float, J2: float, max_iter: int = 20, tol_m: float = 1e-12) -> np.ndarray`
+#### `osculating_to_mean_keplerian(osculating_keplerian_elements: np.ndarray, R_e_m: float = EARTH_EQUATORIAL_RADIUS_M, J2: float = EARTH_J2, max_iter: int = 20, tol_m: float = 1e-12) -> np.ndarray`
 Convert osculating Keplerian elements to mean (Brouwer) elements using iterative inversion.
 
 **Parameters:**
 - `osculating_keplerian_elements`: Shape (6,) - [a, e, i, omega, RAAN, theta]
-- `R_e_m`: Earth equatorial radius (m)
-- `J2`: J2 zonal harmonic coefficient
+- `R_e_m`: Earth equatorial radius (m) (default: WGS-84)
+- `J2`: J2 zonal harmonic coefficient (default: WGS-84)
 - `max_iter`: Maximum iterations for convergence
 - `tol_m`: Convergence tolerance on semi-major axis (m)
 
@@ -298,12 +302,12 @@ Convert a CCSDS OMM to a TLE.
 
 ### TLE to Osculating Keplerian
 
-#### `tle_to_osculating_keplerian(tle_obj: tle.Tle, mu_m3_s2: float, apply_j2: bool = True) -> np.ndarray`
+#### `tle_to_osculating_keplerian(tle_obj: tle.Tle, mu_m3_s2: float = EARTH_GRAVITATIONAL_PARAMETER_M3_S2, apply_j2: bool = True) -> np.ndarray`
 Extract osculating Keplerian elements at the TLE epoch.
 
 **Parameters:**
 - `tle_obj`: Parsed TLE dataclass
-- `mu_m3_s2`: Gravitational parameter (m³/s²)
+- `mu_m3_s2`: Gravitational parameter (m³/s²) (default: Earth WGS-84)
 - `apply_j2`: If True, apply Brouwer J2 short-period corrections; if False, use simple two-body conversion
 
 **Returns:** Osculating Keplerian elements [a, e, i, omega, RAAN, theta]
@@ -399,9 +403,16 @@ Write this OMM to a file or stream.
 
 **Purpose**: Read, parse, and write CCSDS Orbit Ephemeris Message (OEM) files.
 
+### Unit Convention
+
+OEM files use kilometers (km) and km/s per the CCSDS standard. This module converts state vectors to SI units (meters and m/s) when reading, and converts back to km/km·s⁻¹ when writing. This ensures internal consistency with the project-wide SI unit convention while maintaining CCSDS-compliant file output.
+
 ### Key Dependencies
 - `numpy`, `datetime`, `pathlib`, `dataclasses`
 - `common.common`, `common.time_utils`
+
+### Constants
+- `KILOMETERS_TO_METERS = 1000.0` - Conversion factor from kilometers to meters
 
 ### Data Structures
 
@@ -428,35 +439,45 @@ Metadata block fields for a CCSDS OEM segment.
 #### `class CcsdsOem`
 Structured CCSDS Orbit Ephemeris Message with header, metadata, and states.
 
+**Attributes:**
+- `header`: File-level header fields (OemHeader)
+- `meta`: Metadata block fields (OemMeta)
+- `states`: List of (POSIX timestamp, state_vector) tuples, sorted by timestamp in ascending order. State vectors are 6-element arrays [x, y, z, vx, vy, vz] in meters (m) and m/s.
+
 **Properties:**
-- `header`: File-level header fields
-- `meta`: Metadata block fields
-- `states`: Mapping of epoch POSIX timestamps to 6-element state vectors [x, y, z, vx, vy, vz] in km and km·s⁻¹
 - `epochs`: Sorted list of epoch POSIX timestamps
-- `state_vectors`: State vectors ordered by epoch, shape (N, 6)
+- `state_vectors`: State vectors ordered by epoch, shape (N, 6) in meters and m/s
 
-### Functions
+**Class Methods:**
+- `CcsdsOem.read(source: TextIO | str | Path) -> CcsdsOem`: Read and construct from a file or stream
+- `CcsdsOem.from_states(states, object_name, ref_frame, center_name, time_system) -> CcsdsOem`: Create from a list of states with minimal metadata
+- `CcsdsOem.parse_state_line(line: str) -> tuple[float, np.ndarray] | None`: Parse a single OEM-style state line
 
-#### `parse_oem_state_line(line: str) -> tuple[datetime, np.ndarray] | None`
-Parse a single line of OEM-style data. Accepts whitespace or comma separated values.
+**Instance Methods:**
+- `write(dest: TextIO | str | Path) -> None`: Write this OEM to a file or stream
+- `update_metadata(**kwargs) -> None`: Update metadata fields in-place
+- `with_metadata(**kwargs) -> CcsdsOem`: Return a new CcsdsOem with updated metadata (immutable)
+- `find_state_by_timestamp(timestamp: float, tolerance: float = 0.0) -> tuple[float, np.ndarray] | None`: Find a state by timestamp using binary search
 
-#### `read_oem(source: TextIO | str | Path) -> tuple[dict, dict, dict[float, np.ndarray]]`
-Read an OEM file and return (header, meta, states) where states maps epoch POSIX timestamps to state vectors.
+### Module-Level Functions
+
+#### `parse_oem_state_line(line: str) -> tuple[float, np.ndarray] | None`
+Parse a single line of OEM-style data. Accepts whitespace or comma separated values. Returns (POSIX timestamp, state_vector) where state_vector is in meters (m) and m/s (converted from OEM km/km·s⁻¹).
+
+#### `read_oem(source: TextIO | str | Path) -> tuple[dict, dict, list[tuple[float, np.ndarray]]]`
+Read an OEM file and return (header, meta, states) where states is a list of (POSIX timestamp, state_vector) tuples sorted by timestamp. State vectors are in meters (m) and m/s.
+
+#### `find_state_by_timestamp(states: list[tuple[float, np.ndarray]], timestamp: float, tolerance: float = 0.0) -> tuple[float, np.ndarray] | None`
+Find a state by timestamp using binary search (O(log n)). Returns the matching (timestamp, state_vector) tuple or None.
 
 #### `write_state(dest: TextIO, epoch: datetime, state_vector: np.ndarray) -> None`
-Write a single state vector to a file handle.
+Write a single state vector to a file handle. Converts from SI units (m, m/s) to OEM standard (km, km/s).
 
 #### `write_states(dest: TextIO, states: dict | list) -> None`
-Write state vectors to a file handle.
+Write state vectors to a file handle. Converts from SI units (m, m/s) to OEM standard (km, km/s).
 
-#### `write_oem(dest: TextIO | str | Path, header: dict, meta: dict, states: dict) -> None`
-Write an OEM file from (header, meta, states) dictionaries.
-
-#### `CcsdsOem.from_source(source: TextIO | str | Path) -> CcsdsOem`
-Construct a CcsdsOem from a file or stream.
-
-#### `CcsdsOem.to_file(dest: TextIO | str | Path) -> None`
-Write this OEM to a file or stream.
+#### `write_oem(dest: TextIO | str | Path, header: dict, meta: dict, states: dict | list) -> None`
+Write an OEM file from (header, meta, states) dictionaries. Converts from SI units (m, m/s) to OEM standard (km, km/s).
 
 ---
 

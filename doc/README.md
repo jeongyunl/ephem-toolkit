@@ -56,12 +56,16 @@ See [TIME_CONVERSION.md](TIME_CONVERSION.md) for full usage details.
 
 Python scripts for propagating either a Cartesian initial state or a TLE-derived orbit. The current tools support configurable perturbation models, CCSDS OEM export, raw state-vector output, dependent-variable CSV export, and TLE-based SGP4 propagation.
 
-Two Python propagation scripts are currently present:
+Three Python propagation scripts are currently present:
 
 - `propagation/propagate_orbit.py`
   - Propagates one OEM-like Cartesian state under configurable perturbations.
   - Can optionally export propagated state history as CCSDS OEM or raw state-vector lines.
   - Can optionally export dependent variables to CSV.
+- `propagation/propagate_kepler.py`
+  - Propagates Keplerian elements using the two-body Kepler propagator.
+  - Converts propagated elements to Cartesian state vectors for output.
+  - Can optionally prepend an OEM metadata header.
 - `propagation/propagate_tle.py`
   - Propagates a TLE with TudatPy's SGP4 ephemeris.
   - Prints OEM-like state lines and can optionally prepend an OEM metadata header.
@@ -84,7 +88,9 @@ Current Python tools include:
 - `common/oem.py`, `common/omm.py`, `common/tle.py` — shared parsers / writers
 - `common/kepler.py` — Keplerian element conversions with J2 short-period corrections
 - `common/mean_kepler.py` — mean Keplerian element conversions
-- `common/common.py` — shared utilities (OEM state-line parsing, time conversion, duration/step parsing)
+- `common/time_utils.py` — time conversion, ISO 8601 parsing/formatting, CLI duration parsing
+- `common/consts.py` — Earth physical constants (gravitational parameter, equatorial radius, J2)
+- `common/common.py` — shared utilities (SPICE kernel path resolution, CCSDS keyword-value parsing, RTN frame transformation, angle utilities)
 
 See [TLE.md](TLE.md) for full usage details.
 

@@ -1,4 +1,11 @@
-"""TLE refinement algorithms (state-match and Keplerian-match)."""
+"""TLE refinement algorithms using state-match and Keplerian-match methods.
+
+This module provides iterative refinement algorithms to improve TLE accuracy:
+- State-match: Minimizes weighted Cartesian state residuals at epoch using SGP4
+- Keplerian-match: Minimizes osculating Keplerian element residuals using two-body mechanics
+
+Both methods use finite-difference Gauss-Newton optimization with line search.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +14,6 @@ import math
 import os
 import sys
 from dataclasses import replace
-from datetime import datetime
 
 import numpy as np
 
@@ -153,9 +159,15 @@ def compute_state_match_score(
     tuple[float, float, float]
         Weighted score, position error (m), velocity error (m/s).
     """
-    r: np.ndarray = np.asarray(residual_state, dtype=float)  # (6,)
-    position_error_m: float = float(np.linalg.norm(r[:3]))  # norm of (3,)
-    velocity_error_m_s: float = float(np.linalg.norm(r[3:]))  # norm of (3,)
+    residual_state_vec: np.ndarray = np.asarray(
+        residual_state, dtype=float
+    )  # (6,) state residual
+    position_error_m: float = float(
+        np.linalg.norm(residual_state_vec[:3])
+    )  # norm of (3,) position components
+    velocity_error_m_s: float = float(
+        np.linalg.norm(residual_state_vec[3:])
+    )  # norm of (3,) velocity components
     score: float = (
         constants.STATE_MATCH_POSITION_WEIGHT * position_error_m
         + constants.STATE_MATCH_VELOCITY_WEIGHT * velocity_error_m_s
@@ -372,14 +384,16 @@ def compute_keplerian_match_score(
     tuple[float, KeplerianMatchErrors]
         Weighted score and element-wise errors dataclass.
     """
-    mu: float = consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    mu: float = (
+        consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    )  # Earth gravitational parameter (m³/s²)
 
     # Semi-major axis difference in m
     da_m: float = (
         tle_kep[kepler.SEMI_MAJOR_AXIS_INDEX] - ref_kep[kepler.SEMI_MAJOR_AXIS_INDEX]
     )
 
-    # Eccentricity difference
+    # Eccentricity difference (dimensionless)
     de: float = tle_kep[kepler.ECCENTRICITY_INDEX] - ref_kep[kepler.ECCENTRICITY_INDEX]
 
     # Inclination difference in degrees
@@ -388,11 +402,11 @@ def compute_keplerian_match_score(
     )
 
     # Angle differences wrapped to [-180, 180] degrees
-    def _angle_diff_deg(a_rad: float, b_rad: float) -> float:
-        d: float = math.degrees(a_rad - b_rad) % 360.0
-        if d > 180.0:
-            d -= 360.0
-        return d
+    def _angle_diff_deg(angle_a_rad: float, angle_b_rad: float) -> float:
+        diff_deg: float = math.degrees(angle_a_rad - angle_b_rad) % 360.0
+        if diff_deg > 180.0:
+            diff_deg -= 360.0
+        return diff_deg
 
     draan_deg: float = _angle_diff_deg(
         tle_kep[kepler.RAAN_INDEX], ref_kep[kepler.RAAN_INDEX]
@@ -405,14 +419,14 @@ def compute_keplerian_match_score(
         tle_kep[kepler.TRUE_ANOMALY_INDEX], ref_kep[kepler.TRUE_ANOMALY_INDEX]
     )
 
-    # Argument of latitude (well-defined for near-circular)
-    tle_u: float = (
+    # Argument of latitude u = ω + ν (well-defined for near-circular orbits)
+    tle_u_rad: float = (
         tle_kep[kepler.ARGUMENT_OF_PERIAPSIS_INDEX] + tle_kep[kepler.TRUE_ANOMALY_INDEX]
     ) % (2.0 * math.pi)
-    ref_u: float = (
+    ref_u_rad: float = (
         ref_kep[kepler.ARGUMENT_OF_PERIAPSIS_INDEX] + ref_kep[kepler.TRUE_ANOMALY_INDEX]
     ) % (2.0 * math.pi)
-    du_deg: float = _angle_diff_deg(tle_u, ref_u)
+    du_deg: float = _angle_diff_deg(tle_u_rad, ref_u_rad)
 
     # Weighted score: semi-major axis in m, eccentricity scaled by 1e4,
     # angles in degrees. This gives roughly comparable magnitudes for LEO.
@@ -436,7 +450,7 @@ def compute_keplerian_match_score(
 def refine_estimated_fields_keplerian_match(
     args: argparse.Namespace,
     estimated: Estimated,
-    records: list[tuple[datetime, np.ndarray, np.ndarray]],
+    states: list[tuple[float, np.ndarray]],
 ) -> Estimated:
     """Refine TLE fields by minimizing osculating Keplerian element residuals.
 
@@ -454,8 +468,8 @@ def refine_estimated_fields_keplerian_match(
         Parsed command-line arguments.
     estimated : Estimated
         Estimated TLE elements dataclass.
-    records : list[tuple[datetime, np.ndarray, np.ndarray]]
-        List of (epoch, position_m, velocity_m_s) tuples.
+    states : list[tuple[float, np.ndarray]]
+        List of (POSIX timestamp, state_vector_m (6,)) tuples.
 
     Returns
     -------
@@ -464,12 +478,8 @@ def refine_estimated_fields_keplerian_match(
     """
     mu: float = consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
 
-    # Compute reference osculating Keplerian elements from input state
-    ref_pos_m: np.ndarray = records[0][1]  # (3,)
-    ref_vel_m_s: np.ndarray = records[0][2]  # (3,)
-    ref_state_m: np.ndarray = np.concatenate(  # (6,) state in meters
-        [ref_pos_m, ref_vel_m_s]  # (3,) + (3,) -> (6,)
-    )
+    # Compute reference osculating Keplerian elements from input state at epoch
+    ref_state_m: np.ndarray = states[0][1]  # (6,) state vector [x, y, z, vx, vy, vz]
 
     try:
         ref_kep: np.ndarray = kepler.cartesian_to_keplerian(

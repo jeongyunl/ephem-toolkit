@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Convert satellite state vectors between GCRF and ITRF using a TudatPy Earth rotation model.
 
-Provides :func:`convert_gcrf_to_itrf_erm` and :func:`convert_itrf_to_gcrf_erm`
-for single-epoch frame conversions, and :func:`process_stream` to apply the
-conversion to a stream of OEM-style state lines using a configurable rotation
-model (GCRS-to-ITRS IAU 2006, SPICE IAU_Earth, or SPICE ITRF93).
+Usage:
+    python3 gcrf_to_itrf_rot_model.py [-h] [-r] [-m MODEL] [input_file]
 """
 
 from __future__ import annotations
@@ -32,7 +30,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import common.common as common
 import common.oem as oem
 import common.time_utils as time_utils
-
 
 # ===================================================================
 # SPICE kernel loading
@@ -305,7 +302,7 @@ def process_stream(
                 velocity_m_s,
             )
 
-        # Convert m / m·s⁻¹ → km / km·s⁻¹ for output
+        # Convert m / m/s → km / km/s for output
         output_position_km: np.ndarray = output_position_m / 1e3
 
         print(
@@ -334,7 +331,7 @@ def print_usage() -> None:
     and input/output formats.
     """
     print(
-        "Usage: python gcrf_to_itrf_rot_model.py [-h] [-r] [-m MODEL] [input_file]\n"
+        "Usage: python3 gcrf_to_itrf_rot_model.py [-h] [-r] [-m MODEL] [input_file]\n"
         "\n"
         "Convert satellite state vectors between GCRF and ITRF using the\n"
         "specified Earth rotation model.\n"
@@ -430,12 +427,12 @@ if __name__ == "__main__":
         sys.exit(1)
 
     if args:
-        infile: str = args[0]
-        input_path: Path = Path(infile)
+        input_file: str = args[0]
+        input_path: Path = Path(input_file)
         if not input_path.exists():
-            print(f"Error: File not found: {infile}", file=sys.stderr)
+            print(f"Error: File not found: {input_file}", file=sys.stderr)
             sys.exit(1)
-        with open(infile, "r", encoding="utf-8") as f:
+        with open(input_file, "r", encoding="utf-8") as f:
             process_stream(
                 global_frame_orientation,
                 rotation_model_settings,

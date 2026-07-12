@@ -4,6 +4,9 @@
 Read one OEM-like line of Keplerian elements from a file or stdin, then
 propagate the orbit using the two-body Kepler propagator.
 
+Usage:
+    python3 propagate_kepler.py [input_file] [-d <duration>] [-s <step>] [--oem]
+
 Expected input format:
     <ISO-8601 epoch>  <a_km>  <e>  <i_rad>  <omega_rad>  <RAAN_rad>  <theta_rad>
 
@@ -28,10 +31,8 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-import common.common as common
 import common.oem as oem
 import common.kepler as kepler
-import common.consts as consts
 import common.time_utils as time_utils
 
 # ===================================================================
@@ -210,12 +211,13 @@ def propagate_kepler_elements(
         Object name written to OEM metadata.
     """
     initial_kepler_m: np.ndarray = initial_kepler_km.astype(np.float64).copy()
-    initial_kepler_m[kepler.SEMI_MAJOR_AXIS_INDEX] *= 1e3
+    initial_kepler_m[kepler.SEMI_MAJOR_AXIS_INDEX] *= 1000.0  # Convert km to m
     initial_kepler_m = initial_kepler_m.reshape((6, 1))
 
     stop_time_s: float = duration_s
     current_time_s: float = 0.0
-    propagated_states: list[tuple[dt.datetime, np.ndarray]] = []
+    # Build list of (POSIX timestamp, state vector) tuples for consistency with OEM migration
+    propagated_states: list[tuple[float, np.ndarray]] = []
     while current_time_s <= stop_time_s + 1.0e-12:
         propagated_kepler: np.ndarray = kepler.propagate_kepler(
             initial_kepler_m,
@@ -224,47 +226,32 @@ def propagate_kepler_elements(
         propagated_cartesian_m: np.ndarray = kepler.keplerian_to_cartesian(
             propagated_kepler
         ).flatten()
-        propagated_cartesian_km: np.ndarray = propagated_cartesian_m * 1e-3
-        propagated_states.append(
-            (
-                initial_epoch + dt.timedelta(seconds=current_time_s),
-                propagated_cartesian_km,
-            )
-        )
+        propagated_cartesian_km: np.ndarray = (
+            propagated_cartesian_m / 1000.0
+        )  # Convert m to km
+        epoch_posix: float = (
+            initial_epoch + dt.timedelta(seconds=current_time_s)
+        ).timestamp()
+        propagated_states.append((epoch_posix, propagated_cartesian_km))
         current_time_s += step_s
 
     if include_oem_header:
-        creation_date_iso: str = dt.datetime.now(tz=dt.timezone.utc).strftime(
-            "%Y-%m-%dT%H:%M:%S.%f"
-        )[:-3]
         stop_epoch: dt.datetime = initial_epoch + dt.timedelta(seconds=duration_s)
 
-        header: oem.OemHeader = oem.OemHeader(
-            version=2.0,
-            creation_date=creation_date_iso,
-            originator="tudatpy-utils",
-        )
-
-        meta: oem.OemMeta = oem.OemMeta(
+        # Use from_states() for automatic header/metadata generation.
+        # Note: propagated_states are in km (not SI meters) because this is
+        # Keplerian propagation output; the OEM writer converts km→km (no-op).
+        oem_message: oem.CcsdsOem = oem.CcsdsOem.from_states(
+            propagated_states,
             object_name=object_name,
-            object_id=object_name,
-            center_name="EARTH",
             ref_frame="KEPLERIAN",
+            center_name="EARTH",
             time_system="UTC",
-            start_time=time_utils.datetime_to_iso8601(initial_epoch),
-            stop_time=time_utils.datetime_to_iso8601(stop_epoch),
         )
-        oem_message: oem.CcsdsOem = oem.CcsdsOem(
-            header=header,
-            meta=meta,
-            states={state[0].timestamp(): state[1] for state in propagated_states},
-        )
-        oem_message.to_file(sys.stdout)
+        oem_message.write(sys.stdout)
     else:
-        states_dict: dict[dt.datetime, np.ndarray] = {
-            state[0]: state[1] for state in propagated_states
-        }
-        oem.write_states(sys.stdout, states_dict)
+        # write_states() accepts both dict and list formats
+        oem.write_states(sys.stdout, propagated_states)
 
 
 # ===================================================================

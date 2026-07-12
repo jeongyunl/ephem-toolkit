@@ -13,7 +13,7 @@ The `oem_to_tle/` directory contains:
 - `oem_to_tle.py` — Main executable script for TLE estimation
 - `constants.py` — Physical and mathematical constants
 - `estimation.py` — Core estimation algorithms for TLE elements
-- `io_utils.py` — Input/output and parsing utilities
+- `parse_cli_args.py` — Command-line argument parsing utilities
 - `linalg.py` — Linear algebra utilities
 - `models.py` — Data models and dataclasses
 - `orbital_mechanics.py` — Orbital mechanics calculations
@@ -30,7 +30,7 @@ Estimates a valid Two-Line Element (TLE) set from a time series of OEM-like Cart
 ### Synopsis
 
 ```bash
-python oem_to_tle/oem_to_tle.py [-h] [-o <output.tle>] [--name <name>] 
+python3 oem_to_tle/oem_to_tle.py [-h] [-o <output.tle>] [--name <name>] 
                                  [--satellite-number <num>] [--classification <U|C|S>]
                                  [--int-designator-year <year>] 
                                  [--int-designator-launch-number <num>]
@@ -145,7 +145,7 @@ Evaluates OEM-to-TLE round-trip accuracy by generating a TLE from an OEM referen
 ### Synopsis
 
 ```bash
-python oem_to_tle/evaluate_oem_to_tle.py [-h] [--refinement <method>] 
+python3 oem_to_tle/evaluate_oem_to_tle.py [-h] [--refinement <method>] 
                                                    [-d <duration>] [-s <step>] 
                                                    [<oem_file>]
 ```
@@ -165,25 +165,25 @@ python oem_to_tle/evaluate_oem_to_tle.py [-h] [--refinement <method>]
 **Evaluate with default settings:**
 
 ```bash
-python oem_to_tle/evaluate_oem_to_tle.py
+python3 oem_to_tle/evaluate_oem_to_tle.py
 ```
 
 **Evaluate custom OEM file:**
 
 ```bash
-python oem_to_tle/evaluate_oem_to_tle.py test/LEO3.oem
+python3 oem_to_tle/evaluate_oem_to_tle.py test/LEO3.oem
 ```
 
 **Evaluate with Keplerian refinement:**
 
 ```bash
-python oem_to_tle/evaluate_oem_to_tle.py --refinement keplerian
+python3 oem_to_tle/evaluate_oem_to_tle.py --refinement keplerian
 ```
 
 **Evaluate for 12 hours with 5-minute steps:**
 
 ```bash
-python oem_to_tle/evaluate_oem_to_tle.py -d 12h -s 5m
+python3 oem_to_tle/evaluate_oem_to_tle.py -d 12h -s 5m
 ```
 
 ### Dependencies
@@ -509,19 +509,19 @@ Use:
 **Basic usage with stdin/stdout:**
 
 ```bash
-cat states.txt | python oem_to_tle/oem_to_tle.py
+cat states.txt | python3 oem_to_tle/oem_to_tle.py
 ```
 
 **Read from file, write to file:**
 
 ```bash
-python oem_to_tle/oem_to_tle.py input.oem -o output.tle
+python3 oem_to_tle/oem_to_tle.py input.oem -o output.tle
 ```
 
 **Specify satellite metadata:**
 
 ```bash
-python oem_to_tle/oem_to_tle.py input.oem -o output.tle \
+python3 oem_to_tle/oem_to_tle.py input.oem -o output.tle \
   --name "ISS (ZARYA)" \
   --satellite-number 25544 \
   --int-designator-year 98 \
@@ -532,19 +532,19 @@ python oem_to_tle/oem_to_tle.py input.oem -o output.tle \
 **Use Keplerian refinement (no TudatPy required):**
 
 ```bash
-python oem_to_tle/oem_to_tle.py input.oem --refinement keplerian
+python3 oem_to_tle/oem_to_tle.py input.oem --refinement keplerian
 ```
 
 **Skip refinement for quick estimate:**
 
 ```bash
-python oem_to_tle/oem_to_tle.py input.oem --refinement none
+python3 oem_to_tle/oem_to_tle.py input.oem --refinement none
 ```
 
 **Specify B* drag term:**
 
 ```bash
-python oem_to_tle/oem_to_tle.py input.oem --bstar "12345-4"
+python3 oem_to_tle/oem_to_tle.py input.oem --bstar "12345-4"
 ```
 
 ### Output Summary

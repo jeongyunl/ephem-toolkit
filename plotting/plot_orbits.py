@@ -7,7 +7,7 @@ coordinates. The first input file is treated as the reference orbit trajectory
 that other orbit trajectories are compared with.
 
 Usage:
-    python plot_orbits.py <reference_oem> [comparison_oem1] [comparison_oem2] ...
+    python3 plot_orbits.py <reference_oem> [comparison_oem1] [comparison_oem2] ...
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.common as common
 import common.oem as oem
+from common.oem import CcsdsOem
 import common.interpolator.lagrange as lagrange
 import common.time_utils as time_utils
 
@@ -86,12 +87,12 @@ def _write_csv(path: Path, header: list[str], rows: list[list[object]]) -> None:
         writer.writerows(rows)
 
 
-def _default_csv_path(
+def _generate_default_csv_path(
     output_file: str | None,
     plot_suffix: str,
     dataset_label: str,
 ) -> Path | None:
-    """Create a CSV output path derived from the plot output filename.
+    """Generate a CSV output path derived from the plot output filename.
 
     Parameters
     ----------
@@ -311,7 +312,7 @@ def read_orbit_file(filepath: str | Path) -> dict[float, np.ndarray]:
     dict[float, np.ndarray]
         State history: dictionary mapping epoch timestamps (float, seconds since epoch) to
         state vectors (6-element numpy arrays [x, y, z, vx, vy, vz] in m and m/s).
-        
+
     Note
     ----
     The OEM reader returns state vectors in SI units (m, m/s). These will be converted
@@ -326,9 +327,9 @@ def read_orbit_file(filepath: str | Path) -> dict[float, np.ndarray]:
 
     # Try reading as OEM file first (more robust)
     try:
-        _, _, raw_states = oem.read_oem(filepath_obj)
-        # raw_states is now dict[float, np.ndarray] (POSIX timestamps)
-        state_history = raw_states
+        oem_obj = CcsdsOem.read(filepath_obj)
+        # Convert to dict for compatibility with existing plotting code
+        state_history = {timestamp: state for timestamp, state in oem_obj.states}
         return state_history
     except Exception:
         pass
@@ -384,12 +385,17 @@ def plot_orbits(
     )
 
     # Save plot data to CSV (one file per dataset) if output_file is provided
-    csv_path: Path | None = _default_csv_path(
+    csv_path: Path | None = _generate_default_csv_path(
         output_file, "absolute_orbits", "reference"
     )
     if csv_path is not None:
         rows: list[list[object]] = [
-            [ts, *_convert_state_to_km(reference_state_history.state_history[ts]).tolist()]
+            [
+                ts,
+                *_convert_state_to_km(
+                    reference_state_history.state_history[ts]
+                ).tolist(),
+            ]
             for ts in reference_state_history.timestamps
         ]
         _write_csv(
@@ -448,12 +454,13 @@ def plot_orbits(
     # Plot comparison data in a single loop
     for orbit in comparison_data:
         # Save plot data to CSV (one file per dataset) if output_file is provided
-        csv_path: Path | None = _default_csv_path(
+        csv_path: Path | None = _generate_default_csv_path(
             output_file, "absolute_orbits", orbit.label
         )
         if csv_path is not None:
             rows: list[list[object]] = [
-                [ts, *_convert_state_to_km(orbit.state_history[ts]).tolist()] for ts in orbit.timestamps
+                [ts, *_convert_state_to_km(orbit.state_history[ts]).tolist()]
+                for ts in orbit.timestamps
             ]
             _write_csv(
                 csv_path,
@@ -472,7 +479,10 @@ def plot_orbits(
 
         # Extract positions for Cartesian plots (convert from m to km)
         pos_data: np.ndarray = np.array(
-            [_convert_state_to_km(orbit.state_history[ts])[:3] for ts in orbit.timestamps]
+            [
+                _convert_state_to_km(orbit.state_history[ts])[:3]
+                for ts in orbit.timestamps
+            ]
         )
 
         # Plot on all axes
@@ -597,7 +607,7 @@ def plot_relative_cartesian_timeseries(
             delta_times_converted = delta_times_array / time_unit.get_divisor()
 
             # Save plot data to CSV (one file per dataset) if output_file is provided
-            csv_path = _default_csv_path(
+            csv_path = _generate_default_csv_path(
                 output_file, "relative_cartesian_timeseries", orbit.label
             )
             if csv_path is not None:
@@ -796,7 +806,7 @@ def plot_relative_rtn_timeseries(
             delta_times_converted = delta_times_array / time_unit.get_divisor()
 
             # Save plot data to CSV (one file per dataset) if output_file is provided
-            csv_path = _default_csv_path(
+            csv_path = _generate_default_csv_path(
                 output_file, "relative_rtn_timeseries", orbit.label
             )
             if csv_path is not None:
@@ -988,7 +998,7 @@ def plot_relative_rtn_orbits(
             deltas_vrn = np.array(deltas_vrn)
 
             # Save plot data to CSV (one file per dataset) if output_file is provided
-            csv_path = _default_csv_path(
+            csv_path = _generate_default_csv_path(
                 output_file, "relative_rtn_orbits", orbit.label
             )
             if csv_path is not None:
@@ -1115,13 +1125,13 @@ def main() -> None:
         epilog="""
 Examples:
   # Plot single orbit
-  python plot_orbits.py reference.oem
+  python3 plot_orbits.py reference.oem
 
   # Plot reference orbit with comparison orbits
-  python plot_orbits.py reference.oem comparison1.oem comparison2.oem
+  python3 plot_orbits.py reference.oem comparison1.oem comparison2.oem
 
   # Save output to file
-  python plot_orbits.py reference.oem comparison.oem -o orbits.png
+  python3 plot_orbits.py reference.oem comparison.oem -o orbits.png
         """,
     )
 

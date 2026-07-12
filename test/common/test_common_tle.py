@@ -1,4 +1,4 @@
-"""Tests for :mod:`common.tle` — Tle dataclass, read_tle, write_tle."""
+"""Tests for common/tle.py — TLE dataclass, read_tle, and write_tle."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import pytest
 import common.tle as tle
 
 TEST_DIR = Path(__file__).parent
-TEST_DATA_DIR = TEST_DIR / "data"
+TEST_DATA_DIR = TEST_DIR.parent / "data"
 
 # ===================================================================
 # Shared fixtures / constants

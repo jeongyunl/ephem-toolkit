@@ -1,13 +1,4 @@
-"""Tests for :mod:`oem_to_kepler.oem_to_kepler` — OEM to Keplerian element fitting.
-
-Validates the OEM-to-Keplerian conversion workflow including:
-- Command-line argument parsing
-- Input reading from files and stdin
-- OEM dataset parsing
-- Mean Keplerian element fitting via least-squares
-- Output formatting and unit conversion
-- Propagation accuracy computation
-"""
+"""Tests for oem_to_kepler/oem_to_kepler.py — OEM to Keplerian element fitting utility."""
 
 from __future__ import annotations
 
@@ -26,9 +17,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import oem_to_kepler.oem_to_kepler as oem_to_kepler
 import common.kepler as kepler
 import common.consts as consts
+from common.oem import CcsdsOem
 
 TEST_DIR = Path(__file__).parent
-TEST_DATA_DIR = TEST_DIR / "data"
+TEST_DATA_DIR = TEST_DIR.parent / "data"
 ISS_OEM_PATH = TEST_DATA_DIR / "ISS_2026-05-20.OEM"
 
 
@@ -82,60 +74,14 @@ def test_parse_arguments_with_custom_fit_span() -> None:
 
 
 # ===================================================================
-# 2. Input reading from file and stdin
+# 2. Input reading from file
 # ===================================================================
 
 
-def test_read_input_text_from_file() -> None:
-    """Should read input text from an existing OEM file."""
-    content = oem_to_kepler.read_input_text(str(ISS_OEM_PATH))
-
-    assert isinstance(content, str)
-    assert len(content) > 0
-    assert "CCSDS_OEM_VERS" in content
-
-
-def test_read_input_text_from_stdin() -> None:
-    """Should read input text from stdin when source is '-'."""
-    test_content = "Test OEM content\n2026-05-20T00:00:00 1000 2000 3000 4 5 6"
-
-    with patch("sys.stdin", io.StringIO(test_content)):
-        content = oem_to_kepler.read_input_text("-")
-
-    assert content == test_content
-
-
-def test_read_input_text_raises_on_empty_stdin() -> None:
-    """Should raise ValueError when stdin is empty."""
-    with patch("sys.stdin", io.StringIO("")):
-        with pytest.raises(ValueError, match="No input from stdin"):
-            oem_to_kepler.read_input_text("-")
-
-
-def test_read_input_text_raises_on_nonexistent_file() -> None:
-    """Should raise ValueError when file does not exist."""
-    with pytest.raises(ValueError, match="Could not read input file"):
-        oem_to_kepler.read_input_text("/nonexistent/file.oem")
-
-
-def test_read_input_text_raises_on_empty_file(tmp_path: Path) -> None:
-    """Should raise ValueError when file is empty."""
-    empty_file = tmp_path / "empty.oem"
-    empty_file.write_text("")
-
-    with pytest.raises(ValueError, match="empty"):
-        oem_to_kepler.read_input_text(str(empty_file))
-
-
-# ===================================================================
-# 3. OEM dataset parsing
-# ===================================================================
-
-
-def test_parse_dataset_from_oem_file() -> None:
-    """Should parse OEM file into list of (timestamp, state_vector) tuples."""
-    content = ISS_OEM_PATH.read_text(encoding="utf-8")
-    records = oem_to_kepler.parse_dataset(content)
+def test_read_oem_from_file() -> None:
+    """Should read OEM file and return list of (timestamp, state_vector) tuples."""
+    oem_obj = CcsdsOem.read(ISS_OEM_PATH)
+    records = oem_obj.states
 
     assert isinstance(records, list)
     assert len(records) > 0
@@ -147,44 +93,19 @@ def test_parse_dataset_from_oem_file() -> None:
     assert state_vector.shape == (6,)
 
 
-def test_parse_dataset_converts_km_to_m() -> None:
+def test_read_oem_converts_km_to_m() -> None:
     """Should convert OEM data from km to meters."""
-    content = ISS_OEM_PATH.read_text(encoding="utf-8")
-    records = oem_to_kepler.parse_dataset(content)
+    oem_obj = CcsdsOem.read(ISS_OEM_PATH)
+    records = oem_obj.states
 
     # ISS orbit should have position magnitude around 6700-7000 km (6.7e6 - 7e6 m)
-    epoch, state_vector = records[0]
+    timestamp, state_vector = records[0]
     pos_magnitude = np.linalg.norm(state_vector[:3])
     assert 6.0e6 < pos_magnitude < 8.0e6  # meters
 
 
-def test_parse_dataset_raises_on_no_valid_states() -> None:
-    """Should raise ValueError when no valid state vectors found."""
-    # Use content that won't trigger parse errors but has no valid states
-    invalid_content = "# Comment line\n# Another comment\n"
-
-    with pytest.raises(ValueError, match="No valid state vectors found"):
-        oem_to_kepler.parse_dataset(invalid_content)
-
-
-def test_parse_dataset_handles_line_by_line_format() -> None:
-    """Should parse simple line-by-line state vector format."""
-    content = (
-        "2026-05-20T00:00:00.000000 1000.0 2000.0 3000.0 4.0 5.0 6.0\n"
-        "2026-05-20T00:01:00.000000 1100.0 2100.0 3100.0 4.1 5.1 6.1\n"
-    )
-
-    records = oem_to_kepler.parse_dataset(content)
-
-    assert len(records) == 2
-    epoch1, state_vector1 = records[0]
-    # Values should be converted from km to m
-    assert state_vector1[0] == pytest.approx(1000.0 * 1000.0)
-    assert state_vector1[3] == pytest.approx(4.0 * 1000.0)
-
-
 # ===================================================================
-# 4. Keplerian element formatting
+# 3. Keplerian element formatting
 # ===================================================================
 
 
@@ -233,8 +154,7 @@ def test_format_keplerian_line_m_rad_units() -> None:
 
 def test_fit_mean_elements_returns_six_elements() -> None:
     """Should return fitted mean Keplerian elements with shape (6,)."""
-    content = ISS_OEM_PATH.read_text(encoding="utf-8")
-    records = oem_to_kepler.parse_dataset(content)
+    records = CcsdsOem.read(ISS_OEM_PATH).states
 
     fitted_elements, diagnostics = oem_to_kepler.fit_mean_elements(
         records, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
@@ -246,8 +166,7 @@ def test_fit_mean_elements_returns_six_elements() -> None:
 
 def test_fit_mean_elements_returns_diagnostics() -> None:
     """Should return diagnostics dictionary with fit statistics."""
-    content = ISS_OEM_PATH.read_text(encoding="utf-8")
-    records = oem_to_kepler.parse_dataset(content)
+    records = CcsdsOem.read(ISS_OEM_PATH).states
 
     fitted_elements, diagnostics = oem_to_kepler.fit_mean_elements(
         records, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
@@ -263,8 +182,7 @@ def test_fit_mean_elements_returns_diagnostics() -> None:
 
 def test_fit_mean_elements_produces_reasonable_semi_major_axis() -> None:
     """Should produce physically reasonable semi-major axis for ISS orbit."""
-    content = ISS_OEM_PATH.read_text(encoding="utf-8")
-    records = oem_to_kepler.parse_dataset(content)
+    records = CcsdsOem.read(ISS_OEM_PATH).states
 
     fitted_elements, _ = oem_to_kepler.fit_mean_elements(
         records, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
@@ -277,8 +195,7 @@ def test_fit_mean_elements_produces_reasonable_semi_major_axis() -> None:
 
 def test_fit_mean_elements_produces_valid_eccentricity() -> None:
     """Should produce valid eccentricity (0 <= e < 1)."""
-    content = ISS_OEM_PATH.read_text(encoding="utf-8")
-    records = oem_to_kepler.parse_dataset(content)
+    records = CcsdsOem.read(ISS_OEM_PATH).states
 
     fitted_elements, _ = oem_to_kepler.fit_mean_elements(
         records, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
@@ -290,8 +207,7 @@ def test_fit_mean_elements_produces_valid_eccentricity() -> None:
 
 def test_fit_mean_elements_filters_to_fit_span() -> None:
     """Should only use records within the specified fit span."""
-    content = ISS_OEM_PATH.read_text(encoding="utf-8")
-    records = oem_to_kepler.parse_dataset(content)
+    records = CcsdsOem.read(ISS_OEM_PATH).states
 
     # Use very short fit span (60 seconds)
     fitted_elements, diagnostics = oem_to_kepler.fit_mean_elements(
@@ -305,8 +221,7 @@ def test_fit_mean_elements_filters_to_fit_span() -> None:
 
 def test_fit_mean_elements_converges_with_low_rms() -> None:
     """Should converge to a solution with reasonable RMS error."""
-    content = ISS_OEM_PATH.read_text(encoding="utf-8")
-    records = oem_to_kepler.parse_dataset(content)
+    records = CcsdsOem.read(ISS_OEM_PATH).states
 
     fitted_elements, diagnostics = oem_to_kepler.fit_mean_elements(
         records, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
@@ -340,8 +255,7 @@ def test_compute_fit_residuals_returns_correct_shape() -> None:
 
 def test_compute_fit_residuals_zero_at_epoch() -> None:
     """Should produce near-zero residuals at epoch (t=0) for self-consistent state."""
-    content = ISS_OEM_PATH.read_text(encoding="utf-8")
-    records = oem_to_kepler.parse_dataset(content)
+    records = CcsdsOem.read(ISS_OEM_PATH).states
 
     fitted_elements, _ = oem_to_kepler.fit_mean_elements(
         records, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
@@ -370,8 +284,7 @@ def test_compute_fit_residuals_zero_at_epoch() -> None:
 
 def test_compute_all_differences_returns_statistics() -> None:
     """Should return dictionary with min/max/avg position and velocity errors."""
-    content = ISS_OEM_PATH.read_text(encoding="utf-8")
-    records = oem_to_kepler.parse_dataset(content)
+    records = CcsdsOem.read(ISS_OEM_PATH).states
 
     fitted_elements, _ = oem_to_kepler.fit_mean_elements(
         records, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
@@ -393,8 +306,7 @@ def test_compute_all_differences_returns_statistics() -> None:
 
 def test_compute_all_differences_filters_to_fit_span() -> None:
     """Should only compare states within the fit span."""
-    content = ISS_OEM_PATH.read_text(encoding="utf-8")
-    records = oem_to_kepler.parse_dataset(content)
+    records = CcsdsOem.read(ISS_OEM_PATH).states
 
     fitted_elements, _ = oem_to_kepler.fit_mean_elements(
         records, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
@@ -411,8 +323,7 @@ def test_compute_all_differences_filters_to_fit_span() -> None:
 
 def test_compute_all_differences_produces_reasonable_errors() -> None:
     """Should produce reasonable position and velocity errors for J2 model."""
-    content = ISS_OEM_PATH.read_text(encoding="utf-8")
-    records = oem_to_kepler.parse_dataset(content)
+    records = CcsdsOem.read(ISS_OEM_PATH).states
 
     fitted_elements, _ = oem_to_kepler.fit_mean_elements(
         records, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
@@ -437,8 +348,7 @@ def test_compute_all_differences_produces_reasonable_errors() -> None:
 
 def test_format_fit_output_contains_key_sections() -> None:
     """Should format output with all key sections."""
-    content = ISS_OEM_PATH.read_text(encoding="utf-8")
-    records = oem_to_kepler.parse_dataset(content)
+    records = CcsdsOem.read(ISS_OEM_PATH).states
 
     fitted_elements, diagnostics = oem_to_kepler.fit_mean_elements(
         records, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
@@ -468,8 +378,7 @@ def test_format_fit_output_contains_key_sections() -> None:
 
 def test_format_fit_output_includes_propagation_accuracy() -> None:
     """Should include propagation accuracy section when difference_summary provided."""
-    content = ISS_OEM_PATH.read_text(encoding="utf-8")
-    records = oem_to_kepler.parse_dataset(content)
+    records = CcsdsOem.read(ISS_OEM_PATH).states
 
     fitted_elements, diagnostics = oem_to_kepler.fit_mean_elements(
         records, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2

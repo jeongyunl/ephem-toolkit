@@ -35,6 +35,9 @@ flowchart LR
     %% oem_to_tle/ scripts
     oem_to_tle(["oem_to_tle.py"])
 
+    %% oem_to_kepler/ scripts
+    oem_to_kepler(["oem_to_kepler.py"])
+
     %% propagation/ scripts
     propagate_tle(["propagate_tle.py"])
     propagate_sat(["propagate_orbit.py"])
@@ -66,7 +69,12 @@ flowchart LR
 
     %% oem_to_tle.py: OEM state vectors → TLE
     fmt_oem --> oem_to_tle
+    fmt_ccsds_oem --> oem_to_tle
     oem_to_tle --> fmt_tle
+
+    %% oem_to_kepler.py: OEM → fitted mean Keplerian elements
+    fmt_ccsds_oem --> oem_to_kepler
+    oem_to_kepler --> fmt_kepler
 
     %% omm_to_tle.py: OMM → TLE
     fmt_omm --> omm_to_tle

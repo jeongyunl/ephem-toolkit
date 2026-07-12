@@ -1,4 +1,4 @@
-"""Tests for :mod:`common.convert_tle` — TLE ↔ OMM conversion."""
+"""Tests for common/convert_tle.py — TLE ↔ OMM conversion."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import common.omm as omm
 import common.tle as tle
 
 TEST_DIR = Path(__file__).parent
-TEST_DATA_DIR = TEST_DIR / "data"
+TEST_DATA_DIR = TEST_DIR.parent / "data"
 
 # Test data file paths
 ISS_TLE_PATH = TEST_DATA_DIR / "ISS-ZARYA_1998-067A.tle"

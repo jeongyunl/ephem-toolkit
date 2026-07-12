@@ -5,7 +5,8 @@ Propagation utilities for OEM-like Cartesian states and TLEs.
 ## Available scripts
 
 - `propagation/propagate_orbit.py`
-- `propagation/plot_dependent_variables.py`
+- `propagation/propagate_kepler.py`
+- `plotting/plot_dependent_variables.py`
 - `propagation/propagate_tle.py`
 
 ## `propagation/propagate_orbit.py`
@@ -15,7 +16,7 @@ Propagates a perturbed satellite orbit around Earth using TudatPy. The script re
 ### Synopsis
 
 ```bash
-python propagation/propagate_orbit.py [-h] [-i <oem_state_line>] [-d <value[s|m|h|d]>] [--oem <file|->]
+python3 propagation/propagate_orbit.py [-h] [-i <oem_state_line>] [-d <value[s|m|h|d]>] [--oem <file|->]
   [--raw <file|->] [--dep-vars <file>] [--oem-step-size <value[s|m]>] [--name <name>] [--mass <kg>]
   [--integrator <rk_3|rk_4|rkf_45|rkf_56|rkf_78|rkf_89|rkf_108|rkf_1210|rkf_1412|rkdp_87|rkv_89>]
   [--integrator-step-size <fixed|init,max|init,min,max>] [--earth-gravity <DxO>] [--drag-area <m^2>]
@@ -135,7 +136,7 @@ Additional implementation notes:
 **Propagate from inline state for 1 day:**
 
 ```bash
-python propagation/propagate_orbit.py \
+python3 propagation/propagate_orbit.py \
   -d 1d \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -144,13 +145,13 @@ python propagation/propagate_orbit.py \
 
 ```bash
 echo "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217" \
-  | python propagation/propagate_orbit.py -d 2h
+  | python3 propagation/propagate_orbit.py -d 2h
 ```
 
 **Disable drag and SRP:**
 
 ```bash
-python propagation/propagate_orbit.py \
+python3 propagation/propagate_orbit.py \
   -d 1d --drag off --srp off \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -158,7 +159,7 @@ python propagation/propagate_orbit.py \
 **Use custom satellite properties:**
 
 ```bash
-python propagation/propagate_orbit.py \
+python3 propagation/propagate_orbit.py \
   -d 12h --name MySat --mass 500 --drag-coeff 2.5 --drag-area 0.5 --srp-coeff 1.5 \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -166,7 +167,7 @@ python propagation/propagate_orbit.py \
 **Export propagated state history as CCSDS OEM:**
 
 ```bash
-python propagation/propagate_orbit.py \
+python3 propagation/propagate_orbit.py \
   -d 6h --oem propagated.oem \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -174,7 +175,7 @@ python propagation/propagate_orbit.py \
 **Write raw propagated state history to stdout:**
 
 ```bash
-python propagation/propagate_orbit.py \
+python3 propagation/propagate_orbit.py \
   -d 30m --raw - \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -182,7 +183,7 @@ python propagation/propagate_orbit.py \
 **Write dependent variables to CSV:**
 
 ```bash
-python propagation/propagate_orbit.py \
+python3 propagation/propagate_orbit.py \
   -d 6h --dep-vars dep_vars.csv \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -190,13 +191,13 @@ python propagation/propagate_orbit.py \
 **Plot dependent variables from CSV:**
 
 ```bash
-python propagation/plot_dependent_variables.py dep_vars.csv
+python3 plotting/plot_dependent_variables.py dep_vars.csv
 ```
 
 **Use a variable-step RKF 7(8) integrator:**
 
 ```bash
-python propagation/propagate_orbit.py \
+python3 propagation/propagate_orbit.py \
   -d 12h --integrator rkf_78 --integrator-step-size 30,0.001,1000 --earth-gravity 8x8 \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -204,15 +205,14 @@ python propagation/propagate_orbit.py \
 **Show help:**
 
 ```bash
-python propagation/propagate_orbit.py -h
+python3 propagation/propagate_orbit.py -h
 ```
 
 ### Dependencies
 
 - TudatPy
 - NumPy
-- Matplotlib
-- local helper modules `common.common`, `common.time_utils`
+- local helper modules `common.common`, `common.oem`, `common.time_utils`, `common.interpolator.lagrange`
 
 The script loads these SPICE kernels from TudatPy's SPICE kernel directory:
 
@@ -222,14 +222,91 @@ The script loads these SPICE kernels from TudatPy's SPICE kernel directory:
 - `earth_200101_990825_predict.bpc`
 - `tudat_merged_spk_kernel.bsp`
 
-## `propagation/plot_dependent_variables.py`
+## `propagation/propagate_kepler.py`
+
+Propagates Keplerian elements forward in time using the two-body Kepler propagator. The script reads one OEM-like line of Keplerian elements from a file or stdin, propagates the orbit, converts each propagated state to Cartesian coordinates, and outputs the results in OEM-like format.
+
+### Synopsis
+
+```bash
+python3 propagation/propagate_kepler.py [-h] [-d <value[s|m|h|d]>] [-s <value[s|m]>] [--oem] [<input_file>]
+```
+
+### Options
+
+| Option | Description | Default |
+|---|---|---|
+| `-h`, `--help` | Show help message and exit | none |
+| `<input_file>` | Path to a file containing one OEM-like Keplerian element line. If omitted, read from stdin. | stdin when piped |
+| `-d`, `--duration` | Propagation duration in `s`, `m`, `h`, or `d` units | `1d` |
+| `-s`, `--step` | Output interval in `s` or `m` units | `15m` |
+| `--oem` | Print OEM metadata header before data lines | off |
+
+### Input format
+
+The script expects exactly one OEM-like Keplerian element line:
+
+```text
+<ISO-8601 epoch>  <a_km>  <e>  <i_rad>  <omega_rad>  <RAAN_rad>  <theta_rad>
+```
+
+Notes:
+
+- **Epoch**: ISO 8601 timestamp
+- **Semi-major axis**: in kilometers (converted to meters internally)
+- **Eccentricity**: dimensionless
+- **Angles**: inclination, argument of periapsis, RAAN, and true anomaly in radians
+
+### Output
+
+Without `--oem`, the script prints Cartesian state lines:
+
+```text
+<ISO-8601 UTC epoch> <X_km> <Y_km> <Z_km> <VX_km/s> <VY_km/s> <VZ_km/s>
+```
+
+With `--oem`, the script prepends a CCSDS OEM metadata header.
+
+### Usage
+
+**Propagate from a file for 1 day:**
+
+```bash
+python3 propagation/propagate_kepler.py kepler_state.txt -d 1d
+```
+
+**Propagate from stdin for 2 hours with 1-minute steps:**
+
+```bash
+echo "2026-05-29T00:00:00.000000 6793.456 0.001234 0.9013 4.094 2.155 0.797" \
+  | python3 propagation/propagate_kepler.py -d 2h -s 1m
+```
+
+**Output with OEM header:**
+
+```bash
+python3 propagation/propagate_kepler.py kepler_state.txt --oem
+```
+
+**Show help:**
+
+```bash
+python3 propagation/propagate_kepler.py -h
+```
+
+### Dependencies
+
+- NumPy
+- local helper modules `common.oem`, `common.kepler`, `common.time_utils`
+
+## `plotting/plot_dependent_variables.py`
 
 Plots dependent-variable histories from a saved Tudat CSV file. The script reads the dependent-variable CSV produced by `propagate_orbit.py` and recreates the standard dependent-variable plots, including total acceleration, ground track, Keplerian elements, acceleration-component norms, and animated 3D trajectory views.
 
 ### Synopsis
 
 ```bash
-python propagation/plot_dependent_variables.py [-h] [--name <name>] [-d <duration>] <dep_vars_csv>
+python3 plotting/plot_dependent_variables.py [-h] [--name <name>] [-d <duration>] <dep_vars_csv>
 ```
 
 ### Options
@@ -279,53 +356,53 @@ The script does not write new files. It reads the CSV, creates figures, and disp
 **Plot dependent variables from a CSV file:**
 
 ```bash
-python propagation/plot_dependent_variables.py dep_vars.csv
+python3 plotting/plot_dependent_variables.py dep_vars.csv
 ```
 
 **Plot using a custom satellite name for labels/header filtering:**
 
 ```bash
-python propagation/plot_dependent_variables.py --name MySat dep_vars.csv
+python3 plotting/plot_dependent_variables.py --name MySat dep_vars.csv
 ```
 
 **Plot only the first hour of data:**
 
 ```bash
-python propagation/plot_dependent_variables.py -d 1h dep_vars.csv
+python3 plotting/plot_dependent_variables.py -d 1h dep_vars.csv
 ```
 
 **Plot only the first 30 minutes:**
 
 ```bash
-python propagation/plot_dependent_variables.py -d 30m dep_vars.csv
+python3 plotting/plot_dependent_variables.py -d 30m dep_vars.csv
 ```
 
 **Plot with custom satellite name and duration:**
 
 ```bash
-python propagation/plot_dependent_variables.py --name ISS_prop -d 2h dep_vars.csv
+python3 plotting/plot_dependent_variables.py --name ISS_prop -d 2h dep_vars.csv
 ```
 
 **Generate the CSV and then plot it:**
 
 ```bash
-python propagation/propagate_orbit.py \
+python3 propagation/propagate_orbit.py \
   -d 6h --dep-vars dep_vars.csv \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
-python propagation/plot_dependent_variables.py dep_vars.csv
+python3 plotting/plot_dependent_variables.py dep_vars.csv
 ```
 
 **Show help:**
 
 ```bash
-python propagation/plot_dependent_variables.py -h
+python3 plotting/plot_dependent_variables.py -h
 ```
 
 ### Dependencies
 
 - NumPy
 - Matplotlib
-- Python standard library
+- local helper modules `common.common`, `common.time_utils`
 
 ## `propagation/propagate_tle.py`
 
@@ -334,7 +411,7 @@ Propagates a TLE-derived orbit using TudatPy's SGP4 TLE ephemeris and prints sta
 ### Synopsis
 
 ```bash
-python propagation/propagate_tle.py [-h] [-d <value[s|m|h|d]>] [-s <value[s|m]>] [--oem] [<tle_file>]
+python3 propagation/propagate_tle.py [-h] [-d <value[s|m|h|d]>] [-s <value[s|m]>] [--oem] [<tle_file>]
 ```
 
 ### Options
@@ -395,41 +472,41 @@ Current implementation details:
 
 ### Usage
 
-**Propagate from a sample TLE file in `test/`:**
+**Propagate from a sample TLE file in `test/data/`:**
 
 ```bash
-python propagation/propagate_tle.py test/ISS-ZARYA_1998-067A.tle
+python3 propagation/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle
 ```
 
 **Propagate from stdin for 2 hours with 1-minute output step:**
 
 ```bash
-cat test/ISS-ZARYA_1998-067A.tle | python propagation/propagate_tle.py -d 2h -s 1m
+cat test/data/ISS-ZARYA_1998-067A.tle | python3 propagation/propagate_tle.py -d 2h -s 1m
 ```
 
 **Propagate for 30 minutes with 10-second output step:**
 
 ```bash
-python propagation/propagate_tle.py test/ISS-ZARYA_1998-067A.tle -d 30m -s 10s
+python3 propagation/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle -d 30m -s 10s
 ```
 
 **Print OEM metadata header plus state lines:**
 
 ```bash
-python propagation/propagate_tle.py test/ISS-ZARYA_1998-067A.tle --oem
+python3 propagation/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle --oem
 ```
 
 **Show help:**
 
 ```bash
-python propagation/propagate_tle.py -h
+python3 propagation/propagate_tle.py -h
 ```
 
 ### Dependencies
 
 - TudatPy
 - Python standard library
-- local helper modules `common.common`, `common.time_utils`
+- local helper modules `common.common`, `common.oem`, `common.time_utils`
 
 The script loads these SPICE kernels via TudatPy data paths:
 

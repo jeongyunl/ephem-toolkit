@@ -1,4 +1,4 @@
-"""Tests for :mod:`common.omm` — OMM parsing, writing, and class API."""
+"""Tests for common.omm.py — OMM parsing, writing, and class API."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import pytest
 import common.omm as omm
 
 TEST_DIR = Path(__file__).parent
-TEST_DATA_DIR = TEST_DIR / "data"
+TEST_DATA_DIR = TEST_DIR.parent / "data"
 ISS_OMM_PATH = TEST_DATA_DIR / "ISS-ZARYA_1998-067A.omm"
 AMOS_OMM_PATH = TEST_DATA_DIR / "AMOS-17_2019-050A.omm"
 LEO_OMM_PATH = TEST_DATA_DIR / "LEO-3_2023-100G.omm"

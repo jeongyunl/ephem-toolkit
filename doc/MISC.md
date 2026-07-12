@@ -16,7 +16,7 @@ Compares two OEM-like Cartesian states and reports differences in time, position
 ### Synopsis
 
 ```bash
-python bin/state_diff.py [-h] [-v] [<state1.dat>] [<state2.dat>]
+python3 bin/state_diff.py [-h] [-v] [<state1.dat>] [<state2.dat>]
 ```
 
 ### Options
@@ -67,20 +67,20 @@ The script prints a comparison summary including:
 **Compare two state files:**
 
 ```bash
-python bin/state_diff.py state1.dat state2.dat
+python3 bin/state_diff.py state1.dat state2.dat
 ```
 
 **Compare with verbose output:**
 
 ```bash
-python bin/state_diff.py -v state1.dat state2.dat
+python3 bin/state_diff.py -v state1.dat state2.dat
 ```
 
 **Read first state from file, second from stdin:**
 
 ```bash
 echo "2025-11-10T15:42:27.000000 -4016.835021864 3234.040363774 5296.435683796 5.299868461 -1.578004407 4.968732515" \
-  | python bin/state_diff.py state1.dat -
+  | python3 bin/state_diff.py state1.dat -
 ```
 
 **Read both states from stdin:**
@@ -88,19 +88,19 @@ echo "2025-11-10T15:42:27.000000 -4016.835021864 3234.040363774 5296.435683796 5
 ```bash
 (echo "2025-11-10T15:42:27.000000 2070.058475323 4729.228905684 5291.073944519 -0.452686493 -5.378340397 4.970075198"; \
  echo "2025-11-10T15:42:27.000000 -4016.835021864 3234.040363774 5296.435683796 5.299868461 -1.578004407 4.968732515") \
-  | python bin/state_diff.py
+  | python3 bin/state_diff.py
 ```
 
 **Show help:**
 
 ```bash
-python bin/state_diff.py -h
+python3 bin/state_diff.py -h
 ```
 
 ### Dependencies
 
 - NumPy
-- local helper modules `common.common`, `common.time_utils`
+- local helper modules `common.common`, `common.oem`, `common.time_utils`
 
 ## `bin/slice_oem.py`
 
@@ -109,7 +109,7 @@ Slices CCSDS OEM files by index or time range, with optional interpolation.
 ### Synopsis
 
 ```bash
-python bin/slice_oem.py [-h] [-s <slice>] [-t <start[,stop[,step]]>] [-i] [--oem] <oem_file>
+python3 bin/slice_oem.py [-h] [-s <slice>] [-t <start[,stop[,step]]>] [-i] [--oem] <oem_file>
 ```
 
 ### Options
@@ -163,49 +163,48 @@ With `--oem`, outputs a valid CCSDS OEM file with updated metadata.
 **Slice by index (first 10 states):**
 
 ```bash
-python bin/slice_oem.py -s 0:10 propagated.oem
+python3 bin/slice_oem.py -s 0:10 propagated.oem
 ```
 
 **Slice by index (every other state):**
 
 ```bash
-python bin/slice_oem.py -s ::2 propagated.oem
+python3 bin/slice_oem.py -s ::2 propagated.oem
 ```
 
 **Slice by time (first hour):**
 
 ```bash
-python bin/slice_oem.py -t "0,1h" propagated.oem
+python3 bin/slice_oem.py -t "0,1h" propagated.oem
 ```
 
 **Slice by time with interpolation (10-minute steps):**
 
 ```bash
-python bin/slice_oem.py -t "0,1h,10m" -i propagated.oem
+python3 bin/slice_oem.py -t "0,1h,10m" -i propagated.oem
 ```
 
 **Slice by time (last 30 minutes):**
 
 ```bash
-python bin/slice_oem.py -t "-30m," propagated.oem
+python3 bin/slice_oem.py -t "-30m," propagated.oem
 ```
 
 **Output in OEM format:**
 
 ```bash
-python bin/slice_oem.py -s 0:100 --oem propagated.oem > sliced.oem
+python3 bin/slice_oem.py -s 0:100 --oem propagated.oem > sliced.oem
 ```
 
 **Show help:**
 
 ```bash
-python bin/slice_oem.py -h
+python3 bin/slice_oem.py -h
 ```
 
 ### Dependencies
 
-- TudatPy (for interpolators)
-- local helper modules `common.oem`
+- local helper modules `common.common`, `common.oem`, `common.slice_oem`, `common.time_utils`
 
 ## `plotting/plot_orbits.py`
 
@@ -214,7 +213,7 @@ Plots multiple orbit trajectories with various views and RTN (Radial-Transverse-
 ### Synopsis
 
 ```bash
-python plotting/plot_orbits.py [-h] [-o <output_file>] [-d <duration>] [--time-unit <unit>] <reference_oem> [<comparison_oem1>] [<comparison_oem2>] ...
+python3 plotting/plot_orbits.py [-h] [-o <output_file>] [-d <duration>] [--time-unit <unit>] <reference_oem> [<comparison_oem1>] [<comparison_oem2>] ...
 ```
 
 ### Options
@@ -269,42 +268,41 @@ Otherwise, figures are displayed interactively.
 **Plot single orbit:**
 
 ```bash
-python plotting/plot_orbits.py reference.oem
+python3 plotting/plot_orbits.py reference.oem
 ```
 
 **Plot reference orbit with comparison orbits:**
 
 ```bash
-python plotting/plot_orbits.py reference.oem comparison1.oem comparison2.oem
+python3 plotting/plot_orbits.py reference.oem comparison1.oem comparison2.oem
 ```
 
 **Save output to files:**
 
 ```bash
-python plotting/plot_orbits.py reference.oem comparison.oem -o orbits.png
+python3 plotting/plot_orbits.py reference.oem comparison.oem -o orbits.png
 ```
 
 **Analyze only first 2 hours:**
 
 ```bash
-python plotting/plot_orbits.py reference.oem comparison.oem -d 2h
+python3 plotting/plot_orbits.py reference.oem comparison.oem -d 2h
 ```
 
 **Use minutes for time-series x-axis:**
 
 ```bash
-python plotting/plot_orbits.py reference.oem comparison.oem --time-unit minutes
+python3 plotting/plot_orbits.py reference.oem comparison.oem --time-unit minutes
 ```
 
 **Show help:**
 
 ```bash
-python plotting/plot_orbits.py -h
+python3 plotting/plot_orbits.py -h
 ```
 
 ### Dependencies
 
 - NumPy
 - Matplotlib
-- TudatPy (for interpolators)
-- local helper modules `common.common`, `common.time_utils`, `common.oem`
+- local helper modules `common.common`, `common.time_utils`, `common.oem`, `common.interpolator.lagrange`

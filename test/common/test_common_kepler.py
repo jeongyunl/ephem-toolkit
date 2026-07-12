@@ -1,11 +1,8 @@
-"""Test suite for orbital element conversion functions.
+"""Tests for common/kepler.py — Orbital element conversion and propagation.
 
-Validates :func:`common.kepler.cartesian_to_keplerian`,
-:func:`common.convert_tle.tle_to_osculating_keplerian`,
-:func:`common.kepler.keplerian_to_cartesian`,
-:func:`common.kepler.propagate_kepler`, and related helper functions.
-
-Includes round-trip tests and comparisons with tudatpy reference implementations.
+Validates cartesian_to_keplerian, keplerian_to_cartesian, propagate_kepler,
+and related helper functions. Includes round-trip tests and comparisons
+with tudatpy reference implementations.
 """
 
 from __future__ import annotations
@@ -23,7 +20,7 @@ import common.tle as tle
 import common.consts as consts
 
 TEST_DIR = Path(__file__).parent
-TEST_DATA_DIR = TEST_DIR / "data"
+TEST_DATA_DIR = TEST_DIR.parent / "data"
 
 
 # ===================================================================

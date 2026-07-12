@@ -1,4 +1,8 @@
-"""TLE field estimation from orbital records."""
+"""TLE field estimation from orbital records.
+
+This module provides functions to estimate TLE orbital elements from sequences
+of Cartesian state vectors, including B* drag term fitting and accuracy verification.
+"""
 
 from __future__ import annotations
 
@@ -23,51 +27,51 @@ import oem_to_tle.tle_builder as tle_builder
 
 
 def select_bstar_fit_samples(
-    records: list[tuple[datetime, np.ndarray]],
-) -> list[tuple[datetime, np.ndarray]]:
+    states: list[tuple[float, np.ndarray]],
+) -> list[tuple[float, np.ndarray]]:
     """Select evenly spaced post-epoch records used for B* fitting.
 
     Parameters
     ----------
-    records : list[tuple[datetime, np.ndarray]]
-        List of (epoch, state_vector_m (6,)) tuples.
+    states : list[tuple[float, np.ndarray]]
+        List of (POSIX timestamp, state_vector_m (6,)) tuples.
 
     Returns
     -------
-    list[tuple[datetime, np.ndarray]]
-        Selected subset of records (epoch, state_vector_m (6,)) for B* fitting.
+    list[tuple[float, np.ndarray]]
+        Selected subset of records (POSIX timestamp, state_vector_m (6,)) for B* fitting.
     """
-    if len(records) <= 1:
+    if len(states) <= 1:
         return []
 
-    selected: list[tuple[datetime, np.ndarray]]
-    if len(records) <= constants.BSTAR_SAMPLE_COUNT:
-        selected = records[1:]
+    selected_states: list[tuple[float, np.ndarray]]
+    if len(states) <= constants.BSTAR_SAMPLE_COUNT:
+        selected_states = states[1:]
     else:
-        selected = []
-        last_index: int = len(records) - 1
+        selected_states = []
+        last_index: int = len(states) - 1
         for sample_index in range(1, constants.BSTAR_SAMPLE_COUNT + 1):
             index: int = round(sample_index * last_index / constants.BSTAR_SAMPLE_COUNT)
             index = min(max(index, 1), last_index)
-            selected.append(records[index])
+            selected_states.append(states[index])
         # Preserve order while removing duplicates.
         seen: set[tuple] = set()
-        selected = [
+        selected_states = [
             record
-            for record in selected
+            for record in selected_states
             if not (
                 (record[0], tuple(record[1].tolist())) in seen
                 or seen.add((record[0], tuple(record[1].tolist())))
             )
         ]
 
-    return selected
+    return selected_states
 
 
 def estimate_bstar_from_arc(
     args: argparse.Namespace,
     estimated: models.Estimated,
-    records: list[tuple[datetime, np.ndarray]],
+    states: list[tuple[float, np.ndarray]],
 ) -> models.Estimated:
     """Estimate B* by minimizing propagated state mismatch over the OEM arc.
 
@@ -80,8 +84,8 @@ def estimate_bstar_from_arc(
         Parsed command-line arguments.
     estimated : Estimated
         Estimated TLE elements dataclass.
-    records : list[tuple[datetime, np.ndarray]]
-        List of (epoch, state_vector_m (6,)) tuples.
+    states : list[tuple[float, np.ndarray]]
+        List of (POSIX timestamp, state_vector_m (6,)) tuples.
 
     Returns
     -------
@@ -100,18 +104,18 @@ def estimate_bstar_from_arc(
         estimated.bstar_source = "input"
         return estimated
 
-    sampled_records: list[tuple[datetime, np.ndarray]] = select_bstar_fit_samples(
-        records
-    )
-    if not sampled_records:
+    sampled_states: list[tuple[float, np.ndarray]] = select_bstar_fit_samples(states)
+    if not sampled_states:
         estimated.bstar = args.bstar
         estimated.bstar_source = "default"
         return estimated
 
-    t0: float = records[0][0]
-    time_offsets_s: list[float] = [(ts - t0) for ts, _ in sampled_records]
+    epoch_timestamp: float = states[0][0]
+    time_offsets_s: list[float] = [
+        (timestamp - epoch_timestamp) for timestamp, _ in sampled_states
+    ]
     target_states: list[np.ndarray] = [  # List of (6,)
-        state_vector_m for _, state_vector_m in sampled_records  # Already (6,)
+        state_vector_m for _, state_vector_m in sampled_states  # Already (6,)
     ]
 
     def evaluate_bstar_cost(bstar_value: float) -> float | None:
@@ -174,15 +178,15 @@ def estimate_bstar_from_arc(
 
 
 def estimate_tle_fields(
-    records: list[tuple[datetime, np.ndarray]],
+    states: list[tuple[float, np.ndarray]],
     use_state_match: bool = True,
 ) -> models.Estimated:
     """Estimate TLE orbital elements from a sequence of Cartesian state records.
 
     Parameters
     ----------
-    records : list[tuple[datetime, np.ndarray]]
-        List of (epoch, state_vector_m (6,)) tuples.
+    states : list[tuple[float, np.ndarray]]
+        List of (POSIX timestamp, state_vector_m (6,)) tuples.
     use_state_match : bool
         If True, use osculating values as initial guess for state-match refinement.
 
@@ -192,9 +196,9 @@ def estimate_tle_fields(
         Estimated TLE elements and diagnostic quantities.
     """
     # Use the first epoch/state as the epoch of the estimated TLE.
-    t0: float = records[0][0]  # POSIX timestamp of epoch
-    epoch_dt: datetime = datetime.fromtimestamp(t0, tz=timezone.utc)
-    first_state_vector_m: np.ndarray = records[0][1]  # (6,)
+    epoch_timestamp: float = states[0][0]  # POSIX timestamp of epoch
+    epoch_dt: datetime = datetime.fromtimestamp(epoch_timestamp, tz=timezone.utc)
+    first_state_vector_m: np.ndarray = states[0][1]  # (6,) state vector in SI units
 
     elements_first: models.OrbitalElements = (
         orbital_mechanics.state_to_orbital_elements(first_state_vector_m)
@@ -211,14 +215,14 @@ def estimate_tle_fields(
     mean_motion_rad_s_series: list[float] = []
     p_m_series: list[float] = []
     records_with_elements: list[models.OrbitalRecord] = []
-    for ts, state_vector_m in records:
-        dt_s: float = ts - t0
-        dt_day: float = dt_s / constants.SECONDS_PER_DAY_S
+    for timestamp, state_vector_m in states:
+        time_offset_s: float = timestamp - epoch_timestamp
+        time_offset_day: float = time_offset_s / constants.SECONDS_PER_DAY_S
         elements: models.OrbitalElements = orbital_mechanics.state_to_orbital_elements(
             state_vector_m
         )
-        times_s.append(dt_s)
-        times_day.append(dt_day)
+        times_s.append(time_offset_s)
+        times_day.append(time_offset_day)
         mean_motion_series.append(elements.mean_motion_rev_per_day)
         eccentricity_series.append(elements.eccentricity)
         raan_rad: float = math.radians(elements.raan_deg)
@@ -240,7 +244,7 @@ def estimate_tle_fields(
         p_m_series.append(elements.semi_major_axis_m * (1.0 - elements.eccentricity**2))
         records_with_elements.append(
             models.OrbitalRecord(
-                t_day=dt_day,
+                t_day=time_offset_day,
                 raan_rad=raan_rad,
                 arg_perigee_rad=arg_perigee_rad,
                 mean_anomaly_rad=mean_anomaly_rad,
@@ -272,8 +276,8 @@ def estimate_tle_fields(
     # Remove fitted short-period phase progression and circular-average the
     # residuals to obtain a more stable epoch phase estimate.
     mean_argument_latitude_phase_residuals = [
-        common.wrap_angle_rad(u - mean_argument_latitude_rate_rad_s * dt_s)
-        for u, dt_s in zip(mean_argument_latitude_series_rad, times_s)
+        common.wrap_angle_rad(u - mean_argument_latitude_rate_rad_s * time_offset_s)
+        for u, time_offset_s in zip(mean_argument_latitude_series_rad, times_s)
     ]
     mean_argument_latitude_at_epoch_rad = common.circular_mean_angle_rad(
         mean_argument_latitude_phase_residuals
@@ -286,8 +290,8 @@ def estimate_tle_fields(
         mean_motion_phase_rate_rev_per_day * 2.0 * math.pi / constants.SECONDS_PER_DAY_S
     )
     mean_anomaly_phase_residuals = [
-        common.wrap_angle_rad(m - mean_motion_phase_rate_rad_s * dt_s)
-        for m, dt_s in zip(mean_anomaly_series_rad, times_s)
+        common.wrap_angle_rad(m - mean_motion_phase_rate_rad_s * time_offset_s)
+        for m, time_offset_s in zip(mean_anomaly_series_rad, times_s)
     ]
     mean_anomaly_phase_at_epoch_rad = common.circular_mean_angle_rad(
         mean_anomaly_phase_residuals
@@ -434,7 +438,7 @@ def estimate_tle_fields(
 def verify_accuracy_keplerian(
     args: argparse.Namespace,
     estimated: models.Estimated,
-    records: list[tuple[datetime, np.ndarray]],
+    states: list[tuple[float, np.ndarray]],
 ) -> models.KeplerianAccuracy | None:
     """Verify TLE accuracy using osculating Keplerian elements from common.kepler.
 
@@ -452,8 +456,8 @@ def verify_accuracy_keplerian(
         Parsed command-line arguments.
     estimated : Estimated
         Estimated TLE elements dataclass.
-    records : list[tuple[datetime, np.ndarray]]
-        List of (epoch, state_vector_m (6,)) tuples.
+    states : list[tuple[float, np.ndarray]]
+        List of (POSIX timestamp, state_vector_m (6,)) tuples.
 
     Returns
     -------
@@ -463,7 +467,7 @@ def verify_accuracy_keplerian(
     mu: float = consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
 
     # Reference state at epoch (already in m, m/s)
-    ref_state_m: np.ndarray = records[0][1]  # (6,) state vector
+    ref_state_m: np.ndarray = states[0][1]  # (6,) state vector
 
     # Compute reference osculating Keplerian elements
     try:

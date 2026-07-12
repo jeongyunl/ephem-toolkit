@@ -44,7 +44,7 @@ Illustrative call graph noted during investigation:
 When validating behavior of:
 
 - `time_conversion/tools/convert_time_cli`
-- Python helpers in `common/common.py`
+- Python helpers in `common/time_utils.py`
 - scripts under `misc/` that probe leap-second or UTC edge cases
 
 be aware that discrepancies near future leap seconds may come from upstream leap-second handling rather than from this repository's wrapper logic.

@@ -1,5 +1,12 @@
 # To-do list
 
+1. OEM
+    1. `slice_oem.py`
+        1. Add/override meta data from CLI
+        2. Raw to OEM conversion
+        3. OEM to Raw
+    1. OEM frame conversions
+
 1. Propagation tools
     1. Add fixed-step resampling / interpolation for propagated state histories so OEM-like exports can be generated at user-selected output intervals.
 1. C++ propagation examples

@@ -34,15 +34,31 @@ import common.consts as consts
 
 # Re-export constants and indices used by this module for convenience
 EARTH_GRAVITATIONAL_PARAMETER_M3_S2: float = consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+"""Earth gravitational parameter (m³/s²), re-exported from consts module."""
+
 EARTH_EQUATORIAL_RADIUS_M: float = consts.EARTH_EQUATORIAL_RADIUS_M
+"""Earth equatorial radius (m), re-exported from consts module."""
 
 SEMI_MAJOR_AXIS_INDEX: int = kepler.SEMI_MAJOR_AXIS_INDEX
+"""Index for semi-major axis in Keplerian element arrays."""
+
 ECCENTRICITY_INDEX: int = kepler.ECCENTRICITY_INDEX
+"""Index for eccentricity in Keplerian element arrays."""
+
 INCLINATION_INDEX: int = kepler.INCLINATION_INDEX
+"""Index for inclination in Keplerian element arrays."""
+
 ARGUMENT_OF_PERIAPSIS_INDEX: int = kepler.ARGUMENT_OF_PERIAPSIS_INDEX
+"""Index for argument of periapsis in Keplerian element arrays."""
+
 RAAN_INDEX: int = kepler.RAAN_INDEX
+"""Index for right ascension of ascending node in Keplerian element arrays."""
+
 TRUE_ANOMALY_INDEX: int = kepler.TRUE_ANOMALY_INDEX
+"""Index for true anomaly in Keplerian element arrays."""
+
 MEAN_ANOMALY_INDEX: int = kepler.MEAN_ANOMALY_INDEX
+"""Index for mean anomaly in Keplerian element arrays."""
 
 
 # ===================================================================
@@ -256,6 +272,44 @@ def compute_brouwer_short_period_corrections(
 
 
 # ===================================================================
+def mean_to_osculating_keplerian(
+    mean_keplerian_elements: np.ndarray,
+    R_e_m: float = EARTH_EQUATORIAL_RADIUS_M,
+    J2: float = consts.EARTH_J2,
+) -> np.ndarray:
+    """Convert mean Keplerian elements to osculating elements.
+
+    This is an alias for :func:`compute_brouwer_short_period_corrections`
+    provided for API consistency and clarity.
+
+    Parameters
+    ----------
+    mean_keplerian_elements : np.ndarray
+        Mean Keplerian element vector(s) [a, e, i, omega, RAAN, M].
+        - Shape (6,): Single element set
+        - Shape (N, 6): Batch of N element sets
+    R_e_m : float
+        Earth equatorial radius (m).
+    J2 : float
+        J2 zonal harmonic coefficient (dimensionless).
+
+    Returns
+    -------
+    np.ndarray
+        Osculating Keplerian elements [a, e, i, omega, RAAN, theta].
+        - Shape (6,): If input is single element set
+        - Shape (N, 6): If input is batch of N element sets
+
+    See Also
+    --------
+    compute_brouwer_short_period_corrections : The underlying implementation.
+    osculating_to_mean_keplerian : Inverse transformation.
+    """
+    return compute_brouwer_short_period_corrections(
+        mean_keplerian_elements, R_e_m=R_e_m, J2=J2
+    )
+
+
 # Osculating -> Mean (iterative inversion)
 # ===================================================================
 
@@ -326,7 +380,7 @@ def osculating_to_mean_keplerian(
 
     for _ in range(max_iter):
         # Apply forward correction
-        osc: np.ndarray = compute_brouwer_short_period_corrections(
+        osculating_from_mean: np.ndarray = compute_brouwer_short_period_corrections(
             np.array(
                 [
                     mean_semi_major_axis,
@@ -343,14 +397,23 @@ def osculating_to_mean_keplerian(
         )
 
         # Compute residuals (osculating_target - osculating_from_mean)
-        delta_semimajor: float = osculating_semi_major_axis - osc[SEMI_MAJOR_AXIS_INDEX]
-        delta_eccentricity: float = osculating_eccentricity - osc[ECCENTRICITY_INDEX]
-        delta_inclination: float = osculating_inclination - osc[INCLINATION_INDEX]
-        delta_raan: float = osculating_raan - osc[RAAN_INDEX]
-        delta_argument_of_periapsis: float = (
-            osculating_argument_of_periapsis - osc[ARGUMENT_OF_PERIAPSIS_INDEX]
+        delta_semimajor: float = (
+            osculating_semi_major_axis - osculating_from_mean[SEMI_MAJOR_AXIS_INDEX]
         )
-        delta_true_anomaly: float = osculating_true_anomaly - osc[TRUE_ANOMALY_INDEX]
+        delta_eccentricity: float = (
+            osculating_eccentricity - osculating_from_mean[ECCENTRICITY_INDEX]
+        )
+        delta_inclination: float = (
+            osculating_inclination - osculating_from_mean[INCLINATION_INDEX]
+        )
+        delta_raan: float = osculating_raan - osculating_from_mean[RAAN_INDEX]
+        delta_argument_of_periapsis: float = (
+            osculating_argument_of_periapsis
+            - osculating_from_mean[ARGUMENT_OF_PERIAPSIS_INDEX]
+        )
+        delta_true_anomaly: float = (
+            osculating_true_anomaly - osculating_from_mean[TRUE_ANOMALY_INDEX]
+        )
 
         # Wrap angle differences to [-π, π]
         delta_raan = (delta_raan + np.pi) % (2.0 * np.pi) - np.pi
@@ -368,7 +431,7 @@ def osculating_to_mean_keplerian(
 
         # Update mean anomaly from corrected true anomaly
         target_theta_for_mean: float = osculating_true_anomaly - (
-            osc[TRUE_ANOMALY_INDEX]
+            osculating_from_mean[TRUE_ANOMALY_INDEX]
             - kepler.mean_to_true_anomaly(mean_anomaly_estimate, mean_eccentricity)
         )
         mean_anomaly_estimate = kepler.true_to_mean_anomaly(

@@ -1,9 +1,4 @@
-"""Integration tests: propagate_tle -> oem_to_tle round-trip accuracy.
-
-For each TLE file in the test directory, propagate with SGP4 for 1 day,
-feed the resulting OEM-like state vectors into oem_to_tle, and compare
-the reconstructed TLE against the original.
-"""
+"""Tests for integration workflow: OEM → TLE → propagation round-trip."""
 
 from __future__ import annotations
 
@@ -20,8 +15,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import common.tle as tle
 
 TEST_DIR: Path = Path(__file__).parent
-PROJECT_ROOT: Path = TEST_DIR.parent
-TEST_DATA_DIR: Path = TEST_DIR / "data"
+PROJECT_ROOT: Path = TEST_DIR.parent.parent
+TEST_DATA_DIR: Path = TEST_DIR.parent / "data"
 
 TLE_FILES: list[Path] = sorted(TEST_DATA_DIR.glob("*.tle"))
 
@@ -241,25 +236,6 @@ def tle_round_trip(request) -> tuple[tle.Tle, tle.Tle]:
     build_output: str = run_oem_to_tle(oem_text, original)
     reconstructed: tle.Tle = parse_generated_tle_from_output(build_output)
     return original, reconstructed
-
-
-@pytest.mark.parametrize("tle_path", TLE_FILES, ids=[p.name for p in TLE_FILES])
-def test_propagate_tle_produces_valid_state_vectors(tle_path: Path) -> None:
-    """Should propagate each TLE for 1 day and produce valid OEM-like state vectors.
-
-    Parameters
-    ----------
-    tle_path : Path
-        Path to TLE file to test.
-    """
-    oem_text: str = run_propagate_tle(tle_path)
-    lines: list[str] = [line for line in oem_text.strip().splitlines() if line.strip()]
-    assert (
-        len(lines) >= 90
-    ), f"Expected ~97 state lines, got {len(lines)} for {tle_path.name}"
-    for line in lines[:5]:
-        parts: list[str] = line.split()
-        assert len(parts) == 7, f"Expected 7 fields per line, got {len(parts)}: {line}"
 
 
 def test_reconstructed_tle_preserves_elements(

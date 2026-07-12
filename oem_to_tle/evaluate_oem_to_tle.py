@@ -9,7 +9,7 @@ Workflow:
   5. Print position and velocity difference statistics.
 
 Usage:
-    python oem_to_tle/evaluate_oem_to_tle.py [--refinement none|cartesian|keplerian]
+    python3 oem_to_tle/evaluate_oem_to_tle.py [--refinement none|cartesian|keplerian]
 """
 
 from __future__ import annotations
@@ -27,6 +27,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import common.oem as oem
+from common.oem import CcsdsOem
 import common.time_utils as time_utils
 
 TEST_DIR: Path = Path(__file__).parent
@@ -79,14 +80,14 @@ def parse_args() -> argparse.Namespace:
 
 
 def run_oem_to_tle(
-    oem_records: dict[float, np.ndarray], duration_s: float, refinement: str
+    states: list[tuple[float, np.ndarray]], duration_s: float, refinement: str
 ) -> tuple[str, str, str]:
     """Run oem_to_tle.py on OEM records (limited to duration_s) via stdin.
 
     Parameters
     ----------
-    oem_records : dict[float, np.ndarray]
-        Dictionary mapping POSIX timestamps to state vectors (6-element arrays).
+    states : list[tuple[float, np.ndarray]]
+        List of (POSIX timestamp, state_vector) tuples, sorted by POSIX timestamp.
     duration_s : float
         Maximum time span in seconds to include in the fit input.
     refinement : str
@@ -99,22 +100,19 @@ def run_oem_to_tle(
         ``(tle_text, tle_line1, tle_line2)`` where *tle_text* is the full
         three-line TLE string.
     """
-    # Convert dict to sorted list of (epoch_timestamp, state) tuples
-    sorted_epochs = sorted(oem_records.keys())
-
+    # oem_records is already a sorted list of (POSIX timestamp, state) tuples
     # Select records within the fit duration
-    t0 = sorted_epochs[0]
-    fit_epochs = [
-        epoch_ts for epoch_ts in sorted_epochs if (epoch_ts - t0) <= duration_s
+    t0 = states[0][0]
+    fit_records = [
+        (epoch_ts, state) for epoch_ts, state in states if (epoch_ts - t0) <= duration_s
     ]
-    if len(fit_epochs) < 2:
-        fit_epochs = sorted_epochs[:2]
+    if len(fit_records) < 2:
+        fit_records = states[:2]
 
     # Format as simple state-vector lines for oem_to_tle.py stdin
     # oem_to_tle.py expects km and km/s (OEM standard), so convert from SI (m, m/s)
     input_lines: list[str] = []
-    for epoch_ts in fit_epochs:
-        state = oem_records[epoch_ts]
+    for epoch_ts, state in fit_records:
         pos = state[:3] / 1000.0  # Convert m → km
         vel = state[3:] / 1000.0  # Convert m/s → km/s
         # Convert POSIX timestamp to datetime for formatting
@@ -305,14 +303,15 @@ def norm3(v: list[float]) -> float:
 
 
 def evaluate_differences(
-    oem_records: dict, prop_records: list
+    states: list[tuple[float, np.ndarray]], prop_records: list
 ) -> tuple[list[float], list[float], int]:
     """Compare OEM reference states against propagated states at matching epochs.
 
     Parameters
     ----------
-    oem_records : dict
-        Reference state records as dict mapping epoch datetimes to state vectors.
+    states : list[tuple[float, np.ndarray]]
+        Reference state records as list of (POSIX timestamp, state_vector) tuples,
+        sorted by timestamp.
     prop_records : list
         Propagated state records as ``(epoch_dt, pos_km, vel_km_s)`` tuples.
 
@@ -327,8 +326,8 @@ def evaluate_differences(
     vel_errors: list[float] = []
     matched_count: int = 0
 
-    for oem_epoch in sorted(oem_records.keys()):
-        oem_state = oem_records[oem_epoch]
+    for epoch_ts, oem_state in states:
+        oem_epoch = datetime.fromtimestamp(epoch_ts, tz=timezone.utc)
         # OEM states are in meters (SI); convert to km for comparison with
         # propagated output (which is in km from propagate_tle.py OEM output)
         oem_pos = oem_state[:3] / 1000.0  # Convert m → km
@@ -433,22 +432,17 @@ def main() -> None:
     print()
 
     # Step 1: Read OEM reference
-    header: dict
-    meta: dict
-    oem_records_float: dict
-    header, meta, oem_records_float = oem.read_oem(oem_path)
-    if len(oem_records_float) < 2:
+    oem_obj = CcsdsOem.read(oem_path)
+    oem_states: list[tuple[float, np.ndarray]] = oem_obj.states
+    if len(oem_states) < 2:
         print("ERROR: OEM file has fewer than 2 state vectors.", file=sys.stderr)
         sys.exit(1)
 
-    # oem_records_float is now dict[float, np.ndarray] (POSIX timestamps)
-    # Convert to dict[datetime, np.ndarray] for compatibility
-    oem_records: dict = {
-        datetime.fromtimestamp(ts, tz=timezone.utc): state
-        for ts, state in oem_records_float.items()
-    }
-
-    sorted_epochs: list = sorted(oem_records.keys())
+    # Use the already-sorted states to extract epochs (no need to sort again)
+    # Note: oem_obj.states is already sorted by timestamp
+    sorted_epochs: list = [
+        datetime.fromtimestamp(ts, tz=timezone.utc) for ts, _ in oem_states
+    ]
     oem_start: datetime = sorted_epochs[0]
     oem_end: datetime = sorted_epochs[-1]
     oem_span_s: float = (oem_end - oem_start).total_seconds()
@@ -458,7 +452,7 @@ def main() -> None:
         else 240.0
     )
 
-    print(f"  OEM span:       {oem_span_s/3600:.2f} hours ({len(oem_records)} points)")
+    print(f"  OEM span:       {oem_span_s/3600:.2f} hours ({len(oem_states)} points)")
     print(f"  OEM step:       {oem_step_s:.0f} s")
     print()
 
@@ -474,9 +468,7 @@ def main() -> None:
     tle_text: str
     line1: str
     line2: str
-    tle_text, line1, line2 = run_oem_to_tle(
-        oem_records_float, duration_s, args.refinement
-    )
+    tle_text, line1, line2 = run_oem_to_tle(oem_states, duration_s, args.refinement)
     print(f"  Generated TLE:")
     print(f"    {line1}")
     print(f"    {line2}")
@@ -500,14 +492,12 @@ def main() -> None:
     vel_errors: list[float]
     matched_count: int
     pos_errors, vel_errors, matched_count = evaluate_differences(
-        oem_records, prop_records
+        oem_states, prop_records
     )
     print()
 
     duration_h: float = duration_s / 3600.0
-    print_statistics(
-        pos_errors, vel_errors, matched_count, len(oem_records), duration_h
-    )
+    print_statistics(pos_errors, vel_errors, matched_count, len(oem_states), duration_h)
 
 
 if __name__ == "__main__":

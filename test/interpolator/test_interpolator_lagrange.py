@@ -1,4 +1,4 @@
-"""Regression tests for :mod:`interpolator.lagrange`."""
+"""Tests for common/interpolator/lagrange.py — Lagrange interpolation."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import common.oem as oem
+from common.oem import CcsdsOem
 import common.interpolator.lagrange as lagrange
 
 
@@ -35,28 +35,26 @@ def test_interpolated_oem_velocity_norm_matches_original_oem() -> None:
     step_size_sec: float = 2.0
     interpolation_degree: int = 6
 
-    test_dir: Path = Path(__file__).parent
+    test_dir: Path = Path(__file__).parent.parent
     oem_path: Path = test_dir / "data" / "ISS_2026-05-20.OEM"
 
-    header: dict
-    meta: dict
-    all_states_float: dict
-    header, meta, all_states_float = oem.read_oem(oem_path)
-    # all_states_float is now dict[float, np.ndarray] (POSIX timestamps)
-    all_timestamps: list = sorted(all_states_float.keys())
+    all_states_float: list[tuple[float, np.ndarray]] = CcsdsOem.read(oem_path).states
+    # Convert to dict for easier access by timestamp
+    all_states_dict: dict[float, np.ndarray] = {ts: state for ts, state in all_states_float}
+    all_timestamps: list = [ts for ts, _ in all_states_float]
     first_n_timestamps: list[float] = all_timestamps[:number_of_data_points]
 
     interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
         dimension=6, degree=interpolation_degree
     )
-    # Use list of tuples (already sorted) instead of dict comprehension
-    interpolator.set_data([(ts, all_states_float[ts]) for ts in first_n_timestamps])
+    # Use list of tuples (already sorted)
+    interpolator.set_data(all_states_float[:number_of_data_points])
 
     start_time: float = first_n_timestamps[0]
     end_time: float = first_n_timestamps[-1]
 
     previous_interpolated_position: np.ndarray = np.asarray(
-        all_states_float[start_time][0:3]
+        all_states_dict[start_time][0:3]
     )
 
     evaluation_times: np.ndarray = np.arange(
@@ -69,7 +67,7 @@ def test_interpolated_oem_velocity_norm_matches_original_oem() -> None:
         nearest_idx: int = int(np.argmin(np.abs(np.asarray(first_n_timestamps) - time)))
         reference_timestamp: float = first_n_timestamps[nearest_idx]
         reference_velocity_norm: float = np.linalg.norm(
-            all_states_float[reference_timestamp][3:6]
+            all_states_dict[reference_timestamp][3:6]
         )
 
         # Calculate velocity using two adjacent interpolated positions
@@ -100,22 +98,18 @@ def test_independent_variable_range() -> None:
     """Test that interpolator respects independent variable range bounds."""
     number_of_data_points: int = 40
 
-    test_dir: Path = Path(__file__).parent
+    test_dir: Path = Path(__file__).parent.parent
     oem_path: Path = test_dir / "data" / "ISS_2026-05-20.OEM"
 
-    header: dict
-    meta: dict
-    states_float: dict
-    header, meta, states_float = oem.read_oem(oem_path)
-    # states_float is now dict[float, np.ndarray] (POSIX timestamps)
-    timestamps: list = sorted(states_float.keys())
+    states_float: list[tuple[float, np.ndarray]] = CcsdsOem.read(oem_path).states
+    timestamps: list = [ts for ts, _ in states_float]
     first_n_timestamps: list[float] = timestamps[:number_of_data_points]
 
     interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
         dimension=6, degree=8
     )
-    for timestamp in first_n_timestamps:
-        interpolator.add_data_point(timestamp, states_float[timestamp])
+    for timestamp, state in states_float[:number_of_data_points]:
+        interpolator.add_data_point(timestamp, state)
 
     start_time: float = first_n_timestamps[0]
     end_time: float = first_n_timestamps[-1]
@@ -146,28 +140,26 @@ def test_internal_cache_integrity() -> None:
     number_of_data_points: int = 80
     step_size_sec: float = 5.0
 
-    test_dir: Path = Path(__file__).parent
+    test_dir: Path = Path(__file__).parent.parent
     oem_path: Path = test_dir / "data" / "ISS_2026-05-20.OEM"
 
-    header: dict
-    meta: dict
-    all_states_float: dict
-    header, meta, all_states_float = oem.read_oem(oem_path)
-    # all_states_float is now dict[float, np.ndarray] (POSIX timestamps)
-    all_timestamps: list = sorted(all_states_float.keys())
+    all_states_float: list[tuple[float, np.ndarray]] = CcsdsOem.read(oem_path).states
+    # Convert to dict for easier access by timestamp
+    all_states_dict: dict[float, np.ndarray] = {ts: state for ts, state in all_states_float}
+    all_timestamps: list = [ts for ts, _ in all_states_float]
     first_n_timestamps: list[float] = all_timestamps[:number_of_data_points]
 
     interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
         dimension=6, degree=8
     )
-    for timestamp in first_n_timestamps:
-        interpolator.add_data_point(timestamp, all_states_float[timestamp])
+    for timestamp, state in all_states_float[:number_of_data_points]:
+        interpolator.add_data_point(timestamp, state)
 
     start_time: float = first_n_timestamps[0]
     end_time: float = first_n_timestamps[-1]
 
     previous_interpolated_position: np.ndarray = np.asarray(
-        all_states_float[start_time][0:3]
+        all_states_dict[start_time][0:3]
     )
 
     evaluation_times: np.ndarray = np.arange(

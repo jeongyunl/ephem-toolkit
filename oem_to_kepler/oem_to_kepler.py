@@ -6,6 +6,10 @@ of mean Keplerian elements (at the first epoch) that best matches the OEM arc
 (up to 2 hours) by minimizing Cartesian position residuals via least-squares
 over J2-propagated mean elements with Brouwer short-period corrections.
 
+Usage:
+    python3 oem_to_kepler.py <input.oem> [-o <output>] [--mu <value>] [--fit-span <hours>]
+    python3 oem_to_kepler.py - < input.oem  # Read from stdin
+
 Output format (multi-line summary):
     Fitted mean Keplerian elements with diagnostics and propagation accuracy.
 
@@ -28,7 +32,6 @@ References:
 from __future__ import annotations
 
 import argparse
-import io
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -37,11 +40,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import common.common as common
+import common.consts as consts
 import common.kepler as kepler
 import common.mean_kepler as mean_kepler
 import common.oem as oem
-import common.consts as consts
 import common.time_utils as time_utils
 
 
@@ -98,107 +100,6 @@ def parse_arguments() -> argparse.Namespace:
         ),
     )
     return argument_parser.parse_args()
-
-
-def read_input_text(source: str) -> str:
-    """Read input text from file or stdin.
-
-    Parameters
-    ----------
-    source : str
-        Input file path or '-' for stdin.
-
-    Returns
-    -------
-    str
-        Input text content.
-
-    Raises
-    ------
-    ValueError
-        If input is empty or file cannot be read.
-    """
-    if source == "-":
-        file_content: str = sys.stdin.read()
-        if not file_content.strip():
-            raise ValueError("No input from stdin")
-        return file_content
-
-    try:
-        with open(source, "r", encoding="utf-8") as input_file:
-            file_content = input_file.read()
-    except OSError as error:
-        raise ValueError(f"Could not read input file '{source}': {error}") from error
-
-    if not file_content.strip():
-        raise ValueError(f"Input file '{source}' is empty")
-
-    return file_content
-
-
-def parse_dataset(
-    input_text: str,
-) -> list[tuple[float, np.ndarray]]:
-    """Parse input text into (timestamp, state_vector) records.
-
-    First attempts to parse as a CCSDS OEM file using common.oem.read_oem.
-    Falls back to line-by-line parsing for simple state-vector files.
-
-    OEM parsers now return state vectors in SI units (m and m/s).
-
-    Parameters
-    ----------
-    input_text : str
-        Input text containing state vectors.
-
-    Returns
-    -------
-    list[tuple[float, np.ndarray]]
-        List of (timestamp, state_vector (6,)) tuples.
-        Timestamp is Unix timestamp (seconds since epoch).
-        State vector contains [x, y, z, vx, vy, vz] in meters and m/s (SI units).
-
-    Raises
-    ------
-    ValueError
-        If no valid state vectors are found.
-    """
-    # Try CCSDS OEM format first
-    try:
-        _, _, states = oem.read_oem(io.StringIO(input_text))
-        if states:
-            state_records: list[tuple[float, np.ndarray]] = []
-            for timestamp in sorted(states):
-                state_vector_m: np.ndarray = states[timestamp]
-                if len(state_vector_m) < 6:
-                    continue
-                # State vectors are already in m and m/s (SI units)
-                state_records.append((timestamp, state_vector_m))
-            if len(state_records) >= 1:
-                return state_records
-    except Exception:
-        pass
-
-    # Fall back to line-by-line parsing
-    state_records = []
-    for raw_line in input_text.splitlines():
-        parsed_line: tuple[float, np.ndarray] | None = oem.parse_oem_state_line(
-            raw_line
-        )
-        if parsed_line is not None:
-            timestamp: float = parsed_line[0]
-            state_vector_m: np.ndarray = parsed_line[1]
-            # State vectors are already in m and m/s (SI units)
-            state_records.append((timestamp, state_vector_m))
-
-    if len(state_records) < 1:
-        raise ValueError(
-            "No valid state vectors found in input. "
-            "Expected OEM format or whitespace-separated "
-            "ISO8601 x y z vx vy vz lines."
-        )
-
-    return state_records
 
 
 def format_keplerian_line(
@@ -320,7 +221,7 @@ def compute_fit_residuals(
 
 
 def fit_mean_elements(
-    records: list[tuple[float, np.ndarray]],
+    states: list[tuple[float, np.ndarray]],
     mu_m3_s2: float,
     fit_span_s: float = 7200.0,
     max_iterations: int = 50,
@@ -336,7 +237,7 @@ def fit_mean_elements(
 
     Parameters
     ----------
-    records : list[tuple[float, np.ndarray]]
+    states : list[tuple[float, np.ndarray]]
         List of (timestamp, state_vector (6,)) tuples.
         Timestamp is Unix timestamp (seconds since epoch).
         State vectors contain [x, y, z, vx, vy, vz] in meters and m/s (SI units).
@@ -356,23 +257,23 @@ def fit_mean_elements(
         - Dictionary with fit diagnostics: 'rms_position_m', 'iterations', 'n_records'.
     """
     # Filter records to fit span
-    reference_timestamp: float = records[0][0]
-    filtered_records: list[tuple[float, np.ndarray]] = [
+    reference_timestamp: float = states[0][0]
+    filtered_states: list[tuple[float, np.ndarray]] = [
         (timestamp, state_vector)
-        for timestamp, state_vector in records
+        for timestamp, state_vector in states
         if (timestamp - reference_timestamp) <= fit_span_s
     ]
 
-    num_records: int = len(filtered_records)
+    num_records: int = len(filtered_states)
     time_offsets_s: np.ndarray = np.array(
-        [(timestamp - reference_timestamp) for timestamp, _ in filtered_records]
+        [(timestamp - reference_timestamp) for timestamp, _ in filtered_states]
     )
     target_positions_m: np.ndarray = np.array(
-        [state_vector[:3] for _, state_vector in filtered_records]
+        [state_vector[:3] for _, state_vector in filtered_states]
     )  # (N, 3) in meters
 
     # Initial guess: mean elements from the first osculating state (data is already in m, m/s SI units)
-    first_state_m: np.ndarray = filtered_records[0][1]
+    first_state_m: np.ndarray = filtered_states[0][1]
     osculating_elements_at_first_epoch: np.ndarray = kepler.cartesian_to_keplerian(
         first_state_m, mu_m3_s2
     )
@@ -496,7 +397,7 @@ def fit_mean_elements(
 
 def compute_all_differences(
     fitted_mean_elements: np.ndarray,
-    records: list[tuple[float, np.ndarray]],
+    states: list[tuple[float, np.ndarray]],
     mu_m3_s2: float,
     fit_span_s: float,
 ) -> dict[str, float | int]:
@@ -511,7 +412,7 @@ def compute_all_differences(
         Fitted mean Keplerian elements at epoch (6,): [a, e, i, omega, RAAN, M].
         Semi-major axis in meters, angles in radians (SI units).
         Element ordering follows kepler module index constants.
-    records : list[tuple[float, np.ndarray]]
+    states : list[tuple[float, np.ndarray]]
         List of (timestamp, state_vector (6,)) tuples.
         Timestamp is Unix timestamp (seconds since epoch).
         State vectors contain [x, y, z, vx, vy, vz] in meters and m/s (SI units).
@@ -532,19 +433,19 @@ def compute_all_differences(
         - 'max_vel_km_s': maximum velocity error (km/s)
         - 'avg_vel_km_s': average velocity error (km/s)
     """
-    reference_timestamp: float = records[0][0]
+    reference_timestamp: float = states[0][0]
 
     # Filter records to fit span
-    filtered_records: list[tuple[float, np.ndarray]] = [
+    filtered_states: list[tuple[float, np.ndarray]] = [
         (timestamp, state_vector)
-        for timestamp, state_vector in records
+        for timestamp, state_vector in states
         if (timestamp - reference_timestamp) <= fit_span_s
     ]
 
     position_errors_km: list[float] = []
     velocity_errors_km_s: list[float] = []
 
-    for record_timestamp, record_state_m in filtered_records:
+    for record_timestamp, record_state_m in filtered_states:
         elapsed_time_s: float = record_timestamp - reference_timestamp
 
         propagated_mean_elements: np.ndarray = mean_kepler.propagate_mean_j2(
@@ -732,52 +633,70 @@ def main() -> None:
     """
     args: argparse.Namespace = parse_arguments()
 
+    # Read OEM file
     try:
-        input_text: str = read_input_text(args.input)
-        records: list[tuple[float, np.ndarray]] = parse_dataset(input_text)
-    except ValueError as error:
-        print(f"Error: {error}", file=sys.stderr)
+        if args.input == "-":
+            oem_object = oem.CcsdsOem.read(sys.stdin)
+        else:
+            input_path: Path = Path(args.input)
+            if not input_path.exists():
+                print(f"Error: Input file not found: {args.input}", file=sys.stderr)
+                sys.exit(1)
+            oem_object = oem.CcsdsOem.read(input_path)
+    except Exception as error:
+        print(f"Error reading OEM file: {error}", file=sys.stderr)
         sys.exit(1)
 
-    # Compute a single best-fit mean element set
-    if len(records) < 2:
-        print("Error: At least 2 state vectors are required", file=sys.stderr)
+    states: list[tuple[float, np.ndarray]] = oem_object.states
+
+    # Validate input
+    if len(states) < 2:
+        print(
+            "Error: At least 2 state vectors required for fitting.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # Convert fit span from hours to seconds
     fit_span_s: float = args.fit_span_hours * 3600.0
 
+    # Fit mean elements
     fitted_mean_elements: np.ndarray
     fit_diagnostics: dict[str, float | int]
-    # All internal computations use SI units (meters, seconds, radians)
-    fitted_mean_elements, fit_diagnostics = fit_mean_elements(
-        records, args.mu_m3_s2, fit_span_s=fit_span_s
-    )
-    difference_summary: dict[str, float | int] = compute_all_differences(
-        fitted_mean_elements, records, args.mu_m3_s2, fit_span_s
-    )
-    # Convert first timestamp to datetime for output formatting
-    first_epoch: datetime = datetime.fromtimestamp(records[0][0], tz=timezone.utc)
-    # Output uses km and degrees for display
-    output_text: str = format_fit_output(
-        first_epoch,
-        fitted_mean_elements,
-        fit_diagnostics,
-        "km-deg",
-        difference_summary=difference_summary,
-    )
-    output_text += "\n"
+    try:
+        fitted_mean_elements, fit_diagnostics = fit_mean_elements(
+            states, args.mu_m3_s2, fit_span_s
+        )
+    except Exception as error:
+        print(f"Error fitting mean elements: {error}", file=sys.stderr)
+        sys.exit(1)
 
-    if args.output == "-":
-        sys.stdout.write(output_text)
-    else:
-        try:
-            with open(args.output, "w", encoding="utf-8") as output_file:
-                output_file.write(output_text)
-            print(f"Saved fitted mean elements: {args.output}", file=sys.stderr)
-        except OSError as error:
-            print(f"Error: Could not write output file: {error}", file=sys.stderr)
-            sys.exit(1)
+    # Compute propagation accuracy
+    difference_summary: dict[str, float | int] | None
+    try:
+        difference_summary = compute_all_differences(
+            fitted_mean_elements, states, args.mu_m3_s2, fit_span_s
+        )
+    except Exception as error:
+        print(f"Error computing differences: {error}", file=sys.stderr)
+        difference_summary = None
+
+    # Format output
+    first_epoch: datetime = datetime.fromtimestamp(states[0][0], tz=timezone.utc)
+    output_text: str = format_fit_output(
+        first_epoch, fitted_mean_elements, fit_diagnostics, "km-deg", difference_summary
+    )
+
+    # Write output
+    try:
+        if args.output == "-":
+            print(output_text)
+        else:
+            output_path: Path = Path(args.output)
+            output_path.write_text(output_text)
+    except Exception as error:
+        print(f"Error writing output: {error}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

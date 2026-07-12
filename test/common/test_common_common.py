@@ -1,4 +1,4 @@
-"""Tests for :mod:`common.common` — OEM parsing utilities."""
+"""Tests for common/common.py — OEM parsing utilities."""
 
 from __future__ import annotations
 

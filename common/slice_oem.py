@@ -11,10 +11,12 @@ from __future__ import annotations
 
 import bisect
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+import sys
 
 import common.interpolator.lagrange as lagrange
 import common.time_utils as time_utils
+from common.oem import CcsdsOem
 
 # ===================================================================
 # Constants
@@ -137,129 +139,407 @@ def parse_time_slice_args(time_slice_str: str) -> TimeSliceOptions:
     )
 
 
-def slice_states(
-    states: dict[float, object],
+def extract_sliced_states(
+    oem: CcsdsOem,
     slice_spec: TimeSliceOptions | slice,
-) -> list[tuple[float, object]]:
-    """Return sliced OEM states based on a time or index slice specification.
+    verbose: bool = False,
+) -> CcsdsOem:
+    """Extract sliced OEM states based on a time or index slice specification.
+
+    Returns a new CcsdsOem with the sliced states and preserved metadata.
 
     Parameters
     ----------
-    states : dict[float, object]
-        Mapping of POSIX timestamps (float, seconds since epoch) to state vectors.
+    oem : CcsdsOem
+        CcsdsOem object containing states and metadata.
     slice_spec : TimeSliceOptions | slice
         Time-based slice options or a Python slice object.
+    verbose : bool, optional
+        If True, print debug information to stderr (default: False).
 
     Returns
     -------
-    list[tuple[float, object]]
-        List of ``(timestamp, state)`` tuples selected by the slice.
+    CcsdsOem
+        Sliced CcsdsOem object with preserved metadata.
+
+    Examples
+    --------
+    >>> oem = CcsdsOem.read("orbit.oem")
+    >>> sliced_oem = extract_sliced_states(oem, slice(0, 10))
+    >>> sliced_oem.meta.object_name  # Metadata preserved
+    'ISS'
     """
+    # Print OEM information before slicing if verbose
+    if verbose:
+        total_states = len(oem.states)
+        print(f"[slice_oem] Input OEM:", file=sys.stderr)
+        print(f"[slice_oem]   States: {total_states}", file=sys.stderr)
+
+        if total_states > 0:
+            first_ts, _ = oem.states[0]
+            last_ts, _ = oem.states[-1]
+            first_dt = datetime.fromtimestamp(first_ts, tz=timezone.utc)
+            last_dt = datetime.fromtimestamp(last_ts, tz=timezone.utc)
+            span = last_dt - first_dt
+            print(
+                f"[slice_oem]   Start: {time_utils.datetime_to_iso8601(first_dt)}",
+                file=sys.stderr,
+            )
+            print(
+                f"[slice_oem]   End:   {time_utils.datetime_to_iso8601(last_dt)}",
+                file=sys.stderr,
+            )
+            print(
+                f"[slice_oem]   Span:  {_format_timedelta(span)}",
+                file=sys.stderr,
+            )
+
+    # Extract the sliced states list
     if isinstance(slice_spec, TimeSliceOptions):
         if slice_spec.step_size is not None and not slice_spec.interpolate:
             raise ValueError("step_size requires interpolate=True")
-        return slice_states_by_time(states, slice_spec)
-    if isinstance(slice_spec, slice):
-        sorted_states: list[tuple[float, object]] = sorted(
-            states.items(), key=lambda item: item[0]
+        return extract_states_by_time(oem, slice_spec, verbose=verbose)
+    elif isinstance(slice_spec, slice):
+        # States are already sorted, no need to sort again
+        sliced_states = oem.states[slice_spec]
+
+        if verbose:
+            # Compute actual indices after applying the slice
+            total_states = len(oem.states)
+            slice_start_index, slice_stop_index, slice_step = slice_spec.indices(
+                total_states
+            )
+
+            print(f"[slice_oem] Slicing by index:", file=sys.stderr)
+            print(
+                f"[slice_oem]   Range: [{slice_start_index}:{slice_stop_index}], step={slice_step}",
+                file=sys.stderr,
+            )
+            print(
+                f"[slice_oem]   Selected {len(sliced_states)} of {total_states} states",
+                file=sys.stderr,
+            )
+
+            if sliced_states:
+                first_ts, _ = sliced_states[0]
+                last_ts, _ = sliced_states[-1]
+                first_dt = datetime.fromtimestamp(first_ts, tz=timezone.utc)
+                last_dt = datetime.fromtimestamp(last_ts, tz=timezone.utc)
+                print(
+                    f"[slice_oem]   Output start: {time_utils.datetime_to_iso8601(first_dt)}",
+                    file=sys.stderr,
+                )
+                print(
+                    f"[slice_oem]   Output end:   {time_utils.datetime_to_iso8601(last_dt)}",
+                    file=sys.stderr,
+                )
+
+        # Create new CcsdsOem with sliced states and preserved metadata
+        return CcsdsOem.from_states(
+            sliced_states,
+            object_name=oem.meta.object_name,
+            ref_frame=oem.meta.ref_frame,
+            center_name=oem.meta.center_name,
+            time_system=oem.meta.time_system,
         )
-        return sorted_states[slice_spec]
-    raise TypeError("slice_spec must be a TimeSliceOptions or slice object")
+    else:
+        raise TypeError("slice_spec must be a TimeSliceOptions or slice object")
 
 
 # ===================================================================
-# Public slicers
+# Internal helpers
 # ===================================================================
 
 
-def slice_states_by_time(
-    states: dict[float, object],
+def extract_states_by_time(
+    oem: CcsdsOem,
     options: TimeSliceOptions,
-) -> list[tuple[float, object]]:
+    verbose: bool = False,
+) -> CcsdsOem:
     """Extract states within a time window using TimeSliceOptions.
 
     Parameters
     ----------
-    states : dict[float, object]
-        Mapping of POSIX timestamps (float, seconds since epoch) to state vectors.
+    oem : CcsdsOem
+        CcsdsOem object containing states and metadata.
     options : TimeSliceOptions
         Parsed time slice options specifying start, stop, step and interpolation.
+    verbose : bool, optional
+        If True, print debug information to stderr (default: False).
 
     Returns
     -------
-    list[tuple[float, object]]
-        List of ``(timestamp, state)`` tuples within the specified window.
+    CcsdsOem
+        New CcsdsOem object with sliced states and preserved metadata.
     """
     if options.step_size is not None and not options.interpolate:
         raise ValueError("step_size requires interpolate=True")
 
-    sorted_states: list[tuple[float, object]] = sorted(
-        states.items(), key=lambda item: item[0]
-    )
-    timestamps_s: list[float] = [ts_s for ts_s, _ in sorted_states]
+    # States are already sorted, no need to sort again
+    states = oem.states
+    timestamps_s: list[float] = [timestamp_s for timestamp_s, _ in states]
 
-    start_ts_s: float | None = (
-        options.start_time.timestamp() if options.start_time is not None else None
-    )
-    stop_ts_s: float | None = (
-        options.stop_time.timestamp() if options.stop_time is not None else None
-    )
+    # Get base times from OEM data
+    base_start_timestamp_s: float = timestamps_s[0] if timestamps_s else 0.0
+    base_stop_timestamp_s: float = timestamps_s[-1] if timestamps_s else 0.0
 
-    if start_ts_s is not None and options.stop_time is None:
-        start_idx: int = bisect.bisect_left(timestamps_s, start_ts_s)
-        return sorted_states[start_idx : start_idx + 1]
+    if verbose:
+        print(f"[slice_oem] Slicing by time:", file=sys.stderr)
+        if options.start_time is not None:
+            if isinstance(options.start_time, datetime):
+                print(
+                    f"[slice_oem]   Requested start: {time_utils.datetime_to_iso8601(options.start_time)}",
+                    file=sys.stderr,
+                )
+            elif isinstance(options.start_time, timedelta):
+                print(
+                    f"[slice_oem]   Requested start: offset {_format_timedelta(options.start_time)} from {'end' if options.start_time < timedelta(0) else 'start'}",
+                    file=sys.stderr,
+                )
+        else:
+            print(
+                f"[slice_oem]   Requested start: (beginning of OEM)",
+                file=sys.stderr,
+            )
 
-    start_idx: int = (
-        bisect.bisect_left(timestamps_s, start_ts_s) if start_ts_s is not None else 0
-    )
-    stop_idx: int = (
-        bisect.bisect_right(timestamps_s, stop_ts_s)
-        if stop_ts_s is not None
-        else len(sorted_states)
-    )
+        if options.stop_time is not None:
+            if isinstance(options.stop_time, datetime):
+                print(
+                    f"[slice_oem]   Requested stop:  {time_utils.datetime_to_iso8601(options.stop_time)}",
+                    file=sys.stderr,
+                )
+            elif isinstance(options.stop_time, timedelta):
+                print(
+                    f"[slice_oem]   Requested stop:  offset {_format_timedelta(options.stop_time)} from {'end' if options.stop_time <= timedelta(0) else 'start'}",
+                    file=sys.stderr,
+                )
+        else:
+            print(
+                f"[slice_oem]   Requested stop:  (end of OEM)",
+                file=sys.stderr,
+            )
 
-    if options.step_size is None:
-        return sorted_states[start_idx:stop_idx]
+        if options.step_size is not None:
+            print(
+                f"[slice_oem]   Step size: {_format_timedelta(options.step_size)}",
+                file=sys.stderr,
+            )
 
-    # Interpolation requires both start and stop times
-    if start_ts_s is None or stop_ts_s is None:
-        raise ValueError(
-            "Interpolation with step_size requires both start_time and stop_time"
+    # Resolve start_time
+    if options.start_time is None:
+        slice_start_timestamp_s = base_start_timestamp_s
+    elif isinstance(options.start_time, timedelta):
+        # Positive timedelta: offset from start; Negative: offset from end
+        if options.start_time >= timedelta(0):
+            slice_start_timestamp_s = (
+                base_start_timestamp_s + options.start_time.total_seconds()
+            )
+        else:
+            slice_start_timestamp_s = (
+                base_stop_timestamp_s + options.start_time.total_seconds()
+            )
+    else:
+        # It's a datetime
+        slice_start_timestamp_s = options.start_time.timestamp()
+
+    # Resolve stop_time
+    if options.stop_time is None:
+        slice_stop_timestamp_s = base_stop_timestamp_s
+    elif isinstance(options.stop_time, timedelta):
+        # Positive timedelta: offset from start; Negative or zero: offset from end
+        if options.stop_time > timedelta(0):
+            slice_stop_timestamp_s = (
+                base_start_timestamp_s + options.stop_time.total_seconds()
+            )
+        else:
+            slice_stop_timestamp_s = (
+                base_stop_timestamp_s + options.stop_time.total_seconds()
+            )
+    else:
+        # It's a datetime
+        slice_stop_timestamp_s = options.stop_time.timestamp()
+
+    if options.start_time is not None and options.stop_time is None:
+        slice_start_index: int = bisect.bisect_left(
+            timestamps_s, slice_start_timestamp_s
+        )
+        slice_stop_index = slice_start_index + 1
+        sliced_states = states[slice_start_index:slice_stop_index]
+
+        if verbose:
+            resolved_dt = datetime.fromtimestamp(
+                slice_start_timestamp_s, tz=timezone.utc
+            )
+            print(
+                f"[slice_oem]   Mode: single state (no stop time given)",
+                file=sys.stderr,
+            )
+            print(
+                f"[slice_oem]   Resolved start: {time_utils.datetime_to_iso8601(resolved_dt)}",
+                file=sys.stderr,
+            )
+            print(
+                f"[slice_oem]   Nearest state at index {slice_start_index}",
+                file=sys.stderr,
+            )
+    elif options.step_size is None:
+        slice_start_index: int = (
+            bisect.bisect_left(timestamps_s, slice_start_timestamp_s)
+            if slice_start_timestamp_s is not None
+            else 0
+        )
+        slice_stop_index: int = (
+            bisect.bisect_right(timestamps_s, slice_stop_timestamp_s)
+            if slice_stop_timestamp_s is not None
+            else len(states)
+        )
+        sliced_states = states[slice_start_index:slice_stop_index]
+
+        if verbose:
+            resolved_start_dt = datetime.fromtimestamp(
+                slice_start_timestamp_s, tz=timezone.utc
+            )
+            resolved_stop_dt = datetime.fromtimestamp(
+                slice_stop_timestamp_s, tz=timezone.utc
+            )
+            print(
+                f"[slice_oem]   Mode: time range (no interpolation)",
+                file=sys.stderr,
+            )
+            print(
+                f"[slice_oem]   Resolved start: {time_utils.datetime_to_iso8601(resolved_start_dt)}",
+                file=sys.stderr,
+            )
+            print(
+                f"[slice_oem]   Resolved stop:  {time_utils.datetime_to_iso8601(resolved_stop_dt)}",
+                file=sys.stderr,
+            )
+    else:
+        # Interpolation requires both start and stop times
+        if slice_start_timestamp_s is None or slice_stop_timestamp_s is None:
+            raise ValueError(
+                "Interpolation with step_size requires both start_time and stop_time"
+            )
+
+        interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
+            dimension=6,
+            degree=INTERPOLATION_DEGREE,
         )
 
-    interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
-        dimension=6,
-        degree=INTERPOLATION_DEGREE,
+        interpolator.set_data(states)
+
+        sliced_states: list[tuple[float, object]] = []
+        timestamp_s: float = slice_start_timestamp_s
+        while timestamp_s <= slice_stop_timestamp_s:
+            sliced_states.append((timestamp_s, interpolator.interpolate(timestamp_s)))
+            timestamp_s += options.step_size.total_seconds()
+
+        if verbose:
+            resolved_start_dt = datetime.fromtimestamp(
+                slice_start_timestamp_s, tz=timezone.utc
+            )
+            resolved_stop_dt = datetime.fromtimestamp(
+                slice_stop_timestamp_s, tz=timezone.utc
+            )
+            print(
+                f"[slice_oem]   Mode: interpolated (Lagrange degree {INTERPOLATION_DEGREE})",
+                file=sys.stderr,
+            )
+            print(
+                f"[slice_oem]   Resolved start: {time_utils.datetime_to_iso8601(resolved_start_dt)}",
+                file=sys.stderr,
+            )
+            print(
+                f"[slice_oem]   Resolved stop:  {time_utils.datetime_to_iso8601(resolved_stop_dt)}",
+                file=sys.stderr,
+            )
+            print(
+                f"[slice_oem]   Step size: {_format_timedelta(options.step_size)}",
+                file=sys.stderr,
+            )
+
+    if verbose:
+        print(
+            f"[slice_oem]   Selected {len(sliced_states)} of {len(states)} states",
+            file=sys.stderr,
+        )
+
+        if sliced_states:
+            first_ts, _ = sliced_states[0]
+            last_ts, _ = sliced_states[-1]
+            first_dt = datetime.fromtimestamp(first_ts, tz=timezone.utc)
+            last_dt = datetime.fromtimestamp(last_ts, tz=timezone.utc)
+            print(
+                f"[slice_oem]   Output start: {time_utils.datetime_to_iso8601(first_dt)}",
+                file=sys.stderr,
+            )
+            print(
+                f"[slice_oem]   Output end:   {time_utils.datetime_to_iso8601(last_dt)}",
+                file=sys.stderr,
+            )
+
+    # Create new CcsdsOem with sliced states and preserved metadata
+    return CcsdsOem.from_states(
+        sliced_states,
+        object_name=oem.meta.object_name,
+        ref_frame=oem.meta.ref_frame,
+        center_name=oem.meta.center_name,
+        time_system=oem.meta.time_system,
     )
 
-    interpolator.set_data(sorted_states)
 
-    result: list[tuple[float, object]] = []
-    timestamp_s: float = start_ts_s
-    while timestamp_s <= stop_ts_s:
-        result.append((timestamp_s, interpolator.interpolate(timestamp_s)))
-        timestamp_s += options.step_size.total_seconds()
+def _format_timedelta(td: timedelta) -> str:
+    """Format a timedelta into a human-readable string.
 
-    return result
+    Parameters
+    ----------
+    td : timedelta
+        The timedelta to format.
+
+    Returns
+    -------
+    str
+        Human-readable duration string (e.g. "2h 30m", "45s", "3d 1h").
+    """
+    total_seconds = abs(td.total_seconds())
+    sign = "-" if td.total_seconds() < 0 else ""
+
+    if total_seconds == 0:
+        return "0s"
+
+    days = int(total_seconds // 86400)
+    hours = int((total_seconds % 86400) // 3600)
+    minutes = int((total_seconds % 3600) // 60)
+    seconds = total_seconds % 60
+
+    parts: list[str] = []
+    if days:
+        parts.append(f"{days}d")
+    if hours:
+        parts.append(f"{hours}h")
+    if minutes:
+        parts.append(f"{minutes}m")
+    if seconds:
+        if seconds == int(seconds):
+            parts.append(f"{int(seconds)}s")
+        else:
+            parts.append(f"{seconds:.3g}s")
+
+    return sign + " ".join(parts)
 
 
 def _parse_time_or_duration(value: str) -> datetime | timedelta:
-    """Parse either an ISO datetime or a duration token.
+    """Parse ISO 8601 datetime or duration from string.
 
     Parameters
     ----------
     value : str
-        ISO 8601 datetime string or duration specification.
+        ISO 8601 formatted datetime or duration string.
 
     Returns
     -------
     datetime | timedelta
         Parsed datetime or timedelta object.
-
-    Raises
-    ------
-    ValueError
-        If the value cannot be parsed as either format.
     """
     try:
         return time_utils.iso8601_to_datetime(value)
