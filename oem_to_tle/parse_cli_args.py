@@ -61,7 +61,7 @@ def parse_cli_arguments() -> argparse.Namespace:
         - int_designator_piece : str
             International designator piece identifier.
         - ephemeris_type : int
-            Ephemeris type (0-9).
+            Ephemeris type (1=SGP, 2=SGP4, 3=SDP4, 4=SGP8, 5=SDP8).
         - element_set_number : int
             Element set number (0-9999).
         - bstar : str

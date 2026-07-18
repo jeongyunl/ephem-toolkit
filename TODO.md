@@ -1,10 +1,12 @@
 # To-do list
 
+1. Improve CLI interface
+    1. Unify CLI usage, options
+        1. OEM input either file name or - for stdin
+    1. ?
 1. OEM
     1. `slice_oem.py`
-        1. Add/override meta data from CLI
-        2. Raw to OEM conversion
-        3. OEM to Raw
+        1. ?
     1. OEM frame conversions
 
 1. Propagation tools

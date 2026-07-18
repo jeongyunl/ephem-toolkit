@@ -14,8 +14,8 @@ back to km/km·s⁻¹ when writing. This ensures:
 - **File compliance:** OEM files remain CCSDS-compliant (km, km/s)
 - **Project alignment:** Follows the project-wide SI unit convention
 
-Example
--------
+Examples
+--------
 >>> oem = CcsdsOem.read("orbit.oem")
 >>> epoch, state = oem.states[0]  # First state (already sorted by time)
 >>> state  # Returns state in meters and m/s
@@ -153,7 +153,15 @@ def read_oem(
 def _read_oem_impl(
     source: TextIO,
 ) -> tuple[dict, dict, list[tuple[float, np.ndarray]]]:
-    """Internal implementation of OEM reading (no deprecation warning)."""
+    """Internal implementation of OEM reading (no deprecation warning).
+
+    Comments are tracked by their location in the file:
+    - ``header["COMMENT"]``: Comments in the header section (after CCSDS_OEM_VERS,
+      before META_START).
+    - ``meta["COMMENT"]``: Comments inside the META_START/META_STOP block.
+    - ``header["DATA_COMMENT"]``: Comments in the ephemeris data section (after
+      META_STOP, before or among state lines).
+    """
     if isinstance(source, (str, Path)):
         with open(source, "r", encoding="utf-8") as fh:
             return _read_oem_impl(fh)
@@ -162,6 +170,7 @@ def _read_oem_impl(
     meta: dict = {}
     states: list[tuple[float, np.ndarray]] = []
     in_meta: bool = False
+    past_meta: bool = False
 
     for raw_line in source:
         line: str = raw_line.strip()
@@ -173,13 +182,22 @@ def _read_oem_impl(
             continue
         if line == "META_STOP":
             in_meta = False
+            past_meta = True
             continue
 
         if line.startswith("COMMENT"):
             comment_text: str = line[len("COMMENT") :].strip()
-            target: dict = meta if in_meta else header
-            target.setdefault("COMMENT", [])
-            target["COMMENT"].append(comment_text)
+            if in_meta:
+                meta.setdefault("COMMENT", [])
+                meta["COMMENT"].append(comment_text)
+            elif past_meta:
+                # Data section comments (after META_STOP)
+                header.setdefault("DATA_COMMENT", [])
+                header["DATA_COMMENT"].append(comment_text)
+            else:
+                # Header comments (before META_START)
+                header.setdefault("COMMENT", [])
+                header["COMMENT"].append(comment_text)
             continue
 
         kv: tuple[str, str] | None = common.parse_key_value_line(line)
@@ -383,11 +401,12 @@ def write_oem(
 
     version: float | int = header.get("CCSDS_OEM_VERS", 2.0)
     w(f"CCSDS_OEM_VERS = {version}\n")
-    w("\n")
 
-    for comment in header.get("COMMENT", []):
-        w(f"COMMENT {comment}\n")
+    # Header comments (after CCSDS_OEM_VERS, before CREATION_DATE)
     if header.get("COMMENT"):
+        w("\n")
+        for comment in header["COMMENT"]:
+            w(f"COMMENT {comment}\n")
         w("\n")
 
     if "CREATION_DATE" in header:
@@ -397,6 +416,8 @@ def write_oem(
     w("\n")
 
     w("META_START\n")
+
+    # Metadata comments (inside META block)
     for comment in meta.get("COMMENT", []):
         w(f"COMMENT {comment}\n")
 
@@ -412,6 +433,12 @@ def write_oem(
 
     w("META_STOP\n")
     w("\n")
+
+    # Data section comments (after META_STOP, before ephemeris data)
+    for comment in header.get("DATA_COMMENT", []):
+        w(f"COMMENT {comment}\n")
+    if header.get("DATA_COMMENT"):
+        w("\n")
 
     write_states(dest, states)
 
@@ -429,13 +456,16 @@ class OemHeader:
     """CCSDS OEM format version number."""
 
     comments: list[str] = field(default_factory=list)
-    """List of comment lines from the OEM header."""
+    """Comment lines from the header section (after CCSDS_OEM_VERS, before META_START)."""
 
     creation_date: str = ""
     """File creation date (ISO 8601 format)."""
 
     originator: str = ""
     """Organization or entity that created the OEM file."""
+
+    data_comments: list[str] = field(default_factory=list)
+    """Comment lines from the ephemeris data section (after META_STOP, before state data)."""
 
 
 @dataclass
@@ -476,7 +506,7 @@ class OemMeta:
     """Degree of interpolation polynomial."""
 
     comments: list[str] = field(default_factory=list)
-    """List of comment lines from the metadata block."""
+    """Comment lines from the metadata block."""
 
 
 class CcsdsOem:
@@ -540,6 +570,7 @@ class CcsdsOem:
             comments=raw_header.get("COMMENT", []),
             creation_date=str(raw_header.get("CREATION_DATE", "")),
             originator=str(raw_header.get("ORIGINATOR", "")),
+            data_comments=raw_header.get("DATA_COMMENT", []),
         )
 
         meta: OemMeta = OemMeta(
@@ -603,7 +634,7 @@ class CcsdsOem:
         # Create minimal header
         header = OemHeader(
             version=2.0,
-            creation_date=datetime.now(timezone.utc).isoformat(),
+            creation_date=time_utils.datetime_to_iso8601(datetime.now(timezone.utc)),
             originator="tudatpy-utils",
         )
 
@@ -619,8 +650,8 @@ class CcsdsOem:
         if sorted_states:
             start_dt = datetime.fromtimestamp(sorted_states[0][0], tz=timezone.utc)
             stop_dt = datetime.fromtimestamp(sorted_states[-1][0], tz=timezone.utc)
-            meta.start_time = start_dt.isoformat()
-            meta.stop_time = stop_dt.isoformat()
+            meta.start_time = time_utils.datetime_to_iso8601(start_dt)
+            meta.stop_time = time_utils.datetime_to_iso8601(stop_dt)
 
         return cls(header=header, meta=meta, states=sorted_states)
 
@@ -675,6 +706,8 @@ class CcsdsOem:
         }
         if self.header.comments:
             header_dict["COMMENT"] = self.header.comments
+        if self.header.data_comments:
+            header_dict["DATA_COMMENT"] = self.header.data_comments
 
         meta_dict: dict = {}
         if self.meta.comments:

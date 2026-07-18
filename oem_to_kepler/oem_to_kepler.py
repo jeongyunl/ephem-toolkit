@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -44,7 +45,61 @@ import common.consts as consts
 import common.kepler as kepler
 import common.mean_kepler as mean_kepler
 import common.oem as oem
+import common.omm as omm
 import common.time_utils as time_utils
+
+
+@dataclass
+class FitDiagnostics:
+    """Diagnostics from fitting mean Keplerian elements to OEM data.
+
+    Attributes
+    ----------
+    rms_position_m : float
+        Root mean square position error in meters.
+    iterations : int
+        Number of iterations performed during fitting.
+    n_records : int
+        Number of records used in the fit.
+    span_s : float
+        Time span of the arc in seconds.
+    """
+
+    rms_position_m: float
+    iterations: int
+    n_records: int
+    span_s: float
+
+
+@dataclass
+class PropagationAccuracy:
+    """Propagation accuracy statistics comparing OEM states to Kepler propagation.
+
+    Attributes
+    ----------
+    n_compared : int
+        Number of states compared.
+    min_pos_km : float
+        Minimum position error in kilometers.
+    max_pos_km : float
+        Maximum position error in kilometers.
+    avg_pos_km : float
+        Average position error in kilometers.
+    min_vel_km_s : float
+        Minimum velocity error in kilometers per second.
+    max_vel_km_s : float
+        Maximum velocity error in kilometers per second.
+    avg_vel_km_s : float
+        Average velocity error in kilometers per second.
+    """
+
+    n_compared: int
+    min_pos_km: float
+    max_pos_km: float
+    avg_pos_km: float
+    min_vel_km_s: float
+    max_vel_km_s: float
+    avg_vel_km_s: float
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -97,6 +152,15 @@ def parse_arguments() -> argparse.Namespace:
         help=(
             "Maximum arc span in hours (default: 2.0). "
             "Records beyond this span from the first epoch are excluded."
+        ),
+    )
+    argument_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help=(
+            "Output a human-readable summary instead of the default "
+            "CCSDS OMM (Orbit Mean-Elements Message) file."
         ),
     )
     return argument_parser.parse_args()
@@ -225,7 +289,7 @@ def fit_mean_elements(
     mu_m3_s2: float,
     fit_span_s: float = 7200.0,
     max_iterations: int = 50,
-) -> tuple[np.ndarray, dict[str, float | int]]:
+) -> tuple[np.ndarray, FitDiagnostics]:
     """Fit a single set of mean Keplerian elements to an OEM arc.
 
     Uses Gauss-Newton least-squares minimization of Cartesian position
@@ -250,11 +314,11 @@ def fit_mean_elements(
 
     Returns
     -------
-    tuple[np.ndarray, dict]
+    tuple[np.ndarray, FitDiagnostics]
         - Fitted mean Keplerian elements at epoch (6,): [a, e, i, omega, RAAN, M].
           Semi-major axis in meters, angles in radians (SI units).
           Element ordering follows kepler module index constants.
-        - Dictionary with fit diagnostics: 'rms_position_m', 'iterations', 'n_records'.
+        - FitDiagnostics object with fit diagnostics.
     """
     # Filter records to fit span
     reference_timestamp: float = states[0][0]
@@ -385,12 +449,12 @@ def fit_mean_elements(
     )
     final_rms_error: float = np.sqrt(np.mean(final_residuals**2))
 
-    diagnostics: dict[str, float | int] = {
-        "rms_position_m": final_rms_error,
-        "iterations": final_iteration_count + 1,
-        "n_records": num_records,
-        "span_s": float(time_offsets_s[-1]) if len(time_offsets_s) > 0 else 0.0,
-    }
+    diagnostics: FitDiagnostics = FitDiagnostics(
+        rms_position_m=final_rms_error,
+        iterations=final_iteration_count + 1,
+        n_records=num_records,
+        span_s=float(time_offsets_s[-1]) if len(time_offsets_s) > 0 else 0.0,
+    )
 
     return best_mean_elements, diagnostics
 
@@ -400,7 +464,7 @@ def compute_all_differences(
     states: list[tuple[float, np.ndarray]],
     mu_m3_s2: float,
     fit_span_s: float,
-) -> dict[str, float | int]:
+) -> PropagationAccuracy:
     """Compare every OEM state in the fit span against the Kepler-propagated state.
 
     Internal computations use SI units (meters, seconds, radians).
@@ -423,15 +487,8 @@ def compute_all_differences(
 
     Returns
     -------
-    dict
-        Summary statistics with keys (all in km and km/s for display):
-        - 'n_compared': number of states compared
-        - 'min_pos_km': minimum position error (km)
-        - 'max_pos_km': maximum position error (km)
-        - 'avg_pos_km': average position error (km)
-        - 'min_vel_km_s': minimum velocity error (km/s)
-        - 'max_vel_km_s': maximum velocity error (km/s)
-        - 'avg_vel_km_s': average velocity error (km/s)
+    PropagationAccuracy
+        Propagation accuracy statistics object with position and velocity errors in km and km/s.
     """
     reference_timestamp: float = states[0][0]
 
@@ -481,23 +538,127 @@ def compute_all_differences(
         np.array(velocity_errors_km_s) if velocity_errors_km_s else np.array([0.0])
     )
 
-    return {
-        "n_compared": len(position_errors_km),
-        "min_pos_km": float(position_error_array.min()),
-        "max_pos_km": float(position_error_array.max()),
-        "avg_pos_km": float(position_error_array.mean()),
-        "min_vel_km_s": float(velocity_error_array.min()),
-        "max_vel_km_s": float(velocity_error_array.max()),
-        "avg_vel_km_s": float(velocity_error_array.mean()),
-    }
+    return PropagationAccuracy(
+        n_compared=len(position_errors_km),
+        min_pos_km=float(position_error_array.min()),
+        max_pos_km=float(position_error_array.max()),
+        avg_pos_km=float(position_error_array.mean()),
+        min_vel_km_s=float(velocity_error_array.min()),
+        max_vel_km_s=float(velocity_error_array.max()),
+        avg_vel_km_s=float(velocity_error_array.mean()),
+    )
+
+
+def create_omm_from_mean_elements(
+    epoch: datetime,
+    fitted_mean_elements: np.ndarray,
+    oem_object: oem.CcsdsOem,
+    diagnostics: FitDiagnostics,
+) -> omm.CcsdsOmm:
+    """Create a CcsdsOmm object from fitted mean Keplerian elements.
+
+    Parameters
+    ----------
+    epoch : datetime
+        Reference epoch.
+    fitted_mean_elements : np.ndarray
+        Fitted mean Keplerian elements (6,): [a, e, i, omega, RAAN, M].
+        Semi-major axis in meters, angles in radians (SI units).
+        Element ordering follows kepler module index constants.
+    oem_object : oem.CcsdsOem
+        Original OEM object for metadata.
+    diagnostics : FitDiagnostics
+        Fit diagnostics object.
+
+    Returns
+    -------
+    omm.CcsdsOmm
+        CCSDS OMM object with fitted mean elements.
+    """
+    # Extract elements in SI units (m, rad)
+    semi_major_axis_m: float = fitted_mean_elements[kepler.SEMI_MAJOR_AXIS_INDEX]
+    eccentricity: float = fitted_mean_elements[kepler.ECCENTRICITY_INDEX]
+    inclination_rad: float = fitted_mean_elements[kepler.INCLINATION_INDEX]
+    argument_of_periapsis_rad: float = fitted_mean_elements[
+        kepler.ARGUMENT_OF_PERIAPSIS_INDEX
+    ]
+    raan_rad: float = fitted_mean_elements[kepler.RAAN_INDEX]
+    mean_anomaly_rad: float = fitted_mean_elements[kepler.MEAN_ANOMALY_INDEX]
+
+    # Convert to OMM units (degrees, rev/day)
+    mean_motion_rev_day: float = kepler.semi_major_axis_to_mean_motion(
+        semi_major_axis_m
+    )
+    inclination_deg: float = np.degrees(inclination_rad)
+    raan_deg: float = np.degrees(raan_rad)
+    argument_of_periapsis_deg: float = np.degrees(argument_of_periapsis_rad)
+    mean_anomaly_deg: float = np.degrees(mean_anomaly_rad)
+
+    # Format epoch as ISO 8601
+    epoch_str: str = time_utils.datetime_to_iso8601(epoch, fractional_second_places=6)
+
+    # Get current time for creation date
+    creation_date: str = time_utils.datetime_to_iso8601(
+        datetime.now(timezone.utc), fractional_second_places=0
+    )
+
+    # Create comment with fit diagnostics
+    comments: list[str] = [
+        f"Generated from OEM by oem_to_kepler.py",
+        f"Fit diagnostics: {diagnostics.n_records} records, "
+        f"RMS error = {diagnostics.rms_position_m / 1000.0:.6f} km, "
+        f"{diagnostics.iterations} iterations",
+    ]
+
+    # Create TLE-related parameters
+    tle_params: omm.TleParameters = omm.TleParameters(
+        ephemeris_type=0,
+        classification_type="U",
+        norad_cat_id=0,
+        element_set_no=999,
+        rev_at_epoch=0,
+        bstar="0",
+        mean_motion_dot="0",
+        mean_motion_ddot="0",
+    )
+
+    # Create OMM object
+    omm_obj: omm.CcsdsOmm = omm.CcsdsOmm(
+        version=3.0,
+        creation_date=creation_date,
+        originator="oem_to_kepler",
+        comments=comments,
+        object_name=(
+            oem_object.meta.object_name if oem_object.meta.object_name else "UNKNOWN"
+        ),
+        object_id=oem_object.meta.object_id if oem_object.meta.object_id else "UNKNOWN",
+        center_name=(
+            oem_object.meta.center_name if oem_object.meta.center_name else "EARTH"
+        ),
+        ref_frame=oem_object.meta.ref_frame if oem_object.meta.ref_frame else "TEME",
+        time_system=(
+            oem_object.meta.time_system if oem_object.meta.time_system else "UTC"
+        ),
+        mean_element_theory="J2",
+        epoch=epoch_str,
+        mean_motion=mean_motion_rev_day,
+        eccentricity=eccentricity,
+        inclination=inclination_deg,
+        ra_of_asc_node=raan_deg,
+        arg_of_pericenter=argument_of_periapsis_deg,
+        mean_anomaly=mean_anomaly_deg,
+        tle_parameters=tle_params,
+    )
+
+    return omm_obj
 
 
 def format_fit_output(
     epoch: datetime,
     fitted_mean_elements: np.ndarray,
-    diagnostics: dict,
+    diagnostics: FitDiagnostics,
     output_units: str,
-    difference_summary: dict | None = None,
+    difference_summary: PropagationAccuracy | None = None,
 ) -> str:
     """Format the fit output as a human-readable summary.
 
@@ -512,12 +673,12 @@ def format_fit_output(
         Fitted mean Keplerian elements (6,): [a, e, i, omega, RAAN, M].
         Semi-major axis in meters, angles in radians (SI units).
         Element ordering follows kepler module index constants.
-    diagnostics : dict
-        Fit diagnostics dictionary.
+    diagnostics : FitDiagnostics
+        Fit diagnostics object.
     output_units : str
         Output units: 'km-deg' or 'm-rad'.
-    difference_summary : dict | None
-        Difference summary from :func:`compute_all_differences`.
+    difference_summary : PropagationAccuracy | None
+        Propagation accuracy statistics from :func:`compute_all_differences`.
 
     Returns
     -------
@@ -545,11 +706,11 @@ def format_fit_output(
         "Fitted mean Keplerian elements (J2 secular + Brouwer short-period):"
     )
     output_lines.append(f"  epoch:              {epoch_str}")
-    output_lines.append(f"  records used:       {diagnostics['n_records']}")
-    output_lines.append(f"  arc span:           {diagnostics['span_s']:.1f} s")
-    output_lines.append(f"  iterations:         {diagnostics['iterations']}")
+    output_lines.append(f"  records used:       {diagnostics.n_records}")
+    output_lines.append(f"  arc span:           {diagnostics.span_s:.1f} s")
+    output_lines.append(f"  iterations:         {diagnostics.iterations}")
     output_lines.append(
-        f"  RMS position error: {diagnostics['rms_position_m'] / 1000.0:.6f} km"
+        f"  RMS position error: {diagnostics.rms_position_m / 1000.0:.6f} km"
     )
     output_lines.append("")
 
@@ -601,22 +762,22 @@ def format_fit_output(
     )
 
     # Propagation accuracy summary
-    if difference_summary and difference_summary["n_compared"] > 0:
+    if difference_summary and difference_summary.n_compared > 0:
         output_lines.append("")
         output_lines.append(
-            f"  Propagation accuracy (OEM vs Kepler, {difference_summary['n_compared']} states compared):"
+            f"  Propagation accuracy (OEM vs Kepler, {difference_summary.n_compared} states compared):"
         )
         output_lines.append(
             f"    position |Δr|:  "
-            f"min = {difference_summary['min_pos_km']:.6f} km   "
-            f"max = {difference_summary['max_pos_km']:.6f} km   "
-            f"avg = {difference_summary['avg_pos_km']:.6f} km"
+            f"min = {difference_summary.min_pos_km:.6f} km   "
+            f"max = {difference_summary.max_pos_km:.6f} km   "
+            f"avg = {difference_summary.avg_pos_km:.6f} km"
         )
         output_lines.append(
             f"    velocity |Δv|:  "
-            f"min = {difference_summary['min_vel_km_s']:.9f} km/s   "
-            f"max = {difference_summary['max_vel_km_s']:.9f} km/s   "
-            f"avg = {difference_summary['avg_vel_km_s']:.9f} km/s"
+            f"min = {difference_summary.min_vel_km_s:.9f} km/s   "
+            f"max = {difference_summary.max_vel_km_s:.9f} km/s   "
+            f"avg = {difference_summary.avg_vel_km_s:.9f} km/s"
         )
 
     return "\n".join(output_lines)
@@ -662,7 +823,7 @@ def main() -> None:
 
     # Fit mean elements
     fitted_mean_elements: np.ndarray
-    fit_diagnostics: dict[str, float | int]
+    fit_diagnostics: FitDiagnostics
     try:
         fitted_mean_elements, fit_diagnostics = fit_mean_elements(
             states, args.mu_m3_s2, fit_span_s
@@ -671,32 +832,60 @@ def main() -> None:
         print(f"Error fitting mean elements: {error}", file=sys.stderr)
         sys.exit(1)
 
-    # Compute propagation accuracy
-    difference_summary: dict[str, float | int] | None
+    # Get first epoch
+    first_epoch: datetime = datetime.fromtimestamp(states[0][0], tz=timezone.utc)
+
+    # Create OMM object (always needed)
     try:
-        difference_summary = compute_all_differences(
-            fitted_mean_elements, states, args.mu_m3_s2, fit_span_s
+        omm_object: omm.CcsdsOmm = create_omm_from_mean_elements(
+            first_epoch, fitted_mean_elements, oem_object, fit_diagnostics
         )
     except Exception as error:
-        print(f"Error computing differences: {error}", file=sys.stderr)
-        difference_summary = None
-
-    # Format output
-    first_epoch: datetime = datetime.fromtimestamp(states[0][0], tz=timezone.utc)
-    output_text: str = format_fit_output(
-        first_epoch, fitted_mean_elements, fit_diagnostics, "km-deg", difference_summary
-    )
-
-    # Write output
-    try:
-        if args.output == "-":
-            print(output_text)
-        else:
-            output_path: Path = Path(args.output)
-            output_path.write_text(output_text)
-    except Exception as error:
-        print(f"Error writing output: {error}", file=sys.stderr)
+        print(f"Error creating OMM: {error}", file=sys.stderr)
         sys.exit(1)
+
+    # Generate output based on --verbose flag
+    if args.verbose:
+        # Compute propagation accuracy for human-readable output
+        difference_summary: PropagationAccuracy | None
+        try:
+            difference_summary = compute_all_differences(
+                fitted_mean_elements, states, args.mu_m3_s2, fit_span_s
+            )
+        except Exception as error:
+            print(f"Error computing differences: {error}", file=sys.stderr)
+            difference_summary = None
+
+        # Format human-readable output
+        output_text: str = format_fit_output(
+            first_epoch,
+            fitted_mean_elements,
+            fit_diagnostics,
+            "km-deg",
+            difference_summary,
+        )
+
+        # Write human-readable output to output file/stdout
+        try:
+            if args.output == "-":
+                print(output_text)
+            else:
+                output_path: Path = Path(args.output)
+                output_path.write_text(output_text)
+        except Exception as error:
+            print(f"Error writing output: {error}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        # Write OMM to output
+        try:
+            if args.output == "-":
+                omm_object.to_file(sys.stdout)
+            else:
+                output_path: Path = Path(args.output)
+                omm_object.to_file(output_path)
+        except Exception as error:
+            print(f"Error writing OMM: {error}", file=sys.stderr)
+            sys.exit(1)
 
 
 if __name__ == "__main__":

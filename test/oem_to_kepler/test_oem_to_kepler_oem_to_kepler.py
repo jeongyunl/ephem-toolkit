@@ -164,22 +164,6 @@ def test_fit_mean_elements_returns_six_elements() -> None:
     assert fitted_elements.shape == (6,)
 
 
-def test_fit_mean_elements_returns_diagnostics() -> None:
-    """Should return diagnostics dictionary with fit statistics."""
-    records = CcsdsOem.read(ISS_OEM_PATH).states
-
-    fitted_elements, diagnostics = oem_to_kepler.fit_mean_elements(
-        records, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
-    )
-
-    assert "rms_position_m" in diagnostics
-    assert "iterations" in diagnostics
-    assert "n_records" in diagnostics
-    assert "span_s" in diagnostics
-    assert diagnostics["n_records"] > 0
-    assert diagnostics["iterations"] > 0
-
-
 def test_fit_mean_elements_produces_reasonable_semi_major_axis() -> None:
     """Should produce physically reasonable semi-major axis for ISS orbit."""
     records = CcsdsOem.read(ISS_OEM_PATH).states
@@ -215,8 +199,8 @@ def test_fit_mean_elements_filters_to_fit_span() -> None:
     )
 
     # Should have used fewer records
-    assert diagnostics["n_records"] < len(records)
-    assert diagnostics["span_s"] <= 60.0
+    assert diagnostics.n_records < len(records)
+    assert diagnostics.span_s <= 60.0
 
 
 def test_fit_mean_elements_converges_with_low_rms() -> None:
@@ -228,7 +212,7 @@ def test_fit_mean_elements_converges_with_low_rms() -> None:
     )
 
     # RMS position error should be reasonable (< 100 km for J2 model)
-    rms_km = diagnostics["rms_position_m"] / 1000.0
+    rms_km = diagnostics.rms_position_m / 1000.0
     assert rms_km < 100.0
 
 
@@ -282,28 +266,6 @@ def test_compute_fit_residuals_zero_at_epoch() -> None:
 # ===================================================================
 
 
-def test_compute_all_differences_returns_statistics() -> None:
-    """Should return dictionary with min/max/avg position and velocity errors."""
-    records = CcsdsOem.read(ISS_OEM_PATH).states
-
-    fitted_elements, _ = oem_to_kepler.fit_mean_elements(
-        records, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
-    )
-
-    stats = oem_to_kepler.compute_all_differences(
-        fitted_elements, records, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2, 7200.0
-    )
-
-    assert "n_compared" in stats
-    assert "min_pos_km" in stats
-    assert "max_pos_km" in stats
-    assert "avg_pos_km" in stats
-    assert "min_vel_km_s" in stats
-    assert "max_vel_km_s" in stats
-    assert "avg_vel_km_s" in stats
-    assert stats["n_compared"] > 0
-
-
 def test_compute_all_differences_filters_to_fit_span() -> None:
     """Should only compare states within the fit span."""
     records = CcsdsOem.read(ISS_OEM_PATH).states
@@ -318,7 +280,7 @@ def test_compute_all_differences_filters_to_fit_span() -> None:
     )
 
     # Should compare fewer records than total
-    assert stats["n_compared"] < len(records)
+    assert stats.n_compared < len(records)
 
 
 def test_compute_all_differences_produces_reasonable_errors() -> None:
@@ -334,11 +296,11 @@ def test_compute_all_differences_produces_reasonable_errors() -> None:
     )
 
     # Errors should be non-negative
-    assert stats["min_pos_km"] >= 0.0
-    assert stats["min_vel_km_s"] >= 0.0
+    assert stats.min_pos_km >= 0.0
+    assert stats.min_vel_km_s >= 0.0
     # Max should be >= min
-    assert stats["max_pos_km"] >= stats["min_pos_km"]
-    assert stats["max_vel_km_s"] >= stats["min_vel_km_s"]
+    assert stats.max_pos_km >= stats.min_pos_km
+    assert stats.max_vel_km_s >= stats.min_vel_km_s
 
 
 # ===================================================================
@@ -405,12 +367,12 @@ def test_format_fit_output_km_deg_units() -> None:
     fitted_elements = np.array(
         [7000000.0, 0.001, np.radians(51.6), 0.785, 1.571, 0.524]
     )
-    diagnostics = {
-        "rms_position_m": 1000.0,
-        "iterations": 10,
-        "n_records": 100,
-        "span_s": 7200.0,
-    }
+    diagnostics = oem_to_kepler.FitDiagnostics(
+        rms_position_m=1000.0,
+        iterations=10,
+        n_records=100,
+        span_s=7200.0,
+    )
 
     output = oem_to_kepler.format_fit_output(
         epoch, fitted_elements, diagnostics, "km-deg"
@@ -425,12 +387,12 @@ def test_format_fit_output_m_rad_units() -> None:
     """Should format output with meter and radian units when specified."""
     epoch = datetime(2026, 5, 20, 0, 0, 0, tzinfo=timezone.utc)
     fitted_elements = np.array([7000000.0, 0.001, 0.9, 0.785, 1.571, 0.524])
-    diagnostics = {
-        "rms_position_m": 1000.0,
-        "iterations": 10,
-        "n_records": 100,
-        "span_s": 7200.0,
-    }
+    diagnostics = oem_to_kepler.FitDiagnostics(
+        rms_position_m=1000.0,
+        iterations=10,
+        n_records=100,
+        span_s=7200.0,
+    )
 
     output = oem_to_kepler.format_fit_output(
         epoch, fitted_elements, diagnostics, "m-rad"
@@ -459,6 +421,7 @@ def test_main_workflow_with_file_input(tmp_path: Path) -> None:
             str(output_file),
             "--fit-span",
             "0.5",
+            "--verbose",
         ],
     ):
         oem_to_kepler.main()
@@ -478,7 +441,15 @@ def test_main_workflow_with_stdout(capsys) -> None:
     """Should write output to stdout when output is '-'."""
     with patch(
         "sys.argv",
-        ["oem_to_kepler.py", str(ISS_OEM_PATH), "-o", "-", "--fit-span", "0.5"],
+        [
+            "oem_to_kepler.py",
+            str(ISS_OEM_PATH),
+            "-o",
+            "-",
+            "--fit-span",
+            "0.5",
+            "--verbose",
+        ],
     ):
         oem_to_kepler.main()
 

@@ -12,6 +12,7 @@ import pytest
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import common.tle as tle
 import oem_to_tle.models as models
 import oem_to_tle.orbital_mechanics as orbital_mechanics
 
@@ -51,16 +52,6 @@ def test_state_to_orbital_elements_returns_valid_elements() -> None:
     assert 0 <= elements.arg_perigee_deg < 360
     assert 0 <= elements.mean_anomaly_deg < 360
     assert elements.mean_motion_rev_per_day > 0
-
-
-def test_datetime_to_tle_epoch_conversion() -> None:
-    """Should convert datetime to TLE epoch format (year, day)."""
-    dt = datetime(2026, 5, 20, 12, 30, 45, tzinfo=timezone.utc)
-    year, day = orbital_mechanics.datetime_to_tle_epoch(dt)
-
-    # TLE epoch format: two-digit year and day-of-year with fractional day
-    assert year == 26
-    assert 140.0 < day < 141.0  # May 20 is day 140 of 2026
 
 
 def test_linear_regression_slope_and_intercept() -> None:

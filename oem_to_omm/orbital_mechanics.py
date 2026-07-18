@@ -14,8 +14,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import common.common as common
 import common.consts as consts
 
-from . import constants
-from .models import OrbitalElements, OrbitalRecord, PhaseMatchResult
+import constants
+from models import OrbitalElements, OrbitalRecord, PhaseMatchResult
 
 
 def state_to_orbital_elements(state_vector_m: np.ndarray) -> OrbitalElements:

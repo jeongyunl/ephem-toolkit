@@ -16,9 +16,8 @@ flowchart LR
     %% ===== Data Format Nodes =====
     fmt_tle{{"TLE (.tle)"}}
     fmt_omm{{"OMM (.omm)"}}
-    fmt_oem{{"OEM-like State Vectors <br/> (epoch x y z vx vy vz)"}}
+    fmt_oem{{"OEM / State Vectors <br/> (CCSDS OEM or simple format: epoch x y z vx vy vz)"}}
     fmt_kepler{{"OEM-like Keplerian Elements <br/> (epoch a e i ω Ω θ)"}}
-    fmt_ccsds_oem{{"CCSDS OEM <br/> (header + metadata + state history)"}}
     fmt_dep_vars_csv{{"Dependent Variables CSV"}}
     fmt_plots{{"Plots / Animations <br/> (Matplotlib figures)"}}
     fmt_time{{"Time Values <br/> (ISO / POSIX / UTC / TAI / TT / TDB)"}}
@@ -69,11 +68,10 @@ flowchart LR
 
     %% oem_to_tle.py: OEM state vectors → TLE
     fmt_oem --> oem_to_tle
-    fmt_ccsds_oem --> oem_to_tle
     oem_to_tle --> fmt_tle
 
     %% oem_to_kepler.py: OEM → fitted mean Keplerian elements
-    fmt_ccsds_oem --> oem_to_kepler
+    fmt_oem --> oem_to_kepler
     oem_to_kepler --> fmt_kepler
 
     %% omm_to_tle.py: OMM → TLE
@@ -93,25 +91,22 @@ flowchart LR
 
     %% propagate_orbit.py: single OEM state line → propagated outputs
     fmt_oem -->|"single state line"| propagate_sat
-    propagate_sat -->|"raw state history"| fmt_oem
-    propagate_sat -->|"CCSDS OEM export"| fmt_ccsds_oem
+    propagate_sat -->|"state history"| fmt_oem
     propagate_sat -->|"dependent variables"| fmt_dep_vars_csv
 
-    %% propagate_kepler.py: Keplerian elements → OEM-like state vectors
+    %% propagate_kepler.py: Keplerian elements → OEM state vectors
     fmt_kepler --> propagate_kepler
     propagate_kepler --> fmt_oem
-    propagate_kepler -->|"optional OEM metadata"| fmt_ccsds_oem
 
-    %% plot_orbits.py: OEM/raw state files → plots
+    %% plot_orbits.py: OEM state files → plots
     fmt_oem --> plot_orbits
-    fmt_ccsds_oem --> plot_orbits
     plot_orbits --> fmt_plots
 
-    %% slice_oem.py: CCSDS OEM → sliced OEM-like states
-    fmt_ccsds_oem --> slice_oem
+    %% slice_oem.py: OEM → sliced OEM states
+    fmt_oem --> slice_oem
     slice_oem --> fmt_oem
 
-    %% state_diff.py: OEM-like state vectors → comparison summary
+    %% state_diff.py: OEM state vectors → comparison summary
     fmt_oem --> state_diff
 
     %% plot_dependent_variables.py: dependent-variable CSV → plots/animations

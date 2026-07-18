@@ -62,6 +62,28 @@ def test_datetime_tdb_round_trip():
     assert result_dt == pytest.approx(original_dt, abs=1e-6)
 
 
+def test_datetime_to_tdb_naive_datetime():
+    """Should handle naive datetime (no timezone) by assuming UTC."""
+    naive_dt = datetime(2000, 1, 1, 12, 0, 0)  # No tzinfo
+    tdb_seconds = time_utils.datetime_to_tdb_s(naive_dt)
+    # Should be treated as UTC, so result should match J2000 epoch
+    assert tdb_seconds == pytest.approx(64.184, abs=1.0)
+
+
+def test_datetime_to_tdb_non_utc_timezone():
+    """Should handle non-UTC timezone by converting to UTC."""
+    from datetime import timedelta as td
+
+    # Create a datetime in UTC+5 timezone
+    utc_plus_5 = timezone(td(hours=5))
+    dt_utc_plus_5 = datetime(
+        2000, 1, 1, 17, 0, 0, tzinfo=utc_plus_5
+    )  # 17:00 UTC+5 = 12:00 UTC
+    tdb_seconds = time_utils.datetime_to_tdb_s(dt_utc_plus_5)
+    # Should convert to UTC (12:00) and match J2000 epoch
+    assert tdb_seconds == pytest.approx(64.184, abs=1.0)
+
+
 # ===================================================================
 # ISO 8601 parsing tests
 # ===================================================================
@@ -149,6 +171,26 @@ def test_datetime_to_iso8601_six_decimal_places():
     dt = datetime(2000, 1, 1, 12, 0, 0, 123456, tzinfo=timezone.utc)
     result = time_utils.datetime_to_iso8601(dt, fractional_second_places=6)
     assert result == "2000-01-01T12:00:00.123456"
+
+
+def test_datetime_to_iso8601_naive_datetime():
+    """Should handle naive datetime (no timezone) by assuming UTC."""
+    naive_dt = datetime(2000, 1, 1, 12, 0, 0, 123456)  # No tzinfo
+    result = time_utils.datetime_to_iso8601(naive_dt)
+    assert result == "2000-01-01T12:00:00.123"
+
+
+def test_datetime_to_iso8601_non_utc_timezone():
+    """Should handle non-UTC timezone by converting to UTC."""
+    from datetime import timedelta as td
+
+    # Create a datetime in UTC+5 timezone
+    utc_plus_5 = timezone(td(hours=5))
+    dt_utc_plus_5 = datetime(
+        2000, 1, 1, 17, 0, 0, tzinfo=utc_plus_5
+    )  # 17:00 UTC+5 = 12:00 UTC
+    result = time_utils.datetime_to_iso8601(dt_utc_plus_5)
+    assert result == "2000-01-01T12:00:00.000"
 
 
 def test_iso8601_to_datetime_invalid_raises():
@@ -311,6 +353,101 @@ def test_parse_duration_zero_rejected_by_default():
         time_utils.parse_duration_to_seconds("0s")
 
 
+def test_parse_duration_multi_component():
+    """Should parse multi-component duration strings like '1h30m' or '2m30s'."""
+    # Test various multi-component formats
+    assert time_utils.parse_duration_to_seconds("1h30m") == pytest.approx(
+        5400.0
+    )  # 90 minutes
+    assert time_utils.parse_duration_to_seconds("2m30s") == pytest.approx(
+        150.0
+    )  # 150 seconds
+    assert time_utils.parse_duration_to_seconds("1d2h30m") == pytest.approx(
+        95400.0
+    )  # 1 day + 2.5 hours
+    assert time_utils.parse_duration_to_seconds("1h30m45s") == pytest.approx(
+        5445.0
+    )  # 1.5 hours + 45 seconds
+    assert time_utils.parse_duration_to_seconds("0.5h30m") == pytest.approx(
+        3600.0
+    )  # 30 min + 30 min
+
+
+def test_parse_duration_negative_allowed():
+    """Should allow negative durations when allow_negative=True."""
+    result = time_utils.parse_duration_to_seconds("-5s", allow_negative=True)
+    assert result == pytest.approx(-5.0)
+
+    result = time_utils.parse_duration_to_seconds("-2m", allow_negative=True)
+    assert result == pytest.approx(-120.0)
+
+    result = time_utils.parse_duration_to_seconds("-1.5h", allow_negative=True)
+    assert result == pytest.approx(-5400.0)
+
+
+def test_parse_duration_zero_allowed():
+    """Should allow zero durations when allow_zero=True."""
+    result = time_utils.parse_duration_to_seconds("0s", allow_zero=True)
+    assert result == pytest.approx(0.0)
+
+    result = time_utils.parse_duration_to_seconds("0", allow_zero=True)
+    assert result == pytest.approx(0.0)
+
+    result = time_utils.parse_duration_to_seconds("0m", allow_zero=True)
+    assert result == pytest.approx(0.0)
+
+
+def test_parse_duration_to_timedelta_returns_timedelta():
+    """Should return timedelta object with correct duration."""
+    from datetime import timedelta
+
+    result = time_utils.parse_duration_to_timedelta("90s")
+    assert isinstance(result, timedelta)
+    assert result.total_seconds() == pytest.approx(90.0)
+
+    result = time_utils.parse_duration_to_timedelta("2m")
+    assert isinstance(result, timedelta)
+    assert result.total_seconds() == pytest.approx(120.0)
+
+    result = time_utils.parse_duration_to_timedelta("1.5h")
+    assert isinstance(result, timedelta)
+    assert result.total_seconds() == pytest.approx(5400.0)
+
+
+def test_parse_duration_positive_sign_prefix():
+    """Should handle positive sign prefix in duration strings."""
+    result = time_utils.parse_duration_to_seconds("+5s")
+    assert result == pytest.approx(5.0)
+
+    result = time_utils.parse_duration_to_seconds("+2m")
+    assert result == pytest.approx(120.0)
+
+    result = time_utils.parse_duration_to_seconds("+1.5h")
+    assert result == pytest.approx(5400.0)
+
+    result = time_utils.parse_duration_to_seconds("+1d")
+    assert result == pytest.approx(86400.0)
+
+
+def test_parse_duration_default_unit_variations():
+    """Should apply different default units when no unit is specified."""
+    # Default unit is seconds
+    result = time_utils.parse_duration_to_seconds("60", default_unit="s")
+    assert result == pytest.approx(60.0)
+
+    # Default unit is minutes
+    result = time_utils.parse_duration_to_seconds("60", default_unit="m")
+    assert result == pytest.approx(3600.0)  # 60 minutes = 3600 seconds
+
+    # Default unit is hours
+    result = time_utils.parse_duration_to_seconds("2", default_unit="h")
+    assert result == pytest.approx(7200.0)  # 2 hours = 7200 seconds
+
+    # Default unit is days
+    result = time_utils.parse_duration_to_seconds("1", default_unit="d")
+    assert result == pytest.approx(86400.0)  # 1 day = 86400 seconds
+
+
 # ===================================================================
 # Constants tests
 # ===================================================================
@@ -321,3 +458,217 @@ def test_time_constants():
     assert time_utils.SECONDS_PER_MINUTE == 60.0
     assert time_utils.SECONDS_PER_HOUR == 3600.0
     assert time_utils.SECONDS_PER_DAY == 86400.0
+
+
+# ===================================================================
+# Duration formatting tests
+# ===================================================================
+
+
+def test_format_duration_hours():
+    """Should format duration as hours when evenly divisible by 3600."""
+    from datetime import timedelta
+
+    # Exactly 1 hour
+    result = time_utils.format_duration(timedelta(hours=1))
+    assert result == "1h"
+
+    # Exactly 2 hours
+    result = time_utils.format_duration(timedelta(hours=2))
+    assert result == "2h"
+
+    # Exactly 10 hours
+    result = time_utils.format_duration(timedelta(hours=10))
+    assert result == "10h"
+
+    # Exactly 2 hours (7200 seconds)
+    result = time_utils.format_duration(timedelta(seconds=7200))
+    assert result == "2h"
+
+
+def test_format_duration_minutes():
+    """Should format duration as minutes when evenly divisible by 60 but not 3600."""
+    from datetime import timedelta
+
+    # Exactly 1 minute
+    result = time_utils.format_duration(timedelta(minutes=1))
+    assert result == "1m"
+
+    # Exactly 5 minutes
+    result = time_utils.format_duration(timedelta(minutes=5))
+    assert result == "5m"
+
+    # Exactly 90 minutes (not evenly divisible by 3600)
+    result = time_utils.format_duration(timedelta(minutes=90))
+    assert result == "90m"
+
+
+def test_format_duration_seconds():
+    """Should format duration as seconds when not evenly divisible by 60."""
+    from datetime import timedelta
+
+    # Exactly 45 seconds
+    result = time_utils.format_duration(timedelta(seconds=45))
+    assert result == "45s"
+
+    # Exactly 90 seconds (not evenly divisible by 60)
+    result = time_utils.format_duration(timedelta(seconds=90))
+    assert result == "90s"
+
+    # Fractional seconds
+    result = time_utils.format_duration(timedelta(seconds=45.5))
+    assert result == "45.5s"
+
+    # Very small duration
+    result = time_utils.format_duration(timedelta(seconds=0.001))
+    assert result == "0.001s"
+
+
+def test_format_duration_human_zero():
+    """Should format zero duration as '0s'."""
+    from datetime import timedelta
+
+    result = time_utils.format_duration_human(timedelta(seconds=0))
+    assert result == "0s"
+
+
+def test_format_duration_human_seconds_only():
+    """Should format durations with only seconds."""
+    from datetime import timedelta
+
+    # Integer seconds
+    result = time_utils.format_duration_human(timedelta(seconds=45))
+    assert result == "45s"
+
+    # Fractional seconds
+    result = time_utils.format_duration_human(timedelta(seconds=45.5))
+    assert result == "45.5s"
+
+    result = time_utils.format_duration_human(timedelta(seconds=1.234))
+    assert result == "1.23s"
+
+
+def test_format_duration_human_minutes_and_seconds():
+    """Should format durations with minutes and seconds."""
+    from datetime import timedelta
+
+    result = time_utils.format_duration_human(timedelta(minutes=2, seconds=30))
+    assert result == "2m 30s"
+
+    result = time_utils.format_duration_human(timedelta(minutes=5, seconds=15))
+    assert result == "5m 15s"
+
+
+def test_format_duration_human_hours_minutes_seconds():
+    """Should format durations with hours, minutes, and seconds."""
+    from datetime import timedelta
+
+    result = time_utils.format_duration_human(
+        timedelta(hours=2, minutes=30, seconds=45)
+    )
+    assert result == "2h 30m 45s"
+
+    result = time_utils.format_duration_human(timedelta(hours=1, minutes=0, seconds=30))
+    assert result == "1h 30s"
+
+
+def test_format_duration_human_days():
+    """Should format durations with days."""
+    from datetime import timedelta
+
+    result = time_utils.format_duration_human(timedelta(days=1))
+    assert result == "1d"
+
+    result = time_utils.format_duration_human(timedelta(days=3, hours=2))
+    assert result == "3d 2h"
+
+    result = time_utils.format_duration_human(
+        timedelta(days=2, hours=5, minutes=30, seconds=15)
+    )
+    assert result == "2d 5h 30m 15s"
+
+
+def test_format_duration_human_negative():
+    """Should format negative durations with minus sign."""
+    from datetime import timedelta
+
+    result = time_utils.format_duration_human(timedelta(seconds=-45))
+    assert result == "-45s"
+
+    result = time_utils.format_duration_human(timedelta(minutes=-2, seconds=-30))
+    assert result == "-2m 30s"
+
+    result = time_utils.format_duration_human(timedelta(hours=-1, minutes=-30))
+    assert result == "-1h 30m"
+
+
+def test_format_duration_human_hours_only():
+    """Should format durations with only hours."""
+    from datetime import timedelta
+
+    result = time_utils.format_duration_human(timedelta(hours=5))
+    assert result == "5h"
+
+
+def test_format_duration_human_minutes_only():
+    """Should format durations with only minutes."""
+    from datetime import timedelta
+
+    result = time_utils.format_duration_human(timedelta(minutes=30))
+    assert result == "30m"
+
+
+def test_format_duration_human_days_and_seconds():
+    """Should format durations with days and seconds (skipping hours and minutes)."""
+    from datetime import timedelta
+
+    result = time_utils.format_duration_human(timedelta(days=1, seconds=30))
+    assert result == "1d 30s"
+
+
+# ===================================================================
+# Additional edge case tests for parse_duration
+# ===================================================================
+
+
+def test_parse_duration_multi_component_with_zero_in_middle():
+    """Should reject multi-component duration with zero magnitude when allow_zero=False."""
+    # This tests the zero check within the loop (line 322)
+    with pytest.raises(ValueError, match="duration must be a positive value"):
+        time_utils.parse_duration_to_seconds("1h0m30s")
+
+
+def test_parse_duration_multi_component_with_zero_allowed():
+    """Should allow multi-component duration with zero magnitude when allow_zero=True."""
+    result = time_utils.parse_duration_to_seconds("1h0m30s", allow_zero=True)
+    assert result == pytest.approx(3630.0)  # 1 hour + 0 minutes + 30 seconds
+
+
+def test_parse_duration_invalid_unit_in_multi_component():
+    """Should reject invalid unit in multi-component duration."""
+    # The regex doesn't match 'x' as a valid unit, so it fails at parsing stage
+    with pytest.raises(ValueError, match="duration must be a number"):
+        time_utils.parse_duration_to_seconds("1h30x")
+
+
+def test_parse_duration_malformed_multi_component_no_unit():
+    """Should reject multi-component duration where non-last component lacks unit."""
+    # This tests line 283 - multi-component validation
+    with pytest.raises(ValueError, match="duration must be a number"):
+        time_utils.parse_duration_to_seconds("1.2 3s")
+
+
+def test_parse_duration_whitespace_in_components():
+    """Should handle whitespace between number and unit within a component."""
+    # The regex allows whitespace between number and unit
+    result = time_utils.parse_duration_to_seconds("1h30m")
+    assert result == pytest.approx(5400.0)  # 1.5 hours
+
+
+def test_parse_duration_fractional_in_multi_component():
+    """Should handle fractional values in multi-component durations."""
+    result = time_utils.parse_duration_to_seconds("1.5h30m")
+    assert result == pytest.approx(7200.0)  # 1.5 hours + 30 minutes = 2 hours
+
+    result = time_utils.parse_duration_to_seconds("2m30.5s")
+    assert result == pytest.approx(150.5)  # 2 minutes + 30.5 seconds

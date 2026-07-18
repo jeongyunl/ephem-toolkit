@@ -58,10 +58,16 @@ def test_tle_to_omm_matches_reference_file(tle_path: Path, omm_path: Path) -> No
         omm_ref.arg_of_pericenter, abs=1e-4
     )
     assert omm_result.mean_anomaly == pytest.approx(omm_ref.mean_anomaly, abs=1e-4)
-    assert omm_result.norad_cat_id == omm_ref.norad_cat_id
-    assert omm_result.rev_at_epoch == omm_ref.rev_at_epoch
-    assert omm_result.classification_type == omm_ref.classification_type
-    assert omm_result.element_set_no == omm_ref.element_set_no
+    assert omm_result.tle_parameters.norad_cat_id == omm_ref.tle_parameters.norad_cat_id
+    assert omm_result.tle_parameters.rev_at_epoch == omm_ref.tle_parameters.rev_at_epoch
+    assert (
+        omm_result.tle_parameters.classification_type
+        == omm_ref.tle_parameters.classification_type
+    )
+    assert (
+        omm_result.tle_parameters.element_set_no
+        == omm_ref.tle_parameters.element_set_no
+    )
 
 
 # ===================================================================
@@ -197,9 +203,18 @@ def test_omm_to_tle_to_omm_round_trip(omm_path: Path) -> None:
     assert omm_recovered.mean_anomaly == pytest.approx(
         omm_original.mean_anomaly, abs=1e-4
     )
-    assert omm_recovered.norad_cat_id == omm_original.norad_cat_id
-    assert omm_recovered.rev_at_epoch == omm_original.rev_at_epoch
-    assert omm_recovered.classification_type == omm_original.classification_type
+    assert (
+        omm_recovered.tle_parameters.norad_cat_id
+        == omm_original.tle_parameters.norad_cat_id
+    )
+    assert (
+        omm_recovered.tle_parameters.rev_at_epoch
+        == omm_original.tle_parameters.rev_at_epoch
+    )
+    assert (
+        omm_recovered.tle_parameters.classification_type
+        == omm_original.tle_parameters.classification_type
+    )
 
 
 # ===================================================================

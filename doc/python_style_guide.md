@@ -188,7 +188,69 @@ def read_oem(source: TextIO | str | Path) -> ...:
 
 ## 6. Classes and Dataclasses
 
-### 6.1 Variable documentation
+### 6.1 Prefer dataclasses over dicts
+
+**Use dataclasses instead of dicts when data elements are mostly known.**
+
+Dataclasses provide:
+- **Type safety:** Fields are type-annotated and checked by static analyzers
+- **IDE support:** Autocomplete, refactoring, and navigation work properly
+- **Self-documenting:** Field names and types are explicit in the class definition
+- **Validation:** Easier to add validation logic and computed properties
+- **Maintainability:** Refactoring is safer; renaming fields updates all usages
+
+```python
+# Wrong: Using dict for structured data
+def parse_metadata(lines: list[str]) -> dict:
+    metadata = {
+        "object_name": "",
+        "object_id": "",
+        "center_name": "EARTH",
+        "ref_frame": "EME2000",
+        "time_system": "UTC",
+    }
+    # ... parse lines and populate dict
+    return metadata
+
+# Correct: Using dataclass
+@dataclass
+class OemMetadata:
+    """OEM metadata block."""
+    
+    object_name: str = ""
+    """Name of the object"""
+    
+    object_id: str = ""
+    """International designator or catalog number"""
+    
+    center_name: str = "EARTH"
+    """Origin of reference frame"""
+    
+    ref_frame: str = "EME2000"
+    """Reference frame identifier"""
+    
+    time_system: str = "UTC"
+    """Time system used for epochs"""
+
+def parse_metadata(lines: list[str]) -> OemMetadata:
+    metadata = OemMetadata()
+    # ... parse lines and populate fields
+    return metadata
+```
+
+**When to use dicts:**
+- Dynamic keys unknown at design time (e.g., user-provided configuration)
+- Simple key-value mappings with homogeneous value types
+- Temporary intermediate data structures in local scope
+- JSON-like data that mirrors external API responses exactly
+
+**When to use dataclasses:**
+- Structured data with known fields (e.g., parsed file formats, API models)
+- Return values from functions that bundle multiple related values
+- Configuration objects with specific expected fields
+- Any data structure that will be passed between functions or modules
+
+### 6.2 Variable documentation
 
 Document all fields with triple-quote docstring immediately after definition. **No hash comments.**
 
@@ -204,7 +266,7 @@ class Tle:
     """Inclination (degrees)"""
 ```
 
-### 6.2 Standard methods
+### 6.3 Standard methods
 
 | Method | Purpose |
 |--------|---------|
@@ -212,7 +274,7 @@ class Tle:
 | `to_file(self, dest)` | Write instance to file/stream |
 | `to_dict(self)` | Dict serialization via `dataclasses.asdict` |
 
-### 6.3 `__repr__`
+### 6.4 `__repr__`
 
 Return concise string with class name and key fields:
 ```python
@@ -236,7 +298,7 @@ MU_EARTH: float = 3.986004418e14
 
 ### 8.1 Inline comments
 
-Keep comments that provide **non-obvious context**:
+Keep comments that provide:
 - Complex logic/algorithms
 - Important constraints/assumptions
 - "Magic number" explanations
@@ -273,17 +335,26 @@ Use 67-character `# ===` banners:
 3. Third-party
 4. Local
 
-**Local imports:** Import module, not individual names:
+**Local imports:** Import module with alias for brevity:
 ```python
 # Correct
 import common.kepler as kepler
 kepler.MU_EARTH
 
+import common.oem as oem
+oem.CcsdsOem.read(file)
+
 # Wrong
 from common.kepler import MU_EARTH
+
+# Also wrong (no alias)
+import common.kepler
+common.kepler.MU_EARTH  # Too verbose
 ```
 
-Standard library and third-party may use `from X import Y` where idiomatic (`from pathlib import Path`).
+**Rationale:** Using `import X as Y` provides a clean namespace while keeping code concise. The alias should match the module's base name (e.g., `common.oem as oem`, `common.slice_oem as slice_oem`).
+
+Standard library and third-party may use `from X import Y` where idiomatic (`from pathlib import Path`, `from datetime import datetime`).
 
 ---
 

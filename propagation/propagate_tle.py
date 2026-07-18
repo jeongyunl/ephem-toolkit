@@ -191,13 +191,11 @@ def read_tle_input(cli_value: str | None) -> tuple[str, str, str]:
 # ===================================================================
 
 
-def load_spice_kernels(data_module, spice_module) -> None:
+def load_spice_kernels(spice_module) -> None:
     """Load SPICE kernels required for time conversion.
 
     Parameters
     ----------
-    data_module
-        TudatPy data module used to resolve kernel directory paths.
     spice_module
         TudatPy SPICE interface module used to load kernels.
 
@@ -205,12 +203,13 @@ def load_spice_kernels(data_module, spice_module) -> None:
     -----
     Type annotations omitted for TudatPy modules to avoid import-time dependencies.
     """
-    spice_module.load_kernel(
-        str(pathlib.Path(data_module.get_spice_kernel_path()) / "naif0012.tls")
-    )
-    spice_module.load_kernel(
-        str(pathlib.Path(data_module.get_spice_kernel_path()) / "pck00011.tpc")
-    )
+    spice_kernel_files = [
+        "naif0012.tls",  # LEAPSECONDS KERNEL FILE
+        "pck00011.tpc",  # PLANETARY CONSTANTS KERNEL FILE: orientation and size/shape data for natural bodies(Sun, planets, asteroids, etc)
+    ]
+
+    for kernel_file in spice_kernel_files:
+        spice_module.load_kernel(common.get_spice_kernel_path() + "/" + kernel_file)
 
 
 def epoch_to_utc_iso(epoch_tdb_s: float, spice_module, datetime_class) -> str:
@@ -345,12 +344,11 @@ def main() -> int:
 
     # Heavy TudatPy imports are intentionally delayed until after cheap input
     # validation is complete.
-    from tudatpy import data
     from tudatpy.astro.time_representation import DateTime
     from tudatpy.dynamics import environment_setup
     from tudatpy.interface import spice
 
-    load_spice_kernels(data, spice)
+    load_spice_kernels(spice)
 
     # Create SGP4 ephemeris settings and ephemeris object from TLE lines
     tle_ephemeris_settings = environment_setup.ephemeris.sgp4(line1, line2)

@@ -229,7 +229,9 @@ def main() -> None:
         print("Error: --int-designator-launch-number must be in [0, 999]")
         sys.exit(1)
     if not (0 <= args.ephemeris_type <= 9):
-        print("Error: --ephemeris-type must be in [0, 9]")
+        print(
+            "Error: --ephemeris-type must be in [0, 9] (1=SGP, 2=SGP4, 3=SDP4, 4=SGP8, 5=SDP8)"
+        )
         sys.exit(1)
     if not (0 <= args.element_set_number <= 9999):
         print("Error: --element-set-number must be in [0, 9999]")

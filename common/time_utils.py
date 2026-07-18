@@ -49,7 +49,7 @@ def datetime_to_tdb_s(dt: datetime) -> float:
     Parameters
     ----------
     dt : datetime
-        Datetime object to convert.
+        Datetime object to convert. If timezone-naive, assumes UTC.
 
     Returns
     -------
@@ -160,7 +160,7 @@ def datetime_to_iso8601(
     Parameters
     ----------
     dt : datetime
-        Datetime object to convert.
+        Datetime object to convert. If timezone-naive, assumes UTC.
     use_t_separator : bool, optional
         If True, use 'T' as separator between date and time (ISO 8601 standard).
         If False, use a space instead. Default is True.
@@ -284,10 +284,11 @@ def parse_duration_to_timedelta(
             f"{value}: duration must be a number optionally followed by s, m, h, or d. (b)"
         )
 
-    component_re: re.Pattern[str] = re.compile(r"^([0-9]*\.?[0-9]+)\s*([smhdSMHD]?)")
+    component_re: re.Pattern[str] = re.compile(r"([0-9]*\.?[0-9]+)\s*([smhdSMHD]?)")
     pos: int = 0
     total_seconds: float = 0.0
     components: list[tuple[float, str]] = []
+    has_explicit_unit: list[bool] = []
 
     while pos < len(token):
         match: re.Match[str] | None = component_re.match(token, pos)
@@ -296,9 +297,21 @@ def parse_duration_to_timedelta(
                 f"{value}: duration must be a number optionally followed by s, m, h, or d. (c)"
             )
         magnitude: float = float(match.group(1))
+        explicit: bool = bool(match.group(2))
         unit: str = match.group(2).lower() if match.group(2) else default_unit
         components.append((magnitude, unit))
+        has_explicit_unit.append(explicit)
         pos = match.end()
+
+    # In multi-component durations, all components except possibly the last
+    # must have an explicit unit suffix. This rejects malformed inputs like
+    # "1.2.3s" which would otherwise be split into "1.2" + ".3s".
+    if len(components) > 1:
+        for i in range(len(components) - 1):
+            if not has_explicit_unit[i]:
+                raise ValueError(
+                    f"{value}: duration must be a number optionally followed by s, m, h, or d. (c)"
+                )
 
     if not components:
         raise ValueError(
@@ -370,3 +383,66 @@ def parse_duration_to_seconds(
         allow_negative=allow_negative,
         allow_zero=allow_zero,
     ).total_seconds()
+
+
+def format_duration(duration: timedelta) -> str:
+    """Return canonical duration string (e.g., ``10h``, ``30m``, ``45s``).
+
+    Parameters
+    ----------
+    duration : timedelta
+        Duration to format.
+
+    Returns
+    -------
+    str
+        Canonical duration string using hours, minutes, or seconds.
+    """
+    total_seconds: float = duration.total_seconds()
+    if total_seconds % 3600 == 0:
+        hours: float = total_seconds / 3600
+        return f"{hours:g}h"
+    if total_seconds % 60 == 0:
+        minutes: float = total_seconds / 60
+        return f"{minutes:g}m"
+    return f"{total_seconds:g}s"
+
+
+def format_duration_human(duration: timedelta) -> str:
+    """Format a timedelta into a human-readable string.
+
+    Parameters
+    ----------
+    duration : timedelta
+        The timedelta to format.
+
+    Returns
+    -------
+    str
+        Human-readable duration string (e.g. "2h 30m", "45s", "3d 1h").
+    """
+    total_seconds: float = abs(duration.total_seconds())
+    sign: str = "-" if duration.total_seconds() < 0 else ""
+
+    if total_seconds == 0:
+        return "0s"
+
+    days: int = int(total_seconds // 86400)
+    hours: int = int((total_seconds % 86400) // 3600)
+    minutes: int = int((total_seconds % 3600) // 60)
+    seconds: float = total_seconds % 60
+
+    parts: list[str] = []
+    if days:
+        parts.append(f"{days}d")
+    if hours:
+        parts.append(f"{hours}h")
+    if minutes:
+        parts.append(f"{minutes}m")
+    if seconds:
+        if seconds == int(seconds):
+            parts.append(f"{int(seconds)}s")
+        else:
+            parts.append(f"{seconds:.3g}s")
+
+    return sign + " ".join(parts)

@@ -114,7 +114,9 @@ def test_write_omm_round_trip_preserves_content(tmp_path: Path, omm_path: Path) 
         if isinstance(data1[key], float):
             assert data2[key] == pytest.approx(data1[key], abs=1e-10)
         else:
-            assert data2[key] == data1[key], f"Mismatch for {key}: {data2[key]} != {data1[key]}"
+            assert (
+                data2[key] == data1[key]
+            ), f"Mismatch for {key}: {data2[key]} != {data1[key]}"
 
 
 # ===================================================================
@@ -141,8 +143,9 @@ def test_ccsds_omm_from_source_exposes_structured_fields() -> None:
     assert ccsds_omm.ra_of_asc_node == pytest.approx(18.6331, abs=1e-4)
     assert ccsds_omm.arg_of_pericenter == pytest.approx(121.2251, abs=1e-4)
     assert ccsds_omm.mean_anomaly == pytest.approx(238.9444, abs=1e-4)
-    assert ccsds_omm.norad_cat_id == 25544
-    assert ccsds_omm.classification_type == "U"
+    assert ccsds_omm.tle_parameters is not None
+    assert ccsds_omm.tle_parameters.norad_cat_id == 25544
+    assert ccsds_omm.tle_parameters.classification_type == "U"
 
 
 # ===================================================================
@@ -167,11 +170,13 @@ def test_ccsds_omm_to_file_round_trip(tmp_path: Path) -> None:
     assert omm2.ra_of_asc_node == pytest.approx(omm1.ra_of_asc_node, abs=1e-10)
     assert omm2.arg_of_pericenter == pytest.approx(omm1.arg_of_pericenter, abs=1e-10)
     assert omm2.mean_anomaly == pytest.approx(omm1.mean_anomaly, abs=1e-10)
-    assert omm2.norad_cat_id == omm1.norad_cat_id
-    assert omm2.rev_at_epoch == omm1.rev_at_epoch
-    assert omm2.bstar == omm1.bstar
-    assert omm2.mean_motion_dot == omm1.mean_motion_dot
-    assert omm2.mean_motion_ddot == omm1.mean_motion_ddot
+    assert omm2.tle_parameters is not None
+    assert omm1.tle_parameters is not None
+    assert omm2.tle_parameters.norad_cat_id == omm1.tle_parameters.norad_cat_id
+    assert omm2.tle_parameters.rev_at_epoch == omm1.tle_parameters.rev_at_epoch
+    assert omm2.tle_parameters.bstar == omm1.tle_parameters.bstar
+    assert omm2.tle_parameters.mean_motion_dot == omm1.tle_parameters.mean_motion_dot
+    assert omm2.tle_parameters.mean_motion_ddot == omm1.tle_parameters.mean_motion_ddot
 
 
 # ===================================================================
@@ -186,7 +191,8 @@ def test_ccsds_omm_repr_contains_summary_information() -> None:
 
     assert "CcsdsOmm" in text
     assert ccsds_omm.object_name in text
-    assert str(ccsds_omm.norad_cat_id) in text
+    assert ccsds_omm.tle_parameters is not None
+    assert str(ccsds_omm.tle_parameters.norad_cat_id) in text
     assert ccsds_omm.epoch in text
 
 
@@ -202,7 +208,9 @@ def test_ccsds_omm_to_dict() -> None:
 
     assert isinstance(d, dict)
     assert d["object_name"] == "ISS (ZARYA)"
-    assert d["norad_cat_id"] == 25544
+    assert d["tle_parameters"] is not None
+    assert isinstance(d["tle_parameters"], dict)
+    assert d["tle_parameters"]["norad_cat_id"] == 25544
     assert d["mean_motion"] == pytest.approx(15.49538094, abs=1e-8)
     assert d["eccentricity"] == pytest.approx(0.00072029, abs=1e-8)
 
@@ -272,3 +280,149 @@ MEAN_MOTION_DDOT = 0
     assert len(header["COMMENT"]) == 2
     assert header["COMMENT"][0] == "This is a test comment"
     assert header["COMMENT"][1] == "Another comment"
+
+
+# ===================================================================
+# 12. CcsdsOmm without TLE parameters (non-SGP4 theories)
+# ===================================================================
+
+
+def test_ccsds_omm_without_tle_parameters() -> None:
+    """Should handle OMM files without TLE-related parameters."""
+    omm_text = """\
+CCSDS_OMM_VERS = 3.0
+CREATION_DATE  = 2026-06-01T00:00:00.000Z
+ORIGINATOR     = TEST
+
+OBJECT_NAME    = TEST-SAT
+OBJECT_ID      = 2020-001A
+CENTER_NAME    = EARTH
+REF_FRAME      = ICRF
+TIME_SYSTEM    = UTC
+MEAN_ELEMENT_THEORY = DSST
+
+EPOCH          = 2026-06-01T00:00:00.000000
+MEAN_MOTION    = 15.0
+ECCENTRICITY   = 0.001
+INCLINATION    = 51.0
+RA_OF_ASC_NODE = 100.0
+ARG_OF_PERICENTER = 200.0
+MEAN_ANOMALY   = 300.0
+"""
+    ccsds_omm = omm.CcsdsOmm.from_source(io.StringIO(omm_text))
+
+    assert ccsds_omm.object_name == "TEST-SAT"
+    assert ccsds_omm.mean_element_theory == "DSST"
+    assert ccsds_omm.ref_frame == "ICRF"
+    assert ccsds_omm.tle_parameters is None
+
+
+# ===================================================================
+# 13. keplerian_to_omm conversion function
+# ===================================================================
+
+
+def test_keplerian_to_omm() -> None:
+    """Should convert Keplerian elements to OMM format."""
+    import numpy as np
+    from datetime import datetime, timezone
+
+    # Define test Keplerian elements (ISS-like orbit)
+    # [a, e, i, omega, RAAN, theta] in SI units (m, rad)
+    keplerian_elements = np.array(
+        [
+            6778137.0,  # semi-major axis (m) - ~400 km altitude
+            0.0007,  # eccentricity
+            np.radians(51.6),  # inclination (rad)
+            np.radians(120.0),  # argument of periapsis (rad)
+            np.radians(20.0),  # RAAN (rad)
+            np.radians(240.0),  # true anomaly (rad)
+        ]
+    )
+
+    epoch = datetime(2026, 6, 1, 0, 0, 0, tzinfo=timezone.utc)
+
+    omm_obj = omm.keplerian_to_omm(
+        epoch=epoch,
+        keplerian_elements=keplerian_elements,
+        object_name="TEST-SAT",
+        object_id="2020-001A",
+    )
+
+    assert isinstance(omm_obj, omm.CcsdsOmm)
+    assert omm_obj.object_name == "TEST-SAT"
+    assert omm_obj.object_id == "2020-001A"
+    assert omm_obj.center_name == "EARTH"
+    assert omm_obj.ref_frame == "ICRF"
+    assert omm_obj.time_system == "UTC"
+    assert omm_obj.mean_element_theory == "DSST"
+    assert omm_obj.version == 3.0
+    assert omm_obj.originator == "tudatpy-utils"
+
+    # Check that mean motion is reasonable for ISS-like orbit (~15.5 rev/day)
+    assert 15.0 < omm_obj.mean_motion < 16.0
+
+    # Check that angles are in degrees
+    assert omm_obj.eccentricity == pytest.approx(0.0007, abs=1e-6)
+    assert omm_obj.inclination == pytest.approx(51.6, abs=1e-4)
+    assert omm_obj.arg_of_pericenter == pytest.approx(120.0, abs=1e-4)
+    assert omm_obj.ra_of_asc_node == pytest.approx(20.0, abs=1e-4)
+
+    # TLE parameters should not be present for non-SGP4 OMM
+    assert omm_obj.tle_parameters is None
+
+    # Check that comments are present
+    assert len(omm_obj.comments) > 0
+
+
+# ===================================================================
+# 14. keplerian_to_omm round-trip test
+# ===================================================================
+
+
+def test_keplerian_to_omm_round_trip(tmp_path: Path) -> None:
+    """Should preserve OMM content through keplerian_to_omm and file I/O."""
+    import numpy as np
+    from datetime import datetime, timezone
+
+    keplerian_elements = np.array(
+        [
+            7000000.0,  # semi-major axis (m)
+            0.001,  # eccentricity
+            np.radians(45.0),  # inclination (rad)
+            np.radians(90.0),  # argument of periapsis (rad)
+            np.radians(180.0),  # RAAN (rad)
+            np.radians(270.0),  # true anomaly (rad)
+        ]
+    )
+
+    epoch = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+
+    omm1 = omm.keplerian_to_omm(
+        epoch=epoch,
+        keplerian_elements=keplerian_elements,
+        object_name="ROUND-TRIP-TEST",
+        object_id="2026-001A",
+        ref_frame="J2000",
+        mean_element_theory="USM",
+    )
+
+    # Write to file
+    out_path = tmp_path / "keplerian_roundtrip.omm"
+    omm1.to_file(out_path)
+
+    # Read back
+    omm2 = omm.CcsdsOmm.from_source(out_path)
+
+    # Verify key fields are preserved
+    assert omm2.object_name == "ROUND-TRIP-TEST"
+    assert omm2.object_id == "2026-001A"
+    assert omm2.ref_frame == "J2000"
+    assert omm2.mean_element_theory == "USM"
+    assert omm2.mean_motion == pytest.approx(omm1.mean_motion, abs=1e-10)
+    assert omm2.eccentricity == pytest.approx(omm1.eccentricity, abs=1e-10)
+    assert omm2.inclination == pytest.approx(omm1.inclination, abs=1e-10)
+    assert omm2.ra_of_asc_node == pytest.approx(omm1.ra_of_asc_node, abs=1e-10)
+    assert omm2.arg_of_pericenter == pytest.approx(omm1.arg_of_pericenter, abs=1e-10)
+    assert omm2.mean_anomaly == pytest.approx(omm1.mean_anomaly, abs=1e-10)
+    assert omm2.tle_parameters is None

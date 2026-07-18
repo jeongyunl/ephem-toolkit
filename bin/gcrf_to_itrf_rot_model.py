@@ -44,10 +44,8 @@ def load_spice_kernels() -> None:
         "pck00011.tpc",  # PLANETARY CONSTANTS KERNEL FILE: orientation and size/shape data for natural bodies(Sun, planets, asteroids, etc)
         "earth_200101_990825_predict.bpc",  # Earth rotation prediction. Covers Jan, 2001 to Aug, 2099
     ]
-    spice_kernel_path: Path = Path(common.get_spice_kernel_path())
     for kernel_file in spice_kernel_files:
-        kernel_path: Path = spice_kernel_path / kernel_file
-        spice.load_kernel(str(kernel_path))
+        spice.load_kernel(common.get_spice_kernel_path() + "/" + kernel_file)
 
 
 # ===================================================================

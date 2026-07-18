@@ -93,11 +93,11 @@ def estimate_bstar_from_arc(
     Estimated
         Updated estimated dataclass with B* value and metadata.
     """
-    from .refinement import (
+    from refinement import (
         compute_state_match_score,
         evaluate_tle_states_for_offsets_m,
     )
-    from .tle_builder import build_tle_lines
+    from tle_builder import build_tle_lines
     from dataclasses import replace
 
     if args.bstar != "00000+0":

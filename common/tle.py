@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, Mapping, TextIO
 
@@ -63,7 +63,7 @@ class Tle:
     bstar: str = "00000+0"
     """BSTAR drag term (TLE exponential format)"""
     ephemeris_type: int = 0
-    """Ephemeris type (0=SGP, 2=SGP4, 4=SGP8, 6=SP)"""
+    """Ephemeris type (1=SGP, 2=SGP4, 3=SDP4, 4=SGP8, 5=SDP8)"""
     element_set_number: int = 0
     """Element set number (incremented for each new TLE)"""
     line1_checksum: str = ""
@@ -275,9 +275,257 @@ def _tle_field_opt(
     return tle_data.get(field_name, default)  # type: ignore[union-attr]
 
 
+def create_tle_from_mean_keplerian(
+    mean_elements: object,
+    mu_m3_s2: float,
+    epoch_year: int,
+    epoch_day: float,
+    name: str = "OBJECT",
+    satellite_number: int = 0,
+    classification: str = "U",
+    int_designator_year: int = 0,
+    int_designator_launch_number: int = 0,
+    int_designator_piece: str = "",
+    mean_motion_first_derivative: float = 0.0,
+    mean_motion_second_derivative: str = "00000+0",
+    bstar: str = "00000+0",
+    ephemeris_type: int = 2,
+    element_set_number: int = 0,
+    revolution_number_at_epoch: int = 0,
+) -> Tle:
+    """Create a TLE object from mean Keplerian elements.
+
+    Parameters
+    ----------
+    mean_elements : object
+        Mean Keplerian elements array with indices:
+        [0] = semi-major axis (m)
+        [1] = eccentricity (dimensionless)
+        [2] = inclination (rad)
+        [3] = argument of periapsis (rad)
+        [4] = RAAN (rad)
+        [5] = mean anomaly (rad)
+    mu_m3_s2 : float
+        Gravitational parameter (m³/s²).
+    name : str
+        Satellite name.
+    satellite_number : int
+        NORAD catalog number.
+    classification : str
+        Classification (U=Unclassified, C=Classified, S=Secret).
+    int_designator_year : int
+        International designator launch year (2-digit).
+    int_designator_launch_number : int
+        International designator launch number of the year.
+    int_designator_piece : str
+        International designator piece of the launch.
+    epoch_year : int
+        Epoch year (2-digit).
+    epoch_day : float
+        Epoch day of year with fractional portion.
+    mean_motion_first_derivative : float
+        First time derivative of mean motion (revolutions per day²).
+    mean_motion_second_derivative : str
+        Second time derivative of mean motion (TLE exponential format).
+    bstar : str
+        BSTAR drag term (TLE exponential format).
+    ephemeris_type : int
+        Ephemeris type (default: 2 for SGP4).
+    element_set_number : int
+        Element set number.
+    revolution_number_at_epoch : int
+        Revolution number at epoch.
+
+    Returns
+    -------
+    Tle
+        A :class:`Tle` dataclass instance with the provided elements.
+    """
+    import math
+    import common.kepler as kepler
+
+    # Extract mean Keplerian elements from array
+    # Assuming mean_elements is array-like with indices:
+    # [0] = semi-major axis (m)
+    # [1] = eccentricity
+    # [2] = inclination (rad)
+    # [3] = argument of periapsis (rad)
+    # [4] = RAAN (rad)
+    # [5] = mean anomaly (rad)
+    a_m: float = float(mean_elements[0])
+    e: float = float(mean_elements[1])
+    i_rad: float = float(mean_elements[2])
+    omega_rad: float = float(mean_elements[3])
+    raan_rad: float = float(mean_elements[4])
+    M_rad: float = float(mean_elements[5])
+
+    # Compute mean motion from semi-major axis
+    mean_motion_rev_day: float = kepler.semi_major_axis_to_mean_motion(a_m, mu_m3_s2)
+
+    # Create and return TLE object
+    return Tle(
+        name=name,
+        satellite_number=satellite_number,
+        classification=classification,
+        int_designator_year=int_designator_year,
+        int_designator_launch_number=int_designator_launch_number,
+        int_designator_piece=int_designator_piece,
+        epoch_year=epoch_year,
+        epoch_day=epoch_day,
+        mean_motion_first_derivative=mean_motion_first_derivative,
+        mean_motion_second_derivative=mean_motion_second_derivative,
+        bstar=bstar,
+        ephemeris_type=ephemeris_type,
+        element_set_number=element_set_number,
+        inclination_deg=math.degrees(i_rad),
+        raan_deg=math.degrees(raan_rad),
+        eccentricity=e,
+        eccentricity_raw=f"{int(round(e * 1e7)):07d}",
+        arg_perigee_deg=math.degrees(omega_rad),
+        mean_anomaly_deg=math.degrees(M_rad),
+        mean_motion_rev_per_day=mean_motion_rev_day,
+        revolution_number_at_epoch=revolution_number_at_epoch,
+    )
+
+
+def _format_tle_strings(
+    tle_data: Tle | Mapping[str, object],
+) -> tuple[str, str]:
+    """Format TLE data into line1 and line2 strings (without checksums).
+
+    Parameters
+    ----------
+    tle_data : Tle | Mapping[str, object]
+        A :class:`Tle` dataclass instance or a mapping containing the
+        parsed TLE fields returned by :func:`read_tle`.
+
+    Returns
+    -------
+    tuple[str, str]
+        The formatted *(line1_no_cksum, line2_no_cksum)* strings (68 chars each,
+        without trailing checksum digits).
+
+    Raises
+    ------
+    ValueError
+        If formatting fails or line lengths are incorrect.
+    """
+    satellite_number: int = _tle_field(tle_data, "satellite_number")  # type: ignore[assignment]
+    classification: str = _tle_field(tle_data, "classification")  # type: ignore[assignment]
+    int_designator_year: int = _tle_field(tle_data, "int_designator_year")  # type: ignore[assignment]
+    int_designator_launch_number: int = _tle_field(tle_data, "int_designator_launch_number")  # type: ignore[assignment]
+    int_designator_piece: str = _tle_field(tle_data, "int_designator_piece")  # type: ignore[assignment]
+    epoch_year: int = _tle_field(tle_data, "epoch_year")  # type: ignore[assignment]
+    epoch_day: float = _tle_field(tle_data, "epoch_day")  # type: ignore[assignment]
+    mean_motion_first_derivative: float = _tle_field(tle_data, "mean_motion_first_derivative")  # type: ignore[assignment]
+    mean_motion_second_derivative: str = _tle_field(tle_data, "mean_motion_second_derivative")  # type: ignore[assignment]
+    bstar: str = _tle_field(tle_data, "bstar")  # type: ignore[assignment]
+    ephemeris_type: int = _tle_field(tle_data, "ephemeris_type")  # type: ignore[assignment]
+    element_set_number: int = _tle_field(tle_data, "element_set_number")  # type: ignore[assignment]
+    inclination_deg: float = _tle_field(tle_data, "inclination_deg")  # type: ignore[assignment]
+    raan_deg: float = _tle_field(tle_data, "raan_deg")  # type: ignore[assignment]
+    eccentricity: float = _tle_field(tle_data, "eccentricity")  # type: ignore[assignment]
+    arg_perigee_deg: float = _tle_field(tle_data, "arg_perigee_deg")  # type: ignore[assignment]
+    mean_anomaly_deg: float = _tle_field(tle_data, "mean_anomaly_deg")  # type: ignore[assignment]
+    mean_motion_rev_per_day: float = _tle_field(tle_data, "mean_motion_rev_per_day")  # type: ignore[assignment]
+    revolution_number_at_epoch: int = _tle_field(tle_data, "revolution_number_at_epoch")  # type: ignore[assignment]
+
+    sat_num: str = f"{satellite_number:05d}"
+    cls: str = classification.upper()
+
+    intl_year: str = f"{int_designator_year:02d}"
+    intl_launch: str = f"{int_designator_launch_number:03d}"
+    intl_piece: str = int_designator_piece.strip().upper().ljust(3)[:3]
+
+    ep_year: str = f"{epoch_year:02d}"
+    ep_day: str = f"{epoch_day:012.8f}"
+
+    mm_first: str = _format_first_derivative(mean_motion_first_derivative)
+    mm_second: str = _parse_tle_exponential(
+        mean_motion_second_derivative, "mean-motion-second-derivative"
+    )
+    bstar_fmt: str = _parse_tle_exponential(bstar, "bstar")
+
+    eph_type: str = str(ephemeris_type)
+    elem_set: str = f"{element_set_number:4d}"
+
+    inc: str = f"{inclination_deg:8.4f}"
+    raan: str = f"{raan_deg:8.4f}"
+    ecc: str = f"{int(round(eccentricity * 1e7)):07d}"
+    argp: str = f"{arg_perigee_deg:8.4f}"
+    ma: str = f"{mean_anomaly_deg:8.4f}"
+    mm: str = f"{mean_motion_rev_per_day:11.8f}"
+    rev_num: str = f"{revolution_number_at_epoch:05d}"
+
+    line1_no_cksum: str = (
+        f"1 {sat_num}{cls} "
+        f"{intl_year}{intl_launch}{intl_piece} "
+        f"{ep_year}{ep_day} "
+        f"{mm_first} {mm_second} {bstar_fmt} "
+        f"{eph_type} "
+        f"{elem_set}"
+    )
+
+    line2_no_cksum: str = (
+        f"2 {sat_num} " f"{inc} {raan} {ecc} {argp} {ma} " f"{mm}{rev_num}"
+    )
+
+    if len(line1_no_cksum) != 68:
+        raise ValueError(
+            f"Internal formatting error: line 1 length is "
+            f"{len(line1_no_cksum)} (expected 68)"
+        )
+
+    if len(line2_no_cksum) != 68:
+        raise ValueError(
+            f"Internal formatting error: line 2 length is "
+            f"{len(line2_no_cksum)} (expected 68)"
+        )
+
+    return line1_no_cksum, line2_no_cksum
+
+
+def format_tle_strings(
+    tle_data: Tle | Mapping[str, object],
+) -> tuple[str, str]:
+    line1_no_cksum: str
+    line2_no_cksum: str
+    line1_no_cksum, line2_no_cksum = _format_tle_strings(tle_data)
+
+    line1: str = line1_no_cksum + compute_tle_checksum(line1_no_cksum)
+    line2: str = line2_no_cksum + compute_tle_checksum(line2_no_cksum)
+    return line1, line2
+
+
 # ===================================================================
 # Epoch utilities
 # ===================================================================
+
+
+def datetime_to_tle_epoch(epoch_dt: datetime) -> tuple[int, float]:
+    """Convert datetime to (two-digit year, day-of-year with fraction).
+
+    Parameters
+    ----------
+    epoch_dt : datetime
+        Epoch datetime.
+
+    Returns
+    -------
+    tuple[int, float]
+        Two-digit year and day-of-year with fractional portion.
+    """
+    epoch_year: int = epoch_dt.year % 100
+    start_of_year: datetime
+    if epoch_dt.tzinfo is not None:
+        epoch_dt = epoch_dt.astimezone(timezone.utc)
+        start_of_year = datetime(epoch_dt.year, 1, 1, tzinfo=timezone.utc)
+    else:
+        start_of_year = datetime(epoch_dt.year, 1, 1)
+    epoch_day: float = (
+        epoch_dt - start_of_year
+    ).total_seconds() / time_utils.SECONDS_PER_DAY + 1.0
+    return epoch_year, epoch_day
 
 
 def tle_epoch_to_iso8601(epoch_year: int, epoch_day: float) -> str:
@@ -337,17 +585,8 @@ def iso8601_to_tle_epoch(iso_str: str) -> tuple[int, float]:
     common.time_utils.iso8601_to_datetime : Shared ISO 8601 parsing utility.
     """
     dt: datetime = time_utils.iso8601_to_datetime(iso_str)
-    full_year: int = dt.year
-    jan1: datetime = datetime(full_year, 1, 1, tzinfo=dt.tzinfo if dt.tzinfo else None)
-    epoch_day: float = (dt - jan1).total_seconds() / 86400.0 + 1.0
 
-    # 2-digit year
-    if full_year >= 2000:
-        epoch_year: int = full_year - 2000
-    else:
-        epoch_year = full_year - 1900
-
-    return epoch_year, epoch_day
+    return datetime_to_tle_epoch(dt)
 
 
 # ===================================================================
@@ -462,82 +701,9 @@ def write_tle(
         with open(dest, "w", encoding="utf-8") as fh:
             return write_tle(fh, tle_data)
 
-    satellite_number: int = _tle_field(tle_data, "satellite_number")  # type: ignore[assignment]
-    classification: str = _tle_field(tle_data, "classification")  # type: ignore[assignment]
-    int_designator_year: int = _tle_field(tle_data, "int_designator_year")  # type: ignore[assignment]
-    int_designator_launch_number: int = _tle_field(tle_data, "int_designator_launch_number")  # type: ignore[assignment]
-    int_designator_piece: str = _tle_field(tle_data, "int_designator_piece")  # type: ignore[assignment]
-    epoch_year: int = _tle_field(tle_data, "epoch_year")  # type: ignore[assignment]
-    epoch_day: float = _tle_field(tle_data, "epoch_day")  # type: ignore[assignment]
-    mean_motion_first_derivative: float = _tle_field(tle_data, "mean_motion_first_derivative")  # type: ignore[assignment]
-    mean_motion_second_derivative: str = _tle_field(tle_data, "mean_motion_second_derivative")  # type: ignore[assignment]
-    bstar: str = _tle_field(tle_data, "bstar")  # type: ignore[assignment]
-    ephemeris_type: int = _tle_field(tle_data, "ephemeris_type")  # type: ignore[assignment]
-    element_set_number: int = _tle_field(tle_data, "element_set_number")  # type: ignore[assignment]
-    inclination_deg: float = _tle_field(tle_data, "inclination_deg")  # type: ignore[assignment]
-    raan_deg: float = _tle_field(tle_data, "raan_deg")  # type: ignore[assignment]
-    eccentricity: float = _tle_field(tle_data, "eccentricity")  # type: ignore[assignment]
-    arg_perigee_deg: float = _tle_field(tle_data, "arg_perigee_deg")  # type: ignore[assignment]
-    mean_anomaly_deg: float = _tle_field(tle_data, "mean_anomaly_deg")  # type: ignore[assignment]
-    mean_motion_rev_per_day: float = _tle_field(tle_data, "mean_motion_rev_per_day")  # type: ignore[assignment]
-    revolution_number_at_epoch: int = _tle_field(tle_data, "revolution_number_at_epoch")  # type: ignore[assignment]
+    line1, line2 = format_tle_strings(tle_data)
+
     name: str = _tle_field_opt(tle_data, "name", "")  # type: ignore[assignment]
-
-    sat_num: str = f"{satellite_number:05d}"
-    cls: str = classification.upper()
-
-    intl_year: str = f"{int_designator_year:02d}"
-    intl_launch: str = f"{int_designator_launch_number:03d}"
-    intl_piece: str = int_designator_piece.strip().upper().ljust(3)[:3]
-
-    ep_year: str = f"{epoch_year:02d}"
-    ep_day: str = f"{epoch_day:012.8f}"
-
-    mm_first: str = _format_first_derivative(mean_motion_first_derivative)
-    mm_second: str = _parse_tle_exponential(
-        mean_motion_second_derivative, "mean-motion-second-derivative"
-    )
-    bstar_fmt: str = _parse_tle_exponential(bstar, "bstar")
-
-    eph_type: str = str(ephemeris_type)
-    elem_set: str = f"{element_set_number:4d}"
-
-    inc: str = f"{inclination_deg:8.4f}"
-    raan: str = f"{raan_deg:8.4f}"
-    ecc: str = f"{int(round(eccentricity * 1e7)):07d}"
-    argp: str = f"{arg_perigee_deg:8.4f}"
-    ma: str = f"{mean_anomaly_deg:8.4f}"
-    mm: str = f"{mean_motion_rev_per_day:11.8f}"
-    rev_num: str = f"{revolution_number_at_epoch:05d}"
-
-    line1_no_cksum: str = (
-        f"1 {sat_num}{cls} "
-        f"{intl_year}{intl_launch}{intl_piece} "
-        f"{ep_year}{ep_day} "
-        f"{mm_first} {mm_second} {bstar_fmt} "
-        f"{eph_type} "
-        f"{elem_set}"
-    )
-
-    line2_no_cksum: str = (
-        f"2 {sat_num} " f"{inc} {raan} {ecc} {argp} {ma} " f"{mm}{rev_num}"
-    )
-
-    if len(line1_no_cksum) != 68:
-        raise ValueError(
-            f"Internal formatting error: line 1 length is "
-            f"{len(line1_no_cksum)} (expected 68)"
-        )
-
-    if len(line2_no_cksum) != 68:
-        raise ValueError(
-            f"Internal formatting error: line 2 length is "
-            f"{len(line2_no_cksum)} (expected 68)"
-        )
-
-    line1: str = line1_no_cksum + compute_tle_checksum(line1_no_cksum)
-    line2: str = line2_no_cksum + compute_tle_checksum(line2_no_cksum)
-
     w: Callable[[str], int] = dest.write
 
     if name:

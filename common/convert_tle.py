@@ -315,14 +315,16 @@ def tle_to_omm(
         ra_of_asc_node=tle_obj.raan_deg,
         arg_of_pericenter=tle_obj.arg_perigee_deg,
         mean_anomaly=tle_obj.mean_anomaly_deg,
-        ephemeris_type=tle_obj.ephemeris_type,
-        classification_type=tle_obj.classification,
-        norad_cat_id=tle_obj.satellite_number,
-        element_set_no=tle_obj.element_set_number,
-        rev_at_epoch=tle_obj.revolution_number_at_epoch,
-        bstar=bstar_omm,
-        mean_motion_dot=mean_motion_dot_omm,
-        mean_motion_ddot=mean_motion_ddot_omm,
+        tle_parameters=omm.TleParameters(
+            ephemeris_type=tle_obj.ephemeris_type,
+            classification_type=tle_obj.classification,
+            norad_cat_id=tle_obj.satellite_number,
+            element_set_no=tle_obj.element_set_number,
+            rev_at_epoch=tle_obj.revolution_number_at_epoch,
+            bstar=bstar_omm,
+            mean_motion_dot=mean_motion_dot_omm,
+            mean_motion_ddot=mean_motion_ddot_omm,
+        ),
     )
 
 
@@ -349,20 +351,28 @@ def omm_to_tle(omm_obj: omm.CcsdsOmm) -> tle.Tle:
     The returned :class:`tle.Tle` will have empty ``line1`` and ``line2`` fields.
     Use :func:`~common.tle.write_tle` to generate the formatted TLE lines.
     """
+    # Ensure TLE parameters are present
+    if omm_obj.tle_parameters is None:
+        raise ValueError("OMM object must have TLE parameters to convert to TLE")
+
+    tle_params = omm_obj.tle_parameters
+
     # Convert epoch
     epoch_year: int
     epoch_day: float
     epoch_year, epoch_day = tle.iso8601_to_tle_epoch(omm_obj.epoch)
 
     # Convert BSTAR from OMM scientific to TLE exponential
-    bstar_float: float = _omm_scientific_to_float(omm_obj.bstar)
+    bstar_float: float = _omm_scientific_to_float(tle_params.bstar)
     bstar_tle: str = _float_to_tle_exponential(bstar_float)
 
     # Convert mean motion dot from OMM scientific to float
-    mean_motion_dot_float: float = _omm_scientific_to_float(omm_obj.mean_motion_dot)
+    mean_motion_dot_float: float = _omm_scientific_to_float(tle_params.mean_motion_dot)
 
     # Convert mean motion ddot from OMM scientific to TLE exponential
-    mean_motion_ddot_float: float = _omm_scientific_to_float(omm_obj.mean_motion_ddot)
+    mean_motion_ddot_float: float = _omm_scientific_to_float(
+        tle_params.mean_motion_ddot
+    )
     mean_motion_ddot_tle: str = _float_to_tle_exponential(mean_motion_ddot_float)
 
     # Parse Object ID into international designator components
@@ -378,8 +388,8 @@ def omm_to_tle(omm_obj: omm.CcsdsOmm) -> tle.Tle:
         name=omm_obj.object_name,
         line1="",
         line2="",
-        satellite_number=omm_obj.norad_cat_id,
-        classification=omm_obj.classification_type,
+        satellite_number=tle_params.norad_cat_id,
+        classification=tle_params.classification_type,
         int_designator_year=int_year,
         int_designator_launch_number=int_launch,
         int_designator_piece=int_piece,
@@ -388,8 +398,8 @@ def omm_to_tle(omm_obj: omm.CcsdsOmm) -> tle.Tle:
         mean_motion_first_derivative=mean_motion_dot_float,
         mean_motion_second_derivative=mean_motion_ddot_tle,
         bstar=bstar_tle,
-        ephemeris_type=omm_obj.ephemeris_type,
-        element_set_number=omm_obj.element_set_no,
+        ephemeris_type=tle_params.ephemeris_type,
+        element_set_number=tle_params.element_set_no,
         inclination_deg=omm_obj.inclination,
         raan_deg=omm_obj.ra_of_asc_node,
         eccentricity_raw=eccentricity_raw,
@@ -397,7 +407,7 @@ def omm_to_tle(omm_obj: omm.CcsdsOmm) -> tle.Tle:
         arg_perigee_deg=omm_obj.arg_of_pericenter,
         mean_anomaly_deg=omm_obj.mean_anomaly,
         mean_motion_rev_per_day=omm_obj.mean_motion,
-        revolution_number_at_epoch=omm_obj.rev_at_epoch,
+        revolution_number_at_epoch=tle_params.rev_at_epoch,
         line1_checksum="",
         line1_checksum_expected="",
         line2_checksum="",
