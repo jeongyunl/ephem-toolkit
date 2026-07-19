@@ -37,7 +37,7 @@ Convert TDB seconds since J2000 to a UTC datetime object.
 ### ISO 8601 Parsing and Formatting
 
 #### `iso8601_to_datetime(epoch_str: str) -> datetime`
-Parse an ISO-8601 epoch string into a datetime object. Supports various formats with 'T' or space separators, fractional seconds, and 'Z' timezone indicator.
+Parse an ISO 8601 epoch string into a datetime object. Supports formats with 'T' or space separators, fractional seconds, and optional 'Z' timezone indicator.
 
 #### `datetime_to_iso8601(dt: datetime, use_t_separator: bool = True, fractional_second_places: int = 3) -> str`
 Convert a datetime object to an ISO 8601 formatted string in UTC.
@@ -45,26 +45,26 @@ Convert a datetime object to an ISO 8601 formatted string in UTC.
 ### CLI Duration/Step-Size Parsing
 
 #### `parse_duration_to_timedelta(value: str, default_unit: str = "s", allow_negative: bool = False, allow_zero: bool = False) -> timedelta`
-Parse a duration token and return a timedelta. Supports both single-component durations (e.g., "10s", "5m") and multi-component durations (e.g., "1h30m", "2m30s").
+Parse a duration string and return a timedelta. Supports both single-component durations (e.g., "5m", "90s") and multi-component durations (e.g., "1h30m", "2m30s").
 
 **Parameters:**
-- `value`: Duration string with optional unit suffix (s, m, h, d). Supports multi-component format like "1h30m" or "2m30s"
-- `default_unit`: Unit assumed when no suffix is provided (default: "s")
-- `allow_negative`: If True, allow negative durations (default: False)
-- `allow_zero`: If True, allow zero duration (default: False)
+- `value`: Duration string with optional unit suffix (s, m, h, d). Supports multi-component format like "1h30m" or "2m30s".
+- `default_unit`: Unit to apply when no unit suffix is present. Default is "s".
+- `allow_negative`: If True, allow negative durations (default: False).
+- `allow_zero`: If True, allow zero durations (default: False).
 
-**Returns:** Duration as a timedelta object
+**Returns:** Duration as a timedelta object.
 
 #### `parse_duration_to_seconds(value: str, default_unit: str = "s", allow_negative: bool = False, allow_zero: bool = False) -> float`
-Parse a duration token and convert to seconds. Convenience wrapper around `parse_duration_to_timedelta` that returns a float in seconds. Supports units: s, m, h, d.
+Parse a duration string and convert to seconds. Convenience wrapper around `parse_duration_to_timedelta` that returns a float in seconds.
 
 **Parameters:**
-- `value`: Duration string with optional unit suffix (s, m, h, d). Supports multi-component format like "1h30m" or "2m30s"
-- `default_unit`: Unit assumed when no suffix is provided (default: "s")
-- `allow_negative`: If True, allow negative durations (default: False)
-- `allow_zero`: If True, allow zero duration (default: False)
+- `value`: Duration string with optional unit suffix (s, m, h, d). Supports multi-component format like "1h30m" or "2m30s".
+- `default_unit`: Unit to apply when no unit suffix is present. Default is "s".
+- `allow_negative`: If True, allow negative durations (default: False).
+- `allow_zero`: If True, allow zero durations (default: False).
 
-**Returns:** Duration in seconds
+**Returns:** Duration in seconds.
 
 ### Constants
 - `SECONDS_PER_MINUTE = 60.0`
@@ -319,7 +319,8 @@ Extract osculating Keplerian elements at the TLE epoch.
 **Purpose**: Read, parse, and write NORAD Two-Line Element (TLE) sets.
 
 ### Key Dependencies
-- `datetime`, `pathlib`, `re`, `dataclasses`
+- `datetime`, `pathlib`, `re`, `dataclasses`, `typing`
+- `common.common`, `common.time_utils`
 
 ### Data Structure
 
@@ -348,11 +349,20 @@ Parse TLE elements from a text stream. Accepts 2-line or 3-line format (with nam
 #### `write_tle(dest: TextIO | str | Path, tle_data: Tle | Mapping[str, object]) -> tuple[str, str]`
 Write a TLE to a text stream or file path. Returns the formatted (line1, line2) strings.
 
+#### `datetime_to_tle_epoch(epoch_dt: datetime) -> tuple[int, float]`
+Convert a datetime object to TLE epoch components (2-digit year and fractional day).
+
 #### `tle_epoch_to_iso8601(epoch_year: int, epoch_day: float) -> str`
 Convert TLE epoch (2-digit year + fractional day) to ISO 8601 datetime string.
 
 #### `iso8601_to_tle_epoch(iso_str: str) -> tuple[int, float]`
 Convert ISO 8601 datetime string to TLE epoch (2-digit year + fractional day).
+
+#### `format_tle_strings(tle_data: Tle | Mapping[str, object]) -> tuple[str, str]`
+Format TLE data into raw TLE line strings with checksums.
+
+#### `create_tle_from_mean_keplerian(mean_elements, mu_m3_s2, epoch_year, epoch_day, ...) -> Tle`
+Construct a TLE dataclass instance from mean Keplerian elements, with optional TLE header fields.
 
 #### `compute_tle_checksum(line_without_checksum: str) -> str`
 Return the single-digit TLE checksum character for a TLE line.
@@ -364,7 +374,9 @@ Return the single-digit TLE checksum character for a TLE line.
 **Purpose**: Read, parse, and write CCSDS Orbit Mean-Elements Message (OMM) files.
 
 ### Key Dependencies
-- `dataclasses`, `pathlib`
+- `dataclasses`, `pathlib`, `typing`, `datetime`
+- `numpy`
+- `common.common`, `common.consts`, `common.time_utils`, `common.kepler`
 
 ### Data Structure
 
@@ -377,11 +389,10 @@ Parsed CCSDS Orbit Mean-Elements Message. All angular quantities are stored in d
 - `comments`: List of comment lines
 - `object_name`, `object_id`: Satellite identification
 - `center_name`, `ref_frame`, `time_system`: Reference frame information
-- `mean_element_theory`: Mean element theory used (e.g., SGP/SGP4)
+- `mean_element_theory`: Mean element theory used (e.g., DSST, SGP4)
 - `epoch`: Epoch time (ISO 8601 format)
 - `mean_motion`, `eccentricity`, `inclination`, `ra_of_asc_node`, `arg_of_pericenter`, `mean_anomaly`: Orbital elements
-- `ephemeris_type`, `classification_type`, `norad_cat_id`, `element_set_no`, `rev_at_epoch`: TLE-related parameters
-- `bstar`, `mean_motion_dot`, `mean_motion_ddot`: Drag and perturbation terms
+- `tle_parameters`: Optional `TleParameters` object containing TLE-related metadata such as `ephemeris_type`, `classification_type`, `norad_cat_id`, `element_set_no`, `rev_at_epoch`, `bstar`, `mean_motion_dot`, and `mean_motion_ddot`
 
 ### Functions
 
@@ -611,7 +622,7 @@ Lagrange polynomial interpolator that selects a local polynomial window around e
 - Vallado, D.A. "Fundamentals of Astrodynamics and Applications"
 - Brouwer, D. "Solution of the Problem of Artificial Satellite Theory Without Drag", Astronomical Journal, 64, 1959
 - Hoots, F.R. & Roehrich, R.L. "Spacetrack Report No. 3", 1980
-- CCSDS 502.0-B-2 "Orbit Mean-Elements Message (OMM)" standard
+- CCSDS 502.0-B-3 "Orbit Mean-Elements Message (OMM)" standard
 - CCSDS 502.0-B-2 "Orbit Ephemeris Message (OEM)" standard
 - ISO 8601 "Date and time representations"
 - NORAD Two-Line Element Set Format

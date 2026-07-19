@@ -19,6 +19,7 @@ common/              Shared Python library modules
 common/interpolator/ Interpolation sub-library (Lagrange, generic)
 time_conversion/     C++ time-conversion library, CLI, and tests
 oem_to_tle/          TLE estimation application module
+oem_to_omm/          OEM-to-OMM estimation application module
 oem_to_kepler/       Keplerian element extraction application module
 propagation/         Python propagation scripts
 plotting/            Python orbit visualization scripts
@@ -83,6 +84,10 @@ Higher-level packages that combine library code into complete workflows.
 Estimates a Two-Line Element set from an OEM Cartesian arc using iterative least-squares fitting. Includes least-squares estimation, iterative refinement, SGP4 model evaluation, and TLE line construction.
 
 See [OEM_TO_TLE.md](OEM_TO_TLE.md) for full usage details.
+
+### OEM-to-OMM (`oem_to_omm/`)
+
+Fits OEM state vectors to osculating Kepler, mean Kepler, or TLE-derived OMM output.
 
 ### OEM-to-Kepler (`oem_to_kepler/`)
 
