@@ -38,23 +38,6 @@ graph LR
         mod_bin_tle_to_omm([tle_to_omm])
     end
 
-    subgraph oem_to_kepler
-        mod_oem_to_kepler([oem_to_kepler])
-    end
-
-    subgraph oem_to_tle
-        mod_oem_to_tle_constants[oem_to_tle.constants]
-        mod_oem_to_tle_estimation[oem_to_tle.estimation]
-        mod_oem_to_tle_evaluate_oem_to_tle([evaluate_oem_to_tle])
-        mod_oem_to_tle_linalg[oem_to_tle.linalg]
-        mod_oem_to_tle_models[oem_to_tle.models]
-        mod_oem_to_tle_oem_to_tle([oem_to_tle])
-        mod_oem_to_tle_orbital_mechanics[oem_to_tle.orbital_mechanics]
-        mod_oem_to_tle_parse_cli_args[oem_to_tle.parse_cli_args]
-        mod_oem_to_tle_refinement[oem_to_tle.refinement]
-        mod_oem_to_tle_tle_builder[oem_to_tle.tle_builder]
-    end
-
     subgraph oem_to_omm
         mod_oem_to_omm_constants[oem_to_omm.constants]
         mod_oem_to_omm_estimation[oem_to_omm.estimation]
@@ -120,62 +103,16 @@ graph LR
     mod_bin_tle_to_omm --> mod_common_convert_tle
     mod_bin_tle_to_omm --> mod_common_tle
 
-    %% ===== oem_to_kepler edges =====
-    mod_oem_to_kepler --> mod_common_consts
-    mod_oem_to_kepler --> mod_common_kepler
-    mod_oem_to_kepler --> mod_common_mean_kepler
-    mod_oem_to_kepler --> mod_common_oem
-    mod_oem_to_kepler --> mod_common_time_utils
-
-    %% ===== oem_to_tle edges =====
-    mod_oem_to_tle_estimation --> mod_common_common
-    mod_oem_to_tle_estimation --> mod_common_consts
-    mod_oem_to_tle_estimation --> mod_common_convert_tle
-    mod_oem_to_tle_estimation --> mod_common_kepler
-    mod_oem_to_tle_estimation --> mod_oem_to_tle_constants
-    mod_oem_to_tle_estimation --> mod_oem_to_tle_models
-    mod_oem_to_tle_estimation --> mod_oem_to_tle_orbital_mechanics
-    mod_oem_to_tle_estimation --> mod_oem_to_tle_tle_builder
-    mod_oem_to_tle_evaluate_oem_to_tle --> mod_common_oem
-    mod_oem_to_tle_evaluate_oem_to_tle --> mod_common_time_utils
-    mod_oem_to_tle_models --> mod_oem_to_tle_constants
-    mod_oem_to_tle_oem_to_tle --> mod_common_common
-    mod_oem_to_tle_oem_to_tle --> mod_common_oem
-    mod_oem_to_tle_oem_to_tle --> mod_common_time_utils
-    mod_oem_to_tle_oem_to_tle --> mod_common_tle
-    mod_oem_to_tle_oem_to_tle --> mod_oem_to_tle_constants
-    mod_oem_to_tle_oem_to_tle --> mod_oem_to_tle_estimation
-    mod_oem_to_tle_oem_to_tle --> mod_oem_to_tle_models
-    mod_oem_to_tle_oem_to_tle --> mod_oem_to_tle_parse_cli_args
-    mod_oem_to_tle_oem_to_tle --> mod_oem_to_tle_refinement
-    mod_oem_to_tle_oem_to_tle --> mod_oem_to_tle_tle_builder
-    mod_oem_to_tle_orbital_mechanics --> mod_common_common
-    mod_oem_to_tle_orbital_mechanics --> mod_common_consts
-    mod_oem_to_tle_orbital_mechanics --> mod_oem_to_tle_constants
-    mod_oem_to_tle_orbital_mechanics --> mod_oem_to_tle_models
-    mod_oem_to_tle_parse_cli_args --> mod_common_oem
-    mod_oem_to_tle_refinement --> mod_common_common
-    mod_oem_to_tle_refinement --> mod_common_consts
-    mod_oem_to_tle_refinement --> mod_common_convert_tle
-    mod_oem_to_tle_refinement --> mod_common_kepler
-    mod_oem_to_tle_refinement --> mod_common_tle
-    mod_oem_to_tle_refinement --> mod_oem_to_tle_constants
-    mod_oem_to_tle_refinement --> mod_oem_to_tle_linalg
-    mod_oem_to_tle_refinement --> mod_oem_to_tle_models
-    mod_oem_to_tle_refinement --> mod_oem_to_tle_tle_builder
-    mod_oem_to_tle_tle_builder --> mod_common_tle
-    mod_oem_to_tle_tle_builder --> mod_oem_to_tle_models
-
     %% ===== oem_to_omm edges =====
     mod_oem_to_omm_estimation --> mod_common_common
     mod_oem_to_omm_estimation --> mod_common_consts
     mod_oem_to_omm_estimation --> mod_common_convert_tle
     mod_oem_to_omm_estimation --> mod_common_kepler
     mod_oem_to_omm_estimation --> mod_common_tle
-    mod_oem_to_omm_estimation --> mod_oem_to_tle_constants
-    mod_oem_to_omm_estimation --> mod_oem_to_tle_models
-    mod_oem_to_omm_estimation --> mod_oem_to_tle_orbital_mechanics
-    mod_oem_to_omm_estimation --> mod_oem_to_tle_tle_builder
+    mod_oem_to_omm_estimation --> mod_oem_to_omm_constants
+    mod_oem_to_omm_estimation --> mod_oem_to_omm_models
+    mod_oem_to_omm_estimation --> mod_oem_to_omm_orbital_mechanics
+    mod_oem_to_omm_estimation --> mod_oem_to_omm_tle_builder
     mod_oem_to_omm_evaluate_fit_tle --> mod_common_consts
     mod_oem_to_omm_evaluate_fit_tle --> mod_common_oem
     mod_oem_to_omm_evaluate_fit_tle --> mod_common_time_utils

@@ -25,17 +25,14 @@ flowchart LR
 
     %% ===== Script Nodes =====
 
-    %% tle/ scripts
+    %% bin/ scripts
     download_tle(["download_tle.py"])
     omm_to_tle(["omm_to_tle.py"])
     tle_to_omm(["tle_to_omm.py"])
     tle_info(["tle_info.py"])
 
-    %% oem_to_tle/ scripts
-    oem_to_tle(["oem_to_tle.py"])
-
-    %% oem_to_kepler/ scripts
-    oem_to_kepler(["oem_to_kepler.py"])
+    %% oem_to_omm/ scripts
+    oem_to_omm(["oem_to_omm.py"])
 
     %% propagation/ scripts
     propagate_tle(["propagate_tle.py"])
@@ -56,8 +53,8 @@ flowchart LR
     convert_time(["convert_time.py"])
     convert_time2(["convert_time2.py"])
 
-    %% evaluation scripts
-    evaluate_oem_to_tle(["evaluate_oem_to_tle.py"])
+    %% oem_to_omm/ evaluation scripts
+    evaluate_fit_tle(["evaluate_fit_tle.py"])
 
     %% ===== Data Flows =====
 
@@ -66,13 +63,10 @@ flowchart LR
     download_tle -->|"TLE format"| fmt_tle
     download_tle -->|"OMM format"| fmt_omm
 
-    %% oem_to_tle.py: OEM state vectors → TLE
-    fmt_oem --> oem_to_tle
-    oem_to_tle --> fmt_tle
-
-    %% oem_to_kepler.py: OEM → fitted mean Keplerian elements
-    fmt_oem --> oem_to_kepler
-    oem_to_kepler --> fmt_kepler
+    %% oem_to_omm.py: OEM state vectors → OMM (Keplerian or TLE)
+    fmt_oem --> oem_to_omm
+    oem_to_omm --> fmt_omm
+    oem_to_omm --> fmt_tle
 
     %% omm_to_tle.py: OMM → TLE
     fmt_omm --> omm_to_tle
@@ -129,7 +123,7 @@ flowchart LR
     fmt_time --> convert_time2
     convert_time2 --> fmt_time
 
-    %% evaluate_oem_to_tle.py: OEM → oem_to_tle → propagate_tle → comparison
-    fmt_oem --> evaluate_oem_to_tle
-    evaluate_oem_to_tle -->|"calls"| oem_to_tle
-    evaluate_oem_to_tle -->|"calls"| propagate_tle
+    %% evaluate_fit_tle.py: OEM → fit TLE → propagate TLE → comparison
+    fmt_oem --> evaluate_fit_tle
+    evaluate_fit_tle -->|"uses"| oem_to_omm
+    evaluate_fit_tle -->|"uses"| propagate_tle

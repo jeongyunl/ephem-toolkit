@@ -40,7 +40,7 @@ def test_read_tle_three_line_returns_tle_dataclass() -> None:
 
     assert isinstance(t, tle.Tle)
     assert t.name == ISS_NAME
-    assert t.satellite_number == 25544
+    assert t.norad_cat_id == 25544
     assert t.classification == "U"
     assert t.int_designator_year == 98
     assert t.int_designator_launch_number == 67
@@ -70,7 +70,7 @@ def test_read_tle_two_line_sets_empty_name() -> None:
 
     assert isinstance(t, tle.Tle)
     assert t.name == ""
-    assert t.satellite_number == 57392
+    assert t.norad_cat_id == 57392
     assert t.inclination_deg == pytest.approx(99.5618, abs=1e-4)
     assert t.mean_motion_first_derivative == pytest.approx(-0.00000025, abs=1e-10)
 
@@ -137,7 +137,7 @@ def test_read_tle_checksums_match() -> None:
 def test_tle_getitem() -> None:
     """Should support tle['field'] dict-style access."""
     t = tle.read_tle(io.StringIO(ISS_3LINE))
-    assert t["satellite_number"] == 25544
+    assert t["norad_cat_id"] == 25544
     assert t["name"] == ISS_NAME
 
 
@@ -151,14 +151,14 @@ def test_tle_getitem_raises_keyerror_for_missing() -> None:
 def test_tle_contains() -> None:
     """Should support 'field in tle' membership test."""
     t = tle.read_tle(io.StringIO(ISS_3LINE))
-    assert "satellite_number" in t
+    assert "norad_cat_id" in t
     assert "nonexistent_field" not in t
 
 
 def test_tle_get_with_default() -> None:
     """Should return default for missing keys via .get()."""
     t = tle.read_tle(io.StringIO(ISS_3LINE))
-    assert t.get("satellite_number") == 25544
+    assert t.get("norad_cat_id") == 25544
     assert t.get("nonexistent", "fallback") == "fallback"
 
 
@@ -167,7 +167,7 @@ def test_tle_to_dict() -> None:
     t = tle.read_tle(io.StringIO(ISS_3LINE))
     d = t.to_dict()
     assert isinstance(d, dict)
-    assert d["satellite_number"] == 25544
+    assert d["norad_cat_id"] == 25544
     assert d["name"] == ISS_NAME
     assert d["eccentricity"] == pytest.approx(0.0007202, abs=1e-7)
 
@@ -201,7 +201,7 @@ def test_write_tle_from_dict() -> None:
     """Should accept a plain dict and produce valid TLE lines."""
     tle_dict = {
         "name": "",
-        "satellite_number": 57392,
+        "norad_cat_id": 57392,
         "classification": "U",
         "int_designator_year": 23,
         "int_designator_launch_number": 100,
@@ -251,7 +251,7 @@ def test_round_trip_preserves_elements(tle_path: Path) -> None:
     tle2 = tle.read_tle(buf)
 
     assert tle2.name == tle1.name
-    assert tle2.satellite_number == tle1.satellite_number
+    assert tle2.norad_cat_id == tle1.norad_cat_id
     assert tle2.classification == tle1.classification
     assert tle2.int_designator_year == tle1.int_designator_year
     assert tle2.int_designator_launch_number == tle1.int_designator_launch_number
@@ -268,7 +268,9 @@ def test_round_trip_preserves_elements(tle_path: Path) -> None:
     assert tle2.eccentricity == pytest.approx(tle1.eccentricity, abs=1e-7)
     assert tle2.arg_perigee_deg == pytest.approx(tle1.arg_perigee_deg, abs=1e-4)
     assert tle2.mean_anomaly_deg == pytest.approx(tle1.mean_anomaly_deg, abs=1e-4)
-    assert tle2.mean_motion_rev_per_day == pytest.approx(tle1.mean_motion_rev_per_day, abs=1e-8)
+    assert tle2.mean_motion_rev_per_day == pytest.approx(
+        tle1.mean_motion_rev_per_day, abs=1e-8
+    )
     assert tle2.revolution_number_at_epoch == tle1.revolution_number_at_epoch
     # Checksums should still be valid
     assert tle2.line1_checksum == tle2.line1_checksum_expected

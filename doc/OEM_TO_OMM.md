@@ -1,45 +1,54 @@
-# OEM to TLE Conversion
+# OEM to OMM Conversion
 
-Comprehensive documentation for the `oem_to_tle` module, which estimates Two-Line Element (TLE) sets from OEM-like Cartesian state vectors.
+Comprehensive documentation for the `oem_to_omm` module, which estimates Orbit Mean-Elements Messages (OMM) including Two-Line Element (TLE) sets from OEM-like Cartesian state vectors.
 
 ## Overview
 
-The `oem_to_tle` module provides tools for converting orbit ephemeris data in OEM (Orbit Ephemeris Message) format or raw Cartesian state vectors into TLE (Two-Line Element) format. This is a non-trivial estimation problem because TLEs encode SGP4-compatible mean orbital elements rather than osculating Cartesian states.
+The `oem_to_omm` module provides tools for converting orbit ephemeris data in OEM (Orbit Ephemeris Message) format or raw Cartesian state vectors into OMM (Orbit Mean-Elements Message) format, including TLE (Two-Line Element) format. This is a non-trivial estimation problem because TLEs encode SGP4-compatible mean orbital elements rather than osculating Cartesian states.
 
 ## Module Structure
 
-The `oem_to_tle/` directory contains:
+The `oem_to_omm/` directory contains:
 
-- `oem_to_tle.py` — Main executable script for TLE estimation
-- `constants.py` — Physical and mathematical constants
-- `estimation.py` — Core estimation algorithms for TLE elements
-- `parse_cli_args.py` — Command-line argument parsing utilities
-- `linalg.py` — Linear algebra utilities
-- `models.py` — Data models and dataclasses
-- `orbital_mechanics.py` — Orbital mechanics calculations
-- `refinement.py` — Refinement algorithms for epoch state matching
-- `tle_builder.py` — TLE construction and formatting
-- `evaluate_oem_to_tle.py` — Round-trip accuracy evaluation tool
+- `oem_to_omm.py` — Main executable script for OMM/TLE estimation
+- `fit_common.py` — Common fitting utilities
+- `fit_mean_kepler.py` — Mean Keplerian element fitting
+- `fit_osculating_kepler.py` — Osculating Keplerian element fitting
+- `fit_tle_main.py` — TLE fitting main entry point
+- `fit_tle/` — TLE fitting submodule containing:
+  - `constants.py` — Physical and mathematical constants
+  - `estimation.py` — Core estimation algorithms for TLE elements
+  - `linalg.py` — Linear algebra utilities
+  - `models.py` — Data models and dataclasses
+  - `orbital_mechanics.py` — Orbital mechanics calculations
+  - `refinement.py` — Refinement algorithms for epoch state matching
+  - `tle_builder.py` — TLE construction and formatting
+- `evaluate_fit_tle.py` — Round-trip accuracy evaluation tool
 
-## Main Script: `oem_to_tle.py`
+## Main Script: `oem_to_omm.py`
 
 ### Purpose
 
-Estimates a valid Two-Line Element (TLE) set from a time series of OEM-like Cartesian state vectors with position in km and velocity in km/s.
+Converts OEM state vectors to osculating Keplerian elements or OMM format. Supports three modes:
+
+- **`--kepler` mode**: Fits osculating Keplerian elements using two-body propagation
+- **`--mean-kepler` mode**: Fits mean Keplerian elements using J2 secular propagation
+- **`--tle` mode**: Fits TLE mean elements (SGP4-compatible) to create an OMM with TLE parameters
 
 ### Synopsis
 
 ```bash
-python3 oem_to_tle/oem_to_tle.py [-h] [-o <output.tle>] [--name <name>] 
-                                 [--satellite-number <num>] [--classification <U|C|S>]
-                                 [--int-designator-year <year>] 
-                                 [--int-designator-launch-number <num>]
-                                 [--int-designator-piece <piece>]
-                                 [--ephemeris-type <type>] [--element-set-number <num>]
-                                 [--bstar <value>] [--mean-motion-second-derivative <value>]
-                                 [--revolution-number-at-epoch <num>]
-                                 [--refinement <none|cartesian|keplerian>]
-                                 [<input.dat>]
+python3 oem_to_omm/oem_to_omm.py [-h] [-o <output.omm>] [-v] 
+                                 [--mu <value>] [--fit-span <hours>]
+                                 [--kepler | --mean-kepler | --tle]
+                                 [--object-name <name>] [--object-id <YYYY-NNNP>]
+                                 [--tle-refinement <none|cartesian|keplerian>]
+                                 [--tle-norad-cat-id <num>]
+                                 [--tle-classification-type <U|C|S>]
+                                 [--tle-ephemeris-type <type>]
+                                 [--tle-element-set-no <num>]
+                                 [--tle-rev-at-epoch <num>]
+                                 [<oem_file>]
 ```
 
 ### Options
@@ -47,20 +56,22 @@ python3 oem_to_tle/oem_to_tle.py [-h] [-o <output.tle>] [--name <name>]
 | Option | Description |
 |---|---|
 | `-h`, `--help` | Show help message and exit |
-| `<input.dat>` | Input OEM-like state-vector file path or `-` for stdin (default: `-`) |
-| `-o`, `--output` | Output TLE file path or `-` for stdout (default: `-`) |
-| `--name` | Optional satellite name written above line 1 |
-| `--satellite-number` | NORAD satellite number (0-99999, default: 99999) |
-| `--classification` | Classification code: `U`, `C`, or `S` (default: `U`) |
-| `--int-designator-year` | International designator launch year (0-99, default: 0) |
-| `--int-designator-launch-number` | International designator launch number (0-999, default: 0) |
-| `--int-designator-piece` | International designator piece identifier (default: `A`) |
-| `--ephemeris-type` | Ephemeris type value (0-9, default: 0) |
-| `--element-set-number` | Element set number (0-9999, default: 1) |
-| `--bstar` | B* drag term in TLE exponential format (default: `00000+0`) |
-| `--mean-motion-second-derivative` | Second derivative of mean motion (default: `00000+0`) |
-| `--revolution-number-at-epoch` | Revolution number at epoch (0-99999, default: 0) |
-| `--refinement` | Refinement method: `cartesian` (default), `keplerian`, or `none` |
+| `<oem_file>` | Path to input CCSDS OEM file (use `-` or omit to read from stdin) |
+| `-o`, `--output` | Save fitted elements in OMM format to file or `-` for stdout (default: `-`) |
+| `-v`, `--verbose` | Print detailed debug information to stderr |
+| `--mu` | Gravitational parameter in m³/s² (default: Earth WGS-84) |
+| `--fit-span` | Maximum arc span in hours for fitting (default: 2.0) |
+| `--kepler` | Fit osculating Keplerian elements using two-body propagation |
+| `--mean-kepler` | Fit mean Keplerian elements using J2 secular propagation |
+| `--tle` | Fit TLE mean elements (SGP4-compatible) |
+| `--object-name` | OBJECT_NAME: Spacecraft name for OMM output |
+| `--object-id` | OBJECT_ID: International designator (e.g., 1998-067A) |
+| `--tle-refinement` | Refinement method for TLE fitting: `cartesian` (default), `keplerian`, or `none` |
+| `--tle-norad-cat-id` | NORAD_CAT_ID: NORAD Catalog Number (0-99999, default: 0) |
+| `--tle-classification-type` | CLASSIFICATION_TYPE: `U`, `C`, or `S` (default: `U`) |
+| `--tle-ephemeris-type` | EPHEMERIS_TYPE: 0=SGP, 2=SGP4, 4=SGP4-XP, 6=SP (default: 2) |
+| `--tle-element-set-no` | ELEMENT_SET_NO: Element set number (0-9999, default: 999) |
+| `--tle-rev-at-epoch` | REV_AT_EPOCH: Revolution number at epoch (0-99999, default: 0) |
 
 ### Input Format
 
@@ -136,18 +147,25 @@ The script follows a four-stage workflow:
 3. **Refinement** — Match TLE epoch state to source epoch state (optional)
 4. **B* Estimation** — Optimize drag term to minimize propagation error over arc
 
-## Evaluation Tool: `evaluate_oem_to_tle.py`
+## Evaluation Tool: `evaluate_fit_tle.py`
 
 ### Purpose
 
-Evaluates OEM-to-TLE round-trip accuracy by generating a TLE from an OEM reference, propagating it with SGP4, and comparing position/velocity errors.
+Provides comprehensive accuracy assessment of the TLE fitting process, including:
+
+1. Input data summary (OEM file statistics)
+2. Estimation diagnostics (element estimation from OEM arc)
+3. Refinement diagnostics (state-match or Keplerian-match convergence)
+4. Final TLE accuracy (position/velocity errors at each OEM epoch)
+5. Error growth analysis (how accuracy degrades over time)
+6. Summary statistics (RMS, max, mean errors)
 
 ### Synopsis
 
 ```bash
-python3 oem_to_tle/evaluate_oem_to_tle.py [-h] [--refinement <method>] 
-                                                   [-d <duration>] [-s <step>] 
-                                                   [<oem_file>]
+python3 oem_to_omm/evaluate_fit_tle.py [-h] [--fit-span <hours>] 
+                                       [--refinement <method>] [--mu <value>]
+                                       [<oem_file>]
 ```
 
 ### Options
@@ -155,44 +173,50 @@ python3 oem_to_tle/evaluate_oem_to_tle.py [-h] [--refinement <method>]
 | Option | Description |
 |---|---|
 | `-h`, `--help` | Show help message and exit |
-| `<oem_file>` | Path to reference OEM file (default: `test/data/ISS_2026-05-20.OEM`) |
-| `--refinement` | Refinement method: `cartesian` (default), `keplerian`, or `none` |
-| `-d`, `--duration` | Propagation duration (e.g., `1d`, `12h`, `3600s`) |
-| `-s`, `--step` | Propagation step size (e.g., `10m`, `300s`). Default: matches OEM step |
+| `<oem_file>` | Path to input CCSDS OEM file (default: `oem_to_omm/leo3_6h.oem`) |
+| `--fit-span` | Fit span in hours (default: use full OEM span) |
+| `--refinement` | Refinement method: `cartesian` (default), `keplerian`, `none`, or `all` to compare all methods |
+| `--mu` | Gravitational parameter in m³/s² (default: Earth WGS-84) |
 
 ### Usage Examples
 
 **Evaluate with default settings:**
 
 ```bash
-python3 oem_to_tle/evaluate_oem_to_tle.py
+python3 oem_to_omm/evaluate_fit_tle.py
 ```
 
 **Evaluate custom OEM file:**
 
 ```bash
-python3 oem_to_tle/evaluate_oem_to_tle.py test/LEO3.oem
+python3 oem_to_omm/evaluate_fit_tle.py oem_to_omm/leo3_3h.oem
 ```
 
 **Evaluate with Keplerian refinement:**
 
 ```bash
-python3 oem_to_tle/evaluate_oem_to_tle.py --refinement keplerian
+python3 oem_to_omm/evaluate_fit_tle.py --refinement keplerian
 ```
 
-**Evaluate for 12 hours with 5-minute steps:**
+**Compare all refinement methods:**
 
 ```bash
-python3 oem_to_tle/evaluate_oem_to_tle.py -d 12h -s 5m
+python3 oem_to_omm/evaluate_fit_tle.py --refinement all
+```
+
+**Evaluate with 2-hour fit span:**
+
+```bash
+python3 oem_to_omm/evaluate_fit_tle.py --fit-span 2.0
 ```
 
 ### Dependencies
 
 - TudatPy (for SGP4 propagation)
 - NumPy
-- `common.oem`, `common.common`, `common.time_utils`
-- `oem_to_tle/oem_to_tle.py`
-- `propagation/propagate_tle.py`
+- `common.oem`, `common.consts`, `common.time_utils`, `common.tle`
+- `oem_to_omm.fit_common`, `oem_to_omm.fit_tle_main`
+- `oem_to_omm.fit_tle` submodule components
 
 ## Algorithm Details
 
@@ -210,11 +234,12 @@ Key algorithmic features:
 ## Related Tools
 
 - `common/tle.py` — TLE dataclass, `read_tle()`, and `write_tle()` functions
+- `common/omm.py` — OMM dataclass and utilities
 - `common/kepler.py` — Keplerian element conversions with J2 corrections
 - `common/oem.py` — OEM parsing utilities
 - `propagation/propagate_tle.py` — TLE propagation with SGP4
-- `tle/omm_to_tle.py` — Convert OMM to TLE
-- `tle/tle_to_omm.py` — Convert TLE to OMM
+- `bin/omm_to_tle.py` — Convert OMM to TLE
+- `bin/tle_to_omm.py` — Convert TLE to OMM
 
 ## Best Practices
 
@@ -299,7 +324,7 @@ Detailed algorithm and strategy documentation is included below.
 
 ### Purpose
 
-`oem_to_tle/oem_to_tle.py` estimates a valid Two-Line Element (TLE) set from a time series of OEM-like Cartesian state vectors:
+`oem_to_omm/oem_to_omm.py` estimates a valid Two-Line Element (TLE) set from a time series of OEM-like Cartesian state vectors:
 
 ```text
 UTC_ISO x y z vx vy vz
@@ -307,7 +332,7 @@ UTC_ISO x y z vx vy vz
 
 with position in km and velocity in km/s.
 
-Unlike directly calling `common.tle.write_tle()` with explicit fields, `oem_to_tle/oem_to_tle.py` attempts to infer a TLE from a Cartesian arc.
+Unlike directly calling `common.tle.write_tle()` with explicit fields, `oem_to_omm/oem_to_omm.py` attempts to infer a TLE from a Cartesian arc.
 
 This is fundamentally an estimation problem because TLEs encode SGP4-compatible mean elements rather than raw osculating Cartesian states.
 
@@ -315,7 +340,7 @@ This is fundamentally an estimation problem because TLEs encode SGP4-compatible 
 
 Related scripts in the current repository:
 
-- `oem_to_tle/oem_to_tle.py` — estimate a TLE from an OEM-like arc
+- `oem_to_omm/oem_to_omm.py` — estimate a TLE from an OEM-like arc
 - `common/tle.py` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions
 - `propagation/propagate_tle.py` — propagate a TLE with TudatPy SGP4 and print OEM-like states
 
@@ -501,89 +526,74 @@ This is a pragmatic scalar optimization over the drag-like parameter.
 Use:
 
 - `common.tle.write_tle()` when you already know the TLE fields and want to write them programmatically
-- `oem_to_tle/oem_to_tle.py` when you have an OEM-like Cartesian arc and want an estimated TLE
+- `oem_to_omm/oem_to_omm.py` when you have an OEM-like Cartesian arc and want an estimated TLE
 - `common.tle.read_tle()` when you want to parse an existing TLE into structured fields
 
 ### Usage Examples
 
-**Basic usage with stdin/stdout:**
+**Fit osculating Keplerian elements (--kepler mode):**
 
 ```bash
-cat states.txt | python3 oem_to_tle/oem_to_tle.py
+python3 oem_to_omm/oem_to_omm.py --kepler input.oem -o output.omm
 ```
 
-**Read from file, write to file:**
+**Fit mean Keplerian elements (--mean-kepler mode):**
 
 ```bash
-python3 oem_to_tle/oem_to_tle.py input.oem -o output.tle
+python3 oem_to_omm/oem_to_omm.py --mean-kepler input.oem -o output.omm
 ```
 
-**Specify satellite metadata:**
+**Fit TLE elements (--tle mode) with default Cartesian refinement:**
 
 ```bash
-python3 oem_to_tle/oem_to_tle.py input.oem -o output.tle \
-  --name "ISS (ZARYA)" \
-  --satellite-number 25544 \
-  --int-designator-year 98 \
-  --int-designator-launch-number 67 \
-  --int-designator-piece A
+python3 oem_to_omm/oem_to_omm.py --tle input.oem -o output.omm
 ```
 
-**Use Keplerian refinement (no TudatPy required):**
+**Fit TLE and output TLE lines to stdout:**
 
 ```bash
-python3 oem_to_tle/oem_to_tle.py input.oem --refinement keplerian
+python3 oem_to_omm/oem_to_omm.py --tle input.oem
 ```
 
-**Skip refinement for quick estimate:**
+**Read from stdin, fit TLE, output to stdout:**
 
 ```bash
-python3 oem_to_tle/oem_to_tle.py input.oem --refinement none
+cat input.oem | python3 oem_to_omm/oem_to_omm.py --tle
 ```
 
-**Specify B* drag term:**
+**Fit TLE with Keplerian refinement (no TudatPy required):**
 
 ```bash
-python3 oem_to_tle/oem_to_tle.py input.oem --bstar "12345-4"
+python3 oem_to_omm/oem_to_omm.py --tle --tle-refinement keplerian input.oem
 ```
 
-### Output Summary
+**Fit TLE with no refinement (fastest):**
 
-The script prints a detailed summary including:
+```bash
+python3 oem_to_omm/oem_to_omm.py --tle --tle-refinement none input.oem
+```
 
-- Dataset statistics (record count, epoch range, span)
-- Estimated TLE elements (mean and osculating values)
-- Refinement accuracy metrics
-- B* estimation results
-- Keplerian element accuracy verification
+**Specify satellite metadata for TLE:**
 
-Example output:
+```bash
+python3 oem_to_omm/oem_to_omm.py --tle input.oem -o output.omm \
+  --object-name "ISS (ZARYA)" \
+  --object-id "1998-067A" \
+  --tle-norad-cat-id 25544 \
+  --tle-classification-type U \
+  --tle-element-set-no 999
+```
 
-```text
-Estimated TLE elements from OEM-like dataset:
-  records: 145
-  epoch range: 2026-05-20T12:00:00.000000 -> 2026-05-20T14:24:00.000000
-  span [s]: 8640.000
-  chosen TLE epoch: 2026-05-20T12:00:00.000000
-  inclination-deg: 51.642345
-  raan-deg: 123.456789
-  eccentricity: 0.001234567
-  arg-perigee-deg: 234.567890
-  mean-anomaly-deg: 45.678901
-  mean-motion-rev-per-day: 15.5432109876
-  state-match-position-error-km: 0.000123
-  state-match-velocity-error-km-s: 0.000000456
-  semi-major-axis-km: 6793.456789
-  bstar: 12345-4
-  
-  Accuracy verification (osculating Keplerian elements via common.kepler):
-    semi-major-axis error:    +0.001234 km  (+1.234 m)
-    eccentricity error:       +0.0000000123
-    inclination error:        +0.000123 deg
-    RAAN error:               +0.000234 deg
-    arg-perigee error:        +0.000345 deg
-    true-anomaly error:       +0.000456 deg
-    arg-latitude (ω+θ) error: +0.000567 deg
+**Fit with custom fit span (3 hours):**
+
+```bash
+python3 oem_to_omm/oem_to_omm.py --tle --fit-span 3.0 input.oem
+```
+
+**Verbose output to stderr:**
+
+```bash
+python3 oem_to_omm/oem_to_omm.py --tle -v input.oem -o output.omm
 ```
 
 ### Dependencies

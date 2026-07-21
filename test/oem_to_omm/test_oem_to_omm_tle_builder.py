@@ -1,4 +1,4 @@
-"""Tests for oem_to_tle/tle_builder.py — TLE construction from parameters."""
+"""Tests for oem_to_omm/tle_builder.py — TLE construction from parameters."""
 
 from __future__ import annotations
 
@@ -16,11 +16,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import common.tle as tle
 import common.consts as consts
 import common.oem as oem
-import oem_to_tle.oem_to_tle as oem_to_tle
-import oem_to_tle.models as models
-import oem_to_tle.orbital_mechanics as orbital_mechanics
-import oem_to_tle.tle_builder as tle_builder
-import oem_to_tle.estimation as estimation
+import oem_to_omm.oem_to_omm as oem_to_omm
+import oem_to_omm.fit_tle.models as models
+import oem_to_omm.fit_tle.orbital_mechanics as orbital_mechanics
+import oem_to_omm.fit_tle.tle_builder as tle_builder
+import oem_to_omm.fit_tle.estimation as estimation
 
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test files."""
@@ -48,7 +48,7 @@ def test_build_tle_data_creates_valid_tle() -> None:
 
     args = MagicMock()
     args.name = "TEST SAT"
-    args.satellite_number = 12345
+    args.norad_cat_id = 12345
     args.classification = "U"
     args.int_designator_year = 26
     args.int_designator_launch_number = 100
@@ -63,7 +63,7 @@ def test_build_tle_data_creates_valid_tle() -> None:
 
     assert isinstance(tle_data, tle.Tle)
     assert tle_data.name == "TEST SAT"
-    assert tle_data.satellite_number == 12345
+    assert tle_data.norad_cat_id == 12345
     assert tle_data.classification == "U"
     assert 0 <= tle_data.inclination_deg <= 180
     assert 0 <= tle_data.raan_deg < 360

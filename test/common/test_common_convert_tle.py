@@ -94,7 +94,7 @@ def test_omm_to_tle_matches_reference_file(tle_path: Path, omm_path: Path) -> No
     tle_result = conv.omm_to_tle(omm_data)
 
     assert tle_result.name == tle_ref.name
-    assert tle_result.satellite_number == tle_ref.satellite_number
+    assert tle_result.norad_cat_id == tle_ref.norad_cat_id
     assert tle_result.classification == tle_ref.classification
     assert tle_result.int_designator_year == tle_ref.int_designator_year
     assert (
@@ -134,7 +134,7 @@ def test_tle_to_omm_to_tle_round_trip(tle_path: Path) -> None:
     omm_converted = conv.tle_to_omm(tle_original)
     tle_recovered = conv.omm_to_tle(omm_converted)
 
-    assert tle_recovered.satellite_number == tle_original.satellite_number
+    assert tle_recovered.norad_cat_id == tle_original.norad_cat_id
     assert tle_recovered.classification == tle_original.classification
     assert tle_recovered.int_designator_year == tle_original.int_designator_year
     assert (

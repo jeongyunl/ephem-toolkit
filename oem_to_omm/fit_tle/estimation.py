@@ -21,10 +21,10 @@ import common.convert_tle as convert_tle
 import common.kepler as kepler
 import common.consts as consts
 import common.tle as tle
-import oem_to_tle.constants as constants
-import oem_to_tle.models as models
-import oem_to_tle.orbital_mechanics as orbital_mechanics
-import oem_to_tle.tle_builder as tle_builder
+from . import constants
+from . import models
+from . import orbital_mechanics
+from . import tle_builder
 
 
 def select_bstar_fit_samples(

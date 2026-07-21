@@ -16,7 +16,7 @@ import common.consts as consts
 import common.kepler as kepler
 import common.mean_kepler as mean_kepler
 import common.time_utils as time_utils
-import fit_common
+from . import fit_common
 
 # ===================================================================
 # Internal helpers

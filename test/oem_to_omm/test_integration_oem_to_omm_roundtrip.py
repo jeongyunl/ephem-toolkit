@@ -89,7 +89,7 @@ def run_propagate_tle(tle_path: Path) -> str:
 def run_oem_to_tle(
     oem_text: str, original: tle.Tle, refinement: str = "cartesian"
 ) -> str:
-    """Run oem_to_tle script and return output.
+    """Run oem_to_omm script and return output.
 
     Parameters
     ----------
@@ -103,28 +103,28 @@ def run_oem_to_tle(
     Returns
     -------
     str
-        Standard output from oem_to_tle script.
+        Standard output from oem_to_omm script.
     """
+    # Build object_id from international designator
+    object_id = f"{original.int_designator_year:02d}-{original.int_designator_launch_number:03d}{original.int_designator_piece or 'A'}"
+    
     cmd: list[str] = [
         sys.executable,
         "-m",
-        "oem_to_tle.oem_to_tle",
+        "oem_to_omm.oem_to_omm",
+        "--tle",
         "-",
-        "--name",
+        "--object-name",
         original.name if original.name else "",
-        "--satellite-number",
-        str(original.satellite_number),
-        "--classification",
+        "--object-id",
+        object_id,
+        "--tle-norad-cat-id",
+        str(original.norad_cat_id),
+        "--tle-classification-type",
         original.classification,
-        "--int-designator-year",
-        str(original.int_designator_year),
-        "--int-designator-launch-number",
-        str(original.int_designator_launch_number),
-        "--int-designator-piece",
-        original.int_designator_piece or "A",
-        "--revolution-number-at-epoch",
+        "--tle-rev-at-epoch",
         str(original.revolution_number_at_epoch),
-        "--refinement",
+        "--tle-refinement",
         refinement,
     ]
     result: subprocess.CompletedProcess[str] = subprocess.run(
@@ -135,17 +135,17 @@ def run_oem_to_tle(
         cwd=str(PROJECT_ROOT),
         env=_build_env(),
     )
-    assert result.returncode == 0, f"oem_to_tle.py failed:\n{result.stderr}"
+    assert result.returncode == 0, f"oem_to_omm.py failed:\n{result.stderr}"
     return result.stdout
 
 
 def parse_generated_tle_from_output(output: str) -> tle.Tle:
-    """Parse TLE from oem_to_tle script output.
+    """Parse TLE from oem_to_omm script output.
 
     Parameters
     ----------
     output : str
-        Standard output from oem_to_tle script.
+        Standard output from oem_to_omm script.
 
     Returns
     -------
@@ -161,7 +161,7 @@ def parse_generated_tle_from_output(output: str) -> tle.Tle:
             tle_line2 = lines[i + 1]
     assert (
         tle_line1 is not None and tle_line2 is not None
-    ), f"Could not find TLE lines in oem_to_tle.py output:\n{output[-500:]}"
+    ), f"Could not find TLE lines in oem_to_omm.py output:\n{output[-500:]}"
     idx: int = lines.index(tle_line1)
     name_line: str = ""
     if idx > 0:

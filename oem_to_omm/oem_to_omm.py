@@ -49,7 +49,7 @@ from typing import NoReturn, TextIO
 
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import common.consts as consts
 import common.convert_tle as convert_tle
@@ -60,10 +60,10 @@ import common.omm as omm
 import common.time_utils as time_utils
 import common.tle as tle
 
-import fit_common
-import fit_mean_kepler
-import fit_osculating_kepler
-import fit_tle
+import oem_to_omm.fit_common as fit_common
+import oem_to_omm.fit_mean_kepler as fit_mean_kepler
+import oem_to_omm.fit_osculating_kepler as fit_osculating_kepler
+import oem_to_omm.fit_tle_main as fit_tle
 
 FIT_SPAN_S: float = 7200.0
 """Default fit span: 2 hours in seconds."""
@@ -194,24 +194,110 @@ def main() -> None:
         ),
     )
 
+    # Metadata options (aligned with OMM field names)
+    parser.add_argument(
+        "--object-name",
+        metavar="<name>",
+        default="",
+        help="OBJECT_NAME: Spacecraft name for OMM output.",
+    )
+    parser.add_argument(
+        "--object-id",
+        metavar="<YYYY-NNNP>",
+        default="",
+        dest="object_id",
+        help="OBJECT_ID: International designator (e.g., 1998-067A) for OMM output.",
+    )
+    parser.add_argument(
+        "--tle-refinement",
+        choices=["none", "cartesian", "keplerian"],
+        default="cartesian",
+        metavar="<none|cartesian|keplerian>",
+        dest="tle_refinement",
+        help=(
+            "Refinement method for TLE fitting (used with --tle mode). "
+            "'cartesian' (default): minimize SGP4 Cartesian state residual. "
+            "'keplerian': minimize osculating Keplerian element residual. "
+            "'none': skip refinement entirely."
+        ),
+    )
+    parser.add_argument(
+        "--tle-norad-cat-id",
+        type=int,
+        default=0,
+        metavar="<0..99999>",
+        dest="tle_norad_cat_id",
+        help="NORAD_CAT_ID: NORAD Catalog Number (default: 0, used with --tle mode).",
+    )
+    parser.add_argument(
+        "--tle-classification-type",
+        choices=["U", "C", "S"],
+        default="U",
+        metavar="<U|C|S>",
+        dest="tle_classification_type",
+        help="CLASSIFICATION_TYPE: U=Unclassified, C=Classified, S=Secret (default: U, used with --tle mode).",
+    )
+    parser.add_argument(
+        "--tle-ephemeris-type",
+        type=int,
+        default=2,
+        metavar="<0..9>",
+        dest="tle_ephemeris_type",
+        help="EPHEMERIS_TYPE: 0=SGP, 2=SGP4, 4=SGP4-XP, 6=SP (default: 2, used with --tle mode).",
+    )
+    parser.add_argument(
+        "--tle-element-set-no",
+        type=int,
+        default=999,
+        metavar="<0..9999>",
+        dest="tle_element_set_no",
+        help="ELEMENT_SET_NO: Element set number for this satellite (default: 999, used with --tle mode).",
+    )
+    parser.add_argument(
+        "--tle-rev-at-epoch",
+        type=int,
+        default=0,
+        metavar="<0..99999>",
+        dest="tle_rev_at_epoch",
+        help="REV_AT_EPOCH: Revolution number at epoch (default: 0, used with --tle mode).",
+    )
+
     args = parser.parse_args()
 
     # Determine input source: file path or stdin (piped input)
     read_from_stdin: bool = args.oem_file is None or args.oem_file == "-"
 
+    # Read and parse CCSDS OEM ephemeris data
+    if read_from_stdin:
+        oem_data = oem.CcsdsOem.read(sys.stdin)
+    else:
+        oem_path = Path(args.oem_file)
+        if not oem_path.exists():
+            report_error(f"Error: Input file not found: {args.oem_file}")
+        oem_data = oem.CcsdsOem.read(oem_path)
+
+    states: list[tuple[float, np.ndarray]] = oem_data.states
+
+    if len(states) < 2:
+        report_error("Error: At least 2 state vectors required for fitting.")
+
+    fit_span_s: float = args.fit_span_hours * 3600.0
+
+    # Determine object name: use --object-name if provided, otherwise use OEM metadata
+    object_name: str = (
+        args.object_name
+        if args.object_name
+        else (oem_data.meta.object_name or "OBJECT")
+    )
+
+    # Determine object_id: use --object-id if provided, otherwise use OEM metadata
+    if args.object_id:
+        object_id: str = args.object_id
+    else:
+        object_id: str = oem_data.meta.object_id or "UNKNOWN"
+
     # --kepler mode: fit osculating Keplerian elements to OEM arc
     if args.kepler:
-        # Read and parse CCSDS OEM ephemeris data
-        if read_from_stdin:
-            oem_data = oem.CcsdsOem.read(sys.stdin)
-        else:
-            oem_path = Path(args.oem_file)
-            if not oem_path.exists():
-                report_error(f"Error: Input file not found: {args.oem_file}")
-            oem_data = oem.CcsdsOem.read(oem_path)
-
-        states: list[tuple[float, np.ndarray]] = oem_data.states
-
         if len(states) < 2:
             report_error("Error: At least 2 state vectors required for fitting.")
 
@@ -254,8 +340,8 @@ def main() -> None:
                 omm_obj: omm.CcsdsOmm = omm.keplerian_to_omm(
                     first_epoch,
                     fitted_elements,
-                    object_name=oem_data.meta.object_name or "OBJECT",
-                    object_id=oem_data.meta.object_id or "UNKNOWN",
+                    object_name=object_name,
+                    object_id=object_id,
                     mu_m3_s2=args.mu_m3_s2,
                 )
                 omm_obj.originator = "oem_to_omm"
@@ -272,22 +358,6 @@ def main() -> None:
 
     # --mean-kepler mode: fit mean Keplerian elements to OEM arc
     if args.mean_kepler:
-        # Read and parse CCSDS OEM ephemeris data
-        if read_from_stdin:
-            oem_data = oem.CcsdsOem.read(sys.stdin)
-        else:
-            oem_path = Path(args.oem_file)
-            if not oem_path.exists():
-                report_error(f"Error: Input file not found: {args.oem_file}")
-            oem_data = oem.CcsdsOem.read(oem_path)
-
-        states: list[tuple[float, np.ndarray]] = oem_data.states
-
-        if len(states) < 2:
-            report_error("Error: At least 2 state vectors required for fitting.")
-
-        fit_span_s: float = args.fit_span_hours * 3600.0
-
         # Run the Gauss-Newton velocity-only fit for mean elements
         fitted_mean_elements: np.ndarray
         diagnostics: fit_common.FitDiagnostics
@@ -326,6 +396,7 @@ def main() -> None:
         # Save OMM format if requested (convert mean to osculating first)
         if args.output:
             try:
+
                 # Convert mean elements to osculating for OMM output
                 osculating_elements: np.ndarray = (
                     mean_kepler.mean_to_osculating_keplerian(fitted_mean_elements)
@@ -333,8 +404,8 @@ def main() -> None:
                 omm_obj: omm.CcsdsOmm = omm.keplerian_to_omm(
                     first_epoch,
                     osculating_elements,
-                    object_name=oem_data.meta.object_name or "OBJECT",
-                    object_id=oem_data.meta.object_id or "UNKNOWN",
+                    object_name=object_name,
+                    object_id=object_id,
                     mu_m3_s2=args.mu_m3_s2,
                 )
                 omm_obj.originator = "oem_to_omm"
@@ -351,33 +422,32 @@ def main() -> None:
 
     # --tle mode: fit TLE mean elements (SGP4-compatible) to OEM arc
     if args.tle:
-        # Read and parse CCSDS OEM ephemeris data
-        if read_from_stdin:
-            oem_data = oem.CcsdsOem.read(sys.stdin)
-        else:
-            oem_path = Path(args.oem_file)
-            if not oem_path.exists():
-                report_error(f"Error: Input file not found: {args.oem_file}")
-            oem_data = oem.CcsdsOem.read(oem_path)
+        # Validate TLE parameters
+        if not (0 <= args.tle_norad_cat_id <= 99999):
+            report_error("Error: --norad-cat-id must be in [0, 99999]")
+        if not (0 <= args.tle_ephemeris_type <= 9):
+            report_error("Error: --ephemeris-type must be in [0, 9]")
+        if not (0 <= args.tle_element_set_no <= 9999):
+            report_error("Error: --element-set-no must be in [0, 9999]")
+        if not (0 <= args.tle_rev_at_epoch <= 99999):
+            report_error("Error: --rev-at-epoch must be in [0, 99999]")
 
-        states: list[tuple[float, np.ndarray]] = oem_data.states
-
-        if len(states) < 2:
-            report_error("Error: At least 2 state vectors required for fitting.")
-
-        fit_span_s: float = args.fit_span_hours * 3600.0
-
-        # Run TLE fitting
+        # Run TLE fitting with user-specified refinement method and metadata
         tle_obj: tle.Tle
         diagnostics: fit_common.FitDiagnostics
         try:
             tle_obj, diagnostics = fit_tle.fit_tle(
                 states,
                 fit_span_s,
-                "cartesian",
+                args.tle_refinement,
                 args.mu_m3_s2,
-                object_name=oem_data.meta.object_name or "OBJECT",
-                object_id=oem_data.meta.object_id or "UNKNOWN",
+                object_name=object_name,
+                object_id=object_id,
+                norad_cat_id=args.tle_norad_cat_id,
+                classification_type=args.tle_classification_type,
+                ephemeris_type=args.tle_ephemeris_type,
+                element_set_number=args.tle_element_set_no,
+                revolution_number_at_epoch=args.tle_rev_at_epoch,
             )
         except Exception as error:
             import traceback

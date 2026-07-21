@@ -318,7 +318,7 @@ def tle_to_omm(
         tle_parameters=omm.TleParameters(
             ephemeris_type=tle_obj.ephemeris_type,
             classification_type=tle_obj.classification,
-            norad_cat_id=tle_obj.satellite_number,
+            norad_cat_id=tle_obj.norad_cat_id,
             element_set_no=tle_obj.element_set_number,
             rev_at_epoch=tle_obj.revolution_number_at_epoch,
             bstar=bstar_omm,
@@ -388,7 +388,7 @@ def omm_to_tle(omm_obj: omm.CcsdsOmm) -> tle.Tle:
         name=omm_obj.object_name,
         line1="",
         line2="",
-        satellite_number=tle_params.norad_cat_id,
+        norad_cat_id=tle_params.norad_cat_id,
         classification=tle_params.classification_type,
         int_designator_year=int_year,
         int_designator_launch_number=int_launch,

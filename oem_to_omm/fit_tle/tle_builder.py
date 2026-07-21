@@ -87,7 +87,7 @@ def build_tle_data(args: argparse.Namespace, estimated: models.Estimated) -> tle
     """
     return tle.Tle(
         name=args.name,
-        satellite_number=args.satellite_number,
+        norad_cat_id=args.norad_cat_id,
         classification=args.classification,
         int_designator_year=args.int_designator_year,
         int_designator_launch_number=args.int_designator_launch_number,

@@ -6,8 +6,7 @@ TLE-related utilities for building, estimating, and converting orbital data.
 
 Current TLE-related scripts in this repository include:
 
-- `oem_to_tle/oem_to_tle.py`
-- `oem_to_kepler/oem_to_kepler.py`
+- `oem_to_omm/oem_to_omm.py`
 - `bin/download_tle.py`
 - `bin/omm_to_tle.py`
 - `bin/tle_to_omm.py`
@@ -16,9 +15,9 @@ Current TLE-related scripts in this repository include:
 
 This document focuses on the primary user-facing tools and the current repository context around them.
 
-## `oem_to_tle/oem_to_tle.py`
+## `oem_to_omm/oem_to_omm.py`
 
-This script estimates a TLE from an OEM-like Cartesian arc. For complete usage and algorithm documentation, see [OEM_TO_TLE.md](OEM_TO_TLE.md).
+This script estimates a TLE from an OEM-like Cartesian arc. For complete usage and algorithm documentation, see [OEM_TO_OMM.md](OEM_TO_OMM.md).
 
 ## `bin/download_tle.py`
 

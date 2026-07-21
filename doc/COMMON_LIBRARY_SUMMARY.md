@@ -330,7 +330,7 @@ Parsed Two-Line Element set data with all fields corresponding to the standard T
 **Key Fields:**
 - `name`: Satellite name
 - `line1`, `line2`: Raw TLE lines
-- `satellite_number`: NORAD catalog number
+- `norad_cat_id`: NORAD catalog number
 - `classification`: U=Unclassified, C=Classified, S=Secret
 - `epoch_year`, `epoch_day`: Epoch (2-digit year + fractional day)
 - `mean_motion_first_derivative`: First time derivative (rev/day²)

@@ -1,4 +1,4 @@
-"""Tests for oem_to_tle/orbital_mechanics.py — Orbital mechanics utilities."""
+"""Tests for oem_to_omm/orbital_mechanics.py — Orbital mechanics utilities."""
 
 from __future__ import annotations
 
@@ -13,8 +13,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import common.tle as tle
-import oem_to_tle.models as models
-import oem_to_tle.orbital_mechanics as orbital_mechanics
+import oem_to_omm.fit_tle.models as models
+import oem_to_omm.fit_tle.orbital_mechanics as orbital_mechanics
 
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test files."""

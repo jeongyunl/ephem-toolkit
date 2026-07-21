@@ -1,4 +1,4 @@
-"""Tests for oem_to_tle/estimation.py — TLE parameter estimation from OEM data."""
+"""Tests for oem_to_omm/estimation.py — TLE parameter estimation from OEM data."""
 
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import common.oem as oem
-import oem_to_tle.estimation as estimation
-import oem_to_tle.models as models
-import oem_to_tle.constants as constants
+import oem_to_omm.fit_tle.estimation as estimation
+import oem_to_omm.fit_tle.models as models
+import oem_to_omm.fit_tle.constants as constants
 
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test files."""

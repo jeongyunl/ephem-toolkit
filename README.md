@@ -18,9 +18,7 @@ The repository is organized into three layers:
 common/              Shared Python library modules
 common/interpolator/ Interpolation sub-library (Lagrange, generic)
 time_conversion/     C++ time-conversion library, CLI, and tests
-oem_to_tle/          TLE estimation application module
-oem_to_omm/          OEM-to-OMM estimation application module
-oem_to_kepler/       Keplerian element extraction application module
+oem_to_omm/          OEM-to-OMM estimation application module (includes TLE fitting)
 propagation/         Python propagation scripts
 plotting/            Python orbit visualization scripts
 bin/                 Command-line utility scripts
@@ -79,19 +77,11 @@ Reusable Python modules providing foundational astrodynamics functionality. Thes
 
 Higher-level packages that combine library code into complete workflows.
 
-### OEM-to-TLE Estimation (`oem_to_tle/`)
-
-Estimates a Two-Line Element set from an OEM Cartesian arc using iterative least-squares fitting. Includes least-squares estimation, iterative refinement, SGP4 model evaluation, and TLE line construction.
-
-See [OEM_TO_TLE.md](OEM_TO_TLE.md) for full usage details.
-
 ### OEM-to-OMM (`oem_to_omm/`)
 
-Fits OEM state vectors to osculating Kepler, mean Kepler, or TLE-derived OMM output.
+Estimates Orbit Mean-Elements Messages (OMM) including Two-Line Element (TLE) sets from OEM Cartesian state vectors. Fits OEM state vectors to osculating Kepler, mean Kepler, or TLE-derived OMM output using iterative least-squares fitting. Includes least-squares estimation, iterative refinement, SGP4 model evaluation, and TLE line construction.
 
-### OEM-to-Kepler (`oem_to_kepler/`)
-
-Extracts Keplerian orbital elements from OEM Cartesian state vectors.
+See [OEM_TO_OMM.md](doc/OEM_TO_OMM.md) for full usage details.
 
 ---
 
@@ -104,7 +94,7 @@ Extracts Keplerian orbital elements from OEM Cartesian state vectors.
 
 Converts OEM-like Cartesian state vectors between inertial and Earth-fixed reference frames. Supports SPICE rotation matrices and TudatPy rotation models (`gcrs_to_itrs`, `spice_itrf93`, `spice_iau_earth`).
 
-See [FRAME_CONVERSION.md](FRAME_CONVERSION.md) for full usage details.
+See [FRAME_CONVERSION.md](doc/FRAME_CONVERSION.md) for full usage details.
 
 ### Time Conversion (`time_conversion/tools/`)
 
@@ -113,7 +103,7 @@ See [FRAME_CONVERSION.md](FRAME_CONVERSION.md) for full usage details.
 
 Converts between ISO 8601, POSIX, UTC/TAI/TT J2000, and backend-specific formats.
 
-See [TIME_CONVERSION.md](TIME_CONVERSION.md) for full usage details.
+See [TIME_CONVERSION.md](doc/TIME_CONVERSION.md) for full usage details.
 
 ### Orbit Propagation (`propagation/`)
 
@@ -123,7 +113,7 @@ See [TIME_CONVERSION.md](TIME_CONVERSION.md) for full usage details.
 
 Supports CCSDS OEM export, raw state-vector output, dependent-variable CSV export, and OEM metadata headers.
 
-See [PROPAGATION.md](PROPAGATION.md) for full usage details.
+See [PROPAGATION.md](doc/PROPAGATION.md) for full usage details.
 
 ### TLE / OMM Utilities (`bin/`)
 
@@ -132,14 +122,14 @@ See [PROPAGATION.md](PROPAGATION.md) for full usage details.
 - `bin/tle_to_omm.py` — convert TLE → OMM
 - `bin/tle_info.py` — inspect TLE information
 
-See [TLE.md](TLE.md) for full usage details.
+See [TLE.md](doc/TLE.md) for full usage details.
 
 ### OEM Utilities (`bin/`)
 
 - `bin/slice_oem.py` — slice OEM files by index or time range (with optional interpolation)
 - `bin/state_diff.py` — compare two OEM-like Cartesian states
 
-See [SLICE_OEM.md](SLICE_OEM.md) for OEM slicing details and [MISC.md](MISC.md) for other utilities.
+See [SLICE_OEM.md](doc/SLICE_OEM.md) for OEM slicing details and [MISC.md](doc/MISC.md) for other utilities.
 
 ### Visualization (`plotting/`)
 
@@ -160,7 +150,7 @@ A multi-backend C++ library for converting between time representations. Support
 | `time_conversion/tools/` | CLI tool (`convert_time_cli`) |
 | `time_conversion/test/` | Google Test unit tests |
 
-See [TIME_CONVERSION.md](TIME_CONVERSION.md) for full usage details.
+See [TIME_CONVERSION.md](doc/TIME_CONVERSION.md) for full usage details.
 
 ---
 

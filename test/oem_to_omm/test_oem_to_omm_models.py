@@ -1,4 +1,4 @@
-"""Tests for oem_to_tle/models.py — Orbital models for TLE conversion."""
+"""Tests for oem_to_omm/models.py — Orbital models for TLE conversion."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import pytest
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import oem_to_tle.models as models
+import oem_to_omm.fit_tle.models as models
 
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test files."""

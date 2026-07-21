@@ -1,4 +1,4 @@
-"""Tests for oem_to_tle/evaluate_oem_to_tle.py — OEM to TLE evaluation utility script."""
+"""Tests for oem_to_omm/evaluate_oem_to_tle.py — OEM to TLE evaluation utility script."""
 
 from __future__ import annotations
 

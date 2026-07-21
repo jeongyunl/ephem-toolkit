@@ -42,7 +42,7 @@ class Tle:
     line2: str = ""
     """Raw TLE line 2"""
 
-    satellite_number: int = 0
+    norad_cat_id: int = 0
     """NORAD catalog number (satellite number)"""
     classification: str = "U"
     """Classification (U=Unclassified, C=Classified, S=Secret)"""
@@ -117,7 +117,7 @@ class Tle:
     def __repr__(self) -> str:
         return (
             f"Tle(name={self.name!r}, "
-            f"satellite_number={self.satellite_number}, "
+            f"norad_cat_id={self.norad_cat_id}, "
             f"epoch_year={self.epoch_year}, "
             f"epoch_day={self.epoch_day:.8f})"
         )
@@ -281,7 +281,7 @@ def create_tle_from_mean_keplerian(
     epoch_year: int,
     epoch_day: float,
     name: str = "OBJECT",
-    satellite_number: int = 0,
+    norad_cat_id: int = 0,
     classification: str = "U",
     int_designator_year: int = 0,
     int_designator_launch_number: int = 0,
@@ -309,7 +309,7 @@ def create_tle_from_mean_keplerian(
         Gravitational parameter (m³/s²).
     name : str
         Satellite name.
-    satellite_number : int
+    norad_cat_id : int
         NORAD catalog number.
     classification : str
         Classification (U=Unclassified, C=Classified, S=Secret).
@@ -365,7 +365,7 @@ def create_tle_from_mean_keplerian(
     # Create and return TLE object
     return Tle(
         name=name,
-        satellite_number=satellite_number,
+        norad_cat_id=norad_cat_id,
         classification=classification,
         int_designator_year=int_designator_year,
         int_designator_launch_number=int_designator_launch_number,
@@ -410,7 +410,7 @@ def _format_tle_strings(
     ValueError
         If formatting fails or line lengths are incorrect.
     """
-    satellite_number: int = _tle_field(tle_data, "satellite_number")  # type: ignore[assignment]
+    norad_cat_id: int = _tle_field(tle_data, "norad_cat_id")  # type: ignore[assignment]
     classification: str = _tle_field(tle_data, "classification")  # type: ignore[assignment]
     int_designator_year: int = _tle_field(tle_data, "int_designator_year")  # type: ignore[assignment]
     int_designator_launch_number: int = _tle_field(tle_data, "int_designator_launch_number")  # type: ignore[assignment]
@@ -430,7 +430,7 @@ def _format_tle_strings(
     mean_motion_rev_per_day: float = _tle_field(tle_data, "mean_motion_rev_per_day")  # type: ignore[assignment]
     revolution_number_at_epoch: int = _tle_field(tle_data, "revolution_number_at_epoch")  # type: ignore[assignment]
 
-    sat_num: str = f"{satellite_number:05d}"
+    sat_num: str = f"{norad_cat_id:05d}"
     cls: str = classification.upper()
 
     intl_year: str = f"{int_designator_year:02d}"
@@ -646,7 +646,7 @@ def read_tle(stream: TextIO) -> Tle:
         name=name,
         line1=line1,
         line2=line2,
-        satellite_number=int(line1[2:7]),
+        norad_cat_id=int(line1[2:7]),
         classification=line1[7],
         int_designator_year=int(line1[9:11]),
         int_designator_launch_number=int(line1[11:14]),

@@ -16,7 +16,7 @@ import numpy as np
 import common.consts as consts
 import common.kepler as kepler
 import common.time_utils as time_utils
-import fit_common
+from . import fit_common
 
 
 def _compute_kepler_residuals_from_epoch_state(

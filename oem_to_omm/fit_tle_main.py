@@ -36,12 +36,12 @@ import common.consts as consts
 import common.time_utils as time_utils
 import common.tle as tle
 import common.convert_tle as convert_tle
-import fit_common
-import constants
-import estimation
-import models
-import refinement
-import tle_builder
+from . import fit_common
+from .fit_tle import constants
+from .fit_tle import estimation
+from .fit_tle import models
+from .fit_tle import refinement
+from .fit_tle import tle_builder
 
 # ===================================================================
 # Constants
@@ -367,8 +367,8 @@ def fit_tle(
     J2: float = consts.EARTH_J2,
     object_name: str = "OBJECT",
     object_id: str = "UNKNOWN",
-    satellite_number: int = 0,
-    classification: str = "U",
+    norad_cat_id: int = 0,
+    classification_type: str = "U",
     ephemeris_type: int = 2,
     element_set_number: int = 999,
     revolution_number_at_epoch: int = 0,
@@ -397,7 +397,7 @@ def fit_tle(
         Satellite name.
     object_id : str
         International designator (e.g., "1998-067A").
-    satellite_number : int
+    norad_cat_id : int
         NORAD catalog number.
     classification : str
         Classification (U/C/S).
@@ -422,9 +422,9 @@ def fit_tle(
 
     args = argparse.Namespace(
         name=object_name,
-        satellite_number=satellite_number,
+        norad_cat_id=norad_cat_id,
         object_name=object_name,
-        classification=classification,
+        classification=classification_type,
         int_designator_year=0,
         int_designator_launch_number=0,
         int_designator_piece="",
@@ -880,7 +880,7 @@ def _create_test_tle(
     n_rev_day: float = _sgp4_mean_motion_rev_per_day(a_m)
     return tle.Tle(
         name="REFINE",
-        satellite_number=0,
+        norad_cat_id=0,
         classification="U",
         int_designator_year=0,
         int_designator_launch_number=0,
@@ -1113,7 +1113,7 @@ def cartesian_to_tle(
 
     return tle.Tle(
         name=object_name,
-        satellite_number=0,
+        norad_cat_id=0,
         classification="U",
         int_designator_year=int_year,
         int_designator_launch_number=int_launch,
