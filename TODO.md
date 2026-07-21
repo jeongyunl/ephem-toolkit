@@ -3,10 +3,14 @@
 1. Improve CLI interface
     1. Unify CLI usage, options
         1. OEM input either file name or - for stdin
+        2. Output file option (-o, --output, --output-oem ?)
     1. ?
+
+1. Merge kepler/TLE tools?
+
 1. OEM
     1. `slice_oem.py`
-        1. ?
+        1. Further improvements?
     1. OEM frame conversions
 
 1. Propagation tools
