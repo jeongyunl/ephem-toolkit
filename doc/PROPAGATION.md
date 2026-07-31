@@ -421,7 +421,7 @@ python3 propagation/propagate_tle.py [-h] [-d <value[s|m|h|d]>] [-s <value[s|m]>
 | `-h`, `--help` | Show help message and exit | none |
 | `<tle_file>` | Path to a TLE file. If omitted, TLE text is read from stdin. | stdin when piped |
 | `-d`, `--duration` | Propagation duration in `s`, `m`, `h`, or `d` units | `1d` |
-| `-s`, `--step` | Output interval in `s` or `m` units | `15m` |
+| `-s`, `--step` | Output interval in `s` or `m` units | `5m` |
 | `--oem` | Print an OEM metadata header before the state lines | off |
 
 ### Input format
