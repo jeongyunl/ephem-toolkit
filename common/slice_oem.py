@@ -142,7 +142,7 @@ def parse_time_slice_args(time_slice_str: str) -> TimeSliceOptions:
         raise ValueError(f"Invalid time slice: {time_slice_str}")
 
     if len(parts) == 1 and parts[0]:
-        parsed: datetime | timedelta = _parse_time_or_duration(parts[0])
+        parsed: datetime | timedelta = time_utils.parse_time_or_duration(parts[0])
         if isinstance(parsed, timedelta):
             return TimeSliceOptions(start_time=parsed)
         return TimeSliceOptions(start_time=parsed)
@@ -152,12 +152,12 @@ def parse_time_slice_args(time_slice_str: str) -> TimeSliceOptions:
     # If comma is present but stop is empty, use timedelta(0) to indicate OEM end
     stop_time_value = None
     if parts[1]:
-        stop_time_value = _parse_time_or_duration(parts[1])
+        stop_time_value = time_utils.parse_time_or_duration(parts[1])
     elif has_comma:
         stop_time_value = timedelta(0)
 
     return TimeSliceOptions(
-        start_time=_parse_time_or_duration(parts[0]) if parts[0] else None,
+        start_time=time_utils.parse_time_or_duration(parts[0]) if parts[0] else None,
         stop_time=stop_time_value,
         step_size=(
             time_utils.parse_duration_to_timedelta(parts[2], default_unit="m")
@@ -822,25 +822,4 @@ def _validate_time_range(
         raise ValueError(
             f"Stop time {time_utils.datetime_to_iso8601(stop_dt)} is after "
             f"OEM file stop time {time_utils.datetime_to_iso8601(oem_stop_dt)}"
-        )
-
-
-def _parse_time_or_duration(value: str) -> datetime | timedelta:
-    """Parse ISO 8601 datetime or duration from string.
-
-    Parameters
-    ----------
-    value : str
-        ISO 8601 formatted datetime or duration string.
-
-    Returns
-    -------
-    datetime | timedelta
-        Parsed datetime or timedelta object.
-    """
-    try:
-        return time_utils.iso8601_to_datetime(value)
-    except ValueError:
-        return time_utils.parse_duration_to_timedelta(
-            value, default_unit="m", allow_negative=True, allow_zero=True
         )
