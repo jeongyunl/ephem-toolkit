@@ -12,6 +12,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import common.convert_tle as convert_tle
+import common.omm as omm
 import common.tle as tle
 
 TEST_DIR: Path = Path(__file__).parent
@@ -107,7 +109,7 @@ def run_oem_to_tle(
     """
     # Build object_id from international designator
     object_id = f"{original.int_designator_year:02d}-{original.int_designator_launch_number:03d}{original.int_designator_piece or 'A'}"
-    
+
     cmd: list[str] = [
         sys.executable,
         "-m",
@@ -140,41 +142,27 @@ def run_oem_to_tle(
 
 
 def parse_generated_tle_from_output(output: str) -> tle.Tle:
-    """Parse TLE from oem_to_omm script output.
+    """Parse TLE from oem_to_omm script output (OMM format).
 
     Parameters
     ----------
     output : str
-        Standard output from oem_to_omm script.
+        Standard output from oem_to_omm script (CCSDS OMM text).
 
     Returns
     -------
     tle.Tle
         Parsed TLE dataclass instance.
     """
-    lines: list[str] = [line for line in output.strip().splitlines() if line.strip()]
-    tle_line1: str | None = None
-    tle_line2: str | None = None
-    for i in range(len(lines) - 1):
-        if lines[i].startswith("1 ") and lines[i + 1].startswith("2 "):
-            tle_line1 = lines[i]
-            tle_line2 = lines[i + 1]
+    assert output.strip(), "oem_to_omm.py produced no output"
     assert (
-        tle_line1 is not None and tle_line2 is not None
-    ), f"Could not find TLE lines in oem_to_omm.py output:\n{output[-500:]}"
-    idx: int = lines.index(tle_line1)
-    name_line: str = ""
-    if idx > 0:
-        candidate: str = lines[idx - 1]
-        if not candidate.startswith(
-            ("1 ", "2 ", " ", "Estimated", "note:", "bstar", "mean-", "state-")
-        ):
-            name_line = candidate
-    tle_text: str = (
-        f"{name_line}\n{tle_line1}\n{tle_line2}\n"
-        if name_line
-        else f"{tle_line1}\n{tle_line2}\n"
-    )
+        "CCSDS_OMM_VERS" in output
+    ), f"Expected OMM output from oem_to_omm.py:\n{output[-500:]}"
+    omm_obj: omm.CcsdsOmm = omm.CcsdsOmm.from_source(io.StringIO(output))
+    tle_partial: tle.Tle = convert_tle.omm_to_tle(omm_obj)
+    line1, line2 = tle.format_tle_strings(tle_partial)
+    name: str = tle_partial.name or ""
+    tle_text: str = f"{name}\n{line1}\n{line2}\n" if name else f"{line1}\n{line2}\n"
     return tle.read_tle(io.StringIO(tle_text))
 
 
