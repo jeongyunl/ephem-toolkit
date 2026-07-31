@@ -202,6 +202,30 @@ def datetime_to_iso8601(
     return formatted
 
 
+def parse_time_or_duration(value: str) -> datetime | timedelta:
+    """Parse an ISO 8601 datetime or duration string.
+
+    Parameters
+    ----------
+    value : str
+        Input token parsed as either absolute timestamp or relative duration.
+
+    Returns
+    -------
+    datetime | timedelta
+        Parsed absolute datetime or relative timedelta.
+    """
+    try:
+        return iso8601_to_datetime(value)
+    except ValueError:
+        return parse_duration_to_timedelta(
+            value,
+            default_unit="m",
+            allow_negative=True,
+            allow_zero=True,
+        )
+
+
 # ===================================================================
 # CLI duration parsing
 # ===================================================================
