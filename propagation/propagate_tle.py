@@ -11,6 +11,10 @@ modules are imported only when propagation is actually requested. This keeps
 Usage:
     python3 propagate_tle.py <tle_file> [options]
     cat <tle_file> | python3 propagate_tle.py [options]
+
+Time window options:
+    --start <iso8601|duration>   Start epoch (absolute or relative to TLE epoch)
+    --stop  <iso8601|duration>   Stop epoch (absolute or relative to TLE epoch)
 """
 
 from __future__ import annotations
@@ -69,14 +73,23 @@ def parse_cli_args() -> argparse.Namespace:
         help=("Path to a TLE file. If omitted, read TLE text directly from stdin."),
     )
     parser.add_argument(
-        "-d",
-        "--duration",
-        type=time_utils.parse_duration_to_seconds,
-        metavar="<value[s|m|h|d]>",
-        default=DEFAULT_PROPAGATION_DURATION_S,
+        "--start",
+        metavar="<iso8601|duration>",
+        default=None,
         help=(
-            "Propagation duration (default: 1d). "
-            "Use -d/--duration, e.g. -d 90 (90 seconds), --duration 90s, -d 2m, --duration 1.5h, -d 1d."
+            "Propagation start epoch. Accepts ISO 8601 timestamp (e.g. "
+            "2026-01-01T00:00:00) or duration offset from the TLE epoch "
+            "(e.g. 90m, -30m)."
+        ),
+    )
+    parser.add_argument(
+        "--stop",
+        metavar="<iso8601|duration>",
+        default=None,
+        help=(
+            "Propagation stop epoch. Accepts ISO 8601 timestamp (e.g. "
+            "2026-01-01T06:00:00) or duration offset from the TLE epoch "
+            "(e.g. 1d, 6h)."
         ),
     )
     parser.add_argument(
@@ -91,11 +104,11 @@ def parse_cli_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--oem",
+        "--raw",
         action="store_true",
         help=(
-            "Print OEM metadata header before data lines. "
-            "If omitted, only propagated state lines are printed."
+            "Print propagated state lines only (no OEM metadata header). "
+            "By default, output is CCSDS OEM format."
         ),
     )
     return parser.parse_args()
@@ -212,13 +225,36 @@ def load_spice_kernels(spice_module) -> None:
         spice_module.load_kernel(common.get_spice_kernel_path() + "/" + kernel_file)
 
 
-def print_oem_like(
+def resolve_epoch_datetime(
+    reference_dt: dt.datetime,
+    spec: dt.datetime | dt.timedelta,
+) -> dt.datetime:
+    """Resolve absolute UTC datetime from a datetime or offset specification.
+
+    Parameters
+    ----------
+    reference_dt : dt.datetime
+        TLE reference epoch as UTC datetime.
+    spec : dt.datetime | dt.timedelta
+        Absolute datetime or offset relative to the reference epoch.
+
+    Returns
+    -------
+    dt.datetime
+        Resolved absolute UTC datetime.
+    """
+    if isinstance(spec, dt.timedelta):
+        return reference_dt + spec
+    return spec
+
+
+def write_oem_file(
     object_name: str,
     tle_ephemeris,
-    start_tdb_s: float,
-    duration_s: float,
+    start_time: dt.datetime,
+    stop_time: dt.datetime,
     step_s: float,
-    include_oem_header: bool,
+    raw_output: bool,
 ) -> None:
     """Print propagated state history using an OEM-like text layout.
 
@@ -228,35 +264,44 @@ def print_oem_like(
         Object name/id written to OEM metadata.
     tle_ephemeris
         TudatPy ephemeris object exposing ``cartesian_state(epoch)``.
-    start_tdb_s : float
-        Start epoch in TDB (s) since J2000.
-    duration_s : float
-        Propagation duration (s).
+    start_time : dt.datetime
+        Absolute UTC start epoch.
+    stop_time : dt.datetime
+        Absolute UTC stop epoch.
     step_s : float
         Output sampling interval (s).
-    include_oem_header : bool
-        Whether to print OEM metadata header before state lines.
+    raw_output : bool
+        Whether to print state lines only (without OEM metadata header).
 
     Notes
     -----
     Type annotations omitted for TudatPy modules to avoid import-time dependencies.
     """
-    stop_tdb_s: float = start_tdb_s + duration_s
+    if stop_time < start_time:
+        raise ValueError(
+            "Invalid propagation window: stop epoch must be >= start epoch.\n"
+            f"  Resolved start: {time_utils.datetime_to_iso8601(start_time)}\n"
+            f"  Resolved stop:  {time_utils.datetime_to_iso8601(stop_time)}"
+        )
 
     # Propagate and collect state vectors as list[tuple[float, np.ndarray]] (POSIX timestamps)
     propagated_states: list[tuple[float, np.ndarray]] = []
-    current_tdb_s: float = start_tdb_s
-    while current_tdb_s <= stop_tdb_s + 1.0e-12:
+    step_dt = dt.timedelta(seconds=step_s)
+    current_time: dt.datetime = start_time
+    while current_time <= stop_time:
+        current_tdb_s: float = time_utils.datetime_to_tdb_s(current_time)
         state_m: np.ndarray = tle_ephemeris.cartesian_state(current_tdb_s)
-        epoch_dt = time_utils.tdb_s_to_datetime(current_tdb_s)
 
         # Convert to POSIX timestamp for CcsdsOem
-        timestamp: float = epoch_dt.timestamp()
+        timestamp: float = current_time.timestamp()
         # Store state in meters (SI units) — oem.write_states handles km conversion
         propagated_states.append((timestamp, state_m))
-        current_tdb_s += step_s
+        current_time = current_time + step_dt
 
-    if include_oem_header:
+    if raw_output:
+        # write_states() accepts both dict and list formats
+        oem.write_states(sys.stdout, propagated_states)
+    else:
         # Use from_states() for automatic header/metadata generation.
         # states_list contains SI units (m, m/s); write() converts to km automatically.
         oem_obj: oem.CcsdsOem = oem.CcsdsOem.from_states(
@@ -267,9 +312,6 @@ def print_oem_like(
             time_system="UTC",
         )
         oem_obj.write(sys.stdout)
-    else:
-        # write_states() accepts both dict and list formats
-        oem.write_states(sys.stdout, propagated_states)
 
 
 # ===================================================================
@@ -289,8 +331,6 @@ def main() -> int:
     # fail quickly before importing TudatPy.
     args: argparse.Namespace = parse_cli_args()
 
-    if args.duration <= 0.0:
-        raise ValueError("--duration must be > 0")
     if args.step <= 0.0:
         raise ValueError("--step must be > 0")
 
@@ -311,15 +351,33 @@ def main() -> int:
     tle_ephemeris = environment_setup.create_body_ephemeris(
         tle_ephemeris_settings, body_name=object_name
     )
-    start_tdb_s: float = tle_ephemeris.tle.reference_epoch
+    reference_dt: dt.datetime = time_utils.tdb_s_to_datetime(
+        tle_ephemeris.tle.reference_epoch
+    )
 
-    print_oem_like(
+    start_spec: dt.datetime | dt.timedelta
+    stop_spec: dt.datetime | dt.timedelta
+
+    if args.start is None:
+        start_spec = dt.timedelta(0)
+    else:
+        start_spec = time_utils.parse_time_or_duration(args.start)
+
+    if args.stop is None:
+        stop_spec = start_spec + dt.timedelta(seconds=DEFAULT_PROPAGATION_DURATION_S)
+    else:
+        stop_spec = time_utils.parse_time_or_duration(args.stop)
+
+    start_time: dt.datetime = resolve_epoch_datetime(reference_dt, start_spec)
+    stop_time: dt.datetime = resolve_epoch_datetime(reference_dt, stop_spec)
+
+    write_oem_file(
         object_name=object_name,
         tle_ephemeris=tle_ephemeris,
-        start_tdb_s=start_tdb_s,
-        duration_s=args.duration,
+        start_time=start_time,
+        stop_time=stop_time,
         step_s=args.step,
-        include_oem_header=args.oem,
+        raw_output=args.raw,
     )
 
     return 0
