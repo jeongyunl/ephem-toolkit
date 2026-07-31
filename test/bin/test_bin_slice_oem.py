@@ -539,7 +539,7 @@ def test_cli_time_slice_out_of_range() -> None:
 
 def test_cli_with_real_oem_file() -> None:
     """Test CLI with a real OEM file from test data."""
-    oem_file = TEST_DATA_DIR / "LEO3.oem"
+    oem_file = TEST_DATA_DIR / "JPSS-1.oem"
     if not oem_file.exists():
         pytest.skip(f"Test data file not found: {oem_file}")
 
@@ -552,7 +552,7 @@ def test_cli_with_real_oem_file() -> None:
 
 def test_cli_time_slice_with_real_oem_file() -> None:
     """Test time-based slicing with a real OEM file."""
-    oem_file = TEST_DATA_DIR / "LEO3.oem"
+    oem_file = TEST_DATA_DIR / "JPSS-1.oem"
     if not oem_file.exists():
         pytest.skip(f"Test data file not found: {oem_file}")
 
@@ -799,7 +799,9 @@ def test_cli_stdin_with_raw_output() -> None:
             oem_content = f.read()
 
         # Pass content via stdin with raw output
-        result = _run_slice_oem(["-", "--slice", "0:3", "--raw"], input_data=oem_content)
+        result = _run_slice_oem(
+            ["-", "--slice", "0:3", "--raw"], input_data=oem_content
+        )
         assert result.returncode == 0
 
         # Raw output should not contain OEM headers
@@ -819,7 +821,9 @@ def test_cli_stdin_with_verbose() -> None:
             oem_content = f.read()
 
         # Pass content via stdin with verbose flag
-        result = _run_slice_oem(["--slice", "0:10", "--verbose"], input_data=oem_content)
+        result = _run_slice_oem(
+            ["--slice", "0:10", "--verbose"], input_data=oem_content
+        )
         assert result.returncode == 0
 
         # Verbose output should show <stdin> as file source

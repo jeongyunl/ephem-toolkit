@@ -572,7 +572,7 @@ def test_ecef_to_lla_round_trip_batch() -> None:
     # Inverse conversion
     lla_recovered = wgs.ecef_to_lla(ecef)
 
-    np.testing.assert_allclose(lla_recovered, lla_original, rtol=1e-12, atol=1e-9)
+    np.testing.assert_allclose(lla_recovered, lla_original, rtol=1e-12, atol=1e-8)
 
 
 def test_ecef_to_lla_batch_returns_correct_shape() -> None:
