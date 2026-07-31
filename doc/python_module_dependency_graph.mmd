@@ -59,7 +59,7 @@ graph LR
 
     subgraph plotting
         mod_plotting_plot_dependent_variables([plot_dependent_variables])
-        mod_plotting_plot_orbits([plot_orbits])
+        mod_plotting_plot_orbit_deltas([plot_orbit_deltas])
     end
 
     subgraph propagation
@@ -179,10 +179,10 @@ graph LR
     %% ===== plotting edges =====
     mod_plotting_plot_dependent_variables --> mod_common_common
     mod_plotting_plot_dependent_variables --> mod_common_time_utils
-    mod_plotting_plot_orbits --> mod_common_common
-    mod_plotting_plot_orbits --> mod_common_oem
-    mod_plotting_plot_orbits --> mod_common_time_utils
-    mod_plotting_plot_orbits --> mod_interpolator_lagrange
+    mod_plotting_plot_orbit_deltas --> mod_common_common
+    mod_plotting_plot_orbit_deltas --> mod_common_oem
+    mod_plotting_plot_orbit_deltas --> mod_common_time_utils
+    mod_plotting_plot_orbit_deltas --> mod_interpolator_lagrange
 
     %% ===== propagation edges =====
     mod_propagation_propagate_kepler --> mod_common_oem

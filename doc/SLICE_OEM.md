@@ -512,7 +512,7 @@ Solution: Use valid ISO 8601 format or duration notation.
 ## Related Tools
 
 - `bin/state_diff.py` — Compare two OEM states
-- `plotting/plot_orbits.py` — Visualize and compare orbits
+- `plotting/plot_orbit_deltas.py` — Visualize and compare orbits
 - `propagation/propagate_orbit.py` — Generate OEM files from propagation
 - `oem_to_omm/oem_to_omm.py` — Convert OEM to TLE/OMM format
 

@@ -141,7 +141,7 @@ See [SLICE_OEM.md](doc/SLICE_OEM.md) for OEM slicing details and [MISC.md](doc/M
 
 ### Visualization (`plotting/`)
 
-- `plotting/plot_orbits.py` — plot and compare multiple orbits
+- `plotting/plot_orbit_deltas.py` — plot and compare multiple orbits
 - `plotting/plot_dependent_variables.py` — plot dependent variables from propagation output
 
 ---
