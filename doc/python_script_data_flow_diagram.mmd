@@ -39,7 +39,7 @@ flowchart LR
     propagate_sat(["propagate_orbit.py"])
     propagate_kepler(["propagate_kepler.py"])
     plot_dep_vars(["plot_dependent_variables.py"])
-    plot_orbits(["plot_orbits.py"])
+    plot_orbit_deltas(["plot_orbit_deltas.py"])
 
     %% conversion/ utilities
     slice_oem(["slice_oem.py"])
@@ -92,9 +92,9 @@ flowchart LR
     fmt_kepler --> propagate_kepler
     propagate_kepler --> fmt_oem
 
-    %% plot_orbits.py: OEM state files → plots
-    fmt_oem --> plot_orbits
-    plot_orbits --> fmt_plots
+    %% plot_orbit_deltas.py: OEM state files → plots
+    fmt_oem --> plot_orbit_deltas
+    plot_orbit_deltas --> fmt_plots
 
     %% slice_oem.py: OEM → sliced OEM states
     fmt_oem --> slice_oem

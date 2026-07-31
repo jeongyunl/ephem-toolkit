@@ -7,7 +7,7 @@ Miscellaneous utilities for orbit analysis and comparison.
 - `bin/state_diff.py`
 - `bin/slice_oem.py`
 - `bin/ecef_to_aer.py`
-- `plotting/plot_orbits.py`
+- `plotting/plot_orbit_deltas.py`
 - `plotting/plot_dependent_variables.py`
 
 ## `bin/state_diff.py`
@@ -193,14 +193,14 @@ python3 bin/ecef_to_aer.py -h
 - NumPy
 - local helper modules `common.aer`, `common.oem`, `common.time_utils`
 
-## `plotting/plot_orbits.py`
+## `plotting/plot_orbit_deltas.py`
 
 Plots multiple orbit trajectories with various views and RTN (Radial-Transverse-Normal) coordinates.
 
 ### Synopsis
 
 ```bash
-python3 plotting/plot_orbits.py [-h] [-o <output_file>] [-d <duration>] [--time-unit <unit>] <reference_oem> [<comparison_oem1>] [<comparison_oem2>] ...
+python3 plotting/plot_orbit_deltas.py [-h] [-o <output_file>] [-d <duration>] [--time-unit <unit>] <reference_oem> [<comparison_oem1>] [<comparison_oem2>] ...
 ```
 
 ### Options
@@ -255,37 +255,37 @@ Otherwise, figures are displayed interactively.
 **Plot single orbit:**
 
 ```bash
-python3 plotting/plot_orbits.py reference.oem
+python3 plotting/plot_orbit_deltas.py reference.oem
 ```
 
 **Plot reference orbit with comparison orbits:**
 
 ```bash
-python3 plotting/plot_orbits.py reference.oem comparison1.oem comparison2.oem
+python3 plotting/plot_orbit_deltas.py reference.oem comparison1.oem comparison2.oem
 ```
 
 **Save output to files:**
 
 ```bash
-python3 plotting/plot_orbits.py reference.oem comparison.oem -o orbits.png
+python3 plotting/plot_orbit_deltas.py reference.oem comparison.oem -o orbits.png
 ```
 
 **Analyze only first 2 hours:**
 
 ```bash
-python3 plotting/plot_orbits.py reference.oem comparison.oem -d 2h
+python3 plotting/plot_orbit_deltas.py reference.oem comparison.oem -d 2h
 ```
 
 **Use minutes for time-series x-axis:**
 
 ```bash
-python3 plotting/plot_orbits.py reference.oem comparison.oem --time-unit minutes
+python3 plotting/plot_orbit_deltas.py reference.oem comparison.oem --time-unit minutes
 ```
 
 **Show help:**
 
 ```bash
-python3 plotting/plot_orbits.py -h
+python3 plotting/plot_orbit_deltas.py -h
 ```
 
 ### Dependencies
