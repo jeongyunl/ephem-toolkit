@@ -68,6 +68,16 @@ Parse a duration string and convert to seconds. Convenience wrapper around `pars
 
 **Returns:** Duration in seconds.
 
+### Duration Formatting
+
+#### `format_duration(duration: timedelta) -> str`
+Return canonical duration string (e.g., `10h`, `30m`, `45s`).
+
+**Returns:** Canonical duration string using the largest whole-unit denomination.
+
+#### `format_duration_human(duration: timedelta) -> str`
+Format a timedelta into a human-readable string (e.g., `2h 30m`, `45s`, `3d 1h`). Supports negative durations with a leading `-`.
+
 ### Constants
 - `SECONDS_PER_MINUTE = 60.0`
 - `SECONDS_PER_HOUR = 3600.0`
@@ -221,17 +231,17 @@ Propagate Keplerian elements forward in time using the two-body solution. Only t
 
 ### Mean to Osculating Conversion
 
-#### `compute_brouwer_short_period_corrections(mean_keplerian_elements: np.ndarray, R_e_m: float, J2: float) -> np.ndarray`
+#### `compute_brouwer_short_period_corrections(mean_keplerian_elements: np.ndarray, R_e_m: float = EARTH_EQUATORIAL_RADIUS_M, J2: float = EARTH_J2) -> np.ndarray`
 Compute Brouwer first-order J2 short-period corrections to convert mean Keplerian elements (as used in TLE/SGP4) to osculating elements.
 
 **Parameters:**
 - `mean_keplerian_elements`: Shape (6,) or (N, 6) - [a, e, i, omega, RAAN, M]
-- `R_e_m`: Earth equatorial radius (m)
-- `J2`: J2 zonal harmonic coefficient
+- `R_e_m`: Earth equatorial radius (m) (default: WGS-84)
+- `J2`: J2 zonal harmonic coefficient (default: WGS-84)
 
 **Returns:** Osculating Keplerian elements [a, e, i, omega, RAAN, theta]
 
-#### `mean_to_osculating_keplerian(mean_keplerian_elements: np.ndarray, R_e_m: float, J2: float) -> np.ndarray`
+#### `mean_to_osculating_keplerian(mean_keplerian_elements: np.ndarray, R_e_m: float = EARTH_EQUATORIAL_RADIUS_M, J2: float = EARTH_J2) -> np.ndarray`
 Alias for `compute_brouwer_short_period_corrections` provided for API consistency. Same parameters and return value.
 
 ### Osculating to Mean Conversion
@@ -525,11 +535,11 @@ Parse a Python-style slice string into a slice object (e.g., "0:10", "::2", "5",
 #### `parse_time_slice_args(time_slice_str: str) -> TimeSliceOptions`
 Parse an ISO-8601 time slice string using comma separators. Format: `start[,stop[,step]]`.
 
-#### `slice_states(states: dict[float, object], slice_spec: TimeSliceOptions | slice) -> list[tuple[float, object]]`
-Return sliced OEM states based on a time or index slice specification.
+#### `extract_sliced_states(oem: CcsdsOem, slice_spec: TimeSliceOptions | slice, verbose: bool = False, interpolation_degree: int = INTERPOLATION_DEGREE) -> CcsdsOem`
+Extract sliced OEM states based on a time or index slice specification. Returns a new `CcsdsOem` with preserved metadata.
 
-#### `slice_states_by_time(states: dict[float, object], options: TimeSliceOptions) -> list[tuple[float, object]]`
-Extract states within a time window using TimeSliceOptions. Supports interpolation when step_size is provided.
+#### `extract_states_by_time(oem: CcsdsOem, options: TimeSliceOptions, verbose: bool = False, interpolation_degree: int = INTERPOLATION_DEGREE) -> CcsdsOem`
+Extract states within a time window using `TimeSliceOptions`. Supports Lagrange interpolation when `step_size` is provided. Returns a new `CcsdsOem` with preserved metadata.
 
 ---
 
