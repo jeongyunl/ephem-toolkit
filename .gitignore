@@ -13,3 +13,4 @@ common/interpolator/cpp/*
 oem_to_omm/*.omm
 oem_to_omm/*.oem
 oem_to_omm/*.tle
+tmp/
