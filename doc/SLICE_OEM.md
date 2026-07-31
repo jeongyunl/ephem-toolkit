@@ -28,9 +28,11 @@ cat data.oem | python3 bin/slice_oem.py [OPTIONS]
 | `<oem_file>` | Path to input CCSDS OEM file (use `-` or omit to read from stdin) |
 | `-s`, `--slice SLICE` | Python-style slice index (e.g., `0:10`, `::2`, `5`, `-5:`) |
 | `-t`, `--time-slice TIME_SLICE` | Time slice specifier: `start[,[stop][,step]]` |
-| `-i`, `--interpolate` | Enable Lagrange interpolation when step size is provided (enabled by default) |
+| `--interpolate` | Enable Lagrange interpolation when step size is provided (enabled by default) |
 | `--no-interpolate` | Disable interpolation |
+| `--interpolate-degree N` | Polynomial degree for Lagrange interpolation (must be ≥ 2, default: 8) |
 | `--raw` | Output raw state vectors only (default: OEM format) |
+| `-o`, `--output <file\|->` | Output file path (default: `-` for stdout) |
 | `-v`, `--verbose` | Print detailed debug information to stderr |
 | `-h`, `--help` | Show help message and exit |
 

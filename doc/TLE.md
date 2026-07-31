@@ -87,14 +87,13 @@ Inspects and displays detailed TLE information including orbital elements and Ca
 ### Synopsis
 
 ```bash
-python3 bin/tle_info.py [-h] <tle_file> [<tle_file2>] ...
+python3 bin/tle_info.py <tle_file> [<tle_file2>] ...
 ```
 
 ### Options
 
 | Option | Description |
 |---|---|
-| `-h`, `--help` | Show help message and exit |
 | `<tle_file>` | One or more TLE file paths |
 
 ### Behavior
