@@ -53,26 +53,6 @@ import common.slice_oem as slice_oem
 import common.time_utils as time_utils
 
 
-def _format_time_or_duration(value: datetime | timedelta | None) -> str:
-    """Format datetime or timedelta as ISO-8601 string, or empty string if *None*.
-
-    Parameters
-    ----------
-    value : datetime | timedelta | None
-        Value to format.
-
-    Returns
-    -------
-    str
-        ISO-8601 datetime string, duration string (e.g., ``10h``), or empty string.
-    """
-    if value is None:
-        return ""
-    if isinstance(value, timedelta):
-        return time_utils.format_duration(value)
-    return time_utils.datetime_to_iso8601(value)
-
-
 def main() -> None:
     """Parse CLI arguments, slice OEM ephemeris data, and write results to stdout."""
     parser = argparse.ArgumentParser(
