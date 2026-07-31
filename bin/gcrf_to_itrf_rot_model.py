@@ -241,6 +241,77 @@ def convert_itrf_to_gcrf_erm(
 # ===================================================================
 
 
+def convert_oem_states(
+    input_oem: oem.CcsdsOem,
+    global_frame_orientation: str,
+    rotation_model_settings: RotationModelSettings,
+    reverse: bool = False,
+) -> oem.CcsdsOem:
+    """Convert all states in a CcsdsOem between GCRF and ITRF frames.
+
+    Parameters
+    ----------
+    input_oem : oem.CcsdsOem
+        Input OEM with states to convert.
+    global_frame_orientation : str
+        Inertial frame orientation string (e.g. ``"GCRS"`` or ``"J2000"``).
+    rotation_model_settings : RotationModelSettings
+        Pre-configured rotation model settings (e.g. GCRS-to-ITRS IAU 2006,
+        SPICE IAU_Earth, SPICE ITRF93).
+    reverse : bool
+        If True, perform ITRF→GCRF conversion instead of GCRF→ITRF.
+
+    Returns
+    -------
+    oem.CcsdsOem
+        New OEM with converted states and updated metadata.
+    """
+
+    earth_rotation_model: object = create_earth_rotation_model(
+        global_frame_orientation, rotation_model_settings
+    )
+
+    converted_states: list[tuple[float, np.ndarray]] = []
+
+    for timestamp, state_m in input_oem.states:
+        # Convert POSIX timestamp (UTC) to datetime, then to TDB seconds since J2000
+        epoch_dt: datetime = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        epoch_tdb_s: float = time_utils.datetime_to_tdb_s(epoch_dt)
+
+        # State vector is already in SI units (m, m/s)
+        position_m: np.ndarray = state_m[0:3]
+        velocity_m_s: np.ndarray = state_m[3:6]
+
+        if reverse:
+            output_position_m, output_velocity_m_s = convert_itrf_to_gcrf_erm(
+                earth_rotation_model,
+                epoch_tdb_s,
+                position_m,
+                velocity_m_s,
+            )
+            output_ref_frame: str = "GCRF"
+        else:
+            output_position_m, output_velocity_m_s = convert_gcrf_to_itrf_erm(
+                earth_rotation_model,
+                epoch_tdb_s,
+                position_m,
+                velocity_m_s,
+            )
+            output_ref_frame: str = "ITRF"
+
+        # Combine position and velocity into state vector
+        output_state: np.ndarray = np.concatenate(
+            [output_position_m, output_velocity_m_s]
+        )
+        converted_states.append((timestamp, output_state))
+
+    # Create new OEM with converted states and updated reference frame
+    output_oem: oem.CcsdsOem = input_oem.with_metadata(ref_frame=output_ref_frame)
+    output_oem.states = converted_states
+
+    return output_oem
+
+
 def process_stream(
     global_frame_orientation: str,
     rotation_model_settings: RotationModelSettings,
@@ -248,6 +319,8 @@ def process_stream(
     reverse: bool = False,
 ) -> None:
     """Read lines from *stream*, convert each epoch, and print transformed state vectors.
+
+    This function maintains backward compatibility with line-by-line stdin input.
 
     Parameters
     ----------
@@ -314,6 +387,74 @@ def process_stream(
             output_velocity_km_s: np.ndarray = output_velocity_m_s / 1e3
             print("  ", *output_velocity_km_s, sep="  ", end="")
         print()
+
+
+def _is_oem_format(parsed_oem: oem.CcsdsOem) -> bool:
+    """Check whether a parsed OEM has valid header and metadata.
+
+    An OEM file is considered to be in proper OEM format if it has a non-zero
+    version number in the header, indicating that the file contained
+    CCSDS_OEM_VERS and metadata blocks.
+
+    Parameters
+    ----------
+    parsed_oem : oem.CcsdsOem
+        Parsed OEM instance to check.
+
+    Returns
+    -------
+    bool
+        True if the input has OEM header/metadata, False if it is a raw state list.
+    """
+    return parsed_oem.header.version > 0.0
+
+
+def process_oem_file(
+    input_file: str | Path,
+    global_frame_orientation: str,
+    rotation_model_settings: RotationModelSettings,
+    reverse: bool = False,
+) -> None:
+    """Read an OEM file, convert states, and write output to stdout.
+
+    If the input file is in proper OEM format (with header and metadata),
+    the output is written in OEM format. Otherwise, the output is written
+    as plain text state lines (one per epoch).
+
+    Parameters
+    ----------
+    input_file : str | Path
+        Path to input OEM file or raw state list.
+    global_frame_orientation : str
+        Inertial frame orientation string (e.g. ``"GCRS"`` or ``"J2000"``).
+    rotation_model_settings : RotationModelSettings
+        Pre-configured rotation model settings (e.g. GCRS-to-ITRS IAU 2006,
+        SPICE IAU_Earth, SPICE ITRF93).
+    reverse : bool
+        If True, perform ITRF→GCRF conversion instead of GCRF→ITRF.
+    """
+
+    # Read OEM file using CcsdsOem class
+    input_oem: oem.CcsdsOem = oem.CcsdsOem.read(input_file)
+
+    if _is_oem_format(input_oem):
+        # Input is proper OEM format — output in OEM format
+        output_oem: oem.CcsdsOem = convert_oem_states(
+            input_oem,
+            global_frame_orientation,
+            rotation_model_settings,
+            reverse,
+        )
+        output_oem.write(sys.stdout)
+    else:
+        # Input is a raw state list — output as plain text lines
+        with open(input_file, "r", encoding="utf-8") as fh:
+            process_stream(
+                global_frame_orientation,
+                rotation_model_settings,
+                fh,
+                reverse=reverse,
+            )
 
 
 # ===================================================================
@@ -430,13 +571,12 @@ if __name__ == "__main__":
         if not input_path.exists():
             print(f"Error: File not found: {input_file}", file=sys.stderr)
             sys.exit(1)
-        with open(input_file, "r", encoding="utf-8") as f:
-            process_stream(
-                global_frame_orientation,
-                rotation_model_settings,
-                f,
-                reverse=reverse_conversion,
-            )
+        process_oem_file(
+            input_file,
+            global_frame_orientation,
+            rotation_model_settings,
+            reverse=reverse_conversion,
+        )
     else:
         process_stream(
             global_frame_orientation,

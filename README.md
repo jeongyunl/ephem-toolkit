@@ -64,6 +64,13 @@ Reusable Python modules providing foundational astrodynamics functionality. Thes
 | `common/interpolator/interpolator.py` | Generic interpolation interface |
 | `common/interpolator/lagrange.py` | Lagrange polynomial interpolation |
 
+#### Coordinate Transformations
+
+| Module | Description |
+|--------|-------------|
+| `common/aer.py` | AER (Azimuth-Elevation-Range) coordinate conversions |
+| `common/wgs.py` | WGS-84 geodetic coordinate conversions (LLA ↔ ECEF ↔ ENU) |
+
 #### General Utilities
 
 | Module | Description |
@@ -128,6 +135,7 @@ See [TLE.md](doc/TLE.md) for full usage details.
 
 - `bin/slice_oem.py` — slice OEM files by index or time range (with optional interpolation)
 - `bin/state_diff.py` — compare two OEM-like Cartesian states
+- `bin/ecef_to_aer.py` — convert ECEF OEM ephemeris to AER (Azimuth-Elevation-Range) coordinates
 
 See [SLICE_OEM.md](doc/SLICE_OEM.md) for OEM slicing details and [MISC.md](doc/MISC.md) for other utilities.
 

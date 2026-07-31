@@ -13,7 +13,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import sys
 from pathlib import Path
-from typing import TextIO
 
 # Suppress Warnings from TudatPy
 import warnings
@@ -103,21 +102,22 @@ def convert_frames_spice(
     return output_state_m
 
 
-def process_stream(stream: TextIO, reverse: bool = False) -> None:
-    """Read lines from *stream*, convert each state vector, and print results.
-
-    Input lines use OEM format (km and km/s). The function converts to SI units
-    (m and m/s) for SPICE computation, then converts back to km for output.
+def process_oem(input_oem: oem.CcsdsOem, reverse: bool = False) -> oem.CcsdsOem:
+    """Convert state vectors in an OEM between reference frames.
 
     Parameters
     ----------
-    stream : TextIO
-        An iterable of text lines (file object or sys.stdin).
+    input_oem : oem.CcsdsOem
+        Input OEM object with state vectors to convert.
     reverse : bool, optional
         If True, convert ITRF93 → J2000 instead of J2000 → ITRF93.
         Default: False (J2000 → ITRF93).
-    """
 
+    Returns
+    -------
+    oem.CcsdsOem
+        New OEM object with converted state vectors and updated metadata.
+    """
     load_spice_kernels()
 
     if reverse:
@@ -127,39 +127,30 @@ def process_stream(stream: TextIO, reverse: bool = False) -> None:
         base_frame = "J2000"
         target_frame = "ITRF93"
 
-    for line in stream:
-        try:
-            parsed: tuple | None = oem.parse_oem_state_line(line)
-        except Exception as exc:
-            print(f"Skipping line (parse error): {line.strip()} -- {exc}")
-            continue
-        if parsed is None:
-            continue
-
-        epoch_timestamp, input_state_m = parsed
+    # Convert all states
+    converted_states: list[tuple[float, np.ndarray]] = []
+    for epoch_timestamp, input_state_m in input_oem.states:
         epoch_dt: datetime = datetime.fromtimestamp(epoch_timestamp, tz=timezone.utc)
         epoch_tdb_s: float = time_utils.datetime_to_tdb_s(epoch_dt)
 
-        # input_state_m is already in meters (converted by oem.parse_oem_state_line)
+        # input_state_m is already in meters (from CcsdsOem)
         output_state_m: np.ndarray = convert_frames_spice(
             base_frame, target_frame, epoch_tdb_s, input_state_m
         )
 
-        # Convert back to km for output
-        output_position_km: np.ndarray = (
-            output_state_m[0:3] / 1e3
-        )  # (3,) position in km
-        output_velocity_km_s: np.ndarray = (
-            output_state_m[3:6] / 1e3
-        )  # (3,) velocity in km/s
+        converted_states.append((epoch_timestamp, output_state_m))
 
-        print(
-            time_utils.datetime_to_iso8601(epoch_dt),
-            *output_position_km,
-            sep="  ",
-            end="",
-        )
-        print("  ", *output_velocity_km_s, sep="  ")
+    # Create new OEM with converted states and updated metadata
+    output_oem: oem.CcsdsOem = oem.CcsdsOem(
+        header=input_oem.header,
+        meta=input_oem.meta,
+        states=converted_states,
+    )
+
+    # Update reference frame in metadata
+    output_oem.update_metadata(ref_frame=target_frame)
+
+    return output_oem
 
 
 def print_usage() -> None:
@@ -205,7 +196,17 @@ if __name__ == "__main__":
 
     if args:
         input_file: str = args[0]
-        with open(input_file, "r") as fh:
-            process_stream(fh, reverse=set_reverse_conversion)
+        # Read OEM file
+        input_oem: oem.CcsdsOem = oem.CcsdsOem.read(input_file)
     else:
-        process_stream(sys.stdin, reverse=set_reverse_conversion)
+        # Read from stdin
+        input_oem: oem.CcsdsOem = oem.CcsdsOem.read(sys.stdin)
+
+    # Convert frames
+    output_oem: oem.CcsdsOem = process_oem(input_oem, reverse=set_reverse_conversion)
+
+    # Output in OEM format only if the input was OEM format (header exists)
+    if input_oem.header.version > 0.0:
+        output_oem.write(sys.stdout)
+    else:
+        oem.write_states(sys.stdout, output_oem.states)

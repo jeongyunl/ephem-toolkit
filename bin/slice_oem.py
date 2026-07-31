@@ -119,6 +119,13 @@ def main() -> None:
         help="Disable interpolation",
     )
     parser.add_argument(
+        "--interpolate-degree",
+        type=int,
+        default=8,
+        metavar="N",
+        help="Polynomial degree for Lagrange interpolation (must be >= 2, default: 8)",
+    )
+    parser.add_argument(
         "--raw",
         action="store_true",
         help="Output raw state vectors only (default: OEM format)",
@@ -138,6 +145,10 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    # Validate interpolation degree if provided
+    if args.interpolate_degree < 2:
+        parser.error("--interpolate-degree must be 2 or greater")
 
     # Determine if reading from stdin
     read_from_stdin = args.oem_file is None or args.oem_file == "-"
@@ -207,13 +218,19 @@ def main() -> None:
 
             # Time slice extraction with optional interpolation
             sliced_oem = slice_oem.extract_sliced_states(
-                oem_data, time_slice_opts, verbose=args.verbose
+                oem_data,
+                time_slice_opts,
+                verbose=args.verbose,
+                interpolation_degree=args.interpolate_degree,
             )
 
         elif args.slice:
             slice_obj = slice_oem.parse_slice_args(args.slice)
             sliced_oem = slice_oem.extract_sliced_states(
-                oem_data, slice_obj, verbose=args.verbose
+                oem_data,
+                slice_obj,
+                verbose=args.verbose,
+                interpolation_degree=args.interpolate_degree,
             )
 
         if sliced_oem is not None:

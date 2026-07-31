@@ -39,8 +39,8 @@ import common.time_utils as time_utils
 DEFAULT_PROPAGATION_DURATION_S = time_utils.SECONDS_PER_DAY
 """Default propagation duration in seconds (1 day)."""
 
-DEFAULT_OUTPUT_STEP_S = 15.0 * time_utils.SECONDS_PER_MINUTE
-"""Default output sampling interval in seconds (15 minutes)."""
+DEFAULT_OUTPUT_STEP_S = 5.0 * time_utils.SECONDS_PER_MINUTE
+"""Default output sampling interval in seconds (5 minutes)."""
 
 
 # ===================================================================
@@ -86,7 +86,7 @@ def parse_cli_args() -> argparse.Namespace:
         metavar="<value[s|m]>",
         default=DEFAULT_OUTPUT_STEP_S,
         help=(
-            "Output interval (default: 1m). "
+            "Output interval (default: 5m). "
             "Use -s/--step, e.g. -s 60, --step 60s, -s 1m."
         ),
     )
@@ -212,43 +212,12 @@ def load_spice_kernels(spice_module) -> None:
         spice_module.load_kernel(common.get_spice_kernel_path() + "/" + kernel_file)
 
 
-def epoch_to_utc_iso(epoch_tdb_s: float, spice_module, datetime_class) -> str:
-    """Convert TDB seconds since J2000 to UTC ISO string.
-
-    Parameters
-    ----------
-    epoch_tdb_s : float
-        TDB epoch (s) since J2000.
-    spice_module
-        TudatPy SPICE interface module.
-    datetime_class
-        TudatPy DateTime class.
-
-    Returns
-    -------
-    str
-        UTC epoch string in ISO-like form with trailing ``Z``.
-
-    Notes
-    -----
-    Type annotations omitted for TudatPy modules to avoid import-time dependencies.
-    """
-    epoch_utc_s: float = spice_module.get_approximate_utc_from_tdb(epoch_tdb_s)
-    dt_utc: object = datetime_class.from_epoch(epoch_utc_s)
-    epoch_iso_str: str = dt_utc.to_iso_string(number_of_digits_seconds=3)
-    if "T" not in epoch_iso_str:
-        epoch_iso_str = epoch_iso_str.replace(" ", "T")
-    return epoch_iso_str
-
-
 def print_oem_like(
     object_name: str,
     tle_ephemeris,
     start_tdb_s: float,
     duration_s: float,
     step_s: float,
-    spice_module,
-    datetime_class,
     include_oem_header: bool,
 ) -> None:
     """Print propagated state history using an OEM-like text layout.
@@ -265,10 +234,6 @@ def print_oem_like(
         Propagation duration (s).
     step_s : float
         Output sampling interval (s).
-    spice_module
-        TudatPy SPICE interface module.
-    datetime_class
-        TudatPy DateTime class.
     include_oem_header : bool
         Whether to print OEM metadata header before state lines.
 
@@ -276,23 +241,15 @@ def print_oem_like(
     -----
     Type annotations omitted for TudatPy modules to avoid import-time dependencies.
     """
-    creation_date_iso: str = dt.datetime.now(tz=dt.timezone.utc).strftime(
-        "%Y-%m-%dT%H:%M:%S.%f"
-    )[:-3]
     stop_tdb_s: float = start_tdb_s + duration_s
-    start_utc_iso: str = epoch_to_utc_iso(start_tdb_s, spice_module, datetime_class)
-    stop_utc_iso: str = epoch_to_utc_iso(stop_tdb_s, spice_module, datetime_class)
 
     # Propagate and collect state vectors as list[tuple[float, np.ndarray]] (POSIX timestamps)
     propagated_states: list[tuple[float, np.ndarray]] = []
     current_tdb_s: float = start_tdb_s
     while current_tdb_s <= stop_tdb_s + 1.0e-12:
         state_m: np.ndarray = tle_ephemeris.cartesian_state(current_tdb_s)
-        epoch_iso: str = epoch_to_utc_iso(current_tdb_s, spice_module, datetime_class)
+        epoch_dt = time_utils.tdb_s_to_datetime(current_tdb_s)
 
-        # Parse epoch string and convert to datetime (UTC)
-        epoch_dt: dt.datetime = dt.datetime.fromisoformat(epoch_iso.rstrip("Z"))
-        epoch_dt = epoch_dt.replace(tzinfo=dt.timezone.utc)
         # Convert to POSIX timestamp for CcsdsOem
         timestamp: float = epoch_dt.timestamp()
         # Store state in meters (SI units) — oem.write_states handles km conversion
@@ -344,7 +301,6 @@ def main() -> int:
 
     # Heavy TudatPy imports are intentionally delayed until after cheap input
     # validation is complete.
-    from tudatpy.astro.time_representation import DateTime
     from tudatpy.dynamics import environment_setup
     from tudatpy.interface import spice
 
@@ -363,8 +319,6 @@ def main() -> int:
         start_tdb_s=start_tdb_s,
         duration_s=args.duration,
         step_s=args.step,
-        spice_module=spice,
-        datetime_class=DateTime,
         include_oem_header=args.oem,
     )
 

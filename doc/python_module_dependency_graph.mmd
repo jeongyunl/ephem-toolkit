@@ -10,6 +10,7 @@ graph LR
 %% Library modules use default rectangle shape [...]
 
     subgraph common
+        mod_common_aer[common.aer]
         mod_common_common[common.common]
         mod_common_consts[common.consts]
         mod_common_convert_tle[common.convert_tle]
@@ -20,6 +21,7 @@ graph LR
         mod_common_slice_oem[common.slice_oem]
         mod_common_time_utils[common.time_utils]
         mod_common_tle[common.tle]
+        mod_common_wgs[common.wgs]
     end
 
     subgraph interpolator
@@ -29,6 +31,7 @@ graph LR
 
     subgraph bin
         mod_bin_download_tle([download_tle])
+        mod_bin_ecef_to_aer([ecef_to_aer])
         mod_bin_gcrf_to_itrf_rot_model([gcrf_to_itrf_rot_model])
         mod_bin_gcrf_to_itrf_spice([gcrf_to_itrf_spice])
         mod_bin_omm_to_tle([omm_to_tle])
@@ -66,6 +69,7 @@ graph LR
     end
 
     %% ===== Common library internal edges =====
+    mod_common_aer --> mod_common_wgs
     mod_common_convert_tle --> mod_common_kepler
     mod_common_convert_tle --> mod_common_mean_kepler
     mod_common_convert_tle --> mod_common_omm
@@ -79,9 +83,13 @@ graph LR
     mod_common_slice_oem --> mod_common_oem
     mod_common_slice_oem --> mod_common_time_utils
     mod_common_slice_oem --> mod_interpolator_lagrange
+    mod_common_wgs --> mod_common_consts
     mod_interpolator_lagrange --> mod_interpolator_interpolator
 
     %% ===== bin/ script edges =====
+    mod_bin_ecef_to_aer --> mod_common_aer
+    mod_bin_ecef_to_aer --> mod_common_oem
+    mod_bin_ecef_to_aer --> mod_common_time_utils
     mod_bin_gcrf_to_itrf_rot_model --> mod_common_common
     mod_bin_gcrf_to_itrf_rot_model --> mod_common_oem
     mod_bin_gcrf_to_itrf_rot_model --> mod_common_time_utils

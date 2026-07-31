@@ -171,6 +171,7 @@ def extract_sliced_states(
     oem: CcsdsOem,
     slice_spec: TimeSliceOptions | slice,
     verbose: bool = False,
+    interpolation_degree: int = INTERPOLATION_DEGREE,
 ) -> CcsdsOem:
     """Extract sliced OEM states based on a time or index slice specification.
 
@@ -184,6 +185,9 @@ def extract_sliced_states(
         Time-based slice options or a Python slice object.
     verbose : bool, optional
         If True, print debug information to stderr (default: False).
+    interpolation_degree : int, optional
+        Polynomial degree for Lagrange interpolation when resampling states
+        (default: INTERPOLATION_DEGREE constant).
 
     Returns
     -------
@@ -201,7 +205,9 @@ def extract_sliced_states(
     if isinstance(slice_spec, TimeSliceOptions):
         if slice_spec.step_size is not None and not slice_spec.interpolate:
             raise ValueError("step_size requires interpolate=True")
-        return extract_states_by_time(oem, slice_spec, verbose=verbose)
+        return extract_states_by_time(
+            oem, slice_spec, verbose=verbose, interpolation_degree=interpolation_degree
+        )
     elif isinstance(slice_spec, slice):
         # Validate slice indices before applying
         total_states = len(oem.states)
@@ -261,6 +267,7 @@ def extract_states_by_time(
     oem: CcsdsOem,
     options: TimeSliceOptions,
     verbose: bool = False,
+    interpolation_degree: int = INTERPOLATION_DEGREE,
 ) -> CcsdsOem:
     """Extract states within a time window using TimeSliceOptions.
 
@@ -272,6 +279,9 @@ def extract_states_by_time(
         Parsed time slice options specifying start, stop, step and interpolation.
     verbose : bool, optional
         If True, print debug information to stderr (default: False).
+    interpolation_degree : int, optional
+        Polynomial degree for Lagrange interpolation when resampling states
+        (default: INTERPOLATION_DEGREE constant).
 
     Returns
     -------
@@ -394,7 +404,7 @@ def extract_states_by_time(
     if options.interpolate:
         interpolator = lagrange.LagrangeInterpolator(
             dimension=6,
-            degree=INTERPOLATION_DEGREE,
+            degree=interpolation_degree,
         )
         if interpolator is None:
             raise RuntimeError("Error creating interpolator")
@@ -560,7 +570,7 @@ def extract_states_by_time(
                 slice_stop_timestamp_s, tz=timezone.utc
             )
             print(
-                f"[slice_oem]   Mode: interpolated (Lagrange degree {INTERPOLATION_DEGREE})",
+                f"[slice_oem]   Mode: interpolated (Lagrange degree {interpolation_degree})",
                 file=sys.stderr,
             )
             print(
