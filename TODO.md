@@ -4,14 +4,20 @@
     1. Unify CLI usage, options
         1. OEM input either file name or - for stdin
         2. Output file option (-o, --output, --output-oem ?)
+        1. --start, --stop, --step options for OEM slicing and propagation
     1. ?
 
 1. Merge kepler/TLE tools?
 
 1. OEM
+    1. `diff_oem.py`
+        1. More comparison options. cartesian, AER, RTN, etc.
+            1. Osculating keplerian elements
+            1. Mean element comparisons (for x minutes of sliding window).
+        1. More output options, for example showing the differences in a table or CSV format.
+    1. General purpose OEM frame conversions
     1. `slice_oem.py`
         1. Further improvements?
-    1. OEM frame conversions
 
 1. Propagation tools
     1. Add fixed-step resampling / interpolation for propagated state histories so OEM-like exports can be generated at user-selected output intervals.
