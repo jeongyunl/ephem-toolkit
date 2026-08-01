@@ -173,7 +173,7 @@ python3 bin/omm_to_tle.py [-h] [-o <output.tle>] [<input.omm>]
 
 ### Input format
 
-Accepts CCSDS OMM format (KVN or XML).
+Accepts CCSDS OMM KVN format.
 
 ### Output format
 

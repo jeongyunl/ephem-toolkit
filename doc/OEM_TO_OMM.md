@@ -165,7 +165,7 @@ Provides comprehensive accuracy assessment of the TLE fitting process, including
 ```bash
 python3 oem_to_omm/evaluate_fit_tle.py [-h] [--fit-span <hours>] 
                                        [--refinement <method>] [--mu <value>]
-                                       [<oem_file>]
+                                       <oem_file>
 ```
 
 ### Options
@@ -173,23 +173,23 @@ python3 oem_to_omm/evaluate_fit_tle.py [-h] [--fit-span <hours>]
 | Option | Description |
 |---|---|
 | `-h`, `--help` | Show help message and exit |
-| `<oem_file>` | Path to input CCSDS OEM file (default: `oem_to_omm/leo3_6h.oem`) |
+| `<oem_file>` | Path to input CCSDS OEM file |
 | `--fit-span` | Fit span in hours (default: use full OEM span) |
 | `--refinement` | Refinement method: `cartesian` (default), `keplerian`, `none`, or `all` to compare all methods |
 | `--mu` | Gravitational parameter in m³/s² (default: Earth WGS-84) |
 
 ### Usage Examples
 
-**Evaluate with default settings:**
+**Evaluate a bundled OEM file:**
 
 ```bash
-python3 oem_to_omm/evaluate_fit_tle.py
+python3 oem_to_omm/evaluate_fit_tle.py test/data/ISS_2026-05-20.OEM
 ```
 
 **Evaluate custom OEM file:**
 
 ```bash
-python3 oem_to_omm/evaluate_fit_tle.py oem_to_omm/leo3_3h.oem
+python3 oem_to_omm/evaluate_fit_tle.py test/data/JPSS-1.oem
 ```
 
 **Evaluate with Keplerian refinement:**
@@ -316,7 +316,7 @@ Refinement time scales with:
 
 - [TLE.md](TLE.md) — TLE utilities overview
 - [PROPAGATION.md](PROPAGATION.md) — Orbit propagation tools
-- [README.md](README.md) — Repository overview
+- [README.md](../README.md) — Repository overview
 
 Detailed algorithm and strategy documentation is included below.
 

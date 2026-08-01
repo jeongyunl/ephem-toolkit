@@ -411,7 +411,7 @@ Propagates a TLE-derived orbit using TudatPy's SGP4 TLE ephemeris and prints sta
 ### Synopsis
 
 ```bash
-python3 propagation/propagate_tle.py [-h] [-d <value[s|m|h|d]>] [-s <value[s|m]>] [--oem] [<tle_file>]
+python3 propagation/propagate_tle.py [-h] [--start <iso8601|duration>] [--stop <iso8601|duration>] [-s <value[s|m]>] [--raw] [<tle_file>]
 ```
 
 ### Options
@@ -420,9 +420,10 @@ python3 propagation/propagate_tle.py [-h] [-d <value[s|m|h|d]>] [-s <value[s|m]>
 |---|---|---|
 | `-h`, `--help` | Show help message and exit | none |
 | `<tle_file>` | Path to a TLE file. If omitted, TLE text is read from stdin. | stdin when piped |
-| `-d`, `--duration` | Propagation duration in `s`, `m`, `h`, or `d` units | `1d` |
+| `--start` | Start epoch as an ISO 8601 timestamp or duration relative to the TLE epoch | TLE epoch |
+| `--stop` | Stop epoch as an ISO 8601 timestamp or duration relative to the TLE epoch | 1 day after start |
 | `-s`, `--step` | Output interval in `s` or `m` units | `5m` |
-| `--oem` | Print an OEM metadata header before the state lines | off |
+| `--raw` | Print raw state-vector lines without the OEM metadata header | off |
 
 ### Input format
 
@@ -443,13 +444,7 @@ For stdin input, the object name is `TLE_STDIN`.
 
 ### Output
 
-Without `--oem`, the script prints only state lines:
-
-```text
-<ISO-8601 UTC epoch> <X_km> <Y_km> <Z_km> <VX_km/s> <VY_km/s> <VZ_km/s>
-```
-
-With `--oem`, the script prepends an OEM-like metadata block containing fields such as:
+By default, the script prints a CCSDS OEM document:
 
 - `CCSDS_OEM_VERS`
 - `CREATION_DATE`
@@ -461,6 +456,12 @@ With `--oem`, the script prepends an OEM-like metadata block containing fields s
 - `TIME_SYSTEM`
 - `START_TIME`
 - `STOP_TIME`
+
+With `--raw`, the script prints only state lines:
+
+```text
+<ISO-8601 UTC epoch> <X_km> <Y_km> <Z_km> <VX_km/s> <VY_km/s> <VZ_km/s>
+```
 
 Current implementation details:
 
@@ -481,19 +482,19 @@ python3 propagation/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle
 **Propagate from stdin for 2 hours with 1-minute output step:**
 
 ```bash
-cat test/data/ISS-ZARYA_1998-067A.tle | python3 propagation/propagate_tle.py -d 2h -s 1m
+cat test/data/ISS-ZARYA_1998-067A.tle | python3 propagation/propagate_tle.py --stop 2h -s 1m
 ```
 
 **Propagate for 30 minutes with 10-second output step:**
 
 ```bash
-python3 propagation/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle -d 30m -s 10s
+python3 propagation/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle --stop 30m -s 10s
 ```
 
-**Print OEM metadata header plus state lines:**
+**Print raw state lines without the OEM metadata header:**
 
 ```bash
-python3 propagation/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle --oem
+python3 propagation/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle --raw
 ```
 
 **Show help:**
