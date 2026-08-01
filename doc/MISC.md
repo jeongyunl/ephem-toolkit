@@ -4,20 +4,23 @@ Miscellaneous utilities for orbit analysis and comparison.
 
 ## Available scripts
 
-- `bin/state_diff.py`
+- `bin/diff_oem.py`
 - `bin/slice_oem.py`
 - `bin/ecef_to_aer.py`
 - `plotting/plot_orbit_deltas.py`
 - `plotting/plot_dependent_variables.py`
 
-## `bin/state_diff.py`
+## `bin/diff_oem.py`
 
-Compares two OEM-like Cartesian states and reports differences in time, position, and velocity.
+Compares corresponding states from two CCSDS OEM files and reports position and
+velocity differences. Without interpolation, states are compared sequentially
+by index, stopping at the shorter history.
 
 ### Synopsis
 
 ```bash
-python3 bin/state_diff.py [-h] [-v] [<state1.dat>] [<state2.dat>]
+python3 bin/diff_oem.py [-h] [-v] [--interpolate-ref] [--interpolate-data] \
+  <reference_oem.oem> <comparison_oem.oem>
 ```
 
 ### Options
@@ -26,82 +29,75 @@ python3 bin/state_diff.py [-h] [-v] [<state1.dat>] [<state2.dat>]
 |---|---|
 | `-h`, `--help` | Show help message and exit |
 | `-v`, `--verbose` | Print detailed component-wise differences |
-| `<state1.dat>` | First OEM-like state file path or `-` to read from stdin (default: `-`) |
-| `<state2.dat>` | Second OEM-like state file path or `-` to read from stdin (default: `-`) |
+| `--interpolate-ref` | Interpolate the reference OEM at each comparison-state timestamp |
+| `--interpolate-data` | Interpolate comparison data at each reference-state timestamp |
+| `<reference_oem.oem>` | Reference CCSDS OEM file path or `-` to read from stdin |
+| `<comparison_oem.oem>` | Comparison CCSDS OEM file path or `-` to read from stdin |
 
 ### Behavior
 
-- Reads two OEM-like state lines (epoch + Cartesian position and velocity)
-- Computes differences in time, position magnitude, and velocity magnitude
+- Reads CCSDS OEM state histories, preserving their native timestamps and state vectors
+- Computes position and velocity difference magnitudes for each compared state
+- Computes time differences only when interpolation is disabled
+- Without interpolation, compares states sequentially by index
+- With `--interpolate-ref`, evaluates reference data at comparison timestamps
+- With `--interpolate-data`, evaluates comparison data at reference timestamps
+- Interpolation queries are limited to the overlapping time range of both OEM files
+- States outside the interpolation range are skipped
 - With `-v`, prints component-wise differences for each axis
 - Accepts file paths or stdin (`-`) as input sources
-- If both state1 and state2 are `-`, reads two states sequentially from stdin
+- If both input paths are `-`, the command reports an argument error
 
 ### Input format
 
-Each state line must contain 7 fields:
-
-```text
-<ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>
-```
-
-Notes:
-
-- **Epoch**: ISO 8601 timestamp such as `2025-11-10T15:42:27.000000`
-- **Position**: X, Y, Z in kilometres
-- **Velocity**: VX, VY, VZ in km/s
-- Blank lines and lines beginning with `#` are skipped
-- Parse failures are reported and the offending line is skipped
+Standard CCSDS OEM files containing Cartesian position and velocity states.
 
 ### Output format
 
 The script prints a comparison summary including:
 
-- State 1 and State 2 epochs
-- Time difference in seconds
+- Reference and comparison epochs
+- Time difference in seconds when interpolation is disabled
 - Position difference magnitude in km
 - Velocity difference magnitude in km/s
 - (With `-v`) Component-wise differences for each axis
 
 ### Usage
 
-**Compare two state files:**
+**Compare two OEM files:**
 
 ```bash
-python3 bin/state_diff.py state1.dat state2.dat
+python3 bin/diff_oem.py reference.oem comparison.oem
 ```
 
 **Compare with verbose output:**
 
 ```bash
-python3 bin/state_diff.py -v state1.dat state2.dat
+python3 bin/diff_oem.py -v reference.oem comparison.oem
 ```
 
-**Read first state from file, second from stdin:**
+**Interpolate the reference history:**
 
 ```bash
-echo "2025-11-10T15:42:27.000000 -4016.835021864 3234.040363774 5296.435683796 5.299868461 -1.578004407 4.968732515" \
-  | python3 bin/state_diff.py state1.dat -
+python3 bin/diff_oem.py --interpolate-ref reference.oem comparison.oem
 ```
 
-**Read both states from stdin:**
+**Interpolate comparison data:**
 
 ```bash
-(echo "2025-11-10T15:42:27.000000 2070.058475323 4729.228905684 5291.073944519 -0.452686493 -5.378340397 4.970075198"; \
- echo "2025-11-10T15:42:27.000000 -4016.835021864 3234.040363774 5296.435683796 5.299868461 -1.578004407 4.968732515") \
-  | python3 bin/state_diff.py
+python3 bin/diff_oem.py --interpolate-data reference.oem comparison.oem
 ```
 
 **Show help:**
 
 ```bash
-python3 bin/state_diff.py -h
+python3 bin/diff_oem.py -h
 ```
 
 ### Dependencies
 
 - NumPy
-- local helper modules `common.common`, `common.oem`, `common.time_utils`
+- local helper modules `common.oem`, `common.time_utils`, and `common.interpolator.lagrange`
 
 ## `bin/slice_oem.py`
 
