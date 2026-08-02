@@ -7,7 +7,7 @@ Usage:
     python3 bin/diff_oem.py <reference_oem.oem> -
 
 The utility reports time, position, and velocity differences. Use ``-`` for one
-stdin input.
+stdin input. Interpolation options compare states at matching epochs.
 """
 
 from __future__ import annotations
@@ -27,6 +27,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import common.interpolator.lagrange as lagrange
 import common.oem as oem
 import common.time_utils as time_utils
+
+INTERPOLATION_DEGREE: int = 8
+"""Polynomial degree used for OEM state interpolation."""
 
 
 @dataclass
@@ -207,7 +210,9 @@ def parse_arguments() -> argparse.Namespace:
     argparse.Namespace
         Parsed command-line arguments with attributes ``reference_oem``,
         ``comparison_oem``, ``verbose``, ``interpolate_ref``, and
-        ``interpolate_data``.
+        ``interpolate_data``. The ``--interpolate`` convenience option enables
+        both interpolation flags, and is represented by the parsed interpolation
+        attributes.
     """
     parser: argparse.ArgumentParser = argparse.ArgumentParser(
         description=(
@@ -241,10 +246,54 @@ def parse_arguments() -> argparse.Namespace:
         action="store_true",
         help="Interpolate comparison data at each reference state timestamp.",
     )
+    parser.add_argument(
+        "--interpolate",
+        action="store_true",
+        help="Interpolate both reference and comparison OEM data.",
+    )
     args = parser.parse_args()
+    if args.interpolate:
+        args.interpolate_ref = True
+        args.interpolate_data = True
     if args.reference_oem == "-" and args.comparison_oem == "-":
         parser.error("reference_oem and comparison_oem cannot both be '-'")
     return args
+
+
+def print_header(
+    include_time_difference: bool,
+    verbose: bool = False,
+) -> None:
+    """Print the tab-separated comparison result header.
+
+    Parameters
+    ----------
+    include_time_difference : bool
+        Whether to include the time-difference column.
+    verbose : bool, optional
+        Whether to include component-wise difference columns (default: False).
+    """
+    columns: list[str] = ["index", "reference_epoch", "comparison_epoch"]
+    if include_time_difference:
+        columns.append("time_difference_s")
+    columns.extend(
+        [
+            "position_difference_km",
+            "velocity_difference_km_s",
+        ]
+    )
+    if verbose:
+        columns.extend(
+            [
+                "dX_km",
+                "dY_km",
+                "dZ_km",
+                "dVX_km_s",
+                "dVY_km_s",
+                "dVZ_km_s",
+            ]
+        )
+    print("\t".join(columns))
 
 
 def print_results(
@@ -252,7 +301,7 @@ def print_results(
     comparison_result: ComparisonResult,
     verbose: bool = False,
 ) -> None:
-    """Print comparison results.
+    """Print one tab-separated comparison result row.
 
     Parameters
     ----------
@@ -263,82 +312,39 @@ def print_results(
     verbose : bool, optional
         If True, print component-wise differences (default: False).
     """
-    print(
-        f"Comparison State {index}: "
-        f"{time_utils.datetime_to_iso8601(comparison_result.comparison_epoch)}"
-    )
-    print(
-        f"  Reference Epoch: "
-        f"{time_utils.datetime_to_iso8601(comparison_result.reference_epoch)}"
-    )
+    values: list[str] = [
+        str(index),
+        time_utils.datetime_to_iso8601(comparison_result.reference_epoch),
+        time_utils.datetime_to_iso8601(comparison_result.comparison_epoch),
+    ]
     if comparison_result.time_diff_s is not None:
-        print(f"  Time Difference: {comparison_result.time_diff_s:.6f} seconds")
-    print(
-        "  Position Difference Magnitude: "
-        f"{comparison_result.position_diff_magnitude_km:.9f} km"
+        values.append(f"{comparison_result.time_diff_s:.6f}")
+    values.extend(
+        [
+            f"{comparison_result.position_diff_magnitude_km:.9f}",
+            f"{comparison_result.velocity_diff_magnitude_km_s:.12f}",
+        ]
     )
     if verbose:
-        print(f"  ΔX: {comparison_result.position_diff_km[0]:+.9f} km")
-        print(f"  ΔY: {comparison_result.position_diff_km[1]:+.9f} km")
-        print(f"  ΔZ: {comparison_result.position_diff_km[2]:+.9f} km")
-    print(
-        "  Velocity Difference Magnitude: "
-        f"{comparison_result.velocity_diff_magnitude_km_s:.12f} km/s"
-    )
-    if verbose:
-        print(f"  ΔVX: {comparison_result.velocity_diff_km_s[0]:+.12f} km/s")
-        print(f"  ΔVY: {comparison_result.velocity_diff_km_s[1]:+.12f} km/s")
-        print(f"  ΔVZ: {comparison_result.velocity_diff_km_s[2]:+.12f} km/s")
-
-
-def print_summary(results: list[ComparisonResult]) -> None:
-    """Print statistical summaries for all state comparisons.
-
-    Parameters
-    ----------
-    results : list[ComparisonResult]
-        Comparison results to summarize.
-    """
-    position_magnitudes_km = np.array(
-        [result.position_diff_magnitude_km for result in results]
-    )
-    velocity_magnitudes_km_s = np.array(
-        [result.velocity_diff_magnitude_km_s for result in results]
-    )
-
-    print("\nStatistical Summary:")
-    print("=" * 70)
-    print(f"States compared: {len(results)}")
-    if any(result.time_diff_s is not None for result in results):
-        time_diffs_s = np.array(
-            [result.time_diff_s for result in results if result.time_diff_s is not None]
+        values.extend(
+            [
+                f"{comparison_result.position_diff_km[0]:+.9f}",
+                f"{comparison_result.position_diff_km[1]:+.9f}",
+                f"{comparison_result.position_diff_km[2]:+.9f}",
+                f"{comparison_result.velocity_diff_km_s[0]:+.12f}",
+                f"{comparison_result.velocity_diff_km_s[1]:+.12f}",
+                f"{comparison_result.velocity_diff_km_s[2]:+.12f}",
+            ]
         )
-        summary_values = (
-            ("Time Difference", time_diffs_s, "seconds"),
-            ("Position Difference Magnitude", position_magnitudes_km, "km"),
-            ("Velocity Difference Magnitude", velocity_magnitudes_km_s, "km/s"),
-        )
-    else:
-        summary_values = (
-            ("Position Difference Magnitude", position_magnitudes_km, "km"),
-            ("Velocity Difference Magnitude", velocity_magnitudes_km_s, "km/s"),
-        )
-
-    for label, values, unit in summary_values:
-        print(f"{label} ({unit}):")
-        print(f"  Min:  {np.min(values):.12f}")
-        print(f"  Max:  {np.max(values):.12f}")
-        print(f"  Mean: {np.mean(values):.12f}")
-        print(f"  Std:  {np.std(values):.12f}")
-    print("=" * 70)
+    print("\t".join(values))
 
 
 def main() -> None:
     """Main entry point for the state comparison CLI.
 
     Parses command-line arguments, reads OEM state vectors from files or
-    stdin, compares corresponding OEM states, and prints
-    the differences and statistical summary to stdout.
+    stdin, compares corresponding OEM states, and prints a header followed by
+    one tab-separated result row per comparison to stdout.
     Exits with status 1 on error.
     """
     args: argparse.Namespace = parse_arguments()
@@ -370,14 +376,14 @@ def main() -> None:
         reference_interpolator = None
         if args.interpolate_ref:
             reference_interpolator = lagrange.LagrangeInterpolator(
-                dimension=6, degree=8
+                dimension=6, degree=INTERPOLATION_DEGREE
             )
             reference_interpolator.set_data(reference_states)
 
         comparison_interpolator = None
         if args.interpolate_data:
             comparison_interpolator = lagrange.LagrangeInterpolator(
-                dimension=6, degree=8
+                dimension=6, degree=INTERPOLATION_DEGREE
             )
             comparison_interpolator.set_data(comparison_states)
 
@@ -428,9 +434,14 @@ def main() -> None:
         if not comparison_results:
             return
 
+        print_header(
+            include_time_difference=(
+                reference_interpolator is None and comparison_interpolator is None
+            ),
+            verbose=args.verbose,
+        )
         for index, comparison_result in enumerate(comparison_results, start=1):
             print_results(index, comparison_result, verbose=args.verbose)
-        print_summary(comparison_results)
 
     except ValueError as error:
         print(f"Error: {error}", file=sys.stderr)
