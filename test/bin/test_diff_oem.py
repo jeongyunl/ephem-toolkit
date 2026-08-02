@@ -84,3 +84,17 @@ def test_compare_states_interpolates_comparison_at_reference_epoch() -> None:
     assert result.time_diff_s is None
     np.testing.assert_allclose(result.position_diff_km, np.zeros(3), atol=1e-12)
     np.testing.assert_allclose(result.velocity_diff_km_s, np.zeros(3), atol=1e-12)
+
+
+def test_compare_states_calculates_reference_rtn_coordinates() -> None:
+    reference_state = (0.0, np.array([1000.0, 0.0, 0.0, 0.0, 1.0, 0.0]))
+    comparison_state = (0.0, np.array([1000.0, 0.0, 0.0, 0.0, 2.0, 0.0]))
+
+    result = diff_oem.compare_states(reference_state, comparison_state)
+
+    np.testing.assert_allclose(result.rtn_position_km, np.zeros(3), atol=1e-12)
+    np.testing.assert_allclose(
+        result.rtn_velocity_km_s,
+        np.array([0.0, 0.001, 0.0]),
+        atol=1e-12,
+    )
