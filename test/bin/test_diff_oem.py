@@ -49,6 +49,20 @@ def test_get_overlapping_time_range() -> None:
     )
 
 
+def test_resolve_time_bound_accepts_reference_relative_duration() -> None:
+    reference_epoch_s = 1_000.0
+
+    assert diff_oem._resolve_time_bound("2m", reference_epoch_s) == 1_120.0
+
+
+def test_resolve_time_bound_accepts_absolute_iso8601() -> None:
+    resolved_epoch_s = diff_oem._resolve_time_bound(
+        "1970-01-01T00:16:40Z", 0.0
+    )
+
+    assert resolved_epoch_s == 1_000.0
+
+
 def test_compare_states_interpolates_reference_at_comparison_epoch() -> None:
     result = diff_oem.compare_states(
         _state(0.0, 0.0),

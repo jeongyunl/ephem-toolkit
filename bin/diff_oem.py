@@ -16,7 +16,7 @@ import argparse
 import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TextIO
 
@@ -106,6 +106,17 @@ def _get_overlapping_time_range(
     if overlap_start > overlap_stop:
         return None
     return overlap_start, overlap_stop
+
+
+def _resolve_time_bound(value: str, reference_epoch_s: float) -> float:
+    """Resolve an absolute or reference-relative time bound to POSIX seconds."""
+    parsed_value: datetime | timedelta = time_utils.parse_time_or_duration(value)
+    reference_datetime: datetime = datetime.fromtimestamp(
+        reference_epoch_s, tz=timezone.utc
+    )
+    if isinstance(parsed_value, timedelta):
+        parsed_value = reference_datetime + parsed_value
+    return parsed_value.timestamp()
 
 
 def compare_states(
@@ -269,6 +280,24 @@ def parse_arguments() -> argparse.Namespace:
         "--rtn",
         action="store_true",
         help="Include comparison state coordinates in the reference RTN frame.",
+    )
+    parser.add_argument(
+        "--start",
+        metavar="<iso8601|duration>",
+        default=None,
+        help=(
+            "Start epoch as an ISO 8601 timestamp or duration relative to the "
+            "first reference epoch."
+        ),
+    )
+    parser.add_argument(
+        "--stop",
+        metavar="<iso8601|duration>",
+        default=None,
+        help=(
+            "Stop epoch as an ISO 8601 timestamp or duration relative to the "
+            "first reference epoch."
+        ),
     )
     args = parser.parse_args()
     if args.interpolate:
@@ -476,13 +505,14 @@ def main() -> None:
         reference_states = read_states(reference_source)
         comparison_states = read_states(comparison_source)
         reference_oem = reference_states[0]
+        has_time_window: bool = args.start is not None or args.stop is not None
 
         overlapping_time_range = _get_overlapping_time_range(
             reference_states, comparison_states
         )
-        # Interpolation is only meaningful where both OEM histories exist.
+        # Interpolation and explicit windows are only meaningful in shared data.
         if overlapping_time_range is None and (
-            args.interpolate_ref or args.interpolate_data
+            args.interpolate_ref or args.interpolate_data or has_time_window
         ):
             return
 
@@ -490,6 +520,25 @@ def main() -> None:
             overlap_start, overlap_stop = overlapping_time_range
         else:
             overlap_start = overlap_stop = None
+
+        if has_time_window:
+            reference_epoch_s: float = reference_states[0][0]
+            requested_start: float = (
+                overlap_start
+                if args.start is None
+                else _resolve_time_bound(args.start, reference_epoch_s)
+            )
+            requested_stop: float = (
+                overlap_stop
+                if args.stop is None
+                else _resolve_time_bound(args.stop, reference_epoch_s)
+            )
+            if requested_start > requested_stop:
+                raise ValueError("--start must be earlier than or equal to --stop")
+            overlap_start = max(overlap_start, requested_start)
+            overlap_stop = min(overlap_stop, requested_stop)
+            if overlap_start > overlap_stop:
+                return
 
         # Each interpolator evaluates one history at epochs from the other.
         reference_interpolator = None
@@ -522,6 +571,14 @@ def main() -> None:
                 (reference_oem, state)
                 for state in comparison_states
                 if overlap_start <= state[0] <= overlap_stop
+            ]
+        elif has_time_window:
+            comparison_pairs = [
+                (reference_state, comparison_state)
+                for reference_state, comparison_state in zip(
+                    reference_states, comparison_states
+                )
+                if overlap_start <= reference_state[0] <= overlap_stop
             ]
         else:
             comparison_pairs = zip(reference_states, comparison_states)
