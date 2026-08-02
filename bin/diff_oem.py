@@ -119,6 +119,27 @@ def _resolve_time_bound(value: str, reference_epoch_s: float) -> float:
     return parsed_value.timestamp()
 
 
+def _format_epoch(epoch_s: float | None) -> str:
+    """Format a POSIX epoch for debug output."""
+    if epoch_s is None:
+        return "none"
+    epoch = datetime.fromtimestamp(epoch_s, tz=timezone.utc)
+    return time_utils.datetime_to_iso8601(epoch)
+
+
+def _print_debug_range(
+    label: str,
+    start_epoch_s: float | None,
+    stop_epoch_s: float | None,
+) -> None:
+    """Print one labeled time range to stderr."""
+    print(
+        f"[diff_oem] {label}: start={_format_epoch(start_epoch_s)}, "
+        f"stop={_format_epoch(stop_epoch_s)}",
+        file=sys.stderr,
+    )
+
+
 def compare_states(
     reference_oem: tuple[float, np.ndarray],
     comparison_oem: tuple[float, np.ndarray],
@@ -234,7 +255,7 @@ def parse_arguments() -> argparse.Namespace:
     -------
     argparse.Namespace
         Parsed command-line arguments with attributes ``reference_oem``,
-        ``comparison_oem``, ``verbose``, ``interpolate_ref``, and
+        ``comparison_oem``, ``verbose``, ``debug``, ``interpolate_ref``, and
         ``interpolate_data``. The ``--interpolate`` convenience option enables
         both interpolation flags, and is represented by the parsed interpolation
         attributes.
@@ -260,6 +281,11 @@ def parse_arguments() -> argparse.Namespace:
         "--verbose",
         action="store_true",
         help="Print detailed component-wise differences.",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Print time-range determination details to stderr.",
     )
     parser.add_argument(
         "--interpolate-ref",
@@ -418,10 +444,11 @@ def print_header(
 
 def print_results(
     index: int,
-    comparison_result: ComparisonResult,
+    comparison_result: ComparisonResult | None,
     verbose: bool = False,
     rtn: bool = False,
     include_comparison_epoch: bool = True,
+    query_epoch: datetime | None = None,
 ) -> None:
     """Print one comparison result row with aligned columns.
 
@@ -429,15 +456,34 @@ def print_results(
     ----------
     index : int
         One-based index of the state in the comparison OEM.
-    comparison_result : ComparisonResult
-        Comparison results from :func:`compare_states`.
+    comparison_result : ComparisonResult or None
+        Comparison results from :func:`compare_states`, or ``None`` for an
+        out-of-range interpolation query.
     include_comparison_epoch : bool, optional
         Whether to include the comparison epoch (default: True).
     verbose : bool, optional
         If True, print component-wise differences (default: False).
     rtn : bool, optional
         If True, print reference-frame RTN coordinates (default: False).
+    query_epoch : datetime, optional
+        Epoch to print when no comparison result is available.
     """
+    if comparison_result is None:
+        if query_epoch is None:
+            raise ValueError("query_epoch is required for an empty comparison row")
+        values = [str(index), time_utils.datetime_to_iso8601(query_epoch)]
+        if include_comparison_epoch:
+            values.append("")
+        columns = _get_output_columns(
+            include_time_difference=False,
+            verbose=verbose,
+            rtn=rtn,
+            include_comparison_epoch=include_comparison_epoch,
+        )
+        values.extend([""] * (len(columns) - len(values)))
+        print(_format_output_row(values, columns))
+        return
+
     values: list[str] = [
         str(index),
         time_utils.datetime_to_iso8601(comparison_result.reference_epoch),
@@ -510,10 +556,22 @@ def main() -> None:
         overlapping_time_range = _get_overlapping_time_range(
             reference_states, comparison_states
         )
-        # Interpolation and explicit windows are only meaningful in shared data.
-        if overlapping_time_range is None and (
-            args.interpolate_ref or args.interpolate_data or has_time_window
-        ):
+        if args.debug:
+            _print_debug_range(
+                "Reference range", reference_states[0][0], reference_states[-1][0]
+            )
+            _print_debug_range(
+                "Comparison range", comparison_states[0][0], comparison_states[-1][0]
+            )
+            if overlapping_time_range is None:
+                _print_debug_range("Initial overlap", None, None)
+            else:
+                _print_debug_range("Initial overlap", *overlapping_time_range)
+
+        # Explicit windows are only meaningful when the histories overlap.
+        if overlapping_time_range is None and has_time_window:
+            if args.debug:
+                _print_debug_range("Effective range", None, None)
             return
 
         if overlapping_time_range is not None:
@@ -538,7 +596,15 @@ def main() -> None:
             overlap_start = max(overlap_start, requested_start)
             overlap_stop = min(overlap_stop, requested_stop)
             if overlap_start > overlap_stop:
+                if args.debug:
+                    _print_debug_range("Effective range", None, None)
                 return
+
+            if args.debug:
+                _print_debug_range("Requested range", requested_start, requested_stop)
+
+        if args.debug:
+            _print_debug_range("Effective range", overlap_start, overlap_stop)
 
         # Each interpolator evaluates one history at epochs from the other.
         reference_interpolator = None
@@ -555,23 +621,17 @@ def main() -> None:
             )
             comparison_interpolator.set_data(comparison_states)
 
-        comparison_results: list[ComparisonResult] = []
+        comparison_results: list[tuple[float, ComparisonResult | None]] = []
         comparison_pairs: Iterable[
             tuple[tuple[float, np.ndarray], tuple[float, np.ndarray]]
         ]
         # Choose query epochs according to which history, if any, is interpolated.
         if args.interpolate_data:
             comparison_pairs = [
-                (state, comparison_states[0])
-                for state in reference_states
-                if overlap_start <= state[0] <= overlap_stop
+                (state, comparison_states[0]) for state in reference_states
             ]
         elif args.interpolate_ref:
-            comparison_pairs = [
-                (reference_oem, state)
-                for state in comparison_states
-                if overlap_start <= state[0] <= overlap_stop
-            ]
+            comparison_pairs = [(reference_oem, state) for state in comparison_states]
         elif has_time_window:
             comparison_pairs = [
                 (reference_state, comparison_state)
@@ -584,13 +644,21 @@ def main() -> None:
             comparison_pairs = zip(reference_states, comparison_states)
 
         for reference_state, comparison_state in comparison_pairs:
+            query_epoch_s = (
+                comparison_state[0]
+                if args.interpolate_ref and not args.interpolate_data
+                else reference_state[0]
+            )
             try:
                 comparison_results.append(
-                    compare_states(
-                        reference_state,
-                        comparison_state,
-                        reference_interpolator,
-                        comparison_interpolator,
+                    (
+                        query_epoch_s,
+                        compare_states(
+                            reference_state,
+                            comparison_state,
+                            reference_interpolator,
+                            comparison_interpolator,
+                        ),
                     )
                 )
             except ValueError as error:
@@ -606,6 +674,7 @@ def main() -> None:
                         "outside the comparison OEM interpolation range"
                     )
                 ):
+                    comparison_results.append((query_epoch_s, None))
                     continue
                 raise
 
@@ -622,7 +691,9 @@ def main() -> None:
             verbose=args.verbose,
             rtn=args.rtn,
         )
-        for index, comparison_result in enumerate(comparison_results, start=1):
+        for index, (query_epoch_s, comparison_result) in enumerate(
+            comparison_results, start=1
+        ):
             print_results(
                 index,
                 comparison_result,
@@ -631,6 +702,7 @@ def main() -> None:
                 ),
                 verbose=args.verbose,
                 rtn=args.rtn,
+                query_epoch=datetime.fromtimestamp(query_epoch_s, tz=timezone.utc),
             )
 
     except ValueError as error:
