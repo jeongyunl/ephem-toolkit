@@ -25,6 +25,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.interpolator.lagrange as lagrange
+import common.common as common
 import common.oem as oem
 import common.time_utils as time_utils
 
@@ -56,6 +57,12 @@ class ComparisonResult:
 
     velocity_diff_magnitude_km_s: float
     """Magnitude of the velocity difference (km/s)."""
+
+    rtn_position_km: np.ndarray
+    """Comparison minus reference position in the reference RTN frame (km)."""
+
+    rtn_velocity_km_s: np.ndarray
+    """Comparison minus reference velocity in the reference RTN frame (km/s)."""
 
 
 def read_states(source: TextIO | str | Path) -> list[tuple[float, np.ndarray]]:
@@ -190,6 +197,11 @@ def compare_states(
 
     velocity_diff_km_s: np.ndarray = comparison_velocity_km_s - reference_velocity_km_s
     velocity_diff_magnitude_km_s: float = float(np.linalg.norm(velocity_diff_km_s))
+    rtn_state_m_s: np.ndarray = common.transform_to_rtn(
+        comparison_state_m, reference_state_m
+    )
+    rtn_position_km: np.ndarray = rtn_state_m_s[0:3] / oem.KILOMETERS_TO_METERS
+    rtn_velocity_km_s: np.ndarray = rtn_state_m_s[3:6] / oem.KILOMETERS_TO_METERS
 
     return ComparisonResult(
         reference_epoch=reference_epoch,
@@ -199,6 +211,8 @@ def compare_states(
         position_diff_magnitude_km=position_diff_magnitude_km,
         velocity_diff_km_s=velocity_diff_km_s,
         velocity_diff_magnitude_km_s=velocity_diff_magnitude_km_s,
+        rtn_position_km=rtn_position_km,
+        rtn_velocity_km_s=rtn_velocity_km_s,
     )
 
 
@@ -251,6 +265,11 @@ def parse_arguments() -> argparse.Namespace:
         action="store_true",
         help="Interpolate both reference and comparison OEM data.",
     )
+    parser.add_argument(
+        "--rtn",
+        action="store_true",
+        help="Include comparison state coordinates in the reference RTN frame.",
+    )
     args = parser.parse_args()
     if args.interpolate:
         args.interpolate_ref = True
@@ -260,48 +279,122 @@ def parse_arguments() -> argparse.Namespace:
     return args
 
 
+def _get_output_columns(
+    include_time_difference: bool,
+    verbose: bool,
+    rtn: bool,
+    include_comparison_epoch: bool,
+) -> list[str]:
+    """Return output column names for the selected comparison details."""
+    columns: list[str] = ["index", "reference\nepoch"]
+    if include_comparison_epoch:
+        columns.append("comparison\nepoch")
+    if include_time_difference:
+        columns.append("time\ndifference\n(s)")
+    columns.extend(["position\ndifference\n(km)", "velocity\ndifference\n(km/s)"])
+    if verbose:
+        columns.extend(
+            [
+                "dX\n(km)",
+                "dY\n(km)",
+                "dZ\n(km)",
+                "dVX\n(km/s)",
+                "dVY\n(km/s)",
+                "dVZ\n(km/s)",
+            ]
+        )
+    if rtn:
+        columns.extend(
+            [
+                "RTN r\n(km)",
+                "RTN t\n(km)",
+                "RTN n\n(km)",
+                "RTN vr\n(km/s)",
+                "RTN vt\n(km/s)",
+                "RTN vn\n(km/s)",
+            ]
+        )
+    return columns
+
+
+def _format_output_row(values: list[str], columns: list[str]) -> str:
+    """Format output values in consistently spaced columns."""
+    column_widths = _get_output_column_widths(columns)
+    aligned_values = [
+        f"{value:>{width}}" for value, width in zip(values, column_widths)
+    ]
+    return "  ".join(aligned_values).rstrip()
+
+
+def _get_output_column_widths(columns: list[str]) -> list[int]:
+    """Return shared display widths for header and data columns."""
+    widths: list[int] = []
+    for column in columns:
+        label_width: int = max(map(len, column.split("\n")))
+        if column == "index":
+            data_width: int = 5
+        elif "epoch" in column:
+            data_width = 24
+        else:
+            data_width = 10
+        widths.append(max(label_width, data_width))
+    return widths
+
+
+def _format_output_header(columns: list[str]) -> str:
+    """Format a multi-line header with aligned column labels."""
+    header_lines = [column.split("\n") for column in columns]
+    column_widths = _get_output_column_widths(columns)
+    lines: list[str] = []
+    for line_index in range(max(map(len, header_lines))):
+        line_values = [
+            lines_for_column[line_index] if line_index < len(lines_for_column) else ""
+            for lines_for_column in header_lines
+        ]
+        lines.append(
+            "  ".join(
+                f"{value:<{width}}" for value, width in zip(line_values, column_widths)
+            ).rstrip()
+        )
+    return "\n".join(lines)
+
+
 def print_header(
     include_time_difference: bool,
     verbose: bool = False,
+    rtn: bool = False,
+    include_comparison_epoch: bool = True,
 ) -> None:
-    """Print the tab-separated comparison result header.
+    """Print the comparison result header with aligned columns.
 
     Parameters
     ----------
     include_time_difference : bool
         Whether to include the time-difference column.
+    include_comparison_epoch : bool, optional
+        Whether to include the comparison epoch column (default: True).
     verbose : bool, optional
         Whether to include component-wise difference columns (default: False).
+    rtn : bool, optional
+        Whether to include reference-frame RTN coordinates (default: False).
     """
-    columns: list[str] = ["index", "reference_epoch", "comparison_epoch"]
-    if include_time_difference:
-        columns.append("time_difference_s")
-    columns.extend(
-        [
-            "position_difference_km",
-            "velocity_difference_km_s",
-        ]
+    columns = _get_output_columns(
+        include_time_difference,
+        verbose,
+        rtn,
+        include_comparison_epoch,
     )
-    if verbose:
-        columns.extend(
-            [
-                "dX_km",
-                "dY_km",
-                "dZ_km",
-                "dVX_km_s",
-                "dVY_km_s",
-                "dVZ_km_s",
-            ]
-        )
-    print("\t".join(columns))
+    print(_format_output_header(columns))
 
 
 def print_results(
     index: int,
     comparison_result: ComparisonResult,
     verbose: bool = False,
+    rtn: bool = False,
+    include_comparison_epoch: bool = True,
 ) -> None:
-    """Print one tab-separated comparison result row.
+    """Print one comparison result row with aligned columns.
 
     Parameters
     ----------
@@ -309,34 +402,58 @@ def print_results(
         One-based index of the state in the comparison OEM.
     comparison_result : ComparisonResult
         Comparison results from :func:`compare_states`.
+    include_comparison_epoch : bool, optional
+        Whether to include the comparison epoch (default: True).
     verbose : bool, optional
         If True, print component-wise differences (default: False).
+    rtn : bool, optional
+        If True, print reference-frame RTN coordinates (default: False).
     """
     values: list[str] = [
         str(index),
         time_utils.datetime_to_iso8601(comparison_result.reference_epoch),
-        time_utils.datetime_to_iso8601(comparison_result.comparison_epoch),
     ]
+    if include_comparison_epoch:
+        values.append(
+            time_utils.datetime_to_iso8601(comparison_result.comparison_epoch)
+        )
     if comparison_result.time_diff_s is not None:
         values.append(f"{comparison_result.time_diff_s:.6f}")
     values.extend(
         [
-            f"{comparison_result.position_diff_magnitude_km:.9f}",
-            f"{comparison_result.velocity_diff_magnitude_km_s:.12f}",
+            f"{comparison_result.position_diff_magnitude_km:.3f}",
+            f"{comparison_result.velocity_diff_magnitude_km_s:.6f}",
         ]
     )
     if verbose:
         values.extend(
             [
-                f"{comparison_result.position_diff_km[0]:+.9f}",
-                f"{comparison_result.position_diff_km[1]:+.9f}",
-                f"{comparison_result.position_diff_km[2]:+.9f}",
-                f"{comparison_result.velocity_diff_km_s[0]:+.12f}",
-                f"{comparison_result.velocity_diff_km_s[1]:+.12f}",
-                f"{comparison_result.velocity_diff_km_s[2]:+.12f}",
+                f"{comparison_result.position_diff_km[0]:+.3f}",
+                f"{comparison_result.position_diff_km[1]:+.3f}",
+                f"{comparison_result.position_diff_km[2]:+.3f}",
+                f"{comparison_result.velocity_diff_km_s[0]:+.6f}",
+                f"{comparison_result.velocity_diff_km_s[1]:+.6f}",
+                f"{comparison_result.velocity_diff_km_s[2]:+.6f}",
             ]
         )
-    print("\t".join(values))
+    if rtn:
+        values.extend(
+            [
+                f"{comparison_result.rtn_position_km[0]:+.3f}",
+                f"{comparison_result.rtn_position_km[1]:+.3f}",
+                f"{comparison_result.rtn_position_km[2]:+.3f}",
+                f"{comparison_result.rtn_velocity_km_s[0]:+.6f}",
+                f"{comparison_result.rtn_velocity_km_s[1]:+.6f}",
+                f"{comparison_result.rtn_velocity_km_s[2]:+.6f}",
+            ]
+        )
+    columns = _get_output_columns(
+        comparison_result.time_diff_s is not None,
+        verbose,
+        rtn,
+        include_comparison_epoch,
+    )
+    print(_format_output_row(values, columns))
 
 
 def main() -> None:
@@ -363,6 +480,7 @@ def main() -> None:
         overlapping_time_range = _get_overlapping_time_range(
             reference_states, comparison_states
         )
+        # Interpolation is only meaningful where both OEM histories exist.
         if overlapping_time_range is None and (
             args.interpolate_ref or args.interpolate_data
         ):
@@ -373,6 +491,7 @@ def main() -> None:
         else:
             overlap_start = overlap_stop = None
 
+        # Each interpolator evaluates one history at epochs from the other.
         reference_interpolator = None
         if args.interpolate_ref:
             reference_interpolator = lagrange.LagrangeInterpolator(
@@ -391,6 +510,7 @@ def main() -> None:
         comparison_pairs: Iterable[
             tuple[tuple[float, np.ndarray], tuple[float, np.ndarray]]
         ]
+        # Choose query epochs according to which history, if any, is interpolated.
         if args.interpolate_data:
             comparison_pairs = [
                 (state, comparison_states[0])
@@ -417,6 +537,7 @@ def main() -> None:
                     )
                 )
             except ValueError as error:
+                # A boundary sample can still fall outside the interpolator window.
                 if (
                     (args.interpolate_ref or args.interpolate_data)
                     and str(error).endswith(
@@ -438,10 +559,22 @@ def main() -> None:
             include_time_difference=(
                 reference_interpolator is None and comparison_interpolator is None
             ),
+            include_comparison_epoch=(
+                reference_interpolator is None and comparison_interpolator is None
+            ),
             verbose=args.verbose,
+            rtn=args.rtn,
         )
         for index, comparison_result in enumerate(comparison_results, start=1):
-            print_results(index, comparison_result, verbose=args.verbose)
+            print_results(
+                index,
+                comparison_result,
+                include_comparison_epoch=(
+                    reference_interpolator is None and comparison_interpolator is None
+                ),
+                verbose=args.verbose,
+                rtn=args.rtn,
+            )
 
     except ValueError as error:
         print(f"Error: {error}", file=sys.stderr)
