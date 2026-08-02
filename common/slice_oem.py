@@ -375,9 +375,9 @@ def extract_states_by_time(
         # Positive timedelta: offset from start
         # Zero or negative timedelta: offset from end
         if options.stop_time > timedelta(0):
-            # Positive: offset from OEM start
+            # Positive: offset from the resolved slice start
             slice_stop_timestamp_s = (
-                base_start_timestamp_s + options.stop_time.total_seconds()
+                slice_start_timestamp_s + options.stop_time.total_seconds()
             )
         else:
             # Zero or negative: offset from OEM end

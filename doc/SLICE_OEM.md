@@ -178,7 +178,7 @@ start[,[stop][,step]]
 - **Negative** (e.g., `-10m`) → offset backwards from OEM **end time**
 
 **Duration interpretation for stop:**
-- **Positive** (e.g., `1h`, `30m`) → offset from OEM **start time**
+- **Positive** (e.g., `1h`, `30m`) → offset from the resolved **start time**
 - **Zero** (`0`) or **omitted after comma** → OEM **end time**
 - **Negative** (e.g., `-10m`) → offset backwards from OEM **end time**
 
