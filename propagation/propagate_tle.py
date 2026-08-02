@@ -14,7 +14,7 @@ Usage:
 
 Time window options:
     --start <iso8601|duration>   Start epoch (absolute or relative to TLE epoch)
-    --stop  <iso8601|duration>   Stop epoch (absolute or relative to TLE epoch)
+    --stop  <iso8601|duration>   Stop epoch (absolute or relative to start epoch)
 """
 
 from __future__ import annotations
@@ -88,7 +88,7 @@ def parse_cli_args() -> argparse.Namespace:
         default=None,
         help=(
             "Propagation stop epoch. Accepts ISO 8601 timestamp (e.g. "
-            "2026-01-01T06:00:00) or duration offset from the TLE epoch "
+            "2026-01-01T06:00:00) or duration offset from the start epoch "
             "(e.g. 1d, 6h)."
         ),
     )
@@ -248,6 +248,20 @@ def resolve_epoch_datetime(
     return spec
 
 
+def resolve_time_bounds(
+    reference_dt: dt.datetime,
+    start_spec: dt.datetime | dt.timedelta,
+    stop_spec: dt.datetime | dt.timedelta | None,
+) -> tuple[dt.datetime, dt.datetime]:
+    """Resolve absolute start and stop datetimes for a propagation window."""
+    start_time = resolve_epoch_datetime(reference_dt, start_spec)
+    if stop_spec is None:
+        stop_time = start_time + dt.timedelta(seconds=DEFAULT_PROPAGATION_DURATION_S)
+    else:
+        stop_time = resolve_epoch_datetime(start_time, stop_spec)
+    return start_time, stop_time
+
+
 def write_oem_file(
     object_name: str,
     tle_ephemeris,
@@ -364,12 +378,11 @@ def main() -> int:
         start_spec = time_utils.parse_time_or_duration(args.start)
 
     if args.stop is None:
-        stop_spec = start_spec + dt.timedelta(seconds=DEFAULT_PROPAGATION_DURATION_S)
+        stop_spec = None
     else:
         stop_spec = time_utils.parse_time_or_duration(args.stop)
 
-    start_time: dt.datetime = resolve_epoch_datetime(reference_dt, start_spec)
-    stop_time: dt.datetime = resolve_epoch_datetime(reference_dt, stop_spec)
+    start_time, stop_time = resolve_time_bounds(reference_dt, start_spec, stop_spec)
 
     write_oem_file(
         object_name=object_name,
