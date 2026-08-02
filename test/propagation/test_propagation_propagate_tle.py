@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import os
 import subprocess
 import sys
@@ -9,11 +10,24 @@ from pathlib import Path
 
 import pytest
 
+from propagation.propagate_tle import resolve_time_bounds
+
 TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent
 TEST_DATA_DIR: Path = TEST_DIR.parent / "data"
 
 TLE_FILES: list[Path] = sorted(TEST_DATA_DIR.glob("*.tle"))
+
+
+def test_relative_stop_is_resolved_from_start_epoch() -> None:
+    """A relative stop duration should be measured from the resolved start."""
+    start_time = dt.datetime(2026, 1, 1, 6, 0, 0)
+
+    assert resolve_time_bounds(
+        dt.datetime(2026, 1, 1, 0, 0, 0),
+        start_time,
+        dt.timedelta(hours=2),
+    ) == (start_time, dt.datetime(2026, 1, 1, 8, 0, 0))
 
 
 def _build_env() -> dict[str, str]:
