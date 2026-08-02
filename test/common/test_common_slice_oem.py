@@ -584,7 +584,6 @@ def test_parse_time_slice_single_value_creates_start_only() -> None:
     assert result.step_size is None
 
 
-
 # ===================================================================
 # Tests for index-based validation
 # ===================================================================
@@ -666,7 +665,7 @@ def test_time_validation_stop_before_start() -> None:
 
     options = slice_oem.TimeSliceOptions(
         start_time=timedelta(minutes=5),
-        stop_time=timedelta(minutes=2),
+        stop_time=timedelta(minutes=-8),
     )
 
     with pytest.raises(ValueError, match="stop time must be >= start time"):
@@ -727,9 +726,9 @@ def test_time_validation_valid_range() -> None:
         stop_time=timedelta(minutes=5),
     )
 
-    # Should not raise an error
+    # Positive stop duration is relative to the 2-minute start.
     sliced_oem = slice_oem.extract_sliced_states(oem_obj, options)
-    assert len(sliced_oem.states) == 4  # States at 2, 3, 4, 5 minutes
+    assert len(sliced_oem.states) == 6  # States at 2 through 7 minutes
 
 
 #
@@ -758,10 +757,10 @@ def test_interpolation_with_step_size() -> None:
 
     sliced_oem = slice_oem.extract_sliced_states(oem_obj, options)
 
-    # Should have states at 2, 4, 6, 8, 10 minutes (5 states)
-    assert len(sliced_oem.states) == 5
+    # Should have states at 2, 4, 6, 8, 10, 12 minutes (6 states)
+    assert len(sliced_oem.states) == 6
     assert sliced_oem.states[0][0] == base_time.timestamp() + 2 * 60
-    assert sliced_oem.states[-1][0] == base_time.timestamp() + 10 * 60
+    assert sliced_oem.states[-1][0] == base_time.timestamp() + 12 * 60
 
 
 def test_interpolation_single_state() -> None:
@@ -1052,7 +1051,7 @@ def test_parse_time_slice_with_empty_stop_and_step() -> None:
 
 
 def test_time_slice_positive_duration_stop() -> None:
-    """Test time slicing with positive duration for stop (offset from start)."""
+    """Test positive stop duration is relative to the resolved start."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
         (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
@@ -1062,13 +1061,13 @@ def test_time_slice_positive_duration_stop() -> None:
 
     options = slice_oem.TimeSliceOptions(
         start_time=timedelta(minutes=2),
-        stop_time=timedelta(minutes=10),  # Positive: 10 minutes from OEM start
+        stop_time=timedelta(minutes=10),  # Positive: 10 minutes from resolved start
     )
 
     sliced_oem = slice_oem.extract_sliced_states(oem_obj, options)
 
-    # Should include states from 2 to 10 minutes
-    assert len(sliced_oem.states) == 9  # States at indices 2-10
+    # Should include states from 2 to 12 minutes
+    assert len(sliced_oem.states) == 11  # States at indices 2-12
 
 
 def test_time_slice_zero_duration_stop() -> None:
@@ -1339,10 +1338,10 @@ def test_time_validation_error_with_datetime_start_timedelta_stop() -> None:
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
 
-    # Start at 12:05, stop at 2 minutes from start (12:02, before start)
+    # Start at 12:05, stop 8 minutes before the OEM end (12:01, before start)
     options = slice_oem.TimeSliceOptions(
         start_time=datetime(2024, 1, 1, 12, 5, 0, tzinfo=timezone.utc),
-        stop_time=timedelta(minutes=2),
+        stop_time=timedelta(minutes=-8),
     )
 
     with pytest.raises(ValueError, match="stop time must be >= start time"):
