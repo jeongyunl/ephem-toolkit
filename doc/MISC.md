@@ -37,7 +37,7 @@ python3 bin/diff_oem.py [-h] [-v] [--debug] [--interpolate] \
 | `--interpolate-data` | Interpolate comparison data at each reference-state timestamp |
 | `--rtn` | Include position and velocity differences in the reference RTN frame |
 | `--start <iso8601|duration>` | Start of the comparison window; durations are relative to the first reference epoch |
-| `--stop <iso8601|duration>` | End of the comparison window; durations are relative to the first reference epoch |
+| `--stop <iso8601|duration>` | End of the comparison window; durations are relative to the resolved start time |
 | `<reference_oem.oem>` | Reference CCSDS OEM file path or `-` to read from stdin |
 | `<comparison_oem.oem>` | Comparison CCSDS OEM file path or `-` to read from stdin |
 
