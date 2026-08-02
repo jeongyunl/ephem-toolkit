@@ -55,10 +55,15 @@ def test_resolve_time_bound_accepts_reference_relative_duration() -> None:
     assert diff_oem._resolve_time_bound("2m", reference_epoch_s) == 1_120.0
 
 
+def test_stop_duration_is_relative_to_resolved_start() -> None:
+    reference_epoch_s = 1_000.0
+    start_epoch_s = diff_oem._resolve_time_bound("10m", reference_epoch_s)
+
+    assert diff_oem._resolve_time_bound("2m", start_epoch_s) == 1_720.0
+
+
 def test_resolve_time_bound_accepts_absolute_iso8601() -> None:
-    resolved_epoch_s = diff_oem._resolve_time_bound(
-        "1970-01-01T00:16:40Z", 0.0
-    )
+    resolved_epoch_s = diff_oem._resolve_time_bound("1970-01-01T00:16:40Z", 0.0)
 
     assert resolved_epoch_s == 1_000.0
 
