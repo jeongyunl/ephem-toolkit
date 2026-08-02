@@ -421,7 +421,7 @@ python3 propagation/propagate_tle.py [-h] [--start <iso8601|duration>] [--stop <
 | `-h`, `--help` | Show help message and exit | none |
 | `<tle_file>` | Path to a TLE file. If omitted, TLE text is read from stdin. | stdin when piped |
 | `--start` | Start epoch as an ISO 8601 timestamp or duration relative to the TLE epoch | TLE epoch |
-| `--stop` | Stop epoch as an ISO 8601 timestamp or duration relative to the TLE epoch | 1 day after start |
+| `--stop` | Stop epoch as an ISO 8601 timestamp or duration relative to the resolved start epoch | 1 day after start |
 | `-s`, `--step` | Output interval in `s` or `m` units | `5m` |
 | `--raw` | Print raw state-vector lines without the OEM metadata header | off |
 
@@ -490,6 +490,17 @@ cat test/data/ISS-ZARYA_1998-067A.tle | python3 propagation/propagate_tle.py --s
 ```bash
 python3 propagation/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle --stop 30m -s 10s
 ```
+
+**Start 90 minutes after the TLE epoch and propagate for 2 hours:**
+
+```bash
+python3 propagation/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle \
+  --start 90m --stop 2h -s 1m
+```
+
+Relative `--start` durations are measured from the TLE epoch. Relative
+`--stop` durations are measured from the resolved start epoch, so the example
+above covers a two-hour window beginning 90 minutes after the TLE epoch.
 
 **Print raw state lines without the OEM metadata header:**
 

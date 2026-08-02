@@ -19,7 +19,9 @@ by index, stopping at the shorter history.
 ### Synopsis
 
 ```bash
-python3 bin/diff_oem.py [-h] [-v] [--interpolate-ref] [--interpolate-data] \
+python3 bin/diff_oem.py [-h] [-v] [--debug] [--interpolate] \
+  [--interpolate-ref] [--interpolate-data] [--rtn] \
+  [--start <iso8601|duration>] [--stop <iso8601|duration>] \
   <reference_oem.oem> <comparison_oem.oem>
 ```
 
@@ -29,8 +31,13 @@ python3 bin/diff_oem.py [-h] [-v] [--interpolate-ref] [--interpolate-data] \
 |---|---|
 | `-h`, `--help` | Show help message and exit |
 | `-v`, `--verbose` | Print detailed component-wise differences |
+| `--debug` | Print input, overlap, requested, and effective time ranges to stderr |
+| `--interpolate` | Interpolate both OEM histories at the other history's epochs |
 | `--interpolate-ref` | Interpolate the reference OEM at each comparison-state timestamp |
 | `--interpolate-data` | Interpolate comparison data at each reference-state timestamp |
+| `--rtn` | Include position and velocity differences in the reference RTN frame |
+| `--start <iso8601|duration>` | Start of the comparison window; durations are relative to the first reference epoch |
+| `--stop <iso8601|duration>` | End of the comparison window; durations are relative to the first reference epoch |
 | `<reference_oem.oem>` | Reference CCSDS OEM file path or `-` to read from stdin |
 | `<comparison_oem.oem>` | Comparison CCSDS OEM file path or `-` to read from stdin |
 
@@ -42,9 +49,13 @@ python3 bin/diff_oem.py [-h] [-v] [--interpolate-ref] [--interpolate-data] \
 - Without interpolation, compares states sequentially by index
 - With `--interpolate-ref`, evaluates reference data at comparison timestamps
 - With `--interpolate-data`, evaluates comparison data at reference timestamps
+- `--interpolate` is equivalent to specifying both interpolation options
 - Interpolation queries are limited to the overlapping time range of both OEM files
+- `--start` and `--stop` further restrict comparisons to the overlapping time range
 - States outside the interpolation range are skipped
 - With `-v`, prints component-wise differences for each axis
+- With `--rtn`, prints the differences expressed in the reference radial-transverse-normal frame
+- With `--debug`, prints range calculations to stderr
 - Accepts file paths or stdin (`-`) as input sources
 - If both input paths are `-`, the command reports an argument error
 
@@ -61,6 +72,7 @@ The script prints a comparison summary including:
 - Position difference magnitude in km
 - Velocity difference magnitude in km/s
 - (With `-v`) Component-wise differences for each axis
+- (With `--rtn`) Position and velocity differences in the reference RTN frame
 
 ### Usage
 
@@ -86,6 +98,19 @@ python3 bin/diff_oem.py --interpolate-ref reference.oem comparison.oem
 
 ```bash
 python3 bin/diff_oem.py --interpolate-data reference.oem comparison.oem
+```
+
+**Interpolate both histories:**
+
+```bash
+python3 bin/diff_oem.py --interpolate reference.oem comparison.oem
+```
+
+**Compare a time window with RTN output and debug ranges:**
+
+```bash
+python3 bin/diff_oem.py --start 2026-01-01T00:00:00 --stop 2h \
+  --rtn --debug reference.oem comparison.oem
 ```
 
 **Show help:**
