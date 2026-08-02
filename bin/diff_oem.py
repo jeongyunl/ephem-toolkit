@@ -628,10 +628,16 @@ def main() -> None:
         # Choose query epochs according to which history, if any, is interpolated.
         if args.interpolate_data:
             comparison_pairs = [
-                (state, comparison_states[0]) for state in reference_states
+                (state, comparison_states[0])
+                for state in reference_states
+                if not has_time_window or overlap_start <= state[0] <= overlap_stop
             ]
         elif args.interpolate_ref:
-            comparison_pairs = [(reference_oem, state) for state in comparison_states]
+            comparison_pairs = [
+                (reference_oem, state)
+                for state in comparison_states
+                if not has_time_window or overlap_start <= state[0] <= overlap_stop
+            ]
         elif has_time_window:
             comparison_pairs = [
                 (reference_state, comparison_state)
