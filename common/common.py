@@ -391,3 +391,42 @@ def circular_blend_angle_rad(
         primary_angle
         + correction_weight * angle_difference_rad(correction_angle, primary_angle)
     )
+
+
+def rotation_matrix_to_euler_angles(rotation_matrix: np.ndarray) -> np.ndarray:
+    """Convert a rotation matrix to ZYX Euler angles (intrinsic rotations).
+
+    Parameters
+    ----------
+    rotation_matrix : numpy.ndarray
+        Three-by-three rotation matrix.
+
+    Returns
+    -------
+    numpy.ndarray
+        Euler angles [yaw, pitch, roll] in degrees (ZYX convention).
+    """
+    # Extract Euler angles from rotation matrix using ZYX convention
+    # R = Rz(yaw) * Ry(pitch) * Rx(roll)
+
+    # Check for gimbal lock
+    sin_pitch_value: float = -rotation_matrix[2, 0]
+
+    if abs(sin_pitch_value) >= 1.0:
+        # Gimbal lock case
+        pitch_rad: float = np.copysign(np.pi / 2.0, sin_pitch_value)
+        if sin_pitch_value < 0:  # pitch = +90 degrees
+            yaw_rad: float = np.arctan2(rotation_matrix[0, 1], rotation_matrix[1, 1])
+            roll_rad: float = 0.0
+        else:  # pitch = -90 degrees
+            yaw_rad = np.arctan2(-rotation_matrix[0, 1], rotation_matrix[1, 1])
+            roll_rad = 0.0
+    else:
+        # Normal case
+        pitch_rad = np.arcsin(-rotation_matrix[2, 0])
+        yaw_rad = np.arctan2(rotation_matrix[1, 0], rotation_matrix[0, 0])
+        roll_rad = np.arctan2(rotation_matrix[2, 1], rotation_matrix[2, 2])
+
+    # Convert to degrees for output
+    euler_angles_deg: np.ndarray = np.degrees([yaw_rad, pitch_rad, roll_rad])
+    return euler_angles_deg
