@@ -14,13 +14,17 @@ Miscellaneous utilities for orbit analysis and comparison.
 
 Compares corresponding states from two CCSDS OEM files and reports position and
 velocity differences. Without interpolation, states are compared sequentially
-by index, stopping at the shorter history.
+by index, stopping at the shorter history. Supports optional transformation
+stages (rotation fitting and time-shift correction) to align comparison data
+with reference data before computing differences.
 
 ### Synopsis
 
 ```bash
 python3 bin/diff_oem.py [-h] [-v] [--debug] [--interpolate] \
   [--interpolate-ref] [--interpolate-data] [--rtn] \
+  [--rot] [--rot-xy] [--rot-z] [--time-shift] \
+  [--rot-fit-span <duration>] \
   [--start <iso8601|duration>] [--stop <iso8601|duration>] \
   <reference_oem.oem> <comparison_oem.oem>
 ```
@@ -36,6 +40,11 @@ python3 bin/diff_oem.py [-h] [-v] [--debug] [--interpolate] \
 | `--interpolate-ref` | Interpolate the reference OEM at each comparison-state timestamp |
 | `--interpolate-data` | Interpolate comparison data at each reference-state timestamp |
 | `--rtn` | Include position and velocity differences in the reference RTN frame |
+| `--rot` | Fit a fixed 3D rotation from initial comparison state span and apply it before reporting differences (may be repeated) |
+| `--rot-xy` | Fit a fixed rotation around X and Y axes from initial comparison state span (may be repeated) |
+| `--rot-z` | Fit a fixed rotation around Z axis from initial comparison state span (may be repeated) |
+| `--time-shift` | Fit a constant comparison epoch bias and shift comparison timestamps before reporting differences (may be repeated) |
+| `--rot-fit-span <duration>` | Duration of the initial state span used for rotation fitting (default: 1 hour) |
 | `--start <iso8601|duration>` | Start of the comparison window; durations are relative to the first reference epoch |
 | `--stop <iso8601|duration>` | End of the comparison window; durations are relative to the resolved start time |
 | `<reference_oem.oem>` | Reference CCSDS OEM file path or `-` to read from stdin |
@@ -58,6 +67,24 @@ python3 bin/diff_oem.py [-h] [-v] [--debug] [--interpolate] \
 - With `--debug`, prints range calculations to stderr
 - Accepts file paths or stdin (`-`) as input sources
 - If both input paths are `-`, the command reports an argument error
+
+#### Transformation Stages
+
+The tool supports optional transformation stages that fit and apply corrections to the comparison data before computing differences:
+
+- **`--rot`**: Fits a full 3D rotation matrix using SVD decomposition to align comparison positions with reference positions. Uses the initial time span specified by `--rot-fit-span`.
+- **`--rot-xy`**: Fits a rotation around X and Y axes only (constrains Z-axis rotation to zero). Useful when Z-axis alignment is already correct.
+- **`--rot-z`**: Fits a rotation around Z axis only (constrains X and Y rotations to zero). Useful for correcting azimuthal misalignment.
+- **`--time-shift`**: Fits a constant time bias to minimize position differences between comparison and reference states. Uses golden-section search optimization over a ±1800s window.
+- **`--rot-fit-span`**: Controls the duration of data used for rotation fitting (default: 1 hour from the start of the overlap).
+
+Transformation stages can be repeated and are applied in the order specified on the command line. Each stage produces:
+1. A "Normal comparison" report showing differences before any transformations
+2. Intermediate comparison reports after each transformation stage
+3. Fitted transformation parameters (rotation matrices with Euler angles, time shifts)
+4. Summary statistics for each comparison
+
+The rotation fitting uses position data only, but the fitted rotation is applied to both position and velocity components.
 
 ### Input format
 
@@ -111,6 +138,36 @@ python3 bin/diff_oem.py --interpolate reference.oem comparison.oem
 ```bash
 python3 bin/diff_oem.py --start 2026-01-01T00:00:00 --stop 2h \
   --rtn --debug reference.oem comparison.oem
+```
+
+**Fit and apply a 3D rotation to align comparison with reference:**
+
+```bash
+python3 bin/diff_oem.py --rot reference.oem comparison.oem
+```
+
+**Fit and apply a Z-axis rotation only:**
+
+```bash
+python3 bin/diff_oem.py --rot-z reference.oem comparison.oem
+```
+
+**Fit and apply a time shift to align epochs:**
+
+```bash
+python3 bin/diff_oem.py --time-shift reference.oem comparison.oem
+```
+
+**Apply multiple transformations in sequence (rotation then time-shift):**
+
+```bash
+python3 bin/diff_oem.py --rot --time-shift reference.oem comparison.oem
+```
+
+**Use custom rotation fitting span (first 30 minutes):**
+
+```bash
+python3 bin/diff_oem.py --rot --rot-fit-span 1800 reference.oem comparison.oem
 ```
 
 **Show help:**
