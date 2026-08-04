@@ -68,6 +68,23 @@ def test_resolve_time_bound_accepts_absolute_iso8601() -> None:
     assert resolved_epoch_s == 1_000.0
 
 
+def test_parse_rotation_fit_span_uses_duration_parser() -> None:
+    assert diff_oem._parse_rotation_fit_span("1h30m") == 5_400.0
+
+
+def test_parse_rotation_fit_span_rejects_non_positive_duration() -> None:
+    with pytest.raises(ValueError):
+        diff_oem._parse_rotation_fit_span("0s")
+    with pytest.raises(ValueError):
+        diff_oem._parse_rotation_fit_span("-5m")
+
+
+def test_extract_stage_sequence_preserves_repeated_transformations() -> None:
+    assert diff_oem._extract_stage_sequence(
+        ["--rot", "--time-shift", "--rot", "--time-shift"]
+    ) == ["rot", "time_shift", "rot", "time_shift"]
+
+
 def test_compare_states_interpolates_reference_at_comparison_epoch() -> None:
     result = diff_oem.compare_states(
         _state(0.0, 0.0),
@@ -117,3 +134,186 @@ def test_compare_states_calculates_reference_rtn_coordinates() -> None:
         np.array([0.0, 0.001, 0.0]),
         atol=1e-12,
     )
+
+
+def test_fit_rotation_matrix_matches_comparison_to_reference() -> None:
+    angle_rad = np.deg2rad(30.0)
+    reference_rotation = np.array(
+        [
+            [np.cos(angle_rad), -np.sin(angle_rad), 0.0],
+            [np.sin(angle_rad), np.cos(angle_rad), 0.0],
+            [0.0, 0.0, 1.0],
+        ]
+    )
+    reference_states = [
+        (
+            float(index),
+            np.array(
+                [
+                    7.0 + index,
+                    2.0 * index,
+                    3.0 - index,
+                    0.1 * index,
+                    7.5 - index,
+                    0.3 + 0.2 * index,
+                ]
+            ),
+        )
+        for index in range(3)
+    ]
+    comparison_states = [
+        (
+            epoch_s,
+            np.concatenate(
+                [
+                    reference_rotation.T @ state_m[0:3],
+                    np.array([91.0 + epoch_s, -37.0, 12.0]),
+                ]
+            ),
+        )
+        for epoch_s, state_m in reference_states
+    ]
+    fitted_rotation = diff_oem.RotationStage._fit_rotation_matrix(
+        list(zip(reference_states, comparison_states))
+    )
+
+    np.testing.assert_allclose(fitted_rotation, reference_rotation, atol=1e-12)
+    result = diff_oem.compare_states(
+        reference_states[0],
+        comparison_states[0],
+        comparison_rotation_matrix=fitted_rotation,
+    )
+    np.testing.assert_allclose(result.position_diff_km, np.zeros(3), atol=1e-12)
+
+
+def test_fit_xy_rotation_matrix_matches_comparison_to_reference() -> None:
+    reference_rotation = diff_oem.RotationXYStage._rotation_matrix_y(np.deg2rad(-12.0)) @ (
+        diff_oem.RotationXYStage._rotation_matrix_x(np.deg2rad(7.0))
+    )
+    reference_states = [
+        (
+            float(index),
+            np.array(
+                [
+                    7.0 + index,
+                    2.0 * index,
+                    3.0 - index,
+                    0.1 * index,
+                    7.5 - index,
+                    0.3 + 0.2 * index,
+                ]
+            ),
+        )
+        for index in range(3)
+    ]
+    comparison_states = [
+        (
+            epoch_s,
+            np.concatenate(
+                [
+                    reference_rotation.T @ state_m[0:3],
+                    np.array([91.0 + epoch_s, -37.0, 12.0]),
+                ]
+            ),
+        )
+        for epoch_s, state_m in reference_states
+    ]
+
+    fitted_rotation = diff_oem.RotationXYStage._fit_xy_rotation_matrix(
+        list(zip(reference_states, comparison_states))
+    )
+
+    np.testing.assert_allclose(fitted_rotation, reference_rotation, atol=1e-9)
+
+
+def test_fit_z_rotation_matrix_matches_comparison_to_reference() -> None:
+    reference_rotation = diff_oem.RotationZStage._rotation_matrix_z(np.deg2rad(23.0))
+    reference_states = [
+        (
+            float(index),
+            np.array(
+                [
+                    7.0 + index,
+                    2.0 * index,
+                    3.0 - index,
+                    0.1 * index,
+                    7.5 - index,
+                    0.3 + 0.2 * index,
+                ]
+            ),
+        )
+        for index in range(3)
+    ]
+    comparison_states = [
+        (
+            epoch_s,
+            np.concatenate(
+                [
+                    reference_rotation.T @ state_m[0:3],
+                    np.array([91.0 + epoch_s, -37.0, 12.0]),
+                ]
+            ),
+        )
+        for epoch_s, state_m in reference_states
+    ]
+
+    fitted_rotation = diff_oem.RotationZStage._fit_z_rotation_matrix(
+        list(zip(reference_states, comparison_states))
+    )
+
+    np.testing.assert_allclose(fitted_rotation, reference_rotation, atol=1e-9)
+
+
+def test_print_statistics_reports_default_criteria(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    result = diff_oem.compare_states(
+        (0.0, np.array([1000.0, 0.0, 0.0, 0.0, 1.0, 0.0])),
+        (1.0, np.array([1000.0, 0.0, 0.0, 0.0, 2.0, 0.0])),
+    )
+
+    diff_oem.ComparisonOutput(
+        comparison_results=[(0.0, result)],
+        reference_interpolator=None,
+        comparison_interpolator=None,
+        verbose=False,
+        rtn=False,
+    ).print_statistics(include_time_difference=True)
+
+    output = capsys.readouterr().out
+    assert "Statistics (mean, std, min, max)" in output
+    assert "time difference (s): +1, +0, +1, +1" in output
+    assert "position difference (km): +0.000, +0.000, +0.000, +0.000" in output
+    assert (
+        "velocity difference (km/s): +0.001000, +0.000000, +0.001000, +0.001000"
+        in output
+    )
+
+
+def test_print_statistics_reports_rtn_criteria(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    reference_state = (0.0, np.array([1000.0, 0.0, 0.0, 0.0, 1.0, 0.0]))
+    first_result = diff_oem.compare_states(
+        reference_state,
+        (1.0, np.array([1000.0, 0.0, 0.0, 0.0, 2.0, 0.0])),
+    )
+    second_result = diff_oem.compare_states(
+        reference_state,
+        (1.0, np.array([1000.0, 0.0, 0.0, 0.0, 3.0, 0.0])),
+    )
+
+    diff_oem.ComparisonOutput(
+        comparison_results=[(0.0, first_result), (0.0, second_result)],
+        reference_interpolator=None,
+        comparison_interpolator=None,
+        verbose=False,
+        rtn=True,
+    ).print_statistics(
+        include_time_difference=False,
+    )
+
+    output = capsys.readouterr().out
+    assert "Statistics (std, min, max)" in output
+    assert "RTN r (km): +0.000, +0.000, +0.000" in output
+    assert "RTN v" not in output
