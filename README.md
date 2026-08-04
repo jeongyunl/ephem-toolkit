@@ -133,11 +133,11 @@ See [TLE.md](doc/TLE.md) for full usage details.
 
 ### OEM Utilities (`bin/`)
 
-- `bin/diff_oem.py` — compare corresponding states from two OEM files
+- `bin/diff_oem.py` — compare corresponding states from two OEM files with optional rotation fitting and time-shift correction
 - `bin/slice_oem.py` — slice OEM files by index or time range (with optional interpolation)
 - `bin/ecef_to_aer.py` — convert ECEF OEM ephemeris to AER (Azimuth-Elevation-Range) coordinates
 
-See [SLICE_OEM.md](doc/SLICE_OEM.md) for OEM slicing details and [MISC.md](doc/MISC.md) for other utilities.
+See [SLICE_OEM.md](doc/SLICE_OEM.md) for OEM slicing details and [MISC.md](doc/MISC.md) for other utilities including `diff_oem.py` transformation features.
 
 ### Visualization (`plotting/`)
 
