@@ -345,10 +345,18 @@ class RotationStage(TransformationStage):
             Human-readable fit description.
         """
         euler_angles_deg = common.rotation_matrix_to_euler_angles(fit_result)
+
+        # Calculate angular separation (total rotation angle) from rotation matrix
+        # Using the formula: angle = arccos((trace(R) - 1) / 2)
+        trace = np.trace(fit_result)
+        angular_separation_rad = np.arccos(np.clip((trace - 1) / 2, -1, 1))
+        angular_separation_deg = np.degrees(angular_separation_rad)
+
         return (
             "Applied comparison-to-reference rotation matrix to "
             "comparison position and velocity states:\n"
             + np.array2string(fit_result, precision=6)
+            + f"\n\nAngular separation: {angular_separation_deg:.6f} deg"
             + "\n\nEuler angles (ZYX convention, intrinsic rotations):\n"
             + f"  Rotation about Z (yaw):   {euler_angles_deg[0]:+.6f} deg\n"
             + f"  Rotation about Y (pitch): {euler_angles_deg[1]:+.6f} deg\n"
