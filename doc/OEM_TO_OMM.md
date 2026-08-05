@@ -151,7 +151,7 @@ The script follows a four-stage workflow:
 
 ### Purpose
 
-Provides comprehensive accuracy assessment of the TLE fitting process, including:
+Provides accuracy assessment of the TLE fitting process, including:
 
 1. Input data summary (OEM file statistics)
 2. Estimation diagnostics (element estimation from OEM arc)

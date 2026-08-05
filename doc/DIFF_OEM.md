@@ -4,7 +4,7 @@ The `bin/diff_oem.py` script compares corresponding states from two CCSDS OEM (O
 
 ## Overview
 
-This utility provides comprehensive comparison capabilities for OEM files:
+This utility provides comparison capabilities for OEM files:
 
 - **Direct comparison**: Compare states at matching epochs
 - **Interpolated comparison**: Compare states with interpolation for non-matching epochs

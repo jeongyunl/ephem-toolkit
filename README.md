@@ -26,75 +26,18 @@ test/                Unit tests and sample data files
 doc/                 Documentation
 ```
 
----
-
-## Libraries
-
-### Python Library (`common/`)
-
-Reusable Python modules providing foundational astrodynamics functionality. These are imported by the application modules and CLI tools.
-
-#### Data Parsing & Serialization
-
-| Module | Description |
-|--------|-------------|
-| `common/oem.py` | CCSDS OEM file parser and writer |
-| `common/omm.py` | CCSDS OMM file parser and writer |
-| `common/tle.py` | Two-Line Element set parser and writer |
-| `common/convert_tle.py` | TLE ↔ OMM format conversion helpers |
-
-#### Orbital Mechanics
-
-| Module | Description |
-|--------|-------------|
-| `common/kepler.py` | Keplerian element conversions with J2 short-period corrections |
-| `common/mean_kepler.py` | Mean Keplerian element conversions (osculating ↔ mean) |
-
-#### Time & Constants
-
-| Module | Description |
-|--------|-------------|
-| `common/time_utils.py` | Time conversion, ISO 8601 parsing/formatting, CLI duration parsing |
-| `common/consts.py` | Earth physical constants (gravitational parameter, equatorial radius, J2) |
-
-#### Interpolation (`common/interpolator/`)
-
-| Module | Description |
-|--------|-------------|
-| `common/interpolator/interpolator.py` | Generic interpolation interface |
-| `common/interpolator/lagrange.py` | Lagrange polynomial interpolation |
-
-#### Coordinate Transformations
-
-| Module | Description |
-|--------|-------------|
-| `common/aer.py` | AER (Azimuth-Elevation-Range) coordinate conversions |
-| `common/wgs.py` | WGS-84 geodetic coordinate conversions (LLA ↔ ECEF ↔ ENU) |
-
-#### General Utilities
-
-| Module | Description |
-|--------|-------------|
-| `common/common.py` | SPICE kernel path resolution, CCSDS keyword-value parsing, RTN frame transformation, angle utilities |
-| `common/slice_oem.py` | Reusable OEM slicing functions (by index or time range, with optional interpolation) |
-
----
-
-## Application Modules
-
-Higher-level packages that combine library code into complete workflows.
-
-### OEM-to-OMM (`oem_to_omm/`)
-
-Estimates Orbit Mean-Elements Messages (OMM) including Two-Line Element (TLE) sets from OEM Cartesian state vectors. Fits OEM state vectors to osculating Kepler, mean Kepler, or TLE-derived OMM output using iterative least-squares fitting. Includes least-squares estimation, iterative refinement, SGP4 model evaluation, and TLE line construction.
-
-See [OEM_TO_OMM.md](doc/OEM_TO_OMM.md) for full usage details.
 
 ---
 
 ## Command-Line Tools
 
-### Frame Conversion (`bin/`)
+### OEM Utilities
+
+- `bin/diff_oem.py` — compare corresponding states from two OEM files with optional rotation fitting and time-shift correction. See [DIFF_OEM.md](doc/DIFF_OEM.md) for details
+- `bin/slice_oem.py` — slice OEM files by index or time range (with optional interpolation). See [SLICE_OEM.md](doc/SLICE_OEM.md) for details
+- `bin/ecef_to_aer.py` — convert ECEF OEM ephemeris to AER (Azimuth-Elevation-Range) coordinates. See [MISC.md](doc/MISC.md) for other details.
+
+### Frame Conversion
 
 - `bin/gcrf_to_itrf_spice.py` — SPICE rotation (J2000 ↔ ITRF93)
 - `bin/gcrf_to_itrf_rot_model.py` — TudatPy Earth rotation models
@@ -103,16 +46,7 @@ Converts OEM-like Cartesian state vectors between inertial and Earth-fixed refer
 
 See [FRAME_CONVERSION.md](doc/FRAME_CONVERSION.md) for full usage details.
 
-### Time Conversion (`time_conversion/tools/`)
-
-- `time_conversion/tools/convert_time_cli` — C++ multi-backend CLI
-- `time_conversion/tools/convert_time.py` — Python wrapper
-
-Converts between ISO 8601, POSIX, UTC/TAI/TT J2000, and backend-specific formats.
-
-See [TIME_CONVERSION.md](doc/TIME_CONVERSION.md) for full usage details.
-
-### Orbit Propagation (`propagation/`)
+### Orbit Propagation
 
 - `propagation/propagate_orbit.py` — Cartesian state propagation with configurable perturbations
 - `propagation/propagate_kepler.py` — two-body Kepler propagation
@@ -122,7 +56,15 @@ Supports CCSDS OEM export, raw state-vector output, dependent-variable CSV expor
 
 See [PROPAGATION.md](doc/PROPAGATION.md) for full usage details.
 
-### TLE / OMM Utilities (`bin/`)
+### OEM-to-OMM
+
+- `oem_to_omm/oem_to_omm.py`
+
+Estimates Orbit Mean-Elements Messages (OMM) including Two-Line Element (TLE) sets from OEM Cartesian state vectors. Fits OEM state vectors to osculating Kepler, mean Kepler, or TLE-derived OMM output using iterative least-squares fitting. Includes least-squares estimation, iterative refinement, SGP4 model evaluation, and TLE line construction.
+
+See [OEM_TO_OMM.md](doc/OEM_TO_OMM.md) for full usage details.
+
+### TLE / OMM Utilities
 
 - `bin/download_tle.py` — download TLE data
 - `bin/omm_to_tle.py` — convert OMM → TLE
@@ -131,18 +73,29 @@ See [PROPAGATION.md](doc/PROPAGATION.md) for full usage details.
 
 See [TLE.md](doc/TLE.md) for full usage details.
 
-### OEM Utilities (`bin/`)
-
-- `bin/diff_oem.py` — compare corresponding states from two OEM files with optional rotation fitting and time-shift correction
-- `bin/slice_oem.py` — slice OEM files by index or time range (with optional interpolation)
-- `bin/ecef_to_aer.py` — convert ECEF OEM ephemeris to AER (Azimuth-Elevation-Range) coordinates
-
-See [DIFF_OEM.md](doc/DIFF_OEM.md) for OEM comparison details, [SLICE_OEM.md](doc/SLICE_OEM.md) for OEM slicing details, and [MISC.md](doc/MISC.md) for other utilities.
-
-### Visualization (`plotting/`)
+### Visualization
 
 - `plotting/plot_orbit_deltas.py` — plot and compare multiple orbits
 - `plotting/plot_dependent_variables.py` — plot dependent variables from propagation output
+
+### Time Conversion
+
+- `time_conversion/tools/convert_time_cli` — C++ multi-backend CLI
+- `time_conversion/tools/convert_time.py` — Python wrapper
+
+Converts between ISO 8601, POSIX, UTC/TAI/TT J2000, and backend-specific formats.
+
+See [TIME_CONVERSION.md](doc/TIME_CONVERSION.md) for full usage details.
+
+---
+
+## Libraries
+
+### Python Library (`common/`)
+
+Reusable Python modules providing foundational astrodynamics functionality. These are imported by the application modules and CLI tools.
+
+See [COMMON_LIBRARY_SUMMARY.md](doc/COMMON_LIBRARY_SUMMARY.md) for an overview of all available modules and functions.
 
 ---
 
