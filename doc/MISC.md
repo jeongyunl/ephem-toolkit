@@ -18,6 +18,8 @@ by index, stopping at the shorter history. Supports optional transformation
 stages (rotation fitting and time-shift correction) to align comparison data
 with reference data before computing differences.
 
+See [DIFF_OEM.md](DIFF_OEM.md) for complete documentation.
+
 ### Synopsis
 
 ```bash
@@ -180,6 +182,10 @@ python3 bin/diff_oem.py -h
 
 - NumPy
 - local helper modules `common.oem`, `common.time_utils`, and `common.interpolator.lagrange`
+
+### See Also
+
+- [DIFF_OEM.md](DIFF_OEM.md) — Complete documentation for OEM comparison utility
 
 ## `bin/slice_oem.py`
 

@@ -137,7 +137,7 @@ See [TLE.md](doc/TLE.md) for full usage details.
 - `bin/slice_oem.py` — slice OEM files by index or time range (with optional interpolation)
 - `bin/ecef_to_aer.py` — convert ECEF OEM ephemeris to AER (Azimuth-Elevation-Range) coordinates
 
-See [SLICE_OEM.md](doc/SLICE_OEM.md) for OEM slicing details and [MISC.md](doc/MISC.md) for other utilities including `diff_oem.py` transformation features.
+See [DIFF_OEM.md](doc/DIFF_OEM.md) for OEM comparison details, [SLICE_OEM.md](doc/SLICE_OEM.md) for OEM slicing details, and [MISC.md](doc/MISC.md) for other utilities.
 
 ### Visualization (`plotting/`)
 
