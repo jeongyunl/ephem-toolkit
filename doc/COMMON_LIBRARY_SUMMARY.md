@@ -1,6 +1,6 @@
 # Common Library Summary
 
-This document provides a comprehensive overview of the libraries and functions available in the `common/` directory of the tudatpy-utils project.
+This document provides an overview of the libraries and functions available in the `common/` directory of the tudatpy-utils project.
 
 ## Table of Contents
 
