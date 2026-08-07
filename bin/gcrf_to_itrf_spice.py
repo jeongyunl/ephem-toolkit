@@ -24,83 +24,14 @@ warnings.filterwarnings(
 )
 
 import numpy as np
-from tudatpy.interface import spice
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import common.common as common
+import common.frame_utils as frame_utils
 import common.oem as oem
 import common.spice_utils as spice_utils
 import common.time_utils as time_utils
-
-
-def load_spice_kernels() -> None:
-    """Load required SPICE kernels for time conversion and Earth orientation."""
-
-    spice_kernel_files: list[str] = [
-        "naif0012.tls",  # Leap seconds kernel file
-        "earth_200101_990825_predict.bpc",  # Earth rotation prediction (covers Jan 2001 to Aug 2099)
-    ]
-    for kernel_file in spice_kernel_files:
-        spice_utils.load_kernel(kernel_file)
-
-
-def convert_frames_spice(
-    base_frame: str,
-    target_frame: str,
-    input_epoch_et_s: float,
-    input_state_m: np.ndarray,
-) -> np.ndarray:
-    """Convert a state vector from one SPICE frame to another.
-
-    Uses SPICE rotation matrices and their time derivatives to build a
-    6×6 state conversion matrix that correctly transforms both position
-    and velocity (accounting for the rotating-frame transport term).
-
-    Parameters
-    ----------
-    base_frame : str
-        Name of the source SPICE frame (e.g. ``"J2000"``).
-    target_frame : str
-        Name of the destination SPICE frame (e.g. ``"ITRF93"``).
-    input_epoch_et_s : float
-        Epoch in ephemeris time (TDB seconds since J2000).
-    input_state_m : np.ndarray
-        State vector ``[x, y, z, vx, vy, vz]`` (6,) in metres and m/s in
-        *base_frame*.
-
-    Returns
-    -------
-    np.ndarray
-        6-element state vector ``[x, y, z, vx, vy, vz]`` in metres and
-        m/s in *target_frame*.
-    """
-    # NOTE on inefficiency:
-    # spice.compute_rotation_matrix_between_frames() and
-    # spice.compute_rotation_matrix_derivative_between_frames() each end
-    # up calling CSPICE sxform_c(), so the underlying C routine is
-    # invoked twice.  This could be avoided by calling
-    # tudat::spice_interface::computeStateRotationMatrixBetweenFrames(),
-    # but tudatPy does not yet expose a Python binding for it.
-    rotation_matrix: np.ndarray = spice.compute_rotation_matrix_between_frames(
-        base_frame, target_frame, input_epoch_et_s
-    )  # (3, 3) rotation matrix
-    rotation_matrix_derivative: np.ndarray = (
-        spice.compute_rotation_matrix_derivative_between_frames(
-            base_frame, target_frame, input_epoch_et_s
-        )
-    )  # (3, 3) time derivative of rotation matrix
-
-    state_conversion_matrix: np.ndarray = np.zeros(
-        (6, 6)
-    )  # (6, 6) state transformation matrix
-    state_conversion_matrix[0:3, 0:3] = rotation_matrix
-    state_conversion_matrix[3:6, 0:3] = rotation_matrix_derivative
-    state_conversion_matrix[3:6, 3:6] = rotation_matrix
-
-    output_state_m: np.ndarray = state_conversion_matrix @ np.asarray(input_state_m)
-
-    return output_state_m
 
 
 def process_oem(input_oem: oem.CcsdsOem, reverse: bool = False) -> oem.CcsdsOem:
@@ -119,7 +50,6 @@ def process_oem(input_oem: oem.CcsdsOem, reverse: bool = False) -> oem.CcsdsOem:
     oem.CcsdsOem
         New OEM object with converted state vectors and updated metadata.
     """
-    load_spice_kernels()
 
     if reverse:
         base_frame: str = "ITRF93"
@@ -135,7 +65,7 @@ def process_oem(input_oem: oem.CcsdsOem, reverse: bool = False) -> oem.CcsdsOem:
         epoch_tdb_s: float = time_utils.datetime_to_tdb_s(epoch_dt)
 
         # input_state_m is already in meters (from CcsdsOem)
-        output_state_m: np.ndarray = convert_frames_spice(
+        output_state_m: np.ndarray = frame_utils.spice_convert_frame(
             base_frame, target_frame, epoch_tdb_s, input_state_m
         )
 
