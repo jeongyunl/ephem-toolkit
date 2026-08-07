@@ -28,6 +28,7 @@ from tudatpy.dynamics.environment_setup.rotation_model import RotationModelSetti
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import common.common as common
+import common.frame_utils as frame_utils
 import common.oem as oem
 import common.spice_utils as spice_utils
 import common.time_utils as time_utils
@@ -97,131 +98,6 @@ def create_earth_rotation_model(
 
 
 # ===================================================================
-# Frame conversion functions
-# ===================================================================
-
-
-def convert_gcrf_to_itrf_erm(
-    earth_rotation_model: object,
-    input_epoch_et_s: float,
-    input_gcrf_state_m: np.ndarray,
-) -> np.ndarray:
-    """Convert an inertial (GCRF/J2000) position/velocity vector to the body-fixed (ITRF/IAU_Earth) frame.
-
-    Works with any Earth rotation model (GCRS-to-ITRS IAU 2006, SPICE IAU_Earth,
-    SPICE ITRF93, etc.) provided via *earth_rotation_model*.
-
-    Parameters
-    ----------
-    earth_rotation_model : object
-        TudatPy Earth rotation model instance.
-    input_epoch_et_s : float
-        Epoch in ephemeris time (TDB seconds since J2000).
-    input_gcrf_state_m : np.ndarray, shape (6,)
-        Position and velocity state vector in metres and metres per second in
-        the inertial (GCRF) frame.
-
-    Returns
-    -------
-    np.ndarray, shape (6,)
-        Position (m) and velocity (m/s) state vector in the body-fixed frame.
-    """
-
-    # Get rotation matrix for inertial to body-fixed transformation at the given epoch.
-    # The inertial frame is GCRF (or J2000) and the body-fixed frame is ITRF (or IAU_Earth),
-    # so this rotation matrix accounts for Earth's rotation at the given epoch.
-    gcrf_to_itrf_rotation_matrix: np.ndarray = (
-        earth_rotation_model.inertial_to_body_fixed_rotation(input_epoch_et_s)
-    )
-
-    # Get Earth's rotational velocity in the body-fixed frame at the given epoch,
-    # which is needed to correctly transform the velocity vector from the inertial
-    # frame to the body-fixed frame by accounting for the rotation of the body-fixed
-    # frame with respect to the inertial frame.
-    itrf_earth_rotational_velocity_rad_s: np.ndarray = (
-        earth_rotation_model.angular_velocity_in_body_fixed_frame(input_epoch_et_s)
-    )
-
-    input_gcrf_position_m: np.ndarray = input_gcrf_state_m[0:3]
-    input_gcrf_velocity_m_s: np.ndarray = input_gcrf_state_m[3:6]
-
-    # Rotate the position vector from the inertial frame to the body-fixed frame using the rotation matrix
-    output_itrf_position_m: np.ndarray = (
-        gcrf_to_itrf_rotation_matrix @ input_gcrf_position_m
-    )
-
-    # Rotate the velocity vector from the inertial frame to the body-fixed frame
-    # and account for Earth's rotation using the formula:
-    #  v_body = R * v_inertial - w x r_body
-    output_itrf_velocity_m_s: np.ndarray = (
-        gcrf_to_itrf_rotation_matrix @ input_gcrf_velocity_m_s
-        - np.cross(itrf_earth_rotational_velocity_rad_s, output_itrf_position_m)
-    )
-
-    return np.concatenate([output_itrf_position_m, output_itrf_velocity_m_s])
-
-
-def convert_itrf_to_gcrf_erm(
-    earth_rotation_model: object,
-    input_epoch_et_s: float,
-    input_itrf_state_m: np.ndarray,
-) -> np.ndarray:
-    """Convert a body-fixed (ITRF/IAU_Earth) position/velocity vector to the inertial (GCRF/J2000) frame.
-
-    Works with any Earth rotation model (GCRS-to-ITRS IAU 2006, SPICE IAU_Earth,
-    SPICE ITRF93, etc.) provided via *earth_rotation_model*.
-
-    Parameters
-    ----------
-    earth_rotation_model : object
-        TudatPy Earth rotation model instance.
-    input_epoch_et_s : float
-        Epoch in ephemeris time (TDB seconds since J2000).
-    input_itrf_state_m : np.ndarray, shape (6,)
-        Position and velocity state vector in metres and metres per second in
-        the body-fixed (ITRF) frame.
-
-    Returns
-    -------
-    np.ndarray, shape (6,)
-        Position (m) and velocity (m/s) state vector in the inertial frame.
-    """
-
-    # Get rotation matrix for body-fixed to inertial transformation at the given epoch.
-    # The inertial frame is GCRF (or J2000) and the body-fixed frame is ITRF (or IAU_Earth),
-    # so this rotation matrix accounts for Earth's rotation at the given epoch.
-    itrf_to_gcrf_rotation_matrix: np.ndarray = (
-        earth_rotation_model.body_fixed_to_inertial_rotation(input_epoch_et_s)
-    )
-
-    # Get Earth's rotational velocity in the inertial frame at the given epoch,
-    # which is needed to correctly transform the velocity vector from the body-fixed
-    # frame to the inertial frame by accounting for the rotation of the body-fixed
-    # frame with respect to the inertial frame.
-    gcrf_earth_rotational_velocity_rad_s: np.ndarray = (
-        earth_rotation_model.angular_velocity_in_inertial_frame(input_epoch_et_s)
-    )
-
-    input_itrf_position_m: np.ndarray = input_itrf_state_m[0:3]
-    input_itrf_velocity_m_s: np.ndarray = input_itrf_state_m[3:6]
-
-    # Rotate the position vector from the body-fixed frame to the inertial frame using the rotation matrix
-    output_gcrf_position_m: np.ndarray = (
-        itrf_to_gcrf_rotation_matrix @ input_itrf_position_m
-    )
-
-    # Rotate the velocity vector from the body-fixed frame to the inertial frame
-    # and account for Earth's rotation using the formula:
-    #  v_inertial = R * v_body + w x r_inertial
-    output_gcrf_velocity_m_s: np.ndarray = (
-        itrf_to_gcrf_rotation_matrix @ input_itrf_velocity_m_s
-        + np.cross(gcrf_earth_rotational_velocity_rad_s, output_gcrf_position_m)
-    )
-
-    return np.concatenate([output_gcrf_position_m, output_gcrf_velocity_m_s])
-
-
-# ===================================================================
 # Stream processing
 # ===================================================================
 
@@ -265,14 +141,14 @@ def convert_oem_states(
 
         # State vector is already in SI units (m, m/s)
         if reverse:
-            output_state: np.ndarray = convert_itrf_to_gcrf_erm(
+            output_state: np.ndarray = frame_utils.tudat_convert_body_fixed_to_inertial(
                 earth_rotation_model,
                 epoch_tdb_s,
                 state_m,
             )
             output_ref_frame: str = "GCRF"
         else:
-            output_state = convert_gcrf_to_itrf_erm(
+            output_state = frame_utils.tudat_convert_inertial_to_body_fixed(
                 earth_rotation_model,
                 epoch_tdb_s,
                 state_m,
@@ -332,13 +208,13 @@ def process_stream(
 
         # State vector is already in SI units (m, m/s) from oem.parse_oem_state_line()
         if reverse:
-            output_state: np.ndarray = convert_itrf_to_gcrf_erm(
+            output_state: np.ndarray = frame_utils.tudat_convert_body_fixed_to_inertial(
                 earth_rotation_model,
                 epoch_tdb_s,
                 state_m,
             )
         else:
-            output_state = convert_gcrf_to_itrf_erm(
+            output_state = frame_utils.tudat_convert_inertial_to_body_fixed(
                 earth_rotation_model,
                 epoch_tdb_s,
                 state_m,
