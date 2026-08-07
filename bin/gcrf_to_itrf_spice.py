@@ -10,6 +10,7 @@ ITRF93 reference frames using SPICE rotation matrices.
 
 from __future__ import annotations
 
+import argparse
 from datetime import datetime, timezone
 import sys
 from pathlib import Path
@@ -84,49 +85,39 @@ def process_oem(input_oem: oem.CcsdsOem, reverse: bool = False) -> oem.CcsdsOem:
     return output_oem
 
 
-def print_usage() -> None:
-    """Print the script usage message to standard output.
+def create_argument_parser() -> argparse.ArgumentParser:
+    """Create the command-line argument parser."""
 
-    Displays usage information for the gcrf_to_itrf_spice CLI tool,
-    including positional arguments, options, and input/output formats.
-    """
-    print(
-        "Usage: python3 gcrf_to_itrf_spice.py [-h] [-r] [input_file]\n"
-        "\n"
-        "Convert satellite state vectors between GCRF (J2000) and ITRF\n"
-        "(ITRF93) using SPICE rotation matrices.\n"
-        "\n"
-        "Positional arguments:\n"
-        "  input_file    Path to an OEM-style ephemeris file. If omitted,\n"
-        "                lines are read from stdin.\n"
-        "\n"
-        "Options:\n"
-        "  -h, --help    Show this help message and exit.\n"
-        "  -r            Reverse conversion (ITRF93 to J2000 instead of\n"
-        "                J2000 to ITRF93).\n"
-        "\n"
-        "Input format (one record per line, 7 whitespace- or comma-separated fields):\n"
-        "  <ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>\n"
-        "\n"
-        "Blank lines and lines starting with '#' are skipped."
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        description=(
+            "Convert satellite state vectors between GCRF (J2000) and "
+            "ITRF (ITRF93) using SPICE rotation matrices."
+        ),
+        epilog="The converted ephemeris is written as an OEM to standard output.",
+    )
+    parser.add_argument(
+        "input_file",
+        nargs="?",
+        help="Path to input OEM file (default: read from stdin)",
+    )
+    parser.add_argument(
+        "-r",
+        "--reverse",
+        action="store_true",
+        help="Reverse conversion from ITRF93 to J2000",
     )
 
+    return parser
 
-if __name__ == "__main__":
-    # Check for -h/--help and -r options
-    set_reverse_conversion: bool = False
-    args: list[str] = sys.argv[1:]
 
-    if "-h" in args or "--help" in args:
-        print_usage()
-        sys.exit(0)
+def main() -> None:
+    """Parse arguments, convert the input OEM, and write the result."""
 
-    if args and args[0] == "-r":
-        set_reverse_conversion = True
-        args = args[1:]
+    parser: argparse.ArgumentParser = create_argument_parser()
+    args: argparse.Namespace = parser.parse_args()
 
-    if args:
-        input_file: str = args[0]
+    if args.input_file:
+        input_file: str = args.input_file
         # Read OEM file
         input_oem: oem.CcsdsOem = oem.CcsdsOem.read(input_file)
     else:
@@ -134,10 +125,14 @@ if __name__ == "__main__":
         input_oem: oem.CcsdsOem = oem.CcsdsOem.read(sys.stdin)
 
     # Convert frames
-    output_oem: oem.CcsdsOem = process_oem(input_oem, reverse=set_reverse_conversion)
+    output_oem: oem.CcsdsOem = process_oem(input_oem, reverse=args.reverse)
 
     # Output in OEM format only if the input was OEM format (header exists)
     if input_oem.header.version > 0.0:
         output_oem.write(sys.stdout)
     else:
         oem.write_states(sys.stdout, output_oem.states)
+
+
+if __name__ == "__main__":
+    main()
