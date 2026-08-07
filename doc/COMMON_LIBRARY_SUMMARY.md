@@ -6,17 +6,18 @@ This document provides an overview of the libraries and functions available in t
 
 1. [time_utils.py - Time Utilities](#time_utilspy---time-utilities)
 2. [common.py - Common Utilities](#commonpy---common-utilities)
-3. [consts.py - Physical Constants](#constspy---physical-constants)
-4. [kepler.py - Keplerian Orbital Elements](#keplerpy---keplerian-orbital-elements)
-5. [mean_kepler.py - Mean Keplerian Elements](#mean_keplerpy---mean-keplerian-elements)
-6. [convert_tle.py - TLE/OMM Conversion](#convert_tlepy---tleomm-conversion)
-7. [tle.py - Two-Line Element Sets](#tlepy---two-line-element-sets)
-8. [omm.py - Orbit Mean-Elements Message](#ommpy---orbit-mean-elements-message)
-9. [oem.py - Orbit Ephemeris Message](#oempy---orbit-ephemeris-message)
-10. [slice_oem.py - OEM Slicing Utilities](#slice_oempy---oem-slicing-utilities)
-11. [wgs.py - WGS-84 Coordinate Conversions](#wgspy---wgs-84-coordinate-conversions)
-12. [aer.py - AER Coordinate Conversions](#aerpy---aer-coordinate-conversions)
-13. [interpolator/ - Interpolation Package](#interpolator---interpolation-package)
+3. [frame_utils.py - Reference Frame Conversions](#frame_utilspy---reference-frame-conversions)
+4. [consts.py - Physical Constants](#constspy---physical-constants)
+5. [kepler.py - Keplerian Orbital Elements](#keplerpy---keplerian-orbital-elements)
+6. [mean_kepler.py - Mean Keplerian Elements](#mean_keplerpy---mean-keplerian-elements)
+7. [convert_tle.py - TLE/OMM Conversion](#convert_tlepy---tleomm-conversion)
+8. [tle.py - Two-Line Element Sets](#tlepy---two-line-element-sets)
+9. [omm.py - Orbit Mean-Elements Message](#ommpy---orbit-mean-elements-message)
+10. [oem.py - Orbit Ephemeris Message](#oempy---orbit-ephemeris-message)
+11. [slice_oem.py - OEM Slicing Utilities](#slice_oempy---oem-slicing-utilities)
+12. [wgs.py - WGS-84 Coordinate Conversions](#wgspy---wgs-84-coordinate-conversions)
+13. [aer.py - AER Coordinate Conversions](#aerpy---aer-coordinate-conversions)
+14. [interpolator/ - Interpolation Package](#interpolator---interpolation-package)
 
 ---
 
@@ -132,6 +133,47 @@ Return signed wrapped angle difference target-reference in [-π, π].
 
 #### `circular_blend_angle_rad(primary_angle: float, correction_angle: float, correction_weight: float) -> float`
 Blend angles along the shortest arc.
+
+---
+
+## frame_utils.py - Reference Frame Conversions
+
+**Purpose**: Convert Cartesian states between TEME, J2000, SPICE, inertial, and Earth-fixed reference frames.
+
+### Key Dependencies
+- `numpy`
+- `tudatpy.astro.element_conversion`
+- `tudatpy.interface.spice`
+- `common.spice_utils`
+
+### TEME/J2000 Conversion
+
+#### `teme_to_j2000(epoch_tdb_s: float, teme_state: np.ndarray) -> np.ndarray`
+Convert a six-component Cartesian state from TEME to J2000 coordinates at a TDB epoch.
+
+#### `j2000_to_teme(epoch_tdb_s: float, j2000_state: np.ndarray) -> np.ndarray`
+Convert a six-component Cartesian state from J2000 to TEME coordinates at a TDB epoch.
+
+### SPICE Frame Conversion
+
+#### `spice_convert_frame(base_frame: str, target_frame: str, epoch_tdb_s: float, input_state_m: np.ndarray) -> np.ndarray`
+Convert a state between SPICE frames using position and velocity rotation terms. Input and output states use metres and metres per second.
+
+### TudatPy Rotation Models
+
+#### `tudat_spice_rotation_model() -> object`
+Return a cached TudatPy Earth rotation model based on SPICE orientation data, converting between J2000 and ITRF93.
+
+#### `tudat_iau2006_rotation_model() -> object`
+Return a cached TudatPy Earth rotation model based on the IAU 2006 convention, converting between GCRS and ITRS.
+
+### Inertial/Body-Fixed Conversion
+
+#### `tudat_convert_inertial_to_body_fixed(rotation_model: object, input_epoch_et_s: float, input_inertial_state_m: np.ndarray) -> np.ndarray`
+Convert an inertial state to a body-fixed state using a TudatPy rotation model. Position and velocity use metres and metres per second.
+
+#### `tudat_convert_body_fixed_to_inertial(rotation_model: object, input_epoch_et_s: float, input_body_fixed_state_m: np.ndarray) -> np.ndarray`
+Convert a body-fixed state to an inertial state using a TudatPy rotation model. Position and velocity use metres and metres per second.
 
 ---
 
