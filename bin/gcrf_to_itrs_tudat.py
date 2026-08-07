@@ -2,7 +2,7 @@
 """Convert satellite state vectors between GCRF and ITRF using a TudatPy Earth rotation model.
 
 Usage:
-    python3 gcrf_to_itrf_rot_model.py [-h] [-r] [-m MODEL] [input_file]
+    python3 gcrf_to_itrs_tudat.py [-h] [-r] [-m MODEL] [input_file]
 """
 
 from __future__ import annotations

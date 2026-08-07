@@ -32,7 +32,7 @@ graph LR
     subgraph bin
         mod_bin_download_tle([download_tle])
         mod_bin_ecef_to_aer([ecef_to_aer])
-        mod_bin_gcrf_to_itrf_rot_model([gcrf_to_itrf_rot_model])
+        mod_bin_gcrf_to_itrs_tudat([gcrf_to_itrs_tudat])
         mod_bin_gcrf_to_itrf_spice([gcrf_to_itrf_spice])
         mod_bin_omm_to_tle([omm_to_tle])
         mod_bin_slice_oem([slice_oem])
@@ -90,9 +90,9 @@ graph LR
     mod_bin_ecef_to_aer --> mod_common_aer
     mod_bin_ecef_to_aer --> mod_common_oem
     mod_bin_ecef_to_aer --> mod_common_time_utils
-    mod_bin_gcrf_to_itrf_rot_model --> mod_common_common
-    mod_bin_gcrf_to_itrf_rot_model --> mod_common_oem
-    mod_bin_gcrf_to_itrf_rot_model --> mod_common_time_utils
+    mod_bin_gcrf_to_itrs_tudat --> mod_common_common
+    mod_bin_gcrf_to_itrs_tudat --> mod_common_oem
+    mod_bin_gcrf_to_itrs_tudat --> mod_common_time_utils
     mod_bin_gcrf_to_itrf_spice --> mod_common_common
     mod_bin_gcrf_to_itrf_spice --> mod_common_oem
     mod_bin_gcrf_to_itrf_spice --> mod_common_time_utils
