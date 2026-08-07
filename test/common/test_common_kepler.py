@@ -445,7 +445,7 @@ def tudatpy_tle_round_trip():
     # Load SPICE kernels
     spice_kernel_files = ["naif0012.tls", "pck00011.tpc"]
     for kernel_file in spice_kernel_files:
-        spice.load_kernel(spice_utils.get_spice_kernel_path() + "/" + kernel_file)
+        spice_utils.load_kernel(kernel_file)
 
     # Create bodies for gravitational parameter
     bodies_to_create = ["Earth"]

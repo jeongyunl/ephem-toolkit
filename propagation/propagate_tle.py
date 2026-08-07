@@ -205,13 +205,8 @@ def read_tle_input(cli_value: str | None) -> tuple[str, str, str]:
 # ===================================================================
 
 
-def load_spice_kernels(spice_module) -> None:
+def load_spice_kernels() -> None:
     """Load SPICE kernels required for time conversion.
-
-    Parameters
-    ----------
-    spice_module
-        TudatPy SPICE interface module used to load kernels.
 
     Notes
     -----
@@ -223,7 +218,7 @@ def load_spice_kernels(spice_module) -> None:
     ]
 
     for kernel_file in spice_kernel_files:
-        spice_module.load_kernel(spice_utils.get_spice_kernel_path() + "/" + kernel_file)
+        spice_utils.load_kernel(kernel_file)
 
 
 def resolve_epoch_datetime(
@@ -357,9 +352,8 @@ def main() -> int:
     # Heavy TudatPy imports are intentionally delayed until after cheap input
     # validation is complete.
     from tudatpy.dynamics import environment_setup
-    from tudatpy.interface import spice
 
-    load_spice_kernels(spice)
+    load_spice_kernels()
 
     # Create SGP4 ephemeris settings and ephemeris object from TLE lines
     tle_ephemeris_settings = environment_setup.ephemeris.sgp4(line1, line2)

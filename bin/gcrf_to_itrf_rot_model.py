@@ -23,7 +23,6 @@ warnings.filterwarnings(
 import numpy as np
 from tudatpy.dynamics import environment_setup
 from tudatpy.dynamics.environment_setup.rotation_model import RotationModelSettings
-from tudatpy.interface import spice
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -46,7 +45,7 @@ def load_spice_kernels() -> None:
         "earth_200101_990825_predict.bpc",  # Earth rotation prediction. Covers Jan, 2001 to Aug, 2099
     ]
     for kernel_file in spice_kernel_files:
-        spice.load_kernel(spice_utils.get_spice_kernel_path() + "/" + kernel_file)
+        spice_utils.load_kernel(kernel_file)
 
 
 # ===================================================================

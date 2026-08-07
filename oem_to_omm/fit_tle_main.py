@@ -139,7 +139,6 @@ def _sgp4_mean_motion_rev_per_day(semi_major_axis_m: float) -> float:
 # ===================================================================
 
 from tudatpy.dynamics import environment_setup
-from tudatpy.interface import spice
 
 
 def load_spice_kernels() -> None:
@@ -158,7 +157,7 @@ def load_spice_kernels() -> None:
     ]
 
     for kernel_file in spice_kernel_files:
-        spice.load_kernel(spice_utils.get_spice_kernel_path() + "/" + kernel_file)
+        spice_utils.load_kernel(kernel_file)
 
 
 def create_tle_ephemeris(line1, line2, object_name):
