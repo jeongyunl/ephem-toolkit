@@ -1694,8 +1694,8 @@ step, with the corresponding epochs available through the `time_history` attribu
 """
 
 # create_dependent_variable_dictionary -- imported just before post-processing.
-import tudatpy.dynamics.propagation as propagation
-import tudatpy.astro.time_representation as time_representation
+from tudatpy.dynamics import propagation
+from tudatpy.astro import time_representation
 from tudatpy.astro.time_representation import TimeScales
 
 # Create propagator settings.

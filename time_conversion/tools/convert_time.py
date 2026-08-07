@@ -10,7 +10,7 @@ import logging
 
 logging.basicConfig(level=logging.WARNING)
 
-import tudatpy.astro.time_representation as time_representation
+from tudatpy.astro import time_representation
 from tudatpy.astro.time_representation import DateTime, TimeScales
 
 POSIX_EPOCH_MINUS_UTC_TUDAT_EPOCH = 946728000.0  # POSIX epoch (1970-01-01 00:00:00 UTC) minus TUDAT UTC J2000 epoch (2000-01-01 12:00:00 UTC)

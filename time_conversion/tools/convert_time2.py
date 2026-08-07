@@ -9,7 +9,7 @@ import logging
 
 logging.basicConfig(level=logging.WARNING)
 
-import tudatpy.astro.time_representation as time_representation
+from tudatpy.astro import time_representation
 from tudatpy.astro.time_representation import DateTime, TimeScales
 
 from enum import Enum
