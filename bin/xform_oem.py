@@ -139,6 +139,7 @@ def convert_ref_frame(
     oem_data: oem.CcsdsOem,
     new_ref_frame_name: str,
     output_path: str,
+    src_ref_frame_override: str | None = None,
 ) -> None:
     """Convert OEM reference frame metadata and write to output.
 
@@ -150,9 +151,17 @@ def convert_ref_frame(
         New reference frame name to set in metadata.
     output_path : str
         Output file path. Use '-' for stdout.
+    src_ref_frame_override : str | None, optional
+        Override the source reference frame name from the OEM file.
+        If None, uses the reference frame from the OEM metadata.
     """
 
-    original_reference_frame = frame_utils.Frame(oem_data.meta.ref_frame.upper())
+    # Use override if provided, otherwise use the OEM file's reference frame
+    if src_ref_frame_override:
+        original_reference_frame = frame_utils.Frame(src_ref_frame_override.upper())
+    else:
+        original_reference_frame = frame_utils.Frame(oem_data.meta.ref_frame.upper())
+
     new_reference_frame = frame_utils.Frame(new_ref_frame_name.upper())
 
     for state in oem_data.states:
@@ -221,6 +230,15 @@ def parse_arguments() -> argparse.Namespace:
             "Provide comma-separated values: latitude (degrees, +N/-S), "
             "longitude (degrees, +E/-W), altitude (meters above WGS-84 ellipsoid). "
             "Example: --aer 40.7128,-74.0060,10.0"
+        ),
+    )
+    parser.add_argument(
+        "--src-ref-frame",
+        metavar="<frame>",
+        help=(
+            "Override the source reference frame name from the OEM file. "
+            "Use this when the OEM file has an incorrect or non-standard reference frame name "
+            "but you know the actual reference frame. This affects frame conversions."
         ),
     )
     parser.add_argument(
@@ -304,6 +322,11 @@ def main() -> None:
             f"[xform_oem]   Reference frame: {oem_data.meta.ref_frame}",
             file=sys.stderr,
         )
+        if args.src_ref_frame:
+            print(
+                f"[xform_oem]   Source frame override: {args.src_ref_frame}",
+                file=sys.stderr,
+            )
         print(f"[xform_oem]   Center: {oem_data.meta.center_name}", file=sys.stderr)
         print(
             f"[xform_oem]   Time system: {oem_data.meta.time_system}",
@@ -355,7 +378,7 @@ def main() -> None:
 
     # Handle reference frame change or default output
     if args.ref_frame:
-        convert_ref_frame(oem_data, args.ref_frame, args.output)
+        convert_ref_frame(oem_data, args.ref_frame, args.output, args.src_ref_frame)
     else:
         # Output OEM file as-is
         if args.output == "-":
