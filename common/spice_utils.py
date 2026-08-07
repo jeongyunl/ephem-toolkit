@@ -14,7 +14,8 @@ _SPICE_CACHE_FILE: Path = (
 )
 """XDG cache file path for the resolved SPICE kernel directory."""
 
-_loaded_kernels = set()
+_loaded_kernels: set[str] = set()
+"""Absolute kernel paths that have already been loaded."""
 
 
 def get_spice_kernel_path() -> str:
@@ -60,7 +61,7 @@ def load_kernel(kernel_file: str, kernel_path: str | Path | None = None) -> None
     if kernel_path is None:
         kernel_path = get_spice_kernel_path()
 
-    kernel_file_path = str(Path(kernel_path) / kernel_file)
+    kernel_file_path: str = str(Path(kernel_path) / kernel_file)
 
     if kernel_file_path not in _loaded_kernels:
         spice.load_kernel(kernel_file_path)
