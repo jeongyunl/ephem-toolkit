@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import common.common as common
 import common.oem as oem
+import common.spice_utils as spice_utils
 import common.time_utils as time_utils
 
 # ===================================================================
@@ -45,7 +46,7 @@ def load_spice_kernels() -> None:
         "earth_200101_990825_predict.bpc",  # Earth rotation prediction. Covers Jan, 2001 to Aug, 2099
     ]
     for kernel_file in spice_kernel_files:
-        spice.load_kernel(common.get_spice_kernel_path() + "/" + kernel_file)
+        spice.load_kernel(spice_utils.get_spice_kernel_path() + "/" + kernel_file)
 
 
 # ===================================================================

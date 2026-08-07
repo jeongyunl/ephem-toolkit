@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.common as common
 import common.interpolator.lagrange as lagrange
+import common.spice_utils as spice_utils
 import common.time_utils as time_utils
 
 KILOMETERS_TO_METERS = 1e3
@@ -688,7 +689,7 @@ def load_spice_kernels():
     """Load required SPICE kernels for propagation support.
 
     Kernels are loaded from Tudat's managed kernel directory returned by
-    ``common.common.get_spice_kernel_path()``.
+    ``common.spice_utils.get_spice_kernel_path()``.
 
     Returns
     -------
@@ -704,7 +705,7 @@ def load_spice_kernels():
         "tudat_merged_spk_kernel.bsp",  # Merged SPK kernel containing ephemerides for various bodies, including Earth, Sun, Moon, Mars, Venus
     ]
     for kernel_file in spice_kernel_files:
-        spice.load_kernel(common.get_spice_kernel_path() + "/" + kernel_file)
+        spice.load_kernel(spice_utils.get_spice_kernel_path() + "/" + kernel_file)
 
 
 def read_initial_state_from_stream(
