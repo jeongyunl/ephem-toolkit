@@ -3,7 +3,10 @@ from __future__ import annotations
 """Convert Cartesian states between inertial and Earth-fixed frames."""
 
 import numpy as np
-import tudatpy.astro.element_conversion as element_conversion
+
+from enum import Enum
+
+from tudatpy.astro import element_conversion
 from tudatpy.dynamics import environment_setup
 from tudatpy.dynamics.environment_setup.rotation_model import RotationModelSettings
 from tudatpy.interface import spice
@@ -37,6 +40,31 @@ def _load_spice_kernels() -> None:
     )  # Earth rotation prediction (covers Jan 2001 to Aug 2099)
     global _did_load_spice_kernels
     _did_load_spice_kernels = True
+
+
+class Frame(Enum):
+    """Enumeration of supported reference frames."""
+
+    TEME = "TEME"
+    """True Equator Mean Equinox frame."""
+
+    J2000 = "J2000"
+    """J2000 Reference frame."""
+
+    EME2000 = "EME2000"
+    """J2000 Reference frame."""
+
+    ICRF = "ICRF"
+    """International Celestial Reference Frame."""
+
+    GCRF = "GCRF"
+    """Geocentric Celestial Reference Frame."""
+
+    ITRF93 = "ITRF93"
+    """International Terrestrial Reference Frame 1993."""
+
+    ITRF = "ITRF"
+    """International Terrestrial Reference Frame."""
 
 
 def teme_to_j2000(epoch_tdb_s: float, teme_state: np.ndarray) -> np.ndarray:
@@ -187,6 +215,11 @@ def _tudat_create_rotation_model(
     coordinate systems.
     """
 
+    global _did_load_spice_kernels
+
+    if not _did_load_spice_kernels:
+        _load_spice_kernels()
+
     global_frame_origin: str = body_name
     bodies_to_create: list[str] = [body_name]
 
@@ -206,7 +239,12 @@ def _tudat_create_rotation_model(
 
 
 def tudat_spice_rotation_model() -> object:
-    """Return the cached TudatPy SPICE rotation model for Earth."""
+    """Return the cached TudatPy SPICE rotation model for Earth. J2000 <-> ITRF93."""
+
+    global _did_load_spice_kernels
+
+    if not _did_load_spice_kernels:
+        _load_spice_kernels()
 
     global _tudat_spice_rotation_model
 
@@ -234,7 +272,7 @@ def tudat_spice_rotation_model() -> object:
 
 
 def tudat_iau2006_rotation_model() -> object:
-    """Return the cached TudatPy IAU 2006 rotation model for Earth."""
+    """Return the cached TudatPy IAU 2006 rotation model for Earth. J2000 <-> ITRF."""
 
     global _tudat_iau2006_rotation_model
 
@@ -359,3 +397,126 @@ def tudat_convert_body_fixed_to_inertial(
     )
 
     return np.concatenate([output_inertial_position_m, output_inertial_velocity_m_s])
+
+
+def convert_frame(
+    base_frame: Frame,
+    target_frame: Frame,
+    epoch_tdb_s: float,
+    input_state_m: np.ndarray,
+) -> np.ndarray | None:
+    """Convert a state vector from one frame to another.
+
+    Parameters
+    ----------
+    base_frame : Frame
+        Source reference frame for the input state vector.
+    target_frame : Frame
+        Destination reference frame for the output state vector.
+    epoch_tdb_s : float
+        Epoch in TDB seconds since J2000, used to evaluate time-dependent
+        rotations.
+    input_state_m : np.ndarray
+        Six-component state vector ``[x, y, z, vx, vy, vz]`` in metres and
+        m/s in the base frame.
+
+    Returns
+    -------
+    np.ndarray | None
+        Six-component state vector in metres and m/s in the target frame,
+        or *None* if the conversion is not supported.
+
+    Raises
+    ------
+    ValueError
+        If the base frame or target frame is not supported.
+
+    Notes
+    -----
+    Equivalent inertial frames (J2000, EME2000, ICRF, GCRF) are treated as
+    J2000 for TudatPy conversions. The function routes through J2000 as an
+    intermediate frame when converting between non-inertial frames.
+    """
+
+    # Handle equivalent inertial frames as J2000 for TudatPy conversions.
+    if (
+        base_frame == Frame.J2000
+        or base_frame == Frame.EME2000
+        or base_frame == Frame.ICRF
+        or base_frame == Frame.GCRF
+    ):
+        base_frame = Frame.J2000
+
+    # Handle equivalent inertial frames as J2000 for TudatPy conversions.
+    if (
+        target_frame == Frame.J2000
+        or target_frame == Frame.EME2000
+        or target_frame == Frame.ICRF
+        or target_frame == Frame.GCRF
+    ):
+        target_frame = Frame.J2000
+
+    if base_frame == target_frame:
+        return input_state_m
+
+    if base_frame == Frame.TEME or base_frame == Frame.J2000:
+        if base_frame == Frame.TEME:
+            j2000_state_m = teme_to_j2000(epoch_tdb_s, input_state_m)
+        else:
+            j2000_state_m = input_state_m
+
+        if target_frame == Frame.J2000:
+            return j2000_state_m
+        elif target_frame == Frame.TEME:
+            return j2000_to_teme(epoch_tdb_s, j2000_state_m)
+        elif target_frame == Frame.ITRF93:
+            rotation_model = tudat_spice_rotation_model()
+            return tudat_convert_inertial_to_body_fixed(
+                rotation_model, epoch_tdb_s, j2000_state_m
+            )
+        elif target_frame == Frame.ITRF:
+            rotation_model = tudat_iau2006_rotation_model()
+            return tudat_convert_inertial_to_body_fixed(
+                rotation_model, epoch_tdb_s, j2000_state_m
+            )
+        else:
+            raise ValueError(f"Unsupported target frame: {target_frame}")
+
+    elif base_frame == Frame.ITRF93:
+        rotation_model = tudat_spice_rotation_model()
+        j2000_state_m = tudat_convert_body_fixed_to_inertial(
+            rotation_model, epoch_tdb_s, input_state_m
+        )
+
+        if target_frame == Frame.J2000:
+            return j2000_state_m
+        elif target_frame == Frame.TEME:
+            return j2000_to_teme(epoch_tdb_s, j2000_state_m)
+        elif target_frame == Frame.ITRF:
+            rotation_model = tudat_iau2006_rotation_model()
+            return tudat_convert_inertial_to_body_fixed(
+                rotation_model, epoch_tdb_s, j2000_state_m
+            )
+        else:
+            raise ValueError(f"Unsupported target frame: {target_frame}")
+
+    elif base_frame == Frame.ITRF:
+        rotation_model = tudat_iau2006_rotation_model()
+        j2000_state_m = tudat_convert_body_fixed_to_inertial(
+            rotation_model, epoch_tdb_s, input_state_m
+        )
+
+        if target_frame == Frame.J2000:
+            return j2000_state_m
+        elif target_frame == Frame.TEME:
+            return j2000_to_teme(epoch_tdb_s, j2000_state_m)
+        elif target_frame == Frame.ITRF93:
+            rotation_model = tudat_spice_rotation_model()
+            return tudat_convert_inertial_to_body_fixed(
+                rotation_model, epoch_tdb_s, j2000_state_m
+            )
+        else:
+            raise ValueError(f"Unsupported target frame: {target_frame}")
+
+    else:
+        raise ValueError(f"Unsupported base frame: {base_frame}")

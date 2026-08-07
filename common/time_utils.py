@@ -29,8 +29,11 @@ _tudat_time_scale_converter: time_representation.TimeScaleConverter = (
 )
 """Tudat time scale converter for UTC ↔ TDB conversions."""
 
-_UTC_J2000_DATETIME: datetime = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+_UTC_J2000_IN_DATETIME: datetime = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
 """J2000 epoch in UTC (2000-01-01 12:00:00 UTC)."""
+
+_UTC_J2000_IN_POSIX: float = _UTC_J2000_IN_DATETIME.timestamp()
+"""J2000 epoch as POSIX timestamp (seconds since Unix epoch)."""
 
 _ISO8601_PATTERN: re.Pattern[str] = re.compile(
     r"^(\d{4})-(\d{2})-(\d{2})(T| )(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?$"
@@ -41,6 +44,27 @@ _ISO8601_PATTERN: re.Pattern[str] = re.compile(
 # ===================================================================
 # Time conversion
 # ===================================================================
+
+
+def posix_to_tdb_s(posix_s: float) -> float:
+    """Convert a POSIX timestamp to TDB (ephemeris time) seconds since J2000.
+
+    Parameters
+    ----------
+    posix_s : float
+        POSIX timestamp (seconds since the Unix epoch).
+
+    Returns
+    -------
+    float
+        TDB seconds since J2000 epoch (s).
+    """
+    utc_j2000_s: float = posix_s - _UTC_J2000_IN_POSIX
+    return _tudat_time_scale_converter.convert_time(
+        input_value=utc_j2000_s,
+        input_scale=TimeScales.utc_scale,
+        output_scale=TimeScales.tdb_scale,
+    )
 
 
 def datetime_to_tdb_s(dt: datetime) -> float:
@@ -60,7 +84,7 @@ def datetime_to_tdb_s(dt: datetime) -> float:
         dt = dt.replace(tzinfo=timezone.utc)
     else:
         dt = dt.astimezone(timezone.utc)
-    utc_j2000_s: float = (dt - _UTC_J2000_DATETIME).total_seconds()
+    utc_j2000_s: float = (dt - _UTC_J2000_IN_DATETIME).total_seconds()
     return _tudat_time_scale_converter.convert_time(
         input_value=utc_j2000_s,
         input_scale=TimeScales.utc_scale,
@@ -86,7 +110,7 @@ def tdb_s_to_datetime(tdb_s: float) -> datetime:
         input_scale=TimeScales.tdb_scale,
         output_scale=TimeScales.utc_scale,
     )
-    return _UTC_J2000_DATETIME + timedelta(seconds=utc_j2000_s)
+    return _UTC_J2000_IN_DATETIME + timedelta(seconds=utc_j2000_s)
 
 
 # ===================================================================
