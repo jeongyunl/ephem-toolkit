@@ -430,7 +430,7 @@ def build_output_filename(base_output: str | None, suffix: str) -> str | None:
 
 
 def save_or_show_figure(figure: plt.Figure, output_file: str | None) -> None:
-    """Save figure to disk when requested, otherwise leave it for interactive show.
+    """Save figure to file when requested, otherwise leave it for interactive show.
 
     Parameters
     ----------

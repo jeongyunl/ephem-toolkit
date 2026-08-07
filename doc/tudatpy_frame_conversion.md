@@ -63,7 +63,7 @@ Used by `gcrf_to_itrf_rot_model.py`:
 For the current repository code:
 
 - use the SPICE matrix + derivative approach when you want an explicit state transformation between named SPICE frames
-- use the rotation-model approach when you want Tudat-managed Earth rotation models such as `gcrs_to_itrs`, `spice_itrf93`, or `spice_iau_earth`
+- use the rotation-model approach when you want Tudat-managed Earth rotation models such as `iau2006`, `spice`
 
 The top-level user documentation for these scripts is maintained in:
 

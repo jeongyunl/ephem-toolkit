@@ -9,8 +9,11 @@ The repository currently provides two Python frame-conversion scripts:
 - `bin/gcrf_to_itrf_spice.py`
 - `bin/gcrf_to_itrf_rot_model.py`
 
-Both scripts read CCSDS OEM files from a path or stdin and write converted
-CCSDS OEM files to stdout. OEM state vectors use **km** and **km/s** on disk.
+Both scripts read CCSDS OEM files from a path and write converted CCSDS OEM
+files to stdout. They also accept raw state-vector lines from stdin (or from a
+file without an OEM header) and write converted raw lines in that case. OEM
+state vectors use **km** and **km/s**; the conversion helpers use
+**m** and **m/s** internally.
 
 ## `bin/gcrf_to_itrf_spice.py`
 
@@ -28,7 +31,7 @@ python3 bin/gcrf_to_itrf_spice.py [-h] [-r] [input_file]
 |---|---|
 | `-h`, `--help` | Show help message and exit |
 | `-r` | Reverse conversion: `ITRF93 -> J2000` instead of `J2000 -> ITRF93` |
-| `input_file` | Optional path to a CCSDS OEM file; if omitted, an OEM is read from stdin |
+| `input_file` | Optional path to a CCSDS OEM file or raw state-list file; if omitted, input is read from stdin |
 
 ### Behavior
 
@@ -100,28 +103,26 @@ python3 bin/gcrf_to_itrf_rot_model.py [-h] [-r] [-m MODEL] [input_file]
 |---|---|
 | `-h`, `--help` | Show help message and exit |
 | `-r` | Reverse conversion: body-fixed -> inertial instead of inertial -> body-fixed |
-| `-m MODEL` | Rotation model name; valid values are `spice_iau_earth`, `spice_itrf93`, `spice`, `gcrs_to_itrs` |
-| `input_file` | Optional path to a CCSDS OEM file; if omitted, an OEM is read from stdin |
+| `-m MODEL` | Rotation model name; valid values are `iau2006`, `spice` |
+| `input_file` | Optional path to a CCSDS OEM file or raw state-list file; if omitted, raw state lines are read from stdin |
 
 ### Supported rotation models
 
 | Model | Inertial frame | Body-fixed frame | Notes |
 |---|---|---|---|
-| `gcrs_to_itrs` | `GCRS` | `ITRS` | Default; IAU 2006 GCRS-to-ITRS model |
-| `spice_itrf93` | `J2000` | `ITRF93` | SPICE rotation model |
-| `spice` | `J2000` | `ITRF93` | Alias for `spice_itrf93` |
-| `spice_iau_earth` | `J2000` | `IAU_Earth` | SPICE rotation model |
+| `iau2006` | `GCRS` | `ITRS` | Default; IAU 2006 GCRS-to-ITRS model |
+| `spice` | `J2000` | `ITRF93` | SPICE rotation model |
 
 ### Behavior
 
-- Default model: `gcrs_to_itrs`
+- Default model: `iau2006`
 - Default direction: inertial -> body-fixed
 - Reverse direction with `-r`: body-fixed -> inertial
 - Velocity conversion includes the rotational transport term using the Earth angular velocity returned by the selected rotation model
 
 ### Input format
 
-Each non-comment line must contain 7 fields:
+Each non-comment state line must contain at least 7 fields:
 
 ```text
 <ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>
@@ -136,6 +137,10 @@ Notes:
 - Blank lines and lines beginning with `#` are skipped.
 - Parse failures are reported and the offending line is skipped.
 
+When `input_file` is a complete CCSDS OEM, the output is a complete CCSDS OEM
+with the converted `REF_FRAME` metadata. Raw state-list input produces only
+converted state lines, without an OEM header.
+
 ### Output format
 
 Each successfully converted line is printed as:
@@ -146,7 +151,7 @@ Each successfully converted line is printed as:
 
 ### Usage
 
-**Default model (`gcrs_to_itrs`) from stdin:**
+**Default model (`iau2006`) from stdin:**
 
 ```bash
 echo "2025-11-10T15:42:27.000000 2070.058475323 4729.228905684 5291.073944519 -0.452686493 -5.378340397 4.970075198" \
@@ -157,14 +162,7 @@ echo "2025-11-10T15:42:27.000000 2070.058475323 4729.228905684 5291.073944519 -0
 
 ```bash
 echo "2025-11-10T15:42:27.000000 2070.058475323 4729.228905684 5291.073944519 -0.452686493 -5.378340397 4.970075198" \
-  | python3 bin/gcrf_to_itrf_rot_model.py -m spice_itrf93
-```
-
-**Use the SPICE `IAU_Earth` model:**
-
-```bash
-echo "2025-11-10T15:42:27.000000 2070.058475323 4729.228905684 5291.073944519 -0.452686493 -5.378340397 4.970075198" \
-  | python3 bin/gcrf_to_itrf_rot_model.py -m spice_iau_earth
+  | python3 bin/gcrf_to_itrf_rot_model.py -m spice
 ```
 
 **Reverse conversion:**
@@ -177,13 +175,13 @@ echo "2025-11-10T15:42:27.000000 -4016.835021864 3234.040363774 5296.435683796 5
 **Convert from a file:**
 
 ```bash
-python3 bin/gcrf_to_itrf_rot_model.py -m gcrs_to_itrs input.oem
+python3 bin/gcrf_to_itrf_rot_model.py -m iau2006 input.oem
 ```
 
 **Save output to a file:**
 
 ```bash
-python3 bin/gcrf_to_itrf_rot_model.py -m gcrs_to_itrs input.oem > output.oem
+python3 bin/gcrf_to_itrf_rot_model.py -m iau2006 input.oem > output.oem
 ```
 
 **Show help:**

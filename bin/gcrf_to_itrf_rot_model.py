@@ -295,9 +295,9 @@ def create_argument_parser() -> argparse.ArgumentParser:
         "-m",
         "--model",
         dest="rotation_model_name",
-        choices=("spice_iau_earth", "spice_itrf93", "spice", "gcrs_to_itrs"),
-        default="gcrs_to_itrs",
-        help="Earth rotation model (default: gcrs_to_itrs)",
+        choices=("iau2006", "spice"),
+        default="iau2006",
+        help="Earth rotation model (default: iau2006)",
     )
 
     return parser
@@ -313,22 +313,7 @@ def main() -> None:
 
     # Configure rotation model settings and inertial frame orientation
     # based on the selected rotation model name.
-    if args.rotation_model_name == "spice_iau_earth":
-        original_frame: str = "J2000"
-        target_frame: str = "IAU_Earth"
-
-        rotation_model_settings: RotationModelSettings = (
-            environment_setup.rotation_model.spice(
-                original_frame,
-                target_frame,
-            )
-        )
-        global_frame_orientation: str = original_frame
-
-    elif (
-        args.rotation_model_name == "spice_itrf93"
-        or args.rotation_model_name == "spice"
-    ):
+    if args.rotation_model_name == "spice":
         original_frame: str = "J2000"
         target_frame: str = "ITRF93"
 
@@ -340,7 +325,7 @@ def main() -> None:
         )
         global_frame_orientation: str = original_frame
 
-    elif args.rotation_model_name == "gcrs_to_itrs":
+    elif args.rotation_model_name == "iau2006":
         global_frame_orientation: str = "GCRS"
 
         rotation_model_settings: RotationModelSettings = (
