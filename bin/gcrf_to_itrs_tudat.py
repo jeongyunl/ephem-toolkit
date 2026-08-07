@@ -51,53 +51,6 @@ def load_spice_kernels() -> None:
 
 
 # ===================================================================
-# Earth rotation model creation
-# ===================================================================
-
-
-def create_earth_rotation_model(
-    global_frame_orientation: str,
-    rotation_model_settings: RotationModelSettings,
-) -> object:
-    """Create and return an Earth rotation model using TudatPy.
-
-    The rotation model is configured for the Earth body in the given inertial
-    frame orientation and can be used to convert between inertial (GCRF/ICRF)
-    and body-fixed (ECEF) coordinate systems.
-
-    Parameters
-    ----------
-    global_frame_orientation : str
-        Inertial frame orientation string (e.g. ``"GCRS"``).
-    rotation_model_settings : RotationModelSettings
-        Pre-configured rotation model settings (e.g. GCRS-to-ITRS IAU 2006).
-
-    Returns
-    -------
-    object
-        TudatPy Earth rotation model instance.
-    """
-
-    earth_name: str = "Earth"
-    global_frame_origin: str = earth_name
-    bodies_to_create: list[str] = [earth_name]
-
-    body_settings: dict = environment_setup.get_default_body_settings(
-        bodies_to_create, global_frame_origin, global_frame_orientation
-    )
-
-    bodies: object = environment_setup.create_system_of_bodies(body_settings)
-
-    environment_setup.add_rotation_model(
-        bodies,
-        earth_name,
-        rotation_model_settings,
-    )
-
-    return bodies.get(earth_name).rotation_model
-
-
-# ===================================================================
 # Stream processing
 # ===================================================================
 
@@ -314,31 +267,10 @@ def main() -> None:
     # Configure rotation model settings and inertial frame orientation
     # based on the selected rotation model name.
     if args.rotation_model_name == "spice":
-        original_frame: str = "J2000"
-        target_frame: str = "ITRF93"
-
-        rotation_model_settings: RotationModelSettings = (
-            environment_setup.rotation_model.spice(
-                original_frame,
-                target_frame,
-            )
-        )
-        global_frame_orientation: str = original_frame
+        earth_rotation_model: object = frame_utils.tudat_spice_rotation_model()
 
     elif args.rotation_model_name == "iau2006":
-        global_frame_orientation: str = "GCRS"
-
-        rotation_model_settings: RotationModelSettings = (
-            environment_setup.rotation_model.gcrs_to_itrs(
-                environment_setup.rotation_model.IAUConventions.iau_2006,
-                global_frame_orientation,
-            )
-        )
-
-    earth_rotation_model: object = create_earth_rotation_model(
-        global_frame_orientation,
-        rotation_model_settings,
-    )
+        earth_rotation_model: object = frame_utils.tudat_iau2006_rotation_model()
 
     if args.input_file:
         input_file: str = args.input_file

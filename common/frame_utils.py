@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+"""Convert Cartesian states between inertial and Earth-fixed frames."""
+
 import numpy as np
 import tudatpy.astro.element_conversion as element_conversion
+from tudatpy.dynamics import environment_setup
+from tudatpy.dynamics.environment_setup.rotation_model import RotationModelSettings
 from tudatpy.interface import spice
 
 import common.spice_utils as spice_utils
@@ -12,9 +16,18 @@ _did_load_spice_kernels: bool = False
 _has_compute_state_rotation_matrix_between_frames: bool = hasattr(
     spice, "compute_state_rotation_matrix_between_frames"
 )
+"""Whether the installed TudatPy version provides the combined state transform."""
+
+_tudat_spice_rotation_model: object | None = None
+"""Cached TudatPy rotation model using SPICE Earth orientation data."""
+
+_tudat_iau2006_rotation_model: object | None = None
+"""Cached TudatPy rotation model using the IAU 2006 Earth orientation model."""
 
 
-def _load_spice_kernels():
+def _load_spice_kernels() -> None:
+    """Load the SPICE kernels required by the frame conversions."""
+
     spice_utils.load_kernel("naif0012.tls")  # Leap seconds kernel file
     spice_utils.load_kernel(
         "pck00011.tpc"
@@ -145,6 +158,105 @@ def spice_convert_frame(
         state_conversion_matrix[3:6, 3:6] = rotation_matrix
 
     return state_conversion_matrix @ np.asarray(input_state_m)
+
+
+def _tudat_create_rotation_model(
+    body_name: str,
+    global_frame_orientation: str,
+    rotation_model_settings: RotationModelSettings,
+) -> object:
+    """Create a TudatPy rotation model for a body.
+
+    Parameters
+    ----------
+    body_name : str
+        Name of the body for which to create the rotation model.
+    global_frame_orientation : str
+        Inertial frame orientation used for the body's default settings.
+    rotation_model_settings : RotationModelSettings
+        TudatPy settings describing the rotation model.
+
+    Returns
+    -------
+    object
+        TudatPy rotation model configured for the requested body.
+
+    Notes
+    -----
+    The model can be used to convert between inertial and body-fixed
+    coordinate systems.
+    """
+
+    global_frame_origin: str = body_name
+    bodies_to_create: list[str] = [body_name]
+
+    body_settings: dict = environment_setup.get_default_body_settings(
+        bodies_to_create, global_frame_origin, global_frame_orientation
+    )
+
+    bodies: object = environment_setup.create_system_of_bodies(body_settings)
+
+    environment_setup.add_rotation_model(
+        bodies,
+        body_name,
+        rotation_model_settings,
+    )
+
+    return bodies.get(body_name).rotation_model
+
+
+def tudat_spice_rotation_model() -> object:
+    """Return the cached TudatPy SPICE rotation model for Earth."""
+
+    global _tudat_spice_rotation_model
+
+    if _tudat_spice_rotation_model is not None:
+        return _tudat_spice_rotation_model
+
+    original_frame: str = "J2000"
+    target_frame: str = "ITRF93"
+
+    rotation_model_settings: RotationModelSettings = (
+        environment_setup.rotation_model.spice(
+            original_frame,
+            target_frame,
+        )
+    )
+    global_frame_orientation: str = original_frame
+
+    _tudat_spice_rotation_model = _tudat_create_rotation_model(
+        "Earth",
+        global_frame_orientation,
+        rotation_model_settings,
+    )
+
+    return _tudat_spice_rotation_model
+
+
+def tudat_iau2006_rotation_model() -> object:
+    """Return the cached TudatPy IAU 2006 rotation model for Earth."""
+
+    global _tudat_iau2006_rotation_model
+
+    if _tudat_iau2006_rotation_model is not None:
+        return _tudat_iau2006_rotation_model
+
+    global_frame_orientation: str = "GCRS"
+
+    rotation_model_settings: RotationModelSettings = (
+        environment_setup.rotation_model.gcrs_to_itrs(
+            environment_setup.rotation_model.IAUConventions.iau_2006,
+            global_frame_orientation,
+        )
+    )
+
+    _tudat_iau2006_rotation_model = _tudat_create_rotation_model(
+        "Earth",
+        global_frame_orientation,
+        rotation_model_settings,
+    )
+
+    return _tudat_iau2006_rotation_model
 
 
 def tudat_convert_inertial_to_body_fixed(
