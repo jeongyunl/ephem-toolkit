@@ -5,7 +5,7 @@
 The current frame-conversion scripts in this repository use two main approaches:
 
 - direct SPICE frame rotation calls in `bin/gcrf_to_itrf_spice.py`
-- TudatPy Earth rotation models in `bin/gcrf_to_itrf_rot_model.py`
+- TudatPy Earth rotation models in `bin/gcrf_to_itrs_tudat.py`
 
 This note lists relevant TudatPy APIs that were useful during implementation and investigation.
 
@@ -22,7 +22,7 @@ These are combined in the script into a 6x6 state transformation matrix so both 
 
 ### Rotation-model-based frame conversion
 
-Used by `gcrf_to_itrf_rot_model.py`:
+Used by `gcrf_to_itrs_tudat.py`:
 
 - `tudatpy.dynamics.environment_setup.rotation_model.spice(...)`
 - `tudatpy.dynamics.environment_setup.rotation_model.gcrs_to_itrs(...)`

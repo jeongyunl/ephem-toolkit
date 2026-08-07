@@ -7,7 +7,7 @@ Frame-conversion utilities for CCSDS OEM state vectors.
 The repository currently provides two Python frame-conversion scripts:
 
 - `bin/gcrf_to_itrf_spice.py`
-- `bin/gcrf_to_itrf_rot_model.py`
+- `bin/gcrf_to_itrs_tudat.py`
 
 Both scripts read CCSDS OEM files from a path and write converted CCSDS OEM
 files to stdout. They also accept raw state-vector lines from stdin (or from a
@@ -87,14 +87,14 @@ The script loads these SPICE kernels from TudatPy's SPICE kernel directory:
 - `naif0012.tls`
 - `earth_200101_990825_predict.bpc`
 
-## `bin/gcrf_to_itrf_rot_model.py`
+## `bin/gcrf_to_itrs_tudat.py`
 
 Converts satellite state vectors between an inertial frame and an Earth-fixed frame using a selectable TudatPy Earth rotation model. The current implementation supports the IAU 2006 GCRS-to-ITRS model as well as SPICE-based Earth rotation models.
 
 ### Synopsis
 
 ```bash
-python3 bin/gcrf_to_itrf_rot_model.py [-h] [-r] [-m MODEL] [input_file]
+python3 bin/gcrf_to_itrs_tudat.py [-h] [-r] [-m MODEL] [input_file]
 ```
 
 ### Options
@@ -155,39 +155,39 @@ Each successfully converted line is printed as:
 
 ```bash
 echo "2025-11-10T15:42:27.000000 2070.058475323 4729.228905684 5291.073944519 -0.452686493 -5.378340397 4.970075198" \
-  | python3 bin/gcrf_to_itrf_rot_model.py
+  | python3 bin/gcrf_to_itrs_tudat.py
 ```
 
 **Use the SPICE `ITRF93` model:**
 
 ```bash
 echo "2025-11-10T15:42:27.000000 2070.058475323 4729.228905684 5291.073944519 -0.452686493 -5.378340397 4.970075198" \
-  | python3 bin/gcrf_to_itrf_rot_model.py -m spice
+  | python3 bin/gcrf_to_itrs_tudat.py -m spice
 ```
 
 **Reverse conversion:**
 
 ```bash
 echo "2025-11-10T15:42:27.000000 -4016.835021864 3234.040363774 5296.435683796 5.299868461 -1.578004407 4.968732515" \
-  | python3 bin/gcrf_to_itrf_rot_model.py -r
+  | python3 bin/gcrf_to_itrs_tudat.py -r
 ```
 
 **Convert from a file:**
 
 ```bash
-python3 bin/gcrf_to_itrf_rot_model.py -m iau2006 input.oem
+python3 bin/gcrf_to_itrs_tudat.py -m iau2006 input.oem
 ```
 
 **Save output to a file:**
 
 ```bash
-python3 bin/gcrf_to_itrf_rot_model.py -m iau2006 input.oem > output.oem
+python3 bin/gcrf_to_itrs_tudat.py -m iau2006 input.oem > output.oem
 ```
 
 **Show help:**
 
 ```bash
-python3 bin/gcrf_to_itrf_rot_model.py -h
+python3 bin/gcrf_to_itrs_tudat.py -h
 ```
 
 ### Dependencies

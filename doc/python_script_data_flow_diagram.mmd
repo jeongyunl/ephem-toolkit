@@ -46,7 +46,7 @@ flowchart LR
     state_diff(["state_diff.py"])
 
     %% frame_conversion/ scripts
-    gcrf_to_itrf_rot(["gcrf_to_itrf_rot_model.py"])
+    gcrf_to_itrs_tudat(["gcrf_to_itrs_tudat.py"])
     gcrf_to_itrf_spice(["gcrf_to_itrf_spice.py"])
 
     %% time_conversion/tools/ scripts
@@ -107,9 +107,9 @@ flowchart LR
     fmt_dep_vars_csv --> plot_dep_vars
     plot_dep_vars --> fmt_plots
 
-    %% gcrf_to_itrf_rot_model.py: OEM (GCRF↔ITRF)
-    fmt_oem -->|"GCRF or ITRF"| gcrf_to_itrf_rot
-    gcrf_to_itrf_rot -->|"ITRF or GCRF"| fmt_oem
+    %% gcrf_to_itrs_tudat.py: OEM (GCRF↔ITRF)
+    fmt_oem -->|"GCRF or ITRF"| gcrf_to_itrs_tudat
+    gcrf_to_itrs_tudat -->|"ITRF or GCRF"| fmt_oem
 
     %% gcrf_to_itrf_spice.py: OEM (J2000↔ITRF93)
     fmt_oem -->|"J2000 or ITRF93"| gcrf_to_itrf_spice
