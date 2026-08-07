@@ -54,6 +54,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from common import frame_utils
 import common.aer as aer
 import common.oem as oem
 import common.time_utils as time_utils
@@ -136,7 +137,7 @@ def convert_to_aer(
 
 def convert_ref_frame(
     oem_data: oem.CcsdsOem,
-    new_ref_frame: str,
+    new_ref_frame_name: str,
     output_path: str,
 ) -> None:
     """Convert OEM reference frame metadata and write to output.
@@ -150,7 +151,33 @@ def convert_ref_frame(
     output_path : str
         Output file path. Use '-' for stdout.
     """
-    oem_data.update_metadata(ref_frame=new_ref_frame)
+
+    original_reference_frame = frame_utils.Frame(oem_data.meta.ref_frame.upper())
+    new_reference_frame = frame_utils.Frame(new_ref_frame_name.upper())
+
+    for state in oem_data.states:
+        posix_timestamp, state_vector_km = state
+        # Convert state vector to new reference frame
+        converted_state_vector_m = frame_utils.convert_frame(
+            base_frame=original_reference_frame,
+            target_frame=new_reference_frame,
+            epoch_tdb_s=time_utils.posix_to_tdb_s(posix_timestamp),
+            input_state_m=state_vector_km * 1000.0,
+        )
+
+        if converted_state_vector_m is None:
+            print(
+                f"Error: Could not convert state at timestamp {posix_timestamp} "
+                f"from {original_reference_frame.value} to {new_reference_frame.value}. "
+                "Leaving state unchanged.",
+                file=sys.stderr,
+            )
+            return
+
+        # Update the state in the OEM data
+        state[1][:] = converted_state_vector_m / 1000.0  # Convert back to km
+
+    oem_data.update_metadata(ref_frame=new_reference_frame.value)
 
     if output_path == "-":
         oem_data.write(sys.stdout)

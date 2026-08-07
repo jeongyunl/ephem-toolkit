@@ -64,5 +64,6 @@ def load_kernel(kernel_file: str, kernel_path: str | Path | None = None) -> None
     kernel_file_path: str = str(Path(kernel_path) / kernel_file)
 
     if kernel_file_path not in _loaded_kernels:
+        print(f"Loading SPICE kernel: {kernel_file_path}", file=os.sys.stderr)
         spice.load_kernel(kernel_file_path)
         _loaded_kernels.add(kernel_file_path)
