@@ -1,6 +1,6 @@
 # tudatpy-utils
 
-Frame-conversion utilities for OEM-like Cartesian state vectors.
+Frame-conversion utilities for CCSDS OEM state vectors.
 
 ## Overview
 
@@ -9,19 +9,8 @@ The repository currently provides two Python frame-conversion scripts:
 - `bin/gcrf_to_itrf_spice.py`
 - `bin/gcrf_to_itrf_rot_model.py`
 
-Both scripts:
-
-- read OEM-like state lines from a file or stdin
-- accept blank lines and `#` comments
-- accept whitespace- or comma-separated fields
-- interpret position in **km** and velocity in **km/s**
-- print converted states in the same OEM-like text layout
-
-Input/output line format:
-
-```text
-<ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>
-```
+Both scripts read CCSDS OEM files from a path or stdin and write converted
+CCSDS OEM files to stdout. OEM state vectors use **km** and **km/s** on disk.
 
 ## `bin/gcrf_to_itrf_spice.py`
 
@@ -39,7 +28,7 @@ python3 bin/gcrf_to_itrf_spice.py [-h] [-r] [input_file]
 |---|---|
 | `-h`, `--help` | Show help message and exit |
 | `-r` | Reverse conversion: `ITRF93 -> J2000` instead of `J2000 -> ITRF93` |
-| `input_file` | Optional path to an OEM-like ephemeris text file; if omitted, stdin is used |
+| `input_file` | Optional path to a CCSDS OEM file; if omitted, an OEM is read from stdin |
 
 ### Behavior
 
@@ -50,46 +39,19 @@ python3 bin/gcrf_to_itrf_spice.py [-h] [-r] [input_file]
   - the rotation matrix
   - the rotation-matrix derivative
 
-### Input format
-
-Each non-comment line must contain 7 fields:
-
-```text
-<ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>
-```
-
-Notes:
-
-- **Epoch**: ISO 8601 timestamp such as `2025-11-10T15:42:27.000000`
-- A trailing `Z` on the epoch is accepted by the shared parser.
-- **Position**: X, Y, Z in kilometres.
-- **Velocity**: VX, VY, VZ in km/s.
-- Blank lines and lines beginning with `#` are skipped.
-- Parse failures are reported and the offending line is skipped.
-
-### Output format
-
-Each successfully converted line is printed as:
-
-```text
-<ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>
-```
-
-The epoch is echoed in ISO format and fields are separated by double spaces.
-
 ### Usage
 
 **Convert from stdin, J2000 -> ITRF93:**
 
 ```bash
-echo "2025-11-10T15:42:27.000000 2070.058475323 4729.228905684 5291.073944519 -0.452686493 -5.378340397 4.970075198" \
+cat input.oem \
   | python3 bin/gcrf_to_itrf_spice.py
 ```
 
 **Reverse conversion, ITRF93 -> J2000:**
 
 ```bash
-echo "2025-11-10T15:42:27.000000 -4016.835021864 3234.040363774 5296.435683796 5.299868461 -1.578004407 4.968732515" \
+cat input_itrf93.oem \
   | python3 bin/gcrf_to_itrf_spice.py -r
 ```
 
@@ -139,7 +101,7 @@ python3 bin/gcrf_to_itrf_rot_model.py [-h] [-r] [-m MODEL] [input_file]
 | `-h`, `--help` | Show help message and exit |
 | `-r` | Reverse conversion: body-fixed -> inertial instead of inertial -> body-fixed |
 | `-m MODEL` | Rotation model name; valid values are `spice_iau_earth`, `spice_itrf93`, `spice`, `gcrs_to_itrs` |
-| `input_file` | Optional path to an OEM-like ephemeris text file; if omitted, stdin is used |
+| `input_file` | Optional path to a CCSDS OEM file; if omitted, an OEM is read from stdin |
 
 ### Supported rotation models
 
