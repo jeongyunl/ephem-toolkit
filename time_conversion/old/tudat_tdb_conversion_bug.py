@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import tudatpy.astro.time_representation as time_representation
+from tudatpy.astro import time_representation
 from tudatpy.astro.time_representation import DateTime, TimeScales
 
 tudat_time_scale_converter = time_representation.default_time_scale_converter()
