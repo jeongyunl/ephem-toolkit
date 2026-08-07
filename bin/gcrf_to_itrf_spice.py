@@ -42,7 +42,7 @@ def load_spice_kernels() -> None:
         "earth_200101_990825_predict.bpc",  # Earth rotation prediction (covers Jan 2001 to Aug 2099)
     ]
     for kernel_file in spice_kernel_files:
-        spice.load_kernel(spice_utils.get_spice_kernel_path() + "/" + kernel_file)
+        spice_utils.load_kernel(kernel_file)
 
 
 def convert_frames_spice(

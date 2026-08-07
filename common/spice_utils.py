@@ -5,12 +5,16 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from tudatpy.interface import spice
+
 _SPICE_CACHE_FILE: Path = (
     Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
     / "tudatpy-utils"
     / "spice_kernel_path"
 )
 """XDG cache file path for the resolved SPICE kernel directory."""
+
+_loaded_kernels = set()
 
 
 def get_spice_kernel_path() -> str:
@@ -40,3 +44,24 @@ def get_spice_kernel_path() -> str:
         pass
 
     return resolved_path
+
+
+def load_kernel(kernel_file: str, kernel_path: str | Path | None = None) -> None:
+    """Load a SPICE kernel from the specified or cached kernel directory.
+
+    Parameters
+    ----------
+    kernel_file : str
+        Name of the SPICE kernel file.
+    kernel_path : str or Path, optional
+        Directory containing the kernel file. Defaults to the cached TudatPy
+        SPICE kernel directory.
+    """
+    if kernel_path is None:
+        kernel_path = get_spice_kernel_path()
+
+    kernel_file_path = str(Path(kernel_path) / kernel_file)
+
+    if kernel_file_path not in _loaded_kernels:
+        spice.load_kernel(kernel_file_path)
+        _loaded_kernels.add(kernel_file_path)

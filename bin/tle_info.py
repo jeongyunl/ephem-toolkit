@@ -55,7 +55,7 @@ def load_spice_kernels() -> None:
         "pck00011.tpc",
     ]
     for kernel_file in spice_kernel_files:
-        spice.load_kernel(spice_utils.get_spice_kernel_path() + "/" + kernel_file)
+        spice_utils.load_kernel(kernel_file)
 
 
 # ===================================================================
