@@ -104,8 +104,7 @@ def create_earth_rotation_model(
 
 def convert_oem_states(
     input_oem: oem.CcsdsOem,
-    global_frame_orientation: str,
-    rotation_model_settings: RotationModelSettings,
+    earth_rotation_model: object,
     reverse: bool = False,
 ) -> oem.CcsdsOem:
     """Convert all states in a CcsdsOem between GCRF and ITRF frames.
@@ -114,11 +113,8 @@ def convert_oem_states(
     ----------
     input_oem : oem.CcsdsOem
         Input OEM with states to convert.
-    global_frame_orientation : str
-        Inertial frame orientation string (e.g. ``"GCRS"`` or ``"J2000"``).
-    rotation_model_settings : RotationModelSettings
-        Pre-configured rotation model settings (e.g. GCRS-to-ITRS IAU 2006,
-        SPICE IAU_Earth, SPICE ITRF93).
+    earth_rotation_model : object
+        TudatPy Earth rotation model used for the state conversions.
     reverse : bool
         If True, perform ITRF→GCRF conversion instead of GCRF→ITRF.
 
@@ -127,10 +123,6 @@ def convert_oem_states(
     oem.CcsdsOem
         New OEM with converted states and updated metadata.
     """
-
-    earth_rotation_model: object = create_earth_rotation_model(
-        global_frame_orientation, rotation_model_settings
-    )
 
     converted_states: list[tuple[float, np.ndarray]] = []
 
@@ -165,8 +157,7 @@ def convert_oem_states(
 
 
 def process_stream(
-    global_frame_orientation: str,
-    rotation_model_settings: RotationModelSettings,
+    earth_rotation_model: object,
     stream: TextIO,
     reverse: bool = False,
 ) -> None:
@@ -176,20 +167,13 @@ def process_stream(
 
     Parameters
     ----------
-    global_frame_orientation : str
-        Inertial frame orientation string (e.g. ``"GCRS"`` or ``"J2000"``).
-    rotation_model_settings : RotationModelSettings
-        Pre-configured rotation model settings (e.g. GCRS-to-ITRS IAU 2006,
-        SPICE IAU_Earth, SPICE ITRF93).
+    earth_rotation_model : object
+        TudatPy Earth rotation model used for the state conversions.
     stream : TextIO
         An iterable of text lines (file object or sys.stdin).
     reverse : bool
         If True, perform ITRF→GCRF conversion instead of GCRF→ITRF.
     """
-
-    earth_rotation_model: object = create_earth_rotation_model(
-        global_frame_orientation, rotation_model_settings
-    )
 
     for line in stream:
         try:
@@ -237,8 +221,7 @@ def process_stream(
 
 def process_oem_file(
     input_file: str | Path,
-    global_frame_orientation: str,
-    rotation_model_settings: RotationModelSettings,
+    earth_rotation_model: object,
     reverse: bool = False,
 ) -> None:
     """Read an OEM file, convert states, and write output to stdout.
@@ -251,11 +234,8 @@ def process_oem_file(
     ----------
     input_file : str | Path
         Path to input OEM file or raw state list.
-    global_frame_orientation : str
-        Inertial frame orientation string (e.g. ``"GCRS"`` or ``"J2000"``).
-    rotation_model_settings : RotationModelSettings
-        Pre-configured rotation model settings (e.g. GCRS-to-ITRS IAU 2006,
-        SPICE IAU_Earth, SPICE ITRF93).
+    earth_rotation_model : object
+        TudatPy Earth rotation model used for the state conversions.
     reverse : bool
         If True, perform ITRF→GCRF conversion instead of GCRF→ITRF.
     """
@@ -267,8 +247,7 @@ def process_oem_file(
         # Input is proper OEM format — output in OEM format
         output_oem: oem.CcsdsOem = convert_oem_states(
             input_oem,
-            global_frame_orientation,
-            rotation_model_settings,
+            earth_rotation_model,
             reverse,
         )
         output_oem.write(sys.stdout)
@@ -276,8 +255,7 @@ def process_oem_file(
         # Input is a raw state list — output as plain text lines
         with open(input_file, "r", encoding="utf-8") as fh:
             process_stream(
-                global_frame_orientation,
-                rotation_model_settings,
+                earth_rotation_model,
                 fh,
                 reverse=reverse,
             )
@@ -372,6 +350,11 @@ def main() -> None:
             )
         )
 
+    earth_rotation_model: object = create_earth_rotation_model(
+        global_frame_orientation,
+        rotation_model_settings,
+    )
+
     if args.input_file:
         input_file: str = args.input_file
         input_path: Path = Path(input_file)
@@ -379,14 +362,12 @@ def main() -> None:
             parser.error(f"OEM file not found: {input_file}")
         process_oem_file(
             input_file,
-            global_frame_orientation,
-            rotation_model_settings,
+            earth_rotation_model,
             reverse=args.reverse,
         )
     else:
         process_stream(
-            global_frame_orientation,
-            rotation_model_settings,
+            earth_rotation_model,
             sys.stdin,
             reverse=args.reverse,
         )
