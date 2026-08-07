@@ -14,6 +14,18 @@ _has_compute_state_rotation_matrix_between_frames: bool = hasattr(
 )
 
 
+def _load_spice_kernels():
+    spice_utils.load_kernel("naif0012.tls")  # Leap seconds kernel file
+    spice_utils.load_kernel(
+        "pck00011.tpc"
+    )  # PLANETARY CONSTANTS KERNEL FILE: orientation and size/shape data for natural bodies(Sun, planets, asteroids, etc)
+    spice_utils.load_kernel(
+        "earth_200101_990825_predict.bpc"
+    )  # Earth rotation prediction (covers Jan 2001 to Aug 2099)
+    global _did_load_spice_kernels
+    _did_load_spice_kernels = True
+
+
 def teme_to_j2000(epoch_tdb_s: float, teme_state: np.ndarray) -> np.ndarray:
     """Convert a TEME Cartesian state to the J2000 frame.
 
@@ -109,11 +121,7 @@ def spice_convert_frame(
     global _did_load_spice_kernels
 
     if not _did_load_spice_kernels:
-        spice_utils.load_kernel("naif0012.tls")  # Leap seconds kernel file
-        spice_utils.load_kernel(
-            "earth_200101_990825_predict.bpc"
-        )  # Earth rotation prediction (covers Jan 2001 to Aug 2099)
-        _did_load_spice_kernels = True
+        _load_spice_kernels()
 
     if _has_compute_state_rotation_matrix_between_frames:
         state_conversion_matrix: np.ndarray = np.asarray(
@@ -163,6 +171,12 @@ def tudat_convert_inertial_to_body_fixed(
         Six-component body-fixed state vector with position in metres and
         velocity in metres per second.
     """
+
+    global _did_load_spice_kernels
+
+    if not _did_load_spice_kernels:
+        _load_spice_kernels()
+
     inertial_to_body_fixed_rotation_matrix: np.ndarray = (
         rotation_model.inertial_to_body_fixed_rotation(input_epoch_et_s)
     )
@@ -209,6 +223,12 @@ def tudat_convert_body_fixed_to_inertial(
         Six-component inertial state vector with position in metres and
         velocity in metres per second.
     """
+
+    global _did_load_spice_kernels
+
+    if not _did_load_spice_kernels:
+        _load_spice_kernels()
+
     body_fixed_to_inertial_rotation_matrix: np.ndarray = (
         rotation_model.body_fixed_to_inertial_rotation(input_epoch_et_s)
     )
