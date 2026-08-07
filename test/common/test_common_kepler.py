@@ -440,11 +440,12 @@ def tudatpy_tle_round_trip():
     from tudatpy.interface import spice
 
     import common.common as common
+    import common.spice_utils as spice_utils
 
     # Load SPICE kernels
     spice_kernel_files = ["naif0012.tls", "pck00011.tpc"]
     for kernel_file in spice_kernel_files:
-        spice.load_kernel(common.get_spice_kernel_path() + "/" + kernel_file)
+        spice.load_kernel(spice_utils.get_spice_kernel_path() + "/" + kernel_file)
 
     # Create bodies for gravitational parameter
     bodies_to_create = ["Earth"]

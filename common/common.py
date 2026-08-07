@@ -1,6 +1,5 @@
 """Common utilities shared across frame-conversion and propagation scripts.
 
-Provides a SPICE kernel path resolver (:func:`get_spice_kernel_path`),
 CCSDS keyword-value parsing (:func:`parse_key_value_line`),
 an RTN frame transformation (:func:`transform_to_rtn`), and angle
 utilities (:func:`wrap_angle_rad`, :func:`unwrap_angles_rad`,
@@ -17,56 +16,8 @@ References:
 from __future__ import annotations
 
 import math
-import os
-from pathlib import Path
 
 import numpy as np
-
-# ===================================================================
-# Module-level state
-# ===================================================================
-
-_SPICE_CACHE_FILE: Path = (
-    Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
-    / "tudatpy-utils"
-    / "spice_kernel_path"
-)
-"""XDG cache file path for resolved SPICE kernel directory."""
-
-
-# ===================================================================
-# SPICE kernel path resolution
-# ===================================================================
-
-
-def get_spice_kernel_path() -> str:
-    """Return the Tudatpy SPICE kernel path using an XDG-style cache file.
-
-    Returns
-    -------
-    str
-        Path to the SPICE kernel directory.
-    """
-    try:
-        cached_path: str = _SPICE_CACHE_FILE.read_text(encoding="utf-8").strip()
-        if cached_path and Path(cached_path).is_dir():
-            return cached_path
-    except OSError:
-        pass
-
-    from tudatpy import data
-
-    resolved_path: str = data.get_spice_kernel_path()
-
-    try:
-        _SPICE_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _SPICE_CACHE_FILE.write_text(resolved_path, encoding="utf-8")
-    except OSError:
-        # Cache writes are best effort; continue with the resolved path.
-        pass
-
-    return resolved_path
-
 
 # ===================================================================
 # CCSDS keyword-value parsing
@@ -138,57 +89,66 @@ def transform_to_rtn(
         - Shape (6,): If input is single state vector
         - Shape (N, 6): If input is batch of N state vectors
     """
-    state_arr: np.ndarray = np.asarray(state, dtype=float)
+    state_array: np.ndarray = np.asarray(state, dtype=float)
 
     # Determine if input is single or batch
-    if state_arr.ndim == 1:
-        if state_arr.shape != (6,):
+    if state_array.ndim == 1:
+        if state_array.shape != (6,):
             raise ValueError(
-                f"State vector must have shape (6,), got {state_arr.shape}"
+                f"State vector must have shape (6,), got {state_array.shape}"
             )
-        state_arr = state_arr.reshape(1, 6)
+        state_array = state_array.reshape(1, 6)
         single_input: bool = True
-    elif state_arr.ndim == 2:
-        if state_arr.shape[1] != 6:
+    elif state_array.ndim == 2:
+        if state_array.shape[1] != 6:
             raise ValueError(
-                f"State vectors must have shape (N, 6), got {state_arr.shape}"
+                f"State vectors must have shape (N, 6), got {state_array.shape}"
             )
         single_input = False
     else:
-        raise ValueError(f"State vector must be 1D or 2D array, got {state_arr.ndim}D")
+        raise ValueError(
+            f"State vector must be 1D or 2D array, got {state_array.ndim}D"
+        )
 
     # Handle reference state
     if reference_state is None:
-        reference_state_arr: np.ndarray = np.zeros((state_arr.shape[0], 6), dtype=float)
+        reference_state_array: np.ndarray = np.zeros(
+            (state_array.shape[0], 6), dtype=float
+        )
     else:
-        reference_state_arr = np.asarray(reference_state, dtype=float)
-        if reference_state_arr.ndim == 1:
-            if reference_state_arr.shape != (6,):
+        reference_state_array = np.asarray(reference_state, dtype=float)
+        if reference_state_array.ndim == 1:
+            if reference_state_array.shape != (6,):
                 raise ValueError(
-                    f"Reference state must have shape (6,), got {reference_state_arr.shape}"
+                    "Reference state must have shape (6,), "
+                    f"got {reference_state_array.shape}"
                 )
             # Broadcast single reference state to all targets
-            reference_state_arr = np.tile(reference_state_arr, (state_arr.shape[0], 1))
-        elif reference_state_arr.ndim == 2:
-            if reference_state_arr.shape[1] != 6:
+            reference_state_array = np.tile(
+                reference_state_array, (state_array.shape[0], 1)
+            )
+        elif reference_state_array.ndim == 2:
+            if reference_state_array.shape[1] != 6:
                 raise ValueError(
-                    f"Reference states must have shape (N, 6), got {reference_state_arr.shape}"
+                    "Reference states must have shape (N, 6), "
+                    f"got {reference_state_array.shape}"
                 )
-            if reference_state_arr.shape[0] != state_arr.shape[0]:
+            if reference_state_array.shape[0] != state_array.shape[0]:
                 raise ValueError(
-                    f"Number of reference states ({reference_state_arr.shape[0]}) "
-                    f"must match number of target states ({state_arr.shape[0]})"
+                    f"Number of reference states ({reference_state_array.shape[0]}) "
+                    f"must match number of target states ({state_array.shape[0]})"
                 )
         else:
             raise ValueError(
-                f"Reference state must be 1D or 2D array, got {reference_state_arr.ndim}D"
+                "Reference state must be 1D or 2D array, "
+                f"got {reference_state_array.ndim}D"
             )
 
     # 1. Extract positions and velocities: shape (N, 3)
-    reference_positions: np.ndarray = reference_state_arr[:, 0:3]
-    reference_velocities: np.ndarray = reference_state_arr[:, 3:6]
-    target_positions: np.ndarray = state_arr[:, 0:3]
-    target_velocities: np.ndarray = state_arr[:, 3:6]
+    reference_positions: np.ndarray = reference_state_array[:, 0:3]
+    reference_velocities: np.ndarray = reference_state_array[:, 3:6]
+    target_positions: np.ndarray = state_array[:, 0:3]
+    target_velocities: np.ndarray = state_array[:, 3:6]
 
     # 2. Compute inertial differences: shape (N, 3)
     inertial_positions: np.ndarray = target_positions - reference_positions
@@ -235,21 +195,25 @@ def transform_to_rtn(
     )
 
     # 5. Compute relative position vector in RTN: shape (N, 3)
-    # For each orbit i: rtn_pos[i] = rtn_matrix[i] @ inertial_pos[i]
+    # For each orbit i: rtn_positions[i] = rtn_matrix[i] @ inertial_positions[i]
     rtn_positions: np.ndarray = np.einsum(
         "nij,nj->ni", rtn_transformation_matrices, inertial_positions
     )
 
     # 6. Compute relative velocity vector in RTN (Transport Theorem): shape (N, 3)
-    angular_velocity_z: np.ndarray = np.zeros(state_arr.shape[0])
+    angular_velocity_rad_s: np.ndarray = np.zeros(state_array.shape[0])
     np.divide(
         angular_momentum_magnitudes,
         reference_position_magnitudes**2,
-        out=angular_velocity_z,
+        out=angular_velocity_rad_s,
         where=reference_position_magnitudes > 0.0,
     )  # shape (N,)
     angular_velocity_rtn: np.ndarray = np.column_stack(
-        [np.zeros(state_arr.shape[0]), np.zeros(state_arr.shape[0]), angular_velocity_z]
+        [
+            np.zeros(state_array.shape[0]),
+            np.zeros(state_array.shape[0]),
+            angular_velocity_rad_s,
+        ]
     )  # shape (N, 3)
 
     rtn_velocities_rotational: np.ndarray = np.einsum(

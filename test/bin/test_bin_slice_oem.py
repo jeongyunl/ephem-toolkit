@@ -264,12 +264,12 @@ def test_cli_time_slice_duration_offsets() -> None:
     """Test time-based slicing with duration offsets."""
     temp_path, original_oem = _create_test_oem(num_states=60, interval_seconds=60)
     try:
-        # Slice from 5 minutes to 10 minutes
+        # Slice from 5 minutes for another 10 minutes
         result = _run_slice_oem([str(temp_path), "--time-slice", "5m,10m"])
         assert result.returncode == 0
 
         output_oem = oem.CcsdsOem.read(io.StringIO(result.stdout))
-        assert len(output_oem.states) == 6  # States at 5, 6, 7, 8, 9, 10 minutes
+        assert len(output_oem.states) == 11  # States at 5 through 15 minutes
     finally:
         temp_path.unlink()
 
@@ -326,14 +326,14 @@ def test_cli_time_slice_mixed_datetime_and_duration() -> None:
     """Test time-based slicing with mixed datetime and duration."""
     temp_path, _ = _create_test_oem(num_states=60, interval_seconds=60)
     try:
-        # Start at specific time, end at duration offset
+        # Start at a specific time, then apply the duration from that start
         result = _run_slice_oem(
             [str(temp_path), "--time-slice", "2024-01-01T00:05:00Z,10m"]
         )
         assert result.returncode == 0
 
         output_oem = oem.CcsdsOem.read(io.StringIO(result.stdout))
-        assert len(output_oem.states) == 6  # From 5 to 10 minutes
+        assert len(output_oem.states) == 11  # From 5 to 15 minutes
     finally:
         temp_path.unlink()
 
@@ -785,7 +785,7 @@ def test_cli_stdin_with_time_slice() -> None:
         assert result.returncode == 0
 
         output_oem = oem.CcsdsOem.read(io.StringIO(result.stdout))
-        assert len(output_oem.states) == 6  # States at 5, 6, 7, 8, 9, 10 minutes
+        assert len(output_oem.states) == 11  # States at 5 through 15 minutes
     finally:
         temp_path.unlink()
 

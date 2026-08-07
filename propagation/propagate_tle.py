@@ -37,6 +37,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import common.common as common
 import common.oem as oem
+import common.spice_utils as spice_utils
 import common.time_utils as time_utils
 
 # CLI defaults
@@ -222,7 +223,7 @@ def load_spice_kernels(spice_module) -> None:
     ]
 
     for kernel_file in spice_kernel_files:
-        spice_module.load_kernel(common.get_spice_kernel_path() + "/" + kernel_file)
+        spice_module.load_kernel(spice_utils.get_spice_kernel_path() + "/" + kernel_file)
 
 
 def resolve_epoch_datetime(
