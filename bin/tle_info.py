@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Display TLE parameters and derived orbital elements for one or more TLE files.
 
+Usage:
+    python3 tle_info.py [-h] tle_file [tle_file ...]
+
 Reads TLE files provided as CLI arguments, loads each using TudatPy's SGP4
 ephemeris, and prints the epoch, TLE parameters, Cartesian state, and
 osculating Keplerian elements at the reference epoch.
@@ -12,6 +15,7 @@ References:
 
 from __future__ import annotations
 
+import argparse
 import math
 import sys
 import warnings
@@ -86,6 +90,38 @@ def get_tle_epoch(tle: object) -> tuple[DateTime, float]:
 
 
 # ===================================================================
+# Argument Parser
+# ===================================================================
+
+
+def create_argument_parser() -> argparse.ArgumentParser:
+    """Create the command-line argument parser.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        Configured argument parser for TLE info display.
+    """
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        description=(
+            "Display TLE parameters and derived orbital elements for one or more TLE files."
+        ),
+        epilog=(
+            "Loads each TLE file using TudatPy's SGP4 ephemeris and prints the epoch, "
+            "TLE parameters, Cartesian state, and osculating Keplerian elements."
+        ),
+    )
+    parser.add_argument(
+        "tle_files",
+        nargs="+",
+        metavar="tle_file",
+        help="Path(s) to TLE file(s) to process",
+    )
+
+    return parser
+
+
+# ===================================================================
 # Main Entry Point
 # ===================================================================
 
@@ -93,15 +129,14 @@ def get_tle_epoch(tle: object) -> tuple[DateTime, float]:
 def main() -> None:
     """Print TLE parameters and derived orbital elements for each TLE file.
 
-    Reads TLE file paths from ``sys.argv``, loads each via TudatPy SGP4,
+    Parses command-line arguments, loads each TLE file via TudatPy SGP4,
     and prints the epoch, TLE fields, Cartesian state, and osculating
     Keplerian elements at the reference epoch.
     """
-    if len(sys.argv) < 2:
-        print("Usage: tle_info.py <tle_file_1> <tle_file_2> ...", file=sys.stderr)
-        sys.exit(1)
+    parser: argparse.ArgumentParser = create_argument_parser()
+    args: argparse.Namespace = parser.parse_args()
 
-    tle_files: list[str] = sys.argv[1:]
+    tle_files: list[str] = args.tle_files
     print(f"TLE files: {tle_files}\n")
 
     load_spice_kernels()
