@@ -42,7 +42,7 @@ doc/                 Documentation
 - `bin/gcrf_to_itrf_spice.py` — SPICE rotation (J2000 ↔ ITRF93)
 - `bin/gcrf_to_itrf_rot_model.py` — TudatPy Earth rotation models
 
-Converts OEM-like Cartesian state vectors between inertial and Earth-fixed reference frames. Supports SPICE rotation matrices and TudatPy rotation models (`gcrs_to_itrs`, `spice_itrf93`, `spice_iau_earth`).
+Converts CCSDS OEM state vectors between inertial and Earth-fixed reference frames. Supports SPICE rotation matrices and TudatPy rotation models (`gcrs_to_itrs`, `spice_itrf93`, `spice_iau_earth`).
 
 See [FRAME_CONVERSION.md](doc/FRAME_CONVERSION.md) for full usage details.
 

@@ -34,7 +34,7 @@ def parse_arguments() -> argparse.Namespace:
     """
     parser: argparse.ArgumentParser = argparse.ArgumentParser(
         description=(
-            "Compare two OEM-like Cartesian states and report differences in time, "
+            "Compare two OEM files and report differences in time, "
             "position, and velocity."
         )
     )
