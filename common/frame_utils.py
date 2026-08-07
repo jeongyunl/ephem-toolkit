@@ -137,3 +137,93 @@ def spice_convert_frame(
         state_conversion_matrix[3:6, 3:6] = rotation_matrix
 
     return state_conversion_matrix @ np.asarray(input_state_m)
+
+
+def tudat_convert_inertial_to_body_fixed(
+    rotation_model: object,
+    input_epoch_et_s: float,
+    input_inertial_state_m: np.ndarray,
+) -> np.ndarray:
+    """Convert an inertial state to a body-fixed state.
+
+    Parameters
+    ----------
+    rotation_model : object
+        Rotation model providing inertial-to-body-fixed rotation and angular
+        velocity methods.
+    input_epoch_et_s : float
+        Epoch in ephemeris time, in seconds.
+    input_inertial_state_m : np.ndarray
+        Six-component inertial state vector with position in metres and
+        velocity in metres per second.
+
+    Returns
+    -------
+    np.ndarray
+        Six-component body-fixed state vector with position in metres and
+        velocity in metres per second.
+    """
+    inertial_to_body_fixed_rotation_matrix: np.ndarray = (
+        rotation_model.inertial_to_body_fixed_rotation(input_epoch_et_s)
+    )
+    body_fixed_rotational_velocity_rad_s: np.ndarray = (
+        rotation_model.angular_velocity_in_body_fixed_frame(input_epoch_et_s)
+    )
+
+    input_inertial_position_m: np.ndarray = input_inertial_state_m[0:3]
+    input_inertial_velocity_m_s: np.ndarray = input_inertial_state_m[3:6]
+    output_body_fixed_position_m: np.ndarray = (
+        inertial_to_body_fixed_rotation_matrix @ input_inertial_position_m
+    )
+    output_body_fixed_velocity_m_s: np.ndarray = (
+        inertial_to_body_fixed_rotation_matrix @ input_inertial_velocity_m_s
+        - np.cross(body_fixed_rotational_velocity_rad_s, output_body_fixed_position_m)
+    )
+
+    return np.concatenate(
+        [output_body_fixed_position_m, output_body_fixed_velocity_m_s]
+    )
+
+
+def tudat_convert_body_fixed_to_inertial(
+    rotation_model: object,
+    input_epoch_et_s: float,
+    input_body_fixed_state_m: np.ndarray,
+) -> np.ndarray:
+    """Convert a body-fixed state to an inertial state.
+
+    Parameters
+    ----------
+    rotation_model : object
+        Rotation model providing body-fixed-to-inertial rotation and angular
+        velocity methods.
+    input_epoch_et_s : float
+        Epoch in ephemeris time, in seconds.
+    input_body_fixed_state_m : np.ndarray
+        Six-component body-fixed state vector with position in metres and
+        velocity in metres per second.
+
+    Returns
+    -------
+    np.ndarray
+        Six-component inertial state vector with position in metres and
+        velocity in metres per second.
+    """
+    body_fixed_to_inertial_rotation_matrix: np.ndarray = (
+        rotation_model.body_fixed_to_inertial_rotation(input_epoch_et_s)
+    )
+    inertial_rotational_velocity_rad_s: np.ndarray = (
+        rotation_model.angular_velocity_in_inertial_frame(input_epoch_et_s)
+    )
+
+    input_body_fixed_position_m: np.ndarray = input_body_fixed_state_m[0:3]
+    input_body_fixed_velocity_m_s: np.ndarray = input_body_fixed_state_m[3:6]
+    output_inertial_position_m: np.ndarray = (
+        body_fixed_to_inertial_rotation_matrix @ input_body_fixed_position_m
+    )
+    output_inertial_velocity_m_s: np.ndarray = (
+        body_fixed_to_inertial_rotation_matrix @ input_body_fixed_velocity_m_s
+        + np.cross(inertial_rotational_velocity_rad_s, output_inertial_position_m)
+    )
+
+    return np.concatenate([output_inertial_position_m, output_inertial_velocity_m_s])
