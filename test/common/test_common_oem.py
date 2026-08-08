@@ -14,7 +14,7 @@ import pytest
 import common.ccsds.oem as oem
 
 TEST_DIR = Path(__file__).parent
-OEM_PATH = TEST_DIR.parent / "data" / "ISS_2026-05-20.OEM"
+OEM_PATH = TEST_DIR.parent / "data" / "ISS_2026-05-20_small.OEM"
 
 
 # ===================================================================
@@ -136,6 +136,28 @@ META_STOP
     parsed.write(output)
     assert "CLASSIFICATION = UNCLASSIFIED" in output.getvalue()
     assert "MESSAGE_ID     = TEST-001" in output.getvalue()
+
+
+def test_ccsds_oem_omits_empty_optional_header_fields() -> None:
+    """CcsdsOem should not write empty optional header fields."""
+    content = """CCSDS_OEM_VERS = 2.0
+CREATION_DATE  = 2024-01-01T00:00:00
+ORIGINATOR     = TEST
+
+META_START
+META_STOP
+
+2024-01-01T00:00:00.000000 7000.0 0.0 0.0 0.0 7.5 0.0
+"""
+
+    parsed = oem.CcsdsOem.read(io.StringIO(content))
+
+    output = io.StringIO()
+    parsed.write(output)
+    serialized = output.getvalue()
+
+    assert "CLASSIFICATION =" not in serialized
+    assert "MESSAGE_ID     =" not in serialized
 
 
 def test_ccsds_oem_read_from_stream() -> None:

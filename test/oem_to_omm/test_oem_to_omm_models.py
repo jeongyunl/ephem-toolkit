@@ -20,10 +20,10 @@ TEST_DIR: Path = Path(__file__).parent
 TEST_DATA_DIR: Path = TEST_DIR.parent / "data"
 """Directory containing test data files (OEM, TLE, OMM samples)."""
 
-ISS_OEM_PATH: Path = TEST_DATA_DIR / "ISS_2026-05-20.OEM"
+ISS_OEM_PATH: Path = TEST_DATA_DIR / "ISS_2026-05-20_small.OEM"
 """Path to ISS OEM test file for 2026-05-20."""
 
-JPSS1_OEM_PATH: Path = TEST_DATA_DIR / "JPSS-1.oem"
+JPSS1_OEM_PATH: Path = TEST_DATA_DIR / "JPSS-1_small.oem"
 """Path to JPSS-1 OEM test file."""
 
 
