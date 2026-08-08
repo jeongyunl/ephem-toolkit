@@ -436,6 +436,11 @@ def main() -> None:
             f"[xform_oem]   Reference frame: {oem_data.meta.ref_frame}",
             file=sys.stderr,
         )
+        print(f"[xform_oem]   Center: {oem_data.meta.center_name}", file=sys.stderr)
+        print(
+            f"[xform_oem]   Time system: {oem_data.meta.time_system}",
+            file=sys.stderr,
+        )
         if args.x_ref_frame_parts:
             source_frame, target_frame = args.x_ref_frame_parts
             print(
@@ -443,12 +448,24 @@ def main() -> None:
                 f"{source_frame or oem_data.meta.ref_frame} -> {target_frame}",
                 file=sys.stderr,
             )
-        print(f"[xform_oem]   Center: {oem_data.meta.center_name}", file=sys.stderr)
-        print(
-            f"[xform_oem]   Time system: {oem_data.meta.time_system}",
-            file=sys.stderr,
-        )
-        print(f"[xform_oem]   States: {total_states}", file=sys.stderr)
+        if args.metadata_overrides:
+            print("[xform_oem]   Metadata overrides:", file=sys.stderr)
+            for field_name, value in args.metadata_overrides:
+                print(
+                    f"[xform_oem]     {field_name.upper()}: "
+                    f"{getattr(oem_data.meta, field_name)} -> {value}",
+                    file=sys.stderr,
+                )
+        if args.header_overrides:
+            print("[xform_oem]   Header overrides:", file=sys.stderr)
+            for field_name, value in args.header_overrides:
+                print(
+                    f"[xform_oem]     {field_name.upper()}: "
+                    f"{getattr(oem_data.header, field_name)} -> {value}",
+                    file=sys.stderr,
+                )
+
+        print(f"[xform_oem]   Total States: {total_states}", file=sys.stderr)
 
         if total_states > 0:
             first_ts, _ = oem_data.states[0]
