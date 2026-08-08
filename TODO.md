@@ -6,7 +6,9 @@
         2. Output file option (-o, --output, --output-oem ?)
         1. --start, --stop, --step options for OEM slicing and propagation
             1. --duration aliases to --stop
-    1. ?
+
+1. Improve library API
+    1. Streamline file I/O function names and conventions
 
 1. Merge kepler/TLE tools?
 
@@ -17,7 +19,7 @@
             1. Mean Keplerian element comparisons (for x minutes of sliding window).
         1. More output format options, for example showing the differences in a table or CSV format.
     1. `slice_oem.py`
-        1. Further improvements?
+        1. ?
     1. [`xform_oem.py`](doc/XFORM_OEM.md)
         1. Apply arbitrary matrix?
 
