@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Transform OEM ephemeris files: change reference frames or convert to AER coordinates.
 
-⚠️  WARNING: THIS SCRIPT IS NOT FULLY FUNCTIONAL YET ⚠️
-This is a work in progress and may not produce correct results.
-
 This utility can:
 1. Output OEM files as-is (default when no options given)
 2. Change the reference frame metadata (--ref-frame)
@@ -49,6 +46,15 @@ import argparse
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+# Suppress Warnings from TudatPy
+import warnings
+
+warnings.filterwarnings("ignore", category=SyntaxWarning)
+warnings.filterwarnings(
+    "ignore",
+    module=r"urllib3(\..*)?",
+)
 
 import numpy as np
 
@@ -207,14 +213,12 @@ def parse_arguments() -> argparse.Namespace:
     """
     parser = argparse.ArgumentParser(
         description=(
-            "⚠️  WARNING: NOT FULLY FUNCTIONAL YET ⚠️\n"
             "Transform OEM ephemeris files: change reference frames or convert to AER coordinates"
         ),
         epilog=(
             "By default, outputs the input OEM file as-is. "
             "Use --ref-frame to change the reference frame metadata, "
             "or --aer with comma-separated lat,lon,alt to convert to AER coordinates.\n\n"
-            "⚠️  This script is a work in progress and may not produce correct results."
         ),
     )
     parser.add_argument(
@@ -289,15 +293,6 @@ def parse_arguments() -> argparse.Namespace:
 
 def main() -> None:
     """Parse CLI arguments and transform OEM file."""
-    # Print warning message
-    print("=" * 70, file=sys.stderr)
-    print("⚠️  WARNING: THIS SCRIPT IS NOT FULLY FUNCTIONAL YET", file=sys.stderr)
-    print(
-        "This is a work in progress and may not produce correct results.",
-        file=sys.stderr,
-    )
-    print("=" * 70, file=sys.stderr)
-    print(file=sys.stderr)
 
     args = parse_arguments()
 
