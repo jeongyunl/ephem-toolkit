@@ -55,8 +55,8 @@ import common.consts as consts
 import common.convert_tle as convert_tle
 import common.kepler as kepler
 import common.mean_kepler as mean_kepler
-import common.oem as oem
-import common.omm as omm
+import common.ccsds.oem as oem
+import common.ccsds.omm as omm
 import common.time_utils as time_utils
 import common.tle as tle
 

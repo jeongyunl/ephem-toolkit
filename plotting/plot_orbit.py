@@ -20,7 +20,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.common as common
-import common.oem as oem
+import common.ccsds.oem as oem
 import common.time_utils as time_utils
 import common.wgs as wgs
 

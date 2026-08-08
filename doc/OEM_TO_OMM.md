@@ -214,7 +214,7 @@ python3 oem_to_omm/evaluate_fit_tle.py --fit-span 2.0
 
 - TudatPy (for SGP4 propagation)
 - NumPy
-- `common.oem`, `common.consts`, `common.time_utils`, `common.tle`
+- `common.ccsds.oem`, `common.consts`, `common.time_utils`, `common.tle`
 - `oem_to_omm.fit_common`, `oem_to_omm.fit_tle_main`
 - `oem_to_omm.fit_tle` submodule components
 
@@ -234,9 +234,9 @@ Key algorithmic features:
 ## Related Tools
 
 - `common/tle.py` — TLE dataclass, `read_tle()`, and `write_tle()` functions
-- `common/omm.py` — OMM dataclass and utilities
+- `common/ccsds/omm.py` — OMM dataclass and utilities
 - `common/kepler.py` — Keplerian element conversions with J2 corrections
-- `common/oem.py` — OEM parsing utilities
+- `common/ccsds/oem.py` — OEM parsing utilities
 - `propagation/propagate_tle.py` — TLE propagation with SGP4
 - `bin/omm_to_tle.py` — Convert OMM to TLE
 - `bin/tle_to_omm.py` — Convert TLE to OMM
@@ -602,5 +602,5 @@ python3 oem_to_omm/oem_to_omm.py --tle -v input.oem -o output.omm
 - NumPy (for numerical computations)
 - `common.tle` — TLE dataclass and formatting
 - `common.kepler` — Keplerian element conversions
-- `common.oem` — OEM parsing
+- `common.ccsds.oem` — OEM parsing
 - TudatPy (optional, required for `--refinement cartesian`)

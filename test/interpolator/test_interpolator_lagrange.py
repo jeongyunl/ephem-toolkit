@@ -10,7 +10,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from common.oem import CcsdsOem
+from common.ccsds.oem import CcsdsOem
 import common.interpolator.lagrange as lagrange
 
 

@@ -900,7 +900,7 @@ def write_state_history_raw(state_history, output_path):
 def write_state_history_oem(
     state_history, output_path, propagation_inputs, oem_step_size_s
 ):
-    """Write state history as a CCSDS OEM file using :class:`common.oem.CcsdsOem`.
+    """Write state history as a CCSDS OEM file using :class:`common.ccsds.oem.CcsdsOem`.
 
     Parameters
     ----------
@@ -918,7 +918,7 @@ def write_state_history_oem(
         Writes a CCSDS OEM formatted file with header, metadata, and state data
         where position is in km and velocity in km/s.
     """
-    from common.oem import CcsdsOem
+    from common.ccsds.oem import CcsdsOem
 
     tudat_time_scale_converter = time_representation.default_time_scale_converter()
 
@@ -1515,7 +1515,7 @@ for an overview of the use of SPICE in Tudat.
 # common.common -- first module that pulls in tudatpy (via tudatpy.astro.time_representation).
 # Imported here, just before build_propagation_inputs() which is its first caller.
 import common.common as common
-import common.oem as common_oem
+import common.ccsds.oem as common_oem
 
 propagation_inputs: PropagationInputs = build_propagation_inputs(cli_args)
 input_source: str = "--initial-state" if cli_args.initial_state is not None else "stdin"

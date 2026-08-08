@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import common.oem as oem
+import common.ccsds.oem as oem
 
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test modules."""

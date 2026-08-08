@@ -31,7 +31,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-import common.oem as oem
+import common.ccsds.oem as oem
 import common.kepler as kepler
 import common.time_utils as time_utils
 

@@ -163,7 +163,7 @@ python3 bin/xform_oem.py input.oem \
   -o output.oem
 ```
 
-Supported metadata keys are the fields defined by `common.oem.OemMeta`,
+Supported metadata keys are the fields defined by `common.ccsds.oem.OemMeta`,
 including:
 
 - `OBJECT_NAME`
@@ -288,7 +288,7 @@ python3 bin/xform_oem.py input.oem \
 
 The command-line tool uses these local modules:
 
-- `common.oem` — CCSDS OEM parsing and writing
+- `common.ccsds.oem` — CCSDS OEM parsing and writing
 - `common.frame_utils` — reference-frame enumeration and state conversion
 - `common.aer` — ECEF position to AER conversion
 - `common.time_utils` — UTC timestamp formatting and TDB epoch conversion
@@ -329,7 +329,7 @@ resources required by a frame conversion.
 - NumPy
 - TudatPy for frame conversion and Earth-orientation models
 - Local modules:
-  - `common.oem`
+  - `common.ccsds.oem`
   - `common.frame_utils`
   - `common.aer`
   - `common.time_utils`

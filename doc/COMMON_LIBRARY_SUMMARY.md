@@ -330,7 +330,7 @@ Convert mean elements to Cartesian state via Brouwer short-period corrections.
 - `numpy`
 - `common.kepler`
 - `common.mean_kepler`
-- `common.omm`
+- `common.ccsds.omm`
 - `common.tle`
 - `common.consts`
 

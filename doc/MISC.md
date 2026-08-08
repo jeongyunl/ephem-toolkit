@@ -181,7 +181,7 @@ python3 bin/diff_oem.py -h
 ### Dependencies
 
 - NumPy
-- local helper modules `common.oem`, `common.time_utils`, and `common.interpolator.lagrange`
+- local helper modules `common.ccsds.oem`, `common.time_utils`, and `common.interpolator.lagrange`
 
 ### See Also
 
@@ -275,7 +275,7 @@ python3 bin/ecef_to_aer.py -h
 ### Dependencies
 
 - NumPy
-- local helper modules `common.aer`, `common.oem`, `common.time_utils`
+- local helper modules `common.aer`, `common.ccsds.oem`, `common.time_utils`
 
 ## `plotting/plot_orbit_deltas.py`
 
@@ -376,4 +376,4 @@ python3 plotting/plot_orbit_deltas.py -h
 
 - NumPy
 - Matplotlib
-- local helper modules `common.common`, `common.time_utils`, `common.oem`, `common.interpolator.lagrange`
+- local helper modules `common.common`, `common.time_utils`, `common.ccsds.oem`, `common.interpolator.lagrange`

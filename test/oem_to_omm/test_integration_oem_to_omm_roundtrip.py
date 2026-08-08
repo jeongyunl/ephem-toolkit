@@ -13,7 +13,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import common.convert_tle as convert_tle
-import common.omm as omm
+import common.ccsds.omm as omm
 import common.tle as tle
 
 TEST_DIR: Path = Path(__file__).parent

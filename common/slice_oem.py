@@ -18,7 +18,7 @@ import numpy as np
 
 import common.interpolator.lagrange as lagrange
 import common.time_utils as time_utils
-from common.oem import CcsdsOem
+from common.ccsds.oem import CcsdsOem
 
 # ===================================================================
 # Constants

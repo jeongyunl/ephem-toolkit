@@ -13,7 +13,7 @@ import pytest
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import common.oem as oem
+import common.ccsds.oem as oem
 import oem_to_omm.fit_tle.estimation as estimation
 import oem_to_omm.fit_tle.models as models
 import oem_to_omm.fit_tle.constants as constants

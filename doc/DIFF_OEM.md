@@ -553,7 +553,7 @@ Comparison state differences are then projected onto these axes.
   - `diff_oem.pipeline` — Transformation pipeline
   - `diff_oem.transformation_stages` — Transformation implementations
   - `diff_oem.utils` — Utility functions
-  - `common.oem` — OEM file parsing
+  - `common.ccsds.oem` — OEM file parsing
   - `common.time_utils` — Time parsing and formatting
   - `common.interpolator.lagrange` — Lagrange interpolation
 

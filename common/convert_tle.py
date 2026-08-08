@@ -1,7 +1,7 @@
 """Convert between TLE and OMM representations, and TLE to osculating Keplerian elements.
 
 Provides :func:`tle_to_omm` and :func:`omm_to_tle` for round-trip conversion
-between :class:`~common.tle.Tle` and :class:`~common.omm.CcsdsOmm`, and
+between :class:`~common.tle.Tle` and :class:`~common.ccsds.omm.CcsdsOmm`, and
 :func:`tle_to_osculating_keplerian` to extract osculating Keplerian elements
 from a TLE at its reference epoch.
 """
@@ -16,7 +16,7 @@ import numpy as np
 
 import common.kepler as kepler
 import common.mean_kepler as mean_kepler
-import common.omm as omm
+import common.ccsds.omm as omm
 import common.tle as tle
 import common.consts as consts
 
@@ -256,7 +256,7 @@ def _parse_object_id(object_id: str) -> tuple[int, int, str]:
 def tle_to_omm(
     tle_obj: tle.Tle, *, creation_date: str = "", originator: str = ""
 ) -> omm.CcsdsOmm:
-    """Convert a :class:`~common.tle.Tle` to a :class:`~common.omm.CcsdsOmm`.
+    """Convert a :class:`~common.tle.Tle` to a :class:`~common.ccsds.omm.CcsdsOmm`.
 
     Parameters
     ----------
@@ -334,7 +334,7 @@ def tle_to_omm(
 
 
 def omm_to_tle(omm_obj: omm.CcsdsOmm) -> tle.Tle:
-    """Convert a :class:`~common.omm.CcsdsOmm` to a :class:`~common.tle.Tle`.
+    """Convert a :class:`~common.ccsds.omm.CcsdsOmm` to a :class:`~common.tle.Tle`.
 
     Parameters
     ----------
