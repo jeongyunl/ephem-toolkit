@@ -1,12 +1,10 @@
 # Earth rotation model data files
 
-Frame conversion is implemented in `common/frame_utils.py` and exposed for
-CCSDS OEM files by `bin/xform_oem.py`. The `convert_frame()` dispatcher uses
-TudatPy rotation models for inertial and Earth-fixed transformations, while
-the TEME conversion uses TudatPy's element-conversion helpers.
-
-See [XFORM_OEM.md](XFORM_OEM.md) for the command-line usage of the OEM
-transformation utility.
+Earth-rotation data used by the frame-conversion implementation is supplied by
+the installed TudatPy/Tudat SPICE resource directory. This document lists the
+files loaded directly by `common/frame_utils.py` and related resources that may
+be used by TudatPy. For the frame-conversion APIs and rotation-model behavior,
+see [tudatpy_frame_conversion.md](tudatpy_frame_conversion.md).
 
 ## Kernel loading
 
@@ -24,19 +22,6 @@ The implementation requests these kernel filenames:
 The load is cached for the process, so the kernels are loaded once before the
 first conversion that needs a TudatPy rotation model.
 
-## Rotation models
-
-`convert_frame()` uses the following Earth rotation models:
-
-- `tudat_spice_rotation_model()`: TudatPy's SPICE rotation model between
-  `J2000` and `ITRF93`
-- `tudat_iau2006_rotation_model()`: TudatPy's IAU 2006 GCRS-to-ITRS model,
-  exposed by the repository as `J2000` and `ITRF`
-
-The state conversion includes the rotational transport term in the velocity.
-Equivalent inertial frame names (`J2000`, `EME2000`, `ICRF`, and `GCRF`) are
-normalized to `J2000` before dispatch. `TEME` is converted through `J2000`.
-
 ## Related Tudat resources
 
 Other Earth-orientation files may be present in a particular Tudat
@@ -47,4 +32,4 @@ on the selected model and installed resource set; they are not loaded
 directly by repository code.
 
 For command-line examples and supported frame names, see
-`doc/FRAME_CONVERSION.md`.
+[XFORM_OEM.md](XFORM_OEM.md).

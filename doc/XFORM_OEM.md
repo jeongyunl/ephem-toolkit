@@ -36,8 +36,8 @@ default output destination is standard output.
 | Option | Description |
 |---|---|
 | `<oem_file>` | Optional path to an input CCSDS OEM file; use `-` or omit to read from stdin |
-| `--ref-frame <frame>` | Convert state vectors to the target frame and update `REF_FRAME` |
-| `--src-ref-frame <frame>` | Override the input OEM `REF_FRAME` when it is missing, incorrect, or non-standard |
+| `--x-ref-frame <frame>` | Convert state vectors to the target frame using the OEM `REF_FRAME` as source |
+| `--x-ref-frame <base_frame,target_frame>` | Override the source frame and convert state vectors to the target frame |
 | `--aer <lat,lon,alt>` | Convert ECEF/ITRF positions to AER text using latitude/longitude in degrees and altitude in metres |
 | `--set-meta <KEY=VALUE>` | Override an OEM metadata field; repeatable |
 | `--set-header <KEY=VALUE>` | Override an OEM header field; repeatable |
@@ -45,13 +45,13 @@ default output destination is standard output.
 | `-v`, `--verbose` | Print input and transformation details to stderr |
 | `-h`, `--help` | Show help message and exit |
 
-The `--aer` mode cannot be combined with `--ref-frame`, `--set-meta`, or
+The `--aer` mode cannot be combined with `--x-ref-frame`, `--set-meta`, or
 `--set-header`.
 
 ## Supported Reference Frames
 
-The `--ref-frame` and `--src-ref-frame` options accept the frame names exposed
-by `common.frame_utils.Frame`:
+The `--x-ref-frame` option accepts the frame names exposed by
+`common.frame_utils.Frame`:
 
 - `TEME`
 - `J2000`
@@ -62,9 +62,10 @@ by `common.frame_utils.Frame`:
 - `ITRF`
 
 `J2000`, `EME2000`, `ICRF`, and `GCRF` are treated as equivalent inertial
-frames by the conversion helper. The requested target name is retained in the
-output OEM `REF_FRAME` metadata, except where the helper returns its canonical
-frame value.
+frames by the conversion helper. The `--x-ref-frame` option transforms state
+data, including positions and velocities, rather than only changing metadata.
+After a successful conversion, the output OEM `REF_FRAME` metadata is updated
+to the target frame, except where the helper returns its canonical frame value.
 
 Frame conversion is epoch-dependent. The script converts each state at its
 own timestamp, including the velocity contribution from time-dependent Earth
@@ -75,7 +76,7 @@ rotation models where applicable.
 Convert an OEM state history to a new reference frame:
 
 ```bash
-python3 bin/xform_oem.py input.oem --ref-frame ITRF93 -o output.oem
+python3 bin/xform_oem.py input.oem --x-ref-frame ITRF93 -o output.oem
 ```
 
 By default, the source frame is read from the input OEM metadata. Override it
@@ -83,8 +84,7 @@ when the metadata does not describe the actual state vectors:
 
 ```bash
 python3 bin/xform_oem.py input.oem \
-  --src-ref-frame GCRF \
-  --ref-frame ITRF93 \
+  --x-ref-frame GCRF,ITRF93 \
   -o output.oem
 ```
 
@@ -157,7 +157,7 @@ Use repeated `--set-meta KEY=VALUE` options to override output OEM metadata:
 
 ```bash
 python3 bin/xform_oem.py input.oem \
-  --ref-frame ITRF93 \
+  --x-ref-frame ITRF93 \
   --set-meta OBJECT_NAME=ISS \
   --set-meta CENTER_NAME=EARTH \
   -o output.oem
@@ -177,7 +177,7 @@ including:
 - `INTERPOLATION_DEGREE`
 
 Keys are case-insensitive. `INTERPOLATION_DEGREE` must be an integer. When
-both `--ref-frame` and `--set-meta REF_FRAME=...` are supplied, the metadata
+both `--x-ref-frame` and `--set-meta REF_FRAME=...` are supplied, the metadata
 override is applied after the frame conversion and determines the final
 metadata value. Set the metadata value to the actual target frame unless you
 intentionally need a different label.
@@ -209,15 +209,15 @@ The input file is optional. These commands are equivalent ways to read from
 standard input:
 
 ```bash
-cat orbit.oem | python3 bin/xform_oem.py --ref-frame J2000
-cat orbit.oem | python3 bin/xform_oem.py - --ref-frame J2000
+cat orbit.oem | python3 bin/xform_oem.py --x-ref-frame J2000
+cat orbit.oem | python3 bin/xform_oem.py - --x-ref-frame J2000
 ```
 
 Write an OEM result to standard output or to a file:
 
 ```bash
-python3 bin/xform_oem.py orbit.oem --ref-frame ITRF93 > orbit_itrf93.oem
-python3 bin/xform_oem.py orbit.oem --ref-frame ITRF93 -o orbit_itrf93.oem
+python3 bin/xform_oem.py orbit.oem --x-ref-frame ITRF93 > orbit_itrf93.oem
+python3 bin/xform_oem.py orbit.oem --x-ref-frame ITRF93 -o orbit_itrf93.oem
 ```
 
 AER output can also be chained with other command-line tools:
@@ -234,7 +234,7 @@ Use `-v` or `--verbose` to print input information and transformation details
 to stderr, keeping stdout available for OEM or AER output:
 
 ```bash
-python3 bin/xform_oem.py orbit.oem --ref-frame ITRF93 --verbose > output.oem
+python3 bin/xform_oem.py orbit.oem --x-ref-frame ITRF93 --verbose > output.oem
 ```
 
 Verbose output includes:
@@ -264,8 +264,7 @@ python3 bin/xform_oem.py input.oem \
 
 ```bash
 python3 bin/xform_oem.py input.oem \
-  --src-ref-frame TEME \
-  --ref-frame ITRF93 \
+  --x-ref-frame TEME,ITRF93 \
   -o output.oem
 ```
 
@@ -273,8 +272,7 @@ python3 bin/xform_oem.py input.oem \
 
 ```bash
 python3 bin/xform_oem.py input.oem \
-  --src-ref-frame ITRF93 \
-  --ref-frame J2000 \
+  --x-ref-frame ITRF93,J2000 \
   -o output.oem
 ```
 
@@ -299,12 +297,22 @@ The frame-conversion path uses TudatPy rotation models and SPICE resources
 where required. The AER path uses the ground-station latitude, longitude, and
 altitude to convert each ECEF position independently.
 
+SPICE-backed frame conversions load kernels through TudatPy's configured SPICE
+kernel directory. Commonly used files include:
+
+- `naif0012.tls`: leap-seconds kernel
+- `pck00011.tpc`: planetary constants kernel
+- `earth_200101_990825_predict.bpc`: Earth rotation prediction kernel
+
+Their absolute locations and coverage depend on the installed TudatPy/Tudat
+resource set.
+
 ## Error Handling
 
 Common argument errors include:
 
 ```text
---aer and --ref-frame cannot be used together
+--aer and --x-ref-frame cannot be used together
 --aer cannot be combined with --set-meta
 --aer cannot be combined with --set-header
 --set-meta requires KEY=VALUE
