@@ -199,6 +199,8 @@ Supported header keys are:
 - `CCSDS_OEM_VERS` — numeric OEM version
 - `CREATION_DATE` — creation timestamp value
 - `ORIGINATOR` — originator name
+- `CLASSIFICATION` — optional message classification
+- `MESSAGE_ID` — optional message identifier
 
 Header keys are case-insensitive. Header overrides are applied after any
 reference-frame conversion.
@@ -343,6 +345,5 @@ resources required by a frame conversion.
 - `bin/diff_oem.py` — Compare states from two OEM files (see
   [DIFF_OEM.md](DIFF_OEM.md))
 - `common/frame_utils.py` — Lower-level frame conversion implementation
-- [FRAME_CONVERSION.md](FRAME_CONVERSION.md) — Concise frame-conversion notes
 - [tudatpy_frame_conversion.md](tudatpy_frame_conversion.md) — TudatPy API and
   rotation-model notes

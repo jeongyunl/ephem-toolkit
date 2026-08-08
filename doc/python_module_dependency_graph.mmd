@@ -17,6 +17,7 @@ graph LR
         mod_common_frame_utils[common.frame_utils]
         mod_common_kepler[common.kepler]
         mod_common_mean_kepler[common.mean_kepler]
+        mod_common_odm[common.ccsds.odm]
         mod_common_oem[common.ccsds.oem]
         mod_common_omm[common.ccsds.omm]
         mod_common_slice_oem[common.slice_oem]
@@ -36,7 +37,6 @@ graph LR
         mod_bin_xform_oem([xform_oem])
         mod_bin_omm_to_tle([omm_to_tle])
         mod_bin_slice_oem([slice_oem])
-        mod_bin_state_diff([state_diff])
         mod_bin_tle_info([tle_info])
         mod_bin_tle_to_omm([tle_to_omm])
     end
@@ -101,9 +101,6 @@ graph LR
     mod_bin_slice_oem --> mod_common_oem
     mod_bin_slice_oem --> mod_common_slice_oem
     mod_bin_slice_oem --> mod_common_time_utils
-    mod_bin_state_diff --> mod_common_common
-    mod_bin_state_diff --> mod_common_oem
-    mod_bin_state_diff --> mod_common_time_utils
     mod_bin_tle_info --> mod_common_common
     mod_bin_tle_info --> mod_common_kepler
     mod_bin_tle_to_omm --> mod_common_convert_tle

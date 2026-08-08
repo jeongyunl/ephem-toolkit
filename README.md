@@ -17,6 +17,7 @@ The repository is organized into three layers:
 ```
 common/              Shared Python library modules
 common/interpolator/ Interpolation sub-library (Lagrange, generic)
+common/ccsds/       CCSDS ODM, OEM, and OMM definitions and parsers
 time_conversion/     C++ time-conversion library, CLI, and tests
 oem_to_omm/          OEM-to-OMM estimation application module (includes TLE fitting)
 propagation/         Python propagation scripts
