@@ -356,6 +356,7 @@ def test_ccsds_oem_write_with_all_metadata_fields() -> None:
 
     # Add additional metadata
     oem_obj.meta.object_id = "2024-001A"
+    oem_obj.meta.ref_frame_epoch = "2024-01-01T00:00:00.000000"
     oem_obj.meta.interpolation = "LAGRANGE"
     oem_obj.meta.interpolation_degree = 7
     oem_obj.meta.useable_start_time = oem_obj.meta.start_time
@@ -368,6 +369,7 @@ def test_ccsds_oem_write_with_all_metadata_fields() -> None:
     assert "OBJECT_NAME" in content
     assert "OBJECT_ID" in content
     assert "REF_FRAME" in content
+    assert "REF_FRAME_EPOCH" in content
     assert "CENTER_NAME" in content
     assert "TIME_SYSTEM" in content
     assert "INTERPOLATION" in content

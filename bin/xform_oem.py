@@ -255,6 +255,8 @@ def parse_header_overrides(
         "CCSDS_OEM_VERS": "version",
         "CREATION_DATE": "creation_date",
         "ORIGINATOR": "originator",
+        "CLASSIFICATION": "classification",
+        "MESSAGE_ID": "message_id",
     }
     overrides: list[tuple[str, str | float]] = []
 

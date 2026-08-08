@@ -113,6 +113,31 @@ def test_ccsds_oem_read_exposes_structured_fields() -> None:
     assert first_state.shape == (6,)
 
 
+def test_ccsds_oem_preserves_classification_and_message_id() -> None:
+    """CcsdsOem should preserve optional CCSDS header identification fields."""
+    content = """CCSDS_OEM_VERS = 2.0
+CREATION_DATE  = 2024-01-01T00:00:00
+ORIGINATOR     = TEST
+CLASSIFICATION = UNCLASSIFIED
+MESSAGE_ID     = TEST-001
+
+META_START
+META_STOP
+
+2024-01-01T00:00:00.000000 7000.0 0.0 0.0 0.0 7.5 0.0
+"""
+
+    parsed = oem.CcsdsOem.read(io.StringIO(content))
+
+    assert parsed.header.classification == "UNCLASSIFIED"
+    assert parsed.header.message_id == "TEST-001"
+
+    output = io.StringIO()
+    parsed.write(output)
+    assert "CLASSIFICATION = UNCLASSIFIED" in output.getvalue()
+    assert "MESSAGE_ID     = TEST-001" in output.getvalue()
+
+
 def test_ccsds_oem_read_from_stream() -> None:
     """CcsdsOem.read() should accept a text stream."""
     text = OEM_PATH.read_text(encoding="utf-8")

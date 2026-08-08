@@ -61,6 +61,7 @@ _META_KEY_ORDER: list[str] = [
     "OBJECT_ID",
     "CENTER_NAME",
     "REF_FRAME",
+    "REF_FRAME_EPOCH",
     "TIME_SYSTEM",
     "START_TIME",
     "USEABLE_START_TIME",
@@ -413,6 +414,10 @@ def write_oem(
         w(f"CREATION_DATE  = {header['CREATION_DATE']}\n")
     if "ORIGINATOR" in header:
         w(f"ORIGINATOR     = {header['ORIGINATOR']}\n")
+    if "CLASSIFICATION" in header:
+        w(f"CLASSIFICATION = {header['CLASSIFICATION']}\n")
+    if "MESSAGE_ID" in header:
+        w(f"MESSAGE_ID     = {header['MESSAGE_ID']}\n")
     w("\n")
 
     w("META_START\n")
@@ -464,6 +469,12 @@ class OemHeader:
     originator: str = ""
     """Organization or entity that created the OEM file."""
 
+    classification: str = ""
+    """Security classification of the OEM message."""
+
+    message_id: str = ""
+    """Identifier for the OEM message."""
+
     data_comments: list[str] = field(default_factory=list)
     """Comment lines from the ephemeris data section (after META_STOP, before state data)."""
 
@@ -483,6 +494,9 @@ class OemMeta:
 
     ref_frame: str = ""
     """Reference frame (e.g., GCRF, J2000, ITRF)."""
+
+    ref_frame_epoch: str = ""
+    """Epoch of the reference frame, when required by its definition."""
 
     time_system: str = ""
     """Time system (e.g., UTC, GPS, TAI)."""
@@ -570,6 +584,8 @@ class CcsdsOem:
             comments=raw_header.get("COMMENT", []),
             creation_date=str(raw_header.get("CREATION_DATE", "")),
             originator=str(raw_header.get("ORIGINATOR", "")),
+            classification=str(raw_header.get("CLASSIFICATION", "")),
+            message_id=str(raw_header.get("MESSAGE_ID", "")),
             data_comments=raw_header.get("DATA_COMMENT", []),
         )
 
@@ -578,6 +594,7 @@ class CcsdsOem:
             object_id=str(raw_meta.get("OBJECT_ID", "")),
             center_name=str(raw_meta.get("CENTER_NAME", "")),
             ref_frame=str(raw_meta.get("REF_FRAME", "")),
+            ref_frame_epoch=str(raw_meta.get("REF_FRAME_EPOCH", "")),
             time_system=str(raw_meta.get("TIME_SYSTEM", "")),
             start_time=str(raw_meta.get("START_TIME", "")),
             stop_time=str(raw_meta.get("STOP_TIME", "")),
@@ -703,6 +720,8 @@ class CcsdsOem:
             "CCSDS_OEM_VERS": self.header.version,
             "CREATION_DATE": self.header.creation_date,
             "ORIGINATOR": self.header.originator,
+            "CLASSIFICATION": self.header.classification,
+            "MESSAGE_ID": self.header.message_id,
         }
         if self.header.comments:
             header_dict["COMMENT"] = self.header.comments
