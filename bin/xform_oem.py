@@ -3,7 +3,7 @@
 
 This utility can:
 1. Output OEM files as-is (default when no options given)
-2. Change the reference frame metadata (--ref-frame)
+2. Transform state data to another reference frame and update its metadata (--x-ref-frame)
 3. Convert ECEF positions to AER coordinates (--aer with lat,lon,alt)
 4. Override output OEM metadata (--set-meta KEY=VALUE)
 5. Override output OEM header fields (--set-header KEY=VALUE)
@@ -13,8 +13,8 @@ Usage:
     python3 bin/xform_oem.py <oem_file>
     cat data.oem | python3 bin/xform_oem.py
 
-    # Change reference frame
-    python3 bin/xform_oem.py <oem_file> --ref-frame J2000
+    # Transform state data and update the reference frame metadata
+    python3 bin/xform_oem.py <oem_file> --x-ref-frame J2000
 
     # Convert to AER coordinates
     python3 bin/xform_oem.py <oem_file> --aer <lat>,<lon>,<alt>
@@ -23,11 +23,11 @@ Examples:
     # Output ISS OEM file as-is
     python3 bin/xform_oem.py iss.oem
 
-    # Change reference frame to J2000
-    python3 bin/xform_oem.py iss.oem --ref-frame J2000 -o output.oem
+    # Transform state data to J2000 and update the reference frame metadata
+    python3 bin/xform_oem.py iss.oem --x-ref-frame J2000 -o output.oem
 
     # Rewrite metadata after any state transformation
-    python3 bin/xform_oem.py iss.oem --ref-frame J2000 \
+    python3 bin/xform_oem.py iss.oem --x-ref-frame J2000 \
         --set-meta OBJECT_NAME=ISS --set-header ORIGINATOR=NASA -o output.oem
 
     # Convert ISS orbit to AER from ground station
@@ -50,12 +50,12 @@ from __future__ import annotations
 
 import argparse
 import sys
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TextIO
 
 # Suppress Warnings from TudatPy
-import warnings
-
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 warnings.filterwarnings(
     "ignore",
@@ -66,8 +66,8 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from common import frame_utils
 import common.aer as aer
+import common.frame_utils as frame_utils
 import common.oem as oem
 import common.time_utils as time_utils
 
@@ -77,7 +77,7 @@ def convert_to_aer(
     lat_deg: float,
     lon_deg: float,
     alt_m: float,
-    output_file,
+    output_file: TextIO,
     verbose: bool = False,
 ) -> None:
     """Convert OEM states to AER coordinates and write to output.
@@ -98,7 +98,7 @@ def convert_to_aer(
         Print verbose debug information.
     """
     # Validate reference frame
-    ref_frame = oem_data.meta.ref_frame.upper()
+    ref_frame: str = oem_data.meta.ref_frame.upper()
     if "ECEF" not in ref_frame and "ITRF" not in ref_frame:
         print(
             f"Warning: Reference frame '{oem_data.meta.ref_frame}' may not be ECEF. "
@@ -107,9 +107,9 @@ def convert_to_aer(
         )
 
     # Convert ground station coordinates from degrees to radians
-    lat_rad = np.deg2rad(lat_deg)
-    lon_rad = np.deg2rad(lon_deg)
-    reference_lla_rad_rad_m = np.array([lat_rad, lon_rad, alt_m])
+    lat_rad: float = np.deg2rad(lat_deg)
+    lon_rad: float = np.deg2rad(lon_deg)
+    reference_lla_rad_m: np.ndarray = np.array([lat_rad, lon_rad, alt_m])
 
     if verbose:
         print(f"[xform_oem] Ground station:", file=sys.stderr)
@@ -121,19 +121,22 @@ def convert_to_aer(
     # Convert each state to AER
     for timestamp, state_vector in oem_data.states:
         # Extract position (first 3 elements)
-        ecef_position = state_vector[0:3]
+        ecef_position_m: np.ndarray = state_vector[0:3]
 
         # Convert ECEF position to AER
-        aer_position = aer.ecef_to_aer(ecef_position, reference_lla_rad_rad_m)
+        aer_position: np.ndarray = aer.ecef_to_aer(
+            ecef_position_m,
+            reference_lla_rad_m,
+        )
 
         # Convert to degrees for output
-        azimuth_deg = np.rad2deg(aer_position[0])
-        elevation_deg = np.rad2deg(aer_position[1])
-        range_m = aer_position[2]
+        azimuth_deg: float = np.rad2deg(aer_position[0])
+        elevation_deg: float = np.rad2deg(aer_position[1])
+        range_m: float = aer_position[2]
 
         # Format timestamp
-        dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
-        timestamp_str = time_utils.datetime_to_iso8601(dt)
+        dt: datetime = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        timestamp_str: str = time_utils.datetime_to_iso8601(dt)
 
         # Write output
         output_file.write(
@@ -149,8 +152,8 @@ def convert_to_aer(
 
 def convert_ref_frame(
     oem_data: oem.CcsdsOem,
-    new_ref_frame_name: str,
-    src_ref_frame_override: str | None = None,
+    target_ref_frame_name: str,
+    source_ref_frame_override: str | None = None,
 ) -> str | None:
     """Convert OEM state vectors to a new reference frame.
 
@@ -158,11 +161,12 @@ def convert_ref_frame(
     ----------
     oem_data : oem.CcsdsOem
         Input OEM data.
-    new_ref_frame_name : str
+    target_ref_frame_name : str
         New reference frame name for the converted state vectors.
-    src_ref_frame_override : str | None, optional
+    source_ref_frame_override : str | None, optional
         Override the source reference frame name from the OEM file.
         If None, uses the reference frame from the OEM metadata.
+
     Returns
     -------
     str | None
@@ -171,43 +175,48 @@ def convert_ref_frame(
     """
 
     # Use override if provided, otherwise use the OEM file's reference frame
-    if src_ref_frame_override:
-        original_reference_frame = frame_utils.Frame(src_ref_frame_override.upper())
+    if source_ref_frame_override:
+        original_reference_frame: frame_utils.Frame = frame_utils.Frame(
+            source_ref_frame_override.upper()
+        )
     else:
         original_reference_frame = frame_utils.Frame(oem_data.meta.ref_frame.upper())
 
-    new_reference_frame = frame_utils.Frame(new_ref_frame_name.upper())
+    target_reference_frame: frame_utils.Frame = frame_utils.Frame(
+        target_ref_frame_name.upper()
+    )
 
     for state in oem_data.states:
-        posix_timestamp, state_vector_km = state
+        posix_timestamp, state_vector_m = state
         # Convert state vector to new reference frame
-        converted_state_vector_m = frame_utils.convert_frame(
+        converted_state_vector_m: np.ndarray | None = frame_utils.convert_frame(
             base_frame=original_reference_frame,
-            target_frame=new_reference_frame,
+            target_frame=target_reference_frame,
             epoch_tdb_s=time_utils.posix_to_tdb_s(posix_timestamp),
-            input_state_m=state_vector_km * 1000.0,
+            input_state_m=state_vector_m,
         )
 
         if converted_state_vector_m is None:
             print(
                 f"Error: Could not convert state at timestamp {posix_timestamp} "
-                f"from {original_reference_frame.value} to {new_reference_frame.value}. "
+                f"from {original_reference_frame.value} to "
+                f"{target_reference_frame.value}. "
                 "Leaving state unchanged.",
                 file=sys.stderr,
             )
             return None
 
         # Update the state in the OEM data
-        state[1][:] = converted_state_vector_m / 1000.0  # Convert back to km
+        state[1][:] = converted_state_vector_m
 
-    return new_reference_frame.value
+    return target_reference_frame.value
 
 
 def parse_metadata_overrides(
     values: list[str], parser: argparse.ArgumentParser
 ) -> list[tuple[str, str | int]]:
     """Parse and validate repeated ``KEY=VALUE`` metadata overrides."""
-    metadata_fields = {
+    metadata_fields: dict[str, str] = {
         field_name.upper(): field_name
         for field_name in vars(oem.OemMeta())
         if field_name != "comments"
@@ -242,7 +251,7 @@ def parse_header_overrides(
     values: list[str], parser: argparse.ArgumentParser
 ) -> list[tuple[str, str | float]]:
     """Parse and validate repeated ``KEY=VALUE`` header overrides."""
-    header_fields = {
+    header_fields: dict[str, str] = {
         "CCSDS_OEM_VERS": "version",
         "CREATION_DATE": "creation_date",
         "ORIGINATOR": "originator",
@@ -290,7 +299,7 @@ def parse_arguments() -> argparse.Namespace:
         ),
         epilog=(
             "By default, outputs the input OEM file as-is. "
-            "Use --ref-frame to change the reference frame metadata, "
+            "Use --x-ref-frame to transform state data and update its reference frame metadata, "
             "--set-meta KEY=VALUE to override output metadata, "
             "--set-header KEY=VALUE to override output header fields, "
             "or --aer with comma-separated lat,lon,alt to convert to AER coordinates.\n\n"
@@ -322,18 +331,14 @@ def parse_arguments() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--src-ref-frame",
-        metavar="<frame>",
+        "--x-ref-frame",
+        metavar="<frame>|<base_frame,target_frame>",
         help=(
-            "Override the source reference frame name from the OEM file. "
-            "Use this when the OEM file has an incorrect or non-standard reference frame name "
-            "but you know the actual reference frame. This affects frame conversions."
+            "Transform state vectors to a target reference frame and update "
+            "the output REF_FRAME metadata. Provide one "
+            "frame to use the OEM REF_FRAME as the source, or provide "
+            "base_frame,target_frame to override the source frame."
         ),
-    )
-    parser.add_argument(
-        "--ref-frame",
-        metavar="<frame>",
-        help="Output reference frame. Updates the REF_FRAME metadata field in the output OEM file.",
     )
     parser.add_argument(
         "--set-meta",
@@ -362,6 +367,17 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     args = parser.parse_args()
+    args.x_ref_frame_parts = None
+    if args.x_ref_frame:
+        frame_parts: list[str] = [part.strip() for part in args.x_ref_frame.split(",")]
+        if len(frame_parts) == 1 and frame_parts[0]:
+            args.x_ref_frame_parts = (None, frame_parts[0])
+        elif len(frame_parts) == 2 and all(frame_parts):
+            args.x_ref_frame_parts = (frame_parts[0], frame_parts[1])
+        else:
+            parser.error(
+                "--x-ref-frame requires <frame> or " "<base_frame>,<target_frame>"
+            )
     args.metadata_overrides = parse_metadata_overrides(args.set_meta, parser)
     args.header_overrides = parse_header_overrides(args.set_header, parser)
 
@@ -369,7 +385,7 @@ def parse_arguments() -> argparse.Namespace:
     if args.aer:
         # Parse comma-separated lat,lon,alt
         try:
-            parts = args.aer.split(",")
+            parts: list[str] = args.aer.split(",")
             if len(parts) != 3:
                 parser.error(
                     "--aer requires exactly 3 comma-separated values: <lat>,<lon>,<alt>"
@@ -380,8 +396,8 @@ def parse_arguments() -> argparse.Namespace:
         except ValueError as e:
             parser.error(f"--aer values must be numeric: {e}")
 
-        if args.ref_frame:
-            parser.error("--aer and --ref-frame cannot be used together")
+        if args.x_ref_frame:
+            parser.error("--aer and --x-ref-frame cannot be used together")
         if args.metadata_overrides:
             parser.error("--aer cannot be combined with --set-meta")
         if args.header_overrides:
@@ -420,9 +436,11 @@ def main() -> None:
             f"[xform_oem]   Reference frame: {oem_data.meta.ref_frame}",
             file=sys.stderr,
         )
-        if args.src_ref_frame:
+        if args.x_ref_frame_parts:
+            source_frame, target_frame = args.x_ref_frame_parts
             print(
-                f"[xform_oem]   Source frame override: {args.src_ref_frame}",
+                f"[xform_oem]   Frame conversion: "
+                f"{source_frame or oem_data.meta.ref_frame} -> {target_frame}",
                 file=sys.stderr,
             )
         print(f"[xform_oem]   Center: {oem_data.meta.center_name}", file=sys.stderr)
@@ -456,9 +474,9 @@ def main() -> None:
     if args.aer:
         # Determine output destination
         if args.output == "-":
-            output_file = sys.stdout
+            output_file: TextIO = sys.stdout
         else:
-            output_file = open(args.output, "w")
+            output_file = open(args.output, "w", encoding="utf-8")
 
         try:
             convert_to_aer(
@@ -475,11 +493,12 @@ def main() -> None:
         return
 
     # Handle reference frame change or default output
-    if args.ref_frame:
+    if args.x_ref_frame_parts:
+        source_frame, target_frame = args.x_ref_frame_parts
         converted_ref_frame = convert_ref_frame(
             oem_data,
-            args.ref_frame,
-            args.src_ref_frame,
+            target_frame,
+            source_frame,
         )
         if converted_ref_frame is None:
             return
