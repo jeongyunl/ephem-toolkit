@@ -5,6 +5,9 @@ OEM state vectors between supported reference frames. It uses the conversion
 logic in `common/frame_utils.py`, including the TudatPy rotation models and
 SPICE kernels required by those models.
 
+See [XFORM_OEM.md](XFORM_OEM.md) for complete command-line documentation,
+including AER conversion, metadata overrides, and stream processing.
+
 ## Supported frames
 
 The `--ref-frame` and `--src-ref-frame` options accept the frame names exposed
@@ -52,6 +55,8 @@ OEM units.
 | `oem_file` | Optional input CCSDS OEM path; omit it or use `-` for stdin |
 | `--src-ref-frame <frame>` | Override the input OEM reference frame |
 | `--ref-frame <frame>` | Target reference frame and output `REF_FRAME` value |
+| `--set-meta <KEY=VALUE>` | Override output OEM metadata; repeatable and applied after transformations |
+| `--set-header <KEY=VALUE>` | Override output OEM header fields; repeatable and applied after transformations |
 | `-o, --output <file\|->` | Output path; defaults to stdout |
 | `-v, --verbose` | Print input and conversion details to stderr |
 | `--aer <lat,lon,alt>` | Convert ECEF/ITRF positions to AER text instead of writing an OEM |

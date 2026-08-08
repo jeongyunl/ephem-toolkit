@@ -5,6 +5,8 @@ The command-line frame-conversion entry point is `bin/xform_oem.py`. It calls
 names and applies the appropriate TudatPy transformation for each supported
 source and target pair.
 
+See [XFORM_OEM.md](XFORM_OEM.md) for complete command-line usage.
+
 ## APIs used by the current implementation
 
 The implementation uses:

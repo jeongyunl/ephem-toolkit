@@ -5,6 +5,8 @@ This utility can:
 1. Output OEM files as-is (default when no options given)
 2. Change the reference frame metadata (--ref-frame)
 3. Convert ECEF positions to AER coordinates (--aer with lat,lon,alt)
+4. Override output OEM metadata (--set-meta KEY=VALUE)
+5. Override output OEM header fields (--set-header KEY=VALUE)
 
 Usage:
     # Output OEM file as-is
@@ -23,6 +25,10 @@ Examples:
 
     # Change reference frame to J2000
     python3 bin/xform_oem.py iss.oem --ref-frame J2000 -o output.oem
+
+    # Rewrite metadata after any state transformation
+    python3 bin/xform_oem.py iss.oem --ref-frame J2000 \
+        --set-meta OBJECT_NAME=ISS --set-header ORIGINATOR=NASA -o output.oem
 
     # Convert ISS orbit to AER from ground station
     python3 bin/xform_oem.py iss.oem --aer 40.7128,-74.0060,10.0
@@ -144,22 +150,24 @@ def convert_to_aer(
 def convert_ref_frame(
     oem_data: oem.CcsdsOem,
     new_ref_frame_name: str,
-    output_path: str,
     src_ref_frame_override: str | None = None,
-) -> None:
-    """Convert OEM reference frame metadata and write to output.
+) -> str | None:
+    """Convert OEM state vectors to a new reference frame.
 
     Parameters
     ----------
     oem_data : oem.CcsdsOem
         Input OEM data.
-    new_ref_frame : str
-        New reference frame name to set in metadata.
-    output_path : str
-        Output file path. Use '-' for stdout.
+    new_ref_frame_name : str
+        New reference frame name for the converted state vectors.
     src_ref_frame_override : str | None, optional
         Override the source reference frame name from the OEM file.
         If None, uses the reference frame from the OEM metadata.
+    Returns
+    -------
+    str | None
+        Canonical target frame name on success, or ``None`` if a state could
+        not be converted.
     """
 
     # Use override if provided, otherwise use the OEM file's reference frame
@@ -187,17 +195,82 @@ def convert_ref_frame(
                 "Leaving state unchanged.",
                 file=sys.stderr,
             )
-            return
+            return None
 
         # Update the state in the OEM data
         state[1][:] = converted_state_vector_m / 1000.0  # Convert back to km
 
-    oem_data.update_metadata(ref_frame=new_reference_frame.value)
+    return new_reference_frame.value
 
-    if output_path == "-":
-        oem_data.write(sys.stdout)
-    else:
-        oem_data.write(output_path)
+
+def parse_metadata_overrides(
+    values: list[str], parser: argparse.ArgumentParser
+) -> list[tuple[str, str | int]]:
+    """Parse and validate repeated ``KEY=VALUE`` metadata overrides."""
+    metadata_fields = {
+        field_name.upper(): field_name
+        for field_name in vars(oem.OemMeta())
+        if field_name != "comments"
+    }
+    overrides: list[tuple[str, str | int]] = []
+
+    for value in values:
+        if "=" not in value:
+            parser.error(f"--set-meta requires KEY=VALUE, got {value!r}")
+        key, field_value = value.split("=", 1)
+        field_name = metadata_fields.get(key.strip().upper())
+        if field_name is None:
+            supported_fields = ", ".join(sorted(metadata_fields))
+            parser.error(
+                f"unknown --set-meta key {key.strip()!r}; "
+                f"supported keys: {supported_fields}"
+            )
+
+        if field_name == "interpolation_degree":
+            try:
+                parsed_value: str | int = int(field_value.strip())
+            except ValueError:
+                parser.error("--set-meta INTERPOLATION_DEGREE must be an integer")
+        else:
+            parsed_value = field_value
+        overrides.append((field_name, parsed_value))
+
+    return overrides
+
+
+def parse_header_overrides(
+    values: list[str], parser: argparse.ArgumentParser
+) -> list[tuple[str, str | float]]:
+    """Parse and validate repeated ``KEY=VALUE`` header overrides."""
+    header_fields = {
+        "CCSDS_OEM_VERS": "version",
+        "CREATION_DATE": "creation_date",
+        "ORIGINATOR": "originator",
+    }
+    overrides: list[tuple[str, str | float]] = []
+
+    for value in values:
+        if "=" not in value:
+            parser.error(f"--set-header requires KEY=VALUE, got {value!r}")
+        key, field_value = value.split("=", 1)
+        field_name = header_fields.get(key.strip().upper())
+        if field_name is None:
+            supported_fields = ", ".join(sorted(header_fields))
+            parser.error(
+                f"unknown --set-header key {key.strip()!r}; "
+                f"supported keys: {supported_fields}"
+            )
+
+        if field_name == "version":
+            try:
+                parsed_value: str | float = float(field_value.strip())
+            except ValueError:
+                parser.error("--set-header CCSDS_OEM_VERS must be numeric")
+        else:
+            parsed_value = field_value
+        overrides.append((field_name, parsed_value))
+
+    return overrides
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -218,7 +291,19 @@ def parse_arguments() -> argparse.Namespace:
         epilog=(
             "By default, outputs the input OEM file as-is. "
             "Use --ref-frame to change the reference frame metadata, "
+            "--set-meta KEY=VALUE to override output metadata, "
+            "--set-header KEY=VALUE to override output header fields, "
             "or --aer with comma-separated lat,lon,alt to convert to AER coordinates.\n\n"
+        ),
+    )
+    parser.add_argument(
+        "--set-header",
+        action="append",
+        default=[],
+        metavar="<KEY=VALUE>",
+        help=(
+            "Override an OEM header field in the output. Repeatable. "
+            "Supported keys: CCSDS_OEM_VERS, CREATION_DATE, ORIGINATOR."
         ),
     )
     parser.add_argument(
@@ -251,6 +336,18 @@ def parse_arguments() -> argparse.Namespace:
         help="Output reference frame. Updates the REF_FRAME metadata field in the output OEM file.",
     )
     parser.add_argument(
+        "--set-meta",
+        action="append",
+        default=[],
+        metavar="<KEY=VALUE>",
+        help=(
+            "Override an OEM metadata field in the output. Repeatable. "
+            "Supported keys include OBJECT_NAME, OBJECT_ID, CENTER_NAME, "
+            "REF_FRAME, TIME_SYSTEM, START_TIME, STOP_TIME, INTERPOLATION, "
+            "and INTERPOLATION_DEGREE."
+        ),
+    )
+    parser.add_argument(
         "-o",
         "--output",
         metavar="<file|->",
@@ -265,6 +362,8 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     args = parser.parse_args()
+    args.metadata_overrides = parse_metadata_overrides(args.set_meta, parser)
+    args.header_overrides = parse_header_overrides(args.set_header, parser)
 
     # Parse AER coordinates
     if args.aer:
@@ -283,6 +382,10 @@ def parse_arguments() -> argparse.Namespace:
 
         if args.ref_frame:
             parser.error("--aer and --ref-frame cannot be used together")
+        if args.metadata_overrides:
+            parser.error("--aer cannot be combined with --set-meta")
+        if args.header_overrides:
+            parser.error("--aer cannot be combined with --set-header")
     else:
         args.lat_deg = None
         args.lon_deg = None
@@ -373,13 +476,24 @@ def main() -> None:
 
     # Handle reference frame change or default output
     if args.ref_frame:
-        convert_ref_frame(oem_data, args.ref_frame, args.output, args.src_ref_frame)
+        converted_ref_frame = convert_ref_frame(
+            oem_data,
+            args.ref_frame,
+            args.src_ref_frame,
+        )
+        if converted_ref_frame is None:
+            return
+        oem_data.update_metadata(ref_frame=converted_ref_frame)
+    if args.metadata_overrides:
+        oem_data.update_metadata(**dict(args.metadata_overrides))
+    if args.header_overrides:
+        for field_name, value in args.header_overrides:
+            setattr(oem_data.header, field_name, value)
+
+    if args.output == "-":
+        oem_data.write(sys.stdout)
     else:
-        # Output OEM file as-is
-        if args.output == "-":
-            oem_data.write(sys.stdout)
-        else:
-            oem_data.write(args.output)
+        oem_data.write(args.output)
 
 
 if __name__ == "__main__":

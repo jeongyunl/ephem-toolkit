@@ -18,7 +18,7 @@
         1. More output format options, for example showing the differences in a table or CSV format.
     1. `slice_oem.py`
         1. Further improvements?
-    1. `xform_oem.py`
+    1. [`xform_oem.py`](doc/XFORM_OEM.md)
         1. Apply arbitrary matrix?
 
 1. Propagation tools
