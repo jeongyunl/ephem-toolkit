@@ -17,6 +17,14 @@ XFORM_OEM_SCRIPT: Path = PROJECT_ROOT / "bin" / "xform_oem.py"
 """Path to xform_oem.py script."""
 
 
+def _build_env() -> dict[str, str]:
+    """Build a test PYTHONPATH environment for running the helper script."""
+    env = os.environ.copy()
+    existing = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = str(PROJECT_ROOT) + (os.pathsep + existing if existing else "")
+    return env
+
+
 def test_debug_override_messages_show_original_values() -> None:
     """Show original header and metadata values in verbose override messages."""
     input_oem = """CCSDS_OEM_VERS = 2.0
@@ -33,8 +41,7 @@ STOP_TIME = 2024-01-01T00:00:00.000
 META_STOP
 2024-01-01T00:00:00.000 7000 0 0 0 7.5 0
 """
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(PROJECT_ROOT)
+    env = _build_env()
 
     result = subprocess.run(
         [
