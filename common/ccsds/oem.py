@@ -720,9 +720,11 @@ class CcsdsOem:
             "CCSDS_OEM_VERS": self.header.version,
             "CREATION_DATE": self.header.creation_date,
             "ORIGINATOR": self.header.originator,
-            "CLASSIFICATION": self.header.classification,
-            "MESSAGE_ID": self.header.message_id,
         }
+        if self.header.classification:
+            header_dict["CLASSIFICATION"] = self.header.classification
+        if self.header.message_id:
+            header_dict["MESSAGE_ID"] = self.header.message_id
         if self.header.comments:
             header_dict["COMMENT"] = self.header.comments
         if self.header.data_comments:
