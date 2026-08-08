@@ -73,6 +73,16 @@ _META_KEY_ORDER: list[str] = [
 """Preferred ordering of metadata keys when writing OEM files."""
 
 
+_HEADER_KEY_ORDER: list[str] = [
+    "CCSDS_OEM_VERS",
+    "CREATION_DATE",
+    "ORIGINATOR",
+    "CLASSIFICATION",
+    "MESSAGE_ID",
+]
+"""Preferred ordering of header keys when writing OEM files."""
+
+
 # ===================================================================
 # Low-level reader (dict-based)
 # ===================================================================
@@ -400,8 +410,20 @@ def write_oem(
 
     w: Callable[[str], int] = dest.write
 
-    version: float | int = header.get("CCSDS_OEM_VERS", 2.0)
-    w(f"CCSDS_OEM_VERS = {version}\n")
+    header_values: dict = dict(header)
+    header_values.setdefault("CCSDS_OEM_VERS", 2.0)
+
+    header_keys: list[str] = [key for key in _HEADER_KEY_ORDER if key in header_values]
+    extra_header_keys: list[str] = [
+        key
+        for key in header_values
+        if key not in _HEADER_KEY_ORDER and key not in {"COMMENT", "DATA_COMMENT"}
+    ]
+    all_header_keys: list[str] = header_keys + extra_header_keys
+    header_pad: int = max((len(key) for key in all_header_keys), default=0)
+
+    version: float | int = header_values["CCSDS_OEM_VERS"]
+    w(f"{'CCSDS_OEM_VERS':<{header_pad}} = {version}\n")
 
     # Header comments (after CCSDS_OEM_VERS, before CREATION_DATE)
     if header.get("COMMENT"):
@@ -410,14 +432,8 @@ def write_oem(
             w(f"COMMENT {comment}\n")
         w("\n")
 
-    if "CREATION_DATE" in header:
-        w(f"CREATION_DATE  = {header['CREATION_DATE']}\n")
-    if "ORIGINATOR" in header:
-        w(f"ORIGINATOR     = {header['ORIGINATOR']}\n")
-    if "CLASSIFICATION" in header:
-        w(f"CLASSIFICATION = {header['CLASSIFICATION']}\n")
-    if "MESSAGE_ID" in header:
-        w(f"MESSAGE_ID     = {header['MESSAGE_ID']}\n")
+    for key in header_keys[1:] + extra_header_keys:
+        w(f"{key:<{header_pad}} = {header_values[key]}\n")
     w("\n")
 
     w("META_START\n")
