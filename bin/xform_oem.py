@@ -306,6 +306,12 @@ def parse_arguments() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Print detailed debug information to stderr",
+    )
+    parser.add_argument(
         "--set-header",
         action="append",
         default=[],
@@ -313,31 +319,6 @@ def parse_arguments() -> argparse.Namespace:
         help=(
             "Override an OEM header field in the output. Repeatable. "
             "Supported keys: CCSDS_OEM_VERS, CREATION_DATE, ORIGINATOR."
-        ),
-    )
-    parser.add_argument(
-        "oem_file",
-        nargs="?",
-        help='Path to input CCSDS OEM file in ECEF frame (use "-" or omit to read from stdin)',
-    )
-    parser.add_argument(
-        "--aer",
-        metavar="<lat,lon,alt>",
-        help=(
-            "Convert ECEF positions to AER (Azimuth-Elevation-Range) coordinates. "
-            "Provide comma-separated values: latitude (degrees, +N/-S), "
-            "longitude (degrees, +E/-W), altitude (meters above WGS-84 ellipsoid). "
-            "Example: --aer 40.7128,-74.0060,10.0"
-        ),
-    )
-    parser.add_argument(
-        "--x-ref-frame",
-        metavar="<frame>|<base_frame,target_frame>",
-        help=(
-            "Transform state vectors to a target reference frame and update "
-            "the output REF_FRAME metadata. Provide one "
-            "frame to use the OEM REF_FRAME as the source, or provide "
-            "base_frame,target_frame to override the source frame."
         ),
     )
     parser.add_argument(
@@ -353,17 +334,36 @@ def parse_arguments() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--x-ref-frame",
+        metavar="<frame>|<base_frame,target_frame>",
+        help=(
+            "Transform state vectors to a target reference frame and update "
+            "the output REF_FRAME metadata. Provide one "
+            "frame to use the OEM REF_FRAME as the source, or provide "
+            "base_frame,target_frame to override the source frame."
+        ),
+    )
+    parser.add_argument(
+        "--aer",
+        metavar="<lat,lon,alt>",
+        help=(
+            "Convert ECEF positions to AER (Azimuth-Elevation-Range) coordinates. "
+            "Provide comma-separated values: latitude (degrees, +N/-S), "
+            "longitude (degrees, +E/-W), altitude (meters above WGS-84 ellipsoid). "
+            "Example: --aer 40.7128,-74.0060,10.0"
+        ),
+    )
+    parser.add_argument(
+        "oem_file",
+        nargs="?",
+        help='Path to input CCSDS OEM file in ECEF frame (use "-" or omit to read from stdin)',
+    )
+    parser.add_argument(
         "-o",
         "--output",
         metavar="<file|->",
         default="-",
         help="Output file path (default: '-'). Use '-' to print to stdout.",
-    )
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Print detailed debug information to stderr",
     )
 
     args = parser.parse_args()
