@@ -44,7 +44,6 @@ flowchart LR
 
     %% conversion/ utilities
     slice_oem(["slice_oem.py"])
-    state_diff(["state_diff.py"])
 
     %% OEM transformation utility
     xform_oem(["xform_oem.py"])
@@ -99,9 +98,6 @@ flowchart LR
     %% slice_oem.py: OEM → sliced OEM states
     fmt_oem --> slice_oem
     slice_oem --> fmt_oem
-
-    %% state_diff.py: OEM state vectors → comparison summary
-    fmt_oem --> state_diff
 
     %% plot_dependent_variables.py: dependent-variable CSV → plots/animations
     fmt_dep_vars_csv --> plot_dep_vars

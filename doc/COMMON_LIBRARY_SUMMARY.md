@@ -12,12 +12,13 @@ This document provides an overview of the libraries and functions available in t
 6. [mean_kepler.py - Mean Keplerian Elements](#mean_keplerpy---mean-keplerian-elements)
 7. [convert_tle.py - TLE/OMM Conversion](#convert_tlepy---tleomm-conversion)
 8. [tle.py - Two-Line Element Sets](#tlepy---two-line-element-sets)
-9. [omm.py - Orbit Mean-Elements Message](#ommpy---orbit-mean-elements-message)
-10. [oem.py - Orbit Ephemeris Message](#oempy---orbit-ephemeris-message)
-11. [slice_oem.py - OEM Slicing Utilities](#slice_oempy---oem-slicing-utilities)
-12. [wgs.py - WGS-84 Coordinate Conversions](#wgspy---wgs-84-coordinate-conversions)
-13. [aer.py - AER Coordinate Conversions](#aerpy---aer-coordinate-conversions)
-14. [interpolator/ - Interpolation Package](#interpolator---interpolation-package)
+9. [common.ccsds.odm - CCSDS Orbit Data Message Definitions](#commonccsdsodm---ccsds-orbit-data-message-definitions)
+10. [common.ccsds.omm - Orbit Mean-Elements Message](#commonccsdsomm---orbit-mean-elements-message)
+11. [common.ccsds.oem - Orbit Ephemeris Message](#commonccsdsoem---orbit-ephemeris-message)
+12. [slice_oem.py - OEM Slicing Utilities](#slice_oempy---oem-slicing-utilities)
+13. [wgs.py - WGS-84 Coordinate Conversions](#wgspy---wgs-84-coordinate-conversions)
+14. [aer.py - AER Coordinate Conversions](#aerpy---aer-coordinate-conversions)
+15. [interpolator/ - Interpolation Package](#interpolator---interpolation-package)
 
 ---
 
@@ -336,7 +337,7 @@ Convert mean elements to Cartesian state via Brouwer short-period corrections.
 
 ### TLE ↔ OMM Conversion
 
-#### `tle_to_omm(tle_obj: tle.Tle, *, creation_date: str = "", originator: str = "") -> omm.CcsdsOmm`
+#### `tle_to_omm(tle_obj: tle.Tle, *, creation_date: str = "", originator: str = "") -> common.ccsds.omm.CcsdsOmm`
 Convert a TLE to a CCSDS OMM.
 
 **Parameters:**
@@ -346,7 +347,7 @@ Convert a TLE to a CCSDS OMM.
 
 **Returns:** The equivalent OMM representation
 
-#### `omm_to_tle(omm_obj: omm.CcsdsOmm) -> tle.Tle`
+#### `omm_to_tle(omm_obj: common.ccsds.omm.CcsdsOmm) -> tle.Tle`
 Convert a CCSDS OMM to a TLE.
 
 **Parameters:**
@@ -423,7 +424,20 @@ Return the single-digit TLE checksum character for a TLE line.
 
 ---
 
-## omm.py - Orbit Mean-Elements Message
+## common.ccsds.odm - CCSDS Orbit Data Message Definitions
+
+**Purpose**: Define the reference-frame and time-system identifiers permitted by CCSDS Orbit Data Messages (ODM), including OEM and OMM files.
+
+### Constants
+
+- `REF_FRAME_DESCRIPTIONS`: Mapping of permitted reference-frame identifiers to descriptions
+- `REF_FRAME_VALUES`: Immutable set of permitted reference-frame identifiers
+- `REF_FRAMES`: Alias for `REF_FRAME_VALUES`
+- `TIME_SYSTEM_DESCRIPTIONS`: Mapping of permitted time-system identifiers to descriptions
+- `TIME_SYSTEM_VALUES`: Immutable set of permitted time-system identifiers
+- `TIME_SYSTEMS`: Alias for `TIME_SYSTEM_VALUES`
+
+## common.ccsds.omm - Orbit Mean-Elements Message
 
 **Purpose**: Read, parse, and write CCSDS Orbit Mean-Elements Message (OMM) files.
 
@@ -464,7 +478,7 @@ Write this OMM to a file or stream.
 
 ---
 
-## oem.py - Orbit Ephemeris Message
+## common.ccsds.oem - Orbit Ephemeris Message
 
 **Purpose**: Read, parse, and write CCSDS Orbit Ephemeris Message (OEM) files.
 
@@ -487,6 +501,8 @@ File-level header fields for a CCSDS OEM message.
 **Fields:**
 - `version`: CCSDS OEM format version number
 - `comments`: List of comment lines
+- `classification`: Optional message classification
+- `message_id`: Optional message identifier
 - `creation_date`: File creation date (ISO 8601)
 - `originator`: Organization that created the file
 
