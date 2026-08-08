@@ -38,7 +38,6 @@ doc/                 Documentation
 - `bin/ecef_to_aer.py` — convert ECEF OEM ephemeris to AER (Azimuth-Elevation-Range) coordinates. See [MISC.md](doc/MISC.md) for other details.
 - `bin/xform_oem.py` — convert CCSDS OEM state vectors between supported reference frames, or convert ECEF positions to AER coordinates. See [XFORM_OEM.md](doc/XFORM_OEM.md) for complete documentation.
 
-See [FRAME_CONVERSION.md](doc/FRAME_CONVERSION.md) for full usage details.
 
 ### Orbit Propagation
 
