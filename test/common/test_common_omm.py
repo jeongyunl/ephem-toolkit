@@ -1,4 +1,4 @@
-"""Tests for common.omm.py — OMM parsing, writing, and class API."""
+"""Tests for common.ccsds.omm.py — OMM parsing, writing, and class API."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-import common.omm as omm
+import common.ccsds.omm as omm
 
 TEST_DIR = Path(__file__).parent
 TEST_DATA_DIR = TEST_DIR.parent / "data"

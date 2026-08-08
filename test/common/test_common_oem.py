@@ -1,4 +1,4 @@
-"""Tests for common/oem.py — OEM parsing, writing, and class API."""
+"""Tests for common/ccsds/oem.py — OEM parsing, writing, and class API."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from tempfile import TemporaryDirectory
 import numpy as np
 import pytest
 
-import common.oem as oem
+import common.ccsds.oem as oem
 
 TEST_DIR = Path(__file__).parent
 OEM_PATH = TEST_DIR.parent / "data" / "ISS_2026-05-20.OEM"

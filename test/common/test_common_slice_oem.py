@@ -25,9 +25,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import common.oem as oem
+import common.ccsds.oem as oem
 import common.slice_oem as slice_oem
-from common.oem import CcsdsOem
+from common.ccsds.oem import CcsdsOem
 
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test modules."""

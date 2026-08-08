@@ -36,7 +36,7 @@ warnings.filterwarnings("ignore", category=SyntaxWarning)
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 import common.common as common
-import common.oem as oem
+import common.ccsds.oem as oem
 import common.spice_utils as spice_utils
 import common.time_utils as time_utils
 

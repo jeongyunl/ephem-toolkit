@@ -212,7 +212,7 @@ python3 bin/omm_to_tle.py -h
 
 ### Dependencies
 
-- local helper modules `common.convert_tle`, `common.omm`, `common.tle`
+- local helper modules `common.convert_tle`, `common.ccsds.omm`, `common.tle`
 
 ## `bin/tle_to_omm.py`
 

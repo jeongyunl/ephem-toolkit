@@ -10,7 +10,7 @@ import numpy as np
 
 import common.common as common
 import common.interpolator.lagrange as lagrange
-import common.oem as oem
+import common.ccsds.oem as oem
 import common.time_utils as time_utils
 
 from .data_structures import ComparisonResult
@@ -150,7 +150,9 @@ def compare_states(
     )
 
     if comparison_rotation_matrix is not None:
-        comparison_state_m = rotate_state(comparison_state_m, comparison_rotation_matrix)
+        comparison_state_m = rotate_state(
+            comparison_state_m, comparison_rotation_matrix
+        )
 
     reference_epoch = datetime.fromtimestamp(reference_timestamp, tz=timezone.utc)
     comparison_epoch = datetime.fromtimestamp(comparison_timestamp, tz=timezone.utc)

@@ -424,7 +424,7 @@ python3 bin/slice_oem.py orbit.oem --time-slice "-90m," > last_pass.txt
 The underlying library module `common.slice_oem` can be used directly in Python scripts:
 
 ```python
-import common.oem as oem
+import common.ccsds.oem as oem
 import common.slice_oem as slice_oem
 
 # Read OEM file
@@ -484,7 +484,7 @@ The following metadata is updated:
 - Python 3.7+
 - NumPy (for interpolation)
 - Local modules:
-  - `common.oem` — OEM file parsing and writing
+  - `common.ccsds.oem` — OEM file parsing and writing
   - `common.slice_oem` — Slicing logic and parsers
   - `common.time_utils` — Time parsing and formatting
   - `common.interpolator.lagrange` — Lagrange interpolation

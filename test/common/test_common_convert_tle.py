@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 import common.convert_tle as conv
-import common.omm as omm
+import common.ccsds.omm as omm
 import common.tle as tle
 
 TEST_DIR = Path(__file__).parent

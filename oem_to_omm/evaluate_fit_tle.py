@@ -39,7 +39,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import common.consts as consts
-import common.oem as oem
+import common.ccsds.oem as oem
 import common.time_utils as time_utils
 import common.tle as tle
 

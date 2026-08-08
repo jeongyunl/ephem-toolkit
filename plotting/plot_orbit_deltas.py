@@ -27,8 +27,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.common as common
-import common.oem as oem
-from common.oem import CcsdsOem
+import common.ccsds.oem as oem
+from common.ccsds.oem import CcsdsOem
 import common.interpolator.lagrange as lagrange
 import common.time_utils as time_utils
 

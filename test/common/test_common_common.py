@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 import common.common as common
-import common.oem as oem
+import common.ccsds.oem as oem
 
 # ===================================================================
 # 1. parse_oem_state_line — valid and edge-case inputs

@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import common.tle as tle
 import common.consts as consts
-import common.oem as oem
+import common.ccsds.oem as oem
 import oem_to_omm.oem_to_omm as oem_to_omm
 import oem_to_omm.fit_tle.models as models
 import oem_to_omm.fit_tle.orbital_mechanics as orbital_mechanics

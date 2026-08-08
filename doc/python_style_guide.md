@@ -341,7 +341,7 @@ Use 67-character `# ===` banners:
 import common.kepler as kepler
 kepler.MU_EARTH
 
-import common.oem as oem
+import common.ccsds.oem as oem
 oem.CcsdsOem.read(file)
 
 # Wrong
@@ -352,7 +352,7 @@ import common.kepler
 common.kepler.MU_EARTH  # Too verbose
 ```
 
-**Rationale:** Using `import X as Y` provides a clean namespace while keeping code concise. The alias should match the module's base name (e.g., `common.oem as oem`, `common.slice_oem as slice_oem`).
+**Rationale:** Using `import X as Y` provides a clean namespace while keeping code concise. The alias should match the module's base name (e.g., `common.ccsds.oem as oem`, `common.slice_oem as slice_oem`).
 
 Standard library and third-party may use `from X import Y` where idiomatic (`from pathlib import Path`, `from datetime import datetime`).
 
@@ -365,6 +365,6 @@ Include `if __name__ == "__main__":` with usage message to stderr:
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 2:
-        print("Usage: python3 -m common.oem <oem_file>", file=sys.stderr)
+        print("Usage: python3 -m common.ccsds.oem <oem_file>", file=sys.stderr)
         sys.exit(1)
 ```

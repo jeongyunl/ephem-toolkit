@@ -212,7 +212,7 @@ python3 propagation/propagate_orbit.py -h
 
 - TudatPy
 - NumPy
-- local helper modules `common.common`, `common.oem`, `common.time_utils`, `common.interpolator.lagrange`
+- local helper modules `common.common`, `common.ccsds.oem`, `common.time_utils`, `common.interpolator.lagrange`
 
 The script loads these SPICE kernels from TudatPy's SPICE kernel directory:
 
@@ -297,7 +297,7 @@ python3 propagation/propagate_kepler.py -h
 ### Dependencies
 
 - NumPy
-- local helper modules `common.oem`, `common.kepler`, `common.time_utils`
+- local helper modules `common.ccsds.oem`, `common.kepler`, `common.time_utils`
 
 ## `plotting/plot_dependent_variables.py`
 
@@ -518,7 +518,7 @@ python3 propagation/propagate_tle.py -h
 
 - TudatPy
 - Python standard library
-- local helper modules `common.common`, `common.oem`, `common.time_utils`
+- local helper modules `common.common`, `common.ccsds.oem`, `common.time_utils`
 
 The script loads these SPICE kernels via TudatPy data paths:
 
