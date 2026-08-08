@@ -36,7 +36,6 @@ doc/                 Documentation
 
 - `bin/diff_oem.py` — compare corresponding states from two OEM files with optional rotation fitting and time-shift correction. See [DIFF_OEM.md](doc/DIFF_OEM.md) for details
 - `bin/slice_oem.py` — slice OEM files by index or time range (with optional interpolation). See [SLICE_OEM.md](doc/SLICE_OEM.md) for details
-- `bin/ecef_to_aer.py` — convert ECEF OEM ephemeris to AER (Azimuth-Elevation-Range) coordinates. See [MISC.md](doc/MISC.md) for other details.
 - `bin/xform_oem.py` — convert CCSDS OEM state vectors between supported reference frames, or convert ECEF positions to AER coordinates. See [XFORM_OEM.md](doc/XFORM_OEM.md) for complete documentation.
 
 

@@ -6,7 +6,6 @@ Miscellaneous utilities for orbit analysis and comparison.
 
 - `bin/diff_oem.py`
 - `bin/slice_oem.py`
-- `bin/ecef_to_aer.py`
 - `plotting/plot_orbit_deltas.py`
 - `plotting/plot_dependent_variables.py`
 
@@ -192,90 +191,6 @@ python3 bin/diff_oem.py -h
 Slices CCSDS OEM files by index or time range, with optional interpolation.
 
 See [SLICE_OEM.md](SLICE_OEM.md) for complete documentation.
-
-## `bin/ecef_to_aer.py`
-
-Converts ECEF OEM ephemeris data to AER (Azimuth-Elevation-Range) coordinates relative to a ground station.
-
-### Synopsis
-
-```bash
-python3 bin/ecef_to_aer.py [-h] [-v] [-o <output>] --lat <degrees> --lon <degrees> --alt <meters> [<oem_file>]
-```
-
-### Options
-
-| Option | Description |
-|---|---|
-| `-h`, `--help` | Show help message and exit |
-| `<oem_file>` | Path to input CCSDS OEM file in ECEF frame (use `-` or omit to read from stdin) |
-| `--lat`, `--latitude` | Ground station latitude in degrees (positive = North, negative = South) |
-| `--lon`, `--longitude` | Ground station longitude in degrees (positive = East, negative = West) |
-| `--alt`, `--altitude` | Ground station altitude above WGS-84 ellipsoid in meters |
-| `-o`, `--output` | Output file path (default: `-` for stdout) |
-| `-v`, `--verbose` | Print detailed debug information to stderr |
-
-### Behavior
-
-- Reads CCSDS OEM files with ECEF reference frame
-- Converts position vectors to AER coordinates relative to a ground station
-- Ground station is specified in geodetic coordinates (latitude, longitude, altitude)
-- Only positions are converted; velocities are not converted to AER rates
-- Outputs timestamp, azimuth, elevation, and range for each state
-
-### Input format
-
-Standard CCSDS OEM file with ECEF reference frame (e.g., ITRF, ECEF).
-
-### Output format
-
-Each line contains:
-
-```text
-<ISO-8601 timestamp>  <azimuth_deg>  <elevation_deg>  <range_m>
-```
-
-- **timestamp**: ISO 8601 format (e.g., `2024-01-01T00:00:00.000000`)
-- **azimuth**: Azimuth angle in degrees (0° = North, 90° = East)
-- **elevation**: Elevation angle in degrees (0° = horizon, 90° = zenith)
-- **range**: Distance in meters
-
-### Usage
-
-**Convert ISS orbit to AER from ground station:**
-
-```bash
-python3 bin/ecef_to_aer.py iss.oem --lat 40.7128 --lon -74.0060 --alt 10.0
-```
-
-**Read from stdin:**
-
-```bash
-cat iss.oem | python3 bin/ecef_to_aer.py --lat 40.7128 --lon -74.0060 --alt 10.0
-```
-
-**Save output to file:**
-
-```bash
-python3 bin/ecef_to_aer.py iss.oem --lat 51.5074 --lon -0.1278 --alt 0.0 -o aer_data.txt
-```
-
-**Verbose output:**
-
-```bash
-python3 bin/ecef_to_aer.py iss.oem --lat 40.7128 --lon -74.0060 --alt 10.0 -v
-```
-
-**Show help:**
-
-```bash
-python3 bin/ecef_to_aer.py -h
-```
-
-### Dependencies
-
-- NumPy
-- local helper modules `common.aer`, `common.ccsds.oem`, `common.time_utils`
 
 ## `plotting/plot_orbit_deltas.py`
 

@@ -340,8 +340,6 @@ resources required by a frame conversion.
 
 - `bin/slice_oem.py` — Extract OEM states by index or time range (see
   [SLICE_OEM.md](SLICE_OEM.md))
-- `bin/ecef_to_aer.py` — Convert ECEF OEM data to AER using separate latitude,
-  longitude, and altitude options (see [MISC.md](MISC.md))
 - `bin/diff_oem.py` — Compare states from two OEM files (see
   [DIFF_OEM.md](DIFF_OEM.md))
 - `common/frame_utils.py` — Lower-level frame conversion implementation
