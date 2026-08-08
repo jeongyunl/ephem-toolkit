@@ -38,14 +38,14 @@ default output destination is standard output.
 | `<oem_file>` | Optional path to an input CCSDS OEM file; use `-` or omit to read from stdin |
 | `--x-ref-frame <frame>` | Convert state vectors to the target frame using the OEM `REF_FRAME` as source |
 | `--x-ref-frame <base_frame,target_frame>` | Override the source frame and convert state vectors to the target frame |
-| `--aer <lat,lon,alt>` | Convert ECEF/ITRF positions to AER text using latitude/longitude in degrees and altitude in metres |
+| `--x-aer <lat,lon,alt>` | Convert ECEF/ITRF positions to AER text using latitude/longitude in degrees and altitude in metres |
 | `--set-meta <KEY=VALUE>` | Override an OEM metadata field; repeatable |
 | `--set-header <KEY=VALUE>` | Override an OEM header field; repeatable |
 | `-o`, `--output <file\|->` | Output file path; defaults to `-` for stdout |
 | `-v`, `--verbose` | Print input and transformation details to stderr |
 | `-h`, `--help` | Show help message and exit |
 
-The `--aer` mode cannot be combined with `--x-ref-frame`, `--set-meta`, or
+The `--x-aer` mode cannot be combined with `--x-ref-frame`, `--set-meta`, or
 `--set-header`.
 
 ## Supported Reference Frames
@@ -107,7 +107,7 @@ Convert ECEF or ITRF positions to Azimuth-Elevation-Range coordinates relative
 to a ground station:
 
 ```bash
-python3 bin/xform_oem.py ecef.oem --aer 40.7128,-74.0060,10.0
+python3 bin/xform_oem.py ecef.oem --x-aer 40.7128,-74.0060,10.0
 ```
 
 The three comma-separated values are:
@@ -120,7 +120,7 @@ For example, read OEM data from stdin and save AER output to a file:
 
 ```bash
 cat ecef.oem | python3 bin/xform_oem.py \
-  --aer 40.7128,-74.0060,10.0 \
+  --x-aer 40.7128,-74.0060,10.0 \
   -o station_aer.txt
 ```
 
@@ -226,7 +226,7 @@ AER output can also be chained with other command-line tools:
 
 ```bash
 cat orbit.oem \
-  | python3 bin/xform_oem.py --aer 52.5200,13.4050,45.0 \
+  | python3 bin/xform_oem.py --x-aer 52.5200,13.4050,45.0 \
   | awk '$3 > 10.0'
 ```
 
@@ -282,7 +282,7 @@ python3 bin/xform_oem.py input.oem \
 
 ```bash
 python3 bin/xform_oem.py input.oem \
-  --aer 35.6762,139.6503,40.0 \
+  --x-aer 35.6762,139.6503,40.0 \
   --output tokyo_aer.txt
 ```
 
@@ -314,9 +314,9 @@ resource set.
 Common argument errors include:
 
 ```text
---aer and --x-ref-frame cannot be used together
---aer cannot be combined with --set-meta
---aer cannot be combined with --set-header
+--x-aer and --x-ref-frame cannot be used together
+--x-aer cannot be combined with --set-meta
+--x-aer cannot be combined with --set-header
 --set-meta requires KEY=VALUE
 --set-header requires KEY=VALUE
 ```

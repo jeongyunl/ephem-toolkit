@@ -4,7 +4,7 @@
 This utility can:
 1. Output OEM files as-is (default when no options given)
 2. Transform state data to another reference frame and update its metadata (--x-ref-frame)
-3. Convert ECEF positions to AER coordinates (--aer with lat,lon,alt)
+3. Convert ECEF positions to AER coordinates (--x-aer with lat,lon,alt)
 4. Override output OEM metadata (--set-meta KEY=VALUE)
 5. Override output OEM header fields (--set-header KEY=VALUE)
 
@@ -17,7 +17,7 @@ Usage:
     python3 bin/xform_oem.py <oem_file> --x-ref-frame J2000
 
     # Convert to AER coordinates
-    python3 bin/xform_oem.py <oem_file> --aer <lat>,<lon>,<alt>
+    python3 bin/xform_oem.py <oem_file> --x-aer <lat>,<lon>,<alt>
 
 Examples:
     # Output ISS OEM file as-is
@@ -31,10 +31,10 @@ Examples:
         --set-meta OBJECT_NAME=ISS --set-header ORIGINATOR=NASA -o output.oem
 
     # Convert ISS orbit to AER from ground station
-    python3 bin/xform_oem.py iss.oem --aer 40.7128,-74.0060,10.0
+    python3 bin/xform_oem.py iss.oem --x-aer 40.7128,-74.0060,10.0
 
     # Read from stdin and convert to AER
-    cat iss.oem | python3 bin/xform_oem.py --aer 40.7128,-74.0060,10.0
+    cat iss.oem | python3 bin/xform_oem.py --x-aer 40.7128,-74.0060,10.0
 
 AER Output format:
     Each line contains: timestamp azimuth elevation range
@@ -306,7 +306,7 @@ def parse_arguments() -> argparse.Namespace:
             "Use --x-ref-frame to transform state data and update its reference frame metadata, "
             "--set-meta KEY=VALUE to override output metadata, "
             "--set-header KEY=VALUE to override output header fields, "
-            "or --aer with comma-separated lat,lon,alt to convert to AER coordinates.\n\n"
+            "or --x-aer with comma-separated lat,lon,alt to convert to AER coordinates.\n\n"
         ),
     )
     parser.add_argument(
@@ -348,13 +348,13 @@ def parse_arguments() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--aer",
+        "--x-aer",
         metavar="<lat,lon,alt>",
         help=(
             "Convert ECEF positions to AER (Azimuth-Elevation-Range) coordinates. "
             "Provide comma-separated values: latitude (degrees, +N/-S), "
             "longitude (degrees, +E/-W), altitude (meters above WGS-84 ellipsoid). "
-            "Example: --aer 40.7128,-74.0060,10.0"
+            "Example: --x-aer 40.7128,-74.0060,10.0"
         ),
     )
     parser.add_argument(
@@ -386,26 +386,26 @@ def parse_arguments() -> argparse.Namespace:
     args.header_overrides = parse_header_overrides(args.set_header, parser)
 
     # Parse AER coordinates
-    if args.aer:
+    if args.x_aer:
         # Parse comma-separated lat,lon,alt
         try:
-            parts: list[str] = args.aer.split(",")
+            parts: list[str] = args.x_aer.split(",")
             if len(parts) != 3:
                 parser.error(
-                    "--aer requires exactly 3 comma-separated values: <lat>,<lon>,<alt>"
+                    "--x-aer requires exactly 3 comma-separated values: <lat>,<lon>,<alt>"
                 )
             args.lat_deg = float(parts[0].strip())
             args.lon_deg = float(parts[1].strip())
             args.alt_m = float(parts[2].strip())
         except ValueError as e:
-            parser.error(f"--aer values must be numeric: {e}")
+            parser.error(f"--x-aer values must be numeric: {e}")
 
         if args.x_ref_frame:
-            parser.error("--aer and --x-ref-frame cannot be used together")
+            parser.error("--x-aer and --x-ref-frame cannot be used together")
         if args.metadata_overrides:
-            parser.error("--aer cannot be combined with --set-meta")
+            parser.error("--x-aer cannot be combined with --set-meta")
         if args.header_overrides:
-            parser.error("--aer cannot be combined with --set-header")
+            parser.error("--x-aer cannot be combined with --set-header")
     else:
         args.lat_deg = None
         args.lon_deg = None
