@@ -58,7 +58,7 @@ The `--x-ref-frame` option accepts the frame names exposed by
 - `EME2000`
 - `ICRF`
 - `GCRF`
-- `ITRF93`
+- `ITRF1993` (alias `ITRF93`)
 - `ITRF`
 
 `J2000`, `EME2000`, `ICRF`, and `GCRF` are treated as equivalent inertial
@@ -76,7 +76,7 @@ rotation models where applicable.
 Convert an OEM state history to a new reference frame:
 
 ```bash
-python3 bin/xform_oem.py input.oem --x-ref-frame ITRF93 -o output.oem
+python3 bin/xform_oem.py input.oem --x-ref-frame ITRF1993 -o output.oem
 ```
 
 By default, the source frame is read from the input OEM metadata. Override it
@@ -84,7 +84,7 @@ when the metadata does not describe the actual state vectors:
 
 ```bash
 python3 bin/xform_oem.py input.oem \
-  --x-ref-frame GCRF,ITRF93 \
+  --x-ref-frame GCRF,ITRF1993 \
   -o output.oem
 ```
 
@@ -157,7 +157,7 @@ Use repeated `--set-meta KEY=VALUE` options to override output OEM metadata:
 
 ```bash
 python3 bin/xform_oem.py input.oem \
-  --x-ref-frame ITRF93 \
+  --x-ref-frame ITRF1993 \
   --set-meta OBJECT_NAME=ISS \
   --set-meta CENTER_NAME=EARTH \
   -o output.oem
@@ -216,8 +216,8 @@ cat orbit.oem | python3 bin/xform_oem.py - --x-ref-frame J2000
 Write an OEM result to standard output or to a file:
 
 ```bash
-python3 bin/xform_oem.py orbit.oem --x-ref-frame ITRF93 > orbit_itrf93.oem
-python3 bin/xform_oem.py orbit.oem --x-ref-frame ITRF93 -o orbit_itrf93.oem
+python3 bin/xform_oem.py orbit.oem --x-ref-frame ITRF1993 > orbit_itrf1993.oem
+python3 bin/xform_oem.py orbit.oem --x-ref-frame ITRF1993 -o orbit_itrf1993.oem
 ```
 
 AER output can also be chained with other command-line tools:
@@ -234,7 +234,7 @@ Use `-v` or `--verbose` to print input information and transformation details
 to stderr, keeping stdout available for OEM or AER output:
 
 ```bash
-python3 bin/xform_oem.py orbit.oem --x-ref-frame ITRF93 --verbose > output.oem
+python3 bin/xform_oem.py orbit.oem --x-ref-frame ITRF1993 --verbose > output.oem
 ```
 
 Verbose output includes:
@@ -264,7 +264,7 @@ python3 bin/xform_oem.py input.oem \
 
 ```bash
 python3 bin/xform_oem.py input.oem \
-  --x-ref-frame TEME,ITRF93 \
+  --x-ref-frame TEME,ITRF1993 \
   -o output.oem
 ```
 
@@ -272,7 +272,7 @@ python3 bin/xform_oem.py input.oem \
 
 ```bash
 python3 bin/xform_oem.py input.oem \
-  --x-ref-frame ITRF93,J2000 \
+  --x-ref-frame ITRF1993,J2000 \
   -o output.oem
 ```
 

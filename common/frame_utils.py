@@ -60,7 +60,7 @@ class Frame(Enum):
     GCRF = "GCRF"
     """Geocentric Celestial Reference Frame."""
 
-    ITRF93 = "ITRF93"
+    ITRF1993 = "ITRF1993"
     """International Terrestrial Reference Frame 1993."""
 
     ITRF = "ITRF"
@@ -163,6 +163,12 @@ def spice_convert_frame(
 
     if not _did_load_spice_kernels:
         _load_spice_kernels()
+
+    if base_frame == "ITRF" or base_frame == "ITRF1993":
+        base_frame = "ITRF93"
+
+    if target_frame == "ITRF" or target_frame == "ITRF1993":
+        target_frame = "ITRF93"
 
     if _has_compute_state_rotation_matrix_between_frames:
         state_conversion_matrix: np.ndarray = np.asarray(
@@ -469,7 +475,7 @@ def convert_frame(
             return j2000_state_m
         elif target_frame == Frame.TEME:
             return j2000_to_teme(epoch_tdb_s, j2000_state_m)
-        elif target_frame == Frame.ITRF93:
+        elif target_frame == Frame.ITRF1993:
             rotation_model = tudat_spice_rotation_model()
             return tudat_convert_inertial_to_body_fixed(
                 rotation_model, epoch_tdb_s, j2000_state_m
@@ -482,7 +488,7 @@ def convert_frame(
         else:
             raise ValueError(f"Unsupported target frame: {target_frame}")
 
-    elif base_frame == Frame.ITRF93:
+    elif base_frame == Frame.ITRF1993:
         rotation_model = tudat_spice_rotation_model()
         j2000_state_m = tudat_convert_body_fixed_to_inertial(
             rotation_model, epoch_tdb_s, input_state_m
@@ -510,7 +516,7 @@ def convert_frame(
             return j2000_state_m
         elif target_frame == Frame.TEME:
             return j2000_to_teme(epoch_tdb_s, j2000_state_m)
-        elif target_frame == Frame.ITRF93:
+        elif target_frame == Frame.ITRF1993:
             rotation_model = tudat_spice_rotation_model()
             return tudat_convert_inertial_to_body_fixed(
                 rotation_model, epoch_tdb_s, j2000_state_m

@@ -49,6 +49,7 @@ Note: AER conversion only converts positions. Velocities are not converted to AE
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 import warnings
 from datetime import datetime, timezone
@@ -99,7 +100,8 @@ def convert_to_aer(
     """
     # Validate reference frame
     ref_frame: str = oem_data.meta.ref_frame.upper()
-    if "ECEF" not in ref_frame and "ITRF" not in ref_frame:
+    is_itrf = re.fullmatch(r"ITRF(?:\d{4})?", ref_frame) is not None
+    if "ECEF" not in ref_frame and not is_itrf:
         print(
             f"Warning: Reference frame '{oem_data.meta.ref_frame}' may not be ECEF. "
             "Expected ECEF or ITRF variant.",
