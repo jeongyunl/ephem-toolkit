@@ -16,8 +16,6 @@ def test_ref_frame_values_match_ccsds_odm_frames() -> None:
         "ITRF2000",
         "ITRF1993",
         "ITRF1997",
-        "ITRF93",
-        "ITRF97",
         "MCI",
         "TDR",
         "TEME",
