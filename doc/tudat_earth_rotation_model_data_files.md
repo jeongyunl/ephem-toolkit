@@ -5,6 +5,9 @@ CCSDS OEM files by `bin/xform_oem.py`. The `convert_frame()` dispatcher uses
 TudatPy rotation models for inertial and Earth-fixed transformations, while
 the TEME conversion uses TudatPy's element-conversion helpers.
 
+See [XFORM_OEM.md](XFORM_OEM.md) for the command-line usage of the OEM
+transformation utility.
+
 ## Kernel loading
 
 `frame_utils.py` loads kernels through `common.spice_utils.load_kernel()` in
