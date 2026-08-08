@@ -13,7 +13,7 @@ import pytest
 import common.ccsds.oem as oem
 
 TEST_DIR = Path(__file__).parent
-OEM_PATH = TEST_DIR.parent / "data" / "ISS_2026-05-20.OEM"
+OEM_PATH = TEST_DIR.parent / "data" / "ISS_2026-05-20_small.OEM"
 
 
 # ===================================================================

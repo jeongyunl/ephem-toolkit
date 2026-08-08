@@ -539,7 +539,7 @@ def test_cli_time_slice_out_of_range() -> None:
 
 def test_cli_with_real_oem_file() -> None:
     """Test CLI with a real OEM file from test data."""
-    oem_file = TEST_DATA_DIR / "JPSS-1.oem"
+    oem_file = TEST_DATA_DIR / "JPSS-1_small.oem"
     if not oem_file.exists():
         pytest.skip(f"Test data file not found: {oem_file}")
 
@@ -552,7 +552,7 @@ def test_cli_with_real_oem_file() -> None:
 
 def test_cli_time_slice_with_real_oem_file() -> None:
     """Test time-based slicing with a real OEM file."""
-    oem_file = TEST_DATA_DIR / "JPSS-1.oem"
+    oem_file = TEST_DATA_DIR / "JPSS-1_small.oem"
     if not oem_file.exists():
         pytest.skip(f"Test data file not found: {oem_file}")
 
