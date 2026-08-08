@@ -492,7 +492,7 @@ def main() -> None:
         print(file=sys.stderr)
 
     # Handle AER conversion mode
-    if args.aer:
+    if args.x_aer:
         # Determine output destination
         if args.output == "-":
             output_file: TextIO = sys.stdout
