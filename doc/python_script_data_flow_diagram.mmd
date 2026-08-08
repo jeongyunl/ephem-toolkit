@@ -20,6 +20,7 @@ flowchart LR
     fmt_kepler{{"OEM-like Keplerian Elements <br/> (epoch a e i ω Ω θ)"}}
     fmt_dep_vars_csv{{"Dependent Variables CSV"}}
     fmt_plots{{"Plots / Animations <br/> (Matplotlib figures)"}}
+    fmt_aer_text{{"AER Text <br/> (stdout)"}}
     fmt_time{{"Time Values <br/> (ISO / POSIX / UTC / TAI / TT / TDB)"}}
     fmt_celestrak{{"CelesTrak<br/>(HTTP download)"}}
 
@@ -45,9 +46,8 @@ flowchart LR
     slice_oem(["slice_oem.py"])
     state_diff(["state_diff.py"])
 
-    %% frame_conversion/ scripts
-    gcrf_to_itrs_tudat(["gcrf_to_itrs_tudat.py"])
-    gcrf_to_itrf_spice(["gcrf_to_itrf_spice.py"])
+    %% OEM transformation utility
+    xform_oem(["xform_oem.py"])
 
     %% time_conversion/tools/ scripts
     convert_time(["convert_time.py"])
@@ -107,13 +107,10 @@ flowchart LR
     fmt_dep_vars_csv --> plot_dep_vars
     plot_dep_vars --> fmt_plots
 
-    %% gcrf_to_itrs_tudat.py: OEM (GCRF↔ITRF)
-    fmt_oem -->|"GCRF or ITRF"| gcrf_to_itrs_tudat
-    gcrf_to_itrs_tudat -->|"ITRF or GCRF"| fmt_oem
-
-    %% gcrf_to_itrf_spice.py: OEM (J2000↔ITRF93)
-    fmt_oem -->|"J2000 or ITRF93"| gcrf_to_itrf_spice
-    gcrf_to_itrf_spice -->|"ITRF93 or J2000"| fmt_oem
+    %% xform_oem.py: OEM frame conversion or ECEF position-to-AER conversion
+    fmt_oem -->|"source frame + target frame"| xform_oem
+    xform_oem -->|"converted OEM"| fmt_oem
+    xform_oem -->|"AER text"| fmt_aer_text
 
     %% convert_time.py: time values → converted time values
     fmt_time --> convert_time
