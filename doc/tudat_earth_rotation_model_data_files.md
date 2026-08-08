@@ -1,71 +1,47 @@
-# Earth rotation model data files used by the frame-conversion scripts
+# Earth rotation model data files
 
-## Context
+Frame conversion is implemented in `common/frame_utils.py` and exposed for
+CCSDS OEM files by `bin/xform_oem.py`. The `convert_frame()` dispatcher uses
+TudatPy rotation models for inertial and Earth-fixed transformations, while
+the TEME conversion uses TudatPy's element-conversion helpers.
 
-The frame-conversion scripts in this repository are:
+## Kernel loading
 
-- `bin/gcrf_to_itrf_spice.py`
-- `bin/gcrf_to_itrs_tudat.py`
+`frame_utils.py` loads kernels through `common.spice_utils.load_kernel()` in
+`_load_spice_kernels()`. The repository does not contain copies of these
+files, and their absolute paths are determined by the installed TudatPy/Tudat
+SPICE resource directory.
 
-They load SPICE kernels through TudatPy's configured SPICE kernel directory rather than through hard-coded repository-local files.
+The implementation requests these kernel filenames:
 
-In practice, the exact absolute paths depend on the local Tudat / TudatPy installation.
+- `naif0012.tls`: leap-seconds kernel
+- `pck00011.tpc`: planetary constants kernel
+- `earth_200101_990825_predict.bpc`: Earth rotation prediction kernel
 
-## Kernels used directly by the current scripts
+The load is cached for the process, so the kernels are loaded once before the
+first conversion that needs a TudatPy rotation model.
 
-### `bin/gcrf_to_itrf_spice.py`
+## Rotation models
 
-Loads:
+`convert_frame()` uses the following Earth rotation models:
 
-- `naif0012.tls`
-- `earth_200101_990825_predict.bpc`
+- `tudat_spice_rotation_model()`: TudatPy's SPICE rotation model between
+  `J2000` and `ITRF93`
+- `tudat_iau2006_rotation_model()`: TudatPy's IAU 2006 GCRS-to-ITRS model,
+  exposed by the repository as `J2000` and `ITRF`
 
-### `bin/gcrf_to_itrs_tudat.py`
+The state conversion includes the rotational transport term in the velocity.
+Equivalent inertial frame names (`J2000`, `EME2000`, `ICRF`, and `GCRF`) are
+normalized to `J2000` before dispatch. `TEME` is converted through `J2000`.
 
-Loads:
+## Related Tudat resources
 
-- `naif0012.tls`
-- `pck00011.tpc`
-- `earth_200101_990825_predict.bpc`
+Other Earth-orientation files may be present in a particular Tudat
+installation, including `earth_fixed.tf`,
+`eopc04_14_IAU2000.62-now.txt`, `historicalDeltaT.txt`, and polar-motion,
+ocean-tide, or libration tables. Their use is managed by TudatPy and depends
+on the selected model and installed resource set; they are not loaded
+directly by repository code.
 
-## Common Tudat resource files relevant to Earth orientation
-
-Depending on the selected Tudat rotation model and local installation, Earth-orientation support may involve files such as:
-
-- `earth_200101_990825_predict.bpc`
-  - long-span Earth orientation prediction kernel
-  - commonly used for `ITRF93` / Earth-fixed SPICE frame rotations
-- `naif0012.tls`
-  - leap-seconds kernel
-- `pck00011.tpc`
-  - planetary constants kernel
-- `earth_fixed.tf`
-  - Earth-fixed frame definitions
-- `eopc04_14_IAU2000.62-now.txt`
-  - Earth orientation parameter data used by some Tudat Earth-orientation workflows
-- `historicalDeltaT.txt`
-- polar-motion / ocean-tide / libration support tables under Tudat resource directories
-
-## Historical installation-specific paths
-
-On some Linux installations these files may appear under locations similar to:
-
-```text
-/usr/share/tudat/resource/spice_kernels/
-/usr/share/tudat/resource/earth_orientation/
-```
-
-Examples that have been observed in practice:
-
-- `/usr/share/tudat/resource/earth_orientation/eopc04_14_IAU2000.62-now.txt`
-- `/usr/share/tudat/resource/spice_kernels/earth_200101_990825_predict.bpc`
-- `/usr/share/tudat/resource/spice_kernels/naif0012.tls`
-- `/usr/share/tudat/resource/spice_kernels/earth_fixed.tf`
-
-These paths are installation-dependent and should be treated as examples, not guaranteed locations.
-
-## Notes
-
-- `earth_200101_990825_predict.bpc` is a prediction kernel with broad future coverage and lower fidelity than high-accuracy Earth orientation products.
-- The exact coverage and file versions depend on the installed Tudat resource set.
-- For repository documentation, the script-level kernel filenames are the authoritative reference; absolute filesystem paths are environment-specific.
+For command-line examples and supported frame names, see
+`doc/FRAME_CONVERSION.md`.

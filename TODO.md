@@ -19,7 +19,6 @@
     1. `slice_oem.py`
         1. Further improvements?
     1. `xform_oem.py`
-        1. Frame conversion
         1. Apply arbitrary matrix?
 
 1. Propagation tools

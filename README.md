@@ -36,13 +36,7 @@ doc/                 Documentation
 - `bin/diff_oem.py` — compare corresponding states from two OEM files with optional rotation fitting and time-shift correction. See [DIFF_OEM.md](doc/DIFF_OEM.md) for details
 - `bin/slice_oem.py` — slice OEM files by index or time range (with optional interpolation). See [SLICE_OEM.md](doc/SLICE_OEM.md) for details
 - `bin/ecef_to_aer.py` — convert ECEF OEM ephemeris to AER (Azimuth-Elevation-Range) coordinates. See [MISC.md](doc/MISC.md) for other details.
-
-### Frame Conversion
-
-- `bin/gcrf_to_itrf_spice.py` — SPICE rotation (J2000 ↔ ITRF93)
-- `bin/gcrf_to_itrs_tudat.py` — TudatPy Earth rotation models
-
-Converts CCSDS OEM state vectors between inertial and Earth-fixed reference frames. Supports SPICE rotation matrices and TudatPy rotation models (`iau2006`, `spice`).
+- `bin/xform_oem.py` — convert CCSDS OEM state vectors between supported reference frames, or convert ECEF positions to AER coordinates
 
 See [FRAME_CONVERSION.md](doc/FRAME_CONVERSION.md) for full usage details.
 
