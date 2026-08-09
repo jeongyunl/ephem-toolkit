@@ -24,7 +24,7 @@ OEM_PATH = TEST_DIR.parent / "data" / "ISS_2026-05-20_small.OEM"
 
 def test_read_oem_from_test_file_returns_header_meta_states() -> None:
     """Should parse the sample OEM file into header, meta, and state list."""
-    header, meta, states = oem.read_oem(OEM_PATH)
+    header, meta, states = oem.CcsdsOem._read_oem_impl(OEM_PATH)
 
     assert isinstance(header, dict)
     assert isinstance(meta, dict)
@@ -55,8 +55,8 @@ def test_read_oem_from_stream_matches_file_read() -> None:
     """Should produce identical parsed content from a text stream."""
     text = OEM_PATH.read_text(encoding="utf-8")
 
-    header1, meta1, states1 = oem.read_oem(OEM_PATH)
-    header2, meta2, states2 = oem.read_oem(io.StringIO(text))
+    header1, meta1, states1 = oem.CcsdsOem._read_oem_impl(OEM_PATH)
+    header2, meta2, states2 = oem.CcsdsOem._read_oem_impl(io.StringIO(text))
 
     assert header2 == header1
     assert meta2 == meta1
@@ -73,11 +73,11 @@ def test_read_oem_from_stream_matches_file_read() -> None:
 
 def test_write_oem_round_trip_preserves_content(tmp_path: Path) -> None:
     """Should preserve header, meta, and state vectors through write/read."""
-    header1, meta1, states1 = oem.read_oem(OEM_PATH)
+    header1, meta1, states1 = oem.CcsdsOem._read_oem_impl(OEM_PATH)
     out_path = tmp_path / "roundtrip.oem"
 
-    oem.write_oem(out_path, header1, meta1, states1)
-    header2, meta2, states2 = oem.read_oem(out_path)
+    oem.CcsdsOem.read(OEM_PATH).write(out_path)
+    header2, meta2, states2 = oem.CcsdsOem._read_oem_impl(out_path)
 
     assert header2 == header1
     assert meta2 == meta1
@@ -248,9 +248,9 @@ def _round_trip_test_oem(source: Path) -> dict:
         class_path = tmp / "roundtrip_class.oem"
 
         # Low-level round-trip
-        header, meta, states = oem.read_oem(source)
-        oem.write_oem(lowlevel_path, header, meta, states)
-        header2, meta2, states2 = oem.read_oem(lowlevel_path)
+        header, meta, states = oem.CcsdsOem._read_oem_impl(source)
+        oem.CcsdsOem.read(source).write(lowlevel_path)
+        header2, meta2, states2 = oem.CcsdsOem._read_oem_impl(lowlevel_path)
 
         low_header_ok = header2 == header
         low_meta_ok = meta2 == meta
@@ -354,7 +354,7 @@ def test_read_oem_raw_state_list_returns_empty_header_and_meta() -> None:
         "2026-05-20T12:02:00.000 6900.0 200.0 100.0 0.2 7.3 0.1\n"
     )
 
-    header, meta, states = oem.read_oem(io.StringIO(raw_states))
+    header, meta, states = oem.CcsdsOem._read_oem_impl(io.StringIO(raw_states))
 
     assert isinstance(header, dict)
     assert isinstance(meta, dict)
@@ -388,10 +388,10 @@ def test_ccsds_oem_read_handles_raw_state_list() -> None:
 
 def test_write_states_to_stream() -> None:
     """Should write state vectors to a file handle."""
-    header, meta, states = oem.read_oem(OEM_PATH)
+    header, meta, states = oem.CcsdsOem._read_oem_impl(OEM_PATH)
 
     output = io.StringIO()
-    oem.write_states(output, states)
+    oem.CcsdsOem.from_states(states).write_states(output)
     content = output.getvalue()
 
     # Should have written multiple lines (one per state)
@@ -493,15 +493,15 @@ def test_from_states_round_trip() -> None:
 
 
 # ===================================================================
-# 11. CcsdsOem.parse_state_line() — parsing utility
+# 11. parse_oem_state_line() — parsing utility
 # ===================================================================
 
 
 def test_parse_state_line_parses_valid_line() -> None:
-    """Test CcsdsOem.parse_state_line() parses valid OEM line."""
+    """Test parse_oem_state_line() parses valid OEM line."""
     line = "2024-01-01T00:00:00.000000 7000.0 0.0 0.0 0.0 7.5 0.0"
 
-    result = oem.CcsdsOem.parse_state_line(line)
+    result = oem.CcsdsOem.parse_oem_state_line(line)
 
     assert result is not None
     timestamp, state = result
@@ -514,14 +514,14 @@ def test_parse_state_line_parses_valid_line() -> None:
 
 
 def test_parse_state_line_returns_none_for_blank_line() -> None:
-    """Test CcsdsOem.parse_state_line() returns None for blank lines."""
-    assert oem.CcsdsOem.parse_state_line("") is None
-    assert oem.CcsdsOem.parse_state_line("   ") is None
+    """Test parse_oem_state_line() returns None for blank lines."""
+    assert oem.CcsdsOem.parse_oem_state_line("") is None
+    assert oem.CcsdsOem.parse_oem_state_line("   ") is None
 
 
 def test_parse_state_line_returns_none_for_comment() -> None:
-    """Test CcsdsOem.parse_state_line() returns None for comment lines."""
-    assert oem.CcsdsOem.parse_state_line("# This is a comment") is None
+    """Test parse_oem_state_line() returns None for comment lines."""
+    assert oem.CcsdsOem.parse_oem_state_line("# This is a comment") is None
 
 
 # ===================================================================

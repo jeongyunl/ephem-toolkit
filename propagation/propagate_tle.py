@@ -21,9 +21,9 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import os
 import pathlib
 import sys
+from typing import Any
 import warnings
 
 import numpy as np
@@ -33,18 +33,18 @@ import numpy as np
 warnings.filterwarnings("ignore", module="urllib3")
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+PROJECT_ROOT: pathlib.Path = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
-import common.common as common
 import common.ccsds.oem as oem
 import common.spice_utils as spice_utils
 import common.time_utils as time_utils
 
 # CLI defaults
-DEFAULT_PROPAGATION_DURATION_S = time_utils.SECONDS_PER_DAY
+DEFAULT_PROPAGATION_DURATION_S: float = time_utils.SECONDS_PER_DAY
 """Default propagation duration in seconds (1 day)."""
 
-DEFAULT_OUTPUT_STEP_S = 5.0 * time_utils.SECONDS_PER_MINUTE
+DEFAULT_OUTPUT_STEP_S: float = 5.0 * time_utils.SECONDS_PER_MINUTE
 """Default output sampling interval in seconds (5 minutes)."""
 
 
@@ -210,9 +210,10 @@ def load_spice_kernels() -> None:
 
     Notes
     -----
-    Type annotations omitted for TudatPy modules to avoid import-time dependencies.
+    The TudatPy ephemeris is typed as ``Any`` to avoid importing TudatPy at
+    module import time.
     """
-    spice_kernel_files = [
+    spice_kernel_files: list[str] = [
         "naif0012.tls",  # LEAPSECONDS KERNEL FILE
         "pck00011.tpc",  # PLANETARY CONSTANTS KERNEL FILE: orientation and size/shape data for natural bodies(Sun, planets, asteroids, etc)
     ]
@@ -260,7 +261,7 @@ def resolve_time_bounds(
 
 def write_oem_file(
     object_name: str,
-    tle_ephemeris,
+    tle_ephemeris: Any,
     start_time: dt.datetime,
     stop_time: dt.datetime,
     step_s: float,
@@ -304,13 +305,12 @@ def write_oem_file(
 
         # Convert to POSIX timestamp for CcsdsOem
         timestamp: float = current_time.timestamp()
-        # Store state in meters (SI units) — oem.write_states handles km conversion
+        # Store state in meters (SI units) for CcsdsOem.
         propagated_states.append((timestamp, state_m))
         current_time = current_time + step_dt
 
     if raw_output:
-        # write_states() accepts both dict and list formats
-        oem.write_states(sys.stdout, propagated_states)
+        oem.CcsdsOem.from_states(propagated_states).write_states(sys.stdout)
     else:
         # Use from_states() for automatic header/metadata generation.
         # states_list contains SI units (m, m/s); write() converts to km automatically.
