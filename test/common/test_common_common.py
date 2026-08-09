@@ -16,14 +16,16 @@ import common.ccsds.oem as oem
 def test_parse_oem_state_line_valid() -> None:
     """Should parse a valid OEM-style state line into epoch and a 6-element state vector."""
     line = "2026-05-20T12:00:00.000 -2345.678 4567.890 1234.567 -1.234 5.678 -3.456"
-    result = oem.parse_oem_state_line(line)
+    result = oem.CcsdsOem.parse_oem_state_line(line)
 
     assert result is not None
     timestamp, state_m = result
 
     from datetime import datetime, timezone
 
-    expected_timestamp = datetime(2026, 5, 20, 12, 0, 0, tzinfo=timezone.utc).timestamp()
+    expected_timestamp = datetime(
+        2026, 5, 20, 12, 0, 0, tzinfo=timezone.utc
+    ).timestamp()
     assert timestamp == expected_timestamp
     assert state_m.shape == (6,)
     # OEM file has km, but parse_oem_state_line now returns meters
@@ -34,33 +36,35 @@ def test_parse_oem_state_line_valid() -> None:
 def test_parse_oem_state_line_with_trailing_z() -> None:
     """Should strip trailing Z from epoch before parsing."""
     line = "2026-05-20T12:00:00.000Z -2345.678 4567.890 1234.567 -1.234 5.678 -3.456"
-    result = oem.parse_oem_state_line(line)
+    result = oem.CcsdsOem.parse_oem_state_line(line)
     assert result is not None
     timestamp, state_m = result
     from datetime import datetime, timezone
 
-    expected_timestamp = datetime(2026, 5, 20, 12, 0, 0, tzinfo=timezone.utc).timestamp()
+    expected_timestamp = datetime(
+        2026, 5, 20, 12, 0, 0, tzinfo=timezone.utc
+    ).timestamp()
     assert timestamp == expected_timestamp
     assert state_m.shape == (6,)
 
 
 def test_parse_oem_state_line_blank_returns_none() -> None:
     """Should return None for blank lines."""
-    assert oem.parse_oem_state_line("") is None
-    assert oem.parse_oem_state_line("   ") is None
-    assert oem.parse_oem_state_line("\n") is None
+    assert oem.CcsdsOem.parse_oem_state_line("") is None
+    assert oem.CcsdsOem.parse_oem_state_line("   ") is None
+    assert oem.CcsdsOem.parse_oem_state_line("\n") is None
 
 
 def test_parse_oem_state_line_comment_returns_none() -> None:
     """Should return None for comment lines starting with #."""
-    assert oem.parse_oem_state_line("# this is a comment") is None
-    assert oem.parse_oem_state_line("  # indented comment") is None
+    assert oem.CcsdsOem.parse_oem_state_line("# this is a comment") is None
+    assert oem.CcsdsOem.parse_oem_state_line("  # indented comment") is None
 
 
 def test_parse_oem_state_line_too_few_fields_raises() -> None:
     """Should raise ValueError when line has fewer than 7 fields."""
     with pytest.raises(ValueError, match="does not contain 7 fields"):
-        oem.parse_oem_state_line("2026-05-20T12:00:00.000 1.0 2.0 3.0")
+        oem.CcsdsOem.parse_oem_state_line("2026-05-20T12:00:00.000 1.0 2.0 3.0")
 
 
 # ===================================================================

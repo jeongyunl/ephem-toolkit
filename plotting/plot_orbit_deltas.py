@@ -7,7 +7,7 @@ coordinates. The first input file is treated as the reference orbit trajectory
 that other orbit trajectories are compared with.
 
 Usage:
-    python3 plot_orbits.py <reference_oem> [comparison_oem1] [comparison_oem2] ...
+    python3 plot_orbit_deltas.py <reference_oem> [comparison_oem1] [comparison_oem2] ...
 """
 
 from __future__ import annotations
@@ -68,21 +68,21 @@ def _sanitize_filename_component(value: str) -> str:
     return result or "data"
 
 
-def _write_csv(path: Path, header: list[str], rows: list[list[object]]) -> None:
+def _write_csv(dest: Path, header: list[str], rows: list[list[object]]) -> None:
     """Write rows to CSV with a header.
 
     Parameters
     ----------
-    path : Path
+    dest : Path
         Output CSV file path.
     header : list[str]
         Column header names.
     rows : list[list[object]]
         Data rows to write.
     """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with open(dest, "w", newline="", encoding="utf-8") as file_handle:
+        writer = csv.writer(file_handle)
         writer.writerow(header)
         writer.writerows(rows)
 
@@ -299,12 +299,12 @@ class TimeUnit(Enum):
 # ===================================================================
 
 
-def read_orbit_file(filepath: str | Path) -> dict[float, np.ndarray]:
+def read_orbit_file(source: str | Path) -> dict[float, np.ndarray]:
     """Read an OEM or raw-state file and return state history.
 
     Parameters
     ----------
-    filepath : str | Path
+    source : str | Path
         Path to the OEM or raw-state file.
 
     Returns
@@ -313,21 +313,21 @@ def read_orbit_file(filepath: str | Path) -> dict[float, np.ndarray]:
         State history: dictionary mapping epoch timestamps (float, seconds since epoch) to
         state vectors (6-element numpy arrays [x, y, z, vx, vy, vz] in m and m/s).
 
-    Note
-    ----
+    Notes
+    -----
     The OEM reader returns state vectors in SI units (m, m/s). These will be converted
     to km and km/s for plotting and CSV export by the plotting functions.
     """
-    filepath_obj: Path = Path(filepath)
+    source_path: Path = Path(source)
 
-    if not filepath_obj.exists():
-        raise FileNotFoundError(f"File not found: {filepath_obj}")
+    if not source_path.exists():
+        raise FileNotFoundError(f"File not found: {source_path}")
 
     state_history: dict[float, np.ndarray] = {}
 
     # Try reading as OEM file first (more robust)
     try:
-        oem_obj = CcsdsOem.read(filepath_obj)
+        oem_obj = CcsdsOem.read(source_path)
         # Convert to dict for compatibility with existing plotting code
         state_history = {timestamp: state for timestamp, state in oem_obj.states}
         return state_history
@@ -335,10 +335,12 @@ def read_orbit_file(filepath: str | Path) -> dict[float, np.ndarray]:
         pass
 
     # Fall back to line-by-line parsing for raw state files
-    with open(filepath_obj, "r", encoding="utf-8") as f:
-        for line in f:
+    with open(source_path, "r", encoding="utf-8") as file_handle:
+        for line in file_handle:
             try:
-                result: tuple | None = oem.parse_oem_state_line(line)
+                result: tuple[float, np.ndarray] | None = (
+                    oem.parse_oem_state_line(line)
+                )
                 if result is not None:
                     timestamp, state_km = result
                     state_history[timestamp] = state_km
@@ -347,7 +349,7 @@ def read_orbit_file(filepath: str | Path) -> dict[float, np.ndarray]:
                 continue
 
     if not state_history:
-        raise ValueError(f"Could not parse any state data from {filepath_obj}")
+        raise ValueError(f"Could not parse any state data from {source_path}")
 
     return state_history
 

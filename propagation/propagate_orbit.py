@@ -11,6 +11,9 @@ Cartesian components: ``UTC_ISO x y z vx vy vz`` where position is in km and
 velocity in km/s. Input is read from ``--initial-state`` when provided, otherwise
 from stdin.
 
+Usage:
+    python3 propagate_orbit.py [options]
+
 Only the bare minimum needed for CLI argument parsing (``argparse``, ``re``) is
 imported at the top of the file. Every other module — including standard library,
 NumPy, and TudatPy — is imported as late as possible, immediately before its
@@ -24,6 +27,7 @@ import argparse
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -32,30 +36,30 @@ import common.interpolator.lagrange as lagrange
 import common.spice_utils as spice_utils
 import common.time_utils as time_utils
 
-KILOMETERS_TO_METERS = 1e3
+KILOMETERS_TO_METERS: float = 1e3
 """Conversion factor from kilometers to meters."""
 
 # CLI and model defaults
-DEFAULT_SATELLITE_NAME = "Satellite"
+DEFAULT_SATELLITE_NAME: str = "Satellite"
 """Default satellite body name used in the Tudat environment."""
 
-DEFAULT_SATELLITE_DRAG_COEFFICIENT = 2.2
+DEFAULT_SATELLITE_DRAG_COEFFICIENT: float = 2.2
 """Default aerodynamic drag coefficient (Cd)."""
 
-DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT = 1.2
+DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT: float = 1.2
 """Default solar radiation pressure coefficient (Cr)."""
 
-DEFAULT_SATELLITE_MASS_KG = 30
+DEFAULT_SATELLITE_MASS_KG: float = 30.0
 """Default satellite mass in kilograms."""
 
 # 3U CubeSat geometry assumptions used for average projection area
-DEFAULT_CUBESAT_LENGTH_M = 0.45
+DEFAULT_CUBESAT_LENGTH_M: float = 0.45
 """Default 3U CubeSat length in meters."""
 
-DEFAULT_CUBESAT_WIDTH_M = 0.3
+DEFAULT_CUBESAT_WIDTH_M: float = 0.3
 """Default 3U CubeSat width in meters."""
 
-DEFAULT_CUBESAT_HEIGHT_M = 0.3
+DEFAULT_CUBESAT_HEIGHT_M: float = 0.3
 """Default 3U CubeSat height in meters."""
 
 DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2 = (
@@ -65,32 +69,32 @@ DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2 = (
 """Default average projection area of a 3U CubeSat in m²."""
 
 # Propagation settings
-DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE = 5
+DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE: int = 5
 """Default degree for Earth's spherical harmonic gravity field."""
 
-DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER = 5
+DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER: int = 5
 """Default order for Earth's spherical harmonic gravity field."""
 
-DEFAULT_BODIES_TO_CREATE = ["Sun", "Earth"]
+DEFAULT_BODIES_TO_CREATE: list[str] = ["Sun", "Earth"]
 """Default list of celestial bodies always included in the environment."""
 
-DEFAULT_GLOBAL_FRAME_ORIGIN = "Earth"
+DEFAULT_GLOBAL_FRAME_ORIGIN: str = "Earth"
 """Default global frame origin for the Tudat environment."""
 
-DEFAULT_GLOBAL_FRAME_ORIENTATION = "J2000"
+DEFAULT_GLOBAL_FRAME_ORIENTATION: str = "J2000"
 """Default global frame orientation for the Tudat environment."""
 
-DEFAULT_OEM_STEP_SIZE_S = 10 * 60
+DEFAULT_OEM_STEP_SIZE_S: float = 10 * 60
 """Default OEM output step size in seconds (10 minutes)."""
 
-DEFAULT_SIMULATION_DURATION_S = time_utils.SECONDS_PER_DAY
+DEFAULT_SIMULATION_DURATION_S: float = time_utils.SECONDS_PER_DAY
 """Default simulation duration in seconds (1 day)."""
 
 # Supported integrator method identifiers accepted by the CLI.
 # Values should match names in propagation_setup.integrator.CoefficientSets.
 #
 # Method descriptions are the single source of truth for supported methods.
-INTEGRATOR_METHOD_DESCRIPTIONS = {
+INTEGRATOR_METHOD_DESCRIPTIONS: dict[str, str] = {
     "rk_3": "classic RK3",
     "rk_4": "classic RK4",
     "rkf_45": "Fehlberg 4(5)",
@@ -105,16 +109,16 @@ INTEGRATOR_METHOD_DESCRIPTIONS = {
 }
 """Mapping of integrator method identifiers to human-readable descriptions."""
 
-SUPPORTED_INTEGRATOR_METHODS = tuple(INTEGRATOR_METHOD_DESCRIPTIONS)
+SUPPORTED_INTEGRATOR_METHODS: tuple[str, ...] = tuple(INTEGRATOR_METHOD_DESCRIPTIONS)
 """Tuple of all supported integrator method identifier strings."""
 
-DEFAULT_INTEGRATOR_METHOD = "rkdp_87"
+DEFAULT_INTEGRATOR_METHOD: str = "rkdp_87"
 """Default numerical integrator method (Dormand-Prince 8(7))."""
 
-DEFAULT_INTEGRATOR_STEP_SIZE_S = (10, 1, 300)
+DEFAULT_INTEGRATOR_STEP_SIZE_S: tuple[float, ...] = (10.0, 1.0, 300.0)
 """Default integrator step sizes in seconds: ``(initial, minimum, maximum)``."""
 
-INTERPOLATION_DEGREE = 8
+INTERPOLATION_DEGREE: int = 8
 """Polynomial degree for Lagrange interpolation when resampling OEM states."""
 
 
@@ -317,12 +321,12 @@ def parse_drag_area_m2(value: str) -> float:
     try:
         drag_area_m2 = float(value)
     except ValueError as exc:
-        raise argparse.ArgumentTypeError(
-            "drag area must be a valid number in m^2"
-        ) from exc
+            raise argparse.ArgumentTypeError(
+                "drag area must be a valid number in m²"
+            ) from exc
 
     if drag_area_m2 <= 0.0:
-        raise argparse.ArgumentTypeError("drag area must be a positive value in m^2")
+        raise argparse.ArgumentTypeError("drag area must be a positive value in m²")
 
     return drag_area_m2
 
@@ -381,7 +385,7 @@ def parse_drag_coefficient(value: str) -> float:
     return drag_coefficient
 
 
-def build_cli_parser():
+def build_cli_parser() -> argparse.ArgumentParser:
     """Create the command-line argument parser for this script.
 
     Returns
@@ -529,10 +533,10 @@ def build_cli_parser():
     parser.add_argument(
         "--drag-area",
         type=parse_drag_area_m2,
-        metavar="<m^2>",
+        metavar="<m²>",
         default=DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2,
         help=(
-            "Drag area / average projection area of the propagated satellite in m^2 "
+            "Drag area / average projection area of the propagated satellite in m² "
             f"(default: {DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2})."
         ),
     )
@@ -685,7 +689,7 @@ class PropagationInputs:
     """Total propagation duration (seconds)"""
 
 
-def load_spice_kernels():
+def load_spice_kernels() -> None:
     """Load required SPICE kernels for propagation support.
 
     Kernels are loaded from Tudat's managed kernel directory returned by
@@ -732,18 +736,18 @@ def read_initial_state_from_stream(
     if line == "":
         raise ValueError("No input line available in stream")
 
-    parsed: tuple[float, np.ndarray] | None = common_oem.parse_oem_state_line(line)
+    parsed: tuple[float, np.ndarray] | None = common_oem.CcsdsOem.parse_oem_state_line(line)
     if parsed is None:
         raise ValueError("The first input line is blank/comment and was not parsed")
 
     timestamp: float
-    state_m: np.ndarray
-    timestamp, state_m = parsed
+    state_m_mps: np.ndarray
+    timestamp, state_m_mps = parsed
     initial_epoch_datetime_utc: datetime = datetime.fromtimestamp(
         timestamp, tz=timezone.utc
     )
     # parse_oem_state_line now returns meters (SI units), no conversion needed
-    initial_state_m_mps: np.ndarray = state_m
+    initial_state_m_mps: np.ndarray = state_m_mps
     return initial_state_m_mps, initial_epoch_datetime_utc
 
 
@@ -800,7 +804,7 @@ def read_initial_state_from_cli_or_stdin(
     sys.exit(1)
 
 
-def build_propagation_inputs(cli_args) -> PropagationInputs:
+def build_propagation_inputs(cli_args: argparse.Namespace) -> PropagationInputs:
     """Build propagation inputs from CLI options and parsed state data.
 
     Parameters
@@ -856,7 +860,9 @@ def build_propagation_inputs(cli_args) -> PropagationInputs:
     )
 
 
-def write_state_history_raw(state_history, output_path):
+def write_state_history_raw(
+    state_history: dict[float, np.ndarray], output_path: str
+) -> None:
     """Write state history as raw state-vector lines (no OEM metadata).
 
     Parameters
@@ -898,8 +904,11 @@ def write_state_history_raw(state_history, output_path):
 
 
 def write_state_history_oem(
-    state_history, output_path, propagation_inputs, oem_step_size_s
-):
+    state_history: dict[float, np.ndarray],
+    output_path: str,
+    propagation_inputs: PropagationInputs,
+    oem_step_size_s: float,
+) -> None:
     """Write state history as a CCSDS OEM file using :class:`common.ccsds.oem.CcsdsOem`.
 
     Parameters
@@ -918,8 +927,6 @@ def write_state_history_oem(
         Writes a CCSDS OEM formatted file with header, metadata, and state data
         where position is in km and velocity in km/s.
     """
-    from common.ccsds.oem import CcsdsOem
-
     tudat_time_scale_converter = time_representation.default_time_scale_converter()
 
     interpolator = lagrange.LagrangeInterpolator(
@@ -957,7 +964,7 @@ def write_state_history_oem(
         )
 
     # Create OEM using from_states() - automatic header/metadata generation
-    oem = CcsdsOem.from_states(
+    oem = common_oem.CcsdsOem.from_states(
         oem_states,
         object_name=propagation_inputs.satellite_name,
         ref_frame=DEFAULT_GLOBAL_FRAME_ORIENTATION,
@@ -975,7 +982,7 @@ def write_state_history_oem(
         oem.write(output_path)
 
 
-def build_dependent_variable_csv_header_prefix(dep_var_setting) -> str:
+def build_dependent_variable_csv_header_prefix(dep_var_setting: Any) -> str:
     """Build the dependent-variable CSV header prefix for one setting.
 
     Parameters
@@ -1023,7 +1030,7 @@ def print_pre_propagation_summary(
     output_oem_path: str | None = None,
     output_raw_path: str | None = None,
     dep_var_csv_path: str | None = None,
-):
+) -> None:
     """Print the pre-propagation configuration summary.
 
     Parameters
@@ -1087,7 +1094,7 @@ def print_pre_propagation_summary(
     )
 
     # satellite_drag_area_m2: display drag area, which is used for both drag and SRP in this script.
-    print(f"Drag area [m^2]: {propagation_inputs.satellite_drag_area_m2}")
+    print(f"Drag area [m²]: {propagation_inputs.satellite_drag_area_m2}")
 
     # is_srp_on: display SRP status; only show coefficient when SRP is enabled.
     print(
@@ -1116,7 +1123,7 @@ def print_pre_propagation_summary(
     initial_position_km = (
         propagation_inputs.initial_state_m_mps[:3] / KILOMETERS_TO_METERS
     )
-    initial_velocity_kmps = (
+    initial_velocity_km_s = (
         propagation_inputs.initial_state_m_mps[3:] / KILOMETERS_TO_METERS
     )
     print(
@@ -1125,7 +1132,7 @@ def print_pre_propagation_summary(
     )
     print(
         "Initial velocity vector [km/s]: "
-        f"{np.array2string(initial_velocity_kmps, precision=6, separator=', ')}"
+        f"{np.array2string(initial_velocity_km_s, precision=6, separator=', ')}"
     )
     print(f"Simulation duration [s]: {propagation_inputs.simulation_duration_s}")
     simulation_end_epoch_datetime_utc = (
@@ -1149,11 +1156,11 @@ def print_pre_propagation_summary(
 
 def create_translational_propagator_settings(
     propagation_inputs: PropagationInputs,
-    central_bodies,
-    acceleration_models,
-    bodies_to_propagate,
-    dependent_variables_to_save,
-):
+    central_bodies: list[str],
+    acceleration_models: Any,
+    bodies_to_propagate: list[str],
+    dependent_variables_to_save: list[Any],
+) -> Any:
     """Create translational propagator settings for the configured run.
 
     Parameters
@@ -1246,7 +1253,7 @@ def create_translational_propagator_settings(
     )
 
 
-def create_environment_and_bodies(propagation_inputs: PropagationInputs):
+def create_environment_and_bodies(propagation_inputs: PropagationInputs) -> Any:
     """Create environment settings, add spacecraft interfaces, and build bodies.
 
     Parameters
@@ -1316,10 +1323,10 @@ def create_environment_and_bodies(propagation_inputs: PropagationInputs):
 
 def create_acceleration_models(
     propagation_inputs: PropagationInputs,
-    bodies,
-    bodies_to_propagate,
-    central_bodies,
-):
+    bodies: Any,
+    bodies_to_propagate: list[str],
+    central_bodies: list[str],
+) -> Any:
     """Create acceleration models for the propagated satellite.
 
     Parameters
@@ -1396,7 +1403,9 @@ def create_acceleration_models(
     )
 
 
-def create_dependent_variables_to_save(propagation_inputs: PropagationInputs):
+def create_dependent_variables_to_save(
+    propagation_inputs: PropagationInputs,
+) -> list[Any]:
     """Create dependent-variable save settings for propagation and plotting.
 
     Parameters
@@ -1406,9 +1415,9 @@ def create_dependent_variables_to_save(propagation_inputs: PropagationInputs):
 
     Returns
     -------
-    ``dependent_variables_to_save``
-        where the first list is passed to the propagator and the second list is
-        reused later for plotting.
+    list[Any]
+        Dependent-variable save settings passed to the propagator and reused
+        later for plotting.
     """
     # Define list of dependent variables to save.
     dependent_variables_to_save = [

@@ -1,8 +1,7 @@
 """Read, parse, and write CCSDS Orbit Ephemeris Message (OEM) files.
 
 Provides a structured :class:`CcsdsOem` class as the primary interface, plus
-low-level functions (:func:`read_oem`, :func:`write_oem`) retained for
-backward compatibility.
+low-level parsing helpers.
 
 Unit Conversion
 ---------------
@@ -26,10 +25,11 @@ array([6.7e6, 0.0, 0.0, 0.0, 7.5e3, 0.0])  # Position in m, velocity in m/s
 from __future__ import annotations
 
 import bisect
+import copy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, TextIO
+from typing import Any, TextIO
 
 import numpy as np
 
@@ -48,12 +48,6 @@ KILOMETERS_TO_METERS: float = 1000.0
 # ===================================================================
 # Internal helpers
 # ===================================================================
-
-
-def _is_state_line(line: str) -> bool:
-    """Heuristic: a state line starts with a date-like token."""
-    token: str = line.split()[0] if line.split() else ""
-    return len(token) >= 10 and token[4:5] == "-"
 
 
 _META_KEY_ORDER: list[str] = [
@@ -81,387 +75,6 @@ _HEADER_KEY_ORDER: list[str] = [
     "MESSAGE_ID",
 ]
 """Preferred ordering of header keys when writing OEM files."""
-
-
-# ===================================================================
-# Low-level reader (dict-based)
-# ===================================================================
-
-
-def parse_oem_state_line(line: str) -> tuple[float, np.ndarray] | None:
-    """Parse a single line of OEM-style data.
-
-    Accepts whitespace or comma separated values.
-
-    OEM files use km and km/s (CCSDS standard), but this function converts
-    to SI units (m and m/s) for internal use.
-
-    Parameters
-    ----------
-    line : str
-        A single line of OEM-style data to parse.
-
-    Returns
-    -------
-    tuple[float, np.ndarray] | None
-        ``(timestamp, state_m)`` where *timestamp* is a POSIX timestamp (float, seconds since epoch)
-        and *state_m* is a 6-element numpy array ``[x, y, z, vx, vy, vz]`` in meters (m) and m/s,
-        or ``None`` for blank / comment lines.
-    """
-    if not line.strip():
-        return None
-    if line.strip().startswith("#"):
-        return None
-
-    parts: list[str] = [p for tok in line.strip().split() for p in tok.split(",")]
-    if len(parts) < 7:
-        raise ValueError(f"Line does not contain 7 fields: '{line}'")
-
-    epoch_str: str = parts[0]
-    epoch_dt: datetime = time_utils.iso8601_to_datetime(epoch_str)
-    timestamp: float = epoch_dt.timestamp()
-
-    vals: list[float] = [float(x) for x in parts[1:7]]
-    state_km: np.ndarray = np.array(vals)
-
-    # Convert from km/km·s⁻¹ (OEM standard) to m/m·s⁻¹ (SI units)
-    state_m: np.ndarray = state_km * KILOMETERS_TO_METERS
-
-    return timestamp, state_m
-
-
-def read_oem(
-    source: TextIO | str | Path,
-) -> tuple[dict, dict, list[tuple[float, np.ndarray]]]:
-    """Read an OEM file or raw state list and return *(header, meta, states)*.
-
-    OEM files use km and km/s (CCSDS standard), but state vectors are converted
-    to SI units (m and m/s) for internal use.
-
-    For raw state list files (without OEM headers), header and meta will be empty dicts.
-
-    Parameters
-    ----------
-    source : TextIO | str | Path
-        A readable text stream, file path string, or Path object.
-
-    Returns
-    -------
-    tuple[dict, dict, list[tuple[float, np.ndarray]]]
-        A 3-tuple of ``(header, meta, states)`` where:
-        - *header* is a dictionary of header fields, or empty dict for raw state lists
-        - *meta* is a dictionary of metadata fields, or empty dict for raw state lists
-        - *states* is a list of (POSIX timestamp, state_vector) tuples,
-          sorted by POSIX timestamp (float, seconds since epoch) in ascending order.
-          State vectors are in meters (m) and m/s.
-    """
-    if isinstance(source, (str, Path)):
-        with open(source, "r", encoding="utf-8") as fh:
-            return _read_oem_impl(fh)
-    return _read_oem_impl(source)
-
-
-def _read_oem_impl(
-    source: TextIO,
-) -> tuple[dict, dict, list[tuple[float, np.ndarray]]]:
-    """Internal implementation of OEM reading (no deprecation warning).
-
-    Comments are tracked by their location in the file:
-    - ``header["COMMENT"]``: Comments in the header section (after CCSDS_OEM_VERS,
-      before META_START).
-    - ``meta["COMMENT"]``: Comments inside the META_START/META_STOP block.
-    - ``header["DATA_COMMENT"]``: Comments in the ephemeris data section (after
-      META_STOP, before or among state lines).
-    """
-    if isinstance(source, (str, Path)):
-        with open(source, "r", encoding="utf-8") as fh:
-            return _read_oem_impl(fh)
-
-    header: dict = {}
-    meta: dict = {}
-    states: list[tuple[float, np.ndarray]] = []
-    in_meta: bool = False
-    past_meta: bool = False
-
-    for raw_line in source:
-        line: str = raw_line.strip()
-        if not line:
-            continue
-
-        if line == "META_START":
-            in_meta = True
-            continue
-        if line == "META_STOP":
-            in_meta = False
-            past_meta = True
-            continue
-
-        if line.startswith("COMMENT"):
-            comment_text: str = line[len("COMMENT") :].strip()
-            if in_meta:
-                meta.setdefault("COMMENT", [])
-                meta["COMMENT"].append(comment_text)
-            elif past_meta:
-                # Data section comments (after META_STOP)
-                header.setdefault("DATA_COMMENT", [])
-                header["DATA_COMMENT"].append(comment_text)
-            else:
-                # Header comments (before META_START)
-                header.setdefault("COMMENT", [])
-                header["COMMENT"].append(comment_text)
-            continue
-
-        kv: tuple[str, str] | None = common.parse_key_value_line(line)
-        if kv is not None and (in_meta or not _is_state_line(line)):
-            key, value = kv
-            try:
-                value = int(value)
-            except ValueError:
-                try:
-                    value = float(value)
-                except ValueError:
-                    pass
-            if in_meta:
-                meta[key] = value
-            else:
-                header[key] = value
-            continue
-
-        if _is_state_line(line):
-            parts: list[str] = line.split()
-            if len(parts) < 7:
-                continue
-            epoch: datetime = time_utils.iso8601_to_datetime(parts[0])
-            timestamp: float = epoch.timestamp()
-            state_km: np.ndarray = np.array([float(v) for v in parts[1:7]])
-            # Convert from km/km·s⁻¹ (OEM standard) to m/m·s⁻¹ (SI units)
-            states.append((timestamp, state_km * KILOMETERS_TO_METERS))
-
-    # Return empty dicts for header/meta if none found (raw state list)
-    return header, meta, states
-
-
-def find_state_by_timestamp(
-    states: list[tuple[float, np.ndarray]],
-    timestamp: float,
-    tolerance: float = 0.0,
-) -> tuple[float, np.ndarray] | None:
-    """Find a state by timestamp using binary search.
-
-    Uses binary search (O(log n)) to efficiently find a state with the given
-    timestamp in a sorted list of states.
-
-    Parameters
-    ----------
-    states : list[tuple[float, np.ndarray]]
-        Sorted list of (POSIX timestamp, state_vector) tuples.
-    timestamp : float
-        POSIX timestamp to search for (seconds since epoch).
-    tolerance : float, optional
-        Maximum allowed difference between requested and found timestamp.
-        If 0.0 (default), requires exact match. If > 0.0, returns the closest
-        state within tolerance.
-
-    Returns
-    -------
-    tuple[float, np.ndarray] | None
-        The (timestamp, state_vector) tuple if found within tolerance,
-        or None if not found.
-
-    Examples
-    --------
-    >>> states = [(1000.0, np.array([1, 2, 3, 4, 5, 6])),
-    ...           (2000.0, np.array([7, 8, 9, 10, 11, 12]))]
-    >>> find_state_by_timestamp(states, 2000.0)
-    (2000.0, array([7, 8, 9, 10, 11, 12]))
-    >>> find_state_by_timestamp(states, 1500.0, tolerance=600.0)
-    (2000.0, array([7, 8, 9, 10, 11, 12]))
-    >>> find_state_by_timestamp(states, 3000.0) is None
-    True
-    """
-    if not states:
-        return None
-
-    # Extract timestamps for binary search
-    timestamps = [t for t, _ in states]
-
-    if tolerance == 0.0:
-        # Exact match required
-        idx = bisect.bisect_left(timestamps, timestamp)
-        if idx < len(states) and timestamps[idx] == timestamp:
-            return states[idx]
-        return None
-    else:
-        # Find closest within tolerance
-        idx = bisect.bisect_left(timestamps, timestamp)
-
-        # Check candidates: element at idx and idx-1
-        candidates = []
-        if idx < len(states):
-            candidates.append((idx, abs(timestamps[idx] - timestamp)))
-        if idx > 0:
-            candidates.append((idx - 1, abs(timestamps[idx - 1] - timestamp)))
-
-        if not candidates:
-            return None
-
-        # Find closest candidate
-        best_idx, best_diff = min(candidates, key=lambda x: x[1])
-
-        if best_diff <= tolerance:
-            return states[best_idx]
-        return None
-
-
-# ===================================================================
-# Low-level writer
-# ===================================================================
-
-
-def write_state(
-    dest: TextIO,
-    epoch: datetime,
-    state_vector: np.ndarray,
-) -> None:
-    """Write a single state vector to a file handle.
-
-    Converts from internal SI units (m, m/s) to OEM standard units (km, km/s).
-
-    Parameters
-    ----------
-    dest : TextIO
-        Writable text stream.
-    epoch : datetime
-        Epoch datetime object.
-    state_vector : np.ndarray
-        State vector (6-element array) [x, y, z, vx, vy, vz] in meters (m) and m/s.
-    """
-    dt: datetime = epoch
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    epoch_str: str = dt.strftime("%Y-%m-%dT%H:%M:%S.%f")
-
-    # Convert from m/m·s⁻¹ (SI units) to km/km·s⁻¹ (OEM standard)
-    state_km: np.ndarray = state_vector / KILOMETERS_TO_METERS
-
-    vals: str = " ".join(f"{v:.15g}" for v in state_km)
-    dest.write(f"{epoch_str} {vals}\n")
-
-
-def write_states(
-    dest: TextIO,
-    states: (
-        dict[datetime, np.ndarray]
-        | dict[float, np.ndarray]
-        | list[tuple[datetime, np.ndarray]]
-        | list[tuple[float, np.ndarray]]
-    ),
-) -> None:
-    """Write state vectors to a file handle.
-
-    Converts from internal SI units (m, m/s) to OEM standard units (km, km/s).
-
-    Parameters
-    ----------
-    dest : TextIO
-        Writable text stream.
-    states : dict[datetime, np.ndarray] | dict[float, np.ndarray] | list[tuple[datetime, np.ndarray]] | list[tuple[float, np.ndarray]]
-        Dictionary mapping epoch datetimes or POSIX timestamps to state vectors
-        in meters (m) and m/s, or a sorted list of (epoch, state_vector) tuples.
-    """
-    if isinstance(states, dict):
-        items: list[tuple[datetime | float, np.ndarray]] = sorted(states.items())
-    else:
-        items: list[tuple[datetime | float, np.ndarray]] = states
-
-    for epoch, state_vector in items:
-        # Convert float timestamp to datetime if needed
-        if isinstance(epoch, float):
-            epoch = datetime.fromtimestamp(epoch, tz=timezone.utc)
-        write_state(dest, epoch, state_vector)
-
-
-def write_oem(
-    dest: TextIO | str | Path,
-    header: dict,
-    meta: dict,
-    states: dict[datetime, np.ndarray] | dict[float, np.ndarray],
-) -> None:
-    """Write an OEM file from *(header, meta, states)* dicts.
-
-    Converts state vectors from internal SI units (m, m/s) to OEM standard
-    units (km, km/s) when writing.
-
-    Parameters
-    ----------
-    dest : TextIO | str | Path
-        A writable text stream, file path string, or Path object.
-    header : dict
-        Dictionary containing OEM header fields.
-    meta : dict
-        Dictionary containing OEM metadata fields.
-    states : dict[datetime, np.ndarray] | dict[float, np.ndarray]
-        Dictionary mapping epoch datetimes or POSIX timestamps to state vectors
-        in meters (m) and m/s.
-    """
-    if isinstance(dest, (str, Path)):
-        with open(dest, "w", encoding="utf-8") as fh:
-            return write_oem(fh, header, meta, states)
-
-    w: Callable[[str], int] = dest.write
-
-    header_values: dict = dict(header)
-    header_values.setdefault("CCSDS_OEM_VERS", 2.0)
-
-    header_keys: list[str] = [key for key in _HEADER_KEY_ORDER if key in header_values]
-    extra_header_keys: list[str] = [
-        key
-        for key in header_values
-        if key not in _HEADER_KEY_ORDER and key not in {"COMMENT", "DATA_COMMENT"}
-    ]
-    all_header_keys: list[str] = header_keys + extra_header_keys
-    header_pad: int = max((len(key) for key in all_header_keys), default=0)
-
-    version: float | int = header_values["CCSDS_OEM_VERS"]
-    w(f"{'CCSDS_OEM_VERS':<{header_pad}} = {version}\n")
-
-    # Header comments (after CCSDS_OEM_VERS, before CREATION_DATE)
-    if header.get("COMMENT"):
-        w("\n")
-        for comment in header["COMMENT"]:
-            w(f"COMMENT {comment}\n")
-        w("\n")
-
-    for key in header_keys[1:] + extra_header_keys:
-        w(f"{key:<{header_pad}} = {header_values[key]}\n")
-    w("\n")
-
-    w("META_START\n")
-
-    # Metadata comments (inside META block)
-    for comment in meta.get("COMMENT", []):
-        w(f"COMMENT {comment}\n")
-
-    meta_keys: list[str] = [k for k in _META_KEY_ORDER if k in meta]
-    extra_keys: list[str] = [
-        k for k in meta if k not in _META_KEY_ORDER and k != "COMMENT"
-    ]
-    all_keys: list[str] = meta_keys + extra_keys
-    pad: int = max((len(k) for k in all_keys), default=0)
-
-    for key in all_keys:
-        w(f"{key:<{pad}} = {meta[key]}\n")
-
-    w("META_STOP\n")
-    w("\n")
-
-    # Data section comments (after META_STOP, before ephemeris data)
-    for comment in header.get("DATA_COMMENT", []):
-        w(f"COMMENT {comment}\n")
-    if header.get("DATA_COMMENT"):
-        w("\n")
-
-    write_states(dest, states)
 
 
 # ===================================================================
@@ -542,6 +155,48 @@ class OemMeta:
 class CcsdsOem:
     """Structured CCSDS Orbit Ephemeris Message with header, metadata, and states."""
 
+    @classmethod
+    def parse_oem_state_line(cls, line: str) -> tuple[float, np.ndarray] | None:
+        """Parse a single line of OEM-style data.
+
+        Accepts whitespace or comma separated values.
+
+        OEM files use km and km/s (CCSDS standard), but this function converts
+        to SI units (m and m/s) for internal use.
+
+        Parameters
+        ----------
+        line : str
+            A single line of OEM-style data to parse.
+
+        Returns
+        -------
+        tuple[float, np.ndarray] | None
+            ``(timestamp, state_m)`` where *timestamp* is a POSIX timestamp (float, seconds since epoch)
+            and *state_m* is a 6-element numpy array ``[x, y, z, vx, vy, vz]`` in meters (m) and m/s,
+            or ``None`` for blank / comment lines.
+        """
+        if not line.strip():
+            return None
+        if line.strip().startswith("#"):
+            return None
+
+        parts: list[str] = [p for tok in line.strip().split() for p in tok.split(",")]
+        if len(parts) < 7:
+            raise ValueError(f"Line does not contain 7 fields: '{line}'")
+
+        epoch_str: str = parts[0]
+        epoch_dt: datetime = time_utils.iso8601_to_datetime(epoch_str)
+        timestamp: float = epoch_dt.timestamp()
+
+        values: list[float] = [float(value) for value in parts[1:7]]
+        state_km: np.ndarray = np.array(values)
+
+        # Convert from km/km·s⁻¹ (OEM standard) to m/m·s⁻¹ (SI units)
+        state_m: np.ndarray = state_km * KILOMETERS_TO_METERS
+
+        return timestamp, state_m
+
     def __init__(
         self,
         header: OemHeader,
@@ -570,6 +225,82 @@ class CcsdsOem:
         self.states = states
         """List of (POSIX timestamp, state_vector) tuples, sorted by POSIX timestamp (float, seconds since epoch) in ascending order. State vectors are 6-element arrays [x, y, z, vx, vy, vz] in meters (m) and m/s."""
 
+    @staticmethod
+    def _is_state_line(line: str) -> bool:
+        """Return whether a line starts with a date-like state token."""
+        token: str = line.split()[0] if line.split() else ""
+        return len(token) >= 10 and token[4:5] == "-"
+
+    @staticmethod
+    def _read_oem_impl(
+        source: TextIO | str | Path,
+    ) -> tuple[dict[str, Any], dict[str, Any], list[tuple[float, np.ndarray]]]:
+        """Read OEM content into dictionaries and SI-unit state vectors."""
+        if isinstance(source, (str, Path)):
+            with open(source, "r", encoding="utf-8") as file_handle:
+                return CcsdsOem._read_oem_impl(file_handle)
+
+        header: dict[str, Any] = {}
+        meta: dict[str, Any] = {}
+        states: list[tuple[float, np.ndarray]] = []
+        in_meta: bool = False
+        past_meta: bool = False
+
+        for raw_line in source:
+            line: str = raw_line.strip()
+            if not line:
+                continue
+
+            if line == "META_START":
+                in_meta = True
+                continue
+            if line == "META_STOP":
+                in_meta = False
+                past_meta = True
+                continue
+
+            if line.startswith("COMMENT"):
+                comment_text: str = line[len("COMMENT") :].strip()
+                if in_meta:
+                    meta.setdefault("COMMENT", [])
+                    meta["COMMENT"].append(comment_text)
+                elif past_meta:
+                    header.setdefault("DATA_COMMENT", [])
+                    header["DATA_COMMENT"].append(comment_text)
+                else:
+                    header.setdefault("COMMENT", [])
+                    header["COMMENT"].append(comment_text)
+                continue
+
+            key_value: tuple[str, str] | None = common.parse_key_value_line(line)
+            if key_value is not None and (in_meta or not CcsdsOem._is_state_line(line)):
+                key, value = key_value
+                try:
+                    value = int(value)
+                except ValueError:
+                    try:
+                        value = float(value)
+                    except ValueError:
+                        pass
+                if in_meta:
+                    meta[key] = value
+                else:
+                    header[key] = value
+                continue
+
+            if CcsdsOem._is_state_line(line):
+                state_fields: list[str] = line.split()
+                if len(state_fields) < 7:
+                    continue
+                epoch: datetime = time_utils.iso8601_to_datetime(state_fields[0])
+                timestamp: float = epoch.timestamp()
+                state_km: np.ndarray = np.array(
+                    [float(value) for value in state_fields[1:7]]
+                )
+                states.append((timestamp, state_km * KILOMETERS_TO_METERS))
+
+        return header, meta, states
+
     @classmethod
     def read(cls, source: TextIO | str | Path) -> CcsdsOem:
         """Read and construct a :class:`CcsdsOem` from a file or stream.
@@ -584,16 +315,10 @@ class CcsdsOem:
         CcsdsOem
             Parsed OEM instance.
         """
-        raw_header: dict
-        raw_meta: dict
-        raw_states_float: list[tuple[float, np.ndarray]]
-        # Call internal implementation directly to avoid triggering the
-        # deprecation warning on read_oem().
-        if isinstance(source, (str, Path)):
-            with open(source, "r", encoding="utf-8") as fh:
-                raw_header, raw_meta, raw_states_float = _read_oem_impl(fh)
-        else:
-            raw_header, raw_meta, raw_states_float = _read_oem_impl(source)
+        raw_header: dict[str, Any]
+        raw_meta: dict[str, Any]
+        raw_states: list[tuple[float, np.ndarray]]
+        raw_header, raw_meta, raw_states = cls._read_oem_impl(source)
 
         header: OemHeader = OemHeader(
             version=float(raw_header.get("CCSDS_OEM_VERS", 0.0)),
@@ -621,7 +346,7 @@ class CcsdsOem:
             comments=raw_meta.get("COMMENT", []),
         )
 
-        return cls(header=header, meta=meta, states=raw_states_float)
+        return cls(header=header, meta=meta, states=raw_states)
 
     @classmethod
     def from_states(
@@ -661,17 +386,17 @@ class CcsdsOem:
         >>> oem = CcsdsOem.from_states(states, object_name="TEST_SAT", ref_frame="GCRF")
         >>> oem.write("output.oem")
         """
-        # Sort states by timestamp
-        sorted_states = sorted(states, key=lambda x: x[0])
+        # Sort states by timestamp.
+        sorted_states = sorted(states, key=lambda state: state[0])
 
-        # Create minimal header
+        # Create minimal header.
         header = OemHeader(
             version=2.0,
             creation_date=time_utils.datetime_to_iso8601(datetime.now(timezone.utc)),
             originator="tudatpy-utils",
         )
 
-        # Create metadata with provided values
+        # Create metadata with provided values.
         meta = OemMeta(
             object_name=object_name,
             ref_frame=ref_frame,
@@ -679,7 +404,7 @@ class CcsdsOem:
             time_system=time_system,
         )
 
-        # Set start/stop times from states
+        # Set start/stop times from states.
         if sorted_states:
             start_dt = datetime.fromtimestamp(sorted_states[0][0], tz=timezone.utc)
             stop_dt = datetime.fromtimestamp(sorted_states[-1][0], tz=timezone.utc)
@@ -687,32 +412,6 @@ class CcsdsOem:
             meta.stop_time = time_utils.datetime_to_iso8601(stop_dt)
 
         return cls(header=header, meta=meta, states=sorted_states)
-
-    @classmethod
-    def parse_state_line(cls, line: str) -> tuple[float, np.ndarray] | None:
-        """Parse a single line of OEM-style state data.
-
-        Wrapper around module-level :func:`parse_oem_state_line` for convenience.
-
-        Parameters
-        ----------
-        line : str
-            A single line of OEM-style data to parse.
-
-        Returns
-        -------
-        tuple[float, np.ndarray] | None
-            ``(timestamp, state_vector)`` or ``None`` for blank/comment lines.
-            State vector is in meters (m) and m/s.
-
-        Examples
-        --------
-        >>> line = "2024-01-01T00:00:00.000000 7000.0 0.0 0.0 0.0 7.5 0.0"
-        >>> timestamp, state = CcsdsOem.parse_state_line(line)
-        >>> state  # In meters and m/s
-        array([7000000., 0., 0., 0., 7500., 0.])
-        """
-        return parse_oem_state_line(line)
 
     @property
     def epochs(self) -> list[float]:
@@ -724,6 +423,47 @@ class CcsdsOem:
         """State vectors ordered by epoch, shape ``(N, 6)`` in meters (m) and m/s."""
         return np.array([state for _, state in self.states])
 
+    def write_state(
+        self,
+        dest: TextIO,
+        epoch: datetime,
+        state_vector: np.ndarray,
+    ) -> None:
+        """Write a single state vector without header or metadata.
+
+        Converts from internal SI units (m, m/s) to OEM standard units (km, km/s).
+
+        Parameters
+        ----------
+        dest : TextIO
+            Writable text stream.
+        epoch : datetime
+            State epoch.
+        state_vector : np.ndarray
+            Six-element state vector in meters (m) and m/s.
+        """
+        dt: datetime = epoch
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        epoch_str: str = dt.strftime("%Y-%m-%dT%H:%M:%S.%f")
+
+        state_km: np.ndarray = state_vector / KILOMETERS_TO_METERS
+        values: str = " ".join(f"{value:.15g}" for value in state_km)
+        dest.write(f"{epoch_str} {values}\n")
+
+    def write_states(self, dest: TextIO) -> None:
+        """Write this OEM's state vectors without header or metadata.
+
+        Parameters
+        ----------
+        dest : TextIO
+            Writable text stream.
+        """
+        for epoch, state_vector in self.states:
+            self.write_state(
+                dest, datetime.fromtimestamp(epoch, tz=timezone.utc), state_vector
+            )
+
     def write(self, dest: TextIO | str | Path) -> None:
         """Write this OEM to a file or stream.
 
@@ -732,7 +472,12 @@ class CcsdsOem:
         dest : TextIO | str | Path
             A writable text stream, file path string, or :class:`Path`.
         """
-        header_dict: dict = {
+        if isinstance(dest, (str, Path)):
+            with open(dest, "w", encoding="utf-8") as file_handle:
+                self.write(file_handle)
+            return
+
+        header_dict: dict[str, Any] = {
             "CCSDS_OEM_VERS": self.header.version,
             "CREATION_DATE": self.header.creation_date,
             "ORIGINATOR": self.header.originator,
@@ -746,18 +491,68 @@ class CcsdsOem:
         if self.header.data_comments:
             header_dict["DATA_COMMENT"] = self.header.data_comments
 
-        meta_dict: dict = {}
+        meta_dict: dict[str, Any] = {}
         if self.meta.comments:
             meta_dict["COMMENT"] = self.meta.comments
         for key in _META_KEY_ORDER:
-            attr: str = key.lower()
-            value: str | int | None = getattr(self.meta, attr, None)
+            attribute_name: str = key.lower()
+            value: str | int | None = getattr(self.meta, attribute_name, None)
             if value is not None and value != "" and value != 0:
                 meta_dict[key] = value
 
-        write_oem(dest, header_dict, meta_dict, self.states)
+        write_text = dest.write
 
-    def update_metadata(self, **kwargs) -> None:
+        header_values: dict[str, Any] = dict(header_dict)
+        header_values.setdefault("CCSDS_OEM_VERS", 2.0)
+        header_keys: list[str] = [
+            key for key in _HEADER_KEY_ORDER if key in header_values
+        ]
+        extra_header_keys: list[str] = [
+            key
+            for key in header_values
+            if key not in _HEADER_KEY_ORDER and key not in {"COMMENT", "DATA_COMMENT"}
+        ]
+        all_header_keys: list[str] = header_keys + extra_header_keys
+        header_pad: int = max((len(key) for key in all_header_keys), default=0)
+
+        version: float | int = header_values["CCSDS_OEM_VERS"]
+        write_text(f"{'CCSDS_OEM_VERS':<{header_pad}} = {version}\n")
+
+        if header_dict.get("COMMENT"):
+            write_text("\n")
+            for comment in header_dict["COMMENT"]:
+                write_text(f"COMMENT {comment}\n")
+            write_text("\n")
+
+        for key in header_keys[1:] + extra_header_keys:
+            write_text(f"{key:<{header_pad}} = {header_values[key]}\n")
+        write_text("\n")
+
+        write_text("META_START\n")
+        for comment in meta_dict.get("COMMENT", []):
+            write_text(f"COMMENT {comment}\n")
+
+        meta_keys: list[str] = [key for key in _META_KEY_ORDER if key in meta_dict]
+        extra_keys: list[str] = [
+            key for key in meta_dict if key not in _META_KEY_ORDER and key != "COMMENT"
+        ]
+        all_keys: list[str] = meta_keys + extra_keys
+        pad: int = max((len(key) for key in all_keys), default=0)
+
+        for key in all_keys:
+            write_text(f"{key:<{pad}} = {meta_dict[key]}\n")
+
+        write_text("META_STOP\n")
+        write_text("\n")
+
+        for comment in header_dict.get("DATA_COMMENT", []):
+            write_text(f"COMMENT {comment}\n")
+        if header_dict.get("DATA_COMMENT"):
+            write_text("\n")
+
+        self.write_states(dest)
+
+    def update_metadata(self, **kwargs: Any) -> None:
         """Update metadata fields in-place.
 
         Parameters
@@ -783,7 +578,7 @@ class CcsdsOem:
             else:
                 raise ValueError(f"Unknown metadata field: {key}")
 
-    def with_metadata(self, **kwargs) -> CcsdsOem:
+    def with_metadata(self, **kwargs: Any) -> CcsdsOem:
         """Return a new CcsdsOem with updated metadata.
 
         Creates a deep copy of this OEM with modified metadata fields.
@@ -813,8 +608,6 @@ class CcsdsOem:
         >>> oem.meta.object_name  # Original unchanged
         'ISS'
         """
-        import copy
-
         new_oem = copy.deepcopy(self)
         new_oem.update_metadata(**kwargs)
         return new_oem
@@ -829,9 +622,6 @@ class CcsdsOem:
         tolerance: float = 0.0,
     ) -> tuple[float, np.ndarray] | None:
         """Find a state by timestamp using binary search.
-
-        Wrapper around the module-level :func:`find_state_by_timestamp` function
-        that operates on this OEM's states.
 
         Parameters
         ----------
@@ -856,7 +646,43 @@ class CcsdsOem:
         ...     timestamp, state_vector = state
         ...     print(f"Found state at {timestamp}")
         """
-        return find_state_by_timestamp(self.states, timestamp, tolerance)
+        if not self.states:
+            return None
+
+        timestamps = [epoch for epoch, _ in self.states]
+        timestamp_index = bisect.bisect_left(timestamps, timestamp)
+
+        if tolerance == 0.0:
+            if (
+                timestamp_index < len(self.states)
+                and timestamps[timestamp_index] == timestamp
+            ):
+                return self.states[timestamp_index]
+            return None
+
+        candidates: list[tuple[int, float]] = []
+        if timestamp_index < len(self.states):
+            candidates.append(
+                (
+                    timestamp_index,
+                    abs(timestamps[timestamp_index] - timestamp),
+                )
+            )
+        if timestamp_index > 0:
+            candidates.append(
+                (
+                    timestamp_index - 1,
+                    abs(timestamps[timestamp_index - 1] - timestamp),
+                )
+            )
+
+        if not candidates:
+            return None
+
+        best_idx, best_diff = min(candidates, key=lambda candidate: candidate[1])
+        if best_diff <= tolerance:
+            return self.states[best_idx]
+        return None
 
     def __repr__(self) -> str:
         """Return a concise string representation of this OEM instance."""

@@ -43,7 +43,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -166,21 +166,25 @@ def main() -> None:
             print(f"[slice_oem]   States: {total_states}", file=sys.stderr)
 
             if total_states > 0:
-                first_ts, _ = oem_data.states[0]
-                last_ts, _ = oem_data.states[-1]
-                first_dt = datetime.fromtimestamp(first_ts, tz=timezone.utc)
-                last_dt = datetime.fromtimestamp(last_ts, tz=timezone.utc)
-                span = last_dt - first_dt
+                first_timestamp, _ = oem_data.states[0]
+                last_timestamp, _ = oem_data.states[-1]
+                first_datetime = datetime.fromtimestamp(
+                    first_timestamp, tz=timezone.utc
+                )
+                last_datetime = datetime.fromtimestamp(last_timestamp, tz=timezone.utc)
+                duration = last_datetime - first_datetime
                 print(
-                    f"[slice_oem]   Start: {time_utils.datetime_to_iso8601(first_dt)}",
+                    "[slice_oem]   Start: "
+                    f"{time_utils.datetime_to_iso8601(first_datetime)}",
                     file=sys.stderr,
                 )
                 print(
-                    f"[slice_oem]   End:   {time_utils.datetime_to_iso8601(last_dt)}",
+                    "[slice_oem]   End:   "
+                    f"{time_utils.datetime_to_iso8601(last_datetime)}",
                     file=sys.stderr,
                 )
                 print(
-                    f"[slice_oem]   Span:  {time_utils.format_duration_human(span)}",
+                    f"[slice_oem]   Span:  {time_utils.format_duration_human(duration)}",
                     file=sys.stderr,
                 )
             print(file=sys.stderr)
@@ -188,18 +192,18 @@ def main() -> None:
         sliced_oem = None
 
         if args.time_slice:
-            time_slice_opts = slice_oem.parse_time_slice_args(args.time_slice)
-            time_slice_opts.interpolate = args.interpolate
+            time_slice_options = slice_oem.parse_time_slice_args(args.time_slice)
+            time_slice_options.interpolate = args.interpolate
             if (
-                time_slice_opts.step_size is not None
-                and not time_slice_opts.interpolate
+                time_slice_options.step_size is not None
+                and not time_slice_options.interpolate
             ):
                 parser.error("step_size requires --interpolate")
 
             # Time slice extraction with optional interpolation
             sliced_oem = slice_oem.extract_sliced_states(
                 oem_data,
-                time_slice_opts,
+                time_slice_options,
                 verbose=args.verbose,
                 interpolation_degree=args.interpolate_degree,
             )
@@ -216,18 +220,17 @@ def main() -> None:
         if sliced_oem is not None:
             # Determine output destination
             if args.output == "-":
-                output_file = sys.stdout
-            else:
-                output_file = open(args.output, "w")
-
-            try:
+                output_stream = sys.stdout
                 if args.raw:
-                    oem.write_states(output_file, sliced_oem.states)
+                    sliced_oem.write_states(output_stream)
                 else:
-                    sliced_oem.write(output_file)
-            finally:
-                if args.output != "-":
-                    output_file.close()
+                    sliced_oem.write(output_stream)
+            else:
+                with open(args.output, "w", encoding="utf-8") as output_stream:
+                    if args.raw:
+                        sliced_oem.write_states(output_stream)
+                    else:
+                        sliced_oem.write(output_stream)
 
 
 if __name__ == "__main__":

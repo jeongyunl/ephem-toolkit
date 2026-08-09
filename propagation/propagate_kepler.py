@@ -110,12 +110,12 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def read_kepler_input(cli_value: str | None) -> tuple[dt.datetime, np.ndarray, str]:
+def read_kepler_input(source: str | None) -> tuple[dt.datetime, np.ndarray, str]:
     """Read the initial Keplerian element line from file or stdin.
 
     Parameters
     ----------
-    cli_value : str | None
+    source : str | None
         Path to an input file, or *None* to read from stdin.
 
     Returns
@@ -132,17 +132,19 @@ def read_kepler_input(cli_value: str | None) -> tuple[dt.datetime, np.ndarray, s
     ValueError
         If no valid Keplerian element line is found.
     """
-    if cli_value:
+    if source:
         input_path: pathlib.Path = (
-            pathlib.Path(cli_value.strip()).expanduser().resolve()
+            pathlib.Path(source.strip()).expanduser().resolve()
         )
         if not input_path.is_file():
             raise FileNotFoundError(f"Input file not found: {input_path}")
 
         with input_path.open("r", encoding="utf-8") as file_stream:
             lines: list[str] = [line.strip() for line in file_stream if line.strip()]
-        parsed_state: tuple[dt.datetime, np.ndarray] | None = oem.parse_oem_state_line(
-            lines[-1]
+        if not lines:
+            raise ValueError(f"Empty input file: {input_path}")
+        parsed_state: tuple[dt.datetime, np.ndarray] | None = (
+            oem.CcsdsOem.parse_oem_state_line(lines[-1])
         )
         if parsed_state is None:
             raise ValueError(f"No valid Keplerian element line found in {input_path}")
@@ -162,8 +164,8 @@ def read_kepler_input(cli_value: str | None) -> tuple[dt.datetime, np.ndarray, s
     lines: list[str] = [
         line.strip() for line in stdin_text.splitlines() if line.strip()
     ]
-    parsed_state: tuple[dt.datetime, np.ndarray] | None = oem.parse_oem_state_line(
-        lines[-1]
+    parsed_state: tuple[dt.datetime, np.ndarray] | None = (
+        oem.CcsdsOem.parse_oem_state_line(lines[-1])
     )
     if parsed_state is None:
         raise ValueError("No valid Keplerian element line found on stdin")
@@ -250,8 +252,7 @@ def propagate_kepler_elements(
         )
         oem_message.write(sys.stdout)
     else:
-        # write_states() accepts both dict and list formats
-        oem.write_states(sys.stdout, propagated_states)
+        oem.CcsdsOem.from_states(propagated_states).write_states(sys.stdout)
 
 
 # ===================================================================
