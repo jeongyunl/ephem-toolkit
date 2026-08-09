@@ -45,7 +45,7 @@ doc/                 Documentation
 - `propagation/propagate_kepler.py` — two-body Kepler propagation
 - `propagation/propagate_tle.py` — SGP4 TLE propagation
 
-Supports CCSDS OEM export, raw state-vector output, dependent-variable CSV export, and OEM metadata headers.
+Supports CCSDS OEM export, data-only state-vector output, dependent-variable CSV export, and OEM metadata headers.
 
 See [PROPAGATION.md](doc/PROPAGATION.md) for full usage details.
 

@@ -5,7 +5,7 @@ Read one OEM-like line of Keplerian elements from a file or stdin, then
 propagate the orbit using the two-body Kepler propagator.
 
 Usage:
-    python3 propagate_kepler.py [input_file] [-d <duration>] [-s <step>] [--oem]
+    python3 propagate_kepler.py [input_file] [-d <duration>] [-s <step>] [--data-only]
 
 Expected input format:
     <ISO-8601 epoch>  <a_km>  <e>  <i_rad>  <omega_rad>  <RAAN_rad>  <theta_rad>
@@ -58,7 +58,7 @@ def parse_args() -> argparse.Namespace:
     -------
     argparse.Namespace
         Parsed arguments with attributes ``input_file``, ``duration_s``,
-        ``step_s``, and ``oem``.
+        ``step_s``, and ``data_only``.
     """
     parser = argparse.ArgumentParser(
         description=(
@@ -100,11 +100,11 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--oem",
+        "--data-only",
         action="store_true",
         help=(
-            "Print OEM metadata header before data lines. "
-            "If omitted, only propagated state lines are printed."
+            "Print only propagated state lines without the OEM metadata header. "
+            "By default, output is CCSDS OEM format."
         ),
     )
     return parser.parse_args()
@@ -133,9 +133,7 @@ def read_kepler_input(source: str | None) -> tuple[dt.datetime, np.ndarray, str]
         If no valid Keplerian element line is found.
     """
     if source:
-        input_path: pathlib.Path = (
-            pathlib.Path(source.strip()).expanduser().resolve()
-        )
+        input_path: pathlib.Path = pathlib.Path(source.strip()).expanduser().resolve()
         if not input_path.is_file():
             raise FileNotFoundError(f"Input file not found: {input_path}")
 
@@ -187,7 +185,7 @@ def propagate_kepler_elements(
     initial_kepler_km: np.ndarray,
     duration_s: float,
     step_s: float,
-    include_oem_header: bool,
+    data_only: bool,
     object_name: str,
 ) -> None:
     """Propagate the given Keplerian elements and write output lines to stdout.
@@ -207,8 +205,8 @@ def propagate_kepler_elements(
         Propagation duration (s).
     step_s : float
         Output sampling interval (s).
-    include_oem_header : bool
-        If True, write a CCSDS OEM header before the state lines.
+    data_only : bool
+        If True, write only state lines without a CCSDS OEM header.
     object_name : str
         Object name written to OEM metadata.
     """
@@ -237,9 +235,8 @@ def propagate_kepler_elements(
         propagated_states.append((epoch_posix, propagated_cartesian_km))
         current_time_s += step_s
 
-    if include_oem_header:
-        stop_epoch: dt.datetime = initial_epoch + dt.timedelta(seconds=duration_s)
-
+    output_stream = sys.stdout
+    if not data_only:
         # Use from_states() for automatic header/metadata generation.
         # Note: propagated_states are in km (not SI meters) because this is
         # Keplerian propagation output; the OEM writer converts km→km (no-op).
@@ -250,9 +247,9 @@ def propagate_kepler_elements(
             center_name="EARTH",
             time_system="UTC",
         )
-        oem_message.write(sys.stdout)
+        oem_message.write(output_stream)
     else:
-        oem.CcsdsOem.from_states(propagated_states).write_states(sys.stdout)
+        oem.CcsdsOem.from_states(propagated_states).write_states(output_stream)
 
 
 # ===================================================================
@@ -284,7 +281,7 @@ def main() -> int:
         initial_kepler_km=initial_kepler_km,
         duration_s=args.duration_s,
         step_s=args.step_s,
-        include_oem_header=args.oem,
+        data_only=args.data_only,
         object_name=object_name,
     )
     return 0

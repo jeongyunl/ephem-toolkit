@@ -105,7 +105,7 @@ def parse_cli_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--raw",
+        "--data-only",
         action="store_true",
         help=(
             "Print propagated state lines only (no OEM metadata header). "
@@ -265,7 +265,7 @@ def write_oem_file(
     start_time: dt.datetime,
     stop_time: dt.datetime,
     step_s: float,
-    raw_output: bool,
+    data_only: bool,
 ) -> None:
     """Print propagated state history using an OEM-like text layout.
 
@@ -281,7 +281,7 @@ def write_oem_file(
         Absolute UTC stop epoch.
     step_s : float
         Output sampling interval (s).
-    raw_output : bool
+    data_only : bool
         Whether to print state lines only (without OEM metadata header).
 
     Notes
@@ -309,8 +309,9 @@ def write_oem_file(
         propagated_states.append((timestamp, state_m))
         current_time = current_time + step_dt
 
-    if raw_output:
-        oem.CcsdsOem.from_states(propagated_states).write_states(sys.stdout)
+    output_stream = sys.stdout
+    if data_only:
+        oem.CcsdsOem.from_states(propagated_states).write_states(output_stream)
     else:
         # Use from_states() for automatic header/metadata generation.
         # states_list contains SI units (m, m/s); write() converts to km automatically.
@@ -321,7 +322,7 @@ def write_oem_file(
             center_name="EARTH",
             time_system="UTC",
         )
-        oem_obj.write(sys.stdout)
+        oem_obj.write(output_stream)
 
 
 # ===================================================================
@@ -385,7 +386,7 @@ def main() -> int:
         start_time=start_time,
         stop_time=stop_time,
         step_s=args.step,
-        raw_output=args.raw,
+        data_only=args.data_only,
     )
 
     return 0

@@ -9,7 +9,7 @@ This utility provides flexible slicing capabilities for OEM files:
 - **Index-based slicing**: Extract states using Python-style slice notation
 - **Time-based slicing**: Extract states within specific time windows
 - **Interpolation**: Generate uniformly-spaced states at specified intervals
-- **Flexible output**: Raw state vectors or full OEM format
+- **Flexible output**: State data only or full OEM format
 
 The script is built on the `common.slice_oem` library module, which provides reusable slicing functions for programmatic use.
 
@@ -31,7 +31,7 @@ cat data.oem | python3 bin/slice_oem.py [OPTIONS]
 | `--interpolate` | Enable Lagrange interpolation when step size is provided (enabled by default) |
 | `--no-interpolate` | Disable interpolation |
 | `--interpolate-degree N` | Polynomial degree for Lagrange interpolation (must be ≥ 2, default: 8) |
-| `--raw` | Output raw state vectors only (default: OEM format) |
+| `--data-only` | Output state vectors only (default: OEM format) |
 | `-o`, `--output <file\|->` | Output file path (default: `-` for stdout) |
 | `-v`, `--verbose` | Print detailed debug information to stderr |
 | `-h`, `--help` | Show help message and exit |
@@ -268,7 +268,7 @@ python3 bin/slice_oem.py data.oem --time-slice "0,1h" --no-interpolate
 
 ## Output Formats
 
-### Raw Format (default with `--raw`)
+### Data-Only Format (default with `--data-only`)
 
 Outputs state vectors as space-separated values:
 
@@ -282,7 +282,7 @@ Example:
 2024-01-01T00:01:00.000000 6724.891 463.560 0.000 -0.339 7.718 0.000
 ```
 
-### OEM Format (default without `--raw`)
+### OEM Format (default without `--data-only`)
 
 Outputs a complete CCSDS OEM file with:
 - Preserved metadata (object name, reference frame, center, time system)

@@ -62,7 +62,7 @@ def run_propagate_tle(tle_path: Path) -> str:
             sys.executable,
             str(PROJECT_ROOT / "propagation" / "propagate_tle.py"),
             str(tle_path),
-            "--raw",
+            "--data-only",
             "-s",
             "15m",
         ],

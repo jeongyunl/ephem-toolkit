@@ -5,7 +5,7 @@ This utility provides flexible slicing capabilities for OEM files:
 - Index-based slicing: Extract states using Python-style slice notation
 - Time-based slicing: Extract states within specific time windows
 - Interpolation: Generate uniformly-spaced states at specified intervals
-- Flexible output: Raw state vectors or full OEM format
+- Flexible output: State data only or full OEM format
 
 Usage:
     python3 bin/slice_oem.py <oem_file> [OPTIONS]
@@ -32,7 +32,7 @@ Interpolation examples:
     python3 bin/slice_oem.py data.oem --time-slice="-1h,,5m"
 
 Output format examples:
-    python3 bin/slice_oem.py data.oem --slice "0:10" --raw
+    python3 bin/slice_oem.py data.oem --slice "0:10" --data-only
     python3 bin/slice_oem.py data.oem --time-slice "0,1h" > sliced.oem
     cat data.oem | python3 bin/slice_oem.py --time-slice "0,1h" > sliced.oem
 
@@ -106,9 +106,9 @@ def main() -> None:
         help="Polynomial degree for Lagrange interpolation (must be >= 2, default: 8)",
     )
     parser.add_argument(
-        "--raw",
+        "--data-only",
         action="store_true",
-        help="Output raw state vectors only (default: OEM format)",
+        help="Output state vectors only (default: OEM format)",
     )
     parser.add_argument(
         "-o",
@@ -221,16 +221,17 @@ def main() -> None:
             # Determine output destination
             if args.output == "-":
                 output_stream = sys.stdout
-                if args.raw:
+            else:
+                output_stream = open(args.output, "w", encoding="utf-8")
+
+            try:
+                if args.data_only:
                     sliced_oem.write_states(output_stream)
                 else:
                     sliced_oem.write(output_stream)
-            else:
-                with open(args.output, "w", encoding="utf-8") as output_stream:
-                    if args.raw:
-                        sliced_oem.write_states(output_stream)
-                    else:
-                        sliced_oem.write(output_stream)
+            finally:
+                if args.output != "-":
+                    output_stream.close()
 
 
 if __name__ == "__main__":
