@@ -229,7 +229,7 @@ Propagates Keplerian elements forward in time using the two-body Kepler propagat
 ### Synopsis
 
 ```bash
-python3 propagation/propagate_kepler.py [-h] [-d <value[s|m|h|d]>] [-s <value[s|m]>] [--oem] [<input_file>]
+python3 propagation/propagate_kepler.py [-h] [-d <value[s|m|h|d]>] [-s <value[s|m]>] [--data-only] [<input_file>]
 ```
 
 ### Options
@@ -240,7 +240,7 @@ python3 propagation/propagate_kepler.py [-h] [-d <value[s|m|h|d]>] [-s <value[s|
 | `<input_file>` | Path to a file containing one OEM-like Keplerian element line. If omitted, read from stdin. | stdin when piped |
 | `-d`, `--duration` | Propagation duration in `s`, `m`, `h`, or `d` units | `1d` |
 | `-s`, `--step` | Output interval in `s` or `m` units | `15m` |
-| `--oem` | Print OEM metadata header before data lines | off |
+| `--data-only` | Print state lines without the OEM metadata header | off |
 
 ### Input format
 
@@ -259,13 +259,15 @@ Notes:
 
 ### Output
 
-Without `--oem`, the script prints Cartesian state lines:
+By default, the script prints a complete CCSDS OEM document with Cartesian
+state lines.
+
+With `--data-only`, the script prints Cartesian state lines without the OEM
+metadata header:
 
 ```text
 <ISO-8601 UTC epoch> <X_km> <Y_km> <Z_km> <VX_km/s> <VY_km/s> <VZ_km/s>
 ```
-
-With `--oem`, the script prepends a CCSDS OEM metadata header.
 
 ### Usage
 
@@ -282,10 +284,10 @@ echo "2026-05-29T00:00:00.000000 6793.456 0.001234 0.9013 4.094 2.155 0.797" \
   | python3 propagation/propagate_kepler.py -d 2h -s 1m
 ```
 
-**Output with OEM header:**
+**Output state lines without OEM metadata:**
 
 ```bash
-python3 propagation/propagate_kepler.py kepler_state.txt --oem
+python3 propagation/propagate_kepler.py kepler_state.txt --data-only
 ```
 
 **Show help:**
@@ -411,7 +413,7 @@ Propagates a TLE-derived orbit using TudatPy's SGP4 TLE ephemeris and prints sta
 ### Synopsis
 
 ```bash
-python3 propagation/propagate_tle.py [-h] [--start <iso8601|duration>] [--stop <iso8601|duration>] [-s <value[s|m]>] [--raw] [<tle_file>]
+python3 propagation/propagate_tle.py [-h] [--start <iso8601|duration>] [--stop <iso8601|duration>] [-s <value[s|m]>] [--data-only] [<tle_file>]
 ```
 
 ### Options
@@ -423,7 +425,7 @@ python3 propagation/propagate_tle.py [-h] [--start <iso8601|duration>] [--stop <
 | `--start` | Start epoch as an ISO 8601 timestamp or duration relative to the TLE epoch | TLE epoch |
 | `--stop` | Stop epoch as an ISO 8601 timestamp or duration relative to the resolved start epoch | 1 day after start |
 | `-s`, `--step` | Output interval in `s` or `m` units | `5m` |
-| `--raw` | Print raw state-vector lines without the OEM metadata header | off |
+| `--data-only` | Print state-vector lines without the OEM metadata header | off |
 
 ### Input format
 
@@ -457,7 +459,7 @@ By default, the script prints a CCSDS OEM document:
 - `START_TIME`
 - `STOP_TIME`
 
-With `--raw`, the script prints only state lines:
+With `--data-only`, the script prints only state lines:
 
 ```text
 <ISO-8601 UTC epoch> <X_km> <Y_km> <Z_km> <VX_km/s> <VY_km/s> <VZ_km/s>
@@ -505,7 +507,7 @@ above covers a two-hour window beginning 90 minutes after the TLE epoch.
 **Print raw state lines without the OEM metadata header:**
 
 ```bash
-python3 propagation/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle --raw
+python3 propagation/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle --data-only
 ```
 
 **Show help:**

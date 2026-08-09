@@ -405,11 +405,13 @@ def test_cli_time_slice_interpolate_flag_explicit() -> None:
 # ===================================================================
 
 
-def test_cli_raw_output_format() -> None:
-    """Test --raw flag for raw state vector output."""
+def test_cli_data_only_output_format() -> None:
+    """Test --data-only flag for state vector output."""
     temp_path, original_oem = _create_test_oem(num_states=10)
     try:
-        result = _run_slice_oem([str(temp_path), "--slice", "0:3", "--raw"])
+        result = _run_slice_oem(
+            [str(temp_path), "--slice", "0:3", "--data-only"]
+        )
         assert result.returncode == 0
 
         # Raw output should be space-separated values, not OEM format
@@ -790,17 +792,17 @@ def test_cli_stdin_with_time_slice() -> None:
         temp_path.unlink()
 
 
-def test_cli_stdin_with_raw_output() -> None:
-    """Test reading from stdin with raw output format."""
+def test_cli_stdin_with_data_only_output() -> None:
+    """Test reading from stdin with data-only output format."""
     temp_path, _ = _create_test_oem(num_states=10)
     try:
         # Read the OEM file content
         with open(temp_path, "r") as f:
             oem_content = f.read()
 
-        # Pass content via stdin with raw output
+        # Pass content via stdin with data-only output
         result = _run_slice_oem(
-            ["-", "--slice", "0:3", "--raw"], input_data=oem_content
+            ["-", "--slice", "0:3", "--data-only"], input_data=oem_content
         )
         assert result.returncode == 0
 
