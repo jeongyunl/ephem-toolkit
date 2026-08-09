@@ -24,11 +24,12 @@ OEM_PATH = TEST_DIR.parent / "data" / "ISS_2026-05-20_small.OEM"
 
 def test_read_oem_from_test_file_returns_header_meta_states() -> None:
     """Should parse the sample OEM file into header, meta, and state list."""
-    header, meta, states = oem.CcsdsOem._read_oem_impl(OEM_PATH)
+    header, meta, data_comments, states = oem.CcsdsOem._read_oem_impl(OEM_PATH)
 
     assert isinstance(header, dict)
     assert isinstance(meta, dict)
     assert isinstance(states, list)
+    assert isinstance(data_comments, list)
     assert header["CCSDS_OEM_VERS"] == pytest.approx(2.0)
     assert "CREATION_DATE" in header
     assert "ORIGINATOR" in header
@@ -55,11 +56,14 @@ def test_read_oem_from_stream_matches_file_read() -> None:
     """Should produce identical parsed content from a text stream."""
     text = OEM_PATH.read_text(encoding="utf-8")
 
-    header1, meta1, states1 = oem.CcsdsOem._read_oem_impl(OEM_PATH)
-    header2, meta2, states2 = oem.CcsdsOem._read_oem_impl(io.StringIO(text))
+    header1, meta1, data_comments1, states1 = oem.CcsdsOem._read_oem_impl(OEM_PATH)
+    header2, meta2, data_comments2, states2 = oem.CcsdsOem._read_oem_impl(
+        io.StringIO(text)
+    )
 
     assert header2 == header1
     assert meta2 == meta1
+    assert data_comments2 == data_comments1
     assert len(states2) == len(states1)
     for (epoch1, state1), (epoch2, state2) in zip(states1, states2):
         assert epoch1 == epoch2
@@ -73,14 +77,15 @@ def test_read_oem_from_stream_matches_file_read() -> None:
 
 def test_write_oem_round_trip_preserves_content(tmp_path: Path) -> None:
     """Should preserve header, meta, and state vectors through write/read."""
-    header1, meta1, states1 = oem.CcsdsOem._read_oem_impl(OEM_PATH)
+    header1, meta1, data_comments1, states1 = oem.CcsdsOem._read_oem_impl(OEM_PATH)
     out_path = tmp_path / "roundtrip.oem"
 
     oem.CcsdsOem.read(OEM_PATH).write(out_path)
-    header2, meta2, states2 = oem.CcsdsOem._read_oem_impl(out_path)
+    header2, meta2, data_comments2, states2 = oem.CcsdsOem._read_oem_impl(out_path)
 
     assert header2 == header1
     assert meta2 == meta1
+    assert data_comments2 == data_comments1
     assert len(states2) == len(states1)
     for (epoch1, state1), (epoch2, state2) in zip(states1, states2):
         assert epoch1 == epoch2
@@ -248,12 +253,15 @@ def _round_trip_test_oem(source: Path) -> dict:
         class_path = tmp / "roundtrip_class.oem"
 
         # Low-level round-trip
-        header, meta, states = oem.CcsdsOem._read_oem_impl(source)
+        header, meta, data_comments, states = oem.CcsdsOem._read_oem_impl(source)
         oem.CcsdsOem.read(source).write(lowlevel_path)
-        header2, meta2, states2 = oem.CcsdsOem._read_oem_impl(lowlevel_path)
+        header2, meta2, data_comments2, states2 = oem.CcsdsOem._read_oem_impl(
+            lowlevel_path
+        )
 
         low_header_ok = header2 == header
         low_meta_ok = meta2 == meta
+        low_data_comments_ok = data_comments2 == data_comments
         low_state_count_ok = len(states2) == len(states)
         low_states_ok = low_state_count_ok
         if low_states_ok:
@@ -284,6 +292,7 @@ def _round_trip_test_oem(source: Path) -> dict:
                 [
                     low_header_ok,
                     low_meta_ok,
+                    low_data_comments_ok,
                     low_states_ok,
                     class_header_ok,
                     class_meta_ok,
@@ -354,7 +363,7 @@ def test_read_oem_raw_state_list_returns_empty_header_and_meta() -> None:
         "2026-05-20T12:02:00.000 6900.0 200.0 100.0 0.2 7.3 0.1\n"
     )
 
-    header, meta, states = oem.CcsdsOem._read_oem_impl(io.StringIO(raw_states))
+    header, meta, _, states = oem.CcsdsOem._read_oem_impl(io.StringIO(raw_states))
 
     assert isinstance(header, dict)
     assert isinstance(meta, dict)
@@ -388,7 +397,7 @@ def test_ccsds_oem_read_handles_raw_state_list() -> None:
 
 def test_write_states_to_stream() -> None:
     """Should write state vectors to a file handle."""
-    header, meta, states = oem.CcsdsOem._read_oem_impl(OEM_PATH)
+    header, meta, _, states = oem.CcsdsOem._read_oem_impl(OEM_PATH)
 
     output = io.StringIO()
     oem.CcsdsOem.from_states(states).write_states(output)
@@ -589,7 +598,7 @@ def test_integration_workflow() -> None:
         assert oem_final.meta.ref_frame == "GCRF"
         assert oem_final.meta.center_name == "EARTH"
 
-        # Original unchanged
-        assert oem_obj.meta.object_name == "SAT_A"
+        # Metadata updates are applied in-place to the original object.
+        assert oem_obj.meta.object_name == "SAT_B"
     finally:
         temp_path.unlink()

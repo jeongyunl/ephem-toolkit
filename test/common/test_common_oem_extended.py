@@ -288,7 +288,9 @@ META_STOP
 2024-01-01T00:00:00.000000 7000.0 0.0 0.0 0.0 7.5 0.0
 """
 
-    header, meta, states = oem.CcsdsOem._read_oem_impl(io.StringIO(oem_content))
+    header, meta, data_comments, states = oem.CcsdsOem._read_oem_impl(
+        io.StringIO(oem_content)
+    )
 
     assert meta["INTERPOLATION_DEGREE"] == 5
     assert isinstance(meta["INTERPOLATION_DEGREE"], int)
@@ -308,7 +310,7 @@ META_STOP
 2024-01-01T00:00:00.000000 7000.0 0.0 0.0 0.0 7.5 0.0
 """
 
-    header, meta, states = oem.CcsdsOem._read_oem_impl(io.StringIO(oem_content))
+    header, meta, _, states = oem.CcsdsOem._read_oem_impl(io.StringIO(oem_content))
 
     assert meta["CUSTOM_FLOAT"] == pytest.approx(3.14159)
     assert isinstance(meta["CUSTOM_FLOAT"], float)
@@ -327,7 +329,7 @@ META_STOP
 2024-01-01T00:02:00.000000 7200.0 0.0 0.0 0.0 7.3 0.0
 """
 
-    header, meta, states = oem.CcsdsOem._read_oem_impl(io.StringIO(oem_content))
+    header, meta, _, states = oem.CcsdsOem._read_oem_impl(io.StringIO(oem_content))
 
     # Should only have 2 valid states (skips the short line)
     assert len(states) == 2
@@ -404,7 +406,9 @@ COMMENT Another data comment
 2024-01-01T00:00:00.000000 7000.0 0.0 0.0 0.0 7.5 0.0
 """
 
-    header, meta, states = oem.CcsdsOem._read_oem_impl(io.StringIO(oem_content))
+    header, meta, data_comments, states = oem.CcsdsOem._read_oem_impl(
+        io.StringIO(oem_content)
+    )
 
     assert "COMMENT" in header
     assert len(header["COMMENT"]) == 2
@@ -414,9 +418,17 @@ COMMENT Another data comment
     assert len(meta["COMMENT"]) == 1
     assert "This is a metadata comment" in meta["COMMENT"]
 
-    assert "DATA_COMMENT" in header
-    assert len(header["DATA_COMMENT"]) == 2
-    assert "This is a data section comment" in header["DATA_COMMENT"]
+    assert "DATA_COMMENT" not in meta
+    assert data_comments == [
+        "This is a data section comment",
+        "Another data comment",
+    ]
+
+    parsed = oem.CcsdsOem.read(io.StringIO(oem_content))
+    assert parsed.data_comments == [
+        "This is a data section comment",
+        "Another data comment",
+    ]
 
 
 def test_ccsds_oem_write_preserves_comments() -> None:
@@ -453,7 +465,7 @@ COMMENT Data comment
 
 def test_read_oem_from_path_string() -> None:
     """Test the internal reader accepts a path as a string."""
-    header, meta, states = oem.CcsdsOem._read_oem_impl(str(OEM_PATH))
+    header, meta, _, states = oem.CcsdsOem._read_oem_impl(str(OEM_PATH))
 
     assert isinstance(header, dict)
     assert isinstance(meta, dict)
@@ -480,6 +492,7 @@ def test_write_oem_with_required_header_fields() -> None:
             originator="TEST",
         ),
         oem.OemMeta(object_name="TEST"),
+        [],
         states,
     ).write(output)
 
@@ -501,6 +514,7 @@ def test_write_oem_preserves_required_originator() -> None:
             originator="TEST",
         ),
         oem.OemMeta(object_name="TEST"),
+        [],
         states,
     ).write(output)
 
@@ -521,7 +535,7 @@ META_STOP
 2024-01-01T00:00:00.000000 7000.0 0.0 0.0 0.0 7.5 0.0
 """
 
-    header, meta, states = oem.CcsdsOem._read_oem_impl(io.StringIO(oem_content))
+    header, meta, _, states = oem.CcsdsOem._read_oem_impl(io.StringIO(oem_content))
 
     timestamp, state = states[0]
     # Position should be in meters (7000 km -> 7000000 m)

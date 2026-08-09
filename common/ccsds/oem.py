@@ -103,9 +103,6 @@ class OemHeader:
     message_id: str = ""
     """Identifier for the OEM message."""
 
-    data_comments: list[str] = field(default_factory=list)
-    """Comment lines from the ephemeris data section (after META_STOP, before state data)."""
-
 
 @dataclass
 class OemMeta:
@@ -200,6 +197,7 @@ class CcsdsOem:
         self,
         header: OemHeader,
         meta: OemMeta,
+        data_comments: list[str],
         states: list[tuple[float, np.ndarray]],
     ) -> None:
         """Initialise a :class:`CcsdsOem` from pre-parsed components.
@@ -210,6 +208,8 @@ class CcsdsOem:
             File-level header fields.
         meta : OemMeta
             Metadata block fields.
+        data_comments : list[str]
+            Comment lines from the ephemeris data section.
         states : list[tuple[float, np.ndarray]]
             List of (POSIX timestamp, state_vector) tuples, sorted by POSIX timestamp
             (float, seconds since epoch) in ascending order. State vectors are 6-element
@@ -224,6 +224,9 @@ class CcsdsOem:
         self.states = states
         """List of (POSIX timestamp, state_vector) tuples, sorted by POSIX timestamp (float, seconds since epoch) in ascending order. State vectors are 6-element arrays [x, y, z, vx, vy, vz] in meters (m) and m/s."""
 
+        self.data_comments = data_comments
+        """Comment lines from the ephemeris data section (after META_STOP, before state data)."""
+
     @staticmethod
     def _is_state_line(line: str) -> bool:
         """Return whether a line starts with a date-like state token."""
@@ -233,14 +236,20 @@ class CcsdsOem:
     @staticmethod
     def _read_oem_impl(
         source: TextIO | str | Path,
-    ) -> tuple[dict[str, Any], dict[str, Any], list[tuple[float, np.ndarray]]]:
-        """Read OEM content into dictionaries and SI-unit state vectors."""
+    ) -> tuple[
+        dict[str, Any],
+        dict[str, Any],
+        list[str],
+        list[tuple[float, np.ndarray]],
+    ]:
+        """Read OEM content into header, metadata, data comments, and states."""
         if isinstance(source, (str, Path)):
             with open(source, "r", encoding="utf-8") as file_handle:
                 return CcsdsOem._read_oem_impl(file_handle)
 
         header: dict[str, Any] = {}
         meta: dict[str, Any] = {}
+        data_comments: list[str] = []
         states: list[tuple[float, np.ndarray]] = []
         in_meta: bool = False
         past_meta: bool = False
@@ -264,8 +273,7 @@ class CcsdsOem:
                     meta.setdefault("COMMENT", [])
                     meta["COMMENT"].append(comment_text)
                 elif past_meta:
-                    header.setdefault("DATA_COMMENT", [])
-                    header["DATA_COMMENT"].append(comment_text)
+                    data_comments.append(comment_text)
                 else:
                     header.setdefault("COMMENT", [])
                     header["COMMENT"].append(comment_text)
@@ -298,7 +306,7 @@ class CcsdsOem:
                 )
                 states.append((timestamp, state_km * KILOMETERS_TO_METERS))
 
-        return header, meta, states
+        return header, meta, data_comments, states
 
     @classmethod
     def read(cls, source: TextIO | str | Path) -> CcsdsOem:
@@ -316,8 +324,9 @@ class CcsdsOem:
         """
         raw_header: dict[str, Any]
         raw_meta: dict[str, Any]
+        raw_data_comments: list[str]
         raw_states: list[tuple[float, np.ndarray]]
-        raw_header, raw_meta, raw_states = cls._read_oem_impl(source)
+        raw_header, raw_meta, raw_data_comments, raw_states = cls._read_oem_impl(source)
 
         header: OemHeader = OemHeader(
             version=float(raw_header.get("CCSDS_OEM_VERS", 0.0)),
@@ -326,7 +335,6 @@ class CcsdsOem:
             originator=str(raw_header.get("ORIGINATOR", "")),
             classification=str(raw_header.get("CLASSIFICATION", "")),
             message_id=str(raw_header.get("MESSAGE_ID", "")),
-            data_comments=raw_header.get("DATA_COMMENT", []),
         )
 
         meta: OemMeta = OemMeta(
@@ -345,7 +353,12 @@ class CcsdsOem:
             comments=raw_meta.get("COMMENT", []),
         )
 
-        return cls(header=header, meta=meta, states=raw_states)
+        return cls(
+            header=header,
+            meta=meta,
+            data_comments=raw_data_comments,
+            states=raw_states,
+        )
 
     @classmethod
     def from_states(
@@ -410,7 +423,7 @@ class CcsdsOem:
             meta.start_time = time_utils.datetime_to_iso8601(start_dt)
             meta.stop_time = time_utils.datetime_to_iso8601(stop_dt)
 
-        return cls(header=header, meta=meta, states=sorted_states)
+        return cls(header=header, meta=meta, data_comments=[], states=sorted_states)
 
     @property
     def epochs(self) -> list[float]:
@@ -463,19 +476,8 @@ class CcsdsOem:
                 dest, datetime.fromtimestamp(epoch, tz=timezone.utc), state_vector
             )
 
-    def write(self, dest: TextIO | str | Path) -> None:
-        """Write this OEM to a file or stream.
-
-        Parameters
-        ----------
-        dest : TextIO | str | Path
-            A writable text stream, file path string, or :class:`Path`.
-        """
-        if isinstance(dest, (str, Path)):
-            with open(dest, "w", encoding="utf-8") as file_handle:
-                self.write(file_handle)
-            return
-
+    def _write_header(self, dest: TextIO) -> None:
+        """Write the OEM header to a writable text stream."""
         header_dict: dict[str, Any] = {
             "CCSDS_OEM_VERS": self.header.version,
             "CREATION_DATE": self.header.creation_date,
@@ -487,20 +489,8 @@ class CcsdsOem:
             header_dict["MESSAGE_ID"] = self.header.message_id
         if self.header.comments:
             header_dict["COMMENT"] = self.header.comments
-        if self.header.data_comments:
-            header_dict["DATA_COMMENT"] = self.header.data_comments
-
-        meta_dict: dict[str, Any] = {}
-        if self.meta.comments:
-            meta_dict["COMMENT"] = self.meta.comments
-        for key in _META_KEY_ORDER:
-            attribute_name: str = key.lower()
-            value: str | int | None = getattr(self.meta, attribute_name, None)
-            if value is not None and value != "" and value != 0:
-                meta_dict[key] = value
 
         write_text = dest.write
-
         header_values: dict[str, Any] = dict(header_dict)
         header_values.setdefault("CCSDS_OEM_VERS", 2.0)
         header_keys: list[str] = [
@@ -509,7 +499,7 @@ class CcsdsOem:
         extra_header_keys: list[str] = [
             key
             for key in header_values
-            if key not in _HEADER_KEY_ORDER and key not in {"COMMENT", "DATA_COMMENT"}
+            if key not in _HEADER_KEY_ORDER and key != "COMMENT"
         ]
         all_header_keys: list[str] = header_keys + extra_header_keys
         header_pad: int = max((len(key) for key in all_header_keys), default=0)
@@ -517,6 +507,7 @@ class CcsdsOem:
         version: float | int = header_values["CCSDS_OEM_VERS"]
         write_text(f"{'CCSDS_OEM_VERS':<{header_pad}} = {version}\n")
 
+        # Header COMMENT lines are allowed only immediately after the OEM version.
         if header_dict.get("COMMENT"):
             write_text("\n")
             for comment in header_dict["COMMENT"]:
@@ -527,7 +518,21 @@ class CcsdsOem:
             write_text(f"{key:<{header_pad}} = {header_values[key]}\n")
         write_text("\n")
 
+    def _write_meta(self, dest: TextIO) -> None:
+        """Write the OEM metadata section to a writable text stream."""
+        meta_dict: dict[str, Any] = {}
+        if self.meta.comments:
+            meta_dict["COMMENT"] = self.meta.comments
+        for key in _META_KEY_ORDER:
+            attribute_name: str = key.lower()
+            value: str | int | None = getattr(self.meta, attribute_name, None)
+            if value is not None and value != "" and value != 0:
+                meta_dict[key] = value
+
+        write_text = dest.write
         write_text("META_START\n")
+
+        # Metadata COMMENT lines are allowed only immediately after META_START.
         for comment in meta_dict.get("COMMENT", []):
             write_text(f"COMMENT {comment}\n")
 
@@ -544,9 +549,28 @@ class CcsdsOem:
         write_text("META_STOP\n")
         write_text("\n")
 
-        for comment in header_dict.get("DATA_COMMENT", []):
+    def write(self, dest: TextIO | str | Path) -> None:
+        """Write this OEM to a file or stream.
+
+        Parameters
+        ----------
+        dest : TextIO | str | Path
+            A writable text stream, file path string, or :class:`Path`.
+        """
+        if isinstance(dest, (str, Path)):
+            with open(dest, "w", encoding="utf-8") as file_handle:
+                self.write(file_handle)
+            return
+
+        self._write_header(dest)
+
+        self._write_meta(dest)
+
+        write_text = dest.write
+
+        for comment in self.data_comments:
             write_text(f"COMMENT {comment}\n")
-        if header_dict.get("DATA_COMMENT"):
+        if self.data_comments:
             write_text("\n")
 
         self.write_states(dest)

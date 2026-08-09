@@ -501,7 +501,6 @@ File-level header fields for a CCSDS OEM message.
 **Fields:**
 - `version`: CCSDS OEM format version number
 - `comments`: List of comment lines
-- `data_comments`: Comment lines before the ephemeris state data
 - `classification`: Optional message classification
 - `message_id`: Optional message identifier
 - `creation_date`: File creation date (ISO 8601)
@@ -525,6 +524,7 @@ Structured CCSDS Orbit Ephemeris Message with header, metadata, and states.
 **Attributes:**
 - `header`: File-level header fields (OemHeader)
 - `meta`: Metadata block fields (OemMeta)
+- `data_comments`: Comment lines before the ephemeris state data
 - `states`: List of (POSIX timestamp, state_vector) tuples, sorted by timestamp in ascending order. State vectors are 6-element arrays [x, y, z, vx, vy, vz] in meters (m) and m/s.
 
 **Properties:**
