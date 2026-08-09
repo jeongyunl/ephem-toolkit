@@ -108,6 +108,9 @@ class OemHeader:
 class OemMeta:
     """Metadata block fields for a CCSDS OEM segment."""
 
+    comments: list[str] = field(default_factory=list)
+    """Comment lines from the metadata block."""
+
     object_name: str = ""
     """Satellite or object name."""
 
@@ -143,9 +146,6 @@ class OemMeta:
 
     interpolation_degree: int = 0
     """Degree of interpolation polynomial."""
-
-    comments: list[str] = field(default_factory=list)
-    """Comment lines from the metadata block."""
 
 
 class CcsdsOem:
@@ -478,73 +478,50 @@ class CcsdsOem:
 
     def _write_header(self, dest: TextIO) -> None:
         """Write the OEM header to a writable text stream."""
-        header_dict: dict[str, Any] = {
-            "CCSDS_OEM_VERS": self.header.version,
-            "CREATION_DATE": self.header.creation_date,
-            "ORIGINATOR": self.header.originator,
-        }
-        if self.header.classification:
-            header_dict["CLASSIFICATION"] = self.header.classification
-        if self.header.message_id:
-            header_dict["MESSAGE_ID"] = self.header.message_id
-        if self.header.comments:
-            header_dict["COMMENT"] = self.header.comments
-
         write_text = dest.write
-        header_values: dict[str, Any] = dict(header_dict)
-        header_values.setdefault("CCSDS_OEM_VERS", 2.0)
-        header_keys: list[str] = [
-            key for key in _HEADER_KEY_ORDER if key in header_values
-        ]
-        extra_header_keys: list[str] = [
-            key
-            for key in header_values
-            if key not in _HEADER_KEY_ORDER and key != "COMMENT"
-        ]
-        all_header_keys: list[str] = header_keys + extra_header_keys
-        header_pad: int = max((len(key) for key in all_header_keys), default=0)
+        header_pad: int = max(len(key) for key in _HEADER_KEY_ORDER)
 
-        version: float | int = header_values["CCSDS_OEM_VERS"]
-        write_text(f"{'CCSDS_OEM_VERS':<{header_pad}} = {version}\n")
+        write_text(f"{'CCSDS_OEM_VERS':<{header_pad}} = {self.header.version}\n")
 
         # Header COMMENT lines are allowed only immediately after the OEM version.
-        if header_dict.get("COMMENT"):
+        if self.header.comments:
             write_text("\n")
-            for comment in header_dict["COMMENT"]:
+            for comment in self.header.comments:
                 write_text(f"COMMENT {comment}\n")
             write_text("\n")
 
-        for key in header_keys[1:] + extra_header_keys:
-            write_text(f"{key:<{header_pad}} = {header_values[key]}\n")
+        write_text(f"{'CREATION_DATE':<{header_pad}} = {self.header.creation_date}\n")
+        write_text(f"{'ORIGINATOR':<{header_pad}} = {self.header.originator}\n")
+        if self.header.classification:
+            write_text(
+                f"{'CLASSIFICATION':<{header_pad}} = {self.header.classification}\n"
+            )
+        if self.header.message_id:
+            write_text(f"{'MESSAGE_ID':<{header_pad}} = {self.header.message_id}\n")
         write_text("\n")
 
     def _write_meta(self, dest: TextIO) -> None:
         """Write the OEM metadata section to a writable text stream."""
-        meta_dict: dict[str, Any] = {}
-        if self.meta.comments:
-            meta_dict["COMMENT"] = self.meta.comments
-        for key in _META_KEY_ORDER:
-            attribute_name: str = key.lower()
-            value: str | int | None = getattr(self.meta, attribute_name, None)
-            if value is not None and value != "" and value != 0:
-                meta_dict[key] = value
-
         write_text = dest.write
         write_text("META_START\n")
 
         # Metadata COMMENT lines are allowed only immediately after META_START.
-        for comment in meta_dict.get("COMMENT", []):
+        for comment in self.meta.comments:
             write_text(f"COMMENT {comment}\n")
 
-        meta_keys: list[str] = [key for key in _META_KEY_ORDER if key in meta_dict]
-        extra_keys: list[str] = [
-            key for key in meta_dict if key not in _META_KEY_ORDER and key != "COMMENT"
-        ]
-        all_keys: list[str] = meta_keys + extra_keys
-        pad: int = max((len(key) for key in all_keys), default=0)
+        pad: int = max(
+            (
+                len(key)
+                for key in _META_KEY_ORDER
+                if getattr(self.meta, key.lower()) not in (None, "", 0)
+            ),
+            default=0,
+        )
 
-        for key in all_keys:
-            write_text(f"{key:<{pad}} = {meta_dict[key]}\n")
+        for key in _META_KEY_ORDER:
+            value: str | int = getattr(self.meta, key.lower())
+            if value is not None and value != "" and value != 0:
+                write_text(f"{key:<{pad}} = {value}\n")
 
         write_text("META_STOP\n")
         write_text("\n")
