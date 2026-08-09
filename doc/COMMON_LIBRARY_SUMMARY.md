@@ -537,7 +537,6 @@ Structured CCSDS Orbit Ephemeris Message with header, metadata, and states.
 **Instance Methods:**
 - `write(dest: TextIO | str | Path) -> None`: Write this OEM to a file or stream
 - `update_metadata(**kwargs) -> None`: Update metadata fields in-place
-- `with_metadata(**kwargs) -> CcsdsOem`: Return a new CcsdsOem with updated metadata (immutable)
 - `find_state_by_timestamp(timestamp: float, tolerance: float = 0.0) -> tuple[float, np.ndarray] | None`: Find a state by timestamp using binary search
 
 ### Module-Level Functions

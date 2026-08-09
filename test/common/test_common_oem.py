@@ -525,7 +525,7 @@ def test_parse_state_line_returns_none_for_comment() -> None:
 
 
 # ===================================================================
-# 12. update_metadata() and with_metadata() — metadata modification
+# 12. update_metadata() — metadata modification
 # ===================================================================
 
 
@@ -547,46 +547,6 @@ def test_update_metadata_raises_on_unknown_field() -> None:
 
     with pytest.raises(ValueError, match="Unknown metadata field"):
         oem_obj.update_metadata(invalid_field="value")
-
-
-def test_with_metadata_returns_new_instance() -> None:
-    """Test with_metadata() returns new OEM instance."""
-    states = [(1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
-    oem_obj = oem.CcsdsOem.from_states(states, object_name="ORIGINAL")
-
-    new_oem = oem_obj.with_metadata(object_name="UPDATED")
-
-    # New instance has updated metadata
-    assert new_oem.meta.object_name == "UPDATED"
-
-    # Original is unchanged
-    assert oem_obj.meta.object_name == "ORIGINAL"
-
-    # They are different objects
-    assert new_oem is not oem_obj
-
-
-def test_with_metadata_deep_copies() -> None:
-    """Test with_metadata() creates deep copy."""
-    states = [(1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
-    oem_obj = oem.CcsdsOem.from_states(states, object_name="ORIGINAL")
-
-    new_oem = oem_obj.with_metadata(object_name="UPDATED")
-
-    # Modify new OEM's state
-    new_oem.states[0] = (9999999.0, np.array([1, 2, 3, 4, 5, 6]))
-
-    # Original should be unchanged
-    assert oem_obj.states[0][0] == 1234567890.0
-
-
-def test_with_metadata_raises_on_unknown_field() -> None:
-    """Test with_metadata() raises ValueError for unknown fields."""
-    states = [(1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
-    oem_obj = oem.CcsdsOem.from_states(states)
-
-    with pytest.raises(ValueError, match="Unknown metadata field"):
-        oem_obj.with_metadata(invalid_field="value")
 
 
 # ===================================================================
@@ -611,14 +571,14 @@ def test_integration_workflow() -> None:
     )
 
     # Update metadata
-    oem_updated = oem_obj.with_metadata(object_name="SAT_B")
+    oem_obj.update_metadata(object_name="SAT_B")
 
     # Write to file
     with tempfile.NamedTemporaryFile(mode="w", suffix=".oem", delete=False) as f:
         temp_path = Path(f.name)
 
     try:
-        oem_updated.write(temp_path)
+        oem_obj.write(temp_path)
 
         # Read back
         oem_final = oem.CcsdsOem.read(temp_path)

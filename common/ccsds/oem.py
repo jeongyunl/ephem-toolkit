@@ -25,7 +25,6 @@ array([6.7e6, 0.0, 0.0, 0.0, 7.5e3, 0.0])  # Position in m, velocity in m/s
 from __future__ import annotations
 
 import bisect
-import copy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -577,40 +576,6 @@ class CcsdsOem:
                 setattr(self.meta, key, value)
             else:
                 raise ValueError(f"Unknown metadata field: {key}")
-
-    def with_metadata(self, **kwargs: Any) -> CcsdsOem:
-        """Return a new CcsdsOem with updated metadata.
-
-        Creates a deep copy of this OEM with modified metadata fields.
-        The original OEM instance is not modified.
-
-        Parameters
-        ----------
-        **kwargs
-            Metadata fields to update (e.g., object_name="ISS", ref_frame="GCRF").
-
-        Returns
-        -------
-        CcsdsOem
-            New instance with updated metadata.
-
-        Raises
-        ------
-        ValueError
-            If an unknown metadata field is specified.
-
-        Examples
-        --------
-        >>> oem = CcsdsOem.read("orbit.oem")
-        >>> new_oem = oem.with_metadata(object_name="RENAMED", ref_frame="J2000")
-        >>> new_oem.meta.object_name
-        'RENAMED'
-        >>> oem.meta.object_name  # Original unchanged
-        'ISS'
-        """
-        new_oem = copy.deepcopy(self)
-        new_oem.update_metadata(**kwargs)
-        return new_oem
 
     def __len__(self) -> int:
         """Return the number of state vectors stored in this OEM."""
