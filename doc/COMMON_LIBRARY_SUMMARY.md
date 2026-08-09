@@ -501,6 +501,7 @@ File-level header fields for a CCSDS OEM message.
 **Fields:**
 - `version`: CCSDS OEM format version number
 - `comments`: List of comment lines
+- `data_comments`: Comment lines before the ephemeris state data
 - `classification`: Optional message classification
 - `message_id`: Optional message identifier
 - `creation_date`: File creation date (ISO 8601)
@@ -512,6 +513,7 @@ Metadata block fields for a CCSDS OEM segment.
 **Fields:**
 - `object_name`, `object_id`: Satellite identification
 - `center_name`, `ref_frame`, `time_system`: Reference frame information
+- `ref_frame_epoch`: Reference-frame epoch, when required
 - `start_time`, `stop_time`: Ephemeris time range
 - `useable_start_time`, `useable_stop_time`: Recommended usage time range
 - `interpolation`, `interpolation_degree`: Interpolation method and degree
@@ -532,32 +534,14 @@ Structured CCSDS Orbit Ephemeris Message with header, metadata, and states.
 **Class Methods:**
 - `CcsdsOem.read(source: TextIO | str | Path) -> CcsdsOem`: Read and construct from a file or stream
 - `CcsdsOem.from_states(states, object_name, ref_frame, center_name, time_system) -> CcsdsOem`: Create from a list of states with minimal metadata
-- `CcsdsOem.parse_state_line(line: str) -> tuple[float, np.ndarray] | None`: Parse a single OEM-style state line
+- `CcsdsOem.parse_oem_state_line(line: str) -> tuple[float, np.ndarray] | None`: Parse a single OEM-style state line
 
 **Instance Methods:**
 - `write(dest: TextIO | str | Path) -> None`: Write this OEM to a file or stream
+- `write_state(dest: TextIO, epoch: datetime, state_vector: np.ndarray) -> None`: Write one state vector in CCSDS units
+- `write_states(dest: TextIO) -> None`: Write this object's state vectors in CCSDS units
 - `update_metadata(**kwargs) -> None`: Update metadata fields in-place
 - `find_state_by_timestamp(timestamp: float, tolerance: float = 0.0) -> tuple[float, np.ndarray] | None`: Find a state by timestamp using binary search
-
-### Module-Level Functions
-
-#### `parse_oem_state_line(line: str) -> tuple[float, np.ndarray] | None`
-Parse a single line of OEM-style data. Accepts whitespace or comma separated values. Returns (POSIX timestamp, state_vector) where state_vector is in meters (m) and m/s (converted from OEM km/km·s⁻¹).
-
-#### `read_oem(source: TextIO | str | Path) -> tuple[dict, dict, list[tuple[float, np.ndarray]]]`
-Read an OEM file and return (header, meta, states) where states is a list of (POSIX timestamp, state_vector) tuples sorted by timestamp. State vectors are in meters (m) and m/s.
-
-#### `find_state_by_timestamp(states: list[tuple[float, np.ndarray]], timestamp: float, tolerance: float = 0.0) -> tuple[float, np.ndarray] | None`
-Find a state by timestamp using binary search (O(log n)). Returns the matching (timestamp, state_vector) tuple or None.
-
-#### `write_state(dest: TextIO, epoch: datetime, state_vector: np.ndarray) -> None`
-Write a single state vector to a file handle. Converts from SI units (m, m/s) to OEM standard (km, km/s).
-
-#### `write_states(dest: TextIO, states: dict | list) -> None`
-Write state vectors to a file handle. Converts from SI units (m, m/s) to OEM standard (km, km/s).
-
-#### `write_oem(dest: TextIO | str | Path, header: dict, meta: dict, states: dict | list) -> None`
-Write an OEM file from (header, meta, states) dictionaries. Converts from SI units (m, m/s) to OEM standard (km, km/s).
 
 ---
 

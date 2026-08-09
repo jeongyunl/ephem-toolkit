@@ -164,7 +164,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from common.tle import Tle
 
-def read_oem(source: TextIO | str | Path) -> tuple[dict, dict, list[tuple[float, np.ndarray]]]:
+@classmethod
+def read(cls, source: TextIO | str | Path) -> CcsdsOem:
     match: re.Match[str] | None = re.fullmatch(r"...", value)  # Annotate locals
     ...
 ```
@@ -177,10 +178,10 @@ def read_oem(source: TextIO | str | Path) -> tuple[dict, dict, list[tuple[float,
 - **Recursive dispatch:** Functions accepting `TextIO | str | Path` open file and recurse
 
 ```python
-def read_oem(source: TextIO | str | Path) -> ...:
+def read(source: TextIO | str | Path) -> CcsdsOem:
     if isinstance(source, (str, Path)):
         with open(source, "r", encoding="utf-8") as fh:
-            return read_oem(fh)
+            return CcsdsOem.read(fh)
     # ... process stream
 ```
 
@@ -266,13 +267,17 @@ class Tle:
     """Inclination (degrees)"""
 ```
 
-### 6.3 Standard methods
+### 6.3 File-format class methods
 
 | Method | Purpose |
 |--------|---------|
-| `from_source(cls, source)` | Classmethod to construct from file/stream |
-| `to_file(self, dest)` | Write instance to file/stream |
+| `read(cls, source)` | OEM classmethod to construct from file/stream |
+| `write(self, dest)` | OEM instance method to write to file/stream |
 | `to_dict(self)` | Dict serialization via `dataclasses.asdict` |
+
+Use the names already established by each file-format class. For example,
+`CcsdsOem` uses `read()` and `write()`, while `CcsdsOmm` uses
+`from_source()` and `to_file()`.
 
 ### 6.4 `__repr__`
 
