@@ -193,6 +193,41 @@ def test_write_state_with_naive_datetime() -> None:
     assert len(content.split()) == 7
 
 
+def test_write_line_supports_custom_separator() -> None:
+    """Test write_line uses the requested separator and keeps its default."""
+    output = io.StringIO()
+
+    oem.CcsdsOem.write_line(output, "one", "two", sep="|")
+    oem.CcsdsOem.write_line(output, "three", "four")
+
+    assert output.getvalue() == "one|two\nthree four\n"
+
+
+def test_write_csv_uses_comma_space_separator() -> None:
+    """Test CcsdsOem.write uses comma-space separators for CSV output."""
+    output = io.StringIO()
+    states = [(1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
+
+    oem.CcsdsOem.from_states(states, object_name="TEST").write(
+        output, format_type=oem.OemFormat.CSV
+    )
+
+    state_line = output.getvalue().splitlines()[-1]
+    assert state_line.count(",") == 6
+
+
+def test_write_states_accepts_oem_format() -> None:
+    """Test write_states uses OemFormat to select CSV separators."""
+    output = io.StringIO()
+    states = [(1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
+
+    oem.CcsdsOem.from_states(states).write_states(output, format_type=oem.OemFormat.CSV)
+
+    lines = output.getvalue().splitlines()
+    assert lines[0] == "epoch,x_km,y_km,z_km,vx_km_s,vy_km_s,vz_km_s"
+    assert lines[1].count(",") == 6
+
+
 def test_write_state_with_aware_datetime() -> None:
     """Test write_state handles timezone-aware datetime."""
     output = io.StringIO()

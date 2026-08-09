@@ -7,6 +7,8 @@ This utility can:
 3. Convert ECEF positions to AER coordinates (--x-aer with lat,lon,alt)
 4. Override output OEM metadata (--set-meta KEY=VALUE)
 5. Override output OEM header fields (--set-header KEY=VALUE)
+6. Write state data as CSV (--x-csv)
+7. Write state data without the OEM header and metadata (--data-only)
 
 Usage:
     # Output OEM file as-is
@@ -32,6 +34,12 @@ Examples:
 
     # Convert ISS orbit to AER from ground station
     python3 bin/xform_oem.py iss.oem --x-aer 40.7128,-74.0060,10.0
+
+    # Write state data as CSV
+    python3 bin/xform_oem.py iss.oem --x-csv -o output.csv
+
+    # Write state data without the OEM header and metadata
+    python3 bin/xform_oem.py iss.oem --data-only -o states.txt
 
     # Read from stdin and convert to AER
     cat iss.oem | python3 bin/xform_oem.py --x-aer 40.7128,-74.0060,10.0
@@ -306,7 +314,9 @@ def parse_arguments() -> argparse.Namespace:
             "Use --x-ref-frame to transform state data and update its reference frame metadata, "
             "--set-meta KEY=VALUE to override output metadata, "
             "--set-header KEY=VALUE to override output header fields, "
-            "or --x-aer with comma-separated lat,lon,alt to convert to AER coordinates.\n\n"
+            "--x-csv to write state data as CSV, --data-only to omit the OEM "
+            "header and metadata, or --x-aer with comma-separated "
+            "lat,lon,alt to convert to AER coordinates.\n\n"
         ),
     )
     parser.add_argument(
@@ -337,7 +347,8 @@ def parse_arguments() -> argparse.Namespace:
             "and INTERPOLATION_DEGREE."
         ),
     )
-    parser.add_argument(
+    x_format_group = parser.add_mutually_exclusive_group()
+    x_format_group.add_argument(
         "--x-ref-frame",
         metavar="<frame>|<base_frame,target_frame>",
         help=(
@@ -347,7 +358,7 @@ def parse_arguments() -> argparse.Namespace:
             "base_frame,target_frame to override the source frame."
         ),
     )
-    parser.add_argument(
+    x_format_group.add_argument(
         "--x-aer",
         metavar="<lat,lon,alt>",
         help=(
@@ -356,6 +367,16 @@ def parse_arguments() -> argparse.Namespace:
             "longitude (degrees, +E/-W), altitude (meters above WGS-84 ellipsoid). "
             "Example: --x-aer 40.7128,-74.0060,10.0"
         ),
+    )
+    x_format_group.add_argument(
+        "--x-csv",
+        action="store_true",
+        help="Write the transformed OEM state data in CSV format",
+    )
+    parser.add_argument(
+        "--data-only",
+        action="store_true",
+        help="Write only state data, without the OEM header and metadata",
     )
     parser.add_argument(
         "oem_file",
@@ -400,12 +421,6 @@ def parse_arguments() -> argparse.Namespace:
         except ValueError as e:
             parser.error(f"--x-aer values must be numeric: {e}")
 
-        if args.x_ref_frame:
-            parser.error("--x-aer and --x-ref-frame cannot be used together")
-        if args.metadata_overrides:
-            parser.error("--x-aer cannot be combined with --set-meta")
-        if args.header_overrides:
-            parser.error("--x-aer cannot be combined with --set-header")
     else:
         args.lat_deg = None
         args.lon_deg = None
@@ -530,10 +545,21 @@ def main() -> None:
         for field_name, value in args.header_overrides:
             setattr(oem_data.header, field_name, value)
 
+    output_format = oem.OemFormat.CSV if args.x_csv else oem.OemFormat.OEM
+
     if args.output == "-":
-        oem_data.write(sys.stdout)
+        output_stream: TextIO = sys.stdout
     else:
-        oem_data.write(args.output)
+        output_stream = open(args.output, "w", encoding="utf-8")
+
+    try:
+        if args.data_only:
+            oem_data.write_states(output_stream, format_type=output_format)
+        else:
+            oem_data.write(output_stream, format_type=output_format)
+    finally:
+        if args.output != "-":
+            output_stream.close()
 
 
 if __name__ == "__main__":
