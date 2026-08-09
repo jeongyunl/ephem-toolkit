@@ -21,6 +21,10 @@ This utility provides several related operations:
 With no transformation or override options, the input OEM is written back out
 as an OEM file.
 
+Use `--data-only` to omit the OEM header and metadata and write only the state
+rows. Without `--x-csv`, rows use the standard space-separated OEM state format;
+with `--x-csv`, the output includes the CSV state header.
+
 ## Synopsis
 
 ```bash
@@ -39,6 +43,7 @@ default output destination is standard output.
 | `--x-ref-frame <frame>` | Convert state vectors to the target frame using the OEM `REF_FRAME` as source |
 | `--x-ref-frame <base_frame,target_frame>` | Override the source frame and convert state vectors to the target frame |
 | `--x-aer <lat,lon,alt>` | Convert ECEF/ITRF positions to AER text using latitude/longitude in degrees and altitude in metres |
+| `--data-only` | Write only state data without the OEM header and metadata |
 | `--set-meta <KEY=VALUE>` | Override an OEM metadata field; repeatable |
 | `--set-header <KEY=VALUE>` | Override an OEM header field; repeatable |
 | `-o`, `--output <file\|->` | Output file path; defaults to `-` for stdout |

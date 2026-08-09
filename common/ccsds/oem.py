@@ -27,6 +27,7 @@ from __future__ import annotations
 import bisect
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -74,6 +75,25 @@ _HEADER_KEY_ORDER: list[str] = [
     "MESSAGE_ID",
 ]
 """Preferred ordering of header keys when writing OEM files."""
+
+
+_CSV_STATE_HEADERS: list[str] = [
+    "epoch",
+    "x_km",
+    "y_km",
+    "z_km",
+    "vx_km_s",
+    "vy_km_s",
+    "vz_km_s",
+]
+"""Column names for CSV state output."""
+
+
+class OemFormat(Enum):
+    """Supported output formats for CCSDS OEM data."""
+
+    OEM = "OEM"
+    CSV = "CSV"
 
 
 # ===================================================================
@@ -150,6 +170,11 @@ class OemMeta:
 
 class CcsdsOem:
     """Structured CCSDS Orbit Ephemeris Message with header, metadata, and states."""
+
+    @classmethod
+    def write_line(cls, dest: TextIO, *parts: str, sep: str = " ") -> None:
+        """Concatenate string parts and write them to a text stream."""
+        dest.write(sep.join(parts) + "\n")
 
     @classmethod
     def parse_oem_state_line(cls, line: str) -> tuple[float, np.ndarray] | None:
@@ -440,6 +465,7 @@ class CcsdsOem:
         dest: TextIO,
         epoch: datetime,
         state_vector: np.ndarray,
+        sep: str = " ",
     ) -> None:
         """Write a single state vector without header or metadata.
 
@@ -453,6 +479,8 @@ class CcsdsOem:
             State epoch.
         state_vector : np.ndarray
             Six-element state vector in meters (m) and m/s.
+        sep : str, optional
+            Separator between fields (default: a single space).
         """
         dt: datetime = epoch
         if dt.tzinfo is None:
@@ -460,54 +488,93 @@ class CcsdsOem:
         epoch_str: str = dt.strftime("%Y-%m-%dT%H:%M:%S.%f")
 
         state_km: np.ndarray = state_vector / KILOMETERS_TO_METERS
-        values: str = " ".join(f"{value:.15g}" for value in state_km)
-        dest.write(f"{epoch_str} {values}\n")
+        values: list[str] = [f"{value:.15g}" for value in state_km]
+        self.write_line(dest, epoch_str, *values, sep=sep)
 
-    def write_states(self, dest: TextIO) -> None:
+    def write_states(
+        self,
+        dest: TextIO,
+        format_type: OemFormat = OemFormat.OEM,
+    ) -> None:
         """Write this OEM's state vectors without header or metadata.
 
         Parameters
         ----------
         dest : TextIO
             Writable text stream.
+        format_type : OemFormat, optional
+            Output format, either :attr:`OemFormat.OEM` or :attr:`OemFormat.CSV`.
         """
+        sep: str = "," if format_type is OemFormat.CSV else " "
+        if format_type is OemFormat.CSV:
+            self.write_line(dest, *_CSV_STATE_HEADERS, sep=sep)
+
         for epoch, state_vector in self.states:
             self.write_state(
-                dest, datetime.fromtimestamp(epoch, tz=timezone.utc), state_vector
+                dest,
+                datetime.fromtimestamp(epoch, tz=timezone.utc),
+                state_vector,
+                sep=sep,
             )
 
-    def _write_header(self, dest: TextIO) -> None:
+    def _write_header(self, dest: TextIO, sep: str = " ") -> None:
         """Write the OEM header to a writable text stream."""
-        write_text = dest.write
         header_pad: int = max(len(key) for key in _HEADER_KEY_ORDER)
 
-        write_text(f"{'CCSDS_OEM_VERS':<{header_pad}} = {self.header.version}\n")
+        self.write_line(
+            dest,
+            f"{'CCSDS_OEM_VERS':<{header_pad}}",
+            "=",
+            str(self.header.version),
+            sep=sep,
+        )
 
         # Header COMMENT lines are allowed only immediately after the OEM version.
         if self.header.comments:
-            write_text("\n")
+            self.write_line(dest, sep=sep)
             for comment in self.header.comments:
-                write_text(f"COMMENT {comment}\n")
-            write_text("\n")
+                self.write_line(dest, "COMMENT", comment, sep=sep)
+            self.write_line(dest, sep=sep)
 
-        write_text(f"{'CREATION_DATE':<{header_pad}} = {self.header.creation_date}\n")
-        write_text(f"{'ORIGINATOR':<{header_pad}} = {self.header.originator}\n")
+        self.write_line(
+            dest,
+            f"{'CREATION_DATE':<{header_pad}}",
+            "=",
+            self.header.creation_date,
+            sep=sep,
+        )
+        self.write_line(
+            dest,
+            f"{'ORIGINATOR':<{header_pad}}",
+            "=",
+            self.header.originator,
+            sep=sep,
+        )
         if self.header.classification:
-            write_text(
-                f"{'CLASSIFICATION':<{header_pad}} = {self.header.classification}\n"
+            self.write_line(
+                dest,
+                f"{'CLASSIFICATION':<{header_pad}}",
+                "=",
+                self.header.classification,
+                sep=sep,
             )
         if self.header.message_id:
-            write_text(f"{'MESSAGE_ID':<{header_pad}} = {self.header.message_id}\n")
-        write_text("\n")
+            self.write_line(
+                dest,
+                f"{'MESSAGE_ID':<{header_pad}}",
+                "=",
+                self.header.message_id,
+                sep=sep,
+            )
+        self.write_line(dest, sep=sep)
 
-    def _write_meta(self, dest: TextIO) -> None:
+    def _write_meta(self, dest: TextIO, sep: str = " ") -> None:
         """Write the OEM metadata section to a writable text stream."""
-        write_text = dest.write
-        write_text("META_START\n")
+        self.write_line(dest, "META_START", sep=sep)
 
         # Metadata COMMENT lines are allowed only immediately after META_START.
         for comment in self.meta.comments:
-            write_text(f"COMMENT {comment}\n")
+            self.write_line(dest, "COMMENT", comment, sep=sep)
 
         pad: int = max(
             (
@@ -521,36 +588,42 @@ class CcsdsOem:
         for key in _META_KEY_ORDER:
             value: str | int = getattr(self.meta, key.lower())
             if value is not None and value != "" and value != 0:
-                write_text(f"{key:<{pad}} = {value}\n")
+                self.write_line(dest, f"{key:<{pad}}", "=", str(value), sep=sep)
 
-        write_text("META_STOP\n")
-        write_text("\n")
+        self.write_line(dest, "META_STOP", sep=sep)
+        self.write_line(dest, sep=sep)
 
-    def write(self, dest: TextIO | str | Path) -> None:
+    def write(
+        self,
+        dest: TextIO | str | Path,
+        format_type: OemFormat = OemFormat.OEM,
+    ) -> None:
         """Write this OEM to a file or stream.
 
         Parameters
         ----------
         dest : TextIO | str | Path
             A writable text stream, file path string, or :class:`Path`.
+        format_type : OemFormat, optional
+            Output format, either :attr:`OemFormat.OEM` or :attr:`OemFormat.CSV`.
         """
+        sep: str = "," if format_type is OemFormat.CSV else " "
+
         if isinstance(dest, (str, Path)):
             with open(dest, "w", encoding="utf-8") as file_handle:
-                self.write(file_handle)
+                self.write(file_handle, format_type=format_type)
             return
 
-        self._write_header(dest)
+        self._write_header(dest, sep=sep)
 
-        self._write_meta(dest)
-
-        write_text = dest.write
+        self._write_meta(dest, sep=sep)
 
         for comment in self.data_comments:
-            write_text(f"COMMENT {comment}\n")
+            self.write_line(dest, "COMMENT", comment, sep=sep)
         if self.data_comments:
-            write_text("\n")
+            self.write_line(dest, sep=sep)
 
-        self.write_states(dest)
+        self.write_states(dest, format_type=format_type)
 
     def update_metadata(self, **kwargs: Any) -> None:
         """Update metadata fields in-place.

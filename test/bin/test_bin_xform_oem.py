@@ -63,3 +63,76 @@ META_STOP
     assert result.returncode == 0
     assert "OBJECT_NAME: ORIGINAL_OBJECT -> UPDATED_OBJECT" in result.stderr
     assert "ORIGINATOR: ORIGINAL_ORIGINATOR -> UPDATED_ORIGINATOR" in result.stderr
+
+
+def test_csv_output_flag_writes_csv_state_header() -> None:
+    """Write state data as CSV when --x-csv is provided."""
+    input_oem = """CCSDS_OEM_VERS = 2.0
+CREATION_DATE = 2024-01-01T00:00:00.000
+ORIGINATOR = TEST
+META_START
+OBJECT_NAME = TEST_OBJECT
+REF_FRAME = GCRF
+TIME_SYSTEM = UTC
+META_STOP
+2024-01-01T00:00:00.000 7000 0 0 0 7.5 0
+"""
+    result = subprocess.run(
+        [sys.executable, str(XFORM_OEM_SCRIPT), "--x-csv"],
+        capture_output=True,
+        text=True,
+        input=input_oem,
+        env=_build_env(),
+        check=False,
+    )
+
+    assert result.returncode == 0
+    lines = result.stdout.splitlines()
+    assert lines[-2] == "epoch,x_km,y_km,z_km,vx_km_s,vy_km_s,vz_km_s"
+    assert lines[-1].count(",") == 6
+
+
+def test_data_only_output_omits_oem_header_and_metadata() -> None:
+    """Write only OEM-format state rows when --data-only is provided."""
+    input_oem = """CCSDS_OEM_VERS = 2.0
+CREATION_DATE = 2024-01-01T00:00:00.000
+ORIGINATOR = TEST
+META_START
+OBJECT_NAME = TEST_OBJECT
+REF_FRAME = GCRF
+TIME_SYSTEM = UTC
+META_STOP
+2024-01-01T00:00:00.000 7000 0 0 0 7.5 0
+"""
+    result = subprocess.run(
+        [sys.executable, str(XFORM_OEM_SCRIPT), "--data-only"],
+        capture_output=True,
+        text=True,
+        input=input_oem,
+        env=_build_env(),
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert result.stdout == ("2024-01-01T00:00:00.000000 7000 0 0 0 7.5 0\n")
+
+
+def test_x_arguments_are_mutually_exclusive() -> None:
+    """Reject combinations of the --x-* options."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(XFORM_OEM_SCRIPT),
+            "--x-ref-frame",
+            "J2000",
+            "--x-aer",
+            "40,-74,10",
+        ],
+        capture_output=True,
+        text=True,
+        env=_build_env(),
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "not allowed with argument" in result.stderr
