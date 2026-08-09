@@ -667,6 +667,7 @@ def _create_sliced_oem(
     return CcsdsOem(
         header=new_header,
         meta=new_meta,
+        data_comments=copy.deepcopy(original_oem.data_comments),
         states=sliced_states,
     )
 
