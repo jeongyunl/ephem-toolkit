@@ -467,7 +467,7 @@ An alternative refinement that does **not** require SGP4/TudatPy. Instead, it mi
 
 ### Algorithm outline
 
-1. Compute reference osculating Keplerian elements from the epoch Cartesian state using `common.kepler.cartesian_to_keplerian`.
+1. Compute reference osculating Keplerian elements from the epoch Cartesian state using `core.kepler.cartesian_to_keplerian`.
 2. Build a candidate TLE from the current parameter estimate.
 3. Convert TLE mean elements to osculating elements via `common.convert_tle.tle_to_osculating_keplerian` (applies Brouwer first-order J2 short-period corrections).
 4. Compute a 6-component residual vector (semi-major axis, eccentricity, inclination, RAAN, argument of latitude, argument of periapsis).
@@ -603,6 +603,6 @@ oem-to-omm --tle -v input.oem -o output.omm
 - Python standard library
 - NumPy (for numerical computations)
 - `common.tle` — TLE dataclass and formatting
-- `common.kepler` — Keplerian element conversions
+- `core.kepler` — Keplerian element conversions
 - `common.ccsds.oem` — OEM parsing
 - TudatPy (optional, required for `--refinement cartesian`)

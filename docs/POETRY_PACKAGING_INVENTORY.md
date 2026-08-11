@@ -8,7 +8,7 @@ This inventory completes Step 1 of [POETRY_PACKAGING_PLAN.md](POETRY_PACKAGING_P
 
 | Directory | Current package marker | Contents and packaging implication |
 | --- | --- | --- |
-| `core/` | No `__init__.py` | Shared modules: `aer.py`, `common.py`, `consts.py`, `convert_tle.py`, `frame_utils.py`, `kepler.py`, `mean_kepler.py`, `slice_oem.py`, `spice_utils.py`, `time_utils.py`, `tle.py`, and `wgs.py`. |
+| `core/` | No `__init__.py` | Shared modules: `aer.py`, `misc.py`, `consts.py`, `convert_tle.py`, `frame_utils.py`, `kepler.py`, `mean_kepler.py`, `slice_oem.py`, `spice_utils.py`, `time_utils.py`, `tle.py`, and `wgs.py`. |
 | `core/interpolator/` | Has `__init__.py` | Reusable `Interpolator` and `LagrangeInterpolator` implementations. |
 | `core/ccsds/` | No `__init__.py` | CCSDS ODM/OEM/OMM definitions and parsers; currently relies on namespace-package behavior from the checkout. |
 | `diff_oem/` | Has `__init__.py` | Reusable comparison pipeline: CLI parsing, comparison, transformations, output, data structures, and utilities. |

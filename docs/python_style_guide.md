@@ -354,10 +354,10 @@ from core.kepler import MU_EARTH
 
 # Also wrong (no alias)
 import core.kepler
-common.kepler.MU_EARTH  # Too verbose
+core.kepler.MU_EARTH  # Too verbose
 ```
 
-**Rationale:** Using `import X as Y` provides a clean namespace while keeping code concise. The alias should match the module's base name (e.g., `common.ccsds.oem as oem`, `common.slice_oem as slice_oem`).
+**Rationale:** Using `import X as Y` provides a clean namespace while keeping code concise. The alias should match the module's base name (e.g., `core.ccsds.oem as oem`, `core.slice_oem as slice_oem`).
 
 Standard library and third-party may use `from X import Y` where idiomatic (`from pathlib import Path`, `from datetime import datetime`).
 
@@ -370,6 +370,6 @@ Include `if __name__ == "__main__":` with usage message to stderr:
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 2:
-        print("Usage: python3 -m common.ccsds.oem <oem_file>", file=sys.stderr)
+        print("Usage: python3 -m core.ccsds.oem <oem_file>", file=sys.stderr)
         sys.exit(1)
 ```

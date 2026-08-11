@@ -18,7 +18,7 @@ This document covers Two-Line Element (TLE) sets, Orbit Mean-Elements Messages (
 
 ### Key Dependencies
 - `datetime`, `pathlib`, `re`, `dataclasses`, `typing`
-- `tudatpy_utils.core.common`, `tudatpy_utils.core.time_utils`
+- `tudatpy_utils.core.misc`, `tudatpy_utils.core.time_utils`
 
 ### Data Structure
 
@@ -135,7 +135,7 @@ Extract osculating Keplerian elements at the TLE epoch.
 ### Key Dependencies
 - `dataclasses`, `pathlib`, `typing`, `datetime`
 - `numpy`
-- `tudatpy_utils.core.common`, `tudatpy_utils.core.consts`, `tudatpy_utils.core.time_utils`, `tudatpy_utils.core.kepler`
+- `tudatpy_utils.core.misc`, `tudatpy_utils.core.consts`, `tudatpy_utils.core.time_utils`, `tudatpy_utils.core.kepler`
 
 ### Data Structure
 
@@ -179,7 +179,7 @@ OEM files use kilometers (km) and km/s per the CCSDS standard. This module conve
 
 ### Key Dependencies
 - `numpy`, `datetime`, `pathlib`, `dataclasses`
-- `tudatpy_utils.core.common`, `tudatpy_utils.core.time_utils`
+- `tudatpy_utils.core.misc`, `tudatpy_utils.core.time_utils`
 
 ### Constants
 - `KILOMETERS_TO_METERS = 1000.0` - Conversion factor from kilometers to meters
