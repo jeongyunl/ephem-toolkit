@@ -1,12 +1,12 @@
 # OEM Transformation Utility
 
-The `bin/xform_oem.py` script transforms CCSDS OEM (Orbit Ephemeris Message)
+The `src/xform_oem/xform_oem.py` script transforms CCSDS OEM (Orbit Ephemeris Message)
 state histories between supported reference frames, converts ECEF positions to
 Azimuth-Elevation-Range (AER) coordinates, or rewrites OEM data and metadata.
 It can read from a file or standard input and write either an OEM file, AER
 text, or standard output.
 
-After Poetry installation, use `xform-oem` as the canonical command. The existing `python3 bin/xform_oem.py ...` examples remain supported during the transition.
+After Poetry installation, use `xform-oem` as the canonical command. The existing `python3 src/xform_oem/xform_oem.py ...` examples remain supported during the transition.
 
 ## Overview
 
@@ -30,8 +30,8 @@ with `--x-csv`, the output includes the CSV state header.
 ## Synopsis
 
 ```bash
-python3 bin/xform_oem.py <oem_file> [OPTIONS]
-cat data.oem | python3 bin/xform_oem.py [OPTIONS]
+python3 src/xform_oem/xform_oem.py <oem_file> [OPTIONS]
+cat data.oem | python3 src/xform_oem/xform_oem.py [OPTIONS]
 ```
 
 Use `-` or omit `<oem_file>` to read CCSDS OEM data from standard input. The

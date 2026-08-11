@@ -1,4 +1,4 @@
-"""Tests for bin/xform_oem.py — OEM transformation utility script."""
+"""Tests for src/xform_oem/xform_oem.py — OEM transformation utility script."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent
 """Repository root path."""
 
-XFORM_OEM_SCRIPT: Path = PROJECT_ROOT / "bin" / "xform_oem.py"
+XFORM_OEM_SCRIPT: Path = PROJECT_ROOT / "src" / "xform_oem" / "xform_oem.py"
 """Path to xform_oem.py script."""
 
 

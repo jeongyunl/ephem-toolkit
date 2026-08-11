@@ -32,7 +32,7 @@ omm-to-tle = "omm_to_tle.omm_to_tle:main"
 slice-oem = "slice_oem.slice_oem:main"
 tle-info = "tle_info.tle_info:main"
 tle-to-omm = "tle_to_omm.tle_to_omm:main"
-xform-oem = "bin.xform_oem:main"
+xform-oem = "xform_oem.xform_oem:main"
 oem-to-omm = "oem_to_omm.oem_to_omm:main"
 evaluate-fit-tle = "oem_to_omm.evaluate_fit_tle:main"
 propagate-orbit = "tudatpy_utils.cli:propagate_orbit_main"
@@ -50,6 +50,7 @@ packages = [
     { include = "slice_oem", from = "src" },
     { include = "tle_info", from = "src" },
     { include = "tle_to_omm", from = "src" },
+    { include = "xform_oem", from = "src" },
     { include = "bin", from = "." },
     { include = "common", from = "src" },
     { include = "diff_oem", from = "src" },

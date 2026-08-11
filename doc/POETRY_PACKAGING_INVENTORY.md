@@ -31,7 +31,7 @@ These are the current documented script entry points. Direct `python3 path/to/sc
 | `src/slice_oem/slice_oem.py` | `python3 src/slice_oem/slice_oem.py <oem> --slice START:STOP:STEP` | Slice an OEM stream or file. |
 | `src/tle_info/tle_info.py` | `python3 src/tle_info/tle_info.py <file.tle> ...` | Print TLE metadata and derived orbital values. |
 | `src/tle_to_omm/tle_to_omm.py` | `python3 src/tle_to_omm/tle_to_omm.py <input.tle>` | Convert TLE input to OMM output. |
-| `bin/xform_oem.py` | `python3 bin/xform_oem.py <oem> --x-ref-frame FRAME [-o OUTPUT]` | Transform OEM states between supported frames or coordinate forms. |
+| `src/xform_oem/xform_oem.py` | `python3 src/xform_oem/xform_oem.py <oem> --x-ref-frame FRAME [-o OUTPUT]` | Transform OEM states between supported frames or coordinate forms. |
 | `src/oem_to_omm/oem_to_omm.py` | `python3 src/oem_to_omm/oem_to_omm.py --kepler\|--mean-kepler\|--tle <input.oem>` | Fit OEM states and emit an OMM. |
 | `src/oem_to_omm/evaluate_fit_tle.py` | `python3 src/oem_to_omm/evaluate_fit_tle.py [--fit-span HOURS] <input.oem>` | Evaluate TLE fit quality. |
 | `propagation/propagate_orbit.py` | `python3 propagation/propagate_orbit.py -i STATE [-d DURATION] [--oem OUTPUT]` | Propagate a Cartesian state with configured models. |
@@ -105,7 +105,7 @@ Poetry console scripts will use lowercase hyphenated names:
 | `src/slice_oem/slice_oem.py` | `slice-oem` |
 | `src/tle_info/tle_info.py` | `tle-info` |
 | `src/tle_to_omm/tle_to_omm.py` | `tle-to-omm` |
-| `bin/xform_oem.py` | `xform-oem` |
+| `src/xform_oem/xform_oem.py` | `xform-oem` |
 | `src/oem_to_omm/oem_to_omm.py` | `oem-to-omm` |
 | `src/oem_to_omm/evaluate_fit_tle.py` | `evaluate-fit-tle` |
 | `propagation/propagate_orbit.py` | `propagate-orbit` |
