@@ -9,7 +9,7 @@ import numpy as np
 
 from tudatpy_utils.core.interpolator import lagrange
 
-from .types import State, StatePair
+from .types import StatePair
 
 
 @dataclass
