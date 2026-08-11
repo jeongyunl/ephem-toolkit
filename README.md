@@ -24,7 +24,7 @@ src/propagate_*/     Python propagation packages
 src/plot_orbit*/     Python orbit visualization packages
 bin/                 Command-line utility scripts
 test/                Unit tests and sample data files
-doc/                 Documentation
+docs/                Documentation
 ```
 
 
@@ -58,9 +58,9 @@ Install plotting support with `poetry install -E plotting`. TudatPy-dependent wo
 
 ### OEM Utilities
 
-- `bin/diff_oem.py` — compare corresponding states from two OEM files with optional rotation fitting and time-shift correction. See [DIFF_OEM.md](doc/DIFF_OEM.md) for details
-- `src/slice_oem/slice_oem.py` — slice OEM files by index or time range (with optional interpolation). See [SLICE_OEM.md](doc/SLICE_OEM.md) for details
-- `src/xform_oem/xform_oem.py` — convert CCSDS OEM state vectors between supported reference frames, or convert ECEF positions to AER coordinates. See [XFORM_OEM.md](doc/XFORM_OEM.md) for complete documentation.
+- `bin/diff_oem.py` — compare corresponding states from two OEM files with optional rotation fitting and time-shift correction. See [DIFF_OEM.md](docs/DIFF_OEM.md) for details
+- `src/slice_oem/slice_oem.py` — slice OEM files by index or time range (with optional interpolation). See [SLICE_OEM.md](docs/SLICE_OEM.md) for details
+- `src/xform_oem/xform_oem.py` — convert CCSDS OEM state vectors between supported reference frames, or convert ECEF positions to AER coordinates. See [XFORM_OEM.md](docs/XFORM_OEM.md) for complete documentation.
 
 
 ### Orbit Propagation
@@ -71,7 +71,7 @@ Install plotting support with `poetry install -E plotting`. TudatPy-dependent wo
 
 Supports CCSDS OEM export, data-only state-vector output, dependent-variable CSV export, and OEM metadata headers.
 
-See [PROPAGATION.md](doc/PROPAGATION.md) for full usage details.
+See [PROPAGATION.md](docs/PROPAGATION.md) for full usage details.
 
 ### OEM-to-OMM
 
@@ -79,7 +79,7 @@ See [PROPAGATION.md](doc/PROPAGATION.md) for full usage details.
 
 Estimates Orbit Mean-Elements Messages (OMM) including Two-Line Element (TLE) sets from OEM Cartesian state vectors. Fits OEM state vectors to osculating Kepler, mean Kepler, or TLE-derived OMM output using iterative least-squares fitting. Includes least-squares estimation, iterative refinement, SGP4 model evaluation, and TLE line construction.
 
-See [OEM_TO_OMM.md](doc/OEM_TO_OMM.md) for full usage details.
+See [OEM_TO_OMM.md](docs/OEM_TO_OMM.md) for full usage details.
 
 ### TLE / OMM Utilities
 
@@ -89,7 +89,7 @@ See [OEM_TO_OMM.md](doc/OEM_TO_OMM.md) for full usage details.
 - `src/tle_to_omm/tle_to_omm.py` — convert TLE → OMM
 - `src/tle_info/tle_info.py` — inspect TLE information
 
-See [TLE.md](doc/TLE.md) for full usage details.
+See [TLE.md](docs/TLE.md) for full usage details.
 
 ### Visualization
 
@@ -103,7 +103,7 @@ See [TLE.md](doc/TLE.md) for full usage details.
 
 Converts between ISO 8601, POSIX, UTC/TAI/TT J2000, and backend-specific formats.
 
-See [TIME_CONVERSION.md](doc/TIME_CONVERSION.md) for full usage details.
+See [TIME_CONVERSION.md](docs/TIME_CONVERSION.md) for full usage details.
 
 ---
 
@@ -113,7 +113,7 @@ See [TIME_CONVERSION.md](doc/TIME_CONVERSION.md) for full usage details.
 
 Reusable Python modules providing foundational astrodynamics functionality. These are imported by the application modules and CLI tools.
 
-See [COMMON_LIBRARY_SUMMARY.md](doc/COMMON_LIBRARY_SUMMARY.md) for an overview of all available modules and functions.
+See [COMMON_LIBRARY_SUMMARY.md](docs/COMMON_LIBRARY_SUMMARY.md) for an overview of all available modules and functions.
 
 ---
 
@@ -129,7 +129,7 @@ A multi-backend C++ library for converting between time representations. Support
 | `time_conversion/tools/` | CLI tool (`convert_time_cli`) |
 | `time_conversion/test/` | Google Test unit tests |
 
-See [TIME_CONVERSION.md](doc/TIME_CONVERSION.md) for full usage details.
+See [TIME_CONVERSION.md](docs/TIME_CONVERSION.md) for full usage details.
 
 ---
 
