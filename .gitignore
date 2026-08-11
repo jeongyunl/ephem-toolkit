@@ -1,5 +1,8 @@
 .env
-.github/
+.github/*
+!.github/
+!.github/workflows/
+!.github/workflows/poetry-package.yml
 .vscode/
 *.csv
 *.png
@@ -7,6 +10,9 @@
 *.swp
 a.out
 build/
+dist/
+.venv/
+*.egg-info/
 common/interpolator/cpp/*
 coverage/
 ISS.OEM_J2K_EPH.txt

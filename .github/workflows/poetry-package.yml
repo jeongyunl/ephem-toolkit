@@ -1,0 +1,43 @@
+name: Poetry package
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.13"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: poetry
+
+      - name: Install Poetry
+        run: python -m pip install poetry==2.2.1
+
+      - name: Validate metadata
+        run: poetry check
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run package-resource test
+        run: poetry run pytest -q test/test_packaging_resources.py
+
+      - name: Build distribution
+        run: poetry build
+
+      - name: Install wheel in clean environment
+        run: |
+          python -m venv "$RUNNER_TEMP/wheel-check"
+          "$RUNNER_TEMP/wheel-check/bin/pip" install --quiet dist/*.whl
+          "$RUNNER_TEMP/wheel-check/bin/python" -c "import tudatpy_utils; import tudatpy_utils.common.common"
