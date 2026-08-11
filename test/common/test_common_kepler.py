@@ -432,8 +432,12 @@ def tudatpy_tle_round_trip():
     convert to Keplerian using tudatpy, and return all intermediate results."""
     import warnings
 
-    warnings.filterwarnings("ignore", module="urllib3")
+    # Suppress warnings that tudatpy / urllib3 may emit on import.
     warnings.filterwarnings("ignore", category=SyntaxWarning)
+    warnings.filterwarnings(
+        "ignore",
+        module=r"urllib3(\..*)?",
+    )
 
     from tudatpy.dynamics import environment_setup
     from tudatpy.astro import element_conversion

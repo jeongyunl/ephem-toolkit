@@ -10,7 +10,8 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# Add parent directory to path to import common module
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.convert_tle as convert_tle
 import common.ccsds.omm as omm

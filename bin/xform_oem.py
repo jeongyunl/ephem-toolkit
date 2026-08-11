@@ -59,20 +59,22 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TextIO
+import numpy as np
 
-# Suppress Warnings from TudatPy
+import warnings
+
+# Suppress warnings that tudatpy / urllib3 may emit on import.
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 warnings.filterwarnings(
     "ignore",
     module=r"urllib3(\..*)?",
 )
 
-import numpy as np
 
+# Add parent directory to path to import common module
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.aer as aer

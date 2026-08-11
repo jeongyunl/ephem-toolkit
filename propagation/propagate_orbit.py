@@ -29,6 +29,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Add parent directory to path to import common module
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.common as common
@@ -321,9 +322,9 @@ def parse_drag_area_m2(value: str) -> float:
     try:
         drag_area_m2 = float(value)
     except ValueError as exc:
-            raise argparse.ArgumentTypeError(
-                "drag area must be a valid number in m²"
-            ) from exc
+        raise argparse.ArgumentTypeError(
+            "drag area must be a valid number in m²"
+        ) from exc
 
     if drag_area_m2 <= 0.0:
         raise argparse.ArgumentTypeError("drag area must be a positive value in m²")
@@ -623,20 +624,17 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import numpy as np
 
 # Suppress warnings that tudatpy / urllib3 may emit on import.
 import warnings
 
+# Suppress warnings that tudatpy / urllib3 may emit on import.
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 warnings.filterwarnings(
     "ignore",
     module=r"urllib3(\..*)?",
 )
-
-# numpy -- imported just before PropagationInputs and state-vector construction.
-import numpy as np
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 @dataclass
@@ -736,7 +734,9 @@ def read_initial_state_from_stream(
     if line == "":
         raise ValueError("No input line available in stream")
 
-    parsed: tuple[float, np.ndarray] | None = common_oem.CcsdsOem.parse_oem_state_line(line)
+    parsed: tuple[float, np.ndarray] | None = common_oem.CcsdsOem.parse_oem_state_line(
+        line
+    )
     if parsed is None:
         raise ValueError("The first input line is blank/comment and was not parsed")
 

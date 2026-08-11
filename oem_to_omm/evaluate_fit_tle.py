@@ -32,11 +32,19 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-
 import numpy as np
 
-# Ensure project root is on the path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import warnings
+
+# Suppress warnings that tudatpy / urllib3 may emit on import.
+warnings.filterwarnings("ignore", category=SyntaxWarning)
+warnings.filterwarnings(
+    "ignore",
+    module=r"urllib3(\..*)?",
+)
+
+# Add parent directory to path to import common module
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.consts as consts
 import common.ccsds.oem as oem

@@ -18,18 +18,22 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import os
 import pathlib
+from pathlib import Path
 import sys
+import numpy as np
+
 import warnings
 
 # Suppress warnings that tudatpy / urllib3 may emit on import.
-warnings.filterwarnings("ignore", module="urllib3")
 warnings.filterwarnings("ignore", category=SyntaxWarning)
+warnings.filterwarnings(
+    "ignore",
+    module=r"urllib3(\..*)?",
+)
 
-import numpy as np
-
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+# Add parent directory to path to import common module
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.ccsds.oem as oem
 import common.kepler as kepler

@@ -18,24 +18,25 @@ from __future__ import annotations
 import argparse
 import math
 import sys
-import warnings
 from pathlib import Path
+
+import warnings
+
+# Suppress warnings that tudatpy / urllib3 may emit on import.
+warnings.filterwarnings("ignore", category=SyntaxWarning)
+warnings.filterwarnings(
+    "ignore",
+    module=r"urllib3(\..*)?",
+)
 
 from tudatpy.astro.element_conversion import KeplerianElementIndices
 from tudatpy.astro.time_representation import DateTime
 from tudatpy.dynamics import environment_setup
 from tudatpy.interface import spice
 
-# Suppress warnings from urllib3
-warnings.filterwarnings("ignore", module="urllib3")
+# Add parent directory to path to import common module
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Suppress SyntaxWarnings from TudatPy
-warnings.filterwarnings("ignore", category=SyntaxWarning)
-
-# Support direct execution from the bin directory
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-import common.common as common
 import common.kepler as kepler
 import common.spice_utils as spice_utils
 

@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
+# Add parent directory to path to import common module
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from diff_oem.cli import parse_arguments

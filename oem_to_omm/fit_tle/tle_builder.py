@@ -8,9 +8,8 @@ import math
 from pathlib import Path
 import sys
 
-import numpy as np
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# Add parent directory to path to import common module
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.tle as tle
 from . import models
