@@ -497,7 +497,7 @@ for query_epoch, result in results:
         print(f"Velocity diff: {result.velocity_diff_magnitude_km_s:.6f} km/s")
 ```
 
-See `diff_oem/README.md` for module structure and `test/` directory for more examples.
+See `diff_oem/README.md` for module structure and `tests/` directory for more examples.
 
 ## Implementation Details
 

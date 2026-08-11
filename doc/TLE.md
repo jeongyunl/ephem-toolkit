@@ -129,13 +129,13 @@ For each TLE file, prints:
 **Display TLE information:**
 
 ```bash
-python3 src/tle_info/tle_info.py test/data/ISS-ZARYA_1998-067A.tle
+python3 src/tle_info/tle_info.py tests/data/ISS-ZARYA_1998-067A.tle
 ```
 
 **Display information for multiple TLE files:**
 
 ```bash
-python3 src/tle_info/tle_info.py test/data/ISS-ZARYA_1998-067A.tle test/data/AMOS-17_2019-050A.tle
+python3 src/tle_info/tle_info.py tests/data/ISS-ZARYA_1998-067A.tle tests/data/AMOS-17_2019-050A.tle
 ```
 
 **Show help:**
@@ -191,19 +191,19 @@ Outputs standard two-line element format:
 **Convert OMM file to TLE:**
 
 ```bash
-python3 src/omm_to_tle/omm_to_tle.py test/data/ISS-ZARYA_1998-067A.omm
+python3 src/omm_to_tle/omm_to_tle.py tests/data/ISS-ZARYA_1998-067A.omm
 ```
 
 **Convert OMM file and save to output file:**
 
 ```bash
-python3 src/omm_to_tle/omm_to_tle.py test/data/ISS-ZARYA_1998-067A.omm -o output.tle
+python3 src/omm_to_tle/omm_to_tle.py tests/data/ISS-ZARYA_1998-067A.omm -o output.tle
 ```
 
 **Convert OMM from stdin:**
 
 ```bash
-cat test/data/ISS-ZARYA_1998-067A.omm | python3 src/omm_to_tle/omm_to_tle.py
+cat tests/data/ISS-ZARYA_1998-067A.omm | python3 src/omm_to_tle/omm_to_tle.py
 ```
 
 **Show help:**
@@ -253,19 +253,19 @@ Outputs CCSDS OMM format (KVN).
 **Convert TLE file to OMM:**
 
 ```bash
-python3 src/tle_to_omm/tle_to_omm.py test/data/ISS-ZARYA_1998-067A.tle
+python3 src/tle_to_omm/tle_to_omm.py tests/data/ISS-ZARYA_1998-067A.tle
 ```
 
 **Convert TLE file and save to output file:**
 
 ```bash
-python3 src/tle_to_omm/tle_to_omm.py test/data/ISS-ZARYA_1998-067A.tle -o output.omm
+python3 src/tle_to_omm/tle_to_omm.py tests/data/ISS-ZARYA_1998-067A.tle -o output.omm
 ```
 
 **Convert TLE from stdin:**
 
 ```bash
-cat test/data/ISS-ZARYA_1998-067A.tle | python3 src/tle_to_omm/tle_to_omm.py
+cat tests/data/ISS-ZARYA_1998-067A.tle | python3 src/tle_to_omm/tle_to_omm.py
 ```
 
 **Show help:**

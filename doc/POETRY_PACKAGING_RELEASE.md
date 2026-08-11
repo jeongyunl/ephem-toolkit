@@ -23,7 +23,7 @@ Run from a clean checkout with the intended Python version:
 ```text
 poetry check
 poetry install
-poetry run pytest -q test/test_packaging_resources.py
+poetry run pytest -q tests/test_packaging_resources.py
 poetry build
 ```
 

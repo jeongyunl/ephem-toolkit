@@ -27,7 +27,7 @@ SRC_DIR: Path = PROJECT_ROOT / "src"
 SLICE_OEM_SCRIPT: Path = SRC_DIR / "slice_oem" / "slice_oem.py"
 """Path to slice_oem.py script."""
 
-TEST_DATA_DIR: Path = PROJECT_ROOT / "test" / "data"
+TEST_DATA_DIR: Path = PROJECT_ROOT / "tests" / "data"
 """Directory containing test data files."""
 
 

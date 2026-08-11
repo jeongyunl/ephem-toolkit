@@ -57,7 +57,7 @@ Last updated: 2026-08-10
 - `poetry lock` succeeds and `poetry install --no-root` installs the locked core/development dependencies.
 - TudatPy is not in the lock file because no `tudatpy` package is available from the configured package index; TudatPy workflows still require an external installation method.
 - Resource policy is recorded in [POETRY_PACKAGING_RESOURCES.md](POETRY_PACKAGING_RESOURCES.md): the wheel contains Python modules only, test fixtures remain outside the wheel, and SPICE kernels remain TudatPy-managed external data.
-- `test/test_packaging_resources.py` verifies the installed package root through `importlib.resources`.
+- `tests/test_packaging_resources.py` verifies the installed package root through `importlib.resources`.
 - Wheel inspection found no test fixtures or generated data/build files.
 - `poetry build` and a fresh virtual-environment wheel install passed; package imports, resource access, and representative console commands succeeded.
 - `.github/workflows/poetry-package.yml` validates metadata, installs dependencies, runs the package-resource test, builds the distribution, and clean-installs the wheel on Python 3.9 and 3.13.
@@ -87,6 +87,6 @@ Last updated: 2026-08-10
 | 2026-08-10 | Added `src/tudatpy_utils`, package markers, and a transitional namespace bridge over legacy domains. | `poetry build`, isolated wheel imports, `poetry install`, and editable canonical imports passed. | Step 4 complete; console entry points are the next implementation step. |
 | 2026-08-10 | Registered 15 Poetry console commands and added the canonical command table to README. | `poetry check`, `poetry install`, all command wrappers installed; plotting extra smoke tests passed. | Entry-point implementation complete; remaining Step 5 work is broader domain-document migration and TudatPy validation. |
 | 2026-08-10 | Added canonical command notes to affected domain documentation. | Reviewed command references in eight Markdown documents; legacy examples remain intact. | Step 5 complete; package-data handling is the next implementation step. |
-| 2026-08-10 | Added package-resource policy and installed-resource smoke test. | `poetry run pytest -q test/test_packaging_resources.py` passed; wheel contained no test fixtures or generated data files. | Step 6 complete; distribution validation is the next implementation step. |
+| 2026-08-10 | Added package-resource policy and installed-resource smoke test. | `poetry run pytest -q tests/test_packaging_resources.py` passed; wheel contained no test fixtures or generated data files. | Step 6 complete; distribution validation is the next implementation step. |
 | 2026-08-10 | Validated the built wheel and added the Poetry packaging CI workflow. | `poetry check`, clean wheel install, imports, resources, and representative commands passed; full suite stopped at 3 external TudatPy/astropy collection errors. | Step 7 distribution checks are implemented; full Python test validation remains blocked by external dependencies. |
 | 2026-08-10 | Added the release and maintenance procedure for the Python distribution. | Reviewed versioning, TestPyPI, production publishing, artifact inspection, compatibility, and `bin/` deprecation rules. | Step 8 complete; production publishing remains an operational action requiring repository credentials and an approved package index. |
