@@ -162,7 +162,7 @@ from __future__ import annotations  # Always first import
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from common.tle import Tle
+    from core.tle import Tle
 
 @classmethod
 def read(cls, source: TextIO | str | Path) -> CcsdsOem:
@@ -343,17 +343,17 @@ Use 67-character `# ===` banners:
 **Local imports:** Import module with alias for brevity:
 ```python
 # Correct
-import common.kepler as kepler
+import core.kepler as kepler
 kepler.MU_EARTH
 
-import common.ccsds.oem as oem
+import core.ccsds.oem as oem
 oem.CcsdsOem.read(file)
 
 # Wrong
-from common.kepler import MU_EARTH
+from core.kepler import MU_EARTH
 
 # Also wrong (no alias)
-import common.kepler
+import core.kepler
 common.kepler.MU_EARTH  # Too verbose
 ```
 

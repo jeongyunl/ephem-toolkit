@@ -1,24 +1,24 @@
 # Common Library - TLE & OMM
 
-This document covers Two-Line Element (TLE) sets, Orbit Mean-Elements Messages (OMM), and TLE/OMM conversions in the `common/` directory.
+This document covers Two-Line Element (TLE) sets, Orbit Mean-Elements Messages (OMM), and TLE/OMM conversions in the `core/` directory.
 
 ## Table of Contents
 
-1. [tudatpy_utils.common.tle - Two-Line Element Sets](#tudatpy_utilscommontle---two-line-element-sets)
-2. [tudatpy_utils.common.convert_tle - TLE/OMM Conversion](#tudatpy_utilscommonconvert_tle---tleomm-conversion)
-3. [tudatpy_utils.common.ccsds.odm - CCSDS Orbit Data Message Definitions](#tudatpy_utilscommonccsdsodm---ccsds-orbit-data-message-definitions)
-4. [tudatpy_utils.common.ccsds.omm - Orbit Mean-Elements Message](#tudatpy_utilscommonccsdsomm---orbit-mean-elements-message)
-5. [tudatpy_utils.common.ccsds.oem - Orbit Ephemeris Message](#tudatpy_utilscommonccsdsoem---orbit-ephemeris-message)
+1. [tudatpy_utils.core.tle - Two-Line Element Sets](#tudatpy_utilscoretle---two-line-element-sets)
+2. [tudatpy_utils.core.convert_tle - TLE/OMM Conversion](#tudatpy_utilscoreconvert_tle---tleomm-conversion)
+3. [tudatpy_utils.core.ccsds.odm - CCSDS Orbit Data Message Definitions](#tudatpy_utilscoreccsdsodm---ccsds-orbit-data-message-definitions)
+4. [tudatpy_utils.core.ccsds.omm - Orbit Mean-Elements Message](#tudatpy_utilscoreccsdsomm---orbit-mean-elements-message)
+5. [tudatpy_utils.core.ccsds.oem - Orbit Ephemeris Message](#tudatpy_utilscoreccsdsoem---orbit-ephemeris-message)
 
 ---
 
-## tudatpy_utils.common.tle - Two-Line Element Sets
+## tudatpy_utils.core.tle - Two-Line Element Sets
 
 **Purpose**: Read, parse, and write NORAD Two-Line Element (TLE) sets.
 
 ### Key Dependencies
 - `datetime`, `pathlib`, `re`, `dataclasses`, `typing`
-- `tudatpy_utils.common.common`, `tudatpy_utils.common.time_utils`
+- `tudatpy_utils.core.common`, `tudatpy_utils.core.time_utils`
 
 ### Data Structure
 
@@ -67,17 +67,17 @@ Return the single-digit TLE checksum character for a TLE line.
 
 ---
 
-## tudatpy_utils.common.convert_tle - TLE/OMM Conversion
+## tudatpy_utils.core.convert_tle - TLE/OMM Conversion
 
 **Purpose**: Convert between TLE and OMM representations, and TLE to osculating Keplerian elements.
 
 ### Key Dependencies
 - `numpy`
-- `tudatpy_utils.common.kepler`
-- `tudatpy_utils.common.mean_kepler`
-- `tudatpy_utils.common.ccsds.omm`
-- `tudatpy_utils.common.tle`
-- `tudatpy_utils.common.consts`
+- `tudatpy_utils.core.kepler`
+- `tudatpy_utils.core.mean_kepler`
+- `tudatpy_utils.core.ccsds.omm`
+- `tudatpy_utils.core.tle`
+- `tudatpy_utils.core.consts`
 
 ### TLE ↔ OMM Conversion
 
@@ -113,7 +113,7 @@ Extract osculating Keplerian elements at the TLE epoch.
 
 ---
 
-## tudatpy_utils.common.ccsds.odm - CCSDS Orbit Data Message Definitions
+## tudatpy_utils.core.ccsds.odm - CCSDS Orbit Data Message Definitions
 
 **Purpose**: Define the reference-frame and time-system identifiers permitted by CCSDS Orbit Data Messages (ODM), including OEM and OMM files.
 
@@ -128,14 +128,14 @@ Extract osculating Keplerian elements at the TLE epoch.
 
 ---
 
-## tudatpy_utils.common.ccsds.omm - Orbit Mean-Elements Message
+## tudatpy_utils.core.ccsds.omm - Orbit Mean-Elements Message
 
 **Purpose**: Read, parse, and write CCSDS Orbit Mean-Elements Message (OMM) files.
 
 ### Key Dependencies
 - `dataclasses`, `pathlib`, `typing`, `datetime`
 - `numpy`
-- `tudatpy_utils.common.common`, `tudatpy_utils.common.consts`, `tudatpy_utils.common.time_utils`, `tudatpy_utils.common.kepler`
+- `tudatpy_utils.core.common`, `tudatpy_utils.core.consts`, `tudatpy_utils.core.time_utils`, `tudatpy_utils.core.kepler`
 
 ### Data Structure
 
@@ -169,7 +169,7 @@ Write this OMM to a file or stream.
 
 ---
 
-## tudatpy_utils.common.ccsds.oem - Orbit Ephemeris Message
+## tudatpy_utils.core.ccsds.oem - Orbit Ephemeris Message
 
 **Purpose**: Read, parse, and write CCSDS Orbit Ephemeris Message (OEM) files.
 
@@ -179,7 +179,7 @@ OEM files use kilometers (km) and km/s per the CCSDS standard. This module conve
 
 ### Key Dependencies
 - `numpy`, `datetime`, `pathlib`, `dataclasses`
-- `tudatpy_utils.common.common`, `tudatpy_utils.common.time_utils`
+- `tudatpy_utils.core.common`, `tudatpy_utils.core.time_utils`
 
 ### Constants
 - `KILOMETERS_TO_METERS = 1000.0` - Conversion factor from kilometers to meters

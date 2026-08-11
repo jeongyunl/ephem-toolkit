@@ -1,18 +1,18 @@
 # Common Library - Time & Utilities
 
-This document covers time utilities, common utilities, and physical constants in the `common/` directory.
+This document covers time utilities, common utilities, and physical constants in the `core/` directory.
 
 ## Table of Contents
 
-1. [tudatpy_utils.common.time_utils - Time Utilities](#tudatpy_utilscommontime_utils---time-utilities)
-2. [tudatpy_utils.common.common - Common Utilities](#tudatpy_utilscommoncommon---common-utilities)
-3. [tudatpy_utils.common.consts - Physical Constants](#tudatpy_utilscommonconsts---physical-constants)
+1. [tudatpy_utils.core.time_utils - Time Utilities](#tudatpy_utilscoretime_utils---time-utilities)
+2. [tudatpy_utils.core.common - Common Utilities](#tudatpy_utilscorecommon---common-utilities)
+3. [tudatpy_utils.core.consts - Physical Constants](#tudatpy_utilscoreconsts---physical-constants)
 
 ---
 
-## tudatpy_utils.common.time_utils - Time Utilities
+## tudatpy_utils.core.time_utils - Time Utilities
 
-**Purpose**: Time conversion, ISO 8601 parsing/formatting, and CLI duration parsing. All time-related functionality is consolidated here; import as `import tudatpy_utils.common.time_utils as time_utils`.
+**Purpose**: Time conversion, ISO 8601 parsing/formatting, and CLI duration parsing. All time-related functionality is consolidated here; import as `import tudatpy_utils.core.time_utils as time_utils`.
 
 ### Key Dependencies
 - `tudatpy.astro.time_representation`
@@ -75,9 +75,9 @@ Format a timedelta into a human-readable string (e.g., `2h 30m`, `45s`, `3d 1h`)
 
 ---
 
-## tudatpy_utils.common.common - Common Utilities
+## tudatpy_utils.core.common - Common Utilities
 
-**Purpose**: Shared utilities for frame transformations, angle operations, SPICE kernel management, and CCSDS keyword-value parsing. Time-related functions live in `tudatpy_utils.common.time_utils`.
+**Purpose**: Shared utilities for frame transformations, angle operations, SPICE kernel management, and CCSDS keyword-value parsing. Time-related functions live in `tudatpy_utils.core.time_utils`.
 
 ### Key Dependencies
 - `numpy`
@@ -125,7 +125,7 @@ Blend angles along the shortest arc.
 
 ---
 
-## tudatpy_utils.common.consts - Physical Constants
+## tudatpy_utils.core.consts - Physical Constants
 
 **Purpose**: Earth physical constants for orbital mechanics calculations.
 

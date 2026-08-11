@@ -1,16 +1,16 @@
 # Common Library - Coordinate Transformations
 
-This document covers reference frame conversions and coordinate system transformations in the `common/` directory.
+This document covers reference frame conversions and coordinate system transformations in the `core/` directory.
 
 ## Table of Contents
 
-1. [tudatpy_utils.common.frame_utils - Reference Frame Conversions](#tudatpy_utilscommonframe_utils---reference-frame-conversions)
-2. [tudatpy_utils.common.wgs - WGS-84 Coordinate Conversions](#tudatpy_utilscommonwgs---wgs-84-coordinate-conversions)
-3. [tudatpy_utils.common.aer - AER Coordinate Conversions](#tudatpy_utilscommonaer---aer-coordinate-conversions)
+1. [tudatpy_utils.core.frame_utils - Reference Frame Conversions](#tudatpy_utilscoreframe_utils---reference-frame-conversions)
+2. [tudatpy_utils.core.wgs - WGS-84 Coordinate Conversions](#tudatpy_utilscorewgs---wgs-84-coordinate-conversions)
+3. [tudatpy_utils.core.aer - AER Coordinate Conversions](#tudatpy_utilscoreaer---aer-coordinate-conversions)
 
 ---
 
-## tudatpy_utils.common.frame_utils - Reference Frame Conversions
+## tudatpy_utils.core.frame_utils - Reference Frame Conversions
 
 **Purpose**: Convert Cartesian states between TEME, J2000, SPICE, inertial, and Earth-fixed reference frames.
 
@@ -18,7 +18,7 @@ This document covers reference frame conversions and coordinate system transform
 - `numpy`
 - `tudatpy.astro.element_conversion`
 - `tudatpy.interface.spice`
-- `tudatpy_utils.common.spice_utils`
+- `tudatpy_utils.core.spice_utils`
 
 ### TEME/J2000 Conversion
 
@@ -51,14 +51,14 @@ Convert a body-fixed state to an inertial state using a TudatPy rotation model. 
 
 ---
 
-## tudatpy_utils.common.wgs - WGS-84 Coordinate Conversions
+## tudatpy_utils.core.wgs - WGS-84 Coordinate Conversions
 
 **Purpose**: Coordinate conversion utilities for LLA (Latitude-Longitude-Altitude) and ENU (East-North-Up) frames using the WGS-84 ellipsoid model.
 
 ### Key Dependencies
 - `numpy`
 - `math`
-- `tudatpy_utils.common.consts`
+- `tudatpy_utils.core.consts`
 
 ### Constants
 
@@ -165,13 +165,13 @@ Convert ECEF coordinates to geodetic coordinates (LLA) using an iterative algori
 
 ---
 
-## tudatpy_utils.common.aer - AER Coordinate Conversions
+## tudatpy_utils.core.aer - AER Coordinate Conversions
 
 **Purpose**: Coordinate conversion utilities for AER (Azimuth-Elevation-Range) frames. The AER coordinate system is a spherical coordinate system centered at a reference point on the Earth's surface.
 
 ### Key Dependencies
 - `numpy`
-- `tudatpy_utils.common.wgs`
+- `tudatpy_utils.core.wgs`
 
 ### AER Coordinate System
 

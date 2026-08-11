@@ -1,7 +1,7 @@
 """Convert between TLE and OMM representations, and TLE to osculating Keplerian elements.
 
 Provides :func:`tle_to_omm` and :func:`omm_to_tle` for round-trip conversion
-between :class:`~common.tle.Tle` and :class:`~common.ccsds.omm.CcsdsOmm`, and
+between :class:`~core.tle.Tle` and :class:`~core.ccsds.omm.CcsdsOmm`, and
 :func:`tle_to_osculating_keplerian` to extract osculating Keplerian elements
 from a TLE at its reference epoch.
 """
@@ -256,7 +256,7 @@ def _parse_object_id(object_id: str) -> tuple[int, int, str]:
 def tle_to_omm(
     tle_obj: tle.Tle, *, creation_date: str = "", originator: str = ""
 ) -> omm.CcsdsOmm:
-    """Convert a :class:`~common.tle.Tle` to a :class:`~common.ccsds.omm.CcsdsOmm`.
+    """Convert a :class:`~core.tle.Tle` to a :class:`~core.ccsds.omm.CcsdsOmm`.
 
     Parameters
     ----------
@@ -334,7 +334,7 @@ def tle_to_omm(
 
 
 def omm_to_tle(omm_obj: omm.CcsdsOmm) -> tle.Tle:
-    """Convert a :class:`~common.ccsds.omm.CcsdsOmm` to a :class:`~common.tle.Tle`.
+    """Convert a :class:`~core.ccsds.omm.CcsdsOmm` to a :class:`~core.tle.Tle`.
 
     Parameters
     ----------
@@ -349,7 +349,7 @@ def omm_to_tle(omm_obj: omm.CcsdsOmm) -> tle.Tle:
     Notes
     -----
     The returned :class:`tle.Tle` will have empty ``line1`` and ``line2`` fields.
-    Use :func:`~common.tle.write_tle` to generate the formatted TLE lines.
+    Use :func:`~core.tle.write_tle` to generate the formatted TLE lines.
     """
     # Ensure TLE parameters are present
     if omm_obj.tle_parameters is None:
@@ -436,7 +436,7 @@ def tle_to_osculating_keplerian(
     Parameters
     ----------
     tle_obj : tle.Tle
-        Parsed TLE dataclass (from common.tle.read_tle).
+        Parsed TLE dataclass (from core.tle.read_tle).
     mu_m3_s2 : float
         Gravitational parameter (m³/s²).
     apply_j2 : bool

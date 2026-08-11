@@ -7,7 +7,7 @@ utilities (:func:`wrap_angle_rad`, :func:`unwrap_angles_rad`,
 :func:`circular_blend_angle_rad`).
 
 Time-related functions (time conversion, ISO 8601 parsing, duration
-parsing) live in :mod:`common.time_utils`.
+parsing) live in :mod:`core.time_utils`.
 
 References:
     ISO 8601 "Date and time representations".

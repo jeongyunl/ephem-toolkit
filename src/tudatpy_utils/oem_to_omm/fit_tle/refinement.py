@@ -453,7 +453,7 @@ def refine_estimated_fields_keplerian_match(
     Uses common.convert_tle.tle_to_osculating_keplerian to convert the candidate
     TLE to osculating elements, and compares against the reference osculating
     elements derived from the input Cartesian state at epoch via
-    common.kepler.cartesian_to_keplerian.
+    core.kepler.cartesian_to_keplerian.
 
     This approach does NOT require SGP4/tudatpy — it uses pure two-body
     Keplerian mechanics for the TLE-to-osculating conversion.
