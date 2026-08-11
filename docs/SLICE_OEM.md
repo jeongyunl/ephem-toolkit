@@ -447,7 +447,7 @@ sliced_oem = slice_oem.extract_sliced_states(oem_data, options)
 sliced_oem.write("sliced.oem")
 ```
 
-See `tests/tudatpy_utils/common/test_common_slice_oem.py` for more examples.
+See `tests/tudatpy_utils/common/test_slice_oem.py` for more examples.
 
 ## Implementation Details
 
