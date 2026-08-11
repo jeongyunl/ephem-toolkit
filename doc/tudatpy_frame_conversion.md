@@ -1,6 +1,6 @@
 # TudatPy frame-conversion API notes
 
-The command-line frame-conversion entry point is `bin/xform_oem.py`. It calls
+The command-line frame-conversion entry point is `src/xform_oem/xform_oem.py`. It calls
 `common.frame_utils.convert_frame`, which normalizes equivalent inertial frame
 names and applies the appropriate TudatPy transformation for each supported
 source and target pair.

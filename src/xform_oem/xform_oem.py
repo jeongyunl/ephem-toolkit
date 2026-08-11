@@ -12,37 +12,37 @@ This utility can:
 
 Usage:
     # Output OEM file as-is
-    python3 bin/xform_oem.py <oem_file>
-    cat data.oem | python3 bin/xform_oem.py
+    python3 src/xform_oem/xform_oem.py <oem_file>
+    cat data.oem | python3 src/xform_oem/xform_oem.py
 
     # Transform state data and update the reference frame metadata
-    python3 bin/xform_oem.py <oem_file> --x-ref-frame J2000
+    python3 src/xform_oem/xform_oem.py <oem_file> --x-ref-frame J2000
 
     # Convert to AER coordinates
-    python3 bin/xform_oem.py <oem_file> --x-aer <lat>,<lon>,<alt>
+    python3 src/xform_oem/xform_oem.py <oem_file> --x-aer <lat>,<lon>,<alt>
 
 Examples:
     # Output ISS OEM file as-is
-    python3 bin/xform_oem.py iss.oem
+    python3 src/xform_oem/xform_oem.py iss.oem
 
     # Transform state data to J2000 and update the reference frame metadata
-    python3 bin/xform_oem.py iss.oem --x-ref-frame J2000 -o output.oem
+    python3 src/xform_oem/xform_oem.py iss.oem --x-ref-frame J2000 -o output.oem
 
     # Rewrite metadata after any state transformation
-    python3 bin/xform_oem.py iss.oem --x-ref-frame J2000 \
+    python3 src/xform_oem/xform_oem.py iss.oem --x-ref-frame J2000 \
         --set-meta OBJECT_NAME=ISS --set-header ORIGINATOR=NASA -o output.oem
 
     # Convert ISS orbit to AER from ground station
-    python3 bin/xform_oem.py iss.oem --x-aer 40.7128,-74.0060,10.0
+    python3 src/xform_oem/xform_oem.py iss.oem --x-aer 40.7128,-74.0060,10.0
 
     # Write state data as CSV
-    python3 bin/xform_oem.py iss.oem --x-csv -o output.csv
+    python3 src/xform_oem/xform_oem.py iss.oem --x-csv -o output.csv
 
     # Write state data without the OEM header and metadata
-    python3 bin/xform_oem.py iss.oem --data-only -o states.txt
+    python3 src/xform_oem/xform_oem.py iss.oem --data-only -o states.txt
 
     # Read from stdin and convert to AER
-    cat iss.oem | python3 bin/xform_oem.py --x-aer 40.7128,-74.0060,10.0
+    cat iss.oem | python3 src/xform_oem/xform_oem.py --x-aer 40.7128,-74.0060,10.0
 
 AER Output format:
     Each line contains: timestamp azimuth elevation range
