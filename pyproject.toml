@@ -31,7 +31,7 @@ download-tle = "download_tle.download_tle:main"
 omm-to-tle = "omm_to_tle.omm_to_tle:main"
 slice-oem = "slice_oem.slice_oem:main"
 tle-info = "tle_info.tle_info:main"
-tle-to-omm = "bin.tle_to_omm:main"
+tle-to-omm = "tle_to_omm.tle_to_omm:main"
 xform-oem = "bin.xform_oem:main"
 oem-to-omm = "oem_to_omm.oem_to_omm:main"
 evaluate-fit-tle = "oem_to_omm.evaluate_fit_tle:main"
@@ -49,6 +49,7 @@ packages = [
     { include = "omm_to_tle", from = "src" },
     { include = "slice_oem", from = "src" },
     { include = "tle_info", from = "src" },
+    { include = "tle_to_omm", from = "src" },
     { include = "bin", from = "." },
     { include = "common", from = "src" },
     { include = "diff_oem", from = "src" },

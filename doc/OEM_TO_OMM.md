@@ -241,7 +241,7 @@ Key algorithmic features:
 - `common/ccsds/oem.py` — OEM parsing utilities
 - `propagation/propagate_tle.py` — TLE propagation with SGP4
 - `src/omm_to_tle/omm_to_tle.py` — Convert OMM to TLE
-- `bin/tle_to_omm.py` — Convert TLE to OMM
+- `src/tle_to_omm/tle_to_omm.py` — Convert TLE to OMM
 
 ## Best Practices
 
