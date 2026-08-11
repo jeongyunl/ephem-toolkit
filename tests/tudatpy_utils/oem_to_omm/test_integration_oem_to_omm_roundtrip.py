@@ -10,9 +10,6 @@ from pathlib import Path
 
 import pytest
 
-# Add parent directory to path to import common module
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import common.convert_tle as convert_tle
 import common.ccsds.omm as omm
 import common.tle as tle
@@ -48,8 +45,15 @@ def _build_env() -> dict[str, str]:
     """
     env: dict[str, str] = os.environ.copy()
     existing: str = env.get("PYTHONPATH", "")
-    source_root = PROJECT_ROOT / "src"
-    env["PYTHONPATH"] = str(source_root) + ((":" + existing) if existing else "")
+    source_roots = [
+        PROJECT_ROOT / "src",
+        PROJECT_ROOT / "src" / "tudatpy_utils",
+    ]
+    env["PYTHONPATH"] = os.pathsep.join(
+        [*(str(path) for path in source_roots), existing]
+        if existing
+        else [*(str(path) for path in source_roots)]
+    )
     return env
 
 
@@ -69,13 +73,7 @@ def run_propagate_tle(tle_path: Path) -> str:
     result: subprocess.CompletedProcess[str] = subprocess.run(
         [
             sys.executable,
-            str(
-                PROJECT_ROOT
-                / "src"
-                / "tudatpy_utils"
-                / "propagate_tle"
-                / "propagate_tle.py"
-            ),
+            str(PROJECT_ROOT / "src" / "tudatpy_utils" / "cli" / "propagate_tle.py"),
             str(tle_path),
             "-s",
             "15m",

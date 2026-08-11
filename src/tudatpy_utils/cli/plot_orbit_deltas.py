@@ -7,3 +7,7 @@ def main() -> None:
     from tudatpy_utils.plot_orbit_deltas.plot_orbit_deltas import main as command_main
 
     command_main()
+
+
+if __name__ == "__main__":
+    main()

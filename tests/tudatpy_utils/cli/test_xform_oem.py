@@ -13,9 +13,7 @@ TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent
 """Repository root path."""
 
-XFORM_OEM_SCRIPT: Path = (
-    PROJECT_ROOT / "src" / "tudatpy_utils" / "xform_oem" / "xform_oem.py"
-)
+XFORM_OEM_SCRIPT: Path = PROJECT_ROOT / "src" / "tudatpy_utils" / "cli" / "xform_oem.py"
 """Path to xform_oem.py script."""
 
 
@@ -23,7 +21,15 @@ def _build_env() -> dict[str, str]:
     """Build a test PYTHONPATH environment for running the helper script."""
     env = os.environ.copy()
     existing = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = str(PROJECT_ROOT) + (os.pathsep + existing if existing else "")
+    source_paths = [
+        PROJECT_ROOT / "src",
+        PROJECT_ROOT / "src" / "tudatpy_utils",
+    ]
+    env["PYTHONPATH"] = os.pathsep.join(
+        [*(str(path) for path in source_paths), existing]
+        if existing
+        else [*(str(path) for path in source_paths)]
+    )
     return env
 
 

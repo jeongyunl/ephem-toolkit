@@ -3,12 +3,8 @@
 from __future__ import annotations
 
 import io
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock
-
-# Add parent directory to path to import common module
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.tle as tle
 import common.consts as consts

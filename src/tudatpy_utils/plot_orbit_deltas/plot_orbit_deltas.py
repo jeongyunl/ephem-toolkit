@@ -23,9 +23,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Add parent directory to path to import common utilities
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import common.common as common
 import common.ccsds.oem as oem
 from common.ccsds.oem import CcsdsOem
@@ -338,9 +335,7 @@ def read_orbit_file(source: str | Path) -> dict[float, np.ndarray]:
     with open(source_path, "r", encoding="utf-8") as file_handle:
         for line in file_handle:
             try:
-                result: tuple[float, np.ndarray] | None = (
-                    oem.parse_oem_state_line(line)
-                )
+                result: tuple[float, np.ndarray] | None = oem.parse_oem_state_line(line)
                 if result is not None:
                     timestamp, state_km = result
                     state_history[timestamp] = state_km

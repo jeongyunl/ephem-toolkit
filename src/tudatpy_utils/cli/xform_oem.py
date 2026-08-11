@@ -7,3 +7,7 @@ def main() -> None:
     from tudatpy_utils.xform_oem.xform_oem import main as command_main
 
     command_main()
+
+
+if __name__ == "__main__":
+    main()
