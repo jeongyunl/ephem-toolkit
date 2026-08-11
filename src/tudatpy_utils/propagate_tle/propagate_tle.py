@@ -35,9 +35,9 @@ warnings.filterwarnings(
     module=r"urllib3(\..*)?",
 )
 
-import core.ccsds.oem as oem
-import core.spice_utils as spice_utils
-import core.time_utils as time_utils
+import tudatpy_utils.core.ccsds.oem as oem
+import tudatpy_utils.core.spice_utils as spice_utils
+import tudatpy_utils.core.time_utils as time_utils
 
 # CLI defaults
 DEFAULT_PROPAGATION_DURATION_S: float = time_utils.SECONDS_PER_DAY
