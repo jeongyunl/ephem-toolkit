@@ -20,8 +20,8 @@ common/interpolator/ Interpolation sub-library (Lagrange, generic)
 common/ccsds/       CCSDS ODM, OEM, and OMM definitions and parsers
 time_conversion/     C++ time-conversion library, CLI, and tests
 src/oem_to_omm/       OEM-to-OMM estimation application module (includes TLE fitting)
-propagation/         Python propagation scripts
-plotting/            Python orbit visualization scripts
+src/propagate_*/     Python propagation packages
+src/plot_orbit*/     Python orbit visualization packages
 bin/                 Command-line utility scripts
 test/                Unit tests and sample data files
 doc/                 Documentation

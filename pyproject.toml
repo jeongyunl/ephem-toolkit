@@ -57,12 +57,9 @@ packages = [
     { include = "propagate_kepler", from = "src" },
     { include = "propagate_tle", from = "src" },
     { include = "propagate_orbit", from = "src" },
-    { include = "bin", from = "." },
     { include = "common", from = "src" },
     { include = "diff_oem", from = "src" },
     { include = "oem_to_omm", from = "src" },
-    { include = "propagation", from = "." },
-    { include = "plotting", from = "." },
 ]
 
 [tool.poetry.group.dev.dependencies]

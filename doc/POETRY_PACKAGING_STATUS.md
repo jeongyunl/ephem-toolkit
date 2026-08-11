@@ -42,7 +42,7 @@ Last updated: 2026-08-10
 - Step 1 inventory is recorded in [POETRY_PACKAGING_INVENTORY.md](POETRY_PACKAGING_INVENTORY.md).
 - Step 2 decisions are recorded in the inventory's [Step 2 Decisions](POETRY_PACKAGING_INVENTORY.md#step-2-decisions) section.
 - The baseline command `python3 -m pytest --collect-only -q` collected 607 tests in 1.23 seconds on 2026-08-10.
-- Python functionality in scope is distributed across `src/common/`, `src/diff_oem/`, `src/oem_to_omm/`, `plotting/`, `propagation/`, and `bin/`.
+- Python functionality in scope is distributed across `src/common/`, `src/diff_oem/`, `src/oem_to_omm/`, `src/plot_*`, `src/propagate_*`, and `bin/`.
 - The `time_conversion/` directory is explicitly outside the Poetry packaging plan.
 - Existing documentation presents direct script execution as a supported workflow.
 - `diff_oem/` is already organized as a reusable module with a separate CLI wrapper.
