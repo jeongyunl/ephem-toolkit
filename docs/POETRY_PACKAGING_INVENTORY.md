@@ -23,10 +23,10 @@ These are the current documented script entry points. Direct `python3 path/to/sc
 | Script | Current invocation shape | Primary behavior |
 | --- | --- | --- |
 | `bin/diff_oem.py` | `python3 bin/diff_oem.py <reference.oem> <comparison.oem> [options]` | Compare two OEM state histories and write differences/statistics. |
-| `src/download_tle/download_tle.py` | `python3 src/download_tle/download_tle.py [--format FORMAT] <satellite-id> ...` | Download TLE or OMM data to files. |
+| `download-tle` | `download-tle [--format FORMAT] <satellite-id> ...` | Download TLE or OMM data to files. |
 | `src/omm_to_tle/omm_to_tle.py` | `python3 src/omm_to_tle/omm_to_tle.py <input.omm>` | Convert OMM input to TLE output. |
 | `src/slice_oem/slice_oem.py` | `python3 src/slice_oem/slice_oem.py <oem> --slice START:STOP:STEP` | Slice an OEM stream or file. |
-| `src/tle_info/tle_info.py` | `python3 src/tle_info/tle_info.py <file.tle> ...` | Print TLE metadata and derived orbital values. |
+| `tle-info` | `tle-info <file.tle> ...` | Print TLE metadata and derived orbital values. |
 | `src/tle_to_omm/tle_to_omm.py` | `python3 src/tle_to_omm/tle_to_omm.py <input.tle>` | Convert TLE input to OMM output. |
 | `src/xform_oem/xform_oem.py` | `python3 src/xform_oem/xform_oem.py <oem> --x-ref-frame FRAME [-o OUTPUT]` | Transform OEM states between supported frames or coordinate forms. |
 | `src/oem_to_omm/oem_to_omm.py` | `python3 src/oem_to_omm/oem_to_omm.py --kepler\|--mean-kepler\|--tle <input.oem>` | Fit OEM states and emit an OMM. |
@@ -35,7 +35,7 @@ These are the current documented script entry points. Direct `python3 path/to/sc
 | `src/propagate_kepler/propagate_kepler.py` | `python3 src/propagate_kepler/propagate_kepler.py` | Propagate a two-body Kepler state. |
 | `src/propagate_tle/propagate_tle.py` | `python3 src/propagate_tle/propagate_tle.py --tle FILE [-d DURATION]` | Propagate a TLE. |
 | `src/plot_orbit/plot_orbit.py` | `python3 src/plot_orbit/plot_orbit.py --csv FILE` | Plot orbit and dependent-variable data. |
-| `src/plot_orbit_deltas/plot_orbit_deltas.py` | `python3 src/plot_orbit_deltas/plot_orbit_deltas.py <oem> ...` | Plot orbit differences. |
+| `plot-orbit-deltas` | `plot-orbit-deltas <oem> ...` | Plot orbit differences. |
 | `src/plot_dep_vars/plot_dependent_variables.py` | `python3 src/plot_dep_vars/plot_dependent_variables.py --csv FILE` | Plot dependent variables. |
 
 Common behavior includes stdin support through `-` or omitted input paths, stdout-oriented output, optional `-o/--output` file destinations, and CCSDS/OEM/TLE/OMM text formats.
@@ -97,10 +97,10 @@ Poetry console scripts will use lowercase hyphenated names:
 | Current script | Canonical command |
 | --- | --- |
 | `bin/diff_oem.py` | `diff-oem` |
-| `src/download_tle/download_tle.py` | `download-tle` |
+| `download-tle` | `download-tle` |
 | `src/omm_to_tle/omm_to_tle.py` | `omm-to-tle` |
 | `src/slice_oem/slice_oem.py` | `slice-oem` |
-| `src/tle_info/tle_info.py` | `tle-info` |
+| `tle-info` | `tle-info` |
 | `src/tle_to_omm/tle_to_omm.py` | `tle-to-omm` |
 | `src/xform_oem/xform_oem.py` | `xform-oem` |
 | `src/oem_to_omm/oem_to_omm.py` | `oem-to-omm` |
@@ -109,7 +109,7 @@ Poetry console scripts will use lowercase hyphenated names:
 | `src/propagate_kepler/propagate_kepler.py` | `propagate-kepler` |
 | `src/propagate_tle/propagate_tle.py` | `propagate-tle` |
 | `src/plot_orbit/plot_orbit.py` | `plot-orbit` |
-| `src/plot_orbit_deltas/plot_orbit_deltas.py` | `plot-orbit-deltas` |
+| `plot-orbit-deltas` | `plot-orbit-deltas` |
 | `src/plot_dep_vars/plot_dependent_variables.py` | `plot-dependent-variables` |
 
 Direct script invocation remains supported through the migration. No underscore aliases will be registered initially; compatibility belongs in the existing wrapper paths rather than duplicate Poetry commands.

@@ -1,6 +1,6 @@
 # OEM Slicing Utility
 
-The `src/slice_oem/slice_oem.py` script extracts subsets of CCSDS OEM (Orbit Ephemeris Message) ephemeris data by index or time range, with optional interpolation support.
+The `slice-oem` utility extracts subsets of CCSDS OEM (Orbit Ephemeris Message) ephemeris data by index or time range, with optional interpolation support.
 
 ## Overview
 
@@ -18,9 +18,9 @@ After Poetry installation, use `slice-oem` as the canonical command. The existin
 ## Synopsis
 
 ```bash
-python3 src/slice_oem/slice_oem.py <oem_file> [OPTIONS]
-cat data.oem | python3 src/slice_oem/slice_oem.py - [OPTIONS]
-cat data.oem | python3 src/slice_oem/slice_oem.py [OPTIONS]
+slice-oem <oem_file> [OPTIONS]
+cat data.oem | slice-oem - [OPTIONS]
+cat data.oem | slice-oem [OPTIONS]
 ```
 
 ## Options
@@ -46,18 +46,18 @@ When using negative indices (e.g., `-5:` for the last 5 states), argparse interp
 
 **Method 1: Use `=` syntax (recommended)**
 ```bash
-python3 src/slice_oem/slice_oem.py data.oem --slice="-5:"
+slice-oem data.oem --slice="-5:"
 ```
 
 **Method 2: Use `--` to signal end of options**
 ```bash
-python3 src/slice_oem/slice_oem.py data.oem -- --slice "-5:"
+slice-oem data.oem -- --slice "-5:"
 # Note: This doesn't work with argparse's standard behavior
 ```
 
 **Method 3: Quote and use equals**
 ```bash
-python3 src/slice_oem/slice_oem.py data.oem --slice='-5:'
+slice-oem data.oem --slice='-5:'
 ```
 
 The `=` syntax is the most reliable method and is recommended for all slice values that start with `-`.
@@ -91,48 +91,48 @@ start[:[stop][:step]]
 
 **First 10 states:**
 ```bash
-python3 bin/slice_oem.py data.oem --slice "0:10"
+slice-oem data.oem --slice "0:10"
 ```
 
 **Every other state:**
 ```bash
-python3 bin/slice_oem.py data.oem --slice "::2"
+slice-oem data.oem --slice "::2"
 ```
 
 **Single state at index 5:**
 ```bash
-python3 bin/slice_oem.py data.oem --slice "5"
+slice-oem data.oem --slice "5"
 ```
 
 **Last 5 states:**
 ```bash
 # Use = syntax to avoid argparse interpreting -5 as an option
-python3 bin/slice_oem.py data.oem --slice="-5:"
+slice-oem data.oem --slice="-5:"
 ```
 
 **States 10 through 20:**
 ```bash
-python3 bin/slice_oem.py data.oem --slice "10:20"
+slice-oem data.oem --slice "10:20"
 ```
 
 **Every third state from index 5 to 50:**
 ```bash
-python3 bin/slice_oem.py data.oem --slice "5:50:3"
+slice-oem data.oem --slice "5:50:3"
 ```
 
 **Last state:**
 ```bash
-python3 bin/slice_oem.py data.oem --slice="-1"
+slice-oem data.oem --slice="-1"
 ```
 
 **All but the last 10 states:**
 ```bash
-python3 bin/slice_oem.py data.oem --slice=":-10"
+slice-oem data.oem --slice=":-10"
 ```
 
 **From index 10 to the end:**
 ```bash
-python3 bin/slice_oem.py data.oem --slice "10:"
+slice-oem data.oem --slice "10:"
 ```
 
 ## Time-Based Slicing
@@ -188,46 +188,46 @@ start[,[stop][,step]]
 
 **First hour of data:**
 ```bash
-python3 bin/slice_oem.py data.oem --time-slice "0,1h"
+slice-oem data.oem --time-slice "0,1h"
 ```
 
 **Specific time window:**
 ```bash
-python3 bin/slice_oem.py data.oem --time-slice "2024-01-01T00:00:00,2024-01-02T00:00:00"
+slice-oem data.oem --time-slice "2024-01-01T00:00:00,2024-01-02T00:00:00"
 ```
 
 **Single state at specific time:**
 ```bash
-python3 bin/slice_oem.py data.oem --time-slice "2024-01-01T12:00:00"
+slice-oem data.oem --time-slice "2024-01-01T12:00:00"
 ```
 
 **Last 30 minutes (from -30m to OEM end):**
 ```bash
 # Use = syntax to avoid argparse interpreting -30m as an option
-python3 bin/slice_oem.py data.oem --time-slice="-30m,"
+slice-oem data.oem --time-slice="-30m,"
 ```
 
 **Time window from 1 hour to 3 hours after start:**
 ```bash
-python3 bin/slice_oem.py data.oem --time-slice "1h,3h"
+slice-oem data.oem --time-slice "1h,3h"
 ```
 
 **From 30 minutes after start to OEM end:**
 ```bash
-python3 bin/slice_oem.py data.oem --time-slice "30m,"
+slice-oem data.oem --time-slice "30m,"
 ```
 
 **From OEM start to end (full range):**
 ```bash
-python3 bin/slice_oem.py data.oem --time-slice ","     # start omitted → OEM start; stop omitted → OEM end
-python3 bin/slice_oem.py data.oem --time-slice "0,"    # explicit OEM start; stop omitted → OEM end
-python3 bin/slice_oem.py data.oem --time-slice ",0"    # start omitted → OEM start; explicit OEM end
-python3 bin/slice_oem.py data.oem --time-slice "0,0"   # explicit OEM start and OEM end
+slice-oem data.oem --time-slice ","     # start omitted → OEM start; stop omitted → OEM end
+slice-oem data.oem --time-slice "0,"    # explicit OEM start; stop omitted → OEM end
+slice-oem data.oem --time-slice ",0"    # start omitted → OEM start; explicit OEM end
+slice-oem data.oem --time-slice "0,0"   # explicit OEM start and OEM end
 ```
 
 **Last 2 hours resampled at 1-minute intervals:**
 ```bash
-python3 bin/slice_oem.py data.oem --time-slice="-2h,,1m" --interpolate
+slice-oem data.oem --time-slice="-2h,,1m" --interpolate
 ```
 
 ## Interpolation
@@ -250,22 +250,22 @@ The script uses **8th-degree Lagrange polynomial interpolation** to compute inte
 
 **Resample at 10-minute intervals (interpolation enabled by default):**
 ```bash
-python3 bin/slice_oem.py data.oem --time-slice "0,1h,10m"
+slice-oem data.oem --time-slice "0,1h,10m"
 ```
 
 **Resample at 30-second intervals:**
 ```bash
-python3 bin/slice_oem.py data.oem --time-slice "2024-01-01T00:00:00,2024-01-01T01:00:00,30s"
+slice-oem data.oem --time-slice "2024-01-01T00:00:00,2024-01-01T01:00:00,30s"
 ```
 
 **Resample last hour at 5-minute steps:**
 ```bash
-python3 bin/slice_oem.py data.oem --time-slice "-1h,,5m"
+slice-oem data.oem --time-slice "-1h,,5m"
 ```
 
 **Disable interpolation (extract nearest states only):**
 ```bash
-python3 bin/slice_oem.py data.oem --time-slice "0,1h" --no-interpolate
+slice-oem data.oem --time-slice "0,1h" --no-interpolate
 ```
 
 ## Output Formats
@@ -317,7 +317,7 @@ META_STOP
 Use `-v` or `--verbose` to print detailed information to stderr:
 
 ```bash
-python3 bin/slice_oem.py data.oem --slice "0:100" --verbose
+slice-oem data.oem --slice "0:100" --verbose
 ```
 
 Output includes:
@@ -348,34 +348,34 @@ The script can read OEM data from standard input (stdin) instead of a file. This
 
 **Using `-` as the filename:**
 ```bash
-cat orbit.oem | python3 bin/slice_oem.py - --slice "0:10"
+cat orbit.oem | slice-oem - --slice "0:10"
 ```
 
 **Omitting the filename entirely:**
 ```bash
-cat orbit.oem | python3 bin/slice_oem.py --slice "0:10"
+cat orbit.oem | slice-oem --slice "0:10"
 ```
 
 ### Examples
 
 **Pipe from another command:**
 ```bash
-curl https://example.com/orbit.oem | python3 bin/slice_oem.py - --time-slice "0,1h"
+curl https://example.com/orbit.oem | slice-oem - --time-slice "0,1h"
 ```
 
 **Chain multiple operations:**
 ```bash
-cat large.oem | python3 bin/slice_oem.py --slice "::10" | python3 bin/slice_oem.py - --time-slice "0,1h"
+cat large.oem | slice-oem --slice "::10" | slice-oem - --time-slice "0,1h"
 ```
 
 **Process compressed files:**
 ```bash
-gunzip -c orbit.oem.gz | python3 bin/slice_oem.py - --slice "0:100" > sliced.oem
+gunzip -c orbit.oem.gz | slice-oem - --slice "0:100" > sliced.oem
 ```
 
 **Verbose output with stdin:**
 ```bash
-cat orbit.oem | python3 bin/slice_oem.py --slice "0:10" --verbose
+cat orbit.oem | slice-oem --slice "0:10" --verbose
 ```
 
 When reading from stdin, verbose output will show `<stdin>` as the file source:
@@ -392,19 +392,19 @@ When reading from stdin, verbose output will show `<stdin>` as the file source:
 ### Extract First Hour for Analysis
 
 ```bash
-python3 bin/slice_oem.py orbit.oem --time-slice "0,1h" > first_hour.txt
+slice-oem orbit.oem --time-slice "0,1h" > first_hour.txt
 ```
 
 ### Downsample to 5-Minute Intervals
 
 ```bash
-python3 bin/slice_oem.py orbit.oem --time-slice "0,,5m" > downsampled.oem
+slice-oem orbit.oem --time-slice "0,,5m" > downsampled.oem
 ```
 
 ### Extract Specific Time Window
 
 ```bash
-python3 bin/slice_oem.py orbit.oem \
+slice-oem orbit.oem \
   --time-slice "2024-06-15T12:00:00,2024-06-15T18:00:00" \
   > window.oem
 ```
@@ -412,13 +412,13 @@ python3 bin/slice_oem.py orbit.oem \
 ### Create Reduced OEM File
 
 ```bash
-python3 bin/slice_oem.py large.oem --slice "::10" > reduced.oem
+slice-oem large.oem --slice "::10" > reduced.oem
 ```
 
 ### Extract Last Orbit Pass
 
 ```bash
-python3 bin/slice_oem.py orbit.oem --time-slice "-90m," > last_pass.txt
+slice-oem orbit.oem --time-slice "-90m," > last_pass.txt
 ```
 
 ## Programmatic Usage
@@ -515,10 +515,10 @@ Solution: Use valid ISO 8601 format or duration notation.
 
 ## Related Tools
 
-- `bin/diff_oem.py` — Compare corresponding states from two OEM files (see [DIFF_OEM.md](DIFF_OEM.md))
-- `src/plot_orbit_deltas/plot_orbit_deltas.py` — Visualize and compare orbits
-- `src/propagate_orbit/propagate_orbit.py` — Generate OEM files from propagation
-- `src/oem_to_omm/oem_to_omm.py` — Convert OEM to TLE/OMM format
+- `diff-oem` — Compare corresponding states from two OEM files (see [DIFF_OEM.md](DIFF_OEM.md))
+- `plot-orbit-deltas` — Visualize and compare orbits
+- `propagate-orbit` — Generate OEM files from propagation
+- `oem-to-omm` — Convert OEM to TLE/OMM format
 
 ## References
 

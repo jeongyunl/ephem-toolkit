@@ -15,16 +15,21 @@ The repository is organized into three layers:
 ## Repository Layout
 
 ```
-common/              Shared Python library modules
-common/interpolator/ Interpolation sub-library (Lagrange, generic)
-common/ccsds/       CCSDS ODM, OEM, and OMM definitions and parsers
-time_conversion/     C++ time-conversion library, CLI, and tests
-src/oem_to_omm/       OEM-to-OMM estimation application module (includes TLE fitting)
-src/propagate_*/     Python propagation packages
-src/plot_orbit*/     Python orbit visualization packages
-bin/                 Command-line utility scripts
-test/                Unit tests and sample data files
-docs/                Documentation
+src/tudatpy_utils/
+├── common/              Shared Python library modules
+│   ├── interpolator/    Interpolation sub-library (Lagrange, generic)
+│   └── ccsds/          CCSDS ODM, OEM, and OMM definitions and parsers
+├── cli/                 Command-line interface entry points
+├── diff_oem/           OEM comparison application module
+├── oem_to_omm/         OEM-to-OMM estimation application module (includes TLE fitting)
+├── propagate_*/        Python propagation packages
+├── plot_orbit*/        Python orbit visualization packages
+├── slice_oem/          OEM slicing application module
+├── xform_oem/          OEM frame transformation application module
+└── */                  Other application modules
+time_conversion/         C++ time-conversion library, CLI, and tests
+tests/                   Unit tests and sample data files
+docs/                    Documentation
 ```
 
 
@@ -34,7 +39,7 @@ docs/                Documentation
 
 ### Poetry Console Commands
 
-After installing the Python package with Poetry, use the canonical commands below. The existing `python3 path/to/script.py` forms remain supported during the migration.
+After installing the Python package with Poetry, use the canonical commands below:
 
 | Workflow | Command |
 | --- | --- |
@@ -58,16 +63,16 @@ Install plotting support with `poetry install -E plotting`. TudatPy-dependent wo
 
 ### OEM Utilities
 
-- `bin/diff_oem.py` — compare corresponding states from two OEM files with optional rotation fitting and time-shift correction. See [DIFF_OEM.md](docs/DIFF_OEM.md) for details
-- `src/slice_oem/slice_oem.py` — slice OEM files by index or time range (with optional interpolation). See [SLICE_OEM.md](docs/SLICE_OEM.md) for details
-- `src/xform_oem/xform_oem.py` — convert CCSDS OEM state vectors between supported reference frames, or convert ECEF positions to AER coordinates. See [XFORM_OEM.md](docs/XFORM_OEM.md) for complete documentation.
+- `diff-oem` — compare corresponding states from two OEM files with optional rotation fitting and time-shift correction. See [DIFF_OEM.md](docs/DIFF_OEM.md) for details
+- `slice-oem` — slice OEM files by index or time range (with optional interpolation). See [SLICE_OEM.md](docs/SLICE_OEM.md) for details
+- `xform-oem` — convert CCSDS OEM state vectors between supported reference frames, or convert ECEF positions to AER coordinates. See [XFORM_OEM.md](docs/XFORM_OEM.md) for complete documentation.
 
 
 ### Orbit Propagation
 
-- `src/propagate_orbit/propagate_orbit.py` — Cartesian state propagation with configurable perturbations
-- `src/propagate_kepler/propagate_kepler.py` — two-body Kepler propagation
-- `src/propagate_tle/propagate_tle.py` — SGP4 TLE propagation
+- `propagate-orbit` — Cartesian state propagation with configurable perturbations
+- `propagate-kepler` — two-body Kepler propagation
+- `propagate-tle` — SGP4 TLE propagation
 
 Supports CCSDS OEM export, data-only state-vector output, dependent-variable CSV export, and OEM metadata headers.
 
@@ -75,7 +80,7 @@ See [PROPAGATION.md](docs/PROPAGATION.md) for full usage details.
 
 ### OEM-to-OMM
 
-- `src/oem_to_omm/oem_to_omm.py`
+- `oem-to-omm`
 
 Estimates Orbit Mean-Elements Messages (OMM) including Two-Line Element (TLE) sets from OEM Cartesian state vectors. Fits OEM state vectors to osculating Kepler, mean Kepler, or TLE-derived OMM output using iterative least-squares fitting. Includes least-squares estimation, iterative refinement, SGP4 model evaluation, and TLE line construction.
 
@@ -83,18 +88,17 @@ See [OEM_TO_OMM.md](docs/OEM_TO_OMM.md) for full usage details.
 
 ### TLE / OMM Utilities
 
-- `src/download_tle/download_tle.py` — download TLE data
-- `src/omm_to_tle/omm_to_tle.py` — convert OMM → TLE
-- `src/slice_oem/slice_oem.py` — slice OEM data
-- `src/tle_to_omm/tle_to_omm.py` — convert TLE → OMM
-- `src/tle_info/tle_info.py` — inspect TLE information
+- `download-tle` — download TLE data
+- `omm-to-tle` — convert OMM → TLE
+- `tle-to-omm` — convert TLE → OMM
+- `tle-info` — inspect TLE information
 
 See [TLE.md](docs/TLE.md) for full usage details.
 
 ### Visualization
 
-- `src/plot_orbit_deltas/plot_orbit_deltas.py` — plot and compare multiple orbits
-- `src/plot_dep_vars/plot_dependent_variables.py` — plot dependent variables from propagation output
+- `plot-orbit-deltas` — plot and compare multiple orbits
+- `plot-dependent-variables` — plot dependent variables from propagation output
 
 ### Time Conversion
 
@@ -109,7 +113,7 @@ See [TIME_CONVERSION.md](docs/TIME_CONVERSION.md) for full usage details.
 
 ## Libraries
 
-### Python Library (`common/`)
+### Python Library (`src/tudatpy_utils/common/`)
 
 Reusable Python modules providing foundational astrodynamics functionality. These are imported by the application modules and CLI tools.
 

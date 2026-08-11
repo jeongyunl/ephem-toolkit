@@ -1,6 +1,6 @@
 # OEM Comparison Utility
 
-The `bin/diff_oem.py` script compares corresponding states from two CCSDS OEM (Orbit Ephemeris Message) files and reports differences in time, position, and velocity.
+The `diff-oem` utility compares corresponding states from two CCSDS OEM (Orbit Ephemeris Message) files and reports differences in time, position, and velocity.
 
 ## Overview
 
@@ -20,9 +20,9 @@ After Poetry installation, use `diff-oem` as the canonical command. The existing
 ## Synopsis
 
 ```bash
-python3 bin/diff_oem.py <reference_oem.oem> <comparison_oem.oem> [OPTIONS]
-python3 bin/diff_oem.py - <comparison_oem.oem> [OPTIONS]
-python3 bin/diff_oem.py <reference_oem.oem> - [OPTIONS]
+diff-oem <reference_oem.oem> <comparison_oem.oem> [OPTIONS]
+diff-oem - <comparison_oem.oem> [OPTIONS]
+diff-oem <reference_oem.oem> - [OPTIONS]
 ```
 
 ## Options
@@ -55,7 +55,7 @@ python3 bin/diff_oem.py <reference_oem.oem> - [OPTIONS]
 Compare two OEM files at their native epochs:
 
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem
+diff-oem reference.oem comparison.oem
 ```
 
 This compares states at matching timestamps. If the files have different timestamps, only overlapping epochs are compared.
@@ -65,19 +65,19 @@ This compares states at matching timestamps. If the files have different timesta
 By default, the comparison OEM is interpolated at reference timestamps:
 
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem --interpolate-data
+diff-oem reference.oem comparison.oem --interpolate-data
 ```
 
 To interpolate the reference at comparison timestamps instead:
 
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem --interpolate-ref
+diff-oem reference.oem comparison.oem --interpolate-ref
 ```
 
 To interpolate both (compare at all unique timestamps):
 
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem --interpolate
+diff-oem reference.oem comparison.oem --interpolate
 ```
 
 ### Verbose Output
@@ -85,7 +85,7 @@ python3 bin/diff_oem.py reference.oem comparison.oem --interpolate
 Include component-wise differences:
 
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem --verbose
+diff-oem reference.oem comparison.oem --verbose
 ```
 
 This adds columns for dX, dY, dZ (position differences) and dVX, dVY, dVZ (velocity differences) in the reference frame.
@@ -115,19 +115,19 @@ Limit the comparison to a specific time range using `--start` and `--stop` optio
 
 **Compare first hour only:**
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem --start 0 --stop 1h
+diff-oem reference.oem comparison.oem --start 0 --stop 1h
 ```
 
 **Compare specific time window:**
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem \
+diff-oem reference.oem comparison.oem \
   --start 2024-01-01T00:00:00 \
   --stop 2024-01-01T12:00:00
 ```
 
 **Compare from 30 minutes to 2 hours after start:**
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem --start 30m --stop 2h
+diff-oem reference.oem comparison.oem --start 30m --stop 2h
 ```
 
 ## Interpolation
@@ -152,7 +152,7 @@ The script uses **8th-degree Lagrange polynomial interpolation** to compute stat
 
 ```bash
 # Compare with bidirectional interpolation
-python3 bin/diff_oem.py reference.oem comparison.oem --interpolate
+diff-oem reference.oem comparison.oem --interpolate
 ```
 
 ## RTN Frame Analysis
@@ -168,7 +168,7 @@ The `--rtn` option transforms comparison state differences into the reference Ra
 ### Usage
 
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem --rtn
+diff-oem reference.oem comparison.oem --rtn
 ```
 
 Output includes additional columns:
@@ -224,37 +224,37 @@ Multiple transformations can be applied in sequence. The order is determined by 
 
 ```bash
 # First apply rotation, then time shift
-python3 bin/diff_oem.py reference.oem comparison.oem --rot --time-shift
+diff-oem reference.oem comparison.oem --rot --time-shift
 
 # First apply time shift, then rotation
-python3 bin/diff_oem.py reference.oem comparison.oem --time-shift --rot
+diff-oem reference.oem comparison.oem --time-shift --rot
 ```
 
 ### Examples
 
 **Apply 3D rotation correction:**
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem --rot
+diff-oem reference.oem comparison.oem --rot
 ```
 
 **Apply Z-axis rotation only:**
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem --rot-z
+diff-oem reference.oem comparison.oem --rot-z
 ```
 
 **Apply time shift correction:**
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem --time-shift
+diff-oem reference.oem comparison.oem --time-shift
 ```
 
 **Apply rotation with custom fitting span:**
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem --rot --rot-fit-span 1800
+diff-oem reference.oem comparison.oem --rot --rot-fit-span 1800
 ```
 
 **Apply multiple transformations in sequence:**
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem --rot --time-shift
+diff-oem reference.oem comparison.oem --rot --time-shift
 ```
 
 ### Transformation Output
@@ -355,30 +355,29 @@ The script can read one OEM file from standard input (stdin) instead of a file. 
 
 **Reference from stdin:**
 ```bash
-cat reference.oem | python3 bin/diff_oem.py - comparison.oem
+cat reference.oem | diff-oem - comparison.oem
 ```
 
 **Comparison from stdin:**
 ```bash
-cat comparison.oem | python3 bin/diff_oem.py reference.oem -
+cat comparison.oem | diff-oem reference.oem -
 ```
 
 ### Examples
 
 **Pipe from another command:**
 ```bash
-curl https://example.com/orbit.oem | python3 bin/diff_oem.py - reference.oem
+curl https://example.com/orbit.oem | diff-oem - reference.oem
 ```
 
-**Chain with slice_oem:**
+**Chain with slice-oem:**
 ```bash
-python3 src/slice_oem/slice_oem.py large.oem --slice "0:100" | \
-  python3 bin/diff_oem.py reference.oem -
+slice-oem large.oem --slice "0:100" | diff-oem reference.oem -
 ```
 
 **Process compressed files:**
 ```bash
-gunzip -c orbit.oem.gz | python3 bin/diff_oem.py - reference.oem
+gunzip -c orbit.oem.gz | diff-oem - reference.oem
 ```
 
 ## Debug Mode
@@ -386,7 +385,7 @@ gunzip -c orbit.oem.gz | python3 bin/diff_oem.py - reference.oem
 Use `--debug` to print time-range determination details to stderr:
 
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem --debug
+diff-oem reference.oem comparison.oem --debug
 ```
 
 Debug output includes:
@@ -410,19 +409,19 @@ Effective range: 2024-01-01T00:30:00.000 to 2024-01-01T23:30:00.000
 ### Compare Two Propagations
 
 ```bash
-python3 bin/diff_oem.py truth.oem propagated.oem --verbose
+diff-oem truth.oem propagated.oem --verbose
 ```
 
 ### Compare with Frame Alignment
 
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem --rot --verbose
+diff-oem reference.oem comparison.oem --rot --verbose
 ```
 
 ### Compare Specific Time Window
 
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem \
+diff-oem reference.oem comparison.oem \
   --start 2024-01-01T00:00:00 \
   --stop 2024-01-01T12:00:00 \
   --interpolate
@@ -431,21 +430,21 @@ python3 bin/diff_oem.py reference.oem comparison.oem \
 ### Analyze RTN Differences
 
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem --rtn --verbose
+diff-oem reference.oem comparison.oem --rtn --verbose
 ```
 
 ### Multi-Stage Transformation Analysis
 
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem \
+diff-oem reference.oem comparison.oem \
   --rot --time-shift --rtn --verbose
 ```
 
 ### Compare Downsampled Data
 
 ```bash
-python3 src/slice_oem/slice_oem.py reference.oem --slice "::10" | \
-  python3 bin/diff_oem.py - comparison.oem --interpolate-ref
+slice-oem reference.oem --slice "::10" | \
+  diff-oem - comparison.oem --interpolate-ref
 ```
 
 ## Programmatic Usage
@@ -549,7 +548,7 @@ Comparison state differences are then projected onto these axes.
 - Python 3.7+
 - NumPy (for numerical operations and interpolation)
 - Local modules:
-  - `diff_oem.cli` ��� Command-line interface
+  - `diff_oem.cli` — Command-line interface
   - `diff_oem.comparison` — Core comparison logic
   - `diff_oem.output` — Output formatting
   - `diff_oem.pipeline` — Transformation pipeline
@@ -595,10 +594,10 @@ Solution: Ensure `--start` is before or equal to `--stop`.
 
 ## Related Tools
 
-- `src/slice_oem/slice_oem.py` — Extract subsets of OEM data by index or time range
-- `src/plot_orbit_deltas/plot_orbit_deltas.py` — Visualize orbit differences
-- `src/propagate_orbit/propagate_orbit.py` — Generate OEM files from propagation
-- `src/oem_to_omm/oem_to_omm.py` — Convert OEM to TLE/OMM format
+- `slice-oem` — Extract subsets of OEM data by index or time range
+- `plot-orbit-deltas` — Visualize orbit differences
+- `propagate-orbit` — Generate OEM files from propagation
+- `oem-to-omm` — Convert OEM to TLE/OMM format
 
 ## References
 
