@@ -1,23 +1,23 @@
 # Common Library - Data Processing
 
-This document covers OEM data slicing and interpolation utilities in the `common/` directory.
+This document covers OEM data slicing and interpolation utilities in the `core/` directory.
 
 ## Table of Contents
 
-1. [tudatpy_utils.common.slice_oem - OEM Slicing Utilities](#tudatpy_utilscommonslice_oem---oem-slicing-utilities)
-2. [tudatpy_utils.common.interpolator - Interpolation Package](#tudatpy_utilscommoninterpolator---interpolation-package)
+1. [tudatpy_utils.core.slice_oem - OEM Slicing Utilities](#tudatpy_utilscoreslice_oem---oem-slicing-utilities)
+2. [tudatpy_utils.core.interpolator - Interpolation Package](#tudatpy_utilscoreinterpolator---interpolation-package)
 
 ---
 
-## tudatpy_utils.common.slice_oem - OEM Slicing Utilities
+## tudatpy_utils.core.slice_oem - OEM Slicing Utilities
 
 **Purpose**: Common slice helpers for OEM state selection with time-based and index-based slicing.
 
 ### Key Dependencies
 - `datetime`, `bisect`, `re`, `dataclasses`
-- `tudatpy_utils.common.consts`
-- `tudatpy_utils.common.time_utils`
-- `tudatpy_utils.common.interpolator.lagrange`
+- `tudatpy_utils.core.consts`
+- `tudatpy_utils.core.time_utils`
+- `tudatpy_utils.core.interpolator.lagrange`
 
 ### Constants
 - `INTERPOLATION_DEGREE = 8` - Polynomial degree for Lagrange interpolation
@@ -49,11 +49,11 @@ Extract states within a time window using `TimeSliceOptions`. Supports Lagrange 
 
 ---
 
-## tudatpy_utils.common.interpolator - Interpolation Package
+## tudatpy_utils.core.interpolator - Interpolation Package
 
 **Purpose**: Provide interpolation capabilities for time-series data with ordered sample storage.
 
-### tudatpy_utils.common.interpolator.interpolator - Base Interpolator
+### tudatpy_utils.core.interpolator.interpolator - Base Interpolator
 
 #### `class Interpolator`
 Base interpolator supporting fixed-size ordered sample storage.
@@ -74,7 +74,7 @@ Base interpolator supporting fixed-size ordered sample storage.
 - `dependent_dimension`: Number of components in each dependent vector
 - `required_points`: Minimum number of samples required
 
-### tudatpy_utils.common.interpolator.lagrange - Lagrange Interpolator
+### tudatpy_utils.core.interpolator.lagrange - Lagrange Interpolator
 
 #### `class LagrangeInterpolator(Interpolator)`
 Lagrange polynomial interpolator that selects a local polynomial window around each query point.

@@ -1,6 +1,6 @@
 # Common Library Summary
 
-This document provides an overview of the libraries and functions available in the `common/` directory of the tudatpy-utils project. The documentation has been organized into logical groups for easier navigation.
+This document provides an overview of the libraries and functions available in the `core/` directory of the tudatpy-utils project. The documentation has been organized into logical groups for easier navigation.
 
 ## Documentation Groups
 
@@ -8,33 +8,33 @@ The common library is organized into the following functional groups:
 
 ### 1. [Time & Utilities](COMMON_LIBRARY_TIME_UTILITIES.md)
 Core utilities for time conversions, ISO 8601 formatting, duration parsing, and physical constants.
-- **tudatpy_utils.common.time_utils** - Time conversion, ISO 8601 parsing/formatting, CLI duration parsing
-- **tudatpy_utils.common.common** - SPICE kernel management, CCSDS parsing, RTN frame transformation, angle utilities
-- **tudatpy_utils.common.consts** - Earth physical constants (gravitational parameter, radius, J2)
+- **tudatpy_utils.core.time_utils** - Time conversion, ISO 8601 parsing/formatting, CLI duration parsing
+- **tudatpy_utils.core.common** - SPICE kernel management, CCSDS parsing, RTN frame transformation, angle utilities
+- **tudatpy_utils.core.consts** - Earth physical constants (gravitational parameter, radius, J2)
 
 ### 2. [Orbital Elements](COMMON_LIBRARY_ORBITAL_ELEMENTS.md)
 Conversions between Cartesian states and Keplerian orbital elements, including mean element calculations.
-- **tudatpy_utils.common.kepler** - Cartesian ↔ Keplerian conversions, anomaly conversions, mean motion utilities, propagation
-- **tudatpy_utils.common.mean_kepler** - Mean ↔ Osculating conversions with J2 perturbations, J2 secular propagation
+- **tudatpy_utils.core.kepler** - Cartesian ↔ Keplerian conversions, anomaly conversions, mean motion utilities, propagation
+- **tudatpy_utils.core.mean_kepler** - Mean ↔ Osculating conversions with J2 perturbations, J2 secular propagation
 
 ### 3. [TLE & OMM](COMMON_LIBRARY_TLE_OMM.md)
 Two-Line Element sets, Orbit Mean-Elements Messages, and format conversions.
-- **tudatpy_utils.common.tle** - Read/parse/write NORAD Two-Line Element sets
-- **tudatpy_utils.common.convert_tle** - TLE ↔ OMM conversions, TLE to osculating Keplerian elements
-- **tudatpy_utils.common.ccsds.odm** - CCSDS Orbit Data Message reference frame and time system definitions
-- **tudatpy_utils.common.ccsds.omm** - Read/parse/write CCSDS Orbit Mean-Elements Message files
-- **tudatpy_utils.common.ccsds.oem** - Read/parse/write CCSDS Orbit Ephemeris Message files
+- **tudatpy_utils.core.tle** - Read/parse/write NORAD Two-Line Element sets
+- **tudatpy_utils.core.convert_tle** - TLE ↔ OMM conversions, TLE to osculating Keplerian elements
+- **tudatpy_utils.core.ccsds.odm** - CCSDS Orbit Data Message reference frame and time system definitions
+- **tudatpy_utils.core.ccsds.omm** - Read/parse/write CCSDS Orbit Mean-Elements Message files
+- **tudatpy_utils.core.ccsds.oem** - Read/parse/write CCSDS Orbit Ephemeris Message files
 
 ### 4. [Coordinate Transformations](COMMON_LIBRARY_COORDINATE_TRANSFORMATIONS.md)
 Reference frame conversions and coordinate system transformations.
-- **tudatpy_utils.common.frame_utils** - TEME/J2000, SPICE frame, and inertial/body-fixed conversions
-- **tudatpy_utils.common.wgs** - WGS-84 coordinate conversions (ECEF ↔ ENU, LLA ↔ ECEF)
-- **tudatpy_utils.common.aer** - AER (Azimuth-Elevation-Range) coordinate conversions
+- **tudatpy_utils.core.frame_utils** - TEME/J2000, SPICE frame, and inertial/body-fixed conversions
+- **tudatpy_utils.core.wgs** - WGS-84 coordinate conversions (ECEF ↔ ENU, LLA ↔ ECEF)
+- **tudatpy_utils.core.aer** - AER (Azimuth-Elevation-Range) coordinate conversions
 
 ### 5. [Data Processing](COMMON_LIBRARY_DATA_PROCESSING.md)
 OEM data slicing and interpolation utilities.
-- **tudatpy_utils.common.slice_oem** - OEM state selection with time-based and index-based slicing
-- **tudatpy_utils.common.interpolator** - Lagrange polynomial interpolation for time-series data
+- **tudatpy_utils.core.slice_oem** - OEM state selection with time-based and index-based slicing
+- **tudatpy_utils.core.interpolator** - Lagrange polynomial interpolation for time-series data
 
 ---
 

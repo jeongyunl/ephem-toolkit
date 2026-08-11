@@ -8,13 +8,13 @@ This inventory completes Step 1 of [POETRY_PACKAGING_PLAN.md](POETRY_PACKAGING_P
 
 | Directory | Current package marker | Contents and packaging implication |
 | --- | --- | --- |
-| `common/` | No `__init__.py` | Shared modules: `aer.py`, `common.py`, `consts.py`, `convert_tle.py`, `frame_utils.py`, `kepler.py`, `mean_kepler.py`, `slice_oem.py`, `spice_utils.py`, `time_utils.py`, `tle.py`, and `wgs.py`. |
-| `common/interpolator/` | Has `__init__.py` | Reusable `Interpolator` and `LagrangeInterpolator` implementations. |
-| `common/ccsds/` | No `__init__.py` | CCSDS ODM/OEM/OMM definitions and parsers; currently relies on namespace-package behavior from the checkout. |
+| `core/` | No `__init__.py` | Shared modules: `aer.py`, `common.py`, `consts.py`, `convert_tle.py`, `frame_utils.py`, `kepler.py`, `mean_kepler.py`, `slice_oem.py`, `spice_utils.py`, `time_utils.py`, `tle.py`, and `wgs.py`. |
+| `core/interpolator/` | Has `__init__.py` | Reusable `Interpolator` and `LagrangeInterpolator` implementations. |
+| `core/ccsds/` | No `__init__.py` | CCSDS ODM/OEM/OMM definitions and parsers; currently relies on namespace-package behavior from the checkout. |
 | `diff_oem/` | Has `__init__.py` | Reusable comparison pipeline: CLI parsing, comparison, transformations, output, data structures, and utilities. |
 | `src/oem_to_omm/` | Has `__init__.py` | OEM-to-OMM fitting workflow and reusable TLE-fitting modules. |
 | `src/oem_to_omm/fit_tle/` | Has `__init__.py` | TLE fitting models, estimation, linear algebra, refinement, and TLE construction. |
-The current layout is not one installable package. `common/` and `common/ccsds/` need an explicit package-boundary decision before Poetry metadata is added.
+The current layout is not one installable package. `core/` and `core/ccsds/` need an explicit package-boundary decision before Poetry metadata is added.
 
 ## Executable Scripts And Compatibility Commands
 
@@ -44,7 +44,7 @@ Common behavior includes stdin support through `-` or omitted input paths, stdou
 
 | Dependency | Observed usage | Likely scope |
 | --- | --- | --- |
-| NumPy | Array operations, linear algebra, orbital calculations, fitting, and tests across `common/`, `diff_oem/`, `oem_to_omm/`, `src/propagate_*`, and `src/plot_*`. | Core dependency for the full Python package. |
+| NumPy | Array operations, linear algebra, orbital calculations, fitting, and tests across `core/`, `diff_oem/`, `oem_to_omm/`, `src/propagate_*`, and `src/plot_*`. | Core dependency for the full Python package. |
 | TudatPy | Frame conversion, SPICE access, time/ephemeris helpers, SGP4-backed propagation, and orbit propagation. | External prerequisite for propagation, frame, SPICE, and TLE workflows; no Poetry dependency because no `tudatpy` distribution is available from the configured package index. |
 | Matplotlib | Orbit, delta, and dependent-variable plotting scripts. | Optional plotting dependency unless plotting is part of the core install. |
 | Python standard library | Argument parsing, paths, CSV/JSON, streams, dates, URL access, and formatting. | No package dependency. |
@@ -67,7 +67,7 @@ Dependency declarations should be based on import and execution-path verificatio
 - Baseline command: `python3 -m pytest --collect-only -q`.
 - Baseline result on 2026-08-10: **607 tests collected in 1.23 seconds**.
 - Collection emitted an existing `urllib3` `NotOpenSSLWarning` because the local Python 3.9 build uses LibreSSL. This is an environment warning, not a packaging failure.
-- The test suite covers bin subprocesses, common modules, interpolation, OEM-to-OMM fitting, plotting, and propagation.
+- The test suite covers bin subprocesses, core modules, interpolation, OEM-to-OMM fitting, plotting, and propagation.
 
 Representative smoke commands are listed in the plan's source documentation and include OEM comparison, OEM slicing, frame transformation, TLE/OMM conversion, OEM-to-OMM fitting, TLE propagation, and plotting. These commands currently use repository-relative script paths and sample data.
 
@@ -78,7 +78,7 @@ Representative smoke commands are listed in the plan's source documentation and 
 - `common/slice_oem.py` and `src/slice_oem/slice_oem.py` have the same stem but different roles; the package and CLI names must avoid ambiguity.
 - OEM, OMM, TLE, CSV, and stdout formats are consumed by tests and shell pipelines. Formatting and column-order changes are compatibility risks.
 - SPICE kernel filenames and TudatPy-managed cache resolution are runtime assumptions for frame and propagation workflows.
-- Existing top-level imports such as `common.*`, `diff_oem.*`, and `oem_to_omm.*` may be used by tests or downstream scripts and need a compatibility policy.
+- Existing top-level imports such as `core.*`, `diff_oem.*`, and `oem_to_omm.*` may be used by tests or downstream scripts and need a compatibility policy.
 
 ## Step 2 Decisions
 
@@ -86,9 +86,9 @@ Representative smoke commands are listed in the plan's source documentation and 
 
 - Distribution name: `tudatpy-utils`.
 - Canonical import namespace: `tudatpy_utils`.
-- Target package layout: `tudatpy_utils.common`, `tudatpy_utils.diff_oem`, `tudatpy_utils.oem_to_omm`, `tudatpy_utils.propagation`, and `tudatpy_utils.plotting` under `src/`.
+- Target package layout: `tudatpy_utils.core`, `tudatpy_utils.diff_oem`, `tudatpy_utils.oem_to_omm`, `tudatpy_utils.propagation`, and `tudatpy_utils.plotting` under `src/`.
 - Step 4 implementation uses a transitional namespace bridge: Poetry packages the existing top-level domains and `tudatpy_utils` aliases them at import time. Physical relocation under `src/tudatpy_utils/` remains a later cleanup option.
-- Existing top-level imports such as `common.*`, `diff_oem.*`, and `oem_to_omm.*` remain transition compatibility surfaces while downstream users migrate to the canonical namespace.
+- Existing top-level imports such as `core.*`, `diff_oem.*`, and `oem_to_omm.*` remain transition compatibility surfaces while downstream users migrate to the canonical namespace.
 
 ### Console Commands
 

@@ -437,15 +437,15 @@ def verify_accuracy_keplerian(
     estimated: models.Estimated,
     states: list[tuple[float, np.ndarray]],
 ) -> models.KeplerianAccuracy | None:
-    """Verify TLE accuracy using osculating Keplerian elements from common.kepler.
+    """Verify TLE accuracy using osculating Keplerian elements from core.kepler.
 
     Uses common.convert_tle.tle_to_osculating_keplerian to convert the TLE directly
     to osculating elements (two-body), and compares against the reference
     osculating elements derived from the input Cartesian state at epoch via
-    common.kepler.cartesian_to_keplerian.
+    core.kepler.cartesian_to_keplerian.
 
     This does NOT require SGP4/tudatpy — it uses pure two-body Keplerian
-    mechanics via common.kepler.
+    mechanics via core.kepler.
 
     Parameters
     ----------
@@ -474,7 +474,7 @@ def verify_accuracy_keplerian(
     except ValueError:
         return None
 
-    # Convert TLE to osculating Keplerian elements via common.kepler
+    # Convert TLE to osculating Keplerian elements via core.kepler
     tle_data = tle_builder.build_tle_data(args, estimated)
     try:
         tle_kep = convert_tle.tle_to_osculating_keplerian(tle_data, mu)
