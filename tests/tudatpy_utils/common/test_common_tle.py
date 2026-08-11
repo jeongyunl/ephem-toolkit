@@ -10,7 +10,7 @@ import pytest
 import common.tle as tle
 
 TEST_DIR = Path(__file__).parent
-TEST_DATA_DIR = TEST_DIR.parent / "data"
+TEST_DATA_DIR = TEST_DIR.parent.parent / "data"
 
 # ===================================================================
 # Shared fixtures / constants

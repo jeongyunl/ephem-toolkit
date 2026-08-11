@@ -32,7 +32,7 @@ from common.ccsds.oem import CcsdsOem
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test modules."""
 
-PROJECT_ROOT: Path = TEST_DIR.parent.parent
+PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent
 """Repository root path."""
 
 

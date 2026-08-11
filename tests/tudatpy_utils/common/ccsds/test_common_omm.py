@@ -10,7 +10,7 @@ import pytest
 import common.ccsds.omm as omm
 
 TEST_DIR = Path(__file__).parent
-TEST_DATA_DIR = TEST_DIR.parent / "data"
+TEST_DATA_DIR = TEST_DIR.parents[2] / "data"
 ISS_OMM_PATH = TEST_DATA_DIR / "ISS-ZARYA_1998-067A.omm"
 AMOS_OMM_PATH = TEST_DATA_DIR / "AMOS-17_2019-050A.omm"
 LEO_OMM_PATH = TEST_DATA_DIR / "LEO-3_2023-100G.omm"

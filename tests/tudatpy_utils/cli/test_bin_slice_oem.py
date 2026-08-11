@@ -18,13 +18,15 @@ import common.ccsds.oem as oem
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test modules."""
 
-PROJECT_ROOT: Path = TEST_DIR.parent.parent
+PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent
 """Repository root path."""
 
 SRC_DIR: Path = PROJECT_ROOT / "src"
 """Source directory containing executable scripts."""
 
-SLICE_OEM_SCRIPT: Path = SRC_DIR / "slice_oem" / "slice_oem.py"
+SLICE_OEM_SCRIPT: Path = (
+    SRC_DIR / "tudatpy_utils" / "slice_oem" / "slice_oem.py"
+)
 """Path to slice_oem.py script."""
 
 TEST_DATA_DIR: Path = PROJECT_ROOT / "tests" / "data"
