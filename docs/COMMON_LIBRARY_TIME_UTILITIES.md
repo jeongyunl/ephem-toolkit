@@ -5,7 +5,7 @@ This document covers time utilities, common utilities, and physical constants in
 ## Table of Contents
 
 1. [tudatpy_utils.core.time_utils - Time Utilities](#tudatpy_utilscoretime_utils---time-utilities)
-2. [tudatpy_utils.core.common - Common Utilities](#tudatpy_utilscorecommon---common-utilities)
+2. [tudatpy_utils.core.misc - Common Utilities](#tudatpy_utilscorecommon---common-utilities)
 3. [tudatpy_utils.core.consts - Physical Constants](#tudatpy_utilscoreconsts---physical-constants)
 
 ---
@@ -75,7 +75,7 @@ Format a timedelta into a human-readable string (e.g., `2h 30m`, `45s`, `3d 1h`)
 
 ---
 
-## tudatpy_utils.core.common - Common Utilities
+## tudatpy_utils.core.misc - Common Utilities
 
 **Purpose**: Shared utilities for frame transformations, angle operations, SPICE kernel management, and CCSDS keyword-value parsing. Time-related functions live in `tudatpy_utils.core.time_utils`.
 

@@ -290,7 +290,7 @@ Additional scripts currently present in the repository:
 - `common/kepler.py` — Keplerian element conversions (`cartesian_to_keplerian`, `keplerian_to_cartesian`, anomaly conversions, mean motion utilities)
 - `common/mean_kepler.py` — mean Keplerian element conversions (`osculating_to_mean_keplerian`, `compute_brouwer_short_period_corrections`, J2 secular propagation)
 - `common/convert_tle.py` — TLE/OMM conversion and `tle_to_osculating_keplerian` with J2 short-period corrections
-- `common/common.py` — shared utilities
+- `core/misc.py` — shared utilities
 
 ### Other TLE-related scripts
 
