@@ -1,4 +1,4 @@
-"""Tests for common/interpolator/lagrange.py — Lagrange interpolation."""
+"""Tests for core/interpolator/lagrange.py — Lagrange interpolation."""
 
 from __future__ import annotations
 

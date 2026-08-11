@@ -1,4 +1,4 @@
-"""Tests for common/aer.py — Coordinate conversion utilities for AER frames.
+"""Tests for core/aer.py — Coordinate conversion utilities for AER frames.
 
 Validates ECEF-to-AER, AER-to-ECEF, ENU-to-AER, and AER-to-ENU conversions.
 Includes round-trip tests, batch processing, and edge cases (zenith, nadir, cardinal directions).

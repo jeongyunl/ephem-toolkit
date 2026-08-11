@@ -58,7 +58,7 @@ The `--x-aer` mode cannot be combined with `--x-ref-frame`, `--set-meta`, or
 ## Supported Reference Frames
 
 The `--x-ref-frame` option accepts the frame names exposed by
-`common.frame_utils.Frame`:
+`core.frame_utils.Frame`:
 
 - `TEME`
 - `J2000`
@@ -170,7 +170,7 @@ xform-oem input.oem \
   -o output.oem
 ```
 
-Supported metadata keys are the fields defined by `common.ccsds.oem.OemMeta`,
+Supported metadata keys are the fields defined by `core.ccsds.oem.OemMeta`,
 including:
 
 - `OBJECT_NAME`
@@ -297,10 +297,10 @@ xform-oem input.oem \
 
 The command-line tool uses these local modules:
 
-- `common.ccsds.oem` — CCSDS OEM parsing and writing
-- `common.frame_utils` — reference-frame enumeration and state conversion
-- `common.aer` — ECEF position to AER conversion
-- `common.time_utils` — UTC timestamp formatting and TDB epoch conversion
+- `tudatpy_utils.core.ccsds.oem` — CCSDS OEM parsing and writing
+- `tudatpy_utils.core.frame_utils` — reference-frame enumeration and state conversion
+- `tudatpy_utils.core.aer` — ECEF position to AER conversion
+- `tudatpy_utils.core.time_utils` — UTC timestamp formatting and TDB epoch conversion
 
 The frame-conversion path uses TudatPy rotation models and SPICE resources
 where required. The AER path uses the ground-station latitude, longitude, and
@@ -338,10 +338,10 @@ resources required by a frame conversion.
 - NumPy
 - TudatPy for frame conversion and Earth-orientation models
 - Local modules:
-  - `common.ccsds.oem`
-  - `common.frame_utils`
-  - `common.aer`
-  - `common.time_utils`
+  - `tudatpy_utils.core.ccsds.oem`
+  - `tudatpy_utils.core.frame_utils`
+  - `tudatpy_utils.core.aer`
+  - `tudatpy_utils.core.time_utils`
 
 ## Related Tools
 
@@ -349,6 +349,6 @@ resources required by a frame conversion.
   [SLICE_OEM.md](SLICE_OEM.md))
 - `diff-oem` — Compare states from two OEM files (see
   [DIFF_OEM.md](DIFF_OEM.md))
-- `common/frame_utils.py` — Lower-level frame conversion implementation
+- `tudatpy_utils.core.frame_utils` — Lower-level frame conversion implementation
 - [tudatpy_frame_conversion.md](tudatpy_frame_conversion.md) — TudatPy API and
   rotation-model notes

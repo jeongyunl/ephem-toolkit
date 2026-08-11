@@ -1,4 +1,4 @@
-"""Extended tests for common/ccsds/oem.py — Additional coverage for edge cases and error handling."""
+"""Extended tests for core/ccsds/oem.py — Additional coverage for edge cases and error handling."""
 
 from __future__ import annotations
 

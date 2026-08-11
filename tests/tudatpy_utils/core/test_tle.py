@@ -1,4 +1,4 @@
-"""Tests for common/tle.py — TLE dataclass, read_tle, and write_tle."""
+"""Tests for core/tle.py — TLE dataclass, read_tle, and write_tle."""
 
 from __future__ import annotations
 

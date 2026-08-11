@@ -1,4 +1,4 @@
-"""Tests for common/mean_kepler.py — Mean to osculating Keplerian element conversion."""
+"""Tests for core/mean_kepler.py — Mean to osculating Keplerian element conversion."""
 
 from __future__ import annotations
 

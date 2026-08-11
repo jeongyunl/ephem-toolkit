@@ -1,4 +1,4 @@
-"""Tests for common/kepler.py — Orbital element conversion and propagation.
+"""Tests for core/kepler.py — Orbital element conversion and propagation.
 
 Validates cartesian_to_keplerian, keplerian_to_cartesian, propagate_kepler,
 and related helper functions. Includes round-trip tests and comparisons
@@ -343,7 +343,7 @@ def test_cartesian_to_keplerian_round_trip() -> None:
 
 
 def test_cartesian_to_keplerian_matches_tudatpy_element_conversion() -> None:
-    """Compare common.kepler.cartesian_to_keplerian with tudatpy on the same state."""
+    """Compare core.kepler.cartesian_to_keplerian with tudatpy on the same state."""
     pytest.importorskip("tudatpy")
     from tudatpy.astro import element_conversion
 
@@ -359,7 +359,7 @@ def test_cartesian_to_keplerian_matches_tudatpy_element_conversion() -> None:
         kep_tudatpy,
         rtol=1e-12,
         atol=1e-10,
-        err_msg="common.kepler.cartesian_to_keplerian must match tudatpy.element_conversion.cartesian_to_keplerian",
+        err_msg="core.kepler.cartesian_to_keplerian must match tudatpy.element_conversion.cartesian_to_keplerian",
     )
 
 
@@ -422,7 +422,7 @@ def test_cartesian_to_keplerian_eccentric_orbit() -> None:
 
 # ===================================================================
 # 21. Round-trip test: TLE -> Cartesian (tudatpy) -> Keplerian (tudatpy)
-#     vs common.kepler results
+#     vs core.kepler results
 # ===================================================================
 
 
@@ -497,7 +497,7 @@ def test_round_trip_tle_cartesian_to_keplerian_vs_tudatpy(
 ) -> None:
     """Round-trip: TLE -> Cartesian (tudatpy/SGP4) -> Keplerian.
 
-    Compare common.kepler.cartesian_to_keplerian with tudatpy's
+    Compare core.kepler.cartesian_to_keplerian with tudatpy's
     element_conversion.cartesian_to_keplerian using the same Cartesian
     state obtained from the TLE at its initial epoch.
     """
@@ -506,44 +506,44 @@ def test_round_trip_tle_cartesian_to_keplerian_vs_tudatpy(
     kep_tudatpy = data["keplerian_state_tudatpy"]
     earth_mu = data["earth_mu"]
 
-    # Convert the same Cartesian state using common.kepler
+    # Convert the same Cartesian state using core.kepler
     kep_common = kepler.cartesian_to_keplerian(cartesian_state, earth_mu)
 
     # Compare semi-major axis (relative tolerance)
     assert kep_common[kepler.SEMI_MAJOR_AXIS_INDEX] == pytest.approx(
         kep_tudatpy[0], rel=1e-10
-    ), "Semi-major axis mismatch between common.kepler and tudatpy"
+    ), "Semi-major axis mismatch between core.kepler and tudatpy"
 
     # Compare eccentricity (absolute tolerance for near-circular orbits)
     assert kep_common[kepler.ECCENTRICITY_INDEX] == pytest.approx(
         kep_tudatpy[1], abs=1e-12
-    ), "Eccentricity mismatch between common.kepler and tudatpy"
+    ), "Eccentricity mismatch between core.kepler and tudatpy"
 
     # Compare inclination
     assert kep_common[kepler.INCLINATION_INDEX] == pytest.approx(
         kep_tudatpy[2], abs=1e-12
-    ), "Inclination mismatch between common.kepler and tudatpy"
+    ), "Inclination mismatch between core.kepler and tudatpy"
 
     # Compare argument of periapsis
     assert kep_common[kepler.ARGUMENT_OF_PERIAPSIS_INDEX] == pytest.approx(
         kep_tudatpy[3], abs=1e-10
-    ), "Argument of periapsis mismatch between common.kepler and tudatpy"
+    ), "Argument of periapsis mismatch between core.kepler and tudatpy"
 
     # Compare RAAN
     assert kep_common[kepler.RAAN_INDEX] == pytest.approx(
         kep_tudatpy[4], abs=1e-10
-    ), "RAAN mismatch between common.kepler and tudatpy"
+    ), "RAAN mismatch between core.kepler and tudatpy"
 
     # Compare true anomaly
     assert kep_common[kepler.TRUE_ANOMALY_INDEX] == pytest.approx(
         kep_tudatpy[5], abs=1e-10
-    ), "True anomaly mismatch between common.kepler and tudatpy"
+    ), "True anomaly mismatch between core.kepler and tudatpy"
 
 
 def test_round_trip_keplerian_to_cartesian_vs_tudatpy(tudatpy_tle_round_trip) -> None:
-    """Round-trip: Keplerian (tudatpy) -> Cartesian (common.kepler).
+    """Round-trip: Keplerian (tudatpy) -> Cartesian (core.kepler).
 
-    Verify that common.kepler.keplerian_to_cartesian produces the same
+    Verify that core.kepler.keplerian_to_cartesian produces the same
     Cartesian state as the original SGP4 output when given the Keplerian
     elements from tudatpy.
     """
@@ -552,7 +552,7 @@ def test_round_trip_keplerian_to_cartesian_vs_tudatpy(tudatpy_tle_round_trip) ->
     kep_tudatpy = data["keplerian_state_tudatpy"]
     earth_mu = data["earth_mu"]
 
-    # Convert Keplerian (from tudatpy) back to Cartesian using common.kepler
+    # Convert Keplerian (from tudatpy) back to Cartesian using core.kepler
     cartesian_recovered = kepler.keplerian_to_cartesian(kep_tudatpy, earth_mu)
 
     # Position error should be sub-millimeter
@@ -565,7 +565,7 @@ def test_round_trip_keplerian_to_cartesian_vs_tudatpy(tudatpy_tle_round_trip) ->
 
 
 def test_round_trip_tle_osculating_vs_tudatpy_keplerian(tudatpy_tle_round_trip) -> None:
-    """Compare common.convert_tle.tle_to_osculating_keplerian with tudatpy's
+    """Compare core.convert_tle.tle_to_osculating_keplerian with tudatpy's
     Keplerian elements derived from the SGP4 Cartesian state.
 
     Note: convert_tle.tle_to_osculating_keplerian uses two-body (Kepler's third law)
@@ -580,7 +580,7 @@ def test_round_trip_tle_osculating_vs_tudatpy_keplerian(tudatpy_tle_round_trip) 
     data = tudatpy_tle_round_trip
     kep_tudatpy = data["keplerian_state_tudatpy"]
 
-    # Get common.kepler's TLE-to-osculating conversion
+    # Get core.kepler's TLE-to-osculating conversion
     tle_path = TEST_DATA_DIR / "ISS-ZARYA_1998-067A.tle"
     with open(tle_path, "r") as f:
         tle_obj = tle.read_tle(f)

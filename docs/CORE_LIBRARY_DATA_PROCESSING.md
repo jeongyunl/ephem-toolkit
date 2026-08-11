@@ -1,4 +1,4 @@
-# Common Library - Data Processing
+# Core Library - Data Processing
 
 This document covers OEM data slicing and interpolation utilities in the `core/` directory.
 

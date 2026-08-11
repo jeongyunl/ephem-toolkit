@@ -1,4 +1,4 @@
-"""Tests for common/spice_utils.py — SPICE kernel path and loading helpers."""
+"""Tests for core/spice_utils.py — SPICE kernel path and loading helpers."""
 
 from __future__ import annotations
 

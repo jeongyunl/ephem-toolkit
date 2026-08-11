@@ -11,7 +11,7 @@ Current TLE-related scripts in this repository include:
 - `omm-to-tle`
 - `tle-to-omm`
 - `tle-info`
-- `common/convert_tle.py`
+- `core/convert_tle.py`
 
 This document focuses on the primary user-facing tools and the current repository context around them.
 
@@ -147,7 +147,7 @@ tle-info -h
 ### Dependencies
 
 - TudatPy
-- local helper modules `common.common`, `common.kepler`
+- local helper modules `tudatpy_utils.core.common`, `tudatpy_utils.core.kepler`
 
 ## `omm-to-tle`
 
@@ -214,7 +214,7 @@ omm-to-tle -h
 
 ### Dependencies
 
-- local helper modules `common.convert_tle`, `common.ccsds.omm`, `common.tle`
+- local helper modules `tudatpy_utils.core.convert_tle`, `tudatpy_utils.core.ccsds.omm`, `tudatpy_utils.core.tle`
 
 ## `tle-to-omm`
 
@@ -276,21 +276,21 @@ tle-to-omm -h
 
 ### Dependencies
 
-- local helper modules `common.convert_tle`, `common.tle`
+- local helper modules `tudatpy_utils.core.convert_tle`, `tudatpy_utils.core.tle`
 
 ## Related conversion utilities
 
 Additional scripts currently present in the repository:
 
-- `common/convert_tle.py` — shared conversion helper script
+- `tudatpy_utils.core.convert_tle` — shared conversion helper script
 
-## Common library
+## Core library
 
-- `common/tle.py` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions used by all TLE-related scripts
-- `common/kepler.py` — Keplerian element conversions (`cartesian_to_keplerian`, `keplerian_to_cartesian`, anomaly conversions, mean motion utilities)
-- `common/mean_kepler.py` — mean Keplerian element conversions (`osculating_to_mean_keplerian`, `compute_brouwer_short_period_corrections`, J2 secular propagation)
-- `common/convert_tle.py` — TLE/OMM conversion and `tle_to_osculating_keplerian` with J2 short-period corrections
-- `core/misc.py` — shared utilities
+- `tudatpy_utils.core.tle` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions used by all TLE-related scripts
+- `tudatpy_utils.core.kepler` — Keplerian element conversions (`cartesian_to_keplerian`, `keplerian_to_cartesian`, anomaly conversions, mean motion utilities)
+- `tudatpy_utils.core.mean_kepler` — mean Keplerian element conversions (`osculating_to_mean_keplerian`, `compute_brouwer_short_period_corrections`, J2 secular propagation)
+- `tudatpy_utils.core.convert_tle` — TLE/OMM conversion and `tle_to_osculating_keplerian` with J2 short-period corrections
+- `tudatpy_utils.core.misc` — shared utilities
 
 ### Other TLE-related scripts
 

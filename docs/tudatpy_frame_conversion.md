@@ -1,7 +1,7 @@
 # TudatPy frame-conversion API notes
 
 The command-line frame-conversion entry point is `xform-oem`. It calls
-`common.frame_utils.convert_frame`, which normalizes equivalent inertial frame
+`core.frame_utils.convert_frame`, which normalizes equivalent inertial frame
 names and applies the appropriate TudatPy transformation for each supported
 source and target pair.
 
@@ -21,7 +21,7 @@ The implementation uses:
   `compute_rotation_matrix_derivative_between_frames` as the SPICE fallback
 
 The state transformation includes the velocity contribution from the
-time-dependent rotation. `common.frame_utils.convert_frame` accepts states in
+time-dependent rotation. `core.frame_utils.convert_frame` accepts states in
 metres and metres per second; `xform-oem` handles conversion to and from OEM
 km and km/s.
 
@@ -117,5 +117,5 @@ Python process. The cache is module-global, so separate calls to
 
 The lower-level helpers also expose TEME/J2000 conversion functions and TudatPy
 rotation-model operations such as inertial-to-body-fixed and body-fixed-to-
-inertial rotation. See `common/frame_utils.py` for the supported frame enum and
+inertial rotation. See `core/frame_utils.py` for the supported frame enum and
 conversion dispatch.

@@ -1,4 +1,4 @@
-"""Tests for common/wgs.py — Coordinate conversion utilities for LLA and ENU frames.
+"""Tests for core/wgs.py — Coordinate conversion utilities for LLA and ENU frames.
 
 Validates ECEF-to-ENU, ENU-to-ECEF, LLA-to-ECEF, and ECEF-to-LLA conversions.
 Includes round-trip tests, batch processing, and edge cases (poles, equator).

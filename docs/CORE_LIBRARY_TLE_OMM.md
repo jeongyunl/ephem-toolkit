@@ -1,4 +1,4 @@
-# Common Library - TLE & OMM
+# Core Library - TLE & OMM
 
 This document covers Two-Line Element (TLE) sets, Orbit Mean-Elements Messages (OMM), and TLE/OMM conversions in the `core/` directory.
 

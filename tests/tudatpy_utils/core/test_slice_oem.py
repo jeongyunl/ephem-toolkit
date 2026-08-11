@@ -1,4 +1,4 @@
-"""Tests for common/slice_oem.py — OEM slicing utilities and CLI helper.
+"""Tests for core/slice_oem.py — OEM slicing utilities and CLI helper.
 
 Note
 ----

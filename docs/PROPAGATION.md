@@ -214,7 +214,7 @@ propagate-orbit -h
 
 - TudatPy
 - NumPy
-- local helper modules `common.common`, `common.ccsds.oem`, `common.time_utils`, `common.interpolator.lagrange`
+- local helper modules `tudatpy_utils.core.common`, `tudatpy_utils.core.ccsds.oem`, `tudatpy_utils.core.time_utils`, `tudatpy_utils.core.interpolator.lagrange`
 
 The script loads these SPICE kernels from TudatPy's SPICE kernel directory:
 
@@ -301,7 +301,7 @@ propagate-kepler -h
 ### Dependencies
 
 - NumPy
-- local helper modules `common.ccsds.oem`, `common.kepler`, `common.time_utils`
+- local helper modules `tudatpy_utils.core.ccsds.oem`, `tudatpy_utils.core.kepler`, `tudatpy_utils.core.time_utils`
 
 ## `plot-dependent-variables`
 
@@ -406,7 +406,7 @@ plot-dependent-variables -h
 
 - NumPy
 - Matplotlib
-- local helper modules `common.common`, `common.time_utils`
+- local helper modules `tudatpy_utils.core.common`, `tudatpy_utils.core.time_utils`
 
 ## `propagate-tle`
 
@@ -522,7 +522,7 @@ propagate-tle -h
 
 - TudatPy
 - Python standard library
-- local helper modules `common.common`, `common.ccsds.oem`, `common.time_utils`
+- local helper modules `tudatpy_utils.core.common`, `tudatpy_utils.core.ccsds.oem`, `tudatpy_utils.core.time_utils`
 
 The script loads these SPICE kernels via TudatPy data paths:
 

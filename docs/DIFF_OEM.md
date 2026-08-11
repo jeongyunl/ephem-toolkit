@@ -504,7 +504,7 @@ See `diff_oem/README.md` for module structure and `tests/` directory for more ex
 
 - **Method**: Lagrange polynomial interpolation
 - **Degree**: 8th-order polynomial
-- **Implementation**: `common.interpolator.lagrange.LagrangeInterpolator`
+- **Implementation**: `core.interpolator.lagrange.LagrangeInterpolator`
 - **Application**: Interpolates both position and velocity components
 
 The 8th-degree polynomial provides a good balance between accuracy and numerical stability for typical orbital trajectories.
@@ -554,9 +554,9 @@ Comparison state differences are then projected onto these axes.
   - `diff_oem.pipeline` — Transformation pipeline
   - `diff_oem.transformation_stages` — Transformation implementations
   - `diff_oem.utils` — Utility functions
-  - `common.ccsds.oem` — OEM file parsing
-  - `common.time_utils` — Time parsing and formatting
-  - `common.interpolator.lagrange` — Lagrange interpolation
+  - `tudatpy_utils.core.ccsds.oem` — OEM file parsing
+  - `tudatpy_utils.core.time_utils` — Time parsing and formatting
+  - `tudatpy_utils.core.interpolator.lagrange` — Lagrange interpolation
 
 ## Error Handling
 

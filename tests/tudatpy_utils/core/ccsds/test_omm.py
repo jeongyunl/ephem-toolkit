@@ -1,4 +1,4 @@
-"""Tests for common.ccsds.omm.py — OMM parsing, writing, and class API."""
+"""Tests for core.ccsds.omm.py — OMM parsing, writing, and class API."""
 
 from __future__ import annotations
 

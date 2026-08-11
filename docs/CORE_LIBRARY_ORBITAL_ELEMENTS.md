@@ -1,4 +1,4 @@
-# Common Library - Orbital Elements
+# Core Library - Orbital Elements
 
 This document covers Keplerian orbital element conversions and mean element calculations in the `core/` directory.
 

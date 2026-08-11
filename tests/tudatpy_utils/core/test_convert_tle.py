@@ -1,4 +1,4 @@
-"""Tests for common/convert_tle.py — TLE ↔ OMM conversion."""
+"""Tests for core/convert_tle.py — TLE ↔ OMM conversion."""
 
 from __future__ import annotations
 

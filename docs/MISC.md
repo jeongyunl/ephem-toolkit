@@ -182,7 +182,7 @@ diff-oem -h
 ### Dependencies
 
 - NumPy
-- local helper modules `common.ccsds.oem`, `common.time_utils`, and `common.interpolator.lagrange`
+- local helper modules `tudatpy_utils.core.ccsds.oem`, `tudatpy_utils.core.time_utils`, and `tudatpy_utils.core.interpolator.lagrange`
 
 ### See Also
 
@@ -293,4 +293,4 @@ plot-orbit-deltas -h
 
 - NumPy
 - Matplotlib
-- local helper modules `common.common`, `common.time_utils`, `common.ccsds.oem`, `common.interpolator.lagrange`
+- local helper modules `tudatpy_utils.core.common`, `tudatpy_utils.core.time_utils`, `tudatpy_utils.core.ccsds.oem`, `tudatpy_utils.core.interpolator.lagrange`

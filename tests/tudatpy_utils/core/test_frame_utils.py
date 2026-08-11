@@ -1,4 +1,4 @@
-"""Tests for common/frame_utils.py — TEME and J2000 frame conversions."""
+"""Tests for core/frame_utils.py — TEME and J2000 frame conversions."""
 
 from __future__ import annotations
 

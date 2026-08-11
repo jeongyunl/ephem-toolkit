@@ -1,4 +1,4 @@
-"""Tests for common/ccsds/oem.py — OEM parsing, writing, and class API."""
+"""Tests for core/ccsds/oem.py — OEM parsing, writing, and class API."""
 
 from __future__ import annotations
 

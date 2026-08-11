@@ -1,4 +1,4 @@
-# Common Library - Time & Utilities
+# Core Library - Time & Utilities
 
 This document covers time utilities, common utilities, and physical constants in the `core/` directory.
 

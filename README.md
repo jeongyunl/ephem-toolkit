@@ -117,7 +117,7 @@ See [TIME_CONVERSION.md](docs/TIME_CONVERSION.md) for full usage details.
 
 Reusable Python modules providing foundational astrodynamics functionality. These are imported by the application modules and CLI tools.
 
-See [COMMON_LIBRARY_SUMMARY.md](docs/COMMON_LIBRARY_SUMMARY.md) for an overview of all available modules and functions.
+See [CORE_LIBRARY_SUMMARY.md](docs/CORE_LIBRARY_SUMMARY.md) for an overview of all available modules and functions.
 
 ---
 
