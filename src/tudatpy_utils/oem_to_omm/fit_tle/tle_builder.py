@@ -6,7 +6,7 @@ import argparse
 import io
 import math
 
-import core.tle as tle
+import tudatpy_utils.core.tle as tle
 from . import models
 
 

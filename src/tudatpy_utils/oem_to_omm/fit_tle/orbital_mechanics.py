@@ -6,8 +6,8 @@ import math
 
 import numpy as np
 
-import core.misc as misc
-import core.consts as consts
+import tudatpy_utils.core.misc as misc
+import tudatpy_utils.core.consts as consts
 
 from . import constants
 from .models import OrbitalElements, OrbitalRecord, PhaseMatchResult
