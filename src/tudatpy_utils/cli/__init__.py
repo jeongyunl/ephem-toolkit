@@ -1,0 +1,1 @@
+"""Thin adapters for command-line entry points."""
