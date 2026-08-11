@@ -185,13 +185,13 @@ python3 src/oem_to_omm/evaluate_fit_tle.py [-h] [--fit-span <hours>]
 **Evaluate a bundled OEM file:**
 
 ```bash
-python3 src/oem_to_omm/evaluate_fit_tle.py test/data/ISS_2026-05-20.OEM
+python3 src/oem_to_omm/evaluate_fit_tle.py tests/data/ISS_2026-05-20.OEM
 ```
 
 **Evaluate custom OEM file:**
 
 ```bash
-python3 src/oem_to_omm/evaluate_fit_tle.py test/data/JPSS-1.oem
+python3 src/oem_to_omm/evaluate_fit_tle.py tests/data/JPSS-1.oem
 ```
 
 **Evaluate with Keplerian refinement:**

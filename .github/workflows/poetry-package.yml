@@ -31,7 +31,7 @@ jobs:
         run: poetry install --no-interaction
 
       - name: Run package-resource test
-        run: poetry run pytest -q test/test_packaging_resources.py
+        run: poetry run pytest -q tests/test_packaging_resources.py
 
       - name: Build distribution
         run: poetry build

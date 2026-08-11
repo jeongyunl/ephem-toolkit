@@ -477,28 +477,28 @@ Current implementation details:
 
 ### Usage
 
-**Propagate from a sample TLE file in `test/data/`:**
+**Propagate from a sample TLE file in `tests/data/`:**
 
 ```bash
-python3 src/propagate_tle/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle
+python3 src/propagate_tle/propagate_tle.py tests/data/ISS-ZARYA_1998-067A.tle
 ```
 
 **Propagate from stdin for 2 hours with 1-minute output step:**
 
 ```bash
-cat test/data/ISS-ZARYA_1998-067A.tle | python3 src/propagate_tle/propagate_tle.py --stop 2h -s 1m
+cat tests/data/ISS-ZARYA_1998-067A.tle | python3 src/propagate_tle/propagate_tle.py --stop 2h -s 1m
 ```
 
 **Propagate for 30 minutes with 10-second output step:**
 
 ```bash
-python3 src/propagate_tle/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle --stop 30m -s 10s
+python3 src/propagate_tle/propagate_tle.py tests/data/ISS-ZARYA_1998-067A.tle --stop 30m -s 10s
 ```
 
 **Start 90 minutes after the TLE epoch and propagate for 2 hours:**
 
 ```bash
-python3 src/propagate_tle/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle \
+python3 src/propagate_tle/propagate_tle.py tests/data/ISS-ZARYA_1998-067A.tle \
   --start 90m --stop 2h -s 1m
 ```
 
@@ -509,7 +509,7 @@ above covers a two-hour window beginning 90 minutes after the TLE epoch.
 **Print raw state lines without the OEM metadata header:**
 
 ```bash
-python3 src/propagate_tle/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle --data-only
+python3 src/propagate_tle/propagate_tle.py tests/data/ISS-ZARYA_1998-067A.tle --data-only
 ```
 
 **Show help:**

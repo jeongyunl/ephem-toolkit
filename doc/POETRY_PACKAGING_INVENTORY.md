@@ -55,7 +55,7 @@ Dependency declarations should be based on import and execution-path verificatio
 
 ## Runtime Data And Path Assumptions
 
-- Tests use files under `test/data/` through paths relative to each test file. The inventory includes OEM files, OMM/TLE pairs, and propagation CSV outputs.
+- Tests use files under `tests/data/` through paths relative to each test file. The inventory includes OEM files, OMM/TLE pairs, and propagation CSV outputs.
 - SPICE kernels are resolved through TudatPy and cached under `~/.cache/tudatpy-utils/` or `$XDG_CACHE_HOME`, rather than being packaged in this repository.
 - Several scripts insert a repository parent directory into `sys.path` using `Path(__file__)`. This currently makes sibling top-level modules importable and will not be reliable from an installed wheel.
 - Runtime code uses `pathlib` and does not rely on known absolute filesystem paths.
@@ -63,7 +63,7 @@ Dependency declarations should be based on import and execution-path verificatio
 
 ## Test Baseline
 
-- Test files follow pytest's `test_*.py` discovery pattern under `test/`.
+- Test files follow pytest's `test_*.py` discovery pattern under `tests/`.
 - Baseline command: `python3 -m pytest --collect-only -q`.
 - Baseline result on 2026-08-10: **607 tests collected in 1.23 seconds**.
 - Collection emitted an existing `urllib3` `NotOpenSSLWarning` because the local Python 3.9 build uses LibreSSL. This is an environment warning, not a packaging failure.
