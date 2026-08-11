@@ -14,10 +14,7 @@ This inventory completes Step 1 of [POETRY_PACKAGING_PLAN.md](POETRY_PACKAGING_P
 | `diff_oem/` | Has `__init__.py` | Reusable comparison pipeline: CLI parsing, comparison, transformations, output, data structures, and utilities. |
 | `src/oem_to_omm/` | Has `__init__.py` | OEM-to-OMM fitting workflow and reusable TLE-fitting modules. |
 | `src/oem_to_omm/fit_tle/` | Has `__init__.py` | TLE fitting models, estimation, linear algebra, refinement, and TLE construction. |
-| `propagation/` | No `__init__.py` | Three propagation scripts; package conversion is needed if their functions become public imports. |
-| `plotting/` | No `__init__.py` | Three plotting scripts; package conversion is needed if their functions become public imports. |
-
-The current layout is not one installable package. `common/`, `common/ccsds/`, `propagation/`, and `plotting/` need an explicit package-boundary decision before Poetry metadata is added.
+The current layout is not one installable package. `common/` and `common/ccsds/` need an explicit package-boundary decision before Poetry metadata is added.
 
 ## Executable Scripts And Compatibility Commands
 
@@ -47,7 +44,7 @@ Common behavior includes stdin support through `-` or omitted input paths, stdou
 
 | Dependency | Observed usage | Likely scope |
 | --- | --- | --- |
-| NumPy | Array operations, linear algebra, orbital calculations, fitting, and tests across `common/`, `diff_oem/`, `oem_to_omm/`, `propagation/`, and `plotting/`. | Core dependency for the full Python package. |
+| NumPy | Array operations, linear algebra, orbital calculations, fitting, and tests across `common/`, `diff_oem/`, `oem_to_omm/`, `src/propagate_*`, and `src/plot_*`. | Core dependency for the full Python package. |
 | TudatPy | Frame conversion, SPICE access, time/ephemeris helpers, SGP4-backed propagation, and orbit propagation. | External prerequisite for propagation, frame, SPICE, and TLE workflows; no Poetry dependency because no `tudatpy` distribution is available from the configured package index. |
 | Matplotlib | Orbit, delta, and dependent-variable plotting scripts. | Optional plotting dependency unless plotting is part of the core install. |
 | Python standard library | Argument parsing, paths, CSV/JSON, streams, dates, URL access, and formatting. | No package dependency. |
@@ -76,7 +73,7 @@ Representative smoke commands are listed in the plan's source documentation and 
 
 ## Compatibility-Sensitive Surface
 
-- Existing direct script paths under `bin/`, `src/oem_to_omm/`, `propagation/`, and `plotting/` are documented interfaces.
+- Existing direct script paths under `bin/`, `src/oem_to_omm/`, `src/propagate_*`, and `src/plot_*` are documented interfaces.
 - `sys.path` insertion in scripts is a migration blocker for isolated wheel installs.
 - `common/slice_oem.py` and `src/slice_oem/slice_oem.py` have the same stem but different roles; the package and CLI names must avoid ambiguity.
 - OEM, OMM, TLE, CSV, and stdout formats are consumed by tests and shell pipelines. Formatting and column-order changes are compatibility risks.

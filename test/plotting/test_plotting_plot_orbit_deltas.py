@@ -1,4 +1,4 @@
-"""Tests for plotting/plot_orbits.py — Orbit plotting utility script."""
+"""Tests for src/plot_orbit_deltas/plot_orbit_deltas.py — Orbit plotting utility script."""
 
 from __future__ import annotations
 
