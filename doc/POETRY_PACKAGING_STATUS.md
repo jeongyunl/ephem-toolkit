@@ -4,7 +4,7 @@ Last updated: 2026-08-10
 
 ## Overall Status
 
-**Step 7 in progress; full-suite dependency blocker remains.** This document tracks the implementation of [POETRY_PACKAGING_PLAN.md](POETRY_PACKAGING_PLAN.md). Distribution build, clean-wheel installation, smoke validation, and a CI workflow are present.
+**Step 8 complete; full-suite dependency blocker remains.** This document tracks the implementation of [POETRY_PACKAGING_PLAN.md](POETRY_PACKAGING_PLAN.md). Distribution build, clean-wheel installation, smoke validation, CI packaging checks, and the release procedure are present.
 
 ## Checklist
 
@@ -22,9 +22,9 @@ Last updated: 2026-08-10
 - [x] Update README and domain documentation with installed-command examples.
 - [x] Generate and review `poetry.lock`.
 - [x] Build and install a wheel in a clean environment.
-- [ ] Run Python tests in Poetry.
+- [ ] Run Python tests in Poetry; currently blocked by external TudatPy/`astropy` dependencies.
 - [x] Add CI packaging and clean-install checks.
-- [ ] Define release, versioning, and `bin/` deprecation procedures.
+- [x] Define release, versioning, and `bin/` deprecation procedures in [POETRY_PACKAGING_RELEASE.md](POETRY_PACKAGING_RELEASE.md).
 
 ## Decisions To Record
 
@@ -32,10 +32,10 @@ Last updated: 2026-08-10
 | --- | --- | --- |
 | Distribution name | `tudatpy-utils` | Decided in Step 2 |
 | Import package name | `tudatpy_utils` | Decided in Step 2 |
-| Supported Python versions | TBD | Pending dependency review |
+| Supported Python versions | `>=3.9,<4.0` (CI: 3.9 and 3.13) | Current package policy; review with dependency changes |
 | Console command names | 15 lowercase hyphenated commands | Decided in Step 2 |
 | Optional dependency groups | Core NumPy; `plotting` extra; TudatPy external prerequisite | Updated in Step 3 |
-| Compatibility period for `bin/` | TBD | Pending migration plan |
+| Compatibility period for `bin/` | Supported during migration; deprecate for at least one minor release before removal in a major release | Recorded in [POETRY_PACKAGING_RELEASE.md](POETRY_PACKAGING_RELEASE.md) |
 
 ## Current Findings
 
@@ -61,6 +61,7 @@ Last updated: 2026-08-10
 - Wheel inspection found no test fixtures or generated data/build files.
 - `poetry build` and a fresh virtual-environment wheel install passed; package imports, resource access, and representative console commands succeeded.
 - `.github/workflows/poetry-package.yml` validates metadata, installs dependencies, runs the package-resource test, builds the distribution, and clean-installs the wheel on Python 3.9 and 3.13.
+- Step 8 release, TestPyPI, production publishing, compatibility, and maintenance procedures are recorded in [POETRY_PACKAGING_RELEASE.md](POETRY_PACKAGING_RELEASE.md).
 
 ## Risks And Open Questions
 
@@ -88,3 +89,4 @@ Last updated: 2026-08-10
 | 2026-08-10 | Added canonical command notes to affected domain documentation. | Reviewed command references in eight Markdown documents; legacy examples remain intact. | Step 5 complete; package-data handling is the next implementation step. |
 | 2026-08-10 | Added package-resource policy and installed-resource smoke test. | `poetry run pytest -q test/test_packaging_resources.py` passed; wheel contained no test fixtures or generated data files. | Step 6 complete; distribution validation is the next implementation step. |
 | 2026-08-10 | Validated the built wheel and added the Poetry packaging CI workflow. | `poetry check`, clean wheel install, imports, resources, and representative commands passed; full suite stopped at 3 external TudatPy/astropy collection errors. | Step 7 distribution checks are implemented; full Python test validation remains blocked by external dependencies. |
+| 2026-08-10 | Added the release and maintenance procedure for the Python distribution. | Reviewed versioning, TestPyPI, production publishing, artifact inspection, compatibility, and `bin/` deprecation rules. | Step 8 complete; production publishing remains an operational action requiring repository credentials and an approved package index. |
