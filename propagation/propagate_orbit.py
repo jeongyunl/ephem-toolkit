@@ -33,7 +33,6 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.common as common
-import common.interpolator.lagrange as lagrange
 import common.spice_utils as spice_utils
 import common.time_utils as time_utils
 
@@ -85,9 +84,6 @@ DEFAULT_GLOBAL_FRAME_ORIGIN: str = "Earth"
 DEFAULT_GLOBAL_FRAME_ORIENTATION: str = "J2000"
 """Default global frame orientation for the Tudat environment."""
 
-DEFAULT_OEM_STEP_SIZE_S: float = 10 * 60
-"""Default OEM output step size in seconds (10 minutes)."""
-
 DEFAULT_SIMULATION_DURATION_S: float = time_utils.SECONDS_PER_DAY
 """Default simulation duration in seconds (1 day)."""
 
@@ -118,9 +114,6 @@ DEFAULT_INTEGRATOR_METHOD: str = "rkdp_87"
 
 DEFAULT_INTEGRATOR_STEP_SIZE_S: tuple[float, ...] = (10.0, 1.0, 300.0)
 """Default integrator step sizes in seconds: ``(initial, minimum, maximum)``."""
-
-INTERPOLATION_DEGREE: int = 8
-"""Polynomial degree for Lagrange interpolation when resampling OEM states."""
 
 
 def parse_bool_flag(value: str) -> bool:
@@ -423,21 +416,17 @@ def build_cli_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--oem",
         metavar="<file|->",
-        default=None,
+        default="-",
         help=(
-            "Write propagated state history in CCSDS OEM format. "
-            "Use '-' to write to stdout. If omitted, no OEM output is written."
+            "Write propagated state history as OEM state-vector lines "
+            "(UTC_ISO x y z vx vy vz, km and km/s). "
+            "Use '-' to write to stdout (default)."
         ),
     )
     parser.add_argument(
-        "--raw",
-        metavar="<file|->",
-        default=None,
-        help=(
-            "Write propagated state history as raw state-vector lines "
-            "(UTC_ISO x y z vx vy vz, km and km/s). "
-            "Use '-' to write to stdout. If omitted, no raw output is written."
-        ),
+        "--data-only",
+        action="store_true",
+        help="Write only OEM state-vector data without the OEM header or metadata.",
     )
     parser.add_argument(
         "--dep-vars",
@@ -445,21 +434,9 @@ def build_cli_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Write dependent variables to a CSV file. "
-            "If omitted, dependent variables are not written unless no output option is provided, "
-            "in which case the default is dep_vars.csv."
+            "If omitted, dependent variables are not written."
         ),
     )
-    parser.add_argument(
-        "--oem-step-size",
-        type=time_utils.parse_duration_to_seconds,
-        metavar="<value[s|m>",
-        default=DEFAULT_OEM_STEP_SIZE_S,
-        help=(
-            "OEM file data step sizes in seconds. "
-            f"(default: {DEFAULT_OEM_STEP_SIZE_S})."
-        ),
-    )
-
     # Satellite properties
     parser.add_argument(
         "--name",
@@ -620,14 +597,10 @@ cli_args = build_cli_parser().parse_args()
 # Standard-library modules -- imported just after CLI parsing succeeds,
 # right before they are first needed by the code that follows.
 import io
-import sys
+import warnings
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 import numpy as np
-
-# Suppress warnings that tudatpy / urllib3 may emit on import.
-import warnings
 
 # Suppress warnings that tudatpy / urllib3 may emit on import.
 warnings.filterwarnings("ignore", category=SyntaxWarning)
@@ -860,126 +833,66 @@ def build_propagation_inputs(cli_args: argparse.Namespace) -> PropagationInputs:
     )
 
 
-def write_state_history_raw(
-    state_history: dict[float, np.ndarray], output_path: str
+def write_state_history_oem(
+    state_history: dict[float, np.ndarray],
+    dest: str,
+    propagation_inputs: PropagationInputs,
+    data_only: bool,
 ) -> None:
-    """Write state history as raw state-vector lines (no OEM metadata).
+    """Write propagated state history in OEM or data-only format.
 
     Parameters
     ----------
     state_history : dict[float, numpy.ndarray]
         Mapping of TDB seconds since J2000 to 6-element cartesian state vectors
         in SI units ``[x, y, z, vx, vy, vz]``.
-    output_path : str
+    dest : str
         Output file path, or ``'-'`` to write to stdout.
+    propagation_inputs : PropagationInputs
+        Propagation configuration used to populate OEM metadata.
+    data_only : bool
+        Whether to write only state-vector data without OEM header or metadata.
 
     Returns
     -------
     None
-        Writes one line per epoch in ``UTC_ISO x y z vx vy vz`` format, where
-        position is in km and velocity in km/s.
+        Writes a complete OEM message unless ``data_only`` is true, in which
+        case it writes only ``UTC_ISO x y z vx vy vz`` state records in km and
+        km/s.
     """
-    if output_path == "-":
+    if dest == "-":
         stream = sys.stdout
         should_close = False
     else:
-        stream = open(output_path, "w", encoding="utf-8")
+        stream = open(dest, "w", encoding="utf-8")
         should_close = True
 
     try:
-        for epoch_tdb_s, state_m_mps in sorted(state_history.items()):
-            epoch_utc_iso = time_utils.datetime_to_iso8601(
+        oem_states = [
+            (
                 time_utils.tdb_s_to_datetime(epoch_tdb_s)
+                .replace(tzinfo=timezone.utc)
+                .timestamp(),
+                state_m_mps,
             )
-            position_km = state_m_mps[:3] / KILOMETERS_TO_METERS
-            velocity_km_s = state_m_mps[3:] / KILOMETERS_TO_METERS
-            stream.write(
-                f"{epoch_utc_iso} "
-                f"{position_km[0]:.9f} {position_km[1]:.9f} {position_km[2]:.9f} "
-                f"{velocity_km_s[0]:.9f} {velocity_km_s[1]:.9f} {velocity_km_s[2]:.9f}\n"
-            )
+            for epoch_tdb_s, state_m_mps in state_history.items()
+        ]
+        oem = common_oem.CcsdsOem.from_states(
+            oem_states,
+            object_name=propagation_inputs.satellite_name,
+            ref_frame=DEFAULT_GLOBAL_FRAME_ORIENTATION,
+            center_name=DEFAULT_GLOBAL_FRAME_ORIGIN,
+            time_system="UTC",
+        )
+
+        if data_only:
+            oem.write_states(stream)
+        else:
+            oem.write(stream)
+
     finally:
         if should_close:
             stream.close()
-
-
-def write_state_history_oem(
-    state_history: dict[float, np.ndarray],
-    output_path: str,
-    propagation_inputs: PropagationInputs,
-    oem_step_size_s: float,
-) -> None:
-    """Write state history as a CCSDS OEM file using :class:`common.ccsds.oem.CcsdsOem`.
-
-    Parameters
-    ----------
-    state_history : dict[float, numpy.ndarray]
-        Mapping of TDB seconds since J2000 to 6-element cartesian state vectors
-        in SI units ``[x, y, z, vx, vy, vz]``.
-    output_path : str
-        Output file path, or ``'-'`` to write to stdout.
-    propagation_inputs : PropagationInputs
-        Propagation configuration used to populate OEM metadata fields.
-
-    Returns
-    -------
-    None
-        Writes a CCSDS OEM formatted file with header, metadata, and state data
-        where position is in km and velocity in km/s.
-    """
-    tudat_time_scale_converter = time_representation.default_time_scale_converter()
-
-    interpolator = lagrange.LagrangeInterpolator(
-        dimension=6, degree=INTERPOLATION_DEGREE
-    )
-    interpolator.set_data(state_history)
-
-    epochs_tdb_s = sorted(state_history.keys())
-    start_epoch_tdb_s = epochs_tdb_s[0]
-    stop_epoch_tdb_s = epochs_tdb_s[-1]
-
-    # Build state list: state vectors are already in SI units (m, m/s).
-    # CcsdsOem.from_states() will handle header/metadata generation automatically.
-    oem_states = []
-    epoch_tdb_s = start_epoch_tdb_s
-    while epoch_tdb_s <= stop_epoch_tdb_s:
-        epoch_datetime = time_utils.tdb_s_to_datetime(epoch_tdb_s)
-        state_m_mps = interpolator.interpolate(epoch_tdb_s)
-        oem_states.append(
-            (epoch_datetime.replace(tzinfo=timezone.utc).timestamp(), state_m_mps)
-        )
-
-        epoch_tt_s = tudat_time_scale_converter.convert_time(
-            input_value=epoch_tdb_s,
-            input_scale=TimeScales.tdb_scale,
-            output_scale=TimeScales.tt_scale,
-        )
-
-        epoch_tt_s += oem_step_size_s
-
-        epoch_tdb_s = tudat_time_scale_converter.convert_time(
-            input_value=epoch_tt_s,
-            input_scale=TimeScales.tt_scale,
-            output_scale=TimeScales.tdb_scale,
-        )
-
-    # Create OEM using from_states() - automatic header/metadata generation
-    oem = common_oem.CcsdsOem.from_states(
-        oem_states,
-        object_name=propagation_inputs.satellite_name,
-        ref_frame=DEFAULT_GLOBAL_FRAME_ORIENTATION,
-        center_name=DEFAULT_GLOBAL_FRAME_ORIGIN,
-        time_system="UTC",
-    )
-
-    # Add custom comment
-    oem.header.comments = ["Generated by propagate_orbit.py"]
-
-    # Write using new API
-    if output_path == "-":
-        oem.write(sys.stdout)
-    else:
-        oem.write(output_path)
 
 
 def build_dependent_variable_csv_header_prefix(dep_var_setting: Any) -> str:
@@ -1028,7 +941,6 @@ def print_pre_propagation_summary(
     propagation_inputs: PropagationInputs,
     input_source: str,
     output_oem_path: str | None = None,
-    output_raw_path: str | None = None,
     dep_var_csv_path: str | None = None,
 ) -> None:
     """Print the pre-propagation configuration summary.
@@ -1040,9 +952,7 @@ def print_pre_propagation_summary(
     input_source : str
         Input source label displayed to the user.
     output_oem_path : str | None, optional
-        OEM output destination. Use ``'-'`` for stdout.
-    output_raw_path : str | None, optional
-        Raw state-history output destination. Use ``'-'`` for stdout.
+        OEM state-history output destination. Use ``'-'`` for stdout.
     dep_var_csv_path : str | None, optional
         Dependent-variable CSV output destination.
 
@@ -1146,9 +1056,6 @@ def print_pre_propagation_summary(
     if output_oem_path is not None:
         output_destination = "stdout" if output_oem_path == "-" else output_oem_path
         print(f"OEM output: {output_destination}")
-    if output_raw_path is not None:
-        output_destination = "stdout" if output_raw_path == "-" else output_raw_path
-        print(f"Raw output: {output_destination}")
     if dep_var_csv_path is not None:
         print(f"Dependent variables CSV output: {dep_var_csv_path}")
     print("=================================")
@@ -1530,16 +1437,25 @@ propagation_inputs: PropagationInputs = build_propagation_inputs(cli_args)
 input_source: str = "--initial-state" if cli_args.initial_state is not None else "stdin"
 satellite_name: str = propagation_inputs.satellite_name
 output_oem_path: str | None = cli_args.oem
-output_raw_path: str | None = cli_args.raw
 output_dep_vars_path: str | None = cli_args.dep_vars
 
-print_pre_propagation_summary(
-    propagation_inputs,
-    input_source,
-    output_oem_path,
-    output_raw_path,
-    output_dep_vars_path,
-)
+if output_oem_path == "-":
+    import contextlib
+
+    with contextlib.redirect_stdout(sys.stderr):
+        print_pre_propagation_summary(
+            propagation_inputs,
+            input_source,
+            output_oem_path,
+            output_dep_vars_path,
+        )
+else:
+    print_pre_propagation_summary(
+        propagation_inputs,
+        input_source,
+        output_oem_path,
+        output_dep_vars_path,
+    )
 
 # tudatpy SPICE interface -- imported just before loading kernels.
 from tudatpy.interface import spice
@@ -1704,8 +1620,6 @@ step, with the corresponding epochs available through the `time_history` attribu
 
 # create_dependent_variable_dictionary -- imported just before post-processing.
 from tudatpy.dynamics import propagation
-from tudatpy.astro import time_representation
-from tudatpy.astro.time_representation import TimeScales
 
 # Create propagator settings.
 propagator_settings = create_translational_propagator_settings(
@@ -1721,36 +1635,24 @@ dynamics_simulator = simulator.create_dynamics_simulator(bodies, propagator_sett
 
 # state_history: dict[time(float), state(numpy.ndarray)] with time in seconds since J2000 and state as a 6-element array of cartesian state.
 state_history = dynamics_simulator.propagation_results.state_history
-if output_oem_path is not None:
-    try:
-        write_state_history_oem(
-            state_history,
-            output_oem_path,
-            propagation_inputs,
-            cli_args.oem_step_size,
-        )
-    except OSError as exc:
-        print(f"Error: failed to write OEM output: {exc}", file=sys.stderr)
-        sys.exit(1)
-
-if output_raw_path is not None:
-    try:
-        write_state_history_raw(state_history, output_raw_path)
-    except OSError as exc:
-        print(f"Error: failed to write raw output: {exc}", file=sys.stderr)
-        sys.exit(1)
+try:
+    write_state_history_oem(
+        state_history,
+        output_oem_path,
+        propagation_inputs,
+        cli_args.data_only,
+    )
+except OSError as exc:
+    print(f"Error: failed to write OEM output: {exc}", file=sys.stderr)
+    sys.exit(1)
 
 dep_var_dict = propagation.create_dependent_variable_dictionary(dynamics_simulator)
 dep_var_csv_path = None
 import csv
 
-# Save dependent variables to an explicit CSV path when provided.
-# If no output option is provided at all, preserve previous behavior by writing
-# to a default dep_vars.csv.
+# Save dependent variables only when an explicit CSV path is provided.
 if output_dep_vars_path is not None:
     dep_var_csv_path = output_dep_vars_path
-elif output_oem_path is None and output_raw_path is None:
-    dep_var_csv_path = "dep_vars.csv"
 
 if dep_var_csv_path is not None:
     # Build header row using the dependent_variable_type enum name for each saved variable.
