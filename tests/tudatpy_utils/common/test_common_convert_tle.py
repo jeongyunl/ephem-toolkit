@@ -11,7 +11,7 @@ import common.ccsds.omm as omm
 import common.tle as tle
 
 TEST_DIR = Path(__file__).parent
-TEST_DATA_DIR = TEST_DIR.parent / "data"
+TEST_DATA_DIR = TEST_DIR.parent.parent / "data"
 
 # Test data file paths
 ISS_TLE_PATH = TEST_DATA_DIR / "ISS-ZARYA_1998-067A.tle"

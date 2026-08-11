@@ -1,4 +1,4 @@
-"""Tests for src/propagate_tle/propagate_tle.py — TLE propagation utility script."""
+"""Tests for the TLE propagation utility script."""
 
 from __future__ import annotations
 
@@ -13,8 +13,8 @@ import pytest
 from propagate_tle.propagate_tle import resolve_time_bounds
 
 TEST_DIR: Path = Path(__file__).parent
-PROJECT_ROOT: Path = TEST_DIR.parent.parent
-TEST_DATA_DIR: Path = TEST_DIR.parent / "data"
+PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent
+TEST_DATA_DIR: Path = TEST_DIR.parent.parent / "data"
 
 TLE_FILES: list[Path] = sorted(TEST_DATA_DIR.glob("*.tle"))
 
@@ -31,7 +31,7 @@ def test_relative_stop_is_resolved_from_start_epoch() -> None:
 
 
 def _build_env() -> dict[str, str]:
-    """Build environment dictionary with PYTHONPATH set to project root.
+    """Build environment dictionary with PYTHONPATH set to the source root.
 
     Returns
     -------
@@ -40,7 +40,8 @@ def _build_env() -> dict[str, str]:
     """
     env: dict[str, str] = os.environ.copy()
     existing: str = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = str(PROJECT_ROOT) + ((":" + existing) if existing else "")
+    source_root = PROJECT_ROOT / "src"
+    env["PYTHONPATH"] = str(source_root) + ((":" + existing) if existing else "")
     return env
 
 
@@ -60,7 +61,13 @@ def run_propagate_tle(tle_path: Path) -> str:
     result: subprocess.CompletedProcess[str] = subprocess.run(
         [
             sys.executable,
-            str(PROJECT_ROOT / "src" / "propagate_tle" / "propagate_tle.py"),
+            str(
+                PROJECT_ROOT
+                / "src"
+                / "tudatpy_utils"
+                / "propagate_tle"
+                / "propagate_tle.py"
+            ),
             str(tle_path),
             "--data-only",
             "-s",

@@ -21,7 +21,7 @@ import oem_to_omm.fit_tle.constants as constants
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test files."""
 
-TEST_DATA_DIR: Path = TEST_DIR.parent / "data"
+TEST_DATA_DIR: Path = TEST_DIR.parents[2] / "data"
 """Directory containing test data files."""
 
 ISS_OEM_PATH: Path = TEST_DATA_DIR / "ISS_2026-05-20_small.OEM"
