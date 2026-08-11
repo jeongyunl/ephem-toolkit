@@ -13,7 +13,6 @@ build/
 dist/
 .venv/
 *.egg-info/
-src/common/interpolator/cpp/*
 coverage/
 ISS.OEM_J2K_EPH.txt
 src/oem_to_omm/*.oem
@@ -21,3 +20,4 @@ src/oem_to_omm/*.omm
 src/oem_to_omm/*.tle
 propagation/*.oem
 tmp/
+src/tudatpy_utils/common/interpolator/cpp/
