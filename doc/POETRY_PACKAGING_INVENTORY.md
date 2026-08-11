@@ -36,7 +36,7 @@ These are the current documented script entry points. Direct `python3 path/to/sc
 | `src/oem_to_omm/evaluate_fit_tle.py` | `python3 src/oem_to_omm/evaluate_fit_tle.py [--fit-span HOURS] <input.oem>` | Evaluate TLE fit quality. |
 | `propagation/propagate_orbit.py` | `python3 propagation/propagate_orbit.py -i STATE [-d DURATION] [--oem OUTPUT]` | Propagate a Cartesian state with configured models. |
 | `src/propagate_kepler/propagate_kepler.py` | `python3 src/propagate_kepler/propagate_kepler.py` | Propagate a two-body Kepler state. |
-| `propagation/propagate_tle.py` | `python3 propagation/propagate_tle.py --tle FILE [-d DURATION]` | Propagate a TLE. |
+| `src/propagate_tle/propagate_tle.py` | `python3 src/propagate_tle/propagate_tle.py --tle FILE [-d DURATION]` | Propagate a TLE. |
 | `src/plot_orbit/plot_orbit.py` | `python3 src/plot_orbit/plot_orbit.py --csv FILE` | Plot orbit and dependent-variable data. |
 | `src/plot_orbit_deltas/plot_orbit_deltas.py` | `python3 src/plot_orbit_deltas/plot_orbit_deltas.py <oem> ...` | Plot orbit differences. |
 | `src/plot_dep_vars/plot_dependent_variables.py` | `python3 src/plot_dep_vars/plot_dependent_variables.py --csv FILE` | Plot dependent variables. |
@@ -110,7 +110,7 @@ Poetry console scripts will use lowercase hyphenated names:
 | `src/oem_to_omm/evaluate_fit_tle.py` | `evaluate-fit-tle` |
 | `propagation/propagate_orbit.py` | `propagate-orbit` |
 | `src/propagate_kepler/propagate_kepler.py` | `propagate-kepler` |
-| `propagation/propagate_tle.py` | `propagate-tle` |
+| `src/propagate_tle/propagate_tle.py` | `propagate-tle` |
 | `src/plot_orbit/plot_orbit.py` | `plot-orbit` |
 | `src/plot_orbit_deltas/plot_orbit_deltas.py` | `plot-orbit-deltas` |
 | `src/plot_dep_vars/plot_dependent_variables.py` | `plot-dependent-variables` |

@@ -67,7 +67,7 @@ Install plotting support with `poetry install -E plotting`. TudatPy-dependent wo
 
 - `propagation/propagate_orbit.py` — Cartesian state propagation with configurable perturbations
 - `src/propagate_kepler/propagate_kepler.py` — two-body Kepler propagation
-- `propagation/propagate_tle.py` — SGP4 TLE propagation
+- `src/propagate_tle/propagate_tle.py` — SGP4 TLE propagation
 
 Supports CCSDS OEM export, data-only state-vector output, dependent-variable CSV export, and OEM metadata headers.
 

@@ -239,7 +239,7 @@ Key algorithmic features:
 - `common/ccsds/omm.py` — OMM dataclass and utilities
 - `common/kepler.py` — Keplerian element conversions with J2 corrections
 - `common/ccsds/oem.py` — OEM parsing utilities
-- `propagation/propagate_tle.py` — TLE propagation with SGP4
+- `src/propagate_tle/propagate_tle.py` — TLE propagation with SGP4
 - `src/omm_to_tle/omm_to_tle.py` — Convert OMM to TLE
 - `src/tle_to_omm/tle_to_omm.py` — Convert TLE to OMM
 
@@ -344,7 +344,7 @@ Related scripts in the current repository:
 
 - `src/oem_to_omm/oem_to_omm.py` — estimate a TLE from an OEM-like arc
 - `common/tle.py` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions
-- `propagation/propagate_tle.py` — propagate a TLE with TudatPy SGP4 and print OEM-like states
+- `src/propagate_tle/propagate_tle.py` — propagate a TLE with TudatPy SGP4 and print OEM-like states
 
 ### Overall pipeline
 

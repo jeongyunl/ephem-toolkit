@@ -37,7 +37,7 @@ oem-to-omm = "oem_to_omm.oem_to_omm:main"
 evaluate-fit-tle = "oem_to_omm.evaluate_fit_tle:main"
 propagate-orbit = "tudatpy_utils.cli:propagate_orbit_main"
 propagate-kepler = "propagate_kepler.propagate_kepler:main"
-propagate-tle = "propagation.propagate_tle:main"
+propagate-tle = "propagate_tle.propagate_tle:main"
 plot-orbit = "plot_orbit.plot_orbit:main"
 plot-orbit-deltas = "plot_orbit_deltas.plot_orbit_deltas:main"
 plot-dependent-variables = "plot_dep_vars.plot_dependent_variables:main"
@@ -55,6 +55,7 @@ packages = [
     { include = "plot_orbit_deltas", from = "src" },
     { include = "plot_dep_vars", from = "src" },
     { include = "propagate_kepler", from = "src" },
+    { include = "propagate_tle", from = "src" },
     { include = "bin", from = "." },
     { include = "common", from = "src" },
     { include = "diff_oem", from = "src" },

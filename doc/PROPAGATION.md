@@ -9,7 +9,7 @@ After Poetry installation, use `propagate-orbit`, `propagate-kepler`, `propagate
 - `propagation/propagate_orbit.py`
 - `src/propagate_kepler/propagate_kepler.py`
 - `src/plot_dep_vars/plot_dependent_variables.py`
-- `propagation/propagate_tle.py`
+- `src/propagate_tle/propagate_tle.py`
 
 ## `propagation/propagate_orbit.py`
 
@@ -408,14 +408,14 @@ python3 src/plot_dep_vars/plot_dependent_variables.py -h
 - Matplotlib
 - local helper modules `common.common`, `common.time_utils`
 
-## `propagation/propagate_tle.py`
+## `src/propagate_tle/propagate_tle.py`
 
 Propagates a TLE-derived orbit using TudatPy's SGP4 TLE ephemeris and prints state vectors in OEM-like text format. Input can be provided as a TLE file path or as raw TLE text from stdin.
 
 ### Synopsis
 
 ```bash
-python3 propagation/propagate_tle.py [-h] [--start <iso8601|duration>] [--stop <iso8601|duration>] [-s <value[s|m]>] [--data-only] [<tle_file>]
+python3 src/propagate_tle/propagate_tle.py [-h] [--start <iso8601|duration>] [--stop <iso8601|duration>] [-s <value[s|m]>] [--data-only] [<tle_file>]
 ```
 
 ### Options
@@ -480,25 +480,25 @@ Current implementation details:
 **Propagate from a sample TLE file in `test/data/`:**
 
 ```bash
-python3 propagation/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle
+python3 src/propagate_tle/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle
 ```
 
 **Propagate from stdin for 2 hours with 1-minute output step:**
 
 ```bash
-cat test/data/ISS-ZARYA_1998-067A.tle | python3 propagation/propagate_tle.py --stop 2h -s 1m
+cat test/data/ISS-ZARYA_1998-067A.tle | python3 src/propagate_tle/propagate_tle.py --stop 2h -s 1m
 ```
 
 **Propagate for 30 minutes with 10-second output step:**
 
 ```bash
-python3 propagation/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle --stop 30m -s 10s
+python3 src/propagate_tle/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle --stop 30m -s 10s
 ```
 
 **Start 90 minutes after the TLE epoch and propagate for 2 hours:**
 
 ```bash
-python3 propagation/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle \
+python3 src/propagate_tle/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle \
   --start 90m --stop 2h -s 1m
 ```
 
@@ -509,13 +509,13 @@ above covers a two-hour window beginning 90 minutes after the TLE epoch.
 **Print raw state lines without the OEM metadata header:**
 
 ```bash
-python3 propagation/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle --data-only
+python3 src/propagate_tle/propagate_tle.py test/data/ISS-ZARYA_1998-067A.tle --data-only
 ```
 
 **Show help:**
 
 ```bash
-python3 propagation/propagate_tle.py -h
+python3 src/propagate_tle/propagate_tle.py -h
 ```
 
 ### Dependencies

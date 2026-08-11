@@ -68,7 +68,7 @@ def run_propagate_tle(tle_path: Path) -> str:
     result: subprocess.CompletedProcess[str] = subprocess.run(
         [
             sys.executable,
-            str(PROJECT_ROOT / "propagation" / "propagate_tle.py"),
+            str(PROJECT_ROOT / "src" / "propagate_tle" / "propagate_tle.py"),
             str(tle_path),
             "-s",
             "15m",
