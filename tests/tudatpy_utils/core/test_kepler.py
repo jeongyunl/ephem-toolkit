@@ -443,7 +443,7 @@ def tudatpy_tle_round_trip():
     from tudatpy.astro import element_conversion
     from tudatpy.interface import spice
 
-    import core.common as common
+    import core.misc as misc
     import core.spice_utils as spice_utils
 
     # Load SPICE kernels

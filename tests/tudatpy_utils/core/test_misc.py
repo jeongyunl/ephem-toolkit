@@ -1,11 +1,11 @@
-"""Tests for common/common.py — OEM parsing utilities."""
+"""Tests for common/misc.py — OEM parsing utilities."""
 
 from __future__ import annotations
 
 import numpy as np
 import pytest
 
-import core.common as common
+import core.misc as misc
 import core.ccsds.oem as oem
 
 # ===================================================================
@@ -76,7 +76,7 @@ def test_transform_to_rtn_with_default_reference_state() -> None:
     """Should compute correct RTN transformation with default reference state (None)."""
     # When reference_state is None, should use zero vector as reference
     state = np.array([7000.0, 0.0, 0.0, 0.0, 7.5, 0.0])
-    result = common.transform_to_rtn(state, reference_state=None)
+    result = misc.transform_to_rtn(state, reference_state=None)
 
     # Result should be a 6-element array
     assert result.shape == (6,)
@@ -92,7 +92,7 @@ def test_transform_to_rtn_circular_orbit_xy_plane() -> None:
     # Target state: same as reference (zero relative state)
     state = np.array([7000.0, 0.0, 0.0, 0.0, 7.5, 0.0])
 
-    result = common.transform_to_rtn(state, reference_state)
+    result = misc.transform_to_rtn(state, reference_state)
 
     # Relative state should be zero (target = reference)
     np.testing.assert_allclose(result, np.zeros(6), atol=1e-10)
@@ -103,7 +103,7 @@ def test_transform_to_rtn_identical_states_returns_zero() -> None:
     reference_state = np.array([7000.0, -1200.0, 350.0, 1.2, 7.4, -0.8])
     state = reference_state.copy()
 
-    result = common.transform_to_rtn(state, reference_state)
+    result = misc.transform_to_rtn(state, reference_state)
 
     np.testing.assert_allclose(result, np.zeros(6), atol=1e-12)
 
@@ -115,7 +115,7 @@ def test_transform_to_rtn_nearly_identical_states_position_close() -> None:
     state = reference_state.copy()
     state[:3] += np.array([1e-6, -1e-6, 2e-6])
 
-    result = common.transform_to_rtn(state, reference_state)
+    result = misc.transform_to_rtn(state, reference_state)
 
     assert result.shape == (6,)
     assert np.all(np.isfinite(result))
@@ -132,7 +132,7 @@ def test_transform_to_rtn_nearly_identical_states_velocity_close() -> None:
     state = reference_state.copy()
     state[3:] += np.array([1e-9, -2e-9, 3e-9])
 
-    result = common.transform_to_rtn(state, reference_state)
+    result = misc.transform_to_rtn(state, reference_state)
 
     assert result.shape == (6,)
     assert np.all(np.isfinite(result))
@@ -147,7 +147,7 @@ def test_transform_to_rtn_elliptical_orbit_3d() -> None:
     reference_state = np.array([6800.0, 2000.0, 500.0, -1.5, 7.2, 0.3])
     state = np.array([6900.0, 2100.0, 600.0, -1.4, 7.3, 0.4])
 
-    result = common.transform_to_rtn(state, reference_state)
+    result = misc.transform_to_rtn(state, reference_state)
 
     # Result should be a 6-element array
     assert result.shape == (6,)
@@ -160,7 +160,7 @@ def test_transform_to_rtn_preserves_state_magnitude() -> None:
     reference_state = np.array([7000.0, 0.0, 0.0, 0.0, 7.5, 0.0])
     state = np.array([7100.0, 100.0, 50.0, 0.1, 7.6, 0.1])
 
-    result = common.transform_to_rtn(state, reference_state)
+    result = misc.transform_to_rtn(state, reference_state)
 
     # Compute relative state in inertial frame
     relative_state_inertial = state - reference_state
@@ -179,7 +179,7 @@ def test_transform_to_rtn_orthonormal_basis() -> None:
     reference_state = np.array([6800.0, 2000.0, 500.0, -1.5, 7.2, 0.3])
     state = np.array([6900.0, 2100.0, 600.0, -1.4, 7.3, 0.4])
 
-    result = common.transform_to_rtn(state, reference_state)
+    result = misc.transform_to_rtn(state, reference_state)
 
     # Extract position and velocity components
     rtn_position = result[:3]
@@ -228,14 +228,14 @@ def test_transform_to_rtn_orthonormal_basis() -> None:
 
 def test_parse_key_value_line_valid() -> None:
     """Should parse KEY = VALUE lines correctly."""
-    assert common.parse_key_value_line("OBJECT_NAME = ISS") == ("OBJECT_NAME", "ISS")
-    assert common.parse_key_value_line("KEY=VALUE") == ("KEY", "VALUE")
-    assert common.parse_key_value_line("  KEY  =  VALUE  ") == ("KEY", "VALUE")
-    assert common.parse_key_value_line("A = B = C") == ("A", "B = C")
+    assert misc.parse_key_value_line("OBJECT_NAME = ISS") == ("OBJECT_NAME", "ISS")
+    assert misc.parse_key_value_line("KEY=VALUE") == ("KEY", "VALUE")
+    assert misc.parse_key_value_line("  KEY  =  VALUE  ") == ("KEY", "VALUE")
+    assert misc.parse_key_value_line("A = B = C") == ("A", "B = C")
 
 
 def test_parse_key_value_line_returns_none() -> None:
     """Should return None for lines without '='."""
-    assert common.parse_key_value_line("no equals here") is None
-    assert common.parse_key_value_line("") is None
-    assert common.parse_key_value_line("COMMENT some text") is None
+    assert misc.parse_key_value_line("no equals here") is None
+    assert misc.parse_key_value_line("") is None
+    assert misc.parse_key_value_line("COMMENT some text") is None

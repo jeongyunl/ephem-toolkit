@@ -16,7 +16,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-import core.common as common
+import core.misc as misc
 import core.ccsds.oem as oem
 import core.time_utils as time_utils
 import core.wgs as wgs
@@ -322,7 +322,7 @@ def compute_orbit_series(
     rtn_delta_list_km: list[np.ndarray] = []
     rtn_elapsed_time_list: list[float] = []
     for sample_index in range(1, len(states_m)):
-        rtn_delta_m: np.ndarray = common.transform_to_rtn(
+        rtn_delta_m: np.ndarray = misc.transform_to_rtn(
             states_m[sample_index],
             states_m[sample_index - 1],
         )

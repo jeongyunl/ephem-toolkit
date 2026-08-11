@@ -23,7 +23,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-import core.common as common
+import core.misc as misc
 import core.ccsds.oem as oem
 from core.ccsds.oem import CcsdsOem
 import core.interpolator.lagrange as lagrange
@@ -869,7 +869,7 @@ def plot_relative_rtn_timeseries(
                 delta_times.append(ts)
 
                 # Transform to RTN and convert from m to km
-                delta_rtn = common.transform_to_rtn(comp_state, ref_state)
+                delta_rtn = misc.transform_to_rtn(comp_state, ref_state)
                 delta_rtn_km = _convert_state_to_km(delta_rtn)
                 for i in range(6):
                     deltas[i].append(delta_rtn_km[i])
@@ -1322,7 +1322,7 @@ def plot_relative_rtn_orbits(
                 comp_state = orbit.state_history[ts]
 
                 # Transform to RTN and convert from m to km
-                delta_rtn = common.transform_to_rtn(comp_state, ref_state)
+                delta_rtn = misc.transform_to_rtn(comp_state, ref_state)
                 delta_rtn_km = _convert_state_to_km(delta_rtn)
                 deltas_rt.append([delta_rtn_km[1], delta_rtn_km[0]])
                 deltas_rn.append([delta_rtn_km[2], delta_rtn_km[0]])
