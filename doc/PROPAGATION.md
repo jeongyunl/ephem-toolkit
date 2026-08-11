@@ -8,7 +8,7 @@ After Poetry installation, use `propagate-orbit`, `propagate-kepler`, `propagate
 
 - `propagation/propagate_orbit.py`
 - `propagation/propagate_kepler.py`
-- `plotting/plot_dependent_variables.py`
+- `src/plot_dep_vars/plot_dependent_variables.py`
 - `propagation/propagate_tle.py`
 
 ## `propagation/propagate_orbit.py`
@@ -193,7 +193,7 @@ python3 propagation/propagate_orbit.py \
 **Plot dependent variables from CSV:**
 
 ```bash
-python3 plotting/plot_dependent_variables.py dep_vars.csv
+python3 src/plot_dep_vars/plot_dependent_variables.py dep_vars.csv
 ```
 
 **Use a variable-step RKF 7(8) integrator:**
@@ -303,14 +303,14 @@ python3 propagation/propagate_kepler.py -h
 - NumPy
 - local helper modules `common.ccsds.oem`, `common.kepler`, `common.time_utils`
 
-## `plotting/plot_dependent_variables.py`
+## `src/plot_dep_vars/plot_dependent_variables.py`
 
 Plots dependent-variable histories from a saved Tudat CSV file. The script reads the dependent-variable CSV produced by `propagate_orbit.py` and recreates the standard dependent-variable plots, including total acceleration, ground track, Keplerian elements, acceleration-component norms, and animated 3D trajectory views.
 
 ### Synopsis
 
 ```bash
-python3 plotting/plot_dependent_variables.py [-h] [--name <name>] [-d <duration>] <dep_vars_csv>
+python3 src/plot_dep_vars/plot_dependent_variables.py [-h] [--name <name>] [-d <duration>] <dep_vars_csv>
 ```
 
 ### Options
@@ -360,31 +360,31 @@ The script does not write new files. It reads the CSV, creates figures, and disp
 **Plot dependent variables from a CSV file:**
 
 ```bash
-python3 plotting/plot_dependent_variables.py dep_vars.csv
+python3 src/plot_dep_vars/plot_dependent_variables.py dep_vars.csv
 ```
 
 **Plot using a custom satellite name for labels/header filtering:**
 
 ```bash
-python3 plotting/plot_dependent_variables.py --name MySat dep_vars.csv
+python3 src/plot_dep_vars/plot_dependent_variables.py --name MySat dep_vars.csv
 ```
 
 **Plot only the first hour of data:**
 
 ```bash
-python3 plotting/plot_dependent_variables.py -d 1h dep_vars.csv
+python3 src/plot_dep_vars/plot_dependent_variables.py -d 1h dep_vars.csv
 ```
 
 **Plot only the first 30 minutes:**
 
 ```bash
-python3 plotting/plot_dependent_variables.py -d 30m dep_vars.csv
+python3 src/plot_dep_vars/plot_dependent_variables.py -d 30m dep_vars.csv
 ```
 
 **Plot with custom satellite name and duration:**
 
 ```bash
-python3 plotting/plot_dependent_variables.py --name ISS_prop -d 2h dep_vars.csv
+python3 src/plot_dep_vars/plot_dependent_variables.py --name ISS_prop -d 2h dep_vars.csv
 ```
 
 **Generate the CSV and then plot it:**
@@ -393,13 +393,13 @@ python3 plotting/plot_dependent_variables.py --name ISS_prop -d 2h dep_vars.csv
 python3 propagation/propagate_orbit.py \
   -d 6h --dep-vars dep_vars.csv \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
-python3 plotting/plot_dependent_variables.py dep_vars.csv
+python3 src/plot_dep_vars/plot_dependent_variables.py dep_vars.csv
 ```
 
 **Show help:**
 
 ```bash
-python3 plotting/plot_dependent_variables.py -h
+python3 src/plot_dep_vars/plot_dependent_variables.py -h
 ```
 
 ### Dependencies

@@ -40,7 +40,7 @@ propagate-kepler = "propagation.propagate_kepler:main"
 propagate-tle = "propagation.propagate_tle:main"
 plot-orbit = "plot_orbit.plot_orbit:main"
 plot-orbit-deltas = "plotting.plot_orbit_deltas:main"
-plot-dependent-variables = "plotting.plot_dependent_variables:main"
+plot-dependent-variables = "plot_dep_vars.plot_dependent_variables:main"
 
 [tool.poetry]
 packages = [
@@ -52,6 +52,7 @@ packages = [
     { include = "tle_to_omm", from = "src" },
     { include = "xform_oem", from = "src" },
     { include = "plot_orbit", from = "src" },
+    { include = "plot_dep_vars", from = "src" },
     { include = "bin", from = "." },
     { include = "common", from = "src" },
     { include = "diff_oem", from = "src" },
