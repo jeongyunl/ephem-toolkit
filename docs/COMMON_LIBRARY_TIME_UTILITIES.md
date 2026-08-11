@@ -5,8 +5,9 @@ This document covers time utilities, common utilities, and physical constants in
 ## Table of Contents
 
 1. [tudatpy_utils.core.time_utils - Time Utilities](#tudatpy_utilscoretime_utils---time-utilities)
-2. [tudatpy_utils.core.misc - Common Utilities](#tudatpy_utilscorecommon---common-utilities)
-3. [tudatpy_utils.core.consts - Physical Constants](#tudatpy_utilscoreconsts---physical-constants)
+2. [tudatpy_utils.core.misc - Miscellaneous Utilities](#tudatpy_utilscoremisc---miscellaneous-utilities)
+3. [tudatpy_utils.core.spice_utils - SPICE Kernel Management](#tudatpy_utilscorespice_utils---spice-kernel-management)
+4. [tudatpy_utils.core.consts - Physical Constants](#tudatpy_utilscoreconsts---physical-constants)
 
 ---
 
@@ -75,18 +76,13 @@ Format a timedelta into a human-readable string (e.g., `2h 30m`, `45s`, `3d 1h`)
 
 ---
 
-## tudatpy_utils.core.misc - Common Utilities
+## tudatpy_utils.core.misc - Miscellaneous Utilities
 
-**Purpose**: Shared utilities for frame transformations, angle operations, SPICE kernel management, and CCSDS keyword-value parsing. Time-related functions live in `tudatpy_utils.core.time_utils`.
+**Purpose**: Shared utilities for CCSDS keyword-value parsing, RTN frame transformations, rotation matrix conversions, and angle operations. Time-related functions live in `tudatpy_utils.core.time_utils`.
 
 ### Key Dependencies
 - `numpy`
-- `math`, `pathlib`, `os`
-
-### SPICE Kernel Management
-
-#### `get_spice_kernel_path() -> str`
-Return the Tudatpy SPICE kernel path using an XDG-style cache file.
+- `math`
 
 ### CCSDS Keyword-Value Parsing
 
@@ -103,8 +99,21 @@ Calculate relative position and velocity in the RTN (Radial-Transverse-Normal) f
   - Shape (6,): Single state vector
   - Shape (N, 6): Batch of N state vectors
 - `reference_state`: Reference object state vector for RTN frame definition
+  - Shape (6,): Single reference state (used for all targets if batch)
+  - Shape (N, 6): Batch of N reference states (one per target)
+  - Defaults to [0, 0, 0, 0, 0, 0] if None
 
 **Returns:** Relative state vector(s) in RTN coordinates [r, t, n, vr, vt, vn]
+
+### Rotation Matrix Utilities
+
+#### `rotation_matrix_to_euler_angles(rotation_matrix: np.ndarray) -> np.ndarray`
+Convert a rotation matrix to ZYX Euler angles (intrinsic rotations).
+
+**Parameters:**
+- `rotation_matrix`: Three-by-three rotation matrix
+
+**Returns:** Euler angles [yaw, pitch, roll] in degrees (ZYX convention)
 
 ### Angle Utilities
 
@@ -122,6 +131,30 @@ Return signed wrapped angle difference target-reference in [-π, π].
 
 #### `circular_blend_angle_rad(primary_angle: float, correction_angle: float, correction_weight: float) -> float`
 Blend angles along the shortest arc.
+
+---
+
+## tudatpy_utils.core.spice_utils - SPICE Kernel Management
+
+**Purpose**: SPICE kernel path management and loading utilities for Tudat/tudatpy integration.
+
+### Key Dependencies
+- `tudatpy.interface.spice`
+- `pathlib`, `os`
+
+### SPICE Kernel Management
+
+#### `get_spice_kernel_path() -> str`
+Return the Tudatpy SPICE kernel path using an XDG-style cache file.
+
+**Returns:** Path to the SPICE kernel directory.
+
+#### `load_kernel(kernel_file: str, kernel_path: str | Path | None = None) -> None`
+Load a SPICE kernel from the specified or cached kernel directory.
+
+**Parameters:**
+- `kernel_file`: Name of the kernel file to load (e.g., "naif0012.tls")
+- `kernel_path`: Optional path to kernel directory. If None, uses cached path from `get_spice_kernel_path()`
 
 ---
 
