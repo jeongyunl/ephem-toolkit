@@ -48,7 +48,7 @@ Common behavior includes stdin support through `-` or omitted input paths, stdou
 | Dependency | Observed usage | Likely scope |
 | --- | --- | --- |
 | NumPy | Array operations, linear algebra, orbital calculations, fitting, and tests across `common/`, `diff_oem/`, `oem_to_omm/`, `propagation/`, and `plotting/`. | Core dependency for the full Python package. |
-| TudatPy | Frame conversion, SPICE access, time/ephemeris helpers, SGP4-backed propagation, and orbit propagation. | Required by propagation, frame, SPICE, and TLE workflows; candidate for an optional workflow extra if a lightweight install is desired. |
+| TudatPy | Frame conversion, SPICE access, time/ephemeris helpers, SGP4-backed propagation, and orbit propagation. | External prerequisite for propagation, frame, SPICE, and TLE workflows; no Poetry dependency because no `tudatpy` distribution is available from the configured package index. |
 | Matplotlib | Orbit, delta, and dependent-variable plotting scripts. | Optional plotting dependency unless plotting is part of the core install. |
 | Python standard library | Argument parsing, paths, CSV/JSON, streams, dates, URL access, and formatting. | No package dependency. |
 | SGP4 | No direct `sgp4` import was found in the inventory. SGP4 behavior is accessed through TudatPy. | Do not declare separately until a direct import is confirmed. |
@@ -119,7 +119,7 @@ Direct script invocation remains supported through the migration. No underscore 
 ### Dependency Groups
 
 - Core runtime dependency: NumPy.
-- `tudat` extra: TudatPy for frame conversion, SPICE, propagation, and TLE-fitting workflows.
+- TudatPy remains an external prerequisite for frame conversion, SPICE, propagation, and TLE-fitting workflows.
 - `plotting` extra: Matplotlib for plotting workflows.
 - No direct SGP4 or SciPy dependency is declared until a direct import is verified.
 - Development tooling and supported Python versions remain Step 3 decisions because they depend on the Poetry configuration and CI environment.
