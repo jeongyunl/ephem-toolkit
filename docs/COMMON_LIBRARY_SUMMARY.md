@@ -9,7 +9,8 @@ The common library is organized into the following functional groups:
 ### 1. [Time & Utilities](COMMON_LIBRARY_TIME_UTILITIES.md)
 Core utilities for time conversions, ISO 8601 formatting, duration parsing, and physical constants.
 - **tudatpy_utils.core.time_utils** - Time conversion, ISO 8601 parsing/formatting, CLI duration parsing
-- **tudatpy_utils.core.misc** - SPICE kernel management, CCSDS parsing, RTN frame transformation, angle utilities
+- **tudatpy_utils.core.misc** - CCSDS parsing, RTN frame transformation, rotation matrix utilities, angle utilities
+- **tudatpy_utils.core.spice_utils** - SPICE kernel path management and loading
 - **tudatpy_utils.core.consts** - Earth physical constants (gravitational parameter, radius, J2)
 
 ### 2. [Orbital Elements](COMMON_LIBRARY_ORBITAL_ELEMENTS.md)
