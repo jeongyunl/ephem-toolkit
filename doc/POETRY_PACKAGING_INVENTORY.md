@@ -38,7 +38,7 @@ These are the current documented script entry points. Direct `python3 path/to/sc
 | `propagation/propagate_kepler.py` | `python3 propagation/propagate_kepler.py` | Propagate a two-body Kepler state. |
 | `propagation/propagate_tle.py` | `python3 propagation/propagate_tle.py --tle FILE [-d DURATION]` | Propagate a TLE. |
 | `src/plot_orbit/plot_orbit.py` | `python3 src/plot_orbit/plot_orbit.py --csv FILE` | Plot orbit and dependent-variable data. |
-| `plotting/plot_orbit_deltas.py` | `python3 plotting/plot_orbit_deltas.py <oem> ...` | Plot orbit differences. |
+| `src/plot_orbit_deltas/plot_orbit_deltas.py` | `python3 src/plot_orbit_deltas/plot_orbit_deltas.py <oem> ...` | Plot orbit differences. |
 | `src/plot_dep_vars/plot_dependent_variables.py` | `python3 src/plot_dep_vars/plot_dependent_variables.py --csv FILE` | Plot dependent variables. |
 
 Common behavior includes stdin support through `-` or omitted input paths, stdout-oriented output, optional `-o/--output` file destinations, and CCSDS/OEM/TLE/OMM text formats.
@@ -112,7 +112,7 @@ Poetry console scripts will use lowercase hyphenated names:
 | `propagation/propagate_kepler.py` | `propagate-kepler` |
 | `propagation/propagate_tle.py` | `propagate-tle` |
 | `src/plot_orbit/plot_orbit.py` | `plot-orbit` |
-| `plotting/plot_orbit_deltas.py` | `plot-orbit-deltas` |
+| `src/plot_orbit_deltas/plot_orbit_deltas.py` | `plot-orbit-deltas` |
 | `src/plot_dep_vars/plot_dependent_variables.py` | `plot-dependent-variables` |
 
 Direct script invocation remains supported through the migration. No underscore aliases will be registered initially; compatibility belongs in the existing wrapper paths rather than duplicate Poetry commands.
