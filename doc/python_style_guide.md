@@ -51,7 +51,7 @@ References:
 """Plot orbit trajectories with various views and RTN coordinates.
 
 Usage:
-    python3 plot_orbit_deltas.py <reference_oem> [comparison_oem1] ...
+    python3 src/plot_orbit_deltas/plot_orbit_deltas.py <reference_oem> [comparison_oem1] ...
 """
 ```
 

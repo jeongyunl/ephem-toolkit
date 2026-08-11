@@ -6,7 +6,7 @@ Miscellaneous utilities for orbit analysis and comparison.
 
 - `bin/diff_oem.py`
 - `src/slice_oem/slice_oem.py`
-- `plotting/plot_orbit_deltas.py`
+- `src/plot_orbit_deltas/plot_orbit_deltas.py`
 - `src/plot_dep_vars/plot_dependent_variables.py`
 
 Poetry users can use the canonical commands `diff-oem`, `slice-oem`, `plot-orbit-deltas`, and `plot-dependent-variables`. The script paths below remain supported compatibility forms.
@@ -194,14 +194,14 @@ Slices CCSDS OEM files by index or time range, with optional interpolation.
 
 See [SLICE_OEM.md](SLICE_OEM.md) for complete documentation.
 
-## `plotting/plot_orbit_deltas.py`
+## `src/plot_orbit_deltas/plot_orbit_deltas.py`
 
 Plots multiple orbit trajectories with various views and RTN (Radial-Transverse-Normal) coordinates.
 
 ### Synopsis
 
 ```bash
-python3 plotting/plot_orbit_deltas.py [-h] [-o <output_file>] [-d <duration>] [--time-unit <unit>] <reference_oem> [<comparison_oem1>] [<comparison_oem2>] ...
+python3 src/plot_orbit_deltas/plot_orbit_deltas.py [-h] [-o <output_file>] [-d <duration>] [--time-unit <unit>] <reference_oem> [<comparison_oem1>] [<comparison_oem2>] ...
 ```
 
 ### Options
@@ -256,37 +256,37 @@ Otherwise, figures are displayed interactively.
 **Plot single orbit:**
 
 ```bash
-python3 plotting/plot_orbit_deltas.py reference.oem
+python3 src/plot_orbit_deltas/plot_orbit_deltas.py reference.oem
 ```
 
 **Plot reference orbit with comparison orbits:**
 
 ```bash
-python3 plotting/plot_orbit_deltas.py reference.oem comparison1.oem comparison2.oem
+python3 src/plot_orbit_deltas/plot_orbit_deltas.py reference.oem comparison1.oem comparison2.oem
 ```
 
 **Save output to files:**
 
 ```bash
-python3 plotting/plot_orbit_deltas.py reference.oem comparison.oem -o orbits.png
+python3 src/plot_orbit_deltas/plot_orbit_deltas.py reference.oem comparison.oem -o orbits.png
 ```
 
 **Analyze only first 2 hours:**
 
 ```bash
-python3 plotting/plot_orbit_deltas.py reference.oem comparison.oem -d 2h
+python3 src/plot_orbit_deltas/plot_orbit_deltas.py reference.oem comparison.oem -d 2h
 ```
 
 **Use minutes for time-series x-axis:**
 
 ```bash
-python3 plotting/plot_orbit_deltas.py reference.oem comparison.oem --time-unit minutes
+python3 src/plot_orbit_deltas/plot_orbit_deltas.py reference.oem comparison.oem --time-unit minutes
 ```
 
 **Show help:**
 
 ```bash
-python3 plotting/plot_orbit_deltas.py -h
+python3 src/plot_orbit_deltas/plot_orbit_deltas.py -h
 ```
 
 ### Dependencies
