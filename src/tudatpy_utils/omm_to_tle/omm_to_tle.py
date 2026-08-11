@@ -11,9 +11,9 @@ import argparse
 import io
 import sys
 
-import core.convert_tle as convert_tle
-import core.ccsds.omm as omm
-import core.tle as tle
+import tudatpy_utils.core.convert_tle as convert_tle
+import tudatpy_utils.core.ccsds.omm as omm
+import tudatpy_utils.core.tle as tle
 
 
 def parse_arguments() -> argparse.Namespace:
