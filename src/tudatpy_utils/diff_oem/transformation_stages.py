@@ -7,8 +7,8 @@ from typing import Any, Callable
 
 import numpy as np
 
-import core.misc as misc
-import core.interpolator.lagrange as lagrange
+from tudatpy_utils.core import misc
+from tudatpy_utils.core.interpolator import lagrange
 
 from .comparison import rotate_state
 from .data_structures import TransformationStageInput
