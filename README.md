@@ -83,7 +83,7 @@ See [OEM_TO_OMM.md](doc/OEM_TO_OMM.md) for full usage details.
 
 ### TLE / OMM Utilities
 
-- `bin/download_tle.py` — download TLE data
+- `src/download_tle/download_tle.py` — download TLE data
 - `bin/omm_to_tle.py` — convert OMM → TLE
 - `bin/tle_to_omm.py` — convert TLE → OMM
 - `bin/tle_info.py` — inspect TLE information

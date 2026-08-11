@@ -7,7 +7,7 @@ TLE-related utilities for building, estimating, and converting orbital data.
 Current TLE-related scripts in this repository include:
 
 - `src/oem_to_omm/oem_to_omm.py`
-- `bin/download_tle.py`
+- `src/download_tle/download_tle.py`
 - `bin/omm_to_tle.py`
 - `bin/tle_to_omm.py`
 - `bin/tle_info.py`
@@ -21,14 +21,14 @@ After Poetry installation, use `download-tle`, `omm-to-tle`, `tle-to-omm`, and `
 
 This script estimates a TLE from an OEM-like Cartesian arc. For complete usage and algorithm documentation, see [OEM_TO_OMM.md](OEM_TO_OMM.md).
 
-## `bin/download_tle.py`
+## `src/download_tle/download_tle.py`
 
 Downloads TLE or OMM data from CelesTrak for specified satellites.
 
 ### Synopsis
 
 ```bash
-python3 bin/download_tle.py [-h] [--format <format>] <satellite_id> [<satellite_id2>] ...
+python3 src/download_tle/download_tle.py [-h] [--format <format>] <satellite_id> [<satellite_id2>] ...
 ```
 
 ### Options
@@ -51,31 +51,31 @@ python3 bin/download_tle.py [-h] [--format <format>] <satellite_id> [<satellite_
 **Download TLE for ISS:**
 
 ```bash
-python3 bin/download_tle.py 1998-067A
+python3 src/download_tle/download_tle.py 1998-067A
 ```
 
 **Download TLE for multiple satellites:**
 
 ```bash
-python3 bin/download_tle.py 1998-067A 2019-050A 2023-100G
+python3 src/download_tle/download_tle.py 1998-067A 2019-050A 2023-100G
 ```
 
 **Download in OMM format:**
 
 ```bash
-python3 bin/download_tle.py --format omm 1998-067A
+python3 src/download_tle/download_tle.py --format omm 1998-067A
 ```
 
 **Download in JSON format:**
 
 ```bash
-python3 bin/download_tle.py --format json 1998-067A
+python3 src/download_tle/download_tle.py --format json 1998-067A
 ```
 
 **Show help:**
 
 ```bash
-python3 bin/download_tle.py -h
+python3 src/download_tle/download_tle.py -h
 ```
 
 ### Dependencies
