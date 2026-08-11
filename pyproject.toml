@@ -28,7 +28,7 @@ Repository = "https://github.com/jeongyunl/tudatpy-utils"
 [project.scripts]
 diff-oem = "diff_oem.diff_oem:main"
 download-tle = "download_tle.download_tle:main"
-omm-to-tle = "bin.omm_to_tle:main"
+omm-to-tle = "omm_to_tle.omm_to_tle:main"
 slice-oem = "bin.slice_oem:main"
 tle-info = "bin.tle_info:main"
 tle-to-omm = "bin.tle_to_omm:main"
@@ -46,6 +46,7 @@ plot-dependent-variables = "plotting.plot_dependent_variables:main"
 packages = [
     { include = "tudatpy_utils", from = "src" },
     { include = "download_tle", from = "src" },
+    { include = "omm_to_tle", from = "src" },
     { include = "bin", from = "." },
     { include = "common", from = "src" },
     { include = "diff_oem", from = "src" },
