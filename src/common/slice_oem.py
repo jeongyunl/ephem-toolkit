@@ -1,7 +1,7 @@
 """Common slice helpers for OEM state selection.
 
 This module provides the library functions used by the OEM CLI wrapper in
-`bin/slice_oem.py`.
+`src/slice_oem/slice_oem.py`.
 
 References:
     ISO 8601 "Date and time representations".

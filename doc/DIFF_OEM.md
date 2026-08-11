@@ -372,7 +372,7 @@ curl https://example.com/orbit.oem | python3 bin/diff_oem.py - reference.oem
 
 **Chain with slice_oem:**
 ```bash
-python3 bin/slice_oem.py large.oem --slice "0:100" | \
+python3 src/slice_oem/slice_oem.py large.oem --slice "0:100" | \
   python3 bin/diff_oem.py reference.oem -
 ```
 
@@ -444,7 +444,7 @@ python3 bin/diff_oem.py reference.oem comparison.oem \
 ### Compare Downsampled Data
 
 ```bash
-python3 bin/slice_oem.py reference.oem --slice "::10" | \
+python3 src/slice_oem/slice_oem.py reference.oem --slice "::10" | \
   python3 bin/diff_oem.py - comparison.oem --interpolate-ref
 ```
 
@@ -595,7 +595,7 @@ Solution: Ensure `--start` is before or equal to `--stop`.
 
 ## Related Tools
 
-- `bin/slice_oem.py` — Extract subsets of OEM data by index or time range
+- `src/slice_oem/slice_oem.py` — Extract subsets of OEM data by index or time range
 - `plotting/plot_orbit_deltas.py` — Visualize orbit differences
 - `propagation/propagate_orbit.py` — Generate OEM files from propagation
 - `src/oem_to_omm/oem_to_omm.py` — Convert OEM to TLE/OMM format

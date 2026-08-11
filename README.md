@@ -59,7 +59,7 @@ Install plotting support with `poetry install -E plotting`. TudatPy-dependent wo
 ### OEM Utilities
 
 - `bin/diff_oem.py` — compare corresponding states from two OEM files with optional rotation fitting and time-shift correction. See [DIFF_OEM.md](doc/DIFF_OEM.md) for details
-- `bin/slice_oem.py` — slice OEM files by index or time range (with optional interpolation). See [SLICE_OEM.md](doc/SLICE_OEM.md) for details
+- `src/slice_oem/slice_oem.py` — slice OEM files by index or time range (with optional interpolation). See [SLICE_OEM.md](doc/SLICE_OEM.md) for details
 - `bin/xform_oem.py` — convert CCSDS OEM state vectors between supported reference frames, or convert ECEF positions to AER coordinates. See [XFORM_OEM.md](doc/XFORM_OEM.md) for complete documentation.
 
 
@@ -85,6 +85,7 @@ See [OEM_TO_OMM.md](doc/OEM_TO_OMM.md) for full usage details.
 
 - `src/download_tle/download_tle.py` — download TLE data
 - `src/omm_to_tle/omm_to_tle.py` — convert OMM → TLE
+- `src/slice_oem/slice_oem.py` — slice OEM data
 - `bin/tle_to_omm.py` — convert TLE → OMM
 - `bin/tle_info.py` — inspect TLE information
 
