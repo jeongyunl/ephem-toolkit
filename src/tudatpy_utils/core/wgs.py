@@ -20,7 +20,7 @@ import math
 
 import numpy as np
 
-from core.consts import EARTH_EQUATORIAL_RADIUS_M
+from .consts import EARTH_EQUATORIAL_RADIUS_M
 
 # ===================================================================
 # Constants
