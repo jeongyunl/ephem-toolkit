@@ -128,7 +128,7 @@ The script supports three refinement strategies for matching TLE elements to the
 #### Keplerian Refinement (`--refinement keplerian`)
 
 - Minimizes osculating Keplerian element residual
-- Uses `common.convert_tle.tle_to_osculating_keplerian` with J2 short-period corrections
+- Uses `core.convert_tle.tle_to_osculating_keplerian` with J2 short-period corrections
 - No SGP4/TudatPy dependency (pure Python + NumPy)
 - Excellent angular accuracy (sub-millidegree)
 - Semi-major axis accuracy limited to ~2 km by first-order Brouwer approximation
@@ -216,7 +216,7 @@ evaluate-fit-tle --fit-span 2.0
 
 - TudatPy (for SGP4 propagation)
 - NumPy
-- `common.ccsds.oem`, `common.consts`, `common.time_utils`, `common.tle`
+- `tudatpy_utils.core.ccsds.oem`, `tudatpy_utils.core.consts`, `tudatpy_utils.core.time_utils`, `tudatpy_utils.core.tle`
 - `oem_to_omm.fit_common`, `oem_to_omm.fit_tle_main`
 - `oem_to_omm.fit_tle` submodule components
 
@@ -235,10 +235,10 @@ Key algorithmic features:
 
 ## Related Tools
 
-- `common/tle.py` — TLE dataclass, `read_tle()`, and `write_tle()` functions
-- `common/ccsds/omm.py` — OMM dataclass and utilities
-- `common/kepler.py` — Keplerian element conversions with J2 corrections
-- `common/ccsds/oem.py` — OEM parsing utilities
+- `tudatpy_utils.core.tle` — TLE dataclass, `read_tle()`, and `write_tle()` functions
+- `tudatpy_utils.core.ccsds.omm` — OMM dataclass and utilities
+- `tudatpy_utils.core.kepler` — Keplerian element conversions with J2 corrections
+- `tudatpy_utils.core.ccsds.oem` — OEM parsing utilities
 - `propagate-tle` — TLE propagation with SGP4
 - `omm-to-tle` — Convert OMM to TLE
 - `tle-to-omm` — Convert TLE to OMM
@@ -334,7 +334,7 @@ UTC_ISO x y z vx vy vz
 
 with position in km and velocity in km/s.
 
-Unlike directly calling `common.tle.write_tle()` with explicit fields, `oem-to-omm` attempts to infer a TLE from a Cartesian arc.
+Unlike directly calling `core.tle.write_tle()` with explicit fields, `oem-to-omm` attempts to infer a TLE from a Cartesian arc.
 
 This is fundamentally an estimation problem because TLEs encode SGP4-compatible mean elements rather than raw osculating Cartesian states.
 
@@ -343,7 +343,7 @@ This is fundamentally an estimation problem because TLEs encode SGP4-compatible 
 Related scripts in the current repository:
 
 - `oem-to-omm` — estimate a TLE from an OEM-like arc
-- `common/tle.py` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions
+- `tudatpy_utils.core.tle` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions
 - `propagate-tle` — propagate a TLE with TudatPy SGP4 and print OEM-like states
 
 ### Overall pipeline
@@ -355,7 +355,7 @@ The script follows a four-stage workflow:
 3. Refine the line-2 elements so the TLE epoch state better matches the source epoch state.
 4. Estimate `B*` by minimizing propagation error over the arc.
 
-Finally, it prints diagnostics and writes the TLE using `common.tle.write_tle()`.
+Finally, it prints diagnostics and writes the TLE using `core.tle.write_tle()`.
 
 ---
 
@@ -463,13 +463,13 @@ Implementation notes captured in the original investigation:
 
 ### `refine_estimated_fields_keplerian_match`
 
-An alternative refinement that does **not** require SGP4/TudatPy. Instead, it minimizes the residual between the TLE's osculating Keplerian elements (computed via `common.convert_tle.tle_to_osculating_keplerian` with J2 short-period corrections) and the reference osculating elements derived from the input Cartesian state.
+An alternative refinement that does **not** require SGP4/TudatPy. Instead, it minimizes the residual between the TLE's osculating Keplerian elements (computed via `core.convert_tle.tle_to_osculating_keplerian` with J2 short-period corrections) and the reference osculating elements derived from the input Cartesian state.
 
 ### Algorithm outline
 
 1. Compute reference osculating Keplerian elements from the epoch Cartesian state using `core.kepler.cartesian_to_keplerian`.
 2. Build a candidate TLE from the current parameter estimate.
-3. Convert TLE mean elements to osculating elements via `common.convert_tle.tle_to_osculating_keplerian` (applies Brouwer first-order J2 short-period corrections).
+3. Convert TLE mean elements to osculating elements via `core.convert_tle.tle_to_osculating_keplerian` (applies Brouwer first-order J2 short-period corrections).
 4. Compute a 6-component residual vector (semi-major axis, eccentricity, inclination, RAAN, argument of latitude, argument of periapsis).
 5. Estimate a 6×6 Jacobian by central finite differences.
 6. Solve a weighted least-squares update.
@@ -519,7 +519,7 @@ This is a pragmatic scalar optimization over the drag-like parameter.
 ## Design choices
 
 - The script separates estimation from final TLE formatting.
-- `common.tle.write_tle()` is the formatting/checksum authority.
+- `core.tle.write_tle()` is the formatting/checksum authority.
 - Circular statistics are used extensively to avoid 0°/360° discontinuity problems.
 - The estimator is designed to degrade gracefully when some higher-fidelity refinement steps are unavailable.
 
@@ -527,9 +527,9 @@ This is a pragmatic scalar optimization over the drag-like parameter.
 
 Use:
 
-- `common.tle.write_tle()` when you already know the TLE fields and want to write them programmatically
+- `core.tle.write_tle()` when you already know the TLE fields and want to write them programmatically
 - `oem-to-omm` when you have an OEM-like Cartesian arc and want an estimated TLE
-- `common.tle.read_tle()` when you want to parse an existing TLE into structured fields
+- `core.tle.read_tle()` when you want to parse an existing TLE into structured fields
 
 ### Usage Examples
 
@@ -602,7 +602,7 @@ oem-to-omm --tle -v input.oem -o output.omm
 
 - Python standard library
 - NumPy (for numerical computations)
-- `common.tle` — TLE dataclass and formatting
-- `core.kepler` — Keplerian element conversions
-- `common.ccsds.oem` — OEM parsing
+- `tudatpy_utils.core.tle` — TLE dataclass and formatting
+- `tudatpy_utils.core.kepler` — Keplerian element conversions
+- `tudatpy_utils.core.ccsds.oem` — OEM parsing
 - TudatPy (optional, required for `--refinement cartesian`)

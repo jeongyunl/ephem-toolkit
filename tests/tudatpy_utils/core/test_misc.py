@@ -1,4 +1,4 @@
-"""Tests for common/misc.py — OEM parsing utilities."""
+"""Tests for core/misc.py — OEM parsing utilities."""
 
 from __future__ import annotations
 

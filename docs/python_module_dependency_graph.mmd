@@ -10,25 +10,25 @@ graph LR
 %% Library modules use default rectangle shape [...]
 
     subgraph common
-        mod_common_aer[common.aer]
-        mod_common_common[common.common]
-        mod_common_consts[common.consts]
-        mod_common_convert_tle[common.convert_tle]
-        mod_common_frame_utils[common.frame_utils]
-        mod_common_kepler[common.kepler]
-        mod_common_mean_kepler[common.mean_kepler]
-        mod_common_odm[common.ccsds.odm]
-        mod_common_oem[common.ccsds.oem]
-        mod_common_omm[common.ccsds.omm]
-        mod_common_slice_oem[common.slice_oem]
-        mod_common_time_utils[common.time_utils]
-        mod_common_tle[common.tle]
-        mod_common_wgs[common.wgs]
+        mod_core_aer[core.aer]
+        mod_core_common[core.common]
+        mod_core_consts[core.consts]
+        mod_core_convert_tle[core.convert_tle]
+        mod_core_frame_utils[core.frame_utils]
+        mod_core_kepler[core.kepler]
+        mod_core_mean_kepler[core.mean_kepler]
+        mod_core_odm[core.ccsds.odm]
+        mod_core_oem[core.ccsds.oem]
+        mod_core_omm[core.ccsds.omm]
+        mod_core_slice_oem[core.slice_oem]
+        mod_core_time_utils[core.time_utils]
+        mod_core_tle[core.tle]
+        mod_core_wgs[core.wgs]
     end
 
     subgraph interpolator
-        mod_interpolator_interpolator[common.interpolator.interpolator]
-        mod_interpolator_lagrange[common.interpolator.lagrange]
+        mod_interpolator_interpolator[core.interpolator.interpolator]
+        mod_interpolator_lagrange[core.interpolator.lagrange]
     end
 
     subgraph bin
@@ -67,122 +67,122 @@ graph LR
         mod_propagation_propagate_tle([propagate_tle])
     end
 
-    %% ===== Common library internal edges =====
-    mod_common_aer --> mod_common_wgs
-    mod_common_convert_tle --> mod_common_kepler
-    mod_common_convert_tle --> mod_common_mean_kepler
-    mod_common_convert_tle --> mod_common_omm
-    mod_common_convert_tle --> mod_common_tle
-    mod_common_convert_tle --> mod_common_consts
-    mod_common_kepler --> mod_common_consts
-    mod_common_mean_kepler --> mod_common_kepler
-    mod_common_mean_kepler --> mod_common_consts
-    mod_common_oem --> mod_common_common
-    mod_common_oem --> mod_common_time_utils
-    mod_common_slice_oem --> mod_common_oem
-    mod_common_slice_oem --> mod_common_time_utils
-    mod_common_slice_oem --> mod_interpolator_lagrange
-    mod_common_wgs --> mod_common_consts
+    %% ===== Core library internal edges =====
+    mod_core_aer --> mod_core_wgs
+    mod_core_convert_tle --> mod_core_kepler
+    mod_core_convert_tle --> mod_core_mean_kepler
+    mod_core_convert_tle --> mod_core_omm
+    mod_core_convert_tle --> mod_core_tle
+    mod_core_convert_tle --> mod_core_consts
+    mod_core_kepler --> mod_core_consts
+    mod_core_mean_kepler --> mod_core_kepler
+    mod_core_mean_kepler --> mod_core_consts
+    mod_core_oem --> mod_core_common
+    mod_core_oem --> mod_core_time_utils
+    mod_core_slice_oem --> mod_core_oem
+    mod_core_slice_oem --> mod_core_time_utils
+    mod_core_slice_oem --> mod_interpolator_lagrange
+    mod_core_wgs --> mod_core_consts
     mod_interpolator_lagrange --> mod_interpolator_interpolator
 
     %% ===== bin/ script edges =====
-    mod_bin_xform_oem --> mod_common_aer
-    mod_bin_xform_oem --> mod_common_frame_utils
-    mod_bin_xform_oem --> mod_common_oem
-    mod_bin_xform_oem --> mod_common_time_utils
-    mod_bin_omm_to_tle --> mod_common_convert_tle
-    mod_bin_omm_to_tle --> mod_common_omm
-    mod_bin_omm_to_tle --> mod_common_tle
-    mod_bin_slice_oem --> mod_common_common
-    mod_bin_slice_oem --> mod_common_oem
-    mod_bin_slice_oem --> mod_common_slice_oem
-    mod_bin_slice_oem --> mod_common_time_utils
-    mod_bin_tle_info --> mod_common_common
-    mod_bin_tle_info --> mod_common_kepler
-    mod_bin_tle_to_omm --> mod_common_convert_tle
-    mod_bin_tle_to_omm --> mod_common_tle
+    mod_bin_xform_oem --> mod_core_aer
+    mod_bin_xform_oem --> mod_core_frame_utils
+    mod_bin_xform_oem --> mod_core_oem
+    mod_bin_xform_oem --> mod_core_time_utils
+    mod_bin_omm_to_tle --> mod_core_convert_tle
+    mod_bin_omm_to_tle --> mod_core_omm
+    mod_bin_omm_to_tle --> mod_core_tle
+    mod_bin_slice_oem --> mod_core_common
+    mod_bin_slice_oem --> mod_core_oem
+    mod_bin_slice_oem --> mod_core_slice_oem
+    mod_bin_slice_oem --> mod_core_time_utils
+    mod_bin_tle_info --> mod_core_common
+    mod_bin_tle_info --> mod_core_kepler
+    mod_bin_tle_to_omm --> mod_core_convert_tle
+    mod_bin_tle_to_omm --> mod_core_tle
 
     %% ===== oem_to_omm edges =====
-    mod_oem_to_omm_estimation --> mod_common_common
-    mod_oem_to_omm_estimation --> mod_common_consts
-    mod_oem_to_omm_estimation --> mod_common_convert_tle
-    mod_oem_to_omm_estimation --> mod_common_kepler
-    mod_oem_to_omm_estimation --> mod_common_tle
+    mod_oem_to_omm_estimation --> mod_core_common
+    mod_oem_to_omm_estimation --> mod_core_consts
+    mod_oem_to_omm_estimation --> mod_core_convert_tle
+    mod_oem_to_omm_estimation --> mod_core_kepler
+    mod_oem_to_omm_estimation --> mod_core_tle
     mod_oem_to_omm_estimation --> mod_oem_to_omm_constants
     mod_oem_to_omm_estimation --> mod_oem_to_omm_models
     mod_oem_to_omm_estimation --> mod_oem_to_omm_orbital_mechanics
     mod_oem_to_omm_estimation --> mod_oem_to_omm_tle_builder
-    mod_oem_to_omm_evaluate_fit_tle --> mod_common_consts
-    mod_oem_to_omm_evaluate_fit_tle --> mod_common_oem
-    mod_oem_to_omm_evaluate_fit_tle --> mod_common_time_utils
-    mod_oem_to_omm_evaluate_fit_tle --> mod_common_tle
+    mod_oem_to_omm_evaluate_fit_tle --> mod_core_consts
+    mod_oem_to_omm_evaluate_fit_tle --> mod_core_oem
+    mod_oem_to_omm_evaluate_fit_tle --> mod_core_time_utils
+    mod_oem_to_omm_evaluate_fit_tle --> mod_core_tle
     mod_oem_to_omm_evaluate_fit_tle --> mod_oem_to_omm_fit_common
     mod_oem_to_omm_evaluate_fit_tle --> mod_oem_to_omm_fit_tle
-    mod_oem_to_omm_fit_mean_kepler --> mod_common_consts
-    mod_oem_to_omm_fit_mean_kepler --> mod_common_kepler
-    mod_oem_to_omm_fit_mean_kepler --> mod_common_mean_kepler
-    mod_oem_to_omm_fit_mean_kepler --> mod_common_time_utils
+    mod_oem_to_omm_fit_mean_kepler --> mod_core_consts
+    mod_oem_to_omm_fit_mean_kepler --> mod_core_kepler
+    mod_oem_to_omm_fit_mean_kepler --> mod_core_mean_kepler
+    mod_oem_to_omm_fit_mean_kepler --> mod_core_time_utils
     mod_oem_to_omm_fit_mean_kepler --> mod_oem_to_omm_fit_common
     mod_oem_to_omm_fit_common --> mod_oem_to_omm_constants
-    mod_oem_to_omm_fit_osculating_kepler --> mod_common_consts
-    mod_oem_to_omm_fit_osculating_kepler --> mod_common_kepler
-    mod_oem_to_omm_fit_osculating_kepler --> mod_common_time_utils
+    mod_oem_to_omm_fit_osculating_kepler --> mod_core_consts
+    mod_oem_to_omm_fit_osculating_kepler --> mod_core_kepler
+    mod_oem_to_omm_fit_osculating_kepler --> mod_core_time_utils
     mod_oem_to_omm_fit_osculating_kepler --> mod_oem_to_omm_fit_common
-    mod_oem_to_omm_fit_tle --> mod_common_common
-    mod_oem_to_omm_fit_tle --> mod_common_consts
-    mod_oem_to_omm_fit_tle --> mod_common_time_utils
-    mod_oem_to_omm_fit_tle --> mod_common_tle
-    mod_oem_to_omm_fit_tle --> mod_common_convert_tle
+    mod_oem_to_omm_fit_tle --> mod_core_common
+    mod_oem_to_omm_fit_tle --> mod_core_consts
+    mod_oem_to_omm_fit_tle --> mod_core_time_utils
+    mod_oem_to_omm_fit_tle --> mod_core_tle
+    mod_oem_to_omm_fit_tle --> mod_core_convert_tle
     mod_oem_to_omm_fit_tle --> mod_oem_to_omm_fit_common
     mod_oem_to_omm_fit_tle --> mod_oem_to_omm_constants
     mod_oem_to_omm_fit_tle --> mod_oem_to_omm_estimation
     mod_oem_to_omm_fit_tle --> mod_oem_to_omm_models
     mod_oem_to_omm_fit_tle --> mod_oem_to_omm_refinement
     mod_oem_to_omm_fit_tle --> mod_oem_to_omm_tle_builder
-    mod_oem_to_omm_oem_to_omm --> mod_common_consts
-    mod_oem_to_omm_oem_to_omm --> mod_common_convert_tle
-    mod_oem_to_omm_oem_to_omm --> mod_common_kepler
-    mod_oem_to_omm_oem_to_omm --> mod_common_mean_kepler
-    mod_oem_to_omm_oem_to_omm --> mod_common_oem
-    mod_oem_to_omm_oem_to_omm --> mod_common_omm
-    mod_oem_to_omm_oem_to_omm --> mod_common_time_utils
-    mod_oem_to_omm_oem_to_omm --> mod_common_tle
+    mod_oem_to_omm_oem_to_omm --> mod_core_consts
+    mod_oem_to_omm_oem_to_omm --> mod_core_convert_tle
+    mod_oem_to_omm_oem_to_omm --> mod_core_kepler
+    mod_oem_to_omm_oem_to_omm --> mod_core_mean_kepler
+    mod_oem_to_omm_oem_to_omm --> mod_core_oem
+    mod_oem_to_omm_oem_to_omm --> mod_core_omm
+    mod_oem_to_omm_oem_to_omm --> mod_core_time_utils
+    mod_oem_to_omm_oem_to_omm --> mod_core_tle
     mod_oem_to_omm_oem_to_omm --> mod_oem_to_omm_fit_common
     mod_oem_to_omm_oem_to_omm --> mod_oem_to_omm_fit_mean_kepler
     mod_oem_to_omm_oem_to_omm --> mod_oem_to_omm_fit_osculating_kepler
     mod_oem_to_omm_oem_to_omm --> mod_oem_to_omm_fit_tle
-    mod_oem_to_omm_orbital_mechanics --> mod_common_common
-    mod_oem_to_omm_orbital_mechanics --> mod_common_consts
+    mod_oem_to_omm_orbital_mechanics --> mod_core_common
+    mod_oem_to_omm_orbital_mechanics --> mod_core_consts
     mod_oem_to_omm_orbital_mechanics --> mod_oem_to_omm_constants
     mod_oem_to_omm_orbital_mechanics --> mod_oem_to_omm_models
-    mod_oem_to_omm_refinement --> mod_common_common
-    mod_oem_to_omm_refinement --> mod_common_convert_tle
-    mod_oem_to_omm_refinement --> mod_common_kepler
-    mod_oem_to_omm_refinement --> mod_common_tle
-    mod_oem_to_omm_refinement --> mod_common_consts
+    mod_oem_to_omm_refinement --> mod_core_common
+    mod_oem_to_omm_refinement --> mod_core_convert_tle
+    mod_oem_to_omm_refinement --> mod_core_kepler
+    mod_oem_to_omm_refinement --> mod_core_tle
+    mod_oem_to_omm_refinement --> mod_core_consts
     mod_oem_to_omm_refinement --> mod_oem_to_omm_constants
     mod_oem_to_omm_refinement --> mod_oem_to_omm_linalg
     mod_oem_to_omm_refinement --> mod_oem_to_omm_models
     mod_oem_to_omm_refinement --> mod_oem_to_omm_tle_builder
-    mod_oem_to_omm_tle_builder --> mod_common_tle
+    mod_oem_to_omm_tle_builder --> mod_core_tle
     mod_oem_to_omm_tle_builder --> mod_oem_to_omm_models
 
     %% ===== plotting edges =====
-    mod_plotting_plot_dependent_variables --> mod_common_common
-    mod_plotting_plot_dependent_variables --> mod_common_time_utils
-    mod_plotting_plot_orbit_deltas --> mod_common_common
-    mod_plotting_plot_orbit_deltas --> mod_common_oem
-    mod_plotting_plot_orbit_deltas --> mod_common_time_utils
+    mod_plotting_plot_dependent_variables --> mod_core_common
+    mod_plotting_plot_dependent_variables --> mod_core_time_utils
+    mod_plotting_plot_orbit_deltas --> mod_core_common
+    mod_plotting_plot_orbit_deltas --> mod_core_oem
+    mod_plotting_plot_orbit_deltas --> mod_core_time_utils
     mod_plotting_plot_orbit_deltas --> mod_interpolator_lagrange
 
     %% ===== propagation edges =====
-    mod_propagation_propagate_kepler --> mod_common_oem
-    mod_propagation_propagate_kepler --> mod_common_kepler
-    mod_propagation_propagate_kepler --> mod_common_time_utils
-    mod_propagation_propagate_orbit --> mod_common_common
-    mod_propagation_propagate_orbit --> mod_common_oem
-    mod_propagation_propagate_orbit --> mod_common_time_utils
+    mod_propagation_propagate_kepler --> mod_core_oem
+    mod_propagation_propagate_kepler --> mod_core_kepler
+    mod_propagation_propagate_kepler --> mod_core_time_utils
+    mod_propagation_propagate_orbit --> mod_core_common
+    mod_propagation_propagate_orbit --> mod_core_oem
+    mod_propagation_propagate_orbit --> mod_core_time_utils
     mod_propagation_propagate_orbit --> mod_interpolator_lagrange
-    mod_propagation_propagate_tle --> mod_common_common
-    mod_propagation_propagate_tle --> mod_common_oem
-    mod_propagation_propagate_tle --> mod_common_time_utils
+    mod_propagation_propagate_tle --> mod_core_common
+    mod_propagation_propagate_tle --> mod_core_oem
+    mod_propagation_propagate_tle --> mod_core_time_utils

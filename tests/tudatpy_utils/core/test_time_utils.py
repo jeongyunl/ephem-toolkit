@@ -1,8 +1,8 @@
-"""Tests for common.time_utils module.
+"""Tests for core.time_utils module.
 
 This test file verifies that the time-related functions work correctly
-when imported directly from the common.time_utils module (not through the
-backward-compatibility re-exports in common.common).
+when imported directly from the core.time_utils module (not through the
+backward-compatibility re-exports in core.common).
 """
 
 from datetime import datetime, timezone

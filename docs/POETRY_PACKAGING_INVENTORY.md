@@ -75,7 +75,7 @@ Representative smoke commands are listed in the plan's source documentation and 
 
 - Existing direct script paths under `bin/`, `src/oem_to_omm/`, `src/propagate_*`, and `src/plot_*` are documented interfaces.
 - `sys.path` insertion in scripts is a migration blocker for isolated wheel installs.
-- `common/slice_oem.py` and `src/slice_oem/slice_oem.py` have the same stem but different roles; the package and CLI names must avoid ambiguity.
+- `core/slice_oem.py` and `src/slice_oem/slice_oem.py` have the same stem but different roles; the package and CLI names must avoid ambiguity.
 - OEM, OMM, TLE, CSV, and stdout formats are consumed by tests and shell pipelines. Formatting and column-order changes are compatibility risks.
 - SPICE kernel filenames and TudatPy-managed cache resolution are runtime assumptions for frame and propagation workflows.
 - Existing top-level imports such as `core.*`, `diff_oem.*`, and `oem_to_omm.*` may be used by tests or downstream scripts and need a compatibility policy.

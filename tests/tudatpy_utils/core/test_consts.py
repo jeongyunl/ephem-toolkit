@@ -1,4 +1,4 @@
-"""Tests for common/consts.py — Physical and mathematical constants."""
+"""Tests for core/consts.py — Physical and mathematical constants."""
 
 from __future__ import annotations
 

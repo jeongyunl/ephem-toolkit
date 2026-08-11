@@ -11,7 +11,7 @@ This utility provides flexible slicing capabilities for OEM files:
 - **Interpolation**: Generate uniformly-spaced states at specified intervals
 - **Flexible output**: State data only or full OEM format
 
-The script is built on the `core.slice_oem` library module, which provides reusable slicing functions for programmatic use.
+The script is built on the `tudatpy_utils.core.slice_oem` library module, which provides reusable slicing functions for programmatic use.
 
 After Poetry installation, use `slice-oem` as the canonical command. The existing `python3 src/slice_oem/slice_oem.py ...` examples remain supported during the transition.
 
@@ -423,7 +423,7 @@ slice-oem orbit.oem --time-slice "-90m," > last_pass.txt
 
 ## Programmatic Usage
 
-The underlying library module `core.slice_oem` can be used directly in Python scripts:
+The underlying library module `tudatpy_utils.core.slice_oem` can be used directly in Python scripts:
 
 ```python
 import tudatpy_utils.core.ccsds.oem as oem
@@ -486,10 +486,10 @@ The following metadata is updated:
 - Python 3.7+
 - NumPy (for interpolation)
 - Local modules:
-  - `core.ccsds.oem` — OEM file parsing and writing
-  - `core.slice_oem` — Slicing logic and parsers
-  - `core.time_utils` — Time parsing and formatting
-  - `core.interpolator.lagrange` — Lagrange interpolation
+  - `tudatpy_utils.core.ccsds.oem` — OEM file parsing and writing
+  - `tudatpy_utils.core.slice_oem` — Slicing logic and parsers
+  - `tudatpy_utils.core.time_utils` — Time parsing and formatting
+  - `tudatpy_utils.core.interpolator.lagrange` — Lagrange interpolation
 
 ## Error Handling
 

@@ -481,7 +481,7 @@ def main() -> None:
         # Save OMM format with TLE parameters
         if args.output:
             try:
-                # Convert TLE to OMM using common library function
+                # Convert TLE to OMM using core library function
                 omm_obj: omm.CcsdsOmm = convert_tle.tle_to_omm(
                     tle_obj,
                     creation_date=time_utils.datetime_to_iso8601(

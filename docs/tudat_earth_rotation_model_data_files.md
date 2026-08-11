@@ -2,13 +2,13 @@
 
 Earth-rotation data used by the frame-conversion implementation is supplied by
 the installed TudatPy/Tudat SPICE resource directory. This document lists the
-files loaded directly by `common/frame_utils.py` and related resources that may
+files loaded directly by `core/frame_utils.py` and related resources that may
 be used by TudatPy. For the frame-conversion APIs and rotation-model behavior,
 see [tudatpy_frame_conversion.md](tudatpy_frame_conversion.md).
 
 ## Kernel loading
 
-`frame_utils.py` loads kernels through `common.spice_utils.load_kernel()` in
+`frame_utils.py` loads kernels through `core.spice_utils.load_kernel()` in
 `_load_spice_kernels()`. The repository does not contain copies of these
 files, and their absolute paths are determined by the installed TudatPy/Tudat
 SPICE resource directory.

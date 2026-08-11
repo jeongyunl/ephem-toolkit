@@ -2,7 +2,7 @@
 
 ## Context
 
-This repository contains several time-conversion experiments and tools under `time_conversion/`, plus Python helpers in `common/` that rely on TudatPy time-conversion functionality.
+This repository contains several time-conversion experiments and tools under `time_conversion/`, plus Python helpers in `core/` that rely on TudatPy time-conversion functionality.
 
 A recurring caveat is that some UTC/TAI-related conversions ultimately depend on leap-second data that may be hard-coded inside upstream libraries rather than loaded dynamically from an external leap-second file.
 
@@ -44,7 +44,7 @@ Illustrative call graph noted during investigation:
 When validating behavior of:
 
 - `time_conversion/tools/convert_time_cli.cpp` (built executable: `build/time_conversion/tools/convert_time_cli`)
-- Python helpers in `common/time_utils.py`
+- Python helpers in `core/time_utils.py`
 - time-conversion scripts that probe leap-second or UTC edge cases
 
 be aware that discrepancies near future leap seconds may come from upstream leap-second handling rather than from this repository's wrapper logic.

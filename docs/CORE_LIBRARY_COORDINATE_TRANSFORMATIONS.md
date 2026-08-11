@@ -1,4 +1,4 @@
-# Common Library - Coordinate Transformations
+# Core Library - Coordinate Transformations
 
 This document covers reference frame conversions and coordinate system transformations in the `core/` directory.
 
