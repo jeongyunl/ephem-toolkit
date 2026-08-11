@@ -1,4 +1,4 @@
-"""Tests for bin/slice_oem.py — OEM slicing utility script."""
+"""Tests for src/slice_oem/slice_oem.py — OEM slicing utility script."""
 
 from __future__ import annotations
 
@@ -21,10 +21,10 @@ TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent
 """Repository root path."""
 
-BIN_DIR: Path = PROJECT_ROOT / "bin"
-"""Directory containing executable scripts."""
+SRC_DIR: Path = PROJECT_ROOT / "src"
+"""Source directory containing executable scripts."""
 
-SLICE_OEM_SCRIPT: Path = BIN_DIR / "slice_oem.py"
+SLICE_OEM_SCRIPT: Path = SRC_DIR / "slice_oem" / "slice_oem.py"
 """Path to slice_oem.py script."""
 
 TEST_DATA_DIR: Path = PROJECT_ROOT / "test" / "data"
@@ -40,7 +40,7 @@ def _build_env() -> dict[str, str]:
     """Build a test PYTHONPATH environment for running the helper script."""
     env = os.environ.copy()
     existing = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = str(PROJECT_ROOT) + (os.pathsep + existing if existing else "")
+    env["PYTHONPATH"] = str(SRC_DIR) + (os.pathsep + existing if existing else "")
     return env
 
 

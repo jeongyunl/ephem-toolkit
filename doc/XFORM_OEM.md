@@ -345,7 +345,7 @@ resources required by a frame conversion.
 
 ## Related Tools
 
-- `bin/slice_oem.py` — Extract OEM states by index or time range (see
+- `src/slice_oem/slice_oem.py` — Extract OEM states by index or time range (see
   [SLICE_OEM.md](SLICE_OEM.md))
 - `bin/diff_oem.py` — Compare states from two OEM files (see
   [DIFF_OEM.md](DIFF_OEM.md))

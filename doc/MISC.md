@@ -5,7 +5,7 @@ Miscellaneous utilities for orbit analysis and comparison.
 ## Available scripts
 
 - `bin/diff_oem.py`
-- `bin/slice_oem.py`
+- `src/slice_oem/slice_oem.py`
 - `plotting/plot_orbit_deltas.py`
 - `plotting/plot_dependent_variables.py`
 
@@ -188,7 +188,7 @@ python3 bin/diff_oem.py -h
 
 - [DIFF_OEM.md](DIFF_OEM.md) — Complete documentation for OEM comparison utility
 
-## `bin/slice_oem.py`
+## `src/slice_oem/slice_oem.py`
 
 Slices CCSDS OEM files by index or time range, with optional interpolation.
 

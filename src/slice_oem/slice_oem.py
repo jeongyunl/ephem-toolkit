@@ -8,12 +8,12 @@ This utility provides flexible slicing capabilities for OEM files:
 - Flexible output: State data only or full OEM format
 
 Usage:
-    python3 bin/slice_oem.py <oem_file> [OPTIONS]
-    cat data.oem | python3 bin/slice_oem.py - [OPTIONS]
-    cat data.oem | python3 bin/slice_oem.py [OPTIONS]
+    python3 src/slice_oem/slice_oem.py <oem_file> [OPTIONS]
+    cat data.oem | python3 src/slice_oem/slice_oem.py - [OPTIONS]
+    cat data.oem | python3 src/slice_oem/slice_oem.py [OPTIONS]
 
 Index-based slicing examples:
-    python3 bin/slice_oem.py data.oem --slice "0:10"
+    python3 src/slice_oem/slice_oem.py data.oem --slice "0:10"
     python3 bin/slice_oem.py data.oem --slice "::2"
     python3 bin/slice_oem.py data.oem --slice "5"
     python3 bin/slice_oem.py data.oem --slice="-5:"

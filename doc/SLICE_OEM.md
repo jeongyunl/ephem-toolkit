@@ -1,6 +1,6 @@
 # OEM Slicing Utility
 
-The `bin/slice_oem.py` script extracts subsets of CCSDS OEM (Orbit Ephemeris Message) ephemeris data by index or time range, with optional interpolation support.
+The `src/slice_oem/slice_oem.py` script extracts subsets of CCSDS OEM (Orbit Ephemeris Message) ephemeris data by index or time range, with optional interpolation support.
 
 ## Overview
 
@@ -13,14 +13,14 @@ This utility provides flexible slicing capabilities for OEM files:
 
 The script is built on the `common.slice_oem` library module, which provides reusable slicing functions for programmatic use.
 
-After Poetry installation, use `slice-oem` as the canonical command. The existing `python3 bin/slice_oem.py ...` examples remain supported during the transition.
+After Poetry installation, use `slice-oem` as the canonical command. The existing `python3 src/slice_oem/slice_oem.py ...` examples remain supported during the transition.
 
 ## Synopsis
 
 ```bash
-python3 bin/slice_oem.py <oem_file> [OPTIONS]
-cat data.oem | python3 bin/slice_oem.py - [OPTIONS]
-cat data.oem | python3 bin/slice_oem.py [OPTIONS]
+python3 src/slice_oem/slice_oem.py <oem_file> [OPTIONS]
+cat data.oem | python3 src/slice_oem/slice_oem.py - [OPTIONS]
+cat data.oem | python3 src/slice_oem/slice_oem.py [OPTIONS]
 ```
 
 ## Options
@@ -46,18 +46,18 @@ When using negative indices (e.g., `-5:` for the last 5 states), argparse interp
 
 **Method 1: Use `=` syntax (recommended)**
 ```bash
-python3 bin/slice_oem.py data.oem --slice="-5:"
+python3 src/slice_oem/slice_oem.py data.oem --slice="-5:"
 ```
 
 **Method 2: Use `--` to signal end of options**
 ```bash
-python3 bin/slice_oem.py data.oem -- --slice "-5:"
+python3 src/slice_oem/slice_oem.py data.oem -- --slice "-5:"
 # Note: This doesn't work with argparse's standard behavior
 ```
 
 **Method 3: Quote and use equals**
 ```bash
-python3 bin/slice_oem.py data.oem --slice='-5:'
+python3 src/slice_oem/slice_oem.py data.oem --slice='-5:'
 ```
 
 The `=` syntax is the most reliable method and is recommended for all slice values that start with `-`.
