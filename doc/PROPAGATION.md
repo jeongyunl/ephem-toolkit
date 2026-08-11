@@ -6,19 +6,19 @@ After Poetry installation, use `propagate-orbit`, `propagate-kepler`, `propagate
 
 ## Available scripts
 
-- `propagation/propagate_orbit.py`
+- `src/propagate_orbit/propagate_orbit.py`
 - `src/propagate_kepler/propagate_kepler.py`
 - `src/plot_dep_vars/plot_dependent_variables.py`
 - `src/propagate_tle/propagate_tle.py`
 
-## `propagation/propagate_orbit.py`
+## `src/propagate_orbit/propagate_orbit.py`
 
 Propagates a perturbed satellite orbit around Earth using TudatPy. The script reads a single OEM-like state line containing epoch plus Cartesian position and velocity, then propagates it forward under a configurable set of perturbations including spherical-harmonic Earth gravity, third-body gravity, aerodynamic drag, and solar radiation pressure.
 
 ### Synopsis
 
 ```bash
-python3 propagation/propagate_orbit.py [-h] [-i <oem_state_line>] [-d <value[s|m|h|d]>] [--oem <file|->]
+python3 src/propagate_orbit/propagate_orbit.py [-h] [-i <oem_state_line>] [-d <value[s|m|h|d]>] [--oem <file|->]
   [--raw <file|->] [--dep-vars <file>] [--oem-step-size <value[s|m]>] [--name <name>] [--mass <kg>]
   [--integrator <rk_3|rk_4|rkf_45|rkf_56|rkf_78|rkf_89|rkf_108|rkf_1210|rkf_1412|rkdp_87|rkv_89>]
   [--integrator-step-size <fixed|init,max|init,min,max>] [--earth-gravity <DxO>] [--drag-area <m^2>]
@@ -138,7 +138,7 @@ Additional implementation notes:
 **Propagate from inline state for 1 day:**
 
 ```bash
-python3 propagation/propagate_orbit.py \
+python3 src/propagate_orbit/propagate_orbit.py \
   -d 1d \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -147,13 +147,13 @@ python3 propagation/propagate_orbit.py \
 
 ```bash
 echo "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217" \
-  | python3 propagation/propagate_orbit.py -d 2h
+  | python3 src/propagate_orbit/propagate_orbit.py -d 2h
 ```
 
 **Disable drag and SRP:**
 
 ```bash
-python3 propagation/propagate_orbit.py \
+python3 src/propagate_orbit/propagate_orbit.py \
   -d 1d --drag off --srp off \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -161,7 +161,7 @@ python3 propagation/propagate_orbit.py \
 **Use custom satellite properties:**
 
 ```bash
-python3 propagation/propagate_orbit.py \
+python3 src/propagate_orbit/propagate_orbit.py \
   -d 12h --name MySat --mass 500 --drag-coeff 2.5 --drag-area 0.5 --srp-coeff 1.5 \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -169,7 +169,7 @@ python3 propagation/propagate_orbit.py \
 **Export propagated state history as CCSDS OEM:**
 
 ```bash
-python3 propagation/propagate_orbit.py \
+python3 src/propagate_orbit/propagate_orbit.py \
   -d 6h --oem propagated.oem \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -177,7 +177,7 @@ python3 propagation/propagate_orbit.py \
 **Write raw propagated state history to stdout:**
 
 ```bash
-python3 propagation/propagate_orbit.py \
+python3 src/propagate_orbit/propagate_orbit.py \
   -d 30m --raw - \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -185,7 +185,7 @@ python3 propagation/propagate_orbit.py \
 **Write dependent variables to CSV:**
 
 ```bash
-python3 propagation/propagate_orbit.py \
+python3 src/propagate_orbit/propagate_orbit.py \
   -d 6h --dep-vars dep_vars.csv \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -199,7 +199,7 @@ python3 src/plot_dep_vars/plot_dependent_variables.py dep_vars.csv
 **Use a variable-step RKF 7(8) integrator:**
 
 ```bash
-python3 propagation/propagate_orbit.py \
+python3 src/propagate_orbit/propagate_orbit.py \
   -d 12h --integrator rkf_78 --integrator-step-size 30,0.001,1000 --earth-gravity 8x8 \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 ```
@@ -207,7 +207,7 @@ python3 propagation/propagate_orbit.py \
 **Show help:**
 
 ```bash
-python3 propagation/propagate_orbit.py -h
+python3 src/propagate_orbit/propagate_orbit.py -h
 ```
 
 ### Dependencies
@@ -390,7 +390,7 @@ python3 src/plot_dep_vars/plot_dependent_variables.py --name ISS_prop -d 2h dep_
 **Generate the CSV and then plot it:**
 
 ```bash
-python3 propagation/propagate_orbit.py \
+python3 src/propagate_orbit/propagate_orbit.py \
   -d 6h --dep-vars dep_vars.csv \
   -i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
 python3 src/plot_dep_vars/plot_dependent_variables.py dep_vars.csv
