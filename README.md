@@ -32,6 +32,30 @@ doc/                 Documentation
 
 ## Command-Line Tools
 
+### Poetry Console Commands
+
+After installing the Python package with Poetry, use the canonical commands below. The existing `python3 path/to/script.py` forms remain supported during the migration.
+
+| Workflow | Command |
+| --- | --- |
+| OEM comparison | `diff-oem` |
+| TLE download | `download-tle` |
+| OMM to TLE | `omm-to-tle` |
+| OEM slicing | `slice-oem` |
+| TLE inspection | `tle-info` |
+| TLE to OMM | `tle-to-omm` |
+| OEM frame transformation | `xform-oem` |
+| OEM to OMM fitting | `oem-to-omm` |
+| TLE fit evaluation | `evaluate-fit-tle` |
+| Orbit propagation | `propagate-orbit` |
+| Kepler propagation | `propagate-kepler` |
+| TLE propagation | `propagate-tle` |
+| Orbit plotting | `plot-orbit` |
+| Orbit-delta plotting | `plot-orbit-deltas` |
+| Dependent-variable plotting | `plot-dependent-variables` |
+
+Install plotting support with `poetry install -E plotting`. TudatPy-dependent workflows require TudatPy and its transitive dependencies through an external installation method.
+
 ### OEM Utilities
 
 - `bin/diff_oem.py` — compare corresponding states from two OEM files with optional rotation fitting and time-shift correction. See [DIFF_OEM.md](doc/DIFF_OEM.md) for details

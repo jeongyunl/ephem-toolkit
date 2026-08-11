@@ -6,6 +6,8 @@ Comprehensive documentation for the `oem_to_omm` module, which estimates Orbit M
 
 The `oem_to_omm` module provides tools for converting orbit ephemeris data in OEM (Orbit Ephemeris Message) format or raw Cartesian state vectors into OMM (Orbit Mean-Elements Message) format, including TLE (Two-Line Element) format. This is a non-trivial estimation problem because TLEs encode SGP4-compatible mean orbital elements rather than osculating Cartesian states.
 
+After Poetry installation, use `oem-to-omm` and `evaluate-fit-tle` as the canonical commands. The existing script-path examples remain supported during the transition.
+
 ## Module Structure
 
 The `oem_to_omm/` directory contains:

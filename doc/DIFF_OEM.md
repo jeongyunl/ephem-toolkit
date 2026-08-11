@@ -15,6 +15,8 @@ This utility provides comparison capabilities for OEM files:
 
 The script is built on the `diff_oem` library module, which provides reusable comparison functions for programmatic use.
 
+After Poetry installation, use `diff-oem` as the canonical command. The existing `python3 bin/diff_oem.py ...` examples remain supported during the transition.
+
 ## Synopsis
 
 ```bash
