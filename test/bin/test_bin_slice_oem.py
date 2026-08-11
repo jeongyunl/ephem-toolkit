@@ -371,6 +371,22 @@ def test_cli_time_slice_interpolation_enabled_by_default() -> None:
         temp_path.unlink()
 
 
+def test_cli_warns_when_input_has_fewer_states_than_interpolation_degree() -> None:
+    """Test warning for interpolation with fewer input states than requested degree."""
+    temp_path, _ = _create_test_oem(num_states=7, interval_seconds=60)
+    try:
+        result = _run_slice_oem(
+            [str(temp_path), "--time-slice", "0,,1m", "--data-only"]
+        )
+        assert result.returncode == 0
+        assert (
+            "Warning: input contains 7 states, fewer than the requested "
+            "interpolation degree 8"
+        ) in result.stderr
+    finally:
+        temp_path.unlink()
+
+
 def test_cli_time_slice_no_interpolate_flag() -> None:
     """Test that --no-interpolate flag disables interpolation."""
     temp_path, _ = _create_test_oem(num_states=60, interval_seconds=60)
@@ -409,9 +425,7 @@ def test_cli_data_only_output_format() -> None:
     """Test --data-only flag for state vector output."""
     temp_path, original_oem = _create_test_oem(num_states=10)
     try:
-        result = _run_slice_oem(
-            [str(temp_path), "--slice", "0:3", "--data-only"]
-        )
+        result = _run_slice_oem([str(temp_path), "--slice", "0:3", "--data-only"])
         assert result.returncode == 0
 
         # Raw output should be space-separated values, not OEM format

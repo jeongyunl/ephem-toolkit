@@ -29,6 +29,20 @@ def test_lagrange_interpolator_interpolates_linear_data() -> None:
     assert estimated == pytest.approx([4.5, 4.5])
 
 
+def test_lagrange_interpolator_adjusts_degree_for_short_data() -> None:
+    """Test interpolation when fewer samples than the requested degree exist."""
+    interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
+        dimension=2, degree=8
+    )
+    for x in range(7):
+        interpolator.add_data_point(
+            float(x), np.array([float(x), float(2 * x)], dtype=float)
+        )
+
+    estimated: np.ndarray | None = interpolator.interpolate(5.5)
+    assert estimated == pytest.approx([5.5, 11.0])
+
+
 def test_interpolated_oem_velocity_norm_matches_original_oem() -> None:
     """Test that interpolated OEM states preserve velocity norm accuracy."""
 
@@ -41,7 +55,9 @@ def test_interpolated_oem_velocity_norm_matches_original_oem() -> None:
 
     all_states_float: list[tuple[float, np.ndarray]] = CcsdsOem.read(oem_path).states
     # Convert to dict for easier access by timestamp
-    all_states_dict: dict[float, np.ndarray] = {ts: state for ts, state in all_states_float}
+    all_states_dict: dict[float, np.ndarray] = {
+        ts: state for ts, state in all_states_float
+    }
     all_timestamps: list = [ts for ts, _ in all_states_float]
     first_n_timestamps: list[float] = all_timestamps[:number_of_data_points]
 
@@ -146,7 +162,9 @@ def test_internal_cache_integrity() -> None:
 
     all_states_float: list[tuple[float, np.ndarray]] = CcsdsOem.read(oem_path).states
     # Convert to dict for easier access by timestamp
-    all_states_dict: dict[float, np.ndarray] = {ts: state for ts, state in all_states_float}
+    all_states_dict: dict[float, np.ndarray] = {
+        ts: state for ts, state in all_states_float
+    }
     all_timestamps: list = [ts for ts, _ in all_states_float]
     first_n_timestamps: list[float] = all_timestamps[:number_of_data_points]
 

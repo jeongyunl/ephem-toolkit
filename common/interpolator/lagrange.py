@@ -106,6 +106,7 @@ class LagrangeInterpolator(interpolator.Interpolator):
 
     def interpolate_value(self, independent_value: float) -> np.ndarray | None:
         """Compute the interpolated dependent vector for the requested value."""
+        self.adjust_order_for_points()
         feasibility_flag: int = self.check_interpolation_feasibility(independent_value)
         if feasibility_flag != 1:
             return None
