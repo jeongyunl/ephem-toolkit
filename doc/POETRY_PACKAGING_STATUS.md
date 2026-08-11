@@ -4,7 +4,7 @@ Last updated: 2026-08-10
 
 ## Overall Status
 
-**Step 5 complete; Step 6 pending.** This document tracks the implementation of [POETRY_PACKAGING_PLAN.md](POETRY_PACKAGING_PLAN.md). Poetry metadata, a lock file, a transitional importable package layout, console entry points, and documentation references are present.
+**Step 6 complete; Step 7 pending.** This document tracks the implementation of [POETRY_PACKAGING_PLAN.md](POETRY_PACKAGING_PLAN.md). Poetry metadata, a lock file, a transitional importable package layout, console entry points, documentation references, and a resource policy are present.
 
 ## Checklist
 
@@ -18,7 +18,7 @@ Last updated: 2026-08-10
 - [x] Create the selected `src/` package layout.
 - [x] Migrate reusable modules and repair package imports through the transitional namespace bridge.
 - [x] Add console entry points and compatibility wrappers.
-- [ ] Package and test runtime data resources.
+- [x] Package and test runtime data resources.
 - [x] Update README and domain documentation with installed-command examples.
 - [x] Generate and review `poetry.lock`.
 - [ ] Build and install a wheel in a clean environment.
@@ -56,6 +56,9 @@ Last updated: 2026-08-10
 - `poetry check` passes with the PEP 621 metadata configuration.
 - `poetry lock` succeeds and `poetry install --no-root` installs the locked core/development dependencies.
 - TudatPy is not in the lock file because no `tudatpy` package is available from the configured package index; TudatPy workflows still require an external installation method.
+- Resource policy is recorded in [POETRY_PACKAGING_RESOURCES.md](POETRY_PACKAGING_RESOURCES.md): the wheel contains Python modules only, test fixtures remain outside the wheel, and SPICE kernels remain TudatPy-managed external data.
+- `test/test_packaging_resources.py` verifies the installed package root through `importlib.resources`.
+- Wheel inspection found no test fixtures or generated data/build files.
 
 ## Risks And Open Questions
 
@@ -67,6 +70,7 @@ Last updated: 2026-08-10
 - Three Poetry-environment test collection failures require external TudatPy support and its transitive `astropy` dependency; 583 tests collect before those failures.
 - TudatPy-dependent console commands remain unverified until the external TudatPy/astropy environment is available.
 - README and affected domain documents now identify canonical Poetry commands while preserving direct script examples as compatibility forms.
+- No package-owned runtime templates or lookup tables were found, so no package-data inclusion rules were added.
 
 ## Work Log
 
@@ -79,3 +83,4 @@ Last updated: 2026-08-10
 | 2026-08-10 | Added `src/tudatpy_utils`, package markers, and a transitional namespace bridge over legacy domains. | `poetry build`, isolated wheel imports, `poetry install`, and editable canonical imports passed. | Step 4 complete; console entry points are the next implementation step. |
 | 2026-08-10 | Registered 15 Poetry console commands and added the canonical command table to README. | `poetry check`, `poetry install`, all command wrappers installed; plotting extra smoke tests passed. | Entry-point implementation complete; remaining Step 5 work is broader domain-document migration and TudatPy validation. |
 | 2026-08-10 | Added canonical command notes to affected domain documentation. | Reviewed command references in eight Markdown documents; legacy examples remain intact. | Step 5 complete; package-data handling is the next implementation step. |
+| 2026-08-10 | Added package-resource policy and installed-resource smoke test. | `poetry run pytest -q test/test_packaging_resources.py` passed; wheel contained no test fixtures or generated data files. | Step 6 complete; distribution validation is the next implementation step. |
