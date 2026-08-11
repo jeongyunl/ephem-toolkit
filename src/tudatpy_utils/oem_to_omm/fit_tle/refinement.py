@@ -15,11 +15,11 @@ from dataclasses import replace
 
 import numpy as np
 
-import common.common as common
-import common.convert_tle as convert_tle
-import common.kepler as kepler
-import common.tle as tle
-import common.consts as consts
+import core.common as common
+import core.convert_tle as convert_tle
+import core.kepler as kepler
+import core.tle as tle
+import core.consts as consts
 
 from . import constants
 from .linalg import solve_weighted_least_squares

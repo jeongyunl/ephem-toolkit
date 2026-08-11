@@ -46,9 +46,9 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-import common.ccsds.oem as oem
-import common.slice_oem as slice_oem
-import common.time_utils as time_utils
+import core.ccsds.oem as oem
+import core.slice_oem as slice_oem
+import core.time_utils as time_utils
 
 
 def main() -> None:

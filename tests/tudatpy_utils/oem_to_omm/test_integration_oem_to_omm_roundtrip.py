@@ -10,9 +10,9 @@ from pathlib import Path
 
 import pytest
 
-import common.convert_tle as convert_tle
-import common.ccsds.omm as omm
-import common.tle as tle
+import core.convert_tle as convert_tle
+import core.ccsds.omm as omm
+import core.tle as tle
 
 TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent

@@ -8,10 +8,10 @@ from typing import TextIO
 
 import numpy as np
 
-import common.common as common
-import common.interpolator.lagrange as lagrange
-import common.ccsds.oem as oem
-import common.time_utils as time_utils
+import core.common as common
+import core.interpolator.lagrange as lagrange
+import core.ccsds.oem as oem
+import core.time_utils as time_utils
 
 from .data_structures import ComparisonResult
 from .types import State, StatePair

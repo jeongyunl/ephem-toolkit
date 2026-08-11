@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import common.ccsds.oem as oem
+import core.ccsds.oem as oem
 
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test modules."""
@@ -42,7 +42,7 @@ def _build_env() -> dict[str, str]:
     """Build a test PYTHONPATH environment for running the helper script."""
     env = os.environ.copy()
     existing = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = str(SRC_DIR) + (os.pathsep + existing if existing else "")
+    env["PYTHONPATH"] = str(SRC_DIR) + os.pathsep + str(SRC_DIR / "tudatpy_utils") + (os.pathsep + existing if existing else "")
     return env
 
 

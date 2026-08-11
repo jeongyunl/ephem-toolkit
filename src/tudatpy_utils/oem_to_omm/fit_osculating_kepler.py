@@ -13,9 +13,9 @@ from datetime import datetime
 
 import numpy as np
 
-import common.consts as consts
-import common.kepler as kepler
-import common.time_utils as time_utils
+import core.consts as consts
+import core.kepler as kepler
+import core.time_utils as time_utils
 from . import fit_common
 
 

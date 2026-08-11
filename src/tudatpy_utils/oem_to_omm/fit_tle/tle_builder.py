@@ -6,7 +6,7 @@ import argparse
 import io
 import math
 
-import common.tle as tle
+import core.tle as tle
 from . import models
 
 

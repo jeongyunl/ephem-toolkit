@@ -5,15 +5,9 @@ import sys
 
 __version__ = "0.1.0"
 
-from . import common as _common
-
-sys.modules["common"] = _common
-
-from .common import ccsds as _ccsds
-from .common import interpolator as _interpolator
-
-sys.modules["common.ccsds"] = _ccsds
-sys.modules["common.interpolator"] = _interpolator
+from . import core as _core
+from .core import ccsds as _ccsds
+from .core import interpolator as _interpolator
 
 for _package_name in (
     "diff_oem",

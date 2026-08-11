@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import common.interpolator.lagrange as lagrange
+import core.interpolator.lagrange as lagrange
 import diff_oem.cli as cli
 import diff_oem.comparison as comparison
 import diff_oem.data_structures as data_structures

@@ -20,6 +20,6 @@ oem_to_omm/*.omm
 oem_to_omm/*.tle
 propagation/*.oem
 tmp/
-src/tudatpy_utils/common/interpolator/cpp/
+src/tudatpy_utils/core/interpolator/cpp/
 poetry.lock
 .coverage

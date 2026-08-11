@@ -31,9 +31,9 @@ warnings.filterwarnings(
     module=r"urllib3(\..*)?",
 )
 
-import common.ccsds.oem as oem
-import common.kepler as kepler
-import common.time_utils as time_utils
+import core.ccsds.oem as oem
+import core.kepler as kepler
+import core.time_utils as time_utils
 
 # ===================================================================
 # Constants

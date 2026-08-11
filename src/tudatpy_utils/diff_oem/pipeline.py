@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from typing import Any, Callable
 
-import common.interpolator.lagrange as lagrange
+import core.interpolator.lagrange as lagrange
 
 from .data_structures import TransformationStageInput
 from .transformation_stages import TransformationStage, INTERPOLATION_DEGREE

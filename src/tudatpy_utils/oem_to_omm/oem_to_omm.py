@@ -56,13 +56,13 @@ warnings.filterwarnings(
     module=r"urllib3(\..*)?",
 )
 
-import common.consts as consts
-import common.convert_tle as convert_tle
-import common.mean_kepler as mean_kepler
-import common.ccsds.oem as oem
-import common.ccsds.omm as omm
-import common.time_utils as time_utils
-import common.tle as tle
+import core.consts as consts
+import core.convert_tle as convert_tle
+import core.mean_kepler as mean_kepler
+import core.ccsds.oem as oem
+import core.ccsds.omm as omm
+import core.time_utils as time_utils
+import core.tle as tle
 
 import oem_to_omm.fit_common as fit_common
 import oem_to_omm.fit_mean_kepler as fit_mean_kepler

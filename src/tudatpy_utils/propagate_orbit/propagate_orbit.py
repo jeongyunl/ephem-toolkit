@@ -28,8 +28,8 @@ import re
 import sys
 from typing import Any
 
-import common.spice_utils as spice_utils
-import common.time_utils as time_utils
+import core.spice_utils as spice_utils
+import core.time_utils as time_utils
 
 KILOMETERS_TO_METERS: float = 1e3
 """Conversion factor from kilometers to meters."""
@@ -1425,8 +1425,8 @@ for an overview of the use of SPICE in Tudat.
 
 # common.common -- first module that pulls in tudatpy (via tudatpy.astro.time_representation).
 # Imported here, just before build_propagation_inputs() which is its first caller.
-import common.common as common
-import common.ccsds.oem as common_oem
+import core.common as common
+import core.ccsds.oem as common_oem
 
 propagation_inputs: PropagationInputs = build_propagation_inputs(cli_args)
 input_source: str = "--initial-state" if cli_args.initial_state is not None else "stdin"

@@ -6,9 +6,9 @@ import io
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import common.tle as tle
-import common.consts as consts
-import common.ccsds.oem as oem
+import core.tle as tle
+import core.consts as consts
+import core.ccsds.oem as oem
 import oem_to_omm.oem_to_omm as oem_to_omm
 import oem_to_omm.fit_tle.models as models
 import oem_to_omm.fit_tle.orbital_mechanics as orbital_mechanics
