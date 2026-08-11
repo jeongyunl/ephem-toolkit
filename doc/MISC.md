@@ -7,7 +7,7 @@ Miscellaneous utilities for orbit analysis and comparison.
 - `bin/diff_oem.py`
 - `src/slice_oem/slice_oem.py`
 - `plotting/plot_orbit_deltas.py`
-- `plotting/plot_dependent_variables.py`
+- `src/plot_dep_vars/plot_dependent_variables.py`
 
 Poetry users can use the canonical commands `diff-oem`, `slice-oem`, `plot-orbit-deltas`, and `plot-dependent-variables`. The script paths below remain supported compatibility forms.
 

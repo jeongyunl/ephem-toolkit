@@ -1,4 +1,4 @@
-"""Tests for plotting/plot_dependent_variables.py — Dependent variable plotting utility script."""
+"""Tests for src/plot_dep_vars/plot_dependent_variables.py — Dependent variable plotting utility script."""
 
 from __future__ import annotations
 

@@ -94,7 +94,7 @@ See [TLE.md](doc/TLE.md) for full usage details.
 ### Visualization
 
 - `plotting/plot_orbit_deltas.py` — plot and compare multiple orbits
-- `plotting/plot_dependent_variables.py` — plot dependent variables from propagation output
+- `src/plot_dep_vars/plot_dependent_variables.py` — plot dependent variables from propagation output
 
 ### Time Conversion
 
