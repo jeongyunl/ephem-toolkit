@@ -56,18 +56,18 @@ warnings.filterwarnings(
     module=r"urllib3(\..*)?",
 )
 
-import core.consts as consts
-import core.convert_tle as convert_tle
-import core.mean_kepler as mean_kepler
-import core.ccsds.oem as oem
-import core.ccsds.omm as omm
-import core.time_utils as time_utils
-import core.tle as tle
+import tudatpy_utils.core.consts as consts
+import tudatpy_utils.core.convert_tle as convert_tle
+import tudatpy_utils.core.mean_kepler as mean_kepler
+import tudatpy_utils.core.ccsds.oem as oem
+import tudatpy_utils.core.ccsds.omm as omm
+import tudatpy_utils.core.time_utils as time_utils
+import tudatpy_utils.core.tle as tle
 
-import oem_to_omm.fit_common as fit_common
-import oem_to_omm.fit_mean_kepler as fit_mean_kepler
-import oem_to_omm.fit_osculating_kepler as fit_osculating_kepler
-import oem_to_omm.fit_tle_main as fit_tle
+from . import fit_common
+from . import fit_mean_kepler
+from . import fit_osculating_kepler
+from . import fit_tle_main as fit_tle
 
 FIT_SPAN_S: float = 7200.0
 """Default fit span: 2 hours in seconds."""

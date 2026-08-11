@@ -43,18 +43,18 @@ warnings.filterwarnings(
     module=r"urllib3(\..*)?",
 )
 
-import core.consts as consts
-import core.ccsds.oem as oem
-import core.time_utils as time_utils
-import core.tle as tle
+import tudatpy_utils.core.consts as consts
+import tudatpy_utils.core.ccsds.oem as oem
+import tudatpy_utils.core.time_utils as time_utils
+import tudatpy_utils.core.tle as tle
 
-from oem_to_omm import fit_common
-from oem_to_omm import fit_tle_main as fit_tle
-from oem_to_omm.fit_tle import estimation
-from oem_to_omm.fit_tle import models
-from oem_to_omm.fit_tle import orbital_mechanics
-from oem_to_omm.fit_tle import refinement
-from oem_to_omm.fit_tle import tle_builder
+from . import fit_common
+from . import fit_tle_main as fit_tle
+from .fit_tle import estimation
+from .fit_tle import models
+from .fit_tle import orbital_mechanics
+from .fit_tle import refinement
+from .fit_tle import tle_builder
 
 # ===================================================================
 # Constants

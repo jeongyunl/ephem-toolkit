@@ -27,11 +27,11 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-import core.consts as consts
-import core.time_utils as time_utils
-import core.tle as tle
-import core.convert_tle as convert_tle
-import core.spice_utils as spice_utils
+import tudatpy_utils.core.consts as consts
+import tudatpy_utils.core.time_utils as time_utils
+import tudatpy_utils.core.tle as tle
+import tudatpy_utils.core.convert_tle as convert_tle
+import tudatpy_utils.core.spice_utils as spice_utils
 from . import fit_common
 from .fit_tle import estimation
 from .fit_tle import models

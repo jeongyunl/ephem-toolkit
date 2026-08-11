@@ -12,11 +12,11 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-import core.misc as misc
-import core.convert_tle as convert_tle
-import core.kepler as kepler
-import core.consts as consts
-import core.tle as tle
+import tudatpy_utils.core.misc as misc
+import tudatpy_utils.core.convert_tle as convert_tle
+import tudatpy_utils.core.kepler as kepler
+import tudatpy_utils.core.consts as consts
+import tudatpy_utils.core.tle as tle
 from . import constants
 from . import models
 from . import orbital_mechanics
