@@ -10,7 +10,7 @@ Current TLE-related scripts in this repository include:
 - `src/download_tle/download_tle.py`
 - `src/omm_to_tle/omm_to_tle.py`
 - `bin/tle_to_omm.py`
-- `bin/tle_info.py`
+- `src/tle_info/tle_info.py`
 - `common/convert_tle.py`
 
 This document focuses on the primary user-facing tools and the current repository context around them.
@@ -82,14 +82,14 @@ python3 src/download_tle/download_tle.py -h
 
 - Python standard library (urllib)
 
-## `bin/tle_info.py`
+## `src/tle_info/tle_info.py`
 
 Inspects and displays detailed TLE information including orbital elements and Cartesian state.
 
 ### Synopsis
 
 ```bash
-python3 bin/tle_info.py <tle_file> [<tle_file2>] ...
+python3 src/tle_info/tle_info.py <tle_file> [<tle_file2>] ...
 ```
 
 ### Options
@@ -129,19 +129,19 @@ For each TLE file, prints:
 **Display TLE information:**
 
 ```bash
-python3 bin/tle_info.py test/data/ISS-ZARYA_1998-067A.tle
+python3 src/tle_info/tle_info.py test/data/ISS-ZARYA_1998-067A.tle
 ```
 
 **Display information for multiple TLE files:**
 
 ```bash
-python3 bin/tle_info.py test/data/ISS-ZARYA_1998-067A.tle test/data/AMOS-17_2019-050A.tle
+python3 src/tle_info/tle_info.py test/data/ISS-ZARYA_1998-067A.tle test/data/AMOS-17_2019-050A.tle
 ```
 
 **Show help:**
 
 ```bash
-python3 bin/tle_info.py -h
+python3 src/tle_info/tle_info.py -h
 ```
 
 ### Dependencies
