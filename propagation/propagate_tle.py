@@ -22,19 +22,22 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import pathlib
+from pathlib import Path
 import sys
 from typing import Any
-import warnings
-
 import numpy as np
 
-# Suppress urllib3 and SyntaxWarning messages that may be emitted during
-# tudatpy import to keep output clean for piped usage.
-warnings.filterwarnings("ignore", module="urllib3")
-warnings.filterwarnings("ignore", category=SyntaxWarning)
+import warnings
 
-PROJECT_ROOT: pathlib.Path = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+# Suppress warnings that tudatpy / urllib3 may emit on import.
+warnings.filterwarnings("ignore", category=SyntaxWarning)
+warnings.filterwarnings(
+    "ignore",
+    module=r"urllib3(\..*)?",
+)
+
+# Add parent directory to path to import common module
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.ccsds.oem as oem
 import common.spice_utils as spice_utils

@@ -23,13 +23,14 @@ References:
 from __future__ import annotations
 
 import math
-import os
+from pathlib import Path
 import sys
 from datetime import datetime, timezone
 
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+# Add parent directory to path to import common module
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.common as common
 import common.consts as consts

@@ -42,14 +42,23 @@ from __future__ import annotations
 
 import argparse
 import sys
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import NoReturn, TextIO
-
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import warnings
+
+# Suppress warnings that tudatpy / urllib3 may emit on import.
+warnings.filterwarnings("ignore", category=SyntaxWarning)
+warnings.filterwarnings(
+    "ignore",
+    module=r"urllib3(\..*)?",
+)
+
+
+# Add parent directory to path to import common module
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.consts as consts
 import common.convert_tle as convert_tle
