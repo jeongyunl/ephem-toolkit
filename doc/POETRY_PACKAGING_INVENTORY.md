@@ -29,7 +29,7 @@ These are the current documented script entry points. Direct `python3 path/to/sc
 | `src/download_tle/download_tle.py` | `python3 src/download_tle/download_tle.py [--format FORMAT] <satellite-id> ...` | Download TLE or OMM data to files. |
 | `src/omm_to_tle/omm_to_tle.py` | `python3 src/omm_to_tle/omm_to_tle.py <input.omm>` | Convert OMM input to TLE output. |
 | `src/slice_oem/slice_oem.py` | `python3 src/slice_oem/slice_oem.py <oem> --slice START:STOP:STEP` | Slice an OEM stream or file. |
-| `bin/tle_info.py` | `python3 bin/tle_info.py <file.tle> ...` | Print TLE metadata and derived orbital values. |
+| `src/tle_info/tle_info.py` | `python3 src/tle_info/tle_info.py <file.tle> ...` | Print TLE metadata and derived orbital values. |
 | `bin/tle_to_omm.py` | `python3 bin/tle_to_omm.py <input.tle>` | Convert TLE input to OMM output. |
 | `bin/xform_oem.py` | `python3 bin/xform_oem.py <oem> --x-ref-frame FRAME [-o OUTPUT]` | Transform OEM states between supported frames or coordinate forms. |
 | `src/oem_to_omm/oem_to_omm.py` | `python3 src/oem_to_omm/oem_to_omm.py --kepler\|--mean-kepler\|--tle <input.oem>` | Fit OEM states and emit an OMM. |
@@ -103,7 +103,7 @@ Poetry console scripts will use lowercase hyphenated names:
 | `src/download_tle/download_tle.py` | `download-tle` |
 | `src/omm_to_tle/omm_to_tle.py` | `omm-to-tle` |
 | `src/slice_oem/slice_oem.py` | `slice-oem` |
-| `bin/tle_info.py` | `tle-info` |
+| `src/tle_info/tle_info.py` | `tle-info` |
 | `bin/tle_to_omm.py` | `tle-to-omm` |
 | `bin/xform_oem.py` | `xform-oem` |
 | `src/oem_to_omm/oem_to_omm.py` | `oem-to-omm` |

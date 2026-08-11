@@ -1,4 +1,4 @@
-"""Tests for bin/tle_info.py — TLE information utility script."""
+"""Tests for src/tle_info/tle_info.py — TLE information utility script."""
 
 from __future__ import annotations
 

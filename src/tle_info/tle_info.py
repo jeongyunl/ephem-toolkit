@@ -2,7 +2,7 @@
 """Display TLE parameters and derived orbital elements for one or more TLE files.
 
 Usage:
-    python3 tle_info.py [-h] tle_file [tle_file ...]
+    python3 src/tle_info/tle_info.py [-h] tle_file [tle_file ...]
 
 Reads TLE files provided as CLI arguments, loads each using TudatPy's SGP4
 ephemeris, and prints the epoch, TLE parameters, Cartesian state, and
