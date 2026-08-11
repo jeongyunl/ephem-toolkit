@@ -240,7 +240,7 @@ Key algorithmic features:
 - `common/kepler.py` — Keplerian element conversions with J2 corrections
 - `common/ccsds/oem.py` — OEM parsing utilities
 - `propagation/propagate_tle.py` — TLE propagation with SGP4
-- `bin/omm_to_tle.py` — Convert OMM to TLE
+- `src/omm_to_tle/omm_to_tle.py` — Convert OMM to TLE
 - `bin/tle_to_omm.py` — Convert TLE to OMM
 
 ## Best Practices
