@@ -26,7 +26,7 @@ plotting = ["matplotlib>=3.7"]
 Repository = "https://github.com/jeongyunl/tudatpy-utils"
 
 [project.scripts]
-diff-oem = "bin.diff_oem:main"
+diff-oem = "diff_oem.diff_oem:main"
 download-tle = "bin.download_tle:main"
 omm-to-tle = "bin.omm_to_tle:main"
 slice-oem = "bin.slice_oem:main"
@@ -47,7 +47,7 @@ packages = [
     { include = "tudatpy_utils", from = "src" },
     { include = "bin", from = "." },
     { include = "common", from = "src" },
-    { include = "diff_oem", from = "." },
+    { include = "diff_oem", from = "src" },
     { include = "oem_to_omm", from = "." },
     { include = "propagation", from = "." },
     { include = "plotting", from = "." },
