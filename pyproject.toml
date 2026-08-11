@@ -27,9 +27,27 @@ plotting = ["matplotlib>=3.7"]
 [project.urls]
 Repository = "https://github.com/jeongyunl/tudatpy-utils"
 
+[project.scripts]
+diff-oem = "bin.diff_oem:main"
+download-tle = "bin.download_tle:main"
+omm-to-tle = "bin.omm_to_tle:main"
+slice-oem = "bin.slice_oem:main"
+tle-info = "bin.tle_info:main"
+tle-to-omm = "bin.tle_to_omm:main"
+xform-oem = "bin.xform_oem:main"
+oem-to-omm = "oem_to_omm.oem_to_omm:main"
+evaluate-fit-tle = "oem_to_omm.evaluate_fit_tle:main"
+propagate-orbit = "tudatpy_utils.cli:propagate_orbit_main"
+propagate-kepler = "propagation.propagate_kepler:main"
+propagate-tle = "propagation.propagate_tle:main"
+plot-orbit = "plotting.plot_orbit:main"
+plot-orbit-deltas = "plotting.plot_orbit_deltas:main"
+plot-dependent-variables = "plotting.plot_dependent_variables:main"
+
 [tool.poetry]
 packages = [
     { include = "tudatpy_utils", from = "src" },
+    { include = "bin", from = "." },
     { include = "common", from = "." },
     { include = "diff_oem", from = "." },
     { include = "oem_to_omm", from = "." },

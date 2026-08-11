@@ -2,6 +2,8 @@
 
 Propagation utilities for OEM-like Cartesian states and TLEs.
 
+After Poetry installation, use `propagate-orbit`, `propagate-kepler`, `propagate-tle`, and `plot-dependent-variables` as the canonical commands. The existing script paths remain supported during the transition.
+
 ## Available scripts
 
 - `propagation/propagate_orbit.py`

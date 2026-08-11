@@ -4,7 +4,7 @@ Last updated: 2026-08-10
 
 ## Overall Status
 
-**Step 4 complete; Step 5 pending.** This document tracks the implementation of [POETRY_PACKAGING_PLAN.md](POETRY_PACKAGING_PLAN.md). Poetry metadata, a lock file, and a transitional importable package layout are present.
+**Step 5 complete; Step 6 pending.** This document tracks the implementation of [POETRY_PACKAGING_PLAN.md](POETRY_PACKAGING_PLAN.md). Poetry metadata, a lock file, a transitional importable package layout, console entry points, and documentation references are present.
 
 ## Checklist
 
@@ -17,9 +17,9 @@ Last updated: 2026-08-10
 - [x] Add and review `pyproject.toml`.
 - [x] Create the selected `src/` package layout.
 - [x] Migrate reusable modules and repair package imports through the transitional namespace bridge.
-- [ ] Add console entry points and compatibility wrappers.
+- [x] Add console entry points and compatibility wrappers.
 - [ ] Package and test runtime data resources.
-- [ ] Update README and domain documentation with installed-command examples.
+- [x] Update README and domain documentation with installed-command examples.
 - [x] Generate and review `poetry.lock`.
 - [ ] Build and install a wheel in a clean environment.
 - [ ] Run Python tests in Poetry.
@@ -51,6 +51,7 @@ Last updated: 2026-08-10
 - Step 4 currently exposes the canonical namespace through an import bridge over the packaged legacy domains; physical source relocation remains a future cleanup option.
 - `poetry build` produces sdist and wheel artifacts, and isolated wheel imports pass for canonical and legacy package paths when NumPy is installed.
 - `poetry install` plus canonical import smoke tests pass in the editable Poetry environment.
+- All 15 canonical console commands are installed; lightweight and plotting commands pass `--help` smoke tests.
 - The target console command names are lowercase and hyphenated; underscore aliases will not be registered initially.
 - `poetry check` passes with the PEP 621 metadata configuration.
 - `poetry lock` succeeds and `poetry install --no-root` installs the locked core/development dependencies.
@@ -64,6 +65,8 @@ Last updated: 2026-08-10
 - CLI names and behavior are not yet unified; packaging should preserve behavior before attempting broader CLI cleanup.
 - Supported Python versions and the compatibility-wrapper deprecation timeline remain open for the next steps.
 - Three Poetry-environment test collection failures require external TudatPy support and its transitive `astropy` dependency; 583 tests collect before those failures.
+- TudatPy-dependent console commands remain unverified until the external TudatPy/astropy environment is available.
+- README and affected domain documents now identify canonical Poetry commands while preserving direct script examples as compatibility forms.
 
 ## Work Log
 
@@ -74,3 +77,5 @@ Last updated: 2026-08-10
 | 2026-08-10 | Completed Step 2 package, import, dependency-extra, console-command, and compatibility decisions. | Reviewed the Step 1 inventory and recorded the 15-command map. | Step 2 complete; Poetry metadata is the next implementation step. |
 | 2026-08-10 | Added PEP 621 Poetry metadata and generated `poetry.lock`. | `poetry check`, `poetry lock`, and `poetry install --no-root` passed; TudatPy package-index resolution was tested and unavailable. | Step 3 complete; source package layout is the next implementation step. |
 | 2026-08-10 | Added `src/tudatpy_utils`, package markers, and a transitional namespace bridge over legacy domains. | `poetry build`, isolated wheel imports, `poetry install`, and editable canonical imports passed. | Step 4 complete; console entry points are the next implementation step. |
+| 2026-08-10 | Registered 15 Poetry console commands and added the canonical command table to README. | `poetry check`, `poetry install`, all command wrappers installed; plotting extra smoke tests passed. | Entry-point implementation complete; remaining Step 5 work is broader domain-document migration and TudatPy validation. |
+| 2026-08-10 | Added canonical command notes to affected domain documentation. | Reviewed command references in eight Markdown documents; legacy examples remain intact. | Step 5 complete; package-data handling is the next implementation step. |

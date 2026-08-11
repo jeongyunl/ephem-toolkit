@@ -6,6 +6,8 @@ Azimuth-Elevation-Range (AER) coordinates, or rewrites OEM data and metadata.
 It can read from a file or standard input and write either an OEM file, AER
 text, or standard output.
 
+After Poetry installation, use `xform-oem` as the canonical command. The existing `python3 bin/xform_oem.py ...` examples remain supported during the transition.
+
 ## Overview
 
 This utility provides several related operations:

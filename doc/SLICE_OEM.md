@@ -13,6 +13,8 @@ This utility provides flexible slicing capabilities for OEM files:
 
 The script is built on the `common.slice_oem` library module, which provides reusable slicing functions for programmatic use.
 
+After Poetry installation, use `slice-oem` as the canonical command. The existing `python3 bin/slice_oem.py ...` examples remain supported during the transition.
+
 ## Synopsis
 
 ```bash
