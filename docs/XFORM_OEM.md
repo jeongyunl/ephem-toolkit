@@ -1,6 +1,6 @@
 # OEM Transformation Utility
 
-The `src/xform_oem/xform_oem.py` script transforms CCSDS OEM (Orbit Ephemeris Message)
+The `xform-oem` utility transforms CCSDS OEM (Orbit Ephemeris Message)
 state histories between supported reference frames, converts ECEF positions to
 Azimuth-Elevation-Range (AER) coordinates, or rewrites OEM data and metadata.
 It can read from a file or standard input and write either an OEM file, AER
@@ -30,8 +30,8 @@ with `--x-csv`, the output includes the CSV state header.
 ## Synopsis
 
 ```bash
-python3 src/xform_oem/xform_oem.py <oem_file> [OPTIONS]
-cat data.oem | python3 src/xform_oem/xform_oem.py [OPTIONS]
+xform-oem <oem_file> [OPTIONS]
+cat data.oem | xform-oem [OPTIONS]
 ```
 
 Use `-` or omit `<oem_file>` to read CCSDS OEM data from standard input. The
@@ -83,14 +83,14 @@ rotation models where applicable.
 Convert an OEM state history to a new reference frame:
 
 ```bash
-python3 bin/xform_oem.py input.oem --x-ref-frame ITRF1993 -o output.oem
+xform-oem input.oem --x-ref-frame ITRF1993 -o output.oem
 ```
 
 By default, the source frame is read from the input OEM metadata. Override it
 when the metadata does not describe the actual state vectors:
 
 ```bash
-python3 bin/xform_oem.py input.oem \
+xform-oem input.oem \
   --x-ref-frame GCRF,ITRF1993 \
   -o output.oem
 ```
@@ -114,7 +114,7 @@ Convert ECEF or ITRF positions to Azimuth-Elevation-Range coordinates relative
 to a ground station:
 
 ```bash
-python3 bin/xform_oem.py ecef.oem --x-aer 40.7128,-74.0060,10.0
+xform-oem ecef.oem --x-aer 40.7128,-74.0060,10.0
 ```
 
 The three comma-separated values are:
@@ -126,7 +126,7 @@ The three comma-separated values are:
 For example, read OEM data from stdin and save AER output to a file:
 
 ```bash
-cat ecef.oem | python3 bin/xform_oem.py \
+cat ecef.oem | xform-oem \
   --x-aer 40.7128,-74.0060,10.0 \
   -o station_aer.txt
 ```
@@ -163,7 +163,7 @@ headers are not included.
 Use repeated `--set-meta KEY=VALUE` options to override output OEM metadata:
 
 ```bash
-python3 bin/xform_oem.py input.oem \
+xform-oem input.oem \
   --x-ref-frame ITRF1993 \
   --set-meta OBJECT_NAME=ISS \
   --set-meta CENTER_NAME=EARTH \
@@ -195,7 +195,7 @@ Use repeated `--set-header KEY=VALUE` options to override CCSDS OEM header
 fields:
 
 ```bash
-python3 bin/xform_oem.py input.oem \
+xform-oem input.oem \
   --set-header ORIGINATOR=tudatpy-utils \
   --set-header CREATION_DATE=2026-08-07T12:00:00.000 \
   -o output.oem
@@ -218,22 +218,22 @@ The input file is optional. These commands are equivalent ways to read from
 standard input:
 
 ```bash
-cat orbit.oem | python3 bin/xform_oem.py --x-ref-frame J2000
-cat orbit.oem | python3 bin/xform_oem.py - --x-ref-frame J2000
+cat orbit.oem | xform-oem --x-ref-frame J2000
+cat orbit.oem | xform-oem - --x-ref-frame J2000
 ```
 
 Write an OEM result to standard output or to a file:
 
 ```bash
-python3 bin/xform_oem.py orbit.oem --x-ref-frame ITRF1993 > orbit_itrf1993.oem
-python3 bin/xform_oem.py orbit.oem --x-ref-frame ITRF1993 -o orbit_itrf1993.oem
+xform-oem orbit.oem --x-ref-frame ITRF1993 > orbit_itrf1993.oem
+xform-oem orbit.oem --x-ref-frame ITRF1993 -o orbit_itrf1993.oem
 ```
 
 AER output can also be chained with other command-line tools:
 
 ```bash
 cat orbit.oem \
-  | python3 bin/xform_oem.py --x-aer 52.5200,13.4050,45.0 \
+  | xform-oem --x-aer 52.5200,13.4050,45.0 \
   | awk '$3 > 10.0'
 ```
 
@@ -243,7 +243,7 @@ Use `-v` or `--verbose` to print input information and transformation details
 to stderr, keeping stdout available for OEM or AER output:
 
 ```bash
-python3 bin/xform_oem.py orbit.oem --x-ref-frame ITRF1993 --verbose > output.oem
+xform-oem orbit.oem --x-ref-frame ITRF1993 --verbose > output.oem
 ```
 
 Verbose output includes:
@@ -263,7 +263,7 @@ Verbose output includes:
 ### Rewrite an OEM Without Transforming States
 
 ```bash
-python3 bin/xform_oem.py input.oem \
+xform-oem input.oem \
   --set-meta OBJECT_NAME=TEST_OBJECT \
   --set-header ORIGINATOR=tudatpy-utils \
   -o rewritten.oem
@@ -272,7 +272,7 @@ python3 bin/xform_oem.py input.oem \
 ### Convert TEME to an Earth-Fixed Frame
 
 ```bash
-python3 bin/xform_oem.py input.oem \
+xform-oem input.oem \
   --x-ref-frame TEME,ITRF1993 \
   -o output.oem
 ```
@@ -280,7 +280,7 @@ python3 bin/xform_oem.py input.oem \
 ### Convert an Earth-Fixed Frame to an Inertial Frame
 
 ```bash
-python3 bin/xform_oem.py input.oem \
+xform-oem input.oem \
   --x-ref-frame ITRF1993,J2000 \
   -o output.oem
 ```
@@ -288,7 +288,7 @@ python3 bin/xform_oem.py input.oem \
 ### Convert ECEF Positions for Ground-Station Analysis
 
 ```bash
-python3 bin/xform_oem.py input.oem \
+xform-oem input.oem \
   --x-aer 35.6762,139.6503,40.0 \
   --output tokyo_aer.txt
 ```
@@ -345,9 +345,9 @@ resources required by a frame conversion.
 
 ## Related Tools
 
-- `src/slice_oem/slice_oem.py` — Extract OEM states by index or time range (see
+- `slice-oem` — Extract OEM states by index or time range (see
   [SLICE_OEM.md](SLICE_OEM.md))
-- `bin/diff_oem.py` — Compare states from two OEM files (see
+- `diff-oem` — Compare states from two OEM files (see
   [DIFF_OEM.md](DIFF_OEM.md))
 - `common/frame_utils.py` — Lower-level frame conversion implementation
 - [tudatpy_frame_conversion.md](tudatpy_frame_conversion.md) — TudatPy API and

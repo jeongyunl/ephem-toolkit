@@ -4,14 +4,14 @@ Miscellaneous utilities for orbit analysis and comparison.
 
 ## Available scripts
 
-- `bin/diff_oem.py`
-- `src/slice_oem/slice_oem.py`
-- `src/plot_orbit_deltas/plot_orbit_deltas.py`
-- `src/plot_dep_vars/plot_dependent_variables.py`
+- `diff-oem`
+- `slice-oem`
+- `plot-orbit-deltas`
+- `plot-dependent-variables`
 
 Poetry users can use the canonical commands `diff-oem`, `slice-oem`, `plot-orbit-deltas`, and `plot-dependent-variables`. The script paths below remain supported compatibility forms.
 
-## `bin/diff_oem.py`
+## `diff-oem`
 
 Compares corresponding states from two CCSDS OEM files and reports position and
 velocity differences. Without interpolation, states are compared sequentially
@@ -24,7 +24,7 @@ See [DIFF_OEM.md](DIFF_OEM.md) for complete documentation.
 ### Synopsis
 
 ```bash
-python3 bin/diff_oem.py [-h] [-v] [--debug] [--interpolate] \
+diff-oem [-h] [-v] [--debug] [--interpolate] \
   [--interpolate-ref] [--interpolate-data] [--rtn] \
   [--rot] [--rot-xy] [--rot-z] [--time-shift] \
   [--rot-fit-span <duration>] \
@@ -109,74 +109,74 @@ The script prints a comparison summary including:
 **Compare two OEM files:**
 
 ```bash
-python3 bin/diff_oem.py reference.oem comparison.oem
+diff-oem reference.oem comparison.oem
 ```
 
 **Compare with verbose output:**
 
 ```bash
-python3 bin/diff_oem.py -v reference.oem comparison.oem
+diff-oem -v reference.oem comparison.oem
 ```
 
 **Interpolate the reference history:**
 
 ```bash
-python3 bin/diff_oem.py --interpolate-ref reference.oem comparison.oem
+diff-oem --interpolate-ref reference.oem comparison.oem
 ```
 
 **Interpolate comparison data:**
 
 ```bash
-python3 bin/diff_oem.py --interpolate-data reference.oem comparison.oem
+diff-oem --interpolate-data reference.oem comparison.oem
 ```
 
 **Interpolate both histories:**
 
 ```bash
-python3 bin/diff_oem.py --interpolate reference.oem comparison.oem
+diff-oem --interpolate reference.oem comparison.oem
 ```
 
 **Compare a time window with RTN output and debug ranges:**
 
 ```bash
-python3 bin/diff_oem.py --start 2026-01-01T00:00:00 --stop 2h \
+diff-oem --start 2026-01-01T00:00:00 --stop 2h \
   --rtn --debug reference.oem comparison.oem
 ```
 
 **Fit and apply a 3D rotation to align comparison with reference:**
 
 ```bash
-python3 bin/diff_oem.py --rot reference.oem comparison.oem
+diff-oem --rot reference.oem comparison.oem
 ```
 
 **Fit and apply a Z-axis rotation only:**
 
 ```bash
-python3 bin/diff_oem.py --rot-z reference.oem comparison.oem
+diff-oem --rot-z reference.oem comparison.oem
 ```
 
 **Fit and apply a time shift to align epochs:**
 
 ```bash
-python3 bin/diff_oem.py --time-shift reference.oem comparison.oem
+diff-oem --time-shift reference.oem comparison.oem
 ```
 
 **Apply multiple transformations in sequence (rotation then time-shift):**
 
 ```bash
-python3 bin/diff_oem.py --rot --time-shift reference.oem comparison.oem
+diff-oem --rot --time-shift reference.oem comparison.oem
 ```
 
 **Use custom rotation fitting span (first 30 minutes):**
 
 ```bash
-python3 bin/diff_oem.py --rot --rot-fit-span 1800 reference.oem comparison.oem
+diff-oem --rot --rot-fit-span 1800 reference.oem comparison.oem
 ```
 
 **Show help:**
 
 ```bash
-python3 bin/diff_oem.py -h
+diff-oem -h
 ```
 
 ### Dependencies
@@ -188,20 +188,20 @@ python3 bin/diff_oem.py -h
 
 - [DIFF_OEM.md](DIFF_OEM.md) — Complete documentation for OEM comparison utility
 
-## `src/slice_oem/slice_oem.py`
+## `slice-oem`
 
 Slices CCSDS OEM files by index or time range, with optional interpolation.
 
 See [SLICE_OEM.md](SLICE_OEM.md) for complete documentation.
 
-## `src/plot_orbit_deltas/plot_orbit_deltas.py`
+## `plot-orbit-deltas`
 
 Plots multiple orbit trajectories with various views and RTN (Radial-Transverse-Normal) coordinates.
 
 ### Synopsis
 
 ```bash
-python3 src/plot_orbit_deltas/plot_orbit_deltas.py [-h] [-o <output_file>] [-d <duration>] [--time-unit <unit>] <reference_oem> [<comparison_oem1>] [<comparison_oem2>] ...
+plot-orbit-deltas [-h] [-o <output_file>] [-d <duration>] [--time-unit <unit>] <reference_oem> [<comparison_oem1>] [<comparison_oem2>] ...
 ```
 
 ### Options
@@ -256,37 +256,37 @@ Otherwise, figures are displayed interactively.
 **Plot single orbit:**
 
 ```bash
-python3 src/plot_orbit_deltas/plot_orbit_deltas.py reference.oem
+plot-orbit-deltas reference.oem
 ```
 
 **Plot reference orbit with comparison orbits:**
 
 ```bash
-python3 src/plot_orbit_deltas/plot_orbit_deltas.py reference.oem comparison1.oem comparison2.oem
+plot-orbit-deltas reference.oem comparison1.oem comparison2.oem
 ```
 
 **Save output to files:**
 
 ```bash
-python3 src/plot_orbit_deltas/plot_orbit_deltas.py reference.oem comparison.oem -o orbits.png
+plot-orbit-deltas reference.oem comparison.oem -o orbits.png
 ```
 
 **Analyze only first 2 hours:**
 
 ```bash
-python3 src/plot_orbit_deltas/plot_orbit_deltas.py reference.oem comparison.oem -d 2h
+plot-orbit-deltas reference.oem comparison.oem -d 2h
 ```
 
 **Use minutes for time-series x-axis:**
 
 ```bash
-python3 src/plot_orbit_deltas/plot_orbit_deltas.py reference.oem comparison.oem --time-unit minutes
+plot-orbit-deltas reference.oem comparison.oem --time-unit minutes
 ```
 
 **Show help:**
 
 ```bash
-python3 src/plot_orbit_deltas/plot_orbit_deltas.py -h
+plot-orbit-deltas -h
 ```
 
 ### Dependencies
