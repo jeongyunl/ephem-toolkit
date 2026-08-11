@@ -35,7 +35,7 @@ These are the current documented script entry points. Direct `python3 path/to/sc
 | `src/oem_to_omm/oem_to_omm.py` | `python3 src/oem_to_omm/oem_to_omm.py --kepler\|--mean-kepler\|--tle <input.oem>` | Fit OEM states and emit an OMM. |
 | `src/oem_to_omm/evaluate_fit_tle.py` | `python3 src/oem_to_omm/evaluate_fit_tle.py [--fit-span HOURS] <input.oem>` | Evaluate TLE fit quality. |
 | `propagation/propagate_orbit.py` | `python3 propagation/propagate_orbit.py -i STATE [-d DURATION] [--oem OUTPUT]` | Propagate a Cartesian state with configured models. |
-| `propagation/propagate_kepler.py` | `python3 propagation/propagate_kepler.py` | Propagate a two-body Kepler state. |
+| `src/propagate_kepler/propagate_kepler.py` | `python3 src/propagate_kepler/propagate_kepler.py` | Propagate a two-body Kepler state. |
 | `propagation/propagate_tle.py` | `python3 propagation/propagate_tle.py --tle FILE [-d DURATION]` | Propagate a TLE. |
 | `src/plot_orbit/plot_orbit.py` | `python3 src/plot_orbit/plot_orbit.py --csv FILE` | Plot orbit and dependent-variable data. |
 | `src/plot_orbit_deltas/plot_orbit_deltas.py` | `python3 src/plot_orbit_deltas/plot_orbit_deltas.py <oem> ...` | Plot orbit differences. |
@@ -109,7 +109,7 @@ Poetry console scripts will use lowercase hyphenated names:
 | `src/oem_to_omm/oem_to_omm.py` | `oem-to-omm` |
 | `src/oem_to_omm/evaluate_fit_tle.py` | `evaluate-fit-tle` |
 | `propagation/propagate_orbit.py` | `propagate-orbit` |
-| `propagation/propagate_kepler.py` | `propagate-kepler` |
+| `src/propagate_kepler/propagate_kepler.py` | `propagate-kepler` |
 | `propagation/propagate_tle.py` | `propagate-tle` |
 | `src/plot_orbit/plot_orbit.py` | `plot-orbit` |
 | `src/plot_orbit_deltas/plot_orbit_deltas.py` | `plot-orbit-deltas` |

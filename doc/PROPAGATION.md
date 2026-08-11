@@ -7,7 +7,7 @@ After Poetry installation, use `propagate-orbit`, `propagate-kepler`, `propagate
 ## Available scripts
 
 - `propagation/propagate_orbit.py`
-- `propagation/propagate_kepler.py`
+- `src/propagate_kepler/propagate_kepler.py`
 - `src/plot_dep_vars/plot_dependent_variables.py`
 - `propagation/propagate_tle.py`
 
@@ -224,14 +224,14 @@ The script loads these SPICE kernels from TudatPy's SPICE kernel directory:
 - `earth_200101_990825_predict.bpc`
 - `tudat_merged_spk_kernel.bsp`
 
-## `propagation/propagate_kepler.py`
+## `src/propagate_kepler/propagate_kepler.py`
 
 Propagates Keplerian elements forward in time using the two-body Kepler propagator. The script reads one OEM-like line of Keplerian elements from a file or stdin, propagates the orbit, converts each propagated state to Cartesian coordinates, and outputs the results in OEM-like format.
 
 ### Synopsis
 
 ```bash
-python3 propagation/propagate_kepler.py [-h] [-d <value[s|m|h|d]>] [-s <value[s|m]>] [--data-only] [<input_file>]
+python3 src/propagate_kepler/propagate_kepler.py [-h] [-d <value[s|m|h|d]>] [-s <value[s|m]>] [--data-only] [<input_file>]
 ```
 
 ### Options
@@ -276,26 +276,26 @@ metadata header:
 **Propagate from a file for 1 day:**
 
 ```bash
-python3 propagation/propagate_kepler.py kepler_state.txt -d 1d
+python3 src/propagate_kepler/propagate_kepler.py kepler_state.txt -d 1d
 ```
 
 **Propagate from stdin for 2 hours with 1-minute steps:**
 
 ```bash
 echo "2026-05-29T00:00:00.000000 6793.456 0.001234 0.9013 4.094 2.155 0.797" \
-  | python3 propagation/propagate_kepler.py -d 2h -s 1m
+  | python3 src/propagate_kepler/propagate_kepler.py -d 2h -s 1m
 ```
 
 **Output state lines without OEM metadata:**
 
 ```bash
-python3 propagation/propagate_kepler.py kepler_state.txt --data-only
+python3 src/propagate_kepler/propagate_kepler.py kepler_state.txt --data-only
 ```
 
 **Show help:**
 
 ```bash
-python3 propagation/propagate_kepler.py -h
+python3 src/propagate_kepler/propagate_kepler.py -h
 ```
 
 ### Dependencies
