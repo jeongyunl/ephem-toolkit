@@ -9,7 +9,7 @@ Current TLE-related scripts in this repository include:
 - `src/oem_to_omm/oem_to_omm.py`
 - `src/download_tle/download_tle.py`
 - `src/omm_to_tle/omm_to_tle.py`
-- `bin/tle_to_omm.py`
+- `src/tle_to_omm/tle_to_omm.py`
 - `src/tle_info/tle_info.py`
 - `common/convert_tle.py`
 
@@ -216,14 +216,14 @@ python3 src/omm_to_tle/omm_to_tle.py -h
 
 - local helper modules `common.convert_tle`, `common.ccsds.omm`, `common.tle`
 
-## `bin/tle_to_omm.py`
+## `src/tle_to_omm/tle_to_omm.py`
 
 Converts Two-Line Element (TLE) format to CCSDS Orbit Mean-Elements Message (OMM) format.
 
 ### Synopsis
 
 ```bash
-python3 bin/tle_to_omm.py [-h] [-o <output.omm>] [<input.tle>]
+python3 src/tle_to_omm/tle_to_omm.py [-h] [-o <output.omm>] [<input.tle>]
 ```
 
 ### Options
@@ -253,25 +253,25 @@ Outputs CCSDS OMM format (KVN).
 **Convert TLE file to OMM:**
 
 ```bash
-python3 bin/tle_to_omm.py test/data/ISS-ZARYA_1998-067A.tle
+python3 src/tle_to_omm/tle_to_omm.py test/data/ISS-ZARYA_1998-067A.tle
 ```
 
 **Convert TLE file and save to output file:**
 
 ```bash
-python3 bin/tle_to_omm.py test/data/ISS-ZARYA_1998-067A.tle -o output.omm
+python3 src/tle_to_omm/tle_to_omm.py test/data/ISS-ZARYA_1998-067A.tle -o output.omm
 ```
 
 **Convert TLE from stdin:**
 
 ```bash
-cat test/data/ISS-ZARYA_1998-067A.tle | python3 bin/tle_to_omm.py
+cat test/data/ISS-ZARYA_1998-067A.tle | python3 src/tle_to_omm/tle_to_omm.py
 ```
 
 **Show help:**
 
 ```bash
-python3 bin/tle_to_omm.py -h
+python3 src/tle_to_omm/tle_to_omm.py -h
 ```
 
 ### Dependencies

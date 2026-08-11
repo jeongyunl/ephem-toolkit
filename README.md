@@ -86,7 +86,7 @@ See [OEM_TO_OMM.md](doc/OEM_TO_OMM.md) for full usage details.
 - `src/download_tle/download_tle.py` — download TLE data
 - `src/omm_to_tle/omm_to_tle.py` — convert OMM → TLE
 - `src/slice_oem/slice_oem.py` — slice OEM data
-- `bin/tle_to_omm.py` — convert TLE → OMM
+- `src/tle_to_omm/tle_to_omm.py` — convert TLE → OMM
 - `src/tle_info/tle_info.py` — inspect TLE information
 
 See [TLE.md](doc/TLE.md) for full usage details.

@@ -1,4 +1,4 @@
-"""Tests for bin/tle_to_omm.py — TLE to OMM conversion utility script."""
+"""Tests for src/tle_to_omm/tle_to_omm.py — TLE to OMM conversion utility script."""
 
 from __future__ import annotations
 
