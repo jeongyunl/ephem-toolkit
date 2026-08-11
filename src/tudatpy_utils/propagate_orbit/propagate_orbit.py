@@ -28,8 +28,8 @@ import re
 import sys
 from typing import Any
 
-import core.spice_utils as spice_utils
-import core.time_utils as time_utils
+import tudatpy_utils.core.spice_utils as spice_utils
+import tudatpy_utils.core.time_utils as time_utils
 
 KILOMETERS_TO_METERS: float = 1e3
 """Conversion factor from kilometers to meters."""
