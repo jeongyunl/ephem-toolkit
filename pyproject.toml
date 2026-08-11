@@ -38,7 +38,7 @@ evaluate-fit-tle = "oem_to_omm.evaluate_fit_tle:main"
 propagate-orbit = "tudatpy_utils.cli:propagate_orbit_main"
 propagate-kepler = "propagation.propagate_kepler:main"
 propagate-tle = "propagation.propagate_tle:main"
-plot-orbit = "plotting.plot_orbit:main"
+plot-orbit = "plot_orbit.plot_orbit:main"
 plot-orbit-deltas = "plotting.plot_orbit_deltas:main"
 plot-dependent-variables = "plotting.plot_dependent_variables:main"
 
@@ -51,6 +51,7 @@ packages = [
     { include = "tle_info", from = "src" },
     { include = "tle_to_omm", from = "src" },
     { include = "xform_oem", from = "src" },
+    { include = "plot_orbit", from = "src" },
     { include = "bin", from = "." },
     { include = "common", from = "src" },
     { include = "diff_oem", from = "src" },
