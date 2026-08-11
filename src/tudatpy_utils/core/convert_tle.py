@@ -10,15 +10,14 @@ from __future__ import annotations
 
 import math
 import re
-from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
-from . import kepler as kepler
-from . import mean_kepler as mean_kepler
-from .ccsds import omm as omm
-from . import tle as tle
-from . import consts as consts
+from . import kepler
+from . import mean_kepler
+from .ccsds import omm
+from . import tle
+from . import consts
 
 # ===================================================================
 # Internal helpers
@@ -452,6 +451,7 @@ def tle_to_osculating_keplerian(
 
     References
     ----------
+    https://en.wikipedia.org/wiki/Brouwer%E2%80%93Lyddane_mean_motion
     Vallado, D.A. "Fundamentals of Astrodynamics and Applications"
     Brouwer, D. "Solution of the Problem of Artificial Satellite Theory
     Without Drag", Astronomical Journal, 64, 1959.

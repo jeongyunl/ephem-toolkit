@@ -1,4 +1,9 @@
-"""Utilities for resolving and loading TudatPy SPICE kernels."""
+"""Utilities for resolving and loading TudatPy SPICE kernels.
+
+References:
+    https://naif.jpl.nasa.gov/naif/toolkit.html
+    https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/kernel.html
+"""
 
 from __future__ import annotations
 
@@ -25,6 +30,10 @@ def get_spice_kernel_path() -> str:
     -------
     str
         Path to the SPICE kernel directory.
+
+    References
+    ----------
+    https://naif.jpl.nasa.gov/naif/toolkit.html
     """
     try:
         cached_path: str = _SPICE_CACHE_FILE.read_text(encoding="utf-8").strip()
@@ -57,6 +66,10 @@ def load_kernel(kernel_file: str, kernel_path: str | Path | None = None) -> None
     kernel_path : str or Path, optional
         Directory containing the kernel file. Defaults to the cached TudatPy
         SPICE kernel directory.
+
+    References
+    ----------
+    https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/kernel.html
     """
     if kernel_path is None:
         kernel_path = get_spice_kernel_path()

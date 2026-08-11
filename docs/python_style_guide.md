@@ -41,8 +41,55 @@ def epochs(self) -> list[float]:
 """Convert between Cartesian and Keplerian elements.
 
 References:
+    https://en.wikipedia.org/wiki/Orbital_elements
     Curtis, H.D. "Orbital Mechanics for Engineering Students", Ch. 4.
 """
+```
+
+### 1.1 References
+
+**Prefer online references (URLs) when available.** Online resources are immediately accessible to all developers and remain available regardless of library access.
+
+**Priority order:**
+1. **Official standards/specifications** (e.g., CCSDS Blue Books, ISO standards)
+2. **Wikipedia articles** for well-established concepts
+3. **Authoritative online documentation** (NASA, ESA, textbook companion sites)
+4. **Academic papers with DOIs** (prefer DOI links over direct PDFs)
+5. **Textbooks** (only when no suitable online reference exists)
+
+```python
+# Preferred: Online reference
+"""Compute eccentric anomaly from mean anomaly using Newton-Raphson iteration.
+
+References:
+    https://en.wikipedia.org/wiki/Kepler%27s_equation#Numerical_approximation_of_inverse_problem
+"""
+
+# Acceptable: Mix of online and print when online unavailable
+"""Parse CCSDS Orbit Mean-Elements Message (OMM) format.
+
+References:
+    https://public.ccsds.org/Pubs/502x0b3e1.pdf (CCSDS 502.0-B-3)
+    Vallado, D.A. "Fundamentals of Astrodynamics and Applications", 4th ed., Ch. 3.
+"""
+
+# Avoid: Print-only reference when online alternative exists
+"""Compute orbital period from semi-major axis.
+
+References:
+    Curtis, H.D. "Orbital Mechanics for Engineering Students", Ch. 2, Eq. 2.73.
+"""
+```
+
+**Inline comments** referencing equations or algorithms should also prefer online sources:
+```python
+# Preferred: Online reference with specific equation
+# https://en.wikipedia.org/wiki/Orbital_elements#Keplerian - Eq. for h
+h_vec = np.cross(position_m, velocity_m_s)
+
+# Acceptable: Textbook when widely recognized
+# Curtis Eq. 4.62: specific angular momentum vector
+h_vec = np.cross(position_m, velocity_m_s)
 ```
 
 **Executable scripts** (with `#!/usr/bin/env python3` shebang) use `Usage:`:
@@ -358,6 +405,15 @@ core.kepler.MU_EARTH  # Too verbose
 ```
 
 **Rationale:** Using `import X as Y` provides a clean namespace while keeping code concise. The alias should match the module's base name (e.g., `core.ccsds.oem as oem`, `core.slice_oem as slice_oem`).
+
+**Avoid redundant aliases:** Don't repeat the module name when using `as`:
+```python
+# Correct
+from . import wgs
+
+# Wrong (redundant)
+from . import wgs as wgs
+```
 
 Standard library and third-party may use `from X import Y` where idiomatic (`from pathlib import Path`, `from datetime import datetime`).
 

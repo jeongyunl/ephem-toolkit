@@ -4,7 +4,7 @@ This module provides the library functions used by the OEM CLI wrapper in
 `src/slice_oem/slice_oem.py`.
 
 References:
-    ISO 8601 "Date and time representations".
+    https://en.wikipedia.org/wiki/ISO_8601 (ISO 8601 "Date and time representations")
 """
 
 from __future__ import annotations
@@ -16,8 +16,8 @@ import sys
 
 import numpy as np
 
-from .interpolator import lagrange as lagrange
-from . import time_utils as time_utils
+from .interpolator import lagrange
+from . import time_utils
 from .ccsds.oem import CcsdsOem
 
 # ===================================================================

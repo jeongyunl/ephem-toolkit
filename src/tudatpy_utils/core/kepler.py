@@ -19,6 +19,8 @@ tudatpy's ``element_conversion`` module:
     ======  ====  ==========================================
 
 References:
+    https://en.wikipedia.org/wiki/Orbital_elements
+    https://en.wikipedia.org/wiki/Kepler%27s_laws_of_planetary_motion
     Curtis, H.D. "Orbital Mechanics for Engineering Students", Chapter 4.
     Vallado, D.A. "Fundamentals of Astrodynamics and Applications", Algorithm 9.
 """
@@ -26,7 +28,7 @@ References:
 from __future__ import annotations
 
 import numpy as np
-from . import consts as consts
+from . import consts
 
 # ===================================================================
 # Keplerian element indices (matches tudatpy convention)
@@ -89,6 +91,13 @@ def cartesian_to_keplerian(
     ValueError
         If the state vector shape is invalid or if any orbit is
         degenerate (zero angular momentum).
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Orbital_elements#Keplerian_elements
+    https://orbital-mechanics.space/classical-orbital-elements/orbital-elements-and-the-state-vector.html
+    Curtis, H.D. "Orbital Mechanics for Engineering Students", Chapter 4.
+    Vallado, D.A. "Fundamentals of Astrodynamics and Applications", Algorithm 9.
     """
     state_vector: np.ndarray = np.asarray(cartesian_state_vector, dtype=float)
 
@@ -124,6 +133,7 @@ def cartesian_to_keplerian(
         raise ValueError("Position vector has zero magnitude — degenerate orbit.")
 
     # --- Specific angular momentum ---
+    # https://en.wikipedia.org/wiki/Specific_angular_momentum
     angular_momentum_vectors: np.ndarray = np.cross(
         positions, velocities
     )  # shape (N, 3)
@@ -145,6 +155,7 @@ def cartesian_to_keplerian(
     node_norms: np.ndarray = np.linalg.norm(node_vectors, axis=1)  # shape (N,)
 
     # --- Eccentricity vector (points toward periapsis) ---
+    # https://en.wikipedia.org/wiki/Eccentricity_vector
     # e = (v²/mu - 1/r) * r - (r·v)/mu * v
     eccentricity_vectors: np.ndarray = (
         velocity_norms**2 / mu_m3_s2 - 1.0 / position_norms
@@ -156,21 +167,25 @@ def cartesian_to_keplerian(
     )  # shape (N,)
 
     # --- Specific mechanical energy ---
+    # https://en.wikipedia.org/wiki/Specific_orbital_energy
     energies: np.ndarray = (
         0.5 * velocity_norms**2 - mu_m3_s2 / position_norms
     )  # shape (N,)
 
     # --- Semi-major axis ---
+    # https://en.wikipedia.org/wiki/Semi-major_and_semi-minor_axes#Orbital_period
     semi_major_axes: np.ndarray = np.full(state_vector.shape[0], np.inf, dtype=float)
     elliptic_mask: np.ndarray = np.abs(1.0 - eccentricities) > 1e-10
     semi_major_axes[elliptic_mask] = -mu_m3_s2 / (2.0 * energies[elliptic_mask])
 
     # --- Inclination ---
+    # https://en.wikipedia.org/wiki/Orbital_inclination
     inclinations: np.ndarray = np.arccos(
         np.clip(angular_momentum_vectors[:, 2] / angular_momenta, -1.0, 1.0)
     )  # shape (N,)
 
     # --- Right Ascension of the Ascending Node (RAAN / Ω) ---
+    # https://en.wikipedia.org/wiki/Longitude_of_the_ascending_node
     raans: np.ndarray = np.zeros(state_vector.shape[0], dtype=float)
     equatorial_mask: np.ndarray = node_norms > 1e-10
     raans[equatorial_mask] = np.arccos(
@@ -183,6 +198,7 @@ def cartesian_to_keplerian(
     raans[quadrant_mask] = 2.0 * np.pi - raans[quadrant_mask]
 
     # --- Argument of Periapsis (ω) ---
+    # https://en.wikipedia.org/wiki/Argument_of_periapsis
     argument_of_periapsis: np.ndarray = np.zeros(state_vector.shape[0], dtype=float)
 
     # Case 1: Non-equatorial, eccentric orbit
@@ -212,6 +228,7 @@ def cartesian_to_keplerian(
     # (already initialized to 0)
 
     # --- True Anomaly (θ / ν) ---
+    # https://en.wikipedia.org/wiki/True_anomaly
     true_anomalies: np.ndarray = np.zeros(state_vector.shape[0], dtype=float)
 
     # Case 1: Eccentric orbit
@@ -301,6 +318,13 @@ def keplerian_to_cartesian(
     ValueError
         If the orbit is parabolic (infinite semi-major axis) or if
         the input shape is invalid.
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Orbital_elements#Keplerian_elements
+    https://orbital-mechanics.space/classical-orbital-elements/orbital-elements-and-the-state-vector.html
+    Curtis, H.D. "Orbital Mechanics for Engineering Students", Chapter 4.
+    Vallado, D.A. "Fundamentals of Astrodynamics and Applications", Algorithm 9.
     """
     elements: np.ndarray = np.asarray(keplerian_elements, dtype=float)
 
@@ -336,6 +360,7 @@ def keplerian_to_cartesian(
         raise ValueError("Parabolic orbits not supported in inverse conversion.")
 
     # Semi-latus rectum: shape (N,)
+    # https://en.wikipedia.org/wiki/Semi-latus_rectum
     semi_latus_rectums: np.ndarray = semi_major_axes * (1.0 - eccentricities**2)
 
     # Position magnitude in perifocal frame: shape (N,)
@@ -452,6 +477,10 @@ def true_to_eccentric_anomaly(true_anomaly: float, eccentricity: float) -> float
     -------
     float
         Eccentric anomaly E (rad) in [0, 2π).
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Eccentric_anomaly#From_the_true_anomaly
     """
     eccentric_anomaly: float = 2.0 * np.arctan2(
         np.sqrt(1.0 - eccentricity) * np.sin(true_anomaly / 2.0),
@@ -476,6 +505,10 @@ def eccentric_to_true_anomaly(eccentric_anomaly: float, eccentricity: float) -> 
     -------
     float
         True anomaly θ (rad) in [-π, π].
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/True_anomaly#From_the_eccentric_anomaly
     """
     # Use the half-angle formula with arctan2 for numerical stability
     # This naturally returns values in [-π, π] matching tudatpy's convention
@@ -500,6 +533,10 @@ def eccentric_to_mean_anomaly(eccentric_anomaly: float, eccentricity: float) -> 
     -------
     float
         Mean anomaly M (rad).
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Kepler%27s_equation
     """
     return eccentric_anomaly - eccentricity * np.sin(eccentric_anomaly)
 
@@ -531,6 +568,11 @@ def mean_to_eccentric_anomaly(
     ------
     RuntimeError
         If Newton-Raphson does not converge.
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Kepler%27s_equation#Numerical_approximation_of_inverse_problem
+    Vallado, D.A. "Fundamentals of Astrodynamics and Applications", Algorithm 65.
     """
     # Improved initial guess based on Vallado's method
     # Normalize mean anomaly to [-π, π] for better convergence
@@ -592,6 +634,10 @@ def mean_to_true_anomaly(
     -------
     float
         True anomaly θ (rad) in [-π, π].
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Mean_anomaly#Formulae
     """
     eccentric_anomaly: float = mean_to_eccentric_anomaly(
         mean_anomaly, eccentricity, tol=tol
@@ -613,6 +659,10 @@ def true_to_mean_anomaly(true_anomaly: float, eccentricity: float) -> float:
     -------
     float
         Mean anomaly M (rad).
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Mean_anomaly#Formulae
     """
     eccentric_anomaly: float = true_to_eccentric_anomaly(true_anomaly, eccentricity)
     return eccentric_to_mean_anomaly(eccentric_anomaly, eccentricity)
@@ -642,6 +692,10 @@ def mean_motion_to_semi_major_axis(
     -------
     float
         Semi-major axis in meters.
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Kepler%27s_laws_of_planetary_motion#Third_law
     """
     n_rad_per_sec: float = mean_motion_rev_per_day * 2.0 * np.pi / 86400.0
     return (mu_m3_s2 / n_rad_per_sec**2) ** (1.0 / 3.0)
@@ -666,6 +720,10 @@ def semi_major_axis_to_mean_motion(
     -------
     float
         Mean motion in revolutions per day.
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Kepler%27s_laws_of_planetary_motion#Third_law
     """
     n_rad_per_sec: float = np.sqrt(mu_m3_s2 / semi_major_axis_m**3)
     return n_rad_per_sec * 86400.0 / (2.0 * np.pi)
@@ -709,6 +767,8 @@ def propagate_kepler(
 
     References
     ----------
+    https://en.wikipedia.org/wiki/Two-body_problem
+    https://en.wikipedia.org/wiki/Kepler_orbit
     Curtis, H.D. "Orbital Mechanics for Engineering Students", Chapter 3.
     """
     elements: np.ndarray = np.asarray(keplerian_elements, dtype=float)
@@ -743,6 +803,7 @@ def propagate_kepler(
     true_anomalies: np.ndarray = elements[:, TRUE_ANOMALY_INDEX]
 
     # Compute mean motion (rad/s) from semi-major axis using Kepler's third law
+    # https://en.wikipedia.org/wiki/Mean_motion
     # n = sqrt(mu / a³)
     mean_motions: np.ndarray = np.sqrt(mu_m3_s2 / semi_major_axes**3)
 
