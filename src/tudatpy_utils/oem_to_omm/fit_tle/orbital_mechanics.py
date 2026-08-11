@@ -6,7 +6,7 @@ import math
 
 import numpy as np
 
-import core.common as common
+import core.misc as misc
 import core.consts as consts
 
 from . import constants
@@ -98,7 +98,7 @@ def state_to_orbital_elements(state_vector_m: np.ndarray) -> OrbitalElements:
         else:
             true_anomaly_rad = math.atan2(float(r[1]), float(r[0]))
 
-    true_anomaly_rad = common.wrap_angle_rad(true_anomaly_rad)
+    true_anomaly_rad = misc.wrap_angle_rad(true_anomaly_rad)
 
     mean_anomaly_rad: float
     if eccentricity < 1.0:
@@ -112,7 +112,7 @@ def state_to_orbital_elements(state_vector_m: np.ndarray) -> OrbitalElements:
     else:
         raise ValueError("Eccentricity >= 1 is not supported for TLE estimation")
 
-    mean_anomaly_rad = common.wrap_angle_rad(mean_anomaly_rad)
+    mean_anomaly_rad = misc.wrap_angle_rad(mean_anomaly_rad)
 
     mean_motion_rad_s: float = math.sqrt(mu / (semi_major_axis_m**3))
     mean_motion_rev_per_day: float = (
@@ -123,8 +123,8 @@ def state_to_orbital_elements(state_vector_m: np.ndarray) -> OrbitalElements:
         semi_major_axis_m=semi_major_axis_m,
         eccentricity=eccentricity,
         inclination_deg=math.degrees(inclination_rad),
-        raan_deg=math.degrees(common.wrap_angle_rad(raan_rad)),
-        arg_perigee_deg=math.degrees(common.wrap_angle_rad(arg_perigee_rad)),
+        raan_deg=math.degrees(misc.wrap_angle_rad(raan_rad)),
+        arg_perigee_deg=math.degrees(misc.wrap_angle_rad(arg_perigee_rad)),
         mean_anomaly_deg=math.degrees(mean_anomaly_rad),
         mean_motion_rev_per_day=mean_motion_rev_per_day,
     )
@@ -229,7 +229,7 @@ def phase_match_epoch_angles(
                 continue
 
             score: float = abs(
-                common.angle_difference_rad(
+                misc.angle_difference_rad(
                     record.mean_argument_latitude_rad, first_u_rad
                 )
             )
@@ -248,13 +248,13 @@ def phase_match_epoch_angles(
 
     return PhaseMatchResult(
         count=len(matched_records),
-        raan_rad=common.circular_mean_angle_rad(
+        raan_rad=misc.circular_mean_angle_rad(
             [record.raan_rad for record in matched_records]
         ),
-        arg_perigee_rad=common.circular_mean_angle_rad(
+        arg_perigee_rad=misc.circular_mean_angle_rad(
             [record.arg_perigee_rad for record in matched_records]
         ),
-        mean_anomaly_rad=common.circular_mean_angle_rad(
+        mean_anomaly_rad=misc.circular_mean_angle_rad(
             [record.mean_anomaly_rad for record in matched_records]
         ),
     )
@@ -302,7 +302,7 @@ def estimate_inclination_from_nodal_drift(
     if len(times_s) < 2:
         return fallback_inclination_deg
 
-    raan_unwrapped: list[float] = common.unwrap_angles_rad(raan_series_rad)
+    raan_unwrapped: list[float] = misc.unwrap_angles_rad(raan_series_rad)
     domega_dt: float = linear_regression_slope(times_s, raan_unwrapped)
 
     mean_n: float = sum(mean_motion_rad_s_series) / len(mean_motion_rad_s_series)

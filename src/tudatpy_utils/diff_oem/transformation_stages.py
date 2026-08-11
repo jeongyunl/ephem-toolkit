@@ -7,7 +7,7 @@ from typing import Any, Callable
 
 import numpy as np
 
-import core.common as common
+import core.misc as misc
 import core.interpolator.lagrange as lagrange
 
 from .comparison import rotate_state
@@ -269,7 +269,7 @@ class RotationStage(TransformationStage):
         str
             Human-readable fit description.
         """
-        euler_angles_deg = common.rotation_matrix_to_euler_angles(fit_result)
+        euler_angles_deg = misc.rotation_matrix_to_euler_angles(fit_result)
 
         # Calculate angular separation (total rotation angle) from rotation matrix
         # Using the formula: angle = arccos((trace(R) - 1) / 2)
@@ -382,7 +382,7 @@ class RotationXYStage(RotationStage):
         str
             Human-readable fit description.
         """
-        euler_angles_deg = common.rotation_matrix_to_euler_angles(fit_result)
+        euler_angles_deg = misc.rotation_matrix_to_euler_angles(fit_result)
         return (
             "Applied comparison-to-reference X/Y rotation matrix to "
             "comparison position and velocity states:\n"
@@ -476,7 +476,7 @@ class RotationZStage(RotationStage):
         str
             Human-readable fit description.
         """
-        euler_angles_deg = common.rotation_matrix_to_euler_angles(fit_result)
+        euler_angles_deg = misc.rotation_matrix_to_euler_angles(fit_result)
         return (
             "Applied comparison-to-reference Z rotation matrix to "
             "comparison position and velocity states:\n"

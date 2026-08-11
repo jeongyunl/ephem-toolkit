@@ -33,7 +33,7 @@ from typing import Any, TextIO
 
 import numpy as np
 
-from .. import common
+from .. import misc
 from .. import time_utils
 
 # ===================================================================
@@ -304,7 +304,7 @@ class CcsdsOem:
                     header["COMMENT"].append(comment_text)
                 continue
 
-            key_value: tuple[str, str] | None = common.parse_key_value_line(line)
+            key_value: tuple[str, str] | None = misc.parse_key_value_line(line)
             if key_value is not None and (in_meta or not CcsdsOem._is_state_line(line)):
                 key, value = key_value
                 try:

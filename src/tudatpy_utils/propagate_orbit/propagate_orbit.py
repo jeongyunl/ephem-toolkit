@@ -659,7 +659,7 @@ def load_spice_kernels() -> None:
     """Load required SPICE kernels for propagation support.
 
     Kernels are loaded from Tudat's managed kernel directory returned by
-    ``common.spice_utils.get_spice_kernel_path()``.
+    ``misc.spice_utils.get_spice_kernel_path()``.
 
     Returns
     -------
@@ -1423,9 +1423,9 @@ https://docs.tudat.space/en/latest/_src_user_guide/state_propagation/environment
 for an overview of the use of SPICE in Tudat.
 """
 
-# common.common -- first module that pulls in tudatpy (via tudatpy.astro.time_representation).
+# misc.common -- first module that pulls in tudatpy (via tudatpy.astro.time_representation).
 # Imported here, just before build_propagation_inputs() which is its first caller.
-import core.common as common
+import core.misc as misc
 import core.ccsds.oem as common_oem
 
 propagation_inputs: PropagationInputs = build_propagation_inputs(cli_args)

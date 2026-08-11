@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-import core.common as common
+import core.misc as misc
 import core.convert_tle as convert_tle
 import core.kepler as kepler
 import core.consts as consts
@@ -230,7 +230,7 @@ def estimate_tle_fields(
         arg_perigee_series_rad.append(arg_perigee_rad)
         mean_anomaly_series_rad.append(mean_anomaly_rad)
         mean_argument_latitude_series_rad.append(
-            common.wrap_angle_rad(arg_perigee_rad + mean_anomaly_rad)
+            misc.wrap_angle_rad(arg_perigee_rad + mean_anomaly_rad)
         )
         mean_motion_rad_s_series.append(
             elements.mean_motion_rev_per_day
@@ -245,20 +245,20 @@ def estimate_tle_fields(
                 raan_rad=raan_rad,
                 arg_perigee_rad=arg_perigee_rad,
                 mean_anomaly_rad=mean_anomaly_rad,
-                mean_argument_latitude_rad=common.wrap_angle_rad(
+                mean_argument_latitude_rad=misc.wrap_angle_rad(
                     arg_perigee_rad + mean_anomaly_rad
                 ),
             )
         )
 
-    raan_unwrapped = common.unwrap_angles_rad(raan_series_rad)
+    raan_unwrapped = misc.unwrap_angles_rad(raan_series_rad)
     raan_mean_at_epoch_deg = math.degrees(
-        common.wrap_angle_rad(
+        misc.wrap_angle_rad(
             orbital_mechanics.linear_regression_intercept(times_s, raan_unwrapped)
         )
     )
 
-    mean_argument_latitude_unwrapped = common.unwrap_angles_rad(
+    mean_argument_latitude_unwrapped = misc.unwrap_angles_rad(
         mean_argument_latitude_series_rad
     )
     mean_argument_latitude_rate_rad_s = orbital_mechanics.linear_regression_slope(
@@ -273,10 +273,10 @@ def estimate_tle_fields(
     # Remove fitted short-period phase progression and circular-average the
     # residuals to obtain a more stable epoch phase estimate.
     mean_argument_latitude_phase_residuals = [
-        common.wrap_angle_rad(u - mean_argument_latitude_rate_rad_s * time_offset_s)
+        misc.wrap_angle_rad(u - mean_argument_latitude_rate_rad_s * time_offset_s)
         for u, time_offset_s in zip(mean_argument_latitude_series_rad, times_s)
     ]
-    mean_argument_latitude_at_epoch_rad = common.circular_mean_angle_rad(
+    mean_argument_latitude_at_epoch_rad = misc.circular_mean_angle_rad(
         mean_argument_latitude_phase_residuals
     )
 
@@ -287,14 +287,14 @@ def estimate_tle_fields(
         mean_motion_phase_rate_rev_per_day * 2.0 * math.pi / constants.SECONDS_PER_DAY_S
     )
     mean_anomaly_phase_residuals = [
-        common.wrap_angle_rad(m - mean_motion_phase_rate_rad_s * time_offset_s)
+        misc.wrap_angle_rad(m - mean_motion_phase_rate_rad_s * time_offset_s)
         for m, time_offset_s in zip(mean_anomaly_series_rad, times_s)
     ]
-    mean_anomaly_phase_at_epoch_rad = common.circular_mean_angle_rad(
+    mean_anomaly_phase_at_epoch_rad = misc.circular_mean_angle_rad(
         mean_anomaly_phase_residuals
     )
     mean_anomaly_osculating_at_epoch_rad = math.radians(elements_first.mean_anomaly_deg)
-    mean_anomaly_at_epoch_rad = common.circular_mean_angle_rad(
+    mean_anomaly_at_epoch_rad = misc.circular_mean_angle_rad(
         [
             mean_anomaly_phase_at_epoch_rad,
             mean_anomaly_osculating_at_epoch_rad,
@@ -303,7 +303,7 @@ def estimate_tle_fields(
     mean_anomaly_at_epoch_deg = math.degrees(mean_anomaly_at_epoch_rad)
 
     arg_perigee_at_epoch_deg = math.degrees(
-        common.wrap_angle_rad(
+        misc.wrap_angle_rad(
             mean_argument_latitude_at_epoch_rad - mean_anomaly_at_epoch_rad
         )
     )
@@ -320,21 +320,21 @@ def estimate_tle_fields(
             phase_matched_angles.count + constants.PHASE_MATCH_BLEND_SOFTENING
         )
         raan_mean_at_epoch_deg = math.degrees(
-            common.circular_blend_angle_rad(
+            misc.circular_blend_angle_rad(
                 math.radians(raan_mean_at_epoch_deg),
                 phase_matched_angles.raan_rad,
                 phase_match_weight,
             )
         )
         arg_perigee_at_epoch_deg = math.degrees(
-            common.circular_blend_angle_rad(
+            misc.circular_blend_angle_rad(
                 math.radians(arg_perigee_at_epoch_deg),
                 phase_matched_angles.arg_perigee_rad,
                 phase_match_weight,
             )
         )
         mean_anomaly_at_epoch_deg = math.degrees(
-            common.circular_blend_angle_rad(
+            misc.circular_blend_angle_rad(
                 math.radians(mean_anomaly_at_epoch_deg),
                 phase_matched_angles.mean_anomaly_rad,
                 phase_match_weight,
@@ -439,7 +439,7 @@ def verify_accuracy_keplerian(
 ) -> models.KeplerianAccuracy | None:
     """Verify TLE accuracy using osculating Keplerian elements from core.kepler.
 
-    Uses common.convert_tle.tle_to_osculating_keplerian to convert the TLE directly
+    Uses misc.convert_tle.tle_to_osculating_keplerian to convert the TLE directly
     to osculating elements (two-body), and compares against the reference
     osculating elements derived from the input Cartesian state at epoch via
     core.kepler.cartesian_to_keplerian.

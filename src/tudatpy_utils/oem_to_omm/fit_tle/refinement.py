@@ -15,7 +15,7 @@ from dataclasses import replace
 
 import numpy as np
 
-import core.common as common
+import core.misc as misc
 import core.convert_tle as convert_tle
 import core.kepler as kepler
 import core.tle as tle
@@ -128,12 +128,12 @@ def clamp_refined_elements(params: TleParameters) -> TleParameters:
     return replace(
         params,
         inclination_deg=float(np.clip(params.inclination_deg, 0.0, 180.0)),
-        raan_deg=math.degrees(common.wrap_angle_rad(math.radians(params.raan_deg))),
+        raan_deg=math.degrees(misc.wrap_angle_rad(math.radians(params.raan_deg))),
         arg_perigee_deg=math.degrees(
-            common.wrap_angle_rad(math.radians(params.arg_perigee_deg))
+            misc.wrap_angle_rad(math.radians(params.arg_perigee_deg))
         ),
         mean_anomaly_deg=math.degrees(
-            common.wrap_angle_rad(math.radians(params.mean_anomaly_deg))
+            misc.wrap_angle_rad(math.radians(params.mean_anomaly_deg))
         ),
         eccentricity=float(np.clip(params.eccentricity, 0.0, 0.9999999)),
         mean_motion_rev_per_day=max(params.mean_motion_rev_per_day, 1e-8),
@@ -450,7 +450,7 @@ def refine_estimated_fields_keplerian_match(
 ) -> Estimated:
     """Refine TLE fields by minimizing osculating Keplerian element residuals.
 
-    Uses common.convert_tle.tle_to_osculating_keplerian to convert the candidate
+    Uses misc.convert_tle.tle_to_osculating_keplerian to convert the candidate
     TLE to osculating elements, and compares against the reference osculating
     elements derived from the input Cartesian state at epoch via
     core.kepler.cartesian_to_keplerian.

@@ -8,7 +8,7 @@ from typing import TextIO
 
 import numpy as np
 
-import core.common as common
+import core.misc as misc
 import core.interpolator.lagrange as lagrange
 import core.ccsds.oem as oem
 import core.time_utils as time_utils
@@ -178,7 +178,7 @@ def compare_states(
 
     velocity_diff_km_s: np.ndarray = comparison_velocity_km_s - reference_velocity_km_s
     velocity_diff_magnitude_km_s: float = float(np.linalg.norm(velocity_diff_km_s))
-    rtn_state_m_s: np.ndarray = common.transform_to_rtn(
+    rtn_state_m_s: np.ndarray = misc.transform_to_rtn(
         comparison_state_m, reference_state_m
     )
     rtn_position_km: np.ndarray = rtn_state_m_s[0:3] / oem.KILOMETERS_TO_METERS

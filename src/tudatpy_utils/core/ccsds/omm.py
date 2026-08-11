@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-from .. import common
+from .. import misc
 from .. import consts
 from .. import time_utils
 from .. import kepler
@@ -117,7 +117,7 @@ def read_omm(
             header["COMMENT"].append(comment_text)
             continue
 
-        kv: tuple[str, str] | None = common.parse_key_value_line(line)
+        kv: tuple[str, str] | None = misc.parse_key_value_line(line)
         if kv is None:
             continue
 
