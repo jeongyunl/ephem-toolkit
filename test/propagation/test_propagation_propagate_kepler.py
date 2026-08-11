@@ -1,4 +1,4 @@
-"""Tests for propagation/propagate_kepler.py — Keplerian orbit propagation utility script."""
+"""Tests for src/propagate_kepler/propagate_kepler.py — Keplerian orbit propagation utility script."""
 
 from __future__ import annotations
 
