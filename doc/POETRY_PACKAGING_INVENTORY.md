@@ -37,7 +37,7 @@ These are the current documented script entry points. Direct `python3 path/to/sc
 | `propagation/propagate_orbit.py` | `python3 propagation/propagate_orbit.py -i STATE [-d DURATION] [--oem OUTPUT]` | Propagate a Cartesian state with configured models. |
 | `propagation/propagate_kepler.py` | `python3 propagation/propagate_kepler.py` | Propagate a two-body Kepler state. |
 | `propagation/propagate_tle.py` | `python3 propagation/propagate_tle.py --tle FILE [-d DURATION]` | Propagate a TLE. |
-| `plotting/plot_orbit.py` | `python3 plotting/plot_orbit.py --csv FILE` | Plot orbit and dependent-variable data. |
+| `src/plot_orbit/plot_orbit.py` | `python3 src/plot_orbit/plot_orbit.py --csv FILE` | Plot orbit and dependent-variable data. |
 | `plotting/plot_orbit_deltas.py` | `python3 plotting/plot_orbit_deltas.py <oem> ...` | Plot orbit differences. |
 | `plotting/plot_dependent_variables.py` | `python3 plotting/plot_dependent_variables.py --csv FILE` | Plot dependent variables. |
 
@@ -111,7 +111,7 @@ Poetry console scripts will use lowercase hyphenated names:
 | `propagation/propagate_orbit.py` | `propagate-orbit` |
 | `propagation/propagate_kepler.py` | `propagate-kepler` |
 | `propagation/propagate_tle.py` | `propagate-tle` |
-| `plotting/plot_orbit.py` | `plot-orbit` |
+| `src/plot_orbit/plot_orbit.py` | `plot-orbit` |
 | `plotting/plot_orbit_deltas.py` | `plot-orbit-deltas` |
 | `plotting/plot_dependent_variables.py` | `plot-dependent-variables` |
 
