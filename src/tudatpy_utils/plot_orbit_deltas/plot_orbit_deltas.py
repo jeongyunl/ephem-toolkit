@@ -23,11 +23,11 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-import common.common as common
-import common.ccsds.oem as oem
-from common.ccsds.oem import CcsdsOem
-import common.interpolator.lagrange as lagrange
-import common.time_utils as time_utils
+import core.common as common
+import core.ccsds.oem as oem
+from core.ccsds.oem import CcsdsOem
+import core.interpolator.lagrange as lagrange
+import core.time_utils as time_utils
 
 INTERPOLATION_DEGREE: int = 6
 """Polynomial degree for Lagrange interpolation of reference orbit states."""

@@ -11,7 +11,7 @@ This utility provides flexible slicing capabilities for OEM files:
 - **Interpolation**: Generate uniformly-spaced states at specified intervals
 - **Flexible output**: State data only or full OEM format
 
-The script is built on the `common.slice_oem` library module, which provides reusable slicing functions for programmatic use.
+The script is built on the `core.slice_oem` library module, which provides reusable slicing functions for programmatic use.
 
 After Poetry installation, use `slice-oem` as the canonical command. The existing `python3 src/slice_oem/slice_oem.py ...` examples remain supported during the transition.
 
@@ -423,11 +423,11 @@ slice-oem orbit.oem --time-slice "-90m," > last_pass.txt
 
 ## Programmatic Usage
 
-The underlying library module `common.slice_oem` can be used directly in Python scripts:
+The underlying library module `core.slice_oem` can be used directly in Python scripts:
 
 ```python
-import common.ccsds.oem as oem
-import common.slice_oem as slice_oem
+import tudatpy_utils.core.ccsds.oem as oem
+import tudatpy_utils.core.slice_oem as slice_oem
 
 # Read OEM file
 oem_data = oem.CcsdsOem.read("orbit.oem")
@@ -447,7 +447,7 @@ sliced_oem = slice_oem.extract_sliced_states(oem_data, options)
 sliced_oem.write("sliced.oem")
 ```
 
-See `tests/tudatpy_utils/common/test_slice_oem.py` for more examples.
+See `tests/tudatpy_utils/core/test_slice_oem.py` for more examples.
 
 ## Implementation Details
 
@@ -455,7 +455,7 @@ See `tests/tudatpy_utils/common/test_slice_oem.py` for more examples.
 
 - **Method**: Lagrange polynomial interpolation
 - **Degree**: 8th-order polynomial
-- **Implementation**: `common.interpolator.lagrange.LagrangeInterpolator`
+- **Implementation**: `core.interpolator.lagrange.LagrangeInterpolator`
 - **Application**: Interpolates both position and velocity components
 
 The 8th-degree polynomial provides a good balance between accuracy and numerical stability for typical orbital trajectories.
@@ -486,10 +486,10 @@ The following metadata is updated:
 - Python 3.7+
 - NumPy (for interpolation)
 - Local modules:
-  - `common.ccsds.oem` — OEM file parsing and writing
-  - `common.slice_oem` — Slicing logic and parsers
-  - `common.time_utils` — Time parsing and formatting
-  - `common.interpolator.lagrange` — Lagrange interpolation
+  - `core.ccsds.oem` — OEM file parsing and writing
+  - `core.slice_oem` — Slicing logic and parsers
+  - `core.time_utils` — Time parsing and formatting
+  - `core.interpolator.lagrange` — Lagrange interpolation
 
 ## Error Handling
 

@@ -11,9 +11,9 @@ import argparse
 import io
 import sys
 
-import common.convert_tle as convert_tle
-import common.ccsds.omm as omm
-import common.tle as tle
+import core.convert_tle as convert_tle
+import core.ccsds.omm as omm
+import core.tle as tle
 
 
 def parse_arguments() -> argparse.Namespace:

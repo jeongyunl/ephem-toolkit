@@ -43,10 +43,10 @@ warnings.filterwarnings(
     module=r"urllib3(\..*)?",
 )
 
-import common.consts as consts
-import common.ccsds.oem as oem
-import common.time_utils as time_utils
-import common.tle as tle
+import core.consts as consts
+import core.ccsds.oem as oem
+import core.time_utils as time_utils
+import core.tle as tle
 
 from oem_to_omm import fit_common
 from oem_to_omm import fit_tle_main as fit_tle

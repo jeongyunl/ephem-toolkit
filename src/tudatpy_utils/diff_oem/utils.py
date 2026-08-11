@@ -7,8 +7,8 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
-import common.interpolator.lagrange as lagrange
-import common.time_utils as time_utils
+import core.interpolator.lagrange as lagrange
+import core.time_utils as time_utils
 
 from .comparison import compare_states
 from .data_structures import ComparisonResult

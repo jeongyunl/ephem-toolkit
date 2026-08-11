@@ -16,7 +16,7 @@ The repository is organized into three layers:
 
 ```
 src/tudatpy_utils/
-├── common/              Shared Python library modules
+├── core/              Shared Python library modules
 │   ├── interpolator/    Interpolation sub-library (Lagrange, generic)
 │   └── ccsds/          CCSDS ODM, OEM, and OMM definitions and parsers
 ├── cli/                 Command-line interface entry points
@@ -113,7 +113,7 @@ See [TIME_CONVERSION.md](docs/TIME_CONVERSION.md) for full usage details.
 
 ## Libraries
 
-### Python Library (`src/tudatpy_utils/common/`)
+### Python Library (`src/tudatpy_utils/core/`)
 
 Reusable Python modules providing foundational astrodynamics functionality. These are imported by the application modules and CLI tools.
 

@@ -7,8 +7,8 @@ from typing import Any, Callable
 
 import numpy as np
 
-import common.common as common
-import common.interpolator.lagrange as lagrange
+import core.common as common
+import core.interpolator.lagrange as lagrange
 
 from .comparison import rotate_state
 from .data_structures import TransformationStageInput

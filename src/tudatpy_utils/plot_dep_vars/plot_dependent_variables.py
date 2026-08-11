@@ -16,7 +16,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-import common.time_utils as time_utils
+import core.time_utils as time_utils
 
 SECONDS_PER_HOUR: float = 3600.0
 """Conversion factor from seconds to hours."""

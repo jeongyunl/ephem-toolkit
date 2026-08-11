@@ -32,8 +32,8 @@ from tudatpy.astro.time_representation import DateTime
 from tudatpy.dynamics import environment_setup
 from tudatpy.interface import spice
 
-import common.kepler as kepler
-import common.spice_utils as spice_utils
+import core.kepler as kepler
+import core.spice_utils as spice_utils
 
 # ===================================================================
 # SPICE Kernel Management

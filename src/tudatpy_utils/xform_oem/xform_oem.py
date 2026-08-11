@@ -73,10 +73,10 @@ warnings.filterwarnings(
     module=r"urllib3(\..*)?",
 )
 
-import common.aer as aer
-import common.frame_utils as frame_utils
-import common.ccsds.oem as oem
-import common.time_utils as time_utils
+import core.aer as aer
+import core.frame_utils as frame_utils
+import core.ccsds.oem as oem
+import core.time_utils as time_utils
 
 
 def convert_to_aer(

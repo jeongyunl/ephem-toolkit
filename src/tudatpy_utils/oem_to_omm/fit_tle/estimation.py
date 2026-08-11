@@ -12,11 +12,11 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-import common.common as common
-import common.convert_tle as convert_tle
-import common.kepler as kepler
-import common.consts as consts
-import common.tle as tle
+import core.common as common
+import core.convert_tle as convert_tle
+import core.kepler as kepler
+import core.consts as consts
+import core.tle as tle
 from . import constants
 from . import models
 from . import orbital_mechanics

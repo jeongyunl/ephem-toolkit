@@ -6,8 +6,8 @@ import math
 
 import numpy as np
 
-import common.common as common
-import common.consts as consts
+import core.common as common
+import core.consts as consts
 
 from . import constants
 from .models import OrbitalElements, OrbitalRecord, PhaseMatchResult

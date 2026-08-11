@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 import numpy as np
 from unittest.mock import MagicMock
 
-import common.ccsds.oem as oem
+import core.ccsds.oem as oem
 import oem_to_omm.fit_tle.estimation as estimation
 import oem_to_omm.fit_tle.models as models
 import oem_to_omm.fit_tle.constants as constants
