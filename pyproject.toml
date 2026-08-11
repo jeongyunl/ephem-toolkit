@@ -30,6 +30,11 @@ Repository = "https://github.com/jeongyunl/tudatpy-utils"
 [tool.poetry]
 packages = [
     { include = "tudatpy_utils", from = "src" },
+    { include = "common", from = "." },
+    { include = "diff_oem", from = "." },
+    { include = "oem_to_omm", from = "." },
+    { include = "propagation", from = "." },
+    { include = "plotting", from = "." },
 ]
 
 [tool.poetry.group.dev.dependencies]

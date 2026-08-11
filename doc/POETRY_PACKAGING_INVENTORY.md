@@ -90,6 +90,7 @@ Representative smoke commands are listed in the plan's source documentation and 
 - Distribution name: `tudatpy-utils`.
 - Canonical import namespace: `tudatpy_utils`.
 - Target package layout: `tudatpy_utils.common`, `tudatpy_utils.diff_oem`, `tudatpy_utils.oem_to_omm`, `tudatpy_utils.propagation`, and `tudatpy_utils.plotting` under `src/`.
+- Step 4 implementation uses a transitional namespace bridge: Poetry packages the existing top-level domains and `tudatpy_utils` aliases them at import time. Physical relocation under `src/tudatpy_utils/` remains a later cleanup option.
 - Existing top-level imports such as `common.*`, `diff_oem.*`, and `oem_to_omm.*` remain transition compatibility surfaces while downstream users migrate to the canonical namespace.
 
 ### Console Commands
