@@ -7,7 +7,7 @@ from datetime import datetime
 
 import numpy as np
 
-import core.interpolator.lagrange as lagrange
+from tudatpy_utils.core.interpolator import lagrange
 
 from .types import State, StatePair
 

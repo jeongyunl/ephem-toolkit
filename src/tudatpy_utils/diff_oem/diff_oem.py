@@ -16,18 +16,18 @@ import argparse
 import sys
 from typing import TextIO
 
-from diff_oem.cli import parse_arguments
-from diff_oem.comparison import read_states
-from diff_oem.output import ComparisonOutput
-from diff_oem.pipeline import TransformationPipeline, create_interpolator
-from diff_oem.transformation_stages import (
+from .cli import parse_arguments
+from .comparison import read_states
+from .output import ComparisonOutput
+from .pipeline import TransformationPipeline, create_interpolator
+from .transformation_stages import (
     RotationStage,
     RotationXYStage,
     RotationZStage,
     TimeShiftStage,
     TransformationStage,
 )
-from diff_oem.utils import (
+from .utils import (
     build_comparison_pairs,
     compare_pairs,
     get_overlapping_time_range,
@@ -279,4 +279,3 @@ def main() -> None:
     except ValueError as error:
         print(f"Error: {error}", file=sys.stderr)
         sys.exit(1)
-

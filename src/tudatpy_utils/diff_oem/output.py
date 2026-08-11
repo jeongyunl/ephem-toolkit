@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-import core.interpolator.lagrange as lagrange
-import core.time_utils as time_utils
+from tudatpy_utils.core.interpolator import lagrange
+from tudatpy_utils.core import time_utils
 
 from .data_structures import ComparisonResult
 
