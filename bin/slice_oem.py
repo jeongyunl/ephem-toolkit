@@ -150,6 +150,19 @@ def main() -> None:
             oem_file = Path(args.oem_file)
             oem_data = oem.CcsdsOem.read(oem_file)
 
+        if (
+            args.time_slice
+            and args.interpolate
+            and len(oem_data.states) < args.interpolate_degree
+        ):
+            print(
+                "Warning: input contains "
+                f"{len(oem_data.states)} states, fewer than the requested "
+                f"interpolation degree {args.interpolate_degree}; "
+                "the degree will be reduced to fit the available data.",
+                file=sys.stderr,
+            )
+
         if args.verbose:
             total_states = len(oem_data.states)
             print(f"[slice_oem] Input OEM:", file=sys.stderr)
