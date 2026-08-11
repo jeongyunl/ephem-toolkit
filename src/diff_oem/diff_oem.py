@@ -2,9 +2,9 @@
 """Compare corresponding states from two OEM files.
 
 Usage:
-    python3 bin/diff_oem.py <reference_oem.oem> <comparison_oem.oem>
-    python3 bin/diff_oem.py - <comparison_oem.oem>
-    python3 bin/diff_oem.py <reference_oem.oem> -
+    python3 src/diff_oem/diff_oem.py <reference_oem.oem> <comparison_oem.oem>
+    python3 src/diff_oem/diff_oem.py - <comparison_oem.oem>
+    python3 src/diff_oem/diff_oem.py <reference_oem.oem> -
 
 The utility reports time, position, and velocity differences. Use ``-`` for one
 stdin input. Interpolation options compare states at matching epochs.
@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 from typing import TextIO
 
-# Add parent directory to path to import common module
+# Add the src directory to the path for direct execution.
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from diff_oem.cli import parse_arguments
