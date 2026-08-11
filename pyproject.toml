@@ -46,7 +46,7 @@ plot-dependent-variables = "plotting.plot_dependent_variables:main"
 packages = [
     { include = "tudatpy_utils", from = "src" },
     { include = "bin", from = "." },
-    { include = "common", from = "." },
+    { include = "common", from = "src" },
     { include = "diff_oem", from = "." },
     { include = "oem_to_omm", from = "." },
     { include = "propagation", from = "." },

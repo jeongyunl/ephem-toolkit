@@ -13,7 +13,7 @@ build/
 dist/
 .venv/
 *.egg-info/
-common/interpolator/cpp/*
+src/common/interpolator/cpp/*
 coverage/
 ISS.OEM_J2K_EPH.txt
 oem_to_omm/*.oem
