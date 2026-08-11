@@ -43,9 +43,18 @@ plot-orbit-deltas = "tudatpy_utils.cli.plot_orbit_deltas:main"
 plot-dependent-variables = "tudatpy_utils.cli.plot_dependent_variables:main"
 
 [tool.poetry]
+name = "tudatpy-utils"
+version = "0.1.0"
+description = "Python utilities and command-line tools for TudatPy astrodynamics workflows"
+authors = ["Jeongyun Lee <jeongyun@gmail.com>"]
+readme = "README.md"
 packages = [
     { include = "tudatpy_utils", from = "src" },
 ]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+numpy = "^1.23"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.0"
