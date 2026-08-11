@@ -6,7 +6,7 @@ TLE-related utilities for building, estimating, and converting orbital data.
 
 Current TLE-related scripts in this repository include:
 
-- `oem_to_omm/oem_to_omm.py`
+- `src/oem_to_omm/oem_to_omm.py`
 - `bin/download_tle.py`
 - `bin/omm_to_tle.py`
 - `bin/tle_to_omm.py`
@@ -17,7 +17,7 @@ This document focuses on the primary user-facing tools and the current repositor
 
 After Poetry installation, use `download-tle`, `omm-to-tle`, `tle-to-omm`, and `tle-info` as the canonical commands. The existing script paths remain supported during the transition.
 
-## `oem_to_omm/oem_to_omm.py`
+## `src/oem_to_omm/oem_to_omm.py`
 
 This script estimates a TLE from an OEM-like Cartesian arc. For complete usage and algorithm documentation, see [OEM_TO_OMM.md](OEM_TO_OMM.md).
 

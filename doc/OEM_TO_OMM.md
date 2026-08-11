@@ -10,7 +10,7 @@ After Poetry installation, use `oem-to-omm` and `evaluate-fit-tle` as the canoni
 
 ## Module Structure
 
-The `oem_to_omm/` directory contains:
+The `src/oem_to_omm/` directory contains:
 
 - `oem_to_omm.py` — Main executable script for OMM/TLE estimation
 - `fit_common.py` — Common fitting utilities
@@ -40,7 +40,7 @@ Converts OEM state vectors to osculating Keplerian elements or OMM format. Suppo
 ### Synopsis
 
 ```bash
-python3 oem_to_omm/oem_to_omm.py [-h] [-o <output.omm>] [-v] 
+python3 src/oem_to_omm/oem_to_omm.py [-h] [-o <output.omm>] [-v]
                                  [--mu <value>] [--fit-span <hours>]
                                  [--kepler | --mean-kepler | --tle]
                                  [--object-name <name>] [--object-id <YYYY-NNNP>]
@@ -165,7 +165,7 @@ Provides accuracy assessment of the TLE fitting process, including:
 ### Synopsis
 
 ```bash
-python3 oem_to_omm/evaluate_fit_tle.py [-h] [--fit-span <hours>] 
+python3 src/oem_to_omm/evaluate_fit_tle.py [-h] [--fit-span <hours>]
                                        [--refinement <method>] [--mu <value>]
                                        <oem_file>
 ```
@@ -185,31 +185,31 @@ python3 oem_to_omm/evaluate_fit_tle.py [-h] [--fit-span <hours>]
 **Evaluate a bundled OEM file:**
 
 ```bash
-python3 oem_to_omm/evaluate_fit_tle.py test/data/ISS_2026-05-20.OEM
+python3 src/oem_to_omm/evaluate_fit_tle.py test/data/ISS_2026-05-20.OEM
 ```
 
 **Evaluate custom OEM file:**
 
 ```bash
-python3 oem_to_omm/evaluate_fit_tle.py test/data/JPSS-1.oem
+python3 src/oem_to_omm/evaluate_fit_tle.py test/data/JPSS-1.oem
 ```
 
 **Evaluate with Keplerian refinement:**
 
 ```bash
-python3 oem_to_omm/evaluate_fit_tle.py --refinement keplerian
+python3 src/oem_to_omm/evaluate_fit_tle.py --refinement keplerian
 ```
 
 **Compare all refinement methods:**
 
 ```bash
-python3 oem_to_omm/evaluate_fit_tle.py --refinement all
+python3 src/oem_to_omm/evaluate_fit_tle.py --refinement all
 ```
 
 **Evaluate with 2-hour fit span:**
 
 ```bash
-python3 oem_to_omm/evaluate_fit_tle.py --fit-span 2.0
+python3 src/oem_to_omm/evaluate_fit_tle.py --fit-span 2.0
 ```
 
 ### Dependencies
@@ -326,7 +326,7 @@ Detailed algorithm and strategy documentation is included below.
 
 ### Purpose
 
-`oem_to_omm/oem_to_omm.py` estimates a valid Two-Line Element (TLE) set from a time series of OEM-like Cartesian state vectors:
+`src/oem_to_omm/oem_to_omm.py` estimates a valid Two-Line Element (TLE) set from a time series of OEM-like Cartesian state vectors:
 
 ```text
 UTC_ISO x y z vx vy vz
@@ -334,7 +334,7 @@ UTC_ISO x y z vx vy vz
 
 with position in km and velocity in km/s.
 
-Unlike directly calling `common.tle.write_tle()` with explicit fields, `oem_to_omm/oem_to_omm.py` attempts to infer a TLE from a Cartesian arc.
+Unlike directly calling `common.tle.write_tle()` with explicit fields, `src/oem_to_omm/oem_to_omm.py` attempts to infer a TLE from a Cartesian arc.
 
 This is fundamentally an estimation problem because TLEs encode SGP4-compatible mean elements rather than raw osculating Cartesian states.
 
@@ -342,7 +342,7 @@ This is fundamentally an estimation problem because TLEs encode SGP4-compatible 
 
 Related scripts in the current repository:
 
-- `oem_to_omm/oem_to_omm.py` — estimate a TLE from an OEM-like arc
+- `src/oem_to_omm/oem_to_omm.py` — estimate a TLE from an OEM-like arc
 - `common/tle.py` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions
 - `propagation/propagate_tle.py` — propagate a TLE with TudatPy SGP4 and print OEM-like states
 
@@ -528,7 +528,7 @@ This is a pragmatic scalar optimization over the drag-like parameter.
 Use:
 
 - `common.tle.write_tle()` when you already know the TLE fields and want to write them programmatically
-- `oem_to_omm/oem_to_omm.py` when you have an OEM-like Cartesian arc and want an estimated TLE
+- `src/oem_to_omm/oem_to_omm.py` when you have an OEM-like Cartesian arc and want an estimated TLE
 - `common.tle.read_tle()` when you want to parse an existing TLE into structured fields
 
 ### Usage Examples
@@ -536,49 +536,49 @@ Use:
 **Fit osculating Keplerian elements (--kepler mode):**
 
 ```bash
-python3 oem_to_omm/oem_to_omm.py --kepler input.oem -o output.omm
+python3 src/oem_to_omm/oem_to_omm.py --kepler input.oem -o output.omm
 ```
 
 **Fit mean Keplerian elements (--mean-kepler mode):**
 
 ```bash
-python3 oem_to_omm/oem_to_omm.py --mean-kepler input.oem -o output.omm
+python3 src/oem_to_omm/oem_to_omm.py --mean-kepler input.oem -o output.omm
 ```
 
 **Fit TLE elements (--tle mode) with default Cartesian refinement:**
 
 ```bash
-python3 oem_to_omm/oem_to_omm.py --tle input.oem -o output.omm
+python3 src/oem_to_omm/oem_to_omm.py --tle input.oem -o output.omm
 ```
 
 **Fit TLE and output TLE lines to stdout:**
 
 ```bash
-python3 oem_to_omm/oem_to_omm.py --tle input.oem
+python3 src/oem_to_omm/oem_to_omm.py --tle input.oem
 ```
 
 **Read from stdin, fit TLE, output to stdout:**
 
 ```bash
-cat input.oem | python3 oem_to_omm/oem_to_omm.py --tle
+cat input.oem | python3 src/oem_to_omm/oem_to_omm.py --tle
 ```
 
 **Fit TLE with Keplerian refinement (no TudatPy required):**
 
 ```bash
-python3 oem_to_omm/oem_to_omm.py --tle --tle-refinement keplerian input.oem
+python3 src/oem_to_omm/oem_to_omm.py --tle --tle-refinement keplerian input.oem
 ```
 
 **Fit TLE with no refinement (fastest):**
 
 ```bash
-python3 oem_to_omm/oem_to_omm.py --tle --tle-refinement none input.oem
+python3 src/oem_to_omm/oem_to_omm.py --tle --tle-refinement none input.oem
 ```
 
 **Specify satellite metadata for TLE:**
 
 ```bash
-python3 oem_to_omm/oem_to_omm.py --tle input.oem -o output.omm \
+python3 src/oem_to_omm/oem_to_omm.py --tle input.oem -o output.omm \
   --object-name "ISS (ZARYA)" \
   --object-id "1998-067A" \
   --tle-norad-cat-id 25544 \
@@ -589,13 +589,13 @@ python3 oem_to_omm/oem_to_omm.py --tle input.oem -o output.omm \
 **Fit with custom fit span (3 hours):**
 
 ```bash
-python3 oem_to_omm/oem_to_omm.py --tle --fit-span 3.0 input.oem
+python3 src/oem_to_omm/oem_to_omm.py --tle --fit-span 3.0 input.oem
 ```
 
 **Verbose output to stderr:**
 
 ```bash
-python3 oem_to_omm/oem_to_omm.py --tle -v input.oem -o output.omm
+python3 src/oem_to_omm/oem_to_omm.py --tle -v input.oem -o output.omm
 ```
 
 ### Dependencies

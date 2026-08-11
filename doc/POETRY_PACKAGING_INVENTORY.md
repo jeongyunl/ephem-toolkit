@@ -12,8 +12,8 @@ This inventory completes Step 1 of [POETRY_PACKAGING_PLAN.md](POETRY_PACKAGING_P
 | `common/interpolator/` | Has `__init__.py` | Reusable `Interpolator` and `LagrangeInterpolator` implementations. |
 | `common/ccsds/` | No `__init__.py` | CCSDS ODM/OEM/OMM definitions and parsers; currently relies on namespace-package behavior from the checkout. |
 | `diff_oem/` | Has `__init__.py` | Reusable comparison pipeline: CLI parsing, comparison, transformations, output, data structures, and utilities. |
-| `oem_to_omm/` | Has `__init__.py` | OEM-to-OMM fitting workflow and reusable TLE-fitting modules. |
-| `oem_to_omm/fit_tle/` | Has `__init__.py` | TLE fitting models, estimation, linear algebra, refinement, and TLE construction. |
+| `src/oem_to_omm/` | Has `__init__.py` | OEM-to-OMM fitting workflow and reusable TLE-fitting modules. |
+| `src/oem_to_omm/fit_tle/` | Has `__init__.py` | TLE fitting models, estimation, linear algebra, refinement, and TLE construction. |
 | `propagation/` | No `__init__.py` | Three propagation scripts; package conversion is needed if their functions become public imports. |
 | `plotting/` | No `__init__.py` | Three plotting scripts; package conversion is needed if their functions become public imports. |
 
@@ -32,8 +32,8 @@ These are the current documented script entry points. Direct `python3 path/to/sc
 | `bin/tle_info.py` | `python3 bin/tle_info.py <file.tle> ...` | Print TLE metadata and derived orbital values. |
 | `bin/tle_to_omm.py` | `python3 bin/tle_to_omm.py <input.tle>` | Convert TLE input to OMM output. |
 | `bin/xform_oem.py` | `python3 bin/xform_oem.py <oem> --x-ref-frame FRAME [-o OUTPUT]` | Transform OEM states between supported frames or coordinate forms. |
-| `oem_to_omm/oem_to_omm.py` | `python3 oem_to_omm/oem_to_omm.py --kepler\|--mean-kepler\|--tle <input.oem>` | Fit OEM states and emit an OMM. |
-| `oem_to_omm/evaluate_fit_tle.py` | `python3 oem_to_omm/evaluate_fit_tle.py [--fit-span HOURS] <input.oem>` | Evaluate TLE fit quality. |
+| `src/oem_to_omm/oem_to_omm.py` | `python3 src/oem_to_omm/oem_to_omm.py --kepler\|--mean-kepler\|--tle <input.oem>` | Fit OEM states and emit an OMM. |
+| `src/oem_to_omm/evaluate_fit_tle.py` | `python3 src/oem_to_omm/evaluate_fit_tle.py [--fit-span HOURS] <input.oem>` | Evaluate TLE fit quality. |
 | `propagation/propagate_orbit.py` | `python3 propagation/propagate_orbit.py -i STATE [-d DURATION] [--oem OUTPUT]` | Propagate a Cartesian state with configured models. |
 | `propagation/propagate_kepler.py` | `python3 propagation/propagate_kepler.py` | Propagate a two-body Kepler state. |
 | `propagation/propagate_tle.py` | `python3 propagation/propagate_tle.py --tle FILE [-d DURATION]` | Propagate a TLE. |
@@ -76,7 +76,7 @@ Representative smoke commands are listed in the plan's source documentation and 
 
 ## Compatibility-Sensitive Surface
 
-- Existing direct script paths under `bin/`, `oem_to_omm/`, `propagation/`, and `plotting/` are documented interfaces.
+- Existing direct script paths under `bin/`, `src/oem_to_omm/`, `propagation/`, and `plotting/` are documented interfaces.
 - `sys.path` insertion in scripts is a migration blocker for isolated wheel installs.
 - `common/slice_oem.py` and `bin/slice_oem.py` have the same stem but different roles; the package and CLI names must avoid ambiguity.
 - OEM, OMM, TLE, CSV, and stdout formats are consumed by tests and shell pipelines. Formatting and column-order changes are compatibility risks.
@@ -106,8 +106,8 @@ Poetry console scripts will use lowercase hyphenated names:
 | `bin/tle_info.py` | `tle-info` |
 | `bin/tle_to_omm.py` | `tle-to-omm` |
 | `bin/xform_oem.py` | `xform-oem` |
-| `oem_to_omm/oem_to_omm.py` | `oem-to-omm` |
-| `oem_to_omm/evaluate_fit_tle.py` | `evaluate-fit-tle` |
+| `src/oem_to_omm/oem_to_omm.py` | `oem-to-omm` |
+| `src/oem_to_omm/evaluate_fit_tle.py` | `evaluate-fit-tle` |
 | `propagation/propagate_orbit.py` | `propagate-orbit` |
 | `propagation/propagate_kepler.py` | `propagate-kepler` |
 | `propagation/propagate_tle.py` | `propagate-tle` |

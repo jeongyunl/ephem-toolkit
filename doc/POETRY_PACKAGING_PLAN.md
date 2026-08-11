@@ -7,7 +7,7 @@ Package the repository's Python libraries and command-line tools with Poetry. Th
 ## Current Constraints
 
 - The repository mixes Python modules, executable scripts, tests, and sample data.
-- Reusable Python code is spread across `common/`, `diff_oem/`, `oem_to_omm/`, `plotting/`, and `propagation/`.
+- Reusable Python code is spread across `src/common/`, `src/diff_oem/`, `src/oem_to_omm/`, `plotting/`, and `propagation/`.
 - User-facing scripts currently live in `bin/` and in domain directories and are commonly run directly with `python3`.
 - TudatPy and NumPy are used by only some workflows, so dependency groups or optional extras may be preferable to forcing every install to include every heavy dependency.
 - Existing tests and documentation are part of the compatibility contract.

@@ -12,16 +12,16 @@ process in fit_tle_main.py, including:
   6. Summary statistics (RMS, max, mean errors)
 
 Usage:
-    python3 oem_to_omm/evaluate_fit_tle.py [--fit-span <hours>] [<oem_file>]
+    python3 src/oem_to_omm/evaluate_fit_tle.py [--fit-span <hours>] [<oem_file>]
 
-    Default input: oem_to_omm/leo3_6h.oem
+    Default input: src/oem_to_omm/leo3_6h.oem
     Default fit span: 6 hours (full file)
 
 Examples:
-    python3 oem_to_omm/evaluate_fit_tle.py
-    python3 oem_to_omm/evaluate_fit_tle.py --fit-span 2.0
-    python3 oem_to_omm/evaluate_fit_tle.py oem_to_omm/leo3_3h.oem
-    python3 oem_to_omm/evaluate_fit_tle.py --refinement keplerian
+    python3 src/oem_to_omm/evaluate_fit_tle.py
+    python3 src/oem_to_omm/evaluate_fit_tle.py --fit-span 2.0
+    python3 src/oem_to_omm/evaluate_fit_tle.py src/oem_to_omm/leo3_3h.oem
+    python3 src/oem_to_omm/evaluate_fit_tle.py --refinement keplerian
 """
 
 from __future__ import annotations
@@ -324,7 +324,7 @@ def main() -> None:
         "oem_file",
         nargs="?",
         default=str(Path(__file__).parent / "leo3_6h.oem"),
-        help="Path to input CCSDS OEM file (default: oem_to_omm/leo3_6h.oem)",
+        help="Path to input CCSDS OEM file (default: src/oem_to_omm/leo3_6h.oem)",
     )
     parser.add_argument(
         "--fit-span",
