@@ -1,4 +1,4 @@
-"""Tests for propagation/propagate_tle.py — TLE propagation utility script."""
+"""Tests for src/propagate_tle/propagate_tle.py — TLE propagation utility script."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from propagation.propagate_tle import resolve_time_bounds
+from propagate_tle.propagate_tle import resolve_time_bounds
 
 TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent
@@ -60,7 +60,7 @@ def run_propagate_tle(tle_path: Path) -> str:
     result: subprocess.CompletedProcess[str] = subprocess.run(
         [
             sys.executable,
-            str(PROJECT_ROOT / "propagation" / "propagate_tle.py"),
+            str(PROJECT_ROOT / "src" / "propagate_tle" / "propagate_tle.py"),
             str(tle_path),
             "--data-only",
             "-s",
