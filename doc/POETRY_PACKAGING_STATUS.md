@@ -4,7 +4,7 @@ Last updated: 2026-08-10
 
 ## Overall Status
 
-**Step 3 complete; Step 4 pending.** This document tracks the implementation of [POETRY_PACKAGING_PLAN.md](POETRY_PACKAGING_PLAN.md). Poetry metadata and a lock file are present; source package migration has not started.
+**Step 4 complete; Step 5 pending.** This document tracks the implementation of [POETRY_PACKAGING_PLAN.md](POETRY_PACKAGING_PLAN.md). Poetry metadata, a lock file, and a transitional importable package layout are present.
 
 ## Checklist
 
@@ -15,8 +15,8 @@ Last updated: 2026-08-10
 - [x] Decide whether TudatPy, SciPy, Matplotlib, and SGP4 are core dependencies or optional workflow extras.
 - [x] Exclude `time_conversion/` from the Poetry packaging scope.
 - [x] Add and review `pyproject.toml`.
-- [ ] Create the selected `src/` package layout.
-- [ ] Migrate reusable modules and repair package imports.
+- [x] Create the selected `src/` package layout.
+- [x] Migrate reusable modules and repair package imports through the transitional namespace bridge.
 - [ ] Add console entry points and compatibility wrappers.
 - [ ] Package and test runtime data resources.
 - [ ] Update README and domain documentation with installed-command examples.
@@ -48,6 +48,9 @@ Last updated: 2026-08-10
 - `diff_oem/` is already organized as a reusable module with a separate CLI wrapper.
 - There is no existing `pyproject.toml`, Poetry lock file, or declared Python package metadata.
 - The target package namespace is `tudatpy_utils`, with existing top-level imports retained temporarily as compatibility surfaces.
+- Step 4 currently exposes the canonical namespace through an import bridge over the packaged legacy domains; physical source relocation remains a future cleanup option.
+- `poetry build` produces sdist and wheel artifacts, and isolated wheel imports pass for canonical and legacy package paths when NumPy is installed.
+- `poetry install` plus canonical import smoke tests pass in the editable Poetry environment.
 - The target console command names are lowercase and hyphenated; underscore aliases will not be registered initially.
 - `poetry check` passes with the PEP 621 metadata configuration.
 - `poetry lock` succeeds and `poetry install --no-root` installs the locked core/development dependencies.
@@ -60,6 +63,7 @@ Last updated: 2026-08-10
 - Some runtime data may not currently have a clear package-data owner.
 - CLI names and behavior are not yet unified; packaging should preserve behavior before attempting broader CLI cleanup.
 - Supported Python versions and the compatibility-wrapper deprecation timeline remain open for the next steps.
+- Three Poetry-environment test collection failures require external TudatPy support and its transitive `astropy` dependency; 583 tests collect before those failures.
 
 ## Work Log
 
@@ -69,3 +73,4 @@ Last updated: 2026-08-10
 | 2026-08-10 | Completed Step 1 inventory and recorded the Python test baseline. | `python3 -m pytest --collect-only -q` collected 607 tests in 1.23 seconds. | Step 1 complete; package and command naming decisions remain pending. |
 | 2026-08-10 | Completed Step 2 package, import, dependency-extra, console-command, and compatibility decisions. | Reviewed the Step 1 inventory and recorded the 15-command map. | Step 2 complete; Poetry metadata is the next implementation step. |
 | 2026-08-10 | Added PEP 621 Poetry metadata and generated `poetry.lock`. | `poetry check`, `poetry lock`, and `poetry install --no-root` passed; TudatPy package-index resolution was tested and unavailable. | Step 3 complete; source package layout is the next implementation step. |
+| 2026-08-10 | Added `src/tudatpy_utils`, package markers, and a transitional namespace bridge over legacy domains. | `poetry build`, isolated wheel imports, `poetry install`, and editable canonical imports passed. | Step 4 complete; console entry points are the next implementation step. |
