@@ -11,6 +11,7 @@ parsing) live in :mod:`core.time_utils`.
 
 References:
     ISO 8601 "Date and time representations".
+    https://en.wikipedia.org/wiki/Local_tangent_plane_coordinates (RTN frame)
 """
 
 from __future__ import annotations
@@ -47,6 +48,11 @@ def parse_key_value_line(line: str) -> tuple[str, str] | None:
     ('OBJECT_NAME', 'ISS')
     >>> parse_key_value_line("some line without equals") is None
     True
+
+    References
+    ----------
+    https://public.ccsds.org/Pubs/502x0b3e1.pdf (CCSDS 502.0-B-3 OEM)
+    https://public.ccsds.org/Pubs/502x0b2c1e2.pdf (CCSDS 502.0-B-2 OMM)
     """
     if "=" not in line:
         return None
@@ -88,6 +94,11 @@ def transform_to_rtn(
         Relative state vector(s) in RTN coordinates [r, t, n, vr, vt, vn].
         - Shape (6,): If input is single state vector
         - Shape (N, 6): If input is batch of N state vectors
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Local_tangent_plane_coordinates
+    https://en.wikipedia.org/wiki/Orbital_coordinate_systems#Radial-Transverse-Normal_(RTN)
     """
     state_array: np.ndarray = np.asarray(state, dtype=float)
 
@@ -168,6 +179,7 @@ def transform_to_rtn(
     )
 
     # Normal unit vector (from angular momentum): shape (N, 3)
+    # https://en.wikipedia.org/wiki/Specific_angular_momentum
     angular_momentum_vectors: np.ndarray = np.cross(
         reference_positions, reference_velocities
     )  # shape (N, 3)
@@ -201,18 +213,19 @@ def transform_to_rtn(
     )
 
     # 6. Compute relative velocity vector in RTN (Transport Theorem): shape (N, 3)
-    angular_velocity_rad_s: np.ndarray = np.zeros(state_array.shape[0])
+    # https://en.wikipedia.org/wiki/Rotating_reference_frame#Time_derivatives_in_the_two_frames
+    angular_velocity_rad_per_s: np.ndarray = np.zeros(state_array.shape[0])
     np.divide(
         angular_momentum_magnitudes,
         reference_position_magnitudes**2,
-        out=angular_velocity_rad_s,
+        out=angular_velocity_rad_per_s,
         where=reference_position_magnitudes > 0.0,
     )  # shape (N,)
     angular_velocity_rtn: np.ndarray = np.column_stack(
         [
             np.zeros(state_array.shape[0]),
             np.zeros(state_array.shape[0]),
-            angular_velocity_rad_s,
+            angular_velocity_rad_per_s,
         ]
     )  # shape (N, 3)
 
@@ -247,6 +260,10 @@ def wrap_angle_rad(angle: float) -> float:
     -------
     float
         Wrapped angle in [0, 2π).
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Wrapping_(graphics)#Wrapping_of_angles
     """
     wrapped: float = math.fmod(angle, 2.0 * math.pi)
     if wrapped < 0.0:
@@ -266,6 +283,11 @@ def unwrap_angles_rad(angles: list[float]) -> list[float]:
     -------
     list[float]
         Unwrapped angle sequence.
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Unwrapped_phase
+    https://numpy.org/doc/stable/reference/generated/numpy.unwrap.html
     """
     if not angles:
         return []
@@ -275,10 +297,10 @@ def unwrap_angles_rad(angles: list[float]) -> list[float]:
     previous: float = angles[0]
 
     for angle in angles[1:]:
-        delta: float = angle - previous
-        if delta > math.pi:
+        difference_rad: float = angle - previous
+        if difference_rad > math.pi:
             offset -= 2.0 * math.pi
-        elif delta < -math.pi:
+        elif difference_rad < -math.pi:
             offset += 2.0 * math.pi
 
         unwrapped.append(angle + offset)
@@ -299,6 +321,11 @@ def circular_mean_angle_rad(angles: list[float]) -> float:
     -------
     float
         Circular mean angle in [0, 2π).
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Circular_mean
+    https://en.wikipedia.org/wiki/Mean_of_circular_quantities
     """
     if not angles:
         return 0.0
@@ -325,11 +352,15 @@ def angle_difference_rad(target: float, reference: float) -> float:
     -------
     float
         Angle difference in [-π, π].
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Mean_of_circular_quantities#Computation
     """
-    delta: float = wrap_angle_rad(target - reference)
-    if delta > math.pi:
-        delta -= 2.0 * math.pi
-    return delta
+    difference_rad: float = wrap_angle_rad(target - reference)
+    if difference_rad > math.pi:
+        difference_rad -= 2.0 * math.pi
+    return difference_rad
 
 
 def circular_blend_angle_rad(
@@ -350,6 +381,11 @@ def circular_blend_angle_rad(
     -------
     float
         Blended angle in radians.
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Slerp#Quaternion_Slerp
+    https://en.wikipedia.org/wiki/Linear_interpolation#Interpolation_of_angles
     """
     return wrap_angle_rad(
         primary_angle
@@ -369,17 +405,23 @@ def rotation_matrix_to_euler_angles(rotation_matrix: np.ndarray) -> np.ndarray:
     -------
     numpy.ndarray
         Euler angles [yaw, pitch, roll] in degrees (ZYX convention).
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Euler_angles#Rotation_matrix
+    https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
     """
     # Extract Euler angles from rotation matrix using ZYX convention
     # R = Rz(yaw) * Ry(pitch) * Rx(roll)
 
     # Check for gimbal lock
-    sin_pitch_value: float = -rotation_matrix[2, 0]
+    # https://en.wikipedia.org/wiki/Gimbal_lock
+    sin_pitch: float = -rotation_matrix[2, 0]
 
-    if abs(sin_pitch_value) >= 1.0:
+    if abs(sin_pitch) >= 1.0:
         # Gimbal lock case
-        pitch_rad: float = np.copysign(np.pi / 2.0, sin_pitch_value)
-        if sin_pitch_value < 0:  # pitch = +90 degrees
+        pitch_rad: float = np.copysign(np.pi / 2.0, sin_pitch)
+        if sin_pitch < 0:  # pitch = +90 degrees
             yaw_rad: float = np.arctan2(rotation_matrix[0, 1], rotation_matrix[1, 1])
             roll_rad: float = 0.0
         else:  # pitch = -90 degrees

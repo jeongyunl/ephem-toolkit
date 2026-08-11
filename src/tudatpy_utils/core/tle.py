@@ -5,8 +5,8 @@ Provides a structured :class:`Tle` dataclass and low-level functions
 instances or plain dictionaries.
 
 References:
-    NORAD Two-Line Element Set Format.
-    Celestrak: https://celestrak.org/NORAD/documentation/tle-fmt.php
+    https://celestrak.org/NORAD/documentation/tle-fmt.php
+    https://en.wikipedia.org/wiki/Two-line_element_set
 """
 
 from __future__ import annotations
@@ -31,6 +31,10 @@ class Tle:
     All fields correspond to the standard TLE format.  Angular quantities
     are stored in degrees and mean motion in revolutions per day, matching
     the native TLE representation.
+
+    References:
+        https://celestrak.org/NORAD/documentation/tle-fmt.php
+        https://en.wikipedia.org/wiki/Two-line_element_set
     """
 
     name: str = ""
@@ -130,6 +134,9 @@ class Tle:
 def compute_tle_checksum(line_without_checksum: str) -> str:
     """Return the single-digit TLE checksum character for *line_without_checksum*.
 
+    The checksum is computed as the modulo-10 sum of all digits and minus signs
+    (where minus signs count as 1).
+
     Parameters
     ----------
     line_without_checksum : str
@@ -139,6 +146,10 @@ def compute_tle_checksum(line_without_checksum: str) -> str:
     -------
     str
         Single-digit checksum character (0-9).
+
+    References
+    ----------
+    https://celestrak.org/NORAD/documentation/tle-fmt.php
     """
     checksum: int = 0
     for char in line_without_checksum:
@@ -151,6 +162,10 @@ def compute_tle_checksum(line_without_checksum: str) -> str:
 
 def _parse_tle_exponential(field_value: str, field_name: str) -> str:
     """Validate TLE exponential format, e.g. ``'00000-0'`` or ``'29661-4'``.
+
+    TLE exponential format represents scientific notation in a compact form:
+    the mantissa is assumed to have an implicit leading decimal point, and
+    the exponent is a single signed digit.
 
     Parameters
     ----------
@@ -168,6 +183,10 @@ def _parse_tle_exponential(field_value: str, field_name: str) -> str:
     ------
     ValueError
         If the format is invalid.
+
+    References
+    ----------
+    https://celestrak.org/NORAD/documentation/tle-fmt.php
     """
     value: str = field_value.strip()
 
@@ -339,6 +358,11 @@ def create_tle_from_mean_keplerian(
     -------
     Tle
         A :class:`Tle` dataclass instance with the provided elements.
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Orbital_elements
+    https://celestrak.org/NORAD/documentation/tle-fmt.php
     """
     import math
     from . import kepler
@@ -359,6 +383,7 @@ def create_tle_from_mean_keplerian(
     M_rad: float = float(mean_elements[5])
 
     # Compute mean motion from semi-major axis
+    # https://en.wikipedia.org/wiki/Mean_motion
     mean_motion_rev_day: float = kepler.semi_major_axis_to_mean_motion(a_m, mu_m3_s2)
 
     # Create and return TLE object
@@ -513,6 +538,10 @@ def datetime_to_tle_epoch(epoch_dt: datetime) -> tuple[int, float]:
     -------
     tuple[int, float]
         Two-digit year and day-of-year with fractional portion.
+
+    References
+    ----------
+    https://celestrak.org/NORAD/documentation/tle-fmt.php
     """
     epoch_year: int = epoch_dt.year % 100
     start_of_year: datetime
@@ -549,6 +578,11 @@ def tle_epoch_to_iso8601(epoch_year: int, epoch_day: float) -> str:
     --------
     iso8601_to_tle_epoch : Inverse operation.
     time_utils.datetime_to_iso8601 : Shared ISO 8601 formatting utility.
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/ISO_8601
+    https://celestrak.org/NORAD/documentation/tle-fmt.php
     """
     # Convert 2-digit year to 4-digit year
     if epoch_year >= 57:
@@ -582,6 +616,11 @@ def iso8601_to_tle_epoch(iso_str: str) -> tuple[int, float]:
     --------
     tle_epoch_to_iso8601 : Inverse operation.
     time_utils.iso8601_to_datetime : Shared ISO 8601 parsing utility.
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/ISO_8601
+    https://celestrak.org/NORAD/documentation/tle-fmt.php
     """
     dt: datetime = time_utils.iso8601_to_datetime(iso_str)
 
@@ -610,6 +649,11 @@ def read_tle(stream: TextIO) -> Tle:
     -------
     Tle
         A :class:`Tle` dataclass instance with all parsed elements.
+
+    References
+    ----------
+    https://celestrak.org/NORAD/documentation/tle-fmt.php
+    https://en.wikipedia.org/wiki/Two-line_element_set
     """
     lines: list[str] = [line.rstrip("\n") for line in stream if line.strip()]
 
@@ -695,6 +739,10 @@ def write_tle(
     -------
     tuple[str, str]
         The formatted *(line1, line2)* strings that were written.
+
+    References
+    ----------
+    https://celestrak.org/NORAD/documentation/tle-fmt.php
     """
     if isinstance(dest, (str, Path)):
         with open(dest, "w", encoding="utf-8") as fh:

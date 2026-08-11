@@ -9,7 +9,9 @@ The time conversion functions use Tudat's time scale converter to handle
 leap seconds and relativistic corrections when converting between UTC and TDB.
 
 References:
-    ISO 8601 "Date and time representations".
+    https://en.wikipedia.org/wiki/ISO_8601 (ISO 8601 date and time format)
+    https://en.wikipedia.org/wiki/Barycentric_Dynamical_Time (TDB time scale)
+    https://en.wikipedia.org/wiki/Coordinated_Universal_Time (UTC time scale)
 """
 
 from __future__ import annotations
@@ -58,6 +60,11 @@ def posix_to_tdb_s(posix_s: float) -> float:
     -------
     float
         TDB seconds since J2000 epoch (s).
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Unix_time (POSIX timestamp definition)
+    https://en.wikipedia.org/wiki/Epoch_(astronomy)#Julian_years_and_J2000 (J2000 epoch)
     """
     utc_j2000_s: float = posix_s - _UTC_J2000_IN_POSIX
     return _tudat_time_scale_converter.convert_time(
@@ -79,6 +86,10 @@ def datetime_to_tdb_s(dt: datetime) -> float:
     -------
     float
         TDB seconds since J2000 epoch (s).
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Epoch_(astronomy)#Julian_years_and_J2000 (J2000 epoch)
     """
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
@@ -104,6 +115,10 @@ def tdb_s_to_datetime(tdb_s: float) -> datetime:
     -------
     datetime
         UTC datetime object.
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Epoch_(astronomy)#Julian_years_and_J2000 (J2000 epoch)
     """
     utc_j2000_s: float = _tudat_time_scale_converter.convert_time(
         input_value=tdb_s,
@@ -138,6 +153,10 @@ def iso8601_to_datetime(epoch_str: str) -> datetime:
     - With space separator: 2000-01-01 12:00:00, 2000-01-01 12:00:00.123
     - With 'Z' timezone indicator: 2000-01-01T12:00:00Z
     - With fractional seconds: 2000-01-01T12:00:00.123456
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/ISO_8601 (ISO 8601 date and time format)
     """
     s: str = epoch_str.strip()
     if s.endswith("Z"):
@@ -199,6 +218,10 @@ def datetime_to_iso8601(
     See Also
     --------
     iso8601_to_datetime : Inverse operation (parse ISO 8601 string to datetime).
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/ISO_8601 (ISO 8601 date and time format)
     """
     # Convert to UTC timezone
     if dt.tzinfo is None:
@@ -238,6 +261,10 @@ def parse_time_or_duration(value: str) -> datetime | timedelta:
     -------
     datetime | timedelta
         Parsed absolute datetime or relative timedelta.
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/ISO_8601 (ISO 8601 date and time format)
     """
     try:
         return iso8601_to_datetime(value)

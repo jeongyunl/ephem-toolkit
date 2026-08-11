@@ -19,9 +19,9 @@ tudatpy's ``element_conversion`` module:
     ======  ====  ==========================================
 
 References:
-    Brouwer, D. "Solution of the Problem of Artificial Satellite Theory
-    Without Drag", Astronomical Journal, 64, 1959.
-    Hoots, F.R. & Roehrich, R.L. "Spacetrack Report No. 3", 1980.
+    https://en.wikipedia.org/wiki/Brouwer%E2%80%93Lyddane_mean_motion_model
+    https://celestrak.org/publications/AIAA/2006-6753/AIAA-2006-6753.pdf (Hoots & Roehrich, Spacetrack Report No. 3)
+    Brouwer, D. "Solution of the Problem of Artificial Satellite Theory Without Drag", Astronomical Journal, 64, 1959.
     Vallado, D.A. "Fundamentals of Astrodynamics and Applications", Ch. 9.
 """
 
@@ -29,8 +29,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from . import kepler
 from . import consts
+from . import kepler
 
 # Re-export constants and indices used by this module for convenience
 EARTH_GRAVITATIONAL_PARAMETER_M3_S2: float = consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
@@ -103,9 +103,9 @@ def compute_brouwer_short_period_corrections(
 
     References
     ----------
-    Brouwer, D. "Solution of the Problem of Artificial Satellite Theory
-    Without Drag", Astronomical Journal, 64, 1959.
-    Hoots, F.R. & Roehrich, R.L. "Spacetrack Report No. 3", 1980.
+    https://en.wikipedia.org/wiki/Brouwer%E2%80%93Lyddane_mean_motion_model
+    https://celestrak.org/publications/AIAA/2006-6753/AIAA-2006-6753.pdf (Hoots & Roehrich, Spacetrack Report No. 3)
+    Brouwer, D. "Solution of the Problem of Artificial Satellite Theory Without Drag", Astronomical Journal, 64, 1959.
     Vallado, D.A. "Fundamentals of Astrodynamics and Applications", Ch. 9.
     """
     mean_elements: np.ndarray = np.asarray(mean_keplerian_elements, dtype=float)
@@ -272,6 +272,10 @@ def compute_brouwer_short_period_corrections(
 
 
 # ===================================================================
+# Mean-to-osculating conversion (alias)
+# ===================================================================
+
+
 def mean_to_osculating_keplerian(
     mean_keplerian_elements: np.ndarray,
     R_e_m: float = EARTH_EQUATORIAL_RADIUS_M,
@@ -310,7 +314,8 @@ def mean_to_osculating_keplerian(
     )
 
 
-# Osculating -> Mean (iterative inversion)
+# ===================================================================
+# Osculating-to-mean conversion (iterative inversion)
 # ===================================================================
 
 
@@ -347,6 +352,11 @@ def osculating_to_mean_keplerian(
     np.ndarray, shape (6,)
         Mean Keplerian elements [a, e, i, omega, RAAN, M].
         Angles are in radians and semi-major axis is in meters.
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Brouwer%E2%80%93Lyddane_mean_motion_model
+    https://celestrak.org/publications/AIAA/2006-6753/AIAA-2006-6753.pdf (Hoots & Roehrich, Spacetrack Report No. 3)
     """
     osculating_elements: np.ndarray = np.asarray(
         osculating_keplerian_elements, dtype=float
@@ -494,6 +504,10 @@ def compute_raan_rate(
     -------
     float
         RAAN rate (rad/s).
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Nodal_precession#Perturbation_of_the_orbital_plane
     """
     semi_major_axis: float = keplerian_elements[SEMI_MAJOR_AXIS_INDEX]
     eccentricity: float = keplerian_elements[ECCENTRICITY_INDEX]
@@ -504,7 +518,7 @@ def compute_raan_rate(
     radius_ratio_squared: float = (R_e_m / semi_latus_rectum) ** 2
     cos_inclination: float = np.cos(inclination)
 
-    # Secular rates
+    # https://en.wikipedia.org/wiki/Nodal_precession#Perturbation_of_the_orbital_plane - J2 secular RAAN rate
     raan_rate: float = -1.5 * mean_motion * J2 * radius_ratio_squared * cos_inclination
 
     return raan_rate
@@ -586,6 +600,11 @@ def propagate_mean_j2(
     np.ndarray
         Mean Keplerian elements at epoch + time_elapsed_s (6,): [a, e, i, omega, RAAN, M].
         Element ordering follows kepler module index constants.
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Nodal_precession#Perturbation_of_the_orbital_plane
+    https://en.wikipedia.org/wiki/Apsidal_precession#General_relativistic_apsidal_precession
     """
     semi_major_axis: float = keplerian_elements[SEMI_MAJOR_AXIS_INDEX]
     eccentricity: float = keplerian_elements[ECCENTRICITY_INDEX]
@@ -601,8 +620,9 @@ def propagate_mean_j2(
     cos_inclination: float = np.cos(inclination)
     cos_inclination_squared: float = cos_inclination**2
 
-    # Secular rates
+    # https://en.wikipedia.org/wiki/Nodal_precession#Perturbation_of_the_orbital_plane - J2 secular RAAN rate
     raan_rate: float = -1.5 * mean_motion * J2 * radius_ratio_squared * cos_inclination
+    # https://en.wikipedia.org/wiki/Apsidal_precession - J2 secular argument of periapsis rate
     argument_of_periapsis_rate: float = (
         0.75
         * mean_motion

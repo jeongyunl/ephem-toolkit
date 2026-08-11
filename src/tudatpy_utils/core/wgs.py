@@ -10,8 +10,10 @@ reference point on the Earth's surface:
 - Up axis points away from the Earth's center (perpendicular to the reference ellipsoid)
 
 References:
-    WGS-84 Earth Gravitational Model
-    "Department of Defense World Geodetic System 1984"
+    https://en.wikipedia.org/wiki/Geographic_coordinate_conversion
+    https://en.wikipedia.org/wiki/Local_tangent_plane_coordinates
+    https://earth-info.nga.mil/php/download.php?file=coord-wgs84 (WGS-84 specification)
+    https://nsgreg.nga.mil/doc/view?i=4085 (NGA TR8350.2: WGS-84 parameters)
 """
 
 from __future__ import annotations
@@ -68,6 +70,11 @@ def ecef_to_enu(
         - Shape (3,): If input is single position vector
         - Shape (N, 3): If input is batch of N position vectors
 
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Local_tangent_plane_coordinates#Local_east,_north,_up_(ENU)_coordinates
+    https://gssc.esa.int/navipedia/index.php/Transformations_between_ECEF_and_ENU_coordinates
+
     Examples
     --------
     >>> import numpy as np
@@ -120,6 +127,7 @@ def ecef_to_enu(
 
     # ENU rotation matrix (3x3)
     # Each row represents the direction of E, N, U in ECEF coordinates
+    # https://en.wikipedia.org/wiki/Local_tangent_plane_coordinates#From_ECEF_to_ENU
     enu_rotation_matrix: np.ndarray = np.array(
         [
             [-sin_lon, cos_lon, 0.0],
@@ -164,6 +172,11 @@ def ecef_to_enu_velocity(
         Velocity vector(s) in ENU coordinates [v_east, v_north, v_up] in m/s.
         - Shape (3,): If input is single velocity vector
         - Shape (N, 3): If input is batch of N velocity vectors
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Local_tangent_plane_coordinates#Local_east,_north,_up_(ENU)_coordinates
+    https://gssc.esa.int/navipedia/index.php/Transformations_between_ECEF_and_ENU_coordinates
 
     Examples
     --------
@@ -211,6 +224,7 @@ def ecef_to_enu_velocity(
     cos_lon: float = math.cos(lon)
 
     # ENU rotation matrix (3x3)
+    # https://en.wikipedia.org/wiki/Local_tangent_plane_coordinates#From_ECEF_to_ENU
     enu_rotation_matrix: np.ndarray = np.array(
         [
             [-sin_lon, cos_lon, 0.0],
@@ -259,6 +273,11 @@ def ecef_to_enu_state(
         - Velocity [ve, vn, vu] in m/s
         - Shape (6,): If input is single state vector
         - Shape (N, 6): If input is batch of N state vectors
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Local_tangent_plane_coordinates#Local_east,_north,_up_(ENU)_coordinates
+    https://gssc.esa.int/navipedia/index.php/Transformations_between_ECEF_and_ENU_coordinates
 
     Examples
     --------
@@ -344,6 +363,11 @@ def enu_to_ecef(
         - Shape (3,): If input is single position vector
         - Shape (N, 3): If input is batch of N position vectors
 
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Local_tangent_plane_coordinates#Local_east,_north,_up_(ENU)_coordinates
+    https://gssc.esa.int/navipedia/index.php/Transformations_between_ECEF_and_ENU_coordinates
+
     Examples
     --------
     >>> import numpy as np
@@ -389,6 +413,7 @@ def enu_to_ecef(
     cos_lon: float = math.cos(lon)
 
     # ENU rotation matrix (3x3)
+    # https://en.wikipedia.org/wiki/Local_tangent_plane_coordinates#From_ENU_to_ECEF
     enu_rotation_matrix: np.ndarray = np.array(
         [
             [-sin_lon, cos_lon, 0.0],
@@ -437,6 +462,11 @@ def enu_to_ecef_velocity(
         - Shape (3,): If input is single velocity vector
         - Shape (N, 3): If input is batch of N velocity vectors
 
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Local_tangent_plane_coordinates#Local_east,_north,_up_(ENU)_coordinates
+    https://gssc.esa.int/navipedia/index.php/Transformations_between_ECEF_and_ENU_coordinates
+
     Examples
     --------
     >>> import numpy as np
@@ -483,6 +513,7 @@ def enu_to_ecef_velocity(
     cos_lon: float = math.cos(lon)
 
     # ENU rotation matrix (3x3)
+    # https://en.wikipedia.org/wiki/Local_tangent_plane_coordinates#From_ENU_to_ECEF
     enu_rotation_matrix: np.ndarray = np.array(
         [
             [-sin_lon, cos_lon, 0.0],
@@ -531,6 +562,11 @@ def enu_to_ecef_state(
         - Velocity [vx, vy, vz] in m/s
         - Shape (6,): If input is single state vector
         - Shape (N, 6): If input is batch of N state vectors
+
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Local_tangent_plane_coordinates#Local_east,_north,_up_(ENU)_coordinates
+    https://gssc.esa.int/navipedia/index.php/Transformations_between_ECEF_and_ENU_coordinates
 
     Examples
     --------
@@ -608,6 +644,11 @@ def lla_to_ecef(lla: np.ndarray) -> np.ndarray:
         - Shape (3,): If input is single coordinate
         - Shape (N, 3): If input is batch of N coordinates
 
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_geodetic_to_ECEF_coordinates
+    https://gssc.esa.int/navipedia/index.php/Ellipsoidal_and_Cartesian_Coordinates_Conversion
+
     Examples
     --------
     >>> import numpy as np
@@ -642,11 +683,13 @@ def lla_to_ecef(lla: np.ndarray) -> np.ndarray:
     sin_lon: np.ndarray = np.sin(lon)
     cos_lon: np.ndarray = np.cos(lon)
 
+    # https://en.wikipedia.org/wiki/Earth_radius#Prime_vertical
     N: np.ndarray = EARTH_EQUATORIAL_RADIUS_M / np.sqrt(
         1.0 - EARTH_ECCENTRICITY_SQUARED * sin_lat**2
     )
 
     # Compute ECEF coordinates
+    # https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_geodetic_to_ECEF_coordinates
     x: np.ndarray = (N + alt) * cos_lat * cos_lon
     y: np.ndarray = (N + alt) * cos_lat * sin_lon
     z: np.ndarray = (N * (1.0 - EARTH_ECCENTRICITY_SQUARED) + alt) * sin_lat
@@ -689,6 +732,12 @@ def ecef_to_lla(
         - Shape (3,): If input is single position vector
         - Shape (N, 3): If input is batch of N position vectors
 
+    References
+    ----------
+    https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_ECEF_to_geodetic_coordinates
+    https://gssc.esa.int/navipedia/index.php/Ellipsoidal_and_Cartesian_Coordinates_Conversion
+    https://microem.ru/files/2012/08/GPS.G1-X-00006.pdf (Bowring's method)
+
     Examples
     --------
     >>> import numpy as np
@@ -720,7 +769,8 @@ def ecef_to_lla(
     # Compute longitude (straightforward)
     lon: np.ndarray = np.arctan2(y, x)
 
-    # Compute latitude iteratively
+    # Compute latitude iteratively (Bowring's method)
+    # https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#Bowring's_method
     p: np.ndarray = np.sqrt(x**2 + y**2)
     lat: np.ndarray = np.arctan2(z, p * (1.0 - EARTH_ECCENTRICITY_SQUARED))
 

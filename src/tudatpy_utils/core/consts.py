@@ -1,6 +1,12 @@
 """Physical constants for Earth and orbital mechanics.
 
 All constants use SI units (meters, seconds) with WGS-84 values where applicable.
+
+References:
+    https://en.wikipedia.org/wiki/World_Geodetic_System#WGS84
+    https://en.wikipedia.org/wiki/Earth_radius
+    https://en.wikipedia.org/wiki/Geopotential_model
+    https://earth-info.nga.mil/index.php?dir=wgs84&action=wgs84 (NGA WGS-84 specification)
 """
 
 from __future__ import annotations

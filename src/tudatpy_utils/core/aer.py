@@ -10,15 +10,16 @@ reference point on the Earth's surface:
 - Range: Distance from the reference point to the target
 
 References:
-    WGS-84 Earth Gravitational Model
-    "Department of Defense World Geodetic System 1984"
+    https://en.wikipedia.org/wiki/Geodetic_coordinates
+    https://en.wikipedia.org/wiki/Horizontal_coordinate_system
+    https://earth-info.nga.mil/index.php?dir=wgs84&action=wgs84 (WGS-84 specification)
 """
 
 from __future__ import annotations
 
 import numpy as np
 
-from . import wgs as wgs
+from . import wgs
 
 # ===================================================================
 # ECEF to AER conversion
@@ -591,21 +592,21 @@ def enu_to_aer_velocity(
     horizontal_range: np.ndarray = np.sqrt(east**2 + north**2)
 
     # Compute range rate (radial velocity)
-    # range_rate = d(range)/dt = (e*ve + n*vn + u*vu) / range
+    # range_rate = d(range)/dt = (e·ve + n·vn + u·vu) / range
     range_rate: np.ndarray = (east * v_east + north * v_north + up * v_up) / (
         range_val + 1e-10
     )
 
     # Compute azimuth rate
-    # az_rate = d(atan2(e, n))/dt = (n*ve - e*vn) / (e^2 + n^2)
+    # az_rate = d(atan2(e, n))/dt = (n·ve - e·vn) / (e² + n²)
     azimuth_rate: np.ndarray = (north * v_east - east * v_north) / (
         horizontal_range**2 + 1e-10
     )
 
     # Compute elevation rate
-    # el_rate = d(atan2(u, h))/dt where h = sqrt(e^2 + n^2)
-    # el_rate = (h*vu - u*h_rate) / (h^2 + u^2)
-    # where h_rate = (e*ve + n*vn) / h
+    # el_rate = d(atan2(u, h))/dt where h = sqrt(e² + n²)
+    # el_rate = (h·vu - u·h_rate) / (h² + u²)
+    # where h_rate = (e·ve + n·vn) / h
     horizontal_rate: np.ndarray = (east * v_east + north * v_north) / (
         horizontal_range + 1e-10
     )
@@ -801,13 +802,13 @@ def aer_to_enu_velocity(
     horizontal_rate: np.ndarray = range_rate * cos_el - range_val * sin_el * el_rate
 
     # Compute ENU velocity components
-    # east = h * sin(az), so v_east = h_rate * sin(az) + h * cos(az) * az_rate
+    # east = h · sin(az), so v_east = h_rate · sin(az) + h · cos(az) · az_rate
     v_east: np.ndarray = horizontal_rate * sin_az + horizontal_range * cos_az * az_rate
 
-    # north = h * cos(az), so v_north = h_rate * cos(az) - h * sin(az) * az_rate
+    # north = h · cos(az), so v_north = h_rate · cos(az) - h · sin(az) · az_rate
     v_north: np.ndarray = horizontal_rate * cos_az - horizontal_range * sin_az * az_rate
 
-    # up = r * sin(el), so v_up = range_rate * sin(el) + r * cos(el) * el_rate
+    # up = r · sin(el), so v_up = range_rate · sin(el) + r · cos(el) · el_rate
     v_up: np.ndarray = range_rate * sin_el + range_val * cos_el * el_rate
 
     enu_velocity: np.ndarray = np.column_stack([v_east, v_north, v_up])

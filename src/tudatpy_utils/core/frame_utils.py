@@ -20,7 +20,7 @@ from tudatpy.dynamics import environment_setup
 from tudatpy.dynamics.environment_setup.rotation_model import RotationModelSettings
 from tudatpy.interface import spice
 
-from . import spice_utils as spice_utils
+from . import spice_utils
 
 _did_load_spice_kernels: bool = False
 """Whether the required SPICE kernels have already been loaded."""
