@@ -26,7 +26,7 @@ These are the current documented script entry points. Direct `python3 path/to/sc
 | Script | Current invocation shape | Primary behavior |
 | --- | --- | --- |
 | `bin/diff_oem.py` | `python3 bin/diff_oem.py <reference.oem> <comparison.oem> [options]` | Compare two OEM state histories and write differences/statistics. |
-| `bin/download_tle.py` | `python3 bin/download_tle.py [--format FORMAT] <satellite-id> ...` | Download TLE or OMM data to files. |
+| `src/download_tle/download_tle.py` | `python3 src/download_tle/download_tle.py [--format FORMAT] <satellite-id> ...` | Download TLE or OMM data to files. |
 | `bin/omm_to_tle.py` | `python3 bin/omm_to_tle.py <input.omm>` | Convert OMM input to TLE output. |
 | `bin/slice_oem.py` | `python3 bin/slice_oem.py <oem> --slice START:STOP:STEP` | Slice an OEM stream or file. |
 | `bin/tle_info.py` | `python3 bin/tle_info.py <file.tle> ...` | Print TLE metadata and derived orbital values. |
@@ -100,7 +100,7 @@ Poetry console scripts will use lowercase hyphenated names:
 | Current script | Canonical command |
 | --- | --- |
 | `bin/diff_oem.py` | `diff-oem` |
-| `bin/download_tle.py` | `download-tle` |
+| `src/download_tle/download_tle.py` | `download-tle` |
 | `bin/omm_to_tle.py` | `omm-to-tle` |
 | `bin/slice_oem.py` | `slice-oem` |
 | `bin/tle_info.py` | `tle-info` |
