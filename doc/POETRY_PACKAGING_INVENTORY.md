@@ -41,7 +41,7 @@ These are the current documented script entry points. Direct `python3 path/to/sc
 | `plotting/plot_orbit_deltas.py` | `python3 plotting/plot_orbit_deltas.py <oem> ...` | Plot orbit differences. |
 | `plotting/plot_dependent_variables.py` | `python3 plotting/plot_dependent_variables.py --csv FILE` | Plot dependent variables. |
 
-Common behavior includes stdin support through `-` or omitted input paths, stdout-oriented output, optional `-o/--output` file destinations, and CCSDS/OEM/TLE/OMM text formats. Exact command names and aliases are still a Step 2 decision.
+Common behavior includes stdin support through `-` or omitted input paths, stdout-oriented output, optional `-o/--output` file destinations, and CCSDS/OEM/TLE/OMM text formats.
 
 ## Dependency Inventory
 
@@ -83,10 +83,49 @@ Representative smoke commands are listed in the plan's source documentation and 
 - SPICE kernel filenames and TudatPy-managed cache resolution are runtime assumptions for frame and propagation workflows.
 - Existing top-level imports such as `common.*`, `diff_oem.*`, and `oem_to_omm.*` may be used by tests or downstream scripts and need a compatibility policy.
 
-## Step 1 Decisions Deferred To Step 2
+## Step 2 Decisions
 
-- Distribution name and import package name.
-- Whether to consolidate modules under one `tudatpy_utils` namespace or preserve top-level package names with aliases.
-- Canonical console command names and hyphen/underscore aliases.
-- Core versus optional dependency groups.
-- Duration of compatibility support for direct `bin/` and domain-script invocation.
+### Distribution And Import Names
+
+- Distribution name: `tudatpy-utils`.
+- Canonical import namespace: `tudatpy_utils`.
+- Target package layout: `tudatpy_utils.common`, `tudatpy_utils.diff_oem`, `tudatpy_utils.oem_to_omm`, `tudatpy_utils.propagation`, and `tudatpy_utils.plotting` under `src/`.
+- Existing top-level imports such as `common.*`, `diff_oem.*`, and `oem_to_omm.*` remain transition compatibility surfaces while downstream users migrate to the canonical namespace.
+
+### Console Commands
+
+Poetry console scripts will use lowercase hyphenated names:
+
+| Current script | Canonical command |
+| --- | --- |
+| `bin/diff_oem.py` | `diff-oem` |
+| `bin/download_tle.py` | `download-tle` |
+| `bin/omm_to_tle.py` | `omm-to-tle` |
+| `bin/slice_oem.py` | `slice-oem` |
+| `bin/tle_info.py` | `tle-info` |
+| `bin/tle_to_omm.py` | `tle-to-omm` |
+| `bin/xform_oem.py` | `xform-oem` |
+| `oem_to_omm/oem_to_omm.py` | `oem-to-omm` |
+| `oem_to_omm/evaluate_fit_tle.py` | `evaluate-fit-tle` |
+| `propagation/propagate_orbit.py` | `propagate-orbit` |
+| `propagation/propagate_kepler.py` | `propagate-kepler` |
+| `propagation/propagate_tle.py` | `propagate-tle` |
+| `plotting/plot_orbit.py` | `plot-orbit` |
+| `plotting/plot_orbit_deltas.py` | `plot-orbit-deltas` |
+| `plotting/plot_dependent_variables.py` | `plot-dependent-variables` |
+
+Direct script invocation remains supported through the migration. No underscore aliases will be registered initially; compatibility belongs in the existing wrapper paths rather than duplicate Poetry commands.
+
+### Dependency Groups
+
+- Core runtime dependency: NumPy.
+- `tudat` extra: TudatPy for frame conversion, SPICE, propagation, and TLE-fitting workflows.
+- `plotting` extra: Matplotlib for plotting workflows.
+- No direct SGP4 or SciPy dependency is declared until a direct import is verified.
+- Development tooling and supported Python versions remain Step 3 decisions because they depend on the Poetry configuration and CI environment.
+
+### Compatibility Policy
+
+- Preserve documented argument names, stdin/stdout behavior, output formats, and exit behavior.
+- Keep `bin/` and domain-script wrappers during the initial package release and deprecate them only after the console commands are documented and smoke-tested.
+- Treat canonical imports under `tudatpy_utils` and the 15 console commands as the new public surface.
