@@ -65,7 +65,7 @@ Install plotting support with `poetry install -E plotting`. TudatPy-dependent wo
 
 ### Orbit Propagation
 
-- `propagation/propagate_orbit.py` — Cartesian state propagation with configurable perturbations
+- `src/propagate_orbit/propagate_orbit.py` — Cartesian state propagation with configurable perturbations
 - `src/propagate_kepler/propagate_kepler.py` — two-body Kepler propagation
 - `src/propagate_tle/propagate_tle.py` — SGP4 TLE propagation
 

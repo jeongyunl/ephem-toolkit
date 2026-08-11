@@ -1,4 +1,4 @@
-"""Tests for propagation/propagate_orbit.py — General orbit propagation utility script."""
+"""Tests for src/propagate_orbit/propagate_orbit.py — General orbit propagation utility script."""
 
 from __future__ import annotations
 
