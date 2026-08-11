@@ -598,7 +598,7 @@ Solution: Ensure `--start` is before or equal to `--stop`.
 - `bin/slice_oem.py` — Extract subsets of OEM data by index or time range
 - `plotting/plot_orbit_deltas.py` — Visualize orbit differences
 - `propagation/propagate_orbit.py` — Generate OEM files from propagation
-- `oem_to_omm/oem_to_omm.py` — Convert OEM to TLE/OMM format
+- `src/oem_to_omm/oem_to_omm.py` — Convert OEM to TLE/OMM format
 
 ## References
 

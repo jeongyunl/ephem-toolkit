@@ -16,8 +16,8 @@ dist/
 src/common/interpolator/cpp/*
 coverage/
 ISS.OEM_J2K_EPH.txt
-oem_to_omm/*.oem
-oem_to_omm/*.omm
-oem_to_omm/*.tle
+src/oem_to_omm/*.oem
+src/oem_to_omm/*.omm
+src/oem_to_omm/*.tle
 propagation/*.oem
 tmp/

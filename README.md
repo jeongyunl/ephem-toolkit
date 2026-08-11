@@ -19,7 +19,7 @@ common/              Shared Python library modules
 common/interpolator/ Interpolation sub-library (Lagrange, generic)
 common/ccsds/       CCSDS ODM, OEM, and OMM definitions and parsers
 time_conversion/     C++ time-conversion library, CLI, and tests
-oem_to_omm/          OEM-to-OMM estimation application module (includes TLE fitting)
+src/oem_to_omm/       OEM-to-OMM estimation application module (includes TLE fitting)
 propagation/         Python propagation scripts
 plotting/            Python orbit visualization scripts
 bin/                 Command-line utility scripts
@@ -75,7 +75,7 @@ See [PROPAGATION.md](doc/PROPAGATION.md) for full usage details.
 
 ### OEM-to-OMM
 
-- `oem_to_omm/oem_to_omm.py`
+- `src/oem_to_omm/oem_to_omm.py`
 
 Estimates Orbit Mean-Elements Messages (OMM) including Two-Line Element (TLE) sets from OEM Cartesian state vectors. Fits OEM state vectors to osculating Kepler, mean Kepler, or TLE-derived OMM output using iterative least-squares fitting. Includes least-squares estimation, iterative refinement, SGP4 model evaluation, and TLE line construction.
 
