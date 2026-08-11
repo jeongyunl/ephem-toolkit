@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,10 +16,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-# Add parent directory to path to import common module
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-import common.common as common
 import common.time_utils as time_utils
 
 SECONDS_PER_HOUR: float = 3600.0

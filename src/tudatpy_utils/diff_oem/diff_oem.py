@@ -14,11 +14,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
 from typing import TextIO
-
-# Add the src directory to the path for direct execution.
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from diff_oem.cli import parse_arguments
 from diff_oem.comparison import read_states
@@ -284,6 +280,3 @@ def main() -> None:
         print(f"Error: {error}", file=sys.stderr)
         sys.exit(1)
 
-
-if __name__ == "__main__":
-    main()

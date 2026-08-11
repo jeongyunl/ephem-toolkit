@@ -25,7 +25,7 @@ SRC_DIR: Path = PROJECT_ROOT / "src"
 """Source directory containing executable scripts."""
 
 SLICE_OEM_SCRIPT: Path = (
-    SRC_DIR / "tudatpy_utils" / "slice_oem" / "slice_oem.py"
+    SRC_DIR / "tudatpy_utils" / "cli" / "slice_oem.py"
 )
 """Path to slice_oem.py script."""
 

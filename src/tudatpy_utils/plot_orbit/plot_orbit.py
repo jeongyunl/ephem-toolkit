@@ -16,9 +16,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Add parent directory to path to import common utilities
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import common.common as common
 import common.ccsds.oem as oem
 import common.time_utils as time_utils
@@ -261,7 +258,9 @@ def _compute_rtn_velocity_direction_vector(state_m: np.ndarray) -> np.ndarray:
     else:
         normal_unit_vector = angular_momentum_vector / angular_momentum_norm
 
-    transverse_unit_vector: np.ndarray = np.cross(normal_unit_vector, radial_unit_vector)
+    transverse_unit_vector: np.ndarray = np.cross(
+        normal_unit_vector, radial_unit_vector
+    )
     velocity_rtn: np.ndarray = np.array(
         [
             np.dot(velocity_m_s, radial_unit_vector),
@@ -354,7 +353,9 @@ def compute_orbit_series(
             angle_rad = np.arccos(dot_product)
             angle_deg = np.degrees(angle_rad)
             direction_change_angle_deg[sample_index] = angle_deg
-            delta_time_s = elapsed_time_s[sample_index] - elapsed_time_s[sample_index - 1]
+            delta_time_s = (
+                elapsed_time_s[sample_index] - elapsed_time_s[sample_index - 1]
+            )
             if delta_time_s > 0.0:
                 direction_change_rate_deg_s[sample_index] = angle_deg / delta_time_s
                 angular_velocity_deg_s[sample_index] = angle_deg / delta_time_s
@@ -368,16 +369,18 @@ def compute_orbit_series(
             transverse_component = direction_vector[1]
             normal_component = direction_vector[2]
             roll_deg = 0.0
-            pitch_deg = np.degrees(
-                np.arctan2(radial_component, transverse_component)
-            )
+            pitch_deg = np.degrees(np.arctan2(radial_component, transverse_component))
             yaw_deg = np.degrees(
-                np.arctan2(normal_component, np.hypot(radial_component, transverse_component))
+                np.arctan2(
+                    normal_component, np.hypot(radial_component, transverse_component)
+                )
             )
             euler_angles_deg[sample_index] = [roll_deg, pitch_deg, yaw_deg]
 
         for sample_index in range(1, len(states_m)):
-            delta_time_s = elapsed_time_s[sample_index] - elapsed_time_s[sample_index - 1]
+            delta_time_s = (
+                elapsed_time_s[sample_index] - elapsed_time_s[sample_index - 1]
+            )
             if delta_time_s > 0.0:
                 euler_angle_rates_deg_s[sample_index] = (
                     euler_angles_deg[sample_index] - euler_angles_deg[sample_index - 1]

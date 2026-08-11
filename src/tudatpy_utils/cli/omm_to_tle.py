@@ -7,3 +7,7 @@ def main() -> None:
     from tudatpy_utils.omm_to_tle.omm_to_tle import main as command_main
 
     command_main()
+
+
+if __name__ == "__main__":
+    main()

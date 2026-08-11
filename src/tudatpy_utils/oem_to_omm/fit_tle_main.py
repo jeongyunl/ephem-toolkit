@@ -23,23 +23,16 @@ References:
 from __future__ import annotations
 
 import math
-from pathlib import Path
-import sys
 from datetime import datetime, timezone
 
 import numpy as np
 
-# Add parent directory to path to import common module
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-import common.common as common
 import common.consts as consts
 import common.time_utils as time_utils
 import common.tle as tle
 import common.convert_tle as convert_tle
 import common.spice_utils as spice_utils
 from . import fit_common
-from .fit_tle import constants
 from .fit_tle import estimation
 from .fit_tle import models
 from .fit_tle import refinement

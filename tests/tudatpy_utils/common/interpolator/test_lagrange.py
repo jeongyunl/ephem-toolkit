@@ -8,9 +8,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-# Add parent directory to path to import common module
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from common.ccsds.oem import CcsdsOem
 import common.interpolator.lagrange as lagrange
 

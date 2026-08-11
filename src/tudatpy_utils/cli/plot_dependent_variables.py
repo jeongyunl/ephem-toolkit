@@ -4,6 +4,12 @@
 
 
 def main() -> None:
-    from tudatpy_utils.plot_dep_vars.plot_dependent_variables import main as command_main
+    from tudatpy_utils.plot_dep_vars.plot_dependent_variables import (
+        main as command_main,
+    )
 
     command_main()
+
+
+if __name__ == "__main__":
+    main()

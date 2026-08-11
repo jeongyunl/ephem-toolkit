@@ -5,11 +5,6 @@ from __future__ import annotations
 import argparse
 import io
 import math
-from pathlib import Path
-import sys
-
-# Add parent directory to path to import common module
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.tle as tle
 from . import models

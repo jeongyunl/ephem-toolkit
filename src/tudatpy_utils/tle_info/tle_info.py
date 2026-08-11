@@ -17,8 +17,6 @@ from __future__ import annotations
 
 import argparse
 import math
-import sys
-from pathlib import Path
 
 import warnings
 
@@ -33,9 +31,6 @@ from tudatpy.astro.element_conversion import KeplerianElementIndices
 from tudatpy.astro.time_representation import DateTime
 from tudatpy.dynamics import environment_setup
 from tudatpy.interface import spice
-
-# Add parent directory to path to import common module
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.kepler as kepler
 import common.spice_utils as spice_utils

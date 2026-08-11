@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
 import pytest
-
-# Add parent directory to path to import common module
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import oem_to_omm.fit_tle.models as models
 

@@ -73,10 +73,6 @@ warnings.filterwarnings(
     module=r"urllib3(\..*)?",
 )
 
-
-# Add parent directory to path to import common module
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import common.aer as aer
 import common.frame_utils as frame_utils
 import common.ccsds.oem as oem

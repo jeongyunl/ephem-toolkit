@@ -6,6 +6,15 @@ import numpy as np
 
 from enum import Enum
 
+import warnings
+
+# Suppress warnings that tudatpy / urllib3 may emit on import.
+warnings.filterwarnings("ignore", category=SyntaxWarning)
+warnings.filterwarnings(
+    "ignore",
+    module=r"urllib3(\..*)?",
+)
+
 from tudatpy.astro import element_conversion
 from tudatpy.dynamics import environment_setup
 from tudatpy.dynamics.environment_setup.rotation_model import RotationModelSettings

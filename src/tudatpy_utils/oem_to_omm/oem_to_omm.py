@@ -56,13 +56,8 @@ warnings.filterwarnings(
     module=r"urllib3(\..*)?",
 )
 
-
-# Add parent directory to path to import common module
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import common.consts as consts
 import common.convert_tle as convert_tle
-import common.kepler as kepler
 import common.mean_kepler as mean_kepler
 import common.ccsds.oem as oem
 import common.ccsds.omm as omm

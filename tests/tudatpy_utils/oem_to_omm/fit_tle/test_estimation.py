@@ -3,15 +3,10 @@
 from __future__ import annotations
 
 import io
-import sys
 from pathlib import Path
 from datetime import datetime, timezone
 import numpy as np
-from unittest.mock import patch, MagicMock
-import pytest
-
-# Add parent directory to path to import common module
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from unittest.mock import MagicMock
 
 import common.ccsds.oem as oem
 import oem_to_omm.fit_tle.estimation as estimation

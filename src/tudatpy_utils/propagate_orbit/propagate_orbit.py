@@ -26,13 +26,8 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-from pathlib import Path
 from typing import Any
 
-# Add parent directory to path to import common module
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-import common.common as common
 import common.spice_utils as spice_utils
 import common.time_utils as time_utils
 

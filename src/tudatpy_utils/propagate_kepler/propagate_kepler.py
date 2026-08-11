@@ -19,7 +19,6 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import pathlib
-from pathlib import Path
 import sys
 import numpy as np
 
@@ -31,9 +30,6 @@ warnings.filterwarnings(
     "ignore",
     module=r"urllib3(\..*)?",
 )
-
-# Add parent directory to path to import common module
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import common.ccsds.oem as oem
 import common.kepler as kepler
