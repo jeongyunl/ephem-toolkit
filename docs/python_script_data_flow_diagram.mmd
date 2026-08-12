@@ -26,97 +26,85 @@ flowchart LR
 
     %% ===== Script Nodes =====
 
-    %% bin/ scripts
-    download_tle(["download_tle.py"])
-    omm_to_tle(["omm_to_tle.py"])
-    tle_to_omm(["tle_to_omm.py"])
-    tle_info(["tle_info.py"])
-
-    %% oem_to_omm/ scripts
-    oem_to_omm(["oem_to_omm.py"])
-
-    %% src/propagate_* scripts
-    propagate_tle(["propagate_tle.py"])
-    propagate_sat(["propagate_orbit.py"])
-    propagate_kepler(["propagate_kepler.py"])
-    plot_dep_vars(["plot_dependent_variables.py"])
-    plot_orbit_deltas(["plot_orbit_deltas.py"])
-
-    %% conversion/ utilities
-    slice_oem(["slice_oem.py"])
-
-    %% OEM transformation utility
-    xform_oem(["xform_oem.py"])
-
-    %% time_conversion/tools/ scripts
-    convert_time(["convert_time.py"])
-    convert_time2(["convert_time2.py"])
-
-    %% oem_to_omm/ evaluation scripts
-    evaluate_fit_tle(["evaluate_fit_tle.py"])
+    %% Utility command nodes
+    download_tle(["download-tle"])
+    omm_to_tle(["omm-to-tle"])
+    tle_to_omm(["tle-to-omm"])
+    tle_info(["tle-info"])
+    oem_to_omm(["oem-to-omm"])
+    propagate_tle(["propagate-tle"])
+    propagate_sat(["propagate-orbit"])
+    propagate_kepler(["propagate-kepler"])
+    plot_dep_vars(["plot-dependent-variables"])
+    plot_orbit_deltas(["plot-orbit-deltas"])
+    slice_oem(["slice-oem"])
+    xform_oem(["xform-oem"])
+    convert_time(["convert-time"])
+    convert_time2(["convert-time2"])
+    evaluate_fit_tle(["evaluate-fit-tle"])
 
     %% ===== Data Flows =====
 
-    %% download_tle.py: CelesTrak → TLE or OMM files
+    %% download-tle: CelesTrak → TLE or OMM files
     fmt_celestrak -->|"satellite ID"| download_tle
     download_tle -->|"TLE format"| fmt_tle
     download_tle -->|"OMM format"| fmt_omm
 
-    %% oem_to_omm.py: OEM state vectors → OMM (Keplerian or TLE)
+    %% oem-to-omm: OEM state vectors → OMM (Keplerian or TLE)
     fmt_oem --> oem_to_omm
     oem_to_omm --> fmt_omm
     oem_to_omm --> fmt_tle
 
-    %% omm_to_tle.py: OMM → TLE
+    %% omm-to-tle: OMM → TLE
     fmt_omm --> omm_to_tle
     omm_to_tle --> fmt_tle
 
-    %% tle_to_omm.py: TLE → OMM
+    %% tle-to-omm: TLE → OMM
     fmt_tle --> tle_to_omm
     tle_to_omm --> fmt_omm
 
-    %% tle_info.py: TLE → console summary
+    %% tle-info: TLE → console summary
     fmt_tle --> tle_info
 
-    %% propagate_tle.py: TLE → OEM-like state vectors
+    %% propagate-tle: TLE → OEM-like state vectors
     fmt_tle --> propagate_tle
     propagate_tle --> fmt_oem
 
-    %% propagate_orbit.py: single OEM state line → propagated outputs
+    %% propagate-orbit: single OEM state line → propagated outputs
     fmt_oem -->|"single state line"| propagate_sat
     propagate_sat -->|"state history"| fmt_oem
     propagate_sat -->|"dependent variables"| fmt_dep_vars_csv
 
-    %% propagate_kepler.py: Keplerian elements → OEM state vectors
+    %% propagate-kepler: Keplerian elements → OEM state vectors
     fmt_kepler --> propagate_kepler
     propagate_kepler --> fmt_oem
 
-    %% plot_orbit_deltas.py: OEM state files → plots
+    %% plot-orbit-deltas: OEM state files → plots
     fmt_oem --> plot_orbit_deltas
     plot_orbit_deltas --> fmt_plots
 
-    %% slice_oem.py: OEM → sliced OEM states
+    %% slice-oem: OEM → sliced OEM states
     fmt_oem --> slice_oem
     slice_oem --> fmt_oem
 
-    %% plot_dependent_variables.py: dependent-variable CSV → plots/animations
+    %% plot-dependent-variables: dependent-variable CSV → plots/animations
     fmt_dep_vars_csv --> plot_dep_vars
     plot_dep_vars --> fmt_plots
 
-    %% xform_oem.py: OEM frame conversion or ECEF position-to-AER conversion
+    %% xform-oem: OEM frame conversion or ECEF position-to-AER conversion
     fmt_oem -->|"source frame + target frame"| xform_oem
     xform_oem -->|"converted OEM"| fmt_oem
     xform_oem -->|"AER text"| fmt_aer_text
 
-    %% convert_time.py: time values → converted time values
+    %% convert-time: time values → converted time values
     fmt_time --> convert_time
     convert_time --> fmt_time
 
-    %% convert_time2.py: time values → converted time values
+    %% convert-time2: time values → converted time values
     fmt_time --> convert_time2
     convert_time2 --> fmt_time
 
-    %% evaluate_fit_tle.py: OEM → fit TLE → propagate TLE → comparison
+    %% evaluate-fit-tle: OEM → fit TLE → propagate TLE → comparison
     fmt_oem --> evaluate_fit_tle
     evaluate_fit_tle -->|"uses"| oem_to_omm
     evaluate_fit_tle -->|"uses"| propagate_tle
