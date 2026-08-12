@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Convert Cartesian states between inertial and Earth-fixed frames."""
+
+from __future__ import annotations
 
 import numpy as np
 

@@ -9,8 +9,8 @@ modules are imported only when propagation is actually requested. This keeps
 ``--help`` and early argument validation responsive.
 
 Usage:
-    python3 propagate_tle.py <tle_file> [options]
-    cat <tle_file> | python3 propagate_tle.py [options]
+    propagate-tle <tle_file> [options]
+    cat <tle_file> | propagate-tle [options]
 
 Time window options:
     --start <iso8601|duration>   Start epoch (absolute or relative to TLE epoch)

@@ -421,10 +421,10 @@ def rotation_matrix_to_euler_angles(rotation_matrix: np.ndarray) -> np.ndarray:
     if abs(sin_pitch) >= 1.0:
         # Gimbal lock case
         pitch_rad: float = np.copysign(np.pi / 2.0, sin_pitch)
-        if sin_pitch < 0:  # pitch = +90 degrees
+        if sin_pitch < 0:  # pitch = -90 degrees
             yaw_rad: float = np.arctan2(rotation_matrix[0, 1], rotation_matrix[1, 1])
             roll_rad: float = 0.0
-        else:  # pitch = -90 degrees
+        else:  # pitch = +90 degrees
             yaw_rad = np.arctan2(-rotation_matrix[0, 1], rotation_matrix[1, 1])
             roll_rad = 0.0
     else:

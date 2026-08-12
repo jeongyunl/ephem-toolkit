@@ -1,7 +1,7 @@
 """Common slice helpers for OEM state selection.
 
-This module provides the library functions used by the OEM CLI wrapper in
-`src/slice_oem/slice_oem.py`.
+This module provides the library functions used by the ``slice-oem`` CLI tool
+(``tudatpy_utils.slice_oem.slice_oem``).
 
 References:
     https://en.wikipedia.org/wiki/ISO_8601 (ISO 8601 "Date and time representations")

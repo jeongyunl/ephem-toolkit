@@ -32,10 +32,10 @@ Algorithm overview (--kepler mode):
     convergence to a physically meaningful orbit.
 
 Usage:
-    python3 oem_to_omm.py --kepler <input.oem>
-    python3 oem_to_omm.py --mean-kepler <input.oem>
-    python3 oem_to_omm.py --tle <input.oem>
-    python3 oem_to_omm.py --tle - < input.oem
+    oem-to-omm --kepler <input.oem>
+    oem-to-omm --mean-kepler <input.oem>
+    oem-to-omm --tle <input.oem>
+    oem-to-omm --tle - < input.oem
 """
 
 from __future__ import annotations

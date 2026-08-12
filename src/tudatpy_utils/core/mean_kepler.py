@@ -604,7 +604,7 @@ def propagate_mean_j2(
     References
     ----------
     https://en.wikipedia.org/wiki/Nodal_precession#Perturbation_of_the_orbital_plane
-    https://en.wikipedia.org/wiki/Apsidal_precession#General_relativistic_apsidal_precession
+    https://en.wikipedia.org/wiki/Apsidal_precession
     """
     semi_major_axis: float = keplerian_elements[SEMI_MAJOR_AXIS_INDEX]
     eccentricity: float = keplerian_elements[ECCENTRICITY_INDEX]

@@ -12,7 +12,7 @@ velocity in km/s. Input is read from ``--initial-state`` when provided, otherwis
 from stdin.
 
 Usage:
-    python3 main.py [options]
+    propagate-orbit [options]
 
 Only the bare minimum needed for CLI argument parsing (``argparse``, ``re``) is
 imported at the top of the file. Every other module — including standard library,
