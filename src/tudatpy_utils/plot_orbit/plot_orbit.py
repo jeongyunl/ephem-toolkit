@@ -2,7 +2,7 @@
 """Plot a single OEM orbit and derived time-series diagnostics.
 
 Usage:
-    python3 src/plot_orbit/plot_orbit.py <oem_file> [-o output.png] [-d 6h] [--time-unit hours]
+    plot-orbit <oem_file> [-o output.png] [-d 6h] [--time-unit hours]
 """
 
 from __future__ import annotations
@@ -853,7 +853,7 @@ def main() -> None:
     """
     if len(sys.argv) < 2:
         print(
-            "Usage: python3 src/plot_orbit/plot_orbit.py <oem_file> "
+            "Usage: plot-orbit <oem_file> "
             "[-o output.png] [-d 6h] [--time-unit hours]",
             file=sys.stderr,
         )
@@ -867,9 +867,9 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    python3 src/plot_orbit/plot_orbit.py orbit.oem
-    python3 src/plot_orbit/plot_orbit.py orbit.oem -d 6h --time-unit minutes
-    python3 src/plot_orbit/plot_orbit.py orbit.oem -o orbit_plots.png
+    plot-orbit orbit.oem
+    plot-orbit orbit.oem -d 6h --time-unit minutes
+    plot-orbit orbit.oem -o orbit_plots.png
         """,
     )
 

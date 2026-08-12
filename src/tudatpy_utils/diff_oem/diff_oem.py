@@ -2,9 +2,9 @@
 """Compare corresponding states from two OEM files.
 
 Usage:
-    python3 src/diff_oem/diff_oem.py <reference_oem.oem> <comparison_oem.oem>
-    python3 src/diff_oem/diff_oem.py - <comparison_oem.oem>
-    python3 src/diff_oem/diff_oem.py <reference_oem.oem> -
+    diff-oem <reference_oem.oem> <comparison_oem.oem>
+    diff-oem - <comparison_oem.oem>
+    diff-oem <reference_oem.oem> -
 
 The utility reports time, position, and velocity differences. Use ``-`` for one
 stdin input. Interpolation options compare states at matching epochs.

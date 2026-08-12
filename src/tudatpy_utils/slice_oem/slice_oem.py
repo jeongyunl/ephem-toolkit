@@ -8,33 +8,33 @@ This utility provides flexible slicing capabilities for OEM files:
 - Flexible output: State data only or full OEM format
 
 Usage:
-    python3 src/slice_oem/slice_oem.py <oem_file> [OPTIONS]
-    cat data.oem | python3 src/slice_oem/slice_oem.py - [OPTIONS]
-    cat data.oem | python3 src/slice_oem/slice_oem.py [OPTIONS]
+    slice-oem <oem_file> [OPTIONS]
+    cat data.oem | slice-oem - [OPTIONS]
+    cat data.oem | slice-oem [OPTIONS]
 
 Index-based slicing examples:
-    python3 src/slice_oem/slice_oem.py data.oem --slice "0:10"
-    python3 bin/slice_oem.py data.oem --slice "::2"
-    python3 bin/slice_oem.py data.oem --slice "5"
-    python3 bin/slice_oem.py data.oem --slice="-5:"
-    cat data.oem | python3 bin/slice_oem.py --slice "0:10"
+    slice-oem data.oem --slice "0:10"
+    slice-oem data.oem --slice "::2"
+    slice-oem data.oem --slice "5"
+    slice-oem data.oem --slice="-5:"
+    cat data.oem | slice-oem --slice "0:10"
 
 Time-based slicing examples:
-    python3 bin/slice_oem.py data.oem --time-slice "0,1h"
-    python3 bin/slice_oem.py data.oem --time-slice "2024-01-01T00:00:00,2024-01-02T00:00:00"
-    python3 bin/slice_oem.py data.oem --time-slice "2024-01-01T12:00:00"
-    python3 bin/slice_oem.py data.oem --time-slice="-30m,"
-    cat data.oem | python3 bin/slice_oem.py - --time-slice "0,1h"
+    slice-oem data.oem --time-slice "0,1h"
+    slice-oem data.oem --time-slice "2024-01-01T00:00:00,2024-01-02T00:00:00"
+    slice-oem data.oem --time-slice "2024-01-01T12:00:00"
+    slice-oem data.oem --time-slice="-30m,"
+    cat data.oem | slice-oem - --time-slice "0,1h"
 
 Interpolation examples:
-    python3 bin/slice_oem.py data.oem --time-slice "0,1h,10m"
-    python3 bin/slice_oem.py data.oem --time-slice "2024-01-01T00:00:00,2024-01-01T01:00:00,30s"
-    python3 bin/slice_oem.py data.oem --time-slice="-1h,,5m"
+    slice-oem data.oem --time-slice "0,1h,10m"
+    slice-oem data.oem --time-slice "2024-01-01T00:00:00,2024-01-01T01:00:00,30s"
+    slice-oem data.oem --time-slice="-1h,,5m"
 
 Output format examples:
-    python3 bin/slice_oem.py data.oem --slice "0:10" --data-only
-    python3 bin/slice_oem.py data.oem --time-slice "0,1h" > sliced.oem
-    cat data.oem | python3 bin/slice_oem.py --time-slice "0,1h" > sliced.oem
+    slice-oem data.oem --slice "0:10" --data-only
+    slice-oem data.oem --time-slice "0,1h" > sliced.oem
+    cat data.oem | slice-oem --time-slice "0,1h" > sliced.oem
 
 For detailed documentation, see doc/SLICE_OEM.md
 """

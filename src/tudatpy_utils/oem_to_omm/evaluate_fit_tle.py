@@ -12,16 +12,16 @@ process in fit_tle_main.py, including:
   6. Summary statistics (RMS, max, mean errors)
 
 Usage:
-    python3 src/oem_to_omm/evaluate_fit_tle.py [--fit-span <hours>] [<oem_file>]
+    evaluate-fit-tle [--fit-span <hours>] [<oem_file>]
 
     Default input: src/oem_to_omm/leo3_6h.oem
     Default fit span: 6 hours (full file)
 
 Examples:
-    python3 src/oem_to_omm/evaluate_fit_tle.py
-    python3 src/oem_to_omm/evaluate_fit_tle.py --fit-span 2.0
-    python3 src/oem_to_omm/evaluate_fit_tle.py src/oem_to_omm/leo3_3h.oem
-    python3 src/oem_to_omm/evaluate_fit_tle.py --refinement keplerian
+    evaluate-fit-tle
+    evaluate-fit-tle --fit-span 2.0
+    evaluate-fit-tle leo3_3h.oem
+    evaluate-fit-tle --refinement keplerian
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
 """Convert between Cartesian state vectors and osculating Keplerian elements.
 
 Provides :func:`cartesian_to_keplerian`, :func:`keplerian_to_cartesian`,
-and :func:`tle_to_osculating_keplerian` for two-body orbital element
+and :func:`propagate_kepler` for two-body orbital element
 conversions using only NumPy.
 
 The six classical osculating Keplerian elements use the same ordering as

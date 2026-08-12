@@ -2,7 +2,7 @@
 """Display TLE parameters and derived orbital elements for one or more TLE files.
 
 Usage:
-    python3 src/tle_info/tle_info.py [-h] tle_file [tle_file ...]
+    tle-info [-h] tle_file [tle_file ...]
 
 Reads TLE files provided as CLI arguments, loads each using TudatPy's SGP4
 ephemeris, and prints the epoch, TLE parameters, Cartesian state, and
@@ -95,8 +95,8 @@ def parse_arguments() -> argparse.Namespace:
 
     Returns
     -------
-    argparse.ArgumentParser
-        Configured argument parser for TLE info display.
+    argparse.Namespace
+        Parsed command-line arguments for TLE info display.
     """
     parser: argparse.ArgumentParser = argparse.ArgumentParser(
         description=(

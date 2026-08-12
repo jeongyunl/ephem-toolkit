@@ -5,7 +5,7 @@ Read one OEM-like line of Keplerian elements from a file or stdin, then
 propagate the orbit using the two-body Kepler propagator.
 
 Usage:
-    python3 propagate_kepler.py [input_file] [-d <duration>] [-s <step>] [--data-only]
+    propagate-kepler [input_file] [-d <duration>] [-s <step>] [--data-only]
 
 Expected input format:
     <ISO-8601 epoch>  <a_km>  <e>  <i_rad>  <omega_rad>  <RAAN_rad>  <theta_rad>

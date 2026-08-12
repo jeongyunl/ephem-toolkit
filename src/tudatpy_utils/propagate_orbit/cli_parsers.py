@@ -293,8 +293,8 @@ def parse_arguments() -> argparse.Namespace:
 
     Returns
     -------
-    argparse.ArgumentParser
-        Configured parser for all supported CLI options.
+    argparse.Namespace
+        Parsed command-line arguments for all supported CLI options.
     """
     parser = argparse.ArgumentParser(
         description=(
