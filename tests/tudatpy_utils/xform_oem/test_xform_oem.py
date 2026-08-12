@@ -13,7 +13,9 @@ TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent
 """Repository root path."""
 
-XFORM_OEM_SCRIPT: Path = PROJECT_ROOT / "src" / "tudatpy_utils" / "cli" / "xform_oem.py"
+XFORM_OEM_SCRIPT: Path = (
+    PROJECT_ROOT / "src" / "tudatpy_utils" / "xform_oem" / "xform_oem.py"
+)
 """Path to xform_oem.py script."""
 
 

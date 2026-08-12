@@ -6,14 +6,10 @@ import io
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import core.tle as tle
-import core.consts as consts
-import core.ccsds.oem as oem
-import oem_to_omm.oem_to_omm as oem_to_omm
-import oem_to_omm.fit_tle.models as models
-import oem_to_omm.fit_tle.orbital_mechanics as orbital_mechanics
-import oem_to_omm.fit_tle.tle_builder as tle_builder
-import oem_to_omm.fit_tle.estimation as estimation
+import tudatpy_utils.core.tle as tle
+import tudatpy_utils.core.ccsds.oem as oem
+import tudatpy_utils.oem_to_omm.fit_tle.tle_builder as tle_builder
+import tudatpy_utils.oem_to_omm.fit_tle.estimation as estimation
 
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test files."""
