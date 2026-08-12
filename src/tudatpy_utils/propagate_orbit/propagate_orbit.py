@@ -46,7 +46,7 @@ def main() -> None:
     # Parse CLI arguments once for script-wide configuration.
     # Only argparse and re have been imported so far, so --help and validation
     # errors are returned instantly without waiting for heavy library loads.
-    cli_args = cli_parsers.build_cli_parser().parse_args()
+    cli_args = cli_parsers.parse_arguments()
 
     # Build propagation inputs from CLI arguments
     propagation_inputs = input_handling.build_propagation_inputs(cli_args)

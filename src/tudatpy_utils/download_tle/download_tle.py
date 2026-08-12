@@ -58,15 +58,15 @@ def safe_name(name: str) -> str:
 # ===================================================================
 
 
-def main() -> None:
-    """Download TLE/OMM data from CelesTrak for each provided satellite designator.
-
-    Parses CLI arguments, fetches data in the requested format, and saves each
-    result to a file named after the satellite and its international designator.
+def parse_arguments() -> argparse.Namespace:
+    """Parse command-line arguments for downloading TLE/OMM data.
 
     Returns
     -------
-    None
+    argparse.Namespace
+        Parsed command-line arguments containing:
+        - satellite_ids: list of satellite international designators
+        - format: output format for the data
     """
     parser: argparse.ArgumentParser = argparse.ArgumentParser(
         description="Download TLE/OMM data from CelesTrak"
@@ -84,7 +84,20 @@ def main() -> None:
         help="Output format (default: tle). Valid options: "
         + ", ".join(FORMATS.keys()),
     )
-    args: argparse.Namespace = parser.parse_args()
+    return parser.parse_args()
+
+
+def main() -> None:
+    """Download TLE/OMM data from CelesTrak for each provided satellite designator.
+
+    Parses CLI arguments, fetches data in the requested format, and saves each
+    result to a file named after the satellite and its international designator.
+
+    Returns
+    -------
+    None
+    """
+    args: argparse.Namespace = parse_arguments()
 
     satellite_ids: list[str] = args.satellite_ids
     output_format: str = FORMAT_ALIASES.get(args.format, args.format)

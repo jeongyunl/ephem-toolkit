@@ -52,7 +52,7 @@ DEFAULT_OUTPUT_STEP_S: float = 5.0 * time_utils.SECONDS_PER_MINUTE
 # ===================================================================
 
 
-def parse_cli_args() -> argparse.Namespace:
+def parse_arguments() -> argparse.Namespace:
     """Parse CLI arguments for TLE propagation.
 
     Returns
@@ -339,7 +339,7 @@ def main() -> int:
     """
     # Parse CLI input and validate scalar settings first so invalid requests
     # fail quickly before importing TudatPy.
-    args: argparse.Namespace = parse_cli_args()
+    args: argparse.Namespace = parse_arguments()
 
     if args.step <= 0.0:
         raise ValueError("--step must be > 0")

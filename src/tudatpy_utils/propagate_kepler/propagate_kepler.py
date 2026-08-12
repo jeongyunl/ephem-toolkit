@@ -51,7 +51,7 @@ DEFAULT_OUTPUT_STEP_S: float = 15.0 * time_utils.SECONDS_PER_MINUTE
 # ===================================================================
 
 
-def parse_args() -> argparse.Namespace:
+def parse_arguments() -> argparse.Namespace:
     """Parse command-line arguments for Keplerian propagation.
 
     Returns
@@ -265,7 +265,7 @@ def main() -> int:
     int
         Process return code. ``0`` on success.
     """
-    args: argparse.Namespace = parse_args()
+    args: argparse.Namespace = parse_arguments()
     if args.duration_s <= 0.0:
         raise ValueError("--duration must be > 0")
     if args.step_s <= 0.0:
