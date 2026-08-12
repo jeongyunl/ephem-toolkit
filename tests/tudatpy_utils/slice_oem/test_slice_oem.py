@@ -7,13 +7,13 @@ import os
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-import core.ccsds.oem as oem
+import tudatpy_utils.core.ccsds.oem as oem
 
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test modules."""
@@ -24,9 +24,7 @@ PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent
 SRC_DIR: Path = PROJECT_ROOT / "src"
 """Source directory containing executable scripts."""
 
-SLICE_OEM_SCRIPT: Path = (
-    SRC_DIR / "tudatpy_utils" / "cli" / "slice_oem.py"
-)
+SLICE_OEM_SCRIPT: Path = SRC_DIR / "tudatpy_utils" / "slice_oem" / "slice_oem.py"
 """Path to slice_oem.py script."""
 
 TEST_DATA_DIR: Path = PROJECT_ROOT / "tests" / "data"
@@ -42,7 +40,12 @@ def _build_env() -> dict[str, str]:
     """Build a test PYTHONPATH environment for running the helper script."""
     env = os.environ.copy()
     existing = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = str(SRC_DIR) + os.pathsep + str(SRC_DIR / "tudatpy_utils") + (os.pathsep + existing if existing else "")
+    env["PYTHONPATH"] = (
+        str(SRC_DIR)
+        + os.pathsep
+        + str(SRC_DIR / "tudatpy_utils")
+        + (os.pathsep + existing if existing else "")
+    )
     return env
 
 

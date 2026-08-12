@@ -10,9 +10,9 @@ from pathlib import Path
 
 import pytest
 
-import core.convert_tle as convert_tle
-import core.ccsds.omm as omm
-import core.tle as tle
+import tudatpy_utils.core.convert_tle as convert_tle
+import tudatpy_utils.core.ccsds.omm as omm
+import tudatpy_utils.core.tle as tle
 
 TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent
@@ -73,7 +73,13 @@ def run_propagate_tle(tle_path: Path) -> str:
     result: subprocess.CompletedProcess[str] = subprocess.run(
         [
             sys.executable,
-            str(PROJECT_ROOT / "src" / "tudatpy_utils" / "cli" / "propagate_tle.py"),
+            str(
+                PROJECT_ROOT
+                / "src"
+                / "tudatpy_utils"
+                / "propagate_tle"
+                / "propagate_tle.py"
+            ),
             str(tle_path),
             "-s",
             "15m",
