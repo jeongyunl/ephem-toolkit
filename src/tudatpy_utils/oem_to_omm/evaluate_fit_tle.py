@@ -312,8 +312,23 @@ def format_estimated_elements(est: models.Estimated) -> str:
     )
 
 
-def main() -> None:
-    """Run the detailed evaluation of fit_tle accuracy."""
+# ===================================================================
+# CLI entry point
+# ===================================================================
+
+
+def parse_arguments() -> argparse.Namespace:
+    """Parse command-line arguments for evaluating fit_tle accuracy.
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed command-line arguments containing:
+        - oem_file: path to input CCSDS OEM file
+        - fit_span_hours: fit span in hours (optional)
+        - refinement_method: refinement method to use
+        - mu_m3_s2: gravitational parameter in m³/s²
+    """
     parser = argparse.ArgumentParser(
         description="Evaluate detailed intermediate and final accuracy of fit_tle"
     )
@@ -351,7 +366,12 @@ def main() -> None:
         help="Gravitational parameter (m³/s²).",
     )
 
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main() -> None:
+    """Run the detailed evaluation of fit_tle accuracy."""
+    args = parse_arguments()
 
     oem_path = Path(args.oem_file)
     if not oem_path.exists():
@@ -698,7 +718,7 @@ def main() -> None:
         print(f"  Error at key time points:")
         key_times_min = [0, 30, 60, 90, 120, 180, 240, 300, 360]
         print(f"    {'t (min)':>8}  {'|Δr| (km)':>12}  {'|Δv| (km/s)':>12}")
-        print(f"    {'���'*8}  {'─'*12}  {'─'*12}")
+        print(f"    {'─'*8}  {'─'*12}  {'─'*12}")
 
         for t_min in key_times_min:
             if t_min * 60.0 > fit_span_s:

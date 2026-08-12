@@ -1187,13 +1187,13 @@ def plot_dependent_variables_from_csv(
     return trajectory_animation
 
 
-def build_cli_parser() -> argparse.ArgumentParser:
+def parse_arguments() -> argparse.Namespace:
     """Build command-line argument parser.
 
     Returns
     -------
-    argparse.ArgumentParser
-        Configured argument parser.
+    argparse.Namespace
+        Parsed command-line arguments.
     """
     parser = argparse.ArgumentParser(
         description="Plot dependent-variable histories from a saved Tudat CSV file."
@@ -1217,12 +1217,12 @@ def build_cli_parser() -> argparse.ArgumentParser:
         metavar="<duration>",
         help="Duration to plot in format <number>[s|m|h|d] (e.g., 1h, 30m, 3600s). If not specified, plots all data.",
     )
-    return parser
+    return parser.parse_args()
 
 
 def main() -> None:
     """Main entry point for the script."""
-    cli_args = build_cli_parser().parse_args()
+    cli_args = parse_arguments()
 
     # Keep animation objects alive until plt.show() returns.
     animations: list[FuncAnimation] = []

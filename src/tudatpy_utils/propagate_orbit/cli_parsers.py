@@ -288,7 +288,7 @@ def parse_drag_coefficient(value: str) -> float:
     return drag_coefficient
 
 
-def build_cli_parser() -> argparse.ArgumentParser:
+def parse_arguments() -> argparse.Namespace:
     """Create the command-line argument parser for this script.
 
     Returns
@@ -494,4 +494,4 @@ def build_cli_parser() -> argparse.ArgumentParser:
         default=True,
         help="Enable or disable Mars point-mass gravity perturbation (default: on).",
     )
-    return parser
+    return parser.parse_args()

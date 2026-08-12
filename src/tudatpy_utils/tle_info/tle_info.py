@@ -90,7 +90,7 @@ def get_tle_epoch(tle: object) -> tuple[DateTime, float]:
 # ===================================================================
 
 
-def create_argument_parser() -> argparse.ArgumentParser:
+def parse_arguments() -> argparse.Namespace:
     """Create the command-line argument parser.
 
     Returns
@@ -114,7 +114,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
         help="Path(s) to TLE file(s) to process",
     )
 
-    return parser
+    return parser.parse_args()
 
 
 # ===================================================================
@@ -129,8 +129,7 @@ def main() -> None:
     and prints the epoch, TLE fields, Cartesian state, and osculating
     Keplerian elements at the reference epoch.
     """
-    parser: argparse.ArgumentParser = create_argument_parser()
-    args: argparse.Namespace = parser.parse_args()
+    args: argparse.Namespace = parse_arguments()
 
     tle_files: list[str] = args.tle_files
     print(f"TLE files: {tle_files}\n")

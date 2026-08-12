@@ -122,12 +122,34 @@ def report_error(message: str, exit_code: int = 1) -> NoReturn:
 
 
 # ===================================================================
-# Main
+# CLI entry point
 # ===================================================================
 
 
-def main() -> None:
-    """Parse CLI arguments and dispatch to the appropriate conversion mode."""
+def parse_arguments() -> argparse.Namespace:
+    """Parse command-line arguments for OEM to OMM conversion.
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed command-line arguments containing:
+        - oem_file: path to input CCSDS OEM file (or None for stdin)
+        - output: output file path or "-" for stdout
+        - verbose: whether to print detailed debug information
+        - mu_m3_s2: gravitational parameter in m³/s²
+        - fit_span_hours: fit span in hours
+        - kepler: whether to use osculating Kepler mode
+        - mean_kepler: whether to use mean Kepler mode
+        - tle: whether to use TLE mode
+        - object_name: spacecraft name for OMM output
+        - object_id: international designator for OMM output
+        - tle_refinement: refinement method for TLE fitting
+        - tle_norad_cat_id: NORAD catalog number
+        - tle_classification_type: classification type (U/C/S)
+        - tle_ephemeris_type: ephemeris type (0-9)
+        - tle_element_set_no: element set number
+        - tle_rev_at_epoch: revolution number at epoch
+    """
     parser = argparse.ArgumentParser(
         description="Convert OEM state vectors to Keplerian elements or OMM."
     )
@@ -266,7 +288,17 @@ def main() -> None:
         help="REV_AT_EPOCH: Revolution number at epoch (default: 0, used with --tle mode).",
     )
 
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+# ===================================================================
+# Main
+# ===================================================================
+
+
+def main() -> None:
+    """Parse CLI arguments and dispatch to the appropriate conversion mode."""
+    args = parse_arguments()
 
     # Determine input source: file path or stdin (piped input)
     read_from_stdin: bool = args.oem_file is None or args.oem_file == "-"
@@ -508,6 +540,9 @@ def main() -> None:
     # No mode selected — currently only --kepler, --mean-kepler, and --tle are implemented
     if read_from_stdin:
         return
+    parser = argparse.ArgumentParser(
+        description="Convert OEM state vectors to Keplerian elements or OMM."
+    )
     parser.error("Either --kepler, --mean-kepler, or --tle must be provided")
 
 
