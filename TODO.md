@@ -13,14 +13,14 @@
 1. Merge kepler/TLE tools?
 
 1. OEM
-    1. `diff_oem.py`
+    1. [`diff-oem`](docs/DIFF_OEM.md)
         1. More comparison options.
             1. Osculating keplerian elements
             1. Mean Keplerian element comparisons (for x minutes of sliding window).
         1. More output format options, for example showing the differences in a table or CSV format.
-    1. `slice_oem.py`
+    1. [`slice-oem`](docs/SLICE_OEM.md)
         1. ?
-    1. [`xform_oem.py`](docs/XFORM_OEM.md)
+    1. [`xform-oem`](docs/XFORM_OEM.md)
         1. Apply arbitrary matrix?
 
 1. Propagation tools
