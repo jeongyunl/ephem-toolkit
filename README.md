@@ -117,6 +117,14 @@ See [TIME_CONVERSION.md](docs/TIME_CONVERSION.md) for full usage details.
 
 Reusable Python modules providing foundational astrodynamics functionality. These are imported by the application modules and CLI tools.
 
+**Key modules:**
+- **Interpolation** — Lagrange and Hermite polynomial interpolators with configurable degree
+- **CCSDS** — OEM, OMM, and ODM parsers and writers
+- **Time utilities** — ISO 8601, duration parsing, time conversions
+- **Orbital elements** — Cartesian ↔ Keplerian conversions, anomaly calculations
+- **Coordinate transformations** — Frame conversions, WGS-84, AER coordinates
+- **TLE utilities** — TLE parsing, validation, and conversions
+
 See [CORE_LIBRARY_SUMMARY.md](docs/CORE_LIBRARY_SUMMARY.md) for an overview of all available modules and functions.
 
 ---
