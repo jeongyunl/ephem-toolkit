@@ -8,14 +8,42 @@ from typing import Any, Callable
 import numpy as np
 
 from tudatpy_utils.core import misc
-from tudatpy_utils.core.interpolator import lagrange
+from tudatpy_utils.core.interpolator import factory
+from tudatpy_utils.core.interpolator.interpolation_spec import (
+    InterpolationSpec,
+    InterpolationType,
+)
 
 from .comparison import rotate_state
 from .data_structures import TransformationStageInput
 from .types import State, StatePair
 
-DEFAULT_INTERPOLATION_DEGREE: int = 7
+DEFAULT_INTERPOLATION_DEGREE: int = 5
 """Polynomial degree used for OEM state interpolation."""
+
+MIN_STATE_PAIRS_FOR_ROTATION: int = 2
+"""Minimum number of state pairs required for rotation fitting."""
+
+ROTATION_FIT_MAX_ITERATIONS: int = 25
+"""Maximum iterations for rotation fitting optimization."""
+
+ROTATION_FIT_DERIVATIVE_STEP: float = 1.0e-7
+"""Finite difference step size for numerical derivatives in rotation fitting."""
+
+ROTATION_FIT_CONVERGENCE_TOLERANCE: float = 1.0e-12
+"""Convergence tolerance for rotation fitting optimization."""
+
+TIME_SHIFT_FIT_DURATION_S: float = 3600.0
+"""Duration of time window used for time shift fitting (seconds)."""
+
+TIME_SHIFT_MAX_FIT_SAMPLES: int = 120
+"""Maximum number of samples used in time shift fitting."""
+
+TIME_SHIFT_COARSE_STEP_DIVISOR: float = 720.0
+"""Divisor for computing coarse search step size in time shift fitting."""
+
+GOLDEN_SECTION_SEARCH_ITERATIONS: int = 24
+"""Number of iterations for golden section search in time shift fitting."""
 
 
 class TransformationStage(ABC):
@@ -205,7 +233,7 @@ class RotationStage(TransformationStage):
         """
         resolved_state_pairs = stage_input.resolve_state_pairs()
 
-        if len(resolved_state_pairs) < 2:
+        if len(resolved_state_pairs) < MIN_STATE_PAIRS_FOR_ROTATION:
             raise ValueError(
                 "--rot requires at least two state pairs in the rotation fitting span"
             )
@@ -309,7 +337,7 @@ class RotationXYStage(RotationStage):
         """
         resolved_state_pairs = stage_input.resolve_state_pairs()
 
-        if len(resolved_state_pairs) < 2:
+        if len(resolved_state_pairs) < MIN_STATE_PAIRS_FOR_ROTATION:
             raise ValueError(
                 "--rot-xy requires at least two state pairs in the rotation fitting span"
             )
@@ -353,18 +381,18 @@ class RotationXYStage(RotationStage):
             )
             return rotated_vectors - reference_vectors
 
-        for _ in range(25):
+        for _ in range(ROTATION_FIT_MAX_ITERATIONS):
             current_residual = residual(angles)
             jacobian = np.empty((len(current_residual), 2))
             for parameter_index in range(2):
                 probe_angles = angles.copy()
-                probe_angles[parameter_index] += 1.0e-7
+                probe_angles[parameter_index] += ROTATION_FIT_DERIVATIVE_STEP
                 jacobian[:, parameter_index] = (
                     residual(probe_angles) - current_residual
-                ) / 1.0e-7
+                ) / ROTATION_FIT_DERIVATIVE_STEP
             delta, _, _, _ = np.linalg.lstsq(jacobian, -current_residual, rcond=None)
             angles += delta
-            if np.linalg.norm(delta) < 1.0e-12:
+            if np.linalg.norm(delta) < ROTATION_FIT_CONVERGENCE_TOLERANCE:
                 break
 
         return cls._rotation_matrix_y(angles[1]) @ cls._rotation_matrix_x(angles[0])
@@ -414,7 +442,7 @@ class RotationZStage(RotationStage):
         """
         resolved_state_pairs = stage_input.resolve_state_pairs()
 
-        if len(resolved_state_pairs) < 2:
+        if len(resolved_state_pairs) < MIN_STATE_PAIRS_FOR_ROTATION:
             raise ValueError(
                 "--rot-z requires at least two state pairs in the rotation fitting span"
             )
@@ -449,16 +477,18 @@ class RotationZStage(RotationStage):
             )
             return rotated_vectors - reference_vectors
 
-        for _ in range(25):
+        for _ in range(ROTATION_FIT_MAX_ITERATIONS):
             current_residual = residual(angle)
-            probe_residual = residual(angle + 1.0e-7)
-            derivative = (probe_residual - current_residual) / 1.0e-7
+            probe_residual = residual(angle + ROTATION_FIT_DERIVATIVE_STEP)
+            derivative = (
+                probe_residual - current_residual
+            ) / ROTATION_FIT_DERIVATIVE_STEP
             delta_array, _, _, _ = np.linalg.lstsq(
                 derivative[:, np.newaxis], -current_residual, rcond=None
             )
             delta = float(delta_array[0])
             angle += delta
-            if abs(delta) < 1.0e-12:
+            if abs(delta) < ROTATION_FIT_CONVERGENCE_TOLERANCE:
                 break
 
         return cls._rotation_matrix_z(angle)
@@ -561,17 +591,21 @@ class TimeShiftStage(TransformationStage):
         ValueError
             If no comparison states are available for fitting.
         """
-        TIME_SHIFT_FIT_DURATION_S: float = 3600.0
-        TIME_SHIFT_MAX_FIT_SAMPLES: int = 120
-
         state_pairs = stage_input.state_pairs
         reference_interpolator = stage_input.reference_interpolator
         if reference_interpolator is None:
-            reference_interpolator = lagrange.LagrangeInterpolator(
-                dimension=6, degree=DEFAULT_INTERPOLATION_DEGREE
+            spec = InterpolationSpec(
+                interp_type=InterpolationType.HERMITE,
+                degree=DEFAULT_INTERPOLATION_DEGREE,
             )
             reference_states = [pair[0] for pair in state_pairs]
-            reference_interpolator.set_data(reference_states)
+            reference_interpolator = factory.InterpolatorFactory.create(
+                spec=spec,
+                dimension=6,
+                is_cartesian_state=True,
+                context="TimeShifStage.fit",
+                data=reference_states,
+            )
 
         reference_epochs = np.asarray(reference_interpolator.independent_values)
         reference_positions_m = np.asarray(
@@ -624,7 +658,9 @@ class TimeShiftStage(TransformationStage):
             residuals_m = comparison_positions_m[valid] - reference_position_m
             return float(np.mean(np.sum(residuals_m * residuals_m, axis=1)))
 
-        coarse_step_s = max(1.0, TIME_SHIFT_FIT_DURATION_S / 720.0)
+        coarse_step_s = max(
+            1.0, TIME_SHIFT_FIT_DURATION_S / TIME_SHIFT_COARSE_STEP_DIVISOR
+        )
         coarse_offsets_s = np.arange(
             -time_shift_limit_s,
             time_shift_limit_s + coarse_step_s,
@@ -644,7 +680,7 @@ class TimeShiftStage(TransformationStage):
         right_probe_s = left_bound_s + (right_bound_s - left_bound_s) / golden_ratio
         left_error = position_error(left_probe_s)
         right_error = position_error(right_probe_s)
-        for _ in range(24):
+        for _ in range(GOLDEN_SECTION_SEARCH_ITERATIONS):
             if left_error <= right_error:
                 right_bound_s = right_probe_s
                 right_probe_s = left_probe_s

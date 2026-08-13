@@ -17,7 +17,7 @@ RANGE_OVERSHOOT_TOLERANCE: float = 1e-8
 MIN_DIFFERENCE_FOR_START: float = 1.0e30
 """Sentinel initial value used when searching for the minimum window bias."""
 
-DEFAULT_INTERPOLATION_DEGREE: int = 7
+DEFAULT_LAGRANGE_DEGREE: int = 7
 """Default polynomial degree."""
 
 
@@ -33,7 +33,7 @@ class LagrangeInterpolator(Interpolator):
     """Maximum allowed number of buffered samples."""
 
     def __init__(
-        self, dimension: int = 1, degree: int = DEFAULT_INTERPOLATION_DEGREE
+        self, dimension: int = 1, degree: int = DEFAULT_LAGRANGE_DEGREE
     ) -> None:
         super().__init__(dimension)
 

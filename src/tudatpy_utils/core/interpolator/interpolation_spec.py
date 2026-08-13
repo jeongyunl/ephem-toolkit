@@ -5,10 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-DEFAULT_LAGRANGE_DEGREE: int = 8
+DEFAULT_LAGRANGE_DEGREE: int = 7
 """Default polynomial degree for Lagrange interpolation."""
 
-DEFAULT_HERMITE_DEGREE: int = 3
+DEFAULT_HERMITE_DEGREE: int = 5
 """Default polynomial degree for Hermite interpolation."""
 
 

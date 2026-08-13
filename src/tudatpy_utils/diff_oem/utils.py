@@ -7,8 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
-import tudatpy_utils.core.interpolator.hermite as hermite
-import tudatpy_utils.core.interpolator.lagrange as lagrange
+import tudatpy_utils.core.interpolator as interpolator
 import tudatpy_utils.core.time_utils as time_utils
 
 from .comparison import compare_states
@@ -184,12 +183,8 @@ def build_comparison_pairs(
 
 def compare_pairs(
     comparison_pairs: list[StatePair],
-    reference_interpolator: (
-        lagrange.LagrangeInterpolator | hermite.HermiteInterpolator | None
-    ),
-    comparison_interpolator: (
-        lagrange.LagrangeInterpolator | hermite.HermiteInterpolator | None
-    ),
+    reference_interpolator: interpolator.Interpolator | None,
+    comparison_interpolator: interpolator.Interpolator | None,
     comparison_rotation_matrix: np.ndarray | None,
 ) -> list[tuple[float, ComparisonResult | None]]:
     """Evaluate selected state pairs with an optional comparison rotation.
@@ -198,9 +193,9 @@ def compare_pairs(
     ----------
     comparison_pairs : list[StatePair]
         List of (reference_state, comparison_state) pairs to compare.
-    reference_interpolator : lagrange.LagrangeInterpolator | hermite.HermiteInterpolator | None
+    reference_interpolator : interpolator.Interpolator | None
         Interpolator for reference states, or None if not interpolating.
-    comparison_interpolator : lagrange.LagrangeInterpolator | hermite.HermiteInterpolator | None
+    comparison_interpolator : interpolator.Interpolator | None
         Interpolator for comparison states, or None if not interpolating.
     comparison_rotation_matrix : np.ndarray | None
         Optional rotation matrix to apply to comparison states.

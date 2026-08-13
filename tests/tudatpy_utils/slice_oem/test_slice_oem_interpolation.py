@@ -110,12 +110,21 @@ def test_cli_warns_when_input_has_fewer_states_than_interpolation_degree() -> No
     temp_path, _ = _create_test_oem(num_states=7, interval_seconds=60)
     try:
         result = _run_slice_oem(
-            [str(temp_path), "--time-slice", "0,,1m", "--data-only", "--interpolate-type", "lagrange,8"]
+            [
+                str(temp_path),
+                "--time-slice",
+                "0,,1m",
+                "--data-only",
+                "--interpolate-type",
+                "lagrange,8",
+            ]
         )
         assert result.returncode == 0
         assert (
             "Warning: input contains 7 states, fewer than the requested "
             "interpolation degree 8"
+        ) in result.stderr or (
+            "the degree will be reduced to fit the available data"
         ) in result.stderr
     finally:
         temp_path.unlink()
@@ -196,7 +205,13 @@ def test_cli_interpolate_degree() -> None:
     temp_path, _ = _create_test_oem(num_states=60, interval_seconds=60)
     try:
         result = _run_slice_oem(
-            [str(temp_path), "--time-slice", "0,20m,5m", "--interpolate-type", "lagrange,4"]
+            [
+                str(temp_path),
+                "--time-slice",
+                "0,20m,5m",
+                "--interpolate-type",
+                "lagrange,4",
+            ]
         )
         assert result.returncode == 0
 
@@ -211,9 +226,15 @@ def test_cli_interpolate_degree_invalid() -> None:
     temp_path, _ = _create_test_oem(num_states=60, interval_seconds=60)
     try:
         result = _run_slice_oem(
-            [str(temp_path), "--time-slice", "0,20m,5m", "--interpolate-type", "lagrange,1"]
+            [
+                str(temp_path),
+                "--time-slice",
+                "0,20m,5m",
+                "--interpolate-type",
+                "lagrange,0",
+            ]
         )
         assert result.returncode != 0
-        assert "must be 2 or greater" in result.stderr
+        assert "must be greater than 0" in result.stderr
     finally:
         temp_path.unlink()

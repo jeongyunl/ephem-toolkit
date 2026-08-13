@@ -80,7 +80,9 @@ def test_add_derivative_invalid_order() -> None:
     interpolator.add_data_point(0.0, np.array([1.0], dtype=float))
 
     with pytest.raises(ValueError, match="Only first-order derivatives are supported"):
-        interpolator.add_derivative(0.0, np.array([1.0], dtype=float), order=2)
+        interpolator.add_derivative(
+            0.0, np.array([1.0], dtype=float), derivative_order=2
+        )
 
 
 def test_add_derivative_nonexistent_independent_value() -> None:
@@ -256,123 +258,130 @@ def test_derivative_independent_term() -> None:
     assert result == pytest.approx(2.0, abs=1e-10)
 
 
-def test_set_derivative_data_dict_format() -> None:
-    """Test set_derivative_data with dictionary input."""
+def test_set_data_with_derivative_dict_format() -> None:
+    """Test set_data_with_derivative with dictionary input."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
         dimension=1, degree=2
     )
 
-    for x in range(4):
-        interpolator.add_data_point(float(x), np.array([float(x * x)], dtype=float))
-
-    deriv_dict: dict[float, np.ndarray] = {
-        float(x): np.array([float(2 * x)], dtype=float) for x in range(4)
+    dep_dict: dict[float, np.ndarray] = {
+        float(x): np.array([float(x * x)], dtype=float) for x in range(4)
     }
-    interpolator.set_derivative_data(deriv_dict)
-
-    result: np.ndarray | None = interpolator.interpolate(1.5)
-    assert result is not None
-    assert result[0] == pytest.approx(2.25, abs=1e-6)
-
-
-def test_set_derivative_data_list_of_tuples_format() -> None:
-    """Test set_derivative_data with list of tuples input."""
-    interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, degree=2
-    )
-
-    for x in range(4):
-        interpolator.add_data_point(float(x), np.array([float(x * x)], dtype=float))
-
-    deriv_tuples: list[tuple[float, np.ndarray]] = [
-        (float(x), np.array([float(2 * x)], dtype=float)) for x in range(4)
+    deriv_list: list[np.ndarray] = [
+        np.array([float(2 * x)], dtype=float) for x in range(4)
     ]
-    interpolator.set_derivative_data(deriv_tuples)
+    interpolator.set_data_with_derivative(dep_dict, derivative_data=deriv_list)
 
     result: np.ndarray | None = interpolator.interpolate(1.5)
     assert result is not None
     assert result[0] == pytest.approx(2.25, abs=1e-6)
 
 
-def test_set_derivative_data_two_list_format() -> None:
-    """Test set_derivative_data with separate independent and derivative lists."""
+def test_set_data_with_derivative_list_of_tuples_format() -> None:
+    """Test set_data_with_derivative with list of tuples input."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
         dimension=1, degree=2
     )
 
-    for x in range(4):
-        interpolator.add_data_point(float(x), np.array([float(x * x)], dtype=float))
+    dep_tuples: list[tuple[float, np.ndarray]] = [
+        (float(x), np.array([float(x * x)], dtype=float)) for x in range(4)
+    ]
+    deriv_list: list[np.ndarray] = [
+        np.array([float(2 * x)], dtype=float) for x in range(4)
+    ]
+    interpolator.set_data_with_derivative(dep_tuples, derivative_data=deriv_list)
+
+    result: np.ndarray | None = interpolator.interpolate(1.5)
+    assert result is not None
+    assert result[0] == pytest.approx(2.25, abs=1e-6)
+
+
+def test_set_data_with_derivative_two_list_format() -> None:
+    """Test set_data_with_derivative with separate independent, dependent, and derivative lists."""
+    interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
+        dimension=1, degree=2
+    )
 
     indep_vals: list[float] = [float(x) for x in range(4)]
+    dep_vals: list[np.ndarray] = [
+        np.array([float(x * x)], dtype=float) for x in range(4)
+    ]
     deriv_vals: list[np.ndarray] = [
         np.array([float(2 * x)], dtype=float) for x in range(4)
     ]
-    interpolator.set_derivative_data(indep_vals, derivative_data=deriv_vals)
+    interpolator.set_data_with_derivative(
+        indep_vals, dependent_data=dep_vals, derivative_data=deriv_vals
+    )
 
     result: np.ndarray | None = interpolator.interpolate(1.5)
     assert result is not None
     assert result[0] == pytest.approx(2.25, abs=1e-6)
 
 
-def test_set_derivative_data_invalid_order() -> None:
-    """Test set_derivative_data raises ValueError for unsupported order."""
+def test_set_data_with_derivative_invalid_order() -> None:
+    """Test set_data_with_derivative raises ValueError for unsupported order."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
         dimension=1, degree=2
     )
-    interpolator.add_data_point(0.0, np.array([1.0], dtype=float))
 
     with pytest.raises(ValueError, match="Only first-order derivatives are supported"):
-        interpolator.set_derivative_data({0.0: np.array([1.0])}, order=2)
+        interpolator.set_data_with_derivative(
+            {0.0: np.array([1.0])}, derivative_order=2
+        )
 
 
-def test_set_derivative_data_length_mismatch() -> None:
-    """Test set_derivative_data raises ValueError on length mismatch."""
+def test_set_data_with_derivative_length_mismatch() -> None:
+    """Test set_data_with_derivative raises ValueError on length mismatch."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
         dimension=1, degree=2
     )
-    interpolator.add_data_point(0.0, np.array([1.0], dtype=float))
-    interpolator.add_data_point(1.0, np.array([2.0], dtype=float))
 
     with pytest.raises(ValueError, match="Length mismatch"):
-        interpolator.set_derivative_data([0.0, 1.0], derivative_data=[np.array([1.0])])
+        interpolator.set_data_with_derivative(
+            [0.0, 1.0],
+            dependent_data=[np.array([1.0]), np.array([2.0])],
+            derivative_data=[np.array([1.0])],
+        )
 
 
-def test_set_derivative_data_missing_derivative_data_arg() -> None:
-    """Test set_derivative_data raises ValueError when derivative_data not provided for float list."""
+def test_set_data_with_derivative_missing_dependent_data_arg() -> None:
+    """Test set_data_with_derivative raises ValueError when dependent_data not provided for float list."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
         dimension=1, degree=2
     )
-    interpolator.add_data_point(0.0, np.array([1.0], dtype=float))
 
     with pytest.raises(
         ValueError,
-        match="When data is a list of independent values, derivative_data must be provided",
+        match="When data is a list of independent values, dependent_data must be provided",
     ):
-        interpolator.set_derivative_data([0.0])
+        interpolator.set_data_with_derivative([0.0])
 
 
-def test_set_derivative_data_nonexistent_independent_value() -> None:
-    """Test set_derivative_data raises ValueError for unknown independent value."""
+def test_set_data_with_derivative_no_derivative_data() -> None:
+    """Test set_data_with_derivative works without derivative_data (sets only dependent data)."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
         dimension=1, degree=2
     )
-    interpolator.add_data_point(0.0, np.array([1.0], dtype=float))
 
-    with pytest.raises(ValueError, match="Independent value .* not found in data"):
-        interpolator.set_derivative_data({5.0: np.array([1.0])})
+    dep_dict: dict[float, np.ndarray] = {
+        float(x): np.array([float(x * x)], dtype=float) for x in range(4)
+    }
+    interpolator.set_data_with_derivative(dep_dict)
+
+    assert len(interpolator.independent_values) == 4
+    assert len(interpolator.dependent_values) == 4
 
 
-def test_set_derivative_data_dict_with_derivative_data_arg() -> None:
-    """Test set_derivative_data raises ValueError when dict used with derivative_data."""
+def test_set_data_with_derivative_dict_with_dependent_data_arg() -> None:
+    """Test set_data_with_derivative raises ValueError when dict used with dependent_data."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
         dimension=1, degree=2
     )
-    interpolator.add_data_point(0.0, np.array([1.0], dtype=float))
 
     with pytest.raises(
         ValueError,
-        match="When derivative_data is provided, data must be a list or array",
+        match="When dependent_data is provided, data must be a list or array",
     ):
-        interpolator.set_derivative_data(
-            {0.0: np.array([1.0])}, derivative_data=[np.array([1.0])]
+        interpolator.set_data_with_derivative(
+            {0.0: np.array([1.0])}, dependent_data=[np.array([1.0])]
         )

@@ -27,7 +27,7 @@ import contextlib
 import sys
 import warnings
 
-from . import cli_parsers
+from . import plot_orbit_deltas_cli
 from . import input_handling
 from . import output_handling
 from . import propagation
@@ -46,7 +46,7 @@ def main() -> None:
     # Parse CLI arguments once for script-wide configuration.
     # Only argparse and re have been imported so far, so --help and validation
     # errors are returned instantly without waiting for heavy library loads.
-    cli_args = cli_parsers.parse_arguments()
+    cli_args = plot_orbit_deltas_cli.parse_arguments()
 
     # Build propagation inputs from CLI arguments
     propagation_inputs = input_handling.build_propagation_inputs(cli_args)

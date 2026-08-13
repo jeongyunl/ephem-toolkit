@@ -38,7 +38,7 @@ def test_factory_uses_default_degree_for_lagrange() -> None:
     interpolator = factory.InterpolatorFactory.create(spec)
 
     assert isinstance(interpolator, lagrange.LagrangeInterpolator)
-    assert interpolator.degree == 8  # Default Lagrange degree
+    assert interpolator.degree == 7  # Default Lagrange degree
 
 
 def test_factory_uses_default_degree_for_hermite() -> None:
@@ -49,7 +49,7 @@ def test_factory_uses_default_degree_for_hermite() -> None:
     )
 
     assert isinstance(interpolator, hermite.HermiteInterpolator)
-    assert interpolator.required_points == 4  # degree + 1 = 3 + 1
+    assert interpolator.required_points == 6  # degree + 1 = 5 + 1
 
 
 def test_factory_raises_error_for_unsupported_type() -> None:

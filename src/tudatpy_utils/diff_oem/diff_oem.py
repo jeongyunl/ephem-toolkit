@@ -16,10 +16,10 @@ import argparse
 import sys
 from typing import TextIO
 
-from .cli import parse_arguments
+from .diff_oem_cli import parse_arguments
 from .comparison import read_states
 from .output import ComparisonOutput
-from .pipeline import TransformationPipeline, create_interpolator
+from .pipeline import TransformationPipeline
 from .transformation_stages import (
     RotationStage,
     RotationXYStage,
@@ -34,6 +34,7 @@ from .utils import (
     print_debug_range,
     resolve_time_bound,
 )
+from tudatpy_utils.core.interpolator import factory
 
 
 def main() -> None:
@@ -148,16 +149,32 @@ def main() -> None:
             )
 
         # Each interpolator evaluates one history at epochs from the other.
-        reference_interpolator = create_interpolator(
-            reference_states,
-            args.interpolate_ref,
-            args.interpolate_type,
+        reference_interpolator = (
+            factory.InterpolatorFactory.create(
+                spec=args.interpolate_type,
+                dimension=6,
+                is_cartesian_state=True,
+                verbose=args.verbose,
+                context="diff_oem.reference_interpolator",
+                data=reference_states,
+            )
+            if args.interpolate_ref
+            else None
         )
-        comparison_interpolator = create_interpolator(
-            comparison_states,
-            args.interpolate_data,
-            args.interpolate_type,
+
+        comparison_interpolator = (
+            factory.InterpolatorFactory.create(
+                spec=args.interpolate_type,
+                dimension=6,
+                is_cartesian_state=True,
+                verbose=args.verbose,
+                context="diff_oem.comparison_interpolator",
+                data=comparison_states,
+            )
+            if args.interpolate_data
+            else None
         )
+
         comparison_pairs = build_pairs(reference_states, comparison_states)
 
         stages: list[TransformationStage] = []
@@ -244,10 +261,10 @@ def main() -> None:
                 build_pairs=build_pairs,
                 interpolate_ref=args.interpolate_ref,
                 interpolate_data=args.interpolate_data,
-                interpolator_type=args.interpolate_type,
+                interpolation_spec=args.interpolate_type,
                 debug=args.debug,
             )
-            stage_outputs = pipeline.execute()
+            stage_outputs = pipeline.execute(args.verbose)
 
             for stage_index, (
                 stage,
@@ -261,10 +278,17 @@ def main() -> None:
                     reference_states,
                     transformed_comparison_states,
                 )
-                transformed_comparison_interpolator = create_interpolator(
-                    transformed_comparison_states,
-                    args.interpolate_data,
-                    args.interpolate_type,
+                transformed_comparison_interpolator = (
+                    factory.InterpolatorFactory.create(
+                        spec=args.interpolate_type,
+                        dimension=6,
+                        is_cartesian_state=True,
+                        verbose=args.verbose,
+                        context=f"diff_oem.transformed_stage_{stage_index}",
+                        data=transformed_comparison_states,
+                    )
+                    if args.interpolate_data
+                    else None
                 )
                 transformed_results = compare_pairs(
                     transformed_comparison_pairs,
