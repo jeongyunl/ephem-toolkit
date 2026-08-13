@@ -16,13 +16,10 @@ import sys
 
 import numpy as np
 
-
-from .interpolation_spec import InterpolationType
-from .interpolator import hermite
-from .interpolator import lagrange
 from . import time_utils
 from .ccsds.oem import CcsdsOem
-from .interpolation_spec import InterpolationSpec, InterpolationType
+from .interpolator import factory
+from .interpolator.interpolation_spec import InterpolationSpec, InterpolationType
 
 # ===================================================================
 # Data structures
@@ -394,22 +391,13 @@ def extract_states_by_time(
     interpolator = None
     use_hermite = False
     if options.interpolation_spec is not None:
-        if interpolation_spec.interp_type == InterpolationType.HERMITE:
-            use_hermite = True
-            interpolator = hermite.HermiteInterpolator(
-                dimension=6, points_wanted=2, is_cartesian_state=True
-            )
-            if interpolator is None:
-                raise RuntimeError("Error creating Hermite interpolator")
-            interpolator.set_data(states)
-        else:
-            interpolator = lagrange.LagrangeInterpolator(
-                dimension=6,
-                degree=interpolation_spec.degree,
-            )
-            if interpolator is None:
-                raise RuntimeError("Error creating Lagrange interpolator")
-            interpolator.set_data(states)
+        use_hermite = interpolation_spec.interp_type == InterpolationType.HERMITE
+        interpolator = factory.InterpolatorFactory.create(
+            spec=interpolation_spec,
+            dimension=6,
+            is_cartesian_state=True,
+        )
+        interpolator.set_data(states)
 
     if options.start_time is not None and options.stop_time is None:
         # Single state extraction (no comma was present)
@@ -558,11 +546,8 @@ def extract_states_by_time(
             resolved_stop_dt = datetime.fromtimestamp(
                 slice_stop_timestamp_s, tz=timezone.utc
             )
-            interp_type_str = (
-                "Hermite"
-                if use_hermite
-                else f"Lagrange degree {interpolation_spec.degree}"
-            )
+            interp_type_str = f"{interpolation_spec.interp_type.value} degree {interpolation_spec.degree}"
+
             print(
                 f"[slice_oem]   Mode: interpolated ({interp_type_str})",
                 file=sys.stderr,

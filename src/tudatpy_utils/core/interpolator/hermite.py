@@ -14,6 +14,9 @@ import numpy as np
 
 from .interpolator import Interpolator
 
+DEFAULT_INTERPOLATION_DEGREE: int = 3
+"""Default polynomial degree."""
+
 
 class HermiteInterpolator(Interpolator):
     """Hermite interpolator supporting derivative data.
@@ -26,7 +29,7 @@ class HermiteInterpolator(Interpolator):
     def __init__(
         self,
         dimension: int = 1,
-        points_wanted: int = 2,
+        degree: int = DEFAULT_INTERPOLATION_DEGREE,
         is_cartesian_state: bool = False,
     ) -> None:
         """Initialize Hermite interpolator.
@@ -34,15 +37,27 @@ class HermiteInterpolator(Interpolator):
         Parameters
         ----------
         dimension : int
-            Number of components in each dependent data vector.
-        points_wanted : int
-            Number of data points to use for interpolation.
+            Number of components in each dependent data vector
+        degree : int
+            Interpolation polynomial degree
         is_cartesian_state : bool
-            If True, data represents Cartesian state and interpolate() will use interpolate_cartesian_state().
+            If True, data represents Cartesian state and interpolate() will use interpolate_cartesian_state()
+
+        Raises
+        ------
+        ValueError
+            If is_cartesian_state is True but dimension is not 6
         """
+        if is_cartesian_state and dimension != 6:
+            raise ValueError("dimension must be 6 when is_cartesian_state is True")
+
         super().__init__(dimension)
-        self.points_wanted: int = points_wanted
+
+        self.required_points: int = degree + 1
+        """Required points for a degree-N polynomial is N+1."""
+
         self.is_cartesian_state: bool = is_cartesian_state
+        """If True, interpolate() delegates to interpolate_cartesian_state()."""
 
         self.derivatives: list[list[list[float]]] = []
         """Derivative data: derivatives[element][point][order]."""
