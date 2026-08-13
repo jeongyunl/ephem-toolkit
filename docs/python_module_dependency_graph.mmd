@@ -31,6 +31,10 @@ graph LR
     subgraph interpolator["tudatpy_utils.core.interpolator"]
         mod_interpolator_interpolator[interpolator]
         mod_interpolator_lagrange[lagrange]
+        mod_interpolator_hermite[hermite]
+        mod_interpolator_spec[interpolation_spec]
+        mod_interpolator_factory[factory]
+        mod_core_cli[cli]
     end
 
     mod_util_download_tle([download_tle])
@@ -63,9 +67,15 @@ graph LR
     mod_core_oem --> mod_core_time_utils
     mod_core_slice_oem --> mod_core_oem
     mod_core_slice_oem --> mod_core_time_utils
-    mod_core_slice_oem --> mod_interpolator_lagrange
+    mod_core_slice_oem --> mod_interpolator_factory
+    mod_core_slice_oem --> mod_interpolator_spec
     mod_core_wgs --> mod_core_consts
     mod_interpolator_lagrange --> mod_interpolator_interpolator
+    mod_interpolator_hermite --> mod_interpolator_interpolator
+    mod_interpolator_factory --> mod_interpolator_spec
+    mod_interpolator_factory --> mod_interpolator_lagrange
+    mod_interpolator_factory --> mod_interpolator_hermite
+    mod_core_cli --> mod_interpolator_spec
 
     %% ===== Utility module edges to core =====
     mod_util_xform_oem --> mod_core_aer
@@ -85,6 +95,8 @@ graph LR
     mod_util_tle_to_omm --> mod_core_tle
     mod_util_diff_oem --> mod_core_oem
     mod_util_diff_oem --> mod_core_time_utils
+    mod_util_diff_oem --> mod_interpolator_factory
+    mod_util_diff_oem --> mod_core_cli
     mod_util_plot_orbit --> mod_core_oem
     mod_util_plot_orbit --> mod_core_time_utils
     mod_util_plot_orbit_deltas --> mod_core_oem
