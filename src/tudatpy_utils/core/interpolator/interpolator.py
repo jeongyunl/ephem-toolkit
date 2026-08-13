@@ -1,6 +1,6 @@
 """Base interpolator class for ordered sample storage and interpolation.
 
-Provides :class:`Interpolator`, a base class that buffers monotonically
+:class:`Interpolator` is a base class that buffers monotonically
 increasing independent-variable samples and their corresponding dependent
 vectors, and exposes a common API for subclass interpolation algorithms.
 """

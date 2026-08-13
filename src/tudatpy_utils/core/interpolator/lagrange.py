@@ -8,9 +8,8 @@ formula to produce an interpolated dependent vector.
 from __future__ import annotations
 
 import numpy as np
-from dataclasses import dataclass, field
 
-from . import interpolator
+from .interpolator import Interpolator
 
 RANGE_OVERSHOOT_TOLERANCE: float = 1e-8
 """Tolerance for allowing queries marginally outside the stored data range."""
@@ -19,7 +18,7 @@ MIN_DIFFERENCE_FOR_START: float = 1.0e30
 """Sentinel initial value used when searching for the minimum window bias."""
 
 
-class LagrangeInterpolator(interpolator.Interpolator):
+class LagrangeInterpolator(Interpolator):
     """Lagrange interpolator that selects a local polynomial window for interpolation.
 
     Chooses a contiguous subset of stored points centered near the query and
@@ -49,46 +48,19 @@ class LagrangeInterpolator(interpolator.Interpolator):
         self.candidate_window_end_index: int = 0
         self.closest_data_index: int = 0
 
-    def check_interpolation_feasibility(self, independent_value: float) -> int:
-        """Verify the query is within range and enough samples exist."""
-        if self.reset_to_base_degree and (self.degree != self.base_degree):
-            self.degree = self.base_degree
-            self.required_points = self.degree
+    def add_data_point(
+        self, independent_value: float, dependent_data: np.ndarray
+    ) -> None:
+        """Append a new sample to the base interpolator storage.
 
-        if len(self.independent_values) < self.required_points:
-            return -1
-
-        # If extrapolation is disabled, ensure the query stays within the stored range.
-        if (independent_value < self.independent_values[0]) and (
-            self.allow_extrapolation == False
-        ):
-            if independent_value < (
-                self.independent_values[0] - RANGE_OVERSHOOT_TOLERANCE
-            ):
-                return -2
-
-        if (
-            independent_value > self.independent_values[-1]
-            and self.allow_extrapolation == False
-        ):
-            if independent_value >= (
-                self.independent_values[-1] + RANGE_OVERSHOOT_TOLERANCE
-            ):
-                return -3
-
-        return 1
-
-    def adjust_order_for_points(self) -> bool:
-        """Decrease polynomial degree when fewer samples are available than required."""
-        if (len(self.independent_values) > 1) and (
-            len(self.independent_values) < self.required_points
-        ):
-            self.degree = len(self.independent_values)
-            self.required_points = self.degree
-            self.reset_to_base_degree = False
-            return True
-
-        return False
+        Parameters
+        ----------
+        independent_value : float
+            Independent variable value for the new data point.
+        dependent_data : np.ndarray
+            Dependent variable values for the new data point.
+        """
+        return super().add_data_point(independent_value, dependent_data)
 
     def reset_state(self) -> None:
         """Reset interpolator state while preserving stored samples."""
@@ -100,33 +72,45 @@ class LagrangeInterpolator(interpolator.Interpolator):
         self.candidate_window_end_index = 0
         self.closest_data_index = 0
 
-    def add_data_point(self, independent_value: float, data: np.ndarray) -> None:
-        """Append a new sample to the base interpolator storage."""
-        return super().add_data_point(independent_value, data)
+    def clear_storage(self) -> None:
+        """Clear stored sample data and reset state for a fresh interpolation run."""
+        super().clear_storage()
+        self.reset_state()
 
     def interpolate_value(self, independent_value: float) -> np.ndarray | None:
-        """Compute the interpolated dependent vector for the requested value."""
-        self.adjust_order_for_points()
-        feasibility_flag: int = self.check_interpolation_feasibility(independent_value)
+        """Compute the interpolated dependent vector for the requested value.
+
+        Parameters
+        ----------
+        independent_value : float
+            Query point at which to interpolate.
+
+        Returns
+        -------
+        np.ndarray | None
+            Interpolated dependent vector, or None if interpolation fails.
+        """
+        self._adjust_order_for_points()
+        feasibility_flag: int = self._check_interpolation_feasibility(independent_value)
         if feasibility_flag != 1:
             return None
 
         # Choose a local set of sample points around the query point.
         if len(self.independent_values) >= self.required_points:
-            if not self.is_closest_data_index_valid(independent_value):
-                self.update_closest_data_index(independent_value)
+            if not self._is_closest_data_index_valid(independent_value):
+                self._update_closest_data_index(independent_value)
 
-            self.select_candidate_window(independent_value)
+            self._select_candidate_window(independent_value)
         elif not self.force_interpolation:
             return None
 
         # If the interpolator is allowed to refuse poor interpolations, verify
         # the query remains within the centered window.
         if not self.force_interpolation:
-            if not self.is_query_centered():
+            if not self._is_query_centered():
                 return None
 
-        self.choose_evaluation_start_index(independent_value)
+        self._choose_evaluation_start_index(independent_value)
 
         products: np.ndarray = np.zeros(self.dependent_dimension, dtype=float)
         estimates: np.ndarray = np.zeros(self.dependent_dimension, dtype=float)
@@ -160,16 +144,80 @@ class LagrangeInterpolator(interpolator.Interpolator):
 
         return estimates
 
-    def clear_storage(self) -> None:
-        """Clear stored sample data and reset state for a fresh interpolation run."""
-        super().clear_storage()
-        self.reset_state()
+    def _check_interpolation_feasibility(self, independent_value: float) -> int:
+        """Verify the query is within range and enough samples exist.
 
-    def is_closest_data_index_valid(self, independent_value: float) -> bool:
+        Parameters
+        ----------
+        independent_value : float
+            Query point to check for interpolation feasibility.
+
+        Returns
+        -------
+        int
+            1 if interpolation is feasible, -1 if insufficient points,
+            -2 if below range, -3 if above range.
+        """
+        if self.reset_to_base_degree and (self.degree != self.base_degree):
+            self.degree = self.base_degree
+            self.required_points = self.degree
+
+        if len(self.independent_values) < self.required_points:
+            return -1
+
+        # If extrapolation is disabled, ensure the query stays within the stored range.
+        if (independent_value < self.independent_values[0]) and (
+            not self.allow_extrapolation
+        ):
+            if independent_value < (
+                self.independent_values[0] - RANGE_OVERSHOOT_TOLERANCE
+            ):
+                return -2
+
+        if (
+            independent_value > self.independent_values[-1]
+            and not self.allow_extrapolation
+        ):
+            if independent_value >= (
+                self.independent_values[-1] + RANGE_OVERSHOOT_TOLERANCE
+            ):
+                return -3
+
+        return 1
+
+    def _adjust_order_for_points(self) -> bool:
+        """Decrease polynomial degree when fewer samples are available than required.
+
+        Returns
+        -------
+        bool
+            True if degree was adjusted, False otherwise.
+        """
+        if (len(self.independent_values) > 1) and (
+            len(self.independent_values) < self.required_points
+        ):
+            self.degree = len(self.independent_values)
+            self.required_points = self.degree
+            self.reset_to_base_degree = False
+            return True
+
+        return False
+
+    def _is_closest_data_index_valid(self, independent_value: float) -> bool:
         """Return True when the current closest_data_index remains valid.
 
         For monotonic stored samples, the nearest sample only changes when the
         query crosses the midpoint between adjacent independent values.
+
+        Parameters
+        ----------
+        independent_value : float
+            Query point to validate against current closest index.
+
+        Returns
+        -------
+        bool
+            True if closest_data_index is still valid, False otherwise.
         """
         if not self.independent_values:
             return False
@@ -200,7 +248,7 @@ class LagrangeInterpolator(interpolator.Interpolator):
 
         return True
 
-    def update_closest_data_index(self, independent_value: float) -> None:
+    def _update_closest_data_index(self, independent_value: float) -> None:
         """Update the closest_data_index to the sample nearest to independent_value.
 
         Parameters
@@ -222,7 +270,7 @@ class LagrangeInterpolator(interpolator.Interpolator):
 
         self.closest_data_index = closest_data_index
 
-    def select_candidate_window(self, independent_value: float) -> None:
+    def _select_candidate_window(self, independent_value: float) -> None:
         """Select the contiguous point window that best surrounds the query.
 
         Parameters
@@ -259,8 +307,14 @@ class LagrangeInterpolator(interpolator.Interpolator):
         self.candidate_window_start_index = candidate_window_start_index
         self.candidate_window_end_index = candidate_window_end_index
 
-    def is_query_centered(self) -> bool:
-        """Return True when the query lies near the center of the selected window."""
+    def _is_query_centered(self) -> bool:
+        """Return True when the query lies near the center of the selected window.
+
+        Returns
+        -------
+        bool
+            True if query is centered in the window, False otherwise.
+        """
         retval: bool = False
 
         if (self.candidate_window_start_index >= 0) and (
@@ -273,7 +327,7 @@ class LagrangeInterpolator(interpolator.Interpolator):
 
         return retval
 
-    def choose_evaluation_start_index(self, independent_value: float) -> None:
+    def _choose_evaluation_start_index(self, independent_value: float) -> None:
         """Pick the starting index for the interpolation window that minimizes bias.
 
         Parameters

@@ -209,9 +209,9 @@ def test_closest_data_index_validity_check() -> None:
         interpolator.add_data_point(float(x), np.array([float(x)], dtype=float))
 
     interpolator.closest_data_index = 2
-    assert interpolator.is_closest_data_index_valid(2.4) is True
-    assert interpolator.is_closest_data_index_valid(1.4) is False
-    assert interpolator.is_closest_data_index_valid(3.6) is False
+    assert interpolator._is_closest_data_index_valid(2.4) is True
+    assert interpolator._is_closest_data_index_valid(1.4) is False
+    assert interpolator._is_closest_data_index_valid(3.6) is False
     interpolator.closest_data_index = 0
-    assert interpolator.is_closest_data_index_valid(0.4) is True
-    assert interpolator.is_closest_data_index_valid(-0.1) is True
+    assert interpolator._is_closest_data_index_valid(0.4) is True
+    assert interpolator._is_closest_data_index_valid(-0.1) is True
