@@ -404,7 +404,9 @@ def extract_states_by_time(
     if options.interpolation_spec is not None:
         if interpolation_spec.interp_type == InterpolationType.HERMITE:
             use_hermite = True
-            interpolator = hermite.HermiteInterpolator(dimension=6, points_wanted=2)
+            interpolator = hermite.HermiteInterpolator(
+                dimension=6, points_wanted=2, is_cartesian_state=True
+            )
             if interpolator is None:
                 raise RuntimeError("Error creating Hermite interpolator")
             interpolator.set_data(states)
@@ -421,12 +423,7 @@ def extract_states_by_time(
         # Single state extraction (no comma was present)
         if options.interpolation_spec is not None:
             # Interpolate single state at exact requested time
-            if use_hermite:
-                interp_state = interpolator.interpolate_cartesian_state(
-                    slice_start_timestamp_s
-                )
-            else:
-                interp_state = interpolator.interpolate(slice_start_timestamp_s)
+            interp_state = interpolator.interpolate(slice_start_timestamp_s)
             sliced_states = [(slice_start_timestamp_s, interp_state)]
 
             if verbose:
@@ -487,12 +484,7 @@ def extract_states_by_time(
                 slice_start_index < len(timestamps_s)
                 and timestamps_s[slice_start_index] != slice_start_timestamp_s
             ):
-                if use_hermite:
-                    start_state = interpolator.interpolate_cartesian_state(
-                        slice_start_timestamp_s
-                    )
-                else:
-                    start_state = interpolator.interpolate(slice_start_timestamp_s)
+                start_state = interpolator.interpolate(slice_start_timestamp_s)
                 sliced_states.append((slice_start_timestamp_s, start_state))
 
             # Add all existing states in the range
@@ -503,12 +495,7 @@ def extract_states_by_time(
                 slice_stop_index > 0
                 and timestamps_s[slice_stop_index - 1] != slice_stop_timestamp_s
             ):
-                if use_hermite:
-                    stop_state = interpolator.interpolate_cartesian_state(
-                        slice_stop_timestamp_s
-                    )
-                else:
-                    stop_state = interpolator.interpolate(slice_stop_timestamp_s)
+                stop_state = interpolator.interpolate(slice_stop_timestamp_s)
                 sliced_states.append((slice_stop_timestamp_s, stop_state))
 
             if verbose:
@@ -568,10 +555,7 @@ def extract_states_by_time(
         sliced_states: list[tuple[float, np.ndarray]] = []
         timestamp_s: float = slice_start_timestamp_s
         while timestamp_s <= slice_stop_timestamp_s:
-            if use_hermite:
-                step_state = interpolator.interpolate_cartesian_state(timestamp_s)
-            else:
-                step_state = interpolator.interpolate(timestamp_s)
+            step_state = interpolator.interpolate(timestamp_s)
             sliced_states.append((timestamp_s, step_state))
             timestamp_s += options.step_size.total_seconds()
 

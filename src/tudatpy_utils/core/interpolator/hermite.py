@@ -23,7 +23,12 @@ class HermiteInterpolator(Interpolator):
     derivative availability (either all have derivatives or none do).
     """
 
-    def __init__(self, dimension: int = 1, points_wanted: int = 2) -> None:
+    def __init__(
+        self,
+        dimension: int = 1,
+        points_wanted: int = 2,
+        is_cartesian_state: bool = False,
+    ) -> None:
         """Initialize Hermite interpolator.
 
         Parameters
@@ -32,9 +37,12 @@ class HermiteInterpolator(Interpolator):
             Number of components in each dependent data vector.
         points_wanted : int
             Number of data points to use for interpolation.
+        is_cartesian_state : bool
+            If True, data represents Cartesian state and interpolate() will use interpolate_cartesian_state().
         """
         super().__init__(dimension)
         self.points_wanted: int = points_wanted
+        self.is_cartesian_state: bool = is_cartesian_state
 
         self.derivatives: list[list[list[float]]] = []
         """Derivative data: derivatives[element][point][order]."""
@@ -369,6 +377,9 @@ class HermiteInterpolator(Interpolator):
         np.ndarray | None
             Interpolated values, or None on failure.
         """
+        if self.is_cartesian_state:
+            return self.interpolate_cartesian_state(independent_value)
+
         if not self._build_q_coefficients():
             return None
         return self._evaluate_polynomial(independent_value)
