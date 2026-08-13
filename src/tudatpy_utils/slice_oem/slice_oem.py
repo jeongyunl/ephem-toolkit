@@ -47,6 +47,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import tudatpy_utils.core.ccsds.oem as oem
+import tudatpy_utils.core.interpolation_spec as interpolation_spec
 import tudatpy_utils.core.slice_oem as slice_oem
 import tudatpy_utils.core.time_utils as time_utils
 
@@ -95,6 +96,12 @@ def main() -> None:
         action="store_false",
         dest="interpolate",
         help="Disable interpolation",
+    )
+    parser.add_argument(
+        "--interpolate-type",
+        choices=["hermite", "lagrange"],
+        default="lagrange",
+        help="Interpolation method: 'hermite' or 'lagrange' (default: lagrange)",
     )
     parser.add_argument(
         "--interpolate-degree",
@@ -204,10 +211,22 @@ def main() -> None:
 
         if args.time_slice:
             time_slice_options = slice_oem.parse_time_slice_args(args.time_slice)
-            time_slice_options.interpolate = args.interpolate
+
+            # Set interpolation spec if interpolation is enabled
+            if args.interpolate:
+                interp_type = (
+                    interpolation_spec.InterpolationType.HERMITE
+                    if args.interpolate_type == "hermite"
+                    else interpolation_spec.InterpolationType.LAGRANGE
+                )
+                time_slice_options.interpolation_spec = interpolation_spec.InterpolationSpec(
+                    interp_type=interp_type,
+                    degree=args.interpolate_degree,
+                )
+
             if (
                 time_slice_options.step_size is not None
-                and not time_slice_options.interpolate
+                and time_slice_options.interpolation_spec is None
             ):
                 parser.error("step_size requires --interpolate")
 
@@ -216,7 +235,6 @@ def main() -> None:
                 oem_data,
                 time_slice_options,
                 verbose=args.verbose,
-                interpolation_degree=args.interpolate_degree,
             )
 
         elif args.slice:
@@ -225,7 +243,6 @@ def main() -> None:
                 oem_data,
                 slice_obj,
                 verbose=args.verbose,
-                interpolation_degree=args.interpolate_degree,
             )
 
         if sliced_oem is not None:

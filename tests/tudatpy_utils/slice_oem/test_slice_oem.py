@@ -421,6 +421,76 @@ def test_cli_time_slice_interpolate_flag_explicit() -> None:
         temp_path.unlink()
 
 
+def test_cli_interpolate_type_lagrange() -> None:
+    """Test --interpolate-type=lagrange option."""
+    temp_path, _ = _create_test_oem(num_states=60, interval_seconds=60)
+    try:
+        result = _run_slice_oem(
+            [
+                str(temp_path),
+                "--time-slice",
+                "0,20m,5m",
+                "--interpolate-type",
+                "lagrange",
+            ]
+        )
+        assert result.returncode == 0
+
+        output_oem = oem.CcsdsOem.read(io.StringIO(result.stdout))
+        assert len(output_oem.states) == 5
+    finally:
+        temp_path.unlink()
+
+
+def test_cli_interpolate_type_hermite() -> None:
+    """Test --interpolate-type=hermite option."""
+    temp_path, _ = _create_test_oem(num_states=60, interval_seconds=60)
+    try:
+        result = _run_slice_oem(
+            [
+                str(temp_path),
+                "--time-slice",
+                "0,20m,5m",
+                "--interpolate-type",
+                "hermite",
+            ]
+        )
+        assert result.returncode == 0
+
+        output_oem = oem.CcsdsOem.read(io.StringIO(result.stdout))
+        assert len(output_oem.states) == 5
+    finally:
+        temp_path.unlink()
+
+
+def test_cli_interpolate_degree() -> None:
+    """Test --interpolate-degree option."""
+    temp_path, _ = _create_test_oem(num_states=60, interval_seconds=60)
+    try:
+        result = _run_slice_oem(
+            [str(temp_path), "--time-slice", "0,20m,5m", "--interpolate-degree", "4"]
+        )
+        assert result.returncode == 0
+
+        output_oem = oem.CcsdsOem.read(io.StringIO(result.stdout))
+        assert len(output_oem.states) == 5
+    finally:
+        temp_path.unlink()
+
+
+def test_cli_interpolate_degree_invalid() -> None:
+    """Test --interpolate-degree with invalid value."""
+    temp_path, _ = _create_test_oem(num_states=60, interval_seconds=60)
+    try:
+        result = _run_slice_oem(
+            [str(temp_path), "--time-slice", "0,20m,5m", "--interpolate-degree", "1"]
+        )
+        assert result.returncode != 0
+        assert "must be 2 or greater" in result.stderr
+    finally:
+        temp_path.unlink()
+
+
 # ===================================================================
 # Output format tests
 # ===================================================================
@@ -746,6 +816,39 @@ def test_cli_output_can_be_redirected() -> None:
         temp_path.unlink()
         if output_file.exists():
             output_file.unlink()
+
+
+def test_cli_output_flag_to_file() -> None:
+    """Test --output flag writes to specified file."""
+    temp_path, _ = _create_test_oem(num_states=20)
+    output_file = TEST_DIR / "test_output_flag.oem"
+    try:
+        result = _run_slice_oem(
+            [str(temp_path), "--slice", "0:10", "-o", str(output_file)]
+        )
+        assert result.returncode == 0
+        assert output_file.exists()
+
+        output_oem = oem.CcsdsOem.read(output_file)
+        assert len(output_oem.states) == 10
+    finally:
+        temp_path.unlink()
+        if output_file.exists():
+            output_file.unlink()
+
+
+def test_cli_output_flag_stdout() -> None:
+    """Test --output=- writes to stdout."""
+    temp_path, _ = _create_test_oem(num_states=20)
+    try:
+        result = _run_slice_oem([str(temp_path), "--slice", "0:10", "--output", "-"])
+        assert result.returncode == 0
+        assert "CCSDS_OEM_VERS" in result.stdout
+
+        output_oem = oem.CcsdsOem.read(io.StringIO(result.stdout))
+        assert len(output_oem.states) == 10
+    finally:
+        temp_path.unlink()
 
 
 # ===================================================================
