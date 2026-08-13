@@ -77,7 +77,7 @@ class LagrangeInterpolator(Interpolator):
         super().clear_storage()
         self.reset_state()
 
-    def interpolate_value(self, independent_value: float) -> np.ndarray | None:
+    def interpolate(self, independent_value: float) -> np.ndarray | None:
         """Compute the interpolated dependent vector for the requested value.
 
         Parameters

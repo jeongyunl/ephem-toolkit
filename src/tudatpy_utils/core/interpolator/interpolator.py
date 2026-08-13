@@ -155,10 +155,9 @@ class Interpolator:
 
         self.reset_state()
 
-    def interpolate_value(self, independent_value: float) -> np.ndarray | None:
-        """Placeholder interpolation method to be implemented by subclasses."""
-        return None
-
     def interpolate(self, independent_value: float) -> np.ndarray | None:
-        """Compute interpolated dependent data for the requested independent value."""
-        return self.interpolate_value(independent_value)
+        """Compute interpolated dependent data for the requested independent value.
+        
+        Placeholder interpolation method to be implemented by subclasses.
+        """
+        return None
