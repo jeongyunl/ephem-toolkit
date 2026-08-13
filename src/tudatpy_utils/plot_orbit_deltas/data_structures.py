@@ -7,9 +7,27 @@ from enum import Enum
 
 import numpy as np
 
-import tudatpy_utils.core.interpolator.lagrange as lagrange
+from tudatpy_utils.core.interpolator import factory
+import tudatpy_utils.core.interpolator as interpolator
+from tudatpy_utils.core.interpolator.interpolation_spec import (
+    InterpolationSpec,
+    InterpolationType,
+)
 
 from .constants import DEFAULT_INTERPOLATION_DEGREE
+
+# ===================================================================
+# Constants
+# ===================================================================
+
+SECONDS_PER_MINUTE: float = 60.0
+"""Conversion factor from seconds to minutes."""
+
+SECONDS_PER_HOUR: float = 3600.0
+"""Conversion factor from seconds to hours."""
+
+INTERPOLATION_BOUNDARY_OFFSET: int = 2
+"""Number of points from boundary required for safe interpolation."""
 
 
 @dataclass
@@ -26,8 +44,8 @@ class StateHistory:
     but will be converted to km and km/s for plotting and CSV export.
     """
 
-    interpolator: lagrange.LagrangeInterpolator | None = None
-    """Lagrange interpolator for querying state at arbitrary timestamps; initialised lazily on first use."""
+    interpolator: interpolator.Interpolator | None = None
+    """Interpolator for querying state at arbitrary timestamps; initialised lazily on first use."""
 
     timestamps: list[float] | None = None
     """Sorted list of epoch timestamps from state_history keys; populated automatically in __post_init__."""
@@ -57,12 +75,12 @@ class StateHistory:
         """
         return self.timestamps[-1]
 
-    def get_interpolated_state(self, timestamp: float) -> np.ndarray | None:
+    def get_interpolated_state(self, timestamp_s: float) -> np.ndarray | None:
         """Get interpolated state at a given timestamp.
 
         Parameters
         ----------
-        timestamp : float
+        timestamp_s : float
             Timestamp to interpolate at (seconds since epoch).
 
         Returns
@@ -70,27 +88,31 @@ class StateHistory:
         np.ndarray | None
             Interpolated state vector [x, y, z, vx, vy, vz] if timestamp is within
             interpolator bounds, None otherwise.
-
-        Raises
-        ------
-        ValueError
-            If no interpolator has been set for this StateHistory object.
         """
 
         if self.interpolator is None:
-            interp: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
-                dimension=6, degree=DEFAULT_INTERPOLATION_DEGREE
+            spec = InterpolationSpec(
+                interp_type=InterpolationType.HERMITE,
+                degree=DEFAULT_INTERPOLATION_DEGREE,
             )
-            interp.set_data(self.state_history)
+            interp: interpolator.Interpolator = factory.InterpolatorFactory.create(
+                spec=spec,
+                dimension=6,
+                context="StateHistory.get_interpolated_state",
+                data=self.state_history,
+            )
             self.interpolator = interp
 
+        # Check if timestamp is within safe interpolation bounds
         if (
-            timestamp < self.interpolator.independent_values[2]
-            or timestamp > self.interpolator.independent_values[-3]
+            timestamp_s
+            < self.interpolator.independent_values[INTERPOLATION_BOUNDARY_OFFSET]
+            or timestamp_s
+            > self.interpolator.independent_values[-INTERPOLATION_BOUNDARY_OFFSET - 1]
         ):
             return None
 
-        interpolated_state: np.ndarray = self.interpolator.interpolate(timestamp)
+        interpolated_state: np.ndarray = self.interpolator.interpolate(timestamp_s)
 
         return interpolated_state
 
@@ -142,9 +164,9 @@ class TimeUnit(Enum):
             Divisor value (60 for minutes, 3600 for hours).
         """
         if self == TimeUnit.MINUTES:
-            return 60.0
+            return SECONDS_PER_MINUTE
         elif self == TimeUnit.HOURS:
-            return 3600.0
+            return SECONDS_PER_HOUR
         else:
             raise ValueError(f"Unknown time unit: {self}")
 

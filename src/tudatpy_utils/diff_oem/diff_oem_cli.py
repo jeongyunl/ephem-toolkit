@@ -7,19 +7,30 @@ Usage:
 from __future__ import annotations
 
 import argparse
+from functools import partial
 import sys
 
 import tudatpy_utils.core.cli as cli
+from tudatpy_utils.core.interpolator.interpolation_spec import (
+    InterpolationSpec,
+    InterpolationType,
+)
 from .utils import parse_rotation_fit_span
 
 ROTATION_FIT_DURATION_S: float = 3600.0
 """Duration of the state history used by the optional rotation fit."""
 
-DEFAULT_INTERPOLATION_DEGREE: int = 7
-"""Default polynomial degree for interpolation (Hermite default)."""
-
 DEFAULT_INTERPOLATION_TYPE: str = "hermite"
 """Default interpolation method."""
+
+DEFAULT_INTERPOLATION_DEGREE: int = 5
+"""Default polynomial degree for interpolation (Hermite default)."""
+
+DEFAULT_INTERPOLATION_SPEC: InterpolationSpec = InterpolationSpec(
+    interp_type=InterpolationType.HERMITE,
+    degree=DEFAULT_INTERPOLATION_DEGREE,
+)
+"""Default interpolation specification."""
 
 TRANSFORM_STAGE_OPTIONS: dict[str, str] = {
     "--rot": "rot",
@@ -88,10 +99,12 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--interpolate-type",
-        type=cli.parse_interpolate_type,
-        default=(DEFAULT_INTERPOLATION_TYPE, DEFAULT_INTERPOLATION_DEGREE),
+        type=partial(
+            cli.parse_interpolate_type, default_degree=DEFAULT_INTERPOLATION_DEGREE
+        ),
+        default=DEFAULT_INTERPOLATION_SPEC,
         metavar="TYPE[,DEGREE]",
-        help=f"Interpolation method: 'hermite' or 'lagrange[,degree]' (default: {DEFAULT_INTERPOLATION_TYPE},{DEFAULT_INTERPOLATION_DEGREE}). Degree must be >= 2",
+        help=f"Interpolation method: 'hermite[,degree]' or 'lagrange[,degree]' (default: {DEFAULT_INTERPOLATION_TYPE},{DEFAULT_INTERPOLATION_DEGREE}). Degree must be > 0",
     )
     parser.add_argument(
         "--rtn",

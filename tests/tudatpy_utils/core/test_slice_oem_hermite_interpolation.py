@@ -108,5 +108,5 @@ def test_hermite_interpolation_verbose_output(capsys) -> None:
 
     captured = capsys.readouterr()
     assert "[slice_oem] Slicing by time:" in captured.err
-    assert "Mode: interpolated (hermite degree 3)" in captured.err
+    assert "Mode: interpolated (hermite degree 5)" in captured.err
     assert "Step size:" in captured.err

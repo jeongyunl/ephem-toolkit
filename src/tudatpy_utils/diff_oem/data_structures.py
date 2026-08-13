@@ -7,7 +7,7 @@ from datetime import datetime
 
 import numpy as np
 
-from tudatpy_utils.core.interpolator import hermite, lagrange
+import tudatpy_utils.core.interpolator as interpolator
 
 from .types import StatePair
 
@@ -19,14 +19,10 @@ class TransformationStageInput:
     state_pairs: list[StatePair]
     """Reference/comparison state pairs prepared for fitting."""
 
-    reference_interpolator: (
-        lagrange.LagrangeInterpolator | hermite.HermiteInterpolator | None
-    )
+    reference_interpolator: interpolator.Interpolator | None
     """Optional interpolator for reference states."""
 
-    comparison_interpolator: (
-        lagrange.LagrangeInterpolator | hermite.HermiteInterpolator | None
-    )
+    comparison_interpolator: interpolator.Interpolator | None
     """Optional interpolator for comparison states."""
 
     def resolve_state_pairs(self) -> list[StatePair]:

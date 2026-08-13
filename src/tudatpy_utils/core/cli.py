@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import argparse
 
+from tudatpy_utils.core.interpolator.interpolation_spec import (
+    InterpolationSpec,
+    InterpolationType,
+)
+
 VALID_INTERPOLATION_TYPES: list[str] = ["lagrange", "hermite"]
 """Valid interpolation type names for CLI arguments."""
 
 
-def parse_interpolate_type(value: str, default_degree: int) -> tuple[str, int]:
+def parse_interpolate_type(value: str, default_degree: int) -> InterpolationSpec:
     """Parse interpolation type argument.
 
     Parameters
@@ -20,8 +25,8 @@ def parse_interpolate_type(value: str, default_degree: int) -> tuple[str, int]:
 
     Returns
     -------
-    tuple[str, int]
-        Interpolation type and degree.
+    InterpolationSpec
+        Interpolation specification with type and degree.
 
     Raises
     ------
@@ -54,4 +59,7 @@ def parse_interpolate_type(value: str, default_degree: int) -> tuple[str, int]:
             f"Invalid interpolation type '{interp_type}', must be 'lagrange' or 'hermite'"
         )
 
-    return (interp_type, degree)
+    return InterpolationSpec(
+        interp_type=InterpolationType(interp_type),
+        degree=degree,
+    )

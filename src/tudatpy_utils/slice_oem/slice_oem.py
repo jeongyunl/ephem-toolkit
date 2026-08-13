@@ -53,8 +53,19 @@ import tudatpy_utils.core.interpolator.interpolation_spec as interpolation_spec
 import tudatpy_utils.core.slice_oem as slice_oem
 import tudatpy_utils.core.time_utils as time_utils
 
-DEFAULT_INTERPOLATION_DEGREE: int = 7
-"""Default polynomial degree for interpolation."""
+DEFAULT_INTERPOLATION_TYPE: str = "hermite"
+"""Default interpolation method."""
+
+DEFAULT_INTERPOLATION_DEGREE: int = 5
+"""Default polynomial degree for interpolation (Hermite default)."""
+
+DEFAULT_INTERPOLATION_SPEC: interpolation_spec.InterpolationSpec = (
+    interpolation_spec.InterpolationSpec(
+        interp_type=interpolation_spec.InterpolationType.HERMITE,
+        degree=DEFAULT_INTERPOLATION_DEGREE,
+    )
+)
+"""Default interpolation specification."""
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -100,7 +111,7 @@ def parse_arguments() -> argparse.Namespace:
         "--interpolate",
         action="store_true",
         default=True,
-        help="Enable Lagrange interpolation when step size is provided (enabled by default)",
+        help="Enable interpolation when step size is provided (enabled by default)",
     )
     parser.add_argument(
         "--no-interpolate",
@@ -110,10 +121,12 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--interpolate-type",
-        type=partial(cli.parse_interpolate_type, default_degree=DEFAULT_INTERPOLATION_DEGREE),
-        default=("hermite", DEFAULT_INTERPOLATION_DEGREE),
+        type=partial(
+            cli.parse_interpolate_type, default_degree=DEFAULT_INTERPOLATION_DEGREE
+        ),
+        default=DEFAULT_INTERPOLATION_SPEC,
         metavar="TYPE[,DEGREE]",
-        help=f"Interpolation method: 'hermite' or 'lagrange[,degree]' (default: lagrange,{DEFAULT_INTERPOLATION_DEGREE}). Degree must be >= 2.",
+        help=f"Interpolation method: 'hermite[,degree]' or 'lagrange[,degree]' (default: {DEFAULT_INTERPOLATION_TYPE},{DEFAULT_INTERPOLATION_DEGREE}). Degree must be > 0",
     )
     parser.add_argument(
         "--data-only",
@@ -135,13 +148,6 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     args = parser.parse_args()
-
-    # Unpack interpolate_type tuple (already parsed by argparse)
-    args.interp_method, args.interp_degree = args.interpolate_type
-
-    # Validate interpolation degree
-    if args.interp_degree < 2:
-        parser.error("interpolation degree must be 2 or greater")
 
     return args
 
@@ -172,12 +178,12 @@ def main() -> None:
         if (
             args.time_slice
             and args.interpolate
-            and len(oem_data.states) < args.interp_degree
+            and len(oem_data.states) < args.interpolate_type.degree
         ):
             print(
                 "Warning: input contains "
                 f"{len(oem_data.states)} states, fewer than the requested "
-                f"interpolation degree {args.interp_degree}; "
+                f"interpolation degree {args.interpolate_type.degree}; "
                 "the degree will be reduced to fit the available data.",
                 file=sys.stderr,
             )
@@ -229,17 +235,7 @@ def main() -> None:
 
             # Set interpolation spec if interpolation is enabled
             if args.interpolate:
-                interp_type = (
-                    interpolation_spec.InterpolationType.HERMITE
-                    if args.interp_method == "hermite"
-                    else interpolation_spec.InterpolationType.LAGRANGE
-                )
-                time_slice_options.interpolation_spec = (
-                    interpolation_spec.InterpolationSpec(
-                        interp_type=interp_type,
-                        degree=args.interp_degree,
-                    )
-                )
+                time_slice_options.interpolation_spec = args.interpolate_type
 
             if (
                 time_slice_options.step_size is not None

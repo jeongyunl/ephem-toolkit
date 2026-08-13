@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from tudatpy_utils.core.interpolator import lagrange
-from tudatpy_utils.diff_oem import cli
+from tudatpy_utils.diff_oem import diff_oem_cli
 from tudatpy_utils.diff_oem import comparison
 from tudatpy_utils.diff_oem import data_structures
 from tudatpy_utils.diff_oem import output
@@ -86,7 +86,7 @@ def test_parse_rotation_fit_span_rejects_non_positive_duration() -> None:
 
 
 def test_extract_stage_sequence_preserves_repeated_transformations() -> None:
-    assert cli.extract_stage_sequence(
+    assert diff_oem_cli.extract_stage_sequence(
         ["--rot", "--time-shift", "--rot", "--time-shift"]
     ) == ["rot", "time_shift", "rot", "time_shift"]
 

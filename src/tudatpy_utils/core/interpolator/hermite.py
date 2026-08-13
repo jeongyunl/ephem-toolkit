@@ -10,12 +10,17 @@ References:
 
 from __future__ import annotations
 
+import bisect
+
 import numpy as np
 
 from .interpolator import Interpolator
 
-DEFAULT_INTERPOLATION_DEGREE: int = 3
-"""Default polynomial degree."""
+DEFAULT_HERMITE_DEGREE: int = 5
+"""Default polynomial degree for Hermite interpolation."""
+
+DERIVATIVE_UNAVAILABLE_SENTINEL: float = -9.99999e99
+"""Sentinel value indicating no derivative data available for an element."""
 
 
 class HermiteInterpolator(Interpolator):
@@ -29,7 +34,7 @@ class HermiteInterpolator(Interpolator):
     def __init__(
         self,
         dimension: int = 1,
-        degree: int = DEFAULT_INTERPOLATION_DEGREE,
+        degree: int = DEFAULT_HERMITE_DEGREE,
         is_cartesian_state: bool = False,
     ) -> None:
         """Initialize Hermite interpolator.
@@ -69,7 +74,10 @@ class HermiteInterpolator(Interpolator):
         """Independent values expanded for derivative data."""
 
     def add_derivative(
-        self, independent_value: float, derivative_data: np.ndarray, order: int = 1
+        self,
+        independent_value: float,
+        derivative_data: np.ndarray,
+        derivative_order: int = 1,
     ) -> bool:
         """Add derivative data for a specific independent value.
 
@@ -78,9 +86,9 @@ class HermiteInterpolator(Interpolator):
         independent_value : float
             Independent variable value for this derivative.
         derivative_data : np.ndarray
-            First derivative values. Use value < -9.99999e99 to indicate
+            First derivative values. Use value < DERIVATIVE_UNAVAILABLE_SENTINEL to indicate
             no derivative available for that element.
-        order : int
+        derivative_order : int
             Derivative order (only 1 is currently supported).
 
         Returns
@@ -93,7 +101,7 @@ class HermiteInterpolator(Interpolator):
         ValueError
             If order != 1 or independent_value not found in data.
         """
-        if order != 1:
+        if derivative_order != 1:
             raise ValueError("Only first-order derivatives are supported")
 
         # Initialize derivative structure if not already present
@@ -110,10 +118,10 @@ class HermiteInterpolator(Interpolator):
             raise ValueError(f"Independent value {independent_value} not found in data")
 
         added = False
-        derivative_index = order - 1
+        derivative_index = derivative_order - 1
 
         for i in range(self.dependent_dimension):
-            if derivative_data[i] > -9.99999e99:
+            if derivative_data[i] > DERIVATIVE_UNAVAILABLE_SENTINEL:
                 if len(self.derivatives[i][index]) > derivative_index:
                     self.derivatives[i][index][derivative_index] = derivative_data[i]
                     added = True
@@ -127,7 +135,7 @@ class HermiteInterpolator(Interpolator):
 
         return added
 
-    def set_derivative_data(
+    def set_data_with_derivative(
         self,
         data: (
             dict[float, np.ndarray]
@@ -135,96 +143,79 @@ class HermiteInterpolator(Interpolator):
             | list[float]
             | np.ndarray
         ),
+        dependent_data: list[np.ndarray] | None = None,
         derivative_data: list[np.ndarray] | None = None,
-        order: int = 1,
+        derivative_order: int = 1,
     ) -> None:
-        """Replace all stored derivatives with the contents of *data*.
+        """Replace all stored samples and derivatives with the contents of *data*.
 
-        Accepts three input formats:
-        - Dictionary mapping independent values to derivative vectors (sorted by key)
-        - List of (independent_value, derivative_data) tuples (assumed sorted)
-        - List/array of independent values with separate *derivative_data* list (assumed sorted and equal length)
+        Sets independent values, dependent values, and derivative data together.
+        This combines the functionality of :meth:`Interpolator.set_data` and
+        derivative assignment in a single call.
+
+        Accepts three input formats for dependent data (via *data* and *dependent_data*):
+        - Dictionary mapping independent values to dependent vectors (sorted by key)
+        - List of (independent_value, dependent_data) tuples (assumed sorted)
+        - List/array of independent values with separate *dependent_data* list (assumed sorted and equal length)
 
         Parameters
         ----------
         data : dict[float, np.ndarray] | list[tuple[float, np.ndarray]] | list[float] | np.ndarray
             Either:
-            - A mapping of independent variable values to derivative data vectors.
-            - A list of (independent_value, derivative_data) tuples.
-            - A list or array of independent variable values (requires *derivative_data*).
+            - A mapping of independent variable values to dependent data vectors.
+            - A list of (independent_value, dependent_data) tuples.
+            - A list or array of independent variable values (requires *dependent_data*).
 
             If a dictionary is provided, it is sorted by key before storage.
             If a list of tuples is provided, it is assumed to be already sorted.
-            If a list/array of floats is provided, *derivative_data* must also be provided,
+            If a list/array of floats is provided, *dependent_data* must also be provided,
             and both are assumed to be already sorted and of equal length.
-        derivative_data : list[np.ndarray] | None, optional
-            List of derivative data vectors, required only when *data* is a list/array
+        dependent_data : list[np.ndarray] | None, optional
+            List of dependent data vectors, required only when *data* is a list/array
             of independent values. Must be the same length as *data*.
-        order : int
+        derivative_data : list[np.ndarray] | None, optional
+            List of derivative data vectors. Must be the same length as the number
+            of independent values. If None, no derivatives are set.
+        derivative_order : int
             Derivative order (only 1 is currently supported).
 
         Raises
         ------
         ValueError
-            If *data* is a list of floats but *derivative_data* is not provided,
-            or if the lengths of *data* and *derivative_data* don't match,
-            or if order != 1, or if independent values don't match stored data.
+            If *data* is a list of floats but *dependent_data* is not provided,
+            or if the lengths don't match, or if derivative_order != 1.
         """
-        if order != 1:
+        if derivative_order != 1:
             raise ValueError("Only first-order derivatives are supported")
 
-        independent_vals = []
-        deriv_vals = []
+        # First, set independent and dependent values using the parent set_data method
+        self.set_data(data, dependent_data)
 
+        # Then set derivative data if provided
         if derivative_data is not None:
-            if isinstance(data, dict):
+            if len(derivative_data) != len(self.independent_values):
                 raise ValueError(
-                    "When derivative_data is provided, data must be a list or array of independent values"
+                    f"Length mismatch: derivative_data has {len(derivative_data)} elements "
+                    f"but there are {len(self.independent_values)} independent values"
                 )
-            if len(data) != len(derivative_data):
-                raise ValueError(
-                    f"Length mismatch: data has {len(data)} elements but derivative_data has {len(derivative_data)} elements"
-                )
-            independent_vals = list(data)
-            deriv_vals = list(derivative_data)
-        elif isinstance(data, dict):
-            independent_vals, deriv_vals = zip(*sorted(data.items()))
-            independent_vals = list(independent_vals)
-            deriv_vals = list(deriv_vals)
-        elif isinstance(data, list) and len(data) > 0:
-            if isinstance(data[0], tuple):
-                independent_vals, deriv_vals = zip(*data)
-                independent_vals = list(independent_vals)
-                deriv_vals = list(deriv_vals)
-            else:
-                raise ValueError(
-                    "When data is a list of independent values, derivative_data must be provided"
-                )
-        else:
-            raise ValueError(
-                "data must be a dict, list of tuples, or list of floats with derivative_data"
-            )
-        self.derivatives = [
-            [[] for _ in range(len(self.independent_values))]
-            for _ in range(self.dependent_dimension)
-        ]
-        derivative_index = order - 1
-        for indep_val, deriv_val in zip(independent_vals, deriv_vals):
-            try:
-                index = self.independent_values.index(indep_val)
-            except ValueError:
-                raise ValueError(f"Independent value {indep_val} not found in data")
 
-            for i in range(self.dependent_dimension):
-                if deriv_val[i] > -9.99999e99:
-                    if len(self.derivatives[i][index]) == derivative_index:
-                        self.derivatives[i][index].append(deriv_val[i])
-                    elif len(self.derivatives[i][index]) > derivative_index:
-                        self.derivatives[i][index][derivative_index] = deriv_val[i]
-                    else:
-                        raise ValueError(
-                            "Derivatives must be added in order starting from first derivative"
-                        )
+            self.derivatives = [
+                [[] for _ in range(len(self.independent_values))]
+                for _ in range(self.dependent_dimension)
+            ]
+            derivative_index = derivative_order - 1
+
+            for index, deriv_val in enumerate(derivative_data):
+                for i in range(self.dependent_dimension):
+                    if deriv_val[i] > DERIVATIVE_UNAVAILABLE_SENTINEL:
+                        if len(self.derivatives[i][index]) == derivative_index:
+                            self.derivatives[i][index].append(deriv_val[i])
+                        elif len(self.derivatives[i][index]) > derivative_index:
+                            self.derivatives[i][index][derivative_index] = deriv_val[i]
+                        else:
+                            raise ValueError(
+                                "Derivatives must be added in order starting from first derivative"
+                            )
 
     def clear_storage(self) -> None:
         """Remove all stored samples, derivatives, and reset state."""
@@ -252,12 +243,15 @@ class HermiteInterpolator(Interpolator):
         point_count = len(self.independent_values)
 
         for i in range(self.dependent_dimension):
+            # Determine how many derivatives are available per point
             derivative_size = (
                 len(self.derivatives[i][0])
                 if self.derivatives and self.derivatives[i]
                 else 0
             )
-            x = []
+            # Expanded independent values (repeated for derivative data)
+            expanded_indep_values = []
+            # Initial column of divided difference table
             prev_col = []
 
             for m in range(point_count):
@@ -266,39 +260,48 @@ class HermiteInterpolator(Interpolator):
                         "Inconsistent derivative data: some points have derivatives, others don't"
                     )
 
+                # Repeat each independent value (derivative_size + 1) times
                 for n in range(derivative_size + 1):
-                    x.append(self.independent_values[m])
+                    expanded_indep_values.append(self.independent_values[m])
                     prev_col.append(self.dependent_values[m][i])
 
+            # Total polynomial order for Hermite interpolation
             order = point_count * (derivative_size + 1) - 1
-            q_i = [prev_col[0]]
+            # Divided difference coefficients for this dimension
+            divided_diff_coeffs = [prev_col[0]]
             point = 0
             t_index = 1
 
+            # Build divided difference table iteratively
             for t in range(order):
                 tableau = []
                 for j in range(len(prev_col) - 1):
-                    if x[j + t_index] != x[j]:
+                    # Standard divided difference when independent values differ
+                    if expanded_indep_values[j + t_index] != expanded_indep_values[j]:
                         deriv = (prev_col[j + 1] - prev_col[j]) / (
-                            x[j + t_index] - x[j]
+                            expanded_indep_values[j + t_index]
+                            - expanded_indep_values[j]
                         )
                         point += 1
                     else:
+                        # Use derivative data when independent values are equal
                         deriv = self.derivatives[i][point][0]
 
                     tableau.append(deriv)
 
-                q_i.append(tableau[0])
+                divided_diff_coeffs.append(tableau[0])
                 prev_col = tableau
                 t_index += 1
 
-            self.q_coeffs.append(q_i)
-            self.t_values.append(x)
+            self.q_coeffs.append(divided_diff_coeffs)
+            self.t_values.append(expanded_indep_values)
 
         return True
 
     def _evaluate_polynomial(self, independent_value: float) -> np.ndarray:
         """Evaluate Hermite polynomial at given independent value.
+
+        Uses Newton form: P(x) = q[0] + q[1](x-t[0]) + q[2](x-t[0])(x-t[1]) + ...
 
         Parameters
         ----------
@@ -318,6 +321,7 @@ class HermiteInterpolator(Interpolator):
 
             for j in range(len(self.q_coeffs[i])):
                 if j > 0:
+                    # Accumulate product (x - t[0])(x - t[1])...(x - t[j-1])
                     term_product *= independent_value - self.t_values[i][j - 1]
                 results[i] += self.q_coeffs[i][j] * term_product
 
@@ -379,8 +383,141 @@ class HermiteInterpolator(Interpolator):
 
         return term_sum
 
+    def _select_local_window(
+        self, independent_value: float
+    ) -> tuple[list[float], list[np.ndarray], list[list[list[float]]] | None]:
+        """Select a local window of points around the query value.
+
+        Chooses ``required_points`` contiguous samples centered near the query
+        point, similar to how the Lagrange interpolator selects its window.
+
+        Parameters
+        ----------
+        independent_value : float
+            Query point around which to center the window.
+
+        Returns
+        -------
+        tuple
+            (independent_values, dependent_values, derivatives_or_None) for the
+            local window.
+        """
+        n = len(self.independent_values)
+        if n <= self.required_points:
+            # Use all points if we don't have more than needed
+            local_derivs = self.derivatives if self.derivatives else None
+            return self.independent_values, self.dependent_values, local_derivs
+
+        # Find insertion point for the query value
+        idx = bisect.bisect_left(self.independent_values, independent_value)
+
+        # Center the window around the query point
+        half = self.required_points // 2
+        start = idx - half
+        if start < 0:
+            start = 0
+        end = start + self.required_points
+        if end > n:
+            end = n
+            start = end - self.required_points
+
+        local_indep = self.independent_values[start:end]
+        local_dep = self.dependent_values[start:end]
+
+        local_derivs = None
+        if self.derivatives:
+            local_derivs = [
+                self.derivatives[dim][start:end]
+                for dim in range(self.dependent_dimension)
+            ]
+
+        return local_indep, local_dep, local_derivs
+
+    def _build_q_coefficients_local(
+        self,
+        indep: list[float],
+        dep: list[np.ndarray],
+        derivs: list[list[list[float]]] | None,
+    ) -> bool:
+        """Build divided difference coefficients for a local window of points.
+
+        Parameters
+        ----------
+        indep : list[float]
+            Independent values for the local window.
+        dep : list[np.ndarray]
+            Dependent values for the local window.
+        derivs : list[list[list[float]]] | None
+            Derivative data for the local window, or None.
+
+        Returns
+        -------
+        bool
+            True on success.
+        """
+        self.q_coeffs = []
+        self.t_values = []
+
+        point_count = len(indep)
+
+        for i in range(self.dependent_dimension):
+            # Determine how many derivatives are available per point
+            derivative_size = (
+                len(derivs[i][0]) if derivs and derivs[i] and derivs[i][0] else 0
+            )
+            # Expanded independent values (repeated for derivative data)
+            expanded_indep_values = []
+            # Initial column of divided difference table
+            prev_col = []
+
+            for m in range(point_count):
+                if derivative_size > 0 and len(derivs[i][m]) == 0:
+                    raise ValueError(
+                        "Inconsistent derivative data: some points have derivatives, others don't"
+                    )
+
+                # Repeat each independent value (derivative_size + 1) times
+                for n in range(derivative_size + 1):
+                    expanded_indep_values.append(indep[m])
+                    prev_col.append(dep[m][i])
+
+            # Total polynomial order for Hermite interpolation
+            order = point_count * (derivative_size + 1) - 1
+            # Divided difference coefficients for this dimension
+            divided_diff_coeffs = [prev_col[0]]
+            point = 0
+            t_index = 1
+
+            # Build divided difference table iteratively
+            for t in range(order):
+                tableau = []
+                for j in range(len(prev_col) - 1):
+                    # Standard divided difference when independent values differ
+                    if expanded_indep_values[j + t_index] != expanded_indep_values[j]:
+                        deriv = (prev_col[j + 1] - prev_col[j]) / (
+                            expanded_indep_values[j + t_index]
+                            - expanded_indep_values[j]
+                        )
+                        point += 1
+                    else:
+                        # Use derivative data when independent values are equal
+                        deriv = derivs[i][point][0]
+
+                    tableau.append(deriv)
+
+                divided_diff_coeffs.append(tableau[0])
+                prev_col = tableau
+                t_index += 1
+
+            self.q_coeffs.append(divided_diff_coeffs)
+            self.t_values.append(expanded_indep_values)
+
+        return True
+
     def interpolate(self, independent_value: float) -> np.ndarray | None:
         """Interpolate dependent values at given independent value.
+
+        Uses a local window of points around the query value for efficiency.
 
         Parameters
         ----------
@@ -395,7 +532,13 @@ class HermiteInterpolator(Interpolator):
         if self.is_cartesian_state:
             return self.interpolate_cartesian_state(independent_value)
 
-        if not self._build_q_coefficients():
+        if len(self.independent_values) < 1:
+            return None
+
+        local_indep, local_dep, local_derivs = self._select_local_window(
+            independent_value
+        )
+        if not self._build_q_coefficients_local(local_indep, local_dep, local_derivs):
             return None
         return self._evaluate_polynomial(independent_value)
 
@@ -404,8 +547,12 @@ class HermiteInterpolator(Interpolator):
     ) -> np.ndarray | None:
         """Interpolate 6D Cartesian state (position + velocity).
 
-        For 6-element states, computes position via polynomial evaluation
-        and velocity via polynomial derivative of position components.
+        For 6-element states [x, y, z, vx, vy, vz], the velocity components
+        are used as first-derivative data for the position components in the
+        Hermite divided difference table. Position is computed via polynomial
+        evaluation and velocity via the polynomial derivative.
+
+        Uses a local window of points around the query value for efficiency.
 
         Parameters
         ----------
@@ -425,12 +572,35 @@ class HermiteInterpolator(Interpolator):
         if self.dependent_dimension != 6:
             raise ValueError("interpolate_cartesian_state requires dimension=6")
 
-        if not self._build_q_coefficients():
+        if len(self.independent_values) < 1:
             return None
 
-        results = self._evaluate_polynomial(independent_value)
-        derivative = self._evaluate_polynomial_derivative(independent_value)
+        local_indep, local_dep, local_derivs = self._select_local_window(
+            independent_value
+        )
 
-        results[3:6] = derivative[0:3]
+        # Build a 3-dimension Hermite interpolation using position as values
+        # and velocity as first-derivative data
+        point_count = len(local_indep)
+        pos_dep = [dep_vec[0:3] for dep_vec in local_dep]
+        vel_derivs: list[list[list[float]]] = [
+            [[local_dep[pt][3 + dim]] for pt in range(point_count)] for dim in range(3)
+        ]
+
+        # Temporarily override dependent_dimension for the 3-component build
+        orig_dim = self.dependent_dimension
+        self.dependent_dimension = 3
+        try:
+            if not self._build_q_coefficients_local(local_indep, pos_dep, vel_derivs):
+                return None
+
+            position = self._evaluate_polynomial(independent_value)
+            velocity = self._evaluate_polynomial_derivative(independent_value)
+        finally:
+            self.dependent_dimension = orig_dim
+
+        results = np.zeros(6)
+        results[0:3] = position
+        results[3:6] = velocity
 
         return results

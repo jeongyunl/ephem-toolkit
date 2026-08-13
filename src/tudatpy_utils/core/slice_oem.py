@@ -389,15 +389,15 @@ def extract_states_by_time(
         raise ValueError("step_size requires interpolation_spec to be set")
 
     interpolator = None
-    use_hermite = False
     if options.interpolation_spec is not None:
-        use_hermite = interpolation_spec.interp_type == InterpolationType.HERMITE
         interpolator = factory.InterpolatorFactory.create(
             spec=interpolation_spec,
             dimension=6,
             is_cartesian_state=True,
+            verbose=verbose,
+            context="core.slice_oem.extract_states_by_time",
+            data=states,
         )
-        interpolator.set_data(states)
 
     if options.start_time is not None and options.stop_time is None:
         # Single state extraction (no comma was present)
@@ -464,6 +464,14 @@ def extract_states_by_time(
                 slice_start_index < len(timestamps_s)
                 and timestamps_s[slice_start_index] != slice_start_timestamp_s
             ):
+                if verbose:
+                    start_dt = datetime.fromtimestamp(
+                        slice_start_timestamp_s, tz=timezone.utc
+                    )
+                    print(
+                        f"[slice_oem]   Interpolating start_state at {time_utils.datetime_to_iso8601(start_dt)}",
+                        file=sys.stderr,
+                    )
                 start_state = interpolator.interpolate(slice_start_timestamp_s)
                 sliced_states.append((slice_start_timestamp_s, start_state))
 
@@ -475,6 +483,14 @@ def extract_states_by_time(
                 slice_stop_index > 0
                 and timestamps_s[slice_stop_index - 1] != slice_stop_timestamp_s
             ):
+                if verbose:
+                    stop_dt = datetime.fromtimestamp(
+                        slice_stop_timestamp_s, tz=timezone.utc
+                    )
+                    print(
+                        f"[slice_oem]   Interpolating stop_state at {time_utils.datetime_to_iso8601(stop_dt)}",
+                        file=sys.stderr,
+                    )
                 stop_state = interpolator.interpolate(slice_stop_timestamp_s)
                 sliced_states.append((slice_stop_timestamp_s, stop_state))
 
