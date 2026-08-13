@@ -44,16 +44,27 @@ from __future__ import annotations
 import argparse
 import sys
 from datetime import datetime, timezone
+from functools import partial
 from pathlib import Path
 
 import tudatpy_utils.core.ccsds.oem as oem
-import tudatpy_utils.core.interpolation_spec as interpolation_spec
+import tudatpy_utils.core.cli as cli
+import tudatpy_utils.core.interpolator.interpolation_spec as interpolation_spec
 import tudatpy_utils.core.slice_oem as slice_oem
 import tudatpy_utils.core.time_utils as time_utils
 
+DEFAULT_INTERPOLATION_DEGREE: int = 7
+"""Default polynomial degree for interpolation."""
 
-def main() -> None:
-    """Parse CLI arguments, slice OEM ephemeris data, and write results to stdout."""
+
+def parse_arguments() -> argparse.Namespace:
+    """Parse and validate command-line arguments.
+
+    Returns
+    -------
+    argparse.Namespace
+        Parsed command-line arguments.
+    """
     parser = argparse.ArgumentParser(
         description="Extract subsets of CCSDS OEM ephemeris data by index or time range",
         epilog="For detailed documentation and examples, see doc/SLICE_OEM.md",
@@ -99,16 +110,10 @@ def main() -> None:
     )
     parser.add_argument(
         "--interpolate-type",
-        choices=["hermite", "lagrange"],
-        default="lagrange",
-        help="Interpolation method: 'hermite' or 'lagrange' (default: lagrange)",
-    )
-    parser.add_argument(
-        "--interpolate-degree",
-        type=int,
-        default=8,
-        metavar="N",
-        help="Polynomial degree for Lagrange interpolation (must be >= 2, default: 8)",
+        type=partial(cli.parse_interpolate_type, default_degree=DEFAULT_INTERPOLATION_DEGREE),
+        default=("hermite", DEFAULT_INTERPOLATION_DEGREE),
+        metavar="TYPE[,DEGREE]",
+        help=f"Interpolation method: 'hermite' or 'lagrange[,degree]' (default: lagrange,{DEFAULT_INTERPOLATION_DEGREE}). Degree must be >= 2.",
     )
     parser.add_argument(
         "--data-only",
@@ -131,9 +136,19 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # Validate interpolation degree if provided
-    if args.interpolate_degree < 2:
-        parser.error("--interpolate-degree must be 2 or greater")
+    # Unpack interpolate_type tuple (already parsed by argparse)
+    args.interp_method, args.interp_degree = args.interpolate_type
+
+    # Validate interpolation degree
+    if args.interp_degree < 2:
+        parser.error("interpolation degree must be 2 or greater")
+
+    return args
+
+
+def main() -> None:
+    """Parse CLI arguments, slice OEM ephemeris data, and write results to stdout."""
+    args = parse_arguments()
 
     # Determine if reading from stdin
     read_from_stdin = args.oem_file is None or args.oem_file == "-"
@@ -157,12 +172,12 @@ def main() -> None:
         if (
             args.time_slice
             and args.interpolate
-            and len(oem_data.states) < args.interpolate_degree
+            and len(oem_data.states) < args.interp_degree
         ):
             print(
                 "Warning: input contains "
                 f"{len(oem_data.states)} states, fewer than the requested "
-                f"interpolation degree {args.interpolate_degree}; "
+                f"interpolation degree {args.interp_degree}; "
                 "the degree will be reduced to fit the available data.",
                 file=sys.stderr,
             )
@@ -216,12 +231,14 @@ def main() -> None:
             if args.interpolate:
                 interp_type = (
                     interpolation_spec.InterpolationType.HERMITE
-                    if args.interpolate_type == "hermite"
+                    if args.interp_method == "hermite"
                     else interpolation_spec.InterpolationType.LAGRANGE
                 )
-                time_slice_options.interpolation_spec = interpolation_spec.InterpolationSpec(
-                    interp_type=interp_type,
-                    degree=args.interpolate_degree,
+                time_slice_options.interpolation_spec = (
+                    interpolation_spec.InterpolationSpec(
+                        interp_type=interp_type,
+                        degree=args.interp_degree,
+                    )
                 )
 
             if (

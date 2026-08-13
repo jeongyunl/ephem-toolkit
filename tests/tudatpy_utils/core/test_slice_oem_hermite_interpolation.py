@@ -8,7 +8,7 @@ import numpy as np
 
 import core.slice_oem as slice_oem
 from core.ccsds.oem import CcsdsOem
-from core.interpolation_spec import InterpolationSpec, InterpolationType
+from core.interpolator.interpolation_spec import InterpolationSpec, InterpolationType
 
 
 def test_hermite_interpolation_with_step_size() -> None:
@@ -108,5 +108,5 @@ def test_hermite_interpolation_verbose_output(capsys) -> None:
 
     captured = capsys.readouterr()
     assert "[slice_oem] Slicing by time:" in captured.err
-    assert "Mode: interpolated (Hermite)" in captured.err
+    assert "Mode: interpolated (hermite degree 3)" in captured.err
     assert "Step size:" in captured.err
