@@ -148,7 +148,7 @@ def test_inconsistent_derivative_data() -> None:
 def test_interpolate_cartesian_state() -> None:
     """Test Cartesian state interpolation with position and velocity."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=6, degree=2
+        dimension=6, degree=2, is_cartesian_state=True
     )
 
     # Simple linear motion: position = t, velocity = 1
@@ -159,6 +159,28 @@ def test_interpolate_cartesian_state() -> None:
         interpolator.add_data_point(float(t), state)
 
     result: np.ndarray | None = interpolator.interpolate_cartesian_state(2.5)
+    assert result is not None
+
+    # Position should be [2.5, 2.5, 2.5]
+    assert result[0:3] == pytest.approx([2.5, 2.5, 2.5], abs=1e-10)
+    # Velocity should be [1.0, 1.0, 1.0]
+    assert result[3:6] == pytest.approx([1.0, 1.0, 1.0], abs=1e-6)
+
+
+def test_interpolate_cartesian_state_via_interpolate() -> None:
+    """Test that interpolate() delegates to interpolate_cartesian_state() when is_cartesian_state=True."""
+    interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
+        dimension=6, degree=2, is_cartesian_state=True
+    )
+
+    # Simple linear motion: position = t, velocity = 1
+    for t in range(5):
+        position = np.array([float(t), float(t), float(t)], dtype=float)
+        velocity = np.array([1.0, 1.0, 1.0], dtype=float)
+        state = np.concatenate([position, velocity])
+        interpolator.add_data_point(float(t), state)
+
+    result: np.ndarray | None = interpolator.interpolate(2.5)
     assert result is not None
 
     # Position should be [2.5, 2.5, 2.5]
@@ -179,6 +201,14 @@ def test_interpolate_cartesian_state_wrong_dimension() -> None:
         ValueError, match="interpolate_cartesian_state requires dimension=6"
     ):
         interpolator.interpolate_cartesian_state(0.5)
+
+
+def test_is_cartesian_state_wrong_dimension_in_constructor() -> None:
+    """Test that is_cartesian_state=True with dimension != 6 raises ValueError."""
+    with pytest.raises(
+        ValueError, match="dimension must be 6 when is_cartesian_state is True"
+    ):
+        hermite.HermiteInterpolator(dimension=3, degree=2, is_cartesian_state=True)
 
 
 def test_hermite_interpolator_multidimensional() -> None:
@@ -258,8 +288,8 @@ def test_derivative_independent_term() -> None:
     assert result == pytest.approx(2.0, abs=1e-10)
 
 
-def test_set_data_with_derivative_dict_format() -> None:
-    """Test set_data_with_derivative with dictionary input."""
+def test_set_derivative_data_with_dict_data() -> None:
+    """Test set_derivative_data after set_data with dictionary input."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
         dimension=1, degree=2
     )
@@ -270,15 +300,16 @@ def test_set_data_with_derivative_dict_format() -> None:
     deriv_list: list[np.ndarray] = [
         np.array([float(2 * x)], dtype=float) for x in range(4)
     ]
-    interpolator.set_data_with_derivative(dep_dict, derivative_data=deriv_list)
+    interpolator.set_data(dep_dict)
+    interpolator.set_derivative_data(derivative_data=deriv_list)
 
     result: np.ndarray | None = interpolator.interpolate(1.5)
     assert result is not None
     assert result[0] == pytest.approx(2.25, abs=1e-6)
 
 
-def test_set_data_with_derivative_list_of_tuples_format() -> None:
-    """Test set_data_with_derivative with list of tuples input."""
+def test_set_derivative_data_with_list_of_tuples_data() -> None:
+    """Test set_derivative_data after set_data with list of tuples input."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
         dimension=1, degree=2
     )
@@ -289,15 +320,16 @@ def test_set_data_with_derivative_list_of_tuples_format() -> None:
     deriv_list: list[np.ndarray] = [
         np.array([float(2 * x)], dtype=float) for x in range(4)
     ]
-    interpolator.set_data_with_derivative(dep_tuples, derivative_data=deriv_list)
+    interpolator.set_data(dep_tuples)
+    interpolator.set_derivative_data(derivative_data=deriv_list)
 
     result: np.ndarray | None = interpolator.interpolate(1.5)
     assert result is not None
     assert result[0] == pytest.approx(2.25, abs=1e-6)
 
 
-def test_set_data_with_derivative_two_list_format() -> None:
-    """Test set_data_with_derivative with separate independent, dependent, and derivative lists."""
+def test_set_derivative_data_with_two_list_data() -> None:
+    """Test set_derivative_data after set_data with separate independent and dependent lists."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
         dimension=1, degree=2
     )
@@ -309,56 +341,42 @@ def test_set_data_with_derivative_two_list_format() -> None:
     deriv_vals: list[np.ndarray] = [
         np.array([float(2 * x)], dtype=float) for x in range(4)
     ]
-    interpolator.set_data_with_derivative(
-        indep_vals, dependent_data=dep_vals, derivative_data=deriv_vals
-    )
+    interpolator.set_data(indep_vals, dependent_data=dep_vals)
+    interpolator.set_derivative_data(derivative_data=deriv_vals)
 
     result: np.ndarray | None = interpolator.interpolate(1.5)
     assert result is not None
     assert result[0] == pytest.approx(2.25, abs=1e-6)
 
 
-def test_set_data_with_derivative_invalid_order() -> None:
-    """Test set_data_with_derivative raises ValueError for unsupported order."""
+def test_set_derivative_data_invalid_order() -> None:
+    """Test set_derivative_data raises ValueError for unsupported order."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
         dimension=1, degree=2
     )
+
+    interpolator.set_data({0.0: np.array([1.0])})
 
     with pytest.raises(ValueError, match="Only first-order derivatives are supported"):
-        interpolator.set_data_with_derivative(
-            {0.0: np.array([1.0])}, derivative_order=2
+        interpolator.set_derivative_data(
+            derivative_data=[np.array([1.0])], derivative_order=2
         )
 
 
-def test_set_data_with_derivative_length_mismatch() -> None:
-    """Test set_data_with_derivative raises ValueError on length mismatch."""
+def test_set_derivative_data_length_mismatch() -> None:
+    """Test set_derivative_data raises ValueError on length mismatch."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
         dimension=1, degree=2
     )
+
+    interpolator.set_data([0.0, 1.0], dependent_data=[np.array([1.0]), np.array([2.0])])
 
     with pytest.raises(ValueError, match="Length mismatch"):
-        interpolator.set_data_with_derivative(
-            [0.0, 1.0],
-            dependent_data=[np.array([1.0]), np.array([2.0])],
-            derivative_data=[np.array([1.0])],
-        )
+        interpolator.set_derivative_data(derivative_data=[np.array([1.0])])
 
 
-def test_set_data_with_derivative_missing_dependent_data_arg() -> None:
-    """Test set_data_with_derivative raises ValueError when dependent_data not provided for float list."""
-    interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, degree=2
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="When data is a list of independent values, dependent_data must be provided",
-    ):
-        interpolator.set_data_with_derivative([0.0])
-
-
-def test_set_data_with_derivative_no_derivative_data() -> None:
-    """Test set_data_with_derivative works without derivative_data (sets only dependent data)."""
+def test_set_derivative_data_no_derivative_data() -> None:
+    """Test set_derivative_data with None derivative_data is a no-op."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
         dimension=1, degree=2
     )
@@ -366,22 +384,9 @@ def test_set_data_with_derivative_no_derivative_data() -> None:
     dep_dict: dict[float, np.ndarray] = {
         float(x): np.array([float(x * x)], dtype=float) for x in range(4)
     }
-    interpolator.set_data_with_derivative(dep_dict)
+    interpolator.set_data(dep_dict)
+    interpolator.set_derivative_data(derivative_data=None)
 
     assert len(interpolator.independent_values) == 4
     assert len(interpolator.dependent_values) == 4
-
-
-def test_set_data_with_derivative_dict_with_dependent_data_arg() -> None:
-    """Test set_data_with_derivative raises ValueError when dict used with dependent_data."""
-    interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, degree=2
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="When dependent_data is provided, data must be a list or array",
-    ):
-        interpolator.set_data_with_derivative(
-            {0.0: np.array([1.0])}, dependent_data=[np.array([1.0])]
-        )
+    assert len(interpolator.derivatives) == 0

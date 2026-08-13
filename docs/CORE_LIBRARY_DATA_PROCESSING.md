@@ -102,11 +102,11 @@ Lagrange polynomial interpolator that selects a local polynomial window around e
 Hermite polynomial interpolator supporting derivative data for improved accuracy.
 
 **Key Methods:**
-- `__init__(dimension: int = 1, degree: int = 5, is_cartesian_state: bool = False)`: Initialize with dimension, polynomial degree, and optional Cartesian state mode
+- `__init__(dimension: int = 1, degree: int = 5, is_cartesian_state: bool = False)`: Initialize with dimension, polynomial degree, and optional Cartesian state mode. Raises ValueError if is_cartesian_state is True but dimension is not 6.
 - `add_derivative(independent_value: float, derivative_data: np.ndarray, derivative_order: int = 1) -> bool`: Add derivative data for a specific independent value
-- `set_data_with_derivative(data, dependent_data, derivative_data, derivative_order: int = 1)`: Set data and derivatives together
+- `set_derivative_data(derivative_data: list[np.ndarray] | None = None, derivative_order: int = 1)`: Replace all stored derivatives. Must be called after set_data() since it requires independent_values to already be populated.
 - `clear_storage()`: Remove all stored samples, derivatives, and reset state
-- `interpolate(independent_value: float) -> np.ndarray | None`: Interpolate dependent values at given independent value
+- `interpolate(independent_value: float) -> np.ndarray | None`: Interpolate dependent values at given independent value. Delegates to interpolate_cartesian_state() when is_cartesian_state is True.
 - `interpolate_cartesian_state(independent_value: float) -> np.ndarray | None`: Interpolate 6D Cartesian state (position + velocity)
 
 **Properties:**
