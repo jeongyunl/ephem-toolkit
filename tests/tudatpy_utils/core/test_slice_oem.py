@@ -28,6 +28,7 @@ import pytest
 import core.ccsds.oem as oem
 import core.slice_oem as slice_oem
 from core.ccsds.oem import CcsdsOem
+from core.interpolation_spec import InterpolationSpec, InterpolationType
 
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test modules."""
@@ -752,7 +753,7 @@ def test_interpolation_with_step_size() -> None:
         start_time=timedelta(minutes=2),
         stop_time=timedelta(minutes=10),
         step_size=timedelta(minutes=2),
-        interpolate=True,
+        interpolation_spec=InterpolationSpec(InterpolationType.LAGRANGE, degree=8),
     )
 
     sliced_oem = slice_oem.extract_sliced_states(oem_obj, options)
@@ -777,7 +778,7 @@ def test_interpolation_single_state() -> None:
     options = slice_oem.TimeSliceOptions(
         start_time=target_time,
         stop_time=None,
-        interpolate=True,
+        interpolation_spec=InterpolationSpec(InterpolationType.LAGRANGE, degree=8),
     )
 
     sliced_oem = slice_oem.extract_sliced_states(oem_obj, options)
@@ -802,7 +803,7 @@ def test_interpolation_with_boundaries() -> None:
     options = slice_oem.TimeSliceOptions(
         start_time=start_time,
         stop_time=stop_time,
-        interpolate=True,
+        interpolation_spec=InterpolationSpec(InterpolationType.LAGRANGE, degree=8),
     )
 
     sliced_oem = slice_oem.extract_sliced_states(oem_obj, options)
@@ -816,7 +817,7 @@ def test_interpolation_with_boundaries() -> None:
 
 
 def test_step_size_without_interpolate_raises_error() -> None:
-    """Test that step_size without interpolate=True raises ValueError."""
+    """Test that step_size without interpolation_spec raises ValueError."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
         (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
@@ -828,10 +829,10 @@ def test_step_size_without_interpolate_raises_error() -> None:
         start_time=timedelta(minutes=2),
         stop_time=timedelta(minutes=5),
         step_size=timedelta(minutes=1),
-        interpolate=False,
+        interpolation_spec=None,
     )
 
-    with pytest.raises(ValueError, match="step_size requires interpolate=True"):
+    with pytest.raises(ValueError, match="step_size requires interpolation_spec to be set"):
         slice_oem.extract_sliced_states(oem_obj, options)
 
 
@@ -850,7 +851,7 @@ def test_interpolation_at_exact_existing_state() -> None:
     options = slice_oem.TimeSliceOptions(
         start_time=start_time,
         stop_time=stop_time,
-        interpolate=True,
+        interpolation_spec=InterpolationSpec(InterpolationType.LAGRANGE, degree=8),
     )
 
     sliced_oem = slice_oem.extract_sliced_states(oem_obj, options)
@@ -912,7 +913,7 @@ def test_verbose_output_time_slice_with_interpolation(capsys) -> None:
         start_time=timedelta(minutes=2),
         stop_time=timedelta(minutes=10),
         step_size=timedelta(minutes=2),
-        interpolate=True,
+        interpolation_spec=InterpolationSpec(InterpolationType.LAGRANGE, degree=8),
     )
 
     slice_oem.extract_sliced_states(oem_obj, options, verbose=True)
@@ -935,7 +936,7 @@ def test_verbose_output_single_state_interpolated(capsys) -> None:
     options = slice_oem.TimeSliceOptions(
         start_time=timedelta(minutes=3),
         stop_time=None,
-        interpolate=True,
+        interpolation_spec=InterpolationSpec(InterpolationType.LAGRANGE, degree=8),
     )
 
     slice_oem.extract_sliced_states(oem_obj, options, verbose=True)
@@ -1003,7 +1004,7 @@ def test_verbose_output_interpolated_boundaries(capsys) -> None:
     options = slice_oem.TimeSliceOptions(
         start_time=start_time,
         stop_time=stop_time,
-        interpolate=True,
+        interpolation_spec=InterpolationSpec(InterpolationType.LAGRANGE, degree=8),
     )
 
     slice_oem.extract_sliced_states(oem_obj, options, verbose=True)
@@ -1349,7 +1350,7 @@ def test_time_validation_error_with_datetime_start_timedelta_stop() -> None:
 
 
 def test_step_size_without_interpolate_in_extract_states_by_time() -> None:
-    """Test that step_size without interpolate raises error in extract_states_by_time directly."""
+    """Test that step_size without interpolation_spec raises error in extract_states_by_time directly."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
         (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
@@ -1361,11 +1362,11 @@ def test_step_size_without_interpolate_in_extract_states_by_time() -> None:
         start_time=timedelta(minutes=2),
         stop_time=timedelta(minutes=5),
         step_size=timedelta(minutes=1),
-        interpolate=False,
+        interpolation_spec=None,
     )
 
-    # Call extract_states_by_time directly to hit line 282
-    with pytest.raises(ValueError, match="step_size requires interpolate=True"):
+    # Call extract_states_by_time directly
+    with pytest.raises(ValueError, match="step_size requires interpolation_spec to be set"):
         slice_oem.extract_states_by_time(oem_obj, options)
 
 
@@ -1395,3 +1396,6 @@ def test_time_validation_error_with_none_stop_in_error_path() -> None:
     # This should work fine
     sliced_oem = slice_oem.extract_sliced_states(oem_obj, options)
     assert len(sliced_oem.states) == 1
+
+
+#

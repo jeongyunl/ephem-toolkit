@@ -16,9 +16,13 @@ import sys
 
 import numpy as np
 
+
+from .interpolation_spec import InterpolationType
+from .interpolator import hermite
 from .interpolator import lagrange
 from . import time_utils
 from .ccsds.oem import CcsdsOem
+from .interpolation_spec import InterpolationSpec, InterpolationType
 
 # ===================================================================
 # Constants
@@ -53,8 +57,8 @@ class TimeSliceOptions:
     step_size: timedelta | None = None
     """Resampling interval; if set, states are interpolated at this fixed step."""
 
-    interpolate: bool = False
-    """Whether to enable Lagrange interpolation for exact start/stop times and resampling."""
+    interpolation_spec: InterpolationSpec | None = None
+    """Interpolation specification for exact start/stop times and resampling."""
 
 
 # ===================================================================
@@ -171,7 +175,6 @@ def extract_sliced_states(
     oem: CcsdsOem,
     slice_spec: TimeSliceOptions | slice,
     verbose: bool = False,
-    interpolation_degree: int = INTERPOLATION_DEGREE,
 ) -> CcsdsOem:
     """Extract sliced OEM states based on a time or index slice specification.
 
@@ -185,9 +188,6 @@ def extract_sliced_states(
         Time-based slice options or a Python slice object.
     verbose : bool, optional
         If True, print debug information to stderr (default: False).
-    interpolation_degree : int, optional
-        Polynomial degree for Lagrange interpolation when resampling states
-        (default: INTERPOLATION_DEGREE constant).
 
     Returns
     -------
@@ -203,11 +203,9 @@ def extract_sliced_states(
     """
     # Extract the sliced states list
     if isinstance(slice_spec, TimeSliceOptions):
-        if slice_spec.step_size is not None and not slice_spec.interpolate:
-            raise ValueError("step_size requires interpolate=True")
-        return extract_states_by_time(
-            oem, slice_spec, verbose=verbose, interpolation_degree=interpolation_degree
-        )
+        if slice_spec.step_size is not None and slice_spec.interpolation_spec is None:
+            raise ValueError("step_size requires interpolation_spec to be set")
+        return extract_states_by_time(oem, slice_spec, verbose=verbose)
     elif isinstance(slice_spec, slice):
         # Validate slice indices before applying
         total_states = len(oem.states)
@@ -267,7 +265,6 @@ def extract_states_by_time(
     oem: CcsdsOem,
     options: TimeSliceOptions,
     verbose: bool = False,
-    interpolation_degree: int = INTERPOLATION_DEGREE,
 ) -> CcsdsOem:
     """Extract states within a time window using TimeSliceOptions.
 
@@ -279,17 +276,16 @@ def extract_states_by_time(
         Parsed time slice options specifying start, stop, step and interpolation.
     verbose : bool, optional
         If True, print debug information to stderr (default: False).
-    interpolation_degree : int, optional
-        Polynomial degree for Lagrange interpolation when resampling states
-        (default: INTERPOLATION_DEGREE constant).
 
     Returns
     -------
     CcsdsOem
         New CcsdsOem object with sliced states and preserved metadata.
     """
-    if options.step_size is not None and not options.interpolate:
-        raise ValueError("step_size requires interpolate=True")
+    # Use interpolation spec from options, or create default
+    interpolation_spec = options.interpolation_spec
+    if interpolation_spec is None and options.interpolation_spec is not None:
+        interpolation_spec = options.interpolation_spec
 
     # States are already sorted, no need to sort again
     states: list[tuple[float, np.ndarray]] = oem.states
@@ -399,28 +395,39 @@ def extract_states_by_time(
         options,
     )
 
-    # Create interpolator once if needed
-    interpolator: lagrange.LagrangeInterpolator | None = None
-    if options.interpolate:
-        interpolator = lagrange.LagrangeInterpolator(
-            dimension=6,
-            degree=interpolation_degree,
-        )
-        if interpolator is None:
-            raise RuntimeError("Error creating interpolator")
+    # Validate step_size requires interpolation_spec
+    if options.step_size is not None and options.interpolation_spec is None:
+        raise ValueError("step_size requires interpolation_spec to be set")
 
-        interpolator.set_data(states)
+    interpolator = None
+    use_hermite = False
+    if options.interpolation_spec is not None:
+        if interpolation_spec.interp_type == InterpolationType.HERMITE:
+            use_hermite = True
+            interpolator = hermite.HermiteInterpolator(dimension=6, points_wanted=2)
+            if interpolator is None:
+                raise RuntimeError("Error creating Hermite interpolator")
+            interpolator.set_data(states)
+        else:
+            interpolator = lagrange.LagrangeInterpolator(
+                dimension=6,
+                degree=interpolation_spec.degree,
+            )
+            if interpolator is None:
+                raise RuntimeError("Error creating Lagrange interpolator")
+            interpolator.set_data(states)
 
     if options.start_time is not None and options.stop_time is None:
         # Single state extraction (no comma was present)
-        if options.interpolate:
+        if options.interpolation_spec is not None:
             # Interpolate single state at exact requested time
-            sliced_states = [
-                (
-                    slice_start_timestamp_s,
-                    interpolator.interpolate(slice_start_timestamp_s),
+            if use_hermite:
+                interp_state = interpolator.interpolate_cartesian_state(
+                    slice_start_timestamp_s
                 )
-            ]
+            else:
+                interp_state = interpolator.interpolate(slice_start_timestamp_s)
+            sliced_states = [(slice_start_timestamp_s, interp_state)]
 
             if verbose:
                 resolved_dt = datetime.fromtimestamp(
@@ -459,7 +466,7 @@ def extract_states_by_time(
                     file=sys.stderr,
                 )
     elif options.step_size is None:
-        if options.interpolate:
+        if options.interpolation_spec is not None:
             # Interpolate at exact start and stop times
             # Get all states between start and stop, plus interpolated boundary states
             slice_start_index: int = (
@@ -480,12 +487,13 @@ def extract_states_by_time(
                 slice_start_index < len(timestamps_s)
                 and timestamps_s[slice_start_index] != slice_start_timestamp_s
             ):
-                sliced_states.append(
-                    (
-                        slice_start_timestamp_s,
-                        interpolator.interpolate(slice_start_timestamp_s),
+                if use_hermite:
+                    start_state = interpolator.interpolate_cartesian_state(
+                        slice_start_timestamp_s
                     )
-                )
+                else:
+                    start_state = interpolator.interpolate(slice_start_timestamp_s)
+                sliced_states.append((slice_start_timestamp_s, start_state))
 
             # Add all existing states in the range
             sliced_states.extend(states[slice_start_index:slice_stop_index])
@@ -495,12 +503,13 @@ def extract_states_by_time(
                 slice_stop_index > 0
                 and timestamps_s[slice_stop_index - 1] != slice_stop_timestamp_s
             ):
-                sliced_states.append(
-                    (
-                        slice_stop_timestamp_s,
-                        interpolator.interpolate(slice_stop_timestamp_s),
+                if use_hermite:
+                    stop_state = interpolator.interpolate_cartesian_state(
+                        slice_stop_timestamp_s
                     )
-                )
+                else:
+                    stop_state = interpolator.interpolate(slice_stop_timestamp_s)
+                sliced_states.append((slice_stop_timestamp_s, stop_state))
 
             if verbose:
                 resolved_start_dt = datetime.fromtimestamp(
@@ -559,7 +568,11 @@ def extract_states_by_time(
         sliced_states: list[tuple[float, np.ndarray]] = []
         timestamp_s: float = slice_start_timestamp_s
         while timestamp_s <= slice_stop_timestamp_s:
-            sliced_states.append((timestamp_s, interpolator.interpolate(timestamp_s)))
+            if use_hermite:
+                step_state = interpolator.interpolate_cartesian_state(timestamp_s)
+            else:
+                step_state = interpolator.interpolate(timestamp_s)
+            sliced_states.append((timestamp_s, step_state))
             timestamp_s += options.step_size.total_seconds()
 
         if verbose:
@@ -569,8 +582,13 @@ def extract_states_by_time(
             resolved_stop_dt = datetime.fromtimestamp(
                 slice_stop_timestamp_s, tz=timezone.utc
             )
+            interp_type_str = (
+                "Hermite"
+                if use_hermite
+                else f"Lagrange degree {interpolation_spec.degree}"
+            )
             print(
-                f"[slice_oem]   Mode: interpolated (Lagrange degree {interpolation_degree})",
+                f"[slice_oem]   Mode: interpolated ({interp_type_str})",
                 file=sys.stderr,
             )
             print(
