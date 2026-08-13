@@ -30,7 +30,7 @@ from .transformation_stages import (
 from .utils import (
     build_comparison_pairs,
     compare_pairs,
-    get_overlapping_time_range,
+    find_overlapping_time_range,
     print_debug_range,
     resolve_time_bound,
 )
@@ -58,7 +58,7 @@ def main() -> None:
         reference_oem = reference_states[0]
         has_time_window: bool = args.start is not None or args.stop is not None
 
-        overlapping_time_range = get_overlapping_time_range(
+        overlapping_time_range = find_overlapping_time_range(
             reference_states, comparison_states
         )
         if args.debug:
@@ -134,25 +134,29 @@ def main() -> None:
                         ),
                     )
 
-        build_pairs = lambda ref_states, cmp_states: build_comparison_pairs(
-            ref_states,
-            cmp_states,
-            reference_oem,
-            args.interpolate_ref,
-            args.interpolate_data,
-            has_time_window,
-            overlap_start,
-            overlap_stop,
-        )
+        def build_pairs(ref_states, cmp_states):
+            """Build comparison pairs with current configuration."""
+            return build_comparison_pairs(
+                ref_states,
+                cmp_states,
+                reference_oem,
+                args.interpolate_ref,
+                args.interpolate_data,
+                has_time_window,
+                overlap_start,
+                overlap_stop,
+            )
 
         # Each interpolator evaluates one history at epochs from the other.
         reference_interpolator = create_interpolator(
             reference_states,
             args.interpolate_ref,
+            args.interpolate_type,
         )
         comparison_interpolator = create_interpolator(
             comparison_states,
             args.interpolate_data,
+            args.interpolate_type,
         )
         comparison_pairs = build_pairs(reference_states, comparison_states)
 
@@ -240,6 +244,7 @@ def main() -> None:
                 build_pairs=build_pairs,
                 interpolate_ref=args.interpolate_ref,
                 interpolate_data=args.interpolate_data,
+                interpolator_type=args.interpolate_type,
                 debug=args.debug,
             )
             stage_outputs = pipeline.execute()
@@ -259,6 +264,7 @@ def main() -> None:
                 transformed_comparison_interpolator = create_interpolator(
                     transformed_comparison_states,
                     args.interpolate_data,
+                    args.interpolate_type,
                 )
                 transformed_results = compare_pairs(
                     transformed_comparison_pairs,

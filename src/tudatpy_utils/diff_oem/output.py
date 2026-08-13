@@ -7,8 +7,9 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-from tudatpy_utils.core.interpolator import lagrange
-from tudatpy_utils.core import time_utils
+import tudatpy_utils.core.interpolator.hermite as hermite
+import tudatpy_utils.core.interpolator.lagrange as lagrange
+import tudatpy_utils.core.time_utils as time_utils
 
 from .data_structures import ComparisonResult
 
@@ -20,10 +21,14 @@ class ComparisonOutput:
     comparison_results: list[tuple[float, ComparisonResult | None]]
     """Comparison results keyed by their query epochs."""
 
-    reference_interpolator: lagrange.LagrangeInterpolator | None
+    reference_interpolator: (
+        lagrange.LagrangeInterpolator | hermite.HermiteInterpolator | None
+    )
     """Optional interpolator used for reference states."""
 
-    comparison_interpolator: lagrange.LagrangeInterpolator | None
+    comparison_interpolator: (
+        lagrange.LagrangeInterpolator | hermite.HermiteInterpolator | None
+    )
     """Optional interpolator used for comparison states."""
 
     verbose: bool
@@ -200,23 +205,23 @@ class ComparisonOutput:
         if self.verbose:
             values.extend(
                 [
-                    f"{comparison_result.position_diff_km[index]:+.3f}"
-                    for index in range(3)
+                    f"{comparison_result.position_diff_km[i]:+.3f}"
+                    for i in range(3)
                 ]
                 + [
-                    f"{comparison_result.velocity_diff_km_s[index]:+.6f}"
-                    for index in range(3)
+                    f"{comparison_result.velocity_diff_km_s[i]:+.6f}"
+                    for i in range(3)
                 ]
             )
         if self.rtn:
             values.extend(
                 [
-                    f"{comparison_result.rtn_position_km[index]:+.3f}"
-                    for index in range(3)
+                    f"{comparison_result.rtn_position_km[i]:+.3f}"
+                    for i in range(3)
                 ]
                 + [
-                    f"{comparison_result.rtn_velocity_km_s[index]:+.6f}"
-                    for index in range(3)
+                    f"{comparison_result.rtn_velocity_km_s[i]:+.6f}"
+                    for i in range(3)
                 ]
             )
         columns = self._get_output_columns(

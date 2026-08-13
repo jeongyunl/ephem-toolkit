@@ -14,7 +14,7 @@ from .comparison import rotate_state
 from .data_structures import TransformationStageInput
 from .types import State, StatePair
 
-INTERPOLATION_DEGREE: int = 8
+DEFAULT_INTERPOLATION_DEGREE: int = 8
 """Polynomial degree used for OEM state interpolation."""
 
 
@@ -568,7 +568,7 @@ class TimeShiftStage(TransformationStage):
         reference_interpolator = stage_input.reference_interpolator
         if reference_interpolator is None:
             reference_interpolator = lagrange.LagrangeInterpolator(
-                dimension=6, degree=INTERPOLATION_DEGREE
+                dimension=6, degree=DEFAULT_INTERPOLATION_DEGREE
             )
             reference_states = [pair[0] for pair in state_pairs]
             reference_interpolator.set_data(reference_states)

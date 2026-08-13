@@ -5,24 +5,53 @@ from __future__ import annotations
 import sys
 from typing import Any, Callable
 
-from tudatpy_utils.core.interpolator import lagrange
+from tudatpy_utils.core.interpolator import hermite, lagrange
 
-from .data_structures import TransformationStageInput
-from .transformation_stages import TransformationStage, INTERPOLATION_DEGREE
-from .types import State, StatePair
+from . import data_structures
+from . import transformation_stages
+from . import types as diff_types
 
 
 def create_interpolator(
-    states: list[State],
+    states: list[diff_types.State],
     enabled: bool,
-) -> lagrange.LagrangeInterpolator | None:
-    """Create a Lagrange interpolator for state history when enabled."""
+    interpolator_type: str = "hermite",
+) -> lagrange.LagrangeInterpolator | hermite.HermiteInterpolator | None:
+    """Create an interpolator for state history when enabled.
+
+    Parameters
+    ----------
+    states : list[State]
+        State history as (timestamp, state_vector) tuples.
+    enabled : bool
+        Whether to create the interpolator.
+    interpolator_type : str
+        Type of interpolator: "lagrange" or "hermite" (default).
+
+    Returns
+    -------
+    LagrangeInterpolator | HermiteInterpolator | None
+        Configured interpolator or None if disabled.
+    """
     if not enabled:
         return None
-    interpolator = lagrange.LagrangeInterpolator(
-        dimension=6, degree=INTERPOLATION_DEGREE
-    )
-    interpolator.set_data(states)
+
+    if interpolator_type == "hermite":
+        interpolator = hermite.HermiteInterpolator(
+            dimension=6,
+            points_wanted=transformation_stages.DEFAULT_INTERPOLATION_DEGREE,
+            is_cartesian_state=True,
+        )
+        interpolator.set_data(states)
+        # Set derivative data from velocity components
+        derivative_data = [(t, state[3:6]) for t, state in states]
+        interpolator.set_derivative_data(derivative_data)
+    else:  # lagrange
+        interpolator = lagrange.LagrangeInterpolator(
+            dimension=6, degree=transformation_stages.DEFAULT_INTERPOLATION_DEGREE
+        )
+        interpolator.set_data(states)
+
     return interpolator
 
 
@@ -31,12 +60,15 @@ class TransformationPipeline:
 
     def __init__(
         self,
-        reference_states: list[State],
-        comparison_states: list[State],
-        stages: list[TransformationStage],
-        build_pairs: Callable[[list[State], list[State]], list[StatePair]],
+        reference_states: list[diff_types.State],
+        comparison_states: list[diff_types.State],
+        stages: list[transformation_stages.TransformationStage],
+        build_pairs: Callable[
+            [list[diff_types.State], list[diff_types.State]], list[diff_types.StatePair]
+        ],
         interpolate_ref: bool,
         interpolate_data: bool,
+        interpolator_type: str = "hermite",
         debug: bool = False,
     ) -> None:
         """Initialize an ordered transformation pipeline.
@@ -55,6 +87,8 @@ class TransformationPipeline:
             Whether to interpolate reference states during comparison.
         interpolate_data : bool
             Whether to interpolate comparison states during comparison.
+        interpolator_type : str
+            Type of interpolator: "lagrange" or "hermite" (default).
         debug : bool, default=False
             Whether to print pipeline progress to stderr.
         """
@@ -64,9 +98,14 @@ class TransformationPipeline:
         self.build_pairs = build_pairs
         self.interpolate_ref = interpolate_ref
         self.interpolate_data = interpolate_data
+        self.interpolator_type = interpolator_type
         self.debug = debug
 
-    def execute(self) -> list[tuple[TransformationStage, Any, list[State]]]:
+    def execute(
+        self,
+    ) -> list[
+        tuple[transformation_stages.TransformationStage, Any, list[diff_types.State]]
+    ]:
         """Fit and apply each stage in order.
 
         Returns
@@ -74,7 +113,11 @@ class TransformationPipeline:
         list[tuple[TransformationStage, Any, list[State]]]
             Each stage, its fitted result, and its transformed comparison states.
         """
-        stage_outputs: list[tuple[TransformationStage, Any, list[State]]] = []
+        stage_outputs: list[
+            tuple[
+                transformation_stages.TransformationStage, Any, list[diff_types.State]
+            ]
+        ] = []
         current_comparison_states = self.comparison_states
         if self.debug:
             print(
@@ -87,6 +130,7 @@ class TransformationPipeline:
             self.reference_states,
             self.interpolate_ref
             or any(stage.requires_reference_interpolation for stage in self.stages),
+            self.interpolator_type,
         )
 
         for stage_index, stage in enumerate(self.stages, start=1):
@@ -100,6 +144,7 @@ class TransformationPipeline:
             comparison_interpolator = create_interpolator(
                 current_comparison_states,
                 self.interpolate_data,
+                self.interpolator_type,
             )
             fit_pairs = stage.build_fit_pairs(
                 self.reference_states,
@@ -111,7 +156,7 @@ class TransformationPipeline:
                     f"fitting: fit_pairs={len(fit_pairs)}",
                     file=sys.stderr,
                 )
-            stage_input = TransformationStageInput(
+            stage_input = data_structures.TransformationStageInput(
                 state_pairs=fit_pairs,
                 reference_interpolator=reference_interpolator,
                 comparison_interpolator=comparison_interpolator,
