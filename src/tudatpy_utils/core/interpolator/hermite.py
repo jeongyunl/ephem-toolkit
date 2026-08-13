@@ -135,61 +135,33 @@ class HermiteInterpolator(Interpolator):
 
         return added
 
-    def set_data_with_derivative(
+    def set_derivative_data(
         self,
-        data: (
-            dict[float, np.ndarray]
-            | list[tuple[float, np.ndarray]]
-            | list[float]
-            | np.ndarray
-        ),
-        dependent_data: list[np.ndarray] | None = None,
         derivative_data: list[np.ndarray] | None = None,
         derivative_order: int = 1,
     ) -> None:
-        """Replace all stored samples and derivatives with the contents of *data*.
+        """Replace all stored derivatives with the provided derivative data.
 
-        Sets independent values, dependent values, and derivative data together.
-        This combines the functionality of :meth:`Interpolator.set_data` and
-        derivative assignment in a single call.
-
-        Accepts three input formats for dependent data (via *data* and *dependent_data*):
-        - Dictionary mapping independent values to dependent vectors (sorted by key)
-        - List of (independent_value, dependent_data) tuples (assumed sorted)
-        - List/array of independent values with separate *dependent_data* list (assumed sorted and equal length)
+        Must be called after :meth:`Interpolator.set_data` or after adding
+        data points, since it requires ``independent_values`` to already be
+        populated.
 
         Parameters
         ----------
-        data : dict[float, np.ndarray] | list[tuple[float, np.ndarray]] | list[float] | np.ndarray
-            Either:
-            - A mapping of independent variable values to dependent data vectors.
-            - A list of (independent_value, dependent_data) tuples.
-            - A list or array of independent variable values (requires *dependent_data*).
-
-            If a dictionary is provided, it is sorted by key before storage.
-            If a list of tuples is provided, it is assumed to be already sorted.
-            If a list/array of floats is provided, *dependent_data* must also be provided,
-            and both are assumed to be already sorted and of equal length.
-        dependent_data : list[np.ndarray] | None, optional
-            List of dependent data vectors, required only when *data* is a list/array
-            of independent values. Must be the same length as *data*.
         derivative_data : list[np.ndarray] | None, optional
-            List of derivative data vectors. Must be the same length as the number
-            of independent values. If None, no derivatives are set.
+            List of derivative data vectors. Must be the same length as the
+            number of independent values. If None, no derivatives are set.
         derivative_order : int
             Derivative order (only 1 is currently supported).
 
         Raises
         ------
         ValueError
-            If *data* is a list of floats but *dependent_data* is not provided,
-            or if the lengths don't match, or if derivative_order != 1.
+            If derivative_order != 1, or if the length of derivative_data
+            does not match the number of independent values.
         """
         if derivative_order != 1:
             raise ValueError("Only first-order derivatives are supported")
-
-        # First, set independent and dependent values using the parent set_data method
-        self.set_data(data, dependent_data)
 
         # Then set derivative data if provided
         if derivative_data is not None:
