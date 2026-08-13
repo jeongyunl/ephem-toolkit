@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-INTERPOLATION_DEGREE: int = 6
+DEFAULT_INTERPOLATION_DEGREE: int = 6
 """Polynomial degree for Lagrange interpolation of reference orbit states."""
 
 METERS_TO_KILOMETERS: float = 0.001

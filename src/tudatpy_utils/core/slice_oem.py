@@ -25,14 +25,6 @@ from .ccsds.oem import CcsdsOem
 from .interpolation_spec import InterpolationSpec, InterpolationType
 
 # ===================================================================
-# Constants
-# ===================================================================
-
-INTERPOLATION_DEGREE: int = 8
-"""Polynomial degree for Lagrange interpolation when resampling states."""
-
-
-# ===================================================================
 # Data structures
 # ===================================================================
 

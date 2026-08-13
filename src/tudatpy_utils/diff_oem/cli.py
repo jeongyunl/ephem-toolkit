@@ -79,6 +79,12 @@ def parse_arguments() -> argparse.Namespace:
         help="Interpolate both reference and comparison OEM data.",
     )
     parser.add_argument(
+        "--interpolate-type",
+        choices=["lagrange", "hermite"],
+        default="hermite",
+        help="Interpolation method (default: hermite).",
+    )
+    parser.add_argument(
         "--rtn",
         action="store_true",
         help="Include comparison state coordinates in the reference RTN frame.",
@@ -154,7 +160,18 @@ def parse_arguments() -> argparse.Namespace:
 
 
 def extract_stage_sequence(argv: list[str]) -> list[str]:
-    """Return transformation stage keys in order of CLI appearance."""
+    """Return transformation stage keys in order of CLI appearance.
+
+    Parameters
+    ----------
+    argv : list[str]
+        Command-line argument list to extract stage sequence from.
+
+    Returns
+    -------
+    list[str]
+        Transformation stage keys in order of appearance.
+    """
     stage_sequence: list[str] = []
     for token in argv:
         option = token.split("=", maxsplit=1)[0]

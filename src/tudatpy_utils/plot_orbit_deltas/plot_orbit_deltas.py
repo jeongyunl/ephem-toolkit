@@ -22,7 +22,7 @@ import numpy as np
 
 import tudatpy_utils.core.time_utils as time_utils
 
-from .constants import INTERPOLATION_DEGREE
+from .constants import DEFAULT_INTERPOLATION_DEGREE
 from .data_structures import StateHistory, TimeUnit
 from .file_io import read_orbit_file
 from .plotting import (
@@ -155,7 +155,7 @@ Examples:
 
     # Include states up to end_timestamp_s plus additional states for interpolation
     include_count: int = min(
-        int(INTERPOLATION_DEGREE / 2), len(ref_timestamps_sorted) - end_idx
+        int(DEFAULT_INTERPOLATION_DEGREE / 2), len(ref_timestamps_sorted) - end_idx
     )
     cutoff_idx: int = end_idx + include_count
     ref_state_history = {

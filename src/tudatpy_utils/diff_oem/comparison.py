@@ -9,6 +9,7 @@ from typing import TextIO
 import numpy as np
 
 from tudatpy_utils.core import misc
+from tudatpy_utils.core.interpolator import hermite
 from tudatpy_utils.core.interpolator import lagrange
 from tudatpy_utils.core.ccsds import oem
 from tudatpy_utils.core import time_utils
@@ -49,7 +50,20 @@ def read_states(source: TextIO | str | Path) -> list[tuple[float, np.ndarray]]:
 
 
 def rotate_state(state: np.ndarray, rotation_matrix: np.ndarray) -> np.ndarray:
-    """Rotate position and velocity components of an SI state vector."""
+    """Rotate position and velocity components of an SI state vector.
+
+    Parameters
+    ----------
+    state : np.ndarray
+        Six-element state vector ``[x, y, z, vx, vy, vz]`` in SI units (m, m/s).
+    rotation_matrix : np.ndarray
+        3x3 rotation matrix to apply to position and velocity components.
+
+    Returns
+    -------
+    np.ndarray
+        Rotated state vector with same shape and units as input.
+    """
     rotated_state = state.copy()
     rotated_state[0:3] = rotation_matrix @ state[0:3]
     rotated_state[3:6] = rotation_matrix @ state[3:6]
@@ -59,10 +73,39 @@ def rotate_state(state: np.ndarray, rotation_matrix: np.ndarray) -> np.ndarray:
 def resolve_state_pair(
     reference_oem: State,
     comparison_oem: State,
-    reference_interpolator: lagrange.LagrangeInterpolator | None = None,
-    comparison_interpolator: lagrange.LagrangeInterpolator | None = None,
+    reference_interpolator: (
+        lagrange.LagrangeInterpolator | hermite.HermiteInterpolator | None
+    ) = None,
+    comparison_interpolator: (
+        lagrange.LagrangeInterpolator | hermite.HermiteInterpolator | None
+    ) = None,
 ) -> StatePair:
-    """Resolve one state pair to concrete vectors at comparable epochs."""
+    """Resolve one state pair to concrete vectors at comparable epochs.
+
+    Parameters
+    ----------
+    reference_oem : tuple[float, np.ndarray]
+        Reference ``(timestamp, state_m)`` tuple from the OEM state history.
+    comparison_oem : tuple[float, np.ndarray]
+        Comparison ``(timestamp, state_m)`` tuple from the OEM state history.
+    reference_interpolator : LagrangeInterpolator | HermiteInterpolator | None, optional
+        Interpolator built from the reference OEM. When provided, the reference
+        state is evaluated at the comparison epoch.
+    comparison_interpolator : LagrangeInterpolator | HermiteInterpolator | None, optional
+        Interpolator built from the comparison OEM. When provided, the comparison
+        state is evaluated at the reference epoch.
+
+    Returns
+    -------
+    StatePair
+        Tuple of ``((reference_timestamp, reference_state_m), (comparison_timestamp, comparison_state_m))``
+        where timestamps are aligned based on interpolation settings.
+
+    Raises
+    ------
+    ValueError
+        If interpolation is requested but the target epoch is outside the interpolation range.
+    """
     reference_timestamp: float
     reference_state_m: np.ndarray
     reference_timestamp, reference_state_m = reference_oem
@@ -110,8 +153,12 @@ def resolve_state_pair(
 def compare_states(
     reference_oem: State,
     comparison_oem: State,
-    reference_interpolator: lagrange.LagrangeInterpolator | None = None,
-    comparison_interpolator: lagrange.LagrangeInterpolator | None = None,
+    reference_interpolator: (
+        lagrange.LagrangeInterpolator | hermite.HermiteInterpolator | None
+    ) = None,
+    comparison_interpolator: (
+        lagrange.LagrangeInterpolator | hermite.HermiteInterpolator | None
+    ) = None,
     comparison_rotation_matrix: np.ndarray | None = None,
 ) -> ComparisonResult:
     """Compare two OEM-like states and return differences.
@@ -122,14 +169,14 @@ def compare_states(
         Reference ``(timestamp, state_m)`` tuple from the OEM state history.
     comparison_oem : tuple[float, np.ndarray]
         Comparison ``(timestamp, state_m)`` tuple from the OEM state history.
-    reference_interpolator : LagrangeInterpolator, optional
+    reference_interpolator : LagrangeInterpolator | HermiteInterpolator | None, optional
         Interpolator built from the reference OEM. When provided, the reference
         state is evaluated at the comparison epoch instead of using the supplied
         reference state's epoch and vector.
-    comparison_interpolator : LagrangeInterpolator, optional
+    comparison_interpolator : LagrangeInterpolator | HermiteInterpolator | None, optional
         Interpolator built from the comparison OEM. When provided, the comparison
         state is evaluated at the reference epoch.
-    comparison_rotation_matrix : numpy.ndarray, optional
+    comparison_rotation_matrix : np.ndarray | None, optional
         Rotation applied to the comparison position and velocity before calculating
         differences.
 

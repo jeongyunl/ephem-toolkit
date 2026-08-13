@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .plot_orbit_deltas import main
-from .constants import INTERPOLATION_DEGREE, METERS_TO_KILOMETERS
+from .constants import DEFAULT_INTERPOLATION_DEGREE, METERS_TO_KILOMETERS
 from .csv_utils import generate_csv_path, sanitize_filename_component, write_csv
 from .data_structures import StateHistory, TimeUnit
 from .file_io import read_orbit_file
@@ -18,7 +18,7 @@ from .plotting import (
 
 __all__ = [
     # Constants
-    "INTERPOLATION_DEGREE",
+    "DEFAULT_INTERPOLATION_DEGREE",
     "METERS_TO_KILOMETERS",
     # Data structures
     "StateHistory",

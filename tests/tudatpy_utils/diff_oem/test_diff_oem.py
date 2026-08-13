@@ -34,7 +34,7 @@ def _reference_interpolator() -> lagrange.LagrangeInterpolator:
     return interpolator
 
 
-def test_get_overlapping_time_range() -> None:
+def test_find_overlapping_time_range() -> None:
     reference_states: list[tuple[float, np.ndarray]] = [
         _create_state(float(index), float(index)) for index in range(5)
     ]
@@ -42,12 +42,12 @@ def test_get_overlapping_time_range() -> None:
         _create_state(float(index), float(index)) for index in range(2, 7)
     ]
 
-    assert utils.get_overlapping_time_range(reference_states, comparison_states) == (
+    assert utils.find_overlapping_time_range(reference_states, comparison_states) == (
         2.0,
         4.0,
     )
     assert (
-        utils.get_overlapping_time_range(
+        utils.find_overlapping_time_range(
             reference_states,
             [_create_state(10.0, 10.0)],
         )

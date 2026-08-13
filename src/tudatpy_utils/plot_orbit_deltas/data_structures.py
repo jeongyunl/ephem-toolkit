@@ -9,7 +9,7 @@ import numpy as np
 
 import tudatpy_utils.core.interpolator.lagrange as lagrange
 
-from .constants import INTERPOLATION_DEGREE
+from .constants import DEFAULT_INTERPOLATION_DEGREE
 
 
 @dataclass
@@ -79,7 +79,7 @@ class StateHistory:
 
         if self.interpolator is None:
             interp: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
-                dimension=6, degree=INTERPOLATION_DEGREE
+                dimension=6, degree=DEFAULT_INTERPOLATION_DEGREE
             )
             interp.set_data(self.state_history)
             self.interpolator = interp
