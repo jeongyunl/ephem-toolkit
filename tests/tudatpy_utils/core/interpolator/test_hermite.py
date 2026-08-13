@@ -18,7 +18,7 @@ def test_hermite_interpolator_interpolates_linear_data() -> None:
             float(x), np.array([float(x), float(2 * x)], dtype=float)
         )
 
-    result: np.ndarray | None = interpolator.interpolate_value(2.5)
+    result: np.ndarray | None = interpolator.interpolate(2.5)
     assert result is not None
     assert result == pytest.approx([2.5, 5.0], abs=1e-10)
 
@@ -37,7 +37,7 @@ def test_hermite_interpolator_with_derivatives() -> None:
     for x in range(5):
         interpolator.add_derivative(float(x), np.array([float(2 * x)], dtype=float))
 
-    result: np.ndarray | None = interpolator.interpolate_value(2.5)
+    result: np.ndarray | None = interpolator.interpolate(2.5)
     assert result is not None
     # f(2.5) = 6.25
     assert result[0] == pytest.approx(6.25, abs=1e-6)
@@ -67,7 +67,7 @@ def test_hermite_interpolator_cubic_polynomial() -> None:
         interpolator.add_derivative(x, np.array([df(x)], dtype=float))
 
     # Test interpolation at intermediate point
-    result: np.ndarray | None = interpolator.interpolate_value(1.5)
+    result: np.ndarray | None = interpolator.interpolate(1.5)
     assert result is not None
     assert result[0] == pytest.approx(f(1.5), abs=1e-8)
 
@@ -140,7 +140,7 @@ def test_inconsistent_derivative_data() -> None:
 
     # Should raise error due to inconsistent derivative data
     with pytest.raises(ValueError, match="Inconsistent derivative data"):
-        interpolator.interpolate_value(0.5)
+        interpolator.interpolate(0.5)
 
 
 def test_interpolate_cartesian_state() -> None:
@@ -190,7 +190,7 @@ def test_hermite_interpolator_multidimensional() -> None:
         data = np.array([float(x), float(x * x), float(2 * x)], dtype=float)
         interpolator.add_data_point(float(x), data)
 
-    result: np.ndarray | None = interpolator.interpolate_value(2.5)
+    result: np.ndarray | None = interpolator.interpolate(2.5)
     assert result is not None
     assert result[0] == pytest.approx(2.5, abs=1e-10)
     assert result[1] == pytest.approx(6.25, abs=1e-6)
@@ -205,7 +205,7 @@ def test_hermite_interpolator_single_point() -> None:
 
     interpolator.add_data_point(1.0, np.array([5.0], dtype=float))
 
-    result: np.ndarray | None = interpolator.interpolate_value(1.0)
+    result: np.ndarray | None = interpolator.interpolate(1.0)
     assert result is not None
     assert result[0] == pytest.approx(5.0, abs=1e-10)
 
@@ -270,7 +270,7 @@ def test_set_derivative_data_dict_format() -> None:
     }
     interpolator.set_derivative_data(deriv_dict)
 
-    result: np.ndarray | None = interpolator.interpolate_value(1.5)
+    result: np.ndarray | None = interpolator.interpolate(1.5)
     assert result is not None
     assert result[0] == pytest.approx(2.25, abs=1e-6)
 
@@ -289,7 +289,7 @@ def test_set_derivative_data_list_of_tuples_format() -> None:
     ]
     interpolator.set_derivative_data(deriv_tuples)
 
-    result: np.ndarray | None = interpolator.interpolate_value(1.5)
+    result: np.ndarray | None = interpolator.interpolate(1.5)
     assert result is not None
     assert result[0] == pytest.approx(2.25, abs=1e-6)
 
@@ -309,7 +309,7 @@ def test_set_derivative_data_two_list_format() -> None:
     ]
     interpolator.set_derivative_data(indep_vals, derivative_data=deriv_vals)
 
-    result: np.ndarray | None = interpolator.interpolate_value(1.5)
+    result: np.ndarray | None = interpolator.interpolate(1.5)
     assert result is not None
     assert result[0] == pytest.approx(2.25, abs=1e-6)
 
@@ -334,9 +334,7 @@ def test_set_derivative_data_length_mismatch() -> None:
     interpolator.add_data_point(1.0, np.array([2.0], dtype=float))
 
     with pytest.raises(ValueError, match="Length mismatch"):
-        interpolator.set_derivative_data(
-            [0.0, 1.0], derivative_data=[np.array([1.0])]
-        )
+        interpolator.set_derivative_data([0.0, 1.0], derivative_data=[np.array([1.0])])
 
 
 def test_set_derivative_data_missing_derivative_data_arg() -> None:

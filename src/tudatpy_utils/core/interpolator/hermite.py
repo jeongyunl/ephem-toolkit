@@ -356,7 +356,7 @@ class HermiteInterpolator(Interpolator):
 
         return term_sum
 
-    def interpolate_value(self, independent_value: float) -> np.ndarray | None:
+    def interpolate(self, independent_value: float) -> np.ndarray | None:
         """Interpolate dependent values at given independent value.
 
         Parameters
