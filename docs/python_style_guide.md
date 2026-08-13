@@ -326,7 +326,40 @@ Use the names already established by each file-format class. For example,
 `CcsdsOem` uses `read()` and `write()`, while `CcsdsOmm` uses
 `from_source()` and `to_file()`.
 
-### 6.4 `__repr__`
+### 6.4 Method ordering
+
+**Public methods first, in base class order; private methods last.**
+
+When inheriting from a base class, order public methods to match the base class method order. This maintains consistency across the inheritance hierarchy and makes the API predictable.
+
+```python
+class LagrangeInterpolator(Interpolator):
+    """Lagrange interpolator."""
+    
+    def __init__(self, dimension: int = 1, degree: int = 8) -> None:
+        ...
+    
+    # Public methods in base class order
+    def add_data_point(self, independent_value: float, dependent_data: np.ndarray) -> None:
+        ...
+    
+    def reset_state(self) -> None:
+        ...
+    
+    def interpolate_value(self, independent_value: float) -> np.ndarray | None:
+        ...
+    
+    # Private methods last
+    def _check_feasibility(self, independent_value: float) -> int:
+        ...
+    
+    def _select_window(self, independent_value: float) -> None:
+        ...
+```
+
+**Rationale:** Placing public methods first in base class order makes the public API immediately visible and consistent across related classes. Private methods (prefixed with `_`) are implementation details and belong at the end.
+
+### 6.5 `__repr__`
 
 Return concise string with class name and key fields:
 ```python
