@@ -39,7 +39,7 @@ def create_interpolator(
     if interpolator_type == "hermite":
         interpolator = hermite.HermiteInterpolator(
             dimension=6,
-            points_wanted=transformation_stages.DEFAULT_INTERPOLATION_DEGREE,
+            degree=transformation_stages.DEFAULT_INTERPOLATION_DEGREE,
             is_cartesian_state=True,
         )
         interpolator.set_data(states)

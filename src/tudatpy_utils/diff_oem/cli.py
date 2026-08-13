@@ -1,14 +1,25 @@
-"""Command-line interface for OEM comparison."""
+"""Command-line interface for OEM comparison.
+
+Usage:
+    python3 -m tudatpy_utils.diff_oem <reference_oem.oem> <comparison_oem.oem> [options]
+"""
 
 from __future__ import annotations
 
 import argparse
 import sys
 
+import tudatpy_utils.core.cli as cli
 from .utils import parse_rotation_fit_span
 
 ROTATION_FIT_DURATION_S: float = 3600.0
 """Duration of the state history used by the optional rotation fit."""
+
+DEFAULT_INTERPOLATION_DEGREE: int = 7
+"""Default polynomial degree for interpolation (Hermite default)."""
+
+DEFAULT_INTERPOLATION_TYPE: str = "hermite"
+"""Default interpolation method."""
 
 TRANSFORM_STAGE_OPTIONS: dict[str, str] = {
     "--rot": "rot",
@@ -41,113 +52,90 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "reference_oem",
         metavar="<reference_oem.oem>",
-        help="Reference OEM file path or '-' to read from stdin.",
+        help="Reference OEM file path (use '-' to read from stdin)",
     )
     parser.add_argument(
         "comparison_oem",
         metavar="<comparison_oem.oem>",
-        help="Comparison OEM file path or '-' to read from stdin.",
+        help="Comparison OEM file path (use '-' to read from stdin)",
     )
     parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
-        help="Print detailed component-wise differences.",
+        help="Print detailed component-wise differences",
     )
     parser.add_argument(
         "--debug",
         action="store_true",
-        help="Print time-range determination details to stderr.",
+        help="Print time-range determination details to stderr",
     )
     parser.add_argument(
         "--interpolate-ref",
         action="store_true",
-        help="Interpolate the reference OEM at each comparison state timestamp.",
+        help="Interpolate reference OEM at each comparison state timestamp",
     )
     parser.add_argument(
         "--interpolate-data",
         action="store_true",
         default=True,
-        help=(
-            "Interpolate comparison data at each reference state timestamp "
-            "(default)."
-        ),
+        help="Interpolate comparison data at each reference state timestamp (enabled by default)",
     )
     parser.add_argument(
         "--interpolate",
         action="store_true",
-        help="Interpolate both reference and comparison OEM data.",
+        help="Interpolate both reference and comparison OEM data",
     )
     parser.add_argument(
         "--interpolate-type",
-        choices=["lagrange", "hermite"],
-        default="hermite",
-        help="Interpolation method (default: hermite).",
+        type=cli.parse_interpolate_type,
+        default=(DEFAULT_INTERPOLATION_TYPE, DEFAULT_INTERPOLATION_DEGREE),
+        metavar="TYPE[,DEGREE]",
+        help=f"Interpolation method: 'hermite' or 'lagrange[,degree]' (default: {DEFAULT_INTERPOLATION_TYPE},{DEFAULT_INTERPOLATION_DEGREE}). Degree must be >= 2",
     )
     parser.add_argument(
         "--rtn",
         action="store_true",
-        help="Include comparison state coordinates in the reference RTN frame.",
+        help="Include comparison state coordinates in reference RTN frame",
     )
     parser.add_argument(
         "--rot",
         action="store_true",
-        help=(
-            "Fit a fixed rotation from the initial comparison state span and "
-            "apply it before reporting differences. May be repeated."
-        ),
+        help="Fit fixed rotation from initial comparison state span and apply before reporting differences (may be repeated)",
     )
     parser.add_argument(
         "--rot-xy",
         action="store_true",
-        help=(
-            "Fit a fixed rotation around the X and Y axes from the initial "
-            "comparison state span. May be repeated."
-        ),
+        help="Fit fixed rotation around X and Y axes from initial comparison state span (may be repeated)",
     )
     parser.add_argument(
         "--rot-z",
         action="store_true",
-        help=(
-            "Fit a fixed rotation around the Z axis from the initial comparison "
-            "state span. May be repeated."
-        ),
+        help="Fit fixed rotation around Z axis from initial comparison state span (may be repeated)",
     )
     parser.add_argument(
         "--time-shift",
         action="store_true",
-        help=(
-            "Fit a constant comparison epoch bias and shift comparison timestamps "
-            "before reporting differences. May be repeated."
-        ),
+        help="Fit constant comparison epoch bias and shift comparison timestamps before reporting differences (may be repeated)",
     )
     parser.add_argument(
         "--rot-fit-span",
         type=parse_rotation_fit_span,
         default=ROTATION_FIT_DURATION_S,
         metavar="<duration>",
-        help=(
-            "Duration of the initial state span used for --rot fitting "
-            f"(default: {ROTATION_FIT_DURATION_S:g}s)."
-        ),
+        help=f"Duration of initial state span used for --rot fitting (default: {ROTATION_FIT_DURATION_S:g}s)",
     )
     parser.add_argument(
         "--start",
         metavar="<iso8601|duration>",
         default=None,
-        help=(
-            "Start epoch as an ISO 8601 timestamp or duration relative to the "
-            "first reference epoch."
-        ),
+        help="Start epoch as ISO 8601 timestamp or duration relative to first reference epoch",
     )
     parser.add_argument(
         "--stop",
         metavar="<iso8601|duration>",
         default=None,
-        help=(
-            "Stop epoch as an ISO 8601 timestamp or duration relative to the "
-            "first reference epoch."
-        ),
+        help="Stop epoch as ISO 8601 timestamp or duration relative to first reference epoch",
     )
     args = parser.parse_args()
     args.stage_sequence = extract_stage_sequence(sys.argv[1:])

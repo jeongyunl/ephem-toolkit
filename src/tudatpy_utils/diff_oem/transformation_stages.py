@@ -14,7 +14,7 @@ from .comparison import rotate_state
 from .data_structures import TransformationStageInput
 from .types import State, StatePair
 
-DEFAULT_INTERPOLATION_DEGREE: int = 8
+DEFAULT_INTERPOLATION_DEGREE: int = 7
 """Polynomial degree used for OEM state interpolation."""
 
 

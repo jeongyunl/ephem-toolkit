@@ -5,13 +5,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import core.interpolator.lagrange as lagrange
-import diff_oem.cli as cli
-import diff_oem.comparison as comparison
-import diff_oem.data_structures as data_structures
-import diff_oem.output as output
-import diff_oem.transformation_stages as transformation_stages
-import diff_oem.utils as utils
+from tudatpy_utils.core.interpolator import lagrange
+from tudatpy_utils.diff_oem import cli
+from tudatpy_utils.diff_oem import comparison
+from tudatpy_utils.diff_oem import data_structures
+from tudatpy_utils.diff_oem import output
+from tudatpy_utils.diff_oem import transformation_stages
+from tudatpy_utils.diff_oem import utils
 
 
 def _create_state(epoch_s: float, state_value: float) -> tuple[float, np.ndarray]:
@@ -25,7 +25,7 @@ def _create_state(epoch_s: float, state_value: float) -> tuple[float, np.ndarray
 def _reference_interpolator() -> lagrange.LagrangeInterpolator:
     """Create a degree-8 interpolator for synthetic linear states."""
     interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
-        dimension=6, degree=8
+        dimension=6, degree=7
     )
     reference_states: list[tuple[float, np.ndarray]] = [
         _create_state(float(index), float(index)) for index in range(8)

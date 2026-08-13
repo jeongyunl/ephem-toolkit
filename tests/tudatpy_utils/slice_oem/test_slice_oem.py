@@ -381,7 +381,7 @@ def test_cli_warns_when_input_has_fewer_states_than_interpolation_degree() -> No
     temp_path, _ = _create_test_oem(num_states=7, interval_seconds=60)
     try:
         result = _run_slice_oem(
-            [str(temp_path), "--time-slice", "0,,1m", "--data-only"]
+            [str(temp_path), "--time-slice", "0,,1m", "--data-only", "--interpolate-type", "lagrange,8"]
         )
         assert result.returncode == 0
         assert (
@@ -464,11 +464,11 @@ def test_cli_interpolate_type_hermite() -> None:
 
 
 def test_cli_interpolate_degree() -> None:
-    """Test --interpolate-degree option."""
+    """Test --interpolate-type with custom degree."""
     temp_path, _ = _create_test_oem(num_states=60, interval_seconds=60)
     try:
         result = _run_slice_oem(
-            [str(temp_path), "--time-slice", "0,20m,5m", "--interpolate-degree", "4"]
+            [str(temp_path), "--time-slice", "0,20m,5m", "--interpolate-type", "lagrange,4"]
         )
         assert result.returncode == 0
 
@@ -479,11 +479,11 @@ def test_cli_interpolate_degree() -> None:
 
 
 def test_cli_interpolate_degree_invalid() -> None:
-    """Test --interpolate-degree with invalid value."""
+    """Test --interpolate-type with invalid degree value."""
     temp_path, _ = _create_test_oem(num_states=60, interval_seconds=60)
     try:
         result = _run_slice_oem(
-            [str(temp_path), "--time-slice", "0,20m,5m", "--interpolate-degree", "1"]
+            [str(temp_path), "--time-slice", "0,20m,5m", "--interpolate-type", "lagrange,1"]
         )
         assert result.returncode != 0
         assert "must be 2 or greater" in result.stderr
