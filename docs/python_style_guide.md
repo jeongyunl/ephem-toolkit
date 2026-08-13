@@ -12,16 +12,16 @@ def _parse_kv_line(line: str) -> tuple[str, str] | None:
     """Return (key, value) from ``KEY = VALUE`` lines, or *None*."""
 ```
 
-**Multi-line** for public functions (include `Parameters` if arguments exist, `Returns` if returning):
+**Multi-line** for public functions:
 ```python
 def read_tle(stream: TextIO) -> Tle:
     """Parse TLE elements from a text stream.
-
+    
     Parameters
     ----------
     stream : TextIO
         Readable text stream containing TLE data.
-
+    
     Returns
     -------
     Tle
@@ -29,20 +29,19 @@ def read_tle(stream: TextIO) -> Tle:
     """
 ```
 
-**Properties** may use one-line:
+**Properties** use one-line:
 ```python
 @property
 def epochs(self) -> list[float]:
     """Sorted list of epoch timestamps (POSIX seconds)."""
 ```
 
-**Module-level** docstrings use `References:` with indented list (not NumPy section):
+**Module-level** use `References:` with indented list:
 ```python
 """Convert between Cartesian and Keplerian elements.
 
 References:
     https://en.wikipedia.org/wiki/Orbital_elements
-    Curtis, H.D. "Orbital Mechanics for Engineering Students", Ch. 4.
 """
 ```
 
@@ -59,43 +58,31 @@ References:
 
 ```python
 # Preferred: Online reference
-"""Compute eccentric anomaly from mean anomaly using Newton-Raphson iteration.
+"""Compute eccentric anomaly.
 
 References:
-    https://en.wikipedia.org/wiki/Kepler%27s_equation#Numerical_approximation_of_inverse_problem
+    https://en.wikipedia.org/wiki/Kepler%27s_equation
 """
 
-# Acceptable: Mix of online and print when online unavailable
-"""Parse CCSDS Orbit Mean-Elements Message (OMM) format.
+# Acceptable: Mix when online unavailable
+"""Parse CCSDS OMM format.
 
 References:
-    https://public.ccsds.org/Pubs/502x0b3e1.pdf (CCSDS 502.0-B-3)
-    Vallado, D.A. "Fundamentals of Astrodynamics and Applications", 4th ed., Ch. 3.
-"""
-
-# Avoid: Print-only reference when online alternative exists
-"""Compute orbital period from semi-major axis.
-
-References:
-    Curtis, H.D. "Orbital Mechanics for Engineering Students", Ch. 2, Eq. 2.73.
+    https://public.ccsds.org/Pubs/502x0b3e1.pdf
+    Vallado, D.A. "Fundamentals of Astrodynamics", 4th ed., Ch. 3.
 """
 ```
 
-**Inline comments** referencing equations or algorithms should also prefer online sources:
+**Inline comments:**
 ```python
-# Preferred: Online reference with specific equation
-# https://en.wikipedia.org/wiki/Orbital_elements#Keplerian - Eq. for h
-h_vec = np.cross(position_m, velocity_m_s)
-
-# Acceptable: Textbook when widely recognized
-# Curtis Eq. 4.62: specific angular momentum vector
+# https://en.wikipedia.org/wiki/Orbital_elements#Keplerian
 h_vec = np.cross(position_m, velocity_m_s)
 ```
 
-**Executable scripts** (with `#!/usr/bin/env python3` shebang) use `Usage:`:
+**Executable scripts** use `Usage:`:
 ```python
 #!/usr/bin/env python3
-"""Plot orbit trajectories with various views and RTN coordinates.
+"""Plot orbit trajectories.
 
 Usage:
     plot-orbit-deltas <reference_oem> [comparison_oem1] ...
@@ -117,32 +104,29 @@ Usage:
 
 ```python
 # Verb prefix (preferred)
-def parse_oem_state_line(line: str) -> tuple[float, np.ndarray] | None:
-def read_tle(stream: TextIO) -> Tle:
-def compute_tle_checksum(line: str) -> int:
-def validate_state_vector(state: np.ndarray) -> bool:
+def parse_oem_state_line(line: str) -> tuple[float, np.ndarray] | None: ...
+def read_tle(stream: TextIO) -> Tle: ...
+def compute_tle_checksum(line: str) -> int: ...
 
-# Conversions (when primary purpose is type conversion)
-def cartesian_to_keplerian(state_m: np.ndarray, mu_m3_s2: float) -> np.ndarray:
+# Conversions
+def cartesian_to_keplerian(state_m: np.ndarray, mu_m3_s2: float) -> np.ndarray: ...
 
-# Class methods (same conventions)
+# Class methods
 class CcsdsOem:
     @classmethod
-    def from_source(cls, source: TextIO | str | Path) -> CcsdsOem:  # Factory
-    
-    def to_file(self, dest: TextIO | str | Path) -> None:  # Export
-    def find_state_by_timestamp(self, timestamp: float) -> ...:  # Action (preferred)
-    def update_metadata(self, **kwargs) -> None:  # Action (preferred)
+    def from_source(cls, source: TextIO | str | Path) -> CcsdsOem: ...
+    def to_file(self, dest: TextIO | str | Path) -> None: ...
+    def find_state_by_timestamp(self, timestamp: float) -> ...: ...
 ```
 
 ### 2.2 Variables and parameters
 
 Use clear, full words. **Avoid:** single letters (except `i`/`j`/`k` indices, `x`/`y`/`z` in math), cryptic abbreviations (`tmp`, `buf`, `arr`), over-abbreviated params (`src` → `source`, `dst` → `dest`).
 
-**Exception:** Single-letter names acceptable for standard math notation when documented:
+**Exception:** Single-letter names acceptable for math notation when documented:
 ```python
 a = semi_major_axis_m       # Semi-major axis (m)
-e = eccentricity            # Eccentricity (dimensionless)
+e = eccentricity            # Eccentricity
 mu = gravitational_parameter_m3_s2  # Gravitational parameter (m³/s²)
 ```
 
@@ -159,9 +143,10 @@ Append unit suffixes for clarity. Use underscores for division (`_m_s` for m/s, 
 | Acceleration | `_m_s2` | `acceleration_m_s2` |
 | Grav. parameter | `_m3_s2` | `mu_m3_s2` |
 
-**CLI arguments:** Unit suffixes on `dest` only, not on argument name or `metavar`:
+**CLI arguments:** Unit suffixes on `dest` only:
 ```python
-parser.add_argument("--mu", dest="mu_m3_s2", metavar="<value>", help="Gravitational parameter (m³/s²).")
+parser.add_argument("--mu", dest="mu_m3_s2", metavar="<value>", 
+                    help="Gravitational parameter (m³/s²).")
 ```
 
 ---
@@ -184,13 +169,10 @@ Three-stage pattern:
 
 ```python
 def compute_position_error(oem_position_km: np.ndarray, predicted_position_m: np.ndarray) -> float:
-    """Compute position error magnitude.
-    
-    Converts OEM position from km to m (SI units). Returns error in km for display.
-    """
+    """Compute position error magnitude (returns km)."""
     oem_position_m = oem_position_km * 1000.0  # Convert to SI
-    error_m = float(np.linalg.norm(oem_position_m - predicted_position_m))  # Compute in SI
-    return error_m / 1000.0  # Convert to km for display
+    error_m = float(np.linalg.norm(oem_position_m - predicted_position_m))
+    return error_m / 1000.0  # Return km for display
 ```
 
 Common conversions: `m = km * 1000.0`, `km = m / 1000.0`, `rad = np.radians(deg)`, `deg = np.degrees(rad)`
@@ -205,7 +187,7 @@ Common conversions: `m = km * 1000.0`, `km = m / 1000.0`, `rad = np.radians(deg)
 - **Local variables:** Annotate complex types, intermediate results, non-obvious types
 
 ```python
-from __future__ import annotations  # Always first import
+from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -213,7 +195,7 @@ if TYPE_CHECKING:
 
 @classmethod
 def read(cls, source: TextIO | str | Path) -> CcsdsOem:
-    match: re.Match[str] | None = re.fullmatch(r"...", value)  # Annotate locals
+    match: re.Match[str] | None = re.fullmatch(r"...", value)
     ...
 ```
 
@@ -248,42 +230,23 @@ Dataclasses provide:
 - **Maintainability:** Refactoring is safer; renaming fields updates all usages
 
 ```python
-# Wrong: Using dict for structured data
+# Wrong: Using dict
 def parse_metadata(lines: list[str]) -> dict:
-    metadata = {
-        "object_name": "",
-        "object_id": "",
-        "center_name": "EARTH",
-        "ref_frame": "EME2000",
-        "time_system": "UTC",
-    }
-    # ... parse lines and populate dict
-    return metadata
+    return {"object_name": "", "object_id": "", ...}
 
 # Correct: Using dataclass
 @dataclass
 class OemMetadata:
     """OEM metadata block."""
-    
     object_name: str = ""
     """Name of the object"""
-    
     object_id: str = ""
-    """International designator or catalog number"""
-    
+    """International designator"""
     center_name: str = "EARTH"
     """Origin of reference frame"""
-    
-    ref_frame: str = "EME2000"
-    """Reference frame identifier"""
-    
-    time_system: str = "UTC"
-    """Time system used for epochs"""
 
 def parse_metadata(lines: list[str]) -> OemMetadata:
-    metadata = OemMetadata()
-    # ... parse lines and populate fields
-    return metadata
+    return OemMetadata(...)
 ```
 
 **When to use dicts:**
@@ -306,10 +269,8 @@ Document all fields with triple-quote docstring immediately after definition. **
 @dataclass
 class Tle:
     """Parsed Two-Line Element set data."""
-    
     name: str = ""
-    """Satellite name (may be empty if not present in TLE source)"""
-    
+    """Satellite name"""
     inclination_deg: float = 0.0
     """Inclination (degrees)"""
 ```
@@ -335,26 +296,16 @@ When inheriting from a base class, order public methods to match the base class 
 ```python
 class LagrangeInterpolator(Interpolator):
     """Lagrange interpolator."""
-    
-    def __init__(self, dimension: int = 1, degree: int = 8) -> None:
-        ...
+    def __init__(self, dimension: int = 1, degree: int = 8) -> None: ...
     
     # Public methods in base class order
-    def add_data_point(self, independent_value: float, dependent_data: np.ndarray) -> None:
-        ...
-    
-    def reset_state(self) -> None:
-        ...
-    
-    def interpolate_value(self, independent_value: float) -> np.ndarray | None:
-        ...
+    def add_data_point(self, independent_value: float, dependent_data: np.ndarray) -> None: ...
+    def reset_state(self) -> None: ...
+    def interpolate_value(self, independent_value: float) -> np.ndarray | None: ...
     
     # Private methods last
-    def _check_feasibility(self, independent_value: float) -> int:
-        ...
-    
-    def _select_window(self, independent_value: float) -> None:
-        ...
+    def _check_feasibility(self, independent_value: float) -> int: ...
+    def _select_window(self, independent_value: float) -> None: ...
 ```
 
 **Rationale:** Placing public methods first in base class order makes the public API immediately visible and consistent across related classes. Private methods (prefixed with `_`) are implementation details and belong at the end.
@@ -371,11 +322,49 @@ def __repr__(self) -> str:
 
 ## 7. Constants
 
+### 7.1 Module-level constants
+
 Module-level constants typed and documented:
 ```python
 MU_EARTH: float = 3.986004418e14
-"""Earth gravitational parameter (m³/s²), WGS-84."""
+"""Earth gravitational parameter (m³/s²)."""
 ```
+
+### 7.2 Magic numbers
+
+**Define named constants instead of using magic numbers directly in code.**
+
+Magic numbers reduce code readability and make maintenance difficult. Extract them as module-level or class-level constants with descriptive names and documentation.
+
+```python
+# Wrong: Magic numbers
+def __post_init__(self) -> None:
+    if self.degree is None:
+        self.degree = 8 if self.interp_type == InterpolationType.LAGRANGE else 3
+
+# Correct: Named constants
+DEFAULT_LAGRANGE_DEGREE: int = 8
+"""Default polynomial degree for Lagrange interpolation."""
+DEFAULT_HERMITE_DEGREE: int = 3
+"""Default polynomial degree for Hermite interpolation."""
+
+def __post_init__(self) -> None:
+    if self.degree is None:
+        self.degree = (DEFAULT_LAGRANGE_DEGREE if self.interp_type == InterpolationType.LAGRANGE
+                       else DEFAULT_HERMITE_DEGREE)
+```
+
+**Exceptions where inline numbers are acceptable:**
+- Mathematical constants with universal meaning: `0`, `1`, `2`, `-1`, `0.5`
+- Array indices and loop counters: `arr[0]`, `range(10)`
+- Common multipliers/divisors in unit conversions when documented: `* 1000.0  # km to m`
+- Well-known mathematical constants: `2.0 * np.pi`, `np.sqrt(2)`
+
+**When to extract as constant:**
+- Configuration values (timeouts, limits, thresholds)
+- Default parameter values used in multiple places
+- Domain-specific values that have meaning (degrees, tolerances, iteration limits)
+- Any number whose meaning is not immediately obvious from context
 
 ---
 
@@ -392,13 +381,13 @@ Keep comments that provide:
 - Array shapes and units
 
 ```python
-# Curtis Eq. 4.62: specific angular momentum vector
+# Curtis Eq. 4.62: specific angular momentum
 h_vec = np.cross(position_m, velocity_m_s)
 
-# Normalize to [0, 2π) to avoid convergence issues
+# Normalize to [0, 2π)
 mean_anomaly_rad = mean_anomaly_rad % (2.0 * np.pi)
 
-state_m = np.concatenate([position_m, velocity_m_s])  # (6,) state vector [pos, vel] in SI units
+state_m = np.concatenate([position_m, velocity_m_s])  # (6,) [pos, vel] SI
 ```
 
 ### 8.2 Section separators
@@ -426,15 +415,8 @@ Use 67-character `# ===` banners:
 import core.kepler as kepler
 kepler.MU_EARTH
 
-import core.ccsds.oem as oem
-oem.CcsdsOem.read(file)
-
 # Wrong
 from core.kepler import MU_EARTH
-
-# Also wrong (no alias)
-import core.kepler
-core.kepler.MU_EARTH  # Too verbose
 ```
 
 **Rationale:** Using `import X as Y` provides a clean namespace while keeping code concise. The alias should match the module's base name (e.g., `core.ccsds.oem as oem`, `core.slice_oem as slice_oem`).
@@ -444,8 +426,8 @@ core.kepler.MU_EARTH  # Too verbose
 # Correct
 from . import wgs
 
-# Wrong (redundant)
-from . import wgs as wgs
+# Wrong
+from . import wgs as wgs  # Redundant
 ```
 
 Standard library and third-party may use `from X import Y` where idiomatic (`from pathlib import Path`, `from datetime import datetime`).
