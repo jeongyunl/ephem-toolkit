@@ -150,12 +150,13 @@ Examples:
     print(f"Reference orbit end timestamp: {end_timestamp_s}")
 
     # Filter reference and comparison data using end timestamp
-    # Include up to INTERPOLATION_DEGREE/2 additional states past end_timestamp_s for interpolation
+    # Include up to (DEFAULT_INTERPOLATION_DEGREE + 1)/2 additional states past end_timestamp_s for interpolation
     end_idx: int = bisect.bisect_left(ref_timestamps_sorted, end_timestamp_s)
 
     # Include states up to end_timestamp_s plus additional states for interpolation
     include_count: int = min(
-        int(DEFAULT_INTERPOLATION_DEGREE / 2), len(ref_timestamps_sorted) - end_idx
+        int((DEFAULT_INTERPOLATION_DEGREE + 1) / 2),
+        len(ref_timestamps_sorted) - end_idx,
     )
     cutoff_idx: int = end_idx + include_count
     ref_state_history = {

@@ -11,7 +11,7 @@ import core.interpolator.hermite as hermite
 def test_hermite_interpolator_interpolates_linear_data() -> None:
     """Test that Hermite interpolator correctly interpolates linear data."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=2, points_wanted=2
+        dimension=2, degree=1
     )
     for x in range(5):
         interpolator.add_data_point(
@@ -26,7 +26,7 @@ def test_hermite_interpolator_interpolates_linear_data() -> None:
 def test_hermite_interpolator_with_derivatives() -> None:
     """Test Hermite interpolation with derivative data."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, points_wanted=2
+        dimension=1, degree=2
     )
 
     # Add all data points first
@@ -46,7 +46,7 @@ def test_hermite_interpolator_with_derivatives() -> None:
 def test_hermite_interpolator_cubic_polynomial() -> None:
     """Test Hermite interpolation on cubic polynomial."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, points_wanted=3
+        dimension=1, degree=3
     )
 
     # f(x) = x^3 - 2x^2 + x + 1
@@ -75,7 +75,7 @@ def test_hermite_interpolator_cubic_polynomial() -> None:
 def test_add_derivative_invalid_order() -> None:
     """Test that adding derivatives with invalid order raises ValueError."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, points_wanted=2
+        dimension=1, degree=2
     )
     interpolator.add_data_point(0.0, np.array([1.0], dtype=float))
 
@@ -86,7 +86,7 @@ def test_add_derivative_invalid_order() -> None:
 def test_add_derivative_nonexistent_independent_value() -> None:
     """Test that adding derivative for nonexistent point raises ValueError."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, points_wanted=2
+        dimension=1, degree=2
     )
     interpolator.add_data_point(0.0, np.array([1.0], dtype=float))
 
@@ -97,7 +97,7 @@ def test_add_derivative_nonexistent_independent_value() -> None:
 def test_add_derivative_with_missing_indicator() -> None:
     """Test that derivatives with missing indicator are not added."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=2, points_wanted=2
+        dimension=2, degree=2
     )
     interpolator.add_data_point(0.0, np.array([1.0, 2.0], dtype=float))
 
@@ -111,7 +111,7 @@ def test_add_derivative_with_missing_indicator() -> None:
 def test_clear_storage() -> None:
     """Test that clear_storage removes all data and derivatives."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, points_wanted=2
+        dimension=1, degree=2
     )
 
     interpolator.add_data_point(0.0, np.array([1.0], dtype=float))
@@ -129,7 +129,7 @@ def test_clear_storage() -> None:
 def test_inconsistent_derivative_data() -> None:
     """Test that inconsistent derivative data raises ValueError."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, points_wanted=2
+        dimension=1, degree=2
     )
 
     interpolator.add_data_point(0.0, np.array([1.0], dtype=float))
@@ -146,7 +146,7 @@ def test_inconsistent_derivative_data() -> None:
 def test_interpolate_cartesian_state() -> None:
     """Test Cartesian state interpolation with position and velocity."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=6, points_wanted=2
+        dimension=6, degree=2
     )
 
     # Simple linear motion: position = t, velocity = 1
@@ -168,7 +168,7 @@ def test_interpolate_cartesian_state() -> None:
 def test_interpolate_cartesian_state_wrong_dimension() -> None:
     """Test that interpolate_cartesian_state raises error for wrong dimension."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=3, points_wanted=2
+        dimension=3, degree=2
     )
 
     interpolator.add_data_point(0.0, np.array([1.0, 2.0, 3.0], dtype=float))
@@ -182,7 +182,7 @@ def test_interpolate_cartesian_state_wrong_dimension() -> None:
 def test_hermite_interpolator_multidimensional() -> None:
     """Test Hermite interpolation with multiple dimensions."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=3, points_wanted=2
+        dimension=3, degree=2
     )
 
     # Add data points
@@ -200,7 +200,7 @@ def test_hermite_interpolator_multidimensional() -> None:
 def test_hermite_interpolator_single_point() -> None:
     """Test Hermite interpolation with single data point."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, points_wanted=1
+        dimension=1, degree=1
     )
 
     interpolator.add_data_point(1.0, np.array([5.0], dtype=float))
@@ -213,7 +213,7 @@ def test_hermite_interpolator_single_point() -> None:
 def test_evaluate_polynomial_derivative() -> None:
     """Test polynomial derivative evaluation."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, points_wanted=2
+        dimension=1, degree=2
     )
 
     # Add all data points first
@@ -238,7 +238,7 @@ def test_evaluate_polynomial_derivative() -> None:
 def test_derivative_independent_term() -> None:
     """Test derivative independent term calculation."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, points_wanted=2
+        dimension=1, degree=2
     )
 
     interpolator.t_values = [[0.0, 1.0, 2.0]]
@@ -259,7 +259,7 @@ def test_derivative_independent_term() -> None:
 def test_set_derivative_data_dict_format() -> None:
     """Test set_derivative_data with dictionary input."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, points_wanted=2
+        dimension=1, degree=2
     )
 
     for x in range(4):
@@ -278,7 +278,7 @@ def test_set_derivative_data_dict_format() -> None:
 def test_set_derivative_data_list_of_tuples_format() -> None:
     """Test set_derivative_data with list of tuples input."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, points_wanted=2
+        dimension=1, degree=2
     )
 
     for x in range(4):
@@ -297,7 +297,7 @@ def test_set_derivative_data_list_of_tuples_format() -> None:
 def test_set_derivative_data_two_list_format() -> None:
     """Test set_derivative_data with separate independent and derivative lists."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, points_wanted=2
+        dimension=1, degree=2
     )
 
     for x in range(4):
@@ -317,7 +317,7 @@ def test_set_derivative_data_two_list_format() -> None:
 def test_set_derivative_data_invalid_order() -> None:
     """Test set_derivative_data raises ValueError for unsupported order."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, points_wanted=2
+        dimension=1, degree=2
     )
     interpolator.add_data_point(0.0, np.array([1.0], dtype=float))
 
@@ -328,7 +328,7 @@ def test_set_derivative_data_invalid_order() -> None:
 def test_set_derivative_data_length_mismatch() -> None:
     """Test set_derivative_data raises ValueError on length mismatch."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, points_wanted=2
+        dimension=1, degree=2
     )
     interpolator.add_data_point(0.0, np.array([1.0], dtype=float))
     interpolator.add_data_point(1.0, np.array([2.0], dtype=float))
@@ -340,7 +340,7 @@ def test_set_derivative_data_length_mismatch() -> None:
 def test_set_derivative_data_missing_derivative_data_arg() -> None:
     """Test set_derivative_data raises ValueError when derivative_data not provided for float list."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, points_wanted=2
+        dimension=1, degree=2
     )
     interpolator.add_data_point(0.0, np.array([1.0], dtype=float))
 
@@ -354,7 +354,7 @@ def test_set_derivative_data_missing_derivative_data_arg() -> None:
 def test_set_derivative_data_nonexistent_independent_value() -> None:
     """Test set_derivative_data raises ValueError for unknown independent value."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, points_wanted=2
+        dimension=1, degree=2
     )
     interpolator.add_data_point(0.0, np.array([1.0], dtype=float))
 
@@ -365,7 +365,7 @@ def test_set_derivative_data_nonexistent_independent_value() -> None:
 def test_set_derivative_data_dict_with_derivative_data_arg() -> None:
     """Test set_derivative_data raises ValueError when dict used with derivative_data."""
     interpolator: hermite.HermiteInterpolator = hermite.HermiteInterpolator(
-        dimension=1, points_wanted=2
+        dimension=1, degree=2
     )
     interpolator.add_data_point(0.0, np.array([1.0], dtype=float))
 

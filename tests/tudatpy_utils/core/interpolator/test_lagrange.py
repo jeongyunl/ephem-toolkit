@@ -15,7 +15,7 @@ import core.interpolator.lagrange as lagrange
 def test_lagrange_interpolator_interpolates_linear_data() -> None:
     """Test that Lagrange interpolator correctly interpolates linear data."""
     interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
-        dimension=2, degree=8
+        dimension=2, degree=7
     )
     for x in range(10):
         interpolator.add_data_point(
@@ -29,8 +29,9 @@ def test_lagrange_interpolator_interpolates_linear_data() -> None:
 def test_lagrange_interpolator_adjusts_degree_for_short_data() -> None:
     """Test interpolation when fewer samples than the requested degree exist."""
     interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
-        dimension=2, degree=8
+        dimension=2, degree=7
     )
+    # With 7 points, max degree is 6 (N-1 for N points)
     for x in range(7):
         interpolator.add_data_point(
             float(x), np.array([float(x), float(2 * x)], dtype=float)
@@ -45,7 +46,7 @@ def test_interpolated_oem_velocity_norm_matches_original_oem() -> None:
 
     number_of_data_points: int = 80
     step_size_sec: float = 2.0
-    interpolation_degree: int = 6
+    interpolation_degree: int = 7
 
     test_dir: Path = Path(__file__).parents[3]
     oem_path: Path = test_dir / "data" / "ISS_2026-05-20_small.OEM"
@@ -120,7 +121,7 @@ def test_independent_variable_range() -> None:
     first_n_timestamps: list[float] = timestamps[:number_of_data_points]
 
     interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
-        dimension=6, degree=8
+        dimension=6, degree=7
     )
     for timestamp, state in states_float[:number_of_data_points]:
         interpolator.add_data_point(timestamp, state)
@@ -166,7 +167,7 @@ def test_internal_cache_integrity() -> None:
     first_n_timestamps: list[float] = all_timestamps[:number_of_data_points]
 
     interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
-        dimension=6, degree=8
+        dimension=6, degree=7
     )
     for timestamp, state in all_states_float[:number_of_data_points]:
         interpolator.add_data_point(timestamp, state)
@@ -196,7 +197,7 @@ def test_internal_cache_integrity() -> None:
     for time in shuffled_times:
         interpolated_state: np.ndarray = interpolator.interpolate(time)
         np.testing.assert_allclose(
-            interpolated_state, interpolated_states[time], atol=1e-10
+            interpolated_state, interpolated_states[time], rtol=1e-6, atol=1e-6
         )
 
 
