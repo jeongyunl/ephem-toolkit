@@ -17,6 +17,9 @@ RANGE_OVERSHOOT_TOLERANCE: float = 1e-8
 MIN_DIFFERENCE_FOR_START: float = 1.0e30
 """Sentinel initial value used when searching for the minimum window bias."""
 
+DEFAULT_INTERPOLATION_DEGREE: int = 7
+"""Default polynomial degree."""
+
 
 class LagrangeInterpolator(Interpolator):
     """Lagrange interpolator that selects a local polynomial window for interpolation.
@@ -29,7 +32,9 @@ class LagrangeInterpolator(Interpolator):
     MAX_BUFFER_SIZE: int = 80
     """Maximum allowed number of buffered samples."""
 
-    def __init__(self, dimension: int = 1, degree: int = 8) -> None:
+    def __init__(
+        self, dimension: int = 1, degree: int = DEFAULT_INTERPOLATION_DEGREE
+    ) -> None:
         super().__init__(dimension)
 
         self.degree: int = degree
@@ -39,8 +44,8 @@ class LagrangeInterpolator(Interpolator):
         self.reset_to_base_degree: bool = True
         """Reset degree to base_degree after an interpolation pass."""
 
-        self.required_points: int = degree
-        """Required points for an Nth degree polynomial is N."""
+        self.required_points: int = degree + 1
+        """Required points for a degree-N polynomial is N+1."""
 
         self.candidate_window_start_index: int = 0
         """Indices used to select the interpolation window."""
@@ -158,10 +163,6 @@ class LagrangeInterpolator(Interpolator):
             1 if interpolation is feasible, -1 if insufficient points,
             -2 if below range, -3 if above range.
         """
-        if self.reset_to_base_degree and (self.degree != self.base_degree):
-            self.degree = self.base_degree
-            self.required_points = self.degree
-
         if len(self.independent_values) < self.required_points:
             return -1
 
@@ -196,8 +197,8 @@ class LagrangeInterpolator(Interpolator):
         if (len(self.independent_values) > 1) and (
             len(self.independent_values) < self.required_points
         ):
-            self.degree = len(self.independent_values)
-            self.required_points = self.degree
+            self.degree = len(self.independent_values) - 1
+            self.required_points = self.degree + 1
             self.reset_to_base_degree = False
             return True
 
