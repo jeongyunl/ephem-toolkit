@@ -9,7 +9,7 @@ from tudatpy_utils.core.interpolator.interpolation_spec import (
     InterpolationType,
 )
 
-VALID_INTERPOLATION_TYPES: list[str] = ["hermite", "chebyshev", "lagrange"]
+VALID_INTERPOLATION_TYPES: list[str] = ["hermite", "hermite_sliding", "chebyshev", "lagrange"]
 """Valid interpolation type names for CLI arguments."""
 
 VALID_INTERPOLATION_TYPES_MESSAGE: str = ", ".join(

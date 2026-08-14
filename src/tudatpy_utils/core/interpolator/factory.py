@@ -79,14 +79,20 @@ class InterpolatorFactory:
             print(f"[{context}]   Type: {spec.interp_type.value}", file=sys.stderr)
             print(f"[{context}]   Degree: {spec.degree}", file=sys.stderr)
             print(f"[{context}]   Dimension: {dimension}", file=sys.stderr)
-            if spec.interp_type == InterpolationType.HERMITE:
+            if spec.interp_type in (InterpolationType.HERMITE, InterpolationType.HERMITE_SLIDING):
                 print(
                     f"[{context}]   Cartesian state: {is_cartesian_state}",
                     file=sys.stderr,
                 )
 
         if spec.interp_type == InterpolationType.HERMITE:
-            interpolator = hermite.HermiteInterpolator(
+            interpolator = hermite.HermiteDividedDifferenceInterpolator(
+                dimension=dimension,
+                degree=spec.degree,
+                is_cartesian_state=is_cartesian_state,
+            )
+        elif spec.interp_type == InterpolationType.HERMITE_SLIDING:
+            interpolator = hermite.SlidingWindowHermiteInterpolator(
                 dimension=dimension,
                 degree=spec.degree,
                 is_cartesian_state=is_cartesian_state,
