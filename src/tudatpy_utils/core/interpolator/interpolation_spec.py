@@ -11,15 +11,21 @@ DEFAULT_LAGRANGE_DEGREE: int = 7
 DEFAULT_HERMITE_DEGREE: int = 5
 """Default polynomial degree for Hermite interpolation."""
 
+DEFAULT_CUBIC_DEGREE: int = 3
+"""Default degree for cubic spline interpolation."""
+
 
 class InterpolationType(Enum):
     """Interpolation method type."""
 
+    HERMITE = "hermite"
+    """Hermite polynomial interpolation."""
+
     LAGRANGE = "lagrange"
     """Lagrange polynomial interpolation."""
 
-    HERMITE = "hermite"
-    """Hermite polynomial interpolation."""
+    CUBIC = "cubic"
+    """Natural cubic spline interpolation."""
 
 
 @dataclass
@@ -39,3 +45,5 @@ class InterpolationSpec:
                 self.degree = DEFAULT_LAGRANGE_DEGREE
             elif self.interp_type == InterpolationType.HERMITE:
                 self.degree = DEFAULT_HERMITE_DEGREE
+            elif self.interp_type == InterpolationType.CUBIC:
+                self.degree = DEFAULT_CUBIC_DEGREE

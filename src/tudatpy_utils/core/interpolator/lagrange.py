@@ -29,9 +29,6 @@ class LagrangeInterpolator(Interpolator):
     interpolated dependent vector.
     """
 
-    MAX_BUFFER_SIZE: int = 80
-    """Maximum allowed number of buffered samples."""
-
     def __init__(
         self, dimension: int = 1, degree: int = DEFAULT_LAGRANGE_DEGREE
     ) -> None:

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from . import cubic_spline
 from . import hermite
 from . import lagrange
 from .interpolation_spec import InterpolationSpec, InterpolationType
@@ -83,16 +84,20 @@ class InterpolatorFactory:
                     file=sys.stderr,
                 )
 
-        if spec.interp_type == InterpolationType.LAGRANGE:
-            interpolator = lagrange.LagrangeInterpolator(
-                dimension=dimension,
-                degree=spec.degree,
-            )
-        elif spec.interp_type == InterpolationType.HERMITE:
+        if spec.interp_type == InterpolationType.HERMITE:
             interpolator = hermite.HermiteInterpolator(
                 dimension=dimension,
                 degree=spec.degree,
                 is_cartesian_state=is_cartesian_state,
+            )
+        elif spec.interp_type == InterpolationType.LAGRANGE:
+            interpolator = lagrange.LagrangeInterpolator(
+                dimension=dimension,
+                degree=spec.degree,
+            )
+        elif spec.interp_type == InterpolationType.CUBIC:
+            interpolator = cubic_spline.CubicSplineInterpolator(
+                dimension=dimension,
             )
         else:
             raise ValueError(f"Unsupported interpolation type: {spec.interp_type}")
