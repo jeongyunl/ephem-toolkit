@@ -607,12 +607,63 @@ def extract_states_by_time(
             )
 
     # Create new CcsdsOem with sliced states and preserved metadata
-    return _create_sliced_oem(oem, sliced_states)
+    return _create_sliced_oem(
+        oem, sliced_states,
+        interpolation_spec=interpolation_spec,
+        source_states=states,
+    )
+
+
+def _compute_useable_margin(
+    interpolation_spec: InterpolationSpec | None,
+    source_states: list[tuple[float, np.ndarray]],
+) -> float:
+    """Compute the time margin (seconds) where interpolation is less accurate.
+
+    For local polynomial interpolators (Lagrange, Hermite, Chebyshev), boundary
+    points lack sufficient neighbors on one side. The useable range is inset by
+    ceil(degree/2) data intervals from each end.
+
+    For cubic spline (global), natural boundary conditions cause reduced accuracy
+    at the edges; margin is set to 2 data intervals.
+
+    Parameters
+    ----------
+    interpolation_spec : InterpolationSpec | None
+        Interpolation specification used. If None, returns 0.
+    source_states : list[tuple[float, np.ndarray]]
+        Source data states used for interpolation.
+
+    Returns
+    -------
+    float
+        Time margin in seconds to inset from each boundary.
+    """
+    if interpolation_spec is None or len(source_states) < 3:
+        return 0.0
+
+    # Estimate average data interval from source states
+    first_ts = source_states[0][0]
+    last_ts = source_states[-1][0]
+    n_intervals = len(source_states) - 1
+    avg_interval_s = (last_ts - first_ts) / n_intervals
+
+    if interpolation_spec.interp_type == InterpolationType.CUBIC:
+        # Natural cubic spline: 2 intervals margin at boundaries
+        margin_intervals = 2
+    else:
+        # Local polynomial: ceil(degree / 2) intervals
+        import math
+        margin_intervals = math.ceil(interpolation_spec.degree / 2)
+
+    return margin_intervals * avg_interval_s
 
 
 def _create_sliced_oem(
     original_oem: CcsdsOem,
     sliced_states: list[tuple[float, np.ndarray]],
+    interpolation_spec: InterpolationSpec | None = None,
+    source_states: list[tuple[float, np.ndarray]] | None = None,
 ) -> CcsdsOem:
     """Create a new CcsdsOem with sliced states while preserving original metadata.
 
@@ -620,12 +671,20 @@ def _create_sliced_oem(
     from the original OEM file, except for time-related fields that change due to
     slicing (START_TIME, STOP_TIME, USEABLE_START_TIME, USEABLE_STOP_TIME).
 
+    When interpolation was used, USEABLE_START_TIME and USEABLE_STOP_TIME are set
+    to reflect the region where interpolation accuracy is reliable (excluding
+    boundary effects).
+
     Parameters
     ----------
     original_oem : CcsdsOem
         Original OEM object to copy metadata from.
     sliced_states : list[tuple[float, np.ndarray]]
         List of (timestamp, state_vector) tuples for the sliced data.
+    interpolation_spec : InterpolationSpec | None, optional
+        Interpolation specification used, for computing useable time bounds.
+    source_states : list[tuple[float, np.ndarray]] | None, optional
+        Original source states used for interpolation (for margin calculation).
 
     Returns
     -------
@@ -652,11 +711,32 @@ def _create_sliced_oem(
         new_meta.start_time = time_utils.datetime_to_iso8601(start_dt)
         new_meta.stop_time = time_utils.datetime_to_iso8601(stop_dt)
 
-        # Clear USEABLE_START_TIME and USEABLE_STOP_TIME if they were set,
-        # as they may no longer be valid for the sliced data
-        # Users can manually set these if needed
-        new_meta.useable_start_time = ""
-        new_meta.useable_stop_time = ""
+        # Compute useable time range based on interpolation boundary effects
+        src = source_states if source_states is not None else sliced_states
+        margin_s = _compute_useable_margin(interpolation_spec, src)
+
+        if margin_s > 0.0 and len(sliced_states) > 1:
+            useable_start_ts = sliced_states[0][0] + margin_s
+            useable_stop_ts = sliced_states[-1][0] - margin_s
+            if useable_start_ts < useable_stop_ts:
+                useable_start_dt = datetime.fromtimestamp(
+                    useable_start_ts, tz=timezone.utc
+                )
+                useable_stop_dt = datetime.fromtimestamp(
+                    useable_stop_ts, tz=timezone.utc
+                )
+                new_meta.useable_start_time = time_utils.datetime_to_iso8601(
+                    useable_start_dt
+                )
+                new_meta.useable_stop_time = time_utils.datetime_to_iso8601(
+                    useable_stop_dt
+                )
+            else:
+                new_meta.useable_start_time = ""
+                new_meta.useable_stop_time = ""
+        else:
+            new_meta.useable_start_time = ""
+            new_meta.useable_stop_time = ""
 
     # Create and return the new CcsdsOem object
     return CcsdsOem(
