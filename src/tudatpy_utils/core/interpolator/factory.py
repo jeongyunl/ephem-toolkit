@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from . import chebyshev
 from . import cubic_spline
 from . import hermite
 from . import lagrange
@@ -89,6 +90,11 @@ class InterpolatorFactory:
                 dimension=dimension,
                 degree=spec.degree,
                 is_cartesian_state=is_cartesian_state,
+            )
+        elif spec.interp_type == InterpolationType.CHEBYSHEV:
+            interpolator = chebyshev.ChebyshevInterpolator(
+                dimension=dimension,
+                degree=spec.degree,
             )
         elif spec.interp_type == InterpolationType.LAGRANGE:
             interpolator = lagrange.LagrangeInterpolator(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+import core.interpolator.chebyshev as chebyshev
 import core.interpolator.factory as factory
 import core.interpolator.hermite as hermite
 import core.interpolator.lagrange as lagrange
@@ -50,6 +51,16 @@ def test_factory_uses_default_degree_for_hermite() -> None:
 
     assert isinstance(interpolator, hermite.HermiteInterpolator)
     assert interpolator.required_points == 6  # degree + 1 = 5 + 1
+
+
+def test_factory_creates_chebyshev_interpolator() -> None:
+    """Test factory creates Chebyshev interpolator."""
+    spec = InterpolationSpec(interp_type=InterpolationType.CHEBYSHEV, degree=4)
+    interpolator = factory.InterpolatorFactory.create(spec, dimension=2)
+
+    assert isinstance(interpolator, chebyshev.ChebyshevInterpolator)
+    assert interpolator.dependent_dimension == 2
+    assert interpolator.degree == 4
 
 
 def test_factory_raises_error_for_unsupported_type() -> None:
