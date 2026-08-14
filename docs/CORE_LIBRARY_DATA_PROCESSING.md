@@ -73,29 +73,6 @@ Base interpolator supporting fixed-size ordered sample storage.
 - `dependent_dimension`: Number of components in each dependent vector
 - `required_points`: Minimum number of samples required
 
-### tudatpy_utils.core.interpolator.lagrange - Lagrange Interpolator
-
-#### `class LagrangeInterpolator(Interpolator)`
-Lagrange polynomial interpolator that selects a local polynomial window around each query point.
-
-**Key Methods:**
-- `__init__(dimension: int = 1, degree: int = 7)`: Initialize with dimension and polynomial degree
-- `add_data_point(independent_value: float, dependent_data: np.ndarray)`: Append new sample
-- `reset_state()`: Reset interpolator state while preserving stored samples
-- `clear_storage()`: Clear stored sample data and reset state
-- `interpolate(independent_value: float) -> np.ndarray | None`: Compute interpolated dependent vector
-
-**Properties:**
-- `degree`: Current interpolation polynomial degree
-- `base_degree`: Base degree to restore when buffer returns to full capacity
-- `required_points`: Minimum samples required (degree + 1)
-- `MAX_BUFFER_SIZE = 80`: Maximum allowed number of buffered samples
-
-**Constants:**
-- `DEFAULT_LAGRANGE_DEGREE = 7`: Default polynomial degree
-- `RANGE_OVERSHOOT_TOLERANCE = 1e-8`: Tolerance for queries marginally outside data range
-- `MIN_DIFFERENCE_FOR_START = 1.0e30`: Sentinel value for window bias search
-
 ### tudatpy_utils.core.interpolator.hermite - Hermite Interpolator
 
 #### `class HermiteInterpolator(Interpolator)`
@@ -119,6 +96,54 @@ Hermite polynomial interpolator supporting derivative data for improved accuracy
 **Constants:**
 - `DEFAULT_HERMITE_DEGREE = 5`: Default polynomial degree
 - `DERIVATIVE_UNAVAILABLE_SENTINEL = -9.99999e99`: Sentinel value for unavailable derivatives
+
+### tudatpy_utils.core.interpolator.lagrange - Lagrange Interpolator
+
+#### `class LagrangeInterpolator(Interpolator)`
+Lagrange polynomial interpolator that selects a local polynomial window around each query point.
+
+**Key Methods:**
+- `__init__(dimension: int = 1, degree: int = 7)`: Initialize with dimension and polynomial degree
+- `add_data_point(independent_value: float, dependent_data: np.ndarray)`: Append new sample
+- `reset_state()`: Reset interpolator state while preserving stored samples
+- `clear_storage()`: Clear stored sample data and reset state
+- `interpolate(independent_value: float) -> np.ndarray | None`: Compute interpolated dependent vector
+
+**Properties:**
+- `degree`: Current interpolation polynomial degree
+- `base_degree`: Base degree to restore when buffer returns to full capacity
+- `required_points`: Minimum samples required (degree + 1)
+
+**Constants:**
+- `DEFAULT_LAGRANGE_DEGREE = 7`: Default polynomial degree
+- `RANGE_OVERSHOOT_TOLERANCE = 1e-8`: Tolerance for queries marginally outside data range
+- `MIN_DIFFERENCE_FOR_START = 1.0e30`: Sentinel value for window bias search
+
+### tudatpy_utils.core.interpolator.cubic_spline - Cubic Spline Interpolator
+
+#### `class CubicSplineInterpolator(Interpolator)`
+Natural cubic spline interpolator for scalar or vector dependent data.
+
+**Key Methods:**
+- `__init__(dimension: int = 1)`: Initialize an interpolator for a dependent dimension of size `dimension`
+- `reset_state()`: Reset the transient interpolation state while preserving buffered samples
+- `clear_storage()`: Remove all sample data and reset spline state
+- `interpolate(independent_value: float) -> np.ndarray | None`: Evaluate the cubic spline at a query location
+- `_compute_interval_coefficients() -> list[np.ndarray]`: Build local cubic coefficients for each interval and component
+
+**Properties:**
+- `required_points`: Minimum samples required for interpolation (`2` for a cubic spline)
+- `dependent_dimension`: Number of dependent components in each sample vector
+- `independent_values`: Ordered independent variable samples
+- `dependent_values`: Ordered dependent value samples
+
+**Constants:**
+- `DEFAULT_CUBIC_DEGREE = 3`: Default spline degree used in the implementation
+
+**Behavior:**
+- Uses a piecewise natural cubic spline with zero second derivatives at the ends of the data range
+- Evaluates each interval using local coefficients of the form $a + b(x - x_i) + c(x - x_i)^2 + d(x - x_i)^3$
+- Returns the boundary value directly when the query falls exactly at the first or last sample point
 
 ### tudatpy_utils.core.interpolator.interpolation_spec - Interpolation Specifications
 

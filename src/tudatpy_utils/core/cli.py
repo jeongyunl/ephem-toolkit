@@ -9,7 +9,7 @@ from tudatpy_utils.core.interpolator.interpolation_spec import (
     InterpolationType,
 )
 
-VALID_INTERPOLATION_TYPES: list[str] = ["lagrange", "hermite"]
+VALID_INTERPOLATION_TYPES: list[str] = ["hermite", "lagrange", "cubic"]
 """Valid interpolation type names for CLI arguments."""
 
 
@@ -56,7 +56,8 @@ def parse_interpolate_type(value: str, default_degree: int) -> InterpolationSpec
 
     if interp_type not in VALID_INTERPOLATION_TYPES:
         raise argparse.ArgumentTypeError(
-            f"Invalid interpolation type '{interp_type}', must be 'lagrange' or 'hermite'"
+            "Invalid interpolation type "
+            f"'{interp_type}', must be 'hermite', 'lagrange', or 'cubic'"
         )
 
     return InterpolationSpec(
