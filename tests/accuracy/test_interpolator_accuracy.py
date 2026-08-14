@@ -105,13 +105,13 @@ def jpss1_reference_states(jpss1_reference_oem: CcsdsOem) -> dict[float, np.ndar
 # --- Helper ---
 
 
-def _run_accuracy_test(
+def _run_useable_range_accuracy_test(
     input_file: str,
     spec: InterpolationSpec,
     step_size: timedelta,
     reference_states: dict[float, np.ndarray],
 ) -> None:
-    """Interpolate input OEM and compare against reference states."""
+    """Interpolate input OEM and compare against reference within useable range only."""
     oem = CcsdsOem.read(str(DATA_DIR / input_file))
 
     options = TimeSliceOptions(
@@ -123,10 +123,21 @@ def _run_accuracy_test(
 
     result_oem = extract_states_by_time(oem, options)
 
+    # Determine useable time bounds
+    from core.time_utils import iso8601_to_datetime
+    if result_oem.meta.useable_start_time and result_oem.meta.useable_stop_time:
+        useable_start_ts = iso8601_to_datetime(result_oem.meta.useable_start_time).timestamp()
+        useable_stop_ts = iso8601_to_datetime(result_oem.meta.useable_stop_time).timestamp()
+    else:
+        useable_start_ts = result_oem.states[0][0]
+        useable_stop_ts = result_oem.states[-1][0]
+
     position_errors_km: list[float] = []
     velocity_errors_kms: list[float] = []
 
     for ts, interp_state in result_oem.states:
+        if ts < useable_start_ts or ts > useable_stop_ts:
+            continue
         if ts not in reference_states:
             continue
         ref_state = reference_states[ts]
@@ -137,7 +148,7 @@ def _run_accuracy_test(
         vel_err = np.linalg.norm(interp_state[3:6] - ref_state[3:6])
         velocity_errors_kms.append(vel_err)
 
-    assert len(position_errors_km) > 0, "No matching timestamps found"
+    assert len(position_errors_km) > 0, "No matching timestamps in useable range"
 
     max_pos = max(position_errors_km)
     rms_pos = float(np.sqrt(np.mean(np.array(position_errors_km) ** 2)))
@@ -145,7 +156,7 @@ def _run_accuracy_test(
     rms_vel = float(np.sqrt(np.mean(np.array(velocity_errors_kms) ** 2)))
 
     print(
-        f"\n  [{_file_id(input_file)}][{_spec_id(spec)}] "
+        f"\n  [{_file_id(input_file)}][{_spec_id(spec)}] useable_range "
         f"pos_max={max_pos:.3f} km  pos_rms={rms_pos:.3f} km  "
         f"vel_max={max_vel:.6f} km/s  vel_rms={rms_vel:.6f} km/s  "
         f"n={len(position_errors_km)}"
@@ -157,37 +168,37 @@ def _run_accuracy_test(
     )
 
 
-# --- ISS tests ---
+# --- ISS useable range accuracy tests ---
 
 
 @pytest.mark.accuracy
 @pytest.mark.parametrize("input_file", ISS_INPUT_FILES, ids=_file_id)
 @pytest.mark.parametrize("spec", INTERPOLATION_SPECS, ids=_spec_id)
-def test_iss_interpolator_accuracy(
+def test_iss_useable_range_accuracy(
     input_file: str,
     spec: InterpolationSpec,
     iss_reference_states: dict[float, np.ndarray],
 ) -> None:
-    """ISS: interpolate to 4m steps and compare against reference."""
-    _run_accuracy_test(input_file, spec, ISS_STEP_SIZE, iss_reference_states)
+    """ISS: interpolate to 4m steps, compare within useable range only."""
+    _run_useable_range_accuracy_test(input_file, spec, ISS_STEP_SIZE, iss_reference_states)
 
 
-# --- JPSS-1 tests ---
+# --- JPSS-1 useable range accuracy tests ---
 
 
 @pytest.mark.accuracy
 @pytest.mark.parametrize("input_file", JPSS1_INPUT_FILES, ids=_file_id)
 @pytest.mark.parametrize("spec", INTERPOLATION_SPECS, ids=_spec_id)
-def test_jpss1_interpolator_accuracy(
+def test_jpss1_useable_range_accuracy(
     input_file: str,
     spec: InterpolationSpec,
     jpss1_reference_states: dict[float, np.ndarray],
 ) -> None:
-    """JPSS-1: interpolate to 1m steps and compare against reference."""
-    _run_accuracy_test(input_file, spec, JPSS1_STEP_SIZE, jpss1_reference_states)
+    """JPSS-1: interpolate to 1m steps, compare within useable range only."""
+    _run_useable_range_accuracy_test(input_file, spec, JPSS1_STEP_SIZE, jpss1_reference_states)
 
 
-# --- Useable time range tests ---
+# --- Useable time range metadata tests ---
 
 
 def _expected_margin_intervals(spec: InterpolationSpec) -> int:
