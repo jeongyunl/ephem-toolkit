@@ -126,7 +126,12 @@ def parse_arguments() -> argparse.Namespace:
         ),
         default=DEFAULT_INTERPOLATION_SPEC,
         metavar="TYPE[,DEGREE]",
-        help=f"Interpolation method: 'hermite[,degree]' or 'lagrange[,degree]' (default: {DEFAULT_INTERPOLATION_TYPE},{DEFAULT_INTERPOLATION_DEGREE}). Degree must be > 0",
+        help=(
+            "Interpolation method: 'hermite[,degree]', 'chebyshev[,degree]', "
+            "or 'lagrange[,degree]' "
+            f"(default: {DEFAULT_INTERPOLATION_TYPE},{DEFAULT_INTERPOLATION_DEGREE}). "
+            "Degree must be > 0"
+        ),
     )
     parser.add_argument(
         "--data-only",
