@@ -1,7 +1,11 @@
 """Accuracy tests for interpolators using slice_oem extract_states_by_time.
 
-Loads OEM files with various step sizes (8m, 12m, 16m, 20m, 40m), interpolates
-to 4-minute steps, and compares against the 4-minute reference OEM.
+Loads OEM files with various step sizes, interpolates to the reference step
+size, and compares against the reference OEM.
+
+Test datasets:
+  - ISS: reference at 4m, inputs at 8m/12m/16m/20m/40m
+  - JPSS-1: reference at 1m, inputs at 2m/3m/5m/10m/15m
 
 Run with: pytest -m accuracy -s
 """
@@ -20,15 +24,27 @@ from core.slice_oem import TimeSliceOptions, extract_states_by_time
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
-REFERENCE_FILE = DATA_DIR / "ISS_2026-05-20_small.OEM"
-
-INPUT_FILES = [
+# --- ISS dataset: 4-minute reference ---
+ISS_REFERENCE_FILE = DATA_DIR / "ISS_2026-05-20_small.OEM"
+ISS_INPUT_FILES = [
     "ISS_2026-05-20_small.8m.OEM",
     "ISS_2026-05-20_small.12m.OEM",
     "ISS_2026-05-20_small.16m.OEM",
     "ISS_2026-05-20_small.20m.OEM",
     "ISS_2026-05-20_small.40m.OEM",
 ]
+ISS_STEP_SIZE = timedelta(minutes=4)
+
+# --- JPSS-1 dataset: 1-minute reference ---
+JPSS1_REFERENCE_FILE = DATA_DIR / "JPSS-1_small.oem"
+JPSS1_INPUT_FILES = [
+    "JPSS-1_small.2m.oem",
+    "JPSS-1_small.3m.oem",
+    "JPSS-1_small.5m.oem",
+    "JPSS-1_small.10m.oem",
+    "JPSS-1_small.15m.oem",
+]
+JPSS1_STEP_SIZE = timedelta(minutes=1)
 
 INTERPOLATION_SPECS = [
     InterpolationSpec(interp_type=InterpolationType.HERMITE, degree=3),
@@ -44,11 +60,7 @@ INTERPOLATION_SPECS = [
     InterpolationSpec(interp_type=InterpolationType.CUBIC),
 ]
 
-STEP_SIZE = timedelta(minutes=4)
-
 # Position tolerance in km — loose bound to catch catastrophic failures only.
-# Hermite deg5 on 8m data achieves ~3 km; coarser inputs or lower-order methods
-# produce much larger errors due to Runge phenomenon on orbital data.
 MAX_POSITION_ERROR_KM = 1.0e8
 
 
@@ -60,45 +72,57 @@ def _file_id(filename: str) -> str:
     return filename.split(".")[-2]
 
 
-@pytest.fixture(scope="module")
-def reference_oem() -> CcsdsOem:
-    """Load the 4-minute reference OEM."""
-    return CcsdsOem.read(str(REFERENCE_FILE))
+# --- Fixtures: ISS ---
 
 
 @pytest.fixture(scope="module")
-def reference_states(reference_oem: CcsdsOem) -> dict[float, np.ndarray]:
-    """Build timestamp -> state lookup from reference OEM."""
-    return {ts: state for ts, state in reference_oem.states}
+def iss_reference_oem() -> CcsdsOem:
+    """Load the ISS 4-minute reference OEM."""
+    return CcsdsOem.read(str(ISS_REFERENCE_FILE))
 
 
-@pytest.mark.accuracy
-@pytest.mark.parametrize("input_file", INPUT_FILES, ids=_file_id)
-@pytest.mark.parametrize("spec", INTERPOLATION_SPECS, ids=_spec_id)
-def test_interpolator_accuracy(
+@pytest.fixture(scope="module")
+def iss_reference_states(iss_reference_oem: CcsdsOem) -> dict[float, np.ndarray]:
+    """Build timestamp -> state lookup from ISS reference OEM."""
+    return {ts: state for ts, state in iss_reference_oem.states}
+
+
+# --- Fixtures: JPSS-1 ---
+
+
+@pytest.fixture(scope="module")
+def jpss1_reference_oem() -> CcsdsOem:
+    """Load the JPSS-1 1-minute reference OEM."""
+    return CcsdsOem.read(str(JPSS1_REFERENCE_FILE))
+
+
+@pytest.fixture(scope="module")
+def jpss1_reference_states(jpss1_reference_oem: CcsdsOem) -> dict[float, np.ndarray]:
+    """Build timestamp -> state lookup from JPSS-1 reference OEM."""
+    return {ts: state for ts, state in jpss1_reference_oem.states}
+
+
+# --- Helper ---
+
+
+def _run_accuracy_test(
     input_file: str,
     spec: InterpolationSpec,
-    reference_oem: CcsdsOem,
+    step_size: timedelta,
     reference_states: dict[float, np.ndarray],
 ) -> None:
-    """Interpolate input OEM to 4m steps and compare against reference.
-
-    This is a characterization test: it measures and reports interpolation
-    accuracy for each method/degree/input combination. The assertion uses a
-    loose bound to detect catastrophic failures only.
-    """
+    """Interpolate input OEM and compare against reference states."""
     oem = CcsdsOem.read(str(DATA_DIR / input_file))
 
     options = TimeSliceOptions(
         start_time=None,
         stop_time=timedelta(0),
-        step_size=STEP_SIZE,
+        step_size=step_size,
         interpolation_spec=spec,
     )
 
     result_oem = extract_states_by_time(oem, options)
 
-    # Compare each interpolated state against reference
     position_errors_km: list[float] = []
     velocity_errors_kms: list[float] = []
 
@@ -120,7 +144,6 @@ def test_interpolator_accuracy(
     max_vel = max(velocity_errors_kms)
     rms_vel = float(np.sqrt(np.mean(np.array(velocity_errors_kms) ** 2)))
 
-    # Report (visible with pytest -s)
     print(
         f"\n  [{_file_id(input_file)}][{_spec_id(spec)}] "
         f"pos_max={max_pos:.3f} km  pos_rms={rms_pos:.3f} km  "
@@ -128,8 +151,37 @@ def test_interpolator_accuracy(
         f"n={len(position_errors_km)}"
     )
 
-    # Loose sanity bound — catches NaN/Inf or completely broken interpolators
     assert max_pos < MAX_POSITION_ERROR_KM, (
         f"Position error {max_pos:.3f} km exceeds sanity bound "
         f"[{_file_id(input_file)}][{_spec_id(spec)}]"
     )
+
+
+# --- ISS tests ---
+
+
+@pytest.mark.accuracy
+@pytest.mark.parametrize("input_file", ISS_INPUT_FILES, ids=_file_id)
+@pytest.mark.parametrize("spec", INTERPOLATION_SPECS, ids=_spec_id)
+def test_iss_interpolator_accuracy(
+    input_file: str,
+    spec: InterpolationSpec,
+    iss_reference_states: dict[float, np.ndarray],
+) -> None:
+    """ISS: interpolate to 4m steps and compare against reference."""
+    _run_accuracy_test(input_file, spec, ISS_STEP_SIZE, iss_reference_states)
+
+
+# --- JPSS-1 tests ---
+
+
+@pytest.mark.accuracy
+@pytest.mark.parametrize("input_file", JPSS1_INPUT_FILES, ids=_file_id)
+@pytest.mark.parametrize("spec", INTERPOLATION_SPECS, ids=_spec_id)
+def test_jpss1_interpolator_accuracy(
+    input_file: str,
+    spec: InterpolationSpec,
+    jpss1_reference_states: dict[float, np.ndarray],
+) -> None:
+    """JPSS-1: interpolate to 1m steps and compare against reference."""
+    _run_accuracy_test(input_file, spec, JPSS1_STEP_SIZE, jpss1_reference_states)
