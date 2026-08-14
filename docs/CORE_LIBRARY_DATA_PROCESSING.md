@@ -97,6 +97,28 @@ Hermite polynomial interpolator supporting derivative data for improved accuracy
 - `DEFAULT_HERMITE_DEGREE = 5`: Default polynomial degree
 - `DERIVATIVE_UNAVAILABLE_SENTINEL = -9.99999e99`: Sentinel value for unavailable derivatives
 
+### tudatpy_utils.core.interpolator.chebyshev - Chebyshev Interpolator
+
+#### `class ChebyshevInterpolator(Interpolator)`
+Chebyshev polynomial interpolator for scalar or vector dependent data using a local window around each query.
+
+**Key Methods:**
+- `__init__(dimension: int = 1, degree: int = 5)`: Initialize with dependent dimension and polynomial degree
+- `reset_state()`: Reset transient interpolation state while keeping stored samples
+- `clear_storage()`: Clear stored sample data and reset the interpolation state
+- `interpolate(independent_value: float) -> np.ndarray | None`: Evaluate the interpolant at a query value
+- `_select_window(independent_values: np.ndarray, independent_value: float, degree: int) -> tuple[int, int, int]`: Select a local sample window and effective degree
+
+**Properties:**
+- `degree`: Current interpolation polynomial degree
+- `base_degree`: Base degree restored when the data set is reset or refilled
+- `required_points`: Minimum samples required for a degree-N fit (`degree + 1`)
+
+**Constants:**
+- `DEFAULT_CHEBYSHEV_DEGREE = 5`: Default polynomial degree
+- `RANGE_EXTRAPOLATION_TOLERANCE = 1.0e-12`: Tolerance when accepting marginal out-of-range values
+- `BOUNDARY_DEGREE_BOOST = 2`: Extra points used to widen boundary windows for stability
+
 ### tudatpy_utils.core.interpolator.lagrange - Lagrange Interpolator
 
 #### `class LagrangeInterpolator(Interpolator)`
@@ -151,19 +173,23 @@ Natural cubic spline interpolator for scalar or vector dependent data.
 Interpolation method type.
 
 **Values:**
-- `LAGRANGE = "lagrange"`: Lagrange polynomial interpolation
 - `HERMITE = "hermite"`: Hermite polynomial interpolation
+- `CHEBYSHEV = "chebyshev"`: Chebyshev polynomial interpolation
+- `LAGRANGE = "lagrange"`: Lagrange polynomial interpolation
+- `CUBIC = "cubic"`: Natural cubic spline interpolation
 
 #### `class InterpolationSpec` (dataclass)
 Interpolation specification with type and optional degree.
 
 **Fields:**
 - `interp_type`: Type of interpolation (InterpolationType)
-- `degree`: Polynomial degree (defaults: Lagrange=7, Hermite=5)
+- `degree`: Polynomial degree or spline degree; defaults are set in `__post_init__()`
 
 **Constants:**
-- `DEFAULT_LAGRANGE_DEGREE = 7`: Default polynomial degree for Lagrange
 - `DEFAULT_HERMITE_DEGREE = 5`: Default polynomial degree for Hermite
+- `DEFAULT_CHEBYSHEV_DEGREE = 5`: Default degree for Chebyshev interpolation
+- `DEFAULT_LAGRANGE_DEGREE = 7`: Default polynomial degree for Lagrange
+- `DEFAULT_CUBIC_DEGREE = 3`: Default degree for cubic spline interpolation
 
 ### tudatpy_utils.core.interpolator.factory - Interpolator Factory
 
@@ -173,6 +199,12 @@ Factory for creating interpolator instances from specifications.
 **Key Methods:**
 - `create(spec: InterpolationSpec, dimension: int = 6, is_cartesian_state: bool = False, verbose: bool = False, context: str = "factory", data = None, dependent_data = None) -> Interpolator`: Create an interpolator from a specification
 
+**Supported types:**
+- `InterpolationType.HERMITE` → `HermiteInterpolator`
+- `InterpolationType.CHEBYSHEV` → `ChebyshevInterpolator`
+- `InterpolationType.LAGRANGE` → `LagrangeInterpolator`
+- `InterpolationType.CUBIC` → `CubicSplineInterpolator`
+
 ---
 
 ## tudatpy_utils.core.cli - CLI Utilities
@@ -180,7 +212,7 @@ Factory for creating interpolator instances from specifications.
 **Purpose**: Common CLI utilities for parsing command-line arguments.
 
 ### Constants
-- `VALID_INTERPOLATION_TYPES = ["lagrange", "hermite"]`: Valid interpolation type names
+- `VALID_INTERPOLATION_TYPES = ["hermite", "chebyshev", "lagrange"]`: Valid interpolation type names for CLI arguments
 
 ### Functions
 
@@ -195,4 +227,4 @@ Parse interpolation type argument from CLI.
 - `InterpolationSpec`: Interpolation specification with type and degree
 
 **Raises:**
-- `argparse.ArgumentTypeError`: If format is invalid
+- `argparse.ArgumentTypeError`: If the format is invalid or the interpolation type is unsupported

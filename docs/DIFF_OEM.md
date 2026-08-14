@@ -36,7 +36,7 @@ diff-oem <reference_oem.oem> - [OPTIONS]
 | `--interpolate-ref` | Interpolate reference OEM at each comparison state timestamp |
 | `--interpolate-data` | Interpolate comparison OEM at each reference state timestamp (default) |
 | `--interpolate` | Interpolate both reference and comparison OEM data |
-| `--interpolate-type <type[,degree]>` | Interpolation method: `lagrange` or `hermite` (default: hermite,5) |
+| `--interpolate-type <type[,degree]>` | Interpolation method: `hermite`, `chebyshev`, or `lagrange` (default: hermite,5) |
 | `--rtn` | Include comparison state coordinates in the reference RTN frame |
 | `--rot` | Fit and apply a fixed 3D rotation before comparison |
 | `--rot-xy` | Fit and apply a fixed rotation around X and Y axes only |
@@ -133,7 +133,7 @@ diff-oem reference.oem comparison.oem --start 30m --stop 2h
 
 ## Interpolation
 
-The script uses **Hermite polynomial interpolation** (default: 5th-degree) to compute states at non-matching epochs. Lagrange interpolation is also available.
+The script uses **Hermite polynomial interpolation** (default: 5th-degree) to compute states at non-matching epochs. Chebyshev and Lagrange interpolation are also available.
 
 ### Interpolation Methods
 
@@ -141,6 +141,11 @@ The script uses **Hermite polynomial interpolation** (default: 5th-degree) to co
 - Uses both position and velocity data for improved accuracy
 - Default degree: 5
 - Specify with `--interpolate-type hermite` or `--interpolate-type hermite,<degree>`
+
+**Chebyshev interpolation**:
+- Uses a local polynomial window in the Chebyshev basis
+- Default degree: 5
+- Specify with `--interpolate-type chebyshev` or `--interpolate-type chebyshev,<degree>`
 
 **Lagrange interpolation**:
 - Uses position data only

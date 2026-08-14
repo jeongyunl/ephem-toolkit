@@ -118,7 +118,7 @@ See [TIME_CONVERSION.md](docs/TIME_CONVERSION.md) for full usage details.
 Reusable Python modules providing foundational astrodynamics functionality. These are imported by the application modules and CLI tools.
 
 **Key modules:**
-- **Interpolation** — Lagrange and Hermite polynomial interpolators with configurable degree
+- **Interpolation** — Hermite, Chebyshev, and Lagrange polynomial interpolators with configurable degree, plus cubic-spline support in the factory layer
 - **CCSDS** — OEM, OMM, and ODM parsers and writers
 - **Time utilities** — ISO 8601, duration parsing, time conversions
 - **Orbital elements** — Cartesian ↔ Keplerian conversions, anomaly calculations
