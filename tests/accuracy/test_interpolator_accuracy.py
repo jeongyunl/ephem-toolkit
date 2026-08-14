@@ -185,3 +185,69 @@ def test_jpss1_interpolator_accuracy(
 ) -> None:
     """JPSS-1: interpolate to 1m steps and compare against reference."""
     _run_accuracy_test(input_file, spec, JPSS1_STEP_SIZE, jpss1_reference_states)
+
+
+# --- Useable time range tests ---
+
+
+def _expected_margin_intervals(spec: InterpolationSpec) -> int:
+    """Return expected margin in number of source data intervals."""
+    import math
+
+    if spec.interp_type == InterpolationType.CUBIC:
+        return 2
+    return math.ceil(spec.degree / 2)
+
+
+@pytest.mark.accuracy
+@pytest.mark.parametrize("spec", INTERPOLATION_SPECS, ids=_spec_id)
+def test_useable_time_range_metadata(spec: InterpolationSpec) -> None:
+    """Verify OEM USEABLE_START_TIME/USEABLE_STOP_TIME metadata is set correctly after interpolation."""
+    input_file = "JPSS-1_small.5m.oem"
+    oem = CcsdsOem.read(str(DATA_DIR / input_file))
+
+    options = TimeSliceOptions(
+        start_time=None,
+        stop_time=timedelta(0),
+        step_size=timedelta(minutes=1),
+        interpolation_spec=spec,
+    )
+
+    result_oem = extract_states_by_time(oem, options)
+
+    # Useable times must be set
+    assert result_oem.meta.useable_start_time, "USEABLE_START_TIME not set"
+    assert result_oem.meta.useable_stop_time, "USEABLE_STOP_TIME not set"
+
+    # Parse timestamps
+    from core.time_utils import iso8601_to_datetime
+
+    start_dt = iso8601_to_datetime(result_oem.meta.start_time)
+    stop_dt = iso8601_to_datetime(result_oem.meta.stop_time)
+    useable_start_dt = iso8601_to_datetime(result_oem.meta.useable_start_time)
+    useable_stop_dt = iso8601_to_datetime(result_oem.meta.useable_stop_time)
+
+    # Useable range must be inside start/stop
+    assert useable_start_dt > start_dt
+    assert useable_stop_dt < stop_dt
+    assert useable_start_dt < useable_stop_dt
+
+    # Verify margin matches expected intervals
+    # Source data interval is 5 minutes
+    source_interval_s = 5 * 60
+    expected_margin_s = _expected_margin_intervals(spec) * source_interval_s
+
+    actual_start_margin = (useable_start_dt - start_dt).total_seconds()
+    actual_stop_margin = (stop_dt - useable_stop_dt).total_seconds()
+
+    assert (
+        abs(actual_start_margin - expected_margin_s) < 1.0
+    ), f"Start margin {actual_start_margin}s != expected {expected_margin_s}s"
+    assert (
+        abs(actual_stop_margin - expected_margin_s) < 1.0
+    ), f"Stop margin {actual_stop_margin}s != expected {expected_margin_s}s"
+
+    print(
+        f"\n  [{_spec_id(spec)}] margin={expected_margin_s/60:.0f}m "
+        f"useable={result_oem.meta.useable_start_time} to {result_oem.meta.useable_stop_time}"
+    )
