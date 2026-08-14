@@ -608,24 +608,23 @@ def extract_states_by_time(
 
     # Create new CcsdsOem with sliced states and preserved metadata
     return _create_sliced_oem(
-        oem, sliced_states,
+        oem,
+        sliced_states,
         interpolation_spec=interpolation_spec,
         source_states=states,
+        step_size=options.step_size,
     )
 
 
-def _compute_useable_margin(
+def _compute_unusable_margin(
     interpolation_spec: InterpolationSpec | None,
     source_states: list[tuple[float, np.ndarray]],
 ) -> float:
-    """Compute the time margin (seconds) where interpolation is less accurate.
+    """Compute the time margin (seconds) at each boundary where interpolation is UNUSABLE (inaccurate).
 
-    For local polynomial interpolators (Lagrange, Hermite, Chebyshev), boundary
-    points lack sufficient neighbors on one side. The useable range is inset by
-    ceil(degree/2) data intervals from each end.
-
-    For cubic spline (global), natural boundary conditions cause reduced accuracy
-    at the edges; margin is set to 2 data intervals.
+    This margin represents the UNUSABLE region near boundaries where interpolation errors are large.
+    The margin is based on the minimum number of data points needed for the interpolation stencil,
+    scaled conservatively to account for boundary effects.
 
     Parameters
     ----------
@@ -637,7 +636,7 @@ def _compute_useable_margin(
     Returns
     -------
     float
-        Time margin in seconds to inset from each boundary.
+        Time margin in seconds representing the UNUSABLE region to inset from each boundary.
     """
     if interpolation_spec is None or len(source_states) < 3:
         return 0.0
@@ -649,14 +648,24 @@ def _compute_useable_margin(
     avg_interval_s = (last_ts - first_ts) / n_intervals
 
     if interpolation_spec.interp_type == InterpolationType.CUBIC:
-        # Natural cubic spline: 2 intervals margin at boundaries
-        margin_intervals = 2
+        # Natural cubic spline: boundary errors due to zero-second-derivative conditions.
+        # Use 1 interval as UNUSABLE margin.
+        base_margin_intervals = 1
+    elif interpolation_spec.interp_type == InterpolationType.HERMITE:
+        # Hermite: no UNUSABLE margin needed (derivative info handles boundaries well).
+        base_margin_intervals = 0
+    elif interpolation_spec.interp_type == InterpolationType.LAGRANGE:
+        # Lagrange: lower degrees have larger boundary errors, scale margin with degree.
+        # degree 5-7: 2 intervals, degree 9+: 1 interval
+        if interpolation_spec.degree <= 7:
+            base_margin_intervals = 2
+        else:
+            base_margin_intervals = 1
     else:
-        # Local polynomial: ceil(degree / 2) intervals
-        import math
-        margin_intervals = math.ceil(interpolation_spec.degree / 2)
+        # Chebyshev: no UNUSABLE margin needed.
+        base_margin_intervals = 0
 
-    return margin_intervals * avg_interval_s
+    return base_margin_intervals * avg_interval_s
 
 
 def _create_sliced_oem(
@@ -664,6 +673,7 @@ def _create_sliced_oem(
     sliced_states: list[tuple[float, np.ndarray]],
     interpolation_spec: InterpolationSpec | None = None,
     source_states: list[tuple[float, np.ndarray]] | None = None,
+    step_size: timedelta | None = None,
 ) -> CcsdsOem:
     """Create a new CcsdsOem with sliced states while preserving original metadata.
 
@@ -672,8 +682,9 @@ def _create_sliced_oem(
     slicing (START_TIME, STOP_TIME, USEABLE_START_TIME, USEABLE_STOP_TIME).
 
     When interpolation was used, USEABLE_START_TIME and USEABLE_STOP_TIME are set
-    to reflect the region where interpolation accuracy is reliable (excluding
-    boundary effects).
+    to reflect the USABLE region where interpolation accuracy is reliable (excluding
+    UNUSABLE boundary effects). If step_size is provided, USABLE boundaries are aligned
+    to step boundaries.
 
     Parameters
     ----------
@@ -682,9 +693,11 @@ def _create_sliced_oem(
     sliced_states : list[tuple[float, np.ndarray]]
         List of (timestamp, state_vector) tuples for the sliced data.
     interpolation_spec : InterpolationSpec | None, optional
-        Interpolation specification used, for computing useable time bounds.
+        Interpolation specification used, for computing USABLE time bounds.
     source_states : list[tuple[float, np.ndarray]] | None, optional
         Original source states used for interpolation (for margin calculation).
+    step_size : timedelta | None, optional
+        Step size used for interpolation, for aligning USABLE boundaries.
 
     Returns
     -------
@@ -711,30 +724,49 @@ def _create_sliced_oem(
         new_meta.start_time = time_utils.datetime_to_iso8601(start_dt)
         new_meta.stop_time = time_utils.datetime_to_iso8601(stop_dt)
 
-        # Compute useable time range based on interpolation boundary effects
+        # Compute USABLE time range by excluding UNUSABLE boundary margins
+        # The margin represents the UNUSABLE region at each boundary
         src = source_states if source_states is not None else sliced_states
-        margin_s = _compute_useable_margin(interpolation_spec, src)
+        unusable_margin_s = _compute_unusable_margin(interpolation_spec, src)
 
-        if margin_s > 0.0 and len(sliced_states) > 1:
-            useable_start_ts = sliced_states[0][0] + margin_s
-            useable_stop_ts = sliced_states[-1][0] - margin_s
-            if useable_start_ts < useable_stop_ts:
-                useable_start_dt = datetime.fromtimestamp(
-                    useable_start_ts, tz=timezone.utc
+        if unusable_margin_s > 0.0 and len(sliced_states) > 1:
+            # Inset by the UNUSABLE margin to find the USABLE region
+            usable_start_ts = sliced_states[0][0] + unusable_margin_s
+            usable_stop_ts = sliced_states[-1][0] - unusable_margin_s
+
+            # Align USABLE boundaries to step size if provided
+            if step_size is not None:
+                step_s = step_size.total_seconds()
+                start_ts = sliced_states[0][0]
+
+                # Find first step boundary >= usable_start_ts (first USABLE step)
+                steps_from_start = (usable_start_ts - start_ts) / step_s
+                aligned_start_steps = int(np.ceil(steps_from_start))
+                usable_start_ts = start_ts + aligned_start_steps * step_s
+
+                # Find last step boundary <= usable_stop_ts (last USABLE step)
+                steps_to_stop = (usable_stop_ts - start_ts) / step_s
+                aligned_stop_steps = int(np.floor(steps_to_stop))
+                usable_stop_ts = start_ts + aligned_stop_steps * step_s
+
+            # Only set USABLE_START/STOP_TIME if there's a valid USABLE region
+            if usable_start_ts < usable_stop_ts:
+                usable_start_dt = datetime.fromtimestamp(
+                    usable_start_ts, tz=timezone.utc
                 )
-                useable_stop_dt = datetime.fromtimestamp(
-                    useable_stop_ts, tz=timezone.utc
-                )
+                usable_stop_dt = datetime.fromtimestamp(usable_stop_ts, tz=timezone.utc)
                 new_meta.useable_start_time = time_utils.datetime_to_iso8601(
-                    useable_start_dt
+                    usable_start_dt
                 )
                 new_meta.useable_stop_time = time_utils.datetime_to_iso8601(
-                    useable_stop_dt
+                    usable_stop_dt
                 )
             else:
+                # No USABLE region exists (entire output is UNUSABLE)
                 new_meta.useable_start_time = ""
                 new_meta.useable_stop_time = ""
         else:
+            # No interpolation or insufficient data: entire output is USABLE
             new_meta.useable_start_time = ""
             new_meta.useable_stop_time = ""
 
