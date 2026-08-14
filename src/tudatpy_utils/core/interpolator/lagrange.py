@@ -8,17 +8,18 @@ formula to produce an interpolated dependent vector.
 from __future__ import annotations
 
 import numpy as np
+from typing_extensions import override
 
 from .interpolator import Interpolator
+
+DEFAULT_LAGRANGE_DEGREE: int = 7
+"""Default polynomial degree for Lagrange interpolation."""
 
 RANGE_OVERSHOOT_TOLERANCE: float = 1e-8
 """Tolerance for allowing queries marginally outside the stored data range."""
 
 MIN_DIFFERENCE_FOR_START: float = 1.0e30
 """Sentinel initial value used when searching for the minimum window bias."""
-
-DEFAULT_LAGRANGE_DEGREE: int = 7
-"""Default polynomial degree."""
 
 
 class LagrangeInterpolator(Interpolator):
@@ -45,11 +46,15 @@ class LagrangeInterpolator(Interpolator):
         """Required points for a degree-N polynomial is N+1."""
 
         self.candidate_window_start_index: int = 0
-        """Indices used to select the interpolation window."""
+        """Start index of the candidate interpolation window."""
         self.evaluation_start_index: int = 0
+        """Start index for the actual evaluation window."""
         self.candidate_window_end_index: int = 0
+        """End index of the candidate interpolation window."""
         self.closest_data_index: int = 0
+        """Index of the stored sample closest to the query point."""
 
+    @override
     def add_data_point(
         self, independent_value: float, dependent_data: np.ndarray
     ) -> None:
@@ -64,6 +69,7 @@ class LagrangeInterpolator(Interpolator):
         """
         return super().add_data_point(independent_value, dependent_data)
 
+    @override
     def reset_state(self) -> None:
         """Reset interpolator state while preserving stored samples."""
         super().reset_state()
@@ -74,11 +80,13 @@ class LagrangeInterpolator(Interpolator):
         self.candidate_window_end_index = 0
         self.closest_data_index = 0
 
+    @override
     def clear_storage(self) -> None:
         """Clear stored sample data and reset state for a fresh interpolation run."""
         super().clear_storage()
         self.reset_state()
 
+    @override
     def interpolate(self, independent_value: float) -> np.ndarray | None:
         """Compute the interpolated dependent vector for the requested value.
 
@@ -93,8 +101,8 @@ class LagrangeInterpolator(Interpolator):
             Interpolated dependent vector, or None if interpolation fails.
         """
         self._adjust_order_for_points()
-        feasibility_flag: int = self._check_interpolation_feasibility(independent_value)
-        if feasibility_flag != 1:
+        is_feasible: int = self._check_interpolation_feasibility(independent_value)
+        if is_feasible != 1:
             return None
 
         # Choose a local set of sample points around the query point.
@@ -313,7 +321,7 @@ class LagrangeInterpolator(Interpolator):
         bool
             True if query is centered in the window, False otherwise.
         """
-        retval: bool = False
+        is_centered: bool = False
 
         if (self.candidate_window_start_index >= 0) and (
             self.candidate_window_end_index < len(self.independent_values)
@@ -321,9 +329,9 @@ class LagrangeInterpolator(Interpolator):
             if (self.closest_data_index + (self.degree / 2)) < len(
                 self.independent_values
             ):
-                retval = True
+                is_centered = True
 
-        return retval
+        return is_centered
 
     def _choose_evaluation_start_index(self, independent_value: float) -> None:
         """Pick the starting index for the interpolation window that minimizes bias.

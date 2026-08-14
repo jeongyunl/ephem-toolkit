@@ -310,6 +310,31 @@ class LagrangeInterpolator(Interpolator):
 
 **Rationale:** Placing public methods first in base class order makes the public API immediately visible and consistent across related classes. Private methods (prefixed with `_`) are implementation details and belong at the end.
 
+### 6.6 Override decorator
+
+**Use `@override` decorator for all methods that override base class methods.**
+
+Import from `typing_extensions` and apply to overridden methods. This makes inheritance explicit and enables static type checkers to verify the override is correct.
+
+```python
+from typing_extensions import override
+
+class LagrangeInterpolator(Interpolator):
+    """Lagrange interpolator."""
+    
+    @override
+    def add_data_point(self, independent_value: float, dependent_data: np.ndarray) -> None:
+        """Append a new sample to the base interpolator storage."""
+        return super().add_data_point(independent_value, dependent_data)
+    
+    @override
+    def interpolate(self, independent_value: float) -> np.ndarray | None:
+        """Compute the interpolated dependent vector."""
+        # ... implementation
+```
+
+**Rationale:** The `@override` decorator documents intent, catches errors when base class signatures change, and helps IDEs provide better refactoring support.
+
 ### 6.5 `__repr__`
 
 Return concise string with class name and key fields:
