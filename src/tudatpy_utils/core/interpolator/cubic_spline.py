@@ -33,14 +33,30 @@ class CubicSplineInterpolator(Interpolator):
         super().__init__(dimension)
         self.required_points: int = 2
         """Minimum number of samples required for cubic spline interpolation."""
+        self._cached_coefficients: list[np.ndarray] | None = None
+        """Cached spline coefficients, invalidated on data change."""
+        self._cached_point_count: int = 0
+        """Point count when coefficients were last computed."""
 
     def reset_state(self) -> None:
         """Reset transient interpolation state while keeping buffered samples."""
         super().reset_state()
+        self._cached_coefficients = None
+        self._cached_point_count = 0
 
     def clear_storage(self) -> None:
         """Remove all data and reset the spline state."""
         super().clear_storage()
+        self._cached_coefficients = None
+        self._cached_point_count = 0
+
+    def add_data_point(
+        self, independent_value: float, dependent_data: np.ndarray
+    ) -> None:
+        """Append a new sample and invalidate cached coefficients."""
+        super().add_data_point(independent_value, dependent_data)
+        self._cached_coefficients = None
+        self._cached_point_count = 0
 
     def interpolate(self, independent_value: float) -> np.ndarray | None:
         """Compute the interpolated dependent vector for the given query value.
@@ -78,7 +94,7 @@ class CubicSplineInterpolator(Interpolator):
         if independent_value >= independent_values_array[-1]:
             return np.asarray(self.dependent_values[-1], dtype=float).copy()
 
-        coefficients = self._compute_interval_coefficients()
+        coefficients = self._get_coefficients()
         interval_index = (
             np.searchsorted(independent_values_array, independent_value, side="right")
             - 1
@@ -102,6 +118,17 @@ class CubicSplineInterpolator(Interpolator):
             )
 
         return interpolated_values
+
+    def _get_coefficients(self) -> list[np.ndarray]:
+        """Return cached coefficients, recomputing only if data changed."""
+        current_count = len(self.independent_values)
+        if (
+            self._cached_coefficients is None
+            or self._cached_point_count != current_count
+        ):
+            self._cached_coefficients = self._compute_interval_coefficients()
+            self._cached_point_count = current_count
+        return self._cached_coefficients
 
     def _compute_interval_coefficients(self) -> list[np.ndarray]:
         """Return cubic coefficients for each interval and dimension.
