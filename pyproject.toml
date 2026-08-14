@@ -60,7 +60,10 @@ numpy = "^1.23"
 pytest = ">=7.0"
 
 [tool.pytest.ini_options]
-addopts = "--import-mode=importlib"
+addopts = "--import-mode=importlib -m 'not accuracy'"
+markers = [
+    "accuracy: numerical accuracy tests (run with: pytest -m accuracy)",
+]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
