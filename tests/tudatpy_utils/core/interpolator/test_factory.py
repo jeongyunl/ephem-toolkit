@@ -28,7 +28,7 @@ def test_factory_creates_hermite_interpolator() -> None:
         spec, dimension=6, is_cartesian_state=True
     )
 
-    assert isinstance(interpolator, hermite.HermiteInterpolator)
+    assert isinstance(interpolator, hermite.HermiteDividedDifferenceInterpolator)
     assert interpolator.dependent_dimension == 6
     assert interpolator.is_cartesian_state is True
 
@@ -49,7 +49,7 @@ def test_factory_uses_default_degree_for_hermite() -> None:
         spec, dimension=6, is_cartesian_state=True
     )
 
-    assert isinstance(interpolator, hermite.HermiteInterpolator)
+    assert isinstance(interpolator, hermite.HermiteDividedDifferenceInterpolator)
     assert interpolator.required_points == 6  # degree + 1 = 5 + 1
 
 
@@ -91,6 +91,6 @@ def test_factory_hermite_with_non_cartesian_state() -> None:
         spec, dimension=3, is_cartesian_state=False
     )
 
-    assert isinstance(interpolator, hermite.HermiteInterpolator)
+    assert isinstance(interpolator, hermite.HermiteDividedDifferenceInterpolator)
     assert interpolator.is_cartesian_state is False
     assert interpolator.dependent_dimension == 3
