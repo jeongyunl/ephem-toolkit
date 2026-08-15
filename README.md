@@ -17,8 +17,8 @@ The repository is organized into three layers:
 ```
 src/tudatpy_utils/
 ├── core/              Shared Python library modules
-│   ├── interpolator/    Interpolation sub-library (Lagrange, generic)
-│   └── ccsds/          CCSDS ODM, OEM, and OMM definitions and parsers
+│   ├── interpolator/    Public interpolation package for Lagrange, Hermite, Chebyshev, and spline methods
+│   └── ccsds/          CCSCS ODM, OEM, and OMM definitions and parsers
 ├── cli/                 Command-line interface entry points
 ├── diff_oem/           OEM comparison application module
 ├── oem_to_omm/         OEM-to-OMM estimation application module (includes TLE fitting)

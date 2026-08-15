@@ -57,7 +57,7 @@ Extract states within a time window using `TimeSliceOptions`. Supports interpola
 #### `class Interpolator`
 Base interpolator supporting fixed-size ordered sample storage.
 
-**Key Methods:**
+**Public API:**
 - `__init__(dimension: int = 1)`: Initialize with dependent-vector dimension
 - `add_data_point(independent_value: float, dependent_data: np.ndarray)`: Store a new sample pair
 - `set_data(data: dict | list, dependent_data: list | None = None)`: Replace all stored samples
@@ -65,7 +65,7 @@ Base interpolator supporting fixed-size ordered sample storage.
 - `clear_storage()`: Remove all stored samples and reset internal state
 - `interpolate(independent_value: float) -> np.ndarray | None`: Compute interpolated dependent data
 
-**Properties:**
+**Public properties:**
 - `force_interpolation`: Whether to force interpolation even with poor conditions
 - `allow_extrapolation`: Whether to allow queries outside the data range
 - `independent_values`: Ordered independent variable values
@@ -78,20 +78,18 @@ Base interpolator supporting fixed-size ordered sample storage.
 #### `class SlidingWindowHermiteInterpolator(Interpolator)`
 Sliding-window Hermite polynomial interpolator with cached local windows and derivative support for improved accuracy.
 
-**Key Methods:**
-- `__init__(dimension: int = 1, degree: int = 5, is_cartesian_state: bool = False)`: Initialize with dimension, polynomial degree, and optional Cartesian state mode. Raises ValueError if is_cartesian_state is True but dimension is not 6.
-- `add_derivative(independent_value: float, derivative_data: np.ndarray, derivative_order: int = 1) -> bool`: Add derivative data for a specific independent value
-- `set_derivative_data(derivative_data: list[np.ndarray] | None = None, derivative_order: int = 1)`: Replace all stored derivatives. Must be called after set_data() since it requires independent_values to already be populated.
-- `clear_storage()`: Remove all stored samples, derivatives, and reset state
-- `interpolate(independent_value: float) -> np.ndarray | None`: Interpolate dependent values at given independent value. Delegates to interpolate_cartesian_state() when is_cartesian_state is True.
-- `interpolate_cartesian_state(independent_value: float) -> np.ndarray | None`: Interpolate 6D Cartesian state (position + velocity)
+**Public API:**
+- `__init__(dimension: int = 1, degree: int = 5, is_cartesian_state: bool = False)`: Initialize with dimension, polynomial degree, and optional Cartesian state mode. Raises ValueError if `is_cartesian_state` is True but the dimension is not 6.
+- `add_derivative(independent_value: float, derivative_data: np.ndarray, derivative_order: int = 1) -> bool`: Add derivative data for a specific independent value.
+- `set_derivative_data(derivative_data: list[np.ndarray] | None = None, derivative_order: int = 1)`: Replace all stored derivatives.
+- `clear_storage()`: Remove all stored samples, derivatives, and reset state.
+- `interpolate(independent_value: float) -> np.ndarray | None`: Interpolate dependent values at the requested independent value.
+- `interpolate_cartesian_state(independent_value: float) -> np.ndarray | None`: Interpolate a 6D Cartesian state (position + velocity).
 
-**Properties:**
-- `required_points`: Required points for a degree-N polynomial (N+1)
-- `is_cartesian_state`: If True, interpolate() delegates to interpolate_cartesian_state()
+**Public properties:**
+- `required_points`: Required points for a degree-N polynomial (`N + 1`)
+- `is_cartesian_state`: Whether the interpolator is configured for Cartesian-state interpolation
 - `derivatives`: Derivative data structure
-- `q_coeffs`: Hermite polynomial coefficients
-- `t_values`: Independent values expanded for derivative data
 
 **Constants:**
 - `DEFAULT_HERMITE_DEGREE = 5`: Default polynomial degree
@@ -102,14 +100,13 @@ Sliding-window Hermite polynomial interpolator with cached local windows and der
 #### `class ChebyshevInterpolator(Interpolator)`
 Chebyshev polynomial interpolator for scalar or vector dependent data using a local window around each query.
 
-**Key Methods:**
+**Public API:**
 - `__init__(dimension: int = 1, degree: int = 5)`: Initialize with dependent dimension and polynomial degree
 - `reset_state()`: Reset transient interpolation state while keeping stored samples
 - `clear_storage()`: Clear stored sample data and reset the interpolation state
 - `interpolate(independent_value: float) -> np.ndarray | None`: Evaluate the interpolant at a query value
-- `_select_window(independent_values: np.ndarray, independent_value: float, degree: int) -> tuple[int, int, int]`: Select a local sample window and effective degree
 
-**Properties:**
+**Public properties:**
 - `degree`: Current interpolation polynomial degree
 - `base_degree`: Base degree restored when the data set is reset or refilled
 - `required_points`: Minimum samples required for a degree-N fit (`degree + 1`)
@@ -124,21 +121,21 @@ Chebyshev polynomial interpolator for scalar or vector dependent data using a lo
 #### `class LagrangeInterpolator(Interpolator)`
 Lagrange polynomial interpolator that selects a local polynomial window around each query point.
 
-**Key Methods:**
+**Public API:**
 - `__init__(dimension: int = 1, degree: int = 7)`: Initialize with dimension and polynomial degree
-- `add_data_point(independent_value: float, dependent_data: np.ndarray)`: Append new sample
+- `add_data_point(independent_value: float, dependent_data: np.ndarray)`: Append a new sample
 - `reset_state()`: Reset interpolator state while preserving stored samples
 - `clear_storage()`: Clear stored sample data and reset state
 - `interpolate(independent_value: float) -> np.ndarray | None`: Compute interpolated dependent vector
 
-**Properties:**
+**Public properties:**
 - `degree`: Current interpolation polynomial degree
-- `base_degree`: Base degree to restore when buffer returns to full capacity
-- `required_points`: Minimum samples required (degree + 1)
+- `base_degree`: Base degree to restore when the buffer returns to full capacity
+- `required_points`: Minimum samples required (`degree + 1`)
 
 **Constants:**
 - `DEFAULT_LAGRANGE_DEGREE = 7`: Default polynomial degree
-- `RANGE_OVERSHOOT_TOLERANCE = 1e-8`: Tolerance for queries marginally outside data range
+- `RANGE_OVERSHOOT_TOLERANCE = 1e-8`: Tolerance for queries marginally outside the data range
 - `MIN_DIFFERENCE_FOR_START = 1.0e30`: Sentinel value for window bias search
 
 ### tudatpy_utils.core.interpolator.cubic_spline - Cubic Spline Interpolator
@@ -146,14 +143,13 @@ Lagrange polynomial interpolator that selects a local polynomial window around e
 #### `class CubicSplineInterpolator(Interpolator)`
 Natural cubic spline interpolator for scalar or vector dependent data.
 
-**Key Methods:**
+**Public API:**
 - `__init__(dimension: int = 1)`: Initialize an interpolator for a dependent dimension of size `dimension`
 - `reset_state()`: Reset the transient interpolation state while preserving buffered samples
 - `clear_storage()`: Remove all sample data and reset spline state
 - `interpolate(independent_value: float) -> np.ndarray | None`: Evaluate the cubic spline at a query location
-- `_compute_interval_coefficients() -> list[np.ndarray]`: Build local cubic coefficients for each interval and component
 
-**Properties:**
+**Public properties:**
 - `required_points`: Minimum samples required for interpolation (`2` for a cubic spline)
 - `dependent_dimension`: Number of dependent components in each sample vector
 - `independent_values`: Ordered independent variable samples

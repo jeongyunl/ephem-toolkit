@@ -522,10 +522,10 @@ See `diff_oem/README.md` for module structure and `tests/` directory for more ex
 
 - **Method**: Lagrange polynomial interpolation
 - **Degree**: 8th-order polynomial
-- **Implementation**: `core.interpolator.lagrange.LagrangeInterpolator`
+- **API**: Public `LagrangeInterpolator` from the core interpolation package
 - **Application**: Interpolates both position and velocity components
 
-The 8th-degree polynomial provides a good balance between accuracy and numerical stability for typical orbital trajectories.
+The 8th-degree polynomial provides a good balance between accuracy and numerical stability for typical orbital trajectories. Internal helper methods are not part of the documented public interface.
 
 ### Rotation Fitting
 
