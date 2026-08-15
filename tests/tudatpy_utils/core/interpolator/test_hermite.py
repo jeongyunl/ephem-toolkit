@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+import core.interpolator.chebyshev as chebyshev
 import core.interpolator.hermite as hermite
 
 
@@ -227,6 +228,22 @@ def test_is_cartesian_state_wrong_dimension_in_constructor() -> None:
         ValueError, match="dimension must be 6 when is_cartesian_state is True"
     ):
         hermite.SlidingWindowHermiteInterpolator(dimension=3, degree=2, is_cartesian_state=True)
+
+
+def test_chebyshev_boundary_window_can_widen_at_domain_edge() -> None:
+    """Near the start of the data range, the Chebyshev window should widen on the available side."""
+    interpolator = chebyshev.ChebyshevInterpolator(
+        dimension=1,
+        degree=3,
+        boundary_mode="widen",
+        boundary_window_extension=2,
+    )
+
+    start, end, effective_degree = interpolator._select_window(np.arange(10.0), 0.25)
+
+    assert start == 0
+    assert end == 6
+    assert effective_degree == 3
 
 
 def test_hermite_interpolator_multidimensional() -> None:
