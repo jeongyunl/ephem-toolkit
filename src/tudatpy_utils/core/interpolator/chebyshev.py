@@ -36,7 +36,19 @@ class ChebyshevInterpolator(Interpolator):
         boundary_mode: str = "centered",
         boundary_window_extension: int = 0,
     ) -> None:
-        """Initialize the interpolator with a dependent-vector dimension and degree."""
+        """Initialize the interpolator state.
+
+        Parameters
+        ----------
+        dimension : int, optional
+            Number of components in each dependent data vector. Default is 1.
+        degree : int, optional
+            Polynomial degree used for the local Chebyshev fit. Default is 5.
+        boundary_mode : str, optional
+            Window-selection strategy used near the domain edges.
+        boundary_window_extension : int, optional
+            Additional sample points used when widening or anchoring edge windows.
+        """
         if degree < 1:
             raise ValueError("degree must be at least 1")
 
@@ -114,78 +126,92 @@ class ChebyshevInterpolator(Interpolator):
     ) -> tuple[int, int, int]:
         """Select a local sample window and effective degree for a query value.
 
-        The default strategy keeps a centered local window, while the experimental
-        boundary policies expand or anchor the window at the domain edge to reduce
-        the one-sided interpolation sensitivity that arises near the first and last
+        Parameters
+        ----------
+        independent_values : np.ndarray
+            Sorted independent-variable samples in the active dataset.
+        independent_value : float
+            Query value to be evaluated by the interpolator.
+
+        Returns
+        -------
+        tuple[int, int, int]
+            The inclusive-exclusive window bounds and the effective polynomial degree.
+
+        Notes
+        -----
+        The default strategy keeps a centered local window, while the boundary
+        policies expand or anchor the window at the domain edge to reduce the
+        one-sided interpolation sensitivity that arises near the first and last
         sample.
         """
-        n = len(independent_values)
-        effective_size = self.window_size
+        sample_count = len(independent_values)
+        effective_window_size = self.window_size
 
         if self.boundary_mode in {"widen", "edge"}:
-            effective_size = min(
-                n,
+            effective_window_size = min(
+                sample_count,
                 self.window_size
-                + min(self.boundary_window_extension, n - self.window_size),
+                + min(self.boundary_window_extension, sample_count - self.window_size),
             )
         elif self.boundary_mode == "compact":
-            effective_size = max(
+            effective_window_size = max(
                 2,
                 self.window_size
                 - min(self.boundary_window_extension, self.window_size - 2),
             )
 
-        if n <= effective_size:
-            return 0, n, min(self.degree, max(1, n - 1))
+        if sample_count <= effective_window_size:
+            return 0, sample_count, min(self.degree, max(1, sample_count - 1))
 
         insertion_index = int(np.searchsorted(independent_values, independent_value))
 
         if self.boundary_mode == "centered":
-            half_window = effective_size // 2
+            half_window = effective_window_size // 2
             start = insertion_index - half_window
             if start < 0:
                 start = 0
-            end = start + effective_size
-            if end > n:
-                end = n
-                start = max(0, end - effective_size)
+            end = start + effective_window_size
+            if end > sample_count:
+                end = sample_count
+                start = max(0, end - effective_window_size)
         elif self.boundary_mode in {"widen", "edge"}:
-            if insertion_index <= effective_size // 2:
+            if insertion_index <= effective_window_size // 2:
                 start = 0
-                end = min(n, effective_size)
-            elif insertion_index >= n - effective_size // 2:
-                end = n
-                start = max(0, n - effective_size)
+                end = min(sample_count, effective_window_size)
+            elif insertion_index >= sample_count - effective_window_size // 2:
+                end = sample_count
+                start = max(0, sample_count - effective_window_size)
             else:
-                half_window = effective_size // 2
+                half_window = effective_window_size // 2
                 start = insertion_index - half_window
                 if start < 0:
                     start = 0
-                end = start + effective_size
-                if end > n:
-                    end = n
-                    start = max(0, end - effective_size)
+                end = start + effective_window_size
+                if end > sample_count:
+                    end = sample_count
+                    start = max(0, end - effective_window_size)
         elif self.boundary_mode == "compact":
-            if insertion_index <= effective_size // 2:
+            if insertion_index <= effective_window_size // 2:
                 start = 0
-                end = min(n, effective_size)
-            elif insertion_index >= n - effective_size // 2:
-                end = n
-                start = max(0, n - effective_size)
+                end = min(sample_count, effective_window_size)
+            elif insertion_index >= sample_count - effective_window_size // 2:
+                end = sample_count
+                start = max(0, sample_count - effective_window_size)
             else:
-                half_window = effective_size // 2
+                half_window = effective_window_size // 2
                 start = insertion_index - half_window
                 if start < 0:
                     start = 0
-                end = start + effective_size
-                if end > n:
-                    end = n
-                    start = max(0, end - effective_size)
+                end = start + effective_window_size
+                if end > sample_count:
+                    end = sample_count
+                    start = max(0, end - effective_window_size)
         else:
             raise ValueError(f"Unsupported boundary_mode: {self.boundary_mode}")
 
         if end - start < 2:
-            return 0, n, min(self.degree, max(1, n - 1))
+            return 0, sample_count, min(self.degree, max(1, sample_count - 1))
 
         effective_degree = min(self.degree, max(1, end - start - 1))
         return start, end, effective_degree
@@ -193,7 +219,20 @@ class ChebyshevInterpolator(Interpolator):
     def _fit_window(
         self, window_independent_values: np.ndarray, effective_degree: int
     ) -> tuple[tuple[float, float], np.ndarray]:
-        """Fit Chebyshev coefficients to a window, returning the domain and design matrix."""
+        """Fit Chebyshev coefficients on a local window.
+
+        Parameters
+        ----------
+        window_independent_values : np.ndarray
+            Independent values for the current local sampling window.
+        effective_degree : int
+            Target interpolating polynomial degree for this window.
+
+        Returns
+        -------
+        tuple[tuple[float, float], np.ndarray]
+            The scaled domain bounds and the Chebyshev design matrix.
+        """
         domain_low = float(window_independent_values[0])
         domain_high = float(window_independent_values[-1])
         if domain_high == domain_low:
@@ -208,22 +247,35 @@ class ChebyshevInterpolator(Interpolator):
 
     @override
     def interpolate(self, independent_value: float) -> np.ndarray | None:
-        """Evaluate the local Chebyshev polynomial fit via a cached least-squares solve."""
+        """Evaluate the local Chebyshev polynomial fit via a cached least-squares solve.
+
+        Parameters
+        ----------
+        independent_value : float
+            Query point at which the interpolated dependent value is evaluated.
+
+        Returns
+        -------
+        np.ndarray | None
+            Interpolated dependent vector at the query point, or *None* if the
+            value is outside the valid interpolation domain and extrapolation is
+            disabled.
+        """
         if len(self.independent_values) < 2:
             return None
 
         independent_values = np.asarray(self.independent_values, dtype=float)
-        minimum_value = float(independent_values[0])
-        maximum_value = float(independent_values[-1])
+        domain_minimum = float(independent_values[0])
+        domain_maximum = float(independent_values[-1])
 
-        if independent_value < minimum_value:
+        if independent_value < domain_minimum:
             if not self.allow_extrapolation and (
-                independent_value < minimum_value - RANGE_EXTRAPOLATION_TOLERANCE
+                independent_value < domain_minimum - RANGE_EXTRAPOLATION_TOLERANCE
             ):
                 return None
-        elif independent_value > maximum_value:
+        elif independent_value > domain_maximum:
             if not self.allow_extrapolation and (
-                independent_value > maximum_value + RANGE_EXTRAPOLATION_TOLERANCE
+                independent_value > domain_maximum + RANGE_EXTRAPOLATION_TOLERANCE
             ):
                 return None
 

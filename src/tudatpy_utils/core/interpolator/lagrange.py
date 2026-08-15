@@ -1,3 +1,9 @@
+"""Sliding-window Lagrange interpolator for scalar or vector data.
+
+References:
+    https://en.wikipedia.org/wiki/Lagrange_polynomial
+"""
+
 from __future__ import annotations
 
 import numpy as np
@@ -6,8 +12,11 @@ from typing_extensions import override
 from .interpolator import Interpolator
 
 DEFAULT_LAGRANGE_DEGREE: int = 7
+"""Default polynomial degree used by the Lagrange interpolator."""
 BOUNDARY_WINDOW_REDUCTION: int = 2
 """Number of support points removed from edge windows to tame one-sided oscillation."""
+RANGE_EXTRAPOLATION_TOLERANCE: float = 1.0e-12
+"""Tolerance used when accepting marginal out-of-range query values."""
 
 
 class LagrangeInterpolator(Interpolator):
@@ -20,7 +29,19 @@ class LagrangeInterpolator(Interpolator):
         boundary_mode: str = "compact",
         boundary_window_extension: int = 2,
     ) -> None:
-        """Initialize the interpolator with a dependent-vector dimension and degree."""
+        """Initialize the interpolator state.
+
+        Parameters
+        ----------
+        dimension : int, optional
+            Number of components in each dependent data vector. Default is 1.
+        degree : int, optional
+            Degree of the local Lagrange polynomial. Default is 7.
+        boundary_mode : str, optional
+            Window-selection strategy used near the domain edges.
+        boundary_window_extension : int, optional
+            Additional support points used when expanding edge windows.
+        """
         if degree < 1:
             raise ValueError("degree must be at least 1")
 
@@ -77,7 +98,18 @@ class LagrangeInterpolator(Interpolator):
         self._cache_window_weights = None
 
     def _select_window(self, independent_value: float) -> tuple[int, np.ndarray]:
-        """Return the local interpolation window start and x values for a query."""
+        """Return the local interpolation window start and x values for a query.
+
+        Parameters
+        ----------
+        independent_value : float
+            Query value for which the interpolation window is selected.
+
+        Returns
+        -------
+        tuple[int, np.ndarray]
+            The start index and the local independent-value window.
+        """
         if len(self.independent_values) == 0:
             return -1, np.empty(0, dtype=float)
 
@@ -87,14 +119,17 @@ class LagrangeInterpolator(Interpolator):
 
         if independent_value < minimum_value:
             if not self.allow_extrapolation:
-                if independent_value < minimum_value - 1.0e-12:
+                if independent_value < minimum_value - RANGE_EXTRAPOLATION_TOLERANCE:
                     return -1, np.empty(0, dtype=float)
             effective_size = min(len(independent_values), self.window_size)
             if self.boundary_mode in {"widen", "edge"}:
                 effective_size = min(
                     len(independent_values),
                     self.window_size
-                    + min(self.boundary_window_extension, len(independent_values) - self.window_size),
+                    + min(
+                        self.boundary_window_extension,
+                        len(independent_values) - self.window_size,
+                    ),
                 )
             elif self.boundary_mode == "compact":
                 effective_size = max(
@@ -109,14 +144,17 @@ class LagrangeInterpolator(Interpolator):
 
         if independent_value > maximum_value:
             if not self.allow_extrapolation:
-                if independent_value > maximum_value + 1.0e-12:
+                if independent_value > maximum_value + RANGE_EXTRAPOLATION_TOLERANCE:
                     return -1, np.empty(0, dtype=float)
             effective_size = min(len(independent_values), self.window_size)
             if self.boundary_mode in {"widen", "edge"}:
                 effective_size = min(
                     len(independent_values),
                     self.window_size
-                    + min(self.boundary_window_extension, len(independent_values) - self.window_size),
+                    + min(
+                        self.boundary_window_extension,
+                        len(independent_values) - self.window_size,
+                    ),
                 )
             elif self.boundary_mode == "compact":
                 effective_size = max(
@@ -127,8 +165,8 @@ class LagrangeInterpolator(Interpolator):
             effective_size = min(effective_size, len(independent_values))
             if self.boundary_mode == "centered":
                 effective_size = max(2, min(self.window_size, len(independent_values)))
-            start = max(0, len(independent_values) - effective_size)
-            return start, independent_values[start:]
+            start_index = max(0, len(independent_values) - effective_size)
+            return start_index, independent_values[start_index:]
 
         if len(independent_values) <= self.window_size:
             return 0, independent_values
@@ -139,7 +177,10 @@ class LagrangeInterpolator(Interpolator):
             effective_size = min(
                 len(independent_values),
                 self.window_size
-                + min(self.boundary_window_extension, len(independent_values) - self.window_size),
+                + min(
+                    self.boundary_window_extension,
+                    len(independent_values) - self.window_size,
+                ),
             )
         elif self.boundary_mode == "compact":
             effective_size = max(
@@ -154,25 +195,44 @@ class LagrangeInterpolator(Interpolator):
                 return 0, independent_values[:effective_size]
             if insertion_index >= len(independent_values) - half_window:
                 start_index = len(independent_values) - effective_size
-                return start_index, independent_values[start_index : start_index + effective_size]
+                return start_index, independent_values[
+                    start_index : start_index + effective_size
+                ]
             start_index = insertion_index - half_window
             start_index = max(0, min(start_index, len(independent_values) - effective_size))
-            return start_index, independent_values[start_index : start_index + effective_size]
+            return start_index, independent_values[
+                start_index : start_index + effective_size
+            ]
 
         if insertion_index <= effective_size // 2:
             return 0, independent_values[:effective_size]
         if insertion_index >= len(independent_values) - effective_size // 2:
             start_index = len(independent_values) - effective_size
-            return start_index, independent_values[start_index : start_index + effective_size]
+            return start_index, independent_values[
+                start_index : start_index + effective_size
+            ]
 
         half_window = effective_size // 2
         start_index = insertion_index - half_window
         start_index = max(0, min(start_index, len(independent_values) - effective_size))
-        return start_index, independent_values[start_index : start_index + effective_size]
+        return start_index, independent_values[
+            start_index : start_index + effective_size
+        ]
 
     @staticmethod
     def _barycentric_weights(window_independent_values: np.ndarray) -> np.ndarray:
-        """Compute Lagrange barycentric weights for a window of x values."""
+        """Compute Lagrange barycentric weights for a window of x values.
+
+        Parameters
+        ----------
+        window_independent_values : np.ndarray
+            Independent values in the local interpolation window.
+
+        Returns
+        -------
+        np.ndarray
+            Barycentric weights for the local interpolation window.
+        """
         weights = np.empty(len(window_independent_values), dtype=float)
         for i, x_i in enumerate(window_independent_values):
             denominator = 1.0
@@ -185,7 +245,19 @@ class LagrangeInterpolator(Interpolator):
 
     @override
     def interpolate(self, independent_value: float) -> np.ndarray | None:
-        """Evaluate the local Lagrange polynomial using a cached barycentric form."""
+        """Evaluate the local Lagrange polynomial using a cached barycentric form.
+
+        Parameters
+        ----------
+        independent_value : float
+            Query value at which the polynomial is evaluated.
+
+        Returns
+        -------
+        np.ndarray | None
+            Interpolated dependent vector, or *None* if the value lies outside the
+            valid domain and extrapolation is disabled.
+        """
         if len(self.independent_values) < 2:
             return None
 
