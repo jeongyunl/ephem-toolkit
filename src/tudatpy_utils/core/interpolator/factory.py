@@ -99,6 +99,8 @@ class InterpolatorFactory:
             interpolator = chebyshev.ChebyshevInterpolator(
                 dimension=dimension,
                 degree=spec.degree,
+                boundary_mode=boundary_mode,
+                boundary_window_extension=boundary_window_extension,
             )
         elif spec.interp_type == InterpolationType.LAGRANGE:
             interpolator = lagrange.LagrangeInterpolator(

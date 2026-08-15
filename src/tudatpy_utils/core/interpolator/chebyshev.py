@@ -30,17 +30,37 @@ class ChebyshevInterpolator(Interpolator):
     """Sliding-window Chebyshev interpolator for scalar or vector data."""
 
     def __init__(
-        self, dimension: int = 1, degree: int = DEFAULT_CHEBYSHEV_DEGREE
+        self,
+        dimension: int = 1,
+        degree: int = DEFAULT_CHEBYSHEV_DEGREE,
+        boundary_mode: str = "centered",
+        boundary_window_extension: int = 0,
     ) -> None:
         """Initialize the interpolator with a dependent-vector dimension and degree."""
         if degree < 1:
             raise ValueError("degree must be at least 1")
+
+        boundary_mode = str(boundary_mode).lower()
+        if boundary_mode not in {"centered", "widen", "edge", "compact"}:
+            raise ValueError(
+                "boundary_mode must be one of: 'centered', 'widen', 'edge', 'compact'"
+            )
+        if boundary_window_extension < 0:
+            raise ValueError("boundary_window_extension must be non-negative")
 
         super().__init__(dimension)
         self.base_degree: int = int(degree)
         """Base degree restored when the data set is reset or refilled."""
         self._degree: int = int(degree)
         self.required_points: int = self._degree + 1
+
+        self.window_size: int = max(2, self._degree + 1)
+        """Number of points in the local window used for the least-squares fit."""
+
+        self.boundary_mode: str = boundary_mode
+        """Boundary-aware window selection strategy."""
+        self.boundary_window_extension: int = int(boundary_window_extension)
+        """Additional points used when widening or anchoring edge windows."""
 
         self._cache_window: tuple[int, int] | None = None
         self._cache_domain: tuple[float, float] | None = None
@@ -89,38 +109,86 @@ class ChebyshevInterpolator(Interpolator):
         self._cache_domain = None
         self._cache_coefficients = None
 
-    @staticmethod
     def _select_window(
-        independent_values: np.ndarray, independent_value: float, degree: int
+        self, independent_values: np.ndarray, independent_value: float
     ) -> tuple[int, int, int]:
         """Select a local sample window and effective degree for a query value.
 
-        Returns the half-open window ``[start, end)`` and the polynomial degree
-        to fit within it. Windows near the domain boundary are widened by
-        :data:`BOUNDARY_DEGREE_BOOST` extra points (keeping the same degree) so
-        the fit is an overdetermined least-squares solve rather than an exact
-        interpolant, which reduces boundary oscillation.
+        The default strategy keeps a centered local window, while the experimental
+        boundary policies expand or anchor the window at the domain edge to reduce
+        the one-sided interpolation sensitivity that arises near the first and last
+        sample.
         """
         n = len(independent_values)
-        base_window = degree + 1
+        effective_size = self.window_size
 
-        if n <= base_window:
-            return 0, n, min(degree, max(1, n - 1))
+        if self.boundary_mode in {"widen", "edge"}:
+            effective_size = min(
+                n,
+                self.window_size
+                + min(self.boundary_window_extension, n - self.window_size),
+            )
+        elif self.boundary_mode == "compact":
+            effective_size = max(
+                2,
+                self.window_size
+                - min(self.boundary_window_extension, self.window_size - 2),
+            )
+
+        if n <= effective_size:
+            return 0, n, min(self.degree, max(1, n - 1))
 
         insertion_index = int(np.searchsorted(independent_values, independent_value))
-        half_window = base_window // 2
 
-        near_left = insertion_index <= half_window
-        near_right = insertion_index >= n - half_window
+        if self.boundary_mode == "centered":
+            half_window = effective_size // 2
+            start = insertion_index - half_window
+            if start < 0:
+                start = 0
+            end = start + effective_size
+            if end > n:
+                end = n
+                start = max(0, end - effective_size)
+        elif self.boundary_mode in {"widen", "edge"}:
+            if insertion_index <= effective_size // 2:
+                start = 0
+                end = min(n, effective_size)
+            elif insertion_index >= n - effective_size // 2:
+                end = n
+                start = max(0, n - effective_size)
+            else:
+                half_window = effective_size // 2
+                start = insertion_index - half_window
+                if start < 0:
+                    start = 0
+                end = start + effective_size
+                if end > n:
+                    end = n
+                    start = max(0, end - effective_size)
+        elif self.boundary_mode == "compact":
+            if insertion_index <= effective_size // 2:
+                start = 0
+                end = min(n, effective_size)
+            elif insertion_index >= n - effective_size // 2:
+                end = n
+                start = max(0, n - effective_size)
+            else:
+                half_window = effective_size // 2
+                start = insertion_index - half_window
+                if start < 0:
+                    start = 0
+                end = start + effective_size
+                if end > n:
+                    end = n
+                    start = max(0, end - effective_size)
+        else:
+            raise ValueError(f"Unsupported boundary_mode: {self.boundary_mode}")
 
-        if near_left or near_right:
-            window_count = min(n, base_window + BOUNDARY_DEGREE_BOOST)
-            start = 0 if near_left else n - window_count
-            return start, start + window_count, degree
+        if end - start < 2:
+            return 0, n, min(self.degree, max(1, n - 1))
 
-        start = insertion_index - half_window
-        start = max(0, min(start, n - base_window))
-        return start, start + base_window, degree
+        effective_degree = min(self.degree, max(1, end - start - 1))
+        return start, end, effective_degree
 
     def _fit_window(
         self, window_independent_values: np.ndarray, effective_degree: int
@@ -160,7 +228,7 @@ class ChebyshevInterpolator(Interpolator):
                 return None
 
         window_start, window_end, effective_degree = self._select_window(
-            independent_values, independent_value, self.degree
+            independent_values, independent_value
         )
         window_size = window_end - window_start
         if window_size < 2:
