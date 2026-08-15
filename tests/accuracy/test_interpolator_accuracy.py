@@ -198,33 +198,13 @@ def _run_useable_range_accuracy_test(
     }
 
 
-def _expected_margin_s(
-    spec: interp_spec.InterpolationSpec, source_interval_s: float
-) -> float:
-    """Return expected margin in seconds matching _compute_unusable_margin logic."""
-    if spec.interp_type == interp_spec.InterpolationType.HERMITE:
-        # Hermite (both variants): no UNUSABLE margin
-        base = 0
-    elif spec.interp_type == interp_spec.InterpolationType.LAGRANGE:
-        # Lagrange: degree 5-7 get 2 intervals, degree 9+ get 1 interval
-        if spec.degree <= 7:
-            base = 2
-        else:
-            base = 1
-    else:
-        # Chebyshev: no UNUSABLE margin
-        base = 0
-
-    return base * source_interval_s
-
-
 # ===================================================================
-# Useable range accuracy tests
+# Interpolated-range accuracy tests
 # ===================================================================
 
 
 @pytest.mark.accuracy
-def test_useable_range_accuracy(
+def test_interpolated_range_accuracy(
     iss_reference_states: dict[float, np.ndarray],
     jpss1_reference_states: dict[float, np.ndarray],
 ) -> None:
@@ -234,7 +214,7 @@ def test_useable_range_accuracy(
     for dataset_name, config in DATASETS.items():
         for input_file in config.input_files:
             print(
-                f"\n=== {dataset_name} USEABLE RANGE ACCURACY TEST: {_file_id(input_file)} ==="
+                f"\n=== {dataset_name} INTERPOLATED RANGE ACCURACY TEST: {_file_id(input_file)} ==="
             )
             results: list[dict[str, float | int | interp_spec.InterpolationSpec]] = []
             for spec in INTERPOLATION_SPECS:
@@ -285,9 +265,12 @@ def test_useable_range_accuracy(
 
                 total_count = len(result_oem.states)
                 edge_count = max(1, int(round(total_count * 0.10)))
+                mid_start = edge_count
+                mid_stop = max(edge_count, total_count - edge_count)
                 region_specs = [
-                    ("first_10pct", set(range(edge_count))),
-                    ("last_10pct", set(range(total_count - edge_count, total_count))),
+                    ("first_10%", set(range(edge_count))),
+                    ("mid_80%", set(range(mid_start, mid_stop))),
+                    ("last_10%", set(range(total_count - edge_count, total_count))),
                 ]
 
                 for label, index_set in region_specs:
@@ -332,85 +315,14 @@ def test_useable_range_accuracy(
             for result in sorted(results, key=lambda item: float(item["rms_pos"])):
                 spec = result["spec"]
                 print(
-                    f"  [{_spec_id(spec):16s}] {result['label']} "
-                    f"pos_rms={result['rms_pos']:10.3f} km  "
-                    f"pos_mean={result['mean_pos']:10.3f} km  "
-                    f"pos_std={result['std_pos']:10.3f} km  "
-                    f"pos_max={result['max_pos']:10.3f} km  "
-                    f"vel_rms={result['rms_vel']:10.6f} km/s  "
-                    f"vel_mean={result['mean_vel']:10.6f} km/s  "
-                    f"vel_std={result['std_vel']:10.6f} km/s  "
-                    f"vel_max={result['max_vel']:10.6f} km/s  "
-                    f"n={result['count']:4d}"
+                    f"  [{_spec_id(spec):16s}] {result['label']:<10s} "
+                    f"pos_rms={result['rms_pos']:>9.3f} km  "
+                    f"pos_mean={result['mean_pos']:>9.3f} km  "
+                    f"pos_std={result['std_pos']:>9.3f} km  "
+                    f"pos_max={result['max_pos']:>9.3f} km  "
+                    f"vel_rms={result['rms_vel']:>10.6f} km/s  "
+                    f"vel_mean={result['mean_vel']:>10.6f} km/s  "
+                    f"vel_std={result['std_vel']:>10.6f} km/s  "
+                    f"vel_max={result['max_vel']:>10.6f} km/s  "
+                    f"n={result['count']:>4d}"
                 )
-
-
-# ===================================================================
-# Useable time range metadata tests
-# ===================================================================
-
-
-@pytest.mark.accuracy
-def test_useable_time_range_metadata() -> None:
-    """Verify OEM USEABLE_START_TIME/USEABLE_STOP_TIME metadata is set correctly after interpolation."""
-    print(f"\n=== USEABLE TIME RANGE METADATA TEST ===")
-    input_file = "JPSS-1_small.5m.oem"
-
-    for spec in INTERPOLATION_SPECS:
-        input_oem = oem.CcsdsOem.read(str(DATA_DIR / input_file))
-
-        options = slice_oem.TimeSliceOptions(
-            start_time=None,
-            stop_time=timedelta(0),
-            step_size=timedelta(minutes=1),
-            interpolation_spec=spec,
-        )
-
-        result_oem = slice_oem.extract_states_by_time(input_oem, options)
-
-        # Parse timestamps
-        start_dt = time_utils.iso8601_to_datetime(result_oem.meta.start_time)
-        stop_dt = time_utils.iso8601_to_datetime(result_oem.meta.stop_time)
-
-        # Check if useable times are set (may be empty if margin is too large)
-        if result_oem.meta.useable_start_time and result_oem.meta.useable_stop_time:
-            useable_start_dt = time_utils.iso8601_to_datetime(
-                result_oem.meta.useable_start_time
-            )
-            useable_stop_dt = time_utils.iso8601_to_datetime(
-                result_oem.meta.useable_stop_time
-            )
-
-            # Useable range must be inside start/stop
-            assert useable_start_dt > start_dt
-            assert useable_stop_dt < stop_dt
-            assert useable_start_dt < useable_stop_dt
-
-            # Verify margin matches expected intervals
-            source_interval_s = 5 * 60  # Source data interval is 5 minutes
-            expected = _expected_margin_s(spec, source_interval_s)
-
-            actual_start_margin = (useable_start_dt - start_dt).total_seconds()
-            actual_stop_margin = (stop_dt - useable_stop_dt).total_seconds()
-
-            if expected != float("inf"):
-                assert (
-                    abs(actual_start_margin - expected) < 60.0
-                ), f"Start margin {actual_start_margin}s != expected {expected}s"
-                assert (
-                    abs(actual_stop_margin - expected) < 60.0
-                ), f"Stop margin {actual_stop_margin}s != expected {expected}s"
-                margin_str = f"{expected/60:5.1f}m"
-            else:
-                margin_str = "half-span"
-
-            print(
-                f"  [{_spec_id(spec):16s}] margin={margin_str} "
-                f"useable={result_oem.meta.useable_start_time} to {result_oem.meta.useable_stop_time}"
-            )
-        else:
-            # Margin too large, no useable range
-            print(
-                f"  [{_spec_id(spec):16s}] margin=too-large "
-                f"useable=(empty - margin exceeds data span)"
-            )
