@@ -203,6 +203,24 @@ def test_interpolate_cartesian_state_wrong_dimension() -> None:
         interpolator.interpolate_cartesian_state(0.5)
 
 
+def test_boundary_window_can_widen_at_domain_edge() -> None:
+    """Near the start of the data range, the Hermite window should expand on the available side."""
+    interpolator = hermite.SlidingWindowHermiteInterpolator(
+        dimension=1,
+        degree=3,
+        boundary_mode="widen",
+        boundary_window_extension=2,
+    )
+
+    for value in range(10):
+        interpolator.add_data_point(float(value), np.array([float(value)], dtype=float))
+
+    start, local_indep, _, _ = interpolator._select_window(0.25)
+
+    assert start == 0
+    assert len(local_indep) == 6
+
+
 def test_is_cartesian_state_wrong_dimension_in_constructor() -> None:
     """Test that is_cartesian_state=True with dimension != 6 raises ValueError."""
     with pytest.raises(
