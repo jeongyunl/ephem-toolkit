@@ -211,12 +211,10 @@ def _parse_interpolation_spec(value: str) -> InterpolationSpec:
         interp_type = InterpolationType.CHEBYSHEV
     elif normalized == "lagrange":
         interp_type = InterpolationType.LAGRANGE
-    elif normalized == "cubic":
-        interp_type = InterpolationType.CUBIC
     else:
         raise argparse.ArgumentTypeError(
             f"Unsupported interpolation type '{value}'. Supported values are: "
-            "hermite, chebyshev, lagrange, cubic."
+            "hermite, chebyshev, lagrange."
         )
 
     degree = None if degree_text is None else int(degree_text)
