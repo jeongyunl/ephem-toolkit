@@ -14,16 +14,34 @@ class LagrangeInterpolator(Interpolator):
     """Sliding-window Lagrange interpolator for scalar or vector data."""
 
     def __init__(
-        self, dimension: int = 1, degree: int = DEFAULT_LAGRANGE_DEGREE
+        self,
+        dimension: int = 1,
+        degree: int = DEFAULT_LAGRANGE_DEGREE,
+        boundary_mode: str = "compact",
+        boundary_window_extension: int = 2,
     ) -> None:
         """Initialize the interpolator with a dependent-vector dimension and degree."""
         if degree < 1:
             raise ValueError("degree must be at least 1")
 
+        boundary_mode = str(boundary_mode).lower()
+        if boundary_mode not in {"centered", "widen", "edge", "compact"}:
+            raise ValueError(
+                "boundary_mode must be one of: 'centered', 'widen', 'edge', 'compact'"
+            )
+        if boundary_window_extension < 0:
+            raise ValueError("boundary_window_extension must be non-negative")
+
         super().__init__(dimension)
         self.degree: int = int(degree)
         self.window_size: int = max(2, self.degree + 1)
         self.required_points: int = max(2, self.degree + 1)
+
+        self.boundary_mode: str = boundary_mode
+        """Boundary-aware window selection strategy."""
+        self.boundary_window_extension: int = int(boundary_window_extension)
+        """Additional points used when widening or anchoring edge windows."""
+
         self._cache_window_start: int = -1
         self._cache_window_values: np.ndarray | None = None
         self._cache_window_dependent_values: np.ndarray | None = None
@@ -71,45 +89,86 @@ class LagrangeInterpolator(Interpolator):
             if not self.allow_extrapolation:
                 if independent_value < minimum_value - 1.0e-12:
                     return -1, np.empty(0, dtype=float)
-            full_window_count = min(self.window_size, len(independent_values))
-            compact_window_count = max(2, full_window_count - BOUNDARY_WINDOW_REDUCTION)
-            return 0, independent_values[:compact_window_count]
+            effective_size = min(len(independent_values), self.window_size)
+            if self.boundary_mode in {"widen", "edge"}:
+                effective_size = min(
+                    len(independent_values),
+                    self.window_size
+                    + min(self.boundary_window_extension, len(independent_values) - self.window_size),
+                )
+            elif self.boundary_mode == "compact":
+                effective_size = max(
+                    2,
+                    self.window_size
+                    - min(self.boundary_window_extension, self.window_size - 2),
+                )
+            effective_size = min(effective_size, len(independent_values))
+            if self.boundary_mode == "centered":
+                effective_size = max(2, min(self.window_size, len(independent_values)))
+            return 0, independent_values[:effective_size]
 
         if independent_value > maximum_value:
             if not self.allow_extrapolation:
                 if independent_value > maximum_value + 1.0e-12:
                     return -1, np.empty(0, dtype=float)
-            full_window_count = min(self.window_size, len(independent_values))
-            compact_window_count = max(2, full_window_count - BOUNDARY_WINDOW_REDUCTION)
-            start = max(0, len(independent_values) - compact_window_count)
+            effective_size = min(len(independent_values), self.window_size)
+            if self.boundary_mode in {"widen", "edge"}:
+                effective_size = min(
+                    len(independent_values),
+                    self.window_size
+                    + min(self.boundary_window_extension, len(independent_values) - self.window_size),
+                )
+            elif self.boundary_mode == "compact":
+                effective_size = max(
+                    2,
+                    self.window_size
+                    - min(self.boundary_window_extension, self.window_size - 2),
+                )
+            effective_size = min(effective_size, len(independent_values))
+            if self.boundary_mode == "centered":
+                effective_size = max(2, min(self.window_size, len(independent_values)))
+            start = max(0, len(independent_values) - effective_size)
             return start, independent_values[start:]
 
         if len(independent_values) <= self.window_size:
             return 0, independent_values
 
         insertion_index = int(np.searchsorted(independent_values, independent_value))
-        window_count = min(self.window_size, len(independent_values))
-        half_window = window_count // 2
+        effective_size = min(self.window_size, len(independent_values))
+        if self.boundary_mode in {"widen", "edge"}:
+            effective_size = min(
+                len(independent_values),
+                self.window_size
+                + min(self.boundary_window_extension, len(independent_values) - self.window_size),
+            )
+        elif self.boundary_mode == "compact":
+            effective_size = max(
+                2,
+                self.window_size
+                - min(self.boundary_window_extension, self.window_size - 2),
+            )
 
-        if insertion_index <= half_window:
-            compact_window_count = max(2, window_count - BOUNDARY_WINDOW_REDUCTION)
-            return 0, independent_values[:compact_window_count]
+        if self.boundary_mode == "centered":
+            half_window = effective_size // 2
+            if insertion_index <= half_window:
+                return 0, independent_values[:effective_size]
+            if insertion_index >= len(independent_values) - half_window:
+                start_index = len(independent_values) - effective_size
+                return start_index, independent_values[start_index : start_index + effective_size]
+            start_index = insertion_index - half_window
+            start_index = max(0, min(start_index, len(independent_values) - effective_size))
+            return start_index, independent_values[start_index : start_index + effective_size]
 
-        if insertion_index >= len(independent_values) - half_window:
-            compact_window_count = max(2, window_count - BOUNDARY_WINDOW_REDUCTION)
-            start_index = len(independent_values) - compact_window_count
-            return start_index, independent_values[start_index : start_index + compact_window_count]
+        if insertion_index <= effective_size // 2:
+            return 0, independent_values[:effective_size]
+        if insertion_index >= len(independent_values) - effective_size // 2:
+            start_index = len(independent_values) - effective_size
+            return start_index, independent_values[start_index : start_index + effective_size]
 
+        half_window = effective_size // 2
         start_index = insertion_index - half_window
-        if start_index < 0:
-            start_index = 0
-        if start_index + window_count > len(independent_values):
-            start_index = len(independent_values) - window_count
-
-        return (
-            max(0, start_index),
-            independent_values[start_index : start_index + window_count],
-        )
+        start_index = max(0, min(start_index, len(independent_values) - effective_size))
+        return start_index, independent_values[start_index : start_index + effective_size]
 
     @staticmethod
     def _barycentric_weights(window_independent_values: np.ndarray) -> np.ndarray:
