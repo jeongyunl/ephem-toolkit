@@ -1,4 +1,4 @@
-# tudatpy-utils
+# ephem-toolkit
 
 Time-conversion utilities built around the `time_conversion/` C++ code.
 

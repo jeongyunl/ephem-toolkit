@@ -216,7 +216,7 @@ evaluate-fit-tle --fit-span 2.0
 
 - TudatPy (for SGP4 propagation)
 - NumPy
-- `tudatpy_utils.core.ccsds.oem`, `tudatpy_utils.core.consts`, `tudatpy_utils.core.time_utils`, `tudatpy_utils.core.tle`
+- `ephem_toolkit.core.ccsds.oem`, `ephem_toolkit.core.consts`, `ephem_toolkit.core.time_utils`, `ephem_toolkit.core.tle`
 - `oem_to_omm.fit_common`, `oem_to_omm.fit_tle_main`
 - `oem_to_omm.fit_tle` submodule components
 
@@ -235,10 +235,10 @@ Key algorithmic features:
 
 ## Related Tools
 
-- `tudatpy_utils.core.tle` — TLE dataclass, `read_tle()`, and `write_tle()` functions
-- `tudatpy_utils.core.ccsds.omm` — OMM dataclass and utilities
-- `tudatpy_utils.core.kepler` — Keplerian element conversions with J2 corrections
-- `tudatpy_utils.core.ccsds.oem` — OEM parsing utilities
+- `ephem_toolkit.core.tle` — TLE dataclass, `read_tle()`, and `write_tle()` functions
+- `ephem_toolkit.core.ccsds.omm` — OMM dataclass and utilities
+- `ephem_toolkit.core.kepler` — Keplerian element conversions with J2 corrections
+- `ephem_toolkit.core.ccsds.oem` — OEM parsing utilities
 - `propagate-tle` — TLE propagation with SGP4
 - `omm-to-tle` — Convert OMM to TLE
 - `tle-to-omm` — Convert TLE to OMM
@@ -343,7 +343,7 @@ This is fundamentally an estimation problem because TLEs encode SGP4-compatible 
 Related scripts in the current repository:
 
 - `oem-to-omm` — estimate a TLE from an OEM-like arc
-- `tudatpy_utils.core.tle` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions
+- `ephem_toolkit.core.tle` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions
 - `propagate-tle` — propagate a TLE with TudatPy SGP4 and print OEM-like states
 
 ### Overall pipeline
@@ -602,7 +602,7 @@ oem-to-omm --tle -v input.oem -o output.omm
 
 - Python standard library
 - NumPy (for numerical computations)
-- `tudatpy_utils.core.tle` — TLE dataclass and formatting
-- `tudatpy_utils.core.kepler` — Keplerian element conversions
-- `tudatpy_utils.core.ccsds.oem` — OEM parsing
+- `ephem_toolkit.core.tle` — TLE dataclass and formatting
+- `ephem_toolkit.core.kepler` — Keplerian element conversions
+- `ephem_toolkit.core.ccsds.oem` — OEM parsing
 - TudatPy (optional, required for `--refinement cartesian`)

@@ -1,4 +1,4 @@
-# tudatpy-utils
+# ephem-toolkit
 
 Utility scripts and small C++ tools for working with TudatPy and Tudat.
 
@@ -15,7 +15,7 @@ The repository is organized into three layers:
 ## Repository Layout
 
 ```
-src/tudatpy_utils/
+src/ephem_toolkit/
 ├── core/              Shared Python library modules
 │   ├── interpolator/    Public interpolation package for Lagrange, Hermite, Chebyshev, and spline methods
 │   └── ccsds/          CCSCS ODM, OEM, and OMM definitions and parsers
@@ -113,7 +113,7 @@ See [TIME_CONVERSION.md](docs/TIME_CONVERSION.md) for full usage details.
 
 ## Libraries
 
-### Python Library (`src/tudatpy_utils/core/`)
+### Python Library (`src/ephem_toolkit/core/`)
 
 Reusable Python modules providing foundational astrodynamics functionality. These are imported by the application modules and CLI tools.
 

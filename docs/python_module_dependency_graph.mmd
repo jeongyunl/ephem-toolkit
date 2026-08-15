@@ -5,12 +5,12 @@ config:
 ---
 graph LR
 
-%% Internal Python module dependencies under tudatpy_utils namespace
+%% Internal Python module dependencies under ephem_toolkit namespace
 %% Standalone scripts use stadium shape ([...])
 %% Library modules use default rectangle shape [...]
-%% Updated 2026-08-11 to reflect src/tudatpy_utils/ structure
+%% Updated 2026-08-11 to reflect src/ephem_toolkit/ structure
 
-    subgraph core["tudatpy_utils.core"]
+    subgraph core["ephem_toolkit.core"]
         mod_core_aer[aer]
         mod_core_misc[misc]
         mod_core_consts[consts]
@@ -28,7 +28,7 @@ graph LR
         mod_core_wgs[wgs]
     end
 
-    subgraph interpolator["tudatpy_utils.core.interpolator"]
+    subgraph interpolator["ephem_toolkit.core.interpolator"]
         mod_interpolator_interpolator[interpolator]
         mod_interpolator_lagrange[lagrange]
         mod_interpolator_hermite[hermite]

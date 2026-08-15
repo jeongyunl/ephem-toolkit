@@ -1,4 +1,4 @@
-# tudatpy-utils
+# ephem-toolkit
 
 TLE-related utilities for building, estimating, and converting orbital data.
 
@@ -147,7 +147,7 @@ tle-info -h
 ### Dependencies
 
 - TudatPy
-- local helper modules `tudatpy_utils.core.common`, `tudatpy_utils.core.kepler`
+- local helper modules `ephem_toolkit.core.common`, `ephem_toolkit.core.kepler`
 
 ## `omm-to-tle`
 
@@ -214,7 +214,7 @@ omm-to-tle -h
 
 ### Dependencies
 
-- local helper modules `tudatpy_utils.core.convert_tle`, `tudatpy_utils.core.ccsds.omm`, `tudatpy_utils.core.tle`
+- local helper modules `ephem_toolkit.core.convert_tle`, `ephem_toolkit.core.ccsds.omm`, `ephem_toolkit.core.tle`
 
 ## `tle-to-omm`
 
@@ -276,21 +276,21 @@ tle-to-omm -h
 
 ### Dependencies
 
-- local helper modules `tudatpy_utils.core.convert_tle`, `tudatpy_utils.core.tle`
+- local helper modules `ephem_toolkit.core.convert_tle`, `ephem_toolkit.core.tle`
 
 ## Related conversion utilities
 
 Additional scripts currently present in the repository:
 
-- `tudatpy_utils.core.convert_tle` — shared conversion helper script
+- `ephem_toolkit.core.convert_tle` — shared conversion helper script
 
 ## Core library
 
-- `tudatpy_utils.core.tle` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions used by all TLE-related scripts
-- `tudatpy_utils.core.kepler` — Keplerian element conversions (`cartesian_to_keplerian`, `keplerian_to_cartesian`, anomaly conversions, mean motion utilities)
-- `tudatpy_utils.core.mean_kepler` — mean Keplerian element conversions (`osculating_to_mean_keplerian`, `compute_brouwer_short_period_corrections`, J2 secular propagation)
-- `tudatpy_utils.core.convert_tle` — TLE/OMM conversion and `tle_to_osculating_keplerian` with J2 short-period corrections
-- `tudatpy_utils.core.misc` — shared utilities
+- `ephem_toolkit.core.tle` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions used by all TLE-related scripts
+- `ephem_toolkit.core.kepler` — Keplerian element conversions (`cartesian_to_keplerian`, `keplerian_to_cartesian`, anomaly conversions, mean motion utilities)
+- `ephem_toolkit.core.mean_kepler` — mean Keplerian element conversions (`osculating_to_mean_keplerian`, `compute_brouwer_short_period_corrections`, J2 secular propagation)
+- `ephem_toolkit.core.convert_tle` — TLE/OMM conversion and `tle_to_osculating_keplerian` with J2 short-period corrections
+- `ephem_toolkit.core.misc` — shared utilities
 
 ### Other TLE-related scripts
 

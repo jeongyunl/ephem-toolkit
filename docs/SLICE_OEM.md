@@ -11,7 +11,7 @@ This utility provides flexible slicing capabilities for OEM files:
 - **Interpolation**: Generate uniformly-spaced states at specified intervals
 - **Flexible output**: State data only or full OEM format
 
-The script is built on the `tudatpy_utils.core.slice_oem` library module, which provides reusable slicing functions for programmatic use.
+The script is built on the `ephem_toolkit.core.slice_oem` library module, which provides reusable slicing functions for programmatic use.
 
 After Poetry installation, use `slice-oem` as the canonical command. The existing `python3 src/slice_oem/slice_oem.py ...` examples remain supported during the transition.
 
@@ -295,7 +295,7 @@ Example:
 ```
 CCSDS_OEM_VERS = 2.0
 CREATION_DATE = 2024-01-15T10:30:00.000
-ORIGINATOR = tudatpy-utils
+ORIGINATOR = ephem-toolkit
 
 META_START
 OBJECT_NAME = ISS
@@ -423,11 +423,11 @@ slice-oem orbit.oem --time-slice "-90m," > last_pass.txt
 
 ## Programmatic Usage
 
-The underlying library module `tudatpy_utils.core.slice_oem` can be used directly in Python scripts:
+The underlying library module `ephem_toolkit.core.slice_oem` can be used directly in Python scripts:
 
 ```python
-import tudatpy_utils.core.ccsds.oem as oem
-import tudatpy_utils.core.slice_oem as slice_oem
+import ephem_toolkit.core.ccsds.oem as oem
+import ephem_toolkit.core.slice_oem as slice_oem
 
 # Read OEM file
 oem_data = oem.CcsdsOem.read("orbit.oem")
@@ -447,7 +447,7 @@ sliced_oem = slice_oem.extract_sliced_states(oem_data, options)
 sliced_oem.write("sliced.oem")
 ```
 
-See `tests/tudatpy_utils/core/test_slice_oem.py` for more examples.
+See `tests/ephem_toolkit/core/test_slice_oem.py` for more examples.
 
 ## Implementation Details
 
@@ -486,10 +486,10 @@ The following metadata is updated:
 - Python 3.7+
 - NumPy (for interpolation)
 - Local modules:
-  - `tudatpy_utils.core.ccsds.oem` — OEM file parsing and writing
-  - `tudatpy_utils.core.slice_oem` — Slicing logic and parsers
-  - `tudatpy_utils.core.time_utils` — Time parsing and formatting
-  - `tudatpy_utils.core.interpolator.lagrange` — Lagrange interpolation
+  - `ephem_toolkit.core.ccsds.oem` — OEM file parsing and writing
+  - `ephem_toolkit.core.slice_oem` — Slicing logic and parsers
+  - `ephem_toolkit.core.time_utils` — Time parsing and formatting
+  - `ephem_toolkit.core.interpolator.lagrange` — Lagrange interpolation
 
 ## Error Handling
 

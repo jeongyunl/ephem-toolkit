@@ -196,7 +196,7 @@ fields:
 
 ```bash
 xform-oem input.oem \
-  --set-header ORIGINATOR=tudatpy-utils \
+  --set-header ORIGINATOR=ephem-toolkit \
   --set-header CREATION_DATE=2026-08-07T12:00:00.000 \
   -o output.oem
 ```
@@ -265,7 +265,7 @@ Verbose output includes:
 ```bash
 xform-oem input.oem \
   --set-meta OBJECT_NAME=TEST_OBJECT \
-  --set-header ORIGINATOR=tudatpy-utils \
+  --set-header ORIGINATOR=ephem-toolkit \
   -o rewritten.oem
 ```
 
@@ -297,10 +297,10 @@ xform-oem input.oem \
 
 The command-line tool uses these local modules:
 
-- `tudatpy_utils.core.ccsds.oem` — CCSDS OEM parsing and writing
-- `tudatpy_utils.core.frame_utils` — reference-frame enumeration and state conversion
-- `tudatpy_utils.core.aer` — ECEF position to AER conversion
-- `tudatpy_utils.core.time_utils` — UTC timestamp formatting and TDB epoch conversion
+- `ephem_toolkit.core.ccsds.oem` — CCSDS OEM parsing and writing
+- `ephem_toolkit.core.frame_utils` — reference-frame enumeration and state conversion
+- `ephem_toolkit.core.aer` — ECEF position to AER conversion
+- `ephem_toolkit.core.time_utils` — UTC timestamp formatting and TDB epoch conversion
 
 The frame-conversion path uses TudatPy rotation models and SPICE resources
 where required. The AER path uses the ground-station latitude, longitude, and
@@ -338,10 +338,10 @@ resources required by a frame conversion.
 - NumPy
 - TudatPy for frame conversion and Earth-orientation models
 - Local modules:
-  - `tudatpy_utils.core.ccsds.oem`
-  - `tudatpy_utils.core.frame_utils`
-  - `tudatpy_utils.core.aer`
-  - `tudatpy_utils.core.time_utils`
+  - `ephem_toolkit.core.ccsds.oem`
+  - `ephem_toolkit.core.frame_utils`
+  - `ephem_toolkit.core.aer`
+  - `ephem_toolkit.core.time_utils`
 
 ## Related Tools
 
@@ -349,6 +349,6 @@ resources required by a frame conversion.
   [SLICE_OEM.md](SLICE_OEM.md))
 - `diff-oem` — Compare states from two OEM files (see
   [DIFF_OEM.md](DIFF_OEM.md))
-- `tudatpy_utils.core.frame_utils` — Lower-level frame conversion implementation
+- `ephem_toolkit.core.frame_utils` — Lower-level frame conversion implementation
 - [tudatpy_frame_conversion.md](tudatpy_frame_conversion.md) — TudatPy API and
   rotation-model notes

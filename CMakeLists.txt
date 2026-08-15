@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.27)
-project(tudatpy-utils)
+project(ephem-toolkit)
 include(FetchContent)
 include(CTest)
 

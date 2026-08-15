@@ -4,22 +4,22 @@ This document covers OEM data slicing and interpolation utilities in the `core/`
 
 ## Table of Contents
 
-1. [tudatpy_utils.core.slice_oem - OEM Slicing Utilities](#tudatpy_utilscoreslice_oem---oem-slicing-utilities)
-2. [tudatpy_utils.core.interpolator - Interpolation Package](#tudatpy_utilscoreinterpolator---interpolation-package)
-3. [tudatpy_utils.core.cli - CLI Utilities](#tudatpy_utilscorecli---cli-utilities)
+1. [ephem_toolkit.core.slice_oem - OEM Slicing Utilities](#ephem_toolkitcoreslice_oem---oem-slicing-utilities)
+2. [ephem_toolkit.core.interpolator - Interpolation Package](#ephem_toolkitcoreinterpolator---interpolation-package)
+3. [ephem_toolkit.core.cli - CLI Utilities](#ephem_toolkitcorecli---cli-utilities)
 
 ---
 
-## tudatpy_utils.core.slice_oem - OEM Slicing Utilities
+## ephem_toolkit.core.slice_oem - OEM Slicing Utilities
 
 **Purpose**: Common slice helpers for OEM state selection with time-based and index-based slicing.
 
 ### Key Dependencies
 - `datetime`, `bisect`, `re`, `dataclasses`
-- `tudatpy_utils.core.consts`
-- `tudatpy_utils.core.time_utils`
-- `tudatpy_utils.core.interpolator.factory`
-- `tudatpy_utils.core.interpolator.interpolation_spec`
+- `ephem_toolkit.core.consts`
+- `ephem_toolkit.core.time_utils`
+- `ephem_toolkit.core.interpolator.factory`
+- `ephem_toolkit.core.interpolator.interpolation_spec`
 
 ### Data Structures
 
@@ -48,11 +48,11 @@ Extract states within a time window using `TimeSliceOptions`. Supports interpola
 
 ---
 
-## tudatpy_utils.core.interpolator - Interpolation Package
+## ephem_toolkit.core.interpolator - Interpolation Package
 
 **Purpose**: Provide interpolation capabilities for time-series data with ordered sample storage.
 
-### tudatpy_utils.core.interpolator.interpolator - Base Interpolator
+### ephem_toolkit.core.interpolator.interpolator - Base Interpolator
 
 #### `class Interpolator`
 Base interpolator supporting fixed-size ordered sample storage.
@@ -73,7 +73,7 @@ Base interpolator supporting fixed-size ordered sample storage.
 - `dependent_dimension`: Number of components in each dependent vector
 - `required_points`: Minimum number of samples required
 
-### tudatpy_utils.core.interpolator.hermite - Hermite Interpolator
+### ephem_toolkit.core.interpolator.hermite - Hermite Interpolator
 
 #### `class SlidingWindowHermiteInterpolator(Interpolator)`
 Sliding-window Hermite polynomial interpolator with cached local windows and derivative support for improved accuracy.
@@ -95,7 +95,7 @@ Sliding-window Hermite polynomial interpolator with cached local windows and der
 - `DEFAULT_HERMITE_DEGREE = 5`: Default polynomial degree
 - `DERIVATIVE_UNAVAILABLE_SENTINEL = -9.99999e99`: Sentinel value for unavailable derivatives
 
-### tudatpy_utils.core.interpolator.chebyshev - Chebyshev Interpolator
+### ephem_toolkit.core.interpolator.chebyshev - Chebyshev Interpolator
 
 #### `class ChebyshevInterpolator(Interpolator)`
 Chebyshev polynomial interpolator for scalar or vector dependent data using a local window around each query.
@@ -116,7 +116,7 @@ Chebyshev polynomial interpolator for scalar or vector dependent data using a lo
 - `RANGE_EXTRAPOLATION_TOLERANCE = 1.0e-12`: Tolerance when accepting marginal out-of-range values
 - `BOUNDARY_DEGREE_BOOST = 2`: Extra points used to widen boundary windows for stability
 
-### tudatpy_utils.core.interpolator.lagrange - Lagrange Interpolator
+### ephem_toolkit.core.interpolator.lagrange - Lagrange Interpolator
 
 #### `class LagrangeInterpolator(Interpolator)`
 Lagrange polynomial interpolator that selects a local polynomial window around each query point.
@@ -138,7 +138,7 @@ Lagrange polynomial interpolator that selects a local polynomial window around e
 - `RANGE_OVERSHOOT_TOLERANCE = 1e-8`: Tolerance for queries marginally outside the data range
 - `MIN_DIFFERENCE_FOR_START = 1.0e30`: Sentinel value for window bias search
 
-### tudatpy_utils.core.interpolator.interpolation_spec - Interpolation Specifications
+### ephem_toolkit.core.interpolator.interpolation_spec - Interpolation Specifications
 
 #### `class InterpolationType` (Enum)
 Interpolation method type.
@@ -160,7 +160,7 @@ Interpolation specification with type and optional degree.
 - `DEFAULT_CHEBYSHEV_DEGREE = 5`: Default degree for Chebyshev interpolation
 - `DEFAULT_LAGRANGE_DEGREE = 7`: Default polynomial degree for Lagrange
 
-### tudatpy_utils.core.interpolator.factory - Interpolator Factory
+### ephem_toolkit.core.interpolator.factory - Interpolator Factory
 
 #### `class InterpolatorFactory`
 Factory for creating interpolator instances from specifications.
@@ -175,7 +175,7 @@ Factory for creating interpolator instances from specifications.
 
 ---
 
-## tudatpy_utils.core.cli - CLI Utilities
+## ephem_toolkit.core.cli - CLI Utilities
 
 **Purpose**: Common CLI utilities for parsing command-line arguments.
 
