@@ -29,9 +29,20 @@ class SlidingWindowHermiteInterpolator(Interpolator):
 
     Uses local sliding windows with divided differences for efficient high-order
     interpolation. Caches coefficients per window. Optimized for Cartesian state
-    vectors [x,y,z,vx,vy,vz] by treating velocity as position derivatives, but
-    supports general-purpose interpolation as well.
+    vectors [x, y, z, vx, vy, vz] by treating velocity as position derivatives,
+    but supports general-purpose interpolation as well.
     """
+
+    def __repr__(self) -> str:
+        """Return a concise summary of the interpolator configuration."""
+        return (
+            "SlidingWindowHermiteInterpolator("
+            f"dimension={self.dependent_dimension}, "
+            f"degree={self.window_size - 1}, "
+            f"boundary_mode={self.boundary_mode!r}, "
+            f"is_cartesian_state={self.is_cartesian_state}, "
+            f"boundary_window_extension={self.boundary_window_extension})"
+        )
 
     def __init__(
         self,
