@@ -22,6 +22,16 @@ RANGE_EXTRAPOLATION_TOLERANCE: float = 1.0e-12
 class LagrangeInterpolator(Interpolator):
     """Sliding-window Lagrange interpolator for scalar or vector data."""
 
+    def __repr__(self) -> str:
+        """Return a concise summary of the interpolator configuration."""
+        return (
+            "LagrangeInterpolator("
+            f"dimension={self.dependent_dimension}, "
+            f"degree={self.degree}, "
+            f"boundary_mode={self.boundary_mode!r}, "
+            f"boundary_window_extension={self.boundary_window_extension})"
+        )
+
     def __init__(
         self,
         dimension: int = 1,

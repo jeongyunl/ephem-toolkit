@@ -1,4 +1,8 @@
-"""Interpolation specification data types."""
+"""Interpolation specification data types.
+
+References:
+    https://en.wikipedia.org/wiki/Interpolation
+"""
 
 from __future__ import annotations
 
@@ -16,7 +20,7 @@ DEFAULT_LAGRANGE_DEGREE: int = 7
 
 
 class InterpolationType(Enum):
-    """Interpolation method type."""
+    """Supported interpolation methods."""
 
     HERMITE = "hermite"
     """Hermite sliding-window interpolation with caching."""
@@ -30,16 +34,16 @@ class InterpolationType(Enum):
 
 @dataclass
 class InterpolationSpec:
-    """Interpolation specification with type and optional degree."""
+    """Interpolation specification with a method type and optional degree."""
 
     interp_type: InterpolationType
-    """Type of interpolation (Lagrange or Hermite)."""
+    """Interpolation method type."""
 
     degree: int | None = None
-    """Polynomial degree (defaults: Lagrange=8, Hermite=3)."""
+    """Polynomial degree; defaults to the canonical degree for the chosen method."""
 
     def __post_init__(self) -> None:
-        """Set default polynomial degree based on interpolation type."""
+        """Set a default polynomial degree when none is supplied."""
         if self.degree is None:
             if self.interp_type == InterpolationType.HERMITE:
                 self.degree = DEFAULT_HERMITE_DEGREE

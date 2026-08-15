@@ -29,6 +29,16 @@ BOUNDARY_DEGREE_BOOST: int = 2
 class ChebyshevInterpolator(Interpolator):
     """Sliding-window Chebyshev interpolator for scalar or vector data."""
 
+    def __repr__(self) -> str:
+        """Return a concise summary of the interpolator configuration."""
+        return (
+            "ChebyshevInterpolator("
+            f"dimension={self.dependent_dimension}, "
+            f"degree={self.degree}, "
+            f"boundary_mode={self.boundary_mode!r}, "
+            f"boundary_window_extension={self.boundary_window_extension})"
+        )
+
     def __init__(
         self,
         dimension: int = 1,

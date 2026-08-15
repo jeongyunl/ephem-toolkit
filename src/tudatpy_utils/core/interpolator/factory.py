@@ -1,4 +1,4 @@
-"""Factory for creating interpolator instances from specifications."""
+"""Factory for constructing interpolators from interpolation specifications."""
 
 from __future__ import annotations
 
@@ -37,43 +37,36 @@ class InterpolatorFactory:
         boundary_mode: str = "centered",
         boundary_window_extension: int = 0,
     ) -> Interpolator:
-        """Create an interpolator from a specification.
+        """Create an interpolator instance from a specification.
 
         Parameters
         ----------
         spec : InterpolationSpec
-            Interpolation specification with type and degree
+            Interpolation specification with a type and optional polynomial degree.
         dimension : int, optional
-            Number of components in each dependent data vector (default: 6)
+            Number of components in each dependent data vector. Default is 6.
         is_cartesian_state : bool, optional
-            If True, data represents Cartesian state (default: False)
+            If True, the data represents a Cartesian state vector. Default is False.
         verbose : bool, optional
-            If True, print debug information to stderr (default: False)
+            If True, print debug information to stderr. Default is False.
         context : str, optional
-            Context string for verbose log prefix (default: "factory")
-        data : dict[float, np.ndarray] | list[tuple[float, np.ndarray]] | list[float] | np.ndarray
-            Either:
-            - A mapping of independent variable values to dependent data vectors.
-            - A list of (independent_value, dependent_data) tuples.
-            - A list or array of independent variable values (requires *dependent_data*).
-
-            If a dictionary is provided, it is sorted by key before storage.
-            If a list of tuples is provided, it is assumed to be already sorted.
-            If a list/array of floats is provided, *dependent_data* must also be provided,
-            and both are assumed to be already sorted and of equal length.
+            Context string used in verbose log prefixes. Default is "factory".
+        data : dict[float, np.ndarray] | list[tuple[float, np.ndarray]] | list[float] | np.ndarray | None, optional
+            Sample data used to populate the interpolator immediately after creation.
         dependent_data : list[np.ndarray] | None, optional
-            List of dependent data vectors, required only when *data* is a list/array
-            of independent values. Must be the same length as *data*.
+            Dependent vectors paired with `data` when `data` is a list or array of
+            independent values.
 
         Returns
         -------
         Interpolator
-            Configured interpolator instance
+            Configured interpolator instance.
 
         Raises
         ------
         ValueError
-            If interpolation type is not supported or parameters are invalid
+            If the interpolation type is unsupported or the supplied parameters are
+            invalid.
         """
         if verbose:
             print(f"[{context}] Creating interpolator:", file=sys.stderr)
