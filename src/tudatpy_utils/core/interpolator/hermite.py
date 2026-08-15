@@ -13,6 +13,7 @@ from __future__ import annotations
 import bisect
 
 import numpy as np
+from typing_extensions import override
 
 from .interpolator import Interpolator
 
@@ -199,8 +200,15 @@ class SlidingWindowHermiteInterpolator(Interpolator):
 
         self._invalidate_cache()
 
+    @override
     def clear_storage(self) -> None:
-        """Remove all stored samples, derivatives, and reset state."""
+        """Remove all stored samples, derivatives, and reset state.
+
+        Returns
+        -------
+        None
+            This method clears the current storage and resets the interpolator.
+        """
         self.derivatives.clear()
         self.q_coeffs.clear()
         self.t_values.clear()
@@ -230,8 +238,9 @@ class SlidingWindowHermiteInterpolator(Interpolator):
 
         Returns
         -------
-        tuple
-            (window_start_index, independent_values, dependent_values, derivatives_or_None)
+        tuple[int, list[float], list[np.ndarray], list[list[list[float]]] | None]
+            The window start index, local independent values, local dependent values,
+            and any derivative data associated with the window.
         """
         n = len(self.independent_values)
         if n <= self.window_size:
@@ -509,10 +518,11 @@ class SlidingWindowHermiteInterpolator(Interpolator):
             term_sum += product
         return term_sum
 
+    @override
     def interpolate(self, independent_value: float) -> np.ndarray | None:
-        """Interpolate dependent values at given independent value.
+        """Interpolate dependent values at a given independent value.
 
-        Uses sliding window for high-order interpolation with caching.
+        Uses a sliding window for high-order interpolation with caching.
 
         Parameters
         ----------
@@ -522,7 +532,7 @@ class SlidingWindowHermiteInterpolator(Interpolator):
         Returns
         -------
         np.ndarray | None
-            Interpolated values, or None on failure.
+            Interpolated dependent values, or *None* on failure.
         """
         if self.is_cartesian_state:
             return self.interpolate_cartesian_state(independent_value)

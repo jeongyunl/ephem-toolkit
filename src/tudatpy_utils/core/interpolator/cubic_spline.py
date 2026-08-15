@@ -1,4 +1,8 @@
-"""Natural cubic spline interpolator for ordered scalar and vector data."""
+"""Natural cubic spline interpolator for ordered scalar and vector data.
+
+References:
+    https://en.wikipedia.org/wiki/Spline_(mathematics)
+"""
 
 from __future__ import annotations
 
@@ -9,6 +13,8 @@ from .interpolator import Interpolator
 
 DEFAULT_CUBIC_SPLINE_DEGREE: int = 3
 """Degree used by the natural cubic spline implementation."""
+EXTRAPOLATION_TOLERANCE_FACTOR: float = 1.0e-12
+"""Relative tolerance used when accepting boundary-adjacent extrapolation."""
 
 
 class CubicSplineInterpolator(Interpolator):
@@ -70,7 +76,15 @@ class CubicSplineInterpolator(Interpolator):
     def add_data_point(
         self, independent_value: float, dependent_data: np.ndarray
     ) -> None:
-        """Append a new ordered sample pair and invalidate cached coefficients."""
+        """Append a new ordered sample pair and invalidate cached coefficients.
+
+        Parameters
+        ----------
+        independent_value : float
+            Independent variable for the new sample.
+        dependent_data : np.ndarray
+            Dependent value associated with the new sample.
+        """
         super().add_data_point(independent_value, dependent_data)
         self._invalidate_cache()
 
@@ -82,7 +96,7 @@ class CubicSplineInterpolator(Interpolator):
 
     @override
     def clear_storage(self) -> None:
-        """Remove stored samples and spline coefficients."""
+        """Remove stored samples and invalidate all cached spline coefficients."""
         super().clear_storage()
         self._invalidate_cache()
 
@@ -177,7 +191,18 @@ class CubicSplineInterpolator(Interpolator):
         self._coefficients = coefficients
 
     def _get_interval_index(self, independent_value: float) -> int:
-        """Return the interval index for a query value."""
+        """Return the interval index for a query value.
+
+        Parameters
+        ----------
+        independent_value : float
+            Query value whose interval index is requested.
+
+        Returns
+        -------
+        int
+            Interval index containing the query point.
+        """
         x_values = self._independent_cache
         if x_values is None:
             x_values = np.asarray(self.independent_values, dtype=float)
@@ -192,12 +217,26 @@ class CubicSplineInterpolator(Interpolator):
         if independent_value >= x_values[-1]:
             return x_count - 2
 
-        interval_index = int(np.searchsorted(x_values, independent_value, side="right")) - 1
+        interval_index = (
+            int(np.searchsorted(x_values, independent_value, side="right")) - 1
+        )
         return max(0, min(interval_index, x_count - 2))
 
     @override
     def interpolate(self, independent_value: float) -> np.ndarray | None:
-        """Evaluate the natural cubic spline at a query point."""
+        """Evaluate the natural cubic spline at a query point.
+
+        Parameters
+        ----------
+        independent_value : float
+            Independent value where the spline is evaluated.
+
+        Returns
+        -------
+        np.ndarray | None
+            Interpolated dependent vector for the query point, or *None* if the
+            value lies outside the valid domain and extrapolation is disabled.
+        """
         if len(self.independent_values) < 2:
             return None
 
@@ -207,7 +246,9 @@ class CubicSplineInterpolator(Interpolator):
 
         lower_bound = float(x_values[0])
         upper_bound = float(x_values[-1])
-        tolerance = 1.0e-12 * max(1.0, abs(lower_bound), abs(upper_bound))
+        tolerance = EXTRAPOLATION_TOLERANCE_FACTOR * max(
+            1.0, abs(lower_bound), abs(upper_bound)
+        )
 
         if independent_value < lower_bound - tolerance:
             if not self.allow_extrapolation:
