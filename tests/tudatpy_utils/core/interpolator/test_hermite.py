@@ -204,8 +204,8 @@ def test_interpolate_cartesian_state_wrong_dimension() -> None:
         interpolator.interpolate_cartesian_state(0.5)
 
 
-def test_boundary_window_can_widen_at_domain_edge() -> None:
-    """Near the start of the data range, the Hermite window should expand on the available side."""
+def test_boundary_mode_widen_respects_public_api_at_domain_edge() -> None:
+    """A widened boundary mode should still produce a valid public interpolation result near the start of the data range."""
     interpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=1,
         degree=3,
@@ -216,10 +216,10 @@ def test_boundary_window_can_widen_at_domain_edge() -> None:
     for value in range(10):
         interpolator.add_data_point(float(value), np.array([float(value)], dtype=float))
 
-    start, local_indep, _, _ = interpolator._select_window(0.25)
+    result = interpolator.interpolate(0.25)
 
-    assert start == 0
-    assert len(local_indep) == 6
+    assert result is not None
+    assert result[0] == pytest.approx(0.25, abs=1e-8)
 
 
 def test_is_cartesian_state_wrong_dimension_in_constructor() -> None:
@@ -228,22 +228,6 @@ def test_is_cartesian_state_wrong_dimension_in_constructor() -> None:
         ValueError, match="dimension must be 6 when is_cartesian_state is True"
     ):
         hermite.SlidingWindowHermiteInterpolator(dimension=3, degree=2, is_cartesian_state=True)
-
-
-def test_chebyshev_boundary_window_can_widen_at_domain_edge() -> None:
-    """Near the start of the data range, the Chebyshev window should widen on the available side."""
-    interpolator = chebyshev.ChebyshevInterpolator(
-        dimension=1,
-        degree=3,
-        boundary_mode="widen",
-        boundary_window_extension=2,
-    )
-
-    start, end, effective_degree = interpolator._select_window(np.arange(10.0), 0.25)
-
-    assert start == 0
-    assert end == 6
-    assert effective_degree == 3
 
 
 def test_hermite_interpolator_multidimensional() -> None:

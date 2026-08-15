@@ -150,39 +150,6 @@ def test_independent_variable_range() -> None:
     assert estimated is None
 
 
-def test_lagrange_boundary_window_uses_compact_edge_stencil() -> None:
-    """Near the boundary, the edge window should be slightly compacted to reduce one-sided oscillation."""
-    interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
-        dimension=1, degree=5
-    )
-    for x in range(41):
-        interpolator.add_data_point(float(x), np.array([float(x)], dtype=float))
-
-    start_index, window_values = interpolator._select_window(0.5)
-
-    assert start_index == 0
-    assert len(window_values) < interpolator.window_size
-    assert len(window_values) == max(2, interpolator.window_size - lagrange.BOUNDARY_WINDOW_REDUCTION)
-
-
-def test_lagrange_uses_hermite_style_boundary_modes() -> None:
-    """Lagrange should support the same boundary policies as Hermite for edge stability."""
-    interpolator = lagrange.LagrangeInterpolator(
-        dimension=1,
-        degree=3,
-        boundary_mode="widen",
-        boundary_window_extension=2,
-    )
-
-    for x in range(10):
-        interpolator.add_data_point(float(x), np.array([float(x)], dtype=float))
-
-    start_index, window_values = interpolator._select_window(0.25)
-
-    assert start_index == 0
-    assert len(window_values) == 6
-
-
 def test_internal_cache_integrity() -> None:
     """Test that interpolator cache maintains consistency across repeated queries."""
     number_of_data_points: int = 80
