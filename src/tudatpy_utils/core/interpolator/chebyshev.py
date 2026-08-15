@@ -1,10 +1,11 @@
-"""Chebyshev polynomial interpolator for scalar or vector dependent data.
+"""Sliding-window Chebyshev polynomial interpolator for scalar or vector data.
 
-Provides :class:`ChebyshevInterpolator`, which fits a local window of stored
-samples in a Chebyshev basis around each query point and evaluates the
-resulting polynomial. This is a local (piecewise) interpolant: using a single
-global fit over a wide data range is numerically unstable, so each query uses
-a nearby window of ``degree + 1`` samples instead.
+Fits a local Chebyshev polynomial (in the Chebyshev basis, for numerical
+stability) to a window of samples around each query point and evaluates it
+using the Clenshaw recurrence. Windows near the domain boundary are widened
+(rather than shrunk) so the fit becomes an overdetermined least-squares solve
+there instead of an exact interpolant, which bounds boundary error without
+requiring an excluded margin.
 
 References:
     https://en.wikipedia.org/wiki/Chebyshev_polynomials
@@ -13,226 +14,179 @@ References:
 from __future__ import annotations
 
 import numpy as np
+from numpy.polynomial import chebyshev as np_chebyshev
+from typing_extensions import override
 
-from .interpolator import MINIMUM_REQUIRED_POINTS, Interpolator
+from .interpolator import Interpolator
 
 DEFAULT_CHEBYSHEV_DEGREE: int = 5
-"""Default polynomial degree for Chebyshev interpolation."""
-
 RANGE_EXTRAPOLATION_TOLERANCE: float = 1.0e-12
-"""Tolerance used when accepting values that are marginally outside the data range."""
-
+"""Tolerance when accepting marginal out-of-range query values."""
 BOUNDARY_DEGREE_BOOST: int = 2
-"""Extra points/degree used at the edges of the stored data.
-
-Windows near the boundary are one-sided and therefore more prone to
-oscillation (Runge's phenomenon) than a centered interior window. When extra
-samples are available on the accessible side, the window is widened by up to
-this many points to improve boundary accuracy and stability.
-"""
+"""Extra points used to widen boundary windows for stability."""
 
 
 class ChebyshevInterpolator(Interpolator):
-    """Chebyshev polynomial interpolator for vector-valued dependent data.
-
-    Uses a local window of neighboring samples around each query point,
-    converts that window to a Chebyshev basis, and evaluates the fitted
-    polynomial at the requested independent value.
-    """
+    """Sliding-window Chebyshev interpolator for scalar or vector data."""
 
     def __init__(
         self, dimension: int = 1, degree: int = DEFAULT_CHEBYSHEV_DEGREE
     ) -> None:
-        """Initialize the interpolator with a dependent-vector dimension and degree.
+        """Initialize the interpolator with a dependent-vector dimension and degree."""
+        if degree < 1:
+            raise ValueError("degree must be at least 1")
 
-        Parameters
-        ----------
-        dimension : int, optional
-            Number of components in each dependent data vector.
-        degree : int, optional
-            Polynomial degree used for the local Chebyshev fit.
-        """
         super().__init__(dimension)
+        self.base_degree: int = int(degree)
+        """Base degree restored when the data set is reset or refilled."""
+        self._degree: int = int(degree)
+        self.required_points: int = self._degree + 1
 
-        self.degree: int = degree
+        self._cache_window: tuple[int, int] | None = None
+        self._cache_domain: tuple[float, float] | None = None
+        self._cache_coefficients: np.ndarray | None = None
+
+    @property
+    def degree(self) -> int:
         """Current interpolation polynomial degree."""
-        self.base_degree: int = degree
-        """Base degree restored when the sample set changes."""
-        self.required_points: int = degree + 1
-        """Required points for a degree-N Chebyshev polynomial is N + 1."""
+        return self._degree
 
+    @degree.setter
+    def degree(self, value: int) -> None:
+        if value < 1:
+            raise ValueError("degree must be at least 1")
+        self._degree = int(value)
+        self.required_points = self._degree + 1
+        self._invalidate_cache()
+
+    @override
+    def add_data_point(
+        self, independent_value: float, dependent_data: np.ndarray
+    ) -> None:
+        """Append a new independently ordered sample pair."""
+        super().add_data_point(independent_value, dependent_data)
+        self._invalidate_cache()
+
+    @override
     def reset_state(self) -> None:
-        """Reset transient interpolation state while keeping stored samples."""
+        """Reset sliding-state bookkeeping while retaining stored samples."""
         super().reset_state()
+        self._degree = self.base_degree
+        self.required_points = self._degree + 1
+        self._invalidate_cache()
 
+    @override
     def clear_storage(self) -> None:
-        """Clear stored sample data and reset the interpolation state."""
+        """Clear all sample data and restore the default state."""
         super().clear_storage()
+        self._degree = self.base_degree
+        self.required_points = self._degree + 1
+        self._invalidate_cache()
+
+    def _invalidate_cache(self) -> None:
+        """Invalidate the cached window fit."""
+        self._cache_window = None
+        self._cache_domain = None
+        self._cache_coefficients = None
 
     @staticmethod
-    def _closest_index(independent_values: np.ndarray, independent_value: float) -> int:
-        """Return the index of the stored sample nearest to *independent_value*.
-
-        Parameters
-        ----------
-        independent_values : np.ndarray
-            Sorted array of stored independent variable values.
-        independent_value : float
-            Query location to locate within *independent_values*.
-
-        Returns
-        -------
-        int
-            Index of the nearest stored sample.
-        """
-        insertion_index = int(np.searchsorted(independent_values, independent_value))
-        if insertion_index <= 0:
-            return 0
-        if insertion_index >= len(independent_values):
-            return len(independent_values) - 1
-
-        left_index = insertion_index - 1
-        right_index = insertion_index
-        left_distance = independent_value - independent_values[left_index]
-        right_distance = independent_values[right_index] - independent_value
-        return left_index if left_distance <= right_distance else right_index
-
     def _select_window(
-        self, independent_values: np.ndarray, independent_value: float, degree: int
+        independent_values: np.ndarray, independent_value: float, degree: int
     ) -> tuple[int, int, int]:
-        """Select the local sample window and effective degree for a query.
+        """Select a local sample window and effective degree for a query value.
 
-        The window is centered on the sample nearest to *independent_value*.
-        When the centered window would run past the stored data (i.e. the
-        query lies near a boundary), the window is shifted to stay in range
-        and, if extra samples are available on the accessible side, widened
-        by up to :data:`BOUNDARY_DEGREE_BOOST` points to reduce the
-        oscillation typical of one-sided polynomial fits.
-
-        Parameters
-        ----------
-        independent_values : np.ndarray
-            Sorted array of stored independent variable values.
-        independent_value : float
-            Query location to build a window around.
-        degree : int
-            Requested polynomial degree for the fit.
-
-        Returns
-        -------
-        tuple[int, int, int]
-            ``(window_start, window_end, effective_degree)`` indices (inclusive)
-            into *independent_values*.
+        Returns the half-open window ``[start, end)`` and the polynomial degree
+        to fit within it. Windows near the domain boundary are widened by
+        :data:`BOUNDARY_DEGREE_BOOST` extra points (keeping the same degree) so
+        the fit is an overdetermined least-squares solve rather than an exact
+        interpolant, which reduces boundary oscillation.
         """
-        number_of_samples = len(independent_values)
-        required_sample_count = degree + 1
-        closest_index = self._closest_index(independent_values, independent_value)
+        n = len(independent_values)
+        base_window = degree + 1
 
-        if required_sample_count % 2 == 0:
-            window_start = closest_index - required_sample_count // 2
-            if independent_values[closest_index] < independent_value:
-                window_start += 1
-        else:
-            window_start = closest_index - (required_sample_count - 1) // 2
+        if n <= base_window:
+            return 0, n, min(degree, max(1, n - 1))
 
-        window_start = max(
-            0, min(window_start, number_of_samples - required_sample_count)
+        insertion_index = int(np.searchsorted(independent_values, independent_value))
+        half_window = base_window // 2
+
+        near_left = insertion_index <= half_window
+        near_right = insertion_index >= n - half_window
+
+        if near_left or near_right:
+            window_count = min(n, base_window + BOUNDARY_DEGREE_BOOST)
+            start = 0 if near_left else n - window_count
+            return start, start + window_count, degree
+
+        start = insertion_index - half_window
+        start = max(0, min(start, n - base_window))
+        return start, start + base_window, degree
+
+    def _fit_window(
+        self, window_independent_values: np.ndarray, effective_degree: int
+    ) -> tuple[tuple[float, float], np.ndarray]:
+        """Fit Chebyshev coefficients to a window, returning the domain and design matrix."""
+        domain_low = float(window_independent_values[0])
+        domain_high = float(window_independent_values[-1])
+        if domain_high == domain_low:
+            domain_high = domain_low + 1.0
+
+        scaled_values = (2.0 * window_independent_values - (domain_high + domain_low)) / (
+            domain_high - domain_low
         )
-        window_end = window_start + degree
+        design_matrix = np_chebyshev.chebvander(scaled_values, effective_degree)
 
-        is_boundary_window = window_start == 0 or window_end == number_of_samples - 1
-        effective_degree = degree
-        if is_boundary_window and number_of_samples > required_sample_count:
-            available_extra_samples = number_of_samples - required_sample_count
-            boundary_extension = min(BOUNDARY_DEGREE_BOOST, available_extra_samples)
-            effective_degree = degree + boundary_extension
-            if window_start == 0:
-                window_end = effective_degree
-            else:
-                window_start = number_of_samples - 1 - effective_degree
-                window_end = number_of_samples - 1
+        return (domain_low, domain_high), design_matrix
 
-        return window_start, window_end, effective_degree
-
+    @override
     def interpolate(self, independent_value: float) -> np.ndarray | None:
-        """Evaluate the Chebyshev interpolant at a query point.
-
-        Parameters
-        ----------
-        independent_value : float
-            Query location at which to evaluate the interpolant.
-
-        Returns
-        -------
-        np.ndarray | None
-            Interpolated dependent data vector, or *None* when the query falls
-            outside the stored range and extrapolation is disabled.
-        """
-        if len(self.independent_values) < MINIMUM_REQUIRED_POINTS:
+        """Evaluate the local Chebyshev polynomial fit via a cached least-squares solve."""
+        if len(self.independent_values) < 2:
             return None
 
-        if (
-            independent_value < self.independent_values[0]
-            and not self.allow_extrapolation
-        ):
-            if (
-                independent_value
-                < self.independent_values[0] - RANGE_EXTRAPOLATION_TOLERANCE
-            ):
-                return None
-
-        if (
-            independent_value > self.independent_values[-1]
-            and not self.allow_extrapolation
-        ):
-            if (
-                independent_value
-                > self.independent_values[-1] + RANGE_EXTRAPOLATION_TOLERANCE
-            ):
-                return None
-
-        dependent_values = np.asarray(self.dependent_values, dtype=float)
         independent_values = np.asarray(self.independent_values, dtype=float)
+        minimum_value = float(independent_values[0])
+        maximum_value = float(independent_values[-1])
 
-        current_degree = min(self.degree, len(independent_values) - 1)
-        if current_degree < 1:
-            closest_index = self._closest_index(independent_values, independent_value)
-            return dependent_values[closest_index].copy()
+        if independent_value < minimum_value:
+            if not self.allow_extrapolation and (
+                independent_value < minimum_value - RANGE_EXTRAPOLATION_TOLERANCE
+            ):
+                return None
+        elif independent_value > maximum_value:
+            if not self.allow_extrapolation and (
+                independent_value > maximum_value + RANGE_EXTRAPOLATION_TOLERANCE
+            ):
+                return None
 
         window_start, window_end, effective_degree = self._select_window(
-            independent_values, independent_value, current_degree
+            independent_values, independent_value, self.degree
         )
-        window_independent_values = independent_values[window_start : window_end + 1]
-        window_dependent_values = dependent_values[window_start : window_end + 1]
+        window_size = window_end - window_start
+        if window_size < 2:
+            return None
 
-        minimum_independent_value = float(np.min(window_independent_values))
-        maximum_independent_value = float(np.max(window_independent_values))
-        if maximum_independent_value == minimum_independent_value:
-            return window_dependent_values[0].copy()
-
-        scaled_independent_values = (
-            2.0
-            * (window_independent_values - minimum_independent_value)
-            / (maximum_independent_value - minimum_independent_value)
-            - 1.0
-        )
-        scaled_query_value = (
-            2.0
-            * (independent_value - minimum_independent_value)
-            / (maximum_independent_value - minimum_independent_value)
-            - 1.0
-        )
-
-        interpolated_values = np.empty(self.dependent_dimension, dtype=float)
-        for dimension_index in range(self.dependent_dimension):
-            chebyshev_coefficients = np.polynomial.chebyshev.chebfit(
-                scaled_independent_values,
-                window_dependent_values[:, dimension_index],
-                deg=effective_degree,
+        if self._cache_window != (window_start, window_end):
+            window_independent_values = independent_values[window_start:window_end]
+            domain, design_matrix = self._fit_window(
+                window_independent_values, effective_degree
             )
-            interpolated_values[dimension_index] = np.polynomial.chebyshev.chebval(
-                scaled_query_value,
-                chebyshev_coefficients,
+            window_dependent_values = np.asarray(
+                self.dependent_values[window_start:window_end], dtype=float
+            )
+            coefficients, _, _, _ = np.linalg.lstsq(
+                design_matrix, window_dependent_values, rcond=None
             )
 
-        return interpolated_values
+            self._cache_window = (window_start, window_end)
+            self._cache_domain = domain
+            self._cache_coefficients = coefficients
+
+        domain_low, domain_high = self._cache_domain
+        scaled_query = (2.0 * independent_value - (domain_high + domain_low)) / (
+            domain_high - domain_low
+        )
+
+        return np.atleast_1d(
+            np_chebyshev.chebval(scaled_query, self._cache_coefficients)
+        )

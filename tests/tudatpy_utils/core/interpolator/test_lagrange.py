@@ -150,6 +150,21 @@ def test_independent_variable_range() -> None:
     assert estimated is None
 
 
+def test_lagrange_boundary_window_uses_compact_edge_stencil() -> None:
+    """Near the boundary, the edge window should be slightly compacted to reduce one-sided oscillation."""
+    interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
+        dimension=1, degree=5
+    )
+    for x in range(41):
+        interpolator.add_data_point(float(x), np.array([float(x)], dtype=float))
+
+    start_index, window_values = interpolator._select_window(0.5)
+
+    assert start_index == 0
+    assert len(window_values) < interpolator.window_size
+    assert len(window_values) == max(2, interpolator.window_size - lagrange.BOUNDARY_WINDOW_REDUCTION)
+
+
 def test_internal_cache_integrity() -> None:
     """Test that interpolator cache maintains consistency across repeated queries."""
     number_of_data_points: int = 80
@@ -201,18 +216,16 @@ def test_internal_cache_integrity() -> None:
         )
 
 
-def test_closest_data_index_validity_check() -> None:
-    """Test that closest data index validity check works correctly."""
+def test_public_interpolation_boundary_behavior() -> None:
+    """Test that public interpolation API behaves correctly at boundaries and inside range."""
     interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
         dimension=1, degree=4
     )
     for x in range(5):
         interpolator.add_data_point(float(x), np.array([float(x)], dtype=float))
 
-    interpolator.closest_data_index = 2
-    assert interpolator._is_closest_data_index_valid(2.4) is True
-    assert interpolator._is_closest_data_index_valid(1.4) is False
-    assert interpolator._is_closest_data_index_valid(3.6) is False
-    interpolator.closest_data_index = 0
-    assert interpolator._is_closest_data_index_valid(0.4) is True
-    assert interpolator._is_closest_data_index_valid(-0.1) is True
+    assert interpolator.interpolate(2.4) == pytest.approx(2.4)
+    assert interpolator.interpolate(1.4) == pytest.approx(1.4)
+    assert interpolator.interpolate(3.6) == pytest.approx(3.6)
+    assert interpolator.interpolate(-0.1) is None
+    assert interpolator.interpolate(4.1) is None

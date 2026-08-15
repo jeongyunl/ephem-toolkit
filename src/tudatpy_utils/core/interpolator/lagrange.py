@@ -1,10 +1,3 @@
-"""Lagrange polynomial interpolator for scalar or vector dependent data.
-
-Provides :class:`LagrangeInterpolator`, which selects a local polynomial
-window around each query point and evaluates the classical Lagrange basis
-formula to produce an interpolated dependent vector.
-"""
-
 from __future__ import annotations
 
 import numpy as np
@@ -13,361 +6,174 @@ from typing_extensions import override
 from .interpolator import Interpolator
 
 DEFAULT_LAGRANGE_DEGREE: int = 7
-"""Default polynomial degree for Lagrange interpolation."""
-
-RANGE_OVERSHOOT_TOLERANCE: float = 1e-8
-"""Tolerance for allowing queries marginally outside the stored data range."""
-
-MIN_DIFFERENCE_FOR_START: float = 1.0e30
-"""Sentinel initial value used when searching for the minimum window bias."""
+BOUNDARY_WINDOW_REDUCTION: int = 2
+"""Number of support points removed from edge windows to tame one-sided oscillation."""
 
 
 class LagrangeInterpolator(Interpolator):
-    """Lagrange interpolator that selects a local polynomial window for interpolation.
-
-    Chooses a contiguous subset of stored points centered near the query and
-    evaluates the classical Lagrange polynomial formula to produce an
-    interpolated dependent vector.
-    """
+    """Sliding-window Lagrange interpolator for scalar or vector data."""
 
     def __init__(
         self, dimension: int = 1, degree: int = DEFAULT_LAGRANGE_DEGREE
     ) -> None:
+        """Initialize the interpolator with a dependent-vector dimension and degree."""
+        if degree < 1:
+            raise ValueError("degree must be at least 1")
+
         super().__init__(dimension)
-
-        self.degree: int = degree
-        """Current interpolation polynomial degree."""
-        self.base_degree: int = degree
-        """Base degree to restore when the buffer returns to full capacity."""
-        self.reset_to_base_degree: bool = True
-        """Reset degree to base_degree after an interpolation pass."""
-
-        self.required_points: int = degree + 1
-        """Required points for a degree-N polynomial is N+1."""
-
-        self.candidate_window_start_index: int = 0
-        """Start index of the candidate interpolation window."""
-        self.evaluation_start_index: int = 0
-        """Start index for the actual evaluation window."""
-        self.candidate_window_end_index: int = 0
-        """End index of the candidate interpolation window."""
-        self.closest_data_index: int = 0
-        """Index of the stored sample closest to the query point."""
+        self.degree: int = int(degree)
+        self.window_size: int = max(2, self.degree + 1)
+        self.required_points: int = max(2, self.degree + 1)
+        self._cache_window_start: int = -1
+        self._cache_window_values: np.ndarray | None = None
+        self._cache_window_dependent_values: np.ndarray | None = None
+        self._cache_window_weights: np.ndarray | None = None
 
     @override
     def add_data_point(
         self, independent_value: float, dependent_data: np.ndarray
     ) -> None:
-        """Append a new sample to the base interpolator storage.
-
-        Parameters
-        ----------
-        independent_value : float
-            Independent variable value for the new data point.
-        dependent_data : np.ndarray
-            Dependent variable values for the new data point.
-        """
-        return super().add_data_point(independent_value, dependent_data)
+        """Append a new independently ordered sample pair."""
+        super().add_data_point(independent_value, dependent_data)
+        self._cache_window_start = -1
+        self._cache_window_values = None
+        self._cache_window_dependent_values = None
+        self._cache_window_weights = None
 
     @override
     def reset_state(self) -> None:
-        """Reset interpolator state while preserving stored samples."""
+        """Reset sliding-state bookkeeping while retaining stored samples."""
         super().reset_state()
-        self.reset_to_base_degree = True
-
-        self.candidate_window_start_index = 0
-        self.evaluation_start_index = 0
-        self.candidate_window_end_index = 0
-        self.closest_data_index = 0
+        self._cache_window_start = -1
+        self._cache_window_values = None
+        self._cache_window_dependent_values = None
+        self._cache_window_weights = None
 
     @override
     def clear_storage(self) -> None:
-        """Clear stored sample data and reset state for a fresh interpolation run."""
+        """Clear all sample data and restore the default state."""
         super().clear_storage()
-        self.reset_state()
+        self._cache_window_start = -1
+        self._cache_window_values = None
+        self._cache_window_dependent_values = None
+        self._cache_window_weights = None
+
+    def _select_window(self, independent_value: float) -> tuple[int, np.ndarray]:
+        """Return the local interpolation window start and x values for a query."""
+        if len(self.independent_values) == 0:
+            return -1, np.empty(0, dtype=float)
+
+        independent_values = np.asarray(self.independent_values, dtype=float)
+        minimum_value = float(independent_values[0])
+        maximum_value = float(independent_values[-1])
+
+        if independent_value < minimum_value:
+            if not self.allow_extrapolation:
+                if independent_value < minimum_value - 1.0e-12:
+                    return -1, np.empty(0, dtype=float)
+            full_window_count = min(self.window_size, len(independent_values))
+            compact_window_count = max(2, full_window_count - BOUNDARY_WINDOW_REDUCTION)
+            return 0, independent_values[:compact_window_count]
+
+        if independent_value > maximum_value:
+            if not self.allow_extrapolation:
+                if independent_value > maximum_value + 1.0e-12:
+                    return -1, np.empty(0, dtype=float)
+            full_window_count = min(self.window_size, len(independent_values))
+            compact_window_count = max(2, full_window_count - BOUNDARY_WINDOW_REDUCTION)
+            start = max(0, len(independent_values) - compact_window_count)
+            return start, independent_values[start:]
+
+        if len(independent_values) <= self.window_size:
+            return 0, independent_values
+
+        insertion_index = int(np.searchsorted(independent_values, independent_value))
+        window_count = min(self.window_size, len(independent_values))
+        half_window = window_count // 2
+
+        if insertion_index <= half_window:
+            compact_window_count = max(2, window_count - BOUNDARY_WINDOW_REDUCTION)
+            return 0, independent_values[:compact_window_count]
+
+        if insertion_index >= len(independent_values) - half_window:
+            compact_window_count = max(2, window_count - BOUNDARY_WINDOW_REDUCTION)
+            start_index = len(independent_values) - compact_window_count
+            return start_index, independent_values[start_index : start_index + compact_window_count]
+
+        start_index = insertion_index - half_window
+        if start_index < 0:
+            start_index = 0
+        if start_index + window_count > len(independent_values):
+            start_index = len(independent_values) - window_count
+
+        return (
+            max(0, start_index),
+            independent_values[start_index : start_index + window_count],
+        )
+
+    @staticmethod
+    def _barycentric_weights(window_independent_values: np.ndarray) -> np.ndarray:
+        """Compute Lagrange barycentric weights for a window of x values."""
+        weights = np.empty(len(window_independent_values), dtype=float)
+        for i, x_i in enumerate(window_independent_values):
+            denominator = 1.0
+            for j, x_j in enumerate(window_independent_values):
+                if i == j:
+                    continue
+                denominator *= x_i - x_j
+            weights[i] = 1.0 / denominator if np.abs(denominator) > 1.0e-30 else 0.0
+        return weights
 
     @override
     def interpolate(self, independent_value: float) -> np.ndarray | None:
-        """Compute the interpolated dependent vector for the requested value.
-
-        Parameters
-        ----------
-        independent_value : float
-            Query point at which to interpolate.
-
-        Returns
-        -------
-        np.ndarray | None
-            Interpolated dependent vector, or None if interpolation fails.
-        """
-        self._adjust_order_for_points()
-        is_feasible: int = self._check_interpolation_feasibility(independent_value)
-        if is_feasible != 1:
+        """Evaluate the local Lagrange polynomial using a cached barycentric form."""
+        if len(self.independent_values) < 2:
             return None
 
-        # Choose a local set of sample points around the query point.
-        if len(self.independent_values) >= self.required_points:
-            if not self._is_closest_data_index_valid(independent_value):
-                self._update_closest_data_index(independent_value)
-
-            self._select_candidate_window(independent_value)
-        elif not self.force_interpolation:
+        window_start, window_independent_values = self._select_window(independent_value)
+        if window_start < 0:
             return None
 
-        # If the interpolator is allowed to refuse poor interpolations, verify
-        # the query remains within the centered window.
-        if not self.force_interpolation:
-            if not self._is_query_centered():
-                return None
-
-        self._choose_evaluation_start_index(independent_value)
-
-        products: np.ndarray = np.zeros(self.dependent_dimension, dtype=float)
-        estimates: np.ndarray = np.zeros(self.dependent_dimension, dtype=float)
-
-        for i in range(
-            self.evaluation_start_index, self.candidate_window_end_index + 1
-        ):
-            # Begin each Lagrange term with the dependent value at point i.
-            for dim in range(self.dependent_dimension):
-                products[dim] = self.dependent_values[i][dim]
-
-            # Build the basis polynomial L_i(x) by multiplying the ratios.
-            for j in range(
-                self.evaluation_start_index, self.candidate_window_end_index + 1
-            ):
-                if i != j:
-                    for dim in range(self.dependent_dimension):
-                        if (
-                            self.independent_values[i] - self.independent_values[j]
-                        ) == 0.0:
-                            print("WARNING: Lagrange interpolation zero denominator")
-                        products[dim] = (
-                            products[dim]
-                            * (independent_value - self.independent_values[j])
-                            / (self.independent_values[i] - self.independent_values[j])
-                        )
-
-            # Accumulate the weighted contribution of the i-th basis polynomial.
-            for dim in range(self.dependent_dimension):
-                estimates[dim] += products[dim]
-
-        return estimates
-
-    def _check_interpolation_feasibility(self, independent_value: float) -> int:
-        """Verify the query is within range and enough samples exist.
-
-        Parameters
-        ----------
-        independent_value : float
-            Query point to check for interpolation feasibility.
-
-        Returns
-        -------
-        int
-            1 if interpolation is feasible, -1 if insufficient points,
-            -2 if below range, -3 if above range.
-        """
-        if len(self.independent_values) < self.required_points:
-            return -1
-
-        # If extrapolation is disabled, ensure the query stays within the stored range.
-        if (independent_value < self.independent_values[0]) and (
-            not self.allow_extrapolation
-        ):
-            if independent_value < (
-                self.independent_values[0] - RANGE_OVERSHOOT_TOLERANCE
-            ):
-                return -2
+        window_size = len(window_independent_values)
+        if window_size == 0:
+            return None
 
         if (
-            independent_value > self.independent_values[-1]
-            and not self.allow_extrapolation
+            window_start != self._cache_window_start
+            or self._cache_window_values is None
         ):
-            if independent_value >= (
-                self.independent_values[-1] + RANGE_OVERSHOOT_TOLERANCE
-            ):
-                return -3
-
-        return 1
-
-    def _adjust_order_for_points(self) -> bool:
-        """Decrease polynomial degree when fewer samples are available than required.
-
-        Returns
-        -------
-        bool
-            True if degree was adjusted, False otherwise.
-        """
-        if (len(self.independent_values) > 1) and (
-            len(self.independent_values) < self.required_points
-        ):
-            self.degree = len(self.independent_values) - 1
-            self.required_points = self.degree + 1
-            self.reset_to_base_degree = False
-            return True
-
-        return False
-
-    def _is_closest_data_index_valid(self, independent_value: float) -> bool:
-        """Return True when the current closest_data_index remains valid.
-
-        For monotonic stored samples, the nearest sample only changes when the
-        query crosses the midpoint between adjacent independent values.
-
-        Parameters
-        ----------
-        independent_value : float
-            Query point to validate against current closest index.
-
-        Returns
-        -------
-        bool
-            True if closest_data_index is still valid, False otherwise.
-        """
-        if not self.independent_values:
-            return False
-
-        if self.closest_data_index < 0 or self.closest_data_index >= len(
-            self.independent_values
-        ):
-            return False
-
-        if len(self.independent_values) == 1:
-            return True
-
-        if self.closest_data_index > 0:
-            left_mid = 0.5 * (
-                self.independent_values[self.closest_data_index - 1]
-                + self.independent_values[self.closest_data_index]
+            self._cache_window_start = window_start
+            self._cache_window_values = window_independent_values
+            self._cache_window_dependent_values = np.asarray(
+                self.dependent_values[window_start : window_start + window_size],
+                dtype=float,
             )
-            if independent_value < left_mid:
-                return False
-
-        if self.closest_data_index < len(self.independent_values) - 1:
-            right_mid = 0.5 * (
-                self.independent_values[self.closest_data_index]
-                + self.independent_values[self.closest_data_index + 1]
-            )
-            if independent_value > right_mid:
-                return False
-
-        return True
-
-    def _update_closest_data_index(self, independent_value: float) -> None:
-        """Update the closest_data_index to the sample nearest to independent_value.
-
-        Parameters
-        ----------
-        independent_value : float
-            Query point for which to find the nearest stored sample.
-        """
-        closest_data_index: int = 0
-        distance_to_data_index: float = abs(
-            self.independent_values[closest_data_index] - independent_value
-        )
-        for i in range(1, len(self.independent_values)):
-            current_distance: float = abs(
-                self.independent_values[i] - independent_value
-            )
-            if current_distance < distance_to_data_index:
-                closest_data_index = i
-                distance_to_data_index = current_distance
-
-        self.closest_data_index = closest_data_index
-
-    def _select_candidate_window(self, independent_value: float) -> None:
-        """Select the contiguous point window that best surrounds the query.
-
-        Parameters
-        ----------
-        independent_value : float
-            Query point around which to center the interpolation window.
-        """
-
-        candidate_window_start_index: int = 0
-
-        if self.required_points % 2 == 0:
-            candidate_window_start_index = self.closest_data_index - (
-                self.required_points // 2
-            )
-            if self.independent_values[self.closest_data_index] < independent_value:
-                candidate_window_start_index += 1
-        else:
-            candidate_window_start_index = self.closest_data_index - (
-                (self.required_points - 1) // 2
+            self._cache_window_weights = self._barycentric_weights(
+                window_independent_values
             )
 
-        if candidate_window_start_index < 0:
-            candidate_window_start_index = 0
+        window_values = self._cache_window_values
+        dependent_values = self._cache_window_dependent_values
+        weights = self._cache_window_weights
 
-        candidate_window_end_index: int = (
-            candidate_window_start_index + self.required_points - 1
-        )
-        if candidate_window_end_index >= len(self.independent_values):
-            candidate_window_end_index = len(self.independent_values) - 1
-            candidate_window_start_index = (
-                candidate_window_end_index - self.required_points + 1
-            )
+        if independent_value == window_values[0]:
+            return dependent_values[0].copy()
+        if independent_value == window_values[-1]:
+            return dependent_values[-1].copy()
 
-        self.candidate_window_start_index = candidate_window_start_index
-        self.candidate_window_end_index = candidate_window_end_index
+        numerator = np.zeros(self.dependent_dimension, dtype=float)
+        denominator = 0.0
+        for local_index, local_independent_value in enumerate(window_values):
+            diff = independent_value - local_independent_value
+            if np.isclose(diff, 0.0):
+                return dependent_values[local_index].copy()
+            weight_term = weights[local_index] / diff
+            numerator += weight_term * dependent_values[local_index]
+            denominator += weight_term
 
-    def _is_query_centered(self) -> bool:
-        """Return True when the query lies near the center of the selected window.
+        return numerator / denominator
 
-        Returns
-        -------
-        bool
-            True if query is centered in the window, False otherwise.
-        """
-        is_centered: bool = False
-
-        if (self.candidate_window_start_index >= 0) and (
-            self.candidate_window_end_index < len(self.independent_values)
-        ):
-            if (self.closest_data_index + (self.degree / 2)) < len(
-                self.independent_values
-            ):
-                is_centered = True
-
-        return is_centered
-
-    def _choose_evaluation_start_index(self, independent_value: float) -> None:
-        """Pick the starting index for the interpolation window that minimizes bias.
-
-        Parameters
-        ----------
-        independent_value : float
-            Query point for which to optimize the window placement.
-        """
-
-        min_difference: float = MIN_DIFFERENCE_FOR_START
-        q_min_index: int = 0
-        q_end_index: int = min(
-            self.candidate_window_start_index + self.degree - 1,
-            len(self.independent_values) - self.degree - 2,
-        )
-
-        for q in range(self.candidate_window_start_index, q_end_index + 1):
-            mean_independent: float = (
-                self.independent_values[q + self.degree - 1]
-                + self.independent_values[q]
-            ) / 2
-            diff: float = abs(mean_independent - independent_value)
-            if diff < min_difference:
-                q_min_index = q
-                min_difference = diff
-
-        start_index: int = q_min_index
-
-        if (q_min_index + self.required_points) > (len(self.independent_values) - 1):
-            start_index = len(self.independent_values) - self.degree + 1
-
-        if start_index < 0:
-            start_index = 0
-
-        if self.candidate_window_start_index > 0:
-            start_index = self.candidate_window_start_index
-
-        self.evaluation_start_index = start_index
+    def _check_interpolation_feasibility(self, independent_value: float) -> int:
+        """Return the start index of a feasible local interpolation window."""
+        window_start, _ = self._select_window(independent_value)
+        return window_start
