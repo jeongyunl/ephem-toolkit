@@ -10,7 +10,7 @@ import core.interpolator.hermite as hermite
 
 def test_hermite_interpolator_interpolates_linear_data() -> None:
     """Test that Hermite interpolator correctly interpolates linear data."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=2, degree=1
     )
     for x in range(5):
@@ -25,7 +25,7 @@ def test_hermite_interpolator_interpolates_linear_data() -> None:
 
 def test_hermite_interpolator_with_derivatives() -> None:
     """Test Hermite interpolation with derivative data."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=1, degree=2
     )
 
@@ -45,7 +45,7 @@ def test_hermite_interpolator_with_derivatives() -> None:
 
 def test_hermite_interpolator_cubic_polynomial() -> None:
     """Test Hermite interpolation on cubic polynomial."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=1, degree=3
     )
 
@@ -74,7 +74,7 @@ def test_hermite_interpolator_cubic_polynomial() -> None:
 
 def test_add_derivative_invalid_order() -> None:
     """Test that adding derivatives with invalid order raises ValueError."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=1, degree=2
     )
     interpolator.add_data_point(0.0, np.array([1.0], dtype=float))
@@ -87,7 +87,7 @@ def test_add_derivative_invalid_order() -> None:
 
 def test_add_derivative_nonexistent_independent_value() -> None:
     """Test that adding derivative for nonexistent point raises ValueError."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=1, degree=2
     )
     interpolator.add_data_point(0.0, np.array([1.0], dtype=float))
@@ -98,7 +98,7 @@ def test_add_derivative_nonexistent_independent_value() -> None:
 
 def test_add_derivative_with_missing_indicator() -> None:
     """Test that derivatives with missing indicator are not added."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=2, degree=2
     )
     interpolator.add_data_point(0.0, np.array([1.0, 2.0], dtype=float))
@@ -112,7 +112,7 @@ def test_add_derivative_with_missing_indicator() -> None:
 
 def test_clear_storage() -> None:
     """Test that clear_storage removes all data and derivatives."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=1, degree=2
     )
 
@@ -130,7 +130,7 @@ def test_clear_storage() -> None:
 
 def test_inconsistent_derivative_data() -> None:
     """Test that inconsistent derivative data raises ValueError."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=1, degree=2
     )
 
@@ -147,7 +147,7 @@ def test_inconsistent_derivative_data() -> None:
 
 def test_interpolate_cartesian_state() -> None:
     """Test Cartesian state interpolation with position and velocity."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=6, degree=2, is_cartesian_state=True
     )
 
@@ -169,7 +169,7 @@ def test_interpolate_cartesian_state() -> None:
 
 def test_interpolate_cartesian_state_via_interpolate() -> None:
     """Test that interpolate() delegates to interpolate_cartesian_state() when is_cartesian_state=True."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=6, degree=2, is_cartesian_state=True
     )
 
@@ -191,7 +191,7 @@ def test_interpolate_cartesian_state_via_interpolate() -> None:
 
 def test_interpolate_cartesian_state_wrong_dimension() -> None:
     """Test that interpolate_cartesian_state raises error for wrong dimension."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=3, degree=2
     )
 
@@ -208,12 +208,12 @@ def test_is_cartesian_state_wrong_dimension_in_constructor() -> None:
     with pytest.raises(
         ValueError, match="dimension must be 6 when is_cartesian_state is True"
     ):
-        hermite.HermiteDividedDifferenceInterpolator(dimension=3, degree=2, is_cartesian_state=True)
+        hermite.SlidingWindowHermiteInterpolator(dimension=3, degree=2, is_cartesian_state=True)
 
 
 def test_hermite_interpolator_multidimensional() -> None:
     """Test Hermite interpolation with multiple dimensions."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=3, degree=2
     )
 
@@ -231,7 +231,7 @@ def test_hermite_interpolator_multidimensional() -> None:
 
 def test_hermite_interpolator_single_point() -> None:
     """Test Hermite interpolation with single data point."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=1, degree=1
     )
 
@@ -244,7 +244,7 @@ def test_hermite_interpolator_single_point() -> None:
 
 def test_evaluate_polynomial_derivative() -> None:
     """Test polynomial derivative evaluation."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=1, degree=2
     )
 
@@ -269,7 +269,7 @@ def test_evaluate_polynomial_derivative() -> None:
 
 def test_derivative_independent_term() -> None:
     """Test derivative independent term calculation."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=1, degree=2
     )
 
@@ -290,7 +290,7 @@ def test_derivative_independent_term() -> None:
 
 def test_set_derivative_data_with_dict_data() -> None:
     """Test set_derivative_data after set_data with dictionary input."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=1, degree=2
     )
 
@@ -310,7 +310,7 @@ def test_set_derivative_data_with_dict_data() -> None:
 
 def test_set_derivative_data_with_list_of_tuples_data() -> None:
     """Test set_derivative_data after set_data with list of tuples input."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=1, degree=2
     )
 
@@ -330,7 +330,7 @@ def test_set_derivative_data_with_list_of_tuples_data() -> None:
 
 def test_set_derivative_data_with_two_list_data() -> None:
     """Test set_derivative_data after set_data with separate independent and dependent lists."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=1, degree=2
     )
 
@@ -351,7 +351,7 @@ def test_set_derivative_data_with_two_list_data() -> None:
 
 def test_set_derivative_data_invalid_order() -> None:
     """Test set_derivative_data raises ValueError for unsupported order."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=1, degree=2
     )
 
@@ -365,7 +365,7 @@ def test_set_derivative_data_invalid_order() -> None:
 
 def test_set_derivative_data_length_mismatch() -> None:
     """Test set_derivative_data raises ValueError on length mismatch."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=1, degree=2
     )
 
@@ -377,7 +377,7 @@ def test_set_derivative_data_length_mismatch() -> None:
 
 def test_set_derivative_data_no_derivative_data() -> None:
     """Test set_derivative_data with None derivative_data is a no-op."""
-    interpolator: hermite.HermiteDividedDifferenceInterpolator = hermite.HermiteDividedDifferenceInterpolator(
+    interpolator: hermite.SlidingWindowHermiteInterpolator = hermite.SlidingWindowHermiteInterpolator(
         dimension=1, degree=2
     )
 
