@@ -138,7 +138,7 @@ def _run_useable_range_accuracy_test(
     step_size: timedelta,
     reference_states: dict[float, np.ndarray],
 ) -> dict[str, float | int | interp_spec.InterpolationSpec]:
-    """Interpolate input OEM and compare against reference within useable range only."""
+    """Interpolate input OEM and compare against reference across the full interpolated range."""
     input_oem = oem.CcsdsOem.read(str(DATA_DIR / input_file))
 
     options = slice_oem.TimeSliceOptions(
@@ -150,24 +150,10 @@ def _run_useable_range_accuracy_test(
 
     result_oem = slice_oem.extract_states_by_time(input_oem, options)
 
-    # Determine useable time bounds
-    if result_oem.meta.useable_start_time and result_oem.meta.useable_stop_time:
-        useable_start_ts = time_utils.iso8601_to_datetime(
-            result_oem.meta.useable_start_time
-        ).timestamp()
-        useable_stop_ts = time_utils.iso8601_to_datetime(
-            result_oem.meta.useable_stop_time
-        ).timestamp()
-    else:
-        useable_start_ts = result_oem.states[0][0]
-        useable_stop_ts = result_oem.states[-1][0]
-
     position_errors_km: list[float] = []
     velocity_errors_kms: list[float] = []
 
     for ts, interp_state in result_oem.states:
-        if ts < useable_start_ts or ts > useable_stop_ts:
-            continue
         if ts not in reference_states:
             continue
         ref_state = reference_states[ts]
@@ -178,7 +164,7 @@ def _run_useable_range_accuracy_test(
         vel_err = np.linalg.norm(interp_state[3:6] - ref_state[3:6])
         velocity_errors_kms.append(vel_err)
 
-    assert len(position_errors_km) > 0, "No matching timestamps in useable range"
+    assert len(position_errors_km) > 0, "No matching timestamps in interpolated range"
 
     pos_array = np.array(position_errors_km)
     vel_array = np.array(velocity_errors_kms)
@@ -201,83 +187,6 @@ def _run_useable_range_accuracy_test(
     return {
         "spec": spec,
         "label": "useable_range",
-        "max_pos": max_pos,
-        "rms_pos": rms_pos,
-        "mean_pos": mean_pos,
-        "std_pos": std_pos,
-        "max_vel": max_vel,
-        "rms_vel": rms_vel,
-        "mean_vel": mean_vel,
-        "std_vel": std_vel,
-        "count": len(position_errors_km),
-    }
-
-
-def _run_unuseable_range_accuracy_test(
-    input_file: str,
-    spec: interp_spec.InterpolationSpec,
-    step_size: timedelta,
-    reference_states: dict[float, np.ndarray],
-) -> dict[str, float | int | interp_spec.InterpolationSpec] | None:
-    """Interpolate input OEM and compare against reference in unuseable boundary regions only."""
-    input_oem = oem.CcsdsOem.read(str(DATA_DIR / input_file))
-
-    options = slice_oem.TimeSliceOptions(
-        start_time=None,
-        stop_time=timedelta(0),
-        step_size=step_size,
-        interpolation_spec=spec,
-    )
-
-    result_oem = slice_oem.extract_states_by_time(input_oem, options)
-
-    # Determine unuseable time bounds
-    if result_oem.meta.useable_start_time and result_oem.meta.useable_stop_time:
-        useable_start_ts = time_utils.iso8601_to_datetime(
-            result_oem.meta.useable_start_time
-        ).timestamp()
-        useable_stop_ts = time_utils.iso8601_to_datetime(
-            result_oem.meta.useable_stop_time
-        ).timestamp()
-    else:
-        return None  # No unuseable range defined
-
-    position_errors_km: list[float] = []
-    velocity_errors_kms: list[float] = []
-
-    for ts, interp_state in result_oem.states:
-        # Only test boundary regions: [start, useable_start) and (useable_stop, stop]
-        if ts >= useable_start_ts and ts <= useable_stop_ts:
-            continue
-        if ts not in reference_states:
-            continue
-        ref_state = reference_states[ts]
-
-        pos_err = np.linalg.norm(interp_state[:3] - ref_state[:3])
-        position_errors_km.append(pos_err)
-
-        vel_err = np.linalg.norm(interp_state[3:6] - ref_state[3:6])
-        velocity_errors_kms.append(vel_err)
-
-    if len(position_errors_km) == 0:
-        return None  # No points in unuseable range
-
-    pos_array = np.array(position_errors_km)
-    vel_array = np.array(velocity_errors_kms)
-
-    max_pos = max(position_errors_km)
-    rms_pos = float(np.sqrt(np.mean(pos_array**2)))
-    mean_pos = float(np.mean(pos_array))
-    std_pos = float(np.std(pos_array))
-
-    max_vel = max(velocity_errors_kms)
-    rms_vel = float(np.sqrt(np.mean(vel_array**2)))
-    mean_vel = float(np.mean(vel_array))
-    std_vel = float(np.std(vel_array))
-
-    return {
-        "spec": spec,
-        "label": "unuseable_range",
         "max_pos": max_pos,
         "rms_pos": rms_pos,
         "mean_pos": mean_pos,
@@ -323,7 +232,7 @@ def test_useable_range_accuracy(
     iss_reference_states: dict[float, np.ndarray],
     jpss1_reference_states: dict[float, np.ndarray],
 ) -> None:
-    """Interpolate to reference steps, compare within useable range only."""
+    """Interpolate to reference steps and report full-range and edge-region accuracy."""
     reference_map = {"ISS": iss_reference_states, "JPSS-1": jpss1_reference_states}
 
     for dataset_name, config in DATASETS.items():
@@ -333,58 +242,101 @@ def test_useable_range_accuracy(
             )
             results: list[dict[str, float | int | interp_spec.InterpolationSpec]] = []
             for spec in INTERPOLATION_SPECS:
-                result = _run_useable_range_accuracy_test(
-                    input_file, spec, config.step_size, reference_map[dataset_name]
+                input_oem = oem.CcsdsOem.read(str(DATA_DIR / input_file))
+
+                options = slice_oem.TimeSliceOptions(
+                    start_time=None,
+                    stop_time=timedelta(0),
+                    step_size=config.step_size,
+                    interpolation_spec=spec,
                 )
-                if result is not None:
-                    results.append(result)
+
+                result_oem = slice_oem.extract_states_by_time(input_oem, options)
+                if not result_oem.states:
+                    continue
+
+                full_position_errors_km: list[float] = []
+                full_velocity_errors_kms: list[float] = []
+                for ts, interp_state in result_oem.states:
+                    if ts not in reference_map[dataset_name]:
+                        continue
+                    ref_state = reference_map[dataset_name][ts]
+
+                    pos_err = np.linalg.norm(interp_state[:3] - ref_state[:3])
+                    full_position_errors_km.append(pos_err)
+
+                    vel_err = np.linalg.norm(interp_state[3:6] - ref_state[3:6])
+                    full_velocity_errors_kms.append(vel_err)
+
+                if full_position_errors_km:
+                    full_pos_array = np.array(full_position_errors_km)
+                    full_vel_array = np.array(full_velocity_errors_kms)
+                    results.append(
+                        {
+                            "spec": spec,
+                            "label": "full_range",
+                            "max_pos": max(full_position_errors_km),
+                            "rms_pos": float(np.sqrt(np.mean(full_pos_array**2))),
+                            "mean_pos": float(np.mean(full_pos_array)),
+                            "std_pos": float(np.std(full_pos_array)),
+                            "max_vel": max(full_velocity_errors_kms),
+                            "rms_vel": float(np.sqrt(np.mean(full_vel_array**2))),
+                            "mean_vel": float(np.mean(full_vel_array)),
+                            "std_vel": float(np.std(full_vel_array)),
+                            "count": len(full_position_errors_km),
+                        }
+                    )
+
+                total_count = len(result_oem.states)
+                edge_count = max(1, int(round(total_count * 0.10)))
+                region_specs = [
+                    ("first_10pct", set(range(edge_count))),
+                    ("last_10pct", set(range(total_count - edge_count, total_count))),
+                ]
+
+                for label, index_set in region_specs:
+                    position_errors_km: list[float] = []
+                    velocity_errors_kms: list[float] = []
+
+                    for idx, (ts, interp_state) in enumerate(result_oem.states):
+                        if idx not in index_set:
+                            continue
+                        if ts not in reference_map[dataset_name]:
+                            continue
+                        ref_state = reference_map[dataset_name][ts]
+
+                        pos_err = np.linalg.norm(interp_state[:3] - ref_state[:3])
+                        position_errors_km.append(pos_err)
+
+                        vel_err = np.linalg.norm(interp_state[3:6] - ref_state[3:6])
+                        velocity_errors_kms.append(vel_err)
+
+                    if not position_errors_km:
+                        continue
+
+                    pos_array = np.array(position_errors_km)
+                    vel_array = np.array(velocity_errors_kms)
+
+                    results.append(
+                        {
+                            "spec": spec,
+                            "label": label,
+                            "max_pos": max(position_errors_km),
+                            "rms_pos": float(np.sqrt(np.mean(pos_array**2))),
+                            "mean_pos": float(np.mean(pos_array)),
+                            "std_pos": float(np.std(pos_array)),
+                            "max_vel": max(velocity_errors_kms),
+                            "rms_vel": float(np.sqrt(np.mean(vel_array**2))),
+                            "mean_vel": float(np.mean(vel_array)),
+                            "std_vel": float(np.std(vel_array)),
+                            "count": len(position_errors_km),
+                        }
+                    )
 
             for result in sorted(results, key=lambda item: float(item["rms_pos"])):
                 spec = result["spec"]
                 print(
-                    f"  [{_spec_id(spec):16s}] useable_range "
-                    f"pos_rms={result['rms_pos']:10.3f} km  "
-                    f"pos_mean={result['mean_pos']:10.3f} km  "
-                    f"pos_std={result['std_pos']:10.3f} km  "
-                    f"pos_max={result['max_pos']:10.3f} km  "
-                    f"vel_rms={result['rms_vel']:10.6f} km/s  "
-                    f"vel_mean={result['mean_vel']:10.6f} km/s  "
-                    f"vel_std={result['std_vel']:10.6f} km/s  "
-                    f"vel_max={result['max_vel']:10.6f} km/s  "
-                    f"n={result['count']:4d}"
-                )
-
-
-# ===================================================================
-# Unuseable range accuracy tests
-# ===================================================================
-
-
-@pytest.mark.accuracy
-def test_unuseable_range_accuracy(
-    iss_reference_states: dict[float, np.ndarray],
-    jpss1_reference_states: dict[float, np.ndarray],
-) -> None:
-    """Interpolate to reference steps, report errors in unuseable boundary regions."""
-    reference_map = {"ISS": iss_reference_states, "JPSS-1": jpss1_reference_states}
-
-    for dataset_name, config in DATASETS.items():
-        for input_file in config.input_files:
-            print(
-                f"\n=== {dataset_name} UNUSEABLE RANGE ACCURACY TEST: {_file_id(input_file)} ==="
-            )
-            results: list[dict[str, float | int | interp_spec.InterpolationSpec]] = []
-            for spec in INTERPOLATION_SPECS:
-                result = _run_unuseable_range_accuracy_test(
-                    input_file, spec, config.step_size, reference_map[dataset_name]
-                )
-                if result is not None:
-                    results.append(result)
-
-            for result in sorted(results, key=lambda item: float(item["rms_pos"])):
-                spec = result["spec"]
-                print(
-                    f"  [{_spec_id(spec):16s}] unuseable_range "
+                    f"  [{_spec_id(spec):16s}] {result['label']} "
                     f"pos_rms={result['rms_pos']:10.3f} km  "
                     f"pos_mean={result['mean_pos']:10.3f} km  "
                     f"pos_std={result['std_pos']:10.3f} km  "
