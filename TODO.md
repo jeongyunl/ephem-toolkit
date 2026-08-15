@@ -1,8 +1,21 @@
 # To-do list
 
+1. Interpolators
+    1. optimize lagrange and chebyshev for state vector interpolation?
+        1. clamping since the first derivatives (velocity) are available
+    1. clamped cubic spline?
+    1. could chebyshev interpolater be more accurate?
+
+1. [`slice-oem`](docs/SLICE_OEM.md)
+    1. New stateful OemSlicer class?
+        1. or extend CcsdsOem class?
+    1. extract_states_by_time
+        1. Optionally insert extra data points at boundaries to be interpolator friendly?
+
 1. Improve CLI interface
     1. Unify CLI usage, options
         1. OEM input either file name or - for stdin
+        1. Don't read from stdin by default. file name arg should be '-' explicitly 
         2. Output file option (-o, --output, --output-oem ?)
         1. --start, --stop, --step options for OEM slicing and propagation
             1. --duration aliases to --stop
@@ -10,18 +23,15 @@
 1. Improve library API
     1. Streamline file I/O function names and conventions
 
-1. Merge kepler/TLE tools?
+1. [`diff-oem`](docs/DIFF_OEM.md)
+    1. More comparison options.
+        1. Osculating keplerian elements
+        1. Mean Keplerian element comparisons (for x minutes of sliding window).
+    1. More output format options, for example showing the differences in a table or CSV format.
+1. [`xform-oem`](docs/XFORM_OEM.md)
+    1. Apply arbitrary matrix?
 
-1. OEM
-    1. [`diff-oem`](docs/DIFF_OEM.md)
-        1. More comparison options.
-            1. Osculating keplerian elements
-            1. Mean Keplerian element comparisons (for x minutes of sliding window).
-        1. More output format options, for example showing the differences in a table or CSV format.
-    1. [`slice-oem`](docs/SLICE_OEM.md)
-        1. ?
-    1. [`xform-oem`](docs/XFORM_OEM.md)
-        1. Apply arbitrary matrix?
+1. Merge kepler/TLE tools?
 
 1. Propagation tools
     1. Add fixed-step resampling / interpolation for propagated state histories so OEM-like exports can be generated at user-selected output intervals.
