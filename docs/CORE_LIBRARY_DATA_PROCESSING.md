@@ -138,31 +138,6 @@ Lagrange polynomial interpolator that selects a local polynomial window around e
 - `RANGE_OVERSHOOT_TOLERANCE = 1e-8`: Tolerance for queries marginally outside the data range
 - `MIN_DIFFERENCE_FOR_START = 1.0e30`: Sentinel value for window bias search
 
-### tudatpy_utils.core.interpolator.cubic_spline - Cubic Spline Interpolator
-
-#### `class CubicSplineInterpolator(Interpolator)`
-Natural cubic spline interpolator for scalar or vector dependent data.
-
-**Public API:**
-- `__init__(dimension: int = 1)`: Initialize an interpolator for a dependent dimension of size `dimension`
-- `reset_state()`: Reset the transient interpolation state while preserving buffered samples
-- `clear_storage()`: Remove all sample data and reset spline state
-- `interpolate(independent_value: float) -> np.ndarray | None`: Evaluate the cubic spline at a query location
-
-**Public properties:**
-- `required_points`: Minimum samples required for interpolation (`2` for a cubic spline)
-- `dependent_dimension`: Number of dependent components in each sample vector
-- `independent_values`: Ordered independent variable samples
-- `dependent_values`: Ordered dependent value samples
-
-**Constants:**
-- `DEFAULT_CUBIC_DEGREE = 3`: Default spline degree used in the implementation
-
-**Behavior:**
-- Uses a piecewise natural cubic spline with zero second derivatives at the ends of the data range
-- Evaluates each interval using local coefficients of the form $a + b(x - x_i) + c(x - x_i)^2 + d(x - x_i)^3$
-- Returns the boundary value directly when the query falls exactly at the first or last sample point
-
 ### tudatpy_utils.core.interpolator.interpolation_spec - Interpolation Specifications
 
 #### `class InterpolationType` (Enum)
@@ -172,20 +147,18 @@ Interpolation method type.
 - `HERMITE = "hermite"`: Hermite polynomial interpolation
 - `CHEBYSHEV = "chebyshev"`: Chebyshev polynomial interpolation
 - `LAGRANGE = "lagrange"`: Lagrange polynomial interpolation
-- `CUBIC = "cubic"`: Natural cubic spline interpolation
 
 #### `class InterpolationSpec` (dataclass)
 Interpolation specification with type and optional degree.
 
 **Fields:**
 - `interp_type`: Type of interpolation (InterpolationType)
-- `degree`: Polynomial degree or spline degree; defaults are set in `__post_init__()`
+- `degree`: Polynomial degree; defaults are set in `__post_init__()`
 
 **Constants:**
 - `DEFAULT_HERMITE_DEGREE = 5`: Default polynomial degree for Hermite
 - `DEFAULT_CHEBYSHEV_DEGREE = 5`: Default degree for Chebyshev interpolation
 - `DEFAULT_LAGRANGE_DEGREE = 7`: Default polynomial degree for Lagrange
-- `DEFAULT_CUBIC_DEGREE = 3`: Default degree for cubic spline interpolation
 
 ### tudatpy_utils.core.interpolator.factory - Interpolator Factory
 
@@ -199,7 +172,6 @@ Factory for creating interpolator instances from specifications.
 - `InterpolationType.HERMITE` → `SlidingWindowHermiteInterpolator`
 - `InterpolationType.CHEBYSHEV` → `ChebyshevInterpolator`
 - `InterpolationType.LAGRANGE` → `LagrangeInterpolator`
-- `InterpolationType.CUBIC` → `CubicSplineInterpolator`
 
 ---
 

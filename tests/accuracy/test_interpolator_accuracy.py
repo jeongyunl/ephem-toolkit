@@ -92,7 +92,6 @@ INTERPOLATION_SPECS = [
     interp_spec.InterpolationSpec(
         interp_type=interp_spec.InterpolationType.CHEBYSHEV, degree=11
     ),
-    interp_spec.InterpolationSpec(interp_type=interp_spec.InterpolationType.CUBIC),
 ]
 """List of interpolation specifications to test."""
 
@@ -203,10 +202,7 @@ def _expected_margin_s(
     spec: interp_spec.InterpolationSpec, source_interval_s: float
 ) -> float:
     """Return expected margin in seconds matching _compute_unusable_margin logic."""
-    if spec.interp_type == interp_spec.InterpolationType.CUBIC:
-        # Natural cubic spline: 1 interval as UNUSABLE margin
-        base = 1
-    elif spec.interp_type == interp_spec.InterpolationType.HERMITE:
+    if spec.interp_type == interp_spec.InterpolationType.HERMITE:
         # Hermite (both variants): no UNUSABLE margin
         base = 0
     elif spec.interp_type == interp_spec.InterpolationType.LAGRANGE:

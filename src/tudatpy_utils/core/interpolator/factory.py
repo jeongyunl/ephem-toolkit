@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from . import chebyshev
-from . import cubic_spline
 from . import hermite
 from . import lagrange
 from .interpolation_spec import InterpolationSpec, InterpolationType
@@ -108,10 +107,6 @@ class InterpolatorFactory:
                 degree=spec.degree,
                 boundary_mode=boundary_mode,
                 boundary_window_extension=boundary_window_extension,
-            )
-        elif spec.interp_type == InterpolationType.CUBIC:
-            interpolator = cubic_spline.CubicSplineInterpolator(
-                dimension=dimension,
             )
         else:
             raise ValueError(f"Unsupported interpolation type: {spec.interp_type}")

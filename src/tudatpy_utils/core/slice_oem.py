@@ -647,11 +647,7 @@ def _compute_unusable_margin(
     n_intervals = len(source_states) - 1
     avg_interval_s = (last_ts - first_ts) / n_intervals
 
-    if interpolation_spec.interp_type == InterpolationType.CUBIC:
-        # Natural cubic spline: boundary errors due to zero-second-derivative conditions.
-        # Use 1 interval as UNUSABLE margin.
-        base_margin_intervals = 1
-    elif interpolation_spec.interp_type == InterpolationType.HERMITE:
+    if interpolation_spec.interp_type == InterpolationType.HERMITE:
         # Hermite: no UNUSABLE margin needed (derivative info handles boundaries well).
         base_margin_intervals = 0
     elif interpolation_spec.interp_type == InterpolationType.LAGRANGE:

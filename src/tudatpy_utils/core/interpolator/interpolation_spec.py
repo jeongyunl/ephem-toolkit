@@ -14,9 +14,6 @@ DEFAULT_CHEBYSHEV_DEGREE: int = 5
 DEFAULT_LAGRANGE_DEGREE: int = 7
 """Default polynomial degree for Lagrange interpolation."""
 
-DEFAULT_CUBIC_DEGREE: int = 3
-"""Default degree for cubic spline interpolation."""
-
 
 class InterpolationType(Enum):
     """Interpolation method type."""
@@ -29,9 +26,6 @@ class InterpolationType(Enum):
 
     LAGRANGE = "lagrange"
     """Lagrange polynomial interpolation."""
-
-    CUBIC = "cubic"
-    """Natural cubic spline interpolation."""
 
 
 @dataclass
@@ -53,5 +47,3 @@ class InterpolationSpec:
                 self.degree = DEFAULT_CHEBYSHEV_DEGREE
             elif self.interp_type == InterpolationType.LAGRANGE:
                 self.degree = DEFAULT_LAGRANGE_DEGREE
-            elif self.interp_type == InterpolationType.CUBIC:
-                self.degree = DEFAULT_CUBIC_DEGREE

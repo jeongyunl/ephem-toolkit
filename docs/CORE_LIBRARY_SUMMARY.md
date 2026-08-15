@@ -35,7 +35,7 @@ Reference frame conversions and coordinate system transformations.
 ### 5. [Data Processing](CORE_LIBRARY_DATA_PROCESSING.md)
 OEM data slicing and interpolation utilities.
 - **tudatpy_utils.core.slice_oem** - OEM state selection with time-based and index-based slicing
-- **tudatpy_utils.core.interpolator** - Hermite, Chebyshev, and Lagrange polynomial interpolation for time-series data, plus cubic-spline support
+- **tudatpy_utils.core.interpolator** - Hermite, Chebyshev, and Lagrange polynomial interpolation for time-series data
 - **tudatpy_utils.core.cli** - Common CLI utilities for parsing interpolation specifications
 
 ---
