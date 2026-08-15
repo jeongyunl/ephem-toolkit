@@ -4,13 +4,13 @@ This document covers reference frame conversions and coordinate system transform
 
 ## Table of Contents
 
-1. [tudatpy_utils.core.frame_utils - Reference Frame Conversions](#tudatpy_utilscoreframe_utils---reference-frame-conversions)
-2. [tudatpy_utils.core.wgs - WGS-84 Coordinate Conversions](#tudatpy_utilscorewgs---wgs-84-coordinate-conversions)
-3. [tudatpy_utils.core.aer - AER Coordinate Conversions](#tudatpy_utilscoreaer---aer-coordinate-conversions)
+1. [ephem_toolkit.core.frame_utils - Reference Frame Conversions](#ephem_toolkitcoreframe_utils---reference-frame-conversions)
+2. [ephem_toolkit.core.wgs - WGS-84 Coordinate Conversions](#ephem_toolkitcorewgs---wgs-84-coordinate-conversions)
+3. [ephem_toolkit.core.aer - AER Coordinate Conversions](#ephem_toolkitcoreaer---aer-coordinate-conversions)
 
 ---
 
-## tudatpy_utils.core.frame_utils - Reference Frame Conversions
+## ephem_toolkit.core.frame_utils - Reference Frame Conversions
 
 **Purpose**: Convert Cartesian states between TEME, J2000, SPICE, inertial, and Earth-fixed reference frames.
 
@@ -18,7 +18,7 @@ This document covers reference frame conversions and coordinate system transform
 - `numpy`
 - `tudatpy.astro.element_conversion`
 - `tudatpy.interface.spice`
-- `tudatpy_utils.core.spice_utils`
+- `ephem_toolkit.core.spice_utils`
 
 ### TEME/J2000 Conversion
 
@@ -51,14 +51,14 @@ Convert a body-fixed state to an inertial state using a TudatPy rotation model. 
 
 ---
 
-## tudatpy_utils.core.wgs - WGS-84 Coordinate Conversions
+## ephem_toolkit.core.wgs - WGS-84 Coordinate Conversions
 
 **Purpose**: Coordinate conversion utilities for LLA (Latitude-Longitude-Altitude) and ENU (East-North-Up) frames using the WGS-84 ellipsoid model.
 
 ### Key Dependencies
 - `numpy`
 - `math`
-- `tudatpy_utils.core.consts`
+- `ephem_toolkit.core.consts`
 
 ### Constants
 
@@ -165,13 +165,13 @@ Convert ECEF coordinates to geodetic coordinates (LLA) using an iterative algori
 
 ---
 
-## tudatpy_utils.core.aer - AER Coordinate Conversions
+## ephem_toolkit.core.aer - AER Coordinate Conversions
 
 **Purpose**: Coordinate conversion utilities for AER (Azimuth-Elevation-Range) frames. The AER coordinate system is a spherical coordinate system centered at a reference point on the Earth's surface.
 
 ### Key Dependencies
 - `numpy`
-- `tudatpy_utils.core.wgs`
+- `ephem_toolkit.core.wgs`
 
 ### AER Coordinate System
 

@@ -4,6 +4,6 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-sys.path.insert(0, str(Path(__file__).parent.parent / "src" / "tudatpy_utils"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src" / "ephem_toolkit"))
 
-import tudatpy_utils
+import ephem_toolkit

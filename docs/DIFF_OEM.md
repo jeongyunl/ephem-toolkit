@@ -572,9 +572,9 @@ Comparison state differences are then projected onto these axes.
   - `diff_oem.pipeline` — Transformation pipeline
   - `diff_oem.transformation_stages` — Transformation implementations
   - `diff_oem.utils` — Utility functions
-  - `tudatpy_utils.core.ccsds.oem` — OEM file parsing
-  - `tudatpy_utils.core.time_utils` — Time parsing and formatting
-  - `tudatpy_utils.core.interpolator.lagrange` — Lagrange interpolation
+  - `ephem_toolkit.core.ccsds.oem` — OEM file parsing
+  - `ephem_toolkit.core.time_utils` — Time parsing and formatting
+  - `ephem_toolkit.core.interpolator.lagrange` — Lagrange interpolation
 
 ## Error Handling
 

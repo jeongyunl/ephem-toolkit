@@ -4,21 +4,21 @@ This document covers Two-Line Element (TLE) sets, Orbit Mean-Elements Messages (
 
 ## Table of Contents
 
-1. [tudatpy_utils.core.tle - Two-Line Element Sets](#tudatpy_utilscoretle---two-line-element-sets)
-2. [tudatpy_utils.core.convert_tle - TLE/OMM Conversion](#tudatpy_utilscoreconvert_tle---tleomm-conversion)
-3. [tudatpy_utils.core.ccsds.odm - CCSDS Orbit Data Message Definitions](#tudatpy_utilscoreccsdsodm---ccsds-orbit-data-message-definitions)
-4. [tudatpy_utils.core.ccsds.omm - Orbit Mean-Elements Message](#tudatpy_utilscoreccsdsomm---orbit-mean-elements-message)
-5. [tudatpy_utils.core.ccsds.oem - Orbit Ephemeris Message](#tudatpy_utilscoreccsdsoem---orbit-ephemeris-message)
+1. [ephem_toolkit.core.tle - Two-Line Element Sets](#ephem_toolkitcoretle---two-line-element-sets)
+2. [ephem_toolkit.core.convert_tle - TLE/OMM Conversion](#ephem_toolkitcoreconvert_tle---tleomm-conversion)
+3. [ephem_toolkit.core.ccsds.odm - CCSDS Orbit Data Message Definitions](#ephem_toolkitcoreccsdsodm---ccsds-orbit-data-message-definitions)
+4. [ephem_toolkit.core.ccsds.omm - Orbit Mean-Elements Message](#ephem_toolkitcoreccsdsomm---orbit-mean-elements-message)
+5. [ephem_toolkit.core.ccsds.oem - Orbit Ephemeris Message](#ephem_toolkitcoreccsdsoem---orbit-ephemeris-message)
 
 ---
 
-## tudatpy_utils.core.tle - Two-Line Element Sets
+## ephem_toolkit.core.tle - Two-Line Element Sets
 
 **Purpose**: Read, parse, and write NORAD Two-Line Element (TLE) sets.
 
 ### Key Dependencies
 - `datetime`, `pathlib`, `re`, `dataclasses`, `typing`
-- `tudatpy_utils.core.misc`, `tudatpy_utils.core.time_utils`
+- `ephem_toolkit.core.misc`, `ephem_toolkit.core.time_utils`
 
 ### Data Structure
 
@@ -67,17 +67,17 @@ Return the single-digit TLE checksum character for a TLE line.
 
 ---
 
-## tudatpy_utils.core.convert_tle - TLE/OMM Conversion
+## ephem_toolkit.core.convert_tle - TLE/OMM Conversion
 
 **Purpose**: Convert between TLE and OMM representations, and TLE to osculating Keplerian elements.
 
 ### Key Dependencies
 - `numpy`
-- `tudatpy_utils.core.kepler`
-- `tudatpy_utils.core.mean_kepler`
-- `tudatpy_utils.core.ccsds.omm`
-- `tudatpy_utils.core.tle`
-- `tudatpy_utils.core.consts`
+- `ephem_toolkit.core.kepler`
+- `ephem_toolkit.core.mean_kepler`
+- `ephem_toolkit.core.ccsds.omm`
+- `ephem_toolkit.core.tle`
+- `ephem_toolkit.core.consts`
 
 ### TLE ↔ OMM Conversion
 
@@ -113,7 +113,7 @@ Extract osculating Keplerian elements at the TLE epoch.
 
 ---
 
-## tudatpy_utils.core.ccsds.odm - CCSDS Orbit Data Message Definitions
+## ephem_toolkit.core.ccsds.odm - CCSDS Orbit Data Message Definitions
 
 **Purpose**: Define the reference-frame and time-system identifiers permitted by CCSDS Orbit Data Messages (ODM), including OEM and OMM files.
 
@@ -128,14 +128,14 @@ Extract osculating Keplerian elements at the TLE epoch.
 
 ---
 
-## tudatpy_utils.core.ccsds.omm - Orbit Mean-Elements Message
+## ephem_toolkit.core.ccsds.omm - Orbit Mean-Elements Message
 
 **Purpose**: Read, parse, and write CCSDS Orbit Mean-Elements Message (OMM) files.
 
 ### Key Dependencies
 - `dataclasses`, `pathlib`, `typing`, `datetime`
 - `numpy`
-- `tudatpy_utils.core.misc`, `tudatpy_utils.core.consts`, `tudatpy_utils.core.time_utils`, `tudatpy_utils.core.kepler`
+- `ephem_toolkit.core.misc`, `ephem_toolkit.core.consts`, `ephem_toolkit.core.time_utils`, `ephem_toolkit.core.kepler`
 
 ### Data Structure
 
@@ -169,7 +169,7 @@ Write this OMM to a file or stream.
 
 ---
 
-## tudatpy_utils.core.ccsds.oem - Orbit Ephemeris Message
+## ephem_toolkit.core.ccsds.oem - Orbit Ephemeris Message
 
 **Purpose**: Read, parse, and write CCSDS Orbit Ephemeris Message (OEM) files.
 
@@ -179,7 +179,7 @@ OEM files use kilometers (km) and km/s per the CCSDS standard. This module conve
 
 ### Key Dependencies
 - `numpy`, `datetime`, `pathlib`, `dataclasses`
-- `tudatpy_utils.core.misc`, `tudatpy_utils.core.time_utils`
+- `ephem_toolkit.core.misc`, `ephem_toolkit.core.time_utils`
 
 ### Constants
 - `KILOMETERS_TO_METERS = 1000.0` - Conversion factor from kilometers to meters

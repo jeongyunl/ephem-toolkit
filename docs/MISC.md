@@ -1,4 +1,4 @@
-# tudatpy-utils
+# ephem-toolkit
 
 Miscellaneous utilities for orbit analysis and comparison.
 
@@ -182,7 +182,7 @@ diff-oem -h
 ### Dependencies
 
 - NumPy
-- local helper modules `tudatpy_utils.core.ccsds.oem`, `tudatpy_utils.core.time_utils`, and `tudatpy_utils.core.interpolator.lagrange`
+- local helper modules `ephem_toolkit.core.ccsds.oem`, `ephem_toolkit.core.time_utils`, and `ephem_toolkit.core.interpolator.lagrange`
 
 ### See Also
 
@@ -293,4 +293,4 @@ plot-orbit-deltas -h
 
 - NumPy
 - Matplotlib
-- local helper modules `tudatpy_utils.core.common`, `tudatpy_utils.core.time_utils`, `tudatpy_utils.core.ccsds.oem`, `tudatpy_utils.core.interpolator.lagrange`
+- local helper modules `ephem_toolkit.core.common`, `ephem_toolkit.core.time_utils`, `ephem_toolkit.core.ccsds.oem`, `ephem_toolkit.core.interpolator.lagrange`

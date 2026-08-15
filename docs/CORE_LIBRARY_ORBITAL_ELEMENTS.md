@@ -4,18 +4,18 @@ This document covers Keplerian orbital element conversions and mean element calc
 
 ## Table of Contents
 
-1. [tudatpy_utils.core.kepler - Keplerian Orbital Elements](#tudatpy_utilscorekepler---keplerian-orbital-elements)
-2. [tudatpy_utils.core.mean_kepler - Mean Keplerian Elements](#tudatpy_utilscoremean_kepler---mean-keplerian-elements)
+1. [ephem_toolkit.core.kepler - Keplerian Orbital Elements](#ephem_toolkitcorekepler---keplerian-orbital-elements)
+2. [ephem_toolkit.core.mean_kepler - Mean Keplerian Elements](#ephem_toolkitcoremean_kepler---mean-keplerian-elements)
 
 ---
 
-## tudatpy_utils.core.kepler - Keplerian Orbital Elements
+## ephem_toolkit.core.kepler - Keplerian Orbital Elements
 
 **Purpose**: Convert between Cartesian state vectors and osculating Keplerian elements using only NumPy.
 
 ### Key Dependencies
 - `numpy`
-- `tudatpy_utils.core.consts`
+- `ephem_toolkit.core.consts`
 
 ### Keplerian Element Indices
 - `SEMI_MAJOR_AXIS_INDEX = 0` - Semi-major axis (m)
@@ -81,14 +81,14 @@ Propagate Keplerian elements forward in time using the two-body solution. Only t
 
 ---
 
-## tudatpy_utils.core.mean_kepler - Mean Keplerian Elements
+## ephem_toolkit.core.mean_kepler - Mean Keplerian Elements
 
 **Purpose**: Convert between osculating and mean (Brouwer) Keplerian elements with J2 perturbations.
 
 ### Key Dependencies
 - `numpy`
-- `tudatpy_utils.core.kepler`
-- `tudatpy_utils.core.consts`
+- `ephem_toolkit.core.kepler`
+- `ephem_toolkit.core.consts`
 
 ### Mean to Osculating Conversion
 

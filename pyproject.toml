@@ -1,5 +1,5 @@
 [project]
-name = "tudatpy-utils"
+name = "ephem-toolkit"
 version = "0.1.0"
 description = "Python utilities and command-line tools for TudatPy astrodynamics workflows"
 readme = "README.md"
@@ -23,34 +23,34 @@ classifiers = [
 plotting = ["matplotlib>=3.7"]
 
 [project.urls]
-Repository = "https://github.com/jeongyunl/tudatpy-utils"
+Repository = "https://github.com/jeongyunl/ephem-toolkit"
 
 [project.scripts]
-diff-oem = "tudatpy_utils.diff_oem.diff_oem:main"
-download-tle = "tudatpy_utils.download_tle.download_tle:main"
-omm-to-tle = "tudatpy_utils.omm_to_tle.omm_to_tle:main"
-slice-oem = "tudatpy_utils.slice_oem.slice_oem:main"
-tle-info = "tudatpy_utils.tle_info.tle_info:main"
-tle-to-omm = "tudatpy_utils.tle_to_omm.tle_to_omm:main"
-xform-oem = "tudatpy_utils.xform_oem.xform_oem:main"
-oem-to-omm = "tudatpy_utils.oem_to_omm.oem_to_omm:main"
-evaluate-fit-tle = "tudatpy_utils.evaluate_fit_tle.evaluate_fit_tle:main"
-evaluate-interpolator-accuracy = "tudatpy_utils.evaluate_interpolator_accuracy:main"
-propagate-orbit = "tudatpy_utils.propagate_orbit.propagate_orbit:main"
-propagate-kepler = "tudatpy_utils.propagate_kepler.propagate_kepler:main"
-propagate-tle = "tudatpy_utils.propagate_tle.propagate_tle:main"
-plot-orbit = "tudatpy_utils.plot_orbit.plot_orbit:main"
-plot-orbit-deltas = "tudatpy_utils.plot_orbit_deltas.plot_orbit_deltas:main"
-plot-dependent-variables = "tudatpy_utils.plot_dep_vars.plot_dependent_variables:main"
+diff-oem = "ephem_toolkit.diff_oem.diff_oem:main"
+download-tle = "ephem_toolkit.download_tle.download_tle:main"
+omm-to-tle = "ephem_toolkit.omm_to_tle.omm_to_tle:main"
+slice-oem = "ephem_toolkit.slice_oem.slice_oem:main"
+tle-info = "ephem_toolkit.tle_info.tle_info:main"
+tle-to-omm = "ephem_toolkit.tle_to_omm.tle_to_omm:main"
+xform-oem = "ephem_toolkit.xform_oem.xform_oem:main"
+oem-to-omm = "ephem_toolkit.oem_to_omm.oem_to_omm:main"
+evaluate-fit-tle = "ephem_toolkit.evaluate_fit_tle.evaluate_fit_tle:main"
+evaluate-interpolator-accuracy = "ephem_toolkit.evaluate_interpolator_accuracy:main"
+propagate-orbit = "ephem_toolkit.propagate_orbit.propagate_orbit:main"
+propagate-kepler = "ephem_toolkit.propagate_kepler.propagate_kepler:main"
+propagate-tle = "ephem_toolkit.propagate_tle.propagate_tle:main"
+plot-orbit = "ephem_toolkit.plot_orbit.plot_orbit:main"
+plot-orbit-deltas = "ephem_toolkit.plot_orbit_deltas.plot_orbit_deltas:main"
+plot-dependent-variables = "ephem_toolkit.plot_dep_vars.plot_dependent_variables:main"
 
 [tool.poetry]
-name = "tudatpy-utils"
+name = "ephem-toolkit"
 version = "0.1.0"
 description = "Python utilities and command-line tools for TudatPy astrodynamics workflows"
 authors = ["Jeongyun Lee <jeongyun@gmail.com>"]
 readme = "README.md"
 packages = [
-    { include = "tudatpy_utils", from = "src" },
+    { include = "ephem_toolkit", from = "src" },
 ]
 
 [tool.poetry.dependencies]

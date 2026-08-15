@@ -4,16 +4,16 @@ This document covers time utilities, common utilities, and physical constants in
 
 ## Table of Contents
 
-1. [tudatpy_utils.core.time_utils - Time Utilities](#tudatpy_utilscoretime_utils---time-utilities)
-2. [tudatpy_utils.core.misc - Miscellaneous Utilities](#tudatpy_utilscoremisc---miscellaneous-utilities)
-3. [tudatpy_utils.core.spice_utils - SPICE Kernel Management](#tudatpy_utilscorespice_utils---spice-kernel-management)
-4. [tudatpy_utils.core.consts - Physical Constants](#tudatpy_utilscoreconsts---physical-constants)
+1. [ephem_toolkit.core.time_utils - Time Utilities](#ephem_toolkitcoretime_utils---time-utilities)
+2. [ephem_toolkit.core.misc - Miscellaneous Utilities](#ephem_toolkitcoremisc---miscellaneous-utilities)
+3. [ephem_toolkit.core.spice_utils - SPICE Kernel Management](#ephem_toolkitcorespice_utils---spice-kernel-management)
+4. [ephem_toolkit.core.consts - Physical Constants](#ephem_toolkitcoreconsts---physical-constants)
 
 ---
 
-## tudatpy_utils.core.time_utils - Time Utilities
+## ephem_toolkit.core.time_utils - Time Utilities
 
-**Purpose**: Time conversion, ISO 8601 parsing/formatting, and CLI duration parsing. All time-related functionality is consolidated here; import as `import tudatpy_utils.core.time_utils as time_utils`.
+**Purpose**: Time conversion, ISO 8601 parsing/formatting, and CLI duration parsing. All time-related functionality is consolidated here; import as `import ephem_toolkit.core.time_utils as time_utils`.
 
 ### Key Dependencies
 - `tudatpy.astro.time_representation`
@@ -76,9 +76,9 @@ Format a timedelta into a human-readable string (e.g., `2h 30m`, `45s`, `3d 1h`)
 
 ---
 
-## tudatpy_utils.core.misc - Miscellaneous Utilities
+## ephem_toolkit.core.misc - Miscellaneous Utilities
 
-**Purpose**: Shared utilities for CCSDS keyword-value parsing, RTN frame transformations, rotation matrix conversions, and angle operations. Time-related functions live in `tudatpy_utils.core.time_utils`.
+**Purpose**: Shared utilities for CCSDS keyword-value parsing, RTN frame transformations, rotation matrix conversions, and angle operations. Time-related functions live in `ephem_toolkit.core.time_utils`.
 
 ### Key Dependencies
 - `numpy`
@@ -134,7 +134,7 @@ Blend angles along the shortest arc.
 
 ---
 
-## tudatpy_utils.core.spice_utils - SPICE Kernel Management
+## ephem_toolkit.core.spice_utils - SPICE Kernel Management
 
 **Purpose**: SPICE kernel path management and loading utilities for Tudat/tudatpy integration.
 
@@ -158,7 +158,7 @@ Load a SPICE kernel from the specified or cached kernel directory.
 
 ---
 
-## tudatpy_utils.core.consts - Physical Constants
+## ephem_toolkit.core.consts - Physical Constants
 
 **Purpose**: Earth physical constants for orbital mechanics calculations.
 

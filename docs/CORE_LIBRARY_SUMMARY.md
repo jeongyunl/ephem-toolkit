@@ -1,6 +1,6 @@
 # Core Library Summary
 
-This document provides an overview of the libraries and functions available in the `core/` directory of the tudatpy-utils project. The documentation has been organized into logical groups for easier navigation.
+This document provides an overview of the libraries and functions available in the `core/` directory of the ephem-toolkit project. The documentation has been organized into logical groups for easier navigation.
 
 ## Documentation Groups
 
@@ -8,35 +8,35 @@ The core library is organized into the following functional groups:
 
 ### 1. [Time & Utilities](CORE_LIBRARY_TIME_UTILITIES.md)
 Core utilities for time conversions, ISO 8601 formatting, duration parsing, and physical constants.
-- **tudatpy_utils.core.time_utils** - Time conversion, ISO 8601 parsing/formatting, CLI duration parsing
-- **tudatpy_utils.core.misc** - CCSDS parsing, RTN frame transformation, rotation matrix utilities, angle utilities
-- **tudatpy_utils.core.spice_utils** - SPICE kernel path management and loading
-- **tudatpy_utils.core.consts** - Earth physical constants (gravitational parameter, radius, J2)
+- **ephem_toolkit.core.time_utils** - Time conversion, ISO 8601 parsing/formatting, CLI duration parsing
+- **ephem_toolkit.core.misc** - CCSDS parsing, RTN frame transformation, rotation matrix utilities, angle utilities
+- **ephem_toolkit.core.spice_utils** - SPICE kernel path management and loading
+- **ephem_toolkit.core.consts** - Earth physical constants (gravitational parameter, radius, J2)
 
 ### 2. [Orbital Elements](CORE_LIBRARY_ORBITAL_ELEMENTS.md)
 Conversions between Cartesian states and Keplerian orbital elements, including mean element calculations.
-- **tudatpy_utils.core.kepler** - Cartesian ↔ Keplerian conversions, anomaly conversions, mean motion utilities, propagation
-- **tudatpy_utils.core.mean_kepler** - Mean ↔ Osculating conversions with J2 perturbations, J2 secular propagation
+- **ephem_toolkit.core.kepler** - Cartesian ↔ Keplerian conversions, anomaly conversions, mean motion utilities, propagation
+- **ephem_toolkit.core.mean_kepler** - Mean ↔ Osculating conversions with J2 perturbations, J2 secular propagation
 
 ### 3. [TLE & OMM](CORE_LIBRARY_TLE_OMM.md)
 Two-Line Element sets, Orbit Mean-Elements Messages, and format conversions.
-- **tudatpy_utils.core.tle** - Read/parse/write NORAD Two-Line Element sets
-- **tudatpy_utils.core.convert_tle** - TLE ↔ OMM conversions, TLE to osculating Keplerian elements
-- **tudatpy_utils.core.ccsds.odm** - CCSDS Orbit Data Message reference frame and time system definitions
-- **tudatpy_utils.core.ccsds.omm** - Read/parse/write CCSDS Orbit Mean-Elements Message files
-- **tudatpy_utils.core.ccsds.oem** - Read/parse/write CCSDS Orbit Ephemeris Message files
+- **ephem_toolkit.core.tle** - Read/parse/write NORAD Two-Line Element sets
+- **ephem_toolkit.core.convert_tle** - TLE ↔ OMM conversions, TLE to osculating Keplerian elements
+- **ephem_toolkit.core.ccsds.odm** - CCSDS Orbit Data Message reference frame and time system definitions
+- **ephem_toolkit.core.ccsds.omm** - Read/parse/write CCSDS Orbit Mean-Elements Message files
+- **ephem_toolkit.core.ccsds.oem** - Read/parse/write CCSDS Orbit Ephemeris Message files
 
 ### 4. [Coordinate Transformations](CORE_LIBRARY_COORDINATE_TRANSFORMATIONS.md)
 Reference frame conversions and coordinate system transformations.
-- **tudatpy_utils.core.frame_utils** - TEME/J2000, SPICE frame, and inertial/body-fixed conversions
-- **tudatpy_utils.core.wgs** - WGS-84 coordinate conversions (ECEF ↔ ENU, LLA ↔ ECEF)
-- **tudatpy_utils.core.aer** - AER (Azimuth-Elevation-Range) coordinate conversions
+- **ephem_toolkit.core.frame_utils** - TEME/J2000, SPICE frame, and inertial/body-fixed conversions
+- **ephem_toolkit.core.wgs** - WGS-84 coordinate conversions (ECEF ↔ ENU, LLA ↔ ECEF)
+- **ephem_toolkit.core.aer** - AER (Azimuth-Elevation-Range) coordinate conversions
 
 ### 5. [Data Processing](CORE_LIBRARY_DATA_PROCESSING.md)
 OEM data slicing and interpolation utilities.
-- **tudatpy_utils.core.slice_oem** - OEM state selection with time-based and index-based slicing
-- **tudatpy_utils.core.interpolator** - Hermite, Chebyshev, and Lagrange polynomial interpolation for time-series data
-- **tudatpy_utils.core.cli** - Common CLI utilities for parsing interpolation specifications
+- **ephem_toolkit.core.slice_oem** - OEM state selection with time-based and index-based slicing
+- **ephem_toolkit.core.interpolator** - Hermite, Chebyshev, and Lagrange polynomial interpolation for time-series data
+- **ephem_toolkit.core.cli** - Common CLI utilities for parsing interpolation specifications
 
 ---
 
