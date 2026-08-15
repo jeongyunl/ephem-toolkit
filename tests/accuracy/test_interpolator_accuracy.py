@@ -66,9 +66,6 @@ DATASETS = {
 
 INTERPOLATION_SPECS = [
     interp_spec.InterpolationSpec(
-        interp_type=interp_spec.InterpolationType.HERMITE, degree=3
-    ),
-    interp_spec.InterpolationSpec(
         interp_type=interp_spec.InterpolationType.HERMITE, degree=5
     ),
     interp_spec.InterpolationSpec(
@@ -78,13 +75,7 @@ INTERPOLATION_SPECS = [
         interp_type=interp_spec.InterpolationType.HERMITE, degree=9
     ),
     interp_spec.InterpolationSpec(
-        interp_type=interp_spec.InterpolationType.HERMITE_SLIDING, degree=7
-    ),
-    interp_spec.InterpolationSpec(
-        interp_type=interp_spec.InterpolationType.HERMITE_SLIDING, degree=9
-    ),
-    interp_spec.InterpolationSpec(
-        interp_type=interp_spec.InterpolationType.HERMITE_SLIDING, degree=11
+        interp_type=interp_spec.InterpolationType.HERMITE, degree=11
     ),
     interp_spec.InterpolationSpec(
         interp_type=interp_spec.InterpolationType.LAGRANGE, degree=5

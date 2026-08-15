@@ -22,9 +22,6 @@ class InterpolationType(Enum):
     """Interpolation method type."""
 
     HERMITE = "hermite"
-    """Hermite divided difference interpolation."""
-
-    HERMITE_SLIDING = "hermite_sliding"
     """Hermite sliding-window interpolation with caching."""
 
     CHEBYSHEV = "chebyshev"
@@ -50,7 +47,7 @@ class InterpolationSpec:
     def __post_init__(self) -> None:
         """Set default polynomial degree based on interpolation type."""
         if self.degree is None:
-            if self.interp_type in (InterpolationType.HERMITE, InterpolationType.HERMITE_SLIDING):
+            if self.interp_type == InterpolationType.HERMITE:
                 self.degree = DEFAULT_HERMITE_DEGREE
             elif self.interp_type == InterpolationType.CHEBYSHEV:
                 self.degree = DEFAULT_CHEBYSHEV_DEGREE

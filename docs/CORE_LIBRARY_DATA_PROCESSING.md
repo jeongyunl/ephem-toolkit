@@ -75,8 +75,8 @@ Base interpolator supporting fixed-size ordered sample storage.
 
 ### tudatpy_utils.core.interpolator.hermite - Hermite Interpolator
 
-#### `class HermiteDividedDifferenceInterpolator(Interpolator)`
-Hermite polynomial interpolator supporting derivative data for improved accuracy.
+#### `class SlidingWindowHermiteInterpolator(Interpolator)`
+Sliding-window Hermite polynomial interpolator with cached local windows and derivative support for improved accuracy.
 
 **Key Methods:**
 - `__init__(dimension: int = 1, degree: int = 5, is_cartesian_state: bool = False)`: Initialize with dimension, polynomial degree, and optional Cartesian state mode. Raises ValueError if is_cartesian_state is True but dimension is not 6.
@@ -200,7 +200,7 @@ Factory for creating interpolator instances from specifications.
 - `create(spec: InterpolationSpec, dimension: int = 6, is_cartesian_state: bool = False, verbose: bool = False, context: str = "factory", data = None, dependent_data = None) -> Interpolator`: Create an interpolator from a specification
 
 **Supported types:**
-- `InterpolationType.HERMITE` → `HermiteDividedDifferenceInterpolator`
+- `InterpolationType.HERMITE` → `SlidingWindowHermiteInterpolator`
 - `InterpolationType.CHEBYSHEV` → `ChebyshevInterpolator`
 - `InterpolationType.LAGRANGE` → `LagrangeInterpolator`
 - `InterpolationType.CUBIC` → `CubicSplineInterpolator`
