@@ -37,6 +37,8 @@ class SlidingWindowHermiteInterpolator(Interpolator):
         dimension: int = 1,
         degree: int = DEFAULT_HERMITE_DEGREE,
         is_cartesian_state: bool = False,
+        boundary_mode: str = "centered",
+        boundary_window_extension: int = 0,
     ) -> None:
         """Initialize high-order sliding-window Hermite interpolator.
 
@@ -48,6 +50,14 @@ class SlidingWindowHermiteInterpolator(Interpolator):
             Interpolation polynomial degree
         is_cartesian_state : bool
             If True, optimizes for 6D Cartesian state [x,y,z,vx,vy,vz]
+        boundary_mode : str, optional
+            Window-selection strategy near the data boundaries. Supported values are
+            ``"centered"`` (default), ``"widen"`` (expand edge windows when samples
+            remain), ``"edge"`` (anchored one-sided boundary windows), and
+            ``"compact"`` (slightly reduce the edge window to stabilize the fit).
+        boundary_window_extension : int, optional
+            Extra support points to add to edge windows for ``"widen"`` and
+            ``"edge"`` strategies.
 
         Raises
         ------
@@ -57,11 +67,24 @@ class SlidingWindowHermiteInterpolator(Interpolator):
         if is_cartesian_state and dimension != 6:
             raise ValueError("dimension must be 6 when is_cartesian_state is True")
 
+        boundary_mode = str(boundary_mode).lower()
+        if boundary_mode not in {"centered", "widen", "edge", "compact"}:
+            raise ValueError(
+                "boundary_mode must be one of: 'centered', 'widen', 'edge', 'compact'"
+            )
+        if boundary_window_extension < 0:
+            raise ValueError("boundary_window_extension must be non-negative")
+
         super().__init__(dimension)
         self.required_points = max(2, degree + 1)
 
         self.window_size: int = max(2, degree + 1)
         """Number of points in the local window. Hermite interpolation needs at least degree + 1 samples when derivative data are absent."""
+
+        self.boundary_mode: str = boundary_mode
+        """Boundary-aware window selection strategy."""
+        self.boundary_window_extension: int = int(boundary_window_extension)
+        """Additional points used when widening or anchoring edge windows."""
 
         self.is_cartesian_state: bool = is_cartesian_state
         """If True, optimizes for Cartesian state vectors."""
@@ -193,7 +216,12 @@ class SlidingWindowHermiteInterpolator(Interpolator):
     def _select_window(
         self, independent_value: float
     ) -> tuple[int, list[float], list[np.ndarray], list[list[list[float]]] | None]:
-        """Select sliding window around query value.
+        """Select a sliding window around the query value.
+
+        The default strategy keeps a centered local window, while the experimental
+        boundary policies expand or anchor the window at the domain edge to reduce
+        the one-sided interpolation sensitivity that arises near the first and last
+        sample.
 
         Parameters
         ----------
@@ -212,14 +240,61 @@ class SlidingWindowHermiteInterpolator(Interpolator):
 
         idx = bisect.bisect_left(self.independent_values, independent_value)
 
-        half = self.window_size // 2
-        start = idx - half
-        if start < 0:
-            start = 0
-        end = start + self.window_size
-        if end > n:
-            end = n
-            start = end - self.window_size
+        effective_size = self.window_size
+        if self.boundary_mode in {"widen", "edge"}:
+            effective_size = min(
+                n,
+                self.window_size + min(self.boundary_window_extension, n - self.window_size),
+            )
+        elif self.boundary_mode == "compact":
+            effective_size = max(
+                2,
+                self.window_size - min(self.boundary_window_extension, self.window_size - 2),
+            )
+
+        if self.boundary_mode == "centered":
+            half = effective_size // 2
+            start = idx - half
+            if start < 0:
+                start = 0
+            end = start + effective_size
+            if end > n:
+                end = n
+                start = end - effective_size
+        elif self.boundary_mode in {"widen", "edge"}:
+            if idx <= effective_size // 2:
+                start = 0
+                end = min(n, effective_size)
+            elif idx >= n - effective_size // 2:
+                end = n
+                start = max(0, n - effective_size)
+            else:
+                half = effective_size // 2
+                start = idx - half
+                if start < 0:
+                    start = 0
+                end = start + effective_size
+                if end > n:
+                    end = n
+                    start = end - effective_size
+        elif self.boundary_mode == "compact":
+            if idx <= effective_size // 2:
+                start = 0
+                end = min(n, effective_size)
+            elif idx >= n - effective_size // 2:
+                end = n
+                start = max(0, n - effective_size)
+            else:
+                half = effective_size // 2
+                start = idx - half
+                if start < 0:
+                    start = 0
+                end = start + effective_size
+                if end > n:
+                    end = n
+                    start = end - effective_size
+        else:
+            raise ValueError(f"Unsupported boundary_mode: {self.boundary_mode}")
 
         local_indep = self.independent_values[start:end]
         local_dep = self.dependent_values[start:end]

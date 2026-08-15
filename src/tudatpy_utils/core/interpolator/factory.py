@@ -35,6 +35,8 @@ class InterpolatorFactory:
             | None
         ) = None,
         dependent_data: list[np.ndarray] | None = None,
+        boundary_mode: str = "centered",
+        boundary_window_extension: int = 0,
     ) -> Interpolator:
         """Create an interpolator from a specification.
 
@@ -90,6 +92,8 @@ class InterpolatorFactory:
                 dimension=dimension,
                 degree=spec.degree,
                 is_cartesian_state=is_cartesian_state,
+                boundary_mode=boundary_mode,
+                boundary_window_extension=boundary_window_extension,
             )
         elif spec.interp_type == InterpolationType.CHEBYSHEV:
             interpolator = chebyshev.ChebyshevInterpolator(
