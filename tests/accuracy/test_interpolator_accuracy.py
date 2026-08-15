@@ -146,7 +146,7 @@ def _run_useable_range_accuracy_test(
     spec: interp_spec.InterpolationSpec,
     step_size: timedelta,
     reference_states: dict[float, np.ndarray],
-) -> None:
+) -> dict[str, float | int | interp_spec.InterpolationSpec]:
     """Interpolate input OEM and compare against reference within useable range only."""
     input_oem = oem.CcsdsOem.read(str(DATA_DIR / input_file))
 
@@ -202,19 +202,24 @@ def _run_useable_range_accuracy_test(
     mean_vel = float(np.mean(vel_array))
     std_vel = float(np.std(vel_array))
 
-    print(
-        f"  [{_spec_id(spec):16s}] useable_range "
-        f"pos_max={max_pos:10.3f} km  pos_rms={rms_pos:10.3f} km  "
-        f"pos_mean={mean_pos:10.3f} km  pos_std={std_pos:10.3f} km  "
-        f"vel_max={max_vel:10.6f} km/s  vel_rms={rms_vel:10.6f} km/s  "
-        f"vel_mean={mean_vel:10.6f} km/s  vel_std={std_vel:10.6f} km/s  "
-        f"n={len(position_errors_km):4d}"
-    )
-
     assert max_pos < MAX_POSITION_ERROR_KM, (
         f"Position error {max_pos:.3f} km exceeds sanity bound "
         f"[{_file_id(input_file)}][{_spec_id(spec)}]"
     )
+
+    return {
+        "spec": spec,
+        "label": "useable_range",
+        "max_pos": max_pos,
+        "rms_pos": rms_pos,
+        "mean_pos": mean_pos,
+        "std_pos": std_pos,
+        "max_vel": max_vel,
+        "rms_vel": rms_vel,
+        "mean_vel": mean_vel,
+        "std_vel": std_vel,
+        "count": len(position_errors_km),
+    }
 
 
 def _run_unuseable_range_accuracy_test(
@@ -222,7 +227,7 @@ def _run_unuseable_range_accuracy_test(
     spec: interp_spec.InterpolationSpec,
     step_size: timedelta,
     reference_states: dict[float, np.ndarray],
-) -> None:
+) -> dict[str, float | int | interp_spec.InterpolationSpec] | None:
     """Interpolate input OEM and compare against reference in unuseable boundary regions only."""
     input_oem = oem.CcsdsOem.read(str(DATA_DIR / input_file))
 
@@ -244,7 +249,7 @@ def _run_unuseable_range_accuracy_test(
             result_oem.meta.useable_stop_time
         ).timestamp()
     else:
-        return  # No unuseable range defined
+        return None  # No unuseable range defined
 
     position_errors_km: list[float] = []
     velocity_errors_kms: list[float] = []
@@ -264,7 +269,7 @@ def _run_unuseable_range_accuracy_test(
         velocity_errors_kms.append(vel_err)
 
     if len(position_errors_km) == 0:
-        return  # No points in unuseable range
+        return None  # No points in unuseable range
 
     pos_array = np.array(position_errors_km)
     vel_array = np.array(velocity_errors_kms)
@@ -279,14 +284,19 @@ def _run_unuseable_range_accuracy_test(
     mean_vel = float(np.mean(vel_array))
     std_vel = float(np.std(vel_array))
 
-    print(
-        f"  [{_spec_id(spec):16s}] unuseable_range "
-        f"pos_max={max_pos:10.3f} km  pos_rms={rms_pos:10.3f} km  "
-        f"pos_mean={mean_pos:10.3f} km  pos_std={std_pos:10.3f} km  "
-        f"vel_max={max_vel:10.6f} km/s  vel_rms={rms_vel:10.6f} km/s  "
-        f"vel_mean={mean_vel:10.6f} km/s  vel_std={std_vel:10.6f} km/s  "
-        f"n={len(position_errors_km):4d}"
-    )
+    return {
+        "spec": spec,
+        "label": "unuseable_range",
+        "max_pos": max_pos,
+        "rms_pos": rms_pos,
+        "mean_pos": mean_pos,
+        "std_pos": std_pos,
+        "max_vel": max_vel,
+        "rms_vel": rms_vel,
+        "mean_vel": mean_vel,
+        "std_vel": std_vel,
+        "count": len(position_errors_km),
+    }
 
 
 def _expected_margin_s(
@@ -296,10 +306,7 @@ def _expected_margin_s(
     if spec.interp_type == interp_spec.InterpolationType.CUBIC:
         # Natural cubic spline: 1 interval as UNUSABLE margin
         base = 1
-    elif spec.interp_type in (
-        interp_spec.InterpolationType.HERMITE,
-        interp_spec.InterpolationType.HERMITE_SLIDING,
-    ):
+    elif spec.interp_type == interp_spec.InterpolationType.HERMITE:
         # Hermite (both variants): no UNUSABLE margin
         base = 0
     elif spec.interp_type == interp_spec.InterpolationType.LAGRANGE:
@@ -333,9 +340,27 @@ def test_useable_range_accuracy(
             print(
                 f"\n=== {dataset_name} USEABLE RANGE ACCURACY TEST: {_file_id(input_file)} ==="
             )
+            results: list[dict[str, float | int | interp_spec.InterpolationSpec]] = []
             for spec in INTERPOLATION_SPECS:
-                _run_useable_range_accuracy_test(
+                result = _run_useable_range_accuracy_test(
                     input_file, spec, config.step_size, reference_map[dataset_name]
+                )
+                if result is not None:
+                    results.append(result)
+
+            for result in sorted(results, key=lambda item: float(item["rms_pos"])):
+                spec = result["spec"]
+                print(
+                    f"  [{_spec_id(spec):16s}] useable_range "
+                    f"pos_rms={result['rms_pos']:10.3f} km  "
+                    f"pos_mean={result['mean_pos']:10.3f} km  "
+                    f"pos_std={result['std_pos']:10.3f} km  "
+                    f"pos_max={result['max_pos']:10.3f} km  "
+                    f"vel_rms={result['rms_vel']:10.6f} km/s  "
+                    f"vel_mean={result['mean_vel']:10.6f} km/s  "
+                    f"vel_std={result['std_vel']:10.6f} km/s  "
+                    f"vel_max={result['max_vel']:10.6f} km/s  "
+                    f"n={result['count']:4d}"
                 )
 
 
@@ -357,9 +382,27 @@ def test_unuseable_range_accuracy(
             print(
                 f"\n=== {dataset_name} UNUSEABLE RANGE ACCURACY TEST: {_file_id(input_file)} ==="
             )
+            results: list[dict[str, float | int | interp_spec.InterpolationSpec]] = []
             for spec in INTERPOLATION_SPECS:
-                _run_unuseable_range_accuracy_test(
+                result = _run_unuseable_range_accuracy_test(
                     input_file, spec, config.step_size, reference_map[dataset_name]
+                )
+                if result is not None:
+                    results.append(result)
+
+            for result in sorted(results, key=lambda item: float(item["rms_pos"])):
+                spec = result["spec"]
+                print(
+                    f"  [{_spec_id(spec):16s}] unuseable_range "
+                    f"pos_rms={result['rms_pos']:10.3f} km  "
+                    f"pos_mean={result['mean_pos']:10.3f} km  "
+                    f"pos_std={result['std_pos']:10.3f} km  "
+                    f"pos_max={result['max_pos']:10.3f} km  "
+                    f"vel_rms={result['rms_vel']:10.6f} km/s  "
+                    f"vel_mean={result['mean_vel']:10.6f} km/s  "
+                    f"vel_std={result['std_vel']:10.6f} km/s  "
+                    f"vel_max={result['max_vel']:10.6f} km/s  "
+                    f"n={result['count']:4d}"
                 )
 
 
