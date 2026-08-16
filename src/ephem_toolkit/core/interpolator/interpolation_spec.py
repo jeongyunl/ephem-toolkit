@@ -12,11 +12,11 @@ from enum import Enum
 DEFAULT_HERMITE_DEGREE: int = 5
 """Default polynomial degree for Hermite interpolation."""
 
-DEFAULT_CHEBYSHEV_DEGREE: int = 5
-"""Default degree for Chebyshev polynomial interpolation."""
-
 DEFAULT_LAGRANGE_DEGREE: int = 7
 """Default polynomial degree for Lagrange interpolation."""
+
+DEFAULT_CHEBYSHEV_DEGREE: int = 5
+"""Default degree for Chebyshev polynomial interpolation."""
 
 
 class InterpolationType(Enum):
@@ -25,11 +25,11 @@ class InterpolationType(Enum):
     HERMITE = "hermite"
     """Hermite sliding-window interpolation with caching."""
 
-    CHEBYSHEV = "chebyshev"
-    """Chebyshev polynomial interpolation."""
-
     LAGRANGE = "lagrange"
     """Lagrange polynomial interpolation."""
+
+    CHEBYSHEV = "chebyshev"
+    """Chebyshev polynomial interpolation."""
 
 
 @dataclass
@@ -47,7 +47,7 @@ class InterpolationSpec:
         if self.degree is None:
             if self.interp_type == InterpolationType.HERMITE:
                 self.degree = DEFAULT_HERMITE_DEGREE
-            elif self.interp_type == InterpolationType.CHEBYSHEV:
-                self.degree = DEFAULT_CHEBYSHEV_DEGREE
             elif self.interp_type == InterpolationType.LAGRANGE:
                 self.degree = DEFAULT_LAGRANGE_DEGREE
+            elif self.interp_type == InterpolationType.CHEBYSHEV:
+                self.degree = DEFAULT_CHEBYSHEV_DEGREE

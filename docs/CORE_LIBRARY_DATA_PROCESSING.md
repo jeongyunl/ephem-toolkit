@@ -145,8 +145,8 @@ Interpolation method type.
 
 **Values:**
 - `HERMITE = "hermite"`: Hermite polynomial interpolation
-- `CHEBYSHEV = "chebyshev"`: Chebyshev polynomial interpolation
 - `LAGRANGE = "lagrange"`: Lagrange polynomial interpolation
+- `CHEBYSHEV = "chebyshev"`: Chebyshev polynomial interpolation
 
 #### `class InterpolationSpec` (dataclass)
 Interpolation specification with type and optional degree.
@@ -170,8 +170,8 @@ Factory for creating interpolator instances from specifications.
 
 **Supported types:**
 - `InterpolationType.HERMITE` → `SlidingWindowHermiteInterpolator`
-- `InterpolationType.CHEBYSHEV` → `ChebyshevInterpolator`
 - `InterpolationType.LAGRANGE` → `LagrangeInterpolator`
+- `InterpolationType.CHEBYSHEV` → `ChebyshevInterpolator`
 
 ---
 
