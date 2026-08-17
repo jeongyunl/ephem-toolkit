@@ -13,12 +13,7 @@
         1. Optionally insert extra data points at boundaries to be interpolator friendly?
 
 1. Improve CLI interface
-    1. Unify CLI usage, options
-        1. OEM input either file name or - for stdin
-        1. Don't read from stdin by default. file name arg should be '-' explicitly 
-        2. Output file option (-o, --output, --output-oem ?)
-        1. --start, --stop, --step options for OEM slicing and propagation
-            1. --duration aliases to --stop
+    1. ?
 
 1. Improve library API
     1. Streamline file I/O function names and conventions
