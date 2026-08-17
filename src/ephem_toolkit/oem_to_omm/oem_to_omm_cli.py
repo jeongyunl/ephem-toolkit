@@ -46,6 +46,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "-v",
         "--verbose",
+        dest="verbose",
         action="store_true",
         help="Print detailed debug information to stderr",
     )
@@ -70,6 +71,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--mode",
+        dest="mode",
         choices=["kepler", "mean-kepler", "tle"],
         required=True,
         metavar="{kepler,mean-kepler,tle}",
@@ -80,6 +82,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--object-name",
+        dest="object_name",
         metavar="<name>",
         default="",
         help="OBJECT_NAME: Spacecraft name for OMM output.",

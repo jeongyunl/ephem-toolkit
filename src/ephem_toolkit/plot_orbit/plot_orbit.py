@@ -866,8 +866,8 @@ def main() -> None:
             )
             sys.exit(1)
 
-    print(f"Reading OEM orbit from {args.source}...")
-    oem_data, timestamps_s, states_m = read_oem_states(args.source)
+    print(f"Reading OEM orbit from {args.input_oem}...")
+    oem_data, timestamps_s, states_m = read_oem_states(args.input_oem)
     print(f"Loaded {len(states_m)} states")
 
     timestamps_s, states_m = filter_states_by_duration(
@@ -879,7 +879,7 @@ def main() -> None:
 
     warn_if_altitude_frame_assumption_is_weak(oem_data)
 
-    orbit_label: str = Path(args.source).name
+    orbit_label: str = Path(args.input_oem).name
     series: OrbitSeries = compute_orbit_series(timestamps_s, states_m, time_unit)
 
     print("Plotting state-vector trajectory views...")

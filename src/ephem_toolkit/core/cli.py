@@ -71,10 +71,12 @@ def add_common_arguments(
     The standard project convention is to keep input paths positional when the
     format is known or otherwise use ``input_file``. Output arguments prefer a
     format-aware destination name such as ``output_omm`` or ``output_tle`` when
-    the target format is known. All option descriptions use sentence-style
-    capitalization and the value placeholders use descriptive names like
-    ``<path|->`` and ``<timestamp|duration>``. The ``-`` sentinel is accepted for
-    both stdin and stdout input/output flows.
+    the target format is known. Every ``parser.add_argument()`` call must set
+    ``dest=`` explicitly so the parsed namespace is stable and self-documenting.
+    All option descriptions use sentence-style capitalization and the value
+    placeholders use descriptive names like ``<path|->`` and
+    ``<timestamp|duration>``. The ``-`` sentinel is accepted for both stdin and
+    stdout input/output flows.
     """
     parser.add_argument(
         positional_name,

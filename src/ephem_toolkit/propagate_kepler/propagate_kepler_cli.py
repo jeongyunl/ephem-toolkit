@@ -72,6 +72,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--data-only",
+        dest="data_only",
         action="store_true",
         help=(
             "Print only propagated state lines without the OEM metadata header. "

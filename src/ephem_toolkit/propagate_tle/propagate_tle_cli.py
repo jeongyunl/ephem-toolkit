@@ -57,6 +57,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--start",
+        dest="start",
         metavar="<timestamp|duration>",
         default=None,
         help=(
@@ -67,6 +68,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--stop",
+        dest="stop",
         metavar="<timestamp|duration>",
         default=None,
         help=(
@@ -78,6 +80,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "-s",
         "--step",
+        dest="step",
         type=time_utils.parse_duration_to_seconds,
         metavar="<duration>",
         default=DEFAULT_OUTPUT_STEP_S,
@@ -88,6 +91,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--data-only",
+        dest="data_only",
         action="store_true",
         help=(
             "Print propagated state lines only (no OEM metadata header). "

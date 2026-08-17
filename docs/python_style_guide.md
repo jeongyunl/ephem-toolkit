@@ -130,6 +130,24 @@ e = eccentricity            # Eccentricity
 mu = gravitational_parameter_m3_s2  # Gravitational parameter (m³/s²)
 ```
 
+**argparse rule:** For optional arguments, set `dest=` explicitly when you need a stable runtime attribute name consumed by `args.<dest>`. Positional arguments do not accept a `dest=` keyword in argparse; their runtime name is the positional name itself (for example, `args.input_oem`).
+
+```python
+parser.add_argument(
+    "-o",
+    "--output",
+    dest="output_omm",
+    metavar="<output_omm|->",
+    help="Output OMM file path; '-' writes to stdout.",
+)
+
+parser.add_argument(
+    "input_oem",
+    metavar="<input_oem|->",
+    help="Input OEM file path; use '-' to read from stdin.",
+)
+```
+
 ### 2.3 Physical unit suffixes
 
 Append unit suffixes for clarity. Use underscores for division (`_m_s` for m/s, `_m3_s2` for m³/s²):
