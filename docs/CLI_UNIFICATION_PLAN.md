@@ -422,9 +422,12 @@ In other words:
 - complete a step
 - move the completed details to the status file
 - keep the details file focused on pointers to finished work
-- for each finished task, add a brief link such as `[completed: diff-oem](status.md#diff-oem)`
+- for each finished task, add a brief link such as `[completed: diff-oem](CLI_STATUS.md#step-1---shared-cli-conventions)`
 
 This keeps the plan concise while preserving a full record of completed work in the status file.
+
+Completed step pointer:
+- [Step 1 status](CLI_STATUS.md#step-1---shared-cli-conventions)
 
 ---
 

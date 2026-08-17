@@ -396,9 +396,12 @@ This means:
 - finish a task
 - move the full implementation notes and validation details to the status file
 - keep the details document as a pointer file, not a duplicate record of completed work
-- use short links for each finished item, such as `[diff-oem status](status.md#diff-oem)`
+- use short links for each finished item, such as `[step 1 status](CLI_STATUS.md#step-1---shared-cli-conventions)`
 
 This keeps the planning documents clean while preserving the full history of completed work in the status file.
+
+Finished step links:
+- [Step 1 status](CLI_STATUS.md#step-1---shared-cli-conventions)
 
 ## Definition of done
 
