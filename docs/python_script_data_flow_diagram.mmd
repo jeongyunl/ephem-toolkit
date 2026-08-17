@@ -41,7 +41,6 @@ flowchart LR
     xform_oem(["xform-oem"])
     convert_time(["convert-time"])
     convert_time2(["convert-time2"])
-    evaluate_fit_tle(["evaluate-fit-tle"])
 
     %% ===== Data Flows =====
 
@@ -103,8 +102,3 @@ flowchart LR
     %% convert-time2: time values → converted time values
     fmt_time --> convert_time2
     convert_time2 --> fmt_time
-
-    %% evaluate-fit-tle: OEM → fit TLE → propagate TLE → comparison
-    fmt_oem --> evaluate_fit_tle
-    evaluate_fit_tle -->|"uses"| oem_to_omm
-    evaluate_fit_tle -->|"uses"| propagate_tle

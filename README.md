@@ -24,7 +24,6 @@ flowchart LR
     slice_oem(["slice-oem"])
     xform_oem(["xform-oem"])
     propagate_tle(["propagate-tle"])
-    evaluate_fit_tle(["evaluate-fit-tle"])
 
     fmt_oem --> oem_to_omm
     oem_to_omm --> fmt_omm
@@ -42,9 +41,6 @@ flowchart LR
 
     fmt_oem -->|"source frame + target frame"| xform_oem
     xform_oem -->|"converted OEM"| fmt_oem
-
-    fmt_oem --> evaluate_fit_tle
-    evaluate_fit_tle -->|"uses"| propagate_tle
 ```
 
 ### OMM/TLE file data flow
