@@ -99,12 +99,12 @@ def parse_arguments() -> argparse.Namespace:
         "-v",
         "--verbose",
         action="store_true",
-        help="Print extra diagnostic output",
+        help="Print extra diagnostic output.",
     )
     parser.add_argument(
         "--debug",
         action="store_true",
-        help="Print low-level debug details",
+        help="Print low-level debug details.",
     )
     parser.add_argument(
         "--set-header",
@@ -149,17 +149,17 @@ def parse_arguments() -> argparse.Namespace:
     x_format_group.add_argument(
         "--x-csv",
         action="store_true",
-        help="Write the transformed OEM state data in CSV format",
+        help="Write the transformed OEM state data in CSV format.",
     )
     parser.add_argument(
         "--data-only",
         action="store_true",
-        help="Write only state data, without the OEM header and metadata",
+        help="Write only state data, without the OEM header and metadata.",
     )
     parser.add_argument(
         "input_oem",
         metavar="<input_oem|->",
-        help='Primary input OEM file path; use "-" to read from stdin',
+        help='Primary input OEM file path; use "-" to read from stdin.',
     )
     parser.add_argument(
         "-o",
@@ -167,7 +167,7 @@ def parse_arguments() -> argparse.Namespace:
         dest="output_oem",
         metavar="<output_oem|->",
         default="-",
-        help="Output OEM file path; '-' writes to stdout",
+        help="Output OEM file path; '-' writes to stdout.",
     )
 
     args = parser.parse_args()

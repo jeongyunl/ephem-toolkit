@@ -57,7 +57,7 @@ def parse_arguments() -> argparse.Namespace:
         dest="mu_m3_s2",
         help=(
             "Gravitational parameter (m³/s²). "
-            f"Default: {consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2:.6e} (Earth WGS-84)."
+            f"(default: {consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2:.6e}, Earth WGS-84)."
         ),
     )
     parser.add_argument(

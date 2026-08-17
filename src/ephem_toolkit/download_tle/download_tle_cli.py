@@ -26,7 +26,7 @@ FORMAT_ALIASES = {
 def parse_arguments() -> argparse.Namespace:
     """Parse command-line arguments for downloading TLE/OMM data."""
     parser: argparse.ArgumentParser = cli.create_parser(
-        description="Download TLE/OMM data from CelesTrak",
+        description="Download TLE/OMM data from CelesTrak.",
         epilog=(
             "Examples:\n"
             '  download-tle --satellite-id 1998-067A\n'
@@ -41,7 +41,7 @@ def parse_arguments() -> argparse.Namespace:
         action="append",
         default=[],
         metavar="<id>",
-        help="One or more satellite international designators; repeatable.",
+        help="Satellite international designator; repeat this option for multiple satellites.",
     )
     parser.add_argument(
         "--format",

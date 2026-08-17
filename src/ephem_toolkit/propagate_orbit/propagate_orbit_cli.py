@@ -313,7 +313,7 @@ def parse_arguments() -> argparse.Namespace:
         "-i",
         "--initial-state",
         dest="initial_state",
-        metavar="<state_line>",
+        metavar="<state-line>",
         help=(
             "One OEM-style state line provided directly on the command line. "
             "If omitted, one line is read from stdin."
@@ -348,7 +348,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--dep-vars",
-        metavar="<file>",
+        metavar="<output_csv>",
         default=None,
         help=(
             "Write dependent variables to a CSV file. "

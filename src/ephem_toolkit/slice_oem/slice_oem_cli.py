@@ -22,7 +22,7 @@ DEFAULT_INTERPOLATION_SPEC: InterpolationSpec = InterpolationSpec(
 def parse_arguments() -> argparse.Namespace:
     """Parse and validate command-line arguments."""
     parser = cli.create_parser(
-        description="Extract subsets of CCSDS OEM ephemeris data by index or time range",
+        description="Extract subsets of CCSDS OEM ephemeris data by index or time range.",
         epilog=(
             "Examples:\n"
             '  slice-oem data.oem --slice "0:10"\n'
@@ -40,7 +40,7 @@ def parse_arguments() -> argparse.Namespace:
         "-s",
         "--slice",
         metavar="<slice>",
-        help="Python-style slice specification, for example '0:10', '::2', '5', or '-5:'",
+        help="Python-style slice specification, for example '0:10', '::2', '5', or '-5:'.",
         default=None,
     )
     exclusive.add_argument(
@@ -70,7 +70,7 @@ def parse_arguments() -> argparse.Namespace:
         metavar="<type[,degree]>",
         help=(
             "Interpolation method: 'hermite[,degree]', 'chebyshev[,degree]', or "
-            "'lagrange[,degree]' (default: hermite,5). Degree must be > 0"
+            "'lagrange[,degree]' (default: hermite,5). Degree must be > 0."
         ),
     )
     parser.add_argument(
@@ -82,7 +82,7 @@ def parse_arguments() -> argparse.Namespace:
         "-o",
         "--output",
         dest="output_oem",
-        metavar="<path|->",
+        metavar="<output_oem|->",
         default="-",
         help="Output OEM file path; use '-' to write to stdout",
     )

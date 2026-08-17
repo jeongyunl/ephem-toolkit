@@ -62,7 +62,7 @@ def add_common_arguments(
     parser: argparse.ArgumentParser,
     *,
     positional_name: str = "input_file",
-    positional_help: str = "Input file path or '-' for stdin",
+    positional_help: str = "Input file path; '-' reads from stdin.",
     positional_nargs: str | None = None,
     output_name: str = "output",
 ) -> argparse.ArgumentParser:
@@ -87,33 +87,33 @@ def add_common_arguments(
         "--output",
         dest=output_name,
         metavar="<path|->",
-        help="Output file path; '-' writes to stdout",
+        help="Output file path; '-' writes to stdout.",
     )
     parser.add_argument(
         "--duration",
         metavar="<duration>",
-        help="Duration of the requested interval; equivalent to --stop = --start + duration",
+        help="Duration of the requested interval; equivalent to --stop = --start + duration.",
     )
     parser.add_argument(
         "--start",
         metavar="<timestamp|duration>",
-        help="Start time for the requested interval in ISO-8601 format (for example, 2001-11-06T11:17:33 or 2001-11-06T11:17:33.1234) or a relative duration",
+        help="Start time in ISO-8601 format (for example, 2001-11-06T11:17:33 or 2001-11-06T11:17:33.1234) or as a relative duration.",
     )
     parser.add_argument(
         "--stop",
         metavar="<timestamp|duration>",
-        help="Stop time for the requested interval in ISO-8601 format (for example, 2001-11-06T11:17:33 or 2001-11-06T11:17:33.1234) or a duration offset from --start",
+        help="Stop time in ISO-8601 format (for example, 2001-11-06T11:17:33 or 2001-11-06T11:17:33.1234) or as a duration offset from --start.",
     )
     parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
-        help="Print extra diagnostic output",
+        help="Print extra diagnostic output.",
     )
     parser.add_argument(
         "--debug",
         action="store_true",
-        help="Print low-level debug details",
+        help="Print low-level debug details.",
     )
     return parser
 

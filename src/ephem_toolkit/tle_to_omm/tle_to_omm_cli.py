@@ -26,7 +26,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "input_tle",
         metavar="<input_tle|->",
-        help='Input TLE file path; use "-" to read TLE text from stdin',
+        help='Input TLE file path; use "-" to read TLE text from stdin.',
     )
     parser.add_argument(
         "-o",
