@@ -19,7 +19,6 @@ Time window options:
 
 from __future__ import annotations
 
-import argparse
 import datetime as dt
 import pathlib
 import sys
@@ -27,6 +26,8 @@ from typing import Any
 import numpy as np
 
 import warnings
+
+from .propagate_tle_cli import parse_arguments
 
 # Suppress warnings that tudatpy / urllib3 may emit on import.
 warnings.filterwarnings("ignore", category=SyntaxWarning)

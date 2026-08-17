@@ -12,23 +12,7 @@ import re
 import urllib.parse
 import urllib.request
 
-FORMATS = {
-    "tle": ".tle",
-    "3le": ".tle",
-    "2le": ".tle",
-    "xml": ".xml",
-    "kvn": ".omm",
-    "omm": ".omm",
-    "json": ".json",
-    "json-pretty": ".json",
-    "csv": ".csv",
-}
-"""Mapping of CelesTrak format names to output file extensions."""
-
-FORMAT_ALIASES = {
-    "omm": "kvn",
-}
-"""Aliases that map user-facing format names to CelesTrak API format tokens."""
+from .download_tle_cli import FORMATS, FORMAT_ALIASES, parse_arguments
 
 
 # ===================================================================
@@ -51,40 +35,6 @@ def safe_name(name: str) -> str:
     """
     result = name.replace(" ", "-").replace("(", "-").replace(")", "")
     return re.sub(r"-+", "-", result)
-
-
-# ===================================================================
-# CLI entry point
-# ===================================================================
-
-
-def parse_arguments() -> argparse.Namespace:
-    """Parse command-line arguments for downloading TLE/OMM data.
-
-    Returns
-    -------
-    argparse.Namespace
-        Parsed command-line arguments containing:
-        - satellite_ids: list of satellite international designators
-        - format: output format for the data
-    """
-    parser: argparse.ArgumentParser = argparse.ArgumentParser(
-        description="Download TLE/OMM data from CelesTrak"
-    )
-    parser.add_argument(
-        "satellite_ids",
-        nargs="+",
-        help="One or more satellite international designators",
-    )
-    parser.add_argument(
-        "--format",
-        dest="format",
-        default="tle",
-        choices=FORMATS.keys(),
-        help="Output format (default: tle). Valid options: "
-        + ", ".join(FORMATS.keys()),
-    )
-    return parser.parse_args()
 
 
 def main() -> None:

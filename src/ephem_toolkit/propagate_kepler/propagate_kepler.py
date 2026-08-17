@@ -16,13 +16,14 @@ calling the propagator. Output is emitted as the same OEM-like format.
 
 from __future__ import annotations
 
-import argparse
 import datetime as dt
 import pathlib
 import sys
 import numpy as np
 
 import warnings
+
+from .propagate_kepler_cli import parse_arguments
 
 # Suppress warnings that tudatpy / urllib3 may emit on import.
 warnings.filterwarnings("ignore", category=SyntaxWarning)

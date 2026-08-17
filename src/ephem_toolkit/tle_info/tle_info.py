@@ -15,10 +15,11 @@ References:
 
 from __future__ import annotations
 
-import argparse
 import math
 
 import warnings
+
+from .tle_info_cli import parse_arguments
 
 # Suppress warnings that tudatpy / urllib3 may emit on import.
 warnings.filterwarnings("ignore", category=SyntaxWarning)
@@ -88,33 +89,6 @@ def get_tle_epoch(tle: object) -> tuple[DateTime, float]:
 # ===================================================================
 # Argument Parser
 # ===================================================================
-
-
-def parse_arguments() -> argparse.Namespace:
-    """Create the command-line argument parser.
-
-    Returns
-    -------
-    argparse.Namespace
-        Parsed command-line arguments for TLE info display.
-    """
-    parser: argparse.ArgumentParser = argparse.ArgumentParser(
-        description=(
-            "Display TLE parameters and derived orbital elements for one or more TLE files."
-        ),
-        epilog=(
-            "Loads each TLE file using TudatPy's SGP4 ephemeris and prints the epoch, "
-            "TLE parameters, Cartesian state, and osculating Keplerian elements."
-        ),
-    )
-    parser.add_argument(
-        "tle_files",
-        nargs="+",
-        metavar="tle_file",
-        help="Path(s) to TLE file(s) to process",
-    )
-
-    return parser.parse_args()
 
 
 # ===================================================================
