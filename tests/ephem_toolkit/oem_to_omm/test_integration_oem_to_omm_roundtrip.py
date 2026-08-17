@@ -192,7 +192,7 @@ def test_oem_to_omm_requires_input_file_name() -> None:
     )
 
     assert result.returncode != 0
-    assert "input file name must be provided" in result.stderr.lower()
+    assert "required: oem_file" in result.stderr.lower()
 
     stdin_oem = (TEST_DATA_DIR / "ISS_2026-05-20_small.OEM").read_text(encoding="utf-8")
     stdin_result: subprocess.CompletedProcess[str] = subprocess.run(

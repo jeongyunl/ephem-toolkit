@@ -98,19 +98,15 @@ def test_cli_stdin_with_dash() -> None:
 
 
 def test_cli_stdin_without_filename() -> None:
-    """Test reading from stdin by omitting filename."""
-    temp_path, original_oem = _create_test_oem(num_states=20)
+    """Test that omitting filename fails because stdin requires an explicit '-'."""
+    temp_path, _ = _create_test_oem(num_states=20)
     try:
         with open(temp_path, "r") as f:
             oem_content = f.read()
 
         result = _run_slice_oem(["--slice", "5:10"], input_data=oem_content)
-        assert result.returncode == 0
-
-        output_oem = oem.CcsdsOem.read(io.StringIO(result.stdout))
-        assert len(output_oem.states) == 5
-        assert output_oem.states[0][0] == original_oem.states[5][0]
-        assert output_oem.states[-1][0] == original_oem.states[9][0]
+        assert result.returncode != 0
+        assert "required: oem_file" in result.stderr.lower()
     finally:
         temp_path.unlink()
 
@@ -122,7 +118,7 @@ def test_cli_stdin_with_time_slice() -> None:
         with open(temp_path, "r") as f:
             oem_content = f.read()
 
-        result = _run_slice_oem(["--time-slice", "5m,10m"], input_data=oem_content)
+        result = _run_slice_oem(["-", "--time-slice", "5m,10m"], input_data=oem_content)
         assert result.returncode == 0
 
         output_oem = oem.CcsdsOem.read(io.StringIO(result.stdout))
@@ -158,7 +154,7 @@ def test_cli_stdin_with_verbose() -> None:
             oem_content = f.read()
 
         result = _run_slice_oem(
-            ["--slice", "0:10", "--verbose"], input_data=oem_content
+            ["-", "--slice", "0:10", "--verbose"], input_data=oem_content
         )
         assert result.returncode == 0
 
