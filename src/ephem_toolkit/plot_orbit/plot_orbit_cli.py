@@ -31,6 +31,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "-o",
         "--output",
+        dest="output",
         type=str,
         default=None,
         metavar="<output_plot|->",
@@ -39,6 +40,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "-d",
         "--duration",
+        dest="duration",
         type=str,
         default=None,
         metavar="<duration>",
@@ -46,6 +48,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--time-unit",
+        dest="time_unit",
         type=str,
         default="hours",
         choices=["m", "minute", "minutes", "h", "hour", "hours"],

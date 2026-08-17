@@ -39,6 +39,7 @@ def parse_arguments() -> argparse.Namespace:
     exclusive.add_argument(
         "-s",
         "--slice",
+        dest="slice",
         metavar="<slice>",
         help="Python-style slice specification, for example '0:10', '::2', '5', or '-5:'.",
         default=None,
@@ -46,6 +47,7 @@ def parse_arguments() -> argparse.Namespace:
     exclusive.add_argument(
         "-t",
         "--time-slice",
+        dest="time_slice",
         metavar="<start[,stop[,step]]>",
         help=(
             "Time slice specification: start[,stop[,step]]. Start and stop may be ISO-8601 "
@@ -62,6 +64,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--interpolate-type",
+        dest="interpolate_type",
         type=partial(
             cli.parse_interpolate_type,
             default_degree=DEFAULT_INTERPOLATION_DEGREE,
@@ -75,6 +78,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--data-only",
+        dest="data_only",
         action="store_true",
         help="Write state vectors only; omit the OEM metadata header",
     )
@@ -89,11 +93,13 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "-v",
         "--verbose",
+        dest="verbose",
         action="store_true",
         help="Print extra diagnostic output",
     )
     parser.add_argument(
         "--debug",
+        dest="debug",
         action="store_true",
         help="Print low-level debug details",
     )

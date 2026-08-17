@@ -322,6 +322,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "-d",
         "--duration",
+        dest="duration",
         type=time_utils.parse_duration_to_seconds,
         metavar="<duration>",
         default=DEFAULT_SIMULATION_DURATION_S,
@@ -343,11 +344,13 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--data-only",
+        dest="data_only",
         action="store_true",
         help="Write only OEM state-vector data without the OEM header or metadata.",
     )
     parser.add_argument(
         "--dep-vars",
+        dest="dep_vars",
         metavar="<output_csv>",
         default=None,
         help=(
@@ -358,12 +361,14 @@ def parse_arguments() -> argparse.Namespace:
     # Satellite properties
     parser.add_argument(
         "--name",
+        dest="name",
         default=DEFAULT_SATELLITE_NAME,
         metavar="<name>",
         help=f"Name of the propagated satellite body (default: {DEFAULT_SATELLITE_NAME}).",
     )
     parser.add_argument(
         "--mass",
+        dest="mass",
         type=parse_mass_kg,
         metavar="<kg>",
         default=DEFAULT_SATELLITE_MASS_KG,
@@ -376,6 +381,7 @@ def parse_arguments() -> argparse.Namespace:
     # Integrator method and step size
     parser.add_argument(
         "--integrator",
+        dest="integrator",
         type=parse_integrator_method,
         metavar=f"<{ '|'.join(SUPPORTED_INTEGRATOR_METHODS) }>",
         default=DEFAULT_INTEGRATOR_METHOD,
@@ -392,6 +398,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--integrator-step-size",
+        dest="integrator_step_size",
         type=parse_integrator_step_size_values,
         metavar="<fixed|init,max|init,min,max>",
         default=DEFAULT_INTEGRATOR_STEP_SIZE_S,
@@ -410,6 +417,7 @@ def parse_arguments() -> argparse.Namespace:
     # Earth spherical harmonic gravity degree/order
     parser.add_argument(
         "--earth-gravity",
+        dest="earth_gravity",
         type=parse_earth_spherical_harmonic_gravity_degree_order,
         metavar="<DxO>",
         default=(
@@ -428,6 +436,7 @@ def parse_arguments() -> argparse.Namespace:
     # Drag area (also used as the cannonball reference area for SRP)
     parser.add_argument(
         "--drag-area",
+        dest="drag_area",
         type=parse_drag_area_m2,
         metavar="<m²>",
         default=DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2,
@@ -440,6 +449,7 @@ def parse_arguments() -> argparse.Namespace:
     # Solar radiation pressure
     parser.add_argument(
         "--srp",
+        dest="srp",
         type=parse_bool_flag,
         metavar="<on|off>",
         default=True,
@@ -447,6 +457,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--srp-coeff",
+        dest="srp_coeff",
         type=parse_srp_coefficient,
         metavar="<coefficient>",
         default=DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT,
@@ -459,6 +470,7 @@ def parse_arguments() -> argparse.Namespace:
     # Aerodynamic drag
     parser.add_argument(
         "--drag",
+        dest="drag",
         type=parse_bool_flag,
         metavar="<on|off>",
         default=True,
@@ -466,6 +478,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--drag-coeff",
+        dest="drag_coeff",
         type=parse_drag_coefficient,
         metavar="<coefficient>",
         default=DEFAULT_SATELLITE_DRAG_COEFFICIENT,
@@ -482,6 +495,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--sun-gravity",
+        dest="sun_gravity",
         type=parse_bool_flag,
         metavar="<on|off>",
         default=True,

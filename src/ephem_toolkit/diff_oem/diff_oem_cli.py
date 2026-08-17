@@ -84,32 +84,38 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "-v",
         "--verbose",
+        dest="verbose",
         action="store_true",
         help="Print detailed component-wise differences.",
     )
     parser.add_argument(
         "--debug",
+        dest="debug",
         action="store_true",
         help="Print time-range determination details to stderr.",
     )
     parser.add_argument(
         "--interpolate-ref",
+        dest="interpolate_ref",
         action="store_true",
         help="Interpolate the reference OEM at each comparison state timestamp.",
     )
     parser.add_argument(
         "--interpolate-data",
+        dest="interpolate_data",
         action="store_true",
         default=True,
         help="Interpolate comparison data at each reference state timestamp (enabled by default).",
     )
     parser.add_argument(
         "--interpolate",
+        dest="interpolate",
         action="store_true",
         help="Interpolate both reference and comparison OEM data.",
     )
     parser.add_argument(
         "--interpolate-type",
+        dest="interpolate_type",
         type=partial(
             cli.parse_interpolate_type, default_degree=DEFAULT_INTERPOLATION_DEGREE
         ),
@@ -124,6 +130,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--rtn",
+        dest="rtn",
         action="store_true",
         help="Include comparison state coordinates in the reference RTN frame.",
     )
@@ -165,11 +172,13 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--time-shift",
+        dest="time_shift",
         action="store_true",
         help="Fit a constant comparison epoch bias and shift comparison timestamps before reporting differences (may be repeated).",
     )
     parser.add_argument(
         "--rot-fit-span",
+        dest="rot_fit_span",
         type=parse_rotation_fit_span,
         default=ROTATION_FIT_DURATION_S,
         metavar="<duration>",
@@ -177,12 +186,14 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--start",
+        dest="start",
         metavar="<timestamp|duration>",
         default=None,
         help="Start epoch in ISO-8601 format (for example, 2001-11-06T11:17:33 or 2001-11-06T11:17:33.1234) or as a duration offset from the reference epoch.",
     )
     parser.add_argument(
         "--duration",
+        dest="duration",
         type=parse_duration_to_seconds,
         metavar="<duration>",
         default=None,
@@ -190,6 +201,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--stop",
+        dest="stop",
         metavar="<timestamp|duration>",
         default=None,
         help="Stop epoch in ISO-8601 format (for example, 2001-11-06T11:17:33 or 2001-11-06T11:17:33.1234) or as a duration offset from --start.",

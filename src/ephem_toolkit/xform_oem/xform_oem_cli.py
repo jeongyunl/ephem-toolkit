@@ -98,16 +98,19 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "-v",
         "--verbose",
+        dest="verbose",
         action="store_true",
         help="Print extra diagnostic output.",
     )
     parser.add_argument(
         "--debug",
+        dest="debug",
         action="store_true",
         help="Print low-level debug details.",
     )
     parser.add_argument(
         "--set-header",
+        dest="set_header",
         action="append",
         default=[],
         metavar="<key=value>",
@@ -118,6 +121,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--set-meta",
+        dest="set_meta",
         action="append",
         default=[],
         metavar="<key=value>",
@@ -131,6 +135,7 @@ def parse_arguments() -> argparse.Namespace:
     x_format_group = parser.add_mutually_exclusive_group()
     x_format_group.add_argument(
         "--x-ref-frame",
+        dest="x_ref_frame",
         metavar="<frame>",
         help=(
             "Transform state vectors to a target reference frame and update "
@@ -140,6 +145,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     x_format_group.add_argument(
         "--x-aer",
+        dest="x_aer",
         metavar="<lat,lon,alt>",
         help=(
             "Convert ECEF positions to AER coordinates using latitude, longitude, "
@@ -148,11 +154,13 @@ def parse_arguments() -> argparse.Namespace:
     )
     x_format_group.add_argument(
         "--x-csv",
+        dest="x_csv",
         action="store_true",
         help="Write the transformed OEM state data in CSV format.",
     )
     parser.add_argument(
         "--data-only",
+        dest="data_only",
         action="store_true",
         help="Write only state data, without the OEM header and metadata.",
     )

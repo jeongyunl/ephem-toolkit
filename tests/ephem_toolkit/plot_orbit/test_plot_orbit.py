@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from ephem_toolkit.plot_orbit.plot_orbit_cli import parse_arguments
+
 PROJECT_ROOT: Path = Path(__file__).parent.parent.parent.parent
 
 
@@ -38,3 +40,17 @@ def test_plot_orbit_help_uses_command_name_and_output_placeholder() -> None:
     assert result.returncode == 0
     assert "usage: plot-orbit" in result.stdout
     assert "--output <output_plot|->" in result.stdout
+
+
+def test_plot_orbit_uses_input_oem_attribute_name() -> None:
+    """The parser should expose the positional input path under input_oem."""
+    original_argv = sys.argv[:]
+    try:
+        sys.argv = ["plot-orbit", "orbit.oem", "-o", "orbit.png", "-d", "1h"]
+        args = parse_arguments()
+    finally:
+        sys.argv = original_argv
+
+    assert args.input_oem == "orbit.oem"
+    assert args.output == "orbit.png"
+    assert args.duration == "1h"

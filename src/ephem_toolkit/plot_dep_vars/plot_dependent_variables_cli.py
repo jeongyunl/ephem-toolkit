@@ -27,6 +27,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--name",
+        dest="name",
         default="Satellite",
         metavar="<name>",
         help="Satellite name used in labels and header filtering (default: Satellite).",
@@ -34,6 +35,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "-d",
         "--duration",
+        dest="duration",
         type=time_utils.parse_duration_to_seconds,
         default=None,
         metavar="<duration>",
