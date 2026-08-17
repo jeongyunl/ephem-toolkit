@@ -84,62 +84,56 @@ flowchart LR
 
 | Workflow | Command |
 | --- | --- |
-| OEM comparison | `diff-oem` |
-| TLE download | `download-tle` |
-| OMM to TLE | `omm-to-tle` |
-| OEM slicing | `slice-oem` |
-| TLE inspection | `tle-info` |
-| TLE to OMM | `tle-to-omm` |
-| OEM frame transformation | `xform-oem` |
-| OEM to OMM fitting | `oem-to-omm` |
-| Orbit propagation | `propagate-orbit` |
-| Kepler propagation | `propagate-kepler` |
-| TLE propagation | `propagate-tle` |
-| Orbit plotting | `plot-orbit` |
-| Orbit-delta plotting | `plot-orbit-deltas` |
-| Dependent-variable plotting | `plot-dependent-variables` |
+| OEM comparison | [`diff-oem`](docs/DIFF_OEM.md) |
+| TLE download | [`download-tle`](docs/DOWNLOAD_TLE.md) |
+| OMM to TLE | [`omm-to-tle`](docs/OMM_TO_TLE.md) |
+| OEM slicing | [`slice-oem`](docs/SLICE_OEM.md) |
+| TLE inspection | [`tle-info`](docs/TLE_INFO.md) |
+| TLE to OMM | [`tle-to-omm`](docs/TLE_TO_OMM.md) |
+| OEM frame transformation | [`xform-oem`](docs/XFORM_OEM.md) |
+| OEM to OMM fitting | [`oem-to-omm`](docs/OEM_TO_OMM.md) |
+| Orbit propagation | [`propagate-orbit`](docs/PROPAGATE_ORBIT.md) |
+| Kepler propagation | [`propagate-kepler`](docs/PROPAGATE_KEPLER.md) |
+| TLE propagation | [`propagate-tle`](docs/PROPAGATE_TLE.md) |
+| Orbit plotting | [`plot-orbit`](docs/PLOT_ORBIT.md) |
+| Orbit-delta plotting | [`plot-orbit-deltas`](docs/PLOT_ORBIT_DELTAS.md) |
+| Dependent-variable plotting | [`plot-dependent-variables`](docs/PLOT_DEPENDENT_VARIABLES.md) |
 
 
 TudatPy-dependent workflows require TudatPy and its transitive dependencies through an external installation method.
 
 ### OEM Utilities
 
-- `diff-oem` — compare corresponding states from two OEM files with optional rotation fitting and time-shift correction. See [DIFF_OEM.md](docs/DIFF_OEM.md) for details
-- `slice-oem` — slice OEM files by index or time range (with optional interpolation). See [SLICE_OEM.md](docs/SLICE_OEM.md) for details
-- `xform-oem` — convert CCSDS OEM state vectors between supported reference frames, or convert ECEF positions to AER coordinates. See [XFORM_OEM.md](docs/XFORM_OEM.md) for complete documentation.
+- [`diff-oem`](docs/DIFF_OEM.md) — compare corresponding states from two OEM files with optional rotation fitting and time-shift correction.
+- [`slice-oem`](docs/SLICE_OEM.md) — slice OEM files by index or time range (with optional interpolation).
+- [`xform-oem`](docs/XFORM_OEM.md) — convert CCSDS OEM state vectors between supported reference frames, or convert ECEF positions to AER coordinates.
 
 
 ### Orbit Propagation
 
-- `propagate-orbit` — Cartesian state propagation with configurable perturbations
-- `propagate-kepler` — two-body Kepler propagation
-- `propagate-tle` — SGP4 TLE propagation
+- [`propagate-orbit`](docs/PROPAGATE_ORBIT.md) — Cartesian state propagation with configurable perturbations
+- [`propagate-kepler`](docs/PROPAGATE_KEPLER.md) — two-body Kepler propagation
+- [`propagate-tle`](docs/PROPAGATE_TLE.md) — SGP4 TLE propagation
 
 Supports CCSDS OEM export, data-only state-vector output, dependent-variable CSV export, and OEM metadata headers.
 
-See [PROPAGATION.md](docs/PROPAGATION.md) for full usage details.
-
 ### OEM-to-OMM
 
-- `oem-to-omm`
+- [`oem-to-omm`](docs/OEM_TO_OMM.md)
 
 Estimates Orbit Mean-Elements Messages (OMM) including Two-Line Element (TLE) sets from OEM Cartesian state vectors. Fits OEM state vectors to osculating Kepler, mean Kepler, or TLE-derived OMM output using iterative least-squares fitting. Includes least-squares estimation, iterative refinement, SGP4 model evaluation, and TLE line construction.
 
-See [OEM_TO_OMM.md](docs/OEM_TO_OMM.md) for full usage details.
-
 ### TLE / OMM Utilities
 
-- `download-tle` — download TLE data
-- `omm-to-tle` — convert OMM → TLE
-- `tle-to-omm` — convert TLE → OMM
-- `tle-info` — inspect TLE information
-
-See [TLE.md](docs/TLE.md) for full usage details.
+- [`download-tle`](docs/DOWNLOAD_TLE.md) — download TLE data
+- [`omm-to-tle`](docs/OMM_TO_TLE.md) — convert OMM → TLE
+- [`tle-to-omm`](docs/TLE_TO_OMM.md) — convert TLE → OMM
+- [`tle-info`](docs/TLE_INFO.md) — inspect TLE information
 
 ### Visualization
 
-- `plot-orbit-deltas` — plot and compare multiple orbits
-- `plot-dependent-variables` — plot dependent variables from propagation output
+- [`plot-orbit-deltas`](docs/PLOT_ORBIT_DELTAS.md) — plot and compare multiple orbits
+- [`plot-dependent-variables`](docs/PLOT_DEPENDENT_VARIABLES.md) — plot dependent variables from propagation output
 
 ---
 
