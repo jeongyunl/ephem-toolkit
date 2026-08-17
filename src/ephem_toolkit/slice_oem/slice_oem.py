@@ -82,8 +82,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "oem_file",
-        nargs="?",
-        help='Path to input CCSDS OEM file (use "-" or omit to read from stdin)',
+        help='Path to input CCSDS OEM file. Use "-" to read from stdin.',
     )
     exclusive = parser.add_mutually_exclusive_group()
     exclusive.add_argument(
@@ -162,14 +161,14 @@ def main() -> None:
     args = parse_arguments()
 
     # Determine if reading from stdin
-    read_from_stdin = args.oem_file is None or args.oem_file == "-"
+    read_from_stdin = args.oem_file == "-"
 
     # Ensure at least one slicing option is provided when processing OEM data
     if not args.time_slice and not args.slice:
         # If no slice options and no file, just exit successfully (no-op)
         if read_from_stdin:
             return
-        parser.error("either -s/--slice or -t/--time-slice must be provided")
+        raise SystemExit("Error: either -s/--slice or -t/--time-slice must be provided")
 
     if args.time_slice or args.slice:
         # Read OEM data from stdin or file

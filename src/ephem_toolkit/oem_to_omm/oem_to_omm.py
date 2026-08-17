@@ -155,8 +155,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "oem_file",
-        nargs="?",
-        help='Path to input CCSDS OEM file (use "-" or omit to read from stdin)',
+        help='Path to input CCSDS OEM file (use "-" to read from stdin)',
     )
     parser.add_argument(
         "-o",
@@ -212,6 +211,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--tle",
         action="store_true",
+        default=True,
         help=(
             "Fit TLE mean elements (SGP4-compatible) to the OEM states. "
             "Creates an OMM with MEAN_ELEMENT_THEORY=SGP4 and includes "
@@ -301,7 +301,7 @@ def main() -> None:
     args = parse_arguments()
 
     # Determine input source: file path or stdin (piped input)
-    read_from_stdin: bool = args.oem_file is None or args.oem_file == "-"
+    read_from_stdin: bool = args.oem_file == "-"
 
     # Read and parse CCSDS OEM ephemeris data
     if read_from_stdin:

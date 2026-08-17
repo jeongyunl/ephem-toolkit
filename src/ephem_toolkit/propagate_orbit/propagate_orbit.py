@@ -27,18 +27,19 @@ import contextlib
 import sys
 import warnings
 
-from . import plot_orbit_deltas_cli
-from . import input_handling
-from . import output_handling
-from . import propagation
-from . import tudat_setup
-
 # Suppress warnings that tudatpy / urllib3 may emit on import.
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 warnings.filterwarnings(
     "ignore",
     module=r"urllib3(\..*)?",
 )
+
+
+from . import plot_orbit_deltas_cli
+from . import input_handling
+from . import output_handling
+from . import propagation
+from . import tudat_setup
 
 
 def main() -> None:

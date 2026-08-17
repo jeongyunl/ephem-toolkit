@@ -378,8 +378,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "oem_file",
-        nargs="?",
-        help='Path to input CCSDS OEM file in ECEF frame (use "-" or omit to read from stdin)',
+        help='Path to input CCSDS OEM file in ECEF frame. Use "-" to read from stdin.',
     )
     parser.add_argument(
         "-o",
@@ -433,7 +432,7 @@ def main() -> None:
     args = parse_arguments()
 
     # Determine if reading from stdin
-    read_from_stdin = args.oem_file is None or args.oem_file == "-"
+    read_from_stdin = args.oem_file == "-"
 
     # Read OEM data from stdin or file
     if read_from_stdin:
