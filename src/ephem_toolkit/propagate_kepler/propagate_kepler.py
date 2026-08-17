@@ -68,12 +68,8 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "input_file",
-        nargs="?",
         metavar="<input_file>",
-        help=(
-            "Path to a file containing one OEM-like Keplerian element line. "
-            "If omitted, read from stdin."
-        ),
+        help='Path to a file containing one OEM-like Keplerian element line. Use "-" to read from stdin.',
     )
     parser.add_argument(
         "-d",
@@ -116,7 +112,7 @@ def read_kepler_input(source: str | None) -> tuple[dt.datetime, np.ndarray, str]
     Parameters
     ----------
     source : str | None
-        Path to an input file, or *None* to read from stdin.
+        Path to an input file, or "-" to read from stdin.
 
     Returns
     -------
@@ -128,51 +124,54 @@ def read_kepler_input(source: str | None) -> tuple[dt.datetime, np.ndarray, str]
     Raises
     ------
     FileNotFoundError
-        If *cli_value* is provided but the file does not exist.
+        If *source* is provided as a file path but the file does not exist.
     ValueError
         If no valid Keplerian element line is found.
     """
-    if source:
-        input_path: pathlib.Path = pathlib.Path(source.strip()).expanduser().resolve()
-        if not input_path.is_file():
-            raise FileNotFoundError(f"Input file not found: {input_path}")
+    if source == "-":
+        if sys.stdin.isatty():
+            raise ValueError(
+                "Keplerian input not provided. Pass <input_file> or pipe a Keplerian state line on stdin."
+            )
 
-        with input_path.open("r", encoding="utf-8") as file_stream:
-            lines: list[str] = [line.strip() for line in file_stream if line.strip()]
-        if not lines:
-            raise ValueError(f"Empty input file: {input_path}")
+        stdin_text: str = sys.stdin.read()
+        if not stdin_text.strip():
+            raise ValueError(
+                "Empty stdin input. Provide a Keplerian element line on stdin."
+            )
+        lines: list[str] = [
+            line.strip() for line in stdin_text.splitlines() if line.strip()
+        ]
         parsed_state: tuple[dt.datetime, np.ndarray] | None = (
             oem.CcsdsOem.parse_oem_state_line(lines[-1])
         )
         if parsed_state is None:
-            raise ValueError(f"No valid Keplerian element line found in {input_path}")
+            raise ValueError("No valid Keplerian element line found on stdin")
         epoch_dt, kepler_km = parsed_state
-        return epoch_dt, kepler_km, input_path.stem
+        if epoch_dt.tzinfo is None:
+            epoch_dt = epoch_dt.replace(tzinfo=dt.timezone.utc)
+        else:
+            epoch_dt = epoch_dt.astimezone(dt.timezone.utc)
+        return epoch_dt, kepler_km, "KEPLER_STDIN"
 
-    if sys.stdin.isatty():
-        raise ValueError(
-            "Keplerian input not provided. Pass <input_file> or pipe a Keplerian state line on stdin."
-        )
+    if source is None:
+        raise ValueError("Input file name is required; use '-' for stdin.")
 
-    stdin_text: str = sys.stdin.read()
-    if not stdin_text.strip():
-        raise ValueError(
-            "Empty stdin input. Provide a Keplerian element line on stdin."
-        )
-    lines: list[str] = [
-        line.strip() for line in stdin_text.splitlines() if line.strip()
-    ]
+    input_path: pathlib.Path = pathlib.Path(source.strip()).expanduser().resolve()
+    if not input_path.is_file():
+        raise FileNotFoundError(f"Input file not found: {input_path}")
+
+    with input_path.open("r", encoding="utf-8") as file_stream:
+        lines: list[str] = [line.strip() for line in file_stream if line.strip()]
+    if not lines:
+        raise ValueError(f"Empty input file: {input_path}")
     parsed_state: tuple[dt.datetime, np.ndarray] | None = (
         oem.CcsdsOem.parse_oem_state_line(lines[-1])
     )
     if parsed_state is None:
-        raise ValueError("No valid Keplerian element line found on stdin")
+        raise ValueError(f"No valid Keplerian element line found in {input_path}")
     epoch_dt, kepler_km = parsed_state
-    if epoch_dt.tzinfo is None:
-        epoch_dt = epoch_dt.replace(tzinfo=dt.timezone.utc)
-    else:
-        epoch_dt = epoch_dt.astimezone(dt.timezone.utc)
-    return epoch_dt, kepler_km, "KEPLER_STDIN"
+    return epoch_dt, kepler_km, input_path.stem
 
 
 # ===================================================================

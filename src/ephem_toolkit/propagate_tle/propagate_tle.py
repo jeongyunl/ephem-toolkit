@@ -68,9 +68,8 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "tle_file",
-        nargs="?",
         metavar="<tle_file>",
-        help=("Path to a TLE file. If omitted, read TLE text directly from stdin."),
+        help='Path to a TLE file. Use "-" to read TLE text from stdin.',
     )
     parser.add_argument(
         "--start",
@@ -161,7 +160,7 @@ def read_tle_input(cli_value: str | None) -> tuple[str, str, str]:
     Parameters
     ----------
     cli_value : str | None
-        Positional CLI value for TLE file path.
+        Positional CLI value for TLE file path. Use "-" for stdin input.
 
     Returns
     -------
@@ -174,29 +173,32 @@ def read_tle_input(cli_value: str | None) -> tuple[str, str, str]:
     For both file and stdin input, the final two non-empty lines are interpreted
     as the TLE pair.
     """
-    if cli_value:
-        tle_path: pathlib.Path = pathlib.Path(cli_value.strip()).expanduser().resolve()
-        if not tle_path.is_file():
-            raise FileNotFoundError(f"TLE file not found: {tle_path}")
+    if cli_value == "-":
+        if sys.stdin.isatty():
+            raise ValueError(
+                "TLE input not provided. Pass <tle_file> or pipe TLE text on stdin."
+            )
 
-        with tle_path.open("r", encoding="utf-8") as handle:
-            text_lines: list[str] = [line.strip() for line in handle if line.strip()]
-        line1, line2 = extract_tle_line_pair(text_lines, str(tle_path))
-        return line1, line2, tle_path.stem
+        stdin_text: str = sys.stdin.read()
+        if not stdin_text.strip():
+            raise ValueError("Empty stdin input. Provide TLE text on stdin.")
+        text_lines: list[str] = [
+            line.strip() for line in stdin_text.splitlines() if line.strip()
+        ]
+        line1, line2 = extract_tle_line_pair(text_lines, "stdin")
+        return line1, line2, "TLE_STDIN"
 
-    if sys.stdin.isatty():
-        raise ValueError(
-            "TLE input not provided. Pass <tle_file> or pipe TLE text on stdin."
-        )
+    if cli_value is None:
+        raise ValueError('TLE input file is required; use "-" for stdin.')
 
-    stdin_text: str = sys.stdin.read()
-    if not stdin_text.strip():
-        raise ValueError("Empty stdin input. Provide TLE text on stdin.")
-    text_lines: list[str] = [
-        line.strip() for line in stdin_text.splitlines() if line.strip()
-    ]
-    line1, line2 = extract_tle_line_pair(text_lines, "stdin")
-    return line1, line2, "TLE_STDIN"
+    tle_path: pathlib.Path = pathlib.Path(cli_value.strip()).expanduser().resolve()
+    if not tle_path.is_file():
+        raise FileNotFoundError(f"TLE file not found: {tle_path}")
+
+    with tle_path.open("r", encoding="utf-8") as handle:
+        text_lines: list[str] = [line.strip() for line in handle if line.strip()]
+    line1, line2 = extract_tle_line_pair(text_lines, str(tle_path))
+    return line1, line2, tle_path.stem
 
 
 # ===================================================================

@@ -33,13 +33,8 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "input",
-        nargs="?",
-        default="-",
         metavar="<input.omm>",
-        help=(
-            "Input OMM file path. Use '-' or omit this argument to read OMM text "
-            "from stdin (default: '-')."
-        ),
+        help='Input OMM file path. Use "-" to read OMM text from stdin.',
     )
     parser.add_argument(
         "-o",
@@ -66,7 +61,7 @@ def main() -> None:
             sys.exit(1)
     else:
         try:
-            with open(args.input, "r") as input_file:
+            with open(args.input, "r", encoding="utf-8") as input_file:
                 input_text = input_file.read()
         except OSError as error:
             print(

@@ -16,10 +16,10 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-import core.misc as misc
-import core.ccsds.oem as oem
-import core.time_utils as time_utils
-import core.wgs as wgs
+import ephem_toolkit.core.misc as misc
+import ephem_toolkit.core.ccsds.oem as oem
+import ephem_toolkit.core.time_utils as time_utils
+import ephem_toolkit.core.wgs as wgs
 
 # ===================================================================
 # Constants
