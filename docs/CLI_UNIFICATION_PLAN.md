@@ -154,9 +154,26 @@ Notes:
 
 - every command must have a clear one-sentence description
 - every option must have a concise, explicit description
+- every option value placeholder in usage/help must use the project pattern `<lower_case_desc>`
+- use lowercase descriptive placeholders such as `<path>`, `<file>`, `<duration>`, `<start>`, `<stop>`, `<id>`, `<timestamp>`, and `<value>`
+- avoid generic placeholders like `<VALUE>`, `ARG`, `FILE`, or `PATH` when a more specific lower-case descriptor is available
 - defaults must be shown in help text for nontrivial values
 - examples should be limited to 2-4 lines
 - avoid overloaded prose and duplicated wording
+
+The canonical placeholder style is `<lower_case_desc>`; for example, `--output <path>`, `--duration <duration>`, `--satellite-id <id>`, and `--start <timestamp>`. In other words, option arguments should be written as values that describe the data being supplied, not as generic tokens. For example:
+
+```text
+--output <path>
+--duration <duration>
+--start <timestamp>
+--stop <timestamp>
+--object-id <id>
+--name <name>
+--format <format>
+```
+
+This pattern keeps help output readable and makes each option argument self-describing.
 
 ---
 
@@ -395,6 +412,19 @@ Recommended alignment:
 4. Update the remaining conversion and plotting commands
 5. Review all help text and examples in a single pass
 6. Validate with `--help` output for each command
+
+### Status tracking workflow
+
+After each step is completed, the details for that step should be moved into a dedicated status file. The main details document should not keep long-form finished task notes; it should instead contain only lightweight links to status entries for tasks that are complete.
+
+In other words:
+
+- complete a step
+- move the completed details to the status file
+- keep the details file focused on pointers to finished work
+- for each finished task, add a brief link such as `[completed: diff-oem](status.md#diff-oem)`
+
+This keeps the plan concise while preserving a full record of completed work in the status file.
 
 ---
 

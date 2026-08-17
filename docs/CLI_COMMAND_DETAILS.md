@@ -81,10 +81,10 @@ usage: command [OPTIONS] [ARGS]
 
 Options:
   input_file             Primary input file path or '-' for stdin
-  -o, --output <path>    Output file path; use '-' to write to stdout
-  -v, --verbose          Print extra diagnostic output
-  --debug                Print low-level debug details
-  --help                 Show this help message and exit
+  -o, --output <path>    output file path; use '-' to write to stdout
+  -v, --verbose          print extra diagnostic output
+  --debug                print low-level debug details
+  --help                 show this help message and exit
 
 Examples:
   command data.oem --output out.omm
@@ -100,9 +100,26 @@ Help quality rules:
 
 - every command must have a clear one-sentence description
 - every option must have a concise, explicit description
+- every option value placeholder in usage/help must follow the project pattern `<lower_case_desc>`
+- use lowercase descriptive placeholders such as `<path>`, `<file>`, `<duration>`, `<start>`, `<stop>`, `<id>`, `<timestamp>`, and `<value>`
+- avoid generic placeholders like `<VALUE>`, `ARG`, or `PATH` when a more specific lower-case descriptor is available
 - defaults must be shown in help text for nontrivial values
 - examples should be limited to 2-4 lines
 - avoid overloaded prose and duplicated wording
+
+The placeholder convention for option arguments is `<lower_case_desc>`, so usage text should read like `--output <path>`, `--duration <duration>`, `--satellite-id <id>`, and `--start <timestamp>`. This is the expected pattern for all option arguments:
+
+```text
+--output <path>
+--duration <duration>
+--start <timestamp>
+--stop <timestamp>
+--object-id <id>
+--name <name>
+--format <format>
+```
+
+The value in angle brackets should describe the argument's meaning, not just its type. Prefer `<path>` over `<VALUE>`, `<id>` over `<ID>`, and `<timestamp>` over `<arg>`.
 
 ---
 
@@ -369,6 +386,19 @@ Recommended alignment:
 6. Validate the `--help` output for each command
 
 ---
+
+## Status tracking workflow
+
+After each step in the implementation plan is completed, the completed details for that step should be moved into a dedicated status file. The details document should then contain only lightweight links to those status entries for finished tasks.
+
+This means:
+
+- finish a task
+- move the full implementation notes and validation details to the status file
+- keep the details document as a pointer file, not a duplicate record of completed work
+- use short links for each finished item, such as `[diff-oem status](status.md#diff-oem)`
+
+This keeps the planning documents clean while preserving the full history of completed work in the status file.
 
 ## Definition of done
 
