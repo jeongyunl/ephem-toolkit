@@ -1,45 +1,90 @@
 # ephem-toolkit
 
-Utility scripts and small C++ tools for working with TudatPy and Tudat.
+Command-line tools for processing, converting, propagating, comparing, and visualizing OEM, OMM, and TLE ephemeris data with TudatPy and Tudat.
 
 ## Overview
 
-This repository provides a collection of command-line tools, reusable libraries, and helper scripts built on top of [TudatPy](https://docs.tudat.space/en/latest/) and [Tudat](https://docs.tudat.space/) for common astrodynamics tasks.
+This project provides a practical toolkit for working with ephemerides and related astrodynamics data. Built on top of [TudatPy](https://docs.tudat.space/en/latest/) and [Tudat](https://docs.tudat.space/), it includes a focused set of command-line tools for ingesting, transforming, comparing, propagating, and plotting CCSDS OEM, OMM, and TLE data.
 
-The repository is organized into three layers:
+The toolkit supports workflows for working with ephemeris products: parse OEM, OMM, and TLE inputs, fit or convert mean elements, propagate trajectories, compare results, and visualize dependent variables and orbit differences.
 
-1. **Libraries** — reusable Python modules and a C++ time-conversion library
-2. **Application Modules** — higher-level packages that combine library code into domain-specific workflows
-3. **Command-Line Tools** — executable scripts for end-user tasks
+### OEM file data flow
 
-## Repository Layout
+```mermaid
+flowchart LR
+    fmt_oem{{"OEM / State Vectors <br/> (CCSDS OEM or simple format: epoch x y z vx vy vz)"}}
+    fmt_omm{{"OMM (.omm)"}}
+    fmt_tle{{"TLE (.tle)"}}
+    fmt_dep_vars_csv{{"Dependent Variables CSV"}}
+    fmt_plots{{"Plots / Animations <br/> (Matplotlib figures)"}}
 
+    oem_to_omm(["oem-to-omm"])
+    propagate_sat(["propagate-orbit"])
+    plot_orbit_deltas(["plot-orbit-deltas"])
+    slice_oem(["slice-oem"])
+    xform_oem(["xform-oem"])
+    propagate_tle(["propagate-tle"])
+    evaluate_fit_tle(["evaluate-fit-tle"])
+
+    fmt_oem --> oem_to_omm
+    oem_to_omm --> fmt_omm
+    oem_to_omm --> fmt_tle
+
+    fmt_oem -->|"single state line"| propagate_sat
+    propagate_sat -->|"state history"| fmt_oem
+    propagate_sat -->|"dependent variables"| fmt_dep_vars_csv
+
+    fmt_oem --> plot_orbit_deltas
+    plot_orbit_deltas --> fmt_plots
+
+    fmt_oem --> slice_oem
+    slice_oem --> fmt_oem
+
+    fmt_oem -->|"source frame + target frame"| xform_oem
+    xform_oem -->|"converted OEM"| fmt_oem
+
+    fmt_oem --> evaluate_fit_tle
+    evaluate_fit_tle -->|"uses"| propagate_tle
 ```
-src/ephem_toolkit/
-├── core/              Shared Python library modules
-│   ├── interpolator/    Public interpolation package for Lagrange, Hermite, Chebyshev, and spline methods
-│   └── ccsds/          CCSCS ODM, OEM, and OMM definitions and parsers
-├── cli/                 Command-line interface entry points
-├── diff_oem/           OEM comparison application module
-├── oem_to_omm/         OEM-to-OMM estimation application module (includes TLE fitting)
-├── propagate_*/        Python propagation packages
-├── plot_orbit*/        Python orbit visualization packages
-├── slice_oem/          OEM slicing application module
-├── xform_oem/          OEM frame transformation application module
-└── */                  Other application modules
-time_conversion/         C++ time-conversion library, CLI, and tests
-tests/                   Unit tests and sample data files
-docs/                    Documentation
-```
 
+### OMM/TLE file data flow
+
+```mermaid
+flowchart LR
+    fmt_tle{{"TLE (.tle)"}}
+    fmt_omm{{"OMM (.omm)"}}
+    fmt_oem{{"OEM / State Vectors <br/> (CCSDS OEM or simple format: epoch x y z vx vy vz)"}}
+
+    download_tle(["download-tle"])
+    omm_to_tle(["omm-to-tle"])
+    tle_to_omm(["tle-to-omm"])
+    tle_info(["tle-info"])
+    oem_to_omm(["oem-to-omm"])
+    propagate_tle(["propagate-tle"])
+
+    fmt_tle --> tle_to_omm
+    tle_to_omm --> fmt_omm
+
+    fmt_omm --> omm_to_tle
+    omm_to_tle --> fmt_tle
+
+    fmt_tle --> tle_info
+
+    fmt_oem --> oem_to_omm
+    oem_to_omm --> fmt_omm
+    oem_to_omm --> fmt_tle
+
+    fmt_tle --> propagate_tle
+    propagate_tle --> fmt_oem
+
+    download_tle -->|"TLE format"| fmt_tle
+    download_tle -->|"OMM format"| fmt_omm
+```
 
 ---
 
 ## Command-Line Tools
 
-### Poetry Console Commands
-
-After installing the Python package with Poetry, use the canonical commands below:
 
 | Workflow | Command |
 | --- | --- |
@@ -51,7 +96,6 @@ After installing the Python package with Poetry, use the canonical commands belo
 | TLE to OMM | `tle-to-omm` |
 | OEM frame transformation | `xform-oem` |
 | OEM to OMM fitting | `oem-to-omm` |
-| TLE fit evaluation | `evaluate-fit-tle` |
 | Orbit propagation | `propagate-orbit` |
 | Kepler propagation | `propagate-kepler` |
 | TLE propagation | `propagate-tle` |
@@ -59,7 +103,8 @@ After installing the Python package with Poetry, use the canonical commands belo
 | Orbit-delta plotting | `plot-orbit-deltas` |
 | Dependent-variable plotting | `plot-dependent-variables` |
 
-Install plotting support with `poetry install -E plotting`. TudatPy-dependent workflows require TudatPy and its transitive dependencies through an external installation method.
+
+TudatPy-dependent workflows require TudatPy and its transitive dependencies through an external installation method.
 
 ### OEM Utilities
 
@@ -100,15 +145,6 @@ See [TLE.md](docs/TLE.md) for full usage details.
 - `plot-orbit-deltas` — plot and compare multiple orbits
 - `plot-dependent-variables` — plot dependent variables from propagation output
 
-### Time Conversion
-
-- `time_conversion/tools/convert_time_cli` — C++ multi-backend CLI
-- `time_conversion/tools/convert_time.py` — Python wrapper
-
-Converts between ISO 8601, POSIX, UTC/TAI/TT J2000, and backend-specific formats.
-
-See [TIME_CONVERSION.md](docs/TIME_CONVERSION.md) for full usage details.
-
 ---
 
 ## Libraries
@@ -129,21 +165,38 @@ See [CORE_LIBRARY_SUMMARY.md](docs/CORE_LIBRARY_SUMMARY.md) for an overview of a
 
 ---
 
-## C++ Time-Conversion Library (`time_conversion/`)
+## Repository Layout
 
-A multi-backend C++ library for converting between time representations. Supports ISO 8601, POSIX, UTC/TAI/TT J2000, and backend-specific chrono or TDB formats.
+```
+src/
+├── ephem_toolkit/
+│   ├── core/                 Shared Python library modules
+│   │   ├── ccsds/            CCSDS ODM, OEM, and OMM definitions and parsers
+│   │   ├── interpolator/     Public interpolation package for Lagrange, Hermite, Chebyshev, and spline methods
+│   │   └── ...               Additional core astrodynamics and time utilities
+│   ├── diff_oem/            OEM comparison application module
+│   ├── download_tle/        TLE download utilities
+│   ├── oem_to_omm/          OEM-to-OMM estimation application module (includes TLE fitting)
+│   ├── omm_to_tle/          OMM-to-TLE conversion utilities
+│   ├── plot_dep_vars/       Dependent-variable plotting utilities
+│   ├── plot_orbit/          Orbit visualization utilities
+│   ├── plot_orbit_deltas/   Orbit-difference plotting utilities
+│   ├── propagate_kepler/    Kepler propagation package
+│   ├── propagate_orbit/     Cartesian propagation package
+│   ├── propagate_tle/       TLE propagation package
+│   ├── slice_oem/           OEM slicing application module
+│   ├── tle_info/            TLE inspection utilities
+│   ├── tle_to_omm/          TLE-to-OMM conversion utilities
+│   ├── xform_oem/           OEM frame transformation application module
+│   └── */                   Other application modules
+└── ...                     Other project source modules
 
-| Component | Description |
-|-----------|-------------|
-| `time_conversion/base/` | Core time-conversion logic and dispatch table |
-| `time_conversion/chrono/` | `std::chrono`-based backend |
-| `time_conversion/tudat/` | Tudat-based backend (TDB support) |
-| `time_conversion/tools/` | CLI tool (`convert_time_cli`) |
-| `time_conversion/test/` | Google Test unit tests |
+tests/                      Unit tests and sample data files
+docs/                       Documentation
+README.md                   Project overview and usage guide
+pyproject.toml              Project configuration and dependencies
+```
 
-See [TIME_CONVERSION.md](docs/TIME_CONVERSION.md) for full usage details.
-
----
 
 ## Build and Dependencies
 
@@ -155,25 +208,3 @@ Typical Python dependencies used by the scripts:
 - NumPy
 
 Some scripts use only the Python standard library plus local helpers.
-
-### C++ Tools
-
-The C++ time-conversion code is built with CMake and currently depends on:
-
-- CMake
-- A C++20 compiler
-- [Tudat](https://docs.tudat.space/)
-- Eigen3
-
-Top-level build example:
-
-```bash
-cmake -S . -B build
-cmake --build build --target convert_time_cli
-```
-
-The resulting executable is typically:
-
-```text
-build/time_conversion/tools/convert_time_cli
-```
