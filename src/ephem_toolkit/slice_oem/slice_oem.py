@@ -53,6 +53,8 @@ import ephem_toolkit.core.interpolator.interpolation_spec as interpolation_spec
 import ephem_toolkit.core.slice_oem as slice_oem
 import ephem_toolkit.core.time_utils as time_utils
 
+from .slice_oem_cli import parse_arguments
+
 DEFAULT_INTERPOLATION_TYPE: str = "hermite"
 """Default interpolation method."""
 
@@ -66,94 +68,6 @@ DEFAULT_INTERPOLATION_SPEC: interpolation_spec.InterpolationSpec = (
     )
 )
 """Default interpolation specification."""
-
-
-def parse_arguments() -> argparse.Namespace:
-    """Parse and validate command-line arguments.
-
-    Returns
-    -------
-    argparse.Namespace
-        Parsed command-line arguments.
-    """
-    parser = argparse.ArgumentParser(
-        description="Extract subsets of CCSDS OEM ephemeris data by index or time range",
-        epilog="For detailed documentation and examples, see doc/SLICE_OEM.md",
-    )
-    parser.add_argument(
-        "oem_file",
-        help='Path to input CCSDS OEM file. Use "-" to read from stdin.',
-    )
-    exclusive = parser.add_mutually_exclusive_group()
-    exclusive.add_argument(
-        "-s",
-        "--slice",
-        help="Python-style slice index (e.g., '0:10', '::2', '5', '-5:')",
-        default=None,
-    )
-    exclusive.add_argument(
-        "-t",
-        "--time-slice",
-        metavar="start[,[stop][,step]]",
-        help=(
-            "Time slice specifier: start[,[stop][,step]]. "
-            "Start and stop may be ISO 8601 datetimes (e.g., 2024-01-01T00:00:00) "
-            "or durations (e.g., 10m, 1h30m, 1d, -10m for offset from end). "
-            "Step size is a duration (e.g., 30s, 5m, 1h) and enables interpolation by default. "
-            "Use 0 for OEM start/end times. "
-            "Examples: '0,1h' (first hour), '2024-01-01T12:00:00' (single state), "
-            "'-30m,' (last 30 minutes), '0,1h,10m' (first hour at 10-minute intervals)"
-        ),
-        default=None,
-    )
-    parser.add_argument(
-        "--interpolate",
-        action="store_true",
-        default=True,
-        help="Enable interpolation when step size is provided (enabled by default)",
-    )
-    parser.add_argument(
-        "--no-interpolate",
-        action="store_false",
-        dest="interpolate",
-        help="Disable interpolation",
-    )
-    parser.add_argument(
-        "--interpolate-type",
-        type=partial(
-            cli.parse_interpolate_type, default_degree=DEFAULT_INTERPOLATION_DEGREE
-        ),
-        default=DEFAULT_INTERPOLATION_SPEC,
-        metavar="TYPE[,DEGREE]",
-        help=(
-            "Interpolation method: 'hermite[,degree]', 'chebyshev[,degree]', "
-            "or 'lagrange[,degree]' "
-            f"(default: {DEFAULT_INTERPOLATION_TYPE},{DEFAULT_INTERPOLATION_DEGREE}). "
-            "Degree must be > 0"
-        ),
-    )
-    parser.add_argument(
-        "--data-only",
-        action="store_true",
-        help="Output state vectors only (default: OEM format)",
-    )
-    parser.add_argument(
-        "-o",
-        "--output",
-        metavar="<file|->",
-        default="-",
-        help=("Output file path (default: '-'). " "Use '-' to print to stdout."),
-    )
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Print detailed debug information to stderr",
-    )
-
-    args = parser.parse_args()
-
-    return args
 
 
 def main() -> None:

@@ -7,7 +7,6 @@ This script reads the ``*_dep_vars.csv`` format produced by
 
 from __future__ import annotations
 
-import argparse
 import csv
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +16,8 @@ from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 import ephem_toolkit.core.time_utils as time_utils
+
+from .plot_dependent_variables_cli import parse_arguments
 
 SECONDS_PER_HOUR: float = 3600.0
 """Conversion factor from seconds to hours."""
@@ -1185,39 +1186,6 @@ def plot_dependent_variables_from_csv(
         plt.show()
 
     return trajectory_animation
-
-
-def parse_arguments() -> argparse.Namespace:
-    """Build command-line argument parser.
-
-    Returns
-    -------
-    argparse.Namespace
-        Parsed command-line arguments.
-    """
-    parser = argparse.ArgumentParser(
-        description="Plot dependent-variable histories from a saved Tudat CSV file."
-    )
-    parser.add_argument(
-        "dep_vars_csv",
-        metavar="<dep_vars_csv>",
-        help="Path to *_dep_vars.csv produced by propagate_orbit.py",
-    )
-    parser.add_argument(
-        "--name",
-        default="Satellite",
-        metavar="<name>",
-        help="Satellite name used in labels and header filtering (default: Satellite).",
-    )
-    parser.add_argument(
-        "-d",
-        "--duration",
-        type=time_utils.parse_duration_to_seconds,
-        default=None,
-        metavar="<duration>",
-        help="Duration to plot in format <number>[s|m|h|d] (e.g., 1h, 30m, 3600s). If not specified, plots all data.",
-    )
-    return parser.parse_args()
 
 
 def main() -> None:

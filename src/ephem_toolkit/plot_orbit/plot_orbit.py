@@ -7,7 +7,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import sys
 from dataclasses import dataclass
 from enum import Enum
@@ -20,6 +19,8 @@ import ephem_toolkit.core.misc as misc
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.time_utils as time_utils
 import ephem_toolkit.core.wgs as wgs
+
+from .plot_orbit_cli import parse_arguments
 
 # ===================================================================
 # Constants
@@ -851,59 +852,7 @@ def main() -> None:
     ValueError
         If parsed data is invalid for plotting.
     """
-    if len(sys.argv) < 2:
-        print(
-            "Usage: plot-orbit <oem_file> "
-            "[-o output.png] [-d 6h] [--time-unit hours]",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    parser = argparse.ArgumentParser(
-        description=(
-            "Plot a single OEM orbit with RTN deltas, velocity magnitude, "
-            "geocentric distance, and WGS84 altitude."
-        ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-    plot-orbit orbit.oem
-    plot-orbit orbit.oem -d 6h --time-unit minutes
-    plot-orbit orbit.oem -o orbit_plots.png
-        """,
-    )
-
-    parser.add_argument(
-        "source",
-        type=str,
-        help="OEM file to plot.",
-    )
-    parser.add_argument(
-        "-o",
-        "--output",
-        type=str,
-        default=None,
-        help="Base output image path for saving figures (e.g., orbit.png)",
-    )
-    parser.add_argument(
-        "-d",
-        "--duration",
-        type=str,
-        default=None,
-        help="Duration to analyze from start (e.g., 1h, 30m, 3600s)",
-    )
-    parser.add_argument(
-        "--time-unit",
-        type=str,
-        default="hours",
-        choices=["m", "minute", "minutes", "h", "hour", "hours"],
-        help=(
-            "Time unit for time-series plots: "
-            "m/minute/minutes or h/hour/hours (default: hours)"
-        ),
-    )
-
-    args = parser.parse_args()
+    args = parse_arguments()
     time_unit: TimeUnit = TimeUnit.from_string(args.time_unit)
 
     duration_s: float | None = None

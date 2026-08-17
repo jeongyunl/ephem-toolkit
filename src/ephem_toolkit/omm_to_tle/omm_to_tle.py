@@ -7,7 +7,6 @@ stdout or a file.
 
 from __future__ import annotations
 
-import argparse
 import io
 import sys
 
@@ -15,35 +14,7 @@ import ephem_toolkit.core.convert_tle as convert_tle
 import ephem_toolkit.core.ccsds.omm as omm
 import ephem_toolkit.core.tle as tle
 
-
-def parse_arguments() -> argparse.Namespace:
-    """Parse command-line arguments for OMM-to-TLE conversion.
-
-    Returns
-    -------
-    argparse.Namespace
-        Parsed arguments with attributes ``input`` and ``output``.
-    """
-    parser = argparse.ArgumentParser(
-        description=(
-            "Convert a CCSDS Orbit Mean-Elements Message (OMM) to a Two-Line Element "
-            "(TLE) set. Reads OMM from a file path or stdin and writes TLE to stdout "
-            "or a file."
-        )
-    )
-    parser.add_argument(
-        "input",
-        metavar="<input.omm>",
-        help='Input OMM file path. Use "-" to read OMM text from stdin.',
-    )
-    parser.add_argument(
-        "-o",
-        "--output",
-        metavar="<output.tle>",
-        default=None,
-        help="Output TLE file path. If omitted, TLE is printed to stdout.",
-    )
-    return parser.parse_args()
+from .omm_to_tle_cli import parse_arguments
 
 
 def main() -> None:

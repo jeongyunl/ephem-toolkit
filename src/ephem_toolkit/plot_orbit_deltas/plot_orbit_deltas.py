@@ -12,7 +12,6 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import bisect
 import sys
 from pathlib import Path
@@ -21,6 +20,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import ephem_toolkit.core.time_utils as time_utils
+
+from .plot_orbit_deltas_cli import parse_arguments
 
 from .constants import DEFAULT_INTERPOLATION_DEGREE
 from .data_structures import StateHistory, TimeUnit
@@ -59,57 +60,10 @@ def generate_output_filename(base_output: str | None, suffix: str) -> str | None
 
 def main() -> None:
     """Main entry point for the script."""
-    parser = argparse.ArgumentParser(
-        description="Plot multiple orbit trajectories with various views and RTN coordinates.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Plot single orbit
-  python3 plot_orbits.py reference.oem
-
-  # Plot reference orbit with comparison orbits
-  python3 plot_orbits.py reference.oem comparison1.oem comparison2.oem
-
-  # Save output to file
-  python3 plot_orbits.py reference.oem comparison.oem -o orbits.png
-        """,
-    )
-
-    parser.add_argument(
-        "files",
-        nargs="+",
-        help="OEM or raw-state files. First file is the reference orbit.",
-    )
-
-    parser.add_argument(
-        "-o",
-        "--output",
-        type=str,
-        default=None,
-        help="Output file path for saving the figure (e.g., orbits.png)",
-    )
-
-    parser.add_argument(
-        "-d",
-        "--duration",
-        type=str,
-        default=None,
-        help="Duration of data to analyze from start (e.g., 1h, 30m, 3600s)",
-    )
-
-    parser.add_argument(
-        "--time-unit",
-        type=str,
-        default="hours",
-        choices=["m", "minute", "minutes", "h", "hour", "hours"],
-        help="Time unit for time series plots: m/minute/minutes or h/hour/hours (default: hours)",
-    )
-
-    args = parser.parse_args()
+    args = parse_arguments()
 
     if len(args.files) < 1:
-        parser.print_help()
-        sys.exit(1)
+        raise SystemExit(1)
 
     # Parse duration if provided
     duration_s: float | None = None
