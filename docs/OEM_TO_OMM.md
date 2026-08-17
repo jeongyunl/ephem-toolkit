@@ -6,8 +6,6 @@ Comprehensive documentation for the `oem_to_omm` module, which estimates Orbit M
 
 The `oem_to_omm` module provides tools for converting orbit ephemeris data in OEM (Orbit Ephemeris Message) format or raw Cartesian state vectors into OMM (Orbit Mean-Elements Message) format, including TLE (Two-Line Element) format. This is a non-trivial estimation problem because TLEs encode SGP4-compatible mean orbital elements rather than osculating Cartesian states.
 
-After Poetry installation, use `oem-to-omm` and `evaluate-fit-tle` as the canonical commands. The existing script-path examples remain supported during the transition.
-
 ## Module Structure
 
 The `src/oem_to_omm/` directory contains:
@@ -25,7 +23,6 @@ The `src/oem_to_omm/` directory contains:
   - `orbital_mechanics.py` — Orbital mechanics calculations
   - `refinement.py` — Refinement algorithms for epoch state matching
   - `tle_builder.py` — TLE construction and formatting
-- `evaluate-fit-tle` — Round-trip accuracy evaluation tool
 
 ## Main Script: `oem-to-omm`
 
@@ -148,69 +145,6 @@ The script follows a four-stage workflow:
 2. **Initial Estimation** — Compute mean elements via regression and circular statistics
 3. **Refinement** — Match TLE epoch state to source epoch state (optional)
 4. **B* Estimation** — Optimize drag term to minimize propagation error over arc
-
-## Evaluation Tool: `evaluate-fit-tle`
-
-### Purpose
-
-Provides accuracy assessment of the TLE fitting process, including:
-
-1. Input data summary (OEM file statistics)
-2. Estimation diagnostics (element estimation from OEM arc)
-3. Refinement diagnostics (state-match or Keplerian-match convergence)
-4. Final TLE accuracy (position/velocity errors at each OEM epoch)
-5. Error growth analysis (how accuracy degrades over time)
-6. Summary statistics (RMS, max, mean errors)
-
-### Synopsis
-
-```bash
-evaluate-fit-tle [-h] [--fit-span <hours>]
-                                       [--refinement <method>] [--mu <value>]
-                                       <oem_file>
-```
-
-### Options
-
-| Option | Description |
-|---|---|
-| `-h`, `--help` | Show help message and exit |
-| `<oem_file>` | Path to input CCSDS OEM file |
-| `--fit-span` | Fit span in hours (default: use full OEM span) |
-| `--refinement` | Refinement method: `cartesian` (default), `keplerian`, `none`, or `all` to compare all methods |
-| `--mu` | Gravitational parameter in m³/s² (default: Earth WGS-84) |
-
-### Usage Examples
-
-**Evaluate a bundled OEM file:**
-
-```bash
-evaluate-fit-tle tests/data/ISS_2026-05-20.OEM
-```
-
-**Evaluate custom OEM file:**
-
-```bash
-evaluate-fit-tle tests/data/JPSS-1.oem
-```
-
-**Evaluate with Keplerian refinement:**
-
-```bash
-evaluate-fit-tle --refinement keplerian
-```
-
-**Compare all refinement methods:**
-
-```bash
-evaluate-fit-tle --refinement all
-```
-
-**Evaluate with 2-hour fit span:**
-
-```bash
-evaluate-fit-tle --fit-span 2.0
-```
 
 ### Dependencies
 

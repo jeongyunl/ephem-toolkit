@@ -51,7 +51,6 @@ graph LR
     mod_util_propagate_orbit([propagate_orbit])
     mod_util_propagate_tle([propagate_tle])
     mod_util_oem_to_omm([oem_to_omm])
-    mod_util_evaluate_fit_tle([evaluate_fit_tle])
 
     %% ===== Core library internal edges =====
     mod_core_aer --> mod_core_wgs
@@ -119,8 +118,4 @@ graph LR
     mod_util_oem_to_omm --> mod_core_omm
     mod_util_oem_to_omm --> mod_core_time_utils
     mod_util_oem_to_omm --> mod_core_tle
-    mod_util_evaluate_fit_tle --> mod_core_consts
-    mod_util_evaluate_fit_tle --> mod_core_oem
-    mod_util_evaluate_fit_tle --> mod_core_time_utils
-    mod_util_evaluate_fit_tle --> mod_core_tle
     mod_util_download_tle --> mod_core_tle
