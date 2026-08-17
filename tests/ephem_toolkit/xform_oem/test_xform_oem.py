@@ -57,6 +57,7 @@ META_STOP
         [
             sys.executable,
             str(XFORM_OEM_SCRIPT),
+            "-",
             "--verbose",
             "--set-meta",
             "OBJECT_NAME=UPDATED_OBJECT",
@@ -88,7 +89,7 @@ META_STOP
 2024-01-01T00:00:00.000 7000 0 0 0 7.5 0
 """
     result = subprocess.run(
-        [sys.executable, str(XFORM_OEM_SCRIPT), "--x-csv"],
+        [sys.executable, str(XFORM_OEM_SCRIPT), "-", "--x-csv"],
         capture_output=True,
         text=True,
         input=input_oem,
@@ -115,7 +116,7 @@ META_STOP
 2024-01-01T00:00:00.000 7000 0 0 0 7.5 0
 """
     result = subprocess.run(
-        [sys.executable, str(XFORM_OEM_SCRIPT), "--data-only"],
+        [sys.executable, str(XFORM_OEM_SCRIPT), "-", "--data-only"],
         capture_output=True,
         text=True,
         input=input_oem,
@@ -133,6 +134,7 @@ def test_x_arguments_are_mutually_exclusive() -> None:
         [
             sys.executable,
             str(XFORM_OEM_SCRIPT),
+            "-",
             "--x-ref-frame",
             "J2000",
             "--x-aer",
