@@ -13,9 +13,9 @@ This utility provides comparison capabilities for OEM files:
 - **RTN frame analysis**: View differences in the reference Radial-Tangential-Normal frame
 - **Statistical analysis**: Compute mean, standard deviation, min, and max for all metrics
 
-The script is built on the `diff_oem` library module, which provides reusable comparison functions for programmatic use.
+The script is built on the `ephem_toolkit.diff_oem` package, which provides reusable comparison functions for programmatic use.
 
-After Poetry installation, use `diff-oem` as the canonical command. The existing `python3 bin/diff_oem.py ...` examples remain supported during the transition.
+After installing the project into its virtual environment, use the `diff-oem` console script as the canonical command.
 
 ## Synopsis
 
@@ -38,12 +38,13 @@ diff-oem <reference_oem.oem> - [OPTIONS]
 | `--interpolate` | Interpolate both reference and comparison OEM data |
 | `--interpolate-type <type[,degree]>` | Interpolation method: `hermite`, `chebyshev`, or `lagrange` (default: hermite,5) |
 | `--rtn` | Include comparison state coordinates in the reference RTN frame |
-| `--rot` | Fit and apply a fixed 3D rotation before comparison |
-| `--rot-xy` | Fit and apply a fixed rotation around X and Y axes only |
-| `--rot-z` | Fit and apply a fixed rotation around Z axis only |
+| `--rotate`, `--rot` | Fit and apply a fixed 3D rotation before comparison |
+| `--rotate-xy`, `--rot-xy` | Fit and apply a fixed rotation around X and Y axes only |
+| `--rotate-z`, `--rot-z` | Fit and apply a fixed rotation around Z axis only |
 | `--time-shift` | Fit and apply a constant time shift to comparison epochs |
 | `--rot-fit-span <duration>` | Duration for rotation fitting (default: 3600s) |
 | `--start <iso8601\|duration>` | Start epoch for comparison window |
+| `--duration <duration>` | Relative stop duration from `--start` |
 | `--stop <iso8601\|duration>` | Stop epoch for comparison window |
 | `-h`, `--help` | Show help message and exit |
 
@@ -59,7 +60,10 @@ Compare two OEM files at their native epochs:
 diff-oem reference.oem comparison.oem
 ```
 
-This compares states at matching timestamps. If the files have different timestamps, only overlapping epochs are compared.
+Comparison-data interpolation is enabled by default, so comparison states are
+evaluated at reference timestamps. Use `--interpolate-ref` to evaluate
+reference states at comparison timestamps, or use `--interpolate` for both
+directions. Time differences are reported for direct state comparisons.
 
 ### Interpolated Comparison
 
@@ -112,6 +116,9 @@ Limit the comparison to a specific time range using `--start` and `--stop` optio
 - For `--start`: offset from the first reference epoch
 - For `--stop`: offset from the resolved start time
 
+The `--duration` option is an explicit relative stop duration from `--start`;
+it cannot be combined with `--stop`.
+
 ### Examples
 
 **Compare first hour only:**
@@ -128,7 +135,7 @@ diff-oem reference.oem comparison.oem \
 
 **Compare from 30 minutes to 2 hours after start:**
 ```bash
-diff-oem reference.oem comparison.oem --start 30m --stop 2h
+diff-oem reference.oem comparison.oem --start 30m --duration 90m
 ```
 
 ## Interpolation
@@ -212,17 +219,17 @@ Transformation stages fit and apply corrections to the comparison OEM before com
 
 ### Available Transformations
 
-**Full 3D rotation** (`--rot`):
+**Full 3D rotation** (`--rotate`, `--rot`):
 - Fits a fixed rotation matrix using SVD
 - Applies to both position and velocity
 - Useful for frame alignment
 
-**X/Y rotation** (`--rot-xy`):
+**X/Y rotation** (`--rotate-xy`, `--rot-xy`):
 - Fits rotation around X and Y axes only
 - Preserves Z-axis alignment
 - Useful for correcting pitch and roll
 
-**Z rotation** (`--rot-z`):
+**Z rotation** (`--rotate-z`, `--rot-z`):
 - Fits rotation around Z axis only
 - Preserves X/Y plane alignment
 - Useful for correcting yaw or longitude offset
@@ -470,14 +477,13 @@ slice-oem reference.oem --slice "::10" | \
 The underlying library modules can be used directly in Python scripts:
 
 ```python
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from diff_oem.comparison import read_states, compare_states
-from diff_oem.utils import build_comparison_pairs, compare_pairs
-from diff_oem.pipeline import create_interpolator
+from ephem_toolkit.core.interpolator import factory
+from ephem_toolkit.core.interpolator.interpolation_spec import (
+  InterpolationSpec,
+  InterpolationType,
+)
+from ephem_toolkit.diff_oem.comparison import compare_states, read_states
+from ephem_toolkit.diff_oem.utils import build_comparison_pairs, compare_pairs
 
 # Read OEM files
 reference_states = read_states("reference.oem")
@@ -495,9 +501,20 @@ pairs = build_comparison_pairs(
     overlap_stop=None,
 )
 
-# Create interpolators
-reference_interpolator = create_interpolator(reference_states, False)
-comparison_interpolator = create_interpolator(comparison_states, True)
+# Create an interpolator for comparison data at reference timestamps
+interpolation_spec = InterpolationSpec(
+  interp_type=InterpolationType.HERMITE,
+  degree=5,
+)
+reference_interpolator = None
+comparison_interpolator = factory.InterpolatorFactory.create(
+  spec=interpolation_spec,
+  dimension=6,
+  is_cartesian_state=True,
+  verbose=False,
+  context="diff_oem.example",
+  data=comparison_states,
+)
 
 # Compare pairs
 results = compare_pairs(
@@ -514,32 +531,32 @@ for query_epoch, result in results:
         print(f"Velocity diff: {result.velocity_diff_magnitude_km_s:.6f} km/s")
 ```
 
-See `diff_oem/README.md` for module structure and `tests/` directory for more examples.
+See the `tests/ephem_toolkit/diff_oem/` directory for more examples.
 
 ## Implementation Details
 
 ### Interpolation Algorithm
 
-- **Method**: Lagrange polynomial interpolation
-- **Degree**: 8th-order polynomial
-- **API**: Public `LagrangeInterpolator` from the core interpolation package
-- **Application**: Interpolates both position and velocity components
+- **Methods**: Hermite, Chebyshev, or Lagrange interpolation
+- **Default**: Hermite interpolation with degree 5
+- **API**: `InterpolatorFactory` with an `InterpolationSpec`
+- **Application**: Interpolates six-component Cartesian state vectors
 
-The 8th-degree polynomial provides a good balance between accuracy and numerical stability for typical orbital trajectories. Internal helper methods are not part of the documented public interface.
+Select the method and degree with `--interpolate-type <type[,degree]>`.
 
 ### Rotation Fitting
 
-**Full 3D rotation** (`--rot`):
+**Full 3D rotation** (`--rotate`, `--rot`):
 - Uses Singular Value Decomposition (SVD) to fit optimal rotation
 - Minimizes position residuals over the fitting span
 - Applies rotation to both position and velocity vectors
 
-**X/Y rotation** (`--rot-xy`):
+**X/Y rotation** (`--rotate-xy`, `--rot-xy`):
 - Uses iterative least-squares fitting
 - Constrains rotation to X and Y axes only
 - Converges in typically 5-10 iterations
 
-**Z rotation** (`--rot-z`):
+**Z rotation** (`--rotate-z`, `--rot-z`):
 - Uses iterative least-squares fitting
 - Constrains rotation to Z axis only
 - Converges in typically 5-10 iterations
@@ -563,18 +580,18 @@ Comparison state differences are then projected onto these axes.
 
 ## Dependencies
 
-- Python 3.7+
+- Python 3.9 or newer
 - NumPy (for numerical operations and interpolation)
 - Local modules:
-  - `diff_oem.cli` — Command-line interface
-  - `diff_oem.comparison` — Core comparison logic
-  - `diff_oem.output` — Output formatting
-  - `diff_oem.pipeline` — Transformation pipeline
-  - `diff_oem.transformation_stages` — Transformation implementations
-  - `diff_oem.utils` — Utility functions
+  - `ephem_toolkit.diff_oem.diff_oem_cli` — Command-line interface
+  - `ephem_toolkit.diff_oem.comparison` — Core comparison logic
+  - `ephem_toolkit.diff_oem.output` — Output formatting
+  - `ephem_toolkit.diff_oem.pipeline` — Transformation pipeline
+  - `ephem_toolkit.diff_oem.transformation_stages` — Transformation implementations
+  - `ephem_toolkit.diff_oem.utils` — Utility functions
   - `ephem_toolkit.core.ccsds.oem` — OEM file parsing
   - `ephem_toolkit.core.time_utils` — Time parsing and formatting
-  - `ephem_toolkit.core.interpolator.lagrange` — Lagrange interpolation
+  - `ephem_toolkit.core.interpolator` — Interpolator factory and specifications
 
 ## Error Handling
 
@@ -627,6 +644,3 @@ Solution: Ensure `--start` is before or equal to `--stop`.
 ## See Also
 
 - [SLICE_OEM.md](SLICE_OEM.md) — OEM slicing utility
-- [MISC.md](MISC.md) — Overview of miscellaneous utilities
-- [PROPAGATION.md](PROPAGATION.md) — Orbit propagation tools
-- [diff_oem/README.md](../diff_oem/README.md) — Module structure and design
