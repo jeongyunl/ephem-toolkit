@@ -15,6 +15,8 @@ from ephem_toolkit.core.interpolator.interpolation_spec import (
     InterpolationSpec,
     InterpolationType,
 )
+from ephem_toolkit.core.time_utils import parse_duration_to_seconds
+
 from .utils import parse_rotation_fit_span
 
 ROTATION_FIT_DURATION_S: float = 3600.0
@@ -34,8 +36,11 @@ DEFAULT_INTERPOLATION_SPEC: InterpolationSpec = InterpolationSpec(
 
 TRANSFORM_STAGE_OPTIONS: dict[str, str] = {
     "--rot": "rot",
+    "--rotate": "rot",
     "--rot-xy": "rot_xy",
+    "--rotate-xy": "rot_xy",
     "--rot-z": "rot_z",
+    "--rotate-z": "rot_z",
     "--time-shift": "time_shift",
 }
 """Supported transformation-stage options mapped to internal stage keys."""
@@ -54,21 +59,27 @@ def parse_arguments() -> argparse.Namespace:
         attributes. ``stage_sequence`` records transformation stage order as
         requested in the CLI.
     """
-    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+    parser: argparse.ArgumentParser = cli.create_parser(
         description=(
             "Compare two OEM files and report differences in time, "
             "position, and velocity."
-        )
+        ),
+        epilog=(
+            "Examples:\n"
+            '  diff-oem reference.oem comparison.oem --rotate\n'
+            '  diff-oem reference.oem comparison.oem --time-shift\n'
+            '  diff-oem reference.oem comparison.oem --start 2026-01-01T00:00:00 --duration 1h'
+        ),
     )
     parser.add_argument(
         "reference_oem",
-        metavar="<reference_oem.oem>",
-        help="Reference OEM file path (use '-' to read from stdin)",
+        metavar="<reference_oem|->",
+        help="Reference OEM file path; use '-' to read from stdin",
     )
     parser.add_argument(
         "comparison_oem",
-        metavar="<comparison_oem.oem>",
-        help="Comparison OEM file path (use '-' to read from stdin)",
+        metavar="<comparison_oem|->",
+        help="Comparison OEM file path; use '-' to read from stdin",
     )
     parser.add_argument(
         "-v",
@@ -103,7 +114,7 @@ def parse_arguments() -> argparse.Namespace:
             cli.parse_interpolate_type, default_degree=DEFAULT_INTERPOLATION_DEGREE
         ),
         default=DEFAULT_INTERPOLATION_SPEC,
-        metavar="TYPE[,DEGREE]",
+        metavar="<type[,degree]>",
         help=(
             "Interpolation method: 'hermite[,degree]', 'chebyshev[,degree]', "
             "or 'lagrange[,degree]' "
@@ -117,19 +128,40 @@ def parse_arguments() -> argparse.Namespace:
         help="Include comparison state coordinates in reference RTN frame",
     )
     parser.add_argument(
-        "--rot",
+        "--rotate",
+        dest="rot",
         action="store_true",
-        help="Fit fixed rotation from initial comparison state span and apply before reporting differences (may be repeated)",
+        help="Fit a fixed rotation from the initial comparison state span and apply it before reporting differences (may be repeated).",
+    )
+    parser.add_argument(
+        "--rot",
+        dest="rot",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--rotate-xy",
+        dest="rot_xy",
+        action="store_true",
+        help="Fit a fixed rotation around the X and Y axes from the initial comparison state span (may be repeated).",
     )
     parser.add_argument(
         "--rot-xy",
+        dest="rot_xy",
         action="store_true",
-        help="Fit fixed rotation around X and Y axes from initial comparison state span (may be repeated)",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--rotate-z",
+        dest="rot_z",
+        action="store_true",
+        help="Fit a fixed rotation around the Z axis from the initial comparison state span (may be repeated).",
     )
     parser.add_argument(
         "--rot-z",
+        dest="rot_z",
         action="store_true",
-        help="Fit fixed rotation around Z axis from initial comparison state span (may be repeated)",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--time-shift",
@@ -145,17 +177,26 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--start",
-        metavar="<iso8601|duration>",
+        metavar="<timestamp|duration>",
         default=None,
-        help="Start epoch as ISO 8601 timestamp or duration relative to first reference epoch",
+        help="Start epoch in ISO-8601 format (for example, 2001-11-06T11:17:33 or 2001-11-06T11:17:33.1234) or a duration offset from the reference epoch",
+    )
+    parser.add_argument(
+        "--duration",
+        type=parse_duration_to_seconds,
+        metavar="<duration>",
+        default=None,
+        help="Relative stop duration from --start; equivalent to --stop = --start + duration",
     )
     parser.add_argument(
         "--stop",
-        metavar="<iso8601|duration>",
+        metavar="<timestamp|duration>",
         default=None,
-        help="Stop epoch as ISO 8601 timestamp or duration relative to first reference epoch",
+        help="Stop epoch in ISO-8601 format (for example, 2001-11-06T11:17:33 or 2001-11-06T11:17:33.1234) or a duration offset from --start",
     )
     args = parser.parse_args()
+    if args.duration is not None and args.stop is not None:
+        parser.error("--duration and --stop cannot be used together")
     args.stage_sequence = extract_stage_sequence(sys.argv[1:])
     if args.interpolate:
         args.interpolate_ref = True

@@ -30,24 +30,24 @@ The `src/oem_to_omm/` directory contains:
 
 Converts OEM state vectors to osculating Keplerian elements or OMM format. Supports three modes:
 
-- **`--kepler` mode**: Fits osculating Keplerian elements using two-body propagation
-- **`--mean-kepler` mode**: Fits mean Keplerian elements using J2 secular propagation
-- **`--tle` mode**: Fits TLE mean elements (SGP4-compatible) to create an OMM with TLE parameters
+- **`--mode kepler`**: Fits osculating Keplerian elements using two-body propagation
+- **`--mode mean-kepler`**: Fits mean Keplerian elements using J2 secular propagation
+- **`--mode tle`**: Fits TLE mean elements (SGP4-compatible) to create an OMM with TLE parameters
 
 ### Synopsis
 
 ```bash
-oem-to-omm [-h] [-o <output.omm>] [-v]
+oem-to-omm [-h] [-o <output_omm|->] [-v]
                                  [--mu <value>] [--fit-span <hours>]
-                                 [--kepler | --mean-kepler | --tle]
+                                 --mode {kepler,mean-kepler,tle}
                                  [--object-name <name>] [--object-id <YYYY-NNNP>]
                                  [--tle-refinement <none|cartesian|keplerian>]
-                                 [--tle-norad-cat-id <num>]
+                                 [--tle-norad-cat-id <0..99999>]
                                  [--tle-classification-type <U|C|S>]
-                                 [--tle-ephemeris-type <type>]
-                                 [--tle-element-set-no <num>]
-                                 [--tle-rev-at-epoch <num>]
-                                 [<oem_file>]
+                                 [--tle-ephemeris-type <0..9>]
+                                 [--tle-element-set-no <0..9999>]
+                                 [--tle-rev-at-epoch <0..99999>]
+                                 <input_oem|->
 ```
 
 ### Options
@@ -55,14 +55,12 @@ oem-to-omm [-h] [-o <output.omm>] [-v]
 | Option | Description |
 |---|---|
 | `-h`, `--help` | Show help message and exit |
-| `<oem_file>` | Path to input CCSDS OEM file (use `-` or omit to read from stdin) |
+| `<input_oem>` | Path to input CCSDS OEM file (use `-` or omit to read from stdin) |
 | `-o`, `--output` | Save fitted elements in OMM format to file or `-` for stdout (default: `-`) |
 | `-v`, `--verbose` | Print detailed debug information to stderr |
 | `--mu` | Gravitational parameter in m³/s² (default: Earth WGS-84) |
 | `--fit-span` | Maximum arc span in hours for fitting (default: 2.0) |
-| `--kepler` | Fit osculating Keplerian elements using two-body propagation |
-| `--mean-kepler` | Fit mean Keplerian elements using J2 secular propagation |
-| `--tle` | Fit TLE mean elements (SGP4-compatible) |
+| `--mode {kepler,mean-kepler,tle}` | Select conversion mode: Keplerian fit, mean-Kepler fit, or TLE fit |
 | `--object-name` | OBJECT_NAME: Spacecraft name for OMM output |
 | `--object-id` | OBJECT_ID: International designator (e.g., 1998-067A) |
 | `--tle-refinement` | Refinement method for TLE fitting: `cartesian` (default), `keplerian`, or `none` |
@@ -467,52 +465,52 @@ Use:
 
 ### Usage Examples
 
-**Fit osculating Keplerian elements (--kepler mode):**
+**Fit osculating Keplerian elements (`--mode kepler`):**
 
 ```bash
-oem-to-omm --kepler input.oem -o output.omm
+oem-to-omm --mode kepler input.oem -o output.omm
 ```
 
-**Fit mean Keplerian elements (--mean-kepler mode):**
+**Fit mean Keplerian elements (`--mode mean-kepler`):**
 
 ```bash
-oem-to-omm --mean-kepler input.oem -o output.omm
+oem-to-omm --mode mean-kepler input.oem -o output.omm
 ```
 
-**Fit TLE elements (--tle mode) with default Cartesian refinement:**
+**Fit TLE elements (`--mode tle`) with default Cartesian refinement:**
 
 ```bash
-oem-to-omm --tle input.oem -o output.omm
+oem-to-omm --mode tle input.oem -o output.omm
 ```
 
 **Fit TLE and output TLE lines to stdout:**
 
 ```bash
-oem-to-omm --tle input.oem
+oem-to-omm --mode tle input.oem
 ```
 
 **Read from stdin, fit TLE, output to stdout:**
 
 ```bash
-cat input.oem | oem-to-omm --tle
+cat input.oem | oem-to-omm --mode tle -
 ```
 
 **Fit TLE with Keplerian refinement (no TudatPy required):**
 
 ```bash
-oem-to-omm --tle --tle-refinement keplerian input.oem
+oem-to-omm --mode tle --tle-refinement keplerian input.oem
 ```
 
 **Fit TLE with no refinement (fastest):**
 
 ```bash
-oem-to-omm --tle --tle-refinement none input.oem
+oem-to-omm --mode tle --tle-refinement none input.oem
 ```
 
 **Specify satellite metadata for TLE:**
 
 ```bash
-oem-to-omm --tle input.oem -o output.omm \
+oem-to-omm --mode tle input.oem -o output.omm \
   --object-name "ISS (ZARYA)" \
   --object-id "1998-067A" \
   --tle-norad-cat-id 25544 \
@@ -523,13 +521,13 @@ oem-to-omm --tle input.oem -o output.omm \
 **Fit with custom fit span (3 hours):**
 
 ```bash
-oem-to-omm --tle --fit-span 3.0 input.oem
+oem-to-omm --mode tle --fit-span 3.0 input.oem
 ```
 
 **Verbose output to stderr:**
 
 ```bash
-oem-to-omm --tle -v input.oem -o output.omm
+oem-to-omm --mode tle -v input.oem -o output.omm
 ```
 
 ### Dependencies

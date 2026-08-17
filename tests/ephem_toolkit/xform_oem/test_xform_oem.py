@@ -128,6 +128,21 @@ META_STOP
     assert result.stdout == ("2024-01-01T00:00:00.000000 7000 0 0 0 7.5 0\n")
 
 
+def test_help_uses_command_name_and_project_output_metavar() -> None:
+    """The xform-oem help text should follow the project command naming conventions."""
+    result = subprocess.run(
+        [sys.executable, str(XFORM_OEM_SCRIPT), "--help"],
+        capture_output=True,
+        text=True,
+        env=_build_env(),
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "usage: xform-oem" in result.stdout
+    assert "--output <output_oem|->" in result.stdout
+
+
 def test_x_arguments_are_mutually_exclusive() -> None:
     """Reject combinations of the --x-* options."""
     result = subprocess.run(

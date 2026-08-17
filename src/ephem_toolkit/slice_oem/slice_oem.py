@@ -8,7 +8,7 @@ This utility provides flexible slicing capabilities for OEM files:
 - Flexible output: State data only or full OEM format
 
 Usage:
-    slice-oem <oem_file> [OPTIONS]
+    slice-oem <input_oem> [OPTIONS]
     cat data.oem | slice-oem - [OPTIONS]
     cat data.oem | slice-oem [OPTIONS]
 
@@ -53,7 +53,10 @@ import ephem_toolkit.core.interpolator.interpolation_spec as interpolation_spec
 import ephem_toolkit.core.slice_oem as slice_oem
 import ephem_toolkit.core.time_utils as time_utils
 
-from .slice_oem_cli import parse_arguments
+try:
+    from .slice_oem_cli import parse_arguments
+except ImportError:  # pragma: no cover - direct script execution fallback
+    from slice_oem_cli import parse_arguments
 
 DEFAULT_INTERPOLATION_TYPE: str = "hermite"
 """Default interpolation method."""
@@ -75,7 +78,7 @@ def main() -> None:
     args = parse_arguments()
 
     # Determine if reading from stdin
-    read_from_stdin = args.oem_file == "-"
+    read_from_stdin = args.input_oem == "-"
 
     # Ensure at least one slicing option is provided when processing OEM data
     if not args.time_slice and not args.slice:
@@ -90,7 +93,7 @@ def main() -> None:
             oem_data = oem.CcsdsOem.read(sys.stdin)
             oem_file = "<stdin>"
         else:
-            oem_file = Path(args.oem_file)
+            oem_file = Path(args.input_oem)
             oem_data = oem.CcsdsOem.read(oem_file)
 
         if (
@@ -159,7 +162,7 @@ def main() -> None:
                 time_slice_options.step_size is not None
                 and time_slice_options.interpolation_spec is None
             ):
-                parser.error("step_size requires --interpolate")
+                raise SystemExit("step_size requires --interpolate")
 
             # Time slice extraction with optional interpolation
             sliced_oem = slice_oem.extract_sliced_states(
@@ -178,10 +181,10 @@ def main() -> None:
 
         if sliced_oem is not None:
             # Determine output destination
-            if args.output == "-":
+            if args.output_oem == "-":
                 output_stream = sys.stdout
             else:
-                output_stream = open(args.output, "w", encoding="utf-8")
+                output_stream = open(args.output_oem, "w", encoding="utf-8")
 
             try:
                 if args.data_only:
@@ -189,7 +192,7 @@ def main() -> None:
                 else:
                     sliced_oem.write(output_stream)
             finally:
-                if args.output != "-":
+                if args.output_oem != "-":
                     output_stream.close()
 
 

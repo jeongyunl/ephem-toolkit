@@ -19,6 +19,7 @@ Time window options:
 
 from __future__ import annotations
 
+import argparse
 import datetime as dt
 import pathlib
 import sys
@@ -27,7 +28,10 @@ import numpy as np
 
 import warnings
 
-from .propagate_tle_cli import parse_arguments
+try:
+    from .propagate_tle_cli import parse_arguments
+except ImportError:  # pragma: no cover - direct script execution fallback
+    from ephem_toolkit.propagate_tle.propagate_tle_cli import parse_arguments
 
 # Suppress warnings that tudatpy / urllib3 may emit on import.
 warnings.filterwarnings("ignore", category=SyntaxWarning)
@@ -46,72 +50,6 @@ DEFAULT_PROPAGATION_DURATION_S: float = time_utils.SECONDS_PER_DAY
 
 DEFAULT_OUTPUT_STEP_S: float = 5.0 * time_utils.SECONDS_PER_MINUTE
 """Default output sampling interval in seconds (5 minutes)."""
-
-
-# ===================================================================
-# CLI argument parsing
-# ===================================================================
-
-
-def parse_arguments() -> argparse.Namespace:
-    """Parse CLI arguments for TLE propagation.
-
-    Returns
-    -------
-    argparse.Namespace
-        Parsed command-line arguments.
-    """
-    parser = argparse.ArgumentParser(
-        description=(
-            "Load one TLE file, propagate with TudatPy SGP4, and print an "
-            "OEM-like state history."
-        )
-    )
-    parser.add_argument(
-        "tle_file",
-        metavar="<tle_file>",
-        help='Path to a TLE file. Use "-" to read TLE text from stdin.',
-    )
-    parser.add_argument(
-        "--start",
-        metavar="<iso8601|duration>",
-        default=None,
-        help=(
-            "Propagation start epoch. Accepts ISO 8601 timestamp (e.g. "
-            "2026-01-01T00:00:00) or duration offset from the TLE epoch "
-            "(e.g. 90m, -30m)."
-        ),
-    )
-    parser.add_argument(
-        "--stop",
-        metavar="<iso8601|duration>",
-        default=None,
-        help=(
-            "Propagation stop epoch. Accepts ISO 8601 timestamp (e.g. "
-            "2026-01-01T06:00:00) or duration offset from the start epoch "
-            "(e.g. 1d, 6h)."
-        ),
-    )
-    parser.add_argument(
-        "-s",
-        "--step",
-        type=time_utils.parse_duration_to_seconds,
-        metavar="<value[s|m]>",
-        default=DEFAULT_OUTPUT_STEP_S,
-        help=(
-            "Output interval (default: 5m). "
-            "Use -s/--step, e.g. -s 60, --step 60s, -s 1m."
-        ),
-    )
-    parser.add_argument(
-        "--data-only",
-        action="store_true",
-        help=(
-            "Print propagated state lines only (no OEM metadata header). "
-            "By default, output is CCSDS OEM format."
-        ),
-    )
-    return parser.parse_args()
 
 
 # ===================================================================
@@ -268,6 +206,7 @@ def write_oem_file(
     stop_time: dt.datetime,
     step_s: float,
     data_only: bool,
+    output_path: str = "-",
 ) -> None:
     """Print propagated state history using an OEM-like text layout.
 
@@ -285,6 +224,8 @@ def write_oem_file(
         Output sampling interval (s).
     data_only : bool
         Whether to print state lines only (without OEM metadata header).
+    output_path : str, default "-"
+        Output path. Use "-" to write to stdout.
 
     Notes
     -----
@@ -297,34 +238,35 @@ def write_oem_file(
             f"  Resolved stop:  {time_utils.datetime_to_iso8601(stop_time)}"
         )
 
-    # Propagate and collect state vectors as list[tuple[float, np.ndarray]] (POSIX timestamps)
     propagated_states: list[tuple[float, np.ndarray]] = []
     step_dt = dt.timedelta(seconds=step_s)
     current_time: dt.datetime = start_time
     while current_time <= stop_time:
         current_tdb_s: float = time_utils.datetime_to_tdb_s(current_time)
         state_m: np.ndarray = tle_ephemeris.cartesian_state(current_tdb_s)
-
-        # Convert to POSIX timestamp for CcsdsOem
         timestamp: float = current_time.timestamp()
-        # Store state in meters (SI units) for CcsdsOem.
         propagated_states.append((timestamp, state_m))
         current_time = current_time + step_dt
 
-    output_stream = sys.stdout
-    if data_only:
-        oem.CcsdsOem.from_states(propagated_states).write_states(output_stream)
-    else:
-        # Use from_states() for automatic header/metadata generation.
-        # states_list contains SI units (m, m/s); write() converts to km automatically.
-        oem_obj: oem.CcsdsOem = oem.CcsdsOem.from_states(
-            propagated_states,
-            object_name=object_name,
-            ref_frame="EME2000",
-            center_name="EARTH",
-            time_system="UTC",
-        )
-        oem_obj.write(output_stream)
+    def emit(output_stream: Any) -> None:
+        if data_only:
+            oem.CcsdsOem.from_states(propagated_states).write_states(output_stream)
+        else:
+            oem_obj: oem.CcsdsOem = oem.CcsdsOem.from_states(
+                propagated_states,
+                object_name=object_name,
+                ref_frame="EME2000",
+                center_name="EARTH",
+                time_system="UTC",
+            )
+            oem_obj.write(output_stream)
+
+    if output_path == "-":
+        emit(sys.stdout)
+        return
+
+    with open(output_path, "w", encoding="utf-8") as output_stream:
+        emit(output_stream)
 
 
 # ===================================================================
@@ -376,7 +318,7 @@ def main() -> int:
         start_spec = time_utils.parse_time_or_duration(args.start)
 
     if args.stop is None:
-        stop_spec = None
+        stop_spec = dt.timedelta(seconds=args.duration_s)
     else:
         stop_spec = time_utils.parse_time_or_duration(args.stop)
 
@@ -389,6 +331,7 @@ def main() -> int:
         stop_time=stop_time,
         step_s=args.step,
         data_only=args.data_only,
+        output_path=args.output,
     )
 
     return 0

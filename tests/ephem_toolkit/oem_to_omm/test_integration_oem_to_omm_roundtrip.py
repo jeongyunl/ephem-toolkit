@@ -124,7 +124,8 @@ def run_oem_to_tle(
         sys.executable,
         "-m",
         "ephem_toolkit.oem_to_omm.oem_to_omm",
-        "--tle",
+        "--mode",
+        "tle",
         "-",
         "--object-name",
         original.name if original.name else "",
@@ -183,7 +184,8 @@ def test_oem_to_omm_requires_input_file_name() -> None:
             sys.executable,
             "-m",
             "ephem_toolkit.oem_to_omm.oem_to_omm",
-            "--kepler",
+            "--mode",
+            "kepler",
         ],
         capture_output=True,
         text=True,
@@ -192,7 +194,7 @@ def test_oem_to_omm_requires_input_file_name() -> None:
     )
 
     assert result.returncode != 0
-    assert "required: oem_file" in result.stderr.lower()
+    assert "required: <input_oem|->" in result.stderr.lower()
 
     stdin_oem = (TEST_DATA_DIR / "ISS_2026-05-20_small.OEM").read_text(encoding="utf-8")
     stdin_result: subprocess.CompletedProcess[str] = subprocess.run(
@@ -200,7 +202,8 @@ def test_oem_to_omm_requires_input_file_name() -> None:
             sys.executable,
             "-m",
             "ephem_toolkit.oem_to_omm.oem_to_omm",
-            "--kepler",
+            "--mode",
+            "kepler",
             "-",
         ],
         input=stdin_oem,
@@ -212,6 +215,28 @@ def test_oem_to_omm_requires_input_file_name() -> None:
 
     assert stdin_result.returncode == 0, stdin_result.stderr
     assert "CCSDS_OMM_VERS" in stdin_result.stdout
+
+
+def test_oem_to_omm_help_uses_command_name_and_format_aware_output() -> None:
+    """The CLI help should use the canonical command name and output placeholder."""
+    result: subprocess.CompletedProcess[str] = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "ephem_toolkit.oem_to_omm.oem_to_omm",
+            "--help",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(PROJECT_ROOT),
+        env=_build_env(),
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "usage: oem-to-omm" in result.stdout
+    assert "--output <output_omm|->" in result.stdout
+    assert "--mode {kepler,mean-kepler,tle}" in result.stdout
 
 
 def is_geo_orbit(tle_data: tle.Tle) -> bool:

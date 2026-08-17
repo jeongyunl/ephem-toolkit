@@ -1,0 +1,43 @@
+"""Tests for shared CLI helper conventions."""
+
+from __future__ import annotations
+
+import argparse
+
+from ephem_toolkit.core.cli import add_common_arguments, create_parser
+
+
+def test_create_parser_uses_lowercase_placeholders() -> None:
+    """Shared CLI helpers should render descriptive lowercase placeholders."""
+    parser = create_parser("demo tool")
+    add_common_arguments(parser, positional_name="input_oem")
+
+    help_text = parser.format_help()
+    assert "input_oem" in help_text
+    assert "<input_oem|->" in help_text
+    assert "--output <path|->" in help_text
+    assert "'-'" in help_text
+    assert "stdout" in help_text
+    assert "--duration <duration>" in help_text
+    assert "--start <timestamp|duration>" in help_text
+    assert "ISO-8601" in help_text
+    assert "2001-11-06T11:17:33" in help_text
+    assert "2001-11-06T11:17:33.1234" in help_text
+    assert "--stop <timestamp|duration>" in help_text
+    assert "--verbose" in help_text
+    assert "--debug" in help_text
+
+
+def test_create_parser_supports_format_aware_output_name() -> None:
+    """Output arguments should support format-aware dest names when needed."""
+    parser = create_parser("demo tool")
+    add_common_arguments(parser, positional_name="input_oem", output_name="output_tle")
+
+    args = parser.parse_args(["input.oem", "--output", "out.tle"])
+    assert args.output_tle == "out.tle"
+
+
+def test_create_parser_accepts_help_footer() -> None:
+    """Parser factories should keep a consistent help footer."""
+    parser = create_parser("demo tool", epilog="examples:\n  demo --output out.csv")
+    assert "examples:" in parser.format_help()

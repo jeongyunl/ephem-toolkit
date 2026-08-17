@@ -12,14 +12,14 @@ This utility can:
 
 Usage:
     # Output OEM file as-is
-    xform-oem <oem_file>
+    xform-oem <input_oem>
     cat data.oem | xform-oem
 
     # Transform state data and update the reference frame metadata
-    xform-oem <oem_file> --x-ref-frame J2000
+    xform-oem <input_oem> --x-ref-frame J2000
 
     # Convert to AER coordinates
-    xform-oem <oem_file> --x-aer <lat>,<lon>,<alt>
+    xform-oem <input_oem> --x-aer <lat>,<lon>,<alt>
 
 Examples:
     # Output ISS OEM file as-is
@@ -66,7 +66,10 @@ import numpy as np
 
 import warnings
 
-from .xform_oem_cli import parse_arguments
+try:
+    from .xform_oem_cli import parse_arguments
+except ImportError:  # pragma: no cover - direct script execution fallback
+    from xform_oem_cli import parse_arguments
 
 # Suppress warnings that tudatpy / urllib3 may emit on import.
 warnings.filterwarnings("ignore", category=SyntaxWarning)
@@ -300,14 +303,14 @@ def main() -> None:
     args = parse_arguments()
 
     # Determine if reading from stdin
-    read_from_stdin = args.oem_file == "-"
+    read_from_stdin = args.input_oem == "-"
 
     # Read OEM data from stdin or file
     if read_from_stdin:
         oem_data = oem.CcsdsOem.read(sys.stdin)
         oem_file_path: str | Path = "<stdin>"
     else:
-        oem_file_path = Path(args.oem_file)
+        oem_file_path = Path(args.input_oem)
         oem_data = oem.CcsdsOem.read(oem_file_path)
 
     # Print verbose info if requested
@@ -374,10 +377,10 @@ def main() -> None:
     # Handle AER conversion mode
     if args.x_aer:
         # Determine output destination
-        if args.output == "-":
+        if args.output_oem == "-":
             output_file: TextIO = sys.stdout
         else:
-            output_file = open(args.output, "w", encoding="utf-8")
+            output_file = open(args.output_oem, "w", encoding="utf-8")
 
         try:
             convert_to_aer(
@@ -389,7 +392,7 @@ def main() -> None:
                 args.verbose,
             )
         finally:
-            if args.output != "-":
+            if args.output_oem != "-":
                 output_file.close()
         return
 
@@ -412,10 +415,10 @@ def main() -> None:
 
     output_format = oem.OemFormat.CSV if args.x_csv else oem.OemFormat.OEM
 
-    if args.output == "-":
+    if args.output_oem == "-":
         output_stream: TextIO = sys.stdout
     else:
-        output_stream = open(args.output, "w", encoding="utf-8")
+        output_stream = open(args.output_oem, "w", encoding="utf-8")
 
     try:
         if args.data_only:
@@ -423,7 +426,7 @@ def main() -> None:
         else:
             oem_data.write(output_stream, format_type=output_format)
     finally:
-        if args.output != "-":
+        if args.output_oem != "-":
             output_stream.close()
 
 

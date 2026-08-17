@@ -4,39 +4,44 @@ from __future__ import annotations
 
 import argparse
 
+import ephem_toolkit.core.cli as cli
+
 
 def parse_arguments() -> argparse.Namespace:
     """Parse command-line arguments for plotting a single orbit."""
-    parser = argparse.ArgumentParser(
+    parser = cli.create_parser(
         description=(
             "Plot a single OEM orbit with RTN deltas, velocity magnitude, "
             "geocentric distance, and WGS84 altitude."
         ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-    plot-orbit orbit.oem
-    plot-orbit orbit.oem -d 6h --time-unit minutes
-    plot-orbit orbit.oem -o orbit_plots.png
-        """,
+        epilog=(
+            "Examples:\n"
+            '  plot-orbit orbit.oem\n'
+            '  plot-orbit orbit.oem -d 6h --time-unit minutes\n'
+            '  plot-orbit orbit.oem -o orbit_plots.png'
+        ),
     )
+    parser.prog = "plot-orbit"
     parser.add_argument(
-        "source",
+        "input_oem",
         type=str,
-        help="OEM file to plot.",
+        metavar="<input_oem|->",
+        help="OEM file to plot; use '-' to read from stdin when supported.",
     )
     parser.add_argument(
         "-o",
         "--output",
         type=str,
         default=None,
-        help="Base output image path for saving figures (e.g., orbit.png)",
+        metavar="<output_plot|->",
+        help="Base output image path for saving figures (e.g., orbit.png); '-' writes to stdout when supported.",
     )
     parser.add_argument(
         "-d",
         "--duration",
         type=str,
         default=None,
+        metavar="<duration>",
         help="Duration to analyze from start (e.g., 1h, 30m, 3600s)",
     )
     parser.add_argument(

@@ -6,6 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
+import ephem_toolkit.core.cli as cli
 import ephem_toolkit.core.consts as consts
 
 FIT_SPAN_S: float = 7200.0
@@ -19,19 +20,28 @@ def report_error(message: str, exit_code: int = 1) -> None:
 
 def parse_arguments() -> argparse.Namespace:
     """Parse command-line arguments for OEM to OMM conversion."""
-    parser = argparse.ArgumentParser(
-        description="Convert OEM state vectors to Keplerian elements or OMM."
+    parser = cli.create_parser(
+        description="Convert OEM state vectors to Keplerian elements or OMM.",
+        epilog=(
+            "Examples:\n"
+            '  oem-to-omm --mode kepler input.oem\n'
+            '  oem-to-omm --mode mean-kepler input.oem -o output.omm\n'
+            '  cat input.oem | oem-to-omm --mode tle - -o output.omm'
+        ),
     )
+    parser.prog = "oem-to-omm"
     parser.add_argument(
-        "oem_file",
-        help='Path to input CCSDS OEM file (use "-" to read from stdin)',
+        "input_oem",
+        metavar="<input_oem|->",
+        help='Path to input CCSDS OEM file; use "-" to read from stdin',
     )
     parser.add_argument(
         "-o",
         "--output",
-        metavar="<file|->",
+        dest="output_omm",
+        metavar="<output_omm|->",
         default="-",
-        help="Save fitted Keplerian elements in OMM format to the specified file. Use '-' to print to stdout.",
+        help="Output OMM file path; '-' writes to stdout",
     )
     parser.add_argument(
         "-v",
@@ -56,31 +66,16 @@ def parse_arguments() -> argparse.Namespace:
         default=2.0,
         metavar="<hours>",
         dest="fit_span_hours",
-        help="Maximum arc span in hours for --kepler fit (default: 2.0).",
+        help="Maximum arc span in hours for the Keplerian fit (default: 2.0).",
     )
     parser.add_argument(
-        "--kepler",
-        action="store_true",
+        "--mode",
+        choices=["kepler", "mean-kepler", "tle"],
+        required=True,
+        metavar="{kepler,mean-kepler,tle}",
         help=(
-            "Fit osculating Keplerian elements to the first 2 hours of OEM states "
-            "using two-body (Kepler) propagation."
-        ),
-    )
-    parser.add_argument(
-        "--mean-kepler",
-        action="store_true",
-        dest="mean_kepler",
-        help=(
-            "Fit mean Keplerian elements to the first 2 hours of OEM states "
-            "using J2 secular propagation."
-        ),
-    )
-    parser.add_argument(
-        "--tle",
-        action="store_true",
-        default=True,
-        help=(
-            "Fit TLE mean elements (SGP4-compatible) to the OEM states."
+            "Conversion mode: 'kepler' fits osculating Keplerian elements, "
+            "'mean-kepler' fits mean Keplerian elements, and 'tle' fits a TLE."
         ),
     )
     parser.add_argument(

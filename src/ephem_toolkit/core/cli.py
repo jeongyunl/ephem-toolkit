@@ -9,13 +9,113 @@ from ephem_toolkit.core.interpolator.interpolation_spec import (
     InterpolationType,
 )
 
-VALID_INTERPOLATION_TYPES: list[str] = ["hermite", "hermite_sliding", "chebyshev", "lagrange"]
+VALID_INTERPOLATION_TYPES: list[str] = [
+    "hermite",
+    "hermite_sliding",
+    "chebyshev",
+    "lagrange",
+]
 """Valid interpolation type names for CLI arguments."""
 
 VALID_INTERPOLATION_TYPES_MESSAGE: str = ", ".join(
     f"'{value}'" for value in VALID_INTERPOLATION_TYPES
 )
 """Human-readable list of supported interpolation types for CLI errors."""
+
+
+class CliHelpFormatter(
+    argparse.ArgumentDefaultsHelpFormatter,
+    argparse.RawDescriptionHelpFormatter,
+):
+    """Preserve paragraph breaks while showing argument defaults."""
+
+
+def create_parser(
+    description: str,
+    *,
+    epilog: str | None = None,
+    formatter_class: type[argparse.HelpFormatter] | None = None,
+) -> argparse.ArgumentParser:
+    """Create a project-standard CLI parser.
+
+    Parameters
+    ----------
+    description : str
+        One-sentence description shown near the top of the help output.
+    epilog : str | None, optional
+        Additional help text appended after the options block.
+    formatter_class : type[argparse.HelpFormatter] | None, optional
+        Custom formatter for custom help output. Defaults to argparse's default
+        formatter with visible defaults in help strings.
+    """
+    if formatter_class is None:
+        formatter_class = CliHelpFormatter
+
+    return argparse.ArgumentParser(
+        description=description,
+        epilog=epilog,
+        formatter_class=formatter_class,
+    )
+
+
+def add_common_arguments(
+    parser: argparse.ArgumentParser,
+    *,
+    positional_name: str = "input_file",
+    positional_help: str = "Input file path or '-' for stdin",
+    positional_nargs: str | None = None,
+    output_name: str = "output",
+) -> argparse.ArgumentParser:
+    """Add shared CLI arguments to an argparse parser.
+
+    The standard project convention is to keep input paths positional when the
+    format is known or otherwise use ``input_file``. Output arguments prefer a
+    format-aware destination name such as ``output_omm`` or ``output_tle`` when
+    the target format is known. All option descriptions use sentence-style
+    capitalization and the value placeholders use descriptive names like
+    ``<path|->`` and ``<timestamp|duration>``. The ``-`` sentinel is accepted for
+    both stdin and stdout input/output flows.
+    """
+    parser.add_argument(
+        positional_name,
+        metavar=f"<{positional_name}|->",
+        nargs=positional_nargs,
+        help=positional_help,
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        dest=output_name,
+        metavar="<path|->",
+        help="Output file path; '-' writes to stdout",
+    )
+    parser.add_argument(
+        "--duration",
+        metavar="<duration>",
+        help="Duration of the requested interval; equivalent to --stop = --start + duration",
+    )
+    parser.add_argument(
+        "--start",
+        metavar="<timestamp|duration>",
+        help="Start time for the requested interval in ISO-8601 format (for example, 2001-11-06T11:17:33 or 2001-11-06T11:17:33.1234) or a relative duration",
+    )
+    parser.add_argument(
+        "--stop",
+        metavar="<timestamp|duration>",
+        help="Stop time for the requested interval in ISO-8601 format (for example, 2001-11-06T11:17:33 or 2001-11-06T11:17:33.1234) or a duration offset from --start",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Print extra diagnostic output",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Print low-level debug details",
+    )
+    return parser
 
 
 def parse_interpolate_type(value: str, default_degree: int) -> InterpolationSpec:

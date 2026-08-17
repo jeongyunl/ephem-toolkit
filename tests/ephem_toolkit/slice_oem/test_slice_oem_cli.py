@@ -83,7 +83,8 @@ def test_cli_no_arguments() -> None:
     """Test that running script with no arguments fails because OEM input is required."""
     result = _run_slice_oem([])
     assert result.returncode != 0
-    assert "required: oem_file" in result.stderr.lower()
+    assert "required" in result.stderr.lower()
+    assert "<input_oem|->" in result.stderr
 
 
 def test_cli_help_flag() -> None:

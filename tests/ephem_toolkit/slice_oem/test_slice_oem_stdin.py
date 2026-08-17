@@ -106,7 +106,8 @@ def test_cli_stdin_without_filename() -> None:
 
         result = _run_slice_oem(["--slice", "5:10"], input_data=oem_content)
         assert result.returncode != 0
-        assert "required: oem_file" in result.stderr.lower()
+        assert "required" in result.stderr.lower()
+        assert "<input_oem|->" in result.stderr
     finally:
         temp_path.unlink()
 

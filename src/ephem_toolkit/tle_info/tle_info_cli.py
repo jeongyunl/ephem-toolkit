@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import argparse
 
+import ephem_toolkit.core.cli as cli
+
 
 def parse_arguments() -> argparse.Namespace:
     """Create the command-line argument parser."""
-    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+    parser: argparse.ArgumentParser = cli.create_parser(
         description=(
             "Display TLE parameters and derived orbital elements for one or more TLE files."
         ),
@@ -16,10 +18,11 @@ def parse_arguments() -> argparse.Namespace:
             "TLE parameters, Cartesian state, and osculating Keplerian elements."
         ),
     )
+    parser.prog = "tle-info"
     parser.add_argument(
         "tle_files",
         nargs="+",
-        metavar="tle_file",
+        metavar="<tle_file>",
         help="Path(s) to TLE file(s) to process",
     )
     return parser.parse_args()

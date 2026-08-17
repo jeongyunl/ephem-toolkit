@@ -24,24 +24,24 @@ def main() -> None:
     """
     args: argparse.Namespace = parse_arguments()
 
-    if args.input == "-":
+    if args.input_tle == "-":
         input_text: str = sys.stdin.read()
         if not input_text.strip():
             print("Error: no input from stdin", file=sys.stderr)
             sys.exit(1)
     else:
         try:
-            with open(args.input, "r", encoding="utf-8") as input_file:
+            with open(args.input_tle, "r", encoding="utf-8") as input_file:
                 input_text = input_file.read()
         except OSError as error:
             print(
-                f"Error: could not read input file '{args.input}': {error}",
+                f"Error: could not read input file '{args.input_tle}': {error}",
                 file=sys.stderr,
             )
             sys.exit(1)
 
         if not input_text.strip():
-            print(f"Error: input file '{args.input}' is empty", file=sys.stderr)
+            print(f"Error: input file '{args.input_tle}' is empty", file=sys.stderr)
             sys.exit(1)
 
     try:
@@ -52,8 +52,8 @@ def main() -> None:
 
     omm_data: object = convert_tle.tle_to_omm(tle_data)
 
-    if args.output:
-        omm_data.to_file(args.output)
+    if args.output_omm:
+        omm_data.to_file(args.output_omm)
     else:
         omm_data.to_file(sys.stdout)
 

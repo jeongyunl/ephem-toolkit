@@ -1,4 +1,4 @@
-"""Tests for src/tle_to_omm/tle_to_omm.py — TLE to OMM conversion utility script."""
+"""Tests for src/plot_orbit/plot_orbit.py — orbit plotting utility script."""
 
 from __future__ import annotations
 
@@ -19,13 +19,13 @@ def _build_env() -> dict[str, str]:
     return env
 
 
-def test_tle_to_omm_help_uses_command_name_and_format_aware_output() -> None:
+def test_plot_orbit_help_uses_command_name_and_output_placeholder() -> None:
     """The CLI help should use the canonical command name and output placeholder."""
     result: subprocess.CompletedProcess[str] = subprocess.run(
         [
             sys.executable,
             "-m",
-            "ephem_toolkit.tle_to_omm.tle_to_omm",
+            "ephem_toolkit.plot_orbit.plot_orbit",
             "--help",
         ],
         capture_output=True,
@@ -36,5 +36,5 @@ def test_tle_to_omm_help_uses_command_name_and_format_aware_output() -> None:
     )
 
     assert result.returncode == 0
-    assert "usage: tle-to-omm" in result.stdout
-    assert "--output <output_omm|->" in result.stdout
+    assert "usage: plot-orbit" in result.stdout
+    assert "--output <output_plot|->" in result.stdout

@@ -18,7 +18,7 @@ After Poetry installation, use `slice-oem` as the canonical command. The existin
 ## Synopsis
 
 ```bash
-slice-oem <oem_file> [OPTIONS]
+slice-oem <input_oem> [OPTIONS]
 cat data.oem | slice-oem - [OPTIONS]
 cat data.oem | slice-oem [OPTIONS]
 ```
@@ -27,7 +27,7 @@ cat data.oem | slice-oem [OPTIONS]
 
 | Option | Description |
 |--------|-------------|
-| `<oem_file>` | Path to input CCSDS OEM file (use `-` or omit to read from stdin) |
+| `<input_oem>` | Path to input CCSDS OEM file (use `-` or omit to read from stdin) |
 | `-s`, `--slice SLICE` | Python-style slice index (e.g., `0:10`, `::2`, `5`, `-5:`) |
 | `-t`, `--time-slice TIME_SLICE` | Time slice specifier: `start[,[stop][,step]]` |
 | `--interpolate` | Enable Lagrange interpolation when step size is provided (enabled by default) |

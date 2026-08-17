@@ -16,14 +16,16 @@ calling the propagator. Output is emitted as the same OEM-like format.
 
 from __future__ import annotations
 
+import argparse
 import datetime as dt
 import pathlib
 import sys
+import warnings
+from typing import TextIO
+
 import numpy as np
 
-import warnings
-
-from .propagate_kepler_cli import parse_arguments
+from . import propagate_kepler_cli
 
 # Suppress warnings that tudatpy / urllib3 may emit on import.
 warnings.filterwarnings("ignore", category=SyntaxWarning)
@@ -55,84 +57,49 @@ DEFAULT_OUTPUT_STEP_S: float = 15.0 * time_utils.SECONDS_PER_MINUTE
 def parse_arguments() -> argparse.Namespace:
     """Parse command-line arguments for Keplerian propagation.
 
-    Returns
-    -------
-    argparse.Namespace
-        Parsed arguments with attributes ``input_file``, ``duration_s``,
-        ``step_s``, and ``data_only``.
+    Delegates to the canonical propagation-family parser so the console entry
+    point and the dedicated parser module stay in sync.
     """
-    parser = argparse.ArgumentParser(
-        description=(
-            "Load one OEM-like line of Keplerian elements, propagate using two-body "
-            "Kepler dynamics, and write propagated keplerian elements in OEM-like format."
+    args = propagate_kepler_cli.parse_arguments()
+    args.input_file = args.initial_state
+    return args
+
+
+def _normalize_kepler_state(
+    state_line: str,
+) -> tuple[dt.datetime, np.ndarray]:
+    """Parse a single Keplerian state line into UTC time and a 6-element vector."""
+    stripped = state_line.strip()
+    if not stripped or stripped.startswith("#"):
+        raise ValueError(f"No valid Keplerian element line found: {state_line!r}")
+
+    tokens = stripped.split()
+    if len(tokens) != 7:
+        raise ValueError(
+            f"Keplerian state line must contain an ISO-8601 epoch and 6 values: {state_line!r}"
         )
-    )
-    parser.add_argument(
-        "input_file",
-        metavar="<input_file>",
-        help='Path to a file containing one OEM-like Keplerian element line. Use "-" to read from stdin.',
-    )
-    parser.add_argument(
-        "-d",
-        "--duration",
-        type=time_utils.parse_duration_to_seconds,
-        metavar="<value[s|m|h|d]>",
-        default=DEFAULT_PROPAGATION_DURATION_S,
-        dest="duration_s",
-        help=(
-            "Propagation duration (default: 1d). "
-            "Use -d/--duration, e.g. -d 90 (90 seconds), --duration 90s, -d 2m, -d 1.5h, -d 1d."
-        ),
-    )
-    parser.add_argument(
-        "-s",
-        "--step",
-        type=time_utils.parse_duration_to_seconds,
-        metavar="<value[s|m]>",
-        default=DEFAULT_OUTPUT_STEP_S,
-        dest="step_s",
-        help=(
-            "Output interval (default: 15m). "
-            "Use -s/--step, e.g. -s 60, --step 60s, -s 1m."
-        ),
-    )
-    parser.add_argument(
-        "--data-only",
-        action="store_true",
-        help=(
-            "Print only propagated state lines without the OEM metadata header. "
-            "By default, output is CCSDS OEM format."
-        ),
-    )
-    return parser.parse_args()
+
+    epoch_str = tokens[0]
+    values = [float(token) for token in tokens[1:7]]
+    if len(values) != 6:
+        raise ValueError(
+            f"Keplerian state line must contain exactly 6 orbital elements: {state_line!r}"
+        )
+
+    epoch_dt = time_utils.iso8601_to_datetime(epoch_str)
+    kepler_km = np.asarray(values, dtype=float)
+    return epoch_dt, kepler_km
 
 
 def read_kepler_input(source: str | None) -> tuple[dt.datetime, np.ndarray, str]:
-    """Read the initial Keplerian element line from file or stdin.
+    """Read the initial Keplerian element line from inline text, file, or stdin."""
+    if source is None:
+        source = "-"
 
-    Parameters
-    ----------
-    source : str | None
-        Path to an input file, or "-" to read from stdin.
-
-    Returns
-    -------
-    tuple[dt.datetime, np.ndarray, str]
-        ``(epoch_dt, kepler_km, object_name)`` where *kepler_km* is a
-        6-element Keplerian state vector in km/rad and *object_name* is
-        derived from the file stem or ``"KEPLER_STDIN"``.
-
-    Raises
-    ------
-    FileNotFoundError
-        If *source* is provided as a file path but the file does not exist.
-    ValueError
-        If no valid Keplerian element line is found.
-    """
     if source == "-":
         if sys.stdin.isatty():
             raise ValueError(
-                "Keplerian input not provided. Pass <input_file> or pipe a Keplerian state line on stdin."
+                "Keplerian input not provided. Pass --initial-state or pipe a Keplerian state line on stdin."
             )
 
         stdin_text: str = sys.stdin.read()
@@ -143,20 +110,16 @@ def read_kepler_input(source: str | None) -> tuple[dt.datetime, np.ndarray, str]
         lines: list[str] = [
             line.strip() for line in stdin_text.splitlines() if line.strip()
         ]
-        parsed_state: tuple[dt.datetime, np.ndarray] | None = (
-            oem.CcsdsOem.parse_oem_state_line(lines[-1])
-        )
-        if parsed_state is None:
-            raise ValueError("No valid Keplerian element line found on stdin")
-        epoch_dt, kepler_km = parsed_state
-        if epoch_dt.tzinfo is None:
-            epoch_dt = epoch_dt.replace(tzinfo=dt.timezone.utc)
-        else:
-            epoch_dt = epoch_dt.astimezone(dt.timezone.utc)
+        epoch_dt, kepler_km = _normalize_kepler_state(lines[-1])
         return epoch_dt, kepler_km, "KEPLER_STDIN"
 
-    if source is None:
-        raise ValueError("Input file name is required; use '-' for stdin.")
+    inline_candidate = source.strip()
+    try:
+        if inline_candidate:
+            epoch_dt, kepler_km = _normalize_kepler_state(inline_candidate)
+            return epoch_dt, kepler_km, "INITIAL_STATE"
+    except ValueError:
+        pass
 
     input_path: pathlib.Path = pathlib.Path(source.strip()).expanduser().resolve()
     if not input_path.is_file():
@@ -166,12 +129,8 @@ def read_kepler_input(source: str | None) -> tuple[dt.datetime, np.ndarray, str]
         lines: list[str] = [line.strip() for line in file_stream if line.strip()]
     if not lines:
         raise ValueError(f"Empty input file: {input_path}")
-    parsed_state: tuple[dt.datetime, np.ndarray] | None = (
-        oem.CcsdsOem.parse_oem_state_line(lines[-1])
-    )
-    if parsed_state is None:
-        raise ValueError(f"No valid Keplerian element line found in {input_path}")
-    epoch_dt, kepler_km = parsed_state
+
+    epoch_dt, kepler_km = _normalize_kepler_state(lines[-1])
     return epoch_dt, kepler_km, input_path.stem
 
 
@@ -187,28 +146,14 @@ def propagate_kepler_elements(
     step_s: float,
     data_only: bool,
     object_name: str,
+    output_path: str = "-",
 ) -> None:
-    """Propagate the given Keplerian elements and write output lines to stdout.
+    """Propagate the given Keplerian elements and write output lines to a stream.
 
     Converts the initial Keplerian state from km to m, steps through the
     propagation interval, converts each propagated state back to Cartesian
-    km, and writes either a full CCSDS OEM or bare state lines to stdout.
-
-    Parameters
-    ----------
-    initial_epoch : dt.datetime
-        UTC epoch of the initial Keplerian state.
-    initial_kepler_km : np.ndarray
-        6-element initial Keplerian state vector in km/rad
-        ``[a_km, e, i_rad, omega_rad, RAAN_rad, theta_rad]``.
-    duration_s : float
-        Propagation duration (s).
-    step_s : float
-        Output sampling interval (s).
-    data_only : bool
-        If True, write only state lines without a CCSDS OEM header.
-    object_name : str
-        Object name written to OEM metadata.
+    km, and writes either a full CCSDS OEM or bare state lines to stdout or a
+    file path provided via ``output_path``.
     """
     initial_kepler_m: np.ndarray = initial_kepler_km.astype(np.float64).copy()
     initial_kepler_m[kepler.SEMI_MAJOR_AXIS_INDEX] *= 1000.0  # Convert km to m
@@ -235,21 +180,30 @@ def propagate_kepler_elements(
         propagated_states.append((epoch_posix, propagated_cartesian_km))
         current_time_s += step_s
 
-    output_stream = sys.stdout
-    if not data_only:
-        # Use from_states() for automatic header/metadata generation.
-        # Note: propagated_states are in km (not SI meters) because this is
-        # Keplerian propagation output; the OEM writer converts km→km (no-op).
-        oem_message: oem.CcsdsOem = oem.CcsdsOem.from_states(
-            propagated_states,
-            object_name=object_name,
-            ref_frame="KEPLERIAN",
-            center_name="EARTH",
-            time_system="UTC",
-        )
-        oem_message.write(output_stream)
+    output_stream: TextIO
+    if output_path == "-":
+        output_stream = sys.stdout
     else:
-        oem.CcsdsOem.from_states(propagated_states).write_states(output_stream)
+        output_stream = open(output_path, "w", encoding="utf-8")
+
+    try:
+        if not data_only:
+            # Use from_states() for automatic header/metadata generation.
+            # Note: propagated_states are in km (not SI meters) because this is
+            # Keplerian propagation output; the OEM writer converts km→km (no-op).
+            oem_message: oem.CcsdsOem = oem.CcsdsOem.from_states(
+                propagated_states,
+                object_name=object_name,
+                ref_frame="KEPLERIAN",
+                center_name="EARTH",
+                time_system="UTC",
+            )
+            oem_message.write(output_stream)
+        else:
+            oem.CcsdsOem.from_states(propagated_states).write_states(output_stream)
+    finally:
+        if output_path != "-":
+            output_stream.close()
 
 
 # ===================================================================
@@ -274,7 +228,8 @@ def main() -> int:
     initial_epoch: dt.datetime
     initial_kepler_km: np.ndarray
     object_name: str
-    initial_epoch, initial_kepler_km, object_name = read_kepler_input(args.input_file)
+    input_source = args.initial_state if args.initial_state is not None else args.input_file
+    initial_epoch, initial_kepler_km, object_name = read_kepler_input(input_source)
 
     propagate_kepler_elements(
         initial_epoch=initial_epoch,
@@ -283,6 +238,7 @@ def main() -> int:
         step_s=args.step_s,
         data_only=args.data_only,
         object_name=object_name,
+        output_path=args.output,
     )
     return 0
 
