@@ -57,7 +57,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--start",
-        metavar="<iso8601|duration>",
+        metavar="<timestamp|duration>",
         default=None,
         help=(
             "Propagation start epoch. Accepts ISO 8601 timestamp (e.g. "
@@ -67,7 +67,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--stop",
-        metavar="<iso8601|duration>",
+        metavar="<timestamp|duration>",
         default=None,
         help=(
             "Propagation stop epoch. Accepts ISO 8601 timestamp (e.g. "

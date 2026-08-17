@@ -23,6 +23,6 @@ def parse_arguments() -> argparse.Namespace:
         "tle_files",
         nargs="+",
         metavar="<tle_file>",
-        help="Path(s) to TLE file(s) to process",
+        help="Path to one or more TLE files to process.",
     )
     return parser.parse_args()

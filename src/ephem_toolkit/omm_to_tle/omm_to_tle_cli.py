@@ -26,7 +26,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "input_omm",
         metavar="<input_omm|->",
-        help='Input OMM file path; use "-" to read OMM text from stdin',
+        help='Input OMM file path; use "-" to read OMM text from stdin.',
     )
     parser.add_argument(
         "-o",
@@ -34,6 +34,6 @@ def parse_arguments() -> argparse.Namespace:
         dest="output_tle",
         metavar="<output_tle|->",
         default=None,
-        help="Output TLE file path; '-' writes to stdout",
+        help="Output TLE file path; '-' writes to stdout.",
     )
     return parser.parse_args()

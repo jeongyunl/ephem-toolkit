@@ -29,7 +29,7 @@ def parse_arguments() -> argparse.Namespace:
         "-i",
         "--initial-state",
         dest="initial_state",
-        metavar="<state_line>",
+        metavar="<state-line>",
         help=(
             "One OEM-style Keplerian state line provided directly on the command line. "
             "If omitted, one line is read from stdin."

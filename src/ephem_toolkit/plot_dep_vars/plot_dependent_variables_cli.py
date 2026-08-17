@@ -37,6 +37,6 @@ def parse_arguments() -> argparse.Namespace:
         type=time_utils.parse_duration_to_seconds,
         default=None,
         metavar="<duration>",
-        help="Duration to plot in format <number>[s|m|h|d] (e.g., 1h, 30m, 3600s). If not specified, plots all data.",
+        help="Duration to plot in <number>[s|m|h|d] format (e.g., 1h, 30m, or 3600s). If omitted, plot all data.",
     )
     return parser.parse_args()

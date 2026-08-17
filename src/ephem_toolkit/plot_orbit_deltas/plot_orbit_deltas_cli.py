@@ -40,14 +40,14 @@ def parse_arguments() -> argparse.Namespace:
         type=str,
         default=None,
         metavar="<duration>",
-        help="Duration of data to analyze from start (e.g., 1h, 30m, 3600s)",
+        help="Duration of data to analyze from the start (e.g., 1h, 30m, or 3600s).",
     )
     parser.add_argument(
         "--time-unit",
         type=str,
         default="hours",
         choices=["m", "minute", "minutes", "h", "hour", "hours"],
-        help="Time unit for time-series plots: m/minute/minutes or h/hour/hours (default: hours)",
+        help="Time unit for time-series plots: m/minute/minutes or h/hour/hours (default: hours).",
     )
 
     return parser.parse_args()
