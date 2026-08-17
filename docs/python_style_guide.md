@@ -466,6 +466,6 @@ Include `if __name__ == "__main__":` with usage message to stderr:
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 2:
-        print("Usage: python3 -m core.ccsds.oem <oem_file>", file=sys.stderr)
+        print("Usage: python3 -m core.ccsds.oem <input_oem>", file=sys.stderr)
         sys.exit(1)
 ```

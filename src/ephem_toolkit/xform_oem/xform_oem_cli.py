@@ -4,34 +4,113 @@ from __future__ import annotations
 
 import argparse
 
+import ephem_toolkit.core.ccsds.oem as oem
+import ephem_toolkit.core.cli as cli
+
+
+def parse_metadata_overrides(
+    values: list[str], parser: argparse.ArgumentParser
+) -> list[tuple[str, str | int]]:
+    """Parse and validate repeated ``KEY=VALUE`` metadata overrides."""
+    metadata_fields: dict[str, str] = {
+        field_name.upper(): field_name
+        for field_name in vars(oem.OemMeta())
+        if field_name != "comments"
+    }
+    overrides: list[tuple[str, str | int]] = []
+
+    for value in values:
+        if "=" not in value:
+            parser.error(f"--set-meta requires KEY=VALUE, got {value!r}")
+        key, field_value = value.split("=", 1)
+        field_name = metadata_fields.get(key.strip().upper())
+        if field_name is None:
+            supported_fields = ", ".join(sorted(metadata_fields))
+            parser.error(
+                f"unknown --set-meta key {key.strip()!r}; "
+                f"supported keys: {supported_fields}"
+            )
+
+        if field_name == "interpolation_degree":
+            try:
+                parsed_value: str | int = int(field_value.strip())
+            except ValueError:
+                parser.error("--set-meta INTERPOLATION_DEGREE must be an integer")
+        else:
+            parsed_value = field_value
+        overrides.append((field_name, parsed_value))
+
+    return overrides
+
+
+def parse_header_overrides(
+    values: list[str], parser: argparse.ArgumentParser
+) -> list[tuple[str, str | float]]:
+    """Parse and validate repeated ``KEY=VALUE`` header overrides."""
+    header_fields: dict[str, str] = {
+        "CCSDS_OEM_VERS": "version",
+        "CREATION_DATE": "creation_date",
+        "ORIGINATOR": "originator",
+        "CLASSIFICATION": "classification",
+        "MESSAGE_ID": "message_id",
+    }
+    overrides: list[tuple[str, str | float]] = []
+
+    for value in values:
+        if "=" not in value:
+            parser.error(f"--set-header requires KEY=VALUE, got {value!r}")
+        key, field_value = value.split("=", 1)
+        field_name = header_fields.get(key.strip().upper())
+        if field_name is None:
+            supported_fields = ", ".join(sorted(header_fields))
+            parser.error(
+                f"unknown --set-header key {key.strip()!r}; "
+                f"supported keys: {supported_fields}"
+            )
+
+        if field_name == "version":
+            try:
+                parsed_value: str | float = float(field_value.strip())
+            except ValueError:
+                parser.error("--set-header CCSDS_OEM_VERS must be numeric")
+        else:
+            parsed_value = field_value
+        overrides.append((field_name, parsed_value))
+
+    return overrides
+
 
 def parse_arguments() -> argparse.Namespace:
     """Parse and validate command-line arguments."""
-    parser = argparse.ArgumentParser(
+    parser = cli.create_parser(
         description=(
-            "Transform OEM ephemeris files: change reference frames or convert to AER coordinates"
+            "Transform OEM ephemeris files by changing the reference frame "
+            "or converting to AER coordinates."
         ),
         epilog=(
-            "By default, outputs the input OEM file as-is. "
-            "Use --x-ref-frame to transform state data and update its reference frame metadata, "
-            "--set-meta KEY=VALUE to override output metadata, "
-            "--set-header KEY=VALUE to override output header fields, "
-            "--x-csv to write state data as CSV, --data-only to omit the OEM "
-            "header and metadata, or --x-aer with comma-separated "
-            "lat,lon,alt to convert to AER coordinates.\n\n"
+            "Examples:\n"
+            '  xform-oem data.oem --x-ref-frame J2000\n'
+            '  xform-oem data.oem --x-aer 40.7128,-74.0060,10.0\n'
+            '  cat data.oem | xform-oem - --x-csv'
         ),
     )
+    parser.prog = "xform-oem"
     parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
-        help="Print detailed debug information to stderr",
+        help="Print extra diagnostic output",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Print low-level debug details",
     )
     parser.add_argument(
         "--set-header",
         action="append",
         default=[],
-        metavar="<KEY=VALUE>",
+        metavar="<key=value>",
         help=(
             "Override an OEM header field in the output. Repeatable. "
             "Supported keys: CCSDS_OEM_VERS, CREATION_DATE, ORIGINATOR."
@@ -41,7 +120,7 @@ def parse_arguments() -> argparse.Namespace:
         "--set-meta",
         action="append",
         default=[],
-        metavar="<KEY=VALUE>",
+        metavar="<key=value>",
         help=(
             "Override an OEM metadata field in the output. Repeatable. "
             "Supported keys include OBJECT_NAME, OBJECT_ID, CENTER_NAME, "
@@ -52,22 +131,19 @@ def parse_arguments() -> argparse.Namespace:
     x_format_group = parser.add_mutually_exclusive_group()
     x_format_group.add_argument(
         "--x-ref-frame",
-        metavar="<frame>|<base_frame,target_frame>",
+        metavar="<frame>",
         help=(
             "Transform state vectors to a target reference frame and update "
-            "the output REF_FRAME metadata. Provide one "
-            "frame to use the OEM REF_FRAME as the source, or provide "
-            "base_frame,target_frame to override the source frame."
+            "the output REF_FRAME metadata. Use either a single target frame or "
+            "<base_frame,target_frame> for an explicit source/target pair."
         ),
     )
     x_format_group.add_argument(
         "--x-aer",
         metavar="<lat,lon,alt>",
         help=(
-            "Convert ECEF positions to AER (Azimuth-Elevation-Range) coordinates. "
-            "Provide comma-separated values: latitude (degrees, +N/-S), "
-            "longitude (degrees, +E/-W), altitude (meters above WGS-84 ellipsoid). "
-            "Example: --x-aer 40.7128,-74.0060,10.0"
+            "Convert ECEF positions to AER coordinates using latitude, longitude, "
+            "and altitude in degrees and meters. Example: --x-aer 40.7128,-74.0060,10.0"
         ),
     )
     x_format_group.add_argument(
@@ -81,15 +157,17 @@ def parse_arguments() -> argparse.Namespace:
         help="Write only state data, without the OEM header and metadata",
     )
     parser.add_argument(
-        "oem_file",
-        help='Path to input CCSDS OEM file in ECEF frame. Use "-" to read from stdin.',
+        "input_oem",
+        metavar="<input_oem|->",
+        help='Primary input OEM file path; use "-" to read from stdin',
     )
     parser.add_argument(
         "-o",
         "--output",
-        metavar="<file|->",
+        dest="output_oem",
+        metavar="<output_oem|->",
         default="-",
-        help="Output file path (default: '-'). Use '-' to print to stdout.",
+        help="Output OEM file path; '-' writes to stdout",
     )
 
     args = parser.parse_args()
@@ -102,7 +180,7 @@ def parse_arguments() -> argparse.Namespace:
             args.x_ref_frame_parts = (frame_parts[0], frame_parts[1])
         else:
             parser.error(
-                "--x-ref-frame requires <frame> or <base_frame>,<target_frame>"
+                "--x-ref-frame requires <frame> or <base_frame,target_frame>"
             )
 
     if args.x_aer:
@@ -121,5 +199,18 @@ def parse_arguments() -> argparse.Namespace:
         args.lat_deg = None
         args.lon_deg = None
         args.alt_m = None
+
+    args.metadata_overrides = []
+    args.header_overrides = []
+    if args.set_meta:
+        args.metadata_overrides = [
+            (field_name, value)
+            for field_name, value in parse_metadata_overrides(args.set_meta, parser)
+        ]
+    if args.set_header:
+        args.header_overrides = [
+            (field_name, value)
+            for field_name, value in parse_header_overrides(args.set_header, parser)
+        ]
 
     return args

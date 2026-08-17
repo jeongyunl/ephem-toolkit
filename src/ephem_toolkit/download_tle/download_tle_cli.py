@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+import ephem_toolkit.core.cli as cli
+
 FORMATS = {
     "tle": ".tle",
     "3le": ".tle",
@@ -23,13 +25,23 @@ FORMAT_ALIASES = {
 
 def parse_arguments() -> argparse.Namespace:
     """Parse command-line arguments for downloading TLE/OMM data."""
-    parser: argparse.ArgumentParser = argparse.ArgumentParser(
-        description="Download TLE/OMM data from CelesTrak"
+    parser: argparse.ArgumentParser = cli.create_parser(
+        description="Download TLE/OMM data from CelesTrak",
+        epilog=(
+            "Examples:\n"
+            '  download-tle --satellite-id 1998-067A\n'
+            '  download-tle --satellite-id 1998-067A --satellite-id 2019-050A\n'
+            '  download-tle --format omm --satellite-id 1998-067A'
+        ),
     )
+    parser.prog = "download-tle"
     parser.add_argument(
-        "satellite_ids",
-        nargs="+",
-        help="One or more satellite international designators",
+        "--satellite-id",
+        dest="satellite_ids",
+        action="append",
+        default=[],
+        metavar="<id>",
+        help="One or more satellite international designators; repeatable.",
     )
     parser.add_argument(
         "--format",

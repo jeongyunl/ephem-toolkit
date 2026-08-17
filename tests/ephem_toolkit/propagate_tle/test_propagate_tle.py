@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from ephem_toolkit.propagate_tle import propagate_tle_cli
 from propagate_tle.propagate_tle import resolve_time_bounds
 
 TEST_DIR: Path = Path(__file__).parent
@@ -17,6 +18,36 @@ PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent
 TEST_DATA_DIR: Path = TEST_DIR.parent.parent / "data"
 
 TLE_FILES: list[Path] = sorted(TEST_DATA_DIR.glob("*.tle"))
+
+
+def test_tle_cli_uses_canonical_propagation_family_flags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The TLE propagation CLI should accept the shared propagation-family names."""
+    tle_path = "tests/data/ISS-ZARYA_1998-067A.tle"
+
+    monkeypatch.setattr(
+        "sys.argv",
+        ["propagate-tle", tle_path, "--duration", "2h"],
+    )
+    args = propagate_tle_cli.parse_arguments()
+    assert args.tle_file == tle_path
+    assert args.duration_s == 7200.0
+    assert args.output == "-"
+
+    monkeypatch.setattr(
+        "sys.argv",
+        ["propagate-tle", tle_path, "--output", "out.oem"],
+    )
+    args = propagate_tle_cli.parse_arguments()
+    assert args.output == "out.oem"
+
+    monkeypatch.setattr(
+        "sys.argv",
+        ["propagate-tle", tle_path, "-d", "3h"],
+    )
+    args = propagate_tle_cli.parse_arguments()
+    assert args.duration_s == 10800.0
 
 
 def test_relative_stop_is_resolved_from_start_epoch() -> None:

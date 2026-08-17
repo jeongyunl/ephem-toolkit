@@ -139,6 +139,8 @@ def test_cli_time_slice_no_interpolate_flag() -> None:
         )
         assert result.returncode != 0
         assert "step_size requires --interpolate" in result.stderr
+        assert "NameError" not in result.stderr
+        assert "Traceback" not in result.stderr
     finally:
         temp_path.unlink()
 

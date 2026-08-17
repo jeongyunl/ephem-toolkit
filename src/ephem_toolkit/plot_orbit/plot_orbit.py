@@ -2,7 +2,7 @@
 """Plot a single OEM orbit and derived time-series diagnostics.
 
 Usage:
-    plot-orbit <oem_file> [-o output.png] [-d 6h] [--time-unit hours]
+    plot-orbit <input_oem> [-o output.png] [-d 6h] [--time-unit hours]
 """
 
 from __future__ import annotations

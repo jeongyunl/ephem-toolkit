@@ -94,11 +94,14 @@ def main() -> None:
                 if args.start is None
                 else resolve_time_bound(args.start, reference_epoch_s)
             )
-            requested_stop: float = (
-                overlap_stop
-                if args.stop is None
-                else resolve_time_bound(args.stop, requested_start)
-            )
+            if args.duration is not None:
+                requested_stop = requested_start + args.duration
+            else:
+                requested_stop = (
+                    overlap_stop
+                    if args.stop is None
+                    else resolve_time_bound(args.stop, requested_start)
+                )
             if requested_start > requested_stop:
                 raise ValueError("--start must be earlier than or equal to --stop")
             overlap_start = max(overlap_start, requested_start)

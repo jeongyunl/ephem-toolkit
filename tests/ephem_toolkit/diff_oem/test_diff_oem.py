@@ -91,6 +91,27 @@ def test_extract_stage_sequence_preserves_repeated_transformations() -> None:
     ) == ["rot", "time_shift", "rot", "time_shift"]
 
 
+def test_parse_arguments_accepts_duration_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "diff-oem",
+            "reference.oem",
+            "comparison.oem",
+            "--start",
+            "2024-01-01T00:00:00Z",
+            "--duration",
+            "2m",
+        ],
+    )
+
+    args = diff_oem_cli.parse_arguments()
+
+    assert args.start == "2024-01-01T00:00:00Z"
+    assert args.duration == 120.0
+    assert args.stop is None
+
+
 def test_compare_states_interpolates_reference_at_comparison_epoch() -> None:
     result: data_structures.ComparisonResult = comparison.compare_states(
         _create_state(0.0, 0.0),

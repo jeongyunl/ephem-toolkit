@@ -30,18 +30,18 @@ with `--x-csv`, the output includes the CSV state header.
 ## Synopsis
 
 ```bash
-xform-oem <oem_file> [OPTIONS]
+xform-oem <input_oem> [OPTIONS]
 cat data.oem | xform-oem [OPTIONS]
 ```
 
-Use `-` or omit `<oem_file>` to read CCSDS OEM data from standard input. The
+Use `-` or omit `<input_oem>` to read CCSDS OEM data from standard input. The
 default output destination is standard output.
 
 ## Options
 
 | Option | Description |
 |---|---|
-| `<oem_file>` | Optional path to an input CCSDS OEM file; use `-` or omit to read from stdin |
+| `<input_oem>` | Optional path to an input CCSDS OEM file; use `-` or omit to read from stdin |
 | `--x-ref-frame <frame>` | Convert state vectors to the target frame using the OEM `REF_FRAME` as source |
 | `--x-ref-frame <base_frame,target_frame>` | Override the source frame and convert state vectors to the target frame |
 | `--x-aer <lat,lon,alt>` | Convert ECEF/ITRF positions to AER text using latitude/longitude in degrees and altitude in metres |

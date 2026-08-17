@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import re
 
+import ephem_toolkit.core.cli as cli
 import ephem_toolkit.core.time_utils as time_utils
 
 from .constants import (
@@ -296,16 +297,23 @@ def parse_arguments() -> argparse.Namespace:
     argparse.Namespace
         Parsed command-line arguments for all supported CLI options.
     """
-    parser = argparse.ArgumentParser(
+    parser = cli.create_parser(
         description=(
             "Run perturbed orbit propagation from one OEM-style state line and "
             "a user-provided simulation duration."
-        )
+        ),
+        epilog=(
+            "Examples:\n"
+            '  propagate-orbit --initial-state "2023-04-10T00:00:00 7000 0 0 0 7.5 1.0" -d 6h\n'
+            '  propagate-orbit --duration 90m --output propagated.oem < input_state.txt\n'
+            '  cat input.txt | propagate-orbit --output - --dep-vars dep_vars.csv'
+        ),
     )
     parser.add_argument(
         "-i",
         "--initial-state",
-        metavar="<oem_state_line>",
+        dest="initial_state",
+        metavar="<state_line>",
         help=(
             "One OEM-style state line provided directly on the command line. "
             "If omitted, one line is read from stdin."
@@ -315,21 +323,22 @@ def parse_arguments() -> argparse.Namespace:
         "-d",
         "--duration",
         type=time_utils.parse_duration_to_seconds,
-        metavar="<value[s|m|h|d]>",
+        metavar="<duration>",
         default=DEFAULT_SIMULATION_DURATION_S,
         help=(
-            "Simulation duration (default: 1d). "
-            "Use -d/--duration, e.g. -d 90 (90 seconds), --duration 90s, -d 2m, --duration 1.5h, -d 1d."
+            "Simulation duration. Accepts values like 90s, 2m, 1.5h, or 1d "
+            f"(default: {DEFAULT_SIMULATION_DURATION_S})."
         ),
     )
     parser.add_argument(
-        "--oem",
-        metavar="<file|->",
+        "-o",
+        "--output",
+        dest="oem",
+        metavar="<output_oem|->",
         default="-",
         help=(
-            "Write propagated state history as OEM state-vector lines "
-            "(UTC_ISO x y z vx vy vz, km and km/s). "
-            "Use '-' to write to stdout (default)."
+            "Write propagated state history as OEM state-vector lines to the target path; "
+            "'-' writes to stdout."
         ),
     )
     parser.add_argument(

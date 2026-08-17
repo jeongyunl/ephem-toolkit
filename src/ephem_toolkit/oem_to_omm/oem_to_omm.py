@@ -32,10 +32,10 @@ Algorithm overview (--kepler mode):
     convergence to a physically meaningful orbit.
 
 Usage:
-    oem-to-omm --kepler <input.oem>
-    oem-to-omm --mean-kepler <input.oem>
-    oem-to-omm --tle <input.oem>
-    oem-to-omm --tle - < input.oem
+    oem-to-omm --mode kepler <input.oem>
+    oem-to-omm --mode mean-kepler <input.oem>
+    oem-to-omm --mode tle <input.oem>
+    oem-to-omm --mode tle - < input.oem
 """
 
 from __future__ import annotations
@@ -132,15 +132,15 @@ def main() -> None:
     args = parse_arguments()
 
     # Determine input source: file path or stdin (piped input)
-    read_from_stdin: bool = args.oem_file == "-"
+    read_from_stdin: bool = args.input_oem == "-"
 
     # Read and parse CCSDS OEM ephemeris data
     if read_from_stdin:
         oem_data = oem.CcsdsOem.read(sys.stdin)
     else:
-        oem_path = Path(args.oem_file)
+        oem_path = Path(args.input_oem)
         if not oem_path.exists():
-            report_error(f"Error: Input file not found: {args.oem_file}")
+            report_error(f"Error: Input file not found: {args.input_oem}")
         oem_data = oem.CcsdsOem.read(oem_path)
 
     states: list[tuple[float, np.ndarray]] = oem_data.states
@@ -163,8 +163,8 @@ def main() -> None:
     else:
         object_id: str = oem_data.meta.object_id or "UNKNOWN"
 
-    # --kepler mode: fit osculating Keplerian elements to OEM arc
-    if args.kepler:
+    # Dispatch by the canonical mode selection.
+    if args.mode == "kepler":
         if len(states) < 2:
             report_error("Error: At least 2 state vectors required for fitting.")
 
@@ -196,13 +196,13 @@ def main() -> None:
         )
 
         # Report results to stderr in verbose mode when output is stdout
-        if args.verbose and args.output == "-":
+        if args.verbose and args.output_omm == "-":
             print(output_text, file=sys.stderr)
         elif args.verbose:
             report_results(output_text, "-", args.verbose)
 
         # Save OMM format if requested
-        if args.output:
+        if args.output_omm:
             try:
                 omm_obj: omm.CcsdsOmm = omm.keplerian_to_omm(
                     first_epoch,
@@ -213,18 +213,17 @@ def main() -> None:
                 )
                 omm_obj.originator = "oem_to_omm"
                 # Output to stdout if dest is "-", otherwise to file
-                if args.output == "-":
+                if args.output_omm == "-":
                     omm_obj.to_file(sys.stdout)
                 else:
-                    omm_obj.to_file(args.output)
+                    omm_obj.to_file(args.output_omm)
                     if args.verbose:
-                        print(f"OMM file written to: {args.output}", file=sys.stderr)
+                        print(f"OMM file written to: {args.output_omm}", file=sys.stderr)
             except Exception as error:
                 report_error(f"Error writing OMM file: {error}")
         return
 
-    # --mean-kepler mode: fit mean Keplerian elements to OEM arc
-    if args.mean_kepler:
+    if args.mode == "mean-kepler":
         # Run the Gauss-Newton velocity-only fit for mean elements
         fitted_mean_elements: np.ndarray
         diagnostics: fit_common.FitDiagnostics
@@ -255,16 +254,14 @@ def main() -> None:
         )
 
         # Report results to stderr in verbose mode when output is stdout
-        if args.verbose and args.output == "-":
+        if args.verbose and args.output_omm == "-":
             print(output_text, file=sys.stderr)
         elif args.verbose:
             report_results(output_text, "-", args.verbose)
 
         # Save OMM format if requested (convert mean to osculating first)
-        if args.output:
+        if args.output_omm:
             try:
-
-                # Convert mean elements to osculating for OMM output
                 osculating_elements: np.ndarray = (
                     mean_kepler.mean_to_osculating_keplerian(fitted_mean_elements)
                 )
@@ -276,20 +273,17 @@ def main() -> None:
                     mu_m3_s2=args.mu_m3_s2,
                 )
                 omm_obj.originator = "oem_to_omm"
-                # Output to stdout if dest is "-", otherwise to file
-                if args.output == "-":
+                if args.output_omm == "-":
                     omm_obj.to_file(sys.stdout)
                 else:
-                    omm_obj.to_file(args.output)
+                    omm_obj.to_file(args.output_omm)
                     if args.verbose:
-                        print(f"OMM file written to: {args.output}", file=sys.stderr)
+                        print(f"OMM file written to: {args.output_omm}", file=sys.stderr)
             except Exception as error:
                 report_error(f"Error writing OMM file: {error}")
         return
 
-    # --tle mode: fit TLE mean elements (SGP4-compatible) to OEM arc
-    if args.tle:
-        # Validate TLE parameters
+    if args.mode == "tle":
         if not (0 <= args.tle_norad_cat_id <= 99999):
             report_error("Error: --norad-cat-id must be in [0, 99999]")
         if not (0 <= args.tle_ephemeris_type <= 9):
@@ -299,7 +293,6 @@ def main() -> None:
         if not (0 <= args.tle_rev_at_epoch <= 99999):
             report_error("Error: --rev-at-epoch must be in [0, 99999]")
 
-        # Run TLE fitting with user-specified refinement method and metadata
         tle_obj: tle.Tle
         diagnostics: fit_common.FitDiagnostics
         try:
@@ -322,29 +315,24 @@ def main() -> None:
             traceback.print_exc()
             report_error(f"Error fitting TLE elements: {error}")
 
-        # Compute propagation comparison at 10-minute intervals
         comparison: list[fit_common.PropagationComparison] = (
             fit_tle.compute_tle_propagation_comparison(
                 tle_obj, states, args.mu_m3_s2, fit_span_s, interval_s=600.0
             )
         )
 
-        # Format and report output
         first_epoch: datetime = datetime.fromtimestamp(states[0][0], tz=timezone.utc)
         output_text: str = fit_tle.format_tle_output(
             first_epoch, tle_obj, diagnostics, comparison
         )
 
-        # Report results to stderr in verbose mode when output is stdout
-        if args.verbose and args.output == "-":
+        if args.verbose and args.output_omm == "-":
             print(output_text, file=sys.stderr)
         elif args.verbose:
             report_results(output_text, "-", args.verbose)
 
-        # Save OMM format with TLE parameters
-        if args.output:
+        if args.output_omm:
             try:
-                # Convert TLE to OMM using core library function
                 omm_obj: omm.CcsdsOmm = convert_tle.tle_to_omm(
                     tle_obj,
                     creation_date=time_utils.datetime_to_iso8601(
@@ -352,29 +340,24 @@ def main() -> None:
                     ),
                     originator="oem_to_omm",
                 )
-                # Add comments
                 omm_obj.comments = [
                     "TLE mean elements (SGP4-compatible)",
                     "Compliant with CCSDS 502.0-B-3 (2023-04)",
                 ]
-                # Output to stdout if dest is "-", otherwise to file
-                if args.output == "-":
+                if args.output_omm == "-":
                     omm_obj.to_file(sys.stdout)
                 else:
-                    omm_obj.to_file(args.output)
+                    omm_obj.to_file(args.output_omm)
                     if args.verbose:
-                        print(f"OMM file written to: {args.output}", file=sys.stderr)
+                        print(f"OMM file written to: {args.output_omm}", file=sys.stderr)
             except Exception as error:
                 report_error(f"Error writing OMM file: {error}")
         return
 
-    # No mode selected — currently only --kepler, --mean-kepler, and --tle are implemented
-    if read_from_stdin:
-        return
     parser = argparse.ArgumentParser(
         description="Convert OEM state vectors to Keplerian elements or OMM."
     )
-    parser.error("Either --kepler, --mean-kepler, or --tle must be provided")
+    parser.error("Either --mode {kepler,mean-kepler,tle} must be provided")
 
 
 if __name__ == "__main__":
