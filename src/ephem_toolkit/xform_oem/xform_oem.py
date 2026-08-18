@@ -73,8 +73,12 @@ warnings.filterwarnings(
 
 import numpy as np
 
-from .xform_oem_cli import XformOemArgs
-from .xform_oem_cli import parse_arguments
+try:
+    from .xform_oem_cli import XformOemArgs
+    from .xform_oem_cli import parse_arguments
+except ImportError:  # pragma: no cover - direct script execution fallback
+    from ephem_toolkit.xform_oem.xform_oem_cli import XformOemArgs
+    from ephem_toolkit.xform_oem.xform_oem_cli import parse_arguments
 
 import ephem_toolkit.core.aer as aer
 import ephem_toolkit.core.frame_utils as frame_utils
