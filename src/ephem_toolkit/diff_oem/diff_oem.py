@@ -16,7 +16,7 @@ import argparse
 import sys
 from typing import TextIO
 
-from .diff_oem_cli import parse_arguments
+from .diff_oem_cli import DiffOemArgs, parse_arguments
 from .comparison import read_states
 from .output import ComparisonOutput
 from .pipeline import TransformationPipeline
@@ -45,7 +45,7 @@ def main() -> None:
     one tab-separated result row per comparison to stdout.
     Exits with status 1 on error.
     """
-    args: argparse.Namespace = parse_arguments()
+    args: DiffOemArgs = parse_arguments()
 
     try:
         reference_source: TextIO | str = (
@@ -116,7 +116,7 @@ def main() -> None:
 
         if args.debug:
             print_debug_range("Effective range", overlap_start, overlap_stop)
-            if args.rot or args.rot_xy or args.rot_z or args.time_shift:
+            if args.rotate or args.rotate_xy or args.rotate_z or args.time_shift:
                 if fit_overlap_start is None or fit_overlap_stop is None:
                     print_debug_range("Transformation fitting range", None, None)
                 else:
@@ -125,7 +125,7 @@ def main() -> None:
                         fit_overlap_start,
                         fit_overlap_stop,
                     )
-            if args.rot or args.rot_xy:
+            if args.rotate or args.rotate_xy:
                 if fit_overlap_start is None or fit_overlap_stop is None:
                     print_debug_range("Rotation fitting range", None, None)
                 else:
@@ -182,12 +182,12 @@ def main() -> None:
 
         stages: list[TransformationStage] = []
         stage_sequence: list[str] = list(args.stage_sequence)
-        if args.rot and "rot" not in stage_sequence:
-            stage_sequence.append("rot")
-        if args.rot_xy and "rot_xy" not in stage_sequence:
-            stage_sequence.append("rot_xy")
-        if args.rot_z and "rot_z" not in stage_sequence:
-            stage_sequence.append("rot_z")
+        if args.rotate and "rotate" not in stage_sequence:
+            stage_sequence.append("rotate")
+        if args.rotate_xy and "rotate_xy" not in stage_sequence:
+            stage_sequence.append("rotate_xy")
+        if args.rotate_z and "rotate_z" not in stage_sequence:
+            stage_sequence.append("rotate_z")
         if args.time_shift and "time_shift" not in stage_sequence:
             stage_sequence.append("time_shift")
 
@@ -198,7 +198,7 @@ def main() -> None:
                     "comparison histories"
                 )
 
-            if stage_key == "rot":
+            if stage_key == "rotate":
                 stages.append(
                     RotationStage(
                         reference_oem,
@@ -209,7 +209,7 @@ def main() -> None:
                         args.rot_fit_span,
                     )
                 )
-            elif stage_key == "rot_xy":
+            elif stage_key == "rotate_xy":
                 stages.append(
                     RotationXYStage(
                         reference_oem,
@@ -220,7 +220,7 @@ def main() -> None:
                         args.rot_fit_span,
                     )
                 )
-            elif stage_key == "rot_z":
+            elif stage_key == "rotate_z":
                 stages.append(
                     RotationZStage(
                         reference_oem,

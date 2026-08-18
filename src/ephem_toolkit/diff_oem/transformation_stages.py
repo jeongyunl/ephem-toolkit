@@ -235,7 +235,7 @@ class RotationStage(TransformationStage):
 
         if len(resolved_state_pairs) < MIN_STATE_PAIRS_FOR_ROTATION:
             raise ValueError(
-                "--rot requires at least two state pairs in the rotation fitting span"
+                "--rotate requires at least two state pairs in the rotation fitting span"
             )
 
         return self._fit_rotation_matrix(resolved_state_pairs)
@@ -339,7 +339,7 @@ class RotationXYStage(RotationStage):
 
         if len(resolved_state_pairs) < MIN_STATE_PAIRS_FOR_ROTATION:
             raise ValueError(
-                "--rot-xy requires at least two state pairs in the rotation fitting span"
+                "--rotate-xy requires at least two state pairs in the rotation fitting span"
             )
 
         return self._fit_xy_rotation_matrix(resolved_state_pairs)
@@ -444,7 +444,7 @@ class RotationZStage(RotationStage):
 
         if len(resolved_state_pairs) < MIN_STATE_PAIRS_FOR_ROTATION:
             raise ValueError(
-                "--rot-z requires at least two state pairs in the rotation fitting span"
+                "--rotate-z requires at least two state pairs in the rotation fitting span"
             )
 
         return self._fit_z_rotation_matrix(resolved_state_pairs)

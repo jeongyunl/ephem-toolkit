@@ -94,8 +94,8 @@ def test_parse_rotation_fit_span_rejects_non_positive_duration() -> None:
 
 def test_extract_stage_sequence_preserves_repeated_transformations() -> None:
     assert diff_oem_cli.extract_stage_sequence(
-        ["--rot", "--time-shift", "--rot", "--time-shift"]
-    ) == ["rot", "time_shift", "rot", "time_shift"]
+        ["--rotate", "--time-shift", "--rotate", "--time-shift"]
+    ) == ["rotate", "time_shift", "rotate", "time_shift"]
 
 
 def test_parse_arguments_accepts_duration_alias(

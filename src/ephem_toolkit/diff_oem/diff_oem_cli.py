@@ -35,23 +35,71 @@ DEFAULT_INTERPOLATION_SPEC: InterpolationSpec = InterpolationSpec(
 """Default interpolation specification."""
 
 TRANSFORM_STAGE_OPTIONS: dict[str, str] = {
-    "--rot": "rot",
-    "--rotate": "rot",
-    "--rot-xy": "rot_xy",
-    "--rotate-xy": "rot_xy",
-    "--rot-z": "rot_z",
-    "--rotate-z": "rot_z",
+    "--rotate": "rotate",
+    "--rotate-xy": "rotate_xy",
+    "--rotate-z": "rotate_z",
     "--time-shift": "time_shift",
 }
 """Supported transformation-stage options mapped to internal stage keys."""
 
 
-def parse_arguments() -> argparse.Namespace:
+class DiffOemArgs(argparse.Namespace):
+    """Typed CLI arguments for the diff_oem command."""
+
+    reference_oem: str
+    comparison_oem: str
+    verbose: bool
+    debug: bool
+    interpolate_ref: bool
+    interpolate_data: bool
+    interpolate: bool
+    interpolate_type: InterpolationSpec
+    rtn: bool
+    rotate: bool
+    rotate_xy: bool
+    rotate_z: bool
+    time_shift: bool
+    rot_fit_span: float
+    start: str | None
+    duration: float | None
+    stop: str | None
+    stage_sequence: list[str]
+
+    def __init__(self, **kwargs: object) -> None:
+        """Initialize the namespace with all diff_oem CLI defaults."""
+        super().__init__()
+        defaults: dict[str, object] = {
+            "reference_oem": "",
+            "comparison_oem": "",
+            "verbose": False,
+            "debug": False,
+            "interpolate_ref": False,
+            "interpolate_data": True,
+            "interpolate": False,
+            "interpolate_type": DEFAULT_INTERPOLATION_SPEC,
+            "rtn": False,
+            "rotate": False,
+            "rotate_xy": False,
+            "rotate_z": False,
+            "time_shift": False,
+            "rot_fit_span": ROTATION_FIT_DURATION_S,
+            "start": None,
+            "duration": None,
+            "stop": None,
+            "stage_sequence": [],
+        }
+        for key, value in defaults.items():
+            setattr(self, key, value)
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+
+def parse_arguments() -> DiffOemArgs:
     """Parse command-line arguments.
 
     Returns
     -------
-    argparse.Namespace
+    DiffOemArgs
         Parsed command-line arguments with attributes ``reference_oem``,
         ``comparison_oem``, ``verbose``, ``debug``, ``interpolate_ref``, and
         ``interpolate_data``. The ``--interpolate`` convenience option enables
@@ -66,9 +114,9 @@ def parse_arguments() -> argparse.Namespace:
         ),
         epilog=(
             "Examples:\n"
-            '  diff-oem reference.oem comparison.oem --rotate\n'
-            '  diff-oem reference.oem comparison.oem --time-shift\n'
-            '  diff-oem reference.oem comparison.oem --start 2026-01-01T00:00:00 --duration 1h'
+            "  diff-oem reference.oem comparison.oem --rotate\n"
+            "  diff-oem reference.oem comparison.oem --time-shift\n"
+            "  diff-oem reference.oem comparison.oem --start 2026-01-01T00:00:00 --duration 1h"
         ),
     )
     parser.add_argument(
@@ -136,39 +184,21 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--rotate",
-        dest="rot",
+        dest="rotate",
         action="store_true",
         help="Fit a fixed rotation from the initial comparison state span and apply it before reporting differences (may be repeated).",
     )
     parser.add_argument(
-        "--rot",
-        dest="rot",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
         "--rotate-xy",
-        dest="rot_xy",
+        dest="rotate_xy",
         action="store_true",
         help="Fit a fixed rotation around the X and Y axes from the initial comparison state span (may be repeated).",
     )
     parser.add_argument(
-        "--rot-xy",
-        dest="rot_xy",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
         "--rotate-z",
-        dest="rot_z",
+        dest="rotate_z",
         action="store_true",
         help="Fit a fixed rotation around the Z axis from the initial comparison state span (may be repeated).",
-    )
-    parser.add_argument(
-        "--rot-z",
-        dest="rot_z",
-        action="store_true",
-        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--time-shift",
@@ -177,12 +207,12 @@ def parse_arguments() -> argparse.Namespace:
         help="Fit a constant comparison epoch bias and shift comparison timestamps before reporting differences (may be repeated).",
     )
     parser.add_argument(
-        "--rot-fit-span",
+        "--rotate-fit-span",
         dest="rot_fit_span",
         type=parse_rotation_fit_span,
         default=ROTATION_FIT_DURATION_S,
         metavar="<duration>",
-        help=f"Duration of initial state span used for --rot fitting (default: {ROTATION_FIT_DURATION_S:g}s).",
+        help=f"Duration of initial state span used for --rotate fitting (default: {ROTATION_FIT_DURATION_S:g}s).",
     )
     parser.add_argument(
         "--start",
@@ -206,7 +236,7 @@ def parse_arguments() -> argparse.Namespace:
         default=None,
         help="Stop epoch in ISO-8601 format (for example, 2001-11-06T11:17:33 or 2001-11-06T11:17:33.1234) or as a duration offset from --start.",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(namespace=DiffOemArgs())
     if args.duration is not None and args.stop is not None:
         parser.error("--duration and --stop cannot be used together")
     args.stage_sequence = extract_stage_sequence(sys.argv[1:])
