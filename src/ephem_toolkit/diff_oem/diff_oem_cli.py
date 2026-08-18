@@ -47,51 +47,41 @@ class DiffOemArgs(argparse.Namespace):
     """Typed CLI arguments for the diff_oem command."""
 
     reference_oem: str
+    """Reference OEM path or '-' for stdin."""
     comparison_oem: str
+    """Comparison OEM path or '-' for stdin."""
     verbose: bool
+    """Print detailed comparison diagnostics to stderr."""
     debug: bool
+    """Print debug timing information to stderr."""
     interpolate_ref: bool
+    """Interpolate the reference OEM to comparison timestamps."""
     interpolate_data: bool
+    """Interpolate comparison data to reference timestamps."""
     interpolate: bool
+    """Convenience flag enabling both interpolation paths."""
     interpolate_type: InterpolationSpec
+    """Interpolation configuration for OEM comparisons."""
     rtn: bool
+    """Report coordinates relative to the RTN frame."""
     rotate: bool
+    """Apply a fixed rotation fit before comparing states."""
     rotate_xy: bool
+    """Apply a fixed X/Y-axis rotation fit before comparing states."""
     rotate_z: bool
+    """Apply a fixed Z-axis rotation fit before comparing states."""
     time_shift: bool
+    """Apply a constant time shift before comparing states."""
     rot_fit_span: float
+    """Duration used for rotation fitting."""
     start: str | None
+    """Optional start timestamp or duration offset."""
     duration: float | None
+    """Optional duration limit relative to --start."""
     stop: str | None
+    """Optional stop timestamp or duration offset."""
     stage_sequence: list[str]
-
-    def __init__(self, **kwargs: object) -> None:
-        """Initialize the namespace with all diff_oem CLI defaults."""
-        super().__init__()
-        defaults: dict[str, object] = {
-            "reference_oem": "",
-            "comparison_oem": "",
-            "verbose": False,
-            "debug": False,
-            "interpolate_ref": False,
-            "interpolate_data": True,
-            "interpolate": False,
-            "interpolate_type": DEFAULT_INTERPOLATION_SPEC,
-            "rtn": False,
-            "rotate": False,
-            "rotate_xy": False,
-            "rotate_z": False,
-            "time_shift": False,
-            "rot_fit_span": ROTATION_FIT_DURATION_S,
-            "start": None,
-            "duration": None,
-            "stop": None,
-            "stage_sequence": [],
-        }
-        for key, value in defaults.items():
-            setattr(self, key, value)
-        for key, value in kwargs.items():
-            setattr(self, key, value)
+    """Transformation stage order as requested by the CLI."""
 
 
 def parse_arguments() -> DiffOemArgs:
