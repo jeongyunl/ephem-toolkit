@@ -7,15 +7,28 @@ import argparse
 import ephem_toolkit.core.cli as cli
 
 
-def parse_arguments() -> argparse.Namespace:
+class PlotOrbitDeltasArgs(argparse.Namespace):
+    """Typed argument namespace for orbit-delta plotting."""
+
+    input_oem_files: list[str]
+    """Input OEM files; the first is the reference orbit."""
+    output: str | None
+    """Optional output image path."""
+    duration: str | None
+    """Optional analysis duration string."""
+    time_unit: str
+    """Time unit for the plot axes."""
+
+
+def parse_arguments() -> PlotOrbitDeltasArgs:
     """Parse command-line arguments for plotting multiple orbit trajectories."""
     parser = cli.create_parser(
         description="Plot multiple orbit trajectories with various views and RTN coordinates.",
         epilog=(
             "Examples:\n"
-            '  plot-orbit-deltas reference.oem\n'
-            '  plot-orbit-deltas reference.oem comparison1.oem comparison2.oem\n'
-            '  plot-orbit-deltas reference.oem comparison.oem -o orbits.png'
+            "  plot-orbit-deltas reference.oem\n"
+            "  plot-orbit-deltas reference.oem comparison1.oem comparison2.oem\n"
+            "  plot-orbit-deltas reference.oem comparison.oem -o orbits.png"
         ),
     )
     parser.prog = "plot-orbit-deltas"
@@ -53,4 +66,4 @@ def parse_arguments() -> argparse.Namespace:
         help="Time unit for time-series plots: m/minute/minutes or h/hour/hours (default: hours).",
     )
 
-    return parser.parse_args()
+    return parser.parse_args(namespace=PlotOrbitDeltasArgs())

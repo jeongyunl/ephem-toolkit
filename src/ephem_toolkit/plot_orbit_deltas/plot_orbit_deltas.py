@@ -21,7 +21,7 @@ import numpy as np
 
 import ephem_toolkit.core.time_utils as time_utils
 
-from .plot_orbit_deltas_cli import parse_arguments
+from .plot_orbit_deltas_cli import PlotOrbitDeltasArgs, parse_arguments
 
 from .constants import DEFAULT_INTERPOLATION_DEGREE
 from .data_structures import StateHistory, TimeUnit
@@ -60,31 +60,31 @@ def generate_output_filename(base_output: str | None, suffix: str) -> str | None
 
 def main() -> None:
     """Main entry point for the script."""
-    args = parse_arguments()
+    cli_args: PlotOrbitDeltasArgs = parse_arguments()
 
-    if len(args.files) < 1:
+    if len(cli_args.input_oem_files) < 1:
         raise SystemExit(1)
 
     # Parse duration if provided
     duration_s: float | None = None
-    if args.duration:
+    if cli_args.duration:
         try:
-            duration_s = time_utils.parse_duration_to_seconds(args.duration)
+            duration_s = time_utils.parse_duration_to_seconds(cli_args.duration)
             print(
-                f"Analyzing data for duration: {args.duration} ({duration_s:.0f} seconds)"
+                f"Analyzing data for duration: {cli_args.duration} ({duration_s:.0f} seconds)"
             )
         except Exception as e:
             print(f"Error parsing duration: {e}")
             sys.exit(1)
 
     # Read reference orbit
-    print(f"Reading reference orbit from {args.files[0]}...")
-    ref_state_history: dict[float, np.ndarray] = read_orbit_file(args.files[0])
+    print(f"Reading reference orbit from {cli_args.input_oem_files[0]}...")
+    ref_state_history: dict[float, np.ndarray] = read_orbit_file(cli_args.input_oem_files[0])
     print(f"  Loaded {len(ref_state_history)} states")
 
     # Read comparison orbits
     comparison_data: list[StateHistory] = []
-    for filepath in args.files[1:]:
+    for filepath in cli_args.input_oem_files[1:]:
         print(f"Reading comparison orbit from {filepath}...")
         state_history: dict[float, np.ndarray] = read_orbit_file(filepath)
         print(f"  Loaded {len(state_history)} states")
@@ -120,7 +120,7 @@ def main() -> None:
     }
 
     reference_state_history_obj: StateHistory = StateHistory(
-        label=Path(args.files[0]).name, state_history=ref_state_history
+        label=Path(cli_args.input_oem_files[0]).name, state_history=ref_state_history
     )
 
     filtered_comparison_data: list[StateHistory] = []
@@ -135,13 +135,13 @@ def main() -> None:
         )
     comparison_data = filtered_comparison_data
 
-    time_unit: TimeUnit = TimeUnit.from_string(args.time_unit)
+    time_unit: TimeUnit = TimeUnit.from_string(cli_args.time_unit)
 
     print(
         "Plotting time series of relative position and velocity in RTN coordinates..."
     )
     relative_rtn_timeseries_output: str | None = generate_output_filename(
-        args.output, "relative_rtn_timeseries"
+        cli_args.output, "relative_rtn_timeseries"
     )
     plot_relative_rtn_timeseries(
         reference_state_history_obj,
@@ -152,7 +152,7 @@ def main() -> None:
 
     print("Plotting relative orbits in RTN coordinates...")
     relative_rtn_output: str | None = generate_output_filename(
-        args.output, "relative_rtn"
+        cli_args.output, "relative_rtn"
     )
     plot_relative_rtn_orbits(
         reference_state_history_obj, comparison_data, relative_rtn_output
@@ -162,7 +162,7 @@ def main() -> None:
         "Plotting time series of relative position and velocity in Cartesian coordinates..."
     )
     relative_cartesian_timeseries_output: str | None = generate_output_filename(
-        args.output, "relative_cartesian_timeseries"
+        cli_args.output, "relative_cartesian_timeseries"
     )
 
     plot_relative_cartesian_timeseries(
@@ -174,7 +174,7 @@ def main() -> None:
 
     print("Plotting angular separation from reference orbit...")
     angular_separation_output: str | None = generate_output_filename(
-        args.output, "angular_separation"
+        cli_args.output, "angular_separation"
     )
     plot_angular_separation(
         reference_state_history_obj,
@@ -185,9 +185,9 @@ def main() -> None:
 
     # Plot orbits
     print("Plotting absolute orbits in multiple views...")
-    plot_orbits(reference_state_history_obj, comparison_data, args.output)
+    plot_orbits(reference_state_history_obj, comparison_data, cli_args.output)
 
-    if args.output is None:
+    if cli_args.output is None:
         plt.show()
 
     print("Done!")
