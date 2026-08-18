@@ -12,8 +12,7 @@ import re
 import urllib.parse
 import urllib.request
 
-from .download_tle_cli import FORMATS, FORMAT_ALIASES, parse_arguments
-
+from .download_tle_cli import FORMATS, FORMAT_ALIASES, DownloadTleArgs, parse_arguments
 
 # ===================================================================
 # Utilities
@@ -47,7 +46,7 @@ def main() -> None:
     -------
     None
     """
-    args: argparse.Namespace = parse_arguments()
+    args: DownloadTleArgs = parse_arguments()
 
     satellite_ids: list[str] = args.satellite_ids
     output_format: str = FORMAT_ALIASES.get(args.format, args.format)

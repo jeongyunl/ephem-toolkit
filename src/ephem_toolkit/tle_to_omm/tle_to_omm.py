@@ -13,6 +13,7 @@ import sys
 import ephem_toolkit.core.convert_tle as convert_tle
 import ephem_toolkit.core.tle as tle
 
+from .tle_to_omm_cli import TleToOmmArgs
 from .tle_to_omm_cli import parse_arguments
 
 
@@ -22,7 +23,7 @@ def main() -> None:
     Reads TLE from the configured source, converts to OMM, and writes the
     result to the configured destination. Exits with status 1 on error.
     """
-    args: argparse.Namespace = parse_arguments()
+    args: TleToOmmArgs = parse_arguments()
 
     if args.input_tle == "-":
         input_text: str = sys.stdin.read()

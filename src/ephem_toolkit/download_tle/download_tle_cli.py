@@ -23,15 +23,24 @@ FORMAT_ALIASES = {
 }
 
 
-def parse_arguments() -> argparse.Namespace:
+class DownloadTleArgs(argparse.Namespace):
+    """Typed argument namespace for the TLE download CLI."""
+
+    satellite_ids: list[str]
+    """Satellite designators to download."""
+    format: str
+    """Requested output format."""
+
+
+def parse_arguments() -> DownloadTleArgs:
     """Parse command-line arguments for downloading TLE/OMM data."""
     parser: argparse.ArgumentParser = cli.create_parser(
         description="Download TLE/OMM data from CelesTrak.",
         epilog=(
             "Examples:\n"
-            '  download-tle --satellite-id 1998-067A\n'
-            '  download-tle --satellite-id 1998-067A --satellite-id 2019-050A\n'
-            '  download-tle --format omm --satellite-id 1998-067A'
+            "  download-tle --satellite-id 1998-067A\n"
+            "  download-tle --satellite-id 1998-067A --satellite-id 2019-050A\n"
+            "  download-tle --format omm --satellite-id 1998-067A"
         ),
     )
     parser.prog = "download-tle"
@@ -51,4 +60,4 @@ def parse_arguments() -> argparse.Namespace:
         help="Output format (default: tle). Valid options: "
         + ", ".join(FORMATS.keys()),
     )
-    return parser.parse_args()
+    return parser.parse_args(namespace=DownloadTleArgs())
