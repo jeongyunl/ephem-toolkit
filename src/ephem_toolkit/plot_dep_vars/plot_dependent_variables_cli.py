@@ -8,15 +8,26 @@ import ephem_toolkit.core.cli as cli
 import ephem_toolkit.core.time_utils as time_utils
 
 
-def parse_arguments() -> argparse.Namespace:
+class PlotDependentVariablesArgs(argparse.Namespace):
+    """Typed argument namespace for the dependent-variable plotting CLI."""
+
+    dep_vars_csv: str
+    """Path to the dependent-variable CSV to plot."""
+    name: str
+    """Satellite name used in labels and filtering."""
+    duration: float | None
+    """Optional plotting duration in seconds."""
+
+
+def parse_arguments() -> PlotDependentVariablesArgs:
     """Build command-line argument parser."""
     parser = cli.create_parser(
         description="Plot dependent-variable histories from a saved Tudat CSV file.",
         epilog=(
             "Examples:\n"
-            '  plot-dependent-variables dep_vars.csv\n'
-            '  plot-dependent-variables dep_vars.csv --name ISS\n'
-            '  plot-dependent-variables dep_vars.csv -d 6h'
+            "  plot-dependent-variables dep_vars.csv\n"
+            "  plot-dependent-variables dep_vars.csv --name ISS\n"
+            "  plot-dependent-variables dep_vars.csv -d 6h"
         ),
     )
     parser.prog = "plot-dependent-variables"
@@ -41,4 +52,4 @@ def parse_arguments() -> argparse.Namespace:
         metavar="<duration>",
         help="Duration to plot in <number>[s|m|h|d] format (e.g., 1h, 30m, or 3600s). If omitted, plot all data.",
     )
-    return parser.parse_args()
+    return parser.parse_args(namespace=PlotDependentVariablesArgs())
