@@ -1,6 +1,6 @@
 [project]
 name = "ephem-toolkit"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Python utilities and command-line tools for TudatPy astrodynamics workflows"
 readme = "README.md"
 requires-python = ">=3.9,<4.0"
@@ -51,6 +51,12 @@ packages = [
     { include = "ephem_toolkit", from = "src" },
 ]
 
+[tool.poetry-dynamic-versioning]
+enable = true
+vcs = "git"
+style = "pep440"
+pattern = "v(?P<base>.*)"
+
 [tool.poetry.dependencies]
 python = "^3.9"
 numpy = "^1.23"
@@ -65,5 +71,8 @@ markers = [
 ]
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = [
+    "poetry-core>=2.0.0,<3.0.0",
+    "poetry-dynamic-versioning>=1.0.0,<2.0.0",
+]
+build-backend = "poetry_dynamic_versioning.backend"
