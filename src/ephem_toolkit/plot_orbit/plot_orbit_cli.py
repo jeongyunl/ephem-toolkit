@@ -7,7 +7,20 @@ import argparse
 import ephem_toolkit.core.cli as cli
 
 
-def parse_arguments() -> argparse.Namespace:
+class PlotOrbitArgs(argparse.Namespace):
+    """Typed argument namespace for the orbit plotting CLI."""
+
+    input_oem: str
+    """OEM input path or '-' for stdin."""
+    output: str | None
+    """Optional output plot path."""
+    duration: str | None
+    """Optional analysis duration string."""
+    time_unit: str
+    """Time unit used in time-series plots."""
+
+
+def parse_arguments() -> PlotOrbitArgs:
     """Parse command-line arguments for plotting a single orbit."""
     parser = cli.create_parser(
         description=(
@@ -16,9 +29,9 @@ def parse_arguments() -> argparse.Namespace:
         ),
         epilog=(
             "Examples:\n"
-            '  plot-orbit orbit.oem\n'
-            '  plot-orbit orbit.oem -d 6h --time-unit minutes\n'
-            '  plot-orbit orbit.oem -o orbit_plots.png'
+            "  plot-orbit orbit.oem\n"
+            "  plot-orbit orbit.oem -d 6h --time-unit minutes\n"
+            "  plot-orbit orbit.oem -o orbit_plots.png"
         ),
     )
     parser.prog = "plot-orbit"
@@ -57,4 +70,4 @@ def parse_arguments() -> argparse.Namespace:
             "m/minute/minutes or h/hour/hours (default: hours)."
         ),
     )
-    return parser.parse_args()
+    return parser.parse_args(namespace=PlotOrbitArgs())
