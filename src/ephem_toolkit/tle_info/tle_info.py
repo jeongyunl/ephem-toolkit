@@ -108,9 +108,9 @@ def main() -> None:
     and prints the epoch, TLE fields, Cartesian state, and osculating
     Keplerian elements at the reference epoch.
     """
-    args: TleInfoArgs = parse_arguments()
+    cli_args: TleInfoArgs = parse_arguments()
 
-    tle_files: list[str] = args.tle_files
+    tle_files: list[str] = cli_args.tle_files
     print(f"TLE files: {tle_files}\n")
 
     load_spice_kernels()

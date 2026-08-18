@@ -220,28 +220,30 @@ def main() -> int:
     int
         Process return code. ``0`` on success.
     """
-    args: PropagateKeplerArgs = parse_arguments()
-    if args.duration_s <= 0.0:
+    cli_args: PropagateKeplerArgs = parse_arguments()
+    if cli_args.duration_s <= 0.0:
         raise ValueError("--duration must be > 0")
-    if args.step_s <= 0.0:
+    if cli_args.step_s <= 0.0:
         raise ValueError("--step must be > 0")
 
     initial_epoch: dt.datetime
     initial_kepler_km: np.ndarray
     object_name: str
     input_source = (
-        args.initial_state if args.initial_state is not None else args.input_file
+        cli_args.initial_state
+        if cli_args.initial_state is not None
+        else cli_args.input_file
     )
     initial_epoch, initial_kepler_km, object_name = read_kepler_input(input_source)
 
     propagate_kepler_elements(
         initial_epoch=initial_epoch,
         initial_kepler_km=initial_kepler_km,
-        duration_s=args.duration_s,
-        step_s=args.step_s,
-        data_only=args.data_only,
+        duration_s=cli_args.duration_s,
+        step_s=cli_args.step_s,
+        data_only=cli_args.data_only,
         object_name=object_name,
-        output_path=args.output,
+        output_path=cli_args.output,
     )
     return 0
 

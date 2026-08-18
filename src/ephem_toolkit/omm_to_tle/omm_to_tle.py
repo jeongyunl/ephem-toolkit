@@ -23,26 +23,26 @@ def main() -> None:
     Reads OMM from the configured source, converts to TLE, and writes the
     result to the configured destination. Exits with status 1 on error.
     """
-    args: OmmToTleArgs = parse_arguments()
+    cli_args: OmmToTleArgs = parse_arguments()
 
-    if args.input_omm == "-":
+    if cli_args.input_omm == "-":
         input_text: str = sys.stdin.read()
         if not input_text.strip():
             print("Error: no input from stdin", file=sys.stderr)
             sys.exit(1)
     else:
         try:
-            with open(args.input_omm, "r", encoding="utf-8") as input_file:
+            with open(cli_args.input_omm, "r", encoding="utf-8") as input_file:
                 input_text = input_file.read()
         except OSError as error:
             print(
-                f"Error: could not read input file '{args.input_omm}': {error}",
+                f"Error: could not read input file '{cli_args.input_omm}': {error}",
                 file=sys.stderr,
             )
             sys.exit(1)
 
         if not input_text.strip():
-            print(f"Error: input file '{args.input_omm}' is empty", file=sys.stderr)
+            print(f"Error: input file '{cli_args.input_omm}' is empty", file=sys.stderr)
             sys.exit(1)
 
     try:
@@ -53,8 +53,8 @@ def main() -> None:
 
     tle_data: tle.Tle = convert_tle.omm_to_tle(omm_data)
 
-    if args.output_tle:
-        tle.write_tle(args.output_tle, tle_data)
+    if cli_args.output_tle:
+        tle.write_tle(cli_args.output_tle, tle_data)
     else:
         tle.write_tle(sys.stdout, tle_data)
 

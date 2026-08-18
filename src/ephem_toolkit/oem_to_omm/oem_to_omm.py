@@ -63,7 +63,12 @@ import ephem_toolkit.core.ccsds.omm as omm
 import ephem_toolkit.core.time_utils as time_utils
 import ephem_toolkit.core.tle as tle
 
-from .oem_to_omm_cli import parse_arguments
+try:
+    from .oem_to_omm_cli import OemToOmmArgs
+    from .oem_to_omm_cli import parse_arguments
+except ImportError:  # pragma: no cover - direct script execution fallback
+    from ephem_toolkit.oem_to_omm.oem_to_omm_cli import OemToOmmArgs
+    from ephem_toolkit.oem_to_omm.oem_to_omm_cli import parse_arguments
 
 from . import fit_common
 from . import fit_mean_kepler
@@ -125,18 +130,18 @@ def report_error(message: str, exit_code: int = 1) -> NoReturn:
 
 def main() -> None:
     """Parse CLI arguments and dispatch to the appropriate conversion mode."""
-    args = parse_arguments()
+    cli_args: OemToOmmArgs = parse_arguments()
 
     # Determine input source: file path or stdin (piped input)
-    read_from_stdin: bool = args.input_oem == "-"
+    read_from_stdin: bool = cli_args.input_oem == "-"
 
     # Read and parse CCSDS OEM ephemeris data
     if read_from_stdin:
         oem_data = oem.CcsdsOem.read(sys.stdin)
     else:
-        oem_path = Path(args.input_oem)
+        oem_path = Path(cli_args.input_oem)
         if not oem_path.exists():
-            report_error(f"Error: Input file not found: {args.input_oem}")
+            report_error(f"Error: Input file not found: {cli_args.input_oem}")
         oem_data = oem.CcsdsOem.read(oem_path)
 
     states: list[tuple[float, np.ndarray]] = oem_data.states
@@ -144,27 +149,27 @@ def main() -> None:
     if len(states) < 2:
         report_error("Error: At least 2 state vectors required for fitting.")
 
-    fit_span_s: float = args.fit_span.total_seconds()
+    fit_span_s: float = cli_args.fit_span.total_seconds()
 
     # Determine object name: use --object-name if provided, otherwise use OEM metadata
     object_name: str = (
-        args.object_name
-        if args.object_name
+        cli_args.object_name
+        if cli_args.object_name
         else (oem_data.meta.object_name or "OBJECT")
     )
 
     # Determine object_id: use --object-id if provided, otherwise use OEM metadata
-    if args.object_id:
-        object_id: str = args.object_id
+    if cli_args.object_id:
+        object_id: str = cli_args.object_id
     else:
         object_id: str = oem_data.meta.object_id or "UNKNOWN"
 
     # Dispatch by the canonical mode selection.
-    if args.mode == "kepler":
+    if cli_args.mode == "kepler":
         if len(states) < 2:
             report_error("Error: At least 2 state vectors required for fitting.")
 
-        fit_span_s: float = args.fit_span.total_seconds()
+        fit_span_s: float = cli_args.fit_span.total_seconds()
 
         # Run the Gauss-Newton velocity-only fit (position at epoch is fixed)
         fitted_elements: np.ndarray
@@ -173,7 +178,7 @@ def main() -> None:
             fitted_elements, diagnostics = fit_osculating_kepler.fit_osculating_kepler(
                 states,
                 fit_span_s,
-                args.mu_m3_s2,
+                cli_args.mu_m3_s2,
             )
         except Exception as error:
             report_error(f"Error fitting Keplerian elements: {error}")
@@ -181,7 +186,7 @@ def main() -> None:
         # Compute propagation comparison at 10-minute intervals
         comparison: list[fit_common.PropagationComparison] = (
             fit_osculating_kepler.compute_kepler_propagation_comparison(
-                fitted_elements, states, args.mu_m3_s2, fit_span_s, interval_s=600.0
+                fitted_elements, states, cli_args.mu_m3_s2, fit_span_s, interval_s=600.0
             )
         )
 
@@ -192,36 +197,37 @@ def main() -> None:
         )
 
         # Report results to stderr in verbose mode when output is stdout
-        if args.verbose and args.output_omm == "-":
+        if cli_args.verbose and cli_args.output_omm == "-":
             print(output_text, file=sys.stderr)
-        elif args.verbose:
-            report_results(output_text, "-", args.verbose)
+        elif cli_args.verbose:
+            report_results(output_text, "-", cli_args.verbose)
 
         # Save OMM format if requested
-        if args.output_omm:
+        if cli_args.output_omm:
             try:
                 omm_obj: omm.CcsdsOmm = omm.keplerian_to_omm(
                     first_epoch,
                     fitted_elements,
                     object_name=object_name,
                     object_id=object_id,
-                    mu_m3_s2=args.mu_m3_s2,
+                    mu_m3_s2=cli_args.mu_m3_s2,
                 )
                 omm_obj.originator = "oem_to_omm"
                 # Output to stdout if dest is "-", otherwise to file
-                if args.output_omm == "-":
+                if cli_args.output_omm == "-":
                     omm_obj.to_file(sys.stdout)
                 else:
-                    omm_obj.to_file(args.output_omm)
-                    if args.verbose:
+                    omm_obj.to_file(cli_args.output_omm)
+                    if cli_args.verbose:
                         print(
-                            f"OMM file written to: {args.output_omm}", file=sys.stderr
+                            f"OMM file written to: {cli_args.output_omm}",
+                            file=sys.stderr,
                         )
             except Exception as error:
                 report_error(f"Error writing OMM file: {error}")
         return
 
-    if args.mode == "mean-kepler":
+    if cli_args.mode == "mean-kepler":
         # Run the Gauss-Newton velocity-only fit for mean elements
         fitted_mean_elements: np.ndarray
         diagnostics: fit_common.FitDiagnostics
@@ -229,7 +235,7 @@ def main() -> None:
             fitted_mean_elements, diagnostics = fit_mean_kepler.fit_mean_kepler(
                 states,
                 fit_span_s,
-                args.mu_m3_s2,
+                cli_args.mu_m3_s2,
             )
         except Exception as error:
             report_error(f"Error fitting mean Keplerian elements: {error}")
@@ -239,7 +245,7 @@ def main() -> None:
             fit_mean_kepler.compute_mean_kepler_propagation_comparison(
                 fitted_mean_elements,
                 states,
-                args.mu_m3_s2,
+                cli_args.mu_m3_s2,
                 fit_span_s,
                 interval_s=600.0,
             )
@@ -252,13 +258,13 @@ def main() -> None:
         )
 
         # Report results to stderr in verbose mode when output is stdout
-        if args.verbose and args.output_omm == "-":
+        if cli_args.verbose and cli_args.output_omm == "-":
             print(output_text, file=sys.stderr)
-        elif args.verbose:
-            report_results(output_text, "-", args.verbose)
+        elif cli_args.verbose:
+            report_results(output_text, "-", cli_args.verbose)
 
         # Save OMM format if requested (convert mean to osculating first)
-        if args.output_omm:
+        if cli_args.output_omm:
             try:
                 osculating_elements: np.ndarray = (
                     mean_kepler.mean_to_osculating_keplerian(fitted_mean_elements)
@@ -268,29 +274,30 @@ def main() -> None:
                     osculating_elements,
                     object_name=object_name,
                     object_id=object_id,
-                    mu_m3_s2=args.mu_m3_s2,
+                    mu_m3_s2=cli_args.mu_m3_s2,
                 )
                 omm_obj.originator = "oem_to_omm"
-                if args.output_omm == "-":
+                if cli_args.output_omm == "-":
                     omm_obj.to_file(sys.stdout)
                 else:
-                    omm_obj.to_file(args.output_omm)
-                    if args.verbose:
+                    omm_obj.to_file(cli_args.output_omm)
+                    if cli_args.verbose:
                         print(
-                            f"OMM file written to: {args.output_omm}", file=sys.stderr
+                            f"OMM file written to: {cli_args.output_omm}",
+                            file=sys.stderr,
                         )
             except Exception as error:
                 report_error(f"Error writing OMM file: {error}")
         return
 
-    if args.mode == "tle":
-        if not (0 <= args.tle_norad_cat_id <= 99999):
+    if cli_args.mode == "tle":
+        if not (0 <= cli_args.tle_norad_cat_id <= 99999):
             report_error("Error: --norad-cat-id must be in [0, 99999]")
-        if not (0 <= args.tle_ephemeris_type <= 9):
+        if not (0 <= cli_args.tle_ephemeris_type <= 9):
             report_error("Error: --ephemeris-type must be in [0, 9]")
-        if not (0 <= args.tle_element_set_no <= 9999):
+        if not (0 <= cli_args.tle_element_set_no <= 9999):
             report_error("Error: --element-set-no must be in [0, 9999]")
-        if not (0 <= args.tle_rev_at_epoch <= 99999):
+        if not (0 <= cli_args.tle_rev_at_epoch <= 99999):
             report_error("Error: --rev-at-epoch must be in [0, 99999]")
 
         tle_obj: tle.Tle
@@ -299,15 +306,15 @@ def main() -> None:
             tle_obj, diagnostics = fit_tle.fit_tle(
                 states,
                 fit_span_s,
-                args.tle_refinement,
-                args.mu_m3_s2,
+                cli_args.tle_refinement,
+                cli_args.mu_m3_s2,
                 object_name=object_name,
                 object_id=object_id,
-                norad_cat_id=args.tle_norad_cat_id,
-                classification_type=args.tle_classification_type,
-                ephemeris_type=args.tle_ephemeris_type,
-                element_set_number=args.tle_element_set_no,
-                revolution_number_at_epoch=args.tle_rev_at_epoch,
+                norad_cat_id=cli_args.tle_norad_cat_id,
+                classification_type=cli_args.tle_classification_type,
+                ephemeris_type=cli_args.tle_ephemeris_type,
+                element_set_number=cli_args.tle_element_set_no,
+                revolution_number_at_epoch=cli_args.tle_rev_at_epoch,
             )
         except Exception as error:
             import traceback
@@ -317,7 +324,7 @@ def main() -> None:
 
         comparison: list[fit_common.PropagationComparison] = (
             fit_tle.compute_tle_propagation_comparison(
-                tle_obj, states, args.mu_m3_s2, fit_span_s, interval_s=600.0
+                tle_obj, states, cli_args.mu_m3_s2, fit_span_s, interval_s=600.0
             )
         )
 
@@ -326,12 +333,12 @@ def main() -> None:
             first_epoch, tle_obj, diagnostics, comparison
         )
 
-        if args.verbose and args.output_omm == "-":
+        if cli_args.verbose and cli_args.output_omm == "-":
             print(output_text, file=sys.stderr)
-        elif args.verbose:
-            report_results(output_text, "-", args.verbose)
+        elif cli_args.verbose:
+            report_results(output_text, "-", cli_args.verbose)
 
-        if args.output_omm:
+        if cli_args.output_omm:
             try:
                 omm_obj: omm.CcsdsOmm = convert_tle.tle_to_omm(
                     tle_obj,
@@ -345,13 +352,14 @@ def main() -> None:
                     "TLE mean elements (SGP4-compatible)",
                     "Compliant with CCSDS 502.0-B-3 (2023-04)",
                 ]
-                if args.output_omm == "-":
+                if cli_args.output_omm == "-":
                     omm_obj.to_file(sys.stdout)
                 else:
-                    omm_obj.to_file(args.output_omm)
-                    if args.verbose:
+                    omm_obj.to_file(cli_args.output_omm)
+                    if cli_args.verbose:
                         print(
-                            f"OMM file written to: {args.output_omm}", file=sys.stderr
+                            f"OMM file written to: {cli_args.output_omm}",
+                            file=sys.stderr,
                         )
             except Exception as error:
                 report_error(f"Error writing OMM file: {error}")

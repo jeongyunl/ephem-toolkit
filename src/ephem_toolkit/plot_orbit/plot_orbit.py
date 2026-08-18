@@ -852,22 +852,22 @@ def main() -> None:
     ValueError
         If parsed data is invalid for plotting.
     """
-    args: PlotOrbitArgs = parse_arguments()
-    time_unit: TimeUnit = TimeUnit.from_string(args.time_unit)
+    cli_args: PlotOrbitArgs = parse_arguments()
+    time_unit: TimeUnit = TimeUnit.from_string(cli_args.time_unit)
 
     duration_s: float | None = None
-    if args.duration is not None:
+    if cli_args.duration is not None:
         try:
-            duration_s = time_utils.parse_duration_to_seconds(args.duration)
+            duration_s = time_utils.parse_duration_to_seconds(cli_args.duration)
         except Exception as exception:
             print(
-                f"Error: failed to parse duration '{args.duration}': {exception}",
+                f"Error: failed to parse duration '{cli_args.duration}': {exception}",
                 file=sys.stderr,
             )
             sys.exit(1)
 
-    print(f"Reading OEM orbit from {args.input_oem}...")
-    oem_data, timestamps_s, states_m = read_oem_states(args.input_oem)
+    print(f"Reading OEM orbit from {cli_args.input_oem}...")
+    oem_data, timestamps_s, states_m = read_oem_states(cli_args.input_oem)
     print(f"Loaded {len(states_m)} states")
 
     timestamps_s, states_m = filter_states_by_duration(
@@ -879,14 +879,14 @@ def main() -> None:
 
     warn_if_altitude_frame_assumption_is_weak(oem_data)
 
-    orbit_label: str = Path(args.input_oem).name
+    orbit_label: str = Path(cli_args.input_oem).name
     series: OrbitSeries = compute_orbit_series(timestamps_s, states_m, time_unit)
 
     print("Plotting state-vector trajectory views...")
     plot_state_vectors(
         series.position_km,
         orbit_label,
-        build_output_filename(args.output, "state_vectors"),
+        build_output_filename(cli_args.output, "state_vectors"),
     )
 
     print("Plotting RTN deltas versus previous state...")
@@ -895,7 +895,7 @@ def main() -> None:
         series.rtn_delta_km,
         orbit_label,
         time_unit,
-        build_output_filename(args.output, "rtn_deltas"),
+        build_output_filename(cli_args.output, "rtn_deltas"),
     )
 
     print("Plotting velocity magnitude...")
@@ -906,7 +906,7 @@ def main() -> None:
         "Velocity Magnitude vs Time",
         "Velocity Magnitude (km/s)",
         time_unit,
-        build_output_filename(args.output, "velocity_magnitude"),
+        build_output_filename(cli_args.output, "velocity_magnitude"),
     )
 
     print("Plotting angular velocity / attitude rate...")
@@ -916,7 +916,7 @@ def main() -> None:
         series.angular_velocity_rad_s,
         orbit_label,
         time_unit,
-        build_output_filename(args.output, "angular_velocity"),
+        build_output_filename(cli_args.output, "angular_velocity"),
     )
 
     print("Plotting direction change metrics...")
@@ -926,7 +926,7 @@ def main() -> None:
         series.euler_angle_rates_deg_s,
         orbit_label,
         time_unit,
-        build_output_filename(args.output, "direction_change"),
+        build_output_filename(cli_args.output, "direction_change"),
     )
 
     print("Plotting geocentric distance...")
@@ -935,7 +935,7 @@ def main() -> None:
         series.geocentric_distance_km,
         orbit_label,
         time_unit,
-        build_output_filename(args.output, "geocentric_distance"),
+        build_output_filename(cli_args.output, "geocentric_distance"),
     )
 
     print("Plotting WGS84 altitude...")
@@ -946,10 +946,10 @@ def main() -> None:
         "Altitude above WGS84 Ellipsoid vs Time",
         "Altitude (km)",
         time_unit,
-        build_output_filename(args.output, "altitude_wgs84"),
+        build_output_filename(cli_args.output, "altitude_wgs84"),
     )
 
-    if args.output is None:
+    if cli_args.output is None:
         plt.show()
 
     print("Done!")

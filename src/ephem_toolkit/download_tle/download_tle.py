@@ -46,10 +46,10 @@ def main() -> None:
     -------
     None
     """
-    args: DownloadTleArgs = parse_arguments()
+    cli_args: DownloadTleArgs = parse_arguments()
 
-    satellite_ids: list[str] = args.satellite_ids
-    output_format: str = FORMAT_ALIASES.get(args.format, args.format)
+    satellite_ids: list[str] = cli_args.satellite_ids
+    output_format: str = FORMAT_ALIASES.get(cli_args.format, cli_args.format)
     print(f"Satellite IDs: {satellite_ids}")
     print(f"Format: {output_format}\n")
 
