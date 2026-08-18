@@ -18,7 +18,7 @@ class PropagateTleArgs(argparse.Namespace):
     """TLE input file path or '-' for stdin."""
     duration_s: float
     """Propagation duration in seconds."""
-    output: str
+    output_oem: str
     """Output OEM path or '-' for stdout."""
     start: str | None
     """Optional propagation start specification."""
@@ -66,7 +66,7 @@ def parse_arguments() -> PropagateTleArgs:
     parser.add_argument(
         "-o",
         "--output",
-        dest="output",
+        dest="output_oem",
         metavar="<output_oem|->",
         default="-",
         help=(

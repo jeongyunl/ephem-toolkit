@@ -33,14 +33,14 @@ def test_tle_cli_uses_canonical_propagation_family_flags(
     args = propagate_tle_cli.parse_arguments()
     assert args.tle_file == tle_path
     assert args.duration_s == 7200.0
-    assert args.output == "-"
+    assert args.output_oem == "-"
 
     monkeypatch.setattr(
         "sys.argv",
         ["propagate-tle", tle_path, "--output", "out.oem"],
     )
     args = propagate_tle_cli.parse_arguments()
-    assert args.output == "out.oem"
+    assert args.output_oem == "out.oem"
 
     monkeypatch.setattr(
         "sys.argv",
