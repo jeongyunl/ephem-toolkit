@@ -11,7 +11,26 @@ DEFAULT_PROPAGATION_DURATION_S: float = time_utils.SECONDS_PER_DAY
 DEFAULT_OUTPUT_STEP_S: float = 5.0 * time_utils.SECONDS_PER_MINUTE
 
 
-def parse_arguments() -> argparse.Namespace:
+class PropagateTleArgs(argparse.Namespace):
+    """Typed argument namespace for the TLE propagation CLI."""
+
+    tle_file: str
+    """TLE input file path or '-' for stdin."""
+    duration_s: float
+    """Propagation duration in seconds."""
+    output: str
+    """Output OEM path or '-' for stdout."""
+    start: str | None
+    """Optional propagation start specification."""
+    stop: str | None
+    """Optional propagation stop specification."""
+    step: float
+    """Output sampling interval in seconds."""
+    data_only: bool
+    """Whether to emit data-only OEM state lines."""
+
+
+def parse_arguments() -> PropagateTleArgs:
     """Parse CLI arguments for TLE propagation."""
     parser = cli.create_parser(
         description=(
@@ -20,9 +39,9 @@ def parse_arguments() -> argparse.Namespace:
         ),
         epilog=(
             "Examples:\n"
-            '  propagate-tle ISS.tle --duration 6h\n'
-            '  propagate-tle --start 2026-01-01T00:00:00 --duration 90m --output propagated.oem\n'
-            '  cat tle.txt | propagate-tle --output - --data-only'
+            "  propagate-tle ISS.tle --duration 6h\n"
+            "  propagate-tle --start 2026-01-01T00:00:00 --duration 90m --output propagated.oem\n"
+            "  cat tle.txt | propagate-tle --output - --data-only"
         ),
     )
     parser.add_argument(
@@ -98,4 +117,4 @@ def parse_arguments() -> argparse.Namespace:
             "By default, output is CCSDS OEM format."
         ),
     )
-    return parser.parse_args()
+    return parser.parse_args(namespace=PropagateTleArgs())
