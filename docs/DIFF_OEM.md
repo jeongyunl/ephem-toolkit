@@ -38,11 +38,11 @@ diff-oem <reference_oem.oem> - [OPTIONS]
 | `--interpolate` | Interpolate both reference and comparison OEM data |
 | `--interpolate-type <type[,degree]>` | Interpolation method: `hermite`, `chebyshev`, or `lagrange` (default: hermite,5) |
 | `--rtn` | Include comparison state coordinates in the reference RTN frame |
-| `--rotate`, `--rot` | Fit and apply a fixed 3D rotation before comparison |
-| `--rotate-xy`, `--rot-xy` | Fit and apply a fixed rotation around X and Y axes only |
-| `--rotate-z`, `--rot-z` | Fit and apply a fixed rotation around Z axis only |
+| `--rotate` | Fit and apply a fixed 3D rotation before comparison |
+| `--rotate-xy` | Fit and apply a fixed rotation around X and Y axes only |
+| `--rotate-z` | Fit and apply a fixed rotation around Z axis only |
 | `--time-shift` | Fit and apply a constant time shift to comparison epochs |
-| `--rot-fit-span <duration>` | Duration for rotation fitting (default: 3600s) |
+| `--rotate-fit-span <duration>` | Duration for rotation fitting (default: 3600s) |
 | `--start <iso8601\|duration>` | Start epoch for comparison window |
 | `--duration <duration>` | Relative stop duration from `--start` |
 | `--stop <iso8601\|duration>` | Stop epoch for comparison window |
@@ -219,17 +219,17 @@ Transformation stages fit and apply corrections to the comparison OEM before com
 
 ### Available Transformations
 
-**Full 3D rotation** (`--rotate`, `--rot`):
+**Full 3D rotation** (`--rotate`):
 - Fits a fixed rotation matrix using SVD
 - Applies to both position and velocity
 - Useful for frame alignment
 
-**X/Y rotation** (`--rotate-xy`, `--rot-xy`):
+**X/Y rotation** (`--rotate-xy`):
 - Fits rotation around X and Y axes only
 - Preserves Z-axis alignment
 - Useful for correcting pitch and roll
 
-**Z rotation** (`--rotate-z`, `--rot-z`):
+**Z rotation** (`--rotate-z`):
 - Fits rotation around Z axis only
 - Preserves X/Y plane alignment
 - Useful for correcting yaw or longitude offset
@@ -241,7 +241,7 @@ Transformation stages fit and apply corrections to the comparison OEM before com
 
 ### Transformation Fitting
 
-Transformations are fitted using the overlapping time range between the two OEM files. By default, rotation fitting uses the first hour of overlap (controlled by `--rot-fit-span`).
+Transformations are fitted using the overlapping time range between the two OEM files. By default, rotation fitting uses the first hour of overlap (controlled by `--rotate-fit-span`).
 
 ### Transformation Order
 
@@ -249,22 +249,22 @@ Multiple transformations can be applied in sequence. The order is determined by 
 
 ```bash
 # First apply rotation, then time shift
-diff-oem reference.oem comparison.oem --rot --time-shift
+diff-oem reference.oem comparison.oem --rotate --time-shift
 
 # First apply time shift, then rotation
-diff-oem reference.oem comparison.oem --time-shift --rot
+diff-oem reference.oem comparison.oem --time-shift --rotate
 ```
 
 ### Examples
 
 **Apply 3D rotation correction:**
 ```bash
-diff-oem reference.oem comparison.oem --rot
+diff-oem reference.oem comparison.oem --rotate
 ```
 
 **Apply Z-axis rotation only:**
 ```bash
-diff-oem reference.oem comparison.oem --rot-z
+diff-oem reference.oem comparison.oem --rotate-z
 ```
 
 **Apply time shift correction:**
@@ -274,12 +274,12 @@ diff-oem reference.oem comparison.oem --time-shift
 
 **Apply rotation with custom fitting span:**
 ```bash
-diff-oem reference.oem comparison.oem --rot --rot-fit-span 1800
+diff-oem reference.oem comparison.oem --rotate --rotate-fit-span 1800
 ```
 
 **Apply multiple transformations in sequence:**
 ```bash
-diff-oem reference.oem comparison.oem --rot --time-shift
+diff-oem reference.oem comparison.oem --rotate --time-shift
 ```
 
 ### Transformation Output
@@ -290,7 +290,7 @@ When transformations are applied, the script outputs:
 2. **Transformed comparison**: Differences after each transformation stage
 3. **Fit description**: Details of the fitted transformation parameters
 
-Example output with `--rot`:
+Example output with `--rotate`:
 
 ```
 Normal comparison
@@ -440,7 +440,7 @@ diff-oem truth.oem propagated.oem --verbose
 ### Compare with Frame Alignment
 
 ```bash
-diff-oem reference.oem comparison.oem --rot --verbose
+diff-oem reference.oem comparison.oem --rotate --verbose
 ```
 
 ### Compare Specific Time Window
@@ -462,7 +462,7 @@ diff-oem reference.oem comparison.oem --rtn --verbose
 
 ```bash
 diff-oem reference.oem comparison.oem \
-  --rot --time-shift --rtn --verbose
+  --rotate --time-shift --rtn --verbose
 ```
 
 ### Compare Downsampled Data
@@ -546,17 +546,17 @@ Select the method and degree with `--interpolate-type <type[,degree]>`.
 
 ### Rotation Fitting
 
-**Full 3D rotation** (`--rotate`, `--rot`):
+**Full 3D rotation** (`--rotate`):
 - Uses Singular Value Decomposition (SVD) to fit optimal rotation
 - Minimizes position residuals over the fitting span
 - Applies rotation to both position and velocity vectors
 
-**X/Y rotation** (`--rotate-xy`, `--rot-xy`):
+**X/Y rotation** (`--rotate-xy`):
 - Uses iterative least-squares fitting
 - Constrains rotation to X and Y axes only
 - Converges in typically 5-10 iterations
 
-**Z rotation** (`--rotate-z`, `--rot-z`):
+**Z rotation** (`--rotate-z`):
 - Uses iterative least-squares fitting
 - Constrains rotation to Z axis only
 - Converges in typically 5-10 iterations
@@ -611,9 +611,9 @@ Solution: The two OEM files have no overlapping time range. Check the time spans
 
 **Insufficient states for transformation:**
 ```
-ValueError: --rot requires at least two state pairs in the rotation fitting span
+ValueError: --rotate requires at least two state pairs in the rotation fitting span
 ```
-Solution: Increase `--rot-fit-span` or ensure sufficient overlap between the files.
+Solution: Increase `--rotate-fit-span` or ensure sufficient overlap between the files.
 
 **Invalid time format:**
 ```

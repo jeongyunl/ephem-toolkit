@@ -110,9 +110,9 @@ SATELLITE NAME (optional)
 
 ### Refinement Methods
 
-The script supports three refinement strategies for matching TLE elements to the epoch state:
+The script supports three TLE refinement strategies selected with `--tle-refinement` for matching TLE elements to the epoch state:
 
-#### Cartesian Refinement (`--refinement cartesian`, default)
+#### Cartesian refinement (`--tle-refinement cartesian`, default)
 
 - Minimizes SGP4 Cartesian state residual at epoch
 - Requires TudatPy for SGP4 propagation
@@ -120,7 +120,7 @@ The script supports three refinement strategies for matching TLE elements to the
 - Uses Gauss-Newton iteration with backtracking line search
 - Typical accuracy: sub-meter position, sub-mm/s velocity
 
-#### Keplerian Refinement (`--refinement keplerian`)
+#### Keplerian refinement (`--tle-refinement keplerian`)
 
 - Minimizes osculating Keplerian element residual
 - Uses `core.convert_tle.tle_to_osculating_keplerian` with J2 short-period corrections
@@ -128,7 +128,7 @@ The script supports three refinement strategies for matching TLE elements to the
 - Excellent angular accuracy (sub-millidegree)
 - Semi-major axis accuracy limited to ~2 km by first-order Brouwer approximation
 
-#### No Refinement (`--refinement none`)
+#### No refinement (`--tle-refinement none`)
 
 - Skips epoch state matching entirely
 - Uses only regression-based mean element estimation
@@ -367,9 +367,9 @@ The slope of mean motion versus time is converted into the TLE `ndot/2` field an
 
 ## Stage 3 — epoch-state refinement
 
-Two refinement methods are available, selected via `--refinement`:
+Two refinement methods are available, selected via `--tle-refinement`:
 
-### 3a. Cartesian refinement (`--refinement cartesian`, default)
+### 3a. Cartesian refinement (`--tle-refinement cartesian`, default)
 
 ### `refine_estimated_fields_to_match_epoch_state`
 
@@ -391,7 +391,7 @@ Implementation notes captured in the original investigation:
 - Tikhonov-style regularization is used in the normal equations
 - multiple TLE evaluations are batched where possible to reduce overhead
 
-### 3b. Keplerian refinement (`--refinement keplerian`)
+### 3b. Keplerian refinement (`--tle-refinement keplerian`)
 
 ### `refine_estimated_fields_keplerian_match`
 
@@ -537,4 +537,4 @@ oem-to-omm --mode tle -v input.oem -o output.omm
 - `ephem_toolkit.core.tle` — TLE dataclass and formatting
 - `ephem_toolkit.core.kepler` — Keplerian element conversions
 - `ephem_toolkit.core.ccsds.oem` — OEM parsing
-- TudatPy (optional, required for `--refinement cartesian`)
+- TudatPy (optional, required for `--tle-refinement cartesian`)
