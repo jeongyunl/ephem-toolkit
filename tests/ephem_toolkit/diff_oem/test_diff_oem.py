@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import numpy as np
 import pytest
 
+from ephem_toolkit.core.interpolator import factory
 from ephem_toolkit.core.interpolator import lagrange
+from ephem_toolkit.core.interpolator.interpolation_spec import (
+    InterpolationSpec,
+    InterpolationType,
+)
 from ephem_toolkit.diff_oem import diff_oem_cli
 from ephem_toolkit.diff_oem import comparison
 from ephem_toolkit.diff_oem import data_structures
@@ -91,7 +98,9 @@ def test_extract_stage_sequence_preserves_repeated_transformations() -> None:
     ) == ["rot", "time_shift", "rot", "time_shift"]
 
 
-def test_parse_arguments_accepts_duration_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_parse_arguments_accepts_duration_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(
         "sys.argv",
         [
@@ -110,6 +119,93 @@ def test_parse_arguments_accepts_duration_alias(monkeypatch: pytest.MonkeyPatch)
     assert args.start == "2024-01-01T00:00:00Z"
     assert args.duration == 120.0
     assert args.stop is None
+
+
+def test_parse_arguments_rejects_conflicting_duration_and_stop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "diff-oem",
+            "reference.oem",
+            "comparison.oem",
+            "--duration",
+            "2m",
+            "--stop",
+            "2024-01-01T00:00:00Z",
+        ],
+    )
+
+    with pytest.raises(SystemExit):
+        diff_oem_cli.parse_arguments()
+
+
+def test_rotation_stage_build_fit_pairs_respects_interpolation_modes() -> None:
+    reference_states = [_create_state(float(index), float(index)) for index in range(6)]
+    comparison_states = [
+        _create_state(float(index), float(index + 100.0)) for index in range(6)
+    ]
+
+    data_stage = transformation_stages.RotationStage(
+        reference_oem=reference_states[0],
+        interpolate_ref=False,
+        interpolate_data=True,
+        fit_overlap_start=1.0,
+        fit_overlap_stop=5.0,
+        fit_span_s=2.0,
+    )
+    data_pairs = data_stage.build_fit_pairs(reference_states, comparison_states)
+    assert [epoch for epoch, _ in [pair[0] for pair in data_pairs]] == [1.0, 2.0, 3.0]
+    assert all(pair[1] == comparison_states[0] for pair in data_pairs)
+
+    ref_stage = transformation_stages.RotationStage(
+        reference_oem=reference_states[0],
+        interpolate_ref=True,
+        interpolate_data=False,
+        fit_overlap_start=1.0,
+        fit_overlap_stop=5.0,
+        fit_span_s=2.0,
+    )
+    ref_pairs = ref_stage.build_fit_pairs(reference_states, comparison_states)
+    assert [epoch for epoch, _ in [pair[1] for pair in ref_pairs]] == [1.0, 2.0, 3.0]
+    assert all(pair[0] == reference_states[0] for pair in ref_pairs)
+
+
+def test_compare_pairs_returns_none_for_out_of_range_interpolation() -> None:
+    reference_states = [_create_state(float(index), float(index)) for index in range(8)]
+    reference_interpolator = lagrange.LagrangeInterpolator(dimension=6, degree=7)
+    reference_interpolator.set_data(reference_states)
+
+    results = utils.compare_pairs(
+        [(reference_states[0], (8.0, np.full(6, 8.0, dtype=float)))],
+        reference_interpolator,
+        None,
+        None,
+    )
+
+    assert results == [(8.0, None)]
+
+
+def test_print_result_handles_missing_boundary_row(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output.ComparisonOutput(
+        comparison_results=[],
+        reference_interpolator=None,
+        comparison_interpolator=None,
+        verbose=False,
+        rtn=False,
+    ).print_result(
+        index=1,
+        comparison_result=None,
+        include_comparison_epoch=False,
+        query_epoch=datetime(2024, 1, 1, tzinfo=timezone.utc),
+    )
+
+    captured_output = capsys.readouterr().out
+    assert "2024-01-01T00:00:00.000" in captured_output
+    assert "1" in captured_output
 
 
 def test_compare_states_interpolates_reference_at_comparison_epoch() -> None:
@@ -291,6 +387,75 @@ def test_fit_z_rotation_matrix_matches_comparison_to_reference() -> None:
     )
 
     np.testing.assert_allclose(fitted_rotation, reference_rotation, atol=1e-9)
+
+
+def test_time_shift_stage_fits_and_applies_epoch_bias() -> None:
+    reference_states = [
+        (float(index), np.array([float(index), 0.0, 0.0, 0.0, 0.0, 0.0]))
+        for index in range(10)
+    ]
+    comparison_states = [
+        (float(index + 1.0), np.array([float(index), 0.0, 0.0, 0.0, 0.0, 0.0]))
+        for index in range(10)
+    ]
+    interpolator = factory.InterpolatorFactory.create(
+        spec=InterpolationSpec(interp_type=InterpolationType.HERMITE, degree=5),
+        dimension=6,
+        is_cartesian_state=True,
+        context="test_time_shift_stage",
+        data=reference_states,
+    )
+
+    stage = transformation_stages.TimeShiftStage(
+        reference_oem=reference_states[0],
+        fit_overlap_start=0.0,
+        fit_overlap_stop=9.0,
+    )
+    fitted_bias = stage.fit(
+        data_structures.TransformationStageInput(
+            state_pairs=list(zip(reference_states, comparison_states)),
+            reference_interpolator=interpolator,
+            comparison_interpolator=None,
+        )
+    )
+
+    assert fitted_bias == pytest.approx(1.0, abs=1e-3)
+    assert stage.describe_fit(fitted_bias).startswith("Applied comparison time shift")
+    transformed = stage.transform(comparison_states, fitted_bias)
+    np.testing.assert_allclose(
+        [epoch for epoch, _ in transformed],
+        [float(index) for index in range(10)],
+        atol=1e-4,
+    )
+
+
+def test_rotation_stage_describe_fit_and_output_print_verbose_rtn() -> None:
+    result = comparison.compare_states(
+        (0.0, np.array([1000.0, 0.0, 0.0, 0.0, 1.0, 0.0])),
+        (1.0, np.array([1000.0, 0.0, 0.0, 0.0, 2.0, 0.0])),
+    )
+
+    rotation_stage = transformation_stages.RotationStage(
+        reference_oem=(0.0, np.array([1000.0, 0.0, 0.0, 0.0, 1.0, 0.0])),
+        interpolate_ref=False,
+        interpolate_data=False,
+        fit_overlap_start=0.0,
+        fit_overlap_stop=2.0,
+        fit_span_s=1.0,
+    )
+    description = rotation_stage.describe_fit(np.eye(3))
+    assert "Angular separation" in description
+    assert "Euler angles" in description
+
+    report = output.ComparisonOutput(
+        comparison_results=[(0.0, result)],
+        reference_interpolator=None,
+        comparison_interpolator=None,
+        verbose=True,
+        rtn=True,
+    )
+    assert report._get_output_columns(True, True, True, True)
+    assert "RTN r\n(km)" in report._get_output_columns(True, True, True, True)
 
 
 def test_print_statistics_reports_default_criteria(
