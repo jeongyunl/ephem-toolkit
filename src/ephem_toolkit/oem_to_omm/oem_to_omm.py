@@ -70,10 +70,6 @@ from . import fit_mean_kepler
 from . import fit_osculating_kepler
 from . import fit_tle_main as fit_tle
 
-FIT_SPAN_S: float = 7200.0
-"""Default fit span: 2 hours in seconds."""
-
-
 # ===================================================================
 # Reporting
 # ===================================================================
@@ -148,7 +144,7 @@ def main() -> None:
     if len(states) < 2:
         report_error("Error: At least 2 state vectors required for fitting.")
 
-    fit_span_s: float = args.fit_span_hours * 3600.0
+    fit_span_s: float = args.fit_span.total_seconds()
 
     # Determine object name: use --object-name if provided, otherwise use OEM metadata
     object_name: str = (
@@ -168,7 +164,7 @@ def main() -> None:
         if len(states) < 2:
             report_error("Error: At least 2 state vectors required for fitting.")
 
-        fit_span_s: float = args.fit_span_hours * 3600.0
+        fit_span_s: float = args.fit_span.total_seconds()
 
         # Run the Gauss-Newton velocity-only fit (position at epoch is fixed)
         fitted_elements: np.ndarray
@@ -218,7 +214,9 @@ def main() -> None:
                 else:
                     omm_obj.to_file(args.output_omm)
                     if args.verbose:
-                        print(f"OMM file written to: {args.output_omm}", file=sys.stderr)
+                        print(
+                            f"OMM file written to: {args.output_omm}", file=sys.stderr
+                        )
             except Exception as error:
                 report_error(f"Error writing OMM file: {error}")
         return
@@ -278,7 +276,9 @@ def main() -> None:
                 else:
                     omm_obj.to_file(args.output_omm)
                     if args.verbose:
-                        print(f"OMM file written to: {args.output_omm}", file=sys.stderr)
+                        print(
+                            f"OMM file written to: {args.output_omm}", file=sys.stderr
+                        )
             except Exception as error:
                 report_error(f"Error writing OMM file: {error}")
         return
@@ -340,6 +340,7 @@ def main() -> None:
                     ),
                     originator="oem_to_omm",
                 )
+                omm_obj.originator = "oem_to_omm"
                 omm_obj.comments = [
                     "TLE mean elements (SGP4-compatible)",
                     "Compliant with CCSDS 502.0-B-3 (2023-04)",
@@ -349,7 +350,9 @@ def main() -> None:
                 else:
                     omm_obj.to_file(args.output_omm)
                     if args.verbose:
-                        print(f"OMM file written to: {args.output_omm}", file=sys.stderr)
+                        print(
+                            f"OMM file written to: {args.output_omm}", file=sys.stderr
+                        )
             except Exception as error:
                 report_error(f"Error writing OMM file: {error}")
         return
