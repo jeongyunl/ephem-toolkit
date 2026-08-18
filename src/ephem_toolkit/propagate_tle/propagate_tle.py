@@ -333,7 +333,7 @@ def main() -> int:
         stop_time=stop_time,
         step_s=args.step,
         data_only=args.data_only,
-        output_path=args.output,
+        output_path=args.output_oem,
     )
 
     return 0
