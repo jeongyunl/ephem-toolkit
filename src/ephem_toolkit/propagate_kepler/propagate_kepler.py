@@ -26,6 +26,7 @@ from typing import TextIO
 import numpy as np
 
 from . import propagate_kepler_cli
+from .propagate_kepler_cli import PropagateKeplerArgs
 
 # Suppress warnings that tudatpy / urllib3 may emit on import.
 warnings.filterwarnings("ignore", category=SyntaxWarning)
@@ -54,13 +55,13 @@ DEFAULT_OUTPUT_STEP_S: float = 15.0 * time_utils.SECONDS_PER_MINUTE
 # ===================================================================
 
 
-def parse_arguments() -> argparse.Namespace:
+def parse_arguments() -> PropagateKeplerArgs:
     """Parse command-line arguments for Keplerian propagation.
 
     Delegates to the canonical propagation-family parser so the console entry
     point and the dedicated parser module stay in sync.
     """
-    args = propagate_kepler_cli.parse_arguments()
+    args: PropagateKeplerArgs = propagate_kepler_cli.parse_arguments()
     args.input_file = args.initial_state
     return args
 
@@ -219,7 +220,7 @@ def main() -> int:
     int
         Process return code. ``0`` on success.
     """
-    args: argparse.Namespace = parse_arguments()
+    args: PropagateKeplerArgs = parse_arguments()
     if args.duration_s <= 0.0:
         raise ValueError("--duration must be > 0")
     if args.step_s <= 0.0:
@@ -228,7 +229,9 @@ def main() -> int:
     initial_epoch: dt.datetime
     initial_kepler_km: np.ndarray
     object_name: str
-    input_source = args.initial_state if args.initial_state is not None else args.input_file
+    input_source = (
+        args.initial_state if args.initial_state is not None else args.input_file
+    )
     initial_epoch, initial_kepler_km, object_name = read_kepler_input(input_source)
 
     propagate_kepler_elements(

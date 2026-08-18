@@ -11,7 +11,22 @@ DEFAULT_PROPAGATION_DURATION_S: float = time_utils.SECONDS_PER_DAY
 DEFAULT_OUTPUT_STEP_S: float = 15.0 * time_utils.SECONDS_PER_MINUTE
 
 
-def parse_arguments() -> argparse.Namespace:
+class PropagateKeplerArgs(argparse.Namespace):
+    """Typed argument namespace for the Kepler propagation CLI."""
+
+    initial_state: str | None
+    """Initial Keplerian state line or None if stdin is used."""
+    duration_s: float
+    """Propagation duration in seconds."""
+    output: str
+    """Output OEM file path or '-' for stdout."""
+    step_s: float
+    """Output sampling interval in seconds."""
+    data_only: bool
+    """Whether to emit data-only OEM state lines."""
+
+
+def parse_arguments() -> PropagateKeplerArgs:
     """Parse command-line arguments for Keplerian propagation."""
     parser = cli.create_parser(
         description=(
@@ -21,8 +36,8 @@ def parse_arguments() -> argparse.Namespace:
         epilog=(
             "Examples:\n"
             '  propagate-kepler --initial-state "2026-05-29T00:00:00.000000 6793.456 0.001234 0.9013 4.094 2.155 0.797" -d 6h\n'
-            '  propagate-kepler --duration 90m --output propagated.oem < initial_state.txt\n'
-            '  cat input.txt | propagate-kepler --output - --data-only'
+            "  propagate-kepler --duration 90m --output propagated.oem < initial_state.txt\n"
+            "  cat input.txt | propagate-kepler --output - --data-only"
         ),
     )
     parser.add_argument(
@@ -79,4 +94,4 @@ def parse_arguments() -> argparse.Namespace:
             "By default, output is CCSDS OEM format."
         ),
     )
-    return parser.parse_args()
+    return parser.parse_args(namespace=PropagateKeplerArgs())
