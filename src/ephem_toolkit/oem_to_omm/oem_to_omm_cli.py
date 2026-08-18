@@ -1,32 +1,85 @@
-"""CLI argument parsing for the OEM-to-OMM conversion command."""
+"""CLI argument parsing for the OEM-to-OMM conversion command.
+
+Usage:
+    oem-to-omm --mode {kepler,mean-kepler,tle} <input_oem|->
+"""
 
 from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
+from datetime import timedelta
 
 import ephem_toolkit.core.cli as cli
 import ephem_toolkit.core.consts as consts
+import ephem_toolkit.core.time_utils as time_utils
 
-FIT_SPAN_S: float = 7200.0
+DEFAULT_FIT_SPAN: timedelta = timedelta(hours=2)
+"""Default arc span for OEM-to-OMM fitting operations."""
+
+
+class OemToOmmArgs(argparse.Namespace):
+    """Typed argument namespace for the OEM-to-OMM CLI."""
+
+    input_oem: str
+    """Input OEM path or '-' for stdin."""
+    output_omm: str
+    """Output OMM path or '-' for stdout."""
+    verbose: bool
+    """Print verbose diagnostic output to stderr."""
+    mu_m3_s2: float
+    """Gravitational parameter in m³/s²."""
+    fit_span: timedelta
+    """Maximum arc span for the fit."""
+    mode: str
+    """Selected conversion mode: kepler, mean-kepler, or tle."""
+    object_name: str
+    """Spacecraft name for OMM metadata."""
+    object_id: str
+    """International designator for OMM metadata."""
+    tle_refinement: str
+    """TLE refinement method."""
+    tle_norad_cat_id: int
+    """NORAD catalog ID for the TLE output."""
+    tle_classification_type: str
+    """TLE classification type."""
+    tle_ephemeris_type: int
+    """TLE ephemeris type."""
+    tle_element_set_no: int
+    """TLE element set number."""
+    tle_rev_at_epoch: int
+    """TLE revolution number at epoch."""
 
 
 def report_error(message: str, exit_code: int = 1) -> None:
-    """Report an error message to stderr and exit."""
+    """Report an error message to stderr and exit.
+
+    Parameters
+    ----------
+    message : str
+        Error message to display.
+    exit_code : int, optional
+        Exit code to raise with SystemExit. Default is 1.
+    """
     print(message, file=sys.stderr)
     raise SystemExit(exit_code)
 
 
-def parse_arguments() -> argparse.Namespace:
-    """Parse command-line arguments for OEM to OMM conversion."""
+def parse_arguments() -> OemToOmmArgs:
+    """Parse command-line arguments for the OEM-to-OMM conversion workflow.
+
+    Returns
+    -------
+    OemToOmmArgs
+        Parsed CLI arguments with the typed runtime namespace.
+    """
     parser = cli.create_parser(
         description="Convert OEM state vectors to Keplerian elements or OMM.",
         epilog=(
             "Examples:\n"
-            '  oem-to-omm --mode kepler input.oem\n'
-            '  oem-to-omm --mode mean-kepler input.oem -o output.omm\n'
-            '  cat input.oem | oem-to-omm --mode tle - -o output.omm'
+            "  oem-to-omm --mode kepler input.oem\n"
+            "  oem-to-omm --mode mean-kepler input.oem -o output.omm\n"
+            "  cat input.oem | oem-to-omm --mode tle - -o output.omm"
         ),
     )
     parser.prog = "oem-to-omm"
@@ -63,11 +116,14 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--fit-span",
-        type=float,
-        default=2.0,
-        metavar="<hours>",
-        dest="fit_span_hours",
-        help="Maximum arc span in hours for the Keplerian fit (default: 2.0).",
+        type=time_utils.parse_duration_to_timedelta,
+        default=DEFAULT_FIT_SPAN,
+        metavar="<duration>",
+        dest="fit_span",
+        help=(
+            "Maximum arc span for the fit (supports durations like 2h, 90m, 3600s; "
+            "default: 2h)."
+        ),
     )
     parser.add_argument(
         "--mode",
@@ -100,9 +156,7 @@ def parse_arguments() -> argparse.Namespace:
         default="cartesian",
         metavar="<none|cartesian|keplerian>",
         dest="tle_refinement",
-        help=(
-            "Refinement method for TLE fitting (used with --tle mode)."
-        ),
+        help=("Refinement method for TLE fitting (used with --tle mode)."),
     )
     parser.add_argument(
         "--tle-norad-cat-id",
@@ -145,4 +199,4 @@ def parse_arguments() -> argparse.Namespace:
         help="REV_AT_EPOCH: Revolution number at epoch (default: 0, used with --tle mode).",
     )
 
-    return parser.parse_args()
+    return parser.parse_args(namespace=OemToOmmArgs())
