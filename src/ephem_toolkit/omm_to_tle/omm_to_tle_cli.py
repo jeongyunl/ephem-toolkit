@@ -7,7 +7,16 @@ import argparse
 import ephem_toolkit.core.cli as cli
 
 
-def parse_arguments() -> argparse.Namespace:
+class OmmToTleArgs(argparse.Namespace):
+    """Typed argument namespace for the OMM-to-TLE CLI."""
+
+    input_omm: str
+    """Input OMM path or '-' for stdin."""
+    output_tle: str | None
+    """Output TLE path or '-' for stdout."""
+
+
+def parse_arguments() -> OmmToTleArgs:
     """Parse command-line arguments for OMM-to-TLE conversion."""
     parser = cli.create_parser(
         description=(
@@ -36,4 +45,4 @@ def parse_arguments() -> argparse.Namespace:
         default=None,
         help="Output TLE file path; '-' writes to stdout.",
     )
-    return parser.parse_args()
+    return parser.parse_args(namespace=OmmToTleArgs())
