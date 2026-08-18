@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import os
 import subprocess
 import sys
@@ -38,3 +39,17 @@ def test_omm_to_tle_help_uses_command_name_and_format_aware_output() -> None:
     assert result.returncode == 0
     assert "usage: omm-to-tle" in result.stdout
     assert "--output <output_tle|->" in result.stdout
+
+
+def test_omm_to_tle_cli_uses_typed_namespace(monkeypatch) -> None:
+    """The parser should return a typed Namespace subclass with the parsed fields."""
+    from ephem_toolkit.omm_to_tle.omm_to_tle_cli import OmmToTleArgs, parse_arguments
+
+    monkeypatch.setattr(sys, "argv", ["omm-to-tle", "input.omm", "-o", "output.tle"])
+
+    args = parse_arguments()
+
+    assert issubclass(OmmToTleArgs, argparse.Namespace)
+    assert isinstance(args, OmmToTleArgs)
+    assert args.input_omm == "input.omm"
+    assert args.output_tle == "output.tle"
