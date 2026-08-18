@@ -40,6 +40,7 @@ from . import output_handling
 from . import propagation
 from . import propagate_orbit_cli
 from . import tudat_setup
+from .propagate_orbit_cli import PropagateOrbitArgs
 
 
 def main() -> None:
@@ -47,14 +48,14 @@ def main() -> None:
     # Parse CLI arguments once for script-wide configuration.
     # Only argparse and re have been imported so far, so --help and validation
     # errors are returned instantly without waiting for heavy library loads.
-    cli_args = propagate_orbit_cli.parse_arguments()
+    cli_args: PropagateOrbitArgs = propagate_orbit_cli.parse_arguments()
 
     # Build propagation inputs from CLI arguments
     propagation_inputs = input_handling.build_propagation_inputs(cli_args)
 
     # Determine input source for summary
     input_source = "--initial-state" if cli_args.initial_state is not None else "stdin"
-    output_oem_path = cli_args.oem
+    output_oem_path = cli_args.output_oem
     output_dep_vars_path = cli_args.dep_vars
 
     # Print pre-propagation summary

@@ -19,7 +19,7 @@ def test_parse_arguments_accepts_canonical_input_and_output_flags(
     )
     args = propagate_orbit_cli.parse_arguments()
     assert args.initial_state == state_line
-    assert args.oem == "-"
+    assert args.output_oem == "-"
     assert args.duration == 7200.0
 
     monkeypatch.setattr(
@@ -28,7 +28,7 @@ def test_parse_arguments_accepts_canonical_input_and_output_flags(
     )
     args = propagate_orbit_cli.parse_arguments()
     assert args.initial_state == state_line
-    assert args.oem == "out.oem"
+    assert args.output_oem == "out.oem"
 
     monkeypatch.setattr(
         "sys.argv",
@@ -59,7 +59,9 @@ def test_parse_arguments_help_uses_project_standard_names(
     parser.add_argument("-d", "--duration")
     parser.add_argument("-o", "--output")
     parser.add_argument("-i", "--initial-state")
-    option_strings = {opt for action in parser._actions for opt in action.option_strings}
+    option_strings = {
+        opt for action in parser._actions for opt in action.option_strings
+    }
     assert "--oem" not in option_strings
     assert "-d" in option_strings
 

@@ -24,6 +24,49 @@ from .constants import (
 )
 
 
+class PropagateOrbitArgs(argparse.Namespace):
+    """Typed argument namespace for the orbit propagation CLI."""
+
+    initial_state: str | None
+    """Initial state line or None if stdin is used."""
+    duration: float
+    """Simulation duration in seconds."""
+    output_oem: str
+    """Output OEM path or '-' for stdout."""
+    data_only: bool
+    """Whether to emit data-only OEM state lines."""
+    dep_vars: str | None
+    """Dependent-variable CSV output path or None."""
+    name: str
+    """Satellite name."""
+    mass: float
+    """Satellite mass in kg."""
+    integrator: str
+    """Integrator method identifier."""
+    integrator_step_size: tuple[float, ...]
+    """Integrator step-size values in seconds."""
+    earth_gravity: tuple[int, int]
+    """Earth gravity degree/order pair."""
+    drag_area: float
+    """Reference/projected area in m²."""
+    srp: bool
+    """Whether solar radiation pressure is enabled."""
+    srp_coeff: float
+    """Solar radiation pressure coefficient."""
+    drag: bool
+    """Whether aerodynamic drag is enabled."""
+    drag_coeff: float
+    """Aerodynamic drag coefficient."""
+    moon_gravity: bool
+    """Whether Moon gravity is enabled."""
+    sun_gravity: bool
+    """Whether Sun gravity is enabled."""
+    venus_gravity: bool
+    """Whether Venus gravity is enabled."""
+    mars_gravity: bool
+    """Whether Mars gravity is enabled."""
+
+
 def parse_bool_flag(value: str) -> bool:
     """Parse a CLI boolean token.
 
@@ -289,14 +332,8 @@ def parse_drag_coefficient(value: str) -> float:
     return drag_coefficient
 
 
-def parse_arguments() -> argparse.Namespace:
-    """Create the command-line argument parser for this script.
-
-    Returns
-    -------
-    argparse.Namespace
-        Parsed command-line arguments for all supported CLI options.
-    """
+def parse_arguments() -> PropagateOrbitArgs:
+    """Create the command-line argument parser for this script."""
     parser = cli.create_parser(
         description=(
             "Run perturbed orbit propagation from one OEM-style state line and "
@@ -305,10 +342,11 @@ def parse_arguments() -> argparse.Namespace:
         epilog=(
             "Examples:\n"
             '  propagate-orbit --initial-state "2023-04-10T00:00:00 7000 0 0 0 7.5 1.0" -d 6h\n'
-            '  propagate-orbit --duration 90m --output propagated.oem < input_state.txt\n'
-            '  cat input.txt | propagate-orbit --output - --dep-vars dep_vars.csv'
+            "  propagate-orbit --duration 90m --output propagated.oem < input_state.txt\n"
+            "  cat input.txt | propagate-orbit --output - --dep-vars dep_vars.csv"
         ),
     )
+    parser.prog = "propagate-orbit"
     parser.add_argument(
         "-i",
         "--initial-state",
@@ -334,7 +372,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "-o",
         "--output",
-        dest="oem",
+        dest="output_oem",
         metavar="<output_oem|->",
         default="-",
         help=(
@@ -517,4 +555,4 @@ def parse_arguments() -> argparse.Namespace:
         default=True,
         help="Enable or disable Mars point-mass gravity perturbation (default: on).",
     )
-    return parser.parse_args()
+    return parser.parse_args(namespace=PropagateOrbitArgs())
