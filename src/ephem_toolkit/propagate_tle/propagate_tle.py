@@ -29,8 +29,10 @@ import numpy as np
 import warnings
 
 try:
+    from .propagate_tle_cli import PropagateTleArgs
     from .propagate_tle_cli import parse_arguments
 except ImportError:  # pragma: no cover - direct script execution fallback
+    from ephem_toolkit.propagate_tle.propagate_tle_cli import PropagateTleArgs
     from ephem_toolkit.propagate_tle.propagate_tle_cli import parse_arguments
 
 # Suppress warnings that tudatpy / urllib3 may emit on import.
@@ -284,7 +286,7 @@ def main() -> int:
     """
     # Parse CLI input and validate scalar settings first so invalid requests
     # fail quickly before importing TudatPy.
-    args: argparse.Namespace = parse_arguments()
+    args: PropagateTleArgs = parse_arguments()
 
     if args.step <= 0.0:
         raise ValueError("--step must be > 0")
