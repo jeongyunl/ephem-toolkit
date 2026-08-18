@@ -54,8 +54,10 @@ import ephem_toolkit.core.slice_oem as slice_oem
 import ephem_toolkit.core.time_utils as time_utils
 
 try:
+    from .slice_oem_cli import SliceOemArgs
     from .slice_oem_cli import parse_arguments
 except ImportError:  # pragma: no cover - direct script execution fallback
+    from slice_oem_cli import SliceOemArgs
     from slice_oem_cli import parse_arguments
 
 DEFAULT_INTERPOLATION_TYPE: str = "hermite"
@@ -75,7 +77,7 @@ DEFAULT_INTERPOLATION_SPEC: interpolation_spec.InterpolationSpec = (
 
 def main() -> None:
     """Parse CLI arguments, slice OEM ephemeris data, and write results to stdout."""
-    args = parse_arguments()
+    args: SliceOemArgs = parse_arguments()
 
     # Determine if reading from stdin
     read_from_stdin = args.input_oem == "-"

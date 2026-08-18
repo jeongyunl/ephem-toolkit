@@ -19,7 +19,30 @@ DEFAULT_INTERPOLATION_SPEC: InterpolationSpec = InterpolationSpec(
 )
 
 
-def parse_arguments() -> argparse.Namespace:
+class SliceOemArgs(argparse.Namespace):
+    """Typed argument namespace for the OEM slicing CLI."""
+
+    input_oem: str
+    """Primary input OEM file path or '-' for stdin."""
+    slice: str | None
+    """Optional index slice specification."""
+    time_slice: str | None
+    """Optional time slice specification."""
+    interpolate: bool
+    """Whether interpolation is enabled."""
+    interpolate_type: InterpolationSpec
+    """Interpolation specification."""
+    data_only: bool
+    """Whether to omit OEM metadata header."""
+    output_oem: str
+    """Output OEM path or '-' for stdout."""
+    verbose: bool
+    """Whether verbose diagnostics are enabled."""
+    debug: bool
+    """Whether low-level debug output is enabled."""
+
+
+def parse_arguments() -> SliceOemArgs:
     """Parse and validate command-line arguments."""
     parser = cli.create_parser(
         description="Extract subsets of CCSDS OEM ephemeris data by index or time range.",
@@ -103,7 +126,7 @@ def parse_arguments() -> argparse.Namespace:
         action="store_true",
         help="Print low-level debug details",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(namespace=SliceOemArgs())
     if not args.slice and not args.time_slice:
         parser.error("either -s/--slice or -t/--time-slice must be provided")
     return args
