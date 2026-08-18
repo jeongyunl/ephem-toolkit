@@ -26,9 +26,9 @@ def parse_arguments() -> OmmToTleArgs:
         ),
         epilog=(
             "Examples:\n"
-            '  omm-to-tle input.omm\n'
-            '  cat input.omm | omm-to-tle -\n'
-            '  omm-to-tle input.omm -o output.tle'
+            "  omm-to-tle input.omm\n"
+            "  cat input.omm | omm-to-tle -\n"
+            "  omm-to-tle input.omm -o output.tle"
         ),
     )
     parser.prog = "omm-to-tle"
