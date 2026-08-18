@@ -8,6 +8,43 @@ import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.cli as cli
 
 
+class XformOemArgs(argparse.Namespace):
+    """Typed argument namespace for the OEM transformation CLI."""
+
+    verbose: bool
+    """Whether verbose diagnostics are enabled."""
+    debug: bool
+    """Whether low-level debug output is enabled."""
+    set_header: list[str]
+    """Header override entries as KEY=VALUE strings."""
+    set_meta: list[str]
+    """Metadata override entries as KEY=VALUE strings."""
+    x_ref_frame: str | None
+    """Optional target reference frame name."""
+    x_aer: str | None
+    """Optional AER conversion specification."""
+    x_csv: bool
+    """Whether to output CSV instead of OEM."""
+    data_only: bool
+    """Whether to omit OEM metadata header."""
+    input_oem: str
+    """Input OEM file path or '-' for stdin."""
+    output_oem: str
+    """Output OEM path or '-' for stdout."""
+    x_ref_frame_parts: tuple[str | None, str] | None
+    """Normalized frame conversion source/target pair, if applicable."""
+    lat_deg: float | None
+    """Latitude in degrees for AER conversion."""
+    lon_deg: float | None
+    """Longitude in degrees for AER conversion."""
+    alt_m: float | None
+    """Altitude in meters for AER conversion."""
+    metadata_overrides: list[tuple[str, str | int]]
+    """Parsed metadata overrides."""
+    header_overrides: list[tuple[str, str | float]]
+    """Parsed header overrides."""
+
+
 def parse_metadata_overrides(
     values: list[str], parser: argparse.ArgumentParser
 ) -> list[tuple[str, str | int]]:
@@ -80,7 +117,7 @@ def parse_header_overrides(
     return overrides
 
 
-def parse_arguments() -> argparse.Namespace:
+def parse_arguments() -> XformOemArgs:
     """Parse and validate command-line arguments."""
     parser = cli.create_parser(
         description=(
@@ -89,9 +126,9 @@ def parse_arguments() -> argparse.Namespace:
         ),
         epilog=(
             "Examples:\n"
-            '  xform-oem data.oem --x-ref-frame J2000\n'
-            '  xform-oem data.oem --x-aer 40.7128,-74.0060,10.0\n'
-            '  cat data.oem | xform-oem - --x-csv'
+            "  xform-oem data.oem --x-ref-frame J2000\n"
+            "  xform-oem data.oem --x-aer 40.7128,-74.0060,10.0\n"
+            "  cat data.oem | xform-oem - --x-csv"
         ),
     )
     parser.prog = "xform-oem"
@@ -178,7 +215,7 @@ def parse_arguments() -> argparse.Namespace:
         help="Output OEM file path; '-' writes to stdout.",
     )
 
-    args = parser.parse_args()
+    args: XformOemArgs = parser.parse_args(namespace=XformOemArgs())
     args.x_ref_frame_parts = None
     if args.x_ref_frame:
         frame_parts: list[str] = [part.strip() for part in args.x_ref_frame.split(",")]
@@ -187,9 +224,7 @@ def parse_arguments() -> argparse.Namespace:
         elif len(frame_parts) == 2 and all(frame_parts):
             args.x_ref_frame_parts = (frame_parts[0], frame_parts[1])
         else:
-            parser.error(
-                "--x-ref-frame requires <frame> or <base_frame,target_frame>"
-            )
+            parser.error("--x-ref-frame requires <frame> or <base_frame,target_frame>")
 
     if args.x_aer:
         try:

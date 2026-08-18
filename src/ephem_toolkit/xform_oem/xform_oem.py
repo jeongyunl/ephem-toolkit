@@ -62,14 +62,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TextIO
-import numpy as np
-
 import warnings
-
-try:
-    from .xform_oem_cli import parse_arguments
-except ImportError:  # pragma: no cover - direct script execution fallback
-    from xform_oem_cli import parse_arguments
 
 # Suppress warnings that tudatpy / urllib3 may emit on import.
 warnings.filterwarnings("ignore", category=SyntaxWarning)
@@ -77,6 +70,11 @@ warnings.filterwarnings(
     "ignore",
     module=r"urllib3(\..*)?",
 )
+
+import numpy as np
+
+from .xform_oem_cli import XformOemArgs
+from .xform_oem_cli import parse_arguments
 
 import ephem_toolkit.core.aer as aer
 import ephem_toolkit.core.frame_utils as frame_utils
@@ -300,7 +298,7 @@ def parse_header_overrides(
 def main() -> None:
     """Parse CLI arguments and transform OEM file."""
 
-    args = parse_arguments()
+    args: XformOemArgs = parse_arguments()
 
     # Determine if reading from stdin
     read_from_stdin = args.input_oem == "-"
