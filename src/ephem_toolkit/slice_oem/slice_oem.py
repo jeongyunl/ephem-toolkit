@@ -77,41 +77,41 @@ DEFAULT_INTERPOLATION_SPEC: interpolation_spec.InterpolationSpec = (
 
 def main() -> None:
     """Parse CLI arguments, slice OEM ephemeris data, and write results to stdout."""
-    args: SliceOemArgs = parse_arguments()
+    cli_args: SliceOemArgs = parse_arguments()
 
     # Determine if reading from stdin
-    read_from_stdin = args.input_oem == "-"
+    read_from_stdin = cli_args.input_oem == "-"
 
     # Ensure at least one slicing option is provided when processing OEM data
-    if not args.time_slice and not args.slice:
+    if not cli_args.time_slice and not cli_args.slice:
         # If no slice options and no file, just exit successfully (no-op)
         if read_from_stdin:
             return
         raise SystemExit("Error: either -s/--slice or -t/--time-slice must be provided")
 
-    if args.time_slice or args.slice:
+    if cli_args.time_slice or cli_args.slice:
         # Read OEM data from stdin or file
         if read_from_stdin:
             oem_data = oem.CcsdsOem.read(sys.stdin)
             oem_file = "<stdin>"
         else:
-            oem_file = Path(args.input_oem)
+            oem_file = Path(cli_args.input_oem)
             oem_data = oem.CcsdsOem.read(oem_file)
 
         if (
-            args.time_slice
-            and args.interpolate
-            and len(oem_data.states) < args.interpolate_type.degree
+            cli_args.time_slice
+            and cli_args.interpolate
+            and len(oem_data.states) < cli_args.interpolate_type.degree
         ):
             print(
                 "Warning: input contains "
                 f"{len(oem_data.states)} states, fewer than the requested "
-                f"interpolation degree {args.interpolate_type.degree}; "
+                f"interpolation degree {cli_args.interpolate_type.degree}; "
                 "the degree will be reduced to fit the available data.",
                 file=sys.stderr,
             )
 
-        if args.verbose:
+        if cli_args.verbose:
             total_states = len(oem_data.states)
             print(f"[slice_oem] Input OEM:", file=sys.stderr)
             print(f"[slice_oem]   File: {oem_file}", file=sys.stderr)
@@ -153,12 +153,12 @@ def main() -> None:
 
         sliced_oem = None
 
-        if args.time_slice:
-            time_slice_options = slice_oem.parse_time_slice_args(args.time_slice)
+        if cli_args.time_slice:
+            time_slice_options = slice_oem.parse_time_slice_args(cli_args.time_slice)
 
             # Set interpolation spec if interpolation is enabled
-            if args.interpolate:
-                time_slice_options.interpolation_spec = args.interpolate_type
+            if cli_args.interpolate:
+                time_slice_options.interpolation_spec = cli_args.interpolate_type
 
             if (
                 time_slice_options.step_size is not None
@@ -170,31 +170,31 @@ def main() -> None:
             sliced_oem = slice_oem.extract_sliced_states(
                 oem_data,
                 time_slice_options,
-                verbose=args.verbose,
+                verbose=cli_args.verbose,
             )
 
-        elif args.slice:
-            slice_obj = slice_oem.parse_slice_args(args.slice)
+        elif cli_args.slice:
+            slice_obj = slice_oem.parse_slice_args(cli_args.slice)
             sliced_oem = slice_oem.extract_sliced_states(
                 oem_data,
                 slice_obj,
-                verbose=args.verbose,
+                verbose=cli_args.verbose,
             )
 
         if sliced_oem is not None:
             # Determine output destination
-            if args.output_oem == "-":
+            if cli_args.output_oem == "-":
                 output_stream = sys.stdout
             else:
-                output_stream = open(args.output_oem, "w", encoding="utf-8")
+                output_stream = open(cli_args.output_oem, "w", encoding="utf-8")
 
             try:
-                if args.data_only:
+                if cli_args.data_only:
                     sliced_oem.write_states(output_stream)
                 else:
                     sliced_oem.write(output_stream)
             finally:
-                if args.output_oem != "-":
+                if cli_args.output_oem != "-":
                     output_stream.close()
 
 

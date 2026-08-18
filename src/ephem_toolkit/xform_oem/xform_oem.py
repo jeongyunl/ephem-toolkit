@@ -302,21 +302,21 @@ def parse_header_overrides(
 def main() -> None:
     """Parse CLI arguments and transform OEM file."""
 
-    args: XformOemArgs = parse_arguments()
+    cli_args: XformOemArgs = parse_arguments()
 
     # Determine if reading from stdin
-    read_from_stdin = args.input_oem == "-"
+    read_from_stdin = cli_args.input_oem == "-"
 
     # Read OEM data from stdin or file
     if read_from_stdin:
         oem_data = oem.CcsdsOem.read(sys.stdin)
         oem_file_path: str | Path = "<stdin>"
     else:
-        oem_file_path = Path(args.input_oem)
+        oem_file_path = Path(cli_args.input_oem)
         oem_data = oem.CcsdsOem.read(oem_file_path)
 
     # Print verbose info if requested
-    if args.verbose:
+    if cli_args.verbose:
         total_states = len(oem_data.states)
         print(f"[xform_oem] Input OEM:", file=sys.stderr)
         print(f"[xform_oem]   File: {oem_file_path}", file=sys.stderr)
@@ -330,24 +330,24 @@ def main() -> None:
             f"[xform_oem]   Time system: {oem_data.meta.time_system}",
             file=sys.stderr,
         )
-        if args.x_ref_frame_parts:
-            source_frame, target_frame = args.x_ref_frame_parts
+        if cli_args.x_ref_frame_parts:
+            source_frame, target_frame = cli_args.x_ref_frame_parts
             print(
                 f"[xform_oem]   Frame conversion: "
                 f"{source_frame or oem_data.meta.ref_frame} -> {target_frame}",
                 file=sys.stderr,
             )
-        if args.metadata_overrides:
+        if cli_args.metadata_overrides:
             print("[xform_oem]   Metadata overrides:", file=sys.stderr)
-            for field_name, value in args.metadata_overrides:
+            for field_name, value in cli_args.metadata_overrides:
                 print(
                     f"[xform_oem]     {field_name.upper()}: "
                     f"{getattr(oem_data.meta, field_name)} -> {value}",
                     file=sys.stderr,
                 )
-        if args.header_overrides:
+        if cli_args.header_overrides:
             print("[xform_oem]   Header overrides:", file=sys.stderr)
-            for field_name, value in args.header_overrides:
+            for field_name, value in cli_args.header_overrides:
                 print(
                     f"[xform_oem]     {field_name.upper()}: "
                     f"{getattr(oem_data.header, field_name)} -> {value}",
@@ -377,30 +377,30 @@ def main() -> None:
         print(file=sys.stderr)
 
     # Handle AER conversion mode
-    if args.x_aer:
+    if cli_args.x_aer:
         # Determine output destination
-        if args.output_oem == "-":
+        if cli_args.output_oem == "-":
             output_file: TextIO = sys.stdout
         else:
-            output_file = open(args.output_oem, "w", encoding="utf-8")
+            output_file = open(cli_args.output_oem, "w", encoding="utf-8")
 
         try:
             convert_to_aer(
                 oem_data,
-                args.lat_deg,
-                args.lon_deg,
-                args.alt_m,
+                cli_args.lat_deg,
+                cli_args.lon_deg,
+                cli_args.alt_m,
                 output_file,
-                args.verbose,
+                cli_args.verbose,
             )
         finally:
-            if args.output_oem != "-":
+            if cli_args.output_oem != "-":
                 output_file.close()
         return
 
     # Handle reference frame change or default output
-    if args.x_ref_frame_parts:
-        source_frame, target_frame = args.x_ref_frame_parts
+    if cli_args.x_ref_frame_parts:
+        source_frame, target_frame = cli_args.x_ref_frame_parts
         converted_ref_frame = convert_ref_frame(
             oem_data,
             target_frame,
@@ -409,26 +409,26 @@ def main() -> None:
         if converted_ref_frame is None:
             return
         oem_data.update_metadata(ref_frame=converted_ref_frame)
-    if args.metadata_overrides:
-        oem_data.update_metadata(**dict(args.metadata_overrides))
-    if args.header_overrides:
-        for field_name, value in args.header_overrides:
+    if cli_args.metadata_overrides:
+        oem_data.update_metadata(**dict(cli_args.metadata_overrides))
+    if cli_args.header_overrides:
+        for field_name, value in cli_args.header_overrides:
             setattr(oem_data.header, field_name, value)
 
-    output_format = oem.OemFormat.CSV if args.x_csv else oem.OemFormat.OEM
+    output_format = oem.OemFormat.CSV if cli_args.x_csv else oem.OemFormat.OEM
 
-    if args.output_oem == "-":
+    if cli_args.output_oem == "-":
         output_stream: TextIO = sys.stdout
     else:
-        output_stream = open(args.output_oem, "w", encoding="utf-8")
+        output_stream = open(cli_args.output_oem, "w", encoding="utf-8")
 
     try:
-        if args.data_only:
+        if cli_args.data_only:
             oem_data.write_states(output_stream, format_type=output_format)
         else:
             oem_data.write(output_stream, format_type=output_format)
     finally:
-        if args.output_oem != "-":
+        if cli_args.output_oem != "-":
             output_stream.close()
 
 

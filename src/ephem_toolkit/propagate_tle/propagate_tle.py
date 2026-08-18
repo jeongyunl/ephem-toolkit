@@ -286,15 +286,15 @@ def main() -> int:
     """
     # Parse CLI input and validate scalar settings first so invalid requests
     # fail quickly before importing TudatPy.
-    args: PropagateTleArgs = parse_arguments()
+    cli_args: PropagateTleArgs = parse_arguments()
 
-    if args.step <= 0.0:
+    if cli_args.step <= 0.0:
         raise ValueError("--step must be > 0")
 
     line1: str
     line2: str
     object_name: str
-    line1, line2, object_name = read_tle_input(args.tle_file)
+    line1, line2, object_name = read_tle_input(cli_args.tle_file)
 
     # Heavy TudatPy imports are intentionally delayed until after cheap input
     # validation is complete.
@@ -314,15 +314,15 @@ def main() -> int:
     start_spec: dt.datetime | dt.timedelta
     stop_spec: dt.datetime | dt.timedelta
 
-    if args.start is None:
+    if cli_args.start is None:
         start_spec = dt.timedelta(0)
     else:
-        start_spec = time_utils.parse_time_or_duration(args.start)
+        start_spec = time_utils.parse_time_or_duration(cli_args.start)
 
-    if args.stop is None:
-        stop_spec = dt.timedelta(seconds=args.duration_s)
+    if cli_args.stop is None:
+        stop_spec = dt.timedelta(seconds=cli_args.duration_s)
     else:
-        stop_spec = time_utils.parse_time_or_duration(args.stop)
+        stop_spec = time_utils.parse_time_or_duration(cli_args.stop)
 
     start_time, stop_time = resolve_time_bounds(reference_dt, start_spec, stop_spec)
 
@@ -331,9 +331,9 @@ def main() -> int:
         tle_ephemeris=tle_ephemeris,
         start_time=start_time,
         stop_time=stop_time,
-        step_s=args.step,
-        data_only=args.data_only,
-        output_path=args.output_oem,
+        step_s=cli_args.step,
+        data_only=cli_args.data_only,
+        output_path=cli_args.output_oem,
     )
 
     return 0

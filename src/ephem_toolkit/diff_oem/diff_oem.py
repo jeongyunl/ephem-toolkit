@@ -45,24 +45,24 @@ def main() -> None:
     one tab-separated result row per comparison to stdout.
     Exits with status 1 on error.
     """
-    args: DiffOemArgs = parse_arguments()
+    cli_args: DiffOemArgs = parse_arguments()
 
     try:
         reference_source: TextIO | str = (
-            sys.stdin if args.reference_oem == "-" else args.reference_oem
+            sys.stdin if cli_args.reference_oem == "-" else cli_args.reference_oem
         )
         comparison_source: TextIO | str = (
-            sys.stdin if args.comparison_oem == "-" else args.comparison_oem
+            sys.stdin if cli_args.comparison_oem == "-" else cli_args.comparison_oem
         )
         reference_states = read_states(reference_source)
         comparison_states = read_states(comparison_source)
         reference_oem = reference_states[0]
-        has_time_window: bool = args.start is not None or args.stop is not None
+        has_time_window: bool = cli_args.start is not None or cli_args.stop is not None
 
         overlapping_time_range = find_overlapping_time_range(
             reference_states, comparison_states
         )
-        if args.debug:
+        if cli_args.debug:
             print_debug_range(
                 "Reference range", reference_states[0][0], reference_states[-1][0]
             )
@@ -76,7 +76,7 @@ def main() -> None:
 
         # Explicit windows are only meaningful when the histories overlap.
         if overlapping_time_range is None and has_time_window:
-            if args.debug:
+            if cli_args.debug:
                 print_debug_range("Effective range", None, None)
             return
 
@@ -91,32 +91,37 @@ def main() -> None:
             reference_epoch_s: float = reference_states[0][0]
             requested_start: float = (
                 overlap_start
-                if args.start is None
-                else resolve_time_bound(args.start, reference_epoch_s)
+                if cli_args.start is None
+                else resolve_time_bound(cli_args.start, reference_epoch_s)
             )
-            if args.duration is not None:
-                requested_stop = requested_start + args.duration
+            if cli_args.duration is not None:
+                requested_stop = requested_start + cli_args.duration
             else:
                 requested_stop = (
                     overlap_stop
-                    if args.stop is None
-                    else resolve_time_bound(args.stop, requested_start)
+                    if cli_args.stop is None
+                    else resolve_time_bound(cli_args.stop, requested_start)
                 )
             if requested_start > requested_stop:
                 raise ValueError("--start must be earlier than or equal to --stop")
             overlap_start = max(overlap_start, requested_start)
             overlap_stop = min(overlap_stop, requested_stop)
             if overlap_start > overlap_stop:
-                if args.debug:
+                if cli_args.debug:
                     print_debug_range("Effective range", None, None)
                 return
 
-            if args.debug:
+            if cli_args.debug:
                 print_debug_range("Requested range", requested_start, requested_stop)
 
-        if args.debug:
+        if cli_args.debug:
             print_debug_range("Effective range", overlap_start, overlap_stop)
-            if args.rotate or args.rotate_xy or args.rotate_z or args.time_shift:
+            if (
+                cli_args.rotate
+                or cli_args.rotate_xy
+                or cli_args.rotate_z
+                or cli_args.time_shift
+            ):
                 if fit_overlap_start is None or fit_overlap_stop is None:
                     print_debug_range("Transformation fitting range", None, None)
                 else:
@@ -125,7 +130,7 @@ def main() -> None:
                         fit_overlap_start,
                         fit_overlap_stop,
                     )
-            if args.rotate or args.rotate_xy:
+            if cli_args.rotate or cli_args.rotate_xy:
                 if fit_overlap_start is None or fit_overlap_stop is None:
                     print_debug_range("Rotation fitting range", None, None)
                 else:
@@ -134,7 +139,7 @@ def main() -> None:
                         fit_overlap_start,
                         min(
                             fit_overlap_stop,
-                            fit_overlap_start + args.rot_fit_span,
+                            fit_overlap_start + cli_args.rot_fit_span,
                         ),
                     )
 
@@ -144,8 +149,8 @@ def main() -> None:
                 ref_states,
                 cmp_states,
                 reference_oem,
-                args.interpolate_ref,
-                args.interpolate_data,
+                cli_args.interpolate_ref,
+                cli_args.interpolate_data,
                 has_time_window,
                 overlap_start,
                 overlap_stop,
@@ -154,41 +159,41 @@ def main() -> None:
         # Each interpolator evaluates one history at epochs from the other.
         reference_interpolator = (
             factory.InterpolatorFactory.create(
-                spec=args.interpolate_type,
+                spec=cli_args.interpolate_type,
                 dimension=6,
                 is_cartesian_state=True,
-                verbose=args.verbose,
+                verbose=cli_args.verbose,
                 context="diff_oem.reference_interpolator",
                 data=reference_states,
             )
-            if args.interpolate_ref
+            if cli_args.interpolate_ref
             else None
         )
 
         comparison_interpolator = (
             factory.InterpolatorFactory.create(
-                spec=args.interpolate_type,
+                spec=cli_args.interpolate_type,
                 dimension=6,
                 is_cartesian_state=True,
-                verbose=args.verbose,
+                verbose=cli_args.verbose,
                 context="diff_oem.comparison_interpolator",
                 data=comparison_states,
             )
-            if args.interpolate_data
+            if cli_args.interpolate_data
             else None
         )
 
         comparison_pairs = build_pairs(reference_states, comparison_states)
 
         stages: list[TransformationStage] = []
-        stage_sequence: list[str] = list(args.stage_sequence)
-        if args.rotate and "rotate" not in stage_sequence:
+        stage_sequence: list[str] = list(cli_args.stage_sequence)
+        if cli_args.rotate and "rotate" not in stage_sequence:
             stage_sequence.append("rotate")
-        if args.rotate_xy and "rotate_xy" not in stage_sequence:
+        if cli_args.rotate_xy and "rotate_xy" not in stage_sequence:
             stage_sequence.append("rotate_xy")
-        if args.rotate_z and "rotate_z" not in stage_sequence:
+        if cli_args.rotate_z and "rotate_z" not in stage_sequence:
             stage_sequence.append("rotate_z")
-        if args.time_shift and "time_shift" not in stage_sequence:
+        if cli_args.time_shift and "time_shift" not in stage_sequence:
             stage_sequence.append("time_shift")
 
         for stage_key in stage_sequence:
@@ -202,33 +207,33 @@ def main() -> None:
                 stages.append(
                     RotationStage(
                         reference_oem,
-                        args.interpolate_ref,
-                        args.interpolate_data,
+                        cli_args.interpolate_ref,
+                        cli_args.interpolate_data,
                         fit_overlap_start,
                         fit_overlap_stop,
-                        args.rot_fit_span,
+                        cli_args.rot_fit_span,
                     )
                 )
             elif stage_key == "rotate_xy":
                 stages.append(
                     RotationXYStage(
                         reference_oem,
-                        args.interpolate_ref,
-                        args.interpolate_data,
+                        cli_args.interpolate_ref,
+                        cli_args.interpolate_data,
                         fit_overlap_start,
                         fit_overlap_stop,
-                        args.rot_fit_span,
+                        cli_args.rot_fit_span,
                     )
                 )
             elif stage_key == "rotate_z":
                 stages.append(
                     RotationZStage(
                         reference_oem,
-                        args.interpolate_ref,
-                        args.interpolate_data,
+                        cli_args.interpolate_ref,
+                        cli_args.interpolate_data,
                         fit_overlap_start,
                         fit_overlap_stop,
-                        args.rot_fit_span,
+                        cli_args.rot_fit_span,
                     )
                 )
             elif stage_key == "time_shift":
@@ -252,8 +257,8 @@ def main() -> None:
             comparison_results=normal_results,
             reference_interpolator=reference_interpolator,
             comparison_interpolator=comparison_interpolator,
-            verbose=args.verbose,
-            rtn=args.rtn,
+            verbose=cli_args.verbose,
+            rtn=cli_args.rtn,
             title="Normal comparison" if stages else None,
         ).print()
         if stages:
@@ -262,12 +267,12 @@ def main() -> None:
                 comparison_states=comparison_states,
                 stages=stages,
                 build_pairs=build_pairs,
-                interpolate_ref=args.interpolate_ref,
-                interpolate_data=args.interpolate_data,
-                interpolation_spec=args.interpolate_type,
-                debug=args.debug,
+                interpolate_ref=cli_args.interpolate_ref,
+                interpolate_data=cli_args.interpolate_data,
+                interpolation_spec=cli_args.interpolate_type,
+                debug=cli_args.debug,
             )
-            stage_outputs = pipeline.execute(args.verbose)
+            stage_outputs = pipeline.execute(cli_args.verbose)
 
             for stage_index, (
                 stage,
@@ -283,14 +288,14 @@ def main() -> None:
                 )
                 transformed_comparison_interpolator = (
                     factory.InterpolatorFactory.create(
-                        spec=args.interpolate_type,
+                        spec=cli_args.interpolate_type,
                         dimension=6,
                         is_cartesian_state=True,
-                        verbose=args.verbose,
+                        verbose=cli_args.verbose,
                         context=f"diff_oem.transformed_stage_{stage_index}",
                         data=transformed_comparison_states,
                     )
-                    if args.interpolate_data
+                    if cli_args.interpolate_data
                     else None
                 )
                 transformed_results = compare_pairs(
@@ -303,8 +308,8 @@ def main() -> None:
                     comparison_results=transformed_results,
                     reference_interpolator=reference_interpolator,
                     comparison_interpolator=transformed_comparison_interpolator,
-                    verbose=args.verbose,
-                    rtn=args.rtn,
+                    verbose=cli_args.verbose,
+                    rtn=cli_args.rtn,
                     title=f"Comparison after stage {stage_index}: {stage.name}",
                     fit_description=stage.describe_fit(fit_result),
                 ).print()
