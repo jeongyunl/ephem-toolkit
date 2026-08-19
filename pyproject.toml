@@ -5,7 +5,12 @@ description = "Python utilities and command-line tools for TudatPy astrodynamics
 readme = "README.md"
 requires-python = ">=3.9,<4.0"
 dependencies = [
+    "astropy",
+    "astroquery",
+    "colorama"
     "numpy>=1.23",
+    "pandas",
+    "tabulate",
 ]
 keywords = ["astrodynamics", "tudatpy", "orbit", "oem", "tle", "omm"]
 classifiers = [
