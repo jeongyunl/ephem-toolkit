@@ -43,7 +43,7 @@ plot-dependent-variables = "ephem_toolkit.plot_dep_vars.plot_dependent_variables
 
 [tool.poetry]
 name = "ephem-toolkit"
-version = "0.1.0"
+version = "0.0.0"
 description = "Python utilities and command-line tools for TudatPy astrodynamics workflows"
 authors = ["Jeongyun Lee <jeongyun@gmail.com>"]
 readme = "README.md"
