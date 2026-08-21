@@ -1,5 +1,10 @@
 # To-do list
 
+1. [`propagate-omm']
+    1. replace `propagate-kepler` & `propagate-tle`.
+    1. needs cartesian to kepler
+
+
 1. Interpolators
     1. optimize lagrange and chebyshev for state vector interpolation?
         1. clamping since the first derivatives (velocity) are available
@@ -26,7 +31,6 @@
 1. [`xform-oem`](docs/XFORM_OEM.md)
     1. Apply arbitrary matrix?
 
-1. Merge kepler/TLE tools?
 
 1. Propagation tools
     1. Add fixed-step resampling / interpolation for propagated state histories so OEM-like exports can be generated at user-selected output intervals.
