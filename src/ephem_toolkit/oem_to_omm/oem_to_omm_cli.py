@@ -93,7 +93,7 @@ def parse_arguments() -> OemToOmmArgs:
         "--output",
         dest="output_omm",
         metavar="<output_omm|->",
-        default="-",
+        required=True,
         help="Output OMM file path; '-' writes to stdout",
     )
     parser.add_argument(
@@ -129,8 +129,8 @@ def parse_arguments() -> OemToOmmArgs:
         "--mode",
         dest="mode",
         choices=["kepler", "mean-kepler", "tle"],
-        required=True,
-        metavar="{kepler,mean-kepler,tle}",
+        default="tle",
+        metavar="<kepler|mean-kepler|tle>",
         help=(
             "Conversion mode: 'kepler' fits osculating Keplerian elements, "
             "'mean-kepler' fits mean Keplerian elements, and 'tle' fits a TLE."

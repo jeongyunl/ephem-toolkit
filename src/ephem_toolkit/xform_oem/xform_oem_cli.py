@@ -211,7 +211,7 @@ def parse_arguments() -> XformOemArgs:
         "--output",
         dest="output_oem",
         metavar="<output_oem|->",
-        default="-",
+        required=True,
         help="Output OEM file path; '-' writes to stdout.",
     )
 

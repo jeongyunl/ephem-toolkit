@@ -18,7 +18,7 @@ class PropagateKeplerArgs(argparse.Namespace):
     """Initial Keplerian state line or None if stdin is used."""
     duration_s: float
     """Propagation duration in seconds."""
-    output: str
+    output_oem: str
     """Output OEM file path or '-' for stdout."""
     step_s: float
     """Output sampling interval in seconds."""
@@ -65,9 +65,9 @@ def parse_arguments() -> PropagateKeplerArgs:
     parser.add_argument(
         "-o",
         "--output",
-        dest="output",
+        dest="output_oem",
         metavar="<output_oem|->",
-        default="-",
+        required=True,
         help=(
             "Write propagated state history as OEM state-vector lines to the target path; "
             "'-' writes to stdout."

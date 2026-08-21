@@ -68,7 +68,7 @@ def parse_arguments() -> PropagateTleArgs:
         "--output",
         dest="output_oem",
         metavar="<output_oem|->",
-        default="-",
+        required=True,
         help=(
             "Write propagated state history as OEM state-vector lines to the target path; "
             "'-' writes to stdout."

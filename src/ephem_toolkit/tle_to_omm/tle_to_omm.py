@@ -53,10 +53,10 @@ def main() -> None:
 
     omm_data: object = convert_tle.tle_to_omm(tle_data)
 
-    if cli_args.output_omm:
-        omm_data.to_file(cli_args.output_omm)
-    else:
+    if cli_args.output_omm == "-":
         omm_data.to_file(sys.stdout)
+    else:
+        omm_data.to_file(cli_args.output_omm)
 
 
 if __name__ == "__main__":
