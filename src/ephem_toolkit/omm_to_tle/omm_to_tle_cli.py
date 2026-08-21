@@ -42,7 +42,7 @@ def parse_arguments() -> OmmToTleArgs:
         "--output",
         dest="output_tle",
         metavar="<output_tle|->",
-        default=None,
+        required=True,
         help="Output TLE file path; '-' writes to stdout.",
     )
     return parser.parse_args(namespace=OmmToTleArgs())

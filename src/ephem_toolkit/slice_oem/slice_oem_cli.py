@@ -110,7 +110,7 @@ def parse_arguments() -> SliceOemArgs:
         "--output",
         dest="output_oem",
         metavar="<output_oem|->",
-        default="-",
+        required=True,
         help="Output OEM file path; use '-' to write to stdout",
     )
     parser.add_argument(

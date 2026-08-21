@@ -21,7 +21,7 @@ def test_parse_arguments_accepts_canonical_propagation_flags(
     args = propagate_kepler_cli.parse_arguments()
     assert args.initial_state == state_line
     assert args.duration_s == 7200.0
-    assert args.output == "-"
+    assert args.output_oem == "-"
 
     monkeypatch.setattr(
         "sys.argv",
@@ -29,7 +29,7 @@ def test_parse_arguments_accepts_canonical_propagation_flags(
     )
     args = propagate_kepler_cli.parse_arguments()
     assert args.initial_state == state_line
-    assert args.output == "out.oem"
+    assert args.output_oem == "out.oem"
 
     monkeypatch.setattr(
         "sys.argv",
@@ -91,7 +91,7 @@ def test_script_parse_arguments_accepts_canonical_flags(
     args = propagate_kepler.parse_arguments()
     assert args.initial_state == state_line
     assert args.duration_s == 7200.0
-    assert args.output == "-"
+    assert args.output_oem == "-"
 
 
 def test_read_kepler_input_accepts_inline_state_line() -> None:

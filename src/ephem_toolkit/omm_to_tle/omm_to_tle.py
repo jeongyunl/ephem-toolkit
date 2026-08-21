@@ -53,7 +53,9 @@ def main() -> None:
 
     tle_data: tle.Tle = convert_tle.omm_to_tle(omm_data)
 
-    if cli_args.output_tle:
+    if cli_args.output_tle == "-":
+        tle.write_tle(sys.stdout, tle_data)
+    elif cli_args.output_tle:
         tle.write_tle(cli_args.output_tle, tle_data)
     else:
         tle.write_tle(sys.stdout, tle_data)

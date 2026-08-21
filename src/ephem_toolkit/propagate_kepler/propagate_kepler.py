@@ -243,7 +243,7 @@ def main() -> int:
         step_s=cli_args.step_s,
         data_only=cli_args.data_only,
         object_name=object_name,
-        output_path=cli_args.output,
+        output_path=cli_args.output_oem,
     )
     return 0
 
