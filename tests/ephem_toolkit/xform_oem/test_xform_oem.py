@@ -58,6 +58,8 @@ META_STOP
             sys.executable,
             str(XFORM_OEM_SCRIPT),
             "-",
+            "--output",
+            "-",
             "--verbose",
             "--set-meta",
             "OBJECT_NAME=UPDATED_OBJECT",
@@ -89,7 +91,14 @@ META_STOP
 2024-01-01T00:00:00.000 7000 0 0 0 7.5 0
 """
     result = subprocess.run(
-        [sys.executable, str(XFORM_OEM_SCRIPT), "-", "--x-csv"],
+        [
+            sys.executable,
+            str(XFORM_OEM_SCRIPT),
+            "-",
+            "--output",
+            "-",
+            "--x-csv",
+        ],
         capture_output=True,
         text=True,
         input=input_oem,
@@ -116,7 +125,14 @@ META_STOP
 2024-01-01T00:00:00.000 7000 0 0 0 7.5 0
 """
     result = subprocess.run(
-        [sys.executable, str(XFORM_OEM_SCRIPT), "-", "--data-only"],
+        [
+            sys.executable,
+            str(XFORM_OEM_SCRIPT),
+            "-",
+            "--output",
+            "-",
+            "--data-only",
+        ],
         capture_output=True,
         text=True,
         input=input_oem,

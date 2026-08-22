@@ -37,7 +37,8 @@ def _run_slice_oem(
     args: list[str], input_data: str | None = None
 ) -> subprocess.CompletedProcess:
     """Run slice_oem.py script with given arguments."""
-    cmd = [sys.executable, str(SLICE_OEM_SCRIPT)] + args
+    output_args = [] if "--output" in args or "-o" in args else ["--output", "-"]
+    cmd = [sys.executable, str(SLICE_OEM_SCRIPT)] + args + output_args
     env = _build_env()
     return subprocess.run(
         cmd,

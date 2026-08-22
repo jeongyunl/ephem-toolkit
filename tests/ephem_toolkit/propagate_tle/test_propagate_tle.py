@@ -28,7 +28,14 @@ def test_tle_cli_uses_canonical_propagation_family_flags(
 
     monkeypatch.setattr(
         "sys.argv",
-        ["propagate-tle", tle_path, "--duration", "2h"],
+        [
+            "propagate-tle",
+            tle_path,
+            "--duration",
+            "2h",
+            "--output",
+            "-",
+        ],
     )
     args = propagate_tle_cli.parse_arguments()
     assert args.tle_file == tle_path
@@ -44,7 +51,14 @@ def test_tle_cli_uses_canonical_propagation_family_flags(
 
     monkeypatch.setattr(
         "sys.argv",
-        ["propagate-tle", tle_path, "-d", "3h"],
+        [
+            "propagate-tle",
+            tle_path,
+            "-d",
+            "3h",
+            "--output",
+            "-",
+        ],
     )
     args = propagate_tle_cli.parse_arguments()
     assert args.duration_s == 10800.0
@@ -110,6 +124,8 @@ def run_propagate_tle(tle_path: Path) -> str:
             "--data-only",
             "-s",
             "15m",
+            "--output",
+            "-",
         ],
         capture_output=True,
         text=True,

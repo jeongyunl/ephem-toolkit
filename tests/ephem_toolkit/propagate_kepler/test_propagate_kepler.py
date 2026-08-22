@@ -16,7 +16,15 @@ def test_parse_arguments_accepts_canonical_propagation_flags(
 
     monkeypatch.setattr(
         "sys.argv",
-        ["propagate-kepler", "--initial-state", state_line, "--duration", "2h"],
+        [
+            "propagate-kepler",
+            "--initial-state",
+            state_line,
+            "--duration",
+            "2h",
+            "--output",
+            "-",
+        ],
     )
     args = propagate_kepler_cli.parse_arguments()
     assert args.initial_state == state_line
@@ -33,7 +41,15 @@ def test_parse_arguments_accepts_canonical_propagation_flags(
 
     monkeypatch.setattr(
         "sys.argv",
-        ["propagate-kepler", "--initial-state", state_line, "-d", "3h"],
+        [
+            "propagate-kepler",
+            "--initial-state",
+            state_line,
+            "-d",
+            "3h",
+            "--output",
+            "-",
+        ],
     )
     args = propagate_kepler_cli.parse_arguments()
     assert args.duration_s == 10800.0
@@ -86,7 +102,15 @@ def test_script_parse_arguments_accepts_canonical_flags(
 
     monkeypatch.setattr(
         "sys.argv",
-        ["propagate-kepler", "--initial-state", state_line, "--duration", "2h"],
+        [
+            "propagate-kepler",
+            "--initial-state",
+            state_line,
+            "--duration",
+            "2h",
+            "--output",
+            "-",
+        ],
     )
     args = propagate_kepler.parse_arguments()
     assert args.initial_state == state_line

@@ -83,6 +83,8 @@ def run_propagate_tle(tle_path: Path) -> str:
             str(tle_path),
             "-s",
             "15m",
+            "--output",
+            "-",
         ],
         capture_output=True,
         text=True,
@@ -126,6 +128,8 @@ def run_oem_to_tle(
         "ephem_toolkit.oem_to_omm.oem_to_omm",
         "--mode",
         "tle",
+        "-",
+        "--output",
         "-",
         "--object-name",
         original.name if original.name else "",
@@ -205,6 +209,8 @@ def test_oem_to_omm_requires_input_file_name() -> None:
             "--mode",
             "kepler",
             "-",
+            "--output",
+            "-",
         ],
         input=stdin_oem,
         capture_output=True,
@@ -236,7 +242,7 @@ def test_oem_to_omm_help_uses_command_name_and_format_aware_output() -> None:
     assert result.returncode == 0
     assert "usage: oem-to-omm" in result.stdout
     assert "--output <output_omm|->" in result.stdout
-    assert "--mode {kepler,mean-kepler,tle}" in result.stdout
+    assert "--mode <kepler|mean-kepler|tle>" in result.stdout
 
 
 def is_geo_orbit(tle_data: tle.Tle) -> bool:
