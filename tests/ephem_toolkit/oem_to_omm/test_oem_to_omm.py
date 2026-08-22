@@ -51,6 +51,8 @@ def test_parse_arguments_fit_span_accepts_duration_strings(monkeypatch):
             "--fit-span",
             "90m",
             "input.oem",
+            "--output",
+            "-",
         ],
     )
 
@@ -69,6 +71,8 @@ def test_parse_arguments_fit_span_default_is_two_hours(monkeypatch):
             "--mode",
             "kepler",
             "input.oem",
+            "--output",
+            "-",
         ],
     )
 
