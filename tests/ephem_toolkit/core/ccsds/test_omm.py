@@ -11,11 +11,12 @@ import core.ccsds.omm as omm
 
 TEST_DIR = Path(__file__).parent
 TEST_DATA_DIR = TEST_DIR.parents[2] / "data"
+TEST_OMM_DIR = TEST_DIR.parents[2] / "omm"
 ISS_OMM_PATH = TEST_DATA_DIR / "ISS-ZARYA_1998-067A.omm"
 AMOS_OMM_PATH = TEST_DATA_DIR / "AMOS-17_2019-050A.omm"
 LEO_OMM_PATH = TEST_DATA_DIR / "LEO-3_2023-100G.omm"
 
-OMM_FILES = sorted(TEST_DATA_DIR.glob("*.omm"))
+OMM_FILES = sorted((*TEST_DATA_DIR.glob("*.omm"), *TEST_OMM_DIR.glob("*.kvn")))
 
 
 # ===================================================================
@@ -283,7 +284,122 @@ MEAN_MOTION_DDOT = 0
 
 
 # ===================================================================
-# 12. CcsdsOmm without TLE parameters (non-SGP4 theories)
+# 12. Read OMM preserves user-defined and unknown data keys
+# ===================================================================
+
+
+def test_read_omm_accepts_user_defined_and_unknown_keys() -> None:
+    """Should retain non-standard data keys without validation errors."""
+    omm_text = """\
+CCSDS_OMM_VERS = 3.0
+CREATION_DATE  = 2026-06-01T00:00:00.000Z
+ORIGINATOR     = TEST
+
+OBJECT_NAME    = TEST-SAT
+OBJECT_ID      = 2020-001A
+CENTER_NAME    = EARTH
+REF_FRAME      = ICRF
+TIME_SYSTEM    = UTC
+MEAN_ELEMENT_THEORY = DSST
+USER_DEFINED_EARTH_MODEL = WGS-84
+
+EPOCH          = 2026-06-01T00:00:00.000000
+MEAN_MOTION    = 15.0
+ECCENTRICITY   = 0.001
+INCLINATION    = 51.0
+RA_OF_ASC_NODE = 100.0
+ARG_OF_PERICENTER = 200.0
+MEAN_ANOMALY   = 300.0
+CUSTOM_NUMERIC = 42.5 [km]
+"""
+
+    header, data = omm.read_omm(io.StringIO(omm_text))
+
+    assert "USER_DEFINED_EARTH_MODEL" not in header
+    assert data["USER_DEFINED_EARTH_MODEL"] == "WGS-84"
+    assert data["CUSTOM_NUMERIC"] == pytest.approx(42.5)
+
+
+# ===================================================================
+# 13. Low-level OMM round-trip preserves non-standard data keys
+# ===================================================================
+
+
+def test_write_omm_round_trip_preserves_non_standard_keys(tmp_path: Path) -> None:
+    """Should write and read back user-defined and unknown data keys."""
+    header = {
+        "CCSDS_OMM_VERS": 3.0,
+        "CREATION_DATE": "2026-06-01T00:00:00.000Z",
+        "ORIGINATOR": "TEST",
+    }
+    data = {
+        "OBJECT_NAME": "TEST-SAT",
+        "OBJECT_ID": "2020-001A",
+        "CENTER_NAME": "EARTH",
+        "REF_FRAME": "ICRF",
+        "TIME_SYSTEM": "UTC",
+        "MEAN_ELEMENT_THEORY": "DSST",
+        "EPOCH": "2026-06-01T00:00:00.000000",
+        "MEAN_MOTION": 15.0,
+        "ECCENTRICITY": 0.001,
+        "INCLINATION": 51.0,
+        "RA_OF_ASC_NODE": 100.0,
+        "ARG_OF_PERICENTER": 200.0,
+        "MEAN_ANOMALY": 300.0,
+        "USER_DEFINED_EARTH_MODEL": "WGS-84",
+        "CUSTOM_NUMERIC": 42.5,
+    }
+    out_path = tmp_path / "custom-fields.omm"
+
+    omm.write_omm(out_path, header, data)
+    _, parsed_data = omm.read_omm(out_path)
+
+    assert parsed_data["USER_DEFINED_EARTH_MODEL"] == "WGS-84"
+    assert parsed_data["CUSTOM_NUMERIC"] == pytest.approx(42.5)
+
+
+# ===================================================================
+# 14. Structured OMM round-trip preserves non-standard data keys
+# ===================================================================
+
+
+def test_ccsds_omm_round_trip_preserves_non_standard_keys(tmp_path: Path) -> None:
+    """Should preserve extra data keys through the structured class API."""
+    omm_text = """\
+CCSDS_OMM_VERS = 3.0
+CREATION_DATE  = 2026-06-01T00:00:00.000Z
+ORIGINATOR     = TEST
+
+OBJECT_NAME    = TEST-SAT
+OBJECT_ID      = 2020-001A
+CENTER_NAME    = EARTH
+REF_FRAME      = ICRF
+TIME_SYSTEM    = UTC
+MEAN_ELEMENT_THEORY = DSST
+
+EPOCH          = 2026-06-01T00:00:00.000000
+MEAN_MOTION    = 15.0
+ECCENTRICITY   = 0.001
+INCLINATION    = 51.0
+RA_OF_ASC_NODE = 100.0
+ARG_OF_PERICENTER = 200.0
+MEAN_ANOMALY   = 300.0
+USER_DEFINED_EARTH_MODEL = WGS-84
+CUSTOM_NUMERIC = 42.5
+"""
+    source = io.StringIO(omm_text)
+    out_path = tmp_path / "structured-custom-fields.omm"
+
+    ccsds_omm = omm.CcsdsOmm.from_source(source)
+    ccsds_omm.to_file(out_path)
+    round_tripped = omm.CcsdsOmm.from_source(out_path)
+
+    assert round_tripped.data["USER_DEFINED_EARTH_MODEL"] == "WGS-84"
+    assert round_tripped.data["CUSTOM_NUMERIC"] == pytest.approx(42.5)
+
+
+# ===================================================================
+# 15. CcsdsOmm without TLE parameters (non-SGP4 theories)
 # ===================================================================
 
 

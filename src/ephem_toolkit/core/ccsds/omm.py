@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Callable, TextIO
+from typing import Any, Callable, TextIO
 from datetime import datetime, timezone
 
 import numpy as np
@@ -27,7 +27,10 @@ from .. import kepler
 
 
 def _try_numeric(value: str) -> int | float | str:
-    """Attempt to convert *value* to int or float; return str on failure."""
+    """Attempt to convert a CCSDS value to int or float."""
+    value = value.strip()
+    if "[" in value:
+        value = value.split("[", 1)[0].strip()
     try:
         return int(value)
     except ValueError:
@@ -39,11 +42,20 @@ def _try_numeric(value: str) -> int | float | str:
     return value
 
 
+_HEADER_KEYS: set[str] = {
+    "CCSDS_OMM_VERS",
+    "CLASSIFICATION",
+    "CREATION_DATE",
+    "ORIGINATOR",
+    "MESSAGE_ID",
+}
+
 _META_KEY_ORDER: list[str] = [
     "OBJECT_NAME",
     "OBJECT_ID",
     "CENTER_NAME",
     "REF_FRAME",
+    "REF_FRAME_EPOCH",
     "TIME_SYSTEM",
     "MEAN_ELEMENT_THEORY",
 ]
@@ -51,12 +63,14 @@ _META_KEY_ORDER: list[str] = [
 
 _MEAN_ELEMENTS_KEY_ORDER: list[str] = [
     "EPOCH",
+    "SEMI_MAJOR_AXIS",
     "MEAN_MOTION",
     "ECCENTRICITY",
     "INCLINATION",
     "RA_OF_ASC_NODE",
     "ARG_OF_PERICENTER",
     "MEAN_ANOMALY",
+    "GM",
 ]
 """Canonical key ordering for the mean elements section."""
 
@@ -67,10 +81,118 @@ _TLE_PARAMS_KEY_ORDER: list[str] = [
     "ELEMENT_SET_NO",
     "REV_AT_EPOCH",
     "BSTAR",
+    "BTERM",
     "MEAN_MOTION_DOT",
     "MEAN_MOTION_DDOT",
+    "AGOM",
 ]
 """Canonical key ordering for the TLE-related parameters section."""
+
+_COVARIANCE_KEYS: tuple[str, ...] = (
+    "CX_X",
+    "CY_X",
+    "CY_Y",
+    "CZ_X",
+    "CZ_Y",
+    "CZ_Z",
+    "CX_DOT_X",
+    "CX_DOT_Y",
+    "CX_DOT_Z",
+    "CX_DOT_X_DOT",
+    "CY_DOT_X",
+    "CY_DOT_Y",
+    "CY_DOT_Z",
+    "CY_DOT_X_DOT",
+    "CY_DOT_Y_DOT",
+    "CZ_DOT_X",
+    "CZ_DOT_Y",
+    "CZ_DOT_Z",
+    "CZ_DOT_X_DOT",
+    "CZ_DOT_Y_DOT",
+    "CZ_DOT_Z_DOT",
+)
+
+_COVARIANCE_POSITIONS: tuple[tuple[int, int], ...] = tuple(
+    (row, column) for row in range(6) for column in range(row + 1)
+)
+
+_UNIT_BY_KEY: dict[str, str] = {
+    "SEMI_MAJOR_AXIS": "km",
+    "MEAN_MOTION": "rev/day",
+    "INCLINATION": "deg",
+    "RA_OF_ASC_NODE": "deg",
+    "ARG_OF_PERICENTER": "deg",
+    "MEAN_ANOMALY": "deg",
+    "GM": "km**3/s**2",
+    "MASS": "kg",
+    "SOLAR_RAD_AREA": "m**2",
+    "DRAG_AREA": "m**2",
+    "MEAN_MOTION_DOT": "rev/day**2",
+    "MEAN_MOTION_DDOT": "rev/day**3",
+}
+
+
+def _write_value(key: str, value: Any) -> str:
+    unit = _UNIT_BY_KEY.get(key)
+    return f"{value} [{unit}]" if unit else str(value)
+
+
+def validate_omm(header: dict[str, Any], data: dict[str, Any]) -> None:
+    """Validate mandatory and conditional CCSDS OMM fields."""
+    required_header = {"CCSDS_OMM_VERS", "CREATION_DATE", "ORIGINATOR"}
+    required_metadata = {
+        "OBJECT_NAME",
+        "OBJECT_ID",
+        "CENTER_NAME",
+        "REF_FRAME",
+        "TIME_SYSTEM",
+        "MEAN_ELEMENT_THEORY",
+    }
+    required_elements = {
+        "EPOCH",
+        "ECCENTRICITY",
+        "INCLINATION",
+        "RA_OF_ASC_NODE",
+        "ARG_OF_PERICENTER",
+        "MEAN_ANOMALY",
+    }
+    missing = sorted(required_header - header.keys())
+    if missing:
+        raise ValueError("Missing required OMM header field(s): " + ", ".join(missing))
+    missing = sorted(required_metadata - data.keys())
+    if missing:
+        raise ValueError(
+            "Missing required OMM metadata field(s): " + ", ".join(missing)
+        )
+    missing = sorted(required_elements - data.keys())
+    if missing:
+        raise ValueError(
+            "Missing required OMM mean element field(s): " + ", ".join(missing)
+        )
+    if not ({"SEMI_MAJOR_AXIS", "MEAN_MOTION"} & data.keys()):
+        raise ValueError("OMM requires SEMI_MAJOR_AXIS or MEAN_MOTION")
+    if {"SEMI_MAJOR_AXIS", "MEAN_MOTION"} <= data.keys():
+        raise ValueError(
+            "OMM must contain exactly one of SEMI_MAJOR_AXIS or MEAN_MOTION"
+        )
+
+    theory = str(data["MEAN_ELEMENT_THEORY"]).upper()
+    if theory in {"SGP", "PPT3"}:
+        tle_required = {"MEAN_MOTION_DOT", "MEAN_MOTION_DDOT"}
+    elif theory in {"SGP4", "SGP/SGP4"}:
+        tle_required = {"BSTAR"}
+    elif theory == "SGP4-XP":
+        tle_required = {"BTERM", "AGOM"}
+    else:
+        tle_required = set()
+    if tle_required:
+        missing = sorted(tle_required - data.keys())
+        if missing:
+            raise ValueError("Missing required OMM TLE field(s): " + ", ".join(missing))
+    covariance_present = _COVARIANCE_KEYS and set(_COVARIANCE_KEYS) & data.keys()
+    if covariance_present and covariance_present != set(_COVARIANCE_KEYS):
+        missing = sorted(set(_COVARIANCE_KEYS) - covariance_present)
+        raise ValueError("Incomplete OMM covariance matrix: " + ", ".join(missing))
 
 
 # ===================================================================
@@ -80,6 +202,8 @@ _TLE_PARAMS_KEY_ORDER: list[str] = [
 
 def read_omm(
     source: TextIO | str | Path,
+    *,
+    validate: bool = True,
 ) -> tuple[dict, dict]:
     """Read an OMM file and return *(header, data)*.
 
@@ -102,8 +226,6 @@ def read_omm(
 
     header: dict = {}
     data: dict = {}
-
-    _HEADER_KEYS: set[str] = {"CCSDS_OMM_VERS", "CREATION_DATE", "ORIGINATOR"}
 
     for raw_line in source:
         line: str = raw_line.strip()
@@ -128,6 +250,8 @@ def read_omm(
         else:
             data[key] = _try_numeric(value) if value else value
 
+    if validate:
+        validate_omm(header, data)
     return header, data
 
 
@@ -170,6 +294,10 @@ def write_omm(
     originator: str | int | float = header.get("ORIGINATOR", "")
     w(f"ORIGINATOR     = {originator}\n")
 
+    for key in ("CLASSIFICATION", "MESSAGE_ID"):
+        if key in header:
+            w(f"{key:<15} = {header[key]}\n")
+
     for comment in header.get("COMMENT", []):
         w(f"COMMENT {comment}\n")
 
@@ -178,21 +306,21 @@ def write_omm(
     # --- Metadata section ---
     for key in _META_KEY_ORDER:
         if key in data:
-            w(f"{key:<{max(14, len(key))}} = {data[key]}\n")
+            w(f"{key:<{max(14, len(key))}} = {_write_value(key, data[key])}\n")
 
     w("\n")
 
     # --- Mean elements section ---
     for key in _MEAN_ELEMENTS_KEY_ORDER:
         if key in data:
-            w(f"{key:<{max(14, len(key))}} = {data[key]}\n")
+            w(f"{key:<{max(14, len(key))}} = {_write_value(key, data[key])}\n")
 
     w("\n")
 
     # --- TLE-related parameters section ---
     for key in _TLE_PARAMS_KEY_ORDER:
         if key in data:
-            w(f"{key:<{max(14, len(key))}} = {data[key]}\n")
+            w(f"{key:<{max(14, len(key))}} = {_write_value(key, data[key])}\n")
 
     # --- Any extra keys not in the canonical ordering ---
     all_ordered: set[str] = set(
@@ -200,7 +328,7 @@ def write_omm(
     )
     extra_keys: list[str] = [k for k in data if k not in all_ordered and k != "COMMENT"]
     for key in extra_keys:
-        w(f"{key:<{max(14, len(key))}} = {data[key]}\n")
+        w(f"{key:<{max(14, len(key))}} = {_write_value(key, data[key])}\n")
 
     w("\n")
 
@@ -234,6 +362,29 @@ class TleParameters:
     """First time derivative of mean motion (for SGP or PPT3)"""
     mean_motion_ddot: str = "0"
     """Second time derivative of mean motion (for SGP or PPT3) or AGOM (for SGP4-XP)"""
+    bterm: str | None = None
+    """Ballistic coefficient for SGP4-XP."""
+    agom: str | None = None
+    """Solar radiation pressure coefficient for SGP4-XP."""
+
+
+@dataclass
+class OmmSpacecraftParameters:
+    """Optional spacecraft physical parameters in OMM file units."""
+
+    mass: float | None = None
+    solar_rad_area: float | None = None
+    solar_rad_coeff: float | None = None
+    drag_area: float | None = None
+    drag_coeff: float | None = None
+
+
+@dataclass
+class OmmCovariance:
+    """Optional symmetric 6x6 position/velocity covariance matrix."""
+
+    matrix: np.ndarray
+    ref_frame: str | None = None
 
 
 @dataclass
@@ -250,6 +401,10 @@ class CcsdsOmm:
     """File creation date (ISO 8601 format)"""
     originator: str = ""
     """Organization or entity that created the OMM file"""
+    classification: str = ""
+    """Security classification."""
+    message_id: str = ""
+    """Optional message identifier."""
     comments: list[str] = field(default_factory=list)
     """List of comment lines from the OMM header"""
 
@@ -283,6 +438,18 @@ class CcsdsOmm:
 
     tle_parameters: TleParameters | None = None
     """TLE-related parameters (only for SGP/SGP4 mean element theories)"""
+    ref_frame_epoch: str = ""
+    """Reference-frame epoch when required by the frame definition."""
+    semi_major_axis: float | None = None
+    """Semi-major axis (km), when used instead of mean motion."""
+    gm: float | None = None
+    """Gravitational coefficient (km**3/s**2)."""
+    spacecraft_parameters: OmmSpacecraftParameters | None = None
+    """Optional spacecraft physical parameters."""
+    covariance: OmmCovariance | None = None
+    """Optional state covariance."""
+    data: dict[str, Any] = field(default_factory=dict)
+    """Raw parsed fields, including user-defined parameters."""
 
     def to_dict(self) -> dict[str, object]:
         """Convert to a plain dictionary."""
@@ -318,12 +485,40 @@ class CcsdsOmm:
                 bstar=str(data.get("BSTAR", "0")),
                 mean_motion_dot=str(data.get("MEAN_MOTION_DOT", "0")),
                 mean_motion_ddot=str(data.get("MEAN_MOTION_DDOT", "0")),
+                bterm=str(data["BTERM"]) if "BTERM" in data else None,
+                agom=str(data["AGOM"]) if "AGOM" in data else None,
             )
+
+        spacecraft_keys = {
+            "MASS",
+            "SOLAR_RAD_AREA",
+            "SOLAR_RAD_COEFF",
+            "DRAG_AREA",
+            "DRAG_COEFF",
+        }
+        spacecraft: OmmSpacecraftParameters | None = None
+        if spacecraft_keys & data.keys():
+            spacecraft = OmmSpacecraftParameters(
+                **{
+                    key.lower(): float(data[key]) if key in data else None
+                    for key in spacecraft_keys
+                }
+            )
+
+        covariance: OmmCovariance | None = None
+        if set(_COVARIANCE_KEYS) <= data.keys():
+            matrix = np.zeros((6, 6))
+            for key, (row, column) in zip(_COVARIANCE_KEYS, _COVARIANCE_POSITIONS):
+                matrix[row, column] = float(data[key])
+                matrix[column, row] = matrix[row, column]
+            covariance = OmmCovariance(matrix, data.get("COV_REF_FRAME"))
 
         return cls(
             version=float(header.get("CCSDS_OMM_VERS", 3.0)),
             creation_date=str(header.get("CREATION_DATE", "")),
             originator=str(header.get("ORIGINATOR", "")),
+            classification=str(header.get("CLASSIFICATION", "")),
+            message_id=str(header.get("MESSAGE_ID", "")),
             comments=header.get("COMMENT", []),
             object_name=str(data.get("OBJECT_NAME", "")),
             object_id=str(data.get("OBJECT_ID", "")),
@@ -331,14 +526,22 @@ class CcsdsOmm:
             ref_frame=str(data.get("REF_FRAME", "ICRF")),
             time_system=str(data.get("TIME_SYSTEM", "UTC")),
             mean_element_theory=str(data.get("MEAN_ELEMENT_THEORY", "DSST")),
+            ref_frame_epoch=str(data.get("REF_FRAME_EPOCH", "")),
             epoch=str(data.get("EPOCH", "")),
-            mean_motion=float(data.get("MEAN_MOTION", 0.0)),
+            mean_motion=(float(data["MEAN_MOTION"]) if "MEAN_MOTION" in data else 0.0),
             eccentricity=float(data.get("ECCENTRICITY", 0.0)),
             inclination=float(data.get("INCLINATION", 0.0)),
             ra_of_asc_node=float(data.get("RA_OF_ASC_NODE", 0.0)),
             arg_of_pericenter=float(data.get("ARG_OF_PERICENTER", 0.0)),
             mean_anomaly=float(data.get("MEAN_ANOMALY", 0.0)),
             tle_parameters=tle_params,
+            semi_major_axis=(
+                float(data["SEMI_MAJOR_AXIS"]) if "SEMI_MAJOR_AXIS" in data else None
+            ),
+            gm=float(data["GM"]) if "GM" in data else None,
+            spacecraft_parameters=spacecraft,
+            covariance=covariance,
+            data=data,
         )
 
     def to_file(self, dest: TextIO | str | Path) -> None:
@@ -354,6 +557,10 @@ class CcsdsOmm:
             "CREATION_DATE": self.creation_date,
             "ORIGINATOR": self.originator,
         }
+        if self.classification:
+            hdr["CLASSIFICATION"] = self.classification
+        if self.message_id:
+            hdr["MESSAGE_ID"] = self.message_id
         if self.comments:
             hdr["COMMENT"] = self.comments
 
@@ -362,6 +569,7 @@ class CcsdsOmm:
             "OBJECT_ID": self.object_id,
             "CENTER_NAME": self.center_name,
             "REF_FRAME": self.ref_frame,
+            "REF_FRAME_EPOCH": self.ref_frame_epoch,
             "TIME_SYSTEM": self.time_system,
             "MEAN_ELEMENT_THEORY": self.mean_element_theory,
             "EPOCH": self.epoch,
@@ -372,6 +580,12 @@ class CcsdsOmm:
             "ARG_OF_PERICENTER": self.arg_of_pericenter,
             "MEAN_ANOMALY": self.mean_anomaly,
         }
+        data.update(self.data)
+        if self.semi_major_axis is not None:
+            data["SEMI_MAJOR_AXIS"] = self.semi_major_axis
+            data.pop("MEAN_MOTION", None)
+        if self.gm is not None:
+            data["GM"] = self.gm
 
         # Add TLE-related parameters if present
         if self.tle_parameters is not None:
@@ -381,8 +595,29 @@ class CcsdsOmm:
             data["ELEMENT_SET_NO"] = self.tle_parameters.element_set_no
             data["REV_AT_EPOCH"] = self.tle_parameters.rev_at_epoch
             data["BSTAR"] = self.tle_parameters.bstar
+            if self.tle_parameters.bterm is not None:
+                data["BTERM"] = self.tle_parameters.bterm
+            if self.tle_parameters.agom is not None:
+                data["AGOM"] = self.tle_parameters.agom
             data["MEAN_MOTION_DOT"] = self.tle_parameters.mean_motion_dot
             data["MEAN_MOTION_DDOT"] = self.tle_parameters.mean_motion_ddot
+
+        if self.spacecraft_parameters is not None:
+            for key, value in asdict(self.spacecraft_parameters).items():
+                if value is not None:
+                    data[key.upper()] = value
+
+        if self.covariance is not None:
+            if self.covariance.ref_frame is not None:
+                data["COV_REF_FRAME"] = self.covariance.ref_frame
+            data.update(
+                {
+                    key: self.covariance.matrix[row, column]
+                    for key, (row, column) in zip(
+                        _COVARIANCE_KEYS, _COVARIANCE_POSITIONS
+                    )
+                }
+            )
 
         write_omm(dest, hdr, data)
 
