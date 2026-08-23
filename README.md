@@ -8,7 +8,7 @@ This project provides a practical toolkit for working with ephemerides and relat
 
 The toolkit supports workflows for working with ephemeris products: parse OEM, OMM, and TLE inputs, fit or convert mean elements, propagate trajectories, compare results, and visualize dependent variables and orbit differences.
 
-The current propagation commands are `propagate-orbit` for perturbed Cartesian propagation and `propagate-kepler` for two-body Keplerian propagation.
+The current propagation commands are `propagate-orbit` for numerical orbit propagation and `propagate-kepler` for two-body Keplerian propagation.
 
 ### OEM file data flow
 
@@ -117,20 +117,40 @@ flowchart LR
 ## Command-Line Tools
 
 
+### Command groups
+
+#### OEM utilities
+
 | Workflow | Command |
 | --- | --- |
 | OEM comparison | [`diff-oem`](docs/DIFF_OEM.md) |
-| TLE download | [`download-tle`](docs/DOWNLOAD_TLE.md) |
-| OMM to TLE | [`omm-to-tle`](docs/OMM_TO_TLE.md) |
 | OEM slicing | [`slice-oem`](docs/SLICE_OEM.md) |
-| TLE inspection | [`tle-info`](docs/TLE_INFO.md) |
-| TLE to OMM | [`tle-to-omm`](docs/TLE_TO_OMM.md) |
-| OEM frame transformation | [`xform-oem`](docs/XFORM_OEM.md) |
+| OEM frame/coordinate transformation | [`xform-oem`](docs/XFORM_OEM.md) |
 | OEM to OPM fitting | [`oem-to-opm`](docs/OEM_TO_OPM.md) |
 | OEM to OMM fitting | [`oem-to-omm`](docs/OEM_TO_OMM.md) |
-| Orbit propagation | [`propagate-orbit`](docs/PROPAGATE_ORBIT.md) |
+
+#### Orbit propagation
+
+| Workflow | Command |
+| --- | --- |
+| Numerical orbit propagation | [`propagate-orbit`](docs/PROPAGATE_ORBIT.md) |
+| Mean Keplerian orbit propagation | [`propagate-omm`](docs/PROPAGATE_ORBIT.md) |
 | Kepler propagation | [`propagate-kepler`](docs/PROPAGATE_KEPLER.md) |
 | TLE propagation | [`propagate-tle`](docs/PROPAGATE_TLE.md) |
+
+#### TLE / OMM utilities
+
+| Workflow | Command |
+| --- | --- |
+| TLE download | [`download-tle`](docs/DOWNLOAD_TLE.md) |
+| OMM to TLE | [`omm-to-tle`](docs/OMM_TO_TLE.md) |
+| TLE inspection | [`tle-info`](docs/TLE_INFO.md) |
+| TLE to OMM | [`tle-to-omm`](docs/TLE_TO_OMM.md) |
+
+#### Plotting and analysis
+
+| Workflow | Command |
+| --- | --- |
 | Orbit plotting | [`plot-orbit`](docs/PLOT_ORBIT.md) |
 | Orbit-delta plotting | [`plot-orbit-deltas`](docs/PLOT_ORBIT_DELTAS.md) |
 | Dependent-variable plotting | [`plot-dependent-variables`](docs/PLOT_DEPENDENT_VARIABLES.md) |
@@ -142,12 +162,13 @@ TudatPy-dependent workflows require TudatPy and its transitive dependencies thro
 
 - [`diff-oem`](docs/DIFF_OEM.md) — compare corresponding states from two OEM files with optional rotation fitting and time-shift correction.
 - [`slice-oem`](docs/SLICE_OEM.md) — slice OEM files by index or time range (with optional interpolation).
-- [`xform-oem`](docs/XFORM_OEM.md) — convert CCSDS OEM state vectors between supported reference frames, or convert ECEF positions to AER coordinates.
+- [`xform-oem`](docs/XFORM_OEM.md) — transform OEM state vectors between supported reference frames and convert ECEF positions to AER coordinates.
 
 
 ### Orbit Propagation
 
-- [`propagate-orbit`](docs/PROPAGATE_ORBIT.md) — Cartesian state propagation with configurable perturbations
+- [`propagate-orbit`](docs/PROPAGATE_ORBIT.md) — numerical orbit propagation with configurable perturbations and Cartesian state integration
+- [`propagate-omm`](docs/PROPAGATE_ORBIT.md) — mean Keplerian orbit propagation from OMM elements to OEM output
 - [`propagate-kepler`](docs/PROPAGATE_KEPLER.md) — two-body Kepler propagation
 - [`propagate-tle`](docs/PROPAGATE_TLE.md) — SGP4 TLE propagation
 
@@ -174,6 +195,7 @@ Fits an OEM arc with a two-body osculating Keplerian model and writes an OPM con
 
 ### Visualization
 
+- [`plot-orbit`](docs/PLOT_ORBIT.md) — visualize orbit trajectories and output state histories
 - [`plot-orbit-deltas`](docs/PLOT_ORBIT_DELTAS.md) — plot and compare multiple orbits
 - [`plot-dependent-variables`](docs/PLOT_DEPENDENT_VARIABLES.md) — plot dependent variables from propagation output
 
