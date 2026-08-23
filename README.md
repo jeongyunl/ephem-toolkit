@@ -15,7 +15,7 @@ The current propagation commands are `propagate-orbit` for perturbed Cartesian p
 ```mermaid
 flowchart LR
     fmt_oem{{"OEM / State Vectors <br/> (CCSDS OEM or simple format: epoch x y z vx vy vz)"}}
-    fmt_opm{{"OPM (.opm)"}}
+    fmt_opm{{"OPM (.opm) <br/> Cartesian-only or Cartesian + osculating Keplerian elements"}}
     fmt_omm{{"OMM (.omm)"}}
     fmt_tle{{"TLE (.tle)"}}
     fmt_dep_vars_csv{{"Dependent Variables CSV"}}
@@ -24,10 +24,14 @@ flowchart LR
     oem_to_omm(["oem-to-omm"])
     oem_to_opm(["oem-to-opm"])
     propagate_sat(["propagate-orbit"])
+    propagate_kepler(["propagate-kepler"])
+    propagate_omm(["propagate-omm"])
+    plot_orbit(["plot-orbit"])
     plot_orbit_deltas(["plot-orbit-deltas"])
+    plot_dep_vars(["plot-dependent-variables"])
+    diff_oem(["diff-oem"])
     slice_oem(["slice-oem"])
     xform_oem(["xform-oem"])
-    propagate_tle(["propagate-tle"])
 
     fmt_oem --> oem_to_omm
     oem_to_omm --> fmt_omm
@@ -35,15 +39,28 @@ flowchart LR
     fmt_oem --> oem_to_opm
     oem_to_opm --> fmt_opm
 
-    fmt_oem -->|"single state line"| propagate_sat
+    fmt_opm -->|"Cartesian initial state"| propagate_sat
     propagate_sat -->|"state history"| fmt_oem
     propagate_sat -->|"dependent variables"| fmt_dep_vars_csv
 
+    fmt_opm -->|"Cartesian + osculating Keplerian elements"| propagate_kepler
+    propagate_kepler --> fmt_oem
+
+    fmt_omm -->|"OMM input"| propagate_omm
+    propagate_omm --> fmt_oem
+
+    fmt_oem --> diff_oem
+    fmt_oem --> plot_orbit
     fmt_oem --> plot_orbit_deltas
+    plot_orbit --> fmt_plots
     plot_orbit_deltas --> fmt_plots
+
+    fmt_dep_vars_csv --> plot_dep_vars
+    plot_dep_vars --> fmt_plots
 
     fmt_oem --> slice_oem
     slice_oem --> fmt_oem
+    slice_oem -->|"Cartesian-only single-state OPM"| fmt_opm
 
     fmt_oem -->|"source frame + target frame"| xform_oem
     xform_oem -->|"converted OEM"| fmt_oem
@@ -54,7 +71,7 @@ flowchart LR
 ```mermaid
 flowchart LR
     fmt_tle{{"TLE (.tle)"}}
-    fmt_opm{{"OPM (.opm)"}}
+    fmt_opm{{"OPM (.opm) <br/> Cartesian-only or Cartesian + osculating Keplerian elements"}}
     fmt_omm{{"OMM (.omm)"}}
     fmt_oem{{"OEM / State Vectors <br/> (CCSDS OEM or simple format: epoch x y z vx vy vz)"}}
 
@@ -65,6 +82,8 @@ flowchart LR
     oem_to_omm(["oem-to-omm"])
     oem_to_opm(["oem-to-opm"])
     propagate_tle(["propagate-tle"])
+    propagate_omm(["propagate-omm"])
+    propagate_kepler(["propagate-kepler"])
 
     fmt_tle --> tle_to_omm
     tle_to_omm --> fmt_omm
@@ -77,11 +96,17 @@ flowchart LR
     fmt_oem --> oem_to_omm
     oem_to_omm --> fmt_omm
     oem_to_omm --> fmt_tle
-    fmt_oem --> oem_to_opm
+    fmt_oem -->|"Cartesian + osculating Keplerian elements"| oem_to_opm
     oem_to_opm --> fmt_opm
 
     fmt_tle --> propagate_tle
     propagate_tle --> fmt_oem
+
+    fmt_omm --> propagate_omm
+    propagate_omm --> fmt_oem
+
+    fmt_opm -->|"Cartesian initial state"| propagate_kepler
+    propagate_kepler --> fmt_oem
 
     download_tle -->|"TLE format"| fmt_tle
     download_tle -->|"OMM format"| fmt_omm

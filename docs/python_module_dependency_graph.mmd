@@ -8,25 +8,27 @@ graph LR
 %% Internal Python module dependencies under ephem_toolkit namespace
 %% Standalone scripts use stadium shape ([...])
 %% Library modules use default rectangle shape [...]
-%% Updated 2026-08-11 to reflect src/ephem_toolkit/ structure
+%% Updated to match the current packages and CLI entry points.
 
     subgraph core["ephem_toolkit.core"]
         mod_core_aer[aer]
-        mod_core_misc[misc]
         mod_core_consts[consts]
         mod_core_convert_tle[convert_tle]
         mod_core_frame_utils[frame_utils]
         mod_core_kepler[kepler]
         mod_core_mean_kepler[mean_kepler]
-        mod_core_spice_utils[spice_utils]
-        mod_core_odm[ccsds.odm]
-        mod_core_oem[ccsds.oem]
-        mod_core_opm[ccsds.opm]
-        mod_core_omm[ccsds.omm]
         mod_core_slice_oem[slice_oem]
         mod_core_time_utils[time_utils]
         mod_core_tle[tle]
         mod_core_wgs[wgs]
+        mod_core_cli[cli]
+    end
+
+    subgraph ccsds["ephem_toolkit.core.ccsds"]
+        mod_core_odm[odm]
+        mod_core_oem[oem]
+        mod_core_opm[opm]
+        mod_core_omm[omm]
     end
 
     subgraph interpolator["ephem_toolkit.core.interpolator"]
@@ -35,24 +37,24 @@ graph LR
         mod_interpolator_hermite[hermite]
         mod_interpolator_spec[interpolation_spec]
         mod_interpolator_factory[factory]
-        mod_core_cli[cli]
     end
 
-    mod_util_download_tle([download_tle])
-    mod_util_xform_oem([xform_oem])
-    mod_util_omm_to_tle([omm_to_tle])
-    mod_util_slice_oem([slice_oem])
-    mod_util_tle_info([tle_info])
-    mod_util_tle_to_omm([tle_to_omm])
     mod_util_diff_oem([diff_oem])
+    mod_util_download_tle([download_tle])
+    mod_util_oem_to_omm([oem_to_omm])
+    mod_util_oem_to_opm([oem_to_opm])
+    mod_util_omm_to_tle([omm_to_tle])
     mod_util_plot_orbit([plot_orbit])
     mod_util_plot_orbit_deltas([plot_orbit_deltas])
     mod_util_plot_dep_vars([plot_dependent_variables])
     mod_util_propagate_kepler([propagate_kepler])
+    mod_util_propagate_omm([propagate_omm])
     mod_util_propagate_orbit([propagate_orbit])
     mod_util_propagate_tle([propagate_tle])
-    mod_util_oem_to_opm([oem_to_opm])
-    mod_util_oem_to_omm([oem_to_omm])
+    mod_util_slice_oem([slice_oem])
+    mod_util_tle_info([tle_info])
+    mod_util_tle_to_omm([tle_to_omm])
+    mod_util_xform_oem([xform_oem])
 
     %% ===== Core library internal edges =====
     mod_core_aer --> mod_core_wgs
@@ -64,7 +66,6 @@ graph LR
     mod_core_kepler --> mod_core_consts
     mod_core_mean_kepler --> mod_core_kepler
     mod_core_mean_kepler --> mod_core_consts
-    mod_core_oem --> mod_core_misc
     mod_core_oem --> mod_core_time_utils
     mod_core_slice_oem --> mod_core_oem
     mod_core_slice_oem --> mod_core_time_utils
@@ -86,12 +87,11 @@ graph LR
     mod_util_omm_to_tle --> mod_core_convert_tle
     mod_util_omm_to_tle --> mod_core_omm
     mod_util_omm_to_tle --> mod_core_tle
-    mod_util_slice_oem --> mod_core_misc
     mod_util_slice_oem --> mod_core_oem
     mod_util_slice_oem --> mod_core_slice_oem
     mod_util_slice_oem --> mod_core_time_utils
-    mod_util_tle_info --> mod_core_misc
     mod_util_tle_info --> mod_core_kepler
+    mod_util_tle_info --> mod_core_tle
     mod_util_tle_to_omm --> mod_core_convert_tle
     mod_util_tle_to_omm --> mod_core_tle
     mod_util_diff_oem --> mod_core_oem
@@ -107,6 +107,8 @@ graph LR
     mod_util_propagate_kepler --> mod_core_oem
     mod_util_propagate_kepler --> mod_core_kepler
     mod_util_propagate_kepler --> mod_core_time_utils
+    mod_util_propagate_omm --> mod_core_omm
+    mod_util_propagate_omm --> mod_core_time_utils
     mod_util_propagate_orbit --> mod_core_oem
     mod_util_propagate_orbit --> mod_core_time_utils
     mod_util_propagate_orbit --> mod_interpolator_lagrange
