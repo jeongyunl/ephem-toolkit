@@ -16,13 +16,11 @@ flowchart LR
     %% ===== Data Format Nodes =====
     fmt_tle{{"TLE (.tle)"}}
     fmt_omm{{"OMM (.omm)"}}
-    fmt_opm{{"OPM (.opm)"}}
+    fmt_opm{{"OPM (.opm) <br/> one Cartesian state vector + optional osculating Keplerian elements"}}
     fmt_oem{{"OEM / State Vectors <br/> (CCSDS OEM or simple format: epoch x y z vx vy vz)"}}
-    fmt_kepler{{"OEM-like Keplerian Elements <br/> (epoch a e i ω Ω θ)"}}
     fmt_dep_vars_csv{{"Dependent Variables CSV"}}
     fmt_plots{{"Plots / Animations <br/> (Matplotlib figures)"}}
     fmt_aer_text{{"AER Text <br/> (stdout)"}}
-    fmt_time{{"Time Values <br/> (ISO / POSIX / UTC / TAI / TT / TDB)"}}
     fmt_celestrak{{"CelesTrak<br/>(HTTP download)"}}
 
     %% ===== Script Nodes =====
@@ -41,8 +39,6 @@ flowchart LR
     plot_orbit_deltas(["plot-orbit-deltas"])
     slice_oem(["slice-oem"])
     xform_oem(["xform-oem"])
-    convert_time(["convert-time"])
-    convert_time2(["convert-time2"])
 
     %% ===== Data Flows =====
 
@@ -80,8 +76,8 @@ flowchart LR
     propagate_sat -->|"state history"| fmt_oem
     propagate_sat -->|"dependent variables"| fmt_dep_vars_csv
 
-    %% propagate-kepler: Keplerian elements → OEM state vectors
-    fmt_kepler --> propagate_kepler
+    %% propagate-kepler: OPM file with optional osculating Keplerian elements → OEM state vectors
+    fmt_opm -->|"OPM input with optional osculating Keplerian elements"| propagate_kepler
     propagate_kepler --> fmt_oem
 
     %% plot-orbit-deltas: OEM state files → plots
@@ -101,11 +97,3 @@ flowchart LR
     fmt_oem -->|"source frame + target frame"| xform_oem
     xform_oem -->|"converted OEM"| fmt_oem
     xform_oem -->|"AER text"| fmt_aer_text
-
-    %% convert-time: time values → converted time values
-    fmt_time --> convert_time
-    convert_time --> fmt_time
-
-    %% convert-time2: time values → converted time values
-    fmt_time --> convert_time2
-    convert_time2 --> fmt_time
