@@ -1,7 +1,7 @@
 # To-do list
 
 1. OPM support
-    1. `slice-oem` to support OPM file output
+    1. ~~`slice-oem` to support OPM file output~~
     1. split `oem-to-omm` into two scripts:
         1. `oem-to-opm`: Osculating elements
         1. `oem-to-omm`: Mean elements
