@@ -12,6 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
+import ephem_toolkit.core.ccsds.opm as opm
 import ephem_toolkit.core.ccsds.oem as oem
 
 TEST_DIR: Path = Path(__file__).parent
@@ -91,6 +92,20 @@ def test_cli_index_slice_start_stop() -> None:
         assert len(output_oem.states) == 5
         assert output_oem.states[0][0] == original_oem.states[5][0]
         assert output_oem.states[-1][0] == original_oem.states[9][0]
+    finally:
+        temp_path.unlink()
+
+
+def test_cli_index_slice_opm_first_state_only() -> None:
+    """Test --opm emits only the first state from an index slice selection."""
+    temp_path, original_oem = _create_test_oem(num_states=20)
+    try:
+        result = _run_slice_oem([str(temp_path), "--slice", "5:10", "--opm"])
+        assert result.returncode == 0
+
+        _, _, output_data = opm.read_opm(io.StringIO(result.stdout), validate=False)
+        assert output_data["EPOCH"].startswith("2024-01-01T00:05:00")
+        assert output_data["X"] == original_oem.states[5][1][0] / 1000
     finally:
         temp_path.unlink()
 
