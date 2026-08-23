@@ -1,8 +1,30 @@
 # To-do list
 
-1. [`propagate-omm']
-    1. propagate mean elements or TLE
-    1. replace `propagate-tle`.
+1. Propagators
+    1. Propagator interface/class hierarchy
+    1. Keplerian propagator
+    1. DSST propagator
+    1. USM propagator
+    1. Numerical propagator (Tudat wrapper)
+    1. ?
+
+1. ODM meta data
+    1. Strict ODM meta data validation
+        1. REF_FRAME
+        1. TIME_SYSTEM
+        1. CENTER_NAME
+    1. Utilize
+        1. SOLAR_RAD_AREA, SOLAR_RAD_COEFF
+        1. DRAG_AREA, DRAG_COEFF
+        1. GM
+        1. MEAN_ELEMENT_THEORY
+    1. Use units in ODM meta data (e.g., [km], [m/s], etc.) instead of assuming SI units
+
+1. [`propagate-omm`](docs/PROPAGATE_OMM.md)
+    1. Adopt more analytical propagators (e.g., DSST, USM, etc.) to support OMM propagation in the future
+
+1. [`propagate-tle`](docs/PROPAGATE_TLE.md)
+    1. Keep it or obsolete it? (maybe keep it for now?)
 
 1. Better OPM support
     1. ?
@@ -10,13 +32,6 @@
 1. [`propagate-orbit']
     1. give a less generic name
     1. numerical propagator
-
-1. Propagator classes
-    1. Keplerian propagator
-    1. DSST propagator
-    1. USM propagator
-    1. Numerical propagator (Tudat wrapper)
-    1. ?
 
 1. Interpolators
     1. optimize lagrange and chebyshev for state vector interpolation?
