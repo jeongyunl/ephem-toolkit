@@ -632,6 +632,7 @@ Solution: Ensure `--start` is before or equal to `--stop`.
 - `slice-oem` — Extract subsets of OEM data by index or time range
 - `plot-orbit-deltas` — Visualize orbit differences
 - `propagate-orbit` — Generate OEM files from propagation
+- `oem-to-opm` — Fit an OEM arc and write an OPM with osculating elements
 - `oem-to-omm` — Convert OEM to TLE/OMM format
 
 ## References

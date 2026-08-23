@@ -32,6 +32,7 @@ flowchart LR
     omm_to_tle(["omm-to-tle"])
     tle_to_omm(["tle-to-omm"])
     tle_info(["tle-info"])
+    oem_to_opm(["oem-to-opm"])
     oem_to_omm(["oem-to-omm"])
     propagate_tle(["propagate-tle"])
     propagate_sat(["propagate-orbit"])
@@ -49,6 +50,10 @@ flowchart LR
     fmt_celestrak -->|"satellite ID"| download_tle
     download_tle -->|"TLE format"| fmt_tle
     download_tle -->|"OMM format"| fmt_omm
+
+    %% oem-to-opm: OEM state vectors → OPM with osculating elements
+    fmt_oem --> oem_to_opm
+    oem_to_opm --> fmt_opm
 
     %% oem-to-omm: OEM state vectors → OMM (Keplerian or TLE)
     fmt_oem --> oem_to_omm

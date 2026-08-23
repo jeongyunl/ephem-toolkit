@@ -21,6 +21,7 @@ graph LR
         mod_core_spice_utils[spice_utils]
         mod_core_odm[ccsds.odm]
         mod_core_oem[ccsds.oem]
+        mod_core_opm[ccsds.opm]
         mod_core_omm[ccsds.omm]
         mod_core_slice_oem[slice_oem]
         mod_core_time_utils[time_utils]
@@ -50,6 +51,7 @@ graph LR
     mod_util_propagate_kepler([propagate_kepler])
     mod_util_propagate_orbit([propagate_orbit])
     mod_util_propagate_tle([propagate_tle])
+    mod_util_oem_to_opm([oem_to_opm])
     mod_util_oem_to_omm([oem_to_omm])
 
     %% ===== Core library internal edges =====
@@ -110,6 +112,11 @@ graph LR
     mod_util_propagate_orbit --> mod_interpolator_lagrange
     mod_util_propagate_tle --> mod_core_oem
     mod_util_propagate_tle --> mod_core_time_utils
+    mod_util_oem_to_opm --> mod_core_consts
+    mod_util_oem_to_opm --> mod_core_kepler
+    mod_util_oem_to_opm --> mod_core_oem
+    mod_util_oem_to_opm --> mod_core_opm
+    mod_util_oem_to_opm --> mod_core_time_utils
     mod_util_oem_to_omm --> mod_core_consts
     mod_util_oem_to_omm --> mod_core_convert_tle
     mod_util_oem_to_omm --> mod_core_kepler

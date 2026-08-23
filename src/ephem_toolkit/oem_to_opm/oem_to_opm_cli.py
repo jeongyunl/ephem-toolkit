@@ -1,0 +1,133 @@
+"""CLI argument parsing for the OEM-to-OPM conversion command.
+
+Usage:
+    oem-to-opm <input_oem|-> -o <output_opm|->
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from datetime import timedelta
+
+import ephem_toolkit.core.cli as cli
+import ephem_toolkit.core.consts as consts
+import ephem_toolkit.core.time_utils as time_utils
+
+DEFAULT_FIT_SPAN: timedelta = timedelta(hours=2)
+"""Default arc span for OEM-to-OPM fitting operations."""
+
+
+class OemToOpmArgs(argparse.Namespace):
+    """Typed argument namespace for the OEM-to-OPM CLI."""
+
+    input_oem: str
+    """Input OEM path or '-' for stdin."""
+    output_opm: str
+    """Output OPM path or '-' for stdout."""
+    verbose: bool
+    """Print verbose diagnostic output to stderr."""
+    mu_m3_s2: float
+    """Gravitational parameter in m³/s²."""
+    fit_span: timedelta
+    """Maximum arc span for the fit."""
+    object_name: str
+    """Spacecraft name for OPM metadata."""
+    object_id: str
+    """International designator for OPM metadata."""
+
+
+def report_error(message: str, exit_code: int = 1) -> None:
+    """Report an error message to stderr and exit.
+
+    Parameters
+    ----------
+    message : str
+        Error message to display.
+    exit_code : int, optional
+        Exit code to raise with SystemExit. Default is 1.
+
+    Raises
+    ------
+    SystemExit
+        Always raised with the supplied exit code.
+    """
+    print(message, file=sys.stderr)
+    raise SystemExit(exit_code)
+
+
+def parse_arguments() -> OemToOpmArgs:
+    """Parse command-line arguments for the OEM-to-OPM conversion workflow.
+
+    Returns
+    -------
+    OemToOpmArgs
+        Parsed CLI arguments with the typed runtime namespace.
+    """
+    parser = cli.create_parser(
+        description="Fit OEM state vectors and write an OPM with osculating elements.",
+        epilog=(
+            "Examples:\n"
+            "  oem-to-opm input.oem -o output.opm\n"
+            "  cat input.oem | oem-to-opm - -o -"
+        ),
+    )
+    parser.prog = "oem-to-opm"
+    parser.add_argument(
+        "input_oem",
+        metavar="<input_oem|->",
+        help='Path to input CCSDS OEM file; use "-" to read from stdin',
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        dest="output_opm",
+        metavar="<output_opm|->",
+        required=True,
+        help="Output OPM file path; '-' writes to stdout",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbose",
+        action="store_true",
+        help="Print detailed debug information to stderr",
+    )
+    parser.add_argument(
+        "--mu",
+        type=float,
+        default=consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2,
+        metavar="<value>",
+        dest="mu_m3_s2",
+        help=(
+            "Gravitational parameter (m³/s²). "
+            f"(default: {consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2:.6e}, Earth WGS-84)."
+        ),
+    )
+    parser.add_argument(
+        "--fit-span",
+        type=time_utils.parse_duration_to_timedelta,
+        default=DEFAULT_FIT_SPAN,
+        metavar="<duration>",
+        dest="fit_span",
+        help=(
+            "Maximum arc span for the fit (supports durations like 2h, 90m, 3600s; "
+            "default: 2h)."
+        ),
+    )
+    parser.add_argument(
+        "--object-name",
+        dest="object_name",
+        metavar="<name>",
+        default="",
+        help="OBJECT_NAME: Spacecraft name for OPM output.",
+    )
+    parser.add_argument(
+        "--object-id",
+        metavar="<YYYY-NNNP>",
+        default="",
+        dest="object_id",
+        help="OBJECT_ID: International designator (e.g., 1998-067A) for OPM output.",
+    )
+
+    return parser.parse_args(namespace=OemToOpmArgs())
