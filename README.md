@@ -1,10 +1,10 @@
 # ephem-toolkit
 
-Command-line tools for processing, converting, propagating, comparing, and visualizing OEM, OMM, and TLE ephemeris data with TudatPy and Tudat.
+Command-line tools for processing, converting, propagating, comparing, and visualizing OEM, OPM, OMM, and TLE ephemeris data with TudatPy and Tudat.
 
 ## Overview
 
-This project provides a practical toolkit for working with ephemerides and related astrodynamics data. Built on top of [TudatPy](https://docs.tudat.space/en/latest/) and [Tudat](https://docs.tudat.space/), it includes a focused set of command-line tools for ingesting, transforming, comparing, propagating, and plotting CCSDS OEM, OMM, and TLE data.
+This project provides a practical toolkit for working with ephemerides and related astrodynamics data. Built on top of [TudatPy](https://docs.tudat.space/en/latest/) and [Tudat](https://docs.tudat.space/), it includes a focused set of command-line tools for ingesting, transforming, comparing, propagating, and plotting CCSDS OEM, OPM, OMM, and TLE data.
 
 The toolkit supports workflows for working with ephemeris products: parse OEM, OMM, and TLE inputs, fit or convert mean elements, propagate trajectories, compare results, and visualize dependent variables and orbit differences.
 
@@ -13,12 +13,14 @@ The toolkit supports workflows for working with ephemeris products: parse OEM, O
 ```mermaid
 flowchart LR
     fmt_oem{{"OEM / State Vectors <br/> (CCSDS OEM or simple format: epoch x y z vx vy vz)"}}
+    fmt_opm{{"OPM (.opm)"}}
     fmt_omm{{"OMM (.omm)"}}
     fmt_tle{{"TLE (.tle)"}}
     fmt_dep_vars_csv{{"Dependent Variables CSV"}}
     fmt_plots{{"Plots / Animations <br/> (Matplotlib figures)"}}
 
     oem_to_omm(["oem-to-omm"])
+    oem_to_opm(["oem-to-opm"])
     propagate_sat(["propagate-orbit"])
     plot_orbit_deltas(["plot-orbit-deltas"])
     slice_oem(["slice-oem"])
@@ -28,6 +30,8 @@ flowchart LR
     fmt_oem --> oem_to_omm
     oem_to_omm --> fmt_omm
     oem_to_omm --> fmt_tle
+    fmt_oem --> oem_to_opm
+    oem_to_opm --> fmt_opm
 
     fmt_oem -->|"single state line"| propagate_sat
     propagate_sat -->|"state history"| fmt_oem
@@ -43,11 +47,12 @@ flowchart LR
     xform_oem -->|"converted OEM"| fmt_oem
 ```
 
-### OMM/TLE file data flow
+### OPM/OMM/TLE file data flow
 
 ```mermaid
 flowchart LR
     fmt_tle{{"TLE (.tle)"}}
+    fmt_opm{{"OPM (.opm)"}}
     fmt_omm{{"OMM (.omm)"}}
     fmt_oem{{"OEM / State Vectors <br/> (CCSDS OEM or simple format: epoch x y z vx vy vz)"}}
 
@@ -56,6 +61,7 @@ flowchart LR
     tle_to_omm(["tle-to-omm"])
     tle_info(["tle-info"])
     oem_to_omm(["oem-to-omm"])
+    oem_to_opm(["oem-to-opm"])
     propagate_tle(["propagate-tle"])
 
     fmt_tle --> tle_to_omm
@@ -69,6 +75,8 @@ flowchart LR
     fmt_oem --> oem_to_omm
     oem_to_omm --> fmt_omm
     oem_to_omm --> fmt_tle
+    fmt_oem --> oem_to_opm
+    oem_to_opm --> fmt_opm
 
     fmt_tle --> propagate_tle
     propagate_tle --> fmt_oem
@@ -91,6 +99,7 @@ flowchart LR
 | TLE inspection | [`tle-info`](docs/TLE_INFO.md) |
 | TLE to OMM | [`tle-to-omm`](docs/TLE_TO_OMM.md) |
 | OEM frame transformation | [`xform-oem`](docs/XFORM_OEM.md) |
+| OEM to OPM fitting | [`oem-to-opm`](docs/OEM_TO_OPM.md) |
 | OEM to OMM fitting | [`oem-to-omm`](docs/OEM_TO_OMM.md) |
 | Orbit propagation | [`propagate-orbit`](docs/PROPAGATE_ORBIT.md) |
 | Kepler propagation | [`propagate-kepler`](docs/PROPAGATE_KEPLER.md) |
@@ -123,6 +132,12 @@ Supports CCSDS OEM export, data-only state-vector output, dependent-variable CSV
 
 Estimates Orbit Mean-Elements Messages (OMM) including Two-Line Element (TLE) sets from OEM Cartesian state vectors. Fits OEM state vectors to osculating Kepler, mean Kepler, or TLE-derived OMM output using iterative least-squares fitting. Includes least-squares estimation, iterative refinement, SGP4 model evaluation, and TLE line construction.
 
+### OEM-to-OPM
+
+- [`oem-to-opm`](docs/OEM_TO_OPM.md)
+
+Fits an OEM arc with a two-body osculating Keplerian model and writes an OPM containing the first OEM state and fitted elements.
+
 ### TLE / OMM Utilities
 
 - [`download-tle`](docs/DOWNLOAD_TLE.md) — download TLE data
@@ -145,7 +160,7 @@ Reusable Python modules providing foundational astrodynamics functionality. Thes
 
 **Key modules:**
 - **Interpolation** — Hermite, Chebyshev, and Lagrange polynomial interpolators with configurable degree
-- **CCSDS** — OEM, OMM, and ODM parsers and writers
+- **CCSDS** — OEM, OPM, OMM, and ODM parsers and writers
 - **Time utilities** — ISO 8601, duration parsing, time conversions
 - **Orbital elements** — Cartesian ↔ Keplerian conversions, anomaly calculations
 - **Coordinate transformations** — Frame conversions, WGS-84, AER coordinates
@@ -167,6 +182,7 @@ src/
 │   ├── diff_oem/            OEM comparison application module
 │   ├── download_tle/        TLE download utilities
 │   ├── oem_to_omm/          OEM-to-OMM estimation application module (includes TLE fitting)
+│   ├── oem_to_opm/          OEM-to-OPM osculating-element fitting application module
 │   ├── omm_to_tle/          OMM-to-TLE conversion utilities
 │   ├── plot_dep_vars/       Dependent-variable plotting utilities
 │   ├── plot_orbit/          Orbit visualization utilities

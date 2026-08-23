@@ -3,7 +3,7 @@
 1. OPM support
     1. ~~`slice-oem` to support OPM file output~~
     1. split `oem-to-omm` into two scripts:
-        1. `oem-to-opm`: Osculating elements
+        1. ~~`oem-to-opm`: Osculating elements~~
         1. `oem-to-omm`: Mean elements
 
 1. [`propagate-omm']
@@ -16,6 +16,12 @@
         1. propagate from osculating keplerian elements
     1. replace `propagate-kepler` & `propagate-orbit`.
 
+1. Propagator classes
+    1. Keplerian propagator
+    1. DSST propagator
+    1. USM propagator
+    1. Numerical propagator (Tudat wrapper)
+    1. ?
 
 1. Interpolators
     1. optimize lagrange and chebyshev for state vector interpolation?
