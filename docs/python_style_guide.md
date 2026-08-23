@@ -6,6 +6,8 @@
 
 All docstrings follow **NumPy style** with plural section headers (`Parameters`, `Returns`, `Raises`, `Notes`, `References`).
 
+Do not rewrite or reformat existing comments and docstrings just to match a preferred style unless they are incorrect, stale, or misleading. Preserve the original wording and intent when editing nearby code; only fix text when it is factually wrong.
+
 **One-line** for simple functions:
 ```python
 def _parse_kv_line(line: str) -> tuple[str, str] | None:
