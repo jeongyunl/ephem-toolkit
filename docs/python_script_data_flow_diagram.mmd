@@ -75,8 +75,8 @@ flowchart LR
     fmt_tle --> propagate_tle
     propagate_tle --> fmt_oem
 
-    %% propagate-orbit: single OEM state line → propagated outputs
-    fmt_oem -->|"single state line"| propagate_sat
+    %% propagate-orbit: OPM initial state → propagated outputs
+    fmt_opm -->|"initial state"| propagate_sat
     propagate_sat -->|"state history"| fmt_oem
     propagate_sat -->|"dependent variables"| fmt_dep_vars_csv
 

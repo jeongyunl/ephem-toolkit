@@ -1,25 +1,25 @@
 # Perturbed Orbit Propagation Utility
 
-The `propagate-orbit` utility propagates an OEM-style initial state with configurable Earth gravity, third-body gravity, solar radiation pressure, aerodynamic drag, and numerical integration settings.
+The `propagate-orbit` utility propagates an initial state from a CCSDS OPM input with configurable Earth gravity, third-body gravity, solar radiation pressure, aerodynamic drag, and numerical integration settings.
 
 ## Overview
 
-The command reads one OEM-like Cartesian state line and propagates it around
+The command reads one Cartesian state from a CCSDS OPM message and propagates it around
 Earth with configurable spherical-harmonic gravity, third-body gravity,
 aerodynamic drag, solar radiation pressure, and numerical integration settings.
 
 ## Synopsis
 
 ```bash
-propagate-orbit [OPTIONS]
-cat initial_state.txt | propagate-orbit - -o - [OPTIONS]
+propagate-orbit <input_opm|-> [OPTIONS]
+cat input.opm | propagate-orbit - -o - [OPTIONS]
 ```
 
 ## Core Options
 
 | Option | Description |
 |--------|-------------|
-| `-i`, `--initial-state <state-line>` | Initial OEM-style state line. If omitted, read one line from stdin. |
+| `<input_opm|->` | Positional OPM input path, or `-` to read OPM content from stdin. |
 | `-d`, `--duration <duration>` | Simulation duration. Defaults to the configured simulation duration. |
 | `-o`, `--output <output_oem|->` | Output OEM state history. `-` writes to stdout. |
 | `--data-only` | Write state vectors without OEM header or metadata. |
@@ -60,16 +60,12 @@ The default integrator and step-size values are shown in the command help.
 
 ## Input Format
 
-The command expects exactly one OEM-like Cartesian state line:
+The command expects one CCSDS OPM message containing required state-vector
+fields (`EPOCH`, `X`, `Y`, `Z`, `X_DOT`, `Y_DOT`, `Z_DOT`) in standard OPM
+units (km and km/s).
 
-```text
-<ISO-8601 epoch> <X_km> <Y_km> <Z_km> <VX_km/s> <VY_km/s> <VZ_km/s>
-```
-
-The epoch is an ISO 8601 timestamp, position is in kilometers, and velocity
-is in kilometers per second. The state is supplied with `--initial-state` or,
-when that option is omitted, from stdin. If neither source provides a state,
-the command exits with an error.
+Provide the OPM source as either a positional file path or `-` for stdin.
+If stdin is selected but no data is piped, the command exits with an error.
 
 ## Boolean Values
 
@@ -78,24 +74,25 @@ The model toggles accept `on` or `off`. Defaults for gravity, drag, and solar ra
 ## Examples
 
 ```bash
-propagate-orbit --initial-state "2023-04-10T00:00:00 7000 0 0 0 7.5 1.0" -d 6h
-propagate-orbit --duration 90m --output propagated.oem < input_state.txt
-cat input.txt | propagate-orbit - --output - --dep-vars dep_vars.csv
+propagate-orbit input.opm -d 6h
+propagate-orbit input.opm --duration 90m --output propagated.oem
+cat input.opm | propagate-orbit - --output - --dep-vars dep_vars.csv
 propagate-orbit --earth-gravity 8x8 --drag on --srp off -d 2h
 ```
 
-**Propagate from an inline Cartesian state:**
+**Propagate from an OPM file:**
 
 ```bash
 propagate-orbit \
 	-d 1d \
-	-i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
+	input.opm
 ```
 
-**Propagate from stdin:**
+**Propagate from stdin OPM content:**
 
 ```bash
-echo "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217" \
+
+cat input.opm \
 	| propagate-orbit -d 2h
 ```
 
@@ -104,7 +101,7 @@ echo "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009
 ```bash
 propagate-orbit \
 	-d 1d --drag off --srp off \
-	-i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
+	input.opm
 ```
 
 **Set satellite properties and export dependent variables:**
@@ -113,7 +110,7 @@ propagate-orbit \
 propagate-orbit \
 	-d 12h --name MySat --mass 500 --drag-coeff 2.5 --drag-area 0.5 \
 	--srp-coeff 1.5 --dep-vars dep_vars.csv \
-	-i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
+	input.opm
 ```
 
 **Use a variable-step RKF 7(8) integrator:**
@@ -122,7 +119,7 @@ propagate-orbit \
 propagate-orbit \
 	-d 12h --integrator rkf_78 --integrator-step-size 30,0.001,1000 \
 	--earth-gravity 8x8 \
-	-i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
+	input.opm
 ```
 
 ## Output
