@@ -4,7 +4,7 @@ config:
     curve: basis
 ---
 %% Data Flow Diagram of Executable Python Scripts
-%% Shows how scripts connect through shared data formats (input → script → output)
+%% Updated to match the current ephem-toolkit command set and data formats.
 %%
 %% Legend:
 %%   Rounded rectangles ([...]) = executable scripts
@@ -16,7 +16,7 @@ flowchart LR
     %% ===== Data Format Nodes =====
     fmt_tle{{"TLE (.tle)"}}
     fmt_omm{{"OMM (.omm)"}}
-    fmt_opm{{"OPM (.opm) <br/> one Cartesian state vector + optional osculating Keplerian elements"}}
+    fmt_opm{{"OPM (.opm) <br/> Cartesian-only or Cartesian + osculating Keplerian elements"}}
     fmt_oem{{"OEM / State Vectors <br/> (CCSDS OEM or simple format: epoch x y z vx vy vz)"}}
     fmt_dep_vars_csv{{"Dependent Variables CSV"}}
     fmt_plots{{"Plots / Animations <br/> (Matplotlib figures)"}}
@@ -24,8 +24,6 @@ flowchart LR
     fmt_celestrak{{"CelesTrak<br/>(HTTP download)"}}
 
     %% ===== Script Nodes =====
-
-    %% Utility command nodes
     download_tle(["download-tle"])
     omm_to_tle(["omm-to-tle"])
     tle_to_omm(["tle-to-omm"])
@@ -33,67 +31,62 @@ flowchart LR
     oem_to_opm(["oem-to-opm"])
     oem_to_omm(["oem-to-omm"])
     propagate_tle(["propagate-tle"])
+    propagate_omm(["propagate-omm"])
     propagate_sat(["propagate-orbit"])
     propagate_kepler(["propagate-kepler"])
-    plot_dep_vars(["plot-dependent-variables"])
+    diff_oem(["diff-oem"])
+    plot_orbit(["plot-orbit"])
     plot_orbit_deltas(["plot-orbit-deltas"])
+    plot_dep_vars(["plot-dependent-variables"])
     slice_oem(["slice-oem"])
     xform_oem(["xform-oem"])
 
     %% ===== Data Flows =====
-
-    %% download-tle: CelesTrak → TLE or OMM files
     fmt_celestrak -->|"satellite ID"| download_tle
     download_tle -->|"TLE format"| fmt_tle
     download_tle -->|"OMM format"| fmt_omm
 
-    %% oem-to-opm: OEM state vectors → OPM with osculating elements
     fmt_oem --> oem_to_opm
-    oem_to_opm --> fmt_opm
+    oem_to_opm -->|"Cartesian + osculating Keplerian elements"| fmt_opm
 
-    %% oem-to-omm: OEM state vectors → OMM (Keplerian or TLE)
     fmt_oem --> oem_to_omm
     oem_to_omm --> fmt_omm
     oem_to_omm --> fmt_tle
 
-    %% omm-to-tle: OMM → TLE
     fmt_omm --> omm_to_tle
     omm_to_tle --> fmt_tle
 
-    %% tle-to-omm: TLE → OMM
     fmt_tle --> tle_to_omm
     tle_to_omm --> fmt_omm
 
-    %% tle-info: TLE → console summary
     fmt_tle --> tle_info
 
-    %% propagate-tle: TLE → OEM-like state vectors
     fmt_tle --> propagate_tle
     propagate_tle --> fmt_oem
 
-    %% propagate-orbit: OPM initial state → propagated outputs
-    fmt_opm -->|"initial state"| propagate_sat
+    fmt_omm -->|"OMM input"| propagate_omm
+    propagate_omm --> fmt_oem
+
+    fmt_opm -->|"Cartesian initial state"| propagate_sat
     propagate_sat -->|"state history"| fmt_oem
     propagate_sat -->|"dependent variables"| fmt_dep_vars_csv
 
-    %% propagate-kepler: OPM file with optional osculating Keplerian elements → OEM state vectors
-    fmt_opm -->|"OPM input with optional osculating Keplerian elements"| propagate_kepler
+    fmt_opm -->|"Cartesian + osculating Keplerian elements"| propagate_kepler
     propagate_kepler --> fmt_oem
 
-    %% plot-orbit-deltas: OEM state files → plots
+    fmt_oem --> diff_oem
+    fmt_oem --> plot_orbit
     fmt_oem --> plot_orbit_deltas
+    plot_orbit --> fmt_plots
     plot_orbit_deltas --> fmt_plots
 
-    %% slice-oem: OEM → sliced OEM states or a single-state OPM
     fmt_oem --> slice_oem
     slice_oem --> fmt_oem
-    slice_oem --> fmt_opm
+    slice_oem -->|"Cartesian-only single-state OPM"| fmt_opm
 
-    %% plot-dependent-variables: dependent-variable CSV → plots/animations
     fmt_dep_vars_csv --> plot_dep_vars
     plot_dep_vars --> fmt_plots
 
-    %% xform-oem: OEM frame conversion or ECEF position-to-AER conversion
     fmt_oem -->|"source frame + target frame"| xform_oem
     xform_oem -->|"converted OEM"| fmt_oem
     xform_oem -->|"AER text"| fmt_aer_text
