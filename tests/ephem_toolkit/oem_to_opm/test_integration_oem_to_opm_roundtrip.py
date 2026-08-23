@@ -7,9 +7,21 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+from ephem_toolkit.core.ccsds import oem
+from ephem_toolkit.core.interpolator import factory
+from ephem_toolkit.core.interpolator.interpolation_spec import (
+    InterpolationSpec,
+    InterpolationType,
+)
+from ephem_toolkit.diff_oem.comparison import compare_states, read_states
+
 TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent
 TEST_DATA_DIR: Path = TEST_DIR.parent.parent / "data"
+
+MAX_VELOCITY_ERROR_KM_S: float = 0.03
 
 
 def _build_env() -> dict[str, str]:
@@ -26,6 +38,92 @@ def _build_env() -> dict[str, str]:
         else [*(str(path) for path in source_roots)]
     )
     return env
+
+
+def _run_roundtrip(
+    reference_oem: Path,
+    tmp_path: Path,
+    *,
+    fit_span: str = "2h",
+    duration: str = "2h",
+    step: str = "30m",
+) -> tuple[Path, Path]:
+    """Generate an OPM and propagate it back to OEM using the project CLIs."""
+    opm_path = tmp_path / "roundtrip.opm"
+    propagated_oem = tmp_path / "roundtrip_propagated.oem"
+
+    oem_to_opm_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "ephem_toolkit.oem_to_opm.oem_to_opm",
+            str(reference_oem),
+            "-o",
+            str(opm_path),
+            "--fit-span",
+            fit_span,
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(PROJECT_ROOT),
+        env=_build_env(),
+    )
+    assert oem_to_opm_result.returncode == 0, oem_to_opm_result.stderr
+
+    propagate_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "ephem_toolkit.propagate_kepler.propagate_kepler",
+            str(opm_path),
+            "-d",
+            duration,
+            "-s",
+            step,
+            "-o",
+            str(propagated_oem),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(PROJECT_ROOT),
+        env=_build_env(),
+    )
+    assert propagate_result.returncode == 0, propagate_result.stderr
+
+    return opm_path, propagated_oem
+
+
+def _max_roundtrip_error_km(
+    reference_oem: Path,
+    propagated_oem: Path,
+) -> tuple[float, float, int]:
+    """Compare the original OEM against a propagated OEM using a Hermite interpolator."""
+    reference_states = read_states(reference_oem)
+    propagated_states = read_states(propagated_oem)
+    interpolator = factory.InterpolatorFactory.create(
+        spec=InterpolationSpec(InterpolationType.HERMITE, 5),
+        dimension=6,
+        is_cartesian_state=True,
+        data=reference_states,
+    )
+
+    max_position_km = 0.0
+    max_velocity_km_s = 0.0
+    sample_count = 0
+
+    for propagated_epoch, propagated_state in propagated_states:
+        reference_state = interpolator.interpolate(propagated_epoch)
+        comparison = compare_states(
+            (propagated_epoch, reference_state),
+            (propagated_epoch, propagated_state),
+        )
+        max_position_km = max(max_position_km, comparison.position_diff_magnitude_km)
+        max_velocity_km_s = max(
+            max_velocity_km_s, comparison.velocity_diff_magnitude_km_s
+        )
+        sample_count += 1
+
+    return max_position_km, max_velocity_km_s, sample_count
 
 
 def test_oem_to_opm_requires_input_file_name() -> None:
@@ -66,3 +164,34 @@ def test_oem_to_opm_requires_input_file_name() -> None:
 
     assert stdin_result.returncode == 0, stdin_result.stderr
     assert "CCSDS_OPM_VERS" in stdin_result.stdout
+
+
+@pytest.mark.accuracy
+@pytest.mark.parametrize(
+    ("reference_filename", "max_position_error_km"),
+    [
+        ("JPSS-1_small.oem", 10.0),
+        ("ISS_2026-05-20_small.OEM", 25.0),
+    ],
+)
+def test_oem_to_opm_roundtrip_accuracy(
+    tmp_path: Path,
+    reference_filename: str,
+    max_position_error_km: float,
+) -> None:
+    """A propagated Keplerian OPM should remain close to the source OEM."""
+    reference_oem = TEST_DATA_DIR / reference_filename
+    _, propagated_oem = _run_roundtrip(reference_oem, tmp_path)
+
+    max_position_km, max_velocity_km_s, sample_count = _max_roundtrip_error_km(
+        reference_oem,
+        propagated_oem,
+    )
+
+    assert sample_count > 0
+    assert (
+        max_position_km < max_position_error_km
+    ), f"Roundtrip position error {max_position_km:.3f} km exceeds {max_position_error_km:g} km"
+    assert (
+        max_velocity_km_s < MAX_VELOCITY_ERROR_KM_S
+    ), f"Roundtrip velocity error {max_velocity_km_s:.6f} km/s exceeds {MAX_VELOCITY_ERROR_KM_S:g} km/s"

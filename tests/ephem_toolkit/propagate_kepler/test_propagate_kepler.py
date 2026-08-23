@@ -5,8 +5,11 @@ from __future__ import annotations
 import io
 from pathlib import Path
 
+import numpy as np
 import pytest
 
+from ephem_toolkit.core.ccsds import oem
+from ephem_toolkit.core import kepler
 from ephem_toolkit.propagate_kepler import propagate_kepler
 from ephem_toolkit.propagate_kepler import propagate_kepler_cli
 
@@ -147,3 +150,31 @@ def test_read_kepler_input_reads_opm_from_stdin(
 
     assert output_metadata["object_name"] == "EUTELSAT W4"
     assert kepler_km[5] == pytest.approx(41.922339 * 3.141592653589793 / 180.0)
+
+
+def test_propagate_kepler_writes_cartesian_states_in_si_units(
+    tmp_path: Path,
+) -> None:
+    """The OEM writer should receive propagated states in meters and m/s."""
+    opm_path = Path(__file__).parents[2] / "opm" / "sample4.opm"
+    epoch_dt, kepler_km, output_metadata = propagate_kepler.read_kepler_input(
+        str(opm_path)
+    )
+    expected_kepler_m = kepler_km.copy()
+    expected_kepler_m[kepler.SEMI_MAJOR_AXIS_INDEX] *= 1000.0
+    expected_state_m_m_s = kepler.keplerian_to_cartesian(expected_kepler_m)
+
+    output_path = tmp_path / "propagated.oem"
+    propagate_kepler.propagate_kepler_elements(
+        initial_epoch=epoch_dt,
+        initial_kepler_km=kepler_km,
+        duration_s=900.0,
+        step_s=900.0,
+        data_only=False,
+        output_metadata=output_metadata,
+        output_path=str(output_path),
+    )
+
+    generated_oem = oem.CcsdsOem.read(output_path)
+    _, generated_state_m_m_s = generated_oem.states[0]
+    np.testing.assert_allclose(generated_state_m_m_s, expected_state_m_m_s, rtol=1e-12)
