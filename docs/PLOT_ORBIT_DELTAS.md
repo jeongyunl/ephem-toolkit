@@ -5,7 +5,7 @@ The `plot-orbit-deltas` utility plots multiple orbit trajectories and compares t
 ## Synopsis
 
 ```bash
-plot-orbit-deltas <input_oem|-> [<input_oem|-> ...] [OPTIONS]
+plot-orbit-deltas <input_oem> [<input_oem> ...] [OPTIONS]
 ```
 
 The first input file is the reference orbit. One or more additional files may be supplied for comparison.
@@ -24,8 +24,8 @@ This utility provides several views for comparing orbit trajectories:
 
 | Option | Description |
 |--------|-------------|
-| `<input_oem|-> ...` | One or more OEM or raw-state files. The first file is the reference orbit. |
-| `-o`, `--output <output_plot|->` | Output path for saving the figure. |
+| `<input_oem> ...` | One or more OEM or raw-state files. The first file is the reference orbit. |
+| `-o`, `--output <output_plot>` | Output path for saving the figure. |
 | `-d`, `--duration <duration>` | Duration to analyze from the start, such as `1h`, `30m`, or `3600s`. |
 | `--time-unit {m,minute,minutes,h,hour,hours}` | Time unit for time-series plots. Defaults to `hours`. |
 | `-h`, `--help` | Show the help message and exit. |

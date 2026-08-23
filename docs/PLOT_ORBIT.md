@@ -18,7 +18,7 @@ The command is installed as the canonical `plot-orbit` entry point.
 ## Synopsis
 
 ```bash
-plot-orbit <input_oem|-> [OPTIONS]
+plot-orbit <input_oem> [OPTIONS]
 plot-orbit orbit.oem
 plot-orbit orbit.oem --duration 6h --time-unit minutes
 ```
@@ -27,8 +27,8 @@ plot-orbit orbit.oem --duration 6h --time-unit minutes
 
 | Option | Description |
 |--------|-------------|
-| `<input_oem|->` | Path to the input CCSDS OEM file. The parser accepts `-`, but the current plotting implementation reads a filesystem path. |
-| `-o`, `--output <output_plot|->` | Base output image path. A suffix is added for each generated figure. |
+| `<input_oem>` | Path to the input CCSDS OEM file. |
+| `-o`, `--output <output_plot>` | Base output image path. A suffix is added for each generated figure. |
 | `-d`, `--duration <duration>` | Duration to analyze from the first OEM state, such as `1h`, `30m`, or `3600s`. If omitted, use the full history. |
 | `--time-unit {m,minute,minutes,h,hour,hours}` | Unit for elapsed-time axes. Defaults to `hours`. |
 | `-h`, `--help` | Show the help message and exit. |

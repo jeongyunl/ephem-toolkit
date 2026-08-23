@@ -26,8 +26,8 @@ def parse_arguments() -> TleToOmmArgs:
         ),
         epilog=(
             "Examples:\n"
-            "  tle-to-omm input.tle\n"
-            "  cat input.tle | tle-to-omm -\n"
+            "  tle-to-omm input.tle -o -\n"
+            "  cat input.tle | tle-to-omm - -o -\n"
             "  tle-to-omm input.tle -o output.omm"
         ),
     )

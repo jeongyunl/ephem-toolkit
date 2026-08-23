@@ -31,7 +31,7 @@ with `--x-csv`, the output includes the CSV state header.
 
 ```bash
 xform-oem <input_oem> [OPTIONS]
-cat data.oem | xform-oem [OPTIONS]
+cat data.oem | xform-oem - -o - [OPTIONS]
 ```
 
 Use `-` or omit `<input_oem>` to read CCSDS OEM data from standard input. The
@@ -126,7 +126,7 @@ The three comma-separated values are:
 For example, read OEM data from stdin and save AER output to a file:
 
 ```bash
-cat ecef.oem | xform-oem \
+cat ecef.oem | xform-oem - \
   --x-aer 40.7128,-74.0060,10.0 \
   -o station_aer.txt
 ```
@@ -218,8 +218,8 @@ The input file is optional. These commands are equivalent ways to read from
 standard input:
 
 ```bash
-cat orbit.oem | xform-oem --x-ref-frame J2000
-cat orbit.oem | xform-oem - --x-ref-frame J2000
+cat orbit.oem | xform-oem - --x-ref-frame J2000 -o -
+cat orbit.oem | xform-oem - --x-ref-frame J2000 -o -
 ```
 
 Write an OEM result to standard output or to a file:
@@ -233,7 +233,7 @@ AER output can also be chained with other command-line tools:
 
 ```bash
 cat orbit.oem \
-  | xform-oem --x-aer 52.5200,13.4050,45.0 \
+  | xform-oem - --x-aer 52.5200,13.4050,45.0 -o - \
   | awk '$3 > 10.0'
 ```
 

@@ -10,14 +10,14 @@ This utility provides flexible slicing capabilities for OEM files:
 Usage:
     slice-oem <input_oem> [OPTIONS]
     cat data.oem | slice-oem - [OPTIONS]
-    cat data.oem | slice-oem [OPTIONS]
+    slice-oem - [OPTIONS]
 
 Index-based slicing examples:
     slice-oem data.oem --slice "0:10"
     slice-oem data.oem --slice "::2"
     slice-oem data.oem --slice "5"
     slice-oem data.oem --slice="-5:"
-    cat data.oem | slice-oem --slice "0:10"
+    cat data.oem | slice-oem - --slice "0:10"
 
 Time-based slicing examples:
     slice-oem data.oem --time-slice "0,1h"
@@ -34,7 +34,10 @@ Interpolation examples:
 Output format examples:
     slice-oem data.oem --slice "0:10" --data-only
     slice-oem data.oem --time-slice "0,1h" > sliced.oem
-    cat data.oem | slice-oem --time-slice "0,1h" > sliced.oem
+    slice-oem data.oem --time-slice "0,1h" -o -
+    cat data.oem | slice-oem - --time-slice "0,1h" -o -
+    slice-oem data.oem --slice "5" --opm -o state.opm
+    cat data.oem | slice-oem - --slice "5" --opm -o -
 
 For detailed documentation, see doc/SLICE_OEM.md
 """

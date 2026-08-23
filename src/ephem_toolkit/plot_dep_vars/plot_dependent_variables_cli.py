@@ -33,8 +33,8 @@ def parse_arguments() -> PlotDependentVariablesArgs:
     parser.prog = "plot-dependent-variables"
     parser.add_argument(
         "dep_vars_csv",
-        metavar="<dep_vars_csv|->",
-        help="Path to the *_dep_vars.csv file produced by propagate_orbit; use '-' for stdin if supported.",
+        metavar="<dep_vars_csv>",
+        help="Path to the *_dep_vars.csv file produced by propagate-orbit.",
     )
     parser.add_argument(
         "--name",

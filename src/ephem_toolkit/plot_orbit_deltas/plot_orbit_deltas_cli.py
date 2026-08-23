@@ -36,7 +36,7 @@ def parse_arguments() -> PlotOrbitDeltasArgs:
     parser.add_argument(
         "files",
         nargs="+",
-        metavar="<input_oem|->",
+        metavar="<input_oem>",
         help="OEM or raw-state files. The first file is the reference orbit.",
     )
     parser.add_argument(
@@ -45,8 +45,8 @@ def parse_arguments() -> PlotOrbitDeltasArgs:
         dest="output",
         type=str,
         default=None,
-        metavar="<output_plot|->",
-        help="Output file path for saving the figure (e.g., orbits.png); '-' writes to stdout when supported.",
+        metavar="<output_plot>",
+        help="Output file path for saving the figure (e.g., orbits.png).",
     )
     parser.add_argument(
         "-d",

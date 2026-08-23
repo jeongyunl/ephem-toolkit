@@ -15,7 +15,7 @@ to CCSDS OMM format, and writes the result to the requested destination.
 
 ```bash
 tle-to-omm <input_tle|-> [OPTIONS]
-cat input.tle | tle-to-omm -
+cat input.tle | tle-to-omm - -o -
 ```
 
 ## Options
@@ -43,8 +43,8 @@ The command writes CCSDS OMM format using the KVN representation.
 ## Examples
 
 ```bash
-tle-to-omm input.tle
-cat input.tle | tle-to-omm -
+tle-to-omm input.tle -o -
+cat input.tle | tle-to-omm - -o -
 tle-to-omm input.tle -o output.omm
 ```
 

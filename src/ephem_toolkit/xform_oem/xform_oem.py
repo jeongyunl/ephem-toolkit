@@ -13,7 +13,7 @@ This utility can:
 Usage:
     # Output OEM file as-is
     xform-oem <input_oem>
-    cat data.oem | xform-oem
+    cat data.oem | xform-oem - -o -
 
     # Transform state data and update the reference frame metadata
     xform-oem <input_oem> --x-ref-frame J2000
@@ -42,7 +42,7 @@ Examples:
     xform-oem iss.oem --data-only -o states.txt
 
     # Read from stdin and convert to AER
-    cat iss.oem | xform-oem --x-aer 40.7128,-74.0060,10.0
+    cat iss.oem | xform-oem - --x-aer 40.7128,-74.0060,10.0 -o -
 
 AER Output format:
     Each line contains: timestamp azimuth elevation range

@@ -52,7 +52,9 @@ def parse_arguments() -> SliceOemArgs:
             "Examples:\n"
             '  slice-oem data.oem --slice "0:10"\n'
             '  slice-oem data.oem --time-slice "0,1h"\n'
-            '  cat data.oem | slice-oem - --slice "0:10"'
+            '  cat data.oem | slice-oem - --slice "0:10" -o -\n'
+            '  slice-oem data.oem --slice "5" --opm -o state.opm\n'
+            '  cat data.oem | slice-oem - --slice "5" --opm -o -\n'
         ),
     )
     parser.add_argument(
@@ -105,7 +107,7 @@ def parse_arguments() -> SliceOemArgs:
         "--opm",
         dest="opm",
         action="store_true",
-        help="Emit only the first selected state vector",
+        help="Write the first selected state as a CCSDS OPM",
     )
     parser.add_argument(
         "--data-only",
@@ -119,7 +121,7 @@ def parse_arguments() -> SliceOemArgs:
         dest="output_path",
         metavar="<output_oem|output_opm|->",
         required=True,
-        help="Output OEM/OPM file path; use '-' to write to stdout",
+        help="Output OEM/OPM file path; use '-' to write to stdout; OPM output cannot be combined with --data-only.",
     )
     parser.add_argument(
         "-v",

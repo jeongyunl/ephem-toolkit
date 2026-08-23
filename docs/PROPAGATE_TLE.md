@@ -12,7 +12,7 @@ vectors. It can write a complete CCSDS OEM document or state lines only.
 
 ```bash
 propagate-tle [<tle_file|->] [OPTIONS]
-cat tle.txt | propagate-tle [OPTIONS]
+cat tle.txt | propagate-tle - -o - [OPTIONS]
 ```
 
 ## Options
@@ -51,7 +51,7 @@ Durations use compact notation such as `90s`, `2m`, `1.5h`, or `1d`. Start and s
 ```bash
 propagate-tle ISS.tle --duration 6h
 propagate-tle --start 2026-01-01T00:00:00 --duration 90m --output propagated.oem
-cat tle.txt | propagate-tle --output - --data-only
+cat tle.txt | propagate-tle - --output - --data-only
 ```
 
 ## Output
@@ -94,7 +94,7 @@ propagate-tle tests/data/ISS-ZARYA_1998-067A.tle
 **Propagate from stdin for two hours with one-minute output steps:**
 
 ```bash
-cat tests/data/ISS-ZARYA_1998-067A.tle | propagate-tle --stop 2h -s 1m
+cat tests/data/ISS-ZARYA_1998-067A.tle | propagate-tle - --stop 2h -s 1m -o -
 ```
 
 **Propagate for 30 minutes with ten-second output steps:**

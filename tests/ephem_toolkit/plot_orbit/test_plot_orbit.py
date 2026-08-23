@@ -39,7 +39,7 @@ def test_plot_orbit_help_uses_command_name_and_output_placeholder() -> None:
 
     assert result.returncode == 0
     assert "usage: plot-orbit" in result.stdout
-    assert "--output <output_plot|->" in result.stdout
+    assert "--output <output_plot>" in result.stdout
 
 
 def test_plot_orbit_uses_input_oem_attribute_name() -> None:
