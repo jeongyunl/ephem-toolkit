@@ -12,7 +12,7 @@ file.
 
 ```bash
 omm-to-tle <input_omm|-> [OPTIONS]
-cat input.omm | omm-to-tle -
+cat input.omm | omm-to-tle - -o -
 ```
 
 ## Options
@@ -45,8 +45,8 @@ The command writes a standard two-line element set:
 ## Examples
 
 ```bash
-omm-to-tle input.omm
-cat input.omm | omm-to-tle -
+omm-to-tle input.omm -o -
+cat input.omm | omm-to-tle - -o -
 omm-to-tle input.omm -o output.tle
 ```
 

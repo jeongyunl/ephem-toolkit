@@ -12,7 +12,7 @@ result in OEM-like format.
 
 ```bash
 propagate-kepler [OPTIONS]
-cat initial_state.txt | propagate-kepler [OPTIONS]
+cat initial_state.txt | propagate-kepler - -o - [OPTIONS]
 ```
 
 ## Options
@@ -48,8 +48,8 @@ the command reads one line from stdin.
 
 ```bash
 propagate-kepler --initial-state "2026-05-29T00:00:00.000000 6793.456 0.001234 0.9013 4.094 2.155 0.797" -d 6h
-cat initial_state.txt | propagate-kepler --duration 90m --output propagated.oem
-cat input.txt | propagate-kepler --output - --data-only
+cat initial_state.txt | propagate-kepler - --duration 90m --output propagated.oem
+cat input.txt | propagate-kepler - --output - --data-only
 ```
 
 ## Output

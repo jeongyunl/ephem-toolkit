@@ -12,7 +12,7 @@ aerodynamic drag, solar radiation pressure, and numerical integration settings.
 
 ```bash
 propagate-orbit [OPTIONS]
-cat initial_state.txt | propagate-orbit [OPTIONS]
+cat initial_state.txt | propagate-orbit - -o - [OPTIONS]
 ```
 
 ## Core Options
@@ -80,7 +80,7 @@ The model toggles accept `on` or `off`. Defaults for gravity, drag, and solar ra
 ```bash
 propagate-orbit --initial-state "2023-04-10T00:00:00 7000 0 0 0 7.5 1.0" -d 6h
 propagate-orbit --duration 90m --output propagated.oem < input_state.txt
-cat input.txt | propagate-orbit --output - --dep-vars dep_vars.csv
+cat input.txt | propagate-orbit - --output - --dep-vars dep_vars.csv
 propagate-orbit --earth-gravity 8x8 --drag on --srp off -d 2h
 ```
 

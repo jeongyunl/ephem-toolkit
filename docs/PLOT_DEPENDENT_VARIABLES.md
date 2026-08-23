@@ -18,7 +18,7 @@ plot-dependent-variables <dep_vars_csv> [OPTIONS]
 
 | Option | Description |
 |--------|-------------|
-| `<dep_vars_csv|->` | Path to the dependent-variable CSV produced by `propagate-orbit`. |
+| `<dep_vars_csv>` | Path to the dependent-variable CSV produced by `propagate-orbit`. |
 | `--name <name>` | Satellite name used in plot labels and header filtering. Defaults to `Satellite`. |
 | `-d`, `--duration <duration>` | Duration to plot, such as `1h`, `30m`, or `3600s`. If omitted, plot all data. |
 | `-h`, `--help` | Show the help message and exit. |

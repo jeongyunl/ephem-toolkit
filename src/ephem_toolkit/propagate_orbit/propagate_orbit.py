@@ -12,7 +12,8 @@ velocity in km/s. Input is read from ``--initial-state`` when provided, otherwis
 from stdin.
 
 Usage:
-    propagate-orbit [options]
+    propagate-orbit - [options]
+    cat input.txt | propagate-orbit - -o - [options]
 
 Only the bare minimum needed for CLI argument parsing (``argparse``, ``re``) is
 imported at the top of the file. Every other module — including standard library,

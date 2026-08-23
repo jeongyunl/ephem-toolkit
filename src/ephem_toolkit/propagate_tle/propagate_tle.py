@@ -10,7 +10,8 @@ modules are imported only when propagation is actually requested. This keeps
 
 Usage:
     propagate-tle <tle_file> [options]
-    cat <tle_file> | propagate-tle [options]
+    propagate-tle - [options]
+    cat <tle_file> | propagate-tle - -o - [options]
 
 Time window options:
     --start <iso8601|duration>   Start epoch (absolute or relative to TLE epoch)

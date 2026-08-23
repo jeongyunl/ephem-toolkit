@@ -37,7 +37,7 @@ def parse_arguments() -> PropagateKeplerArgs:
             "Examples:\n"
             '  propagate-kepler --initial-state "2026-05-29T00:00:00.000000 6793.456 0.001234 0.9013 4.094 2.155 0.797" -d 6h\n'
             "  propagate-kepler --duration 90m --output propagated.oem < initial_state.txt\n"
-            "  cat input.txt | propagate-kepler --output - --data-only"
+            "  cat input.txt | propagate-kepler - --output - --data-only"
         ),
     )
     parser.add_argument(

@@ -38,8 +38,8 @@ def parse_arguments() -> PlotOrbitArgs:
     parser.add_argument(
         "input_oem",
         type=str,
-        metavar="<input_oem|->",
-        help="OEM file to plot; use '-' to read from stdin when supported.",
+        metavar="<input_oem>",
+        help="Path to the input CCSDS OEM file.",
     )
     parser.add_argument(
         "-o",
@@ -47,8 +47,8 @@ def parse_arguments() -> PlotOrbitArgs:
         dest="output",
         type=str,
         default=None,
-        metavar="<output_plot|->",
-        help="Base output image path for saving figures (e.g., orbit.png); '-' writes to stdout when supported.",
+        metavar="<output_plot>",
+        help="Base output image path for saving figures (e.g., orbit.png).",
     )
     parser.add_argument(
         "-d",

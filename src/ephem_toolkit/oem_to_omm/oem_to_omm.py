@@ -35,7 +35,8 @@ Usage:
     oem-to-omm --mode kepler <input.oem>
     oem-to-omm --mode mean-kepler <input.oem>
     oem-to-omm --mode tle <input.oem>
-    oem-to-omm --mode tle - < input.oem
+    oem-to-omm --mode tle - -o -
+    cat input.oem | oem-to-omm --mode tle - -o -
 """
 
 from __future__ import annotations

@@ -9,7 +9,8 @@ Output is emitted as CCSDS OEM state vectors.
 
 Usage:
     propagate-omm <omm_file> [options]
-    cat <omm_file> | propagate-omm [options]
+    propagate-omm - [options]
+    cat <omm_file> | propagate-omm - -o - [options]
 
 Time window options:
     --start <iso8601|duration>   Start epoch (absolute or relative to OMM epoch)

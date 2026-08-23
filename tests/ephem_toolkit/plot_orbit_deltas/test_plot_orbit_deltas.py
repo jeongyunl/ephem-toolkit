@@ -37,4 +37,4 @@ def test_plot_orbit_deltas_help_uses_command_name_and_output_placeholder() -> No
 
     assert result.returncode == 0
     assert "usage: plot-orbit-deltas" in result.stdout
-    assert "--output <output_plot|->" in result.stdout
+    assert "--output <output_plot>" in result.stdout

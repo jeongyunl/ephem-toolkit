@@ -41,7 +41,7 @@ def parse_arguments() -> PropagateTleArgs:
             "Examples:\n"
             "  propagate-tle ISS.tle --duration 6h\n"
             "  propagate-tle --start 2026-01-01T00:00:00 --duration 90m --output propagated.oem\n"
-            "  cat tle.txt | propagate-tle --output - --data-only"
+            "  cat tle.txt | propagate-tle - --output - --data-only"
         ),
     )
     parser.add_argument(

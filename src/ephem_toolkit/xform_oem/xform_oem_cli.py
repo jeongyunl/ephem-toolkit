@@ -128,7 +128,7 @@ def parse_arguments() -> XformOemArgs:
             "Examples:\n"
             "  xform-oem data.oem --x-ref-frame J2000\n"
             "  xform-oem data.oem --x-aer 40.7128,-74.0060,10.0\n"
-            "  cat data.oem | xform-oem - --x-csv"
+            "  cat data.oem | xform-oem - --x-csv -o -"
         ),
     )
     parser.prog = "xform-oem"

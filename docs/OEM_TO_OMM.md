@@ -492,7 +492,7 @@ oem-to-omm --mode tle input.oem
 **Read from stdin, fit TLE, output to stdout:**
 
 ```bash
-cat input.oem | oem-to-omm --mode tle -
+cat input.oem | oem-to-omm --mode tle - -o -
 ```
 
 **Fit TLE with Keplerian refinement (no TudatPy required):**

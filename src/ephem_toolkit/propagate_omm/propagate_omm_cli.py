@@ -42,7 +42,7 @@ def parse_arguments() -> PropagateOmmArgs:
             "Examples:\n"
             "  propagate-omm satellite.omm --duration 6h -o output.oem\n"
             "  propagate-omm --start 2026-01-01T00:00:00 --duration 90m -o propagated.oem\n"
-            "  cat satellite.omm | propagate-omm -o - --data-only"
+            "  cat satellite.omm | propagate-omm - -o - --data-only"
         ),
     )
     parser.add_argument(

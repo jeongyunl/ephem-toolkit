@@ -77,8 +77,9 @@ def parse_arguments() -> OemToOmmArgs:
         description="Convert OEM state vectors to Keplerian elements or OMM.",
         epilog=(
             "Examples:\n"
-            "  oem-to-omm --mode kepler input.oem\n"
+            "  oem-to-omm --mode kepler input.oem -o output.omm\n"
             "  oem-to-omm --mode mean-kepler input.oem -o output.omm\n"
+            "  cat input.oem | oem-to-omm --mode tle - -o -\n"
             "  cat input.oem | oem-to-omm --mode tle - -o output.omm"
         ),
     )

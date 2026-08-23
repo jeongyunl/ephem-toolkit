@@ -9,7 +9,7 @@ This utility provides flexible slicing capabilities for OEM files:
 - **Index-based slicing**: Extract states using Python-style slice notation
 - **Time-based slicing**: Extract states within specific time windows
 - **Interpolation**: Generate uniformly-spaced states at specified intervals
-- **Flexible output**: State data only or full OEM format
+- **Flexible output**: State data only, full OEM format, or a single-state OPM
 
 The script is built on the `ephem_toolkit.core.slice_oem` library module, which provides reusable slicing functions for programmatic use.
 
@@ -20,7 +20,7 @@ After Poetry installation, use `slice-oem` as the canonical command. The existin
 ```bash
 slice-oem <input_oem> [OPTIONS]
 cat data.oem | slice-oem - [OPTIONS]
-cat data.oem | slice-oem [OPTIONS]
+slice-oem - [OPTIONS]
 ```
 
 ## Options
@@ -33,6 +33,7 @@ cat data.oem | slice-oem [OPTIONS]
 | `--interpolate` | Enable interpolation when a stepped time slice is requested (enabled by default) |
 | `--no-interpolate` | Disable interpolation for stepped time slices |
 | `--interpolate-type <type[,degree]>` | Interpolation method: `hermite[,degree]`, `chebyshev[,degree]`, or `lagrange[,degree]` (default: `hermite,5`) |
+| `--opm` | Write the first selected state as a CCSDS OPM. Cannot be combined with `--data-only`. |
 | `--data-only` | Output state vectors only (default: OEM format) |
 | `-o`, `--output <file\|->` | Output file path (default: `-` for stdout) |
 | `-v`, `--verbose` | Print detailed debug information to stderr |
@@ -310,6 +311,19 @@ META_STOP
 2024-01-01T00:00:00.000000 6678.137 0.000 0.000 0.000 7.726 0.000
 2024-01-01T00:01:00.000000 6724.891 463.560 0.000 -0.339 7.718 0.000
 ...
+
+### OPM Format (`--opm`)
+
+Writes the first selected state as a CCSDS Orbit Parameter Message (OPM).
+The selection options still determine which state is selected; `--opm` then
+limits the output to that state. OPM output cannot be combined with
+`--data-only`.
+
+```bash
+slice-oem data.oem --slice "5" --opm -o state.opm
+slice-oem data.oem --time-slice "1h" --opm -o -
+cat data.oem | slice-oem - --slice "5" --opm -o -
+```
 ```
 
 ## Verbose Mode
@@ -353,7 +367,7 @@ cat orbit.oem | slice-oem - --slice "0:10"
 
 **Omitting the filename entirely:**
 ```bash
-cat orbit.oem | slice-oem --slice "0:10"
+cat orbit.oem | slice-oem - --slice "0:10"
 ```
 
 ### Examples
@@ -365,7 +379,7 @@ curl https://example.com/orbit.oem | slice-oem - --time-slice "0,1h"
 
 **Chain multiple operations:**
 ```bash
-cat large.oem | slice-oem --slice "::10" | slice-oem - --time-slice "0,1h"
+cat large.oem | slice-oem - --slice "::10" | slice-oem - --time-slice "0,1h" -o -
 ```
 
 **Process compressed files:**
@@ -375,7 +389,7 @@ gunzip -c orbit.oem.gz | slice-oem - --slice "0:100" > sliced.oem
 
 **Verbose output with stdin:**
 ```bash
-cat orbit.oem | slice-oem --slice "0:10" --verbose
+cat orbit.oem | slice-oem - --slice "0:10" --verbose -o -
 ```
 
 When reading from stdin, verbose output will show `<stdin>` as the file source:
