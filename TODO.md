@@ -1,20 +1,17 @@
 # To-do list
 
 1. OPM support
-    1. ~~`slice-oem` to support OPM file output~~
-    1. split `oem-to-omm` into two scripts:
-        1. ~~`oem-to-opm`: Osculating elements~~
-        1. ~~`oem-to-omm`: Mean elements~~
-
-1. [`propagate-omm']
-    1. propagate mean elements or TLE
-    1. replace `propagate-tle`.
+    1. ?
 
 1. [`propagate-opm']
     1. propagate osculating elements
         1. propagate from osculating cartesian state vector
         1. propagate from osculating keplerian elements
     1. replace `propagate-kepler` & `propagate-orbit`.
+
+1. [`propagate-omm']
+    1. propagate mean elements or TLE
+    1. replace `propagate-tle`.
 
 1. Propagator classes
     1. Keplerian propagator

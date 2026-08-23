@@ -3,6 +3,9 @@
 This module provides functions to read and parse initial state vectors from
 various input sources (CLI arguments, stdin) and build consolidated propagation
 input structures for orbit simulation.
+
+References:
+    https://public.ccsds.org/Pubs/502x0b3e1.pdf
 """
 
 from __future__ import annotations
@@ -11,68 +14,35 @@ import argparse
 import io
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 import numpy as np
 
 import ephem_toolkit.core.ccsds.oem as oem
+import ephem_toolkit.core.ccsds.opm as opm
+import ephem_toolkit.core.time_utils as time_utils
 
 from .constants import DEFAULT_SATELLITE_NAME
 from .data_structures import PropagationInputs
 
-
-def read_initial_state_from_stream(
-    stream: io.TextIOBase,
-) -> tuple[np.ndarray, datetime]:
-    """Read one OEM-like state record from a text stream.
-
-    Parameters
-    ----------
-    stream : io.TextIOBase
-        Input stream providing one state line.
-
-    Expected line format is:
-    ``YYYY-MM-DDTHH:MM:SS.sss x y z vx vy vz`` where position is in km and
-    velocity is in km/s.
-
-    Returns
-    -------
-    tuple[numpy.ndarray, datetime]
-        ``(initial_state_m_m_s, initial_epoch_datetime_utc)`` where
-        ``initial_state_m_m_s`` is a 6-element cartesian state in SI units (m, m/s).
-    """
-    line: str = stream.readline()
-    if line == "":
-        raise ValueError("No input line available in stream")
-
-    parsed_state: tuple[float, np.ndarray] | None = oem.CcsdsOem.parse_oem_state_line(
-        line
-    )
-    if parsed_state is None:
-        raise ValueError("The first input line is blank/comment and was not parsed")
-
-    timestamp: float
-    state_m_m_s: np.ndarray
-    timestamp, state_m_m_s = parsed_state
-    initial_epoch_datetime_utc: datetime = datetime.fromtimestamp(
-        timestamp, tz=timezone.utc
-    )
-    # parse_oem_state_line now returns meters (SI units), no conversion needed
-    return state_m_m_s, initial_epoch_datetime_utc
+# ===================================================================
+# Input readers
+# ===================================================================
 
 
-def read_initial_state_from_cli_or_stdin(
+def read_initial_state_from_opm_file_or_stdin(
     cli_args: argparse.Namespace,
 ) -> tuple[np.ndarray, datetime]:
-    """Read one OEM-like state record from CLI input sources.
+    """Read one initial state record from OPM input sources.
 
     Parameters
     ----------
     cli_args : argparse.Namespace
         Parsed CLI arguments.
 
-    Source precedence is:
-    1. ``--initial-state`` value, if provided.
-    2. One line from stdin, when stdin is piped.
+    Source selection is controlled by the positional ``input_opm`` argument:
+    1. ``-``: read OPM content from stdin.
+    2. any other value: read OPM content from that file path.
 
     This function prints a user-facing error and exits with status 1 when no
     valid input line is available.
@@ -82,35 +52,52 @@ def read_initial_state_from_cli_or_stdin(
     tuple[numpy.ndarray, datetime]
         ``(initial_state_m_m_s, initial_epoch_datetime_utc)``.
     """
-    if cli_args.initial_state is not None:
-        try:
-            return read_initial_state_from_stream(
-                io.StringIO(cli_args.initial_state + "\n")
+    input_opm = cli_args.input_opm
+    if input_opm == "-":
+        if sys.stdin.isatty():
+            print(
+                "Error: positional input_opm '-' requires OPM content from stdin.",
+                file=sys.stderr,
             )
-        except ValueError as exc:
-            print(f"Error: invalid --initial-state value: {exc}", file=sys.stderr)
+            print(
+                "Example: cat input.opm | propagate-orbit - -d 86400",
+                file=sys.stderr,
+            )
             sys.exit(1)
 
-    if not sys.stdin.isatty():
         try:
-            return read_initial_state_from_stream(sys.stdin)
-        except ValueError as exc:
-            print(f"Error: invalid stdin input: {exc}", file=sys.stderr)
+            input_text = sys.stdin.read()
+            input_opm_message = opm.CcsdsOpm.from_source(io.StringIO(input_text))
+        except Exception as exc:
+            print(f"Error: invalid stdin OPM input: {exc}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        try:
+            input_opm_message = opm.CcsdsOpm.from_source(Path(input_opm))
+        except Exception as exc:
+            print(
+                f"Error: failed to read OPM file '{input_opm}': {exc}", file=sys.stderr
+            )
             sys.exit(1)
 
-    print(
-        "Error: missing input data. Provide one OEM-style state line via --initial-state or stdin.",
-        file=sys.stderr,
+    try:
+        initial_epoch_datetime_utc = time_utils.iso8601_to_datetime(
+            input_opm_message.state_vector.epoch
+        )
+    except ValueError as exc:
+        print(f"Error: invalid OPM EPOCH value: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    initial_state_m_m_s = (
+        input_opm_message.state_vector.values * oem.KILOMETERS_TO_METERS
     )
-    print(
-        "Example (CLI): .../perturbed_satellite_orbit.py --duration 86400 --initial-state '2023-04-10T00:00:00.000 7000 0 0 0 7.5 1.0'",
-        file=sys.stderr,
-    )
-    print(
-        "Example (stdin): echo '2023-04-10T00:00:00.000 7000 0 0 0 7.5 1.0' | .../perturbed_satellite_orbit.py -d 86400",
-        file=sys.stderr,
-    )
-    sys.exit(1)
+
+    return initial_state_m_m_s, initial_epoch_datetime_utc
+
+
+# ===================================================================
+# Propagation input assembly
+# ===================================================================
 
 
 def build_propagation_inputs(cli_args: argparse.Namespace) -> PropagationInputs:
@@ -121,7 +108,7 @@ def build_propagation_inputs(cli_args: argparse.Namespace) -> PropagationInputs:
     cli_args : argparse.Namespace
         Parsed CLI arguments.
 
-    The initial-state reader returns only the SI state vector and the parsed UTC
+    The OPM input reader returns only the SI state vector and the parsed UTC
     epoch, which are the only values needed downstream.
 
     Empty or whitespace-only satellite names are normalized to
@@ -139,7 +126,7 @@ def build_propagation_inputs(cli_args: argparse.Namespace) -> PropagationInputs:
     (
         initial_state_m_m_s,
         initial_epoch_datetime_utc,
-    ) = read_initial_state_from_cli_or_stdin(cli_args)
+    ) = read_initial_state_from_opm_file_or_stdin(cli_args)
     (
         earth_spherical_harmonic_gravity_degree,
         earth_spherical_harmonic_gravity_order,

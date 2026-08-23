@@ -6,14 +6,16 @@ including multiple perturbing accelerations from the central body and third bodi
 (drag, radiation pressure, spherical-harmonic gravity, and point-mass gravity from
 Moon, Sun, Mars, and Venus).
 
-The script expects exactly one OEM-like state line as input with epoch and six
-Cartesian components: ``UTC_ISO x y z vx vy vz`` where position is in km and
-velocity in km/s. Input is read from ``--initial-state`` when provided, otherwise
-from stdin.
+The script expects one initial state from a CCSDS OPM input source. Use the
+positional argument ``input_opm`` with a file path, or pass ``-`` to read OPM
+content from stdin.
 
 Usage:
-    propagate-orbit - [options]
-    cat input.txt | propagate-orbit - -o - [options]
+    propagate-orbit <input_opm|-> [options]
+    cat input.opm | propagate-orbit - -o - [options]
+
+References:
+    https://public.ccsds.org/Pubs/502x0b3e1.pdf
 
 Only the bare minimum needed for CLI argument parsing (``argparse``, ``re``) is
 imported at the top of the file. Every other module — including standard library,
@@ -55,7 +57,7 @@ def main() -> None:
     propagation_inputs = input_handling.build_propagation_inputs(cli_args)
 
     # Determine input source for summary
-    input_source = "--initial-state" if cli_args.initial_state is not None else "stdin"
+    input_source = "stdin" if cli_args.input_opm == "-" else cli_args.input_opm
     output_oem_path = cli_args.output_oem
     output_dep_vars_path = cli_args.dep_vars
 
