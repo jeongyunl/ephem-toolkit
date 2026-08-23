@@ -95,6 +95,7 @@ def test_cli_help_flag() -> None:
     assert "Extract subsets of CCSDS OEM ephemeris data" in result.stdout
     assert "--slice" in result.stdout
     assert "--time-slice" in result.stdout
+    assert "--opm" in result.stdout
 
 
 def test_cli_missing_slice_argument() -> None:

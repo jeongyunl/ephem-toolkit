@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 
 import ephem_toolkit.core.ccsds.oem as oem
+import ephem_toolkit.core.ccsds.opm as opm
 
 TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent
@@ -191,3 +192,31 @@ def test_cli_output_flag_stdout() -> None:
         assert len(output_oem.states) == 10
     finally:
         temp_path.unlink()
+
+
+def test_cli_opm_flag_selects_opm_format() -> None:
+    """Test --opm emits OPM content regardless of output file suffix."""
+    temp_path, _ = _create_test_oem(num_states=20)
+    output_file = TEST_DIR / "test_output_flag.opm"
+    try:
+        result = _run_slice_oem(
+            [
+                str(temp_path),
+                "--slice",
+                "0:3",
+                "--opm",
+                "--output",
+                str(output_file),
+            ]
+        )
+        assert result.returncode == 0
+        assert output_file.exists()
+
+        _, _, output_data = opm.read_opm(output_file, validate=False)
+        assert output_data["EPOCH"] == "2024-01-01T00:00:00.000"
+        assert output_data["X"] == 7000.0
+        assert output_data["X_DOT"] == 0.0
+    finally:
+        temp_path.unlink()
+        if output_file.exists():
+            output_file.unlink()

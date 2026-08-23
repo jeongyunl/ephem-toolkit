@@ -32,10 +32,12 @@ class SliceOemArgs(argparse.Namespace):
     """Whether interpolation is enabled."""
     interpolate_type: InterpolationSpec
     """Interpolation specification."""
+    opm: bool
+    """Whether to emit only the first selected state vector."""
     data_only: bool
     """Whether to omit OEM metadata header."""
-    output_oem: str
-    """Output OEM path or '-' for stdout."""
+    output_path: str
+    """Output OEM/OPM path or '-' for stdout."""
     verbose: bool
     """Whether verbose diagnostics are enabled."""
     debug: bool
@@ -100,6 +102,12 @@ def parse_arguments() -> SliceOemArgs:
         ),
     )
     parser.add_argument(
+        "--opm",
+        dest="opm",
+        action="store_true",
+        help="Emit only the first selected state vector",
+    )
+    parser.add_argument(
         "--data-only",
         dest="data_only",
         action="store_true",
@@ -108,10 +116,10 @@ def parse_arguments() -> SliceOemArgs:
     parser.add_argument(
         "-o",
         "--output",
-        dest="output_oem",
-        metavar="<output_oem|->",
+        dest="output_path",
+        metavar="<output_oem|output_opm|->",
         required=True,
-        help="Output OEM file path; use '-' to write to stdout",
+        help="Output OEM/OPM file path; use '-' to write to stdout",
     )
     parser.add_argument(
         "-v",

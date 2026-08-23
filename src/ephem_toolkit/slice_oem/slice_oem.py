@@ -41,24 +41,21 @@ For detailed documentation, see doc/SLICE_OEM.md
 
 from __future__ import annotations
 
-import argparse
 import sys
-from datetime import datetime, timezone
-from functools import partial
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import ephem_toolkit.core.ccsds.opm as opm
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.cli as cli
 import ephem_toolkit.core.interpolator.interpolation_spec as interpolation_spec
 import ephem_toolkit.core.slice_oem as slice_oem
 import ephem_toolkit.core.time_utils as time_utils
 
-try:
-    from .slice_oem_cli import SliceOemArgs
-    from .slice_oem_cli import parse_arguments
-except ImportError:  # pragma: no cover - direct script execution fallback
-    from slice_oem_cli import SliceOemArgs
-    from slice_oem_cli import parse_arguments
+if __package__ in {None, ""}:
+    from slice_oem_cli import SliceOemArgs, parse_arguments
+else:
+    from .slice_oem_cli import SliceOemArgs, parse_arguments
 
 DEFAULT_INTERPOLATION_TYPE: str = "hermite"
 """Default interpolation method."""
@@ -166,6 +163,15 @@ def main() -> None:
             ):
                 raise SystemExit("step_size requires --interpolate")
 
+            if cli_args.opm:
+                if cli_args.verbose:
+                    print(
+                        "[slice_oem] --opm selected: truncating time slice to single state",
+                        file=sys.stderr,
+                    )
+                time_slice_options.stop_time = timedelta(0)
+                time_slice_options.step_size = None
+
             # Time slice extraction with optional interpolation
             sliced_oem = slice_oem.extract_sliced_states(
                 oem_data,
@@ -175,6 +181,15 @@ def main() -> None:
 
         elif cli_args.slice:
             slice_obj = slice_oem.parse_slice_args(cli_args.slice)
+
+            if cli_args.opm:
+                if cli_args.verbose:
+                    print(
+                        "[slice_oem] --opm selected: selecting first state only",
+                        file=sys.stderr,
+                    )
+                slice_obj = slice(slice_obj.start, slice_obj.start + 1, None)
+
             sliced_oem = slice_oem.extract_sliced_states(
                 oem_data,
                 slice_obj,
@@ -182,19 +197,73 @@ def main() -> None:
             )
 
         if sliced_oem is not None:
+            emit_opm = cli_args.opm
+
+            if cli_args.verbose:
+                if emit_opm:
+                    print(
+                        "[slice_oem] Output format: OPM (--opm)",
+                        file=sys.stderr,
+                    )
+                else:
+                    print("[slice_oem] Output format: OEM", file=sys.stderr)
+
+            if emit_opm and cli_args.data_only:
+                raise SystemExit("--data-only cannot be used with OPM output")
+
             # Determine output destination
-            if cli_args.output_oem == "-":
+            if cli_args.output_path == "-":
                 output_stream = sys.stdout
             else:
-                output_stream = open(cli_args.output_oem, "w", encoding="utf-8")
+                output_stream = open(cli_args.output_path, "w", encoding="utf-8")
 
             try:
-                if cli_args.data_only:
+                if emit_opm:
+                    if not sliced_oem.states:
+                        raise SystemExit(
+                            "OPM output requires at least one selected state"
+                        )
+                    epoch, state = sliced_oem.states[0]
+                    first_state_opm = opm.CcsdsOpm(
+                        header=opm.OpmHeader(
+                            version=3.0,
+                            comments=sliced_oem.header.comments,
+                            classification=sliced_oem.header.classification,
+                            creation_date=sliced_oem.header.creation_date,
+                            originator=sliced_oem.header.originator,
+                            message_id=sliced_oem.header.message_id,
+                        ),
+                        metadata={
+                            key: value
+                            for key, value in {
+                                "OBJECT_NAME": sliced_oem.meta.object_name,
+                                "OBJECT_ID": sliced_oem.meta.object_id,
+                                "CENTER_NAME": sliced_oem.meta.center_name,
+                                "REF_FRAME": sliced_oem.meta.ref_frame,
+                                "REF_FRAME_EPOCH": sliced_oem.meta.ref_frame_epoch,
+                                "TIME_SYSTEM": sliced_oem.meta.time_system,
+                            }.items()
+                            if value
+                        },
+                        state_vector=opm.OpmStateVector(
+                            epoch=time_utils.datetime_to_iso8601(
+                                datetime.fromtimestamp(epoch, tz=timezone.utc)
+                            ),
+                            x=state[0] / oem.KILOMETERS_TO_METERS,
+                            y=state[1] / oem.KILOMETERS_TO_METERS,
+                            z=state[2] / oem.KILOMETERS_TO_METERS,
+                            x_dot=state[3] / oem.KILOMETERS_TO_METERS,
+                            y_dot=state[4] / oem.KILOMETERS_TO_METERS,
+                            z_dot=state[5] / oem.KILOMETERS_TO_METERS,
+                        ),
+                    )
+                    first_state_opm.to_file(output_stream)
+                elif cli_args.data_only:
                     sliced_oem.write_states(output_stream)
                 else:
                     sliced_oem.write(output_stream)
             finally:
-                if cli_args.output_oem != "-":
+                if cli_args.output_path != "-":
                     output_stream.close()
 
 
