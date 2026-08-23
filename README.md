@@ -8,6 +8,8 @@ This project provides a practical toolkit for working with ephemerides and relat
 
 The toolkit supports workflows for working with ephemeris products: parse OEM, OMM, and TLE inputs, fit or convert mean elements, propagate trajectories, compare results, and visualize dependent variables and orbit differences.
 
+The current propagation commands are `propagate-orbit` for perturbed Cartesian propagation and `propagate-kepler` for two-body Keplerian propagation.
+
 ### OEM file data flow
 
 ```mermaid

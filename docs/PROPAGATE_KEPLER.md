@@ -5,8 +5,11 @@ Keplerian elements in one CCSDS OPM file.
 
 ## Overview
 
-The command reads one OPM, propagates its Keplerian elements, converts each
-propagated state to Cartesian coordinates, and writes the result in OEM format.
+The command reads a single CCSDS OPM containing a Keplerian element set, propagates
+those elements with the two-body model, converts each propagated state to Cartesian
+coordinates, and writes either CCSDS OEM output or raw state-vector lines.
+
+The command usage is `propagate-kepler <input_opm|-> -o <output_oem|-> [OPTIONS]`.
 
 ## Synopsis
 
@@ -28,10 +31,12 @@ cat input.opm | propagate-kepler - -o - [OPTIONS]
 
 ## Input OPM
 
-The OPM must contain a complete Keplerian element set and either
-`TRUE_ANOMALY` or `MEAN_ANOMALY`. OPM angles are in degrees; they are converted
-to radians internally. The semi-major axis is in kilometers and is converted to
-meters internally.
+The input must be a CCSDS OPM containing a complete Keplerian element set and either
+`TRUE_ANOMALY` or `MEAN_ANOMALY`. OPM angles are given in degrees and are converted
+to radians internally. The semi-major axis is given in kilometers and is converted to
+meters internally before propagation.
+
+The command accepts either a file path or `-` to read the OPM from standard input.
 
 ```text
 SEMI_MAJOR_AXIS = <km>
@@ -57,13 +62,18 @@ cat input.opm | propagate-kepler - --output - --data-only
 
 ## Output
 
-By default, the command writes CCSDS OEM state history. `--data-only` omits the metadata header and writes only propagated state lines.
+By default, the command writes a CCSDS OEM state history with metadata copied from the input
+OPM where available. `--data-only` omits the metadata header and writes only propagated state
+lines in the OEM data-only format.
 
 State-only output uses the following format:
 
 ```text
 <ISO-8601 UTC epoch> <X_km> <Y_km> <Z_km> <VX_km/s> <VY_km/s> <VZ_km/s>
 ```
+
+The `-o, --output` option writes to a file path or stdout; use `-` to write directly to
+standard output.
 
 ## Dependencies
 

@@ -1,12 +1,15 @@
 # Perturbed Orbit Propagation Utility
 
-The `propagate-orbit` utility propagates an initial state from a CCSDS OPM input with configurable Earth gravity, third-body gravity, solar radiation pressure, aerodynamic drag, and numerical integration settings.
+The `propagate-orbit` utility propagates an initial Cartesian state from a CCSDS OPM input with configurable Earth gravity, third-body gravity, solar radiation pressure, aerodynamic drag, and numerical integration settings.
 
 ## Overview
 
-The command reads one Cartesian state from a CCSDS OPM message and propagates it around
+The command reads one CCSDS OPM message containing a Cartesian state and propagates it around
 Earth with configurable spherical-harmonic gravity, third-body gravity,
 aerodynamic drag, solar radiation pressure, and numerical integration settings.
+
+The command usage is `propagate-orbit <input_opm|-> [OPTIONS]`, with output written to the
+`-o, --output` target or stdout by default.
 
 ## Synopsis
 
@@ -60,12 +63,15 @@ The default integrator and step-size values are shown in the command help.
 
 ## Input Format
 
-The command expects one CCSDS OPM message containing required state-vector
+The command expects one CCSDS OPM message containing the required Cartesian state-vector
 fields (`EPOCH`, `X`, `Y`, `Z`, `X_DOT`, `Y_DOT`, `Z_DOT`) in standard OPM
 units (km and km/s).
 
-Provide the OPM source as either a positional file path or `-` for stdin.
-If stdin is selected but no data is piped, the command exits with an error.
+Provide the OPM source as either a positional file path or `-` for stdin. If stdin is selected
+but no data is piped, the command exits with an error.
+
+The input state is interpreted as a single initial Cartesian state at the OPM epoch; the command
+then integrates the trajectory for the selected `--duration`.
 
 ## Boolean Values
 
@@ -124,21 +130,19 @@ propagate-orbit \
 
 ## Output
 
-The command prints a pre-propagation configuration summary. By default,
-propagated state history is written in CCSDS OEM format to stdout; use
-`--output <path>` to write it to a file. Use `--output -` explicitly to write
-OEM output to stdout.
+The command prints a pre-propagation configuration summary and then writes the propagated state
+history. By default, the output is CCSDS OEM format on stdout; use `-o, --output <path>` to
+write the OEM history to a file or `--output -` to explicitly write to stdout.
 
-With `--data-only`, the command writes raw state-vector lines without the OEM
-metadata header:
+With `--data-only`, the command writes raw state-vector lines without the OEM metadata header:
 
 ```text
 <ISO-8601 UTC epoch> <X_km> <Y_km> <Z_km> <VX_km/s> <VY_km/s> <VZ_km/s>
 ```
 
-If `--dep-vars <output_csv>` is provided, dependent variables are written to
-that CSV file. The summary includes the selected force model and integrator,
-initial state, duration, end epoch, and configured output destinations.
+If `--dep-vars <output_csv>` is provided, dependent variables are written to that CSV file. The
+summary includes the selected force model and integrator, initial state, duration, end epoch, and
+configured output destinations.
 
 ## Propagation Model
 

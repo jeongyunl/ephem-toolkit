@@ -106,7 +106,7 @@ plot-dependent-variables -d 30m dep_vars.csv
 ```bash
 propagate-orbit \
 	-d 6h --dep-vars dep_vars.csv \
-	-i "2026-05-29T00:00:00.000000 185.541742 6527.421475 -3481.030718 1.283181009 -3.414086560 -6.360538217"
+	input.opm
 plot-dependent-variables dep_vars.csv
 ```
 
