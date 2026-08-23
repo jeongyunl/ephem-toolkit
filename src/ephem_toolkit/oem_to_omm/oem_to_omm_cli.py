@@ -1,7 +1,7 @@
 """CLI argument parsing for the OEM-to-OMM conversion command.
 
 Usage:
-    oem-to-omm --mode {kepler,mean-kepler,tle} <input_oem|->
+    oem-to-omm --mode {mean-kepler,tle} <input_oem|->
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ class OemToOmmArgs(argparse.Namespace):
     fit_span: timedelta
     """Maximum arc span for the fit."""
     mode: str
-    """Selected conversion mode: kepler, mean-kepler, or tle."""
+    """Selected conversion mode: mean-kepler or tle."""
     object_name: str
     """Spacecraft name for OMM metadata."""
     object_id: str
@@ -77,7 +77,6 @@ def parse_arguments() -> OemToOmmArgs:
         description="Convert OEM state vectors to Keplerian elements or OMM.",
         epilog=(
             "Examples:\n"
-            "  oem-to-omm --mode kepler input.oem -o output.omm\n"
             "  oem-to-omm --mode mean-kepler input.oem -o output.omm\n"
             "  cat input.oem | oem-to-omm --mode tle - -o -\n"
             "  cat input.oem | oem-to-omm --mode tle - -o output.omm"
@@ -129,13 +128,10 @@ def parse_arguments() -> OemToOmmArgs:
     parser.add_argument(
         "--mode",
         dest="mode",
-        choices=["kepler", "mean-kepler", "tle"],
+        choices=["mean-kepler", "tle"],
         default="tle",
-        metavar="<kepler|mean-kepler|tle>",
-        help=(
-            "Conversion mode: 'kepler' fits osculating Keplerian elements, "
-            "'mean-kepler' fits mean Keplerian elements, and 'tle' fits a TLE."
-        ),
+        metavar="<mean-kepler|tle>",
+        help=("'mean-kepler' fits mean Keplerian elements, and 'tle' fits a TLE."),
     )
     parser.add_argument(
         "--object-name",

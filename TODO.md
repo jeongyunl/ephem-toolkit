@@ -4,7 +4,7 @@
     1. ~~`slice-oem` to support OPM file output~~
     1. split `oem-to-omm` into two scripts:
         1. ~~`oem-to-opm`: Osculating elements~~
-        1. `oem-to-omm`: Mean elements
+        1. ~~`oem-to-omm`: Mean elements~~
 
 1. [`propagate-omm']
     1. propagate mean elements or TLE
