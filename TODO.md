@@ -8,20 +8,25 @@
     1. Numerical propagator (Tudat wrapper)
     1. ?
 
+1. Plotting
+    1. `plot-orbit` -> `plot-oem`
+    1. `plot-orbit-deltas` -> `plot-oem-diff`
+    1. add `--plot` option to `diff-oem`, `xform-oem`, `slice-oem`, etc. to generate plots of the results
+
 1. ODM meta data
     1. Strict ODM meta data validation
-        1. REF_FRAME
-        1. TIME_SYSTEM
-        1. CENTER_NAME
+        1. `REF_FRAME`
+        1. `TIME_SYSTEM`
+        1. `CENTER_NAME`
     1. Utilize
-        1. SOLAR_RAD_AREA, SOLAR_RAD_COEFF
-        1. DRAG_AREA, DRAG_COEFF
-        1. GM
-        1. MEAN_ELEMENT_THEORY
-    1. Use units in ODM meta data (e.g., [km], [m/s], etc.) instead of assuming SI units
+        1. `SOLAR_RAD_AREA`, `SOLAR_RAD_COEFF`
+        1. `DRAG_AREA`, `DRAG_COEFF`
+        1. `GM`
+        1. `MEAN_ELEMENT_THEORY`
+    1. Use units in ODM meta data (e.g., `[km]`, `[m/s]`, etc.) instead of assuming SI units
 
 1. [`propagate-omm`](docs/PROPAGATE_OMM.md)
-    1. Adopt more analytical propagators (e.g., DSST, USM, etc.) to support OMM propagation in the future
+    1. Adopt more analytical propagators (e.g., `DSST`, `USM`, etc.) to support OMM propagation in the future
 
 1. [`propagate-tle`](docs/PROPAGATE_TLE.md)
     1. Keep it or obsolete it? (maybe keep it for now?)
@@ -29,7 +34,7 @@
 1. Better OPM support
     1. ?
 
-1. [`propagate-orbit']
+1. [`propagate-orbit`](docs/PROPAGATE_ORBIT.md)
     1. give a less generic name
     1. numerical propagator
 
@@ -68,5 +73,3 @@
     1. Continue improving TLE <-> OEM workflows.
         1. More options, for example selecting the TLE epoch explicitly.
         
-1. Documentation
-    1. Keep top-level and nested Markdown files aligned with the current source tree and CLI behavior.
