@@ -16,6 +16,7 @@ flowchart LR
     %% ===== Data Format Nodes =====
     fmt_tle{{"TLE (.tle)"}}
     fmt_omm{{"OMM (.omm)"}}
+    fmt_opm{{"OPM (.opm)"}}
     fmt_oem{{"OEM / State Vectors <br/> (CCSDS OEM or simple format: epoch x y z vx vy vz)"}}
     fmt_kepler{{"OEM-like Keplerian Elements <br/> (epoch a e i ω Ω θ)"}}
     fmt_dep_vars_csv{{"Dependent Variables CSV"}}
@@ -82,9 +83,10 @@ flowchart LR
     fmt_oem --> plot_orbit_deltas
     plot_orbit_deltas --> fmt_plots
 
-    %% slice-oem: OEM → sliced OEM states
+    %% slice-oem: OEM → sliced OEM states or a single-state OPM
     fmt_oem --> slice_oem
     slice_oem --> fmt_oem
+    slice_oem --> fmt_opm
 
     %% plot-dependent-variables: dependent-variable CSV → plots/animations
     fmt_dep_vars_csv --> plot_dep_vars
