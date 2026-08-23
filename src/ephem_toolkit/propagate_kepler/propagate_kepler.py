@@ -142,10 +142,10 @@ def propagate_kepler_elements(
     """Propagate Keplerian elements and write output lines to a stream.
 
     Converts the initial Keplerian state from km to m, steps through the
-    propagation interval, converts each propagated state back to Cartesian
-    km, and writes either a full CCSDS OEM or bare state lines to stdout or a
-    file path provided via ``output_path``. Full OEM output uses metadata from
-    the input OPM.
+    propagation interval, and writes Cartesian states in the internal SI
+    units expected by the OEM writer. Output is either a full CCSDS OEM or
+    bare state lines to stdout or a file path provided via ``output_path``.
+    Full OEM output uses metadata from the input OPM.
     """
     initial_kepler_m: np.ndarray = initial_kepler_km.astype(np.float64).copy()
     initial_kepler_m[kepler.SEMI_MAJOR_AXIS_INDEX] *= 1000.0  # Convert km to m
@@ -163,13 +163,10 @@ def propagate_kepler_elements(
         propagated_cartesian_m: np.ndarray = kepler.keplerian_to_cartesian(
             propagated_kepler
         ).flatten()
-        propagated_cartesian_km: np.ndarray = (
-            propagated_cartesian_m / 1000.0
-        )  # Convert m to km
         epoch_posix: float = (
             initial_epoch + dt.timedelta(seconds=current_time_s)
         ).timestamp()
-        propagated_states.append((epoch_posix, propagated_cartesian_km))
+        propagated_states.append((epoch_posix, propagated_cartesian_m))
         current_time_s += step_s
 
     output_stream: TextIO
@@ -181,8 +178,7 @@ def propagate_kepler_elements(
     try:
         if not data_only:
             # Use from_states() for automatic header/metadata generation.
-            # Note: propagated_states are in km (not SI meters) because this is
-            # Keplerian propagation output; the OEM writer converts km→km (no-op).
+            # The OEM writer converts these internal SI states to CCSDS km.
             oem_message: oem.CcsdsOem = oem.CcsdsOem.from_states(
                 propagated_states,
                 **output_metadata,
