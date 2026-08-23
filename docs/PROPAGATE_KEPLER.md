@@ -1,55 +1,58 @@
 # Keplerian Propagation Utility
 
-The `propagate-kepler` utility performs two-body Keplerian propagation from one OEM-style state line.
+The `propagate-kepler` utility performs two-body Keplerian propagation from the
+Keplerian elements in one CCSDS OPM file.
 
 ## Overview
 
-The command reads one OEM-style line of Keplerian elements, propagates the
-orbit, converts each propagated state to Cartesian coordinates, and writes the
-result in OEM-like format.
+The command reads one OPM, propagates its Keplerian elements, converts each
+propagated state to Cartesian coordinates, and writes the result in OEM format.
 
 ## Synopsis
 
 ```bash
-propagate-kepler [OPTIONS]
-cat initial_state.txt | propagate-kepler - -o - [OPTIONS]
+propagate-kepler <input_opm|-> -o <output_oem|-> [OPTIONS]
+cat input.opm | propagate-kepler - -o - [OPTIONS]
 ```
 
 ## Options
 
 | Option | Description |
 |--------|-------------|
-| `-i`, `--initial-state <state-line>` | State line supplied directly on the command line. If omitted, read one line from stdin. |
+| `<input_opm|->` | CCSDS OPM file path. `-` reads OPM content from stdin. |
 | `-d`, `--duration <duration>` | Simulation duration. Accepts values such as `90s`, `2m`, `1.5h`, or `1d`. Defaults to one day. |
 | `-o`, `--output <output_oem|->` | Output OEM state history. `-` writes to stdout. Defaults to `-`. |
 | `-s`, `--step <duration>` | Output interval, such as `60s` or `1m`. Defaults to 15 minutes. |
 | `--data-only` | Write state lines without the OEM metadata header. |
 | `-h`, `--help` | Show the help message and exit. |
 
-## State Format
+## Input OPM
 
-The initial state is an OEM-style line containing an epoch followed by six Keplerian state values:
+The OPM must contain a complete Keplerian element set and either
+`TRUE_ANOMALY` or `MEAN_ANOMALY`. OPM angles are in degrees; they are converted
+to radians internally. The semi-major axis is in kilometers and is converted to
+meters internally.
 
 ```text
-<epoch> <semi-major-axis> <eccentricity> <inclination> <argument-of-periapsis> <longitude-of-ascending-node> <true-anomaly>
+SEMI_MAJOR_AXIS = <km>
+ECCENTRICITY = <dimensionless>
+INCLINATION = <degrees>
+RA_OF_ASC_NODE = <degrees>
+ARG_OF_PERICENTER = <degrees>
+TRUE_ANOMALY = <degrees>
 ```
 
 The values use the following units:
 
-- **Epoch**: ISO 8601 timestamp.
-- **Semi-major axis**: kilometers; converted to meters internally.
-- **Eccentricity**: dimensionless.
-- **Angles**: inclination, argument of periapsis, longitude of ascending node, and true anomaly in radians.
-
-The state can be supplied with `--initial-state`. If that option is omitted,
-the command reads one line from stdin.
+- The OPM `EPOCH` supplies the propagation start time.
+- When `MEAN_ANOMALY` is supplied instead, it is converted to true anomaly.
 
 ## Examples
 
 ```bash
-propagate-kepler --initial-state "2026-05-29T00:00:00.000000 6793.456 0.001234 0.9013 4.094 2.155 0.797" -d 6h
-cat initial_state.txt | propagate-kepler - --duration 90m --output propagated.oem
-cat input.txt | propagate-kepler - --output - --data-only
+propagate-kepler input.opm -d 6h -o propagated.oem
+cat input.opm | propagate-kepler - --duration 90m --output propagated.oem
+cat input.opm | propagate-kepler - --output - --data-only
 ```
 
 ## Output
