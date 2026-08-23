@@ -1,15 +1,15 @@
 # To-do list
 
-1. OPM support
+1. [`propagate-omm']
+    1. propagate mean elements or TLE
+    1. replace `propagate-tle`.
+
+1. Better OPM support
     1. ?
 
 1. [`propagate-orbit']
     1. give a less generic name
     1. numerical propagator
-
-1. [`propagate-omm']
-    1. propagate mean elements or TLE
-    1. replace `propagate-tle`.
 
 1. Propagator classes
     1. Keplerian propagator
