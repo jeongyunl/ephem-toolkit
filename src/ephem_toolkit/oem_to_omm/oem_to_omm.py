@@ -1,38 +1,20 @@
 #!/usr/bin/env python3
-"""Convert OEM state vectors to osculating Keplerian elements or OMM.
+"""Convert OEM state vectors to mean Keplerian elements or OMM.
 
-Supports three modes:
+Supports two modes:
 
---kepler mode:
-  Fits osculating Keplerian elements to the first 2 hours of OEM states
-  using two-body (Kepler) propagation. The result fits the initial state
-  exactly and minimizes position residuals over the fit arc.
-
---mean-kepler mode:
+mean-kepler mode:
   Fits mean Keplerian elements to the first 2 hours of OEM states using
   J2 secular propagation. The result fits the initial state exactly and
   minimizes position residuals over the fit arc.
 
---tle mode:
+tle mode:
   Fits TLE mean elements (SGP4-compatible) to the OEM states. Creates an
   OMM with MEAN_ELEMENT_THEORY=SGP4 and includes TLE-related parameters
   (BSTAR, MEAN_MOTION_DOT, etc.). The output OMM can be converted to a
   standard TLE format per CCSDS 502.0-B-3 (2023-04).
 
-Algorithm overview (--kepler mode):
-  - The epoch position r₀ is fixed to the first OEM position.
-  - The epoch velocity v₀ is estimated via a Gauss-Newton least-squares
-    minimizer that minimizes position residuals ‖r_OEM(tᵢ) - r_Kepler(tᵢ)‖
-    over the fit arc.
-  - A numerical (forward-difference) Jacobian ∂residuals/∂v₀ is computed
-    at each iteration.
-  - Levenberg-Marquardt-style diagonal damping stabilizes the normal
-    equations, and a backtracking line search with physical feasibility
-    guards (eccentricity < 1, semi-major axis > 6000 km) ensures
-    convergence to a physically meaningful orbit.
-
 Usage:
-    oem-to-omm --mode kepler <input.oem>
     oem-to-omm --mode mean-kepler <input.oem>
     oem-to-omm --mode tle <input.oem>
     oem-to-omm --mode tle - -o -
@@ -73,7 +55,6 @@ except ImportError:  # pragma: no cover - direct script execution fallback
 
 from . import fit_common
 from . import fit_mean_kepler
-from . import fit_osculating_kepler
 from . import fit_tle_main as fit_tle
 
 # ===================================================================
@@ -164,69 +145,6 @@ def main() -> None:
         object_id: str = cli_args.object_id
     else:
         object_id: str = oem_data.meta.object_id or "UNKNOWN"
-
-    # Dispatch by the canonical mode selection.
-    if cli_args.mode == "kepler":
-        if len(states) < 2:
-            report_error("Error: At least 2 state vectors required for fitting.")
-
-        fit_span_s: float = cli_args.fit_span.total_seconds()
-
-        # Run the Gauss-Newton velocity-only fit (position at epoch is fixed)
-        fitted_elements: np.ndarray
-        diagnostics: fit_common.FitDiagnostics
-        try:
-            fitted_elements, diagnostics = fit_osculating_kepler.fit_osculating_kepler(
-                states,
-                fit_span_s,
-                cli_args.mu_m3_s2,
-            )
-        except Exception as error:
-            report_error(f"Error fitting Keplerian elements: {error}")
-
-        # Compute propagation comparison at 10-minute intervals
-        comparison: list[fit_common.PropagationComparison] = (
-            fit_osculating_kepler.compute_kepler_propagation_comparison(
-                fitted_elements, states, cli_args.mu_m3_s2, fit_span_s, interval_s=600.0
-            )
-        )
-
-        # Format and report output
-        first_epoch: datetime = datetime.fromtimestamp(states[0][0], tz=timezone.utc)
-        output_text: str = fit_osculating_kepler.format_kepler_output(
-            first_epoch, fitted_elements, diagnostics, comparison
-        )
-
-        # Report results to stderr in verbose mode when output is stdout
-        if cli_args.verbose and cli_args.output_omm == "-":
-            print(output_text, file=sys.stderr)
-        elif cli_args.verbose:
-            report_results(output_text, "-", cli_args.verbose)
-
-        # Save OMM format if requested
-        if cli_args.output_omm:
-            try:
-                omm_obj: omm.CcsdsOmm = omm.keplerian_to_omm(
-                    first_epoch,
-                    fitted_elements,
-                    object_name=object_name,
-                    object_id=object_id,
-                    mu_m3_s2=cli_args.mu_m3_s2,
-                )
-                omm_obj.originator = "oem_to_omm"
-                # Output to stdout if dest is "-", otherwise to file
-                if cli_args.output_omm == "-":
-                    omm_obj.to_file(sys.stdout)
-                else:
-                    omm_obj.to_file(cli_args.output_omm)
-                    if cli_args.verbose:
-                        print(
-                            f"OMM file written to: {cli_args.output_omm}",
-                            file=sys.stderr,
-                        )
-            except Exception as error:
-                report_error(f"Error writing OMM file: {error}")
-        return
 
     if cli_args.mode == "mean-kepler":
         # Run the Gauss-Newton velocity-only fit for mean elements
@@ -365,11 +283,6 @@ def main() -> None:
             except Exception as error:
                 report_error(f"Error writing OMM file: {error}")
         return
-
-    parser = argparse.ArgumentParser(
-        description="Convert OEM state vectors to Keplerian elements or OMM."
-    )
-    parser.error("Either --mode {kepler,mean-kepler,tle} must be provided")
 
 
 if __name__ == "__main__":

@@ -47,7 +47,7 @@ def test_parse_arguments_fit_span_accepts_duration_strings(monkeypatch):
         [
             "oem-to-omm",
             "--mode",
-            "kepler",
+            "mean-kepler",
             "--fit-span",
             "90m",
             "input.oem",
@@ -69,7 +69,7 @@ def test_parse_arguments_fit_span_default_is_two_hours(monkeypatch):
         [
             "oem-to-omm",
             "--mode",
-            "kepler",
+            "mean-kepler",
             "input.oem",
             "--output",
             "-",
@@ -103,57 +103,6 @@ def test_report_error_exits_with_code():
     assert excinfo.value.code == 7
 
 
-def test_main_kepler_mode_writes_omm_file(monkeypatch, tmp_path):
-    """Kepler mode should parse the OEM, fit, and write OMM output."""
-    states = [
-        (0.0, np.array([7000.0, 0.0, 0.0, 0.0, 7.5, 0.0], dtype=float)),
-        (600.0, np.array([7000.0, 0.0, 0.0, 0.0, 7.5, 0.0], dtype=float)),
-    ]
-    dummy_meta = DummyMeta(object_name="SAT", object_id="2024-001A")
-    monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(
-        oem_to_omm.oem.CcsdsOem,
-        "read",
-        lambda *_args, **_kwargs: DummyOemData(states, dummy_meta),
-    )
-    monkeypatch.setattr(
-        oem_to_omm.fit_osculating_kepler,
-        "fit_osculating_kepler",
-        lambda *_args, **_kwargs: (np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]), {"status": "ok"}),
-    )
-    monkeypatch.setattr(
-        oem_to_omm.fit_osculating_kepler,
-        "compute_kepler_propagation_comparison",
-        lambda *_args, **_kwargs: [],
-    )
-    monkeypatch.setattr(
-        oem_to_omm.fit_osculating_kepler,
-        "format_kepler_output",
-        lambda *_args, **_kwargs: "KEPLER_OUTPUT",
-    )
-
-    dummy_omm = DummyOmmObj()
-    monkeypatch.setattr(oem_to_omm.omm, "keplerian_to_omm", lambda *_args, **_kwargs: dummy_omm)
-
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "oem-to-omm",
-            "--mode",
-            "kepler",
-            "input.oem",
-            "-o",
-            str(tmp_path / "out.omm"),
-        ],
-    )
-
-    oem_to_omm.main()
-
-    assert dummy_omm.originator == "oem_to_omm"
-    assert Path(tmp_path / "out.omm").read_text(encoding="utf-8") == "OMM_OUTPUT"
-
-
 def test_main_mean_kepler_mode_uses_duration_and_writes_omm(monkeypatch, tmp_path):
     """Mean-kepler mode should convert the fit duration to seconds and write OMM output."""
     states = [
@@ -169,7 +118,10 @@ def test_main_mean_kepler_mode_uses_duration_and_writes_omm(monkeypatch, tmp_pat
     monkeypatch.setattr(
         oem_to_omm.fit_mean_kepler,
         "fit_mean_kepler",
-        lambda *_args, **_kwargs: (np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]), {"status": "ok"}),
+        lambda *_args, **_kwargs: (
+            np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
+            {"status": "ok"},
+        ),
     )
     monkeypatch.setattr(
         oem_to_omm.fit_mean_kepler,
@@ -188,7 +140,9 @@ def test_main_mean_kepler_mode_uses_duration_and_writes_omm(monkeypatch, tmp_pat
     )
 
     dummy_omm = DummyOmmObj()
-    monkeypatch.setattr(oem_to_omm.omm, "keplerian_to_omm", lambda *_args, **_kwargs: dummy_omm)
+    monkeypatch.setattr(
+        oem_to_omm.omm, "keplerian_to_omm", lambda *_args, **_kwargs: dummy_omm
+    )
 
     monkeypatch.setattr(
         sys,
@@ -209,45 +163,6 @@ def test_main_mean_kepler_mode_uses_duration_and_writes_omm(monkeypatch, tmp_pat
 
     assert dummy_omm.originator == "oem_to_omm"
     assert Path(tmp_path / "mean.omm").read_text(encoding="utf-8") == "OMM_OUTPUT"
-
-
-def test_real_kepler_cli_generates_omm_from_fixture(tmp_path):
-    """Exercise the real kepler-mode CLI against the shipped OEM fixture."""
-    project_root = Path(__file__).resolve().parents[3]
-    input_file = project_root / "tests" / "data" / "ISS_2026-05-20_small.OEM"
-    output_file = tmp_path / "issue_omm.omm"
-
-    env = os.environ.copy()
-    env["PYTHONPATH"] = os.pathsep.join(
-        [
-            str(project_root / "src"),
-            str(project_root / "src" / "ephem_toolkit"),
-            env.get("PYTHONPATH", ""),
-        ]
-    ).rstrip(os.pathsep)
-
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "ephem_toolkit.oem_to_omm.oem_to_omm",
-            "--mode",
-            "kepler",
-            str(input_file),
-            "-o",
-            str(output_file),
-        ],
-        cwd=str(project_root),
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert output_file.exists()
-    output_text = output_file.read_text(encoding="utf-8")
-    assert "CCSDS_OMM_VERS" in output_text
 
 
 def test_main_tle_mode_writes_omm_from_duration(monkeypatch, tmp_path):
@@ -279,7 +194,9 @@ def test_main_tle_mode_writes_omm_from_duration(monkeypatch, tmp_path):
     )
 
     dummy_omm = DummyOmmObj()
-    monkeypatch.setattr(oem_to_omm.convert_tle, "tle_to_omm", lambda *_args, **_kwargs: dummy_omm)
+    monkeypatch.setattr(
+        oem_to_omm.convert_tle, "tle_to_omm", lambda *_args, **_kwargs: dummy_omm
+    )
 
     monkeypatch.setattr(
         sys,

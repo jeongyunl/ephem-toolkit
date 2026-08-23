@@ -13,7 +13,6 @@ The `src/oem_to_omm/` directory contains:
 - `oem-to-omm` — Main executable script for OMM/TLE estimation
 - `fit_common.py` — Common fitting utilities
 - `fit_mean_kepler.py` — Mean Keplerian element fitting
-- `fit_osculating_kepler.py` — Osculating Keplerian element fitting
 - `fit_tle_main.py` — TLE fitting main entry point
 - `fit_tle/` — TLE fitting submodule containing:
   - `constants.py` — Physical and mathematical constants
@@ -28,18 +27,19 @@ The `src/oem_to_omm/` directory contains:
 
 ### Purpose
 
-Converts OEM state vectors to osculating Keplerian elements or OMM format. Supports three modes:
+Converts OEM state vectors to mean-element OMM format. Supports two modes:
 
-- **`--mode kepler`**: Fits osculating Keplerian elements using two-body propagation
 - **`--mode mean-kepler`**: Fits mean Keplerian elements using J2 secular propagation
 - **`--mode tle`**: Fits TLE mean elements (SGP4-compatible) to create an OMM with TLE parameters
+
+For osculating Keplerian element fitting, use [`oem-to-opm`](OEM_TO_OPM.md).
 
 ### Synopsis
 
 ```bash
 oem-to-omm [-h] [-o <output_omm|->] [-v]
                                  [--mu <value>] [--fit-span <hours>]
-                                 --mode {kepler,mean-kepler,tle}
+                                 --mode {mean-kepler,tle}
                                  [--object-name <name>] [--object-id <YYYY-NNNP>]
                                  [--tle-refinement <none|cartesian|keplerian>]
                                  [--tle-norad-cat-id <0..99999>]
@@ -55,12 +55,12 @@ oem-to-omm [-h] [-o <output_omm|->] [-v]
 | Option | Description |
 |---|---|
 | `-h`, `--help` | Show help message and exit |
-| `<input_oem>` | Path to input CCSDS OEM file (use `-` or omit to read from stdin) |
-| `-o`, `--output` | Save fitted elements in OMM format to file or `-` for stdout (default: `-`) |
+| `<input_oem>` | Path to input CCSDS OEM file (use `-` to read from stdin) |
+| `-o`, `--output` | Save fitted elements in OMM format to file or `-` for stdout (required) |
 | `-v`, `--verbose` | Print detailed debug information to stderr |
 | `--mu` | Gravitational parameter in m³/s² (default: Earth WGS-84) |
 | `--fit-span` | Maximum arc span in hours for fitting (default: 2.0) |
-| `--mode {kepler,mean-kepler,tle}` | Select conversion mode: Keplerian fit, mean-Kepler fit, or TLE fit |
+| `--mode {mean-kepler,tle}` | Select conversion mode: mean-Kepler fit or TLE fit |
 | `--object-name` | OBJECT_NAME: Spacecraft name for OMM output |
 | `--object-id` | OBJECT_ID: International designator (e.g., 1998-067A) |
 | `--tle-refinement` | Refinement method for TLE fitting: `cartesian` (default), `keplerian`, or `none` |
@@ -464,12 +464,6 @@ Use:
 - `core.tle.read_tle()` when you want to parse an existing TLE into structured fields
 
 ### Usage Examples
-
-**Fit osculating Keplerian elements (`--mode kepler`):**
-
-```bash
-oem-to-omm --mode kepler input.oem -o output.omm
-```
 
 **Fit mean Keplerian elements (`--mode mean-kepler`):**
 

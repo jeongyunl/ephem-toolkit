@@ -181,48 +181,6 @@ def parse_generated_tle_from_output(output: str) -> tle.Tle:
     return tle.read_tle(io.StringIO(tle_text))
 
 
-def test_oem_to_omm_requires_input_file_name() -> None:
-    """The CLI should require an explicit input filename or '-' for stdin."""
-    result: subprocess.CompletedProcess[str] = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "ephem_toolkit.oem_to_omm.oem_to_omm",
-            "--mode",
-            "kepler",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(PROJECT_ROOT),
-        env=_build_env(),
-    )
-
-    assert result.returncode != 0
-    assert "required: <input_oem|->" in result.stderr.lower()
-
-    stdin_oem = (TEST_DATA_DIR / "ISS_2026-05-20_small.OEM").read_text(encoding="utf-8")
-    stdin_result: subprocess.CompletedProcess[str] = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "ephem_toolkit.oem_to_omm.oem_to_omm",
-            "--mode",
-            "kepler",
-            "-",
-            "--output",
-            "-",
-        ],
-        input=stdin_oem,
-        capture_output=True,
-        text=True,
-        cwd=str(PROJECT_ROOT),
-        env=_build_env(),
-    )
-
-    assert stdin_result.returncode == 0, stdin_result.stderr
-    assert "CCSDS_OMM_VERS" in stdin_result.stdout
-
-
 def test_oem_to_omm_help_uses_command_name_and_format_aware_output() -> None:
     """The CLI help should use the canonical command name and output placeholder."""
     result: subprocess.CompletedProcess[str] = subprocess.run(
@@ -242,7 +200,7 @@ def test_oem_to_omm_help_uses_command_name_and_format_aware_output() -> None:
     assert result.returncode == 0
     assert "usage: oem-to-omm" in result.stdout
     assert "--output <output_omm|->" in result.stdout
-    assert "--mode <kepler|mean-kepler|tle>" in result.stdout
+    assert "--mode <mean-kepler|tle>" in result.stdout
 
 
 def is_geo_orbit(tle_data: tle.Tle) -> bool:
