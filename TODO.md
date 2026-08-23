@@ -3,11 +3,9 @@
 1. OPM support
     1. ?
 
-1. [`propagate-opm']
-    1. propagate osculating elements
-        1. propagate from osculating cartesian state vector
-        1. propagate from osculating keplerian elements
-    1. replace `propagate-kepler` & `propagate-orbit`.
+1. [`propagate-orbit']
+    1. give a less generic name
+    1. numerical propagator
 
 1. [`propagate-omm']
     1. propagate mean elements or TLE

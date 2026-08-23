@@ -1,4 +1,8 @@
-"""CLI argument parsing for the Kepler propagation command."""
+"""CLI argument parsing for the Kepler propagation command.
+
+Usage:
+    propagate-kepler <input_opm|-> [-d <duration>] [-s <step>] -o <output_oem|->
+"""
 
 from __future__ import annotations
 
@@ -8,14 +12,17 @@ import ephem_toolkit.core.cli as cli
 import ephem_toolkit.core.time_utils as time_utils
 
 DEFAULT_PROPAGATION_DURATION_S: float = time_utils.SECONDS_PER_DAY
+"""Default propagation duration in seconds (1 day)."""
+
 DEFAULT_OUTPUT_STEP_S: float = 15.0 * time_utils.SECONDS_PER_MINUTE
+"""Default output sampling interval in seconds (15 minutes)."""
 
 
 class PropagateKeplerArgs(argparse.Namespace):
     """Typed argument namespace for the Kepler propagation CLI."""
 
-    initial_state: str | None
-    """Initial Keplerian state line or None if stdin is used."""
+    input_opm: str
+    """Input OPM file path or '-' if OPM content is read from stdin."""
     duration_s: float
     """Propagation duration in seconds."""
     output_oem: str
@@ -30,25 +37,20 @@ def parse_arguments() -> PropagateKeplerArgs:
     """Parse command-line arguments for Keplerian propagation."""
     parser = cli.create_parser(
         description=(
-            "Run two-body Keplerian propagation from one OEM-style state line and "
+            "Run two-body Keplerian propagation from an OPM Keplerian state and "
             "a user-provided simulation duration."
         ),
         epilog=(
             "Examples:\n"
-            '  propagate-kepler --initial-state "2026-05-29T00:00:00.000000 6793.456 0.001234 0.9013 4.094 2.155 0.797" -d 6h\n'
-            "  propagate-kepler --duration 90m --output propagated.oem < initial_state.txt\n"
-            "  cat input.txt | propagate-kepler - --output - --data-only"
+            "  propagate-kepler input.opm -d 6h -o propagated.oem\n"
+            "  propagate-kepler input.opm --duration 90m --output propagated.oem\n"
+            "  cat input.opm | propagate-kepler - --output - --data-only"
         ),
     )
     parser.add_argument(
-        "-i",
-        "--initial-state",
-        dest="initial_state",
-        metavar="<state-line>",
-        help=(
-            "One OEM-style Keplerian state line provided directly on the command line. "
-            "If omitted, one line is read from stdin."
-        ),
+        "input_opm",
+        metavar="<input_opm|->",
+        help="Input OPM file path, or '-' to read OPM content from stdin.",
     )
     parser.add_argument(
         "-d",
@@ -95,3 +97,7 @@ def parse_arguments() -> PropagateKeplerArgs:
         ),
     )
     return parser.parse_args(namespace=PropagateKeplerArgs())
+
+
+if __name__ == "__main__":
+    raise SystemExit(parse_arguments())
