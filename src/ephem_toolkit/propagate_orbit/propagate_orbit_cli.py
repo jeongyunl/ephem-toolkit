@@ -1,4 +1,8 @@
-"""CLI argument parsing functions for orbit propagation."""
+"""CLI argument parsing functions for orbit propagation.
+
+References:
+    https://public.ccsds.org/Pubs/502x0b3e1.pdf
+"""
 
 from __future__ import annotations
 
@@ -27,8 +31,8 @@ from .constants import (
 class PropagateOrbitArgs(argparse.Namespace):
     """Typed argument namespace for the orbit propagation CLI."""
 
-    initial_state: str | None
-    """Initial state line or None if stdin is used."""
+    input_opm: str
+    """Input OPM path or '-' for stdin."""
     duration: float
     """Simulation duration in seconds."""
     output_oem: str
@@ -333,29 +337,30 @@ def parse_drag_coefficient(value: str) -> float:
 
 
 def parse_arguments() -> PropagateOrbitArgs:
-    """Create the command-line argument parser for this script."""
+    """Build the orbit-propagation argument parser.
+
+    Returns
+    -------
+    PropagateOrbitArgs
+        Parsed command-line arguments for the orbit propagation workflow.
+    """
     parser = cli.create_parser(
         description=(
-            "Run perturbed orbit propagation from one OEM-style state line and "
+            "Run perturbed orbit propagation from an input OPM state and "
             "a user-provided simulation duration."
         ),
         epilog=(
             "Examples:\n"
-            '  propagate-orbit --initial-state "2023-04-10T00:00:00 7000 0 0 0 7.5 1.0" -d 6h\n'
-            "  propagate-orbit --duration 90m --output propagated.oem < input_state.txt\n"
-            "  cat input.txt | propagate-orbit - --output - --dep-vars dep_vars.csv"
+            "  propagate-orbit tests/opm/iss.opm -d 6h\n"
+            "  propagate-orbit input.opm --duration 90m --output propagated.oem\n"
+            "  cat input.opm | propagate-orbit - --output - --dep-vars dep_vars.csv"
         ),
     )
     parser.prog = "propagate-orbit"
     parser.add_argument(
-        "-i",
-        "--initial-state",
-        dest="initial_state",
-        metavar="<state-line>",
-        help=(
-            "One OEM-style state line provided directly on the command line. "
-            "If omitted, one line is read from stdin."
-        ),
+        "input_opm",
+        metavar="<input_opm|->",
+        help=("Input OPM file path, or '-' to read OPM content from stdin."),
     )
     parser.add_argument(
         "-d",
@@ -396,7 +401,9 @@ def parse_arguments() -> PropagateOrbitArgs:
             "If omitted, dependent variables are not written."
         ),
     )
+    # ===================================================================
     # Satellite properties
+    # ===================================================================
     parser.add_argument(
         "--name",
         dest="name",
@@ -416,7 +423,9 @@ def parse_arguments() -> PropagateOrbitArgs:
         ),
     )
 
+    # ===================================================================
     # Integrator method and step size
+    # ===================================================================
     parser.add_argument(
         "--integrator",
         dest="integrator",
@@ -452,7 +461,9 @@ def parse_arguments() -> PropagateOrbitArgs:
         ),
     )
 
+    # ===================================================================
     # Earth spherical harmonic gravity degree/order
+    # ===================================================================
     parser.add_argument(
         "--earth-gravity",
         dest="earth_gravity",
@@ -471,7 +482,9 @@ def parse_arguments() -> PropagateOrbitArgs:
         ),
     )
 
+    # ===================================================================
     # Drag area (also used as the cannonball reference area for SRP)
+    # ===================================================================
     parser.add_argument(
         "--drag-area",
         dest="drag_area",
@@ -484,7 +497,9 @@ def parse_arguments() -> PropagateOrbitArgs:
         ),
     )
 
+    # ===================================================================
     # Solar radiation pressure
+    # ===================================================================
     parser.add_argument(
         "--srp",
         dest="srp",
@@ -505,7 +520,9 @@ def parse_arguments() -> PropagateOrbitArgs:
         ),
     )
 
+    # ===================================================================
     # Aerodynamic drag
+    # ===================================================================
     parser.add_argument(
         "--drag",
         dest="drag",
