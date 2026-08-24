@@ -2,14 +2,46 @@
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 import numpy as np
 
 import ephem_toolkit.core.interpolator as interpolator
+import ephem_toolkit.core.time_utils as time_utils
 
 from .types import StatePair
+
+_debug: bool = False
+"""Module-level debug flag, set by the CLI entry point."""
+
+
+def set_debug(enabled: bool) -> None:
+    """Enable or disable module-level debug logging.
+
+    Parameters
+    ----------
+    enabled : bool
+        Whether to enable debug output.
+    """
+    global _debug
+    _debug = enabled
+
+
+def _debug_print(message: str) -> None:
+    """Print a debug message to stderr when debugging is enabled."""
+    if _debug:
+        print(f"[diff_oem.data_structures] {message}", file=sys.stderr)
+
+
+def _format_epoch(epoch_s: float | None) -> str:
+    """Format a POSIX epoch for debug output."""
+    if epoch_s is None:
+        return "none"
+    return time_utils.datetime_to_iso8601(
+        datetime.fromtimestamp(epoch_s, tz=timezone.utc)
+    )
 
 
 @dataclass
@@ -35,6 +67,22 @@ class TransformationStageInput:
         """
         from .comparison import resolve_state_pair
 
+        _debug_print(
+            f"resolve_state_pairs: input {len(self.state_pairs)} pairs, "
+            f"ref_interp={'yes' if self.reference_interpolator else 'no'}, "
+            f"cmp_interp={'yes' if self.comparison_interpolator else 'no'}"
+        )
+        if self.state_pairs:
+            first_ref = self.state_pairs[0][0][0]
+            last_ref = self.state_pairs[-1][0][0]
+            first_cmp = self.state_pairs[0][1][0]
+            last_cmp = self.state_pairs[-1][1][0]
+            _debug_print(
+                f"resolve_state_pairs: input ref time range "
+                f"[{_format_epoch(first_ref)} .. {_format_epoch(last_ref)}], "
+                f"cmp time range "
+                f"[{_format_epoch(first_cmp)} .. {_format_epoch(last_cmp)}]"
+            )
         resolved_state_pairs: list[StatePair] = []
         for reference_state, comparison_state in self.state_pairs:
             try:
@@ -48,6 +96,21 @@ class TransformationStageInput:
                 )
             except ValueError:
                 continue
+        _debug_print(
+            f"resolve_state_pairs: resolved {len(resolved_state_pairs)} of "
+            f"{len(self.state_pairs)} pairs"
+        )
+        if resolved_state_pairs:
+            first_resolved_ref = resolved_state_pairs[0][0][0]
+            last_resolved_ref = resolved_state_pairs[-1][0][0]
+            first_resolved_cmp = resolved_state_pairs[0][1][0]
+            last_resolved_cmp = resolved_state_pairs[-1][1][0]
+            _debug_print(
+                f"resolve_state_pairs: resolved ref time range "
+                f"[{_format_epoch(first_resolved_ref)} .. {_format_epoch(last_resolved_ref)}], "
+                f"cmp time range "
+                f"[{_format_epoch(first_resolved_cmp)} .. {_format_epoch(last_resolved_cmp)}]"
+            )
         return resolved_state_pairs
 
 

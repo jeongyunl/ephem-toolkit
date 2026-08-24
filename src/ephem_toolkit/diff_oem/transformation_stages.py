@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import sys
 from abc import ABC, abstractmethod
+from datetime import datetime, timezone
 from typing import Any, Callable
 
 import numpy as np
@@ -13,10 +15,41 @@ from ephem_toolkit.core.interpolator.interpolation_spec import (
     InterpolationSpec,
     InterpolationType,
 )
+import ephem_toolkit.core.time_utils as time_utils
 
 from .comparison import rotate_state
 from .data_structures import TransformationStageInput
 from .types import State, StatePair
+
+_debug: bool = False
+"""Module-level debug flag, set by the CLI entry point."""
+
+
+def set_debug(enabled: bool) -> None:
+    """Enable or disable module-level debug logging.
+
+    Parameters
+    ----------
+    enabled : bool
+        Whether to enable debug output.
+    """
+    global _debug
+    _debug = enabled
+
+
+def _debug_print(message: str) -> None:
+    """Print a debug message to stderr when debugging is enabled."""
+    if _debug:
+        print(f"[diff_oem.transformation_stages] {message}", file=sys.stderr)
+
+
+def _format_epoch(epoch_s: float | None) -> str:
+    """Format a POSIX epoch for debug output."""
+    if epoch_s is None:
+        return "none"
+    return time_utils.datetime_to_iso8601(
+        datetime.fromtimestamp(epoch_s, tz=timezone.utc)
+    )
 
 DEFAULT_INTERPOLATION_DEGREE: int = 5
 """Polynomial degree used for OEM state interpolation."""
@@ -179,6 +212,13 @@ class RotationStage(TransformationStage):
         list[StatePair]
             State pairs selected for rotation fitting.
         """
+        _debug_print(
+            f"RotationStage.build_fit_pairs: "
+            f"fit_overlap=[{_format_epoch(self.fit_overlap_start)} .. "
+            f"{_format_epoch(self.fit_overlap_stop)}], "
+            f"fit_span={self.fit_span_s:.1f}s, "
+            f"ref_states={len(reference_states)}, cmp_states={len(comparison_states)}"
+        )
         if self.interpolate_data:
             base_pairs = [
                 (state, comparison_states[0])
@@ -201,7 +241,12 @@ class RotationStage(TransformationStage):
             ]
 
         rotation_stop_epoch_s = self.fit_overlap_start + self.fit_span_s
-        return [
+        _debug_print(
+            f"RotationStage.build_fit_pairs: "
+            f"rotation_stop={_format_epoch(rotation_stop_epoch_s)}, "
+            f"base_pairs={len(base_pairs)}"
+        )
+        fit_pairs = [
             (reference_state, comparison_state)
             for reference_state, comparison_state in base_pairs
             if self.fit_overlap_start
@@ -212,6 +257,18 @@ class RotationStage(TransformationStage):
             )
             <= rotation_stop_epoch_s
         ]
+        _debug_print(
+            f"RotationStage.build_fit_pairs: selected {len(fit_pairs)} fit pairs"
+        )
+        if fit_pairs:
+            _debug_print(
+                f"RotationStage.build_fit_pairs: fit pair time range "
+                f"ref=[{_format_epoch(fit_pairs[0][0][0])} .. "
+                f"{_format_epoch(fit_pairs[-1][0][0])}], "
+                f"cmp=[{_format_epoch(fit_pairs[0][1][0])} .. "
+                f"{_format_epoch(fit_pairs[-1][1][0])}]"
+            )
+        return fit_pairs
 
     def fit(self, stage_input: TransformationStageInput) -> np.ndarray:
         """Fit the comparison-to-reference rotation matrix.
@@ -232,6 +289,9 @@ class RotationStage(TransformationStage):
             If fewer than two state pairs are available.
         """
         resolved_state_pairs = stage_input.resolve_state_pairs()
+        _debug_print(
+            f"RotationStage.fit: resolved {len(resolved_state_pairs)} state pairs"
+        )
 
         if len(resolved_state_pairs) < MIN_STATE_PAIRS_FOR_ROTATION:
             raise ValueError(
@@ -279,6 +339,14 @@ class RotationStage(TransformationStage):
         list[State]
             Rotated comparison state history.
         """
+        _debug_print(
+            f"RotationStage.transform: transforming {len(states)} states"
+        )
+        if states:
+            _debug_print(
+                f"RotationStage.transform: input time range "
+                f"[{_format_epoch(states[0][0])} .. {_format_epoch(states[-1][0])}]"
+            )
         return self._apply_state_transform(
             states,
             lambda state: rotate_state(state, fit_result),
@@ -336,6 +404,9 @@ class RotationXYStage(RotationStage):
             Fitted three-by-three rotation matrix.
         """
         resolved_state_pairs = stage_input.resolve_state_pairs()
+        _debug_print(
+            f"RotationXYStage.fit: resolved {len(resolved_state_pairs)} state pairs"
+        )
 
         if len(resolved_state_pairs) < MIN_STATE_PAIRS_FOR_ROTATION:
             raise ValueError(
@@ -441,6 +512,9 @@ class RotationZStage(RotationStage):
             Fitted three-by-three rotation matrix.
         """
         resolved_state_pairs = stage_input.resolve_state_pairs()
+        _debug_print(
+            f"RotationZStage.fit: resolved {len(resolved_state_pairs)} state pairs"
+        )
 
         if len(resolved_state_pairs) < MIN_STATE_PAIRS_FOR_ROTATION:
             raise ValueError(
@@ -565,13 +639,30 @@ class TimeShiftStage(TransformationStage):
             Pairs containing the first reference state and selected comparison
             states.
         """
+        _debug_print(
+            f"TimeShiftStage.build_fit_pairs: "
+            f"fit_overlap=[{_format_epoch(self.fit_overlap_start)} .. "
+            f"{_format_epoch(self.fit_overlap_stop)}], "
+            f"ref_states={len(reference_states)}, cmp_states={len(comparison_states)}"
+        )
         if not reference_states:
+            _debug_print("TimeShiftStage.build_fit_pairs: no reference states")
             return []
-        return [
+        fit_pairs = [
             (reference_states[0], comparison_state)
             for comparison_state in comparison_states
             if self.fit_overlap_start <= comparison_state[0] <= self.fit_overlap_stop
         ]
+        _debug_print(
+            f"TimeShiftStage.build_fit_pairs: selected {len(fit_pairs)} fit pairs"
+        )
+        if fit_pairs:
+            _debug_print(
+                f"TimeShiftStage.build_fit_pairs: cmp time range "
+                f"[{_format_epoch(fit_pairs[0][1][0])} .. "
+                f"{_format_epoch(fit_pairs[-1][1][0])}]"
+            )
+        return fit_pairs
 
     def fit(self, stage_input: TransformationStageInput) -> float:
         """Fit a constant comparison timestamp shift.
@@ -591,6 +682,10 @@ class TimeShiftStage(TransformationStage):
         ValueError
             If no comparison states are available for fitting.
         """
+        _debug_print(
+            f"TimeShiftStage.fit: {len(stage_input.state_pairs)} state pairs, "
+            f"ref_interp={'yes' if stage_input.reference_interpolator else 'no'}"
+        )
         state_pairs = stage_input.state_pairs
         reference_interpolator = stage_input.reference_interpolator
         if reference_interpolator is None:
@@ -725,7 +820,22 @@ class TimeShiftStage(TransformationStage):
         list[State]
             Comparison states with shifted epochs.
         """
-        return [(timestamp - fit_result, state.copy()) for timestamp, state in states]
+        _debug_print(
+            f"TimeShiftStage.transform: shifting {len(states)} states by "
+            f"{fit_result:+.9f}s"
+        )
+        if states:
+            _debug_print(
+                f"TimeShiftStage.transform: input time range "
+                f"[{_format_epoch(states[0][0])} .. {_format_epoch(states[-1][0])}]"
+            )
+        result = [(timestamp - fit_result, state.copy()) for timestamp, state in states]
+        if result:
+            _debug_print(
+                f"TimeShiftStage.transform: output time range "
+                f"[{_format_epoch(result[0][0])} .. {_format_epoch(result[-1][0])}]"
+            )
+        return result
 
     def describe_fit(self, fit_result: float) -> str:
         """Describe the fitted time shift for report output.

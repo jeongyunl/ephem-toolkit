@@ -14,6 +14,27 @@ from .comparison import compare_states
 from .data_structures import ComparisonResult
 from .types import State, StatePair
 
+_debug: bool = False
+"""Module-level debug flag, set by the CLI entry point."""
+
+
+def set_debug(enabled: bool) -> None:
+    """Enable or disable module-level debug logging.
+
+    Parameters
+    ----------
+    enabled : bool
+        Whether to enable debug output.
+    """
+    global _debug
+    _debug = enabled
+
+
+def _debug_print(message: str) -> None:
+    """Print a debug message to stderr when debugging is enabled."""
+    if _debug:
+        print(f"[diff_oem.utils] {message}", file=sys.stderr)
+
 
 def find_overlapping_time_range(
     reference_states: list[tuple[float, np.ndarray]],
@@ -35,8 +56,18 @@ def find_overlapping_time_range(
     """
     overlap_start: float = max(reference_states[0][0], comparison_states[0][0])
     overlap_stop: float = min(reference_states[-1][0], comparison_states[-1][0])
+    _debug_print(
+        f"find_overlapping_time_range: "
+        f"ref=[{format_epoch(reference_states[0][0])} .. {format_epoch(reference_states[-1][0])}], "
+        f"cmp=[{format_epoch(comparison_states[0][0])} .. {format_epoch(comparison_states[-1][0])}], "
+        f"overlap_start={format_epoch(overlap_start)}, overlap_stop={format_epoch(overlap_stop)}"
+    )
     if overlap_start > overlap_stop:
+        _debug_print("find_overlapping_time_range: no overlap")
         return None
+    _debug_print(
+        f"find_overlapping_time_range: overlap duration={overlap_stop - overlap_start:.3f}s"
+    )
     return overlap_start, overlap_stop
 
 
@@ -61,7 +92,13 @@ def resolve_time_bound(value: str, reference_epoch_s: float) -> float:
     )
     if isinstance(parsed_value, timedelta):
         parsed_value = reference_datetime + parsed_value
-    return parsed_value.timestamp()
+    resolved = parsed_value.timestamp()
+    _debug_print(
+        f"resolve_time_bound: input='{value}', "
+        f"reference_epoch={format_epoch(reference_epoch_s)}, "
+        f"resolved={format_epoch(resolved)}"
+    )
+    return resolved
 
 
 def parse_rotation_fit_span(value: str) -> float:
@@ -158,27 +195,42 @@ def build_comparison_pairs(
     list[StatePair]
         List of (reference_state, comparison_state) pairs for comparison.
     """
+    _debug_print(
+        f"build_comparison_pairs: "
+        f"ref_states={len(reference_states)}, cmp_states={len(comparison_states)}, "
+        f"interpolate_ref={interpolate_ref}, interpolate_data={interpolate_data}, "
+        f"has_time_window={has_time_window}, "
+        f"overlap=[{format_epoch(overlap_start)} .. {format_epoch(overlap_stop)}]"
+    )
     if interpolate_data:
-        return [
+        pairs = [
             (state, comparison_states[0])
             for state in reference_states
             if not has_time_window or overlap_start <= state[0] <= overlap_stop
         ]
+        _debug_print(f"build_comparison_pairs: interpolate_data -> {len(pairs)} pairs")
+        return pairs
     if interpolate_ref:
-        return [
+        pairs = [
             (reference_oem, state)
             for state in comparison_states
             if not has_time_window or overlap_start <= state[0] <= overlap_stop
         ]
+        _debug_print(f"build_comparison_pairs: interpolate_ref -> {len(pairs)} pairs")
+        return pairs
     if has_time_window:
-        return [
+        pairs = [
             (reference_state, comparison_state)
             for reference_state, comparison_state in zip(
                 reference_states, comparison_states
             )
             if overlap_start <= reference_state[0] <= overlap_stop
         ]
-    return list(zip(reference_states, comparison_states))
+        _debug_print(f"build_comparison_pairs: time_window -> {len(pairs)} pairs")
+        return pairs
+    pairs = list(zip(reference_states, comparison_states))
+    _debug_print(f"build_comparison_pairs: direct zip -> {len(pairs)} pairs")
+    return pairs
 
 
 def compare_pairs(
@@ -205,6 +257,23 @@ def compare_pairs(
     list[tuple[float, ComparisonResult | None]]
         List of (epoch, comparison_result) tuples. Result is None if interpolation failed.
     """
+    _debug_print(
+        f"compare_pairs: {len(comparison_pairs)} pairs, "
+        f"ref_interp={'yes' if reference_interpolator else 'no'}, "
+        f"cmp_interp={'yes' if comparison_interpolator else 'no'}, "
+        f"rotation={'yes' if comparison_rotation_matrix is not None else 'no'}"
+    )
+    if comparison_pairs:
+        first_ref_epoch = comparison_pairs[0][0][0]
+        last_ref_epoch = comparison_pairs[-1][0][0]
+        first_cmp_epoch = comparison_pairs[0][1][0]
+        last_cmp_epoch = comparison_pairs[-1][1][0]
+        _debug_print(
+            f"compare_pairs: ref time range "
+            f"[{format_epoch(first_ref_epoch)} .. {format_epoch(last_ref_epoch)}], "
+            f"cmp time range "
+            f"[{format_epoch(first_cmp_epoch)} .. {format_epoch(last_cmp_epoch)}]"
+        )
     comparison_results: list[tuple[float, ComparisonResult | None]] = []
     for reference_state, comparison_state in comparison_pairs:
         query_epoch_s = (

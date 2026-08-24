@@ -17,9 +17,13 @@ import sys
 from typing import TextIO
 
 from .diff_oem_cli import DiffOemArgs, parse_arguments
+from . import comparison as comparison_module
 from .comparison import read_states
+from . import data_structures as data_structures_module
+from . import output as output_module
 from .output import ComparisonOutput
 from .pipeline import TransformationPipeline
+from . import transformation_stages as transformation_stages_module
 from .transformation_stages import (
     RotationStage,
     RotationXYStage,
@@ -27,6 +31,7 @@ from .transformation_stages import (
     TimeShiftStage,
     TransformationStage,
 )
+from . import utils as utils_module
 from .utils import (
     build_comparison_pairs,
     compare_pairs,
@@ -46,6 +51,14 @@ def main() -> None:
     Exits with status 1 on error.
     """
     cli_args: DiffOemArgs = parse_arguments()
+
+    # Propagate the debug flag to all submodules.
+    if cli_args.debug:
+        comparison_module.set_debug(True)
+        utils_module.set_debug(True)
+        data_structures_module.set_debug(True)
+        output_module.set_debug(True)
+        transformation_stages_module.set_debug(True)
 
     try:
         reference_source: TextIO | str = (

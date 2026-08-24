@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TextIO
@@ -15,6 +16,27 @@ from ephem_toolkit.core import time_utils
 
 from .data_structures import ComparisonResult
 from .types import State, StatePair
+
+_debug: bool = False
+"""Module-level debug flag, set by the CLI entry point."""
+
+
+def set_debug(enabled: bool) -> None:
+    """Enable or disable module-level debug logging.
+
+    Parameters
+    ----------
+    enabled : bool
+        Whether to enable debug output.
+    """
+    global _debug
+    _debug = enabled
+
+
+def _debug_print(message: str) -> None:
+    """Print a debug message to stderr when debugging is enabled."""
+    if _debug:
+        print(f"[diff_oem.comparison] {message}", file=sys.stderr)
 
 
 def read_states(source: TextIO | str | Path) -> list[tuple[float, np.ndarray]]:
@@ -45,6 +67,12 @@ def read_states(source: TextIO | str | Path) -> list[tuple[float, np.ndarray]]:
 
     if not oem_data.states:
         raise ValueError(f"No valid OEM-like state found in '{source}'")
+    _debug_print(
+        f"read_states: {len(oem_data.states)} states, "
+        f"time range "
+        f"{time_utils.datetime_to_iso8601(datetime.fromtimestamp(oem_data.states[0][0], tz=timezone.utc))} .. "
+        f"{time_utils.datetime_to_iso8601(datetime.fromtimestamp(oem_data.states[-1][0], tz=timezone.utc))}"
+    )
     return oem_data.states
 
 
@@ -139,6 +167,13 @@ def resolve_state_pair(
         reference_timestamp = interpolation_timestamp
         reference_state_m = interpolated_state
 
+    # _debug_print(
+    #     f"resolve_state_pair: ref_epoch="
+    #     f"{time_utils.datetime_to_iso8601(datetime.fromtimestamp(reference_timestamp, tz=timezone.utc))}, "
+    #     f"cmp_epoch="
+    #     f"{time_utils.datetime_to_iso8601(datetime.fromtimestamp(comparison_timestamp, tz=timezone.utc))}"
+    # )
+
     return (
         (reference_timestamp, reference_state_m),
         (comparison_timestamp, comparison_state_m),
@@ -187,6 +222,14 @@ def compare_states(
         comparison_interpolator,
     )
 
+    # _debug_print(
+    #     f"compare_states: ref_epoch="
+    #     f"{time_utils.datetime_to_iso8601(datetime.fromtimestamp(reference_timestamp, tz=timezone.utc))}, "
+    #     f"cmp_epoch="
+    #     f"{time_utils.datetime_to_iso8601(datetime.fromtimestamp(comparison_timestamp, tz=timezone.utc))}, "
+    #     f"has_rotation={'yes' if comparison_rotation_matrix is not None else 'no'}"
+    # )
+
     if comparison_rotation_matrix is not None:
         comparison_state_m = rotate_state(
             comparison_state_m, comparison_rotation_matrix
@@ -194,28 +237,19 @@ def compare_states(
 
     reference_epoch = datetime.fromtimestamp(reference_timestamp, tz=timezone.utc)
     comparison_epoch = datetime.fromtimestamp(comparison_timestamp, tz=timezone.utc)
-    reference_position_km: np.ndarray = (
-        reference_state_m[0:3] / oem.KILOMETERS_TO_METERS
-    )
-    reference_velocity_km_s: np.ndarray = (
-        reference_state_m[3:6] / oem.KILOMETERS_TO_METERS
-    )
-    comparison_position_km: np.ndarray = (
-        comparison_state_m[0:3] / oem.KILOMETERS_TO_METERS
-    )
-    comparison_velocity_km_s: np.ndarray = (
-        comparison_state_m[3:6] / oem.KILOMETERS_TO_METERS
-    )
 
     time_diff_s: float | None = None
     if reference_interpolator is None and comparison_interpolator is None:
         time_diff_s = (comparison_epoch - reference_epoch).total_seconds()
 
-    position_diff_km: np.ndarray = comparison_position_km - reference_position_km
+    position_diff_m: np.ndarray = comparison_state_m[0:3] - reference_state_m[0:3]
+    position_diff_km: np.ndarray = position_diff_m / oem.KILOMETERS_TO_METERS
     position_diff_magnitude_km: float = float(np.linalg.norm(position_diff_km))
 
-    velocity_diff_km_s: np.ndarray = comparison_velocity_km_s - reference_velocity_km_s
+    velocity_diff_m_s: np.ndarray = comparison_state_m[3:6] - reference_state_m[3:6]
+    velocity_diff_km_s: np.ndarray = velocity_diff_m_s / oem.KILOMETERS_TO_METERS
     velocity_diff_magnitude_km_s: float = float(np.linalg.norm(velocity_diff_km_s))
+
     rtn_state_m_s: np.ndarray = misc.transform_to_rtn(
         comparison_state_m, reference_state_m
     )
