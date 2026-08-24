@@ -76,8 +76,6 @@ class DiffOemArgs(argparse.Namespace):
     """Duration used for rotation fitting."""
     start: str | None
     """Optional start timestamp or duration offset."""
-    duration: float | None
-    """Optional duration limit relative to --start."""
     stop: str | None
     """Optional stop timestamp or duration offset."""
     stage_sequence: list[str]
@@ -211,16 +209,16 @@ def parse_arguments() -> DiffOemArgs:
         default=None,
         help="Start epoch in ISO-8601 format (for example, 2001-11-06T11:17:33 or 2001-11-06T11:17:33.1234) or as a duration offset from the reference epoch.",
     )
-    parser.add_argument(
+    exclusive = parser.add_mutually_exclusive_group()
+    exclusive.add_argument(
         "-d",
         "--duration",
-        dest="duration",
-        type=parse_duration_to_seconds,
+        dest="stop",
         metavar="<duration>",
         default=None,
         help="Relative stop duration from --start; equivalent to --stop = --start + duration.",
     )
-    parser.add_argument(
+    exclusive.add_argument(
         "--stop",
         dest="stop",
         metavar="<timestamp|duration>",
@@ -228,8 +226,6 @@ def parse_arguments() -> DiffOemArgs:
         help="Stop epoch in ISO-8601 format (for example, 2001-11-06T11:17:33 or 2001-11-06T11:17:33.1234) or as a duration offset from --start.",
     )
     args = parser.parse_args(namespace=DiffOemArgs())
-    if args.duration is not None and args.stop is not None:
-        parser.error("--duration and --stop cannot be used together")
     args.stage_sequence = extract_stage_sequence(sys.argv[1:])
     if args.interpolate:
         args.interpolate_ref = True

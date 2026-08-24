@@ -94,14 +94,11 @@ def main() -> None:
                 if cli_args.start is None
                 else resolve_time_bound(cli_args.start, reference_epoch_s)
             )
-            if cli_args.duration is not None:
-                requested_stop = requested_start + cli_args.duration
-            else:
-                requested_stop = (
-                    overlap_stop
-                    if cli_args.stop is None
-                    else resolve_time_bound(cli_args.stop, requested_start)
-                )
+            requested_stop = (
+                overlap_stop
+                if cli_args.stop is None
+                else resolve_time_bound(cli_args.stop, requested_start)
+            )
             if requested_start > requested_stop:
                 raise ValueError("--start must be earlier than or equal to --stop")
             overlap_start = max(overlap_start, requested_start)
