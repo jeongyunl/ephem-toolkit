@@ -212,6 +212,7 @@ def parse_arguments() -> DiffOemArgs:
         help="Start epoch in ISO-8601 format (for example, 2001-11-06T11:17:33 or 2001-11-06T11:17:33.1234) or as a duration offset from the reference epoch.",
     )
     parser.add_argument(
+        "-d",
         "--duration",
         dest="duration",
         type=parse_duration_to_seconds,

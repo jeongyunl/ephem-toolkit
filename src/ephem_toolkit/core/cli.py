@@ -92,6 +92,7 @@ def add_common_arguments(
         help="Output file path; '-' writes to stdout.",
     )
     parser.add_argument(
+        "-d",
         "--duration",
         metavar="<duration>",
         help="Duration of the requested interval; equivalent to --stop = --start + duration.",
