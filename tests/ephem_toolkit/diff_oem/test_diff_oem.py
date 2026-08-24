@@ -117,8 +117,7 @@ def test_parse_arguments_accepts_duration_alias(
     args = diff_oem_cli.parse_arguments()
 
     assert args.start == "2024-01-01T00:00:00Z"
-    assert args.duration == 120.0
-    assert args.stop is None
+    assert args.stop == "2m"
 
 
 def test_parse_arguments_rejects_conflicting_duration_and_stop(

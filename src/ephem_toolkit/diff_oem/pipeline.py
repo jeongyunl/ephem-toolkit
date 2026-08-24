@@ -3,13 +3,24 @@
 from __future__ import annotations
 
 import sys
+from datetime import datetime, timezone
 from typing import Any, Callable
 
 import ephem_toolkit.core.interpolator.interpolation_spec as interpolation_spec
+import ephem_toolkit.core.time_utils as time_utils
 
 from . import data_structures
 from . import transformation_stages
 from . import types as diff_types
+
+
+def _format_epoch(epoch_s: float | None) -> str:
+    """Format a POSIX epoch for debug output."""
+    if epoch_s is None:
+        return "none"
+    return time_utils.datetime_to_iso8601(
+        datetime.fromtimestamp(epoch_s, tz=timezone.utc)
+    )
 
 
 class TransformationPipeline:
@@ -79,11 +90,25 @@ class TransformationPipeline:
         current_comparison_states = self.comparison_states
         if self.debug:
             print(
-                f"[diff_oem] Pipeline start: stages={len(self.stages)}, "
+                f"[diff_oem.pipeline] Pipeline start: stages={len(self.stages)}, "
                 f"reference_states={len(self.reference_states)}, "
                 f"comparison_states={len(self.comparison_states)}",
                 file=sys.stderr,
             )
+            if self.reference_states:
+                print(
+                    f"[diff_oem.pipeline] Reference time range: "
+                    f"[{_format_epoch(self.reference_states[0][0])} .. "
+                    f"{_format_epoch(self.reference_states[-1][0])}]",
+                    file=sys.stderr,
+                )
+            if self.comparison_states:
+                print(
+                    f"[diff_oem.pipeline] Comparison time range: "
+                    f"[{_format_epoch(self.comparison_states[0][0])} .. "
+                    f"{_format_epoch(self.comparison_states[-1][0])}]",
+                    file=sys.stderr,
+                )
         reference_interpolator = (
             factory.InterpolatorFactory.create(
                 spec=self.interpolation_spec,
@@ -103,11 +128,18 @@ class TransformationPipeline:
         for stage_index, stage in enumerate(self.stages, start=1):
             if self.debug:
                 print(
-                    f"[diff_oem] Pipeline stage {stage_index}/{len(self.stages)} "
+                    f"[diff_oem.pipeline] Pipeline stage {stage_index}/{len(self.stages)} "
                     f"start: {stage.name}, "
                     f"input_states={len(current_comparison_states)}",
                     file=sys.stderr,
                 )
+                if current_comparison_states:
+                    print(
+                        f"[diff_oem.pipeline] Stage {stage_index} input time range: "
+                        f"[{_format_epoch(current_comparison_states[0][0])} .. "
+                        f"{_format_epoch(current_comparison_states[-1][0])}]",
+                        file=sys.stderr,
+                    )
             comparison_interpolator = (
                 factory.InterpolatorFactory.create(
                     spec=self.interpolation_spec,
@@ -126,10 +158,22 @@ class TransformationPipeline:
             )
             if self.debug:
                 print(
-                    f"[diff_oem] Pipeline stage {stage_index}/{len(self.stages)} "
+                    f"[diff_oem.pipeline] Pipeline stage {stage_index}/{len(self.stages)} "
                     f"fitting: fit_pairs={len(fit_pairs)}",
                     file=sys.stderr,
                 )
+                if fit_pairs:
+                    fit_ref_start = fit_pairs[0][0][0]
+                    fit_ref_stop = fit_pairs[-1][0][0]
+                    fit_cmp_start = fit_pairs[0][1][0]
+                    fit_cmp_stop = fit_pairs[-1][1][0]
+                    print(
+                        f"[diff_oem.pipeline] Stage {stage_index} fit ref time range: "
+                        f"[{_format_epoch(fit_ref_start)} .. {_format_epoch(fit_ref_stop)}], "
+                        f"fit cmp time range: "
+                        f"[{_format_epoch(fit_cmp_start)} .. {_format_epoch(fit_cmp_stop)}]",
+                        file=sys.stderr,
+                    )
             stage_input = data_structures.TransformationStageInput(
                 state_pairs=fit_pairs,
                 reference_interpolator=reference_interpolator,
@@ -144,12 +188,19 @@ class TransformationPipeline:
             self.build_pairs(self.reference_states, current_comparison_states)
             if self.debug:
                 print(
-                    f"[diff_oem] Pipeline stage {stage_index}/{len(self.stages)} "
+                    f"[diff_oem.pipeline] Pipeline stage {stage_index}/{len(self.stages)} "
                     f"complete: {stage.name}, "
                     f"output_states={len(current_comparison_states)}",
                     file=sys.stderr,
                 )
+                if current_comparison_states:
+                    print(
+                        f"[diff_oem.pipeline] Stage {stage_index} output time range: "
+                        f"[{_format_epoch(current_comparison_states[0][0])} .. "
+                        f"{_format_epoch(current_comparison_states[-1][0])}]",
+                        file=sys.stderr,
+                    )
 
         if self.debug:
-            print("[diff_oem] Pipeline complete", file=sys.stderr)
+            print("[diff_oem.pipeline] Pipeline complete", file=sys.stderr)
         return stage_outputs
