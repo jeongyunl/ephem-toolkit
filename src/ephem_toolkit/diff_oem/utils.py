@@ -13,27 +13,7 @@ import ephem_toolkit.core.time_utils as time_utils
 from .comparison import compare_states
 from .data_structures import ComparisonResult
 from .types import State, StatePair
-
-_debug: bool = False
-"""Module-level debug flag, set by the CLI entry point."""
-
-
-def set_debug(enabled: bool) -> None:
-    """Enable or disable module-level debug logging.
-
-    Parameters
-    ----------
-    enabled : bool
-        Whether to enable debug output.
-    """
-    global _debug
-    _debug = enabled
-
-
-def _debug_print(message: str) -> None:
-    """Print a debug message to stderr when debugging is enabled."""
-    if _debug:
-        print(f"[diff_oem.utils] {message}", file=sys.stderr)
+from .debug import debug_print, debug_format_epoch, debug_print_time_range
 
 
 def find_overlapping_time_range(
@@ -56,17 +36,21 @@ def find_overlapping_time_range(
     """
     overlap_start: float = max(reference_states[0][0], comparison_states[0][0])
     overlap_stop: float = min(reference_states[-1][0], comparison_states[-1][0])
-    _debug_print(
-        f"find_overlapping_time_range: "
-        f"ref data=[{format_epoch(reference_states[0][0])} .. {format_epoch(reference_states[-1][0])}], "
-        f"cmp data=[{format_epoch(comparison_states[0][0])} .. {format_epoch(comparison_states[-1][0])}], "
-        f"overlap_start={format_epoch(overlap_start)}, overlap_stop={format_epoch(overlap_stop)}"
+    debug_print_time_range(
+        "find_overlapping_time_range: ref data",
+        reference_states[0][0],
+        reference_states[-1][0],
+    )
+    debug_print_time_range(
+        "find_overlapping_time_range: cmp data",
+        comparison_states[0][0],
+        comparison_states[-1][0],
     )
     if overlap_start > overlap_stop:
-        _debug_print("find_overlapping_time_range: no overlap")
+        debug_print("find_overlapping_time_range: no overlap")
         return None
-    _debug_print(
-        f"find_overlapping_time_range: overlap duration={overlap_stop - overlap_start:.3f}s"
+    debug_print_time_range(
+        "find_overlapping_time_range: overlap", overlap_start, overlap_stop
     )
     return overlap_start, overlap_stop
 
@@ -93,10 +77,10 @@ def resolve_time_bound(value: str, reference_epoch_s: float) -> float:
     if isinstance(parsed_value, timedelta):
         parsed_value = reference_datetime + parsed_value
     resolved = parsed_value.timestamp()
-    _debug_print(
+    debug_print(
         f"resolve_time_bound: input='{value}', "
-        f"reference_epoch={format_epoch(reference_epoch_s)}, "
-        f"resolved={format_epoch(resolved)}"
+        f"reference_epoch={debug_format_epoch(reference_epoch_s)}, "
+        f"resolved={debug_format_epoch(resolved)}"
     )
     return resolved
 
@@ -115,48 +99,6 @@ def parse_rotation_fit_span(value: str) -> float:
         Duration in seconds.
     """
     return time_utils.parse_duration_to_seconds(value)
-
-
-def format_epoch(epoch_s: float | None) -> str:
-    """Format a POSIX epoch for debug output.
-
-    Parameters
-    ----------
-    epoch_s : float | None
-        POSIX timestamp in seconds, or None.
-
-    Returns
-    -------
-    str
-        ISO 8601 formatted timestamp, or "none" if input is None.
-    """
-    if epoch_s is None:
-        return "none"
-    epoch = datetime.fromtimestamp(epoch_s, tz=timezone.utc)
-    return time_utils.datetime_to_iso8601(epoch)
-
-
-def print_debug_range(
-    label: str,
-    start_epoch_s: float | None,
-    stop_epoch_s: float | None,
-) -> None:
-    """Print one labeled time range to stderr.
-
-    Parameters
-    ----------
-    label : str
-        Descriptive label for the time range.
-    start_epoch_s : float | None
-        Start epoch in POSIX seconds, or None.
-    stop_epoch_s : float | None
-        Stop epoch in POSIX seconds, or None.
-    """
-    print(
-        f"[diff_oem] {label}: start={format_epoch(start_epoch_s)}, "
-        f"stop={format_epoch(stop_epoch_s)}",
-        file=sys.stderr,
-    )
 
 
 def build_comparison_pairs(
@@ -189,18 +131,18 @@ def build_comparison_pairs(
     list[StatePair]
         List of (reference_state, comparison_state) pairs for comparison.
     """
-    _debug_print(
+    debug_print(
         f"build_comparison_pairs: "
         f"ref_states={len(reference_states)}, cmp_states={len(comparison_states)}, "
         f"has_time_window={has_time_window}, "
-        f"overlap=[{format_epoch(overlap_start)} .. {format_epoch(overlap_stop)}]"
+        f"overlap=[{debug_format_epoch(overlap_start)} .. {debug_format_epoch(overlap_stop)}]"
     )
     pairs = [
         (state, comparison_states[0])
         for state in reference_states
         if not has_time_window or overlap_start <= state[0] <= overlap_stop
     ]
-    _debug_print(f"build_comparison_pairs: {len(pairs)} pairs")
+    debug_print(f"build_comparison_pairs: {len(pairs)} pairs")
     return pairs
 
 
@@ -228,7 +170,7 @@ def compare_pairs(
     list[tuple[float, ComparisonResult | None]]
         List of (epoch, comparison_result) tuples. Result is None if interpolation failed.
     """
-    _debug_print(
+    debug_print(
         f"compare_pairs: {len(comparison_pairs)} pairs, "
         f"rotation={'yes' if comparison_rotation_matrix is not None else 'no'}"
     )
@@ -237,11 +179,11 @@ def compare_pairs(
         last_ref_epoch = comparison_pairs[-1][0][0]
         first_cmp_epoch = comparison_pairs[0][1][0]
         last_cmp_epoch = comparison_pairs[-1][1][0]
-        _debug_print(
-            f"compare_pairs: ref data time range "
-            f"[{format_epoch(first_ref_epoch)} .. {format_epoch(last_ref_epoch)}], "
-            f"cmp data time range "
-            f"[{format_epoch(first_cmp_epoch)} .. {format_epoch(last_cmp_epoch)}]"
+        debug_print_time_range(
+            "compare_pairs: ref data time range", first_ref_epoch, last_ref_epoch
+        )
+        debug_print_time_range(
+            "compare_pairs: cmp data time range", first_cmp_epoch, last_cmp_epoch
         )
     comparison_results: list[tuple[float, ComparisonResult | None]] = []
     for reference_state, comparison_state in comparison_pairs:

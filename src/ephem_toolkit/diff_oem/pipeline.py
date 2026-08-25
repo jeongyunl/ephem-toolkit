@@ -13,15 +13,7 @@ import ephem_toolkit.core.time_utils as time_utils
 from . import data_structures
 from . import transformation_stages
 from . import types as diff_types
-
-
-def _format_epoch(epoch_s: float | None) -> str:
-    """Format a POSIX epoch for debug output."""
-    if epoch_s is None:
-        return "none"
-    return time_utils.datetime_to_iso8601(
-        datetime.fromtimestamp(epoch_s, tz=timezone.utc)
-    )
+from .debug import debug_print_time_range, debug_format_epoch
 
 
 class TransformationPipeline:
@@ -91,15 +83,15 @@ class TransformationPipeline:
             if self.reference_states:
                 print(
                     f"[diff_oem.pipeline] Reference time range: "
-                    f"[{_format_epoch(self.reference_states[0][0])} .. "
-                    f"{_format_epoch(self.reference_states[-1][0])}]",
+                    f"[{debug_format_epoch(self.reference_states[0][0])} .. "
+                    f"{debug_format_epoch(self.reference_states[-1][0])}]",
                     file=sys.stderr,
                 )
             if self.comparison_states:
                 print(
                     f"[diff_oem.pipeline] Comparison time range: "
-                    f"[{_format_epoch(self.comparison_states[0][0])} .. "
-                    f"{_format_epoch(self.comparison_states[-1][0])}]",
+                    f"[{debug_format_epoch(self.comparison_states[0][0])} .. "
+                    f"{debug_format_epoch(self.comparison_states[-1][0])}]",
                     file=sys.stderr,
                 )
         reference_interpolator = factory.InterpolatorFactory.create(
@@ -122,8 +114,8 @@ class TransformationPipeline:
                 if current_comparison_states:
                     print(
                         f"[diff_oem.pipeline] Stage {stage_index} input time range: "
-                        f"[{_format_epoch(current_comparison_states[0][0])} .. "
-                        f"{_format_epoch(current_comparison_states[-1][0])}]",
+                        f"[{debug_format_epoch(current_comparison_states[0][0])} .. "
+                        f"{debug_format_epoch(current_comparison_states[-1][0])}]",
                         file=sys.stderr,
                     )
             comparison_interpolator = factory.InterpolatorFactory.create(
@@ -149,12 +141,15 @@ class TransformationPipeline:
                     fit_ref_stop = fit_pairs[-1][0][0]
                     fit_cmp_start = fit_pairs[0][1][0]
                     fit_cmp_stop = fit_pairs[-1][1][0]
-                    print(
-                        f"[diff_oem.pipeline] Stage {stage_index} fit ref data time range: "
-                        f"[{_format_epoch(fit_ref_start)} .. {_format_epoch(fit_ref_stop)}], "
-                        f"fit cmp data time range: "
-                        f"[{_format_epoch(fit_cmp_start)} .. {_format_epoch(fit_cmp_stop)}]",
-                        file=sys.stderr,
+                    debug_print_time_range(
+                        f"Stage {stage_index} fit ref data time range",
+                        fit_ref_start,
+                        fit_ref_stop,
+                    )
+                    debug_print_time_range(
+                        f"Stage {stage_index} fit cmp data time range",
+                        fit_cmp_start,
+                        fit_cmp_stop,
                     )
             stage_input = data_structures.TransformationStageInput(
                 state_pairs=fit_pairs,
@@ -178,8 +173,8 @@ class TransformationPipeline:
                 if current_comparison_states:
                     print(
                         f"[diff_oem.pipeline] Stage {stage_index} output time range: "
-                        f"[{_format_epoch(current_comparison_states[0][0])} .. "
-                        f"{_format_epoch(current_comparison_states[-1][0])}]",
+                        f"[{debug_format_epoch(current_comparison_states[0][0])} .. "
+                        f"{debug_format_epoch(current_comparison_states[-1][0])}]",
                         file=sys.stderr,
                     )
 

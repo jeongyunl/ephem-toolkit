@@ -15,37 +15,7 @@ import ephem_toolkit.core.time_utils as time_utils
 from .comparison import rotate_state
 from .data_structures import TransformationStageInput
 from .types import State, StatePair
-
-_debug: bool = False
-"""Module-level debug flag, set by the CLI entry point."""
-
-
-def set_debug(enabled: bool) -> None:
-    """Enable or disable module-level debug logging.
-
-    Parameters
-    ----------
-    enabled : bool
-        Whether to enable debug output.
-    """
-    global _debug
-    _debug = enabled
-
-
-def _debug_print(message: str) -> None:
-    """Print a debug message to stderr when debugging is enabled."""
-    if _debug:
-        print(f"[diff_oem.transformation_stages] {message}", file=sys.stderr)
-
-
-def _format_epoch(epoch_s: float | None) -> str:
-    """Format a POSIX epoch for debug output."""
-    if epoch_s is None:
-        return "none"
-    return time_utils.datetime_to_iso8601(
-        datetime.fromtimestamp(epoch_s, tz=timezone.utc)
-    )
-
+from .debug import debug_print_time_range, debug_print, debug_format_epoch
 
 MIN_STATE_PAIRS_FOR_ROTATION: int = 2
 """Minimum number of state pairs required for rotation fitting."""
@@ -192,10 +162,10 @@ class RotationStage(TransformationStage):
         list[StatePair]
             State pairs selected for rotation fitting.
         """
-        _debug_print(
+        debug_print(
             f"RotationStage.build_fit_pairs: "
-            f"fit_overlap=[{_format_epoch(self.fit_overlap_start)} .. "
-            f"{_format_epoch(self.fit_overlap_stop)}], "
+            f"fit_overlap=[{debug_format_epoch(self.fit_overlap_start)} .. "
+            f"{debug_format_epoch(self.fit_overlap_stop)}], "
             f"fit_span={self.fit_span_s:.1f}s, "
             f"ref_states={len(reference_states)}, cmp_states={len(comparison_states)}"
         )
@@ -205,16 +175,19 @@ class RotationStage(TransformationStage):
             for state in reference_states
             if self.fit_overlap_start <= state[0] <= rotation_stop_epoch_s
         ]
-        _debug_print(
+        debug_print(
             f"RotationStage.build_fit_pairs: selected {len(fit_pairs)} fit pairs"
         )
         if fit_pairs:
-            _debug_print(
-                f"RotationStage.build_fit_pairs: fit pair time range "
-                f"ref data=[{_format_epoch(fit_pairs[0][0][0])} .. "
-                f"{_format_epoch(fit_pairs[-1][0][0])}], "
-                f"cmp data=[{_format_epoch(fit_pairs[0][1][0])} .. "
-                f"{_format_epoch(fit_pairs[-1][1][0])}]"
+            debug_print_time_range(
+                "RotationStage.build_fit_pairs: fit pair ref data time range",
+                fit_pairs[0][0][0],
+                fit_pairs[-1][0][0],
+            )
+            debug_print_time_range(
+                "RotationStage.build_fit_pairs: fit pair cmp data time range",
+                fit_pairs[0][1][0],
+                fit_pairs[-1][1][0],
             )
         return fit_pairs
 
@@ -237,7 +210,7 @@ class RotationStage(TransformationStage):
             If fewer than two state pairs are available.
         """
         resolved_state_pairs = stage_input.resolve_state_pairs()
-        _debug_print(
+        debug_print(
             f"RotationStage.fit: resolved {len(resolved_state_pairs)} state pairs"
         )
 
@@ -287,11 +260,11 @@ class RotationStage(TransformationStage):
         list[State]
             Rotated comparison state history.
         """
-        _debug_print(f"RotationStage.transform: transforming {len(states)} states")
+        debug_print(f"RotationStage.transform: transforming {len(states)} states")
         if states:
-            _debug_print(
+            debug_print(
                 f"RotationStage.transform: input time range "
-                f"[{_format_epoch(states[0][0])} .. {_format_epoch(states[-1][0])}]"
+                f"[{debug_format_epoch(states[0][0])} .. {debug_format_epoch(states[-1][0])}]"
             )
         return self._apply_state_transform(
             states,
@@ -350,7 +323,7 @@ class RotationXYStage(RotationStage):
             Fitted three-by-three rotation matrix.
         """
         resolved_state_pairs = stage_input.resolve_state_pairs()
-        _debug_print(
+        debug_print(
             f"RotationXYStage.fit: resolved {len(resolved_state_pairs)} state pairs"
         )
 
@@ -458,7 +431,7 @@ class RotationZStage(RotationStage):
             Fitted three-by-three rotation matrix.
         """
         resolved_state_pairs = stage_input.resolve_state_pairs()
-        _debug_print(
+        debug_print(
             f"RotationZStage.fit: resolved {len(resolved_state_pairs)} state pairs"
         )
 
@@ -580,28 +553,28 @@ class TimeShiftStage(TransformationStage):
             Pairs containing the first reference state and selected comparison
             states.
         """
-        _debug_print(
+        debug_print(
             f"TimeShiftStage.build_fit_pairs: "
-            f"fit_overlap=[{_format_epoch(self.fit_overlap_start)} .. "
-            f"{_format_epoch(self.fit_overlap_stop)}], "
+            f"fit_overlap=[{debug_format_epoch(self.fit_overlap_start)} .. "
+            f"{debug_format_epoch(self.fit_overlap_stop)}], "
             f"ref_states={len(reference_states)}, cmp_states={len(comparison_states)}"
         )
         if not reference_states:
-            _debug_print("TimeShiftStage.build_fit_pairs: no reference states")
+            debug_print("TimeShiftStage.build_fit_pairs: no reference states")
             return []
         fit_pairs = [
             (reference_states[0], comparison_state)
             for comparison_state in comparison_states
             if self.fit_overlap_start <= comparison_state[0] <= self.fit_overlap_stop
         ]
-        _debug_print(
+        debug_print(
             f"TimeShiftStage.build_fit_pairs: selected {len(fit_pairs)} fit pairs"
         )
         if fit_pairs:
-            _debug_print(
-                f"TimeShiftStage.build_fit_pairs: cmp data time range "
-                f"[{_format_epoch(fit_pairs[0][1][0])} .. "
-                f"{_format_epoch(fit_pairs[-1][1][0])}]"
+            debug_print_time_range(
+                "TimeShiftStage.build_fit_pairs: cmp data time range",
+                fit_pairs[0][1][0],
+                fit_pairs[-1][1][0],
             )
         return fit_pairs
 
@@ -623,7 +596,7 @@ class TimeShiftStage(TransformationStage):
         ValueError
             If no comparison states are available for fitting.
         """
-        _debug_print(f"TimeShiftStage.fit: {len(stage_input.state_pairs)} state pairs")
+        debug_print(f"TimeShiftStage.fit: {len(stage_input.state_pairs)} state pairs")
         state_pairs = stage_input.state_pairs
         reference_interpolator = stage_input.reference_interpolator
 
@@ -745,20 +718,20 @@ class TimeShiftStage(TransformationStage):
         list[State]
             Comparison states with shifted epochs.
         """
-        _debug_print(
+        debug_print(
             f"TimeShiftStage.transform: shifting {len(states)} states by "
             f"{fit_result:+.9f}s"
         )
         if states:
-            _debug_print(
+            debug_print(
                 f"TimeShiftStage.transform: input time range "
-                f"[{_format_epoch(states[0][0])} .. {_format_epoch(states[-1][0])}]"
+                f"[{debug_format_epoch(states[0][0])} .. {debug_format_epoch(states[-1][0])}]"
             )
         result = [(timestamp - fit_result, state.copy()) for timestamp, state in states]
         if result:
-            _debug_print(
+            debug_print(
                 f"TimeShiftStage.transform: output time range "
-                f"[{_format_epoch(result[0][0])} .. {_format_epoch(result[-1][0])}]"
+                f"[{debug_format_epoch(result[0][0])} .. {debug_format_epoch(result[-1][0])}]"
             )
         return result
 

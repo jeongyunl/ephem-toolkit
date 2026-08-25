@@ -16,27 +16,7 @@ from ephem_toolkit.core import time_utils
 
 from .data_structures import ComparisonResult
 from .types import State, StatePair
-
-_debug: bool = False
-"""Module-level debug flag, set by the CLI entry point."""
-
-
-def set_debug(enabled: bool) -> None:
-    """Enable or disable module-level debug logging.
-
-    Parameters
-    ----------
-    enabled : bool
-        Whether to enable debug output.
-    """
-    global _debug
-    _debug = enabled
-
-
-def _debug_print(message: str) -> None:
-    """Print a debug message to stderr when debugging is enabled."""
-    if _debug:
-        print(f"[diff_oem.comparison] {message}", file=sys.stderr)
+from .debug import debug_print_time_range
 
 
 def read_states(source: TextIO | str | Path) -> list[tuple[float, np.ndarray]]:
@@ -67,11 +47,10 @@ def read_states(source: TextIO | str | Path) -> list[tuple[float, np.ndarray]]:
 
     if not oem_data.states:
         raise ValueError(f"No valid OEM-like state found in '{source}'")
-    _debug_print(
-        f"read_states: {len(oem_data.states)} states, "
-        f"time range "
-        f"{time_utils.datetime_to_iso8601(datetime.fromtimestamp(oem_data.states[0][0], tz=timezone.utc))} .. "
-        f"{time_utils.datetime_to_iso8601(datetime.fromtimestamp(oem_data.states[-1][0], tz=timezone.utc))}"
+    debug_print_time_range(
+        f"read_states: {len(oem_data.states)} states, time range",
+        oem_data.states[0][0],
+        oem_data.states[-1][0],
     )
     return oem_data.states
 
