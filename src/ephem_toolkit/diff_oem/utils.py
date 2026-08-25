@@ -104,7 +104,6 @@ def parse_rotation_fit_span(value: str) -> float:
 def build_comparison_pairs(
     reference_states: list[State],
     comparison_states: list[State],
-    has_time_window: bool,
     overlap_start: float | None,
     overlap_stop: float | None,
 ) -> list[StatePair]:
@@ -119,8 +118,6 @@ def build_comparison_pairs(
         List of reference state tuples (epoch, state_vector).
     comparison_states : list[State]
         List of comparison state tuples (epoch, state_vector).
-    has_time_window : bool
-        Whether a time window filter is active.
     overlap_start : float | None
         Start of overlap window in POSIX seconds, or None.
     overlap_stop : float | None
@@ -133,14 +130,15 @@ def build_comparison_pairs(
     """
     debug_print(
         f"build_comparison_pairs: "
-        f"ref_states={len(reference_states)}, cmp_states={len(comparison_states)}, "
-        f"has_time_window={has_time_window}, "
-        f"overlap=[{debug_format_epoch(overlap_start)} .. {debug_format_epoch(overlap_stop)}]"
+        f"ref_states={len(reference_states)}, cmp_states={len(comparison_states)}"
+    )
+    debug_print_time_range(
+        "build_comparison_pairs: overlap", overlap_start, overlap_stop
     )
     pairs = [
         (state, comparison_states[0])
         for state in reference_states
-        if not has_time_window or overlap_start <= state[0] <= overlap_stop
+        if overlap_start <= state[0] <= overlap_stop
     ]
     debug_print(f"build_comparison_pairs: {len(pairs)} pairs")
     return pairs

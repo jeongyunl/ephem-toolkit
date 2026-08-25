@@ -63,7 +63,6 @@ def main() -> None:
         )
         reference_states = read_states(reference_source)
         comparison_states = read_states(comparison_source)
-        has_time_window: bool = cli_args.start is not None or cli_args.stop is not None
 
         overlapping_time_range = find_overlapping_time_range(
             reference_states, comparison_states
@@ -85,7 +84,7 @@ def main() -> None:
                 debug_print_time_range("Initial overlap", *overlapping_time_range)
 
         # Explicit windows are only meaningful when the histories overlap.
-        if overlapping_time_range is None and has_time_window:
+        if overlapping_time_range is None:
             if cli_args.debug:
                 debug_print_time_range("Effective range", None, None)
             return
@@ -97,31 +96,28 @@ def main() -> None:
         fit_overlap_start = overlap_start
         fit_overlap_stop = overlap_stop
 
-        if has_time_window:
-            reference_epoch_s: float = reference_states[0][0]
-            requested_start: float = (
-                overlap_start
-                if cli_args.start is None
-                else resolve_time_bound(cli_args.start, reference_epoch_s)
-            )
-            requested_stop = (
-                overlap_stop
-                if cli_args.stop is None
-                else resolve_time_bound(cli_args.stop, requested_start)
-            )
-            if requested_start > requested_stop:
-                raise ValueError("--start must be earlier than or equal to --stop")
-            overlap_start = max(overlap_start, requested_start)
-            overlap_stop = min(overlap_stop, requested_stop)
-            if overlap_start > overlap_stop:
-                if cli_args.debug:
-                    debug_print_time_range("Effective range", None, None)
-                return
-
+        reference_epoch_s: float = reference_states[0][0]
+        requested_start: float = (
+            overlap_start
+            if cli_args.start is None
+            else resolve_time_bound(cli_args.start, reference_epoch_s)
+        )
+        requested_stop = (
+            overlap_stop
+            if cli_args.stop is None
+            else resolve_time_bound(cli_args.stop, requested_start)
+        )
+        if requested_start > requested_stop:
+            raise ValueError("--start must be earlier than or equal to --stop")
+        overlap_start = max(overlap_start, requested_start)
+        overlap_stop = min(overlap_stop, requested_stop)
+        if overlap_start > overlap_stop:
             if cli_args.debug:
-                debug_print_time_range(
-                    "Requested range", requested_start, requested_stop
-                )
+                debug_print_time_range("Effective range", None, None)
+            return
+
+        if cli_args.debug:
+            debug_print_time_range("Requested range", requested_start, requested_stop)
 
         if cli_args.debug:
             debug_print_time_range("Effective range", overlap_start, overlap_stop)
@@ -176,7 +172,6 @@ def main() -> None:
             return build_comparison_pairs(
                 ref_states,
                 cmp_states,
-                has_time_window,
                 overlap_start,
                 overlap_stop,
             )

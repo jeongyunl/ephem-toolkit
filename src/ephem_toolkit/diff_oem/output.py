@@ -345,9 +345,10 @@ class ComparisonOutput:
         if self.comparison_results:
             first_epoch_s = self.comparison_results[0][0]
             last_epoch_s = self.comparison_results[-1][0]
-            debug_print(
-                f"print: query epoch range "
-                f"[{debug_format_epoch(first_epoch_s)} .. {debug_format_epoch(last_epoch_s)}]",
+            debug_print_time_range(
+                "print: query epoch range",
+                first_epoch_s,
+                last_epoch_s,
                 "output",
             )
         if valid_results:
