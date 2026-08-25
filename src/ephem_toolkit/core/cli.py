@@ -24,7 +24,7 @@ VALID_INTERPOLATION_TYPES_MESSAGE: str = ", ".join(
 
 
 class CliHelpFormatter(
-    argparse.ArgumentDefaultsHelpFormatter,
+    # argparse.ArgumentDefaultsHelpFormatter,
     argparse.RawDescriptionHelpFormatter,
 ):
     """Preserve paragraph breaks while showing argument defaults."""

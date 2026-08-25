@@ -349,7 +349,6 @@ class ComparisonOutput:
                 "print: query epoch range",
                 first_epoch_s,
                 last_epoch_s,
-                "output",
             )
         if valid_results:
             first_ref = valid_results[0].reference_epoch

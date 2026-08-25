@@ -9,13 +9,14 @@ from __future__ import annotations
 import argparse
 from functools import partial
 import sys
+from datetime import timedelta
 
 import ephem_toolkit.core.cli as cli
 from ephem_toolkit.core.interpolator.interpolation_spec import (
     InterpolationSpec,
     InterpolationType,
 )
-from ephem_toolkit.core.time_utils import parse_duration_to_seconds
+import ephem_toolkit.core.time_utils as time_utils
 
 from .utils import parse_rotation_fit_span
 
@@ -173,7 +174,7 @@ def parse_arguments() -> DiffOemArgs:
         type=parse_rotation_fit_span,
         default=ROTATION_FIT_DURATION_S,
         metavar="<duration>",
-        help=f"Duration of initial state span used for --rotate fitting (default: {ROTATION_FIT_DURATION_S:g}s).",
+        help=f"Duration of initial state span used for --rotate fitting (default: {time_utils.format_duration_human(timedelta(seconds=ROTATION_FIT_DURATION_S))}).",
     )
     parser.add_argument(
         "--start",

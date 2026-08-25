@@ -36,16 +36,6 @@ def find_overlapping_time_range(
     """
     overlap_start: float = max(reference_states[0][0], comparison_states[0][0])
     overlap_stop: float = min(reference_states[-1][0], comparison_states[-1][0])
-    debug_print_time_range(
-        "find_overlapping_time_range: ref data",
-        reference_states[0][0],
-        reference_states[-1][0],
-    )
-    debug_print_time_range(
-        "find_overlapping_time_range: cmp data",
-        comparison_states[0][0],
-        comparison_states[-1][0],
-    )
     if overlap_start > overlap_stop:
         debug_print("find_overlapping_time_range: no overlap")
         return None
@@ -172,17 +162,6 @@ def compare_pairs(
         f"compare_pairs: {len(comparison_pairs)} pairs, "
         f"rotation={'yes' if comparison_rotation_matrix is not None else 'no'}"
     )
-    if comparison_pairs:
-        first_ref_epoch = comparison_pairs[0][0][0]
-        last_ref_epoch = comparison_pairs[-1][0][0]
-        first_cmp_epoch = comparison_pairs[0][1][0]
-        last_cmp_epoch = comparison_pairs[-1][1][0]
-        debug_print_time_range(
-            "compare_pairs: ref data time range", first_ref_epoch, last_ref_epoch
-        )
-        debug_print_time_range(
-            "compare_pairs: cmp data time range", first_cmp_epoch, last_cmp_epoch
-        )
     comparison_results: list[tuple[float, ComparisonResult | None]] = []
     for reference_state, comparison_state in comparison_pairs:
         query_epoch_s = reference_state[0]
