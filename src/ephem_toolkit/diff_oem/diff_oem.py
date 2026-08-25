@@ -12,18 +12,14 @@ stdin input. Interpolation options compare states at matching epochs.
 
 from __future__ import annotations
 
-import argparse
 import sys
 from typing import TextIO
 
-from .diff_oem_cli import DiffOemArgs, parse_arguments
-from . import comparison as comparison_module
 from .comparison import read_states
-from . import data_structures as data_structures_module
-from . import output as output_module
+from .debug import debug_print_time_range, set_debug
+from .diff_oem_cli import DiffOemArgs, parse_arguments
 from .output import ComparisonOutput
 from .pipeline import TransformationPipeline
-from . import transformation_stages as transformation_stages_module
 from .transformation_stages import (
     RotationStage,
     RotationXYStage,
@@ -31,12 +27,10 @@ from .transformation_stages import (
     TimeShiftStage,
     TransformationStage,
 )
-from . import utils as utils_module
 from .utils import (
     build_comparison_pairs,
     compare_pairs,
     find_overlapping_time_range,
-    print_debug_range,
     resolve_time_bound,
 )
 from ephem_toolkit.core.interpolator import factory
@@ -58,11 +52,7 @@ def main() -> None:
 
     # Propagate the debug flag to all submodules.
     if cli_args.debug:
-        comparison_module.set_debug(True)
-        utils_module.set_debug(True)
-        data_structures_module.set_debug(True)
-        output_module.set_debug(True)
-        transformation_stages_module.set_debug(True)
+        set_debug(True)
 
     try:
         reference_source: TextIO | str = (
@@ -79,21 +69,25 @@ def main() -> None:
             reference_states, comparison_states
         )
         if cli_args.debug:
-            print_debug_range(
-                "Reference range", reference_states[0][0], reference_states[-1][0]
+            debug_print_time_range(
+                "Reference data time range",
+                reference_states[0][0],
+                reference_states[-1][0],
             )
-            print_debug_range(
-                "Comparison range", comparison_states[0][0], comparison_states[-1][0]
+            debug_print_time_range(
+                "Comparison data time range",
+                comparison_states[0][0],
+                comparison_states[-1][0],
             )
             if overlapping_time_range is None:
-                print_debug_range("Initial overlap", None, None)
+                debug_print_time_range("Initial overlap", None, None)
             else:
-                print_debug_range("Initial overlap", *overlapping_time_range)
+                debug_print_time_range("Initial overlap", *overlapping_time_range)
 
         # Explicit windows are only meaningful when the histories overlap.
         if overlapping_time_range is None and has_time_window:
             if cli_args.debug:
-                print_debug_range("Effective range", None, None)
+                debug_print_time_range("Effective range", None, None)
             return
 
         if overlapping_time_range is not None:
@@ -121,14 +115,16 @@ def main() -> None:
             overlap_stop = min(overlap_stop, requested_stop)
             if overlap_start > overlap_stop:
                 if cli_args.debug:
-                    print_debug_range("Effective range", None, None)
+                    debug_print_time_range("Effective range", None, None)
                 return
 
             if cli_args.debug:
-                print_debug_range("Requested range", requested_start, requested_stop)
+                debug_print_time_range(
+                    "Requested range", requested_start, requested_stop
+                )
 
         if cli_args.debug:
-            print_debug_range("Effective range", overlap_start, overlap_stop)
+            debug_print_time_range("Effective range", overlap_start, overlap_stop)
             if (
                 cli_args.rotate
                 or cli_args.rotate_xy
@@ -136,18 +132,18 @@ def main() -> None:
                 or cli_args.time_shift
             ):
                 if fit_overlap_start is None or fit_overlap_stop is None:
-                    print_debug_range("Transformation fitting range", None, None)
+                    debug_print_time_range("Transformation fitting range", None, None)
                 else:
-                    print_debug_range(
+                    debug_print_time_range(
                         "Transformation fitting range",
                         fit_overlap_start,
                         fit_overlap_stop,
                     )
             if cli_args.rotate or cli_args.rotate_xy:
                 if fit_overlap_start is None or fit_overlap_stop is None:
-                    print_debug_range("Rotation fitting range", None, None)
+                    debug_print_time_range("Rotation fitting range", None, None)
                 else:
-                    print_debug_range(
+                    debug_print_time_range(
                         "Rotation fitting range",
                         fit_overlap_start,
                         min(
@@ -155,16 +151,6 @@ def main() -> None:
                             fit_overlap_start + cli_args.rot_fit_span,
                         ),
                     )
-
-        def build_pairs(ref_states, cmp_states):
-            """Build comparison pairs with current configuration."""
-            return build_comparison_pairs(
-                ref_states,
-                cmp_states,
-                has_time_window,
-                overlap_start,
-                overlap_stop,
-            )
 
         # Both interpolators are always created.
         reference_interpolator = factory.InterpolatorFactory.create(
@@ -184,6 +170,16 @@ def main() -> None:
             context="diff_oem.comparison_interpolator",
             data=comparison_states,
         )
+
+        def build_pairs(ref_states, cmp_states):
+            """Build comparison pairs with current configuration."""
+            return build_comparison_pairs(
+                ref_states,
+                cmp_states,
+                has_time_window,
+                overlap_start,
+                overlap_stop,
+            )
 
         comparison_pairs = build_pairs(reference_states, comparison_states)
 
