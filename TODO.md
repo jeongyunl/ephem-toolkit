@@ -1,5 +1,8 @@
 # To-do list
 
+1. Improve CLI interface
+    1. `--version`
+
 1. Propagators
     1. Propagator interface/class hierarchy
     1. Keplerian propagator
@@ -49,9 +52,6 @@
         1. or extend CcsdsOem class?
     1. extract_states_by_time
         1. Optionally insert extra data points at boundaries to be interpolator friendly?
-
-1. Improve CLI interface
-    1. ?
 
 1. Improve library API
     1. Streamline file I/O function names and conventions
