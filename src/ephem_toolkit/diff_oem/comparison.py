@@ -100,10 +100,13 @@ def rotate_state(state: np.ndarray, rotation_matrix: np.ndarray) -> np.ndarray:
 def resolve_state_pair(
     reference_oem: State,
     comparison_oem: State,
-    reference_interpolator: interpolator.Interpolator | None = None,
-    comparison_interpolator: interpolator.Interpolator | None = None,
+    reference_interpolator: interpolator.Interpolator,
+    comparison_interpolator: interpolator.Interpolator,
 ) -> StatePair:
     """Resolve one state pair to concrete vectors at comparable epochs.
+
+    Both interpolators evaluate their respective histories so that the
+    returned pair shares a common timestamp.
 
     Parameters
     ----------
@@ -111,80 +114,59 @@ def resolve_state_pair(
         Reference ``(timestamp, state_m)`` tuple from the OEM state history.
     comparison_oem : State
         Comparison ``(timestamp, state_m)`` tuple from the OEM state history.
-    reference_interpolator : Interpolator | None, optional
-        Interpolator built from the reference OEM. When provided, the reference
-        state is evaluated at the comparison epoch.
-    comparison_interpolator : Interpolator | None, optional
-        Interpolator built from the comparison OEM. When provided, the comparison
-        state is evaluated at the reference epoch.
+    reference_interpolator : Interpolator
+        Interpolator built from the reference OEM.  The reference state is
+        evaluated at the comparison epoch.
+    comparison_interpolator : Interpolator
+        Interpolator built from the comparison OEM.  The comparison state is
+        evaluated at the reference epoch.
 
     Returns
     -------
     StatePair
-        Tuple of ``((reference_timestamp, reference_state_m), (comparison_timestamp, comparison_state_m))``
-        where timestamps are aligned based on interpolation settings.
+        Tuple of ``((timestamp, reference_state_m), (timestamp, comparison_state_m))``
+        where both timestamps are identical.
 
     Raises
     ------
     ValueError
-        If interpolation is requested but the target epoch is outside the interpolation range.
+        If the target epoch is outside the interpolation range.
     """
-    reference_timestamp: float
-    reference_state_m: np.ndarray
-    reference_timestamp, reference_state_m = reference_oem
-    comparison_timestamp: float
-    comparison_state_m: np.ndarray
-    comparison_timestamp, comparison_state_m = comparison_oem
+    reference_timestamp: float = reference_oem[0]
 
-    if comparison_interpolator is not None:
-        comparison_timestamp = reference_timestamp
-        interpolated_state: np.ndarray | None = comparison_interpolator.interpolate(
-            reference_timestamp
+    comparison_interpolated: np.ndarray | None = comparison_interpolator.interpolate(
+        reference_timestamp
+    )
+    if comparison_interpolated is None:
+        reference_epoch = datetime.fromtimestamp(reference_timestamp, tz=timezone.utc)
+        raise ValueError(
+            "Reference epoch "
+            f"{time_utils.datetime_to_iso8601(reference_epoch)} is outside "
+            "the comparison OEM interpolation range"
         )
-        if interpolated_state is None:
-            reference_epoch = datetime.fromtimestamp(
-                reference_timestamp, tz=timezone.utc
-            )
-            raise ValueError(
-                "Reference epoch "
-                f"{time_utils.datetime_to_iso8601(reference_epoch)} is outside "
-                "the comparison OEM interpolation range"
-            )
-        comparison_state_m = interpolated_state
 
-    if reference_interpolator is not None:
-        interpolation_timestamp = comparison_timestamp
-        interpolated_state = reference_interpolator.interpolate(interpolation_timestamp)
-        if interpolated_state is None:
-            comparison_epoch = datetime.fromtimestamp(
-                interpolation_timestamp, tz=timezone.utc
-            )
-            raise ValueError(
-                "Comparison epoch "
-                f"{time_utils.datetime_to_iso8601(comparison_epoch)} is outside "
-                "the reference OEM interpolation range"
-            )
-        reference_timestamp = interpolation_timestamp
-        reference_state_m = interpolated_state
-
-    # _debug_print(
-    #     f"resolve_state_pair: ref_epoch="
-    #     f"{time_utils.datetime_to_iso8601(datetime.fromtimestamp(reference_timestamp, tz=timezone.utc))}, "
-    #     f"cmp_epoch="
-    #     f"{time_utils.datetime_to_iso8601(datetime.fromtimestamp(comparison_timestamp, tz=timezone.utc))}"
-    # )
+    reference_interpolated: np.ndarray | None = reference_interpolator.interpolate(
+        reference_timestamp
+    )
+    if reference_interpolated is None:
+        epoch_dt = datetime.fromtimestamp(reference_timestamp, tz=timezone.utc)
+        raise ValueError(
+            "Comparison epoch "
+            f"{time_utils.datetime_to_iso8601(epoch_dt)} is outside "
+            "the reference OEM interpolation range"
+        )
 
     return (
-        (reference_timestamp, reference_state_m),
-        (comparison_timestamp, comparison_state_m),
+        (reference_timestamp, reference_interpolated),
+        (reference_timestamp, comparison_interpolated),
     )
 
 
 def compare_states(
     reference_oem: State,
     comparison_oem: State,
-    reference_interpolator: interpolator.Interpolator | None = None,
-    comparison_interpolator: interpolator.Interpolator | None = None,
+    reference_interpolator: interpolator.Interpolator,
+    comparison_interpolator: interpolator.Interpolator,
     comparison_rotation_matrix: np.ndarray | None = None,
 ) -> ComparisonResult:
     """Compare two OEM-like states and return differences.
@@ -195,13 +177,12 @@ def compare_states(
         Reference ``(timestamp, state_m)`` tuple from the OEM state history.
     comparison_oem : State
         Comparison ``(timestamp, state_m)`` tuple from the OEM state history.
-    reference_interpolator : Interpolator | None, optional
-        Interpolator built from the reference OEM. When provided, the reference
-        state is evaluated at the comparison epoch instead of using the supplied
-        reference state's epoch and vector.
-    comparison_interpolator : Interpolator | None, optional
-        Interpolator built from the comparison OEM. When provided, the comparison
-        state is evaluated at the reference epoch.
+    reference_interpolator : Interpolator
+        Interpolator built from the reference OEM.  The reference state is
+        evaluated at the comparison epoch.
+    comparison_interpolator : Interpolator
+        Interpolator built from the comparison OEM.  The comparison state is
+        evaluated at the reference epoch.
     comparison_rotation_matrix : np.ndarray | None, optional
         Rotation applied to the comparison position and velocity before calculating
         differences.
@@ -209,8 +190,8 @@ def compare_states(
     Returns
     -------
     ComparisonResult
-        Comparison result containing epochs, time difference in seconds,
-        position difference in km, and velocity difference in km/s.
+        Comparison result containing epochs, position difference in km,
+        and velocity difference in km/s.
     """
     (reference_timestamp, reference_state_m), (
         comparison_timestamp,
@@ -222,14 +203,6 @@ def compare_states(
         comparison_interpolator,
     )
 
-    # _debug_print(
-    #     f"compare_states: ref_epoch="
-    #     f"{time_utils.datetime_to_iso8601(datetime.fromtimestamp(reference_timestamp, tz=timezone.utc))}, "
-    #     f"cmp_epoch="
-    #     f"{time_utils.datetime_to_iso8601(datetime.fromtimestamp(comparison_timestamp, tz=timezone.utc))}, "
-    #     f"has_rotation={'yes' if comparison_rotation_matrix is not None else 'no'}"
-    # )
-
     if comparison_rotation_matrix is not None:
         comparison_state_m = rotate_state(
             comparison_state_m, comparison_rotation_matrix
@@ -237,10 +210,6 @@ def compare_states(
 
     reference_epoch = datetime.fromtimestamp(reference_timestamp, tz=timezone.utc)
     comparison_epoch = datetime.fromtimestamp(comparison_timestamp, tz=timezone.utc)
-
-    time_diff_s: float | None = None
-    if reference_interpolator is None and comparison_interpolator is None:
-        time_diff_s = (comparison_epoch - reference_epoch).total_seconds()
 
     position_diff_m: np.ndarray = comparison_state_m[0:3] - reference_state_m[0:3]
     position_diff_km: np.ndarray = position_diff_m / oem.KILOMETERS_TO_METERS
@@ -259,7 +228,7 @@ def compare_states(
     return ComparisonResult(
         reference_epoch=reference_epoch,
         comparison_epoch=comparison_epoch,
-        time_diff_s=time_diff_s,
+        time_diff_s=None,
         position_diff_km=position_diff_km,
         position_diff_magnitude_km=position_diff_magnitude_km,
         velocity_diff_km_s=velocity_diff_km_s,

@@ -51,11 +51,11 @@ class ComparisonOutput:
     comparison_results: list[tuple[float, ComparisonResult | None]]
     """Comparison results keyed by their query epochs."""
 
-    reference_interpolator: interpolator.Interpolator | None
-    """Optional interpolator used for reference states."""
+    reference_interpolator: interpolator.Interpolator
+    """Interpolator used for reference states."""
 
-    comparison_interpolator: interpolator.Interpolator | None
-    """Optional interpolator used for comparison states."""
+    comparison_interpolator: interpolator.Interpolator
+    """Interpolator used for comparison states."""
 
     verbose: bool
     """Whether to include component-wise differences."""
@@ -364,15 +364,11 @@ class ComparisonOutput:
 
     def print(self) -> None:
         """Print comparison rows followed by their summary statistics."""
-        include_time_difference = (
-            self.reference_interpolator is None and self.comparison_interpolator is None
-        )
         valid_results = [r for _, r in self.comparison_results if r is not None]
         _debug_print(
             f"print: title='{self.title}', "
             f"total_results={len(self.comparison_results)}, "
-            f"valid_results={len(valid_results)}, "
-            f"include_time_diff={include_time_difference}"
+            f"valid_results={len(valid_results)}"
         )
         if self.comparison_results:
             first_epoch_s = self.comparison_results[0][0]
@@ -387,18 +383,18 @@ class ComparisonOutput:
             first_cmp = valid_results[0].comparison_epoch
             last_cmp = valid_results[-1].comparison_epoch
             _debug_print(
-                f"print: ref epoch range "
+                f"print: ref data time range "
                 f"[{time_utils.datetime_to_iso8601(first_ref)} .. "
                 f"{time_utils.datetime_to_iso8601(last_ref)}], "
-                f"cmp epoch range "
+                f"cmp data time range "
                 f"[{time_utils.datetime_to_iso8601(first_cmp)} .. "
                 f"{time_utils.datetime_to_iso8601(last_cmp)}]"
             )
         if self.title is not None:
             print(f"\n{self.title}")
         self.print_header(
-            include_time_difference=include_time_difference,
-            include_comparison_epoch=include_time_difference,
+            include_time_difference=False,
+            include_comparison_epoch=False,
         )
         for index, (query_epoch_s, comparison_result) in enumerate(
             self.comparison_results, start=1
@@ -406,11 +402,9 @@ class ComparisonOutput:
             self.print_result(
                 index,
                 comparison_result,
-                include_comparison_epoch=include_time_difference,
+                include_comparison_epoch=False,
                 query_epoch=datetime.fromtimestamp(query_epoch_s, tz=timezone.utc),
             )
         if self.fit_description is not None:
             print("\n" + self.fit_description)
-        self.print_statistics(
-            include_time_difference=include_time_difference,
-        )
+        self.print_statistics(include_time_difference=False)

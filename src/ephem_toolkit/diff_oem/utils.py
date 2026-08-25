@@ -58,8 +58,8 @@ def find_overlapping_time_range(
     overlap_stop: float = min(reference_states[-1][0], comparison_states[-1][0])
     _debug_print(
         f"find_overlapping_time_range: "
-        f"ref=[{format_epoch(reference_states[0][0])} .. {format_epoch(reference_states[-1][0])}], "
-        f"cmp=[{format_epoch(comparison_states[0][0])} .. {format_epoch(comparison_states[-1][0])}], "
+        f"ref data=[{format_epoch(reference_states[0][0])} .. {format_epoch(reference_states[-1][0])}], "
+        f"cmp data=[{format_epoch(comparison_states[0][0])} .. {format_epoch(comparison_states[-1][0])}], "
         f"overlap_start={format_epoch(overlap_start)}, overlap_stop={format_epoch(overlap_stop)}"
     )
     if overlap_start > overlap_stop:
@@ -162,14 +162,14 @@ def print_debug_range(
 def build_comparison_pairs(
     reference_states: list[State],
     comparison_states: list[State],
-    reference_oem: State,
-    interpolate_ref: bool,
-    interpolate_data: bool,
     has_time_window: bool,
     overlap_start: float | None,
     overlap_stop: float | None,
 ) -> list[StatePair]:
-    """Build comparison query pairs from interpolation and time-window options.
+    """Build comparison query pairs for interpolation.
+
+    Each pair contains a reference state and the first comparison state as a
+    placeholder; the comparison interpolator evaluates at the reference epoch.
 
     Parameters
     ----------
@@ -177,12 +177,6 @@ def build_comparison_pairs(
         List of reference state tuples (epoch, state_vector).
     comparison_states : list[State]
         List of comparison state tuples (epoch, state_vector).
-    reference_oem : State
-        Reference OEM state data for interpolation.
-    interpolate_ref : bool
-        Whether to interpolate reference states.
-    interpolate_data : bool
-        Whether to interpolate comparison states.
     has_time_window : bool
         Whether a time window filter is active.
     overlap_start : float | None
@@ -198,45 +192,22 @@ def build_comparison_pairs(
     _debug_print(
         f"build_comparison_pairs: "
         f"ref_states={len(reference_states)}, cmp_states={len(comparison_states)}, "
-        f"interpolate_ref={interpolate_ref}, interpolate_data={interpolate_data}, "
         f"has_time_window={has_time_window}, "
         f"overlap=[{format_epoch(overlap_start)} .. {format_epoch(overlap_stop)}]"
     )
-    if interpolate_data:
-        pairs = [
-            (state, comparison_states[0])
-            for state in reference_states
-            if not has_time_window or overlap_start <= state[0] <= overlap_stop
-        ]
-        _debug_print(f"build_comparison_pairs: interpolate_data -> {len(pairs)} pairs")
-        return pairs
-    if interpolate_ref:
-        pairs = [
-            (reference_oem, state)
-            for state in comparison_states
-            if not has_time_window or overlap_start <= state[0] <= overlap_stop
-        ]
-        _debug_print(f"build_comparison_pairs: interpolate_ref -> {len(pairs)} pairs")
-        return pairs
-    if has_time_window:
-        pairs = [
-            (reference_state, comparison_state)
-            for reference_state, comparison_state in zip(
-                reference_states, comparison_states
-            )
-            if overlap_start <= reference_state[0] <= overlap_stop
-        ]
-        _debug_print(f"build_comparison_pairs: time_window -> {len(pairs)} pairs")
-        return pairs
-    pairs = list(zip(reference_states, comparison_states))
-    _debug_print(f"build_comparison_pairs: direct zip -> {len(pairs)} pairs")
+    pairs = [
+        (state, comparison_states[0])
+        for state in reference_states
+        if not has_time_window or overlap_start <= state[0] <= overlap_stop
+    ]
+    _debug_print(f"build_comparison_pairs: {len(pairs)} pairs")
     return pairs
 
 
 def compare_pairs(
     comparison_pairs: list[StatePair],
-    reference_interpolator: interpolator.Interpolator | None,
-    comparison_interpolator: interpolator.Interpolator | None,
+    reference_interpolator: interpolator.Interpolator,
+    comparison_interpolator: interpolator.Interpolator,
     comparison_rotation_matrix: np.ndarray | None,
 ) -> list[tuple[float, ComparisonResult | None]]:
     """Evaluate selected state pairs with an optional comparison rotation.
@@ -245,10 +216,10 @@ def compare_pairs(
     ----------
     comparison_pairs : list[StatePair]
         List of (reference_state, comparison_state) pairs to compare.
-    reference_interpolator : interpolator.Interpolator | None
-        Interpolator for reference states, or None if not interpolating.
-    comparison_interpolator : interpolator.Interpolator | None
-        Interpolator for comparison states, or None if not interpolating.
+    reference_interpolator : interpolator.Interpolator
+        Interpolator for reference states.
+    comparison_interpolator : interpolator.Interpolator
+        Interpolator for comparison states.
     comparison_rotation_matrix : np.ndarray | None
         Optional rotation matrix to apply to comparison states.
 
@@ -259,8 +230,6 @@ def compare_pairs(
     """
     _debug_print(
         f"compare_pairs: {len(comparison_pairs)} pairs, "
-        f"ref_interp={'yes' if reference_interpolator else 'no'}, "
-        f"cmp_interp={'yes' if comparison_interpolator else 'no'}, "
         f"rotation={'yes' if comparison_rotation_matrix is not None else 'no'}"
     )
     if comparison_pairs:
@@ -269,18 +238,14 @@ def compare_pairs(
         first_cmp_epoch = comparison_pairs[0][1][0]
         last_cmp_epoch = comparison_pairs[-1][1][0]
         _debug_print(
-            f"compare_pairs: ref time range "
+            f"compare_pairs: ref data time range "
             f"[{format_epoch(first_ref_epoch)} .. {format_epoch(last_ref_epoch)}], "
-            f"cmp time range "
+            f"cmp data time range "
             f"[{format_epoch(first_cmp_epoch)} .. {format_epoch(last_cmp_epoch)}]"
         )
     comparison_results: list[tuple[float, ComparisonResult | None]] = []
     for reference_state, comparison_state in comparison_pairs:
-        query_epoch_s = (
-            comparison_state[0]
-            if reference_interpolator is not None and comparison_interpolator is None
-            else reference_state[0]
-        )
+        query_epoch_s = reference_state[0]
         try:
             comparison_results.append(
                 (
@@ -296,17 +261,11 @@ def compare_pairs(
             )
         except ValueError as error:
             # A boundary sample can still fall outside the interpolator window.
-            if (
-                (
-                    reference_interpolator is not None
-                    or comparison_interpolator is not None
-                )
-                and str(error).endswith("outside the reference OEM interpolation range")
-            ) or (
-                comparison_interpolator is not None
-                and str(error).endswith(
-                    "outside the comparison OEM interpolation range"
-                )
+            error_message = str(error)
+            if error_message.endswith(
+                "outside the reference OEM interpolation range"
+            ) or error_message.endswith(
+                "outside the comparison OEM interpolation range"
             ):
                 comparison_results.append((query_epoch_s, None))
                 continue
