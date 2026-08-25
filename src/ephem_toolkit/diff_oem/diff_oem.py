@@ -55,6 +55,8 @@ def main() -> None:
         set_debug(True)
 
     try:
+        # Load OEM files
+
         reference_source: TextIO | str = (
             sys.stdin if cli_args.reference_oem == "-" else cli_args.reference_oem
         )
@@ -63,6 +65,8 @@ def main() -> None:
         )
         reference_states = read_states(reference_source)
         comparison_states = read_states(comparison_source)
+
+        # Find overlapping time range between OEM files
 
         overlapping_time_range = find_overlapping_time_range(
             reference_states, comparison_states
@@ -79,28 +83,28 @@ def main() -> None:
                 comparison_states[-1][0],
             )
             if overlapping_time_range is None:
-                debug_print_time_range("Initial overlap", None, None)
+                debug_print_time_range("Overlapping time range", None, None)
             else:
-                debug_print_time_range("Initial overlap", *overlapping_time_range)
+                debug_print_time_range(
+                    "Overlapping time range", *overlapping_time_range
+                )
 
-        # Explicit windows are only meaningful when the histories overlap.
+        # Error if there's no overlap
+
         if overlapping_time_range is None:
-            if cli_args.debug:
-                debug_print_time_range("Effective range", None, None)
-            return
+            raise ValueError(
+                "Reference and comparison OEM files have no overlapping time period"
+            )
 
-        if overlapping_time_range is not None:
-            overlap_start, overlap_stop = overlapping_time_range
-        else:
-            overlap_start = overlap_stop = None
-        fit_overlap_start = overlap_start
-        fit_overlap_stop = overlap_stop
+        overlap_start, overlap_stop = overlapping_time_range
 
-        reference_epoch_s: float = reference_states[0][0]
+        # Resolve user requested time range (--start and --stop)
+
+        reference_start_epoch_s: float = reference_states[0][0]
         requested_start: float = (
             overlap_start
             if cli_args.start is None
-            else resolve_time_bound(cli_args.start, reference_epoch_s)
+            else resolve_time_bound(cli_args.start, reference_start_epoch_s)
         )
         requested_stop = (
             overlap_stop
@@ -109,18 +113,29 @@ def main() -> None:
         )
         if requested_start > requested_stop:
             raise ValueError("--start must be earlier than or equal to --stop")
-        overlap_start = max(overlap_start, requested_start)
-        overlap_stop = min(overlap_stop, requested_stop)
-        if overlap_start > overlap_stop:
-            if cli_args.debug:
-                debug_print_time_range("Effective range", None, None)
-            return
 
         if cli_args.debug:
-            debug_print_time_range("Requested range", requested_start, requested_stop)
+            debug_print_time_range(
+                "Requested time range", requested_start, requested_stop
+            )
+
+        # Resolve and test comparison time range
+
+        comparison_start = max(overlap_start, requested_start)
+        comparison_stop = min(overlap_stop, requested_stop)
+
+        if comparison_start > comparison_stop:
+            raise ValueError("--start or --stop is out of overlapping range")
 
         if cli_args.debug:
-            debug_print_time_range("Effective range", overlap_start, overlap_stop)
+            debug_print_time_range(
+                "Comparison time range", comparison_start, comparison_stop
+            )
+
+        fit_overlap_start = comparison_start
+        fit_overlap_stop = comparison_stop
+
+        if cli_args.debug:
             if (
                 cli_args.rotate
                 or cli_args.rotate_xy
@@ -172,8 +187,8 @@ def main() -> None:
             return build_comparison_pairs(
                 ref_states,
                 cmp_states,
-                overlap_start,
-                overlap_stop,
+                comparison_start,
+                comparison_stop,
             )
 
         comparison_pairs = build_pairs(reference_states, comparison_states)
