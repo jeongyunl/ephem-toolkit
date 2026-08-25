@@ -6,6 +6,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from ephem_toolkit.core.interpolator import factory
 import ephem_toolkit.core.interpolator.interpolation_spec as interpolation_spec
 import ephem_toolkit.core.time_utils as time_utils
 
@@ -34,8 +35,6 @@ class TransformationPipeline:
         build_pairs: Callable[
             [list[diff_types.State], list[diff_types.State]], list[diff_types.StatePair]
         ],
-        interpolate_ref: bool,
-        interpolate_data: bool,
         interpolation_spec: interpolation_spec.InterpolationSpec,
         debug: bool = False,
     ) -> None:
@@ -51,10 +50,6 @@ class TransformationPipeline:
             Transformation stages to fit and apply in order.
         build_pairs : Callable
             Function that builds comparison pairs for a pair of histories.
-        interpolate_ref : bool
-            Whether to interpolate reference states during comparison.
-        interpolate_data : bool
-            Whether to interpolate comparison states during comparison.
         interpolation_spec : InterpolationSpec
             Interpolation specification with type and degree.
         debug : bool, default=False
@@ -64,8 +59,6 @@ class TransformationPipeline:
         self.comparison_states = comparison_states
         self.stages = stages
         self.build_pairs = build_pairs
-        self.interpolate_ref = interpolate_ref
-        self.interpolate_data = interpolate_data
         self.interpolation_spec = interpolation_spec
         self.debug = debug
 
@@ -109,20 +102,13 @@ class TransformationPipeline:
                     f"{_format_epoch(self.comparison_states[-1][0])}]",
                     file=sys.stderr,
                 )
-        reference_interpolator = (
-            factory.InterpolatorFactory.create(
-                spec=self.interpolation_spec,
-                dimension=6,
-                is_cartesian_state=True,
-                verbose=verbose,
-                context="TransformationPipeline.reference_interpolator",
-                data=self.reference_states,
-            )
-            if (
-                self.interpolate_ref
-                or any(stage.requires_reference_interpolation for stage in self.stages)
-            )
-            else None
+        reference_interpolator = factory.InterpolatorFactory.create(
+            spec=self.interpolation_spec,
+            dimension=6,
+            is_cartesian_state=True,
+            verbose=verbose,
+            context="TransformationPipeline.reference_interpolator",
+            data=self.reference_states,
         )
 
         for stage_index, stage in enumerate(self.stages, start=1):
@@ -140,17 +126,13 @@ class TransformationPipeline:
                         f"{_format_epoch(current_comparison_states[-1][0])}]",
                         file=sys.stderr,
                     )
-            comparison_interpolator = (
-                factory.InterpolatorFactory.create(
-                    spec=self.interpolation_spec,
-                    dimension=6,
-                    is_cartesian_state=True,
-                    verbose=verbose,
-                    context=f"TransformationPipeline.comparison_interpolator",
-                    data=current_comparison_states,
-                )
-                if self.interpolate_data
-                else None
+            comparison_interpolator = factory.InterpolatorFactory.create(
+                spec=self.interpolation_spec,
+                dimension=6,
+                is_cartesian_state=True,
+                verbose=verbose,
+                context="TransformationPipeline.comparison_interpolator",
+                data=current_comparison_states,
             )
             fit_pairs = stage.build_fit_pairs(
                 self.reference_states,
@@ -168,9 +150,9 @@ class TransformationPipeline:
                     fit_cmp_start = fit_pairs[0][1][0]
                     fit_cmp_stop = fit_pairs[-1][1][0]
                     print(
-                        f"[diff_oem.pipeline] Stage {stage_index} fit ref time range: "
+                        f"[diff_oem.pipeline] Stage {stage_index} fit ref data time range: "
                         f"[{_format_epoch(fit_ref_start)} .. {_format_epoch(fit_ref_stop)}], "
-                        f"fit cmp time range: "
+                        f"fit cmp data time range: "
                         f"[{_format_epoch(fit_cmp_start)} .. {_format_epoch(fit_cmp_stop)}]",
                         file=sys.stderr,
                     )

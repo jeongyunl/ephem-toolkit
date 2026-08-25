@@ -54,12 +54,6 @@ class DiffOemArgs(argparse.Namespace):
     """Print detailed comparison diagnostics to stderr."""
     debug: bool
     """Print debug timing information to stderr."""
-    interpolate_ref: bool
-    """Interpolate the reference OEM to comparison timestamps."""
-    interpolate_data: bool
-    """Interpolate comparison data to reference timestamps."""
-    interpolate: bool
-    """Convenience flag enabling both interpolation paths."""
     interpolate_type: InterpolationSpec
     """Interpolation configuration for OEM comparisons."""
     rtn: bool
@@ -89,11 +83,9 @@ def parse_arguments() -> DiffOemArgs:
     -------
     DiffOemArgs
         Parsed command-line arguments with attributes ``reference_oem``,
-        ``comparison_oem``, ``verbose``, ``debug``, ``interpolate_ref``, and
-        ``interpolate_data``. The ``--interpolate`` convenience option enables
-        both interpolation flags, and is represented by the parsed interpolation
-        attributes. ``stage_sequence`` records transformation stage order as
-        requested in the CLI.
+        ``comparison_oem``, ``verbose``, and ``debug``.
+        ``stage_sequence`` records transformation stage order as
+        requested in the CLI. Interpolators are always used.
     """
     parser: argparse.ArgumentParser = cli.create_parser(
         description=(
@@ -128,26 +120,7 @@ def parse_arguments() -> DiffOemArgs:
         "--debug",
         dest="debug",
         action="store_true",
-        help="Print time-range determination details to stderr.",
-    )
-    parser.add_argument(
-        "--interpolate-ref",
-        dest="interpolate_ref",
-        action="store_true",
-        help="Interpolate the reference OEM at each comparison state timestamp.",
-    )
-    parser.add_argument(
-        "--interpolate-data",
-        dest="interpolate_data",
-        action="store_true",
-        default=True,
-        help="Interpolate comparison data at each reference state timestamp (enabled by default).",
-    )
-    parser.add_argument(
-        "--interpolate",
-        dest="interpolate",
-        action="store_true",
-        help="Interpolate both reference and comparison OEM data.",
+        help="Print time-range determination details to stderr (implies --verbose).",
     )
     parser.add_argument(
         "--interpolate-type",
@@ -227,9 +200,6 @@ def parse_arguments() -> DiffOemArgs:
     )
     args = parser.parse_args(namespace=DiffOemArgs())
     args.stage_sequence = extract_stage_sequence(sys.argv[1:])
-    if args.interpolate:
-        args.interpolate_ref = True
-        args.interpolate_data = True
     if args.reference_oem == "-" and args.comparison_oem == "-":
         parser.error("reference_oem and comparison_oem cannot both be '-'")
     return args

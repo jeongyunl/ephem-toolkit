@@ -20,6 +20,9 @@ from ephem_toolkit.diff_oem import output
 from ephem_toolkit.diff_oem import transformation_stages
 from ephem_toolkit.diff_oem import utils
 
+_DEFAULT_SPEC = InterpolationSpec(interp_type=InterpolationType.HERMITE, degree=5)
+"""Default interpolation spec used by test helpers."""
+
 
 def _create_state(epoch_s: float, state_value: float) -> tuple[float, np.ndarray]:
     """Create a synthetic state at the specified epoch."""
@@ -29,16 +32,22 @@ def _create_state(epoch_s: float, state_value: float) -> tuple[float, np.ndarray
     )
 
 
+def _make_interpolator(
+    states: list[tuple[float, np.ndarray]],
+) -> lagrange.LagrangeInterpolator:
+    """Build a Lagrange interpolator from a list of states."""
+    degree = min(7, len(states) - 1)
+    interp = lagrange.LagrangeInterpolator(dimension=6, degree=degree)
+    interp.set_data(states)
+    return interp
+
+
 def _reference_interpolator() -> lagrange.LagrangeInterpolator:
     """Create a degree-8 interpolator for synthetic linear states."""
-    interpolator: lagrange.LagrangeInterpolator = lagrange.LagrangeInterpolator(
-        dimension=6, degree=7
-    )
     reference_states: list[tuple[float, np.ndarray]] = [
         _create_state(float(index), float(index)) for index in range(8)
     ]
-    interpolator.set_data(reference_states)
-    return interpolator
+    return _make_interpolator(reference_states)
 
 
 def test_find_overlapping_time_range() -> None:
@@ -147,9 +156,6 @@ def test_rotation_stage_build_fit_pairs_respects_interpolation_modes() -> None:
     ]
 
     data_stage = transformation_stages.RotationStage(
-        reference_oem=reference_states[0],
-        interpolate_ref=False,
-        interpolate_data=True,
         fit_overlap_start=1.0,
         fit_overlap_stop=5.0,
         fit_span_s=2.0,
@@ -158,41 +164,38 @@ def test_rotation_stage_build_fit_pairs_respects_interpolation_modes() -> None:
     assert [epoch for epoch, _ in [pair[0] for pair in data_pairs]] == [1.0, 2.0, 3.0]
     assert all(pair[1] == comparison_states[0] for pair in data_pairs)
 
-    ref_stage = transformation_stages.RotationStage(
-        reference_oem=reference_states[0],
-        interpolate_ref=True,
-        interpolate_data=False,
-        fit_overlap_start=1.0,
-        fit_overlap_stop=5.0,
-        fit_span_s=2.0,
-    )
-    ref_pairs = ref_stage.build_fit_pairs(reference_states, comparison_states)
-    assert [epoch for epoch, _ in [pair[1] for pair in ref_pairs]] == [1.0, 2.0, 3.0]
-    assert all(pair[0] == reference_states[0] for pair in ref_pairs)
-
 
 def test_compare_pairs_returns_none_for_out_of_range_interpolation() -> None:
     reference_states = [_create_state(float(index), float(index)) for index in range(8)]
-    reference_interpolator = lagrange.LagrangeInterpolator(dimension=6, degree=7)
-    reference_interpolator.set_data(reference_states)
+    ref_interp = _make_interpolator(reference_states)
+    # Comparison interpolator covers epochs 2..5 only, so reference epoch 0.0
+    # falls outside its range.
+    comparison_states = [
+        _create_state(float(index), float(index)) for index in range(2, 6)
+    ]
+    cmp_interp = _make_interpolator(comparison_states)
 
     results = utils.compare_pairs(
-        [(reference_states[0], (8.0, np.full(6, 8.0, dtype=float)))],
-        reference_interpolator,
-        None,
+        [(reference_states[0], comparison_states[0])],
+        ref_interp,
+        cmp_interp,
         None,
     )
 
-    assert results == [(8.0, None)]
+    assert results == [(0.0, None)]
 
 
 def test_print_result_handles_missing_boundary_row(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    ref_states = [_create_state(float(i), float(i)) for i in range(8)]
+    ref_interp = _make_interpolator(ref_states)
+    cmp_interp = _make_interpolator(ref_states)
+
     output.ComparisonOutput(
         comparison_results=[],
-        reference_interpolator=None,
-        comparison_interpolator=None,
+        reference_interpolator=ref_interp,
+        comparison_interpolator=cmp_interp,
         verbose=False,
         rtn=False,
     ).print_result(
@@ -208,10 +211,15 @@ def test_print_result_handles_missing_boundary_row(
 
 
 def test_compare_states_interpolates_reference_at_comparison_epoch() -> None:
+    ref_interp = _reference_interpolator()
+    cmp_states = [_create_state(float(i), float(i)) for i in range(8)]
+    cmp_interp = _make_interpolator(cmp_states)
+
     result: data_structures.ComparisonResult = comparison.compare_states(
         _create_state(0.0, 0.0),
         _create_state(3.5, 3.5),
-        _reference_interpolator(),
+        ref_interp,
+        cmp_interp,
     )
 
     assert result.reference_epoch == result.comparison_epoch
@@ -220,22 +228,34 @@ def test_compare_states_interpolates_reference_at_comparison_epoch() -> None:
     np.testing.assert_allclose(result.velocity_diff_km_s, np.zeros(3), atol=1e-12)
 
 
-def test_compare_states_rejects_comparison_epoch_outside_reference_range() -> None:
+def test_compare_states_rejects_epoch_outside_reference_range() -> None:
+    ref_interp = _reference_interpolator()  # covers 0..7
+    cmp_states = [_create_state(float(i), float(i)) for i in range(10)]
+    cmp_interp = _make_interpolator(cmp_states)  # covers 0..9
+
     with pytest.raises(
         ValueError, match="outside the reference OEM interpolation range"
     ):
+        # Reference state at epoch 8.0 is outside the reference interpolator
+        # range (0..7).
         comparison.compare_states(
-            _create_state(0.0, 0.0),
             _create_state(8.0, 8.0),
-            _reference_interpolator(),
+            _create_state(0.0, 0.0),
+            ref_interp,
+            cmp_interp,
         )
 
 
 def test_compare_states_interpolates_comparison_at_reference_epoch() -> None:
+    ref_states = [_create_state(float(i), float(i)) for i in range(8)]
+    ref_interp = _make_interpolator(ref_states)
+    cmp_interp = _reference_interpolator()
+
     result = comparison.compare_states(
         _create_state(3.5, 3.5),
         _create_state(0.0, 0.0),
-        comparison_interpolator=_reference_interpolator(),
+        ref_interp,
+        cmp_interp,
     )
 
     assert result.reference_epoch == result.comparison_epoch
@@ -245,10 +265,19 @@ def test_compare_states_interpolates_comparison_at_reference_epoch() -> None:
 
 
 def test_compare_states_calculates_reference_rtn_coordinates() -> None:
-    reference_state = (0.0, np.array([1000.0, 0.0, 0.0, 0.0, 1.0, 0.0]))
-    comparison_state = (0.0, np.array([1000.0, 0.0, 0.0, 0.0, 2.0, 0.0]))
+    # Build separate interpolators so each returns its own constant state.
+    ref_states = [
+        (float(i), np.array([1000.0, 0.0, 0.0, 0.0, 1.0, 0.0])) for i in range(3)
+    ]
+    cmp_states = [
+        (float(i), np.array([1000.0, 0.0, 0.0, 0.0, 2.0, 0.0])) for i in range(3)
+    ]
+    ref_interp = _make_interpolator(ref_states)
+    cmp_interp = _make_interpolator(cmp_states)
 
-    result = comparison.compare_states(reference_state, comparison_state)
+    result = comparison.compare_states(
+        ref_states[0], cmp_states[0], ref_interp, cmp_interp
+    )
 
     np.testing.assert_allclose(result.rtn_position_km, np.zeros(3), atol=1e-12)
     np.testing.assert_allclose(
@@ -300,9 +329,13 @@ def test_fit_rotation_matrix_matches_comparison_to_reference() -> None:
     )
 
     np.testing.assert_allclose(fitted_rotation, reference_rotation, atol=1e-12)
+    ref_interp = _make_interpolator(reference_states)
+    cmp_interp = _make_interpolator(comparison_states)
     result = comparison.compare_states(
         reference_states[0],
         comparison_states[0],
+        ref_interp,
+        cmp_interp,
         comparison_rotation_matrix=fitted_rotation,
     )
     np.testing.assert_allclose(result.position_diff_km, np.zeros(3), atol=1e-12)
@@ -397,24 +430,30 @@ def test_time_shift_stage_fits_and_applies_epoch_bias() -> None:
         (float(index + 1.0), np.array([float(index), 0.0, 0.0, 0.0, 0.0, 0.0]))
         for index in range(10)
     ]
-    interpolator = factory.InterpolatorFactory.create(
+    ref_interp = factory.InterpolatorFactory.create(
         spec=InterpolationSpec(interp_type=InterpolationType.HERMITE, degree=5),
         dimension=6,
         is_cartesian_state=True,
         context="test_time_shift_stage",
         data=reference_states,
     )
+    cmp_interp = factory.InterpolatorFactory.create(
+        spec=InterpolationSpec(interp_type=InterpolationType.HERMITE, degree=5),
+        dimension=6,
+        is_cartesian_state=True,
+        context="test_time_shift_stage_cmp",
+        data=comparison_states,
+    )
 
     stage = transformation_stages.TimeShiftStage(
-        reference_oem=reference_states[0],
         fit_overlap_start=0.0,
         fit_overlap_stop=9.0,
     )
     fitted_bias = stage.fit(
         data_structures.TransformationStageInput(
             state_pairs=list(zip(reference_states, comparison_states)),
-            reference_interpolator=interpolator,
-            comparison_interpolator=None,
+            reference_interpolator=ref_interp,
+            comparison_interpolator=cmp_interp,
         )
     )
 
@@ -429,15 +468,15 @@ def test_time_shift_stage_fits_and_applies_epoch_bias() -> None:
 
 
 def test_rotation_stage_describe_fit_and_output_print_verbose_rtn() -> None:
-    result = comparison.compare_states(
-        (0.0, np.array([1000.0, 0.0, 0.0, 0.0, 1.0, 0.0])),
-        (1.0, np.array([1000.0, 0.0, 0.0, 0.0, 2.0, 0.0])),
-    )
+    ref_state = (0.0, np.array([1000.0, 0.0, 0.0, 0.0, 1.0, 0.0]))
+    cmp_state = (1.0, np.array([1000.0, 0.0, 0.0, 0.0, 2.0, 0.0]))
+    states = [ref_state, cmp_state]
+    ref_interp = _make_interpolator(states)
+    cmp_interp = _make_interpolator(states)
+
+    result = comparison.compare_states(ref_state, cmp_state, ref_interp, cmp_interp)
 
     rotation_stage = transformation_stages.RotationStage(
-        reference_oem=(0.0, np.array([1000.0, 0.0, 0.0, 0.0, 1.0, 0.0])),
-        interpolate_ref=False,
-        interpolate_data=False,
         fit_overlap_start=0.0,
         fit_overlap_stop=2.0,
         fit_span_s=1.0,
@@ -448,8 +487,8 @@ def test_rotation_stage_describe_fit_and_output_print_verbose_rtn() -> None:
 
     report = output.ComparisonOutput(
         comparison_results=[(0.0, result)],
-        reference_interpolator=None,
-        comparison_interpolator=None,
+        reference_interpolator=ref_interp,
+        comparison_interpolator=cmp_interp,
         verbose=True,
         rtn=True,
     )
@@ -460,22 +499,30 @@ def test_rotation_stage_describe_fit_and_output_print_verbose_rtn() -> None:
 def test_print_statistics_reports_default_criteria(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    # Separate interpolators so each returns its own constant state at epoch 0.
+    ref_states = [
+        (float(i), np.array([1000.0, 0.0, 0.0, 0.0, 1.0, 0.0])) for i in range(3)
+    ]
+    cmp_states = [
+        (float(i), np.array([1000.0, 0.0, 0.0, 0.0, 2.0, 0.0])) for i in range(3)
+    ]
+    ref_interp = _make_interpolator(ref_states)
+    cmp_interp = _make_interpolator(cmp_states)
+
     result = comparison.compare_states(
-        (0.0, np.array([1000.0, 0.0, 0.0, 0.0, 1.0, 0.0])),
-        (1.0, np.array([1000.0, 0.0, 0.0, 0.0, 2.0, 0.0])),
+        ref_states[0], cmp_states[0], ref_interp, cmp_interp
     )
 
     output.ComparisonOutput(
         comparison_results=[(0.0, result)],
-        reference_interpolator=None,
-        comparison_interpolator=None,
+        reference_interpolator=ref_interp,
+        comparison_interpolator=cmp_interp,
         verbose=False,
         rtn=False,
-    ).print_statistics(include_time_difference=True)
+    ).print_statistics(include_time_difference=False)
 
     captured_output = capsys.readouterr().out
     assert "Statistics (mean, std, min, max)" in captured_output
-    assert "time difference (s): +1, +0, +1, +1" in captured_output
     assert "position difference (km): +0.000, +0.000, +0.000, +0.000" in captured_output
     assert (
         "velocity difference (km/s): +0.001000, +0.000000, +0.001000, +0.001000"
@@ -486,20 +533,28 @@ def test_print_statistics_reports_default_criteria(
 def test_print_statistics_reports_rtn_criteria(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    reference_state = (0.0, np.array([1000.0, 0.0, 0.0, 0.0, 1.0, 0.0]))
+    # Separate interpolators: reference returns constant [1000,0,0,0,1,0],
+    # comparison returns constant [1000,0,0,0,2,0].
+    ref_states = [
+        (float(i), np.array([1000.0, 0.0, 0.0, 0.0, 1.0, 0.0])) for i in range(3)
+    ]
+    cmp_states = [
+        (float(i), np.array([1000.0, 0.0, 0.0, 0.0, 2.0, 0.0])) for i in range(3)
+    ]
+    ref_interp = _make_interpolator(ref_states)
+    cmp_interp = _make_interpolator(cmp_states)
+
     first_result = comparison.compare_states(
-        reference_state,
-        (1.0, np.array([1000.0, 0.0, 0.0, 0.0, 2.0, 0.0])),
+        ref_states[0], cmp_states[0], ref_interp, cmp_interp
     )
     second_result = comparison.compare_states(
-        reference_state,
-        (1.0, np.array([1000.0, 0.0, 0.0, 0.0, 3.0, 0.0])),
+        ref_states[1], cmp_states[1], ref_interp, cmp_interp
     )
 
     output.ComparisonOutput(
-        comparison_results=[(0.0, first_result), (0.0, second_result)],
-        reference_interpolator=None,
-        comparison_interpolator=None,
+        comparison_results=[(0.0, first_result), (1.0, second_result)],
+        reference_interpolator=ref_interp,
+        comparison_interpolator=cmp_interp,
         verbose=False,
         rtn=True,
     ).print_statistics(

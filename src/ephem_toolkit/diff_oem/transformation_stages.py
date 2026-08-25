@@ -10,11 +10,6 @@ from typing import Any, Callable
 import numpy as np
 
 from ephem_toolkit.core import misc
-from ephem_toolkit.core.interpolator import factory
-from ephem_toolkit.core.interpolator.interpolation_spec import (
-    InterpolationSpec,
-    InterpolationType,
-)
 import ephem_toolkit.core.time_utils as time_utils
 
 from .comparison import rotate_state
@@ -51,8 +46,6 @@ def _format_epoch(epoch_s: float | None) -> str:
         datetime.fromtimestamp(epoch_s, tz=timezone.utc)
     )
 
-DEFAULT_INTERPOLATION_DEGREE: int = 5
-"""Polynomial degree used for OEM state interpolation."""
 
 MIN_STATE_PAIRS_FOR_ROTATION: int = 2
 """Minimum number of state pairs required for rotation fitting."""
@@ -83,7 +76,6 @@ class TransformationStage(ABC):
     """Base class for fit-transform stages in the comparison pipeline."""
 
     name: str
-    requires_reference_interpolation: bool = False
 
     @abstractmethod
     def build_fit_pairs(
@@ -162,9 +154,6 @@ class RotationStage(TransformationStage):
 
     def __init__(
         self,
-        reference_oem: State,
-        interpolate_ref: bool,
-        interpolate_data: bool,
         fit_overlap_start: float,
         fit_overlap_stop: float,
         fit_span_s: float,
@@ -173,12 +162,6 @@ class RotationStage(TransformationStage):
 
         Parameters
         ----------
-        reference_oem : State
-            First reference state, used when reference interpolation is enabled.
-        interpolate_ref : bool
-            Whether to interpolate reference states at comparison epochs.
-        interpolate_data : bool
-            Whether to interpolate comparison states at reference epochs.
         fit_overlap_start : float
             Start of the overlapping fitting interval (POSIX seconds).
         fit_overlap_stop : float
@@ -186,9 +169,6 @@ class RotationStage(TransformationStage):
         fit_span_s : float
             Duration of the initial fitting interval (seconds).
         """
-        self.reference_oem = reference_oem
-        self.interpolate_ref = interpolate_ref
-        self.interpolate_data = interpolate_data
         self.fit_overlap_start = fit_overlap_start
         self.fit_overlap_stop = fit_overlap_stop
         self.fit_span_s = fit_span_s
@@ -219,43 +199,11 @@ class RotationStage(TransformationStage):
             f"fit_span={self.fit_span_s:.1f}s, "
             f"ref_states={len(reference_states)}, cmp_states={len(comparison_states)}"
         )
-        if self.interpolate_data:
-            base_pairs = [
-                (state, comparison_states[0])
-                for state in reference_states
-                if self.fit_overlap_start <= state[0] <= self.fit_overlap_stop
-            ]
-        elif self.interpolate_ref:
-            base_pairs = [
-                (self.reference_oem, state)
-                for state in comparison_states
-                if self.fit_overlap_start <= state[0] <= self.fit_overlap_stop
-            ]
-        else:
-            base_pairs = [
-                (reference_state, comparison_state)
-                for reference_state, comparison_state in zip(
-                    reference_states, comparison_states
-                )
-                if self.fit_overlap_start <= reference_state[0] <= self.fit_overlap_stop
-            ]
-
         rotation_stop_epoch_s = self.fit_overlap_start + self.fit_span_s
-        _debug_print(
-            f"RotationStage.build_fit_pairs: "
-            f"rotation_stop={_format_epoch(rotation_stop_epoch_s)}, "
-            f"base_pairs={len(base_pairs)}"
-        )
         fit_pairs = [
-            (reference_state, comparison_state)
-            for reference_state, comparison_state in base_pairs
-            if self.fit_overlap_start
-            <= (
-                comparison_state[0]
-                if self.interpolate_ref and not self.interpolate_data
-                else reference_state[0]
-            )
-            <= rotation_stop_epoch_s
+            (state, comparison_states[0])
+            for state in reference_states
+            if self.fit_overlap_start <= state[0] <= rotation_stop_epoch_s
         ]
         _debug_print(
             f"RotationStage.build_fit_pairs: selected {len(fit_pairs)} fit pairs"
@@ -263,9 +211,9 @@ class RotationStage(TransformationStage):
         if fit_pairs:
             _debug_print(
                 f"RotationStage.build_fit_pairs: fit pair time range "
-                f"ref=[{_format_epoch(fit_pairs[0][0][0])} .. "
+                f"ref data=[{_format_epoch(fit_pairs[0][0][0])} .. "
                 f"{_format_epoch(fit_pairs[-1][0][0])}], "
-                f"cmp=[{_format_epoch(fit_pairs[0][1][0])} .. "
+                f"cmp data=[{_format_epoch(fit_pairs[0][1][0])} .. "
                 f"{_format_epoch(fit_pairs[-1][1][0])}]"
             )
         return fit_pairs
@@ -339,9 +287,7 @@ class RotationStage(TransformationStage):
         list[State]
             Rotated comparison state history.
         """
-        _debug_print(
-            f"RotationStage.transform: transforming {len(states)} states"
-        )
+        _debug_print(f"RotationStage.transform: transforming {len(states)} states")
         if states:
             _debug_print(
                 f"RotationStage.transform: input time range "
@@ -596,11 +542,9 @@ class TimeShiftStage(TransformationStage):
     """Fit and apply a constant comparison timestamp shift."""
 
     name = "comparison time shift"
-    requires_reference_interpolation = True
 
     def __init__(
         self,
-        reference_oem: State,
         fit_overlap_start: float,
         fit_overlap_stop: float,
     ) -> None:
@@ -608,14 +552,11 @@ class TimeShiftStage(TransformationStage):
 
         Parameters
         ----------
-        reference_oem : State
-            First reference state used to build fallback interpolation data.
         fit_overlap_start : float
             Start of the overlapping fitting interval (POSIX seconds).
         fit_overlap_stop : float
             End of the overlapping fitting interval (POSIX seconds).
         """
-        self.reference_oem = reference_oem
         self.fit_overlap_start = fit_overlap_start
         self.fit_overlap_stop = fit_overlap_stop
 
@@ -658,7 +599,7 @@ class TimeShiftStage(TransformationStage):
         )
         if fit_pairs:
             _debug_print(
-                f"TimeShiftStage.build_fit_pairs: cmp time range "
+                f"TimeShiftStage.build_fit_pairs: cmp data time range "
                 f"[{_format_epoch(fit_pairs[0][1][0])} .. "
                 f"{_format_epoch(fit_pairs[-1][1][0])}]"
             )
@@ -682,25 +623,9 @@ class TimeShiftStage(TransformationStage):
         ValueError
             If no comparison states are available for fitting.
         """
-        _debug_print(
-            f"TimeShiftStage.fit: {len(stage_input.state_pairs)} state pairs, "
-            f"ref_interp={'yes' if stage_input.reference_interpolator else 'no'}"
-        )
+        _debug_print(f"TimeShiftStage.fit: {len(stage_input.state_pairs)} state pairs")
         state_pairs = stage_input.state_pairs
         reference_interpolator = stage_input.reference_interpolator
-        if reference_interpolator is None:
-            spec = InterpolationSpec(
-                interp_type=InterpolationType.HERMITE,
-                degree=DEFAULT_INTERPOLATION_DEGREE,
-            )
-            reference_states = [pair[0] for pair in state_pairs]
-            reference_interpolator = factory.InterpolatorFactory.create(
-                spec=spec,
-                dimension=6,
-                is_cartesian_state=True,
-                context="TimeShifStage.fit",
-                data=reference_states,
-            )
 
         reference_epochs = np.asarray(reference_interpolator.independent_values)
         reference_positions_m = np.asarray(

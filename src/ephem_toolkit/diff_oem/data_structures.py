@@ -51,11 +51,11 @@ class TransformationStageInput:
     state_pairs: list[StatePair]
     """Reference/comparison state pairs prepared for fitting."""
 
-    reference_interpolator: interpolator.Interpolator | None
-    """Optional interpolator for reference states."""
+    reference_interpolator: interpolator.Interpolator
+    """Interpolator for reference states."""
 
-    comparison_interpolator: interpolator.Interpolator | None
-    """Optional interpolator for comparison states."""
+    comparison_interpolator: interpolator.Interpolator
+    """Interpolator for comparison states."""
 
     def resolve_state_pairs(self) -> list[StatePair]:
         """Resolve fitting pairs using the configured interpolators.
@@ -67,20 +67,16 @@ class TransformationStageInput:
         """
         from .comparison import resolve_state_pair
 
-        _debug_print(
-            f"resolve_state_pairs: input {len(self.state_pairs)} pairs, "
-            f"ref_interp={'yes' if self.reference_interpolator else 'no'}, "
-            f"cmp_interp={'yes' if self.comparison_interpolator else 'no'}"
-        )
+        _debug_print(f"resolve_state_pairs: input {len(self.state_pairs)} pairs")
         if self.state_pairs:
             first_ref = self.state_pairs[0][0][0]
             last_ref = self.state_pairs[-1][0][0]
             first_cmp = self.state_pairs[0][1][0]
             last_cmp = self.state_pairs[-1][1][0]
             _debug_print(
-                f"resolve_state_pairs: input ref time range "
+                f"resolve_state_pairs: input ref data time range "
                 f"[{_format_epoch(first_ref)} .. {_format_epoch(last_ref)}], "
-                f"cmp time range "
+                f"cmp data time range "
                 f"[{_format_epoch(first_cmp)} .. {_format_epoch(last_cmp)}]"
             )
         resolved_state_pairs: list[StatePair] = []
@@ -106,9 +102,9 @@ class TransformationStageInput:
             first_resolved_cmp = resolved_state_pairs[0][1][0]
             last_resolved_cmp = resolved_state_pairs[-1][1][0]
             _debug_print(
-                f"resolve_state_pairs: resolved ref time range "
+                f"resolve_state_pairs: resolved ref data time range "
                 f"[{_format_epoch(first_resolved_ref)} .. {_format_epoch(last_resolved_ref)}], "
-                f"cmp time range "
+                f"cmp data time range "
                 f"[{_format_epoch(first_resolved_cmp)} .. {_format_epoch(last_resolved_cmp)}]"
             )
         return resolved_state_pairs

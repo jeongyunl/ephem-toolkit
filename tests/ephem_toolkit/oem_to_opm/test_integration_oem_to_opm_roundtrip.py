@@ -98,13 +98,20 @@ def _max_roundtrip_error_km(
     propagated_oem: Path,
 ) -> tuple[float, float, int]:
     """Compare the original OEM against a propagated OEM using a Hermite interpolator."""
+    hermite_spec = InterpolationSpec(InterpolationType.HERMITE, 5)
     reference_states = read_states(reference_oem)
     propagated_states = read_states(propagated_oem)
-    interpolator = factory.InterpolatorFactory.create(
-        spec=InterpolationSpec(InterpolationType.HERMITE, 5),
+    reference_interpolator = factory.InterpolatorFactory.create(
+        spec=hermite_spec,
         dimension=6,
         is_cartesian_state=True,
         data=reference_states,
+    )
+    propagated_interpolator = factory.InterpolatorFactory.create(
+        spec=hermite_spec,
+        dimension=6,
+        is_cartesian_state=True,
+        data=propagated_states,
     )
 
     max_position_km = 0.0
@@ -112,10 +119,12 @@ def _max_roundtrip_error_km(
     sample_count = 0
 
     for propagated_epoch, propagated_state in propagated_states:
-        reference_state = interpolator.interpolate(propagated_epoch)
+        reference_state = reference_interpolator.interpolate(propagated_epoch)
         comparison = compare_states(
             (propagated_epoch, reference_state),
             (propagated_epoch, propagated_state),
+            reference_interpolator,
+            propagated_interpolator,
         )
         max_position_km = max(max_position_km, comparison.position_diff_magnitude_km)
         max_velocity_km_s = max(

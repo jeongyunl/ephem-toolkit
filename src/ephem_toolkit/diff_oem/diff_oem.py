@@ -52,6 +52,10 @@ def main() -> None:
     """
     cli_args: DiffOemArgs = parse_arguments()
 
+    # --debug implies --verbose.
+    if cli_args.debug:
+        cli_args.verbose = True
+
     # Propagate the debug flag to all submodules.
     if cli_args.debug:
         comparison_module.set_debug(True)
@@ -69,7 +73,6 @@ def main() -> None:
         )
         reference_states = read_states(reference_source)
         comparison_states = read_states(comparison_source)
-        reference_oem = reference_states[0]
         has_time_window: bool = cli_args.start is not None or cli_args.stop is not None
 
         overlapping_time_range = find_overlapping_time_range(
@@ -158,39 +161,28 @@ def main() -> None:
             return build_comparison_pairs(
                 ref_states,
                 cmp_states,
-                reference_oem,
-                cli_args.interpolate_ref,
-                cli_args.interpolate_data,
                 has_time_window,
                 overlap_start,
                 overlap_stop,
             )
 
-        # Each interpolator evaluates one history at epochs from the other.
-        reference_interpolator = (
-            factory.InterpolatorFactory.create(
-                spec=cli_args.interpolate_type,
-                dimension=6,
-                is_cartesian_state=True,
-                verbose=cli_args.verbose,
-                context="diff_oem.reference_interpolator",
-                data=reference_states,
-            )
-            if cli_args.interpolate_ref
-            else None
+        # Both interpolators are always created.
+        reference_interpolator = factory.InterpolatorFactory.create(
+            spec=cli_args.interpolate_type,
+            dimension=6,
+            is_cartesian_state=True,
+            verbose=cli_args.verbose,
+            context="diff_oem.reference_interpolator",
+            data=reference_states,
         )
 
-        comparison_interpolator = (
-            factory.InterpolatorFactory.create(
-                spec=cli_args.interpolate_type,
-                dimension=6,
-                is_cartesian_state=True,
-                verbose=cli_args.verbose,
-                context="diff_oem.comparison_interpolator",
-                data=comparison_states,
-            )
-            if cli_args.interpolate_data
-            else None
+        comparison_interpolator = factory.InterpolatorFactory.create(
+            spec=cli_args.interpolate_type,
+            dimension=6,
+            is_cartesian_state=True,
+            verbose=cli_args.verbose,
+            context="diff_oem.comparison_interpolator",
+            data=comparison_states,
         )
 
         comparison_pairs = build_pairs(reference_states, comparison_states)
@@ -216,9 +208,6 @@ def main() -> None:
             if stage_key == "rotate":
                 stages.append(
                     RotationStage(
-                        reference_oem,
-                        cli_args.interpolate_ref,
-                        cli_args.interpolate_data,
                         fit_overlap_start,
                         fit_overlap_stop,
                         cli_args.rot_fit_span,
@@ -227,9 +216,6 @@ def main() -> None:
             elif stage_key == "rotate_xy":
                 stages.append(
                     RotationXYStage(
-                        reference_oem,
-                        cli_args.interpolate_ref,
-                        cli_args.interpolate_data,
                         fit_overlap_start,
                         fit_overlap_stop,
                         cli_args.rot_fit_span,
@@ -238,9 +224,6 @@ def main() -> None:
             elif stage_key == "rotate_z":
                 stages.append(
                     RotationZStage(
-                        reference_oem,
-                        cli_args.interpolate_ref,
-                        cli_args.interpolate_data,
                         fit_overlap_start,
                         fit_overlap_stop,
                         cli_args.rot_fit_span,
@@ -249,7 +232,6 @@ def main() -> None:
             elif stage_key == "time_shift":
                 stages.append(
                     TimeShiftStage(
-                        reference_oem,
                         fit_overlap_start,
                         fit_overlap_stop,
                     )
@@ -277,8 +259,6 @@ def main() -> None:
                 comparison_states=comparison_states,
                 stages=stages,
                 build_pairs=build_pairs,
-                interpolate_ref=cli_args.interpolate_ref,
-                interpolate_data=cli_args.interpolate_data,
                 interpolation_spec=cli_args.interpolate_type,
                 debug=cli_args.debug,
             )
@@ -305,8 +285,6 @@ def main() -> None:
                         context=f"diff_oem.transformed_stage_{stage_index}",
                         data=transformed_comparison_states,
                     )
-                    if cli_args.interpolate_data
-                    else None
                 )
                 transformed_results = compare_pairs(
                     transformed_comparison_pairs,
