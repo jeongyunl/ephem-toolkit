@@ -1,4 +1,8 @@
-"""CLI argument parsing for the OMM propagation command."""
+"""CLI argument parsing for the OMM/TLE propagation command.
+
+Usage:
+    propagate-omm <input_omm|input_tle|-> [options]
+"""
 
 from __future__ import annotations
 
@@ -8,14 +12,18 @@ import ephem_toolkit.core.cli as cli
 import ephem_toolkit.core.time_utils as time_utils
 
 DEFAULT_PROPAGATION_DURATION_S: float = time_utils.SECONDS_PER_DAY
+"""Default propagation duration in seconds (1 day)."""
+
 DEFAULT_OUTPUT_STEP_S: float = 5.0 * time_utils.SECONDS_PER_MINUTE
+"""Default output sampling interval in seconds (5 minutes)."""
 
 
 class PropagateOmmArgs(argparse.Namespace):
-    """Typed argument namespace for the OMM propagation CLI."""
+    """Typed argument namespace for the OMM/TLE propagation CLI."""
 
-    omm_file: str
-    """OMM input file path or '-' for stdin."""
+    input_file: str
+    """Input file path for OMM or TLE, or '-' for stdin."""
+    is_tle: bool
     duration_s: float
     """Propagation duration in seconds."""
     output_oem: str
@@ -31,26 +39,36 @@ class PropagateOmmArgs(argparse.Namespace):
 
 
 def parse_arguments() -> PropagateOmmArgs:
-    """Parse CLI arguments for OMM propagation."""
+    """Parse command-line arguments for the OMM/TLE propagation workflow.
+
+    Returns
+    -------
+    PropagateOmmArgs
+        Parsed argument namespace for the propagation command.
+    """
     parser = cli.create_parser(
         description=(
-            "Load one OMM file and propagate the orbit. Uses SGP4 if the OMM "
-            "contains TLE parameters, otherwise uses two-body Kepler propagation. "
-            "Output is CCSDS OEM state history."
+            "Load one OMM or TLE input and propagate the orbit. Uses SGP4 if the "
+            "input is a raw TLE or an OMM with TLE parameters; otherwise uses "
+            "two-body Kepler propagation. Output is CCSDS OEM state history."
         ),
         epilog=(
             "Examples:\n"
             "  propagate-omm satellite.omm --duration 6h -o output.oem\n"
-            "  propagate-omm --start 2026-01-01T00:00:00 --duration 90m -o propagated.oem\n"
+            "  propagate-omm image.tle --tle --duration 6h -o propagated.oem\n"
             "  cat satellite.omm | propagate-omm - -o - --data-only"
         ),
     )
     parser.add_argument(
-        "omm_file",
-        metavar="<omm_file|->",
-        nargs="?",
-        default="-",
-        help='Path to an OMM file. Use "-" to read OMM text from stdin.',
+        "input_file",
+        metavar="<tle_file|omm_file|->",
+        help='Path to an OMM or TLE file. Use "-" to read input text from stdin.',
+    )
+    parser.add_argument(
+        "--tle",
+        dest="is_tle",
+        action="store_true",
+        help="Interpret the input as a raw TLE file instead of an OMM file.",
     )
     parser.add_argument(
         "-d",
