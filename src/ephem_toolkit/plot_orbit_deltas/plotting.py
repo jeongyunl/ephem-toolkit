@@ -144,6 +144,10 @@ def plot_orbits(
 
     # Plot comparison data in a single loop
     for orbit in comparison_data:
+        if not orbit.timestamps:
+            print(f"Skipping comparison orbit with no valid timestamps: {orbit.label}")
+            continue
+
         # Save plot data to CSV (one file per dataset) if output_file is provided
         csv_path = generate_csv_path(output_file, "absolute_orbits", orbit.label)
         if csv_path is not None:

@@ -8,7 +8,11 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
+
+from ephem_toolkit.plot_orbit_deltas.data_structures import StateHistory
 from ephem_toolkit.plot_orbit_deltas.plot_orbit_deltas_cli import parse_arguments
+from ephem_toolkit.plot_orbit_deltas.plotting import plot_orbits
 
 PROJECT_ROOT: Path = Path(__file__).parent.parent.parent.parent
 
@@ -53,3 +57,17 @@ def test_plot_orbit_deltas_parse_arguments_sets_input_oem_files() -> None:
         args = parse_arguments()
 
     assert args.input_oem_files == sample_files
+
+
+def test_plot_orbits_skips_empty_comparison_histories() -> None:
+    """Comparison orbits with no valid timestamps should not crash the absolute orbit plot."""
+    reference_state_history = StateHistory(
+        label="reference",
+        state_history={
+            0.0: np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+            1.0: np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        },
+    )
+    empty_comparison = StateHistory(label="empty", state_history={})
+
+    plot_orbits(reference_state_history, [empty_comparison], output_file=None)
