@@ -379,7 +379,6 @@ def parse_arguments() -> PropagateOrbitArgs:
         "--output",
         dest="output_oem",
         metavar="<output_oem|->",
-        default="-",
         help=(
             "Write propagated state history as OEM state-vector lines to the target path; "
             "'-' writes to stdout."
