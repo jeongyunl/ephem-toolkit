@@ -873,7 +873,7 @@ def _create_test_tle(
     """Create a TLE object from mean elements for testing."""
     n_rev_day: float = _sgp4_mean_motion_rev_per_day(a_m)
     return tle.Tle(
-        name="REFINE",
+        object_name="REFINE",
         norad_cat_id=0,
         classification="U",
         int_designator_year=0,
@@ -1106,7 +1106,7 @@ def cartesian_to_tle(
     mean_motion_ddot_tle: str = convert_tle._float_to_tle_exponential(0.0)
 
     return tle.Tle(
-        name=object_name,
+        object_name=object_name,
         norad_cat_id=0,
         classification="U",
         int_designator_year=int_year,

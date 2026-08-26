@@ -39,7 +39,7 @@ def test_read_tle_three_line_returns_tle_dataclass() -> None:
     t = tle.read_tle(io.StringIO(ISS_3LINE))
 
     assert isinstance(t, tle.Tle)
-    assert t.name == ISS_NAME
+    assert t.object_name == ISS_NAME
     assert t.norad_cat_id == 25544
     assert t.classification == "U"
     assert t.int_designator_year == 98
@@ -69,7 +69,7 @@ def test_read_tle_two_line_sets_empty_name() -> None:
     t = tle.read_tle(io.StringIO(LEO_2LINE))
 
     assert isinstance(t, tle.Tle)
-    assert t.name == ""
+    assert t.object_name == ""
     assert t.norad_cat_id == 57392
     assert t.inclination_deg == pytest.approx(99.5618, abs=1e-4)
     assert t.mean_motion_first_derivative == pytest.approx(-0.00000025, abs=1e-10)
@@ -138,7 +138,7 @@ def test_tle_getitem() -> None:
     """Should support tle['field'] dict-style access."""
     t = tle.read_tle(io.StringIO(ISS_3LINE))
     assert t["norad_cat_id"] == 25544
-    assert t["name"] == ISS_NAME
+    assert t["object_name"] == ISS_NAME
 
 
 def test_tle_getitem_raises_keyerror_for_missing() -> None:
@@ -168,7 +168,7 @@ def test_tle_to_dict() -> None:
     d = t.to_dict()
     assert isinstance(d, dict)
     assert d["norad_cat_id"] == 25544
-    assert d["name"] == ISS_NAME
+    assert d["object_name"] == ISS_NAME
     assert d["eccentricity"] == pytest.approx(0.0007202, abs=1e-7)
 
 
@@ -200,7 +200,7 @@ def test_write_tle_from_dataclass_produces_valid_lines() -> None:
 def test_write_tle_from_dict() -> None:
     """Should accept a plain dict and produce valid TLE lines."""
     tle_dict = {
-        "name": "",
+        "object_name": "",
         "norad_cat_id": 57392,
         "classification": "U",
         "int_designator_year": 23,
@@ -250,7 +250,7 @@ def test_round_trip_preserves_elements(tle_path: Path) -> None:
 
     tle2 = tle.read_tle(buf)
 
-    assert tle2.name == tle1.name
+    assert tle2.object_name == tle1.object_name
     assert tle2.norad_cat_id == tle1.norad_cat_id
     assert tle2.classification == tle1.classification
     assert tle2.int_designator_year == tle1.int_designator_year
@@ -318,10 +318,10 @@ def test_read_tle_from_file_path(tmp_path: Path) -> None:
 
     t = tle.read_tle(str(tle_path))
     assert isinstance(t, tle.Tle)
-    assert t.name == ISS_NAME
+    assert t.object_name == ISS_NAME
     assert t.norad_cat_id == 25544
 
     t2 = tle.read_tle(tle_path)
     assert isinstance(t2, tle.Tle)
-    assert t2.name == ISS_NAME
+    assert t2.object_name == ISS_NAME
     assert t2.norad_cat_id == 25544

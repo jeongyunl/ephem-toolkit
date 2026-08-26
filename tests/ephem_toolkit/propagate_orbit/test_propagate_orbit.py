@@ -19,8 +19,16 @@ def test_parse_arguments_accepts_canonical_input_and_output_flags(
     )
     args = propagate_orbit_cli.parse_arguments()
     assert args.input_opm == input_opm
-    assert args.output_oem == "-"
+    assert args.output_oem is None
     assert args.duration == 7200.0
+
+    monkeypatch.setattr(
+        "sys.argv",
+        ["propagate-orbit", input_opm, "--duration", "2h", "--output", "-"],
+    )
+    args = propagate_orbit_cli.parse_arguments()
+    assert args.input_opm == input_opm
+    assert args.output_oem == "-"
 
     monkeypatch.setattr(
         "sys.argv",
