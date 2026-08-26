@@ -301,7 +301,7 @@ def tle_to_omm(
         creation_date=creation_date,
         originator=originator,
         comments=[],
-        object_name=tle_obj.name,
+        object_name=tle_obj.object_name,
         object_id=object_id,
         center_name="EARTH",
         ref_frame="TEME",
@@ -384,7 +384,7 @@ def omm_to_tle(omm_obj: omm.CcsdsOmm) -> tle.Tle:
     eccentricity_raw: str = f"{int(round(omm_obj.eccentricity * 1e7)):07d}"
 
     return tle.Tle(
-        name=omm_obj.object_name,
+        object_name=omm_obj.object_name,
         line1="",
         line2="",
         norad_cat_id=tle_params.norad_cat_id,

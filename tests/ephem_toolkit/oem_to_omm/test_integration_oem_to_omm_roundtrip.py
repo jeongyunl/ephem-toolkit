@@ -132,7 +132,7 @@ def run_oem_to_tle(
         "--output",
         "-",
         "--object-name",
-        original.name if original.name else "",
+        original.object_name if original.object_name else "",
         "--object-id",
         object_id,
         "--tle-norad-cat-id",
@@ -176,7 +176,7 @@ def parse_generated_tle_from_output(output: str) -> tle.Tle:
     omm_obj: omm.CcsdsOmm = omm.CcsdsOmm.from_source(io.StringIO(output))
     tle_partial: tle.Tle = convert_tle.omm_to_tle(omm_obj)
     line1, line2 = tle.format_tle_strings(tle_partial)
-    name: str = tle_partial.name or ""
+    name: str = tle_partial.object_name or ""
     tle_text: str = f"{name}\n{line1}\n{line2}\n" if name else f"{line1}\n{line2}\n"
     return tle.read_tle(io.StringIO(tle_text))
 

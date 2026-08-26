@@ -93,7 +93,7 @@ def test_omm_to_tle_matches_reference_file(tle_path: Path, omm_path: Path) -> No
 
     tle_result = conv.omm_to_tle(omm_data)
 
-    assert tle_result.name == tle_ref.name
+    assert tle_result.object_name == tle_ref.object_name
     assert tle_result.norad_cat_id == tle_ref.norad_cat_id
     assert tle_result.classification == tle_ref.classification
     assert tle_result.int_designator_year == tle_ref.int_designator_year

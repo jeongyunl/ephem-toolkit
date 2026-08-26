@@ -51,7 +51,7 @@ def test_build_tle_data_creates_valid_tle() -> None:
     tle_data = tle_builder.build_tle_data(args, estimated)
 
     assert isinstance(tle_data, tle.Tle)
-    assert tle_data.name == "TEST SAT"
+    assert tle_data.object_name == "TEST SAT"
     assert tle_data.norad_cat_id == 12345
     assert tle_data.classification == "U"
     assert 0 <= tle_data.inclination_deg <= 180

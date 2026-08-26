@@ -80,7 +80,7 @@ def build_tle_data(args: argparse.Namespace, estimated: models.Estimated) -> tle
         TLE dataclass instance.
     """
     return tle.Tle(
-        name=args.name,
+        object_name=args.name,
         norad_cat_id=args.norad_cat_id,
         classification=args.classification,
         int_designator_year=args.int_designator_year,

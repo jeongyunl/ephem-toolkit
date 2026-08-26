@@ -39,7 +39,7 @@ class Tle:
         https://en.wikipedia.org/wiki/Two-line_element_set
     """
 
-    name: str = ""
+    object_name: str = ""
     """Satellite name (may be empty if not present in the TLE source)"""
 
     line1: str = ""
@@ -98,7 +98,7 @@ class Tle:
     """Computed modulo-10 checksum for line 2"""
 
     def to_dict(self) -> dict[str, object]:
-        """Convert to a plain dictionary (for backward compatibility)."""
+        """Convert to a plain dictionary."""
         return asdict(self)
 
     def __getitem__(self, key: str) -> object:
@@ -121,7 +121,7 @@ class Tle:
 
     def __repr__(self) -> str:
         return (
-            f"Tle(name={self.name!r}, "
+            f"Tle(name={self.object_name!r}, "
             f"norad_cat_id={self.norad_cat_id}, "
             f"epoch_year={self.epoch_year}, "
             f"epoch_day={self.epoch_day:.8f})"
@@ -389,7 +389,7 @@ def create_tle_from_mean_keplerian(
 
     # Create and return TLE object
     return Tle(
-        name=name,
+        object_name=name,
         norad_cat_id=norad_cat_id,
         classification=classification,
         int_designator_year=int_designator_year,
@@ -590,7 +590,7 @@ def tle_epoch_to_datetime(epoch_year: int, epoch_day: float) -> datetime:
         year = 2000 + epoch_year
 
     # Day 1 = Jan 1, so day-of-year offset is (epoch_day - 1)
-    return datetime(year, 1, 1) + timedelta(days=epoch_day - 1.0)
+    return datetime(year, 1, 1, tzinfo=timezone.utc) + timedelta(days=epoch_day - 1.0)
 
 
 def tle_epoch_to_iso8601(epoch_year: int, epoch_day: float) -> str:
@@ -720,7 +720,7 @@ def read_tle(stream: TextIO | str | Path) -> Tle:
     eccentricity_raw: str = line2[26:33]
 
     return Tle(
-        name=name,
+        object_name=name,
         line1=line1,
         line2=line2,
         norad_cat_id=int(line1[2:7]),
@@ -784,7 +784,7 @@ def write_tle(
 
     line1, line2 = format_tle_strings(tle_data)
 
-    name: str = _tle_field_opt(tle_data, "name", "")  # type: ignore[assignment]
+    name: str = _tle_field_opt(tle_data, "object_name", "")  # type: ignore[assignment]
     write_text: Callable[[str], int] = dest.write
 
     if name:
