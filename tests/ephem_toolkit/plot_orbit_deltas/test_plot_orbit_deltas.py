@@ -6,6 +6,9 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch
+
+from ephem_toolkit.plot_orbit_deltas.plot_orbit_deltas_cli import parse_arguments
 
 PROJECT_ROOT: Path = Path(__file__).parent.parent.parent.parent
 
@@ -15,7 +18,9 @@ def _build_env() -> dict[str, str]:
     env: dict[str, str] = os.environ.copy()
     existing: str = env.get("PYTHONPATH", "")
     source_root = PROJECT_ROOT / "src"
-    env["PYTHONPATH"] = os.pathsep.join([str(source_root), existing]) if existing else str(source_root)
+    env["PYTHONPATH"] = (
+        os.pathsep.join([str(source_root), existing]) if existing else str(source_root)
+    )
     return env
 
 
@@ -38,3 +43,13 @@ def test_plot_orbit_deltas_help_uses_command_name_and_output_placeholder() -> No
     assert result.returncode == 0
     assert "usage: plot-orbit-deltas" in result.stdout
     assert "--output <output_plot>" in result.stdout
+
+
+def test_plot_orbit_deltas_parse_arguments_sets_input_oem_files() -> None:
+    """The positional OEM arguments should populate the expected attribute name."""
+    sample_files = ["tmp/leo3_aug_aa.oem", "tmp/leo3_aug_ab.oem"]
+
+    with patch.object(sys, "argv", ["plot-orbit-deltas", *sample_files]):
+        args = parse_arguments()
+
+    assert args.input_oem_files == sample_files
