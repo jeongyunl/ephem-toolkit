@@ -11,11 +11,13 @@ References:
 
 from __future__ import annotations
 
+import math
 import re
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Callable, Mapping, TextIO
+from typing import TextIO
 
 from . import time_utils
 
@@ -294,7 +296,7 @@ def _tle_field_opt(
 
 
 def create_tle_from_mean_keplerian(
-    mean_elements: object,
+    mean_elements: Sequence[float],
     mu_m3_s2: float,
     epoch_year: int,
     epoch_day: float,
@@ -364,7 +366,6 @@ def create_tle_from_mean_keplerian(
     https://en.wikipedia.org/wiki/Orbital_elements
     https://celestrak.org/NORAD/documentation/tle-fmt.php
     """
-    import math
     from . import kepler
 
     # Extract mean Keplerian elements from array
@@ -415,7 +416,7 @@ def create_tle_from_mean_keplerian(
 def _format_tle_strings(
     tle_data: Tle | Mapping[str, object],
 ) -> tuple[str, str]:
-    """Format TLE data into line1 and line2 strings (without checksums).
+    """Format TLE data into line-1 and line-2 strings without checksums.
 
     Parameters
     ----------
@@ -426,7 +427,7 @@ def _format_tle_strings(
     Returns
     -------
     tuple[str, str]
-        The formatted *(line1_no_cksum, line2_no_cksum)* strings (68 chars each,
+        The formatted ``(line1_no_cksum, line2_no_cksum)`` strings (68 chars each,
         without trailing checksum digits).
 
     Raises
@@ -512,6 +513,18 @@ def _format_tle_strings(
 def format_tle_strings(
     tle_data: Tle | Mapping[str, object],
 ) -> tuple[str, str]:
+    """Return formatted TLE lines with trailing checksum digits included.
+
+    Parameters
+    ----------
+    tle_data : Tle | Mapping[str, object]
+        A :class:`Tle` dataclass instance or a mapping to serialize.
+
+    Returns
+    -------
+    tuple[str, str]
+        The fully formatted ``(line1, line2)`` strings.
+    """
     line1_no_cksum: str
     line2_no_cksum: str
     line1_no_cksum, line2_no_cksum = _format_tle_strings(tle_data)
@@ -556,6 +569,30 @@ def datetime_to_tle_epoch(epoch_dt: datetime) -> tuple[int, float]:
     return epoch_year, epoch_day
 
 
+def tle_epoch_to_datetime(epoch_year: int, epoch_day: float) -> datetime:
+    """Convert a TLE epoch to a Python datetime.
+
+    Parameters
+    ----------
+    epoch_year : int
+        Two-digit TLE epoch year.
+    epoch_day : float
+        Fractional day-of-year offset, with 1.0 representing 00:00 on January 1.
+
+    Returns
+    -------
+    datetime
+        The corresponding datetime value.
+    """
+    if epoch_year >= 57:
+        year: int = 1900 + epoch_year
+    else:
+        year = 2000 + epoch_year
+
+    # Day 1 = Jan 1, so day-of-year offset is (epoch_day - 1)
+    return datetime(year, 1, 1) + timedelta(days=epoch_day - 1.0)
+
+
 def tle_epoch_to_iso8601(epoch_year: int, epoch_day: float) -> str:
     """Convert TLE epoch (2-digit year + fractional day) to a human-readable string.
 
@@ -584,14 +621,7 @@ def tle_epoch_to_iso8601(epoch_year: int, epoch_day: float) -> str:
     https://en.wikipedia.org/wiki/ISO_8601
     https://celestrak.org/NORAD/documentation/tle-fmt.php
     """
-    # Convert 2-digit year to 4-digit year
-    if epoch_year >= 57:
-        year: int = 1900 + epoch_year
-    else:
-        year = 2000 + epoch_year
-
-    # Day 1 = Jan 1, so day-of-year offset is (epoch_day - 1)
-    dt: datetime = datetime(year, 1, 1) + timedelta(days=epoch_day - 1.0)
+    dt: datetime = tle_epoch_to_datetime(epoch_year, epoch_day)
     return time_utils.datetime_to_iso8601(dt, fractional_second_places=6)
 
 
@@ -632,18 +662,18 @@ def iso8601_to_tle_epoch(iso_str: str) -> tuple[int, float]:
 # ===================================================================
 
 
-def read_tle(stream: TextIO) -> Tle:
-    """Parse TLE elements from a text stream (file-like object).
+def read_tle(stream: TextIO | str | Path) -> Tle:
+    """Parse TLE elements from a text stream or file path.
 
-    The stream should contain either:
+    The stream or file should contain either:
 
     * Two lines: *line1* and *line2* of the TLE.
     * Three lines: *name*, *line1*, and *line2* of the TLE.
 
     Parameters
     ----------
-    stream : TextIO
-        Readable text stream containing TLE data.
+    stream : TextIO | str | Path
+        Readable text stream or path to a file containing TLE data.
 
     Returns
     -------
@@ -655,6 +685,10 @@ def read_tle(stream: TextIO) -> Tle:
     https://celestrak.org/NORAD/documentation/tle-fmt.php
     https://en.wikipedia.org/wiki/Two-line_element_set
     """
+    if isinstance(stream, (str, Path)):
+        with open(stream, "r", encoding="utf-8") as fh:
+            return read_tle(fh)
+
     lines: list[str] = [line.rstrip("\n") for line in stream if line.strip()]
 
     if len(lines) < 2:
@@ -751,11 +785,11 @@ def write_tle(
     line1, line2 = format_tle_strings(tle_data)
 
     name: str = _tle_field_opt(tle_data, "name", "")  # type: ignore[assignment]
-    w: Callable[[str], int] = dest.write
+    write_text: Callable[[str], int] = dest.write
 
     if name:
-        w(name + "\n")
-    w(line1 + "\n")
-    w(line2 + "\n")
+        write_text(name + "\n")
+    write_text(line1 + "\n")
+    write_text(line2 + "\n")
 
     return line1, line2
