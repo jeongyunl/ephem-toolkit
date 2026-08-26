@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""OMM propagation to OEM output.
+"""Propagate OMM or TLE input to OEM output.
 
-Load one OMM file, determine propagation method based on content:
+Load one OMM or TLE input, determine the propagation method based on content:
 - If the OMM contains TLE parameters, propagate with TudatPy's SGP4 ephemeris.
+- If the input is a raw TLE, propagate with TudatPy's SGP4 ephemeris.
 - Otherwise, propagate using the two-body Kepler propagator.
 
 Output is emitted as CCSDS OEM state vectors.
 
 Usage:
-    propagate-omm <omm_file> [options]
+    propagate-omm <input_file|-> [options]
     propagate-omm - [options]
-    cat <omm_file> | propagate-omm - -o - [options]
+    cat <input_file> | propagate-omm - -o - [options]
 
 Time window options:
     --start <iso8601|duration>   Start epoch (absolute or relative to OMM epoch)
@@ -20,9 +21,10 @@ Time window options:
 from __future__ import annotations
 
 import datetime as dt
+import io
 import sys
 import warnings
-from typing import Any
+from typing import TextIO
 
 import numpy as np
 
@@ -61,6 +63,33 @@ DEFAULT_OUTPUT_STEP_S: float = 5.0 * time_utils.SECONDS_PER_MINUTE
 # ===================================================================
 
 
+def read_tle_input(cli_value: str | None) -> tle_mod.Tle:
+    """Read and parse a TLE from file or stdin.
+
+    Parameters
+    ----------
+    cli_value : str | None
+        Path to TLE file, or "-" for stdin.
+
+    Returns
+    -------
+    tle_mod.Tle
+        Parsed TLE object.
+    """
+    if cli_value == "-" or cli_value is None:
+        if sys.stdin.isatty():
+            raise ValueError(
+                "Input not provided. Pass <input_file> or pipe TLE text on stdin."
+            )
+
+        stdin_text: str = sys.stdin.read()
+        if not stdin_text.strip():
+            raise ValueError("Empty stdin input. Provide TLE text on stdin.")
+        return tle_mod.read_tle(io.StringIO(stdin_text))
+
+    return tle_mod.read_tle(cli_value)
+
+
 def read_omm_input(cli_value: str | None) -> omm.CcsdsOmm:
     """Read and parse an OMM from file or stdin.
 
@@ -79,7 +108,6 @@ def read_omm_input(cli_value: str | None) -> omm.CcsdsOmm:
             raise ValueError(
                 "OMM input not provided. Pass <omm_file> or pipe OMM text on stdin."
             )
-        import io
 
         stdin_text: str = sys.stdin.read()
         if not stdin_text.strip():
@@ -105,19 +133,19 @@ def load_spice_kernels() -> None:
 
 
 def propagate_tle_sgp4(
-    omm_data: omm.CcsdsOmm,
+    tle_obj: tle_mod.Tle,
     start_time: dt.datetime,
     stop_time: dt.datetime,
     step_s: float,
     data_only: bool,
     output_path: str = "-",
 ) -> None:
-    """Propagate OMM with TLE parameters using TudatPy SGP4.
+    """Propagate a TLE with TudatPy SGP4 and emit OEM output.
 
     Parameters
     ----------
-    omm_data : omm.CcsdsOmm
-        Parsed OMM with TLE parameters.
+    tle_obj : tle_mod.Tle
+        TLE object to propagate.
     start_time : dt.datetime
         Propagation start epoch (UTC).
     stop_time : dt.datetime
@@ -126,18 +154,16 @@ def propagate_tle_sgp4(
         Output sampling interval (s).
     data_only : bool
         If True, emit state lines only (no OEM header).
-    output_path : str
+    output_path : str, optional
         Output path or "-" for stdout.
     """
     from tudatpy.dynamics import environment_setup
 
-    load_spice_kernels()
+    object_name: str = tle_obj.object_name or "UNKNOWN"
 
-    # Convert OMM to TLE, then format TLE lines for SGP4
-    tle_obj: tle_mod.Tle = convert_tle.omm_to_tle(omm_data)
     line1, line2 = tle_mod.format_tle_strings(tle_obj)
 
-    object_name: str = omm_data.object_name or "UNKNOWN"
+    load_spice_kernels()
 
     # Create SGP4 ephemeris
     tle_ephemeris_settings = environment_setup.ephemeris.sgp4(line1, line2)
@@ -165,12 +191,43 @@ def propagate_tle_sgp4(
     _write_oem_output(propagated_states, object_name, data_only, output_path)
 
 
+def propagate_omm_sgp4(
+    omm_data: omm.CcsdsOmm,
+    start_time: dt.datetime,
+    stop_time: dt.datetime,
+    step_s: float,
+    data_only: bool,
+    output_path: str = "-",
+) -> None:
+    """Propagate OMM with TLE parameters using TudatPy SGP4.
+
+    Parameters
+    ----------
+    omm_data : omm.CcsdsOmm
+        Parsed OMM with TLE parameters.
+    start_time : dt.datetime
+        Propagation start epoch (UTC).
+    stop_time : dt.datetime
+        Propagation stop epoch (UTC).
+    step_s : float
+        Output sampling interval (s).
+    data_only : bool
+        If True, emit state lines only (no OEM header).
+    output_path : str
+        Output path or "-" for stdout.
+    """
+    # Convert OMM to TLE, then format TLE lines for SGP4
+    tle_obj: tle_mod.Tle = convert_tle.omm_to_tle(omm_data)
+
+    propagate_tle_sgp4(tle_obj, start_time, stop_time, step_s, data_only, output_path)
+
+
 # ===================================================================
 # Kepler propagation path (two-body)
 # ===================================================================
 
 
-def propagate_kepler_from_omm(
+def propagate_omm_kepler(
     omm_data: omm.CcsdsOmm,
     start_time: dt.datetime,
     stop_time: dt.datetime,
@@ -259,7 +316,7 @@ def _write_oem_output(
         Output path or "-" for stdout.
     """
 
-    def emit(output_stream: Any) -> None:
+    def emit(output_stream: TextIO) -> None:
         if data_only:
             oem.CcsdsOem.from_states(propagated_states).write_states(output_stream)
         else:
@@ -325,14 +382,16 @@ def main() -> int:
     """
     cli_args: PropagateOmmArgs = parse_arguments()
 
-    if cli_args.step <= 0.0:
-        raise ValueError("--step must be > 0")
-
-    # Load OMM
-    omm_data: omm.CcsdsOmm = read_omm_input(cli_args.omm_file)
-
-    # Determine reference epoch from OMM
-    reference_dt: dt.datetime = time_utils.iso8601_to_datetime(omm_data.epoch)
+    if cli_args.is_tle:
+        tle_data: tle_mod.Tle = read_tle_input(cli_args.input_file)
+        reference_dt: dt.datetime = tle_mod.tle_epoch_to_datetime(
+            tle_data.epoch_year, tle_data.epoch_day
+        )
+    else:
+        # Load OMM input (or OMM embedded in a file stream)
+        omm_data: omm.CcsdsOmm = read_omm_input(cli_args.input_file)
+        # Determine the reference epoch from the OMM metadata.
+        reference_dt: dt.datetime = time_utils.iso8601_to_datetime(omm_data.epoch)
 
     # Resolve time window
     start_spec: dt.datetime | dt.timedelta
@@ -352,11 +411,12 @@ def main() -> int:
         reference_dt, start_spec, stop_spec, cli_args.duration_s
     )
 
-    # Dispatch based on OMM content
-    if omm_data.tle_parameters is not None:
-        # TLE data present → use SGP4 propagator
+    if cli_args.step <= 0.0:
+        raise ValueError("--step must be > 0")
+
+    if cli_args.is_tle:
         propagate_tle_sgp4(
-            omm_data=omm_data,
+            tle_obj=tle_data,
             start_time=start_time,
             stop_time=stop_time,
             step_s=cli_args.step,
@@ -364,15 +424,27 @@ def main() -> int:
             output_path=cli_args.output_oem,
         )
     else:
-        # No TLE data → use two-body Kepler propagator
-        propagate_kepler_from_omm(
-            omm_data=omm_data,
-            start_time=start_time,
-            stop_time=stop_time,
-            step_s=cli_args.step,
-            data_only=cli_args.data_only,
-            output_path=cli_args.output_oem,
-        )
+        # Dispatch based on OMM content
+        if omm_data.tle_parameters is not None:
+            # TLE data present → use SGP4 propagator
+            propagate_omm_sgp4(
+                omm_data=omm_data,
+                start_time=start_time,
+                stop_time=stop_time,
+                step_s=cli_args.step,
+                data_only=cli_args.data_only,
+                output_path=cli_args.output_oem,
+            )
+        else:
+            # No TLE data → use two-body Kepler propagator
+            propagate_omm_kepler(
+                omm_data=omm_data,
+                start_time=start_time,
+                stop_time=stop_time,
+                step_s=cli_args.step,
+                data_only=cli_args.data_only,
+                output_path=cli_args.output_oem,
+            )
 
     return 0
 
