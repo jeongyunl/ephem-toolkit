@@ -309,3 +309,19 @@ def test_write_tle_to_file_path_with_name(tmp_path: Path) -> None:
     # 3-line TLE (name + line1 + line2)
     assert len(lines) == 3
     assert lines[0] == ISS_NAME
+
+
+def test_read_tle_from_file_path(tmp_path: Path) -> None:
+    """Should read a TLE from a path argument as well as an open stream."""
+    tle_path = tmp_path / "iss.tle"
+    tle_path.write_text(ISS_3LINE, encoding="utf-8")
+
+    t = tle.read_tle(str(tle_path))
+    assert isinstance(t, tle.Tle)
+    assert t.name == ISS_NAME
+    assert t.norad_cat_id == 25544
+
+    t2 = tle.read_tle(tle_path)
+    assert isinstance(t2, tle.Tle)
+    assert t2.name == ISS_NAME
+    assert t2.norad_cat_id == 25544
