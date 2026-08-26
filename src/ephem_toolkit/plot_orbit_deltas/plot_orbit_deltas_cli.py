@@ -34,7 +34,7 @@ def parse_arguments() -> PlotOrbitDeltasArgs:
     parser.prog = "plot-orbit-deltas"
 
     parser.add_argument(
-        "files",
+        "input_oem_files",
         nargs="+",
         metavar="<input_oem>",
         help="OEM or raw-state files. The first file is the reference orbit.",
