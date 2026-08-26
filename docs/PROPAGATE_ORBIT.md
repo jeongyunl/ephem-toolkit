@@ -22,9 +22,9 @@ cat input.opm | propagate-orbit - -o - [OPTIONS]
 
 | Option | Description |
 |--------|-------------|
-| `<input_opm|->` | Positional OPM input path, or `-` to read OPM content from stdin. |
+| `<input_opm\|->` | Positional OPM input path, or `-` to read OPM content from stdin. |
 | `-d`, `--duration <duration>` | Simulation duration. Defaults to the configured simulation duration. |
-| `-o`, `--output <output_oem|->` | Output OEM state history. `-` writes to stdout. |
+| `-o`, `--output <output_oem\|->` | Output OEM state history. `-` writes to stdout. |
 | `--data-only` | Write state vectors without OEM header or metadata. |
 | `--dep-vars <output_csv>` | Write dependent variables to a CSV file. |
 | `--name <name>` | Propagated satellite name. |
@@ -186,4 +186,3 @@ The propagation workflow loads these SPICE kernels through TudatPy:
 - `plot-dependent-variables` - Plot a dependent-variable CSV.
 - `plot-orbit` - Plot the resulting OEM history.
 
-See [PROPAGATION.md](PROPAGATION.md) for the grouped propagation workflow.

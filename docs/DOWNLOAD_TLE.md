@@ -97,4 +97,3 @@ The command requires network access to CelesTrak and satellite IDs that are vali
 - `tle-to-omm` - Convert TLE data to OMM.
 - `propagate-tle` - Propagate a TLE history.
 
-See [TLE.md](TLE.md) for the grouped TLE workflow.

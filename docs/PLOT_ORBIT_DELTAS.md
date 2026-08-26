@@ -131,4 +131,3 @@ plot-orbit-deltas -h
 - `plot-orbit` - Produce diagnostic plots for one OEM orbit.
 - `slice-oem` - Extract a subset of an OEM history.
 
-See [MISC.md](MISC.md) for the grouped orbit-analysis utilities.

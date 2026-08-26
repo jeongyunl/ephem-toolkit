@@ -63,4 +63,3 @@ The command writes the converted OMM to stdout when no output path is supplied. 
 - `download-tle` - Download TLE or OMM data.
 - `propagate-tle` - Propagate a TLE history.
 
-See [TLE.md](TLE.md) for the grouped TLE workflow.

@@ -141,4 +141,3 @@ TudatPy data paths.
 - `propagate-kepler` - Run two-body Keplerian propagation.
 - `propagate-orbit` - Run perturbed propagation.
 
-See [PROPAGATION.md](PROPAGATION.md) for the grouped propagation workflow.
