@@ -79,7 +79,9 @@ def main() -> None:
 
     # Read reference orbit
     print(f"Reading reference orbit from {cli_args.input_oem_files[0]}...")
-    ref_state_history: dict[float, np.ndarray] = read_orbit_file(cli_args.input_oem_files[0])
+    ref_state_history: dict[float, np.ndarray] = read_orbit_file(
+        cli_args.input_oem_files[0]
+    )
     print(f"  Loaded {len(ref_state_history)} states")
 
     # Read comparison orbits
@@ -130,6 +132,11 @@ def main() -> None:
             for ts, state in orbit.state_history.items()
             if ts <= end_timestamp_s
         }
+        if not filtered_state_history:
+            print(
+                f"Skipping comparison orbit with no data before {end_timestamp_s}: {orbit.label}"
+            )
+            continue
         filtered_comparison_data.append(
             StateHistory(label=orbit.label, state_history=filtered_state_history)
         )
