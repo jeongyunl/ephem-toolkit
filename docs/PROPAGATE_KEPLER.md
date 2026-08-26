@@ -22,9 +22,9 @@ cat input.opm | propagate-kepler - -o - [OPTIONS]
 
 | Option | Description |
 |--------|-------------|
-| `<input_opm|->` | CCSDS OPM file path. `-` reads OPM content from stdin. |
+| `<input_opm\|->` | CCSDS OPM file path. `-` reads OPM content from stdin. |
 | `-d`, `--duration <duration>` | Simulation duration. Accepts values such as `90s`, `2m`, `1.5h`, or `1d`. Defaults to one day. |
-| `-o`, `--output <output_oem|->` | Output OEM state history. `-` writes to stdout. Defaults to `-`. |
+| `-o`, `--output <output_oem\|->` | Output OEM state history. `-` writes to stdout. Defaults to `-`. |
 | `-s`, `--step <duration>` | Output interval, such as `60s` or `1m`. Defaults to 15 minutes. |
 | `--data-only` | Write state lines without the OEM metadata header. |
 | `-h`, `--help` | Show the help message and exit. |
@@ -88,4 +88,3 @@ standard output.
 - `propagate-tle` - Propagate a TLE using SGP4.
 - `plot-orbit` - Plot an OEM orbit.
 
-See [PROPAGATION.md](PROPAGATION.md) for the grouped propagation workflow.

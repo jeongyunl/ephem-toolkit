@@ -248,8 +248,6 @@ Refinement time scales with:
 
 ## See Also
 
-- [TLE.md](TLE.md) — TLE utilities overview
-- [PROPAGATION.md](PROPAGATION.md) — Orbit propagation tools
 - [README.md](../README.md) — Repository overview
 
 Detailed algorithm and strategy documentation is included below.

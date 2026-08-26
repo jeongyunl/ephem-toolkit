@@ -155,4 +155,3 @@ The command reports input and processing progress on standard output and reports
 - `slice-oem` - Extract a time or index range from an OEM file
 - `propagate-orbit` - Generate OEM data from perturbed orbit propagation
 
-See [MISC.md](MISC.md) for miscellaneous utilities and [PROPAGATION.md](PROPAGATION.md) for propagation workflows.

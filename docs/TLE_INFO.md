@@ -85,4 +85,3 @@ The implementation uses the local `ephem_toolkit.core.kepler` and
 - `propagate-tle` - Propagate a TLE history.
 - `tle-to-omm` - Convert TLE data to OMM.
 
-See [TLE.md](TLE.md) for the grouped TLE workflow.

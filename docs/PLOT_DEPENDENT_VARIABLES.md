@@ -138,4 +138,3 @@ The command uses NumPy, Matplotlib, and the local time utilities.
 - `plot-orbit` - Plot OEM orbit diagnostics.
 - `plot-orbit-deltas` - Compare multiple orbit histories.
 
-See [PROPAGATION.md](PROPAGATION.md) for the grouped propagation workflow.

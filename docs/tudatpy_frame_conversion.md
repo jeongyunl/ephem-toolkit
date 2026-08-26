@@ -34,8 +34,7 @@ transformations:
 - `tudat_iau2006_rotation_model()`: an IAU 2006 GCRS-to-ITRS model exposed by
   the repository as `J2000` and `ITRF`
 
-The kernel files loaded by these models are documented in
-[tudat_earth_rotation_model_data_files.md](tudat_earth_rotation_model_data_files.md).
+The kernel files loaded by these models are documented in the TudatPy Earth-rotation reference material used by this project.
 
 ### SPICE model
 
