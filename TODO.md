@@ -31,9 +31,6 @@
 1. [`propagate-omm`](docs/PROPAGATE_OMM.md)
     1. Adopt more analytical propagators (e.g., `DSST`, `USM`, etc.) to support OMM propagation in the future
 
-1. [`propagate-tle`](docs/PROPAGATE_TLE.md)
-    1. Keep it or obsolete it? (maybe keep it for now?)
-
 1. Better OPM support
     1. ?
 
