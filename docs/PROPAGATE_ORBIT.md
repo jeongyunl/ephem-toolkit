@@ -183,6 +183,7 @@ The propagation workflow loads these SPICE kernels through TudatPy:
 
 - `propagate-kepler` - Run two-body propagation without perturbations.
 - `propagate-tle` - Propagate a TLE with SGP4.
+- `propagate-omm` - Propagate an OMM or TLE input using the appropriate solver automatically.
 - `plot-dependent-variables` - Plot a dependent-variable CSV.
 - `plot-orbit` - Plot the resulting OEM history.
 

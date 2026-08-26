@@ -86,5 +86,6 @@ standard output.
 
 - `propagate-orbit` - Propagate with perturbation models.
 - `propagate-tle` - Propagate a TLE using SGP4.
+- `propagate-omm` - Propagate an OMM or TLE input using the appropriate solver automatically.
 - `plot-orbit` - Plot an OEM orbit.
 

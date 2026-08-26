@@ -172,6 +172,7 @@ Key algorithmic features:
 - `ephem_toolkit.core.kepler` — Keplerian element conversions with J2 corrections
 - `ephem_toolkit.core.ccsds.oem` — OEM parsing utilities
 - `propagate-tle` — TLE propagation with SGP4
+- `propagate-omm` — Propagate an OMM or TLE input using the appropriate solver automatically
 - `omm-to-tle` — Convert OMM to TLE
 - `tle-to-omm` — Convert TLE to OMM
 
@@ -275,6 +276,7 @@ Related scripts in the current repository:
 - `oem-to-omm` — estimate a TLE from an OEM-like arc
 - `ephem_toolkit.core.tle` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions
 - `propagate-tle` — propagate a TLE with TudatPy SGP4 and print OEM-like states
+- `propagate-omm` — propagate an OMM or TLE input and emit OEM output with automatic solver selection
 
 ### Overall pipeline
 

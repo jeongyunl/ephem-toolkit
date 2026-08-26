@@ -62,4 +62,5 @@ The command writes the converted OMM to stdout when no output path is supplied. 
 - `omm-to-tle` - Convert OMM data to TLE.
 - `download-tle` - Download TLE or OMM data.
 - `propagate-tle` - Propagate a TLE history.
+- `propagate-omm` - Propagate an OMM or TLE input with automatic SGP4/Kepler selection.
 
