@@ -96,4 +96,5 @@ The command requires network access to CelesTrak and satellite IDs that are vali
 - `tle-info` - Inspect downloaded TLE files.
 - `tle-to-omm` - Convert TLE data to OMM.
 - `propagate-tle` - Propagate a TLE history.
+- `propagate-omm` - Propagate an OMM or TLE input with automatic SGP4/Kepler selection.
 

@@ -83,5 +83,6 @@ The implementation uses the local `ephem_toolkit.core.kepler` and
 
 - `download-tle` - Download current TLE or OMM data.
 - `propagate-tle` - Propagate a TLE history.
+- `propagate-omm` - Propagate an OMM or TLE input with automatic SGP4/Kepler selection.
 - `tle-to-omm` - Convert TLE data to OMM.
 
