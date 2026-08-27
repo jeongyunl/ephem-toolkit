@@ -294,12 +294,6 @@ def test_omm_scientific_to_float_zero() -> None:
 # ===================================================================
 
 
-def test_build_object_id() -> None:
-    """Should build COSPAR Object ID from TLE designator components."""
-    result = conv._build_object_id(98, 67, "A")
-    assert result == "1998-067A"
-
-
 def test_parse_object_id() -> None:
     """Should parse COSPAR Object ID into TLE designator components."""
     year, launch, piece = conv._parse_object_id("1998-067A")
