@@ -700,6 +700,8 @@ def read_tle(stream: TextIO | str | Path) -> Tle:
         line2: str = lines[1]
     elif len(lines) >= 3 and lines[1].startswith("1 ") and lines[2].startswith("2 "):
         name = lines[0].strip()
+        if name.startswith("0 "):
+            name = name[2:]
         line1 = lines[1]
         line2 = lines[2]
     else:

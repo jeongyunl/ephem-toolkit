@@ -36,7 +36,7 @@ from .utils import (
 from ephem_toolkit.core.interpolator import factory
 
 
-def main() -> None:
+def main(argv=None) -> None:
     """Main entry point for the state comparison CLI.
 
     Parses command-line arguments, reads OEM state vectors from files or
@@ -44,7 +44,7 @@ def main() -> None:
     one tab-separated result row per comparison to stdout.
     Exits with status 1 on error.
     """
-    cli_args: DiffOemArgs = parse_arguments()
+    cli_args: DiffOemArgs = parse_arguments(argv)
 
     # --debug implies --verbose.
     if cli_args.debug:

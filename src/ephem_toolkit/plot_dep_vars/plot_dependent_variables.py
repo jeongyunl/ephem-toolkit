@@ -1188,9 +1188,9 @@ def plot_dependent_variables_from_csv(
     return trajectory_animation
 
 
-def main() -> None:
+def main(argv=None) -> None:
     """Main entry point for the script."""
-    cli_args: PlotDependentVariablesArgs = parse_arguments()
+    cli_args: PlotDependentVariablesArgs = parse_arguments(argv)
 
     # Keep animation objects alive until plt.show() returns.
     animations: list[FuncAnimation] = []

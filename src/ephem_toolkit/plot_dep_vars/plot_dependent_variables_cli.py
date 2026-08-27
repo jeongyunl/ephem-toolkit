@@ -19,7 +19,7 @@ class PlotDependentVariablesArgs(argparse.Namespace):
     """Optional plotting duration in seconds."""
 
 
-def parse_arguments() -> PlotDependentVariablesArgs:
+def parse_arguments(argv=None) -> PlotDependentVariablesArgs:
     """Build command-line argument parser."""
     parser = cli.create_parser(
         description="Plot dependent-variable histories from a saved Tudat CSV file.",
@@ -52,4 +52,4 @@ def parse_arguments() -> PlotDependentVariablesArgs:
         metavar="<duration>",
         help="Duration to plot in <number>[s|m|h|d] format (e.g., 1h, 30m, or 3600s). If omitted, plot all data.",
     )
-    return parser.parse_args(namespace=PlotDependentVariablesArgs())
+    return parser.parse_args(argv, namespace=PlotDependentVariablesArgs())

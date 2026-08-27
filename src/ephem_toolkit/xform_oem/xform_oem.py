@@ -299,10 +299,10 @@ def parse_header_overrides(
     return overrides
 
 
-def main() -> None:
+def main(argv=None) -> None:
     """Parse CLI arguments and transform OEM file."""
 
-    cli_args: XformOemArgs = parse_arguments()
+    cli_args: XformOemArgs = parse_arguments(argv)
 
     # Determine if reading from stdin
     read_from_stdin = cli_args.input_oem == "-"

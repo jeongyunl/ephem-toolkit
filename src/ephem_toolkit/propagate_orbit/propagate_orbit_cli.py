@@ -336,7 +336,7 @@ def parse_drag_coefficient(value: str) -> float:
     return drag_coefficient
 
 
-def parse_arguments() -> PropagateOrbitArgs:
+def parse_arguments(argv=None) -> PropagateOrbitArgs:
     """Build the orbit-propagation argument parser.
 
     Returns
@@ -571,4 +571,4 @@ def parse_arguments() -> PropagateOrbitArgs:
         default=True,
         help="Enable or disable Mars point-mass gravity perturbation (default: on).",
     )
-    return parser.parse_args(namespace=PropagateOrbitArgs())
+    return parser.parse_args(argv, namespace=PropagateOrbitArgs())

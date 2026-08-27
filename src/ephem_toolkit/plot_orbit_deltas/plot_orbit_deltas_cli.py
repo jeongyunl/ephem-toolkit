@@ -20,7 +20,7 @@ class PlotOrbitDeltasArgs(argparse.Namespace):
     """Time unit for the plot axes."""
 
 
-def parse_arguments() -> PlotOrbitDeltasArgs:
+def parse_arguments(argv=None) -> PlotOrbitDeltasArgs:
     """Parse command-line arguments for plotting multiple orbit trajectories."""
     parser = cli.create_parser(
         description="Plot multiple orbit trajectories with various views and RTN coordinates.",
@@ -66,4 +66,4 @@ def parse_arguments() -> PlotOrbitDeltasArgs:
         help="Time unit for time-series plots: m/minute/minutes or h/hour/hours (default: hours).",
     )
 
-    return parser.parse_args(namespace=PlotOrbitDeltasArgs())
+    return parser.parse_args(argv, namespace=PlotOrbitDeltasArgs())

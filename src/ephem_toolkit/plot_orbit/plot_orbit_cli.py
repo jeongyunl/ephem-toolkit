@@ -20,7 +20,7 @@ class PlotOrbitArgs(argparse.Namespace):
     """Time unit used in time-series plots."""
 
 
-def parse_arguments() -> PlotOrbitArgs:
+def parse_arguments(argv=None) -> PlotOrbitArgs:
     """Parse command-line arguments for plotting a single orbit."""
     parser = cli.create_parser(
         description=(
@@ -70,4 +70,4 @@ def parse_arguments() -> PlotOrbitArgs:
             "m/minute/minutes or h/hour/hours (default: hours)."
         ),
     )
-    return parser.parse_args(namespace=PlotOrbitArgs())
+    return parser.parse_args(argv, namespace=PlotOrbitArgs())
