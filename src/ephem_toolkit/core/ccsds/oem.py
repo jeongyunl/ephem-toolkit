@@ -390,6 +390,7 @@ class CcsdsOem:
         cls,
         states: list[tuple[float, np.ndarray]],
         object_name: str = "",
+        object_id: str = "",
         ref_frame: str = "",
         center_name: str = "",
         time_system: str = "UTC",
@@ -405,6 +406,8 @@ class CcsdsOem:
             List of (POSIX timestamp, state_vector) tuples in meters (m) and m/s.
         object_name : str, optional
             Satellite or object name.
+        object_id : str, optional
+            International designator or NORAD catalog number.
         ref_frame : str, optional
             Reference frame (e.g., GCRF, J2000).
         center_name : str, optional
@@ -436,6 +439,7 @@ class CcsdsOem:
         # Create metadata with provided values.
         meta = OemMeta(
             object_name=object_name,
+            object_id=object_id,
             ref_frame=ref_frame,
             center_name=center_name,
             time_system=time_system,

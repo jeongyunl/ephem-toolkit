@@ -188,7 +188,9 @@ def propagate_tle_sgp4(
         propagated_states.append((timestamp, state_m))
         current_time = current_time + step_dt
 
-    _write_oem_output(propagated_states, object_name, data_only, output_path)
+    _write_oem_output(
+        propagated_states, object_name, tle_obj.get_object_id(), data_only, output_path
+    )
 
 
 def propagate_omm_sgp4(
@@ -288,7 +290,9 @@ def propagate_omm_kepler(
         propagated_states.append((current_time.timestamp(), cartesian_m))
         current_time = current_time + step_dt
 
-    _write_oem_output(propagated_states, object_name, data_only, output_path)
+    _write_oem_output(
+        propagated_states, object_name, omm_data.object_id, data_only, output_path
+    )
 
 
 # ===================================================================
@@ -299,6 +303,7 @@ def propagate_omm_kepler(
 def _write_oem_output(
     propagated_states: list[tuple[float, np.ndarray]],
     object_name: str,
+    object_id: str,
     data_only: bool,
     output_path: str,
 ) -> None:
@@ -310,6 +315,8 @@ def _write_oem_output(
         List of (POSIX timestamp, state_vector) tuples.
     object_name : str
         Object name for OEM metadata.
+    object_id : str
+        Object ID for OEM metadata.
     data_only : bool
         If True, emit state lines only.
     output_path : str
@@ -323,6 +330,7 @@ def _write_oem_output(
             oem_obj: oem.CcsdsOem = oem.CcsdsOem.from_states(
                 propagated_states,
                 object_name=object_name,
+                object_id=object_id,
                 ref_frame="EME2000",
                 center_name="EARTH",
                 time_system="UTC",
