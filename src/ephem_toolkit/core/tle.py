@@ -127,6 +127,25 @@ class Tle:
             f"epoch_day={self.epoch_day:.8f})"
         )
 
+    def get_object_id(self) -> str:
+        """Get  COSPAR Object ID from TLE international designator components.
+
+        Returns
+        -------
+        str
+            COSPAR ID in format ``"YYYY-NNNP"`` (e.g. ``"1998-067A"``).
+        """
+        # Resolve 2-digit year
+        if self.int_designator_year >= 57:
+            full_year: int = 1900 + self.int_designator_year
+        else:
+            full_year = 2000 + self.int_designator_year
+
+        piece: str = (
+            self.int_designator_piece.strip() if self.int_designator_piece else ""
+        )
+        return f"{full_year}-{self.int_designator_launch_number:03d}{piece}"
+
 
 # ===================================================================
 # Internal helpers

@@ -325,3 +325,32 @@ def test_read_tle_from_file_path(tmp_path: Path) -> None:
     assert isinstance(t2, tle.Tle)
     assert t2.object_name == ISS_NAME
     assert t2.norad_cat_id == 25544
+
+
+# ===================================================================
+# 11. get_object_id returns COSPAR ID
+# ===================================================================
+
+
+def test_get_object_id_year_2000_plus() -> None:
+    """Should format COSPAR ID with 4-digit year for int_designator_year < 57."""
+    t = tle.read_tle(io.StringIO(ISS_3LINE))
+    assert t.get_object_id() == "1998-067A"
+
+
+def test_get_object_id_year_1900_plus() -> None:
+    """Should format COSPAR ID with 4-digit year for int_designator_year >= 57."""
+    t = tle.Tle(
+        int_designator_year=57, int_designator_launch_number=1, int_designator_piece="A"
+    )
+    assert t.get_object_id() == "1957-001A"
+
+
+def test_get_object_id_strips_piece_whitespace() -> None:
+    """Should strip whitespace from piece designator."""
+    t = tle.Tle(
+        int_designator_year=23,
+        int_designator_launch_number=100,
+        int_designator_piece="G  ",
+    )
+    assert t.get_object_id() == "2023-100G"

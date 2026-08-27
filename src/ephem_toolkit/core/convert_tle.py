@@ -186,37 +186,6 @@ def _omm_scientific_to_float(omm_str: str) -> float:
     return float(s)
 
 
-def _build_object_id(
-    int_designator_year: int,
-    int_designator_launch_number: int,
-    int_designator_piece: str,
-) -> str:
-    """Build COSPAR Object ID from TLE international designator components.
-
-    Parameters
-    ----------
-    int_designator_year : int
-        2-digit year from TLE international designator.
-    int_designator_launch_number : int
-        Launch number within the year.
-    int_designator_piece : str
-        Piece identifier (e.g. "A", "B").
-
-    Returns
-    -------
-    str
-        COSPAR ID in format ``"YYYY-NNNP"`` (e.g. ``"1998-067A"``).
-    """
-    # Resolve 2-digit year
-    if int_designator_year >= 57:
-        full_year: int = 1900 + int_designator_year
-    else:
-        full_year = 2000 + int_designator_year
-
-    piece: str = int_designator_piece.strip() if int_designator_piece else ""
-    return f"{full_year}-{int_designator_launch_number:03d}{piece}"
-
-
 def _parse_object_id(object_id: str) -> tuple[int, int, str]:
     """Parse COSPAR Object ID into TLE international designator components.
 
@@ -290,11 +259,7 @@ def tle_to_omm(
     mean_motion_ddot_omm: str = _float_to_omm_scientific(mean_motion_ddot_float)
 
     # Build COSPAR Object ID
-    object_id: str = _build_object_id(
-        tle_obj.int_designator_year,
-        tle_obj.int_designator_launch_number,
-        tle_obj.int_designator_piece,
-    )
+    object_id: str = tle_obj.get_object_id()
 
     return omm.CcsdsOmm(
         version=2.0,
