@@ -16,7 +16,7 @@ class TleToOmmArgs(argparse.Namespace):
     """Output OMM path or '-' for stdout."""
 
 
-def parse_arguments() -> TleToOmmArgs:
+def parse_arguments(argv=None) -> TleToOmmArgs:
     """Parse command-line arguments for TLE-to-OMM conversion."""
     parser = cli.create_parser(
         description=(
@@ -45,4 +45,4 @@ def parse_arguments() -> TleToOmmArgs:
         required=True,
         help="Output OMM file path; use '-' to write to stdout.",
     )
-    return parser.parse_args(namespace=TleToOmmArgs())
+    return parser.parse_args(argv, namespace=TleToOmmArgs())

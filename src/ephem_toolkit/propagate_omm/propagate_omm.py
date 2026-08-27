@@ -372,7 +372,7 @@ def resolve_time_bounds(
 # ===================================================================
 
 
-def main() -> int:
+def main(argv=None) -> int:
     """Execute the OMM propagation workflow.
 
     Returns
@@ -380,7 +380,7 @@ def main() -> int:
     int
         Process return code (0 on success).
     """
-    cli_args: PropagateOmmArgs = parse_arguments()
+    cli_args: PropagateOmmArgs = parse_arguments(argv)
 
     if cli_args.is_tle:
         tle_data: tle_mod.Tle = read_tle_input(cli_args.input_file)

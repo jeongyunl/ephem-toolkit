@@ -17,13 +17,13 @@ import ephem_toolkit.core.tle as tle
 from .omm_to_tle_cli import OmmToTleArgs, parse_arguments
 
 
-def main() -> None:
+def main(argv=None) -> None:
     """Execute the OMM-to-TLE conversion workflow.
 
     Reads OMM from the configured source, converts to TLE, and writes the
     result to the configured destination. Exits with status 1 on error.
     """
-    cli_args: OmmToTleArgs = parse_arguments()
+    cli_args: OmmToTleArgs = parse_arguments(argv)
 
     if cli_args.input_omm == "-":
         input_text: str = sys.stdin.read()

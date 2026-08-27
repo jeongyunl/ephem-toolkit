@@ -17,13 +17,13 @@ from .tle_to_omm_cli import TleToOmmArgs
 from .tle_to_omm_cli import parse_arguments
 
 
-def main() -> None:
+def main(argv=None) -> None:
     """Execute the TLE-to-OMM conversion workflow.
 
     Reads TLE from the configured source, converts to OMM, and writes the
     result to the configured destination. Exits with status 1 on error.
     """
-    cli_args: TleToOmmArgs = parse_arguments()
+    cli_args: TleToOmmArgs = parse_arguments(argv)
 
     if cli_args.input_tle == "-":
         input_text: str = sys.stdin.read()

@@ -56,7 +56,7 @@ def report_error(message: str, exit_code: int = 1) -> None:
     raise SystemExit(exit_code)
 
 
-def parse_arguments() -> OemToOpmArgs:
+def parse_arguments(argv=None) -> OemToOpmArgs:
     """Parse command-line arguments for the OEM-to-OPM conversion workflow.
 
     Returns
@@ -130,4 +130,4 @@ def parse_arguments() -> OemToOpmArgs:
         help="OBJECT_ID: International designator (e.g., 1998-067A) for OPM output.",
     )
 
-    return parser.parse_args(namespace=OemToOpmArgs())
+    return parser.parse_args(argv, namespace=OemToOpmArgs())

@@ -33,7 +33,7 @@ class PropagateKeplerArgs(argparse.Namespace):
     """Whether to emit data-only OEM state lines."""
 
 
-def parse_arguments() -> PropagateKeplerArgs:
+def parse_arguments(argv=None) -> PropagateKeplerArgs:
     """Parse command-line arguments for Keplerian propagation."""
     parser = cli.create_parser(
         description=(
@@ -96,7 +96,7 @@ def parse_arguments() -> PropagateKeplerArgs:
             "By default, output is CCSDS OEM format."
         ),
     )
-    return parser.parse_args(namespace=PropagateKeplerArgs())
+    return parser.parse_args(argv, namespace=PropagateKeplerArgs())
 
 
 if __name__ == "__main__":

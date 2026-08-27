@@ -190,9 +190,9 @@ def build_opm(
 # ===================================================================
 
 
-def main() -> None:
+def main(argv=None) -> None:
     """Parse CLI arguments and dispatch to the appropriate conversion mode."""
-    cli_args: OemToOpmArgs = parse_arguments()
+    cli_args: OemToOpmArgs = parse_arguments(argv)
 
     # Determine input source: file path or stdin (piped input)
     read_from_stdin: bool = cli_args.input_oem == "-"
@@ -283,5 +283,7 @@ def main() -> None:
                     )
         except Exception as error:
             report_error(f"Error writing OPM file: {error}")
+
+
 if __name__ == "__main__":
     main()

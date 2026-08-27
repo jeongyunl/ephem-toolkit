@@ -75,9 +75,9 @@ DEFAULT_INTERPOLATION_SPEC: interpolation_spec.InterpolationSpec = (
 """Default interpolation specification."""
 
 
-def main() -> None:
+def main(argv=None) -> None:
     """Parse CLI arguments, slice OEM ephemeris data, and write results to stdout."""
-    cli_args: SliceOemArgs = parse_arguments()
+    cli_args: SliceOemArgs = parse_arguments(argv)
 
     # Determine if reading from stdin
     read_from_stdin = cli_args.input_oem == "-"

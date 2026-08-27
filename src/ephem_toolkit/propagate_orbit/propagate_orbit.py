@@ -46,12 +46,12 @@ from . import tudat_setup
 from .propagate_orbit_cli import PropagateOrbitArgs
 
 
-def main() -> None:
+def main(argv=None) -> None:
     """Main entry point for orbit propagation."""
     # Parse CLI arguments once for script-wide configuration.
     # Only argparse and re have been imported so far, so --help and validation
     # errors are returned instantly without waiting for heavy library loads.
-    cli_args: PropagateOrbitArgs = propagate_orbit_cli.parse_arguments()
+    cli_args: PropagateOrbitArgs = propagate_orbit_cli.parse_arguments(argv)
 
     # Build propagation inputs from CLI arguments
     propagation_inputs = input_handling.build_propagation_inputs(cli_args)

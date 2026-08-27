@@ -58,9 +58,9 @@ def generate_output_filename(base_output: str | None, suffix: str) -> str | None
     return str(path.parent / f"{stem}{suffix_str}{path.suffix}")
 
 
-def main() -> None:
+def main(argv=None) -> None:
     """Main entry point for the script."""
-    cli_args: PlotOrbitDeltasArgs = parse_arguments()
+    cli_args: PlotOrbitDeltasArgs = parse_arguments(argv)
 
     if len(cli_args.input_oem_files) < 1:
         raise SystemExit(1)

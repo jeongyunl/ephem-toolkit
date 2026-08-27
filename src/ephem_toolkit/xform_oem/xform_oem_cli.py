@@ -117,7 +117,7 @@ def parse_header_overrides(
     return overrides
 
 
-def parse_arguments() -> XformOemArgs:
+def parse_arguments(argv) -> XformOemArgs:
     """Parse and validate command-line arguments."""
     parser = cli.create_parser(
         description=(
@@ -215,7 +215,7 @@ def parse_arguments() -> XformOemArgs:
         help="Output OEM file path; '-' writes to stdout.",
     )
 
-    args: XformOemArgs = parser.parse_args(namespace=XformOemArgs())
+    args: XformOemArgs = parser.parse_args(argv, namespace=XformOemArgs())
     args.x_ref_frame_parts = None
     if args.x_ref_frame:
         frame_parts: list[str] = [part.strip() for part in args.x_ref_frame.split(",")]

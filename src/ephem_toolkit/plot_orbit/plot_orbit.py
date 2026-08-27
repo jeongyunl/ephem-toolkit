@@ -844,7 +844,7 @@ def warn_if_altitude_frame_assumption_is_weak(oem_data: oem.CcsdsOem) -> None:
     )
 
 
-def main() -> None:
+def main(argv=None) -> None:
     """Run CLI workflow to load one OEM and generate requested plots.
 
     Raises
@@ -852,7 +852,7 @@ def main() -> None:
     ValueError
         If parsed data is invalid for plotting.
     """
-    cli_args: PlotOrbitArgs = parse_arguments()
+    cli_args: PlotOrbitArgs = parse_arguments(argv)
     time_unit: TimeUnit = TimeUnit.from_string(cli_args.time_unit)
 
     duration_s: float | None = None

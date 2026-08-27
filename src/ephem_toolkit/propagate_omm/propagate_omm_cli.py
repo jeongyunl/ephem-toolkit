@@ -38,7 +38,7 @@ class PropagateOmmArgs(argparse.Namespace):
     """Whether to emit data-only OEM state lines."""
 
 
-def parse_arguments() -> PropagateOmmArgs:
+def parse_arguments(argv=None) -> PropagateOmmArgs:
     """Parse command-line arguments for the OMM/TLE propagation workflow.
 
     Returns
@@ -136,4 +136,4 @@ def parse_arguments() -> PropagateOmmArgs:
             "By default, output is CCSDS OEM format."
         ),
     )
-    return parser.parse_args(namespace=PropagateOmmArgs())
+    return parser.parse_args(argv, namespace=PropagateOmmArgs())

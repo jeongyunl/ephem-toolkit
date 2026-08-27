@@ -30,13 +30,15 @@ def parse_arguments() -> PropagateOmmArgs:
     return args
 
 
-def main() -> int:
+def main(argv=None) -> int:
     """Invoke the OMM propagation workflow in TLE mode."""
-    argv = list(sys.argv[1:])
+    if argv is None:
+        argv = list(sys.argv[1:])
+    else:
+        argv = list(argv)
     if "--tle" not in argv:
         argv.insert(0, "--tle")
-    sys.argv = [sys.argv[0], *argv]
-    return propagate_omm.main()
+    return propagate_omm.main(argv)
 
 
 if __name__ == "__main__":

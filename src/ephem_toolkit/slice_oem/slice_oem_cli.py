@@ -44,7 +44,7 @@ class SliceOemArgs(argparse.Namespace):
     """Whether low-level debug output is enabled."""
 
 
-def parse_arguments() -> SliceOemArgs:
+def parse_arguments(argv=None) -> SliceOemArgs:
     """Parse and validate command-line arguments."""
     parser = cli.create_parser(
         description="Extract subsets of CCSDS OEM ephemeris data by index or time range.",
@@ -136,7 +136,7 @@ def parse_arguments() -> SliceOemArgs:
         action="store_true",
         help="Print low-level debug details",
     )
-    args = parser.parse_args(namespace=SliceOemArgs())
+    args = parser.parse_args(argv, namespace=SliceOemArgs())
     if not args.slice and not args.time_slice:
         parser.error("either -s/--slice or -t/--time-slice must be provided")
     return args

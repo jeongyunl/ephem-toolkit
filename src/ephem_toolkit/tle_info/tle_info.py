@@ -101,14 +101,14 @@ def get_tle_epoch(tle: object) -> tuple[DateTime, float]:
 # ===================================================================
 
 
-def main() -> None:
+def main(argv=None) -> None:
     """Print TLE parameters and derived orbital elements for each TLE file.
 
     Parses command-line arguments, loads each TLE file via TudatPy SGP4,
     and prints the epoch, TLE fields, Cartesian state, and osculating
     Keplerian elements at the reference epoch.
     """
-    cli_args: TleInfoArgs = parse_arguments()
+    cli_args: TleInfoArgs = parse_arguments(argv)
 
     tle_files: list[str] = cli_args.tle_files
     print(f"TLE files: {tle_files}\n")

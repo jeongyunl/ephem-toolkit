@@ -65,7 +65,7 @@ def report_error(message: str, exit_code: int = 1) -> None:
     raise SystemExit(exit_code)
 
 
-def parse_arguments() -> OemToOmmArgs:
+def parse_arguments(argv=None) -> OemToOmmArgs:
     """Parse command-line arguments for the OEM-to-OMM conversion workflow.
 
     Returns
@@ -196,4 +196,4 @@ def parse_arguments() -> OemToOmmArgs:
         help="REV_AT_EPOCH: Revolution number at epoch (default: 0, used with --tle mode).",
     )
 
-    return parser.parse_args(namespace=OemToOmmArgs())
+    return parser.parse_args(argv, namespace=OemToOmmArgs())

@@ -57,13 +57,13 @@ DEFAULT_OUTPUT_STEP_S: float = 15.0 * time_utils.SECONDS_PER_MINUTE
 # ===================================================================
 
 
-def parse_arguments() -> propagate_kepler_cli.PropagateKeplerArgs:
+def parse_arguments(argv=None) -> propagate_kepler_cli.PropagateKeplerArgs:
     """Parse command-line arguments for Keplerian propagation.
 
     Delegates to the canonical propagation-family parser so the console entry
     point and the dedicated parser module stay in sync.
     """
-    return propagate_kepler_cli.parse_arguments()
+    return propagate_kepler_cli.parse_arguments(argv)
 
 
 def read_kepler_input(
@@ -196,7 +196,7 @@ def propagate_kepler_elements(
 # ===================================================================
 
 
-def main() -> int:
+def main(argv=None) -> int:
     """Execute the Keplerian propagation workflow.
 
     Returns
@@ -204,7 +204,7 @@ def main() -> int:
     int
         Process return code. ``0`` on success.
     """
-    cli_args: propagate_kepler_cli.PropagateKeplerArgs = parse_arguments()
+    cli_args: propagate_kepler_cli.PropagateKeplerArgs = parse_arguments(argv)
     if cli_args.duration_s <= 0.0:
         raise ValueError("--duration must be > 0")
     if cli_args.step_s <= 0.0:

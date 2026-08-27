@@ -110,9 +110,9 @@ def report_error(message: str, exit_code: int = 1) -> NoReturn:
 # ===================================================================
 
 
-def main() -> None:
+def main(argv=None) -> None:
     """Parse CLI arguments and dispatch to the appropriate conversion mode."""
-    cli_args: OemToOmmArgs = parse_arguments()
+    cli_args: OemToOmmArgs = parse_arguments(argv)
 
     # Determine input source: file path or stdin (piped input)
     read_from_stdin: bool = cli_args.input_oem == "-"

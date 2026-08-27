@@ -14,7 +14,7 @@ class TleInfoArgs(argparse.Namespace):
     """One or more TLE file paths to inspect."""
 
 
-def parse_arguments() -> TleInfoArgs:
+def parse_arguments(argv=None) -> TleInfoArgs:
     """Create the command-line argument parser."""
     parser: argparse.ArgumentParser = cli.create_parser(
         description=(
@@ -32,4 +32,4 @@ def parse_arguments() -> TleInfoArgs:
         metavar="<tle_file>",
         help="Path to one or more TLE files to process.",
     )
-    return parser.parse_args(namespace=TleInfoArgs())
+    return parser.parse_args(argv, namespace=TleInfoArgs())

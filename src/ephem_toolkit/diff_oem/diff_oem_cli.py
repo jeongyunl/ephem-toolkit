@@ -77,7 +77,7 @@ class DiffOemArgs(argparse.Namespace):
     """Transformation stage order as requested by the CLI."""
 
 
-def parse_arguments() -> DiffOemArgs:
+def parse_arguments(argv=None) -> DiffOemArgs:
     """Parse command-line arguments.
 
     Returns
@@ -199,8 +199,10 @@ def parse_arguments() -> DiffOemArgs:
         default=None,
         help="Stop epoch in ISO-8601 format (for example, 2001-11-06T11:17:33 or 2001-11-06T11:17:33.1234) or as a duration offset from --start.",
     )
-    args = parser.parse_args(namespace=DiffOemArgs())
-    args.stage_sequence = extract_stage_sequence(sys.argv[1:])
+    args = parser.parse_args(argv, namespace=DiffOemArgs())
+    args.stage_sequence = extract_stage_sequence(
+        argv if argv is not None else sys.argv[1:]
+    )
     if args.reference_oem == "-" and args.comparison_oem == "-":
         parser.error("reference_oem and comparison_oem cannot both be '-'")
     return args

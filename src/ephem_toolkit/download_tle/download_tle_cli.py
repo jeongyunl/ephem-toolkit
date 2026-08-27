@@ -32,7 +32,7 @@ class DownloadTleArgs(argparse.Namespace):
     """Requested output format."""
 
 
-def parse_arguments() -> DownloadTleArgs:
+def parse_arguments(argv=None) -> DownloadTleArgs:
     """Parse command-line arguments for downloading TLE/OMM data."""
     parser: argparse.ArgumentParser = cli.create_parser(
         description="Download TLE/OMM data from CelesTrak.",
@@ -60,4 +60,4 @@ def parse_arguments() -> DownloadTleArgs:
         help="Output format (default: tle). Valid options: "
         + ", ".join(FORMATS.keys()),
     )
-    return parser.parse_args(namespace=DownloadTleArgs())
+    return parser.parse_args(argv, namespace=DownloadTleArgs())
