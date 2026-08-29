@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from ephem_toolkit.core.ccsds import oem
-from ephem_toolkit.core import kepler
+from ephem_toolkit.core.propagator import kepler
 from ephem_toolkit.propagate_kepler import propagate_kepler
 from ephem_toolkit.propagate_kepler import propagate_kepler_cli
 

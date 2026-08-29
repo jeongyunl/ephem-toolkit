@@ -19,7 +19,7 @@ import numpy as np
 from .. import misc
 from .. import consts
 from .. import time_utils
-from .. import kepler
+from ..propagator import kepler
 
 # ===================================================================
 # Internal helpers

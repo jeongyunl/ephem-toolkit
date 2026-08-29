@@ -30,7 +30,7 @@ from __future__ import annotations
 import numpy as np
 
 from . import consts
-from . import kepler
+from .propagator import kepler
 
 # Re-export constants and indices used by this module for convenience
 EARTH_GRAVITATIONAL_PARAMETER_M3_S2: float = consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2

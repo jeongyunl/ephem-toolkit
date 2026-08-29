@@ -59,10 +59,9 @@ a target time, produce a Cartesian state.* That's the top-level interface.
 New submodule: `src/ephem_toolkit/core/propagator/` with base interfaces in 
 `core/propagator/base.py`.
 
-All epochs in the propagator interface are **ephemeris time** — seconds since the J2000
-epoch (2000-01-01 12:00:00 TT).  Concrete propagators may treat this as TDB or TT; the
-≈1.7 ms difference is ignored.  This matches the rest of the codebase
-(`time_utils.datetime_to_tdb_s`, `frame_utils` epoch parameters, TudatPy's ephemeris
+All epochs in the propagator interface are **Terrestrial Time (TT)** — seconds since the
+J2000 epoch (2000-01-01 12:00:00 TT).  This matches the rest of the codebase
+(`time_utils.datetime_to_tt_s`, `frame_utils` epoch parameters, TudatPy's ephemeris
 queries).
 
 ```python
@@ -86,13 +85,13 @@ class Propagator(ABC, Generic[InitialStateT]):
 
     @property
     def reference_epoch_s(self) -> float:
-        """Current reference epoch (ephemeris time, s since J2000).
+        """Current reference epoch (TT, s since J2000 TT).
         Advances after each propagation call."""
         ...
 
     @abstractmethod
     def get_initial_epoch_s(self) -> float:
-        """Return the epoch of the initial state (ephemeris time, s since J2000).
+        """Return the epoch of the initial state (TT, s since J2000 TT).
         Fixed; does not advance."""
 
     @abstractmethod
@@ -214,7 +213,7 @@ class KeplerianState:
     elements: np.ndarray
     """Keplerian elements ``[a, e, i, omega, RAAN, anomaly]``."""
     epoch_s: float
-    """Epoch at which :attr:`elements` is defined (ephemeris time, s since J2000)."""
+    """Epoch at which :attr:`elements` is defined (TT, s since J2000 TT)."""
 
     def __post_init__(self) -> None:
         # Make the backing array immutable so that the frozen-dataclass
@@ -333,12 +332,12 @@ class Sgp4Propagator(Propagator[Tle]):
             ephemeris_settings, body_name=initial_state.object_name or "UNKNOWN"
         )
         self._tle = initial_state
-        self._reference_epoch_s = tle_epoch_to_tdb_s(
+        self._reference_epoch_s = tle_epoch_to_tt_s(
             initial_state.epoch_year, initial_state.epoch_day,
         )
 
     def get_initial_epoch_s(self) -> float:
-        return tle_epoch_to_tdb_s(self._tle.epoch_year, self._tle.epoch_day)
+        return tle_epoch_to_tt_s(self._tle.epoch_year, self._tle.epoch_day)
 
     def _propagate_to_impl(self, target_epoch_s: float) -> np.ndarray:
         return self._ephemeris.cartesian_state(target_epoch_s)
@@ -367,7 +366,7 @@ class NumericalInitialState:
     state_m_m_s: np.ndarray
     """Cartesian state vector [x, y, z, vx, vy, vz] in SI units (m, m/s)."""
     epoch_s: float
-    """Epoch at which :attr:`state_m_m_s` is defined (ephemeris time, s since J2000)."""
+    """Epoch at which :attr:`state_m_m_s` is defined (TT, s since J2000 TT)."""
 
 
 @dataclass(frozen=True)
@@ -417,7 +416,7 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
     def _run_integrator(self, target_epoch_s: float) -> dict[float, np.ndarray]:
         # Runs the integrator so that target_epoch_s falls within the
         # propagated span, then returns the resulting state_history keyed
-        # by ephemeris time (s since J2000).
+        # by TT (s since J2000 TT).
         ...
 
     def _propagate_to_impl(self, target_epoch_s: float) -> np.ndarray:

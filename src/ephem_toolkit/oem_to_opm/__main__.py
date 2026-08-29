@@ -37,7 +37,7 @@ warnings.filterwarnings(
 import ephem_toolkit.core.consts as consts
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.ccsds.opm as opm
-import ephem_toolkit.core.kepler as kepler
+import ephem_toolkit.core.propagator.kepler as kepler
 import ephem_toolkit.core.time_utils as time_utils
 
 try:

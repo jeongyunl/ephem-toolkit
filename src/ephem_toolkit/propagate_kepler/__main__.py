@@ -38,7 +38,8 @@ warnings.filterwarnings(
 
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.ccsds.opm as opm
-import ephem_toolkit.core.kepler as kepler
+import ephem_toolkit.core.propagator.kepler as kepler
+from ephem_toolkit.core.propagator import KeplerPropagator, KeplerianState, OutputMode
 import ephem_toolkit.core.time_utils as time_utils
 
 # ===================================================================
@@ -149,22 +150,20 @@ def propagate_kepler_elements(
     """
     initial_kepler_m: np.ndarray = initial_kepler_km.astype(np.float64).copy()
     initial_kepler_m[kepler.SEMI_MAJOR_AXIS_INDEX] *= 1000.0  # Convert km to m
-    initial_kepler_m = initial_kepler_m.reshape((6, 1))
+
+    # Create propagator once outside loop
+    initial_epoch_tt_s = time_utils.datetime_to_tt_s(initial_epoch)
+    kepler_state = KeplerianState(elements=initial_kepler_m, epoch_s=initial_epoch_tt_s)
+    propagator = KeplerPropagator(initial_state=kepler_state)
 
     stop_time_s: float = duration_s
     current_time_s: float = 0.0
     # Build list of (TT seconds since J2000, state vector) tuples
     propagated_states: list[tuple[float, np.ndarray]] = []
     while current_time_s <= stop_time_s + 1.0e-12:
-        propagated_kepler: np.ndarray = kepler.propagate_kepler(
-            initial_kepler_m,
-            current_time_s,
-        ).flatten()
-        propagated_cartesian_m: np.ndarray = kepler.keplerian_to_cartesian(
-            propagated_kepler
-        ).flatten()
-        epoch_tt_s: float = time_utils.datetime_to_tt_s(
-            initial_epoch + dt.timedelta(seconds=current_time_s)
+        target_epoch_tt_s = initial_epoch_tt_s + current_time_s
+        epoch_tt_s, propagated_cartesian_m = propagator.propagate_to(
+            target_epoch_tt_s, output=OutputMode.FINAL
         )
         propagated_states.append((epoch_tt_s, propagated_cartesian_m))
         current_time_s += step_s
