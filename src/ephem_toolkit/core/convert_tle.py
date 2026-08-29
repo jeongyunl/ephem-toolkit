@@ -14,7 +14,7 @@ import re
 import numpy as np
 
 from .propagator import kepler
-from . import mean_kepler
+from .propagator import brouwer_j2 as mean_kepler
 from .ccsds import omm
 from . import tle
 from . import consts

@@ -14,7 +14,7 @@ import numpy as np
 
 import ephem_toolkit.core.consts as consts
 import ephem_toolkit.core.propagator.kepler as kepler
-import ephem_toolkit.core.mean_kepler as mean_kepler
+import ephem_toolkit.core.propagator.brouwer_j2 as mean_kepler
 import ephem_toolkit.core.time_utils as time_utils
 from . import fit_common
 

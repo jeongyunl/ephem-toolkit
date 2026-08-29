@@ -32,12 +32,13 @@
 - `propagate_kepler()` free function removed entirely
 - All callers migrated to `KeplerPropagator`
 
-✅ **All source files updated** to import from `core.propagator.kepler`:
-- `core/ccsds/omm.py`, `core/convert_tle.py`, `core/mean_kepler.py`
+✅ **All source files updated** to import from `core.propagator.kepler` or `core.propagator.brouwer_j2`:
+- `core/ccsds/omm.py`, `core/convert_tle.py`
 - `oem_to_omm/fit_mean_kepler.py`, `oem_to_omm/fit_tle/estimation.py`
 - `oem_to_omm/fit_tle/refinement.py`, `oem_to_opm/__main__.py`
 - `tle_info/__main__.py`, `propagate_kepler/__main__.py`
 - `propagate_omm/__main__.py`, `oem_to_opm/fit_osculating_kepler.py`
+- `oem_to_omm/__main__.py`
 
 ### Tests
 ✅ **`tests/ephem_toolkit/core/propagator/test_base.py`** (8 tests)
@@ -73,23 +74,23 @@
 
 ## Remaining Work
 
-### Brouwer J2 Propagator ⏳
+### Brouwer J2 Propagator ✅
 
-✅ **`core/mean_kepler.py` renamed** (Brouwer naming applied):
-- `propagate_mean_j2` → `propagate_brouwer_j2`
-- `mean_elements_to_cartesian` → `brouwer_mean_to_cartesian`
-- `osculating_to_mean_keplerian` → `osculating_to_brouwer_mean`
-- `mean_to_osculating_keplerian` → `brouwer_mean_to_osculating`
-- Old names fully removed (no aliases)
-- All callers updated in source and test files
+✅ **`core/mean_kepler.py`** — DELETED
+- All functions moved to `core/propagator/brouwer_j2.py`
+- No circular import (functions now local to `brouwer_j2.py`)
+- All callers updated to import from `core.propagator.brouwer_j2`
 
-✅ **`core/propagator/brouwer_j2.py`** - Brouwer J2 secular propagator
+✅ **`core/propagator/brouwer_j2.py`** - Brouwer J2 propagator + all Brouwer utilities
 - `BrouwerJ2Propagator(Propagator[KeplerianState])`
-- Wraps `core.mean_kepler.propagate_brouwer_j2()`
-- Uses `brouwer_mean_to_cartesian()`
+- `compute_brouwer_short_period_corrections()` — mean→osculating
+- `brouwer_mean_to_osculating()` — alias
+- `osculating_to_brouwer_mean()` — iterative inversion
+- `brouwer_mean_to_cartesian()` — mean→Cartesian
+- `propagate_brouwer_j2()` — J2 secular propagation
+- `compute_raan_rate()` — J2 RAAN rate utility
 - `anomaly_type = AnomalyType.MEAN`
 - Initial state: **Brouwer mean elements** (not osculating, not SGP4 mean)
-- Deferred import of `mean_kepler` to avoid circular dependency
 
 ✅ **`tests/ephem_toolkit/core/propagator/test_brouwer_j2.py`** (12 tests)
 - Initialization and configuration

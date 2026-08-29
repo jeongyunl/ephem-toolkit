@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from ephem_toolkit.core.consts import EARTH_GRAVITATIONAL_PARAMETER_M3_S2
-from ephem_toolkit.core.mean_kepler import (
+from ephem_toolkit.core.propagator.brouwer_j2 import (
     brouwer_mean_to_cartesian,
     osculating_to_brouwer_mean,
     propagate_brouwer_j2,
