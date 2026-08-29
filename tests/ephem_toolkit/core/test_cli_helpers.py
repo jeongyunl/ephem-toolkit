@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import argparse
 
-from ephem_toolkit.core.cli import add_common_arguments, create_parser
+import pytest
+
+from ephem_toolkit.core.cli import (
+    PACKAGE_NAME,
+    PACKAGE_VERSION,
+    add_common_arguments,
+    create_parser,
+)
 
 
 def test_create_parser_uses_lowercase_placeholders() -> None:
@@ -26,6 +33,26 @@ def test_create_parser_uses_lowercase_placeholders() -> None:
     assert "--stop <timestamp|duration>" in help_text
     assert "--verbose" in help_text
     assert "--debug" in help_text
+    assert "--version" in help_text
+    assert f"{PACKAGE_NAME} {PACKAGE_VERSION}" in help_text
+
+
+def test_create_parser_supports_version(capsys) -> None:
+    """The shared parser should report the installed package version."""
+    parser = create_parser("demo tool")
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["--version"])
+
+    assert exc_info.value.code == 0
+    assert capsys.readouterr().out == f"{parser.prog} {PACKAGE_VERSION}\n"
+
+
+def test_create_parser_adds_package_footer_without_epilog() -> None:
+    """The package identity should appear even when a command has no epilog."""
+    parser = create_parser("demo tool")
+
+    assert f"{PACKAGE_NAME} {PACKAGE_VERSION}" in parser.format_help()
 
 
 def test_create_parser_supports_format_aware_output_name() -> None:

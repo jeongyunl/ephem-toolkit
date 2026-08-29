@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from importlib.metadata import PackageNotFoundError, version
 
 from ephem_toolkit.core.interpolator.interpolation_spec import (
     InterpolationSpec,
@@ -21,6 +22,13 @@ VALID_INTERPOLATION_TYPES_MESSAGE: str = ", ".join(
     f"'{value}'" for value in VALID_INTERPOLATION_TYPES
 )
 """Human-readable list of supported interpolation types for CLI errors."""
+
+PACKAGE_NAME = "ephem-toolkit"
+
+try:
+    PACKAGE_VERSION = version(PACKAGE_NAME)
+except PackageNotFoundError:
+    PACKAGE_VERSION = "unknown"
 
 
 class CliHelpFormatter(
@@ -51,11 +59,19 @@ def create_parser(
     if formatter_class is None:
         formatter_class = CliHelpFormatter
 
-    return argparse.ArgumentParser(
+    package_footer = f"{PACKAGE_NAME} {PACKAGE_VERSION}"
+    parser = argparse.ArgumentParser(
         description=description,
-        epilog=epilog,
+        epilog=(f"{epilog}\n\n{package_footer}" if epilog else package_footer),
         formatter_class=formatter_class,
     )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {PACKAGE_VERSION}",
+        help="Show the installed ephem-toolkit version and exit.",
+    )
+    return parser
 
 
 def add_common_arguments(
