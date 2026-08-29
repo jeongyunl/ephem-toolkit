@@ -64,7 +64,7 @@
 
 ## Test Coverage
 
-- **751 tests total** (all passing, 0 warnings)
+- **759 tests total** (all passing, 0 warnings)
 - Base class interface contracts
 - Concrete propagator behavior
 - Immutability guarantees
@@ -99,16 +99,21 @@
 - Uninitialised-state guard
 - J2 RAAN drift verification
 
-### SGP4 Propagator (requires tudatpy) ⏳
-⏳ **`core/propagator/sgp4.py`** - SGP4 propagator
+### SGP4 Propagator ✅
+
+✅ **`core/tle.py`** — `tle_epoch_to_tt_s(epoch_year, epoch_day)` added
+
+✅ **`core/propagator/sgp4.py`** - SGP4 propagator
 - `Sgp4Propagator(Propagator[Tle])`
 - Wraps TudatPy's `environment_setup.ephemeris.sgp4`
-- **Requires**: `tle_epoch_to_tt_s()` — compose `tle_epoch_to_datetime()` + `datetime_to_tt_s()`
+- Deferred tudatpy import in `set_initial_state` and `get_initial_epoch_s`
+- Epoch derived from TLE `epoch_year`/`epoch_day` via `tle_epoch_to_tt_s()`
 
-⏳ **`core/tle.py`** additions
-- Add `tle_epoch_to_tt_s(epoch_year, epoch_day)` function
-
-⏳ **`tests/ephem_toolkit/core/propagator/test_sgp4.py`**
+✅ **`tests/ephem_toolkit/core/propagator/test_sgp4.py`** (8 tests, skipped without tudatpy)
+- Initialization, epoch derivation
+- `propagate_to` / `propagate_by` correctness
+- Reference epoch advancement
+- `set_initial_state` replacement
 
 ### DSST Propagator (future work) ⏳
 ⏳ **`core/propagator/dsst.py`** - DSST semi-analytical propagator
@@ -152,7 +157,5 @@
 
 ## Next Steps
 
-1. Implement `tle_epoch_to_tt_s()` in `core/tle.py`
-2. Implement `Sgp4Propagator` in `core/propagator/sgp4.py`
-6. Update `docs/CORE_LIBRARY_ORBITAL_ELEMENTS.md`
-7. Implement `NumericalPropagator` (after `propagate_orbit` core migration)
+1. Update `docs/CORE_LIBRARY_ORBITAL_ELEMENTS.md`
+2. Implement `NumericalPropagator` (after `propagate_orbit` core migration)

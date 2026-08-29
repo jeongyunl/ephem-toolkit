@@ -39,45 +39,11 @@ See [PROPAGATOR_IMPLEMENTATION_STATUS.md](PROPAGATOR_IMPLEMENTATION_STATUS.md) f
 
 ## Next Steps
 
-### Phase 3: Sgp4Propagator ⏳
+### Phase 3: Sgp4Propagator ✅
 
-**`core/tle.py`** — add `tle_epoch_to_tt_s(epoch_year, epoch_day) -> float`
-- Compose `tle_epoch_to_datetime()` + `datetime_to_tt_s()`
-
-**`core/propagator/sgp4.py`** — `Sgp4Propagator(Propagator[Tle])`
-
-```python
-class Sgp4Propagator(Propagator[Tle]):
-    """SGP4 propagator built from a NORAD TLE."""
-
-    def __init__(self, initial_state: Tle) -> None:
-        super().__init__()
-        self.set_initial_state(initial_state)
-
-    def set_initial_state(self, initial_state: Tle) -> None:
-        super().set_initial_state(initial_state)
-        from tudatpy.dynamics import environment_setup  # deferred, heavy import
-        line1, line2 = format_tle_strings(initial_state)
-        ephemeris_settings = environment_setup.ephemeris.sgp4(line1, line2)
-        self._ephemeris = environment_setup.create_body_ephemeris(
-            ephemeris_settings, body_name=initial_state.object_name or "UNKNOWN"
-        )
-        self._tle = initial_state
-        self._reference_epoch_s = tle_epoch_to_tt_s(
-            initial_state.epoch_year, initial_state.epoch_day
-        )
-
-    def get_initial_epoch_s(self) -> float:
-        return tle_epoch_to_tt_s(self._tle.epoch_year, self._tle.epoch_day)
-
-    def _propagate_to_impl(self, target_epoch_s: float) -> np.ndarray:
-        return self._ephemeris.cartesian_state(target_epoch_s)
-```
-
-**Tests**: `tests/ephem_toolkit/core/propagator/test_sgp4.py`
-- Verify `propagate_to` returns correct Cartesian state at TLE epoch
-- Verify epoch derived from TLE `epoch_year`/`epoch_day`
-- Verify `set_initial_state` can replace TLE
+✅ **`core/tle.py`** — `tle_epoch_to_tt_s(epoch_year, epoch_day)` added
+✅ **`core/propagator/sgp4.py`** — `Sgp4Propagator(Propagator[Tle])` implemented
+✅ **`tests/ephem_toolkit/core/propagator/test_sgp4.py`** — 8 tests (skipped without tudatpy)
 
 ### Phase 4: NumericalPropagator ⏳ (blocked)
 
