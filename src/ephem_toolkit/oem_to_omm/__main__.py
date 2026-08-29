@@ -186,7 +186,7 @@ def main(argv=None) -> None:
         if cli_args.output_omm:
             try:
                 osculating_elements: np.ndarray = (
-                    mean_kepler.mean_to_osculating_keplerian(fitted_mean_elements)
+                    mean_kepler.brouwer_mean_to_osculating(fitted_mean_elements)
                 )
                 omm_obj: omm.CcsdsOmm = omm.keplerian_to_omm(
                     first_epoch,

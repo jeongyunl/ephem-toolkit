@@ -175,9 +175,9 @@ def test_mean_motion_semi_major_axis_round_trip() -> None:
     assert n_recovered == pytest.approx(n_original, rel=1e-12)
 
 
-def test_osculating_to_mean_keplerian_returns_six_element_array() -> None:
+def test_osculating_to_brouwer_mean_returns_six_element_array() -> None:
     """Should return a NumPy array of six mean Keplerian elements."""
-    result = mean_kepler.osculating_to_mean_keplerian(
+    result = mean_kepler.osculating_to_brouwer_mean(
         np.array([7000e3, 0.01, 0.1, 0.3, 0.2, 1.0], dtype=float)
     )
 

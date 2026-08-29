@@ -63,7 +63,7 @@ def _compute_mean_kepler_residuals_from_epoch_state(
     )
 
     # Convert osculating to mean Keplerian
-    mean_elements: np.ndarray = mean_kepler.osculating_to_mean_keplerian(
+    mean_elements: np.ndarray = mean_kepler.osculating_to_brouwer_mean(
         osculating_elements, R_e_m=R_e_m, J2=J2
     )
 
@@ -72,12 +72,12 @@ def _compute_mean_kepler_residuals_from_epoch_state(
 
     for i, dt_s in enumerate(time_offsets_s):
         # Propagate mean elements using J2 secular rates
-        propagated_mean_elements: np.ndarray = mean_kepler.propagate_mean_j2(
+        propagated_mean_elements: np.ndarray = mean_kepler.propagate_brouwer_j2(
             mean_elements, dt_s, mu_m3_s2, R_e_m=R_e_m, J2=J2
         )
 
         # Convert propagated mean elements to Cartesian state
-        predicted_state: np.ndarray = mean_kepler.mean_elements_to_cartesian(
+        predicted_state: np.ndarray = mean_kepler.brouwer_mean_to_cartesian(
             propagated_mean_elements, mu_m3_s2, R_e_m=R_e_m, J2=J2
         )
 
@@ -159,7 +159,7 @@ def fit_mean_kepler(
         osculating_elements: np.ndarray = kepler.cartesian_to_keplerian(
             first_state, mu_m3_s2
         )
-        mean_elements: np.ndarray = mean_kepler.osculating_to_mean_keplerian(
+        mean_elements: np.ndarray = mean_kepler.osculating_to_brouwer_mean(
             osculating_elements, R_e_m=R_e_m, J2=J2
         )
         diagnostics: fit_common.FitDiagnostics = fit_common.FitDiagnostics(
@@ -245,7 +245,7 @@ def fit_mean_kepler(
                 trial_osculating: np.ndarray = kepler.cartesian_to_keplerian(
                     trial_state, mu_m3_s2
                 )
-                trial_mean: np.ndarray = mean_kepler.osculating_to_mean_keplerian(
+                trial_mean: np.ndarray = mean_kepler.osculating_to_brouwer_mean(
                     trial_osculating, R_e_m=R_e_m, J2=J2
                 )
             except Exception:
@@ -285,7 +285,7 @@ def fit_mean_kepler(
     osculating_elements: np.ndarray = kepler.cartesian_to_keplerian(
         best_state, mu_m3_s2
     )
-    mean_elements: np.ndarray = mean_kepler.osculating_to_mean_keplerian(
+    mean_elements: np.ndarray = mean_kepler.osculating_to_brouwer_mean(
         osculating_elements, R_e_m=R_e_m, J2=J2
     )
 
@@ -393,12 +393,12 @@ def compute_mean_kepler_propagation_comparison(
         oem_state: np.ndarray = closest_state[1]
 
         # Propagate mean Keplerian elements using J2 secular rates
-        propagated_mean_elements: np.ndarray = mean_kepler.propagate_mean_j2(
+        propagated_mean_elements: np.ndarray = mean_kepler.propagate_brouwer_j2(
             mean_keplerian_elements, actual_elapsed_s, mu_m3_s2, R_e_m=R_e_m, J2=J2
         )
 
         # Convert to Cartesian state
-        predicted_state: np.ndarray = mean_kepler.mean_elements_to_cartesian(
+        predicted_state: np.ndarray = mean_kepler.brouwer_mean_to_cartesian(
             propagated_mean_elements, mu_m3_s2, R_e_m=R_e_m, J2=J2
         )
 

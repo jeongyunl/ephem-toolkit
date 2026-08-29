@@ -276,7 +276,7 @@ def compute_brouwer_short_period_corrections(
 # ===================================================================
 
 
-def mean_to_osculating_keplerian(
+def brouwer_mean_to_osculating(
     mean_keplerian_elements: np.ndarray,
     R_e_m: float = EARTH_EQUATORIAL_RADIUS_M,
     J2: float = consts.EARTH_J2,
@@ -307,7 +307,7 @@ def mean_to_osculating_keplerian(
     See Also
     --------
     compute_brouwer_short_period_corrections : The underlying implementation.
-    osculating_to_mean_keplerian : Inverse transformation.
+    osculating_to_brouwer_mean : Inverse transformation.
     """
     return compute_brouwer_short_period_corrections(
         mean_keplerian_elements, R_e_m=R_e_m, J2=J2
@@ -319,7 +319,7 @@ def mean_to_osculating_keplerian(
 # ===================================================================
 
 
-def osculating_to_mean_keplerian(
+def osculating_to_brouwer_mean(
     osculating_keplerian_elements: np.ndarray,
     R_e_m: float = EARTH_EQUATORIAL_RADIUS_M,
     J2: float = consts.EARTH_J2,
@@ -524,7 +524,7 @@ def compute_raan_rate(
     return raan_rate
 
 
-def mean_elements_to_cartesian(
+def brouwer_mean_to_cartesian(
     mean_elements: np.ndarray,
     mu_m3_s2: float,
     R_e_m: float = EARTH_EQUATORIAL_RADIUS_M,
@@ -563,7 +563,7 @@ def mean_elements_to_cartesian(
     --------
     kepler.keplerian_to_cartesian : Direct osculating-to-Cartesian conversion.
     compute_brouwer_short_period_corrections : Mean-to-osculating element conversion.
-    propagate_mean_j2 : Propagate mean elements forward using J2 secular rates.
+    propagate_brouwer_j2 : Propagate Brouwer mean elements forward using J2 secular rates.
     """
     osculating_elements: np.ndarray = compute_brouwer_short_period_corrections(
         mean_elements, R_e_m=R_e_m, J2=J2
@@ -571,7 +571,7 @@ def mean_elements_to_cartesian(
     return kepler.keplerian_to_cartesian(osculating_elements, mu_m3_s2)
 
 
-def propagate_mean_j2(
+def propagate_brouwer_j2(
     keplerian_elements: np.ndarray,
     time_elapsed_s: float,
     mu_m3_s2: float,

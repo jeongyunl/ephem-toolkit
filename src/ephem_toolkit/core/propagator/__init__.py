@@ -13,6 +13,7 @@ from ephem_toolkit.core.propagator.base import (
     OutputMode,
     Propagator,
 )
+from ephem_toolkit.core.propagator.brouwer_j2 import BrouwerJ2Propagator
 from ephem_toolkit.core.propagator.kepler import (
     KeplerPropagator,
     cartesian_to_keplerian,
@@ -29,6 +30,7 @@ from ephem_toolkit.core.propagator.kepler import (
 
 __all__ = [
     "AnomalyType",
+    "BrouwerJ2Propagator",
     "KeplerianState",
     "KeplerPropagator",
     "OutputMode",
