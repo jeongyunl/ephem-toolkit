@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import core.mean_kepler as mean_kepler
+import core.propagator.brouwer_j2 as mean_kepler
 
 
 def test_osculating_to_brouwer_mean_returns_six_elements() -> None:

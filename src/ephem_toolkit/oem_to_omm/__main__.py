@@ -40,7 +40,7 @@ warnings.filterwarnings(
 
 import ephem_toolkit.core.consts as consts
 import ephem_toolkit.core.convert_tle as convert_tle
-import ephem_toolkit.core.mean_kepler as mean_kepler
+import ephem_toolkit.core.propagator.brouwer_j2 as mean_kepler
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.ccsds.omm as omm
 import ephem_toolkit.core.time_utils as time_utils
