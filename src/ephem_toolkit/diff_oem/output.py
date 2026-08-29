@@ -370,7 +370,7 @@ class ComparisonOutput:
                 index,
                 comparison_result,
                 include_comparison_epoch=False,
-                query_epoch=datetime.fromtimestamp(query_epoch_s, tz=timezone.utc),
+                query_epoch=time_utils.tt_s_to_datetime(query_epoch_s),
             )
         if self.fit_description is not None:
             print("\n" + self.fit_description)

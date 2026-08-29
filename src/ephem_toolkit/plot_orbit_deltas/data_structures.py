@@ -38,7 +38,7 @@ class StateHistory:
     """Label or identifier for the orbit (e.g., filename)."""
 
     state_history: dict[float, np.ndarray]
-    """Mapping of POSIX epoch timestamps (seconds) to 6-element state vectors [x, y, z, vx, vy, vz] in meters (m) and m/s.
+    """Mapping of TT seconds since J2000 to 6-element state vectors [x, y, z, vx, vy, vz] in meters (m) and m/s.
     
     Data is stored internally in SI units (m, m/s) as returned by the OEM reader,
     but will be converted to km and km/s for plotting and CSV export.

@@ -101,7 +101,7 @@ TEME <-> J2000 <-> ITRF93
 ```
 
 Each state is evaluated at its own epoch. The dispatcher accepts epochs named
-`epoch_tdb_s` (TDB seconds since J2000) and passes that value to TudatPy's
+`epoch_tt_s` (TT seconds since J2000) and passes that value to TudatPy's
 rotation-model methods, which use ephemeris-time seconds for their evaluation.
 State vectors are expected in metres and metres per second at this layer; the
 OEM command-line adapter handles conversion to and from its kilometre-based

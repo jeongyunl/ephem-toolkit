@@ -172,7 +172,7 @@ def read_oem_states(
     Returns
     -------
     tuple[oem.CcsdsOem, list[float], list[np.ndarray]]
-        Parsed OEM object, timestamps in POSIX seconds, and 6D states in SI units
+        Parsed OEM object, timestamps in TT seconds since J2000, and 6D states in SI units
         [x, y, z, vx, vy, vz] with meters (m) and m/s.
 
     Raises
@@ -205,7 +205,7 @@ def filter_states_by_duration(
     Parameters
     ----------
     timestamps_s : list[float]
-        State timestamps in POSIX seconds.
+        State timestamps in TT seconds since J2000.
     states_m : list[np.ndarray]
         State vectors in SI units [x, y, z, vx, vy, vz].
     duration_s : float | None
@@ -288,7 +288,7 @@ def compute_orbit_series(
     Parameters
     ----------
     timestamps_s : list[float]
-        State timestamps in POSIX seconds.
+        State timestamps in TT seconds since J2000.
     states_m : list[np.ndarray]
         State vectors in SI units [x, y, z, vx, vy, vz].
     time_unit : TimeUnit

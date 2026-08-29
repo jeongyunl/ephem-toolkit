@@ -84,7 +84,7 @@ def fit_osculating_kepler(
     Parameters
     ----------
     states : list[tuple[float, np.ndarray]]
-        List of (POSIX timestamp, state_vector) tuples.
+        List of (TT seconds since J2000, state_vector) tuples.
         State vectors are [x, y, z, vx, vy, vz] in meters and m/s.
     fit_span_s : float
         Maximum arc span in seconds (default: 7200 = 2 hours).
@@ -284,7 +284,7 @@ def compute_kepler_propagation_comparison(
     keplerian_elements : np.ndarray
         Osculating Keplerian elements at epoch (6,): [a, e, i, omega, RAAN, theta].
     states : list[tuple[float, np.ndarray]]
-        List of (POSIX timestamp, state_vector) tuples from OEM.
+        List of (TT seconds since J2000, state_vector) tuples from OEM.
     mu_m3_s2 : float
         Gravitational parameter (m³/s²).
     fit_span_s : float

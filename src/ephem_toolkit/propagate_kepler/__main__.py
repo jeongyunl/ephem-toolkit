@@ -153,7 +153,7 @@ def propagate_kepler_elements(
 
     stop_time_s: float = duration_s
     current_time_s: float = 0.0
-    # Build list of (POSIX timestamp, state vector) tuples for consistency with OEM migration
+    # Build list of (TT seconds since J2000, state vector) tuples
     propagated_states: list[tuple[float, np.ndarray]] = []
     while current_time_s <= stop_time_s + 1.0e-12:
         propagated_kepler: np.ndarray = kepler.propagate_kepler(
@@ -163,10 +163,10 @@ def propagate_kepler_elements(
         propagated_cartesian_m: np.ndarray = kepler.keplerian_to_cartesian(
             propagated_kepler
         ).flatten()
-        epoch_posix: float = (
+        epoch_tt_s: float = time_utils.datetime_to_tt_s(
             initial_epoch + dt.timedelta(seconds=current_time_s)
-        ).timestamp()
-        propagated_states.append((epoch_posix, propagated_cartesian_m))
+        )
+        propagated_states.append((epoch_tt_s, propagated_cartesian_m))
         current_time_s += step_s
 
     output_stream: TextIO

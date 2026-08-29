@@ -181,7 +181,7 @@ def _estimate_mean_motion_derivative(
     Parameters
     ----------
     states : list[tuple[float, np.ndarray]]
-        List of (POSIX timestamp, state_vector) tuples.
+        List of (TT seconds since J2000, state_vector) tuples.
     mu_m3_s2 : float
         Gravitational parameter (m³/s²).
 
@@ -374,7 +374,7 @@ def fit_tle(
     Parameters
     ----------
     states : list[tuple[float, np.ndarray]]
-        List of (POSIX timestamp, state_vector) tuples.
+        List of (TT seconds since J2000, state_vector) tuples.
     fit_span_s : float
         Maximum arc span (s).
     refinement_method : str
@@ -540,7 +540,7 @@ def compute_tle_propagation_comparison(
     tle_obj : tle.Tle
         TLE dataclass instance from fit_tle().
     states : list[tuple[float, np.ndarray]]
-        List of (POSIX timestamp, state_vector) tuples from OEM.
+        List of (TT seconds since J2000, state_vector) tuples from OEM.
     mu_m3_s2 : float
         Gravitational parameter (m³/s²).
     fit_span_s : float
@@ -936,7 +936,7 @@ def cartesian_to_tle_mean_elements(
     cartesian_state : np.ndarray
         Cartesian state vector [x, y, z, vx, vy, vz] in meters and m/s.
     epoch_timestamp : float
-        POSIX timestamp of the epoch.
+        TT seconds since J2000 of the epoch.
     mu_m3_s2 : float
         Gravitational parameter (m³/s²).
     position_tolerance_m : float
@@ -961,7 +961,7 @@ def cartesian_to_tle_mean_elements(
     M_osc: float = _true_to_mean_anomaly(theta_osc, e_osc)
 
     # Get epoch for TLE creation
-    epoch_dt: datetime = datetime.fromtimestamp(epoch_timestamp, tz=timezone.utc)
+    epoch_dt: datetime = time_utils.tt_s_to_datetime(epoch_timestamp)
     epoch_year, epoch_day = tle.datetime_to_tle_epoch(epoch_dt)
 
     # Initialize mean elements from osculating elements
@@ -1099,7 +1099,7 @@ def cartesian_to_tle(
     mean_motion_rev_day: float = _sgp4_mean_motion_rev_per_day(a_m)
 
     int_year, int_launch, int_piece = convert_tle._parse_object_id(object_id)
-    epoch_dt: datetime = datetime.fromtimestamp(epoch_timestamp, tz=timezone.utc)
+    epoch_dt: datetime = time_utils.tt_s_to_datetime(epoch_timestamp)
     epoch_year, epoch_day = tle.datetime_to_tle_epoch(epoch_dt)
 
     bstar_tle: str = convert_tle._float_to_tle_exponential(0.0)

@@ -376,7 +376,7 @@ def create_translational_propagator_settings(
         + timedelta(seconds=propagation_inputs.simulation_duration_s)
     )
     termination_condition = propagation_setup.propagator.time_termination(
-        time_utils.datetime_to_tdb_s(simulation_end_epoch_datetime_utc)
+        time_utils.datetime_to_tt_s(simulation_end_epoch_datetime_utc)
     )
 
     return propagation_setup.propagator.translational(
@@ -384,7 +384,7 @@ def create_translational_propagator_settings(
         acceleration_models,
         bodies_to_propagate,
         propagation_inputs.initial_state_m_m_s,
-        time_utils.datetime_to_tdb_s(propagation_inputs.initial_epoch_datetime_utc),
+        time_utils.datetime_to_tt_s(propagation_inputs.initial_epoch_datetime_utc),
         integrator_settings,
         termination_condition,
         output_variables=dependent_variables_to_save,

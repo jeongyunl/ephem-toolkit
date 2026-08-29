@@ -223,8 +223,8 @@ def extract_sliced_states(
             if sliced_states:
                 first_timestamp_s, _ = sliced_states[0]
                 last_timestamp_s, _ = sliced_states[-1]
-                first_dt = datetime.fromtimestamp(first_timestamp_s, tz=timezone.utc)
-                last_dt = datetime.fromtimestamp(last_timestamp_s, tz=timezone.utc)
+                first_dt = time_utils.tt_s_to_datetime(first_timestamp_s)
+                last_dt = time_utils.tt_s_to_datetime(last_timestamp_s)
                 span = last_dt - first_dt
                 print(
                     f"[slice_oem]   Output start: {time_utils.datetime_to_iso8601(first_dt)}",
@@ -346,7 +346,7 @@ def extract_states_by_time(
             )
     else:
         # It's a datetime
-        slice_start_timestamp_s = options.start_time.timestamp()
+        slice_start_timestamp_s = time_utils.datetime_to_tt_s(options.start_time)
 
     # Resolve stop_time
     if options.stop_time is None:
@@ -373,7 +373,7 @@ def extract_states_by_time(
             )
     else:
         # It's a datetime
-        slice_stop_timestamp_s = options.stop_time.timestamp()
+        slice_stop_timestamp_s = time_utils.datetime_to_tt_s(options.stop_time)
 
     # Validate time range after resolving timestamps
     _validate_time_range(
@@ -407,9 +407,7 @@ def extract_states_by_time(
             sliced_states = [(slice_start_timestamp_s, interp_state)]
 
             if verbose:
-                resolved_dt = datetime.fromtimestamp(
-                    slice_start_timestamp_s, tz=timezone.utc
-                )
+                resolved_dt = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
                 print(
                     f"[slice_oem]   Mode: single state (interpolated)",
                     file=sys.stderr,
@@ -427,9 +425,7 @@ def extract_states_by_time(
             sliced_states = states[slice_start_index:slice_stop_index]
 
             if verbose:
-                resolved_dt = datetime.fromtimestamp(
-                    slice_start_timestamp_s, tz=timezone.utc
-                )
+                resolved_dt = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
                 print(
                     f"[slice_oem]   Mode: single state (no stop time given)",
                     file=sys.stderr,
@@ -465,9 +461,7 @@ def extract_states_by_time(
                 and timestamps_s[slice_start_index] != slice_start_timestamp_s
             ):
                 if verbose:
-                    start_dt = datetime.fromtimestamp(
-                        slice_start_timestamp_s, tz=timezone.utc
-                    )
+                    start_dt = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
                     print(
                         f"[slice_oem]   Interpolating start_state at {time_utils.datetime_to_iso8601(start_dt)}",
                         file=sys.stderr,
@@ -484,9 +478,7 @@ def extract_states_by_time(
                 and timestamps_s[slice_stop_index - 1] != slice_stop_timestamp_s
             ):
                 if verbose:
-                    stop_dt = datetime.fromtimestamp(
-                        slice_stop_timestamp_s, tz=timezone.utc
-                    )
+                    stop_dt = time_utils.tt_s_to_datetime(slice_stop_timestamp_s)
                     print(
                         f"[slice_oem]   Interpolating stop_state at {time_utils.datetime_to_iso8601(stop_dt)}",
                         file=sys.stderr,
@@ -495,12 +487,8 @@ def extract_states_by_time(
                 sliced_states.append((slice_stop_timestamp_s, stop_state))
 
             if verbose:
-                resolved_start_dt = datetime.fromtimestamp(
-                    slice_start_timestamp_s, tz=timezone.utc
-                )
-                resolved_stop_dt = datetime.fromtimestamp(
-                    slice_stop_timestamp_s, tz=timezone.utc
-                )
+                resolved_start_dt = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
+                resolved_stop_dt = time_utils.tt_s_to_datetime(slice_stop_timestamp_s)
                 print(
                     f"[slice_oem]   Mode: time range (interpolated boundaries)",
                     file=sys.stderr,
@@ -528,12 +516,8 @@ def extract_states_by_time(
             sliced_states = states[slice_start_index:slice_stop_index]
 
             if verbose:
-                resolved_start_dt = datetime.fromtimestamp(
-                    slice_start_timestamp_s, tz=timezone.utc
-                )
-                resolved_stop_dt = datetime.fromtimestamp(
-                    slice_stop_timestamp_s, tz=timezone.utc
-                )
+                resolved_start_dt = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
+                resolved_stop_dt = time_utils.tt_s_to_datetime(slice_stop_timestamp_s)
                 print(
                     f"[slice_oem]   Mode: time range (no interpolation)",
                     file=sys.stderr,
@@ -556,12 +540,8 @@ def extract_states_by_time(
             timestamp_s += options.step_size.total_seconds()
 
         if verbose:
-            resolved_start_dt = datetime.fromtimestamp(
-                slice_start_timestamp_s, tz=timezone.utc
-            )
-            resolved_stop_dt = datetime.fromtimestamp(
-                slice_stop_timestamp_s, tz=timezone.utc
-            )
+            resolved_start_dt = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
+            resolved_stop_dt = time_utils.tt_s_to_datetime(slice_stop_timestamp_s)
             interp_type_str = f"{interpolation_spec.interp_type.value} degree {interpolation_spec.degree}"
 
             print(
@@ -590,8 +570,8 @@ def extract_states_by_time(
         if sliced_states:
             first_timestamp_s, _ = sliced_states[0]
             last_timestamp_s, _ = sliced_states[-1]
-            first_dt = datetime.fromtimestamp(first_timestamp_s, tz=timezone.utc)
-            last_dt = datetime.fromtimestamp(last_timestamp_s, tz=timezone.utc)
+            first_dt = time_utils.tt_s_to_datetime(first_timestamp_s)
+            last_dt = time_utils.tt_s_to_datetime(last_timestamp_s)
             span = last_dt - first_dt
             print(
                 f"[slice_oem]   Output start: {time_utils.datetime_to_iso8601(first_dt)}",
@@ -713,8 +693,8 @@ def _create_sliced_oem(
 
     # Update time-related metadata fields based on the sliced states
     if sliced_states:
-        start_dt = datetime.fromtimestamp(sliced_states[0][0], tz=timezone.utc)
-        stop_dt = datetime.fromtimestamp(sliced_states[-1][0], tz=timezone.utc)
+        start_dt = time_utils.tt_s_to_datetime(sliced_states[0][0])
+        stop_dt = time_utils.tt_s_to_datetime(sliced_states[-1][0])
 
         # Update START_TIME and STOP_TIME to match the sliced data
         new_meta.start_time = time_utils.datetime_to_iso8601(start_dt)
@@ -747,10 +727,8 @@ def _create_sliced_oem(
 
             # Only set USABLE_START/STOP_TIME if there's a valid USABLE region
             if usable_start_ts < usable_stop_ts:
-                usable_start_dt = datetime.fromtimestamp(
-                    usable_start_ts, tz=timezone.utc
-                )
-                usable_stop_dt = datetime.fromtimestamp(usable_stop_ts, tz=timezone.utc)
+                usable_start_dt = time_utils.tt_s_to_datetime(usable_start_ts)
+                usable_stop_dt = time_utils.tt_s_to_datetime(usable_stop_ts)
                 new_meta.useable_start_time = time_utils.datetime_to_iso8601(
                     usable_start_dt
                 )
@@ -852,9 +830,9 @@ def _validate_time_range(
     Parameters
     ----------
     slice_start_timestamp_s : float
-        Resolved start timestamp in seconds (POSIX time).
+        Resolved start timestamp in TT seconds since J2000.
     slice_stop_timestamp_s : float
-        Resolved stop timestamp in seconds (POSIX time).
+        Resolved stop timestamp in TT seconds since J2000.
     base_start_timestamp_s : float
         First timestamp in the OEM file.
     base_stop_timestamp_s : float
@@ -881,8 +859,8 @@ def _validate_time_range(
         and slice_stop_timestamp_s < slice_start_timestamp_s
     ):
         # Format times for error message
-        start_dt = datetime.fromtimestamp(slice_start_timestamp_s, tz=timezone.utc)
-        stop_dt = datetime.fromtimestamp(slice_stop_timestamp_s, tz=timezone.utc)
+        start_dt = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
+        stop_dt = time_utils.tt_s_to_datetime(slice_stop_timestamp_s)
 
         # Build descriptive error message based on input type
         if isinstance(options.start_time, datetime):
@@ -913,16 +891,16 @@ def _validate_time_range(
     tolerance = oem_duration * 0.1  # 10% tolerance
 
     if slice_start_timestamp_s < (base_start_timestamp_s - tolerance):
-        start_dt = datetime.fromtimestamp(slice_start_timestamp_s, tz=timezone.utc)
-        oem_start_dt = datetime.fromtimestamp(base_start_timestamp_s, tz=timezone.utc)
+        start_dt = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
+        oem_start_dt = time_utils.tt_s_to_datetime(base_start_timestamp_s)
         raise ValueError(
             f"Start time {time_utils.datetime_to_iso8601(start_dt)} is before "
             f"OEM file start time {time_utils.datetime_to_iso8601(oem_start_dt)}"
         )
 
     if slice_stop_timestamp_s > (base_stop_timestamp_s + tolerance):
-        stop_dt = datetime.fromtimestamp(slice_stop_timestamp_s, tz=timezone.utc)
-        oem_stop_dt = datetime.fromtimestamp(base_stop_timestamp_s, tz=timezone.utc)
+        stop_dt = time_utils.tt_s_to_datetime(slice_stop_timestamp_s)
+        oem_stop_dt = time_utils.tt_s_to_datetime(base_stop_timestamp_s)
         raise ValueError(
             f"Stop time {time_utils.datetime_to_iso8601(stop_dt)} is after "
             f"OEM file stop time {time_utils.datetime_to_iso8601(oem_stop_dt)}"

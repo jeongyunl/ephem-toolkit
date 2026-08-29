@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 import core.ccsds.oem as oem
+import core.time_utils as time_utils
 
 TEST_DIR = Path(__file__).parent
 OEM_PATH = TEST_DIR.parents[2] / "data" / "ISS_2026-05-20_small.OEM"
@@ -40,7 +41,7 @@ def test_read_oem_from_test_file_returns_header_meta_states() -> None:
     assert meta["TIME_SYSTEM"] == "UTC"
     assert len(states) > 0
 
-    # states is now a list of (POSIX timestamp, state) tuples
+    # states is now a list of (TT seconds since J2000, state) tuples
     first_timestamp, first_state = states[0]
     assert isinstance(first_timestamp, float)
     assert isinstance(first_state, np.ndarray)
@@ -418,9 +419,12 @@ def test_write_states_to_stream() -> None:
 
 def test_from_states_creates_oem_with_minimal_metadata() -> None:
     """Test CcsdsOem.from_states() creates OEM with minimal metadata."""
+    t0 = time_utils.datetime_to_tt_s(
+        datetime(2024, 1, 1, tzinfo=__import__("datetime").timezone.utc)
+    )
     states = [
-        (1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0])),
-        (1234567950.0, np.array([7.1e6, 0, 0, 0, 7.4e3, 0])),
+        (t0, np.array([7e6, 0, 0, 0, 7.5e3, 0])),
+        (t0 + 60.0, np.array([7.1e6, 0, 0, 0, 7.4e3, 0])),
     ]
 
     oem_obj = oem.CcsdsOem.from_states(
@@ -441,38 +445,47 @@ def test_from_states_creates_oem_with_minimal_metadata() -> None:
 
 def test_from_states_sorts_states_by_timestamp() -> None:
     """Test CcsdsOem.from_states() sorts states by timestamp."""
+    t0 = time_utils.datetime_to_tt_s(
+        datetime(2024, 1, 1, tzinfo=__import__("datetime").timezone.utc)
+    )
     # Provide states out of order
     states = [
-        (1234567950.0, np.array([7.1e6, 0, 0, 0, 7.4e3, 0])),
-        (1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0])),
+        (t0 + 60.0, np.array([7.1e6, 0, 0, 0, 7.4e3, 0])),
+        (t0, np.array([7e6, 0, 0, 0, 7.5e3, 0])),
     ]
 
     oem_obj = oem.CcsdsOem.from_states(states)
 
     # Should be sorted
-    assert oem_obj.states[0][0] == 1234567890.0
-    assert oem_obj.states[1][0] == 1234567950.0
+    assert oem_obj.states[0][0] == t0
+    assert oem_obj.states[1][0] == t0 + 60.0
 
 
 def test_from_states_sets_start_stop_times() -> None:
     """Test CcsdsOem.from_states() sets start/stop times from states."""
+    t0 = time_utils.datetime_to_tt_s(
+        datetime(2024, 1, 1, tzinfo=__import__("datetime").timezone.utc)
+    )
     states = [
-        (1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0])),
-        (1234567950.0, np.array([7.1e6, 0, 0, 0, 7.4e3, 0])),
+        (t0, np.array([7e6, 0, 0, 0, 7.5e3, 0])),
+        (t0 + 60.0, np.array([7.1e6, 0, 0, 0, 7.4e3, 0])),
     ]
 
     oem_obj = oem.CcsdsOem.from_states(states)
 
     assert oem_obj.meta.start_time != ""
     assert oem_obj.meta.stop_time != ""
-    assert "2009-02-13" in oem_obj.meta.start_time  # Timestamp 1234567890
+    assert "2024-01-01" in oem_obj.meta.start_time
 
 
 def test_from_states_round_trip() -> None:
     """Test CcsdsOem.from_states() creates OEM that can be written and read."""
+    t0 = time_utils.datetime_to_tt_s(
+        datetime(2024, 1, 1, tzinfo=__import__("datetime").timezone.utc)
+    )
     states = [
-        (1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0])),
-        (1234567950.0, np.array([7.1e6, 0, 0, 0, 7.4e3, 0])),
+        (t0, np.array([7e6, 0, 0, 0, 7.5e3, 0])),
+        (t0 + 60.0, np.array([7.1e6, 0, 0, 0, 7.4e3, 0])),
     ]
 
     oem_obj = oem.CcsdsOem.from_states(
@@ -540,7 +553,10 @@ def test_parse_state_line_returns_none_for_comment() -> None:
 
 def test_update_metadata_modifies_in_place() -> None:
     """Test update_metadata() modifies OEM metadata in-place."""
-    states = [(1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
+    t0 = time_utils.datetime_to_tt_s(
+        datetime(2024, 1, 1, tzinfo=__import__("datetime").timezone.utc)
+    )
+    states = [(t0, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
     oem_obj = oem.CcsdsOem.from_states(states, object_name="ORIGINAL")
 
     oem_obj.update_metadata(object_name="UPDATED", ref_frame="J2000")
@@ -551,7 +567,10 @@ def test_update_metadata_modifies_in_place() -> None:
 
 def test_update_metadata_raises_on_unknown_field() -> None:
     """Test update_metadata() raises ValueError for unknown fields."""
-    states = [(1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
+    t0 = time_utils.datetime_to_tt_s(
+        datetime(2024, 1, 1, tzinfo=__import__("datetime").timezone.utc)
+    )
+    states = [(t0, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
     oem_obj = oem.CcsdsOem.from_states(states)
 
     with pytest.raises(ValueError, match="Unknown metadata field"):
@@ -565,11 +584,14 @@ def test_update_metadata_raises_on_unknown_field() -> None:
 
 def test_integration_workflow() -> None:
     """Test complete workflow with new methods."""
+    t0 = time_utils.datetime_to_tt_s(
+        datetime(2024, 1, 1, tzinfo=__import__("datetime").timezone.utc)
+    )
     # Create OEM from states
     states = [
-        (1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0])),
-        (1234567950.0, np.array([7.1e6, 0, 0, 0, 7.4e3, 0])),
-        (1234568010.0, np.array([7.2e6, 0, 0, 0, 7.3e3, 0])),
+        (t0, np.array([7e6, 0, 0, 0, 7.5e3, 0])),
+        (t0 + 60.0, np.array([7.1e6, 0, 0, 0, 7.4e3, 0])),
+        (t0 + 120.0, np.array([7.2e6, 0, 0, 0, 7.3e3, 0])),
     ]
 
     oem_obj = oem.CcsdsOem.from_states(

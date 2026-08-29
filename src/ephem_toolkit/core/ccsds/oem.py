@@ -193,7 +193,7 @@ class CcsdsOem:
         Returns
         -------
         tuple[float, np.ndarray] | None
-            ``(timestamp, state_m)`` where *timestamp* is a POSIX timestamp (float, seconds since epoch)
+            ``(tt_s, state_m)`` where *tt_s* is TT seconds since J2000 (float)
             and *state_m* is a 6-element numpy array ``[x, y, z, vx, vy, vz]`` in meters (m) and m/s,
             or ``None`` for blank / comment lines.
         """
@@ -208,7 +208,7 @@ class CcsdsOem:
 
         epoch_str: str = parts[0]
         epoch_dt: datetime = time_utils.iso8601_to_datetime(epoch_str)
-        timestamp: float = epoch_dt.timestamp()
+        timestamp: float = time_utils.datetime_to_tt_s(epoch_dt)
 
         values: list[float] = [float(value) for value in parts[1:7]]
         state_km: np.ndarray = np.array(values)
@@ -236,9 +236,9 @@ class CcsdsOem:
         data_comments : list[str]
             Comment lines from the ephemeris data section.
         states : list[tuple[float, np.ndarray]]
-            List of (POSIX timestamp, state_vector) tuples, sorted by POSIX timestamp
-            (float, seconds since epoch) in ascending order. State vectors are 6-element
-            arrays in meters (m) and m/s.
+            List of (TT seconds since J2000, state_vector) tuples, sorted in
+            ascending order. State vectors are 6-element arrays in meters (m)
+            and m/s.
         """
         self.header = header
         """File-level header fields."""
@@ -247,7 +247,7 @@ class CcsdsOem:
         """Metadata block fields."""
 
         self.states = states
-        """List of (POSIX timestamp, state_vector) tuples, sorted by POSIX timestamp (float, seconds since epoch) in ascending order. State vectors are 6-element arrays [x, y, z, vx, vy, vz] in meters (m) and m/s."""
+        """List of (TT seconds since J2000, state_vector) tuples, sorted in ascending order. State vectors are 6-element arrays [x, y, z, vx, vy, vz] in meters (m) and m/s."""
 
         self.data_comments = data_comments
         """Comment lines from the ephemeris data section (after META_STOP, before state data)."""
@@ -325,7 +325,7 @@ class CcsdsOem:
                 if len(state_fields) < 7:
                     continue
                 epoch: datetime = time_utils.iso8601_to_datetime(state_fields[0])
-                timestamp: float = epoch.timestamp()
+                timestamp: float = time_utils.datetime_to_tt_s(epoch)
                 state_km: np.ndarray = np.array(
                     [float(value) for value in state_fields[1:7]]
                 )
@@ -403,7 +403,7 @@ class CcsdsOem:
         Parameters
         ----------
         states : list[tuple[float, np.ndarray]]
-            List of (POSIX timestamp, state_vector) tuples in meters (m) and m/s.
+            List of (TT seconds since J2000, state_vector) tuples in meters (m) and m/s.
         object_name : str, optional
             Satellite or object name.
         object_id : str, optional
@@ -447,8 +447,8 @@ class CcsdsOem:
 
         # Set start/stop times from states.
         if sorted_states:
-            start_dt = datetime.fromtimestamp(sorted_states[0][0], tz=timezone.utc)
-            stop_dt = datetime.fromtimestamp(sorted_states[-1][0], tz=timezone.utc)
+            start_dt = time_utils.tt_s_to_datetime(sorted_states[0][0])
+            stop_dt = time_utils.tt_s_to_datetime(sorted_states[-1][0])
             meta.start_time = time_utils.datetime_to_iso8601(start_dt)
             meta.stop_time = time_utils.datetime_to_iso8601(stop_dt)
 
@@ -456,7 +456,7 @@ class CcsdsOem:
 
     @property
     def epochs(self) -> list[float]:
-        """Sorted list of epoch POSIX timestamps."""
+        """Sorted list of epoch timestamps in TT seconds since J2000."""
         return [epoch for epoch, _ in self.states]
 
     @property
@@ -516,7 +516,7 @@ class CcsdsOem:
         for epoch, state_vector in self.states:
             self.write_state(
                 dest,
-                datetime.fromtimestamp(epoch, tz=timezone.utc),
+                time_utils.tt_s_to_datetime(epoch),
                 state_vector,
                 sep=sep,
             )
@@ -669,7 +669,7 @@ class CcsdsOem:
         Parameters
         ----------
         timestamp : float
-            POSIX timestamp to search for (seconds since epoch).
+            TT seconds since J2000 to search for.
         tolerance : float, optional
             Maximum allowed difference between requested and found timestamp.
             If 0.0 (default), requires exact match. If > 0.0, returns the closest

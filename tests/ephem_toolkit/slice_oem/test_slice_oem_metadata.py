@@ -14,6 +14,7 @@ import pytest
 
 import ephem_toolkit.core.ccsds.opm as opm
 import ephem_toolkit.core.ccsds.oem as oem
+import ephem_toolkit.core.time_utils as time_utils
 from ephem_toolkit.slice_oem.__main__ import main
 
 TEST_DIR: Path = Path(__file__).parent
@@ -66,7 +67,7 @@ def _create_test_oem(
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
         (
-            base_time.timestamp() + i * interval_seconds,
+            time_utils.datetime_to_tt_s(base_time) + i * interval_seconds,
             np.array([7e6 + i * 1000, 0, 0, 0, 7.5e3, 0]),
         )
         for i in range(num_states)

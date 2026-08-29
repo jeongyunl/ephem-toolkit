@@ -22,15 +22,15 @@ This document covers reference frame conversions and coordinate system transform
 
 ### TEME/J2000 Conversion
 
-#### `teme_to_j2000(epoch_tdb_s: float, teme_state: np.ndarray) -> np.ndarray`
-Convert a six-component Cartesian state from TEME to J2000 coordinates at a TDB epoch.
+#### `teme_to_j2000(epoch_tt_s: float, teme_state: np.ndarray) -> np.ndarray`
+Convert a six-component Cartesian state from TEME to J2000 coordinates at a TT epoch.
 
-#### `j2000_to_teme(epoch_tdb_s: float, j2000_state: np.ndarray) -> np.ndarray`
-Convert a six-component Cartesian state from J2000 to TEME coordinates at a TDB epoch.
+#### `j2000_to_teme(epoch_tt_s: float, j2000_state: np.ndarray) -> np.ndarray`
+Convert a six-component Cartesian state from J2000 to TEME coordinates at a TT epoch.
 
 ### SPICE Frame Conversion
 
-#### `spice_convert_frame(base_frame: str, target_frame: str, epoch_tdb_s: float, input_state_m: np.ndarray) -> np.ndarray`
+#### `spice_convert_frame(base_frame: str, target_frame: str, epoch_tt_s: float, input_state_m: np.ndarray) -> np.ndarray`
 Convert a state between SPICE frames using position and velocity rotation terms. Input and output states use metres and metres per second.
 
 ### TudatPy Rotation Models

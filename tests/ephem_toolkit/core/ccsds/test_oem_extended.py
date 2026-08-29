@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 import core.ccsds.oem as oem
+import core.time_utils as time_utils
 
 TEST_DIR = Path(__file__).parent
 OEM_PATH = TEST_DIR.parents[2] / "data" / "ISS_2026-05-20_small.OEM"
@@ -56,7 +57,7 @@ def test_find_state_by_timestamp_empty_list() -> None:
     """Test find_state_by_timestamp returns None for empty state list."""
     states = []
 
-    result = oem.CcsdsOem.from_states(states).find_state_by_timestamp(1234567890.0)
+    result = oem.CcsdsOem.from_states(states).find_state_by_timestamp(757339269.184)
 
     assert result is None
 
@@ -158,20 +159,20 @@ def test_find_state_by_timestamp_prefers_earlier_on_tie() -> None:
 def test_ccsds_oem_find_state_by_timestamp_method() -> None:
     """Test CcsdsOem.find_state_by_timestamp method."""
     states = [
-        (1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0])),
-        (1234567950.0, np.array([7.1e6, 0, 0, 0, 7.4e3, 0])),
+        (757339269.184, np.array([7e6, 0, 0, 0, 7.5e3, 0])),
+        (757339329.184, np.array([7.1e6, 0, 0, 0, 7.4e3, 0])),
     ]
 
     oem_obj = oem.CcsdsOem.from_states(states)
 
     # Exact match
-    result = oem_obj.find_state_by_timestamp(1234567890.0)
+    result = oem_obj.find_state_by_timestamp(757339269.184)
     assert result is not None
     timestamp, state = result
-    assert timestamp == 1234567890.0
+    assert timestamp == 757339269.184
 
     # With tolerance
-    result = oem_obj.find_state_by_timestamp(1234567900.0, tolerance=20.0)
+    result = oem_obj.find_state_by_timestamp(757339279.184, tolerance=20.0)
     assert result is not None
 
     # No match
@@ -206,7 +207,7 @@ def test_write_line_supports_custom_separator() -> None:
 def test_write_csv_uses_comma_space_separator() -> None:
     """Test CcsdsOem.write uses comma-space separators for CSV output."""
     output = io.StringIO()
-    states = [(1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
+    states = [(757339269.184, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
 
     oem.CcsdsOem.from_states(states, object_name="TEST").write(
         output, format_type=oem.OemFormat.CSV
@@ -219,7 +220,7 @@ def test_write_csv_uses_comma_space_separator() -> None:
 def test_write_states_accepts_oem_format() -> None:
     """Test write_states uses OemFormat to select CSV separators."""
     output = io.StringIO()
-    states = [(1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
+    states = [(757339269.184, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
 
     oem.CcsdsOem.from_states(states).write_states(output, format_type=oem.OemFormat.CSV)
 
@@ -252,7 +253,10 @@ def test_write_states_with_dict_of_datetimes() -> None:
     }
 
     oem.CcsdsOem.from_states(
-        [(epoch.timestamp(), state) for epoch, state in states_dict.items()]
+        [
+            (time_utils.datetime_to_tt_s(epoch), state)
+            for epoch, state in states_dict.items()
+        ]
     ).write_states(output)
 
     content = output.getvalue()
@@ -274,7 +278,7 @@ def test_write_states_with_list_of_datetime_tuples() -> None:
     ]
 
     oem.CcsdsOem.from_states(
-        [(epoch.timestamp(), state) for epoch, state in states_list]
+        [(time_utils.datetime_to_tt_s(epoch), state) for epoch, state in states_list]
     ).write_states(output)
 
     content = output.getvalue()
@@ -284,7 +288,7 @@ def test_write_states_with_list_of_datetime_tuples() -> None:
 
 def test_write_oem_to_path_object() -> None:
     """Test CcsdsOem.write with a Path object."""
-    states = [(1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
+    states = [(757339269.184, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
 
     with tempfile.TemporaryDirectory() as tmpdir:
         out_path = Path(tmpdir) / "test.oem"
@@ -372,7 +376,7 @@ META_STOP
 
 def test_write_oem_with_empty_meta() -> None:
     """Test CcsdsOem.write with empty metadata."""
-    states = [(1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
+    states = [(757339269.184, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
 
     output = io.StringIO()
     oem.CcsdsOem.from_states(states).write(output)
@@ -381,12 +385,12 @@ def test_write_oem_with_empty_meta() -> None:
     assert "META_START" in content
     assert "META_STOP" in content
     # Should still write the state
-    assert "2009-02-13" in content
+    assert "2024-01-01" in content
 
 
 def test_ccsds_oem_write_with_all_metadata_fields() -> None:
     """Test CcsdsOem.write includes all metadata fields."""
-    states = [(1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
+    states = [(757339269.184, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
 
     oem_obj = oem.CcsdsOem.from_states(
         states,
@@ -517,7 +521,7 @@ def test_ccsds_oem_read_from_path_string() -> None:
 
 def test_write_oem_with_required_header_fields() -> None:
     """Test CcsdsOem.write includes required header fields."""
-    states = [(1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
+    states = [(757339269.184, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
 
     output = io.StringIO()
     oem.CcsdsOem(
@@ -539,7 +543,7 @@ def test_write_oem_with_required_header_fields() -> None:
 
 def test_write_oem_preserves_required_originator() -> None:
     """Test CcsdsOem.write preserves the required ORIGINATOR field."""
-    states = [(1234567890.0, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
+    states = [(757339269.184, np.array([7e6, 0, 0, 0, 7.5e3, 0]))]
 
     output = io.StringIO()
     oem.CcsdsOem(
@@ -581,7 +585,7 @@ META_STOP
 
 def test_unit_conversion_m_to_km_on_write() -> None:
     """Test that internal meters are converted to km when writing OEM."""
-    states = [(1234567890.0, np.array([7000000.0, 0, 0, 0, 7500.0, 0]))]
+    states = [(757339269.184, np.array([7000000.0, 0, 0, 0, 7500.0, 0]))]
 
     output = io.StringIO()
     oem.CcsdsOem.from_states(states, object_name="TEST").write(output)
@@ -589,7 +593,7 @@ def test_unit_conversion_m_to_km_on_write() -> None:
     content = output.getvalue()
     # Find the state line
     lines = content.strip().split("\n")
-    state_line = [l for l in lines if l.startswith("2009-02-13T")][0]
+    state_line = [l for l in lines if l.startswith("2024-01-01T")][0]
 
     # Parse the values
     parts = state_line.split()
@@ -694,8 +698,8 @@ def test_write_states_with_dict_of_float_timestamps() -> None:
     output = io.StringIO()
 
     states_dict = {
-        1234567890.0: np.array([7e6, 0, 0, 0, 7.5e3, 0]),
-        1234567950.0: np.array([7.1e6, 0, 0, 0, 7.4e3, 0]),
+        757339269.184: np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        757339329.184: np.array([7.1e6, 0, 0, 0, 7.4e3, 0]),
     }
 
     oem.CcsdsOem.from_states(list(states_dict.items())).write_states(output)
@@ -704,4 +708,4 @@ def test_write_states_with_dict_of_float_timestamps() -> None:
     lines = content.strip().split("\n")
     assert len(lines) == 2
     # Should have converted float timestamps to datetime strings
-    assert "2009-02-13" in content
+    assert "2024-01-01" in content

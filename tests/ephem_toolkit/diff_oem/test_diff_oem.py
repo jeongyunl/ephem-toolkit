@@ -85,9 +85,13 @@ def test_stop_duration_is_relative_to_resolved_start() -> None:
 
 
 def test_resolve_time_bound_accepts_absolute_iso8601() -> None:
-    resolved_epoch_s = utils.resolve_time_bound("1970-01-01T00:16:40Z", 0.0)
+    from datetime import datetime, timezone
+    import ephem_toolkit.core.time_utils as time_utils
 
-    assert resolved_epoch_s == 1_000.0
+    resolved_epoch_s = utils.resolve_time_bound("2024-01-01T00:00:00Z", 0.0)
+    expected = time_utils.datetime_to_tt_s(datetime(2024, 1, 1, tzinfo=timezone.utc))
+
+    assert resolved_epoch_s == pytest.approx(expected)
 
 
 def test_parse_rotation_fit_span_uses_duration_parser() -> None:

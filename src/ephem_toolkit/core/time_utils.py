@@ -1,15 +1,23 @@
 """Time conversion and parsing utilities for ephem-toolkit.
 
 This module provides time-related functionality including:
-- Time scale conversions between UTC and TDB (Barycentric Dynamical Time)
+- Time scale conversions between UTC and TT (Terrestrial Time)
 - ISO 8601 datetime string parsing and formatting
 - CLI duration parsing with unit support
 
-The time conversion functions use Tudat's time scale converter to handle
-leap seconds and relativistic corrections when converting between UTC and TDB.
+The project uses **TT seconds since J2000** as its primary internal
+ephemeris time scale.  TT is continuous and monotonic (no leap-second
+jumps), making it suitable for timestamp arithmetic.  TT and TDB differ
+by less than 2 ms, so TT values may be passed directly to APIs that
+expect TDB.
+
+TDB conversion functions (``posix_to_tdb_s``, ``datetime_to_tdb_s``,
+``tdb_s_to_datetime``) are retained for future use but are not used by
+the current codebase.
 
 References:
     https://en.wikipedia.org/wiki/ISO_8601 (ISO 8601 date and time format)
+    https://en.wikipedia.org/wiki/Terrestrial_Time (TT time scale)
     https://en.wikipedia.org/wiki/Barycentric_Dynamical_Time (TDB time scale)
     https://en.wikipedia.org/wiki/Coordinated_Universal_Time (UTC time scale)
 """
@@ -29,7 +37,7 @@ from tudatpy.astro.time_representation import TimeScales
 _tudat_time_scale_converter: time_representation.TimeScaleConverter = (
     time_representation.default_time_scale_converter()
 )
-"""Tudat time scale converter for UTC ↔ TDB conversions."""
+"""Tudat time scale converter for UTC ↔ TT/TDB conversions."""
 
 _UTC_J2000_AS_DATETIME: datetime = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
 """UTC J2000 epoch (2000-01-01 12:00:00 UTC)"""

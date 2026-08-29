@@ -182,10 +182,9 @@ def propagate_tle_sgp4(
     step_dt = dt.timedelta(seconds=step_s)
     current_time: dt.datetime = start_time
     while current_time <= stop_time:
-        current_tdb_s: float = time_utils.datetime_to_tdb_s(current_time)
-        state_m: np.ndarray = tle_ephemeris.cartesian_state(current_tdb_s)
-        timestamp: float = current_time.timestamp()
-        propagated_states.append((timestamp, state_m))
+        current_tt_s: float = time_utils.datetime_to_tt_s(current_time)
+        state_m: np.ndarray = tle_ephemeris.cartesian_state(current_tt_s)
+        propagated_states.append((current_tt_s, state_m))
         current_time = current_time + step_dt
 
     _write_oem_output(
@@ -287,7 +286,9 @@ def propagate_omm_kepler(
         cartesian_m: np.ndarray = kepler.keplerian_to_cartesian(
             kepler.propagate_kepler(initial_kepler, elapsed_s)
         )
-        propagated_states.append((current_time.timestamp(), cartesian_m))
+        propagated_states.append(
+            (time_utils.datetime_to_tt_s(current_time), cartesian_m)
+        )
         current_time = current_time + step_dt
 
     _write_oem_output(
@@ -312,7 +313,7 @@ def _write_oem_output(
     Parameters
     ----------
     propagated_states : list[tuple[float, np.ndarray]]
-        List of (POSIX timestamp, state_vector) tuples.
+        List of (TT seconds since J2000, state_vector) tuples.
     object_name : str
         Object name for OEM metadata.
     object_id : str

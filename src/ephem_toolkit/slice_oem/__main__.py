@@ -130,10 +130,8 @@ def main(argv=None) -> None:
             if total_states > 0:
                 first_timestamp, _ = oem_data.states[0]
                 last_timestamp, _ = oem_data.states[-1]
-                first_datetime = datetime.fromtimestamp(
-                    first_timestamp, tz=timezone.utc
-                )
-                last_datetime = datetime.fromtimestamp(last_timestamp, tz=timezone.utc)
+                first_datetime = time_utils.tt_s_to_datetime(first_timestamp)
+                last_datetime = time_utils.tt_s_to_datetime(last_timestamp)
                 duration = last_datetime - first_datetime
                 print(
                     "[slice_oem]   Start: "
@@ -250,7 +248,7 @@ def main(argv=None) -> None:
                         },
                         state_vector=opm.OpmStateVector(
                             epoch=time_utils.datetime_to_iso8601(
-                                datetime.fromtimestamp(epoch, tz=timezone.utc)
+                                time_utils.tt_s_to_datetime(epoch)
                             ),
                             x=state[0] / oem.KILOMETERS_TO_METERS,
                             y=state[1] / oem.KILOMETERS_TO_METERS,

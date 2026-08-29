@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 import numpy as np
 
 import ephem_toolkit.core.misc as misc
+import ephem_toolkit.core.time_utils as time_utils
 import ephem_toolkit.core.convert_tle as convert_tle
 import ephem_toolkit.core.kepler as kepler
 import ephem_toolkit.core.consts as consts
@@ -31,12 +32,12 @@ def select_bstar_fit_samples(
     Parameters
     ----------
     states : list[tuple[float, np.ndarray]]
-        List of (POSIX timestamp, state_vector_m (6,)) tuples.
+        List of (TT seconds since J2000, state_vector_m (6,)) tuples.
 
     Returns
     -------
     list[tuple[float, np.ndarray]]
-        Selected subset of records (POSIX timestamp, state_vector_m (6,)) for B* fitting.
+        Selected subset of records (TT seconds since J2000, state_vector_m (6,)) for B* fitting.
     """
     if len(states) <= 1:
         return []
@@ -82,7 +83,7 @@ def estimate_bstar_from_arc(
     estimated : Estimated
         Estimated TLE elements dataclass.
     states : list[tuple[float, np.ndarray]]
-        List of (POSIX timestamp, state_vector_m (6,)) tuples.
+        List of (TT seconds since J2000, state_vector_m (6,)) tuples.
 
     Returns
     -------
@@ -183,7 +184,7 @@ def estimate_tle_fields(
     Parameters
     ----------
     states : list[tuple[float, np.ndarray]]
-        List of (POSIX timestamp, state_vector_m (6,)) tuples.
+        List of (TT seconds since J2000, state_vector_m (6,)) tuples.
     use_state_match : bool
         If True, use osculating values as initial guess for state-match refinement.
 
@@ -193,8 +194,8 @@ def estimate_tle_fields(
         Estimated TLE elements and diagnostic quantities.
     """
     # Use the first epoch/state as the epoch of the estimated TLE.
-    epoch_timestamp: float = states[0][0]  # POSIX timestamp of epoch
-    epoch_dt: datetime = datetime.fromtimestamp(epoch_timestamp, tz=timezone.utc)
+    epoch_timestamp: float = states[0][0]  # TT seconds since J2000 of epoch
+    epoch_dt: datetime = time_utils.tt_s_to_datetime(epoch_timestamp)
     first_state_vector_m: np.ndarray = states[0][1]  # (6,) state vector in SI units
 
     elements_first: models.OrbitalElements = (
@@ -454,7 +455,7 @@ def verify_accuracy_keplerian(
     estimated : Estimated
         Estimated TLE elements dataclass.
     states : list[tuple[float, np.ndarray]]
-        List of (POSIX timestamp, state_vector_m (6,)) tuples.
+        List of (TT seconds since J2000, state_vector_m (6,)) tuples.
 
     Returns
     -------
