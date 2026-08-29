@@ -1,7 +1,13 @@
 # To-do list
 
 1. Improve CLI interface
-    1. `--version`
+    1. ?
+
+1. Better OPM support
+    1. improve `oem-to-opm`
+        1. Produce accurate osculating state vector
+            1. Batch Least-Squares Differential Correction 
+
 
 1. Propagators
     1. Propagator interface/class hierarchy
@@ -14,6 +20,7 @@
 1. Plotting
     1. `plot-orbit` -> `plot-oem`
     1. `plot-orbit-deltas` -> `plot-oem-diff`
+        1. Modularize `diff-oem`
     1. add `--plot` option to `diff-oem`, `xform-oem`, `slice-oem`, etc. to generate plots of the results
 
 1. ODM meta data
@@ -30,9 +37,6 @@
 
 1. [`propagate-omm`](docs/PROPAGATE_OMM.md)
     1. Adopt more analytical propagators (e.g., `DSST`, `USM`, etc.) to support OMM propagation in the future
-
-1. Better OPM support
-    1. ?
 
 1. [`propagate-orbit`](docs/PROPAGATE_ORBIT.md)
     1. give a less generic name
