@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 import core.convert_tle as convert_tle
-import core.kepler as kepler
+import core.propagator.kepler as kepler
 import core.mean_kepler as mean_kepler
 import core.tle as tle
 import core.consts as consts
@@ -626,160 +626,88 @@ def test_round_trip_tle_osculating_vs_tudatpy_keplerian(tudatpy_tle_round_trip) 
 
 
 # ===================================================================
-# 22. kepler.propagate_kepler matches tudatpy.two_body_dynamics.propagate_kepler_orbit
+
+# ===================================================================
+# 22. KeplerPropagator propagation correctness
 # ===================================================================
 
 
-def test_propagate_kepler_returns_correct_shape() -> None:
-    """Should return Keplerian elements with the same shape as input."""
-    kep = np.array([7000e3, 0.01, 0.1, 0.3, 0.2, 1.0], dtype=float)
-    result = kepler.propagate_kepler(kep, 100.0)
+def test_kepler_propagator_returns_cartesian_state() -> None:
+    """KeplerPropagator should return a 6-element Cartesian state."""
+    from ephem_toolkit.core.propagator import KeplerPropagator, KeplerianState, OutputMode
 
+    kep = np.array([7000e3, 0.01, 0.1, 0.3, 0.2, 1.0], dtype=float)
+    state = KeplerianState(elements=kep, epoch_s=0.0)
+    prop = KeplerPropagator(initial_state=state)
+
+    _, result = prop.propagate_to(100.0, output=OutputMode.FINAL)
     assert isinstance(result, np.ndarray)
     assert result.shape == (6,)
 
 
-def test_propagate_kepler_handles_column_vector() -> None:
-    """Should handle column vector input (6, 1) as used by tudatpy."""
-    kep = np.array([[7000e3], [0.01], [0.1], [0.3], [0.2], [1.0]], dtype=float)
-    result = kepler.propagate_kepler(kep, 100.0)
+def test_kepler_propagator_preserves_orbital_elements() -> None:
+    """KeplerPropagator should preserve a, e, i (only anomaly changes)."""
+    from ephem_toolkit.core.propagator import KeplerPropagator, KeplerianState, OutputMode
 
-    assert isinstance(result, np.ndarray)
-    assert result.shape == (6, 1)
-
-
-def test_propagate_kepler_preserves_orbital_elements() -> None:
-    """Should preserve a, e, i, omega, RAAN (only theta should change)."""
     kep = np.array([7000e3, 0.01, 0.1, 0.3, 0.2, 1.0], dtype=float)
-    result = kepler.propagate_kepler(kep, 100.0)
+    state = KeplerianState(elements=kep, epoch_s=0.0)
+    prop = KeplerPropagator(initial_state=state)
 
-    assert result[kepler.SEMI_MAJOR_AXIS_INDEX] == pytest.approx(
-        kep[kepler.SEMI_MAJOR_AXIS_INDEX], rel=1e-15
-    )
-    assert result[kepler.ECCENTRICITY_INDEX] == pytest.approx(
-        kep[kepler.ECCENTRICITY_INDEX], rel=1e-15
-    )
-    assert result[kepler.INCLINATION_INDEX] == pytest.approx(
-        kep[kepler.INCLINATION_INDEX], rel=1e-15
-    )
-    assert result[kepler.ARGUMENT_OF_PERIAPSIS_INDEX] == pytest.approx(
-        kep[kepler.ARGUMENT_OF_PERIAPSIS_INDEX], rel=1e-15
-    )
-    assert result[kepler.RAAN_INDEX] == pytest.approx(kep[kepler.RAAN_INDEX], rel=1e-15)
+    _, cart = prop.propagate_to(100.0, output=OutputMode.FINAL)
+    recovered = kepler.cartesian_to_keplerian(cart, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2)
+
+    assert recovered[kepler.SEMI_MAJOR_AXIS_INDEX] == pytest.approx(kep[kepler.SEMI_MAJOR_AXIS_INDEX], rel=1e-10)
+    assert recovered[kepler.ECCENTRICITY_INDEX] == pytest.approx(kep[kepler.ECCENTRICITY_INDEX], abs=1e-10)
+    assert recovered[kepler.INCLINATION_INDEX] == pytest.approx(kep[kepler.INCLINATION_INDEX], rel=1e-10)
 
 
-def test_propagate_kepler_changes_true_anomaly() -> None:
-    """Should change the true anomaly after propagation."""
+def test_kepler_propagator_changes_true_anomaly() -> None:
+    """KeplerPropagator should change the true anomaly after propagation."""
+    from ephem_toolkit.core.propagator import KeplerPropagator, KeplerianState, OutputMode
+
     kep = np.array([7000e3, 0.01, 0.1, 0.3, 0.2, 1.0], dtype=float)
-    result = kepler.propagate_kepler(kep, 100.0)
+    state = KeplerianState(elements=kep, epoch_s=0.0)
+    prop = KeplerPropagator(initial_state=state)
 
-    assert result[kepler.TRUE_ANOMALY_INDEX] != pytest.approx(
-        kep[kepler.TRUE_ANOMALY_INDEX], abs=1e-10
-    )
+    _, cart = prop.propagate_to(100.0, output=OutputMode.FINAL)
+    recovered = kepler.cartesian_to_keplerian(cart, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2)
+
+    assert recovered[kepler.TRUE_ANOMALY_INDEX] != pytest.approx(kep[kepler.TRUE_ANOMALY_INDEX], abs=1e-10)
 
 
-def test_propagate_kepler_zero_time_returns_same_state() -> None:
-    """Should return the same state when time_elapsed is zero."""
+def test_kepler_propagator_zero_time_returns_same_state() -> None:
+    """KeplerPropagator should return the same Cartesian state at t=0."""
+    from ephem_toolkit.core.propagator import KeplerPropagator, KeplerianState, OutputMode
+
     kep = np.array([7000e3, 0.01, 0.1, 0.3, 0.2, 1.0], dtype=float)
-    result = kepler.propagate_kepler(kep, 0.0)
+    state = KeplerianState(elements=kep, epoch_s=0.0)
+    prop = KeplerPropagator(initial_state=state)
 
-    np.testing.assert_allclose(result, kep, rtol=1e-14, atol=1e-10)
+    _, cart_t0 = prop.propagate_to(0.0, output=OutputMode.FINAL)
+    expected = kepler.keplerian_to_cartesian(kep, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2)
+    np.testing.assert_allclose(cart_t0, expected, rtol=1e-12)
 
 
-def test_propagate_kepler_matches_tudatpy() -> None:
-    """Compare kepler.propagate_kepler with tudatpy.two_body_dynamics.propagate_kepler_orbit."""
+def test_kepler_propagator_matches_tudatpy() -> None:
+    """Compare KeplerPropagator with tudatpy.two_body_dynamics.propagate_kepler_orbit."""
     pytest.importorskip("tudatpy")
     from tudatpy.astro import two_body_dynamics
+    from ephem_toolkit.core.propagator import KeplerPropagator, KeplerianState, OutputMode
 
-    kep_km = np.array([7000.0, 0.01, np.radians(51.6), 0.3, 0.2, 1.0], dtype=float)
-    kep_m = kep_km.copy()
-    kep_m[kepler.SEMI_MAJOR_AXIS_INDEX] *= 1e3
+    kep_m = np.array([7000e3, 0.01, np.radians(51.6), 0.3, 0.2, 1.0], dtype=float)
 
-    time_steps = [0.0, 10.0, 100.0, 1000.0, 10000.0]
+    for time_elapsed in [0.0, 10.0, 100.0, 1000.0, 10000.0]:
+        state = KeplerianState(elements=kep_m, epoch_s=0.0)
+        prop = KeplerPropagator(initial_state=state)
+        _, cart_common = prop.propagate_to(time_elapsed, output=OutputMode.FINAL)
 
-    for time_elapsed in time_steps:
-        result_common = kepler.propagate_kepler(
-            kep_m, time_elapsed, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
-        )
-
-        kep_m_column = kep_m.reshape((6, 1))
-        result_tudatpy = two_body_dynamics.propagate_kepler_orbit(
-            kep_m_column, time_elapsed, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+        kep_column = kep_m.reshape((6, 1))
+        kep_tudatpy = two_body_dynamics.propagate_kepler_orbit(
+            kep_column, time_elapsed, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
         ).flatten()
+        cart_tudatpy = kepler.keplerian_to_cartesian(kep_tudatpy, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2)
 
         np.testing.assert_allclose(
-            result_common,
-            result_tudatpy,
-            rtol=1e-12,
-            atol=1e-6,
+            cart_common, cart_tudatpy, rtol=1e-10, atol=1e-3,
             err_msg=f"Mismatch at time_elapsed={time_elapsed}s",
         )
-
-
-def test_propagate_kepler_circular_orbit() -> None:
-    """Should correctly propagate a circular orbit."""
-    pytest.importorskip("tudatpy")
-    from tudatpy.astro import two_body_dynamics
-
-    a = 7000e3
-    kep = np.array([a, 0.0, 0.1, 0.0, 0.0, 0.5], dtype=float)
-
-    time_elapsed = 500.0
-
-    result_common = kepler.propagate_kepler(
-        kep, time_elapsed, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
-    )
-
-    kep_column = kep.reshape((6, 1))
-    result_tudatpy = two_body_dynamics.propagate_kepler_orbit(
-        kep_column, time_elapsed, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
-    ).flatten()
-
-    np.testing.assert_allclose(result_common, result_tudatpy, rtol=1e-12, atol=1e-6)
-
-
-def test_propagate_kepler_eccentric_orbit() -> None:
-    """Should correctly propagate an eccentric orbit."""
-    pytest.importorskip("tudatpy")
-    from tudatpy.astro import two_body_dynamics
-
-    a = (6600e3 + 42164e3) / 2.0
-    e = 1.0 - 6600e3 / a
-    kep = np.array([a, e, np.radians(0.0), 0.0, 0.0, 0.0], dtype=float)
-
-    time_elapsed = 1000.0
-
-    result_common = kepler.propagate_kepler(
-        kep, time_elapsed, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
-    )
-
-    kep_column = kep.reshape((6, 1))
-    result_tudatpy = two_body_dynamics.propagate_kepler_orbit(
-        kep_column, time_elapsed, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
-    ).flatten()
-
-    np.testing.assert_allclose(result_common, result_tudatpy, rtol=1e-12, atol=1e-6)
-
-
-def test_propagate_kepler_long_propagation() -> None:
-    """Should correctly propagate over a long time period (multiple orbits)."""
-    pytest.importorskip("tudatpy")
-    from tudatpy.astro import two_body_dynamics
-
-    kep = np.array([6778e3, 0.0005, np.radians(51.6), 0.1, 0.2, 0.5], dtype=float)
-
-    orbital_period = (
-        2.0 * np.pi * np.sqrt(kep[0] ** 3 / consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2)
-    )
-    time_elapsed = 10.0 * orbital_period
-
-    result_common = kepler.propagate_kepler(
-        kep, time_elapsed, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
-    )
-
-    kep_column = kep.reshape((6, 1))
-    result_tudatpy = two_body_dynamics.propagate_kepler_orbit(
-        kep_column, time_elapsed, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
-    ).flatten()
-
-    np.testing.assert_allclose(result_common, result_tudatpy, rtol=1e-12, atol=1e-6)

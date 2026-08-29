@@ -15,7 +15,7 @@ import numpy as np
 import ephem_toolkit.core.misc as misc
 import ephem_toolkit.core.time_utils as time_utils
 import ephem_toolkit.core.convert_tle as convert_tle
-import ephem_toolkit.core.kepler as kepler
+import ephem_toolkit.core.propagator.kepler as kepler
 import ephem_toolkit.core.consts as consts
 import ephem_toolkit.core.tle as tle
 from . import constants

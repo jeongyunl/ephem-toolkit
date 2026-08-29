@@ -45,7 +45,8 @@ warnings.filterwarnings(
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.ccsds.omm as omm
 import ephem_toolkit.core.convert_tle as convert_tle
-import ephem_toolkit.core.kepler as kepler
+import ephem_toolkit.core.propagator.kepler as kepler
+from ephem_toolkit.core.propagator import KeplerPropagator, KeplerianState, OutputMode
 import ephem_toolkit.core.spice_utils as spice_utils
 import ephem_toolkit.core.time_utils as time_utils
 import ephem_toolkit.core.tle as tle_mod
@@ -278,17 +279,20 @@ def propagate_omm_kepler(
     epoch_dt: dt.datetime = time_utils.iso8601_to_datetime(omm_data.epoch)
     object_name: str = omm_data.object_name or "UNKNOWN"
 
+    # Create propagator once outside loop
+    epoch_tt_s = time_utils.datetime_to_tt_s(epoch_dt)
+    kepler_state = KeplerianState(elements=initial_kepler, epoch_s=epoch_tt_s)
+    propagator = KeplerPropagator(initial_state=kepler_state)
+
     propagated_states: list[tuple[float, np.ndarray]] = []
     step_dt = dt.timedelta(seconds=step_s)
     current_time: dt.datetime = start_time
     while current_time <= stop_time:
-        elapsed_s: float = (current_time - epoch_dt).total_seconds()
-        cartesian_m: np.ndarray = kepler.keplerian_to_cartesian(
-            kepler.propagate_kepler(initial_kepler, elapsed_s)
+        current_tt_s = time_utils.datetime_to_tt_s(current_time)
+        epoch_tt_s, cartesian_m = propagator.propagate_to(
+            current_tt_s, output=OutputMode.FINAL
         )
-        propagated_states.append(
-            (time_utils.datetime_to_tt_s(current_time), cartesian_m)
-        )
+        propagated_states.append((epoch_tt_s, cartesian_m))
         current_time = current_time + step_dt
 
     _write_oem_output(

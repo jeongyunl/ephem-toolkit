@@ -13,7 +13,7 @@ import re
 
 import numpy as np
 
-from . import kepler
+from .propagator import kepler
 from . import mean_kepler
 from .ccsds import omm
 from . import tle

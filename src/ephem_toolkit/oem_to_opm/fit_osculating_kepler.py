@@ -14,7 +14,8 @@ from datetime import datetime
 import numpy as np
 
 import ephem_toolkit.core.consts as consts
-import ephem_toolkit.core.kepler as kepler
+import ephem_toolkit.core.propagator.kepler as kepler
+from ephem_toolkit.core.propagator import KeplerPropagator, KeplerianState, OutputMode
 import ephem_toolkit.core.time_utils as time_utils
 from . import fit_common
 
@@ -51,15 +52,16 @@ def _compute_kepler_residuals_from_epoch_state(
         epoch_state_m_m_s, mu_m3_s2
     )
 
+    # Create propagator once outside loop
+    kepler_state = KeplerianState(elements=keplerian_elements, epoch_s=0.0)
+    propagator = KeplerPropagator(initial_state=kepler_state, mu_m3_s2=mu_m3_s2)
+
     n_samples: int = len(time_offsets_s)
     residuals: np.ndarray = np.zeros(n_samples * 3)
 
     for i, dt_s in enumerate(time_offsets_s):
-        propagated_elements: np.ndarray = kepler.propagate_kepler(
-            keplerian_elements, dt_s, mu_m3_s2
-        )
-        predicted_state: np.ndarray = kepler.keplerian_to_cartesian(
-            propagated_elements, mu_m3_s2
+        _, predicted_state = propagator.propagate_to(
+            dt_s, output=OutputMode.FINAL
         )
         residuals[i * 3 : i * 3 + 3] = target_positions_m[i] - predicted_state[:3]
 
@@ -348,12 +350,11 @@ def compute_kepler_propagation_comparison(
         actual_elapsed_s: float = closest_state[0] - reference_timestamp
         oem_state: np.ndarray = closest_state[1]
 
-        # Propagate Keplerian elements
-        propagated_elements: np.ndarray = kepler.propagate_kepler(
-            keplerian_elements, actual_elapsed_s, mu_m3_s2
-        )
-        predicted_state: np.ndarray = kepler.keplerian_to_cartesian(
-            propagated_elements, mu_m3_s2
+        # Propagate Keplerian elements using KeplerPropagator
+        kepler_state = KeplerianState(elements=keplerian_elements, epoch_s=0.0)
+        propagator = KeplerPropagator(initial_state=kepler_state, mu_m3_s2=mu_m3_s2)
+        _, predicted_state = propagator.propagate_to(
+            actual_elapsed_s, output=OutputMode.FINAL
         )
 
         # Compute differences
