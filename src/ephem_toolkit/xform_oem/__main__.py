@@ -150,7 +150,7 @@ def convert_to_aer(
         range_m: float = aer_position[2]
 
         # Format timestamp
-        dt: datetime = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        dt: datetime = time_utils.tt_s_to_datetime(timestamp)
         timestamp_str: str = time_utils.datetime_to_iso8601(dt)
 
         # Write output
@@ -202,18 +202,18 @@ def convert_ref_frame(
     )
 
     for state in oem_data.states:
-        posix_timestamp, state_vector_m = state
+        tt_s, state_vector_m = state
         # Convert state vector to new reference frame
         converted_state_vector_m: np.ndarray | None = frame_utils.convert_frame(
             base_frame=original_reference_frame,
             target_frame=target_reference_frame,
-            epoch_tdb_s=time_utils.posix_to_tdb_s(posix_timestamp),
+            epoch_tt_s=tt_s,
             input_state_m=state_vector_m,
         )
 
         if converted_state_vector_m is None:
             print(
-                f"Error: Could not convert state at timestamp {posix_timestamp} "
+                f"Error: Could not convert state at timestamp {tt_s} "
                 f"from {original_reference_frame.value} to "
                 f"{target_reference_frame.value}. "
                 "Leaving state unchanged.",
@@ -359,8 +359,8 @@ def main(argv=None) -> None:
         if total_states > 0:
             first_ts, _ = oem_data.states[0]
             last_ts, _ = oem_data.states[-1]
-            first_dt = datetime.fromtimestamp(first_ts, tz=timezone.utc)
-            last_dt = datetime.fromtimestamp(last_ts, tz=timezone.utc)
+            first_dt = time_utils.tt_s_to_datetime(first_ts)
+            last_dt = time_utils.tt_s_to_datetime(last_ts)
             span = last_dt - first_dt
             print(
                 f"[xform_oem]   Start: {time_utils.datetime_to_iso8601(first_dt)}",

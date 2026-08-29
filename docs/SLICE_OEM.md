@@ -476,7 +476,7 @@ The 8th-degree polynomial provides a good balance between accuracy and numerical
 
 ### Time Resolution
 
-- All times are resolved to POSIX timestamps (seconds since 1970-01-01 00:00:00 UTC)
+- All times are resolved to TT seconds since J2000 for internal processing
 - Relative durations are computed from OEM start/stop times
 - Negative durations offset from the end time
 - Positive durations offset from the start time

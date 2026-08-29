@@ -171,7 +171,7 @@ def main(argv=None) -> None:
         )
 
         # Format and report output
-        first_epoch: datetime = datetime.fromtimestamp(states[0][0], tz=timezone.utc)
+        first_epoch: datetime = time_utils.tt_s_to_datetime(states[0][0])
         output_text: str = fit_mean_kepler.format_mean_kepler_output(
             first_epoch, fitted_mean_elements, diagnostics, comparison
         )
@@ -247,7 +247,7 @@ def main(argv=None) -> None:
             )
         )
 
-        first_epoch: datetime = datetime.fromtimestamp(states[0][0], tz=timezone.utc)
+        first_epoch: datetime = time_utils.tt_s_to_datetime(states[0][0])
         output_text: str = fit_tle.format_tle_output(
             first_epoch, tle_obj, diagnostics, comparison
         )

@@ -133,9 +133,9 @@ class RotationStage(TransformationStage):
         Parameters
         ----------
         fit_overlap_start : float
-            Start of the overlapping fitting interval (POSIX seconds).
+            Start of the overlapping fitting interval (TT seconds since J2000).
         fit_overlap_stop : float
-            End of the overlapping fitting interval (POSIX seconds).
+            End of the overlapping fitting interval (TT seconds since J2000).
         fit_span_s : float
             Duration of the initial fitting interval (seconds).
         """
@@ -526,9 +526,9 @@ class TimeShiftStage(TransformationStage):
         Parameters
         ----------
         fit_overlap_start : float
-            Start of the overlapping fitting interval (POSIX seconds).
+            Start of the overlapping fitting interval (TT seconds since J2000).
         fit_overlap_stop : float
-            End of the overlapping fitting interval (POSIX seconds).
+            End of the overlapping fitting interval (TT seconds since J2000).
         """
         self.fit_overlap_start = fit_overlap_start
         self.fit_overlap_stop = fit_overlap_stop

@@ -76,13 +76,13 @@ class Frame(Enum):
     """International Terrestrial Reference Frame."""
 
 
-def teme_to_j2000(epoch_tdb_s: float, teme_state: np.ndarray) -> np.ndarray:
+def teme_to_j2000(epoch_tt_s: float, teme_state: np.ndarray) -> np.ndarray:
     """Convert a TEME Cartesian state to the J2000 frame.
 
     Parameters
     ----------
-    epoch_tdb_s : float
-        TDB seconds since the J2000 epoch, used to evaluate the rotation.
+    epoch_tt_s : float
+        TT seconds since the J2000 epoch, used to evaluate the rotation.
     teme_state : np.ndarray
         Six-component TEME state vector. The first three components are
         position and the last three are velocity.
@@ -99,19 +99,19 @@ def teme_to_j2000(epoch_tdb_s: float, teme_state: np.ndarray) -> np.ndarray:
     term required for a full time-dependent frame state transformation.
     """
     j2000_state: np.ndarray = np.zeros(6, dtype=float)
-    rotation_to_j2000: np.ndarray = element_conversion.teme_to_j2000(epoch_tdb_s)
+    rotation_to_j2000: np.ndarray = element_conversion.teme_to_j2000(epoch_tt_s)
     j2000_state[0:3] = teme_state[0:3] @ rotation_to_j2000
     j2000_state[3:6] = teme_state[3:6] @ rotation_to_j2000
     return j2000_state
 
 
-def j2000_to_teme(epoch_tdb_s: float, j2000_state: np.ndarray) -> np.ndarray:
+def j2000_to_teme(epoch_tt_s: float, j2000_state: np.ndarray) -> np.ndarray:
     """Convert a J2000 Cartesian state to the TEME frame.
 
     Parameters
     ----------
-    epoch_tdb_s : float
-        TDB seconds since the J2000 epoch, used to evaluate the rotation.
+    epoch_tt_s : float
+        TT seconds since the J2000 epoch, used to evaluate the rotation.
     j2000_state : np.ndarray
         Six-component J2000 state vector. The first three components are
         position and the last three are velocity.
@@ -130,7 +130,7 @@ def j2000_to_teme(epoch_tdb_s: float, j2000_state: np.ndarray) -> np.ndarray:
     """
     teme_state: np.ndarray = np.zeros(6, dtype=float)
     rotation_to_teme: np.ndarray = np.transpose(
-        element_conversion.teme_to_j2000(epoch_tdb_s)
+        element_conversion.teme_to_j2000(epoch_tt_s)
     )
     teme_state[0:3] = j2000_state[0:3] @ rotation_to_teme
     teme_state[3:6] = j2000_state[3:6] @ rotation_to_teme
@@ -140,7 +140,7 @@ def j2000_to_teme(epoch_tdb_s: float, j2000_state: np.ndarray) -> np.ndarray:
 def spice_convert_frame(
     base_frame: str,
     target_frame: str,
-    epoch_tdb_s: float,
+    epoch_tt_s: float,
     input_state_m: np.ndarray,
 ) -> np.ndarray:
     """Convert a state vector from one SPICE frame to another.
@@ -155,8 +155,8 @@ def spice_convert_frame(
         Name of the source SPICE frame (e.g. ``"J2000"``).
     target_frame : str
         Name of the destination SPICE frame (e.g. ``"ITRF93"``).
-    epoch_tdb_s : float
-        Epoch in ephemeris time (TDB seconds since J2000).
+    epoch_tt_s : float
+        Epoch in ephemeris time (TT seconds since J2000).
     input_state_m : np.ndarray
         State vector ``[x, y, z, vx, vy, vz]`` (6,) in metres and m/s in
         *base_frame*.
@@ -182,16 +182,16 @@ def spice_convert_frame(
     if _has_compute_state_rotation_matrix_between_frames:
         state_conversion_matrix: np.ndarray = np.asarray(
             spice.compute_state_rotation_matrix_between_frames(
-                base_frame, target_frame, epoch_tdb_s
+                base_frame, target_frame, epoch_tt_s
             )
         )
     else:
         rotation_matrix: np.ndarray = spice.compute_rotation_matrix_between_frames(
-            base_frame, target_frame, epoch_tdb_s
+            base_frame, target_frame, epoch_tt_s
         )
         rotation_matrix_derivative: np.ndarray = (
             spice.compute_rotation_matrix_derivative_between_frames(
-                base_frame, target_frame, epoch_tdb_s
+                base_frame, target_frame, epoch_tt_s
             )
         )
 
@@ -417,7 +417,7 @@ def tudat_convert_body_fixed_to_inertial(
 def convert_frame(
     base_frame: Frame,
     target_frame: Frame,
-    epoch_tdb_s: float,
+    epoch_tt_s: float,
     input_state_m: np.ndarray,
 ) -> np.ndarray | None:
     """Convert a state vector from one frame to another.
@@ -428,8 +428,8 @@ def convert_frame(
         Source reference frame for the input state vector.
     target_frame : Frame
         Destination reference frame for the output state vector.
-    epoch_tdb_s : float
-        Epoch in TDB seconds since J2000, used to evaluate time-dependent
+    epoch_tt_s : float
+        Epoch in TT seconds since J2000, used to evaluate time-dependent
         rotations.
     input_state_m : np.ndarray
         Six-component state vector ``[x, y, z, vx, vy, vz]`` in metres and
@@ -476,23 +476,23 @@ def convert_frame(
 
     if base_frame == Frame.TEME or base_frame == Frame.J2000:
         if base_frame == Frame.TEME:
-            j2000_state_m = teme_to_j2000(epoch_tdb_s, input_state_m)
+            j2000_state_m = teme_to_j2000(epoch_tt_s, input_state_m)
         else:
             j2000_state_m = input_state_m
 
         if target_frame == Frame.J2000:
             return j2000_state_m
         elif target_frame == Frame.TEME:
-            return j2000_to_teme(epoch_tdb_s, j2000_state_m)
+            return j2000_to_teme(epoch_tt_s, j2000_state_m)
         elif target_frame == Frame.ITRF1993:
             rotation_model = tudat_spice_rotation_model()
             return tudat_convert_inertial_to_body_fixed(
-                rotation_model, epoch_tdb_s, j2000_state_m
+                rotation_model, epoch_tt_s, j2000_state_m
             )
         elif target_frame == Frame.ITRF:
             rotation_model = tudat_iau2006_rotation_model()
             return tudat_convert_inertial_to_body_fixed(
-                rotation_model, epoch_tdb_s, j2000_state_m
+                rotation_model, epoch_tt_s, j2000_state_m
             )
         else:
             raise ValueError(f"Unsupported target frame: {target_frame}")
@@ -500,17 +500,17 @@ def convert_frame(
     elif base_frame == Frame.ITRF1993:
         rotation_model = tudat_spice_rotation_model()
         j2000_state_m = tudat_convert_body_fixed_to_inertial(
-            rotation_model, epoch_tdb_s, input_state_m
+            rotation_model, epoch_tt_s, input_state_m
         )
 
         if target_frame == Frame.J2000:
             return j2000_state_m
         elif target_frame == Frame.TEME:
-            return j2000_to_teme(epoch_tdb_s, j2000_state_m)
+            return j2000_to_teme(epoch_tt_s, j2000_state_m)
         elif target_frame == Frame.ITRF:
             rotation_model = tudat_iau2006_rotation_model()
             return tudat_convert_inertial_to_body_fixed(
-                rotation_model, epoch_tdb_s, j2000_state_m
+                rotation_model, epoch_tt_s, j2000_state_m
             )
         else:
             raise ValueError(f"Unsupported target frame: {target_frame}")
@@ -518,17 +518,17 @@ def convert_frame(
     elif base_frame == Frame.ITRF:
         rotation_model = tudat_iau2006_rotation_model()
         j2000_state_m = tudat_convert_body_fixed_to_inertial(
-            rotation_model, epoch_tdb_s, input_state_m
+            rotation_model, epoch_tt_s, input_state_m
         )
 
         if target_frame == Frame.J2000:
             return j2000_state_m
         elif target_frame == Frame.TEME:
-            return j2000_to_teme(epoch_tdb_s, j2000_state_m)
+            return j2000_to_teme(epoch_tt_s, j2000_state_m)
         elif target_frame == Frame.ITRF1993:
             rotation_model = tudat_spice_rotation_model()
             return tudat_convert_inertial_to_body_fixed(
-                rotation_model, epoch_tdb_s, j2000_state_m
+                rotation_model, epoch_tt_s, j2000_state_m
             )
         else:
             raise ValueError(f"Unsupported target frame: {target_frame}")

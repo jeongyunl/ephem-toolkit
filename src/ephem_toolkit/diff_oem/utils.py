@@ -32,7 +32,7 @@ def find_overlapping_time_range(
     Returns
     -------
     tuple[float, float] | None
-        Tuple of (start_epoch, stop_epoch) in POSIX seconds, or None if no overlap.
+        Tuple of (start_epoch, stop_epoch) in TT seconds since J2000, or None if no overlap.
     """
     overlap_start: float = max(reference_states[0][0], comparison_states[0][0])
     overlap_stop: float = min(reference_states[-1][0], comparison_states[-1][0])
@@ -46,27 +46,25 @@ def find_overlapping_time_range(
 
 
 def resolve_time_bound(value: str, reference_epoch_s: float) -> float:
-    """Resolve an absolute or reference-relative time bound to POSIX seconds.
+    """Resolve an absolute or reference-relative time bound to TT seconds since J2000.
 
     Parameters
     ----------
     value : str
         ISO 8601 timestamp or duration string.
     reference_epoch_s : float
-        Reference epoch in POSIX seconds for relative time calculations.
+        Reference epoch in TT seconds since J2000 for relative time calculations.
 
     Returns
     -------
     float
-        Resolved time bound in POSIX seconds.
+        Resolved time bound in TT seconds since J2000.
     """
     parsed_value: datetime | timedelta = time_utils.parse_time_or_duration(value)
-    reference_datetime: datetime = datetime.fromtimestamp(
-        reference_epoch_s, tz=timezone.utc
-    )
+    reference_datetime: datetime = time_utils.tt_s_to_datetime(reference_epoch_s)
     if isinstance(parsed_value, timedelta):
         parsed_value = reference_datetime + parsed_value
-    resolved = parsed_value.timestamp()
+    resolved = time_utils.datetime_to_tt_s(parsed_value)
     debug_print(
         f"resolve_time_bound: input='{value}', "
         f"reference_epoch={debug_format_epoch(reference_epoch_s)}, "
@@ -109,9 +107,9 @@ def build_comparison_pairs(
     comparison_states : list[State]
         List of comparison state tuples (epoch, state_vector).
     overlap_start : float | None
-        Start of overlap window in POSIX seconds, or None.
+        Start of overlap window in TT seconds since J2000, or None.
     overlap_stop : float | None
-        Stop of overlap window in POSIX seconds, or None.
+        Stop of overlap window in TT seconds since J2000, or None.
 
     Returns
     -------

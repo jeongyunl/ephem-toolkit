@@ -80,15 +80,15 @@ def get_tle_epoch(tle: object) -> tuple[DateTime, float]:
     Returns
     -------
     tuple[DateTime, float]
-        Tuple of (tle_epoch_dt, tle_epoch_tdb) where tle_epoch_dt is a
-        TudatPy DateTime object and tle_epoch_tdb is the epoch in TDB
+        Tuple of (tle_epoch_dt, tle_epoch_tt) where tle_epoch_dt is a
+        TudatPy DateTime object and tle_epoch_tt is the epoch in TT
         seconds since J2000.
     """
-    tle_epoch_tdb: float = tle.reference_epoch
-    tle_epoch_utc: str = spice.get_approximate_utc_from_tdb(tle_epoch_tdb)
+    tle_epoch_tt: float = tle.reference_epoch
+    tle_epoch_utc: str = spice.get_approximate_utc_from_tdb(tle_epoch_tt)
     tle_epoch_dt: DateTime = DateTime.from_epoch(tle_epoch_utc)
 
-    return tle_epoch_dt, tle_epoch_tdb
+    return tle_epoch_dt, tle_epoch_tt
 
 
 # ===================================================================
@@ -147,8 +147,8 @@ def main(argv=None) -> None:
             print(f"Revolution number at epoch: {tle.revolution_number_at_epoch}")
 
             tle_epoch_dt: DateTime
-            tle_epoch_tdb: float
-            tle_epoch_dt, tle_epoch_tdb = get_tle_epoch(tle)
+            tle_epoch_tt: float
+            tle_epoch_dt, tle_epoch_tt = get_tle_epoch(tle)
             tle_epoch_iso: str = tle_epoch_dt.to_iso_string(number_of_digits_seconds=3)
             print(f"Epoch: {tle_epoch_iso}")
 
@@ -188,7 +188,7 @@ def main(argv=None) -> None:
                 f"Mean Motion Second Derivative: {tle_mean_motion_second_derivative_deg_per_min2:.2f} degrees per minute²"
             )
 
-            cartesian_state_j2000: object = tle_ephemeris.cartesian_state(tle_epoch_tdb)
+            cartesian_state_j2000: object = tle_ephemeris.cartesian_state(tle_epoch_tt)
             print(
                 f"Cartesian state at initial epoch:\n{cartesian_state_j2000[0:3]/1000} km\n{cartesian_state_j2000[3:6]/1000} km/s"
             )

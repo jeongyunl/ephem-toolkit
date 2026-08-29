@@ -24,19 +24,19 @@ def set_debug(enabled: bool) -> None:
 
 
 def debug_format_epoch(epoch_s: float) -> str:
-    """Format POSIX epoch as ISO8601 string.
+    """Format TT epoch as ISO8601 string.
 
     Parameters
     ----------
     epoch_s : float
-        POSIX timestamp in seconds.
+        TT seconds since J2000.
 
     Returns
     -------
     str
         ISO8601 formatted datetime string.
     """
-    dt = datetime.fromtimestamp(epoch_s, tz=timezone.utc)
+    dt = time_utils.tt_s_to_datetime(epoch_s)
     return time_utils.datetime_to_iso8601(dt)
 
 
@@ -66,9 +66,9 @@ def debug_print_time_range(
     label : str
         Descriptive label for the time range.
     start_epoch_s : float | datetime | None
-        Start epoch in POSIX seconds or datetime, or None.
+        Start epoch in TT seconds since J2000 or datetime, or None.
     stop_epoch_s : float | datetime | None
-        Stop epoch in POSIX seconds or datetime, or None.
+        Stop epoch in TT seconds since J2000 or datetime, or None.
     """
     if not _debug:
         return

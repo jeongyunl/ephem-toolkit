@@ -32,7 +32,7 @@ def read_states(source: TextIO | str | Path) -> list[tuple[float, np.ndarray]]:
     Returns
     -------
     list[tuple[float, np.ndarray]]
-        ``(timestamp, state_m)`` pairs where *timestamp* is POSIX seconds and
+        ``(timestamp, state_m)`` pairs where *timestamp* is TT seconds since J2000 and
         *state_m* is a six-element vector in meters and meters per second.
 
     Raises
@@ -117,7 +117,7 @@ def resolve_state_pair(
         reference_timestamp
     )
     if comparison_interpolated is None:
-        reference_epoch = datetime.fromtimestamp(reference_timestamp, tz=timezone.utc)
+        reference_epoch = time_utils.tt_s_to_datetime(reference_timestamp)
         raise ValueError(
             "Reference epoch "
             f"{time_utils.datetime_to_iso8601(reference_epoch)} is outside "
@@ -128,7 +128,7 @@ def resolve_state_pair(
         reference_timestamp
     )
     if reference_interpolated is None:
-        epoch_dt = datetime.fromtimestamp(reference_timestamp, tz=timezone.utc)
+        epoch_dt = time_utils.tt_s_to_datetime(reference_timestamp)
         raise ValueError(
             "Comparison epoch "
             f"{time_utils.datetime_to_iso8601(epoch_dt)} is outside "
@@ -187,8 +187,8 @@ def compare_states(
             comparison_state_m, comparison_rotation_matrix
         )
 
-    reference_epoch = datetime.fromtimestamp(reference_timestamp, tz=timezone.utc)
-    comparison_epoch = datetime.fromtimestamp(comparison_timestamp, tz=timezone.utc)
+    reference_epoch = time_utils.tt_s_to_datetime(reference_timestamp)
+    comparison_epoch = time_utils.tt_s_to_datetime(comparison_timestamp)
 
     position_diff_m: np.ndarray = comparison_state_m[0:3] - reference_state_m[0:3]
     position_diff_km: np.ndarray = position_diff_m / oem.KILOMETERS_TO_METERS

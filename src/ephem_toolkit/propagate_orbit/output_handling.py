@@ -56,13 +56,9 @@ def write_state_history_oem(
         should_close = True
 
     try:
+        # TT ≈ TDB (< 2ms); pass TDB values directly as TT seconds since J2000
         oem_states = [
-            (
-                time_utils.tdb_s_to_datetime(epoch_tdb_s)
-                .replace(tzinfo=timezone.utc)
-                .timestamp(),
-                state_m_m_s,
-            )
+            (epoch_tdb_s, state_m_m_s)
             for epoch_tdb_s, state_m_m_s in state_history.items()
         ]
         oem = common_oem.CcsdsOem.from_states(
@@ -149,7 +145,7 @@ def write_dependent_variables_csv(
     # Build header row using the dependent_variable_type enum name for each saved variable.
     # Each dependent variable may be multi-dimensional (e.g., vectors have 3 components,
     # Keplerian state has 6). We expand the header accordingly.
-    headers = ["epoch_tdb_s"]
+    headers = ["epoch_tt_s"]
     for dep_var_setting in dependent_variables_to_save:
         header = build_dependent_variable_csv_header_prefix(dep_var_setting)
 
@@ -169,8 +165,8 @@ def write_dependent_variables_csv(
     with open(dep_var_csv_path, "w", newline="", encoding="utf-8") as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(headers)
-        for row_idx, epoch_tdb_s in enumerate(time_history):
-            row = [epoch_tdb_s]
+        for row_idx, epoch_tt_s in enumerate(time_history):
+            row = [epoch_tt_s]
             for dep_var_setting in dependent_variables_to_save:
                 dep_var_array = dep_var_dict.asarray(dep_var_setting)
                 if dep_var_array.ndim == 1 or (

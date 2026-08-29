@@ -465,7 +465,7 @@ def refine_estimated_fields_keplerian_match(
     estimated : Estimated
         Estimated TLE elements dataclass.
     states : list[tuple[float, np.ndarray]]
-        List of (POSIX timestamp, state_vector_m (6,)) tuples.
+        List of (TT seconds since J2000, state_vector_m (6,)) tuples.
 
     Returns
     -------

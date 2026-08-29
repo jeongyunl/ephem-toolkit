@@ -7,6 +7,7 @@ import pytest
 
 import core.misc as misc
 import core.ccsds.oem as oem
+import core.time_utils as time_utils
 
 # ===================================================================
 # 1. parse_oem_state_line — valid and edge-case inputs
@@ -23,10 +24,10 @@ def test_parse_oem_state_line_valid() -> None:
 
     from datetime import datetime, timezone
 
-    expected_timestamp = datetime(
-        2026, 5, 20, 12, 0, 0, tzinfo=timezone.utc
-    ).timestamp()
-    assert timestamp == expected_timestamp
+    expected_timestamp = time_utils.datetime_to_tt_s(
+        datetime(2026, 5, 20, 12, 0, 0, tzinfo=timezone.utc)
+    )
+    assert timestamp == pytest.approx(expected_timestamp)
     assert state_m.shape == (6,)
     # OEM file has km, but parse_oem_state_line now returns meters
     np.testing.assert_allclose(state_m[:3], [-2345678.0, 4567890.0, 1234567.0])
@@ -41,10 +42,10 @@ def test_parse_oem_state_line_with_trailing_z() -> None:
     timestamp, state_m = result
     from datetime import datetime, timezone
 
-    expected_timestamp = datetime(
-        2026, 5, 20, 12, 0, 0, tzinfo=timezone.utc
-    ).timestamp()
-    assert timestamp == expected_timestamp
+    expected_timestamp = time_utils.datetime_to_tt_s(
+        datetime(2026, 5, 20, 12, 0, 0, tzinfo=timezone.utc)
+    )
+    assert timestamp == pytest.approx(expected_timestamp)
     assert state_m.shape == (6,)
 
 

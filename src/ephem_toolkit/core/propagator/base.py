@@ -1,8 +1,7 @@
 """Base interfaces for orbit propagators.
 
-All epochs in this module are **ephemeris time** — seconds since the J2000
-epoch (2000-01-01 12:00:00 TT).  Concrete propagators may treat this as
-TDB or TT; the ≈1.7 ms difference is ignored.
+All epochs in this module are **TT seconds since J2000** —
+The < 2 ms difference from TDB is ignored.
 
 References:
     https://en.wikipedia.org/wiki/Orbital_elements
@@ -53,7 +52,7 @@ class Propagator(ABC, Generic[InitialStateT]):
     A propagator is configured via :meth:`set_initial_state` with whatever
     initial-state representation it needs, then queried for the Cartesian
     state at a target epoch.  All epoch arguments and return values are
-    **ephemeris time** — seconds since J2000 (TDB/TT).
+    **TT seconds since J2000**.
 
     The propagator maintains a **reference epoch** that starts at the
     initial epoch (set by :meth:`set_initial_state`) and advances to the
@@ -225,7 +224,5 @@ class KeplerianState:
     def __post_init__(self) -> None:
         # Make the backing array immutable so that the frozen-dataclass
         # guarantee covers the array contents, not just the attribute slot.
-        object.__setattr__(
-            self, "elements", np.array(self.elements, dtype=float)
-        )
+        object.__setattr__(self, "elements", np.array(self.elements, dtype=float))
         self.elements.flags.writeable = False

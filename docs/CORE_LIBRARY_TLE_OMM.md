@@ -216,10 +216,10 @@ Structured CCSDS Orbit Ephemeris Message with header, metadata, and states.
 - `header`: File-level header fields (OemHeader)
 - `meta`: Metadata block fields (OemMeta)
 - `data_comments`: Comment lines before the ephemeris state data
-- `states`: List of (POSIX timestamp, state_vector) tuples, sorted by timestamp in ascending order. State vectors are 6-element arrays [x, y, z, vx, vy, vz] in meters (m) and m/s.
+- `states`: List of (TT seconds since J2000, state_vector) tuples, sorted by epoch in ascending order. State vectors are 6-element arrays [x, y, z, vx, vy, vz] in meters (m) and m/s.
 
 **Properties:**
-- `epochs`: Sorted list of epoch POSIX timestamps
+- `epochs`: Sorted list of epoch timestamps (TT seconds since J2000)
 - `state_vectors`: State vectors ordered by epoch, shape (N, 6) in meters and m/s
 
 **Class Methods:**

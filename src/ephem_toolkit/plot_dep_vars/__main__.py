@@ -83,7 +83,7 @@ class DepVarColumnMeta:
 class CsvDependentVariableData:
     """CSV-backed dependent-variable data and parsed metadata."""
 
-    time_history_tdb_s: np.ndarray
+    time_history_tt_s: np.ndarray
     """Epoch timestamps in TDB seconds, shape (N,)"""
     dep_var_columns: dict[str, np.ndarray]
     """Mapping of column_key to 1-D data array, each of shape (N,)"""
@@ -109,7 +109,7 @@ def read_dependent_variables_csv(
     Returns
     -------
     tuple[np.ndarray, list[str], np.ndarray]
-        A tuple of (time_history_tdb_s, dep_var_headers, dep_var_matrix).
+        A tuple of (time_history_tt_s, dep_var_headers, dep_var_matrix).
     """
     with open(dep_var_csv_path, "r", newline="", encoding="utf-8") as csv_file:
         reader = csv.reader(csv_file)
@@ -120,9 +120,9 @@ def read_dependent_variables_csv(
 
         if not headers:
             raise ValueError("dependent-variable CSV header is missing")
-        if headers[0] != "epoch_tdb_s":
+        if headers[0] != "epoch_tt_s":
             raise ValueError(
-                "invalid dependent-variable CSV header: first column must be 'epoch_tdb_s'"
+                "invalid dependent-variable CSV header: first column must be 'epoch_tt_s'"
             )
 
         numeric_rows = []
@@ -147,11 +147,11 @@ def read_dependent_variables_csv(
         return np.array([], dtype=float), headers[1:], np.empty((0, len(headers) - 1))
 
     data = np.asarray(numeric_rows, dtype=float)
-    time_history_tdb_s = data[:, 0]
+    time_history_tt_s = data[:, 0]
     dep_var_headers = headers[1:]
     dep_var_matrix = data[:, 1:]
 
-    return time_history_tdb_s, dep_var_headers, dep_var_matrix
+    return time_history_tt_s, dep_var_headers, dep_var_matrix
 
 
 def parse_dep_var_column_metadata(
@@ -214,7 +214,7 @@ def load_csv_dependent_variable_data(
     CsvDependentVariableData
         Loaded data with parsed metadata.
     """
-    time_history_tdb_s, dep_var_headers, dep_var_matrix = read_dependent_variables_csv(
+    time_history_tt_s, dep_var_headers, dep_var_matrix = read_dependent_variables_csv(
         dep_var_csv_path
     )
 
@@ -237,7 +237,7 @@ def load_csv_dependent_variable_data(
         )
 
     return CsvDependentVariableData(
-        time_history_tdb_s=time_history_tdb_s,
+        time_history_tt_s=time_history_tt_s,
         dep_var_columns=dep_var_columns,
         metadata=metadata,
     )
@@ -1139,7 +1139,7 @@ def plot_dependent_variables_from_csv(
         If the CSV file has no data rows.
     """
     data = load_csv_dependent_variable_data(dep_var_csv_path)
-    if data.time_history_tdb_s.size == 0:
+    if data.time_history_tt_s.size == 0:
         raise ValueError("loaded dependent-variable CSV has no data rows for plotting")
 
     # Auto-detect satellite name if the provided name doesn't match any data
@@ -1151,7 +1151,7 @@ def plot_dependent_variables_from_csv(
                 break
 
     relative_time_h = (
-        data.time_history_tdb_s - data.time_history_tdb_s[0]
+        data.time_history_tt_s - data.time_history_tt_s[0]
     ) / SECONDS_PER_HOUR
 
     # Filter data by duration if specified
@@ -1162,7 +1162,7 @@ def plot_dependent_variables_from_csv(
 
         # Create a filtered copy of data with only the selected time range
         filtered_data = CsvDependentVariableData(
-            time_history_tdb_s=data.time_history_tdb_s[mask],
+            time_history_tt_s=data.time_history_tt_s[mask],
             dep_var_columns={
                 key: values[mask] for key, values in data.dep_var_columns.items()
             },

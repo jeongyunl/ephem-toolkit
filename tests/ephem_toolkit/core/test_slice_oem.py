@@ -27,6 +27,7 @@ import pytest
 
 import core.ccsds.oem as oem
 import core.slice_oem as slice_oem
+import core.time_utils as time_utils
 from core.ccsds.oem import CcsdsOem
 from core.interpolator.interpolation_spec import InterpolationSpec, InterpolationType
 
@@ -78,8 +79,8 @@ def test_slice_states_by_time_dict_ordered_and_filtered() -> None:
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
 
     options: slice_oem.TimeSliceOptions = slice_oem.TimeSliceOptions(
-        start_time=datetime.fromtimestamp(5.0, tz=timezone.utc),
-        stop_time=datetime.fromtimestamp(15.0, tz=timezone.utc),
+        start_time=time_utils.tt_s_to_datetime(5.0),
+        stop_time=time_utils.tt_s_to_datetime(15.0),
     )
     sliced_oem = slice_oem.extract_sliced_states(oem_obj, options)
 
@@ -121,8 +122,8 @@ def test_slice_states_with_time_slice_options() -> None:
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
 
     options: slice_oem.TimeSliceOptions = slice_oem.TimeSliceOptions(
-        start_time=datetime.fromtimestamp(10.0, tz=timezone.utc),
-        stop_time=datetime.fromtimestamp(20.0, tz=timezone.utc),
+        start_time=time_utils.tt_s_to_datetime(10.0),
+        stop_time=time_utils.tt_s_to_datetime(20.0),
     )
     sliced_oem = slice_oem.extract_sliced_states(oem_obj, options)
 
@@ -144,8 +145,8 @@ def test_slice_states_by_time_accepts_time_slice_options() -> None:
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
 
     options: slice_oem.TimeSliceOptions = slice_oem.TimeSliceOptions(
-        start_time=datetime.fromtimestamp(10.0, tz=timezone.utc),
-        stop_time=datetime.fromtimestamp(20.0, tz=timezone.utc),
+        start_time=time_utils.tt_s_to_datetime(10.0),
+        stop_time=time_utils.tt_s_to_datetime(20.0),
     )
     sliced_oem: CcsdsOem = slice_oem.extract_states_by_time(oem_obj, options)
 
@@ -162,7 +163,7 @@ def test_slice_states_by_time_accepts_time_slice_options() -> None:
 def test_slice_states_with_ccsds_oem_preserves_metadata() -> None:
     """Test that slicing a CcsdsOem preserves metadata."""
     states = [
-        (1234567890.0 + i * 60, np.array([7e6 + i * 1000, 0, 0, 0, 7.5e3, 0]))
+        (757339269.184 + i * 60, np.array([7e6 + i * 1000, 0, 0, 0, 7.5e3, 0]))
         for i in range(10)
     ]
 
@@ -195,7 +196,7 @@ def test_slice_states_with_ccsds_oem_preserves_metadata() -> None:
 def test_slice_states_with_ccsds_oem_returns_ccsds_oem() -> None:
     """Test that slicing a CcsdsOem returns a CcsdsOem."""
     states = [
-        (1234567890.0 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(5)
+        (757339269.184 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(5)
     ]
 
     oem_obj = CcsdsOem.from_states(states, object_name="SAT")
@@ -208,7 +209,7 @@ def test_slice_states_with_ccsds_oem_returns_ccsds_oem() -> None:
 def test_slice_states_with_ccsds_oem_negative_indices() -> None:
     """Test slicing CcsdsOem with negative indices."""
     states = [
-        (1234567890.0 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
+        (757339269.184 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
     ]
 
     oem_obj = CcsdsOem.from_states(states, object_name="SAT")
@@ -224,7 +225,7 @@ def test_slice_states_with_ccsds_oem_negative_indices() -> None:
 def test_slice_states_with_ccsds_oem_step() -> None:
     """Test slicing CcsdsOem with step parameter."""
     states = [
-        (1234567890.0 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
+        (757339269.184 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
     ]
 
     oem_obj = CcsdsOem.from_states(states, object_name="SAT")
@@ -241,7 +242,7 @@ def test_slice_states_with_ccsds_oem_step() -> None:
 def test_slice_states_with_ccsds_oem_empty_slice() -> None:
     """Test slicing CcsdsOem with empty result."""
     states = [
-        (1234567890.0 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(5)
+        (757339269.184 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(5)
     ]
 
     oem_obj = CcsdsOem.from_states(states, object_name="SAT")
@@ -256,7 +257,7 @@ def test_slice_states_with_ccsds_oem_empty_slice() -> None:
 def test_slice_states_with_ccsds_oem_preserves_all_metadata_fields() -> None:
     """Test that all metadata fields are preserved during slicing."""
     states = [
-        (1234567890.0 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(5)
+        (757339269.184 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(5)
     ]
 
     oem_obj = CcsdsOem.from_states(
@@ -279,7 +280,7 @@ def test_slice_states_with_ccsds_oem_preserves_all_metadata_fields() -> None:
 def test_slice_states_with_ccsds_oem_updates_start_stop_times() -> None:
     """Test that start/stop times are updated based on sliced states."""
     states = [
-        (1234567890.0 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
+        (757339269.184 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
     ]
 
     oem_obj = CcsdsOem.from_states(states, object_name="SAT")
@@ -294,7 +295,7 @@ def test_slice_states_with_ccsds_oem_updates_start_stop_times() -> None:
     assert sliced_oem.meta.stop_time != original_stop
 
     # Should correspond to sliced states
-    assert "2009-02-13" in sliced_oem.meta.start_time  # Timestamp 1234567890 + 3*60
+    assert "2024-01-01" in sliced_oem.meta.start_time  # Timestamp 1234567890 + 3*60
 
 
 def test_slice_states_with_time_slice_options_on_ccsds_oem() -> None:
@@ -302,7 +303,10 @@ def test_slice_states_with_time_slice_options_on_ccsds_oem() -> None:
     # Create states with known timestamps
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
 
@@ -425,7 +429,7 @@ def test_integration_read_slice_write() -> None:
     """Test complete workflow: read OEM, slice, write."""
     # Create original OEM
     states = [
-        (1234567890.0 + i * 60, np.array([7e6 + i * 1000, 0, 0, 0, 7.5e3, 0]))
+        (757339269.184 + i * 60, np.array([7e6 + i * 1000, 0, 0, 0, 7.5e3, 0]))
         for i in range(20)
     ]
 
@@ -475,7 +479,10 @@ def test_time_slice_stop_defaults_to_start_single_state() -> None:
     """Test that when stop_time is None, it defaults to start_time (single state)."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6 + i * 100, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6 + i * 100, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
 
@@ -499,7 +506,10 @@ def test_time_slice_stop_defaults_to_start_with_duration() -> None:
     """Test that stop defaults to start when using duration offset."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
 
@@ -524,7 +534,10 @@ def test_time_slice_both_none_returns_full_range() -> None:
     """Test that when both start and stop are None, full OEM range is returned."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
 
@@ -546,7 +559,10 @@ def test_time_slice_stop_none_with_negative_duration_start() -> None:
     """Test single state extraction with negative duration (from end)."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
 
@@ -601,7 +617,7 @@ def test_index_validation_empty_oem() -> None:
 def test_index_validation_stop_less_than_start() -> None:
     """Test that stop < start raises ValueError."""
     states = [
-        (1234567890.0 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
+        (757339269.184 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
 
@@ -614,7 +630,7 @@ def test_index_validation_stop_less_than_start() -> None:
 def test_index_validation_negative_start_out_of_range() -> None:
     """Test that negative start index out of range raises IndexError."""
     states = [
-        (1234567890.0 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
+        (757339269.184 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
 
@@ -625,7 +641,7 @@ def test_index_validation_negative_start_out_of_range() -> None:
 def test_index_validation_allows_out_of_range_positive_indices() -> None:
     """Test that out-of-range positive indices are allowed (returns empty slice)."""
     states = [
-        (1234567890.0 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(5)
+        (757339269.184 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(5)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
 
@@ -659,7 +675,10 @@ def test_time_validation_stop_before_start() -> None:
 
     base_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -677,7 +696,10 @@ def test_time_validation_start_before_oem_range() -> None:
     """Test that start time before OEM range raises ValueError."""
     base_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -696,7 +718,10 @@ def test_time_validation_stop_after_oem_range() -> None:
     """Test that stop time after OEM range raises ValueError."""
     base_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -717,7 +742,10 @@ def test_time_validation_valid_range() -> None:
 
     base_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -744,7 +772,10 @@ def test_interpolation_with_step_size() -> None:
     """Test interpolation with step size."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6 + i * 1000, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6 + i * 1000, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(20)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -760,15 +791,18 @@ def test_interpolation_with_step_size() -> None:
 
     # Should have states at 2, 4, 6, 8, 10, 12 minutes (6 states)
     assert len(sliced_oem.states) == 6
-    assert sliced_oem.states[0][0] == base_time.timestamp() + 2 * 60
-    assert sliced_oem.states[-1][0] == base_time.timestamp() + 12 * 60
+    assert sliced_oem.states[0][0] == time_utils.datetime_to_tt_s(base_time) + 2 * 60
+    assert sliced_oem.states[-1][0] == time_utils.datetime_to_tt_s(base_time) + 12 * 60
 
 
 def test_interpolation_single_state() -> None:
     """Test interpolation for single state extraction."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6 + i * 1000, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6 + i * 1000, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(20)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -785,14 +819,17 @@ def test_interpolation_single_state() -> None:
 
     # Should return exactly 1 interpolated state
     assert len(sliced_oem.states) == 1
-    assert sliced_oem.states[0][0] == target_time.timestamp()
+    assert sliced_oem.states[0][0] == time_utils.datetime_to_tt_s(target_time)
 
 
 def test_interpolation_with_boundaries() -> None:
     """Test interpolation with exact start and stop times."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6 + i * 1000, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6 + i * 1000, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(20)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -812,15 +849,18 @@ def test_interpolation_with_boundaries() -> None:
     assert (
         len(sliced_oem.states) > 6
     )  # At least the states from 3-8 minutes plus boundaries
-    assert sliced_oem.states[0][0] == start_time.timestamp()
-    assert sliced_oem.states[-1][0] == stop_time.timestamp()
+    assert sliced_oem.states[0][0] == time_utils.datetime_to_tt_s(start_time)
+    assert sliced_oem.states[-1][0] == time_utils.datetime_to_tt_s(stop_time)
 
 
 def test_step_size_without_interpolate_raises_error() -> None:
     """Test that step_size without interpolation_spec raises ValueError."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -842,7 +882,10 @@ def test_interpolation_at_exact_existing_state() -> None:
     """Test that interpolation at exact existing state doesn't duplicate."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6 + i * 1000, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6 + i * 1000, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(20)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -870,7 +913,7 @@ def test_interpolation_at_exact_existing_state() -> None:
 def test_verbose_output_index_slice(capsys) -> None:
     """Test verbose output for index-based slicing."""
     states = [
-        (1234567890.0 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
+        (757339269.184 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
 
@@ -885,7 +928,10 @@ def test_verbose_output_time_slice_no_interpolation(capsys) -> None:
     """Test verbose output for time-based slicing without interpolation."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -906,7 +952,10 @@ def test_verbose_output_time_slice_with_interpolation(capsys) -> None:
     """Test verbose output for time-based slicing with interpolation."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(20)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -930,7 +979,10 @@ def test_verbose_output_single_state_interpolated(capsys) -> None:
     """Test verbose output for single state extraction with interpolation."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -952,7 +1004,10 @@ def test_verbose_output_single_state_no_interpolation(capsys) -> None:
     """Test verbose output for single state extraction without interpolation."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -973,7 +1028,10 @@ def test_verbose_output_with_negative_duration(capsys) -> None:
     """Test verbose output with negative duration offset."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -995,7 +1053,10 @@ def test_verbose_output_interpolated_boundaries(capsys) -> None:
     """Test verbose output for interpolation with boundary states."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(20)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -1024,7 +1085,7 @@ def test_verbose_output_interpolated_boundaries(capsys) -> None:
 def test_extract_sliced_states_invalid_type() -> None:
     """Test that invalid slice_spec type raises TypeError."""
     states = [
-        (1234567890.0 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
+        (757339269.184 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
 
@@ -1037,7 +1098,7 @@ def test_extract_sliced_states_invalid_type() -> None:
 def test_index_validation_negative_stop_out_of_range() -> None:
     """Test that negative stop index out of range raises IndexError."""
     states = [
-        (1234567890.0 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
+        (757339269.184 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
 
@@ -1057,7 +1118,10 @@ def test_time_slice_positive_duration_stop() -> None:
     """Test positive stop duration is relative to the resolved start."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(20)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -1077,7 +1141,10 @@ def test_time_slice_zero_duration_stop() -> None:
     """Test time slicing with zero duration for stop (OEM end)."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -1097,7 +1164,10 @@ def test_verbose_output_with_positive_duration_start(capsys) -> None:
     """Test verbose output with positive duration offset for start."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -1119,7 +1189,10 @@ def test_verbose_output_with_datetime_start_stop(capsys) -> None:
     """Test verbose output with datetime start and stop."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -1143,7 +1216,10 @@ def test_verbose_output_with_none_start(capsys) -> None:
     """Test verbose output with None start time."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -1165,7 +1241,10 @@ def test_verbose_output_with_none_stop(capsys) -> None:
     """Test verbose output with None stop time (single state)."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -1187,7 +1266,10 @@ def test_verbose_output_with_positive_stop_duration(capsys) -> None:
     """Test verbose output with positive duration for stop (from start)."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(20)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -1207,7 +1289,7 @@ def test_verbose_output_with_positive_stop_duration(capsys) -> None:
 def test_verbose_output_index_slice_with_empty_result(capsys) -> None:
     """Test verbose output for index slice with empty result."""
     states = [
-        (1234567890.0 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(5)
+        (757339269.184 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(5)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
 
@@ -1221,7 +1303,7 @@ def test_verbose_output_index_slice_with_empty_result(capsys) -> None:
 def test_verbose_output_index_slice_with_step(capsys) -> None:
     """Test verbose output for index slice with step."""
     states = [
-        (1234567890.0 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(20)
+        (757339269.184 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(20)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
 
@@ -1237,7 +1319,10 @@ def test_time_slice_start_none_stop_datetime() -> None:
     """Test time slicing with None start and datetime stop."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -1258,7 +1343,10 @@ def test_time_validation_with_none_start_time(capsys) -> None:
     """Test time validation error message with None start_time."""
     base_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -1280,7 +1368,10 @@ def test_time_validation_with_none_stop_time_error() -> None:
     """Test time validation error message with None stop_time in error path."""
     base_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -1300,7 +1391,7 @@ def test_time_validation_with_none_stop_time_error() -> None:
 def test_verbose_output_index_slice_with_results(capsys) -> None:
     """Test verbose output for index slice with non-empty results."""
     states = [
-        (1234567890.0 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
+        (757339269.184 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
 
@@ -1317,7 +1408,10 @@ def test_time_validation_error_with_timedelta_start_datetime_stop() -> None:
     """Test time validation error message with timedelta start and datetime stop."""
     base_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -1336,7 +1430,10 @@ def test_time_validation_error_with_datetime_start_timedelta_stop() -> None:
     """Test time validation error message with datetime start and timedelta stop."""
     base_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -1355,7 +1452,10 @@ def test_step_size_without_interpolate_in_extract_states_by_time() -> None:
     """Test that step_size without interpolation_spec raises error in extract_states_by_time directly."""
     base_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
@@ -1378,7 +1478,10 @@ def test_time_validation_error_with_none_stop_in_error_path() -> None:
     """Test time validation error message when stop_time is None (edge case for line 784)."""
     base_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     states = [
-        (base_time.timestamp() + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0]))
+        (
+            time_utils.datetime_to_tt_s(base_time) + i * 60,
+            np.array([7e6, 0, 0, 0, 7.5e3, 0]),
+        )
         for i in range(10)
     ]
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")

@@ -26,8 +26,8 @@ def test_teme_to_j2000_rotates_position_and_velocity(
     """Should apply the TudatPy rotation independently to position and velocity."""
     requested_epochs: list[float] = []
 
-    def fake_teme_to_j2000(epoch_tdb_s: float) -> np.ndarray:
-        requested_epochs.append(epoch_tdb_s)
+    def fake_teme_to_j2000(epoch_tt_s: float) -> np.ndarray:
+        requested_epochs.append(epoch_tt_s)
         return TEST_ROTATION
 
     monkeypatch.setattr(
@@ -54,7 +54,7 @@ def test_j2000_to_teme_uses_transposed_rotation(
     monkeypatch.setattr(
         frame_utils.element_conversion,
         "teme_to_j2000",
-        lambda epoch_tdb_s: TEST_ROTATION,
+        lambda epoch_tt_s: TEST_ROTATION,
     )
 
     result = frame_utils.j2000_to_teme(123.5, TEST_STATE)
@@ -77,7 +77,7 @@ def test_teme_j2000_round_trip_restores_state(
     monkeypatch.setattr(
         frame_utils.element_conversion,
         "teme_to_j2000",
-        lambda epoch_tdb_s: TEST_ROTATION,
+        lambda epoch_tt_s: TEST_ROTATION,
     )
 
     j2000_state = frame_utils.teme_to_j2000(123.5, TEST_STATE)
@@ -94,9 +94,9 @@ def test_spice_convert_frame_uses_state_rotation_matrix(
     requested_arguments: list[tuple[str, str, float]] = []
 
     def fake_state_rotation_matrix(
-        base_frame: str, target_frame: str, epoch_tdb_s: float
+        base_frame: str, target_frame: str, epoch_tt_s: float
     ) -> np.ndarray:
-        requested_arguments.append((base_frame, target_frame, epoch_tdb_s))
+        requested_arguments.append((base_frame, target_frame, epoch_tt_s))
         return state_rotation_matrix
 
     monkeypatch.setattr(frame_utils, "_did_load_spice_kernels", True)

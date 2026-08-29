@@ -21,11 +21,17 @@ This document covers time utilities, common utilities, and physical constants in
 
 ### Time Conversion Functions
 
+#### `datetime_to_tt_s(dt: datetime) -> float`
+Convert a datetime object to TT (Terrestrial Time) seconds since J2000.
+
+#### `tt_s_to_datetime(tt_s: float) -> datetime`
+Convert TT seconds since J2000 to a UTC datetime object.
+
 #### `datetime_to_tdb_s(dt: datetime) -> float`
-Convert a datetime object to TDB (ephemeris time) seconds since J2000.
+Convert a datetime object to TDB (Barycentric Dynamical Time) seconds since J2000. Retained for compatibility; TT is the primary ephemeris time scale.
 
 #### `tdb_s_to_datetime(tdb_s: float) -> datetime`
-Convert TDB seconds since J2000 to a UTC datetime object.
+Convert TDB seconds since J2000 to a UTC datetime object. Retained for compatibility; TT is the primary ephemeris time scale.
 
 ### ISO 8601 Parsing and Formatting
 
