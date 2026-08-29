@@ -1,5 +1,5 @@
 """Fit OEM state vectors and write an OPM with osculating Keplerian elements."""
 
-from .oem_to_opm import main
+from .__main__ import main
 
 __all__ = ["main"]

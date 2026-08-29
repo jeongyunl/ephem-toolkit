@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from ephem_toolkit.oem_to_omm import oem_to_omm
+import ephem_toolkit.oem_to_omm.__main__ as oem_to_omm
 from ephem_toolkit.oem_to_omm import oem_to_omm_cli
 
 

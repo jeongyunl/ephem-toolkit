@@ -25,7 +25,7 @@ def test_plot_dependent_variables_help_uses_command_name() -> None:
         [
             sys.executable,
             "-m",
-            "ephem_toolkit.plot_dep_vars.plot_dependent_variables",
+            "ephem_toolkit.plot_dep_vars.__main__",
             "--help",
         ],
         capture_output=True,

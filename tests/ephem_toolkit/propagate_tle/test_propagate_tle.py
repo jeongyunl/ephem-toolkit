@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from ephem_toolkit.propagate_tle import propagate_tle_cli
-from propagate_tle.propagate_tle import resolve_time_bounds
+from ephem_toolkit.propagate_tle.__main__ import resolve_time_bounds
 
 TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent
@@ -118,7 +118,7 @@ def run_propagate_tle(tle_path: Path) -> str:
                 / "src"
                 / "ephem_toolkit"
                 / "propagate_tle"
-                / "propagate_tle.py"
+                / "__main__.py"
             ),
             str(tle_path),
             "--data-only",

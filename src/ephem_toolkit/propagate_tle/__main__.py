@@ -11,7 +11,7 @@ from __future__ import annotations
 import sys
 
 from ephem_toolkit.propagate_omm import propagate_omm
-from ephem_toolkit.propagate_omm.propagate_omm import resolve_time_bounds
+from ephem_toolkit.propagate_omm.__main__ import resolve_time_bounds
 from ephem_toolkit.propagate_omm.propagate_omm_cli import PropagateOmmArgs
 
 

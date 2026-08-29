@@ -56,7 +56,7 @@ def _run_roundtrip(
         [
             sys.executable,
             "-m",
-            "ephem_toolkit.oem_to_opm.oem_to_opm",
+            "ephem_toolkit.oem_to_opm.__main__",
             str(reference_oem),
             "-o",
             str(opm_path),
@@ -74,7 +74,7 @@ def _run_roundtrip(
         [
             sys.executable,
             "-m",
-            "ephem_toolkit.propagate_kepler.propagate_kepler",
+            "ephem_toolkit.propagate_kepler.__main__",
             str(opm_path),
             "-d",
             duration,
@@ -141,7 +141,7 @@ def test_oem_to_opm_requires_input_file_name() -> None:
         [
             sys.executable,
             "-m",
-            "ephem_toolkit.oem_to_opm.oem_to_opm",
+            "ephem_toolkit.oem_to_opm.__main__",
             "-o",
             "-",
         ],
@@ -159,7 +159,7 @@ def test_oem_to_opm_requires_input_file_name() -> None:
         [
             sys.executable,
             "-m",
-            "ephem_toolkit.oem_to_opm.oem_to_opm",
+            "ephem_toolkit.oem_to_opm.__main__",
             "-",
             "--output",
             "-",

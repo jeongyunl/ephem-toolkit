@@ -1,5 +1,5 @@
 """Transform CCSDS OEM state vectors and metadata."""
 
-from .xform_oem import main
+from .__main__ import main
 
 __all__ = ["main"]

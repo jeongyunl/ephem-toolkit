@@ -125,7 +125,7 @@ def run_oem_to_tle(
     cmd: list[str] = [
         sys.executable,
         "-m",
-        "ephem_toolkit.oem_to_omm.oem_to_omm",
+        "ephem_toolkit.oem_to_omm.__main__",
         "--mode",
         "tle",
         "-",
@@ -187,7 +187,7 @@ def test_oem_to_omm_help_uses_command_name_and_format_aware_output() -> None:
         [
             sys.executable,
             "-m",
-            "ephem_toolkit.oem_to_omm.oem_to_omm",
+            "ephem_toolkit.oem_to_omm.__main__",
             "--help",
         ],
         capture_output=True,
