@@ -85,6 +85,117 @@ def test_datetime_to_tdb_non_utc_timezone():
 
 
 # ===================================================================
+# TT (Terrestrial Time) conversion tests
+# ===================================================================
+
+
+def test_posix_to_tt_j2000_epoch():
+    """Should return approximately 64.184 seconds for J2000 epoch (TT-UTC offset)."""
+    j2000_posix = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc).timestamp()
+    tt_seconds = time_utils.posix_to_tt_s(j2000_posix)
+    # TT = TAI + 32.184s, TAI = UTC + 32s at J2000 -> TT = UTC + 64.184s
+    assert tt_seconds == pytest.approx(64.184, abs=0.01)
+
+
+def test_posix_to_tt_future_date():
+    """Should return positive TT seconds for dates after J2000."""
+    future_posix = datetime(2026, 5, 20, 12, 0, 0, tzinfo=timezone.utc).timestamp()
+    tt_seconds = time_utils.posix_to_tt_s(future_posix)
+    assert tt_seconds > 0.0
+    assert tt_seconds > 26 * 365.25 * 86400
+
+
+def test_posix_to_tt_past_date():
+    """Should return negative TT seconds for dates before J2000."""
+    past_posix = datetime(1990, 1, 1, 12, 0, 0, tzinfo=timezone.utc).timestamp()
+    tt_seconds = time_utils.posix_to_tt_s(past_posix)
+    assert tt_seconds < 0.0
+
+
+def test_datetime_to_tt_j2000_epoch():
+    """Should return approximately 64.184 seconds for J2000 epoch (TT-UTC offset)."""
+    j2000_epoch = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    tt_seconds = time_utils.datetime_to_tt_s(j2000_epoch)
+    assert tt_seconds == pytest.approx(64.184, abs=0.01)
+
+
+def test_datetime_to_tt_future_date():
+    """Should return positive TT seconds for dates after J2000."""
+    future_date = datetime(2026, 5, 20, 12, 0, 0, tzinfo=timezone.utc)
+    tt_seconds = time_utils.datetime_to_tt_s(future_date)
+    assert tt_seconds > 0.0
+    assert tt_seconds > 26 * 365.25 * 86400
+
+
+def test_datetime_to_tt_past_date():
+    """Should convert a past date to negative TT seconds."""
+    past_date = datetime(1990, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    tt_seconds = time_utils.datetime_to_tt_s(past_date)
+    assert tt_seconds < 0.0
+    expected_approx = -10 * 365.25 * 86400
+    assert abs(tt_seconds - expected_approx) / abs(expected_approx) < 0.01
+
+
+def test_datetime_to_tt_naive_datetime():
+    """Should handle naive datetime (no timezone) by assuming UTC."""
+    naive_dt = datetime(2000, 1, 1, 12, 0, 0)
+    tt_seconds = time_utils.datetime_to_tt_s(naive_dt)
+    assert tt_seconds == pytest.approx(64.184, abs=0.01)
+
+
+def test_datetime_to_tt_non_utc_timezone():
+    """Should handle non-UTC timezone by converting to UTC."""
+    from datetime import timedelta as td
+
+    utc_plus_5 = timezone(td(hours=5))
+    dt_utc_plus_5 = datetime(2000, 1, 1, 17, 0, 0, tzinfo=utc_plus_5)
+    tt_seconds = time_utils.datetime_to_tt_s(dt_utc_plus_5)
+    assert tt_seconds == pytest.approx(64.184, abs=0.01)
+
+
+def test_tt_to_datetime_zero():
+    """Should return UTC time corresponding to TT = 0.0 (before J2000 UTC)."""
+    result_dt = time_utils.tt_s_to_datetime(0.0)
+    j2000_epoch = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    time_diff = (j2000_epoch - result_dt).total_seconds()
+    assert time_diff == pytest.approx(64.184, abs=0.01)
+
+
+def test_datetime_tt_round_trip():
+    """Should preserve datetime through TT conversion round trip."""
+    original_dt = datetime(2026, 5, 20, 12, 30, 45, tzinfo=timezone.utc)
+    tt_seconds = time_utils.datetime_to_tt_s(original_dt)
+    result_dt = time_utils.tt_s_to_datetime(tt_seconds)
+    diff = abs((result_dt - original_dt).total_seconds())
+    assert diff < 1e-3
+
+
+def test_posix_tt_round_trip():
+    """Should preserve POSIX timestamp through TT conversion round trip."""
+    original_posix = datetime(2026, 5, 20, 12, 0, 0, tzinfo=timezone.utc).timestamp()
+    tt_seconds = time_utils.posix_to_tt_s(original_posix)
+    result_dt = time_utils.tt_s_to_datetime(tt_seconds)
+    result_posix = result_dt.timestamp()
+    assert result_posix == pytest.approx(original_posix, abs=1e-3)
+
+
+def test_tt_and_tdb_close_at_j2000():
+    """TT and TDB should be nearly identical at J2000 epoch."""
+    j2000_epoch = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    tt_seconds = time_utils.datetime_to_tt_s(j2000_epoch)
+    tdb_seconds = time_utils.datetime_to_tdb_s(j2000_epoch)
+    assert abs(tdb_seconds - tt_seconds) < 0.002
+
+
+def test_tt_tdb_difference_bounded():
+    """TDB-TT difference should remain small (< 2 ms) at any epoch."""
+    test_date = datetime(2026, 5, 20, 12, 0, 0, tzinfo=timezone.utc)
+    tt_seconds = time_utils.datetime_to_tt_s(test_date)
+    tdb_seconds = time_utils.datetime_to_tdb_s(test_date)
+    assert abs(tdb_seconds - tt_seconds) < 0.002
+
+
+# ===================================================================
 # ISO 8601 parsing tests
 # ===================================================================
 

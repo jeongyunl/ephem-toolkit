@@ -31,10 +31,25 @@ _tudat_time_scale_converter: time_representation.TimeScaleConverter = (
 )
 """Tudat time scale converter for UTC ↔ TDB conversions."""
 
-_UTC_J2000_IN_DATETIME: datetime = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-"""J2000 epoch in UTC (2000-01-01 12:00:00 UTC)."""
+_UTC_J2000_AS_DATETIME: datetime = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+"""UTC J2000 epoch (2000-01-01 12:00:00 UTC)"""
 
-_UTC_J2000_IN_POSIX: float = _UTC_J2000_IN_DATETIME.timestamp()
+_UTC_J2000_AS_POSIX_TIMESTAMP: float = _UTC_J2000_AS_DATETIME.timestamp()
+"""J2000 epoch as POSIX timestamp (seconds since Unix epoch)."""
+
+
+# The TT-UTC offset at J2000 is 64.184 seconds
+# (TT = TAI + 32.184s, and TAI = UTC + 32s at J2000, so TT = UTC + 64.184s).
+# This is the same as the TDB-UTC offset at J2000 (TDB ≈ TT at J2000).
+
+
+# J2000 epoch in Coordinated Universal Time (UTC) is January 1, 2000, at 11:58:55.816 UTC
+_J2000_AS_DATETIME: datetime = datetime(
+    2000, 1, 1, 11, 58, 55, 816000, tzinfo=timezone.utc
+)
+"""J2000 epoch in UTC (2000-01-01 11:58:55.816 UTC)."""
+
+_J2000_AS_POSIX_TIMESTAMP: float = _J2000_AS_DATETIME.timestamp()
 """J2000 epoch as POSIX timestamp (seconds since Unix epoch)."""
 
 _ISO8601_PATTERN: re.Pattern[str] = re.compile(
@@ -66,7 +81,7 @@ def posix_to_tdb_s(posix_s: float) -> float:
     https://en.wikipedia.org/wiki/Unix_time (POSIX timestamp definition)
     https://en.wikipedia.org/wiki/Epoch_(astronomy)#Julian_years_and_J2000 (J2000 epoch)
     """
-    utc_j2000_s: float = posix_s - _UTC_J2000_IN_POSIX
+    utc_j2000_s: float = posix_s - _UTC_J2000_AS_POSIX_TIMESTAMP
     return _tudat_time_scale_converter.convert_time(
         input_value=utc_j2000_s,
         input_scale=TimeScales.utc_scale,
@@ -95,7 +110,7 @@ def datetime_to_tdb_s(dt: datetime) -> float:
         dt = dt.replace(tzinfo=timezone.utc)
     else:
         dt = dt.astimezone(timezone.utc)
-    utc_j2000_s: float = (dt - _UTC_J2000_IN_DATETIME).total_seconds()
+    utc_j2000_s: float = (dt - _UTC_J2000_AS_DATETIME).total_seconds()
     return _tudat_time_scale_converter.convert_time(
         input_value=utc_j2000_s,
         input_scale=TimeScales.utc_scale,
@@ -125,7 +140,74 @@ def tdb_s_to_datetime(tdb_s: float) -> datetime:
         input_scale=TimeScales.tdb_scale,
         output_scale=TimeScales.utc_scale,
     )
-    return _UTC_J2000_IN_DATETIME + timedelta(seconds=utc_j2000_s)
+    return _UTC_J2000_AS_DATETIME + timedelta(seconds=utc_j2000_s)
+
+
+def posix_to_tt_s(posix_s: float) -> float:
+    """Convert a POSIX timestamp to TT (Terrestrial Time) seconds since J2000.
+
+    Parameters
+    ----------
+    posix_s : float
+        POSIX timestamp (seconds since the Unix epoch).
+
+    Returns
+    -------
+    float
+        TT seconds since J2000 epoch (s).
+    """
+    utc_j2000_s: float = posix_s - _UTC_J2000_AS_POSIX_TIMESTAMP
+    return _tudat_time_scale_converter.convert_time(
+        input_value=utc_j2000_s,
+        input_scale=TimeScales.utc_scale,
+        output_scale=TimeScales.tt_scale,
+    )
+
+
+def datetime_to_tt_s(dt: datetime) -> float:
+    """Convert a datetime object to TT (Terrestrial Time) seconds since J2000.
+
+    Parameters
+    ----------
+    dt : datetime
+        Datetime object to convert. If timezone-naive, assumes UTC.
+
+    Returns
+    -------
+    float
+        TT seconds since J2000 epoch (s).
+    """
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    utc_j2000_s: float = (dt - _UTC_J2000_AS_DATETIME).total_seconds()
+    return _tudat_time_scale_converter.convert_time(
+        input_value=utc_j2000_s,
+        input_scale=TimeScales.utc_scale,
+        output_scale=TimeScales.tt_scale,
+    )
+
+
+def tt_s_to_datetime(tt_s: float) -> datetime:
+    """Convert TT (Terrestrial Time) seconds since J2000 to a UTC datetime object.
+
+    Parameters
+    ----------
+    tt_s : float
+        TT seconds since J2000 epoch (s).
+
+    Returns
+    -------
+    datetime
+        UTC datetime object.
+    """
+    utc_j2000_s: float = _tudat_time_scale_converter.convert_time(
+        input_value=tt_s,
+        input_scale=TimeScales.tt_scale,
+        output_scale=TimeScales.utc_scale,
+    )
+    return _UTC_J2000_AS_DATETIME + timedelta(seconds=utc_j2000_s)
 
 
 # ===================================================================
@@ -402,11 +484,11 @@ def parse_duration_to_timedelta(
         if unit == "s":
             total_seconds += magnitude
         elif unit == "m":
-            total_seconds += magnitude * 60.0
+            total_seconds += magnitude * SECONDS_PER_MINUTE
         elif unit == "h":
-            total_seconds += magnitude * 3600.0
+            total_seconds += magnitude * SECONDS_PER_HOUR
         elif unit == "d":
-            total_seconds += magnitude * 86400.0
+            total_seconds += magnitude * SECONDS_PER_DAY
         else:
             raise ValueError(f"{value}: duration unit must be one of: s, m, h, d. (e)")
 
@@ -474,11 +556,11 @@ def format_duration(duration: timedelta) -> str:
         Canonical duration string using hours, minutes, or seconds.
     """
     total_seconds: float = duration.total_seconds()
-    if total_seconds % 3600 == 0:
-        hours: float = total_seconds / 3600
+    if total_seconds % SECONDS_PER_HOUR == 0:
+        hours: float = total_seconds / SECONDS_PER_HOUR
         return f"{hours:g}h"
-    if total_seconds % 60 == 0:
-        minutes: float = total_seconds / 60
+    if total_seconds % SECONDS_PER_MINUTE == 0:
+        minutes: float = total_seconds / SECONDS_PER_MINUTE
         return f"{minutes:g}m"
     return f"{total_seconds:g}s"
 
@@ -502,10 +584,10 @@ def format_duration_human(duration: timedelta) -> str:
     if total_seconds == 0:
         return "0s"
 
-    days: int = int(total_seconds // 86400)
-    hours: int = int((total_seconds % 86400) // 3600)
-    minutes: int = int((total_seconds % 3600) // 60)
-    seconds: float = total_seconds % 60
+    days: int = int(total_seconds // SECONDS_PER_DAY)
+    hours: int = int((total_seconds % SECONDS_PER_DAY) // SECONDS_PER_HOUR)
+    minutes: int = int((total_seconds % SECONDS_PER_HOUR) // SECONDS_PER_MINUTE)
+    seconds: float = total_seconds % SECONDS_PER_MINUTE
 
     parts: list[str] = []
     if days:
