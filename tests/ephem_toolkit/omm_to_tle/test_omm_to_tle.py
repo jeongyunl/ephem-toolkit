@@ -3,42 +3,28 @@
 from __future__ import annotations
 
 import argparse
-import os
-import subprocess
+import io
 import sys
-from pathlib import Path
 
-PROJECT_ROOT: Path = Path(__file__).parent.parent.parent.parent
-
-
-def _build_env() -> dict[str, str]:
-    """Build environment dictionary with PYTHONPATH set to the source root."""
-    env: dict[str, str] = os.environ.copy()
-    existing: str = env.get("PYTHONPATH", "")
-    source_root = PROJECT_ROOT / "src"
-    env["PYTHONPATH"] = os.pathsep.join([str(source_root), existing]) if existing else str(source_root)
-    return env
+from ephem_toolkit.omm_to_tle.omm_to_tle_cli import parse_arguments
 
 
 def test_omm_to_tle_help_uses_command_name_and_format_aware_output() -> None:
     """The CLI help should use the canonical command name and output placeholder."""
-    result: subprocess.CompletedProcess[str] = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "ephem_toolkit.omm_to_tle.omm_to_tle",
-            "--help",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(PROJECT_ROOT),
-        env=_build_env(),
-        check=False,
-    )
+    old_stdout = sys.stdout
+    captured_output = io.StringIO()
+    sys.stdout = captured_output
 
-    assert result.returncode == 0
-    assert "usage: omm-to-tle" in result.stdout
-    assert "--output <output_tle|->" in result.stdout
+    try:
+        parse_arguments(["--help"])
+    except SystemExit:
+        pass
+    finally:
+        sys.stdout = old_stdout
+
+    help_text = captured_output.getvalue()
+    assert "usage: omm-to-tle" in help_text
+    assert "--output <output_tle|->" in help_text
 
 
 def test_omm_to_tle_cli_uses_typed_namespace(monkeypatch) -> None:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import io
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -13,6 +12,8 @@ import pytest
 import ephem_toolkit.core.convert_tle as convert_tle
 import ephem_toolkit.core.ccsds.omm as omm
 import ephem_toolkit.core.tle as tle
+import ephem_toolkit.propagate_tle.__main__ as propagate_tle_main
+import ephem_toolkit.oem_to_omm.__main__ as oem_to_omm_main
 
 TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent
@@ -35,30 +36,8 @@ GEO_INCLINATION_TOL_DEG: float = 0.5
 """GEO inclination tolerance in degrees (relaxed for near-equatorial orbits)."""
 
 
-def _build_env() -> dict[str, str]:
-    """Build environment dictionary with PYTHONPATH set to the source root.
-
-    Returns
-    -------
-    dict[str, str]
-        Environment dictionary with updated PYTHONPATH.
-    """
-    env: dict[str, str] = os.environ.copy()
-    existing: str = env.get("PYTHONPATH", "")
-    source_roots = [
-        PROJECT_ROOT / "src",
-        PROJECT_ROOT / "src" / "ephem_toolkit",
-    ]
-    env["PYTHONPATH"] = os.pathsep.join(
-        [*(str(path) for path in source_roots), existing]
-        if existing
-        else [*(str(path) for path in source_roots)]
-    )
-    return env
-
-
 def run_propagate_tle(tle_path: Path) -> str:
-    """Run propagate_tle.py script and return output.
+    """Run propagate_tle main function and return output.
 
     Parameters
     ----------
@@ -68,42 +47,26 @@ def run_propagate_tle(tle_path: Path) -> str:
     Returns
     -------
     str
-        Standard output from propagate_tle.py script.
+        Standard output from propagate_tle.
     """
-    result: subprocess.CompletedProcess[str] = subprocess.run(
-        [
-            sys.executable,
-            str(
-                PROJECT_ROOT
-                / "src"
-                / "ephem_toolkit"
-                / "propagate_tle"
-                / "propagate_tle.py"
-            ),
-            str(tle_path),
-            "-s",
-            "15m",
-            "--output",
-            "-",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(PROJECT_ROOT),
-        env=_build_env(),
-    )
-    assert (
-        result.returncode == 0
-    ), f"propagate_tle.py failed for {tle_path.name}:\n{result.stderr}"
-    assert (
-        result.stdout.strip()
-    ), f"propagate_tle.py produced no output for {tle_path.name}"
-    return result.stdout
+    # Capture stdout
+    old_stdout = sys.stdout
+    sys.stdout = io.StringIO()
+
+    try:
+        propagate_tle_main.main([str(tle_path), "-s", "15m", "--output", "-"])
+        output = sys.stdout.getvalue()
+    finally:
+        sys.stdout = old_stdout
+
+    assert output.strip(), f"propagate_tle produced no output for {tle_path.name}"
+    return output
 
 
 def run_oem_to_tle(
     oem_text: str, original: tle.Tle, refinement: str = "cartesian"
 ) -> str:
-    """Run oem_to_omm script and return output.
+    """Run oem_to_omm main function and return output.
 
     Parameters
     ----------
@@ -117,15 +80,12 @@ def run_oem_to_tle(
     Returns
     -------
     str
-        Standard output from oem_to_omm script.
+        Standard output from oem_to_omm.
     """
     # Build object_id from international designator
     object_id = f"{original.int_designator_year:02d}-{original.int_designator_launch_number:03d}{original.int_designator_piece or 'A'}"
 
-    cmd: list[str] = [
-        sys.executable,
-        "-m",
-        "ephem_toolkit.oem_to_omm.__main__",
+    args: list[str] = [
         "--mode",
         "tle",
         "-",
@@ -144,16 +104,21 @@ def run_oem_to_tle(
         "--tle-refinement",
         refinement,
     ]
-    result: subprocess.CompletedProcess[str] = subprocess.run(
-        cmd,
-        input=oem_text,
-        capture_output=True,
-        text=True,
-        cwd=str(PROJECT_ROOT),
-        env=_build_env(),
-    )
-    assert result.returncode == 0, f"oem_to_omm.py failed:\n{result.stderr}"
-    return result.stdout
+
+    # Capture stdin and stdout
+    old_stdin = sys.stdin
+    old_stdout = sys.stdout
+    sys.stdin = io.StringIO(oem_text)
+    sys.stdout = io.StringIO()
+
+    try:
+        oem_to_omm_main.main(args)
+        output = sys.stdout.getvalue()
+    finally:
+        sys.stdin = old_stdin
+        sys.stdout = old_stdout
+
+    return output
 
 
 def parse_generated_tle_from_output(output: str) -> tle.Tle:
@@ -183,24 +148,22 @@ def parse_generated_tle_from_output(output: str) -> tle.Tle:
 
 def test_oem_to_omm_help_uses_command_name_and_format_aware_output() -> None:
     """The CLI help should use the canonical command name and output placeholder."""
-    result: subprocess.CompletedProcess[str] = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "ephem_toolkit.oem_to_omm.__main__",
-            "--help",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(PROJECT_ROOT),
-        env=_build_env(),
-        check=False,
-    )
+    old_stdout = sys.stdout
+    sys.stdout = io.StringIO()
 
-    assert result.returncode == 0
-    assert "usage: oem-to-omm" in result.stdout
-    assert "--output <output_omm|->" in result.stdout
-    assert "--mode <mean-kepler|tle>" in result.stdout
+    try:
+        try:
+            oem_to_omm_main.main(["--help"])
+        except SystemExit as e:
+            exit_code = e.code
+        output = sys.stdout.getvalue()
+    finally:
+        sys.stdout = old_stdout
+
+    assert exit_code == 0
+    assert "usage: oem-to-omm" in output
+    assert "--output <output_omm|->" in output
+    assert "--mode <mean-kepler|tle>" in output
 
 
 def is_geo_orbit(tle_data: tle.Tle) -> bool:

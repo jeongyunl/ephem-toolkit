@@ -3,52 +3,60 @@
 from __future__ import annotations
 
 import io
-import os
-import subprocess
 import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import pytest
 
+import ephem_toolkit.core.ccsds.opm as opm
 import ephem_toolkit.core.ccsds.oem as oem
+from ephem_toolkit.slice_oem.__main__ import main
 
 TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent
-SRC_DIR: Path = PROJECT_ROOT / "src"
-SLICE_OEM_SCRIPT: Path = SRC_DIR / "ephem_toolkit" / "slice_oem" / "slice_oem.py"
-TEST_DATA_DIR: Path = PROJECT_ROOT / "tests" / "data"
+TEST_DATA_DIR: Path = TEST_DIR.parent.parent / "data"
 
 
-def _build_env() -> dict[str, str]:
-    """Build a test PYTHONPATH environment for running the helper script."""
-    env = os.environ.copy()
-    existing = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = (
-        str(SRC_DIR)
-        + os.pathsep
-        + str(SRC_DIR / "ephem_toolkit")
-        + (os.pathsep + existing if existing else "")
-    )
-    return env
+class CliResult:
+    """Mock subprocess.CompletedProcess for direct function calls."""
+
+    def __init__(self, returncode: int, stdout: str, stderr: str):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
 
 
-def _run_slice_oem(
-    args: list[str], input_data: str | None = None
-) -> subprocess.CompletedProcess:
-    """Run slice_oem.py script with given arguments."""
+def _run_slice_oem(args: list[str], input_data: str | None = None) -> CliResult:
+    """Run slice_oem main function with given arguments."""
     output_args = [] if "--output" in args or "-o" in args else ["--output", "-"]
-    cmd = [sys.executable, str(SLICE_OEM_SCRIPT)] + args + output_args
-    env = _build_env()
-    return subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        input=input_data,
-        env=env,
-    )
+    argv = args + output_args
+
+    stdout_capture = io.StringIO()
+    stderr_capture = io.StringIO()
+
+    with (
+        patch("sys.stdout", stdout_capture),
+        patch("sys.stderr", stderr_capture),
+        patch("sys.stdin", io.StringIO(input_data or "")),
+    ):
+        try:
+            main(argv)
+            returncode = 0
+        except SystemExit as e:
+            if isinstance(e.code, str):
+                stderr_capture.write(e.code + "\n")
+                returncode = 1
+            else:
+                returncode = e.code if isinstance(e.code, int) else (1 if e.code else 0)
+        except Exception as ex:
+            stderr_capture.write(str(ex) + "\n")
+            returncode = 1
+
+    return CliResult(returncode, stdout_capture.getvalue(), stderr_capture.getvalue())
 
 
 def _create_test_oem(

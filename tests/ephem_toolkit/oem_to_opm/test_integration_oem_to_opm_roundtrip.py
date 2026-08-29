@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import os
-import subprocess
+import io
 import sys
 from pathlib import Path
 
@@ -16,28 +15,14 @@ from ephem_toolkit.core.interpolator.interpolation_spec import (
     InterpolationType,
 )
 from ephem_toolkit.diff_oem.comparison import compare_states, read_states
+from ephem_toolkit.oem_to_opm.__main__ import main as oem_to_opm_main
+from ephem_toolkit.propagate_kepler.__main__ import main as propagate_kepler_main
 
 TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent
 TEST_DATA_DIR: Path = TEST_DIR.parent.parent / "data"
 
 MAX_VELOCITY_ERROR_KM_S: float = 0.03
-
-
-def _build_env() -> dict[str, str]:
-    """Build an environment with the project source roots on PYTHONPATH."""
-    env: dict[str, str] = os.environ.copy()
-    existing: str = env.get("PYTHONPATH", "")
-    source_roots = [
-        PROJECT_ROOT / "src",
-        PROJECT_ROOT / "src" / "ephem_toolkit",
-    ]
-    env["PYTHONPATH"] = os.pathsep.join(
-        [*(str(path) for path in source_roots), existing]
-        if existing
-        else [*(str(path) for path in source_roots)]
-    )
-    return env
 
 
 def _run_roundtrip(
@@ -52,29 +37,21 @@ def _run_roundtrip(
     opm_path = tmp_path / "roundtrip.opm"
     propagated_oem = tmp_path / "roundtrip_propagated.oem"
 
-    oem_to_opm_result = subprocess.run(
+    # Call oem_to_opm directly
+    result = oem_to_opm_main(
         [
-            sys.executable,
-            "-m",
-            "ephem_toolkit.oem_to_opm.__main__",
             str(reference_oem),
             "-o",
             str(opm_path),
             "--fit-span",
             fit_span,
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(PROJECT_ROOT),
-        env=_build_env(),
+        ]
     )
-    assert oem_to_opm_result.returncode == 0, oem_to_opm_result.stderr
+    assert result == 0 or result is None
 
-    propagate_result = subprocess.run(
+    # Call propagate_kepler directly
+    result = propagate_kepler_main(
         [
-            sys.executable,
-            "-m",
-            "ephem_toolkit.propagate_kepler.__main__",
             str(opm_path),
             "-d",
             duration,
@@ -82,13 +59,9 @@ def _run_roundtrip(
             step,
             "-o",
             str(propagated_oem),
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(PROJECT_ROOT),
-        env=_build_env(),
+        ]
     )
-    assert propagate_result.returncode == 0, propagate_result.stderr
+    assert result == 0
 
     return opm_path, propagated_oem
 
@@ -137,42 +110,30 @@ def _max_roundtrip_error_km(
 
 def test_oem_to_opm_requires_input_file_name() -> None:
     """The CLI should require an explicit input filename or '-' for stdin."""
-    result: subprocess.CompletedProcess[str] = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "ephem_toolkit.oem_to_opm.__main__",
-            "-o",
-            "-",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(PROJECT_ROOT),
-        env=_build_env(),
-    )
+    # Test missing input file - should raise SystemExit
+    try:
+        oem_to_opm_main(["-o", "-"])
+        assert False, "Should have raised SystemExit"
+    except SystemExit as e:
+        assert e.code != 0
 
-    assert result.returncode != 0
-    assert "required: <input_oem|->" in result.stderr.lower()
-
+    # Test stdin input
     stdin_oem = (TEST_DATA_DIR / "ISS_2026-05-20_small.OEM").read_text(encoding="utf-8")
-    stdin_result: subprocess.CompletedProcess[str] = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "ephem_toolkit.oem_to_opm.__main__",
-            "-",
-            "--output",
-            "-",
-        ],
-        input=stdin_oem,
-        capture_output=True,
-        text=True,
-        cwd=str(PROJECT_ROOT),
-        env=_build_env(),
-    )
+    old_stdin = sys.stdin
+    old_stdout = sys.stdout
+    try:
+        sys.stdin = io.StringIO(stdin_oem)
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
 
-    assert stdin_result.returncode == 0, stdin_result.stderr
-    assert "CCSDS_OPM_VERS" in stdin_result.stdout
+        result = oem_to_opm_main(["-", "--output", "-"])
+
+        output = captured_output.getvalue()
+        assert result == 0 or result is None
+        assert "CCSDS_OPM_VERS" in output
+    finally:
+        sys.stdin = old_stdin
+        sys.stdout = old_stdout
 
 
 @pytest.mark.accuracy

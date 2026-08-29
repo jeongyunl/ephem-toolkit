@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-import os
-import subprocess
+import io
 import sys
 from pathlib import Path
+from unittest.mock import patch
+
+from ephem_toolkit.xform_oem.__main__ import main
 
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test modules."""
@@ -13,26 +15,35 @@ TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent
 """Repository root path."""
 
-XFORM_OEM_SCRIPT: Path = (
-    PROJECT_ROOT / "src" / "ephem_toolkit" / "xform_oem" / "xform_oem.py"
-)
-"""Path to xform_oem.py script."""
+
+class CliResult:
+    """Mock subprocess.CompletedProcess for direct function calls."""
+
+    def __init__(self, returncode: int, stdout: str, stderr: str):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
 
 
-def _build_env() -> dict[str, str]:
-    """Build a test PYTHONPATH environment for running the helper script."""
-    env = os.environ.copy()
-    existing = env.get("PYTHONPATH", "")
-    source_paths = [
-        PROJECT_ROOT / "src",
-        PROJECT_ROOT / "src" / "ephem_toolkit",
-    ]
-    env["PYTHONPATH"] = os.pathsep.join(
-        [*(str(path) for path in source_paths), existing]
-        if existing
-        else [*(str(path) for path in source_paths)]
-    )
-    return env
+def _run_xform_oem(args: list[str], input_data: str | None = None) -> CliResult:
+    """Run xform_oem main function with given arguments."""
+    stdout_capture = io.StringIO()
+    stderr_capture = io.StringIO()
+
+    with (
+        patch("sys.stdout", stdout_capture),
+        patch("sys.stderr", stderr_capture),
+        patch("sys.stdin", io.StringIO(input_data or "")),
+    ):
+        try:
+            main(args)
+            returncode = 0
+        except SystemExit as e:
+            returncode = e.code if isinstance(e.code, int) else (1 if e.code else 0)
+        except Exception:
+            returncode = 1
+
+    return CliResult(returncode, stdout_capture.getvalue(), stderr_capture.getvalue())
 
 
 def test_debug_override_messages_show_original_values() -> None:
@@ -51,12 +62,8 @@ STOP_TIME = 2024-01-01T00:00:00.000
 META_STOP
 2024-01-01T00:00:00.000 7000 0 0 0 7.5 0
 """
-    env = _build_env()
-
-    result = subprocess.run(
+    result = _run_xform_oem(
         [
-            sys.executable,
-            str(XFORM_OEM_SCRIPT),
             "-",
             "--output",
             "-",
@@ -66,11 +73,7 @@ META_STOP
             "--set-header",
             "ORIGINATOR=UPDATED_ORIGINATOR",
         ],
-        capture_output=True,
-        text=True,
-        input=input_oem,
-        env=env,
-        check=False,
+        input_oem,
     )
 
     assert result.returncode == 0
@@ -90,21 +93,7 @@ TIME_SYSTEM = UTC
 META_STOP
 2024-01-01T00:00:00.000 7000 0 0 0 7.5 0
 """
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(XFORM_OEM_SCRIPT),
-            "-",
-            "--output",
-            "-",
-            "--x-csv",
-        ],
-        capture_output=True,
-        text=True,
-        input=input_oem,
-        env=_build_env(),
-        check=False,
-    )
+    result = _run_xform_oem(["-", "--output", "-", "--x-csv"], input_oem)
 
     assert result.returncode == 0
     lines = result.stdout.splitlines()
@@ -124,21 +113,7 @@ TIME_SYSTEM = UTC
 META_STOP
 2024-01-01T00:00:00.000 7000 0 0 0 7.5 0
 """
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(XFORM_OEM_SCRIPT),
-            "-",
-            "--output",
-            "-",
-            "--data-only",
-        ],
-        capture_output=True,
-        text=True,
-        input=input_oem,
-        env=_build_env(),
-        check=False,
-    )
+    result = _run_xform_oem(["-", "--output", "-", "--data-only"], input_oem)
 
     assert result.returncode == 0
     assert result.stdout == ("2024-01-01T00:00:00.000000 7000 0 0 0 7.5 0\n")
@@ -146,13 +121,7 @@ META_STOP
 
 def test_help_uses_command_name_and_project_output_metavar() -> None:
     """The xform-oem help text should follow the project command naming conventions."""
-    result = subprocess.run(
-        [sys.executable, str(XFORM_OEM_SCRIPT), "--help"],
-        capture_output=True,
-        text=True,
-        env=_build_env(),
-        check=False,
-    )
+    result = _run_xform_oem(["--help"])
 
     assert result.returncode == 0
     assert "usage: xform-oem" in result.stdout
@@ -161,21 +130,7 @@ def test_help_uses_command_name_and_project_output_metavar() -> None:
 
 def test_x_arguments_are_mutually_exclusive() -> None:
     """Reject combinations of the --x-* options."""
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(XFORM_OEM_SCRIPT),
-            "-",
-            "--x-ref-frame",
-            "J2000",
-            "--x-aer",
-            "40,-74,10",
-        ],
-        capture_output=True,
-        text=True,
-        env=_build_env(),
-        check=False,
-    )
+    result = _run_xform_oem(["-", "--x-ref-frame", "J2000", "--x-aer", "40,-74,10"])
 
     assert result.returncode != 0
     assert "not allowed with argument" in result.stderr
