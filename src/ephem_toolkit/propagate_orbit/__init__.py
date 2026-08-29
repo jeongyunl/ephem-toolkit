@@ -1,5 +1,5 @@
 """Propagate perturbed satellite orbits."""
 
-from .propagate_orbit import main
+from .__main__ import main
 
 __all__ = ["main"]

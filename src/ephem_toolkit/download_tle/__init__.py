@@ -1,5 +1,5 @@
 """Download TLE and OMM data from CelesTrak."""
 
-from .download_tle import main
+from .__main__ import main
 
 __all__ = ["main"]

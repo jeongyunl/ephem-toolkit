@@ -25,7 +25,7 @@ def test_download_tle_help_uses_command_name_and_satellite_id_option() -> None:
         [
             sys.executable,
             "-m",
-            "ephem_toolkit.download_tle.download_tle",
+            "ephem_toolkit.download_tle.__main__",
             "--help",
         ],
         capture_output=True,

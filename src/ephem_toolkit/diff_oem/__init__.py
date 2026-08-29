@@ -1,5 +1,5 @@
 """OEM comparison utilities for analyzing orbital ephemeris differences."""
 
-from .diff_oem import main
+from .__main__ import main
 
 __all__ = ["main"]

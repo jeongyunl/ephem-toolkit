@@ -34,7 +34,7 @@ def test_plot_orbit_deltas_help_uses_command_name_and_output_placeholder() -> No
         [
             sys.executable,
             "-m",
-            "ephem_toolkit.plot_orbit_deltas.plot_orbit_deltas",
+            "ephem_toolkit.plot_orbit_deltas.__main__",
             "--help",
         ],
         capture_output=True,

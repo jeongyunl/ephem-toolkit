@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 import ephem_toolkit.core.ccsds.opm as opm
-from ephem_toolkit.oem_to_opm import oem_to_opm
+import ephem_toolkit.oem_to_opm.__main__ as oem_to_opm
 
 
 class DummyMeta:

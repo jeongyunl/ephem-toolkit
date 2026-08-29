@@ -25,7 +25,7 @@ def test_tle_info_help_uses_command_name() -> None:
         [
             sys.executable,
             "-m",
-            "ephem_toolkit.tle_info.tle_info",
+            "ephem_toolkit.tle_info.__main__",
             "--help",
         ],
         capture_output=True,

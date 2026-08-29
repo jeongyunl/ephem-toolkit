@@ -1,5 +1,5 @@
 """Plot single-orbit OEM data and derived diagnostics."""
 
-from .plot_orbit import main
+from .__main__ import main
 
 __all__ = ["main"]

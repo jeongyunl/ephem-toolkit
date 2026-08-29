@@ -312,5 +312,7 @@ def main(argv=None) -> None:
         print(f"Error: {error}", file=sys.stderr)
         sys.exit(1)
 
-    if __name__ == "__main__":
-        main()
+
+
+if __name__ == "__main__":
+    main()

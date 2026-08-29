@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .plot_orbit_deltas import main
+from .__main__ import main
 from .constants import DEFAULT_INTERPOLATION_DEGREE, METERS_TO_KILOMETERS
 from .csv_utils import generate_csv_path, sanitize_filename_component, write_csv
 from .data_structures import StateHistory, TimeUnit

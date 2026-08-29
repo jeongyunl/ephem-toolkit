@@ -27,7 +27,7 @@ def test_plot_orbit_help_uses_command_name_and_output_placeholder() -> None:
         [
             sys.executable,
             "-m",
-            "ephem_toolkit.plot_orbit.plot_orbit",
+            "ephem_toolkit.plot_orbit.__main__",
             "--help",
         ],
         capture_output=True,
