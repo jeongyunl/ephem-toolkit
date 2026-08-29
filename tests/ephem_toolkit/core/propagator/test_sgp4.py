@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from ephem_toolkit.core.propagator.base import OutputMode
-from ephem_toolkit.core.tle import read_tle, tle_epoch_to_tt_s
+from ephem_toolkit.core.propagator.sgp4 import read_tle, tle_epoch_to_tt_s
 
 pytest.importorskip("tudatpy")
 

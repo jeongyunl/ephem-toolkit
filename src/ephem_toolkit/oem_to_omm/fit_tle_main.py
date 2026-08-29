@@ -29,7 +29,7 @@ import numpy as np
 
 import ephem_toolkit.core.consts as consts
 import ephem_toolkit.core.time_utils as time_utils
-import ephem_toolkit.core.tle as tle
+import ephem_toolkit.core.propagator.sgp4 as tle
 import ephem_toolkit.core.convert_tle as convert_tle
 import ephem_toolkit.core.spice_utils as spice_utils
 from . import fit_common
