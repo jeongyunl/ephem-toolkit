@@ -6,7 +6,7 @@ Introduce a shared interface (`core/propagator.py`) covering **all four** propag
 project has or plans to have:
 
 - `core.kepler` — two-body Keplerian element propagation (existing, function-based)
-- `core.mean_kepler` — J2 secular mean-element propagation (existing, function-based)
+- `core.mean_kepler` — Brouwer J2 secular mean-element propagation (existing, function-based)
 - TLE/OMM SGP4 propagation — currently inline in
   [propagate_omm/__main__.py](../src/ephem_toolkit/propagate_omm/__main__.py)'s
   `propagate_tle_sgp4`/`propagate_omm_sgp4`, wrapping TudatPy's
@@ -15,24 +15,38 @@ project has or plans to have:
   yet moved to `core` (see
   [docs/PROPAGATE_ORBIT_CORE_MODULARIZATION_PLAN.md](PROPAGATE_ORBIT_CORE_MODULARIZATION_PLAN.md))
 
-This is the "Propagator interface/class hierarchy" item in `TODO.md`. The four
-propagators differ substantially in inputs (Keplerian elements vs. TLE lines vs.
-Cartesian state + force model config) and in what a single call naturally produces (one
-element/state vector vs. a whole trajectory), so the interface is a **flat hierarchy**:
-a single `Propagator` ABC that all four satisfy directly. Each concrete propagator
+This is the "Propagator interface/class hierarchy" item in `TODO.md`. The propagators
+differ substantially in inputs (Keplerian elements vs. TLE lines vs. Cartesian state +
+force model config) and in what a single call naturally produces (one element/state
+vector vs. a whole trajectory), so the interface is a **flat hierarchy**: a single
+`Propagator` ABC that all concrete propagators satisfy directly. Each concrete propagator
 implements `Propagator[InitialStateT]` with its own state type (`KeplerianState`, `Tle`,
 `NumericalInitialState`).
 
+**Mean element theories in scope:**
+
+| Theory | Class | Module | Notes |
+|---|---|---|---|
+| Brouwer (J2 only) | `BrouwerJ2Propagator` | `propagator/brouwer_j2.py` | Analytical; implemented in `core/mean_kepler.py` |
+| DSST | `DsstPropagator` | `propagator/dsst.py` | Semi-analytical; multi-perturbation; future work |
+| USM | `UsmPropagator` | `propagator/usm.py` | Semi-analytical; future work |
+| SGP4 (TLE) | `Sgp4Propagator` | `propagator/sgp4.py` | Proprietary TLE mean elements; not interchangeable with above |
+
+DSST and USM are listed in CCSDS 502.0-B-3 as valid `MEAN_ELEMENT_THEORY` values for
+OMM. They are **not** interchangeable with Brouwer mean elements — each theory defines
+its own mean element convention. `BrouwerJ2Propagator` must only be used with Brouwer
+mean elements; DSST/USM OMMs require their own propagators (future work).
+
 ## 2. Analysis of Existing/Planned Propagators
 
-| | `kepler.propagate_kepler` | `mean_kepler.propagate_mean_j2` | SGP4 (`propagate_tle_sgp4`) | Numerical (Tudat) |
+| | `kepler.propagate_kepler` | `mean_kepler.propagate_brouwer_j2` | SGP4 (`propagate_tle_sgp4`) | Numerical (Tudat) |
 |---|---|---|---|---|
-| Initial state form | Keplerian elements | Keplerian (mean) elements | TLE line1/line2 | Cartesian state + epoch |
+| Initial state form | Keplerian elements | Brouwer mean elements | TLE line1/line2 | Cartesian state + epoch |
 | Model config | `mu` (optional) | `mu`, `R_e_m`, `J2` | none beyond the TLE itself | force-model settings (gravity degree/order, drag, SRP, third bodies, integrator method/step) |
 | Time parameter | elapsed seconds (Δt) | elapsed seconds (Δt) | absolute epoch (queried per-sample against a built ephemeris) | integration span (start → stop), stepped by the integrator |
 | Natural output of one call | one element vector | one element vector | one Cartesian state per queried epoch | a full `state_history` (`dict[epoch, state]`) built in one integrator run |
 
-Key takeaway: `propagate_kepler`/`propagate_mean_j2` share the same **element vector
+Key takeaway: `propagate_kepler`/`propagate_brouwer_j2` share the same **element vector
 convention** (`[a, e, i, ω, Ω, anomaly]`) and **elapsed-time call shape**
 `(elements, time_elapsed_s) -> elements` (differing in extra config and
 true-vs-mean anomaly semantics — see the original analysis retained below). SGP4 and the
@@ -44,11 +58,12 @@ rather than a bare `(elements, Δt)` pair.
 The one thing all four share is: *given an initial state fixed at construction time, and
 a target time, produce a Cartesian state.* That's the top-level interface.
 
-## 2.1 Element-level detail (Kepler vs. mean-J2)
+## 2.1 Element-level detail (Kepler vs. Brouwer mean-J2)
 
-| | `kepler.propagate_kepler` | `mean_kepler.propagate_mean_j2` |
+| | `kepler.propagate_kepler` | `mean_kepler.propagate_brouwer_j2` |
 |---|---|---|
-| Signature | `(keplerian_elements, time_elapsed_s, mu_m3_s2=EARTH_GM)` | `(keplerian_elements, time_elapsed_s, mu_m3_s2, R_e_m=..., J2=...)` |
+| Signature | `(keplerian_elements, time_elapsed_s, mu_m3_s2=EARTH_GM)` | `(brouwer_mean_elements, time_elapsed_s, mu_m3_s2, R_e_m=..., J2=...)` |
+| Mean element theory | N/A (osculating) | **Brouwer** (J2 short-period corrections) |
 | Extra physical params | none beyond `mu` | `R_e_m`, `J2` (perturbation model params) |
 | Element[5] semantics | **true anomaly** | **mean anomaly** |
 | Constant elements | a, e, i, ω, Ω, θ constant; only θ evolves | a, e, i constant; ω, Ω, M evolve via J2 secular rates |
@@ -269,13 +284,23 @@ class KeplerPropagator(Propagator[KeplerianState]):
         return keplerian_to_cartesian(propagated, self._mu_m3_s2)
 ```
 
-### 5.2 `MeanJ2Propagator`
+### 5.2 `BrouwerJ2Propagator`
 
-Lives in `core/propagator/mean_j2.py`, wrapping `core.mean_kepler.propagate_mean_j2`:
+Lives in `core/propagator/brouwer_j2.py`, wrapping `core.mean_kepler.propagate_brouwer_j2`
+and `core.mean_kepler.brouwer_mean_to_cartesian`.
+
+**Mean element theory**: Brouwer (1959) — J2 short-period corrections applied via
+`compute_brouwer_short_period_corrections()`. Initial state elements are **Brouwer mean
+elements** (not osculating, not SGP4/TLE mean elements).
 
 ```python
-class MeanJ2Propagator(Propagator[KeplerianState]):
-    """J2 secular mean-element propagator."""
+class BrouwerJ2Propagator(Propagator[KeplerianState]):
+    """Brouwer J2 secular mean-element propagator.
+
+    Uses Brouwer (1959) mean element theory with J2 short-period corrections.
+    Initial state must be Brouwer mean elements (not osculating).
+    Element[5] is mean anomaly.
+    """
 
     anomaly_type = AnomalyType.MEAN
 
@@ -301,11 +326,11 @@ class MeanJ2Propagator(Propagator[KeplerianState]):
 
     def _propagate_to_impl(self, target_epoch_s: float) -> np.ndarray:
         elapsed_s = target_epoch_s - self.get_initial_epoch_s()
-        propagated = propagate_mean_j2(
+        propagated = propagate_brouwer_j2(
             self._initial_state.elements, elapsed_s,
             self._mu_m3_s2, self._R_e_m, self._J2,
         )
-        return mean_elements_to_cartesian(
+        return brouwer_mean_to_cartesian(
             propagated, self._mu_m3_s2, self._R_e_m, self._J2,
         )
 ```
@@ -437,13 +462,13 @@ any change to the base class itself.
 1. Create `core/propagator/` submodule structure:
    - `core/propagator/__init__.py` - exports all public classes/types
    - `core/propagator/base.py` - `Propagator`, `KeplerianState`, `AnomalyType`
-   - `core/propagator/kepler.py` - `KeplerPropagator`
-   - `core/propagator/mean_j2.py` - `MeanJ2Propagator`
+   - `core/propagator/kepler.py` - `KeplerPropagator` ✅ DONE
+   - `core/propagator/brouwer_j2.py` - `BrouwerJ2Propagator`
 
 2. Add unit tests in `tests/ephem_toolkit/core/propagator/`:
-   - `test_base.py` - base interface contracts (including uninitialised-state guard)
-   - `test_kepler.py` - `KeplerPropagator` tests
-   - `test_mean_j2.py` - `MeanJ2Propagator` tests
+   - `test_base.py` - base interface contracts (including uninitialised-state guard) ✅ DONE
+   - `test_kepler.py` - `KeplerPropagator` tests ✅ DONE
+   - `test_brouwer_j2.py` - `BrouwerJ2Propagator` tests
    - Verify `propagate_to`/`propagate_by` produce correct Cartesian states
    - Verify epoch handling via `KeplerianState`
 
@@ -454,6 +479,14 @@ any change to the base class itself.
    - Add `core/propagator/numerical.py` - `NumericalPropagator` (wraps Tudat integrator)
    - Add corresponding tests in `tests/ephem_toolkit/core/propagator/`
 
+5. **Rename in `core/mean_kepler.py`**:
+   - `propagate_mean_j2` → `propagate_brouwer_j2`
+   - `mean_elements_to_cartesian` → `brouwer_mean_to_cartesian`
+   - `osculating_to_mean_keplerian` → `osculating_to_brouwer_mean`
+   - `mean_to_osculating_keplerian` → `brouwer_mean_to_osculating`
+
+**`core` backward compatibility policy**: The `core` library is internal. All callers are updated in the same commit as any rename or removal. No deprecated aliases are kept. Breaking changes to `core` are acceptable and expected.
+
 No existing code needs to change — purely additive. CLI tools can optionally adopt the 
 class interface later.
 
@@ -462,11 +495,11 @@ class interface later.
 ```
 core/propagator/
 ├── __init__.py              # Exports: Propagator, KeplerianState, AnomalyType,
-│                            #          KeplerPropagator, MeanJ2Propagator,
+│                            #          KeplerPropagator, BrouwerJ2Propagator,
 │                            #          Sgp4Propagator, NumericalPropagator
 ├── base.py                  # Propagator, KeplerianState, AnomalyType
-├── kepler.py                # KeplerPropagator
-├── mean_j2.py               # MeanJ2Propagator
+├── kepler.py                # KeplerPropagator ✅ DONE
+├── brouwer_j2.py            # BrouwerJ2Propagator (uses Brouwer mean element theory)
 ├── sgp4.py                  # Sgp4Propagator (added later, requires tudatpy)
 └── numerical.py             # NumericalPropagator, NumericalInitialState,
                              # NumericalPropagatorConfig (added later, requires tudatpy)

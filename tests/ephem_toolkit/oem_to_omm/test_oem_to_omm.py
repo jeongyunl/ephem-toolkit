@@ -133,7 +133,7 @@ def test_main_mean_kepler_mode_uses_duration_and_writes_omm(monkeypatch, tmp_pat
     )
     monkeypatch.setattr(
         oem_to_omm.mean_kepler,
-        "mean_to_osculating_keplerian",
+        "brouwer_mean_to_osculating",
         lambda *_args, **_kwargs: np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
     )
 
