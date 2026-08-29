@@ -17,7 +17,7 @@ import ephem_toolkit.core.time_utils as time_utils
 import ephem_toolkit.core.convert_tle as convert_tle
 import ephem_toolkit.core.propagator.kepler as kepler
 import ephem_toolkit.core.consts as consts
-import ephem_toolkit.core.tle as tle
+import ephem_toolkit.core.propagator.sgp4 as tle
 from . import constants
 from . import models
 from . import orbital_mechanics

@@ -16,7 +16,7 @@ import pytest
 import core.convert_tle as convert_tle
 import core.propagator.kepler as kepler
 import core.propagator.brouwer_j2 as mean_kepler
-import core.tle as tle
+import core.propagator.sgp4 as tle
 import core.consts as consts
 
 TEST_DIR = Path(__file__).parent

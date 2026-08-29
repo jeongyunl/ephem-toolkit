@@ -12,7 +12,7 @@ import sys
 
 import ephem_toolkit.core.convert_tle as convert_tle
 import ephem_toolkit.core.ccsds.omm as omm
-import ephem_toolkit.core.tle as tle
+import ephem_toolkit.core.propagator.sgp4 as tle
 
 from .omm_to_tle_cli import OmmToTleArgs, parse_arguments
 

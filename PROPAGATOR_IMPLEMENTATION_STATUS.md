@@ -102,19 +102,29 @@
 
 ### SGP4 Propagator ✅
 
-✅ **`core/tle.py`** — `tle_epoch_to_tt_s(epoch_year, epoch_day)` added
+✅ **`core/tle.py`** — DELETED, migrated to `core/propagator/sgp4.py`
 
-✅ **`core/propagator/sgp4.py`** - SGP4 propagator
+✅ **`core/propagator/sgp4.py`** - SGP4 propagator + all TLE utilities
 - `Sgp4Propagator(Propagator[Tle])`
+- `Tle` dataclass (all TLE parsing/formatting)
+- `read_tle()`, `write_tle()`, `format_tle_strings()`
+- `create_tle_from_mean_keplerian()`
+- Epoch conversions: `tle_epoch_to_tt_s()`, `tle_epoch_to_datetime()`, `datetime_to_tle_epoch()`
+- ISO 8601 conversions: `tle_epoch_to_iso8601()`, `iso8601_to_tle_epoch()`
 - Wraps TudatPy's `environment_setup.ephemeris.sgp4`
-- Deferred tudatpy import in `set_initial_state` and `get_initial_epoch_s`
-- Epoch derived from TLE `epoch_year`/`epoch_day` via `tle_epoch_to_tt_s()`
+- All callers updated to import from `core.propagator.sgp4`
 
 ✅ **`tests/ephem_toolkit/core/propagator/test_sgp4.py`** (8 tests, skipped without tudatpy)
 - Initialization, epoch derivation
 - `propagate_to` / `propagate_by` correctness
 - Reference epoch advancement
 - `set_initial_state` replacement
+
+✅ **All source files updated** to import from `core.propagator.sgp4`:
+- `oem_to_omm/__main__.py`, `oem_to_omm/fit_tle_main.py`
+- `oem_to_omm/fit_tle/estimation.py`, `oem_to_omm/fit_tle/tle_builder.py`
+- `oem_to_omm/fit_tle/refinement.py`, `tle_to_omm/tle_to_omm.py`
+- `omm_to_tle/omm_to_tle.py`, `propagate_omm/__main__.py`
 
 ### DSST Propagator (future work) ⏳
 ⏳ **`core/propagator/dsst.py`** - DSST semi-analytical propagator

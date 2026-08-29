@@ -8,7 +8,7 @@ import pytest
 
 import core.convert_tle as conv
 import core.ccsds.omm as omm
-import core.tle as tle
+import core.propagator.sgp4 as tle
 
 TEST_DIR = Path(__file__).parent
 TEST_DATA_DIR = TEST_DIR.parent.parent / "data"

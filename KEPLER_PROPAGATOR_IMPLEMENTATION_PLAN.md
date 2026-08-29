@@ -41,9 +41,10 @@ See [PROPAGATOR_IMPLEMENTATION_STATUS.md](PROPAGATOR_IMPLEMENTATION_STATUS.md) f
 
 ### Phase 3: Sgp4Propagator ✅
 
-✅ **`core/tle.py`** — `tle_epoch_to_tt_s(epoch_year, epoch_day)` added
-✅ **`core/propagator/sgp4.py`** — `Sgp4Propagator(Propagator[Tle])` implemented
+✅ **`core/tle.py`** — DELETED, migrated to `core/propagator/sgp4.py`
+✅ **`core/propagator/sgp4.py`** — `Sgp4Propagator(Propagator[Tle])` + all TLE utilities
 ✅ **`tests/ephem_toolkit/core/propagator/test_sgp4.py`** — 8 tests (skipped without tudatpy)
+✅ **All callers updated** to import from `core.propagator.sgp4`
 
 ### Phase 4: NumericalPropagator ⏳ (blocked)
 

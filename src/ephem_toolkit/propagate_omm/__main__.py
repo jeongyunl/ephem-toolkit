@@ -49,7 +49,7 @@ import ephem_toolkit.core.propagator.kepler as kepler
 from ephem_toolkit.core.propagator import KeplerPropagator, KeplerianState, OutputMode
 import ephem_toolkit.core.spice_utils as spice_utils
 import ephem_toolkit.core.time_utils as time_utils
-import ephem_toolkit.core.tle as tle_mod
+import ephem_toolkit.core.propagator.sgp4 as tle_mod
 
 # CLI defaults
 DEFAULT_PROPAGATION_DURATION_S: float = time_utils.SECONDS_PER_DAY

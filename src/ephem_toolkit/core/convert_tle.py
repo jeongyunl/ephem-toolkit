@@ -16,7 +16,7 @@ import numpy as np
 from .propagator import kepler
 from .propagator import brouwer_j2 as mean_kepler
 from .ccsds import omm
-from . import tle
+from .propagator import sgp4 as tle
 from . import consts
 
 # ===================================================================

@@ -6,7 +6,7 @@ import io
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import ephem_toolkit.core.tle as tle
+import ephem_toolkit.core.propagator.sgp4 as tle
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.oem_to_omm.fit_tle.tle_builder as tle_builder
 import ephem_toolkit.oem_to_omm.fit_tle.estimation as estimation
