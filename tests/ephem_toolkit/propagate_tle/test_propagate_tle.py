@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import datetime as dt
-import os
-import subprocess
+import io
 import sys
 from pathlib import Path
 
 import pytest
 
 from ephem_toolkit.propagate_tle import propagate_tle_cli
+from ephem_toolkit.propagate_tle.__main__ import main as propagate_tle_main
 from ephem_toolkit.propagate_tle.__main__ import resolve_time_bounds
 
 TEST_DIR: Path = Path(__file__).parent
@@ -75,28 +75,6 @@ def test_relative_stop_is_resolved_from_start_epoch() -> None:
     ) == (start_time, dt.datetime(2026, 1, 1, 8, 0, 0))
 
 
-def _build_env() -> dict[str, str]:
-    """Build environment dictionary with PYTHONPATH set to the source root.
-
-    Returns
-    -------
-    dict[str, str]
-        Environment dictionary with updated PYTHONPATH.
-    """
-    env: dict[str, str] = os.environ.copy()
-    existing: str = env.get("PYTHONPATH", "")
-    source_roots = [
-        PROJECT_ROOT / "src",
-        PROJECT_ROOT / "src" / "ephem_toolkit",
-    ]
-    env["PYTHONPATH"] = os.pathsep.join(
-        [*(str(path) for path in source_roots), existing]
-        if existing
-        else [*(str(path) for path in source_roots)]
-    )
-    return env
-
-
 def run_propagate_tle(tle_path: Path) -> str:
     """Run propagate_tle.py script and return output.
 
@@ -110,35 +88,26 @@ def run_propagate_tle(tle_path: Path) -> str:
     str
         Standard output from propagate_tle.py script.
     """
-    result: subprocess.CompletedProcess[str] = subprocess.run(
-        [
-            sys.executable,
-            str(
-                PROJECT_ROOT
-                / "src"
-                / "ephem_toolkit"
-                / "propagate_tle"
-                / "__main__.py"
-            ),
+    old_stdout = sys.stdout
+    captured_output = io.StringIO()
+    sys.stdout = captured_output
+    
+    try:
+        result = propagate_tle_main([
             str(tle_path),
             "--data-only",
             "-s",
             "15m",
             "--output",
             "-",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(PROJECT_ROOT),
-        env=_build_env(),
-    )
-    assert (
-        result.returncode == 0
-    ), f"propagate_tle.py failed for {tle_path.name}:\n{result.stderr}"
-    assert (
-        result.stdout.strip()
-    ), f"propagate_tle.py produced no output for {tle_path.name}"
-    return result.stdout
+        ])
+        assert result == 0, f"propagate_tle.py failed for {tle_path.name}"
+    finally:
+        sys.stdout = old_stdout
+    
+    output = captured_output.getvalue()
+    assert output.strip(), f"propagate_tle.py produced no output for {tle_path.name}"
+    return output
 
 
 @pytest.mark.parametrize("tle_path", TLE_FILES, ids=[p.name for p in TLE_FILES])
