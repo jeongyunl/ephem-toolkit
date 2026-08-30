@@ -152,7 +152,7 @@ class DsstPerturbations:
 
 
 def compute_dsst_j2_short_period_corrections(
-    mean_keplerian_elements: np.ndarray,
+    brouwerian_elements: np.ndarray,
     R_e_m: float = EARTH_EQUATORIAL_RADIUS_M,
     J2: float = EARTH_J2,
 ) -> np.ndarray:
@@ -163,7 +163,7 @@ def compute_dsst_j2_short_period_corrections(
     
     Parameters
     ----------
-    mean_keplerian_elements : np.ndarray, shape (6,)
+    brouwerian_elements : np.ndarray, shape (6,)
         DSST mean Keplerian element vector [a, e, i, omega, RAAN, M].
     R_e_m : float
         Earth equatorial radius (m).
@@ -179,7 +179,7 @@ def compute_dsst_j2_short_period_corrections(
     ----------
     Danielson, D.A., et al. "Semianalytic Satellite Theory", NRL, 1995.
     """
-    mean_elements = np.asarray(mean_keplerian_elements, dtype=float)
+    mean_elements = np.asarray(brouwerian_elements, dtype=float)
     if mean_elements.shape != (6,):
         raise ValueError(
             f"Mean Keplerian elements must have shape (6,), got {mean_elements.shape}"
@@ -271,7 +271,7 @@ def compute_dsst_j2_short_period_corrections(
 
 
 def dsst_mean_to_osculating(
-    mean_keplerian_elements: np.ndarray,
+    brouwerian_elements: np.ndarray,
     epoch_s: float,
     perturbations: DsstPerturbations | None = None,
 ) -> np.ndarray:
@@ -281,7 +281,7 @@ def dsst_mean_to_osculating(
     
     Parameters
     ----------
-    mean_keplerian_elements : np.ndarray, shape (6,)
+    brouwerian_elements : np.ndarray, shape (6,)
         DSST mean elements [a, e, i, omega, RAAN, M].
     epoch_s : float
         Epoch time (TT, s since J2000 TT). Currently unused but reserved
@@ -300,16 +300,16 @@ def dsst_mean_to_osculating(
     # Currently only J2 short-period corrections implemented
     if perturbations.include_j2:
         return compute_dsst_j2_short_period_corrections(
-            mean_keplerian_elements,
+            brouwerian_elements,
             R_e_m=perturbations.R_e_m,
             J2=perturbations.J2,
         )
     else:
         # No corrections, just convert mean anomaly to true anomaly
-        result = mean_keplerian_elements.copy()
+        result = brouwerian_elements.copy()
         result[TRUE_ANOMALY_INDEX] = mean_to_true_anomaly(
-            mean_keplerian_elements[MEAN_ANOMALY_INDEX],
-            mean_keplerian_elements[ECCENTRICITY_INDEX],
+            brouwerian_elements[MEAN_ANOMALY_INDEX],
+            brouwerian_elements[ECCENTRICITY_INDEX],
         )
         return result
 

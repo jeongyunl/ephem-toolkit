@@ -59,7 +59,7 @@ Convert ISO 8601 datetime string to TLE epoch (2-digit year + fractional day).
 #### `format_tle_strings(tle_data: Tle | Mapping[str, object]) -> tuple[str, str]`
 Format TLE data into raw TLE line strings with checksums.
 
-#### `create_tle_from_mean_keplerian(mean_elements, mu_m3_s2, epoch_year, epoch_day, ...) -> Tle`
+#### `create_tle_from_brouwerian(mean_elements, mu_m3_s2, epoch_year, epoch_day, ...) -> Tle`
 Construct a TLE dataclass instance from mean Keplerian elements, with optional TLE header fields.
 
 #### `compute_tle_checksum(line_without_checksum: str) -> str`
@@ -74,7 +74,7 @@ Return the single-digit TLE checksum character for a TLE line.
 ### Key Dependencies
 - `numpy`
 - `ephem_toolkit.core.kepler`
-- `ephem_toolkit.core.mean_kepler`
+- `ephem_toolkit.core.brouwer`
 - `ephem_toolkit.core.ccsds.omm`
 - `ephem_toolkit.core.tle`
 - `ephem_toolkit.core.consts`

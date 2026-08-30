@@ -14,7 +14,7 @@ import re
 import numpy as np
 
 from .propagator import kepler
-from .propagator import brouwer_j2 as mean_kepler
+from .propagator import brouwer_j2 as brouwer
 from .ccsds import omm
 from . import tle
 from . import consts
@@ -442,7 +442,7 @@ def tle_to_osculating_keplerian(
 
     if apply_j2:
         # Apply Brouwer J2 short-period corrections
-        osc: np.ndarray = mean_kepler.compute_brouwer_short_period_corrections(
+        osc: np.ndarray = brouwer.compute_brouwer_short_period_corrections(
             np.array(
                 [
                     semi_major_axis_m,

@@ -62,7 +62,7 @@ class FitDiagnostics:
     epoch_vel_delta_m_s : float | None
         Velocity delta at epoch in m/s (optional).
     fit_method : str | None
-        Fitting method used (optional, e.g., "mean_kepler_j2_velocity_fit").
+        Fitting method used (optional, e.g., "brouwer_j2_velocity_fit").
     """
 
     rms_position_m: float

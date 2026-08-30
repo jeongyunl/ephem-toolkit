@@ -14,7 +14,7 @@ import numpy as np
 
 import ephem_toolkit.core.consts as consts
 import ephem_toolkit.core.propagator.kepler as kepler
-import ephem_toolkit.core.propagator.brouwer_j2 as mean_kepler
+import ephem_toolkit.core.propagator.brouwer_j2 as brouwer
 from ephem_toolkit.core.propagator.dsst import (
     DsstPerturbations,
     dsst_mean_to_cartesian,
@@ -29,7 +29,7 @@ from . import fit_common
 # ===================================================================
 
 
-def _compute_mean_kepler_residuals_from_epoch_state(
+def _compute_brouwer_residuals_from_epoch_state(
     epoch_state_m_m_s: np.ndarray,
     time_offsets_s: np.ndarray,
     target_positions_m: np.ndarray,
@@ -69,7 +69,7 @@ def _compute_mean_kepler_residuals_from_epoch_state(
     )
 
     # Convert osculating to mean Keplerian
-    mean_elements: np.ndarray = mean_kepler.osculating_to_brouwer_mean(
+    mean_elements: np.ndarray = brouwer.osculating_to_brouwer_mean(
         osculating_elements, R_e_m=R_e_m, J2=J2
     )
 
@@ -78,12 +78,12 @@ def _compute_mean_kepler_residuals_from_epoch_state(
 
     for i, dt_s in enumerate(time_offsets_s):
         # Propagate mean elements using J2 secular rates
-        propagated_mean_elements: np.ndarray = mean_kepler.propagate_brouwer_j2(
+        propagated_mean_elements: np.ndarray = brouwer.propagate_brouwer_j2(
             mean_elements, dt_s, mu_m3_s2, R_e_m=R_e_m, J2=J2
         )
 
         # Convert propagated mean elements to Cartesian state
-        predicted_state: np.ndarray = mean_kepler.brouwer_mean_to_cartesian(
+        predicted_state: np.ndarray = brouwer.brouwer_mean_to_cartesian(
             propagated_mean_elements, mu_m3_s2, R_e_m=R_e_m, J2=J2
         )
 
@@ -97,7 +97,7 @@ def _compute_mean_kepler_residuals_from_epoch_state(
 # ===================================================================
 
 
-def fit_mean_kepler(
+def fit_brouwer(
     states: list[tuple[float, np.ndarray]],
     fit_span_s: float,
     mu_m3_s2: float = consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2,
@@ -165,7 +165,7 @@ def fit_mean_kepler(
         osculating_elements: np.ndarray = kepler.cartesian_to_keplerian(
             first_state, mu_m3_s2
         )
-        mean_elements: np.ndarray = mean_kepler.osculating_to_brouwer_mean(
+        mean_elements: np.ndarray = brouwer.osculating_to_brouwer_mean(
             osculating_elements, R_e_m=R_e_m, J2=J2
         )
         diagnostics: fit_common.FitDiagnostics = fit_common.FitDiagnostics(
@@ -188,7 +188,7 @@ def fit_mean_kepler(
     # --- Gauss-Newton iteration loop ---
     for iteration in range(max_iterations):
         epoch_state: np.ndarray = np.hstack((fixed_r0, current_v0))
-        residuals: np.ndarray = _compute_mean_kepler_residuals_from_epoch_state(
+        residuals: np.ndarray = _compute_brouwer_residuals_from_epoch_state(
             epoch_state, time_offsets_s, target_positions_m, mu_m3_s2, R_e_m, J2
         )
         rms: float = float(np.sqrt(np.mean(residuals**2)))
@@ -212,7 +212,7 @@ def fit_mean_kepler(
             perturbed_v0[p] += fd_steps_v[p]
             perturbed_state: np.ndarray = np.hstack((fixed_r0, perturbed_v0))
             perturbed_residuals: np.ndarray = (
-                _compute_mean_kepler_residuals_from_epoch_state(
+                _compute_brouwer_residuals_from_epoch_state(
                     perturbed_state,
                     time_offsets_s,
                     target_positions_m,
@@ -251,7 +251,7 @@ def fit_mean_kepler(
                 trial_osculating: np.ndarray = kepler.cartesian_to_keplerian(
                     trial_state, mu_m3_s2
                 )
-                trial_mean: np.ndarray = mean_kepler.osculating_to_brouwer_mean(
+                trial_mean: np.ndarray = brouwer.osculating_to_brouwer_mean(
                     trial_osculating, R_e_m=R_e_m, J2=J2
                 )
             except Exception:
@@ -261,8 +261,8 @@ def fit_mean_kepler(
             # Guard: eccentricity must be in (0, 1) for a bound elliptical orbit
             # Lower bound 1.0e-8 avoids numerical issues with near-circular orbits
             # Upper bound 0.9999 ensures orbit remains elliptical (e < 1)
-            e_trial: float = float(trial_mean[mean_kepler.ECCENTRICITY_INDEX])
-            a_trial: float = float(trial_mean[mean_kepler.SEMI_MAJOR_AXIS_INDEX])
+            e_trial: float = float(trial_mean[brouwer.ECCENTRICITY_INDEX])
+            a_trial: float = float(trial_mean[brouwer.SEMI_MAJOR_AXIS_INDEX])
             if not (1.0e-8 <= e_trial < 0.9999):
                 scale *= 0.5
                 continue
@@ -272,7 +272,7 @@ def fit_mean_kepler(
                 continue
 
             trial_residuals: np.ndarray = (
-                _compute_mean_kepler_residuals_from_epoch_state(
+                _compute_brouwer_residuals_from_epoch_state(
                     trial_state, time_offsets_s, target_positions_m, mu_m3_s2, R_e_m, J2
                 )
             )
@@ -291,12 +291,12 @@ def fit_mean_kepler(
     osculating_elements: np.ndarray = kepler.cartesian_to_keplerian(
         best_state, mu_m3_s2
     )
-    mean_elements: np.ndarray = mean_kepler.osculating_to_brouwer_mean(
+    mean_elements: np.ndarray = brouwer.osculating_to_brouwer_mean(
         osculating_elements, R_e_m=R_e_m, J2=J2
     )
 
     # Evaluate final residuals for diagnostics
-    final_residuals: np.ndarray = _compute_mean_kepler_residuals_from_epoch_state(
+    final_residuals: np.ndarray = _compute_brouwer_residuals_from_epoch_state(
         best_state, time_offsets_s, target_positions_m, mu_m3_s2, R_e_m, J2
     )
     final_rms: float = float(np.sqrt(np.mean(final_residuals**2)))
@@ -313,8 +313,8 @@ def fit_mean_kepler(
     return mean_elements, diagnostics
 
 
-def compute_mean_kepler_propagation_comparison(
-    mean_keplerian_elements: np.ndarray,
+def compute_brouwer_propagation_comparison(
+    brouwerian_elements: np.ndarray,
     states: list[tuple[float, np.ndarray]],
     mu_m3_s2: float,
     fit_span_s: float,
@@ -329,7 +329,7 @@ def compute_mean_kepler_propagation_comparison(
 
     Parameters
     ----------
-    mean_keplerian_elements : np.ndarray
+    brouwerian_elements : np.ndarray
         Mean Keplerian elements at epoch (6,): [a, e, i, omega, RAAN, M].
     states : list[tuple[float, np.ndarray]]
         List of (TT seconds since J2000, state_vector) tuples from OEM.
@@ -399,12 +399,12 @@ def compute_mean_kepler_propagation_comparison(
         oem_state: np.ndarray = closest_state[1]
 
         # Propagate mean Keplerian elements using J2 secular rates
-        propagated_mean_elements: np.ndarray = mean_kepler.propagate_brouwer_j2(
-            mean_keplerian_elements, actual_elapsed_s, mu_m3_s2, R_e_m=R_e_m, J2=J2
+        propagated_mean_elements: np.ndarray = brouwer.propagate_brouwer_j2(
+            brouwerian_elements, actual_elapsed_s, mu_m3_s2, R_e_m=R_e_m, J2=J2
         )
 
         # Convert to Cartesian state
-        predicted_state: np.ndarray = mean_kepler.brouwer_mean_to_cartesian(
+        predicted_state: np.ndarray = brouwer.brouwer_mean_to_cartesian(
             propagated_mean_elements, mu_m3_s2, R_e_m=R_e_m, J2=J2
         )
 
@@ -433,9 +433,9 @@ def compute_mean_kepler_propagation_comparison(
     return results
 
 
-def format_mean_kepler_output(
+def format_brouwer_output(
     epoch: datetime,
-    mean_keplerian_elements: np.ndarray,
+    brouwerian_elements: np.ndarray,
     diagnostics: fit_common.FitDiagnostics,
     comparison: list[fit_common.PropagationComparison] | None = None,
 ) -> str:
@@ -445,7 +445,7 @@ def format_mean_kepler_output(
     ----------
     epoch : datetime
         Reference epoch.
-    mean_keplerian_elements : np.ndarray
+    brouwerian_elements : np.ndarray
         Mean Keplerian elements (6,): [a, e, i, omega, RAAN, M].
     diagnostics : dict
         Fit diagnostics.
@@ -461,12 +461,12 @@ def format_mean_kepler_output(
     epoch_str: str = time_utils.datetime_to_iso8601(epoch, fractional_second_places=6)
 
     # Extract mean Keplerian elements
-    a_m: float = mean_keplerian_elements[mean_kepler.SEMI_MAJOR_AXIS_INDEX]
-    e: float = mean_keplerian_elements[mean_kepler.ECCENTRICITY_INDEX]
-    i_rad: float = mean_keplerian_elements[mean_kepler.INCLINATION_INDEX]
-    omega_rad: float = mean_keplerian_elements[mean_kepler.ARGUMENT_OF_PERIAPSIS_INDEX]
-    raan_rad: float = mean_keplerian_elements[mean_kepler.RAAN_INDEX]
-    M_rad: float = mean_keplerian_elements[mean_kepler.MEAN_ANOMALY_INDEX]
+    a_m: float = brouwerian_elements[brouwer.SEMI_MAJOR_AXIS_INDEX]
+    e: float = brouwerian_elements[brouwer.ECCENTRICITY_INDEX]
+    i_rad: float = brouwerian_elements[brouwer.INCLINATION_INDEX]
+    omega_rad: float = brouwerian_elements[brouwer.ARGUMENT_OF_PERIAPSIS_INDEX]
+    raan_rad: float = brouwerian_elements[brouwer.RAAN_INDEX]
+    M_rad: float = brouwerian_elements[brouwer.MEAN_ANOMALY_INDEX]
 
     # Handle both dataclass and dict for diagnostics
     if isinstance(diagnostics, dict):
