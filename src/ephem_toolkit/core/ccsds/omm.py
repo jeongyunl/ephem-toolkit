@@ -183,6 +183,11 @@ def validate_omm(header: dict[str, Any], data: dict[str, Any]) -> None:
         tle_required = {"BSTAR"}
     elif theory == "SGP4-XP":
         tle_required = {"BTERM", "AGOM"}
+    elif theory in {"DSST", "BROUWER", "BROUWER-LYDDANE", "USM"}:
+        # DSST, Brouwer, and USM theories have no special required fields
+        # Optional fields (DRAG_AREA, DRAG_COEFF, MASS, SOLAR_RAD_AREA, SOLAR_RAD_COEFF, GM)
+        # are utilized when present but not required
+        tle_required = set()
     else:
         tle_required = set()
     if tle_required:

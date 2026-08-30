@@ -32,7 +32,9 @@ class OemToOmmArgs(argparse.Namespace):
     fit_span: timedelta
     """Maximum arc span for the fit."""
     mode: str
-    """Selected conversion mode: mean-kepler or tle."""
+    """Selected conversion mode: mean-kepler, dsst, or tle."""
+    theory: str
+    """Mean element theory for mean-kepler/dsst modes."""
     object_name: str
     """Spacecraft name for OMM metadata."""
     object_id: str
@@ -128,10 +130,25 @@ def parse_arguments(argv=None) -> OemToOmmArgs:
     parser.add_argument(
         "--mode",
         dest="mode",
-        choices=["mean-kepler", "tle"],
+        choices=["mean-kepler", "dsst", "tle"],
         default="tle",
-        metavar="<mean-kepler|tle>",
-        help=("'mean-kepler' fits mean Keplerian elements, and 'tle' fits a TLE."),
+        metavar="<mean-kepler|dsst|tle>",
+        help=(
+            "'mean-kepler' fits Brouwer mean elements, "
+            "'dsst' fits DSST mean elements, "
+            "and 'tle' fits a TLE."
+        ),
+    )
+    parser.add_argument(
+        "--theory",
+        dest="theory",
+        default=None,
+        metavar="<theory>",
+        help=(
+            "Override MEAN_ELEMENT_THEORY in OMM output "
+            "(e.g., 'DSST', 'BROUWER'). "
+            "Defaults to theory matching the selected mode."
+        ),
     )
     parser.add_argument(
         "--object-name",

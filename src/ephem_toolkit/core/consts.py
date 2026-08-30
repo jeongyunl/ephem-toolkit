@@ -22,3 +22,9 @@ EARTH_MEAN_RADIUS_M: float = 6371000.0
 
 EARTH_J2: float = 1.08262668e-3
 """Earth J2 zonal harmonic coefficient (dimensionless), WGS-84."""
+
+EARTH_J3: float = -2.53265648e-6
+"""Earth J3 zonal harmonic coefficient (dimensionless), WGS-84."""
+
+EARTH_J4: float = -1.61962159e-6
+"""Earth J4 zonal harmonic coefficient (dimensionless), WGS-84."""

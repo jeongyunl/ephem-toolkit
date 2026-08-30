@@ -134,7 +134,8 @@ flowchart LR
 | Workflow | Command |
 | --- | --- |
 | Numerical orbit propagation | [`propagate-orbit`](docs/PROPAGATE_ORBIT.md) |
-| Mean Keplerian orbit propagation | [`propagate-omm`](docs/PROPAGATE_ORBIT.md) |
+| Mean Keplerian orbit propagation | [`propagate-omm`](docs/PROPAGATE_OMM.md) |
+| DSST semi-analytical propagation | [`propagate-omm`](docs/PROPAGATE_DSST.md) (via `MEAN_ELEMENT_THEORY = DSST`) |
 | Kepler propagation | [`propagate-kepler`](docs/PROPAGATE_KEPLER.md) |
 | TLE propagation | [`propagate-tle`](docs/PROPAGATE_TLE.md) |
 
@@ -168,7 +169,7 @@ TudatPy-dependent workflows require TudatPy and its transitive dependencies thro
 ### Orbit Propagation
 
 - [`propagate-orbit`](docs/PROPAGATE_ORBIT.md) — numerical orbit propagation with configurable perturbations and Cartesian state integration
-- [`propagate-omm`](docs/PROPAGATE_ORBIT.md) — mean Keplerian orbit propagation from OMM elements to OEM output
+- [`propagate-omm`](docs/PROPAGATE_OMM.md) — mean Keplerian orbit propagation from OMM elements to OEM output; supports SGP4, DSST, and Kepler propagators selected automatically from `MEAN_ELEMENT_THEORY`
 - [`propagate-kepler`](docs/PROPAGATE_KEPLER.md) — two-body Kepler propagation
 - [`propagate-tle`](docs/PROPAGATE_TLE.md) — SGP4 TLE propagation
 

@@ -15,6 +15,12 @@ import numpy as np
 import ephem_toolkit.core.consts as consts
 import ephem_toolkit.core.propagator.kepler as kepler
 import ephem_toolkit.core.propagator.brouwer_j2 as mean_kepler
+from ephem_toolkit.core.propagator.dsst import (
+    DsstPerturbations,
+    dsst_mean_to_cartesian,
+    osculating_to_dsst_mean,
+    propagate_dsst,
+)
 import ephem_toolkit.core.time_utils as time_utils
 from . import fit_common
 
@@ -537,3 +543,79 @@ def format_mean_kepler_output(
         )
 
     return "\n".join(lines)
+
+
+def fit_dsst_mean_elements(
+    states: list[tuple[float, np.ndarray]],
+    fit_span_s: float,
+    mu_m3_s2: float = consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2,
+    perturbations: DsstPerturbations | None = None,
+) -> tuple[np.ndarray, fit_common.FitDiagnostics]:
+    """Fit DSST mean elements to an OEM arc.
+
+    Converts each OEM osculating state to DSST mean elements, then averages
+    the mean elements over the fit arc. This is a direct averaging approach
+    (not iterative fitting), suitable for short arcs where the mean elements
+    are approximately constant.
+
+    Parameters
+    ----------
+    states : list[tuple[float, np.ndarray]]
+        List of (TT seconds since J2000, state_vector) tuples.
+        State vectors are [x, y, z, vx, vy, vz] in meters and m/s.
+    fit_span_s : float
+        Maximum arc span in seconds.
+    mu_m3_s2 : float
+        Gravitational parameter (m³/s²).
+    perturbations : DsstPerturbations, optional
+        DSST perturbation configuration. If None, uses J2-only defaults.
+
+    Returns
+    -------
+    tuple[np.ndarray, fit_common.FitDiagnostics]
+        - Fitted DSST mean elements at epoch (6,): [a, e, i, omega, RAAN, M].
+        - FitDiagnostics with rms_position_m, n_records, span_s.
+    """
+    if perturbations is None:
+        perturbations = DsstPerturbations()
+
+    if not states:
+        raise ValueError("At least 1 state vector required for DSST fitting.")
+
+    reference_timestamp: float = states[0][0]
+    filtered_states: list[tuple[float, np.ndarray]] = [
+        (ts, sv) for ts, sv in states if (ts - reference_timestamp) <= fit_span_s
+    ]
+
+    num_records: int = len(filtered_states)
+    if num_records < 1:
+        raise ValueError("At least 1 state vector required for DSST fitting.")
+
+    # Convert epoch state to DSST mean elements (use first state as epoch)
+    epoch_ts, epoch_sv = filtered_states[0]
+    epoch_osculating = kepler.cartesian_to_keplerian(epoch_sv, mu_m3_s2)
+    mean_elements = osculating_to_dsst_mean(
+        epoch_osculating, epoch_s=epoch_ts, perturbations=perturbations
+    )
+
+    # Evaluate RMS position error over the arc
+    epoch_tt_s = reference_timestamp
+    residuals_list: list[float] = []
+    for ts, sv in filtered_states:
+        elapsed_s = ts - epoch_tt_s
+        propagated = propagate_dsst(mean_elements, elapsed_s, mu_m3_s2, perturbations)
+        predicted = dsst_mean_to_cartesian(propagated, mu_m3_s2, ts, perturbations)
+        pos_err = float(np.linalg.norm(sv[:3] - predicted[:3]))
+        residuals_list.append(pos_err)
+
+    rms_m = float(np.sqrt(np.mean(np.array(residuals_list) ** 2)))
+    span_s = float(filtered_states[-1][0] - reference_timestamp)
+
+    diagnostics = fit_common.FitDiagnostics(
+        rms_position_m=rms_m,
+        iterations=1,
+        n_records=num_records,
+        span_s=span_s,
+    )
+
+    return mean_elements, diagnostics
