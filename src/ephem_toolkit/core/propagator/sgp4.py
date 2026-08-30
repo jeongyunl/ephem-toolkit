@@ -6,6 +6,7 @@ Requires tudatpy. Import is deferred to avoid loading tudatpy at module level.
 from __future__ import annotations
 
 import numpy as np
+from typing_extensions import override
 
 from ephem_toolkit.core import tle
 from ephem_toolkit.core.propagator.base import Propagator
@@ -32,6 +33,7 @@ class Sgp4Propagator(Propagator[tle.Tle]):
         super().__init__()
         self.set_initial_state(initial_state)
 
+    @override
     def set_initial_state(self, initial_state: tle.Tle) -> None:
         """Set TLE and build SGP4 ephemeris.
 
@@ -55,6 +57,7 @@ class Sgp4Propagator(Propagator[tle.Tle]):
             initial_state.epoch_year, initial_state.epoch_day
         )
 
+    @override
     def get_initial_epoch_s(self) -> float:
         """Return TLE epoch (TT, s since J2000 TT).
 
@@ -65,6 +68,7 @@ class Sgp4Propagator(Propagator[tle.Tle]):
         """
         return tle.tle_epoch_to_tt_s(self._tle.epoch_year, self._tle.epoch_day)
 
+    @override
     def _propagate_to_impl(self, target_epoch_s: float) -> np.ndarray:
         """Query SGP4 ephemeris at target epoch.
 

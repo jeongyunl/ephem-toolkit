@@ -140,14 +140,16 @@ class KeplerPropagator(Propagator[KeplerianState]):
         M = (M0 + n * elapsed_s) % (2.0 * np.pi)
         theta = mean_to_true_anomaly(M, float(e))
 
-        propagated = np.array([
-            a,
-            e,
-            elements[INCLINATION_INDEX],
-            elements[ARGUMENT_OF_PERIAPSIS_INDEX],
-            elements[RAAN_INDEX],
-            theta,
-        ])
+        propagated = np.array(
+            [
+                a,
+                e,
+                elements[INCLINATION_INDEX],
+                elements[ARGUMENT_OF_PERIAPSIS_INDEX],
+                elements[RAAN_INDEX],
+                theta,
+            ]
+        )
         return keplerian_to_cartesian(propagated, mu)
 
 
@@ -780,5 +782,3 @@ def semi_major_axis_to_mean_motion(
     """
     n_rad_per_sec: float = np.sqrt(mu_m3_s2 / semi_major_axis_m**3)
     return n_rad_per_sec * 86400.0 / (2.0 * np.pi)
-
-
