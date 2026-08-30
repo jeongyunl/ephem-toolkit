@@ -46,7 +46,13 @@ import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.ccsds.omm as omm
 import ephem_toolkit.core.convert_tle as convert_tle
 import ephem_toolkit.core.propagator.kepler as kepler
-from ephem_toolkit.core.propagator import KeplerPropagator, KeplerianState, OutputMode
+from ephem_toolkit.core.propagator import (
+    DSSTPropagator,
+    DsstPerturbations,
+    KeplerPropagator,
+    KeplerianState,
+    OutputMode,
+)
 import ephem_toolkit.core.spice_utils as spice_utils
 import ephem_toolkit.core.time_utils as time_utils
 import ephem_toolkit.core.tle as tle_mod
@@ -227,6 +233,89 @@ def propagate_omm_sgp4(
 # ===================================================================
 # Kepler propagation path (two-body)
 # ===================================================================
+
+
+def propagate_omm_dsst(
+    omm_data: omm.CcsdsOmm,
+    start_time: dt.datetime,
+    stop_time: dt.datetime,
+    step_s: float,
+    data_only: bool,
+    output_path: str = "-",
+) -> None:
+    """Propagate OMM with DSST mean elements.
+
+    Parameters
+    ----------
+    omm_data : omm.CcsdsOmm
+        Parsed OMM with DSST mean elements.
+    start_time : dt.datetime
+        Propagation start epoch (UTC).
+    stop_time : dt.datetime
+        Propagation stop epoch (UTC).
+    step_s : float
+        Output sampling interval (s).
+    data_only : bool
+        If True, emit state lines only (no OEM header).
+    output_path : str
+        Output path or "-" for stdout.
+    """
+    if stop_time < start_time:
+        raise ValueError(
+            "Invalid propagation window: stop epoch must be >= start epoch.\n"
+            f"  Resolved start: {time_utils.datetime_to_iso8601(start_time)}\n"
+            f"  Resolved stop:  {time_utils.datetime_to_iso8601(stop_time)}"
+        )
+
+    # Convert OMM mean elements to DSST mean Keplerian state vector [a, e, i, ω, Ω, M]
+    initial_kepler: np.ndarray = np.array(
+        [
+            kepler.mean_motion_to_semi_major_axis(omm_data.mean_motion),
+            omm_data.eccentricity,
+            np.radians(omm_data.inclination),
+            np.radians(omm_data.arg_of_pericenter),
+            np.radians(omm_data.ra_of_asc_node),
+            np.radians(omm_data.mean_anomaly),  # DSST uses mean anomaly
+        ],
+        dtype=float,
+    )
+
+    epoch_dt: dt.datetime = time_utils.iso8601_to_datetime(omm_data.epoch)
+    object_name: str = omm_data.object_name or "UNKNOWN"
+
+    # Configure DSST perturbations from OMM spacecraft parameters
+    perturbations = DsstPerturbations(include_j2=True)
+    if omm_data.spacecraft_parameters is not None:
+        sp = omm_data.spacecraft_parameters
+        if sp.drag_area is not None and sp.drag_coeff is not None and sp.mass is not None:
+            perturbations.include_drag = True
+            perturbations.drag_area_m2 = sp.drag_area
+            perturbations.drag_coeff = sp.drag_coeff
+            perturbations.mass_kg = sp.mass
+        if sp.solar_rad_area is not None and sp.solar_rad_coeff is not None:
+            perturbations.include_srp = True
+            perturbations.srp_area_m2 = sp.solar_rad_area
+            perturbations.srp_coeff = sp.solar_rad_coeff
+
+    # Create DSST propagator
+    epoch_tt_s = time_utils.datetime_to_tt_s(epoch_dt)
+    dsst_state = KeplerianState(elements=initial_kepler, epoch_s=epoch_tt_s)
+    propagator = DSSTPropagator(initial_state=dsst_state, perturbations=perturbations)
+
+    propagated_states: list[tuple[float, np.ndarray]] = []
+    step_dt = dt.timedelta(seconds=step_s)
+    current_time: dt.datetime = start_time
+    while current_time <= stop_time:
+        current_tt_s = time_utils.datetime_to_tt_s(current_time)
+        epoch_tt_s, cartesian_m = propagator.propagate_to(
+            current_tt_s, output=OutputMode.FINAL
+        )
+        propagated_states.append((epoch_tt_s, cartesian_m))
+        current_time = current_time + step_dt
+
+    _write_oem_output(
+        propagated_states, object_name, omm_data.object_id, data_only, output_path
+    )
 
 
 def propagate_omm_kepler(
@@ -449,15 +538,27 @@ def main(argv=None) -> int:
                 output_path=cli_args.output_oem,
             )
         else:
-            # No TLE data → use two-body Kepler propagator
-            propagate_omm_kepler(
-                omm_data=omm_data,
-                start_time=start_time,
-                stop_time=stop_time,
-                step_s=cli_args.step,
-                data_only=cli_args.data_only,
-                output_path=cli_args.output_oem,
-            )
+            # Dispatch based on MEAN_ELEMENT_THEORY
+            theory = omm_data.mean_element_theory.upper()
+            if theory == "DSST":
+                propagate_omm_dsst(
+                    omm_data=omm_data,
+                    start_time=start_time,
+                    stop_time=stop_time,
+                    step_s=cli_args.step,
+                    data_only=cli_args.data_only,
+                    output_path=cli_args.output_oem,
+                )
+            else:
+                # Default to Kepler propagator for other theories
+                propagate_omm_kepler(
+                    omm_data=omm_data,
+                    start_time=start_time,
+                    stop_time=stop_time,
+                    step_s=cli_args.step,
+                    data_only=cli_args.data_only,
+                    output_path=cli_args.output_oem,
+                )
 
     return 0
 

@@ -85,9 +85,55 @@ The utility chooses the propagator based on the input content:
 
 - Raw TLE input: SGP4 propagation.
 - OMM with embedded TLE parameters: SGP4 propagation after conversion to TLE.
-- OMM without TLE parameters: two-body Kepler propagation using mean orbital elements.
+- OMM with `MEAN_ELEMENT_THEORY = DSST`: DSST semi-analytical propagation.
+- OMM without TLE parameters (other theories): two-body Kepler propagation.
 
-This allows a single CLI to handle both mean-element OMM data and TLE-driven orbit models without changing the interface.
+This allows a single CLI to handle TLE-driven, DSST mean-element, and generic Keplerian OMM data without changing the interface.
+
+## DSST Support
+
+When `MEAN_ELEMENT_THEORY = DSST` is set in the OMM metadata, the utility automatically uses the DSST semi-analytical propagator with J2 secular rates and short-period corrections.
+
+Spacecraft parameters are parsed from the OMM and used to configure drag perturbations:
+
+| OMM Field | DSST Parameter |
+|-----------|---------------|
+| `DRAG_AREA` | `drag_area_m2` |
+| `DRAG_COEFF` | `drag_coeff` |
+| `MASS` | `mass_kg` |
+
+### Example DSST OMM
+
+```
+CCSDS_OMM_VERS = 3.0
+CREATION_DATE  = 2024-01-01T00:00:00.000
+ORIGINATOR     = ephem-toolkit
+
+OBJECT_NAME    = ISS
+OBJECT_ID      = 1998-067A
+CENTER_NAME    = EARTH
+REF_FRAME      = J2000
+TIME_SYSTEM    = UTC
+MEAN_ELEMENT_THEORY = DSST
+
+EPOCH          = 2024-01-01T00:00:00.000000
+MEAN_MOTION    = 15.49 [rev/day]
+ECCENTRICITY   = 0.0005
+INCLINATION    = 51.6 [deg]
+RA_OF_ASC_NODE = 45.0 [deg]
+ARG_OF_PERICENTER = 30.0 [deg]
+MEAN_ANOMALY   = 10.0 [deg]
+
+MASS           = 420000.0 [kg]
+DRAG_AREA      = 2500.0 [m**2]
+DRAG_COEFF     = 2.2
+```
+
+```bash
+propagate-omm iss_dsst.omm --stop 1d --step 300s -o iss_dsst.oem
+```
+
+See [PROPAGATE_DSST.md](PROPAGATE_DSST.md) for full DSST documentation.
 
 ## Usage
 

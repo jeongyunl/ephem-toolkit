@@ -146,6 +146,55 @@ def main(argv=None) -> None:
     else:
         object_id: str = oem_data.meta.object_id or "UNKNOWN"
 
+    if cli_args.mode == "dsst":
+        from ephem_toolkit.core.propagator.dsst import DsstPerturbations
+
+        perturbations = DsstPerturbations(include_j2=True)
+        try:
+            fitted_mean_elements, diagnostics = fit_mean_kepler.fit_dsst_mean_elements(
+                states,
+                fit_span_s,
+                cli_args.mu_m3_s2,
+                perturbations=perturbations,
+            )
+        except Exception as error:
+            report_error(f"Error fitting DSST mean elements: {error}")
+
+        first_epoch = time_utils.tt_s_to_datetime(states[0][0])
+        mean_element_theory = cli_args.theory or "DSST"
+
+        if cli_args.output_omm:
+            try:
+                omm_obj = omm.keplerian_to_omm(
+                    first_epoch,
+                    fitted_mean_elements,
+                    object_name=object_name,
+                    object_id=object_id,
+                    mu_m3_s2=cli_args.mu_m3_s2,
+                    mean_element_theory=mean_element_theory,
+                )
+                omm_obj.originator = "oem_to_omm"
+                omm_obj.comments = [
+                    "DSST mean elements (J2 secular fit)",
+                    "Compliant with CCSDS 502.0-B-3 (2023-04)",
+                ]
+                if cli_args.verbose:
+                    print(
+                        f"DSST fit: RMS={diagnostics.rms_position_m/1000:.3f} km "
+                        f"over {diagnostics.n_records} records, "
+                        f"span={diagnostics.span_s:.0f}s",
+                        file=sys.stderr,
+                    )
+                if cli_args.output_omm == "-":
+                    omm_obj.to_file(sys.stdout)
+                else:
+                    omm_obj.to_file(cli_args.output_omm)
+                    if cli_args.verbose:
+                        print(f"OMM file written to: {cli_args.output_omm}", file=sys.stderr)
+            except Exception as error:
+                report_error(f"Error writing OMM file: {error}")
+        return
+
     if cli_args.mode == "mean-kepler":
         # Run the Gauss-Newton velocity-only fit for mean elements
         fitted_mean_elements: np.ndarray
@@ -188,12 +237,14 @@ def main(argv=None) -> None:
                 osculating_elements: np.ndarray = (
                     mean_kepler.brouwer_mean_to_osculating(fitted_mean_elements)
                 )
+                mean_element_theory = cli_args.theory or "BROUWER-LYDDANE"
                 omm_obj: omm.CcsdsOmm = omm.keplerian_to_omm(
                     first_epoch,
                     osculating_elements,
                     object_name=object_name,
                     object_id=object_id,
                     mu_m3_s2=cli_args.mu_m3_s2,
+                    mean_element_theory=mean_element_theory,
                 )
                 omm_obj.originator = "oem_to_omm"
                 if cli_args.output_omm == "-":

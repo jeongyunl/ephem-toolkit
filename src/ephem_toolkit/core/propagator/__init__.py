@@ -3,6 +3,7 @@
 This module provides a unified interface for all propagators in the toolkit:
 - KeplerPropagator: Two-body Keplerian propagation
 - BrouwerJ2Propagator: J2 secular mean-element propagation
+- DSSTPropagator: DSST semi-analytical propagation
 - Sgp4Propagator: SGP4 TLE propagation (requires tudatpy)
 - NumericalPropagator: Perturbed numerical propagation (requires tudatpy)
 """
@@ -14,6 +15,12 @@ from ephem_toolkit.core.propagator.base import (
     Propagator,
 )
 from ephem_toolkit.core.propagator.brouwer_j2 import BrouwerJ2Propagator
+from ephem_toolkit.core.propagator.dsst import (
+    DSSTPropagator,
+    DsstPerturbations,
+    dsst_mean_to_osculating,
+    osculating_to_dsst_mean,
+)
 from ephem_toolkit.core.propagator.kepler import (
     KeplerPropagator,
     cartesian_to_keplerian,
@@ -32,18 +39,22 @@ from ephem_toolkit.core.propagator.sgp4 import Sgp4Propagator
 __all__ = [
     "AnomalyType",
     "BrouwerJ2Propagator",
+    "DSSTPropagator",
+    "DsstPerturbations",
     "KeplerianState",
     "KeplerPropagator",
     "OutputMode",
     "Propagator",
     "Sgp4Propagator",
     "cartesian_to_keplerian",
+    "dsst_mean_to_osculating",
     "eccentric_to_mean_anomaly",
     "eccentric_to_true_anomaly",
     "keplerian_to_cartesian",
     "mean_motion_to_semi_major_axis",
     "mean_to_eccentric_anomaly",
     "mean_to_true_anomaly",
+    "osculating_to_dsst_mean",
     "semi_major_axis_to_mean_motion",
     "true_to_eccentric_anomaly",
     "true_to_mean_anomaly",
