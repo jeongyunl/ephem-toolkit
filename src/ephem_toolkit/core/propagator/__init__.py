@@ -8,6 +8,8 @@ This module provides a unified interface for all propagators in the toolkit:
 - NumericalPropagator: Perturbed numerical propagation (requires tudatpy)
 """
 
+from __future__ import annotations
+
 from ephem_toolkit.core.propagator.base import (
     AnomalyType,
     KeplerianState,

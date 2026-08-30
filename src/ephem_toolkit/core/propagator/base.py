@@ -1,5 +1,7 @@
 """Base classes and types for the propagator interface."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -159,9 +161,7 @@ class Propagator(ABC, Generic[InitialStateT]):
             If set_initial_state() has not been called.
         """
         if not self._initial_state_set:
-            raise RuntimeError(
-                "Initial state not set. Call set_initial_state() first."
-            )
+            raise RuntimeError("Initial state not set. Call set_initial_state() first.")
 
     def propagate_to(
         self, target_epoch_s: float, output: OutputMode = OutputMode.FINAL

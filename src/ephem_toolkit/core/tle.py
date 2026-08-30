@@ -11,15 +11,27 @@ References:
 
 from __future__ import annotations
 
-import math
 import re
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TextIO
 
 from . import time_utils
+
+# ===================================================================
+# Constants
+# ===================================================================
+
+TLE_LINE_LENGTH_WITHOUT_CHECKSUM: int = 68
+"""TLE line length without trailing checksum digit."""
+
+TLE_LINE_LENGTH_WITH_CHECKSUM: int = 69
+"""TLE line length with trailing checksum digit."""
+
+ECCENTRICITY_SCALE_FACTOR: float = 1e7
+"""Scale factor for converting eccentricity to 7-digit TLE format."""
 
 # ===================================================================
 # Structured dataclass
@@ -357,7 +369,7 @@ def _format_tle_strings(
     revolution_number_at_epoch: int = _tle_field(tle_data, "revolution_number_at_epoch")  # type: ignore[assignment]
 
     sat_num: str = f"{norad_cat_id:05d}"
-    cls: str = classification.upper()
+    classification_char: str = classification.upper()
 
     intl_year: str = f"{int_designator_year:02d}"
     intl_launch: str = f"{int_designator_launch_number:03d}"
@@ -375,16 +387,18 @@ def _format_tle_strings(
     eph_type: str = str(ephemeris_type)
     elem_set: str = f"{element_set_number:4d}"
 
-    inc: str = f"{inclination_deg:8.4f}"
-    raan: str = f"{raan_deg:8.4f}"
-    ecc: str = f"{int(round(eccentricity * 1e7)):07d}"
-    argp: str = f"{arg_perigee_deg:8.4f}"
-    ma: str = f"{mean_anomaly_deg:8.4f}"
-    mm: str = f"{mean_motion_rev_per_day:11.8f}"
+    inclination_str: str = f"{inclination_deg:8.4f}"
+    raan_str: str = f"{raan_deg:8.4f}"
+    eccentricity_str: str = (
+        f"{int(round(eccentricity * ECCENTRICITY_SCALE_FACTOR)):07d}"
+    )
+    arg_perigee_str: str = f"{arg_perigee_deg:8.4f}"
+    mean_anomaly_str: str = f"{mean_anomaly_deg:8.4f}"
+    mean_motion_str: str = f"{mean_motion_rev_per_day:11.8f}"
     rev_num: str = f"{revolution_number_at_epoch:05d}"
 
     line1_no_cksum: str = (
-        f"1 {sat_num}{cls} "
+        f"1 {sat_num}{classification_char} "
         f"{intl_year}{intl_launch}{intl_piece} "
         f"{ep_year}{ep_day} "
         f"{mm_first} {mm_second} {bstar_fmt} "
@@ -393,19 +407,22 @@ def _format_tle_strings(
     )
 
     line2_no_cksum: str = (
-        f"2 {sat_num} " f"{inc} {raan} {ecc} {argp} {ma} " f"{mm}{rev_num}"
+        f"2 {sat_num} "
+        f"{inclination_str} {raan_str} {eccentricity_str} "
+        f"{arg_perigee_str} {mean_anomaly_str} "
+        f"{mean_motion_str}{rev_num}"
     )
 
-    if len(line1_no_cksum) != 68:
+    if len(line1_no_cksum) != TLE_LINE_LENGTH_WITHOUT_CHECKSUM:
         raise ValueError(
             f"Internal formatting error: line 1 length is "
-            f"{len(line1_no_cksum)} (expected 68)"
+            f"{len(line1_no_cksum)} (expected {TLE_LINE_LENGTH_WITHOUT_CHECKSUM})"
         )
 
-    if len(line2_no_cksum) != 68:
+    if len(line2_no_cksum) != TLE_LINE_LENGTH_WITHOUT_CHECKSUM:
         raise ValueError(
             f"Internal formatting error: line 2 length is "
-            f"{len(line2_no_cksum)} (expected 68)"
+            f"{len(line2_no_cksum)} (expected {TLE_LINE_LENGTH_WITHOUT_CHECKSUM})"
         )
 
     return line1_no_cksum, line2_no_cksum
@@ -629,11 +646,16 @@ def read_tle(stream: TextIO | str | Path) -> Tle:
             "'<line1> <line2>' or '<name> <line1> <line2>'"
         )
 
-    if len(line1) < 69 or len(line2) < 69:
-        raise ValueError("TLE lines must be at least 69 characters long")
+    if (
+        len(line1) < TLE_LINE_LENGTH_WITH_CHECKSUM
+        or len(line2) < TLE_LINE_LENGTH_WITH_CHECKSUM
+    ):
+        raise ValueError(
+            f"TLE lines must be at least {TLE_LINE_LENGTH_WITH_CHECKSUM} characters long"
+        )
 
-    line1 = line1[:69]
-    line2 = line2[:69]
+    line1 = line1[:TLE_LINE_LENGTH_WITH_CHECKSUM]
+    line2 = line2[:TLE_LINE_LENGTH_WITH_CHECKSUM]
 
     if line1[0] != "1" or line2[0] != "2":
         raise ValueError("Invalid line numbers in TLE")
@@ -657,7 +679,9 @@ def read_tle(stream: TextIO | str | Path) -> Tle:
         ephemeris_type=int(line1[62]),
         element_set_number=int(line1[64:68]),
         line1_checksum=line1[68],
-        line1_checksum_expected=compute_tle_checksum(line1[:68]),
+        line1_checksum_expected=compute_tle_checksum(
+            line1[:TLE_LINE_LENGTH_WITHOUT_CHECKSUM]
+        ),
         inclination_deg=float(line2[8:16]),
         raan_deg=float(line2[17:25]),
         eccentricity_raw=eccentricity_raw,
@@ -667,7 +691,9 @@ def read_tle(stream: TextIO | str | Path) -> Tle:
         mean_motion_rev_per_day=float(line2[52:63]),
         revolution_number_at_epoch=int(line2[63:68]),
         line2_checksum=line2[68],
-        line2_checksum_expected=compute_tle_checksum(line2[:68]),
+        line2_checksum_expected=compute_tle_checksum(
+            line2[:TLE_LINE_LENGTH_WITHOUT_CHECKSUM]
+        ),
     )
 
 

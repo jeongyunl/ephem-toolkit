@@ -58,6 +58,16 @@ from ephem_toolkit.core.propagator.kepler import (
 )
 
 # ===================================================================
+# Constants
+# ===================================================================
+
+MAX_ECCENTRICITY: float = 0.9999999
+"""Maximum allowed eccentricity to prevent numerical instability."""
+
+ECCENTRICITY_CONVERGENCE_TOLERANCE: float = 1e-14
+"""Convergence tolerance for eccentricity in iterative algorithms (dimensionless)."""
+
+# ===================================================================
 # Brouwer short-period corrections (mean -> osculating)
 # ===================================================================
 
@@ -120,21 +130,27 @@ def compute_brouwer_short_period_corrections(
     mean_semi_major_axes: np.ndarray = mean_elements[:, SEMI_MAJOR_AXIS_INDEX]
     mean_eccentricities: np.ndarray = mean_elements[:, ECCENTRICITY_INDEX]
     mean_inclinations: np.ndarray = mean_elements[:, INCLINATION_INDEX]
-    mean_arguments_of_periapsis: np.ndarray = mean_elements[:, ARGUMENT_OF_PERIAPSIS_INDEX]
+    mean_arguments_of_periapsis: np.ndarray = mean_elements[
+        :, ARGUMENT_OF_PERIAPSIS_INDEX
+    ]
     mean_raans: np.ndarray = mean_elements[:, RAAN_INDEX]
     mean_anomalies: np.ndarray = mean_elements[:, MEAN_ANOMALY_INDEX]
 
     p_means: np.ndarray = mean_semi_major_axes * (1.0 - mean_eccentricities**2)
     etas: np.ndarray = np.sqrt(1.0 - mean_eccentricities**2)
 
-    E_means: np.ndarray = np.array([
-        mean_to_eccentric_anomaly(mean_anomalies[i], mean_eccentricities[i])
-        for i in range(mean_elements.shape[0])
-    ])
-    theta_means: np.ndarray = np.array([
-        eccentric_to_true_anomaly(E_means[i], mean_eccentricities[i])
-        for i in range(mean_elements.shape[0])
-    ])
+    E_means: np.ndarray = np.array(
+        [
+            mean_to_eccentric_anomaly(mean_anomalies[i], mean_eccentricities[i])
+            for i in range(mean_elements.shape[0])
+        ]
+    )
+    theta_means: np.ndarray = np.array(
+        [
+            eccentric_to_true_anomaly(E_means[i], mean_eccentricities[i])
+            for i in range(mean_elements.shape[0])
+        ]
+    )
 
     cos_i: np.ndarray = np.cos(mean_inclinations)
     sin_i: np.ndarray = np.sin(mean_inclinations)
@@ -156,11 +172,16 @@ def compute_brouwer_short_period_corrections(
         (1.0 - 3.0 * cos2i) * (3.0 * a_over_r - 1.0 / etas - 1.0)
         + 3.0 * sin2i * a_over_r * cos_2u
     )
-    osculating_semi_major_axes: np.ndarray = mean_semi_major_axes * (1.0 + delta_a_over_a)
+    osculating_semi_major_axes: np.ndarray = mean_semi_major_axes * (
+        1.0 + delta_a_over_a
+    )
 
     two_omegas: np.ndarray = 2.0 * mean_arguments_of_periapsis
     delta_e: np.ndarray = (
-        gammas * etas * sin2i * (
+        gammas
+        * etas
+        * sin2i
+        * (
             np.cos(two_omegas + theta_means)
             + 0.5 * mean_eccentricities * np.cos(two_omegas)
             + 0.5 * mean_eccentricities * np.cos(two_omegas + 2.0 * theta_means)
@@ -168,7 +189,9 @@ def compute_brouwer_short_period_corrections(
     )
     osculating_eccentricities: np.ndarray = mean_eccentricities + delta_e
 
-    delta_inclination: np.ndarray = 0.5 * gammas * np.sin(2.0 * mean_inclinations) * cos_2u
+    delta_inclination: np.ndarray = (
+        0.5 * gammas * np.sin(2.0 * mean_inclinations) * cos_2u
+    )
     osculating_inclinations: np.ndarray = mean_inclinations + delta_inclination
 
     raan_corrections: np.ndarray = -gammas * cos_i * sin_2u
@@ -176,7 +199,10 @@ def compute_brouwer_short_period_corrections(
 
     argument_of_periapsis_corrections: np.ndarray = gammas * (
         (5.0 * cos2i - 1.0) * sin_2u * one_plus_e_cos_f / (2.0 * etas)
-        + (5.0 * cos2i - 1.0) * mean_eccentricities * np.sin(2.0 * u_means - theta_means) / (2.0 * etas)
+        + (5.0 * cos2i - 1.0)
+        * mean_eccentricities
+        * np.sin(2.0 * u_means - theta_means)
+        / (2.0 * etas)
         - (1.0 - 3.0 * cos2i) * mean_eccentricities * sin_theta / etas
     )
 
@@ -184,7 +210,9 @@ def compute_brouwer_short_period_corrections(
         (7.0 * cos2i - 1.0) * sin_2u * one_plus_e_cos_f / (2.0 * etas)
     )
 
-    osculating_arguments_of_latitude: np.ndarray = u_means + argument_of_latitude_corrections
+    osculating_arguments_of_latitude: np.ndarray = (
+        u_means + argument_of_latitude_corrections
+    )
     osculating_arguments_of_periapsis: np.ndarray = (
         mean_arguments_of_periapsis + argument_of_periapsis_corrections
     )
@@ -192,7 +220,10 @@ def compute_brouwer_short_period_corrections(
         osculating_arguments_of_latitude - osculating_arguments_of_periapsis
     )
 
-    osculating_arguments_of_periapsis = osculating_arguments_of_periapsis % (2.0 * np.pi)
+    # Normalize angles to [0, 2π)
+    osculating_arguments_of_periapsis = osculating_arguments_of_periapsis % (
+        2.0 * np.pi
+    )
     neg_mask: np.ndarray = osculating_arguments_of_periapsis < 0.0
     osculating_arguments_of_periapsis[neg_mask] += 2.0 * np.pi
 
@@ -200,16 +231,20 @@ def compute_brouwer_short_period_corrections(
     neg_mask = osculating_true_anomalies < 0.0
     osculating_true_anomalies[neg_mask] += 2.0 * np.pi
 
-    osculating_eccentricities = np.clip(osculating_eccentricities, 0.0, 0.9999999)
+    osculating_eccentricities = np.clip(
+        osculating_eccentricities, 0.0, MAX_ECCENTRICITY
+    )
 
-    result: np.ndarray = np.column_stack([
-        osculating_semi_major_axes,
-        osculating_eccentricities,
-        osculating_inclinations,
-        osculating_arguments_of_periapsis,
-        osculating_raans,
-        osculating_true_anomalies,
-    ])
+    result: np.ndarray = np.column_stack(
+        [
+            osculating_semi_major_axes,
+            osculating_eccentricities,
+            osculating_inclinations,
+            osculating_arguments_of_periapsis,
+            osculating_raans,
+            osculating_true_anomalies,
+        ]
+    )
 
     return result[0] if single_input else result
 
@@ -271,7 +306,9 @@ def osculating_to_brouwer_mean(
     np.ndarray, shape (6,)
         Brouwer mean elements [a, e, i, omega, RAAN, M].
     """
-    osculating_elements: np.ndarray = np.asarray(osculating_keplerian_elements, dtype=float)
+    osculating_elements: np.ndarray = np.asarray(
+        osculating_keplerian_elements, dtype=float
+    )
     if osculating_elements.shape != (6,):
         raise ValueError(
             f"Osculating Keplerian elements must have shape (6,), got {osculating_elements.shape}"
@@ -293,8 +330,11 @@ def osculating_to_brouwer_mean(
 
     for _ in range(max_iter):
         osc_from_mean = compute_brouwer_short_period_corrections(
-            np.array([mean_a, mean_e, mean_i, mean_omega, mean_raan, mean_M], dtype=float),
-            R_e_m=R_e_m, J2=J2,
+            np.array(
+                [mean_a, mean_e, mean_i, mean_omega, mean_raan, mean_M], dtype=float
+            ),
+            R_e_m=R_e_m,
+            J2=J2,
         )
 
         da = osc_a - osc_from_mean[SEMI_MAJOR_AXIS_INDEX]
@@ -304,6 +344,7 @@ def osculating_to_brouwer_mean(
         domega = osc_omega - osc_from_mean[ARGUMENT_OF_PERIAPSIS_INDEX]
         dtheta = osc_theta - osc_from_mean[TRUE_ANOMALY_INDEX]
 
+        # Wrap angle differences to [-π, π)
         draan = (draan + np.pi) % (2.0 * np.pi) - np.pi
         domega = (domega + np.pi) % (2.0 * np.pi) - np.pi
         dtheta = (dtheta + np.pi) % (2.0 * np.pi) - np.pi
@@ -315,16 +356,14 @@ def osculating_to_brouwer_mean(
         mean_omega += domega
 
         target_theta = osc_theta - (
-            osc_from_mean[TRUE_ANOMALY_INDEX]
-            - mean_to_true_anomaly(mean_M, mean_e)
+            osc_from_mean[TRUE_ANOMALY_INDEX] - mean_to_true_anomaly(mean_M, mean_e)
         )
         mean_M = true_to_mean_anomaly(target_theta, mean_e)
 
-        if abs(da) < tol_m and abs(de) < 1e-14:
+        if abs(da) < tol_m and abs(de) < ECCENTRICITY_CONVERGENCE_TOLERANCE:
             break
 
-    for angle in (mean_raan, mean_omega, mean_M):
-        pass  # normalize below
+    # Normalize angles to [0, 2π)
     mean_raan = mean_raan % (2.0 * np.pi)
     if mean_raan < 0.0:
         mean_raan += 2.0 * np.pi
@@ -335,7 +374,9 @@ def osculating_to_brouwer_mean(
     if mean_M < 0.0:
         mean_M += 2.0 * np.pi
 
-    return np.array([mean_a, mean_e, mean_i, mean_omega, mean_raan, mean_M], dtype=float)
+    return np.array(
+        [mean_a, mean_e, mean_i, mean_omega, mean_raan, mean_M], dtype=float
+    )
 
 
 def compute_raan_rate(
@@ -397,7 +438,9 @@ def brouwer_mean_to_cartesian(
     np.ndarray
         Cartesian state (6,): [x, y, z, vx, vy, vz] in m and m/s.
     """
-    osculating = compute_brouwer_short_period_corrections(mean_elements, R_e_m=R_e_m, J2=J2)
+    osculating = compute_brouwer_short_period_corrections(
+        mean_elements, R_e_m=R_e_m, J2=J2
+    )
     return keplerian_to_cartesian(osculating, mu_m3_s2)
 
 
@@ -446,14 +489,16 @@ def propagate_brouwer_j2(
     omega_rate = 0.75 * n * J2 * k * (5.0 * cos2_i - 1.0)
     M_rate = n + 0.75 * n * J2 * k * eta * (3.0 * cos2_i - 1.0)
 
-    return np.array([
-        a,
-        e,
-        i,
-        omega + omega_rate * time_elapsed_s,
-        raan + raan_rate * time_elapsed_s,
-        M + M_rate * time_elapsed_s,
-    ])
+    return np.array(
+        [
+            a,
+            e,
+            i,
+            omega + omega_rate * time_elapsed_s,
+            raan + raan_rate * time_elapsed_s,
+            M + M_rate * time_elapsed_s,
+        ]
+    )
 
 
 # ===================================================================

@@ -9,18 +9,25 @@ Provides:
   :func:`create_translational_propagator_settings`, :func:`run_numerical_propagation`
 
 Requires tudatpy.
+
+References:
+    https://docs.tudat.space/en/latest/
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING
 
 import numpy as np
+from typing_extensions import override
 
+from ephem_toolkit.core.propagator.base import Propagator
 import ephem_toolkit.core.spice_utils as spice_utils
 import ephem_toolkit.core.time_utils as time_utils
-from ephem_toolkit.core.propagator.base import Propagator
+
+if TYPE_CHECKING:
+    from typing import Any
 
 # ===================================================================
 # Engine constants (moved from propagate_orbit/constants.py)
@@ -180,18 +187,18 @@ def create_environment_and_bodies(config: NumericalPropagatorConfig) -> Any:
                 occulting_bodies_dict,
             )
         )
-        body_settings.get(
-            config.satellite_name
-        ).radiation_pressure_target_settings = vehicle_target_settings
+        body_settings.get(config.satellite_name).radiation_pressure_target_settings = (
+            vehicle_target_settings
+        )
 
     if config.is_earth_drag_on:
         aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
             config.satellite_drag_area_m2,
             [config.satellite_drag_coefficient, 0.0, 0.0],
         )
-        body_settings.get(
-            config.satellite_name
-        ).aerodynamic_coefficient_settings = aero_coefficient_settings
+        body_settings.get(config.satellite_name).aerodynamic_coefficient_settings = (
+            aero_coefficient_settings
+        )
 
     bodies = environment_setup.create_system_of_bodies(body_settings)
     bodies.get(config.satellite_name).mass = config.satellite_mass_kg
@@ -486,7 +493,9 @@ def run_numerical_propagation(
         dependent_variables_to_save,
     )
 
-    dynamics_simulator = simulator.create_dynamics_simulator(bodies, propagator_settings)
+    dynamics_simulator = simulator.create_dynamics_simulator(
+        bodies, propagator_settings
+    )
     state_history: dict[float, np.ndarray] = (
         dynamics_simulator.propagation_results.state_history
     )
@@ -550,6 +559,7 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         super().__init__()
         self.set_initial_state(initial_state)
 
+    @override
     def set_initial_state(self, initial_state: NumericalInitialState) -> None:
         """Set initial state.
 
@@ -562,6 +572,7 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         self._initial_state = initial_state
         self._reference_epoch_s = initial_state.epoch_s
 
+    @override
     def get_initial_epoch_s(self) -> float:
         """Return the initial epoch (TT, s since J2000 TT).
 
@@ -572,6 +583,7 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         """
         return self._initial_state.epoch_s
 
+    @override
     def _propagate_to_impl(self, target_epoch_s: float) -> np.ndarray:
         """Run integrator and return state at target_epoch_s.
 
@@ -590,6 +602,7 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         )
         return _interpolate_state(state_history, target_epoch_s)
 
+    @override
     def _propagate_trajectory_impl(
         self, from_epoch_s: float, to_epoch_s: float
     ) -> list[tuple[float, np.ndarray]]:
