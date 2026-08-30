@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import core.propagator.sgp4 as tle
+import core.tle as tle
 import oem_to_omm.fit_tle.models as models
 import oem_to_omm.fit_tle.orbital_mechanics as orbital_mechanics
 

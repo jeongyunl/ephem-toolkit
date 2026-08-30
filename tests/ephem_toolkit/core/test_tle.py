@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-import core.propagator.sgp4 as tle
+import core.tle as tle
 
 TEST_DIR = Path(__file__).parent
 TEST_DATA_DIR = TEST_DIR.parent.parent / "data"
