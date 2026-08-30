@@ -21,9 +21,12 @@ import numpy as np
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.ccsds.opm as opm
 import ephem_toolkit.core.time_utils as time_utils
+from ephem_toolkit.core.propagator.numerical import (
+    NumericalInitialState,
+    NumericalPropagatorConfig,
+)
 
 from .constants import DEFAULT_SATELLITE_NAME
-from .data_structures import PropagationInputs
 
 # ===================================================================
 # Input readers
@@ -100,7 +103,9 @@ def read_initial_state_from_opm_file_or_stdin(
 # ===================================================================
 
 
-def build_propagation_inputs(cli_args: argparse.Namespace) -> PropagationInputs:
+def build_propagation_inputs(
+    cli_args: argparse.Namespace,
+) -> tuple[NumericalPropagatorConfig, NumericalInitialState, float]:
     """Build propagation inputs from CLI options and parsed state data.
 
     Parameters
@@ -116,8 +121,9 @@ def build_propagation_inputs(cli_args: argparse.Namespace) -> PropagationInputs:
 
     Returns
     -------
-    PropagationInputs
-        Consolidated, validated propagation inputs.
+    tuple[NumericalPropagatorConfig, NumericalInitialState, float]
+        ``(config, initial_state, target_epoch_s)`` where ``target_epoch_s``
+        is the propagation end epoch (TT, s since J2000 TT).
     """
     satellite_name = cli_args.name.strip() if cli_args.name is not None else ""
     if not satellite_name:
@@ -134,7 +140,10 @@ def build_propagation_inputs(cli_args: argparse.Namespace) -> PropagationInputs:
 
     integrator_step_size_values = tuple(cli_args.integrator_step_size)
 
-    return PropagationInputs(
+    epoch_s: float = time_utils.datetime_to_tt_s(initial_epoch_datetime_utc)
+    target_epoch_s: float = epoch_s + cli_args.duration
+
+    config = NumericalPropagatorConfig(
         satellite_name=satellite_name,
         satellite_mass_kg=cli_args.mass,
         integrator_method=cli_args.integrator,
@@ -150,7 +159,9 @@ def build_propagation_inputs(cli_args: argparse.Namespace) -> PropagationInputs:
         is_sun_gravity_on=cli_args.sun_gravity,
         is_venus_gravity_on=cli_args.venus_gravity,
         is_mars_gravity_on=cli_args.mars_gravity,
-        initial_epoch_datetime_utc=initial_epoch_datetime_utc,
-        initial_state_m_m_s=initial_state_m_m_s,
-        simulation_duration_s=cli_args.duration,
     )
+    initial_state = NumericalInitialState(
+        state_m_m_s=initial_state_m_m_s,
+        epoch_s=epoch_s,
+    )
+    return config, initial_state, target_epoch_s
