@@ -12,7 +12,17 @@
 1. Propagators
     1. Propagator interface/class hierarchy
     1. Keplerian propagator
-    1. DSST propagator
+    1. DSST propagator ✓ (J2+J3+J4+drag implemented, see `DSST_IMPLEMENTATION_PLAN.md`)
+        1. Orekit accuracy validation (deferred) — compare J2-only < 1 km/day, J2+J3+J4 < 100 m/day for LEO
+        1. Lunar/solar long-period corrections (deferred)
+        1. `DSST_THEORY.md` mathematical derivations (deferred)
+        1. Code coverage > 90% for DSST module
+        1. pylint/mypy clean pass
+        1. Comprehensive logging
+        1. Equinoctial elements (Phase 6 optional) — singularity handling for e < 1e-6, i < 1°
+        1. Variable fidelity mode (Phase 6 optional) — auto-select J2/J2+J3+J4/full by orbit regime
+        1. State transition matrix (Phase 6 optional) — covariance propagation
+        1. Batch processing (Phase 6 optional) — vectorized multi-satellite propagation
     1. USM propagator
     1. Numerical propagator (Tudat wrapper)
     1. ?
