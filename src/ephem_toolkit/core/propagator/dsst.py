@@ -461,151 +461,6 @@ def osculating_to_dsst_mean(
 # ===================================================================
 
 
-def propagate_dsst(
-    mean_elements: np.ndarray,
-    time_elapsed_s: float,
-    mu_m3_s2: float,
-    perturbations: DsstPerturbations | None = None,
-) -> np.ndarray:
-    """Propagate DSST mean elements using secular rates.
-
-    Implements J2, J3, J4 secular rates (Danielson 1995 formulation).
-    J3/J4 add corrections to omega, RAAN, and M secular rates.
-
-    Parameters
-    ----------
-    mean_elements : np.ndarray, shape (6,)
-        DSST mean elements at epoch [a, e, i, omega, RAAN, M].
-    time_elapsed_s : float
-        Time elapsed since epoch (s).
-    mu_m3_s2 : float
-        Gravitational parameter (m³/s²).
-    perturbations : DsstPerturbations, optional
-        Perturbation configuration. If None, uses J2-only defaults.
-
-    Returns
-    -------
-    np.ndarray, shape (6,)
-        DSST mean elements at epoch + time_elapsed_s.
-    """
-    if perturbations is None:
-        perturbations = DsstPerturbations()
-
-    # Extract elements
-    a = mean_elements[SEMI_MAJOR_AXIS_INDEX]
-    e = mean_elements[ECCENTRICITY_INDEX]
-    i = mean_elements[INCLINATION_INDEX]
-    omega = mean_elements[ARGUMENT_OF_PERIAPSIS_INDEX]
-    raan = mean_elements[RAAN_INDEX]
-    M = mean_elements[MEAN_ANOMALY_INDEX]
-
-    # Mean motion
-    n = np.sqrt(mu_m3_s2 / a**3)
-
-    # Initialize secular rates
-    raan_rate = 0.0
-    omega_rate = 0.0
-    M_rate = n
-
-    if perturbations.include_j2:
-        eta = np.sqrt(1.0 - e**2)
-        eta2 = eta**2
-        p = a * (1.0 - e**2)
-        k2 = (perturbations.R_e_m / p) ** 2
-        cos_i = np.cos(i)
-        sin_i = np.sin(i)
-        cos2_i = cos_i**2
-        sin2_i = sin_i**2
-
-        # J2 secular rates (Danielson 1995, eq. 2.7-2.9)
-        raan_rate += -1.5 * n * perturbations.J2 * k2 * cos_i
-        omega_rate += 0.75 * n * perturbations.J2 * k2 * (5.0 * cos2_i - 1.0)
-        M_rate += 0.75 * n * perturbations.J2 * k2 * eta * (3.0 * cos2_i - 1.0)
-
-        if perturbations.include_j3:
-            # J3 secular rates (Danielson 1995, eq. 2.10-2.12)
-            # J3 contributes secular terms to omega and M via e-coupling
-            k3 = perturbations.J3 * (perturbations.R_e_m / p) ** 3
-            sin_omega = np.sin(omega)
-            cos_omega = np.cos(omega)
-
-            # J3 secular rate for omega (eccentricity-dependent)
-            if e > ECCENTRICITY_SINGULARITY_THRESHOLD:
-                omega_rate += (
-                    -0.9375 * n * k3 * (sin_i / e) * (4.0 - 5.0 * sin2_i) * sin_omega
-                )
-                # J3 secular rate for M
-                M_rate += 0.9375 * n * k3 * (eta / e) * (4.0 - 5.0 * sin2_i) * cos_omega
-
-        if perturbations.include_j4:
-            # J4 secular rates (Danielson 1995, eq. 2.13-2.15)
-            k4 = perturbations.J4 * (perturbations.R_e_m / p) ** 4
-
-            # J4 secular rate for RAAN
-            raan_rate += 1.875 * n * k4 * cos_i * (1.0 - (35.0 / 6.0) * sin2_i)
-            # J4 secular rate for omega
-            omega_rate += (
-                -0.9375 * n * k4 * (12.0 - 21.0 * sin2_i + (35.0 / 4.0) * sin2_i**2)
-            )
-            # J4 secular rate for M
-            M_rate += (
-                0.9375
-                * n
-                * k4
-                * eta
-                * (12.0 - 21.0 * sin2_i + (35.0 / 4.0) * sin2_i**2)
-            )
-
-    # Drag secular rates (exponential atmosphere model)
-    # da/dt and de/dt are non-zero for drag
-    da_dt = 0.0
-    de_dt = 0.0
-
-    if perturbations.include_drag and perturbations.mass_kg > 0.0:
-        # Ballistic coefficient B* = (Cd * A) / (2 * m)  [m²/kg]
-        B_star = (perturbations.drag_coeff * perturbations.drag_area_m2) / (
-            2.0 * perturbations.mass_kg
-        )
-
-        # Exponential atmosphere: ρ = ρ0 * exp(-(r - r0) / H)
-        # Reference altitude: 400 km, scale height H = 8500 m
-        # Reference density at 400 km: ~2.62e-10 kg/m³
-        r_ref_m = EARTH_EQUATORIAL_RADIUS_M + ATMOSPHERE_REFERENCE_ALTITUDE_M
-
-        # Mean orbital radius (semi-latus rectum approximation)
-        r_mean_m = a * (1.0 - e**2)  # Approximate mean radius ≈ semi-latus rectum
-
-        # Atmospheric density at mean altitude
-        rho = ATMOSPHERE_REFERENCE_DENSITY_KG_M3 * np.exp(
-            -(r_mean_m - r_ref_m) / ATMOSPHERE_SCALE_HEIGHT_M
-        )
-
-        # Circular velocity at mean radius
-        v_circ = np.sqrt(mu_m3_s2 / r_mean_m)
-
-        # Secular drag rates (King-Hele approximation for small eccentricity)
-        # da/dt = -2 * B* * rho * v_circ * a²/r_mean (secular decay)
-        da_dt = -2.0 * B_star * rho * v_circ * a**2 / r_mean_m
-        # de/dt ≈ -B* * rho * v_circ * e (circularization)
-        de_dt = -B_star * rho * v_circ * e
-
-    # Propagate elements
-    a_new = a + da_dt * time_elapsed_s
-    e_new = max(0.0, e + de_dt * time_elapsed_s)
-
-    return np.array(
-        [
-            a_new,
-            e_new,
-            i,
-            omega + omega_rate * time_elapsed_s,
-            raan + raan_rate * time_elapsed_s,
-            M + M_rate * time_elapsed_s,
-        ],
-        dtype=float,
-    )
-
-
 def dsst_mean_to_cartesian(
     mean_elements: np.ndarray,
     mu_m3_s2: float,
@@ -751,12 +606,122 @@ class DSSTPropagator(Propagator[KeplerianState]):
         """
         elapsed_s = target_epoch_s - self.get_initial_epoch_s()
 
-        # Propagate mean elements
-        propagated_mean = propagate_dsst(
-            self._initial_state.elements,
-            elapsed_s,
-            self._mu_m3_s2,
-            self._perturbations,
+        # Propagate mean elements using secular rates (inlined from propagate_dsst)
+        mean_elements = self._initial_state.elements
+
+        # Extract elements
+        a = mean_elements[SEMI_MAJOR_AXIS_INDEX]
+        e = mean_elements[ECCENTRICITY_INDEX]
+        i = mean_elements[INCLINATION_INDEX]
+        omega = mean_elements[ARGUMENT_OF_PERIAPSIS_INDEX]
+        raan = mean_elements[RAAN_INDEX]
+        M = mean_elements[MEAN_ANOMALY_INDEX]
+
+        # Mean motion
+        n = np.sqrt(self._mu_m3_s2 / a**3)
+
+        # Initialize secular rates
+        raan_rate = 0.0
+        omega_rate = 0.0
+        M_rate = n
+
+        if self._perturbations.include_j2:
+            eta = np.sqrt(1.0 - e**2)
+            eta2 = eta**2
+            p = a * (1.0 - e**2)
+            k2 = (self._perturbations.R_e_m / p) ** 2
+            cos_i = np.cos(i)
+            sin_i = np.sin(i)
+            cos2_i = cos_i**2
+            sin2_i = sin_i**2
+
+            # J2 secular rates (Danielson 1995, eq. 2.7-2.9)
+            raan_rate += -1.5 * n * self._perturbations.J2 * k2 * cos_i
+            omega_rate += 0.75 * n * self._perturbations.J2 * k2 * (5.0 * cos2_i - 1.0)
+            M_rate += (
+                0.75 * n * self._perturbations.J2 * k2 * eta * (3.0 * cos2_i - 1.0)
+            )
+
+            if self._perturbations.include_j3:
+                # J3 secular rates (Danielson 1995, eq. 2.10-2.12)
+                k3 = self._perturbations.J3 * (self._perturbations.R_e_m / p) ** 3
+                sin_omega = np.sin(omega)
+                cos_omega = np.cos(omega)
+
+                # J3 secular rate for omega (eccentricity-dependent)
+                if e > ECCENTRICITY_SINGULARITY_THRESHOLD:
+                    omega_rate += (
+                        -0.9375
+                        * n
+                        * k3
+                        * (sin_i / e)
+                        * (4.0 - 5.0 * sin2_i)
+                        * sin_omega
+                    )
+                    # J3 secular rate for M
+                    M_rate += (
+                        0.9375 * n * k3 * (eta / e) * (4.0 - 5.0 * sin2_i) * cos_omega
+                    )
+
+            if self._perturbations.include_j4:
+                # J4 secular rates (Danielson 1995, eq. 2.13-2.15)
+                k4 = self._perturbations.J4 * (self._perturbations.R_e_m / p) ** 4
+
+                # J4 secular rate for RAAN
+                raan_rate += 1.875 * n * k4 * cos_i * (1.0 - (35.0 / 6.0) * sin2_i)
+                # J4 secular rate for omega
+                omega_rate += (
+                    -0.9375 * n * k4 * (12.0 - 21.0 * sin2_i + (35.0 / 4.0) * sin2_i**2)
+                )
+                # J4 secular rate for M
+                M_rate += (
+                    0.9375
+                    * n
+                    * k4
+                    * eta
+                    * (12.0 - 21.0 * sin2_i + (35.0 / 4.0) * sin2_i**2)
+                )
+
+        # Drag secular rates (exponential atmosphere model)
+        da_dt = 0.0
+        de_dt = 0.0
+
+        if self._perturbations.include_drag and self._perturbations.mass_kg > 0.0:
+            # Ballistic coefficient B* = (Cd * A) / (2 * m)  [m²/kg]
+            B_star = (
+                self._perturbations.drag_coeff * self._perturbations.drag_area_m2
+            ) / (2.0 * self._perturbations.mass_kg)
+
+            # Exponential atmosphere
+            r_ref_m = EARTH_EQUATORIAL_RADIUS_M + ATMOSPHERE_REFERENCE_ALTITUDE_M
+            r_mean_m = a * (1.0 - e**2)
+
+            # Atmospheric density at mean altitude
+            rho = ATMOSPHERE_REFERENCE_DENSITY_KG_M3 * np.exp(
+                -(r_mean_m - r_ref_m) / ATMOSPHERE_SCALE_HEIGHT_M
+            )
+
+            # Circular velocity at mean radius
+            v_circ = np.sqrt(self._mu_m3_s2 / r_mean_m)
+
+            # Secular drag rates
+            da_dt = -2.0 * B_star * rho * v_circ * a**2 / r_mean_m
+            de_dt = -B_star * rho * v_circ * e
+
+        # Propagate elements
+        a_new = a + da_dt * elapsed_s
+        e_new = max(0.0, e + de_dt * elapsed_s)
+
+        propagated_mean = np.array(
+            [
+                a_new,
+                e_new,
+                i,
+                omega + omega_rate * elapsed_s,
+                raan + raan_rate * elapsed_s,
+                M + M_rate * elapsed_s,
+            ],
+            dtype=float,
         )
 
         # Convert to Cartesian
