@@ -8,17 +8,20 @@ generation for orbital dynamics simulations.
 from __future__ import annotations
 
 import sys
-from typing import Any
 
-from tudatpy.dynamics import propagation, simulator
+from ephem_toolkit.core.propagator.numerical import (
+    NumericalInitialState,
+    NumericalPropagatorConfig,
+    run_numerical_propagation,
+)
 
-from . import tudat_setup
-from .data_structures import PropagationInputs
 from .output_handling import write_dependent_variables_csv, write_state_history_oem
 
 
 def run_propagation(
-    propagation_inputs: PropagationInputs,
+    config: NumericalPropagatorConfig,
+    initial_state: NumericalInitialState,
+    target_epoch_s: float,
     output_oem_path: str,
     output_dep_vars_path: str | None,
     data_only: bool,
@@ -27,8 +30,12 @@ def run_propagation(
 
     Parameters
     ----------
-    propagation_inputs : PropagationInputs
-        Consolidated propagation configuration.
+    config : NumericalPropagatorConfig
+        Force-model and integrator configuration.
+    initial_state : NumericalInitialState
+        Initial Cartesian state and epoch.
+    target_epoch_s : float
+        Propagation end epoch (TT, s since J2000 TT).
     output_oem_path : str
         Path to write OEM output, or '-' for stdout.
     output_dep_vars_path : str | None
@@ -41,40 +48,15 @@ def run_propagation(
     None
         Writes outputs to specified paths and may exit on error.
     """
-    bodies = tudat_setup.create_environment_and_bodies(propagation_inputs)
-
-    bodies_to_propagate = [propagation_inputs.satellite_name]
-    central_bodies = ["Earth"]
-
-    acceleration_models = tudat_setup.create_acceleration_models(
-        propagation_inputs=propagation_inputs,
-        bodies=bodies,
-        bodies_to_propagate=bodies_to_propagate,
-        central_bodies=central_bodies,
+    state_history, dep_var_dict, dependent_variables_to_save = run_numerical_propagation(
+        config, initial_state, target_epoch_s
     )
 
-    dependent_variables_to_save = tudat_setup.create_dependent_variables_to_save(
-        propagation_inputs
-    )
-
-    propagator_settings = tudat_setup.create_translational_propagator_settings(
-        propagation_inputs=propagation_inputs,
-        central_bodies=central_bodies,
-        acceleration_models=acceleration_models,
-        bodies_to_propagate=bodies_to_propagate,
-        dependent_variables_to_save=dependent_variables_to_save,
-    )
-
-    dynamics_simulator = simulator.create_dynamics_simulator(
-        bodies, propagator_settings
-    )
-
-    state_history = dynamics_simulator.propagation_results.state_history
     try:
         write_state_history_oem(
             state_history,
             output_oem_path,
-            propagation_inputs,
+            config,
             data_only,
         )
     except OSError as exc:
@@ -82,9 +64,6 @@ def run_propagation(
         sys.exit(1)
 
     if output_dep_vars_path is not None:
-        dep_var_dict = propagation.create_dependent_variable_dictionary(
-            dynamics_simulator
-        )
         try:
             write_dependent_variables_csv(
                 output_dep_vars_path,

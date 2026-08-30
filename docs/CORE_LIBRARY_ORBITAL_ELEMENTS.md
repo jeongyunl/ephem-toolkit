@@ -9,6 +9,7 @@ and the propagator class hierarchy in the `core/` directory.
 2. [KeplerPropagator + Element Utilities (`core.propagator.kepler`)](#keplerpropagator-corepropagatorkeplery)
 3. [BrouwerJ2Propagator + Brouwer Utilities (`core.propagator.brouwer_j2`)](#brouwerj2propagator-corepropagatorbrouwer_j2)
 4. [Sgp4Propagator (`core.propagator.sgp4`)](#sgp4propagator-corepropagatorssgp4)
+5. [NumericalPropagator (`core.propagator.numerical`)](#numericalpropagator-corepropagatornumerical)
 
 ---
 
@@ -287,3 +288,110 @@ Propagate Brouwer mean elements forward in time using J2 secular rates.
 
 #### `compute_raan_rate(mean_elements, mu_m3_s2, R_e_m, J2) -> float`
 Compute the J2 secular RAAN drift rate (rad/s).
+
+---
+
+## NumericalPropagator (`core.propagator.numerical`)
+
+**Module**: `ephem_toolkit.core.propagator.numerical`
+
+Perturbed numerical propagator wrapping TudatPy's translational dynamics simulator.
+Requires `tudatpy`. All tudatpy imports are deferred inside engine functions.
+
+- Initial state: `NumericalInitialState` (Cartesian state + TT epoch)
+- Model config: `NumericalPropagatorConfig` (force model + integrator settings)
+- `_propagate_to_impl` re-runs the integrator from scratch each call (simple; caching is a future optimization)
+- `_propagate_trajectory_impl` overridden to return the full `state_history` from a single integrator run
+
+### Data Types
+
+```python
+from ephem_toolkit.core.propagator.numerical import (
+    NumericalPropagatorConfig,
+    NumericalInitialState,
+)
+import numpy as np
+
+config = NumericalPropagatorConfig(
+    satellite_name="MySat",
+    satellite_mass_kg=30.0,
+    integrator_method="rkdp_87",           # see SUPPORTED_INTEGRATOR_METHODS
+    integrator_step_size_values_s=(10.0, 1.0, 300.0),  # (initial, min, max) for variable-step
+    earth_spherical_harmonic_gravity_degree=5,
+    earth_spherical_harmonic_gravity_order=5,
+    satellite_drag_area_m2=0.045,
+    is_srp_on=True,
+    srp_coefficient=1.2,
+    is_earth_drag_on=True,
+    satellite_drag_coefficient=2.2,
+    is_moon_gravity_on=True,
+    is_sun_gravity_on=True,
+    is_venus_gravity_on=False,
+    is_mars_gravity_on=False,
+)
+
+initial_state = NumericalInitialState(
+    state_m_m_s=np.array([-2700816.14, -3314092.80, 5266346.42,
+                            5168.61, -5597.55, -2131.98]),  # [x,y,z,vx,vy,vz] m, m/s
+    epoch_s=0.0,  # TT seconds since J2000
+)
+```
+
+### Usage
+
+```python
+from ephem_toolkit.core.propagator.numerical import (
+    NumericalPropagator,
+    NumericalPropagatorConfig,
+    NumericalInitialState,
+    load_spice_kernels,
+)
+from ephem_toolkit.core.propagator.base import OutputMode
+
+# Load SPICE kernels once before propagation
+load_spice_kernels()
+
+prop = NumericalPropagator(config=config, initial_state=initial_state)
+
+# Propagate to absolute epoch (re-runs integrator from initial state)
+epoch_s, cartesian = prop.propagate_to(3600.0, output=OutputMode.FINAL)
+
+# Get full trajectory in one integrator run
+trajectory = prop.propagate_to(3600.0, output=OutputMode.TRAJECTORY)
+# trajectory: list of (epoch_s, cartesian) tuples — all integrator steps
+```
+
+### Constructor
+
+```python
+NumericalPropagator(
+    config: NumericalPropagatorConfig,
+    initial_state: NumericalInitialState,
+)
+```
+
+### Engine Constants
+
+```python
+from ephem_toolkit.core.propagator.numerical import (
+    SUPPORTED_INTEGRATOR_METHODS,   # tuple of valid integrator method strings
+    INTEGRATOR_METHOD_DESCRIPTIONS, # dict mapping method -> human-readable description
+    DEFAULT_INTEGRATOR_METHOD,      # "rkdp_87" (Dormand-Prince 8(7))
+)
+```
+
+### Engine Functions
+
+These are called internally by `NumericalPropagator` but are also usable directly:
+
+#### `load_spice_kernels() -> None`
+Load required SPICE kernels (leapseconds, planetary constants, Earth rotation, ephemerides).
+Must be called once before any propagation.
+
+#### `run_numerical_propagation(config, initial_state, target_epoch_s) -> (state_history, dep_var_dict, dep_vars_to_save)`
+Run the integrator from `initial_state.epoch_s` to `target_epoch_s`. Returns raw results
+with no file I/O. Raises exceptions rather than calling `sys.exit`.
+
+- `state_history`: `dict[float, np.ndarray]` — TT epoch → Cartesian state (6,)
+- `dep_var_dict`: Tudat dependent-variable dictionary
+- `dep_vars_to_save`: list of dependent-variable save settings (needed for CSV writing)
