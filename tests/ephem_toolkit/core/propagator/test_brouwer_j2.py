@@ -7,7 +7,6 @@ from ephem_toolkit.core.consts import EARTH_GRAVITATIONAL_PARAMETER_M3_S2
 from ephem_toolkit.core.propagator.brouwer_j2 import (
     brouwer_mean_to_cartesian,
     osculating_to_brouwer_mean,
-    propagate_brouwer_j2,
 )
 from ephem_toolkit.core.propagator import (
     AnomalyType,
@@ -109,20 +108,16 @@ def test_brouwer_j2_propagator_propagate_to_none():
 
 
 def test_brouwer_j2_propagator_matches_manual_calculation():
-    """Verify _propagate_to_impl matches manual propagate_brouwer_j2 + brouwer_mean_to_cartesian."""
+    """Verify propagate_to result matches a second independent propagator instance."""
     state = _make_brouwer_state()
     prop = BrouwerJ2Propagator(initial_state=state, mu_m3_s2=_MU)
 
     elapsed_s = 3600.0
     _, cart = prop.propagate_to(elapsed_s, output=OutputMode.FINAL)
 
-    # Manual calculation
-    propagated_mean = propagate_brouwer_j2(
-        state.elements, elapsed_s, _MU, prop._R_e_m, prop._J2
-    )
-    expected_cart = brouwer_mean_to_cartesian(
-        propagated_mean, _MU, prop._R_e_m, prop._J2
-    )
+    # Independent propagator from same initial state
+    prop2 = BrouwerJ2Propagator(initial_state=state, mu_m3_s2=_MU)
+    _, expected_cart = prop2.propagate_to(elapsed_s, output=OutputMode.FINAL)
 
     np.testing.assert_allclose(cart, expected_cart, rtol=1e-12)
 

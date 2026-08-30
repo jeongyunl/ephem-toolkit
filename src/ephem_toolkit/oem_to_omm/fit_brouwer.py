@@ -15,6 +15,8 @@ import numpy as np
 import ephem_toolkit.core.consts as consts
 import ephem_toolkit.core.propagator.kepler as kepler
 import ephem_toolkit.core.propagator.brouwer_j2 as brouwer
+from ephem_toolkit.core.propagator.brouwer_j2 import BrouwerJ2Propagator
+from ephem_toolkit.core.propagator.base import KeplerianState
 from ephem_toolkit.core.propagator.dsst import (
     DsstPerturbations,
     dsst_mean_to_cartesian,
@@ -76,16 +78,18 @@ def _compute_brouwer_residuals_from_epoch_state(
     num_samples: int = len(time_offsets_s)
     residuals: np.ndarray = np.zeros(num_samples * 3)
 
-    for i, dt_s in enumerate(time_offsets_s):
-        # Propagate mean elements using J2 secular rates
-        propagated_mean_elements: np.ndarray = brouwer.propagate_brouwer_j2(
-            mean_elements, dt_s, mu_m3_s2, R_e_m=R_e_m, J2=J2
-        )
+    # Create propagator with mean elements at epoch (epoch_s = 0.0)
+    initial_state = KeplerianState(elements=mean_elements, epoch_s=0.0)
+    propagator = BrouwerJ2Propagator(
+        initial_state=initial_state,
+        mu_m3_s2=mu_m3_s2,
+        R_e_m=R_e_m,
+        J2=J2,
+    )
 
-        # Convert propagated mean elements to Cartesian state
-        predicted_state: np.ndarray = brouwer.brouwer_mean_to_cartesian(
-            propagated_mean_elements, mu_m3_s2, R_e_m=R_e_m, J2=J2
-        )
+    for i, dt_s in enumerate(time_offsets_s):
+        # Propagate to target epoch and get Cartesian state
+        _, predicted_state = propagator.propagate_to(dt_s)
 
         residuals[i * 3 : i * 3 + 3] = target_positions_m[i] - predicted_state[:3]
 
@@ -271,10 +275,8 @@ def fit_brouwer(
                 scale *= 0.5
                 continue
 
-            trial_residuals: np.ndarray = (
-                _compute_brouwer_residuals_from_epoch_state(
-                    trial_state, time_offsets_s, target_positions_m, mu_m3_s2, R_e_m, J2
-                )
+            trial_residuals: np.ndarray = _compute_brouwer_residuals_from_epoch_state(
+                trial_state, time_offsets_s, target_positions_m, mu_m3_s2, R_e_m, J2
             )
             trial_rms: float = float(np.sqrt(np.mean(trial_residuals**2)))
             if trial_rms < rms:
@@ -379,6 +381,17 @@ def compute_brouwer_propagation_comparison(
 
     results: list[fit_common.PropagationComparison] = []
 
+    # Create propagator with mean elements at reference epoch
+    initial_state = KeplerianState(
+        elements=brouwerian_elements, epoch_s=reference_timestamp
+    )
+    propagator = BrouwerJ2Propagator(
+        initial_state=initial_state,
+        mu_m3_s2=mu_m3_s2,
+        R_e_m=R_e_m,
+        J2=J2,
+    )
+
     for elapsed_s in comparison_times_s:
         # Find closest OEM state
         target_timestamp: float = reference_timestamp + elapsed_s
@@ -398,15 +411,8 @@ def compute_brouwer_propagation_comparison(
         actual_elapsed_s: float = closest_state[0] - reference_timestamp
         oem_state: np.ndarray = closest_state[1]
 
-        # Propagate mean Keplerian elements using J2 secular rates
-        propagated_mean_elements: np.ndarray = brouwer.propagate_brouwer_j2(
-            brouwerian_elements, actual_elapsed_s, mu_m3_s2, R_e_m=R_e_m, J2=J2
-        )
-
-        # Convert to Cartesian state
-        predicted_state: np.ndarray = brouwer.brouwer_mean_to_cartesian(
-            propagated_mean_elements, mu_m3_s2, R_e_m=R_e_m, J2=J2
-        )
+        # Propagate to target epoch and get Cartesian state
+        _, predicted_state = propagator.propagate_to(closest_state[0])
 
         # Compute differences
         pos_diff_m: np.ndarray = oem_state[:3] - predicted_state[:3]

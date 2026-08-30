@@ -444,63 +444,6 @@ def brouwer_mean_to_cartesian(
     return keplerian_to_cartesian(osculating, mu_m3_s2)
 
 
-def propagate_brouwer_j2(
-    keplerian_elements: np.ndarray,
-    time_elapsed_s: float,
-    mu_m3_s2: float,
-    R_e_m: float = EARTH_EQUATORIAL_RADIUS_M,
-    J2: float = EARTH_J2,
-) -> np.ndarray:
-    """Propagate Brouwer mean elements forward using J2 secular rates.
-
-    Parameters
-    ----------
-    keplerian_elements : np.ndarray
-        Brouwer mean elements at epoch (6,): [a, e, i, omega, RAAN, M].
-    time_elapsed_s : float
-        Time elapsed since epoch (s).
-    mu_m3_s2 : float
-        Gravitational parameter (m³/s²).
-    R_e_m : float
-        Earth equatorial radius (m).
-    J2 : float
-        J2 zonal harmonic coefficient (dimensionless).
-
-    Returns
-    -------
-    np.ndarray
-        Brouwer mean elements at epoch + time_elapsed_s (6,).
-    """
-    a = keplerian_elements[SEMI_MAJOR_AXIS_INDEX]
-    e = keplerian_elements[ECCENTRICITY_INDEX]
-    i = keplerian_elements[INCLINATION_INDEX]
-    omega = keplerian_elements[ARGUMENT_OF_PERIAPSIS_INDEX]
-    raan = keplerian_elements[RAAN_INDEX]
-    M = keplerian_elements[MEAN_ANOMALY_INDEX]
-
-    n = np.sqrt(mu_m3_s2 / a**3)
-    eta = np.sqrt(1.0 - e**2)
-    p = a * (1.0 - e**2)
-    k = (R_e_m / p) ** 2
-    cos_i = np.cos(i)
-    cos2_i = cos_i**2
-
-    raan_rate = -1.5 * n * J2 * k * cos_i
-    omega_rate = 0.75 * n * J2 * k * (5.0 * cos2_i - 1.0)
-    M_rate = n + 0.75 * n * J2 * k * eta * (3.0 * cos2_i - 1.0)
-
-    return np.array(
-        [
-            a,
-            e,
-            i,
-            omega + omega_rate * time_elapsed_s,
-            raan + raan_rate * time_elapsed_s,
-            M + M_rate * time_elapsed_s,
-        ]
-    )
-
-
 # ===================================================================
 # BrouwerJ2Propagator class
 # ===================================================================
@@ -563,12 +506,35 @@ class BrouwerJ2Propagator(Propagator[KeplerianState]):
     def _propagate_to_impl(self, target_epoch_s: float) -> np.ndarray:
         """Propagate to target epoch and return Cartesian state."""
         elapsed_s = target_epoch_s - self.get_initial_epoch_s()
-        propagated = propagate_brouwer_j2(
-            self._initial_state.elements,
-            elapsed_s,
-            self._mu_m3_s2,
-            self._R_e_m,
-            self._J2,
+        elems = self._initial_state.elements
+
+        a = elems[SEMI_MAJOR_AXIS_INDEX]
+        e = elems[ECCENTRICITY_INDEX]
+        i = elems[INCLINATION_INDEX]
+        omega = elems[ARGUMENT_OF_PERIAPSIS_INDEX]
+        raan = elems[RAAN_INDEX]
+        M = elems[MEAN_ANOMALY_INDEX]
+
+        n = np.sqrt(self._mu_m3_s2 / a**3)
+        eta = np.sqrt(1.0 - e**2)
+        p = a * (1.0 - e**2)
+        k = (self._R_e_m / p) ** 2
+        cos_i = np.cos(i)
+        cos2_i = cos_i**2
+
+        raan_rate = -1.5 * n * self._J2 * k * cos_i
+        omega_rate = 0.75 * n * self._J2 * k * (5.0 * cos2_i - 1.0)
+        M_rate = n + 0.75 * n * self._J2 * k * eta * (3.0 * cos2_i - 1.0)
+
+        propagated = np.array(
+            [
+                a,
+                e,
+                i,
+                omega + omega_rate * elapsed_s,
+                raan + raan_rate * elapsed_s,
+                M + M_rate * elapsed_s,
+            ]
         )
         return brouwer_mean_to_cartesian(
             propagated,
