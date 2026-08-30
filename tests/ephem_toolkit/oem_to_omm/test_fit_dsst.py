@@ -13,31 +13,30 @@ import ephem_toolkit.oem_to_omm.__main__ as oem_to_omm_main
 from ephem_toolkit.core.consts import EARTH_GRAVITATIONAL_PARAMETER_M3_S2
 from ephem_toolkit.core.propagator.dsst import (
     DsstPerturbations,
+    DSSTPropagator,
     osculating_to_dsst_mean,
-    propagate_dsst,
-    dsst_mean_to_cartesian,
 )
-from ephem_toolkit.core.propagator.kepler import (
-    cartesian_to_keplerian,
-    keplerian_to_cartesian,
-    true_to_mean_anomaly,
-)
+from ephem_toolkit.core.propagator.base import KeplerianState, OutputMode
 from ephem_toolkit.oem_to_omm.fit_brouwer import fit_dsst_mean_elements
 
 _MU = EARTH_GRAVITATIONAL_PARAMETER_M3_S2
 
 # ISS-like osculating elements: [a, e, i, omega, RAAN, theta]
-_ISS_OSCULATING = np.array([
-    6778e3,
-    0.0005,
-    np.radians(51.6),
-    np.radians(30.0),
-    np.radians(45.0),
-    np.radians(10.0),
-])
+_ISS_OSCULATING = np.array(
+    [
+        6778e3,
+        0.0005,
+        np.radians(51.6),
+        np.radians(30.0),
+        np.radians(45.0),
+        np.radians(10.0),
+    ]
+)
 
 
-def _make_oem_states(n_orbits: float = 1.0, n_points: int = 20) -> list[tuple[float, np.ndarray]]:
+def _make_oem_states(
+    n_orbits: float = 1.0, n_points: int = 20
+) -> list[tuple[float, np.ndarray]]:
     """Generate synthetic OEM states from ISS-like osculating elements."""
     mean_elements = osculating_to_dsst_mean(_ISS_OSCULATING, epoch_s=0.0)
     period_s = 2.0 * np.pi * np.sqrt(mean_elements[0] ** 3 / _MU)
@@ -46,8 +45,9 @@ def _make_oem_states(n_orbits: float = 1.0, n_points: int = 20) -> list[tuple[fl
     states = []
     for k in range(n_points):
         t = k * total_s / (n_points - 1)
-        propagated = propagate_dsst(mean_elements, t, _MU)
-        cart = dsst_mean_to_cartesian(propagated, _MU, t)
+        state = KeplerianState(elements=mean_elements, epoch_s=0.0)
+        prop = DSSTPropagator(initial_state=state, mu_m3_s2=_MU)
+        _, cart = prop.propagate_to(t, output=OutputMode.FINAL)
         states.append((t, cart))
     return states
 
@@ -83,9 +83,9 @@ def test_fit_dsst_mean_elements_reasonable_rms():
     _, diagnostics = fit_dsst_mean_elements(states, fit_span_s=7200.0)
 
     # For synthetic DSST states, RMS should be < 10 km
-    assert diagnostics.rms_position_m < 10e3, (
-        f"RMS too large: {diagnostics.rms_position_m/1e3:.3f} km"
-    )
+    assert (
+        diagnostics.rms_position_m < 10e3
+    ), f"RMS too large: {diagnostics.rms_position_m/1e3:.3f} km"
 
 
 def test_fit_dsst_mean_elements_semi_major_axis_reasonable():
@@ -98,9 +98,9 @@ def test_fit_dsst_mean_elements_semi_major_axis_reasonable():
     a_true = true_mean[0]
 
     # Should be within 1% of true value
-    assert abs(a_fitted - a_true) / a_true < 0.01, (
-        f"Semi-major axis error too large: {abs(a_fitted - a_true)/1e3:.3f} km"
-    )
+    assert (
+        abs(a_fitted - a_true) / a_true < 0.01
+    ), f"Semi-major axis error too large: {abs(a_fitted - a_true)/1e3:.3f} km"
 
 
 def test_fit_dsst_mean_elements_requires_at_least_one_state():
@@ -112,7 +112,7 @@ def test_fit_dsst_mean_elements_requires_at_least_one_state():
 def test_fit_dsst_mean_elements_fit_span_filters_states():
     """fit_span_s limits the states used for fitting."""
     states = _make_oem_states(n_orbits=2.0, n_points=40)
-    period_s = 2.0 * np.pi * np.sqrt(6778e3 ** 3 / _MU)
+    period_s = 2.0 * np.pi * np.sqrt(6778e3**3 / _MU)
 
     # Fit only first orbit
     _, diag_short = fit_dsst_mean_elements(states, fit_span_s=period_s)
@@ -164,7 +164,8 @@ def test_dsst_theory_in_output_omm(monkeypatch, tmp_path):
         lambda *_: _DummyOemData(states),
     )
     monkeypatch.setattr(
-        sys, "argv",
+        sys,
+        "argv",
         ["oem-to-omm", "--mode", "dsst", "input.oem", "-o", str(output_path)],
     )
 
@@ -187,15 +188,23 @@ def test_dsst_omm_output_has_required_fields(monkeypatch, tmp_path):
         lambda *_: _DummyOemData(states),
     )
     monkeypatch.setattr(
-        sys, "argv",
+        sys,
+        "argv",
         ["oem-to-omm", "--mode", "dsst", "input.oem", "-o", str(output_path)],
     )
 
     oem_to_omm_main.main()
 
     content = output_path.read_text(encoding="utf-8")
-    for field in ["EPOCH", "ECCENTRICITY", "INCLINATION", "RA_OF_ASC_NODE",
-                  "ARG_OF_PERICENTER", "MEAN_ANOMALY", "MEAN_MOTION"]:
+    for field in [
+        "EPOCH",
+        "ECCENTRICITY",
+        "INCLINATION",
+        "RA_OF_ASC_NODE",
+        "ARG_OF_PERICENTER",
+        "MEAN_ANOMALY",
+        "MEAN_MOTION",
+    ]:
         assert field in content, f"Missing field: {field}"
 
 
@@ -211,9 +220,18 @@ def test_dsst_omm_theory_override(monkeypatch, tmp_path):
         lambda *_: _DummyOemData(states),
     )
     monkeypatch.setattr(
-        sys, "argv",
-        ["oem-to-omm", "--mode", "dsst", "--theory", "USM",
-         "input.oem", "-o", str(output_path)],
+        sys,
+        "argv",
+        [
+            "oem-to-omm",
+            "--mode",
+            "dsst",
+            "--theory",
+            "USM",
+            "input.oem",
+            "-o",
+            str(output_path),
+        ],
     )
 
     oem_to_omm_main.main()
@@ -236,7 +254,8 @@ def test_dsst_omm_roundtrip(monkeypatch, tmp_path):
         lambda *_: _DummyOemData(states),
     )
     monkeypatch.setattr(
-        sys, "argv",
+        sys,
+        "argv",
         ["oem-to-omm", "--mode", "dsst", "input.oem", "-o", str(output_path)],
     )
 
@@ -262,9 +281,17 @@ def test_dsst_mode_cli_verbose(monkeypatch, tmp_path, capsys):
         lambda *_: _DummyOemData(states),
     )
     monkeypatch.setattr(
-        sys, "argv",
-        ["oem-to-omm", "--mode", "dsst", "--verbose",
-         "input.oem", "-o", str(output_path)],
+        sys,
+        "argv",
+        [
+            "oem-to-omm",
+            "--mode",
+            "dsst",
+            "--verbose",
+            "input.oem",
+            "-o",
+            str(output_path),
+        ],
     )
 
     oem_to_omm_main.main()

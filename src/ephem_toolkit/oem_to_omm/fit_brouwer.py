@@ -19,9 +19,8 @@ from ephem_toolkit.core.propagator.brouwer_j2 import BrouwerJ2Propagator
 from ephem_toolkit.core.propagator.base import KeplerianState
 from ephem_toolkit.core.propagator.dsst import (
     DsstPerturbations,
-    dsst_mean_to_cartesian,
+    DSSTPropagator,
     osculating_to_dsst_mean,
-    propagate_dsst,
 )
 import ephem_toolkit.core.time_utils as time_utils
 from . import fit_common
@@ -607,10 +606,17 @@ def fit_dsst_mean_elements(
     # Evaluate RMS position error over the arc
     epoch_tt_s = reference_timestamp
     residuals_list: list[float] = []
+
+    # Create DSST propagator
+    initial_state = KeplerianState(elements=mean_elements, epoch_s=epoch_tt_s)
+    propagator = DSSTPropagator(
+        initial_state=initial_state,
+        perturbations=perturbations,
+        mu_m3_s2=mu_m3_s2,
+    )
+
     for ts, sv in filtered_states:
-        elapsed_s = ts - epoch_tt_s
-        propagated = propagate_dsst(mean_elements, elapsed_s, mu_m3_s2, perturbations)
-        predicted = dsst_mean_to_cartesian(propagated, mu_m3_s2, ts, perturbations)
+        _, predicted = propagator.propagate_to(ts)
         pos_err = float(np.linalg.norm(sv[:3] - predicted[:3]))
         residuals_list.append(pos_err)
 

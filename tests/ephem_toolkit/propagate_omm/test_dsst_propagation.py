@@ -16,8 +16,6 @@ from ephem_toolkit.core.propagator.dsst import (
     DsstPerturbations,
     DSSTPropagator,
     osculating_to_dsst_mean,
-    propagate_dsst,
-    dsst_mean_to_cartesian,
 )
 from ephem_toolkit.core.propagator import KeplerianState, OutputMode
 from ephem_toolkit.core.propagator.kepler import (
@@ -31,10 +29,16 @@ import ephem_toolkit.core.time_utils as time_utils
 _MU = EARTH_GRAVITATIONAL_PARAMETER_M3_S2
 
 # ISS-like osculating elements: [a, e, i, omega, RAAN, theta]
-_ISS_OSCULATING = np.array([
-    6778e3, 0.0005, np.radians(51.6),
-    np.radians(30.0), np.radians(45.0), np.radians(10.0),
-])
+_ISS_OSCULATING = np.array(
+    [
+        6778e3,
+        0.0005,
+        np.radians(51.6),
+        np.radians(30.0),
+        np.radians(45.0),
+        np.radians(10.0),
+    ]
+)
 
 
 def _make_dsst_state(epoch_s: float = 0.0) -> KeplerianState:
@@ -45,6 +49,7 @@ def _make_dsst_state(epoch_s: float = 0.0) -> KeplerianState:
 def _make_dsst_omm(epoch_s: float = 0.0, theory: str = "DSST") -> omm_mod.CcsdsOmm:
     """Create a minimal DSST OMM from ISS-like elements."""
     from ephem_toolkit.core.propagator.kepler import semi_major_axis_to_mean_motion
+
     mean = osculating_to_dsst_mean(_ISS_OSCULATING, epoch_s)
     epoch_dt = time_utils.tt_s_to_datetime(epoch_s)
 
@@ -123,6 +128,7 @@ def test_propagate_omm_dsst_matches_manual_propagation():
 
     # Capture stdout
     import io as _io
+
     old_stdout = sys.stdout
     sys.stdout = buf = _io.StringIO()
     propagate_omm_main.propagate_omm_dsst(
@@ -138,7 +144,9 @@ def test_propagate_omm_dsst_matches_manual_propagation():
 
     # Parse last state line
     parts = lines[-1].split()
-    pos_oem = np.array([float(parts[1]), float(parts[2]), float(parts[3])]) * 1e3  # km→m
+    pos_oem = (
+        np.array([float(parts[1]), float(parts[2]), float(parts[3])]) * 1e3
+    )  # km→m
 
     # Manual propagation
     state = _make_dsst_state(epoch_s=0.0)
@@ -212,7 +220,10 @@ def test_dsst_vs_kepler_raan_drift():
     )
     # Use osculating elements directly for Kepler
     osc_elements = _ISS_OSCULATING.copy()
-    from ephem_toolkit.core.propagator.kepler import mean_to_true_anomaly, true_to_mean_anomaly
+    from ephem_toolkit.core.propagator.kepler import (
+        true_to_mean_anomaly,
+    )
+
     kepler_mean = osc_elements.copy()
     kepler_mean[5] = true_to_mean_anomaly(osc_elements[5], osc_elements[1])
     kepler_state2 = KeplerianState(elements=kepler_mean, epoch_s=0.0)
@@ -254,9 +265,18 @@ def test_main_dispatches_dsst_for_dsst_theory(monkeypatch, tmp_path):
         lambda *_: omm_data,
     )
     monkeypatch.setattr(
-        sys, "argv",
-        ["propagate-omm", "input.omm", "--stop", "1h", "--step", "600s",
-         "-o", str(output_path)],
+        sys,
+        "argv",
+        [
+            "propagate-omm",
+            "input.omm",
+            "--stop",
+            "1h",
+            "--step",
+            "600s",
+            "-o",
+            str(output_path),
+        ],
     )
 
     propagate_omm_main.main()
@@ -281,15 +301,25 @@ def test_main_dispatches_kepler_for_non_dsst_theory(monkeypatch, tmp_path):
     dispatched_to = []
 
     original_kepler = propagate_omm_main.propagate_omm_kepler
+
     def mock_kepler(*args, **kwargs):
         dispatched_to.append("kepler")
         return original_kepler(*args, **kwargs)
 
     monkeypatch.setattr(propagate_omm_main, "propagate_omm_kepler", mock_kepler)
     monkeypatch.setattr(
-        sys, "argv",
-        ["propagate-omm", "input.omm", "--stop", "1h", "--step", "600s",
-         "-o", str(output_path)],
+        sys,
+        "argv",
+        [
+            "propagate-omm",
+            "input.omm",
+            "--stop",
+            "1h",
+            "--step",
+            "600s",
+            "-o",
+            str(output_path),
+        ],
     )
 
     propagate_omm_main.main()
