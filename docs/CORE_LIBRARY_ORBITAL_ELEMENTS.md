@@ -1,140 +1,289 @@
-# Core Library - Orbital Elements
+# Core Library - Orbital Elements & Propagators
 
-This document covers Keplerian orbital element conversions and mean element calculations in the `core/` directory.
+This document covers Keplerian orbital element conversions, mean element calculations,
+and the propagator class hierarchy in the `core/` directory.
 
 ## Table of Contents
 
-1. [ephem_toolkit.core.kepler - Keplerian Orbital Elements](#ephem_toolkitcorekepler---keplerian-orbital-elements)
-2. [ephem_toolkit.core.mean_kepler - Mean Keplerian Elements](#ephem_toolkitcoremean_kepler---mean-keplerian-elements)
+1. [Propagator Interface (`core.propagator`)](#propagator-interface-corepropagator)
+2. [KeplerPropagator + Element Utilities (`core.propagator.kepler`)](#keplerpropagator-corepropagatorkeplery)
+3. [BrouwerJ2Propagator + Brouwer Utilities (`core.propagator.brouwer_j2`)](#brouwerj2propagator-corepropagatorbrouwer_j2)
+4. [Sgp4Propagator (`core.propagator.sgp4`)](#sgp4propagator-corepropagatorssgp4)
 
 ---
 
-## ephem_toolkit.core.kepler - Keplerian Orbital Elements
+## Propagator Interface (`core.propagator`)
 
-**Purpose**: Convert between Cartesian state vectors and osculating Keplerian elements using only NumPy.
+**Module**: `ephem_toolkit.core.propagator`
 
-### Key Dependencies
-- `numpy`
-- `ephem_toolkit.core.consts`
+All propagators share a common abstract base class `Propagator[InitialStateT]` defined
+in `core/propagator/base.py`. The interface is a **flat hierarchy** — all concrete
+propagators implement `Propagator` directly with no intermediate ABCs.
 
-### Keplerian Element Indices
-- `SEMI_MAJOR_AXIS_INDEX = 0` - Semi-major axis (m)
-- `ECCENTRICITY_INDEX = 1` - Eccentricity (dimensionless)
-- `INCLINATION_INDEX = 2` - Inclination (rad)
-- `ARGUMENT_OF_PERIAPSIS_INDEX = 3` - Argument of periapsis (rad)
-- `RAAN_INDEX = 4` - Right ascension of ascending node (rad)
-- `TRUE_ANOMALY_INDEX = 5` - True anomaly (rad)
-- `MEAN_ANOMALY_INDEX = 5` - Alias for TRUE_ANOMALY_INDEX
+### Design Principles
+
+- **`__init__` is for model config** (`mu`, `R_e_m`, `J2`, integrator settings)
+- **`set_initial_state` is for "here is where/when we start"** (epoch + state)
+- **All propagators return Cartesian states** `[x, y, z, vx, vy, vz]` in SI units
+- **All epochs are TT seconds since J2000** (2000-01-01 12:00:00 TT)
+- **`reference_epoch_s` advances** after each `propagate_to`/`propagate_by` call
+- **`get_initial_epoch_s()` is fixed** — never changes after construction
+
+### `OutputMode` Enum
+
+```python
+from ephem_toolkit.core.propagator import OutputMode
+
+OutputMode.NONE        # advance reference epoch, return None
+OutputMode.FINAL       # return (epoch_s, state_array)
+OutputMode.TRAJECTORY  # return [(epoch_s, state_array), ...] from previous reference epoch
+```
+
+### `KeplerianState` Dataclass
+
+Pairs Keplerian elements with their epoch. Used by `KeplerPropagator` and `BrouwerJ2Propagator`.
+
+```python
+from ephem_toolkit.core.propagator import KeplerianState
+import numpy as np
+
+state = KeplerianState(
+    elements=np.array([7000e3, 0.01, 0.1, 0.3, 0.2, 1.0]),  # [a, e, i, ω, Ω, anomaly]
+    epoch_s=0.0,  # TT seconds since J2000
+)
+# state.elements is read-only (frozen dataclass + writeable=False)
+```
+
+### `AnomalyType` Enum
+
+Tags the semantic meaning of element[5]:
+
+```python
+AnomalyType.TRUE   # KeplerPropagator — element[5] is true anomaly
+AnomalyType.MEAN   # BrouwerJ2Propagator — element[5] is mean anomaly
+```
+
+### Base `Propagator` API
+
+```python
+prop.set_initial_state(initial_state)       # set/reset initial state
+prop.get_initial_epoch_s() -> float         # fixed initial epoch (TT s since J2000)
+prop.reference_epoch_s -> float             # current reference epoch (advances)
+prop.propagate_to(epoch_s, output=OutputMode.FINAL)   # propagate to absolute epoch
+prop.propagate_by(elapsed_s, output=OutputMode.FINAL) # propagate by elapsed seconds
+```
+
+---
+
+## KeplerPropagator (`core.propagator.kepler`)
+
+**Module**: `ephem_toolkit.core.propagator.kepler`
+
+Two-body Keplerian propagator. Only true anomaly changes; `a`, `e`, `i`, `ω`, `Ω` are constant.
+
+- `anomaly_type = AnomalyType.TRUE` — element[5] is **true anomaly**
+- Initial state: **osculating** Keplerian elements
+
+### Usage
+
+```python
+from ephem_toolkit.core.propagator import KeplerPropagator, KeplerianState, OutputMode
+from ephem_toolkit.core.consts import EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+import numpy as np
+
+# Construct with initial state at epoch
+state = KeplerianState(
+    elements=np.array([7000e3, 0.001, np.radians(51.6), 0.0, 0.0, 0.0]),
+    epoch_s=0.0,
+)
+prop = KeplerPropagator(initial_state=state, mu_m3_s2=EARTH_GRAVITATIONAL_PARAMETER_M3_S2)
+
+# Propagate to absolute epoch
+epoch_s, cartesian = prop.propagate_to(3600.0, output=OutputMode.FINAL)
+# cartesian: np.ndarray shape (6,) [x, y, z, vx, vy, vz] in m and m/s
+
+# Propagate by elapsed time
+epoch_s, cartesian = prop.propagate_by(3600.0, output=OutputMode.FINAL)
+
+# Advance without returning state
+prop.propagate_to(7200.0, output=OutputMode.NONE)
+
+# Get trajectory
+trajectory = prop.propagate_to(10800.0, output=OutputMode.TRAJECTORY)
+# trajectory: list of (epoch_s, cartesian) tuples
+```
+
+### Constructor
+
+```python
+KeplerPropagator(
+    initial_state: KeplerianState,
+    mu_m3_s2: float = EARTH_GRAVITATIONAL_PARAMETER_M3_S2,
+)
+```
+
+---
+
+## BrouwerJ2Propagator (`core.propagator.brouwer_j2`)
+
+**Module**: `ephem_toolkit.core.propagator.brouwer_j2`
+
+Brouwer (1959) J2 secular mean-element propagator. Applies J2 short-period corrections
+to convert mean elements to osculating Cartesian state.
+
+- `anomaly_type = AnomalyType.MEAN` — element[5] is **mean anomaly**
+- Initial state: **Brouwer mean elements** (not osculating, not SGP4/TLE mean elements)
+- `a`, `e`, `i` are constant; `ω`, `Ω`, `M` evolve via J2 secular rates
+
+### Usage
+
+```python
+from ephem_toolkit.core.propagator import BrouwerJ2Propagator, KeplerianState, OutputMode
+from ephem_toolkit.core.consts import (
+    EARTH_GRAVITATIONAL_PARAMETER_M3_S2,
+    EARTH_EQUATORIAL_RADIUS_M,
+    EARTH_J2,
+)
+import numpy as np
+
+# Initial state must be Brouwer mean elements
+state = KeplerianState(
+    elements=np.array([7000e3, 0.001, np.radians(51.6), 0.0, 0.0, 0.0]),
+    epoch_s=0.0,
+)
+prop = BrouwerJ2Propagator(
+    initial_state=state,
+    mu_m3_s2=EARTH_GRAVITATIONAL_PARAMETER_M3_S2,
+    R_e_m=EARTH_EQUATORIAL_RADIUS_M,
+    J2=EARTH_J2,
+)
+
+epoch_s, cartesian = prop.propagate_to(3600.0, output=OutputMode.FINAL)
+```
+
+### Constructor
+
+```python
+BrouwerJ2Propagator(
+    initial_state: KeplerianState,
+    mu_m3_s2: float,                          # required (no default)
+    R_e_m: float = EARTH_EQUATORIAL_RADIUS_M,
+    J2: float = EARTH_J2,
+)
+```
+
+---
+
+## Sgp4Propagator (`core.propagator.sgp4`)
+
+**Module**: `ephem_toolkit.core.propagator.sgp4`
+
+SGP4 propagator wrapping TudatPy's `environment_setup.ephemeris.sgp4`. Requires `tudatpy`.
+
+- Initial state: `Tle` object (from `core.tle`)
+- Epoch derived from TLE `epoch_year`/`epoch_day` fields
+- TudatPy import is deferred — only triggered when `set_initial_state` is called
+
+### Usage
+
+```python
+from ephem_toolkit.core.propagator import Sgp4Propagator, OutputMode
+from ephem_toolkit.core.tle import read_tle
+
+tle_obj = read_tle("satellite.tle")
+prop = Sgp4Propagator(initial_state=tle_obj)
+
+epoch_s, cartesian = prop.propagate_to(
+    prop.get_initial_epoch_s() + 3600.0,
+    output=OutputMode.FINAL,
+)
+```
+
+### Constructor
+
+```python
+Sgp4Propagator(initial_state: Tle)
+```
+
+---
+
+## Orbital Element Utilities (`core.propagator.kepler`)
+
+**Module**: `ephem_toolkit.core.propagator.kepler`
+
+All Keplerian element conversion utilities live alongside `KeplerPropagator`.
+
+### Element Index Constants
+
+```python
+from ephem_toolkit.core.propagator.kepler import (
+    SEMI_MAJOR_AXIS_INDEX,       # 0 — semi-major axis (m)
+    ECCENTRICITY_INDEX,          # 1 — eccentricity (dimensionless)
+    INCLINATION_INDEX,           # 2 — inclination (rad)
+    ARGUMENT_OF_PERIAPSIS_INDEX, # 3 — argument of periapsis (rad)
+    RAAN_INDEX,                  # 4 — right ascension of ascending node (rad)
+    TRUE_ANOMALY_INDEX,          # 5 — true anomaly (rad)
+)
+```
 
 ### Cartesian ↔ Keplerian Conversion
 
-#### `cartesian_to_keplerian(cartesian_state_vector: np.ndarray, mu_m3_s2: float) -> np.ndarray`
-Convert Cartesian state vector(s) to osculating Keplerian elements. Supports both single and batch processing.
+#### `cartesian_to_keplerian(cartesian_state_vector, mu_m3_s2) -> np.ndarray`
+Convert Cartesian state `[x, y, z, vx, vy, vz]` (m, m/s) to osculating Keplerian elements
+`[a, e, i, ω, Ω, θ]` (m, rad).
 
-**Parameters:**
-- `cartesian_state_vector`: Shape (6,) or (N, 6) - [x, y, z, vx, vy, vz] in meters and m/s
-- `mu_m3_s2`: Gravitational parameter (m³/s²)
-
-**Returns:** Keplerian elements [a, e, i, omega, RAAN, theta] in radians and meters
-
-#### `keplerian_to_cartesian(keplerian_elements: np.ndarray, mu_m3_s2: float) -> np.ndarray`
-Convert Keplerian elements to Cartesian state vector(s). Supports both single and batch processing.
-
-**Parameters:**
-- `keplerian_elements`: Shape (6,) or (N, 6) - [a, e, i, omega, RAAN, theta]
-- `mu_m3_s2`: Gravitational parameter (m³/s²)
-
-**Returns:** Cartesian state vector(s) [x, y, z, vx, vy, vz] in m and m/s
+#### `keplerian_to_cartesian(keplerian_elements, mu_m3_s2=EARTH_GM) -> np.ndarray`
+Convert Keplerian elements `[a, e, i, ω, Ω, θ]` to Cartesian state `[x, y, z, vx, vy, vz]`.
 
 ### Anomaly Conversions
 
-#### `true_to_eccentric_anomaly(true_anomaly: float, eccentricity: float) -> float`
-Convert true anomaly to eccentric anomaly.
-
-#### `eccentric_to_true_anomaly(eccentric_anomaly: float, eccentricity: float) -> float`
-Convert eccentric anomaly to true anomaly.
-
-#### `eccentric_to_mean_anomaly(eccentric_anomaly: float, eccentricity: float) -> float`
-Convert eccentric anomaly to mean anomaly (Kepler's equation).
-
-#### `mean_to_eccentric_anomaly(mean_anomaly: float, eccentricity: float, tol: float = 1e-14, max_iter: int = 100) -> float`
-Solve Kepler's equation M = E − e·sin(E) for eccentric anomaly E using Newton-Raphson iteration.
-
-#### `mean_to_true_anomaly(mean_anomaly: float, eccentricity: float, tol: float = 1e-12) -> float`
-Convert mean anomaly to true anomaly via eccentric anomaly.
-
-#### `true_to_mean_anomaly(true_anomaly: float, eccentricity: float) -> float`
-Convert true anomaly to mean anomaly via eccentric anomaly.
+#### `true_to_eccentric_anomaly(true_anomaly, eccentricity) -> float`
+#### `eccentric_to_true_anomaly(eccentric_anomaly, eccentricity) -> float`
+#### `eccentric_to_mean_anomaly(eccentric_anomaly, eccentricity) -> float`
+#### `mean_to_eccentric_anomaly(mean_anomaly, eccentricity, tol=1e-14, max_iter=100) -> float`
+Solve Kepler's equation M = E − e·sin(E) via Newton-Raphson.
+#### `mean_to_true_anomaly(mean_anomaly, eccentricity, tol=1e-12) -> float`
+#### `true_to_mean_anomaly(true_anomaly, eccentricity) -> float`
 
 ### Mean Motion Utilities
 
-#### `mean_motion_to_semi_major_axis(mean_motion_rev_per_day: float, mu_m3_s2: float) -> float`
-Convert mean motion (rev/day) to semi-major axis (m) using Kepler's third law.
+#### `mean_motion_to_semi_major_axis(mean_motion_rev_per_day, mu_m3_s2=EARTH_GM) -> float`
+Convert mean motion (rev/day) to semi-major axis (m) via Kepler's third law.
 
-#### `semi_major_axis_to_mean_motion(semi_major_axis_m: float, mu_m3_s2: float) -> float`
-Convert semi-major axis (m) to mean motion (rev/day) using Kepler's third law.
-
-### Propagation
-
-#### `propagate_kepler(keplerian_elements: np.ndarray, time_elapsed_s: float, mu_m3_s2: float) -> np.ndarray`
-Propagate Keplerian elements forward in time using the two-body solution. Only the true anomaly changes; other elements remain constant.
+#### `semi_major_axis_to_mean_motion(semi_major_axis_m, mu_m3_s2=EARTH_GM) -> float`
+Convert semi-major axis (m) to mean motion (rev/day) via Kepler's third law.
 
 ---
 
-## ephem_toolkit.core.mean_kepler - Mean Keplerian Elements
+## Brouwer Mean Element Utilities (`core.propagator.brouwer_j2`)
 
-**Purpose**: Convert between osculating and mean (Brouwer) Keplerian elements with J2 perturbations.
+**Module**: `ephem_toolkit.core.propagator.brouwer_j2`
 
-### Key Dependencies
-- `numpy`
-- `ephem_toolkit.core.kepler`
-- `ephem_toolkit.core.consts`
+All Brouwer mean element utilities live alongside `BrouwerJ2Propagator`.
 
-### Mean to Osculating Conversion
+### Mean ↔ Osculating Conversion
 
-#### `compute_brouwer_short_period_corrections(mean_keplerian_elements: np.ndarray, R_e_m: float = EARTH_EQUATORIAL_RADIUS_M, J2: float = EARTH_J2) -> np.ndarray`
-Compute Brouwer first-order J2 short-period corrections to convert mean Keplerian elements (as used in TLE/SGP4) to osculating elements.
+#### `compute_brouwer_short_period_corrections(mean_elements, R_e_m=..., J2=...) -> np.ndarray`
+Apply Brouwer first-order J2 short-period corrections to convert mean elements
+`[a, e, i, ω, Ω, M]` to osculating elements `[a, e, i, ω, Ω, θ]`.
 
-**Parameters:**
-- `mean_keplerian_elements`: Shape (6,) or (N, 6) - [a, e, i, omega, RAAN, M]
-- `R_e_m`: Earth equatorial radius (m) (default: WGS-84)
-- `J2`: J2 zonal harmonic coefficient (default: WGS-84)
+#### `brouwer_mean_to_osculating(mean_elements, R_e_m=..., J2=...) -> np.ndarray`
+Alias for `compute_brouwer_short_period_corrections`.
 
-**Returns:** Osculating Keplerian elements [a, e, i, omega, RAAN, theta]
+#### `osculating_to_brouwer_mean(osculating_elements, R_e_m=..., J2=..., max_iter=20, tol_m=1e-12) -> np.ndarray`
+Convert osculating elements `[a, e, i, ω, Ω, θ]` to Brouwer mean elements
+`[a, e, i, ω, Ω, M]` via iterative inversion.
 
-#### `mean_to_osculating_keplerian(mean_keplerian_elements: np.ndarray, R_e_m: float = EARTH_EQUATORIAL_RADIUS_M, J2: float = EARTH_J2) -> np.ndarray`
-Alias for `compute_brouwer_short_period_corrections` provided for API consistency. Same parameters and return value.
+### Cartesian Conversion
 
-### Osculating to Mean Conversion
-
-#### `osculating_to_mean_keplerian(osculating_keplerian_elements: np.ndarray, R_e_m: float = EARTH_EQUATORIAL_RADIUS_M, J2: float = EARTH_J2, max_iter: int = 20, tol_m: float = 1e-12) -> np.ndarray`
-Convert osculating Keplerian elements to mean (Brouwer) elements using iterative inversion.
-
-**Parameters:**
-- `osculating_keplerian_elements`: Shape (6,) - [a, e, i, omega, RAAN, theta]
-- `R_e_m`: Earth equatorial radius (m) (default: WGS-84)
-- `J2`: J2 zonal harmonic coefficient (default: WGS-84)
-- `max_iter`: Maximum iterations for convergence
-- `tol_m`: Convergence tolerance on semi-major axis (m)
-
-**Returns:** Mean Keplerian elements [a, e, i, omega, RAAN, M]
+#### `brouwer_mean_to_cartesian(mean_elements, mu_m3_s2, R_e_m=..., J2=...) -> np.ndarray`
+Convert Brouwer mean elements to Cartesian state via short-period corrections.
 
 ### J2 Secular Propagation
 
-#### `compute_raan_rate(keplerian_elements: np.ndarray, mu_m3_s2: float, R_e_m: float, J2: float) -> float`
-Compute the J2 secular rate of RAAN (rad/s).
+#### `propagate_brouwer_j2(mean_elements, time_elapsed_s, mu_m3_s2, R_e_m=..., J2=...) -> np.ndarray`
+Propagate Brouwer mean elements forward in time using J2 secular rates.
+`a`, `e`, `i` are constant; `ω`, `Ω`, `M` evolve.
 
-#### `propagate_mean_j2(keplerian_elements: np.ndarray, time_elapsed_s: float, mu_m3_s2: float, R_e_m: float, J2: float) -> np.ndarray`
-Propagate mean Keplerian elements forward in time using J2 secular rates.
-
-**Parameters:**
-- `keplerian_elements`: Mean elements at epoch [a, e, i, omega, RAAN, M]
-- `time_elapsed_s`: Time elapsed since epoch (s)
-- `mu_m3_s2`: Gravitational parameter (m³/s²)
-- `R_e_m`: Earth equatorial radius (m)
-- `J2`: J2 zonal harmonic coefficient
-
-**Returns:** Mean Keplerian elements at epoch + time_elapsed_s
-
-#### `mean_elements_to_cartesian(mean_elements: np.ndarray, mu_m3_s2: float, R_e_m: float, J2: float) -> np.ndarray`
-Convert mean elements to Cartesian state via Brouwer short-period corrections.
+#### `compute_raan_rate(mean_elements, mu_m3_s2, R_e_m, J2) -> float`
+Compute the J2 secular RAAN drift rate (rad/s).
