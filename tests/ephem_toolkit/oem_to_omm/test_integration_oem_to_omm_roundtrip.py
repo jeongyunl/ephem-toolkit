@@ -163,7 +163,7 @@ def test_oem_to_omm_help_uses_command_name_and_format_aware_output() -> None:
     assert exit_code == 0
     assert "usage: oem-to-omm" in output
     assert "--output <output_omm|->" in output
-    assert "--mode <mean-kepler|tle>" in output
+    assert "--mode <brouwer|dsst|tle>" in output
 
 
 def is_geo_orbit(tle_data: tle.Tle) -> bool:

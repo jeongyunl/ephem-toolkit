@@ -12,7 +12,7 @@ The `src/oem_to_omm/` directory contains:
 
 - `oem-to-omm` — Main executable script for OMM/TLE estimation
 - `fit_common.py` — Common fitting utilities
-- `fit_mean_kepler.py` — Mean Keplerian element fitting
+- `fit_brouwer.py` — Mean Keplerian element fitting
 - `fit_tle_main.py` — TLE fitting main entry point
 - `fit_tle/` — TLE fitting submodule containing:
   - `constants.py` — Physical and mathematical constants
@@ -29,7 +29,7 @@ The `src/oem_to_omm/` directory contains:
 
 Converts OEM state vectors to mean-element OMM format. Supports two modes:
 
-- **`--mode mean-kepler`**: Fits mean Keplerian elements using J2 secular propagation
+- **`--mode brouwer`**: Fits mean Keplerian elements using J2 secular propagation
 - **`--mode tle`**: Fits TLE mean elements (SGP4-compatible) to create an OMM with TLE parameters
 
 For osculating Keplerian element fitting, use [`oem-to-opm`](OEM_TO_OPM.md).
@@ -39,7 +39,7 @@ For osculating Keplerian element fitting, use [`oem-to-opm`](OEM_TO_OPM.md).
 ```bash
 oem-to-omm [-h] [-o <output_omm|->] [-v]
                                  [--mu <value>] [--fit-span <hours>]
-                                 --mode {mean-kepler,tle}
+                                 --mode {brouwer,tle}
                                  [--object-name <name>] [--object-id <YYYY-NNNP>]
                                  [--tle-refinement <none|cartesian|keplerian>]
                                  [--tle-norad-cat-id <0..99999>]
@@ -60,7 +60,7 @@ oem-to-omm [-h] [-o <output_omm|->] [-v]
 | `-v`, `--verbose` | Print detailed debug information to stderr |
 | `--mu` | Gravitational parameter in m³/s² (default: Earth WGS-84) |
 | `--fit-span` | Maximum arc span in hours for fitting (default: 2.0) |
-| `--mode {mean-kepler,tle}` | Select conversion mode: mean-Kepler fit or TLE fit |
+| `--mode {brouwer,tle}` | Select conversion mode: mean-Kepler fit or TLE fit |
 | `--object-name` | OBJECT_NAME: Spacecraft name for OMM output |
 | `--object-id` | OBJECT_ID: International designator (e.g., 1998-067A) |
 | `--tle-refinement` | Refinement method for TLE fitting: `cartesian` (default), `keplerian`, or `none` |
@@ -465,10 +465,10 @@ Use:
 
 ### Usage Examples
 
-**Fit mean Keplerian elements (`--mode mean-kepler`):**
+**Fit mean Keplerian elements (`--mode brouwer`):**
 
 ```bash
-oem-to-omm --mode mean-kepler input.oem -o output.omm
+oem-to-omm --mode brouwer input.oem -o output.omm
 ```
 
 **Fit TLE elements (`--mode tle`) with default Cartesian refinement:**

@@ -15,7 +15,7 @@ import pytest
 
 import core.convert_tle as convert_tle
 import core.propagator.kepler as kepler
-import core.propagator.brouwer_j2 as mean_kepler
+import core.propagator.brouwer_j2 as brouwer
 import core.tle as tle
 import core.consts as consts
 
@@ -177,7 +177,7 @@ def test_mean_motion_semi_major_axis_round_trip() -> None:
 
 def test_osculating_to_brouwer_mean_returns_six_element_array() -> None:
     """Should return a NumPy array of six mean Keplerian elements."""
-    result = mean_kepler.osculating_to_brouwer_mean(
+    result = brouwer.osculating_to_brouwer_mean(
         np.array([7000e3, 0.01, 0.1, 0.3, 0.2, 1.0], dtype=float)
     )
 

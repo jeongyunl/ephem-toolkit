@@ -40,13 +40,13 @@ def test_fit_diagnostics_dataclass() -> None:
         span_s=7200.0,
         epoch_pos_delta_m=5.0,
         epoch_vel_delta_m_s=0.1,
-        fit_method="mean_kepler_j2_velocity_fit",
+        fit_method="brouwer_j2_velocity_fit",
     )
     assert diagnostics.rms_position_m == 100.0
     assert diagnostics.iterations == 10
     assert diagnostics.n_records == 50
     assert diagnostics.span_s == 7200.0
-    assert diagnostics.fit_method == "mean_kepler_j2_velocity_fit"
+    assert diagnostics.fit_method == "brouwer_j2_velocity_fit"
 
 
 def test_fit_diagnostics_optional_fields() -> None:

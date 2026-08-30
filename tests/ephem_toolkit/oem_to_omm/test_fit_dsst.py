@@ -22,7 +22,7 @@ from ephem_toolkit.core.propagator.kepler import (
     keplerian_to_cartesian,
     true_to_mean_anomaly,
 )
-from ephem_toolkit.oem_to_omm.fit_mean_kepler import fit_dsst_mean_elements
+from ephem_toolkit.oem_to_omm.fit_brouwer import fit_dsst_mean_elements
 
 _MU = EARTH_GRAVITATIONAL_PARAMETER_M3_S2
 

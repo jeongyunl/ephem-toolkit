@@ -32,9 +32,9 @@ class OemToOmmArgs(argparse.Namespace):
     fit_span: timedelta
     """Maximum arc span for the fit."""
     mode: str
-    """Selected conversion mode: mean-kepler, dsst, or tle."""
+    """Selected conversion mode: brouwer, dsst, or tle."""
     theory: str
-    """Mean element theory for mean-kepler/dsst modes."""
+    """Mean element theory for brouwer/dsst modes."""
     object_name: str
     """Spacecraft name for OMM metadata."""
     object_id: str
@@ -79,7 +79,7 @@ def parse_arguments(argv=None) -> OemToOmmArgs:
         description="Convert OEM state vectors to Keplerian elements or OMM.",
         epilog=(
             "Examples:\n"
-            "  oem-to-omm --mode mean-kepler input.oem -o output.omm\n"
+            "  oem-to-omm --mode brouwer input.oem -o output.omm\n"
             "  cat input.oem | oem-to-omm --mode tle - -o -\n"
             "  cat input.oem | oem-to-omm --mode tle - -o output.omm"
         ),
@@ -130,11 +130,11 @@ def parse_arguments(argv=None) -> OemToOmmArgs:
     parser.add_argument(
         "--mode",
         dest="mode",
-        choices=["mean-kepler", "dsst", "tle"],
+        choices=["brouwer", "dsst", "tle"],
         default="tle",
-        metavar="<mean-kepler|dsst|tle>",
+        metavar="<brouwer|dsst|tle>",
         help=(
-            "'mean-kepler' fits Brouwer mean elements, "
+            "'brouwer' fits Brouwer mean elements, "
             "'dsst' fits DSST mean elements, "
             "and 'tle' fits a TLE."
         ),

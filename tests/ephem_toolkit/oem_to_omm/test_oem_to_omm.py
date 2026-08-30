@@ -45,7 +45,7 @@ def test_parse_arguments_fit_span_accepts_duration_strings(monkeypatch):
         [
             "oem-to-omm",
             "--mode",
-            "mean-kepler",
+            "brouwer",
             "--fit-span",
             "90m",
             "input.oem",
@@ -67,7 +67,7 @@ def test_parse_arguments_fit_span_default_is_two_hours(monkeypatch):
         [
             "oem-to-omm",
             "--mode",
-            "mean-kepler",
+            "brouwer",
             "input.oem",
             "--output",
             "-",
@@ -101,8 +101,8 @@ def test_report_error_exits_with_code():
     assert excinfo.value.code == 7
 
 
-def test_main_mean_kepler_mode_uses_duration_and_writes_omm(monkeypatch, tmp_path):
-    """Mean-kepler mode should convert the fit duration to seconds and write OMM output."""
+def test_main_brouwer_mode_uses_duration_and_writes_omm(monkeypatch, tmp_path):
+    """Brouwer mode should convert the fit duration to seconds and write OMM output."""
     states = [
         (0.0, np.array([7000.0, 0.0, 0.0, 0.0, 7.5, 0.0], dtype=float)),
         (600.0, np.array([7000.0, 0.0, 0.0, 0.0, 7.5, 0.0], dtype=float)),
@@ -114,25 +114,25 @@ def test_main_mean_kepler_mode_uses_duration_and_writes_omm(monkeypatch, tmp_pat
         lambda *_args, **_kwargs: DummyOemData(states, DummyMeta()),
     )
     monkeypatch.setattr(
-        oem_to_omm.fit_mean_kepler,
-        "fit_mean_kepler",
+        oem_to_omm.fit_brouwer,
+        "fit_brouwer",
         lambda *_args, **_kwargs: (
             np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
             {"status": "ok"},
         ),
     )
     monkeypatch.setattr(
-        oem_to_omm.fit_mean_kepler,
-        "compute_mean_kepler_propagation_comparison",
+        oem_to_omm.fit_brouwer,
+        "compute_brouwer_propagation_comparison",
         lambda *_args, **_kwargs: [],
     )
     monkeypatch.setattr(
-        oem_to_omm.fit_mean_kepler,
-        "format_mean_kepler_output",
+        oem_to_omm.fit_brouwer,
+        "format_brouwer_output",
         lambda *_args, **_kwargs: "MEAN_OUTPUT",
     )
     monkeypatch.setattr(
-        oem_to_omm.mean_kepler,
+        oem_to_omm.brouwer,
         "brouwer_mean_to_osculating",
         lambda *_args, **_kwargs: np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
     )
@@ -148,7 +148,7 @@ def test_main_mean_kepler_mode_uses_duration_and_writes_omm(monkeypatch, tmp_pat
         [
             "oem-to-omm",
             "--mode",
-            "mean-kepler",
+            "brouwer",
             "--fit-span",
             "90m",
             "input.oem",

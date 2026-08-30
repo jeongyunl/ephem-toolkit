@@ -40,7 +40,7 @@ warnings.filterwarnings(
 
 import ephem_toolkit.core.consts as consts
 import ephem_toolkit.core.convert_tle as convert_tle
-import ephem_toolkit.core.propagator.brouwer_j2 as mean_kepler
+import ephem_toolkit.core.propagator.brouwer_j2 as brouwer
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.ccsds.omm as omm
 import ephem_toolkit.core.time_utils as time_utils
@@ -54,7 +54,7 @@ except ImportError:  # pragma: no cover - direct script execution fallback
     from ephem_toolkit.oem_to_omm.oem_to_omm_cli import parse_arguments
 
 from . import fit_common
-from . import fit_mean_kepler
+from . import fit_brouwer
 from . import fit_tle_main as fit_tle
 
 # ===================================================================
@@ -151,7 +151,7 @@ def main(argv=None) -> None:
 
         perturbations = DsstPerturbations(include_j2=True)
         try:
-            fitted_mean_elements, diagnostics = fit_mean_kepler.fit_dsst_mean_elements(
+            fitted_mean_elements, diagnostics = fit_brouwer.fit_dsst_mean_elements(
                 states,
                 fit_span_s,
                 cli_args.mu_m3_s2,
@@ -195,12 +195,12 @@ def main(argv=None) -> None:
                 report_error(f"Error writing OMM file: {error}")
         return
 
-    if cli_args.mode == "mean-kepler":
+    if cli_args.mode == "brouwer":
         # Run the Gauss-Newton velocity-only fit for mean elements
         fitted_mean_elements: np.ndarray
         diagnostics: fit_common.FitDiagnostics
         try:
-            fitted_mean_elements, diagnostics = fit_mean_kepler.fit_mean_kepler(
+            fitted_mean_elements, diagnostics = fit_brouwer.fit_brouwer(
                 states,
                 fit_span_s,
                 cli_args.mu_m3_s2,
@@ -210,7 +210,7 @@ def main(argv=None) -> None:
 
         # Compute propagation comparison at 10-minute intervals
         comparison: list[fit_common.PropagationComparison] = (
-            fit_mean_kepler.compute_mean_kepler_propagation_comparison(
+            fit_brouwer.compute_brouwer_propagation_comparison(
                 fitted_mean_elements,
                 states,
                 cli_args.mu_m3_s2,
@@ -221,7 +221,7 @@ def main(argv=None) -> None:
 
         # Format and report output
         first_epoch: datetime = time_utils.tt_s_to_datetime(states[0][0])
-        output_text: str = fit_mean_kepler.format_mean_kepler_output(
+        output_text: str = fit_brouwer.format_brouwer_output(
             first_epoch, fitted_mean_elements, diagnostics, comparison
         )
 
@@ -235,7 +235,7 @@ def main(argv=None) -> None:
         if cli_args.output_omm:
             try:
                 osculating_elements: np.ndarray = (
-                    mean_kepler.brouwer_mean_to_osculating(fitted_mean_elements)
+                    brouwer.brouwer_mean_to_osculating(fitted_mean_elements)
                 )
                 mean_element_theory = cli_args.theory or "BROUWER-LYDDANE"
                 omm_obj: omm.CcsdsOmm = omm.keplerian_to_omm(

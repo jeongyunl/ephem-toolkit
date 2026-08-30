@@ -63,7 +63,7 @@ from ephem_toolkit.core.propagator.kepler import (
 
 
 def compute_brouwer_short_period_corrections(
-    mean_keplerian_elements: np.ndarray,
+    brouwerian_elements: np.ndarray,
     R_e_m: float = EARTH_EQUATORIAL_RADIUS_M,
     J2: float = EARTH_J2,
 ) -> np.ndarray:
@@ -76,7 +76,7 @@ def compute_brouwer_short_period_corrections(
 
     Parameters
     ----------
-    mean_keplerian_elements : np.ndarray
+    brouwerian_elements : np.ndarray
         Brouwer mean Keplerian element vector(s) [a, e, i, omega, RAAN, M].
         - Shape (6,): Single element set
         - Shape (N, 6): Batch of N element sets
@@ -97,7 +97,7 @@ def compute_brouwer_short_period_corrections(
     Brouwer, D. "Solution of the Problem of Artificial Satellite Theory
     Without Drag", Astronomical Journal, 64, 1959.
     """
-    mean_elements: np.ndarray = np.asarray(mean_keplerian_elements, dtype=float)
+    mean_elements: np.ndarray = np.asarray(brouwerian_elements, dtype=float)
 
     if mean_elements.ndim == 1:
         if mean_elements.shape != (6,):
@@ -215,7 +215,7 @@ def compute_brouwer_short_period_corrections(
 
 
 def brouwer_mean_to_osculating(
-    mean_keplerian_elements: np.ndarray,
+    brouwerian_elements: np.ndarray,
     R_e_m: float = EARTH_EQUATORIAL_RADIUS_M,
     J2: float = EARTH_J2,
 ) -> np.ndarray:
@@ -225,7 +225,7 @@ def brouwer_mean_to_osculating(
 
     Parameters
     ----------
-    mean_keplerian_elements : np.ndarray
+    brouwerian_elements : np.ndarray
         Brouwer mean elements [a, e, i, omega, RAAN, M].
     R_e_m : float
         Earth equatorial radius (m).
@@ -238,7 +238,7 @@ def brouwer_mean_to_osculating(
         Osculating Keplerian elements [a, e, i, omega, RAAN, theta].
     """
     return compute_brouwer_short_period_corrections(
-        mean_keplerian_elements, R_e_m=R_e_m, J2=J2
+        brouwerian_elements, R_e_m=R_e_m, J2=J2
     )
 
 
