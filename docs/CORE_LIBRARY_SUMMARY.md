@@ -13,10 +13,12 @@ Core utilities for time conversions, ISO 8601 formatting, duration parsing, and 
 - **ephem_toolkit.core.spice_utils** - SPICE kernel path management and loading
 - **ephem_toolkit.core.consts** - Earth physical constants (gravitational parameter, radius, J2)
 
-### 2. [Orbital Elements](CORE_LIBRARY_ORBITAL_ELEMENTS.md)
-Conversions between Cartesian states and Keplerian orbital elements, including mean element calculations.
-- **ephem_toolkit.core.kepler** - Cartesian ↔ Keplerian conversions, anomaly conversions, mean motion utilities, propagation
-- **ephem_toolkit.core.mean_kepler** - Mean ↔ Osculating conversions with J2 perturbations, J2 secular propagation
+### 2. [Orbital Elements & Propagators](CORE_LIBRARY_ORBITAL_ELEMENTS.md)
+Propagator class hierarchy, Keplerian element conversions, and mean element calculations.
+- **ephem_toolkit.core.propagator** - `Propagator` ABC, `KeplerianState`, `AnomalyType`, `OutputMode`
+- **ephem_toolkit.core.propagator.kepler** - `KeplerPropagator` (two-body), Cartesian ↔ Keplerian conversions, anomaly conversions, mean motion utilities
+- **ephem_toolkit.core.propagator.brouwer_j2** - `BrouwerJ2Propagator` (J2 mean-element), Brouwer mean ↔ osculating conversions, J2 secular propagation
+- **ephem_toolkit.core.propagator.sgp4** - `Sgp4Propagator` (SGP4/TudatPy, requires tudatpy)
 
 ### 3. [TLE & OMM](CORE_LIBRARY_TLE_OMM.md)
 Two-Line Element sets, Orbit Mean-Elements Messages, and format conversions.
@@ -54,9 +56,11 @@ OEM data slicing and interpolation utilities.
 - See: [Orbital Elements](CORE_LIBRARY_ORBITAL_ELEMENTS.md) and [TLE & OMM](CORE_LIBRARY_TLE_OMM.md)
 
 ### Orbital Propagation
-- Two-body Keplerian propagation
-- J2 secular propagation of mean elements
-- See: [Orbital Elements](CORE_LIBRARY_ORBITAL_ELEMENTS.md)
+- Two-body Keplerian: `KeplerPropagator(initial_state, mu_m3_s2)`
+- J2 mean-element: `BrouwerJ2Propagator(initial_state, mu_m3_s2, R_e_m, J2)`
+- SGP4 (TLE): `Sgp4Propagator(tle_obj)` (requires tudatpy)
+- All return Cartesian states via `propagate_to(epoch_s)` / `propagate_by(elapsed_s)`
+- See: [Orbital Elements & Propagators](CORE_LIBRARY_ORBITAL_ELEMENTS.md)
 
 ### File I/O
 - Read/write TLE files

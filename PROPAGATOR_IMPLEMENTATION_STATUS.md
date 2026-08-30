@@ -102,17 +102,16 @@
 
 ### SGP4 Propagator ✅
 
-✅ **`core/tle.py`** — DELETED, migrated to `core/propagator/sgp4.py`
-
-✅ **`core/propagator/sgp4.py`** - SGP4 propagator + all TLE utilities
-- `Sgp4Propagator(Propagator[Tle])`
-- `Tle` dataclass (all TLE parsing/formatting)
-- `read_tle()`, `write_tle()`, `format_tle_strings()`
+✅ **`core/tle.py`** — TLE I/O and object code (restored to `core/tle.py`)
+- `Tle` dataclass, `read_tle()`, `write_tle()`, `format_tle_strings()`
 - `create_tle_from_mean_keplerian()`
 - Epoch conversions: `tle_epoch_to_tt_s()`, `tle_epoch_to_datetime()`, `datetime_to_tle_epoch()`
 - ISO 8601 conversions: `tle_epoch_to_iso8601()`, `iso8601_to_tle_epoch()`
+
+✅ **`core/propagator/sgp4.py`** - SGP4 propagator only
+- `Sgp4Propagator(Propagator[Tle])`
+- Imports `Tle` utilities from `core.tle`
 - Wraps TudatPy's `environment_setup.ephemeris.sgp4`
-- All callers updated to import from `core.propagator.sgp4`
 
 ✅ **`tests/ephem_toolkit/core/propagator/test_sgp4.py`** (8 tests, skipped without tudatpy)
 - Initialization, epoch derivation
@@ -120,11 +119,12 @@
 - Reference epoch advancement
 - `set_initial_state` replacement
 
-✅ **All source files updated** to import from `core.propagator.sgp4`:
+✅ **All source files import TLE from `core.tle`**:
 - `oem_to_omm/__main__.py`, `oem_to_omm/fit_tle_main.py`
 - `oem_to_omm/fit_tle/estimation.py`, `oem_to_omm/fit_tle/tle_builder.py`
 - `oem_to_omm/fit_tle/refinement.py`, `tle_to_omm/tle_to_omm.py`
 - `omm_to_tle/omm_to_tle.py`, `propagate_omm/__main__.py`
+- `core/convert_tle.py`
 
 ### DSST Propagator (future work) ⏳
 ⏳ **`core/propagator/dsst.py`** - DSST semi-analytical propagator
@@ -146,11 +146,15 @@
 
 ⏳ **`tests/ephem_toolkit/core/propagator/test_numerical.py`**
 
-### Documentation ⏳
-⏳ **`docs/CORE_LIBRARY_ORBITAL_ELEMENTS.md`** update
-- Document propagator submodule
-- Usage examples with `KeplerPropagator`
-- API reference
+### Documentation ✅
+✅ **`docs/CORE_LIBRARY_ORBITAL_ELEMENTS.md`** updated
+- Propagator interface (`Propagator` ABC, `KeplerianState`, `AnomalyType`, `OutputMode`)
+- `KeplerPropagator`, `BrouwerJ2Propagator`, `Sgp4Propagator` usage examples
+- Orbital element utilities API reference (anomaly conversions, mean motion, Brouwer utilities)
+
+✅ **`docs/CORE_LIBRARY_SUMMARY.md`** updated
+- Section 2 updated to list `core.propagator` submodules
+- Quick Reference "Orbital Propagation" updated with propagator class examples
 
 ## Design Decisions Implemented
 
@@ -168,5 +172,4 @@
 
 ## Next Steps
 
-1. Update `docs/CORE_LIBRARY_ORBITAL_ELEMENTS.md`
-2. Implement `NumericalPropagator` (after `propagate_orbit` core migration)
+1. Implement `NumericalPropagator` (after `propagate_orbit` → `core` migration per `PROPAGATE_ORBIT_CORE_MODULARIZATION_PLAN.md`)

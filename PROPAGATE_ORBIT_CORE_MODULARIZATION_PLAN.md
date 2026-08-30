@@ -1,6 +1,6 @@
 # Design & Plan: Modularizing `propagate_orbit`'s Propagation Engine into `core`
 
-**Status**: Blocked by propagator interface completion. KeplerPropagator, BrouwerJ2Propagator, and Sgp4Propagator are complete. NumericalPropagator implementation is the final step.
+**Status**: Ready to proceed. Propagator interface complete (KeplerPropagator, BrouwerJ2Propagator, Sgp4Propagator, docs). NumericalPropagator is the only remaining propagator — requires this migration first.
 
 ## 1. Motivation
 
@@ -191,9 +191,10 @@ avoid an undocumented, untested core module.
 - ✅ `core/propagator/base.py` - `Propagator[InitialStateT]` ABC, `OutputMode`, `AnomalyType`, `KeplerianState`
 - ✅ `core/propagator/kepler.py` - `KeplerPropagator` (two-body Keplerian)
 - ✅ `core/propagator/brouwer_j2.py` - `BrouwerJ2Propagator` (J2 mean-element)
-- ✅ `core/propagator/sgp4.py` - `Sgp4Propagator` + all TLE utilities (migrated from `core/tle.py`)
-- ✅ All legacy `core/kepler.py` and `core/mean_kepler.py` functions deleted
-- ✅ All callers updated to use propagator classes
+- ✅ `core/propagator/sgp4.py` - `Sgp4Propagator` only (imports `Tle` from `core.tle`)
+- ✅ `core/tle.py` - `Tle` dataclass, `read_tle`, `write_tle`, epoch utilities
+- ✅ All legacy `core/kepler.py` and `core/mean_kepler.py` deleted; all callers updated
+- ✅ `docs/CORE_LIBRARY_ORBITAL_ELEMENTS.md` and `docs/CORE_LIBRARY_SUMMARY.md` updated
 
 **Remaining**:
 
@@ -206,4 +207,3 @@ Once `NumericalPropagator` is implemented following this plan, all four propagat
 1. Implement steps 1-6 from §4 to extract numerical propagation engine to `core/`
 2. Implement `NumericalPropagator` in `core/propagator/numerical.py` following the interface design
 3. Complete steps 7-10 (tests/docs)
-4. Update `docs/CORE_LIBRARY_ORBITAL_ELEMENTS.md` with propagator submodule documentation
