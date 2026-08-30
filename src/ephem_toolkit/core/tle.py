@@ -529,6 +529,24 @@ def tle_epoch_to_tt_s(epoch_year: int, epoch_day: float) -> float:
     return time_utils.datetime_to_tt_s(tle_epoch_to_datetime(epoch_year, epoch_day))
 
 
+def tle_epoch_to_tdb_s(epoch_year: int, epoch_day: float) -> float:
+    """Convert TLE epoch to Barycentric Dynamical Time (TDB) seconds since J2000.
+
+    Parameters
+    ----------
+    epoch_year : int
+        Two-digit year from TLE (e.g. 24 for 2024, 99 for 1999).
+    epoch_day : float
+        Fractional day of year from TLE (e.g. 32.5 = Feb 1 at 12:00).
+
+    Returns
+    -------
+    float
+        Epoch in TT seconds since J2000 (2000-01-01 12:00:00 TT).
+    """
+    return time_utils.datetime_to_tdb_s(tle_epoch_to_datetime(epoch_year, epoch_day))
+
+
 def tle_epoch_to_iso8601(epoch_year: int, epoch_day: float) -> str:
     """Convert TLE epoch (2-digit year + fractional day) to a human-readable string.
 

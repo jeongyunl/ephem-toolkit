@@ -52,6 +52,7 @@ from ephem_toolkit.core.propagator import (
     KeplerPropagator,
     KeplerianState,
     OutputMode,
+    Sgp4Propagator,
 )
 import ephem_toolkit.core.spice_utils as spice_utils
 import ephem_toolkit.core.time_utils as time_utils
@@ -147,7 +148,7 @@ def propagate_tle_sgp4(
     data_only: bool,
     output_path: str = "-",
 ) -> None:
-    """Propagate a TLE with TudatPy SGP4 and emit OEM output.
+    """Propagate a TLE with SGP4 and emit OEM output.
 
     Parameters
     ----------
@@ -164,19 +165,9 @@ def propagate_tle_sgp4(
     output_path : str, optional
         Output path or "-" for stdout.
     """
-    from tudatpy.dynamics import environment_setup
-
     object_name: str = tle_obj.object_name or "UNKNOWN"
 
-    line1, line2 = tle_mod.format_tle_strings(tle_obj)
-
     load_spice_kernels()
-
-    # Create SGP4 ephemeris
-    tle_ephemeris_settings = environment_setup.ephemeris.sgp4(line1, line2)
-    tle_ephemeris = environment_setup.create_body_ephemeris(
-        tle_ephemeris_settings, body_name=object_name
-    )
 
     if stop_time < start_time:
         raise ValueError(
@@ -185,13 +176,18 @@ def propagate_tle_sgp4(
             f"  Resolved stop:  {time_utils.datetime_to_iso8601(stop_time)}"
         )
 
+    # Create SGP4 propagator
+    propagator = Sgp4Propagator(tle_obj)
+
     propagated_states: list[tuple[float, np.ndarray]] = []
     step_dt = dt.timedelta(seconds=step_s)
     current_time: dt.datetime = start_time
     while current_time <= stop_time:
         current_tt_s: float = time_utils.datetime_to_tt_s(current_time)
-        state_m: np.ndarray = tle_ephemeris.cartesian_state(current_tt_s)
-        propagated_states.append((current_tt_s, state_m))
+        epoch_tt_s, state_m = propagator.propagate_to(
+            current_tt_s, output=OutputMode.FINAL
+        )
+        propagated_states.append((epoch_tt_s, state_m))
         current_time = current_time + step_dt
 
     _write_oem_output(
@@ -287,7 +283,11 @@ def propagate_omm_dsst(
     perturbations = DsstPerturbations(include_j2=True)
     if omm_data.spacecraft_parameters is not None:
         sp = omm_data.spacecraft_parameters
-        if sp.drag_area is not None and sp.drag_coeff is not None and sp.mass is not None:
+        if (
+            sp.drag_area is not None
+            and sp.drag_coeff is not None
+            and sp.mass is not None
+        ):
             perturbations.include_drag = True
             perturbations.drag_area_m2 = sp.drag_area
             perturbations.drag_coeff = sp.drag_coeff
