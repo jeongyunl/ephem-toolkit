@@ -32,6 +32,7 @@ import ephem_toolkit.core.time_utils as time_utils
 import ephem_toolkit.core.tle as tle
 import ephem_toolkit.core.convert_tle as convert_tle
 import ephem_toolkit.core.spice_utils as spice_utils
+from ephem_toolkit.core.propagator.sgp4 import Sgp4Propagator
 from . import fit_common
 from .fit_tle import estimation
 from .fit_tle import models
@@ -152,14 +153,6 @@ def load_spice_kernels() -> None:
 
     for kernel_file in spice_kernel_files:
         spice_utils.load_kernel(kernel_file)
-
-
-def create_tle_ephemeris(line1, line2, object_name):
-    tle_ephemeris_settings = environment_setup.ephemeris.sgp4(line1, line2)
-    tle_ephemeris = environment_setup.create_body_ephemeris(
-        tle_ephemeris_settings, body_name=object_name
-    )
-    return tle_ephemeris
 
 
 load_spice_kernels()
@@ -336,16 +329,14 @@ def _compute_sgp4_residuals_from_mean_elements(
         a_m, e, i_rad, omega_rad, raan_rad, M_rad, epoch_year, epoch_day
     )
 
-    line1_str, line2_str = tle.format_tle_strings(test_tle)
-    tle_ephemeris = create_tle_ephemeris(line1_str, line2_str, object_name="FIT")
+    propagator = Sgp4Propagator(test_tle)
+    epoch_s = propagator.get_initial_epoch_s()
 
     n_samples: int = len(time_offsets_s)
     residuals: np.ndarray = np.zeros(n_samples * 3)
 
     for i, dt_s in enumerate(time_offsets_s):
-        predicted_state: np.ndarray = tle_ephemeris.cartesian_state(
-            tle_ephemeris.tle.reference_epoch + dt_s
-        )
+        _, predicted_state = propagator.propagate_to(epoch_s + dt_s)
         residuals[i * 3 : i * 3 + 3] = target_positions_m[i] - predicted_state[:3]
 
     return residuals
@@ -472,8 +463,8 @@ def fit_tle(
     span_s: float = states[-1][0] - reference_timestamp
 
     # Compute RMS position error by comparing TLE propagation with OEM states
-    line1_str, line2_str = tle.format_tle_strings(tle_obj)
-    tle_ephemeris = create_tle_ephemeris(line1_str, line2_str, object_name=object_name)
+    propagator = Sgp4Propagator(tle_obj)
+    epoch_s = propagator.get_initial_epoch_s()
 
     position_errors: list[float] = []
     for timestamp, state_vector in states:
@@ -481,9 +472,7 @@ def fit_tle(
         if dt_s > fit_span_s:
             break
         try:
-            predicted_state: np.ndarray = tle_ephemeris.cartesian_state(
-                tle_ephemeris.tle.reference_epoch + dt_s
-            )
+            _, predicted_state = propagator.propagate_to(epoch_s + dt_s)
             pos_error: float = float(
                 np.linalg.norm(state_vector[:3] - predicted_state[:3])
             )
@@ -601,12 +590,7 @@ def compute_tle_propagation_comparison(
 
     results: list[fit_common.PropagationComparison] = []
 
-    line1_str, line2_str = tle.format_tle_strings(tle_obj)
-    # print("compute_tle_propagation_comparison()")
-    # print(f"DEBUG TLE Line 1: {line1_str}")
-    # print(f"DEBUG TLE Line 2: {line2_str}")
-
-    tle_ephemeris = create_tle_ephemeris(line1_str, line2_str, object_name="OBJECT")
+    propagator = Sgp4Propagator(tle_obj)
 
     for elapsed_s in comparison_times_s:
         # Find closest OEM state to comparison time
@@ -626,9 +610,7 @@ def compute_tle_propagation_comparison(
         actual_elapsed_s: float = closest_state[0] - reference_timestamp
         oem_state: np.ndarray = closest_state[1]
 
-        predicted_state: np.ndarray = tle_ephemeris.cartesian_state(
-            tle_ephemeris.tle.reference_epoch + actual_elapsed_s
-        )
+        _, predicted_state = propagator.propagate_to(closest_state[0])
 
         # Compute position and velocity differences
         pos_diff_m: np.ndarray = oem_state[:3] - predicted_state[:3]
@@ -911,11 +893,9 @@ def _sgp4_position(
     test_tle = _create_test_tle(
         a_m, e, i_rad, omega_rad, raan_rad, M_rad, epoch_year, epoch_day
     )
-    line1_str, line2_str = tle.format_tle_strings(test_tle)
-    tle_ephemeris = create_tle_ephemeris(line1_str, line2_str, object_name="REFINE")
-    predicted_state: np.ndarray = tle_ephemeris.cartesian_state(
-        tle_ephemeris.tle.reference_epoch
-    )
+    propagator = Sgp4Propagator(test_tle)
+    epoch_s = propagator.get_initial_epoch_s()
+    _, predicted_state = propagator.propagate_to(epoch_s)
     return predicted_state[:3]
 
 
@@ -1141,11 +1121,9 @@ def verify_tle_epoch_position(
             f"Expected position must have shape (3,), got {expected_pos.shape}"
         )
 
-    line1_str, line2_str = tle.format_tle_strings(tle_obj)
-    tle_ephemeris = create_tle_ephemeris(line1_str, line2_str, object_name="VERIFY")
-    predicted_state: np.ndarray = tle_ephemeris.cartesian_state(
-        tle_ephemeris.tle.reference_epoch
-    )
+    propagator = Sgp4Propagator(tle_obj)
+    epoch_s = propagator.get_initial_epoch_s()
+    _, predicted_state = propagator.propagate_to(epoch_s)
 
     pos_diff: np.ndarray = expected_pos - predicted_state[:3]
     pos_error: float = float(np.linalg.norm(pos_diff))
