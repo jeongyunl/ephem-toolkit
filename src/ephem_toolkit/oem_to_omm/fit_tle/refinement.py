@@ -12,12 +12,14 @@ from __future__ import annotations
 import argparse
 import math
 from dataclasses import replace
+import io
 
 import numpy as np
 
 import ephem_toolkit.core.misc as misc
 import ephem_toolkit.core.convert_tle as convert_tle
 import ephem_toolkit.core.propagator.kepler as kepler
+import ephem_toolkit.core.propagator.sgp4 as sgp4_propagator
 import ephem_toolkit.core.tle as tle
 import ephem_toolkit.core.consts as consts
 
@@ -53,22 +55,15 @@ def evaluate_tle_epoch_states_m(
     list[np.ndarray] | None
         List of state vectors (6,) [x, y, z, vx, vy, vz] in m and m/s, or None on failure.
     """
-    if environment_setup is None or spice is None:
-        return None
+    states: list[np.ndarray] = []
+    for line1, line2 in line_pairs:
+        tle_obj = tle.read_tle(io.StringIO(f"{line1}\n{line2}"))
+        propagator = sgp4_propagator.Sgp4Propagator(tle_obj)
+        epoch_s = propagator.get_initial_epoch_s()
+        _, state = propagator.propagate_to(epoch_s)  # (6,) in meters
+        states.append(state)
 
-    try:
-        states: list[np.ndarray] = []
-        for line1, line2 in line_pairs:
-            settings = environment_setup.ephemeris.sgp4(line1, line2)
-            ephemeris = environment_setup.create_body_ephemeris(
-                settings, body_name="state_match"
-            )
-            tle_obj = ephemeris.tle
-            state = ephemeris.cartesian_state(tle_obj.reference_epoch)  # (6,) in meters
-            states.append(np.asarray(state, dtype=float))  # (6,)
-        return states
-    except Exception:
-        return None
+    return states
 
 
 def evaluate_tle_states_for_offsets_m(
@@ -90,24 +85,15 @@ def evaluate_tle_states_for_offsets_m(
     list[np.ndarray] | None
         List of state vectors (6,) [x, y, z, vx, vy, vz] in m and m/s, or None on failure.
     """
-    if environment_setup is None or spice is None:
-        return None
+    tle_obj = tle.read_tle(io.StringIO(f"{line1}\n{line2}"))
+    propagator = sgp4_propagator.Sgp4Propagator(tle_obj)
+    epoch_s = propagator.get_initial_epoch_s()
 
-    try:
-        settings = environment_setup.ephemeris.sgp4(line1, line2)
-        ephemeris = environment_setup.create_body_ephemeris(
-            settings, body_name="state_match_arc"
-        )
-        tle_obj = ephemeris.tle
-        epoch = tle_obj.reference_epoch
-
-        states: list[np.ndarray] = []
-        for dt in time_offsets_s:
-            state = ephemeris.cartesian_state(epoch + dt)  # (6,) in meters
-            states.append(np.asarray(state, dtype=float))  # (6,)
-        return states
-    except Exception:
-        return None
+    states: list[np.ndarray] = []
+    for dt in time_offsets_s:
+        _, state = propagator.propagate_to(epoch_s + dt)  # (6,) in meters
+        states.append(state)
+    return states
 
 
 def clamp_refined_elements(params: TleParameters) -> TleParameters:
