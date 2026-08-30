@@ -1,5 +1,7 @@
 # Design & Plan: Modularizing `propagate_orbit`'s Propagation Engine into `core`
 
+**Status**: Blocked by propagator interface completion. KeplerPropagator, BrouwerJ2Propagator, and Sgp4Propagator are complete. NumericalPropagator implementation is the final step.
+
 ## 1. Motivation
 
 `propagate_orbit/` currently bundles two distinct concerns in one feature package:
@@ -182,16 +184,26 @@ avoid an undocumented, untested core module.
   in `propagate_orbit/` that references it; use a symbol rename tool rather than manual
   find/replace to avoid missed references.
 
-## 6. Future Extensibility
+## 6. Current Propagator Interface Status
 
-Once this lands, `core/` will hold three propagator engines: `core.kepler` (two-body),
-`core.mean_kepler` (J2 mean-element), and `core.numerical_propagation` (perturbed
-numerical). The common `Propagator` interface (see
-[docs/PROPAGATOR_INTERFACE_DESIGN.md](PROPAGATOR_INTERFACE_DESIGN.md)) will be added
-separately in `core/propagator/` submodule, with propagator classes in:
-- `core/propagator/kepler.py` - `KeplerPropagator`
-- `core/propagator/mean_j2.py` - `MeanJ2Propagator`
-- `core/propagator/numerical.py` - `NumericalPropagator`
-- `core/propagator/sgp4.py` - `Sgp4Propagator`
+**Completed** (see [PROPAGATOR_IMPLEMENTATION_STATUS.md](PROPAGATOR_IMPLEMENTATION_STATUS.md)):
 
-Future DSST/USM propagators would follow the same `core/propagator/<name>.py` pattern.
+- ✅ `core/propagator/base.py` - `Propagator[InitialStateT]` ABC, `OutputMode`, `AnomalyType`, `KeplerianState`
+- ✅ `core/propagator/kepler.py` - `KeplerPropagator` (two-body Keplerian)
+- ✅ `core/propagator/brouwer_j2.py` - `BrouwerJ2Propagator` (J2 mean-element)
+- ✅ `core/propagator/sgp4.py` - `Sgp4Propagator` + all TLE utilities (migrated from `core/tle.py`)
+- ✅ All legacy `core/kepler.py` and `core/mean_kepler.py` functions deleted
+- ✅ All callers updated to use propagator classes
+
+**Remaining**:
+
+- ⏳ `core/propagator/numerical.py` - `NumericalPropagator` (blocked by this plan)
+
+Once `NumericalPropagator` is implemented following this plan, all four propagators will share the common `Propagator` interface. Future DSST/USM propagators would follow the same `core/propagator/<name>.py` pattern.
+
+## 7. Next Steps
+
+1. Implement steps 1-6 from §4 to extract numerical propagation engine to `core/`
+2. Implement `NumericalPropagator` in `core/propagator/numerical.py` following the interface design
+3. Complete steps 7-10 (tests/docs)
+4. Update `docs/CORE_LIBRARY_ORBITAL_ELEMENTS.md` with propagator submodule documentation

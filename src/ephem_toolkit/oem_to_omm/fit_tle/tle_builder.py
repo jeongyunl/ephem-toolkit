@@ -6,7 +6,7 @@ import argparse
 import io
 import math
 
-import ephem_toolkit.core.propagator.sgp4 as tle
+import ephem_toolkit.core.tle as tle
 from . import models
 
 

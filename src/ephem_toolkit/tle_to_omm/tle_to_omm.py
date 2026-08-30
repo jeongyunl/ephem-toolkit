@@ -11,7 +11,7 @@ import io
 import sys
 
 import ephem_toolkit.core.convert_tle as convert_tle
-import ephem_toolkit.core.propagator.sgp4 as tle
+import ephem_toolkit.core.tle as tle
 
 from .tle_to_omm_cli import TleToOmmArgs
 from .tle_to_omm_cli import parse_arguments

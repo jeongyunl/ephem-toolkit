@@ -44,7 +44,7 @@ import ephem_toolkit.core.propagator.brouwer_j2 as mean_kepler
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.ccsds.omm as omm
 import ephem_toolkit.core.time_utils as time_utils
-import ephem_toolkit.core.propagator.sgp4 as tle
+import ephem_toolkit.core.tle as tle
 
 try:
     from .oem_to_omm_cli import OemToOmmArgs

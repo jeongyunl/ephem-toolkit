@@ -11,7 +11,7 @@ import pytest
 
 import ephem_toolkit.core.convert_tle as convert_tle
 import ephem_toolkit.core.ccsds.omm as omm
-import ephem_toolkit.core.propagator.sgp4 as tle
+import ephem_toolkit.core.tle as tle
 import ephem_toolkit.propagate_tle.__main__ as propagate_tle_main
 import ephem_toolkit.oem_to_omm.__main__ as oem_to_omm_main
 
