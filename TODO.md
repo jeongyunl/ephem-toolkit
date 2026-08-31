@@ -1,7 +1,7 @@
 # To-do list
 
 1. Better OPM support
-    1. improve `oem-to-opm`
+    1. improve `oem-to-opm`, `omm-to-opm`
         1. Produce accurate osculating state vector
             1. Batch Least-Squares Differential Correction 
 
