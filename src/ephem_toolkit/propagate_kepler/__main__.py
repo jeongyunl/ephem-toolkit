@@ -53,20 +53,6 @@ DEFAULT_OUTPUT_STEP_S: float = 15.0 * time_utils.SECONDS_PER_MINUTE
 """Default output sampling interval in seconds (15 minutes)."""
 
 
-# ===================================================================
-# Command-line interface
-# ===================================================================
-
-
-def parse_arguments(argv=None) -> propagate_kepler_cli.PropagateKeplerArgs:
-    """Parse command-line arguments for Keplerian propagation.
-
-    Delegates to the canonical propagation-family parser so the console entry
-    point and the dedicated parser module stay in sync.
-    """
-    return propagate_kepler_cli.parse_arguments(argv)
-
-
 def read_kepler_input(
     source: str | None,
 ) -> tuple[dt.datetime, np.ndarray, dict[str, str]]:
@@ -203,7 +189,10 @@ def main(argv=None) -> int:
     int
         Process return code. ``0`` on success.
     """
-    cli_args: propagate_kepler_cli.PropagateKeplerArgs = parse_arguments(argv)
+    cli_parser = propagate_kepler_cli.build_arg_parser()
+    cli_args: propagate_kepler_cli.PropagateKeplerArgs = (
+        propagate_kepler_cli.parse_arguments(cli_parser, argv)
+    )
     if cli_args.duration_s <= 0.0:
         raise ValueError("--duration must be > 0")
     if cli_args.step_s <= 0.0:

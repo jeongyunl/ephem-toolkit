@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 import sys
 
-from ephem_toolkit.tle_to_omm.tle_to_omm_cli import parse_arguments
+from ephem_toolkit.tle_to_omm.tle_to_omm_cli import build_arg_parser, parse_arguments
 
 
 def test_tle_to_omm_help_uses_command_name_and_format_aware_output() -> None:
@@ -15,7 +15,7 @@ def test_tle_to_omm_help_uses_command_name_and_format_aware_output() -> None:
     sys.stdout = captured_output
 
     try:
-        parse_arguments(["--help"])
+        parse_arguments(build_arg_parser(), ["--help"])
     except SystemExit:
         pass
     finally:

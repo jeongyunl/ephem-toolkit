@@ -45,20 +45,19 @@ For detailed documentation, see doc/SLICE_OEM.md
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from pathlib import Path
 
 import ephem_toolkit.core.ccsds.opm as opm
 import ephem_toolkit.core.ccsds.oem as oem
-import ephem_toolkit.core.cli as cli
 import ephem_toolkit.core.interpolator.interpolation_spec as interpolation_spec
 import ephem_toolkit.core.slice_oem as slice_oem
 import ephem_toolkit.core.time_utils as time_utils
 
 if __package__ in {None, ""}:
-    from slice_oem_cli import SliceOemArgs, parse_arguments
+    from slice_oem_cli import SliceOemArgs, build_arg_parser, parse_arguments
 else:
-    from .slice_oem_cli import SliceOemArgs, parse_arguments
+    from .slice_oem_cli import SliceOemArgs, build_arg_parser, parse_arguments
 
 DEFAULT_INTERPOLATION_TYPE: str = "hermite"
 """Default interpolation method."""
@@ -77,7 +76,8 @@ DEFAULT_INTERPOLATION_SPEC: interpolation_spec.InterpolationSpec = (
 
 def main(argv=None) -> None:
     """Parse CLI arguments, slice OEM ephemeris data, and write results to stdout."""
-    cli_args: SliceOemArgs = parse_arguments(argv)
+    cli_parser = build_arg_parser()
+    cli_args: SliceOemArgs = parse_arguments(cli_parser, argv)
 
     # Determine if reading from stdin
     read_from_stdin = cli_args.input_oem == "-"

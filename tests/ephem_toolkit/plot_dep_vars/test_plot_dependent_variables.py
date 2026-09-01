@@ -5,7 +5,10 @@ from __future__ import annotations
 import io
 import sys
 
-from ephem_toolkit.plot_dep_vars.plot_dependent_variables_cli import parse_arguments
+from ephem_toolkit.plot_dep_vars.plot_dependent_variables_cli import (
+    build_arg_parser,
+    parse_arguments,
+)
 
 
 def test_plot_dependent_variables_help_uses_command_name() -> None:
@@ -15,7 +18,7 @@ def test_plot_dependent_variables_help_uses_command_name() -> None:
     sys.stdout = captured_output
 
     try:
-        parse_arguments(["--help"])
+        parse_arguments(build_arg_parser(), ["--help"])
     except SystemExit:
         pass
     finally:

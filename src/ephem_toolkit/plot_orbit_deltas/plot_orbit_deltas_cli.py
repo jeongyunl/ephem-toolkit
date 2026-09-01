@@ -20,9 +20,9 @@ class PlotOrbitDeltasArgs(argparse.Namespace):
     """Time unit for the plot axes."""
 
 
-def parse_arguments(argv=None) -> PlotOrbitDeltasArgs:
+def build_arg_parser() -> argparse.ArgumentParser:
     """Parse command-line arguments for plotting multiple orbit trajectories."""
-    parser = cli.create_parser(
+    cli_parser = cli.build_arg_parser(
         description="Plot multiple orbit trajectories with various views and RTN coordinates.",
         epilog=(
             "Examples:\n"
@@ -31,15 +31,15 @@ def parse_arguments(argv=None) -> PlotOrbitDeltasArgs:
             "  plot-orbit-deltas reference.oem comparison.oem -o orbits.png"
         ),
     )
-    parser.prog = "plot-orbit-deltas"
+    cli_parser.prog = "plot-orbit-deltas"
 
-    parser.add_argument(
+    cli_parser.add_argument(
         "input_oem_files",
         nargs="+",
         metavar="<input_oem>",
         help="OEM or raw-state files. The first file is the reference orbit.",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-o",
         "--output",
         dest="output",
@@ -48,7 +48,7 @@ def parse_arguments(argv=None) -> PlotOrbitDeltasArgs:
         metavar="<output_plot>",
         help="Output file path for saving the figure (e.g., orbits.png).",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-d",
         "--duration",
         dest="duration",
@@ -57,7 +57,7 @@ def parse_arguments(argv=None) -> PlotOrbitDeltasArgs:
         metavar="<duration>",
         help="Duration of data to analyze from the start (e.g., 1h, 30m, or 3600s).",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--time-unit",
         dest="time_unit",
         type=str,
@@ -66,4 +66,9 @@ def parse_arguments(argv=None) -> PlotOrbitDeltasArgs:
         help="Time unit for time-series plots: m/minute/minutes or h/hour/hours (default: hours).",
     )
 
+    return cli_parser
+
+
+def parse_arguments(parser: argparse.ArgumentParser, argv=None) -> PlotOrbitDeltasArgs:
+    """Parse command-line arguments for orbit-delta plotting."""
     return parser.parse_args(argv, namespace=PlotOrbitDeltasArgs())

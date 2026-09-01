@@ -19,9 +19,9 @@ class PlotDependentVariablesArgs(argparse.Namespace):
     """Optional plotting duration in seconds."""
 
 
-def parse_arguments(argv=None) -> PlotDependentVariablesArgs:
+def build_arg_parser() -> argparse.ArgumentParser:
     """Build command-line argument parser."""
-    parser = cli.create_parser(
+    cli_parser = cli.build_arg_parser(
         description="Plot dependent-variable histories from a saved Tudat CSV file.",
         epilog=(
             "Examples:\n"
@@ -30,20 +30,20 @@ def parse_arguments(argv=None) -> PlotDependentVariablesArgs:
             "  plot-dependent-variables dep_vars.csv -d 6h"
         ),
     )
-    parser.prog = "plot-dependent-variables"
-    parser.add_argument(
+    cli_parser.prog = "plot-dependent-variables"
+    cli_parser.add_argument(
         "dep_vars_csv",
         metavar="<dep_vars_csv>",
         help="Path to the *_dep_vars.csv file produced by propagate-orbit.",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--name",
         dest="name",
         default="Satellite",
         metavar="<name>",
         help="Satellite name used in labels and header filtering (default: Satellite).",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-d",
         "--duration",
         dest="duration",
@@ -52,4 +52,11 @@ def parse_arguments(argv=None) -> PlotDependentVariablesArgs:
         metavar="<duration>",
         help="Duration to plot in <number>[s|m|h|d] format (e.g., 1h, 30m, or 3600s). If omitted, plot all data.",
     )
+    return cli_parser
+
+
+def parse_arguments(
+    parser: argparse.ArgumentParser, argv=None
+) -> PlotDependentVariablesArgs:
+    """Parse command-line arguments for dependent-variable plotting."""
     return parser.parse_args(argv, namespace=PlotDependentVariablesArgs())

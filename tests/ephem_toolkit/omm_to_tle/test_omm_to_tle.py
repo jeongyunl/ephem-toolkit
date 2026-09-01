@@ -6,7 +6,7 @@ import argparse
 import io
 import sys
 
-from ephem_toolkit.omm_to_tle.omm_to_tle_cli import parse_arguments
+from ephem_toolkit.omm_to_tle.omm_to_tle_cli import build_arg_parser, parse_arguments
 
 
 def test_omm_to_tle_help_uses_command_name_and_format_aware_output() -> None:
@@ -16,7 +16,7 @@ def test_omm_to_tle_help_uses_command_name_and_format_aware_output() -> None:
     sys.stdout = captured_output
 
     try:
-        parse_arguments(["--help"])
+        parse_arguments(build_arg_parser(), ["--help"])
     except SystemExit:
         pass
     finally:
@@ -29,11 +29,15 @@ def test_omm_to_tle_help_uses_command_name_and_format_aware_output() -> None:
 
 def test_omm_to_tle_cli_uses_typed_namespace(monkeypatch) -> None:
     """The parser should return a typed Namespace subclass with the parsed fields."""
-    from ephem_toolkit.omm_to_tle.omm_to_tle_cli import OmmToTleArgs, parse_arguments
+    from ephem_toolkit.omm_to_tle.omm_to_tle_cli import (
+        OmmToTleArgs,
+        build_arg_parser,
+        parse_arguments,
+    )
 
     monkeypatch.setattr(sys, "argv", ["omm-to-tle", "input.omm", "-o", "output.tle"])
 
-    args = parse_arguments()
+    args = parse_arguments(build_arg_parser())
 
     assert issubclass(OmmToTleArgs, argparse.Namespace)
     assert isinstance(args, OmmToTleArgs)

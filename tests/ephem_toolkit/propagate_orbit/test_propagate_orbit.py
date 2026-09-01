@@ -17,7 +17,7 @@ def test_parse_arguments_accepts_canonical_input_and_output_flags(
         "sys.argv",
         ["propagate-orbit", input_opm, "--duration", "2h"],
     )
-    args = propagate_orbit_cli.parse_arguments()
+    args = propagate_orbit_cli.parse_arguments(propagate_orbit_cli.build_arg_parser())
     assert args.input_opm == input_opm
     assert args.output_oem is None
     assert args.duration == 7200.0
@@ -26,7 +26,7 @@ def test_parse_arguments_accepts_canonical_input_and_output_flags(
         "sys.argv",
         ["propagate-orbit", input_opm, "--duration", "2h", "--output", "-"],
     )
-    args = propagate_orbit_cli.parse_arguments()
+    args = propagate_orbit_cli.parse_arguments(propagate_orbit_cli.build_arg_parser())
     assert args.input_opm == input_opm
     assert args.output_oem == "-"
 
@@ -34,7 +34,7 @@ def test_parse_arguments_accepts_canonical_input_and_output_flags(
         "sys.argv",
         ["propagate-orbit", input_opm, "--output", "out.oem"],
     )
-    args = propagate_orbit_cli.parse_arguments()
+    args = propagate_orbit_cli.parse_arguments(propagate_orbit_cli.build_arg_parser())
     assert args.input_opm == input_opm
     assert args.output_oem == "out.oem"
 
@@ -42,7 +42,7 @@ def test_parse_arguments_accepts_canonical_input_and_output_flags(
         "sys.argv",
         ["propagate-orbit", "-", "-d", "3h"],
     )
-    args = propagate_orbit_cli.parse_arguments()
+    args = propagate_orbit_cli.parse_arguments(propagate_orbit_cli.build_arg_parser())
     assert args.input_opm == "-"
     assert args.duration == 10800.0
 
@@ -54,7 +54,7 @@ def test_parse_arguments_help_uses_project_standard_names(
     monkeypatch.setattr("sys.argv", ["propagate-orbit", "--help"])
 
     with pytest.raises(SystemExit) as exc_info:
-        propagate_orbit_cli.parse_arguments()
+        propagate_orbit_cli.parse_arguments(propagate_orbit_cli.build_arg_parser())
 
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
@@ -62,7 +62,7 @@ def test_parse_arguments_help_uses_project_standard_names(
     assert "--output" in captured.out
     assert "--duration" in captured.out
     assert "-d" in captured.out
-    parser = propagate_orbit_cli.parse_arguments.__globals__["cli"].create_parser(
+    parser = propagate_orbit_cli.parse_arguments.__globals__["cli"].build_arg_parser(
         "demo tool"
     )
     parser.add_argument("-d", "--duration")
@@ -84,7 +84,7 @@ def test_parse_arguments_rejects_legacy_aliases(
         ["propagate-orbit", "input.opm", "--oem", "out.oem"],
     )
     with pytest.raises(SystemExit):
-        propagate_orbit_cli.parse_arguments()
+        propagate_orbit_cli.parse_arguments(propagate_orbit_cli.build_arg_parser())
 
     monkeypatch.setattr(
         "sys.argv",
@@ -95,11 +95,11 @@ def test_parse_arguments_rejects_legacy_aliases(
         ],
     )
     with pytest.raises(SystemExit):
-        propagate_orbit_cli.parse_arguments()
+        propagate_orbit_cli.parse_arguments(propagate_orbit_cli.build_arg_parser())
 
     monkeypatch.setattr(
         "sys.argv",
         ["propagate-orbit", "--input-state", "input.opm"],
     )
     with pytest.raises(SystemExit):
-        propagate_orbit_cli.parse_arguments()
+        propagate_orbit_cli.parse_arguments(propagate_orbit_cli.build_arg_parser())

@@ -20,9 +20,9 @@ class PlotOrbitArgs(argparse.Namespace):
     """Time unit used in time-series plots."""
 
 
-def parse_arguments(argv=None) -> PlotOrbitArgs:
+def build_arg_parser() -> argparse.ArgumentParser:
     """Parse command-line arguments for plotting a single orbit."""
-    parser = cli.create_parser(
+    cli_parser = cli.build_arg_parser(
         description=(
             "Plot a single OEM orbit with RTN deltas, velocity magnitude, "
             "geocentric distance, and WGS84 altitude."
@@ -34,14 +34,14 @@ def parse_arguments(argv=None) -> PlotOrbitArgs:
             "  plot-orbit orbit.oem -o orbit_plots.png"
         ),
     )
-    parser.prog = "plot-orbit"
-    parser.add_argument(
+    cli_parser.prog = "plot-orbit"
+    cli_parser.add_argument(
         "input_oem",
         type=str,
         metavar="<input_oem>",
         help="Path to the input CCSDS OEM file.",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-o",
         "--output",
         dest="output",
@@ -50,7 +50,7 @@ def parse_arguments(argv=None) -> PlotOrbitArgs:
         metavar="<output_plot>",
         help="Base output image path for saving figures (e.g., orbit.png).",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-d",
         "--duration",
         dest="duration",
@@ -59,7 +59,7 @@ def parse_arguments(argv=None) -> PlotOrbitArgs:
         metavar="<duration>",
         help="Duration to analyze from the start (e.g., 1h, 30m, or 3600s).",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--time-unit",
         dest="time_unit",
         type=str,
@@ -70,4 +70,9 @@ def parse_arguments(argv=None) -> PlotOrbitArgs:
             "m/minute/minutes or h/hour/hours (default: hours)."
         ),
     )
+    return cli_parser
+
+
+def parse_arguments(parser: argparse.ArgumentParser, argv=None) -> PlotOrbitArgs:
+    """Parse command-line arguments for orbit plotting."""
     return parser.parse_args(argv, namespace=PlotOrbitArgs())

@@ -127,7 +127,7 @@ def test_parse_arguments_accepts_duration_alias(
         ],
     )
 
-    args = diff_oem_cli.parse_arguments()
+    args = diff_oem_cli.parse_arguments(diff_oem_cli.build_arg_parser())
 
     assert args.start == "2024-01-01T00:00:00Z"
     assert args.stop == "2m"
@@ -150,7 +150,7 @@ def test_parse_arguments_rejects_conflicting_duration_and_stop(
     )
 
     with pytest.raises(SystemExit):
-        diff_oem_cli.parse_arguments()
+        diff_oem_cli.parse_arguments(diff_oem_cli.build_arg_parser())
 
 
 def test_rotation_stage_build_fit_pairs_respects_interpolation_modes() -> None:

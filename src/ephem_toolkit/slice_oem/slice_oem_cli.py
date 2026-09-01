@@ -44,9 +44,9 @@ class SliceOemArgs(argparse.Namespace):
     """Whether low-level debug output is enabled."""
 
 
-def parse_arguments(argv=None) -> SliceOemArgs:
+def build_arg_parser() -> argparse.ArgumentParser:
     """Parse and validate command-line arguments."""
-    parser = cli.create_parser(
+    cli_parser = cli.build_arg_parser(
         description="Extract subsets of CCSDS OEM ephemeris data by index or time range.",
         epilog=(
             "Examples:\n"
@@ -57,12 +57,12 @@ def parse_arguments(argv=None) -> SliceOemArgs:
             '  cat data.oem | slice-oem - --slice "5" --opm -o -\n'
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "input_oem",
         metavar="<input_oem|->",
         help='Primary input OEM file path; use "-" to read from stdin',
     )
-    exclusive = parser.add_mutually_exclusive_group()
+    exclusive = cli_parser.add_mutually_exclusive_group()
     exclusive.add_argument(
         "-s",
         "--slice",
@@ -82,14 +82,14 @@ def parse_arguments(argv=None) -> SliceOemArgs:
         ),
         default=None,
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--interpolate",
         dest="interpolate",
         action=argparse.BooleanOptionalAction,
         default=True,
         help="Enable interpolation when a step size is provided (enabled by default)",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--interpolate-type",
         dest="interpolate_type",
         type=partial(
@@ -103,19 +103,19 @@ def parse_arguments(argv=None) -> SliceOemArgs:
             "'lagrange[,degree]' (default: hermite,5). Degree must be > 0."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--opm",
         dest="opm",
         action="store_true",
         help="Write the first selected state as a CCSDS OPM",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--data-only",
         dest="data_only",
         action="store_true",
         help="Write state vectors only; omit the OEM metadata header",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-o",
         "--output",
         dest="output_path",
@@ -123,19 +123,24 @@ def parse_arguments(argv=None) -> SliceOemArgs:
         required=True,
         help="Output OEM/OPM file path; use '-' to write to stdout; OPM output cannot be combined with --data-only.",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-v",
         "--verbose",
         dest="verbose",
         action="store_true",
         help="Print extra diagnostic output",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--debug",
         dest="debug",
         action="store_true",
         help="Print low-level debug details",
     )
+    return cli_parser
+
+
+def parse_arguments(parser: argparse.ArgumentParser, argv=None) -> SliceOemArgs:
+    """Parse command-line arguments."""
     args = parser.parse_args(argv, namespace=SliceOemArgs())
     if not args.slice and not args.time_slice:
         parser.error("either -s/--slice or -t/--time-slice must be provided")

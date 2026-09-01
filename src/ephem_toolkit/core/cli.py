@@ -38,13 +38,13 @@ class CliHelpFormatter(
     """Preserve paragraph breaks while showing argument defaults."""
 
 
-def create_parser(
+def build_arg_parser(
     description: str,
     *,
     epilog: str | None = None,
     formatter_class: type[argparse.HelpFormatter] | None = None,
 ) -> argparse.ArgumentParser:
-    """Create a project-standard CLI parser.
+    """Build a project-standard CLI parser.
 
     Parameters
     ----------
@@ -60,18 +60,18 @@ def create_parser(
         formatter_class = CliHelpFormatter
 
     package_footer = f"{PACKAGE_NAME} {PACKAGE_VERSION}"
-    parser = argparse.ArgumentParser(
+    cli_parser = argparse.ArgumentParser(
         description=description,
         epilog=(f"{epilog}\n\n{package_footer}" if epilog else package_footer),
         formatter_class=formatter_class,
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {PACKAGE_VERSION}",
         help="Show the installed ephem-toolkit version and exit.",
     )
-    return parser
+    return cli_parser
 
 
 def add_common_arguments(

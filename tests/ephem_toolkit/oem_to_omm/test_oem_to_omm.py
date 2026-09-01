@@ -54,7 +54,7 @@ def test_parse_arguments_fit_span_accepts_duration_strings(monkeypatch):
         ],
     )
 
-    args = oem_to_omm_cli.parse_arguments()
+    args = oem_to_omm_cli.parse_arguments(oem_to_omm_cli.build_arg_parser())
 
     assert args.fit_span == timedelta(minutes=90)
 
@@ -74,7 +74,7 @@ def test_parse_arguments_fit_span_default_is_two_hours(monkeypatch):
         ],
     )
 
-    args = oem_to_omm_cli.parse_arguments()
+    args = oem_to_omm_cli.parse_arguments(oem_to_omm_cli.build_arg_parser())
 
     assert args.fit_span == timedelta(hours=2)
 

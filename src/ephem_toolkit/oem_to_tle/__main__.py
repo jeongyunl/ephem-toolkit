@@ -17,7 +17,7 @@ def _print_help(argv: list[str]) -> None:
     if "-h" not in argv and "--help" not in argv:
         return
 
-    parser = argparse.ArgumentParser(
+    cli_parser = argparse.ArgumentParser(
         prog="oem-to-tle",
         description="Convert OEM state vectors to a TLE.",
         epilog=(
@@ -26,60 +26,60 @@ def _print_help(argv: list[str]) -> None:
             "  cat input.oem | oem-to-tle - -o output.tle"
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "input_oem",
         metavar="<input_oem|->",
         help='Path to input CCSDS OEM file; use "-" to read from stdin',
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-o",
         "--output",
         metavar="<output_tle|->",
         required=True,
         help="Output TLE file path; '-' writes to stdout",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-v", "--verbose", help="Print detailed debug information", action="store_true"
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--fit-span",
         metavar="<duration>",
         help="Maximum arc span for the fit (e.g. 2h, 90m)",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--object-name", metavar="<name>", help="Spacecraft name for OMM output"
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--object-id",
         metavar="<YYYY-NNNP>",
         help="International designator for OMM output",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--tle-refinement",
         choices=["none", "cartesian", "keplerian"],
         default="cartesian",
         help="Refinement method for TLE fitting",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--tle-norad-cat-id", metavar="<0..99999>", help="NORAD Catalog Number"
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--tle-classification-type",
         choices=["U", "C", "S"],
         help="TLE classification type",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--tle-ephemeris-type", metavar="<0..9>", help="TLE ephemeris type"
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--tle-element-set-no", metavar="<0..9999>", help="TLE element set number"
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--tle-rev-at-epoch",
         metavar="<0..99999>",
         help="TLE revolution number at epoch",
     )
-    parser.parse_args(argv)
+    cli_parser.parse_args(argv)
     raise AssertionError("argparse help should exit")
 
 

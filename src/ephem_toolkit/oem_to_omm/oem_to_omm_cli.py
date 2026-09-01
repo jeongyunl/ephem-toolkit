@@ -67,7 +67,7 @@ def report_error(message: str, exit_code: int = 1) -> None:
     raise SystemExit(exit_code)
 
 
-def parse_arguments(argv=None) -> OemToOmmArgs:
+def build_arg_parser() -> argparse.ArgumentParser:
     """Parse command-line arguments for the OEM-to-OMM conversion workflow.
 
     Returns
@@ -75,7 +75,7 @@ def parse_arguments(argv=None) -> OemToOmmArgs:
     OemToOmmArgs
         Parsed CLI arguments with the typed runtime namespace.
     """
-    parser = cli.create_parser(
+    cli_parser = cli.build_arg_parser(
         description="Convert OEM state vectors to Keplerian elements or OMM.",
         epilog=(
             "Examples:\n"
@@ -84,13 +84,13 @@ def parse_arguments(argv=None) -> OemToOmmArgs:
             "  cat input.oem | oem-to-omm --mode tle - -o output.omm"
         ),
     )
-    parser.prog = "oem-to-omm"
-    parser.add_argument(
+    cli_parser.prog = "oem-to-omm"
+    cli_parser.add_argument(
         "input_oem",
         metavar="<input_oem|->",
         help='Path to input CCSDS OEM file; use "-" to read from stdin',
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-o",
         "--output",
         dest="output_omm",
@@ -98,14 +98,14 @@ def parse_arguments(argv=None) -> OemToOmmArgs:
         required=True,
         help="Output OMM file path; '-' writes to stdout",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-v",
         "--verbose",
         dest="verbose",
         action="store_true",
         help="Print detailed debug information to stderr",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--mu",
         type=float,
         default=consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2,
@@ -116,7 +116,7 @@ def parse_arguments(argv=None) -> OemToOmmArgs:
             f"(default: {consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2:.6e}, Earth WGS-84)."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--fit-span",
         type=time_utils.parse_duration_to_timedelta,
         default=DEFAULT_FIT_SPAN,
@@ -127,7 +127,7 @@ def parse_arguments(argv=None) -> OemToOmmArgs:
             "default: 2h)."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--mode",
         dest="mode",
         choices=["brouwer", "dsst", "tle"],
@@ -139,7 +139,7 @@ def parse_arguments(argv=None) -> OemToOmmArgs:
             "and 'tle' fits a TLE."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--theory",
         dest="theory",
         default=None,
@@ -150,21 +150,21 @@ def parse_arguments(argv=None) -> OemToOmmArgs:
             "Defaults to theory matching the selected mode."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--object-name",
         dest="object_name",
         metavar="<name>",
         default="",
         help="OBJECT_NAME: Spacecraft name for OMM output.",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--object-id",
         metavar="<YYYY-NNNP>",
         default="",
         dest="object_id",
         help="OBJECT_ID: International designator (e.g., 1998-067A) for OMM output.",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--tle-refinement",
         choices=["none", "cartesian", "keplerian"],
         default="cartesian",
@@ -172,7 +172,7 @@ def parse_arguments(argv=None) -> OemToOmmArgs:
         dest="tle_refinement",
         help=("Refinement method for TLE fitting (used with --tle mode)."),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--tle-norad-cat-id",
         type=int,
         default=0,
@@ -180,7 +180,7 @@ def parse_arguments(argv=None) -> OemToOmmArgs:
         dest="tle_norad_cat_id",
         help="NORAD_CAT_ID: NORAD Catalog Number (default: 0, used with --tle mode).",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--tle-classification-type",
         choices=["U", "C", "S"],
         default="U",
@@ -188,7 +188,7 @@ def parse_arguments(argv=None) -> OemToOmmArgs:
         dest="tle_classification_type",
         help="CLASSIFICATION_TYPE: U=Unclassified, C=Classified, S=Secret (default: U, used with --tle mode).",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--tle-ephemeris-type",
         type=int,
         default=2,
@@ -196,7 +196,7 @@ def parse_arguments(argv=None) -> OemToOmmArgs:
         dest="tle_ephemeris_type",
         help="EPHEMERIS_TYPE: 0=SGP, 2=SGP4, 4=SGP4-XP, 6=SP (default: 2, used with --tle mode).",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--tle-element-set-no",
         type=int,
         default=999,
@@ -204,7 +204,7 @@ def parse_arguments(argv=None) -> OemToOmmArgs:
         dest="tle_element_set_no",
         help="ELEMENT_SET_NO: Element set number for this satellite (default: 999, used with --tle mode).",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--tle-rev-at-epoch",
         type=int,
         default=0,
@@ -213,4 +213,9 @@ def parse_arguments(argv=None) -> OemToOmmArgs:
         help="REV_AT_EPOCH: Revolution number at epoch (default: 0, used with --tle mode).",
     )
 
+    return cli_parser
+
+
+def parse_arguments(parser: argparse.ArgumentParser, argv=None) -> OemToOmmArgs:
+    """Parse command-line arguments."""
     return parser.parse_args(argv, namespace=OemToOmmArgs())
