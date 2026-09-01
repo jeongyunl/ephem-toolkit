@@ -17,7 +17,7 @@ from typing import TextIO
 
 from .comparison import read_states
 from .debug import debug_print_time_range, set_debug
-from .diff_oem_cli import DiffOemArgs, parse_arguments
+from .diff_oem_cli import DiffOemArgs, build_arg_parser, parse_arguments
 from .output import ComparisonOutput
 from .pipeline import TransformationPipeline
 from .transformation_stages import (
@@ -44,7 +44,8 @@ def main(argv=None) -> None:
     one tab-separated result row per comparison to stdout.
     Exits with status 1 on error.
     """
-    cli_args: DiffOemArgs = parse_arguments(argv)
+    cli_parser = build_arg_parser()
+    cli_args: DiffOemArgs = parse_arguments(cli_parser, argv)
 
     # --debug implies --verbose.
     if cli_args.debug:
@@ -311,7 +312,6 @@ def main(argv=None) -> None:
     except ValueError as error:
         print(f"Error: {error}", file=sys.stderr)
         sys.exit(1)
-
 
 
 if __name__ == "__main__":

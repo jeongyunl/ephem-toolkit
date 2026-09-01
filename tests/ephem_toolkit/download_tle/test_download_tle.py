@@ -5,7 +5,10 @@ from __future__ import annotations
 import io
 import sys
 
-from ephem_toolkit.download_tle.download_tle_cli import parse_arguments
+from ephem_toolkit.download_tle.download_tle_cli import (
+    build_arg_parser,
+    parse_arguments,
+)
 
 
 def test_download_tle_help_uses_command_name_and_satellite_id_option() -> None:
@@ -13,7 +16,7 @@ def test_download_tle_help_uses_command_name_and_satellite_id_option() -> None:
     captured_output = io.StringIO()
 
     try:
-        parse_arguments(["--help"])
+        parse_arguments(build_arg_parser(), ["--help"])
     except SystemExit:
         pass
 
@@ -21,7 +24,7 @@ def test_download_tle_help_uses_command_name_and_satellite_id_option() -> None:
     old_stdout = sys.stdout
     sys.stdout = captured_output
     try:
-        parse_arguments(["--help"])
+        parse_arguments(build_arg_parser(), ["--help"])
     except SystemExit:
         pass
     finally:

@@ -31,7 +31,7 @@ def test_parse_arguments_accepts_canonical_propagation_flags(
             "-",
         ],
     )
-    args = propagate_kepler_cli.parse_arguments()
+    args = propagate_kepler_cli.parse_arguments(propagate_kepler_cli.build_arg_parser())
     assert args.input_opm == input_opm
     assert args.duration_s == 7200.0
     assert args.output_oem == "-"
@@ -40,7 +40,7 @@ def test_parse_arguments_accepts_canonical_propagation_flags(
         "sys.argv",
         ["propagate-kepler", input_opm, "--output", "out.oem"],
     )
-    args = propagate_kepler_cli.parse_arguments()
+    args = propagate_kepler_cli.parse_arguments(propagate_kepler_cli.build_arg_parser())
     assert args.input_opm == input_opm
     assert args.output_oem == "out.oem"
 
@@ -55,7 +55,7 @@ def test_parse_arguments_accepts_canonical_propagation_flags(
             "-",
         ],
     )
-    args = propagate_kepler_cli.parse_arguments()
+    args = propagate_kepler_cli.parse_arguments(propagate_kepler_cli.build_arg_parser())
     assert args.duration_s == 10800.0
 
 
@@ -66,7 +66,7 @@ def test_parse_arguments_help_uses_project_standard_names(
     monkeypatch.setattr("sys.argv", ["propagate-kepler", "--help"])
 
     with pytest.raises(SystemExit) as exc_info:
-        propagate_kepler_cli.parse_arguments()
+        propagate_kepler_cli.parse_arguments(propagate_kepler_cli.build_arg_parser())
 
     assert exc_info.value.code == 0
     captured = capsys.readouterr()
@@ -88,14 +88,14 @@ def test_parse_arguments_rejects_legacy_kepler_aliases(
         ["propagate-kepler", "kepler_state.txt", "--duration", "2h"],
     )
     with pytest.raises(SystemExit):
-        propagate_kepler_cli.parse_arguments()
+        propagate_kepler_cli.parse_arguments(propagate_kepler_cli.build_arg_parser())
 
     monkeypatch.setattr(
         "sys.argv",
         ["propagate-kepler", "--input-file", state_line],
     )
     with pytest.raises(SystemExit):
-        propagate_kepler_cli.parse_arguments()
+        propagate_kepler_cli.parse_arguments(propagate_kepler_cli.build_arg_parser())
 
 
 def test_script_parse_arguments_accepts_canonical_flags(
@@ -113,7 +113,9 @@ def test_script_parse_arguments_accepts_canonical_flags(
             "-",
         ],
     )
-    args = propagate_kepler.parse_arguments()
+    args = propagate_kepler.propagate_kepler_cli.parse_arguments(
+        propagate_kepler.propagate_kepler_cli.build_arg_parser()
+    )
     assert args.input_opm == "input.opm"
     assert args.duration_s == 7200.0
     assert args.output_oem == "-"

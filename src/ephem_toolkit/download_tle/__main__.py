@@ -7,12 +7,17 @@ format and saves each result to a named file.
 
 from __future__ import annotations
 
-import argparse
 import re
 import urllib.parse
 import urllib.request
 
-from .download_tle_cli import FORMATS, FORMAT_ALIASES, DownloadTleArgs, parse_arguments
+from .download_tle_cli import (
+    FORMATS,
+    FORMAT_ALIASES,
+    DownloadTleArgs,
+    build_arg_parser,
+    parse_arguments,
+)
 
 # ===================================================================
 # Utilities
@@ -46,7 +51,8 @@ def main(argv=None) -> None:
     -------
     None
     """
-    cli_args: DownloadTleArgs = parse_arguments(argv)
+    cli_parser = build_arg_parser()
+    cli_args: DownloadTleArgs = parse_arguments(cli_parser, argv)
 
     satellite_ids: list[str] = cli_args.satellite_ids
     output_format: str = FORMAT_ALIASES.get(cli_args.format, cli_args.format)

@@ -338,7 +338,7 @@ def parse_drag_coefficient(value: str) -> float:
     return drag_coefficient
 
 
-def parse_arguments(argv=None) -> PropagateOrbitArgs:
+def build_arg_parser() -> argparse.ArgumentParser:
     """Build the orbit-propagation argument parser.
 
     Returns
@@ -346,7 +346,7 @@ def parse_arguments(argv=None) -> PropagateOrbitArgs:
     PropagateOrbitArgs
         Parsed command-line arguments for the orbit propagation workflow.
     """
-    parser = cli.create_parser(
+    cli_parser = cli.build_arg_parser(
         description=(
             "Run perturbed orbit propagation from an input OPM state and "
             "a user-provided simulation duration."
@@ -358,13 +358,13 @@ def parse_arguments(argv=None) -> PropagateOrbitArgs:
             "  cat input.opm | propagate-orbit - --output - --dep-vars dep_vars.csv"
         ),
     )
-    parser.prog = "propagate-orbit"
-    parser.add_argument(
+    cli_parser.prog = "propagate-orbit"
+    cli_parser.add_argument(
         "input_opm",
         metavar="<input_opm|->",
         help=("Input OPM file path, or '-' to read OPM content from stdin."),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-d",
         "--duration",
         dest="duration",
@@ -376,7 +376,7 @@ def parse_arguments(argv=None) -> PropagateOrbitArgs:
             f"(default: {DEFAULT_SIMULATION_DURATION_S})."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-o",
         "--output",
         dest="output_oem",
@@ -386,13 +386,13 @@ def parse_arguments(argv=None) -> PropagateOrbitArgs:
             "'-' writes to stdout."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--data-only",
         dest="data_only",
         action="store_true",
         help="Write only OEM state-vector data without the OEM header or metadata.",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--dep-vars",
         dest="dep_vars",
         metavar="<output_csv>",
@@ -405,14 +405,14 @@ def parse_arguments(argv=None) -> PropagateOrbitArgs:
     # ===================================================================
     # Satellite properties
     # ===================================================================
-    parser.add_argument(
+    cli_parser.add_argument(
         "--name",
         dest="name",
         default=DEFAULT_SATELLITE_NAME,
         metavar="<name>",
         help=f"Name of the propagated satellite body (default: {DEFAULT_SATELLITE_NAME}).",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--mass",
         dest="mass",
         type=parse_mass_kg,
@@ -427,7 +427,7 @@ def parse_arguments(argv=None) -> PropagateOrbitArgs:
     # ===================================================================
     # Integrator method and step size
     # ===================================================================
-    parser.add_argument(
+    cli_parser.add_argument(
         "--integrator",
         dest="integrator",
         type=parse_integrator_method,
@@ -444,7 +444,7 @@ def parse_arguments(argv=None) -> PropagateOrbitArgs:
             + ")."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--integrator-step-size",
         dest="integrator_step_size",
         type=parse_integrator_step_size_values,
@@ -465,7 +465,7 @@ def parse_arguments(argv=None) -> PropagateOrbitArgs:
     # ===================================================================
     # Earth spherical harmonic gravity degree/order
     # ===================================================================
-    parser.add_argument(
+    cli_parser.add_argument(
         "--earth-gravity",
         dest="earth_gravity",
         type=parse_earth_spherical_harmonic_gravity_degree_order,
@@ -486,7 +486,7 @@ def parse_arguments(argv=None) -> PropagateOrbitArgs:
     # ===================================================================
     # Drag area (also used as the cannonball reference area for SRP)
     # ===================================================================
-    parser.add_argument(
+    cli_parser.add_argument(
         "--drag-area",
         dest="drag_area",
         type=parse_drag_area_m2,
@@ -501,7 +501,7 @@ def parse_arguments(argv=None) -> PropagateOrbitArgs:
     # ===================================================================
     # Solar radiation pressure
     # ===================================================================
-    parser.add_argument(
+    cli_parser.add_argument(
         "--srp",
         dest="srp",
         type=parse_bool_flag,
@@ -509,7 +509,7 @@ def parse_arguments(argv=None) -> PropagateOrbitArgs:
         default=True,
         help="Enable or disable solar radiation pressure acceleration (default: on).",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--srp-coeff",
         dest="srp_coeff",
         type=parse_srp_coefficient,
@@ -524,7 +524,7 @@ def parse_arguments(argv=None) -> PropagateOrbitArgs:
     # ===================================================================
     # Aerodynamic drag
     # ===================================================================
-    parser.add_argument(
+    cli_parser.add_argument(
         "--drag",
         dest="drag",
         type=parse_bool_flag,
@@ -532,7 +532,7 @@ def parse_arguments(argv=None) -> PropagateOrbitArgs:
         default=True,
         help="Enable or disable aerodynamic drag acceleration (default: on).",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--drag-coeff",
         dest="drag_coeff",
         type=parse_drag_coefficient,
@@ -541,7 +541,7 @@ def parse_arguments(argv=None) -> PropagateOrbitArgs:
         help=f"Drag coefficient of the propagated satellite (default: {DEFAULT_SATELLITE_DRAG_COEFFICIENT}).",
     )
 
-    parser.add_argument(
+    cli_parser.add_argument(
         "--moon-gravity",
         dest="moon_gravity",
         type=parse_bool_flag,
@@ -549,7 +549,7 @@ def parse_arguments(argv=None) -> PropagateOrbitArgs:
         default=True,
         help="Enable or disable Moon point-mass gravity perturbation (default: on).",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--sun-gravity",
         dest="sun_gravity",
         type=parse_bool_flag,
@@ -557,7 +557,7 @@ def parse_arguments(argv=None) -> PropagateOrbitArgs:
         default=True,
         help="Enable or disable Sun point-mass gravity perturbation (default: on).",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--venus-gravity",
         dest="venus_gravity",
         type=parse_bool_flag,
@@ -565,7 +565,7 @@ def parse_arguments(argv=None) -> PropagateOrbitArgs:
         default=True,
         help="Enable or disable Venus point-mass gravity perturbation (default: on).",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--mars-gravity",
         dest="mars_gravity",
         type=parse_bool_flag,
@@ -573,4 +573,9 @@ def parse_arguments(argv=None) -> PropagateOrbitArgs:
         default=True,
         help="Enable or disable Mars point-mass gravity perturbation (default: on).",
     )
+    return cli_parser
+
+
+def parse_arguments(parser: argparse.ArgumentParser, argv=None) -> PropagateOrbitArgs:
+    """Parse command-line arguments."""
     return parser.parse_args(argv, namespace=PropagateOrbitArgs())

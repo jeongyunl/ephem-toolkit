@@ -56,7 +56,7 @@ def report_error(message: str, exit_code: int = 1) -> None:
     raise SystemExit(exit_code)
 
 
-def parse_arguments(argv=None) -> OemToOpmArgs:
+def build_arg_parser() -> argparse.ArgumentParser:
     """Parse command-line arguments for the OEM-to-OPM conversion workflow.
 
     Returns
@@ -64,7 +64,7 @@ def parse_arguments(argv=None) -> OemToOpmArgs:
     OemToOpmArgs
         Parsed CLI arguments with the typed runtime namespace.
     """
-    parser = cli.create_parser(
+    cli_parser = cli.build_arg_parser(
         description="Fit OEM state vectors and write an OPM with osculating elements.",
         epilog=(
             "Examples:\n"
@@ -72,13 +72,13 @@ def parse_arguments(argv=None) -> OemToOpmArgs:
             "  cat input.oem | oem-to-opm - -o -"
         ),
     )
-    parser.prog = "oem-to-opm"
-    parser.add_argument(
+    cli_parser.prog = "oem-to-opm"
+    cli_parser.add_argument(
         "input_oem",
         metavar="<input_oem|->",
         help='Path to input CCSDS OEM file; use "-" to read from stdin',
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-o",
         "--output",
         dest="output_opm",
@@ -86,14 +86,14 @@ def parse_arguments(argv=None) -> OemToOpmArgs:
         required=True,
         help="Output OPM file path; '-' writes to stdout",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-v",
         "--verbose",
         dest="verbose",
         action="store_true",
         help="Print detailed debug information to stderr",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--mu",
         type=float,
         default=consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2,
@@ -104,7 +104,7 @@ def parse_arguments(argv=None) -> OemToOpmArgs:
             f"(default: {consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2:.6e}, Earth WGS-84)."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--fit-span",
         type=time_utils.parse_duration_to_timedelta,
         default=DEFAULT_FIT_SPAN,
@@ -115,14 +115,14 @@ def parse_arguments(argv=None) -> OemToOpmArgs:
             "default: 2h)."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--object-name",
         dest="object_name",
         metavar="<name>",
         default="",
         help="OBJECT_NAME: Spacecraft name for OPM output.",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--object-id",
         metavar="<YYYY-NNNP>",
         default="",
@@ -130,4 +130,9 @@ def parse_arguments(argv=None) -> OemToOpmArgs:
         help="OBJECT_ID: International designator (e.g., 1998-067A) for OPM output.",
     )
 
+    return cli_parser
+
+
+def parse_arguments(parser: argparse.ArgumentParser, argv=None) -> OemToOpmArgs:
+    """Parse command-line arguments."""
     return parser.parse_args(argv, namespace=OemToOpmArgs())

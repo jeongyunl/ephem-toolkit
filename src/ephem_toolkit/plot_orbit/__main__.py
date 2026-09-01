@@ -20,7 +20,7 @@ import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.time_utils as time_utils
 import ephem_toolkit.core.wgs as wgs
 
-from .plot_orbit_cli import PlotOrbitArgs, parse_arguments
+from .plot_orbit_cli import PlotOrbitArgs, build_arg_parser, parse_arguments
 
 # ===================================================================
 # Constants
@@ -852,7 +852,8 @@ def main(argv=None) -> None:
     ValueError
         If parsed data is invalid for plotting.
     """
-    cli_args: PlotOrbitArgs = parse_arguments(argv)
+    cli_parser = build_arg_parser()
+    cli_args: PlotOrbitArgs = parse_arguments(cli_parser, argv)
     time_unit: TimeUnit = TimeUnit.from_string(cli_args.time_unit)
 
     duration_s: float | None = None

@@ -38,7 +38,7 @@ class PropagateOmmArgs(argparse.Namespace):
     """Whether to emit data-only OEM state lines."""
 
 
-def parse_arguments(argv=None) -> PropagateOmmArgs:
+def build_arg_parser() -> argparse.ArgumentParser:
     """Parse command-line arguments for the OMM/TLE propagation workflow.
 
     Returns
@@ -46,7 +46,7 @@ def parse_arguments(argv=None) -> PropagateOmmArgs:
     PropagateOmmArgs
         Parsed argument namespace for the propagation command.
     """
-    parser = cli.create_parser(
+    cli_parser = cli.build_arg_parser(
         description=(
             "Load one OMM or TLE input and propagate the orbit. Uses SGP4 if the "
             "input is a raw TLE or an OMM with TLE parameters; otherwise uses "
@@ -59,18 +59,18 @@ def parse_arguments(argv=None) -> PropagateOmmArgs:
             "  cat satellite.omm | propagate-omm - -o - --data-only"
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "input_file",
         metavar="<tle_file|omm_file|->",
         help='Path to an OMM or TLE file. Use "-" to read input text from stdin.',
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--tle",
         dest="is_tle",
         action="store_true",
         help="Interpret the input as a raw TLE file instead of an OMM file.",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-d",
         "--duration",
         type=time_utils.parse_duration_to_seconds,
@@ -82,7 +82,7 @@ def parse_arguments(argv=None) -> PropagateOmmArgs:
             f"(default: {DEFAULT_PROPAGATION_DURATION_S})."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-o",
         "--output",
         dest="output_oem",
@@ -93,7 +93,7 @@ def parse_arguments(argv=None) -> PropagateOmmArgs:
             "'-' writes to stdout."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--start",
         dest="start",
         metavar="<timestamp|duration>",
@@ -104,7 +104,7 @@ def parse_arguments(argv=None) -> PropagateOmmArgs:
             "(e.g. 90m, -30m)."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--stop",
         dest="stop",
         metavar="<timestamp|duration>",
@@ -115,7 +115,7 @@ def parse_arguments(argv=None) -> PropagateOmmArgs:
             "(e.g. 1d, 6h)."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-s",
         "--step",
         dest="step",
@@ -127,7 +127,7 @@ def parse_arguments(argv=None) -> PropagateOmmArgs:
             f"(default: {DEFAULT_OUTPUT_STEP_S})."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--data-only",
         dest="data_only",
         action="store_true",
@@ -136,4 +136,9 @@ def parse_arguments(argv=None) -> PropagateOmmArgs:
             "By default, output is CCSDS OEM format."
         ),
     )
+    return cli_parser
+
+
+def parse_arguments(parser: argparse.ArgumentParser, argv=None) -> PropagateOmmArgs:
+    """Parse command-line arguments."""
     return parser.parse_args(argv, namespace=PropagateOmmArgs())

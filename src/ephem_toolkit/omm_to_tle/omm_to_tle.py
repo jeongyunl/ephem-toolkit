@@ -14,7 +14,7 @@ import ephem_toolkit.core.convert_tle as convert_tle
 import ephem_toolkit.core.ccsds.omm as omm
 import ephem_toolkit.core.tle as tle
 
-from .omm_to_tle_cli import OmmToTleArgs, parse_arguments
+from .omm_to_tle_cli import OmmToTleArgs, build_arg_parser, parse_arguments
 
 
 def main(argv=None) -> None:
@@ -23,7 +23,8 @@ def main(argv=None) -> None:
     Reads OMM from the configured source, converts to TLE, and writes the
     result to the configured destination. Exits with status 1 on error.
     """
-    cli_args: OmmToTleArgs = parse_arguments(argv)
+    cli_parser = build_arg_parser()
+    cli_args: OmmToTleArgs = parse_arguments(cli_parser, argv)
 
     if cli_args.input_omm == "-":
         input_text: str = sys.stdin.read()

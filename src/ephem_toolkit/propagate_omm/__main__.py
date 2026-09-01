@@ -30,10 +30,13 @@ import numpy as np
 
 try:
     from .propagate_omm_cli import PropagateOmmArgs
-    from .propagate_omm_cli import parse_arguments
+    from .propagate_omm_cli import build_arg_parser, parse_arguments
 except ImportError:  # pragma: no cover - direct script execution fallback
     from ephem_toolkit.propagate_omm.propagate_omm_cli import PropagateOmmArgs
-    from ephem_toolkit.propagate_omm.propagate_omm_cli import parse_arguments
+    from ephem_toolkit.propagate_omm.propagate_omm_cli import (
+        build_arg_parser,
+        parse_arguments,
+    )
 
 # Suppress warnings that tudatpy / urllib3 may emit on import.
 warnings.filterwarnings("ignore", category=SyntaxWarning)
@@ -482,7 +485,8 @@ def main(argv=None) -> int:
     int
         Process return code (0 on success).
     """
-    cli_args: PropagateOmmArgs = parse_arguments(argv)
+    cli_parser = build_arg_parser()
+    cli_args: PropagateOmmArgs = parse_arguments(cli_parser, argv)
 
     if cli_args.is_tle:
         tle_data: tle_mod.Tle = read_tle_input(cli_args.input_file)

@@ -34,7 +34,6 @@ warnings.filterwarnings(
     module=r"urllib3(\..*)?",
 )
 
-import ephem_toolkit.core.consts as consts
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.ccsds.opm as opm
 import ephem_toolkit.core.propagator.kepler as kepler
@@ -42,10 +41,13 @@ import ephem_toolkit.core.time_utils as time_utils
 
 try:
     from .oem_to_opm_cli import OemToOpmArgs
-    from .oem_to_opm_cli import parse_arguments
+    from .oem_to_opm_cli import build_arg_parser, parse_arguments
 except ImportError:  # pragma: no cover - direct script execution fallback
     from ephem_toolkit.oem_to_opm.oem_to_opm_cli import OemToOpmArgs
-    from ephem_toolkit.oem_to_opm.oem_to_opm_cli import parse_arguments
+    from ephem_toolkit.oem_to_opm.oem_to_opm_cli import (
+        build_arg_parser,
+        parse_arguments,
+    )
 
 from . import fit_common
 from . import fit_osculating_kepler
@@ -192,7 +194,8 @@ def build_opm(
 
 def main(argv=None) -> None:
     """Parse CLI arguments and dispatch to the appropriate conversion mode."""
-    cli_args: OemToOpmArgs = parse_arguments(argv)
+    cli_parser = build_arg_parser()
+    cli_args: OemToOpmArgs = parse_arguments(cli_parser, argv)
 
     # Determine input source: file path or stdin (piped input)
     read_from_stdin: bool = cli_args.input_oem == "-"

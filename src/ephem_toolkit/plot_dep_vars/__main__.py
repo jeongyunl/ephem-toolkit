@@ -17,7 +17,11 @@ from matplotlib.animation import FuncAnimation
 
 import ephem_toolkit.core.time_utils as time_utils
 
-from .plot_dependent_variables_cli import PlotDependentVariablesArgs, parse_arguments
+from .plot_dependent_variables_cli import (
+    PlotDependentVariablesArgs,
+    build_arg_parser,
+    parse_arguments,
+)
 
 SECONDS_PER_HOUR: float = 3600.0
 """Conversion factor from seconds to hours."""
@@ -1190,7 +1194,8 @@ def plot_dependent_variables_from_csv(
 
 def main(argv=None) -> None:
     """Main entry point for the script."""
-    cli_args: PlotDependentVariablesArgs = parse_arguments(argv)
+    cli_parser = build_arg_parser()
+    cli_args: PlotDependentVariablesArgs = parse_arguments(cli_parser, argv)
 
     # Keep animation objects alive until plt.show() returns.
     animations: list[FuncAnimation] = []

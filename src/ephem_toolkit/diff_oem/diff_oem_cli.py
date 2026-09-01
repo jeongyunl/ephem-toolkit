@@ -77,7 +77,7 @@ class DiffOemArgs(argparse.Namespace):
     """Transformation stage order as requested by the CLI."""
 
 
-def parse_arguments(argv=None) -> DiffOemArgs:
+def build_arg_parser() -> argparse.ArgumentParser:
     """Parse command-line arguments.
 
     Returns
@@ -88,7 +88,7 @@ def parse_arguments(argv=None) -> DiffOemArgs:
         ``stage_sequence`` records transformation stage order as
         requested in the CLI. Interpolators are always used.
     """
-    parser: argparse.ArgumentParser = cli.create_parser(
+    parser: argparse.ArgumentParser = cli.build_arg_parser(
         description=(
             "Compare two OEM files and report differences in time, "
             "position, and velocity."
@@ -199,6 +199,11 @@ def parse_arguments(argv=None) -> DiffOemArgs:
         default=None,
         help="Stop epoch in ISO-8601 format (for example, 2001-11-06T11:17:33 or 2001-11-06T11:17:33.1234) or as a duration offset from --start.",
     )
+    return parser
+
+
+def parse_arguments(parser: argparse.ArgumentParser, argv=None) -> DiffOemArgs:
+    """Parse command-line arguments."""
     args = parser.parse_args(argv, namespace=DiffOemArgs())
     args.stage_sequence = extract_stage_sequence(
         argv if argv is not None else sys.argv[1:]

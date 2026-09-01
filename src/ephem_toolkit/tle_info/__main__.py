@@ -21,10 +21,10 @@ import warnings
 
 try:
     from .tle_info_cli import TleInfoArgs
-    from .tle_info_cli import parse_arguments
+    from .tle_info_cli import build_arg_parser, parse_arguments
 except ImportError:  # pragma: no cover - direct script execution fallback
     from ephem_toolkit.tle_info.tle_info_cli import TleInfoArgs
-    from ephem_toolkit.tle_info.tle_info_cli import parse_arguments
+    from ephem_toolkit.tle_info.tle_info_cli import build_arg_parser, parse_arguments
 
 # Suppress warnings that tudatpy / urllib3 may emit on import.
 warnings.filterwarnings("ignore", category=SyntaxWarning)
@@ -108,7 +108,8 @@ def main(argv=None) -> None:
     and prints the epoch, TLE fields, Cartesian state, and osculating
     Keplerian elements at the reference epoch.
     """
-    cli_args: TleInfoArgs = parse_arguments(argv)
+    cli_parser = build_arg_parser()
+    cli_args: TleInfoArgs = parse_arguments(cli_parser, argv)
 
     tle_files: list[str] = cli_args.tle_files
     print(f"TLE files: {tle_files}\n")

@@ -48,10 +48,13 @@ import ephem_toolkit.core.tle as tle
 
 try:
     from .oem_to_omm_cli import OemToOmmArgs
-    from .oem_to_omm_cli import parse_arguments
+    from .oem_to_omm_cli import build_arg_parser, parse_arguments
 except ImportError:  # pragma: no cover - direct script execution fallback
     from ephem_toolkit.oem_to_omm.oem_to_omm_cli import OemToOmmArgs
-    from ephem_toolkit.oem_to_omm.oem_to_omm_cli import parse_arguments
+    from ephem_toolkit.oem_to_omm.oem_to_omm_cli import (
+        build_arg_parser,
+        parse_arguments,
+    )
 
 from . import fit_common
 from . import fit_brouwer
@@ -112,7 +115,8 @@ def report_error(message: str, exit_code: int = 1) -> NoReturn:
 
 def main(argv=None) -> None:
     """Parse CLI arguments and dispatch to the appropriate conversion mode."""
-    cli_args: OemToOmmArgs = parse_arguments(argv)
+    cli_parser = build_arg_parser()
+    cli_args: OemToOmmArgs = parse_arguments(cli_parser, argv)
 
     # Determine input source: file path or stdin (piped input)
     read_from_stdin: bool = cli_args.input_oem == "-"
@@ -190,7 +194,10 @@ def main(argv=None) -> None:
                 else:
                     omm_obj.to_file(cli_args.output_omm)
                     if cli_args.verbose:
-                        print(f"OMM file written to: {cli_args.output_omm}", file=sys.stderr)
+                        print(
+                            f"OMM file written to: {cli_args.output_omm}",
+                            file=sys.stderr,
+                        )
             except Exception as error:
                 report_error(f"Error writing OMM file: {error}")
         return
@@ -234,8 +241,8 @@ def main(argv=None) -> None:
         # Save OMM format if requested (convert mean to osculating first)
         if cli_args.output_omm:
             try:
-                osculating_elements: np.ndarray = (
-                    brouwer.brouwer_mean_to_osculating(fitted_mean_elements)
+                osculating_elements: np.ndarray = brouwer.brouwer_mean_to_osculating(
+                    fitted_mean_elements
                 )
                 mean_element_theory = cli_args.theory or "BROUWER-LYDDANE"
                 omm_obj: omm.CcsdsOmm = omm.keplerian_to_omm(

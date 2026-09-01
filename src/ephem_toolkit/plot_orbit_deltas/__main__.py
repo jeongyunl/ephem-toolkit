@@ -21,7 +21,11 @@ import numpy as np
 
 import ephem_toolkit.core.time_utils as time_utils
 
-from .plot_orbit_deltas_cli import PlotOrbitDeltasArgs, parse_arguments
+from .plot_orbit_deltas_cli import (
+    PlotOrbitDeltasArgs,
+    build_arg_parser,
+    parse_arguments,
+)
 
 from .constants import DEFAULT_INTERPOLATION_DEGREE
 from .data_structures import StateHistory, TimeUnit
@@ -60,7 +64,8 @@ def generate_output_filename(base_output: str | None, suffix: str) -> str | None
 
 def main(argv=None) -> None:
     """Main entry point for the script."""
-    cli_args: PlotOrbitDeltasArgs = parse_arguments(argv)
+    cli_parser = build_arg_parser()
+    cli_args: PlotOrbitDeltasArgs = parse_arguments(cli_parser, argv)
 
     if len(cli_args.input_oem_files) < 1:
         raise SystemExit(1)

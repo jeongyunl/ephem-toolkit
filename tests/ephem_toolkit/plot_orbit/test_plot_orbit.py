@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 import sys
 
-from ephem_toolkit.plot_orbit.plot_orbit_cli import parse_arguments
+from ephem_toolkit.plot_orbit.plot_orbit_cli import build_arg_parser, parse_arguments
 
 
 def test_plot_orbit_help_uses_command_name_and_output_placeholder() -> None:
@@ -15,7 +15,7 @@ def test_plot_orbit_help_uses_command_name_and_output_placeholder() -> None:
     sys.stdout = captured_output
 
     try:
-        parse_arguments(["--help"])
+        parse_arguments(build_arg_parser(), ["--help"])
     except SystemExit:
         pass
     finally:
@@ -31,7 +31,7 @@ def test_plot_orbit_uses_input_oem_attribute_name() -> None:
     original_argv = sys.argv[:]
     try:
         sys.argv = ["plot-orbit", "orbit.oem", "-o", "orbit.png", "-d", "1h"]
-        args = parse_arguments()
+        args = parse_arguments(build_arg_parser())
     finally:
         sys.argv = original_argv
 

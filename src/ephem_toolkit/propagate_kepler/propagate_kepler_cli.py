@@ -33,9 +33,9 @@ class PropagateKeplerArgs(argparse.Namespace):
     """Whether to emit data-only OEM state lines."""
 
 
-def parse_arguments(argv=None) -> PropagateKeplerArgs:
+def build_arg_parser() -> argparse.ArgumentParser:
     """Parse command-line arguments for Keplerian propagation."""
-    parser = cli.create_parser(
+    cli_parser = cli.build_arg_parser(
         description=(
             "Run two-body Keplerian propagation from an OPM Keplerian state and "
             "a user-provided simulation duration."
@@ -47,12 +47,12 @@ def parse_arguments(argv=None) -> PropagateKeplerArgs:
             "  cat input.opm | propagate-kepler - --output - --data-only"
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "input_opm",
         metavar="<input_opm|->",
         help="Input OPM file path, or '-' to read OPM content from stdin.",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-d",
         "--duration",
         type=time_utils.parse_duration_to_seconds,
@@ -64,7 +64,7 @@ def parse_arguments(argv=None) -> PropagateKeplerArgs:
             f"(default: {DEFAULT_PROPAGATION_DURATION_S})."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-o",
         "--output",
         dest="output_oem",
@@ -75,7 +75,7 @@ def parse_arguments(argv=None) -> PropagateKeplerArgs:
             "'-' writes to stdout."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-s",
         "--step",
         type=time_utils.parse_duration_to_seconds,
@@ -87,7 +87,7 @@ def parse_arguments(argv=None) -> PropagateKeplerArgs:
             f"(default: {DEFAULT_OUTPUT_STEP_S})."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--data-only",
         dest="data_only",
         action="store_true",
@@ -96,8 +96,9 @@ def parse_arguments(argv=None) -> PropagateKeplerArgs:
             "By default, output is CCSDS OEM format."
         ),
     )
+    return cli_parser
+
+
+def parse_arguments(parser: argparse.ArgumentParser, argv=None) -> PropagateKeplerArgs:
+    """Parse command-line arguments for Kepler propagation."""
     return parser.parse_args(argv, namespace=PropagateKeplerArgs())
-
-
-if __name__ == "__main__":
-    raise SystemExit(parse_arguments())

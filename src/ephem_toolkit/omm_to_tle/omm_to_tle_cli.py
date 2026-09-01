@@ -16,9 +16,9 @@ class OmmToTleArgs(argparse.Namespace):
     """Output TLE path or '-' for stdout."""
 
 
-def parse_arguments(argv=None) -> OmmToTleArgs:
-    """Parse command-line arguments for OMM-to-TLE conversion."""
-    parser = cli.create_parser(
+def build_arg_parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
+    cli_parser = cli.build_arg_parser(
         description=(
             "Convert a CCSDS Orbit Mean-Elements Message (OMM) to a Two-Line Element "
             "(TLE) set. Reads OMM from a file path or stdin and writes TLE to stdout "
@@ -31,13 +31,13 @@ def parse_arguments(argv=None) -> OmmToTleArgs:
             "  omm-to-tle input.omm -o output.tle"
         ),
     )
-    parser.prog = "omm-to-tle"
-    parser.add_argument(
+    cli_parser.prog = "omm-to-tle"
+    cli_parser.add_argument(
         "input_omm",
         metavar="<input_omm|->",
         help='Input OMM file path; use "-" to read OMM text from stdin.',
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-o",
         "--output",
         dest="output_tle",
@@ -45,4 +45,9 @@ def parse_arguments(argv=None) -> OmmToTleArgs:
         required=True,
         help="Output TLE file path; '-' writes to stdout.",
     )
+    return cli_parser
+
+
+def parse_arguments(parser: argparse.ArgumentParser, argv=None) -> OmmToTleArgs:
+    """Parse command-line arguments for OMM-to-TLE conversion."""
     return parser.parse_args(argv, namespace=OmmToTleArgs())

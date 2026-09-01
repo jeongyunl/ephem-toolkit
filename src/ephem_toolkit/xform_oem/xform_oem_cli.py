@@ -117,9 +117,9 @@ def parse_header_overrides(
     return overrides
 
 
-def parse_arguments(argv) -> XformOemArgs:
-    """Parse and validate command-line arguments."""
-    parser = cli.create_parser(
+def build_arg_parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
+    cli_parser = cli.build_arg_parser(
         description=(
             "Transform OEM ephemeris files by changing the reference frame "
             "or converting to AER coordinates."
@@ -131,21 +131,21 @@ def parse_arguments(argv) -> XformOemArgs:
             "  cat data.oem | xform-oem - --x-csv -o -"
         ),
     )
-    parser.prog = "xform-oem"
-    parser.add_argument(
+    cli_parser.prog = "xform-oem"
+    cli_parser.add_argument(
         "-v",
         "--verbose",
         dest="verbose",
         action="store_true",
         help="Print extra diagnostic output.",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--debug",
         dest="debug",
         action="store_true",
         help="Print low-level debug details.",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--set-header",
         dest="set_header",
         action="append",
@@ -156,7 +156,7 @@ def parse_arguments(argv) -> XformOemArgs:
             "Supported keys: CCSDS_OEM_VERS, CREATION_DATE, ORIGINATOR."
         ),
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--set-meta",
         dest="set_meta",
         action="append",
@@ -169,7 +169,7 @@ def parse_arguments(argv) -> XformOemArgs:
             "and INTERPOLATION_DEGREE."
         ),
     )
-    x_format_group = parser.add_mutually_exclusive_group()
+    x_format_group = cli_parser.add_mutually_exclusive_group()
     x_format_group.add_argument(
         "--x-ref-frame",
         dest="x_ref_frame",
@@ -195,18 +195,18 @@ def parse_arguments(argv) -> XformOemArgs:
         action="store_true",
         help="Write the transformed OEM state data in CSV format.",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "--data-only",
         dest="data_only",
         action="store_true",
         help="Write only state data, without the OEM header and metadata.",
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "input_oem",
         metavar="<input_oem|->",
         help='Primary input OEM file path; use "-" to read from stdin.',
     )
-    parser.add_argument(
+    cli_parser.add_argument(
         "-o",
         "--output",
         dest="output_oem",
@@ -215,6 +215,11 @@ def parse_arguments(argv) -> XformOemArgs:
         help="Output OEM file path; '-' writes to stdout.",
     )
 
+    return cli_parser
+
+
+def parse_arguments(parser: argparse.ArgumentParser, argv) -> XformOemArgs:
+    """Parse and validate command-line arguments."""
     args: XformOemArgs = parser.parse_args(argv, namespace=XformOemArgs())
     args.x_ref_frame_parts = None
     if args.x_ref_frame:

@@ -59,7 +59,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import TextIO
 import warnings
@@ -75,10 +75,10 @@ import numpy as np
 
 try:
     from .xform_oem_cli import XformOemArgs
-    from .xform_oem_cli import parse_arguments
+    from .xform_oem_cli import build_arg_parser, parse_arguments
 except ImportError:  # pragma: no cover - direct script execution fallback
     from ephem_toolkit.xform_oem.xform_oem_cli import XformOemArgs
-    from ephem_toolkit.xform_oem.xform_oem_cli import parse_arguments
+    from ephem_toolkit.xform_oem.xform_oem_cli import build_arg_parser, parse_arguments
 
 import ephem_toolkit.core.aer as aer
 import ephem_toolkit.core.frame_utils as frame_utils
@@ -302,7 +302,8 @@ def parse_header_overrides(
 def main(argv=None) -> None:
     """Parse CLI arguments and transform OEM file."""
 
-    cli_args: XformOemArgs = parse_arguments(argv)
+    cli_parser = build_arg_parser()
+    cli_args: XformOemArgs = parse_arguments(cli_parser, argv)
 
     # Determine if reading from stdin
     read_from_stdin = cli_args.input_oem == "-"
