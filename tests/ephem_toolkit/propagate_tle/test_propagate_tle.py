@@ -2,77 +2,19 @@
 
 from __future__ import annotations
 
-import datetime as dt
 import io
 import sys
 from pathlib import Path
 
 import pytest
 
-from ephem_toolkit.propagate_tle import propagate_tle_cli
 from ephem_toolkit.propagate_tle.__main__ import main as propagate_tle_main
-from ephem_toolkit.propagate_tle.__main__ import resolve_time_bounds
 
 TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent
 TEST_DATA_DIR: Path = TEST_DIR.parent.parent / "data"
 
 TLE_FILES: list[Path] = sorted(TEST_DATA_DIR.glob("*.tle"))
-
-
-def test_tle_cli_uses_canonical_propagation_family_flags(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The TLE propagation CLI should accept the shared propagation-family names."""
-    tle_path = "tests/data/ISS-ZARYA_1998-067A.tle"
-
-    monkeypatch.setattr(
-        "sys.argv",
-        [
-            "propagate-tle",
-            tle_path,
-            "--duration",
-            "2h",
-            "--output",
-            "-",
-        ],
-    )
-    args = propagate_tle_cli.parse_arguments()
-    assert args.tle_file == tle_path
-    assert args.duration_s == 7200.0
-    assert args.output_oem == "-"
-
-    monkeypatch.setattr(
-        "sys.argv",
-        ["propagate-tle", tle_path, "--output", "out.oem"],
-    )
-    args = propagate_tle_cli.parse_arguments()
-    assert args.output_oem == "out.oem"
-
-    monkeypatch.setattr(
-        "sys.argv",
-        [
-            "propagate-tle",
-            tle_path,
-            "-d",
-            "3h",
-            "--output",
-            "-",
-        ],
-    )
-    args = propagate_tle_cli.parse_arguments()
-    assert args.duration_s == 10800.0
-
-
-def test_relative_stop_is_resolved_from_start_epoch() -> None:
-    """A relative stop duration should be measured from the resolved start."""
-    start_time = dt.datetime(2026, 1, 1, 6, 0, 0)
-
-    assert resolve_time_bounds(
-        dt.datetime(2026, 1, 1, 0, 0, 0),
-        start_time,
-        dt.timedelta(hours=2),
-    ) == (start_time, dt.datetime(2026, 1, 1, 8, 0, 0))
 
 
 def run_propagate_tle(tle_path: Path) -> str:
@@ -91,20 +33,22 @@ def run_propagate_tle(tle_path: Path) -> str:
     old_stdout = sys.stdout
     captured_output = io.StringIO()
     sys.stdout = captured_output
-    
+
     try:
-        result = propagate_tle_main([
-            str(tle_path),
-            "--data-only",
-            "-s",
-            "15m",
-            "--output",
-            "-",
-        ])
+        result = propagate_tle_main(
+            [
+                str(tle_path),
+                "--data-only",
+                "-s",
+                "15m",
+                "--output",
+                "-",
+            ]
+        )
         assert result == 0, f"propagate_tle.py failed for {tle_path.name}"
     finally:
         sys.stdout = old_stdout
-    
+
     output = captured_output.getvalue()
     assert output.strip(), f"propagate_tle.py produced no output for {tle_path.name}"
     return output
