@@ -164,6 +164,7 @@ def extract_sliced_states(
     oem: CcsdsOem,
     slice_spec: TimeSliceOptions | slice,
     verbose: bool = False,
+    clamp_to_oem_bounds: bool = True,
 ) -> CcsdsOem:
     """Extract sliced OEM states based on a time or index slice specification.
 
@@ -177,6 +178,10 @@ def extract_sliced_states(
         Time-based slice options or a Python slice object.
     verbose : bool, optional
         If True, print debug information to stderr (default: False).
+    clamp_to_oem_bounds : bool, optional
+        If True, clamp resolved time bounds to the OEM bounds before validation
+        (default: True). For index slices, Python slicing clamps out-of-range
+        bounds when this is enabled.
 
     Returns
     -------
@@ -194,11 +199,18 @@ def extract_sliced_states(
     if isinstance(slice_spec, TimeSliceOptions):
         if slice_spec.step_size is not None and slice_spec.interpolation_spec is None:
             raise ValueError("step_size requires interpolation_spec to be set")
-        return extract_states_by_time(oem, slice_spec, verbose=verbose)
+        return extract_states_by_time(
+            oem,
+            slice_spec,
+            verbose=verbose,
+            clamp_to_oem_bounds=clamp_to_oem_bounds,
+        )
     elif isinstance(slice_spec, slice):
         # Validate slice indices before applying
         total_states = len(oem.states)
-        _validate_slice_indices(slice_spec, total_states)
+        _validate_slice_indices(
+            slice_spec, total_states, clamp_to_oem_bounds=clamp_to_oem_bounds
+        )
 
         # States are already sorted, no need to sort again
         sliced_states: list[tuple[float, np.ndarray]] = oem.states[slice_spec]
@@ -254,6 +266,7 @@ def extract_states_by_time(
     oem: CcsdsOem,
     options: TimeSliceOptions,
     verbose: bool = False,
+    clamp_to_oem_bounds: bool = True,
 ) -> CcsdsOem:
     """Extract states within a time window using TimeSliceOptions.
 
@@ -265,6 +278,10 @@ def extract_states_by_time(
         Parsed time slice options specifying start, stop, step and interpolation.
     verbose : bool, optional
         If True, print debug information to stderr (default: False).
+    clamp_to_oem_bounds : bool, optional
+        If True, clamp resolved times to the OEM bounds before validation
+        (default: True). If False, out-of-range times are handled by the
+        normal time-range validation.
 
     Returns
     -------
@@ -374,6 +391,26 @@ def extract_states_by_time(
     else:
         # It's a datetime
         slice_stop_timestamp_s = time_utils.datetime_to_tt_s(options.stop_time)
+
+    # A relative or absolute request may resolve outside the source OEM. Clamp
+    # it to the available data so later validation and extraction operate on a
+    # range that can actually be represented by this file.
+    if clamp_to_oem_bounds:
+        if slice_start_timestamp_s < base_start_timestamp_s:
+            if verbose:
+                print(
+                    f"[slice_oem]   Adjusted start time from {slice_start_timestamp_s} to OEM start time {base_start_timestamp_s}",
+                    file=sys.stderr,
+                )
+            slice_start_timestamp_s = base_start_timestamp_s
+
+        if slice_stop_timestamp_s > base_stop_timestamp_s:
+            if verbose:
+                print(
+                    f"[slice_oem]   Adjusted stop time from {slice_stop_timestamp_s} to OEM stop time {base_stop_timestamp_s}",
+                    file=sys.stderr,
+                )
+            slice_stop_timestamp_s = base_stop_timestamp_s
 
     # Validate time range after resolving timestamps
     _validate_time_range(
@@ -753,7 +790,11 @@ def _create_sliced_oem(
     )
 
 
-def _validate_slice_indices(slice_obj: slice, total_states: int) -> None:
+def _validate_slice_indices(
+    slice_obj: slice,
+    total_states: int,
+    clamp_to_oem_bounds: bool = False,
+) -> None:
     """Validate slice indices against the source OEM file size.
 
     Parameters
@@ -762,6 +803,8 @@ def _validate_slice_indices(slice_obj: slice, total_states: int) -> None:
         The slice object to validate.
     total_states : int
         Total number of states in the source OEM file.
+    clamp_to_oem_bounds : bool, optional
+        If True, allow Python slicing to clamp out-of-range indices.
 
     Raises
     ------
@@ -786,14 +829,14 @@ def _validate_slice_indices(slice_obj: slice, total_states: int) -> None:
 
     # Validate negative indices are within bounds
     # Negative indices must be in range [-total_states, -1]
-    if slice_obj.start is not None and slice_obj.start < 0:
+    if not clamp_to_oem_bounds and slice_obj.start is not None and slice_obj.start < 0:
         if abs(slice_obj.start) > total_states:
             raise IndexError(
                 f"Start index {slice_obj.start} is out of range for OEM file with "
                 f"{total_states} states (valid negative range: -{total_states} to -1)"
             )
 
-    if slice_obj.stop is not None and slice_obj.stop < 0:
+    if not clamp_to_oem_bounds and slice_obj.stop is not None and slice_obj.stop < 0:
         if abs(slice_obj.stop) > total_states:
             raise IndexError(
                 f"Stop index {slice_obj.stop} is out of range for OEM file with "

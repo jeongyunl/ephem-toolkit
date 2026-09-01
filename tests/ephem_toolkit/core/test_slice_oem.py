@@ -635,7 +635,22 @@ def test_index_validation_negative_start_out_of_range() -> None:
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
 
     with pytest.raises(IndexError, match="Start index -20 is out of range"):
-        slice_oem.extract_sliced_states(oem_obj, slice(-20, 5))
+        slice_oem.extract_sliced_states(
+            oem_obj, slice(-20, 5), clamp_to_oem_bounds=False
+        )
+
+
+def test_index_clamping_out_of_range_negative_start() -> None:
+    """Test that an out-of-range negative start is clamped when enabled."""
+    states = [
+        (757339269.184 + i * 60, np.array([7e6, 0, 0, 0, 7.5e3, 0])) for i in range(10)
+    ]
+    oem_obj = CcsdsOem.from_states(states, object_name="TEST")
+
+    sliced_oem = slice_oem.extract_sliced_states(
+        oem_obj, slice(-20, 5), clamp_to_oem_bounds=True
+    )
+    assert len(sliced_oem.states) == 5
 
 
 def test_index_validation_allows_out_of_range_positive_indices() -> None:
@@ -711,7 +726,26 @@ def test_time_validation_start_before_oem_range() -> None:
     )
 
     with pytest.raises(ValueError, match="Start time .* is before OEM file start time"):
-        slice_oem.extract_sliced_states(oem_obj, options)
+        slice_oem.extract_sliced_states(oem_obj, options, clamp_to_oem_bounds=False)
+
+
+def test_time_clamping_start_before_oem_range() -> None:
+    """Test that a start before the OEM is clamped when enabled."""
+    base_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    states = [
+        (time_utils.datetime_to_tt_s(base_time) + i * 60, np.zeros(6))
+        for i in range(10)
+    ]
+    oem_obj = CcsdsOem.from_states(states, object_name="TEST")
+    options = slice_oem.TimeSliceOptions(
+        start_time=base_time - timedelta(hours=1),
+        stop_time=base_time + timedelta(minutes=5),
+    )
+
+    sliced_oem = slice_oem.extract_sliced_states(
+        oem_obj, options, clamp_to_oem_bounds=True
+    )
+    assert sliced_oem.states[0][0] == states[0][0]
 
 
 def test_time_validation_stop_after_oem_range() -> None:
@@ -733,7 +767,7 @@ def test_time_validation_stop_after_oem_range() -> None:
     )
 
     with pytest.raises(ValueError, match="Stop time .* is after OEM file stop time"):
-        slice_oem.extract_sliced_states(oem_obj, options)
+        slice_oem.extract_sliced_states(oem_obj, options, clamp_to_oem_bounds=False)
 
 
 def test_time_validation_valid_range() -> None:
@@ -1103,7 +1137,9 @@ def test_index_validation_negative_stop_out_of_range() -> None:
     oem_obj = CcsdsOem.from_states(states, object_name="TEST")
 
     with pytest.raises(IndexError, match="Stop index -20 is out of range"):
-        slice_oem.extract_sliced_states(oem_obj, slice(0, -20))
+        slice_oem.extract_sliced_states(
+            oem_obj, slice(0, -20), clamp_to_oem_bounds=False
+        )
 
 
 def test_parse_time_slice_with_empty_stop_and_step() -> None:
