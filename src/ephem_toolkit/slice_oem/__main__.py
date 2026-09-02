@@ -44,37 +44,22 @@ For detailed documentation, see doc/SLICE_OEM.md
 
 from __future__ import annotations
 
-import sys
-from datetime import timedelta
-from pathlib import Path
-
-import ephem_toolkit.core.ccsds.opm as opm
-import ephem_toolkit.core.ccsds.oem as oem
-import ephem_toolkit.core.interpolator.interpolation_spec as interpolation_spec
-import ephem_toolkit.core.slice_oem as slice_oem
-import ephem_toolkit.core.time_utils as time_utils
-
-from .slice_oem_cli import SliceOemArgs, build_arg_parser, parse_arguments
-
-DEFAULT_INTERPOLATION_TYPE: str = "hermite"
-"""Default interpolation method."""
-
-DEFAULT_INTERPOLATION_DEGREE: int = 5
-"""Default polynomial degree for interpolation (Hermite default)."""
-
-DEFAULT_INTERPOLATION_SPEC: interpolation_spec.InterpolationSpec = (
-    interpolation_spec.InterpolationSpec(
-        interp_type=interpolation_spec.InterpolationType.HERMITE,
-        degree=DEFAULT_INTERPOLATION_DEGREE,
-    )
-)
-"""Default interpolation specification."""
+from .slice_oem_cli import build_arg_parser, parse_arguments
 
 
 def main(argv=None) -> None:
     """Parse CLI arguments, slice OEM ephemeris data, and write results to stdout."""
     cli_parser = build_arg_parser()
-    cli_args: SliceOemArgs = parse_arguments(cli_parser, argv)
+    cli_args = parse_arguments(cli_parser, argv)
+
+    import sys
+    from datetime import timedelta
+    from pathlib import Path
+
+    import ephem_toolkit.core.ccsds.opm as opm
+    import ephem_toolkit.core.ccsds.oem as oem
+    import ephem_toolkit.core.slice_oem as slice_oem
+    import ephem_toolkit.core.time_utils as time_utils
 
     # Determine if reading from stdin
     read_from_stdin = cli_args.input_oem == "-"
@@ -95,18 +80,19 @@ def main(argv=None) -> None:
             oem_file = Path(cli_args.input_oem)
             oem_data = oem.CcsdsOem.read(oem_file)
 
-        if (
-            cli_args.time_slice
-            and cli_args.interpolate
-            and len(oem_data.states) < cli_args.interpolate_type.degree
-        ):
-            print(
-                "Warning: input contains "
-                f"{len(oem_data.states)} states, fewer than the requested "
-                f"interpolation degree {cli_args.interpolate_type.degree}; "
-                "the degree will be reduced to fit the available data.",
-                file=sys.stderr,
-            )
+        if cli_args.time_slice and cli_args.interpolate:
+            interpolation_degree = cli_args.interpolate_type.degree
+            if (
+                interpolation_degree is not None
+                and len(oem_data.states) < interpolation_degree
+            ):
+                print(
+                    "Warning: input contains "
+                    f"{len(oem_data.states)} states, fewer than the requested "
+                    f"interpolation degree {interpolation_degree}; "
+                    "the degree will be reduced to fit the available data.",
+                    file=sys.stderr,
+                )
 
         if cli_args.verbose:
             total_states = len(oem_data.states)
