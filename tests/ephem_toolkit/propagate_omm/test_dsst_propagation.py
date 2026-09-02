@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import inspect
 import sys
 from pathlib import Path
 
@@ -25,7 +24,7 @@ import ephem_toolkit.core.ccsds.omm as omm_mod
 import ephem_toolkit.core.time_utils as time_utils
 
 _MU = EARTH_GRAVITATIONAL_PARAMETER_M3_S2
-_implementation = inspect.getmodule(propagate_omm_main.main)
+_propagate_omm_main_globals = propagate_omm_main.main.__globals__
 
 # ISS-like osculating elements: [a, e, i, omega, RAAN, theta]
 _ISS_OSCULATING = np.array(
@@ -305,7 +304,9 @@ def test_main_dispatches_kepler_for_non_dsst_theory(monkeypatch, tmp_path):
         dispatched_to.append("kepler")
         return original_kepler(*args, **kwargs)
 
-    monkeypatch.setattr(_implementation, "propagate_omm_kepler", mock_kepler)
+    monkeypatch.setitem(
+        _propagate_omm_main_globals, "propagate_omm_kepler", mock_kepler
+    )
     monkeypatch.setattr(
         sys,
         "argv",
