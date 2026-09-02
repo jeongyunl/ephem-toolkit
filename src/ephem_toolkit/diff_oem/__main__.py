@@ -12,28 +12,7 @@ stdin input. Interpolation options compare states at matching epochs.
 
 from __future__ import annotations
 
-import sys
-from typing import TextIO
-
-from .comparison import read_states
-from .debug import debug_print_time_range, set_debug
 from .diff_oem_cli import DiffOemArgs, build_arg_parser, parse_arguments
-from .output import ComparisonOutput
-from .pipeline import TransformationPipeline
-from .transformation_stages import (
-    RotationStage,
-    RotationXYStage,
-    RotationZStage,
-    TimeShiftStage,
-    TransformationStage,
-)
-from .utils import (
-    build_comparison_pairs,
-    compare_pairs,
-    find_overlapping_time_range,
-    resolve_time_bound,
-)
-from ephem_toolkit.core.interpolator import factory
 
 
 def main(argv=None) -> None:
@@ -46,6 +25,30 @@ def main(argv=None) -> None:
     """
     cli_parser = build_arg_parser()
     cli_args: DiffOemArgs = parse_arguments(cli_parser, argv)
+
+    # Delay imports until after argument parsing so --help and argument errors
+    # do not load the comparison pipeline and its optional dependencies.
+    import sys
+    from typing import TextIO
+
+    from .comparison import read_states
+    from .debug import debug_print_time_range, set_debug
+    from .output import ComparisonOutput
+    from .pipeline import TransformationPipeline
+    from .transformation_stages import (
+        RotationStage,
+        RotationXYStage,
+        RotationZStage,
+        TimeShiftStage,
+        TransformationStage,
+    )
+    from .utils import (
+        build_comparison_pairs,
+        compare_pairs,
+        find_overlapping_time_range,
+        resolve_time_bound,
+    )
+    from ephem_toolkit.core.interpolator import factory
 
     # --debug implies --verbose.
     if cli_args.debug:
