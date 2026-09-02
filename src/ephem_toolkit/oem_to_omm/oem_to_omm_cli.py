@@ -53,38 +53,21 @@ class OemToOmmArgs(argparse.Namespace):
     """TLE revolution number at epoch."""
 
 
-def report_error(message: str, exit_code: int = 1) -> None:
-    """Report an error message to stderr and exit.
+def build_common_arg_parser(
+    *,
+    prog: str | None = None,
+    description: str,
+    epilog: str | None = None,
+    output_dest: str = "output_omm",
+    output_metavar: str = "<output_omm|->",
+    object_name_help: str = "OBJECT_NAME: Spacecraft name for OMM metadata.",
+    object_id_help: str = "OBJECT_ID: International designator (e.g., 1998-067A) for OMM output.",
+) -> argparse.ArgumentParser:
+    """Build the common OEM conversion options shared by OEM-to-OMM and OEM-to-TLE."""
+    cli_parser = cli.build_arg_parser(description=description, epilog=epilog)
+    if prog is not None:
+        cli_parser.prog = prog
 
-    Parameters
-    ----------
-    message : str
-        Error message to display.
-    exit_code : int, optional
-        Exit code to raise with SystemExit. Default is 1.
-    """
-    print(message, file=sys.stderr)
-    raise SystemExit(exit_code)
-
-
-def build_arg_parser() -> argparse.ArgumentParser:
-    """Parse command-line arguments for the OEM-to-OMM conversion workflow.
-
-    Returns
-    -------
-    OemToOmmArgs
-        Parsed CLI arguments with the typed runtime namespace.
-    """
-    cli_parser = cli.build_arg_parser(
-        description="Convert OEM state vectors to Keplerian elements or OMM.",
-        epilog=(
-            "Examples:\n"
-            "  oem-to-omm --mode brouwer input.oem -o output.omm\n"
-            "  cat input.oem | oem-to-omm --mode tle - -o -\n"
-            "  cat input.oem | oem-to-omm --mode tle - -o output.omm"
-        ),
-    )
-    cli_parser.prog = "oem-to-omm"
     cli_parser.add_argument(
         "input_oem",
         metavar="<input_oem|->",
@@ -93,10 +76,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     cli_parser.add_argument(
         "-o",
         "--output",
-        dest="output_omm",
-        metavar="<output_omm|->",
+        dest=output_dest,
+        metavar=output_metavar,
         required=True,
-        help="Output OMM file path; '-' writes to stdout",
+        help="Output file path; '-' writes to stdout",
     )
     cli_parser.add_argument(
         "-v",
@@ -104,17 +87,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
         dest="verbose",
         action="store_true",
         help="Print detailed debug information to stderr",
-    )
-    cli_parser.add_argument(
-        "--mu",
-        type=float,
-        default=consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2,
-        metavar="<value>",
-        dest="mu_m3_s2",
-        help=(
-            "Gravitational parameter (m³/s²). "
-            f"(default: {consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2:.6e}, Earth WGS-84)."
-        ),
     )
     cli_parser.add_argument(
         "--fit-span",
@@ -128,41 +100,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     cli_parser.add_argument(
-        "--mode",
-        dest="mode",
-        choices=["brouwer", "dsst", "tle"],
-        default="tle",
-        metavar="<brouwer|dsst|tle>",
-        help=(
-            "'brouwer' fits Brouwer mean elements, "
-            "'dsst' fits DSST mean elements, "
-            "and 'tle' fits a TLE."
-        ),
-    )
-    cli_parser.add_argument(
-        "--theory",
-        dest="theory",
-        default=None,
-        metavar="<theory>",
-        help=(
-            "Override MEAN_ELEMENT_THEORY in OMM output "
-            "(e.g., 'DSST', 'BROUWER'). "
-            "Defaults to theory matching the selected mode."
-        ),
-    )
-    cli_parser.add_argument(
         "--object-name",
         dest="object_name",
         metavar="<name>",
         default="",
-        help="OBJECT_NAME: Spacecraft name for OMM output.",
+        help=object_name_help,
     )
     cli_parser.add_argument(
         "--object-id",
         metavar="<YYYY-NNNP>",
         default="",
         dest="object_id",
-        help="OBJECT_ID: International designator (e.g., 1998-067A) for OMM output.",
+        help=object_id_help,
     )
     cli_parser.add_argument(
         "--tle-refinement",
@@ -213,6 +162,65 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="REV_AT_EPOCH: Revolution number at epoch (default: 0, used with --tle mode).",
     )
 
+    return cli_parser
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    """Parse command-line arguments for the OEM-to-OMM conversion workflow.
+
+    Returns
+    -------
+    OemToOmmArgs
+        Parsed CLI arguments with the typed runtime namespace.
+    """
+    cli_parser = build_common_arg_parser(
+        prog="oem-to-omm",
+        description="Convert OEM state vectors to Keplerian elements or OMM.",
+        epilog=(
+            "Examples:\n"
+            "  oem-to-omm --mode brouwer input.oem -o output.omm\n"
+            "  cat input.oem | oem-to-omm --mode tle - -o -\n"
+            "  cat input.oem | oem-to-omm --mode tle - -o output.omm"
+        ),
+        output_dest="output_omm",
+        output_metavar="<output_omm|->",
+        object_name_help="OBJECT_NAME: Spacecraft name for the generated OMM metadata.",
+        object_id_help="OBJECT_ID: International designator for the generated OMM metadata.",
+    )
+    cli_parser.add_argument(
+        "--mu",
+        type=float,
+        default=consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2,
+        metavar="<value>",
+        dest="mu_m3_s2",
+        help=(
+            "Gravitational parameter (m³/s²). "
+            f"(default: {consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2:.6e}, Earth WGS-84)."
+        ),
+    )
+    cli_parser.add_argument(
+        "--mode",
+        dest="mode",
+        choices=["brouwer", "dsst", "tle"],
+        default="tle",
+        metavar="<brouwer|dsst|tle>",
+        help=(
+            "'brouwer' fits Brouwer mean elements, "
+            "'dsst' fits DSST mean elements, "
+            "and 'tle' fits a TLE."
+        ),
+    )
+    cli_parser.add_argument(
+        "--theory",
+        dest="theory",
+        default=None,
+        metavar="<theory>",
+        help=(
+            "Override MEAN_ELEMENT_THEORY in OMM output "
+            "(e.g., 'DSST', 'BROUWER'). "
+            "Defaults to theory matching the selected mode."
+        ),
+    )
     return cli_parser
 
 

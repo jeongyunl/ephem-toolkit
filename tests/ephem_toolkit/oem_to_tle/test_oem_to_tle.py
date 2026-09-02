@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from ephem_toolkit.oem_to_omm.oem_to_omm_cli import build_common_arg_parser
 from ephem_toolkit.oem_to_tle import __main__ as oem_to_tle
 
 
@@ -18,6 +19,38 @@ def test_help_uses_oem_to_tle_command_name(help_argument: str, capsys) -> None:
     assert "usage: oem-to-tle" in help_text
     assert "--output <output_tle|->" in help_text
     assert "--mode" not in help_text
+
+
+def test_build_common_arg_parser_exposes_shared_oem_tle_options() -> None:
+    """The shared parser should include the OEM/TLE options used by both commands."""
+    parser = build_common_arg_parser(
+        prog="oem-to-tle",
+        description="Convert OEM state vectors to a TLE.",
+        output_dest="output_tle",
+    )
+
+    args = parser.parse_args(
+        [
+            "input.oem",
+            "--output",
+            "output.tle",
+            "--fit-span",
+            "90m",
+            "--object-name",
+            "ISS",
+            "--object-id",
+            "1998-067A",
+            "--tle-refinement",
+            "cartesian",
+        ]
+    )
+
+    assert args.input_oem == "input.oem"
+    assert args.output_tle == "output.tle"
+    assert args.fit_span.total_seconds() == 5400
+    assert args.object_name == "ISS"
+    assert args.object_id == "1998-067A"
+    assert args.tle_refinement == "cartesian"
 
 
 def test_main_delegates_to_oem_to_omm_in_tle_mode(monkeypatch) -> None:
@@ -45,6 +78,8 @@ def test_main_delegates_to_oem_to_omm_in_tle_mode(monkeypatch) -> None:
 
 @pytest.mark.parametrize("mode_argument", ["--mode", "--mode=brouwer"])
 def test_main_rejects_mode_argument(mode_argument: str) -> None:
-    """The wrapper should not expose the delegated command's mode option."""
-    with pytest.raises(SystemExit, match="unrecognized argument: --mode"):
+    """The wrapper should rely on argparse to reject delegated mode arguments."""
+    with pytest.raises(SystemExit) as error:
         oem_to_tle.main([mode_argument, "brouwer", "input.oem"])
+
+    assert error.value.code == 2

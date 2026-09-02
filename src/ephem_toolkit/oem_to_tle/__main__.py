@@ -5,82 +5,11 @@ from __future__ import annotations
 
 import sys
 import io
-import argparse
 from contextlib import redirect_stdout
 
 from ephem_toolkit.oem_to_omm import __main__ as oem_to_omm
+from ephem_toolkit.oem_to_omm.oem_to_omm_cli import build_common_arg_parser
 from ephem_toolkit.omm_to_tle import omm_to_tle
-
-
-def _print_help(argv: list[str]) -> None:
-    """Print help for the OEM-to-TLE wrapper when requested."""
-    if "-h" not in argv and "--help" not in argv:
-        return
-
-    cli_parser = argparse.ArgumentParser(
-        prog="oem-to-tle",
-        description="Convert OEM state vectors to a TLE.",
-        epilog=(
-            "Examples:\n"
-            "  oem-to-tle input.oem -o output.tle\n"
-            "  cat input.oem | oem-to-tle - -o output.tle"
-        ),
-    )
-    cli_parser.add_argument(
-        "input_oem",
-        metavar="<input_oem|->",
-        help='Path to input CCSDS OEM file; use "-" to read from stdin',
-    )
-    cli_parser.add_argument(
-        "-o",
-        "--output",
-        metavar="<output_tle|->",
-        required=True,
-        help="Output TLE file path; '-' writes to stdout",
-    )
-    cli_parser.add_argument(
-        "-v", "--verbose", help="Print detailed debug information", action="store_true"
-    )
-    cli_parser.add_argument(
-        "--fit-span",
-        metavar="<duration>",
-        help="Maximum arc span for the fit (e.g. 2h, 90m)",
-    )
-    cli_parser.add_argument(
-        "--object-name", metavar="<name>", help="Spacecraft name for OMM output"
-    )
-    cli_parser.add_argument(
-        "--object-id",
-        metavar="<YYYY-NNNP>",
-        help="International designator for OMM output",
-    )
-    cli_parser.add_argument(
-        "--tle-refinement",
-        choices=["none", "cartesian", "keplerian"],
-        default="cartesian",
-        help="Refinement method for TLE fitting",
-    )
-    cli_parser.add_argument(
-        "--tle-norad-cat-id", metavar="<0..99999>", help="NORAD Catalog Number"
-    )
-    cli_parser.add_argument(
-        "--tle-classification-type",
-        choices=["U", "C", "S"],
-        help="TLE classification type",
-    )
-    cli_parser.add_argument(
-        "--tle-ephemeris-type", metavar="<0..9>", help="TLE ephemeris type"
-    )
-    cli_parser.add_argument(
-        "--tle-element-set-no", metavar="<0..9999>", help="TLE element set number"
-    )
-    cli_parser.add_argument(
-        "--tle-rev-at-epoch",
-        metavar="<0..99999>",
-        help="TLE revolution number at epoch",
-    )
-    cli_parser.parse_args(argv)
-    raise AssertionError("argparse help should exit")
 
 
 def main(argv=None) -> None:
@@ -90,26 +19,34 @@ def main(argv=None) -> None:
     else:
         argv = list(argv)
 
-    _print_help(argv)
+    cli_parser = build_common_arg_parser(
+        prog="oem-to-tle",
+        description="Convert OEM state vectors to a TLE.",
+        epilog=(
+            "Examples:\n"
+            "  oem-to-tle input.oem -o output.tle\n"
+            "  cat input.oem | oem-to-tle - -o output.tle"
+        ),
+        output_dest="output_tle",
+        output_metavar="<output_tle|->",
+        object_name_help="Satellite name.",
+        object_id_help="International designator.",
+    )
+    cli_args = cli_parser.parse_args(argv)
+    output_tle = cli_args.output_tle
 
     filtered_arguments: list[str] = []
-    output_tle: str | None = None
     index = 0
     while index < len(argv):
         argument = argv[index]
-        if argument == "--mode":
-            raise SystemExit("oem-to-tle: error: unrecognized argument: --mode")
-        if argument.startswith("--mode="):
-            raise SystemExit(f"oem-to-tle: error: unrecognized argument: {argument}")
         if argument in ("-o", "--output"):
-            filtered_arguments.append(argument)
+            filtered_arguments.extend(["-o", "-"])
             if index + 1 < len(argv):
-                output_tle = argv[index + 1]
-                filtered_arguments.append("-")
-            index += 2
+                index += 2
+            else:
+                index += 1
             continue
         if argument.startswith("--output="):
-            output_tle = argument.partition("=")[2]
             filtered_arguments.append("--output=-")
             index += 1
             continue
