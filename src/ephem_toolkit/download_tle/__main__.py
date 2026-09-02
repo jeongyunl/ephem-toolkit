@@ -7,13 +7,7 @@ format and saves each result to a named file.
 
 from __future__ import annotations
 
-import re
-import urllib.parse
-import urllib.request
-
 from .download_tle_cli import (
-    FORMATS,
-    FORMAT_ALIASES,
     DownloadTleArgs,
     build_arg_parser,
     parse_arguments,
@@ -37,6 +31,8 @@ def safe_name(name: str) -> str:
     str
         Escaped name suitable for use in a filename.
     """
+    import re
+
     result = name.replace(" ", "-").replace("(", "-").replace(")", "")
     return re.sub(r"-+", "-", result)
 
@@ -53,6 +49,11 @@ def main(argv=None) -> None:
     """
     cli_parser = build_arg_parser()
     cli_args: DownloadTleArgs = parse_arguments(cli_parser, argv)
+
+    import urllib.parse
+    import urllib.request
+
+    from .download_tle_cli import FORMATS, FORMAT_ALIASES
 
     satellite_ids: list[str] = cli_args.satellite_ids
     output_format: str = FORMAT_ALIASES.get(cli_args.format, cli_args.format)
