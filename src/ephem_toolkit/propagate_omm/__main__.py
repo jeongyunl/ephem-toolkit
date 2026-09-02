@@ -4,6 +4,15 @@
 from __future__ import annotations
 
 from .propagate_omm_cli import build_arg_parser, parse_arguments
+from .propagation import (
+    propagate_omm_dsst,
+    propagate_omm_kepler,
+    propagate_omm_sgp4,
+    propagate_tle_sgp4,
+    read_omm_input,
+    read_tle_input,
+    resolve_time_bounds,
+)
 
 
 def main(argv=None) -> int:
@@ -14,16 +23,6 @@ def main(argv=None) -> int:
 
     import ephem_toolkit.core.time_utils as time_utils
     import ephem_toolkit.core.tle as tle_mod
-
-    from .propagation import (
-        propagate_omm_dsst,
-        propagate_omm_kepler,
-        propagate_omm_sgp4,
-        propagate_tle_sgp4,
-        read_omm_input,
-        read_tle_input,
-        resolve_time_bounds,
-    )
 
     tle_data = None
     omm_data = None
