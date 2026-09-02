@@ -7,13 +7,6 @@ stdout or a file. Provides command-line interface for TLE-to-OMM conversion.
 
 from __future__ import annotations
 
-import io
-import sys
-
-import ephem_toolkit.core.convert_tle as convert_tle
-import ephem_toolkit.core.tle as tle
-
-from .tle_to_omm_cli import TleToOmmArgs
 from .tle_to_omm_cli import build_arg_parser, parse_arguments
 
 
@@ -24,7 +17,13 @@ def main(argv=None) -> None:
     result to the configured destination. Exits with status 1 on error.
     """
     cli_parser = build_arg_parser()
-    cli_args: TleToOmmArgs = parse_arguments(cli_parser, argv)
+    cli_args = parse_arguments(cli_parser, argv)
+
+    import io
+    import sys
+
+    import ephem_toolkit.core.convert_tle as convert_tle
+    import ephem_toolkit.core.tle as tle
 
     if cli_args.input_tle == "-":
         input_text: str = sys.stdin.read()
