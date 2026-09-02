@@ -26,29 +26,29 @@ library initialisation until the point where it is actually required.
 
 from __future__ import annotations
 
-import contextlib
-import sys
-import warnings
-
-# Suppress warnings that tudatpy / urllib3 may emit on import.
-warnings.filterwarnings("ignore", category=SyntaxWarning)
-warnings.filterwarnings(
-    "ignore",
-    module=r"urllib3(\..*)?",
-)
-
-
-from . import input_handling
-from . import output_handling
-from . import propagation
 from . import propagate_orbit_cli
-from .propagate_orbit_cli import PropagateOrbitArgs
 
 
 def main(argv=None) -> None:
     """Main entry point for orbit propagation."""
     cli_parser = propagate_orbit_cli.build_arg_parser()
-    cli_args: PropagateOrbitArgs = propagate_orbit_cli.parse_arguments(cli_parser, argv)
+    cli_args = propagate_orbit_cli.parse_arguments(cli_parser, argv)
+
+    import warnings
+
+    # Suppress warnings that tudatpy / urllib3 may emit on import.
+    warnings.filterwarnings("ignore", category=SyntaxWarning)
+    warnings.filterwarnings(
+        "ignore",
+        module=r"urllib3(\..*)?",
+    )
+
+    import contextlib
+    import sys
+
+    from . import input_handling
+    from . import output_handling
+    from . import propagation
 
     config, initial_state, target_epoch_s = input_handling.build_propagation_inputs(
         cli_args
