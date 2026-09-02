@@ -3,13 +3,7 @@
 
 from __future__ import annotations
 
-import io
 import sys
-from contextlib import redirect_stdout
-
-import ephem_toolkit.oem_to_omm as oem_to_omm
-from ephem_toolkit.oem_to_omm.oem_to_omm_cli import build_common_arg_parser
-import ephem_toolkit.omm_to_tle as omm_to_tle
 
 
 def main(argv=None) -> None:
@@ -18,6 +12,8 @@ def main(argv=None) -> None:
         argv = list(sys.argv[1:])
     else:
         argv = list(argv)
+
+    from ephem_toolkit.oem_to_omm.oem_to_omm_cli import build_common_arg_parser
 
     cli_parser = build_common_arg_parser(
         prog="oem-to-tle",
@@ -33,6 +29,12 @@ def main(argv=None) -> None:
         object_id_help="International designator.",
     )
     cli_args = cli_parser.parse_args(argv)
+
+    import io
+    from contextlib import redirect_stdout
+    import ephem_toolkit.oem_to_omm as oem_to_omm
+    import ephem_toolkit.omm_to_tle as omm_to_tle
+
     output_tle = cli_args.output_tle
 
     filtered_arguments: list[str] = []
