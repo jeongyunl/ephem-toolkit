@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import sys
 import io
+import importlib
 from contextlib import redirect_stdout
 
 from ephem_toolkit.oem_to_omm import __main__ as oem_to_omm
 from ephem_toolkit.oem_to_omm.oem_to_omm_cli import build_common_arg_parser
-from ephem_toolkit.omm_to_tle import omm_to_tle
+
+omm_to_tle = importlib.import_module("ephem_toolkit.omm_to_tle.__main__")
 
 
 def main(argv=None) -> None:
@@ -65,5 +67,11 @@ def main(argv=None) -> None:
         sys.stdin = original_stdin
 
 
+def cli(argv=None) -> int:
+    from ephem_toolkit.core.cli import run_cli
+
+    return run_cli(main, argv)
+
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(cli())

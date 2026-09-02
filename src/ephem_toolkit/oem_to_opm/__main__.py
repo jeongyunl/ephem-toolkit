@@ -288,5 +288,11 @@ def main(argv=None) -> None:
             report_error(f"Error writing OPM file: {error}")
 
 
+def cli(argv=None) -> int:
+    from ephem_toolkit.core.cli import run_cli
+
+    return run_cli(main, argv)
+
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(cli())

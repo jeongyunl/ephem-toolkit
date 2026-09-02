@@ -3,5 +3,6 @@
 from . import __main__ as propagate_omm
 
 main = propagate_omm.main
+cli = propagate_omm.cli
 
-__all__ = ["main"]
+__all__ = ["main", "cli"]

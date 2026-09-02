@@ -205,9 +205,11 @@ def main(argv=None) -> None:
     print("Done!")
 
 
+def cli(argv=None) -> int:
+    from ephem_toolkit.core.cli import run_cli
+
+    return run_cli(main, argv)
+
+
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\nInterrupted by user (Ctrl-C)")
-        sys.exit(0)
+    raise SystemExit(cli())

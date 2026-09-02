@@ -24,5 +24,11 @@ def main(argv=None) -> int:
     return propagate_omm.main(argv)
 
 
+def cli(argv=None) -> int:
+    from ephem_toolkit.core.cli import run_cli
+
+    return run_cli(main, argv)
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(cli())
