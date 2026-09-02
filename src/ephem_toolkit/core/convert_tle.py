@@ -200,13 +200,19 @@ def _parse_object_id(object_id: str) -> tuple[int, int, str]:
         ``(int_designator_year, int_designator_launch_number, int_designator_piece)``
         where year is 2-digit.
     """
-    match: re.Match[str] | None = re.match(r"(\d{4})-(\d{3})(\w*)", object_id.strip())
+    match: re.Match[str] | None = re.fullmatch(
+        r"(\d{4})-(\d{3})([A-Za-z0-9]*)", object_id.strip()
+    )
     if not match:
         return 0, 0, ""
 
     full_year: int = int(match.group(1))
     launch_number: int = int(match.group(2))
     piece: str = match.group(3)
+
+    # TLE epochs use a two-digit year with the 1957-2056 interpretation.
+    if not 1957 <= full_year <= 2056:
+        return 0, 0, ""
 
     if full_year >= 2000:
         year_2digit: int = full_year - 2000

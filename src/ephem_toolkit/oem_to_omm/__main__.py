@@ -23,34 +23,11 @@ Usage:
 
 from __future__ import annotations
 
-import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import NoReturn, TextIO
-import numpy as np
-
-import warnings
-
-# Suppress warnings that tudatpy / urllib3 may emit on import.
-warnings.filterwarnings("ignore", category=SyntaxWarning)
-warnings.filterwarnings(
-    "ignore",
-    module=r"urllib3(\..*)?",
-)
-
-import ephem_toolkit.core.convert_tle as convert_tle
-import ephem_toolkit.core.propagator.brouwer_j2 as brouwer
-import ephem_toolkit.core.ccsds.oem as oem
-import ephem_toolkit.core.ccsds.omm as omm
-import ephem_toolkit.core.time_utils as time_utils
-import ephem_toolkit.core.tle as tle
 
 from .oem_to_omm_cli import OemToOmmArgs
 from .oem_to_omm_cli import build_arg_parser, parse_arguments
-
-from . import fit_common
-from . import fit_brouwer
-from . import fit_tle_main as fit_tle
 
 # ===================================================================
 # Reporting
@@ -76,6 +53,7 @@ def report_results(
     verbose : bool
         If True, print status messages to stderr.
     """
+
     if dest == "-":
         print(output_text)
     elif isinstance(dest, (str, Path)):
@@ -96,6 +74,8 @@ def report_error(message: str, exit_code: int = 1) -> NoReturn:
     exit_code : int
         Exit code (default: 1).
     """
+    import sys
+
     print(message, file=sys.stderr)
     sys.exit(exit_code)
 
@@ -109,6 +89,28 @@ def main(argv=None) -> None:
     """Parse CLI arguments and dispatch to the appropriate conversion mode."""
     cli_parser = build_arg_parser()
     cli_args: OemToOmmArgs = parse_arguments(cli_parser, argv)
+
+    import sys
+    import warnings
+    from datetime import datetime, timezone
+    from pathlib import Path
+
+    # Suppress warnings that tudatpy / urllib3 may emit on import.
+    warnings.filterwarnings("ignore", category=SyntaxWarning)
+    warnings.filterwarnings("ignore", module=r"urllib3(\..*)?")
+
+    import numpy as np
+
+    import ephem_toolkit.core.convert_tle as convert_tle
+    import ephem_toolkit.core.propagator.brouwer_j2 as brouwer
+    import ephem_toolkit.core.ccsds.oem as oem
+    import ephem_toolkit.core.ccsds.omm as omm
+    import ephem_toolkit.core.time_utils as time_utils
+    import ephem_toolkit.core.tle as tle
+
+    from . import fit_brouwer
+    from . import fit_common
+    from . import fit_tle_main as fit_tle
 
     # Determine input source: file path or stdin (piped input)
     read_from_stdin: bool = cli_args.input_oem == "-"
