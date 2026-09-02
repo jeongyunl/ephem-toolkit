@@ -567,9 +567,11 @@ def main(argv=None) -> int:
     return 0
 
 
+def cli(argv=None) -> int:
+    from ephem_toolkit.core.cli import run_cli
+
+    return run_cli(main, argv)
+
+
 if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    except Exception as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        raise SystemExit(1)
+    raise SystemExit(cli())

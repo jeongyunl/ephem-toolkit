@@ -343,5 +343,11 @@ def main(argv=None) -> None:
         return
 
 
+def cli(argv=None) -> int:
+    from ephem_toolkit.core.cli import run_cli
+
+    return run_cli(main, argv)
+
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(cli())

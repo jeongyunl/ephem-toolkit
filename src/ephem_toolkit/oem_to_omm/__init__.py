@@ -1,5 +1,5 @@
 """Convert OEM state vectors to mean Keplerian elements or OMM."""
 
-from .__main__ import main
+from .__main__ import cli, main
 
-__all__ = ["main"]
+__all__ = ["main", "cli"]

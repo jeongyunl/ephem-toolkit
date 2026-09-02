@@ -1,5 +1,5 @@
 """Convert CCSDS OMM data to TLE format."""
 
-from .omm_to_tle import main
+from .__main__ import cli, main
 
-__all__ = ["main"]
+__all__ = ["main", "cli"]

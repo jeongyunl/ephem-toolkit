@@ -3,12 +3,27 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from importlib.metadata import PackageNotFoundError, version
 
 from ephem_toolkit.core.interpolator.interpolation_spec import (
     InterpolationSpec,
     InterpolationType,
 )
+
+
+def run_cli(main_func, argv=None) -> int:
+    """Run a command entry point and report unexpected errors cleanly."""
+    try:
+        result = main_func(argv)
+    except KeyboardInterrupt:
+        print("Interrupted by user (Ctrl-C)", file=sys.stderr)
+        return 130
+    except Exception as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    return 0 if result is None else result
+
 
 VALID_INTERPOLATION_TYPES: list[str] = [
     "hermite",
