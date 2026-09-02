@@ -5,7 +5,6 @@ import pytest
 
 from ephem_toolkit.core.propagator import (
     cartesian_to_keplerian,
-    keplerian_to_cartesian,
 )
 from ephem_toolkit.core.propagator import (
     AnomalyType,

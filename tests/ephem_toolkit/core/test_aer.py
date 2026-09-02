@@ -11,7 +11,6 @@ import pytest
 
 import core.aer as aer
 import core.wgs as wgs
-import core.consts as consts
 
 # ===================================================================
 # Test Constants and Fixtures

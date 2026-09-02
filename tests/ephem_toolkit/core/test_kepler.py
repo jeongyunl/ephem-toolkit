@@ -441,9 +441,7 @@ def tudatpy_tle_round_trip():
 
     from tudatpy.dynamics import environment_setup
     from tudatpy.astro import element_conversion
-    from tudatpy.interface import spice
 
-    import core.misc as misc
     import core.spice_utils as spice_utils
 
     # Load SPICE kernels
@@ -634,7 +632,11 @@ def test_round_trip_tle_osculating_vs_tudatpy_keplerian(tudatpy_tle_round_trip) 
 
 def test_kepler_propagator_returns_cartesian_state() -> None:
     """KeplerPropagator should return a 6-element Cartesian state."""
-    from ephem_toolkit.core.propagator import KeplerPropagator, KeplerianState, OutputMode
+    from ephem_toolkit.core.propagator import (
+        KeplerPropagator,
+        KeplerianState,
+        OutputMode,
+    )
 
     kep = np.array([7000e3, 0.01, 0.1, 0.3, 0.2, 1.0], dtype=float)
     state = KeplerianState(elements=kep, epoch_s=0.0)
@@ -647,44 +649,70 @@ def test_kepler_propagator_returns_cartesian_state() -> None:
 
 def test_kepler_propagator_preserves_orbital_elements() -> None:
     """KeplerPropagator should preserve a, e, i (only anomaly changes)."""
-    from ephem_toolkit.core.propagator import KeplerPropagator, KeplerianState, OutputMode
+    from ephem_toolkit.core.propagator import (
+        KeplerPropagator,
+        KeplerianState,
+        OutputMode,
+    )
 
     kep = np.array([7000e3, 0.01, 0.1, 0.3, 0.2, 1.0], dtype=float)
     state = KeplerianState(elements=kep, epoch_s=0.0)
     prop = KeplerPropagator(initial_state=state)
 
     _, cart = prop.propagate_to(100.0, output=OutputMode.FINAL)
-    recovered = kepler.cartesian_to_keplerian(cart, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2)
+    recovered = kepler.cartesian_to_keplerian(
+        cart, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    )
 
-    assert recovered[kepler.SEMI_MAJOR_AXIS_INDEX] == pytest.approx(kep[kepler.SEMI_MAJOR_AXIS_INDEX], rel=1e-10)
-    assert recovered[kepler.ECCENTRICITY_INDEX] == pytest.approx(kep[kepler.ECCENTRICITY_INDEX], abs=1e-10)
-    assert recovered[kepler.INCLINATION_INDEX] == pytest.approx(kep[kepler.INCLINATION_INDEX], rel=1e-10)
+    assert recovered[kepler.SEMI_MAJOR_AXIS_INDEX] == pytest.approx(
+        kep[kepler.SEMI_MAJOR_AXIS_INDEX], rel=1e-10
+    )
+    assert recovered[kepler.ECCENTRICITY_INDEX] == pytest.approx(
+        kep[kepler.ECCENTRICITY_INDEX], abs=1e-10
+    )
+    assert recovered[kepler.INCLINATION_INDEX] == pytest.approx(
+        kep[kepler.INCLINATION_INDEX], rel=1e-10
+    )
 
 
 def test_kepler_propagator_changes_true_anomaly() -> None:
     """KeplerPropagator should change the true anomaly after propagation."""
-    from ephem_toolkit.core.propagator import KeplerPropagator, KeplerianState, OutputMode
+    from ephem_toolkit.core.propagator import (
+        KeplerPropagator,
+        KeplerianState,
+        OutputMode,
+    )
 
     kep = np.array([7000e3, 0.01, 0.1, 0.3, 0.2, 1.0], dtype=float)
     state = KeplerianState(elements=kep, epoch_s=0.0)
     prop = KeplerPropagator(initial_state=state)
 
     _, cart = prop.propagate_to(100.0, output=OutputMode.FINAL)
-    recovered = kepler.cartesian_to_keplerian(cart, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2)
+    recovered = kepler.cartesian_to_keplerian(
+        cart, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    )
 
-    assert recovered[kepler.TRUE_ANOMALY_INDEX] != pytest.approx(kep[kepler.TRUE_ANOMALY_INDEX], abs=1e-10)
+    assert recovered[kepler.TRUE_ANOMALY_INDEX] != pytest.approx(
+        kep[kepler.TRUE_ANOMALY_INDEX], abs=1e-10
+    )
 
 
 def test_kepler_propagator_zero_time_returns_same_state() -> None:
     """KeplerPropagator should return the same Cartesian state at t=0."""
-    from ephem_toolkit.core.propagator import KeplerPropagator, KeplerianState, OutputMode
+    from ephem_toolkit.core.propagator import (
+        KeplerPropagator,
+        KeplerianState,
+        OutputMode,
+    )
 
     kep = np.array([7000e3, 0.01, 0.1, 0.3, 0.2, 1.0], dtype=float)
     state = KeplerianState(elements=kep, epoch_s=0.0)
     prop = KeplerPropagator(initial_state=state)
 
     _, cart_t0 = prop.propagate_to(0.0, output=OutputMode.FINAL)
-    expected = kepler.keplerian_to_cartesian(kep, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2)
+    expected = kepler.keplerian_to_cartesian(
+        kep, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    )
     np.testing.assert_allclose(cart_t0, expected, rtol=1e-12)
 
 
@@ -692,7 +720,11 @@ def test_kepler_propagator_matches_tudatpy() -> None:
     """Compare KeplerPropagator with tudatpy.two_body_dynamics.propagate_kepler_orbit."""
     pytest.importorskip("tudatpy")
     from tudatpy.astro import two_body_dynamics
-    from ephem_toolkit.core.propagator import KeplerPropagator, KeplerianState, OutputMode
+    from ephem_toolkit.core.propagator import (
+        KeplerPropagator,
+        KeplerianState,
+        OutputMode,
+    )
 
     kep_m = np.array([7000e3, 0.01, np.radians(51.6), 0.3, 0.2, 1.0], dtype=float)
 
@@ -705,9 +737,14 @@ def test_kepler_propagator_matches_tudatpy() -> None:
         kep_tudatpy = two_body_dynamics.propagate_kepler_orbit(
             kep_column, time_elapsed, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
         ).flatten()
-        cart_tudatpy = kepler.keplerian_to_cartesian(kep_tudatpy, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2)
+        cart_tudatpy = kepler.keplerian_to_cartesian(
+            kep_tudatpy, consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+        )
 
         np.testing.assert_allclose(
-            cart_common, cart_tudatpy, rtol=1e-10, atol=1e-3,
+            cart_common,
+            cart_tudatpy,
+            rtol=1e-10,
+            atol=1e-3,
             err_msg=f"Mismatch at time_elapsed={time_elapsed}s",
         )

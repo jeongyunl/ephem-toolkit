@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import sys
-from io import StringIO
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-import ephem_toolkit.oem_to_omm.__main__ as oem_to_omm_main
+import ephem_toolkit.oem_to_omm as oem_to_omm
+import ephem_toolkit.core.ccsds.oem as oem
 from ephem_toolkit.core.consts import EARTH_GRAVITATIONAL_PARAMETER_M3_S2
 from ephem_toolkit.core.propagator.dsst import (
     DsstPerturbations,
@@ -159,7 +159,7 @@ def test_dsst_theory_in_output_omm(monkeypatch, tmp_path):
 
     monkeypatch.setattr(Path, "exists", lambda *_: True)
     monkeypatch.setattr(
-        oem_to_omm_main.oem.CcsdsOem,
+        oem.CcsdsOem,
         "read",
         lambda *_: _DummyOemData(states),
     )
@@ -169,7 +169,7 @@ def test_dsst_theory_in_output_omm(monkeypatch, tmp_path):
         ["oem-to-omm", "--mode", "dsst", "input.oem", "-o", str(output_path)],
     )
 
-    oem_to_omm_main.main()
+    oem_to_omm.main()
 
     content = output_path.read_text(encoding="utf-8")
     assert "MEAN_ELEMENT_THEORY" in content
@@ -183,7 +183,7 @@ def test_dsst_omm_output_has_required_fields(monkeypatch, tmp_path):
 
     monkeypatch.setattr(Path, "exists", lambda *_: True)
     monkeypatch.setattr(
-        oem_to_omm_main.oem.CcsdsOem,
+        oem.CcsdsOem,
         "read",
         lambda *_: _DummyOemData(states),
     )
@@ -193,7 +193,7 @@ def test_dsst_omm_output_has_required_fields(monkeypatch, tmp_path):
         ["oem-to-omm", "--mode", "dsst", "input.oem", "-o", str(output_path)],
     )
 
-    oem_to_omm_main.main()
+    oem_to_omm.main()
 
     content = output_path.read_text(encoding="utf-8")
     for field in [
@@ -215,7 +215,7 @@ def test_dsst_omm_theory_override(monkeypatch, tmp_path):
 
     monkeypatch.setattr(Path, "exists", lambda *_: True)
     monkeypatch.setattr(
-        oem_to_omm_main.oem.CcsdsOem,
+        oem.CcsdsOem,
         "read",
         lambda *_: _DummyOemData(states),
     )
@@ -234,7 +234,7 @@ def test_dsst_omm_theory_override(monkeypatch, tmp_path):
         ],
     )
 
-    oem_to_omm_main.main()
+    oem_to_omm.main()
 
     content = output_path.read_text(encoding="utf-8")
     assert "USM" in content
@@ -249,7 +249,7 @@ def test_dsst_omm_roundtrip(monkeypatch, tmp_path):
 
     monkeypatch.setattr(Path, "exists", lambda *_: True)
     monkeypatch.setattr(
-        oem_to_omm_main.oem.CcsdsOem,
+        oem.CcsdsOem,
         "read",
         lambda *_: _DummyOemData(states),
     )
@@ -259,7 +259,7 @@ def test_dsst_omm_roundtrip(monkeypatch, tmp_path):
         ["oem-to-omm", "--mode", "dsst", "input.oem", "-o", str(output_path)],
     )
 
-    oem_to_omm_main.main()
+    oem_to_omm.main()
 
     # Parse the output OMM
     parsed = omm_mod.CcsdsOmm.from_source(output_path)
@@ -276,7 +276,7 @@ def test_dsst_mode_cli_verbose(monkeypatch, tmp_path, capsys):
 
     monkeypatch.setattr(Path, "exists", lambda *_: True)
     monkeypatch.setattr(
-        oem_to_omm_main.oem.CcsdsOem,
+        oem.CcsdsOem,
         "read",
         lambda *_: _DummyOemData(states),
     )
@@ -294,7 +294,7 @@ def test_dsst_mode_cli_verbose(monkeypatch, tmp_path, capsys):
         ],
     )
 
-    oem_to_omm_main.main()
+    oem_to_omm.main()
 
     captured = capsys.readouterr()
     assert "DSST fit" in captured.err or output_path.exists()

@@ -1,8 +1,5 @@
 """Propagate Keplerian orbital elements."""
 
-from . import __main__ as propagate_kepler
+from .__main__ import cli, main, propagate_kepler_elements, read_kepler_input
 
-main = propagate_kepler.main
-cli = propagate_kepler.cli
-
-__all__ = ["main", "cli"]
+__all__ = ["cli", "main", "propagate_kepler_elements", "read_kepler_input"]

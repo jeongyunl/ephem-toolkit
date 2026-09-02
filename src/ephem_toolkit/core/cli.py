@@ -6,7 +6,7 @@ import argparse
 import sys
 from importlib.metadata import PackageNotFoundError, version
 
-from ephem_toolkit.core.interpolator.interpolation_spec import (
+from .interpolator.interpolation_spec import (
     InterpolationSpec,
     InterpolationType,
 )

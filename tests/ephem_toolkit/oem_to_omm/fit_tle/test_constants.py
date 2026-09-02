@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
 
-from oem_to_omm.fit_tle import constants
+import ephem_toolkit.oem_to_omm.fit_tle.constants as constants
 
 
 def test_constants_module_imports() -> None:

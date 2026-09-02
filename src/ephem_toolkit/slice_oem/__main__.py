@@ -54,10 +54,7 @@ import ephem_toolkit.core.interpolator.interpolation_spec as interpolation_spec
 import ephem_toolkit.core.slice_oem as slice_oem
 import ephem_toolkit.core.time_utils as time_utils
 
-if __package__ in {None, ""}:
-    from slice_oem_cli import SliceOemArgs, build_arg_parser, parse_arguments
-else:
-    from .slice_oem_cli import SliceOemArgs, build_arg_parser, parse_arguments
+from .slice_oem_cli import SliceOemArgs, build_arg_parser, parse_arguments
 
 DEFAULT_INTERPOLATION_TYPE: str = "hermite"
 """Default interpolation method."""

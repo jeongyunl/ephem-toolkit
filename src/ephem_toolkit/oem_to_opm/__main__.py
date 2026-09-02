@@ -39,15 +39,8 @@ import ephem_toolkit.core.ccsds.opm as opm
 import ephem_toolkit.core.propagator.kepler as kepler
 import ephem_toolkit.core.time_utils as time_utils
 
-try:
-    from .oem_to_opm_cli import OemToOpmArgs
-    from .oem_to_opm_cli import build_arg_parser, parse_arguments
-except ImportError:  # pragma: no cover - direct script execution fallback
-    from ephem_toolkit.oem_to_opm.oem_to_opm_cli import OemToOpmArgs
-    from ephem_toolkit.oem_to_opm.oem_to_opm_cli import (
-        build_arg_parser,
-        parse_arguments,
-    )
+from .oem_to_opm_cli import OemToOpmArgs
+from .oem_to_opm_cli import build_arg_parser, parse_arguments
 
 from . import fit_common
 from . import fit_osculating_kepler

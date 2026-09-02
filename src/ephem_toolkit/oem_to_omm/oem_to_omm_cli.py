@@ -7,7 +7,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import sys
 from datetime import timedelta
 
 import ephem_toolkit.core.cli as cli

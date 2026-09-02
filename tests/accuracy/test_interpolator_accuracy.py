@@ -22,7 +22,6 @@ import pytest
 from core.ccsds import oem
 from core.interpolator import interpolation_spec as interp_spec
 from core import slice_oem
-import core.time_utils as time_utils
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 """Directory containing test OEM data files."""

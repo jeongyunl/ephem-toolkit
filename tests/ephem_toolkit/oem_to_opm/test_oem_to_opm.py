@@ -7,7 +7,9 @@ import numpy as np
 import pytest
 
 import ephem_toolkit.core.ccsds.opm as opm
-import ephem_toolkit.oem_to_opm.__main__ as oem_to_opm
+import ephem_toolkit.core.ccsds.oem as oem
+import ephem_toolkit.oem_to_opm as oem_to_opm
+import ephem_toolkit.oem_to_opm.fit_osculating_kepler as fit_osculating_kepler
 
 
 class DummyMeta:
@@ -39,12 +41,12 @@ def test_main_writes_initial_state_and_osculating_elements_to_opm(
     """The OEM-to-OPM command should serialize its initial state and fit."""
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
-        oem_to_opm.oem.CcsdsOem,
+        oem.CcsdsOem,
         "read",
         lambda *_args, **_kwargs: DummyOemData(),
     )
     monkeypatch.setattr(
-        oem_to_opm.fit_osculating_kepler,
+        fit_osculating_kepler,
         "fit_osculating_kepler",
         lambda *_args, **_kwargs: (
             np.array([7.1e6, 0.01, 0.2, 0.3, 0.4, 0.5]),
@@ -52,12 +54,12 @@ def test_main_writes_initial_state_and_osculating_elements_to_opm(
         ),
     )
     monkeypatch.setattr(
-        oem_to_opm.fit_osculating_kepler,
+        fit_osculating_kepler,
         "compute_kepler_propagation_comparison",
         lambda *_args, **_kwargs: [],
     )
     monkeypatch.setattr(
-        oem_to_opm.fit_osculating_kepler,
+        fit_osculating_kepler,
         "format_kepler_output",
         lambda *_args, **_kwargs: "KEPLER_OUTPUT",
     )

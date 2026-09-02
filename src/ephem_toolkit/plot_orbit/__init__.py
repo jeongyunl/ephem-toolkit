@@ -2,4 +2,4 @@
 
 from .__main__ import cli, main
 
-__all__ = ["main", "cli"]
+__all__ = ["cli", "main"]

@@ -15,7 +15,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-import ephem_toolkit.core.time_utils as time_utils
 
 from .plot_dependent_variables_cli import (
     PlotDependentVariablesArgs,

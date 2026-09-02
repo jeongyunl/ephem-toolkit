@@ -40,22 +40,24 @@ https://en.wikipedia.org/wiki/Orbital_elements
 from __future__ import annotations
 
 from dataclasses import dataclass
+import warnings
+
 
 import numpy as np
 
-from ephem_toolkit.core.consts import (
+from ..consts import (
     EARTH_EQUATORIAL_RADIUS_M,
     EARTH_GRAVITATIONAL_PARAMETER_M3_S2,
     EARTH_J2,
     EARTH_J3,
     EARTH_J4,
 )
-from ephem_toolkit.core.propagator.base import (
+from .base import (
     AnomalyType,
     KeplerianState,
     Propagator,
 )
-from ephem_toolkit.core.propagator.kepler import (
+from .kepler import (
     ARGUMENT_OF_PERIAPSIS_INDEX,
     ECCENTRICITY_INDEX,
     INCLINATION_INDEX,
@@ -568,8 +570,6 @@ class DSSTPropagator(Propagator[KeplerianState]):
         i = initial_state.elements[INCLINATION_INDEX]
 
         if e < NEAR_CIRCULAR_ECCENTRICITY_THRESHOLD:
-            import warnings
-
             warnings.warn(
                 f"Near-circular orbit (e={e:.2e}). DSST may have reduced accuracy. "
                 "Consider using equinoctial elements for better numerical stability.",
@@ -579,8 +579,6 @@ class DSSTPropagator(Propagator[KeplerianState]):
         if i < np.deg2rad(NEAR_EQUATORIAL_INCLINATION_THRESHOLD_DEG) or i > np.deg2rad(
             180.0 - NEAR_EQUATORIAL_INCLINATION_THRESHOLD_DEG
         ):
-            import warnings
-
             warnings.warn(
                 f"Near-equatorial orbit (i={np.rad2deg(i):.2f}°). DSST may have reduced accuracy. "
                 "Consider using equinoctial elements for better numerical stability.",

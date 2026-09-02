@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import io
-import sys
 from pathlib import Path
 from unittest.mock import patch
 
-from ephem_toolkit.xform_oem.__main__ import main
+from ephem_toolkit.xform_oem import main
 
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test modules."""

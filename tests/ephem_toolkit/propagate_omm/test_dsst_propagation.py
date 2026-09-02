@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
-import datetime as dt
+import inspect
 import sys
-from io import StringIO
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-import ephem_toolkit.propagate_omm.__main__ as propagate_omm_main
+import ephem_toolkit.propagate_omm as propagate_omm_main
 from ephem_toolkit.core.consts import EARTH_GRAVITATIONAL_PARAMETER_M3_S2
 from ephem_toolkit.core.propagator.dsst import (
-    DsstPerturbations,
     DSSTPropagator,
     osculating_to_dsst_mean,
 )
@@ -27,6 +25,7 @@ import ephem_toolkit.core.ccsds.omm as omm_mod
 import ephem_toolkit.core.time_utils as time_utils
 
 _MU = EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+_implementation = inspect.getmodule(propagate_omm_main.main)
 
 # ISS-like osculating elements: [a, e, i, omega, RAAN, theta]
 _ISS_OSCULATING = np.array(
@@ -260,7 +259,7 @@ def test_main_dispatches_dsst_for_dsst_theory(monkeypatch, tmp_path):
 
     monkeypatch.setattr(Path, "exists", lambda *_: True)
     monkeypatch.setattr(
-        propagate_omm_main.omm.CcsdsOmm,
+        omm_mod.CcsdsOmm,
         "from_source",
         lambda *_: omm_data,
     )
@@ -293,7 +292,7 @@ def test_main_dispatches_kepler_for_non_dsst_theory(monkeypatch, tmp_path):
 
     monkeypatch.setattr(Path, "exists", lambda *_: True)
     monkeypatch.setattr(
-        propagate_omm_main.omm.CcsdsOmm,
+        omm_mod.CcsdsOmm,
         "from_source",
         lambda *_: omm_data,
     )
@@ -306,7 +305,7 @@ def test_main_dispatches_kepler_for_non_dsst_theory(monkeypatch, tmp_path):
         dispatched_to.append("kepler")
         return original_kepler(*args, **kwargs)
 
-    monkeypatch.setattr(propagate_omm_main, "propagate_omm_kepler", mock_kepler)
+    monkeypatch.setattr(_implementation, "propagate_omm_kepler", mock_kepler)
     monkeypatch.setattr(
         sys,
         "argv",

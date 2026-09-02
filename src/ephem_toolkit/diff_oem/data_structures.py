@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 
 import numpy as np
 
 import ephem_toolkit.core.interpolator as interpolator
-import ephem_toolkit.core.time_utils as time_utils
 
 from .types import StatePair
 from .debug import debug_print, debug_print_time_range

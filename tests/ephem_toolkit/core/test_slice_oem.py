@@ -17,7 +17,6 @@ is inclusive for both start and stop times. All states with timestamps within
 from __future__ import annotations
 
 import os
-import sys
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -25,7 +24,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import core.ccsds.oem as oem
 import core.slice_oem as slice_oem
 import core.time_utils as time_utils
 from core.ccsds.oem import CcsdsOem
