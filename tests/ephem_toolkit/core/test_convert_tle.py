@@ -308,3 +308,9 @@ def test_parse_object_id_invalid() -> None:
     assert year == 0
     assert launch == 0
     assert piece == ""
+
+
+def test_parse_object_id_rejects_non_tle_year_and_suffix() -> None:
+    """Should reject placeholders and malformed suffixes."""
+    assert conv._parse_object_id("9999-999-A") == (0, 0, "")
+    assert conv._parse_object_id("1998-067A-extra") == (0, 0, "")
