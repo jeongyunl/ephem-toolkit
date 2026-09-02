@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 
 import ephem_toolkit.core.time_utils as time_utils
 

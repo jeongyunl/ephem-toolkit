@@ -22,9 +22,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 from typing_extensions import override
 
-from ephem_toolkit.core.propagator.base import Propagator
-import ephem_toolkit.core.spice_utils as spice_utils
-import ephem_toolkit.core.time_utils as time_utils
+from .base import Propagator
+from .. import spice_utils
 
 if TYPE_CHECKING:
     from typing import Any

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from ephem_toolkit.propagate_tle.__main__ import main as propagate_tle_main
+from ephem_toolkit.propagate_tle import main as propagate_tle_main
 
 TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent

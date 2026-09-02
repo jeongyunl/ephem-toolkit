@@ -19,12 +19,8 @@ import math
 
 import warnings
 
-try:
-    from .tle_info_cli import TleInfoArgs
-    from .tle_info_cli import build_arg_parser, parse_arguments
-except ImportError:  # pragma: no cover - direct script execution fallback
-    from ephem_toolkit.tle_info.tle_info_cli import TleInfoArgs
-    from ephem_toolkit.tle_info.tle_info_cli import build_arg_parser, parse_arguments
+from .tle_info_cli import TleInfoArgs
+from .tle_info_cli import build_arg_parser, parse_arguments
 
 # Suppress warnings that tudatpy / urllib3 may emit on import.
 warnings.filterwarnings("ignore", category=SyntaxWarning)
@@ -33,10 +29,13 @@ warnings.filterwarnings(
     module=r"urllib3(\..*)?",
 )
 
-from tudatpy.astro.element_conversion import KeplerianElementIndices
-from tudatpy.astro.time_representation import DateTime
-from tudatpy.dynamics import environment_setup
-from tudatpy.interface import spice
+try:
+    from tudatpy.astro.element_conversion import KeplerianElementIndices
+    from tudatpy.astro.time_representation import DateTime
+    from tudatpy.dynamics import environment_setup
+    from tudatpy.interface import spice
+except ImportError as exc:
+    raise ImportError("tle-info requires tudatpy") from exc
 
 import ephem_toolkit.core.propagator.kepler as kepler
 import ephem_toolkit.core.spice_utils as spice_utils

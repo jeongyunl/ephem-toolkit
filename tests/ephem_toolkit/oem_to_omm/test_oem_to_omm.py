@@ -6,7 +6,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import ephem_toolkit.oem_to_omm.__main__ as oem_to_omm
+import ephem_toolkit.core.ccsds.oem as oem
+import ephem_toolkit.core.ccsds.omm as omm
+import ephem_toolkit.core.convert_tle as convert_tle
+import ephem_toolkit.core.propagator.brouwer_j2 as brouwer
+import ephem_toolkit.oem_to_omm as oem_to_omm
+import ephem_toolkit.oem_to_omm.fit_brouwer as fit_brouwer
+import ephem_toolkit.oem_to_omm.fit_tle_main as fit_tle
 from ephem_toolkit.oem_to_omm import oem_to_omm_cli
 
 
@@ -109,12 +115,12 @@ def test_main_brouwer_mode_uses_duration_and_writes_omm(monkeypatch, tmp_path):
     ]
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
-        oem_to_omm.oem.CcsdsOem,
+        oem.CcsdsOem,
         "read",
         lambda *_args, **_kwargs: DummyOemData(states, DummyMeta()),
     )
     monkeypatch.setattr(
-        oem_to_omm.fit_brouwer,
+        fit_brouwer,
         "fit_brouwer",
         lambda *_args, **_kwargs: (
             np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
@@ -122,25 +128,23 @@ def test_main_brouwer_mode_uses_duration_and_writes_omm(monkeypatch, tmp_path):
         ),
     )
     monkeypatch.setattr(
-        oem_to_omm.fit_brouwer,
+        fit_brouwer,
         "compute_brouwer_propagation_comparison",
         lambda *_args, **_kwargs: [],
     )
     monkeypatch.setattr(
-        oem_to_omm.fit_brouwer,
+        fit_brouwer,
         "format_brouwer_output",
         lambda *_args, **_kwargs: "MEAN_OUTPUT",
     )
     monkeypatch.setattr(
-        oem_to_omm.brouwer,
+        brouwer,
         "brouwer_mean_to_osculating",
         lambda *_args, **_kwargs: np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]),
     )
 
     dummy_omm = DummyOmmObj()
-    monkeypatch.setattr(
-        oem_to_omm.omm, "keplerian_to_omm", lambda *_args, **_kwargs: dummy_omm
-    )
+    monkeypatch.setattr(omm, "keplerian_to_omm", lambda *_args, **_kwargs: dummy_omm)
 
     monkeypatch.setattr(
         sys,
@@ -171,30 +175,28 @@ def test_main_tle_mode_writes_omm_from_duration(monkeypatch, tmp_path):
     ]
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
-        oem_to_omm.oem.CcsdsOem,
+        oem.CcsdsOem,
         "read",
         lambda *_args, **_kwargs: DummyOemData(states, DummyMeta()),
     )
     monkeypatch.setattr(
-        oem_to_omm.fit_tle,
+        fit_tle,
         "fit_tle",
         lambda *_args, **_kwargs: ({}, {"status": "ok"}),
     )
     monkeypatch.setattr(
-        oem_to_omm.fit_tle,
+        fit_tle,
         "compute_tle_propagation_comparison",
         lambda *_args, **_kwargs: [],
     )
     monkeypatch.setattr(
-        oem_to_omm.fit_tle,
+        fit_tle,
         "format_tle_output",
         lambda *_args, **_kwargs: "TLE_OUTPUT",
     )
 
     dummy_omm = DummyOmmObj()
-    monkeypatch.setattr(
-        oem_to_omm.convert_tle, "tle_to_omm", lambda *_args, **_kwargs: dummy_omm
-    )
+    monkeypatch.setattr(convert_tle, "tle_to_omm", lambda *_args, **_kwargs: dummy_omm)
 
     monkeypatch.setattr(
         sys,

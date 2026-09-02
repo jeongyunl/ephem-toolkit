@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
 
-from oem_to_omm import fit_brouwer
+import ephem_toolkit.oem_to_omm.fit_brouwer as fit_brouwer
 
 
 def test_fit_brouwer_module_imports() -> None:

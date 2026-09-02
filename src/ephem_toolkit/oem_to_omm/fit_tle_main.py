@@ -23,7 +23,7 @@ References:
 from __future__ import annotations
 
 import math
-from datetime import datetime, timezone
+from datetime import datetime
 
 import numpy as np
 
@@ -132,8 +132,6 @@ def _sgp4_mean_motion_rev_per_day(semi_major_axis_m: float) -> float:
 # ===================================================================
 # TudatPy
 # ===================================================================
-
-from tudatpy.dynamics import environment_setup
 
 
 def load_spice_kernels() -> None:

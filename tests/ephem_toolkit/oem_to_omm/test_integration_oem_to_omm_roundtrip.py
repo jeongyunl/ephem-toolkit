@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-import os
 import sys
 from pathlib import Path
 
@@ -12,8 +11,8 @@ import pytest
 import ephem_toolkit.core.convert_tle as convert_tle
 import ephem_toolkit.core.ccsds.omm as omm
 import ephem_toolkit.core.tle as tle
-import ephem_toolkit.propagate_tle.__main__ as propagate_tle_main
-import ephem_toolkit.oem_to_omm.__main__ as oem_to_omm_main
+from ephem_toolkit.propagate_tle import main as propagate_tle_main
+from ephem_toolkit.oem_to_omm import main as oem_to_omm_main
 
 TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent
@@ -54,7 +53,7 @@ def run_propagate_tle(tle_path: Path) -> str:
     sys.stdout = io.StringIO()
 
     try:
-        propagate_tle_main.main([str(tle_path), "-s", "15m", "--output", "-"])
+        propagate_tle_main([str(tle_path), "-s", "15m", "--output", "-"])
         output = sys.stdout.getvalue()
     finally:
         sys.stdout = old_stdout
@@ -112,7 +111,7 @@ def run_oem_to_tle(
     sys.stdout = io.StringIO()
 
     try:
-        oem_to_omm_main.main(args)
+        oem_to_omm_main(args)
         output = sys.stdout.getvalue()
     finally:
         sys.stdin = old_stdin
@@ -153,7 +152,7 @@ def test_oem_to_omm_help_uses_command_name_and_format_aware_output() -> None:
 
     try:
         try:
-            oem_to_omm_main.main(["--help"])
+            oem_to_omm_main(["--help"])
         except SystemExit as e:
             exit_code = e.code
         output = sys.stdout.getvalue()

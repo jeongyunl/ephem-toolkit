@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import oem_to_omm.fit_tle.models as models
+import ephem_toolkit.oem_to_omm.fit_tle.models as models
 
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test files."""

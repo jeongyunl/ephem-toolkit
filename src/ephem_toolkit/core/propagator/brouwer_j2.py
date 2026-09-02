@@ -32,17 +32,17 @@ from __future__ import annotations
 
 import numpy as np
 
-from ephem_toolkit.core.consts import (
+from ..consts import (
     EARTH_EQUATORIAL_RADIUS_M,
     EARTH_GRAVITATIONAL_PARAMETER_M3_S2,
     EARTH_J2,
 )
-from ephem_toolkit.core.propagator.base import (
+from .base import (
     AnomalyType,
     KeplerianState,
     Propagator,
 )
-from ephem_toolkit.core.propagator.kepler import (
+from .kepler import (
     ARGUMENT_OF_PERIAPSIS_INDEX,
     ECCENTRICITY_INDEX,
     INCLINATION_INDEX,

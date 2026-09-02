@@ -28,15 +28,8 @@ from typing import TextIO
 
 import numpy as np
 
-try:
-    from .propagate_omm_cli import PropagateOmmArgs
-    from .propagate_omm_cli import build_arg_parser, parse_arguments
-except ImportError:  # pragma: no cover - direct script execution fallback
-    from ephem_toolkit.propagate_omm.propagate_omm_cli import PropagateOmmArgs
-    from ephem_toolkit.propagate_omm.propagate_omm_cli import (
-        build_arg_parser,
-        parse_arguments,
-    )
+from .propagate_omm_cli import PropagateOmmArgs
+from .propagate_omm_cli import build_arg_parser, parse_arguments
 
 # Suppress warnings that tudatpy / urllib3 may emit on import.
 warnings.filterwarnings("ignore", category=SyntaxWarning)

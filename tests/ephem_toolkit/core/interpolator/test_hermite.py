@@ -5,7 +5,6 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import core.interpolator.chebyshev as chebyshev
 import core.interpolator.hermite as hermite
 
 

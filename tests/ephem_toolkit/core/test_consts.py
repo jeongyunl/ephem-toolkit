@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 import core.consts as consts
 

@@ -10,8 +10,11 @@ import pytest
 
 from ephem_toolkit.core.ccsds import oem
 from ephem_toolkit.core.propagator import kepler
-from ephem_toolkit.propagate_kepler import propagate_kepler
-from ephem_toolkit.propagate_kepler import propagate_kepler_cli
+from ephem_toolkit.propagate_kepler import (
+    propagate_kepler_elements,
+    read_kepler_input,
+)
+import ephem_toolkit.propagate_kepler.propagate_kepler_cli as propagate_kepler_cli
 
 
 def test_parse_arguments_accepts_canonical_propagation_flags(
@@ -113,9 +116,7 @@ def test_script_parse_arguments_accepts_canonical_flags(
             "-",
         ],
     )
-    args = propagate_kepler.propagate_kepler_cli.parse_arguments(
-        propagate_kepler.propagate_kepler_cli.build_arg_parser()
-    )
+    args = propagate_kepler_cli.parse_arguments(propagate_kepler_cli.build_arg_parser())
     assert args.input_opm == "input.opm"
     assert args.duration_s == 7200.0
     assert args.output_oem == "-"
@@ -124,9 +125,7 @@ def test_script_parse_arguments_accepts_canonical_flags(
 def test_read_kepler_input_reads_opm_file() -> None:
     """OPM Keplerian elements should parse into the propagator's vector format."""
     opm_path = Path(__file__).parents[2] / "opm" / "sample4.opm"
-    epoch_dt, kepler_km, output_metadata = propagate_kepler.read_kepler_input(
-        str(opm_path)
-    )
+    epoch_dt, kepler_km, output_metadata = read_kepler_input(str(opm_path))
 
     assert output_metadata == {
         "object_name": "EUTELSAT W4",
@@ -148,7 +147,7 @@ def test_read_kepler_input_reads_opm_from_stdin(
     opm_path = Path(__file__).parents[2] / "opm" / "sample4.opm"
     monkeypatch.setattr("sys.stdin", io.StringIO(opm_path.read_text(encoding="utf-8")))
 
-    _, kepler_km, output_metadata = propagate_kepler.read_kepler_input("-")
+    _, kepler_km, output_metadata = read_kepler_input("-")
 
     assert output_metadata["object_name"] == "EUTELSAT W4"
     assert kepler_km[5] == pytest.approx(41.922339 * 3.141592653589793 / 180.0)
@@ -159,15 +158,13 @@ def test_propagate_kepler_writes_cartesian_states_in_si_units(
 ) -> None:
     """The OEM writer should receive propagated states in meters and m/s."""
     opm_path = Path(__file__).parents[2] / "opm" / "sample4.opm"
-    epoch_dt, kepler_km, output_metadata = propagate_kepler.read_kepler_input(
-        str(opm_path)
-    )
+    epoch_dt, kepler_km, output_metadata = read_kepler_input(str(opm_path))
     expected_kepler_m = kepler_km.copy()
     expected_kepler_m[kepler.SEMI_MAJOR_AXIS_INDEX] *= 1000.0
     expected_state_m_m_s = kepler.keplerian_to_cartesian(expected_kepler_m)
 
     output_path = tmp_path / "propagated.oem"
-    propagate_kepler.propagate_kepler_elements(
+    propagate_kepler_elements(
         initial_epoch=epoch_dt,
         initial_kepler_km=kepler_km,
         duration_s=900.0,

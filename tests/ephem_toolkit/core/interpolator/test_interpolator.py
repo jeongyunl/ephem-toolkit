@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import numpy as np
-import pytest
 
 from ephem_toolkit.core.interpolator import interpolator
 
 
 def test_interpolator_base_class_exists() -> None:
     """Should define the base Interpolator class."""
-    assert hasattr(interpolator, 'Interpolator')
+    assert hasattr(interpolator, "Interpolator")
 
 
 def test_interpolator_has_interpolate_method() -> None:

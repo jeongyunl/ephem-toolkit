@@ -7,9 +7,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import core.tle as tle
-import oem_to_omm.fit_tle.models as models
-import oem_to_omm.fit_tle.orbital_mechanics as orbital_mechanics
+import ephem_toolkit.oem_to_omm.fit_tle.models as models
+import ephem_toolkit.oem_to_omm.fit_tle.orbital_mechanics as orbital_mechanics
 
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test files."""

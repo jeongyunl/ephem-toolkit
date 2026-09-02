@@ -8,10 +8,10 @@ from datetime import datetime, timezone
 import numpy as np
 from unittest.mock import MagicMock
 
-import core.ccsds.oem as oem
-import oem_to_omm.fit_tle.estimation as estimation
-import oem_to_omm.fit_tle.models as models
-import oem_to_omm.fit_tle.constants as constants
+import ephem_toolkit.core.ccsds.oem as oem
+import ephem_toolkit.oem_to_omm.fit_tle.estimation as estimation
+import ephem_toolkit.oem_to_omm.fit_tle.models as models
+import ephem_toolkit.oem_to_omm.fit_tle.constants as constants
 
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test files."""

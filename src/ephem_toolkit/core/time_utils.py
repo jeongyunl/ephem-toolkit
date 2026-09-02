@@ -27,8 +27,11 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import re
 
-from tudatpy.astro import time_representation
-from tudatpy.astro.time_representation import TimeScales
+try:
+    from tudatpy.astro import time_representation
+    from tudatpy.astro.time_representation import TimeScales
+except ImportError as exc:
+    raise ImportError("time_utils requires tudatpy") from exc
 
 # ===================================================================
 # Module-level state

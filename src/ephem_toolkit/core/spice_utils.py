@@ -10,7 +10,10 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from tudatpy.interface import spice
+try:
+    from tudatpy.interface import spice
+except ImportError as exc:
+    raise ImportError("spice_utils requires tudatpy") from exc
 
 _SPICE_CACHE_FILE: Path = (
     Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))

@@ -38,7 +38,6 @@ warnings.filterwarnings(
     module=r"urllib3(\..*)?",
 )
 
-import ephem_toolkit.core.consts as consts
 import ephem_toolkit.core.convert_tle as convert_tle
 import ephem_toolkit.core.propagator.brouwer_j2 as brouwer
 import ephem_toolkit.core.ccsds.oem as oem
@@ -46,15 +45,8 @@ import ephem_toolkit.core.ccsds.omm as omm
 import ephem_toolkit.core.time_utils as time_utils
 import ephem_toolkit.core.tle as tle
 
-try:
-    from .oem_to_omm_cli import OemToOmmArgs
-    from .oem_to_omm_cli import build_arg_parser, parse_arguments
-except ImportError:  # pragma: no cover - direct script execution fallback
-    from ephem_toolkit.oem_to_omm.oem_to_omm_cli import OemToOmmArgs
-    from ephem_toolkit.oem_to_omm.oem_to_omm_cli import (
-        build_arg_parser,
-        parse_arguments,
-    )
+from .oem_to_omm_cli import OemToOmmArgs
+from .oem_to_omm_cli import build_arg_parser, parse_arguments
 
 from . import fit_common
 from . import fit_brouwer

@@ -29,15 +29,7 @@ from .models import Estimated, KeplerianMatchErrors, TleDeltas, TleParameters
 from .tle_builder import (
     build_tle_data,
     build_tle_lines,
-    format_tle_exponential_from_float,
 )
-
-try:
-    from tudatpy.dynamics import environment_setup
-    from tudatpy.interface import spice
-except Exception:
-    environment_setup = None
-    spice = None
 
 
 def evaluate_tle_epoch_states_m(

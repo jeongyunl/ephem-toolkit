@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
-from oem_to_omm import fit_common
+import ephem_toolkit.oem_to_omm.fit_common as fit_common
 
 
 def test_fit_common_module_imports() -> None:

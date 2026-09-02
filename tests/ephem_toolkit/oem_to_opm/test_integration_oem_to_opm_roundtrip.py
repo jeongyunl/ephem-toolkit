@@ -8,15 +8,14 @@ from pathlib import Path
 
 import pytest
 
-from ephem_toolkit.core.ccsds import oem
 from ephem_toolkit.core.interpolator import factory
 from ephem_toolkit.core.interpolator.interpolation_spec import (
     InterpolationSpec,
     InterpolationType,
 )
 from ephem_toolkit.diff_oem.comparison import compare_states, read_states
-from ephem_toolkit.oem_to_opm.__main__ import main as oem_to_opm_main
-from ephem_toolkit.propagate_kepler.__main__ import main as propagate_kepler_main
+from ephem_toolkit.oem_to_opm import main as oem_to_opm_main
+from ephem_toolkit.propagate_kepler import main as propagate_kepler_main
 
 TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent

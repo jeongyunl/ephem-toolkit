@@ -3,15 +3,13 @@
 
 from __future__ import annotations
 
-import sys
 import io
-import importlib
+import sys
 from contextlib import redirect_stdout
 
-from ephem_toolkit.oem_to_omm import __main__ as oem_to_omm
+import ephem_toolkit.oem_to_omm as oem_to_omm
 from ephem_toolkit.oem_to_omm.oem_to_omm_cli import build_common_arg_parser
-
-omm_to_tle = importlib.import_module("ephem_toolkit.omm_to_tle.__main__")
+import ephem_toolkit.omm_to_tle as omm_to_tle
 
 
 def main(argv=None) -> None:

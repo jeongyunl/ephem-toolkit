@@ -28,8 +28,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from ephem_toolkit.core.consts import EARTH_GRAVITATIONAL_PARAMETER_M3_S2
-from ephem_toolkit.core.propagator.base import (
+from ..consts import EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+from .base import (
     AnomalyType,
     KeplerianState,
     Propagator,

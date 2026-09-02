@@ -8,8 +8,8 @@ from __future__ import annotations
 import numpy as np
 from typing_extensions import override
 
-from ephem_toolkit.core import tle
-from ephem_toolkit.core.propagator.base import Propagator
+from .. import tle
+from .base import Propagator
 
 
 class Sgp4Propagator(Propagator[tle.Tle]):

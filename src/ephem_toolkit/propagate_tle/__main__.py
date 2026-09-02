@@ -10,8 +10,6 @@ from __future__ import annotations
 
 import sys
 
-from ephem_toolkit.propagate_omm import propagate_omm
-
 
 def main(argv=None) -> int:
     """Invoke the OMM propagation workflow in TLE mode."""
@@ -21,6 +19,9 @@ def main(argv=None) -> int:
         argv = list(argv)
     if "--tle" not in argv:
         argv.insert(0, "--tle")
+
+    import ephem_toolkit.propagate_omm as propagate_omm
+
     return propagate_omm.main(argv)
 
 

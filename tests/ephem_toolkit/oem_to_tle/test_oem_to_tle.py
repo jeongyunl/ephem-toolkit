@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import pytest
 
+import ephem_toolkit.oem_to_omm as oem_to_omm
+import ephem_toolkit.omm_to_tle as omm_to_tle
 from ephem_toolkit.oem_to_omm.oem_to_omm_cli import build_common_arg_parser
-from ephem_toolkit.oem_to_tle import __main__ as oem_to_tle
+from ephem_toolkit.oem_to_tle import main as oem_to_tle_main
 
 
 @pytest.mark.parametrize("help_argument", ["-h", "--help"])
 def test_help_uses_oem_to_tle_command_name(help_argument: str, capsys) -> None:
     """Help should describe the wrapper without exposing a mode option."""
     with pytest.raises(SystemExit) as error:
-        oem_to_tle.main([help_argument])
+        oem_to_tle_main([help_argument])
 
     assert error.value.code == 0
     help_text = capsys.readouterr().out
@@ -61,14 +63,14 @@ def test_main_delegates_to_oem_to_omm_in_tle_mode(monkeypatch) -> None:
     def fake_main(argv) -> None:
         delegated_arguments.append(argv)
 
-    monkeypatch.setattr(oem_to_tle.oem_to_omm, "main", fake_main)
+    monkeypatch.setattr(oem_to_omm, "main", fake_main)
     monkeypatch.setattr(
-        oem_to_tle.omm_to_tle,
+        omm_to_tle,
         "main",
         lambda argv: tle_arguments.append(argv),
     )
 
-    oem_to_tle.main(["input.oem", "-o", "output.omm", "--fit-span", "2h"])
+    oem_to_tle_main(["input.oem", "-o", "output.omm", "--fit-span", "2h"])
 
     assert delegated_arguments == [
         ["--mode", "tle", "input.oem", "-o", "-", "--fit-span", "2h"]
@@ -80,6 +82,6 @@ def test_main_delegates_to_oem_to_omm_in_tle_mode(monkeypatch) -> None:
 def test_main_rejects_mode_argument(mode_argument: str) -> None:
     """The wrapper should rely on argparse to reject delegated mode arguments."""
     with pytest.raises(SystemExit) as error:
-        oem_to_tle.main([mode_argument, "brouwer", "input.oem"])
+        oem_to_tle_main([mode_argument, "brouwer", "input.oem"])
 
     assert error.value.code == 2

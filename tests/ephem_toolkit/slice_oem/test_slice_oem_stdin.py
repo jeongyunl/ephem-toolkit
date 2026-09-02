@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,10 +10,9 @@ from unittest.mock import patch
 
 import numpy as np
 
-import ephem_toolkit.core.ccsds.opm as opm
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.time_utils as time_utils
-from ephem_toolkit.slice_oem.__main__ import main
+from ephem_toolkit.slice_oem import main
 
 TEST_DIR: Path = Path(__file__).parent
 PROJECT_ROOT: Path = TEST_DIR.parent.parent.parent

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
 
-from oem_to_omm import fit_tle_main as fit_tle
+from ephem_toolkit.oem_to_omm import fit_tle_main as fit_tle
 
 
 def test_fit_tle_module_imports() -> None:

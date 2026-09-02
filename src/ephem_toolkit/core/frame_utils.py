@@ -15,10 +15,13 @@ warnings.filterwarnings(
     module=r"urllib3(\..*)?",
 )
 
-from tudatpy.astro import element_conversion
-from tudatpy.dynamics import environment_setup
-from tudatpy.dynamics.environment_setup.rotation_model import RotationModelSettings
-from tudatpy.interface import spice
+try:
+    from tudatpy.astro import element_conversion
+    from tudatpy.dynamics import environment_setup
+    from tudatpy.dynamics.environment_setup.rotation_model import RotationModelSettings
+    from tudatpy.interface import spice
+except ImportError as exc:
+    raise ImportError("frame_utils requires tudatpy") from exc
 
 from . import spice_utils
 

@@ -10,20 +10,20 @@ This module provides a unified interface for all propagators in the toolkit:
 
 from __future__ import annotations
 
-from ephem_toolkit.core.propagator.base import (
+from .base import (
     AnomalyType,
     KeplerianState,
     OutputMode,
     Propagator,
 )
-from ephem_toolkit.core.propagator.brouwer_j2 import BrouwerJ2Propagator
-from ephem_toolkit.core.propagator.dsst import (
+from .brouwer_j2 import BrouwerJ2Propagator
+from .dsst import (
     DSSTPropagator,
     DsstPerturbations,
     dsst_mean_to_osculating,
     osculating_to_dsst_mean,
 )
-from ephem_toolkit.core.propagator.kepler import (
+from .kepler import (
     KeplerPropagator,
     cartesian_to_keplerian,
     keplerian_to_cartesian,
@@ -36,7 +36,7 @@ from ephem_toolkit.core.propagator.kepler import (
     mean_motion_to_semi_major_axis,
     semi_major_axis_to_mean_motion,
 )
-from ephem_toolkit.core.propagator.sgp4 import Sgp4Propagator
+from .sgp4 import Sgp4Propagator
 
 __all__ = [
     "AnomalyType",
