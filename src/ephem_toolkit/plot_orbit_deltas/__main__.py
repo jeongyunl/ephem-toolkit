@@ -12,31 +12,7 @@ Usage:
 
 from __future__ import annotations
 
-import bisect
-import sys
-from pathlib import Path
-
-import matplotlib.pyplot as plt
-import numpy as np
-
-import ephem_toolkit.core.time_utils as time_utils
-
-from .plot_orbit_deltas_cli import (
-    PlotOrbitDeltasArgs,
-    build_arg_parser,
-    parse_arguments,
-)
-
-from .constants import DEFAULT_INTERPOLATION_DEGREE
-from .data_structures import StateHistory, TimeUnit
-from .file_io import read_orbit_file
-from .plotting import (
-    plot_angular_separation,
-    plot_orbits,
-    plot_relative_cartesian_timeseries,
-    plot_relative_rtn_orbits,
-    plot_relative_rtn_timeseries,
-)
+from .plot_orbit_deltas_cli import build_arg_parser, parse_arguments
 
 
 def generate_output_filename(base_output: str | None, suffix: str) -> str | None:
@@ -56,6 +32,8 @@ def generate_output_filename(base_output: str | None, suffix: str) -> str | None
     """
     if base_output is None:
         return None
+    from pathlib import Path
+
     path = Path(base_output)
     stem = path.stem
     suffix_str = f"_{suffix}"
@@ -65,7 +43,39 @@ def generate_output_filename(base_output: str | None, suffix: str) -> str | None
 def main(argv=None) -> None:
     """Main entry point for the script."""
     cli_parser = build_arg_parser()
-    cli_args: PlotOrbitDeltasArgs = parse_arguments(cli_parser, argv)
+    cli_args = parse_arguments(cli_parser, argv)
+
+    import bisect
+    import signal
+    import sys
+    from pathlib import Path
+    from types import FrameType
+    from typing import Any
+
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    import ephem_toolkit.core.time_utils as time_utils
+
+    from .constants import DEFAULT_INTERPOLATION_DEGREE
+    from .data_structures import StateHistory, TimeUnit
+    from .file_io import read_orbit_file
+    from .plotting import (
+        plot_angular_separation,
+        plot_orbits,
+        plot_relative_cartesian_timeseries,
+        plot_relative_rtn_orbits,
+        plot_relative_rtn_timeseries,
+    )
+
+    def handle_key_press(event: Any) -> None:
+        if event.key in {"ctrl+c", "control+c"}:
+            plt.close("all")
+
+    def handle_sigint(_signum: int, _frame: FrameType | None) -> None:
+        plt.close("all")
+
+    previous_sigint_handler: Any = signal.signal(signal.SIGINT, handle_sigint)
 
     if len(cli_args.input_oem_files) < 1:
         raise SystemExit(1)
@@ -200,8 +210,12 @@ def main(argv=None) -> None:
     plot_orbits(reference_state_history_obj, comparison_data, cli_args.output)
 
     if cli_args.output is None:
+        for figure_number in plt.get_fignums():
+            figure = plt.figure(figure_number)
+            figure.canvas.mpl_connect("key_press_event", handle_key_press)
         plt.show()
 
+    signal.signal(signal.SIGINT, previous_sigint_handler)
     print("Done!")
 
 
