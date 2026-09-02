@@ -15,30 +15,7 @@ References:
 
 from __future__ import annotations
 
-import math
-
-import warnings
-
-from .tle_info_cli import TleInfoArgs
 from .tle_info_cli import build_arg_parser, parse_arguments
-
-# Suppress warnings that tudatpy / urllib3 may emit on import.
-warnings.filterwarnings("ignore", category=SyntaxWarning)
-warnings.filterwarnings(
-    "ignore",
-    module=r"urllib3(\..*)?",
-)
-
-try:
-    from tudatpy.astro.element_conversion import KeplerianElementIndices
-    from tudatpy.astro.time_representation import DateTime
-    from tudatpy.dynamics import environment_setup
-    from tudatpy.interface import spice
-except ImportError as exc:
-    raise ImportError("tle-info requires tudatpy") from exc
-
-import ephem_toolkit.core.propagator.kepler as kepler
-import ephem_toolkit.core.spice_utils as spice_utils
 
 # ===================================================================
 # SPICE Kernel Management
@@ -108,7 +85,31 @@ def main(argv=None) -> None:
     Keplerian elements at the reference epoch.
     """
     cli_parser = build_arg_parser()
-    cli_args: TleInfoArgs = parse_arguments(cli_parser, argv)
+    cli_args = parse_arguments(cli_parser, argv)
+
+    import warnings
+
+    # Suppress warnings that tudatpy / urllib3 may emit on import.
+    warnings.filterwarnings("ignore", category=SyntaxWarning)
+    warnings.filterwarnings(
+        "ignore",
+        module=r"urllib3(\..*)?",
+    )
+
+    import math
+
+    global DateTime, KeplerianElementIndices, environment_setup, kepler, spice, spice_utils
+
+    try:
+        from tudatpy.astro.element_conversion import KeplerianElementIndices
+        from tudatpy.astro.time_representation import DateTime
+        from tudatpy.dynamics import environment_setup
+        from tudatpy.interface import spice
+    except ImportError as exc:
+        raise ImportError("tle-info requires tudatpy") from exc
+
+    import ephem_toolkit.core.propagator.kepler as kepler
+    import ephem_toolkit.core.spice_utils as spice_utils
 
     tle_files: list[str] = cli_args.tle_files
     print(f"TLE files: {tle_files}\n")
