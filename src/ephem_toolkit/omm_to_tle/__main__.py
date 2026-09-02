@@ -7,13 +7,6 @@ stdout or a file.
 
 from __future__ import annotations
 
-import io
-import sys
-
-import ephem_toolkit.core.convert_tle as convert_tle
-import ephem_toolkit.core.ccsds.omm as omm
-import ephem_toolkit.core.tle as tle
-
 from .omm_to_tle_cli import OmmToTleArgs, build_arg_parser, parse_arguments
 
 
@@ -25,6 +18,13 @@ def main(argv=None) -> None:
     """
     cli_parser = build_arg_parser()
     cli_args: OmmToTleArgs = parse_arguments(cli_parser, argv)
+
+    import io
+    import sys
+
+    import ephem_toolkit.core.ccsds.omm as omm
+    import ephem_toolkit.core.convert_tle as convert_tle
+    import ephem_toolkit.core.tle as tle
 
     if cli_args.input_omm == "-":
         input_text: str = sys.stdin.read()
