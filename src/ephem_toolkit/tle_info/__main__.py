@@ -22,7 +22,7 @@ from .tle_info_cli import build_arg_parser, parse_arguments
 # ===================================================================
 
 
-def load_spice_kernels() -> None:
+def _load_spice_kernels() -> None:
     """Load required SPICE kernels for time conversion and Earth orientation.
 
     Loads the NAIF leapseconds kernel and planetary constants kernel
@@ -114,7 +114,7 @@ def main(argv=None) -> None:
     tle_files: list[str] = cli_args.tle_files
     print(f"TLE files: {tle_files}\n")
 
-    load_spice_kernels()
+    _load_spice_kernels()
 
     bodies_to_create: list[str] = ["Earth"]
     global_frame_origin: str = "Earth"

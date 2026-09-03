@@ -99,7 +99,6 @@ def test_spice_convert_frame_uses_state_rotation_matrix(
         requested_arguments.append((base_frame, target_frame, epoch_tt_s))
         return state_rotation_matrix
 
-    monkeypatch.setattr(frame_utils, "_did_load_spice_kernels", True)
     monkeypatch.setattr(
         frame_utils.spice,
         "compute_state_rotation_matrix_between_frames",
@@ -137,7 +136,6 @@ def test_spice_convert_frame_builds_state_matrix_from_rotation_and_derivative(
         ]
     )
 
-    monkeypatch.setattr(frame_utils, "_did_load_spice_kernels", True)
     monkeypatch.setattr(
         frame_utils, "_has_compute_state_rotation_matrix_between_frames", False
     )
@@ -167,29 +165,25 @@ def test_spice_convert_frame_builds_state_matrix_from_rotation_and_derivative(
     np.testing.assert_allclose(result, expected_result)
 
 
-def test_spice_convert_frame_loads_kernels_on_first_call(
+def test_load_spice_kernels_loads_required_kernels(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Should load SPICE kernels if not already loaded."""
+    """Should load all SPICE kernels required by frame conversions."""
     load_kernel_calls: list[str] = []
 
     def fake_load_kernel(kernel_name: str) -> None:
         load_kernel_calls.append(kernel_name)
 
-    monkeypatch.setattr(frame_utils, "_did_load_spice_kernels", False)
     monkeypatch.setattr(frame_utils.spice_utils, "load_kernel", fake_load_kernel)
-    monkeypatch.setattr(
-        frame_utils.spice,
-        "compute_state_rotation_matrix_between_frames",
-        lambda *args: np.eye(6),
-        raising=False,
-    )
+    frame_utils._load_spice_kernels()
 
-    frame_utils.spice_convert_frame("J2000", "ITRF93", 100.0, TEST_STATE)
-
-    assert "naif0012.tls" in load_kernel_calls
-    assert "pck00011.tpc" in load_kernel_calls
-    assert "earth_200101_990825_predict.bpc" in load_kernel_calls
+    assert load_kernel_calls == [
+        "naif0012.tls",
+        "pck00011.tpc",
+        "gm_de431.tpc",
+        "earth_200101_990825_predict.bpc",
+        "inpop19a_TDB_m100_p100_spice.bsp",
+    ]
 
 
 def test_tudat_convert_inertial_to_body_fixed_applies_rotation_and_transport_term(
@@ -211,8 +205,6 @@ def test_tudat_convert_inertial_to_body_fixed_applies_rotation_and_transport_ter
 
         def angular_velocity_in_body_fixed_frame(self, epoch: float) -> np.ndarray:
             return angular_velocity
-
-    monkeypatch.setattr(frame_utils, "_did_load_spice_kernels", True)
 
     rotation_model = FakeRotationModel()
     inertial_state = np.array([1000.0, 2000.0, 3000.0, 100.0, 200.0, 300.0])
@@ -255,8 +247,6 @@ def test_tudat_convert_body_fixed_to_inertial_applies_rotation_and_transport_ter
         def angular_velocity_in_inertial_frame(self, epoch: float) -> np.ndarray:
             return angular_velocity
 
-    monkeypatch.setattr(frame_utils, "_did_load_spice_kernels", True)
-
     rotation_model = FakeRotationModel()
     body_fixed_state = np.array([5000.0, 6000.0, 7000.0, 50.0, 60.0, 70.0])
 
@@ -276,58 +266,6 @@ def test_tudat_convert_body_fixed_to_inertial_applies_rotation_and_transport_ter
 
     np.testing.assert_allclose(result, expected_state)
     assert result.shape == (6,)
-
-
-def test_tudat_convert_inertial_to_body_fixed_loads_kernels_on_first_call(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Should load SPICE kernels if not already loaded."""
-    load_kernel_calls: list[str] = []
-
-    def fake_load_kernel(kernel_name: str) -> None:
-        load_kernel_calls.append(kernel_name)
-
-    class FakeRotationModel:
-        def inertial_to_body_fixed_rotation(self, epoch: float) -> np.ndarray:
-            return np.eye(3)
-
-        def angular_velocity_in_body_fixed_frame(self, epoch: float) -> np.ndarray:
-            return np.zeros(3)
-
-    monkeypatch.setattr(frame_utils, "_did_load_spice_kernels", False)
-    monkeypatch.setattr(frame_utils.spice_utils, "load_kernel", fake_load_kernel)
-
-    rotation_model = FakeRotationModel()
-    frame_utils.tudat_convert_inertial_to_body_fixed(rotation_model, 100.0, TEST_STATE)
-
-    assert len(load_kernel_calls) == 3
-    assert "naif0012.tls" in load_kernel_calls
-
-
-def test_tudat_convert_body_fixed_to_inertial_loads_kernels_on_first_call(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Should load SPICE kernels if not already loaded."""
-    load_kernel_calls: list[str] = []
-
-    def fake_load_kernel(kernel_name: str) -> None:
-        load_kernel_calls.append(kernel_name)
-
-    class FakeRotationModel:
-        def body_fixed_to_inertial_rotation(self, epoch: float) -> np.ndarray:
-            return np.eye(3)
-
-        def angular_velocity_in_inertial_frame(self, epoch: float) -> np.ndarray:
-            return np.zeros(3)
-
-    monkeypatch.setattr(frame_utils, "_did_load_spice_kernels", False)
-    monkeypatch.setattr(frame_utils.spice_utils, "load_kernel", fake_load_kernel)
-
-    rotation_model = FakeRotationModel()
-    frame_utils.tudat_convert_body_fixed_to_inertial(rotation_model, 100.0, TEST_STATE)
-
-    assert len(load_kernel_calls) == 3
-    assert "pck00011.tpc" in load_kernel_calls
 
 
 def test_tudat_inertial_body_fixed_round_trip_restores_state(
@@ -361,8 +299,6 @@ def test_tudat_inertial_body_fixed_round_trip_restores_state(
 
         def angular_velocity_in_inertial_frame(self, epoch: float) -> np.ndarray:
             return angular_velocity_inertial
-
-    monkeypatch.setattr(frame_utils, "_did_load_spice_kernels", True)
 
     rotation_model = FakeRotationModel()
     inertial_state = np.array([7000000.0, 0.0, 0.0, 0.0, 7500.0, 0.0])
@@ -455,7 +391,6 @@ def test_spice_convert_frame_j2000_to_itrf93(
     state_matrix[0:3, 0:3] = TEST_ROTATION
     state_matrix[3:6, 3:6] = TEST_ROTATION
 
-    monkeypatch.setattr(frame_utils, "_did_load_spice_kernels", True)
     monkeypatch.setattr(
         frame_utils.spice,
         "compute_state_rotation_matrix_between_frames",
@@ -478,7 +413,6 @@ def test_spice_convert_frame_itrf93_to_j2000(
     state_matrix[0:3, 0:3] = TEST_ROTATION.T
     state_matrix[3:6, 3:6] = TEST_ROTATION.T
 
-    monkeypatch.setattr(frame_utils, "_did_load_spice_kernels", True)
     monkeypatch.setattr(
         frame_utils.spice,
         "compute_state_rotation_matrix_between_frames",

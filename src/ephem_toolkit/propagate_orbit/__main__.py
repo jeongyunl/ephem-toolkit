@@ -78,10 +78,6 @@ def main(argv=None) -> None:
             output_dep_vars_path,
         )
 
-    from ephem_toolkit.core.propagator.numerical import load_spice_kernels
-
-    load_spice_kernels()
-
     propagation.run_propagation(
         config,
         initial_state,

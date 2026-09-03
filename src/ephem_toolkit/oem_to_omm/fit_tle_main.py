@@ -134,7 +134,7 @@ def _sgp4_mean_motion_rev_per_day(semi_major_axis_m: float) -> float:
 # ===================================================================
 
 
-def load_spice_kernels() -> None:
+def _load_spice_kernels() -> None:
     """Load SPICE kernels required for time conversion.
 
     Parameters
@@ -153,7 +153,7 @@ def load_spice_kernels() -> None:
         spice_utils.load_kernel(kernel_file)
 
 
-load_spice_kernels()
+_load_spice_kernels()
 
 
 def fit_tle(

@@ -19,7 +19,6 @@ from ephem_toolkit.core.propagator.numerical import (
     NumericalPropagatorConfig,
 )
 
-
 # ===================================================================
 # Shared fixtures
 # ===================================================================
@@ -216,9 +215,9 @@ def test_numerical_propagator_stores_dependent_variable_metadata() -> None:
     initial_state = make_initial_state()
     prop = NumericalPropagator(config=config, initial_state=initial_state)
     assert prop._dependent_variable_dictionary is None
-    assert prop._dependent_variable_save_settings is None
+    assert prop._dependent_variable_save_settings is not None
     assert prop.dependent_variable_dictionary is None
-    assert prop.dependent_variable_save_settings is None
+    assert prop.dependent_variable_save_settings is not None
 
 
 def test_numerical_propagator_initial_state_set_flag() -> None:

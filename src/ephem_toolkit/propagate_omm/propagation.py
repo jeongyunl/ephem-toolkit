@@ -105,7 +105,7 @@ def read_omm_input(cli_value: str | None) -> omm.CcsdsOmm:
 # ===================================================================
 
 
-def load_spice_kernels() -> None:
+def _load_spice_kernels() -> None:
     """Load SPICE kernels required for time conversion."""
     spice_kernel_files: list[str] = [
         "naif0012.tls",
@@ -113,6 +113,9 @@ def load_spice_kernels() -> None:
     ]
     for kernel_file in spice_kernel_files:
         spice_utils.load_kernel(kernel_file)
+
+
+_load_spice_kernels()
 
 
 def propagate_tle_sgp4(
@@ -141,8 +144,6 @@ def propagate_tle_sgp4(
         Output path or "-" for stdout.
     """
     object_name: str = tle_obj.object_name or "UNKNOWN"
-
-    load_spice_kernels()
 
     if stop_time < start_time:
         raise ValueError(
