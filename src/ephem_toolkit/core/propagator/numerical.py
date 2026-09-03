@@ -145,17 +145,21 @@ class NumericalInitialState:
 # ===================================================================
 
 
-def load_spice_kernels() -> None:
+def _load_spice_kernels() -> None:
     """Load required SPICE kernels for propagation support."""
+
     spice_kernel_files = [
         "naif0012.tls",
         "pck00011.tpc",
         "gm_de431.tpc",
         "earth_200101_990825_predict.bpc",
-        "tudat_merged_spk_kernel.bsp",
+        "inpop19a_TDB_m100_p100_spice.bsp",
     ]
     for kernel_file in spice_kernel_files:
         spice_utils.load_kernel(kernel_file)
+
+
+_load_spice_kernels()
 
 
 def create_environment_and_bodies(config: NumericalPropagatorConfig) -> Any:
@@ -485,7 +489,8 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
     Initial state (epoch + Cartesian state) is set via :meth:`set_initial_state`.
 
     Each call to :meth:`propagate_to` re-runs the integrator from the initial
-    state to the target epoch. Caching is a future optimization.
+    state to the target epoch. The fixed environment and force model are
+    reused between propagations.
 
     Parameters
     ----------
@@ -501,8 +506,21 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         initial_state: NumericalInitialState,
     ) -> None:
         self._config = config
+        # These depend only on the model configuration, not on the propagation
+        # interval, so construct them once for the propagator lifetime.
+        self._bodies_to_propagate = [config.satellite_name]
+        self._central_bodies = ["Earth"]
+        self._bodies = create_environment_and_bodies(config)
+        self._acceleration_models = create_acceleration_models(
+            config,
+            self._bodies,
+            self._bodies_to_propagate,
+            self._central_bodies,
+        )
+        self._dependent_variable_save_settings = create_dependent_variables_to_save(
+            config
+        )
         self._dependent_variable_dictionary: DependentVariableDictionary | None = None
-        self._dependent_variable_save_settings: list[VariableSettings] | None = None
         super().__init__()
         self.set_initial_state(initial_state)
 
@@ -529,7 +547,6 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         self._initial_state = initial_state
         self._reference_epoch_s = initial_state.epoch_s
         self._dependent_variable_dictionary = None
-        self._dependent_variable_save_settings = None
 
     @override
     def get_initial_epoch_s(self) -> float:
@@ -544,31 +561,18 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
 
     def _propagate_impl(self, target_epoch_s: float) -> dict[float, np.ndarray]:
         """Run a propagation from the initial state to the target epoch."""
-        bodies = create_environment_and_bodies(self._config)
-        bodies_to_propagate = [self._config.satellite_name]
-        central_bodies = ["Earth"]
-
-        acceleration_models = create_acceleration_models(
-            self._config,
-            bodies,
-            bodies_to_propagate,
-            central_bodies,
-        )
-        dependent_variable_save_settings: list[VariableSettings] = (
-            create_dependent_variables_to_save(self._config)
-        )
         propagator_settings = create_translational_propagator_settings(
             self._config,
             self._initial_state,
             target_epoch_s,
-            central_bodies,
-            acceleration_models,
-            bodies_to_propagate,
-            dependent_variable_save_settings,
+            self._central_bodies,
+            self._acceleration_models,
+            self._bodies_to_propagate,
+            self._dependent_variable_save_settings,
         )
 
         dynamics_simulator = simulator.create_dynamics_simulator(
-            bodies, propagator_settings
+            self._bodies, propagator_settings
         )
         state_history: dict[float, np.ndarray] = (
             dynamics_simulator.propagation_results.state_history
@@ -578,7 +582,6 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         )
 
         self._dependent_variable_dictionary = dependent_variable_dictionary
-        self._dependent_variable_save_settings = dependent_variable_save_settings
         return state_history
 
     @override

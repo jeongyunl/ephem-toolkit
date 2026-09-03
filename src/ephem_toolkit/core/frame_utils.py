@@ -25,9 +25,6 @@ except ImportError as exc:
 
 from . import spice_utils
 
-_did_load_spice_kernels: bool = False
-"""Whether the required SPICE kernels have already been loaded."""
-
 _has_compute_state_rotation_matrix_between_frames: bool = hasattr(
     spice, "compute_state_rotation_matrix_between_frames"
 )
@@ -43,15 +40,18 @@ _tudat_iau2006_rotation_model: object | None = None
 def _load_spice_kernels() -> None:
     """Load the SPICE kernels required by the frame conversions."""
 
-    spice_utils.load_kernel("naif0012.tls")  # Leap seconds kernel file
-    spice_utils.load_kernel(
-        "pck00011.tpc"
-    )  # PLANETARY CONSTANTS KERNEL FILE: orientation and size/shape data for natural bodies(Sun, planets, asteroids, etc)
-    spice_utils.load_kernel(
-        "earth_200101_990825_predict.bpc"
-    )  # Earth rotation prediction (covers Jan 2001 to Aug 2099)
-    global _did_load_spice_kernels
-    _did_load_spice_kernels = True
+    spice_kernel_files = [
+        "naif0012.tls",
+        "pck00011.tpc",
+        "gm_de431.tpc",
+        "earth_200101_990825_predict.bpc",
+        "inpop19a_TDB_m100_p100_spice.bsp",
+    ]
+    for kernel_file in spice_kernel_files:
+        spice_utils.load_kernel(kernel_file)
+
+
+_load_spice_kernels()
 
 
 class Frame(Enum):
@@ -171,11 +171,6 @@ def spice_convert_frame(
         in *target_frame*.
     """
 
-    global _did_load_spice_kernels
-
-    if not _did_load_spice_kernels:
-        _load_spice_kernels()
-
     if base_frame == "ITRF" or base_frame == "ITRF1993":
         base_frame = "ITRF93"
 
@@ -233,11 +228,6 @@ def _tudat_create_rotation_model(
     coordinate systems.
     """
 
-    global _did_load_spice_kernels
-
-    if not _did_load_spice_kernels:
-        _load_spice_kernels()
-
     global_frame_origin: str = body_name
     bodies_to_create: list[str] = [body_name]
 
@@ -258,11 +248,6 @@ def _tudat_create_rotation_model(
 
 def tudat_spice_rotation_model() -> object:
     """Return the cached TudatPy SPICE rotation model for Earth. J2000 <-> ITRF93."""
-
-    global _did_load_spice_kernels
-
-    if not _did_load_spice_kernels:
-        _load_spice_kernels()
 
     global _tudat_spice_rotation_model
 
@@ -340,11 +325,6 @@ def tudat_convert_inertial_to_body_fixed(
         velocity in metres per second.
     """
 
-    global _did_load_spice_kernels
-
-    if not _did_load_spice_kernels:
-        _load_spice_kernels()
-
     inertial_to_body_fixed_rotation_matrix: np.ndarray = (
         rotation_model.inertial_to_body_fixed_rotation(input_epoch_et_s)
     )
@@ -391,11 +371,6 @@ def tudat_convert_body_fixed_to_inertial(
         Six-component inertial state vector with position in metres and
         velocity in metres per second.
     """
-
-    global _did_load_spice_kernels
-
-    if not _did_load_spice_kernels:
-        _load_spice_kernels()
 
     body_fixed_to_inertial_rotation_matrix: np.ndarray = (
         rotation_model.body_fixed_to_inertial_rotation(input_epoch_et_s)
