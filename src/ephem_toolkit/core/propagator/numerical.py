@@ -17,16 +17,25 @@ References:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+from typing_extensions import override
 
 import numpy as np
-from typing_extensions import override
+from tudatpy.dynamics import (
+    environment_setup,
+    propagation,
+    propagation_setup,
+    simulator,
+)
+from tudatpy.dynamics.propagation_setup import dependent_variable
+from tudatpy.dynamics.propagation_setup.dependent_variable import VariableSettings
+
+from tudatpy.dynamics.propagation.dependent_variable_dictionary import (
+    DependentVariableDictionary,
+)
 
 from .base import Propagator
 from .. import spice_utils
-
-if TYPE_CHECKING:
-    from typing import Any
 
 # ===================================================================
 # Engine constants (moved from propagate_orbit/constants.py)
@@ -61,6 +70,9 @@ SUPPORTED_INTEGRATOR_METHODS: tuple[str, ...] = tuple(INTEGRATOR_METHOD_DESCRIPT
 
 DEFAULT_INTEGRATOR_METHOD: str = "rkdp_87"
 """Default numerical integrator method (Dormand-Prince 8(7))."""
+
+DEFAULT_INTEGRATOR_TOLERANCE: float = 1.0e-10
+"""Default relative/absolute tolerance used by variable-step RK control."""
 
 
 # ===================================================================
@@ -159,8 +171,6 @@ def create_environment_and_bodies(config: NumericalPropagatorConfig) -> Any:
     object
         Tudat system-of-bodies object.
     """
-    from tudatpy.dynamics import environment_setup
-
     bodies_to_create = list(DEFAULT_BODIES_TO_CREATE)
     if config.is_moon_gravity_on:
         bodies_to_create.append("Moon")
@@ -228,8 +238,6 @@ def create_acceleration_models(
     object
         Tudat acceleration-model map.
     """
-    from tudatpy.dynamics import propagation_setup
-
     satellite_acceleration_settings: dict[str, list[Any]] = {}
 
     sun_accelerations: list[Any] = []
@@ -272,7 +280,7 @@ def create_acceleration_models(
 
 def create_dependent_variables_to_save(
     config: NumericalPropagatorConfig,
-) -> list[Any]:
+) -> list[VariableSettings]:
     """Create dependent-variable save settings for propagation.
 
     Parameters
@@ -282,13 +290,10 @@ def create_dependent_variables_to_save(
 
     Returns
     -------
-    list[Any]
+    list[VariableSettings]
         Dependent-variable save settings.
     """
-    from tudatpy.dynamics import propagation_setup
-    from tudatpy.dynamics.propagation_setup import dependent_variable
-
-    dep_vars: list[Any] = [
+    dep_vars: list[VariableSettings] = [
         dependent_variable.total_acceleration(config.satellite_name),
         dependent_variable.keplerian_state(config.satellite_name, "Earth"),
         dependent_variable.geodetic_latitude(config.satellite_name, "Earth"),
@@ -363,7 +368,7 @@ def create_translational_propagator_settings(
     central_bodies: list[str],
     acceleration_models: Any,
     bodies_to_propagate: list[str],
-    dependent_variables_to_save: list[Any],
+    dependent_variables_to_save: list[VariableSettings],
 ) -> Any:
     """Create translational propagator settings.
 
@@ -381,7 +386,7 @@ def create_translational_propagator_settings(
         Acceleration model map.
     bodies_to_propagate : list[str]
         Bodies whose translational states are propagated.
-    dependent_variables_to_save : list[Any]
+    dependent_variables_to_save : list[VariableSettings]
         Dependent-variable save settings.
 
     Returns
@@ -389,8 +394,6 @@ def create_translational_propagator_settings(
     object
         Tudat translational propagator settings object.
     """
-    from tudatpy.dynamics import propagation_setup
-
     try:
         coefficient_set = getattr(
             propagation_setup.integrator.CoefficientSets,
@@ -419,7 +422,8 @@ def create_translational_propagator_settings(
         )
         step_size_control_settings = (
             propagation_setup.integrator.step_size_control_elementwise_scalar_tolerance(
-                1.0e-10, 1.0e-10
+                DEFAULT_INTEGRATOR_TOLERANCE,
+                DEFAULT_INTEGRATOR_TOLERANCE,
             )
         )
         integrator_settings = propagation_setup.integrator.runge_kutta_variable_step(
@@ -443,64 +447,6 @@ def create_translational_propagator_settings(
         termination_condition,
         output_variables=dependent_variables_to_save,
     )
-
-
-def run_numerical_propagation(
-    config: NumericalPropagatorConfig,
-    initial_state: NumericalInitialState,
-    target_epoch_s: float,
-) -> tuple[dict[float, np.ndarray], Any, list[Any]]:
-    """Run numerical propagation from initial_state to target_epoch_s.
-
-    Performs no file I/O. Raises exceptions rather than calling sys.exit.
-
-    Parameters
-    ----------
-    config : NumericalPropagatorConfig
-        Force-model and integrator configuration.
-    initial_state : NumericalInitialState
-        Initial Cartesian state and epoch.
-    target_epoch_s : float
-        Propagation end epoch (TT, s since J2000 TT).
-
-    Returns
-    -------
-    tuple[dict[float, np.ndarray], Any, list[Any]]
-        ``(state_history, dep_var_dict, dependent_variables_to_save)`` where
-        ``state_history`` maps TT epoch (s) to Cartesian state (6,),
-        ``dep_var_dict`` is the Tudat dependent-variable dictionary, and
-        ``dependent_variables_to_save`` is the list of save settings (needed
-        for downstream CSV writing).
-    """
-    from tudatpy.dynamics import propagation, simulator
-
-    bodies = create_environment_and_bodies(config)
-    bodies_to_propagate = [config.satellite_name]
-    central_bodies = ["Earth"]
-
-    acceleration_models = create_acceleration_models(
-        config, bodies, bodies_to_propagate, central_bodies
-    )
-    dependent_variables_to_save = create_dependent_variables_to_save(config)
-    propagator_settings = create_translational_propagator_settings(
-        config,
-        initial_state,
-        target_epoch_s,
-        central_bodies,
-        acceleration_models,
-        bodies_to_propagate,
-        dependent_variables_to_save,
-    )
-
-    dynamics_simulator = simulator.create_dynamics_simulator(
-        bodies, propagator_settings
-    )
-    state_history: dict[float, np.ndarray] = (
-        dynamics_simulator.propagation_results.state_history
-    )
-    dep_var_dict = propagation.create_dependent_variable_dictionary(dynamics_simulator)
-
-    return state_history, dep_var_dict, dependent_variables_to_save
 
 
 # ===================================================================
@@ -555,8 +501,20 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         initial_state: NumericalInitialState,
     ) -> None:
         self._config = config
+        self._dependent_variable_dictionary: DependentVariableDictionary | None = None
+        self._dependent_variable_save_settings: list[VariableSettings] | None = None
         super().__init__()
         self.set_initial_state(initial_state)
+
+    @property
+    def dependent_variable_dictionary(self) -> DependentVariableDictionary | None:
+        """Return the last Tudat dependent-variable dictionary, if available."""
+        return self._dependent_variable_dictionary
+
+    @property
+    def dependent_variable_save_settings(self) -> list[VariableSettings] | None:
+        """Return the last save settings used for dependent variables, if available."""
+        return self._dependent_variable_save_settings
 
     @override
     def set_initial_state(self, initial_state: NumericalInitialState) -> None:
@@ -570,6 +528,8 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         super().set_initial_state(initial_state)
         self._initial_state = initial_state
         self._reference_epoch_s = initial_state.epoch_s
+        self._dependent_variable_dictionary = None
+        self._dependent_variable_save_settings = None
 
     @override
     def get_initial_epoch_s(self) -> float:
@@ -581,6 +541,45 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
             Fixed initial epoch.
         """
         return self._initial_state.epoch_s
+
+    def _propagate_impl(self, target_epoch_s: float) -> dict[float, np.ndarray]:
+        """Run a propagation from the initial state to the target epoch."""
+        bodies = create_environment_and_bodies(self._config)
+        bodies_to_propagate = [self._config.satellite_name]
+        central_bodies = ["Earth"]
+
+        acceleration_models = create_acceleration_models(
+            self._config,
+            bodies,
+            bodies_to_propagate,
+            central_bodies,
+        )
+        dependent_variable_save_settings: list[VariableSettings] = (
+            create_dependent_variables_to_save(self._config)
+        )
+        propagator_settings = create_translational_propagator_settings(
+            self._config,
+            self._initial_state,
+            target_epoch_s,
+            central_bodies,
+            acceleration_models,
+            bodies_to_propagate,
+            dependent_variable_save_settings,
+        )
+
+        dynamics_simulator = simulator.create_dynamics_simulator(
+            bodies, propagator_settings
+        )
+        state_history: dict[float, np.ndarray] = (
+            dynamics_simulator.propagation_results.state_history
+        )
+        dependent_variable_dictionary: DependentVariableDictionary = (
+            propagation.create_dependent_variable_dictionary(dynamics_simulator)
+        )
+
+        self._dependent_variable_dictionary = dependent_variable_dictionary
+        self._dependent_variable_save_settings = dependent_variable_save_settings
+        return state_history
 
     @override
     def _propagate_to_impl(self, target_epoch_s: float) -> np.ndarray:
@@ -596,9 +595,7 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         np.ndarray
             Cartesian state [x, y, z, vx, vy, vz] in m and m/s.
         """
-        state_history, _, _ = run_numerical_propagation(
-            self._config, self._initial_state, target_epoch_s
-        )
+        state_history = self._propagate_impl(target_epoch_s)
         return _interpolate_state(state_history, target_epoch_s)
 
     @override
@@ -621,9 +618,7 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         list[tuple[float, np.ndarray]]
             List of (epoch_s, state) tuples.
         """
-        state_history, _, _ = run_numerical_propagation(
-            self._config, self._initial_state, to_epoch_s
-        )
+        state_history = self._propagate_impl(to_epoch_s)
         return [
             (t, np.asarray(s, dtype=float))
             for t, s in sorted(state_history.items())

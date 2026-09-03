@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import sys
 
+from ephem_toolkit.core.propagator.base import OutputMode
 from ephem_toolkit.core.propagator.numerical import (
     NumericalInitialState,
+    NumericalPropagator,
     NumericalPropagatorConfig,
-    run_numerical_propagation,
 )
 
 from .output_handling import write_dependent_variables_csv, write_state_history_oem
@@ -48,9 +49,18 @@ def run_propagation(
     None
         Writes outputs to specified paths and may exit on error.
     """
-    state_history, dep_var_dict, dependent_variables_to_save = run_numerical_propagation(
-        config, initial_state, target_epoch_s
-    )
+    propagator = NumericalPropagator(config, initial_state)
+    trajectory = propagator.propagate_to(target_epoch_s, output=OutputMode.TRAJECTORY)
+    if trajectory is None:
+        raise RuntimeError("Propagation did not produce a trajectory.")
+
+    state_history = {epoch_s: state for epoch_s, state in trajectory}
+    dep_var_dict = propagator.dependent_variable_dictionary
+    dependent_variables_to_save = propagator.dependent_variable_save_settings
+    if dep_var_dict is None or dependent_variables_to_save is None:
+        raise RuntimeError(
+            "Propagation output did not retain dependent-variable metadata."
+        )
 
     try:
         write_state_history_oem(

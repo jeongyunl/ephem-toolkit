@@ -210,6 +210,17 @@ def test_numerical_propagator_stores_config() -> None:
     assert prop._config.satellite_mass_kg == 50.0
 
 
+def test_numerical_propagator_stores_dependent_variable_metadata() -> None:
+    """Dependent-variable dictionary and save settings are retained on the instance."""
+    config = make_config()
+    initial_state = make_initial_state()
+    prop = NumericalPropagator(config=config, initial_state=initial_state)
+    assert prop._dependent_variable_dictionary is None
+    assert prop._dependent_variable_save_settings is None
+    assert prop.dependent_variable_dictionary is None
+    assert prop.dependent_variable_save_settings is None
+
+
 def test_numerical_propagator_initial_state_set_flag() -> None:
     """_initial_state_set is True after construction."""
     config = make_config()
