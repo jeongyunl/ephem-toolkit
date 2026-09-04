@@ -38,7 +38,7 @@ work. Tasks 5–6 depend on the shared numerical fitter. Tasks 8 and 11 compose
 existing propagation and fitting operations and can reuse the lower-level
 pieces from earlier tasks.
 
-Latest focused verification: `173 passed, 2 deselected` covering the numerical
+Latest focused verification: `175 passed, 2 deselected` covering the numerical
 fit validation, provenance reporting, and affected conversion suites.
 
 All orbit-file-conversion work has an additional objective: do not add runtime

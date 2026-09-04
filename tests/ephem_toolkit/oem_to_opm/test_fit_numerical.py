@@ -115,6 +115,19 @@ def test_optimizer_rejects_invalid_initial_state(initial_state) -> None:
             states(),
             NumericalFitConfig(),
         )
+
+
+def test_optimizer_does_not_report_convergence_without_residual_reduction() -> None:
+    reference = [(0.0, np.ones(6)), (1.0, np.ones(6))]
+    result = optimize_initial_state(
+        lambda _initial, _epoch: np.zeros(6),
+        np.zeros(6),
+        reference,
+        NumericalFitConfig(observables="state", fit_step_s=1.0),
+    )
+
+    assert not result.converged
+    assert result.diagnostics.position_rms_m > 0.0
     validate_numerical_fit(
         states(),
         NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=True),

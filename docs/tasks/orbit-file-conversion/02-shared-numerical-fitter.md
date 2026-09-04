@@ -46,6 +46,8 @@ algorithm for OEM, OMM, and TLE input paths.
 - Added reference-arc validation for finite Cartesian values and strictly
   increasing epochs.
 - Added optimizer initial-state validation for six finite Cartesian values.
+- Corrected convergence reporting so a zero optimizer step is not considered
+  converged when residuals remain nonzero and do not improve.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.
