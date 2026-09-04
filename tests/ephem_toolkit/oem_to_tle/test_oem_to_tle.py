@@ -73,9 +73,74 @@ def test_main_delegates_to_oem_to_omm_in_tle_mode(monkeypatch) -> None:
     oem_to_tle_main(["input.oem", "-o", "output.omm", "--fit-span", "2h"])
 
     assert delegated_arguments == [
-        ["--mode", "tle", "input.oem", "-o", "-", "--fit-span", "2h"]
+        [
+            "--mode",
+            "tle",
+            "input.oem",
+            "-o",
+            "-",
+            "--fit-span",
+            "2h",
+            "--fit-report",
+            "output.fit.json",
+        ]
     ]
     assert tle_arguments == [["-", "-o", "output.omm"]]
+
+
+def test_main_forwards_provenance_and_fit_report_options(monkeypatch) -> None:
+    delegated_arguments: list[list[str]] = []
+    monkeypatch.setattr(oem_to_omm, "main", lambda argv: delegated_arguments.append(argv))
+    monkeypatch.setattr(omm_to_tle, "main", lambda argv: None)
+
+    oem_to_tle_main(
+        [
+            "input.oem",
+            "-o",
+            "output.tle",
+            "--source-model",
+            "sgp4",
+            "--source-report",
+            "source.json",
+            "--fit-report",
+            "fit.json",
+        ]
+    )
+
+    assert delegated_arguments == [
+        [
+            "--mode",
+            "tle",
+            "input.oem",
+            "-o",
+            "-",
+            "--source-model",
+            "sgp4",
+            "--source-report",
+            "source.json",
+            "--fit-report",
+            "fit.json",
+        ]
+    ]
+
+
+def test_main_rejects_two_stdout_outputs() -> None:
+    with pytest.raises(SystemExit) as error:
+        oem_to_tle_main(
+            ["input.oem", "-o", "-", "--fit-report", "-"]
+        )
+
+    assert error.value.code == 2
+
+
+def test_main_does_not_add_automatic_report_when_disabled(monkeypatch) -> None:
+    delegated_arguments: list[list[str]] = []
+    monkeypatch.setattr(oem_to_omm, "main", lambda argv: delegated_arguments.append(argv))
+    monkeypatch.setattr(omm_to_tle, "main", lambda argv: None)
+
+    oem_to_tle_main(["input.oem", "-o", "output.tle", "--no-fit-report"])
+
+    assert "--fit-report" not in delegated_arguments[0]
 
 
 @pytest.mark.parametrize("mode_argument", ["--mode", "--mode=brouwer"])

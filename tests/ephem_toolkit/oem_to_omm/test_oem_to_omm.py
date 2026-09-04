@@ -85,6 +85,37 @@ def test_parse_arguments_fit_span_default_is_two_hours(monkeypatch):
     assert args.fit_span == timedelta(hours=2)
 
 
+def test_parse_arguments_accepts_provenance_report_options(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "oem-to-omm",
+            "--source-model",
+            "sgp4",
+            "--source-report",
+            "source.json",
+            "--fit-report",
+            "fit.json",
+            "input.oem",
+            "--output",
+            "output.omm",
+        ],
+    )
+
+    args = oem_to_omm_cli.parse_arguments(oem_to_omm_cli.build_arg_parser())
+
+    assert args.source_model == "sgp4"
+    assert args.source_report == "source.json"
+    assert args.fit_report == "fit.json"
+
+
+def test_parse_arguments_accepts_no_fit_report(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["oem-to-omm", "--no-fit-report", "input.oem", "-o", "output.omm"])
+    args = oem_to_omm_cli.parse_arguments(oem_to_omm_cli.build_arg_parser())
+    assert args.no_fit_report is True
+
+
 def test_report_results_handles_stdout_file_and_stream():
     """Should write text to stdout, files, or an already-open stream."""
     stream = StringIO()

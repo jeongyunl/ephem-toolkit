@@ -10,6 +10,7 @@ import ephem_toolkit.core.ccsds.opm as opm
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.oem_to_opm as oem_to_opm
 import ephem_toolkit.oem_to_opm.fit_osculating_kepler as fit_osculating_kepler
+from ephem_toolkit.oem_to_opm.oem_to_opm_cli import build_arg_parser, parse_arguments
 
 
 class DummyMeta:
@@ -33,6 +34,32 @@ class DummyOemData:
             ),
         ]
         self.meta = DummyMeta()
+
+
+def test_parser_accepts_provenance_report_options() -> None:
+    args = parse_arguments(
+        build_arg_parser(),
+        [
+            "--source-model",
+            "numerical",
+            "--source-report",
+            "source.json",
+            "--fit-report",
+            "fit.json",
+            "input.oem",
+            "-o",
+            "output.opm",
+        ],
+    )
+
+    assert args.source_model == "numerical"
+    assert args.source_report == "source.json"
+    assert args.fit_report == "fit.json"
+
+
+def test_parser_accepts_no_fit_report() -> None:
+    args = parse_arguments(build_arg_parser(), ["--no-fit-report", "input.oem", "-o", "output.opm"])
+    assert args.no_fit_report is True
 
 
 def test_main_writes_initial_state_and_osculating_elements_to_opm(
