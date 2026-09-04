@@ -67,6 +67,8 @@ algorithm for OEM, OMM, and TLE input paths.
   exactly match the user-supplied fixed fit parameters.
 - Added a lazy `NumericalPropagatorConfig` bridge that carries the complete
   fixed force-model configuration into the existing propagation API.
+- Added failure-path coverage requiring mass, area, gravity, and integrator
+  settings before a numerical propagator configuration can be constructed.
 - Added the `oem-to-opm --fit-model {two-body|numerical}` parser contract;
   `two-body` remains the default, while numerical execution currently fails
   explicitly until force-model wiring is complete.
