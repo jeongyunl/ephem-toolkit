@@ -3,7 +3,11 @@
 import numpy as np
 import pytest
 
-from ephem_toolkit.oem_to_opm.fit_numerical import NumericalFitConfig, validate_numerical_fit
+from ephem_toolkit.oem_to_opm.fit_numerical import (
+    NumericalFitConfig,
+    build_weighted_residuals,
+    validate_numerical_fit,
+)
 
 
 def states(count=2):
@@ -33,3 +37,19 @@ def test_fit_requires_two_six_component_states() -> None:
         validate_numerical_fit(states(1), NumericalFitConfig())
     with pytest.raises(ValueError, match="six Cartesian"):
         validate_numerical_fit([(0.0, np.zeros(3)), (1.0, np.zeros(3))], NumericalFitConfig())
+
+
+def test_build_weighted_residuals_supports_full_state() -> None:
+    reference = [(0.0, np.zeros(6)), (60.0, np.ones(6))]
+
+    residuals, diagnostics = build_weighted_residuals(
+        lambda _initial, _epoch: np.zeros(6),
+        np.zeros(6),
+        reference,
+        NumericalFitConfig(observables="state"),
+    )
+
+    assert residuals.shape == (12,)
+    assert diagnostics.n_records == 2
+    assert diagnostics.position_max_m == np.sqrt(3.0)
+    assert diagnostics.velocity_rms_m_s == np.sqrt(3.0 / 2.0)
