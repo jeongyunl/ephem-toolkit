@@ -120,6 +120,7 @@ def optimize_initial_state(
     max_iterations: int = 25,
     tolerance: float = 1.0e-6,
     finite_difference_step: float = 1.0e-3,
+    bounds: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> NumericalFitResult:
     """Optimize the initial Cartesian state using NumPy Gauss-Newton steps.
 
@@ -131,6 +132,12 @@ def optimize_initial_state(
     if max_iterations <= 0 or finite_difference_step <= 0.0 or tolerance <= 0.0:
         raise ValueError("optimizer limits and finite-difference step must be positive")
     state = np.asarray(initial_state, dtype=float).copy()
+    lower = upper = None
+    if bounds is not None:
+        lower, upper = (np.asarray(value, dtype=float) for value in bounds)
+        if lower.shape != (6,) or upper.shape != (6,) or np.any(lower > upper):
+            raise ValueError("optimizer bounds must be ordered six-component vectors")
+        state = np.clip(state, lower, upper)
     if config.preserve_initial_position:
         state[:3] = np.asarray(reference_states[0][1], dtype=float)[:3]
     variable_indices = (3, 4, 5) if config.preserve_initial_position else tuple(range(6))
@@ -146,6 +153,8 @@ def optimize_initial_state(
             jacobian[:, column] = (trial_residual - residual) / finite_difference_step
         delta, *_ = np.linalg.lstsq(jacobian, -residual, rcond=None)
         state[list(variable_indices)] += delta
+        if lower is not None and upper is not None:
+            state = np.clip(state, lower, upper)
         if float(np.linalg.norm(delta)) <= tolerance:
             converged = True
             break
