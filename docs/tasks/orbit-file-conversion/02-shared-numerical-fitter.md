@@ -72,8 +72,7 @@ algorithm for OEM, OMM, and TLE input paths.
 - Added failure-path coverage requiring mass, area, gravity, and integrator
   settings before a numerical propagator configuration can be constructed.
 - Added `oem-to-opm` parser options for observables and residual weights,
-  and fixed-parameter selection; execution remains gated pending force-model
-  wiring.
+  and fixed-parameter selection.
 - Added CLI validation requiring strictly positive residual-weight values.
 - Added an adapter that maps parsed OEM-to-OPM fit controls into
   `NumericalFitConfig`, preserving model, span, sampling, observables, weights,
@@ -149,8 +148,9 @@ algorithm for OEM, OMM, and TLE input paths.
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.
 
-The optimizer and callback adapters are implemented, but conversion CLI wiring
-and concrete force-model configuration are still pending.
+The optimizer, callback adapters, conversion CLI wiring, and concrete
+force-model configuration are implemented for the current OEM-to-OPM numerical
+path.
 
 ### Verification
 
@@ -183,8 +183,6 @@ fit records; full multi-iteration runtime still depends on convergence.
 
 - Verify live Tudat-backed execution with representative OEM data and the
   project's available SPICE kernels.
-- Extend numerical residual comparison output if a human-readable numerical
-  propagation table is required in addition to fit-report diagnostics.
 
 ## Scope
 
