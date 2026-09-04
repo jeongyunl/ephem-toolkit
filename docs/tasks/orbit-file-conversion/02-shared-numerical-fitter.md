@@ -60,6 +60,9 @@ algorithm for OEM, OMM, and TLE input paths.
   future numerical conversion paths can pass the configuration object directly.
 - Added configuration plumbing from existing `propagate-orbit`-style options,
   preserving user-supplied drag/SRP coefficients as fixed values.
+- Extended that mapping to include spacecraft mass/area, Earth gravity,
+  integrator settings, and third-body switches for reproducible force-model
+  construction.
 - Added the `oem-to-opm --fit-model {two-body|numerical}` parser contract;
   `two-body` remains the default, while numerical execution currently fails
   explicitly until force-model wiring is complete.
@@ -84,8 +87,7 @@ result recorded in the orbit-conversion task README.
   numerical propagation and fitting.
 - Add the corresponding force-model CLI options and map them into this
   configuration.
-- Add the remaining gravity, area, integrator, and force switches to the shared
-  configuration mapping.
+- Connect the mapped force-model configuration to the numerical propagator.
 - Add force-model validation, diagnostics, and wrapper integration.
 
 ## Scope

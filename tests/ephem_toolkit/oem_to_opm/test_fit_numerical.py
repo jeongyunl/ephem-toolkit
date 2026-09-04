@@ -83,12 +83,24 @@ def test_config_from_propagation_options_preserves_fixed_coefficients() -> None:
         srp = False
         drag_coeff = 2.2
         srp_coeff = 1.3
+        mass = 12.0
+        drag_area = 0.4
+        earth_gravity = (8, 8)
+        integrator = "rkdp_87"
+        integrator_step_size = (30.0,)
+        moon_gravity = True
+        sun_gravity = False
+        venus_gravity = False
+        mars_gravity = False
 
     config = config_from_propagation_options(
         Options(), fit_span_s=90.0, fit_step_s=10.0, parameters="initial-state,drag-coeff"
     )
     assert config.fit_span_s == 90.0
     assert config.fixed_parameter_values() == {"drag_coeff": 2.2}
+    assert config.earth_gravity == (8, 8)
+    assert config.integrator_step_size_s == (30.0,)
+    assert config.moon_gravity is True
     validate_numerical_fit(
         states(),
         NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=True, srp_coefficient=1.3),
