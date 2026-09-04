@@ -136,6 +136,8 @@ actually produce or transform the relevant output.
   top-level `source_report` field.
 - Generated reports now explicitly record successful `status=converged` and
   expose available `fit_method` and `iterations` fields at the report top level.
+- Reports now include RMS and maximum position/velocity residuals when the
+  existing propagation-comparison data provides them.
 - Preserved compatibility with existing mocked diagnostics used by conversion
   tests.
 
@@ -155,8 +157,8 @@ suite, plus `116 passed, 2 deselected` after the new unit tests were added.
 
 - Add tests for and wire the new report options through `oem-to-tle`'s delegated
   pipeline and `omm-to-tle` once its direct/refit report behavior is defined.
-- Add velocity residuals and full propagation/fit configuration to production
-  reports where the existing fit APIs do not yet expose those values.
+- Add full propagation/fit configuration to production reports where the
+  existing fit APIs do not yet expose those values.
 - Implement reporting for the proposed `omm-to-opm`, `tle-to-opm`,
   `opm-to-omm`, and `opm-to-tle` commands after those commands exist.
 
