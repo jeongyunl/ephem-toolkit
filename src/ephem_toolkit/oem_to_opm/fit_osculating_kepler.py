@@ -387,6 +387,8 @@ def format_kepler_output(
     keplerian_elements: np.ndarray,
     diagnostics: fit_common.FitDiagnostics,
     comparison: list[fit_common.PropagationComparison] | None = None,
+    *,
+    fit_method: str = "two-body",
 ) -> str:
     """Format osculating Keplerian elements as human-readable text.
 
@@ -439,7 +441,7 @@ def format_kepler_output(
         rms_position_m = diagnostics.rms_position_m
         epoch_vel_delta_m_s = diagnostics.epoch_vel_delta_m_s
 
-    lines.append("Osculating Keplerian elements (two-body fit):")
+    lines.append(f"Osculating Keplerian elements ({fit_method} fit):")
     lines.append(f"  epoch:              {epoch_str}")
     lines.append(f"  records used:       {n_records}")
     lines.append(f"  arc span:           {span_s:.1f} s")

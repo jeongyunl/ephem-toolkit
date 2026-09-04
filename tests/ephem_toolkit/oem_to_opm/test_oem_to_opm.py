@@ -9,6 +9,7 @@ import pytest
 import ephem_toolkit.core.ccsds.opm as opm
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.oem_to_opm as oem_to_opm
+import ephem_toolkit.oem_to_opm.fit_numerical as fit_numerical
 import ephem_toolkit.oem_to_opm.fit_osculating_kepler as fit_osculating_kepler
 from ephem_toolkit.oem_to_opm.oem_to_opm_cli import build_arg_parser, parse_arguments
 
@@ -111,9 +112,45 @@ def test_parser_rejects_non_positive_fit_controls(option: str) -> None:
     assert error.value.code == 2
 
 
-def test_numerical_fit_model_fails_until_propagator_is_connected() -> None:
-    with pytest.raises(SystemExit, match="1"):
-        oem_to_opm.main(["--fit-model", "numerical", "input.oem", "-o", "output.opm"])
+def test_numerical_fit_model_dispatches_to_shared_fitter(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(oem.CcsdsOem, "read", lambda *_args, **_kwargs: DummyOemData())
+    monkeypatch.setattr(
+        fit_numerical.NumericalFitConfig,
+        "to_propagator_config",
+        lambda self, **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        fit_numerical,
+        "make_numerical_propagator_factory",
+        lambda *_args, **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        fit_numerical,
+        "make_propagation_callback",
+        lambda *_args, **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        fit_numerical,
+        "optimize_initial_state",
+        lambda *_args, **_kwargs: fit_numerical.NumericalFitResult(
+            initial_state=DummyOemData().states[0][1],
+            diagnostics=fit_numerical.NumericalResidualDiagnostics(
+                position_rms_m=1.0,
+                velocity_rms_m_s=None,
+                position_max_m=1.0,
+                velocity_max_m_s=None,
+                n_records=2,
+            ),
+            iterations=1,
+            converged=True,
+        ),
+    )
+    output_path = tmp_path / "output.opm"
+    oem_to_opm.main(["--fit-model", "numerical", "input.oem", "-o", str(output_path), "--no-fit-report"])
+    assert output_path.exists()
 
 
 def test_parser_accepts_no_fit_report() -> None:

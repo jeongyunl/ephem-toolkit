@@ -158,7 +158,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="two-body",
         dest="fit_model",
         metavar="<two-body|numerical>",
-        help="Fitting model; numerical execution is not yet connected (default: two-body).",
+        help="Fitting model (default: two-body).",
     )
     cli_parser.add_argument("--fit-step", type=parse_positive_float, default=60.0, dest="fit_step", metavar="<seconds>", help="Reference-arc sample spacing in seconds.")
     cli_parser.add_argument("--fit-observables", choices=["position", "state"], default="position", dest="fit_observables", help="Residual observables (default: position).")

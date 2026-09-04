@@ -13,11 +13,11 @@ unless they imply implementation work.
   source-report parsing, and basic convergence reporting are implemented;
   velocity residuals, richer propagation diagnostics, and proposed-command
   support are still pending. See [Task 1 progress](01-provenance-and-fit-reports.md#progress).
-- **In progress:** Task 2. The shared numerical-fit configuration and reference
-  state validation boundary are implemented; optimizer and propagator wiring
-  remain pending. The `oem-to-opm --fit-model` parser contract is now present,
-  along with fit controls; numerical execution is explicitly gated until force
-  model wiring is complete.
+- **In progress:** Task 2. The shared numerical-fit configuration is now
+  connected to `oem-to-opm --fit-model numerical`, including fixed propagator
+  configuration, fitting, OPM conversion, and fit-report diagnostics. Live
+  Tudat/SPICE verification and human-readable numerical comparison output
+  remain pending.
 - **Pending:** Tasks 3–11. These remain planned implementation work; their
   documents describe the intended behavior and acceptance criteria.
 
