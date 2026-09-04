@@ -132,9 +132,12 @@ def main(argv=None) -> None:
 
     fit_span_s: float = cli_args.fit_span.total_seconds()
 
-    source_model = cli_args.source_model
-    if source_model == "auto":
-        source_model = "unknown"
+    try:
+        source_model, source_report = provenance.resolve_source_model(
+            cli_args.source_model, cli_args.source_report
+        )
+    except ValueError as error:
+        report_error(f"Error: {error}")
     if cli_args.no_fit_report and cli_args.fit_report:
         report_error("Error: --fit-report and --no-fit-report cannot be used together")
     fit_report = None if cli_args.no_fit_report else (
@@ -149,7 +152,7 @@ def main(argv=None) -> None:
                 fit_report,
                 provenance={"source": f"OEM/{source_model}", "transformation": "fit", "target_model": target_model},
                 diagnostics=diagnostics,
-                configuration={"fit_span_s": fit_span_s, "source_report": cli_args.source_report},
+                    configuration={"fit_span_s": fit_span_s, "source_report": source_report},
             )
 
     def fit_summary(diagnostics):

@@ -209,6 +209,12 @@ def main(argv=None) -> None:
         report_error("Error: At least 2 state vectors required for fitting.")
 
     fit_span_s: float = cli_args.fit_span.total_seconds()
+    try:
+        source_model, source_report = provenance.resolve_source_model(
+            cli_args.source_model, cli_args.source_report
+        )
+    except ValueError as error:
+        report_error(f"Error: {error}")
     if cli_args.no_fit_report and cli_args.fit_report:
         report_error("Error: --fit-report and --no-fit-report cannot be used together")
     fit_report = None if cli_args.no_fit_report else (
@@ -276,7 +282,7 @@ def main(argv=None) -> None:
                 mu_m3_s2=cli_args.mu_m3_s2,
             )
             opm_obj.header.comments.extend([
-                provenance.provenance_comment(source=f"OEM/{cli_args.source_model if cli_args.source_model != 'auto' else 'unknown'}", transformation="two-body fit", target_model="two-body-kepler"),
+                provenance.provenance_comment(source=f"OEM/{source_model}", transformation="two-body fit", target_model="two-body-kepler"),
                 provenance.fit_comment(
                     span_s=provenance.diagnostic_value(diagnostics, "span_s", fit_span_s),
                     samples=provenance.diagnostic_value(diagnostics, "n_records", len(states)),
@@ -296,9 +302,9 @@ def main(argv=None) -> None:
             if fit_report:
                 provenance.write_fit_report(
                     fit_report,
-                    provenance={"source": f"OEM/{cli_args.source_model if cli_args.source_model != 'auto' else 'unknown'}", "transformation": "two-body fit", "target_model": "two-body-kepler"},
+                    provenance={"source": f"OEM/{source_model}", "transformation": "two-body fit", "target_model": "two-body-kepler"},
                     diagnostics=diagnostics,
-                    configuration={"fit_span_s": fit_span_s, "source_report": cli_args.source_report},
+                    configuration={"fit_span_s": fit_span_s, "source_report": source_report},
                 )
         except Exception as error:
             report_error(f"Error writing OPM file: {error}")

@@ -129,6 +129,9 @@ actually produce or transform the relevant output.
   an explicit report path if a report is wanted.
 - Added `--no-fit-report` to disable automatic report creation; it conflicts
   with an explicit `--fit-report` value.
+- Implemented `--source-report` JSON loading. With `--source-model auto`, the
+  report's `provenance.source` is now used; an explicit source model overrides
+  it, and invalid reports produce an actionable error.
 - Preserved compatibility with existing mocked diagnostics used by conversion
   tests.
 
@@ -148,8 +151,9 @@ suite, plus `116 passed, 2 deselected` after the new unit tests were added.
 
 - Add tests for and wire the new report options through `oem-to-tle`'s delegated
   pipeline and `omm-to-tle` once its direct/refit report behavior is defined.
-- Read and merge provenance from `--source-report`; it is currently parsed and
-  retained in report configuration but not interpreted.
+- Merge additional source-report configuration and diagnostics into generated
+  reports; source-model resolution is implemented, but the full report is not
+  yet merged into output provenance.
 - Add velocity residuals, convergence status, and full propagation/fit
   configuration to production reports where the existing fit APIs do not yet
   expose those values.
