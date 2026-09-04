@@ -61,7 +61,7 @@ def _forward_arguments(argv: list[str], input_path: str, output_path: str) -> li
     index = 0
     while index < len(argv):
         argument = argv[index]
-        if argument == input_path and index == 0:
+        if argument == input_path:
             index += 1
             continue
         if argument in {"-o", "--output", "--fit-model"}:

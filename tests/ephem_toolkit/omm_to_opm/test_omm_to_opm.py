@@ -15,6 +15,14 @@ def test_forward_arguments_replaces_input_output_and_fit_model() -> None:
     ) == ["--verbose", "--output", "-"]
 
 
+def test_forward_arguments_removes_input_after_options() -> None:
+    assert _forward_arguments(
+        ["--fit-model", "numerical", "input.omm", "-o", "output.opm"],
+        "input.omm",
+        "-",
+    ) == ["--output", "-"]
+
+
 def test_omm_to_opm_requires_numerical_fit_model() -> None:
     with pytest.raises(SystemExit) as error:
         main(["input.omm", "-o", "output.opm"])
