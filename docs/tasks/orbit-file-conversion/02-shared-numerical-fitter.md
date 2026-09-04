@@ -48,15 +48,14 @@ algorithm for OEM, OMM, and TLE input paths.
 - Added optimizer initial-state validation for six finite Cartesian values.
 - Corrected convergence reporting so a zero optimizer step is not considered
   converged when residuals remain nonzero and do not improve.
-- Explicitly reject drag/SRP parameter fitting in the current optimizer until
-  a parameterized propagator callback is available, avoiding silent omission
-  of requested fit parameters.
+- Physical parameters are fixed user inputs; they are validated but never
+  varied by the optimizer.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.
 
-This is the validation boundary only. It does not yet run an optimizer or
-connect to the numerical propagator.
+The optimizer and callback adapters are implemented, but conversion CLI wiring
+and concrete force-model configuration are still pending.
 
 ### Verification
 
@@ -66,14 +65,11 @@ result recorded in the orbit-conversion task README.
 ### Remaining work
 
 - Connect `NumericalFitConfig` to `core.propagator.numerical`.
-- Connect the factory and optimizer to conversion CLI paths, including force
-  model configuration and physical-parameter fitting.
+- Connect the factory and optimizer to conversion CLI paths, including fixed
+  force-model configuration.
 - Add the corresponding force-model CLI options and map them into this
   configuration.
-- Preserve the initial position as a hard constraint in the optimizer and
-  document that behavior in fit reports.
-- Add force-model and physical-parameter validation, diagnostics, and wrapper
-  integration.
+- Add force-model validation, diagnostics, and wrapper integration.
 
 ## Scope
 
