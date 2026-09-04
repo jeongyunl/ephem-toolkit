@@ -77,6 +77,9 @@ algorithm for OEM, OMM, and TLE input paths.
 - Added an adapter that maps parsed OEM-to-OPM fit controls into
   `NumericalFitConfig`, preserving model, span, sampling, observables, weights,
   and fixed-parameter selection.
+- Added OEM-to-OPM CLI inputs for fixed spacecraft mass, area, drag/SRP switches,
+  and drag/SRP coefficients; these values are mapped as propagation inputs and
+  are never optimizer variables.
 - Added the `oem-to-opm --fit-model {two-body|numerical}` parser contract;
   `two-body` remains the default, while numerical execution currently fails
   explicitly until force-model wiring is complete.

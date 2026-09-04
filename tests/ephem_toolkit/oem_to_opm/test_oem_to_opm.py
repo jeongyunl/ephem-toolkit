@@ -83,6 +83,17 @@ def test_parser_accepts_fit_controls() -> None:
     assert args.fit_parameters == "initial-state,drag-coeff"
 
 
+def test_parser_accepts_fixed_physical_parameters() -> None:
+    args = parse_arguments(
+        build_arg_parser(),
+        ["--mass", "12", "--drag-area", "0.4", "--drag", "on", "--drag-coeff", "2.2", "input.oem", "-o", "output.opm"],
+    )
+    assert args.mass == 12.0
+    assert args.drag_area == 0.4
+    assert args.drag is True
+    assert args.drag_coeff == 2.2
+
+
 @pytest.mark.parametrize("option", ["--fit-step", "--fit-position-weight", "--fit-velocity-weight"])
 def test_parser_rejects_non_positive_fit_controls(option: str) -> None:
     with pytest.raises(SystemExit) as error:
