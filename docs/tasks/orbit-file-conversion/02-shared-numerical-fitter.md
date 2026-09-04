@@ -39,6 +39,8 @@ algorithm for OEM, OMM, and TLE input paths.
   continue using injected mock factories.
 - Added force-enable validation: drag-coefficient fitting requires drag and
   SRP-coefficient fitting requires SRP to be enabled in the fit configuration.
+- Added optional six-component optimizer bounds with validation and clipping of
+  state updates.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.

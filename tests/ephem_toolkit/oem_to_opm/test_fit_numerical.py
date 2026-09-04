@@ -48,6 +48,31 @@ def test_force_parameter_fitting_can_be_enabled() -> None:
         states(),
         NumericalFitConfig(parameters="initial-state,drag-coeff", drag_enabled=True),
     )
+
+
+def test_optimizer_applies_state_bounds() -> None:
+    reference = [(0.0, np.zeros(6)), (1.0, np.array([0.0, 0.0, 0.0, 10.0, 10.0, 10.0]))]
+    result = optimize_initial_state(
+        lambda initial, _epoch: initial,
+        np.zeros(6),
+        reference,
+        NumericalFitConfig(observables="state", fit_step_s=1.0),
+        bounds=(np.full(6, -1.0), np.full(6, 1.0)),
+    )
+
+    assert np.all(result.initial_state <= 1.0)
+    assert np.all(result.initial_state >= -1.0)
+
+
+def test_optimizer_rejects_malformed_bounds() -> None:
+    with pytest.raises(ValueError, match="six-component"):
+        optimize_initial_state(
+            lambda initial, _epoch: initial,
+            np.zeros(6),
+            states(),
+            NumericalFitConfig(),
+            bounds=(np.zeros(3), np.ones(3)),
+        )
     validate_numerical_fit(
         states(),
         NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=True),
