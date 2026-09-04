@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import timedelta
+import warnings
 
 import ephem_toolkit.core.cli as cli
 import ephem_toolkit.core.consts as consts
@@ -32,6 +33,8 @@ class OemToOmmArgs(argparse.Namespace):
     """Maximum arc span for the fit."""
     mode: str
     """Selected conversion mode: brouwer, dsst, or tle."""
+    fit_model: str
+    """Canonical selected fit model: brouwer, dsst, or sgp4."""
     theory: str
     """Mean element theory for brouwer/dsst modes."""
     object_name: str
@@ -206,12 +209,21 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     cli_parser.add_argument(
+        "--fit-model",
+        dest="fit_model",
+        choices=["brouwer", "dsst", "sgp4"],
+        default=None,
+        metavar="<brouwer|dsst|sgp4>",
+        help="Target mean-element model (default: sgp4).",
+    )
+    cli_parser.add_argument(
         "--mode",
         dest="mode",
         choices=["brouwer", "dsst", "tle"],
-        default="tle",
+        default=None,
         metavar="<brouwer|dsst|tle>",
         help=(
+            "Deprecated alias for --fit-model; 'tle' maps to 'sgp4'. "
             "'brouwer' fits Brouwer mean elements, "
             "'dsst' fits DSST mean elements, "
             "and 'tle' fits a TLE."
@@ -233,4 +245,28 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 def parse_arguments(parser: argparse.ArgumentParser, argv=None) -> OemToOmmArgs:
     """Parse command-line arguments."""
-    return parser.parse_args(argv, namespace=OemToOmmArgs())
+    args = parser.parse_args(argv, namespace=OemToOmmArgs())
+    mode_model = {"brouwer": "brouwer", "dsst": "dsst", "tle": "sgp4"}
+    legacy_model = mode_model.get(args.mode) if args.mode is not None else None
+    if args.fit_model is not None and legacy_model is not None and args.fit_model != legacy_model:
+        parser.error("--fit-model conflicts with deprecated --mode")
+    if args.mode is not None:
+        warnings.warn(
+            "--mode is deprecated; use --fit-model instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+    args.fit_model = args.fit_model or legacy_model or "sgp4"
+    expected_theories = {
+        "brouwer": {"BROUWER", "BROUWER-LYDDANE"},
+        "dsst": {"DSST"},
+        "sgp4": {"SGP4"},
+    }
+    if args.theory is not None and args.theory.upper() not in expected_theories[args.fit_model]:
+        parser.error(
+            f"--theory {args.theory!r} conflicts with --fit-model {args.fit_model!r}"
+        )
+    # Keep the existing implementation branches stable while exposing the
+    # canonical model name to callers and reports.
+    args.mode = "tle" if args.fit_model == "sgp4" else args.fit_model
+    return args

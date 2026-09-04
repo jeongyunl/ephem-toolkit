@@ -89,7 +89,7 @@ def main(argv=None) -> None:
     omm_output = io.StringIO()
     try:
         with redirect_stdout(omm_output):
-            oem_to_omm.main(["--mode", "tle", *filtered_arguments])
+            oem_to_omm.main(["--fit-model", "sgp4", *filtered_arguments])
 
         original_stdin = sys.stdin
         sys.stdin = io.StringIO(omm_output.getvalue())

@@ -208,36 +208,27 @@ def test_dsst_omm_output_has_required_fields(monkeypatch, tmp_path):
         assert field in content, f"Missing field: {field}"
 
 
-def test_dsst_omm_theory_override(monkeypatch, tmp_path):
-    """--theory flag overrides MEAN_ELEMENT_THEORY in output OMM."""
-    states = _make_oem_states(n_points=10)
-    output_path = tmp_path / "dsst_custom.omm"
-
-    monkeypatch.setattr(Path, "exists", lambda *_: True)
-    monkeypatch.setattr(
-        oem.CcsdsOem,
-        "read",
-        lambda *_: _DummyOemData(states),
-    )
+def test_dsst_omm_rejects_conflicting_theory(monkeypatch):
+    """A theory that disagrees with the selected fit model fails early."""
     monkeypatch.setattr(
         sys,
         "argv",
         [
             "oem-to-omm",
-            "--mode",
+            "--fit-model",
             "dsst",
             "--theory",
             "USM",
             "input.oem",
             "-o",
-            str(output_path),
+            "output.omm",
         ],
     )
 
-    oem_to_omm.main()
+    with pytest.raises(SystemExit) as error:
+        oem_to_omm.main()
 
-    content = output_path.read_text(encoding="utf-8")
-    assert "USM" in content
+    assert error.value.code == 2
 
 
 def test_dsst_omm_roundtrip(monkeypatch, tmp_path):

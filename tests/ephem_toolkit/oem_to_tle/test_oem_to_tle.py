@@ -74,8 +74,8 @@ def test_main_delegates_to_oem_to_omm_in_tle_mode(monkeypatch) -> None:
 
     assert delegated_arguments == [
         [
-            "--mode",
-            "tle",
+            "--fit-model",
+            "sgp4",
             "input.oem",
             "-o",
             "-",
@@ -109,8 +109,8 @@ def test_main_forwards_provenance_and_fit_report_options(monkeypatch) -> None:
 
     assert delegated_arguments == [
         [
-            "--mode",
-            "tle",
+            "--fit-model",
+            "sgp4",
             "input.oem",
             "-o",
             "-",
