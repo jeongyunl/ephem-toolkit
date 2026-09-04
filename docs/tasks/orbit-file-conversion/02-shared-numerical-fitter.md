@@ -85,8 +85,14 @@ algorithm for OEM, OMM, and TLE input paths.
   coefficients 2.2/1.2. The shared configuration also uses its gravity,
   integrator, third-body, and step-size defaults.
 - Added the `oem-to-opm --fit-model {two-body|numerical}` parser contract;
-  `two-body` remains the default, while numerical execution currently fails
-  explicitly until force-model wiring is complete.
+  `two-body` remains the default.
+- Connected `oem-to-opm --fit-model numerical` to the shared numerical fitter:
+  it builds the fixed-parameter propagator configuration, adapts the existing
+  numerical propagator to the optimizer callback, fits the OEM arc, converts
+  the fitted Cartesian state to OPM Keplerian elements, and records numerical
+  fit provenance/configuration. The output comparison table remains specific
+  to two-body mode; numerical residual diagnostics are recorded in the fit
+  report.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.
@@ -101,19 +107,10 @@ result recorded in the orbit-conversion task README.
 
 ### Remaining work
 
-- Connect `NumericalFitConfig` to `core.propagator.numerical`.
-- Connect the factory and optimizer to conversion CLI paths, including fixed
-  force-model configuration.
-- Replace the temporary numerical-mode diagnostic with actual OEM-to-OPM
-  numerical propagation and fitting.
-- Add the corresponding force-model CLI options and map them into this
-  configuration.
-- Connect the mapped force-model configuration to the numerical propagator.
-- Replace the CLI numerical-mode gate with construction of this propagator
-  configuration and invocation of the optimizer.
-- Invoke fixed-parameter consistency validation when constructing the actual
-  propagator.
-- Add force-model validation, diagnostics, and wrapper integration.
+- Verify live Tudat-backed execution with representative OEM data and the
+  project's available SPICE kernels.
+- Extend numerical residual comparison output if a human-readable numerical
+  propagation table is required in addition to fit-report diagnostics.
 
 ## Scope
 

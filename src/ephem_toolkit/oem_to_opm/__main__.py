@@ -44,6 +44,7 @@ from .oem_to_opm_cli import OemToOpmArgs
 from .oem_to_opm_cli import build_arg_parser, parse_arguments
 
 from . import fit_common
+from . import fit_numerical
 from . import fit_osculating_kepler
 
 # ===================================================================
@@ -190,10 +191,6 @@ def main(argv=None) -> None:
     """Parse CLI arguments and dispatch to the appropriate conversion mode."""
     cli_parser = build_arg_parser()
     cli_args: OemToOpmArgs = parse_arguments(cli_parser, argv)
-    if cli_args.fit_model == "numerical":
-        report_error(
-            "Error: --fit-model numerical is not yet connected to the numerical propagator"
-        )
 
     # Determine input source: file path or stdin (piped input)
     read_from_stdin: bool = cli_args.input_oem == "-"
@@ -240,29 +237,81 @@ def main(argv=None) -> None:
     else:
         object_id: str = oem_data.meta.object_id or "UNKNOWN"
 
-    # Run the Gauss-Newton velocity-only fit (position at epoch is fixed)
+    # Run the selected fit (the numerical path uses the shared Tudat adapter).
     fitted_elements: np.ndarray
-    diagnostics: fit_common.FitDiagnostics
+    diagnostics: object
+    fit_transformation = "two-body fit"
+    fit_target_model = "two-body-kepler"
+    fit_configuration: dict[str, object] = {
+        "fit_span_s": fit_span_s,
+        "mu_m3_s2": cli_args.mu_m3_s2,
+        "source_frame": oem_data.meta.ref_frame or "unknown",
+        "source_time_system": oem_data.meta.time_system or "unknown",
+        "source_report": source_report,
+    }
     try:
-        fitted_elements, diagnostics = fit_osculating_kepler.fit_osculating_kepler(
-            states,
-            fit_span_s,
-            cli_args.mu_m3_s2,
-        )
+        if cli_args.fit_model == "numerical":
+            fit_config = fit_numerical.config_from_fit_options(cli_args)
+            fit_numerical.validate_numerical_fit(states, fit_config)
+            propagator_config = fit_config.to_propagator_config(
+                satellite_name=object_name or "FIT_TARGET"
+            )
+            propagator_factory = fit_numerical.make_numerical_propagator_factory(
+                propagator_config, states[0][0]
+            )
+            propagation_callback = fit_numerical.make_propagation_callback(
+                propagator_factory, states[0][0]
+            )
+            numerical_result = fit_numerical.optimize_initial_state(
+                propagation_callback,
+                states[0][1],
+                states,
+                fit_config,
+            )
+            fitted_state = numerical_result.initial_state
+            fitted_elements = kepler.cartesian_to_keplerian(
+                fitted_state, cli_args.mu_m3_s2
+            )
+            diagnostics = fit_common.FitDiagnostics(
+                rms_position_m=numerical_result.diagnostics.position_rms_m,
+                iterations=numerical_result.iterations,
+                n_records=numerical_result.diagnostics.n_records,
+                span_s=fit_span_s,
+                epoch_pos_delta_m=float(np.linalg.norm(fitted_state[:3] - states[0][1][:3])),
+                epoch_vel_delta_m_s=float(np.linalg.norm(fitted_state[3:] - states[0][1][3:])),
+                fit_method="numerical",
+            )
+            fit_transformation = "numerical fit"
+            fit_target_model = "numerical-propagator"
+            fit_configuration = {
+                **fit_config.to_report_dict(),
+                "mu_m3_s2": cli_args.mu_m3_s2,
+                "source_frame": oem_data.meta.ref_frame or "unknown",
+                "source_time_system": oem_data.meta.time_system or "unknown",
+                "source_report": source_report,
+            }
+        else:
+            fitted_elements, diagnostics = fit_osculating_kepler.fit_osculating_kepler(
+                states,
+                fit_span_s,
+                cli_args.mu_m3_s2,
+            )
     except Exception as error:
-        report_error(f"Error fitting Keplerian elements: {error}")
+        report_error(f"Error fitting {cli_args.fit_model} model: {error}")
 
-    # Compute propagation comparison at 10-minute intervals
-    comparison: list[fit_common.PropagationComparison] = (
-        fit_osculating_kepler.compute_kepler_propagation_comparison(
+    # The numerical fit already evaluates the target propagator at its sampled
+    # epochs; the legacy comparison table remains specific to the Kepler fit.
+    comparison: list[fit_common.PropagationComparison] = []
+    if cli_args.fit_model == "two-body":
+        comparison = fit_osculating_kepler.compute_kepler_propagation_comparison(
             fitted_elements, states, cli_args.mu_m3_s2, fit_span_s, interval_s=600.0
         )
-    )
 
     # Format and report output
     first_epoch: datetime = time_utils.tt_s_to_datetime(states[0][0])
     output_text: str = fit_osculating_kepler.format_kepler_output(
-        first_epoch, fitted_elements, diagnostics, comparison
+        first_epoch, fitted_elements, diagnostics, comparison,
+        fit_method=cli_args.fit_model,
     )
 
     # Report results to stderr in verbose mode when output is stdout
@@ -286,11 +335,18 @@ def main(argv=None) -> None:
                 mu_m3_s2=cli_args.mu_m3_s2,
             )
             opm_obj.header.comments.extend([
-                provenance.provenance_comment(source=f"OEM/{source_model}", transformation="two-body fit", target_model="two-body-kepler"),
+                provenance.provenance_comment(source=f"OEM/{source_model}", transformation=fit_transformation, target_model=fit_target_model),
                 provenance.fit_comment(
                     span_s=provenance.diagnostic_value(diagnostics, "span_s", fit_span_s),
                     samples=provenance.diagnostic_value(diagnostics, "n_records", len(states)),
-                    position_rms=provenance.diagnostic_value(diagnostics, "rms_position_m", 0.0),
+                    position_rms=provenance.diagnostic_value(
+                        diagnostics,
+                        "rms_position_m",
+                        provenance.diagnostic_value(diagnostics, "position_rms_m", 0.0),
+                    ),
+                    velocity_rms=provenance.diagnostic_value(
+                        diagnostics, "velocity_rms_m_s"
+                    ),
                 ),
             ])
             # Output to stdout if dest is "-", otherwise to file
@@ -308,13 +364,7 @@ def main(argv=None) -> None:
                     fit_report,
                     provenance={"source": f"OEM/{source_model}", "transformation": "two-body fit", "target_model": "two-body-kepler"},
                     diagnostics=diagnostics,
-                    configuration={
-                        "fit_span_s": fit_span_s,
-                        "mu_m3_s2": cli_args.mu_m3_s2,
-                        "source_frame": oem_data.meta.ref_frame or "unknown",
-                        "source_time_system": oem_data.meta.time_system or "unknown",
-                        "source_report": source_report,
-                    },
+                    configuration=fit_configuration,
                     source_report=source_report,
                     residuals=provenance.comparison_residuals(comparison),
                 )
