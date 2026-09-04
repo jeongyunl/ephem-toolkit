@@ -10,6 +10,7 @@ from ephem_toolkit.core.provenance import (
     provenance_comment,
     write_fit_report,
     resolve_source_model,
+    comparison_residuals,
 )
 
 
@@ -126,3 +127,17 @@ def test_resolve_source_model_rejects_invalid_report(tmp_path) -> None:
 
     with pytest.raises(ValueError, match="not valid JSON"):
         resolve_source_model("auto", str(report_path))
+
+
+def test_comparison_residuals_summarize_position_and_velocity() -> None:
+    class Comparison:
+        def __init__(self, position, velocity):
+            self.pos_err_km = position
+            self.vel_err_m_s = velocity
+
+    residuals = comparison_residuals([Comparison(1.0, 2.0), Comparison(3.0, 4.0)])
+
+    assert residuals["position_rms_m"] == 2236.06797749979
+    assert residuals["position_max_m"] == 3000.0
+    assert residuals["velocity_rms_m_s"] == 3.1622776601683795
+    assert residuals["velocity_max_m_s"] == 4.0

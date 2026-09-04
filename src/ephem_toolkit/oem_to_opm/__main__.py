@@ -306,6 +306,7 @@ def main(argv=None) -> None:
                     diagnostics=diagnostics,
                     configuration={"fit_span_s": fit_span_s, "source_report": source_report},
                     source_report=source_report,
+                    residuals=provenance.comparison_residuals(comparison),
                 )
         except Exception as error:
             report_error(f"Error writing OPM file: {error}")

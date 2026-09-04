@@ -146,7 +146,7 @@ def main(argv=None) -> None:
         )
     )
 
-    def write_report(target_model: str, diagnostics: fit_common.FitDiagnostics) -> None:
+    def write_report(target_model: str, diagnostics: fit_common.FitDiagnostics, comparisons=None) -> None:
         if fit_report:
             provenance.write_fit_report(
                 fit_report,
@@ -154,6 +154,7 @@ def main(argv=None) -> None:
                 diagnostics=diagnostics,
                 configuration={"fit_span_s": fit_span_s, "source_report": source_report},
                 source_report=source_report,
+                residuals=provenance.comparison_residuals(comparisons or []),
             )
 
     def fit_summary(diagnostics):
@@ -296,7 +297,7 @@ def main(argv=None) -> None:
                             f"OMM file written to: {cli_args.output_omm}",
                             file=sys.stderr,
                         )
-                write_report(mean_element_theory, diagnostics)
+                    write_report(mean_element_theory, diagnostics, comparison)
             except Exception as error:
                 report_error(f"Error writing OMM file: {error}")
         return
@@ -374,7 +375,7 @@ def main(argv=None) -> None:
                             f"OMM file written to: {cli_args.output_omm}",
                             file=sys.stderr,
                         )
-                write_report("SGP4", diagnostics)
+                write_report("SGP4", diagnostics, comparison)
             except Exception as error:
                 report_error(f"Error writing OMM file: {error}")
         return

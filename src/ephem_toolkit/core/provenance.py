@@ -63,6 +63,20 @@ def resolve_source_model(source_model: str, source_report: str | None) -> tuple[
     return "unknown", report
 
 
+def comparison_residuals(comparisons: list[Any]) -> dict[str, float]:
+    """Summarize position and velocity residuals from propagation comparisons."""
+    if not comparisons:
+        return {}
+    positions = [float(item.pos_err_km) * 1000.0 for item in comparisons]
+    velocities = [float(item.vel_err_m_s) for item in comparisons]
+    return {
+        "position_rms_m": (sum(value * value for value in positions) / len(positions)) ** 0.5,
+        "position_max_m": max(positions),
+        "velocity_rms_m_s": (sum(value * value for value in velocities) / len(velocities)) ** 0.5,
+        "velocity_max_m_s": max(velocities),
+    }
+
+
 def write_fit_report(
     destination: str | Path,
     *,
@@ -70,6 +84,7 @@ def write_fit_report(
     diagnostics: Any,
     configuration: dict[str, Any] | None = None,
     source_report: dict[str, Any] | None = None,
+    residuals: dict[str, float] | None = None,
 ) -> None:
     """Write a JSON fit report to a path or stdout (``-``)."""
     report = {
@@ -86,6 +101,8 @@ def write_fit_report(
         report["iterations"] = iterations
     if source_report is not None:
         report["source_report"] = source_report
+    if residuals:
+        report["residuals"] = residuals
     text = json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n"
     if destination == "-":
         import sys
