@@ -104,6 +104,17 @@ def test_optimizer_can_fit_all_state_components_when_position_is_not_preserved()
 def test_validation_rejects_invalid_reference_arc(reference, message) -> None:
     with pytest.raises(ValueError, match=message):
         validate_numerical_fit(reference, NumericalFitConfig())
+
+
+@pytest.mark.parametrize("initial_state", [np.zeros(3), np.full(6, np.nan)])
+def test_optimizer_rejects_invalid_initial_state(initial_state) -> None:
+    with pytest.raises(ValueError, match="six finite"):
+        optimize_initial_state(
+            lambda initial, _epoch: initial,
+            initial_state,
+            states(),
+            NumericalFitConfig(),
+        )
     validate_numerical_fit(
         states(),
         NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=True),
