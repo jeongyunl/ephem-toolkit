@@ -248,7 +248,12 @@ def build_weighted_residuals(
         elapsed = epoch - selected[0][0]
         fraction = min(1.0, max(0.0, elapsed / config.fit_span_s))
         time_weight = 1.0 + fraction * (config.end_of_span_weight - 1.0)
-        residuals.extend((position_error * time_weight / config.position_weight).tolist())
+        # Preserve the signed Cartesian residual vector. The optimizer's
+        # Jacobian uses these component directions to update vx0, vy0, and vz0.
+        residual_vector = (
+            position_error * time_weight / config.position_weight
+        )
+        residuals.extend(residual_vector.tolist())
 
     diagnostics = NumericalResidualDiagnostics(
         position_rms_m=float(np.sqrt(np.mean(np.square(position_errors)))),

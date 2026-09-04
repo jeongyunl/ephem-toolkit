@@ -109,6 +109,9 @@ algorithm for OEM, OMM, and TLE input paths.
 - Added an end-of-span position weighting ramp: residual weight increases
   linearly from 1× at the initial epoch to 2× at the fit-span endpoint by
   default, configurable with `--fit-end-weight`.
+- Kept residuals as signed three-component Cartesian vectors at every fit epoch;
+  their orientation is retained by the Jacobian when adjusting the initial
+  velocity vector.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.

@@ -187,7 +187,7 @@ def test_optimizer_applies_state_bounds() -> None:
         lambda initial, _epoch: initial,
         np.zeros(6),
         reference,
-        NumericalFitConfig(fit_step_s=1.0),
+        NumericalFitConfig(fit_span_s=1.0, fit_step_s=1.0),
         bounds=(np.full(6, -1.0), np.full(6, 1.0)),
     )
 
@@ -253,7 +253,7 @@ def test_optimizer_does_not_report_convergence_without_residual_reduction() -> N
         lambda _initial, _epoch: np.zeros(6),
         np.zeros(6),
         reference,
-        NumericalFitConfig(fit_step_s=1.0),
+        NumericalFitConfig(fit_span_s=1.0, fit_step_s=1.0),
     )
 
     assert not result.converged
@@ -299,6 +299,17 @@ def test_build_weighted_residuals_uses_position_only() -> None:
     assert residuals.shape == (61 * 3,)
     assert diagnostics.n_records == 61
     assert diagnostics.velocity_rms_m_s is None
+
+
+def test_position_residual_preserves_cartesian_direction() -> None:
+    reference = [(0.0, np.zeros(6)), (1.0, np.array([1.0, -2.0, 3.0, 0.0, 0.0, 0.0]))]
+    residuals, _ = build_weighted_residuals(
+        lambda _initial, _epoch: np.zeros(6),
+        np.zeros(6),
+        reference,
+        NumericalFitConfig(fit_span_s=1.0, fit_step_s=1.0),
+    )
+    assert np.sign(residuals[-3:]).tolist() == [-1.0, 1.0, -1.0]
 
 
 def test_build_weighted_residuals_preserves_initial_position() -> None:
