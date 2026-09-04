@@ -47,6 +47,17 @@ def test_force_parameter_fitting_can_be_enabled() -> None:
         states(),
         NumericalFitConfig(parameters="initial-state,drag-coeff", drag_enabled=True, drag_coefficient=2.2),
     )
+
+
+def test_fixed_parameter_values_returns_only_selected_user_inputs() -> None:
+    config = NumericalFitConfig(
+        parameters="initial-state,drag-coeff",
+        drag_enabled=True,
+        drag_coefficient=2.2,
+        srp_coefficient=1.3,
+    )
+
+    assert config.fixed_parameter_values() == {"drag_coeff": 2.2}
     validate_numerical_fit(
         states(),
         NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=True, srp_coefficient=1.3),

@@ -39,6 +39,15 @@ class NumericalFitConfig:
     drag_coefficient: float | None = None
     srp_coefficient: float | None = None
 
+    def fixed_parameter_values(self) -> dict[str, float]:
+        """Return user-supplied physical parameters selected for propagation."""
+        values: dict[str, float] = {}
+        if self.parameters.endswith("drag-coeff") and self.drag_coefficient is not None:
+            values["drag_coeff"] = self.drag_coefficient
+        if self.parameters.endswith("srp-coeff") and self.srp_coefficient is not None:
+            values["srp_coeff"] = self.srp_coefficient
+        return values
+
 
 @dataclass(frozen=True)
 class NumericalResidualDiagnostics:

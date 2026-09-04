@@ -50,6 +50,9 @@ algorithm for OEM, OMM, and TLE input paths.
   converged when residuals remain nonzero and do not improve.
 - Physical parameters are fixed user inputs; they are validated but never
   varied by the optimizer.
+- Added `fixed_parameter_values()` to expose selected user inputs for
+  propagator construction and fit reports without treating them as optimizer
+  variables.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.
