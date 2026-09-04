@@ -148,7 +148,7 @@ class NumericalInitialState:
 def _load_spice_kernels() -> None:
     """Load required SPICE kernels for propagation support."""
 
-    spice_kernel_files = [
+    spice_kernel_files: list[str] = [
         "naif0012.tls",
         "pck00011.tpc",
         "gm_de431.tpc",
@@ -162,311 +162,21 @@ def _load_spice_kernels() -> None:
 _load_spice_kernels()
 
 
-def create_environment_and_bodies(config: NumericalPropagatorConfig) -> Any:
-    """Create environment settings, add spacecraft interfaces, and build bodies.
-
-    Parameters
-    ----------
-    config : NumericalPropagatorConfig
-        Force-model and integrator configuration.
-
-    Returns
-    -------
-    object
-        Tudat system-of-bodies object.
-    """
-    bodies_to_create = list(DEFAULT_BODIES_TO_CREATE)
-    if config.is_moon_gravity_on:
-        bodies_to_create.append("Moon")
-    if config.is_mars_gravity_on:
-        bodies_to_create.append("Mars")
-    if config.is_venus_gravity_on:
-        bodies_to_create.append("Venus")
-
-    body_settings = environment_setup.get_default_body_settings(
-        bodies_to_create,
-        DEFAULT_GLOBAL_FRAME_ORIGIN,
-        DEFAULT_GLOBAL_FRAME_ORIENTATION,
-    )
-
-    body_settings.add_empty_settings(config.satellite_name)
-
-    if config.is_srp_on:
-        occulting_bodies_dict = {"Sun": ["Earth"]}
-        vehicle_target_settings = (
-            environment_setup.radiation_pressure.cannonball_radiation_target(
-                config.satellite_drag_area_m2,
-                config.srp_coefficient,
-                occulting_bodies_dict,
-            )
-        )
-        body_settings.get(config.satellite_name).radiation_pressure_target_settings = (
-            vehicle_target_settings
-        )
-
-    if config.is_earth_drag_on:
-        aero_coefficient_settings = environment_setup.aerodynamic_coefficients.constant(
-            config.satellite_drag_area_m2,
-            [config.satellite_drag_coefficient, 0.0, 0.0],
-        )
-        body_settings.get(config.satellite_name).aerodynamic_coefficient_settings = (
-            aero_coefficient_settings
-        )
-
-    bodies = environment_setup.create_system_of_bodies(body_settings)
-    bodies.get(config.satellite_name).mass = config.satellite_mass_kg
-    return bodies
-
-
-def create_acceleration_models(
-    config: NumericalPropagatorConfig,
-    bodies: Any,
-    bodies_to_propagate: list[str],
-    central_bodies: list[str],
-) -> Any:
-    """Create acceleration models for the propagated satellite.
-
-    Parameters
-    ----------
-    config : NumericalPropagatorConfig
-        Force-model and integrator configuration.
-    bodies : object
-        Tudat system-of-bodies object.
-    bodies_to_propagate : list[str]
-        Bodies whose translational states are propagated.
-    central_bodies : list[str]
-        Central bodies for translational dynamics.
-
-    Returns
-    -------
-    object
-        Tudat acceleration-model map.
-    """
-    satellite_acceleration_settings: dict[str, list[Any]] = {}
-
-    sun_accelerations: list[Any] = []
-    if config.is_srp_on:
-        sun_accelerations.insert(0, propagation_setup.acceleration.radiation_pressure())
-    if config.is_sun_gravity_on:
-        sun_accelerations.append(propagation_setup.acceleration.point_mass_gravity())
-    if sun_accelerations:
-        satellite_acceleration_settings["Sun"] = sun_accelerations
-
-    earth_accelerations: list[Any] = [
-        propagation_setup.acceleration.spherical_harmonic_gravity(
-            config.earth_spherical_harmonic_gravity_degree,
-            config.earth_spherical_harmonic_gravity_order,
-        ),
-    ]
-    if config.is_earth_drag_on:
-        earth_accelerations.append(propagation_setup.acceleration.aerodynamic())
-    satellite_acceleration_settings["Earth"] = earth_accelerations
-
-    if config.is_moon_gravity_on:
-        satellite_acceleration_settings["Moon"] = [
-            propagation_setup.acceleration.point_mass_gravity()
-        ]
-    if config.is_venus_gravity_on:
-        satellite_acceleration_settings["Venus"] = [
-            propagation_setup.acceleration.point_mass_gravity()
-        ]
-    if config.is_mars_gravity_on:
-        satellite_acceleration_settings["Mars"] = [
-            propagation_setup.acceleration.point_mass_gravity()
-        ]
-
-    acceleration_settings = {config.satellite_name: satellite_acceleration_settings}
-
-    return propagation_setup.create_acceleration_models(
-        bodies, acceleration_settings, bodies_to_propagate, central_bodies
-    )
-
-
-def create_dependent_variables_to_save(
-    config: NumericalPropagatorConfig,
-) -> list[VariableSettings]:
-    """Create dependent-variable save settings for propagation.
-
-    Parameters
-    ----------
-    config : NumericalPropagatorConfig
-        Force-model and integrator configuration.
-
-    Returns
-    -------
-    list[VariableSettings]
-        Dependent-variable save settings.
-    """
-    dep_vars: list[VariableSettings] = [
-        dependent_variable.total_acceleration(config.satellite_name),
-        dependent_variable.keplerian_state(config.satellite_name, "Earth"),
-        dependent_variable.geodetic_latitude(config.satellite_name, "Earth"),
-        dependent_variable.longitude(config.satellite_name, "Earth"),
-        dependent_variable.central_body_fixed_cartesian_position(
-            config.satellite_name, "Earth"
-        ),
-        dependent_variable.relative_position(config.satellite_name, "Earth"),
-        dependent_variable.single_acceleration_norm(
-            propagation_setup.acceleration.spherical_harmonic_gravity_type,
-            config.satellite_name,
-            "Earth",
-        ),
-    ]
-
-    if config.is_moon_gravity_on:
-        dep_vars.append(
-            dependent_variable.single_acceleration_norm(
-                propagation_setup.acceleration.point_mass_gravity_type,
-                config.satellite_name,
-                "Moon",
-            )
-        )
-    if config.is_sun_gravity_on:
-        dep_vars.append(
-            dependent_variable.single_acceleration_norm(
-                propagation_setup.acceleration.point_mass_gravity_type,
-                config.satellite_name,
-                "Sun",
-            )
-        )
-    if config.is_srp_on:
-        dep_vars.append(
-            dependent_variable.single_acceleration_norm(
-                propagation_setup.acceleration.radiation_pressure_type,
-                config.satellite_name,
-                "Sun",
-            )
-        )
-    if config.is_earth_drag_on:
-        dep_vars.append(
-            dependent_variable.single_acceleration_norm(
-                propagation_setup.acceleration.aerodynamic_type,
-                config.satellite_name,
-                "Earth",
-            )
-        )
-    if config.is_venus_gravity_on:
-        dep_vars.append(
-            dependent_variable.single_acceleration_norm(
-                propagation_setup.acceleration.point_mass_gravity_type,
-                config.satellite_name,
-                "Venus",
-            )
-        )
-    if config.is_mars_gravity_on:
-        dep_vars.append(
-            dependent_variable.single_acceleration_norm(
-                propagation_setup.acceleration.point_mass_gravity_type,
-                config.satellite_name,
-                "Mars",
-            )
-        )
-
-    return dep_vars
-
-
-def create_translational_propagator_settings(
-    config: NumericalPropagatorConfig,
-    initial_state: NumericalInitialState,
-    target_epoch_s: float,
-    central_bodies: list[str],
-    acceleration_models: Any,
-    bodies_to_propagate: list[str],
-    dependent_variables_to_save: list[VariableSettings],
-) -> Any:
-    """Create translational propagator settings.
-
-    Parameters
-    ----------
-    config : NumericalPropagatorConfig
-        Force-model and integrator configuration.
-    initial_state : NumericalInitialState
-        Initial Cartesian state and epoch.
-    target_epoch_s : float
-        Propagation end epoch (TT, s since J2000 TT).
-    central_bodies : list[str]
-        Central bodies for translational dynamics.
-    acceleration_models : object
-        Acceleration model map.
-    bodies_to_propagate : list[str]
-        Bodies whose translational states are propagated.
-    dependent_variables_to_save : list[VariableSettings]
-        Dependent-variable save settings.
-
-    Returns
-    -------
-    object
-        Tudat translational propagator settings object.
-    """
-    try:
-        coefficient_set = getattr(
-            propagation_setup.integrator.CoefficientSets,
-            config.integrator_method,
-        )
-    except AttributeError as exc:
-        raise ValueError(
-            f"Unsupported integrator method '{config.integrator_method}'. "
-            f"Supported methods are: {', '.join(SUPPORTED_INTEGRATOR_METHODS)}. "
-            f"Default is {DEFAULT_INTEGRATOR_METHOD}."
-        ) from exc
-
-    if len(config.integrator_step_size_values_s) == 1:
-        integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
-            config.integrator_step_size_values_s[0],
-            coefficient_set=coefficient_set,
-        )
-    else:
-        initial_step_s, minimum_step_s, maximum_step_s = (
-            config.integrator_step_size_values_s
-        )
-        step_size_validation_settings = (
-            propagation_setup.integrator.step_size_validation(
-                minimum_step_s, maximum_step_s
-            )
-        )
-        step_size_control_settings = (
-            propagation_setup.integrator.step_size_control_elementwise_scalar_tolerance(
-                DEFAULT_INTEGRATOR_TOLERANCE,
-                DEFAULT_INTEGRATOR_TOLERANCE,
-            )
-        )
-        integrator_settings = propagation_setup.integrator.runge_kutta_variable_step(
-            initial_time_step=initial_step_s,
-            coefficient_set=coefficient_set,
-            step_size_validation_settings=step_size_validation_settings,
-            step_size_control_settings=step_size_control_settings,
-        )
-
-    termination_condition = propagation_setup.propagator.time_termination(
-        target_epoch_s
-    )
-
-    return propagation_setup.propagator.translational(
-        central_bodies,
-        acceleration_models,
-        bodies_to_propagate,
-        initial_state.state_m_m_s,
-        initial_state.epoch_s,
-        integrator_settings,
-        termination_condition,
-        output_variables=dependent_variables_to_save,
-    )
-
-
 # ===================================================================
 # NumericalPropagator
 # ===================================================================
 
 
 def _interpolate_state(
-    state_history: dict[float, np.ndarray], target_epoch_s: float
+    state_history: list[tuple[float, np.ndarray]],
+    target_epoch_s: float,
 ) -> np.ndarray:
     """Return the state at target_epoch_s via nearest-neighbour lookup.
 
     Parameters
     ----------
-    state_history : dict[float, np.ndarray]
-        Mapping of TT epoch (s) to Cartesian state (6,).
+    state_history : list[tuple[float, np.ndarray]]
+        Sorted list of TT-epoch state samples.
     target_epoch_s : float
         Target epoch (TT, s since J2000 TT).
 
@@ -475,9 +185,10 @@ def _interpolate_state(
     np.ndarray
         Cartesian state [x, y, z, vx, vy, vz] in m and m/s.
     """
-    epochs = np.array(sorted(state_history.keys()))
+    epochs = np.array([epoch_s for epoch_s, _ in state_history], dtype=float)
+    states = [state for _, state in state_history]
     idx = int(np.argmin(np.abs(epochs - target_epoch_s)))
-    return np.asarray(state_history[epochs[idx]], dtype=float)
+    return np.asarray(states[idx], dtype=float)
 
 
 class NumericalPropagator(Propagator[NumericalInitialState]):
@@ -500,27 +211,263 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         Initial Cartesian state and epoch.
     """
 
+    @staticmethod
+    def create_environment_and_bodies(config: NumericalPropagatorConfig) -> Any:
+        """Create environment settings, add spacecraft interfaces, and build bodies."""
+        bodies_to_create: list[str] = list(DEFAULT_BODIES_TO_CREATE)
+        if config.is_moon_gravity_on:
+            bodies_to_create.append("Moon")
+        if config.is_mars_gravity_on:
+            bodies_to_create.append("Mars")
+        if config.is_venus_gravity_on:
+            bodies_to_create.append("Venus")
+
+        body_settings: Any = environment_setup.get_default_body_settings(
+            bodies_to_create,
+            DEFAULT_GLOBAL_FRAME_ORIGIN,
+            DEFAULT_GLOBAL_FRAME_ORIENTATION,
+        )
+
+        body_settings.add_empty_settings(config.satellite_name)
+
+        if config.is_srp_on:
+            occulting_bodies_dict: dict[str, list[str]] = {"Sun": ["Earth"]}
+            vehicle_target_settings: Any = (
+                environment_setup.radiation_pressure.cannonball_radiation_target(
+                    config.satellite_drag_area_m2,
+                    config.srp_coefficient,
+                    occulting_bodies_dict,
+                )
+            )
+            body_settings.get(
+                config.satellite_name
+            ).radiation_pressure_target_settings = vehicle_target_settings
+
+        if config.is_earth_drag_on:
+            aero_coefficient_settings: Any = (
+                environment_setup.aerodynamic_coefficients.constant(
+                    config.satellite_drag_area_m2,
+                    [config.satellite_drag_coefficient, 0.0, 0.0],
+                )
+            )
+            body_settings.get(
+                config.satellite_name
+            ).aerodynamic_coefficient_settings = aero_coefficient_settings
+
+        bodies: Any = environment_setup.create_system_of_bodies(body_settings)
+        bodies.get(config.satellite_name).mass = config.satellite_mass_kg
+        return bodies
+
+    @staticmethod
+    def create_acceleration_models(
+        config: NumericalPropagatorConfig,
+        bodies: Any,
+        bodies_to_propagate: list[str],
+        central_bodies: list[str],
+    ) -> Any:
+        """Create acceleration models for the propagated satellite."""
+        satellite_acceleration_settings: dict[str, list[Any]] = {}
+
+        sun_accelerations: list[Any] = []
+        if config.is_srp_on:
+            sun_accelerations.insert(
+                0, propagation_setup.acceleration.radiation_pressure()
+            )
+        if config.is_sun_gravity_on:
+            sun_accelerations.append(
+                propagation_setup.acceleration.point_mass_gravity()
+            )
+        if sun_accelerations:
+            satellite_acceleration_settings["Sun"] = sun_accelerations
+
+        earth_accelerations: list[Any] = [
+            propagation_setup.acceleration.spherical_harmonic_gravity(
+                config.earth_spherical_harmonic_gravity_degree,
+                config.earth_spherical_harmonic_gravity_order,
+            ),
+        ]
+        if config.is_earth_drag_on:
+            earth_accelerations.append(propagation_setup.acceleration.aerodynamic())
+        satellite_acceleration_settings["Earth"] = earth_accelerations
+
+        if config.is_moon_gravity_on:
+            satellite_acceleration_settings["Moon"] = [
+                propagation_setup.acceleration.point_mass_gravity()
+            ]
+        if config.is_venus_gravity_on:
+            satellite_acceleration_settings["Venus"] = [
+                propagation_setup.acceleration.point_mass_gravity()
+            ]
+        if config.is_mars_gravity_on:
+            satellite_acceleration_settings["Mars"] = [
+                propagation_setup.acceleration.point_mass_gravity()
+            ]
+
+        acceleration_settings = {config.satellite_name: satellite_acceleration_settings}
+
+        return propagation_setup.create_acceleration_models(
+            bodies, acceleration_settings, bodies_to_propagate, central_bodies
+        )
+
+    @staticmethod
+    def create_dependent_variables_to_save(
+        config: NumericalPropagatorConfig,
+    ) -> list[VariableSettings]:
+        """Create dependent-variable save settings for propagation."""
+        dep_vars: list[VariableSettings] = [
+            dependent_variable.total_acceleration(config.satellite_name),
+            dependent_variable.keplerian_state(config.satellite_name, "Earth"),
+            dependent_variable.geodetic_latitude(config.satellite_name, "Earth"),
+            dependent_variable.longitude(config.satellite_name, "Earth"),
+            dependent_variable.central_body_fixed_cartesian_position(
+                config.satellite_name, "Earth"
+            ),
+            dependent_variable.relative_position(config.satellite_name, "Earth"),
+            dependent_variable.single_acceleration_norm(
+                propagation_setup.acceleration.spherical_harmonic_gravity_type,
+                config.satellite_name,
+                "Earth",
+            ),
+        ]
+
+        if config.is_moon_gravity_on:
+            dep_vars.append(
+                dependent_variable.single_acceleration_norm(
+                    propagation_setup.acceleration.point_mass_gravity_type,
+                    config.satellite_name,
+                    "Moon",
+                )
+            )
+        if config.is_sun_gravity_on:
+            dep_vars.append(
+                dependent_variable.single_acceleration_norm(
+                    propagation_setup.acceleration.point_mass_gravity_type,
+                    config.satellite_name,
+                    "Sun",
+                )
+            )
+        if config.is_srp_on:
+            dep_vars.append(
+                dependent_variable.single_acceleration_norm(
+                    propagation_setup.acceleration.radiation_pressure_type,
+                    config.satellite_name,
+                    "Sun",
+                )
+            )
+        if config.is_earth_drag_on:
+            dep_vars.append(
+                dependent_variable.single_acceleration_norm(
+                    propagation_setup.acceleration.aerodynamic_type,
+                    config.satellite_name,
+                    "Earth",
+                )
+            )
+        if config.is_venus_gravity_on:
+            dep_vars.append(
+                dependent_variable.single_acceleration_norm(
+                    propagation_setup.acceleration.point_mass_gravity_type,
+                    config.satellite_name,
+                    "Venus",
+                )
+            )
+        if config.is_mars_gravity_on:
+            dep_vars.append(
+                dependent_variable.single_acceleration_norm(
+                    propagation_setup.acceleration.point_mass_gravity_type,
+                    config.satellite_name,
+                    "Mars",
+                )
+            )
+
+        return dep_vars
+
+    @staticmethod
+    def create_translational_propagator_settings(
+        config: NumericalPropagatorConfig,
+        initial_state: NumericalInitialState,
+        target_epoch_s: float,
+        central_bodies: list[str],
+        acceleration_models: Any,
+        bodies_to_propagate: list[str],
+        dependent_variables_to_save: list[VariableSettings],
+    ) -> Any:
+        """Create translational propagator settings."""
+        try:
+            coefficient_set = getattr(
+                propagation_setup.integrator.CoefficientSets,
+                config.integrator_method,
+            )
+        except AttributeError as exc:
+            raise ValueError(
+                f"Unsupported integrator method '{config.integrator_method}'. "
+                f"Supported methods are: {', '.join(SUPPORTED_INTEGRATOR_METHODS)}. "
+                f"Default is {DEFAULT_INTEGRATOR_METHOD}."
+            ) from exc
+
+        if len(config.integrator_step_size_values_s) == 1:
+            integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
+                config.integrator_step_size_values_s[0],
+                coefficient_set=coefficient_set,
+            )
+        else:
+            initial_step_s, minimum_step_s, maximum_step_s = (
+                config.integrator_step_size_values_s
+            )
+            step_size_validation_settings = (
+                propagation_setup.integrator.step_size_validation(
+                    minimum_step_s, maximum_step_s
+                )
+            )
+            step_size_control_settings = propagation_setup.integrator.step_size_control_elementwise_scalar_tolerance(
+                DEFAULT_INTEGRATOR_TOLERANCE,
+                DEFAULT_INTEGRATOR_TOLERANCE,
+            )
+            integrator_settings = (
+                propagation_setup.integrator.runge_kutta_variable_step(
+                    initial_time_step=initial_step_s,
+                    coefficient_set=coefficient_set,
+                    step_size_validation_settings=step_size_validation_settings,
+                    step_size_control_settings=step_size_control_settings,
+                )
+            )
+
+        termination_condition = propagation_setup.propagator.time_termination(
+            target_epoch_s
+        )
+
+        return propagation_setup.propagator.translational(
+            central_bodies,
+            acceleration_models,
+            bodies_to_propagate,
+            initial_state.state_m_m_s,
+            initial_state.epoch_s,
+            integrator_settings,
+            termination_condition,
+            output_variables=dependent_variables_to_save,
+        )
+
     def __init__(
         self,
         config: NumericalPropagatorConfig,
         initial_state: NumericalInitialState,
     ) -> None:
-        self._config = config
+        self._config: NumericalPropagatorConfig = config
         # These depend only on the model configuration, not on the propagation
         # interval, so construct them once for the propagator lifetime.
-        self._bodies_to_propagate = [config.satellite_name]
-        self._central_bodies = ["Earth"]
-        self._bodies = create_environment_and_bodies(config)
-        self._acceleration_models = create_acceleration_models(
+        self._bodies_to_propagate: list[str] = [config.satellite_name]
+        self._central_bodies: list[str] = ["Earth"]
+        self._bodies: Any = self.create_environment_and_bodies(config)
+        self._acceleration_models: Any = self.create_acceleration_models(
             config,
             self._bodies,
             self._bodies_to_propagate,
             self._central_bodies,
         )
-        self._dependent_variable_save_settings = create_dependent_variables_to_save(
-            config
+        self._dependent_variable_save_settings: list[VariableSettings] = (
+            self.create_dependent_variables_to_save(config)
         )
         self._dependent_variable_dictionary: DependentVariableDictionary | None = None
+        self._state_history: list[tuple[float, np.ndarray]] = []
         super().__init__()
         self.set_initial_state(initial_state)
 
@@ -534,6 +481,11 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         """Return the last save settings used for dependent variables, if available."""
         return self._dependent_variable_save_settings
 
+    @property
+    def state_history(self) -> list[tuple[float, np.ndarray]]:
+        """Return the last saved propagation history."""
+        return self._state_history
+
     @override
     def set_initial_state(self, initial_state: NumericalInitialState) -> None:
         """Set initial state.
@@ -546,6 +498,7 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         super().set_initial_state(initial_state)
         self._initial_state = initial_state
         self._reference_epoch_s = initial_state.epoch_s
+        self._state_history = []
         self._dependent_variable_dictionary = None
 
     @override
@@ -559,9 +512,9 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         """
         return self._initial_state.epoch_s
 
-    def _propagate_impl(self, target_epoch_s: float) -> dict[float, np.ndarray]:
+    def _propagate_impl(self, target_epoch_s: float) -> list[tuple[float, np.ndarray]]:
         """Run a propagation from the initial state to the target epoch."""
-        propagator_settings = create_translational_propagator_settings(
+        propagator_settings = self.create_translational_propagator_settings(
             self._config,
             self._initial_state,
             target_epoch_s,
@@ -574,14 +527,19 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         dynamics_simulator = simulator.create_dynamics_simulator(
             self._bodies, propagator_settings
         )
-        state_history: dict[float, np.ndarray] = (
+        state_history_dict: dict[float, np.ndarray] = (
             dynamics_simulator.propagation_results.state_history
         )
+        state_history: list[tuple[float, np.ndarray]] = [
+            (epoch_s, np.asarray(state, dtype=float))
+            for epoch_s, state in sorted(state_history_dict.items())
+        ]
         dependent_variable_dictionary: DependentVariableDictionary = (
             propagation.create_dependent_variable_dictionary(dynamics_simulator)
         )
 
         self._dependent_variable_dictionary = dependent_variable_dictionary
+        self._state_history = state_history
         return state_history
 
     @override
@@ -599,7 +557,9 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
             Cartesian state [x, y, z, vx, vy, vz] in m and m/s.
         """
         state_history = self._propagate_impl(target_epoch_s)
-        return _interpolate_state(state_history, target_epoch_s)
+        if not state_history:
+            raise ValueError("Propagation produced no state history samples.")
+        return state_history[-1][1]
 
     @override
     def _propagate_trajectory_impl(
@@ -622,8 +582,4 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
             List of (epoch_s, state) tuples.
         """
         state_history = self._propagate_impl(to_epoch_s)
-        return [
-            (t, np.asarray(s, dtype=float))
-            for t, s in sorted(state_history.items())
-            if t >= from_epoch_s
-        ]
+        return state_history
