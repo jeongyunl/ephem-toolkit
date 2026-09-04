@@ -82,11 +82,13 @@ def write_fit_report(
     *,
     provenance: dict[str, Any],
     diagnostics: Any,
-    configuration: dict[str, Any] | None = None,
+    configuration: dict[str, Any] | Any | None = None,
     source_report: dict[str, Any] | None = None,
     residuals: dict[str, float] | None = None,
 ) -> None:
     """Write a JSON fit report to a path or stdout (``-``)."""
+    if configuration is not None and hasattr(configuration, "to_report_dict"):
+        configuration = configuration.to_report_dict()
     report = {
         "provenance": provenance,
         "configuration": configuration or {},

@@ -56,6 +56,8 @@ algorithm for OEM, OMM, and TLE input paths.
 - Added `to_report_dict()` to serialize the complete fit configuration,
   including fixed physical parameters, for reproducible reports and future CLI
   integration.
+- Connected configuration serialization to the shared fit-report writer, so
+  future numerical conversion paths can pass the configuration object directly.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.
