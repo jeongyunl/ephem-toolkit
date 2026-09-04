@@ -72,6 +72,8 @@ algorithm for OEM, OMM, and TLE input paths.
 - Added `oem-to-opm` parser options for fit step, observables, residual weights,
   and fixed-parameter selection; execution remains gated pending force-model
   wiring.
+- Added CLI validation requiring strictly positive fit-step and residual-weight
+  values.
 - Added the `oem-to-opm --fit-model {two-body|numerical}` parser contract;
   `two-body` remains the default, while numerical execution currently fails
   explicitly until force-model wiring is complete.
