@@ -63,13 +63,22 @@ def resolve_source_model(source_model: str, source_report: str | None) -> tuple[
     return "unknown", report
 
 
-def write_fit_report(destination: str | Path, *, provenance: dict[str, Any], diagnostics: Any, configuration: dict[str, Any] | None = None) -> None:
+def write_fit_report(
+    destination: str | Path,
+    *,
+    provenance: dict[str, Any],
+    diagnostics: Any,
+    configuration: dict[str, Any] | None = None,
+    source_report: dict[str, Any] | None = None,
+) -> None:
     """Write a JSON fit report to a path or stdout (``-``)."""
     report = {
         "provenance": provenance,
         "configuration": configuration or {},
         "diagnostics": asdict(diagnostics) if is_dataclass(diagnostics) else diagnostics,
     }
+    if source_report is not None:
+        report["source_report"] = source_report
     text = json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n"
     if destination == "-":
         import sys
