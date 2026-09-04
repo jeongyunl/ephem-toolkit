@@ -128,6 +128,16 @@ def test_optimizer_does_not_report_convergence_without_residual_reduction() -> N
 
     assert not result.converged
     assert result.diagnostics.position_rms_m > 0.0
+
+
+def test_optimizer_rejects_physical_parameters_until_callback_support_exists() -> None:
+    with pytest.raises(ValueError, match="parameterized propagator"):
+        optimize_initial_state(
+            lambda initial, _epoch: initial,
+            np.zeros(6),
+            states(),
+            NumericalFitConfig(parameters="initial-state,drag-coeff", drag_enabled=True),
+        )
     validate_numerical_fit(
         states(),
         NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=True),

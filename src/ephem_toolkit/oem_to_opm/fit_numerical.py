@@ -129,6 +129,10 @@ def optimize_initial_state(
     numerical-propagation dependency.
     """
     validate_numerical_fit(reference_states, config)
+    if config.parameters != "initial-state":
+        raise ValueError(
+            "physical-parameter fitting requires a parameterized propagator callback"
+        )
     if max_iterations <= 0 or finite_difference_step <= 0.0 or tolerance <= 0.0:
         raise ValueError("optimizer limits and finite-difference step must be positive")
     state = np.asarray(initial_state, dtype=float).copy()
