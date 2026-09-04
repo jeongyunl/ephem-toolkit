@@ -321,6 +321,7 @@ def main(argv=None) -> None:
                 fit_config,
                 iteration_callback=iteration_callback,
                 propagate_trajectory=trajectory_callback,
+                max_iterations=fit_config.max_iterations,
             )
             verbose_message(
                 show_progress,

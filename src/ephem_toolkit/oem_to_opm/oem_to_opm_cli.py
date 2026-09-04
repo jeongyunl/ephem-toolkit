@@ -50,6 +50,7 @@ class OemToOpmArgs(argparse.Namespace):
     fit_model: str
     fit_observables: str
     fit_position_weight: float
+    fit_max_iterations: int
     fit_end_weight: float
     fit_parameters: str
 
@@ -61,6 +62,17 @@ def parse_positive_float(value: str) -> float:
     except ValueError as error:
         raise argparse.ArgumentTypeError("value must be a number") from error
     if parsed <= 0.0:
+        raise argparse.ArgumentTypeError("value must be positive")
+    return parsed
+
+
+def parse_positive_int(value: str) -> int:
+    """Parse a strictly positive integer CLI value."""
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("value must be an integer") from error
+    if parsed <= 0:
         raise argparse.ArgumentTypeError("value must be positive")
     return parsed
 
@@ -169,6 +181,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     cli_parser.add_argument("--fit-observables", choices=["position"], default="position", dest="fit_observables", help="Residual observable: position only (default: position).")
     cli_parser.add_argument("--fit-position-weight", type=parse_positive_float, default=1.0, dest="fit_position_weight", metavar="<value>", help="Position residual weight.")
+    cli_parser.add_argument("--fit-max-iterations", type=parse_positive_int, default=100, dest="fit_max_iterations", metavar="<count>", help="Maximum numerical-fit iterations (default: 100).")
     cli_parser.add_argument("--fit-end-weight", type=parse_positive_float, default=2.0, dest="fit_end_weight", metavar="<value>", help="Position residual multiplier at the end of the fit span (default: 2.0).")
     cli_parser.add_argument("--fit-parameters", choices=["initial-state", "initial-state,drag-coeff", "initial-state,srp-coeff"], default="initial-state", dest="fit_parameters", help="Fitted state selection; physical parameters are fixed user inputs.")
     cli_parser.add_argument("--mass", type=parse_positive_float, default=DEFAULT_SATELLITE_MASS_KG, metavar="<kg>", help=f"Fixed spacecraft mass for numerical propagation (default: {DEFAULT_SATELLITE_MASS_KG}).")
