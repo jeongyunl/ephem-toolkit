@@ -142,7 +142,7 @@ theory label that conflicts with the fitting implementation.
 | Transformation | `--fit-parameters <initial-state\|initial-state,drag-coeff\|initial-state,srp-coeff>` | `oem-to-opm`, `omm-to-opm`, `tle-to-opm` | Existing `propagate-orbit` force parameters | Select user-supplied initial-state and force parameters; physical parameters are fixed and never estimated. |
 | Output data | `--output <path\|->` | All conversion commands | Existing `-o/--output` | Write the converted OMM, OPM, OEM, or TLE. |
 | Output data | `--object-name <name>`, `--object-id <id>` | All conversion commands that write CCSDS output | Existing conversion-command metadata options | Override output object metadata. |
-| Output data | `--fit-report <path\|->` | `oem-to-omm`, `oem-to-opm`, `oem-to-tle`, `omm-to-opm`, `tle-to-opm`, `opm-to-omm`, `opm-to-tle`, `omm-to-tle --refit-sgp4` | None | Write output provenance, numerical configuration, optimized parameters, RMS/max residuals, and convergence status as JSON. |
+| Output data | `--fit-report <path\|->` | `oem-to-omm`, `oem-to-opm`, `oem-to-tle`, `omm-to-opm`, `tle-to-opm`, `opm-to-omm`, `opm-to-tle`, `omm-to-tle --refit-sgp4` | None | Write output provenance, numerical configuration, fitted state values, supplied fixed physical parameters, RMS/max residuals, and convergence status as JSON. |
 
 `--fit-model` selects the orbital or propagation model that defines the fitted
 output: `brouwer`, `dsst`, or `sgp4` for a mean-element OMM; `two-body` or
