@@ -78,6 +78,36 @@ def test_fit_configuration_serializes_fixed_parameters() -> None:
     assert report_config["fixed_parameters"] == {"srp_coeff": 1.3}
 
 
+def test_fit_configuration_builds_propagator_configuration(monkeypatch) -> None:
+    import sys
+    import types
+
+    class PropagatorConfig:
+        def __init__(self, **values):
+            self.values = values
+
+    monkeypatch.setitem(
+        sys.modules,
+        "ephem_toolkit.core.propagator.numerical",
+        types.SimpleNamespace(NumericalPropagatorConfig=PropagatorConfig),
+    )
+    config = NumericalFitConfig(
+        satellite_mass_kg=12.0,
+        drag_area_m2=0.4,
+        earth_gravity=(8, 8),
+        integrator="rkdp_87",
+        integrator_step_size_s=(30.0,),
+        drag_enabled=True,
+        drag_coefficient=2.2,
+    )
+
+    propagator_config = config.to_propagator_config(satellite_name="LEO3")
+
+    assert propagator_config.values["satellite_name"] == "LEO3"
+    assert propagator_config.values["satellite_drag_coefficient"] == 2.2
+    assert propagator_config.values["integrator_method"] == "rkdp_87"
+
+
 def test_config_from_propagation_options_preserves_fixed_coefficients() -> None:
     class Options:
         drag = True
