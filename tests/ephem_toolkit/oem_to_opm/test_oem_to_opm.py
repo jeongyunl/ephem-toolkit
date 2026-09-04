@@ -57,6 +57,20 @@ def test_parser_accepts_provenance_report_options() -> None:
     assert args.fit_report == "fit.json"
 
 
+def test_parser_accepts_fit_model_and_defaults_to_two_body() -> None:
+    assert parse_arguments(
+        build_arg_parser(), ["input.oem", "-o", "output.opm"]
+    ).fit_model == "two-body"
+    assert parse_arguments(
+        build_arg_parser(), ["--fit-model", "numerical", "input.oem", "-o", "output.opm"]
+    ).fit_model == "numerical"
+
+
+def test_numerical_fit_model_fails_until_propagator_is_connected() -> None:
+    with pytest.raises(SystemExit, match="1"):
+        oem_to_opm.main(["--fit-model", "numerical", "input.oem", "-o", "output.opm"])
+
+
 def test_parser_accepts_no_fit_report() -> None:
     args = parse_arguments(build_arg_parser(), ["--no-fit-report", "input.oem", "-o", "output.opm"])
     assert args.no_fit_report is True

@@ -15,7 +15,8 @@ unless they imply implementation work.
   support are still pending. See [Task 1 progress](01-provenance-and-fit-reports.md#progress).
 - **In progress:** Task 2. The shared numerical-fit configuration and reference
   state validation boundary are implemented; optimizer and propagator wiring
-  remain pending.
+  remain pending. The `oem-to-opm --fit-model` parser contract is now present,
+  with numerical execution explicitly gated until that wiring is complete.
 - **Pending:** Tasks 3–11. These remain planned implementation work; their
   documents describe the intended behavior and acceptance criteria.
 

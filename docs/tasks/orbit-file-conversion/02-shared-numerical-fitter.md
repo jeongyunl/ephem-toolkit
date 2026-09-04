@@ -58,6 +58,9 @@ algorithm for OEM, OMM, and TLE input paths.
   integration.
 - Connected configuration serialization to the shared fit-report writer, so
   future numerical conversion paths can pass the configuration object directly.
+- Added the `oem-to-opm --fit-model {two-body|numerical}` parser contract;
+  `two-body` remains the default, while numerical execution currently fails
+  explicitly until force-model wiring is complete.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.
@@ -75,6 +78,8 @@ result recorded in the orbit-conversion task README.
 - Connect `NumericalFitConfig` to `core.propagator.numerical`.
 - Connect the factory and optimizer to conversion CLI paths, including fixed
   force-model configuration.
+- Replace the temporary numerical-mode diagnostic with actual OEM-to-OPM
+  numerical propagation and fitting.
 - Add the corresponding force-model CLI options and map them into this
   configuration.
 - Add force-model validation, diagnostics, and wrapper integration.

@@ -39,6 +39,7 @@ class OemToOpmArgs(argparse.Namespace):
     source_model: str
     source_report: str | None
     no_fit_report: bool
+    fit_model: str
 
 
 def report_error(message: str, exit_code: int = 1) -> None:
@@ -118,6 +119,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "Maximum arc span for the fit (supports durations like 2h, 90m, 3600s; "
             "default: 2h)."
         ),
+    )
+    cli_parser.add_argument(
+        "--fit-model",
+        choices=["two-body", "numerical"],
+        default="two-body",
+        dest="fit_model",
+        metavar="<two-body|numerical>",
+        help="Fitting model; numerical execution is not yet connected (default: two-body).",
     )
     cli_parser.add_argument(
         "--object-name",
