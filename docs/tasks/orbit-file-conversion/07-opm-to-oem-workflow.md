@@ -5,6 +5,11 @@
 Make OPM-to-OEM conversion explicit about whether it generates a two-body
 Keplerian history or a numerical force-model history.
 
+## Additional objective
+
+Do not add runtime dependencies; reuse the repository's existing libraries and
+tooling.
+
 ## Scope
 
 - Support the existing two-body path from OPM osculating elements.

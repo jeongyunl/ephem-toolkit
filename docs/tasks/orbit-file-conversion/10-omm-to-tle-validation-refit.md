@@ -5,6 +5,11 @@
 Prevent invalid direct OMM-to-TLE conversions and provide an explicit path for
 converting non-SGP4 OMMs through a new SGP4 fit.
 
+## Additional objective
+
+Do not add runtime dependencies; reuse the repository's existing libraries and
+tooling.
+
 ## Scope
 
 - Validate that direct `omm-to-tle` input declares an SGP4-compatible

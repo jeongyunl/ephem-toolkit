@@ -5,6 +5,11 @@
 Allow an OEM to produce an OPM initial state for a configured numerical
 propagator, while retaining the current two-body fit as the default.
 
+## Additional objective
+
+Do not add runtime dependencies; reuse the repository's existing libraries and
+tooling.
+
 ## Scope
 
 - Add `oem-to-opm --fit-model numerical` and retain

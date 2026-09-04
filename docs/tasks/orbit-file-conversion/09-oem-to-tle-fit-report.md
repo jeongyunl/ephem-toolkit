@@ -5,6 +5,11 @@
 Ensure an OEM-to-TLE conversion communicates that it creates a new SGP4 model
 and preserves the source history and fit quality outside the fixed-width TLE.
 
+## Additional objective
+
+Do not add runtime dependencies; reuse the repository's existing libraries and
+tooling.
+
 ## Scope
 
 - Keep the existing SGP4-compatible mean-element fit and TLE formatting path.

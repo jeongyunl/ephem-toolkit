@@ -6,6 +6,13 @@ Fit a target numerical propagator's Cartesian initial state, and optionally
 supported physical parameters, to a reference OEM arc. This is the common
 algorithm for OEM, OMM, and TLE input paths.
 
+## Additional objectives
+
+- Do not add runtime dependencies. Reuse the repository's existing NumPy-based
+  numerical tools and propagation interfaces.
+- Keep the optimizer and residual construction independently unit-testable
+  without requiring the numerical propagation engine during tests.
+
 ## Progress
 
 ### Completed
@@ -19,6 +26,9 @@ algorithm for OEM, OMM, and TLE input paths.
 - Added weighted position/state residual construction and residual diagnostics
   behind a propagator callback, keeping the implementation independent of the
   numerical propagation engine.
+- Added a dependency-free NumPy Gauss–Newton initial-state optimizer. With the
+  default position constraint it varies only initial velocity and returns
+  convergence and residual diagnostics.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.
@@ -34,8 +44,7 @@ result recorded in the orbit-conversion task README.
 ### Remaining work
 
 - Connect `NumericalFitConfig` to `core.propagator.numerical`.
-- Implement optimization around the residual callback and connect it to the
-  numerical propagator.
+- Connect the optimizer to the numerical propagator.
 - Preserve the initial position as a hard constraint in the optimizer and
   document that behavior in fit reports.
 - Add force-model and physical-parameter validation, diagnostics, and wrapper

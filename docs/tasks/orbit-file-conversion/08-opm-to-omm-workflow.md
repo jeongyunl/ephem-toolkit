@@ -5,6 +5,11 @@
 Provide one conversion command that composes OPM propagation and mean-element
 fitting while exposing both model choices.
 
+## Additional objective
+
+Do not add runtime dependencies; reuse the repository's existing libraries and
+tooling.
+
 ## Scope
 
 - Implement `opm-to-omm`.

@@ -46,6 +46,16 @@ class NumericalResidualDiagnostics:
     n_records: int
 
 
+@dataclass(frozen=True)
+class NumericalFitResult:
+    """Result returned by the dependency-free numerical optimizer."""
+
+    initial_state: np.ndarray
+    diagnostics: NumericalResidualDiagnostics
+    iterations: int
+    converged: bool
+
+
 def build_weighted_residuals(
     propagate,
     initial_state: np.ndarray,
@@ -93,6 +103,48 @@ def build_weighted_residuals(
         n_records=len(position_errors),
     )
     return np.asarray(residuals, dtype=float), diagnostics
+
+
+def optimize_initial_state(
+    propagate,
+    initial_state: np.ndarray,
+    reference_states: Sequence[tuple[float, np.ndarray]],
+    config: NumericalFitConfig,
+    *,
+    max_iterations: int = 25,
+    tolerance: float = 1.0e-6,
+    finite_difference_step: float = 1.0e-3,
+) -> NumericalFitResult:
+    """Optimize the initial Cartesian state using NumPy Gauss-Newton steps.
+
+    With the default position constraint, only the initial velocity is varied.
+    The propagator is supplied as a callback, so this function adds no
+    numerical-propagation dependency.
+    """
+    validate_numerical_fit(reference_states, config)
+    if max_iterations <= 0 or finite_difference_step <= 0.0 or tolerance <= 0.0:
+        raise ValueError("optimizer limits and finite-difference step must be positive")
+    state = np.asarray(initial_state, dtype=float).copy()
+    if config.preserve_initial_position:
+        state[:3] = np.asarray(reference_states[0][1], dtype=float)[:3]
+    variable_indices = (3, 4, 5) if config.preserve_initial_position else tuple(range(6))
+    converged = False
+    iterations = 0
+    for iterations in range(1, max_iterations + 1):
+        residual, _ = build_weighted_residuals(propagate, state, reference_states, config)
+        jacobian = np.empty((residual.size, len(variable_indices)))
+        for column, index in enumerate(variable_indices):
+            trial = state.copy()
+            trial[index] += finite_difference_step
+            trial_residual, _ = build_weighted_residuals(propagate, trial, reference_states, config)
+            jacobian[:, column] = (trial_residual - residual) / finite_difference_step
+        delta, *_ = np.linalg.lstsq(jacobian, -residual, rcond=None)
+        state[list(variable_indices)] += delta
+        if float(np.linalg.norm(delta)) <= tolerance:
+            converged = True
+            break
+    _, diagnostics = build_weighted_residuals(propagate, state, reference_states, config)
+    return NumericalFitResult(state, diagnostics, iterations, converged)
 
 
 def validate_numerical_fit(

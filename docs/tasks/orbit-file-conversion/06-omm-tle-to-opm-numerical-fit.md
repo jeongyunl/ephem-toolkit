@@ -5,6 +5,11 @@
 Provide convenience wrappers that generate a source-model reference arc and
 fit the requested numerical propagator using the common OEM-to-OPM fitter.
 
+## Additional objective
+
+Do not add runtime dependencies; reuse the repository's existing libraries and
+tooling.
+
 ## Scope
 
 - Implement `omm-to-opm --fit-model numerical`.

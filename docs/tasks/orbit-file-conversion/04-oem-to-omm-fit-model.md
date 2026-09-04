@@ -5,6 +5,11 @@
 Make OEM-to-OMM conversion explicitly select the target mean-element theory
 and report the source history and fit quality.
 
+## Additional objective
+
+Do not add runtime dependencies; reuse the repository's existing libraries and
+tooling.
+
 ## Scope
 
 - Replace the primary `--mode` interface with
