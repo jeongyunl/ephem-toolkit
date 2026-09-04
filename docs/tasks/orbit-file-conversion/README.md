@@ -26,10 +26,10 @@ unless they imply implementation work.
 - **In progress:** Task 10. Direct OMM-to-TLE validation and the explicit
   `--refit-sgp4` path are implemented; representative live refit verification
   with non-SGP4 data remains.
-- **In progress:** Task 6. `omm-to-opm --fit-model numerical` and
-  `tle-to-opm --fit-model numerical` wrappers are registered and delegate to
-  the shared OEM-to-OPM fitter; short-arc live output and fit-report
-  verification are complete, with longer-arc validation remaining.
+- **Complete:** Task 6. `omm-to-opm --fit-model numerical` and
+  `tle-to-opm --fit-model numerical` wrappers delegate to the shared
+  OEM-to-OPM fitter; short- and four-hour live output and fit-report
+  verification are complete.
 - **Pending:** Tasks 7–9 and 11. Their documents describe planned
   implementation work and acceptance criteria.
 
@@ -40,7 +40,7 @@ unless they imply implementation work.
 3. **Complete:** [Conversion CLI option contract](03-conversion-cli-options.md)
 4. **Complete:** [OEM to OMM fit migration](04-oem-to-omm-fit-model.md)
 5. **Complete:** [OEM to OPM numerical fitting](05-oem-to-opm-numerical-fit.md)
-6. **In progress:** [OMM and TLE to OPM numerical fitting](06-omm-tle-to-opm-numerical-fit.md)
+6. **Complete:** [OMM and TLE to OPM numerical fitting](06-omm-tle-to-opm-numerical-fit.md)
 7. **Pending:** [OPM to OEM model-aware workflow](07-opm-to-oem-workflow.md)
 8. **Pending:** [OPM to OMM composed workflow](08-opm-to-omm-workflow.md)
 9. **Pending:** [OEM to TLE fit reporting](09-oem-to-tle-fit-report.md)
