@@ -446,6 +446,10 @@ def format_kepler_output(
     lines.append(f"  records used:       {n_records}")
     lines.append(f"  arc span:           {span_s:.1f} s")
     lines.append(f"  iterations:         {iterations}")
+    lines.append(f"  fit method:         {fit_method}")
+    initial_position_rms_m = getattr(diagnostics, "initial_position_rms_m", None)
+    if initial_position_rms_m is not None:
+        lines.append(f"  initial position RMS: {initial_position_rms_m / 1000.0:.6f} km")
     lines.append(f"  RMS position error: {rms_position_m / 1000.0:.6f} km")
     if epoch_vel_delta_m_s is not None:
         lines.append(f"  epoch Δ|v0|:         {epoch_vel_delta_m_s:.6f} m/s")

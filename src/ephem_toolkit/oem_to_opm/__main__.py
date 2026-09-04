@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fit OEM state vectors and write an OPM with osculating Keplerian elements.
+"""Fit OEM state vectors and write an OPM with the selected fit representation.
 
 Algorithm overview (--kepler mode):
   - The epoch position r₀ is fixed to the first OEM position.
@@ -115,7 +115,7 @@ def debug_message(enabled: bool, message: str) -> None:
 def build_opm(
     epoch: datetime,
     initial_state_m_m_s: np.ndarray,
-    keplerian_elements: np.ndarray,
+    keplerian_elements: np.ndarray | None,
     *,
     object_name: str,
     object_id: str,
@@ -124,7 +124,7 @@ def build_opm(
     time_system: str,
     mu_m3_s2: float,
 ) -> opm.CcsdsOpm:
-    """Build an OPM containing the initial state and fitted elements.
+    """Build an OPM containing the initial state and optional fitted elements.
 
     Parameters
     ----------
@@ -132,8 +132,9 @@ def build_opm(
         Epoch of the initial state.
     initial_state_m_m_s : np.ndarray
         Initial Cartesian state in meters and meters per second.
-    keplerian_elements : np.ndarray
-        Fitted Keplerian elements in meters and radians.
+    keplerian_elements : np.ndarray | None
+        Fitted Keplerian elements in meters and radians, or ``None`` for a
+        numerical Cartesian-only fit.
     object_name : str
         Spacecraft name for OPM metadata.
     object_id : str
@@ -150,7 +151,7 @@ def build_opm(
     Returns
     -------
     opm.CcsdsOpm
-        OPM containing the initial state and fitted elements.
+        OPM containing the initial state and, for two-body fits, fitted elements.
     """
     epoch_str = time_utils.datetime_to_iso8601(epoch, fractional_second_places=6)
     return opm.CcsdsOpm(
@@ -176,7 +177,7 @@ def build_opm(
             y_dot=float(initial_state_m_m_s[4] / 1000.0),
             z_dot=float(initial_state_m_m_s[5] / 1000.0),
         ),
-        keplerian_elements=opm.OpmKeplerianElements(
+        keplerian_elements=(opm.OpmKeplerianElements(
             semi_major_axis=float(
                 keplerian_elements[kepler.SEMI_MAJOR_AXIS_INDEX] / 1000.0
             ),
@@ -190,7 +191,7 @@ def build_opm(
                 np.degrees(keplerian_elements[kepler.TRUE_ANOMALY_INDEX])
             ),
             gm=float(mu_m3_s2 / 1.0e9),
-        ),
+        ) if keplerian_elements is not None else None),
     )
 
 
@@ -262,7 +263,8 @@ def main(argv=None) -> None:
         object_id: str = oem_data.meta.object_id or "UNKNOWN"
 
     # Run the selected fit (the numerical path uses the shared Tudat adapter).
-    fitted_elements: np.ndarray
+    fitted_elements: np.ndarray | None = None
+    fitted_state: np.ndarray | None = None
     diagnostics: object
     fit_transformation = "two-body fit"
     fit_target_model = "two-body-kepler"
@@ -333,8 +335,10 @@ def main(argv=None) -> None:
                 f"selected best fit position_rms={numerical_result.diagnostics.position_rms_m:g}m",
             )
             fitted_state = numerical_result.initial_state
-            fitted_elements = kepler.cartesian_to_keplerian(
-                fitted_state, cli_args.mu_m3_s2
+            initial_position_rms_m = (
+                numerical_result.initial_position_rms_m
+                if numerical_result.initial_position_rms_m is not None
+                else numerical_result.diagnostics.position_rms_m
             )
             diagnostics = fit_common.FitDiagnostics(
                 rms_position_m=numerical_result.diagnostics.position_rms_m,
@@ -344,6 +348,7 @@ def main(argv=None) -> None:
                 epoch_pos_delta_m=float(np.linalg.norm(fitted_state[:3] - states[0][1][:3])),
                 epoch_vel_delta_m_s=float(np.linalg.norm(fitted_state[3:] - states[0][1][3:])),
                 fit_method="numerical",
+                initial_position_rms_m=initial_position_rms_m,
             )
             fit_transformation = "numerical fit"
             fit_target_model = "numerical-propagator"
@@ -374,12 +379,25 @@ def main(argv=None) -> None:
 
     # Format and report output
     first_epoch: datetime = time_utils.tt_s_to_datetime(states[0][0])
-    output_text: str = fit_osculating_kepler.format_kepler_output(
-        first_epoch, fitted_elements, diagnostics, comparison,
-        fit_method=cli_args.fit_model,
-    )
+    if cli_args.fit_model == "numerical":
+        output_text = (
+            "Numerical Cartesian fit:\n"
+            f"  epoch:                 {time_utils.datetime_to_iso8601(first_epoch, fractional_second_places=6)}\n"
+            f"  records used:          {diagnostics.n_records}\n"
+            f"  arc span:              {diagnostics.span_s:.1f} s\n"
+            f"  iterations:            {diagnostics.iterations}\n"
+            f"  fit method:            numerical\n"
+            f"  initial position RMS:  {diagnostics.initial_position_rms_m / 1000.0:.6f} km\n"
+            f"  final position RMS:    {diagnostics.rms_position_m / 1000.0:.6f} km\n"
+        )
+    else:
+        output_text = fit_osculating_kepler.format_kepler_output(
+            first_epoch, fitted_elements, diagnostics, comparison,
+            fit_method=cli_args.fit_model,
+        )
     verbose_message(show_progress, "serializing OPM output")
-    debug_message(cli_args.debug, f"fitted Keplerian elements: {fitted_elements.tolist()}")
+    if cli_args.fit_model == "two-body":
+        debug_message(cli_args.debug, f"fitted Keplerian elements: {fitted_elements.tolist()}")
 
     # Report results to stderr in verbose mode when output is stdout
     if show_progress and cli_args.output_opm == "-":
@@ -387,12 +405,16 @@ def main(argv=None) -> None:
     elif show_progress:
         report_results(output_text, "-", cli_args.verbose)
 
-    # Save the initial state and fitted osculating elements as an OPM.
+    # Save the fitted Cartesian state. Keplerian elements are only part of the
+    # two-body output; numerical fitting is intentionally Cartesian-only.
     if cli_args.output_opm:
         try:
+            output_initial_state = (
+                fitted_state if cli_args.fit_model == "numerical" else states[0][1]
+            )
             opm_obj = build_opm(
                 first_epoch,
-                states[0][1],
+                output_initial_state,
                 fitted_elements,
                 object_name=object_name,
                 object_id=object_id,

@@ -119,7 +119,7 @@ def test_parser_rejects_non_positive_fit_controls(option: str) -> None:
 
 
 def test_numerical_fit_model_dispatches_to_shared_fitter(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(oem.CcsdsOem, "read", lambda *_args, **_kwargs: DummyOemData())
@@ -155,8 +155,21 @@ def test_numerical_fit_model_dispatches_to_shared_fitter(
         ),
     )
     output_path = tmp_path / "output.opm"
-    oem_to_opm.main(["--fit-model", "numerical", "input.oem", "-o", str(output_path), "--no-fit-report"])
+    oem_to_opm.main(
+        [
+            "--fit-model",
+            "numerical",
+            "input.oem",
+            "-o",
+            str(output_path),
+            "--no-fit-report",
+            "--verbose",
+        ]
+    )
     assert output_path.exists()
+    assert "KEPLERIAN" not in output_path.read_text()
+    captured = capsys.readouterr()
+    assert "Keplerian" not in (captured.out + captured.err)
 
 
 def test_parser_accepts_no_fit_report() -> None:
