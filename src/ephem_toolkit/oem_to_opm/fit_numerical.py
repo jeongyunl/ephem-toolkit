@@ -147,6 +147,23 @@ def optimize_initial_state(
     return NumericalFitResult(state, diagnostics, iterations, converged)
 
 
+def make_propagation_callback(propagator_factory, epoch_s: float):
+    """Adapt a propagator factory to the optimizer callback protocol.
+
+    The factory receives ``(initial_state, epoch_s)`` and returns an object
+    exposing ``propagate_to(epoch_s)``. The result may be either a state array
+    or the common ``(epoch_s, state)`` tuple.
+    """
+    def propagate(initial_state: np.ndarray, target_epoch_s: float) -> np.ndarray:
+        propagator = propagator_factory(np.asarray(initial_state, dtype=float), epoch_s)
+        result = propagator.propagate_to(target_epoch_s)
+        if isinstance(result, tuple):
+            result = result[1]
+        return np.asarray(result, dtype=float)
+
+    return propagate
+
+
 def validate_numerical_fit(
     states: Sequence[tuple[float, np.ndarray]], config: NumericalFitConfig
 ) -> None:
