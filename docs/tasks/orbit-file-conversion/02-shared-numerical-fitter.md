@@ -112,6 +112,13 @@ algorithm for OEM, OMM, and TLE input paths.
 - Kept numerical fitting Cartesian-only: the numerical path no longer computes,
   logs, or serializes osculating Keplerian elements. The fitted Cartesian state
   is written to the OPM state vector, while two-body output is unchanged.
+- Added numerical-fit summary output matching the useful diagnostics shown by
+  `oem-to-omm --mode tle`: epoch, record count, arc span, iterations, fit
+  method, original and fitted Cartesian initial states, initial and final
+  position RMS, epoch velocity delta, a 10-minute numerical-propagator-versus-
+  OEM comparison table, and min/max/average position and velocity residuals.
+  TLE-only mean elements, BSTAR values, and Keplerian-derived quantities are
+  intentionally omitted.
 - Increased the numerical-fit iteration default to 100 and added
   `--fit-max-iterations` for CLI configuration; the selected value is included
   in fit-report configuration.
