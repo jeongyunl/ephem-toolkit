@@ -80,6 +80,7 @@ def test_parser_accepts_fit_controls() -> None:
     assert args.fit_step == 30.0
     assert args.fit_observables == "position"
     assert args.fit_position_weight == 2.0
+    assert args.fit_end_weight == 2.0
     assert args.fit_parameters == "initial-state,drag-coeff"
 
 

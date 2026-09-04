@@ -290,6 +290,9 @@ def main(argv=None) -> None:
             propagation_callback = fit_numerical.make_propagation_callback(
                 propagator_factory, states[0][0]
             )
+            trajectory_callback = fit_numerical.make_numerical_trajectory_callback(
+                propagator_factory, states[0][0], fit_config.fit_span_s
+            )
             verbose_message(
                 show_progress,
                 "starting numerical fit; each residual evaluation propagates the sampled OEM arc",
@@ -306,6 +309,7 @@ def main(argv=None) -> None:
                 states,
                 fit_config,
                 iteration_callback=iteration_callback,
+                propagate_trajectory=trajectory_callback,
             )
             verbose_message(
                 show_progress,
