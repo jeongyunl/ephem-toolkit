@@ -41,6 +41,7 @@ class NumericalFitConfig:
     fit_step_s: float = 60.0
     observables: str = "position"
     position_weight: float = 1.0
+    end_of_span_weight: float = 2.0
     velocity_weight: float = 1.0
     parameters: str = "initial-state"
     """Parameters used by propagation; physical parameters remain fixed."""
@@ -80,6 +81,7 @@ class NumericalFitConfig:
             "fit_step_s": self.fit_step_s,
             "observables": self.observables,
             "position_weight": self.position_weight,
+            "end_of_span_weight": self.end_of_span_weight,
             "velocity_weight": self.velocity_weight,
             "preserve_initial_position": self.preserve_initial_position,
             "fixed_parameters": self.fixed_parameter_values(),
@@ -151,6 +153,7 @@ def config_from_fit_options(options) -> NumericalFitConfig:
         fit_step_s=float(options.fit_step),
         observables=str(options.fit_observables),
         position_weight=float(options.fit_position_weight),
+        end_of_span_weight=float(getattr(options, "fit_end_weight", 2.0)),
         velocity_weight=float(getattr(options, "fit_velocity_weight", 1.0)),
         parameters=str(options.fit_parameters),
         drag_enabled=bool(getattr(options, "drag", True)),
@@ -207,6 +210,8 @@ def build_weighted_residuals(
     initial_state: np.ndarray,
     reference_states: Sequence[tuple[float, np.ndarray]],
     config: NumericalFitConfig,
+    *,
+    propagate_trajectory=None,
 ) -> tuple[np.ndarray, NumericalResidualDiagnostics]:
     """Evaluate weighted residuals against a reference arc.
 
@@ -222,17 +227,28 @@ def build_weighted_residuals(
     residuals: list[float] = []
     position_errors: list[float] = []
     propagated_initial_state = np.asarray(initial_state, dtype=float).copy()
-    if config.preserve_initial_position:
-        propagated_initial_state[:3] = selected[0][1][:3]
+    propagated_initial_state[:3] = selected[0][1][:3]
+    if propagate_trajectory is not None:
+        predicted_states = propagate_trajectory(
+            propagated_initial_state, [epoch for epoch, _ in selected]
+        )
+    else:
+        predicted_states = {
+            epoch: np.asarray(propagate(propagated_initial_state, epoch), dtype=float)
+            for epoch, _ in selected
+        }
     for epoch, reference in selected:
-        predicted = np.asarray(propagate(propagated_initial_state, epoch), dtype=float)
+        predicted = np.asarray(predicted_states[epoch], dtype=float)
         if predicted.shape != (6,):
             raise ValueError("propagate callback must return six Cartesian values")
         position_error = predicted[:3] - reference[:3]
         position_errors.append(float(np.linalg.norm(position_error)))
         # The fit objective is position-only by design. OEM velocities are used
         # only as Hermite derivative data, never as residual components.
-        residuals.extend((position_error / config.position_weight).tolist())
+        elapsed = epoch - selected[0][0]
+        fraction = min(1.0, max(0.0, elapsed / config.fit_span_s))
+        time_weight = 1.0 + fraction * (config.end_of_span_weight - 1.0)
+        residuals.extend((position_error * time_weight / config.position_weight).tolist())
 
     diagnostics = NumericalResidualDiagnostics(
         position_rms_m=float(np.sqrt(np.mean(np.square(position_errors)))),
@@ -283,6 +299,7 @@ def optimize_initial_state(
     finite_difference_step: float = 1.0e-3,
     bounds: tuple[np.ndarray, np.ndarray] | None = None,
     iteration_callback: Callable[[int, float, float, float, bool], None] | None = None,
+    propagate_trajectory=None,
 ) -> NumericalFitResult:
     """Optimize the initial Cartesian state using NumPy Gauss-Newton steps.
 
@@ -308,19 +325,19 @@ def optimize_initial_state(
     converged = False
     iterations = 0
     for iterations in range(1, max_iterations + 1):
-        residual, _ = build_weighted_residuals(propagate, state, reference_states, config)
+        residual, _ = build_weighted_residuals(propagate, state, reference_states, config, propagate_trajectory=propagate_trajectory)
         residual_norm = float(np.linalg.norm(residual))
         jacobian = np.empty((residual.size, len(variable_indices)))
         for column, index in enumerate(variable_indices):
             trial = state.copy()
             trial[index] += finite_difference_step
-            trial_residual, _ = build_weighted_residuals(propagate, trial, reference_states, config)
+            trial_residual, _ = build_weighted_residuals(propagate, trial, reference_states, config, propagate_trajectory=propagate_trajectory)
             jacobian[:, column] = (trial_residual - residual) / finite_difference_step
         delta, *_ = np.linalg.lstsq(jacobian, -residual, rcond=None)
         state[list(variable_indices)] += delta
         if lower is not None and upper is not None:
             state = np.clip(state, lower, upper)
-        updated_residual, _ = build_weighted_residuals(propagate, state, reference_states, config)
+        updated_residual, _ = build_weighted_residuals(propagate, state, reference_states, config, propagate_trajectory=propagate_trajectory)
         updated_norm = float(np.linalg.norm(updated_residual))
         if updated_norm <= tolerance or (
             float(np.linalg.norm(delta)) <= tolerance and updated_norm < residual_norm
@@ -343,7 +360,7 @@ def optimize_initial_state(
             updated_norm,
             converged,
         )
-    _, diagnostics = build_weighted_residuals(propagate, state, reference_states, config)
+    _, diagnostics = build_weighted_residuals(propagate, state, reference_states, config, propagate_trajectory=propagate_trajectory)
     return NumericalFitResult(state, diagnostics, iterations, converged)
 
 
@@ -394,6 +411,34 @@ def make_numerical_propagator_factory(config, epoch_s: float):
     return factory
 
 
+def make_numerical_trajectory_callback(propagator_factory, initial_epoch_s: float, fit_span_s: float):
+    """Propagate each trial once to the fit endpoint and interpolate its trajectory."""
+    from ephem_toolkit.core.interpolator.hermite import SlidingWindowHermiteInterpolator
+    from ephem_toolkit.core.propagator import OutputMode
+
+    def propagate_trajectory(initial_state: np.ndarray, target_epochs: Sequence[float]):
+        propagator = propagator_factory(np.asarray(initial_state, dtype=float), initial_epoch_s)
+        result = propagator.propagate_to(
+            initial_epoch_s + fit_span_s, output=OutputMode.TRAJECTORY
+        )
+        if not isinstance(result, list) or not result:
+            raise ValueError("numerical propagator did not return a trajectory")
+        degree = min(5, len(result) - 1)
+        interpolator = SlidingWindowHermiteInterpolator(
+            dimension=6, degree=max(1, degree), is_cartesian_state=True
+        )
+        interpolator.set_data(result)
+        values = {}
+        for epoch in target_epochs:
+            state = interpolator.interpolate(float(epoch))
+            if state is None:
+                raise ValueError("propagated trajectory interpolation failed")
+            values[epoch] = np.asarray(state, dtype=float)
+        return values
+
+    return propagate_trajectory
+
+
 def validate_numerical_fit(
     states: Sequence[tuple[float, np.ndarray]], config: NumericalFitConfig
 ) -> None:
@@ -422,6 +467,8 @@ def validate_numerical_fit(
         raise ValueError("fit span and fit step must be positive")
     if config.position_weight <= 0.0:
         raise ValueError("position weight must be positive")
+    if config.end_of_span_weight < 1.0:
+        raise ValueError("end-of-span weight must be at least 1")
     previous_epoch = None
     for epoch, state in states:
         if not np.isfinite(epoch):

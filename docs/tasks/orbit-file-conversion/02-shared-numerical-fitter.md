@@ -102,6 +102,13 @@ algorithm for OEM, OMM, and TLE input paths.
   OEM metadata, numerical-fit configuration, and fitted-element diagnostics.
 - Added one `--debug` message per optimizer try with residual norm, velocity
   step norm, updated residual norm, and convergence status.
+- Changed each trial evaluation to propagate once from the initial epoch to
+  `initial_epoch + fit_span` with `OutputMode.TRAJECTORY`, then Hermite-
+  interpolate the propagated trajectory at all fit epochs. This avoids one
+  numerical simulator run per sample.
+- Added an end-of-span position weighting ramp: residual weight increases
+  linearly from 1× at the initial epoch to 2× at the fit-span endpoint by
+  default, configurable with `--fit-end-weight`.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.
@@ -131,10 +138,10 @@ fit and call `set_initial_state()` for each trial vector. The fixed environment
 and force model are reused while the trial state and propagation history are
 reset between evaluations.
 
-After this change, a 721-state, two-hour live run still exceeded the 20-second
-interactive limit after reaching optimizer start. The remaining cost is the
-repeated numerical integrations needed for the sampled arc, rather than force
-model construction.
+Before batch trajectory evaluation, a 721-state, two-hour live run exceeded
+the 20-second interactive limit after reaching optimizer start. A live
+one-iteration check after batch evaluation completed in 0.50 seconds for 121
+fit records; full multi-iteration runtime still depends on convergence.
 
 ### Remaining work
 
