@@ -66,6 +66,23 @@ def test_parser_accepts_fit_model_and_defaults_to_two_body() -> None:
     ).fit_model == "numerical"
 
 
+def test_parser_accepts_fit_controls() -> None:
+    args = parse_arguments(
+        build_arg_parser(),
+        [
+            "--fit-step", "30", "--fit-observables", "state",
+            "--fit-position-weight", "2", "--fit-velocity-weight", "0.5",
+            "--fit-parameters", "initial-state,drag-coeff",
+            "input.oem", "-o", "output.opm",
+        ],
+    )
+    assert args.fit_step == 30.0
+    assert args.fit_observables == "state"
+    assert args.fit_position_weight == 2.0
+    assert args.fit_velocity_weight == 0.5
+    assert args.fit_parameters == "initial-state,drag-coeff"
+
+
 def test_numerical_fit_model_fails_until_propagator_is_connected() -> None:
     with pytest.raises(SystemExit, match="1"):
         oem_to_opm.main(["--fit-model", "numerical", "input.oem", "-o", "output.opm"])
