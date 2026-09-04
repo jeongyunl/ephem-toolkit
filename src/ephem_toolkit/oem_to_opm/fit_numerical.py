@@ -48,6 +48,19 @@ class NumericalFitConfig:
             values["srp_coeff"] = self.srp_coefficient
         return values
 
+    def to_report_dict(self) -> dict[str, object]:
+        """Return a JSON-compatible description of the fit configuration."""
+        return {
+            "fit_model": self.fit_model,
+            "fit_span_s": self.fit_span_s,
+            "fit_step_s": self.fit_step_s,
+            "observables": self.observables,
+            "position_weight": self.position_weight,
+            "velocity_weight": self.velocity_weight,
+            "preserve_initial_position": self.preserve_initial_position,
+            "fixed_parameters": self.fixed_parameter_values(),
+        }
+
 
 @dataclass(frozen=True)
 class NumericalResidualDiagnostics:
