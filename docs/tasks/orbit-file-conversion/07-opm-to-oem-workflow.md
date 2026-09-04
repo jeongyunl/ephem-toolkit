@@ -17,8 +17,9 @@ tooling.
   gravity, force, and integrator models.
 - Add a propagator-matched arc-fit workflow where a reference OEM and target
   numerical configuration require an initial-state fit.
-- Support fit span, sample spacing, position/velocity weights, and optional
-  supported physical-parameter estimation where fitting is requested.
+- Support fit span, sample spacing, position/velocity weights, and user-supplied
+  fixed physical parameters where fitting is requested; never estimate those
+  parameters.
 - Write `target_model=two-body-kepler` or `target_model=numerical` provenance,
   including numerical settings and fit residuals when applicable.
 
