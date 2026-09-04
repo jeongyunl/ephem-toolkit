@@ -40,6 +40,11 @@ class OemToOpmArgs(argparse.Namespace):
     source_report: str | None
     no_fit_report: bool
     fit_model: str
+    fit_step: float
+    fit_observables: str
+    fit_position_weight: float
+    fit_velocity_weight: float
+    fit_parameters: str
 
 
 def report_error(message: str, exit_code: int = 1) -> None:
@@ -128,6 +133,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         metavar="<two-body|numerical>",
         help="Fitting model; numerical execution is not yet connected (default: two-body).",
     )
+    cli_parser.add_argument("--fit-step", type=float, default=60.0, dest="fit_step", metavar="<seconds>", help="Reference-arc sample spacing in seconds.")
+    cli_parser.add_argument("--fit-observables", choices=["position", "state"], default="position", dest="fit_observables", help="Residual observables (default: position).")
+    cli_parser.add_argument("--fit-position-weight", type=float, default=1.0, dest="fit_position_weight", metavar="<value>", help="Position residual weight.")
+    cli_parser.add_argument("--fit-velocity-weight", type=float, default=1.0, dest="fit_velocity_weight", metavar="<value>", help="Velocity residual weight; used with --fit-observables state.")
+    cli_parser.add_argument("--fit-parameters", choices=["initial-state", "initial-state,drag-coeff", "initial-state,srp-coeff"], default="initial-state", dest="fit_parameters", help="Fitted state selection; physical parameters are fixed user inputs.")
     cli_parser.add_argument(
         "--object-name",
         dest="object_name",
