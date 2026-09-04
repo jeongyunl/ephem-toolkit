@@ -303,6 +303,27 @@ def tle_to_omm(
 # ===================================================================
 
 
+SGP4_COMPATIBLE_MEAN_ELEMENT_THEORIES = frozenset(
+    {"SGP", "PPT3", "SGP4", "SGP/SGP4"}
+)
+
+
+def validate_sgp4_compatible_omm(omm_obj: omm.CcsdsOmm) -> None:
+    """Validate that an OMM is eligible for direct TLE conversion."""
+    theory = omm_obj.mean_element_theory.strip().upper()
+    if theory not in SGP4_COMPATIBLE_MEAN_ELEMENT_THEORIES:
+        raise ValueError(
+            "direct OMM-to-TLE conversion requires an SGP4-compatible "
+            f"MEAN_ELEMENT_THEORY; declared theory is {omm_obj.mean_element_theory!r}. "
+            "Use --refit-sgp4 for non-SGP4 OMM input."
+        )
+    if omm_obj.tle_parameters is None:
+        raise ValueError(
+            "direct OMM-to-TLE conversion requires TLE parameters for "
+            f"MEAN_ELEMENT_THEORY={omm_obj.mean_element_theory!r}"
+        )
+
+
 def omm_to_tle(omm_obj: omm.CcsdsOmm) -> tle.Tle:
     """Convert a :class:`~core.ccsds.omm.CcsdsOmm` to a :class:`~core.tle.Tle`.
 

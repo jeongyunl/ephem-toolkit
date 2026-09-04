@@ -52,7 +52,12 @@ def main(argv=None) -> None:
         print(f"Error: {error}", file=sys.stderr)
         sys.exit(1)
 
-    tle_data: tle.Tle = convert_tle.omm_to_tle(omm_data)
+    try:
+        convert_tle.validate_sgp4_compatible_omm(omm_data)
+        tle_data: tle.Tle = convert_tle.omm_to_tle(omm_data)
+    except ValueError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        sys.exit(1)
 
     if cli_args.output_tle == "-":
         tle.write_tle(sys.stdout, tle_data)

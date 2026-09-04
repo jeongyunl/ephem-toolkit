@@ -1,5 +1,11 @@
 # Task 10: Validate OMM-to-TLE input and add SGP4 refit
 
+## Status
+
+**In progress.** Direct conversion validation is complete. The explicit
+`--refit-sgp4` workflow for non-SGP4 OMMs and its companion fit report remain
+to be implemented.
+
 ## Goal
 
 Prevent invalid direct OMM-to-TLE conversions and provide an explicit path for
@@ -29,3 +35,23 @@ tooling.
 - `--refit-sgp4` succeeds for supported non-SGP4 input and reports source
   theory, fit settings, and residuals.
 - Tests distinguish direct conversion from refitting.
+
+## Progress
+
+### Completed
+
+- Added direct-conversion validation for SGP4-compatible
+  `MEAN_ELEMENT_THEORY` values.
+- Direct conversion now rejects non-SGP4 theories with an actionable message
+  naming the declared theory and pointing to `--refit-sgp4`.
+- Direct conversion now rejects missing TLE parameters before output is
+  written.
+- Preserved direct SGP4-compatible conversion behavior without fabricated fit
+  diagnostics.
+- Added regression coverage for early rejection and output non-creation.
+- Added no runtime dependencies.
+
+### Remaining work
+
+- Add `--refit-sgp4` for supported non-SGP4 OMM input.
+- Add fit-span, source-provenance, and fit-report handling to the refit path.
