@@ -182,7 +182,7 @@ def test_load_spice_kernels_loads_required_kernels(
         "pck00011.tpc",
         "gm_de431.tpc",
         "earth_200101_990825_predict.bpc",
-        "inpop19a_TDB_m100_p100_spice.bsp",
+        "tudat_merged_spk_kernel.bsp",
     ]
 
 
