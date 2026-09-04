@@ -47,6 +47,9 @@ tooling.
   shared parser/delegation boundary.
 - Identified OMM source theory and TLE source provenance as `sgp4`.
 - Added parser/delegation regression tests without adding runtime dependencies.
+- Verified wrapper-boundary delegation: OMM theory dispatch and TLE/SGP4
+  dispatch both feed generated OEM text and source provenance into the shared
+  OEM-to-OPM numerical command.
 
 ### Remaining work
 
