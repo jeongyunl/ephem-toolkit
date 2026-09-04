@@ -358,14 +358,21 @@ def make_numerical_propagator_factory(config, epoch_s: float):
         NumericalPropagator,
     )
 
+    propagator = None
+
     def factory(initial_state: np.ndarray, initial_epoch_s: float):
-        return NumericalPropagator(
-            config,
-            NumericalInitialState(
-                state_m_m_s=np.asarray(initial_state, dtype=float),
-                epoch_s=initial_epoch_s,
-            ),
+        nonlocal propagator
+        state = NumericalInitialState(
+            state_m_m_s=np.asarray(initial_state, dtype=float),
+            epoch_s=initial_epoch_s,
         )
+        if propagator is None:
+            propagator = NumericalPropagator(config, state)
+        else:
+            # Keep the environment and force model, but reset the trial state
+            # and propagation history for every optimizer evaluation.
+            propagator.set_initial_state(state)
+        return propagator
 
     return factory
 

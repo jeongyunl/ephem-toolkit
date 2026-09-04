@@ -100,6 +100,12 @@ def report_error(message: str, exit_code: int = 1) -> NoReturn:
     sys.exit(exit_code)
 
 
+def verbose_message(enabled: bool, message: str) -> None:
+    """Write a conversion progress message when verbose mode is enabled."""
+    if enabled:
+        print(f"[oem-to-opm] {message}", file=sys.stderr)
+
+
 def build_opm(
     epoch: datetime,
     initial_state_m_m_s: np.ndarray,
@@ -194,6 +200,7 @@ def main(argv=None) -> None:
 
     # Determine input source: file path or stdin (piped input)
     read_from_stdin: bool = cli_args.input_oem == "-"
+    verbose_message(cli_args.verbose, f"reading OEM input: {cli_args.input_oem}")
 
     # Read and parse CCSDS OEM ephemeris data
     if read_from_stdin:
@@ -205,6 +212,7 @@ def main(argv=None) -> None:
         oem_data = oem.CcsdsOem.read(oem_path)
 
     states: list[tuple[float, np.ndarray]] = oem_data.states
+    verbose_message(cli_args.verbose, f"loaded {len(states)} OEM state vectors")
 
     if len(states) < 2:
         report_error("Error: At least 2 state vectors required for fitting.")
@@ -222,6 +230,10 @@ def main(argv=None) -> None:
         cli_args.fit_report or provenance.default_fit_report_path(
             cli_args.input_oem, cli_args.output_opm
         )
+    )
+    verbose_message(
+        cli_args.verbose,
+        f"fit model={cli_args.fit_model}, span={fit_span_s:g}s, report={'disabled' if fit_report is None else fit_report}",
     )
 
     # Determine object name: use --object-name if provided, otherwise use OEM metadata
@@ -251,22 +263,33 @@ def main(argv=None) -> None:
     }
     try:
         if cli_args.fit_model == "numerical":
+            verbose_message(cli_args.verbose, "building numerical propagator configuration")
             fit_config = fit_numerical.config_from_fit_options(cli_args)
             fit_numerical.validate_numerical_fit(states, fit_config)
+            verbose_message(cli_args.verbose, "numerical fit configuration validated")
             propagator_config = fit_config.to_propagator_config(
                 satellite_name=object_name or "FIT_TARGET"
             )
+            verbose_message(cli_args.verbose, "numerical propagator configuration ready")
             propagator_factory = fit_numerical.make_numerical_propagator_factory(
                 propagator_config, states[0][0]
             )
             propagation_callback = fit_numerical.make_propagation_callback(
                 propagator_factory, states[0][0]
             )
+            verbose_message(
+                cli_args.verbose,
+                "starting numerical fit; each residual evaluation propagates the sampled OEM arc",
+            )
             numerical_result = fit_numerical.optimize_initial_state(
                 propagation_callback,
                 states[0][1],
                 states,
                 fit_config,
+            )
+            verbose_message(
+                cli_args.verbose,
+                f"numerical fit complete: iterations={numerical_result.iterations}, converged={numerical_result.converged}, position_rms={numerical_result.diagnostics.position_rms_m:g}m",
             )
             fitted_state = numerical_result.initial_state
             fitted_elements = kepler.cartesian_to_keplerian(
@@ -291,6 +314,7 @@ def main(argv=None) -> None:
                 "source_report": source_report,
             }
         else:
+            verbose_message(cli_args.verbose, "running two-body fit")
             fitted_elements, diagnostics = fit_osculating_kepler.fit_osculating_kepler(
                 states,
                 fit_span_s,
@@ -313,6 +337,7 @@ def main(argv=None) -> None:
         first_epoch, fitted_elements, diagnostics, comparison,
         fit_method=cli_args.fit_model,
     )
+    verbose_message(cli_args.verbose, "serializing OPM output")
 
     # Report results to stderr in verbose mode when output is stdout
     if cli_args.verbose and cli_args.output_opm == "-":
@@ -362,12 +387,13 @@ def main(argv=None) -> None:
             if fit_report:
                 provenance.write_fit_report(
                     fit_report,
-                    provenance={"source": f"OEM/{source_model}", "transformation": "two-body fit", "target_model": "two-body-kepler"},
+                    provenance={"source": f"OEM/{source_model}", "transformation": fit_transformation, "target_model": fit_target_model},
                     diagnostics=diagnostics,
                     configuration=fit_configuration,
                     source_report=source_report,
                     residuals=provenance.comparison_residuals(comparison),
                 )
+                verbose_message(cli_args.verbose, f"fit report written to: {fit_report}")
         except Exception as error:
             report_error(f"Error writing OPM file: {error}")
 

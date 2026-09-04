@@ -95,6 +95,9 @@ algorithm for OEM, OMM, and TLE input paths.
   fit provenance/configuration. The output comparison table remains specific
   to two-body mode; numerical residual diagnostics are recorded in the fit
   report.
+- Added verbose progress messages for input loading, fit setup/completion, OPM
+  serialization, and fit-report writing; messages are emitted to stderr only
+  when `--verbose` is supplied.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.
@@ -112,6 +115,22 @@ Live validation on 2026-09-04 loaded the available Tudat SPICE kernels, but
 20-second limit and was interrupted. This occurred even with a two-state,
 five-minute arc, so propagator setup or the first numerical fit evaluation
 needs profiling before longer arcs are attempted.
+
+The prior implementation created a fresh numerical propagator for every sample
+in each residual and finite-difference evaluation. Large OEM arcs could
+therefore require thousands of propagator constructions before the first fit
+completion message; verbose mode marks the configuration, adapter, and
+optimizer-start boundaries to make this cost visible.
+
+The numerical adapter has since been changed to construct one propagator per
+fit and call `set_initial_state()` for each trial vector. The fixed environment
+and force model are reused while the trial state and propagation history are
+reset between evaluations.
+
+After this change, a 721-state, two-hour live run still exceeded the 20-second
+interactive limit after reaching optimizer start. The remaining cost is the
+repeated numerical integrations needed for the sampled arc, rather than force
+model construction.
 
 ### Remaining work
 
