@@ -31,10 +31,13 @@ class NumericalFitConfig:
     position_weight: float = 1.0
     velocity_weight: float = 1.0
     parameters: str = "initial-state"
+    """Parameters used by propagation; physical parameters remain fixed."""
     preserve_initial_position: bool = True
     """Keep the fitted epoch position equal to the first reference position."""
     drag_enabled: bool = False
     srp_enabled: bool = False
+    drag_coefficient: float | None = None
+    srp_coefficient: float | None = None
 
 
 @dataclass(frozen=True)
@@ -129,10 +132,6 @@ def optimize_initial_state(
     numerical-propagation dependency.
     """
     validate_numerical_fit(reference_states, config)
-    if config.parameters != "initial-state":
-        raise ValueError(
-            "physical-parameter fitting requires a parameterized propagator callback"
-        )
     if max_iterations <= 0 or finite_difference_step <= 0.0 or tolerance <= 0.0:
         raise ValueError("optimizer limits and finite-difference step must be positive")
     state = np.asarray(initial_state, dtype=float).copy()
@@ -227,8 +226,16 @@ def validate_numerical_fit(
         raise ValueError("unsupported fit parameters")
     if config.parameters.endswith("drag-coeff") and not config.drag_enabled:
         raise ValueError("drag coefficient fitting requires drag to be enabled")
+    if config.parameters.endswith("drag-coeff") and config.drag_coefficient is None:
+        raise ValueError("drag coefficient must be provided when drag is enabled")
     if config.parameters.endswith("srp-coeff") and not config.srp_enabled:
         raise ValueError("SRP coefficient fitting requires SRP to be enabled")
+    if config.parameters.endswith("srp-coeff") and config.srp_coefficient is None:
+        raise ValueError("SRP coefficient must be provided when SRP is enabled")
+    if config.drag_coefficient is not None and config.drag_coefficient <= 0.0:
+        raise ValueError("drag coefficient must be positive")
+    if config.srp_coefficient is not None and config.srp_coefficient <= 0.0:
+        raise ValueError("SRP coefficient must be positive")
     if config.fit_span_s <= 0.0 or config.fit_step_s <= 0.0:
         raise ValueError("fit span and fit step must be positive")
     if config.position_weight <= 0.0 or config.velocity_weight <= 0.0:

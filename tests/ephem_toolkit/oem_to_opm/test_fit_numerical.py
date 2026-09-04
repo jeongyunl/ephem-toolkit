@@ -26,7 +26,6 @@ def test_valid_numerical_fit_configuration() -> None:
         (NumericalFitConfig(fit_span_s=0), "fit span"),
         (NumericalFitConfig(observables="state", velocity_weight=0), "weights"),
         (NumericalFitConfig(observables="position", velocity_weight=2), "velocity weight"),
-        (NumericalFitConfig(parameters="drag-coeff"), "parameters"),
         (NumericalFitConfig(parameters="initial-state,drag-coeff"), "drag to be enabled"),
         (NumericalFitConfig(parameters="initial-state,srp-coeff"), "SRP to be enabled"),
     ],
@@ -46,7 +45,11 @@ def test_fit_requires_two_six_component_states() -> None:
 def test_force_parameter_fitting_can_be_enabled() -> None:
     validate_numerical_fit(
         states(),
-        NumericalFitConfig(parameters="initial-state,drag-coeff", drag_enabled=True),
+        NumericalFitConfig(parameters="initial-state,drag-coeff", drag_enabled=True, drag_coefficient=2.2),
+    )
+    validate_numerical_fit(
+        states(),
+        NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=True, srp_coefficient=1.3),
     )
 
 
@@ -130,18 +133,14 @@ def test_optimizer_does_not_report_convergence_without_residual_reduction() -> N
     assert result.diagnostics.position_rms_m > 0.0
 
 
-def test_optimizer_rejects_physical_parameters_until_callback_support_exists() -> None:
-    with pytest.raises(ValueError, match="parameterized propagator"):
-        optimize_initial_state(
-            lambda initial, _epoch: initial,
-            np.zeros(6),
-            states(),
-            NumericalFitConfig(parameters="initial-state,drag-coeff", drag_enabled=True),
-        )
-    validate_numerical_fit(
+def test_optimizer_keeps_supplied_physical_parameters_fixed() -> None:
+    result = optimize_initial_state(
+        lambda initial, _epoch: initial,
+        np.zeros(6),
         states(),
-        NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=True),
+        NumericalFitConfig(parameters="initial-state,drag-coeff", drag_enabled=True, drag_coefficient=2.2, fit_step_s=1.0),
     )
+    assert result.converged
 
 
 def test_build_weighted_residuals_supports_full_state() -> None:
