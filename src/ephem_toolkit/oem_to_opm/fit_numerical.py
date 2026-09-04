@@ -324,9 +324,10 @@ def optimize_initial_state(
             state = np.clip(state, lower, upper)
         updated_residual, _ = build_weighted_residuals(propagate, state, reference_states, config, propagate_trajectory=propagate_trajectory)
         updated_norm = float(np.linalg.norm(updated_residual))
+        relative_improvement = (residual_norm - updated_norm) / max(residual_norm, 1.0)
         if updated_norm <= tolerance or (
             float(np.linalg.norm(delta)) <= tolerance and updated_norm < residual_norm
-        ):
+        ) or (updated_norm < residual_norm and relative_improvement <= 1.0e-5):
             converged = True
             break
         if iteration_callback is not None:
