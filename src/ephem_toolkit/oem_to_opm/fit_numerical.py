@@ -224,6 +224,14 @@ def validate_numerical_fit(
         raise ValueError("fit weights must be positive")
     if config.observables == "position" and config.velocity_weight != 1.0:
         raise ValueError("velocity weight applies only when observables is 'state'")
-    for _, state in states:
+    previous_epoch = None
+    for epoch, state in states:
+        if not np.isfinite(epoch):
+            raise ValueError("reference epochs must be finite")
+        if previous_epoch is not None and epoch <= previous_epoch:
+            raise ValueError("reference epochs must be strictly increasing")
+        previous_epoch = epoch
         if np.asarray(state).shape != (6,):
             raise ValueError("each reference state must contain six Cartesian values")
+        if not np.all(np.isfinite(np.asarray(state, dtype=float))):
+            raise ValueError("reference states must contain only finite values")

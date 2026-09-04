@@ -43,6 +43,8 @@ algorithm for OEM, OMM, and TLE input paths.
   state updates.
 - Added coverage for the explicit opt-out path where all six initial-state
   components, including position, are optimized.
+- Added reference-arc validation for finite Cartesian values and strictly
+  increasing epochs.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.

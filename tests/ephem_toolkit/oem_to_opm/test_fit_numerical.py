@@ -91,6 +91,19 @@ def test_optimizer_can_fit_all_state_components_when_position_is_not_preserved()
 
     assert result.converged
     assert np.allclose(result.initial_state, target, atol=1.0e-4)
+
+
+@pytest.mark.parametrize(
+    "reference, message",
+    [
+        ([(1.0, np.zeros(6)), (1.0, np.ones(6))], "strictly increasing"),
+        ([(2.0, np.zeros(6)), (1.0, np.ones(6))], "strictly increasing"),
+        ([(0.0, np.full(6, np.nan)), (1.0, np.zeros(6))], "finite values"),
+    ],
+)
+def test_validation_rejects_invalid_reference_arc(reference, message) -> None:
+    with pytest.raises(ValueError, match=message):
+        validate_numerical_fit(reference, NumericalFitConfig())
     validate_numerical_fit(
         states(),
         NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=True),
