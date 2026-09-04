@@ -52,6 +52,8 @@ tooling.
 - Added `--refit-sgp4`, `--fit-span`, source provenance, and fit-report options.
 - Connected refitting to the existing OMM propagators and shared SGP4/TLE fit
   implementation; reports identify the source theory and SGP4 target.
+- Added success-path regression coverage for propagated reference input,
+  generated TLE output, and fit-report provenance/configuration.
 - Preserved the no-new-runtime-dependencies objective.
 - Added no runtime dependencies.
 
@@ -59,5 +61,3 @@ tooling.
 
 - Verify the refit path with representative DSST, Brouwer, and other supported
   non-SGP4 OMM inputs.
-- Add end-to-end regression coverage for successful refitting and report
-  contents once a stable fixture is selected.

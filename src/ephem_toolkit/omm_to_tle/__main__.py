@@ -29,6 +29,14 @@ def main(argv=None) -> None:
     import ephem_toolkit.core.time_utils as time_utils
     import ephem_toolkit.core.tle as tle
 
+    try:
+        source_model, source_report = provenance.resolve_source_model(
+            cli_args.source_model, cli_args.source_report
+        )
+    except ValueError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        sys.exit(1)
+
     if not cli_args.refit_sgp4 and (
         cli_args.fit_report is not None
         or cli_args.no_fit_report
@@ -46,9 +54,6 @@ def main(argv=None) -> None:
             sys.exit(1)
     else:
         try:
-            source_model, source_report = provenance.resolve_source_model(
-                cli_args.source_model, cli_args.source_report
-            )
             with open(cli_args.input_omm, "r", encoding="utf-8") as input_file:
                 input_text = input_file.read()
         except OSError as error:
@@ -96,7 +101,7 @@ def main(argv=None) -> None:
                     propagate_omm_kepler(
                         omm_data, reference_time, stop_time, 60.0, False, "-"
                     )
-            reference_oem = oem.CcsdsOem.from_source(
+            reference_oem = oem.CcsdsOem.read(
                 io.StringIO(propagated_output.getvalue())
             )
             tle_data, diagnostics = fit_tle_main.fit_tle(

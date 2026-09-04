@@ -25,7 +25,7 @@ unless they imply implementation work.
   deprecated mode compatibility, theory conflict validation, and reporting.
 - **In progress:** Task 10. Direct OMM-to-TLE validation and the explicit
   `--refit-sgp4` path are implemented; representative live refit verification
-  and end-to-end fixture coverage remain.
+  with non-SGP4 data remains.
 - **Pending:** Tasks 6–9 and 11. Their documents describe planned
   implementation work and acceptance criteria.
 
