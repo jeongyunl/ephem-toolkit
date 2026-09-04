@@ -2,11 +2,11 @@
 
 ## Status
 
-**In progress.** The canonical fit-model contract and deprecated mode
-compatibility are implemented for OEM-to-OMM and the OEM-to-TLE wrapper. The
-remaining work is to audit and align the option contracts of all existing
-conversion commands and to add explicit unsupported-option validation where
-needed.
+**Complete for the current conversion commands.** The canonical fit-model
+contract, deprecated mode compatibility, wrapper delegation, and unsupported
+option handling are implemented and tested for the existing OEM-to-OMM,
+OEM-to-TLE, and OMM-to-TLE paths. Future refit workflows will add their own
+model-specific options.
 
 ## Goal
 
@@ -56,7 +56,5 @@ tooling.
 
 ### Remaining work
 
-- Audit `omm-to-tle` and other existing conversion entry points against the
-  proposal option table.
-- Synchronize help text and reject unsupported combinations consistently across
-  those commands.
+- Apply the same option-contract rules to proposed conversion commands when
+  they are implemented.

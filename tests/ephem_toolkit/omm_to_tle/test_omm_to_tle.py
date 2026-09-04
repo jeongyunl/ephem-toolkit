@@ -6,6 +6,8 @@ import argparse
 import io
 import sys
 
+import pytest
+
 from ephem_toolkit.omm_to_tle.omm_to_tle_cli import build_arg_parser, parse_arguments
 
 
@@ -43,3 +45,15 @@ def test_omm_to_tle_cli_uses_typed_namespace(monkeypatch) -> None:
     assert isinstance(args, OmmToTleArgs)
     assert args.input_omm == "input.omm"
     assert args.output_tle == "output.tle"
+
+
+@pytest.mark.parametrize("unsupported_option", ["--fit-model", "--fit-report", "--source-model"])
+def test_omm_to_tle_rejects_fit_and_provenance_options(unsupported_option: str) -> None:
+    """Direct lossless conversion rejects options reserved for refitting."""
+    with pytest.raises(SystemExit) as error:
+        parse_arguments(
+            build_arg_parser(),
+            [unsupported_option, "value", "input.omm", "-o", "output.tle"],
+        )
+
+    assert error.value.code == 2
