@@ -35,6 +35,10 @@ class OemToOpmArgs(argparse.Namespace):
     """Spacecraft name for OPM metadata."""
     object_id: str
     """International designator for OPM metadata."""
+    fit_report: str | None
+    source_model: str
+    source_report: str | None
+    no_fit_report: bool
 
 
 def report_error(message: str, exit_code: int = 1) -> None:
@@ -129,6 +133,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
         dest="object_id",
         help="OBJECT_ID: International designator (e.g., 1998-067A) for OPM output.",
     )
+    cli_parser.add_argument("--fit-report", metavar="<path|->", default=None, help="Write JSON fit diagnostics to a file or stdout.")
+    cli_parser.add_argument("--no-fit-report", action="store_true", help="Disable automatic fit-report creation.")
+    cli_parser.add_argument("--source-model", default="auto", help="Input provenance model (default: auto).")
+    cli_parser.add_argument("--source-report", metavar="<path>", default=None, help="Supplementary input provenance report.")
 
     return cli_parser
 

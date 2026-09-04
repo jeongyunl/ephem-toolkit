@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 
 def main(argv=None) -> None:
@@ -30,7 +31,21 @@ def main(argv=None) -> None:
     )
     cli_args = cli_parser.parse_args(argv)
 
+    from ephem_toolkit.core.provenance import default_fit_report_path
+
+    if cli_args.no_fit_report and cli_args.fit_report:
+        cli_parser.error("--fit-report and --no-fit-report cannot be used together")
+    fit_report = None if cli_args.no_fit_report else (
+        cli_args.fit_report or default_fit_report_path(
+            cli_args.input_oem, cli_args.output_tle
+        )
+    )
+
+    if cli_args.output_tle == "-" and fit_report == "-":
+        cli_parser.error("--output and --fit-report cannot both be '-' because they are different formats")
+
     import io
+    import tempfile
     from contextlib import redirect_stdout
     import ephem_toolkit.oem_to_omm as oem_to_omm
     import ephem_toolkit.omm_to_tle as omm_to_tle
@@ -38,33 +53,58 @@ def main(argv=None) -> None:
     output_tle = cli_args.output_tle
 
     filtered_arguments: list[str] = []
+    report_stdout = False
+    report_file = None
     index = 0
     while index < len(argv):
         argument = argv[index]
         if argument in ("-o", "--output"):
             filtered_arguments.extend(["-o", "-"])
-            if index + 1 < len(argv):
-                index += 2
-            else:
-                index += 1
+            index += 2
             continue
         if argument.startswith("--output="):
             filtered_arguments.append("--output=-")
             index += 1
             continue
+        if argument in ("--fit-report", "--source-report") and index + 1 < len(argv):
+            value = argv[index + 1]
+            if argument == "--fit-report" and value == "-":
+                report_stdout = True
+                report_file = tempfile.NamedTemporaryFile(prefix="oem-to-tle-fit-", suffix=".json", delete=False)
+                report_file.close()
+                filtered_arguments.extend([argument, report_file.name])
+            else:
+                filtered_arguments.extend([argument, value])
+            index += 2
+            continue
         filtered_arguments.append(argument)
         index += 1
 
-    omm_output = io.StringIO()
-    with redirect_stdout(omm_output):
-        oem_to_omm.main(["--mode", "tle", *filtered_arguments])
+    if fit_report is not None and not any(
+        argument == "--fit-report" or argument.startswith("--fit-report=")
+        for argument in filtered_arguments
+    ):
+        filtered_arguments.extend(["--fit-report", str(fit_report)])
 
-    original_stdin = sys.stdin
-    sys.stdin = io.StringIO(omm_output.getvalue())
+    omm_output = io.StringIO()
     try:
-        omm_to_tle.main(["-", "-o", output_tle or "-"])
+        with redirect_stdout(omm_output):
+            oem_to_omm.main(["--mode", "tle", *filtered_arguments])
+
+        original_stdin = sys.stdin
+        sys.stdin = io.StringIO(omm_output.getvalue())
+        try:
+            omm_to_tle.main(["-", "-o", output_tle or "-"])
+        finally:
+            sys.stdin = original_stdin
+
+        if report_stdout and report_file is not None:
+            sys.stdout.write(Path(report_file.name).read_text(encoding="utf-8"))
     finally:
-        sys.stdin = original_stdin
+        if report_file is not None:
+            import os
+
+            os.unlink(report_file.name)
 
 
 def cli(argv=None) -> int:

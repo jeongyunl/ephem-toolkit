@@ -50,6 +50,10 @@ class OemToOmmArgs(argparse.Namespace):
     """TLE element set number."""
     tle_rev_at_epoch: int
     """TLE revolution number at epoch."""
+    fit_report: str | None
+    source_model: str
+    source_report: str | None
+    no_fit_report: bool
 
 
 def build_common_arg_parser(
@@ -112,6 +116,10 @@ def build_common_arg_parser(
         dest="object_id",
         help=object_id_help,
     )
+    cli_parser.add_argument("--fit-report", metavar="<path|->", default=None, help="Write JSON fit diagnostics to a file or stdout.")
+    cli_parser.add_argument("--no-fit-report", action="store_true", help="Disable automatic fit-report creation.")
+    cli_parser.add_argument("--source-model", default="auto", help="Input provenance model (default: auto).")
+    cli_parser.add_argument("--source-report", metavar="<path>", default=None, help="Supplementary input provenance report.")
     cli_parser.add_argument(
         "--tle-refinement",
         choices=["none", "cartesian", "keplerian"],

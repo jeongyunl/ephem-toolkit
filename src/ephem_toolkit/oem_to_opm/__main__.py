@@ -38,6 +38,7 @@ import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.ccsds.opm as opm
 import ephem_toolkit.core.propagator.kepler as kepler
 import ephem_toolkit.core.time_utils as time_utils
+import ephem_toolkit.core.provenance as provenance
 
 from .oem_to_opm_cli import OemToOpmArgs
 from .oem_to_opm_cli import build_arg_parser, parse_arguments
@@ -208,6 +209,13 @@ def main(argv=None) -> None:
         report_error("Error: At least 2 state vectors required for fitting.")
 
     fit_span_s: float = cli_args.fit_span.total_seconds()
+    if cli_args.no_fit_report and cli_args.fit_report:
+        report_error("Error: --fit-report and --no-fit-report cannot be used together")
+    fit_report = None if cli_args.no_fit_report else (
+        cli_args.fit_report or provenance.default_fit_report_path(
+            cli_args.input_oem, cli_args.output_opm
+        )
+    )
 
     # Determine object name: use --object-name if provided, otherwise use OEM metadata
     object_name: str = (
@@ -267,6 +275,14 @@ def main(argv=None) -> None:
                 time_system=oem_data.meta.time_system or "UTC",
                 mu_m3_s2=cli_args.mu_m3_s2,
             )
+            opm_obj.header.comments.extend([
+                provenance.provenance_comment(source=f"OEM/{cli_args.source_model if cli_args.source_model != 'auto' else 'unknown'}", transformation="two-body fit", target_model="two-body-kepler"),
+                provenance.fit_comment(
+                    span_s=provenance.diagnostic_value(diagnostics, "span_s", fit_span_s),
+                    samples=provenance.diagnostic_value(diagnostics, "n_records", len(states)),
+                    position_rms=provenance.diagnostic_value(diagnostics, "rms_position_m", 0.0),
+                ),
+            ])
             # Output to stdout if dest is "-", otherwise to file
             if cli_args.output_opm == "-":
                 opm_obj.to_file(sys.stdout)
@@ -277,6 +293,13 @@ def main(argv=None) -> None:
                         f"OPM file written to: {cli_args.output_opm}",
                         file=sys.stderr,
                     )
+            if fit_report:
+                provenance.write_fit_report(
+                    fit_report,
+                    provenance={"source": f"OEM/{cli_args.source_model if cli_args.source_model != 'auto' else 'unknown'}", "transformation": "two-body fit", "target_model": "two-body-kepler"},
+                    diagnostics=diagnostics,
+                    configuration={"fit_span_s": fit_span_s, "source_report": cli_args.source_report},
+                )
         except Exception as error:
             report_error(f"Error writing OPM file: {error}")
 

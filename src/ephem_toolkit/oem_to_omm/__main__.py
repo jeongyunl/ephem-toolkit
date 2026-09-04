@@ -102,6 +102,7 @@ def main(argv=None) -> None:
     import numpy as np
 
     import ephem_toolkit.core.convert_tle as convert_tle
+    import ephem_toolkit.core.provenance as provenance
     import ephem_toolkit.core.propagator.brouwer_j2 as brouwer
     import ephem_toolkit.core.ccsds.oem as oem
     import ephem_toolkit.core.ccsds.omm as omm
@@ -130,6 +131,33 @@ def main(argv=None) -> None:
         report_error("Error: At least 2 state vectors required for fitting.")
 
     fit_span_s: float = cli_args.fit_span.total_seconds()
+
+    source_model = cli_args.source_model
+    if source_model == "auto":
+        source_model = "unknown"
+    if cli_args.no_fit_report and cli_args.fit_report:
+        report_error("Error: --fit-report and --no-fit-report cannot be used together")
+    fit_report = None if cli_args.no_fit_report else (
+        cli_args.fit_report or provenance.default_fit_report_path(
+            cli_args.input_oem, cli_args.output_omm
+        )
+    )
+
+    def write_report(target_model: str, diagnostics: fit_common.FitDiagnostics) -> None:
+        if fit_report:
+            provenance.write_fit_report(
+                fit_report,
+                provenance={"source": f"OEM/{source_model}", "transformation": "fit", "target_model": target_model},
+                diagnostics=diagnostics,
+                configuration={"fit_span_s": fit_span_s, "source_report": cli_args.source_report},
+            )
+
+    def fit_summary(diagnostics):
+        return provenance.fit_comment(
+            span_s=provenance.diagnostic_value(diagnostics, "span_s", fit_span_s),
+            samples=provenance.diagnostic_value(diagnostics, "n_records", len(states)),
+            position_rms=provenance.diagnostic_value(diagnostics, "rms_position_m", 0.0),
+        )
 
     # Determine object name: use --object-name if provided, otherwise use OEM metadata
     object_name: str = (
@@ -173,6 +201,8 @@ def main(argv=None) -> None:
                 )
                 omm_obj.originator = "oem_to_omm"
                 omm_obj.comments = [
+                    provenance.provenance_comment(source=f"OEM/{source_model}", transformation="mean-element fit", target_model=mean_element_theory),
+                    fit_summary(diagnostics),
                     "DSST mean elements (J2 secular fit)",
                     "Compliant with CCSDS 502.0-B-3 (2023-04)",
                 ]
@@ -192,6 +222,7 @@ def main(argv=None) -> None:
                             f"OMM file written to: {cli_args.output_omm}",
                             file=sys.stderr,
                         )
+                write_report(mean_element_theory, diagnostics)
             except Exception as error:
                 report_error(f"Error writing OMM file: {error}")
         return
@@ -248,6 +279,10 @@ def main(argv=None) -> None:
                     mean_element_theory=mean_element_theory,
                 )
                 omm_obj.originator = "oem_to_omm"
+                omm_obj.comments = [
+                    provenance.provenance_comment(source=f"OEM/{source_model}", transformation="mean-element fit", target_model=mean_element_theory),
+                        fit_summary(diagnostics),
+                ]
                 if cli_args.output_omm == "-":
                     omm_obj.to_file(sys.stdout)
                 else:
@@ -257,6 +292,7 @@ def main(argv=None) -> None:
                             f"OMM file written to: {cli_args.output_omm}",
                             file=sys.stderr,
                         )
+                write_report(mean_element_theory, diagnostics)
             except Exception as error:
                 report_error(f"Error writing OMM file: {error}")
         return
@@ -320,6 +356,8 @@ def main(argv=None) -> None:
                 )
                 omm_obj.originator = "oem_to_omm"
                 omm_obj.comments = [
+                    provenance.provenance_comment(source=f"OEM/{source_model}", transformation="SGP4-compatible mean-element fit", target_model="SGP4"),
+                    fit_summary(diagnostics),
                     "TLE mean elements (SGP4-compatible)",
                     "Compliant with CCSDS 502.0-B-3 (2023-04)",
                 ]
@@ -332,6 +370,7 @@ def main(argv=None) -> None:
                             f"OMM file written to: {cli_args.output_omm}",
                             file=sys.stderr,
                         )
+                write_report("SGP4", diagnostics)
             except Exception as error:
                 report_error(f"Error writing OMM file: {error}")
         return
