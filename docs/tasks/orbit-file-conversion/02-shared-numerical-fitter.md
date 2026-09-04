@@ -19,6 +19,9 @@ algorithm for OEM, OMM, and TLE input paths.
 - Added weighted position/state residual construction and residual diagnostics
   behind a propagator callback, keeping the implementation independent of the
   numerical propagation engine.
+- Made initial-position preservation an explicit default: the residual helper
+  anchors the propagated epoch position to the first reference OEM position
+  while leaving the epoch velocity available for fitting.
 
 This is the validation boundary only. It does not yet run an optimizer or
 connect to the numerical propagator.
@@ -33,6 +36,8 @@ result recorded in the orbit-conversion task README.
 - Connect `NumericalFitConfig` to `core.propagator.numerical`.
 - Implement optimization around the residual callback and connect it to the
   numerical propagator.
+- Preserve the initial position as a hard constraint in the optimizer and
+  document that behavior in fit reports.
 - Add force-model and physical-parameter validation, diagnostics, and wrapper
   integration.
 
