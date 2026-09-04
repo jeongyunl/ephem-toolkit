@@ -16,6 +16,9 @@ algorithm for OEM, OMM, and TLE input paths.
   and supported parameter selections.
 - Added validation tests in
   [`tests/ephem_toolkit/oem_to_opm/test_fit_numerical.py`](../../../tests/ephem_toolkit/oem_to_opm/test_fit_numerical.py).
+- Added weighted position/state residual construction and residual diagnostics
+  behind a propagator callback, keeping the implementation independent of the
+  numerical propagation engine.
 
 This is the validation boundary only. It does not yet run an optimizer or
 connect to the numerical propagator.
@@ -28,7 +31,8 @@ result recorded in the orbit-conversion task README.
 ### Remaining work
 
 - Connect `NumericalFitConfig` to `core.propagator.numerical`.
-- Implement weighted position/state residual construction and optimization.
+- Implement optimization around the residual callback and connect it to the
+  numerical propagator.
 - Add force-model and physical-parameter validation, diagnostics, and wrapper
   integration.
 
