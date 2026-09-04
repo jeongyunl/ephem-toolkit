@@ -65,6 +65,8 @@ algorithm for OEM, OMM, and TLE input paths.
   construction.
 - Added a consistency check that requires the propagator's drag/SRP values to
   exactly match the user-supplied fixed fit parameters.
+- Added a lazy `NumericalPropagatorConfig` bridge that carries the complete
+  fixed force-model configuration into the existing propagation API.
 - Added the `oem-to-opm --fit-model {two-body|numerical}` parser contract;
   `two-body` remains the default, while numerical execution currently fails
   explicitly until force-model wiring is complete.
@@ -90,6 +92,8 @@ result recorded in the orbit-conversion task README.
 - Add the corresponding force-model CLI options and map them into this
   configuration.
 - Connect the mapped force-model configuration to the numerical propagator.
+- Replace the CLI numerical-mode gate with construction of this propagator
+  configuration and invocation of the optimizer.
 - Invoke fixed-parameter consistency validation when constructing the actual
   propagator.
 - Add force-model validation, diagnostics, and wrapper integration.

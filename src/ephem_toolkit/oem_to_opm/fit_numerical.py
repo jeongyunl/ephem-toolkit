@@ -79,6 +79,32 @@ class NumericalFitConfig:
             "mars_gravity": self.mars_gravity,
         }
 
+    def to_propagator_config(self, *, satellite_name: str = "FIT_TARGET"):
+        """Build the existing numerical propagator configuration lazily."""
+        from ephem_toolkit.core.propagator.numerical import NumericalPropagatorConfig
+
+        if self.satellite_mass_kg is None or self.drag_area_m2 is None:
+            raise ValueError("satellite mass and drag area are required for numerical propagation")
+        if self.earth_gravity is None or self.integrator is None or self.integrator_step_size_s is None:
+            raise ValueError("gravity and integrator settings are required for numerical propagation")
+        return NumericalPropagatorConfig(
+            satellite_name=satellite_name,
+            satellite_mass_kg=self.satellite_mass_kg,
+            integrator_method=self.integrator,
+            integrator_step_size_values_s=self.integrator_step_size_s,
+            earth_spherical_harmonic_gravity_degree=self.earth_gravity[0],
+            earth_spherical_harmonic_gravity_order=self.earth_gravity[1],
+            satellite_drag_area_m2=self.drag_area_m2,
+            is_srp_on=self.srp_enabled,
+            srp_coefficient=self.srp_coefficient or 0.0,
+            is_earth_drag_on=self.drag_enabled,
+            satellite_drag_coefficient=self.drag_coefficient or 0.0,
+            is_moon_gravity_on=self.moon_gravity,
+            is_sun_gravity_on=self.sun_gravity,
+            is_venus_gravity_on=self.venus_gravity,
+            is_mars_gravity_on=self.mars_gravity,
+        )
+
 
 def config_from_propagation_options(options, *, fit_span_s: float = 7200.0, fit_step_s: float = 60.0, parameters: str = "initial-state") -> NumericalFitConfig:
     """Build fixed-parameter fit configuration from propagate-orbit options."""
