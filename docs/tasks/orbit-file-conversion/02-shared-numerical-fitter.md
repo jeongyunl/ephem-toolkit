@@ -104,6 +104,9 @@ algorithm for OEM, OMM, and TLE input paths.
 - `--debug` now reports the position RMS from the unadjusted OEM initial state
   before the first optimizer try, allowing direct comparison with the fitted
   result.
+- Increased the numerical-fit iteration default to 100 and added
+  `--fit-max-iterations` for CLI configuration; the selected value is included
+  in fit-report configuration.
 - Changed each trial evaluation to propagate once from the initial epoch to
   `initial_epoch + fit_span` with `OutputMode.TRAJECTORY`, then Hermite-
   interpolate the propagated trajectory at all fit epochs. This avoids one

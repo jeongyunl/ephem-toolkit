@@ -80,6 +80,7 @@ def test_parser_accepts_fit_controls() -> None:
     assert args.fit_observables == "position"
     assert args.fit_position_weight == 2.0
     assert args.fit_end_weight == 2.0
+    assert args.fit_max_iterations == 100
     assert args.fit_parameters == "initial-state,drag-coeff"
 
 
@@ -160,6 +161,14 @@ def test_parser_accepts_no_fit_report() -> None:
 def test_parser_accepts_debug_mode() -> None:
     args = parse_arguments(build_arg_parser(), ["--debug", "input.oem", "-o", "output.opm"])
     assert args.debug is True
+
+
+def test_parser_accepts_max_fit_iterations() -> None:
+    args = parse_arguments(
+        build_arg_parser(),
+        ["--fit-max-iterations", "12", "input.oem", "-o", "output.opm"],
+    )
+    assert args.fit_max_iterations == 12
 
 
 def test_main_writes_initial_state_and_osculating_elements_to_opm(

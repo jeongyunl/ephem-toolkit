@@ -38,6 +38,7 @@ class NumericalFitConfig:
 
     fit_model: str = "numerical"
     fit_span_s: float = 7200.0
+    max_iterations: int = 100
     fit_step_s: float = 60.0
     observables: str = "position"
     position_weight: float = 1.0
@@ -78,6 +79,7 @@ class NumericalFitConfig:
         return {
             "fit_model": self.fit_model,
             "fit_span_s": self.fit_span_s,
+            "max_iterations": self.max_iterations,
             "fit_step_s": self.fit_step_s,
             "observables": self.observables,
             "position_weight": self.position_weight,
@@ -150,6 +152,7 @@ def config_from_fit_options(options) -> NumericalFitConfig:
     return NumericalFitConfig(
         fit_model=str(options.fit_model),
         fit_span_s=float(options.fit_span.total_seconds()),
+        max_iterations=int(getattr(options, "fit_max_iterations", 100)),
         fit_step_s=float(getattr(options, "fit_step", 60.0)),
         observables=str(options.fit_observables),
         position_weight=float(options.fit_position_weight),
@@ -276,7 +279,7 @@ def optimize_initial_state(
     reference_states: Sequence[tuple[float, np.ndarray]],
     config: NumericalFitConfig,
     *,
-    max_iterations: int = 25,
+    max_iterations: int = 100,
     tolerance: float = 1.0e-6,
     finite_difference_step: float = 1.0e-3,
     bounds: tuple[np.ndarray, np.ndarray] | None = None,
@@ -447,6 +450,8 @@ def validate_numerical_fit(
         raise ValueError("SRP coefficient must be positive")
     if config.fit_span_s <= 0.0:
         raise ValueError("fit span must be positive")
+    if config.max_iterations <= 0:
+        raise ValueError("maximum fit iterations must be positive")
     if config.position_weight <= 0.0:
         raise ValueError("position weight must be positive")
     if config.end_of_span_weight < 1.0:
