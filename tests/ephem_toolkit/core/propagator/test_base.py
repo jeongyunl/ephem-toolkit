@@ -35,7 +35,7 @@ def test_propagator_requires_initial_state():
     with pytest.raises(RuntimeError, match="Initial state not set"):
         prop.propagate_to(1000.0)
 
-    with pytest.raises(RuntimeError, match="Reference epoch not set"):
+    with pytest.raises(RuntimeError, match="Initial state not set"):
         prop.propagate_by(1000.0)
 
 
@@ -59,6 +59,22 @@ def test_propagator_after_set_initial_state():
     result = prop.propagate_to(1000.0, output=OutputMode.FINAL)
     assert result is not None
     assert prop._state_called
+
+
+def test_propagate_to_requires_non_decreasing_epoch():
+    """Target epochs cannot move backward relative to the current reference."""
+    prop = MockPropagator()
+    elements = np.array([7000e3, 0.001, 0.0, 0.0, 0.0, 0.0])
+    initial_state = KeplerianState(elements=elements, epoch_s=100.0)
+    prop.set_initial_state(initial_state)
+
+    with pytest.raises(
+        ValueError, match="greater than or equal to current reference_epoch_s"
+    ):
+        prop.propagate_to(99.0, output=OutputMode.FINAL)
+
+    result = prop.propagate_to(100.0, output=OutputMode.FINAL)
+    assert result[0] == 100.0
 
 
 def test_output_mode_none():
