@@ -35,8 +35,8 @@ algorithm for OEM, OMM, and TLE input paths.
 - Added a propagator-factory adapter so the optimizer can consume the existing
   `propagate_to` interface without importing or duplicating a propagation
   engine.
-- Replaced fixed-index residual sampling with elapsed-time-based selection so
-  irregularly sampled OEM arcs honor `fit-step` and `fit-span` correctly.
+- Residual evaluation now uses every source OEM state vector within
+  `fit-span`; no fit-step resampling is performed.
 - Added a lazy factory for the existing `core.propagator.numerical` API;
   numerical-engine imports occur only when fitting is invoked, while tests can
   continue using injected mock factories.
@@ -71,11 +71,10 @@ algorithm for OEM, OMM, and TLE input paths.
   fixed force-model configuration into the existing propagation API.
 - Added failure-path coverage requiring mass, area, gravity, and integrator
   settings before a numerical propagator configuration can be constructed.
-- Added `oem-to-opm` parser options for fit step, observables, residual weights,
+- Added `oem-to-opm` parser options for observables and residual weights,
   and fixed-parameter selection; execution remains gated pending force-model
   wiring.
-- Added CLI validation requiring strictly positive fit-step and residual-weight
-  values.
+- Added CLI validation requiring strictly positive residual-weight values.
 - Added an adapter that maps parsed OEM-to-OPM fit controls into
   `NumericalFitConfig`, preserving model, span, sampling, observables, weights,
   and fixed-parameter selection.
@@ -161,7 +160,8 @@ fit records; full multi-iteration runtime still depends on convergence.
 - Accept a reference OEM with at least two states.
 - Support `two-body` and `numerical` fit models, retaining two-body as the
   existing default where applicable.
-- Support fit span, Hermite sample spacing, position residuals, and the
+- Support fit span, source-OEM sample epochs, propagated-trajectory Hermite
+  interpolation, position residuals, and the
   supported parameter sets:
   `initial-state`, `initial-state,drag-coeff`, and
   `initial-state,srp-coeff`.

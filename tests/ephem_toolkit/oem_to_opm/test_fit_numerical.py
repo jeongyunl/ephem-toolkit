@@ -296,8 +296,8 @@ def test_build_weighted_residuals_uses_position_only() -> None:
         NumericalFitConfig(fit_step_s=1.0),
     )
 
-    assert residuals.shape == (61 * 3,)
-    assert diagnostics.n_records == 61
+    assert residuals.shape == (2 * 3,)
+    assert diagnostics.n_records == 2
     assert diagnostics.velocity_rms_m_s is None
 
 
@@ -434,5 +434,5 @@ def test_residual_sampling_handles_irregular_epochs_and_fit_span() -> None:
         NumericalFitConfig(fit_span_s=100.0, fit_step_s=60.0),
     )
 
-    assert calls == [0.0, 60.0, 100.0]
+    assert calls == [0.0, 30.0, 75.0]
     assert diagnostics.n_records == 3

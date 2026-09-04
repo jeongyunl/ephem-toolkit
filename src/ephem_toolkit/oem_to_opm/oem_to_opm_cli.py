@@ -48,7 +48,6 @@ class OemToOpmArgs(argparse.Namespace):
     source_report: str | None
     no_fit_report: bool
     fit_model: str
-    fit_step: float
     fit_observables: str
     fit_position_weight: float
     fit_end_weight: float
@@ -168,7 +167,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
         metavar="<two-body|numerical>",
         help="Fitting model (default: two-body).",
     )
-    cli_parser.add_argument("--fit-step", type=parse_positive_float, default=60.0, dest="fit_step", metavar="<seconds>", help="Reference-arc sample spacing in seconds.")
     cli_parser.add_argument("--fit-observables", choices=["position"], default="position", dest="fit_observables", help="Residual observable: position only (default: position).")
     cli_parser.add_argument("--fit-position-weight", type=parse_positive_float, default=1.0, dest="fit_position_weight", metavar="<value>", help="Position residual weight.")
     cli_parser.add_argument("--fit-end-weight", type=parse_positive_float, default=2.0, dest="fit_end_weight", metavar="<value>", help="Position residual multiplier at the end of the fit span (default: 2.0).")
