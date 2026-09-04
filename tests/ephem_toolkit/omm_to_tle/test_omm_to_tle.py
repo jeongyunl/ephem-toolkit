@@ -53,10 +53,8 @@ def test_omm_to_tle_cli_uses_typed_namespace(monkeypatch) -> None:
 def test_omm_to_tle_rejects_fit_and_provenance_options(unsupported_option: str) -> None:
     """Direct lossless conversion rejects options reserved for refitting."""
     with pytest.raises(SystemExit) as error:
-        parse_arguments(
-            build_arg_parser(),
-            [unsupported_option, "value", "input.omm", "-o", "output.tle"],
-        )
+        args = [unsupported_option, "value", "input.omm", "-o", "output.tle"]
+        omm_to_tle.main(args)
 
     assert error.value.code == 2
 
@@ -76,3 +74,13 @@ def test_omm_to_tle_rejects_non_sgp4_theory_before_writing(
 
     assert error.value.code == 1
     assert not output.exists()
+
+
+def test_omm_to_tle_parser_accepts_refit_controls() -> None:
+    args = parse_arguments(
+        build_arg_parser(),
+        ["--refit-sgp4", "--fit-span", "90m", "input.omm", "-o", "output.tle"],
+    )
+
+    assert args.refit_sgp4 is True
+    assert args.fit_span.total_seconds() == 5400.0

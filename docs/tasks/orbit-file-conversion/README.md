@@ -23,8 +23,9 @@ unless they imply implementation work.
   current conversion commands.
 - **Complete:** Task 4. OEM-to-OMM supports canonical fit-model selection,
   deprecated mode compatibility, theory conflict validation, and reporting.
-- **In progress:** Task 10. Direct OMM-to-TLE validation is implemented;
-  explicit SGP4 refitting for non-SGP4 OMMs remains.
+- **In progress:** Task 10. Direct OMM-to-TLE validation and the explicit
+  `--refit-sgp4` path are implemented; representative live refit verification
+  and end-to-end fixture coverage remain.
 - **Pending:** Tasks 6–9 and 11. Their documents describe planned
   implementation work and acceptance criteria.
 

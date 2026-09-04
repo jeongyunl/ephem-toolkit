@@ -2,9 +2,9 @@
 
 ## Status
 
-**In progress.** Direct conversion validation is complete. The explicit
-`--refit-sgp4` workflow for non-SGP4 OMMs and its companion fit report remain
-to be implemented.
+**In progress.** Direct conversion validation and the explicit
+`--refit-sgp4` workflow are implemented. Live validation with representative
+non-SGP4 OMMs remains before this task can be closed.
 
 ## Goal
 
@@ -49,9 +49,15 @@ tooling.
 - Preserved direct SGP4-compatible conversion behavior without fabricated fit
   diagnostics.
 - Added regression coverage for early rejection and output non-creation.
+- Added `--refit-sgp4`, `--fit-span`, source provenance, and fit-report options.
+- Connected refitting to the existing OMM propagators and shared SGP4/TLE fit
+  implementation; reports identify the source theory and SGP4 target.
+- Preserved the no-new-runtime-dependencies objective.
 - Added no runtime dependencies.
 
 ### Remaining work
 
-- Add `--refit-sgp4` for supported non-SGP4 OMM input.
-- Add fit-span, source-provenance, and fit-report handling to the refit path.
+- Verify the refit path with representative DSST, Brouwer, and other supported
+  non-SGP4 OMM inputs.
+- Add end-to-end regression coverage for successful refitting and report
+  contents once a stable fixture is selected.
