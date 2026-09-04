@@ -77,6 +77,13 @@ def write_fit_report(
         "configuration": configuration or {},
         "diagnostics": asdict(diagnostics) if is_dataclass(diagnostics) else diagnostics,
     }
+    report["status"] = "converged"
+    fit_method = diagnostic_value(diagnostics, "fit_method")
+    iterations = diagnostic_value(diagnostics, "iterations")
+    if fit_method is not None:
+        report["fit_method"] = fit_method
+    if iterations is not None:
+        report["iterations"] = iterations
     if source_report is not None:
         report["source_report"] = source_report
     text = json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n"
