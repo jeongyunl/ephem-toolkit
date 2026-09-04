@@ -157,6 +157,11 @@ def test_parser_accepts_no_fit_report() -> None:
     assert args.no_fit_report is True
 
 
+def test_parser_accepts_debug_mode() -> None:
+    args = parse_arguments(build_arg_parser(), ["--debug", "input.oem", "-o", "output.opm"])
+    assert args.debug is True
+
+
 def test_main_writes_initial_state_and_osculating_elements_to_opm(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

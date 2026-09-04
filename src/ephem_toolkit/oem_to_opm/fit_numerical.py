@@ -7,7 +7,7 @@ TLE wrappers can share validation before the numerical propagator is invoked.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Callable, Sequence
 
 import numpy as np
 
@@ -282,6 +282,7 @@ def optimize_initial_state(
     tolerance: float = 1.0e-6,
     finite_difference_step: float = 1.0e-3,
     bounds: tuple[np.ndarray, np.ndarray] | None = None,
+    iteration_callback: Callable[[int, float, float, float, bool], None] | None = None,
 ) -> NumericalFitResult:
     """Optimize the initial Cartesian state using NumPy Gauss-Newton steps.
 
@@ -326,6 +327,22 @@ def optimize_initial_state(
         ):
             converged = True
             break
+        if iteration_callback is not None:
+            iteration_callback(
+                iterations,
+                residual_norm,
+                float(np.linalg.norm(delta)),
+                updated_norm,
+                converged,
+            )
+    if iteration_callback is not None and converged:
+        iteration_callback(
+            iterations,
+            residual_norm,
+            float(np.linalg.norm(delta)),
+            updated_norm,
+            converged,
+        )
     _, diagnostics = build_weighted_residuals(propagate, state, reference_states, config)
     return NumericalFitResult(state, diagnostics, iterations, converged)
 
