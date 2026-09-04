@@ -74,6 +74,9 @@ algorithm for OEM, OMM, and TLE input paths.
   wiring.
 - Added CLI validation requiring strictly positive fit-step and residual-weight
   values.
+- Added an adapter that maps parsed OEM-to-OPM fit controls into
+  `NumericalFitConfig`, preserving model, span, sampling, observables, weights,
+  and fixed-parameter selection.
 - Added the `oem-to-opm --fit-model {two-body|numerical}` parser contract;
   `two-body` remains the default, while numerical execution currently fails
   explicitly until force-model wiring is complete.

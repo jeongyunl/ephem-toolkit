@@ -7,6 +7,7 @@ from ephem_toolkit.oem_to_opm.fit_numerical import (
     NumericalFitConfig,
     build_weighted_residuals,
     config_from_propagation_options,
+    config_from_fit_options,
     validate_fixed_parameter_values,
     optimize_initial_state,
     make_propagation_callback,
@@ -145,6 +146,25 @@ def test_config_from_propagation_options_preserves_fixed_coefficients() -> None:
     assert config.earth_gravity == (8, 8)
     assert config.integrator_step_size_s == (30.0,)
     assert config.moon_gravity is True
+
+
+def test_config_from_fit_options_preserves_cli_fit_controls() -> None:
+    from datetime import timedelta
+
+    class Options:
+        fit_model = "numerical"
+        fit_span = timedelta(hours=1)
+        fit_step = 30.0
+        fit_observables = "state"
+        fit_position_weight = 2.0
+        fit_velocity_weight = 0.5
+        fit_parameters = "initial-state"
+
+    config = config_from_fit_options(Options())
+    assert config.fit_model == "numerical"
+    assert config.fit_span_s == 3600.0
+    assert config.observables == "state"
+    assert config.velocity_weight == 0.5
 
 
 def test_validate_fixed_parameter_values_requires_exact_propagator_values() -> None:
