@@ -85,7 +85,7 @@ COMMENT EPHEMERIS_FIT: span=<duration>; samples=<count>; position_rms=<value>; v
 ```
 
 Include the source frame and time system, target gravity and force models,
-integrator and step-size settings, estimated parameters, and maximum residuals
+integrator and step-size settings, user-supplied physical parameters, and maximum residuals
 where applicable. An OPM may additionally use `USER_DEFINED_EPHEMERIS_*` keys
 for structured values, but must retain the portable comments. A TLE has no
 space for arbitrary provenance; write the same information to a companion
@@ -139,7 +139,7 @@ theory label that conflicts with the fitting implementation.
 | Transformation | `--fit-span <duration>` | `oem-to-omm`, `oem-to-opm`, `oem-to-tle`, `omm-to-opm`, `tle-to-opm`, `opm-to-omm`, `opm-to-tle`, `omm-to-tle --refit-sgp4` | `oem-to-omm`, `oem-to-opm`, and `oem-to-tle` | Maximum reference arc used in the fit; retain the existing default of `2h`. |
 | Transformation | `--fit-step <seconds>` | `oem-to-opm`, `omm-to-opm`, `tle-to-opm` | No direct equivalent; `--step` controls propagation output sampling | Spacing of samples selected from the reference arc. |
 | Transformation | `--fit-observables <position\|state>`, `--fit-position-weight <value>`, `--fit-velocity-weight <value>` | `oem-to-opm`, `omm-to-opm`, `tle-to-opm` | None | Select position-only or weighted Cartesian-state residuals and configure their component weights. Velocity weight applies only when fitting `state`. |
-| Transformation | `--fit-parameters <initial-state\|initial-state,drag-coeff\|initial-state,srp-coeff>` | `oem-to-opm`, `omm-to-opm`, `tle-to-opm` | Existing `propagate-orbit` force parameters | Keep physical parameters fixed by default; opt in to estimating supported target-propagator parameters. |
+| Transformation | `--fit-parameters <initial-state\|initial-state,drag-coeff\|initial-state,srp-coeff>` | `oem-to-opm`, `omm-to-opm`, `tle-to-opm` | Existing `propagate-orbit` force parameters | Select user-supplied initial-state and force parameters; physical parameters are fixed and never estimated. |
 | Output data | `--output <path\|->` | All conversion commands | Existing `-o/--output` | Write the converted OMM, OPM, OEM, or TLE. |
 | Output data | `--object-name <name>`, `--object-id <id>` | All conversion commands that write CCSDS output | Existing conversion-command metadata options | Override output object metadata. |
 | Output data | `--fit-report <path\|->` | `oem-to-omm`, `oem-to-opm`, `oem-to-tle`, `omm-to-opm`, `tle-to-opm`, `opm-to-omm`, `opm-to-tle`, `omm-to-tle --refit-sgp4` | None | Write output provenance, numerical configuration, optimized parameters, RMS/max residuals, and convergence status as JSON. |
@@ -158,9 +158,9 @@ input data or the target transformation.
 The numerical-fit commands should reuse the force-model options of
 `propagate-orbit`, including `--earth-gravity`, `--drag`, `--drag-coeff`,
 `--drag-area`, `--srp`, `--srp-coeff`, `--integrator`, and
-`--integrator-step-size`. They should reject physical-parameter fitting when
-the corresponding force is disabled, and reject a request that supplies fewer
-than two reference states.
+`--integrator-step-size`. They should require user-supplied physical parameters
+when the corresponding force is enabled, never vary those parameters during
+fitting, and reject a request that supplies fewer than two reference states.
 
 ### To OEM (Orbit Ephemeris Message)
 
@@ -219,8 +219,8 @@ numerical output, force/gravity models and integrator settings.
 **TODO**:
 - [ ] Add a propagator-matched arc-fit workflow for a reference OEM and target
 	numerical force-model configuration.
-- [ ] Support fit span, sample spacing, position/velocity weights, and optional
-	physical-parameter estimation.
+- [ ] Support fit span, sample spacing, position/velocity weights, and use of
+	user-supplied fixed physical parameters.
 - [ ] Write numerical-model provenance, convergence status, and residual
 	statistics with the output OEM.
 

@@ -39,7 +39,7 @@ implementations should consume the shared reporting API defined here.
 - Emit portable `COMMENT` entries using the `EPHEMERIS_PROVENANCE` and
   `EPHEMERIS_FIT` forms specified in `ORBIT_FILE_CONVERSION.md`.
 - Preserve source frame and time system, target gravity/force model,
-  integrator and step settings, estimated parameters, fit span, sample count,
+  integrator and step settings, user-supplied physical parameters, fit span, sample count,
   residual RMS/maxima, and convergence status where applicable.
 - Add JSON `--fit-report <path|->` output for the conversion commands listed in
   the source document.

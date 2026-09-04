@@ -2,8 +2,8 @@
 
 ## Goal
 
-Fit a target numerical propagator's Cartesian initial state, and optionally
-supported physical parameters, to a reference OEM arc. This is the common
+Fit a target numerical propagator's Cartesian initial state to a reference OEM
+arc using user-supplied fixed physical parameters. This is the common
 algorithm for OEM, OMM, and TLE input paths.
 
 ## Additional objectives
@@ -82,8 +82,8 @@ result recorded in the orbit-conversion task README.
   `initial-state,srp-coeff`.
 - Reuse `propagate-orbit` force-model options: gravity, drag, drag coefficient
   and area, SRP, SRP coefficient, integrator, and integrator step size.
-- Reject parameter estimation when its force is disabled, and reject fewer
-  than two reference states.
+- Reject a requested physical parameter when its force is disabled or its value
+  is missing, and reject fewer than two reference states.
 - Return reusable fit diagnostics for provenance and `--fit-report` output.
 
 ## Acceptance criteria
