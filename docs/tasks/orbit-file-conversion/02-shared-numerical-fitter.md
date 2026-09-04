@@ -53,6 +53,9 @@ algorithm for OEM, OMM, and TLE input paths.
 - Added `fixed_parameter_values()` to expose selected user inputs for
   propagator construction and fit reports without treating them as optimizer
   variables.
+- Added `to_report_dict()` to serialize the complete fit configuration,
+  including fixed physical parameters, for reproducible reports and future CLI
+  integration.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.

@@ -58,6 +58,22 @@ def test_fixed_parameter_values_returns_only_selected_user_inputs() -> None:
     )
 
     assert config.fixed_parameter_values() == {"drag_coeff": 2.2}
+
+
+def test_fit_configuration_serializes_fixed_parameters() -> None:
+    config = NumericalFitConfig(
+        observables="state",
+        velocity_weight=2.0,
+        parameters="initial-state,srp-coeff",
+        srp_enabled=True,
+        srp_coefficient=1.3,
+    )
+
+    report_config = config.to_report_dict()
+
+    assert report_config["observables"] == "state"
+    assert report_config["velocity_weight"] == 2.0
+    assert report_config["fixed_parameters"] == {"srp_coeff": 1.3}
     validate_numerical_fit(
         states(),
         NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=True, srp_coefficient=1.3),
