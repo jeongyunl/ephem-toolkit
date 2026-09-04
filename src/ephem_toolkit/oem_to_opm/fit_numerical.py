@@ -132,6 +132,8 @@ def optimize_initial_state(
     if max_iterations <= 0 or finite_difference_step <= 0.0 or tolerance <= 0.0:
         raise ValueError("optimizer limits and finite-difference step must be positive")
     state = np.asarray(initial_state, dtype=float).copy()
+    if state.shape != (6,) or not np.all(np.isfinite(state)):
+        raise ValueError("initial state must contain six finite Cartesian values")
     lower = upper = None
     if bounds is not None:
         lower, upper = (np.asarray(value, dtype=float) for value in bounds)
