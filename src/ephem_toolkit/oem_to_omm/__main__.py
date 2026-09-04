@@ -152,7 +152,15 @@ def main(argv=None) -> None:
                 fit_report,
                 provenance={"source": f"OEM/{source_model}", "transformation": "fit", "target_model": target_model},
                 diagnostics=diagnostics,
-                configuration={"fit_span_s": fit_span_s, "source_report": source_report},
+                    configuration={
+                        "fit_span_s": fit_span_s,
+                        "mu_m3_s2": cli_args.mu_m3_s2,
+                        "fit_mode": cli_args.mode,
+                        "tle_refinement": cli_args.tle_refinement,
+                        "source_frame": oem_data.meta.ref_frame or "unknown",
+                        "source_time_system": getattr(oem_data.meta, "time_system", None) or "unknown",
+                        "source_report": source_report,
+                    },
                 source_report=source_report,
                 residuals=provenance.comparison_residuals(comparisons or []),
             )

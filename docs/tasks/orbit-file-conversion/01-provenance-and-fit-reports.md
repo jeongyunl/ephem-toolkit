@@ -138,6 +138,9 @@ actually produce or transform the relevant output.
   expose available `fit_method` and `iterations` fields at the report top level.
 - Reports now include RMS and maximum position/velocity residuals when the
   existing propagation-comparison data provides them.
+- Existing OEM conversion reports now record available fit configuration,
+  including fit mode, gravitational parameter, source frame, and time system;
+  TLE fits also record refinement method.
 - Preserved compatibility with existing mocked diagnostics used by conversion
   tests.
 
@@ -157,8 +160,8 @@ suite, plus `116 passed, 2 deselected` after the new unit tests were added.
 
 - Add tests for and wire the new report options through `oem-to-tle`'s delegated
   pipeline and `omm-to-tle` once its direct/refit report behavior is defined.
-- Add full propagation/fit configuration to production reports where the
-  existing fit APIs do not yet expose those values.
+- Add force-model and integrator configuration to production reports when the
+  numerical fitting APIs expose those options.
 - Implement reporting for the proposed `omm-to-opm`, `tle-to-opm`,
   `opm-to-omm`, and `opm-to-tle` commands after those commands exist.
 
