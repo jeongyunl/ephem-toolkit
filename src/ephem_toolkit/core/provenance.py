@@ -41,6 +41,28 @@ def default_fit_report_path(input_path: str, output_path: str) -> Path | None:
     return Path(candidate).with_suffix(".fit.json")
 
 
+def resolve_source_model(source_model: str, source_report: str | None) -> tuple[str, dict[str, Any] | None]:
+    """Resolve an input model, optionally using a JSON source report."""
+    report: dict[str, Any] | None = None
+    if source_report:
+        try:
+            report = json.loads(Path(source_report).read_text(encoding="utf-8"))
+        except OSError as error:
+            raise ValueError(f"could not read source report '{source_report}': {error}") from error
+        except json.JSONDecodeError as error:
+            raise ValueError(f"source report '{source_report}' is not valid JSON: {error}") from error
+        if not isinstance(report, dict):
+            raise ValueError(f"source report '{source_report}' must contain a JSON object")
+
+    if source_model != "auto":
+        return source_model, report
+    if report:
+        report_provenance = report.get("provenance", {})
+        if isinstance(report_provenance, dict) and report_provenance.get("source"):
+            return str(report_provenance["source"]), report
+    return "unknown", report
+
+
 def write_fit_report(destination: str | Path, *, provenance: dict[str, Any], diagnostics: Any, configuration: dict[str, Any] | None = None) -> None:
     """Write a JSON fit report to a path or stdout (``-``)."""
     report = {

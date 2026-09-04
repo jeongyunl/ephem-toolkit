@@ -9,6 +9,7 @@ from ephem_toolkit.core.provenance import (
     fit_comment,
     provenance_comment,
     write_fit_report,
+    resolve_source_model,
 )
 
 
@@ -80,3 +81,32 @@ def test_default_fit_report_path_prefers_output() -> None:
     assert default_fit_report_path("source.oem", "result.opm") == Path("result.fit.json")
     assert default_fit_report_path("source.oem", "-") == Path("source.fit.json")
     assert default_fit_report_path("-", "-") is None
+
+
+def test_resolve_source_model_reads_report(tmp_path) -> None:
+    report_path = tmp_path / "source.json"
+    report_path.write_text(json.dumps({"provenance": {"source": "OEM/SGP4"}}), encoding="utf-8")
+
+    source, report = resolve_source_model("auto", str(report_path))
+
+    assert source == "OEM/SGP4"
+    assert report["provenance"]["source"] == "OEM/SGP4"
+
+
+def test_explicit_source_model_overrides_report(tmp_path) -> None:
+    report_path = tmp_path / "source.json"
+    report_path.write_text(json.dumps({"provenance": {"source": "OEM/SGP4"}}), encoding="utf-8")
+
+    source, _ = resolve_source_model("numerical", str(report_path))
+
+    assert source == "numerical"
+
+
+def test_resolve_source_model_rejects_invalid_report(tmp_path) -> None:
+    report_path = tmp_path / "source.json"
+    report_path.write_text("not-json", encoding="utf-8")
+
+    import pytest
+
+    with pytest.raises(ValueError, match="not valid JSON"):
+        resolve_source_model("auto", str(report_path))
