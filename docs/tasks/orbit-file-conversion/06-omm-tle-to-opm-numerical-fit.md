@@ -2,9 +2,9 @@
 
 ## Status
 
-**In progress.** Both wrapper commands are registered and delegate reference-
-arc fitting to the shared OEM-to-OPM numerical workflow. Live propagation and
-end-to-end output verification remain.
+**Complete for the current scope.** Both wrapper commands are registered,
+delegate reference-arc fitting to the shared OEM-to-OPM numerical workflow,
+and have passed bounded live output and report verification.
 
 ## Goal
 
@@ -57,10 +57,9 @@ tooling.
 - Verified live wrapper fit reports for both sources. Each report contains
   source/target provenance, the complete numerical fit configuration, and
   position/velocity residual statistics.
+- Completed bounded four-hour, two-iteration live verification with the ISS
+  fixture: OMM source used 241 records and reached 175.028 m final position
+  RMS; TLE/SGP4 source used 241 records and reached 175.043 m. Both runs
+  completed within 20 seconds.
 - Removed eager package imports that produced a `runpy` warning when invoking
   either new wrapper with `python -m`.
-
-### Remaining work
-
-- Confirm complete source/target configuration and residual content in wrapper
-- fit reports over longer representative arcs and multiple fit iterations.
