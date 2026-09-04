@@ -54,10 +54,13 @@ tooling.
   10-minute arc and one fit iteration: OMM source final position RMS was
   2.753 m, and TLE/SGP4 source final position RMS was 2.760 m. Both runs
   completed within the 20-second limit.
+- Verified live wrapper fit reports for both sources. Each report contains
+  source/target provenance, the complete numerical fit configuration, and
+  position/velocity residual statistics.
 - Removed eager package imports that produced a `runpy` warning when invoking
   either new wrapper with `python -m`.
 
 ### Remaining work
 
 - Confirm complete source/target configuration and residual content in wrapper
-  fit reports.
+- fit reports over longer representative arcs and multiple fit iterations.

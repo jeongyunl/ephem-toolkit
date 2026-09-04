@@ -28,7 +28,8 @@ unless they imply implementation work.
   with non-SGP4 data remains.
 - **In progress:** Task 6. `omm-to-opm --fit-model numerical` and
   `tle-to-opm --fit-model numerical` wrappers are registered and delegate to
-  the shared OEM-to-OPM fitter; live wrapper verification remains.
+  the shared OEM-to-OPM fitter; short-arc live output and fit-report
+  verification are complete, with longer-arc validation remaining.
 - **Pending:** Tasks 7–9 and 11. Their documents describe planned
   implementation work and acceptance criteria.
 
