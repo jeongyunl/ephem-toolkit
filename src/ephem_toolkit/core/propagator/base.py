@@ -188,8 +188,17 @@ class Propagator(ABC, Generic[InitialStateT]):
         ------
         RuntimeError
             If initial state has not been set.
+        ValueError
+            If target_epoch_s is before the current reference epoch.
         """
         self._require_initial_state()
+
+        if target_epoch_s < self._reference_epoch_s:
+            raise ValueError(
+                "target_epoch_s must be greater than or equal to current "
+                "reference_epoch_s. "
+                f"Received {target_epoch_s} < {self._reference_epoch_s}."
+            )
 
         if output == OutputMode.NONE:
             self._reference_epoch_s = target_epoch_s
@@ -229,4 +238,13 @@ class Propagator(ABC, Generic[InitialStateT]):
         RuntimeError
             If initial state has not been set.
         """
-        return self.propagate_to(self.reference_epoch_s + time_elapsed_s, output=output)
+        if time_elapsed_s < 0:
+            raise ValueError(
+                "time_elapsed_s must be non-negative. " f"Received {time_elapsed_s}."
+            )
+
+        self._require_initial_state()
+
+        return self.propagate_to(
+            self._reference_epoch_s + time_elapsed_s, output=output
+        )
