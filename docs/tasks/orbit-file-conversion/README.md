@@ -43,3 +43,7 @@ fit validation, provenance reporting, and affected conversion suites.
 
 All orbit-file-conversion work has an additional objective: do not add runtime
 dependencies; reuse the repository's existing libraries and tooling.
+
+All fitting workflows must also treat physical parameters as user-supplied
+fixed inputs. They may be validated and recorded, but must never be varied by
+the optimizer.

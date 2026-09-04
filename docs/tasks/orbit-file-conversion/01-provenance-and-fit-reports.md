@@ -174,8 +174,9 @@ suite, plus `116 passed, 2 deselected` after the new unit tests were added.
 
 - Generated OEM, OMM, and OPM files contain source/target model provenance when
   the conversion is not model-neutral.
-- Fit reports are valid, documented JSON and include configuration, optimized
-  parameters, residual statistics, and convergence status.
+- Fit reports are valid, documented JSON and include configuration, fitted
+  state values, supplied physical parameters, residual statistics, and
+  convergence status.
 - Direct lossless TLE↔SGP4-compatible OMM mappings do not require a fabricated
   fit report.
 - Tests cover path output, stdout output (`-`), missing provenance, and TLE

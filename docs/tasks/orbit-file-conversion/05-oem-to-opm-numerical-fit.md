@@ -15,8 +15,9 @@ tooling.
 - Add `oem-to-opm --fit-model numerical` and retain
   `--fit-model two-body` as the default.
 - Route numerical fitting through the shared arc fitter.
-- Add fit span, fit step, observables, component weights, optional parameter
-  estimation, force-model options, and fit-report output.
+- Add fit span, fit step, observables, component weights, user-supplied fixed
+  physical parameters, force-model options, and fit-report output. Physical
+  parameters must not be estimated.
 - Preserve input OEM provenance in OPM comments and identify whether the OPM
   state came from a two-body fit, numerical fit, or supported reconstruction.
 - Keep fitted Keplerian fields clearly labeled as derived/osculating values;
