@@ -34,6 +34,9 @@ algorithm for OEM, OMM, and TLE input paths.
   engine.
 - Replaced fixed-index residual sampling with elapsed-time-based selection so
   irregularly sampled OEM arcs honor `fit-step` and `fit-span` correctly.
+- Added a lazy factory for the existing `core.propagator.numerical` API;
+  numerical-engine imports occur only when fitting is invoked, while tests can
+  continue using injected mock factories.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.
@@ -49,7 +52,8 @@ result recorded in the orbit-conversion task README.
 ### Remaining work
 
 - Connect `NumericalFitConfig` to `core.propagator.numerical`.
-- Connect the adapter to `core.propagator.numerical` and conversion CLI paths.
+- Connect the factory and optimizer to conversion CLI paths, including force
+  model configuration and physical-parameter fitting.
 - Preserve the initial position as a hard constraint in the optimizer and
   document that behavior in fit reports.
 - Add force-model and physical-parameter validation, diagnostics, and wrapper

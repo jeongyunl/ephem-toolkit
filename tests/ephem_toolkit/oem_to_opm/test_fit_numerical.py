@@ -95,6 +95,38 @@ def test_make_propagation_callback_adapts_propagator_factory() -> None:
     assert np.array_equal(callback(np.zeros(6), 20.0), np.full(6, 20.0))
 
 
+def test_numerical_factory_is_lazy_and_builds_initial_state(monkeypatch) -> None:
+    import sys
+    import types
+
+    created = []
+
+    class InitialState:
+        def __init__(self, state_m_m_s, epoch_s):
+            self.state_m_m_s = state_m_m_s
+            self.epoch_s = epoch_s
+
+    class Propagator:
+        def __init__(self, config, initial_state):
+            created.append((config, initial_state))
+
+    fake_module = types.SimpleNamespace(
+        NumericalInitialState=InitialState,
+        NumericalPropagator=Propagator,
+    )
+    monkeypatch.setitem(sys.modules, "ephem_toolkit.core.propagator.numerical", fake_module)
+    config = object()
+
+    from ephem_toolkit.oem_to_opm.fit_numerical import make_numerical_propagator_factory
+
+    factory = make_numerical_propagator_factory(config, 100.0)
+    factory(np.ones(6), 100.0)
+
+    assert created[0][0] is config
+    assert np.array_equal(created[0][1].state_m_m_s, np.ones(6))
+    assert created[0][1].epoch_s == 100.0
+
+
 def test_residual_sampling_handles_irregular_epochs_and_fit_span() -> None:
     reference = [(0.0, np.zeros(6)), (30.0, np.ones(6)), (75.0, np.full(6, 2.0)), (150.0, np.full(6, 3.0))]
     calls = []
