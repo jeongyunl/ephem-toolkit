@@ -38,6 +38,15 @@ class NumericalFitConfig:
     srp_enabled: bool = False
     drag_coefficient: float | None = None
     srp_coefficient: float | None = None
+    satellite_mass_kg: float | None = None
+    drag_area_m2: float | None = None
+    earth_gravity: tuple[int, int] | None = None
+    integrator: str | None = None
+    integrator_step_size_s: tuple[float, ...] | None = None
+    moon_gravity: bool = False
+    sun_gravity: bool = False
+    venus_gravity: bool = False
+    mars_gravity: bool = False
 
     def fixed_parameter_values(self) -> dict[str, float]:
         """Return user-supplied physical parameters selected for propagation."""
@@ -59,6 +68,15 @@ class NumericalFitConfig:
             "velocity_weight": self.velocity_weight,
             "preserve_initial_position": self.preserve_initial_position,
             "fixed_parameters": self.fixed_parameter_values(),
+            "satellite_mass_kg": self.satellite_mass_kg,
+            "drag_area_m2": self.drag_area_m2,
+            "earth_gravity": self.earth_gravity,
+            "integrator": self.integrator,
+            "integrator_step_size_s": self.integrator_step_size_s,
+            "moon_gravity": self.moon_gravity,
+            "sun_gravity": self.sun_gravity,
+            "venus_gravity": self.venus_gravity,
+            "mars_gravity": self.mars_gravity,
         }
 
 
@@ -72,6 +90,15 @@ def config_from_propagation_options(options, *, fit_span_s: float = 7200.0, fit_
         srp_enabled=bool(options.srp),
         drag_coefficient=float(options.drag_coeff),
         srp_coefficient=float(options.srp_coeff),
+        satellite_mass_kg=float(options.mass),
+        drag_area_m2=float(options.drag_area),
+        earth_gravity=tuple(options.earth_gravity),
+        integrator=str(options.integrator),
+        integrator_step_size_s=tuple(options.integrator_step_size),
+        moon_gravity=bool(options.moon_gravity),
+        sun_gravity=bool(options.sun_gravity),
+        venus_gravity=bool(options.venus_gravity),
+        mars_gravity=bool(options.mars_gravity),
     )
 
 
