@@ -303,6 +303,17 @@ def main(argv=None) -> None:
                     True,
                     f"fit try {iteration}: residual={residual:g}, velocity_step={step:g}, updated_residual={updated:g}, converged={converged}",
                 )
+                _, initial_diagnostics = fit_numerical.build_weighted_residuals(
+                    propagation_callback,
+                    states[0][1],
+                    states,
+                    fit_config,
+                    propagate_trajectory=trajectory_callback,
+                )
+                debug_message(
+                    True,
+                    f"initial OEM state position_rms={initial_diagnostics.position_rms_m:g}m",
+                )
             numerical_result = fit_numerical.optimize_initial_state(
                 propagation_callback,
                 states[0][1],
