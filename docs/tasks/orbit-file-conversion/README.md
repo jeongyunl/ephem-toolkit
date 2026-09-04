@@ -13,13 +13,16 @@ unless they imply implementation work.
   source-report parsing, and basic convergence reporting are implemented;
   velocity residuals, richer propagation diagnostics, and proposed-command
   support are still pending. See [Task 1 progress](01-provenance-and-fit-reports.md#progress).
-- **Pending:** Tasks 2–11. These remain planned implementation work; their
+- **In progress:** Task 2. The shared numerical-fit configuration and reference
+  state validation boundary are implemented; optimizer and propagator wiring
+  remain pending.
+- **Pending:** Tasks 3–11. These remain planned implementation work; their
   documents describe the intended behavior and acceptance criteria.
 
 ## Suggested order
 
 1. **In progress:** [Shared provenance and fit-report contract](01-provenance-and-fit-reports.md)
-2. **Pending:** [Shared numerical propagator fitter](02-shared-numerical-fitter.md)
+2. **In progress:** [Shared numerical propagator fitter](02-shared-numerical-fitter.md)
 3. **Pending:** [Conversion CLI option contract](03-conversion-cli-options.md)
 4. **Pending:** [OEM to OMM fit migration](04-oem-to-omm-fit-model.md)
 5. **Pending:** [OEM to OPM numerical fitting](05-oem-to-opm-numerical-fit.md)
@@ -34,3 +37,6 @@ Tasks 1–3 define shared behavior and should land before the format-specific
 work. Tasks 5–6 depend on the shared numerical fitter. Tasks 8 and 11 compose
 existing propagation and fitting operations and can reuse the lower-level
 pieces from earlier tasks.
+
+Latest focused verification: `139 passed, 2 deselected` covering the numerical
+fit validation, provenance reporting, and affected conversion suites.
