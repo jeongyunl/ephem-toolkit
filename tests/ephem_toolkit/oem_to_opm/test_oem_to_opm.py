@@ -67,6 +67,11 @@ def test_parser_accepts_fit_model_and_defaults_to_two_body() -> None:
     ).fit_model == "numerical"
 
 
+def test_parser_defaults_to_four_hour_fit_span() -> None:
+    args = parse_arguments(build_arg_parser(), ["input.oem", "-o", "output.opm"])
+    assert args.fit_span.total_seconds() == 14400.0
+
+
 def test_parser_accepts_fit_controls() -> None:
     args = parse_arguments(
         build_arg_parser(),

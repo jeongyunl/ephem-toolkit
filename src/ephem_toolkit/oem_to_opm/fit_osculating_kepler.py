@@ -89,7 +89,7 @@ def fit_osculating_kepler(
         List of (TT seconds since J2000, state_vector) tuples.
         State vectors are [x, y, z, vx, vy, vz] in meters and m/s.
     fit_span_s : float
-        Maximum arc span in seconds (default: 7200 = 2 hours).
+        Maximum arc span in seconds (default: 14400 = 4 hours).
     mu_m3_s2 : float
         Gravitational parameter (m³/s²).
     max_iterations : int

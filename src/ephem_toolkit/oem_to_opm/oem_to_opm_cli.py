@@ -20,8 +20,8 @@ from ephem_toolkit.propagate_orbit.constants import (
     DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT,
 )
 
-DEFAULT_FIT_SPAN: timedelta = timedelta(hours=2)
-"""Default arc span for OEM-to-OPM fitting operations."""
+DEFAULT_FIT_SPAN: timedelta = timedelta(hours=4)
+"""Default four-hour arc span for OEM-to-OPM fitting operations."""
 
 
 class OemToOpmArgs(argparse.Namespace):
@@ -167,8 +167,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
         metavar="<duration>",
         dest="fit_span",
         help=(
-            "Maximum arc span for the fit (supports durations like 2h, 90m, 3600s; "
-            "default: 2h)."
+            "Maximum arc span for the fit (supports durations like 4h, 90m, 3600s; "
+            "default: 4h)."
         ),
     )
     cli_parser.add_argument(

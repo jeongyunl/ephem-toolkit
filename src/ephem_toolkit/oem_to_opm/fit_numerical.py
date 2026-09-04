@@ -37,7 +37,7 @@ class NumericalFitConfig:
     """Validated options shared by numerical-fitting conversion commands."""
 
     fit_model: str = "numerical"
-    fit_span_s: float = 7200.0
+    fit_span_s: float = 14400.0
     max_iterations: int = 100
     stagnation_tries: int = 3
     fit_step_s: float = 60.0
@@ -127,7 +127,7 @@ class NumericalFitConfig:
         )
 
 
-def config_from_propagation_options(options, *, fit_span_s: float = 7200.0, fit_step_s: float = 60.0, parameters: str = "initial-state") -> NumericalFitConfig:
+def config_from_propagation_options(options, *, fit_span_s: float = 14400.0, fit_step_s: float = 60.0, parameters: str = "initial-state") -> NumericalFitConfig:
     """Build fixed-parameter fit configuration from propagate-orbit options."""
     return NumericalFitConfig(
         fit_span_s=fit_span_s,
