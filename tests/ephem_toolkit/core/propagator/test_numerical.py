@@ -220,6 +220,29 @@ def test_numerical_propagator_stores_dependent_variable_metadata() -> None:
     assert prop.dependent_variable_save_settings is not None
 
 
+def test_numerical_propagator_state_history_aliases_internal_list() -> None:
+    """state_history exposes the stored list directly for the current contract."""
+    config = make_config()
+    initial_state = make_initial_state()
+    prop = NumericalPropagator(config=config, initial_state=initial_state)
+
+    sample_state = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], dtype=float)
+    prop._state_history = [(10.0, sample_state)]
+
+    history = prop.state_history
+    assert history is prop._state_history
+    assert len(history) == 1
+    assert history[0][0] == 10.0
+    np.testing.assert_array_equal(history[0][1], sample_state)
+
+    history[0] = (99.0, np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=float))
+    assert prop._state_history[0][0] == 99.0
+    np.testing.assert_array_equal(prop._state_history[0][1], np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=float))
+
+    history[0][1][0] = -123.0
+    assert prop._state_history[0][1][0] == -123.0
+
+
 def test_numerical_propagator_initial_state_set_flag() -> None:
     """_initial_state_set is True after construction."""
     config = make_config()
