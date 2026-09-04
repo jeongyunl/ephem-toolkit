@@ -85,6 +85,41 @@ def test_parse_arguments_fit_span_default_is_two_hours(monkeypatch):
     assert args.fit_span == timedelta(hours=2)
 
 
+def test_parse_arguments_accepts_canonical_fit_model(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["oem-to-omm", "--fit-model", "sgp4", "input.oem", "--output", "-"],
+    )
+
+    args = oem_to_omm_cli.parse_arguments(oem_to_omm_cli.build_arg_parser())
+
+    assert args.fit_model == "sgp4"
+    assert args.mode == "tle"
+
+
+def test_parse_arguments_rejects_conflicting_fit_model_and_mode(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "oem-to-omm",
+            "--fit-model",
+            "brouwer",
+            "--mode",
+            "tle",
+            "input.oem",
+            "--output",
+            "-",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as error:
+        oem_to_omm_cli.parse_arguments(oem_to_omm_cli.build_arg_parser())
+
+    assert error.value.code == 2
+
+
 def test_parse_arguments_accepts_provenance_report_options(monkeypatch):
     monkeypatch.setattr(
         sys,

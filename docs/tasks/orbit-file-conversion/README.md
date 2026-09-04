@@ -18,15 +18,20 @@ unless they imply implementation work.
   Cartesian fitting, OPM conversion, fit reports, and human-readable summaries.
   Representative live Tudat/SPICE verification remains an environment-level
   follow-up. See [Task 2 progress](02-shared-numerical-fitter.md#progress).
-- **Pending:** Tasks 3–4 and 6–11. Task 5 is complete; the remaining task
-  documents describe planned implementation work and acceptance criteria.
+- **In progress:** Task 3. Canonical fit-model parsing and deprecated mode
+  handling are implemented for the OEM-to-OMM/TLE paths; full option alignment
+  across all conversion commands remains.
+- **Complete:** Task 4. OEM-to-OMM supports canonical fit-model selection,
+  deprecated mode compatibility, theory conflict validation, and reporting.
+- **Pending:** Tasks 6–11. Task 5 is complete; the remaining task documents
+  describe planned implementation work and acceptance criteria.
 
 ## Suggested order
 
 1. **In progress:** [Shared provenance and fit-report contract](01-provenance-and-fit-reports.md)
 2. **Complete:** [Shared numerical propagator fitter](02-shared-numerical-fitter.md)
-3. **Next:** [Conversion CLI option contract](03-conversion-cli-options.md)
-4. **Pending:** [OEM to OMM fit migration](04-oem-to-omm-fit-model.md)
+3. **In progress:** [Conversion CLI option contract](03-conversion-cli-options.md)
+4. **Complete:** [OEM to OMM fit migration](04-oem-to-omm-fit-model.md)
 5. **Complete:** [OEM to OPM numerical fitting](05-oem-to-opm-numerical-fit.md)
 6. **Pending:** [OMM and TLE to OPM numerical fitting](06-omm-tle-to-opm-numerical-fit.md)
 7. **Pending:** [OPM to OEM model-aware workflow](07-opm-to-oem-workflow.md)

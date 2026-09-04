@@ -1,5 +1,11 @@
 # Task 4: Migrate OEM-to-OMM fitting to `--fit-model`
 
+## Status
+
+**Complete for the current OEM-to-OMM scope.** Canonical fit-model selection,
+deprecated mode compatibility, theory consistency validation, provenance, and
+fit reporting are implemented and covered by tests.
+
 ## Goal
 
 Make OEM-to-OMM conversion explicitly select the target mean-element theory
@@ -28,3 +34,12 @@ tooling.
 - Conflicting theory/model combinations fail deterministically.
 - Output comments and JSON reports contain enough information to distinguish
   SGP4, DSST, and Brouwer fits.
+
+## Completed implementation
+
+- Added `--fit-model {brouwer|dsst|sgp4}` while preserving `--mode` as a
+  deprecated compatibility alias.
+- Mapped legacy `--mode tle` to canonical `sgp4` behavior.
+- Rejected conflicting `--fit-model`/`--mode` and `--theory` combinations
+  before fitting.
+- Preserved model-specific OMM comments and JSON fit-report metadata.

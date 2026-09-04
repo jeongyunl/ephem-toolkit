@@ -1,5 +1,13 @@
 # Task 3: Align conversion CLI options
 
+## Status
+
+**In progress.** The canonical fit-model contract and deprecated mode
+compatibility are implemented for OEM-to-OMM and the OEM-to-TLE wrapper. The
+remaining work is to audit and align the option contracts of all existing
+conversion commands and to add explicit unsupported-option validation where
+needed.
+
 ## Goal
 
 Give conversion commands a consistent distinction between input provenance,
@@ -33,3 +41,22 @@ tooling.
 - Help text shows the shared grouping and model-specific choices accurately.
 - Deprecated `--mode` behavior and conflicting `--theory` behavior are tested.
 - Unsupported combinations fail before conversion work begins.
+
+## Progress
+
+### Completed
+
+- Added `--fit-model {brouwer,dsst,sgp4}` to OEM-to-OMM.
+- Retained `--mode` as a deprecated alias, mapping `tle` to `sgp4`, with a
+  deprecation warning and conflict validation when both options are supplied.
+- Added model/theory consistency validation before conversion work begins.
+- Updated OEM-to-TLE delegation to use canonical `--fit-model sgp4`.
+- Added parser and wrapper regression tests.
+- Preserved the repository-wide objective of adding no runtime dependencies.
+
+### Remaining work
+
+- Audit `omm-to-tle` and other existing conversion entry points against the
+  proposal option table.
+- Synchronize help text and reject unsupported combinations consistently across
+  those commands.
