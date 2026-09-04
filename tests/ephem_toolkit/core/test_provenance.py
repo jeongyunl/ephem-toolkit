@@ -44,6 +44,20 @@ def test_fit_report_is_json(tmp_path) -> None:
     assert report["configuration"]["fit_span_s"] == 90
 
 
+def test_fit_report_retains_source_report(tmp_path) -> None:
+    report_path = tmp_path / "fit.json"
+    source_report = {"provenance": {"source": "OEM/SGP4"}, "diagnostics": {"status": "ok"}}
+    write_fit_report(
+        report_path,
+        provenance={"source": "OEM/SGP4"},
+        diagnostics=Diagnostics(),
+        source_report=source_report,
+    )
+
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["source_report"] == source_report
+
+
 def test_fit_report_accepts_mapping_diagnostics(tmp_path) -> None:
     report_path = tmp_path / "fit.json"
     write_fit_report(

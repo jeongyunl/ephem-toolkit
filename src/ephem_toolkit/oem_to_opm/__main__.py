@@ -305,6 +305,7 @@ def main(argv=None) -> None:
                     provenance={"source": f"OEM/{source_model}", "transformation": "two-body fit", "target_model": "two-body-kepler"},
                     diagnostics=diagnostics,
                     configuration={"fit_span_s": fit_span_s, "source_report": source_report},
+                    source_report=source_report,
                 )
         except Exception as error:
             report_error(f"Error writing OPM file: {error}")

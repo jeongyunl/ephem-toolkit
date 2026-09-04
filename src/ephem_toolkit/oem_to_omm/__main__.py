@@ -152,7 +152,8 @@ def main(argv=None) -> None:
                 fit_report,
                 provenance={"source": f"OEM/{source_model}", "transformation": "fit", "target_model": target_model},
                 diagnostics=diagnostics,
-                    configuration={"fit_span_s": fit_span_s, "source_report": source_report},
+                configuration={"fit_span_s": fit_span_s, "source_report": source_report},
+                source_report=source_report,
             )
 
     def fit_summary(diagnostics):
