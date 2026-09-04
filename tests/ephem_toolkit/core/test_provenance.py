@@ -61,6 +61,22 @@ def test_fit_report_retains_source_report(tmp_path) -> None:
     assert report["source_report"] == source_report
 
 
+def test_fit_report_serializes_configuration_object(tmp_path) -> None:
+    from ephem_toolkit.oem_to_opm.fit_numerical import NumericalFitConfig
+
+    report_path = tmp_path / "fit.json"
+    write_fit_report(
+        report_path,
+        provenance={"source": "OEM/unknown"},
+        diagnostics=Diagnostics(),
+        configuration=NumericalFitConfig(),
+    )
+
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["configuration"]["fit_model"] == "numerical"
+    assert report["configuration"]["fixed_parameters"] == {}
+
+
 def test_fit_report_accepts_mapping_diagnostics(tmp_path) -> None:
     report_path = tmp_path / "fit.json"
     write_fit_report(
