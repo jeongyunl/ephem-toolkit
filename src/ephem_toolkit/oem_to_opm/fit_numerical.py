@@ -138,6 +138,12 @@ def config_from_fit_options(options) -> NumericalFitConfig:
         position_weight=float(options.fit_position_weight),
         velocity_weight=float(options.fit_velocity_weight),
         parameters=str(options.fit_parameters),
+        drag_enabled=bool(getattr(options, "drag", False)),
+        srp_enabled=bool(getattr(options, "srp", False)),
+        drag_coefficient=getattr(options, "drag_coeff", None),
+        srp_coefficient=getattr(options, "srp_coeff", None),
+        satellite_mass_kg=getattr(options, "mass", None),
+        drag_area_m2=getattr(options, "drag_area", None),
     )
 
 
