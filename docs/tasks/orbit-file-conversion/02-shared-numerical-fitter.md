@@ -102,6 +102,9 @@ algorithm for OEM, OMM, and TLE input paths.
   OEM metadata, numerical-fit configuration, and fitted-element diagnostics.
 - Added one `--debug` message per optimizer try with residual norm, velocity
   step norm, updated residual norm, and convergence status.
+- `--debug` now reports the position RMS from the unadjusted OEM initial state
+  before the first optimizer try, allowing direct comparison with the fitted
+  result.
 - Changed each trial evaluation to propagate once from the initial epoch to
   `initial_epoch + fit_span` with `OutputMode.TRAJECTORY`, then Hermite-
   interpolate the propagated trajectory at all fit epochs. This avoids one
