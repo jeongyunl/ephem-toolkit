@@ -125,6 +125,8 @@ algorithm for OEM, OMM, and TLE input paths.
 - Added an end-of-span position weighting ramp: residual weight increases
   linearly from 1× at the initial epoch to 2× at the fit-span endpoint by
   default, configurable with `--fit-end-weight`.
+- Increased the default fit span to four hours (`14400 s`) for OEM-to-OPM and
+  the shared numerical-fit configuration.
 - Kept residuals as signed three-component Cartesian vectors at every fit epoch;
   their orientation is retained by the Jacobian when adjusting the initial
   velocity vector.
