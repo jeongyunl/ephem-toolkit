@@ -63,6 +63,8 @@ algorithm for OEM, OMM, and TLE input paths.
 - Extended that mapping to include spacecraft mass/area, Earth gravity,
   integrator settings, and third-body switches for reproducible force-model
   construction.
+- Added a consistency check that requires the propagator's drag/SRP values to
+  exactly match the user-supplied fixed fit parameters.
 - Added the `oem-to-opm --fit-model {two-body|numerical}` parser contract;
   `two-body` remains the default, while numerical execution currently fails
   explicitly until force-model wiring is complete.
@@ -88,6 +90,8 @@ result recorded in the orbit-conversion task README.
 - Add the corresponding force-model CLI options and map them into this
   configuration.
 - Connect the mapped force-model configuration to the numerical propagator.
+- Invoke fixed-parameter consistency validation when constructing the actual
+  propagator.
 - Add force-model validation, diagnostics, and wrapper integration.
 
 ## Scope

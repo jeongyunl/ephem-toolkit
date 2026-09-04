@@ -7,6 +7,7 @@ from ephem_toolkit.oem_to_opm.fit_numerical import (
     NumericalFitConfig,
     build_weighted_residuals,
     config_from_propagation_options,
+    validate_fixed_parameter_values,
     optimize_initial_state,
     make_propagation_callback,
     validate_numerical_fit,
@@ -101,6 +102,17 @@ def test_config_from_propagation_options_preserves_fixed_coefficients() -> None:
     assert config.earth_gravity == (8, 8)
     assert config.integrator_step_size_s == (30.0,)
     assert config.moon_gravity is True
+
+
+def test_validate_fixed_parameter_values_requires_exact_propagator_values() -> None:
+    config = NumericalFitConfig(
+        parameters="initial-state,drag-coeff",
+        drag_enabled=True,
+        drag_coefficient=2.2,
+    )
+    validate_fixed_parameter_values(config, {"drag_coeff": 2.2})
+    with pytest.raises(ValueError, match="must equal"):
+        validate_fixed_parameter_values(config, {"drag_coeff": 2.3})
     validate_numerical_fit(
         states(),
         NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=True, srp_coefficient=1.3),

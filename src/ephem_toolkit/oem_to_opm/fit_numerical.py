@@ -102,6 +102,15 @@ def config_from_propagation_options(options, *, fit_span_s: float = 7200.0, fit_
     )
 
 
+def validate_fixed_parameter_values(config: NumericalFitConfig, propagated_values: dict[str, float]) -> None:
+    """Ensure the propagator uses the configured physical values unchanged."""
+    expected = config.fixed_parameter_values()
+    for name, value in expected.items():
+        actual = propagated_values.get(name)
+        if actual is None or not np.isclose(actual, value, rtol=0.0, atol=0.0):
+            raise ValueError(f"propagator {name} must equal user-supplied value {value}")
+
+
 @dataclass(frozen=True)
 class NumericalResidualDiagnostics:
     """Unweighted residual summary for one numerical-fit evaluation."""
