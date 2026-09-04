@@ -190,6 +190,10 @@ def main(argv=None) -> None:
     """Parse CLI arguments and dispatch to the appropriate conversion mode."""
     cli_parser = build_arg_parser()
     cli_args: OemToOpmArgs = parse_arguments(cli_parser, argv)
+    if cli_args.fit_model == "numerical":
+        report_error(
+            "Error: --fit-model numerical is not yet connected to the numerical propagator"
+        )
 
     # Determine input source: file path or stdin (piped input)
     read_from_stdin: bool = cli_args.input_oem == "-"
