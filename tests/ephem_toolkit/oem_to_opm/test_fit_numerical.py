@@ -6,6 +6,7 @@ import pytest
 from ephem_toolkit.oem_to_opm.fit_numerical import (
     NumericalFitConfig,
     build_weighted_residuals,
+    config_from_propagation_options,
     optimize_initial_state,
     make_propagation_callback,
     validate_numerical_fit,
@@ -74,6 +75,20 @@ def test_fit_configuration_serializes_fixed_parameters() -> None:
     assert report_config["observables"] == "state"
     assert report_config["velocity_weight"] == 2.0
     assert report_config["fixed_parameters"] == {"srp_coeff": 1.3}
+
+
+def test_config_from_propagation_options_preserves_fixed_coefficients() -> None:
+    class Options:
+        drag = True
+        srp = False
+        drag_coeff = 2.2
+        srp_coeff = 1.3
+
+    config = config_from_propagation_options(
+        Options(), fit_span_s=90.0, fit_step_s=10.0, parameters="initial-state,drag-coeff"
+    )
+    assert config.fit_span_s == 90.0
+    assert config.fixed_parameter_values() == {"drag_coeff": 2.2}
     validate_numerical_fit(
         states(),
         NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=True, srp_coefficient=1.3),

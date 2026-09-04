@@ -62,6 +62,19 @@ class NumericalFitConfig:
         }
 
 
+def config_from_propagation_options(options, *, fit_span_s: float = 7200.0, fit_step_s: float = 60.0, parameters: str = "initial-state") -> NumericalFitConfig:
+    """Build fixed-parameter fit configuration from propagate-orbit options."""
+    return NumericalFitConfig(
+        fit_span_s=fit_span_s,
+        fit_step_s=fit_step_s,
+        parameters=parameters,
+        drag_enabled=bool(options.drag),
+        srp_enabled=bool(options.srp),
+        drag_coefficient=float(options.drag_coeff),
+        srp_coefficient=float(options.srp_coeff),
+    )
+
+
 @dataclass(frozen=True)
 class NumericalResidualDiagnostics:
     """Unweighted residual summary for one numerical-fit evaluation."""
