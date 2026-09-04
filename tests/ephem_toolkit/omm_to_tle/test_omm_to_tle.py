@@ -152,7 +152,7 @@ def test_omm_to_tle_refit_writes_tle_and_report(monkeypatch, tmp_path: Path) -> 
     assert output.exists()
     report_data = json.loads(report.read_text(encoding="utf-8"))
     assert report_data["provenance"] == {
-        "source": "OMM/unknown",
+        "source": "OMM/DSST",
         "transformation": "SGP4 refit",
         "target_model": "SGP4",
     }

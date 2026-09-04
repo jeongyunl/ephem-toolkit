@@ -52,6 +52,9 @@ tooling.
 - Added `--refit-sgp4`, `--fit-span`, source provenance, and fit-report options.
 - Connected refitting to the existing OMM propagators and shared SGP4/TLE fit
   implementation; reports identify the source theory and SGP4 target.
+- Automatic refit provenance uses the OMM's declared theory when no external
+  source report is supplied; explicit source-model/report values remain
+  available for externally documented input.
 - Added success-path regression coverage for propagated reference input,
   generated TLE output, and fit-report provenance/configuration.
 - Preserved the no-new-runtime-dependencies objective.
