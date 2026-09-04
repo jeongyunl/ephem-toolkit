@@ -73,6 +73,24 @@ def test_optimizer_rejects_malformed_bounds() -> None:
             NumericalFitConfig(),
             bounds=(np.zeros(3), np.ones(3)),
         )
+
+
+def test_optimizer_can_fit_all_state_components_when_position_is_not_preserved() -> None:
+    target = np.array([4.0, 5.0, 6.0, 1.0, 2.0, 3.0])
+    reference = [(0.0, target), (1.0, target)]
+    result = optimize_initial_state(
+        lambda initial, _epoch: initial,
+        np.zeros(6),
+        reference,
+        NumericalFitConfig(
+            observables="state",
+            fit_step_s=1.0,
+            preserve_initial_position=False,
+        ),
+    )
+
+    assert result.converged
+    assert np.allclose(result.initial_state, target, atol=1.0e-4)
     validate_numerical_fit(
         states(),
         NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=True),
