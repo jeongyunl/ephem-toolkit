@@ -50,10 +50,14 @@ tooling.
 - Verified wrapper-boundary delegation: OMM theory dispatch and TLE/SGP4
   dispatch both feed generated OEM text and source provenance into the shared
   OEM-to-OPM numerical command.
+- Completed bounded live verification with the repository ISS fixture using a
+  10-minute arc and one fit iteration: OMM source final position RMS was
+  2.753 m, and TLE/SGP4 source final position RMS was 2.760 m. Both runs
+  completed within the 20-second limit.
+- Removed eager package imports that produced a `runpy` warning when invoking
+  either new wrapper with `python -m`.
 
 ### Remaining work
 
-- Verify both wrappers with live Tudat-backed propagation and representative
-  OMM/TLE fixtures.
 - Confirm complete source/target configuration and residual content in wrapper
   fit reports.
