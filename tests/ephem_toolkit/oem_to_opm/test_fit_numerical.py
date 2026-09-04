@@ -7,6 +7,7 @@ from ephem_toolkit.oem_to_opm.fit_numerical import (
     NumericalFitConfig,
     build_weighted_residuals,
     optimize_initial_state,
+    make_propagation_callback,
     validate_numerical_fit,
 )
 
@@ -83,3 +84,12 @@ def test_optimize_initial_state_uses_numpy_only_and_preserves_position() -> None
     assert result.converged
     assert np.array_equal(result.initial_state[:3], reference[0][1][:3])
     assert np.allclose(result.initial_state[3:], [1.0, 2.0, 3.0], atol=1.0e-4)
+
+
+def test_make_propagation_callback_adapts_propagator_factory() -> None:
+    class Propagator:
+        def propagate_to(self, epoch):
+            return epoch, np.full(6, epoch)
+
+    callback = make_propagation_callback(lambda state, epoch: Propagator(), 10.0)
+    assert np.array_equal(callback(np.zeros(6), 20.0), np.full(6, 20.0))

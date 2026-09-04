@@ -29,6 +29,9 @@ algorithm for OEM, OMM, and TLE input paths.
 - Added a dependency-free NumPy Gauss–Newton initial-state optimizer. With the
   default position constraint it varies only initial velocity and returns
   convergence and residual diagnostics.
+- Added a propagator-factory adapter so the optimizer can consume the existing
+  `propagate_to` interface without importing or duplicating a propagation
+  engine.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.
@@ -44,7 +47,7 @@ result recorded in the orbit-conversion task README.
 ### Remaining work
 
 - Connect `NumericalFitConfig` to `core.propagator.numerical`.
-- Connect the optimizer to the numerical propagator.
+- Connect the adapter to `core.propagator.numerical` and conversion CLI paths.
 - Preserve the initial position as a hard constraint in the optimizer and
   document that behavior in fit reports.
 - Add force-model and physical-parameter validation, diagnostics, and wrapper
