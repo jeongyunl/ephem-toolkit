@@ -69,11 +69,15 @@ def build_weighted_residuals(
     boundary free of Tudat makes it reusable by optimizers and unit-testable.
     """
     validate_numerical_fit(reference_states, config)
-    selected = [
+    candidates = [
         (epoch, np.asarray(state, dtype=float))
         for epoch, state in reference_states
         if epoch - reference_states[0][0] <= config.fit_span_s
     ]
+    selected = [candidates[0]]
+    for candidate in candidates[1:]:
+        if candidate[0] - selected[-1][0] >= config.fit_step_s:
+            selected.append(candidate)
     if len(selected) < 2:
         raise ValueError("fit span must include at least two reference states")
 
@@ -83,7 +87,7 @@ def build_weighted_residuals(
     propagated_initial_state = np.asarray(initial_state, dtype=float).copy()
     if config.preserve_initial_position:
         propagated_initial_state[:3] = selected[0][1][:3]
-    for epoch, reference in selected[:: max(1, round(config.fit_step_s / max(1.0, selected[1][0] - selected[0][0])) )]:
+    for epoch, reference in selected:
         predicted = np.asarray(propagate(propagated_initial_state, epoch), dtype=float)
         if predicted.shape != (6,):
             raise ValueError("propagate callback must return six Cartesian values")

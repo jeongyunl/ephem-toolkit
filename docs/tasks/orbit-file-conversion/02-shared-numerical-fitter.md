@@ -32,6 +32,8 @@ algorithm for OEM, OMM, and TLE input paths.
 - Added a propagator-factory adapter so the optimizer can consume the existing
   `propagate_to` interface without importing or duplicating a propagation
   engine.
+- Replaced fixed-index residual sampling with elapsed-time-based selection so
+  irregularly sampled OEM arcs honor `fit-step` and `fit-span` correctly.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.

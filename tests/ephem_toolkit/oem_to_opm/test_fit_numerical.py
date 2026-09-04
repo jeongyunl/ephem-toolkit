@@ -48,7 +48,7 @@ def test_build_weighted_residuals_supports_full_state() -> None:
         lambda _initial, _epoch: np.zeros(6),
         np.zeros(6),
         reference,
-        NumericalFitConfig(observables="state"),
+        NumericalFitConfig(observables="state", fit_step_s=1.0),
     )
 
     assert residuals.shape == (12,)
@@ -78,7 +78,7 @@ def test_optimize_initial_state_uses_numpy_only_and_preserves_position() -> None
         lambda initial, epoch: initial + np.array([0.0, 0.0, 0.0, epoch, epoch, epoch]),
         np.zeros(6),
         reference,
-        NumericalFitConfig(observables="state"),
+        NumericalFitConfig(observables="state", fit_step_s=1.0),
     )
 
     assert result.converged
@@ -93,3 +93,22 @@ def test_make_propagation_callback_adapts_propagator_factory() -> None:
 
     callback = make_propagation_callback(lambda state, epoch: Propagator(), 10.0)
     assert np.array_equal(callback(np.zeros(6), 20.0), np.full(6, 20.0))
+
+
+def test_residual_sampling_handles_irregular_epochs_and_fit_span() -> None:
+    reference = [(0.0, np.zeros(6)), (30.0, np.ones(6)), (75.0, np.full(6, 2.0)), (150.0, np.full(6, 3.0))]
+    calls = []
+
+    def propagate(_initial, epoch):
+        calls.append(epoch)
+        return np.zeros(6)
+
+    _, diagnostics = build_weighted_residuals(
+        propagate,
+        np.zeros(6),
+        reference,
+        NumericalFitConfig(fit_span_s=100.0, fit_step_s=60.0),
+    )
+
+    assert calls == [0.0, 75.0]
+    assert diagnostics.n_records == 2
