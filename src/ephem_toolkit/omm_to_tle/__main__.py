@@ -123,12 +123,13 @@ def main(argv=None) -> None:
                 )
             )
             if report_path:
-                if source_model == "auto":
-                    source_model = omm_data.mean_element_theory
+                report_source_model = source_model
+                if cli_args.source_model == "auto" and source_report is None:
+                    report_source_model = omm_data.mean_element_theory
                 provenance.write_fit_report(
                     report_path,
                     provenance={
-                        "source": f"OMM/{source_model}",
+                        "source": f"OMM/{report_source_model}",
                         "transformation": "SGP4 refit",
                         "target_model": "SGP4",
                     },
