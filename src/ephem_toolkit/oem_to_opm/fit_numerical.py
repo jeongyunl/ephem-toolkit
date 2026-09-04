@@ -31,6 +31,8 @@ class NumericalFitConfig:
     position_weight: float = 1.0
     velocity_weight: float = 1.0
     parameters: str = "initial-state"
+    preserve_initial_position: bool = True
+    """Keep the fitted epoch position equal to the first reference position."""
 
 
 @dataclass(frozen=True)
@@ -68,8 +70,11 @@ def build_weighted_residuals(
     residuals: list[float] = []
     position_errors: list[float] = []
     velocity_errors: list[float] = []
+    propagated_initial_state = np.asarray(initial_state, dtype=float).copy()
+    if config.preserve_initial_position:
+        propagated_initial_state[:3] = selected[0][1][:3]
     for epoch, reference in selected[:: max(1, round(config.fit_step_s / max(1.0, selected[1][0] - selected[0][0])) )]:
-        predicted = np.asarray(propagate(np.asarray(initial_state, dtype=float), epoch), dtype=float)
+        predicted = np.asarray(propagate(propagated_initial_state, epoch), dtype=float)
         if predicted.shape != (6,):
             raise ValueError("propagate callback must return six Cartesian values")
         position_error = predicted[:3] - reference[:3]

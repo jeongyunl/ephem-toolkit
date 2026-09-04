@@ -53,3 +53,17 @@ def test_build_weighted_residuals_supports_full_state() -> None:
     assert diagnostics.n_records == 2
     assert diagnostics.position_max_m == np.sqrt(3.0)
     assert diagnostics.velocity_rms_m_s == np.sqrt(3.0 / 2.0)
+
+
+def test_build_weighted_residuals_preserves_initial_position() -> None:
+    reference = [(0.0, np.array([10.0, 20.0, 30.0, 1.0, 2.0, 3.0])), (60.0, np.zeros(6))]
+    observed_initial_states = []
+
+    def propagate(initial_state, _epoch):
+        observed_initial_states.append(initial_state)
+        return initial_state
+
+    build_weighted_residuals(propagate, np.ones(6), reference, NumericalFitConfig())
+
+    assert np.array_equal(observed_initial_states[0][:3], reference[0][1][:3])
+    assert np.array_equal(observed_initial_states[0][3:], np.ones(3))
