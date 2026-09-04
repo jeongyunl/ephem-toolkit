@@ -23,9 +23,12 @@ algorithm for OEM, OMM, and TLE input paths.
   and supported parameter selections.
 - Added validation tests in
   [`tests/ephem_toolkit/oem_to_opm/test_fit_numerical.py`](../../../tests/ephem_toolkit/oem_to_opm/test_fit_numerical.py).
-- Added weighted position/state residual construction and residual diagnostics
-  behind a propagator callback, keeping the implementation independent of the
-  numerical propagation engine.
+- Restricted the numerical objective to position deltas only. The initial
+  position is fixed to the first OEM state and only the initial velocity vector
+  is optimized.
+- Added Cartesian Hermite interpolation of OEM state data before evaluating
+  position residuals on the fit grid; OEM velocities provide derivative data
+  but are never residual components.
 - Added a dependency-free NumPy Gauss–Newton initial-state optimizer. With the
   default position constraint it varies only initial velocity and returns
   convergence and residual diagnostics.
@@ -41,8 +44,7 @@ algorithm for OEM, OMM, and TLE input paths.
   SRP-coefficient fitting requires SRP to be enabled in the fit configuration.
 - Added optional six-component optimizer bounds with validation and clipping of
   state updates.
-- Added coverage for the explicit opt-out path where all six initial-state
-  components, including position, are optimized.
+- Added coverage proving that initial position cannot be optimized away.
 - Added reference-arc validation for finite Cartesian values and strictly
   increasing epochs.
 - Added optimizer initial-state validation for six finite Cartesian values.
@@ -105,6 +107,12 @@ and concrete force-model configuration are still pending.
 The focused numerical-fit and conversion suites pass; see the latest test
 result recorded in the orbit-conversion task README.
 
+Live validation on 2026-09-04 loaded the available Tudat SPICE kernels, but
+`oem-to-opm --fit-model numerical` did not produce output within the required
+20-second limit and was interrupted. This occurred even with a two-state,
+five-minute arc, so propagator setup or the first numerical fit evaluation
+needs profiling before longer arcs are attempted.
+
 ### Remaining work
 
 - Verify live Tudat-backed execution with representative OEM data and the
@@ -117,8 +125,8 @@ result recorded in the orbit-conversion task README.
 - Accept a reference OEM with at least two states.
 - Support `two-body` and `numerical` fit models, retaining two-body as the
   existing default where applicable.
-- Support fit span, sample spacing, position-only or full-state observables,
-  position/velocity weights, and the supported parameter sets:
+- Support fit span, Hermite sample spacing, position residuals, and the
+  supported parameter sets:
   `initial-state`, `initial-state,drag-coeff`, and
   `initial-state,srp-coeff`.
 - Reuse `propagate-orbit` force-model options: gravity, drag, drag coefficient
@@ -131,7 +139,8 @@ result recorded in the orbit-conversion task README.
 
 - The fitter is callable by all three input paths without duplicated fitting
   algorithms.
-- Default and strict/disabled force-model cases are tested.
+- Initial-position preservation, initial-velocity-only updates, Hermite
+  reference sampling, and position-only residuals are tested.
 - Invalid model, observable, parameter, weight, span, and sample-count inputs
   fail with actionable diagnostics.
 - A known reference arc produces a bounded residual and a report containing the

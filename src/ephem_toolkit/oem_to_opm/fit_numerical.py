@@ -24,7 +24,7 @@ from ephem_toolkit.propagate_orbit.constants import (
 DEFAULT_INTEGRATOR_METHOD = "rkdp_87"
 
 SUPPORTED_FIT_MODELS = ("two-body", "numerical")
-SUPPORTED_OBSERVABLES = ("position", "state")
+SUPPORTED_OBSERVABLES = ("position",)
 SUPPORTED_PARAMETERS = (
     "initial-state",
     "initial-state,drag-coeff",
@@ -45,7 +45,7 @@ class NumericalFitConfig:
     parameters: str = "initial-state"
     """Parameters used by propagation; physical parameters remain fixed."""
     preserve_initial_position: bool = True
-    """Keep the fitted epoch position equal to the first reference position."""
+    """Legacy report field; numerical fitting always preserves initial position."""
     drag_enabled: bool = True
     srp_enabled: bool = True
     drag_coefficient: float | None = DEFAULT_SATELLITE_DRAG_COEFFICIENT
@@ -151,7 +151,7 @@ def config_from_fit_options(options) -> NumericalFitConfig:
         fit_step_s=float(options.fit_step),
         observables=str(options.fit_observables),
         position_weight=float(options.fit_position_weight),
-        velocity_weight=float(options.fit_velocity_weight),
+        velocity_weight=float(getattr(options, "fit_velocity_weight", 1.0)),
         parameters=str(options.fit_parameters),
         drag_enabled=bool(getattr(options, "drag", True)),
         srp_enabled=bool(getattr(options, "srp", True)),
@@ -215,21 +215,12 @@ def build_weighted_residuals(
     boundary free of Tudat makes it reusable by optimizers and unit-testable.
     """
     validate_numerical_fit(reference_states, config)
-    candidates = [
-        (epoch, np.asarray(state, dtype=float))
-        for epoch, state in reference_states
-        if epoch - reference_states[0][0] <= config.fit_span_s
-    ]
-    selected = [candidates[0]]
-    for candidate in candidates[1:]:
-        if candidate[0] - selected[-1][0] >= config.fit_step_s:
-            selected.append(candidate)
+    selected = hermite_sample_reference_states(reference_states, config)
     if len(selected) < 2:
         raise ValueError("fit span must include at least two reference states")
 
     residuals: list[float] = []
     position_errors: list[float] = []
-    velocity_errors: list[float] = []
     propagated_initial_state = np.asarray(initial_state, dtype=float).copy()
     if config.preserve_initial_position:
         propagated_initial_state[:3] = selected[0][1][:3]
@@ -238,21 +229,47 @@ def build_weighted_residuals(
         if predicted.shape != (6,):
             raise ValueError("propagate callback must return six Cartesian values")
         position_error = predicted[:3] - reference[:3]
-        velocity_error = predicted[3:] - reference[3:]
         position_errors.append(float(np.linalg.norm(position_error)))
-        velocity_errors.append(float(np.linalg.norm(velocity_error)))
+        # The fit objective is position-only by design. OEM velocities are used
+        # only as Hermite derivative data, never as residual components.
         residuals.extend((position_error / config.position_weight).tolist())
-        if config.observables == "state":
-            residuals.extend((velocity_error / config.velocity_weight).tolist())
 
     diagnostics = NumericalResidualDiagnostics(
         position_rms_m=float(np.sqrt(np.mean(np.square(position_errors)))),
-        velocity_rms_m_s=(float(np.sqrt(np.mean(np.square(velocity_errors)))) if config.observables == "state" else None),
+        velocity_rms_m_s=None,
         position_max_m=max(position_errors),
-        velocity_max_m_s=(max(velocity_errors) if config.observables == "state" else None),
+        velocity_max_m_s=None,
         n_records=len(position_errors),
     )
     return np.asarray(residuals, dtype=float), diagnostics
+
+
+def hermite_sample_reference_states(
+    reference_states: Sequence[tuple[float, np.ndarray]],
+    config: NumericalFitConfig,
+) -> list[tuple[float, np.ndarray]]:
+    """Sample OEM positions on the fit grid using a Cartesian Hermite interpolator."""
+    from ephem_toolkit.core.interpolator.hermite import SlidingWindowHermiteInterpolator
+
+    first_epoch = float(reference_states[0][0])
+    last_epoch = min(float(reference_states[-1][0]), first_epoch + config.fit_span_s)
+    degree = min(5, len(reference_states) - 1)
+    interpolator = SlidingWindowHermiteInterpolator(
+        dimension=6, degree=max(1, degree), is_cartesian_state=True
+    )
+    interpolator.set_data(list(reference_states))
+    epochs = list(np.arange(first_epoch, last_epoch, config.fit_step_s))
+    if not epochs or epochs[-1] < last_epoch:
+        epochs.append(last_epoch)
+    sampled: list[tuple[float, np.ndarray]] = []
+    for epoch in epochs:
+        state = interpolator.interpolate(float(epoch))
+        if state is None:
+            raise ValueError("Hermite interpolation failed within the OEM arc")
+        sampled.append((float(epoch), np.asarray(state, dtype=float)))
+    if len(sampled) < 2:
+        raise ValueError("fit span must include at least two Hermite samples")
+    return sampled
 
 
 def optimize_initial_state(
@@ -268,7 +285,8 @@ def optimize_initial_state(
 ) -> NumericalFitResult:
     """Optimize the initial Cartesian state using NumPy Gauss-Newton steps.
 
-    With the default position constraint, only the initial velocity is varied.
+    The initial position is always held at the first OEM position; only the
+    three initial-velocity components are varied.
     The propagator is supplied as a callback, so this function adds no
     numerical-propagation dependency.
     """
@@ -284,9 +302,8 @@ def optimize_initial_state(
         if lower.shape != (6,) or upper.shape != (6,) or np.any(lower > upper):
             raise ValueError("optimizer bounds must be ordered six-component vectors")
         state = np.clip(state, lower, upper)
-    if config.preserve_initial_position:
-        state[:3] = np.asarray(reference_states[0][1], dtype=float)[:3]
-    variable_indices = (3, 4, 5) if config.preserve_initial_position else tuple(range(6))
+    state[:3] = np.asarray(reference_states[0][1], dtype=float)[:3]
+    variable_indices = (3, 4, 5)
     converged = False
     iterations = 0
     for iterations in range(1, max_iterations + 1):
@@ -379,10 +396,8 @@ def validate_numerical_fit(
         raise ValueError("SRP coefficient must be positive")
     if config.fit_span_s <= 0.0 or config.fit_step_s <= 0.0:
         raise ValueError("fit span and fit step must be positive")
-    if config.position_weight <= 0.0 or config.velocity_weight <= 0.0:
-        raise ValueError("fit weights must be positive")
-    if config.observables == "position" and config.velocity_weight != 1.0:
-        raise ValueError("velocity weight applies only when observables is 'state'")
+    if config.position_weight <= 0.0:
+        raise ValueError("position weight must be positive")
     previous_epoch = None
     for epoch, state in states:
         if not np.isfinite(epoch):
