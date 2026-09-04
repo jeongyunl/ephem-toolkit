@@ -128,6 +128,19 @@ def config_from_propagation_options(options, *, fit_span_s: float = 7200.0, fit_
     )
 
 
+def config_from_fit_options(options) -> NumericalFitConfig:
+    """Build fit configuration from parsed conversion fit-control options."""
+    return NumericalFitConfig(
+        fit_model=str(options.fit_model),
+        fit_span_s=float(options.fit_span.total_seconds()),
+        fit_step_s=float(options.fit_step),
+        observables=str(options.fit_observables),
+        position_weight=float(options.fit_position_weight),
+        velocity_weight=float(options.fit_velocity_weight),
+        parameters=str(options.fit_parameters),
+    )
+
+
 def validate_fixed_parameter_values(config: NumericalFitConfig, propagated_values: dict[str, float]) -> None:
     """Ensure the propagator uses the configured physical values unchanged."""
     expected = config.fixed_parameter_values()
