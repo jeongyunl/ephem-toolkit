@@ -5,6 +5,11 @@
 Provide a model-aware OPM-to-TLE conversion that propagates an OPM, fits
 SGP4-compatible mean elements, and records the approximation.
 
+## Additional objective
+
+Do not add runtime dependencies; reuse the repository's existing libraries and
+tooling.
+
 ## Scope
 
 - Implement `opm-to-tle`.

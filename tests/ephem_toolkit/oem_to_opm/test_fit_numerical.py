@@ -6,6 +6,7 @@ import pytest
 from ephem_toolkit.oem_to_opm.fit_numerical import (
     NumericalFitConfig,
     build_weighted_residuals,
+    optimize_initial_state,
     validate_numerical_fit,
 )
 
@@ -67,3 +68,18 @@ def test_build_weighted_residuals_preserves_initial_position() -> None:
 
     assert np.array_equal(observed_initial_states[0][:3], reference[0][1][:3])
     assert np.array_equal(observed_initial_states[0][3:], np.ones(3))
+
+
+def test_optimize_initial_state_uses_numpy_only_and_preserves_position() -> None:
+    reference = [(0.0, np.array([10.0, 20.0, 30.0, 1.0, 2.0, 3.0])), (1.0, np.array([10.0, 20.0, 30.0, 2.0, 3.0, 4.0]))]
+
+    result = optimize_initial_state(
+        lambda initial, epoch: initial + np.array([0.0, 0.0, 0.0, epoch, epoch, epoch]),
+        np.zeros(6),
+        reference,
+        NumericalFitConfig(observables="state"),
+    )
+
+    assert result.converged
+    assert np.array_equal(result.initial_state[:3], reference[0][1][:3])
+    assert np.allclose(result.initial_state[3:], [1.0, 2.0, 3.0], atol=1.0e-4)

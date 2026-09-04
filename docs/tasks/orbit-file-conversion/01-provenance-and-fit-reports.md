@@ -6,6 +6,11 @@ Make generated CCSDS products explain which source model produced the input
 history and which model or theory produced the output. Make fit diagnostics
 available even when the output format cannot carry them.
 
+## Additional objective
+
+Do not add runtime dependencies; reuse the repository's existing libraries and
+tooling.
+
 ## Affected commands
 
 ### Existing commands

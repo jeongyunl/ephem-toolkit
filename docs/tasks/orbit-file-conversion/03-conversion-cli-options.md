@@ -5,6 +5,11 @@
 Give conversion commands a consistent distinction between input provenance,
 transformation settings, and output settings.
 
+## Additional objective
+
+Do not add runtime dependencies; reuse the repository's existing libraries and
+tooling.
+
 ## Scope
 
 - Add shared `--source-model`, `--source-report`, `--fit-span`, `--output`,
