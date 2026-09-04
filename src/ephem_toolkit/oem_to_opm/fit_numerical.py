@@ -7,6 +7,7 @@ TLE wrappers can share validation before the numerical propagator is invoked.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Callable, Sequence
 
 import numpy as np
@@ -20,6 +21,8 @@ from ephem_toolkit.propagate_orbit.constants import (
     DEFAULT_SATELLITE_MASS_KG,
     DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT,
 )
+import ephem_toolkit.core.time_utils as time_utils
+from . import fit_common
 
 DEFAULT_INTEGRATOR_METHOD = "rkdp_87"
 
@@ -210,6 +213,123 @@ class NumericalFitResult:
     iterations: int
     converged: bool
     initial_position_rms_m: float | None = None
+
+
+def compute_numerical_propagation_comparison(
+    propagate_trajectory,
+    fitted_state: np.ndarray,
+    states: Sequence[tuple[float, np.ndarray]],
+    fit_span_s: float,
+    interval_s: float = 600.0,
+) -> list[fit_common.PropagationComparison]:
+    """Compare one fitted numerical trajectory with OEM states at intervals."""
+    reference_timestamp = states[0][0]
+    filtered_states = [
+        (timestamp, state)
+        for timestamp, state in states
+        if timestamp - reference_timestamp <= fit_span_s
+    ]
+    if not filtered_states:
+        return []
+
+    max_elapsed = filtered_states[-1][0] - reference_timestamp
+    requested_times = list(np.arange(0.0, max_elapsed + interval_s, interval_s))
+    requested_times = [time for time in requested_times if time <= max_elapsed]
+    if not requested_times or requested_times[-1] < max_elapsed:
+        requested_times.append(max_elapsed)
+
+    comparison_states: list[tuple[float, np.ndarray]] = []
+    for elapsed_s in requested_times:
+        target_timestamp = reference_timestamp + elapsed_s
+        timestamp, state = min(
+            filtered_states,
+            key=lambda item: abs(item[0] - target_timestamp),
+        )
+        if abs(timestamp - target_timestamp) <= interval_s / 2.0:
+            comparison_states.append((timestamp, state))
+
+    epochs = [timestamp for timestamp, _ in comparison_states]
+    propagated = propagate_trajectory(fitted_state, epochs)
+    results: list[fit_common.PropagationComparison] = []
+    for timestamp, oem_state in comparison_states:
+        predicted_state = np.asarray(propagated[timestamp], dtype=float)
+        position_difference_m = oem_state[:3] - predicted_state[:3]
+        velocity_difference_m_s = oem_state[3:6] - predicted_state[3:6]
+        results.append(
+            fit_common.PropagationComparison(
+                elapsed_s=timestamp - reference_timestamp,
+                elapsed_min=(timestamp - reference_timestamp) / 60.0,
+                pos_err_km=float(np.linalg.norm(position_difference_m)) / 1000.0,
+                vel_err_m_s=float(np.linalg.norm(velocity_difference_m_s)),
+                dx_km=float(position_difference_m[0]) / 1000.0,
+                dy_km=float(position_difference_m[1]) / 1000.0,
+                dz_km=float(position_difference_m[2]) / 1000.0,
+                dvx_m_s=float(velocity_difference_m_s[0]),
+                dvy_m_s=float(velocity_difference_m_s[1]),
+                dvz_m_s=float(velocity_difference_m_s[2]),
+            )
+        )
+    return results
+
+
+def format_numerical_output(
+    epoch: datetime,
+    diagnostics: fit_common.FitDiagnostics,
+    original_initial_state: np.ndarray,
+    fitted_initial_state: np.ndarray,
+    comparison: Sequence[fit_common.PropagationComparison] | None = None,
+) -> str:
+    """Format numerical-fit diagnostics and initial states without elements."""
+    original = np.asarray(original_initial_state, dtype=float)
+    fitted = np.asarray(fitted_initial_state, dtype=float)
+
+    def format_state(state: np.ndarray) -> str:
+        position = state[:3] / 1000.0
+        velocity = state[3:6] / 1000.0
+        return (
+            f"r=[{position[0]:.6f}, {position[1]:.6f}, {position[2]:.6f}] km, "
+            f"v=[{velocity[0]:.9f}, {velocity[1]:.9f}, {velocity[2]:.9f}] km/s"
+        )
+
+    lines = [
+        "Numerical Cartesian fit:",
+        f"  epoch:              {time_utils.datetime_to_iso8601(epoch, fractional_second_places=6)}",
+        f"  records used:       {diagnostics.n_records}",
+        f"  arc span:           {diagnostics.span_s:.1f} s",
+        f"  iterations:         {diagnostics.iterations}",
+        f"  fit method:         {diagnostics.fit_method or 'numerical'}",
+        "  initial states (Cartesian):",
+        f"    original OEM:     {format_state(original)}",
+        f"    fitted:           {format_state(fitted)}",
+    ]
+    if diagnostics.initial_position_rms_m is not None:
+        lines.append(f"  initial position RMS: {diagnostics.initial_position_rms_m / 1000.0:.6f} km")
+    lines.append(f"  RMS position error: {diagnostics.rms_position_m / 1000.0:.6f} km")
+    if diagnostics.epoch_vel_delta_m_s is not None:
+        lines.append(f"  epoch Δ|v0|:         {diagnostics.epoch_vel_delta_m_s:.6f} m/s")
+
+    if comparison:
+        lines.extend([
+            "",
+            "Propagation comparison (numerical propagator vs OEM) at 10-minute intervals:",
+            "",
+            f"    {'t (min)':>8}  {'|Δr| (km)':>10}  {'|Δv| (km/s)':>12}",
+            f"    {'─' * 8}  {'─' * 10}  {'─' * 12}",
+        ])
+        for record in comparison:
+            lines.append(
+                f"    {record.elapsed_min:8.1f}  {record.pos_err_km:10.6f}  "
+                f"{record.vel_err_m_s / 1000.0:12.9f}"
+            )
+        position_errors = [record.pos_err_km for record in comparison]
+        velocity_errors = [record.vel_err_m_s / 1000.0 for record in comparison]
+        lines.extend([
+            "",
+            "Summary:",
+            f"Position |Δr|:  min = {min(position_errors):.6f} km   max = {max(position_errors):.6f} km   avg = {np.mean(position_errors):.6f} km",
+            f"Velocity |Δv|:  min = {min(velocity_errors):.9f} km/s   max = {max(velocity_errors):.9f} km/s   avg = {np.mean(velocity_errors):.9f} km/s",
+        ])
+    return "\n".join(lines)
 
 
 def build_weighted_residuals(

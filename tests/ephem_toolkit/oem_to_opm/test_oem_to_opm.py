@@ -140,6 +140,13 @@ def test_numerical_fit_model_dispatches_to_shared_fitter(
     )
     monkeypatch.setattr(
         fit_numerical,
+        "make_numerical_trajectory_callback",
+        lambda *_args, **_kwargs: lambda _state, epochs: {
+            epoch: np.zeros(6) for epoch in epochs
+        },
+    )
+    monkeypatch.setattr(
+        fit_numerical,
         "optimize_initial_state",
         lambda *_args, **_kwargs: fit_numerical.NumericalFitResult(
             initial_state=DummyOemData().states[0][1],
@@ -170,6 +177,8 @@ def test_numerical_fit_model_dispatches_to_shared_fitter(
     assert "KEPLERIAN" not in output_path.read_text()
     captured = capsys.readouterr()
     assert "Keplerian" not in (captured.out + captured.err)
+    assert "original OEM" in (captured.out + captured.err)
+    assert "fitted:" in (captured.out + captured.err)
 
 
 def test_parser_accepts_no_fit_report() -> None:

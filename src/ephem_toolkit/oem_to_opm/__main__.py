@@ -372,7 +372,11 @@ def main(argv=None) -> None:
     # The numerical fit already evaluates the target propagator at its sampled
     # epochs; the legacy comparison table remains specific to the Kepler fit.
     comparison: list[fit_common.PropagationComparison] = []
-    if cli_args.fit_model == "two-body":
+    if cli_args.fit_model == "numerical":
+        comparison = fit_numerical.compute_numerical_propagation_comparison(
+            trajectory_callback, fitted_state, states, fit_span_s
+        )
+    else:
         comparison = fit_osculating_kepler.compute_kepler_propagation_comparison(
             fitted_elements, states, cli_args.mu_m3_s2, fit_span_s, interval_s=600.0
         )
@@ -380,15 +384,8 @@ def main(argv=None) -> None:
     # Format and report output
     first_epoch: datetime = time_utils.tt_s_to_datetime(states[0][0])
     if cli_args.fit_model == "numerical":
-        output_text = (
-            "Numerical Cartesian fit:\n"
-            f"  epoch:                 {time_utils.datetime_to_iso8601(first_epoch, fractional_second_places=6)}\n"
-            f"  records used:          {diagnostics.n_records}\n"
-            f"  arc span:              {diagnostics.span_s:.1f} s\n"
-            f"  iterations:            {diagnostics.iterations}\n"
-            f"  fit method:            numerical\n"
-            f"  initial position RMS:  {diagnostics.initial_position_rms_m / 1000.0:.6f} km\n"
-            f"  final position RMS:    {diagnostics.rms_position_m / 1000.0:.6f} km\n"
+        output_text = fit_numerical.format_numerical_output(
+            first_epoch, diagnostics, states[0][1], fitted_state, comparison
         )
     else:
         output_text = fit_osculating_kepler.format_kepler_output(
