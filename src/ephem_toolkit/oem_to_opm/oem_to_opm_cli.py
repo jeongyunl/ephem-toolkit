@@ -182,6 +182,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     cli_parser.add_argument("--fit-observables", choices=["position"], default="position", dest="fit_observables", help="Residual observable: position only (default: position).")
     cli_parser.add_argument("--fit-position-weight", type=parse_positive_float, default=1.0, dest="fit_position_weight", metavar="<value>", help="Position residual weight.")
     cli_parser.add_argument("--fit-max-iterations", type=parse_positive_int, default=100, dest="fit_max_iterations", metavar="<count>", help="Maximum numerical-fit iterations (default: 100).")
+    cli_parser.add_argument("--fit-stagnation-tries", type=parse_positive_int, default=3, dest="fit_stagnation_tries", metavar="<count>", help="Additional worsening/stagnant tries before stopping (default: 3).")
     cli_parser.add_argument("--fit-end-weight", type=parse_positive_float, default=2.0, dest="fit_end_weight", metavar="<value>", help="Position residual multiplier at the end of the fit span (default: 2.0).")
     cli_parser.add_argument("--fit-parameters", choices=["initial-state", "initial-state,drag-coeff", "initial-state,srp-coeff"], default="initial-state", dest="fit_parameters", help="Fitted state selection; physical parameters are fixed user inputs.")
     cli_parser.add_argument("--mass", type=parse_positive_float, default=DEFAULT_SATELLITE_MASS_KG, metavar="<kg>", help=f"Fixed spacecraft mass for numerical propagation (default: {DEFAULT_SATELLITE_MASS_KG}).")

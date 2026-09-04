@@ -107,10 +107,17 @@ algorithm for OEM, OMM, and TLE input paths.
 - Increased the numerical-fit iteration default to 100 and added
   `--fit-max-iterations` for CLI configuration; the selected value is included
   in fit-report configuration.
-- Added relative-stagnation convergence detection: when a trial strictly
-  improves the residual but the improvement is at most `1e-5` relative, the
-  fit stops and reports convergence instead of spending all remaining tries on
-  numerical-noise-level changes.
+- The optimizer now tracks the lowest-residual trial and returns that state and
+  its diagnostics, rather than the latest trial if later updates worsen the
+  fit. The configured `--fit-max-iterations` budget can therefore be used for
+  additional trials without risking a worse final result.
+- Small update steps alone no longer terminate the fit; convergence now
+  requires reaching the residual tolerance, while the best trial is returned.
+- Added configurable stagnation patience with `--fit-stagnation-tries` (default
+  3): worsening or negligible-improvement tries stop the search without
+  replacing the retained best fit.
+- Added stagnation patience: fitting stops after three worsening or negligible-
+  improvement tries by default, configurable with `--fit-stagnation-tries`.
 - Changed each trial evaluation to propagate once from the initial epoch to
   `initial_epoch + fit_span` with `OutputMode.TRAJECTORY`, then Hermite-
   interpolate the propagated trajectory at all fit epochs. This avoids one

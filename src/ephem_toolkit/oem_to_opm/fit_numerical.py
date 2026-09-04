@@ -39,6 +39,7 @@ class NumericalFitConfig:
     fit_model: str = "numerical"
     fit_span_s: float = 7200.0
     max_iterations: int = 100
+    stagnation_tries: int = 3
     fit_step_s: float = 60.0
     observables: str = "position"
     position_weight: float = 1.0
@@ -80,6 +81,7 @@ class NumericalFitConfig:
             "fit_model": self.fit_model,
             "fit_span_s": self.fit_span_s,
             "max_iterations": self.max_iterations,
+            "stagnation_tries": self.stagnation_tries,
             "fit_step_s": self.fit_step_s,
             "observables": self.observables,
             "position_weight": self.position_weight,
@@ -153,6 +155,7 @@ def config_from_fit_options(options) -> NumericalFitConfig:
         fit_model=str(options.fit_model),
         fit_span_s=float(options.fit_span.total_seconds()),
         max_iterations=int(getattr(options, "fit_max_iterations", 100)),
+        stagnation_tries=int(getattr(options, "fit_stagnation_tries", 3)),
         fit_step_s=float(getattr(options, "fit_step", 60.0)),
         observables=str(options.fit_observables),
         position_weight=float(options.fit_position_weight),
@@ -285,6 +288,7 @@ def optimize_initial_state(
     bounds: tuple[np.ndarray, np.ndarray] | None = None,
     iteration_callback: Callable[[int, float, float, float, bool], None] | None = None,
     propagate_trajectory=None,
+    stagnation_tries: int = 3,
 ) -> NumericalFitResult:
     """Optimize the initial Cartesian state using NumPy Gauss-Newton steps.
 
@@ -294,7 +298,7 @@ def optimize_initial_state(
     numerical-propagation dependency.
     """
     validate_numerical_fit(reference_states, config)
-    if max_iterations <= 0 or finite_difference_step <= 0.0 or tolerance <= 0.0:
+    if max_iterations <= 0 or stagnation_tries <= 0 or finite_difference_step <= 0.0 or tolerance <= 0.0:
         raise ValueError("optimizer limits and finite-difference step must be positive")
     state = np.asarray(initial_state, dtype=float).copy()
     if state.shape != (6,) or not np.all(np.isfinite(state)):
@@ -309,6 +313,13 @@ def optimize_initial_state(
     variable_indices = (3, 4, 5)
     converged = False
     iterations = 0
+    initial_residual, _ = build_weighted_residuals(
+        propagate, state, reference_states, config,
+        propagate_trajectory=propagate_trajectory,
+    )
+    best_state = state.copy()
+    best_residual_norm = float(np.linalg.norm(initial_residual))
+    stale_tries = 0
     for iterations in range(1, max_iterations + 1):
         residual, _ = build_weighted_residuals(propagate, state, reference_states, config, propagate_trajectory=propagate_trajectory)
         residual_norm = float(np.linalg.norm(residual))
@@ -324,12 +335,15 @@ def optimize_initial_state(
             state = np.clip(state, lower, upper)
         updated_residual, _ = build_weighted_residuals(propagate, state, reference_states, config, propagate_trajectory=propagate_trajectory)
         updated_norm = float(np.linalg.norm(updated_residual))
-        relative_improvement = (residual_norm - updated_norm) / max(residual_norm, 1.0)
-        if updated_norm <= tolerance or (
-            float(np.linalg.norm(delta)) <= tolerance and updated_norm < residual_norm
-        ) or (updated_norm < residual_norm and relative_improvement <= 1.0e-5):
-            converged = True
-            break
+        previous_best = best_residual_norm
+        if updated_norm < best_residual_norm:
+            best_residual_norm = updated_norm
+            best_state = state.copy()
+        relative_best_improvement = (previous_best - best_residual_norm) / max(previous_best, 1.0)
+        if relative_best_improvement > 1.0e-5:
+            stale_tries = 0
+        else:
+            stale_tries += 1
         if iteration_callback is not None:
             iteration_callback(
                 iterations,
@@ -338,16 +352,16 @@ def optimize_initial_state(
                 updated_norm,
                 converged,
             )
-    if iteration_callback is not None and converged:
-        iteration_callback(
-            iterations,
-            residual_norm,
-            float(np.linalg.norm(delta)),
-            updated_norm,
-            converged,
-        )
-    _, diagnostics = build_weighted_residuals(propagate, state, reference_states, config, propagate_trajectory=propagate_trajectory)
-    return NumericalFitResult(state, diagnostics, iterations, converged)
+        if updated_norm <= tolerance:
+            converged = True
+            break
+        if stale_tries >= stagnation_tries:
+            break
+    _, diagnostics = build_weighted_residuals(
+        propagate, best_state, reference_states, config,
+        propagate_trajectory=propagate_trajectory,
+    )
+    return NumericalFitResult(best_state, diagnostics, iterations, converged)
 
 
 def make_propagation_callback(propagator_factory, epoch_s: float):
@@ -453,6 +467,8 @@ def validate_numerical_fit(
         raise ValueError("fit span must be positive")
     if config.max_iterations <= 0:
         raise ValueError("maximum fit iterations must be positive")
+    if config.stagnation_tries <= 0:
+        raise ValueError("stagnation tries must be positive")
     if config.position_weight <= 0.0:
         raise ValueError("position weight must be positive")
     if config.end_of_span_weight < 1.0:

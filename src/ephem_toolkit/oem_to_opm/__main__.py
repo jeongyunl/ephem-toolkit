@@ -322,10 +322,15 @@ def main(argv=None) -> None:
                 iteration_callback=iteration_callback,
                 propagate_trajectory=trajectory_callback,
                 max_iterations=fit_config.max_iterations,
+                stagnation_tries=fit_config.stagnation_tries,
             )
             verbose_message(
                 show_progress,
                 f"numerical fit complete: iterations={numerical_result.iterations}, converged={numerical_result.converged}, position_rms={numerical_result.diagnostics.position_rms_m:g}m",
+            )
+            debug_message(
+                cli_args.debug,
+                f"selected best fit position_rms={numerical_result.diagnostics.position_rms_m:g}m",
             )
             fitted_state = numerical_result.initial_state
             fitted_elements = kepler.cartesian_to_keplerian(
