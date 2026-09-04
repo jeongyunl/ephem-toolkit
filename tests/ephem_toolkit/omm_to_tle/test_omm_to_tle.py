@@ -8,6 +8,8 @@ import sys
 
 import pytest
 
+import ephem_toolkit.core.ccsds.omm as omm
+import ephem_toolkit.omm_to_tle as omm_to_tle
 from ephem_toolkit.omm_to_tle.omm_to_tle_cli import build_arg_parser, parse_arguments
 
 
@@ -57,3 +59,20 @@ def test_omm_to_tle_rejects_fit_and_provenance_options(unsupported_option: str) 
         )
 
     assert error.value.code == 2
+
+
+def test_omm_to_tle_rejects_non_sgp4_theory_before_writing(
+    monkeypatch, tmp_path
+) -> None:
+    """Direct conversion rejects non-SGP4 OMMs before output is created."""
+    source = tmp_path / "input.omm"
+    output = tmp_path / "output.tle"
+    source.write_text("OMM", encoding="utf-8")
+    non_sgp4 = omm.CcsdsOmm(mean_element_theory="DSST")
+    monkeypatch.setattr(omm.CcsdsOmm, "from_source", lambda *_args: non_sgp4)
+
+    with pytest.raises(SystemExit) as error:
+        omm_to_tle.main([str(source), "-o", str(output)])
+
+    assert error.value.code == 1
+    assert not output.exists()

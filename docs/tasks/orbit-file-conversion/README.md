@@ -23,8 +23,10 @@ unless they imply implementation work.
   current conversion commands.
 - **Complete:** Task 4. OEM-to-OMM supports canonical fit-model selection,
   deprecated mode compatibility, theory conflict validation, and reporting.
-- **Pending:** Tasks 6–11. Task 5 is complete; the remaining task documents
-  describe planned implementation work and acceptance criteria.
+- **In progress:** Task 10. Direct OMM-to-TLE validation is implemented;
+  explicit SGP4 refitting for non-SGP4 OMMs remains.
+- **Pending:** Tasks 6–9 and 11. Their documents describe planned
+  implementation work and acceptance criteria.
 
 ## Suggested order
 
@@ -37,7 +39,7 @@ unless they imply implementation work.
 7. **Pending:** [OPM to OEM model-aware workflow](07-opm-to-oem-workflow.md)
 8. **Pending:** [OPM to OMM composed workflow](08-opm-to-omm-workflow.md)
 9. **Pending:** [OEM to TLE fit reporting](09-oem-to-tle-fit-report.md)
-10. **Pending:** [OMM to TLE validation and refit](10-omm-to-tle-validation-refit.md)
+10. **In progress:** [OMM to TLE validation and refit](10-omm-to-tle-validation-refit.md)
 11. **Pending:** [OPM to TLE composed workflow](11-opm-to-tle-workflow.md)
 
 Tasks 1–3 define shared behavior and should land before the format-specific

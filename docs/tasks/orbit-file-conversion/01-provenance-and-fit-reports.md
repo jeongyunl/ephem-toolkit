@@ -162,7 +162,8 @@ Result: `223 passed, 2 deselected`.
 
 ### Remaining work
 
-- Define and implement direct/refit report behavior for `omm-to-tle`.
+- Define and implement direct/refit report behavior for `omm-to-tle`; direct
+  model validation is now implemented under Task 10.
 - Extend force-model and integrator configuration reporting to any remaining
   production numerical-fitting workflows.
 - Implement reporting for the proposed `omm-to-opm`, `tle-to-opm`,
