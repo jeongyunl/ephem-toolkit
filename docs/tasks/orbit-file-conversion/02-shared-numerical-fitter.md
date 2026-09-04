@@ -41,6 +41,8 @@ algorithm for OEM, OMM, and TLE input paths.
   SRP-coefficient fitting requires SRP to be enabled in the fit configuration.
 - Added optional six-component optimizer bounds with validation and clipping of
   state updates.
+- Added coverage for the explicit opt-out path where all six initial-state
+  components, including position, are optimized.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.
