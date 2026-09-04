@@ -20,15 +20,14 @@ def states(count=2):
 
 
 def test_valid_numerical_fit_configuration() -> None:
-    validate_numerical_fit(states(), NumericalFitConfig(observables="state", velocity_weight=2.0))
+    validate_numerical_fit(states(), NumericalFitConfig())
 
 
 @pytest.mark.parametrize(
     ("config", "message"),
     [
         (NumericalFitConfig(fit_span_s=0), "fit span"),
-        (NumericalFitConfig(observables="state", velocity_weight=0), "weights"),
-        (NumericalFitConfig(observables="position", velocity_weight=2), "velocity weight"),
+        (NumericalFitConfig(position_weight=0), "position weight"),
         (NumericalFitConfig(parameters="initial-state,drag-coeff", drag_enabled=False), "drag to be enabled"),
         (NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=False), "SRP to be enabled"),
     ],
@@ -65,7 +64,7 @@ def test_fixed_parameter_values_returns_only_selected_user_inputs() -> None:
 
 def test_fit_configuration_serializes_fixed_parameters() -> None:
     config = NumericalFitConfig(
-        observables="state",
+        observables="position",
         velocity_weight=2.0,
         parameters="initial-state,srp-coeff",
         srp_enabled=True,
@@ -74,7 +73,7 @@ def test_fit_configuration_serializes_fixed_parameters() -> None:
 
     report_config = config.to_report_dict()
 
-    assert report_config["observables"] == "state"
+    assert report_config["observables"] == "position"
     assert report_config["velocity_weight"] == 2.0
     assert report_config["fixed_parameters"] == {"srp_coeff": 1.3}
 
@@ -155,7 +154,7 @@ def test_config_from_fit_options_preserves_cli_fit_controls() -> None:
         fit_model = "numerical"
         fit_span = timedelta(hours=1)
         fit_step = 30.0
-        fit_observables = "state"
+        fit_observables = "position"
         fit_position_weight = 2.0
         fit_velocity_weight = 0.5
         fit_parameters = "initial-state"
@@ -163,7 +162,7 @@ def test_config_from_fit_options_preserves_cli_fit_controls() -> None:
     config = config_from_fit_options(Options())
     assert config.fit_model == "numerical"
     assert config.fit_span_s == 3600.0
-    assert config.observables == "state"
+    assert config.observables == "position"
     assert config.velocity_weight == 0.5
 
 
@@ -188,7 +187,7 @@ def test_optimizer_applies_state_bounds() -> None:
         lambda initial, _epoch: initial,
         np.zeros(6),
         reference,
-        NumericalFitConfig(observables="state", fit_step_s=1.0),
+        NumericalFitConfig(fit_step_s=1.0),
         bounds=(np.full(6, -1.0), np.full(6, 1.0)),
     )
 
@@ -207,7 +206,7 @@ def test_optimizer_rejects_malformed_bounds() -> None:
         )
 
 
-def test_optimizer_can_fit_all_state_components_when_position_is_not_preserved() -> None:
+def test_optimizer_always_preserves_initial_position() -> None:
     target = np.array([4.0, 5.0, 6.0, 1.0, 2.0, 3.0])
     reference = [(0.0, target), (1.0, target)]
     result = optimize_initial_state(
@@ -215,14 +214,13 @@ def test_optimizer_can_fit_all_state_components_when_position_is_not_preserved()
         np.zeros(6),
         reference,
         NumericalFitConfig(
-            observables="state",
             fit_step_s=1.0,
             preserve_initial_position=False,
         ),
     )
 
     assert result.converged
-    assert np.allclose(result.initial_state, target, atol=1.0e-4)
+    assert np.allclose(result.initial_state[:3], target[:3], atol=1.0e-4)
 
 
 @pytest.mark.parametrize(
@@ -255,7 +253,7 @@ def test_optimizer_does_not_report_convergence_without_residual_reduction() -> N
         lambda _initial, _epoch: np.zeros(6),
         np.zeros(6),
         reference,
-        NumericalFitConfig(observables="state", fit_step_s=1.0),
+        NumericalFitConfig(fit_step_s=1.0),
     )
 
     assert not result.converged
@@ -272,20 +270,19 @@ def test_optimizer_keeps_supplied_physical_parameters_fixed() -> None:
     assert result.converged
 
 
-def test_build_weighted_residuals_supports_full_state() -> None:
+def test_build_weighted_residuals_uses_position_only() -> None:
     reference = [(0.0, np.zeros(6)), (60.0, np.ones(6))]
 
     residuals, diagnostics = build_weighted_residuals(
         lambda _initial, _epoch: np.zeros(6),
         np.zeros(6),
         reference,
-        NumericalFitConfig(observables="state", fit_step_s=1.0),
+        NumericalFitConfig(fit_step_s=1.0),
     )
 
-    assert residuals.shape == (12,)
-    assert diagnostics.n_records == 2
-    assert diagnostics.position_max_m == np.sqrt(3.0)
-    assert diagnostics.velocity_rms_m_s == np.sqrt(3.0 / 2.0)
+    assert residuals.shape == (61 * 3,)
+    assert diagnostics.n_records == 61
+    assert diagnostics.velocity_rms_m_s is None
 
 
 def test_build_weighted_residuals_preserves_initial_position() -> None:
@@ -303,13 +300,13 @@ def test_build_weighted_residuals_preserves_initial_position() -> None:
 
 
 def test_optimize_initial_state_uses_numpy_only_and_preserves_position() -> None:
-    reference = [(0.0, np.array([10.0, 20.0, 30.0, 1.0, 2.0, 3.0])), (1.0, np.array([10.0, 20.0, 30.0, 2.0, 3.0, 4.0]))]
+    reference = [(0.0, np.array([10.0, 20.0, 30.0, 1.0, 2.0, 3.0])), (1.0, np.array([11.0, 22.0, 33.0, 1.0, 2.0, 3.0]))]
 
     result = optimize_initial_state(
-        lambda initial, epoch: initial + np.array([0.0, 0.0, 0.0, epoch, epoch, epoch]),
+        lambda initial, epoch: np.concatenate((initial[:3] + epoch * initial[3:], initial[3:])),
         np.zeros(6),
         reference,
-        NumericalFitConfig(observables="state", fit_step_s=1.0),
+        NumericalFitConfig(fit_step_s=1.0),
     )
 
     assert result.converged
@@ -373,5 +370,5 @@ def test_residual_sampling_handles_irregular_epochs_and_fit_span() -> None:
         NumericalFitConfig(fit_span_s=100.0, fit_step_s=60.0),
     )
 
-    assert calls == [0.0, 75.0]
-    assert diagnostics.n_records == 2
+    assert calls == [0.0, 60.0, 100.0]
+    assert diagnostics.n_records == 3

@@ -49,7 +49,6 @@ class OemToOpmArgs(argparse.Namespace):
     fit_step: float
     fit_observables: str
     fit_position_weight: float
-    fit_velocity_weight: float
     fit_parameters: str
 
 
@@ -161,9 +160,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Fitting model (default: two-body).",
     )
     cli_parser.add_argument("--fit-step", type=parse_positive_float, default=60.0, dest="fit_step", metavar="<seconds>", help="Reference-arc sample spacing in seconds.")
-    cli_parser.add_argument("--fit-observables", choices=["position", "state"], default="position", dest="fit_observables", help="Residual observables (default: position).")
+    cli_parser.add_argument("--fit-observables", choices=["position"], default="position", dest="fit_observables", help="Residual observable: position only (default: position).")
     cli_parser.add_argument("--fit-position-weight", type=parse_positive_float, default=1.0, dest="fit_position_weight", metavar="<value>", help="Position residual weight.")
-    cli_parser.add_argument("--fit-velocity-weight", type=parse_positive_float, default=1.0, dest="fit_velocity_weight", metavar="<value>", help="Velocity residual weight; used with --fit-observables state.")
     cli_parser.add_argument("--fit-parameters", choices=["initial-state", "initial-state,drag-coeff", "initial-state,srp-coeff"], default="initial-state", dest="fit_parameters", help="Fitted state selection; physical parameters are fixed user inputs.")
     cli_parser.add_argument("--mass", type=parse_positive_float, default=DEFAULT_SATELLITE_MASS_KG, metavar="<kg>", help=f"Fixed spacecraft mass for numerical propagation (default: {DEFAULT_SATELLITE_MASS_KG}).")
     cli_parser.add_argument("--drag-area", type=parse_positive_float, default=DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2, dest="drag_area", metavar="<m2>", help=f"Fixed drag/SRP reference area (default: {DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2}).")
