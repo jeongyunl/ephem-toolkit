@@ -153,7 +153,7 @@ def _load_spice_kernels() -> None:
         "pck00011.tpc",
         "gm_de431.tpc",
         "earth_200101_990825_predict.bpc",
-        "inpop19a_TDB_m100_p100_spice.bsp",
+        "tudat_merged_spk_kernel.bsp",
     ]
     for kernel_file in spice_kernel_files:
         spice_utils.load_kernel(kernel_file)
