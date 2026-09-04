@@ -106,6 +106,12 @@ def verbose_message(enabled: bool, message: str) -> None:
         print(f"[oem-to-opm] {message}", file=sys.stderr)
 
 
+def debug_message(enabled: bool, message: str) -> None:
+    """Write a detailed debug message when debug mode is enabled."""
+    if enabled:
+        print(f"[oem-to-opm:debug] {message}", file=sys.stderr)
+
+
 def build_opm(
     epoch: datetime,
     initial_state_m_m_s: np.ndarray,
@@ -197,10 +203,12 @@ def main(argv=None) -> None:
     """Parse CLI arguments and dispatch to the appropriate conversion mode."""
     cli_parser = build_arg_parser()
     cli_args: OemToOpmArgs = parse_arguments(cli_parser, argv)
+    show_progress = cli_args.verbose or cli_args.debug
+    debug_message(cli_args.debug, f"parsed arguments: {vars(cli_args)}")
 
     # Determine input source: file path or stdin (piped input)
     read_from_stdin: bool = cli_args.input_oem == "-"
-    verbose_message(cli_args.verbose, f"reading OEM input: {cli_args.input_oem}")
+    verbose_message(show_progress, f"reading OEM input: {cli_args.input_oem}")
 
     # Read and parse CCSDS OEM ephemeris data
     if read_from_stdin:
@@ -212,7 +220,11 @@ def main(argv=None) -> None:
         oem_data = oem.CcsdsOem.read(oem_path)
 
     states: list[tuple[float, np.ndarray]] = oem_data.states
-    verbose_message(cli_args.verbose, f"loaded {len(states)} OEM state vectors")
+    verbose_message(show_progress, f"loaded {len(states)} OEM state vectors")
+    debug_message(
+        cli_args.debug,
+        f"OEM metadata: object={oem_data.meta.object_name!r}, frame={oem_data.meta.ref_frame!r}, time_system={oem_data.meta.time_system!r}",
+    )
 
     if len(states) < 2:
         report_error("Error: At least 2 state vectors required for fitting.")
@@ -232,7 +244,7 @@ def main(argv=None) -> None:
         )
     )
     verbose_message(
-        cli_args.verbose,
+        show_progress,
         f"fit model={cli_args.fit_model}, span={fit_span_s:g}s, report={'disabled' if fit_report is None else fit_report}",
     )
 
@@ -263,14 +275,15 @@ def main(argv=None) -> None:
     }
     try:
         if cli_args.fit_model == "numerical":
-            verbose_message(cli_args.verbose, "building numerical propagator configuration")
+            verbose_message(show_progress, "building numerical propagator configuration")
             fit_config = fit_numerical.config_from_fit_options(cli_args)
             fit_numerical.validate_numerical_fit(states, fit_config)
-            verbose_message(cli_args.verbose, "numerical fit configuration validated")
+            verbose_message(show_progress, "numerical fit configuration validated")
+            debug_message(cli_args.debug, f"numerical fit configuration: {fit_config.to_report_dict()}")
             propagator_config = fit_config.to_propagator_config(
                 satellite_name=object_name or "FIT_TARGET"
             )
-            verbose_message(cli_args.verbose, "numerical propagator configuration ready")
+            verbose_message(show_progress, "numerical propagator configuration ready")
             propagator_factory = fit_numerical.make_numerical_propagator_factory(
                 propagator_config, states[0][0]
             )
@@ -278,17 +291,24 @@ def main(argv=None) -> None:
                 propagator_factory, states[0][0]
             )
             verbose_message(
-                cli_args.verbose,
+                show_progress,
                 "starting numerical fit; each residual evaluation propagates the sampled OEM arc",
             )
+            iteration_callback = None
+            if cli_args.debug:
+                iteration_callback = lambda iteration, residual, step, updated, converged: debug_message(
+                    True,
+                    f"fit try {iteration}: residual={residual:g}, velocity_step={step:g}, updated_residual={updated:g}, converged={converged}",
+                )
             numerical_result = fit_numerical.optimize_initial_state(
                 propagation_callback,
                 states[0][1],
                 states,
                 fit_config,
+                iteration_callback=iteration_callback,
             )
             verbose_message(
-                cli_args.verbose,
+                show_progress,
                 f"numerical fit complete: iterations={numerical_result.iterations}, converged={numerical_result.converged}, position_rms={numerical_result.diagnostics.position_rms_m:g}m",
             )
             fitted_state = numerical_result.initial_state
@@ -314,7 +334,7 @@ def main(argv=None) -> None:
                 "source_report": source_report,
             }
         else:
-            verbose_message(cli_args.verbose, "running two-body fit")
+            verbose_message(show_progress, "running two-body fit")
             fitted_elements, diagnostics = fit_osculating_kepler.fit_osculating_kepler(
                 states,
                 fit_span_s,
@@ -337,12 +357,13 @@ def main(argv=None) -> None:
         first_epoch, fitted_elements, diagnostics, comparison,
         fit_method=cli_args.fit_model,
     )
-    verbose_message(cli_args.verbose, "serializing OPM output")
+    verbose_message(show_progress, "serializing OPM output")
+    debug_message(cli_args.debug, f"fitted Keplerian elements: {fitted_elements.tolist()}")
 
     # Report results to stderr in verbose mode when output is stdout
-    if cli_args.verbose and cli_args.output_opm == "-":
+    if show_progress and cli_args.output_opm == "-":
         print(output_text, file=sys.stderr)
-    elif cli_args.verbose:
+    elif show_progress:
         report_results(output_text, "-", cli_args.verbose)
 
     # Save the initial state and fitted osculating elements as an OPM.
@@ -379,7 +400,7 @@ def main(argv=None) -> None:
                 opm_obj.to_file(sys.stdout)
             else:
                 opm_obj.to_file(cli_args.output_opm)
-                if cli_args.verbose:
+                if show_progress:
                     print(
                         f"OPM file written to: {cli_args.output_opm}",
                         file=sys.stderr,
@@ -393,7 +414,7 @@ def main(argv=None) -> None:
                     source_report=source_report,
                     residuals=provenance.comparison_residuals(comparison),
                 )
-                verbose_message(cli_args.verbose, f"fit report written to: {fit_report}")
+                verbose_message(show_progress, f"fit report written to: {fit_report}")
         except Exception as error:
             report_error(f"Error writing OPM file: {error}")
 

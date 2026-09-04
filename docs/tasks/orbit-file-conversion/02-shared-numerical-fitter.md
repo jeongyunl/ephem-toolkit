@@ -98,6 +98,10 @@ algorithm for OEM, OMM, and TLE input paths.
 - Added verbose progress messages for input loading, fit setup/completion, OPM
   serialization, and fit-report writing; messages are emitted to stderr only
   when `--verbose` is supplied.
+- Added `--debug`, which implies progress output and adds parsed arguments,
+  OEM metadata, numerical-fit configuration, and fitted-element diagnostics.
+- Added one `--debug` message per optimizer try with residual norm, velocity
+  step norm, updated residual norm, and convergence status.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.

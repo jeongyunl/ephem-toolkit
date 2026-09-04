@@ -33,6 +33,8 @@ class OemToOpmArgs(argparse.Namespace):
     """Output OPM path or '-' for stdout."""
     verbose: bool
     """Print verbose diagnostic output to stderr."""
+    debug: bool
+    """Print detailed debug information to stderr."""
     mu_m3_s2: float
     """Gravitational parameter in m³/s²."""
     fit_span: timedelta
@@ -128,6 +130,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         dest="verbose",
         action="store_true",
         help="Print detailed debug information to stderr",
+    )
+    cli_parser.add_argument(
+        "--debug",
+        dest="debug",
+        action="store_true",
+        help="Print detailed internal diagnostics to stderr; implies --verbose.",
     )
     cli_parser.add_argument(
         "--mu",

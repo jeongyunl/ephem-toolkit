@@ -260,6 +260,22 @@ def test_optimizer_does_not_report_convergence_without_residual_reduction() -> N
     assert result.diagnostics.position_rms_m > 0.0
 
 
+def test_optimizer_reports_each_iteration_to_callback() -> None:
+    tries = []
+    reference = [(0.0, np.ones(6)), (1.0, np.ones(6))]
+    optimize_initial_state(
+        lambda _initial, _epoch: np.zeros(6),
+        np.zeros(6),
+        reference,
+        NumericalFitConfig(fit_step_s=1.0),
+        max_iterations=2,
+        iteration_callback=lambda *values: tries.append(values),
+    )
+    assert len(tries) == 2
+    assert tries[0][0] == 1
+    assert len(tries[0]) == 5
+
+
 def test_optimizer_keeps_supplied_physical_parameters_fixed() -> None:
     result = optimize_initial_state(
         lambda initial, _epoch: initial,
