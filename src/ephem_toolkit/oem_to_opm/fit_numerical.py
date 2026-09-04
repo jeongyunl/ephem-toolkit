@@ -147,6 +147,7 @@ def optimize_initial_state(
     iterations = 0
     for iterations in range(1, max_iterations + 1):
         residual, _ = build_weighted_residuals(propagate, state, reference_states, config)
+        residual_norm = float(np.linalg.norm(residual))
         jacobian = np.empty((residual.size, len(variable_indices)))
         for column, index in enumerate(variable_indices):
             trial = state.copy()
@@ -157,7 +158,11 @@ def optimize_initial_state(
         state[list(variable_indices)] += delta
         if lower is not None and upper is not None:
             state = np.clip(state, lower, upper)
-        if float(np.linalg.norm(delta)) <= tolerance:
+        updated_residual, _ = build_weighted_residuals(propagate, state, reference_states, config)
+        updated_norm = float(np.linalg.norm(updated_residual))
+        if updated_norm <= tolerance or (
+            float(np.linalg.norm(delta)) <= tolerance and updated_norm < residual_norm
+        ):
             converged = True
             break
     _, diagnostics = build_weighted_residuals(propagate, state, reference_states, config)
