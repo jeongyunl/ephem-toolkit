@@ -168,6 +168,29 @@ def make_propagation_callback(propagator_factory, epoch_s: float):
     return propagate
 
 
+def make_numerical_propagator_factory(config, epoch_s: float):
+    """Create a lazy factory for the repository's numerical propagator.
+
+    The import is local so validation and optimizer unit tests do not require
+    the optional propagation engine to be importable.
+    """
+    from ephem_toolkit.core.propagator.numerical import (
+        NumericalInitialState,
+        NumericalPropagator,
+    )
+
+    def factory(initial_state: np.ndarray, initial_epoch_s: float):
+        return NumericalPropagator(
+            config,
+            NumericalInitialState(
+                state_m_m_s=np.asarray(initial_state, dtype=float),
+                epoch_s=initial_epoch_s,
+            ),
+        )
+
+    return factory
+
+
 def validate_numerical_fit(
     states: Sequence[tuple[float, np.ndarray]], config: NumericalFitConfig
 ) -> None:
