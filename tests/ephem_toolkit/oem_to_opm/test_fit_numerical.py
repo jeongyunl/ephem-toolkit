@@ -108,6 +108,19 @@ def test_fit_configuration_builds_propagator_configuration(monkeypatch) -> None:
     assert propagator_config.values["integrator_method"] == "rkdp_87"
 
 
+def test_fit_configuration_rejects_incomplete_propagator_settings(monkeypatch) -> None:
+    import sys
+    import types
+
+    monkeypatch.setitem(
+        sys.modules,
+        "ephem_toolkit.core.propagator.numerical",
+        types.SimpleNamespace(NumericalPropagatorConfig=object),
+    )
+    with pytest.raises(ValueError, match="mass and drag area"):
+        NumericalFitConfig().to_propagator_config()
+
+
 def test_config_from_propagation_options_preserves_fixed_coefficients() -> None:
     class Options:
         drag = True
