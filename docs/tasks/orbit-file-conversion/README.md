@@ -8,26 +8,26 @@ unless they imply implementation work.
 
 ## Status
 
-- **In progress:** Task 1. The shared comment/report layer and initial
-  OEM-to-OMM/OEM-to-OPM wiring are implemented; TLE wrapper integration,
-  source-report parsing, and basic convergence reporting are implemented;
-  velocity residuals, richer propagation diagnostics, and proposed-command
-  support are still pending. See [Task 1 progress](01-provenance-and-fit-reports.md#progress).
-- **In progress:** Task 2. The shared numerical-fit configuration is now
-  connected to `oem-to-opm --fit-model numerical`, including fixed propagator
-  configuration, fitting, OPM conversion, and fit-report diagnostics. Live
-  Tudat/SPICE verification and human-readable numerical comparison output
-  remain pending.
-- **Pending:** Tasks 3–11. These remain planned implementation work; their
-  documents describe the intended behavior and acceptance criteria.
+- **In progress:** Task 1. The shared comment/report layer and current
+  OEM-to-OMM, OEM-to-OPM, and OEM-to-TLE paths are implemented. Remaining
+  work is direct `omm-to-tle` report behavior, broader production report
+  configuration coverage, and proposed-command support. See [Task 1
+  progress](01-provenance-and-fit-reports.md#progress).
+- **Complete:** Task 2 implementation. The shared numerical fitter is wired to
+  `oem-to-opm --fit-model numerical`, including fixed propagator configuration,
+  Cartesian fitting, OPM conversion, fit reports, and human-readable summaries.
+  Representative live Tudat/SPICE verification remains an environment-level
+  follow-up. See [Task 2 progress](02-shared-numerical-fitter.md#progress).
+- **Pending:** Tasks 3–4 and 6–11. Task 5 is complete; the remaining task
+  documents describe planned implementation work and acceptance criteria.
 
 ## Suggested order
 
 1. **In progress:** [Shared provenance and fit-report contract](01-provenance-and-fit-reports.md)
-2. **In progress:** [Shared numerical propagator fitter](02-shared-numerical-fitter.md)
-3. **Pending:** [Conversion CLI option contract](03-conversion-cli-options.md)
+2. **Complete:** [Shared numerical propagator fitter](02-shared-numerical-fitter.md)
+3. **Next:** [Conversion CLI option contract](03-conversion-cli-options.md)
 4. **Pending:** [OEM to OMM fit migration](04-oem-to-omm-fit-model.md)
-5. **Pending:** [OEM to OPM numerical fitting](05-oem-to-opm-numerical-fit.md)
+5. **Complete:** [OEM to OPM numerical fitting](05-oem-to-opm-numerical-fit.md)
 6. **Pending:** [OMM and TLE to OPM numerical fitting](06-omm-tle-to-opm-numerical-fit.md)
 7. **Pending:** [OPM to OEM model-aware workflow](07-opm-to-oem-workflow.md)
 8. **Pending:** [OPM to OMM composed workflow](08-opm-to-omm-workflow.md)
@@ -40,8 +40,9 @@ work. Tasks 5–6 depend on the shared numerical fitter. Tasks 8 and 11 compose
 existing propagation and fitting operations and can reuse the lower-level
 pieces from earlier tasks.
 
-Latest focused verification: `177 passed, 2 deselected` covering the numerical
-fit validation, provenance reporting, and affected conversion suites.
+Latest focused verification: `223 passed, 2 deselected` covering the
+provenance/reporting and affected conversion/CCSDS suites; the frame-utils
+kernel-loading suite also passes with `13 passed`.
 
 All orbit-file-conversion work has an additional objective: do not add runtime
 dependencies; reuse the repository's existing libraries and tooling.

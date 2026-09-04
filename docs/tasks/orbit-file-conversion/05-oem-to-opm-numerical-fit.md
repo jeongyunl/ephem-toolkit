@@ -1,5 +1,13 @@
 # Task 5: Add numerical fitting to OEM-to-OPM
 
+## Status
+
+**Complete for the current OEM-to-OPM scope.** Numerical fitting, fixed
+propagator configuration, Cartesian OPM output, provenance/fit reports, and
+human-readable diagnostics are implemented and tested. Live Tudat/SPICE
+verification with representative long OEM arcs remains a follow-up validation
+item.
+
 ## Goal
 
 Allow an OEM to produce an OPM initial state for a configured numerical
@@ -20,8 +28,22 @@ tooling.
   parameters must not be estimated.
 - Preserve input OEM provenance in OPM comments and identify whether the OPM
   state came from a two-body fit, numerical fit, or supported reconstruction.
-- Keep fitted Keplerian fields clearly labeled as derived/osculating values;
-  do not present them as source mean elements.
+- Numerical fitting is Cartesian-only: do not calculate or show osculating
+  Keplerian elements or related derived quantities for the numerical path.
+  Two-body output retains its existing Keplerian behavior.
+
+## Completed implementation
+
+- Added `--fit-model numerical` while retaining two-body as the default.
+- Routed fitting through the shared numerical arc fitter with fixed user-
+  supplied physical parameters.
+- Added fit controls, force-model configuration, provenance, optional fit
+  reports, and Cartesian initial-state output.
+- Added verbose numerical summaries containing original/fitted initial states,
+  RMS diagnostics, epoch velocity delta, propagation comparisons, and
+  residual summary statistics.
+- Added unit coverage for dispatch, output shape, and numerical-only summary
+  behavior without adding runtime dependencies.
 
 ## Acceptance criteria
 

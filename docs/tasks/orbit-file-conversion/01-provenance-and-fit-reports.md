@@ -157,16 +157,14 @@ Command:
 PYTHONPATH=src pytest -q tests/ephem_toolkit/oem_to_omm tests/ephem_toolkit/oem_to_opm tests/ephem_toolkit/oem_to_tle tests/ephem_toolkit/core/ccsds/test_oem.py tests/ephem_toolkit/core/ccsds/test_omm.py tests/ephem_toolkit/core/ccsds/test_opm.py
 ```
 
-Result: `174 passed, 2 deselected` for the original focused conversion/CCSDS
-suite, plus `116 passed, 2 deselected` after the new unit tests were added.
+Result: `223 passed, 2 deselected`.
 `PYTHONPATH=src python -m compileall -q src` and `git diff --check` also pass.
 
 ### Remaining work
 
-- Add tests for and wire the new report options through `oem-to-tle`'s delegated
-  pipeline and `omm-to-tle` once its direct/refit report behavior is defined.
-- Add force-model and integrator configuration to production reports when the
-  numerical fitting APIs expose those options.
+- Define and implement direct/refit report behavior for `omm-to-tle`.
+- Extend force-model and integrator configuration reporting to any remaining
+  production numerical-fitting workflows.
 - Implement reporting for the proposed `omm-to-opm`, `tle-to-opm`,
   `opm-to-omm`, and `opm-to-tle` commands after those commands exist.
 
