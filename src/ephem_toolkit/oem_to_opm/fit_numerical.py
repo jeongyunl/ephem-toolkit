@@ -33,6 +33,8 @@ class NumericalFitConfig:
     parameters: str = "initial-state"
     preserve_initial_position: bool = True
     """Keep the fitted epoch position equal to the first reference position."""
+    drag_enabled: bool = False
+    srp_enabled: bool = False
 
 
 @dataclass(frozen=True)
@@ -203,6 +205,10 @@ def validate_numerical_fit(
         raise ValueError(f"observables must be one of: {', '.join(SUPPORTED_OBSERVABLES)}")
     if config.parameters not in SUPPORTED_PARAMETERS:
         raise ValueError("unsupported fit parameters")
+    if config.parameters.endswith("drag-coeff") and not config.drag_enabled:
+        raise ValueError("drag coefficient fitting requires drag to be enabled")
+    if config.parameters.endswith("srp-coeff") and not config.srp_enabled:
+        raise ValueError("SRP coefficient fitting requires SRP to be enabled")
     if config.fit_span_s <= 0.0 or config.fit_step_s <= 0.0:
         raise ValueError("fit span and fit step must be positive")
     if config.position_weight <= 0.0 or config.velocity_weight <= 0.0:

@@ -27,6 +27,8 @@ def test_valid_numerical_fit_configuration() -> None:
         (NumericalFitConfig(observables="state", velocity_weight=0), "weights"),
         (NumericalFitConfig(observables="position", velocity_weight=2), "velocity weight"),
         (NumericalFitConfig(parameters="drag-coeff"), "parameters"),
+        (NumericalFitConfig(parameters="initial-state,drag-coeff"), "drag to be enabled"),
+        (NumericalFitConfig(parameters="initial-state,srp-coeff"), "SRP to be enabled"),
     ],
 )
 def test_invalid_numerical_fit_configuration(config, message) -> None:
@@ -39,6 +41,17 @@ def test_fit_requires_two_six_component_states() -> None:
         validate_numerical_fit(states(1), NumericalFitConfig())
     with pytest.raises(ValueError, match="six Cartesian"):
         validate_numerical_fit([(0.0, np.zeros(3)), (1.0, np.zeros(3))], NumericalFitConfig())
+
+
+def test_force_parameter_fitting_can_be_enabled() -> None:
+    validate_numerical_fit(
+        states(),
+        NumericalFitConfig(parameters="initial-state,drag-coeff", drag_enabled=True),
+    )
+    validate_numerical_fit(
+        states(),
+        NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=True),
+    )
 
 
 def test_build_weighted_residuals_supports_full_state() -> None:

@@ -37,6 +37,8 @@ algorithm for OEM, OMM, and TLE input paths.
 - Added a lazy factory for the existing `core.propagator.numerical` API;
   numerical-engine imports occur only when fitting is invoked, while tests can
   continue using injected mock factories.
+- Added force-enable validation: drag-coefficient fitting requires drag and
+  SRP-coefficient fitting requires SRP to be enabled in the fit configuration.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.
@@ -54,6 +56,8 @@ result recorded in the orbit-conversion task README.
 - Connect `NumericalFitConfig` to `core.propagator.numerical`.
 - Connect the factory and optimizer to conversion CLI paths, including force
   model configuration and physical-parameter fitting.
+- Add the corresponding force-model CLI options and map them into this
+  configuration.
 - Preserve the initial position as a hard constraint in the optimizer and
   document that behavior in fit reports.
 - Add force-model and physical-parameter validation, diagnostics, and wrapper
