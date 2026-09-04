@@ -71,13 +71,12 @@ def test_parser_accepts_fit_controls() -> None:
     args = parse_arguments(
         build_arg_parser(),
         [
-            "--fit-step", "30", "--fit-observables", "position",
+            "--fit-observables", "position",
             "--fit-position-weight", "2",
             "--fit-parameters", "initial-state,drag-coeff",
             "input.oem", "-o", "output.opm",
         ],
     )
-    assert args.fit_step == 30.0
     assert args.fit_observables == "position"
     assert args.fit_position_weight == 2.0
     assert args.fit_end_weight == 2.0
@@ -105,7 +104,7 @@ def test_parser_uses_propagate_orbit_physical_defaults() -> None:
     assert args.srp_coeff == 1.2
 
 
-@pytest.mark.parametrize("option", ["--fit-step", "--fit-position-weight"])
+@pytest.mark.parametrize("option", ["--fit-position-weight"])
 def test_parser_rejects_non_positive_fit_controls(option: str) -> None:
     with pytest.raises(SystemExit) as error:
         parse_arguments(build_arg_parser(), [option, "0", "input.oem", "-o", "output.opm"])

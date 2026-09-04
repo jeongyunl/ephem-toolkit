@@ -150,7 +150,7 @@ def config_from_fit_options(options) -> NumericalFitConfig:
     return NumericalFitConfig(
         fit_model=str(options.fit_model),
         fit_span_s=float(options.fit_span.total_seconds()),
-        fit_step_s=float(options.fit_step),
+        fit_step_s=float(getattr(options, "fit_step", 60.0)),
         observables=str(options.fit_observables),
         position_weight=float(options.fit_position_weight),
         end_of_span_weight=float(getattr(options, "fit_end_weight", 2.0)),
@@ -220,7 +220,12 @@ def build_weighted_residuals(
     boundary free of Tudat makes it reusable by optimizers and unit-testable.
     """
     validate_numerical_fit(reference_states, config)
-    selected = hermite_sample_reference_states(reference_states, config)
+    first_epoch = float(reference_states[0][0])
+    selected = [
+        (float(epoch), np.asarray(state, dtype=float))
+        for epoch, state in reference_states
+        if float(epoch) - first_epoch <= config.fit_span_s
+    ]
     if len(selected) < 2:
         raise ValueError("fit span must include at least two reference states")
 
@@ -263,34 +268,6 @@ def build_weighted_residuals(
         n_records=len(position_errors),
     )
     return np.asarray(residuals, dtype=float), diagnostics
-
-
-def hermite_sample_reference_states(
-    reference_states: Sequence[tuple[float, np.ndarray]],
-    config: NumericalFitConfig,
-) -> list[tuple[float, np.ndarray]]:
-    """Sample OEM positions on the fit grid using a Cartesian Hermite interpolator."""
-    from ephem_toolkit.core.interpolator.hermite import SlidingWindowHermiteInterpolator
-
-    first_epoch = float(reference_states[0][0])
-    last_epoch = min(float(reference_states[-1][0]), first_epoch + config.fit_span_s)
-    degree = min(5, len(reference_states) - 1)
-    interpolator = SlidingWindowHermiteInterpolator(
-        dimension=6, degree=max(1, degree), is_cartesian_state=True
-    )
-    interpolator.set_data(list(reference_states))
-    epochs = list(np.arange(first_epoch, last_epoch, config.fit_step_s))
-    if not epochs or epochs[-1] < last_epoch:
-        epochs.append(last_epoch)
-    sampled: list[tuple[float, np.ndarray]] = []
-    for epoch in epochs:
-        state = interpolator.interpolate(float(epoch))
-        if state is None:
-            raise ValueError("Hermite interpolation failed within the OEM arc")
-        sampled.append((float(epoch), np.asarray(state, dtype=float)))
-    if len(sampled) < 2:
-        raise ValueError("fit span must include at least two Hermite samples")
-    return sampled
 
 
 def optimize_initial_state(
@@ -468,8 +445,8 @@ def validate_numerical_fit(
         raise ValueError("drag coefficient must be positive")
     if config.srp_coefficient is not None and config.srp_coefficient <= 0.0:
         raise ValueError("SRP coefficient must be positive")
-    if config.fit_span_s <= 0.0 or config.fit_step_s <= 0.0:
-        raise ValueError("fit span and fit step must be positive")
+    if config.fit_span_s <= 0.0:
+        raise ValueError("fit span must be positive")
     if config.position_weight <= 0.0:
         raise ValueError("position weight must be positive")
     if config.end_of_span_weight < 1.0:
