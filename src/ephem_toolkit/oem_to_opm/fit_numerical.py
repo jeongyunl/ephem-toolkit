@@ -209,6 +209,7 @@ class NumericalFitResult:
     diagnostics: NumericalResidualDiagnostics
     iterations: int
     converged: bool
+    initial_position_rms_m: float | None = None
 
 
 def build_weighted_residuals(
@@ -313,7 +314,7 @@ def optimize_initial_state(
     variable_indices = (3, 4, 5)
     converged = False
     iterations = 0
-    initial_residual, _ = build_weighted_residuals(
+    initial_residual, initial_diagnostics = build_weighted_residuals(
         propagate, state, reference_states, config,
         propagate_trajectory=propagate_trajectory,
     )
@@ -361,7 +362,10 @@ def optimize_initial_state(
         propagate, best_state, reference_states, config,
         propagate_trajectory=propagate_trajectory,
     )
-    return NumericalFitResult(best_state, diagnostics, iterations, converged)
+    return NumericalFitResult(
+        best_state, diagnostics, iterations, converged,
+        initial_position_rms_m=initial_diagnostics.position_rms_m,
+    )
 
 
 def make_propagation_callback(propagator_factory, epoch_s: float):

@@ -49,3 +49,5 @@ class FitDiagnostics:
     """Velocity delta at epoch in meters per second, if available."""
     fit_method: str | None = None
     """Fitting method used, if available."""
+    initial_position_rms_m: float | None = None
+    """Position RMS before fitting, if available."""

@@ -89,21 +89,29 @@ algorithm for OEM, OMM, and TLE input paths.
   `two-body` remains the default.
 - Connected `oem-to-opm --fit-model numerical` to the shared numerical fitter:
   it builds the fixed-parameter propagator configuration, adapts the existing
-  numerical propagator to the optimizer callback, fits the OEM arc, converts
-  the fitted Cartesian state to OPM Keplerian elements, and records numerical
-  fit provenance/configuration. The output comparison table remains specific
-  to two-body mode; numerical residual diagnostics are recorded in the fit
-  report.
+  numerical propagator to the optimizer callback, fits the OEM arc, and
+  records numerical fit provenance/configuration. Numerical output is
+  Cartesian-only: it does not calculate or emit osculating Keplerian elements.
+  The output comparison table remains specific to two-body mode; numerical
+  residual diagnostics are recorded in the fit report.
 - Added verbose progress messages for input loading, fit setup/completion, OPM
   serialization, and fit-report writing; messages are emitted to stderr only
   when `--verbose` is supplied.
 - Added `--debug`, which implies progress output and adds parsed arguments,
-  OEM metadata, numerical-fit configuration, and fitted-element diagnostics.
+  OEM metadata, numerical-fit configuration, and fit diagnostics.
 - Added one `--debug` message per optimizer try with residual norm, velocity
   step norm, updated residual norm, and convergence status.
 - `--debug` now reports the position RMS from the unadjusted OEM initial state
   before the first optimizer try, allowing direct comparison with the fitted
   result.
+- Aligned the verbose OEM-to-OPM summary with the TLE conversion summary by
+  displaying the fit method alongside records, span, iterations, RMS, and
+  epoch-state diagnostics.
+- Added the initial OEM-velocity trial position RMS to numerical-fit summaries,
+  alongside the final fitted position RMS.
+- Kept numerical fitting Cartesian-only: the numerical path no longer computes,
+  logs, or serializes osculating Keplerian elements. The fitted Cartesian state
+  is written to the OPM state vector, while two-body output is unchanged.
 - Increased the numerical-fit iteration default to 100 and added
   `--fit-max-iterations` for CLI configuration; the selected value is included
   in fit-report configuration.
