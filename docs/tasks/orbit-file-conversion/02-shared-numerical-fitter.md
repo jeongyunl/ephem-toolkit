@@ -48,6 +48,9 @@ algorithm for OEM, OMM, and TLE input paths.
 - Added optimizer initial-state validation for six finite Cartesian values.
 - Corrected convergence reporting so a zero optimizer step is not considered
   converged when residuals remain nonzero and do not improve.
+- Explicitly reject drag/SRP parameter fitting in the current optimizer until
+  a parameterized propagator callback is available, avoiding silent omission
+  of requested fit parameters.
 - Made initial-position preservation an explicit default: the residual helper
   anchors the propagated epoch position to the first reference OEM position
   while leaving the epoch velocity available for fitting.
