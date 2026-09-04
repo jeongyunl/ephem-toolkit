@@ -47,6 +47,15 @@ class OemToOpmArgs(argparse.Namespace):
     fit_parameters: str
 
 
+def parse_positive_float(value: str) -> float:
+    """Parse a strictly positive floating-point CLI value."""
+    try:
+        parsed = float(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("value must be a number") from error
+    if parsed <= 0.0:
+        raise argparse.ArgumentTypeError("value must be positive")
+    return parsed
 def report_error(message: str, exit_code: int = 1) -> None:
     """Report an error message to stderr and exit.
 
@@ -133,10 +142,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
         metavar="<two-body|numerical>",
         help="Fitting model; numerical execution is not yet connected (default: two-body).",
     )
-    cli_parser.add_argument("--fit-step", type=float, default=60.0, dest="fit_step", metavar="<seconds>", help="Reference-arc sample spacing in seconds.")
+    cli_parser.add_argument("--fit-step", type=parse_positive_float, default=60.0, dest="fit_step", metavar="<seconds>", help="Reference-arc sample spacing in seconds.")
     cli_parser.add_argument("--fit-observables", choices=["position", "state"], default="position", dest="fit_observables", help="Residual observables (default: position).")
-    cli_parser.add_argument("--fit-position-weight", type=float, default=1.0, dest="fit_position_weight", metavar="<value>", help="Position residual weight.")
-    cli_parser.add_argument("--fit-velocity-weight", type=float, default=1.0, dest="fit_velocity_weight", metavar="<value>", help="Velocity residual weight; used with --fit-observables state.")
+    cli_parser.add_argument("--fit-position-weight", type=parse_positive_float, default=1.0, dest="fit_position_weight", metavar="<value>", help="Position residual weight.")
+    cli_parser.add_argument("--fit-velocity-weight", type=parse_positive_float, default=1.0, dest="fit_velocity_weight", metavar="<value>", help="Velocity residual weight; used with --fit-observables state.")
     cli_parser.add_argument("--fit-parameters", choices=["initial-state", "initial-state,drag-coeff", "initial-state,srp-coeff"], default="initial-state", dest="fit_parameters", help="Fitted state selection; physical parameters are fixed user inputs.")
     cli_parser.add_argument(
         "--object-name",

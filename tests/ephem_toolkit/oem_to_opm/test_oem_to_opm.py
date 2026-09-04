@@ -83,6 +83,13 @@ def test_parser_accepts_fit_controls() -> None:
     assert args.fit_parameters == "initial-state,drag-coeff"
 
 
+@pytest.mark.parametrize("option", ["--fit-step", "--fit-position-weight", "--fit-velocity-weight"])
+def test_parser_rejects_non_positive_fit_controls(option: str) -> None:
+    with pytest.raises(SystemExit) as error:
+        parse_arguments(build_arg_parser(), [option, "0", "input.oem", "-o", "output.opm"])
+    assert error.value.code == 2
+
+
 def test_numerical_fit_model_fails_until_propagator_is_connected() -> None:
     with pytest.raises(SystemExit, match="1"):
         oem_to_opm.main(["--fit-model", "numerical", "input.oem", "-o", "output.opm"])
