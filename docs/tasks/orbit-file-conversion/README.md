@@ -10,8 +10,9 @@ unless they imply implementation work.
 
 - **In progress:** Task 1. The shared comment/report layer and initial
   OEM-to-OMM/OEM-to-OPM wiring are implemented; TLE wrapper integration,
-  source-report parsing, richer diagnostics, and proposed-command support are
-  still pending. See [Task 1 progress](01-provenance-and-fit-reports.md#progress).
+  source-report parsing, and basic convergence reporting are implemented;
+  velocity residuals, richer propagation diagnostics, and proposed-command
+  support are still pending. See [Task 1 progress](01-provenance-and-fit-reports.md#progress).
 - **Pending:** Tasks 2–11. These remain planned implementation work; their
   documents describe the intended behavior and acceptance criteria.
 

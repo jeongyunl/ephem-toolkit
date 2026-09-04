@@ -42,6 +42,8 @@ def test_fit_report_is_json(tmp_path) -> None:
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert report["diagnostics"]["n_records"] == 4
     assert report["configuration"]["fit_span_s"] == 90
+    assert report["status"] == "converged"
+    assert report["iterations"] == 3
 
 
 def test_fit_report_retains_source_report(tmp_path) -> None:
