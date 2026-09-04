@@ -80,6 +80,10 @@ algorithm for OEM, OMM, and TLE input paths.
 - Added OEM-to-OPM CLI inputs for fixed spacecraft mass, area, drag/SRP switches,
   and drag/SRP coefficients; these values are mapped as propagation inputs and
   are never optimizer variables.
+- Aligned numerical-fit configuration and OEM-to-OPM physical-parameter defaults
+  with `propagate-orbit`: mass 30 kg, area 0.18 m², drag/SRP enabled, and
+  coefficients 2.2/1.2. The shared configuration also uses its gravity,
+  integrator, third-body, and step-size defaults.
 - Added the `oem-to-opm --fit-model {two-body|numerical}` parser contract;
   `two-body` remains the default, while numerical execution currently fails
   explicitly until force-model wiring is complete.

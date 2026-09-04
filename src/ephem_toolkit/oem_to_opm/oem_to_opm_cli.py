@@ -13,6 +13,12 @@ from datetime import timedelta
 import ephem_toolkit.core.cli as cli
 import ephem_toolkit.core.consts as consts
 import ephem_toolkit.core.time_utils as time_utils
+from ephem_toolkit.propagate_orbit.constants import (
+    DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2,
+    DEFAULT_SATELLITE_DRAG_COEFFICIENT,
+    DEFAULT_SATELLITE_MASS_KG,
+    DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT,
+)
 
 DEFAULT_FIT_SPAN: timedelta = timedelta(hours=2)
 """Default arc span for OEM-to-OPM fitting operations."""
@@ -159,12 +165,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     cli_parser.add_argument("--fit-position-weight", type=parse_positive_float, default=1.0, dest="fit_position_weight", metavar="<value>", help="Position residual weight.")
     cli_parser.add_argument("--fit-velocity-weight", type=parse_positive_float, default=1.0, dest="fit_velocity_weight", metavar="<value>", help="Velocity residual weight; used with --fit-observables state.")
     cli_parser.add_argument("--fit-parameters", choices=["initial-state", "initial-state,drag-coeff", "initial-state,srp-coeff"], default="initial-state", dest="fit_parameters", help="Fitted state selection; physical parameters are fixed user inputs.")
-    cli_parser.add_argument("--mass", type=parse_positive_float, default=None, metavar="<kg>", help="Fixed spacecraft mass for numerical propagation.")
-    cli_parser.add_argument("--drag-area", type=parse_positive_float, default=None, dest="drag_area", metavar="<m2>", help="Fixed drag/SRP reference area.")
-    cli_parser.add_argument("--drag", type=parse_bool, default=False, metavar="<on|off>", help="Enable fixed drag force model.")
-    cli_parser.add_argument("--drag-coeff", type=parse_positive_float, default=None, dest="drag_coeff", metavar="<value>", help="Fixed drag coefficient.")
-    cli_parser.add_argument("--srp", type=parse_bool, default=False, metavar="<on|off>", help="Enable fixed SRP force model.")
-    cli_parser.add_argument("--srp-coeff", type=parse_positive_float, default=None, dest="srp_coeff", metavar="<value>", help="Fixed SRP coefficient.")
+    cli_parser.add_argument("--mass", type=parse_positive_float, default=DEFAULT_SATELLITE_MASS_KG, metavar="<kg>", help=f"Fixed spacecraft mass for numerical propagation (default: {DEFAULT_SATELLITE_MASS_KG}).")
+    cli_parser.add_argument("--drag-area", type=parse_positive_float, default=DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2, dest="drag_area", metavar="<m2>", help=f"Fixed drag/SRP reference area (default: {DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2}).")
+    cli_parser.add_argument("--drag", type=parse_bool, default=True, metavar="<on|off>", help="Enable fixed drag force model (default: on).")
+    cli_parser.add_argument("--drag-coeff", type=parse_positive_float, default=DEFAULT_SATELLITE_DRAG_COEFFICIENT, dest="drag_coeff", metavar="<value>", help=f"Fixed drag coefficient (default: {DEFAULT_SATELLITE_DRAG_COEFFICIENT}).")
+    cli_parser.add_argument("--srp", type=parse_bool, default=True, metavar="<on|off>", help="Enable fixed SRP force model (default: on).")
+    cli_parser.add_argument("--srp-coeff", type=parse_positive_float, default=DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT, dest="srp_coeff", metavar="<value>", help=f"Fixed SRP coefficient (default: {DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT}).")
     cli_parser.add_argument(
         "--object-name",
         dest="object_name",

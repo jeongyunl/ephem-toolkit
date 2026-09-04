@@ -29,8 +29,8 @@ def test_valid_numerical_fit_configuration() -> None:
         (NumericalFitConfig(fit_span_s=0), "fit span"),
         (NumericalFitConfig(observables="state", velocity_weight=0), "weights"),
         (NumericalFitConfig(observables="position", velocity_weight=2), "velocity weight"),
-        (NumericalFitConfig(parameters="initial-state,drag-coeff"), "drag to be enabled"),
-        (NumericalFitConfig(parameters="initial-state,srp-coeff"), "SRP to be enabled"),
+        (NumericalFitConfig(parameters="initial-state,drag-coeff", drag_enabled=False), "drag to be enabled"),
+        (NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=False), "SRP to be enabled"),
     ],
 )
 def test_invalid_numerical_fit_configuration(config, message) -> None:
@@ -119,7 +119,7 @@ def test_fit_configuration_rejects_incomplete_propagator_settings(monkeypatch) -
         types.SimpleNamespace(NumericalPropagatorConfig=object),
     )
     with pytest.raises(ValueError, match="mass and drag area"):
-        NumericalFitConfig().to_propagator_config()
+        NumericalFitConfig(satellite_mass_kg=None, drag_area_m2=None).to_propagator_config()
 
 
 def test_config_from_propagation_options_preserves_fixed_coefficients() -> None:
