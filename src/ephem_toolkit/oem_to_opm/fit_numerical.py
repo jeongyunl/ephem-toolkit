@@ -11,6 +11,18 @@ from typing import Sequence
 
 import numpy as np
 
+from ephem_toolkit.propagate_orbit.constants import (
+    DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2,
+    DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE,
+    DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER,
+    DEFAULT_INTEGRATOR_STEP_SIZE_S,
+    DEFAULT_SATELLITE_DRAG_COEFFICIENT,
+    DEFAULT_SATELLITE_MASS_KG,
+    DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT,
+)
+
+DEFAULT_INTEGRATOR_METHOD = "rkdp_87"
+
 SUPPORTED_FIT_MODELS = ("two-body", "numerical")
 SUPPORTED_OBSERVABLES = ("position", "state")
 SUPPORTED_PARAMETERS = (
@@ -34,19 +46,22 @@ class NumericalFitConfig:
     """Parameters used by propagation; physical parameters remain fixed."""
     preserve_initial_position: bool = True
     """Keep the fitted epoch position equal to the first reference position."""
-    drag_enabled: bool = False
-    srp_enabled: bool = False
-    drag_coefficient: float | None = None
-    srp_coefficient: float | None = None
-    satellite_mass_kg: float | None = None
-    drag_area_m2: float | None = None
-    earth_gravity: tuple[int, int] | None = None
-    integrator: str | None = None
-    integrator_step_size_s: tuple[float, ...] | None = None
-    moon_gravity: bool = False
-    sun_gravity: bool = False
-    venus_gravity: bool = False
-    mars_gravity: bool = False
+    drag_enabled: bool = True
+    srp_enabled: bool = True
+    drag_coefficient: float | None = DEFAULT_SATELLITE_DRAG_COEFFICIENT
+    srp_coefficient: float | None = DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT
+    satellite_mass_kg: float | None = DEFAULT_SATELLITE_MASS_KG
+    drag_area_m2: float | None = DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2
+    earth_gravity: tuple[int, int] | None = (
+        DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE,
+        DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER,
+    )
+    integrator: str | None = DEFAULT_INTEGRATOR_METHOD
+    integrator_step_size_s: tuple[float, ...] | None = DEFAULT_INTEGRATOR_STEP_SIZE_S
+    moon_gravity: bool = True
+    sun_gravity: bool = True
+    venus_gravity: bool = True
+    mars_gravity: bool = True
 
     def fixed_parameter_values(self) -> dict[str, float]:
         """Return user-supplied physical parameters selected for propagation."""
@@ -138,12 +153,22 @@ def config_from_fit_options(options) -> NumericalFitConfig:
         position_weight=float(options.fit_position_weight),
         velocity_weight=float(options.fit_velocity_weight),
         parameters=str(options.fit_parameters),
-        drag_enabled=bool(getattr(options, "drag", False)),
-        srp_enabled=bool(getattr(options, "srp", False)),
-        drag_coefficient=getattr(options, "drag_coeff", None),
-        srp_coefficient=getattr(options, "srp_coeff", None),
-        satellite_mass_kg=getattr(options, "mass", None),
-        drag_area_m2=getattr(options, "drag_area", None),
+        drag_enabled=bool(getattr(options, "drag", True)),
+        srp_enabled=bool(getattr(options, "srp", True)),
+        drag_coefficient=getattr(options, "drag_coeff", DEFAULT_SATELLITE_DRAG_COEFFICIENT),
+        srp_coefficient=getattr(options, "srp_coeff", DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT),
+        satellite_mass_kg=getattr(options, "mass", DEFAULT_SATELLITE_MASS_KG),
+        drag_area_m2=getattr(options, "drag_area", DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2),
+        earth_gravity=tuple(getattr(options, "earth_gravity", (
+            DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE,
+            DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER,
+        ))),
+        integrator=getattr(options, "integrator", DEFAULT_INTEGRATOR_METHOD),
+        integrator_step_size_s=tuple(getattr(options, "integrator_step_size", DEFAULT_INTEGRATOR_STEP_SIZE_S)),
+        moon_gravity=bool(getattr(options, "moon_gravity", True)),
+        sun_gravity=bool(getattr(options, "sun_gravity", True)),
+        venus_gravity=bool(getattr(options, "venus_gravity", True)),
+        mars_gravity=bool(getattr(options, "mars_gravity", True)),
     )
 
 
