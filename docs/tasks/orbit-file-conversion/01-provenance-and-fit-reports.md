@@ -21,6 +21,8 @@ tooling.
   two-body fit.
 - `oem-to-tle`: wraps the OEM-to-OMM and OMM-to-TLE workflows; provenance for
   its TLE must be external to the TLE.
+- `omm-to-opm` and `tle-to-opm`: compose source propagation with the shared
+  numerical OPM fitter and its reporting options.
 - `omm-to-tle`: performs the direct OMM-to-TLE mapping.
 - `propagate-omm`, `propagate-kepler`, `propagate-orbit`, and `propagate-tle`:
   generate the OEM histories whose selected source/target model must be
@@ -71,8 +73,8 @@ tooling.
   user-defined values.
 - [`src/ephem_toolkit/core/cli.py`](../../../src/ephem_toolkit/core/cli.py):
   shared output/report path handling if the option is centralized.
-- [`pyproject.toml`](../../../pyproject.toml): register an entry point only if
-  a dedicated wrapper is later justified.
+- [`pyproject.toml`](../../../pyproject.toml): registers the current
+  conversion entry points.
 
 ### Supporting propagation files
 
@@ -173,21 +175,16 @@ actually produce or transform the relevant output.
 Command:
 
 ```text
-PYTHONPATH=src pytest -q tests/ephem_toolkit/core/test_provenance.py tests/ephem_toolkit/oem_to_omm tests/ephem_toolkit/oem_to_opm tests/ephem_toolkit/oem_to_tle tests/ephem_toolkit/omm_to_tle tests/ephem_toolkit/core/ccsds/test_oem.py tests/ephem_toolkit/core/ccsds/test_omm.py tests/ephem_toolkit/core/ccsds/test_opm.py
+PYTHONPATH=src pytest -q tests/ephem_toolkit/core/test_provenance.py tests/ephem_toolkit/oem_to_omm tests/ephem_toolkit/oem_to_opm tests/ephem_toolkit/omm_to_opm tests/ephem_toolkit/tle_to_opm tests/ephem_toolkit/oem_to_tle tests/ephem_toolkit/omm_to_tle tests/ephem_toolkit/propagate_omm tests/ephem_toolkit/propagate_orbit tests/ephem_toolkit/propagate_tle tests/ephem_toolkit/propagate_kepler tests/ephem_toolkit/core/ccsds/test_oem.py tests/ephem_toolkit/core/ccsds/test_omm.py tests/ephem_toolkit/core/ccsds/test_opm.py
 ```
 
-Result: `260 passed, 2 deselected`.
+Result: `308 passed, 2 deselected`.
 `PYTHONPATH=src python -m compileall -q src` and `git diff --check` also pass.
 
 ### Remaining work
 
-- Direct model validation and composed OMM-to-TLE refit coverage are complete
-  under Task 10; remaining work is broader production report coverage.
-- Extend force-model and integrator configuration reporting to any future
-  production numerical-fitting workflows that do not yet use the shared
-  `NumericalFitConfig`.
-- Extend reporting to future dedicated conversion wrappers only if composition
-  no longer provides the required workflow.
+None for the current command set. New conversion commands would need to adopt
+the shared provenance and fit-report contract if they are added later.
 
 ## Acceptance criteria
 
