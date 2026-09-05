@@ -531,11 +531,12 @@ path. Put the selected path, SGP4 fit settings, and residuals in a companion
 fit report.
 
 **TODO**:
-- [ ] Provide a composed `opm-to-tle` workflow that selects the intermediate
-	two-body or numerical OEM propagation path.
-- [ ] Fit SGP4-compatible mean elements before writing the TLE.
-- [ ] Report source provenance and residuals for the propagation and fitting
-	stages.
+- [x] Provide a composed OPM-to-TLE workflow using the intermediate two-body
+  or numerical OEM propagation path.
+- [x] Fit SGP4-compatible mean elements before writing the TLE.
+- [x] Report source provenance and fit residuals; propagation configuration is
+  retained in the intermediate OEM and the selected path is recorded in the
+  companion fit report.
 
 **Metadata**:
 - **Preserved**: `OBJECT_NAME`, `EPOCH`

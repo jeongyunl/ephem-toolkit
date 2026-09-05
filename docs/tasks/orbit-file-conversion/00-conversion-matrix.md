@@ -32,8 +32,8 @@ accuracy, metadata, and provenance behavior are materially different.
 | OEM-TLE-SGP4 | OEM | TLE | SGP4-compatible fit | Fitting/composed | `oem-to-tle` | Cartesian history; source provenance required when known | Intermediate OMM | SGP4 mean elements/TLE | `--fit-span`, TLE refinement, fit report | Complete; Task 9 |
 | OMM-TLE-DIRECT | OMM | TLE | Direct SGP4 mapping | Direct mapping | `omm-to-tle` | SGP4-compatible mean elements | — | SGP4 TLE | Required TLE fields; theory validation | Task 10 in progress |
 | OMM-TLE-REFIT | OMM | TLE | Composed SGP4 refit | Propagation/fitting | `propagate-omm` → OEM → `oem-to-tle` | Any supported declared mean-element theory | Reference OEM | SGP4 mean elements/TLE | Propagation settings, fit span, fit report | Task 10 in progress; 2-hour DSST composition verified |
-| OPM-TLE-2B | OPM | TLE | Two-body intermediate | Composed | `propagate-kepler` → `oem-to-omm` → `omm-to-tle` | Osculating state | Two-body OEM and OMM | SGP4 mean elements/TLE | Duration, fit model/span, report | Task 11 pending |
-| OPM-TLE-NUM | OPM | TLE | Numerical intermediate | Composed | `propagate-orbit` → `oem-to-omm` → `omm-to-tle` | Osculating Cartesian state | Numerical OEM and OMM | SGP4 mean elements/TLE | Force model, integrator, fit model/span, report | Task 11 pending |
+| OPM-TLE-2B | OPM | TLE | Two-body intermediate | Composed | `propagate-kepler` → `oem-to-tle` | Osculating state | Two-body OEM | SGP4 mean elements/TLE | Duration, fit span, report | Complete as composition; Task 11 |
+| OPM-TLE-NUM | OPM | TLE | Numerical intermediate | Composed | `propagate-orbit` → `oem-to-tle` | Osculating Cartesian state | Numerical OEM | SGP4 mean elements/TLE | Force model, integrator, fit span, report | Complete as composition; Task 11 |
 
 ## Data, provenance, and acceptance matrix
 

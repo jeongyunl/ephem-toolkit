@@ -44,8 +44,9 @@ verification dimensions covered by these tasks.
 - **Complete:** Task 9. OEM-to-TLE emits SGP4 fit provenance and diagnostics in
   a JSON report, with coverage for file/stdout reports, unknown source
   provenance, and fixed-width TLE checksums.
-- **Pending:** Task 11. Its document describes the remaining composed
-  OPM-to-TLE workflow and acceptance criteria.
+- **Complete as composition:** Task 11. Existing propagation commands compose
+  with `oem-to-tle` for two-body and numerical OPM-to-TLE conversion; no
+  dedicated wrapper is planned.
 
 ## Suggested order
 
@@ -59,7 +60,7 @@ verification dimensions covered by these tasks.
 8. **Complete as composition:** [OPM to OMM composed workflow](08-opm-to-omm-workflow.md)
 9. **Complete:** [OEM to TLE fit reporting](09-oem-to-tle-fit-report.md)
 10. **In progress:** [OMM to TLE validation and refit](10-omm-to-tle-validation-refit.md)
-11. **Pending:** [OPM to TLE composed workflow](11-opm-to-tle-workflow.md)
+11. **Complete as composition:** [OPM to TLE composed workflow](11-opm-to-tle-workflow.md)
 
 Tasks 1–3 define shared behavior and should land before the format-specific
 work. Tasks 5–6 depend on the shared numerical fitter. Tasks 8 and 11 compose
@@ -84,6 +85,12 @@ Task 9 verification: `12 passed` in the OEM-to-TLE suite. A direct 10-minute
 OEM fit produced a converged report with unknown-source provenance and a
 69-character, checksum-valid TLE; report-file and stdout destinations are
 covered.
+
+Task 11 verification: two end-to-end tests compose `sample2.opm` with
+two-body or numerical propagation, followed by an SGP4 OEM fit. Both paths
+produced converged reports and checksum-valid TLEs; the numerical path used
+27 reference records. Unsupported direct OMM output-theory combinations remain
+explicitly rejected by the existing OMM-to-TLE tests.
 
 All orbit-file-conversion work has an additional objective: do not add runtime
 dependencies; reuse the repository's existing libraries and tooling.
