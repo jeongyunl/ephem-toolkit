@@ -149,7 +149,7 @@ def test_main_does_not_add_automatic_report_when_disabled(monkeypatch) -> None:
 
 def test_composed_omm_to_tle_workflow_writes_oem_tle_and_report(tmp_path: Path) -> None:
     """The OMM propagation and OEM-to-TLE tools compose into a refit path."""
-    source = Path(__file__).parents[2] / "data/ISS-ZARYA_1998-067A.omm"
+    source = Path(__file__).parent / "data/TEST-DSST_2020-001A.omm"
     reference_oem = tmp_path / "reference.oem"
     output_tle = tmp_path / "output.tle"
     fit_report = tmp_path / "output.fit.json"
@@ -174,7 +174,7 @@ def test_composed_omm_to_tle_workflow_writes_oem_tle_and_report(tmp_path: Path) 
             "--fit-span",
             "2h",
             "--source-model",
-            "sgp4",
+            "dsst",
             "--fit-report",
             str(fit_report),
             "--output",
@@ -186,6 +186,7 @@ def test_composed_omm_to_tle_workflow_writes_oem_tle_and_report(tmp_path: Path) 
     assert output_tle.read_text(encoding="utf-8").splitlines()[1].startswith("1 ")
     report = json.loads(fit_report.read_text(encoding="utf-8"))
     assert report["status"] == "converged"
+    assert report["provenance"]["source"] == "OEM/dsst"
     assert report["provenance"]["target_model"] == "SGP4"
     assert report["configuration"]["fit_span_s"] == 7200.0
 
