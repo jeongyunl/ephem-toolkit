@@ -246,6 +246,9 @@ output is an SGP4-generated Cartesian OEM, not an osculating-Keplerian or
 numerically propagated history, even though all outputs use the same
 position/velocity layout.
 
+An SGP4-compatible OMM follows the same propagator but retains `source=OMM` in
+the OEM provenance record, so the input format is not conflated with a raw TLE.
+
 **Required provenance record**: State `source=TLE; target_model=SGP4`, the
 TLE epoch, TEME frame, and UTC time system. A numerical alternative must also
 identify the SGP4 reference arc and fitted numerical model.

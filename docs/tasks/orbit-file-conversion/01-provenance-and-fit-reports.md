@@ -156,6 +156,9 @@ actually produce or transform the relevant output.
   OEM-to-OMM report path.
 - TLE-generated OEMs now record `source=TLE` and `target_model=SGP4` in a
   portable provenance comment.
+- SGP4-compatible OMM-generated OEMs record `source=OMM` and
+  `target_model=SGP4`, distinguishing the input format from raw TLE
+  propagation.
 - Preserved compatibility with existing mocked diagnostics used by conversion
   tests.
 

@@ -284,6 +284,27 @@ def test_main_dispatches_dsst_for_dsst_theory(monkeypatch, tmp_path):
     assert len(content.strip()) > 0
 
 
+def test_main_labels_sgp4_omm_output_as_omm_source(tmp_path: Path) -> None:
+    """An SGP4-compatible OMM retains OMM source provenance in its OEM."""
+    source = Path(__file__).parents[2] / "data/ISS-ZARYA_1998-067A.omm"
+    output_path = tmp_path / "sgp4-omm.oem"
+
+    assert propagate_omm_main.main(
+        [
+            str(source),
+            "--duration",
+            "15m",
+            "--step",
+            "15m",
+            "--output",
+            str(output_path),
+        ]
+    ) == 0
+
+    text = output_path.read_text(encoding="utf-8")
+    assert "EPHEMERIS_PROVENANCE: source=OMM; transformation=propagation; target_model=SGP4" in text
+
+
 @pytest.mark.parametrize("theory", ["KEPLER", "BROUWER"])
 def test_main_dispatches_kepler_for_non_dsst_theory(monkeypatch, tmp_path, theory):
     """main() uses the documented Kepler fallback for non-DSST theories."""
