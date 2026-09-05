@@ -86,7 +86,7 @@ def test_omm_to_tle_rejects_non_sgp4_theory_before_writing(
 
 
 def test_omm_to_tle_rejects_missing_tle_parameters_before_writing(
-    monkeypatch, tmp_path
+    monkeypatch, tmp_path, capsys
 ) -> None:
     """Direct SGP4 conversion rejects incomplete TLE metadata before output."""
     source = tmp_path / "input.omm"
@@ -100,3 +100,6 @@ def test_omm_to_tle_rejects_missing_tle_parameters_before_writing(
 
     assert error.value.code == 1
     assert not output.exists()
+    diagnostic = capsys.readouterr().err
+    assert "TLE parameters" in diagnostic
+    assert "MEAN_ELEMENT_THEORY='SGP4'" in diagnostic
