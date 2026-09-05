@@ -262,8 +262,8 @@ fit provides a model-specific approximation over its stated fit span.
 > ⚠️ **Accuracy**: Fit quality depends on arc length and theory; short arcs or noisy data reduce accuracy.
 
 **Conversion Method**:
-- **SGP4 fitting**: `oem-to-omm --mode tle` with optional `--fit-span`
-- **Brouwer-Lyddane fitting**: `oem-to-omm --mode brouwer` with optional `--fit-span`
+- **SGP4 fitting**: `oem-to-omm --fit-model sgp4` with optional `--fit-span`
+- **Brouwer-Lyddane fitting**: `oem-to-omm --fit-model brouwer` with optional `--fit-span`
 
 **Ephemeris-model handling**: Choose the target mean-element theory before
 fitting. SGP4-compatible TLE fitting, Brouwer-Lyddane fitting, DSST fitting,
@@ -275,19 +275,19 @@ affects fit quality and interpretation.
 mean-element theory, fit span, and residuals. `MEAN_ELEMENT_THEORY` alone does
 not identify the source Cartesian arc.
 
-**Current options**: `--mode {brouwer|dsst|tle}`, `--theory THEORY`,
-`--fit-span DURATION`
+**Current options**: `--fit-model {brouwer|dsst|sgp4}`, `--theory THEORY`,
+`--fit-span DURATION`; the deprecated `--mode` alias remains supported.
 
 **Proposed options**: `--fit-model {brouwer|dsst|sgp4}`, `--fit-span DURATION`,
 `--source-model MODEL`, `--source-report PATH`, `--fit-report PATH`
 
 **TODO**:
-- [ ] Replace `--mode` with `--fit-model`; retain `--mode` as a deprecated
-	alias and map `tle` to `sgp4`.
-- [ ] Derive `MEAN_ELEMENT_THEORY` from the selected fit model and reject
-	conflicting `--theory` values during the transition.
-- [ ] Report fit span, source OEM provenance, and position/velocity residual
-	statistics for every mean-element fit.
+- [x] Replace `--mode` with `--fit-model`; retain `--mode` as a deprecated
+  alias and map `tle` to `sgp4`.
+- [x] Derive `MEAN_ELEMENT_THEORY` from the selected fit model and reject
+  conflicting `--theory` values during the transition.
+- [x] Report fit span, source OEM provenance, and position/velocity residual
+  statistics for every current mean-element fit.
 
 
 **Metadata**:
@@ -519,8 +519,8 @@ workflow.
 > ⚠️ **Accuracy**: Multi-step; propagation + orbit fitting errors compound; TLE format has limited precision.
 
 **Conversion Method**:
-- **Multi-step (two-body)**: `propagate-kepler` -> `oem-to-omm --mode tle` -> `omm-to-tle`
-- **Multi-step (numerical)**: `propagate-orbit` -> `oem-to-omm --mode tle` -> `omm-to-tle`
+- **Multi-step (two-body)**: `propagate-kepler` -> `oem-to-tle`
+- **Multi-step (numerical)**: `propagate-orbit` -> `oem-to-tle`
 
 **Ephemeris-model handling**: Select the intermediate two-body or numerical
 OEM propagation path, then fit SGP4-compatible mean elements before writing
