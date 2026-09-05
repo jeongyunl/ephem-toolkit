@@ -4,6 +4,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+import pytest
+
 from ephem_toolkit.core.provenance import (
     default_fit_report_path,
     fit_comment,
@@ -124,6 +126,22 @@ def test_resolve_source_model_reads_report(tmp_path) -> None:
 
     assert source == "OEM/SGP4"
     assert report["provenance"]["source"] == "OEM/SGP4"
+
+
+@pytest.mark.parametrize(
+    "source_report",
+    [{}, {"provenance": {}}, {"provenance": {"source": ""}}],
+)
+def test_resolve_source_model_defaults_when_report_has_no_source(
+    tmp_path, source_report
+) -> None:
+    report_path = tmp_path / "source.json"
+    report_path.write_text(json.dumps(source_report), encoding="utf-8")
+
+    source, report = resolve_source_model("auto", str(report_path))
+
+    assert source == "unknown"
+    assert report == source_report
 
 
 def test_explicit_source_model_overrides_report(tmp_path) -> None:

@@ -137,6 +137,8 @@ actually produce or transform the relevant output.
 - Implemented `--source-report` JSON loading. With `--source-model auto`, the
   report's `provenance.source` is now used; an explicit source model overrides
   it, and invalid reports produce an actionable error.
+- Added regression coverage for source reports with missing or empty
+  provenance, which resolve to the explicit `unknown` source marker.
 - Generated fit reports now retain the complete parsed source report in a
   top-level `source_report` field.
 - Generated reports now explicitly record successful `status=converged` and
@@ -178,10 +180,10 @@ actually produce or transform the relevant output.
 Command:
 
 ```text
-PYTHONPATH=src pytest -q tests/ephem_toolkit/oem_to_omm tests/ephem_toolkit/oem_to_opm tests/ephem_toolkit/oem_to_tle tests/ephem_toolkit/core/ccsds/test_oem.py tests/ephem_toolkit/core/ccsds/test_omm.py tests/ephem_toolkit/core/ccsds/test_opm.py
+PYTHONPATH=src pytest -q tests/ephem_toolkit/core/test_provenance.py tests/ephem_toolkit/oem_to_omm tests/ephem_toolkit/oem_to_opm tests/ephem_toolkit/oem_to_tle tests/ephem_toolkit/omm_to_tle tests/ephem_toolkit/core/ccsds/test_oem.py tests/ephem_toolkit/core/ccsds/test_omm.py tests/ephem_toolkit/core/ccsds/test_opm.py
 ```
 
-Result: `223 passed, 2 deselected`.
+Result: `260 passed, 2 deselected`.
 `PYTHONPATH=src python -m compileall -q src` and `git diff --check` also pass.
 
 ### Remaining work
@@ -203,5 +205,5 @@ Result: `223 passed, 2 deselected`.
   convergence status.
 - Direct lossless TLE↔SGP4-compatible OMM mappings do not require a fabricated
   fit report.
-- Tests cover path output, stdout output (`-`), missing provenance, and TLE
+- Tests cover path output, stdout output (`-`), missing/unknown provenance, and TLE
   companion-report behavior.
