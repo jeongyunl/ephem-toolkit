@@ -20,10 +20,9 @@ verification dimensions covered by these tasks.
   removed. DSST has representative live verification, and direct rejection
   tests now verify theory-specific incompatibility and missing-metadata
   diagnostics and stop before conversion; all supported SGP4 theory aliases
-  are also covered. Additional theories await matching propagator support;
-  Brouwer fallback behavior is explicitly tested, and fallback OEMs now
-  identify their actual Kepler model in provenance comments until a Brouwer
-  propagator exists.
+  are also covered. Brouwer and Brouwer-Lyddane fallback behavior is explicitly
+  tested, and fallback OEMs now identify their actual Kepler model in provenance
+  comments until a Brouwer propagator exists.
 
 ## Current focus
 

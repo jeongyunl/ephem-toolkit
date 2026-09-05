@@ -101,9 +101,9 @@ rejected before the TLE output is created with diagnostics naming the declared
 theory and SGP4 incompatibility. Refit-only options, including the removed
 `--refit-sgp4` option, are not accepted by `omm-to-tle`.
 
-Fallback dispatch tests verify that both generic non-DSST input and
-Brouwer-declared input produce an OEM comment identifying the actual Kepler
-fallback rather than implying Brouwer propagation.
+Fallback dispatch tests verify that generic non-DSST input, including both
+`BROUWER` and `BROUWER-LYDDANE` declarations, produces an OEM comment
+identifying the actual Kepler fallback rather than implying Brouwer propagation.
 
 The composed source-tree workflow was evaluated with the non-SGP4
 `TEST-DSST_2020-001A.omm` fixture using a 2-hour arc and 5-minute output step:
