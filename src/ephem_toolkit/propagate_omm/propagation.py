@@ -313,7 +313,18 @@ def propagate_omm_dsst(
         current_time = current_time + step_dt
 
     _write_oem_output(
-        propagated_states, object_name, omm_data.object_id, data_only, output_path
+        propagated_states,
+        object_name,
+        omm_data.object_id,
+        data_only,
+        output_path,
+        comments=[
+            provenance.provenance_comment(
+                source="OMM/DSST",
+                transformation="propagation",
+                target_model="DSST",
+            )
+        ],
     )
 
 

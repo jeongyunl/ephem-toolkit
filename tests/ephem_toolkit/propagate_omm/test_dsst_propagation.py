@@ -282,6 +282,11 @@ def test_main_dispatches_dsst_for_dsst_theory(monkeypatch, tmp_path):
     assert output_path.exists()
     content = output_path.read_text()
     assert len(content.strip()) > 0
+    assert (
+        "EPHEMERIS_PROVENANCE: source=OMM/DSST; transformation=propagation; "
+        "target_model=DSST"
+        in content
+    )
 
 
 def test_main_labels_sgp4_omm_output_as_omm_source(tmp_path: Path) -> None:

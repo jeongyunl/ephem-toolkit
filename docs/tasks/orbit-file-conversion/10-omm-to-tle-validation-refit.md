@@ -71,6 +71,8 @@ provenance, and residual information.
 - Documented the composed propagation-to-OEM-to-TLE workflow.
 - Added a DSST OMM integration fixture and verified the composed workflow,
   including a converged SGP4 fit report.
+- DSST propagation OEMs now retain `source=OMM/DSST` and `target_model=DSST`
+  provenance before they are consumed by the composed SGP4 refit.
 
 ### Remaining work
 
