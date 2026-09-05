@@ -27,13 +27,6 @@ tooling.
   represented in provenance.
 - `tle-to-omm`: is relevant when a TLE is preserved as an intermediate OMM.
 
-### Proposed commands with no current implementation
-
-`omm-to-opm`, `tle-to-opm`, `opm-to-omm`, and `opm-to-tle` are named by the
-conversion design but are not currently registered in `pyproject.toml` and do
-not have corresponding `src/ephem_toolkit/<command>/` packages. Their future
-implementations should consume the shared reporting API defined here.
-
 ## Scope
 
 - Emit portable `COMMENT` entries using the `EPHEMERIS_PROVENANCE` and
@@ -78,8 +71,8 @@ implementations should consume the shared reporting API defined here.
   user-defined values.
 - [`src/ephem_toolkit/core/cli.py`](../../../src/ephem_toolkit/core/cli.py):
   shared output/report path handling if the option is centralized.
-- [`pyproject.toml`](../../../pyproject.toml): register future conversion
-  entry points when the proposed commands are implemented.
+- [`pyproject.toml`](../../../pyproject.toml): register an entry point only if
+  a dedicated wrapper is later justified.
 
 ### Supporting propagation files
 
@@ -193,8 +186,8 @@ Result: `260 passed, 2 deselected`.
 - Extend force-model and integrator configuration reporting to any future
   production numerical-fitting workflows that do not yet use the shared
   `NumericalFitConfig`.
-- Implement reporting for the proposed `omm-to-opm`, `tle-to-opm`,
-  `opm-to-omm`, and `opm-to-tle` commands after those commands exist.
+- Extend reporting to future dedicated conversion wrappers only if composition
+  no longer provides the required workflow.
 
 ## Acceptance criteria
 

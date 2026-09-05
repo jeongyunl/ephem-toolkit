@@ -12,7 +12,7 @@ tooling.
 
 ## Scope
 
-- Implement `opm-to-tle`.
+- Compose existing propagation and fitting commands.
 - Select either the intermediate two-body or numerical OEM propagation path.
 - Fit SGP4-compatible mean elements before TLE formatting.
 - Support fit span and the relevant propagation/fit options.
@@ -36,6 +36,6 @@ followed by `oem-to-tle`. Two-hour two-body and numerical paths both produce
 converged SGP4 fit reports and fixed-width, checksum-valid TLEs. The reports
 identify the intermediate source as `OEM/two-body` or `OEM/numerical` and
 record the fit residuals. Unsupported direct OMM output-theory combinations
-continue to fail explicitly; a dedicated `opm-to-tle` wrapper is not needed.
+continue to fail explicitly; a dedicated wrapper is not needed.
 
 Verification: `2 passed` in the composed OPM-to-TLE integration suite.
