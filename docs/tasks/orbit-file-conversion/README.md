@@ -19,7 +19,8 @@ verification dimensions covered by these tasks.
   composed OMM-to-TLE refit coverage. Remaining work is broader production
   report configuration coverage for future workflows and proposed-command
   support. Shared numerical fit reports now preserve force and integrator
-  settings. See [Task 1
+  settings, and source reports without usable provenance resolve to `unknown`.
+  See [Task 1
   progress](01-provenance-and-fit-reports.md#progress).
 - **Complete:** Task 2 implementation. The shared numerical fitter is wired to
   `oem-to-opm --fit-model numerical`, including fixed propagator configuration,
@@ -75,7 +76,7 @@ work. Tasks 5–6 depend on the shared numerical fitter. Tasks 8 and 11 compose
 existing propagation and fitting operations and can reuse the lower-level
 pieces from earlier tasks.
 
-Latest focused verification: `223 passed, 2 deselected` covering the
+Latest focused verification: `260 passed, 2 deselected` covering the
 provenance/reporting and affected conversion/CCSDS suites; the frame-utils
 kernel-loading suite also passes with `13 passed`.
 
