@@ -463,8 +463,9 @@ Put the source model, SGP4 fit configuration, and residuals in the companion
 fit report and, where possible, the intermediate OMM comments.
 
 **TODO**:
-- [ ] Emit the source OEM provenance and mean-element fit residuals with the
-	generated TLE or a companion fit report.
+- [x] Emit the source OEM provenance and mean-element fit residuals with the
+  generated TLE or a companion fit report. Task 9 verifies file/stdout report
+  output, unknown-source handling, and fixed-width TLE checksums.
 
 **Metadata**:
 - **Preserved**: `OBJECT_NAME`, `EPOCH` (from fitted span)

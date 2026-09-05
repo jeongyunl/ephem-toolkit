@@ -41,8 +41,11 @@ verification dimensions covered by these tasks.
   paths; no dedicated wrapper is planned.
 - **Complete as composition:** Task 8. Both Task 7 paths compose with
   `oem-to-omm`; complete propagation-configuration reporting remains.
-- **Pending:** Tasks 9 and 11. Their documents describe planned implementation
-  work and acceptance criteria.
+- **Complete:** Task 9. OEM-to-TLE emits SGP4 fit provenance and diagnostics in
+  a JSON report, with coverage for file/stdout reports, unknown source
+  provenance, and fixed-width TLE checksums.
+- **Pending:** Task 11. Its document describes the remaining composed
+  OPM-to-TLE workflow and acceptance criteria.
 
 ## Suggested order
 
@@ -54,7 +57,7 @@ verification dimensions covered by these tasks.
 6. **Complete:** [OMM and TLE to OPM numerical fitting](06-omm-tle-to-opm-numerical-fit.md)
 7. **Complete as composition:** [OPM to OEM model-aware workflow](07-opm-to-oem-workflow.md)
 8. **Complete as composition:** [OPM to OMM composed workflow](08-opm-to-omm-workflow.md)
-9. **Pending:** [OEM to TLE fit reporting](09-oem-to-tle-fit-report.md)
+9. **Complete:** [OEM to TLE fit reporting](09-oem-to-tle-fit-report.md)
 10. **In progress:** [OMM to TLE validation and refit](10-omm-to-tle-validation-refit.md)
 11. **Pending:** [OPM to TLE composed workflow](11-opm-to-tle-workflow.md)
 
@@ -76,6 +79,11 @@ verification is limited by the currently supported propagators.
 Task 8 composition verification: `168 passed, 13 warnings`, including
 two-body and numerical OPM-to-OEM-to-OMM integration tests. Both DSST fits
 converged over 2-hour arcs; the numerical path used 27 fitted records.
+
+Task 9 verification: `12 passed` in the OEM-to-TLE suite. A direct 10-minute
+OEM fit produced a converged report with unknown-source provenance and a
+69-character, checksum-valid TLE; report-file and stdout destinations are
+covered.
 
 All orbit-file-conversion work has an additional objective: do not add runtime
 dependencies; reuse the repository's existing libraries and tooling.

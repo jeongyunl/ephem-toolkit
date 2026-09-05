@@ -26,3 +26,12 @@ tooling.
   selected SGP4 fit settings, and source model information.
 - TLE output itself remains valid fixed-width data with correct checksums.
 - Tests cover report path, stdout, and absent/unknown source provenance.
+
+## Progress
+
+Complete. The existing composed OEM-to-OMM-to-TLE implementation now has
+end-to-end regression coverage using `tests/data/ISS_2026-05-20_small.16m.OEM`.
+The tests verify a converged 10-minute SGP4 fit, `OEM/unknown` provenance when
+the source model is not supplied, report output to both a JSON file and
+stdout, residual RMS/max fields, and 69-character TLE lines with valid
+checksums. Focused verification: `12 passed`.
