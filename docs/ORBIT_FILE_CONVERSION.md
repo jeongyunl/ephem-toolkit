@@ -134,15 +134,15 @@ theory label that conflicts with the fitting implementation.
 |---|---|---|---|---|
 | Input data | `--source-model <auto\|unknown\|external-od\|sgp4\|dsst\|brouwer\|two-body\|numerical>` | `oem-to-omm`, `oem-to-opm`, `oem-to-tle`, `omm-to-opm`, `tle-to-opm` | None | Declare input ephemeris provenance only when the input file lacks a usable provenance record. `auto` reads the record; `unknown` records that no source model is known. |
 | Input data | `--source-report <path>` | `oem-to-omm`, `oem-to-opm`, `oem-to-tle`, `omm-to-opm`, `tle-to-opm` | None | Read supplementary provenance or fit diagnostics when the input is a TLE or another format that cannot carry the information. |
-| Transformation | `--fit-model <brouwer\|dsst\|sgp4>` | `oem-to-omm`, `oem-to-tle`, `opm-to-omm`, `opm-to-tle`, `omm-to-tle --refit-sgp4` | `oem-to-omm --mode <brouwer\|dsst\|tle>` | Select the target mean-element fitting model. `sgp4` replaces the output-format-oriented `tle` value. |
+| Transformation | `--fit-model <brouwer\|dsst\|sgp4>` | `oem-to-omm`, `oem-to-tle`, `opm-to-omm`, `opm-to-tle` | `oem-to-omm --mode <brouwer\|dsst\|tle>` | Select the target mean-element fitting model. `sgp4` replaces the output-format-oriented `tle` value. |
 | Transformation | `--fit-model <two-body\|numerical>` | `oem-to-opm`, `omm-to-opm`, `tle-to-opm` | Existing `oem-to-opm` two-body fit | Select the propagation model fitted to produce an OPM initial state; default to `two-body` where it preserves current behavior. |
-| Transformation | `--fit-span <duration>` | `oem-to-omm`, `oem-to-opm`, `oem-to-tle`, `omm-to-opm`, `tle-to-opm`, `opm-to-omm`, `opm-to-tle`, `omm-to-tle --refit-sgp4` | `oem-to-omm`, `oem-to-opm`, and `oem-to-tle` | Maximum reference arc used in the fit; retain the existing default of `2h`. |
+| Transformation | `--fit-span <duration>` | `oem-to-omm`, `oem-to-opm`, `oem-to-tle`, `omm-to-opm`, `tle-to-opm`, `opm-to-omm`, `opm-to-tle` | `oem-to-omm`, `oem-to-opm`, and `oem-to-tle` | Maximum reference arc used in the fit; retain the existing default of `2h`. |
 | Transformation | `--fit-step <seconds>` | `oem-to-opm`, `omm-to-opm`, `tle-to-opm` | No direct equivalent; `--step` controls propagation output sampling | Spacing of samples selected from the reference arc. |
 | Transformation | `--fit-observables <position\|state>`, `--fit-position-weight <value>`, `--fit-velocity-weight <value>` | `oem-to-opm`, `omm-to-opm`, `tle-to-opm` | None | Select position-only or weighted Cartesian-state residuals and configure their component weights. Velocity weight applies only when fitting `state`. |
 | Transformation | `--fit-parameters <initial-state\|initial-state,drag-coeff\|initial-state,srp-coeff>` | `oem-to-opm`, `omm-to-opm`, `tle-to-opm` | Existing `propagate-orbit` force parameters | Select user-supplied initial-state and force parameters; physical parameters are fixed and never estimated. |
 | Output data | `--output <path\|->` | All conversion commands | Existing `-o/--output` | Write the converted OMM, OPM, OEM, or TLE. |
 | Output data | `--object-name <name>`, `--object-id <id>` | All conversion commands that write CCSDS output | Existing conversion-command metadata options | Override output object metadata. |
-| Output data | `--fit-report <path\|->` | `oem-to-omm`, `oem-to-opm`, `oem-to-tle`, `omm-to-opm`, `tle-to-opm`, `opm-to-omm`, `opm-to-tle`, `omm-to-tle --refit-sgp4` | None | Write output provenance, numerical configuration, fitted state values, supplied fixed physical parameters, RMS/max residuals, and convergence status as JSON. |
+| Output data | `--fit-report <path\|->` | `oem-to-omm`, `oem-to-opm`, `oem-to-tle`, `omm-to-opm`, `tle-to-opm`, `opm-to-omm`, `opm-to-tle` | None | Write output provenance, numerical configuration, fitted state values, supplied fixed physical parameters, RMS/max residuals, and convergence status as JSON. |
 
 `--fit-model` selects the orbital or propagation model that defines the fitted
 output: `brouwer`, `dsst`, or `sgp4` for a mean-element OMM; `two-body` or
@@ -470,6 +470,7 @@ fit report and, where possible, the intermediate OMM comments.
 #### OMM -> TLE
 **Conversion Method**:
 - **Direct conversion**: `omm-to-tle`
+- **Composed refit**: `propagate-omm` → OEM → `oem-to-tle`
 
 **Ephemeris-model handling**: Direct conversion is valid only for an OMM with
 SGP4-compatible mean elements and the required TLE parameters. Reject or
@@ -477,16 +478,17 @@ explicitly re-fit DSST, Brouwer-Lyddane, and other non-SGP4 OMMs before
 producing a TLE.
 
 **Provenance record**: No additional record is required for a direct
-SGP4-compatible mapping. For `--refit-sgp4`, put the source OMM theory, fit
-settings, and residuals in the companion fit report.
+SGP4-compatible mapping. For a non-SGP4 refit, put the source OMM theory, fit
+settings, and residuals in the OEM/TLE fit report produced by the composed
+workflow.
 
 **TODO**:
 - [ ] Validate that `MEAN_ELEMENT_THEORY` is SGP4-compatible before direct
 	`omm-to-tle` conversion.
 - [ ] Reject non-SGP4 OMMs with a diagnostic that identifies the declared
 	theory and explains the incompatibility.
-- [ ] Add an explicit `--refit-sgp4` workflow that propagates the source OMM,
-	fits SGP4-compatible mean elements, and then writes the TLE.
+- [ ] Document and verify the composed refit workflow:
+	`propagate-omm` → OEM reference arc → `oem-to-tle`.
 
 **Metadata**:
 - **Preserved**: `NORAD_CAT_ID`, `EPOCH`, `MEAN_MOTION`, `ECCENTRICITY`, `INCLINATION`, `RA_OF_ASC_NODE`, `ARG_OF_PERICENTER`, `MEAN_ANOMALY`, `BSTAR`, `ELEMENT_SET_NO`, `REV_AT_EPOCH`, `CLASSIFICATION_TYPE`, `EPHEMERIS_TYPE`, `MEAN_MOTION_DOT`, `MEAN_MOTION_DDOT`

@@ -1,40 +1,42 @@
-# Task 10: Validate OMM-to-TLE input and add SGP4 refit
+# Task 10: Validate OMM-to-TLE input and document composed SGP4 refit
 
 ## Status
 
-**In progress.** Direct conversion validation and the explicit
-`--refit-sgp4` workflow are implemented. Live validation with representative
-non-SGP4 OMMs remains before this task can be closed.
+**In progress.** Direct OMM-to-TLE validation is implemented. Non-SGP4 input
+is intentionally refit by composing the existing OMM propagation and OEM-to-
+TLE tools; representative live verification of that pipeline remains.
 
 ## Goal
 
-Prevent invalid direct OMM-to-TLE conversions and provide an explicit path for
-converting non-SGP4 OMMs through a new SGP4 fit.
+Prevent invalid direct OMM-to-TLE conversions and provide a documented,
+model-aware path for converting non-SGP4 OMMs to TLEs.
 
 ## Additional objective
 
-Do not add runtime dependencies; reuse the repository's existing libraries and
-tooling.
+Do not add runtime dependencies or a second refitting implementation; reuse the
+repository's existing propagation and OEM-to-TLE fitting tools.
 
 ## Scope
 
 - Validate that direct `omm-to-tle` input declares an SGP4-compatible
-  `MEAN_ELEMENT_THEORY` and contains required TLE parameters.
+  `MEAN_ELEMENT_THEORY` and contains the required TLE parameters.
 - Reject DSST, Brouwer-Lyddane, and other non-SGP4 theories with a diagnostic
   naming the declared theory and explaining the incompatibility.
-- Add `--refit-sgp4`: propagate the source OMM with its declared theory, fit
-  SGP4-compatible mean elements, and write a TLE.
-- Add fit span, source provenance, and `--fit-report` handling to the refit
-  path.
+- Use the composed workflow for non-SGP4 input:
+  `propagate-omm` → Cartesian OEM reference arc →
+  `oem-to-tle` (which performs the SGP4-compatible fit).
+- Carry the source theory, propagation settings, fit span, and residuals in the
+  intermediate/output fit report where supported.
 - Keep direct SGP4-compatible mapping free of fabricated fit diagnostics.
 
 ## Acceptance criteria
 
 - Valid direct SGP4 mappings retain their current fields and produce valid TLEs.
 - Invalid theories fail before writing output and identify the incompatibility.
-- `--refit-sgp4` succeeds for supported non-SGP4 input and reports source
-  theory, fit settings, and residuals.
-- Tests distinguish direct conversion from refitting.
+- A supported non-SGP4 OMM can be propagated to a Cartesian OEM and then fitted
+  to an SGP4-compatible TLE using existing commands.
+- `omm-to-tle` does not expose a second direct `--refit-sgp4` implementation.
+- Tests distinguish direct conversion from the composed refit workflow.
 
 ## Progress
 
@@ -42,25 +44,29 @@ tooling.
 
 - Added direct-conversion validation for SGP4-compatible
   `MEAN_ELEMENT_THEORY` values.
-- Direct conversion now rejects non-SGP4 theories with an actionable message
-  naming the declared theory and pointing to `--refit-sgp4`.
-- Direct conversion now rejects missing TLE parameters before output is
-  written.
+- Direct conversion rejects non-SGP4 theories with an actionable message.
+- Direct conversion rejects missing TLE parameters before output is written.
 - Preserved direct SGP4-compatible conversion behavior without fabricated fit
   diagnostics.
-- Added regression coverage for early rejection and output non-creation.
-- Added `--refit-sgp4`, `--fit-span`, source provenance, and fit-report options.
-- Connected refitting to the existing OMM propagators and shared SGP4/TLE fit
-  implementation; reports identify the source theory and SGP4 target.
-- Automatic refit provenance uses the OMM's declared theory when no external
-  source report is supplied; explicit source-model/report values remain
-  available for externally documented input.
-- Added success-path regression coverage for propagated reference input,
-  generated TLE output, and fit-report provenance/configuration.
-- Preserved the no-new-runtime-dependencies objective.
-- Added no runtime dependencies.
+- Removed the direct `--refit-sgp4` implementation, parser options, and tests.
+- Documented the composed propagation-to-OEM-to-TLE workflow.
 
 ### Remaining work
 
-- Verify the refit path with representative DSST, Brouwer, and other supported
-  non-SGP4 OMM inputs.
+- Verify the composed refit path with representative DSST, Brouwer, and other
+  supported non-SGP4 OMM inputs.
+- Add end-to-end report coverage for the composed path.
+
+## Verification
+
+The direct validation path is covered by the OMM-to-TLE focused tests. The
+composed workflow should be verified with a representative non-SGP4 OMM and
+checked for a Cartesian reference OEM, SGP4-compatible TLE output, source
+provenance, fit span, and residual statistics.
+
+## Acceptance evidence
+
+- Focused OMM-to-TLE tests cover parser behavior, direct conversion, and early
+  rejection without creating output.
+- The repository's broader focused conversion verification is recorded in the
+  task README; numerical live verification remains environment-dependent.

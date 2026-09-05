@@ -6,6 +6,12 @@ document's format descriptions, accuracy warnings, metadata tables, and
 conversion examples are requirements and context; they are not separate tasks
 unless they imply implementation work.
 
+## Reference matrix
+
+See [the detailed conversion matrix](00-conversion-matrix.md) for the directed
+format/model workflows, metadata behavior, provenance requirements, and
+verification dimensions covered by these tasks.
+
 ## Status
 
 - **In progress:** Task 1. The shared comment/report layer and current
@@ -23,9 +29,9 @@ unless they imply implementation work.
   current conversion commands.
 - **Complete:** Task 4. OEM-to-OMM supports canonical fit-model selection,
   deprecated mode compatibility, theory conflict validation, and reporting.
-- **In progress:** Task 10. Direct OMM-to-TLE validation and the explicit
-  `--refit-sgp4` path are implemented; representative live refit verification
-  with non-SGP4 data remains.
+- **In progress:** Task 10. Direct OMM-to-TLE validation is implemented; the
+  non-SGP4 SGP4-refit workflow is composed from `propagate-omm` and
+  `oem-to-tle`, with representative live verification remaining.
 - **Complete:** Task 6. `omm-to-opm --fit-model numerical` and
   `tle-to-opm --fit-model numerical` wrappers delegate to the shared
   OEM-to-OPM fitter; short- and four-hour live output and fit-report

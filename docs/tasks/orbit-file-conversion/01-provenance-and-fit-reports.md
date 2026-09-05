@@ -162,8 +162,8 @@ Result: `223 passed, 2 deselected`.
 
 ### Remaining work
 
-- Add end-to-end report coverage for `omm-to-tle --refit-sgp4`; direct model
-  validation and refit report wiring are implemented under Task 10.
+- Add end-to-end report coverage for the composed OMM-to-TLE refit path;
+  direct model validation is implemented under Task 10.
 - Extend force-model and integrator configuration reporting to any remaining
   production numerical-fitting workflows.
 - Implement reporting for the proposed `omm-to-opm`, `tle-to-opm`,

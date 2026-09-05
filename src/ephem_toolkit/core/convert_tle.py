@@ -315,7 +315,7 @@ def validate_sgp4_compatible_omm(omm_obj: omm.CcsdsOmm) -> None:
         raise ValueError(
             "direct OMM-to-TLE conversion requires an SGP4-compatible "
             f"MEAN_ELEMENT_THEORY; declared theory is {omm_obj.mean_element_theory!r}. "
-            "Use --refit-sgp4 for non-SGP4 OMM input."
+            "Propagate the OMM to an OEM, then use oem-to-tle for an SGP4 fit."
         )
     if omm_obj.tle_parameters is None:
         raise ValueError(
