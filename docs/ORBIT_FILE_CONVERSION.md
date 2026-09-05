@@ -24,6 +24,11 @@ come from SGP4, DSST, Brouwer, two-body Kepler propagation, numerical
 integration, or orbit determination. Preserve the source model, frame, time
 system, and force-model information whenever it is known.
 
+When a route is specific to a theory-qualified mean-element or single-epoch
+state, name the file using the model in parentheses: `OMM(DSST)`,
+`OMM(SGP4)`, `OPM(2B)`, and `OPM(NUM)`. The generic names `OMM` and `OPM`
+remain valid for the broader format families.
+
 ## Model and provenance rules
 
 1. A direct conversion is a field mapping only when the source and target
@@ -87,7 +92,7 @@ compositions of the propagation and fitting commands shown below.
 
 ## Routes to OEM
 
-### OMM → OEM: `OMM-OEM-SGP4` and `OMM-OEM-DSST`
+### OMM(SGP4) → OEM and OMM(DSST) → OEM
 
 Use `propagate-omm input.omm -d 6h -s 5m -o output.oem`. The declared
 `MEAN_ELEMENT_THEORY` selects the supported mean-element path. Preserve the
@@ -97,7 +102,7 @@ For an unsupported declared theory, the command’s two-body fallback must be
 identified as `target_model=two-body-kepler`; it must not be described as a
 Brouwer, DSST, or other theory-specific OEM.
 
-### OPM → OEM: `OPM-OEM-2B` and `OPM-OEM-NUM`
+### OPM(2B) → OEM and OPM(NUM) → OEM
 
 Use `propagate-kepler` for the two-body path. Use `propagate-orbit` when
 perturbations are required. The numerical path must record gravity, force
@@ -112,7 +117,7 @@ command’s output contract says otherwise.
 
 ## Routes to OMM
 
-### OEM → OMM: `OEM-OMM-SGP4`, `OEM-OMM-BROUWER`, and `OEM-OMM-DSST`
+### OEM → OMM: `OEM-OMM(SGP4)`, `OEM-OMM(BROUWER)`, and `OEM-OMM(DSST)`
 
 Select the target model explicitly:
 
@@ -128,7 +133,7 @@ Do not use `--theory` to relabel a result inconsistently with the selected fit
 model. Supply `--source-model` or `--source-report` when the OEM does not carry
 usable provenance. Use `--fit-report` for JSON diagnostics.
 
-### OPM → OMM: `OPM-OMM-2B` and `OPM-OMM-NUM`
+### OPM(2B) → OMM and OPM(NUM) → OMM
 
 There is no one-step command. Generate an intermediate OEM, then fit it:
 
@@ -159,7 +164,7 @@ Record fit span, weights, convergence settings, target force model, and fit
 report. Fitted Keplerian fields are not source-model-consistent osculating
 elements for an arbitrary mean-element or numerical OEM.
 
-### OMM → OPM: `OMM-OPM-2B` and `OMM-OPM-NUM`
+### OMM → OPM: `OMM-OPM(2B)` and `OMM-OPM(NUM)`
 
 The two-body route is `propagate-omm` followed by `oem-to-opm`. The numerical
 route can use the wrapper:
@@ -172,7 +177,7 @@ The reference OEM is generated using the OMM’s declared supported theory, or
 the labeled Kepler fallback for an unsupported theory. The OPM is therefore a
 fit for a stated arc, not a replacement for the OMM mean elements.
 
-### TLE → OPM: `TLE-OPM-2B` and `TLE-OPM-NUM`
+### TLE → OPM: `TLE-OPM(2B)` and `TLE-OPM(NUM)`
 
 The two-body route is `propagate-tle` followed by `oem-to-opm`. For a numerical
 initial-state fit, use:
@@ -193,7 +198,7 @@ fits SGP4-compatible mean elements and then formats the TLE. The result is a
 new SGP4 representation of the source arc. The companion report is required
 for source provenance and residuals because TLE cannot carry them.
 
-### OMM → TLE: `OMM-TLE-DIRECT` and `OMM-TLE-REFIT`
+### OMM(SGP4) → TLE: `OMM-TLE-DIRECT` and `OMM-TLE-REFIT`
 
 Use `omm-to-tle` only when the OMM is SGP4-compatible and has the required TLE
 parameters. The command validates the declared theory and required fields
@@ -209,7 +214,7 @@ oem-to-tle reference.oem --fit-span 2h --fit-report fit.json -o output.tle
 This is a refit through an intermediate Cartesian OEM. It is valid only over
 the fit arc and does not preserve the source OMM theory in the TLE itself.
 
-### OPM → TLE: `OPM-TLE-2B` and `OPM-TLE-NUM`
+### OPM(2B) → TLE and OPM(NUM) → TLE
 
 Propagate the OPM with `propagate-kepler` or `propagate-orbit`, then pass the
 resulting OEM to `oem-to-tle`. The selected intermediate model, SGP4 fitting
