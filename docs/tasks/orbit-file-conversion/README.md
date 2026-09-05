@@ -17,7 +17,9 @@ verification dimensions covered by these tasks.
 - **In progress:** Task 1. The shared comment/report layer and current
   OEM-to-OMM, OEM-to-OPM, and OEM-to-TLE paths are implemented, including
   composed OMM-to-TLE refit coverage. Remaining work is broader production
-  report configuration coverage and proposed-command support. See [Task 1
+  report configuration coverage for future workflows and proposed-command
+  support. Shared numerical fit reports now preserve force and integrator
+  settings. See [Task 1
   progress](01-provenance-and-fit-reports.md#progress).
 - **Complete:** Task 2 implementation. The shared numerical fitter is wired to
   `oem-to-opm --fit-model numerical`, including fixed propagator configuration,

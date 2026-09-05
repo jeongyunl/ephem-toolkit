@@ -94,6 +94,8 @@ class NumericalFitConfig:
             "fixed_parameters": self.fixed_parameter_values(),
             "satellite_mass_kg": self.satellite_mass_kg,
             "drag_area_m2": self.drag_area_m2,
+            "drag_enabled": self.drag_enabled,
+            "srp_enabled": self.srp_enabled,
             "earth_gravity": self.earth_gravity,
             "integrator": self.integrator,
             "integrator_step_size_s": self.integrator_step_size_s,

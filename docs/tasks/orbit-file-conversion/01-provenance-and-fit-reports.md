@@ -149,6 +149,9 @@ actually produce or transform the relevant output.
 - Existing OEM conversion reports now record available fit configuration,
   including fit mode, gravitational parameter, source frame, and time system;
   TLE fits also record refinement method.
+- Numerical fit reports preserve the configured force model, gravity toggles,
+  integrator, step-size bounds, spacecraft parameters, and fixed fitted
+  parameters through `NumericalFitConfig.to_report_dict()`.
 - Preserved compatibility with existing mocked diagnostics used by conversion
   tests.
 
@@ -167,8 +170,9 @@ Result: `223 passed, 2 deselected`.
 
 - Direct model validation and composed OMM-to-TLE refit coverage are complete
   under Task 10; remaining work is broader production report coverage.
-- Extend force-model and integrator configuration reporting to any remaining
-  production numerical-fitting workflows.
+- Extend force-model and integrator configuration reporting to any future
+  production numerical-fitting workflows that do not yet use the shared
+  `NumericalFitConfig`.
 - Implement reporting for the proposed `omm-to-opm`, `tle-to-opm`,
   `opm-to-omm`, and `opm-to-tle` commands after those commands exist.
 
