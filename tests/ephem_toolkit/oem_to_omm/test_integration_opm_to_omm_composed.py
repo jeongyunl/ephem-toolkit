@@ -45,7 +45,9 @@ def test_opm_to_omm_composes_kepler_propagation_and_dsst_fit(tmp_path: Path) -> 
         ]
     )
 
-    assert "MEAN_ELEMENT_THEORY = DSST" in output_omm.read_text(encoding="utf-8")
+    output_text = output_omm.read_text(encoding="utf-8")
+    assert "MEAN_ELEMENT_THEORY = DSST" in output_text
+    assert "target_model=two-body-kepler" in output_text
     report = json.loads(fit_report.read_text(encoding="utf-8"))
     assert report["status"] == "converged"
     assert report["configuration"]["fit_model"] == "dsst"
@@ -89,7 +91,9 @@ def test_opm_to_omm_composes_numerical_propagation_and_dsst_fit(tmp_path: Path) 
         ]
     )
 
-    assert "MEAN_ELEMENT_THEORY = DSST" in output_omm.read_text(encoding="utf-8")
+    output_text = output_omm.read_text(encoding="utf-8")
+    assert "MEAN_ELEMENT_THEORY = DSST" in output_text
+    assert "EPHEMERIS_PROPAGATION" in output_text
     report = json.loads(fit_report.read_text(encoding="utf-8"))
     assert report["status"] == "converged"
     assert report["configuration"]["fit_model"] == "dsst"

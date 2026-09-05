@@ -51,6 +51,8 @@ tooling.
 - End-to-end tests cover both two-body and numerical intermediate OEM paths.
 - Final fit reports now preserve the intermediate OEM `COMMENT` records,
   including the two-body model label or numerical force/integrator settings.
+- Generated OMMs also retain those intermediate comments alongside the target
+  mean-element fit comments.
 
 ### Remaining work
 
