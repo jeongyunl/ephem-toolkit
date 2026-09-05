@@ -2,9 +2,10 @@
 
 ## Status
 
-**In progress.** This is the next active conversion task. It will compose the
-existing OPM-to-OEM propagation paths with `oem-to-omm`, without adding an
-`opm-to-omm` implementation that duplicates those lower-level tools.
+**Complete as a composed workflow.** Both existing OPM-to-OEM propagation
+paths have been verified with `oem-to-omm`, without adding an `opm-to-omm`
+implementation that duplicates those lower-level tools. Remaining work is
+aggregating complete propagation provenance for production workflows.
 
 ## Goal
 
@@ -44,5 +45,13 @@ tooling.
 - Verified a converged DSST fit report with 25 reference states and approximately
   `216.5 m` position RMS.
 - Reused the existing `propagate-orbit` path as the numerical composition;
-  numerical live verification remains environment-dependent.
+  numerical live verification completed with a converged 2-hour fit over 27
+  reference records.
 - Deferred a dedicated wrapper because it would duplicate the existing tools.
+- End-to-end tests cover both two-body and numerical intermediate OEM paths.
+
+### Remaining work
+
+- Carry the complete intermediate propagation configuration into the final
+  report for composed production workflows, including force and integrator
+  settings.

@@ -314,8 +314,10 @@ their residuals.
 - [x] Provide a composed OPM-to-OMM workflow using existing propagation and
 	fitting tools; select the intermediate OEM model as two-body or numerical.
 - [x] Require explicit selection of the target mean-element fitting theory.
-- [ ] Report source provenance and residuals for both propagation and fitting
-	for the remaining numerical composition.
+- [x] Verify source provenance and residuals for both two-body and numerical
+	propagation/fitting compositions.
+- [ ] Aggregate complete propagation force and integrator settings in the
+	final report for production composed workflows.
 
 **Metadata**:
 - **Preserved**: `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`, `EPOCH`
