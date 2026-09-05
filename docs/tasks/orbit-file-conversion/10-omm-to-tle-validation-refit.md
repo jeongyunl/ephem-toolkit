@@ -85,8 +85,9 @@ Result: 25 reference states, valid TLE output, and a `converged` fit report
 with approximately `11 km` position RMS and `17 km` maximum position
 residual. The residual is expected to be larger than the SGP4-to-SGP4
 composition because the source DSST history is being fit to a different SGP4
-model. The bare `oem-to-tle` executable was not installed in the evaluation
-shell, so the source-tree module entry point was used.
+model. The generated OEM uses `EME2000` while retaining `UTC`; the source OMM
+uses `ICRF`. The bare `oem-to-tle` executable was not installed in the
+evaluation shell, so the source-tree module entry point was used.
 
 The same workflow with a 10-minute arc failed because the fitted mean-motion
 first derivative could not be represented in the fixed-width TLE field. This
@@ -99,6 +100,7 @@ successfully without restoring a direct refit implementation.
   of the removed direct-refit option, and early rejection without creating
   output.
 - The composed integration test checks the intermediate OEM, generated TLE,
-  convergence, source/target provenance, fit span, record count, and residuals.
+  convergence, source/target provenance, frame/time provenance, fit span,
+  record count, and residuals.
 - The repository's broader focused conversion verification is recorded in the
   task README; numerical live verification remains environment-dependent.
