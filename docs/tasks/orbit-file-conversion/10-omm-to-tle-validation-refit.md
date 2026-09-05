@@ -63,7 +63,8 @@ provenance, and residual information.
 - Regression coverage confirms all supported SGP4 theory aliases are accepted
   by direct-conversion validation.
 - Direct conversion rejects non-SGP4 theories with an actionable message that
-  names the declared theory and SGP4 incompatibility.
+  names the declared theory, explains the SGP4 incompatibility, and points to
+  the composed OMM-to-OEM-to-TLE workflow.
 - Direct conversion rejects missing TLE parameters before output is written.
 - Regression coverage now verifies missing TLE parameters are rejected before
   output is written for an otherwise SGP4-declared OMM and that the diagnostic
@@ -136,7 +137,7 @@ successfully without restoring a direct refit implementation.
 
 - Focused OMM-to-TLE tests cover parser behavior, direct conversion, rejection
   of DSST and Brouwer-Lyddane theories, rejection of the removed direct-refit
-  option, and early rejection without creating output.
+  option, and early rejection without creating output or entering conversion.
 - The composed integration test checks the intermediate OEM, generated TLE,
   convergence, source/target provenance, frame/time provenance, fit span,
   record count, and residuals.

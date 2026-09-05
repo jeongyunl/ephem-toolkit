@@ -89,6 +89,7 @@ def test_omm_to_tle_rejects_non_sgp4_theory_before_writing(
     diagnostic = capsys.readouterr().err
     assert theory in diagnostic
     assert "SGP4-compatible" in diagnostic
+    assert "Propagate the OMM to an OEM" in diagnostic
 
 
 @pytest.mark.parametrize("theory", ["SGP", "PPT3", "SGP4", "SGP/SGP4"])
