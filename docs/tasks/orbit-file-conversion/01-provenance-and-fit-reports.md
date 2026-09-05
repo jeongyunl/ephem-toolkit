@@ -152,6 +152,8 @@ actually produce or transform the relevant output.
 - Numerical fit reports preserve the configured force model, gravity toggles,
   integrator, step-size bounds, spacecraft parameters, and fixed fitted
   parameters through `NumericalFitConfig.to_report_dict()`.
+- OEM-to-OPM reports now preserve source OEM comments, matching the composed
+  OEM-to-OMM report path.
 - Preserved compatibility with existing mocked diagnostics used by conversion
   tests.
 
