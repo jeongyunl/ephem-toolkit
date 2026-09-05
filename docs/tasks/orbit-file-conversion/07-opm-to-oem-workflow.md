@@ -1,5 +1,12 @@
 # Task 7: Add the model-aware OPM-to-OEM workflow
 
+## Status
+
+**Complete as a composed workflow.** No dedicated `opm-to-oem` wrapper is
+needed. The existing `propagate-kepler` and `propagate-orbit` commands make
+the two-body versus numerical choice explicit and preserve the repository's
+existing CLI boundaries.
+
 ## Goal
 
 Make OPM-to-OEM conversion explicit about whether it generates a two-body
@@ -25,10 +32,23 @@ tooling.
 
 ## Acceptance criteria
 
-- The CLI makes the two-body versus numerical path unambiguous.
+- The command selection makes the two-body versus numerical path unambiguous:
+  use `propagate-kepler` for two-body output or `propagate-orbit` for numerical
+  output.
 - Generated OEMs preserve input identity/frame/time metadata and record the
   selected model.
 - Numerical and fit configurations are reproducible from the output comments
   and optional report.
 - Tests demonstrate that the two paths produce distinguishable, correctly
   labeled histories.
+
+## Progress
+
+- Reused `propagate-kepler` for OPM osculating Keplerian elements.
+- Reused `propagate-orbit` for OPM Cartesian numerical propagation and force
+  model configuration.
+- Documented the two composed paths in the conversion matrix.
+- Deferred a dedicated wrapper because it would duplicate existing commands
+  without adding conversion capability.
+- Detailed numerical provenance and model-label verification remain part of
+  the broader propagation/reporting work.
