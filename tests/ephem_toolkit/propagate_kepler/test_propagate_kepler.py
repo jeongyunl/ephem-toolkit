@@ -177,3 +177,8 @@ def test_propagate_kepler_writes_cartesian_states_in_si_units(
     generated_oem = oem.CcsdsOem.read(output_path)
     _, generated_state_m_m_s = generated_oem.states[0]
     np.testing.assert_allclose(generated_state_m_m_s, expected_state_m_m_s, rtol=1e-12)
+    assert (
+        "EPHEMERIS_PROVENANCE: source=OPM; transformation=propagation; "
+        "target_model=two-body-kepler"
+        in generated_oem.meta.comments
+    )
