@@ -47,7 +47,8 @@ verification dimensions covered by these tasks.
   paths; both OEM types identify their propagation model, and numerical OEMs
   also record their propagation configuration. No dedicated wrapper is planned.
 - **Complete as composition:** Task 8. Both Task 7 paths compose with
-  `oem-to-omm`; complete propagation-configuration reporting remains.
+  `oem-to-omm`, and final reports preserve the intermediate OEM provenance and
+  propagation-configuration comments.
 - **Complete:** Task 9. OEM-to-TLE emits SGP4 fit provenance and diagnostics in
   a JSON report, with coverage for file/stdout reports, unknown source
   provenance, and fixed-width TLE checksums.

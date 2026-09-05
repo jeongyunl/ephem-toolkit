@@ -51,6 +51,10 @@ def test_opm_to_omm_composes_kepler_propagation_and_dsst_fit(tmp_path: Path) -> 
     assert report["configuration"]["fit_model"] == "dsst"
     assert report["diagnostics"]["n_records"] == 25
     assert report["provenance"]["target_model"] == "DSST"
+    assert any(
+        "target_model=two-body-kepler" in comment
+        for comment in report["configuration"]["source_comments"]
+    )
 
 
 def test_opm_to_omm_composes_numerical_propagation_and_dsst_fit(tmp_path: Path) -> None:
@@ -92,3 +96,7 @@ def test_opm_to_omm_composes_numerical_propagation_and_dsst_fit(tmp_path: Path) 
     assert report["provenance"]["source"] == "OEM/numerical"
     assert report["diagnostics"]["n_records"] == 27
     assert report["provenance"]["target_model"] == "DSST"
+    assert any(
+        "EPHEMERIS_PROPAGATION" in comment
+        for comment in report["configuration"]["source_comments"]
+    )
