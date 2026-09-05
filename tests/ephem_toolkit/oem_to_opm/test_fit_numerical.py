@@ -78,6 +78,32 @@ def test_fit_configuration_serializes_fixed_parameters() -> None:
     assert report_config["fixed_parameters"] == {"srp_coeff": 1.3}
 
 
+def test_fit_configuration_serializes_force_and_integrator_settings() -> None:
+    config = NumericalFitConfig(
+        earth_gravity=(8, 8),
+        integrator="rkdp_87",
+        integrator_step_size_s=(1.0, 10.0, 300.0),
+        drag_enabled=False,
+        srp_enabled=True,
+        moon_gravity=False,
+        sun_gravity=True,
+        venus_gravity=False,
+        mars_gravity=True,
+    )
+
+    report_config = config.to_report_dict()
+
+    assert report_config["earth_gravity"] == (8, 8)
+    assert report_config["integrator"] == "rkdp_87"
+    assert report_config["integrator_step_size_s"] == (1.0, 10.0, 300.0)
+    assert report_config["drag_enabled"] is False
+    assert report_config["srp_enabled"] is True
+    assert report_config["moon_gravity"] is False
+    assert report_config["sun_gravity"] is True
+    assert report_config["venus_gravity"] is False
+    assert report_config["mars_gravity"] is True
+
+
 def test_fit_configuration_builds_propagator_configuration(monkeypatch) -> None:
     import sys
     import types
