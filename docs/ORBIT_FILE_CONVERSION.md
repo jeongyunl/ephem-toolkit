@@ -516,6 +516,7 @@ workflow.
   `omm-to-tle` conversion.
 - [x] Reject non-SGP4 OMMs with a diagnostic that identifies the declared
   theory and explains the incompatibility.
+- [x] Reject missing TLE parameters before direct output is written.
 - [x] Document and verify the composed DSST refit workflow:
 	`propagate-omm` → OEM reference arc → `oem-to-tle`.
 - [ ] Extend the composed refit workflow to additional non-SGP4 theories when

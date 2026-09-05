@@ -62,6 +62,8 @@ provenance, and residual information.
   `MEAN_ELEMENT_THEORY` values.
 - Direct conversion rejects non-SGP4 theories with an actionable message.
 - Direct conversion rejects missing TLE parameters before output is written.
+- Regression coverage now verifies missing TLE parameters are rejected before
+  output is written for an otherwise SGP4-declared OMM.
 - Preserved direct SGP4-compatible conversion behavior without fabricated fit
   diagnostics.
 - Fallback-generated OEMs now record the declared source theory and the actual
