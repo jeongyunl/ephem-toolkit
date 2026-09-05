@@ -36,8 +36,13 @@ verification dimensions covered by these tasks.
   `tle-to-opm --fit-model numerical` wrappers delegate to the shared
   OEM-to-OPM fitter; short- and four-hour live output and fit-report
   verification are complete.
-- **Pending:** Tasks 7–9 and 11. Their documents describe planned
-  implementation work and acceptance criteria.
+- **Complete as composition:** Task 7. Existing `propagate-kepler` and
+  `propagate-orbit` commands provide the two-body and numerical OPM-to-OEM
+  paths; no dedicated wrapper is planned.
+- **In progress:** Task 8. OPM-to-OMM will compose one of the Task 7 paths with
+  `oem-to-omm` fitting.
+- **Pending:** Tasks 9 and 11. Their documents describe planned implementation
+  work and acceptance criteria.
 
 ## Suggested order
 
@@ -47,8 +52,8 @@ verification dimensions covered by these tasks.
 4. **Complete:** [OEM to OMM fit migration](04-oem-to-omm-fit-model.md)
 5. **Complete:** [OEM to OPM numerical fitting](05-oem-to-opm-numerical-fit.md)
 6. **Complete:** [OMM and TLE to OPM numerical fitting](06-omm-tle-to-opm-numerical-fit.md)
-7. **Pending:** [OPM to OEM model-aware workflow](07-opm-to-oem-workflow.md)
-8. **Pending:** [OPM to OMM composed workflow](08-opm-to-omm-workflow.md)
+7. **Complete as composition:** [OPM to OEM model-aware workflow](07-opm-to-oem-workflow.md)
+8. **In progress:** [OPM to OMM composed workflow](08-opm-to-omm-workflow.md)
 9. **Pending:** [OEM to TLE fit reporting](09-oem-to-tle-fit-report.md)
 10. **In progress:** [OMM to TLE validation and refit](10-omm-to-tle-validation-refit.md)
 11. **Pending:** [OPM to TLE composed workflow](11-opm-to-tle-workflow.md)

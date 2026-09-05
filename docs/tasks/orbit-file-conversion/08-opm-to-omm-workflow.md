@@ -1,5 +1,11 @@
 # Task 8: Add the composed OPM-to-OMM workflow
 
+## Status
+
+**In progress.** This is the next active conversion task. It will compose the
+existing OPM-to-OEM propagation paths with `oem-to-omm`, without adding an
+`opm-to-omm` implementation that duplicates those lower-level tools.
+
 ## Goal
 
 Provide one conversion command that composes OPM propagation and mean-element
