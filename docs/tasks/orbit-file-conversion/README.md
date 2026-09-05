@@ -62,11 +62,11 @@ Latest focused verification: `223 passed, 2 deselected` covering the
 provenance/reporting and affected conversion/CCSDS suites; the frame-utils
 kernel-loading suite also passes with `13 passed`.
 
-Task 10 composed-workflow verification: `50 passed` covering OEM-to-TLE,
+Task 10 composed-workflow verification: `51 passed` covering OEM-to-TLE,
 OMM-to-TLE, and TLE conversion tests, including the propagation-to-OEM-to-TLE
 integration test with a DSST OMM fixture. A source-tree 2-hour DSST
 composition also produced a converged fit report; broader non-SGP4 live
-verification remains.
+verification is limited by the currently supported propagators.
 
 All orbit-file-conversion work has an additional objective: do not add runtime
 dependencies; reuse the repository's existing libraries and tooling.

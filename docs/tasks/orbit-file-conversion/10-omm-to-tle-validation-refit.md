@@ -55,9 +55,10 @@ repository's existing propagation and OEM-to-TLE fitting tools.
 
 ### Remaining work
 
-- Verify the composed refit path with representative Brouwer and other
-  supported non-SGP4 OMM inputs.
-- Add end-to-end report coverage for the composed path.
+- Verify the composed refit path with additional non-SGP4 propagators if and
+  when `propagate-omm` supports them. The current dispatch provides DSST and
+  falls back to Kepler for other non-TLE theories; it does not provide a
+  Brouwer propagator.
 
 ## Verification
 
@@ -94,7 +95,10 @@ successfully without restoring a direct refit implementation.
 
 ## Acceptance evidence
 
-- Focused OMM-to-TLE tests cover parser behavior, direct conversion, and early
-  rejection without creating output.
+- Focused OMM-to-TLE tests cover parser behavior, direct conversion, rejection
+  of the removed direct-refit option, and early rejection without creating
+  output.
+- The composed integration test checks the intermediate OEM, generated TLE,
+  convergence, source/target provenance, fit span, record count, and residuals.
 - The repository's broader focused conversion verification is recorded in the
   task README; numerical live verification remains environment-dependent.

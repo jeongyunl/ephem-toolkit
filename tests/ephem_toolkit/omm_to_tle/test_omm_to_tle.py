@@ -49,7 +49,10 @@ def test_omm_to_tle_cli_uses_typed_namespace(monkeypatch) -> None:
     assert args.output_tle == "output.tle"
 
 
-@pytest.mark.parametrize("unsupported_option", ["--fit-model", "--fit-report", "--source-model"])
+@pytest.mark.parametrize(
+    "unsupported_option",
+    ["--fit-model", "--fit-report", "--source-model", "--refit-sgp4"],
+)
 def test_omm_to_tle_rejects_fit_and_provenance_options(unsupported_option: str) -> None:
     """Direct lossless conversion rejects options reserved for refitting."""
     with pytest.raises(SystemExit) as error:
