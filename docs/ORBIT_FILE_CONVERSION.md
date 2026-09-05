@@ -217,12 +217,12 @@ numerical output, force/gravity models and integrator settings.
 **Options**: `--duration DURATION`, `--step SECONDS`
 
 **TODO**:
-- [ ] Add a propagator-matched arc-fit workflow for a reference OEM and target
-	numerical force-model configuration.
-- [ ] Support fit span, sample spacing, position/velocity weights, and use of
-	user-supplied fixed physical parameters.
-- [ ] Write numerical-model provenance, convergence status, and residual
-	statistics with the output OEM.
+- [x] Add a propagator-matched arc-fit workflow for a reference OEM and target
+  numerical force-model configuration.
+- [x] Support fit span, sample spacing, position/velocity weights, and use of
+  user-supplied fixed physical parameters.
+- [x] Write numerical-model provenance, convergence status, and residual
+  statistics with the output OPM/report.
 
 **Metadata**:
 - **Preserved**: `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`
@@ -364,12 +364,12 @@ or another mean-element theory when subsequent work requires numerical
 propagation.
 
 **TODO**:
-- [ ] Add `--fit-model numerical` to `oem-to-opm` while retaining
-	`--fit-model two-body` as the default.
+- [x] Add `--fit-model numerical` to `oem-to-opm` while retaining
+  `--fit-model two-body` as the default.
 - [ ] Add source-theory-aware short-period reconstruction where supported, so
-	an OPM can contain source-model-consistent osculating elements instead of
-	only a two-body approximation.
-- [ ] Preserve the input OEM provenance and report fit residuals in the OPM.
+  an OPM can contain source-model-consistent osculating elements instead of
+  only a two-body approximation.
+- [x] Preserve the input OEM provenance and report fit residuals in the OPM.
 
 **Metadata**:
 - **Preserved**: `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `REF_FRAME_EPOCH`, `TIME_SYSTEM`, `EPOCH`, `X`, `Y`, `Z`, `X_DOT`, `Y_DOT`, `Z_DOT`
@@ -397,11 +397,11 @@ numerical propagator. This produces an OPM for numerical propagation and must
 record the source theory, target force model, fit span, and residuals.
 
 **TODO**:
-- [ ] Implement `omm-to-opm --fit-model numerical` as a wrapper around the
-	common OEM-to-numerical-OPM fitter.
-- [ ] Propagate with the OMM's declared mean-element theory before fitting.
-- [ ] Record source theory, target force model, fit settings, and residual
-	statistics in OPM provenance.
+- [x] Implement `omm-to-opm --fit-model numerical` as a wrapper around the
+  common OEM-to-numerical-OPM fitter.
+- [x] Propagate with the OMM's declared mean-element theory before fitting.
+- [x] Record source theory, target force model, fit settings, and residual
+  statistics in OPM provenance.
 
 **Metadata**:
 - **Preserved**: `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`, `EPOCH`
@@ -431,12 +431,12 @@ fit span and residuals; the result cannot reproduce SGP4 exactly or guarantee
 agreement beyond the fitted arc.
 
 **TODO**:
-- [ ] Implement `tle-to-opm --fit-model numerical` as a wrapper around the
-	common OEM-to-numerical-OPM fitter.
-- [ ] Generate the reference arc with SGP4 before fitting the target numerical
-	propagator.
-- [ ] Record SGP4 provenance, target force model, fit settings, and residual
-	statistics in OPM provenance.
+- [x] Implement `tle-to-opm --fit-model numerical` as a wrapper around the
+  common OEM-to-numerical-OPM fitter.
+- [x] Generate the reference arc with SGP4 before fitting the target numerical
+  propagator.
+- [x] Record SGP4 provenance, target force model, fit settings, and residual
+  statistics in OPM provenance.
 
 **Metadata**:
 - **Preserved**: `OBJECT_NAME` (3-line TLE), `OBJECT_ID` (from NORAD ID), `EPOCH`, `CENTER_NAME` (EARTH), `REF_FRAME` (TEME), `TIME_SYSTEM` (UTC)
