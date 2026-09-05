@@ -491,9 +491,9 @@ is valid for the fitted arc and is not a lossless conversion of the source
 OMM's theory.
 
 **Ephemeris-model handling**: Direct conversion is valid only for an OMM with
-SGP4-compatible mean elements and the required TLE parameters. Reject or
-explicitly re-fit DSST, Brouwer-Lyddane, and other non-SGP4 OMMs before
-producing a TLE.
+SGP4-compatible mean elements and the required TLE parameters. Non-SGP4 OMMs
+are rejected by `omm-to-tle` and must use the composed
+`propagate-omm` → OEM → `oem-to-tle` workflow before producing a TLE.
 
 **Provenance record**: No additional record is required for a direct
 SGP4-compatible mapping. For a non-SGP4 refit, put the source OMM theory, fit
@@ -501,14 +501,15 @@ settings, and residuals in the OEM/TLE fit report produced by the composed
 workflow.
 
 **TODO**:
-- [ ] Validate that `MEAN_ELEMENT_THEORY` is SGP4-compatible before direct
-	`omm-to-tle` conversion.
-- [ ] Reject non-SGP4 OMMs with a diagnostic that identifies the declared
-	theory and explains the incompatibility.
+- [x] Validate that `MEAN_ELEMENT_THEORY` is SGP4-compatible before direct
+  `omm-to-tle` conversion.
+- [x] Reject non-SGP4 OMMs with a diagnostic that identifies the declared
+  theory and explains the incompatibility.
 - [x] Document and verify the composed DSST refit workflow:
 	`propagate-omm` → OEM reference arc → `oem-to-tle`.
 - [ ] Extend the composed refit workflow to additional non-SGP4 theories when
-	the corresponding `propagate-omm` propagators are supported.
+  the corresponding `propagate-omm` propagators are supported. Brouwer is
+  currently unavailable and uses the documented Kepler fallback.
 
 **Metadata**:
 - **Preserved**: `NORAD_CAT_ID`, `EPOCH`, `MEAN_MOTION`, `ECCENTRICITY`, `INCLINATION`, `RA_OF_ASC_NODE`, `ARG_OF_PERICENTER`, `MEAN_ANOMALY`, `BSTAR`, `ELEMENT_SET_NO`, `REV_AT_EPOCH`, `CLASSIFICATION_TYPE`, `EPHEMERIS_TYPE`, `MEAN_MOTION_DOT`, `MEAN_MOTION_DDOT`

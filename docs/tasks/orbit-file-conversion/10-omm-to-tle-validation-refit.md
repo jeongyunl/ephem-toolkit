@@ -85,6 +85,10 @@ composed workflow should be verified with a representative non-SGP4 OMM and
 checked for a Cartesian reference OEM, SGP4-compatible TLE output, source
 provenance, fit span, and residual statistics.
 
+The direct-validation tests also verify that a DSST OMM is rejected before the
+TLE output is created and that refit-only options, including the removed
+`--refit-sgp4` option, are not accepted by `omm-to-tle`.
+
 The composed source-tree workflow was evaluated with the non-SGP4
 `TEST-DSST_2020-001A.omm` fixture using a 2-hour arc and 5-minute output step:
 
