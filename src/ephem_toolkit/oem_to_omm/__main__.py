@@ -126,6 +126,7 @@ def main(argv=None) -> None:
         oem_data = oem.CcsdsOem.read(oem_path)
 
     states: list[tuple[float, np.ndarray]] = oem_data.states
+    source_comments = list(getattr(oem_data.meta, "comments", []))
 
     if len(states) < 2:
         report_error("Error: At least 2 state vectors required for fitting.")
@@ -214,7 +215,7 @@ def main(argv=None) -> None:
                     mean_element_theory=mean_element_theory,
                 )
                 omm_obj.originator = "oem_to_omm"
-                omm_obj.comments = [
+                omm_obj.comments = source_comments + [
                     provenance.provenance_comment(source=f"OEM/{source_model}", transformation="mean-element fit", target_model=mean_element_theory),
                     fit_summary(diagnostics),
                     "DSST mean elements (J2 secular fit)",
@@ -293,7 +294,7 @@ def main(argv=None) -> None:
                     mean_element_theory=mean_element_theory,
                 )
                 omm_obj.originator = "oem_to_omm"
-                omm_obj.comments = [
+                omm_obj.comments = source_comments + [
                     provenance.provenance_comment(source=f"OEM/{source_model}", transformation="mean-element fit", target_model=mean_element_theory),
                         fit_summary(diagnostics),
                 ]
@@ -369,7 +370,7 @@ def main(argv=None) -> None:
                     originator="oem_to_omm",
                 )
                 omm_obj.originator = "oem_to_omm"
-                omm_obj.comments = [
+                omm_obj.comments = source_comments + [
                     provenance.provenance_comment(source=f"OEM/{source_model}", transformation="SGP4-compatible mean-element fit", target_model="SGP4"),
                     fit_summary(diagnostics),
                     "TLE mean elements (SGP4-compatible)",

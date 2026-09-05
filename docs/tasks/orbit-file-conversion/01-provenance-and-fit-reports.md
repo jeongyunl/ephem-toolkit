@@ -161,6 +161,9 @@ actually produce or transform the relevant output.
   propagation.
 - DSST OMM-generated OEMs record `source=OMM/DSST` and `target_model=DSST`,
   identifying the supported mean-element propagation theory.
+- Generated OMMs retain source OEM comments alongside their new mean-element
+  fit provenance, allowing composed histories to remain traceable after the
+  format conversion.
 - Preserved compatibility with existing mocked diagnostics used by conversion
   tests.
 
