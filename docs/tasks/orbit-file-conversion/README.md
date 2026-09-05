@@ -39,8 +39,8 @@ verification dimensions covered by these tasks.
 - **Complete as composition:** Task 7. Existing `propagate-kepler` and
   `propagate-orbit` commands provide the two-body and numerical OPM-to-OEM
   paths; no dedicated wrapper is planned.
-- **In progress:** Task 8. OPM-to-OMM will compose one of the Task 7 paths with
-  `oem-to-omm` fitting.
+- **Complete as composition:** Task 8. Both Task 7 paths compose with
+  `oem-to-omm`; complete propagation-configuration reporting remains.
 - **Pending:** Tasks 9 and 11. Their documents describe planned implementation
   work and acceptance criteria.
 
@@ -53,7 +53,7 @@ verification dimensions covered by these tasks.
 5. **Complete:** [OEM to OPM numerical fitting](05-oem-to-opm-numerical-fit.md)
 6. **Complete:** [OMM and TLE to OPM numerical fitting](06-omm-tle-to-opm-numerical-fit.md)
 7. **Complete as composition:** [OPM to OEM model-aware workflow](07-opm-to-oem-workflow.md)
-8. **In progress:** [OPM to OMM composed workflow](08-opm-to-omm-workflow.md)
+8. **Complete as composition:** [OPM to OMM composed workflow](08-opm-to-omm-workflow.md)
 9. **Pending:** [OEM to TLE fit reporting](09-oem-to-tle-fit-report.md)
 10. **In progress:** [OMM to TLE validation and refit](10-omm-to-tle-validation-refit.md)
 11. **Pending:** [OPM to TLE composed workflow](11-opm-to-tle-workflow.md)
@@ -73,9 +73,9 @@ integration test with a DSST OMM fixture. A source-tree 2-hour DSST
 composition also produced a converged fit report; broader non-SGP4 live
 verification is limited by the currently supported propagators.
 
-Task 8 composition verification: `43 passed, 1 warning`, including the
-two-body OPM-to-OEM-to-OMM integration test. The DSST fit converged over a
-2-hour arc with 25 reference states; numerical OPM-to-OMM verification remains.
+Task 8 composition verification: `168 passed, 13 warnings`, including
+two-body and numerical OPM-to-OEM-to-OMM integration tests. Both DSST fits
+converged over 2-hour arcs; the numerical path used 27 fitted records.
 
 All orbit-file-conversion work has an additional objective: do not add runtime
 dependencies; reuse the repository's existing libraries and tooling.
