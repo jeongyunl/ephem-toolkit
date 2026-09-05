@@ -64,14 +64,15 @@ def test_omm_to_tle_rejects_fit_and_provenance_options(unsupported_option: str) 
     assert error.value.code == 2
 
 
+@pytest.mark.parametrize("theory", ["DSST", "BROUWER-LYDDANE"])
 def test_omm_to_tle_rejects_non_sgp4_theory_before_writing(
-    monkeypatch, tmp_path
+    monkeypatch, tmp_path, theory
 ) -> None:
     """Direct conversion rejects non-SGP4 OMMs before output is created."""
     source = tmp_path / "input.omm"
     output = tmp_path / "output.tle"
     source.write_text("OMM", encoding="utf-8")
-    non_sgp4 = omm.CcsdsOmm(mean_element_theory="DSST")
+    non_sgp4 = omm.CcsdsOmm(mean_element_theory=theory)
     monkeypatch.setattr(omm.CcsdsOmm, "from_source", lambda *_args: non_sgp4)
 
     with pytest.raises(SystemExit) as error:
