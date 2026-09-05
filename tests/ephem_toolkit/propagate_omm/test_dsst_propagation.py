@@ -310,7 +310,7 @@ def test_main_labels_sgp4_omm_output_as_omm_source(tmp_path: Path) -> None:
     assert "EPHEMERIS_PROVENANCE: source=OMM; transformation=propagation; target_model=SGP4" in text
 
 
-@pytest.mark.parametrize("theory", ["KEPLER", "BROUWER"])
+@pytest.mark.parametrize("theory", ["KEPLER", "BROUWER", "BROUWER-LYDDANE"])
 def test_main_dispatches_kepler_for_non_dsst_theory(monkeypatch, tmp_path, theory):
     """main() uses the documented Kepler fallback for non-DSST theories."""
     omm_data = _make_dsst_omm(theory=theory)
