@@ -168,6 +168,8 @@ actually produce or transform the relevant output.
   two-body or numerical fit provenance and summary.
 - CCSDS OPM comment round-trip coverage confirms those provenance records are
   retained by structured parsing and serialization.
+- Equivalent CCSDS OEM and OMM round-trip coverage confirms provenance comments
+  remain available across all three structured message types.
 - Preserved compatibility with existing mocked diagnostics used by conversion
   tests.
 

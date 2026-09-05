@@ -119,6 +119,18 @@ def test_ccsds_oem_read_exposes_structured_fields() -> None:
     assert first_state.shape == (6,)
 
 
+def test_oem_comments_survive_structured_round_trip(tmp_path: Path) -> None:
+    message = oem.CcsdsOem.read(OEM_PATH)
+    comment = "EPHEMERIS_PROVENANCE: source=OPM; target_model=numerical"
+    message.meta.comments.append(comment)
+    output = tmp_path / "roundtrip.oem"
+
+    message.write(output)
+    round_tripped = oem.CcsdsOem.read(output)
+
+    assert comment in round_tripped.meta.comments
+
+
 def test_ccsds_oem_preserves_classification_and_message_id() -> None:
     """CcsdsOem should preserve optional CCSDS header identification fields."""
     content = """CCSDS_OEM_VERS = 2.0
