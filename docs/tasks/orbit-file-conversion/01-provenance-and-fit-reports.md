@@ -141,6 +141,9 @@ actually produce or transform the relevant output.
   top-level `source_report` field.
 - Generated reports now explicitly record successful `status=converged` and
   expose available `fit_method` and `iterations` fields at the report top level.
+- Added end-to-end coverage for the composed OMM-to-TLE refit path; non-SGP4
+  source theory, fit span, convergence, and residuals are carried by the
+  companion OEM/TLE fit report.
 - Reports now include RMS and maximum position/velocity residuals when the
   existing propagation-comparison data provides them.
 - Existing OEM conversion reports now record available fit configuration,
@@ -162,8 +165,8 @@ Result: `223 passed, 2 deselected`.
 
 ### Remaining work
 
-- Add end-to-end report coverage for the composed OMM-to-TLE refit path;
-  direct model validation is implemented under Task 10.
+- Direct model validation and composed OMM-to-TLE refit coverage are complete
+  under Task 10; remaining work is broader production report coverage.
 - Extend force-model and integrator configuration reporting to any remaining
   production numerical-fitting workflows.
 - Implement reporting for the proposed `omm-to-opm`, `tle-to-opm`,

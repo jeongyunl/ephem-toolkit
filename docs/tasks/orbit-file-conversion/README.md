@@ -15,9 +15,9 @@ verification dimensions covered by these tasks.
 ## Status
 
 - **In progress:** Task 1. The shared comment/report layer and current
-  OEM-to-OMM, OEM-to-OPM, and OEM-to-TLE paths are implemented. Remaining
-  work is direct `omm-to-tle` report behavior, broader production report
-  configuration coverage, and proposed-command support. See [Task 1
+  OEM-to-OMM, OEM-to-OPM, and OEM-to-TLE paths are implemented, including
+  composed OMM-to-TLE refit coverage. Remaining work is broader production
+  report configuration coverage and proposed-command support. See [Task 1
   progress](01-provenance-and-fit-reports.md#progress).
 - **Complete:** Task 2 implementation. The shared numerical fitter is wired to
   `oem-to-opm --fit-model numerical`, including fixed propagator configuration,
@@ -29,9 +29,11 @@ verification dimensions covered by these tasks.
   current conversion commands.
 - **Complete:** Task 4. OEM-to-OMM supports canonical fit-model selection,
   deprecated mode compatibility, theory conflict validation, and reporting.
-- **In progress:** Task 10. Direct OMM-to-TLE validation is implemented; the
-  non-SGP4 SGP4-refit workflow is composed from `propagate-omm` and
-  `oem-to-tle`, with representative live verification remaining.
+- **In progress:** Task 10. Direct OMM-to-TLE validation is implemented for
+  SGP4-compatible input. Non-SGP4 refits intentionally compose
+  `propagate-omm → OEM → oem-to-tle`; the direct `--refit-sgp4` mode was
+  removed. DSST has representative live verification, while additional
+  theories await matching propagator support.
 - **Complete:** Task 6. `omm-to-opm --fit-model numerical` and
   `tle-to-opm --fit-model numerical` wrappers delegate to the shared
   OEM-to-OPM fitter; short- and four-hour live output and fit-report
@@ -91,6 +93,10 @@ two-body or numerical propagation, followed by an SGP4 OEM fit. Both paths
 produced converged reports and checksum-valid TLEs; the numerical path used
 27 reference records. Unsupported direct OMM output-theory combinations remain
 explicitly rejected by the existing OMM-to-TLE tests.
+
+Task 10 decision: direct `omm-to-tle` remains a field mapping for SGP4-compatible
+OMMs only. Non-SGP4 OMMs use `propagate-omm → OEM → oem-to-tle`; no separate
+direct refit implementation or `--refit-sgp4` option is planned.
 
 All orbit-file-conversion work has an additional objective: do not add runtime
 dependencies; reuse the repository's existing libraries and tooling.

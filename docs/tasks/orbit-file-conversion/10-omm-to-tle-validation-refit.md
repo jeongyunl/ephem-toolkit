@@ -2,9 +2,10 @@
 
 ## Status
 
-**In progress.** Direct OMM-to-TLE validation is implemented. The composed
-workflow has been verified with a DSST OMM; Brouwer and other supported
-non-SGP4 live cases remain.
+**In progress.** Direct OMM-to-TLE validation is implemented, and the selected
+composed refit workflow has been verified with a DSST OMM. Remaining work is
+limited to additional non-SGP4 theories when matching propagators become
+available.
 
 ## Goal
 
@@ -38,6 +39,21 @@ repository's existing propagation and OEM-to-TLE fitting tools.
 - `omm-to-tle` does not expose a second direct `--refit-sgp4` implementation.
 - Tests distinguish direct conversion from the composed refit workflow.
 
+## Decision
+
+Do not add a direct `--refit-sgp4` mode to `omm-to-tle`. Direct conversion is
+reserved for SGP4-compatible OMMs. A non-SGP4 OMM is refitted by composing the
+existing tools:
+
+```text
+propagate-omm → Cartesian OEM → oem-to-tle
+```
+
+This keeps propagation and SGP4 fitting in their existing implementations and
+ensures the generated TLE is clearly treated as a new SGP4 model. The
+intermediate OEM and companion fit report carry the source theory, fit span,
+provenance, and residual information.
+
 ## Progress
 
 ### Completed
@@ -48,7 +64,8 @@ repository's existing propagation and OEM-to-TLE fitting tools.
 - Direct conversion rejects missing TLE parameters before output is written.
 - Preserved direct SGP4-compatible conversion behavior without fabricated fit
   diagnostics.
-- Removed the direct `--refit-sgp4` implementation, parser options, and tests.
+- Removed the direct `--refit-sgp4` implementation, parser options, and tests;
+  no replacement refit mode is planned.
 - Documented the composed propagation-to-OEM-to-TLE workflow.
 - Added a DSST OMM integration fixture and verified the composed workflow,
   including a converged SGP4 fit report.
