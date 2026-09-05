@@ -45,6 +45,11 @@ tooling.
 - Added unit coverage for dispatch, output shape, and numerical-only summary
   behavior without adding runtime dependencies.
 
+The numerical path deliberately does not perform source-theory-aware
+short-period reconstruction. Its OPM contains the fitted Cartesian state and
+identifies the numerical target model; source-consistent osculating elements
+remain a separate future capability.
+
 ## Acceptance criteria
 
 - Existing two-body behavior remains the default and its tests remain valid.
