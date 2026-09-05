@@ -14,12 +14,11 @@ verification dimensions covered by these tasks.
 
 ## Status
 
-- **In progress:** Task 1. The shared comment/report layer and current
+- **Complete:** Task 1. The shared comment/report layer and current
   OEM-to-OMM, OEM-to-OPM, and OEM-to-TLE paths are implemented, including
-  composed OMM-to-TLE refit coverage. Remaining work is broader production
-  report configuration coverage for future workflows and proposed-command
-  support. Shared numerical fit reports now preserve force and integrator
-  settings, and source reports without usable provenance resolve to `unknown`.
+  composed OMM-to-TLE refit coverage. Shared numerical fit reports preserve
+  force and integrator settings, and source reports without usable provenance
+  resolve to `unknown`.
   See [Task 1
   progress](01-provenance-and-fit-reports.md#progress).
 - **Complete:** Task 2 implementation. The shared numerical fitter is wired to
@@ -59,7 +58,7 @@ verification dimensions covered by these tasks.
 
 ## Suggested order
 
-1. **In progress:** [Shared provenance and fit-report contract](01-provenance-and-fit-reports.md)
+1. **Complete:** [Shared provenance and fit-report contract](01-provenance-and-fit-reports.md)
 2. **Complete:** [Shared numerical propagator fitter](02-shared-numerical-fitter.md)
 3. **Complete:** [Conversion CLI option contract](03-conversion-cli-options.md)
 4. **Complete:** [OEM to OMM fit migration](04-oem-to-omm-fit-model.md)
@@ -76,9 +75,9 @@ work. Tasks 5–6 depend on the shared numerical fitter. Tasks 8 and 11 compose
 existing propagation and fitting operations and can reuse the lower-level
 pieces from earlier tasks.
 
-Latest focused verification: `260 passed, 2 deselected` covering the
-provenance/reporting and affected conversion/CCSDS suites; the frame-utils
-kernel-loading suite also passes with `13 passed`.
+Latest focused verification: `308 passed, 2 deselected` covering the
+provenance/reporting, conversion, propagation, and CCSDS suites; the
+frame-utils kernel-loading suite also passes with `13 passed`.
 
 Task 10 composed-workflow verification: `51 passed` covering OEM-to-TLE,
 OMM-to-TLE, and TLE conversion tests, including the propagation-to-OEM-to-TLE
