@@ -78,13 +78,11 @@ def test_parser_accepts_fit_controls() -> None:
     args = parse_arguments(
         build_arg_parser(),
         [
-            "--fit-observables", "position",
             "--fit-position-weight", "2",
             "--fit-parameters", "initial-state,drag-coeff",
             "input.oem", "-o", "output.opm",
         ],
     )
-    assert args.fit_observables == "position"
     assert args.fit_position_weight == 2.0
     assert args.fit_end_weight == 2.0
     assert args.fit_max_iterations == 100

@@ -27,7 +27,6 @@ from . import fit_common
 DEFAULT_INTEGRATOR_METHOD = "rkdp_87"
 
 SUPPORTED_FIT_MODELS = ("two-body", "numerical")
-SUPPORTED_OBSERVABLES = ("position",)
 SUPPORTED_PARAMETERS = (
     "initial-state",
     "initial-state,drag-coeff",
@@ -44,10 +43,8 @@ class NumericalFitConfig:
     max_iterations: int = 100
     stagnation_tries: int = 3
     fit_step_s: float = 60.0
-    observables: str = "position"
     position_weight: float = 1.0
     end_of_span_weight: float = 2.0
-    velocity_weight: float = 1.0
     parameters: str = "initial-state"
     """Parameters used by propagation; physical parameters remain fixed."""
     preserve_initial_position: bool = True
@@ -86,10 +83,8 @@ class NumericalFitConfig:
             "max_iterations": self.max_iterations,
             "stagnation_tries": self.stagnation_tries,
             "fit_step_s": self.fit_step_s,
-            "observables": self.observables,
             "position_weight": self.position_weight,
             "end_of_span_weight": self.end_of_span_weight,
-            "velocity_weight": self.velocity_weight,
             "preserve_initial_position": self.preserve_initial_position,
             "fixed_parameters": self.fixed_parameter_values(),
             "satellite_mass_kg": self.satellite_mass_kg,
@@ -162,10 +157,8 @@ def config_from_fit_options(options) -> NumericalFitConfig:
         max_iterations=int(getattr(options, "fit_max_iterations", 100)),
         stagnation_tries=int(getattr(options, "fit_stagnation_tries", 3)),
         fit_step_s=float(getattr(options, "fit_step", 60.0)),
-        observables=str(options.fit_observables),
         position_weight=float(options.fit_position_weight),
         end_of_span_weight=float(getattr(options, "fit_end_weight", 2.0)),
-        velocity_weight=float(getattr(options, "fit_velocity_weight", 1.0)),
         parameters=str(options.fit_parameters),
         drag_enabled=bool(getattr(options, "drag", True)),
         srp_enabled=bool(getattr(options, "srp", True)),
@@ -573,8 +566,6 @@ def validate_numerical_fit(
         raise ValueError("at least two reference states are required for fitting")
     if config.fit_model not in SUPPORTED_FIT_MODELS:
         raise ValueError(f"fit model must be one of: {', '.join(SUPPORTED_FIT_MODELS)}")
-    if config.observables not in SUPPORTED_OBSERVABLES:
-        raise ValueError(f"observables must be one of: {', '.join(SUPPORTED_OBSERVABLES)}")
     if config.parameters not in SUPPORTED_PARAMETERS:
         raise ValueError("unsupported fit parameters")
     if config.parameters.endswith("drag-coeff") and not config.drag_enabled:

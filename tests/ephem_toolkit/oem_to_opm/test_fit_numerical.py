@@ -64,8 +64,6 @@ def test_fixed_parameter_values_returns_only_selected_user_inputs() -> None:
 
 def test_fit_configuration_serializes_fixed_parameters() -> None:
     config = NumericalFitConfig(
-        observables="position",
-        velocity_weight=2.0,
         parameters="initial-state,srp-coeff",
         srp_enabled=True,
         srp_coefficient=1.3,
@@ -73,8 +71,6 @@ def test_fit_configuration_serializes_fixed_parameters() -> None:
 
     report_config = config.to_report_dict()
 
-    assert report_config["observables"] == "position"
-    assert report_config["velocity_weight"] == 2.0
     assert report_config["fixed_parameters"] == {"srp_coeff": 1.3}
 
 
@@ -180,16 +176,12 @@ def test_config_from_fit_options_preserves_cli_fit_controls() -> None:
         fit_model = "numerical"
         fit_span = timedelta(hours=1)
         fit_step = 30.0
-        fit_observables = "position"
         fit_position_weight = 2.0
-        fit_velocity_weight = 0.5
         fit_parameters = "initial-state"
 
     config = config_from_fit_options(Options())
     assert config.fit_model == "numerical"
     assert config.fit_span_s == 3600.0
-    assert config.observables == "position"
-    assert config.velocity_weight == 0.5
 
 
 def test_validate_fixed_parameter_values_requires_exact_propagator_values() -> None:
