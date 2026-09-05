@@ -166,6 +166,8 @@ actually produce or transform the relevant output.
   format conversion.
 - Generated OPMs likewise retain source OEM comments before appending their
   two-body or numerical fit provenance and summary.
+- CCSDS OPM comment round-trip coverage confirms those provenance records are
+  retained by structured parsing and serialization.
 - Preserved compatibility with existing mocked diagnostics used by conversion
   tests.
 

@@ -111,3 +111,15 @@ def test_ccsds_opm_structured_api() -> None:
     )
     assert len(message.maneuvers) == 2
     assert message.maneuvers[1].man_ref_frame == "RTN"
+
+
+def test_opm_comments_survive_structured_round_trip() -> None:
+    message = opm.CcsdsOpm.from_source(OPM_DIR / "sample2.opm")
+    comment = "EPHEMERIS_PROVENANCE: source=OEM/DSST; target_model=numerical"
+    message.header.comments.append(comment)
+
+    output = io.StringIO()
+    message.to_file(output)
+    round_tripped = opm.CcsdsOpm.from_source(io.StringIO(output.getvalue()))
+
+    assert comment in round_tripped.header.comments
