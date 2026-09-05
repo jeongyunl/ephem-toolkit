@@ -149,6 +149,18 @@ def test_ccsds_omm_from_source_exposes_structured_fields() -> None:
     assert ccsds_omm.tle_parameters.classification_type == "U"
 
 
+def test_omm_comments_survive_structured_round_trip(tmp_path: Path) -> None:
+    message = omm.CcsdsOmm.from_source(ISS_OMM_PATH)
+    comment = "EPHEMERIS_PROVENANCE: source=OEM/DSST; target_model=DSST"
+    message.comments.append(comment)
+    output = tmp_path / "roundtrip.omm"
+
+    message.to_file(output)
+    round_tripped = omm.CcsdsOmm.from_source(output)
+
+    assert comment in round_tripped.comments
+
+
 # ===================================================================
 # 7. CcsdsOmm to_file round-trip preserves structured content
 # ===================================================================
