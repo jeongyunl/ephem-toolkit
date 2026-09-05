@@ -5,8 +5,8 @@
 **Complete for the current conversion commands.** The canonical fit-model
 contract, deprecated mode compatibility, wrapper delegation, and unsupported
 option handling are implemented and tested for the existing OEM-to-OMM,
-OEM-to-TLE, and OMM-to-TLE paths. Future refit workflows will add their own
-model-specific options.
+OEM-to-TLE, and OMM-to-TLE paths. Newly introduced workflows will add their
+own model-specific options if needed.
 
 ## Goal
 
