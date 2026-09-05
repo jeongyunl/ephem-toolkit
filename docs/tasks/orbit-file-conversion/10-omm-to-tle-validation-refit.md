@@ -64,6 +64,30 @@ composed workflow should be verified with a representative non-SGP4 OMM and
 checked for a Cartesian reference OEM, SGP4-compatible TLE output, source
 provenance, fit span, and residual statistics.
 
+The composed source-tree workflow was evaluated with the SGP4-backed
+`ISS-ZARYA_1998-067A.omm` fixture using a 2-hour arc and 5-minute output step:
+
+```text
+PYTHONPATH=src python -m ephem_toolkit.propagate_omm \
+  tests/data/ISS-ZARYA_1998-067A.omm --duration 2h --step 5m \
+  --output /tmp/omm-reference-2h.oem
+PYTHONPATH=src python -m ephem_toolkit.oem_to_tle \
+  /tmp/omm-reference-2h.oem --fit-span 2h \
+  --source-model sgp4 --fit-report /tmp/omm-reference-2h.fit.json \
+  --output /tmp/omm-composed-2h.tle
+```
+
+Result: 25 reference states, valid TLE output, and a `converged` fit report
+with six iterations, approximately `0.017 m` position RMS, and approximately
+`0.035 m` maximum position residual. The bare `oem-to-tle` executable was not
+installed in the evaluation shell, so the source-tree module entry point was
+used.
+
+The same workflow with a 10-minute arc failed because the fitted mean-motion
+first derivative could not be represented in the fixed-width TLE field. This
+is a TLE formatting/fit-span limitation, not a reason to restore a direct
+refit implementation.
+
 ## Acceptance evidence
 
 - Focused OMM-to-TLE tests cover parser behavior, direct conversion, and early
