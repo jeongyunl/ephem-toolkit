@@ -311,10 +311,11 @@ model, target mean-element theory, and propagation and fitting settings with
 their residuals.
 
 **TODO**:
-- [ ] Provide a composed `opm-to-omm` workflow that selects the intermediate
-	OEM propagation model: two-body or numerical.
-- [ ] Require explicit selection of the target mean-element fitting theory.
-- [ ] Report source provenance and residuals for both propagation and fitting.
+- [x] Provide a composed OPM-to-OMM workflow using existing propagation and
+	fitting tools; select the intermediate OEM model as two-body or numerical.
+- [x] Require explicit selection of the target mean-element fitting theory.
+- [ ] Report source provenance and residuals for both propagation and fitting
+	for the remaining numerical composition.
 
 **Metadata**:
 - **Preserved**: `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`, `EPOCH`
