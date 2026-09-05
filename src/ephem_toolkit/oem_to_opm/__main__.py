@@ -221,6 +221,7 @@ def main(argv=None) -> None:
         oem_data = oem.CcsdsOem.read(oem_path)
 
     states: list[tuple[float, np.ndarray]] = oem_data.states
+    source_comments = list(getattr(oem_data.meta, "comments", []))
     verbose_message(show_progress, f"loaded {len(states)} OEM state vectors")
     debug_message(
         cli_args.debug,
@@ -422,6 +423,7 @@ def main(argv=None) -> None:
                 time_system=oem_data.meta.time_system or "UTC",
                 mu_m3_s2=cli_args.mu_m3_s2,
             )
+            opm_obj.header.comments.extend(source_comments)
             opm_obj.header.comments.extend([
                 provenance.provenance_comment(source=f"OEM/{source_model}", transformation=fit_transformation, target_model=fit_target_model),
                 provenance.fit_comment(
