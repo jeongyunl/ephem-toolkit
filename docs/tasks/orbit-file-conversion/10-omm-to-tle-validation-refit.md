@@ -60,6 +60,8 @@ provenance, and residual information.
 
 - Added direct-conversion validation for SGP4-compatible
   `MEAN_ELEMENT_THEORY` values.
+- Regression coverage confirms all supported SGP4 theory aliases are accepted
+  by direct-conversion validation.
 - Direct conversion rejects non-SGP4 theories with an actionable message that
   names the declared theory and SGP4 incompatibility.
 - Direct conversion rejects missing TLE parameters before output is written.

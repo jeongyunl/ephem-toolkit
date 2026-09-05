@@ -9,6 +9,7 @@ import sys
 import pytest
 
 import ephem_toolkit.core.ccsds.omm as omm
+import ephem_toolkit.core.convert_tle as convert_tle
 import ephem_toolkit.omm_to_tle as omm_to_tle
 from ephem_toolkit.omm_to_tle.omm_to_tle_cli import build_arg_parser, parse_arguments
 
@@ -83,6 +84,14 @@ def test_omm_to_tle_rejects_non_sgp4_theory_before_writing(
     diagnostic = capsys.readouterr().err
     assert theory in diagnostic
     assert "SGP4-compatible" in diagnostic
+
+
+@pytest.mark.parametrize("theory", ["SGP", "PPT3", "SGP4", "SGP/SGP4"])
+def test_validate_sgp4_compatible_omm_accepts_supported_theory_aliases(theory) -> None:
+    """All supported SGP4 theory labels pass direct-conversion validation."""
+    compatible = omm.CcsdsOmm(mean_element_theory=theory, tle_parameters=object())
+
+    convert_tle.validate_sgp4_compatible_omm(compatible)
 
 
 def test_omm_to_tle_rejects_missing_tle_parameters_before_writing(
