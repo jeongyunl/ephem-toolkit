@@ -107,16 +107,16 @@ for that numerical model; optional Keplerian elements derived from it are
 osculating elements, not SGP4 mean elements. A fit is valid only for its stated
 arc and may diverge outside that span.
 
-This is a proposed capability; the current tools do not implement a
-numerical-propagator initial-state optimizer.
+The shared numerical initial-state optimizer is implemented and is used by the
+current OEM, OMM, and TLE to OPM workflows.
 
-#### Hypothetical CLI Design
+#### CLI Design
 
-The reusable implementation should fit a numerical propagator to any reference
-OEM. Source-specific commands can first generate that reference OEM and then
-invoke the common fitter.
+The shared implementation fits a numerical propagator to a reference OEM.
+Source-specific commands first generate that reference OEM and then invoke the
+common fitter.
 
-| Proposed command | Existing equivalent | Purpose |
+| Command | Existing equivalent | Purpose |
 |---|---|---|
 | `oem-to-opm --fit-model numerical` | | Extend the existing two-body OEM fit to fit a numerical propagator's Cartesian initial state. |
 | `omm-to-opm --fit-model numerical` | None | Propagate an OMM with its declared `MEAN_ELEMENT_THEORY`, then fit the selected numerical propagator to that reference arc. |
