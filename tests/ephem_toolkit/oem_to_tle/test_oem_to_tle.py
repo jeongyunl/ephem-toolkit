@@ -189,6 +189,12 @@ def test_composed_omm_to_tle_workflow_writes_oem_tle_and_report(tmp_path: Path) 
     assert report["provenance"]["source"] == "OEM/dsst"
     assert report["provenance"]["target_model"] == "SGP4"
     assert report["configuration"]["fit_span_s"] == 7200.0
+    assert report["diagnostics"]["n_records"] == 25
+    assert report["residuals"]["position_rms_m"] >= 0.0
+    assert (
+        report["residuals"]["position_max_m"]
+        >= report["residuals"]["position_rms_m"]
+    )
 
 
 @pytest.mark.parametrize("mode_argument", ["--mode", "--mode=brouwer"])

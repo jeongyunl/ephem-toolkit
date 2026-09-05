@@ -501,8 +501,10 @@ workflow.
 	`omm-to-tle` conversion.
 - [ ] Reject non-SGP4 OMMs with a diagnostic that identifies the declared
 	theory and explains the incompatibility.
-- [ ] Document and verify the composed refit workflow:
+- [x] Document and verify the composed DSST refit workflow:
 	`propagate-omm` → OEM reference arc → `oem-to-tle`.
+- [ ] Extend the composed refit workflow to additional non-SGP4 theories when
+	the corresponding `propagate-omm` propagators are supported.
 
 **Metadata**:
 - **Preserved**: `NORAD_CAT_ID`, `EPOCH`, `MEAN_MOTION`, `ECCENTRICITY`, `INCLINATION`, `RA_OF_ASC_NODE`, `ARG_OF_PERICENTER`, `MEAN_ANOMALY`, `BSTAR`, `ELEMENT_SET_NO`, `REV_AT_EPOCH`, `CLASSIFICATION_TYPE`, `EPHEMERIS_TYPE`, `MEAN_MOTION_DOT`, `MEAN_MOTION_DDOT`
