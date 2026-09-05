@@ -75,7 +75,8 @@ provenance, and residual information.
 - Verify the composed refit path with additional non-SGP4 propagators if and
   when `propagate-omm` supports them. The current dispatch provides DSST and
   falls back to Kepler for other non-TLE theories; it does not provide a
-  Brouwer propagator.
+  Brouwer propagator. The fallback is covered explicitly for Brouwer-declared
+  input so it is not mistaken for a Brouwer-accurate refit.
 
 ## Verification
 

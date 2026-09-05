@@ -284,9 +284,10 @@ def test_main_dispatches_dsst_for_dsst_theory(monkeypatch, tmp_path):
     assert len(content.strip()) > 0
 
 
-def test_main_dispatches_kepler_for_non_dsst_theory(monkeypatch, tmp_path):
-    """main() dispatches to Kepler propagator for non-DSST theories."""
-    omm_data = _make_dsst_omm(theory="KEPLER")
+@pytest.mark.parametrize("theory", ["KEPLER", "BROUWER"])
+def test_main_dispatches_kepler_for_non_dsst_theory(monkeypatch, tmp_path, theory):
+    """main() uses the documented Kepler fallback for non-DSST theories."""
+    omm_data = _make_dsst_omm(theory=theory)
     output_path = tmp_path / "kepler_cli.oem"
 
     monkeypatch.setattr(Path, "exists", lambda *_: True)
