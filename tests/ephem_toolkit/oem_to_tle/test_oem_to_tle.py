@@ -14,6 +14,17 @@ from ephem_toolkit.oem_to_omm.oem_to_omm_cli import build_common_arg_parser
 from ephem_toolkit.oem_to_tle import main as oem_to_tle_main
 
 
+def _assert_valid_tle(lines: list[str]) -> None:
+    tle_lines = lines[-2:] if len(lines) == 3 else lines
+    assert len(tle_lines) == 2
+    assert tle_lines[0].startswith("1 ") and len(tle_lines[0]) == 69
+    assert tle_lines[1].startswith("2 ") and len(tle_lines[1]) == 69
+    for line in tle_lines:
+        checksum = sum(int(character) for character in line[:68] if character.isdigit())
+        checksum += 1 if line[:68].count("-") else 0
+        assert line[68] == str(checksum % 10)
+
+
 @pytest.mark.parametrize("help_argument", ["-h", "--help"])
 def test_help_uses_oem_to_tle_command_name(help_argument: str, capsys) -> None:
     """Help should describe the wrapper without exposing a mode option."""
@@ -197,6 +208,56 @@ def test_composed_omm_to_tle_workflow_writes_oem_tle_and_report(tmp_path: Path) 
         report["residuals"]["position_max_m"]
         >= report["residuals"]["position_rms_m"]
     )
+
+
+def test_oem_to_tle_report_file_and_unknown_provenance(tmp_path: Path) -> None:
+    """A direct OEM fit reports SGP4 provenance and writes a valid TLE."""
+    source = Path("tests/data/ISS_2026-05-20_small.16m.OEM")
+    output_tle = tmp_path / "output.tle"
+    fit_report = tmp_path / "output.fit.json"
+
+    oem_to_tle_main(
+        [
+            str(source),
+            "--fit-span",
+            "10m",
+            "--output",
+            str(output_tle),
+            "--fit-report",
+            str(fit_report),
+        ]
+    )
+
+    _assert_valid_tle(output_tle.read_text(encoding="utf-8").splitlines())
+    report = json.loads(fit_report.read_text(encoding="utf-8"))
+    assert report["status"] == "converged"
+    assert report["provenance"]["source"] == "OEM/unknown"
+    assert report["provenance"]["target_model"] == "SGP4"
+    assert report["residuals"]["position_rms_m"] >= 0.0
+    assert report["residuals"]["position_max_m"] >= report["residuals"]["position_rms_m"]
+
+
+def test_oem_to_tle_writes_fit_report_to_stdout(tmp_path: Path, capsys) -> None:
+    """The fit report may be emitted on stdout when the TLE uses a file."""
+    source = Path("tests/data/ISS_2026-05-20_small.16m.OEM")
+    output_tle = tmp_path / "output.tle"
+
+    oem_to_tle_main(
+        [
+            str(source),
+            "--fit-span",
+            "10m",
+            "--output",
+            str(output_tle),
+            "--fit-report",
+            "-",
+        ]
+    )
+
+    report = json.loads(capsys.readouterr().out)
+    assert report["status"] == "converged"
+    assert report["provenance"]["target_model"] == "SGP4"
+    _assert_valid_tle(output_tle.read_text(encoding="utf-8").splitlines())
 
 
 @pytest.mark.parametrize("mode_argument", ["--mode", "--mode=brouwer"])
