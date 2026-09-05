@@ -520,9 +520,8 @@ workflow.
 - [x] Reject missing TLE parameters before direct output is written.
 - [x] Document and verify the composed DSST refit workflow:
 	`propagate-omm` → OEM reference arc → `oem-to-tle`.
-- [ ] Extend the composed refit workflow to additional non-SGP4 theories when
-  the corresponding `propagate-omm` propagators are supported. Brouwer is
-  currently unavailable and uses the documented Kepler fallback.
+- [x] Keep unsupported non-SGP4 theories on the explicitly labeled Kepler
+  fallback; no additional `propagate-omm` propagator integrations are planned.
 
 **Metadata**:
 - **Preserved**: `NORAD_CAT_ID`, `EPOCH`, `MEAN_MOTION`, `ECCENTRICITY`, `INCLINATION`, `RA_OF_ASC_NODE`, `ARG_OF_PERICENTER`, `MEAN_ANOMALY`, `BSTAR`, `ELEMENT_SET_NO`, `REV_AT_EPOCH`, `CLASSIFICATION_TYPE`, `EPHEMERIS_TYPE`, `MEAN_MOTION_DOT`, `MEAN_MOTION_DDOT`
