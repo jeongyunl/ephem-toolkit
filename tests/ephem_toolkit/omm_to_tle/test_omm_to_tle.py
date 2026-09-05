@@ -66,7 +66,7 @@ def test_omm_to_tle_rejects_fit_and_provenance_options(unsupported_option: str) 
 
 @pytest.mark.parametrize("theory", ["DSST", "BROUWER-LYDDANE"])
 def test_omm_to_tle_rejects_non_sgp4_theory_before_writing(
-    monkeypatch, tmp_path, theory
+    monkeypatch, tmp_path, theory, capsys
 ) -> None:
     """Direct conversion rejects non-SGP4 OMMs before output is created."""
     source = tmp_path / "input.omm"
@@ -80,6 +80,9 @@ def test_omm_to_tle_rejects_non_sgp4_theory_before_writing(
 
     assert error.value.code == 1
     assert not output.exists()
+    diagnostic = capsys.readouterr().err
+    assert theory in diagnostic
+    assert "SGP4-compatible" in diagnostic
 
 
 def test_omm_to_tle_rejects_missing_tle_parameters_before_writing(
