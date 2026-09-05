@@ -3,9 +3,9 @@
 ## Status
 
 **Complete as a composed workflow.** Both existing OPM-to-OEM propagation
-paths have been verified with `oem-to-omm`, without adding an `opm-to-omm`
-implementation that duplicates those lower-level tools. Remaining work is
-aggregating complete propagation provenance for production workflows.
+paths have been verified with `oem-to-omm`, without adding a dedicated wrapper
+that duplicates those lower-level tools. Remaining work is aggregating complete
+propagation provenance for production workflows.
 
 ## Goal
 
@@ -20,7 +20,7 @@ tooling.
 ## Scope
 
 - Compose the existing propagation and fitting commands; do not add a duplicate
-  `opm-to-omm` wrapper.
+  wrapper.
 - Select the intermediate OEM path as two-body or numerical.
 - Require explicit target mean-element fitting theory and use the shared
   `--fit-model` vocabulary for it.
