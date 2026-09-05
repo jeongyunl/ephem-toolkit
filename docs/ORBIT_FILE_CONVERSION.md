@@ -250,6 +250,10 @@ position/velocity layout.
 TLE epoch, TEME frame, and UTC time system. A numerical alternative must also
 identify the SGP4 reference arc and fitted numerical model.
 
+`propagate-tle` writes the source and target model record to headered OEM
+output; data-only output has no metadata section and therefore cannot carry
+this provenance.
+
 **Alternative numerical path**: Use the SGP4 OEM as a reference arc to fit a
 numerical propagator, then produce a separate numerically propagated OEM. The
 fit provides a model-specific approximation over its stated fit span.

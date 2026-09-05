@@ -126,6 +126,7 @@ def propagate_tle_sgp4(
     step_s: float,
     data_only: bool,
     output_path: str = "-",
+    source_format: str = "TLE",
 ) -> None:
     """Propagate a TLE with SGP4 and emit OEM output.
 
@@ -169,7 +170,18 @@ def propagate_tle_sgp4(
         current_time = current_time + step_dt
 
     _write_oem_output(
-        propagated_states, object_name, tle_obj.get_object_id(), data_only, output_path
+        propagated_states,
+        object_name,
+        tle_obj.get_object_id(),
+        data_only,
+        output_path,
+        comments=[
+            provenance.provenance_comment(
+                source=source_format,
+                transformation="propagation",
+                target_model="SGP4",
+            )
+        ],
     )
 
 
@@ -201,7 +213,15 @@ def propagate_omm_sgp4(
     # Convert OMM to TLE, then format TLE lines for SGP4
     tle_obj: tle_mod.Tle = convert_tle.omm_to_tle(omm_data)
 
-    propagate_tle_sgp4(tle_obj, start_time, stop_time, step_s, data_only, output_path)
+    propagate_tle_sgp4(
+        tle_obj,
+        start_time,
+        stop_time,
+        step_s,
+        data_only,
+        output_path,
+        source_format="OMM",
+    )
 
 
 # ===================================================================

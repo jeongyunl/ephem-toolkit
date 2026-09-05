@@ -154,6 +154,8 @@ actually produce or transform the relevant output.
   parameters through `NumericalFitConfig.to_report_dict()`.
 - OEM-to-OPM reports now preserve source OEM comments, matching the composed
   OEM-to-OMM report path.
+- TLE-generated OEMs now record `source=TLE` and `target_model=SGP4` in a
+  portable provenance comment.
 - Preserved compatibility with existing mocked diagnostics used by conversion
   tests.
 
