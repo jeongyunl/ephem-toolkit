@@ -49,9 +49,11 @@ tooling.
   reference records.
 - Deferred a dedicated wrapper because it would duplicate the existing tools.
 - End-to-end tests cover both two-body and numerical intermediate OEM paths.
+- Final fit reports now preserve the intermediate OEM `COMMENT` records,
+  including the two-body model label or numerical force/integrator settings.
 
 ### Remaining work
 
-- Carry the complete intermediate propagation configuration into the final
-  report for composed production workflows, including force and integrator
-  settings.
+- Verify additional production workflows that use the shared report path; the
+  current OPM-to-OMM compositions now carry intermediate model/configuration
+  comments into the final report.

@@ -159,6 +159,7 @@ def main(argv=None) -> None:
                         "tle_refinement": cli_args.tle_refinement,
                         "source_frame": oem_data.meta.ref_frame or "unknown",
                         "source_time_system": getattr(oem_data.meta, "time_system", None) or "unknown",
+                        "source_comments": list(getattr(oem_data.meta, "comments", [])),
                         "source_report": source_report,
                     },
                 source_report=source_report,
