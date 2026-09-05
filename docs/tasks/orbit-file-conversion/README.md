@@ -73,6 +73,10 @@ integration test with a DSST OMM fixture. A source-tree 2-hour DSST
 composition also produced a converged fit report; broader non-SGP4 live
 verification is limited by the currently supported propagators.
 
+Task 8 composition verification: `43 passed, 1 warning`, including the
+two-body OPM-to-OEM-to-OMM integration test. The DSST fit converged over a
+2-hour arc with 25 reference states; numerical OPM-to-OMM verification remains.
+
 All orbit-file-conversion work has an additional objective: do not add runtime
 dependencies; reuse the repository's existing libraries and tooling.
 
