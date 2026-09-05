@@ -27,3 +27,15 @@ tooling.
   includes residual statistics for both stages.
 - End-to-end tests cover both paths and verify that unsupported output-theory
   combinations fail explicitly.
+
+## Progress
+
+Complete as a composed workflow. The existing `propagate-kepler` and
+`propagate-orbit` commands now have end-to-end integration coverage when
+followed by `oem-to-tle`. Two-hour two-body and numerical paths both produce
+converged SGP4 fit reports and fixed-width, checksum-valid TLEs. The reports
+identify the intermediate source as `OEM/two-body` or `OEM/numerical` and
+record the fit residuals. Unsupported direct OMM output-theory combinations
+continue to fail explicitly; a dedicated `opm-to-tle` wrapper is not needed.
+
+Verification: `2 passed` in the composed OPM-to-TLE integration suite.
