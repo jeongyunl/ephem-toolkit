@@ -71,3 +71,24 @@ def test_propagate_tle_produces_valid_state_vectors(tle_path: Path) -> None:
     for line in lines[:5]:
         parts: list[str] = line.split()
         assert len(parts) == 7, f"Expected 7 fields per line, got {len(parts)}: {line}"
+
+
+def test_propagate_tle_oem_records_sgp4_provenance(tmp_path: Path) -> None:
+    output = tmp_path / "propagated.oem"
+    propagate_tle_main(
+        [
+            str(TEST_DATA_DIR / "ISS-ZARYA_1998-067A.tle"),
+            "--duration",
+            "15m",
+            "--step",
+            "15m",
+            "--output",
+            str(output),
+        ]
+    )
+
+    assert (
+        "EPHEMERIS_PROVENANCE: source=TLE; transformation=propagation; "
+        "target_model=SGP4"
+        in output.read_text(encoding="utf-8")
+    )
