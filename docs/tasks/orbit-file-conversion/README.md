@@ -36,10 +36,11 @@ verification dimensions covered by these tasks.
   `propagate-omm → OEM → oem-to-tle`; the direct `--refit-sgp4` mode was
   removed. DSST has representative live verification, and direct rejection
   tests now verify theory-specific incompatibility and missing-metadata
-  diagnostics; all supported SGP4 theory aliases are also covered. Additional
-  theories await matching propagator support; Brouwer fallback behavior is
-  explicitly tested, and fallback OEMs now identify their actual Kepler model
-  in provenance comments until a Brouwer propagator exists.
+  diagnostics and stop before conversion; all supported SGP4 theory aliases
+  are also covered. Additional theories await matching propagator support;
+  Brouwer fallback behavior is explicitly tested, and fallback OEMs now
+  identify their actual Kepler model in provenance comments until a Brouwer
+  propagator exists.
 - **Complete:** Task 6. `omm-to-opm --fit-model numerical` and
   `tle-to-opm --fit-model numerical` wrappers delegate to the shared
   OEM-to-OPM fitter; short- and four-hour live output and fit-report

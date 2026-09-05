@@ -67,7 +67,8 @@ provenance, and residual information.
 - Direct conversion rejects missing TLE parameters before output is written.
 - Regression coverage now verifies missing TLE parameters are rejected before
   output is written for an otherwise SGP4-declared OMM and that the diagnostic
-  identifies the missing metadata.
+  identifies the missing metadata; both validation failures stop before the
+  conversion routine is called.
 - Preserved direct SGP4-compatible conversion behavior without fabricated fit
   diagnostics.
 - Fallback-generated OEMs now record the declared source theory and the actual
