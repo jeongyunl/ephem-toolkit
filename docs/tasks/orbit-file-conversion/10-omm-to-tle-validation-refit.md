@@ -129,8 +129,8 @@ successfully without restoring a direct refit implementation.
 ## Acceptance evidence
 
 - Focused OMM-to-TLE tests cover parser behavior, direct conversion, rejection
-  of the removed direct-refit option, and early rejection without creating
-  output.
+  of DSST and Brouwer-Lyddane theories, rejection of the removed direct-refit
+  option, and early rejection without creating output.
 - The composed integration test checks the intermediate OEM, generated TLE,
   convergence, source/target provenance, frame/time provenance, fit span,
   record count, and residuals.
