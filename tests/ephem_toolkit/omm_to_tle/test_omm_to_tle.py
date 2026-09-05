@@ -75,6 +75,11 @@ def test_omm_to_tle_rejects_non_sgp4_theory_before_writing(
     source.write_text("OMM", encoding="utf-8")
     non_sgp4 = omm.CcsdsOmm(mean_element_theory=theory)
     monkeypatch.setattr(omm.CcsdsOmm, "from_source", lambda *_args: non_sgp4)
+    monkeypatch.setattr(
+        convert_tle,
+        "omm_to_tle",
+        lambda *_args: pytest.fail("conversion must not run for a non-SGP4 OMM"),
+    )
 
     with pytest.raises(SystemExit) as error:
         omm_to_tle.main([str(source), "-o", str(output)])
@@ -103,6 +108,11 @@ def test_omm_to_tle_rejects_missing_tle_parameters_before_writing(
     source.write_text("OMM", encoding="utf-8")
     incomplete = omm.CcsdsOmm(mean_element_theory="SGP4", tle_parameters=None)
     monkeypatch.setattr(omm.CcsdsOmm, "from_source", lambda *_args: incomplete)
+    monkeypatch.setattr(
+        convert_tle,
+        "omm_to_tle",
+        lambda *_args: pytest.fail("conversion must not run without TLE parameters"),
+    )
 
     with pytest.raises(SystemExit) as error:
         omm_to_tle.main([str(source), "-o", str(output)])
