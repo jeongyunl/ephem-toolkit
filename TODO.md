@@ -7,9 +7,7 @@
 
 
 1. Propagators
-    1. Propagator interface/class hierarchy
-    1. Keplerian propagator
-    1. DSST propagator
+    1. ~~DSST propagator~~ (implemented)
         1. Orekit accuracy validation (deferred) — compare J2-only < 1 km/day, J2+J3+J4 < 100 m/day for LEO
         1. Lunar/solar long-period corrections (deferred)
         1. Code coverage > 90% for DSST module
@@ -18,7 +16,6 @@
         1. State transition matrix (Phase 6 optional) — covariance propagation
         1. Batch processing (Phase 6 optional) — vectorized multi-satellite propagation
     1. USM propagator
-    1. Numerical propagator (Tudat wrapper)
     1. ?
 
 1. Improve CLI interface
@@ -27,7 +24,6 @@
 1. Plotting
     1. `plot-orbit` -> `plot-oem`
     1. `plot-orbit-deltas` -> `plot-oem-diff`
-        1. Modularize `diff-oem`
     1. add `--plot` option to `diff-oem`, `xform-oem`, `slice-oem`, etc. to generate plots of the results
 
 1. ODM meta data
@@ -39,15 +35,13 @@
         1. `SOLAR_RAD_AREA`, `SOLAR_RAD_COEFF`
         1. `DRAG_AREA`, `DRAG_COEFF`
         1. `GM`
-        1. `MEAN_ELEMENT_THEORY`
     1. Use units in ODM meta data (e.g., `[km]`, `[m/s]`, etc.) instead of assuming SI units
 
 1. [`propagate-omm`](docs/PROPAGATE_OMM.md)
-    1. Adopt more analytical propagators (e.g., `DSST`, `USM`, etc.) to support OMM propagation in the future
+    1. Adopt the USM analytical propagator for OMM propagation
 
 1. [`propagate-orbit`](docs/PROPAGATE_ORBIT.md)
     1. give a less generic name
-    1. numerical propagator
 
 1. Interpolators
     1. optimize lagrange and chebyshev for state vector interpolation?
