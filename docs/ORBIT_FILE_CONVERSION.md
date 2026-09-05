@@ -472,6 +472,20 @@ fit report and, where possible, the intermediate OMM comments.
 - **Direct conversion**: `omm-to-tle`
 - **Composed refit**: `propagate-omm` → OEM → `oem-to-tle`
 
+For a non-SGP4 OMM, generate a Cartesian reference arc first, then fit that
+OEM to SGP4-compatible mean elements:
+
+```text
+PYTHONPATH=src python -m ephem_toolkit.propagate_omm input.omm \
+  --duration 2h --step 5m --output reference.oem
+PYTHONPATH=src python -m ephem_toolkit.oem_to_tle reference.oem \
+  --fit-span 2h --fit-report output.fit.json --output output.tle
+```
+
+The intermediate OEM is the reference history for the fit. The resulting TLE
+is valid for the fitted arc and is not a lossless conversion of the source
+OMM's theory.
+
 **Ephemeris-model handling**: Direct conversion is valid only for an OMM with
 SGP4-compatible mean elements and the required TLE parameters. Reject or
 explicitly re-fit DSST, Brouwer-Lyddane, and other non-SGP4 OMMs before

@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 import ephem_toolkit.oem_to_omm as oem_to_omm
 import ephem_toolkit.omm_to_tle as omm_to_tle
+from ephem_toolkit.propagate_omm import main as propagate_omm_main
 from ephem_toolkit.oem_to_omm.oem_to_omm_cli import build_common_arg_parser
 from ephem_toolkit.oem_to_tle import main as oem_to_tle_main
 
@@ -141,6 +145,49 @@ def test_main_does_not_add_automatic_report_when_disabled(monkeypatch) -> None:
     oem_to_tle_main(["input.oem", "-o", "output.tle", "--no-fit-report"])
 
     assert "--fit-report" not in delegated_arguments[0]
+
+
+def test_composed_omm_to_tle_workflow_writes_oem_tle_and_report(tmp_path: Path) -> None:
+    """The OMM propagation and OEM-to-TLE tools compose into a refit path."""
+    source = Path(__file__).parents[2] / "data/ISS-ZARYA_1998-067A.omm"
+    reference_oem = tmp_path / "reference.oem"
+    output_tle = tmp_path / "output.tle"
+    fit_report = tmp_path / "output.fit.json"
+
+    assert (
+        propagate_omm_main(
+            [
+                str(source),
+                "--duration",
+                "2h",
+                "--step",
+                "5m",
+                "--output",
+                str(reference_oem),
+            ]
+        )
+        == 0
+    )
+    oem_to_tle_main(
+        [
+            str(reference_oem),
+            "--fit-span",
+            "2h",
+            "--source-model",
+            "sgp4",
+            "--fit-report",
+            str(fit_report),
+            "--output",
+            str(output_tle),
+        ]
+    )
+
+    assert reference_oem.exists()
+    assert output_tle.read_text(encoding="utf-8").splitlines()[1].startswith("1 ")
+    report = json.loads(fit_report.read_text(encoding="utf-8"))
+    assert report["status"] == "converged"
+    assert report["provenance"]["target_model"] == "SGP4"
+    assert report["configuration"]["fit_span_s"] == 7200.0
 
 
 @pytest.mark.parametrize("mode_argument", ["--mode", "--mode=brouwer"])
