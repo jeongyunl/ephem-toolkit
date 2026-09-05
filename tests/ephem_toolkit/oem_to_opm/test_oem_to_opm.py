@@ -183,6 +183,7 @@ def test_numerical_fit_model_dispatches_to_shared_fitter(
     assert "Keplerian" not in (captured.out + captured.err)
     assert "original OEM" in (captured.out + captured.err)
     assert "fitted:" in (captured.out + captured.err)
+    assert DummyMeta.comments[0] in output_path.read_text(encoding="utf-8")
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert report["configuration"]["source_comments"] == DummyMeta.comments
 

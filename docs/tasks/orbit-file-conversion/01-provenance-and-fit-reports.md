@@ -164,6 +164,8 @@ actually produce or transform the relevant output.
 - Generated OMMs retain source OEM comments alongside their new mean-element
   fit provenance, allowing composed histories to remain traceable after the
   format conversion.
+- Generated OPMs likewise retain source OEM comments before appending their
+  two-body or numerical fit provenance and summary.
 - Preserved compatibility with existing mocked diagnostics used by conversion
   tests.
 
