@@ -214,6 +214,10 @@ configuration as OEM provenance.
 `target_model=numerical`, the input OPM epoch/frame/time system, and, for
 numerical output, force/gravity models and integrator settings.
 
+The numerical `propagate-orbit` path writes these model and configuration
+details as portable OEM `COMMENT` records. Data-only output intentionally
+omits metadata and therefore cannot carry this provenance.
+
 **Options**: `--duration DURATION`, `--step SECONDS`
 
 **TODO**:
