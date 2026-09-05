@@ -25,9 +25,9 @@ integration, or orbit determination. Preserve the source model, frame, time
 system, and force-model information whenever it is known.
 
 When a route is specific to a theory-qualified mean-element or single-epoch
-state, name the file using the model in parentheses: `OMM(DSST)`,
-`OMM(SGP4)`, `OPM(2B)`, and `OPM(NUM)`. The generic names `OMM` and `OPM`
-remain valid for the broader format families.
+state, name the file using the model in parentheses: `OMM(2B)`,
+`OMM(BROUWER)`, `OMM(DSST)`, `OMM(SGP4)`, `OPM(2B)`, and `OPM(NUM)`. The
+generic names `OMM` and `OPM` remain valid for the broader format families.
 
 ## Model and provenance rules
 
@@ -92,7 +92,7 @@ compositions of the propagation and fitting commands shown below.
 
 ## Routes to OEM
 
-### OMM(SGP4) → OEM and OMM(DSST) → OEM
+### OMM(BROUWER) → OEM, OMM(SGP4) → OEM, and OMM(DSST) → OEM
 
 Use `propagate-omm input.omm -d 6h -s 5m -o output.oem`. The declared
 `MEAN_ELEMENT_THEORY` selects the supported mean-element path. Preserve the
@@ -117,7 +117,7 @@ command’s output contract says otherwise.
 
 ## Routes to OMM
 
-### OEM → OMM: `OEM-OMM(SGP4)`, `OEM-OMM(BROUWER)`, and `OEM-OMM(DSST)`
+### OEM → OMM: `OEM-OMM(BROUWER)`, `OEM-OMM(SGP4)`, and `OEM-OMM(DSST)`
 
 Select the target model explicitly:
 
@@ -198,7 +198,7 @@ fits SGP4-compatible mean elements and then formats the TLE. The result is a
 new SGP4 representation of the source arc. The companion report is required
 for source provenance and residuals because TLE cannot carry them.
 
-### OMM(SGP4) → TLE: `OMM-TLE-DIRECT` and `OMM-TLE-REFIT`
+### OMM(BROUWER) → TLE, OMM(SGP4) → TLE: `OMM-TLE-DIRECT` and `OMM-TLE-REFIT`
 
 Use `omm-to-tle` only when the OMM is SGP4-compatible and has the required TLE
 parameters. The command validates the declared theory and required fields
