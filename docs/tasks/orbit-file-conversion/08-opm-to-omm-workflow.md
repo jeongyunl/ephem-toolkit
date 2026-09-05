@@ -56,6 +56,5 @@ tooling.
 
 ### Remaining work
 
-- Verify additional production workflows that use the shared report path; the
-  current OPM-to-OMM compositions now carry intermediate model/configuration
-  comments into the final report.
+No implementation remains for the current compositions. Additional production
+workflows can receive separate live provenance verification as they are added.

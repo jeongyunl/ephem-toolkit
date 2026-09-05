@@ -44,17 +44,7 @@ tooling.
 
 ## Progress
 
-### Completed
-
-- Added `--fit-model {brouwer,dsst,sgp4}` to OEM-to-OMM.
-- Retained `--mode` as a deprecated alias, mapping `tle` to `sgp4`, with a
-  deprecation warning and conflict validation when both options are supplied.
-- Added model/theory consistency validation before conversion work begins.
-- Updated OEM-to-TLE delegation to use canonical `--fit-model sgp4`.
-- Added parser and wrapper regression tests.
-- Preserved the repository-wide objective of adding no runtime dependencies.
-
 ### Remaining work
 
-- Apply the same option-contract rules to proposed conversion commands when
-  they are implemented.
+None for the current conversion commands. Any future command must adopt the
+same option-contract rules if it is added later.

@@ -14,23 +14,6 @@ verification dimensions covered by these tasks.
 
 ## Status
 
-- **Complete:** Task 1. The shared comment/report layer and current
-  OEM-to-OMM, OEM-to-OPM, and OEM-to-TLE paths are implemented, including
-  composed OMM-to-TLE refit coverage. Shared numerical fit reports preserve
-  force and integrator settings, and source reports without usable provenance
-  resolve to `unknown`.
-  See [Task 1
-  progress](01-provenance-and-fit-reports.md#progress).
-- **Complete:** Task 2 implementation. The shared numerical fitter is wired to
-  `oem-to-opm --fit-model numerical`, including fixed propagator configuration,
-  Cartesian fitting, OPM conversion, fit reports, and human-readable summaries.
-  Representative live Tudat/SPICE verification remains an environment-level
-  follow-up. See [Task 2 progress](02-shared-numerical-fitter.md#progress).
-- **Complete:** Task 3. Canonical fit-model parsing, deprecated mode handling,
-  wrapper delegation, and unsupported-option handling are aligned across the
-  current conversion commands.
-- **Complete:** Task 4. OEM-to-OMM supports canonical fit-model selection,
-  deprecated mode compatibility, theory conflict validation, and reporting.
 - **In progress:** Task 10. Direct OMM-to-TLE validation is implemented for
   SGP4-compatible input. Non-SGP4 refits intentionally compose
   `propagate-omm → OEM → oem-to-tle`; the direct `--refit-sgp4` mode was
@@ -41,44 +24,25 @@ verification dimensions covered by these tasks.
   Brouwer fallback behavior is explicitly tested, and fallback OEMs now
   identify their actual Kepler model in provenance comments until a Brouwer
   propagator exists.
-- **Complete:** Task 6. `omm-to-opm --fit-model numerical` and
-  `tle-to-opm --fit-model numerical` wrappers delegate to the shared
-  OEM-to-OPM fitter; short- and four-hour live output and fit-report
-  verification are complete.
-- **Complete as composition:** Task 7. Existing `propagate-kepler` and
-  `propagate-orbit` commands provide the two-body and numerical OPM-to-OEM
-  paths; both OEM types identify their propagation model, and numerical OEMs
-  also record their propagation configuration. No dedicated wrapper is planned.
-- **Complete as composition:** Task 8. Both Task 7 paths compose with
-  `oem-to-omm`, and final reports preserve the intermediate OEM provenance and
-  propagation-configuration comments.
-- **Complete:** Task 9. OEM-to-TLE emits SGP4 fit provenance and diagnostics in
-  a JSON report, with coverage for file/stdout reports, unknown source
-  provenance, and fixed-width TLE checksums.
-- **Complete as composition:** Task 11. Existing propagation commands compose
-  with `oem-to-tle` for two-body and numerical OPM-to-TLE conversion; no
-  dedicated wrapper is planned.
 
-## Suggested order
+## Current focus
 
-1. **Complete:** [Shared provenance and fit-report contract](01-provenance-and-fit-reports.md)
-2. **Complete:** [Shared numerical propagator fitter](02-shared-numerical-fitter.md)
-3. **Complete:** [Conversion CLI option contract](03-conversion-cli-options.md)
-4. **Complete:** [OEM to OMM fit migration](04-oem-to-omm-fit-model.md)
-5. **Complete:** [OEM to OPM numerical fitting](05-oem-to-opm-numerical-fit.md)
-6. **Complete:** [OMM and TLE to OPM numerical fitting](06-omm-tle-to-opm-numerical-fit.md)
-7. **Complete as composition:** [OPM to OEM model-aware workflow](07-opm-to-oem-workflow.md)
-8. **Complete as composition:** [OPM to OMM composed workflow](08-opm-to-omm-workflow.md)
-9. **Complete:** [OEM to TLE fit reporting](09-oem-to-tle-fit-report.md)
-10. **In progress:** [OMM to TLE validation and refit](10-omm-to-tle-validation-refit.md)
-11. **Complete as composition:** [OPM to TLE composed workflow](11-opm-to-tle-workflow.md)
+- [OMM to TLE validation and refit](10-omm-to-tle-validation-refit.md)
 
-Tasks 1–3 define shared behavior and should land before the format-specific
-work. Tasks 5–6 depend on the shared numerical fitter. Tasks 8 and 11 compose
-existing propagation and fitting operations and can reuse the lower-level
-pieces from earlier tasks.
+Completed work and historical ordering remain documented in the individual
+task files and the conversion matrix.
 
-Latest focused verification: `308 passed, 2 deselected` covering the
+## Remaining work
+
+- **Task 10 implementation:** Add composed OMM-to-TLE verification for any
+  additional non-SGP4 theory once `propagate-omm` supports a matching
+  propagator. Brouwer currently uses an explicitly labeled Kepler fallback.
+- **Environment validation:** Run representative long-arc Tudat/SPICE checks
+  for the numerical fitter when the required kernels and runtime are available.
+- **Optional production verification:** Exercise additional OPM-to-OMM
+  compositions and confirm their complete propagation provenance in reports.
+
+Latest focused verification: `312 passed, 2 deselected` covering the
 provenance/reporting, conversion, propagation, and CCSDS suites; the
 frame-utils kernel-loading suite also passes with `13 passed`.
 
