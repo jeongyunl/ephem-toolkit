@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -20,6 +21,7 @@ class DummyMeta:
     center_name = "EARTH"
     ref_frame = "ICRF"
     time_system = "UTC"
+    comments = ["EPHEMERIS_PROVENANCE: source=OPM; target_model=numerical"]
 
 
 class DummyOemData:
@@ -162,6 +164,7 @@ def test_numerical_fit_model_dispatches_to_shared_fitter(
         ),
     )
     output_path = tmp_path / "output.opm"
+    report_path = tmp_path / "output.fit.json"
     oem_to_opm.main(
         [
             "--fit-model",
@@ -169,7 +172,8 @@ def test_numerical_fit_model_dispatches_to_shared_fitter(
             "input.oem",
             "-o",
             str(output_path),
-            "--no-fit-report",
+            "--fit-report",
+            str(report_path),
             "--verbose",
         ]
     )
@@ -179,6 +183,8 @@ def test_numerical_fit_model_dispatches_to_shared_fitter(
     assert "Keplerian" not in (captured.out + captured.err)
     assert "original OEM" in (captured.out + captured.err)
     assert "fitted:" in (captured.out + captured.err)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["configuration"]["source_comments"] == DummyMeta.comments
 
 
 def test_parser_accepts_no_fit_report() -> None:

@@ -273,6 +273,7 @@ def main(argv=None) -> None:
         "mu_m3_s2": cli_args.mu_m3_s2,
         "source_frame": oem_data.meta.ref_frame or "unknown",
         "source_time_system": oem_data.meta.time_system or "unknown",
+        "source_comments": list(getattr(oem_data.meta, "comments", [])),
         "source_report": source_report,
     }
     try:
@@ -357,6 +358,7 @@ def main(argv=None) -> None:
                 "mu_m3_s2": cli_args.mu_m3_s2,
                 "source_frame": oem_data.meta.ref_frame or "unknown",
                 "source_time_system": oem_data.meta.time_system or "unknown",
+                "source_comments": list(getattr(oem_data.meta, "comments", [])),
                 "source_report": source_report,
             }
         else:
