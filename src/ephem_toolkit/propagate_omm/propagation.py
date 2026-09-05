@@ -20,6 +20,7 @@ warnings.filterwarnings(
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.ccsds.omm as omm
 import ephem_toolkit.core.convert_tle as convert_tle
+import ephem_toolkit.core.provenance as provenance
 import ephem_toolkit.core.propagator.kepler as kepler
 from ephem_toolkit.core.propagator import (
     DSSTPropagator,
@@ -364,7 +365,18 @@ def propagate_omm_kepler(
         current_time = current_time + step_dt
 
     _write_oem_output(
-        propagated_states, object_name, omm_data.object_id, data_only, output_path
+        propagated_states,
+        object_name,
+        omm_data.object_id,
+        data_only,
+        output_path,
+        comments=[
+            provenance.provenance_comment(
+                source=f"OMM/{omm_data.mean_element_theory.upper()}",
+                transformation="propagation (fallback)",
+                target_model="two-body-kepler",
+            )
+        ],
     )
 
 
@@ -379,6 +391,7 @@ def _write_oem_output(
     object_id: str,
     data_only: bool,
     output_path: str,
+    comments: list[str] | None = None,
 ) -> None:
     """Write propagated states as OEM output.
 
@@ -408,6 +421,8 @@ def _write_oem_output(
                 center_name="EARTH",
                 time_system="UTC",
             )
+            if comments:
+                oem_obj.meta.comments.extend(comments)
             oem_obj.write(output_stream)
 
     if output_path == "-":

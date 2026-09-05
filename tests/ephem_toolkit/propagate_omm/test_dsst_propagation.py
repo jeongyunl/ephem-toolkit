@@ -326,3 +326,8 @@ def test_main_dispatches_kepler_for_non_dsst_theory(monkeypatch, tmp_path, theor
     propagate_omm_main.main()
 
     assert "kepler" in dispatched_to
+    assert (
+        f"EPHEMERIS_PROVENANCE: source=OMM/{theory}; "
+        "transformation=propagation (fallback); target_model=two-body-kepler"
+        in output_path.read_text()
+    )

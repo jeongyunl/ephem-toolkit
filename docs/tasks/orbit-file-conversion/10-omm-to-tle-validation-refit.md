@@ -64,6 +64,8 @@ provenance, and residual information.
 - Direct conversion rejects missing TLE parameters before output is written.
 - Preserved direct SGP4-compatible conversion behavior without fabricated fit
   diagnostics.
+- Fallback-generated OEMs now record the declared source theory and the actual
+  `two-body-kepler` propagation target in a portable provenance comment.
 - Removed the direct `--refit-sgp4` implementation, parser options, and tests;
   no replacement refit mode is planned.
 - Documented the composed propagation-to-OEM-to-TLE workflow.
@@ -88,6 +90,10 @@ provenance, fit span, and residual statistics.
 The direct-validation tests also verify that a DSST OMM is rejected before the
 TLE output is created and that refit-only options, including the removed
 `--refit-sgp4` option, are not accepted by `omm-to-tle`.
+
+Fallback dispatch tests verify that both generic non-DSST input and
+Brouwer-declared input produce an OEM comment identifying the actual Kepler
+fallback rather than implying Brouwer propagation.
 
 The composed source-tree workflow was evaluated with the non-SGP4
 `TEST-DSST_2020-001A.omm` fixture using a 2-hour arc and 5-minute output step:

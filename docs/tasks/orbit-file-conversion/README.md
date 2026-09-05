@@ -36,7 +36,8 @@ verification dimensions covered by these tasks.
   `propagate-omm → OEM → oem-to-tle`; the direct `--refit-sgp4` mode was
   removed. DSST has representative live verification, while additional
   theories await matching propagator support; Brouwer fallback behavior is
-  explicitly tested and uses Kepler until a Brouwer propagator exists.
+  explicitly tested, and fallback OEMs now identify their actual Kepler model
+  in provenance comments until a Brouwer propagator exists.
 - **Complete:** Task 6. `omm-to-opm --fit-model numerical` and
   `tle-to-opm --fit-model numerical` wrappers delegate to the shared
   OEM-to-OPM fitter; short- and four-hour live output and fit-report
