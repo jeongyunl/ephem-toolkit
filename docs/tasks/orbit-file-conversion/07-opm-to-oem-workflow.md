@@ -47,8 +47,11 @@ tooling.
 - Reused `propagate-kepler` for OPM osculating Keplerian elements.
 - Reused `propagate-orbit` for OPM Cartesian numerical propagation and force
   model configuration.
+- Numerical OEM output now records the actual propagation model, integrator,
+  step-size bounds, gravity degree/order, and enabled third-body, drag, and
+  SRP switches in portable `COMMENT` provenance records.
 - Documented the two composed paths in the conversion matrix.
 - Deferred a dedicated wrapper because it would duplicate existing commands
   without adding conversion capability.
-- Detailed numerical provenance and model-label verification remain part of
-  the broader propagation/reporting work.
+- Detailed numerical provenance and model-label verification are covered by
+  the output-handling regression test.

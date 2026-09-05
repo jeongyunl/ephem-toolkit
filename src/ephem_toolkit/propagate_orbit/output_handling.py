@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 
 import ephem_toolkit.core.ccsds.oem as common_oem
+import ephem_toolkit.core.provenance as provenance
 import ephem_toolkit.core.time_utils as time_utils
 from ephem_toolkit.core.propagator.numerical import (
     NumericalInitialState,
@@ -58,6 +59,29 @@ def write_state_history_oem(
             ref_frame=DEFAULT_GLOBAL_FRAME_ORIENTATION,
             center_name=DEFAULT_GLOBAL_FRAME_ORIGIN,
             time_system="UTC",
+        )
+        oem.meta.comments.extend(
+            [
+                provenance.provenance_comment(
+                    source="OPM",
+                    transformation="propagation",
+                    target_model="numerical",
+                ),
+                (
+                    "EPHEMERIS_PROPAGATION: "
+                    f"integrator={config.integrator_method}; "
+                    f"step_size_s={config.integrator_step_size_values_s}; "
+                    f"earth_gravity="
+                    f"{config.earth_spherical_harmonic_gravity_degree}x"
+                    f"{config.earth_spherical_harmonic_gravity_order}; "
+                    f"drag={'on' if config.is_earth_drag_on else 'off'}; "
+                    f"srp={'on' if config.is_srp_on else 'off'}; "
+                    f"moon={'on' if config.is_moon_gravity_on else 'off'}; "
+                    f"sun={'on' if config.is_sun_gravity_on else 'off'}; "
+                    f"venus={'on' if config.is_venus_gravity_on else 'off'}; "
+                    f"mars={'on' if config.is_mars_gravity_on else 'off'}"
+                ),
+            ]
         )
         if data_only:
             oem.write_states(stream)
