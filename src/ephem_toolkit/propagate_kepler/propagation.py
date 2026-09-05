@@ -11,6 +11,7 @@ import numpy as np
 
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.ccsds.opm as opm
+import ephem_toolkit.core.provenance as provenance
 import ephem_toolkit.core.propagator.kepler as kepler
 import ephem_toolkit.core.time_utils as time_utils
 from ephem_toolkit.core.propagator import (
@@ -107,6 +108,13 @@ def propagate_kepler_elements(
         if data_only:
             message.write_states(stream)
         else:
+            message.meta.comments.append(
+                provenance.provenance_comment(
+                    source="OPM",
+                    transformation="propagation",
+                    target_model="two-body-kepler",
+                )
+            )
             message.write(stream)
     finally:
         if output_path != "-":

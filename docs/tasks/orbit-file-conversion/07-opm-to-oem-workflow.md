@@ -45,6 +45,8 @@ tooling.
 ## Progress
 
 - Reused `propagate-kepler` for OPM osculating Keplerian elements.
+- Two-body OEM output now records `target_model=two-body-kepler` in a portable
+  provenance comment, matching the numerical path's model labeling.
 - Reused `propagate-orbit` for OPM Cartesian numerical propagation and force
   model configuration.
 - Numerical OEM output now records the actual propagation model, integrator,

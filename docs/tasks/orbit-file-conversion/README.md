@@ -44,8 +44,8 @@ verification dimensions covered by these tasks.
   verification are complete.
 - **Complete as composition:** Task 7. Existing `propagate-kepler` and
   `propagate-orbit` commands provide the two-body and numerical OPM-to-OEM
-  paths; numerical OEMs record their propagation configuration, and no
-  dedicated wrapper is planned.
+  paths; both OEM types identify their propagation model, and numerical OEMs
+  also record their propagation configuration. No dedicated wrapper is planned.
 - **Complete as composition:** Task 8. Both Task 7 paths compose with
   `oem-to-omm`; complete propagation-configuration reporting remains.
 - **Complete:** Task 9. OEM-to-TLE emits SGP4 fit provenance and diagnostics in
