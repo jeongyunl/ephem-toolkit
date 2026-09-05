@@ -60,7 +60,8 @@ provenance, and residual information.
 
 - Added direct-conversion validation for SGP4-compatible
   `MEAN_ELEMENT_THEORY` values.
-- Direct conversion rejects non-SGP4 theories with an actionable message.
+- Direct conversion rejects non-SGP4 theories with an actionable message that
+  names the declared theory and SGP4 incompatibility.
 - Direct conversion rejects missing TLE parameters before output is written.
 - Regression coverage now verifies missing TLE parameters are rejected before
   output is written for an otherwise SGP4-declared OMM.
@@ -91,8 +92,9 @@ composed workflow should be verified with a representative non-SGP4 OMM and
 checked for a Cartesian reference OEM, SGP4-compatible TLE output, source
 provenance, fit span, and residual statistics.
 
-The direct-validation tests also verify that a DSST OMM is rejected before the
-TLE output is created and that refit-only options, including the removed
+The direct-validation tests also verify that DSST and Brouwer-Lyddane OMMs are
+rejected before the TLE output is created with diagnostics naming the declared
+theory and SGP4 incompatibility. Refit-only options, including the removed
 `--refit-sgp4` option, are not accepted by `omm-to-tle`.
 
 Fallback dispatch tests verify that both generic non-DSST input and

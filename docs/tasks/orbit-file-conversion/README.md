@@ -34,7 +34,8 @@ verification dimensions covered by these tasks.
 - **In progress:** Task 10. Direct OMM-to-TLE validation is implemented for
   SGP4-compatible input. Non-SGP4 refits intentionally compose
   `propagate-omm → OEM → oem-to-tle`; the direct `--refit-sgp4` mode was
-  removed. DSST has representative live verification, while additional
+  removed. DSST has representative live verification, and direct rejection
+  tests now verify theory-specific incompatibility diagnostics. Additional
   theories await matching propagator support; Brouwer fallback behavior is
   explicitly tested, and fallback OEMs now identify their actual Kepler model
   in provenance comments until a Brouwer propagator exists.
