@@ -159,6 +159,8 @@ actually produce or transform the relevant output.
 - SGP4-compatible OMM-generated OEMs record `source=OMM` and
   `target_model=SGP4`, distinguishing the input format from raw TLE
   propagation.
+- DSST OMM-generated OEMs record `source=OMM/DSST` and `target_model=DSST`,
+  identifying the supported mean-element propagation theory.
 - Preserved compatibility with existing mocked diagnostics used by conversion
   tests.
 
