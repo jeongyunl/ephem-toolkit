@@ -1,4 +1,4 @@
-"""Tests for src/plot_orbit_deltas/plot_orbit_deltas.py — Orbit plotting utility script."""
+"""Tests for src/plot_oem_diff/plot_oem_diff.py — Orbit plotting utility script."""
 
 from __future__ import annotations
 
@@ -8,15 +8,15 @@ from unittest.mock import patch
 
 import numpy as np
 
-from ephem_toolkit.plot_orbit_deltas.data_structures import StateHistory
-from ephem_toolkit.plot_orbit_deltas.plot_orbit_deltas_cli import (
+from ephem_toolkit.plot_oem_diff.data_structures import StateHistory
+from ephem_toolkit.plot_oem_diff.plot_oem_diff_cli import (
     build_arg_parser,
     parse_arguments,
 )
-from ephem_toolkit.plot_orbit_deltas.plotting import plot_orbits
+from ephem_toolkit.plot_oem_diff.plotting import plot_orbits
 
 
-def test_plot_orbit_deltas_help_uses_command_name_and_output_placeholder() -> None:
+def test_plot_oem_diff_help_uses_command_name_and_output_placeholder() -> None:
     """The CLI help should use the canonical command name and output placeholder."""
     old_stdout = sys.stdout
     captured_output = io.StringIO()
@@ -30,15 +30,15 @@ def test_plot_orbit_deltas_help_uses_command_name_and_output_placeholder() -> No
         sys.stdout = old_stdout
 
     help_text = captured_output.getvalue()
-    assert "usage: plot-orbit-deltas" in help_text
+    assert "usage: plot-oem-diff" in help_text
     assert "--output <output_plot>" in help_text
 
 
-def test_plot_orbit_deltas_parse_arguments_sets_input_oem_files() -> None:
+def test_plot_oem_diff_parse_arguments_sets_input_oem_files() -> None:
     """The positional OEM arguments should populate the expected attribute name."""
     sample_files = ["tmp/leo3_aug_aa.oem", "tmp/leo3_aug_ab.oem"]
 
-    with patch.object(sys, "argv", ["plot-orbit-deltas", *sample_files]):
+    with patch.object(sys, "argv", ["plot-oem-diff", *sample_files]):
         args = parse_arguments(build_arg_parser())
 
     assert args.input_oem_files == sample_files

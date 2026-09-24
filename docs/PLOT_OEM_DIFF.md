@@ -1,11 +1,11 @@
 # Orbit-Difference Plotting Utility
 
-The `plot-orbit-deltas` utility plots multiple orbit trajectories and compares them using orbit views and RTN coordinates.
+The `plot-oem-diff` utility plots multiple orbit trajectories and compares them using orbit views and RTN coordinates.
 
 ## Synopsis
 
 ```bash
-plot-orbit-deltas <input_oem> [<input_oem> ...] [OPTIONS]
+plot-oem-diff <input_oem> [<input_oem> ...] [OPTIONS]
 ```
 
 The first input file is the reference orbit. One or more additional files may be supplied for comparison.
@@ -33,10 +33,10 @@ This utility provides several views for comparing orbit trajectories:
 ## Examples
 
 ```bash
-plot-orbit-deltas reference.oem
-plot-orbit-deltas reference.oem comparison1.oem comparison2.oem
-plot-orbit-deltas reference.oem comparison.oem -o orbits.png
-plot-orbit-deltas reference.oem comparison.oem -d 2h --time-unit minutes
+plot-oem-diff reference.oem
+plot-oem-diff reference.oem comparison1.oem comparison2.oem
+plot-oem-diff reference.oem comparison.oem -o orbits.png
+plot-oem-diff reference.oem comparison.oem -d 2h --time-unit minutes
 ```
 
 ## Behavior
@@ -83,37 +83,37 @@ When `--output` is provided, figures are saved with diagnostic suffixes, such as
 **Plot a single orbit:**
 
 ```bash
-plot-orbit-deltas reference.oem
+plot-oem-diff reference.oem
 ```
 
 **Plot reference and comparison orbits:**
 
 ```bash
-plot-orbit-deltas reference.oem comparison1.oem comparison2.oem
+plot-oem-diff reference.oem comparison1.oem comparison2.oem
 ```
 
 **Save output to files:**
 
 ```bash
-plot-orbit-deltas reference.oem comparison.oem -o orbits.png
+plot-oem-diff reference.oem comparison.oem -o orbits.png
 ```
 
 **Analyze only the first two hours:**
 
 ```bash
-plot-orbit-deltas reference.oem comparison.oem -d 2h
+plot-oem-diff reference.oem comparison.oem -d 2h
 ```
 
 **Use minutes for time-series axes:**
 
 ```bash
-plot-orbit-deltas reference.oem comparison.oem --time-unit minutes
+plot-oem-diff reference.oem comparison.oem --time-unit minutes
 ```
 
 **Show help:**
 
 ```bash
-plot-orbit-deltas -h
+plot-oem-diff -h
 ```
 
 ## Dependencies

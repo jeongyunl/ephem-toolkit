@@ -26,12 +26,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         description="Plot multiple orbit trajectories with various views and RTN coordinates.",
         epilog=(
             "Examples:\n"
-            "  plot-orbit-deltas reference.oem\n"
-            "  plot-orbit-deltas reference.oem comparison1.oem comparison2.oem\n"
-            "  plot-orbit-deltas reference.oem comparison.oem -o orbits.png"
+            "  plot-oem-diff reference.oem\n"
+            "  plot-oem-diff reference.oem comparison1.oem comparison2.oem\n"
+            "  plot-oem-diff reference.oem comparison.oem -o orbits.png"
         ),
     )
-    cli_parser.prog = "plot-orbit-deltas"
+    cli_parser.prog = "plot-oem-diff"
 
     cli_parser.add_argument(
         "input_oem_files",

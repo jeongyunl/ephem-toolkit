@@ -27,7 +27,7 @@ flowchart LR
     propagate_kepler(["propagate-kepler"])
     propagate_omm(["propagate-omm"])
     plot_oem(["plot-oem"])
-    plot_orbit_deltas(["plot-orbit-deltas"])
+    plot_oem_diff(["plot-oem-diff"])
     plot_dep_vars(["plot-dependent-variables"])
     diff_oem(["diff-oem"])
     slice_oem(["slice-oem"])
@@ -51,9 +51,9 @@ flowchart LR
 
     fmt_oem --> diff_oem
     fmt_oem --> plot_oem
-    fmt_oem --> plot_orbit_deltas
+    fmt_oem --> plot_oem_diff
     plot_oem --> fmt_plots
-    plot_orbit_deltas --> fmt_plots
+    plot_oem_diff --> fmt_plots
 
     fmt_dep_vars_csv --> plot_dep_vars
     plot_dep_vars --> fmt_plots
@@ -153,7 +153,7 @@ flowchart LR
 | Workflow | Command |
 | --- | --- |
 | Orbit plotting | [`plot-oem`](docs/PLOT_OEM.md) |
-| Orbit-delta plotting | [`plot-orbit-deltas`](docs/PLOT_ORBIT_DELTAS.md) |
+| Orbit-delta plotting | [`plot-oem-diff`](docs/PLOT_OEM_DIFF.md) |
 | Dependent-variable plotting | [`plot-dependent-variables`](docs/PLOT_DEPENDENT_VARIABLES.md) |
 
 
@@ -197,7 +197,7 @@ Fits an OEM arc with a two-body osculating Keplerian model and writes an OPM con
 ### Visualization
 
 - [`plot-oem`](docs/PLOT_OEM.md) — visualize orbit trajectories and output state histories
-- [`plot-orbit-deltas`](docs/PLOT_ORBIT_DELTAS.md) — plot and compare multiple orbits
+- [`plot-oem-diff`](docs/PLOT_OEM_DIFF.md) — plot and compare multiple orbits
 - [`plot-dependent-variables`](docs/PLOT_DEPENDENT_VARIABLES.md) — plot dependent variables from propagation output
 
 ---
@@ -236,7 +236,7 @@ src/
 │   ├── omm_to_tle/          OMM-to-TLE conversion utilities
 │   ├── plot_dep_vars/       Dependent-variable plotting utilities
 │   ├── plot_oem/          Orbit visualization utilities
-│   ├── plot_orbit_deltas/   Orbit-difference plotting utilities
+│   ├── plot_oem_diff/   Orbit-difference plotting utilities
 │   ├── propagate_kepler/    Kepler propagation package
 │   ├── propagate_orbit/     Cartesian propagation package
 │   ├── propagate_tle/       TLE propagation package

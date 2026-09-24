@@ -22,8 +22,7 @@
     1. ?
 
 1. Plotting
-    1. `plot-oem` -> `plot-oem`
-    1. `plot-orbit-deltas` -> `plot-oem-diff`
+    1. `plot-oem-diff` -> `plot-oem-diff`
     1. add `--plot` option to `diff-oem`, `xform-oem`, `slice-oem`, etc. to generate plots of the results
 
 1. ODM meta data

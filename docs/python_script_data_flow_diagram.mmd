@@ -44,7 +44,7 @@ flowchart LR
     propagate_kepler(["propagate-kepler"])
     diff_oem(["diff-oem"])
     plot_oem(["plot-oem"])
-    plot_orbit_deltas(["plot-orbit-deltas"])
+    plot_oem_diff(["plot-oem-diff"])
     plot_dep_vars(["plot-dependent-variables"])
     slice_oem(["slice-oem"])
     xform_oem(["xform-oem"])
@@ -84,9 +84,9 @@ flowchart LR
 
     fmt_oem --> diff_oem
     fmt_oem --> plot_oem
-    fmt_oem --> plot_orbit_deltas
+    fmt_oem --> plot_oem_diff
     plot_oem --> fmt_plots
-    plot_orbit_deltas --> fmt_plots
+    plot_oem_diff --> fmt_plots
 
     fmt_oem --> slice_oem
     slice_oem -->|"Cartesian state history"| fmt_oem

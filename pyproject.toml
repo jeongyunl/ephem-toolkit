@@ -48,7 +48,7 @@ propagate-kepler = "ephem_toolkit.propagate_kepler:cli"
 propagate-tle = "ephem_toolkit.propagate_tle:cli"
 propagate-omm = "ephem_toolkit.propagate_omm:cli"
 plot-oem = "ephem_toolkit.plot_oem:cli"
-plot-orbit-deltas = "ephem_toolkit.plot_orbit_deltas:cli"
+plot-oem-diff = "ephem_toolkit.plot_oem_diff:cli"
 plot-dependent-variables = "ephem_toolkit.plot_dep_vars:cli"
 
 [tool.poetry]

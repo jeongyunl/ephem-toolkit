@@ -7,12 +7,12 @@ coordinates. The first input file is treated as the reference orbit trajectory
 that other orbit trajectories are compared with.
 
 Usage:
-    plot-orbit-deltas <reference_oem> [comparison_oem1] [comparison_oem2] ...
+    plot-oem-diff <reference_oem> [comparison_oem1] [comparison_oem2] ...
 """
 
 from __future__ import annotations
 
-from .plot_orbit_deltas_cli import build_arg_parser, parse_arguments
+from .plot_oem_diff_cli import build_arg_parser, parse_arguments
 
 
 def generate_output_filename(base_output: str | None, suffix: str) -> str | None:

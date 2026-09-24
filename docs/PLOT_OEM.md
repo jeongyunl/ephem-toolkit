@@ -150,7 +150,7 @@ The command reports input and processing progress on standard output and reports
 
 ## Related Tools
 
-- `plot-orbit-deltas` - Compare multiple orbit trajectories
+- `plot-oem-diff` - Compare multiple orbit trajectories
 - `plot-dependent-variables` - Plot dependent-variable histories from a Tudat CSV file
 - `slice-oem` - Extract a time or index range from an OEM file
 - `propagate-orbit` - Generate OEM data from perturbed orbit propagation

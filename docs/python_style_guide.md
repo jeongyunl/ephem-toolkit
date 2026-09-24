@@ -87,7 +87,7 @@ h_vec = np.cross(position_m, velocity_m_s)
 """Plot orbit trajectories.
 
 Usage:
-    plot-orbit-deltas <reference_oem> [comparison_oem1] ...
+    plot-oem-diff <reference_oem> [comparison_oem1] ...
 """
 ```
 
