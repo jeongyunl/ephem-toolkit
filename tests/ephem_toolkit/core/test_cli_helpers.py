@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 
 import pytest
 
@@ -10,6 +11,8 @@ from ephem_toolkit.core.cli import (
     PACKAGE_VERSION,
     add_common_arguments,
     build_arg_parser,
+    parse_interpolate_type,
+    run_cli,
 )
 
 
@@ -67,3 +70,47 @@ def test_build_arg_parser_accepts_help_footer() -> None:
     """Parser factories should keep a consistent help footer."""
     parser = build_arg_parser("demo tool", epilog="examples:\n  demo --output out.csv")
     assert "examples:" in parser.format_help()
+
+
+@pytest.mark.parametrize(
+    ("value", "expected_type", "expected_degree"),
+    [
+        ("hermite", "hermite", 8),
+        ("chebyshev,5", "chebyshev", 5),
+        ("lagrange,2", "lagrange", 2),
+    ],
+)
+def test_parse_interpolate_type_accepts_supported_forms(
+    value: str, expected_type: str, expected_degree: int
+) -> None:
+    specification = parse_interpolate_type(value, default_degree=8)
+
+    assert specification.interp_type.value == expected_type
+    assert specification.degree == expected_degree
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["unknown", "hermite,nope", "hermite,0", "hermite,1,2"],
+)
+def test_parse_interpolate_type_rejects_invalid_forms(value: str) -> None:
+    with pytest.raises(argparse.ArgumentTypeError):
+        parse_interpolate_type(value, default_degree=8)
+
+
+def test_run_cli_maps_success_return_values_and_exceptions(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert run_cli(lambda _argv: None) == 0
+    assert run_cli(lambda _argv: 7) == 7
+    assert run_cli(lambda _argv: (_ for _ in ()).throw(ValueError("bad input"))) == 1
+    assert "Error: bad input" in capsys.readouterr().err
+
+
+def test_run_cli_maps_keyboard_interrupt_to_shell_status(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    result = run_cli(lambda _argv: (_ for _ in ()).throw(KeyboardInterrupt()))
+
+    assert result == 130
+    assert "Interrupted by user" in capsys.readouterr().err
