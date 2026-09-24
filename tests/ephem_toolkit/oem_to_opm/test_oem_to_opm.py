@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import io
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -10,6 +12,7 @@ import pytest
 import ephem_toolkit.core.ccsds.opm as opm
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.oem_to_opm as oem_to_opm
+import ephem_toolkit.oem_to_opm.__main__ as oem_to_opm_entry
 import ephem_toolkit.oem_to_opm.fit_numerical as fit_numerical
 import ephem_toolkit.oem_to_opm.fit_osculating_kepler as fit_osculating_kepler
 from ephem_toolkit.oem_to_opm.oem_to_opm_cli import build_arg_parser, parse_arguments
@@ -61,12 +64,17 @@ def test_parser_accepts_provenance_report_options() -> None:
 
 
 def test_parser_accepts_fit_model_and_defaults_to_two_body() -> None:
-    assert parse_arguments(
-        build_arg_parser(), ["input.oem", "-o", "output.opm"]
-    ).fit_model == "two-body"
-    assert parse_arguments(
-        build_arg_parser(), ["--fit-model", "numerical", "input.oem", "-o", "output.opm"]
-    ).fit_model == "numerical"
+    assert (
+        parse_arguments(build_arg_parser(), ["input.oem", "-o", "output.opm"]).fit_model
+        == "two-body"
+    )
+    assert (
+        parse_arguments(
+            build_arg_parser(),
+            ["--fit-model", "numerical", "input.oem", "-o", "output.opm"],
+        ).fit_model
+        == "numerical"
+    )
 
 
 def test_parser_defaults_to_four_hour_fit_span() -> None:
@@ -78,9 +86,13 @@ def test_parser_accepts_fit_controls() -> None:
     args = parse_arguments(
         build_arg_parser(),
         [
-            "--fit-position-weight", "2",
-            "--fit-parameters", "initial-state,drag-coeff",
-            "input.oem", "-o", "output.opm",
+            "--fit-position-weight",
+            "2",
+            "--fit-parameters",
+            "initial-state,drag-coeff",
+            "input.oem",
+            "-o",
+            "output.opm",
         ],
     )
     assert args.fit_position_weight == 2.0
@@ -93,7 +105,19 @@ def test_parser_accepts_fit_controls() -> None:
 def test_parser_accepts_fixed_physical_parameters() -> None:
     args = parse_arguments(
         build_arg_parser(),
-        ["--mass", "12", "--drag-area", "0.4", "--drag", "on", "--drag-coeff", "2.2", "input.oem", "-o", "output.opm"],
+        [
+            "--mass",
+            "12",
+            "--drag-area",
+            "0.4",
+            "--drag",
+            "on",
+            "--drag-coeff",
+            "2.2",
+            "input.oem",
+            "-o",
+            "output.opm",
+        ],
     )
     assert args.mass == 12.0
     assert args.drag_area == 0.4
@@ -114,7 +138,9 @@ def test_parser_uses_propagate_orbit_physical_defaults() -> None:
 @pytest.mark.parametrize("option", ["--fit-position-weight"])
 def test_parser_rejects_non_positive_fit_controls(option: str) -> None:
     with pytest.raises(SystemExit) as error:
-        parse_arguments(build_arg_parser(), [option, "0", "input.oem", "-o", "output.opm"])
+        parse_arguments(
+            build_arg_parser(), [option, "0", "input.oem", "-o", "output.opm"]
+        )
     assert error.value.code == 2
 
 
@@ -187,12 +213,16 @@ def test_numerical_fit_model_dispatches_to_shared_fitter(
 
 
 def test_parser_accepts_no_fit_report() -> None:
-    args = parse_arguments(build_arg_parser(), ["--no-fit-report", "input.oem", "-o", "output.opm"])
+    args = parse_arguments(
+        build_arg_parser(), ["--no-fit-report", "input.oem", "-o", "output.opm"]
+    )
     assert args.no_fit_report is True
 
 
 def test_parser_accepts_debug_mode() -> None:
-    args = parse_arguments(build_arg_parser(), ["--debug", "input.oem", "-o", "output.opm"])
+    args = parse_arguments(
+        build_arg_parser(), ["--debug", "input.oem", "-o", "output.opm"]
+    )
     assert args.debug is True
 
 
@@ -260,3 +290,52 @@ def test_main_writes_initial_state_and_osculating_elements_to_opm(
     assert data["ARG_OF_PERICENTER"] == pytest.approx(np.degrees(0.3))
     assert data["TRUE_ANOMALY"] == pytest.approx(np.degrees(0.5))
     assert data["GM"] == pytest.approx(398600.4418)
+
+
+def test_report_results_supports_stdout_stream_and_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    oem_to_opm_entry.report_results("OPM output", "-")
+    assert capsys.readouterr().out == "OPM output\n"
+
+    stream = io.StringIO()
+    oem_to_opm_entry.report_results("stream output", stream)
+    assert stream.getvalue() == "stream output"
+
+    output_path = tmp_path / "report.opm"
+    oem_to_opm_entry.report_results("file output", output_path)
+    assert output_path.read_text(encoding="utf-8") == "file output\n"
+
+
+def test_build_opm_converts_si_state_and_omits_optional_elements(
+    tmp_path: Path,
+) -> None:
+    opm_object = oem_to_opm_entry.build_opm(
+        datetime(2024, 1, 1, tzinfo=timezone.utc),
+        np.array([7_000_000.0, 1_000_000.0, -2_000_000.0, 100.0, 7_500.0, -200.0]),
+        None,
+        object_name="ISS",
+        object_id="1998-067A",
+        center_name="EARTH",
+        ref_frame="ICRF",
+        time_system="UTC",
+        mu_m3_s2=3.986004418e14,
+    )
+    output_path = tmp_path / "cartesian.opm"
+
+    opm_object.to_file(output_path)
+
+    _, _, output_data = opm.read_opm(output_path)
+    assert output_data["X"] == pytest.approx(7000.0)
+    assert output_data["Y_DOT"] == pytest.approx(7.5)
+    assert "SEMI_MAJOR_AXIS" not in output_data
+
+
+def test_report_error_prints_to_stderr_and_exits(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as error:
+        oem_to_opm_entry.report_error("conversion failed", exit_code=3)
+
+    assert error.value.code == 3
+    assert capsys.readouterr().err == "conversion failed\n"
