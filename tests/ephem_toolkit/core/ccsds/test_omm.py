@@ -554,3 +554,96 @@ def test_keplerian_to_omm_round_trip(tmp_path: Path) -> None:
     assert omm2.arg_of_pericenter == pytest.approx(omm1.arg_of_pericenter, abs=1e-10)
     assert omm2.mean_anomaly == pytest.approx(omm1.mean_anomaly, abs=1e-10)
     assert omm2.tle_parameters is None
+
+
+def test_validate_omm_rejects_missing_conditional_fields() -> None:
+    header = {
+        "CCSDS_OMM_VERS": 3.0,
+        "CREATION_DATE": "2026-01-01T00:00:00Z",
+        "ORIGINATOR": "TEST",
+    }
+    valid_data = {
+        "OBJECT_NAME": "TEST",
+        "OBJECT_ID": "2026-001A",
+        "CENTER_NAME": "EARTH",
+        "REF_FRAME": "ICRF",
+        "TIME_SYSTEM": "UTC",
+        "MEAN_ELEMENT_THEORY": "DSST",
+        "EPOCH": "2026-01-01T00:00:00Z",
+        "MEAN_MOTION": 15.0,
+        "ECCENTRICITY": 0.001,
+        "INCLINATION": 45.0,
+        "RA_OF_ASC_NODE": 20.0,
+        "ARG_OF_PERICENTER": 30.0,
+        "MEAN_ANOMALY": 40.0,
+    }
+
+    with pytest.raises(ValueError, match="header field"):
+        omm.validate_omm({}, valid_data)
+    with pytest.raises(ValueError, match="metadata field"):
+        omm.validate_omm(header, {})
+    with pytest.raises(ValueError, match="mean element field"):
+        omm.validate_omm(
+            header, {key: value for key, value in valid_data.items() if key != "EPOCH"}
+        )
+
+    no_size = {key: value for key, value in valid_data.items() if key != "MEAN_MOTION"}
+    with pytest.raises(ValueError, match="SEMI_MAJOR_AXIS or MEAN_MOTION"):
+        omm.validate_omm(header, no_size)
+    with pytest.raises(ValueError, match="exactly one"):
+        omm.validate_omm(header, {**valid_data, "SEMI_MAJOR_AXIS": 7000.0})
+
+    for theory, required in (
+        ("SGP", "MEAN_MOTION_DOT"),
+        ("SGP4", "BSTAR"),
+        ("SGP4-XP", "AGOM"),
+    ):
+        with pytest.raises(ValueError, match="TLE field"):
+            omm.validate_omm(
+                header,
+                {**valid_data, "MEAN_ELEMENT_THEORY": theory},
+            )
+
+    with pytest.raises(ValueError, match="Incomplete OMM covariance"):
+        omm.validate_omm(header, {**valid_data, "CX_X": 1.0})
+
+
+def test_ccsds_omm_round_trip_preserves_spacecraft_and_covariance(
+    tmp_path: Path,
+) -> None:
+    fields = [
+        "CCSDS_OMM_VERS = 3.0",
+        "CREATION_DATE = 2026-01-01T00:00:00Z",
+        "ORIGINATOR = TEST",
+        "OBJECT_NAME = TEST",
+        "OBJECT_ID = 2026-001A",
+        "CENTER_NAME = EARTH",
+        "REF_FRAME = ICRF",
+        "TIME_SYSTEM = UTC",
+        "MEAN_ELEMENT_THEORY = DSST",
+        "EPOCH = 2026-01-01T00:00:00Z",
+        "MEAN_MOTION = 15.0",
+        "ECCENTRICITY = 0.001",
+        "INCLINATION = 45.0",
+        "RA_OF_ASC_NODE = 20.0",
+        "ARG_OF_PERICENTER = 30.0",
+        "MEAN_ANOMALY = 40.0",
+        "MASS = 12.0",
+        "COV_REF_FRAME = ICRF",
+    ]
+    fields.extend(f"{key} = 1.0" for key in omm._COVARIANCE_KEYS)
+    message = omm.CcsdsOmm.from_source(io.StringIO("\n".join(fields)))
+    output_path = tmp_path / "optional-fields.omm"
+
+    assert message.tle_parameters is None
+    assert message.spacecraft_parameters is not None
+    assert message.spacecraft_parameters.mass == pytest.approx(12.0)
+    assert message.covariance is not None
+    assert message.covariance.matrix[0, 0] == pytest.approx(1.0)
+    message.to_file(output_path)
+
+    restored = omm.CcsdsOmm.from_source(output_path)
+    assert restored.spacecraft_parameters is not None
+    assert restored.spacecraft_parameters.mass == pytest.approx(12.0)
+    assert restored.covariance is not None
+    assert restored.covariance.ref_frame == "ICRF"
