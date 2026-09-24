@@ -131,6 +131,22 @@ def test_main_adds_tle_flag_without_mutating_arguments(
     assert arguments == ["orbit.tle", "--duration", "15m"]
 
 
+def test_main_uses_sys_argv_when_argv_is_omitted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    arguments = ["propagate-tle", "orbit.tle", "--duration", "15m"]
+    forwarded_args = []
+    monkeypatch.setattr("sys.argv", arguments)
+    monkeypatch.setattr(
+        propagate_omm,
+        "main",
+        lambda args: forwarded_args.extend(args) or 6,
+    )
+
+    assert propagate_tle_entry.main() == 6
+    assert forwarded_args == ["--tle", "orbit.tle", "--duration", "15m"]
+
+
 def test_cli_delegates_to_shared_cli_runner(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = lambda main, argv: 4
     monkeypatch.setattr("ephem_toolkit.core.cli.run_cli", runner)
