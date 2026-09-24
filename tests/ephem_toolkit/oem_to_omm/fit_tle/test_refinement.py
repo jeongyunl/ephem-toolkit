@@ -6,6 +6,7 @@ import math
 from datetime import datetime, timezone
 
 import numpy as np
+import pytest
 
 from ephem_toolkit.oem_to_omm.fit_tle import refinement
 from ephem_toolkit.oem_to_omm.fit_tle.models import Estimated, TleParameters
@@ -115,6 +116,39 @@ def test_state_match_refinement_handles_initial_propagation_failure(
     assert estimated.state_match_refinement_used is False
     assert estimated.state_match_position_error_m is None
     assert estimated.state_match_velocity_error_m_s is None
+
+
+@pytest.mark.parametrize("failure_result", [None, "missing-state"])
+def test_state_match_refinement_handles_finite_difference_failures(
+    monkeypatch, failure_result
+) -> None:
+    estimated = _make_estimated()
+    calls = 0
+    monkeypatch.setattr(
+        refinement, "build_tle_lines", lambda *_args: ("line1", "line2")
+    )
+
+    def evaluate_states(line_pairs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return [np.zeros(6)]
+        if failure_result is None:
+            return None
+        states = [np.zeros(6) for _ in line_pairs]
+        states[0] = None
+        return states
+
+    monkeypatch.setattr(refinement, "evaluate_tle_epoch_states_m", evaluate_states)
+
+    result = refinement.refine_estimated_fields_to_match_epoch_state(
+        object(), estimated, np.ones(6)
+    )
+
+    assert result is estimated
+    assert estimated.state_match_refinement_used is False
+    assert estimated.state_match_position_error_m == pytest.approx(np.sqrt(3.0))
+    assert estimated.state_match_velocity_error_m_s == pytest.approx(np.sqrt(3.0))
 
 
 def test_keplerian_match_refinement_handles_reference_conversion_failure(
