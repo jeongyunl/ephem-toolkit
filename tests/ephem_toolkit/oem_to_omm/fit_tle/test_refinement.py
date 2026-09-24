@@ -38,6 +38,125 @@ def _make_estimated() -> Estimated:
     )
 
 
+def test_evaluate_tle_epoch_states_m_propagates_each_pair(monkeypatch) -> None:
+    parsed_lines = []
+    propagated_epochs = []
+    monkeypatch.setattr(
+        refinement.tle,
+        "read_tle",
+        lambda stream: parsed_lines.append(stream.read()) or object(),
+    )
+
+    class FakePropagator:
+        def __init__(self, _tle_obj) -> None:
+            pass
+
+        def get_initial_epoch_s(self) -> float:
+            return 100.0
+
+        def propagate_to(self, epoch_s: float):
+            propagated_epochs.append(epoch_s)
+            return epoch_s, np.full(6, epoch_s)
+
+    monkeypatch.setattr(refinement.sgp4_propagator, "Sgp4Propagator", FakePropagator)
+
+    states = refinement.evaluate_tle_epoch_states_m(
+        [("line1", "line2"), ("line3", "line4")]
+    )
+
+    assert parsed_lines == ["line1\nline2", "line3\nline4"]
+    assert propagated_epochs == [100.0, 100.0]
+    assert [state[0] for state in states] == [100.0, 100.0]
+
+
+def test_evaluate_tle_states_for_offsets_m_propagates_each_offset(monkeypatch) -> None:
+    parsed_lines = []
+    propagated_epochs = []
+    monkeypatch.setattr(
+        refinement.tle,
+        "read_tle",
+        lambda stream: parsed_lines.append(stream.read()) or object(),
+    )
+
+    class FakePropagator:
+        def __init__(self, _tle_obj) -> None:
+            pass
+
+        def get_initial_epoch_s(self) -> float:
+            return 100.0
+
+        def propagate_to(self, epoch_s: float):
+            propagated_epochs.append(epoch_s)
+            return epoch_s, np.full(6, epoch_s)
+
+    monkeypatch.setattr(refinement.sgp4_propagator, "Sgp4Propagator", FakePropagator)
+
+    states = refinement.evaluate_tle_states_for_offsets_m("line1", "line2", [0.0, 10.0])
+
+    assert parsed_lines == ["line1\nline2"]
+    assert propagated_epochs == [100.0, 110.0]
+    assert [state[0] for state in states] == [100.0, 110.0]
+
+
+def test_state_match_refinement_handles_initial_propagation_failure(
+    monkeypatch,
+) -> None:
+    estimated = _make_estimated()
+    monkeypatch.setattr(
+        refinement, "build_tle_lines", lambda *_args: ("line1", "line2")
+    )
+    monkeypatch.setattr(refinement, "evaluate_tle_epoch_states_m", lambda *_args: None)
+
+    result = refinement.refine_estimated_fields_to_match_epoch_state(
+        object(), estimated, np.ones(6)
+    )
+
+    assert result is estimated
+    assert estimated.state_match_refinement_used is False
+    assert estimated.state_match_position_error_m is None
+    assert estimated.state_match_velocity_error_m_s is None
+
+
+def test_keplerian_match_refinement_handles_reference_conversion_failure(
+    monkeypatch,
+) -> None:
+    estimated = _make_estimated()
+    monkeypatch.setattr(
+        refinement.kepler,
+        "cartesian_to_keplerian",
+        lambda *_args: (_ for _ in ()).throw(ValueError("invalid state")),
+    )
+
+    result = refinement.refine_estimated_fields_keplerian_match(
+        object(), estimated, [(0.0, np.zeros(6))]
+    )
+
+    assert result is estimated
+    assert estimated.keplerian_match_refinement_used is False
+
+
+def test_keplerian_match_refinement_handles_tle_conversion_failure(
+    monkeypatch,
+) -> None:
+    estimated = _make_estimated()
+    monkeypatch.setattr(
+        refinement.kepler, "cartesian_to_keplerian", lambda *_args: np.ones(6)
+    )
+    monkeypatch.setattr(refinement, "build_tle_data", lambda *_args: object())
+    monkeypatch.setattr(
+        refinement.convert_tle,
+        "tle_to_osculating_keplerian",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("invalid TLE")),
+    )
+
+    result = refinement.refine_estimated_fields_keplerian_match(
+        object(), estimated, [(0.0, np.zeros(6))]
+    )
+
+    assert result is estimated
+    assert estimated.keplerian_match_refinement_used is False
+
+
 class TestClampRefinedElements:
     """Tests for clamp_refined_elements function."""
 
@@ -530,6 +649,7 @@ class TestComputeKeplerianMatchScore:
         score, errors = refinement.compute_keplerian_match_score(tle_kep, ref_kep)
 
         # Should still compute arg_latitude correctly
+        assert score > 0.0
         assert errors.arg_latitude_error_deg != 0.0
 
 
