@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
 from ephem_toolkit.core.ccsds import oem
+from ephem_toolkit.core.ccsds import opm
 from ephem_toolkit.core.propagator import kepler
 import ephem_toolkit.core.cli as core_cli
 import ephem_toolkit.propagate_kepler.__main__ as propagate_kepler_entry
@@ -153,6 +155,35 @@ def test_read_kepler_input_reads_opm_from_stdin(
 
     assert output_metadata["object_name"] == "EUTELSAT W4"
     assert kepler_km[5] == pytest.approx(41.922339 * 3.141592653589793 / 180.0)
+
+
+def test_read_kepler_input_rejects_tty_stdin(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("sys.stdin", SimpleNamespace(isatty=lambda: True))
+
+    with pytest.raises(ValueError, match="OPM input not provided"):
+        read_kepler_input("-")
+
+
+def test_read_kepler_input_rejects_empty_stdin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO(" \n"))
+
+    with pytest.raises(ValueError, match="Empty stdin input"):
+        read_kepler_input(None)
+
+
+def test_read_kepler_input_requires_keplerian_elements(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        opm.CcsdsOpm,
+        "from_source",
+        lambda _source: SimpleNamespace(keplerian_elements=None),
+    )
+
+    with pytest.raises(ValueError, match="does not contain Keplerian elements"):
+        read_kepler_input("unused.opm")
 
 
 def test_propagate_kepler_writes_cartesian_states_in_si_units(
