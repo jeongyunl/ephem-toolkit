@@ -3,11 +3,39 @@
 from __future__ import annotations
 
 import math
+from datetime import datetime, timezone
 
 import numpy as np
 
 from ephem_toolkit.oem_to_omm.fit_tle import refinement
-from ephem_toolkit.oem_to_omm.fit_tle.models import TleParameters
+from ephem_toolkit.oem_to_omm.fit_tle.models import Estimated, TleParameters
+
+
+def _make_estimated() -> Estimated:
+    return Estimated(
+        epoch_datetime=datetime(2026, 5, 20, tzinfo=timezone.utc),
+        epoch_year=26,
+        epoch_day=140.0,
+        inclination_deg=51.6,
+        raan_deg=45.0,
+        eccentricity=0.001,
+        arg_perigee_deg=90.0,
+        mean_anomaly_deg=30.0,
+        mean_motion_rev_per_day=15.5,
+        inclination_deg_osculating_at_epoch=51.6,
+        raan_deg_osculating_at_epoch=45.0,
+        arg_perigee_deg_osculating_at_epoch=90.0,
+        mean_anomaly_deg_osculating_at_epoch=30.0,
+        mean_motion_rev_per_day_osculating_at_epoch=15.5,
+        mean_motion_rev_per_day_regression_at_epoch=15.5,
+        mean_argument_latitude_rate_rev_per_day=15.5,
+        phase_match_count=0,
+        phase_match_weight=0.0,
+        mean_motion_first_derivative=0.0,
+        mean_motion_first_derivative_raw=0.0,
+        semi_major_axis_m=7_000_000.0,
+        dataset_slope_rev_per_day2=0.0,
+    )
 
 
 class TestClampRefinedElements:
@@ -542,3 +570,95 @@ class TestEvaluateTleStatesForOffsetsM:
 
         # Result depends on whether tudatpy is available
         assert result is None or isinstance(result, list)
+
+
+def test_state_match_refinement_accepts_an_improving_line_search_step(
+    monkeypatch,
+) -> None:
+    estimated = _make_estimated()
+    parameter_names = tuple(TleParameters.__dataclass_fields__)
+
+    def fake_build_tle_lines(_args, trial_estimated):
+        values = [getattr(trial_estimated, name) for name in parameter_names]
+        return ",".join(repr(value) for value in values), ""
+
+    def fake_evaluate_tle_states(line_pairs):
+        return [
+            np.array([float(value) for value in line1.split(",")])
+            for line1, _line2 in line_pairs
+        ]
+
+    monkeypatch.setattr(refinement, "build_tle_lines", fake_build_tle_lines)
+    monkeypatch.setattr(
+        refinement, "evaluate_tle_epoch_states_m", fake_evaluate_tle_states
+    )
+    target_state = np.array(
+        [
+            estimated.inclination_deg + 0.05,
+            estimated.raan_deg,
+            estimated.eccentricity,
+            estimated.arg_perigee_deg,
+            estimated.mean_anomaly_deg,
+            estimated.mean_motion_rev_per_day,
+        ]
+    )
+
+    result = refinement.refine_estimated_fields_to_match_epoch_state(
+        object(), estimated, target_state
+    )
+
+    assert result is estimated
+    assert estimated.state_match_refinement_used is True
+    assert estimated.state_match_iterations >= 1
+    assert np.isclose(estimated.inclination_deg, target_state[0], atol=1e-5)
+    assert np.isclose(estimated.state_match_position_error_m, 0.0, atol=1e-5)
+
+
+def test_keplerian_match_refinement_stops_when_no_trial_improves(
+    monkeypatch,
+) -> None:
+    estimated = _make_estimated()
+    parameter_names = tuple(TleParameters.__dataclass_fields__)
+
+    def fake_build_tle_data(_args, trial_estimated):
+        return tuple(getattr(trial_estimated, name) for name in parameter_names)
+
+    def fake_tle_to_keplerian(parameters, _mu):
+        inclination, raan, eccentricity, arg_perigee, mean_anomaly, mean_motion = (
+            parameters
+        )
+        return [
+            mean_motion * 1e6,
+            eccentricity,
+            math.radians(inclination),
+            math.radians(raan),
+            math.radians(arg_perigee),
+            math.radians(mean_anomaly),
+        ]
+
+    monkeypatch.setattr(
+        refinement.kepler,
+        "cartesian_to_keplerian",
+        lambda *_args: [
+            15.5e6,
+            0.001,
+            math.radians(51.65),
+            math.radians(45.0),
+            math.radians(90.0),
+            math.radians(30.0),
+        ],
+    )
+    monkeypatch.setattr(refinement, "build_tle_data", fake_build_tle_data)
+    monkeypatch.setattr(
+        refinement.convert_tle, "tle_to_osculating_keplerian", fake_tle_to_keplerian
+    )
+
+    result = refinement.refine_estimated_fields_keplerian_match(
+        object(), estimated, [(0.0, np.zeros(6))]
+    )
+
+    assert result is estimated
+    assert estimated.keplerian_match_refinement_used is False
+    assert estimated.keplerian_match_iterations == 0
+    assert estimated.inclination_deg == 51.6
+    assert np.isclose(estimated.keplerian_match_score, 0.05, atol=1e-5)
