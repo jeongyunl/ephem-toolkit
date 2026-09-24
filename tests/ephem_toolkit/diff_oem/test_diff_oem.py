@@ -19,6 +19,7 @@ from ephem_toolkit.diff_oem import data_structures
 from ephem_toolkit.diff_oem import output
 from ephem_toolkit.diff_oem import transformation_stages
 from ephem_toolkit.diff_oem import utils
+import ephem_toolkit.diff_oem.__main__ as diff_oem_entry
 
 _DEFAULT_SPEC = InterpolationSpec(interp_type=InterpolationType.HERMITE, degree=5)
 """Default interpolation spec used by test helpers."""
@@ -423,6 +424,45 @@ def test_fit_z_rotation_matrix_matches_comparison_to_reference() -> None:
     )
 
     np.testing.assert_allclose(fitted_rotation, reference_rotation, atol=1e-9)
+
+
+def test_main_reports_non_overlapping_input_histories(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    reference_states = [_create_state(0.0, 0.0), _create_state(1.0, 1.0)]
+    comparison_states = [_create_state(10.0, 10.0), _create_state(11.0, 11.0)]
+    monkeypatch.setattr(
+        comparison,
+        "read_states",
+        lambda source: (
+            reference_states if source == "reference.oem" else comparison_states
+        ),
+    )
+    monkeypatch.setattr(utils, "find_overlapping_time_range", lambda *_args: None)
+
+    with pytest.raises(SystemExit) as error:
+        diff_oem_entry.main(["reference.oem", "comparison.oem"])
+
+    assert error.value.code == 1
+    assert "no overlapping time period" in capsys.readouterr().err
+
+
+def test_main_returns_when_comparison_has_no_pairs(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    states = [_create_state(0.0, 0.0), _create_state(1.0, 1.0)]
+    monkeypatch.setattr(comparison, "read_states", lambda _source: states)
+    monkeypatch.setattr(utils, "find_overlapping_time_range", lambda *_args: (0.0, 1.0))
+    monkeypatch.setattr(
+        utils, "build_comparison_pairs", lambda *_args: [(states[0], states[0])]
+    )
+    monkeypatch.setattr(utils, "compare_pairs", lambda *_args: [])
+    monkeypatch.setattr(
+        factory.InterpolatorFactory, "create", lambda **_kwargs: object()
+    )
+
+    assert diff_oem_entry.main(["reference.oem", "comparison.oem"]) is None
+    assert capsys.readouterr().out == ""
 
 
 def test_time_shift_stage_fits_and_applies_epoch_bias() -> None:
