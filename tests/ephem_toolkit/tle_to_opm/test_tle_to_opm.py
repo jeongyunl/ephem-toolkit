@@ -3,6 +3,7 @@
 import pytest
 from types import SimpleNamespace
 
+import ephem_toolkit.core.cli as core_cli
 import ephem_toolkit.tle_to_opm as tle_package
 import ephem_toolkit.tle_to_opm.__main__ as tle_wrapper
 from ephem_toolkit.tle_to_opm.__main__ import main
@@ -49,3 +50,15 @@ def test_package_entry_points_forward_arguments(monkeypatch) -> None:
     assert tle_package.main(["input.tle"]) is None
     assert tle_package.cli(["input.tle"]) == 4
     assert calls == [("main", ["input.tle"]), ("cli", ["input.tle"])]
+
+
+def test_cli_forwards_to_shared_runner(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr(
+        core_cli,
+        "run_cli",
+        lambda main_func, argv: calls.append((main_func, argv)) or 6,
+    )
+
+    assert tle_wrapper.cli(["input.tle"]) == 6
+    assert calls == [(tle_wrapper.main, ["input.tle"])]
