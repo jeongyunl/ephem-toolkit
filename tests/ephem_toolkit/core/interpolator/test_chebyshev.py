@@ -39,11 +39,18 @@ def test_chebyshev_boundary_policies_select_expected_window_sizes() -> None:
     values = np.arange(11.0)
     centered = make_interpolator()
     widened = make_interpolator("widen", 2)
+    edge = make_interpolator("edge", 2)
     compact = make_interpolator("compact", 1)
 
     assert centered._select_window(values, 0.0) == (0, 3, 2)
+    assert centered._select_window(values, 10.0) == (8, 11, 2)
     assert widened._select_window(values, 0.0) == (0, 5, 2)
+    assert widened._select_window(values, 10.0) == (6, 11, 2)
+    assert widened._select_window(values, 5.0) == (3, 8, 2)
+    assert edge._select_window(values, 0.0) == (0, 5, 2)
+    assert edge._select_window(values, 10.0) == (6, 11, 2)
     assert compact._select_window(values, 0.0) == (0, 2, 1)
+    assert compact._select_window(values, 10.0) == (9, 11, 1)
 
 
 def test_chebyshev_domain_checks_extrapolation_and_short_data() -> None:
@@ -74,9 +81,22 @@ def test_chebyshev_validates_configuration_and_resets_cache() -> None:
     interpolator.degree = 1
     assert interpolator.required_points == 2
     assert interpolator._cache_coefficients is None
+    with pytest.raises(ValueError, match="degree must be at least 1"):
+        interpolator.degree = 0
     interpolator.interpolate(4.0)
+    interpolator.add_data_point(11.0, np.array([121.0, 23.0]))
+    assert interpolator._cache_coefficients is None
     interpolator.reset_state()
     assert interpolator.degree == 2
     assert interpolator._cache_coefficients is None
     interpolator.clear_storage()
     assert interpolator.independent_values == []
+
+
+def test_chebyshev_fit_handles_a_constant_independent_window() -> None:
+    interpolator = make_interpolator()
+
+    domain, design_matrix = interpolator._fit_window(np.array([2.0, 2.0]), 1)
+
+    assert domain == (2.0, 3.0)
+    np.testing.assert_array_equal(design_matrix, [[1.0, -1.0], [1.0, -1.0]])
