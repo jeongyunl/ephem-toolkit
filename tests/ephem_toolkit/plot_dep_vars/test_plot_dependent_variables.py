@@ -193,3 +193,64 @@ def test_main_closes_figures_and_returns_on_keyboard_interrupt(monkeypatch) -> N
     assert plot_dep_vars_entry.main(["orbit_dep_vars.csv"]) is None
 
     close.assert_called_once_with("all")
+
+
+def test_plot_helpers_render_scalar_vector_and_animation_data() -> None:
+    headers = []
+    columns = {}
+
+    def add_column(header: str, values: np.ndarray) -> None:
+        headers.append(header)
+        columns[header] = values
+
+    sample_count = 24
+    for component in range(3):
+        add_column(
+            f"total_acceleration//ISS//{component}",
+            np.full(sample_count, component + 1.0),
+        )
+        add_column(
+            f"central_body_fixed_cartesian_position//ISS/Earth/{component}",
+            np.linspace(7.0e6, 7.1e6, sample_count) + component,
+        )
+        add_column(
+            f"relative_position//ISS/Earth/{component}",
+            np.linspace(component, component + 10.0, sample_count),
+        )
+    for component in range(6):
+        add_column(
+            f"keplerian_state//ISS/Earth/{component}",
+            np.linspace(component + 1.0, component + 2.0, sample_count),
+        )
+    add_column("latitude//ISS/Earth", np.linspace(-0.5, 0.5, sample_count))
+    add_column("longitude//ISS/Earth", np.linspace(-1.0, 1.0, sample_count))
+    add_column(
+        "single_acceleration_norm/point_mass_gravity/ISS/Earth",
+        np.full(sample_count, 1.0e-3),
+    )
+    metadata = [
+        dep_vars.parse_dep_var_column_metadata(header, header, 0) for header in headers
+    ]
+    data = dep_vars.CsvDependentVariableData(
+        time_history_tt_s=np.arange(sample_count, dtype=float),
+        dep_var_columns=columns,
+        metadata=metadata,
+    )
+    relative_time_h = np.arange(sample_count, dtype=float)
+
+    try:
+        dep_vars.plot_total_acceleration(data, relative_time_h, "ISS")
+        dep_vars.plot_ground_track(data, relative_time_h, "ISS")
+        dep_vars.plot_kepler_elements(data, relative_time_h, "ISS")
+        dep_vars.plot_acceleration_components(data, relative_time_h, "ISS")
+        animations = [
+            dep_vars.plot_satellite_body_fixed_position_history_3d(data, "ISS"),
+            dep_vars.plot_satellite_relative_position_history_3d(data, "ISS"),
+        ]
+        for animation in animations:
+            assert animation is not None
+            animation._init_func()
+            animation._func(2)
+            animation._draw_was_started = True
+    finally:
+        dep_vars.plt.close("all")
