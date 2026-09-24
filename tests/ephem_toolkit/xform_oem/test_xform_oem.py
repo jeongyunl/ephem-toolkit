@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 import io
+import argparse
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
+import numpy as np
+import pytest
+
+import ephem_toolkit.xform_oem.operations as operations
 from ephem_toolkit.xform_oem import main
 
 TEST_DIR: Path = Path(__file__).parent
@@ -133,3 +139,87 @@ def test_x_arguments_are_mutually_exclusive() -> None:
 
     assert result.returncode != 0
     assert "not allowed with argument" in result.stderr
+
+
+def test_parse_metadata_and_header_overrides_converts_typed_values() -> None:
+    parser = argparse.ArgumentParser()
+
+    metadata = operations.parse_metadata_overrides(
+        ["object_name=Updated", "INTERPOLATION_DEGREE=9"], parser
+    )
+    header = operations.parse_header_overrides(
+        ["originator=tool", "CCSDS_OEM_VERS=3.0"], parser
+    )
+
+    assert metadata == [("object_name", "Updated"), ("interpolation_degree", 9)]
+    assert header == [("originator", "tool"), ("version", 3.0)]
+
+
+@pytest.mark.parametrize(
+    ("parser_function", "value", "message"),
+    [
+        (operations.parse_metadata_overrides, "OBJECT_NAME", "requires KEY=VALUE"),
+        (
+            operations.parse_metadata_overrides,
+            "UNKNOWN=value",
+            "unknown --set-meta key",
+        ),
+        (
+            operations.parse_metadata_overrides,
+            "INTERPOLATION_DEGREE=high",
+            "must be an integer",
+        ),
+        (operations.parse_header_overrides, "ORIGINATOR", "requires KEY=VALUE"),
+        (
+            operations.parse_header_overrides,
+            "UNKNOWN=value",
+            "unknown --set-header key",
+        ),
+        (
+            operations.parse_header_overrides,
+            "CCSDS_OEM_VERS=latest",
+            "must be numeric",
+        ),
+    ],
+)
+def test_override_parsers_reject_invalid_values(
+    parser_function, value, message
+) -> None:
+    with pytest.raises(SystemExit):
+        parser_function([value], argparse.ArgumentParser())
+
+
+def test_convert_ref_frame_mutates_states_and_returns_canonical_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_state = np.arange(6, dtype=float)
+    oem_data = SimpleNamespace(
+        meta=SimpleNamespace(ref_frame="GCRF"),
+        states=[(123.0, original_state.copy())],
+    )
+    converted_state = original_state + 10.0
+    monkeypatch.setattr(
+        operations.frame_utils,
+        "convert_frame",
+        lambda **_kwargs: converted_state,
+    )
+
+    result = operations.convert_ref_frame(oem_data, "itrf")
+
+    assert result == "ITRF"
+    np.testing.assert_array_equal(oem_data.states[0][1], converted_state)
+
+
+def test_convert_ref_frame_leaves_state_unchanged_when_conversion_fails(
+    monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    original_state = np.arange(6, dtype=float)
+    oem_data = SimpleNamespace(
+        meta=SimpleNamespace(ref_frame="GCRF"),
+        states=[(123.0, original_state.copy())],
+    )
+    monkeypatch.setattr(operations.frame_utils, "convert_frame", lambda **_kwargs: None)
+
+    assert operations.convert_ref_frame(oem_data, "ITRF") is None
+    np.testing.assert_array_equal(oem_data.states[0][1], original_state)
+    assert "Leaving state unchanged" in capsys.readouterr().err
