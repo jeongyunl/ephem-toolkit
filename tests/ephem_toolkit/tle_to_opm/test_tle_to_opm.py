@@ -3,6 +3,7 @@
 import pytest
 from types import SimpleNamespace
 
+import ephem_toolkit.tle_to_opm as tle_package
 import ephem_toolkit.tle_to_opm.__main__ as tle_wrapper
 from ephem_toolkit.tle_to_opm.__main__ import main
 
@@ -36,3 +37,15 @@ def test_tle_to_opm_dispatches_sgp4_and_delegates(monkeypatch) -> None:
     assert calls[0][0][:3] == ["--fit-model", "numerical", "-"]
     assert calls[0][0][-2:] == ["--source-model", "sgp4"]
     assert calls[0][1] == "generated OEM\n"
+
+
+def test_package_entry_points_forward_arguments(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr(tle_wrapper, "main", lambda argv: calls.append(("main", argv)))
+    monkeypatch.setattr(
+        tle_wrapper, "cli", lambda argv: calls.append(("cli", argv)) or 4
+    )
+
+    assert tle_package.main(["input.tle"]) is None
+    assert tle_package.cli(["input.tle"]) == 4
+    assert calls == [("main", ["input.tle"]), ("cli", ["input.tle"])]
