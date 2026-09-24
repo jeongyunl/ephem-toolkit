@@ -77,6 +77,36 @@ def test_fit_brouwer_fits_velocity_and_filters_to_span(monkeypatch) -> None:
     assert diagnostics.epoch_vel_delta_m_s > 0.0
 
 
+def test_brouwer_residual_helper_returns_flat_position_residuals(monkeypatch) -> None:
+    class FakePropagator:
+        def __init__(self, **_kwargs):
+            pass
+
+        def propagate_to(self, epoch_s):
+            return epoch_s, np.full(6, epoch_s, dtype=float)
+
+    monkeypatch.setattr(
+        fit_brouwer.kepler,
+        "cartesian_to_keplerian",
+        lambda *_args: np.arange(6, dtype=float),
+    )
+    monkeypatch.setattr(
+        fit_brouwer.brouwer,
+        "osculating_to_brouwer_mean",
+        lambda elements, **_kwargs: elements,
+    )
+    monkeypatch.setattr(fit_brouwer, "BrouwerJ2Propagator", FakePropagator)
+
+    residuals = fit_brouwer._compute_brouwer_residuals_from_epoch_state(
+        np.ones(6),
+        np.array([0.0, 2.0]),
+        np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
+        mu_m3_s2=1.0,
+    )
+
+    np.testing.assert_array_equal(residuals, [1.0, 2.0, 3.0, 2.0, 3.0, 4.0])
+
+
 def test_compute_brouwer_propagation_comparison_includes_final_epoch(
     monkeypatch,
 ) -> None:
@@ -142,3 +172,25 @@ def test_format_brouwer_output_accepts_dict_diagnostics_and_comparison(
     assert "records used:       3" in output
     assert "Propagation comparison" in output
     assert "Position |Δr|:  min = 1.000000 km" in output
+
+
+def test_format_brouwer_output_accepts_fit_diagnostics(monkeypatch) -> None:
+    monkeypatch.setattr(
+        fit_brouwer.kepler, "semi_major_axis_to_mean_motion", lambda _a: 15.0
+    )
+    diagnostics = FitDiagnostics(
+        rms_position_m=250.0,
+        iterations=4,
+        n_records=3,
+        span_s=120.0,
+    )
+
+    output = fit_brouwer.format_brouwer_output(
+        datetime(2025, 1, 1),
+        np.array([7.0e6, 0.01, 0.2, 0.3, 0.4, 0.5]),
+        diagnostics,
+        [],
+    )
+
+    assert "records used:       3" in output
+    assert "epoch Δ|v0|" not in output
