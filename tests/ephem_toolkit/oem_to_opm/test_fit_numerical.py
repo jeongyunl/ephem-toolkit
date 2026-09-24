@@ -11,6 +11,7 @@ from ephem_toolkit.oem_to_opm.fit_numerical import (
     validate_fixed_parameter_values,
     optimize_initial_state,
     make_propagation_callback,
+    make_numerical_trajectory_callback,
     validate_numerical_fit,
 )
 
@@ -28,8 +29,16 @@ def test_valid_numerical_fit_configuration() -> None:
     [
         (NumericalFitConfig(fit_span_s=0), "fit span"),
         (NumericalFitConfig(position_weight=0), "position weight"),
-        (NumericalFitConfig(parameters="initial-state,drag-coeff", drag_enabled=False), "drag to be enabled"),
-        (NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=False), "SRP to be enabled"),
+        (
+            NumericalFitConfig(
+                parameters="initial-state,drag-coeff", drag_enabled=False
+            ),
+            "drag to be enabled",
+        ),
+        (
+            NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=False),
+            "SRP to be enabled",
+        ),
     ],
 )
 def test_invalid_numerical_fit_configuration(config, message) -> None:
@@ -41,13 +50,19 @@ def test_fit_requires_two_six_component_states() -> None:
     with pytest.raises(ValueError, match="two reference states"):
         validate_numerical_fit(states(1), NumericalFitConfig())
     with pytest.raises(ValueError, match="six Cartesian"):
-        validate_numerical_fit([(0.0, np.zeros(3)), (1.0, np.zeros(3))], NumericalFitConfig())
+        validate_numerical_fit(
+            [(0.0, np.zeros(3)), (1.0, np.zeros(3))], NumericalFitConfig()
+        )
 
 
 def test_force_parameter_fitting_can_be_enabled() -> None:
     validate_numerical_fit(
         states(),
-        NumericalFitConfig(parameters="initial-state,drag-coeff", drag_enabled=True, drag_coefficient=2.2),
+        NumericalFitConfig(
+            parameters="initial-state,drag-coeff",
+            drag_enabled=True,
+            drag_coefficient=2.2,
+        ),
     )
 
 
@@ -140,7 +155,9 @@ def test_fit_configuration_rejects_incomplete_propagator_settings(monkeypatch) -
         types.SimpleNamespace(NumericalPropagatorConfig=object),
     )
     with pytest.raises(ValueError, match="mass and drag area"):
-        NumericalFitConfig(satellite_mass_kg=None, drag_area_m2=None).to_propagator_config()
+        NumericalFitConfig(
+            satellite_mass_kg=None, drag_area_m2=None
+        ).to_propagator_config()
 
 
 def test_config_from_propagation_options_preserves_fixed_coefficients() -> None:
@@ -160,7 +177,10 @@ def test_config_from_propagation_options_preserves_fixed_coefficients() -> None:
         mars_gravity = False
 
     config = config_from_propagation_options(
-        Options(), fit_span_s=90.0, fit_step_s=10.0, parameters="initial-state,drag-coeff"
+        Options(),
+        fit_span_s=90.0,
+        fit_step_s=10.0,
+        parameters="initial-state,drag-coeff",
     )
     assert config.fit_span_s == 90.0
     assert config.fixed_parameter_values() == {"drag_coeff": 2.2}
@@ -195,7 +215,9 @@ def test_validate_fixed_parameter_values_requires_exact_propagator_values() -> N
         validate_fixed_parameter_values(config, {"drag_coeff": 2.3})
     validate_numerical_fit(
         states(),
-        NumericalFitConfig(parameters="initial-state,srp-coeff", srp_enabled=True, srp_coefficient=1.3),
+        NumericalFitConfig(
+            parameters="initial-state,srp-coeff", srp_enabled=True, srp_coefficient=1.3
+        ),
     )
 
 
@@ -299,7 +321,12 @@ def test_optimizer_keeps_supplied_physical_parameters_fixed() -> None:
         lambda initial, _epoch: initial,
         np.zeros(6),
         states(),
-        NumericalFitConfig(parameters="initial-state,drag-coeff", drag_enabled=True, drag_coefficient=2.2, fit_step_s=1.0),
+        NumericalFitConfig(
+            parameters="initial-state,drag-coeff",
+            drag_enabled=True,
+            drag_coefficient=2.2,
+            fit_step_s=1.0,
+        ),
     )
     assert result.converged
 
@@ -331,7 +358,10 @@ def test_position_residual_preserves_cartesian_direction() -> None:
 
 
 def test_build_weighted_residuals_preserves_initial_position() -> None:
-    reference = [(0.0, np.array([10.0, 20.0, 30.0, 1.0, 2.0, 3.0])), (60.0, np.zeros(6))]
+    reference = [
+        (0.0, np.array([10.0, 20.0, 30.0, 1.0, 2.0, 3.0])),
+        (60.0, np.zeros(6)),
+    ]
     observed_initial_states = []
 
     def propagate(initial_state, _epoch):
@@ -345,10 +375,15 @@ def test_build_weighted_residuals_preserves_initial_position() -> None:
 
 
 def test_optimize_initial_state_uses_numpy_only_and_preserves_position() -> None:
-    reference = [(0.0, np.array([10.0, 20.0, 30.0, 1.0, 2.0, 3.0])), (1.0, np.array([11.0, 22.0, 33.0, 1.0, 2.0, 3.0]))]
+    reference = [
+        (0.0, np.array([10.0, 20.0, 30.0, 1.0, 2.0, 3.0])),
+        (1.0, np.array([11.0, 22.0, 33.0, 1.0, 2.0, 3.0])),
+    ]
 
     result = optimize_initial_state(
-        lambda initial, epoch: np.concatenate((initial[:3] + epoch * initial[3:], initial[3:])),
+        lambda initial, epoch: np.concatenate(
+            (initial[:3] + epoch * initial[3:], initial[3:])
+        ),
         np.zeros(6),
         reference,
         NumericalFitConfig(fit_step_s=1.0),
@@ -390,7 +425,9 @@ def test_numerical_factory_is_lazy_and_builds_initial_state(monkeypatch) -> None
         NumericalInitialState=InitialState,
         NumericalPropagator=Propagator,
     )
-    monkeypatch.setitem(sys.modules, "ephem_toolkit.core.propagator.numerical", fake_module)
+    monkeypatch.setitem(
+        sys.modules, "ephem_toolkit.core.propagator.numerical", fake_module
+    )
     config = object()
 
     from ephem_toolkit.oem_to_opm.fit_numerical import make_numerical_propagator_factory
@@ -424,7 +461,9 @@ def test_numerical_factory_reuses_propagator_and_resets_state(monkeypatch) -> No
     monkeypatch.setitem(
         sys.modules,
         "ephem_toolkit.core.propagator.numerical",
-        types.SimpleNamespace(NumericalInitialState=InitialState, NumericalPropagator=Propagator),
+        types.SimpleNamespace(
+            NumericalInitialState=InitialState, NumericalPropagator=Propagator
+        ),
     )
     from ephem_toolkit.oem_to_opm.fit_numerical import make_numerical_propagator_factory
 
@@ -438,7 +477,12 @@ def test_numerical_factory_reuses_propagator_and_resets_state(monkeypatch) -> No
 
 
 def test_residual_sampling_handles_irregular_epochs_and_fit_span() -> None:
-    reference = [(0.0, np.zeros(6)), (30.0, np.ones(6)), (75.0, np.full(6, 2.0)), (150.0, np.full(6, 3.0))]
+    reference = [
+        (0.0, np.zeros(6)),
+        (30.0, np.ones(6)),
+        (75.0, np.full(6, 2.0)),
+        (150.0, np.full(6, 3.0)),
+    ]
     calls = []
 
     def propagate(_initial, epoch):
@@ -454,3 +498,48 @@ def test_residual_sampling_handles_irregular_epochs_and_fit_span() -> None:
 
     assert calls == [0.0, 30.0, 75.0]
     assert diagnostics.n_records == 3
+
+
+def test_numerical_trajectory_callback_interpolates_requested_epochs(
+    monkeypatch,
+) -> None:
+    from ephem_toolkit.core.interpolator import hermite
+
+    class Propagator:
+        def propagate_to(self, epoch, output):
+            assert epoch == 160.0
+            return [(100.0, np.zeros(6)), (160.0, np.ones(6))]
+
+    class FakeInterpolator:
+        def __init__(self, **_kwargs):
+            self.states = []
+
+        def set_data(self, states):
+            self.states = states
+
+        def interpolate(self, epoch):
+            return np.full(6, epoch)
+
+    monkeypatch.setattr(hermite, "SlidingWindowHermiteInterpolator", FakeInterpolator)
+    callback = make_numerical_trajectory_callback(
+        lambda _state, _epoch: Propagator(), 100.0, 60.0
+    )
+
+    result = callback(np.zeros(6), [100.0, 130.0])
+
+    np.testing.assert_array_equal(result[100.0], np.full(6, 100.0))
+    np.testing.assert_array_equal(result[130.0], np.full(6, 130.0))
+
+
+@pytest.mark.parametrize("trajectory", [None, []])
+def test_numerical_trajectory_callback_rejects_missing_trajectory(trajectory) -> None:
+    class Propagator:
+        def propagate_to(self, *_args, **_kwargs):
+            return trajectory
+
+    callback = make_numerical_trajectory_callback(
+        lambda _state, _epoch: Propagator(), 100.0, 60.0
+    )
+
+    with pytest.raises(ValueError, match="did not return a trajectory"):
+        callback(np.zeros(6), [100.0])
