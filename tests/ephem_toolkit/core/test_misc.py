@@ -222,6 +222,59 @@ def test_transform_to_rtn_orthonormal_basis() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("state", "reference_state", "message"),
+    [
+        (np.zeros(5), None, "State vector must have shape"),
+        (np.zeros((2, 5)), None, "State vectors must have shape"),
+        (np.zeros((2, 2, 6)), None, "must be 1D or 2D"),
+        (np.zeros(6), np.zeros(5), "Reference state must have shape"),
+        (np.zeros((2, 6)), np.zeros((1, 6)), "must match number of target states"),
+        (np.zeros((2, 6)), np.zeros((6, 1)), "Reference states must have shape"),
+        (np.zeros(6), np.zeros((1, 1, 6)), "Reference state must be 1D or 2D"),
+    ],
+)
+def test_transform_to_rtn_rejects_invalid_shapes(
+    state: np.ndarray, reference_state: np.ndarray | None, message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        misc.transform_to_rtn(state, reference_state)
+
+
+def test_angle_helpers_cover_empty_and_wraparound_cases() -> None:
+    assert misc.unwrap_angles_rad([]) == []
+    assert misc.wrap_angle_rad(-0.5) == pytest.approx(2.0 * np.pi - 0.5)
+    np.testing.assert_allclose(
+        misc.unwrap_angles_rad([3.0, -3.0, 3.0]),
+        [3.0, 2.0 * np.pi - 3.0, 3.0],
+    )
+    assert misc.circular_mean_angle_rad([]) == 0.0
+    assert misc.circular_mean_angle_rad([0.0, np.pi]) == pytest.approx(0.0)
+    assert misc.angle_difference_rad(0.1, 2.0 * np.pi - 0.1) == pytest.approx(0.2)
+
+
+def test_rotation_matrix_to_euler_angles_handles_normal_and_gimbal_lock() -> None:
+    normal_angles = misc.rotation_matrix_to_euler_angles(np.eye(3))
+    np.testing.assert_allclose(normal_angles, np.zeros(3))
+
+    positive_lock = np.eye(3)
+    positive_lock[2, 0] = -1.0
+    positive_lock[0, 1] = 0.5
+    positive_lock[1, 1] = 0.5
+    np.testing.assert_allclose(
+        misc.rotation_matrix_to_euler_angles(positive_lock),
+        [np.degrees(-np.pi / 4), 90, 0],
+    )
+
+    negative_lock = np.eye(3)
+    negative_lock[2, 0] = 1.0
+    negative_lock[0, 1] = 0.5
+    negative_lock[1, 1] = 0.5
+    np.testing.assert_allclose(
+        misc.rotation_matrix_to_euler_angles(negative_lock), [45, -90, 0]
+    )
+
+
 # ===================================================================
 # 3. parse_key_value_line — shared KV parsing utility
 # ===================================================================
