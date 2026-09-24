@@ -230,6 +230,75 @@ def test_main_reports_invalid_duration(monkeypatch, capsys) -> None:
     assert "failed to parse duration 'not-a-duration'" in capsys.readouterr().err
 
 
+def test_main_interactive_mode_handles_callbacks_and_restores_signal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import signal
+
+    import matplotlib.pyplot as plt
+
+    series = SimpleNamespace(
+        position_km=None,
+        rtn_elapsed_time=None,
+        rtn_delta_km=None,
+        elapsed_time=None,
+        velocity_magnitude_km_s=None,
+        angular_velocity_deg_s=None,
+        angular_velocity_rad_s=None,
+        euler_angles_deg=None,
+        euler_angle_rates_deg_s=None,
+        geocentric_distance_km=None,
+        altitude_km=None,
+    )
+    monkeypatch.setattr(
+        plot_oem_module,
+        "read_oem_states",
+        lambda _path: (Mock(), [0.0], [np.zeros(6)]),
+    )
+    monkeypatch.setattr(plot_oem_module, "compute_orbit_series", lambda *_args: series)
+    monkeypatch.setattr(
+        plot_oem_module, "warn_if_altitude_frame_assumption_is_weak", Mock()
+    )
+    for name in (
+        "plot_state_vectors",
+        "plot_rtn_delta_time_series",
+        "plot_scalar_time_series",
+        "plot_angular_velocity_time_series",
+        "plot_direction_change_time_series",
+        "plot_geocentric_distance_with_delta",
+    ):
+        monkeypatch.setattr(plot_oem_module, name, Mock())
+
+    key_callbacks = []
+    figure = SimpleNamespace(
+        canvas=SimpleNamespace(
+            mpl_connect=lambda _event, callback: key_callbacks.append(callback)
+        )
+    )
+    monkeypatch.setattr(plt, "get_fignums", lambda: [1])
+    monkeypatch.setattr(plt, "figure", lambda _number: figure)
+    close_figures = Mock()
+    monkeypatch.setattr(plt, "close", close_figures)
+    signal_handlers = []
+    monkeypatch.setattr(
+        signal,
+        "signal",
+        lambda _signal, handler: signal_handlers.append(handler) or "previous",
+    )
+
+    def show_then_interrupt():
+        key_callbacks[0](SimpleNamespace(key="ctrl+c"))
+        signal_handlers[0](signal.SIGINT, None)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(plt, "show", show_then_interrupt)
+
+    plot_oem_entry.main(["orbit.oem"])
+
+    assert close_figures.call_count == 3
+    assert signal_handlers[-1] == "previous"
+
+
 def test_plot_helpers_render_populated_and_empty_series(monkeypatch) -> None:
     save_figure = Mock()
     monkeypatch.setattr(plot_oem_module, "save_or_show_figure", save_figure)
