@@ -29,12 +29,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
         epilog=(
             "Examples:\n"
-            "  plot-orbit orbit.oem\n"
-            "  plot-orbit orbit.oem -d 6h --time-unit minutes\n"
-            "  plot-orbit orbit.oem -o orbit_plots.png"
+            "  plot-oem orbit.oem\n"
+            "  plot-oem orbit.oem -d 6h --time-unit minutes\n"
+            "  plot-oem orbit.oem -o orbit_plots.png"
         ),
     )
-    cli_parser.prog = "plot-orbit"
+    cli_parser.prog = "plot-oem"
     cli_parser.add_argument(
         "input_oem",
         type=str,

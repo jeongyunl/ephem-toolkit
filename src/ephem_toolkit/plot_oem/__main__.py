@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from .plot_orbit_cli import build_arg_parser, parse_arguments, PlotOrbitArgs
+from .plot_oem_cli import build_arg_parser, parse_arguments, PlotOrbitArgs
 
 
 def main(argv=None) -> None:
@@ -20,7 +20,7 @@ def main(argv=None) -> None:
 
     import ephem_toolkit.core.time_utils as time_utils
 
-    from .plot_orbit import (
+    from .plot_oem import (
         OrbitSeries,
         TimeUnit,
         build_output_filename,

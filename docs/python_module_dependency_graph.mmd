@@ -44,7 +44,7 @@ graph LR
     mod_util_oem_to_omm([oem_to_omm])
     mod_util_oem_to_opm([oem_to_opm])
     mod_util_omm_to_tle([omm_to_tle])
-    mod_util_plot_orbit([plot_orbit])
+    mod_util_plot_oem([plot_oem])
     mod_util_plot_orbit_deltas([plot_orbit_deltas])
     mod_util_plot_dep_vars([plot_dependent_variables])
     mod_util_propagate_kepler([propagate_kepler])
@@ -98,8 +98,8 @@ graph LR
     mod_util_diff_oem --> mod_core_time_utils
     mod_util_diff_oem --> mod_interpolator_factory
     mod_util_diff_oem --> mod_core_cli
-    mod_util_plot_orbit --> mod_core_oem
-    mod_util_plot_orbit --> mod_core_time_utils
+    mod_util_plot_oem --> mod_core_oem
+    mod_util_plot_oem --> mod_core_time_utils
     mod_util_plot_orbit_deltas --> mod_core_oem
     mod_util_plot_orbit_deltas --> mod_core_time_utils
     mod_util_plot_orbit_deltas --> mod_interpolator_lagrange

@@ -1,6 +1,6 @@
 # Single-Orbit Plotting Utility
 
-The `plot-orbit` utility reads a CCSDS OEM ephemeris and produces diagnostic plots for the orbit, state history, velocity, angular motion, geocentric distance, and WGS84 altitude.
+The `plot-oem` utility reads a CCSDS OEM ephemeris and produces diagnostic plots for the orbit, state history, velocity, angular motion, geocentric distance, and WGS84 altitude.
 
 ## Overview
 
@@ -13,14 +13,14 @@ This utility provides several views of one OEM orbit:
 - **Duration filtering**: Analyze the full OEM history or only an initial time interval
 - **Flexible display**: Show figures interactively or save each figure using a common output-file prefix
 
-The command is installed as the canonical `plot-orbit` entry point.
+The command is installed as the canonical `plot-oem` entry point.
 
 ## Synopsis
 
 ```bash
-plot-orbit <input_oem> [OPTIONS]
-plot-orbit orbit.oem
-plot-orbit orbit.oem --duration 6h --time-unit minutes
+plot-oem <input_oem> [OPTIONS]
+plot-oem orbit.oem
+plot-oem orbit.oem --duration 6h --time-unit minutes
 ```
 
 ## Options
@@ -63,7 +63,7 @@ Without `--output`, the command opens the generated Matplotlib figures interacti
 For example:
 
 ```bash
-plot-orbit orbit.oem -o figures/orbit.png
+plot-oem orbit.oem -o figures/orbit.png
 ```
 
 produces files with names like:
@@ -99,31 +99,31 @@ The RTN delta view requires more than one state. Short input files may therefore
 **Plot the full orbit interactively:**
 
 ```bash
-plot-orbit orbit.oem
+plot-oem orbit.oem
 ```
 
 **Analyze the first six hours using minutes on time-series axes:**
 
 ```bash
-plot-orbit orbit.oem --duration 6h --time-unit minutes
+plot-oem orbit.oem --duration 6h --time-unit minutes
 ```
 
 **Save all diagnostic figures using an output prefix:**
 
 ```bash
-plot-orbit orbit.oem --output orbit_plots.png
+plot-oem orbit.oem --output orbit_plots.png
 ```
 
 **Save a short analysis:**
 
 ```bash
-plot-orbit orbit.oem -d 90m -o results/iss_90min.png
+plot-oem orbit.oem -d 90m -o results/iss_90min.png
 ```
 
 **Show command help:**
 
 ```bash
-plot-orbit --help
+plot-oem --help
 ```
 
 ## Requirements

@@ -2,7 +2,7 @@
 """Plot a single OEM orbit and derived time-series diagnostics.
 
 Usage:
-    plot-orbit <input_oem> [-o output.png] [-d 6h] [--time-unit hours]
+    plot-oem <input_oem> [-o output.png] [-d 6h] [--time-unit hours]
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ import ephem_toolkit.core.misc as misc
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.wgs as wgs
 
-from .plot_orbit_cli import PlotOrbitArgs, build_arg_parser, parse_arguments
+from .plot_oem_cli import PlotOrbitArgs, build_arg_parser, parse_arguments
 
 # ===================================================================
 # Constants

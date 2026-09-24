@@ -128,6 +128,6 @@ plot-orbit-deltas -h
 ## Related Tools
 
 - `diff-oem` - Report numerical differences between two OEM histories.
-- `plot-orbit` - Produce diagnostic plots for one OEM orbit.
+- `plot-oem` - Produce diagnostic plots for one OEM orbit.
 - `slice-oem` - Extract a subset of an OEM history.
 

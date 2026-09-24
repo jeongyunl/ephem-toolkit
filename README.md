@@ -26,7 +26,7 @@ flowchart LR
     propagate_sat(["propagate-orbit"])
     propagate_kepler(["propagate-kepler"])
     propagate_omm(["propagate-omm"])
-    plot_orbit(["plot-orbit"])
+    plot_oem(["plot-oem"])
     plot_orbit_deltas(["plot-orbit-deltas"])
     plot_dep_vars(["plot-dependent-variables"])
     diff_oem(["diff-oem"])
@@ -50,9 +50,9 @@ flowchart LR
     propagate_omm --> fmt_oem
 
     fmt_oem --> diff_oem
-    fmt_oem --> plot_orbit
+    fmt_oem --> plot_oem
     fmt_oem --> plot_orbit_deltas
-    plot_orbit --> fmt_plots
+    plot_oem --> fmt_plots
     plot_orbit_deltas --> fmt_plots
 
     fmt_dep_vars_csv --> plot_dep_vars
@@ -152,7 +152,7 @@ flowchart LR
 
 | Workflow | Command |
 | --- | --- |
-| Orbit plotting | [`plot-orbit`](docs/PLOT_ORBIT.md) |
+| Orbit plotting | [`plot-oem`](docs/PLOT_OEM.md) |
 | Orbit-delta plotting | [`plot-orbit-deltas`](docs/PLOT_ORBIT_DELTAS.md) |
 | Dependent-variable plotting | [`plot-dependent-variables`](docs/PLOT_DEPENDENT_VARIABLES.md) |
 
@@ -196,7 +196,7 @@ Fits an OEM arc with a two-body osculating Keplerian model and writes an OPM con
 
 ### Visualization
 
-- [`plot-orbit`](docs/PLOT_ORBIT.md) — visualize orbit trajectories and output state histories
+- [`plot-oem`](docs/PLOT_OEM.md) — visualize orbit trajectories and output state histories
 - [`plot-orbit-deltas`](docs/PLOT_ORBIT_DELTAS.md) — plot and compare multiple orbits
 - [`plot-dependent-variables`](docs/PLOT_DEPENDENT_VARIABLES.md) — plot dependent variables from propagation output
 
@@ -235,7 +235,7 @@ src/
 │   ├── oem_to_opm/          OEM-to-OPM osculating-element fitting application module
 │   ├── omm_to_tle/          OMM-to-TLE conversion utilities
 │   ├── plot_dep_vars/       Dependent-variable plotting utilities
-│   ├── plot_orbit/          Orbit visualization utilities
+│   ├── plot_oem/          Orbit visualization utilities
 │   ├── plot_orbit_deltas/   Orbit-difference plotting utilities
 │   ├── propagate_kepler/    Kepler propagation package
 │   ├── propagate_orbit/     Cartesian propagation package

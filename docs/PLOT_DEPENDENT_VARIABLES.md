@@ -135,6 +135,6 @@ The command uses NumPy, Matplotlib, and the local time utilities.
 ## Related Tools
 
 - `propagate-orbit` - Generate dependent-variable CSV data.
-- `plot-orbit` - Plot OEM orbit diagnostics.
+- `plot-oem` - Plot OEM orbit diagnostics.
 - `plot-orbit-deltas` - Compare multiple orbit histories.
 

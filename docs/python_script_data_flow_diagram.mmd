@@ -43,7 +43,7 @@ flowchart LR
     propagate_sat(["propagate-orbit"])
     propagate_kepler(["propagate-kepler"])
     diff_oem(["diff-oem"])
-    plot_orbit(["plot-orbit"])
+    plot_oem(["plot-oem"])
     plot_orbit_deltas(["plot-orbit-deltas"])
     plot_dep_vars(["plot-dependent-variables"])
     slice_oem(["slice-oem"])
@@ -83,9 +83,9 @@ flowchart LR
     propagate_kepler -->|"osculating-Keplerian Cartesian state history"| fmt_oem_osculating
 
     fmt_oem --> diff_oem
-    fmt_oem --> plot_orbit
+    fmt_oem --> plot_oem
     fmt_oem --> plot_orbit_deltas
-    plot_orbit --> fmt_plots
+    plot_oem --> fmt_plots
     plot_orbit_deltas --> fmt_plots
 
     fmt_oem --> slice_oem
