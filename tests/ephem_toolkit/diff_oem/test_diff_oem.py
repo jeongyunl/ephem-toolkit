@@ -16,7 +16,9 @@ from ephem_toolkit.core.interpolator.interpolation_spec import (
 from ephem_toolkit.diff_oem import diff_oem_cli
 from ephem_toolkit.diff_oem import comparison
 from ephem_toolkit.diff_oem import data_structures
+from ephem_toolkit.diff_oem import debug
 from ephem_toolkit.diff_oem import output
+from ephem_toolkit.diff_oem import pipeline
 from ephem_toolkit.diff_oem import transformation_stages
 from ephem_toolkit.diff_oem import utils
 import ephem_toolkit.diff_oem.__main__ as diff_oem_entry
@@ -609,3 +611,129 @@ def test_print_statistics_reports_rtn_criteria(
     assert "Statistics (std, min, max)" in captured_output
     assert "RTN r (km): +0.000, +0.000, +0.000" in captured_output
     assert "RTN v" not in captured_output
+
+
+def test_transformation_input_resolves_valid_pairs_and_skips_invalid_pairs() -> None:
+    class FakeInterpolator:
+        def __init__(self, invalid_epoch=None):
+            self.invalid_epoch = invalid_epoch
+
+        def interpolate(self, epoch_s):
+            if epoch_s == self.invalid_epoch:
+                return None
+            return np.full(6, epoch_s)
+
+    valid_pair = (_create_state(0.0, 0.0), _create_state(0.0, 10.0))
+    invalid_pair = (_create_state(10.0, 10.0), _create_state(10.0, 20.0))
+    stage_input = data_structures.TransformationStageInput(
+        state_pairs=[valid_pair, invalid_pair],
+        reference_interpolator=FakeInterpolator(),
+        comparison_interpolator=FakeInterpolator(invalid_epoch=10.0),
+    )
+
+    resolved = stage_input.resolve_state_pairs()
+
+    assert len(resolved) == 1
+    assert resolved[0][0][0] == resolved[0][1][0] == 0.0
+    assert (
+        data_structures.TransformationStageInput(
+            [], FakeInterpolator(), FakeInterpolator()
+        ).resolve_state_pairs()
+        == []
+    )
+
+
+def test_debug_helpers_format_numeric_datetime_and_missing_ranges(
+    monkeypatch, capsys
+) -> None:
+    debug.set_debug(False)
+    debug.debug_print("hidden")
+    debug.debug_print_time_range("hidden", 0.0, 1.0)
+    assert capsys.readouterr().err == ""
+
+    monkeypatch.setattr(debug.time_utils, "tt_s_to_datetime", lambda epoch: epoch)
+    monkeypatch.setattr(
+        debug.time_utils, "datetime_to_iso8601", lambda epoch: f"t{epoch}"
+    )
+    debug.set_debug(True)
+    try:
+        debug.debug_print("visible", "tests")
+        debug.debug_print_time_range("numeric", 1.0, 2.0)
+        debug.debug_print_time_range(
+            "datetime", datetime(2024, 1, 1), datetime(2024, 1, 2)
+        )
+        debug.debug_print_time_range("missing", None, None)
+    finally:
+        debug.set_debug(False)
+
+    stderr = capsys.readouterr().err
+    assert "[diff_oem.tests] visible" in stderr
+    assert "[ t1.0, t2.0 ]" in stderr
+    assert "t2024-01-01 00:00:00" in stderr
+    assert "[ none, none ]" in stderr
+
+
+def test_main_prints_successful_normal_comparison(monkeypatch) -> None:
+    states = [_create_state(0.0, 0.0), _create_state(1.0, 1.0)]
+    monkeypatch.setattr(comparison, "read_states", lambda _source: states)
+    monkeypatch.setattr(utils, "find_overlapping_time_range", lambda *_args: (0.0, 1.0))
+    monkeypatch.setattr(
+        utils, "build_comparison_pairs", lambda *_args: [(states[0], states[0])]
+    )
+    result = (0.0, object())
+    monkeypatch.setattr(utils, "compare_pairs", lambda *_args: [result])
+    monkeypatch.setattr(
+        factory.InterpolatorFactory, "create", lambda **_kwargs: object()
+    )
+    printed = []
+
+    class FakeOutput:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def print(self):
+            printed.append(self.kwargs)
+
+    monkeypatch.setattr(output, "ComparisonOutput", FakeOutput)
+
+    assert diff_oem_entry.main(["reference.oem", "comparison.oem"]) is None
+    assert len(printed) == 1
+    assert printed[0]["comparison_results"] == [result]
+
+
+def test_main_executes_requested_time_shift_stage(monkeypatch) -> None:
+    states = [_create_state(0.0, 0.0), _create_state(1.0, 1.0)]
+    monkeypatch.setattr(comparison, "read_states", lambda _source: states)
+    monkeypatch.setattr(utils, "find_overlapping_time_range", lambda *_args: (0.0, 1.0))
+    monkeypatch.setattr(
+        utils, "build_comparison_pairs", lambda *_args: [(states[0], states[0])]
+    )
+    monkeypatch.setattr(utils, "compare_pairs", lambda *_args: [(0.0, object())])
+    monkeypatch.setattr(
+        factory.InterpolatorFactory, "create", lambda **_kwargs: object()
+    )
+    reports = []
+
+    class FakeOutput:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def print(self):
+            reports.append(self.kwargs)
+
+    class FakePipeline:
+        def __init__(self, *, stages, **_kwargs):
+            self.stages = stages
+
+        def execute(self, _verbose):
+            return [(self.stages[0], 1.0, states)]
+
+    monkeypatch.setattr(output, "ComparisonOutput", FakeOutput)
+    monkeypatch.setattr(pipeline, "TransformationPipeline", FakePipeline)
+
+    diff_oem_entry.main(["reference.oem", "comparison.oem", "--time-shift"])
+
+    assert len(reports) == 2
+    assert reports[0]["title"] == "Normal comparison"
+    assert reports[1]["title"].startswith("Comparison after stage 1:")
+    assert reports[1]["fit_description"].startswith("Applied comparison time shift")
