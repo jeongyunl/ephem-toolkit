@@ -60,3 +60,68 @@ def test_linear_regression_slope_and_intercept() -> None:
     # Expected: slope = 2.0, intercept = 1.0
     assert slope == pytest.approx(2.0, abs=1e-10)
     assert intercept == pytest.approx(1.0, abs=1e-10)
+
+
+@pytest.mark.parametrize(
+    ("state", "message"),
+    [
+        (np.zeros(6), "position norm is zero"),
+        (np.array([7.0e6, 0.0, 0.0, 1.0, 0.0, 0.0]), "angular momentum norm is zero"),
+    ],
+)
+def test_state_to_orbital_elements_rejects_degenerate_states(state, message) -> None:
+    with pytest.raises(ValueError, match=message):
+        orbital_mechanics.state_to_orbital_elements(state)
+
+
+@pytest.mark.parametrize(
+    ("speed", "message"),
+    [(np.sqrt(2.0), "Parabolic trajectory"), (2.0, "Hyperbolic trajectory")],
+)
+def test_state_to_orbital_elements_rejects_unbound_states(
+    monkeypatch, speed: float, message: str
+) -> None:
+    monkeypatch.setattr(
+        orbital_mechanics.consts, "EARTH_GRAVITATIONAL_PARAMETER_M3_S2", 1.0
+    )
+
+    with pytest.raises(ValueError, match=message):
+        orbital_mechanics.state_to_orbital_elements(
+            np.array([1.0, 0.0, 0.0, 0.0, speed, 0.0])
+        )
+
+
+def test_state_to_orbital_elements_handles_circular_equatorial_orbit() -> None:
+    mu = orbital_mechanics.consts.EARTH_GRAVITATIONAL_PARAMETER_M3_S2
+    radius = 7.0e6
+    state = np.array([radius, 0.0, 0.0, 0.0, np.sqrt(mu / radius), 0.0])
+
+    elements = orbital_mechanics.state_to_orbital_elements(state)
+
+    assert elements.eccentricity == pytest.approx(0.0, abs=1e-12)
+    assert elements.raan_deg == 0.0
+    assert elements.arg_perigee_deg == 0.0
+
+
+def test_linear_regression_handles_empty_and_constant_inputs() -> None:
+    assert orbital_mechanics.linear_regression_slope([], []) == 0.0
+    assert orbital_mechanics.linear_regression_slope([1.0, 1.0], [2.0, 3.0]) == 0.0
+    assert orbital_mechanics.linear_regression_intercept([], []) == 0.0
+    assert orbital_mechanics.linear_regression_intercept([4.0], [7.0]) == 7.0
+
+
+def test_phase_match_epoch_angles_returns_matched_mean_angles() -> None:
+    records = [
+        models.OrbitalRecord(0.0, 0.1, 0.2, 0.3, 0.5),
+        models.OrbitalRecord(1.0, 0.2, 0.3, 0.4, 0.5),
+    ]
+
+    result = orbital_mechanics.phase_match_epoch_angles(records, 0.5, 1.0)
+
+    assert result is not None
+    assert result.count == 2
+    assert result.raan_rad == pytest.approx(0.15)
+
+
+def test_phase_match_epoch_angles_rejects_nonpositive_period() -> None:
+    assert orbital_mechanics.phase_match_epoch_angles([], 0.0, 0.0) is None
