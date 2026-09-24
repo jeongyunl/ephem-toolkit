@@ -163,6 +163,35 @@ def test_parse_orbit_cli_physical_parameters() -> None:
     assert propagate_orbit_cli.parse_drag_coefficient("2.1") == 2.1
 
 
+@pytest.mark.parametrize(
+    ("parser", "value", "message"),
+    [
+        (propagate_orbit_cli.parse_integrator_method, "unknown", "integrator must"),
+        (propagate_orbit_cli.parse_mass_kg, "bad", "valid number"),
+        (propagate_orbit_cli.parse_mass_kg, "0", "positive value"),
+        (
+            propagate_orbit_cli.parse_earth_spherical_harmonic_gravity_degree_order,
+            "bad",
+            "DxO format",
+        ),
+        (
+            propagate_orbit_cli.parse_earth_spherical_harmonic_gravity_degree_order,
+            "5x6",
+            "less than or equal",
+        ),
+        (propagate_orbit_cli.parse_drag_area_m2, "bad", "valid number"),
+        (propagate_orbit_cli.parse_drag_area_m2, "0", "positive value"),
+        (propagate_orbit_cli.parse_srp_coefficient, "0", "positive value"),
+        (propagate_orbit_cli.parse_drag_coefficient, "0", "positive value"),
+    ],
+)
+def test_physical_argument_parsers_reject_invalid_values(
+    parser, value: str, message: str
+) -> None:
+    with pytest.raises(Exception, match=message):
+        parser(value)
+
+
 def test_propagate_orbit_main_routes_preparation_and_propagation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
