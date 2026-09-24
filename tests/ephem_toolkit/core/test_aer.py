@@ -346,3 +346,46 @@ def test_aer_elevation_in_valid_range() -> None:
 
     assert (results[:, 1] >= -np.pi / 2.0).all()
     assert (results[:, 1] <= np.pi / 2.0).all()
+
+
+def test_aer_state_conversions_round_trip_batches() -> None:
+    ecef_states = np.array(
+        [
+            [*wgs.lla_to_ecef(REF_LLA_ARBITRARY + [0.001, 0.002, 100.0]), 10, 20, 30],
+            [*wgs.lla_to_ecef(REF_LLA_ARBITRARY + [0.002, 0.001, 200.0]), -5, 15, 25],
+        ],
+        dtype=float,
+    )
+
+    aer_states = aer.ecef_to_aer_state(ecef_states, REF_LLA_ARBITRARY)
+    recovered_states = aer.aer_to_ecef_state(aer_states, REF_LLA_ARBITRARY)
+
+    assert aer_states.shape == (2, 6)
+    np.testing.assert_allclose(
+        recovered_states, ecef_states, rtol=1e-10, atol=ATOL_POSITION_M
+    )
+
+
+@pytest.mark.parametrize(
+    ("converter", "values"),
+    [
+        (aer.ecef_to_aer_state, np.zeros((2, 5))),
+        (aer.aer_to_ecef_state, np.zeros((2, 5))),
+        (aer.ecef_to_aer_state, np.zeros((1, 2, 6))),
+        (aer.aer_to_ecef_state, np.zeros((1, 2, 6))),
+    ],
+)
+def test_aer_state_conversions_reject_invalid_shapes(converter, values) -> None:
+    with pytest.raises(ValueError, match="state"):
+        converter(values, REF_LLA_EQUATOR)
+
+
+def test_enu_to_aer_velocity_handles_batch_and_origin_singularity() -> None:
+    positions = np.array([[1000.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
+    velocities = np.array([[0.0, 100.0, 0.0], [1.0, 2.0, 3.0]])
+
+    result = aer.enu_to_aer_velocity(positions, velocities)
+
+    assert result.shape == (2, 3)
+    np.testing.assert_allclose(result[0], [-0.1, 0.0, 0.0], atol=1e-10)
+    np.testing.assert_array_equal(result[1], [0.0, 0.0, 0.0])
