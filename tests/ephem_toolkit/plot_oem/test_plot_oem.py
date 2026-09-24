@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import io
 import sys
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import numpy as np
 import pytest
 
+import ephem_toolkit.plot_oem.__main__ as plot_oem_entry
+import ephem_toolkit.plot_oem.plot_oem as plot_oem_module
 from ephem_toolkit.plot_oem.plot_oem_cli import build_arg_parser, parse_arguments
 from ephem_toolkit.plot_oem.plot_oem import (
     TimeUnit,
@@ -157,3 +160,71 @@ def test_warn_if_altitude_frame_assumption_is_weak(capsys) -> None:
     inertial_oem.meta.center_name = "EARTH"
     warn_if_altitude_frame_assumption_is_weak(inertial_oem)
     assert "Warning: altitude-from-WGS84" in capsys.readouterr().out
+
+
+def test_main_filters_duration_and_routes_series_to_all_plotters(monkeypatch) -> None:
+    oem_data = Mock()
+    timestamps_s = [100.0, 1_900.0, 3_700.0]
+    states_m = [np.full(6, value) for value in timestamps_s]
+    series = SimpleNamespace(
+        position_km=np.zeros((2, 3)),
+        rtn_elapsed_time=np.array([0.5]),
+        rtn_delta_km=np.zeros((1, 6)),
+        elapsed_time=np.array([0.0, 0.5]),
+        velocity_magnitude_km_s=np.ones(2),
+        angular_velocity_deg_s=np.zeros(2),
+        angular_velocity_rad_s=np.zeros(2),
+        euler_angles_deg=np.zeros((2, 3)),
+        euler_angle_rates_deg_s=np.zeros((2, 3)),
+        geocentric_distance_km=np.ones(2),
+        altitude_km=np.ones(2),
+    )
+    read_states = Mock(return_value=(oem_data, timestamps_s, states_m))
+    compute_series = Mock(return_value=series)
+    monkeypatch.setattr(plot_oem_module, "read_oem_states", read_states)
+    monkeypatch.setattr(plot_oem_module, "compute_orbit_series", compute_series)
+    monkeypatch.setattr(
+        plot_oem_module, "warn_if_altitude_frame_assumption_is_weak", Mock()
+    )
+    plotters = {
+        name: Mock()
+        for name in (
+            "plot_state_vectors",
+            "plot_rtn_delta_time_series",
+            "plot_scalar_time_series",
+            "plot_angular_velocity_time_series",
+            "plot_direction_change_time_series",
+            "plot_geocentric_distance_with_delta",
+        )
+    }
+    for name, plotter in plotters.items():
+        monkeypatch.setattr(plot_oem_module, name, plotter)
+
+    plot_oem_entry.main(
+        [
+            "orbit.oem",
+            "--duration",
+            "30m",
+            "--time-unit",
+            "minutes",
+            "--output",
+            "plots/orbit.png",
+        ]
+    )
+
+    read_states.assert_called_once_with("orbit.oem")
+    compute_series.assert_called_once_with(
+        [100.0, 1_900.0], states_m[:2], TimeUnit.MINUTES
+    )
+    assert plotters["plot_state_vectors"].call_args.args[2] == (
+        "plots/orbit_state_vectors.png"
+    )
+    assert plotters["plot_scalar_time_series"].call_count == 2
+
+
+def test_main_reports_invalid_duration(monkeypatch, capsys) -> None:
+    with pytest.raises(SystemExit) as error:
+        plot_oem_entry.main(["orbit.oem", "--duration", "not-a-duration"])
+
+    assert error.value.code == 1
+    assert "failed to parse duration 'not-a-duration'" in capsys.readouterr().err
