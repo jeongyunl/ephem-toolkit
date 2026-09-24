@@ -47,11 +47,11 @@ def test_main_reads_stdin_converts_tle_and_writes_to_stdout(
     monkeypatch.setattr(
         convert_tle,
         "tle_to_omm",
-        lambda parsed_tle: SimpleNamespace(
-            to_file=lambda output: output.write("OMM output\n")
-        )
-        if parsed_tle is tle_object
-        else None,
+        lambda parsed_tle: (
+            SimpleNamespace(to_file=lambda output: output.write("OMM output\n"))
+            if parsed_tle is tle_object
+            else None
+        ),
     )
     monkeypatch.setattr(sys, "stdin", io.StringIO("TLE input\n"))
 
@@ -112,3 +112,40 @@ def test_main_reports_unreadable_or_empty_input(
 
     assert error.value.code == 1
     assert error_text in capsys.readouterr().err
+
+
+def test_main_reports_empty_file_and_invalid_tle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    input_path = tmp_path / "empty.tle"
+    input_path.write_text("  \n", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as empty_error:
+        tle_to_omm_entry.main([str(input_path), "--output", "-"])
+    assert empty_error.value.code == 1
+    assert "is empty" in capsys.readouterr().err
+
+    input_path.write_text("not a TLE\n", encoding="utf-8")
+    monkeypatch.setattr(
+        tle, "read_tle", lambda _stream: (_ for _ in ()).throw(ValueError("bad TLE"))
+    )
+    with pytest.raises(SystemExit) as parse_error:
+        tle_to_omm_entry.main([str(input_path), "--output", "-"])
+    assert parse_error.value.code == 1
+    assert "bad TLE" in capsys.readouterr().err
+
+
+def test_tle_to_omm_cli_uses_shared_runner(monkeypatch: pytest.MonkeyPatch) -> None:
+    import ephem_toolkit.core.cli as core_cli
+
+    calls = []
+    monkeypatch.setattr(
+        core_cli,
+        "run_cli",
+        lambda main_func, argv: calls.append((main_func, argv)) or 9,
+    )
+
+    assert tle_to_omm_entry.cli(["input.tle"]) == 9
+    assert calls == [(tle_to_omm_entry.main, ["input.tle"])]
