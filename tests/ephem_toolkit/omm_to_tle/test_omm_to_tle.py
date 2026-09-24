@@ -10,6 +10,7 @@ import pytest
 
 import ephem_toolkit.core.ccsds.omm as omm
 import ephem_toolkit.core.convert_tle as convert_tle
+import ephem_toolkit.core.tle as tle
 import ephem_toolkit.omm_to_tle as omm_to_tle
 from ephem_toolkit.omm_to_tle.omm_to_tle_cli import build_arg_parser, parse_arguments
 
@@ -123,3 +124,112 @@ def test_omm_to_tle_rejects_missing_tle_parameters_before_writing(
     diagnostic = capsys.readouterr().err
     assert "TLE parameters" in diagnostic
     assert "MEAN_ELEMENT_THEORY='SGP4'" in diagnostic
+
+
+@pytest.mark.parametrize("input_source", ["stdin", "file"])
+@pytest.mark.parametrize("output_mode", ["stdout", "file", "implicit_stdout"])
+def test_omm_to_tle_main_converts_and_writes_output(
+    monkeypatch, tmp_path, input_source, output_mode
+) -> None:
+    converted_omm = omm.CcsdsOmm(mean_element_theory="SGP4", tle_parameters=object())
+    tle_data = object()
+    writes = []
+    source_path = tmp_path / "input.omm"
+    source_path.write_text("OMM", encoding="utf-8")
+    monkeypatch.setattr(omm.CcsdsOmm, "from_source", lambda _source: converted_omm)
+    monkeypatch.setattr(convert_tle, "validate_sgp4_compatible_omm", lambda _omm: None)
+    monkeypatch.setattr(convert_tle, "omm_to_tle", lambda _omm: tle_data)
+    monkeypatch.setattr(
+        tle, "write_tle", lambda destination, data: writes.append((destination, data))
+    )
+
+    input_argument = "-" if input_source == "stdin" else str(source_path)
+    if input_source == "stdin":
+        monkeypatch.setattr(sys, "stdin", io.StringIO("OMM"))
+    if output_mode == "stdout":
+        output_argument = "-"
+        expected_destination = sys.stdout
+    elif output_mode == "file":
+        output_argument = str(tmp_path / "output.tle")
+        expected_destination = output_argument
+    else:
+        output_argument = ""
+        expected_destination = sys.stdout
+
+    omm_to_tle.main([input_argument, "-o", output_argument])
+
+    assert writes == [(expected_destination, tle_data)]
+
+
+def test_omm_to_tle_main_rejects_empty_stdin(capsys) -> None:
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(sys, "stdin", io.StringIO(" \n"))
+
+    try:
+        with pytest.raises(SystemExit) as error:
+            omm_to_tle.main(["-", "-o", "-"])
+    finally:
+        monkeypatch.undo()
+
+    assert error.value.code == 1
+    assert "no input from stdin" in capsys.readouterr().err
+
+
+def test_omm_to_tle_main_reports_input_and_parse_errors(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    source = tmp_path / "empty.omm"
+    source.write_text("  \n", encoding="utf-8")
+    with pytest.raises(SystemExit) as empty_error:
+        omm_to_tle.main([str(source), "-o", "-"])
+    assert empty_error.value.code == 1
+    assert "is empty" in capsys.readouterr().err
+
+    source.write_text("OMM", encoding="utf-8")
+    monkeypatch.setattr(
+        omm.CcsdsOmm,
+        "from_source",
+        lambda _source: (_ for _ in ()).throw(ValueError("invalid OMM")),
+    )
+    with pytest.raises(SystemExit) as parse_error:
+        omm_to_tle.main([str(source), "-o", "-"])
+    assert parse_error.value.code == 1
+    assert "invalid OMM" in capsys.readouterr().err
+
+
+def test_omm_to_tle_main_reports_file_read_and_conversion_errors(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    source = tmp_path / "input.omm"
+    source.write_text("OMM", encoding="utf-8")
+    original_open = open
+
+    def failing_open(path, *args, **kwargs):
+        if path == str(source):
+            raise OSError("unreadable")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.open", failing_open)
+    with pytest.raises(SystemExit) as read_error:
+        omm_to_tle.main([str(source), "-o", "-"])
+    assert read_error.value.code == 1
+    assert "could not read input file" in capsys.readouterr().err
+
+    monkeypatch.setattr("builtins.open", original_open)
+    monkeypatch.setattr(
+        omm.CcsdsOmm,
+        "from_source",
+        lambda _source: omm.CcsdsOmm(
+            mean_element_theory="SGP4", tle_parameters=object()
+        ),
+    )
+    monkeypatch.setattr(convert_tle, "validate_sgp4_compatible_omm", lambda _omm: None)
+    monkeypatch.setattr(
+        convert_tle,
+        "omm_to_tle",
+        lambda _omm: (_ for _ in ()).throw(ValueError("conversion failed")),
+    )
+    with pytest.raises(SystemExit) as conversion_error:
+        omm_to_tle.main([str(source), "-o", "-"])
+    assert conversion_error.value.code == 1
+    assert "conversion failed" in capsys.readouterr().err
