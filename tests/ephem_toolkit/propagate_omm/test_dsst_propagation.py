@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+import ephem_toolkit.core.cli as core_cli
 import ephem_toolkit.propagate_omm as propagate_omm_main
 import ephem_toolkit.propagate_omm.propagation as propagation
 from ephem_toolkit.core.consts import EARTH_GRAVITATIONAL_PARAMETER_M3_S2
@@ -24,6 +25,7 @@ from ephem_toolkit.core.propagator.kepler import (
     KeplerPropagator,
 )
 import ephem_toolkit.core.ccsds.omm as omm_mod
+import ephem_toolkit.core.tle as tle_mod
 import ephem_toolkit.core.time_utils as time_utils
 
 _MU = EARTH_GRAVITATIONAL_PARAMETER_M3_S2
@@ -393,3 +395,87 @@ def test_main_dispatches_kepler_for_non_dsst_theory(monkeypatch, tmp_path, theor
         "transformation=propagation (fallback); target_model=two-body-kepler"
         in output_path.read_text()
     )
+
+
+@pytest.mark.parametrize(
+    ("is_tle", "reader_name", "message"),
+    [
+        (True, "read_tle_input", "TLE input did not produce TLE data"),
+        (False, "read_omm_input", "OMM input did not produce OMM data"),
+    ],
+)
+def test_main_rejects_missing_input_data(monkeypatch, is_tle, reader_name, message):
+    args = SimpleNamespace(
+        is_tle=is_tle,
+        input_file="input",
+        duration_s=60.0,
+        start=None,
+        stop=None,
+        step=10.0,
+        data_only=False,
+        output_oem="-",
+    )
+    monkeypatch.setitem(_propagate_omm_main_globals, "parse_arguments", lambda *_: args)
+    monkeypatch.setitem(_propagate_omm_main_globals, reader_name, lambda *_: None)
+
+    with pytest.raises(ValueError, match=message):
+        propagate_omm_main.main([])
+
+
+def test_main_rejects_nonpositive_step(monkeypatch):
+    args = SimpleNamespace(
+        is_tle=False,
+        input_file="input",
+        duration_s=60.0,
+        start=None,
+        stop=None,
+        step=0.0,
+        data_only=False,
+        output_oem="-",
+    )
+    data = SimpleNamespace(
+        epoch="2026-01-01T00:00:00.000000",
+        tle_parameters=None,
+        mean_element_theory="KEPLER",
+    )
+    monkeypatch.setitem(_propagate_omm_main_globals, "parse_arguments", lambda *_: args)
+    monkeypatch.setitem(_propagate_omm_main_globals, "read_omm_input", lambda *_: data)
+
+    with pytest.raises(ValueError, match="--step must be > 0"):
+        propagate_omm_main.main([])
+
+
+def test_cli_forwards_to_shared_runner(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        core_cli,
+        "run_cli",
+        lambda main, argv: calls.append((main, argv)) or 7,
+    )
+
+    assert propagate_omm_main.cli(["input.omm"]) == 7
+    assert calls == [(propagate_omm_main.main, ["input.omm"])]
+
+
+def test_main_dispatches_raw_tle_to_sgp4(monkeypatch):
+    tle_data = SimpleNamespace(epoch_year=26, epoch_day=1.0)
+    epoch = time_utils.tt_s_to_datetime(0.0)
+    calls = []
+    monkeypatch.setitem(
+        _propagate_omm_main_globals, "read_tle_input", lambda *_: tle_data
+    )
+    monkeypatch.setitem(
+        _propagate_omm_main_globals,
+        "propagate_tle_sgp4",
+        lambda *args: calls.append(args),
+    )
+    monkeypatch.setattr(tle_mod, "tle_epoch_to_datetime", lambda *_: epoch)
+
+    result = propagate_omm_main.main(
+        ["--tle", "input.tle", "--duration", "1h", "--step", "15m", "--output", "-"]
+    )
+
+    assert result == 0
+    assert len(calls) == 1
+    assert calls[0][0] is tle_data
+    assert calls[0][1] == epoch
