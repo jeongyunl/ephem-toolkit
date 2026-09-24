@@ -49,7 +49,9 @@ def read_orbit_file(source: str | Path) -> dict[float, np.ndarray]:
     with open(source_path, "r", encoding="utf-8") as file_handle:
         for line in file_handle:
             try:
-                result: tuple[float, np.ndarray] | None = oem.parse_oem_state_line(line)
+                result: tuple[float, np.ndarray] | None = CcsdsOem.parse_oem_state_line(
+                    line
+                )
                 if result is not None:
                     timestamp, state = result
                     state_history[timestamp] = state
