@@ -7,10 +7,12 @@ from pathlib import Path
 
 import pytest
 
+import ephem_toolkit.core.cli as core_cli
 import ephem_toolkit.oem_to_omm as oem_to_omm
 import ephem_toolkit.omm_to_tle as omm_to_tle
 from ephem_toolkit.propagate_omm import main as propagate_omm_main
 from ephem_toolkit.oem_to_omm.oem_to_omm_cli import build_common_arg_parser
+import ephem_toolkit.oem_to_tle.__main__ as oem_to_tle_entry
 from ephem_toolkit.oem_to_tle import main as oem_to_tle_main
 
 
@@ -105,7 +107,9 @@ def test_main_delegates_to_oem_to_omm_in_tle_mode(monkeypatch) -> None:
 
 def test_main_forwards_provenance_and_fit_report_options(monkeypatch) -> None:
     delegated_arguments: list[list[str]] = []
-    monkeypatch.setattr(oem_to_omm, "main", lambda argv: delegated_arguments.append(argv))
+    monkeypatch.setattr(
+        oem_to_omm, "main", lambda argv: delegated_arguments.append(argv)
+    )
     monkeypatch.setattr(omm_to_tle, "main", lambda argv: None)
 
     oem_to_tle_main(
@@ -141,21 +145,47 @@ def test_main_forwards_provenance_and_fit_report_options(monkeypatch) -> None:
 
 def test_main_rejects_two_stdout_outputs() -> None:
     with pytest.raises(SystemExit) as error:
-        oem_to_tle_main(
-            ["input.oem", "-o", "-", "--fit-report", "-"]
-        )
+        oem_to_tle_main(["input.oem", "-o", "-", "--fit-report", "-"])
 
     assert error.value.code == 2
 
 
 def test_main_does_not_add_automatic_report_when_disabled(monkeypatch) -> None:
     delegated_arguments: list[list[str]] = []
-    monkeypatch.setattr(oem_to_omm, "main", lambda argv: delegated_arguments.append(argv))
+    monkeypatch.setattr(
+        oem_to_omm, "main", lambda argv: delegated_arguments.append(argv)
+    )
     monkeypatch.setattr(omm_to_tle, "main", lambda argv: None)
 
     oem_to_tle_main(["input.oem", "-o", "output.tle", "--no-fit-report"])
 
     assert "--fit-report" not in delegated_arguments[0]
+
+
+def test_main_uses_sys_argv_when_argv_is_omitted(monkeypatch) -> None:
+    delegated_arguments = []
+    monkeypatch.setattr(
+        "sys.argv",
+        ["oem-to-tle", "input.oem", "-o", "output.tle", "--no-fit-report"],
+    )
+    monkeypatch.setattr(
+        oem_to_omm, "main", lambda argv: delegated_arguments.append(argv)
+    )
+    monkeypatch.setattr(omm_to_tle, "main", lambda _argv: None)
+
+    oem_to_tle_main()
+
+    assert delegated_arguments[0][:3] == ["--fit-model", "sgp4", "input.oem"]
+
+
+def test_cli_forwards_to_shared_runner(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr(
+        core_cli, "run_cli", lambda main, argv: calls.append((main, argv)) or 5
+    )
+
+    assert oem_to_tle_entry.cli(["input.oem"]) == 5
+    assert calls == [(oem_to_tle_entry.main, ["input.oem"])]
 
 
 def test_composed_omm_to_tle_workflow_writes_oem_tle_and_report(tmp_path: Path) -> None:
@@ -205,8 +235,7 @@ def test_composed_omm_to_tle_workflow_writes_oem_tle_and_report(tmp_path: Path) 
     assert report["diagnostics"]["n_records"] == 25
     assert report["residuals"]["position_rms_m"] >= 0.0
     assert (
-        report["residuals"]["position_max_m"]
-        >= report["residuals"]["position_rms_m"]
+        report["residuals"]["position_max_m"] >= report["residuals"]["position_rms_m"]
     )
 
 
@@ -234,7 +263,9 @@ def test_oem_to_tle_report_file_and_unknown_provenance(tmp_path: Path) -> None:
     assert report["provenance"]["source"] == "OEM/unknown"
     assert report["provenance"]["target_model"] == "SGP4"
     assert report["residuals"]["position_rms_m"] >= 0.0
-    assert report["residuals"]["position_max_m"] >= report["residuals"]["position_rms_m"]
+    assert (
+        report["residuals"]["position_max_m"] >= report["residuals"]["position_rms_m"]
+    )
 
 
 def test_oem_to_tle_writes_fit_report_to_stdout(tmp_path: Path, capsys) -> None:
