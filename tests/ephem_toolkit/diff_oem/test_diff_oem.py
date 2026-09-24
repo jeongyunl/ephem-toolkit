@@ -737,3 +737,86 @@ def test_main_executes_requested_time_shift_stage(monkeypatch) -> None:
     assert reports[0]["title"] == "Normal comparison"
     assert reports[1]["title"].startswith("Comparison after stage 1:")
     assert reports[1]["fit_description"].startswith("Applied comparison time shift")
+
+
+def test_print_result_includes_comparison_epoch_verbose_and_rtn_columns(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    reference_epoch = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    comparison_epoch = datetime(2024, 1, 1, 0, 0, 2, tzinfo=timezone.utc)
+    result = data_structures.ComparisonResult(
+        reference_epoch=reference_epoch,
+        comparison_epoch=comparison_epoch,
+        time_diff_s=2.0,
+        position_diff_km=np.array([1.0, -2.0, 3.0]),
+        position_diff_magnitude_km=np.sqrt(14.0),
+        velocity_diff_km_s=np.array([0.1, -0.2, 0.3]),
+        velocity_diff_magnitude_km_s=np.sqrt(0.14),
+        rtn_position_km=np.array([4.0, 5.0, 6.0]),
+        rtn_velocity_km_s=np.array([0.4, 0.5, 0.6]),
+    )
+    report = output.ComparisonOutput(
+        comparison_results=[],
+        reference_interpolator=_reference_interpolator(),
+        comparison_interpolator=_reference_interpolator(),
+        verbose=True,
+        rtn=True,
+    )
+
+    report.print_result(1, result, include_comparison_epoch=True, query_epoch=None)
+
+    rendered = capsys.readouterr().out
+    assert "2024-01-01T00:00:00.000" in rendered
+    assert "2024-01-01T00:00:02.000" in rendered
+    assert "2.000000" in rendered
+    assert "+1.000" in rendered
+    assert "+0.100000" in rendered
+    assert "+4.000" in rendered
+    assert "+0.400000" in rendered
+
+
+def test_print_renders_full_report_and_empty_statistics(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    epoch = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    result = data_structures.ComparisonResult(
+        reference_epoch=epoch,
+        comparison_epoch=epoch,
+        time_diff_s=1.0,
+        position_diff_km=np.array([1.0, 2.0, 3.0]),
+        position_diff_magnitude_km=np.sqrt(14.0),
+        velocity_diff_km_s=np.array([0.1, 0.2, 0.3]),
+        velocity_diff_magnitude_km_s=np.sqrt(0.14),
+        rtn_position_km=np.array([4.0, 5.0, 6.0]),
+        rtn_velocity_km_s=np.array([0.4, 0.5, 0.6]),
+    )
+    monkeypatch.setattr(output.time_utils, "tt_s_to_datetime", lambda _epoch: epoch)
+    monkeypatch.setattr(
+        output.time_utils, "datetime_to_iso8601", lambda value: value.isoformat()
+    )
+    report = output.ComparisonOutput(
+        comparison_results=[(0.0, result), (1.0, None)],
+        reference_interpolator=_reference_interpolator(),
+        comparison_interpolator=_reference_interpolator(),
+        verbose=True,
+        rtn=True,
+        title="Synthetic comparison",
+        fit_description="Applied test fit",
+    )
+
+    report.print()
+    rendered = capsys.readouterr().out
+    assert "Synthetic comparison" in rendered
+    assert "Applied test fit" in rendered
+    assert "dX" in rendered
+    assert "RTN r" in rendered
+    assert "Statistics (std, min, max)" in rendered
+
+    output.ComparisonOutput(
+        comparison_results=[],
+        reference_interpolator=_reference_interpolator(),
+        comparison_interpolator=_reference_interpolator(),
+        verbose=False,
+        rtn=False,
+    ).print_statistics(include_time_difference=True)
+    assert "Statistics: no valid comparison results" in capsys.readouterr().out
