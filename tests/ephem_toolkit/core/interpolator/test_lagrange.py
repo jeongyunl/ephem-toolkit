@@ -213,3 +213,56 @@ def test_public_interpolation_boundary_behavior() -> None:
     assert interpolator.interpolate(3.6) == pytest.approx(3.6)
     assert interpolator.interpolate(-0.1) is None
     assert interpolator.interpolate(4.1) is None
+
+
+@pytest.mark.parametrize(
+    ("boundary_mode", "expected_window_size"),
+    [("centered", 5), ("widen", 7), ("edge", 7), ("compact", 3)],
+)
+def test_lagrange_boundary_modes_select_expected_extrapolation_windows(
+    boundary_mode: str, expected_window_size: int
+) -> None:
+    interpolator = lagrange.LagrangeInterpolator(
+        dimension=1,
+        degree=4,
+        boundary_mode=boundary_mode,
+        boundary_window_extension=2,
+    )
+    for x_value in range(10):
+        interpolator.add_data_point(float(x_value), np.array([float(x_value)]))
+
+    interpolator.allow_extrapolation = True
+    start_index, left_window = interpolator._select_window(-1.0)
+    end_index, right_window = interpolator._select_window(10.0)
+
+    assert start_index == 0
+    assert len(left_window) == expected_window_size
+    assert end_index == 10 - expected_window_size
+    assert len(right_window) == expected_window_size
+
+
+def test_lagrange_interpolator_validates_configuration() -> None:
+    with pytest.raises(ValueError, match="degree must be at least 1"):
+        lagrange.LagrangeInterpolator(degree=0)
+    with pytest.raises(ValueError, match="boundary_mode"):
+        lagrange.LagrangeInterpolator(boundary_mode="invalid")
+    with pytest.raises(ValueError, match="extension must be non-negative"):
+        lagrange.LagrangeInterpolator(boundary_window_extension=-1)
+
+
+def test_lagrange_interpolator_invalidates_cached_window_after_new_data() -> None:
+    interpolator = lagrange.LagrangeInterpolator(dimension=1, degree=2)
+    for x_value in range(4):
+        interpolator.add_data_point(float(x_value), np.array([float(x_value)]))
+
+    interpolator.interpolate(1.5)
+    assert interpolator._cache_window_start >= 0
+
+    interpolator.add_data_point(4.0, np.array([4.0]))
+    assert interpolator._cache_window_start == -1
+    assert interpolator._cache_window_values is None
+
+    interpolator.clear_storage()
+    assert interpolator.independent_values == []
+    assert interpolator.dependent_values == []
+    assert interpolator._cache_window_start == -1
