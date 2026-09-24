@@ -77,3 +77,51 @@ def test_run_propagation_rejects_missing_propagation_outputs(
 
     with pytest.raises(RuntimeError, match=message):
         propagation.run_propagation(object(), object(), 20.0, "-", None, False)
+
+
+@pytest.mark.parametrize(
+    ("failed_writer", "dependent_output", "message"),
+    [
+        ("write_state_history_oem", None, "failed to write OEM output"),
+        (
+            "write_dependent_variables_csv",
+            "dependent.csv",
+            "failed to write dependent variables CSV",
+        ),
+    ],
+)
+def test_run_propagation_exits_when_output_writing_fails(
+    monkeypatch, capsys, failed_writer, dependent_output, message
+) -> None:
+    class FakePropagator:
+        dependent_variable_dictionary = {"speed": np.array([1.0])}
+        dependent_variable_save_settings = [object()]
+
+        def __init__(self, *_args):
+            pass
+
+        def propagate_to(self, *_args, **_kwargs):
+            return [(20.0, np.zeros(6))]
+
+    def fail_write(*_args, **_kwargs):
+        raise OSError("disk unavailable")
+
+    monkeypatch.setattr(propagation, "NumericalPropagator", FakePropagator)
+    monkeypatch.setattr(
+        propagation,
+        "write_state_history_oem",
+        fail_write if failed_writer == "write_state_history_oem" else Mock(),
+    )
+    monkeypatch.setattr(
+        propagation,
+        "write_dependent_variables_csv",
+        fail_write if failed_writer == "write_dependent_variables_csv" else Mock(),
+    )
+
+    with pytest.raises(SystemExit) as error:
+        propagation.run_propagation(
+            object(), object(), 20.0, "states.oem", dependent_output, False
+        )
+
+    assert error.value.code == 1
+    assert message in capsys.readouterr().err
