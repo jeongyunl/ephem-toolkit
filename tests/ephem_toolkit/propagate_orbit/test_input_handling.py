@@ -8,7 +8,10 @@ and that all fields are mapped correctly from CLI args.
 from __future__ import annotations
 
 import argparse
+import io
+import sys
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -21,7 +24,7 @@ from ephem_toolkit.core.propagator.numerical import (
 import ephem_toolkit.core.time_utils as time_utils
 from ephem_toolkit.propagate_orbit.input_handling import build_propagation_inputs
 from ephem_toolkit.propagate_orbit.constants import DEFAULT_SATELLITE_NAME
-
+import ephem_toolkit.propagate_orbit.input_handling as input_handling
 
 # ===================================================================
 # Shared fixtures
@@ -226,3 +229,106 @@ def test_target_epoch_s_zero_duration() -> None:
             _make_cli_args(duration=0.0)
         )
     assert target_epoch_s == pytest.approx(initial_state.epoch_s)
+
+
+@pytest.mark.parametrize("input_opm", ["-", "input.opm"])
+def test_read_initial_state_parses_stdin_and_file_sources(
+    monkeypatch: pytest.MonkeyPatch, input_opm: str
+) -> None:
+    input_state_km = np.arange(1.0, 7.0)
+    message = SimpleNamespace(
+        state_vector=SimpleNamespace(
+            epoch="2026-05-20T12:00:00Z", values=input_state_km
+        )
+    )
+    sources = []
+
+    def parse_source(source):
+        sources.append(source)
+        return message
+
+    monkeypatch.setattr(input_handling.opm.CcsdsOpm, "from_source", parse_source)
+    monkeypatch.setattr(
+        input_handling.time_utils,
+        "iso8601_to_datetime",
+        lambda _epoch: _EPOCH_UTC,
+    )
+    monkeypatch.setattr(sys, "stdin", io.StringIO("OPM input"))
+
+    state_m_m_s, epoch = input_handling.read_initial_state_from_opm_file_or_stdin(
+        argparse.Namespace(input_opm=input_opm)
+    )
+
+    np.testing.assert_array_equal(state_m_m_s, input_state_km * 1000.0)
+    assert epoch is _EPOCH_UTC
+    if input_opm == "-":
+        assert isinstance(sources[0], io.StringIO)
+    else:
+        assert sources[0].name == input_opm
+
+
+def test_read_initial_state_rejects_tty_stdin(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        SimpleNamespace(isatty=lambda: True, read=lambda: ""),
+    )
+
+    with pytest.raises(SystemExit) as error:
+        input_handling.read_initial_state_from_opm_file_or_stdin(
+            argparse.Namespace(input_opm="-")
+        )
+
+    assert error.value.code == 1
+    assert "requires OPM content from stdin" in capsys.readouterr().err
+
+
+def test_read_initial_state_reports_stdin_and_file_parse_errors(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(sys, "stdin", io.StringIO("bad OPM"))
+    monkeypatch.setattr(
+        input_handling.opm.CcsdsOpm,
+        "from_source",
+        lambda _source: (_ for _ in ()).throw(ValueError("invalid message")),
+    )
+
+    with pytest.raises(SystemExit) as stdin_error:
+        input_handling.read_initial_state_from_opm_file_or_stdin(
+            argparse.Namespace(input_opm="-")
+        )
+    assert stdin_error.value.code == 1
+    assert "invalid stdin OPM input" in capsys.readouterr().err
+
+    with pytest.raises(SystemExit) as file_error:
+        input_handling.read_initial_state_from_opm_file_or_stdin(
+            argparse.Namespace(input_opm="missing.opm")
+        )
+    assert file_error.value.code == 1
+    assert "failed to read OPM file 'missing.opm'" in capsys.readouterr().err
+
+
+def test_read_initial_state_reports_invalid_epoch(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    message = SimpleNamespace(
+        state_vector=SimpleNamespace(epoch="invalid", values=np.zeros(6))
+    )
+    monkeypatch.setattr(
+        input_handling.opm.CcsdsOpm, "from_source", lambda _source: message
+    )
+    monkeypatch.setattr(
+        input_handling.time_utils,
+        "iso8601_to_datetime",
+        lambda _epoch: (_ for _ in ()).throw(ValueError("bad epoch")),
+    )
+
+    with pytest.raises(SystemExit) as error:
+        input_handling.read_initial_state_from_opm_file_or_stdin(
+            argparse.Namespace(input_opm="input.opm")
+        )
+
+    assert error.value.code == 1
+    assert "invalid OPM EPOCH value" in capsys.readouterr().err
