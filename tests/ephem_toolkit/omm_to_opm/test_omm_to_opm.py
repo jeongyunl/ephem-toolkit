@@ -3,6 +3,7 @@
 import pytest
 from types import SimpleNamespace
 
+import ephem_toolkit.omm_to_opm as omm_package
 import ephem_toolkit.omm_to_opm.__main__ as omm_wrapper
 from ephem_toolkit.omm_to_opm.__main__ import _forward_arguments, main
 
@@ -67,3 +68,15 @@ def test_omm_to_opm_dispatches_declared_theory_and_delegates(monkeypatch) -> Non
     assert "--source-model" in calls[0][0]
     assert calls[0][0][calls[0][0].index("--source-model") + 1] == "DSST"
     assert calls[0][1] == "generated OEM\n"
+
+
+def test_package_entry_points_forward_arguments(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr(omm_wrapper, "main", lambda argv: calls.append(("main", argv)))
+    monkeypatch.setattr(
+        omm_wrapper, "cli", lambda argv: calls.append(("cli", argv)) or 3
+    )
+
+    assert omm_package.main(["input.omm"]) is None
+    assert omm_package.cli(["input.omm"]) == 3
+    assert calls == [("main", ["input.omm"]), ("cli", ["input.omm"])]
