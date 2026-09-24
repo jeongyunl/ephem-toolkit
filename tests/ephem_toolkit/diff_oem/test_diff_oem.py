@@ -172,6 +172,23 @@ def test_rotation_stage_build_fit_pairs_respects_interpolation_modes() -> None:
     assert all(pair[1] == comparison_states[0] for pair in data_pairs)
 
 
+@pytest.mark.parametrize(
+    ("stage_type", "message"),
+    [
+        (transformation_stages.RotationXYStage, "--rotate-xy requires at least two"),
+        (transformation_stages.RotationZStage, "--rotate-z requires at least two"),
+    ],
+)
+def test_axis_rotation_stages_reject_insufficient_pairs(stage_type, message):
+    stage = stage_type(fit_overlap_start=0.0, fit_overlap_stop=1.0, fit_span_s=1.0)
+    stage_input = data_structures.TransformationStageInput(
+        state_pairs=[], reference_interpolator=None, comparison_interpolator=None
+    )
+
+    with pytest.raises(ValueError, match=message):
+        stage.fit(stage_input)
+
+
 def test_compare_pairs_returns_none_for_out_of_range_interpolation() -> None:
     reference_states = [_create_state(float(index), float(index)) for index in range(8)]
     ref_interp = _make_interpolator(reference_states)
