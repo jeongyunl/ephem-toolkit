@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+import ephem_toolkit.propagate_omm as propagate_omm
+import ephem_toolkit.propagate_tle.__main__ as propagate_tle_entry
 from ephem_toolkit.propagate_tle import main as propagate_tle_main
 
 TEST_DIR: Path = Path(__file__).parent
@@ -89,6 +91,48 @@ def test_propagate_tle_oem_records_sgp4_provenance(tmp_path: Path) -> None:
 
     assert (
         "EPHEMERIS_PROVENANCE: source=TLE; transformation=propagation; "
-        "target_model=SGP4"
-        in output.read_text(encoding="utf-8")
+        "target_model=SGP4" in output.read_text(encoding="utf-8")
     )
+
+
+def test_main_forwards_arguments_with_tle_flag_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_args = ["orbit.tle", "--duration", "15m", "--tle"]
+    forwarded_args = []
+
+    def fake_main(args):
+        forwarded_args.extend(args)
+        return 7
+
+    monkeypatch.setattr(propagate_omm, "main", fake_main)
+
+    result = propagate_tle_entry.main(original_args)
+
+    assert result == 7
+    assert forwarded_args == original_args
+    assert original_args.count("--tle") == 1
+
+
+def test_main_adds_tle_flag_without_mutating_arguments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    arguments = ["orbit.tle", "--duration", "15m"]
+    forwarded_args = []
+    monkeypatch.setattr(
+        propagate_omm,
+        "main",
+        lambda args: forwarded_args.extend(args) or 0,
+    )
+
+    assert propagate_tle_entry.main(arguments) == 0
+
+    assert forwarded_args == ["--tle", *arguments]
+    assert arguments == ["orbit.tle", "--duration", "15m"]
+
+
+def test_cli_delegates_to_shared_cli_runner(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = lambda main, argv: 4
+    monkeypatch.setattr("ephem_toolkit.core.cli.run_cli", runner)
+
+    assert propagate_tle_entry.cli(["orbit.tle"]) == 4
