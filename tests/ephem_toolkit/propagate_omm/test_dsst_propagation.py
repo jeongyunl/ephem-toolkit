@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import sys
+from io import StringIO
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
 import ephem_toolkit.propagate_omm as propagate_omm_main
+import ephem_toolkit.propagate_omm.propagation as propagation
 from ephem_toolkit.core.consts import EARTH_GRAVITATIONAL_PARAMETER_M3_S2
 from ephem_toolkit.core.propagator.dsst import (
     DSSTPropagator,
@@ -37,6 +40,34 @@ _ISS_OSCULATING = np.array(
         np.radians(10.0),
     ]
 )
+
+
+@pytest.mark.parametrize(
+    ("reader_name", "message"),
+    [
+        ("read_tle_input", "Input not provided"),
+        ("read_omm_input", "OMM input not provided"),
+    ],
+)
+def test_input_readers_reject_interactive_stdin(monkeypatch, reader_name, message):
+    monkeypatch.setattr(sys, "stdin", SimpleNamespace(isatty=lambda: True))
+
+    with pytest.raises(ValueError, match=message):
+        getattr(propagation, reader_name)("-")
+
+
+@pytest.mark.parametrize(
+    ("reader_name", "message"),
+    [
+        ("read_tle_input", "Empty stdin input"),
+        ("read_omm_input", "Empty stdin input"),
+    ],
+)
+def test_input_readers_reject_empty_stdin(monkeypatch, reader_name, message):
+    monkeypatch.setattr(sys, "stdin", StringIO(" \n"))
+
+    with pytest.raises(ValueError, match=message):
+        getattr(propagation, reader_name)(None)
 
 
 def _make_dsst_state(epoch_s: float = 0.0) -> KeplerianState:
@@ -284,8 +315,7 @@ def test_main_dispatches_dsst_for_dsst_theory(monkeypatch, tmp_path):
     assert len(content.strip()) > 0
     assert (
         "EPHEMERIS_PROVENANCE: source=OMM/DSST; transformation=propagation; "
-        "target_model=DSST"
-        in content
+        "target_model=DSST" in content
     )
 
 
@@ -294,20 +324,26 @@ def test_main_labels_sgp4_omm_output_as_omm_source(tmp_path: Path) -> None:
     source = Path(__file__).parents[2] / "data/ISS-ZARYA_1998-067A.omm"
     output_path = tmp_path / "sgp4-omm.oem"
 
-    assert propagate_omm_main.main(
-        [
-            str(source),
-            "--duration",
-            "15m",
-            "--step",
-            "15m",
-            "--output",
-            str(output_path),
-        ]
-    ) == 0
+    assert (
+        propagate_omm_main.main(
+            [
+                str(source),
+                "--duration",
+                "15m",
+                "--step",
+                "15m",
+                "--output",
+                str(output_path),
+            ]
+        )
+        == 0
+    )
 
     text = output_path.read_text(encoding="utf-8")
-    assert "EPHEMERIS_PROVENANCE: source=OMM; transformation=propagation; target_model=SGP4" in text
+    assert (
+        "EPHEMERIS_PROVENANCE: source=OMM; transformation=propagation; target_model=SGP4"
+        in text
+    )
 
 
 @pytest.mark.parametrize("theory", ["KEPLER", "BROUWER", "BROUWER-LYDDANE"])
