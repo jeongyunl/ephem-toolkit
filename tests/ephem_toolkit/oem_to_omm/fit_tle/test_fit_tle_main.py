@@ -158,6 +158,81 @@ def test_cartesian_to_tle_mean_elements_rejects_invalid_state_shape() -> None:
         fit_tle.cartesian_to_tle_mean_elements(np.zeros(5), epoch_timestamp=0.0)
 
 
+def test_cartesian_to_tle_mean_elements_returns_seed_after_sgp4_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed = np.array([7.0e6, 0.01, 0.5, 0.1, 0.2, 0.3])
+    monkeypatch.setattr(
+        fit_tle, "_cartesian_to_osculating_keplerian", lambda *_args: seed
+    )
+    monkeypatch.setattr(
+        fit_tle.time_utils, "tt_s_to_datetime", lambda _epoch: datetime(2026, 1, 1)
+    )
+    monkeypatch.setattr(fit_tle.tle, "datetime_to_tle_epoch", lambda _epoch: (26, 1.0))
+    monkeypatch.setattr(
+        fit_tle,
+        "_sgp4_position",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("propagation failed")),
+    )
+
+    result = fit_tle.cartesian_to_tle_mean_elements(
+        np.ones(6), epoch_timestamp=0.0, max_iterations=1
+    )
+
+    np.testing.assert_allclose(result[:5], seed[:5])
+
+
+def test_cartesian_to_tle_mean_elements_handles_failed_jacobian_and_solver(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seed = np.array([7.0e6, 0.01, 0.5, 0.1, 0.2, 0.3])
+    monkeypatch.setattr(
+        fit_tle, "_cartesian_to_osculating_keplerian", lambda *_args: seed
+    )
+    monkeypatch.setattr(
+        fit_tle.time_utils, "tt_s_to_datetime", lambda _epoch: datetime(2026, 1, 1)
+    )
+    monkeypatch.setattr(fit_tle.tle, "datetime_to_tle_epoch", lambda _epoch: (26, 1.0))
+    calls = 0
+
+    def propagate(*_args):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return np.zeros(3)
+        raise RuntimeError("finite-difference propagation failed")
+
+    monkeypatch.setattr(fit_tle, "_sgp4_position", propagate)
+    monkeypatch.setattr(
+        np.linalg,
+        "solve",
+        lambda *_args: (_ for _ in ()).throw(np.linalg.LinAlgError("singular")),
+    )
+
+    result = fit_tle.cartesian_to_tle_mean_elements(
+        np.ones(6), epoch_timestamp=0.0, max_iterations=1
+    )
+
+    np.testing.assert_allclose(result[:5], seed[:5])
+
+
+def test_cartesian_to_osculating_handles_parabolic_and_equatorial_states() -> None:
+    parabolic = fit_tle._cartesian_to_osculating_keplerian(
+        np.array([1.0, 0.0, 0.0, 0.0, np.sqrt(2.0), 0.0]), mu_m3_s2=1.0
+    )
+    circular_equatorial = fit_tle._cartesian_to_osculating_keplerian(
+        np.array([1.0, 0.0, 0.0, 0.0, 1.0, 0.0]), mu_m3_s2=1.0
+    )
+    eccentric_equatorial = fit_tle._cartesian_to_osculating_keplerian(
+        np.array([1.0, 0.0, 0.0, 0.2, 1.2, 0.0]), mu_m3_s2=1.0
+    )
+
+    assert np.isinf(parabolic[0])
+    assert circular_equatorial[1] == pytest.approx(0.0, abs=1e-12)
+    assert circular_equatorial[4] == 0.0
+    assert eccentric_equatorial[3] > 0.0
+
+
 def test_cartesian_to_tle_builds_tle_and_verifies_epoch_position(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -235,6 +310,15 @@ def test_compute_tle_propagation_comparison_skips_distant_samples(monkeypatch) -
     )
 
     assert [record.elapsed_s for record in comparison] == [0.0, 100.0, 100.0]
+    assert (
+        fit_tle.compute_tle_propagation_comparison(
+            SimpleNamespace(mean_motion_rev_per_day=15.0),
+            states,
+            mu_m3_s2=1.0,
+            fit_span_s=-1.0,
+        )
+        == []
+    )
 
 
 @pytest.mark.parametrize(
@@ -328,6 +412,30 @@ def test_fit_tle_routes_refinement_modes_and_builds_diagnostics(
     assert diagnostics.epoch_vel_delta_m_s == 0.25
     assert diagnostics.rms_position_m == 0.0
 
+    monkeypatch.setattr(
+        fit_tle.convert_tle,
+        "_parse_object_id",
+        lambda _value: (_ for _ in ()).throw(ValueError("malformed object id")),
+    )
+    repeated_tle, _ = fit_tle.fit_tle(
+        states,
+        fit_span_s=10.0,
+        refinement_method=refinement_method,
+        object_id="malformed",
+    )
+    assert repeated_tle is tle_object
+
+
+def test_fit_tle_wraps_estimation_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        fit_tle.estimation,
+        "estimate_tle_fields",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad arc")),
+    )
+
+    with pytest.raises(ValueError, match="TLE fitting failed: bad arc"):
+        fit_tle.fit_tle([(0.0, np.ones(6))], fit_span_s=60.0)
+
 
 def test_format_tle_output_renders_comparison_and_summary() -> None:
     tle_object = SimpleNamespace(
@@ -367,3 +475,33 @@ def test_format_tle_output_renders_comparison_and_summary() -> None:
     assert "Propagation comparison" in text
     assert "Position |Δr|:  min = 0.010000 km" in text
     assert "Velocity |Δv|" in text
+
+
+def test_format_tle_output_accepts_dict_diagnostics() -> None:
+    tle_object = SimpleNamespace(
+        mean_motion_rev_per_day=15.5,
+        eccentricity=0.001,
+        inclination_deg=51.6,
+        raan_deg=120.0,
+        arg_perigee_deg=45.0,
+        mean_anomaly_deg=30.0,
+        bstar="00000+0",
+        mean_motion_first_derivative=0.0,
+        mean_motion_second_derivative="00000+0",
+    )
+
+    text = fit_tle.format_tle_output(
+        datetime(2026, 5, 20, tzinfo=timezone.utc),
+        tle_object,
+        fit_tle.fit_common.FitDiagnostics(
+            rms_position_m=10.0,
+            iterations=1,
+            n_records=2,
+            span_s=60.0,
+            fit_method="tle_none",
+        ),
+        [],
+    )
+
+    assert "records used:       2" in text
+    assert "Propagation comparison" not in text
