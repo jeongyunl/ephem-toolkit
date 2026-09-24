@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import ephem_toolkit.core.cli as core_cli
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.ccsds.omm as omm
 import ephem_toolkit.core.convert_tle as convert_tle
@@ -14,6 +15,7 @@ import ephem_toolkit.core.propagator.brouwer_j2 as brouwer
 import ephem_toolkit.core.provenance as provenance
 import ephem_toolkit.core.time_utils as time_utils
 import ephem_toolkit.oem_to_omm as oem_to_omm
+import ephem_toolkit.oem_to_omm.__main__ as oem_to_omm_entry
 import ephem_toolkit.oem_to_omm.fit_brouwer as fit_brouwer
 import ephem_toolkit.oem_to_omm.fit_tle_main as fit_tle
 from ephem_toolkit.oem_to_omm import oem_to_omm_cli
@@ -57,6 +59,7 @@ def test_parse_arguments_fit_span_accepts_duration_strings(monkeypatch):
             "brouwer",
             "--fit-span",
             "90m",
+            "--verbose",
             "input.oem",
             "--output",
             "-",
@@ -226,6 +229,7 @@ def test_main_brouwer_mode_uses_duration_and_writes_omm(monkeypatch, tmp_path):
             "brouwer",
             "--fit-span",
             "90m",
+            "--verbose",
             "input.oem",
             "-o",
             str(tmp_path / "mean.omm"),
@@ -545,3 +549,24 @@ def test_main_reports_dsst_omm_conversion_error(monkeypatch):
                 "-",
             ]
         )
+
+
+def test_cli_forwards_main_and_argv(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        core_cli, "run_cli", lambda main, argv: calls.append((main, argv)) or 7
+    )
+    argv = ["input.oem", "--output", "output.omm"]
+
+    assert oem_to_omm.cli(argv) == 7
+    assert calls == [(oem_to_omm.main, argv)]
+
+
+def test_entry_cli_uses_shared_runner(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        core_cli, "run_cli", lambda main, argv: calls.append((main, argv)) or 8
+    )
+
+    assert oem_to_omm_entry.cli(["input.oem"]) == 8
+    assert calls == [(oem_to_omm_entry.main, ["input.oem"])]
