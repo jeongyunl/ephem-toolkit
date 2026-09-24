@@ -10,6 +10,8 @@ import pytest
 
 from ephem_toolkit.core.ccsds import oem
 from ephem_toolkit.core.propagator import kepler
+import ephem_toolkit.core.cli as core_cli
+import ephem_toolkit.propagate_kepler.__main__ as propagate_kepler_entry
 from ephem_toolkit.propagate_kepler import (
     propagate_kepler_elements,
     read_kepler_input,
@@ -179,6 +181,87 @@ def test_propagate_kepler_writes_cartesian_states_in_si_units(
     np.testing.assert_allclose(generated_state_m_m_s, expected_state_m_m_s, rtol=1e-12)
     assert (
         "EPHEMERIS_PROVENANCE: source=OPM; transformation=propagation; "
-        "target_model=two-body-kepler"
-        in generated_oem.meta.comments
+        "target_model=two-body-kepler" in generated_oem.meta.comments
     )
+
+
+def test_propagate_kepler_main_routes_parsed_input_and_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    initial_epoch = object()
+    initial_elements = np.arange(6, dtype=float)
+    metadata = {"object_name": "SATELLITE"}
+    calls = []
+    monkeypatch.setattr(
+        propagate_kepler_entry.propagate_kepler_cli,
+        "parse_arguments",
+        lambda _parser, _argv: type(
+            "Args",
+            (),
+            {
+                "duration_s": 120.0,
+                "step_s": 30.0,
+                "input_opm": "input.opm",
+                "output_oem": "output.oem",
+                "data_only": True,
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        propagate_kepler_entry,
+        "read_kepler_input",
+        lambda _source: (initial_epoch, initial_elements, metadata),
+    )
+    monkeypatch.setattr(
+        propagate_kepler_entry,
+        "propagate_kepler_elements",
+        lambda **kwargs: calls.append(kwargs),
+    )
+
+    result = propagate_kepler_entry.main([])
+
+    assert result == 0
+    assert calls == [
+        {
+            "initial_epoch": initial_epoch,
+            "initial_kepler_km": initial_elements,
+            "duration_s": 120.0,
+            "step_s": 30.0,
+            "data_only": True,
+            "output_metadata": metadata,
+            "output_path": "output.oem",
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("duration_s", "step_s", "message"),
+    [(0.0, 1.0, "--duration must be > 0"), (1.0, 0.0, "--step must be > 0")],
+)
+def test_propagate_kepler_main_rejects_nonpositive_duration_or_step(
+    monkeypatch: pytest.MonkeyPatch, duration_s: float, step_s: float, message: str
+) -> None:
+    args = type("Args", (), {"duration_s": duration_s, "step_s": step_s})()
+    monkeypatch.setattr(
+        propagate_kepler_entry.propagate_kepler_cli,
+        "parse_arguments",
+        lambda _parser, _argv: args,
+    )
+
+    with pytest.raises(ValueError, match=message):
+        propagate_kepler_entry.main([])
+
+
+def test_propagate_kepler_cli_uses_shared_runner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected_main = propagate_kepler_entry.main
+    calls = []
+    monkeypatch.setattr(
+        core_cli,
+        "run_cli",
+        lambda main_func, argv: calls.append((main_func, argv)) or 23,
+    )
+
+    assert propagate_kepler_entry.cli(["input.opm"]) == 23
+    assert calls == [(expected_main, ["input.opm"])]
