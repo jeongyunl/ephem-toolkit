@@ -739,6 +739,73 @@ def test_main_executes_requested_time_shift_stage(monkeypatch) -> None:
     assert reports[1]["fit_description"].startswith("Applied comparison time shift")
 
 
+def test_main_builds_each_transformation_stage_and_debug_enables_verbose(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    states = [_create_state(0.0, 0.0), _create_state(1.0, 1.0)]
+    monkeypatch.setattr(comparison, "read_states", lambda _source: states)
+    monkeypatch.setattr(utils, "find_overlapping_time_range", lambda *_args: (0.0, 1.0))
+    monkeypatch.setattr(
+        utils, "build_comparison_pairs", lambda *_args: [(states[0], states[0])]
+    )
+    monkeypatch.setattr(utils, "compare_pairs", lambda *_args: [(0.0, object())])
+    monkeypatch.setattr(
+        factory.InterpolatorFactory, "create", lambda **_kwargs: object()
+    )
+    debug_flags = []
+    monkeypatch.setattr(debug, "set_debug", debug_flags.append)
+    monkeypatch.setattr(debug, "debug_print_time_range", lambda *_args: None)
+    reports = []
+    stage_constructors = []
+
+    class FakeStage:
+        def __init__(self, *args):
+            self.name = f"stage-{len(stage_constructors) + 1}"
+            stage_constructors.append((self.name, args))
+
+        def describe_fit(self, _fit_result):
+            return f"fit for {self.name}"
+
+    class FakeOutput:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def print(self):
+            reports.append(self.kwargs)
+
+    class FakePipeline:
+        def __init__(self, *, stages, **_kwargs):
+            self.stages = stages
+
+        def execute(self, verbose):
+            assert verbose is True
+            return [(stage, 1.0, states) for stage in self.stages]
+
+    monkeypatch.setattr(output, "ComparisonOutput", FakeOutput)
+    monkeypatch.setattr(pipeline, "TransformationPipeline", FakePipeline)
+    monkeypatch.setattr(transformation_stages, "RotationStage", FakeStage)
+    monkeypatch.setattr(transformation_stages, "RotationXYStage", FakeStage)
+    monkeypatch.setattr(transformation_stages, "RotationZStage", FakeStage)
+    monkeypatch.setattr(transformation_stages, "TimeShiftStage", FakeStage)
+
+    diff_oem_entry.main(
+        [
+            "reference.oem",
+            "comparison.oem",
+            "--rotate",
+            "--rotate-xy",
+            "--rotate-z",
+            "--time-shift",
+            "--debug",
+        ]
+    )
+
+    assert len(stage_constructors) == 4
+    assert len(reports) == 5
+    assert all(report["verbose"] for report in reports)
+    assert debug_flags == [True]
+
+
 def test_print_result_includes_comparison_epoch_verbose_and_rtn_columns(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
