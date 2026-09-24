@@ -9,6 +9,7 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
+import ephem_toolkit.plot_dep_vars.__main__ as plot_dep_vars_entry
 import ephem_toolkit.plot_dep_vars.plot_dependent_variables as dep_vars
 from ephem_toolkit.plot_dep_vars.plot_dependent_variables_cli import (
     build_arg_parser,
@@ -161,3 +162,34 @@ def test_plot_dependent_variables_filters_duration_and_detects_satellite(
     np.testing.assert_array_equal(relative_time_h, [0.0, 1.0])
     assert satellite_name == "ISS"
     assert animations == [None, None]
+
+
+def test_main_dispatches_parsed_arguments_and_shows_plots(monkeypatch) -> None:
+    plotter = Mock(return_value=[object()])
+    show = Mock()
+    monkeypatch.setattr(dep_vars, "plot_dependent_variables_from_csv", plotter)
+    monkeypatch.setattr("matplotlib.pyplot.show", show)
+
+    plot_dep_vars_entry.main(
+        ["orbit_dep_vars.csv", "--name", "ISS", "--duration", "90m"]
+    )
+
+    plotter.assert_called_once_with(
+        dep_var_csv_path="orbit_dep_vars.csv",
+        satellite_name="ISS",
+        show=False,
+        duration_s=5_400.0,
+    )
+    show.assert_called_once_with()
+
+
+def test_main_closes_figures_and_returns_on_keyboard_interrupt(monkeypatch) -> None:
+    plotter = Mock(return_value=[])
+    close = Mock()
+    monkeypatch.setattr(dep_vars, "plot_dependent_variables_from_csv", plotter)
+    monkeypatch.setattr("matplotlib.pyplot.show", Mock(side_effect=KeyboardInterrupt))
+    monkeypatch.setattr("matplotlib.pyplot.close", close)
+
+    assert plot_dep_vars_entry.main(["orbit_dep_vars.csv"]) is None
+
+    close.assert_called_once_with("all")
