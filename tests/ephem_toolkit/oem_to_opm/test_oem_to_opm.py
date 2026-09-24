@@ -5,16 +5,19 @@ import io
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
+import ephem_toolkit.core.cli as core_cli
 import ephem_toolkit.core.ccsds.opm as opm
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.oem_to_opm as oem_to_opm
 import ephem_toolkit.oem_to_opm.__main__ as oem_to_opm_entry
 import ephem_toolkit.oem_to_opm.fit_numerical as fit_numerical
 import ephem_toolkit.oem_to_opm.fit_osculating_kepler as fit_osculating_kepler
+import ephem_toolkit.oem_to_opm.fit_common as fit_common
 from ephem_toolkit.oem_to_opm.oem_to_opm_cli import build_arg_parser, parse_arguments
 
 
@@ -144,6 +147,24 @@ def test_parser_rejects_non_positive_fit_controls(option: str) -> None:
     assert error.value.code == 2
 
 
+@pytest.mark.parametrize(
+    ("option", "value"),
+    [
+        ("--fit-position-weight", "invalid"),
+        ("--fit-max-iterations", "invalid"),
+        ("--fit-max-iterations", "0"),
+        ("--drag", "sometimes"),
+    ],
+)
+def test_parser_rejects_invalid_typed_values(option: str, value: str) -> None:
+    with pytest.raises(SystemExit) as error:
+        parse_arguments(
+            build_arg_parser(), [option, value, "input.oem", "-o", "output.opm"]
+        )
+
+    assert error.value.code == 2
+
+
 def test_numerical_fit_model_dispatches_to_shared_fitter(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -171,10 +192,19 @@ def test_numerical_fit_model_dispatches_to_shared_fitter(
             epoch: np.zeros(6) for epoch in epochs
         },
     )
+
     monkeypatch.setattr(
         fit_numerical,
-        "optimize_initial_state",
-        lambda *_args, **_kwargs: fit_numerical.NumericalFitResult(
+        "build_weighted_residuals",
+        lambda *_args, **_kwargs: (
+            np.zeros(1),
+            SimpleNamespace(position_rms_m=1.0),
+        ),
+    )
+
+    def optimize(*_args, **kwargs):
+        kwargs["iteration_callback"](1, 2.0, 3.0, 1.0, False)
+        return fit_numerical.NumericalFitResult(
             initial_state=DummyOemData().states[0][1],
             diagnostics=fit_numerical.NumericalResidualDiagnostics(
                 position_rms_m=1.0,
@@ -185,8 +215,9 @@ def test_numerical_fit_model_dispatches_to_shared_fitter(
             ),
             iterations=1,
             converged=True,
-        ),
-    )
+        )
+
+    monkeypatch.setattr(fit_numerical, "optimize_initial_state", optimize)
     output_path = tmp_path / "output.opm"
     report_path = tmp_path / "output.fit.json"
     oem_to_opm.main(
@@ -199,6 +230,7 @@ def test_numerical_fit_model_dispatches_to_shared_fitter(
             "--fit-report",
             str(report_path),
             "--verbose",
+            "--debug",
         ]
     )
     assert output_path.exists()
@@ -339,3 +371,151 @@ def test_report_error_prints_to_stderr_and_exits(
 
     assert error.value.code == 3
     assert capsys.readouterr().err == "conversion failed\n"
+
+
+def test_cli_forwards_to_shared_runner(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+    monkeypatch.setattr(
+        core_cli, "run_cli", lambda main, argv: calls.append((main, argv)) or 5
+    )
+
+    assert oem_to_opm_entry.cli(["input.oem"]) == 5
+    assert calls == [(oem_to_opm_entry.main, ["input.oem"])]
+
+
+def test_progress_and_debug_messages_emit_only_when_enabled(capsys) -> None:
+    oem_to_opm_entry.verbose_message(False, "hidden progress")
+    oem_to_opm_entry.debug_message(False, "hidden details")
+    assert capsys.readouterr().err == ""
+
+    oem_to_opm_entry.verbose_message(True, "loading input")
+    oem_to_opm_entry.debug_message(True, "parsed options")
+    captured = capsys.readouterr()
+    assert "[oem-to-opm] loading input" in captured.err
+    assert "[oem-to-opm:debug] parsed options" in captured.err
+
+
+def test_osculating_kepler_comparison_and_formatter(monkeypatch) -> None:
+    class FakePropagator:
+        def __init__(self, **_kwargs):
+            pass
+
+        def propagate_to(self, epoch, output):
+            return epoch, np.zeros(6)
+
+    monkeypatch.setattr(fit_osculating_kepler, "KeplerPropagator", FakePropagator)
+    states = [(0.0, np.ones(6)), (60.0, np.full(6, 2.0))]
+    comparison = fit_osculating_kepler.compute_kepler_propagation_comparison(
+        np.array([7.0e6, 0.01, 0.2, 0.3, 0.4, 0.5]),
+        states,
+        mu_m3_s2=1.0,
+        fit_span_s=60.0,
+        interval_s=60.0,
+    )
+    diagnostics = fit_common.FitDiagnostics(
+        rms_position_m=250.0,
+        iterations=2,
+        n_records=2,
+        span_s=60.0,
+        initial_position_rms_m=500.0,
+    )
+
+    output = fit_osculating_kepler.format_kepler_output(
+        datetime(2025, 1, 1, tzinfo=timezone.utc),
+        np.array([7.0e6, 0.01, 0.2, 0.3, 0.4, 0.5]),
+        diagnostics,
+        comparison,
+    )
+
+    assert len(comparison) == 2
+    assert "initial position RMS: 0.500000 km" in output
+    assert "fit method:         two-body" in output
+
+
+def test_kepler_residual_helper_and_short_arc_validation(monkeypatch) -> None:
+    class FakePropagator:
+        def __init__(self, **_kwargs):
+            pass
+
+        def propagate_to(self, epoch, output):
+            return epoch, np.full(6, epoch)
+
+    monkeypatch.setattr(
+        fit_osculating_kepler.kepler,
+        "cartesian_to_keplerian",
+        lambda *_args: np.arange(6, dtype=float),
+    )
+    monkeypatch.setattr(fit_osculating_kepler, "KeplerPropagator", FakePropagator)
+
+    residuals = fit_osculating_kepler._compute_kepler_residuals_from_epoch_state(
+        np.ones(6),
+        np.array([0.0, 2.0]),
+        np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
+        mu_m3_s2=1.0,
+    )
+
+    np.testing.assert_array_equal(residuals, [1.0, 2.0, 3.0, 2.0, 3.0, 4.0])
+    with pytest.raises(ValueError, match="At least 2 state vectors"):
+        fit_osculating_kepler.fit_osculating_kepler(
+            [(0.0, np.ones(6))], fit_span_s=60.0
+        )
+
+
+def test_osculating_kepler_fit_handles_singular_normal_equations(
+    monkeypatch,
+) -> None:
+    elements = np.array([7.0e6, 0.01, 0.2, 0.3, 0.4, 0.5])
+    monkeypatch.setattr(
+        fit_osculating_kepler.kepler,
+        "cartesian_to_keplerian",
+        lambda *_args: elements.copy(),
+    )
+    monkeypatch.setattr(
+        fit_osculating_kepler,
+        "_compute_kepler_residuals_from_epoch_state",
+        lambda *_args: np.ones(3),
+    )
+    monkeypatch.setattr(
+        np.linalg,
+        "solve",
+        lambda *_args: (_ for _ in ()).throw(np.linalg.LinAlgError("singular")),
+    )
+
+    fitted, diagnostics = fit_osculating_kepler.fit_osculating_kepler(
+        [(0.0, np.ones(6)), (10.0, np.ones(6))], fit_span_s=10.0, max_iterations=1
+    )
+
+    np.testing.assert_array_equal(fitted, elements)
+    assert diagnostics.iterations == 1
+
+
+def test_osculating_kepler_fit_backtracks_when_candidate_conversion_fails(
+    monkeypatch,
+) -> None:
+    elements = np.array([7.0e6, 0.01, 0.2, 0.3, 0.4, 0.5])
+    calls = 0
+
+    def convert_candidate(*_args):
+        nonlocal calls
+        calls += 1
+        if calls <= 10:
+            raise ValueError("invalid trial state")
+        return elements.copy()
+
+    monkeypatch.setattr(
+        fit_osculating_kepler.kepler,
+        "cartesian_to_keplerian",
+        convert_candidate,
+    )
+    monkeypatch.setattr(
+        fit_osculating_kepler,
+        "_compute_kepler_residuals_from_epoch_state",
+        lambda *_args: np.ones(3),
+    )
+
+    fitted, _diagnostics = fit_osculating_kepler.fit_osculating_kepler(
+        [(0.0, np.ones(6)), (10.0, np.ones(6))], fit_span_s=10.0, max_iterations=1
+    )
+
+    assert calls == 11
+    np.testing.assert_array_equal(fitted, elements)
