@@ -16,7 +16,8 @@ import ephem_toolkit.plot_oem_diff.__main__ as plot_oem_diff_entry
 import ephem_toolkit.plot_oem_diff.file_io as file_io
 import ephem_toolkit.plot_oem_diff.plotting as plotting
 from ephem_toolkit.plot_oem_diff import file_io as orbit_file_io
-from ephem_toolkit.plot_oem_diff.data_structures import StateHistory
+from ephem_toolkit.plot_oem_diff.data_structures import StateHistory, TimeUnit
+from ephem_toolkit.plot_oem_diff import data_structures
 from ephem_toolkit.plot_oem_diff.plot_oem_diff_cli import (
     build_arg_parser,
     parse_arguments,
@@ -64,6 +65,106 @@ def test_plot_orbits_skips_empty_comparison_histories() -> None:
     empty_comparison = StateHistory(label="empty", state_history={})
 
     plot_orbits(reference_state_history, [empty_comparison], output_file=None)
+
+
+def test_orbit_plots_write_figures_and_dataset_csvs(
+    tmp_path: Path, monkeypatch
+) -> None:
+    reference_state = np.array([7.0e6, 0.0, 0.0, 0.0, 7_500.0, 0.0])
+    comparison_state = np.array([7.0e6, 1_000.0, 500.0, 1.0, 7_501.0, 2.0])
+    reference_history = StateHistory(
+        label="reference",
+        state_history={epoch: reference_state.copy() for epoch in (0.0, 60.0, 120.0)},
+    )
+    comparison_history = StateHistory(
+        label="comparison",
+        state_history={epoch: comparison_state.copy() for epoch in (0.0, 60.0, 120.0)},
+    )
+    monkeypatch.setattr(
+        reference_history,
+        "get_interpolated_state",
+        lambda _epoch: reference_state,
+    )
+    monkeypatch.setattr(
+        plotting.misc,
+        "transform_to_rtn",
+        lambda *_args: np.array([100.0, 200.0, 300.0, 1.0, 2.0, 3.0]),
+    )
+
+    absolute_plot = tmp_path / "absolute.png"
+    rtn_orbit_plot = tmp_path / "rtn-orbit.png"
+    try:
+        plotting.plot_orbits(
+            reference_history, [comparison_history], str(absolute_plot)
+        )
+        plotting.plot_relative_rtn_orbits(
+            reference_history, [comparison_history], str(rtn_orbit_plot)
+        )
+
+        assert plt.gcf().axes[0].lines[-1].get_label() == "comparison"
+    finally:
+        plt.close("all")
+
+    assert absolute_plot.stat().st_size > 0
+    assert rtn_orbit_plot.stat().st_size > 0
+    absolute_csv = tmp_path / "absolute_absolute_orbits_comparison.csv"
+    rtn_csv = tmp_path / "rtn-orbit_relative_rtn_orbits_comparison.csv"
+    assert "x_km" in absolute_csv.read_text(encoding="utf-8")
+    assert "epoch_s" in rtn_csv.read_text(encoding="utf-8")
+
+
+def test_state_history_lazily_interpolates_only_within_safe_bounds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created_interpolators = []
+
+    class FakeInterpolator:
+        independent_values = list(range(7))
+
+        def interpolate(self, timestamp_s):
+            return np.full(6, timestamp_s)
+
+    fake_interpolator = FakeInterpolator()
+
+    def create_interpolator(**kwargs):
+        created_interpolators.append(kwargs)
+        return fake_interpolator
+
+    monkeypatch.setattr(
+        data_structures.factory.InterpolatorFactory,
+        "create",
+        create_interpolator,
+    )
+    history = StateHistory(
+        label="orbit",
+        state_history={float(epoch): np.zeros(6) for epoch in range(7)},
+    )
+
+    assert history.get_interpolated_state(1.9) is None
+    np.testing.assert_array_equal(history.get_interpolated_state(2.0), np.full(6, 2.0))
+    np.testing.assert_array_equal(history.get_interpolated_state(4.0), np.full(6, 4.0))
+    assert history.get_interpolated_state(4.1) is None
+    assert history.interpolator is fake_interpolator
+    assert len(created_interpolators) == 1
+    assert created_interpolators[0]["data"] is history.state_history
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("m", TimeUnit.MINUTES),
+        ("minutes", TimeUnit.MINUTES),
+        ("h", TimeUnit.HOURS),
+        ("hours", TimeUnit.HOURS),
+    ],
+)
+def test_time_unit_parses_aliases(value: str, expected: TimeUnit) -> None:
+    assert TimeUnit.from_string(value) is expected
+
+
+def test_time_unit_rejects_unknown_value() -> None:
+    with pytest.raises(ValueError, match="Invalid time unit"):
+        TimeUnit.from_string("days")
 
 
 def test_generate_output_filename_adds_suffix_before_extension() -> None:
@@ -129,16 +230,14 @@ def test_main_filters_histories_and_routes_plot_outputs(
     assert "Skipping comparison orbit with no data" in capsys.readouterr().out
 
 
-def test_relative_plots_show_expected_cartesian_rtn_and_angular_deltas(
-    monkeypatch,
+def test_relative_plots_show_expected_deltas_and_write_outputs(
+    monkeypatch, tmp_path: Path
 ) -> None:
     reference_state = np.array([7.0e6, 0.0, 0.0, 0.0, 7_500.0, 0.0])
     comparison_state = np.array([0.0, 7.0e6, 0.0, 10.0, 7_510.0, 20.0])
     reference_history = StateHistory(
         label="reference",
-        state_history={
-            epoch: reference_state.copy() for epoch in (0.0, 60.0, 120.0)
-        },
+        state_history={epoch: reference_state.copy() for epoch in (0.0, 60.0, 120.0)},
     )
     monkeypatch.setattr(
         reference_history,
@@ -156,8 +255,12 @@ def test_relative_plots_show_expected_cartesian_rtn_and_angular_deltas(
     )
 
     try:
+        cartesian_plot = tmp_path / "cartesian.png"
         plotting.plot_relative_cartesian_timeseries(
-            reference_history, [comparison_history], time_unit=plotting.TimeUnit.MINUTES
+            reference_history,
+            [comparison_history],
+            output_file=str(cartesian_plot),
+            time_unit=plotting.TimeUnit.MINUTES,
         )
         cartesian_figure = plt.gcf()
         np.testing.assert_allclose(
@@ -167,22 +270,39 @@ def test_relative_plots_show_expected_cartesian_rtn_and_angular_deltas(
             cartesian_figure.axes[0].lines[-1].get_ydata(), [-7_000.0, -7_000.0]
         )
 
+        rtn_plot = tmp_path / "rtn.png"
         plotting.plot_relative_rtn_timeseries(
-            reference_history, [comparison_history], time_unit=plotting.TimeUnit.MINUTES
+            reference_history,
+            [comparison_history],
+            output_file=str(rtn_plot),
+            time_unit=plotting.TimeUnit.MINUTES,
         )
         rtn_figure = plt.gcf()
         np.testing.assert_allclose(rtn_figure.axes[0].lines[-1].get_xdata(), [1.0, 2.0])
         np.testing.assert_allclose(rtn_figure.axes[0].lines[-1].get_ydata(), [1.0, 1.0])
 
+        angular_plot = tmp_path / "angular.png"
         plotting.plot_angular_separation(
-            reference_history, [comparison_history], time_unit=plotting.TimeUnit.MINUTES
+            reference_history,
+            [comparison_history],
+            output_file=str(angular_plot),
+            time_unit=plotting.TimeUnit.MINUTES,
         )
         angular_figure = plt.gcf()
         np.testing.assert_allclose(
             angular_figure.axes[0].lines[-1].get_ydata(), [90.0, 90.0]
         )
+        assert cartesian_plot.stat().st_size > 0
+        assert rtn_plot.stat().st_size > 0
+        assert angular_plot.stat().st_size > 0
     finally:
         plt.close("all")
+
+    assert (
+        tmp_path / "cartesian_relative_cartesian_timeseries_comparison.csv"
+    ).exists()
+    assert (tmp_path / "rtn_relative_rtn_timeseries_comparison.csv").exists()
+    assert (tmp_path / "angular_angular_separation_comparison.csv").exists()
 
 
 def test_read_orbit_file_falls_back_to_raw_state_parsing(
