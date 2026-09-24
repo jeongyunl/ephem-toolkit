@@ -3,6 +3,7 @@
 import pytest
 from types import SimpleNamespace
 
+import ephem_toolkit.core.cli as core_cli
 import ephem_toolkit.omm_to_opm as omm_package
 import ephem_toolkit.omm_to_opm.__main__ as omm_wrapper
 from ephem_toolkit.omm_to_opm.__main__ import _forward_arguments, main
@@ -70,6 +71,34 @@ def test_omm_to_opm_dispatches_declared_theory_and_delegates(monkeypatch) -> Non
     assert calls[0][1] == "generated OEM\n"
 
 
+def test_main_uses_sys_argv_and_kepler_dispatch(monkeypatch) -> None:
+    import sys
+
+    import ephem_toolkit.propagate_omm.propagation as propagation
+
+    source = SimpleNamespace(
+        epoch="2026-01-01T00:00:00.000000",
+        mean_element_theory="KEPLER",
+        tle_parameters=None,
+    )
+    calls = []
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["omm-to-opm", "input.omm", "--fit-model", "numerical", "-o", "out.opm"],
+    )
+    monkeypatch.setattr(propagation, "read_omm_input", lambda _path: source)
+    monkeypatch.setattr(
+        propagation, "propagate_omm_kepler", lambda *_args: print("generated OEM")
+    )
+    monkeypatch.setattr(omm_wrapper, "oem_to_opm_main", lambda args: calls.append(args))
+
+    main()
+
+    assert calls[0][:3] == ["--fit-model", "numerical", "-"]
+    assert "--source-model" in calls[0]
+
+
 def test_package_entry_points_forward_arguments(monkeypatch) -> None:
     calls = []
     monkeypatch.setattr(omm_wrapper, "main", lambda argv: calls.append(("main", argv)))
@@ -80,3 +109,13 @@ def test_package_entry_points_forward_arguments(monkeypatch) -> None:
     assert omm_package.main(["input.omm"]) is None
     assert omm_package.cli(["input.omm"]) == 3
     assert calls == [("main", ["input.omm"]), ("cli", ["input.omm"])]
+
+
+def test_cli_forwards_to_shared_runner(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr(
+        core_cli, "run_cli", lambda main, argv: calls.append((main, argv)) or 5
+    )
+
+    assert omm_wrapper.cli(["input.omm"]) == 5
+    assert calls == [(omm_wrapper.main, ["input.omm"])]
