@@ -85,3 +85,38 @@ def test_main_reports_network_errors_without_raising(monkeypatch, capsys) -> Non
     download_tle_entry.main(["1998-067A"])
 
     assert "Error downloading data for 1998-067A: offline" in capsys.readouterr().out
+
+
+def test_main_handles_empty_celestrak_responses(monkeypatch, capsys) -> None:
+    responses = iter([b" \n", b"  \n"])
+
+    class FakeResponse:
+        def read(self) -> bytes:
+            return next(responses)
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda _url: FakeResponse())
+
+    download_tle_entry.main(["1998-067A"])
+
+    output = capsys.readouterr().out
+    assert "Satellite name: 1998-067A" in output
+    assert "No data found for 1998-067A" in output
+
+
+def test_main_reports_file_save_errors(monkeypatch, tmp_path, capsys) -> None:
+    responses = iter([b"ISS (ZARYA)\n", b"TLE DATA\n"])
+
+    class FakeResponse:
+        def read(self) -> bytes:
+            return next(responses)
+
+    def fail_open(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("urllib.request.urlopen", lambda _url: FakeResponse())
+    monkeypatch.setattr("builtins.open", fail_open)
+
+    download_tle_entry.main(["1998-067A"])
+
+    assert "Error downloading data for 1998-067A: disk full" in capsys.readouterr().out
