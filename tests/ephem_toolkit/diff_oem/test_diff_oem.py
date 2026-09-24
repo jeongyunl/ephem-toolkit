@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
+import ephem_toolkit.core.cli as core_cli
 from ephem_toolkit.core.interpolator import factory
 from ephem_toolkit.core.interpolator import lagrange
 from ephem_toolkit.core.interpolator.interpolation_spec import (
@@ -53,6 +55,38 @@ def _reference_interpolator() -> lagrange.LagrangeInterpolator:
     return _make_interpolator(reference_states)
 
 
+def test_read_states_returns_oem_records(monkeypatch) -> None:
+    states = [_create_state(0.0, 1.0), _create_state(1.0, 2.0)]
+    monkeypatch.setattr(
+        comparison.oem.CcsdsOem,
+        "read",
+        lambda source: SimpleNamespace(states=states),
+    )
+
+    assert comparison.read_states("input.oem") is states
+
+
+def test_read_states_rejects_empty_oem(monkeypatch) -> None:
+    monkeypatch.setattr(
+        comparison.oem.CcsdsOem,
+        "read",
+        lambda _source: SimpleNamespace(states=[]),
+    )
+
+    with pytest.raises(ValueError, match="No valid OEM-like state"):
+        comparison.read_states("empty.oem")
+
+
+def test_read_states_wraps_file_errors(monkeypatch) -> None:
+    def raise_oserror(_source):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(comparison.oem.CcsdsOem, "read", raise_oserror)
+
+    with pytest.raises(ValueError, match="Could not read file.*permission denied"):
+        comparison.read_states("unreadable.oem")
+
+
 def test_find_overlapping_time_range() -> None:
     reference_states: list[tuple[float, np.ndarray]] = [
         _create_state(float(index), float(index)) for index in range(5)
@@ -72,6 +106,10 @@ def test_find_overlapping_time_range() -> None:
         )
         is None
     )
+
+
+def test_build_comparison_pairs_returns_empty_for_empty_reference() -> None:
+    assert utils.build_comparison_pairs([], [], 0.0, 1.0) == []
 
 
 def test_resolve_time_bound_accepts_reference_relative_duration() -> None:
@@ -172,6 +210,12 @@ def test_rotation_stage_build_fit_pairs_respects_interpolation_modes() -> None:
     assert all(pair[1] == comparison_states[0] for pair in data_pairs)
 
 
+def test_rotation_transform_handles_empty_states() -> None:
+    stage = transformation_stages.RotationStage(0.0, 1.0, 1.0)
+
+    assert stage.transform([], np.eye(3)) == []
+
+
 @pytest.mark.parametrize(
     ("stage_type", "message"),
     [
@@ -207,6 +251,66 @@ def test_compare_pairs_returns_none_for_out_of_range_interpolation() -> None:
     )
 
     assert results == [(0.0, None)]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "epoch outside the reference OEM interpolation range",
+        "epoch outside the comparison OEM interpolation range",
+    ],
+)
+def test_compare_pairs_converts_boundary_errors_to_missing_results(
+    monkeypatch, message
+) -> None:
+    pair = (_create_state(2.0, 1.0), _create_state(2.0, 1.0))
+
+    def raise_boundary_error(*_args):
+        raise ValueError(message)
+
+    monkeypatch.setattr(utils, "compare_states", raise_boundary_error)
+
+    assert utils.compare_pairs([pair], object(), object(), None) == [(2.0, None)]
+
+
+def test_compare_pairs_reraises_unexpected_value_errors(monkeypatch) -> None:
+    pair = (_create_state(2.0, 1.0), _create_state(2.0, 1.0))
+    monkeypatch.setattr(
+        utils,
+        "compare_states",
+        lambda *_args: (_ for _ in ()).throw(ValueError("bad state")),
+    )
+
+    with pytest.raises(ValueError, match="bad state"):
+        utils.compare_pairs([pair], object(), object(), None)
+
+
+@pytest.mark.parametrize(
+    "stage_type",
+    [
+        transformation_stages.RotationStage,
+        transformation_stages.RotationXYStage,
+        transformation_stages.RotationZStage,
+    ],
+)
+def test_rotation_stages_fit_resolved_state_pairs(stage_type) -> None:
+    reference_states = [
+        (0.0, np.array([2.0, 1.0, 0.5, 0.0, 1.0, 0.0])),
+        (1.0, np.array([1.0, 3.0, 0.5, 0.0, 1.0, 0.0])),
+        (2.0, np.array([1.0, 0.5, 4.0, 0.0, 1.0, 0.0])),
+    ]
+    comparison_states = [
+        (epoch, state + np.array([0.2, -0.1, 0.3, 0.0, 0.0, 0.0]))
+        for epoch, state in reference_states
+    ]
+    stage_input = SimpleNamespace(
+        resolve_state_pairs=lambda: list(zip(reference_states, comparison_states))
+    )
+    stage = stage_type(0.0, 2.0, 2.0)
+
+    fitted_rotation = stage.fit(stage_input)
+
+    assert fitted_rotation.shape == (3, 3)
 
 
 def test_print_result_handles_missing_boundary_row(
@@ -464,6 +568,53 @@ def test_main_reports_non_overlapping_input_histories(
 
     assert error.value.code == 1
     assert "no overlapping time period" in capsys.readouterr().err
+
+
+def test_main_rejects_start_after_stop(monkeypatch, capsys) -> None:
+    states = [_create_state(0.0, 1.0), _create_state(10.0, 2.0)]
+    resolved_epochs = iter([8.0, 3.0])
+    monkeypatch.setattr(comparison, "read_states", lambda _source: states)
+    monkeypatch.setattr(
+        utils, "find_overlapping_time_range", lambda *_args: (0.0, 10.0)
+    )
+    monkeypatch.setattr(
+        utils, "resolve_time_bound", lambda *_args: next(resolved_epochs)
+    )
+
+    with pytest.raises(SystemExit):
+        diff_oem_entry.main(
+            ["reference.oem", "comparison.oem", "--start", "8s", "--stop", "3s"]
+        )
+
+    assert "--start must be earlier than or equal to --stop" in capsys.readouterr().err
+
+
+def test_main_debug_reports_missing_overlap(monkeypatch, capsys) -> None:
+    states = [_create_state(0.0, 1.0), _create_state(1.0, 2.0)]
+    monkeypatch.setattr(comparison, "read_states", lambda _source: states)
+    monkeypatch.setattr(utils, "find_overlapping_time_range", lambda *_args: None)
+
+    try:
+        with pytest.raises(SystemExit):
+            diff_oem_entry.main(["reference.oem", "comparison.oem", "--debug"])
+    finally:
+        debug.set_debug(False)
+
+    assert "no overlapping time period" in capsys.readouterr().err
+
+
+def test_cli_forwards_main_and_argv(monkeypatch) -> None:
+    calls = []
+
+    def fake_run_cli(main, argv):
+        calls.append((main, argv))
+        return 7
+
+    monkeypatch.setattr(core_cli, "run_cli", fake_run_cli)
+    argv = ["reference.oem", "comparison.oem"]
+
+    assert diff_oem_entry.cli(argv) == 7
+    assert calls == [(diff_oem_entry.main, argv)]
 
 
 def test_main_returns_when_comparison_has_no_pairs(
