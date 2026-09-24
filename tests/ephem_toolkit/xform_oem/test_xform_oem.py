@@ -11,6 +11,8 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+import ephem_toolkit.core.cli as core_cli
+import ephem_toolkit.xform_oem.__main__ as xform_oem_entry
 import ephem_toolkit.xform_oem.operations as operations
 import ephem_toolkit.xform_oem.xform_oem_cli as xform_oem_cli
 from ephem_toolkit.xform_oem import main
@@ -366,6 +368,7 @@ META_STOP
             "OBJECT_NAME=RENAMED",
             "--set-header",
             "ORIGINATOR=UPDATED",
+            "--verbose",
             "--output",
             "-",
         ],
@@ -378,3 +381,13 @@ META_STOP
     assert "ITRF" in result.stdout
     assert "GCRF" not in result.stdout
     assert "ORIGINATOR     = UPDATED" in result.stdout
+
+
+def test_xform_cli_forwards_to_shared_runner(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = []
+    monkeypatch.setattr(
+        core_cli, "run_cli", lambda main, argv: calls.append((main, argv)) or 6
+    )
+
+    assert xform_oem_entry.cli(["input.oem"]) == 6
+    assert calls == [(xform_oem_entry.main, ["input.oem"])]
