@@ -9,6 +9,7 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
+import ephem_toolkit.core.cli as core_cli
 import ephem_toolkit.plot_dep_vars.__main__ as plot_dep_vars_entry
 import ephem_toolkit.plot_dep_vars.plot_dependent_variables as dep_vars
 from ephem_toolkit.plot_dep_vars.plot_dependent_variables_cli import (
@@ -193,6 +194,59 @@ def test_main_closes_figures_and_returns_on_keyboard_interrupt(monkeypatch) -> N
     assert plot_dep_vars_entry.main(["orbit_dep_vars.csv"]) is None
 
     close.assert_called_once_with("all")
+
+
+def test_main_without_input_connects_figure_callbacks(monkeypatch) -> None:
+    import matplotlib.pyplot as plt
+
+    monkeypatch.setattr(
+        plot_dep_vars_entry,
+        "parse_arguments",
+        lambda _parser, _argv: type(
+            "Args", (), {"dep_vars_csv": None, "name": None, "duration": None}
+        )(),
+    )
+    callbacks = []
+    figure = type(
+        "Figure",
+        (),
+        {
+            "canvas": type(
+                "Canvas",
+                (),
+                {
+                    "mpl_connect": lambda _self, _event, callback: callbacks.append(
+                        callback
+                    )
+                },
+            )(),
+        },
+    )()
+    monkeypatch.setattr(plt, "get_fignums", lambda: [1])
+    monkeypatch.setattr(plt, "figure", lambda _number: figure)
+    close = Mock()
+    monkeypatch.setattr(plt, "close", close)
+    monkeypatch.setattr(
+        plt,
+        "show",
+        lambda: callbacks[0](type("Event", (), {"key": "control+c"})()),
+    )
+
+    plot_dep_vars_entry.main([])
+
+    close.assert_called_once_with("all")
+
+
+def test_plot_dependent_variables_cli_uses_shared_runner(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr(
+        core_cli,
+        "run_cli",
+        lambda main_func, argv: calls.append((main_func, argv)) or 11,
+    )
+
+    assert plot_dep_vars_entry.cli(["data.csv"]) == 11
+    assert calls == [(plot_dep_vars_entry.main, ["data.csv"])]
 
 
 def test_plot_helpers_render_scalar_vector_and_animation_data() -> None:
