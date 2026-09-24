@@ -9,7 +9,10 @@ import pytest
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.ccsds.omm as omm
 import ephem_toolkit.core.convert_tle as convert_tle
+import ephem_toolkit.core.propagator.dsst as dsst
 import ephem_toolkit.core.propagator.brouwer_j2 as brouwer
+import ephem_toolkit.core.provenance as provenance
+import ephem_toolkit.core.time_utils as time_utils
 import ephem_toolkit.oem_to_omm as oem_to_omm
 import ephem_toolkit.oem_to_omm.fit_brouwer as fit_brouwer
 import ephem_toolkit.oem_to_omm.fit_tle_main as fit_tle
@@ -146,7 +149,9 @@ def test_parse_arguments_accepts_provenance_report_options(monkeypatch):
 
 
 def test_parse_arguments_accepts_no_fit_report(monkeypatch):
-    monkeypatch.setattr(sys, "argv", ["oem-to-omm", "--no-fit-report", "input.oem", "-o", "output.omm"])
+    monkeypatch.setattr(
+        sys, "argv", ["oem-to-omm", "--no-fit-report", "input.oem", "-o", "output.omm"]
+    )
     args = oem_to_omm_cli.parse_arguments(oem_to_omm_cli.build_arg_parser())
     assert args.no_fit_report is True
 
@@ -283,3 +288,260 @@ def test_main_tle_mode_writes_omm_from_duration(monkeypatch, tmp_path):
 
     assert dummy_omm.originator == "oem_to_omm"
     assert Path(tmp_path / "tle.omm").read_text(encoding="utf-8") == "OMM_OUTPUT"
+
+
+def test_main_dsst_mode_fits_and_writes_omm_to_stdout(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    states = [
+        (0.0, np.array([7000.0, 0.0, 0.0, 0.0, 7.5, 0.0])),
+        (600.0, np.array([6999.0, 1.0, 0.0, 0.0, 7.5, 0.0])),
+    ]
+    monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        oem.CcsdsOem,
+        "read",
+        lambda *_args, **_kwargs: DummyOemData(states, DummyMeta()),
+    )
+    monkeypatch.setattr(dsst, "DsstPerturbations", lambda **_kwargs: object())
+    diagnostics = {"span_s": 600.0, "n_records": 2, "rms_position_m": 12.0}
+    fit_calls = []
+    mean_elements = np.arange(6, dtype=float)
+    monkeypatch.setattr(
+        fit_brouwer,
+        "fit_dsst_mean_elements",
+        lambda fit_states, span, mu, perturbations: fit_calls.append(
+            (fit_states, span, mu, perturbations)
+        )
+        or (mean_elements, diagnostics),
+    )
+    monkeypatch.setattr(time_utils, "tt_s_to_datetime", lambda _epoch: "fit epoch")
+    monkeypatch.setattr(
+        provenance, "resolve_source_model", lambda *_args: ("SGP4", None)
+    )
+    monkeypatch.setattr(
+        provenance, "provenance_comment", lambda **_kwargs: "PROVENANCE"
+    )
+    monkeypatch.setattr(provenance, "fit_comment", lambda **_kwargs: "FIT SUMMARY")
+    dummy_omm = DummyOmmObj()
+    converted = []
+    monkeypatch.setattr(
+        omm,
+        "keplerian_to_omm",
+        lambda epoch, elements, **kwargs: converted.append((epoch, elements, kwargs))
+        or dummy_omm,
+    )
+
+    oem_to_omm.main(["--mode", "dsst", "--no-fit-report", "input.oem", "--output", "-"])
+
+    captured = capsys.readouterr()
+    assert captured.out == "OMM_OUTPUT"
+    assert len(fit_calls) == 1
+    assert fit_calls[0][0] is states
+    assert fit_calls[0][1] == 7_200.0
+    assert fit_calls[0][3] is not None
+    assert converted[0][0] == "fit epoch"
+    assert converted[0][1] is mean_elements
+    assert dummy_omm.originator == "oem_to_omm"
+    assert "DSST mean elements (J2 secular fit)" in dummy_omm.comments
+
+
+@pytest.mark.parametrize(
+    ("states", "argv", "error"),
+    [
+        (
+            [],
+            ["--mode", "dsst", "input.oem", "--no-fit-report"],
+            "At least 2 state vectors",
+        ),
+        (
+            [(0.0, np.ones(6)), (1.0, np.ones(6))],
+            [
+                "--mode",
+                "dsst",
+                "input.oem",
+                "--no-fit-report",
+                "--source-model",
+                "invalid",
+            ],
+            "source model",
+        ),
+        (
+            [(0.0, np.ones(6)), (1.0, np.ones(6))],
+            [
+                "--mode",
+                "dsst",
+                "input.oem",
+                "--fit-report",
+                "fit.json",
+                "--no-fit-report",
+            ],
+            "cannot be used together",
+        ),
+    ],
+)
+def test_main_rejects_invalid_input_and_report_options(
+    monkeypatch, states, argv, error
+):
+    monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        oem.CcsdsOem,
+        "read",
+        lambda *_args, **_kwargs: DummyOemData(states, DummyMeta()),
+    )
+    if "--source-model" in argv:
+        monkeypatch.setattr(
+            provenance,
+            "resolve_source_model",
+            lambda *_args: (_ for _ in ()).throw(ValueError("invalid source model")),
+        )
+
+    with pytest.raises(SystemExit):
+        oem_to_omm.main(argv + ["--output", "-"])
+
+
+def test_main_reports_missing_input_file(tmp_path, capsys):
+    missing_input = tmp_path / "missing.oem"
+
+    with pytest.raises(SystemExit):
+        oem_to_omm.main(
+            ["--mode", "dsst", str(missing_input), "--no-fit-report", "--output", "-"]
+        )
+
+    assert "Input file not found" in capsys.readouterr().err
+
+
+def test_main_reads_oem_from_stdin(monkeypatch):
+    stdin = StringIO("piped OEM")
+    states = [(0.0, np.ones(6))]
+    sources = []
+    monkeypatch.setattr(sys, "stdin", stdin)
+    monkeypatch.setattr(
+        oem.CcsdsOem,
+        "read",
+        lambda source: sources.append(source) or DummyOemData(states, DummyMeta()),
+    )
+
+    with pytest.raises(SystemExit, match="1"):
+        oem_to_omm.main(["--mode", "dsst", "-", "--no-fit-report", "--output", "-"])
+
+    assert sources == [stdin]
+
+
+@pytest.mark.parametrize(
+    ("option", "value", "message"),
+    [
+        ("--norad-cat-id", "-1", "norad-cat-id"),
+        ("--ephemeris-type", "10", "ephemeris-type"),
+        ("--element-set-no", "10000", "element-set-no"),
+        ("--rev-at-epoch", "100000", "rev-at-epoch"),
+    ],
+)
+def test_main_rejects_out_of_range_tle_metadata(
+    monkeypatch, capsys, option, value, message
+):
+    states = [(0.0, np.ones(6)), (1.0, np.ones(6))]
+    monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        oem.CcsdsOem,
+        "read",
+        lambda *_args, **_kwargs: DummyOemData(states, DummyMeta()),
+    )
+    monkeypatch.setattr(
+        provenance, "resolve_source_model", lambda *_args: ("SGP4", None)
+    )
+
+    with pytest.raises(SystemExit):
+        oem_to_omm.main(
+            [
+                "--mode",
+                "tle",
+                "input.oem",
+                "--no-fit-report",
+                "--output",
+                "-",
+                option,
+                value,
+            ]
+        )
+
+    assert message in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("mode", ["dsst", "brouwer", "tle"])
+def test_main_reports_fitting_errors(monkeypatch, mode):
+    states = [(0.0, np.ones(6)), (1.0, np.ones(6))]
+    monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        oem.CcsdsOem,
+        "read",
+        lambda *_args, **_kwargs: DummyOemData(states, DummyMeta()),
+    )
+    monkeypatch.setattr(
+        provenance, "resolve_source_model", lambda *_args: ("SGP4", None)
+    )
+    if mode == "dsst":
+        monkeypatch.setattr(dsst, "DsstPerturbations", lambda **_kwargs: object())
+        monkeypatch.setattr(
+            fit_brouwer,
+            "fit_dsst_mean_elements",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("fit failed")),
+        )
+    elif mode == "brouwer":
+        monkeypatch.setattr(
+            fit_brouwer,
+            "fit_brouwer",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("fit failed")),
+        )
+    else:
+        monkeypatch.setattr(
+            fit_tle,
+            "fit_tle",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("fit failed")),
+        )
+
+    with pytest.raises(SystemExit):
+        oem_to_omm.main(
+            ["--mode", mode, "input.oem", "--no-fit-report", "--output", "-"]
+        )
+
+
+def test_main_reports_dsst_omm_conversion_error(monkeypatch):
+    states = [(0.0, np.ones(6)), (1.0, np.ones(6))]
+    monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        oem.CcsdsOem,
+        "read",
+        lambda *_args, **_kwargs: DummyOemData(states, DummyMeta()),
+    )
+    monkeypatch.setattr(dsst, "DsstPerturbations", lambda **_kwargs: object())
+    monkeypatch.setattr(
+        fit_brouwer,
+        "fit_dsst_mean_elements",
+        lambda *_args, **_kwargs: (np.arange(6, dtype=float), {}),
+    )
+    monkeypatch.setattr(time_utils, "tt_s_to_datetime", lambda _epoch: "fit epoch")
+    monkeypatch.setattr(
+        provenance, "resolve_source_model", lambda *_args: ("SGP4", None)
+    )
+    monkeypatch.setattr(
+        omm,
+        "keplerian_to_omm",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            ValueError("conversion failed")
+        ),
+    )
+
+    with pytest.raises(SystemExit):
+        oem_to_omm.main(
+            [
+                "--mode",
+                "dsst",
+                "input.oem",
+                "--object-id",
+                "2000-001A",
+                "--no-fit-report",
+                "--output",
+                "-",
+            ]
+        )
