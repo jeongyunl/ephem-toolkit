@@ -424,3 +424,98 @@ def test_spice_convert_frame_itrf93_to_j2000(
 
     expected = state_matrix @ TEST_STATE
     np.testing.assert_allclose(result, expected)
+
+
+@pytest.mark.parametrize(
+    ("base_frame", "target_frame", "expected_routes"),
+    [
+        (frame_utils.Frame.EME2000, frame_utils.Frame.J2000, []),
+        (frame_utils.Frame.TEME, frame_utils.Frame.TEME, []),
+        (frame_utils.Frame.TEME, frame_utils.Frame.J2000, ["teme_to_j2000"]),
+        (
+            frame_utils.Frame.TEME,
+            frame_utils.Frame.ITRF1993,
+            ["teme_to_j2000", "spice_to_body"],
+        ),
+        (
+            frame_utils.Frame.TEME,
+            frame_utils.Frame.ITRF,
+            ["teme_to_j2000", "iau_to_body"],
+        ),
+        (frame_utils.Frame.J2000, frame_utils.Frame.TEME, ["j2000_to_teme"]),
+        (frame_utils.Frame.J2000, frame_utils.Frame.ITRF1993, ["spice_to_body"]),
+        (frame_utils.Frame.J2000, frame_utils.Frame.ITRF, ["iau_to_body"]),
+        (frame_utils.Frame.ITRF1993, frame_utils.Frame.J2000, ["spice_from_body"]),
+        (
+            frame_utils.Frame.ITRF1993,
+            frame_utils.Frame.TEME,
+            ["spice_from_body", "j2000_to_teme"],
+        ),
+        (
+            frame_utils.Frame.ITRF1993,
+            frame_utils.Frame.ITRF,
+            ["spice_from_body", "iau_to_body"],
+        ),
+        (frame_utils.Frame.ITRF, frame_utils.Frame.J2000, ["iau_from_body"]),
+        (
+            frame_utils.Frame.ITRF,
+            frame_utils.Frame.TEME,
+            ["iau_from_body", "j2000_to_teme"],
+        ),
+        (
+            frame_utils.Frame.ITRF,
+            frame_utils.Frame.ITRF1993,
+            ["iau_from_body", "spice_to_body"],
+        ),
+    ],
+)
+def test_convert_frame_routes_supported_pairs(
+    monkeypatch: pytest.MonkeyPatch,
+    base_frame: frame_utils.Frame,
+    target_frame: frame_utils.Frame,
+    expected_routes: list[str],
+) -> None:
+    state = TEST_STATE.copy()
+    routes: list[str] = []
+    spice_model = object()
+    iau_model = object()
+
+    def record_route(route: str):
+        def convert(*_args):
+            routes.append(route)
+            return state
+
+        return convert
+
+    monkeypatch.setattr(frame_utils, "teme_to_j2000", record_route("teme_to_j2000"))
+    monkeypatch.setattr(frame_utils, "j2000_to_teme", record_route("j2000_to_teme"))
+    monkeypatch.setattr(frame_utils, "tudat_spice_rotation_model", lambda: spice_model)
+    monkeypatch.setattr(frame_utils, "tudat_iau2006_rotation_model", lambda: iau_model)
+
+    def inertial_to_body(model, *_args):
+        routes.append("spice_to_body" if model is spice_model else "iau_to_body")
+        return state
+
+    def body_to_inertial(model, *_args):
+        routes.append("spice_from_body" if model is spice_model else "iau_from_body")
+        return state
+
+    monkeypatch.setattr(
+        frame_utils, "tudat_convert_inertial_to_body_fixed", inertial_to_body
+    )
+    monkeypatch.setattr(
+        frame_utils, "tudat_convert_body_fixed_to_inertial", body_to_inertial
+    )
+
+    result = frame_utils.convert_frame(base_frame, target_frame, 12.0, state)
+
+    assert result is state
+    assert routes == expected_routes
+
+
+def test_convert_frame_rejects_unsupported_base_and_target_frames() -> None:
+    with pytest.raises(ValueError, match="Unsupported base frame"):
+        frame_utils.convert_frame(object(), frame_utils.Frame.J2000, 0.0, TEST_STATE)
+
+    with pytest.raises(ValueError, match="Unsupported target frame"):
+        frame_utils.convert_frame(frame_utils.Frame.J2000, object(), 0.0, TEST_STATE)
