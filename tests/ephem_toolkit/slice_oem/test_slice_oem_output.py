@@ -212,6 +212,7 @@ def test_cli_opm_flag_selects_opm_format() -> None:
                 "--slice",
                 "0:3",
                 "--opm",
+                "--verbose",
                 "--output",
                 str(output_file),
             ]
@@ -227,3 +228,25 @@ def test_cli_opm_flag_selects_opm_format() -> None:
         temp_path.unlink()
         if output_file.exists():
             output_file.unlink()
+
+
+def test_cli_rejects_data_only_with_opm_output() -> None:
+    temp_path, _ = _create_test_oem(num_states=5)
+    try:
+        result = _run_slice_oem(
+            [str(temp_path), "--slice", "0:1", "--opm", "--data-only"]
+        )
+        assert result.returncode != 0
+        assert "--data-only cannot be used with OPM output" in result.stderr
+    finally:
+        temp_path.unlink()
+
+
+def test_cli_rejects_empty_selection_for_opm_output() -> None:
+    temp_path, _ = _create_test_oem(num_states=5)
+    try:
+        result = _run_slice_oem([str(temp_path), "--slice", "20:21", "--opm"])
+        assert result.returncode != 0
+        assert "OPM output requires at least one selected state" in result.stderr
+    finally:
+        temp_path.unlink()
