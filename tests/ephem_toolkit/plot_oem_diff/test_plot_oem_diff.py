@@ -12,6 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pytest
 
+import ephem_toolkit.core.cli as core_cli
 import ephem_toolkit.plot_oem_diff.__main__ as plot_oem_diff_entry
 import ephem_toolkit.plot_oem_diff.file_io as file_io
 import ephem_toolkit.plot_oem_diff.plotting as plotting
@@ -149,6 +150,16 @@ def test_state_history_lazily_interpolates_only_within_safe_bounds(
     assert created_interpolators[0]["data"] is history.state_history
 
 
+def test_state_history_reports_first_and_last_epochs() -> None:
+    history = StateHistory(
+        label="orbit",
+        state_history={5.0: np.zeros(6), 10.0: np.ones(6)},
+    )
+
+    assert history.get_start_time() == 5.0
+    assert history.get_stop_time() == 10.0
+
+
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
@@ -165,6 +176,11 @@ def test_time_unit_parses_aliases(value: str, expected: TimeUnit) -> None:
 def test_time_unit_rejects_unknown_value() -> None:
     with pytest.raises(ValueError, match="Invalid time unit"):
         TimeUnit.from_string("days")
+
+
+def test_time_unit_hours_conversion_and_label() -> None:
+    assert TimeUnit.HOURS.get_divisor() == 3600.0
+    assert TimeUnit.HOURS.get_label() == "Time from Start (hours)"
 
 
 def test_generate_output_filename_adds_suffix_before_extension() -> None:
@@ -228,6 +244,57 @@ def test_main_filters_histories_and_routes_plot_outputs(
     assert sorted(comparisons[0].state_history) == [-1.0, 1.0, 2.0]
     assert absolute_output == str(output_path)
     assert "Skipping comparison orbit with no data" in capsys.readouterr().out
+
+
+def test_main_reports_invalid_duration(monkeypatch, capsys) -> None:
+    import signal
+    import ephem_toolkit.core.time_utils as time_utils
+
+    monkeypatch.setattr(signal, "signal", lambda *_args: None)
+    monkeypatch.setattr(
+        time_utils,
+        "parse_duration_to_seconds",
+        lambda _value: (_ for _ in ()).throw(ValueError("invalid duration")),
+    )
+
+    with pytest.raises(SystemExit) as error:
+        plot_oem_diff_entry.main(["reference.oem", "--duration", "bad"])
+
+    assert error.value.code == 1
+    assert "Error parsing duration: invalid duration" in capsys.readouterr().out
+
+
+def test_main_shows_plots_when_no_output_file_is_set(monkeypatch) -> None:
+    import signal
+
+    histories = {"reference.oem": {float(epoch): np.ones(6) for epoch in range(5)}}
+    monkeypatch.setattr(signal, "signal", lambda *_args: None)
+    monkeypatch.setattr(file_io, "read_orbit_file", histories.__getitem__)
+    monkeypatch.setattr(plt, "get_fignums", lambda: [])
+    show = Mock()
+    monkeypatch.setattr(plt, "show", show)
+    for name in (
+        "plot_relative_rtn_timeseries",
+        "plot_relative_rtn_orbits",
+        "plot_relative_cartesian_timeseries",
+        "plot_angular_separation",
+        "plot_orbits",
+    ):
+        monkeypatch.setattr(plotting, name, Mock())
+
+    plot_oem_diff_entry.main(["reference.oem"])
+
+    show.assert_called_once_with()
+
+
+def test_cli_forwards_to_shared_runner(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr(
+        core_cli, "run_cli", lambda main, argv: calls.append((main, argv)) or 4
+    )
+
+    assert plot_oem_diff_entry.cli(["reference.oem"]) == 4
+    assert calls == [(plot_oem_diff_entry.main, ["reference.oem"])]
 
 
 def test_relative_plots_show_expected_deltas_and_write_outputs(
@@ -353,3 +420,8 @@ def test_read_orbit_file_rejects_files_without_state_rows(
 
     with pytest.raises(ValueError, match="Could not parse any state data"):
         orbit_file_io.read_orbit_file(source_path)
+
+
+def test_read_orbit_file_rejects_missing_path(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="File not found"):
+        orbit_file_io.read_orbit_file(tmp_path / "missing.oem")
