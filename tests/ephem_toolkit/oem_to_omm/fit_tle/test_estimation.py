@@ -6,12 +6,14 @@ import io
 from pathlib import Path
 from datetime import datetime, timezone
 import numpy as np
+import pytest
 from unittest.mock import MagicMock
 
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.oem_to_omm.fit_tle.estimation as estimation
 import ephem_toolkit.oem_to_omm.fit_tle.models as models
 import ephem_toolkit.oem_to_omm.fit_tle.constants as constants
+import ephem_toolkit.oem_to_omm.fit_tle.refinement as refinement
 
 TEST_DIR: Path = Path(__file__).parent
 """Directory containing test files."""
@@ -151,3 +153,124 @@ def test_estimate_bstar_preserves_user_provided_value() -> None:
 
     assert result.bstar == "12345-3"
     assert result.bstar_source == "input"
+
+
+def test_estimate_bstar_uses_default_when_arc_has_no_fit_samples() -> None:
+    args = MagicMock()
+    args.bstar = "00000+0"
+    estimated = MagicMock()
+
+    result = estimation.estimate_bstar_from_arc(args, estimated, [(0.0, np.zeros(6))])
+
+    assert result is estimated
+    assert estimated.bstar == "00000+0"
+    assert estimated.bstar_source == "default"
+
+
+def test_verify_accuracy_keplerian_returns_element_errors(monkeypatch) -> None:
+    reference = np.array([7_000_000.0, 0.01, 0.5, 0.2, 0.3, 0.4])
+    candidate = np.array([7_001_000.0, 0.02, 0.51, 0.25, 0.4, 0.5])
+    monkeypatch.setattr(
+        estimation.kepler, "cartesian_to_keplerian", lambda *_args: reference
+    )
+    monkeypatch.setattr(
+        estimation.tle_builder, "build_tle_data", lambda *_args: object()
+    )
+    monkeypatch.setattr(
+        estimation.convert_tle,
+        "tle_to_osculating_keplerian",
+        lambda *_args: candidate,
+    )
+
+    accuracy = estimation.verify_accuracy_keplerian(
+        MagicMock(), MagicMock(), [(0.0, np.ones(6))]
+    )
+
+    assert isinstance(accuracy, models.KeplerianAccuracy)
+    assert accuracy.semi_major_axis_error_m == 1_000.0
+    assert accuracy.eccentricity_error == pytest.approx(0.01)
+
+
+@pytest.mark.parametrize("failure", ["reference", "candidate"])
+def test_verify_accuracy_keplerian_returns_none_on_conversion_failure(
+    monkeypatch, failure: str
+) -> None:
+    estimated = MagicMock()
+    monkeypatch.setattr(
+        estimation.tle_builder, "build_tle_data", lambda *_args: object()
+    )
+    if failure == "reference":
+        monkeypatch.setattr(
+            estimation.kepler,
+            "cartesian_to_keplerian",
+            lambda *_args: (_ for _ in ()).throw(ValueError("invalid state")),
+        )
+    else:
+        monkeypatch.setattr(
+            estimation.kepler,
+            "cartesian_to_keplerian",
+            lambda *_args: np.ones(6),
+        )
+        monkeypatch.setattr(
+            estimation.convert_tle,
+            "tle_to_osculating_keplerian",
+            lambda *_args: (_ for _ in ()).throw(RuntimeError("invalid TLE")),
+        )
+
+    assert (
+        estimation.verify_accuracy_keplerian(
+            MagicMock(), estimated, [(0.0, np.ones(6))]
+        )
+        is None
+    )
+
+
+def test_estimate_bstar_fits_sampled_arc(monkeypatch) -> None:
+    content = ISS_OEM_PATH.read_text(encoding="utf-8")
+    records = oem.CcsdsOem.read(io.StringIO(content)).states
+    estimated = estimation.estimate_tle_fields(records, use_state_match=False)
+    sampled_states = estimation.select_bstar_fit_samples(records)
+    args = MagicMock()
+    args.bstar = "00000+0"
+    monkeypatch.setattr(
+        estimation.tle_builder, "format_tle_exponential_from_float", str
+    )
+    monkeypatch.setattr(
+        estimation.tle_builder,
+        "build_tle_lines",
+        lambda _args, trial: (trial.bstar, ""),
+    )
+    monkeypatch.setattr(
+        refinement,
+        "evaluate_tle_states_for_offsets_m",
+        lambda line1, _line2, _offsets: [
+            state if float(line1) != 0.0 else np.zeros(6) for _, state in sampled_states
+        ],
+    )
+
+    result = estimation.estimate_bstar_from_arc(args, estimated, records)
+
+    assert result is estimated
+    assert estimated.bstar_source == "estimated"
+    assert estimated.bstar_float > 0.0
+    assert estimated.bstar_fit_score == 0.0
+
+
+def test_estimate_bstar_falls_back_when_trial_propagation_fails(monkeypatch) -> None:
+    content = ISS_OEM_PATH.read_text(encoding="utf-8")
+    records = oem.CcsdsOem.read(io.StringIO(content)).states
+    estimated = estimation.estimate_tle_fields(records, use_state_match=False)
+    args = MagicMock()
+    args.bstar = "00000+0"
+    monkeypatch.setattr(
+        estimation.tle_builder, "build_tle_lines", lambda *_args: ("line1", "line2")
+    )
+    monkeypatch.setattr(
+        refinement, "evaluate_tle_states_for_offsets_m", lambda *_args: None
+    )
+
+    result = estimation.estimate_bstar_from_arc(args, estimated, records)
+
+    assert result is estimated
+    assert estimated.bstar == "00000+0"
+    assert estimated.bstar_source == "default"
