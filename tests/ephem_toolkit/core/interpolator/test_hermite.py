@@ -414,3 +414,43 @@ def test_set_derivative_data_no_derivative_data() -> None:
     assert len(interpolator.independent_values) == 4
     assert len(interpolator.dependent_values) == 4
     assert len(interpolator.derivatives) == 0
+
+
+def test_hermite_edge_and_compact_windows_cover_both_boundaries() -> None:
+    values = [float(value) for value in range(10)]
+    edge = hermite.SlidingWindowHermiteInterpolator(
+        dimension=1, degree=2, boundary_mode="edge", boundary_window_extension=2
+    )
+    compact = hermite.SlidingWindowHermiteInterpolator(
+        dimension=1, degree=2, boundary_mode="compact", boundary_window_extension=1
+    )
+    for value in values:
+        edge.add_data_point(value, np.array([value]))
+        compact.add_data_point(value, np.array([value]))
+
+    assert edge._select_window(0.0)[0] == 0
+    assert len(edge._select_window(0.0)[1]) == 5
+    assert edge._select_window(9.0)[0] == 5
+    assert edge._select_window(5.0)[0] == 3
+    assert len(compact._select_window(0.0)[1]) == 2
+    assert compact._select_window(9.0)[0] == 8
+
+
+def test_hermite_replaces_existing_derivative_data() -> None:
+    interpolator = hermite.SlidingWindowHermiteInterpolator(dimension=2, degree=1)
+    interpolator.add_data_point(0.0, np.array([1.0, 2.0]))
+
+    assert interpolator.add_derivative(0.0, np.array([3.0, 4.0])) is True
+    assert interpolator.add_derivative(0.0, np.array([5.0, 6.0])) is True
+    assert interpolator.derivatives == [[[5.0]], [[6.0]]]
+
+
+def test_hermite_empty_interpolators_return_no_data() -> None:
+    interpolator = hermite.SlidingWindowHermiteInterpolator(dimension=1)
+    assert interpolator.interpolate(0.0) is None
+    assert interpolator._build_q_coefficients() == []
+
+    cartesian = hermite.SlidingWindowHermiteInterpolator(
+        dimension=6, is_cartesian_state=True
+    )
+    assert cartesian.interpolate_cartesian_state(0.0) is None
