@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import pytest
 
+import ephem_toolkit.core.cli as core_cli
+import ephem_toolkit.propagate_orbit.__main__ as propagate_orbit_entry
+import ephem_toolkit.propagate_orbit.input_handling as input_handling
+import ephem_toolkit.propagate_orbit.output_handling as output_handling
+import ephem_toolkit.propagate_orbit.propagation as propagation
 from ephem_toolkit.propagate_orbit import propagate_orbit_cli
 
 
@@ -156,3 +161,43 @@ def test_parse_orbit_cli_physical_parameters() -> None:
     assert propagate_orbit_cli.parse_drag_area_m2("0.2") == 0.2
     assert propagate_orbit_cli.parse_srp_coefficient("1.3") == 1.3
     assert propagate_orbit_cli.parse_drag_coefficient("2.1") == 2.1
+
+
+def test_propagate_orbit_main_routes_preparation_and_propagation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config, initial_state = object(), object()
+    summary_calls = []
+    propagation_calls = []
+    monkeypatch.setattr(
+        input_handling,
+        "build_propagation_inputs",
+        lambda _args: (config, initial_state, 123.0),
+    )
+    monkeypatch.setattr(
+        output_handling,
+        "print_pre_propagation_summary",
+        lambda *args: summary_calls.append(args),
+    )
+    monkeypatch.setattr(
+        propagation, "run_propagation", lambda *args: propagation_calls.append(args)
+    )
+
+    propagate_orbit_entry.main(["input.opm", "--output", "-"])
+
+    assert summary_calls[0][3:] == ("input.opm", "-", None)
+    assert propagation_calls == [(config, initial_state, 123.0, "-", None, False)]
+
+
+def test_propagate_orbit_cli_uses_shared_runner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+    monkeypatch.setattr(
+        core_cli,
+        "run_cli",
+        lambda main_func, argv: calls.append((main_func, argv)) or 17,
+    )
+
+    assert propagate_orbit_entry.cli(["input.opm"]) == 17
+    assert calls == [(propagate_orbit_entry.main, ["input.opm"])]
