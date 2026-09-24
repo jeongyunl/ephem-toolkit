@@ -228,3 +228,77 @@ def test_main_reports_invalid_duration(monkeypatch, capsys) -> None:
 
     assert error.value.code == 1
     assert "failed to parse duration 'not-a-duration'" in capsys.readouterr().err
+
+
+def test_plot_helpers_render_populated_and_empty_series(monkeypatch) -> None:
+    save_figure = Mock()
+    monkeypatch.setattr(plot_oem_module, "save_or_show_figure", save_figure)
+    elapsed_time = np.array([0.0, 1.0, 2.0])
+
+    try:
+        plot_oem_module.plot_state_vectors(
+            np.array([[7.0, 0.0, 0.0], [0.0, 7.0, 0.0], [-7.0, 0.0, 0.0]]),
+            "ISS",
+            None,
+        )
+        plot_oem_module.plot_rtn_delta_time_series(
+            elapsed_time[:2], np.ones((2, 6)), "ISS", TimeUnit.MINUTES, None
+        )
+        plot_oem_module.plot_rtn_delta_time_series(
+            np.array([]), np.empty((0, 6)), "ISS", TimeUnit.HOURS, None
+        )
+        plot_oem_module.plot_angular_velocity_time_series(
+            elapsed_time,
+            np.array([0.0, 0.1, 0.2]),
+            np.array([0.0, 0.01, 0.02]),
+            "ISS",
+            TimeUnit.MINUTES,
+            None,
+        )
+        plot_oem_module.plot_angular_velocity_time_series(
+            np.array([0.0]),
+            np.array([0.0]),
+            np.array([0.0]),
+            "ISS",
+            TimeUnit.HOURS,
+            None,
+        )
+        plot_oem_module.plot_direction_change_time_series(
+            elapsed_time,
+            np.ones((3, 3)),
+            np.ones((3, 3)),
+            "ISS",
+            TimeUnit.MINUTES,
+            None,
+        )
+        plot_oem_module.plot_direction_change_time_series(
+            np.array([]),
+            np.empty((0, 3)),
+            np.empty((0, 3)),
+            "ISS",
+            TimeUnit.HOURS,
+            None,
+        )
+        plot_oem_module.plot_scalar_time_series(
+            elapsed_time,
+            np.array([7.0, 7.1, 7.2]),
+            "ISS",
+            "Speed",
+            "km/s",
+            TimeUnit.HOURS,
+            None,
+        )
+        plot_oem_module.plot_geocentric_distance_with_delta(
+            elapsed_time,
+            np.array([7000.0, 7001.0, 7003.0]),
+            "ISS",
+            TimeUnit.MINUTES,
+            None,
+        )
+        plot_oem_module.plot_geocentric_distance_with_delta(
+            np.array([0.0]), np.array([7000.0]), "ISS", TimeUnit.HOURS, None
+        )
+    finally:
+        plot_oem_module.plt.close("all")
+
+    assert save_figure.call_count == 10
