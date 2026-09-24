@@ -579,21 +579,21 @@ def plot_rtn_delta_time_series(
         axis_r.plot(elapsed_time, rtn_delta_km[:, 0], linewidth=2, label=orbit_label)
         axis_t.plot(elapsed_time, rtn_delta_km[:, 1], linewidth=2, label=orbit_label)
         axis_n.plot(elapsed_time, rtn_delta_km[:, 2], linewidth=2, label=orbit_label)
+        axis_r.legend(loc="upper right")
+        axis_t.legend(loc="upper right")
+        axis_n.legend(loc="upper right")
     else:
         axis_r.text(0.5, 0.5, "Not enough samples", ha="center", va="center")
 
     axis_r.set_ylabel("Radial Delta (km)")
     axis_r.set_title("Radial Position Delta vs Time")
-    axis_r.legend(loc="upper right")
 
     axis_t.set_ylabel("Transverse Delta (km)")
     axis_t.set_title("Transverse Position Delta vs Time")
-    axis_t.legend(loc="upper right")
 
     axis_n.set_xlabel(time_unit.get_axis_label())
     axis_n.set_ylabel("Normal Delta (km)")
     axis_n.set_title("Normal Position Delta vs Time")
-    axis_n.legend(loc="upper right")
 
     save_or_show_figure(figure, output_file)
 
@@ -626,11 +626,12 @@ def plot_angular_velocity_time_series(
         )
     else:
         axis_deg_s.text(0.5, 0.5, "Not enough samples", ha="center", va="center")
+    if angular_velocity_deg_s.size > 1:
+        axis_deg_s.legend(loc="upper right")
 
     axis_deg_s.set_xlabel(time_unit.get_axis_label())
     axis_deg_s.set_ylabel("Angular Velocity (deg/s)")
     axis_deg_s.set_title("Angular Velocity / Attitude Rate vs Time")
-    axis_deg_s.legend(loc="upper right")
 
     if angular_velocity_rad_s.size > 1:
         valid_mask = angular_velocity_rad_s != 0.0
@@ -642,11 +643,12 @@ def plot_angular_velocity_time_series(
         )
     else:
         axis_rad_s.text(0.5, 0.5, "Not enough samples", ha="center", va="center")
+    if angular_velocity_rad_s.size > 1:
+        axis_rad_s.legend(loc="upper right")
 
     axis_rad_s.set_xlabel(time_unit.get_axis_label())
     axis_rad_s.set_ylabel("Angular Velocity (rad/s)")
     axis_rad_s.set_title("Angular Velocity / Attitude Rate (rad/s)")
-    axis_rad_s.legend(loc="upper right")
 
     save_or_show_figure(figure, output_file)
 
@@ -690,11 +692,12 @@ def plot_direction_change_time_series(
         )
     else:
         axis_angle.text(0.5, 0.5, "Not enough samples", ha="center", va="center")
+    if euler_angles_deg.size > 0:
+        axis_angle.legend(loc="upper right")
 
     axis_angle.set_xlabel(time_unit.get_axis_label())
     axis_angle.set_ylabel("Euler Angle (deg)")
     axis_angle.set_title("Euler-Angle Direction Change vs Time")
-    axis_angle.legend(loc="upper right")
 
     if euler_angle_rates_deg_s.size > 0:
         axis_rate.plot(
@@ -717,11 +720,12 @@ def plot_direction_change_time_series(
         )
     else:
         axis_rate.text(0.5, 0.5, "Not enough samples", ha="center", va="center")
+    if euler_angle_rates_deg_s.size > 0:
+        axis_rate.legend(loc="upper right")
 
     axis_rate.set_xlabel(time_unit.get_axis_label())
     axis_rate.set_ylabel("Euler Angle Rate (deg/s)")
     axis_rate.set_title("Euler-Angle Rate vs Time")
-    axis_rate.legend(loc="upper right")
 
     save_or_show_figure(figure, output_file)
 
@@ -815,6 +819,7 @@ def plot_geocentric_distance_with_delta(
             linewidth=2,
             label=f"{orbit_label} delta",
         )
+        axis_delta.legend(loc="upper right")
     else:
         axis_delta.text(0.5, 0.5, "Not enough samples", ha="center", va="center")
 
@@ -823,7 +828,6 @@ def plot_geocentric_distance_with_delta(
     axis_delta.set_title("Geocentric Distance Delta vs Time")
     axis_delta.grid(True)
     axis_delta.ticklabel_format(style="plain", axis="y")
-    axis_delta.legend(loc="upper right")
 
     save_or_show_figure(figure, output_file)
 
