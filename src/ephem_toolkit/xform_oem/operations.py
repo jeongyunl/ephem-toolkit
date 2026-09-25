@@ -21,10 +21,10 @@ def convert_to_aer(
     lat_deg: float,
     lon_deg: float,
     alt_m: float,
-    output_file: TextIO,
+    dest: TextIO,
     verbose: bool = False,
 ) -> None:
-    """Convert OEM states to AER coordinates and write to output.
+    """Convert OEM states to AER coordinates and write the results.
 
     Parameters
     ----------
@@ -36,10 +36,14 @@ def convert_to_aer(
         Ground station longitude in degrees.
     alt_m : float
         Ground station altitude in meters.
-    output_file : TextIO
-        Output file handle.
+    dest : TextIO
+        Writable destination for the converted states.
     verbose : bool, optional
         Print verbose debug information.
+
+    Returns
+    -------
+    None
     """
     # Validate reference frame
     ref_frame: str = oem_data.meta.ref_frame.upper()
@@ -64,9 +68,9 @@ def convert_to_aer(
         print(file=sys.stderr)
 
     # Convert each state to AER
-    for timestamp, state_vector in oem_data.states:
+    for epoch_tt_s, state_vector_m in oem_data.states:
         # Extract position (first 3 elements)
-        ecef_position_m: np.ndarray = state_vector[0:3]
+        ecef_position_m: np.ndarray = state_vector_m[0:3]
 
         # Convert ECEF position to AER
         aer_position: np.ndarray = aer.ecef_to_aer(
@@ -80,11 +84,11 @@ def convert_to_aer(
         range_m: float = aer_position[2]
 
         # Format timestamp
-        dt: datetime = time_utils.tt_s_to_datetime(timestamp)
-        timestamp_str: str = time_utils.datetime_to_iso8601(dt)
+        epoch_datetime: datetime = time_utils.tt_s_to_datetime(epoch_tt_s)
+        timestamp_str: str = time_utils.datetime_to_iso8601(epoch_datetime)
 
         # Write output
-        output_file.write(
+        dest.write(
             f"{timestamp_str} {azimuth_deg:>12.6f} {elevation_deg:>12.6f} {range_m:>15.3f}\n"
         )
 
@@ -132,18 +136,18 @@ def convert_ref_frame(
     )
 
     for state in oem_data.states:
-        tt_s, state_vector_m = state
+        epoch_tt_s, state_vector_m = state
         # Convert state vector to new reference frame
         converted_state_vector_m: np.ndarray | None = frame_utils.convert_frame(
             base_frame=original_reference_frame,
             target_frame=target_reference_frame,
-            epoch_tt_s=tt_s,
+            epoch_tt_s=epoch_tt_s,
             input_state_m=state_vector_m,
         )
 
         if converted_state_vector_m is None:
             print(
-                f"Error: Could not convert state at timestamp {tt_s} "
+                f"Error: Could not convert state at timestamp {epoch_tt_s} "
                 f"from {original_reference_frame.value} to "
                 f"{target_reference_frame.value}. "
                 "Leaving state unchanged.",
@@ -160,7 +164,20 @@ def convert_ref_frame(
 def parse_metadata_overrides(
     values: list[str], parser: argparse.ArgumentParser
 ) -> list[tuple[str, str | int]]:
-    """Parse and validate repeated ``KEY=VALUE`` metadata overrides."""
+    """Parse and validate repeated ``KEY=VALUE`` metadata overrides.
+
+    Parameters
+    ----------
+    values : list[str]
+        Metadata override entries.
+    parser : argparse.ArgumentParser
+        Argument parser used to report invalid entries.
+
+    Returns
+    -------
+    list[tuple[str, str | int]]
+        Validated field names and values.
+    """
     metadata_fields: dict[str, str] = {
         field_name.upper(): field_name
         for field_name in vars(oem.OemMeta())
@@ -195,7 +212,20 @@ def parse_metadata_overrides(
 def parse_header_overrides(
     values: list[str], parser: argparse.ArgumentParser
 ) -> list[tuple[str, str | float]]:
-    """Parse and validate repeated ``KEY=VALUE`` header overrides."""
+    """Parse and validate repeated ``KEY=VALUE`` header overrides.
+
+    Parameters
+    ----------
+    values : list[str]
+        Header override entries.
+    parser : argparse.ArgumentParser
+        Argument parser used to report invalid entries.
+
+    Returns
+    -------
+    list[tuple[str, str | float]]
+        Validated field names and values.
+    """
     header_fields: dict[str, str] = {
         "CCSDS_OEM_VERS": "version",
         "CREATION_DATE": "creation_date",

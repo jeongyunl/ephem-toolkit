@@ -56,21 +56,32 @@ Note: AER conversion only converts positions. Velocities are not converted to AE
 
 from __future__ import annotations
 
+import sys
+import warnings
+from pathlib import Path
 from typing import TYPE_CHECKING, TextIO
 
-from .xform_oem_cli import build_arg_parser, parse_arguments
+from . import xform_oem_cli
 
 if TYPE_CHECKING:
     from .xform_oem_cli import XformOemArgs
 
 
-def main(argv=None) -> None:
-    """Parse CLI arguments and transform OEM file."""
+def main(argv: list[str] | None = None) -> None:
+    """Parse CLI arguments and transform an OEM file.
 
-    cli_parser = build_arg_parser()
-    cli_args: XformOemArgs = parse_arguments(cli_parser, argv)
+    Parameters
+    ----------
+    argv : list[str] | None, optional
+        Command-line arguments, or ``None`` to use process arguments.
 
-    import warnings
+    Returns
+    -------
+    None
+    """
+
+    cli_parser = xform_oem_cli.build_arg_parser()
+    cli_args: XformOemArgs = xform_oem_cli.parse_arguments(cli_parser, argv)
 
     # Suppress warnings that tudatpy / urllib3 may emit on import.
     warnings.filterwarnings("ignore", category=SyntaxWarning)
@@ -79,13 +90,7 @@ def main(argv=None) -> None:
         module=r"urllib3(\..*)?",
     )
 
-    import sys
-    from pathlib import Path
-
-    from .operations import (
-        convert_ref_frame,
-        convert_to_aer,
-    )
+    from . import operations
     import ephem_toolkit.core.ccsds.oem as oem
     import ephem_toolkit.core.time_utils as time_utils
 
@@ -142,17 +147,17 @@ def main(argv=None) -> None:
         print(f"[xform_oem]   Total States: {total_states}", file=sys.stderr)
 
         if total_states > 0:
-            first_ts, _ = oem_data.states[0]
-            last_ts, _ = oem_data.states[-1]
-            first_dt = time_utils.tt_s_to_datetime(first_ts)
-            last_dt = time_utils.tt_s_to_datetime(last_ts)
-            span = last_dt - first_dt
+            first_epoch_tt_s, _ = oem_data.states[0]
+            last_epoch_tt_s, _ = oem_data.states[-1]
+            first_datetime = time_utils.tt_s_to_datetime(first_epoch_tt_s)
+            last_datetime = time_utils.tt_s_to_datetime(last_epoch_tt_s)
+            span = last_datetime - first_datetime
             print(
-                f"[xform_oem]   Start: {time_utils.datetime_to_iso8601(first_dt)}",
+                f"[xform_oem]   Start: {time_utils.datetime_to_iso8601(first_datetime)}",
                 file=sys.stderr,
             )
             print(
-                f"[xform_oem]   End:   {time_utils.datetime_to_iso8601(last_dt)}",
+                f"[xform_oem]   End:   {time_utils.datetime_to_iso8601(last_datetime)}",
                 file=sys.stderr,
             )
             print(
@@ -174,28 +179,28 @@ def main(argv=None) -> None:
 
         # Determine output destination
         if cli_args.output_oem == "-":
-            output_file: TextIO = sys.stdout
+            dest: TextIO = sys.stdout
         else:
-            output_file = open(cli_args.output_oem, "w", encoding="utf-8")
+            dest = open(cli_args.output_oem, "w", encoding="utf-8")
 
         try:
-            convert_to_aer(
+            operations.convert_to_aer(
                 oem_data,
                 cli_args.lat_deg,
                 cli_args.lon_deg,
                 cli_args.alt_m,
-                output_file,
+                dest,
                 cli_args.verbose,
             )
         finally:
             if cli_args.output_oem != "-":
-                output_file.close()
+                dest.close()
         return
 
     # Handle reference frame change or default output
     if cli_args.x_ref_frame_parts:
         source_frame, target_frame = cli_args.x_ref_frame_parts
-        converted_ref_frame = convert_ref_frame(
+        converted_ref_frame = operations.convert_ref_frame(
             oem_data,
             target_frame,
             source_frame,
@@ -212,24 +217,36 @@ def main(argv=None) -> None:
     output_format = oem.OemFormat.CSV if cli_args.x_csv else oem.OemFormat.OEM
 
     if cli_args.output_oem == "-":
-        output_stream: TextIO = sys.stdout
+        dest: TextIO = sys.stdout
     else:
-        output_stream = open(cli_args.output_oem, "w", encoding="utf-8")
+        dest = open(cli_args.output_oem, "w", encoding="utf-8")
 
     try:
         if cli_args.data_only:
-            oem_data.write_states(output_stream, format_type=output_format)
+            oem_data.write_states(dest, format_type=output_format)
         else:
-            oem_data.write(output_stream, format_type=output_format)
+            oem_data.write(dest, format_type=output_format)
     finally:
         if cli_args.output_oem != "-":
-            output_stream.close()
+            dest.close()
 
 
-def cli(argv=None) -> int:
-    from ephem_toolkit.core.cli import run_cli
+def cli(argv: list[str] | None = None) -> int:
+    """Run the xform-oem CLI and return its exit status.
 
-    return run_cli(main, argv)
+    Parameters
+    ----------
+    argv : list[str] | None, optional
+        Command-line arguments, or ``None`` to use process arguments.
+
+    Returns
+    -------
+    int
+        CLI exit status.
+    """
+    import ephem_toolkit.core.cli as core_cli
+
+    return core_cli.run_cli(main, argv)
 
 
 if __name__ == "__main__":

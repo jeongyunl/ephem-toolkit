@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 
 import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.cli as cli
@@ -118,7 +119,13 @@ def parse_header_overrides(
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    """Build the command-line argument parser."""
+    """Build the command-line argument parser.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        Parser configured for the xform-oem command.
+    """
     cli_parser = cli.build_arg_parser(
         description=(
             "Transform OEM ephemeris files by changing the reference frame "
@@ -218,29 +225,49 @@ def build_arg_parser() -> argparse.ArgumentParser:
     return cli_parser
 
 
-def parse_arguments(parser: argparse.ArgumentParser, argv) -> XformOemArgs:
-    """Parse and validate command-line arguments."""
+def parse_arguments(
+    parser: argparse.ArgumentParser, argv: Sequence[str] | None
+) -> XformOemArgs:
+    """Parse and validate command-line arguments.
+
+    Parameters
+    ----------
+    parser : argparse.ArgumentParser
+        Configured command-line parser.
+    argv : Sequence[str] | None
+        Arguments to parse, or ``None`` to use process arguments.
+
+    Returns
+    -------
+    XformOemArgs
+        Parsed and validated arguments.
+    """
     args: XformOemArgs = parser.parse_args(argv, namespace=XformOemArgs())
     args.x_ref_frame_parts = None
     if args.x_ref_frame:
-        frame_parts: list[str] = [part.strip() for part in args.x_ref_frame.split(",")]
-        if len(frame_parts) == 1 and frame_parts[0]:
-            args.x_ref_frame_parts = (None, frame_parts[0])
-        elif len(frame_parts) == 2 and all(frame_parts):
-            args.x_ref_frame_parts = (frame_parts[0], frame_parts[1])
+        reference_frame_parts: list[str] = [
+            part.strip() for part in args.x_ref_frame.split(",")
+        ]
+        if len(reference_frame_parts) == 1 and reference_frame_parts[0]:
+            args.x_ref_frame_parts = (None, reference_frame_parts[0])
+        elif len(reference_frame_parts) == 2 and all(reference_frame_parts):
+            args.x_ref_frame_parts = (
+                reference_frame_parts[0],
+                reference_frame_parts[1],
+            )
         else:
             parser.error("--x-ref-frame requires <frame> or <base_frame,target_frame>")
 
     if args.x_aer:
         try:
-            parts: list[str] = args.x_aer.split(",")
-            if len(parts) != 3:
+            aer_parts: list[str] = args.x_aer.split(",")
+            if len(aer_parts) != 3:
                 parser.error(
                     "--x-aer requires exactly 3 comma-separated values: <lat>,<lon>,<alt>"
                 )
-            args.lat_deg = float(parts[0].strip())
-            args.lon_deg = float(parts[1].strip())
-            args.alt_m = float(parts[2].strip())
+            args.lat_deg = float(aer_parts[0].strip())
+            args.lon_deg = float(aer_parts[1].strip())
+            args.alt_m = float(aer_parts[2].strip())
         except ValueError as exc:
             parser.error(f"--x-aer values must be numeric: {exc}")
     else:
