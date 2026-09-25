@@ -23,7 +23,7 @@ import sys
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import NoReturn, TextIO
+from typing import NoReturn, Sequence, TextIO
 
 import numpy as np
 
@@ -206,7 +206,7 @@ def build_opm(
 # ===================================================================
 
 
-def main(argv=None) -> None:
+def main(argv: Sequence[str] | None = None) -> None:
     """Parse CLI arguments and dispatch to the appropriate conversion mode."""
     cli_parser = build_arg_parser()
     cli_args: OemToOpmArgs = parse_arguments(cli_parser, argv)
@@ -231,7 +231,9 @@ def main(argv=None) -> None:
     verbose_message(show_progress, f"loaded {len(states)} OEM state vectors")
     debug_message(
         cli_args.debug,
-        f"OEM metadata: object={oem_data.meta.object_name!r}, frame={oem_data.meta.ref_frame!r}, time_system={oem_data.meta.time_system!r}",
+        f"OEM metadata: object={oem_data.meta.object_name!r}, "
+        f"frame={oem_data.meta.ref_frame!r}, "
+        f"time_system={oem_data.meta.time_system!r}",
     )
 
     if len(states) < 2:
@@ -258,7 +260,8 @@ def main(argv=None) -> None:
     )
     verbose_message(
         show_progress,
-        f"fit model={cli_args.fit_model}, span={fit_span_s:g}s, report={'disabled' if fit_report is None else fit_report}",
+        f"fit model={cli_args.fit_model}, span={fit_span_s:g}s, "
+        f"report={'disabled' if fit_report is None else fit_report}",
     )
 
     # Determine object name: use --object-name if provided, otherwise use OEM metadata
@@ -319,10 +322,23 @@ def main(argv=None) -> None:
             )
             iteration_callback = None
             if cli_args.debug:
-                iteration_callback = lambda iteration, residual, step, updated, converged: debug_message(
-                    True,
-                    f"fit try {iteration}: residual={residual:g}, velocity_step={step:g}, updated_residual={updated:g}, converged={converged}",
-                )
+
+                def report_iteration(
+                    iteration: int,
+                    residual_norm: float,
+                    velocity_step_m_s: float,
+                    updated_residual_norm: float,
+                    converged: bool,
+                ) -> None:
+                    debug_message(
+                        True,
+                        f"fit try {iteration}: residual={residual_norm:g}, "
+                        f"velocity_step={velocity_step_m_s:g}, "
+                        f"updated_residual={updated_residual_norm:g}, "
+                        f"converged={converged}",
+                    )
+
+                iteration_callback = report_iteration
                 _, initial_diagnostics = fit_numerical.build_weighted_residuals(
                     propagation_callback,
                     states[0][1],
@@ -346,7 +362,9 @@ def main(argv=None) -> None:
             )
             verbose_message(
                 show_progress,
-                f"numerical fit complete: iterations={numerical_result.iterations}, converged={numerical_result.converged}, position_rms={numerical_result.diagnostics.position_rms_m:g}m",
+                f"numerical fit complete: iterations={numerical_result.iterations}, "
+                f"converged={numerical_result.converged}, "
+                f"position_rms={numerical_result.diagnostics.position_rms_m:g}m",
             )
             debug_message(
                 cli_args.debug,
@@ -504,7 +522,7 @@ def main(argv=None) -> None:
             report_error(f"Error writing OPM file: {error}")
 
 
-def cli(argv=None) -> int:
+def cli(argv: Sequence[str] | None = None) -> int:
     from ephem_toolkit.core.cli import run_cli
 
     return run_cli(main, argv)

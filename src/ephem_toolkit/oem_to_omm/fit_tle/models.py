@@ -48,7 +48,7 @@ class OrbitalElements:
 class KeplerianMatchErrors:
     """Element-wise Keplerian residuals from :func:`compute_keplerian_match_score`.
 
-    All angular quantities are in degrees; semi-major axis in km.
+    All angular quantities are in degrees; semi-major axis error in meters.
     """
 
     semi_major_axis_error_m: float
@@ -310,10 +310,9 @@ class KeplerianAccuracy:
 
     Holds element-wise errors (TLE minus reference), the reference osculating
     elements, and the TLE-derived osculating elements, all in consistent units
-    (km for semi-major axis, degrees for angles).
+    (meters for semi-major axis, degrees for angles).
     """
 
-    # Element-wise errors (TLE minus reference)
     semi_major_axis_error_m: float
     """Semi-major axis error in m."""
     eccentricity_error: float
@@ -329,7 +328,6 @@ class KeplerianAccuracy:
     arg_latitude_error_deg: float
     """Argument of latitude (ω+θ) error in degrees."""
 
-    # Reference osculating elements
     ref_semi_major_axis_m: float
     """Reference semi-major axis in m."""
     ref_eccentricity: float
@@ -343,7 +341,6 @@ class KeplerianAccuracy:
     ref_true_anomaly_deg: float
     """Reference true anomaly in degrees."""
 
-    # TLE-derived osculating elements
     tle_semi_major_axis_m: float
     """TLE-derived semi-major axis in m."""
     tle_eccentricity: float
@@ -373,59 +370,83 @@ class Estimated:
     metrics computed during the TLE estimation process.
     """
 
-    # Core TLE epoch fields
     epoch_datetime: datetime
+    """UTC datetime of the TLE epoch."""
     epoch_year: int
+    """Two-digit epoch year stored in the TLE."""
     epoch_day: float
+    """Fractional day of year at the TLE epoch."""
 
-    # Orbital elements
     inclination_deg: float
+    """Estimated mean inclination (degrees)."""
     raan_deg: float
+    """Estimated mean right ascension of the ascending node (degrees)."""
     eccentricity: float
+    """Estimated mean eccentricity (dimensionless)."""
     arg_perigee_deg: float
+    """Estimated mean argument of perigee (degrees)."""
     mean_anomaly_deg: float
+    """Estimated mean anomaly (degrees)."""
     mean_motion_rev_per_day: float
+    """Estimated mean motion (revolutions per day)."""
 
-    # Osculating values at epoch (for comparison)
     inclination_deg_osculating_at_epoch: float
+    """Osculating inclination at epoch (degrees)."""
     raan_deg_osculating_at_epoch: float
+    """Osculating right ascension of the ascending node at epoch (degrees)."""
     arg_perigee_deg_osculating_at_epoch: float
+    """Osculating argument of perigee at epoch (degrees)."""
     mean_anomaly_deg_osculating_at_epoch: float
+    """Osculating mean anomaly at epoch (degrees)."""
     mean_motion_rev_per_day_osculating_at_epoch: float
+    """Osculating mean motion at epoch (revolutions per day)."""
 
-    # Regression and rate estimates
     mean_motion_rev_per_day_regression_at_epoch: float
+    """Mean motion at epoch from linear regression (revolutions per day)."""
     mean_argument_latitude_rate_rev_per_day: float
+    """Mean argument-of-latitude rate (revolutions per day)."""
 
-    # Phase matching statistics
     phase_match_count: int
+    """Number of records included in phase matching."""
     phase_match_weight: float
+    """Blend weight assigned to the phase-matched angles."""
 
-    # Mean motion derivatives
     mean_motion_first_derivative: float
+    """Estimated TLE first mean-motion derivative (revolutions per day²)."""
     mean_motion_first_derivative_raw: float
+    """Unclipped TLE first mean-motion derivative estimate (revolutions per day²)."""
 
-    # Orbital characteristics
     semi_major_axis_m: float
+    """Osculating semi-major axis at epoch (m)."""
     dataset_slope_rev_per_day2: float
+    """Linear-regression slope of mean motion (revolutions per day²)."""
 
-    # Optional B* drag term fields
     bstar: str | None = None
+    """Estimated TLE B* drag term in compact TLE format, if available."""
     bstar_source: str | None = None
+    """Source of the B* value, if available."""
     bstar_float: float | None = None
+    """Estimated numeric B* value, if available."""
     bstar_fit_score: float | None = None
+    """Objective score for the B* fit, if available."""
 
-    # Optional state-match refinement fields
     state_match_refinement_used: bool | None = None
+    """Whether state-match refinement was used, if known."""
     state_match_iterations: int | None = None
+    """Number of accepted state-match refinement iterations, if available."""
     state_match_position_error_m: float | None = None
+    """Position residual magnitude after state matching (m), if available."""
     state_match_velocity_error_m_s: float | None = None
+    """Velocity residual magnitude after state matching (m/s), if available."""
 
-    # Optional Keplerian-match refinement fields
     keplerian_match_refinement_used: bool | None = None
+    """Whether Keplerian-match refinement was used, if known."""
     keplerian_match_iterations: int | None = None
+    """Number of accepted Keplerian-match refinement iterations, if available."""
     keplerian_match_score: float | None = None
+    """Final Keplerian-match objective score, if available."""
     keplerian_match_errors: KeplerianMatchErrors | None = None
+    """Element-wise Keplerian-match errors, if available."""
 
     def __repr__(self) -> str:
         return (

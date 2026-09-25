@@ -13,6 +13,12 @@ from __future__ import annotations
 
 import numpy as np
 
+SINGULAR_PIVOT_TOLERANCE: float = 1e-15
+"""Pivot magnitude below which a linear system is treated as singular."""
+
+NORMAL_EQUATION_REGULARIZATION: float = 1e-12
+"""Diagonal regularization added to the normal-equation matrix."""
+
 
 def solve_linear_system(matrix: np.ndarray, vector: np.ndarray) -> np.ndarray | None:
     """Solve a dense linear system with Gaussian elimination.
@@ -40,7 +46,7 @@ def solve_linear_system(matrix: np.ndarray, vector: np.ndarray) -> np.ndarray | 
             np.abs(augmented[pivot_index:, pivot_index])
         )
         pivot_value: float = augmented[pivot_row, pivot_index]
-        if abs(pivot_value) < 1e-15:
+        if abs(pivot_value) < SINGULAR_PIVOT_TOLERANCE:
             return None
 
         if pivot_row != pivot_index:
@@ -85,6 +91,6 @@ def solve_weighted_least_squares(
     normal_vector: np.ndarray = design_matrix.T @ target_vector  # (n,)
 
     # Add regularization to diagonal
-    normal_matrix += 1e-12 * np.eye(normal_matrix.shape[0])
+    normal_matrix += NORMAL_EQUATION_REGULARIZATION * np.eye(normal_matrix.shape[0])
 
     return solve_linear_system(normal_matrix, normal_vector)

@@ -490,12 +490,12 @@ def verify_accuracy_keplerian(
     di_rad = tle_kep_array[2] - ref_kep[kepler.INCLINATION_INDEX]
 
     # Angle differences wrapped to [-pi, pi]
-    def _angle_diff(a, b):
+    def _angle_diff(angle_a_rad: float, angle_b_rad: float) -> float:
         """Compute angle difference wrapped to [-π, π]."""
-        d = (a - b) % (2.0 * np.pi)
-        if d > np.pi:
-            d -= 2.0 * np.pi
-        return d
+        difference_rad: float = (angle_a_rad - angle_b_rad) % (2.0 * np.pi)
+        if difference_rad > np.pi:
+            difference_rad -= 2.0 * np.pi
+        return difference_rad
 
     domega_rad = _angle_diff(
         tle_kep_array[4], ref_kep[kepler.ARGUMENT_OF_PERIAPSIS_INDEX]

@@ -4,19 +4,22 @@ from __future__ import annotations
 
 import argparse
 from functools import partial
+from typing import Sequence
 
 import ephem_toolkit.core.cli as cli
-from ephem_toolkit.core.interpolator.interpolation_spec import (
-    InterpolationSpec,
-    InterpolationType,
-)
+import ephem_toolkit.core.interpolator.interpolation_spec as interpolation_specs
 
 DEFAULT_INTERPOLATION_TYPE: str = "hermite"
+"""Default interpolation method for time-based slicing."""
 DEFAULT_INTERPOLATION_DEGREE: int = 5
-DEFAULT_INTERPOLATION_SPEC: InterpolationSpec = InterpolationSpec(
-    interp_type=InterpolationType.HERMITE,
-    degree=DEFAULT_INTERPOLATION_DEGREE,
+"""Default interpolation degree for time-based slicing."""
+DEFAULT_INTERPOLATION_SPEC: interpolation_specs.InterpolationSpec = (
+    interpolation_specs.InterpolationSpec(
+        interp_type=interpolation_specs.InterpolationType.HERMITE,
+        degree=DEFAULT_INTERPOLATION_DEGREE,
+    )
 )
+"""Default interpolation specification for time-based slicing."""
 
 
 class SliceOemArgs(argparse.Namespace):
@@ -30,7 +33,7 @@ class SliceOemArgs(argparse.Namespace):
     """Optional time slice specification."""
     interpolate: bool
     """Whether interpolation is enabled."""
-    interpolate_type: InterpolationSpec
+    interpolate_type: interpolation_specs.InterpolationSpec
     """Interpolation specification."""
     opm: bool
     """Whether to emit only the first selected state vector."""
@@ -139,7 +142,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     return cli_parser
 
 
-def parse_arguments(parser: argparse.ArgumentParser, argv=None) -> SliceOemArgs:
+def parse_arguments(
+    parser: argparse.ArgumentParser,
+    argv: Sequence[str] | None = None,
+) -> SliceOemArgs:
     """Parse command-line arguments."""
     args = parser.parse_args(argv, namespace=SliceOemArgs())
     if not args.slice and not args.time_slice:

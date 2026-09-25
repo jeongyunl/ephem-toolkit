@@ -6,9 +6,10 @@ TLE wrappers can share validation before the numerical propagator is invoked.
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Callable, Sequence
+from typing import Any, Callable, Sequence
 
 import numpy as np
 
@@ -24,14 +25,35 @@ from ephem_toolkit.propagate_orbit.constants import (
 import ephem_toolkit.core.time_utils as time_utils
 from . import fit_common
 
-DEFAULT_INTEGRATOR_METHOD = "rkdp_87"
+DEFAULT_INTEGRATOR_METHOD: str = "rkdp_87"
+"""Default adaptive integrator for numerical fitting."""
 
-SUPPORTED_FIT_MODELS = ("two-body", "numerical")
-SUPPORTED_PARAMETERS = (
+SUPPORTED_FIT_MODELS: tuple[str, ...] = ("two-body", "numerical")
+"""Supported propagation models for fitting."""
+SUPPORTED_PARAMETERS: tuple[str, ...] = (
     "initial-state",
     "initial-state,drag-coeff",
     "initial-state,srp-coeff",
 )
+"""Supported state and physical-parameter selections for fitting."""
+DEFAULT_FIT_SPAN_S: float = 14400.0
+"""Default four-hour fit arc span in seconds."""
+DEFAULT_MAX_ITERATIONS: int = 100
+"""Default maximum number of optimizer iterations."""
+DEFAULT_STAGNATION_TRIES: int = 3
+"""Default number of stagnant optimizer iterations before stopping."""
+DEFAULT_FIT_STEP_S: float = 60.0
+"""Default sampling step for the fit arc in seconds."""
+DEFAULT_POSITION_WEIGHT: float = 1.0
+"""Default weight applied to position residuals."""
+DEFAULT_END_OF_SPAN_WEIGHT: float = 2.0
+"""Default position-residual multiplier at the end of the fit span."""
+DEFAULT_OPTIMIZER_TOLERANCE: float = 1.0e-6
+"""Default residual norm tolerance for optimizer convergence."""
+DEFAULT_FINITE_DIFFERENCE_STEP_M_S: float = 1.0e-3
+"""Default velocity perturbation in meters per second for the Jacobian."""
+MINIMUM_RELATIVE_BEST_IMPROVEMENT: float = 1.0e-5
+"""Minimum relative residual improvement that resets stagnation tracking."""
 
 
 @dataclass(frozen=True)
@@ -39,32 +61,52 @@ class NumericalFitConfig:
     """Validated options shared by numerical-fitting conversion commands."""
 
     fit_model: str = "numerical"
-    fit_span_s: float = 14400.0
-    max_iterations: int = 100
-    stagnation_tries: int = 3
-    fit_step_s: float = 60.0
-    position_weight: float = 1.0
-    end_of_span_weight: float = 2.0
+    """Propagation model used to fit the reference arc."""
+    fit_span_s: float = DEFAULT_FIT_SPAN_S
+    """Maximum fit arc span in seconds."""
+    max_iterations: int = DEFAULT_MAX_ITERATIONS
+    """Maximum optimizer iterations."""
+    stagnation_tries: int = DEFAULT_STAGNATION_TRIES
+    """Number of stagnant iterations allowed before stopping."""
+    fit_step_s: float = DEFAULT_FIT_STEP_S
+    """Sampling step for the fit arc in seconds."""
+    position_weight: float = DEFAULT_POSITION_WEIGHT
+    """Weight applied to position residuals."""
+    end_of_span_weight: float = DEFAULT_END_OF_SPAN_WEIGHT
+    """Position-residual multiplier at the end of the fit span."""
     parameters: str = "initial-state"
     """Parameters used by propagation; physical parameters remain fixed."""
     preserve_initial_position: bool = True
     """Legacy report field; numerical fitting always preserves initial position."""
     drag_enabled: bool = True
+    """Whether atmospheric drag is enabled during propagation."""
     srp_enabled: bool = True
+    """Whether solar radiation pressure is enabled during propagation."""
     drag_coefficient: float | None = DEFAULT_SATELLITE_DRAG_COEFFICIENT
+    """Fixed spacecraft drag coefficient."""
     srp_coefficient: float | None = DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT
+    """Fixed spacecraft radiation pressure coefficient."""
     satellite_mass_kg: float | None = DEFAULT_SATELLITE_MASS_KG
+    """Spacecraft mass in kilograms."""
     drag_area_m2: float | None = DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2
+    """Reference area for drag and SRP in square meters."""
     earth_gravity: tuple[int, int] | None = (
         DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE,
         DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER,
     )
+    """Earth gravity harmonic degree and order."""
     integrator: str | None = DEFAULT_INTEGRATOR_METHOD
+    """Numerical integration method."""
     integrator_step_size_s: tuple[float, ...] | None = DEFAULT_INTEGRATOR_STEP_SIZE_S
+    """Integrator step-size settings in seconds."""
     moon_gravity: bool = True
+    """Whether lunar gravity is enabled."""
     sun_gravity: bool = True
+    """Whether solar gravity is enabled."""
     venus_gravity: bool = True
+    """Whether Venus gravity is enabled."""
     mars_gravity: bool = True
+    """Whether Mars gravity is enabled."""
 
     def fixed_parameter_values(self) -> dict[str, float]:
         """Return user-supplied physical parameters selected for propagation."""
@@ -100,14 +142,22 @@ class NumericalFitConfig:
             "mars_gravity": self.mars_gravity,
         }
 
-    def to_propagator_config(self, *, satellite_name: str = "FIT_TARGET"):
+    def to_propagator_config(self, *, satellite_name: str = "FIT_TARGET") -> Any:
         """Build the existing numerical propagator configuration lazily."""
         from ephem_toolkit.core.propagator.numerical import NumericalPropagatorConfig
 
         if self.satellite_mass_kg is None or self.drag_area_m2 is None:
-            raise ValueError("satellite mass and drag area are required for numerical propagation")
-        if self.earth_gravity is None or self.integrator is None or self.integrator_step_size_s is None:
-            raise ValueError("gravity and integrator settings are required for numerical propagation")
+            raise ValueError(
+                "satellite mass and drag area are required for numerical propagation"
+            )
+        if (
+            self.earth_gravity is None
+            or self.integrator is None
+            or self.integrator_step_size_s is None
+        ):
+            raise ValueError(
+                "gravity and integrator settings are required for numerical propagation"
+            )
         return NumericalPropagatorConfig(
             satellite_name=satellite_name,
             satellite_mass_kg=self.satellite_mass_kg,
@@ -127,7 +177,13 @@ class NumericalFitConfig:
         )
 
 
-def config_from_propagation_options(options, *, fit_span_s: float = 14400.0, fit_step_s: float = 60.0, parameters: str = "initial-state") -> NumericalFitConfig:
+def config_from_propagation_options(
+    options: argparse.Namespace,
+    *,
+    fit_span_s: float = DEFAULT_FIT_SPAN_S,
+    fit_step_s: float = DEFAULT_FIT_STEP_S,
+    parameters: str = "initial-state",
+) -> NumericalFitConfig:
     """Build fixed-parameter fit configuration from propagate-orbit options."""
     return NumericalFitConfig(
         fit_span_s=fit_span_s,
@@ -149,29 +205,51 @@ def config_from_propagation_options(options, *, fit_span_s: float = 14400.0, fit
     )
 
 
-def config_from_fit_options(options) -> NumericalFitConfig:
+def config_from_fit_options(options: argparse.Namespace) -> NumericalFitConfig:
     """Build fit configuration from parsed conversion fit-control options."""
     return NumericalFitConfig(
         fit_model=str(options.fit_model),
         fit_span_s=float(options.fit_span.total_seconds()),
-        max_iterations=int(getattr(options, "fit_max_iterations", 100)),
-        stagnation_tries=int(getattr(options, "fit_stagnation_tries", 3)),
-        fit_step_s=float(getattr(options, "fit_step", 60.0)),
-        position_weight=float(options.fit_position_weight),
-        end_of_span_weight=float(getattr(options, "fit_end_weight", 2.0)),
+        max_iterations=int(
+            getattr(options, "fit_max_iterations", DEFAULT_MAX_ITERATIONS)
+        ),
+        stagnation_tries=int(
+            getattr(options, "fit_stagnation_tries", DEFAULT_STAGNATION_TRIES)
+        ),
+        fit_step_s=float(getattr(options, "fit_step", DEFAULT_FIT_STEP_S)),
+        position_weight=float(
+            getattr(options, "fit_position_weight", DEFAULT_POSITION_WEIGHT)
+        ),
+        end_of_span_weight=float(
+            getattr(options, "fit_end_weight", DEFAULT_END_OF_SPAN_WEIGHT)
+        ),
         parameters=str(options.fit_parameters),
         drag_enabled=bool(getattr(options, "drag", True)),
         srp_enabled=bool(getattr(options, "srp", True)),
-        drag_coefficient=getattr(options, "drag_coeff", DEFAULT_SATELLITE_DRAG_COEFFICIENT),
-        srp_coefficient=getattr(options, "srp_coeff", DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT),
+        drag_coefficient=getattr(
+            options, "drag_coeff", DEFAULT_SATELLITE_DRAG_COEFFICIENT
+        ),
+        srp_coefficient=getattr(
+            options, "srp_coeff", DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT
+        ),
         satellite_mass_kg=getattr(options, "mass", DEFAULT_SATELLITE_MASS_KG),
-        drag_area_m2=getattr(options, "drag_area", DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2),
-        earth_gravity=tuple(getattr(options, "earth_gravity", (
-            DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE,
-            DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER,
-        ))),
+        drag_area_m2=getattr(
+            options, "drag_area", DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2
+        ),
+        earth_gravity=tuple(
+            getattr(
+                options,
+                "earth_gravity",
+                (
+                    DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_DEGREE,
+                    DEFAULT_EARTH_SPHERICAL_HARMONIC_GRAVITY_ORDER,
+                ),
+            )
+        ),
         integrator=getattr(options, "integrator", DEFAULT_INTEGRATOR_METHOD),
-        integrator_step_size_s=tuple(getattr(options, "integrator_step_size", DEFAULT_INTEGRATOR_STEP_SIZE_S)),
+        integrator_step_size_s=tuple(
+            getattr(options, "integrator_step_size", DEFAULT_INTEGRATOR_STEP_SIZE_S)
+        ),
         moon_gravity=bool(getattr(options, "moon_gravity", True)),
         sun_gravity=bool(getattr(options, "sun_gravity", True)),
         venus_gravity=bool(getattr(options, "venus_gravity", True)),
@@ -179,13 +257,17 @@ def config_from_fit_options(options) -> NumericalFitConfig:
     )
 
 
-def validate_fixed_parameter_values(config: NumericalFitConfig, propagated_values: dict[str, float]) -> None:
+def validate_fixed_parameter_values(
+    config: NumericalFitConfig, propagated_values: dict[str, float]
+) -> None:
     """Ensure the propagator uses the configured physical values unchanged."""
     expected = config.fixed_parameter_values()
     for name, value in expected.items():
         actual = propagated_values.get(name)
         if actual is None or not np.isclose(actual, value, rtol=0.0, atol=0.0):
-            raise ValueError(f"propagator {name} must equal user-supplied value {value}")
+            raise ValueError(
+                f"propagator {name} must equal user-supplied value {value}"
+            )
 
 
 @dataclass(frozen=True)
@@ -193,10 +275,15 @@ class NumericalResidualDiagnostics:
     """Unweighted residual summary for one numerical-fit evaluation."""
 
     position_rms_m: float
+    """Root mean square position residual in meters."""
     velocity_rms_m_s: float | None
+    """Root mean square velocity residual in meters per second, if available."""
     position_max_m: float
+    """Maximum position residual magnitude in meters."""
     velocity_max_m_s: float | None
+    """Maximum velocity residual magnitude in meters per second, if available."""
     n_records: int
+    """Number of reference records evaluated."""
 
 
 @dataclass(frozen=True)
@@ -204,14 +291,21 @@ class NumericalFitResult:
     """Result returned by the dependency-free numerical optimizer."""
 
     initial_state: np.ndarray
+    """Fitted Cartesian state at the initial epoch in SI units."""
     diagnostics: NumericalResidualDiagnostics
+    """Residual statistics for the selected fitted state."""
     iterations: int
+    """Number of optimizer iterations performed."""
     converged: bool
+    """Whether the optimizer met its convergence criterion."""
     initial_position_rms_m: float | None = None
+    """Position RMS before fitting, when calculated."""
 
 
 def compute_numerical_propagation_comparison(
-    propagate_trajectory,
+    propagate_trajectory: Callable[
+        [np.ndarray, Sequence[float]], dict[float, np.ndarray]
+    ],
     fitted_state: np.ndarray,
     states: Sequence[tuple[float, np.ndarray]],
     fit_span_s: float,
@@ -288,7 +382,8 @@ def format_numerical_output(
 
     lines = [
         "Numerical Cartesian fit:",
-        f"  epoch:              {time_utils.datetime_to_iso8601(epoch, fractional_second_places=6)}",
+        f"  epoch:              "
+        f"{time_utils.datetime_to_iso8601(epoch, fractional_second_places=6)}",
         f"  records used:       {diagnostics.n_records}",
         f"  arc span:           {diagnostics.span_s:.1f} s",
         f"  iterations:         {diagnostics.iterations}",
@@ -298,19 +393,26 @@ def format_numerical_output(
         f"    fitted:           {format_state(fitted)}",
     ]
     if diagnostics.initial_position_rms_m is not None:
-        lines.append(f"  initial position RMS: {diagnostics.initial_position_rms_m / 1000.0:.6f} km")
+        lines.append(
+            f"  initial position RMS: "
+            f"{diagnostics.initial_position_rms_m / 1000.0:.6f} km"
+        )
     lines.append(f"  RMS position error: {diagnostics.rms_position_m / 1000.0:.6f} km")
     if diagnostics.epoch_vel_delta_m_s is not None:
-        lines.append(f"  epoch Δ|v0|:         {diagnostics.epoch_vel_delta_m_s:.6f} m/s")
+        lines.append(
+            f"  epoch Δ|v0|:         {diagnostics.epoch_vel_delta_m_s:.6f} m/s"
+        )
 
     if comparison:
-        lines.extend([
-            "",
-            "Propagation comparison (numerical propagator vs OEM) at 10-minute intervals:",
-            "",
-            f"    {'t (min)':>8}  {'|Δr| (km)':>10}  {'|Δv| (km/s)':>12}",
-            f"    {'─' * 8}  {'─' * 10}  {'─' * 12}",
-        ])
+        lines.extend(
+            [
+                "",
+                "Propagation comparison (numerical propagator vs OEM) at 10-minute intervals:",
+                "",
+                f"    {'t (min)':>8}  {'|Δr| (km)':>10}  {'|Δv| (km/s)':>12}",
+                f"    {'─' * 8}  {'─' * 10}  {'─' * 12}",
+            ]
+        )
         for record in comparison:
             lines.append(
                 f"    {record.elapsed_min:8.1f}  {record.pos_err_km:10.6f}  "
@@ -318,22 +420,30 @@ def format_numerical_output(
             )
         position_errors = [record.pos_err_km for record in comparison]
         velocity_errors = [record.vel_err_m_s / 1000.0 for record in comparison]
-        lines.extend([
-            "",
-            "Summary:",
-            f"Position |Δr|:  min = {min(position_errors):.6f} km   max = {max(position_errors):.6f} km   avg = {np.mean(position_errors):.6f} km",
-            f"Velocity |Δv|:  min = {min(velocity_errors):.9f} km/s   max = {max(velocity_errors):.9f} km/s   avg = {np.mean(velocity_errors):.9f} km/s",
-        ])
+        lines.extend(
+            [
+                "",
+                "Summary:",
+                f"Position |Δr|:  min = {min(position_errors):.6f} km   "
+                f"max = {max(position_errors):.6f} km   "
+                f"avg = {np.mean(position_errors):.6f} km",
+                f"Velocity |Δv|:  min = {min(velocity_errors):.9f} km/s   "
+                f"max = {max(velocity_errors):.9f} km/s   "
+                f"avg = {np.mean(velocity_errors):.9f} km/s",
+            ]
+        )
     return "\n".join(lines)
 
 
 def build_weighted_residuals(
-    propagate,
+    propagate: Callable[[np.ndarray, float], np.ndarray],
     initial_state: np.ndarray,
     reference_states: Sequence[tuple[float, np.ndarray]],
     config: NumericalFitConfig,
     *,
-    propagate_trajectory=None,
+    propagate_trajectory: (
+        Callable[[np.ndarray, Sequence[float]], dict[float, np.ndarray]] | None
+    ) = None,
 ) -> tuple[np.ndarray, NumericalResidualDiagnostics]:
     """Evaluate weighted residuals against a reference arc.
 
@@ -377,9 +487,7 @@ def build_weighted_residuals(
         time_weight = 1.0 + fraction * (config.end_of_span_weight - 1.0)
         # Preserve the signed Cartesian residual vector. The optimizer's
         # Jacobian uses these component directions to update vx0, vy0, and vz0.
-        residual_vector = (
-            position_error * time_weight / config.position_weight
-        )
+        residual_vector = position_error * time_weight / config.position_weight
         residuals.extend(residual_vector.tolist())
 
     diagnostics = NumericalResidualDiagnostics(
@@ -393,17 +501,19 @@ def build_weighted_residuals(
 
 
 def optimize_initial_state(
-    propagate,
+    propagate: Callable[[np.ndarray, float], np.ndarray],
     initial_state: np.ndarray,
     reference_states: Sequence[tuple[float, np.ndarray]],
     config: NumericalFitConfig,
     *,
     max_iterations: int = 100,
-    tolerance: float = 1.0e-6,
-    finite_difference_step: float = 1.0e-3,
+    tolerance: float = DEFAULT_OPTIMIZER_TOLERANCE,
+    finite_difference_step: float = DEFAULT_FINITE_DIFFERENCE_STEP_M_S,
     bounds: tuple[np.ndarray, np.ndarray] | None = None,
     iteration_callback: Callable[[int, float, float, float, bool], None] | None = None,
-    propagate_trajectory=None,
+    propagate_trajectory: (
+        Callable[[np.ndarray, Sequence[float]], dict[float, np.ndarray]] | None
+    ) = None,
     stagnation_tries: int = 3,
 ) -> NumericalFitResult:
     """Optimize the initial Cartesian state using NumPy Gauss-Newton steps.
@@ -414,7 +524,12 @@ def optimize_initial_state(
     numerical-propagation dependency.
     """
     validate_numerical_fit(reference_states, config)
-    if max_iterations <= 0 or stagnation_tries <= 0 or finite_difference_step <= 0.0 or tolerance <= 0.0:
+    if (
+        max_iterations <= 0
+        or stagnation_tries <= 0
+        or finite_difference_step <= 0.0
+        or tolerance <= 0.0
+    ):
         raise ValueError("optimizer limits and finite-difference step must be positive")
     state = np.asarray(initial_state, dtype=float).copy()
     if state.shape != (6,) or not np.all(np.isfinite(state)):
@@ -430,33 +545,56 @@ def optimize_initial_state(
     converged = False
     iterations = 0
     initial_residual, initial_diagnostics = build_weighted_residuals(
-        propagate, state, reference_states, config,
+        propagate,
+        state,
+        reference_states,
+        config,
         propagate_trajectory=propagate_trajectory,
     )
     best_state = state.copy()
     best_residual_norm = float(np.linalg.norm(initial_residual))
     stale_tries = 0
     for iterations in range(1, max_iterations + 1):
-        residual, _ = build_weighted_residuals(propagate, state, reference_states, config, propagate_trajectory=propagate_trajectory)
+        residual, _ = build_weighted_residuals(
+            propagate,
+            state,
+            reference_states,
+            config,
+            propagate_trajectory=propagate_trajectory,
+        )
         residual_norm = float(np.linalg.norm(residual))
         jacobian = np.empty((residual.size, len(variable_indices)))
         for column, index in enumerate(variable_indices):
             trial = state.copy()
             trial[index] += finite_difference_step
-            trial_residual, _ = build_weighted_residuals(propagate, trial, reference_states, config, propagate_trajectory=propagate_trajectory)
+            trial_residual, _ = build_weighted_residuals(
+                propagate,
+                trial,
+                reference_states,
+                config,
+                propagate_trajectory=propagate_trajectory,
+            )
             jacobian[:, column] = (trial_residual - residual) / finite_difference_step
         delta, *_ = np.linalg.lstsq(jacobian, -residual, rcond=None)
         state[list(variable_indices)] += delta
         if lower is not None and upper is not None:
             state = np.clip(state, lower, upper)
-        updated_residual, _ = build_weighted_residuals(propagate, state, reference_states, config, propagate_trajectory=propagate_trajectory)
+        updated_residual, _ = build_weighted_residuals(
+            propagate,
+            state,
+            reference_states,
+            config,
+            propagate_trajectory=propagate_trajectory,
+        )
         updated_norm = float(np.linalg.norm(updated_residual))
         previous_best = best_residual_norm
         if updated_norm < best_residual_norm:
             best_residual_norm = updated_norm
             best_state = state.copy()
-        relative_best_improvement = (previous_best - best_residual_norm) / max(previous_best, 1.0)
-        if relative_best_improvement > 1.0e-5:
+        relative_best_improvement = (previous_best - best_residual_norm) / max(
+            previous_best, 1.0
+        )
+        if relative_best_improvement > MINIMUM_RELATIVE_BEST_IMPROVEMENT:
             stale_tries = 0
         else:
             stale_tries += 1
@@ -474,22 +612,31 @@ def optimize_initial_state(
         if stale_tries >= stagnation_tries:
             break
     _, diagnostics = build_weighted_residuals(
-        propagate, best_state, reference_states, config,
+        propagate,
+        best_state,
+        reference_states,
+        config,
         propagate_trajectory=propagate_trajectory,
     )
     return NumericalFitResult(
-        best_state, diagnostics, iterations, converged,
+        best_state,
+        diagnostics,
+        iterations,
+        converged,
         initial_position_rms_m=initial_diagnostics.position_rms_m,
     )
 
 
-def make_propagation_callback(propagator_factory, epoch_s: float):
+def make_propagation_callback(
+    propagator_factory: Callable[[np.ndarray, float], Any], epoch_s: float
+) -> Callable[[np.ndarray, float], np.ndarray]:
     """Adapt a propagator factory to the optimizer callback protocol.
 
     The factory receives ``(initial_state, epoch_s)`` and returns an object
     exposing ``propagate_to(epoch_s)``. The result may be either a state array
     or the common ``(epoch_s, state)`` tuple.
     """
+
     def propagate(initial_state: np.ndarray, target_epoch_s: float) -> np.ndarray:
         propagator = propagator_factory(np.asarray(initial_state, dtype=float), epoch_s)
         result = propagator.propagate_to(target_epoch_s)
@@ -500,7 +647,9 @@ def make_propagation_callback(propagator_factory, epoch_s: float):
     return propagate
 
 
-def make_numerical_propagator_factory(config, epoch_s: float):
+def make_numerical_propagator_factory(
+    config: Any, epoch_s: float
+) -> Callable[[np.ndarray, float], Any]:
     """Create a lazy factory for the repository's numerical propagator.
 
     The import is local so validation and optimizer unit tests do not require
@@ -530,13 +679,19 @@ def make_numerical_propagator_factory(config, epoch_s: float):
     return factory
 
 
-def make_numerical_trajectory_callback(propagator_factory, initial_epoch_s: float, fit_span_s: float):
+def make_numerical_trajectory_callback(
+    propagator_factory: Callable[[np.ndarray, float], Any],
+    initial_epoch_s: float,
+    fit_span_s: float,
+) -> Callable[[np.ndarray, Sequence[float]], dict[float, np.ndarray]]:
     """Propagate each trial once to the fit endpoint and interpolate its trajectory."""
     from ephem_toolkit.core.interpolator.hermite import SlidingWindowHermiteInterpolator
     from ephem_toolkit.core.propagator import OutputMode
 
     def propagate_trajectory(initial_state: np.ndarray, target_epochs: Sequence[float]):
-        propagator = propagator_factory(np.asarray(initial_state, dtype=float), initial_epoch_s)
+        propagator = propagator_factory(
+            np.asarray(initial_state, dtype=float), initial_epoch_s
+        )
         result = propagator.propagate_to(
             initial_epoch_s + fit_span_s, output=OutputMode.TRAJECTORY
         )

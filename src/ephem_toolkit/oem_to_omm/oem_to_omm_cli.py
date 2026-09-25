@@ -7,6 +7,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 from datetime import timedelta
 import warnings
 
@@ -54,9 +55,13 @@ class OemToOmmArgs(argparse.Namespace):
     tle_rev_at_epoch: int
     """TLE revolution number at epoch."""
     fit_report: str | None
+    """Optional path for the fit report, or '-' for stdout."""
     source_model: str
+    """Input provenance model selection."""
     source_report: str | None
+    """Optional supplementary source provenance report path."""
     no_fit_report: bool
+    """Whether automatic fit-report creation is disabled."""
 
 
 def build_common_arg_parser(
@@ -69,7 +74,30 @@ def build_common_arg_parser(
     object_name_help: str = "OBJECT_NAME: Spacecraft name for OMM metadata.",
     object_id_help: str = "OBJECT_ID: International designator (e.g., 1998-067A) for OMM output.",
 ) -> argparse.ArgumentParser:
-    """Build the common OEM conversion options shared by OEM-to-OMM and OEM-to-TLE."""
+    """Build the shared OEM conversion argument parser.
+
+    Parameters
+    ----------
+    prog : str or None, optional
+        Program name shown in usage text.
+    description : str
+        Description shown in the parser help.
+    epilog : str or None, optional
+        Additional text shown after the arguments.
+    output_dest : str, optional
+        Namespace attribute used for the output path.
+    output_metavar : str, optional
+        Placeholder shown for the output path.
+    object_name_help : str, optional
+        Help text for the object-name option.
+    object_id_help : str, optional
+        Help text for the object-ID option.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        Parser containing the common OEM conversion options.
+    """
     cli_parser = cli.build_arg_parser(description=description, epilog=epilog)
     if prog is not None:
         cli_parser.prog = prog
@@ -119,10 +147,32 @@ def build_common_arg_parser(
         dest="object_id",
         help=object_id_help,
     )
-    cli_parser.add_argument("--fit-report", metavar="<path|->", default=None, help="Write JSON fit diagnostics to a file or stdout.")
-    cli_parser.add_argument("--no-fit-report", action="store_true", help="Disable automatic fit-report creation.")
-    cli_parser.add_argument("--source-model", default="auto", help="Input provenance model (default: auto).")
-    cli_parser.add_argument("--source-report", metavar="<path>", default=None, help="Supplementary input provenance report.")
+    cli_parser.add_argument(
+        "--fit-report",
+        dest="fit_report",
+        metavar="<path|->",
+        default=None,
+        help="Write JSON fit diagnostics to a file or stdout.",
+    )
+    cli_parser.add_argument(
+        "--no-fit-report",
+        dest="no_fit_report",
+        action="store_true",
+        help="Disable automatic fit-report creation.",
+    )
+    cli_parser.add_argument(
+        "--source-model",
+        dest="source_model",
+        default="auto",
+        help="Input provenance model (default: auto).",
+    )
+    cli_parser.add_argument(
+        "--source-report",
+        dest="source_report",
+        metavar="<path>",
+        default=None,
+        help="Supplementary input provenance report.",
+    )
     cli_parser.add_argument(
         "--tle-refinement",
         choices=["none", "cartesian", "keplerian"],
@@ -176,12 +226,12 @@ def build_common_arg_parser(
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    """Parse command-line arguments for the OEM-to-OMM conversion workflow.
+    """Build the argument parser for the OEM-to-OMM conversion workflow.
 
     Returns
     -------
-    OemToOmmArgs
-        Parsed CLI arguments with the typed runtime namespace.
+    argparse.ArgumentParser
+        Configured parser for OEM-to-OMM arguments.
     """
     cli_parser = build_common_arg_parser(
         prog="oem-to-omm",
@@ -243,12 +293,36 @@ def build_arg_parser() -> argparse.ArgumentParser:
     return cli_parser
 
 
-def parse_arguments(parser: argparse.ArgumentParser, argv=None) -> OemToOmmArgs:
-    """Parse command-line arguments."""
+def parse_arguments(
+    parser: argparse.ArgumentParser,
+    argv: Sequence[str] | None = None,
+) -> OemToOmmArgs:
+    """Parse command-line arguments into the typed namespace.
+
+    Parameters
+    ----------
+    parser : argparse.ArgumentParser
+        Configured OEM-to-OMM parser.
+    argv : Sequence[str] or None, optional
+        Argument tokens to parse. Defaults to the process command line.
+
+    Returns
+    -------
+    OemToOmmArgs
+        Parsed OEM-to-OMM command-line arguments.
+    """
     args = parser.parse_args(argv, namespace=OemToOmmArgs())
-    mode_model = {"brouwer": "brouwer", "dsst": "dsst", "tle": "sgp4"}
+    mode_model: dict[str, str] = {
+        "brouwer": "brouwer",
+        "dsst": "dsst",
+        "tle": "sgp4",
+    }
     legacy_model = mode_model.get(args.mode) if args.mode is not None else None
-    if args.fit_model is not None and legacy_model is not None and args.fit_model != legacy_model:
+    if (
+        args.fit_model is not None
+        and legacy_model is not None
+        and args.fit_model != legacy_model
+    ):
         parser.error("--fit-model conflicts with deprecated --mode")
     if args.mode is not None:
         warnings.warn(
@@ -257,12 +331,15 @@ def parse_arguments(parser: argparse.ArgumentParser, argv=None) -> OemToOmmArgs:
             stacklevel=2,
         )
     args.fit_model = args.fit_model or legacy_model or "sgp4"
-    expected_theories = {
+    expected_theories: dict[str, set[str]] = {
         "brouwer": {"BROUWER", "BROUWER-LYDDANE"},
         "dsst": {"DSST"},
         "sgp4": {"SGP4"},
     }
-    if args.theory is not None and args.theory.upper() not in expected_theories[args.fit_model]:
+    if (
+        args.theory is not None
+        and args.theory.upper() not in expected_theories[args.fit_model]
+    ):
         parser.error(
             f"--theory {args.theory!r} conflicts with --fit-model {args.fit_model!r}"
         )

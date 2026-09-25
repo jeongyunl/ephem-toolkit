@@ -23,6 +23,10 @@ Usage:
 
 from __future__ import annotations
 
+import sys
+import warnings
+from collections.abc import Sequence
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import NoReturn, TextIO
 
@@ -39,10 +43,10 @@ def report_results(
     dest: TextIO | str | Path,
     verbose: bool = False,
 ) -> None:
-    """Report results to stdout, file, or stderr.
+    """Write formatted output to stdout, a file, or a text stream.
 
-    Handles all output operations including writing to files or stdout,
-    and optional verbose status messages to stderr.
+    The ``verbose`` parameter is retained for call compatibility and does not
+    alter output behavior.
 
     Parameters
     ----------
@@ -74,8 +78,6 @@ def report_error(message: str, exit_code: int = 1) -> NoReturn:
     exit_code : int
         Exit code (default: 1).
     """
-    import sys
-
     print(message, file=sys.stderr)
     sys.exit(exit_code)
 
@@ -85,15 +87,21 @@ def report_error(message: str, exit_code: int = 1) -> NoReturn:
 # ===================================================================
 
 
-def main(argv=None) -> None:
-    """Parse CLI arguments and dispatch to the appropriate conversion mode."""
+def main(argv: Sequence[str] | None = None) -> None:
+    """Parse CLI arguments and dispatch to the selected conversion mode.
+
+    Parameters
+    ----------
+    argv : Sequence[str] or None, optional
+        Argument tokens to parse. Defaults to the process command line.
+
+    Returns
+    -------
+    None
+        Results are written to the selected output destination.
+    """
     cli_parser = build_arg_parser()
     cli_args: OemToOmmArgs = parse_arguments(cli_parser, argv)
-
-    import sys
-    import warnings
-    from datetime import datetime, timezone
-    from pathlib import Path
 
     # Suppress warnings that tudatpy / urllib3 may emit on import.
     warnings.filterwarnings("ignore", category=SyntaxWarning)
@@ -126,7 +134,7 @@ def main(argv=None) -> None:
         oem_data = oem.CcsdsOem.read(oem_path)
 
     states: list[tuple[float, np.ndarray]] = oem_data.states
-    source_comments = list(getattr(oem_data.meta, "comments", []))
+    source_comments: list[str] = list(getattr(oem_data.meta, "comments", []))
 
     if len(states) < 2:
         report_error("Error: At least 2 state vectors required for fitting.")
@@ -153,7 +161,9 @@ def main(argv=None) -> None:
     )
 
     def write_report(
-        target_model: str, diagnostics: fit_common.FitDiagnostics, comparisons=None
+        target_model: str,
+        diagnostics: fit_common.FitDiagnostics,
+        comparisons: list[fit_common.PropagationComparison] | None = None,
     ) -> None:
         if fit_report:
             provenance.write_fit_report(
@@ -179,7 +189,7 @@ def main(argv=None) -> None:
                 residuals=provenance.comparison_residuals(comparisons or []),
             )
 
-    def fit_summary(diagnostics):
+    def fit_summary(diagnostics: fit_common.FitDiagnostics) -> str:
         return provenance.fit_comment(
             span_s=provenance.diagnostic_value(diagnostics, "span_s", fit_span_s),
             samples=provenance.diagnostic_value(diagnostics, "n_records", len(states)),
@@ -417,7 +427,8 @@ def main(argv=None) -> None:
         return
 
 
-def cli(argv=None) -> int:
+def cli(argv: Sequence[str] | None = None) -> int:
+    """Run the OEM-to-OMM command-line interface."""
     from ephem_toolkit.core.cli import run_cli
 
     return run_cli(main, argv)

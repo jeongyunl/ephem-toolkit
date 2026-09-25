@@ -4,6 +4,8 @@ This package contains modules for fitting TLE (Two-Line Element) mean orbital
 elements to Orbit Ephemeris Message (OEM) state vectors.
 """
 
+from __future__ import annotations
+
 from . import constants
 from . import estimation
 from . import linalg

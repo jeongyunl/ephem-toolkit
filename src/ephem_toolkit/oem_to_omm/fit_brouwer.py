@@ -9,6 +9,7 @@ residuals between propagated mean elements and observed OEM states.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 import numpy as np
 
@@ -441,7 +442,7 @@ def compute_brouwer_propagation_comparison(
 def format_brouwer_output(
     epoch: datetime,
     brouwerian_elements: np.ndarray,
-    diagnostics: fit_common.FitDiagnostics,
+    diagnostics: fit_common.FitDiagnostics | dict[str, Any],
     comparison: list[fit_common.PropagationComparison] | None = None,
 ) -> str:
     """Format mean Keplerian elements as human-readable text.
@@ -452,10 +453,10 @@ def format_brouwer_output(
         Reference epoch.
     brouwerian_elements : np.ndarray
         Mean Keplerian elements (6,): [a, e, i, omega, RAAN, M].
-    diagnostics : dict
-        Fit diagnostics.
+    diagnostics : FitDiagnostics or dict[str, Any]
+        Fit diagnostics dataclass or dictionary containing fit metrics.
     comparison : list[fit_common.PropagationComparison] | None
-        Propagation comparison results from compute_mean_propagation_comparison.
+        Propagation comparison results from :func:`compute_brouwer_propagation_comparison`.
 
     Returns
     -------

@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import sys
 from datetime import timedelta
+from typing import Sequence
 
 import ephem_toolkit.core.cli as cli
 import ephem_toolkit.core.consts as consts
@@ -44,14 +45,37 @@ class OemToOpmArgs(argparse.Namespace):
     object_id: str
     """International designator for OPM metadata."""
     fit_report: str | None
+    """Path for the fit diagnostics report, if enabled."""
     source_model: str
+    """Input provenance model selection."""
     source_report: str | None
+    """Path to supplementary input provenance metadata."""
     no_fit_report: bool
+    """Whether automatic fit-report creation is disabled."""
     fit_model: str
+    """Selected fitting model."""
     fit_position_weight: float
+    """Weight applied to position residuals."""
     fit_max_iterations: int
+    """Maximum number of numerical-fit iterations."""
     fit_end_weight: float
+    """Position residual multiplier at the end of the fit span."""
     fit_parameters: str
+    """Selected fitted state parameters."""
+    fit_stagnation_tries: int
+    """Additional worsening or stagnant tries before stopping."""
+    mass: float
+    """Fixed spacecraft mass in kilograms."""
+    drag_area: float
+    """Fixed drag and SRP reference area in square meters."""
+    drag: bool
+    """Whether the fixed drag force model is enabled."""
+    drag_coeff: float
+    """Fixed spacecraft drag coefficient."""
+    srp: bool
+    """Whether the fixed solar radiation pressure model is enabled."""
+    srp_coeff: float
+    """Fixed spacecraft radiation pressure coefficient."""
 
 
 def parse_positive_float(value: str) -> float:
@@ -110,8 +134,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     Returns
     -------
-    OemToOpmArgs
-        Parsed CLI arguments with the typed runtime namespace.
+    argparse.ArgumentParser
+        Argument parser configured for the OEM-to-OPM command.
     """
     cli_parser = cli.build_arg_parser(
         description="Fit OEM state vectors and write an OPM with osculating elements.",
@@ -178,17 +202,109 @@ def build_arg_parser() -> argparse.ArgumentParser:
         metavar="<two-body|numerical>",
         help="Fitting model (default: two-body).",
     )
-    cli_parser.add_argument("--fit-position-weight", type=parse_positive_float, default=1.0, dest="fit_position_weight", metavar="<value>", help="Position residual weight.")
-    cli_parser.add_argument("--fit-max-iterations", type=parse_positive_int, default=100, dest="fit_max_iterations", metavar="<count>", help="Maximum numerical-fit iterations (default: 100).")
-    cli_parser.add_argument("--fit-stagnation-tries", type=parse_positive_int, default=3, dest="fit_stagnation_tries", metavar="<count>", help="Additional worsening/stagnant tries before stopping (default: 3).")
-    cli_parser.add_argument("--fit-end-weight", type=parse_positive_float, default=2.0, dest="fit_end_weight", metavar="<value>", help="Position residual multiplier at the end of the fit span (default: 2.0).")
-    cli_parser.add_argument("--fit-parameters", choices=["initial-state", "initial-state,drag-coeff", "initial-state,srp-coeff"], default="initial-state", dest="fit_parameters", help="Fitted state selection; physical parameters are fixed user inputs.")
-    cli_parser.add_argument("--mass", type=parse_positive_float, default=DEFAULT_SATELLITE_MASS_KG, metavar="<kg>", help=f"Fixed spacecraft mass for numerical propagation (default: {DEFAULT_SATELLITE_MASS_KG}).")
-    cli_parser.add_argument("--drag-area", type=parse_positive_float, default=DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2, dest="drag_area", metavar="<m2>", help=f"Fixed drag/SRP reference area (default: {DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2}).")
-    cli_parser.add_argument("--drag", type=parse_bool, default=True, metavar="<on|off>", help="Enable fixed drag force model (default: on).")
-    cli_parser.add_argument("--drag-coeff", type=parse_positive_float, default=DEFAULT_SATELLITE_DRAG_COEFFICIENT, dest="drag_coeff", metavar="<value>", help=f"Fixed drag coefficient (default: {DEFAULT_SATELLITE_DRAG_COEFFICIENT}).")
-    cli_parser.add_argument("--srp", type=parse_bool, default=True, metavar="<on|off>", help="Enable fixed SRP force model (default: on).")
-    cli_parser.add_argument("--srp-coeff", type=parse_positive_float, default=DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT, dest="srp_coeff", metavar="<value>", help=f"Fixed SRP coefficient (default: {DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT}).")
+    cli_parser.add_argument(
+        "--fit-position-weight",
+        type=parse_positive_float,
+        default=1.0,
+        dest="fit_position_weight",
+        metavar="<value>",
+        help="Position residual weight.",
+    )
+    cli_parser.add_argument(
+        "--fit-max-iterations",
+        type=parse_positive_int,
+        default=100,
+        dest="fit_max_iterations",
+        metavar="<count>",
+        help="Maximum numerical-fit iterations (default: 100).",
+    )
+    cli_parser.add_argument(
+        "--fit-stagnation-tries",
+        type=parse_positive_int,
+        default=3,
+        dest="fit_stagnation_tries",
+        metavar="<count>",
+        help="Additional worsening/stagnant tries before stopping (default: 3).",
+    )
+    cli_parser.add_argument(
+        "--fit-end-weight",
+        type=parse_positive_float,
+        default=2.0,
+        dest="fit_end_weight",
+        metavar="<value>",
+        help="Position residual multiplier at the end of the fit span (default: 2.0).",
+    )
+    cli_parser.add_argument(
+        "--fit-parameters",
+        choices=[
+            "initial-state",
+            "initial-state,drag-coeff",
+            "initial-state,srp-coeff",
+        ],
+        default="initial-state",
+        dest="fit_parameters",
+        help="Fitted state selection; physical parameters are fixed user inputs.",
+    )
+    cli_parser.add_argument(
+        "--mass",
+        dest="mass",
+        type=parse_positive_float,
+        default=DEFAULT_SATELLITE_MASS_KG,
+        metavar="<kg>",
+        help=(
+            "Fixed spacecraft mass for numerical propagation "
+            f"(default: {DEFAULT_SATELLITE_MASS_KG})."
+        ),
+    )
+    cli_parser.add_argument(
+        "--drag-area",
+        type=parse_positive_float,
+        default=DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2,
+        dest="drag_area",
+        metavar="<m2>",
+        help=(
+            "Fixed drag/SRP reference area "
+            f"(default: {DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2})."
+        ),
+    )
+    cli_parser.add_argument(
+        "--drag",
+        dest="drag",
+        type=parse_bool,
+        default=True,
+        metavar="<on|off>",
+        help="Enable fixed drag force model (default: on).",
+    )
+    cli_parser.add_argument(
+        "--drag-coeff",
+        type=parse_positive_float,
+        default=DEFAULT_SATELLITE_DRAG_COEFFICIENT,
+        dest="drag_coeff",
+        metavar="<value>",
+        help=(
+            "Fixed drag coefficient "
+            f"(default: {DEFAULT_SATELLITE_DRAG_COEFFICIENT})."
+        ),
+    )
+    cli_parser.add_argument(
+        "--srp",
+        dest="srp",
+        type=parse_bool,
+        default=True,
+        metavar="<on|off>",
+        help="Enable fixed SRP force model (default: on).",
+    )
+    cli_parser.add_argument(
+        "--srp-coeff",
+        type=parse_positive_float,
+        default=DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT,
+        dest="srp_coeff",
+        metavar="<value>",
+        help=(
+            "Fixed SRP coefficient "
+            f"(default: {DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT})."
+        ),
+    )
     cli_parser.add_argument(
         "--object-name",
         dest="object_name",
@@ -203,14 +319,38 @@ def build_arg_parser() -> argparse.ArgumentParser:
         dest="object_id",
         help="OBJECT_ID: International designator (e.g., 1998-067A) for OPM output.",
     )
-    cli_parser.add_argument("--fit-report", metavar="<path|->", default=None, help="Write JSON fit diagnostics to a file or stdout.")
-    cli_parser.add_argument("--no-fit-report", action="store_true", help="Disable automatic fit-report creation.")
-    cli_parser.add_argument("--source-model", default="auto", help="Input provenance model (default: auto).")
-    cli_parser.add_argument("--source-report", metavar="<path>", default=None, help="Supplementary input provenance report.")
+    cli_parser.add_argument(
+        "--fit-report",
+        dest="fit_report",
+        metavar="<path|->",
+        default=None,
+        help="Write JSON fit diagnostics to a file or stdout.",
+    )
+    cli_parser.add_argument(
+        "--no-fit-report",
+        dest="no_fit_report",
+        action="store_true",
+        help="Disable automatic fit-report creation.",
+    )
+    cli_parser.add_argument(
+        "--source-model",
+        dest="source_model",
+        default="auto",
+        help="Input provenance model (default: auto).",
+    )
+    cli_parser.add_argument(
+        "--source-report",
+        dest="source_report",
+        metavar="<path>",
+        default=None,
+        help="Supplementary input provenance report.",
+    )
 
     return cli_parser
 
 
-def parse_arguments(parser: argparse.ArgumentParser, argv=None) -> OemToOpmArgs:
+def parse_arguments(
+    parser: argparse.ArgumentParser, argv: Sequence[str] | None = None
+) -> OemToOpmArgs:
     """Parse command-line arguments."""
     return parser.parse_args(argv, namespace=OemToOpmArgs())

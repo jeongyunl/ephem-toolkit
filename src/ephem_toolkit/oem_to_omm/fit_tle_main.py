@@ -135,15 +135,7 @@ def _sgp4_mean_motion_rev_per_day(semi_major_axis_m: float) -> float:
 
 
 def _load_spice_kernels() -> None:
-    """Load SPICE kernels required for time conversion.
-
-    Parameters
-    ----------
-
-    Notes
-    -----
-    Type annotations omitted for TudatPy modules to avoid import-time dependencies.
-    """
+    """Load SPICE kernels required for time conversion."""
     spice_kernel_files = [
         "naif0012.tls",  # LEAPSECONDS KERNEL FILE
         "pck00011.tpc",  # PLANETARY CONSTANTS KERNEL FILE: orientation and size/shape data for natural bodies(Sun, planets, asteroids, etc)
@@ -198,7 +190,7 @@ def fit_tle(
         International designator (e.g., "1998-067A").
     norad_cat_id : int
         NORAD catalog number.
-    classification : str
+    classification_type : str
         Classification (U/C/S).
     ephemeris_type : int
         Ephemeris type (0-9).
@@ -335,8 +327,8 @@ def compute_tle_propagation_comparison(
 ) -> list[fit_common.PropagationComparison]:
     """Compare TLE-propagated states with OEM states at regular intervals.
 
-    Uses J2 secular propagation (as an approximation to SGP4) to propagate
-    the fitted TLE elements and compare with OEM states.
+    Uses SGP4 to propagate the fitted TLE elements and compare them with OEM
+    states.
 
     Parameters
     ----------
@@ -550,13 +542,6 @@ def format_tle_output(
         )
 
     return "\n".join(lines)
-
-
-#
-
-# ===================================================================
-# Cartesian to TLE mean elements conversion (SGP4-compatible)
-# ===================================================================
 
 
 # ===================================================================
@@ -880,7 +865,30 @@ def cartesian_to_tle(
     position_tolerance_m: float = 15.0,
     max_iterations: int = 50,
 ) -> tle.Tle:
-    """Convert Cartesian state to a TLE at the specified epoch."""
+    """Convert a Cartesian state to a TLE at the specified epoch.
+
+    Parameters
+    ----------
+    cartesian_state : np.ndarray
+        Cartesian state vector [x, y, z, vx, vy, vz] in meters and meters per second.
+    epoch_timestamp : float
+        Epoch as TT seconds since J2000.
+    mu_m3_s2 : float
+        Gravitational parameter (m³/s²).
+    object_name : str
+        Satellite name stored in the TLE.
+    object_id : str
+        International designator in ``YYYY-NNNP`` format.
+    position_tolerance_m : float
+        Target position accuracy (m).
+    max_iterations : int
+        Maximum mean-element fitting iterations.
+
+    Returns
+    -------
+    tle.Tle
+        TLE constructed from the fitted mean elements.
+    """
     mean_elements: np.ndarray = cartesian_to_tle_mean_elements(
         cartesian_state,
         epoch_timestamp,
@@ -928,7 +936,25 @@ def verify_tle_epoch_position(
     tle_obj: tle.Tle,
     expected_position_m: np.ndarray,
 ) -> tuple[float, np.ndarray]:
-    """Verify TLE epoch position against expected position."""
+    """Compute the TLE epoch-position residual against an expected position.
+
+    Parameters
+    ----------
+    tle_obj : tle.Tle
+        TLE whose propagated epoch position is checked.
+    expected_position_m : np.ndarray
+        Expected position at the epoch, shape ``(3,)`` in meters.
+
+    Returns
+    -------
+    tuple[float, np.ndarray]
+        Position error magnitude (m) and residual vector (m).
+
+    Raises
+    ------
+    ValueError
+        If ``expected_position_m`` does not have shape ``(3,)``.
+    """
     expected_pos: np.ndarray = np.asarray(expected_position_m, dtype=float)
     if expected_pos.shape != (3,):
         raise ValueError(

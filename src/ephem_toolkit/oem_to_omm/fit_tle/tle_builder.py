@@ -76,7 +76,7 @@ def build_tle_data(args: argparse.Namespace, estimated: models.Estimated) -> tle
 
     Returns
     -------
-    tle_module.Tle
+    tle.Tle
         TLE dataclass instance.
     """
     return tle.Tle(

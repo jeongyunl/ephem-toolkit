@@ -44,10 +44,12 @@ For detailed documentation, see doc/SLICE_OEM.md
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from .slice_oem_cli import build_arg_parser, parse_arguments
 
 
-def main(argv=None) -> None:
+def main(argv: Sequence[str] | None = None) -> None:
     """Parse CLI arguments, slice OEM ephemeris data, and write results to stdout."""
     cli_parser = build_arg_parser()
     cli_args = parse_arguments(cli_parser, argv)
@@ -251,7 +253,7 @@ def main(argv=None) -> None:
                     output_stream.close()
 
 
-def cli(argv=None) -> int:
+def cli(argv: Sequence[str] | None = None) -> int:
     from ephem_toolkit.core.cli import run_cli
 
     return run_cli(main, argv)

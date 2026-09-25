@@ -60,9 +60,7 @@ def _compute_kepler_residuals_from_epoch_state(
     residuals: np.ndarray = np.zeros(n_samples * 3)
 
     for i, dt_s in enumerate(time_offsets_s):
-        _, predicted_state = propagator.propagate_to(
-            dt_s, output=OutputMode.FINAL
-        )
+        _, predicted_state = propagator.propagate_to(dt_s, output=OutputMode.FINAL)
         residuals[i * 3 : i * 3 + 3] = target_positions_m[i] - predicted_state[:3]
 
     return residuals
@@ -176,18 +174,20 @@ def fit_osculating_kepler(
         # Column p = ∂residuals/∂v₀[p], approximated as (f(v₀+δeₚ) - f(v₀)) / δ.
         n_residuals: int = len(residuals)
         jacobian: np.ndarray = np.zeros((n_residuals, 3))
-        for p in range(3):
+        for component_index in range(3):
             perturbed_v0: np.ndarray = current_v0.copy()
-            perturbed_v0[p] += finite_difference_steps_m_s[p]
+            perturbed_v0[component_index] += finite_difference_steps_m_s[
+                component_index
+            ]
             perturbed_state: np.ndarray = np.hstack((fixed_r0, perturbed_v0))
             perturbed_residuals: np.ndarray = (
                 _compute_kepler_residuals_from_epoch_state(
                     perturbed_state, time_offsets_s, target_positions_m, mu_m3_s2
                 )
             )
-            jacobian[:, p] = (
+            jacobian[:, component_index] = (
                 perturbed_residuals - residuals
-            ) / finite_difference_steps_m_s[p]
+            ) / finite_difference_steps_m_s[component_index]
 
         # Solve normal equations: (JᵀJ + λ·diag(JᵀJ)) Δv = Jᵀr
         # The diagonal damping (Levenberg-Marquardt style, λ = 1e-8) regularizes
@@ -449,7 +449,9 @@ def format_kepler_output(
     lines.append(f"  fit method:         {fit_method}")
     initial_position_rms_m = getattr(diagnostics, "initial_position_rms_m", None)
     if initial_position_rms_m is not None:
-        lines.append(f"  initial position RMS: {initial_position_rms_m / 1000.0:.6f} km")
+        lines.append(
+            f"  initial position RMS: {initial_position_rms_m / 1000.0:.6f} km"
+        )
     lines.append(f"  RMS position error: {rms_position_m / 1000.0:.6f} km")
     if epoch_vel_delta_m_s is not None:
         lines.append(f"  epoch Δ|v0|:         {epoch_vel_delta_m_s:.6f} m/s")

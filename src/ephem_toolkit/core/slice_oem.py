@@ -17,9 +17,9 @@ import sys
 import numpy as np
 
 from . import time_utils
-from .ccsds.oem import CcsdsOem
+from .ccsds import oem as ccsds_oem
 from .interpolator import factory
-from .interpolator.interpolation_spec import InterpolationSpec, InterpolationType
+from .interpolator import interpolation_spec as interpolation_specs
 
 TIME_RANGE_TOLERANCE_FRACTION: float = 0.1
 """Fraction of OEM duration allowed as tolerance for out-of-range requests."""
@@ -49,7 +49,7 @@ class TimeSliceOptions:
     step_size: timedelta | None = None
     """Resampling interval; if set, states are interpolated at this fixed step."""
 
-    interpolation_spec: InterpolationSpec | None = None
+    interpolation_spec: interpolation_specs.InterpolationSpec | None = None
     """Interpolation specification for exact start/stop times and resampling."""
 
 
@@ -164,18 +164,18 @@ def parse_time_slice_args(time_slice_str: str) -> TimeSliceOptions:
 
 
 def extract_sliced_states(
-    oem: CcsdsOem,
+    oem: ccsds_oem.CcsdsOem,
     slice_spec: TimeSliceOptions | slice,
     verbose: bool = False,
     clamp_to_oem_bounds: bool = True,
-) -> CcsdsOem:
+) -> ccsds_oem.CcsdsOem:
     """Extract sliced OEM states based on a time or index slice specification.
 
     Returns a new CcsdsOem with the sliced states and preserved metadata.
 
     Parameters
     ----------
-    oem : CcsdsOem
+    oem : ccsds_oem.CcsdsOem
         CcsdsOem object containing states and metadata.
     slice_spec : TimeSliceOptions | slice
         Time-based slice options or a Python slice object.
@@ -188,12 +188,12 @@ def extract_sliced_states(
 
     Returns
     -------
-    CcsdsOem
+    ccsds_oem.CcsdsOem
         Sliced CcsdsOem object with preserved metadata.
 
     Examples
     --------
-    >>> oem = CcsdsOem.read("orbit.oem")
+    >>> oem = ccsds_oem.CcsdsOem.read("orbit.oem")
     >>> sliced_oem = extract_sliced_states(oem, slice(0, 10))
     >>> sliced_oem.meta.object_name  # Metadata preserved
     'ISS'
@@ -238,19 +238,19 @@ def extract_sliced_states(
             if sliced_states:
                 first_timestamp_s, _ = sliced_states[0]
                 last_timestamp_s, _ = sliced_states[-1]
-                first_dt = time_utils.tt_s_to_datetime(first_timestamp_s)
-                last_dt = time_utils.tt_s_to_datetime(last_timestamp_s)
-                span = last_dt - first_dt
+                first_datetime = time_utils.tt_s_to_datetime(first_timestamp_s)
+                last_datetime = time_utils.tt_s_to_datetime(last_timestamp_s)
+                time_span = last_datetime - first_datetime
                 print(
-                    f"[slice_oem]   Output start: {time_utils.datetime_to_iso8601(first_dt)}",
+                    f"[slice_oem]   Output start: {time_utils.datetime_to_iso8601(first_datetime)}",
                     file=sys.stderr,
                 )
                 print(
-                    f"[slice_oem]   Output end:   {time_utils.datetime_to_iso8601(last_dt)}",
+                    f"[slice_oem]   Output end:   {time_utils.datetime_to_iso8601(last_datetime)}",
                     file=sys.stderr,
                 )
                 print(
-                    f"[slice_oem]   Output span:  {time_utils.format_duration_human(span)}",
+                    f"[slice_oem]   Output span:  {time_utils.format_duration_human(time_span)}",
                     file=sys.stderr,
                 )
 
@@ -266,16 +266,16 @@ def extract_sliced_states(
 
 
 def extract_states_by_time(
-    oem: CcsdsOem,
+    oem: ccsds_oem.CcsdsOem,
     options: TimeSliceOptions,
     verbose: bool = False,
     clamp_to_oem_bounds: bool = True,
-) -> CcsdsOem:
+) -> ccsds_oem.CcsdsOem:
     """Extract states within a time window using TimeSliceOptions.
 
     Parameters
     ----------
-    oem : CcsdsOem
+    oem : ccsds_oem.CcsdsOem
         CcsdsOem object containing states and metadata.
     options : TimeSliceOptions
         Parsed time slice options specifying start, stop, step and interpolation.
@@ -288,11 +288,13 @@ def extract_states_by_time(
 
     Returns
     -------
-    CcsdsOem
+    ccsds_oem.CcsdsOem
         New CcsdsOem object with sliced states and preserved metadata.
     """
     # Use interpolation spec from options, or create default
-    interpolation_spec = options.interpolation_spec
+    interpolation_spec_value: interpolation_specs.InterpolationSpec | None = (
+        options.interpolation_spec
+    )
 
     # States are already sorted, no need to sort again
     states: list[tuple[float, np.ndarray]] = oem.states
@@ -429,7 +431,7 @@ def extract_states_by_time(
     interpolator = None
     if options.interpolation_spec is not None:
         interpolator = factory.InterpolatorFactory.create(
-            spec=interpolation_spec,
+            spec=interpolation_spec_value,
             dimension=6,
             is_cartesian_state=True,
             verbose=verbose,
@@ -445,13 +447,13 @@ def extract_states_by_time(
             sliced_states = [(slice_start_timestamp_s, interp_state)]
 
             if verbose:
-                resolved_dt = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
+                resolved_datetime = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
                 print(
                     f"[slice_oem]   Mode: single state (interpolated)",
                     file=sys.stderr,
                 )
                 print(
-                    f"[slice_oem]   Resolved start: {time_utils.datetime_to_iso8601(resolved_dt)}",
+                    f"[slice_oem]   Resolved start: {time_utils.datetime_to_iso8601(resolved_datetime)}",
                     file=sys.stderr,
                 )
         else:
@@ -463,13 +465,13 @@ def extract_states_by_time(
             sliced_states = states[slice_start_index:slice_stop_index]
 
             if verbose:
-                resolved_dt = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
+                resolved_datetime = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
                 print(
                     f"[slice_oem]   Mode: single state (no stop time given)",
                     file=sys.stderr,
                 )
                 print(
-                    f"[slice_oem]   Resolved start: {time_utils.datetime_to_iso8601(resolved_dt)}",
+                    f"[slice_oem]   Resolved start: {time_utils.datetime_to_iso8601(resolved_datetime)}",
                     file=sys.stderr,
                 )
                 print(
@@ -499,9 +501,11 @@ def extract_states_by_time(
                 and timestamps_s[slice_start_index] != slice_start_timestamp_s
             ):
                 if verbose:
-                    start_dt = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
+                    start_datetime = time_utils.tt_s_to_datetime(
+                        slice_start_timestamp_s
+                    )
                     print(
-                        f"[slice_oem]   Interpolating start_state at {time_utils.datetime_to_iso8601(start_dt)}",
+                        f"[slice_oem]   Interpolating start_state at {time_utils.datetime_to_iso8601(start_datetime)}",
                         file=sys.stderr,
                     )
                 start_state = interpolator.interpolate(slice_start_timestamp_s)
@@ -516,27 +520,31 @@ def extract_states_by_time(
                 and timestamps_s[slice_stop_index - 1] != slice_stop_timestamp_s
             ):
                 if verbose:
-                    stop_dt = time_utils.tt_s_to_datetime(slice_stop_timestamp_s)
+                    stop_datetime = time_utils.tt_s_to_datetime(slice_stop_timestamp_s)
                     print(
-                        f"[slice_oem]   Interpolating stop_state at {time_utils.datetime_to_iso8601(stop_dt)}",
+                        f"[slice_oem]   Interpolating stop_state at {time_utils.datetime_to_iso8601(stop_datetime)}",
                         file=sys.stderr,
                     )
                 stop_state = interpolator.interpolate(slice_stop_timestamp_s)
                 sliced_states.append((slice_stop_timestamp_s, stop_state))
 
             if verbose:
-                resolved_start_dt = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
-                resolved_stop_dt = time_utils.tt_s_to_datetime(slice_stop_timestamp_s)
+                resolved_start_datetime = time_utils.tt_s_to_datetime(
+                    slice_start_timestamp_s
+                )
+                resolved_stop_datetime = time_utils.tt_s_to_datetime(
+                    slice_stop_timestamp_s
+                )
                 print(
                     f"[slice_oem]   Mode: time range (interpolated boundaries)",
                     file=sys.stderr,
                 )
                 print(
-                    f"[slice_oem]   Resolved start: {time_utils.datetime_to_iso8601(resolved_start_dt)}",
+                    f"[slice_oem]   Resolved start: {time_utils.datetime_to_iso8601(resolved_start_datetime)}",
                     file=sys.stderr,
                 )
                 print(
-                    f"[slice_oem]   Resolved stop:  {time_utils.datetime_to_iso8601(resolved_stop_dt)}",
+                    f"[slice_oem]   Resolved stop:  {time_utils.datetime_to_iso8601(resolved_stop_datetime)}",
                     file=sys.stderr,
                 )
         else:
@@ -554,18 +562,22 @@ def extract_states_by_time(
             sliced_states = states[slice_start_index:slice_stop_index]
 
             if verbose:
-                resolved_start_dt = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
-                resolved_stop_dt = time_utils.tt_s_to_datetime(slice_stop_timestamp_s)
+                resolved_start_datetime = time_utils.tt_s_to_datetime(
+                    slice_start_timestamp_s
+                )
+                resolved_stop_datetime = time_utils.tt_s_to_datetime(
+                    slice_stop_timestamp_s
+                )
                 print(
                     f"[slice_oem]   Mode: time range (no interpolation)",
                     file=sys.stderr,
                 )
                 print(
-                    f"[slice_oem]   Resolved start: {time_utils.datetime_to_iso8601(resolved_start_dt)}",
+                    f"[slice_oem]   Resolved start: {time_utils.datetime_to_iso8601(resolved_start_datetime)}",
                     file=sys.stderr,
                 )
                 print(
-                    f"[slice_oem]   Resolved stop:  {time_utils.datetime_to_iso8601(resolved_stop_dt)}",
+                    f"[slice_oem]   Resolved stop:  {time_utils.datetime_to_iso8601(resolved_stop_datetime)}",
                     file=sys.stderr,
                 )
     else:
@@ -578,20 +590,22 @@ def extract_states_by_time(
             timestamp_s += options.step_size.total_seconds()
 
         if verbose:
-            resolved_start_dt = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
-            resolved_stop_dt = time_utils.tt_s_to_datetime(slice_stop_timestamp_s)
-            interp_type_str = f"{interpolation_spec.interp_type.value} degree {interpolation_spec.degree}"
+            resolved_start_datetime = time_utils.tt_s_to_datetime(
+                slice_start_timestamp_s
+            )
+            resolved_stop_datetime = time_utils.tt_s_to_datetime(slice_stop_timestamp_s)
+            interp_type_str = f"{interpolation_spec_value.interp_type.value} degree {interpolation_spec_value.degree}"
 
             print(
                 f"[slice_oem]   Mode: interpolated ({interp_type_str})",
                 file=sys.stderr,
             )
             print(
-                f"[slice_oem]   Resolved start: {time_utils.datetime_to_iso8601(resolved_start_dt)}",
+                f"[slice_oem]   Resolved start: {time_utils.datetime_to_iso8601(resolved_start_datetime)}",
                 file=sys.stderr,
             )
             print(
-                f"[slice_oem]   Resolved stop:  {time_utils.datetime_to_iso8601(resolved_stop_dt)}",
+                f"[slice_oem]   Resolved stop:  {time_utils.datetime_to_iso8601(resolved_stop_datetime)}",
                 file=sys.stderr,
             )
             print(
@@ -608,19 +622,19 @@ def extract_states_by_time(
         if sliced_states:
             first_timestamp_s, _ = sliced_states[0]
             last_timestamp_s, _ = sliced_states[-1]
-            first_dt = time_utils.tt_s_to_datetime(first_timestamp_s)
-            last_dt = time_utils.tt_s_to_datetime(last_timestamp_s)
-            span = last_dt - first_dt
+            first_datetime = time_utils.tt_s_to_datetime(first_timestamp_s)
+            last_datetime = time_utils.tt_s_to_datetime(last_timestamp_s)
+            time_span = last_datetime - first_datetime
             print(
-                f"[slice_oem]   Output start: {time_utils.datetime_to_iso8601(first_dt)}",
+                f"[slice_oem]   Output start: {time_utils.datetime_to_iso8601(first_datetime)}",
                 file=sys.stderr,
             )
             print(
-                f"[slice_oem]   Output end:   {time_utils.datetime_to_iso8601(last_dt)}",
+                f"[slice_oem]   Output end:   {time_utils.datetime_to_iso8601(last_datetime)}",
                 file=sys.stderr,
             )
             print(
-                f"[slice_oem]   Output span:  {time_utils.format_duration_human(span)}",
+                f"[slice_oem]   Output span:  {time_utils.format_duration_human(time_span)}",
                 file=sys.stderr,
             )
 
@@ -628,14 +642,14 @@ def extract_states_by_time(
     return _create_sliced_oem(
         oem,
         sliced_states,
-        interpolation_spec=interpolation_spec,
+        interpolation_spec=interpolation_spec_value,
         source_states=states,
         step_size=options.step_size,
     )
 
 
 def _compute_unusable_margin(
-    interpolation_spec: InterpolationSpec | None,
+    interpolation_spec: interpolation_specs.InterpolationSpec | None,
     source_states: list[tuple[float, np.ndarray]],
 ) -> float:
     """Compute the time margin (seconds) at each boundary where interpolation is UNUSABLE (inaccurate).
@@ -660,15 +674,17 @@ def _compute_unusable_margin(
         return 0.0
 
     # Estimate average data interval from source states
-    first_ts = source_states[0][0]
-    last_ts = source_states[-1][0]
-    n_intervals = len(source_states) - 1
-    avg_interval_s = (last_ts - first_ts) / n_intervals
+    first_timestamp_s = source_states[0][0]
+    last_timestamp_s = source_states[-1][0]
+    interval_count = len(source_states) - 1
+    average_interval_s = (last_timestamp_s - first_timestamp_s) / interval_count
 
-    if interpolation_spec.interp_type == InterpolationType.HERMITE:
+    if interpolation_spec.interp_type == interpolation_specs.InterpolationType.HERMITE:
         # Hermite: no UNUSABLE margin needed (derivative info handles boundaries well).
         base_margin_intervals = 0
-    elif interpolation_spec.interp_type == InterpolationType.LAGRANGE:
+    elif (
+        interpolation_spec.interp_type == interpolation_specs.InterpolationType.LAGRANGE
+    ):
         # Lagrange: lower degrees have larger boundary errors, scale margin with degree.
         # degree 5-7: 2 intervals, degree 9+: 1 interval
         if interpolation_spec.degree <= 7:
@@ -679,16 +695,16 @@ def _compute_unusable_margin(
         # Chebyshev: no UNUSABLE margin needed.
         base_margin_intervals = 0
 
-    return base_margin_intervals * avg_interval_s
+    return base_margin_intervals * average_interval_s
 
 
 def _create_sliced_oem(
-    original_oem: CcsdsOem,
+    original_oem: ccsds_oem.CcsdsOem,
     sliced_states: list[tuple[float, np.ndarray]],
-    interpolation_spec: InterpolationSpec | None = None,
+    interpolation_spec: interpolation_specs.InterpolationSpec | None = None,
     source_states: list[tuple[float, np.ndarray]] | None = None,
     step_size: timedelta | None = None,
-) -> CcsdsOem:
+) -> ccsds_oem.CcsdsOem:
     """Create a new CcsdsOem with sliced states while preserving original metadata.
 
     This function creates a new OEM object that preserves all header and metadata
@@ -706,7 +722,7 @@ def _create_sliced_oem(
         Original OEM object to copy metadata from.
     sliced_states : list[tuple[float, np.ndarray]]
         List of (timestamp, state_vector) tuples for the sliced data.
-    interpolation_spec : InterpolationSpec | None, optional
+    interpolation_spec : interpolation_specs.InterpolationSpec | None, optional
         Interpolation specification used, for computing USABLE time bounds.
     source_states : list[tuple[float, np.ndarray]] | None, optional
         Original source states used for interpolation (for margin calculation).
@@ -731,12 +747,12 @@ def _create_sliced_oem(
 
     # Update time-related metadata fields based on the sliced states
     if sliced_states:
-        start_dt = time_utils.tt_s_to_datetime(sliced_states[0][0])
-        stop_dt = time_utils.tt_s_to_datetime(sliced_states[-1][0])
+        start_datetime = time_utils.tt_s_to_datetime(sliced_states[0][0])
+        stop_datetime = time_utils.tt_s_to_datetime(sliced_states[-1][0])
 
         # Update START_TIME and STOP_TIME to match the sliced data
-        new_meta.start_time = time_utils.datetime_to_iso8601(start_dt)
-        new_meta.stop_time = time_utils.datetime_to_iso8601(stop_dt)
+        new_meta.start_time = time_utils.datetime_to_iso8601(start_datetime)
+        new_meta.stop_time = time_utils.datetime_to_iso8601(stop_datetime)
 
         # Compute USABLE time range by excluding UNUSABLE boundary margins
         # The margin represents the UNUSABLE region at each boundary
@@ -749,33 +765,45 @@ def _create_sliced_oem(
 
         if unusable_margin_s > 0.0 and len(sliced_states) > 1:
             # Inset by the UNUSABLE margin to find the USABLE region
-            usable_start_ts = sliced_states[0][0] + unusable_margin_s
-            usable_stop_ts = sliced_states[-1][0] - unusable_margin_s
+            usable_start_timestamp_s = sliced_states[0][0] + unusable_margin_s
+            usable_stop_timestamp_s = sliced_states[-1][0] - unusable_margin_s
 
             # Align USABLE boundaries to step size if provided
             if step_size is not None:
-                step_s = step_size.total_seconds()
-                start_ts = sliced_states[0][0]
+                step_size_s = step_size.total_seconds()
+                start_timestamp_s = sliced_states[0][0]
 
                 # Find first step boundary >= usable_start_ts (first USABLE step)
-                steps_from_start = (usable_start_ts - start_ts) / step_s
-                aligned_start_steps = int(np.ceil(steps_from_start))
-                usable_start_ts = start_ts + aligned_start_steps * step_s
+                step_count_from_start = (
+                    usable_start_timestamp_s - start_timestamp_s
+                ) / step_size_s
+                aligned_start_step_count = int(np.ceil(step_count_from_start))
+                usable_start_timestamp_s = (
+                    start_timestamp_s + aligned_start_step_count * step_size_s
+                )
 
                 # Find last step boundary <= usable_stop_ts (last USABLE step)
-                steps_to_stop = (usable_stop_ts - start_ts) / step_s
-                aligned_stop_steps = int(np.floor(steps_to_stop))
-                usable_stop_ts = start_ts + aligned_stop_steps * step_s
+                step_count_to_stop = (
+                    usable_stop_timestamp_s - start_timestamp_s
+                ) / step_size_s
+                aligned_stop_step_count = int(np.floor(step_count_to_stop))
+                usable_stop_timestamp_s = (
+                    start_timestamp_s + aligned_stop_step_count * step_size_s
+                )
 
             # Only set USABLE_START/STOP_TIME if there's a valid USABLE region
-            if usable_start_ts < usable_stop_ts:
-                usable_start_dt = time_utils.tt_s_to_datetime(usable_start_ts)
-                usable_stop_dt = time_utils.tt_s_to_datetime(usable_stop_ts)
+            if usable_start_timestamp_s < usable_stop_timestamp_s:
+                usable_start_datetime = time_utils.tt_s_to_datetime(
+                    usable_start_timestamp_s
+                )
+                usable_stop_datetime = time_utils.tt_s_to_datetime(
+                    usable_stop_timestamp_s
+                )
                 new_meta.useable_start_time = time_utils.datetime_to_iso8601(
-                    usable_start_dt
+                    usable_start_datetime
                 )
                 new_meta.useable_stop_time = time_utils.datetime_to_iso8601(
-                    usable_stop_dt
+                    usable_stop_datetime
                 )
             else:
                 # No USABLE region exists (entire output is UNUSABLE)
@@ -787,7 +815,7 @@ def _create_sliced_oem(
             new_meta.useable_stop_time = ""
 
     # Create and return the new CcsdsOem object
-    return CcsdsOem(
+    return ccsds_oem.CcsdsOem(
         header=new_header,
         meta=new_meta,
         data_comments=copy.deepcopy(original_oem.data_comments),
@@ -907,8 +935,8 @@ def _validate_time_range(
         and slice_stop_timestamp_s < slice_start_timestamp_s
     ):
         # Format times for error message
-        start_dt = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
-        stop_dt = time_utils.tt_s_to_datetime(slice_stop_timestamp_s)
+        start_datetime = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
+        stop_datetime = time_utils.tt_s_to_datetime(slice_stop_timestamp_s)
 
         # Build descriptive error message based on input type
         if isinstance(options.start_time, datetime):
@@ -929,27 +957,27 @@ def _validate_time_range(
             f"Invalid time slice: stop time must be >= start time.\n"
             f"  Requested start: {start_str}\n"
             f"  Requested stop:  {stop_str}\n"
-            f"  Resolved start:  {time_utils.datetime_to_iso8601(start_dt)}\n"
-            f"  Resolved stop:   {time_utils.datetime_to_iso8601(stop_dt)}"
+            f"  Resolved start:  {time_utils.datetime_to_iso8601(start_datetime)}\n"
+            f"  Resolved stop:   {time_utils.datetime_to_iso8601(stop_datetime)}"
         )
 
     # Check if requested times are outside OEM range (warning-level check)
     # Allow some tolerance for interpolation, but catch obvious errors
-    oem_duration = base_stop_timestamp_s - base_start_timestamp_s
-    tolerance = oem_duration * TIME_RANGE_TOLERANCE_FRACTION  # 10% tolerance
+    oem_duration_s = base_stop_timestamp_s - base_start_timestamp_s
+    tolerance_s = oem_duration_s * TIME_RANGE_TOLERANCE_FRACTION  # 10% tolerance
 
-    if slice_start_timestamp_s < (base_start_timestamp_s - tolerance):
-        start_dt = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
-        oem_start_dt = time_utils.tt_s_to_datetime(base_start_timestamp_s)
+    if slice_start_timestamp_s < (base_start_timestamp_s - tolerance_s):
+        start_datetime = time_utils.tt_s_to_datetime(slice_start_timestamp_s)
+        oem_start_datetime = time_utils.tt_s_to_datetime(base_start_timestamp_s)
         raise ValueError(
-            f"Start time {time_utils.datetime_to_iso8601(start_dt)} is before "
-            f"OEM file start time {time_utils.datetime_to_iso8601(oem_start_dt)}"
+            f"Start time {time_utils.datetime_to_iso8601(start_datetime)} is before "
+            f"OEM file start time {time_utils.datetime_to_iso8601(oem_start_datetime)}"
         )
 
-    if slice_stop_timestamp_s > (base_stop_timestamp_s + tolerance):
-        stop_dt = time_utils.tt_s_to_datetime(slice_stop_timestamp_s)
-        oem_stop_dt = time_utils.tt_s_to_datetime(base_stop_timestamp_s)
+    if slice_stop_timestamp_s > (base_stop_timestamp_s + tolerance_s):
+        stop_datetime = time_utils.tt_s_to_datetime(slice_stop_timestamp_s)
+        oem_stop_datetime = time_utils.tt_s_to_datetime(base_stop_timestamp_s)
         raise ValueError(
-            f"Stop time {time_utils.datetime_to_iso8601(stop_dt)} is after "
-            f"OEM file stop time {time_utils.datetime_to_iso8601(oem_stop_dt)}"
+            f"Stop time {time_utils.datetime_to_iso8601(stop_datetime)} is after "
+            f"OEM file stop time {time_utils.datetime_to_iso8601(oem_stop_datetime)}"
         )
