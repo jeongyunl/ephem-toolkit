@@ -42,8 +42,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import warnings
 
-
 import numpy as np
+from typing_extensions import override
 
 from ..consts import (
     EARTH_EQUATORIAL_RADIUS_M,
@@ -556,6 +556,7 @@ class DSSTPropagator(Propagator[KeplerianState]):
         )
         self.set_initial_state(initial_state)
 
+    @override
     def set_initial_state(self, initial_state: KeplerianState) -> None:
         """Set initial DSST mean state and reset reference epoch.
 
@@ -585,10 +586,12 @@ class DSSTPropagator(Propagator[KeplerianState]):
                 UserWarning,
             )
 
+    @override
     def get_initial_epoch_s(self) -> float:
         """Return epoch of initial state (TT, s since J2000 TT)."""
         return self._initial_state.epoch_s
 
+    @override
     def _propagate_to_impl(self, target_epoch_s: float) -> np.ndarray:
         """Propagate to target epoch and return Cartesian state.
 
