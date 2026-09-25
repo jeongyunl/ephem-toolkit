@@ -474,13 +474,13 @@ def datetime_to_tle_epoch(epoch_dt: datetime) -> tuple[int, float]:
     ----------
     https://celestrak.org/NORAD/documentation/tle-fmt.php
     """
-    epoch_year: int = epoch_dt.year % 100
     start_of_year: datetime
     if epoch_dt.tzinfo is not None:
         epoch_dt = epoch_dt.astimezone(timezone.utc)
         start_of_year = datetime(epoch_dt.year, 1, 1, tzinfo=timezone.utc)
     else:
         start_of_year = datetime(epoch_dt.year, 1, 1)
+    epoch_year: int = epoch_dt.year % 100
     epoch_day: float = (
         epoch_dt - start_of_year
     ).total_seconds() / time_utils.SECONDS_PER_DAY + 1.0

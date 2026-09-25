@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,17 @@ import core.tle as tle
 
 TEST_DIR = Path(__file__).parent
 TEST_DATA_DIR = TEST_DIR.parent.parent / "data"
+
+
+def test_datetime_to_tle_epoch_uses_utc_year_at_new_year_boundary() -> None:
+    """The year and day must both be based on the UTC-normalized datetime."""
+    epoch_dt = datetime(2024, 1, 1, 0, 30, tzinfo=timezone(timedelta(hours=1)))
+
+    epoch_year, epoch_day = tle.datetime_to_tle_epoch(epoch_dt)
+
+    assert epoch_year == 23
+    assert epoch_day == pytest.approx(365.9791666667)
+
 
 # ===================================================================
 # Shared fixtures / constants
