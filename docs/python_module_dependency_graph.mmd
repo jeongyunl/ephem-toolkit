@@ -6,18 +6,19 @@ config:
 graph LR
 
 %% Internal Python module dependencies under ephem_toolkit namespace
-%% Standalone scripts use stadium shape ([...])
-%% Library modules use default rectangle shape [...]
-%% Updated to match the current packages and CLI entry points.
+%% CLI packages use stadium shape ([...])
+%% Core library modules use default rectangle shape [...]
+%% CLI inventory follows [project.scripts] in pyproject.toml.
 
     subgraph core["ephem_toolkit.core"]
         mod_core_aer[aer]
         mod_core_consts[consts]
         mod_core_convert_tle[convert_tle]
         mod_core_frame_utils[frame_utils]
-        mod_core_kepler[kepler]
-        mod_core_mean_kepler[mean_kepler]
+        mod_core_misc[misc]
+        mod_core_provenance[provenance]
         mod_core_slice_oem[slice_oem]
+        mod_core_spice_utils[spice_utils]
         mod_core_time_utils[time_utils]
         mod_core_tle[tle]
         mod_core_wgs[wgs]
@@ -31,10 +32,21 @@ graph LR
         mod_core_omm[omm]
     end
 
+    subgraph propagator["ephem_toolkit.core.propagator"]
+        mod_propagator_base[base]
+        mod_propagator_brouwer_j2[brouwer_j2]
+        mod_propagator_dsst[dsst]
+        mod_propagator_kepler[kepler]
+        mod_propagator_numerical[numerical]
+        mod_propagator_sgp4[sgp4]
+    end
+
     subgraph interpolator["ephem_toolkit.core.interpolator"]
-        mod_interpolator_interpolator[interpolator]
+        mod_interpolator_package[package API]
+        mod_interpolator_base[interpolator base]
         mod_interpolator_lagrange[lagrange]
         mod_interpolator_hermite[hermite]
+        mod_interpolator_chebyshev[chebyshev]
         mod_interpolator_spec[interpolation_spec]
         mod_interpolator_factory[factory]
     end
@@ -43,7 +55,10 @@ graph LR
     mod_util_download_tle([download_tle])
     mod_util_oem_to_omm([oem_to_omm])
     mod_util_oem_to_opm([oem_to_opm])
+    mod_util_oem_to_tle([oem_to_tle])
     mod_util_omm_to_tle([omm_to_tle])
+    mod_util_omm_to_opm([omm_to_opm])
+    mod_util_tle_to_opm([tle_to_opm])
     mod_util_plot_oem([plot_oem])
     mod_util_plot_oem_diff([plot_oem_diff])
     mod_util_plot_dep_vars([plot_dependent_variables])
@@ -58,73 +73,133 @@ graph LR
 
     %% ===== Core library internal edges =====
     mod_core_aer --> mod_core_wgs
-    mod_core_convert_tle --> mod_core_kepler
-    mod_core_convert_tle --> mod_core_mean_kepler
+    mod_core_convert_tle --> mod_propagator_kepler
+    mod_core_convert_tle --> mod_propagator_brouwer_j2
     mod_core_convert_tle --> mod_core_omm
     mod_core_convert_tle --> mod_core_tle
     mod_core_convert_tle --> mod_core_consts
-    mod_core_kepler --> mod_core_consts
-    mod_core_mean_kepler --> mod_core_kepler
-    mod_core_mean_kepler --> mod_core_consts
+    mod_core_frame_utils --> mod_core_spice_utils
+    mod_core_cli --> mod_interpolator_spec
+    mod_core_oem --> mod_core_misc
     mod_core_oem --> mod_core_time_utils
+    mod_core_omm --> mod_core_misc
+    mod_core_omm --> mod_core_consts
+    mod_core_omm --> mod_core_time_utils
+    mod_core_omm --> mod_propagator_kepler
+    mod_core_opm --> mod_core_misc
     mod_core_slice_oem --> mod_core_oem
     mod_core_slice_oem --> mod_core_time_utils
     mod_core_slice_oem --> mod_interpolator_factory
     mod_core_slice_oem --> mod_interpolator_spec
+    mod_core_tle --> mod_core_time_utils
     mod_core_wgs --> mod_core_consts
-    mod_interpolator_lagrange --> mod_interpolator_interpolator
-    mod_interpolator_hermite --> mod_interpolator_interpolator
+    mod_propagator_brouwer_j2 --> mod_core_consts
+    mod_propagator_brouwer_j2 --> mod_propagator_base
+    mod_propagator_brouwer_j2 --> mod_propagator_kepler
+    mod_propagator_dsst --> mod_core_consts
+    mod_propagator_dsst --> mod_propagator_base
+    mod_propagator_dsst --> mod_propagator_kepler
+    mod_propagator_kepler --> mod_core_consts
+    mod_propagator_kepler --> mod_propagator_base
+    mod_propagator_numerical --> mod_propagator_base
+    mod_propagator_numerical --> mod_core_spice_utils
+    mod_propagator_sgp4 --> mod_core_tle
+    mod_propagator_sgp4 --> mod_propagator_base
+    mod_interpolator_package --> mod_interpolator_chebyshev
+    mod_interpolator_package --> mod_interpolator_hermite
+    mod_interpolator_package --> mod_interpolator_base
+    mod_interpolator_package --> mod_interpolator_lagrange
+    mod_interpolator_chebyshev --> mod_interpolator_base
+    mod_interpolator_hermite --> mod_interpolator_base
+    mod_interpolator_lagrange --> mod_interpolator_base
     mod_interpolator_factory --> mod_interpolator_spec
     mod_interpolator_factory --> mod_interpolator_lagrange
     mod_interpolator_factory --> mod_interpolator_hermite
-    mod_core_cli --> mod_interpolator_spec
+    mod_interpolator_factory --> mod_interpolator_chebyshev
 
-    %% ===== Utility module edges to core =====
+    %% ===== CLI package dependencies =====
     mod_util_xform_oem --> mod_core_aer
     mod_util_xform_oem --> mod_core_frame_utils
     mod_util_xform_oem --> mod_core_oem
     mod_util_xform_oem --> mod_core_time_utils
-    mod_util_omm_to_tle --> mod_core_convert_tle
-    mod_util_omm_to_tle --> mod_core_omm
-    mod_util_omm_to_tle --> mod_core_tle
+    mod_util_xform_oem --> mod_core_cli
+    mod_util_omm_to_tle --> mod_core_cli
+    mod_util_omm_to_opm --> mod_util_oem_to_opm
+    mod_util_tle_to_opm --> mod_util_oem_to_opm
+    mod_util_oem_to_tle --> mod_util_oem_to_omm
+    mod_util_oem_to_tle --> mod_util_omm_to_tle
+    mod_util_oem_to_tle --> mod_core_provenance
+    mod_util_oem_to_tle --> mod_core_cli
     mod_util_slice_oem --> mod_core_oem
     mod_util_slice_oem --> mod_core_slice_oem
     mod_util_slice_oem --> mod_core_time_utils
-    mod_util_tle_info --> mod_core_kepler
-    mod_util_tle_info --> mod_core_tle
-    mod_util_tle_to_omm --> mod_core_convert_tle
-    mod_util_tle_to_omm --> mod_core_tle
+    mod_util_slice_oem --> mod_core_cli
+    mod_util_slice_oem --> mod_interpolator_spec
+    mod_util_tle_info --> mod_core_cli
+    mod_util_tle_to_omm --> mod_core_cli
     mod_util_diff_oem --> mod_core_oem
     mod_util_diff_oem --> mod_core_time_utils
     mod_util_diff_oem --> mod_interpolator_factory
+    mod_util_diff_oem --> mod_interpolator_spec
+    mod_util_diff_oem --> mod_interpolator_package
+    mod_util_diff_oem --> mod_core_misc
     mod_util_diff_oem --> mod_core_cli
     mod_util_plot_oem --> mod_core_oem
     mod_util_plot_oem --> mod_core_time_utils
+    mod_util_plot_oem --> mod_core_misc
+    mod_util_plot_oem --> mod_core_wgs
+    mod_util_plot_oem --> mod_core_cli
     mod_util_plot_oem_diff --> mod_core_oem
-    mod_util_plot_oem_diff --> mod_core_time_utils
-    mod_util_plot_oem_diff --> mod_interpolator_lagrange
+    mod_util_plot_oem_diff --> mod_core_misc
+    mod_util_plot_oem_diff --> mod_core_cli
+    mod_util_plot_oem_diff --> mod_interpolator_factory
+    mod_util_plot_oem_diff --> mod_interpolator_spec
+    mod_util_plot_oem_diff --> mod_interpolator_package
     mod_util_plot_dep_vars --> mod_core_time_utils
+    mod_util_plot_dep_vars --> mod_core_cli
     mod_util_propagate_kepler --> mod_core_oem
-    mod_util_propagate_kepler --> mod_core_kepler
+    mod_util_propagate_kepler --> mod_core_opm
+    mod_util_propagate_kepler --> mod_core_provenance
+    mod_util_propagate_kepler --> mod_propagator_kepler
     mod_util_propagate_kepler --> mod_core_time_utils
+    mod_util_propagate_kepler --> mod_core_cli
     mod_util_propagate_omm --> mod_core_omm
+    mod_util_propagate_omm --> mod_core_oem
+    mod_util_propagate_omm --> mod_core_convert_tle
+    mod_util_propagate_omm --> mod_core_provenance
+    mod_util_propagate_omm --> mod_propagator_kepler
+    mod_util_propagate_omm --> mod_core_spice_utils
+    mod_util_propagate_omm --> mod_core_tle
     mod_util_propagate_omm --> mod_core_time_utils
+    mod_util_propagate_omm --> mod_core_cli
     mod_util_propagate_orbit --> mod_core_oem
+    mod_util_propagate_orbit --> mod_core_opm
+    mod_util_propagate_orbit --> mod_core_provenance
     mod_util_propagate_orbit --> mod_core_time_utils
-    mod_util_propagate_orbit --> mod_interpolator_lagrange
-    mod_util_propagate_tle --> mod_core_oem
-    mod_util_propagate_tle --> mod_core_time_utils
+    mod_util_propagate_orbit --> mod_propagator_numerical
+    mod_util_propagate_orbit --> mod_propagator_base
+    mod_util_propagate_orbit --> mod_core_cli
+    mod_util_propagate_tle --> mod_util_propagate_omm
     mod_util_oem_to_opm --> mod_core_consts
-    mod_util_oem_to_opm --> mod_core_kepler
+    mod_util_oem_to_opm --> mod_propagator_kepler
     mod_util_oem_to_opm --> mod_core_oem
     mod_util_oem_to_opm --> mod_core_opm
     mod_util_oem_to_opm --> mod_core_time_utils
+    mod_util_oem_to_opm --> mod_core_provenance
+    mod_util_oem_to_opm --> mod_core_cli
+    mod_util_oem_to_opm --> mod_util_propagate_orbit
     mod_util_oem_to_omm --> mod_core_consts
     mod_util_oem_to_omm --> mod_core_convert_tle
-    mod_util_oem_to_omm --> mod_core_kepler
-    mod_util_oem_to_omm --> mod_core_mean_kepler
+    mod_util_oem_to_omm --> mod_propagator_kepler
     mod_util_oem_to_omm --> mod_core_oem
     mod_util_oem_to_omm --> mod_core_omm
     mod_util_oem_to_omm --> mod_core_time_utils
     mod_util_oem_to_omm --> mod_core_tle
-    mod_util_download_tle --> mod_core_tle
+    mod_util_oem_to_omm --> mod_core_spice_utils
+    mod_util_oem_to_omm --> mod_propagator_brouwer_j2
+    mod_util_oem_to_omm --> mod_propagator_dsst
+    mod_util_oem_to_omm --> mod_propagator_base
+    mod_util_oem_to_omm --> mod_propagator_sgp4
+    mod_util_oem_to_omm --> mod_core_misc
+    mod_util_oem_to_omm --> mod_core_cli
+    mod_util_download_tle --> mod_core_cli
