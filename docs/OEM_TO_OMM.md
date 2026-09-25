@@ -1,20 +1,21 @@
 # OEM to OMM Conversion
 
-Comprehensive documentation for the `oem_to_omm` module, which estimates Orbit Mean-Elements Messages (OMM) including Two-Line Element (TLE) sets from OEM-like Cartesian state vectors.
+Reference for the `oem-to-omm` command and its Brouwer, DSST, and SGP4-compatible element fits.
 
 ## Overview
 
-The `oem_to_omm` module provides tools for converting orbit ephemeris data in OEM (Orbit Ephemeris Message) format or raw Cartesian state vectors into OMM (Orbit Mean-Elements Message) format, including TLE (Two-Line Element) format. This is a non-trivial estimation problem because TLEs encode SGP4-compatible mean orbital elements rather than osculating Cartesian states.
+The `ephem_toolkit.oem_to_omm` package fits Brouwer, DSST, or SGP4-compatible mean elements to a CCSDS OEM state arc. It writes the fitted elements as a CCSDS OMM; use `omm-to-tle` to convert an SGP4 OMM to TLE text. This is an estimation problem because mean elements are not the same as the OEM's osculating Cartesian states.
 
 ## Module Structure
 
-The `src/oem_to_omm/` directory contains:
+The `src/ephem_toolkit/oem_to_omm/` package contains:
 
-- `oem-to-omm` — Main executable script for OMM/TLE estimation
-- `fit_common.py` — Common fitting utilities
-- `fit_brouwer.py` — Mean Keplerian element fitting
-- `fit_tle_main.py` — TLE fitting main entry point
-- `fit_tle/` — TLE fitting submodule containing:
+- `__main__.py` — CLI entry point and model dispatch
+- `oem_to_omm_cli.py` — CLI arguments and compatibility handling
+- `fit_common.py` — Shared fitting diagnostics and utilities
+- `fit_brouwer.py` — Brouwer and DSST mean-element fitting
+- `fit_tle_main.py` — SGP4-compatible mean-element fitting
+- `fit_tle/` — TLE estimation and refinement components:
   - `constants.py` — Physical and mathematical constants
   - `estimation.py` — Core estimation algorithms for TLE elements
   - `linalg.py` — Linear algebra utilities
@@ -27,27 +28,28 @@ The `src/oem_to_omm/` directory contains:
 
 ### Purpose
 
-Converts OEM state vectors to mean-element OMM format. Supports two modes:
+Fits mean elements from OEM state vectors and writes an OMM. The canonical selector is `--fit-model`:
 
-- **`--mode brouwer`**: Fits mean Keplerian elements using J2 secular propagation
-- **`--mode tle`**: Fits TLE mean elements (SGP4-compatible) to create an OMM with TLE parameters
+- **`--fit-model brouwer`**: Fits Brouwer mean Keplerian elements using J2 secular propagation.
+- **`--fit-model dsst`**: Fits DSST mean elements with J2 perturbations enabled.
+- **`--fit-model sgp4`** (default): Fits SGP4-compatible mean elements and TLE parameters, then writes them as an OMM.
 
-For osculating Keplerian element fitting, use [`oem-to-opm`](OEM_TO_OPM.md).
+`--mode` is a deprecated alias for `--fit-model`; its legacy value `tle` maps to `sgp4`. For osculating Keplerian element fitting, use [`oem-to-opm`](OEM_TO_OPM.md).
 
 ### Synopsis
 
 ```bash
-oem-to-omm [-h] [-o <output_omm|->] [-v]
-                                 [--mu <value>] [--fit-span <hours>]
-                                 --mode {brouwer,tle}
-                                 [--object-name <name>] [--object-id <YYYY-NNNP>]
-                                 [--tle-refinement <none|cartesian|keplerian>]
-                                 [--tle-norad-cat-id <0..99999>]
-                                 [--tle-classification-type <U|C|S>]
-                                 [--tle-ephemeris-type <0..9>]
-                                 [--tle-element-set-no <0..9999>]
-                                 [--tle-rev-at-epoch <0..99999>]
-                                 <input_oem|->
+oem-to-omm [-h] -o <output_omm|-> [--fit-model <brouwer|dsst|sgp4>]
+            [--mode <brouwer|dsst|tle>] [--theory <theory>]
+            [--mu <value>] [--fit-span <duration>]
+            [--object-name <name>] [--object-id <YYYY-NNNP>]
+            [--tle-refinement <none|cartesian|keplerian>]
+            [--tle-norad-cat-id <0..99999>] [--tle-classification-type <U|C|S>]
+            [--tle-ephemeris-type <0..9>] [--tle-element-set-no <0..9999>]
+            [--tle-rev-at-epoch <0..99999>]
+            [--fit-report <path|->] [--no-fit-report]
+            [--source-model <model>] [--source-report <path>]
+            [-v] <input_oem|->
 ```
 
 ### Options
@@ -56,56 +58,38 @@ oem-to-omm [-h] [-o <output_omm|->] [-v]
 |---|---|
 | `-h`, `--help` | Show help message and exit |
 | `<input_oem>` | Path to input CCSDS OEM file (use `-` to read from stdin) |
-| `-o`, `--output` | Save fitted elements in OMM format to file or `-` for stdout (required) |
+| `-o`, `--output` | Save the fitted OMM to a file or `-` for stdout (required) |
 | `-v`, `--verbose` | Print detailed debug information to stderr |
+| `--fit-model` | Mean-element model: `brouwer`, `dsst`, or `sgp4` (default: `sgp4`) |
+| `--mode` | Deprecated alias for `--fit-model`; legacy value `tle` maps to `sgp4` |
+| `--theory` | Override OMM `MEAN_ELEMENT_THEORY`; must match the selected model (`BROUWER`/`BROUWER-LYDDANE`, `DSST`, or `SGP4`) |
 | `--mu` | Gravitational parameter in m³/s² (default: Earth WGS-84) |
-| `--fit-span` | Maximum arc span in hours for fitting (default: 2.0) |
-| `--mode {brouwer,tle}` | Select conversion mode: mean-Kepler fit or TLE fit |
+| `--fit-span` | Maximum fit/comparison span; accepts durations such as `2h`, `90m`, or `3600s` (default: `2h`). The SGP4 element and B* estimates use the supplied arc. |
 | `--object-name` | OBJECT_NAME: Spacecraft name for OMM output |
 | `--object-id` | OBJECT_ID: International designator (e.g., 1998-067A) |
-| `--tle-refinement` | Refinement method for TLE fitting: `cartesian` (default), `keplerian`, or `none` |
-| `--tle-norad-cat-id` | NORAD_CAT_ID: NORAD Catalog Number (0-99999, default: 0) |
-| `--tle-classification-type` | CLASSIFICATION_TYPE: `U`, `C`, or `S` (default: `U`) |
-| `--tle-ephemeris-type` | EPHEMERIS_TYPE: 0=SGP, 2=SGP4, 4=SGP4-XP, 6=SP (default: 2) |
-| `--tle-element-set-no` | ELEMENT_SET_NO: Element set number (0-9999, default: 999) |
-| `--tle-rev-at-epoch` | REV_AT_EPOCH: Revolution number at epoch (0-99999, default: 0) |
+| `--tle-refinement` | SGP4-fit epoch refinement: `cartesian` (default), `keplerian`, or `none` |
+| `--tle-norad-cat-id` | TLE NORAD catalog number (0-99999, default: 0) |
+| `--tle-classification-type` | TLE classification: `U`, `C`, or `S` (default: `U`) |
+| `--tle-ephemeris-type` | TLE ephemeris type, integer 0-9 (default: 2) |
+| `--tle-element-set-no` | TLE element set number (0-9999, default: 999) |
+| `--tle-rev-at-epoch` | TLE revolution number at epoch (0-99999, default: 0) |
+| `--fit-report` | Write JSON fit diagnostics to a path or `-` for stdout |
+| `--no-fit-report` | Disable automatic fit-report creation |
+| `--source-model` | Input provenance model label (default: `auto`) |
+| `--source-report` | JSON provenance report describing the input |
 
 ### Input Format
 
-The script accepts two input formats:
-
-#### 1. CCSDS OEM Format
-
-Standard CCSDS Orbit Ephemeris Message format with metadata header and state vectors.
-
-#### 2. Raw State Vectors
-
-Whitespace- or comma-delimited lines with 7 fields:
-
-```text
-<ISO-8601 epoch>  <X_km>  <Y_km>  <Z_km>  <VX_km/s>  <VY_km/s>  <VZ_km/s>
-```
-
-Example:
-
-```text
-2026-05-20T12:00:00.000000 -4016.835 3234.040 5296.436 5.300 -1.578 4.969
-2026-05-20T12:01:00.000000 -3698.123 3145.678 5512.345 5.234 -1.892 4.856
-```
-
-Notes:
-- Blank lines and lines beginning with `#` are ignored
-- Trailing `Z` on timestamps is accepted and stripped
-- At least 2 state vectors are required
+Input must be a CCSDS OEM file, supplied as a path or `-` for stdin. The command does not accept a bare file of raw state rows. At least two state vectors are required. OEM position and velocity values use the standard km and km/s units and are converted internally to m and m/s. The OEM reference frame is not transformed by this command; provide states in a frame compatible with the selected fitting and propagation model.
 
 ### Output Format
 
-Standard two-line element format:
+The command writes a CCSDS OMM, either to the required output path or to stdout when the destination is `-`. Even for `--fit-model sgp4`, it does not write TLE text directly; convert the resulting SGP4 OMM with `omm-to-tle` if TLE lines are needed. With `-v`, a human-readable fit summary is also emitted; when the OMM goes to stdout, the summary goes to stderr.
 
 ```text
-SATELLITE NAME (optional)
-1 NNNNNC UUUUU CCCC NNNNN.NNNNNNNN  .NNNNNNNN  NNNNN-N NNNNN-N N NNNNN
-2 NNNNN NNN.NNNN NNN.NNNN NNNNNNN NNN.NNNN NNN.NNNN NN.NNNNNNNNNNNNNN
+CCSDS_OMM_VERS = 2.0
+...
+MEAN_ELEMENT_THEORY = SGP4
 ```
 
 ### Refinement Methods
@@ -115,42 +99,39 @@ The script supports three TLE refinement strategies selected with `--tle-refinem
 #### Cartesian refinement (`--tle-refinement cartesian`, default)
 
 - Minimizes SGP4 Cartesian state residual at epoch
-- Requires TudatPy for SGP4 propagation
-- Provides highest accuracy for position and velocity matching
+- Uses TudatPy for SGP4 propagation
+- Refines the six mean-element parameters against the epoch Cartesian state
 - Uses Gauss-Newton iteration with backtracking line search
-- Typical accuracy: sub-meter position, sub-mm/s velocity
 
 #### Keplerian refinement (`--tle-refinement keplerian`)
 
 - Minimizes osculating Keplerian element residual
 - Uses `core.convert_tle.tle_to_osculating_keplerian` with J2 short-period corrections
-- No SGP4/TudatPy dependency (pure Python + NumPy)
-- Excellent angular accuracy (sub-millidegree)
-- Semi-major axis accuracy limited to ~2 km by first-order Brouwer approximation
+- Uses Brouwer first-order J2 corrections to compare mean and osculating elements
 
 #### No refinement (`--tle-refinement none`)
 
 - Skips epoch state matching entirely
 - Uses only regression-based mean element estimation
-- Fastest but least accurate
-- Useful for quick estimates or when refinement dependencies are unavailable
+- Skips epoch-state refinement; later SGP4 arc scoring still requires TudatPy
 
 ### Estimation Pipeline
 
-The script follows a four-stage workflow:
+The SGP4 fit follows this workflow. Its mean-element and B* estimates use the full supplied arc; `--fit-span` limits the comparison window reported by the command.
 
-1. **Parse Input** — Read and validate OEM-like state vectors
-2. **Initial Estimation** — Compute mean elements via regression and circular statistics
-3. **Refinement** — Match TLE epoch state to source epoch state (optional)
-4. **B* Estimation** — Optimize drag term to minimize propagation error over arc
+1. **Parse input** — Read a CCSDS OEM and require at least two states.
+2. **Initial estimate** — Estimate SGP4-compatible mean elements from the arc.
+3. **Epoch refinement** — Optionally refine the epoch state using the selected method.
+4. **B* estimation** — Search bounded B* values using sampled post-epoch states.
+5. **Output** — Write the fitted values as an SGP4-theory OMM and fit diagnostics.
 
 ### Dependencies
 
-- TudatPy (for SGP4 propagation)
+- TudatPy (required for SGP4 propagation used by the SGP4 fit, including its arc scoring)
 - NumPy
 - `ephem_toolkit.core.ccsds.oem`, `ephem_toolkit.core.consts`, `ephem_toolkit.core.time_utils`, `ephem_toolkit.core.tle`
-- `oem_to_omm.fit_common`, `oem_to_omm.fit_tle_main`
-- `oem_to_omm.fit_tle` submodule components
+- `ephem_toolkit.oem_to_omm.fit_common`, `ephem_toolkit.oem_to_omm.fit_tle_main`
+- `ephem_toolkit.oem_to_omm.fit_tle` components
 
 ## Algorithm Details
 
@@ -180,22 +161,25 @@ Key algorithmic features:
 
 ### Input Data Quality
 
-- Use at least 2 state vectors (more is better for trend estimation)
+- Use at least 2 state vectors (more can improve trend estimation)
 - Span at least one orbital period for accurate mean motion estimation
 - Ensure consistent time spacing for best regression results
-- Verify input coordinates are in the correct reference frame (typically J2000/GCRF)
+- Verify the OEM reference frame is compatible with the selected model; this command does not transform frames
 
 ### Refinement Method Selection
 
-- Use **Cartesian refinement** when TudatPy is available and highest accuracy is needed
-- Use **Keplerian refinement** for pure Python workflows or when TudatPy is unavailable
-- Use **no refinement** only for quick estimates or testing
+- Use **Cartesian refinement** when you want direct SGP4 Cartesian matching at the epoch
+- Use **Keplerian refinement** to avoid Cartesian epoch-state refinement; the overall SGP4 fit still requires TudatPy for propagation and arc scoring
+- Use **no refinement** to skip epoch-state matching, not to avoid the SGP4 dependency
 
 ### B* Drag Term
 
-- Let the script estimate B* from the arc for best propagation accuracy
-- Manually specify B* only when you have external drag information
-- For short arcs (<1 day), B* estimation may be unreliable
+- The script estimates B* from the arc; inspect the fit report before treating the estimate as physically meaningful
+- The CLI has no option to provide a fixed B* value
+
+### Fit Reports
+
+By default, a JSON fit report is written alongside the OMM output using the `.fit.json` suffix. If the OMM is written to stdout, the input filename is used to derive the report path; when both input and output are stdin/stdout, no path can be inferred. Use `--fit-report <path>` to choose a destination or `--no-fit-report` to disable automatic report creation. In Brouwer mode, the report is written only when the OMM destination is a file. Do not direct both the OMM and fit report to stdout because the two formats will be concatenated.
 
 ### Metadata
 
@@ -207,8 +191,7 @@ Key algorithmic features:
 
 ### "Need at least 2 OEM-like state vectors"
 
-- Ensure input file contains at least 2 valid state lines
-- Check that lines are not commented out with `#`
+- Ensure the OEM contains at least 2 valid state records
 - Verify epoch format is ISO 8601 compatible
 
 ### "Invalid epoch" errors
@@ -225,20 +208,12 @@ Key algorithmic features:
 
 ### Large propagation errors
 
-- Verify input reference frame matches TLE expectations (J2000/GCRF)
+- Verify input reference frame compatibility; this command does not transform frames
 - Check for data gaps or outliers in input arc
 - Consider using longer arc for B* estimation
 
 ## Performance Considerations
-
-- **Cartesian refinement**: ~1-2 seconds per TLE (depends on convergence)
-- **Keplerian refinement**: ~0.5-1 second per TLE
-- **No refinement**: <0.1 seconds per TLE
-
-Refinement time scales with:
-- Number of iterations required for convergence
-- Arc length (for B* estimation)
-- Number of input state vectors
+Runtime depends on the number of supplied OEM records, the number of refinement iterations, and the SGP4 evaluations used during B* estimation. No fixed runtime or accuracy is guaranteed.
 
 ## References
 
@@ -257,49 +232,32 @@ Detailed algorithm and strategy documentation is included below.
 
 ### Purpose
 
-`oem-to-omm` estimates a valid Two-Line Element (TLE) set from a time series of OEM-like Cartesian state vectors:
-
-```text
-UTC_ISO x y z vx vy vz
-```
-
-with position in km and velocity in km/s.
-
-Unlike directly calling `core.tle.write_tle()` with explicit fields, `oem-to-omm` attempts to infer a TLE from a Cartesian arc.
-
-This is fundamentally an estimation problem because TLEs encode SGP4-compatible mean elements rather than raw osculating Cartesian states.
+`oem-to-omm` estimates SGP4-compatible mean elements from a CCSDS OEM arc and serializes them as an OMM. Convert that SGP4 OMM to TLE text with `omm-to-tle`. Mean elements are not the same as raw osculating Cartesian states, so this is an estimation problem.
 
 ### Repository context
 
-Related scripts in the current repository:
+Related commands and modules:
 
-- `oem-to-omm` — estimate a TLE from an OEM-like arc
+- `oem-to-omm` — fit mean elements from a CCSDS OEM and write an OMM
 - `ephem_toolkit.core.tle` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions
+- `omm-to-tle` — convert an SGP4 OMM to TLE text
 - `propagate-tle` — propagate a TLE with TudatPy SGP4 and print OEM-like states
 - `propagate-omm` — propagate an OMM or TLE input and emit OEM output with automatic solver selection
 
 ### Overall pipeline
 
-The script follows a four-stage workflow:
+The SGP4 fit follows this workflow:
 
-1. Parse the input OEM-like state vectors.
-2. Estimate initial mean TLE elements from the osculating arc.
-3. Refine the line-2 elements so the TLE epoch state better matches the source epoch state.
-4. Estimate `B*` by minimizing propagation error over the arc.
-
-Finally, it prints diagnostics and writes the TLE using `core.tle.write_tle()`.
+1. Read the CCSDS OEM states.
+2. Estimate initial SGP4-compatible mean elements.
+3. Optionally refine the epoch state.
+4. Estimate `B*` from sampled post-epoch states.
+5. Write an OMM and fit diagnostics.
 
 ---
 
 ## Stage 1 — parsing
-
-### `parse_dataset`, `parse_oem_state_line`
-
-- Reads whitespace- or comma-delimited lines of the form:
-  - `UTC_ISO x y z vx vy vz`
-- Strips a trailing `Z` from ISO timestamps when present.
-- Parses timestamps into Python `datetime` values.
-- Requires at least two records to estimate trends.
+The CLI reads a CCSDS OEM through `ephem_toolkit.core.ccsds.oem.CcsdsOem`. It requires at least two state records and converts the OEM km/km/s states to SI internally. The SGP4 element and B* estimation paths use all supplied records; `--fit-span` limits the diagnostics comparison window.
 
 ---
 
@@ -388,14 +346,13 @@ The initial mean elements are refined so that the TLE, when propagated by SGP4 t
 Implementation notes captured in the original investigation:
 
 - position and velocity residuals are weighted differently to balance km and km/s scales
-- Tikhonov-style regularization is used in the normal equations
-- multiple TLE evaluations are batched where possible to reduce overhead
+- finite-difference and line-search SGP4 evaluations are batched where supported
 
 ### 3b. Keplerian refinement (`--tle-refinement keplerian`)
 
 ### `refine_estimated_fields_keplerian_match`
 
-An alternative refinement that does **not** require SGP4/TudatPy. Instead, it minimizes the residual between the TLE's osculating Keplerian elements (computed via `core.convert_tle.tle_to_osculating_keplerian` with J2 short-period corrections) and the reference osculating elements derived from the input Cartesian state.
+This refinement step does not itself call SGP4. It minimizes the residual between the TLE's osculating Keplerian elements (computed via `core.convert_tle.tle_to_osculating_keplerian` with J2 short-period corrections) and the reference osculating elements derived from the input Cartesian state. The full SGP4 fit still requires TudatPy for subsequent arc scoring.
 
 ### Algorithm outline
 
@@ -410,10 +367,7 @@ An alternative refinement that does **not** require SGP4/TudatPy. Instead, it mi
 
 Key advantages:
 
-- No external propagator dependency (pure Python + NumPy)
 - J2 short-period corrections provide a differentiable mapping from TLE mean elements to osculating elements
-- Angular accuracy is excellent (sub-millidegree for argument of latitude)
-- Semi-major axis accuracy is limited to ~2 km by the first-order Brouwer approximation vs SGP4's more complex model
 
 ---
 
@@ -421,7 +375,7 @@ Key advantages:
 
 ### `estimate_bstar_from_arc`
 
-If `B*` is not fixed externally, the script estimates it by minimizing propagation error over selected post-epoch samples.
+The CLI estimates `B*` by minimizing propagated-state mismatch over selected post-epoch samples. The command-line interface does not expose a fixed-B* override.
 
 ### Strategy
 
@@ -430,7 +384,7 @@ If `B*` is not fixed externally, the script estimates it by minimizing propagati
 3. Compute a weighted total residual cost.
 4. Use a simple one-dimensional search strategy to improve `B*`.
 
-This is a pragmatic scalar optimization over the drag-like parameter.
+This is a bounded scalar search over the drag-like parameter.
 
 ---
 
@@ -441,6 +395,7 @@ This is a pragmatic scalar optimization over the drag-like parameter.
 | `linear_regression_slope` / `linear_regression_intercept` | Ordinary least-squares trend estimation |
 | `solve_linear_system` | Gaussian elimination |
 | `solve_weighted_least_squares` | Normal-equation least-squares solve with regularization |
+| `solve_weighted_least_squares` | Weighted least-squares solve |
 | `unwrap_angles_rad` | Angle unwrapping across `2π` discontinuities |
 | `circular_mean_angle_rad` | Circular mean via `atan2(sum sin, sum cos)` |
 | `circular_blend_angle_rad` | Weighted shortest-arc blending of angles |
@@ -450,61 +405,61 @@ This is a pragmatic scalar optimization over the drag-like parameter.
 
 ## Design choices
 
-- The script separates estimation from final TLE formatting.
-- `core.tle.write_tle()` is the formatting/checksum authority.
+- The SGP4 fit estimates elements separately from OMM serialization; use `omm-to-tle` to produce TLE text.
 - Circular statistics are used extensively to avoid 0°/360° discontinuity problems.
-- The estimator is designed to degrade gracefully when some higher-fidelity refinement steps are unavailable.
+- Epoch refinement is optional; SGP4 propagation is still used for arc scoring.
 
 ## Practical takeaway
 
 Use:
 
 - `core.tle.write_tle()` when you already know the TLE fields and want to write them programmatically
-- `oem-to-omm` when you have an OEM-like Cartesian arc and want an estimated TLE
+- `oem-to-omm` when you have a CCSDS OEM arc and want fitted mean elements in OMM form
+- `omm-to-tle` when you want TLE text from an SGP4 OMM
 - `core.tle.read_tle()` when you want to parse an existing TLE into structured fields
 
 ### Usage Examples
 
-**Fit mean Keplerian elements (`--mode brouwer`):**
+**Fit Brouwer mean elements:**
 
 ```bash
-oem-to-omm --mode brouwer input.oem -o output.omm
+oem-to-omm --fit-model brouwer input.oem -o output.omm
 ```
 
-**Fit TLE elements (`--mode tle`) with default Cartesian refinement:**
+**Fit DSST mean elements:**
 
 ```bash
-oem-to-omm --mode tle input.oem -o output.omm
+oem-to-omm --fit-model dsst input.oem -o output.omm
 ```
 
-**Fit TLE and output TLE lines to stdout:**
+**Fit SGP4-compatible mean elements:**
 
 ```bash
-oem-to-omm --mode tle input.oem
+oem-to-omm --fit-model sgp4 input.oem -o output.omm
 ```
 
-**Read from stdin, fit TLE, output to stdout:**
+**Read an OEM from stdin and write the OMM to stdout:**
 
 ```bash
-cat input.oem | oem-to-omm --mode tle - -o -
+cat input.oem | oem-to-omm --fit-model sgp4 - -o -
 ```
 
-**Fit TLE with Keplerian refinement (no TudatPy required):**
+**Use Keplerian epoch refinement:**
 
 ```bash
-oem-to-omm --mode tle --tle-refinement keplerian input.oem
+oem-to-omm --fit-model sgp4 --tle-refinement keplerian input.oem -o output.omm
 ```
 
-**Fit TLE with no refinement (fastest):**
+**Fit without epoch-state refinement:**
 
 ```bash
-oem-to-omm --mode tle --tle-refinement none input.oem
+oem-to-omm --fit-model sgp4 --tle-refinement none input.oem -o output.omm
 ```
 
-**Specify satellite metadata for TLE:**
+**Specify satellite metadata:**
 
 ```bash
-oem-to-omm --mode tle input.oem -o output.omm \
+oem-to-omm --fit-model sgp4 input.oem -o output.omm \
   --object-name "ISS (ZARYA)" \
   --object-id "1998-067A" \
   --tle-norad-cat-id 25544 \
@@ -512,23 +467,19 @@ oem-to-omm --mode tle input.oem -o output.omm \
   --tle-element-set-no 999
 ```
 
-**Fit with custom fit span (3 hours):**
+**Fit a 3-hour arc and print verbose diagnostics:**
+**Set a 3-hour fit/comparison span and print verbose diagnostics:**
+**Set the SGP4 diagnostic comparison window to 3 hours:**
 
 ```bash
-oem-to-omm --mode tle --fit-span 3.0 input.oem
-```
-
-**Verbose output to stderr:**
-
-```bash
-oem-to-omm --mode tle -v input.oem -o output.omm
+oem-to-omm --fit-model sgp4 --fit-span 3h -v input.oem -o output.omm
 ```
 
 ### Dependencies
 
 - Python standard library
 - NumPy (for numerical computations)
+- TudatPy (required for SGP4 propagation in SGP4 fitting)
 - `ephem_toolkit.core.tle` — TLE dataclass and formatting
 - `ephem_toolkit.core.kepler` — Keplerian element conversions
 - `ephem_toolkit.core.ccsds.oem` — OEM parsing
-- TudatPy (optional, required for `--tle-refinement cartesian`)
