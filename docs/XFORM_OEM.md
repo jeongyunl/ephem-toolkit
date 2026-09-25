@@ -6,7 +6,6 @@ Azimuth-Elevation-Range (AER) coordinates, or rewrites OEM data and metadata.
 It can read from a file or standard input and write either an OEM file, AER
 text, or standard output.
 
-After Poetry installation, use `xform-oem` as the canonical command. The existing `python3 src/xform_oem/xform_oem.py ...` examples remain supported during the transition.
 
 ## Overview
 
@@ -25,35 +24,41 @@ as an OEM file.
 
 Use `--data-only` to omit the OEM header and metadata and write only the state
 rows. Without `--x-csv`, rows use the standard space-separated OEM state format;
-with `--x-csv`, the output includes the CSV state header.
+with `--x-csv`, state rows use CSV and include the CSV column header. The
+`--x-ref-frame`, `--x-aer`, and `--x-csv` options are mutually exclusive.
+Without `--data-only`, `--x-csv` also writes the OEM header and metadata using
+CSV separators.
 
 ## Synopsis
 
 ```bash
-xform-oem <input_oem> [OPTIONS]
-cat data.oem | xform-oem - -o - [OPTIONS]
+xform-oem <input_oem> --output <file|-> [OPTIONS]
+cat data.oem | xform-oem - --output - [OPTIONS]
 ```
 
-Use `-` or omit `<input_oem>` to read CCSDS OEM data from standard input. The
-default output destination is standard output.
+The input path is required; use `-` to read CCSDS OEM data from standard input.
+The `--output` option is also required; use `-` to write to standard output.
 
 ## Options
 
 | Option | Description |
 |---|---|
-| `<input_oem>` | Optional path to an input CCSDS OEM file; use `-` or omit to read from stdin |
+| `<input_oem>` | Required path to an input CCSDS OEM file; use `-` to read from stdin |
 | `--x-ref-frame <frame>` | Convert state vectors to the target frame using the OEM `REF_FRAME` as source |
 | `--x-ref-frame <base_frame,target_frame>` | Override the source frame and convert state vectors to the target frame |
 | `--x-aer <lat,lon,alt>` | Convert ECEF/ITRF positions to AER text using latitude/longitude in degrees and altitude in metres |
+| `--x-csv` | Write state rows in CSV format, including the CSV column header |
 | `--data-only` | Write only state data without the OEM header and metadata |
 | `--set-meta <KEY=VALUE>` | Override an OEM metadata field; repeatable |
 | `--set-header <KEY=VALUE>` | Override an OEM header field; repeatable |
-| `-o`, `--output <file\|->` | Output file path; defaults to `-` for stdout |
+| `-o`, `--output <file\|->` | **Required.** Output file path; use `-` for stdout |
 | `-v`, `--verbose` | Print input and transformation details to stderr |
+| `--debug` | Print low-level debug details |
 | `-h`, `--help` | Show help message and exit |
 
-The `--x-aer` mode cannot be combined with `--x-ref-frame`, `--set-meta`, or
-`--set-header`.
+`--x-ref-frame`, `--x-aer`, and `--x-csv` cannot be used together. Metadata and
+header overrides are accepted with `--x-aer` but are not applied, because AER
+mode writes text rather than an OEM document.
 
 ## Supported Reference Frames
 
@@ -65,14 +70,17 @@ The `--x-ref-frame` option accepts the frame names exposed by
 - `EME2000`
 - `ICRF`
 - `GCRF`
-- `ITRF1993` (alias `ITRF93`)
+- `ITRF1993`
 - `ITRF`
+
+`ITRF93` is the SPICE frame name used internally; it is not accepted as a
+`--x-ref-frame` value.
 
 `J2000`, `EME2000`, `ICRF`, and `GCRF` are treated as equivalent inertial
 frames by the conversion helper. The `--x-ref-frame` option transforms state
 data, including positions and velocities, rather than only changing metadata.
 After a successful conversion, the output OEM `REF_FRAME` metadata is updated
-to the target frame, except where the helper returns its canonical frame value.
+to the canonical name of the target frame (for example, `ITRF1993`).
 
 Frame conversion is epoch-dependent. The script converts each state at its
 own timestamp, including the velocity contribution from time-dependent Earth
@@ -114,7 +122,7 @@ Convert ECEF or ITRF positions to Azimuth-Elevation-Range coordinates relative
 to a ground station:
 
 ```bash
-xform-oem ecef.oem --x-aer 40.7128,-74.0060,10.0
+xform-oem ecef.oem --x-aer 40.7128,-74.0060,10.0 -o -
 ```
 
 The three comma-separated values are:
@@ -132,8 +140,10 @@ cat ecef.oem | xform-oem - \
 ```
 
 The script warns when the input reference frame does not contain `ECEF` or
-`ITRF` in its name, but it still attempts the position conversion. AER mode
-converts positions only; velocities are not converted to AER rates.
+match `ITRF` optionally followed by four digits, but it still attempts the
+position conversion. AER mode converts positions only; velocities are not
+converted to AER rates. Positions are read in metres internally and converted
+directly to AER.
 
 ### AER Output Format
 
@@ -177,8 +187,11 @@ including:
 - `OBJECT_ID`
 - `CENTER_NAME`
 - `REF_FRAME`
+- `REF_FRAME_EPOCH`
 - `TIME_SYSTEM`
 - `START_TIME`
+- `USEABLE_START_TIME`
+- `USEABLE_STOP_TIME`
 - `STOP_TIME`
 - `INTERPOLATION`
 - `INTERPOLATION_DEGREE`
@@ -210,22 +223,23 @@ Supported header keys are:
 - `MESSAGE_ID` — optional message identifier
 
 Header keys are case-insensitive. Header overrides are applied after any
-reference-frame conversion.
+reference-frame conversion. These overrides affect OEM output only; they do
+not alter AER text output.
 
 ## Input and Output Streams
 
-The input file is optional. These commands are equivalent ways to read from
-standard input:
+The input path is required. Use `-` to read from standard input and explicitly
+select `-o -` to write to standard output:
 
 ```bash
 cat orbit.oem | xform-oem - --x-ref-frame J2000 -o -
-cat orbit.oem | xform-oem - --x-ref-frame J2000 -o -
+xform-oem orbit.oem --x-ref-frame J2000 -o - > orbit_j2000.oem
 ```
 
 Write an OEM result to standard output or to a file:
 
 ```bash
-xform-oem orbit.oem --x-ref-frame ITRF1993 > orbit_itrf1993.oem
+xform-oem orbit.oem --x-ref-frame ITRF1993 -o - > orbit_itrf1993.oem
 xform-oem orbit.oem --x-ref-frame ITRF1993 -o orbit_itrf1993.oem
 ```
 
@@ -243,7 +257,7 @@ Use `-v` or `--verbose` to print input information and transformation details
 to stderr, keeping stdout available for OEM or AER output:
 
 ```bash
-xform-oem orbit.oem --x-ref-frame ITRF1993 --verbose > output.oem
+xform-oem orbit.oem --x-ref-frame ITRF1993 --verbose -o - > output.oem
 ```
 
 Verbose output includes:
@@ -306,12 +320,14 @@ The frame-conversion path uses TudatPy rotation models and SPICE resources
 where required. The AER path uses the ground-station latitude, longitude, and
 altitude to convert each ECEF position independently.
 
-SPICE-backed frame conversions load kernels through TudatPy's configured SPICE
-kernel directory. Commonly used files include:
+Frame conversion loads these kernel files through TudatPy's configured SPICE
+kernel directory:
 
 - `naif0012.tls`: leap-seconds kernel
 - `pck00011.tpc`: planetary constants kernel
+- `gm_de431.tpc`: gravitational parameters
 - `earth_200101_990825_predict.bpc`: Earth rotation prediction kernel
+- `tudat_merged_spk_kernel.bsp`: SPICE ephemeris kernel
 
 Their absolute locations and coverage depend on the installed TudatPy/Tudat
 resource set.
@@ -321,16 +337,18 @@ resource set.
 Common argument errors include:
 
 ```text
---x-aer and --x-ref-frame cannot be used together
---x-aer cannot be combined with --set-meta
---x-aer cannot be combined with --set-header
+the following arguments are required: <input_oem|->
+the following arguments are required: -o/--output
+argument --x-aer: not allowed with argument --x-ref-frame
 --set-meta requires KEY=VALUE
 --set-header requires KEY=VALUE
 ```
 
 Other common failures are invalid frame names, unsupported frame pairs, invalid
 numeric AER coordinates, unreadable OEM input, and missing TudatPy/SPICE
-resources required by a frame conversion.
+resources required by a frame conversion. The `--x-ref-frame`, `--x-aer`, and
+`--x-csv` output modes are mutually exclusive. Although metadata and header
+overrides are accepted with `--x-aer`, they have no effect on its text output.
 
 ## Dependencies
 
