@@ -114,6 +114,92 @@ class Propagator(ABC, Generic[InitialStateT]):
         """
         ...
 
+    def propagate_to(
+        self, target_epoch_s: float, output: OutputMode = OutputMode.FINAL
+    ) -> tuple[float, np.ndarray] | list[tuple[float, np.ndarray]] | None:
+        """Propagate to target_epoch_s and advance reference_epoch_s.
+
+        Parameters
+        ----------
+        target_epoch_s : float
+            Target epoch (TT, s since J2000 TT).
+        output : OutputMode, optional
+            Controls return value:
+            - NONE: return None
+            - FINAL: return (epoch_s, state)
+            - TRAJECTORY: return [(epoch_s, state), ...] from previous
+              reference_epoch_s to target_epoch_s
+
+        Returns
+        -------
+        tuple[float, np.ndarray] | list[tuple[float, np.ndarray]] | None
+            Depends on output mode.
+
+        Raises
+        ------
+        RuntimeError
+            If initial state has not been set.
+        ValueError
+            If target_epoch_s is before the current reference epoch.
+        """
+        self._require_initial_state()
+
+        if target_epoch_s < self._reference_epoch_s:
+            raise ValueError(
+                "target_epoch_s must be greater than or equal to current "
+                "reference_epoch_s. "
+                f"Received {target_epoch_s} < {self._reference_epoch_s}."
+            )
+
+        if output == OutputMode.NONE:
+            self._reference_epoch_s = target_epoch_s
+            return None
+        elif output == OutputMode.FINAL:
+            state: np.ndarray = self._propagate_to_impl(target_epoch_s)
+            self._reference_epoch_s = target_epoch_s
+            return (target_epoch_s, state)
+        elif output == OutputMode.TRAJECTORY:
+            trajectory: list[tuple[float, np.ndarray]] = (
+                self._propagate_trajectory_impl(self._reference_epoch_s, target_epoch_s)
+            )
+            self._reference_epoch_s = target_epoch_s
+            return trajectory
+        else:
+            raise ValueError(f"Unknown output mode: {output}")
+
+    def propagate_by(
+        self, time_elapsed_s: float, output: OutputMode = OutputMode.FINAL
+    ) -> tuple[float, np.ndarray] | list[tuple[float, np.ndarray]] | None:
+        """Propagate time_elapsed_s past reference_epoch_s.
+
+        Parameters
+        ----------
+        time_elapsed_s : float
+            Time to propagate forward (seconds).
+        output : OutputMode, optional
+            Controls return value (see propagate_to).
+
+        Returns
+        -------
+        tuple[float, np.ndarray] | list[tuple[float, np.ndarray]] | None
+            Depends on output mode.
+
+        Raises
+        ------
+        RuntimeError
+            If initial state has not been set.
+        """
+        if time_elapsed_s < 0:
+            raise ValueError(
+                "time_elapsed_s must be non-negative. " f"Received {time_elapsed_s}."
+            )
+
+        self._require_initial_state()
+
+        return self.propagate_to(
+            self._reference_epoch_s + time_elapsed_s, output=output
+        )
+
     @abstractmethod
     def _propagate_to_impl(self, target_epoch_s: float) -> np.ndarray:
         """Subclass hook: Cartesian state at target_epoch_s.
@@ -162,89 +248,3 @@ class Propagator(ABC, Generic[InitialStateT]):
         """
         if not self._initial_state_set:
             raise RuntimeError("Initial state not set. Call set_initial_state() first.")
-
-    def propagate_to(
-        self, target_epoch_s: float, output: OutputMode = OutputMode.FINAL
-    ) -> tuple[float, np.ndarray] | list[tuple[float, np.ndarray]] | None:
-        """Propagate to target_epoch_s and advance reference_epoch_s.
-
-        Parameters
-        ----------
-        target_epoch_s : float
-            Target epoch (TT, s since J2000 TT).
-        output : OutputMode, optional
-            Controls return value:
-            - NONE: return None
-            - FINAL: return (epoch_s, state)
-            - TRAJECTORY: return [(epoch_s, state), ...] from previous
-              reference_epoch_s to target_epoch_s
-
-        Returns
-        -------
-        tuple[float, np.ndarray] | list[tuple[float, np.ndarray]] | None
-            Depends on output mode.
-
-        Raises
-        ------
-        RuntimeError
-            If initial state has not been set.
-        ValueError
-            If target_epoch_s is before the current reference epoch.
-        """
-        self._require_initial_state()
-
-        if target_epoch_s < self._reference_epoch_s:
-            raise ValueError(
-                "target_epoch_s must be greater than or equal to current "
-                "reference_epoch_s. "
-                f"Received {target_epoch_s} < {self._reference_epoch_s}."
-            )
-
-        if output == OutputMode.NONE:
-            self._reference_epoch_s = target_epoch_s
-            return None
-        elif output == OutputMode.FINAL:
-            state = self._propagate_to_impl(target_epoch_s)
-            self._reference_epoch_s = target_epoch_s
-            return (target_epoch_s, state)
-        elif output == OutputMode.TRAJECTORY:
-            trajectory = self._propagate_trajectory_impl(
-                self._reference_epoch_s, target_epoch_s
-            )
-            self._reference_epoch_s = target_epoch_s
-            return trajectory
-        else:
-            raise ValueError(f"Unknown output mode: {output}")
-
-    def propagate_by(
-        self, time_elapsed_s: float, output: OutputMode = OutputMode.FINAL
-    ) -> tuple[float, np.ndarray] | list[tuple[float, np.ndarray]] | None:
-        """Propagate time_elapsed_s past reference_epoch_s.
-
-        Parameters
-        ----------
-        time_elapsed_s : float
-            Time to propagate forward (seconds).
-        output : OutputMode, optional
-            Controls return value (see propagate_to).
-
-        Returns
-        -------
-        tuple[float, np.ndarray] | list[tuple[float, np.ndarray]] | None
-            Depends on output mode.
-
-        Raises
-        ------
-        RuntimeError
-            If initial state has not been set.
-        """
-        if time_elapsed_s < 0:
-            raise ValueError(
-                "time_elapsed_s must be non-negative. " f"Received {time_elapsed_s}."
-            )
-
-        self._require_initial_state()
-
-        return self.propagate_to(
-            self._reference_epoch_s + time_elapsed_s, output=output
-        )
