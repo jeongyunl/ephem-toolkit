@@ -53,7 +53,7 @@ Parse TLE elements from a text stream or file path. Accepts 2-line input or 3-li
 Write a TLE to a text stream or file path. Returns the formatted (line1, line2) strings.
 
 #### `datetime_to_tle_epoch(epoch_dt: datetime) -> tuple[int, float]`
-Convert a datetime object to a two-digit year and 1-based fractional day of year. Timezone-aware values are converted to UTC before calculating both the year and day; naive values are used without timezone conversion.
+Convert a datetime object to a two-digit year and 1-based fractional day of year. Timezone-aware values are converted to UTC for the day calculation, but the year is taken before that conversion; crossing a year boundary can therefore produce mismatched year/day components. Naive values are used without timezone conversion.
 
 #### `tle_epoch_to_datetime(epoch_year: int, epoch_day: float) -> datetime`
 Convert a two-digit TLE year and fractional day to a UTC-aware `datetime`. Years 57-99 map to 1957-1999; 00-56 map to 2000-2056.
@@ -81,8 +81,8 @@ Return the modulo-10 TLE checksum character. Digits contribute their value and e
 
 ### Key Dependencies
 - `numpy`
-- `ephem_toolkit.core.kepler`
-- `ephem_toolkit.core.brouwer`
+- `ephem_toolkit.core.propagator.kepler`
+- `ephem_toolkit.core.propagator.brouwer_j2`
 - `ephem_toolkit.core.ccsds.omm`
 - `ephem_toolkit.core.tle`
 - `ephem_toolkit.core.consts`
@@ -121,7 +121,7 @@ Extract osculating Keplerian elements at the TLE epoch.
 - `mu_m3_s2`: Gravitational parameter (m³/s²) (default: Earth WGS-84)
 - `apply_j2`: If True, apply Brouwer J2 short-period corrections; if False, use simple two-body conversion
 
-**Returns:** `[a_m, e, i_rad, omega_rad, RAAN_rad, anomaly_rad]`, where `omega` is argument of pericenter. With `apply_j2=True`, the final element is mean anomaly in the Brouwer-corrected elements; with `False`, it is true anomaly.
+**Returns:** `[a_m, e, i_rad, omega_rad, RAAN_rad, theta_rad]`, where `omega` is argument of pericenter and `theta` is true anomaly. With `apply_j2=True`, the elements include Brouwer first-order J2 short-period corrections; with `False`, they use two-body conversion.
 
 ---
 
@@ -137,6 +137,9 @@ Extract osculating Keplerian elements at the TLE epoch.
 - `TIME_SYSTEM_DESCRIPTIONS`: Mapping of permitted time-system identifiers to descriptions
 - `TIME_SYSTEM_VALUES`: Immutable set of permitted time-system identifiers
 - `TIME_SYSTEMS`: Alias for `TIME_SYSTEM_VALUES`
+- `CCSDS_TIMECODE_PATTERN`: Pattern for CCSDS date/time values
+- `CCSDS_NON_DECIMAL_STRING_PATTERN`, `CCSDS_FREE_TEXT_STRING_PATTERN`: Patterns for ODM non-decimal and free-text fields
+- `CCSDS_NUMERICAL_VALUE_WITH_OPTIONAL_UNITS_PATTERN`, `CCSDS_3VALUE_NUMERICAL_PATTERN`: Patterns for numeric fields, optionally with units, and 3-value sequences
 
 ---
 
@@ -148,6 +151,7 @@ Extract osculating Keplerian elements at the TLE epoch.
 - `dataclasses`, `pathlib`, `typing`, `datetime`
 - `numpy`
 - `ephem_toolkit.core.misc`, `ephem_toolkit.core.consts`, `ephem_toolkit.core.time_utils`, `ephem_toolkit.core.kepler`
+- `ephem_toolkit.core.misc`, `ephem_toolkit.core.consts`, `ephem_toolkit.core.time_utils`, `ephem_toolkit.core.propagator.kepler`
 
 ### Data Structure
 
@@ -163,6 +167,8 @@ Parsed CCSDS Orbit Mean-Elements Message. All angular quantities are stored in d
 - `mean_element_theory`: Mean element theory used (e.g., DSST, SGP4)
 - `epoch`: Epoch time (ISO 8601 format)
 - `mean_motion`, `eccentricity`, `inclination`, `ra_of_asc_node`, `arg_of_pericenter`, `mean_anomaly`: Orbital elements
+- `TleParameters` is created by `from_source` when TLE-related parameter fields are present
+- `tle_parameters`: Optional `TleParameters` for TLE/SGP-family metadata such as ephemeris type, classification, catalog ID, element set, revolution number, BSTAR, and mean-motion derivatives
 - SGP4-XP `TleParameters` may also include `bterm` and `agom`
 - `ref_frame_epoch`, `semi_major_axis`, `gm`: Optional reference-frame epoch, semi-major axis (km), and gravitational parameter (km³/s²); mean elements use either semi-major axis or mean motion
 - `spacecraft_parameters`: Optional mass, solar-radiation area/coefficient, and drag area/coefficient
@@ -173,7 +179,7 @@ The low-level `read_omm` and `write_omm` functions operate on dictionaries; `Ccs
 
 ### Functions
 
-Optional keyword-only parameter: `validate: bool = True`; set it to `False` to skip validation.
+#### `read_omm(source: TextIO | str | Path, *, validate: bool = True) -> tuple[dict, dict]`
 Read an OMM file and return `(header, data)` dictionaries. Validation is enabled by default and checks required fields, including the requirement for exactly one of `SEMI_MAJOR_AXIS` or `MEAN_MOTION`; pass `validate=False` to skip validation.
 
 #### `write_omm(dest: TextIO | str | Path, header: dict, data: dict) -> None`
@@ -237,24 +243,22 @@ Structured CCSDS Orbit Ephemeris Message with header, metadata, and states.
 - Ordering: `from_states` sorts by epoch, while `read` preserves file order.
 
 **Properties:**
-- `epochs`: Sorted list of epoch timestamps (TT seconds since J2000)
 - `epochs`: Epoch timestamps (TT seconds since J2000) in the same order as `states`
-- `state_vectors`: State vectors ordered by epoch, shape (N, 6) in meters and m/s
+- Ordering: The property returns stored order and does not sort the states
+- `state_vectors`: State vectors in the same order as `states`, shape (N, 6) in meters and m/s
 
 **Class Methods:**
 - `CcsdsOem.read(source: TextIO | str | Path) -> CcsdsOem`: Read and construct from a file or stream
-- `CcsdsOem.from_states(states, object_name, ref_frame, center_name, time_system) -> CcsdsOem`: Create from a list of states with minimal metadata
 - `CcsdsOem.from_states(states, object_name="", object_id="", ref_frame="", center_name="", time_system="UTC") -> CcsdsOem`: Create from states with minimal metadata; sorts input by epoch
+- Default `time_system` is `UTC`; the `states` timestamps are TT seconds since J2000
 - `CcsdsOem.parse_oem_state_line(line: str) -> tuple[float, np.ndarray] | None`: Parse a single OEM-style state line
 
 **Instance Methods:**
-- `write(dest: TextIO | str | Path) -> None`: Write this OEM to a file or stream
-- `write_state(dest: TextIO, epoch: datetime, state_vector: np.ndarray) -> None`: Write one state vector in CCSDS units
-- `write_state(dest: TextIO, epoch: datetime, state_vector: np.ndarray, sep: str = " ") -> None`: Write one state vector in CCSDS units
-- `write_states(dest: TextIO, format_type: OemFormat = OemFormat.OEM) -> None`: Write states in OEM or CSV format
-- `write(dest: TextIO | str | Path, format_type: OemFormat = OemFormat.OEM) -> None`: Write the message to a stream or file as OEM or CSV-formatted output
+- `write(dest: TextIO | str | Path, format_type: OemFormat = OemFormat.OEM) -> None`: Write this OEM to a file or stream as OEM or CSV-formatted output
+- `write_state(dest: TextIO, epoch: datetime, state_vector: np.ndarray, sep: str = " ") -> None`: Write one state vector in CCSDS units; `sep` defaults to one space
+- `OemFormat` supports `OEM` and `CSV`
+- `find_state_by_timestamp(timestamp: float, tolerance: float = 0.0) -> tuple[float, np.ndarray] | None`: Binary-search sorted states; exact match is required when tolerance is zero, otherwise returns the closest state within tolerance
+- `write_states(dest: TextIO, format_type: OemFormat = OemFormat.OEM) -> None`: Write state vectors as OEM or CSV
 - `update_metadata(**kwargs) -> None`: Update metadata fields in-place
-- `find_state_by_timestamp(timestamp: float, tolerance: float = 0.0) -> tuple[float, np.ndarray] | None`: Find a state by timestamp using binary search
-- `find_state_by_timestamp(timestamp: float, tolerance: float = 0.0) -> tuple[float, np.ndarray] | None`: Find a state by timestamp using binary search; requires states sorted by epoch
 
 `OemFormat` defines the `OEM` and `CSV` output choices. `read` preserves source state order, so sort input before using `find_state_by_timestamp` on an unsorted OEM file.
