@@ -60,6 +60,11 @@ class TransformationPipeline:
     ]:
         """Fit and apply each stage in order.
 
+        Parameters
+        ----------
+        verbose : bool
+            Whether interpolation progress should be printed.
+
         Returns
         -------
         list[tuple[TransformationStage, Any, list[State]]]

@@ -13,6 +13,15 @@ import ephem_toolkit.core.time_utils as time_utils
 from .data_structures import ComparisonResult
 from .debug import debug_print, debug_print_time_range
 
+INDEX_COLUMN_MIN_WIDTH: int = 5
+"""Minimum output width for the row index column."""
+
+EPOCH_COLUMN_MIN_WIDTH: int = 24
+"""Minimum output width for ISO 8601 epoch columns."""
+
+VALUE_COLUMN_MIN_WIDTH: int = 10
+"""Minimum output width for numeric value columns."""
+
 
 @dataclass
 class ComparisonOutput:
@@ -38,91 +47,6 @@ class ComparisonOutput:
 
     fit_description: str | None = None
     """Optional description of the applied transformation fit."""
-
-    @staticmethod
-    def _get_output_columns(
-        include_time_difference: bool,
-        verbose: bool,
-        rtn: bool,
-        include_comparison_epoch: bool,
-    ) -> list[str]:
-        """Return output column names for the selected comparison details."""
-        columns: list[str] = ["index", "reference\nepoch"]
-        if include_comparison_epoch:
-            columns.append("comparison\nepoch")
-        if include_time_difference:
-            columns.append("time\ndifference\n(s)")
-        columns.extend(["position\ndifference\n(km)", "velocity\ndifference\n(km/s)"])
-        if verbose:
-            columns.extend(
-                [
-                    "dX\n(km)",
-                    "dY\n(km)",
-                    "dZ\n(km)",
-                    "dVX\n(km/s)",
-                    "dVY\n(km/s)",
-                    "dVZ\n(km/s)",
-                ]
-            )
-        if rtn:
-            columns.extend(
-                [
-                    "RTN r\n(km)",
-                    "RTN t\n(km)",
-                    "RTN n\n(km)",
-                    "RTN vr\n(km/s)",
-                    "RTN vt\n(km/s)",
-                    "RTN vn\n(km/s)",
-                ]
-            )
-        return columns
-
-    @staticmethod
-    def _get_output_column_widths(columns: list[str]) -> list[int]:
-        """Return shared display widths for header and data columns."""
-        widths: list[int] = []
-        for column in columns:
-            label_width: int = max(map(len, column.split("\n")))
-            if column == "index":
-                data_width: int = 5
-            elif "epoch" in column:
-                data_width = 24
-            else:
-                data_width = 10
-            widths.append(max(label_width, data_width))
-        return widths
-
-    @classmethod
-    def _format_output_row(cls, values: list[str], columns: list[str]) -> str:
-        """Format output values in consistently spaced columns."""
-        column_widths = cls._get_output_column_widths(columns)
-        aligned_values = [
-            f"{value:>{width}}" for value, width in zip(values, column_widths)
-        ]
-        return "  ".join(aligned_values).rstrip()
-
-    @classmethod
-    def _format_output_header(cls, columns: list[str]) -> str:
-        """Format a multi-line header with aligned column labels."""
-        header_lines = [column.split("\n") for column in columns]
-        column_widths = cls._get_output_column_widths(columns)
-        lines: list[str] = []
-        for line_index in range(max(map(len, header_lines))):
-            line_values = [
-                (
-                    lines_for_column[line_index]
-                    if line_index < len(lines_for_column)
-                    else ""
-                )
-                for lines_for_column in header_lines
-            ]
-            lines.append(
-                "  ".join(
-                    f"{value:<{width}}"
-                    for value, width in zip(line_values, column_widths)
-                ).rstrip()
-            )
-        return "\n".join(lines)
 
     def print_header(
         self,
@@ -374,3 +298,88 @@ class ComparisonOutput:
         if self.fit_description is not None:
             print("\n" + self.fit_description)
         self.print_statistics(include_time_difference=False)
+
+    @staticmethod
+    def _get_output_columns(
+        include_time_difference: bool,
+        verbose: bool,
+        rtn: bool,
+        include_comparison_epoch: bool,
+    ) -> list[str]:
+        """Return output column names for the selected comparison details."""
+        columns: list[str] = ["index", "reference\nepoch"]
+        if include_comparison_epoch:
+            columns.append("comparison\nepoch")
+        if include_time_difference:
+            columns.append("time\ndifference\n(s)")
+        columns.extend(["position\ndifference\n(km)", "velocity\ndifference\n(km/s)"])
+        if verbose:
+            columns.extend(
+                [
+                    "dX\n(km)",
+                    "dY\n(km)",
+                    "dZ\n(km)",
+                    "dVX\n(km/s)",
+                    "dVY\n(km/s)",
+                    "dVZ\n(km/s)",
+                ]
+            )
+        if rtn:
+            columns.extend(
+                [
+                    "RTN r\n(km)",
+                    "RTN t\n(km)",
+                    "RTN n\n(km)",
+                    "RTN vr\n(km/s)",
+                    "RTN vt\n(km/s)",
+                    "RTN vn\n(km/s)",
+                ]
+            )
+        return columns
+
+    @staticmethod
+    def _get_output_column_widths(columns: list[str]) -> list[int]:
+        """Return shared display widths for header and data columns."""
+        widths: list[int] = []
+        for column in columns:
+            label_width: int = max(map(len, column.split("\n")))
+            if column == "index":
+                data_width: int = INDEX_COLUMN_MIN_WIDTH
+            elif "epoch" in column:
+                data_width = EPOCH_COLUMN_MIN_WIDTH
+            else:
+                data_width = VALUE_COLUMN_MIN_WIDTH
+            widths.append(max(label_width, data_width))
+        return widths
+
+    @classmethod
+    def _format_output_row(cls, values: list[str], columns: list[str]) -> str:
+        """Format output values in consistently spaced columns."""
+        column_widths = cls._get_output_column_widths(columns)
+        aligned_values = [
+            f"{value:>{width}}" for value, width in zip(values, column_widths)
+        ]
+        return "  ".join(aligned_values).rstrip()
+
+    @classmethod
+    def _format_output_header(cls, columns: list[str]) -> str:
+        """Format a multi-line header with aligned column labels."""
+        header_lines = [column.split("\n") for column in columns]
+        column_widths = cls._get_output_column_widths(columns)
+        lines: list[str] = []
+        for line_index in range(max(map(len, header_lines))):
+            line_values = [
+                (
+                    lines_for_column[line_index]
+                    if line_index < len(lines_for_column)
+                    else ""
+                )
+                for lines_for_column in header_lines
+            ]
+            lines.append(
+                "  ".join(
+                    f"{value:<{width}}"
+                    for value, width in zip(line_values, column_widths)
+                ).rstrip()
+            )
+        return "\n".join(lines)

@@ -12,25 +12,43 @@ stdin input. Interpolation options compare states at matching epochs.
 
 from __future__ import annotations
 
+import argparse
+import sys
+from collections.abc import Sequence
+from typing import TextIO
+
 from .diff_oem_cli import DiffOemArgs, build_arg_parser, parse_arguments
+from .types import State, StatePair
 
 
-def main(argv=None) -> None:
+def main(argv: Sequence[str] | None = None) -> None:
     """Main entry point for the state comparison CLI.
 
     Parses command-line arguments, reads OEM state vectors from files or
     stdin, compares corresponding OEM states, and prints a header followed by
     one tab-separated result row per comparison to stdout.
-    Exits with status 1 on error.
+
+    Parameters
+    ----------
+    argv : Sequence[str] or None, optional
+        Command-line arguments. Defaults to the process command line.
+
+    Returns
+    -------
+    None
+        This function prints results directly and returns no value.
+
+    Raises
+    ------
+    SystemExit
+        If argument parsing fails or comparison raises a value error. Runtime
+        comparison errors exit with status 1.
     """
-    cli_parser = build_arg_parser()
+    cli_parser: argparse.ArgumentParser = build_arg_parser()
     cli_args: DiffOemArgs = parse_arguments(cli_parser, argv)
 
     # Delay imports until after argument parsing so --help and argument errors
     # do not load the comparison pipeline and its optional dependencies.
-    import sys
-    from typing import TextIO
-
     from .comparison import read_states
     from .debug import debug_print_time_range, set_debug
     from .output import ComparisonOutput
@@ -67,13 +85,13 @@ def main(argv=None) -> None:
         comparison_source: TextIO | str = (
             sys.stdin if cli_args.comparison_oem == "-" else cli_args.comparison_oem
         )
-        reference_states = read_states(reference_source)
-        comparison_states = read_states(comparison_source)
+        reference_states: list[State] = read_states(reference_source)
+        comparison_states: list[State] = read_states(comparison_source)
 
         # Find overlapping time range between OEM files
 
-        overlapping_time_range = find_overlapping_time_range(
-            reference_states, comparison_states
+        overlapping_time_range: tuple[float, float] | None = (
+            find_overlapping_time_range(reference_states, comparison_states)
         )
         if cli_args.debug:
             debug_print_time_range(
@@ -163,7 +181,7 @@ def main(argv=None) -> None:
                         fit_overlap_start,
                         min(
                             fit_overlap_stop,
-                            fit_overlap_start + cli_args.rot_fit_span,
+                            fit_overlap_start + cli_args.rot_fit_span_s,
                         ),
                     )
 
@@ -186,16 +204,21 @@ def main(argv=None) -> None:
             data=comparison_states,
         )
 
-        def build_pairs(ref_states, cmp_states):
+        def build_pairs(
+            reference_state_history: list[State],
+            comparison_state_history: list[State],
+        ) -> list[StatePair]:
             """Build comparison pairs with current configuration."""
             return build_comparison_pairs(
-                ref_states,
-                cmp_states,
+                reference_state_history,
+                comparison_state_history,
                 comparison_start,
                 comparison_stop,
             )
 
-        comparison_pairs = build_pairs(reference_states, comparison_states)
+        comparison_pairs: list[StatePair] = build_pairs(
+            reference_states, comparison_states
+        )
 
         stages: list[TransformationStage] = []
         stage_sequence: list[str] = list(cli_args.stage_sequence)
@@ -220,7 +243,7 @@ def main(argv=None) -> None:
                     RotationStage(
                         fit_overlap_start,
                         fit_overlap_stop,
-                        cli_args.rot_fit_span,
+                        cli_args.rot_fit_span_s,
                     )
                 )
             elif stage_key == "rotate_xy":
@@ -228,7 +251,7 @@ def main(argv=None) -> None:
                     RotationXYStage(
                         fit_overlap_start,
                         fit_overlap_stop,
-                        cli_args.rot_fit_span,
+                        cli_args.rot_fit_span_s,
                     )
                 )
             elif stage_key == "rotate_z":
@@ -236,7 +259,7 @@ def main(argv=None) -> None:
                     RotationZStage(
                         fit_overlap_start,
                         fit_overlap_stop,
-                        cli_args.rot_fit_span,
+                        cli_args.rot_fit_span_s,
                     )
                 )
             elif stage_key == "time_shift":
@@ -317,7 +340,8 @@ def main(argv=None) -> None:
         sys.exit(1)
 
 
-def cli(argv=None) -> int:
+def cli(argv: Sequence[str] | None = None) -> int:
+    """Run the diff-oem command-line interface."""
     from ephem_toolkit.core.cli import run_cli
 
     return run_cli(main, argv)

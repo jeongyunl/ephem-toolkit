@@ -7,9 +7,10 @@ Usage:
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
+from datetime import timedelta
 from functools import partial
 import sys
-from datetime import timedelta
 
 import ephem_toolkit.core.cli as cli
 from ephem_toolkit.core.interpolator.interpolation_spec import (
@@ -67,8 +68,8 @@ class DiffOemArgs(argparse.Namespace):
     """Apply a fixed Z-axis rotation fit before comparing states."""
     time_shift: bool
     """Apply a constant time shift before comparing states."""
-    rot_fit_span: float
-    """Duration used for rotation fitting."""
+    rot_fit_span_s: float
+    """Duration used for rotation fitting (seconds)."""
     start: str | None
     """Optional start timestamp or duration offset."""
     stop: str | None
@@ -78,15 +79,12 @@ class DiffOemArgs(argparse.Namespace):
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    """Parse command-line arguments.
+    """Build the diff-oem command-line argument parser.
 
     Returns
     -------
-    DiffOemArgs
-        Parsed command-line arguments with attributes ``reference_oem``,
-        ``comparison_oem``, ``verbose``, and ``debug``.
-        ``stage_sequence`` records transformation stage order as
-        requested in the CLI. Interpolators are always used.
+    argparse.ArgumentParser
+        Configured parser for diff-oem arguments.
     """
     parser: argparse.ArgumentParser = cli.build_arg_parser(
         description=(
@@ -170,7 +168,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--rotate-fit-span",
-        dest="rot_fit_span",
+        dest="rot_fit_span_s",
         type=parse_rotation_fit_span,
         default=ROTATION_FIT_DURATION_S,
         metavar="<duration>",
@@ -202,8 +200,24 @@ def build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_arguments(parser: argparse.ArgumentParser, argv=None) -> DiffOemArgs:
-    """Parse command-line arguments."""
+def parse_arguments(
+    parser: argparse.ArgumentParser,
+    argv: Sequence[str] | None = None,
+) -> DiffOemArgs:
+    """Parse command-line arguments into the typed namespace.
+
+    Parameters
+    ----------
+    parser : argparse.ArgumentParser
+        Configured diff-oem argument parser.
+    argv : Sequence[str] or None, optional
+        Argument tokens to parse. Defaults to the process command line.
+
+    Returns
+    -------
+    DiffOemArgs
+        Parsed command-line arguments, including transformation order.
+    """
     args = parser.parse_args(argv, namespace=DiffOemArgs())
     args.stage_sequence = extract_stage_sequence(
         argv if argv is not None else sys.argv[1:]
@@ -213,12 +227,12 @@ def parse_arguments(parser: argparse.ArgumentParser, argv=None) -> DiffOemArgs:
     return args
 
 
-def extract_stage_sequence(argv: list[str]) -> list[str]:
+def extract_stage_sequence(argv: Sequence[str]) -> list[str]:
     """Return transformation stage keys in order of CLI appearance.
 
     Parameters
     ----------
-    argv : list[str]
+    argv : Sequence[str]
         Command-line argument list to extract stage sequence from.
 
     Returns

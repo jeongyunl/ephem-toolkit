@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable
 
 import numpy as np
+from typing_extensions import override
 
 from ephem_toolkit.core import misc
 
@@ -140,6 +141,7 @@ class RotationStage(TransformationStage):
         self.fit_overlap_stop = fit_overlap_stop
         self.fit_span_s = fit_span_s
 
+    @override
     def build_fit_pairs(
         self,
         reference_states: list[State],
@@ -188,6 +190,7 @@ class RotationStage(TransformationStage):
             )
         return fit_pairs
 
+    @override
     def fit(self, stage_input: TransformationStageInput) -> np.ndarray:
         """Fit the comparison-to-reference rotation matrix.
 
@@ -218,30 +221,7 @@ class RotationStage(TransformationStage):
 
         return self._fit_rotation_matrix(resolved_state_pairs)
 
-    @staticmethod
-    def _fit_rotation_matrix(state_pairs: list[StatePair]) -> np.ndarray:
-        """Fit a rotation using comparison and reference positions only."""
-        reference_vectors = np.vstack(
-            [reference_state[1][0:3] for reference_state, _ in state_pairs]
-        )
-        comparison_vectors = np.vstack(
-            [comparison_state[1][0:3] for _, comparison_state in state_pairs]
-        )
-        covariance = comparison_vectors.T @ reference_vectors
-        left_vectors, _, right_vectors_transposed = np.linalg.svd(covariance)
-        determinant_correction = np.eye(3)
-        if np.linalg.det(right_vectors_transposed.T @ left_vectors.T) < 0.0:
-            determinant_correction[-1, -1] = -1.0
-        return right_vectors_transposed.T @ determinant_correction @ left_vectors.T
-
-    @staticmethod
-    def _apply_state_transform(
-        states: list[State],
-        transform: Callable[[np.ndarray], np.ndarray],
-    ) -> list[State]:
-        """Return transformed states while preserving original state epochs."""
-        return [(timestamp, transform(state)) for timestamp, state in states]
-
+    @override
     def transform(self, states: list[State], fit_result: np.ndarray) -> list[State]:
         """Apply the fitted rotation to comparison states.
 
@@ -268,6 +248,7 @@ class RotationStage(TransformationStage):
             lambda state: rotate_state(state, fit_result),
         )
 
+    @override
     def describe_fit(self, fit_result: np.ndarray) -> str:
         """Describe the fitted rotation for report output.
 
@@ -300,12 +281,37 @@ class RotationStage(TransformationStage):
             + f"  Rotation about X (roll):  {euler_angles_deg[2]:+.6f} deg"
         )
 
+    @staticmethod
+    def _fit_rotation_matrix(state_pairs: list[StatePair]) -> np.ndarray:
+        """Fit a rotation using comparison and reference positions only."""
+        reference_vectors = np.vstack(
+            [reference_state[1][0:3] for reference_state, _ in state_pairs]
+        )
+        comparison_vectors = np.vstack(
+            [comparison_state[1][0:3] for _, comparison_state in state_pairs]
+        )
+        covariance = comparison_vectors.T @ reference_vectors
+        left_vectors, _, right_vectors_transposed = np.linalg.svd(covariance)
+        determinant_correction = np.eye(3)
+        if np.linalg.det(right_vectors_transposed.T @ left_vectors.T) < 0.0:
+            determinant_correction[-1, -1] = -1.0
+        return right_vectors_transposed.T @ determinant_correction @ left_vectors.T
+
+    @staticmethod
+    def _apply_state_transform(
+        states: list[State],
+        transform: Callable[[np.ndarray], np.ndarray],
+    ) -> list[State]:
+        """Return transformed states while preserving original state epochs."""
+        return [(timestamp, transform(state)) for timestamp, state in states]
+
 
 class RotationXYStage(RotationStage):
     """Fit and apply a comparison-to-reference rotation around X and Y only."""
 
     name = "comparison-to-reference X/Y rotation"
 
+    @override
     def fit(self, stage_input: TransformationStageInput) -> np.ndarray:
         """Fit a comparison-to-reference rotation around X and Y.
 
@@ -330,6 +336,31 @@ class RotationXYStage(RotationStage):
             )
 
         return self._fit_xy_rotation_matrix(resolved_state_pairs)
+
+    @override
+    def describe_fit(self, fit_result: np.ndarray) -> str:
+        """Describe the fitted X/Y rotation for report output.
+
+        Parameters
+        ----------
+        fit_result : numpy.ndarray
+            Fitted three-by-three rotation matrix.
+
+        Returns
+        -------
+        str
+            Human-readable fit description.
+        """
+        euler_angles_deg = misc.rotation_matrix_to_euler_angles(fit_result)
+        return (
+            "Applied comparison-to-reference X/Y rotation matrix to "
+            "comparison position and velocity states:\n"
+            + np.array2string(fit_result, precision=6)
+            + "\n\nEuler angles (ZYX convention, intrinsic rotations):\n"
+            + f"  Rotation about Z (yaw):   {euler_angles_deg[0]:+.6f} deg\n"
+            + f"  Rotation about Y (pitch): {euler_angles_deg[1]:+.6f} deg\n"
+            + f"  Rotation about X (roll):  {euler_angles_deg[2]:+.6f} deg"
+        )
 
     @staticmethod
     def _rotation_matrix_x(angle_rad: float) -> np.ndarray:
@@ -384,36 +415,13 @@ class RotationXYStage(RotationStage):
 
         return cls._rotation_matrix_y(angles[1]) @ cls._rotation_matrix_x(angles[0])
 
-    def describe_fit(self, fit_result: np.ndarray) -> str:
-        """Describe the fitted X/Y rotation for report output.
-
-        Parameters
-        ----------
-        fit_result : numpy.ndarray
-            Fitted three-by-three rotation matrix.
-
-        Returns
-        -------
-        str
-            Human-readable fit description.
-        """
-        euler_angles_deg = misc.rotation_matrix_to_euler_angles(fit_result)
-        return (
-            "Applied comparison-to-reference X/Y rotation matrix to "
-            "comparison position and velocity states:\n"
-            + np.array2string(fit_result, precision=6)
-            + "\n\nEuler angles (ZYX convention, intrinsic rotations):\n"
-            + f"  Rotation about Z (yaw):   {euler_angles_deg[0]:+.6f} deg\n"
-            + f"  Rotation about Y (pitch): {euler_angles_deg[1]:+.6f} deg\n"
-            + f"  Rotation about X (roll):  {euler_angles_deg[2]:+.6f} deg"
-        )
-
 
 class RotationZStage(RotationStage):
     """Fit and apply a comparison-to-reference rotation around Z only."""
 
     name = "comparison-to-reference Z rotation"
 
+    @override
     def fit(self, stage_input: TransformationStageInput) -> np.ndarray:
         """Fit a comparison-to-reference rotation around Z.
 
@@ -438,6 +446,31 @@ class RotationZStage(RotationStage):
             )
 
         return self._fit_z_rotation_matrix(resolved_state_pairs)
+
+    @override
+    def describe_fit(self, fit_result: np.ndarray) -> str:
+        """Describe the fitted Z rotation for report output.
+
+        Parameters
+        ----------
+        fit_result : numpy.ndarray
+            Fitted three-by-three rotation matrix.
+
+        Returns
+        -------
+        str
+            Human-readable fit description.
+        """
+        euler_angles_deg = misc.rotation_matrix_to_euler_angles(fit_result)
+        return (
+            "Applied comparison-to-reference Z rotation matrix to "
+            "comparison position and velocity states:\n"
+            + np.array2string(fit_result, precision=6)
+            + "\n\nEuler angles (ZYX convention, intrinsic rotations):\n"
+            + f"  Rotation about Z (yaw):   {euler_angles_deg[0]:+.6f} deg\n"
+            + f"  Rotation about Y (pitch): {euler_angles_deg[1]:+.6f} deg\n"
+            + f"  Rotation about X (roll):  {euler_angles_deg[2]:+.6f} deg"
+        )
 
     @staticmethod
     def _rotation_matrix_z(angle_rad: float) -> np.ndarray:
@@ -483,30 +516,6 @@ class RotationZStage(RotationStage):
 
         return cls._rotation_matrix_z(angle)
 
-    def describe_fit(self, fit_result: np.ndarray) -> str:
-        """Describe the fitted Z rotation for report output.
-
-        Parameters
-        ----------
-        fit_result : numpy.ndarray
-            Fitted three-by-three rotation matrix.
-
-        Returns
-        -------
-        str
-            Human-readable fit description.
-        """
-        euler_angles_deg = misc.rotation_matrix_to_euler_angles(fit_result)
-        return (
-            "Applied comparison-to-reference Z rotation matrix to "
-            "comparison position and velocity states:\n"
-            + np.array2string(fit_result, precision=6)
-            + "\n\nEuler angles (ZYX convention, intrinsic rotations):\n"
-            + f"  Rotation about Z (yaw):   {euler_angles_deg[0]:+.6f} deg\n"
-            + f"  Rotation about Y (pitch): {euler_angles_deg[1]:+.6f} deg\n"
-            + f"  Rotation about X (roll):  {euler_angles_deg[2]:+.6f} deg"
-        )
-
 
 class TimeShiftStage(TransformationStage):
     """Fit and apply a constant comparison timestamp shift."""
@@ -530,6 +539,7 @@ class TimeShiftStage(TransformationStage):
         self.fit_overlap_start = fit_overlap_start
         self.fit_overlap_stop = fit_overlap_stop
 
+    @override
     def build_fit_pairs(
         self,
         reference_states: list[State],
@@ -575,6 +585,7 @@ class TimeShiftStage(TransformationStage):
             )
         return fit_pairs
 
+    @override
     def fit(self, stage_input: TransformationStageInput) -> float:
         """Fit a constant comparison timestamp shift.
 
@@ -700,6 +711,7 @@ class TimeShiftStage(TransformationStage):
             )
         )
 
+    @override
     def transform(self, states: list[State], fit_result: float) -> list[State]:
         """Subtract the fitted timestamp bias from comparison states.
 
@@ -732,6 +744,7 @@ class TimeShiftStage(TransformationStage):
             )
         return result
 
+    @override
     def describe_fit(self, fit_result: float) -> str:
         """Describe the fitted time shift for report output.
 
