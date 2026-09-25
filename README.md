@@ -8,7 +8,7 @@ This project provides a practical toolkit for working with ephemerides and relat
 
 The toolkit supports workflows for working with ephemeris products: parse OEM, OMM, and TLE inputs, fit or convert mean elements, propagate trajectories, compare results, and visualize dependent variables and orbit differences.
 
-The current propagation commands are `propagate-orbit` for numerical orbit propagation and `propagate-kepler` for two-body Keplerian propagation.
+The propagation commands cover numerical Cartesian propagation (`propagate-orbit`), two-body Kepler propagation from OPM elements (`propagate-kepler`), and model-selected mean-element propagation (`propagate-omm` and `propagate-tle`).
 
 ### OEM file data flow
 
@@ -20,8 +20,11 @@ flowchart LR
     fmt_tle{{"TLE (.tle)"}}
     fmt_dep_vars_csv{{"Dependent Variables CSV"}}
     fmt_plots{{"Plots / Animations <br/> (Matplotlib figures)"}}
+    fmt_raw_states{{"Raw Cartesian state lines <br/> (epoch x y z vx vy vz)"}}
+    fmt_aer{{"AER text <br/> (stdout)"}}
 
     oem_to_omm(["oem-to-omm"])
+    oem_to_tle(["oem-to-tle"])
     oem_to_opm(["oem-to-opm"])
     propagate_sat(["propagate-orbit"])
     propagate_kepler(["propagate-kepler"])
@@ -35,23 +38,24 @@ flowchart LR
 
     fmt_oem --> oem_to_omm
     oem_to_omm --> fmt_omm
-    oem_to_omm --> fmt_tle
+    fmt_oem --> oem_to_tle
+    oem_to_tle -->|"SGP4 TLE (via intermediate OMM)"| fmt_tle
     fmt_oem --> oem_to_opm
     oem_to_opm --> fmt_opm
 
     fmt_opm -->|"Cartesian initial state"| propagate_sat
     propagate_sat -->|"state history"| fmt_oem
-    propagate_sat -->|"dependent variables"| fmt_dep_vars_csv
+    propagate_sat -->|"--dep-vars (optional)"| fmt_dep_vars_csv
 
-    fmt_opm -->|"Cartesian + osculating Keplerian elements"| propagate_kepler
+    fmt_opm -->|"complete osculating Keplerian element set"| propagate_kepler
     propagate_kepler --> fmt_oem
 
     fmt_omm -->|"OMM input"| propagate_omm
     propagate_omm --> fmt_oem
 
-    fmt_oem --> diff_oem
+    fmt_oem -->|"two files: reference + comparison"| diff_oem
     fmt_oem --> plot_oem
-    fmt_oem --> plot_oem_diff
+    fmt_oem -->|"reference + optional comparisons"| plot_oem_diff
     plot_oem --> fmt_plots
     plot_oem_diff --> fmt_plots
 
@@ -59,11 +63,13 @@ flowchart LR
     plot_dep_vars --> fmt_plots
 
     fmt_oem --> slice_oem
-    slice_oem --> fmt_oem
+    slice_oem -->|"OEM output"| fmt_oem
+    slice_oem -->|"--data-only"| fmt_raw_states
     slice_oem -->|"Cartesian-only single-state OPM"| fmt_opm
 
     fmt_oem -->|"source frame + target frame"| xform_oem
     xform_oem -->|"converted OEM"| fmt_oem
+    xform_oem -->|"AER text"| fmt_aer
 ```
 
 ### OPM/OMM/TLE file data flow
@@ -80,7 +86,11 @@ flowchart LR
     tle_to_omm(["tle-to-omm"])
     tle_info(["tle-info"])
     oem_to_omm(["oem-to-omm"])
+    oem_to_tle(["oem-to-tle"])
     oem_to_opm(["oem-to-opm"])
+    omm_to_opm(["omm-to-opm"])
+    tle_to_opm(["tle-to-opm"])
+    fmt_text_report{{"TLE summary / fitting report <br/> (stdout or file)"}}
     propagate_tle(["propagate-tle"])
     propagate_omm(["propagate-omm"])
     propagate_kepler(["propagate-kepler"])
@@ -92,11 +102,13 @@ flowchart LR
     omm_to_tle --> fmt_tle
 
     fmt_tle --> tle_info
+    tle_info -->|"epoch, state, osculating elements"| fmt_text_report
 
     fmt_oem --> oem_to_omm
     oem_to_omm --> fmt_omm
-    oem_to_omm --> fmt_tle
-    fmt_oem -->|"Cartesian + osculating Keplerian elements"| oem_to_opm
+    fmt_oem -->|"Cartesian state history"| oem_to_tle
+    oem_to_tle -->|"SGP4 TLE via intermediate OMM"| fmt_tle
+    fmt_oem -->|"Cartesian state history"| oem_to_opm
     oem_to_opm --> fmt_opm
 
     fmt_tle --> propagate_tle
@@ -104,12 +116,16 @@ flowchart LR
 
     fmt_omm --> propagate_omm
     propagate_omm --> fmt_oem
+    fmt_omm -->|"declared mean-element model"| omm_to_opm
+    omm_to_opm -->|"reference arc propagation + numerical fit"| fmt_opm
+    fmt_tle -->|"SGP4 reference arc"| tle_to_opm
+    tle_to_opm -->|"reference arc propagation + numerical fit"| fmt_opm
 
-    fmt_opm -->|"Cartesian initial state"| propagate_kepler
+    fmt_opm -->|"complete osculating Keplerian element set"| propagate_kepler
     propagate_kepler --> fmt_oem
 
-    download_tle -->|"TLE format"| fmt_tle
-    download_tle -->|"OMM format"| fmt_omm
+    download_tle -->|"default format: TLE"| fmt_tle
+    download_tle -->|"--format omm"| fmt_omm
 ```
 
 ---
@@ -128,6 +144,7 @@ flowchart LR
 | OEM frame/coordinate transformation | [`xform-oem`](docs/XFORM_OEM.md) |
 | OEM to OPM fitting | [`oem-to-opm`](docs/OEM_TO_OPM.md) |
 | OEM to OMM fitting | [`oem-to-omm`](docs/OEM_TO_OMM.md) |
+| OEM to TLE fitting | [`oem-to-tle`](docs/ORBIT_FILE_CONVERSION.md) |
 
 #### Orbit propagation
 
@@ -147,6 +164,8 @@ flowchart LR
 | OMM to TLE | [`omm-to-tle`](docs/OMM_TO_TLE.md) |
 | TLE inspection | [`tle-info`](docs/TLE_INFO.md) |
 | TLE to OMM | [`tle-to-omm`](docs/TLE_TO_OMM.md) |
+| OMM to OPM fitting | [`omm-to-opm`](docs/ORBIT_FILE_CONVERSION.md) |
+| TLE to OPM fitting | [`tle-to-opm`](docs/ORBIT_FILE_CONVERSION.md) |
 
 #### Plotting and analysis
 
@@ -169,7 +188,7 @@ TudatPy-dependent workflows require TudatPy and its transitive dependencies thro
 ### Orbit Propagation
 
 - [`propagate-orbit`](docs/PROPAGATE_ORBIT.md) — numerical orbit propagation with configurable perturbations and Cartesian state integration
-- [`propagate-omm`](docs/PROPAGATE_OMM.md) — mean Keplerian orbit propagation from OMM elements to OEM output; supports SGP4, DSST, and Kepler propagators selected automatically from `MEAN_ELEMENT_THEORY`
+- [`propagate-omm`](docs/PROPAGATE_OMM.md) — propagate OMM elements to OEM output using SGP4 or DSST where supported; other non-TLE theories use a labeled two-body Kepler fallback
 - [`propagate-kepler`](docs/PROPAGATE_KEPLER.md) — two-body Kepler propagation
 - [`propagate-tle`](docs/PROPAGATE_TLE.md) — SGP4 TLE propagation
 
@@ -179,20 +198,22 @@ Supports CCSDS OEM export, data-only state-vector output, dependent-variable CSV
 
 - [`oem-to-omm`](docs/OEM_TO_OMM.md)
 
-Estimates Orbit Mean-Elements Messages (OMM) including Two-Line Element (TLE) sets from OEM Cartesian state vectors. Fits OEM state vectors to osculating Kepler, mean Kepler, or TLE-derived OMM output using iterative least-squares fitting. Includes least-squares estimation, iterative refinement, SGP4 model evaluation, and TLE line construction.
+Fits OEM Cartesian state histories to mean-element models and writes a CCSDS OMM. Supported fit models are Brouwer, DSST, and SGP4. Use `oem-to-tle` for TLE output; it fits through an intermediate OMM and then formats the TLE.
 
 ### OEM-to-OPM
 
 - [`oem-to-opm`](docs/OEM_TO_OPM.md)
 
-Fits an OEM arc with a two-body osculating Keplerian model and writes an OPM containing the first OEM state and fitted elements.
+Fits an OEM arc and writes an OPM using either a two-body osculating fit or a numerical fit. Both modes write a Cartesian state; the two-body mode also writes fitted Keplerian elements.
 
 ### TLE / OMM Utilities
 
-- [`download-tle`](docs/DOWNLOAD_TLE.md) — download TLE data
+- [`download-tle`](docs/DOWNLOAD_TLE.md) — download CelesTrak GP data in a selected format, including TLE and OMM
 - [`omm-to-tle`](docs/OMM_TO_TLE.md) — convert OMM → TLE
 - [`tle-to-omm`](docs/TLE_TO_OMM.md) — convert TLE → OMM
 - [`tle-info`](docs/TLE_INFO.md) — inspect TLE information
+- [`omm-to-opm`](docs/ORBIT_FILE_CONVERSION.md) — propagate OMM elements and numerically fit an OPM state
+- [`tle-to-opm`](docs/ORBIT_FILE_CONVERSION.md) — propagate a TLE with SGP4 and numerically fit an OPM state
 
 ### Visualization
 
@@ -225,26 +246,30 @@ See [CORE_LIBRARY_SUMMARY.md](docs/CORE_LIBRARY_SUMMARY.md) for an overview of a
 ```
 src/
 ├── ephem_toolkit/
-│   ├── core/                 Shared Python library modules
-│   │   ├── ccsds/            CCSDS ODM, OEM, and OMM definitions and parsers
-│   │   ├── interpolator/     Public interpolation package for Lagrange, Hermite, Chebyshev, and spline methods
-│   │   └── ...               Additional core astrodynamics and time utilities
-│   ├── diff_oem/            OEM comparison application module
-│   ├── download_tle/        TLE download utilities
-│   ├── oem_to_omm/          OEM-to-OMM estimation application module (includes TLE fitting)
-│   ├── oem_to_opm/          OEM-to-OPM osculating-element fitting application module
-│   ├── omm_to_tle/          OMM-to-TLE conversion utilities
-│   ├── plot_dep_vars/       Dependent-variable plotting utilities
-│   ├── plot_oem/          Orbit visualization utilities
-│   ├── plot_oem_diff/   Orbit-difference plotting utilities
-│   ├── propagate_kepler/    Kepler propagation package
-│   ├── propagate_orbit/     Cartesian propagation package
-│   ├── propagate_tle/       TLE propagation package
-│   ├── slice_oem/           OEM slicing application module
-│   ├── tle_info/            TLE inspection utilities
-│   ├── tle_to_omm/          TLE-to-OMM conversion utilities
-│   ├── xform_oem/           OEM frame transformation application module
-│   └── */                   Other application modules
+│   ├── core/                 Shared astrodynamics and time utilities
+│   │   ├── ccsds/            CCSDS ODM, OEM, OPM, and OMM models and parsers
+│   │   ├── interpolator/     Lagrange, Hermite, and Chebyshev interpolation
+│   │   ├── propagator/       Kepler, Brouwer, DSST, numerical, and SGP4 models
+│   │   └── ...               Coordinate, time, and orbital-element modules
+│   ├── diff_oem/             OEM comparison
+│   ├── download_tle/         CelesTrak GP data download
+│   ├── oem_to_omm/           OEM mean-element fitting
+│   ├── oem_to_opm/           OEM-to-OPM two-body and numerical fitting
+│   ├── oem_to_tle/           OEM-to-TLE fitting wrapper
+│   ├── omm_to_opm/           OMM-to-OPM numerical fitting wrapper
+│   ├── omm_to_tle/           OMM-to-TLE conversion
+│   ├── plot_dep_vars/        Dependent-variable plotting
+│   ├── plot_oem/             Orbit visualization
+│   ├── plot_oem_diff/        Orbit-difference plotting
+│   ├── propagate_kepler/     Two-body Kepler propagation
+│   ├── propagate_omm/        OMM and TLE propagation
+│   ├── propagate_orbit/      Numerical Cartesian propagation
+│   ├── propagate_tle/        TLE propagation wrapper
+│   ├── slice_oem/            OEM slicing
+│   ├── tle_info/             TLE inspection
+│   ├── tle_to_omm/           TLE-to-OMM conversion
+│   ├── tle_to_opm/           TLE-to-OPM numerical fitting wrapper
+│   └── xform_oem/            OEM frame transformation
 └── ...                     Other project source modules
 
 tests/                      Unit tests and sample data files
