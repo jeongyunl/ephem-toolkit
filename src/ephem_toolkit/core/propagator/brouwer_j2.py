@@ -31,6 +31,7 @@ References:
 from __future__ import annotations
 
 import numpy as np
+from typing_extensions import override
 
 from ..consts import (
     EARTH_EQUATORIAL_RADIUS_M,
@@ -66,6 +67,9 @@ MAX_ECCENTRICITY: float = 0.9999999
 
 ECCENTRICITY_CONVERGENCE_TOLERANCE: float = 1e-14
 """Convergence tolerance for eccentricity in iterative algorithms (dimensionless)."""
+
+DEFAULT_MAX_INVERSION_ITERATIONS: int = 20
+"""Default iteration limit for inverting Brouwer short-period corrections."""
 
 # ===================================================================
 # Brouwer short-period corrections (mean -> osculating)
@@ -224,12 +228,12 @@ def compute_brouwer_short_period_corrections(
     osculating_arguments_of_periapsis = osculating_arguments_of_periapsis % (
         2.0 * np.pi
     )
-    neg_mask: np.ndarray = osculating_arguments_of_periapsis < 0.0
-    osculating_arguments_of_periapsis[neg_mask] += 2.0 * np.pi
+    negative_angle_mask: np.ndarray = osculating_arguments_of_periapsis < 0.0
+    osculating_arguments_of_periapsis[negative_angle_mask] += 2.0 * np.pi
 
     osculating_true_anomalies = osculating_true_anomalies % (2.0 * np.pi)
-    neg_mask = osculating_true_anomalies < 0.0
-    osculating_true_anomalies[neg_mask] += 2.0 * np.pi
+    negative_angle_mask = osculating_true_anomalies < 0.0
+    osculating_true_anomalies[negative_angle_mask] += 2.0 * np.pi
 
     osculating_eccentricities = np.clip(
         osculating_eccentricities, 0.0, MAX_ECCENTRICITY
@@ -281,7 +285,7 @@ def osculating_to_brouwer_mean(
     osculating_keplerian_elements: np.ndarray,
     R_e_m: float = EARTH_EQUATORIAL_RADIUS_M,
     J2: float = EARTH_J2,
-    max_iter: int = 20,
+    max_iter: int = DEFAULT_MAX_INVERSION_ITERATIONS,
     tol_m: float = 1e-12,
 ) -> np.ndarray:
     """Convert osculating Keplerian elements to Brouwer mean elements.
@@ -493,16 +497,19 @@ class BrouwerJ2Propagator(Propagator[KeplerianState]):
         self._J2 = J2
         self.set_initial_state(initial_state)
 
+    @override
     def set_initial_state(self, initial_state: KeplerianState) -> None:
         """Set initial Brouwer mean state and reset reference epoch."""
         super().set_initial_state(initial_state)
         self._initial_state = initial_state
         self._reference_epoch_s = initial_state.epoch_s
 
+    @override
     def get_initial_epoch_s(self) -> float:
         """Return epoch of initial state (TT, s since J2000 TT)."""
         return self._initial_state.epoch_s
 
+    @override
     def _propagate_to_impl(self, target_epoch_s: float) -> np.ndarray:
         """Propagate to target epoch and return Cartesian state."""
         elapsed_s = target_epoch_s - self.get_initial_epoch_s()
