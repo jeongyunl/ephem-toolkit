@@ -85,8 +85,8 @@ def run_oem_to_tle(
     object_id = f"{original.int_designator_year:02d}-{original.int_designator_launch_number:03d}{original.int_designator_piece or 'A'}"
 
     args: list[str] = [
-        "--mode",
-        "tle",
+        "--fit-model",
+        "sgp4",
         "-",
         "--output",
         "-",

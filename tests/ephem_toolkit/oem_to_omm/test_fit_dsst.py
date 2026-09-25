@@ -1,4 +1,4 @@
-"""Integration tests for DSST mean element fitting (oem-to-omm --mode dsst)."""
+"""Integration tests for DSST mean element fitting (oem-to-omm --fit-model dsst)."""
 
 from __future__ import annotations
 
@@ -135,7 +135,7 @@ def test_fit_dsst_mean_elements_with_custom_perturbations():
 
 
 # ===================================================================
-# Integration tests for oem-to-omm --mode dsst CLI
+# Integration tests for oem-to-omm --fit-model dsst CLI
 # ===================================================================
 
 
@@ -153,7 +153,7 @@ class _DummyOemData:
 
 
 def test_dsst_theory_in_output_omm(monkeypatch, tmp_path):
-    """oem-to-omm --mode dsst writes MEAN_ELEMENT_THEORY = DSST to OMM."""
+    """oem-to-omm --fit-model dsst writes MEAN_ELEMENT_THEORY = DSST to OMM."""
     states = _make_oem_states(n_points=10)
     output_path = tmp_path / "dsst.omm"
 
@@ -166,7 +166,7 @@ def test_dsst_theory_in_output_omm(monkeypatch, tmp_path):
     monkeypatch.setattr(
         sys,
         "argv",
-        ["oem-to-omm", "--mode", "dsst", "input.oem", "-o", str(output_path)],
+        ["oem-to-omm", "--fit-model", "dsst", "input.oem", "-o", str(output_path)],
     )
 
     oem_to_omm.main()
@@ -190,7 +190,7 @@ def test_dsst_omm_output_has_required_fields(monkeypatch, tmp_path):
     monkeypatch.setattr(
         sys,
         "argv",
-        ["oem-to-omm", "--mode", "dsst", "input.oem", "-o", str(output_path)],
+        ["oem-to-omm", "--fit-model", "dsst", "input.oem", "-o", str(output_path)],
     )
 
     oem_to_omm.main()
@@ -247,7 +247,7 @@ def test_dsst_omm_roundtrip(monkeypatch, tmp_path):
     monkeypatch.setattr(
         sys,
         "argv",
-        ["oem-to-omm", "--mode", "dsst", "input.oem", "-o", str(output_path)],
+        ["oem-to-omm", "--fit-model", "dsst", "input.oem", "-o", str(output_path)],
     )
 
     oem_to_omm.main()
@@ -276,7 +276,7 @@ def test_dsst_mode_cli_verbose(monkeypatch, tmp_path, capsys):
         "argv",
         [
             "oem-to-omm",
-            "--mode",
+            "--fit-model",
             "dsst",
             "--verbose",
             "input.oem",

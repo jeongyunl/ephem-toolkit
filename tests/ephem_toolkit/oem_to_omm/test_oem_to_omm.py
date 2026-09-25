@@ -55,7 +55,7 @@ def test_parse_arguments_fit_span_accepts_duration_strings(monkeypatch):
         "argv",
         [
             "oem-to-omm",
-            "--mode",
+            "--fit-model",
             "brouwer",
             "--fit-span",
             "90m",
@@ -78,7 +78,7 @@ def test_parse_arguments_fit_span_default_is_two_hours(monkeypatch):
         "argv",
         [
             "oem-to-omm",
-            "--mode",
+            "--fit-model",
             "brouwer",
             "input.oem",
             "--output",
@@ -99,6 +99,20 @@ def test_parse_arguments_accepts_canonical_fit_model(monkeypatch):
     )
 
     args = oem_to_omm_cli.parse_arguments(oem_to_omm_cli.build_arg_parser())
+
+    assert args.fit_model == "sgp4"
+    assert args.mode == "tle"
+
+
+def test_parse_arguments_accepts_deprecated_mode(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["oem-to-omm", "--mode", "tle", "input.oem", "--output", "-"],
+    )
+
+    with pytest.warns(DeprecationWarning, match="--mode is deprecated"):
+        args = oem_to_omm_cli.parse_arguments(oem_to_omm_cli.build_arg_parser())
 
     assert args.fit_model == "sgp4"
     assert args.mode == "tle"
@@ -225,7 +239,7 @@ def test_main_brouwer_mode_uses_duration_and_writes_omm(monkeypatch, tmp_path):
         "argv",
         [
             "oem-to-omm",
-            "--mode",
+            "--fit-model",
             "brouwer",
             "--fit-span",
             "90m",
@@ -278,8 +292,8 @@ def test_main_tle_mode_writes_omm_from_duration(monkeypatch, tmp_path):
         "argv",
         [
             "oem-to-omm",
-            "--mode",
-            "tle",
+            "--fit-model",
+            "sgp4",
             "--fit-span",
             "90m",
             "input.oem",
@@ -336,7 +350,9 @@ def test_main_dsst_mode_fits_and_writes_omm_to_stdout(
         or dummy_omm,
     )
 
-    oem_to_omm.main(["--mode", "dsst", "--no-fit-report", "input.oem", "--output", "-"])
+    oem_to_omm.main(
+        ["--fit-model", "dsst", "--no-fit-report", "input.oem", "--output", "-"]
+    )
 
     captured = capsys.readouterr()
     assert captured.out == "OMM_OUTPUT"
@@ -355,13 +371,13 @@ def test_main_dsst_mode_fits_and_writes_omm_to_stdout(
     [
         (
             [],
-            ["--mode", "dsst", "input.oem", "--no-fit-report"],
+            ["--fit-model", "dsst", "input.oem", "--no-fit-report"],
             "At least 2 state vectors",
         ),
         (
             [(0.0, np.ones(6)), (1.0, np.ones(6))],
             [
-                "--mode",
+                "--fit-model",
                 "dsst",
                 "input.oem",
                 "--no-fit-report",
@@ -373,7 +389,7 @@ def test_main_dsst_mode_fits_and_writes_omm_to_stdout(
         (
             [(0.0, np.ones(6)), (1.0, np.ones(6))],
             [
-                "--mode",
+                "--fit-model",
                 "dsst",
                 "input.oem",
                 "--fit-report",
@@ -409,7 +425,14 @@ def test_main_reports_missing_input_file(tmp_path, capsys):
 
     with pytest.raises(SystemExit):
         oem_to_omm.main(
-            ["--mode", "dsst", str(missing_input), "--no-fit-report", "--output", "-"]
+            [
+                "--fit-model",
+                "dsst",
+                str(missing_input),
+                "--no-fit-report",
+                "--output",
+                "-",
+            ]
         )
 
     assert "Input file not found" in capsys.readouterr().err
@@ -427,7 +450,9 @@ def test_main_reads_oem_from_stdin(monkeypatch):
     )
 
     with pytest.raises(SystemExit, match="1"):
-        oem_to_omm.main(["--mode", "dsst", "-", "--no-fit-report", "--output", "-"])
+        oem_to_omm.main(
+            ["--fit-model", "dsst", "-", "--no-fit-report", "--output", "-"]
+        )
 
     assert sources == [stdin]
 
@@ -458,8 +483,8 @@ def test_main_rejects_out_of_range_tle_metadata(
     with pytest.raises(SystemExit):
         oem_to_omm.main(
             [
-                "--mode",
-                "tle",
+                "--fit-model",
+                "sgp4",
                 "input.oem",
                 "--no-fit-report",
                 "--output",
@@ -472,8 +497,8 @@ def test_main_rejects_out_of_range_tle_metadata(
     assert message in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("mode", ["dsst", "brouwer", "tle"])
-def test_main_reports_fitting_errors(monkeypatch, mode):
+@pytest.mark.parametrize("fit_model", ["dsst", "brouwer", "sgp4"])
+def test_main_reports_fitting_errors(monkeypatch, fit_model):
     states = [(0.0, np.ones(6)), (1.0, np.ones(6))]
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
@@ -484,14 +509,14 @@ def test_main_reports_fitting_errors(monkeypatch, mode):
     monkeypatch.setattr(
         provenance, "resolve_source_model", lambda *_args: ("SGP4", None)
     )
-    if mode == "dsst":
+    if fit_model == "dsst":
         monkeypatch.setattr(dsst, "DsstPerturbations", lambda **_kwargs: object())
         monkeypatch.setattr(
             fit_brouwer,
             "fit_dsst_mean_elements",
             lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("fit failed")),
         )
-    elif mode == "brouwer":
+    elif fit_model == "brouwer":
         monkeypatch.setattr(
             fit_brouwer,
             "fit_brouwer",
@@ -506,7 +531,7 @@ def test_main_reports_fitting_errors(monkeypatch, mode):
 
     with pytest.raises(SystemExit):
         oem_to_omm.main(
-            ["--mode", mode, "input.oem", "--no-fit-report", "--output", "-"]
+            ["--fit-model", fit_model, "input.oem", "--no-fit-report", "--output", "-"]
         )
 
 
@@ -539,7 +564,7 @@ def test_main_reports_dsst_omm_conversion_error(monkeypatch):
     with pytest.raises(SystemExit):
         oem_to_omm.main(
             [
-                "--mode",
+                "--fit-model",
                 "dsst",
                 "input.oem",
                 "--object-id",
