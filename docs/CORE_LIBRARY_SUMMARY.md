@@ -14,19 +14,22 @@ Core utilities for time conversions, ISO 8601 formatting, duration parsing, and 
 - **ephem_toolkit.core.consts** - Earth physical constants (gravitational parameter, radius, J2)
 
 ### 2. [Orbital Elements & Propagators](CORE_LIBRARY_ORBITAL_ELEMENTS.md)
-Propagator class hierarchy, Keplerian element conversions, and mean element calculations.
-- **ephem_toolkit.core.propagator** - `Propagator` ABC, `KeplerianState`, `AnomalyType`, `OutputMode`
+Propagator interfaces, orbital element conversions, and Brouwer/DSST mean-element calculations.
+- **ephem_toolkit.core.propagator** - `Propagator` ABC, `KeplerianState`, `AnomalyType`, `OutputMode`, and the Kepler, Brouwer J2, DSST, and SGP4 propagators
 - **ephem_toolkit.core.propagator.kepler** - `KeplerPropagator` (two-body), Cartesian ↔ Keplerian conversions, anomaly conversions, mean motion utilities
 - **ephem_toolkit.core.propagator.brouwer_j2** - `BrouwerJ2Propagator` (J2 mean-element), Brouwer mean ↔ osculating conversions, J2 secular propagation
-- **ephem_toolkit.core.propagator.sgp4** - `Sgp4Propagator` (SGP4/TudatPy, requires tudatpy)
+- **ephem_toolkit.core.propagator.dsst** - `DSSTPropagator` and DSST mean-element conversions
+- **ephem_toolkit.core.propagator.sgp4** - `Sgp4Propagator` (TudatPy SGP4; requires tudatpy)
+- **ephem_toolkit.core.propagator.numerical** - `NumericalPropagator` for perturbed Cartesian propagation (requires tudatpy)
 
-### 3. [TLE & OMM](CORE_LIBRARY_TLE_OMM.md)
-Two-Line Element sets, Orbit Mean-Elements Messages, and format conversions.
+### 3. [TLE, OMM, OEM & OPM](CORE_LIBRARY_TLE_OMM.md)
+Two-Line Element sets, CCSDS Orbit Data Messages, and TLE/OMM conversions.
 - **ephem_toolkit.core.tle** - Read/parse/write NORAD Two-Line Element sets
 - **ephem_toolkit.core.convert_tle** - TLE ↔ OMM conversions, TLE to osculating Keplerian elements
 - **ephem_toolkit.core.ccsds.odm** - CCSDS Orbit Data Message reference frame and time system definitions
 - **ephem_toolkit.core.ccsds.omm** - Read/parse/write CCSDS Orbit Mean-Elements Message files
 - **ephem_toolkit.core.ccsds.oem** - Read/parse/write CCSDS Orbit Ephemeris Message files
+- **ephem_toolkit.core.ccsds.opm** - Read/parse/write CCSDS Orbit Parameter Message files
 
 ### 4. [Coordinate Transformations](CORE_LIBRARY_COORDINATE_TRANSFORMATIONS.md)
 Reference frame conversions and coordinate system transformations.
@@ -53,20 +56,23 @@ OEM data slicing and interpolation utilities.
 - Cartesian ↔ Keplerian (osculating)
 - Mean ↔ Osculating (with J2 corrections)
 - TLE ↔ OMM ↔ Keplerian
-- See: [Orbital Elements](CORE_LIBRARY_ORBITAL_ELEMENTS.md) and [TLE & OMM](CORE_LIBRARY_TLE_OMM.md)
+- See: [Orbital Elements](CORE_LIBRARY_ORBITAL_ELEMENTS.md) and [TLE, OMM, OEM & OPM](CORE_LIBRARY_TLE_OMM.md)
 
 ### Orbital Propagation
-- Two-body Keplerian: `KeplerPropagator(initial_state, mu_m3_s2)`
-- J2 mean-element: `BrouwerJ2Propagator(initial_state, mu_m3_s2, R_e_m, J2)`
-- SGP4 (TLE): `Sgp4Propagator(tle_obj)` (requires tudatpy)
-- All return Cartesian states via `propagate_to(epoch_s)` / `propagate_by(elapsed_s)`
+- Two-body Keplerian: `KeplerPropagator(initial_state=KeplerianState(...), mu_m3_s2=...)`
+- J2 secular mean-element: `BrouwerJ2Propagator(initial_state=KeplerianState(...), ...)`
+- DSST mean-element: `DSSTPropagator(initial_state=KeplerianState(...), ...)`; DSST and Brouwer mean elements are model-specific and not interchangeable
+- SGP4 (TLE): `Sgp4Propagator(initial_state=tle_obj)` (requires tudatpy)
+- Perturbed Cartesian: `NumericalPropagator(config, initial_state)` (requires tudatpy)
+- `propagate_to` and `propagate_by` use `OutputMode`; `FINAL` returns `(epoch_s, Cartesian_state)`, `TRAJECTORY` returns samples, and `NONE` advances without returning a state
 - See: [Orbital Elements & Propagators](CORE_LIBRARY_ORBITAL_ELEMENTS.md)
 
 ### File I/O
 - Read/write TLE files
 - Read/write OMM files
 - Read/write OEM files
-- See: [TLE & OMM](CORE_LIBRARY_TLE_OMM.md)
+- Read/write OPM files
+- See: [TLE, OMM, OEM & OPM](CORE_LIBRARY_TLE_OMM.md)
 
 ### Data Processing
 - Slice OEM data by time or index
