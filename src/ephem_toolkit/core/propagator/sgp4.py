@@ -46,8 +46,8 @@ class Sgp4Propagator(Propagator[tle.Tle]):
 
         from tudatpy.dynamics import environment_setup  # deferred heavy import
 
-        line1, line2 = tle.format_tle_strings(initial_state)
-        ephemeris_settings = environment_setup.ephemeris.sgp4(line1, line2)
+        tle_line_1, tle_line_2 = tle.format_tle_strings(initial_state)
+        ephemeris_settings = environment_setup.ephemeris.sgp4(tle_line_1, tle_line_2)
         self._ephemeris = environment_setup.create_body_ephemeris(
             ephemeris_settings,
             body_name=initial_state.object_name or "UNKNOWN",
