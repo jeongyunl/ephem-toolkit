@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import numpy as np
-
 from enum import Enum
-
 import warnings
+
+import numpy as np
 
 # Suppress warnings that tudatpy / urllib3 may emit on import.
 warnings.filterwarnings("ignore", category=SyntaxWarning)
@@ -57,25 +56,25 @@ _load_spice_kernels()
 class Frame(Enum):
     """Enumeration of supported reference frames."""
 
-    TEME = "TEME"
+    TEME: str = "TEME"
     """True Equator Mean Equinox frame."""
 
-    J2000 = "J2000"
+    J2000: str = "J2000"
     """J2000 Reference frame."""
 
-    EME2000 = "EME2000"
+    EME2000: str = "EME2000"
     """J2000 Reference frame."""
 
-    ICRF = "ICRF"
+    ICRF: str = "ICRF"
     """International Celestial Reference Frame."""
 
-    GCRF = "GCRF"
+    GCRF: str = "GCRF"
     """Geocentric Celestial Reference Frame."""
 
-    ITRF1993 = "ITRF1993"
+    ITRF1993: str = "ITRF1993"
     """International Terrestrial Reference Frame 1993."""
 
-    ITRF = "ITRF"
+    ITRF: str = "ITRF"
     """International Terrestrial Reference Frame."""
 
 
