@@ -13,11 +13,20 @@ import re
 
 import numpy as np
 
-from .propagator import kepler
-from .propagator import brouwer_j2 as brouwer
-from .ccsds import omm
-from . import tle
 from . import consts
+from . import tle
+from .ccsds import omm
+from .propagator import brouwer_j2 as brouwer
+from .propagator import kepler
+
+TLE_EXPONENTIAL_MANTISSA_DIGITS: int = 5
+"""Number of decimal digits in the TLE implied-decimal mantissa."""
+TLE_EXPONENTIAL_MANTISSA_SCALE: int = 10**TLE_EXPONENTIAL_MANTISSA_DIGITS
+"""Scale factor for the TLE implied-decimal mantissa."""
+TLE_ECCENTRICITY_DIGITS: int = 7
+"""Number of decimal digits in the TLE eccentricity field."""
+TLE_ECCENTRICITY_SCALE: int = 10**TLE_ECCENTRICITY_DIGITS
+"""Scale factor for the TLE eccentricity field."""
 
 # ===================================================================
 # Internal helpers
@@ -63,7 +72,7 @@ def _tle_exponential_to_float(tle_exp: str) -> float:
     exponent: int = -int(exp_digit) if exp_sign_char == "-" else int(exp_digit)
 
     # The mantissa is an assumed decimal: ##### -> 0.#####
-    mantissa: float = int(mantissa_str) * 1e-5
+    mantissa: float = int(mantissa_str) / TLE_EXPONENTIAL_MANTISSA_SCALE
 
     return sign * mantissa * (10.0**exponent)
 
@@ -95,24 +104,26 @@ def _float_to_tle_exponential(value: float) -> str:
 
     # Find exponent such that mantissa is 0.##### x 10^exp
     # i.e., 0.1 <= mantissa < 1.0
-    exp: int = math.floor(math.log10(magnitude)) + 1
-    mantissa: float = magnitude / (10.0**exp)
+    exponent: int = math.floor(math.log10(magnitude)) + 1
+    mantissa: float = magnitude / (10.0**exponent)
 
     # Round mantissa to 5 digits
-    mantissa_int: int = int(round(mantissa * 1e5))
+    mantissa_int: int = int(round(mantissa * TLE_EXPONENTIAL_MANTISSA_SCALE))
 
     # Handle rounding overflow
-    if mantissa_int >= 100000:
-        mantissa_int = 10000
-        exp += 1
+    if mantissa_int >= TLE_EXPONENTIAL_MANTISSA_SCALE:
+        mantissa_int = TLE_EXPONENTIAL_MANTISSA_SCALE // 10
+        exponent += 1
 
     # Format exponent
-    if exp >= 0:
-        exp_str: str = f"+{exp}"
+    if exponent >= 0:
+        exponent_str: str = f"+{exponent}"
     else:
-        exp_str = f"-{abs(exp)}"
+        exponent_str = f"-{abs(exponent)}"
 
-    unsigned_result: str = f"{mantissa_int:05d}{exp_str}"
+    unsigned_result: str = (
+        f"{mantissa_int:0{TLE_EXPONENTIAL_MANTISSA_DIGITS}d}{exponent_str}"
+    )
 
     if sign < 0:
         return f"-{unsigned_result}"
@@ -143,8 +154,8 @@ def _float_to_omm_scientific(value: float) -> str:
         value = abs(value)
 
     # Find exponent such that value = mantissa x 10^exp with 0.1 <= mantissa < 1.0
-    exp: int = math.floor(math.log10(value)) + 1
-    mantissa: float = value / (10.0**exp)
+    exponent: int = math.floor(math.log10(value)) + 1
+    mantissa: float = value / (10.0**exponent)
 
     # Format mantissa with enough significant digits (7 digits after decimal)
     # Remove trailing zeros
@@ -154,7 +165,11 @@ def _float_to_omm_scientific(value: float) -> str:
     if mantissa_str.startswith("0."):
         mantissa_str = mantissa_str[1:]
 
-    return f"{sign}{mantissa_str}E{exp:+d}" if exp != 0 else f"{sign}{mantissa_str}"
+    return (
+        f"{sign}{mantissa_str}E{exponent:+d}"
+        if exponent != 0
+        else f"{sign}{mantissa_str}"
+    )
 
 
 def _omm_scientific_to_float(omm_str: str) -> float:
@@ -172,18 +187,18 @@ def _omm_scientific_to_float(omm_str: str) -> float:
     float
         The numeric value.
     """
-    s: str = omm_str.strip()
-    if not s or s == "0":
+    scientific_value: str = omm_str.strip()
+    if not scientific_value or scientific_value == "0":
         return 0.0
 
     # Handle the OMM format: optional sign, then .digits, then E+/-exp
     # Add leading 0 if starts with . or -.
-    if s.startswith("."):
-        s = "0" + s
-    elif s.startswith("-."):
-        s = "-0" + s[1:]
+    if scientific_value.startswith("."):
+        scientific_value = "0" + scientific_value
+    elif scientific_value.startswith("-."):
+        scientific_value = "-0" + scientific_value[1:]
 
-    return float(s)
+    return float(scientific_value)
 
 
 def _parse_object_id(object_id: str) -> tuple[int, int, str]:
@@ -303,15 +318,28 @@ def tle_to_omm(
 # ===================================================================
 
 
-SGP4_COMPATIBLE_MEAN_ELEMENT_THEORIES = frozenset(
+SGP4_COMPATIBLE_MEAN_ELEMENT_THEORIES: frozenset[str] = frozenset(
     {"SGP", "PPT3", "SGP4", "SGP/SGP4"}
 )
+"""Mean-element theory names that can be converted directly to TLE."""
 
 
 def validate_sgp4_compatible_omm(omm_obj: omm.CcsdsOmm) -> None:
-    """Validate that an OMM is eligible for direct TLE conversion."""
-    theory = omm_obj.mean_element_theory.strip().upper()
-    if theory not in SGP4_COMPATIBLE_MEAN_ELEMENT_THEORIES:
+    """Validate that an OMM is eligible for direct TLE conversion.
+
+    Parameters
+    ----------
+    omm_obj : omm.CcsdsOmm
+        OMM object to validate.
+
+    Raises
+    ------
+    ValueError
+        If its mean-element theory is not SGP4-compatible or TLE parameters are
+        missing.
+    """
+    mean_element_theory: str = omm_obj.mean_element_theory.strip().upper()
+    if mean_element_theory not in SGP4_COMPATIBLE_MEAN_ELEMENT_THEORIES:
         raise ValueError(
             "direct OMM-to-TLE conversion requires an SGP4-compatible "
             f"MEAN_ELEMENT_THEORY; declared theory is {omm_obj.mean_element_theory!r}. "
@@ -346,7 +374,7 @@ def omm_to_tle(omm_obj: omm.CcsdsOmm) -> tle.Tle:
     if omm_obj.tle_parameters is None:
         raise ValueError("OMM object must have TLE parameters to convert to TLE")
 
-    tle_params = omm_obj.tle_parameters
+    tle_parameters = omm_obj.tle_parameters
 
     # Convert epoch
     epoch_year: int
@@ -354,43 +382,50 @@ def omm_to_tle(omm_obj: omm.CcsdsOmm) -> tle.Tle:
     epoch_year, epoch_day = tle.iso8601_to_tle_epoch(omm_obj.epoch)
 
     # Convert BSTAR from OMM scientific to TLE exponential
-    bstar_float: float = _omm_scientific_to_float(tle_params.bstar)
+    bstar_float: float = _omm_scientific_to_float(tle_parameters.bstar)
     bstar_tle: str = _float_to_tle_exponential(bstar_float)
 
     # Convert mean motion dot from OMM scientific to float
-    mean_motion_dot_float: float = _omm_scientific_to_float(tle_params.mean_motion_dot)
+    mean_motion_dot_float: float = _omm_scientific_to_float(
+        tle_parameters.mean_motion_dot
+    )
 
     # Convert mean motion ddot from OMM scientific to TLE exponential
     mean_motion_ddot_float: float = _omm_scientific_to_float(
-        tle_params.mean_motion_ddot
+        tle_parameters.mean_motion_ddot
     )
     mean_motion_ddot_tle: str = _float_to_tle_exponential(mean_motion_ddot_float)
 
     # Parse Object ID into international designator components
-    int_year: int
-    int_launch: int
-    int_piece: str
-    int_year, int_launch, int_piece = _parse_object_id(omm_obj.object_id)
+    international_designator_year: int
+    international_designator_launch_number: int
+    international_designator_piece: str
+    (
+        international_designator_year,
+        international_designator_launch_number,
+        international_designator_piece,
+    ) = _parse_object_id(omm_obj.object_id)
 
     # Eccentricity raw: 7-digit integer representation
-    eccentricity_raw: str = f"{int(round(omm_obj.eccentricity * 1e7)):07d}"
+    eccentricity_scaled: int = int(round(omm_obj.eccentricity * TLE_ECCENTRICITY_SCALE))
+    eccentricity_raw: str = f"{eccentricity_scaled:0{TLE_ECCENTRICITY_DIGITS}d}"
 
     return tle.Tle(
         object_name=omm_obj.object_name,
         line1="",
         line2="",
-        norad_cat_id=tle_params.norad_cat_id,
-        classification=tle_params.classification_type,
-        int_designator_year=int_year,
-        int_designator_launch_number=int_launch,
-        int_designator_piece=int_piece,
+        norad_cat_id=tle_parameters.norad_cat_id,
+        classification=tle_parameters.classification_type,
+        int_designator_year=international_designator_year,
+        int_designator_launch_number=international_designator_launch_number,
+        int_designator_piece=international_designator_piece,
         epoch_year=epoch_year,
         epoch_day=epoch_day,
         mean_motion_first_derivative=mean_motion_dot_float,
         mean_motion_second_derivative=mean_motion_ddot_tle,
         bstar=bstar_tle,
-        ephemeris_type=tle_params.ephemeris_type,
-        element_set_number=tle_params.element_set_no,
+        ephemeris_type=tle_parameters.ephemeris_type,
+        element_set_number=tle_parameters.element_set_no,
         inclination_deg=omm_obj.inclination,
         raan_deg=omm_obj.ra_of_asc_node,
         eccentricity_raw=eccentricity_raw,
@@ -398,7 +433,7 @@ def omm_to_tle(omm_obj: omm.CcsdsOmm) -> tle.Tle:
         arg_perigee_deg=omm_obj.arg_of_pericenter,
         mean_anomaly_deg=omm_obj.mean_anomaly,
         mean_motion_rev_per_day=omm_obj.mean_motion,
-        revolution_number_at_epoch=tle_params.rev_at_epoch,
+        revolution_number_at_epoch=tle_parameters.rev_at_epoch,
         line1_checksum="",
         line1_checksum_expected="",
         line2_checksum="",
@@ -469,20 +504,22 @@ def tle_to_osculating_keplerian(
 
     if apply_j2:
         # Apply Brouwer J2 short-period corrections
-        osc: np.ndarray = brouwer.compute_brouwer_short_period_corrections(
-            np.array(
-                [
-                    semi_major_axis_m,
-                    mean_eccentricity,
-                    inclination_rad,
-                    argument_of_perigee_rad,
-                    raan_rad,
-                    mean_anomaly_rad,
-                ],
-                dtype=float,
+        osculating_elements: np.ndarray = (
+            brouwer.compute_brouwer_short_period_corrections(
+                np.array(
+                    [
+                        semi_major_axis_m,
+                        mean_eccentricity,
+                        inclination_rad,
+                        argument_of_perigee_rad,
+                        raan_rad,
+                        mean_anomaly_rad,
+                    ],
+                    dtype=float,
+                )
             )
         )
-        return osc
+        return osculating_elements
     else:
         # Simple two-body conversion (legacy behavior)
         true_anomaly_rad: float = kepler.mean_to_true_anomaly(
