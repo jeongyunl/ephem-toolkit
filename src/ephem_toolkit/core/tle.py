@@ -33,6 +33,9 @@ TLE_LINE_LENGTH_WITH_CHECKSUM: int = 69
 ECCENTRICITY_SCALE_FACTOR: float = 1e7
 """Scale factor for converting eccentricity to 7-digit TLE format."""
 
+TLE_EPOCH_YEAR_PIVOT: int = 57
+"""Two-digit TLE year at which years switch from the 2000s to the 1900s."""
+
 # ===================================================================
 # Structured dataclass
 # ===================================================================
@@ -148,7 +151,7 @@ class Tle:
             COSPAR ID in format ``"YYYY-NNNP"`` (e.g. ``"1998-067A"``).
         """
         # Resolve 2-digit year
-        if self.int_designator_year >= 57:
+        if self.int_designator_year >= TLE_EPOCH_YEAR_PIVOT:
             full_year: int = 1900 + self.int_designator_year
         else:
             full_year = 2000 + self.int_designator_year
@@ -502,7 +505,7 @@ def tle_epoch_to_datetime(epoch_year: int, epoch_day: float) -> datetime:
     datetime
         The corresponding datetime value.
     """
-    if epoch_year >= 57:
+    if epoch_year >= TLE_EPOCH_YEAR_PIVOT:
         year: int = 1900 + epoch_year
     else:
         year = 2000 + epoch_year
@@ -524,7 +527,7 @@ def tle_epoch_to_tt_s(epoch_year: int, epoch_day: float) -> float:
     Returns
     -------
     float
-        Epoch in TT seconds since J2000 (2000-01-01 12:00:00 TT).
+        Epoch in TDB seconds since J2000 (2000-01-01 12:00:00 TDB).
     """
     return time_utils.datetime_to_tt_s(tle_epoch_to_datetime(epoch_year, epoch_day))
 

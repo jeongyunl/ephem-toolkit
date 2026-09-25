@@ -21,6 +21,9 @@ from .ccsds.oem import CcsdsOem
 from .interpolator import factory
 from .interpolator.interpolation_spec import InterpolationSpec, InterpolationType
 
+TIME_RANGE_TOLERANCE_FRACTION: float = 0.1
+"""Fraction of OEM duration allowed as tolerance for out-of-range requests."""
+
 # ===================================================================
 # Data structures
 # ===================================================================
@@ -290,8 +293,6 @@ def extract_states_by_time(
     """
     # Use interpolation spec from options, or create default
     interpolation_spec = options.interpolation_spec
-    if interpolation_spec is None and options.interpolation_spec is not None:
-        interpolation_spec = options.interpolation_spec
 
     # States are already sorted, no need to sort again
     states: list[tuple[float, np.ndarray]] = oem.states
@@ -739,8 +740,12 @@ def _create_sliced_oem(
 
         # Compute USABLE time range by excluding UNUSABLE boundary margins
         # The margin represents the UNUSABLE region at each boundary
-        src = source_states if source_states is not None else sliced_states
-        unusable_margin_s = _compute_unusable_margin(interpolation_spec, src)
+        states_for_margin = (
+            source_states if source_states is not None else sliced_states
+        )
+        unusable_margin_s = _compute_unusable_margin(
+            interpolation_spec, states_for_margin
+        )
 
         if unusable_margin_s > 0.0 and len(sliced_states) > 1:
             # Inset by the UNUSABLE margin to find the USABLE region
@@ -931,7 +936,7 @@ def _validate_time_range(
     # Check if requested times are outside OEM range (warning-level check)
     # Allow some tolerance for interpolation, but catch obvious errors
     oem_duration = base_stop_timestamp_s - base_start_timestamp_s
-    tolerance = oem_duration * 0.1  # 10% tolerance
+    tolerance = oem_duration * TIME_RANGE_TOLERANCE_FRACTION  # 10% tolerance
 
     if slice_start_timestamp_s < (base_start_timestamp_s - tolerance):
         start_dt = time_utils.tt_s_to_datetime(slice_start_timestamp_s)

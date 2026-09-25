@@ -20,6 +20,9 @@ import math
 
 import numpy as np
 
+ANGLE_RESULTANT_TOLERANCE: float = 1.0e-15
+"""Threshold for treating the circular-mean resultant as numerically zero."""
+
 # ===================================================================
 # CCSDS keyword-value parsing
 # ===================================================================
@@ -332,7 +335,10 @@ def circular_mean_angle_rad(angles: list[float]) -> float:
 
     sin_sum: float = sum(math.sin(angle) for angle in angles)
     cos_sum: float = sum(math.cos(angle) for angle in angles)
-    if abs(sin_sum) < 1e-15 and abs(cos_sum) < 1e-15:
+    if (
+        abs(sin_sum) < ANGLE_RESULTANT_TOLERANCE
+        and abs(cos_sum) < ANGLE_RESULTANT_TOLERANCE
+    ):
         return wrap_angle_rad(angles[0])
 
     return wrap_angle_rad(math.atan2(sin_sum, cos_sum))

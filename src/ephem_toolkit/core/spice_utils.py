@@ -23,11 +23,11 @@ _SPICE_CACHE_FILE: Path = (
 """XDG cache file path for the resolved SPICE kernel directory."""
 
 _loaded_kernels: set[str] = set()
-"""Absolute kernel paths that have already been loaded."""
+"""Kernel file paths that have already been loaded."""
 
 
 def get_spice_kernel_path() -> str:
-    """Return the Tudatpy SPICE kernel path using an XDG-style cache file.
+    """Return the TudatPy SPICE kernel path using an XDG-style cache file.
 
     Returns
     -------

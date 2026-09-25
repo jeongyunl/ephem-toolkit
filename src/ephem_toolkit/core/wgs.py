@@ -33,6 +33,12 @@ EARTH_FLATTENING: float = 1.0 / 298.257223563
 
 EARTH_ECCENTRICITY_SQUARED: float = 2.0 * EARTH_FLATTENING - EARTH_FLATTENING**2
 """Earth eccentricity squared (dimensionless), WGS-84."""
+DEFAULT_ECEF_TO_LLA_TOLERANCE_RAD: float = 1.0e-12
+"""Default latitude convergence tolerance for ECEF-to-LLA conversion."""
+DEFAULT_ECEF_TO_LLA_MAX_ITERATIONS: int = 10
+"""Default maximum number of ECEF-to-LLA latitude iterations."""
+ECEF_TO_LLA_POLE_COSINE_TOLERANCE: float = 1.0e-10
+"""Cosine-of-latitude threshold for the polar altitude calculation."""
 
 
 # ===================================================================
@@ -111,7 +117,6 @@ def ecef_to_enu(
     # Extract reference geodetic coordinates
     lat: float = ref_lla_arr[0]
     lon: float = ref_lla_arr[1]
-    alt: float = ref_lla_arr[2]
 
     # Convert reference LLA to ECEF
     reference_ecef: np.ndarray = lla_to_ecef(ref_lla_arr)
@@ -684,15 +689,17 @@ def lla_to_ecef(lla: np.ndarray) -> np.ndarray:
     cos_lon: np.ndarray = np.cos(lon)
 
     # https://en.wikipedia.org/wiki/Earth_radius#Prime_vertical
-    N: np.ndarray = EARTH_EQUATORIAL_RADIUS_M / np.sqrt(
+    prime_vertical_radius_m: np.ndarray = EARTH_EQUATORIAL_RADIUS_M / np.sqrt(
         1.0 - EARTH_ECCENTRICITY_SQUARED * sin_lat**2
     )
 
     # Compute ECEF coordinates
     # https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#From_geodetic_to_ECEF_coordinates
-    x: np.ndarray = (N + alt) * cos_lat * cos_lon
-    y: np.ndarray = (N + alt) * cos_lat * sin_lon
-    z: np.ndarray = (N * (1.0 - EARTH_ECCENTRICITY_SQUARED) + alt) * sin_lat
+    x: np.ndarray = (prime_vertical_radius_m + alt) * cos_lat * cos_lon
+    y: np.ndarray = (prime_vertical_radius_m + alt) * cos_lat * sin_lon
+    z: np.ndarray = (
+        prime_vertical_radius_m * (1.0 - EARTH_ECCENTRICITY_SQUARED) + alt
+    ) * sin_lat
 
     ecef: np.ndarray = np.column_stack([x, y, z])
 
@@ -701,7 +708,9 @@ def lla_to_ecef(lla: np.ndarray) -> np.ndarray:
 
 
 def ecef_to_lla(
-    ecef: np.ndarray, tolerance: float = 1e-12, max_iterations: int = 10
+    ecef: np.ndarray,
+    tolerance: float = DEFAULT_ECEF_TO_LLA_TOLERANCE_RAD,
+    max_iterations: int = DEFAULT_ECEF_TO_LLA_MAX_ITERATIONS,
 ) -> np.ndarray:
     """Convert ECEF coordinates to geodetic coordinates (LLA).
 
@@ -771,37 +780,40 @@ def ecef_to_lla(
 
     # Compute latitude iteratively (Bowring's method)
     # https://en.wikipedia.org/wiki/Geographic_coordinate_conversion#Bowring's_method
-    p: np.ndarray = np.sqrt(x**2 + y**2)
-    lat: np.ndarray = np.arctan2(z, p * (1.0 - EARTH_ECCENTRICITY_SQUARED))
+    horizontal_distance_m: np.ndarray = np.sqrt(x**2 + y**2)
+    lat: np.ndarray = np.arctan2(
+        z, horizontal_distance_m * (1.0 - EARTH_ECCENTRICITY_SQUARED)
+    )
 
     for _ in range(max_iterations):
         sin_lat: np.ndarray = np.sin(lat)
-        N: np.ndarray = EARTH_EQUATORIAL_RADIUS_M / np.sqrt(
+        prime_vertical_radius_m: np.ndarray = EARTH_EQUATORIAL_RADIUS_M / np.sqrt(
             1.0 - EARTH_ECCENTRICITY_SQUARED * sin_lat**2
         )
-        lat_new: np.ndarray = np.arctan2(
-            z + EARTH_ECCENTRICITY_SQUARED * N * sin_lat, p
+        updated_latitude_rad: np.ndarray = np.arctan2(
+            z + EARTH_ECCENTRICITY_SQUARED * prime_vertical_radius_m * sin_lat,
+            horizontal_distance_m,
         )
 
         # Check convergence
-        if np.all(np.abs(lat_new - lat) < tolerance):
-            lat = lat_new
+        if np.all(np.abs(updated_latitude_rad - lat) < tolerance):
+            lat = updated_latitude_rad
             break
 
-        lat = lat_new
+        lat = updated_latitude_rad
 
     # Compute altitude
     sin_lat = np.sin(lat)
     cos_lat = np.cos(lat)
-    N = EARTH_EQUATORIAL_RADIUS_M / np.sqrt(
+    prime_vertical_radius_m = EARTH_EQUATORIAL_RADIUS_M / np.sqrt(
         1.0 - EARTH_ECCENTRICITY_SQUARED * sin_lat**2
     )
-    alt: np.ndarray = p / cos_lat - N
+    alt: np.ndarray = horizontal_distance_m / cos_lat - prime_vertical_radius_m
 
     # Handle points near poles where cos(lat) ≈ 0
-    near_pole: np.ndarray = np.abs(cos_lat) < 1e-10
+    near_pole: np.ndarray = np.abs(cos_lat) < ECEF_TO_LLA_POLE_COSINE_TOLERANCE
     if np.any(near_pole):
-        alt[near_pole] = np.abs(z[near_pole]) - N[near_pole] * (
+        alt[near_pole] = np.abs(z[near_pole]) - prime_vertical_radius_m[near_pole] * (
             1.0 - EARTH_ECCENTRICITY_SQUARED
         )
 

@@ -24,8 +24,8 @@ References:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 import re
+from datetime import datetime, timedelta, timezone
 
 try:
     from tudatpy.astro import time_representation
@@ -48,20 +48,6 @@ _UTC_J2000_AS_DATETIME: datetime = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezon
 _UTC_J2000_AS_POSIX_TIMESTAMP: float = _UTC_J2000_AS_DATETIME.timestamp()
 """J2000 epoch as POSIX timestamp (seconds since Unix epoch)."""
 
-
-# The TT-UTC offset at J2000 is 64.184 seconds
-# (TT = TAI + 32.184s, and TAI = UTC + 32s at J2000, so TT = UTC + 64.184s).
-# This is the same as the TDB-UTC offset at J2000 (TDB ≈ TT at J2000).
-
-
-# J2000 epoch in Coordinated Universal Time (UTC) is January 1, 2000, at 11:58:55.816 UTC
-_J2000_AS_DATETIME: datetime = datetime(
-    2000, 1, 1, 11, 58, 55, 816000, tzinfo=timezone.utc
-)
-"""J2000 epoch in UTC (2000-01-01 11:58:55.816 UTC)."""
-
-_J2000_AS_POSIX_TIMESTAMP: float = _J2000_AS_DATETIME.timestamp()
-"""J2000 epoch as POSIX timestamp (seconds since Unix epoch)."""
 
 _ISO8601_PATTERN: re.Pattern[str] = re.compile(
     r"^(\d{4})-(\d{2})-(\d{2})(T| )(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?$"
@@ -492,16 +478,10 @@ def parse_duration_to_timedelta(
     for magnitude, unit in components:
         if magnitude == 0.0 and not allow_zero:
             raise ValueError(f"{value}: duration must be a positive value")
-        if unit == "s":
-            total_seconds += magnitude
-        elif unit == "m":
-            total_seconds += magnitude * SECONDS_PER_MINUTE
-        elif unit == "h":
-            total_seconds += magnitude * SECONDS_PER_HOUR
-        elif unit == "d":
-            total_seconds += magnitude * SECONDS_PER_DAY
-        else:
+        seconds_per_unit: float | None = _UNIT_TO_SECONDS.get(unit)
+        if seconds_per_unit is None:
             raise ValueError(f"{value}: duration unit must be one of: s, m, h, d. (e)")
+        total_seconds += magnitude * seconds_per_unit
 
     return timedelta(seconds=sign * total_seconds)
 
