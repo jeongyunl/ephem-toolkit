@@ -10,9 +10,9 @@ References:
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, TextIO
-from datetime import datetime, timezone
 
 import numpy as np
 
@@ -20,6 +20,18 @@ from .. import misc
 from .. import consts
 from .. import time_utils
 from ..propagator import kepler
+
+DEFAULT_OMM_VERSION: float = 3.0
+"""Default CCSDS OMM version (2023-04 standard)."""
+
+DEFAULT_ELEMENT_SET_NUMBER: int = 999
+"""Default TLE element set number when the field is absent."""
+
+MINIMUM_OMM_KEY_WIDTH: int = 14
+"""Minimum key column width when writing OMM data fields."""
+
+COVARIANCE_DIMENSION: int = 6
+"""Number of position and velocity components in the covariance matrix."""
 
 # ===================================================================
 # Internal helpers
@@ -113,7 +125,7 @@ _COVARIANCE_KEYS: tuple[str, ...] = (
 )
 
 _COVARIANCE_POSITIONS: tuple[tuple[int, int], ...] = tuple(
-    (row, column) for row in range(6) for column in range(row + 1)
+    (row, column) for row in range(COVARIANCE_DIMENSION) for column in range(row + 1)
 )
 
 _UNIT_BY_KEY: dict[str, str] = {
@@ -139,8 +151,8 @@ def _write_value(key: str, value: Any) -> str:
 
 def validate_omm(header: dict[str, Any], data: dict[str, Any]) -> None:
     """Validate mandatory and conditional CCSDS OMM fields."""
-    required_header = {"CCSDS_OMM_VERS", "CREATION_DATE", "ORIGINATOR"}
-    required_metadata = {
+    required_header: set[str] = {"CCSDS_OMM_VERS", "CREATION_DATE", "ORIGINATOR"}
+    required_metadata: set[str] = {
         "OBJECT_NAME",
         "OBJECT_ID",
         "CENTER_NAME",
@@ -148,7 +160,7 @@ def validate_omm(header: dict[str, Any], data: dict[str, Any]) -> None:
         "TIME_SYSTEM",
         "MEAN_ELEMENT_THEORY",
     }
-    required_elements = {
+    required_elements: set[str] = {
         "EPOCH",
         "ECCENTRICITY",
         "INCLINATION",
@@ -156,7 +168,7 @@ def validate_omm(header: dict[str, Any], data: dict[str, Any]) -> None:
         "ARG_OF_PERICENTER",
         "MEAN_ANOMALY",
     }
-    missing = sorted(required_header - header.keys())
+    missing: list[str] = sorted(required_header - header.keys())
     if missing:
         raise ValueError("Missing required OMM header field(s): " + ", ".join(missing))
     missing = sorted(required_metadata - data.keys())
@@ -176,9 +188,9 @@ def validate_omm(header: dict[str, Any], data: dict[str, Any]) -> None:
             "OMM must contain exactly one of SEMI_MAJOR_AXIS or MEAN_MOTION"
         )
 
-    theory = str(data["MEAN_ELEMENT_THEORY"]).upper()
+    theory: str = str(data["MEAN_ELEMENT_THEORY"]).upper()
     if theory in {"SGP", "PPT3"}:
-        tle_required = {"MEAN_MOTION_DOT", "MEAN_MOTION_DDOT"}
+        tle_required: set[str] = {"MEAN_MOTION_DOT", "MEAN_MOTION_DDOT"}
     elif theory in {"SGP4", "SGP/SGP4"}:
         tle_required = {"BSTAR"}
     elif theory == "SGP4-XP":
@@ -194,7 +206,7 @@ def validate_omm(header: dict[str, Any], data: dict[str, Any]) -> None:
         missing = sorted(tle_required - data.keys())
         if missing:
             raise ValueError("Missing required OMM TLE field(s): " + ", ".join(missing))
-    covariance_present = _COVARIANCE_KEYS and set(_COVARIANCE_KEYS) & data.keys()
+    covariance_present: set[str] = set(_COVARIANCE_KEYS) & data.keys()
     if covariance_present and covariance_present != set(_COVARIANCE_KEYS):
         missing = sorted(set(_COVARIANCE_KEYS) - covariance_present)
         raise ValueError("Incomplete OMM covariance matrix: " + ", ".join(missing))
@@ -209,7 +221,7 @@ def read_omm(
     source: TextIO | str | Path,
     *,
     validate: bool = True,
-) -> tuple[dict, dict]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Read an OMM file and return *(header, data)*.
 
     Parameters
@@ -219,7 +231,7 @@ def read_omm(
 
     Returns
     -------
-    tuple[dict, dict]
+    tuple[dict[str, Any], dict[str, Any]]
         A 2-tuple of ``(header, data)`` where *header* contains file-level
         keywords (``CCSDS_OMM_VERS``, ``CREATION_DATE``, ``ORIGINATOR``,
         and any ``COMMENT`` lines), and *data* contains all remaining
@@ -229,8 +241,8 @@ def read_omm(
         with open(source, "r", encoding="utf-8") as fh:
             return read_omm(fh)
 
-    header: dict = {}
-    data: dict = {}
+    header: dict[str, Any] = {}
+    data: dict[str, Any] = {}
 
     for raw_line in source:
         line: str = raw_line.strip()
@@ -244,11 +256,11 @@ def read_omm(
             header["COMMENT"].append(comment_text)
             continue
 
-        kv: tuple[str, str] | None = misc.parse_key_value_line(line)
-        if kv is None:
+        key_value: tuple[str, str] | None = misc.parse_key_value_line(line)
+        if key_value is None:
             continue
 
-        key, value = kv
+        key, value = key_value
 
         if key in _HEADER_KEYS:
             header[key] = _try_numeric(value) if value else value
@@ -267,8 +279,8 @@ def read_omm(
 
 def write_omm(
     dest: TextIO | str | Path,
-    header: dict,
-    data: dict,
+    header: dict[str, Any],
+    data: dict[str, Any],
 ) -> None:
     """Write an OMM file from *(header, data)* dicts.
 
@@ -276,10 +288,10 @@ def write_omm(
     ----------
     dest : TextIO | str | Path
         A writable text stream, file path string, or :class:`Path`.
-    header : dict
+    header : dict[str, Any]
         File-level keywords (``CCSDS_OMM_VERS``, ``CREATION_DATE``,
         ``ORIGINATOR``, and optionally ``COMMENT``).
-    data : dict
+    data : dict[str, Any]
         All remaining keyword-value pairs (metadata, mean elements,
         and TLE parameters).
     """
@@ -287,55 +299,65 @@ def write_omm(
         with open(dest, "w", encoding="utf-8") as fh:
             return write_omm(fh, header, data)
 
-    w: Callable[[str], int] = dest.write
+    write_text: Callable[[str], int] = dest.write
 
     # --- Header ---
-    version: float | int = header.get("CCSDS_OMM_VERS", 3.0)
-    w(f"CCSDS_OMM_VERS = {version}\n")
+    version: float | int = header.get("CCSDS_OMM_VERS", DEFAULT_OMM_VERSION)
+    write_text(f"CCSDS_OMM_VERS = {version}\n")
 
     creation_date: str | int | float = header.get("CREATION_DATE", "")
-    w(f"CREATION_DATE  = {creation_date}\n")
+    write_text(f"CREATION_DATE  = {creation_date}\n")
 
     originator: str | int | float = header.get("ORIGINATOR", "")
-    w(f"ORIGINATOR     = {originator}\n")
+    write_text(f"ORIGINATOR     = {originator}\n")
 
     for key in ("CLASSIFICATION", "MESSAGE_ID"):
         if key in header:
-            w(f"{key:<15} = {header[key]}\n")
+            write_text(f"{key:<15} = {header[key]}\n")
 
     for comment in header.get("COMMENT", []):
-        w(f"COMMENT {comment}\n")
+        write_text(f"COMMENT {comment}\n")
 
-    w("\n")
+    write_text("\n")
 
     # --- Metadata section ---
     for key in _META_KEY_ORDER:
         if key in data:
-            w(f"{key:<{max(14, len(key))}} = {_write_value(key, data[key])}\n")
+            write_text(
+                f"{key:<{max(MINIMUM_OMM_KEY_WIDTH, len(key))}} = {_write_value(key, data[key])}\n"
+            )
 
-    w("\n")
+    write_text("\n")
 
     # --- Mean elements section ---
     for key in _MEAN_ELEMENTS_KEY_ORDER:
         if key in data:
-            w(f"{key:<{max(14, len(key))}} = {_write_value(key, data[key])}\n")
+            write_text(
+                f"{key:<{max(MINIMUM_OMM_KEY_WIDTH, len(key))}} = {_write_value(key, data[key])}\n"
+            )
 
-    w("\n")
+    write_text("\n")
 
     # --- TLE-related parameters section ---
     for key in _TLE_PARAMS_KEY_ORDER:
         if key in data:
-            w(f"{key:<{max(14, len(key))}} = {_write_value(key, data[key])}\n")
+            write_text(
+                f"{key:<{max(MINIMUM_OMM_KEY_WIDTH, len(key))}} = {_write_value(key, data[key])}\n"
+            )
 
     # --- Any extra keys not in the canonical ordering ---
     all_ordered: set[str] = set(
         _META_KEY_ORDER + _MEAN_ELEMENTS_KEY_ORDER + _TLE_PARAMS_KEY_ORDER
     )
-    extra_keys: list[str] = [k for k in data if k not in all_ordered and k != "COMMENT"]
+    extra_keys: list[str] = [
+        key for key in data if key not in all_ordered and key != "COMMENT"
+    ]
     for key in extra_keys:
-        w(f"{key:<{max(14, len(key))}} = {_write_value(key, data[key])}\n")
+        write_text(
+            f"{key:<{max(MINIMUM_OMM_KEY_WIDTH, len(key))}} = {_write_value(key, data[key])}\n"
+        )
 
-    w("\n")
+    write_text("\n")
 
 
 # ===================================================================
@@ -357,7 +379,7 @@ class TleParameters:
     """Classification (U=Unclassified, C=Classified, S=Secret)"""
     norad_cat_id: int = 0
     """NORAD catalog ID number (up to 9 digits)"""
-    element_set_no: int = 999
+    element_set_no: int = DEFAULT_ELEMENT_SET_NUMBER
     """Element set number for this satellite"""
     rev_at_epoch: int = 0
     """Revolution number at epoch"""
@@ -378,10 +400,15 @@ class OmmSpacecraftParameters:
     """Optional spacecraft physical parameters in OMM file units."""
 
     mass: float | None = None
+    """Spacecraft mass (kg)."""
     solar_rad_area: float | None = None
+    """Solar radiation pressure area (m²)."""
     solar_rad_coeff: float | None = None
+    """Solar radiation pressure coefficient."""
     drag_area: float | None = None
+    """Atmospheric drag area (m²)."""
     drag_coeff: float | None = None
+    """Atmospheric drag coefficient."""
 
 
 @dataclass
@@ -389,7 +416,9 @@ class OmmCovariance:
     """Optional symmetric 6x6 position/velocity covariance matrix."""
 
     matrix: np.ndarray
+    """Symmetric position and velocity covariance matrix."""
     ref_frame: str | None = None
+    """Reference frame of the covariance matrix, when provided."""
 
 
 @dataclass
@@ -400,7 +429,7 @@ class CcsdsOmm:
     revolutions per day, matching the native OMM/TLE representation.
     """
 
-    version: float = 3.0
+    version: float = DEFAULT_OMM_VERSION
     """CCSDS OMM format version number"""
     creation_date: str = ""
     """File creation date (ISO 8601 format)"""
@@ -474,18 +503,20 @@ class CcsdsOmm:
         CcsdsOmm
             Parsed OMM instance.
         """
-        header: dict
-        data: dict
+        header: dict[str, Any]
+        data: dict[str, Any]
         header, data = read_omm(source)
 
         # Check if TLE-related parameters are present
-        tle_params: TleParameters | None = None
+        tle_parameters: TleParameters | None = None
         if any(key in data for key in _TLE_PARAMS_KEY_ORDER):
-            tle_params = TleParameters(
+            tle_parameters = TleParameters(
                 ephemeris_type=int(data.get("EPHEMERIS_TYPE", 0)),
                 classification_type=str(data.get("CLASSIFICATION_TYPE", "U")),
                 norad_cat_id=int(data.get("NORAD_CAT_ID", 0)),
-                element_set_no=int(data.get("ELEMENT_SET_NO", 999)),
+                element_set_no=int(
+                    data.get("ELEMENT_SET_NO", DEFAULT_ELEMENT_SET_NUMBER)
+                ),
                 rev_at_epoch=int(data.get("REV_AT_EPOCH", 0)),
                 bstar=str(data.get("BSTAR", "0")),
                 mean_motion_dot=str(data.get("MEAN_MOTION_DOT", "0")),
@@ -494,7 +525,7 @@ class CcsdsOmm:
                 agom=str(data["AGOM"]) if "AGOM" in data else None,
             )
 
-        spacecraft_keys = {
+        spacecraft_keys: set[str] = {
             "MASS",
             "SOLAR_RAD_AREA",
             "SOLAR_RAD_COEFF",
@@ -512,14 +543,14 @@ class CcsdsOmm:
 
         covariance: OmmCovariance | None = None
         if set(_COVARIANCE_KEYS) <= data.keys():
-            matrix = np.zeros((6, 6))
+            matrix: np.ndarray = np.zeros((COVARIANCE_DIMENSION, COVARIANCE_DIMENSION))
             for key, (row, column) in zip(_COVARIANCE_KEYS, _COVARIANCE_POSITIONS):
                 matrix[row, column] = float(data[key])
                 matrix[column, row] = matrix[row, column]
             covariance = OmmCovariance(matrix, data.get("COV_REF_FRAME"))
 
         return cls(
-            version=float(header.get("CCSDS_OMM_VERS", 3.0)),
+            version=float(header.get("CCSDS_OMM_VERS", DEFAULT_OMM_VERSION)),
             creation_date=str(header.get("CREATION_DATE", "")),
             originator=str(header.get("ORIGINATOR", "")),
             classification=str(header.get("CLASSIFICATION", "")),
@@ -539,7 +570,7 @@ class CcsdsOmm:
             ra_of_asc_node=float(data.get("RA_OF_ASC_NODE", 0.0)),
             arg_of_pericenter=float(data.get("ARG_OF_PERICENTER", 0.0)),
             mean_anomaly=float(data.get("MEAN_ANOMALY", 0.0)),
-            tle_parameters=tle_params,
+            tle_parameters=tle_parameters,
             semi_major_axis=(
                 float(data["SEMI_MAJOR_AXIS"]) if "SEMI_MAJOR_AXIS" in data else None
             ),
@@ -557,19 +588,19 @@ class CcsdsOmm:
         dest : TextIO | str | Path
             A writable text stream, file path string, or :class:`Path`.
         """
-        hdr: dict = {
+        header_fields: dict[str, Any] = {
             "CCSDS_OMM_VERS": self.version,
             "CREATION_DATE": self.creation_date,
             "ORIGINATOR": self.originator,
         }
         if self.classification:
-            hdr["CLASSIFICATION"] = self.classification
+            header_fields["CLASSIFICATION"] = self.classification
         if self.message_id:
-            hdr["MESSAGE_ID"] = self.message_id
+            header_fields["MESSAGE_ID"] = self.message_id
         if self.comments:
-            hdr["COMMENT"] = self.comments
+            header_fields["COMMENT"] = self.comments
 
-        data: dict = {
+        data: dict[str, Any] = {
             "OBJECT_NAME": self.object_name,
             "OBJECT_ID": self.object_id,
             "CENTER_NAME": self.center_name,
@@ -624,11 +655,13 @@ class CcsdsOmm:
                 }
             )
 
-        write_omm(dest, hdr, data)
+        write_omm(dest, header_fields, data)
 
     def __repr__(self) -> str:
         """Return a concise string representation of this OMM instance."""
-        norad_id = self.tle_parameters.norad_cat_id if self.tle_parameters else "N/A"
+        norad_id: int | str = (
+            self.tle_parameters.norad_cat_id if self.tle_parameters else "N/A"
+        )
         return (
             f"CcsdsOmm(object={self.object_name!r}, "
             f"norad_cat_id={norad_id}, "
@@ -684,7 +717,7 @@ def keplerian_to_omm(
 
     Returns
     -------
-    omm.CcsdsOmm
+    CcsdsOmm
         OMM object with converted elements, compliant with CCSDS 502.0-B-3.
 
     Notes
@@ -709,15 +742,17 @@ def keplerian_to_omm(
     mean_anomaly_rad: float = kepler.true_to_mean_anomaly(theta_rad, e)
 
     # Compute mean motion (rev/day) from semi-major axis
-    mean_motion_rev_day: float = kepler.semi_major_axis_to_mean_motion(a_m, mu_m3_s2)
+    mean_motion_rev_per_day: float = kepler.semi_major_axis_to_mean_motion(
+        a_m, mu_m3_s2
+    )
 
     # Format epoch as ISO 8601 (per CCSDS 502.0-B-3 section 7.5.10)
     epoch_str: str = time_utils.datetime_to_iso8601(epoch, fractional_second_places=6)
 
     # Create OMM object compliant with CCSDS 502.0-B-3
     # Note: TLE-related parameters are NOT included (set to None) as this is not a TLE-based OMM
-    omm_obj: CcsdsOmm = CcsdsOmm(
-        version=3.0,  # CCSDS 502.0-B-3 (2023-04)
+    omm_message: CcsdsOmm = CcsdsOmm(
+        version=DEFAULT_OMM_VERSION,  # CCSDS 502.0-B-3 (2023-04)
         creation_date=time_utils.datetime_to_iso8601(
             datetime.now(timezone.utc), fractional_second_places=3
         ),
@@ -733,7 +768,7 @@ def keplerian_to_omm(
         time_system="UTC",
         mean_element_theory=mean_element_theory,  # User-specified, defaults to DSST
         epoch=epoch_str,
-        mean_motion=mean_motion_rev_day,
+        mean_motion=mean_motion_rev_per_day,
         eccentricity=e,
         inclination=np.degrees(i_rad),
         ra_of_asc_node=np.degrees(raan_rad),
@@ -742,4 +777,4 @@ def keplerian_to_omm(
         tle_parameters=None,  # No TLE parameters for non-TLE OMMs
     )
 
-    return omm_obj
+    return omm_message

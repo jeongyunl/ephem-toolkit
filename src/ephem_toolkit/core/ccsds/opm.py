@@ -14,6 +14,12 @@ import numpy as np
 
 from .. import misc
 
+DEFAULT_OPM_VERSION: float = 3.0
+"""Default CCSDS OPM version (2023-04 standard)."""
+
+COVARIANCE_DIMENSION: int = 6
+"""Number of position and velocity components in the covariance matrix."""
+
 _HEADER_KEYS: set[str] = {
     "CCSDS_OPM_VERS",
     "CLASSIFICATION",
@@ -92,7 +98,7 @@ _COVARIANCE_POSITIONS: tuple[tuple[int, int], ...] = (
     (5, 4),
     (5, 5),
 )
-"""OPM units keyed by field name."""
+"""Row and column indices corresponding to the covariance keys."""
 
 _UNIT_BY_KEY: dict[str, str] = {
     "X": "km",
@@ -117,6 +123,8 @@ _UNIT_BY_KEY: dict[str, str] = {
     "MAN_DV_2": "km/s",
     "MAN_DV_3": "km/s",
 }
+"""Native OPM units keyed by field name."""
+
 _KEPLERIAN_KEYS: set[str] = {
     "SEMI_MAJOR_AXIS",
     "ECCENTRICITY",
@@ -125,6 +133,7 @@ _KEPLERIAN_KEYS: set[str] = {
     "ARG_OF_PERICENTER",
     "GM",
 }
+"""Keys required when OPM osculating Keplerian elements are present."""
 _UNIT_BY_KEY.update(
     {key: "km**2" for key in ("CX_X", "CY_X", "CY_Y", "CZ_X", "CZ_Y", "CZ_Z")}
 )
@@ -174,6 +183,7 @@ def _value(text: str) -> int | float | str:
 
 
 def _read_lines(source: TextIO | str | Path) -> list[str]:
+    """Return all lines from a text stream or file path."""
     if isinstance(source, (str, Path)):
         return Path(source).read_text(encoding="utf-8").splitlines()
     return list(source)
@@ -184,33 +194,50 @@ def validate_opm(
 ) -> None:
     """Validate mandatory and conditional CCSDS OPM fields.
 
+    Parameters
+    ----------
+    header : dict[str, Any]
+        File-level OPM keywords.
+    metadata : dict[str, Any]
+        Object and reference-frame metadata.
+    data : dict[str, Any]
+        State, optional element, covariance, and maneuver values.
+
     Raises
     ------
     ValueError
         If a required field or a conditional block is incomplete.
     """
-    required_header = {"CCSDS_OPM_VERS", "CREATION_DATE", "ORIGINATOR"}
-    required_metadata = {
+    required_header: set[str] = {"CCSDS_OPM_VERS", "CREATION_DATE", "ORIGINATOR"}
+    required_metadata: set[str] = {
         "OBJECT_NAME",
         "OBJECT_ID",
         "CENTER_NAME",
         "REF_FRAME",
         "TIME_SYSTEM",
     }
-    required_state = {"EPOCH", "X", "Y", "Z", "X_DOT", "Y_DOT", "Z_DOT"}
+    required_state: set[str] = {
+        "EPOCH",
+        "X",
+        "Y",
+        "Z",
+        "X_DOT",
+        "Y_DOT",
+        "Z_DOT",
+    }
     for name, required, values in (
         ("header", required_header, header),
         ("metadata", required_metadata, metadata),
         ("state vector", required_state, data),
     ):
-        missing = sorted(required - values.keys())
+        missing: list[str] = sorted(required - values.keys())
         if missing:
             raise ValueError(
                 f"Missing required OPM {name} field(s): {', '.join(missing)}"
             )
 
-    keplerian_present = _KEPLERIAN_KEYS & data.keys()
-    anomaly_present = {"TRUE_ANOMALY", "MEAN_ANOMALY"} & data.keys()
+    keplerian_present: set[str] = _KEPLERIAN_KEYS & data.keys()
+    anomaly_present: set[str] = {"TRUE_ANOMALY", "MEAN_ANOMALY"} & data.keys()
     if keplerian_present or anomaly_present:
         if len(anomaly_present) == 2:
             raise ValueError(
@@ -224,12 +251,12 @@ def validate_opm(
                 "Incomplete OPM Keplerian element set: " + ", ".join(missing)
             )
 
-    covariance_present = _COVARIANCE_KEYS & data.keys()
+    covariance_present: set[str] = _COVARIANCE_KEYS & data.keys()
     if covariance_present and covariance_present != set(_COVARIANCE_KEYS):
         missing = sorted(set(_COVARIANCE_KEYS) - covariance_present)
         raise ValueError("Incomplete OPM covariance matrix: " + ", ".join(missing))
 
-    maneuvers = data.get("MANEUVERS", [])
+    maneuvers: list[dict[str, Any]] = data.get("MANEUVERS", [])
     if maneuvers and "MASS" not in data:
         raise ValueError("OPM MASS is required when maneuvers are present")
     for index, maneuver in enumerate(maneuvers, start=1):
@@ -241,30 +268,48 @@ def validate_opm(
 def read_opm(
     source: TextIO | str | Path, *, validate: bool = True
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    """Read an OPM and return ``(header, metadata, data)`` dictionaries."""
+    """Read an OPM and return ``(header, metadata, data)`` dictionaries.
+
+    Parameters
+    ----------
+    source : TextIO | str | Path
+        Readable text stream or path to an OPM file.
+    validate : bool, optional
+        Whether to validate mandatory and conditional fields.
+
+    Returns
+    -------
+    tuple[dict[str, Any], dict[str, Any], dict[str, Any]]
+        Header, metadata, and data dictionaries.
+
+    Raises
+    ------
+    ValueError
+        If validation is enabled and required fields are missing or inconsistent.
+    """
     header: dict[str, Any] = {}
     metadata: dict[str, Any] = {}
     data: dict[str, Any] = {"MANEUVERS": []}
-    section = "header"
+    section: str = "header"
     current_maneuver: dict[str, Any] | None = None
 
     for raw_line in _read_lines(source):
-        line = raw_line.strip()
+        line: str = raw_line.strip()
         if not line:
             continue
         if line.startswith("COMMENT"):
-            target = (
+            target: dict[str, Any] = (
                 header
                 if section == "header"
                 else metadata if section == "metadata" else data
             )
             target.setdefault("COMMENT", []).append(line[len("COMMENT") :].strip())
             continue
-        parsed = misc.parse_key_value_line(line)
+        parsed: tuple[str, str] | None = misc.parse_key_value_line(line)
         if parsed is None:
             continue
         key, raw_value = parsed
-        parsed_value = _value(raw_value)
+        parsed_value: int | float | str = _value(raw_value)
         if key in _HEADER_KEYS and section == "header":
             header[key] = parsed_value
         elif key in _METADATA_KEYS:
@@ -287,7 +332,8 @@ def read_opm(
 
 
 def _write_value(key: str, value: Any) -> str:
-    unit = _UNIT_BY_KEY.get(key)
+    """Format a value with its OPM unit suffix when one is defined."""
+    unit: str | None = _UNIT_BY_KEY.get(key)
     return f"{value} [{unit}]" if unit else str(value)
 
 
@@ -297,7 +343,19 @@ def write_opm(
     metadata: dict[str, Any],
     data: dict[str, Any],
 ) -> None:
-    """Write dictionaries returned by :func:`read_opm` as an OPM file."""
+    """Write dictionaries returned by :func:`read_opm` as an OPM file.
+
+    Parameters
+    ----------
+    dest : TextIO | str | Path
+        Writable text stream or destination file path.
+    header : dict[str, Any]
+        File-level OPM keywords.
+    metadata : dict[str, Any]
+        Object and reference-frame metadata.
+    data : dict[str, Any]
+        State, optional element, covariance, and maneuver values.
+    """
     if isinstance(dest, (str, Path)):
         with open(dest, "w", encoding="utf-8") as stream:
             return write_opm(stream, header, metadata, data)
@@ -327,7 +385,7 @@ def write_opm(
     for comment in metadata.get("COMMENT", []):
         dest.write(f"COMMENT {comment}\n")
     dest.write("\n")
-    data_order = (
+    data_order: tuple[str, ...] = (
         "EPOCH",
         "X",
         "Y",
@@ -368,7 +426,7 @@ def write_opm(
 class OpmHeader:
     """CCSDS OPM header fields."""
 
-    version: float = 3.0
+    version: float = DEFAULT_OPM_VERSION
     """CCSDS OPM format version."""
     comments: list[str] = field(default_factory=list)
     """Header comments."""
@@ -511,7 +569,7 @@ class CcsdsOpm:
             Parsed structured OPM message.
         """
         header, metadata, data = read_opm(source)
-        state = OpmStateVector(
+        state: OpmStateVector = OpmStateVector(
             epoch=str(data.get("EPOCH", "")),
             **{
                 name: float(data.get(key, 0.0))
@@ -525,15 +583,15 @@ class CcsdsOpm:
                 }.items()
             },
         )
-        header_obj = OpmHeader(
-            float(header.get("CCSDS_OPM_VERS", 3.0)),
+        header_obj: OpmHeader = OpmHeader(
+            float(header.get("CCSDS_OPM_VERS", DEFAULT_OPM_VERSION)),
             list(header.get("COMMENT", [])),
             str(header.get("CLASSIFICATION", "")),
             str(header.get("CREATION_DATE", "")),
             str(header.get("ORIGINATOR", "")),
             str(header.get("MESSAGE_ID", "")),
         )
-        keplerian = None
+        keplerian: OpmKeplerianElements | None = None
         if _KEPLERIAN_KEYS & data.keys():
             keplerian = OpmKeplerianElements(
                 semi_major_axis=float(data["SEMI_MAJOR_AXIS"]),
@@ -549,14 +607,14 @@ class CcsdsOpm:
                     float(data["MEAN_ANOMALY"]) if "MEAN_ANOMALY" in data else None
                 ),
             )
-        spacecraft_keys = {
+        spacecraft_keys: set[str] = {
             "MASS",
             "SOLAR_RAD_AREA",
             "SOLAR_RAD_COEFF",
             "DRAG_AREA",
             "DRAG_COEFF",
         }
-        spacecraft = None
+        spacecraft: OpmSpacecraftParameters | None = None
         if spacecraft_keys & data.keys():
             spacecraft = OpmSpacecraftParameters(
                 **{
@@ -564,14 +622,14 @@ class CcsdsOpm:
                     for key in spacecraft_keys
                 }
             )
-        covariance = None
+        covariance: OpmCovariance | None = None
         if set(_COVARIANCE_KEYS) <= data.keys():
-            matrix = np.zeros((6, 6))
+            matrix: np.ndarray = np.zeros((COVARIANCE_DIMENSION, COVARIANCE_DIMENSION))
             for key, (row, column) in zip(_COVARIANCE_KEYS, _COVARIANCE_POSITIONS):
                 matrix[row, column] = float(data[key])
                 matrix[column, row] = matrix[row, column]
             covariance = OpmCovariance(matrix, data.get("COV_REF_FRAME"))
-        maneuvers = [
+        maneuvers: list[OpmManeuver] = [
             OpmManeuver(**{name.lower(): value for name, value in item.items()})
             for item in data.get("MANEUVERS", [])
         ]
@@ -598,7 +656,7 @@ class CcsdsOpm:
         dest : TextIO or str or Path
             Destination stream or path for the OPM file.
         """
-        header = {
+        header: dict[str, Any] = {
             "CCSDS_OPM_VERS": self.header.version,
             "COMMENT": self.header.comments,
             "CLASSIFICATION": self.header.classification,
@@ -606,7 +664,7 @@ class CcsdsOpm:
             "ORIGINATOR": self.header.originator,
             "MESSAGE_ID": self.header.message_id,
         }
-        data = dict(self.data)
+        data: dict[str, Any] = dict(self.data)
         data.update(
             {
                 "EPOCH": self.state_vector.epoch,

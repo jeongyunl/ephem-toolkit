@@ -25,7 +25,7 @@ REF_FRAME_VALUES: frozenset[str] = frozenset(REF_FRAME_DESCRIPTIONS)
 """Reference-frame identifiers permitted in OEM and OMM files."""
 
 
-REF_FRAMES = REF_FRAME_VALUES
+REF_FRAMES: frozenset[str] = REF_FRAME_VALUES
 """Alias for :data:`REF_FRAME_VALUES`."""
 
 
@@ -50,7 +50,7 @@ TIME_SYSTEM_VALUES: frozenset[str] = frozenset(TIME_SYSTEM_DESCRIPTIONS)
 """Time-system identifiers permitted in OEM and OMM files."""
 
 
-TIME_SYSTEMS = TIME_SYSTEM_VALUES
+TIME_SYSTEMS: frozenset[str] = TIME_SYSTEM_VALUES
 """Alias for :data:`TIME_SYSTEM_VALUES`."""
 
 

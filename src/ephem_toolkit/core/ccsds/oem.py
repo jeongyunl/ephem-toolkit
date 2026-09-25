@@ -252,87 +252,6 @@ class CcsdsOem:
         self.data_comments = data_comments
         """Comment lines from the ephemeris data section (after META_STOP, before state data)."""
 
-    @staticmethod
-    def _is_state_line(line: str) -> bool:
-        """Return whether a line starts with a date-like state token."""
-        token: str = line.split()[0] if line.split() else ""
-        return len(token) >= 10 and token[4:5] == "-"
-
-    @staticmethod
-    def _read_oem_impl(
-        source: TextIO | str | Path,
-    ) -> tuple[
-        dict[str, Any],
-        dict[str, Any],
-        list[str],
-        list[tuple[float, np.ndarray]],
-    ]:
-        """Read OEM content into header, metadata, data comments, and states."""
-        if isinstance(source, (str, Path)):
-            with open(source, "r", encoding="utf-8") as file_handle:
-                return CcsdsOem._read_oem_impl(file_handle)
-
-        header: dict[str, Any] = {}
-        meta: dict[str, Any] = {}
-        data_comments: list[str] = []
-        states: list[tuple[float, np.ndarray]] = []
-        in_meta: bool = False
-        past_meta: bool = False
-
-        for raw_line in source:
-            line: str = raw_line.strip()
-            if not line:
-                continue
-
-            if line == "META_START":
-                in_meta = True
-                continue
-            if line == "META_STOP":
-                in_meta = False
-                past_meta = True
-                continue
-
-            if line.startswith("COMMENT"):
-                comment_text: str = line[len("COMMENT") :].strip()
-                if in_meta:
-                    meta.setdefault("COMMENT", [])
-                    meta["COMMENT"].append(comment_text)
-                elif past_meta:
-                    data_comments.append(comment_text)
-                else:
-                    header.setdefault("COMMENT", [])
-                    header["COMMENT"].append(comment_text)
-                continue
-
-            key_value: tuple[str, str] | None = misc.parse_key_value_line(line)
-            if key_value is not None and (in_meta or not CcsdsOem._is_state_line(line)):
-                key, value = key_value
-                try:
-                    value = int(value)
-                except ValueError:
-                    try:
-                        value = float(value)
-                    except ValueError:
-                        pass
-                if in_meta:
-                    meta[key] = value
-                else:
-                    header[key] = value
-                continue
-
-            if CcsdsOem._is_state_line(line):
-                state_fields: list[str] = line.split()
-                if len(state_fields) < 7:
-                    continue
-                epoch: datetime = time_utils.iso8601_to_datetime(state_fields[0])
-                timestamp: float = time_utils.datetime_to_tt_s(epoch)
-                state_km: np.ndarray = np.array(
-                    [float(value) for value in state_fields[1:7]]
-                )
-                states.append((timestamp, state_km * KILOMETERS_TO_METERS))
-
-        return header, meta, data_comments, states
-
     @classmethod
     def read(cls, source: TextIO | str | Path) -> CcsdsOem:
         """Read and construct a :class:`CcsdsOem` from a file or stream.
@@ -427,17 +346,19 @@ class CcsdsOem:
         >>> oem.write("output.oem")
         """
         # Sort states by timestamp.
-        sorted_states = sorted(states, key=lambda state: state[0])
+        sorted_states: list[tuple[float, np.ndarray]] = sorted(
+            states, key=lambda state: state[0]
+        )
 
         # Create minimal header.
-        header = OemHeader(
+        header: OemHeader = OemHeader(
             version=2.0,
             creation_date=time_utils.datetime_to_iso8601(datetime.now(timezone.utc)),
             originator="ephem-toolkit",
         )
 
         # Create metadata with provided values.
-        meta = OemMeta(
+        meta: OemMeta = OemMeta(
             object_name=object_name,
             object_id=object_id,
             ref_frame=ref_frame,
@@ -447,10 +368,10 @@ class CcsdsOem:
 
         # Set start/stop times from states.
         if sorted_states:
-            start_dt = time_utils.tt_s_to_datetime(sorted_states[0][0])
-            stop_dt = time_utils.tt_s_to_datetime(sorted_states[-1][0])
-            meta.start_time = time_utils.datetime_to_iso8601(start_dt)
-            meta.stop_time = time_utils.datetime_to_iso8601(stop_dt)
+            start_datetime: datetime = time_utils.tt_s_to_datetime(sorted_states[0][0])
+            stop_datetime: datetime = time_utils.tt_s_to_datetime(sorted_states[-1][0])
+            meta.start_time = time_utils.datetime_to_iso8601(start_datetime)
+            meta.stop_time = time_utils.datetime_to_iso8601(stop_datetime)
 
         return cls(header=header, meta=meta, data_comments=[], states=sorted_states)
 
@@ -486,10 +407,10 @@ class CcsdsOem:
         sep : str, optional
             Separator between fields (default: a single space).
         """
-        dt: datetime = epoch
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        epoch_str: str = dt.strftime("%Y-%m-%dT%H:%M:%S.%f")
+        epoch_datetime: datetime = epoch
+        if epoch_datetime.tzinfo is None:
+            epoch_datetime = epoch_datetime.replace(tzinfo=timezone.utc)
+        epoch_str: str = epoch_datetime.strftime("%Y-%m-%dT%H:%M:%S.%f")
 
         state_km: np.ndarray = state_vector / KILOMETERS_TO_METERS
         values: list[str] = [f"{value:.15g}" for value in state_km]
@@ -520,82 +441,6 @@ class CcsdsOem:
                 state_vector,
                 sep=sep,
             )
-
-    def _write_header(self, dest: TextIO, sep: str = " ") -> None:
-        """Write the OEM header to a writable text stream."""
-        header_pad: int = max(len(key) for key in _HEADER_KEY_ORDER)
-
-        self.write_line(
-            dest,
-            f"{'CCSDS_OEM_VERS':<{header_pad}}",
-            "=",
-            str(self.header.version),
-            sep=sep,
-        )
-
-        # Header COMMENT lines are allowed only immediately after the OEM version.
-        if self.header.comments:
-            self.write_line(dest, sep=sep)
-            for comment in self.header.comments:
-                self.write_line(dest, "COMMENT", comment, sep=sep)
-            self.write_line(dest, sep=sep)
-
-        self.write_line(
-            dest,
-            f"{'CREATION_DATE':<{header_pad}}",
-            "=",
-            self.header.creation_date,
-            sep=sep,
-        )
-        self.write_line(
-            dest,
-            f"{'ORIGINATOR':<{header_pad}}",
-            "=",
-            self.header.originator,
-            sep=sep,
-        )
-        if self.header.classification:
-            self.write_line(
-                dest,
-                f"{'CLASSIFICATION':<{header_pad}}",
-                "=",
-                self.header.classification,
-                sep=sep,
-            )
-        if self.header.message_id:
-            self.write_line(
-                dest,
-                f"{'MESSAGE_ID':<{header_pad}}",
-                "=",
-                self.header.message_id,
-                sep=sep,
-            )
-        self.write_line(dest, sep=sep)
-
-    def _write_meta(self, dest: TextIO, sep: str = " ") -> None:
-        """Write the OEM metadata section to a writable text stream."""
-        self.write_line(dest, "META_START", sep=sep)
-
-        # Metadata COMMENT lines are allowed only immediately after META_START.
-        for comment in self.meta.comments:
-            self.write_line(dest, "COMMENT", comment, sep=sep)
-
-        pad: int = max(
-            (
-                len(key)
-                for key in _META_KEY_ORDER
-                if getattr(self.meta, key.lower()) not in (None, "", 0)
-            ),
-            default=0,
-        )
-
-        for key in _META_KEY_ORDER:
-            value: str | int = getattr(self.meta, key.lower())
-            if value is not None and value != "" and value != 0:
-                self.write_line(dest, f"{key:<{pad}}", "=", str(value), sep=sep)
-
-        self.write_line(dest, "META_STOP", sep=sep)
-        self.write_line(dest, sep=sep)
 
     def write(
         self,
@@ -692,8 +537,8 @@ class CcsdsOem:
         if not self.states:
             return None
 
-        timestamps = [epoch for epoch, _ in self.states]
-        timestamp_index = bisect.bisect_left(timestamps, timestamp)
+        timestamps: list[float] = [epoch for epoch, _ in self.states]
+        timestamp_index: int = bisect.bisect_left(timestamps, timestamp)
 
         if tolerance == 0.0:
             if (
@@ -722,9 +567,12 @@ class CcsdsOem:
         if not candidates:
             return None
 
-        best_idx, best_diff = min(candidates, key=lambda candidate: candidate[1])
-        if best_diff <= tolerance:
-            return self.states[best_idx]
+        best_candidate: tuple[int, float] = min(
+            candidates, key=lambda candidate: candidate[1]
+        )
+        best_index, best_difference = best_candidate
+        if best_difference <= tolerance:
+            return self.states[best_index]
         return None
 
     def __repr__(self) -> str:
@@ -734,3 +582,160 @@ class CcsdsOem:
             f"frame={self.meta.ref_frame!r}, "
             f"epochs={len(self.states)})"
         )
+
+    @staticmethod
+    def _is_state_line(line: str) -> bool:
+        """Return whether a line starts with a date-like state token."""
+        token: str = line.split()[0] if line.split() else ""
+        return len(token) >= 10 and token[4:5] == "-"
+
+    @staticmethod
+    def _read_oem_impl(
+        source: TextIO | str | Path,
+    ) -> tuple[
+        dict[str, Any],
+        dict[str, Any],
+        list[str],
+        list[tuple[float, np.ndarray]],
+    ]:
+        """Read OEM content into header, metadata, data comments, and states."""
+        if isinstance(source, (str, Path)):
+            with open(source, "r", encoding="utf-8") as file_handle:
+                return CcsdsOem._read_oem_impl(file_handle)
+
+        header: dict[str, Any] = {}
+        meta: dict[str, Any] = {}
+        data_comments: list[str] = []
+        states: list[tuple[float, np.ndarray]] = []
+        in_meta: bool = False
+        past_meta: bool = False
+
+        for raw_line in source:
+            line: str = raw_line.strip()
+            if not line:
+                continue
+
+            if line == "META_START":
+                in_meta = True
+                continue
+            if line == "META_STOP":
+                in_meta = False
+                past_meta = True
+                continue
+
+            if line.startswith("COMMENT"):
+                comment_text: str = line[len("COMMENT") :].strip()
+                if in_meta:
+                    meta.setdefault("COMMENT", [])
+                    meta["COMMENT"].append(comment_text)
+                elif past_meta:
+                    data_comments.append(comment_text)
+                else:
+                    header.setdefault("COMMENT", [])
+                    header["COMMENT"].append(comment_text)
+                continue
+
+            key_value: tuple[str, str] | None = misc.parse_key_value_line(line)
+            if key_value is not None and (in_meta or not CcsdsOem._is_state_line(line)):
+                key, value = key_value
+                try:
+                    value = int(value)
+                except ValueError:
+                    try:
+                        value = float(value)
+                    except ValueError:
+                        pass
+                if in_meta:
+                    meta[key] = value
+                else:
+                    header[key] = value
+                continue
+
+            if CcsdsOem._is_state_line(line):
+                state_fields: list[str] = line.split()
+                if len(state_fields) < 7:
+                    continue
+                epoch: datetime = time_utils.iso8601_to_datetime(state_fields[0])
+                timestamp: float = time_utils.datetime_to_tt_s(epoch)
+                state_km: np.ndarray = np.array(
+                    [float(value) for value in state_fields[1:7]]
+                )
+                states.append((timestamp, state_km * KILOMETERS_TO_METERS))
+
+        return header, meta, data_comments, states
+
+    def _write_header(self, dest: TextIO, sep: str = " ") -> None:
+        """Write the OEM header to a writable text stream."""
+        header_pad: int = max(len(key) for key in _HEADER_KEY_ORDER)
+
+        self.write_line(
+            dest,
+            f"{'CCSDS_OEM_VERS':<{header_pad}}",
+            "=",
+            str(self.header.version),
+            sep=sep,
+        )
+
+        # Header COMMENT lines are allowed only immediately after the OEM version.
+        if self.header.comments:
+            self.write_line(dest, sep=sep)
+            for comment in self.header.comments:
+                self.write_line(dest, "COMMENT", comment, sep=sep)
+            self.write_line(dest, sep=sep)
+
+        self.write_line(
+            dest,
+            f"{'CREATION_DATE':<{header_pad}}",
+            "=",
+            self.header.creation_date,
+            sep=sep,
+        )
+        self.write_line(
+            dest,
+            f"{'ORIGINATOR':<{header_pad}}",
+            "=",
+            self.header.originator,
+            sep=sep,
+        )
+        if self.header.classification:
+            self.write_line(
+                dest,
+                f"{'CLASSIFICATION':<{header_pad}}",
+                "=",
+                self.header.classification,
+                sep=sep,
+            )
+        if self.header.message_id:
+            self.write_line(
+                dest,
+                f"{'MESSAGE_ID':<{header_pad}}",
+                "=",
+                self.header.message_id,
+                sep=sep,
+            )
+        self.write_line(dest, sep=sep)
+
+    def _write_meta(self, dest: TextIO, sep: str = " ") -> None:
+        """Write the OEM metadata section to a writable text stream."""
+        self.write_line(dest, "META_START", sep=sep)
+
+        # Metadata COMMENT lines are allowed only immediately after META_START.
+        for comment in self.meta.comments:
+            self.write_line(dest, "COMMENT", comment, sep=sep)
+
+        pad: int = max(
+            (
+                len(key)
+                for key in _META_KEY_ORDER
+                if getattr(self.meta, key.lower()) not in (None, "", 0)
+            ),
+            default=0,
+        )
+
+        for key in _META_KEY_ORDER:
+            value: str | int = getattr(self.meta, key.lower())
+            if value is not None and value != "" and value != 0:
+                self.write_line(dest, f"{key:<{pad}}", "=", str(value), sep=sep)
+
+        self.write_line(dest, "META_STOP", sep=sep)
+        self.write_line(dest, sep=sep)
