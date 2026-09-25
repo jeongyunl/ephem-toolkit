@@ -25,10 +25,12 @@ class Diagnostics:
 
 
 def test_comments_use_portable_format() -> None:
-    assert provenance_comment(source="OEM/unknown", transformation="fit", target_model="SGP4") == (
+    assert provenance_comment(
+        source="OEM/unknown", transformation="fit", target_model="SGP4"
+    ) == (
         "EPHEMERIS_PROVENANCE: source=OEM/unknown; transformation=fit; target_model=SGP4"
     )
-    assert fit_comment(span_s=90, samples=4, position_rms=1.25) == (
+    assert fit_comment(span_s=90, samples=4, position_rms_m=1.25) == (
         "EPHEMERIS_FIT: span=90s; samples=4; position_rms=1.25; velocity_rms=unknown"
     )
 
@@ -51,7 +53,10 @@ def test_fit_report_is_json(tmp_path) -> None:
 
 def test_fit_report_retains_source_report(tmp_path) -> None:
     report_path = tmp_path / "fit.json"
-    source_report = {"provenance": {"source": "OEM/SGP4"}, "diagnostics": {"status": "ok"}}
+    source_report = {
+        "provenance": {"source": "OEM/SGP4"},
+        "diagnostics": {"status": "ok"},
+    }
     write_fit_report(
         report_path,
         provenance={"source": "OEM/SGP4"},
@@ -86,7 +91,9 @@ def test_fit_report_accepts_mapping_diagnostics(tmp_path) -> None:
         provenance={"source": "OEM/unknown"},
         diagnostics={"status": "ok"},
     )
-    assert json.loads(report_path.read_text(encoding="utf-8"))["diagnostics"] == {"status": "ok"}
+    assert json.loads(report_path.read_text(encoding="utf-8"))["diagnostics"] == {
+        "status": "ok"
+    }
 
 
 def test_fit_report_can_be_written_to_stdout(capsys) -> None:
@@ -113,14 +120,18 @@ def test_fit_report_rejects_non_finite_values(tmp_path) -> None:
 
 
 def test_default_fit_report_path_prefers_output() -> None:
-    assert default_fit_report_path("source.oem", "result.opm") == Path("result.fit.json")
+    assert default_fit_report_path("source.oem", "result.opm") == Path(
+        "result.fit.json"
+    )
     assert default_fit_report_path("source.oem", "-") == Path("source.fit.json")
     assert default_fit_report_path("-", "-") is None
 
 
 def test_resolve_source_model_reads_report(tmp_path) -> None:
     report_path = tmp_path / "source.json"
-    report_path.write_text(json.dumps({"provenance": {"source": "OEM/SGP4"}}), encoding="utf-8")
+    report_path.write_text(
+        json.dumps({"provenance": {"source": "OEM/SGP4"}}), encoding="utf-8"
+    )
 
     source, report = resolve_source_model("auto", str(report_path))
 
@@ -146,7 +157,9 @@ def test_resolve_source_model_defaults_when_report_has_no_source(
 
 def test_explicit_source_model_overrides_report(tmp_path) -> None:
     report_path = tmp_path / "source.json"
-    report_path.write_text(json.dumps({"provenance": {"source": "OEM/SGP4"}}), encoding="utf-8")
+    report_path.write_text(
+        json.dumps({"provenance": {"source": "OEM/SGP4"}}), encoding="utf-8"
+    )
 
     source, _ = resolve_source_model("numerical", str(report_path))
 

@@ -177,21 +177,27 @@ def build_opm(
             y_dot=float(initial_state_m_m_s[4] / 1000.0),
             z_dot=float(initial_state_m_m_s[5] / 1000.0),
         ),
-        keplerian_elements=(opm.OpmKeplerianElements(
-            semi_major_axis=float(
-                keplerian_elements[kepler.SEMI_MAJOR_AXIS_INDEX] / 1000.0
-            ),
-            eccentricity=float(keplerian_elements[kepler.ECCENTRICITY_INDEX]),
-            inclination=float(np.degrees(keplerian_elements[kepler.INCLINATION_INDEX])),
-            ra_of_asc_node=float(np.degrees(keplerian_elements[kepler.RAAN_INDEX])),
-            arg_of_pericenter=float(
-                np.degrees(keplerian_elements[kepler.ARGUMENT_OF_PERIAPSIS_INDEX])
-            ),
-            true_anomaly=float(
-                np.degrees(keplerian_elements[kepler.TRUE_ANOMALY_INDEX])
-            ),
-            gm=float(mu_m3_s2 / 1.0e9),
-        ) if keplerian_elements is not None else None),
+        keplerian_elements=(
+            opm.OpmKeplerianElements(
+                semi_major_axis=float(
+                    keplerian_elements[kepler.SEMI_MAJOR_AXIS_INDEX] / 1000.0
+                ),
+                eccentricity=float(keplerian_elements[kepler.ECCENTRICITY_INDEX]),
+                inclination=float(
+                    np.degrees(keplerian_elements[kepler.INCLINATION_INDEX])
+                ),
+                ra_of_asc_node=float(np.degrees(keplerian_elements[kepler.RAAN_INDEX])),
+                arg_of_pericenter=float(
+                    np.degrees(keplerian_elements[kepler.ARGUMENT_OF_PERIAPSIS_INDEX])
+                ),
+                true_anomaly=float(
+                    np.degrees(keplerian_elements[kepler.TRUE_ANOMALY_INDEX])
+                ),
+                gm=float(mu_m3_s2 / 1.0e9),
+            )
+            if keplerian_elements is not None
+            else None
+        ),
     )
 
 
@@ -240,9 +246,14 @@ def main(argv=None) -> None:
         report_error(f"Error: {error}")
     if cli_args.no_fit_report and cli_args.fit_report:
         report_error("Error: --fit-report and --no-fit-report cannot be used together")
-    fit_report = None if cli_args.no_fit_report else (
-        cli_args.fit_report or provenance.default_fit_report_path(
-            cli_args.input_oem, cli_args.output_opm
+    fit_report = (
+        None
+        if cli_args.no_fit_report
+        else (
+            cli_args.fit_report
+            or provenance.default_fit_report_path(
+                cli_args.input_oem, cli_args.output_opm
+            )
         )
     )
     verbose_message(
@@ -279,11 +290,16 @@ def main(argv=None) -> None:
     }
     try:
         if cli_args.fit_model == "numerical":
-            verbose_message(show_progress, "building numerical propagator configuration")
+            verbose_message(
+                show_progress, "building numerical propagator configuration"
+            )
             fit_config = fit_numerical.config_from_fit_options(cli_args)
             fit_numerical.validate_numerical_fit(states, fit_config)
             verbose_message(show_progress, "numerical fit configuration validated")
-            debug_message(cli_args.debug, f"numerical fit configuration: {fit_config.to_report_dict()}")
+            debug_message(
+                cli_args.debug,
+                f"numerical fit configuration: {fit_config.to_report_dict()}",
+            )
             propagator_config = fit_config.to_propagator_config(
                 satellite_name=object_name or "FIT_TARGET"
             )
@@ -347,8 +363,12 @@ def main(argv=None) -> None:
                 iterations=numerical_result.iterations,
                 n_records=numerical_result.diagnostics.n_records,
                 span_s=fit_span_s,
-                epoch_pos_delta_m=float(np.linalg.norm(fitted_state[:3] - states[0][1][:3])),
-                epoch_vel_delta_m_s=float(np.linalg.norm(fitted_state[3:] - states[0][1][3:])),
+                epoch_pos_delta_m=float(
+                    np.linalg.norm(fitted_state[:3] - states[0][1][:3])
+                ),
+                epoch_vel_delta_m_s=float(
+                    np.linalg.norm(fitted_state[3:] - states[0][1][3:])
+                ),
                 fit_method="numerical",
                 initial_position_rms_m=initial_position_rms_m,
             )
@@ -392,12 +412,17 @@ def main(argv=None) -> None:
         )
     else:
         output_text = fit_osculating_kepler.format_kepler_output(
-            first_epoch, fitted_elements, diagnostics, comparison,
+            first_epoch,
+            fitted_elements,
+            diagnostics,
+            comparison,
             fit_method=cli_args.fit_model,
         )
     verbose_message(show_progress, "serializing OPM output")
     if cli_args.fit_model == "two-body":
-        debug_message(cli_args.debug, f"fitted Keplerian elements: {fitted_elements.tolist()}")
+        debug_message(
+            cli_args.debug, f"fitted Keplerian elements: {fitted_elements.tolist()}"
+        )
 
     # Report results to stderr in verbose mode when output is stdout
     if show_progress and cli_args.output_opm == "-":
@@ -424,21 +449,33 @@ def main(argv=None) -> None:
                 mu_m3_s2=cli_args.mu_m3_s2,
             )
             opm_obj.header.comments.extend(source_comments)
-            opm_obj.header.comments.extend([
-                provenance.provenance_comment(source=f"OEM/{source_model}", transformation=fit_transformation, target_model=fit_target_model),
-                provenance.fit_comment(
-                    span_s=provenance.diagnostic_value(diagnostics, "span_s", fit_span_s),
-                    samples=provenance.diagnostic_value(diagnostics, "n_records", len(states)),
-                    position_rms=provenance.diagnostic_value(
-                        diagnostics,
-                        "rms_position_m",
-                        provenance.diagnostic_value(diagnostics, "position_rms_m", 0.0),
+            opm_obj.header.comments.extend(
+                [
+                    provenance.provenance_comment(
+                        source=f"OEM/{source_model}",
+                        transformation=fit_transformation,
+                        target_model=fit_target_model,
                     ),
-                    velocity_rms=provenance.diagnostic_value(
-                        diagnostics, "velocity_rms_m_s"
+                    provenance.fit_comment(
+                        span_s=provenance.diagnostic_value(
+                            diagnostics, "span_s", fit_span_s
+                        ),
+                        samples=provenance.diagnostic_value(
+                            diagnostics, "n_records", len(states)
+                        ),
+                        position_rms_m=provenance.diagnostic_value(
+                            diagnostics,
+                            "rms_position_m",
+                            provenance.diagnostic_value(
+                                diagnostics, "position_rms_m", 0.0
+                            ),
+                        ),
+                        velocity_rms_m_s=provenance.diagnostic_value(
+                            diagnostics, "velocity_rms_m_s"
+                        ),
                     ),
-                ),
-            ])
+                ]
+            )
             # Output to stdout if dest is "-", otherwise to file
             if cli_args.output_opm == "-":
                 opm_obj.to_file(sys.stdout)
@@ -452,7 +489,11 @@ def main(argv=None) -> None:
             if fit_report:
                 provenance.write_fit_report(
                     fit_report,
-                    provenance={"source": f"OEM/{source_model}", "transformation": fit_transformation, "target_model": fit_target_model},
+                    provenance={
+                        "source": f"OEM/{source_model}",
+                        "transformation": fit_transformation,
+                        "target_model": fit_target_model,
+                    },
                     diagnostics=diagnostics,
                     configuration=fit_configuration,
                     source_report=source_report,

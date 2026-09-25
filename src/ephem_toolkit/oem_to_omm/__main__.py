@@ -141,28 +141,40 @@ def main(argv=None) -> None:
         report_error(f"Error: {error}")
     if cli_args.no_fit_report and cli_args.fit_report:
         report_error("Error: --fit-report and --no-fit-report cannot be used together")
-    fit_report = None if cli_args.no_fit_report else (
-        cli_args.fit_report or provenance.default_fit_report_path(
-            cli_args.input_oem, cli_args.output_omm
+    fit_report = (
+        None
+        if cli_args.no_fit_report
+        else (
+            cli_args.fit_report
+            or provenance.default_fit_report_path(
+                cli_args.input_oem, cli_args.output_omm
+            )
         )
     )
 
-    def write_report(target_model: str, diagnostics: fit_common.FitDiagnostics, comparisons=None) -> None:
+    def write_report(
+        target_model: str, diagnostics: fit_common.FitDiagnostics, comparisons=None
+    ) -> None:
         if fit_report:
             provenance.write_fit_report(
                 fit_report,
-                provenance={"source": f"OEM/{source_model}", "transformation": "fit", "target_model": target_model},
+                provenance={
+                    "source": f"OEM/{source_model}",
+                    "transformation": "fit",
+                    "target_model": target_model,
+                },
                 diagnostics=diagnostics,
-                    configuration={
-                        "fit_span_s": fit_span_s,
-                        "mu_m3_s2": cli_args.mu_m3_s2,
-                        "fit_model": cli_args.fit_model,
-                        "tle_refinement": cli_args.tle_refinement,
-                        "source_frame": oem_data.meta.ref_frame or "unknown",
-                        "source_time_system": getattr(oem_data.meta, "time_system", None) or "unknown",
-                        "source_comments": list(getattr(oem_data.meta, "comments", [])),
-                        "source_report": source_report,
-                    },
+                configuration={
+                    "fit_span_s": fit_span_s,
+                    "mu_m3_s2": cli_args.mu_m3_s2,
+                    "fit_model": cli_args.fit_model,
+                    "tle_refinement": cli_args.tle_refinement,
+                    "source_frame": oem_data.meta.ref_frame or "unknown",
+                    "source_time_system": getattr(oem_data.meta, "time_system", None)
+                    or "unknown",
+                    "source_comments": list(getattr(oem_data.meta, "comments", [])),
+                    "source_report": source_report,
+                },
                 source_report=source_report,
                 residuals=provenance.comparison_residuals(comparisons or []),
             )
@@ -171,7 +183,9 @@ def main(argv=None) -> None:
         return provenance.fit_comment(
             span_s=provenance.diagnostic_value(diagnostics, "span_s", fit_span_s),
             samples=provenance.diagnostic_value(diagnostics, "n_records", len(states)),
-            position_rms=provenance.diagnostic_value(diagnostics, "rms_position_m", 0.0),
+            position_rms_m=provenance.diagnostic_value(
+                diagnostics, "rms_position_m", 0.0
+            ),
         )
 
     # Determine object name: use --object-name if provided, otherwise use OEM metadata
@@ -216,7 +230,11 @@ def main(argv=None) -> None:
                 )
                 omm_obj.originator = "oem_to_omm"
                 omm_obj.comments = source_comments + [
-                    provenance.provenance_comment(source=f"OEM/{source_model}", transformation="mean-element fit", target_model=mean_element_theory),
+                    provenance.provenance_comment(
+                        source=f"OEM/{source_model}",
+                        transformation="mean-element fit",
+                        target_model=mean_element_theory,
+                    ),
                     fit_summary(diagnostics),
                     "DSST mean elements (J2 secular fit)",
                     "Compliant with CCSDS 502.0-B-3 (2023-04)",
@@ -295,8 +313,12 @@ def main(argv=None) -> None:
                 )
                 omm_obj.originator = "oem_to_omm"
                 omm_obj.comments = source_comments + [
-                    provenance.provenance_comment(source=f"OEM/{source_model}", transformation="mean-element fit", target_model=mean_element_theory),
-                        fit_summary(diagnostics),
+                    provenance.provenance_comment(
+                        source=f"OEM/{source_model}",
+                        transformation="mean-element fit",
+                        target_model=mean_element_theory,
+                    ),
+                    fit_summary(diagnostics),
                 ]
                 if cli_args.output_omm == "-":
                     omm_obj.to_file(sys.stdout)
@@ -371,7 +393,11 @@ def main(argv=None) -> None:
                 )
                 omm_obj.originator = "oem_to_omm"
                 omm_obj.comments = source_comments + [
-                    provenance.provenance_comment(source=f"OEM/{source_model}", transformation="SGP4-compatible mean-element fit", target_model="SGP4"),
+                    provenance.provenance_comment(
+                        source=f"OEM/{source_model}",
+                        transformation="SGP4-compatible mean-element fit",
+                        target_model="SGP4",
+                    ),
                     fit_summary(diagnostics),
                     "TLE mean elements (SGP4-compatible)",
                     "Compliant with CCSDS 502.0-B-3 (2023-04)",
