@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Callable, Sequence
 from importlib.metadata import PackageNotFoundError, version
 
 from .interpolator.interpolation_spec import (
@@ -12,8 +13,24 @@ from .interpolator.interpolation_spec import (
 )
 
 
-def run_cli(main_func, argv=None) -> int:
-    """Run a command entry point and report unexpected errors cleanly."""
+def run_cli(
+    main_func: Callable[[Sequence[str] | None], int | None],
+    argv: Sequence[str] | None = None,
+) -> int:
+    """Run a command entry point and report unexpected errors cleanly.
+
+    Parameters
+    ----------
+    main_func : Callable[[Sequence[str] | None], int | None]
+        Command entry point to run.
+    argv : Sequence[str] | None, optional
+        Arguments passed to the command entry point.
+
+    Returns
+    -------
+    int
+        Process status code, or 130 when interrupted by the user.
+    """
     try:
         result = main_func(argv)
     except KeyboardInterrupt:
@@ -38,19 +55,24 @@ VALID_INTERPOLATION_TYPES_MESSAGE: str = ", ".join(
 )
 """Human-readable list of supported interpolation types for CLI errors."""
 
-PACKAGE_NAME = "ephem-toolkit"
+PACKAGE_NAME: str = "ephem-toolkit"
+"""Distribution name used for package-version lookup."""
+
+PACKAGE_VERSION: str = "unknown"
+"""Installed package version, or ``"unknown"`` when metadata is unavailable."""
 
 try:
-    PACKAGE_VERSION = version(PACKAGE_NAME)
+    PACKAGE_VERSION: str = version(PACKAGE_NAME)
 except PackageNotFoundError:
-    PACKAGE_VERSION = "unknown"
+    PACKAGE_VERSION: str = "unknown"
+"""Installed package version, or ``"unknown"`` when metadata is unavailable."""
 
 
 class CliHelpFormatter(
     # argparse.ArgumentDefaultsHelpFormatter,
     argparse.RawDescriptionHelpFormatter,
 ):
-    """Preserve paragraph breaks while showing argument defaults."""
+    """Preserve paragraph breaks in help output."""
 
 
 def build_arg_parser(
@@ -68,8 +90,13 @@ def build_arg_parser(
     epilog : str | None, optional
         Additional help text appended after the options block.
     formatter_class : type[argparse.HelpFormatter] | None, optional
-        Custom formatter for custom help output. Defaults to argparse's default
-        formatter with visible defaults in help strings.
+        Custom formatter for custom help output. Defaults to CliHelpFormatter,
+        which preserves paragraph breaks in the help output.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        Parser configured with the project version option and package footer.
     """
     if formatter_class is None:
         formatter_class = CliHelpFormatter
@@ -102,12 +129,31 @@ def add_common_arguments(
     The standard project convention is to keep input paths positional when the
     format is known or otherwise use ``input_file``. Output arguments prefer a
     format-aware destination name such as ``output_omm`` or ``output_tle`` when
-    the target format is known. Every ``parser.add_argument()`` call must set
-    ``dest=`` explicitly so the parsed namespace is stable and self-documenting.
-    All option descriptions use sentence-style capitalization and the value
+    the target format is known. Optional arguments set ``dest=`` explicitly so
+    the parsed namespace is stable and self-documenting; positional argument
+    names serve as their destinations. All option descriptions use
+    sentence-style capitalization and the value
     placeholders use descriptive names like ``<path|->`` and
     ``<timestamp|duration>``. The ``-`` sentinel is accepted for both stdin and
     stdout input/output flows.
+
+    Parameters
+    ----------
+    parser : argparse.ArgumentParser
+        Parser to which the shared arguments are added.
+    positional_name : str, optional
+        Name and destination of the positional input argument.
+    positional_help : str, optional
+        Help text for the positional input argument.
+    positional_nargs : str | None, optional
+        Positional argument cardinality passed to ``argparse``.
+    output_name : str, optional
+        Destination name for the output path option.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        The parser with shared arguments added.
     """
     parser.add_argument(
         positional_name,
@@ -125,27 +171,32 @@ def add_common_arguments(
     parser.add_argument(
         "-d",
         "--duration",
+        dest="duration",
         metavar="<duration>",
         help="Duration of the requested interval; equivalent to --stop = --start + duration.",
     )
     parser.add_argument(
         "--start",
+        dest="start",
         metavar="<timestamp|duration>",
         help="Start time in ISO-8601 format (for example, 2001-11-06T11:17:33 or 2001-11-06T11:17:33.1234) or as a relative duration.",
     )
     parser.add_argument(
         "--stop",
+        dest="stop",
         metavar="<timestamp|duration>",
         help="Stop time in ISO-8601 format (for example, 2001-11-06T11:17:33 or 2001-11-06T11:17:33.1234) or as a duration offset from --start.",
     )
     parser.add_argument(
         "-v",
         "--verbose",
+        dest="verbose",
         action="store_true",
         help="Print extra diagnostic output.",
     )
     parser.add_argument(
         "--debug",
+        dest="debug",
         action="store_true",
         help="Print low-level debug details.",
     )
