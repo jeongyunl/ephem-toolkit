@@ -27,6 +27,7 @@ References:
 from __future__ import annotations
 
 import numpy as np
+from typing_extensions import override
 
 from ..consts import EARTH_GRAVITATIONAL_PARAMETER_M3_S2
 from .base import (
@@ -59,6 +60,12 @@ TRUE_ANOMALY_INDEX: int = 5
 
 MEAN_ANOMALY_INDEX: int = TRUE_ANOMALY_INDEX
 """Alias for :data:`TRUE_ANOMALY_INDEX`; used when the 6th element is mean anomaly."""
+
+ORBITAL_SINGULARITY_TOLERANCE: float = 1e-10
+"""Numerical threshold for classifying singular and circular orbital elements."""
+
+SECONDS_PER_DAY: float = 86400.0
+"""Number of seconds in one day."""
 
 
 # ===================================================================
@@ -93,6 +100,7 @@ class KeplerPropagator(Propagator[KeplerianState]):
         self._mu_m3_s2 = mu_m3_s2
         self.set_initial_state(initial_state)
 
+    @override
     def set_initial_state(self, initial_state: KeplerianState) -> None:
         """Set initial state and reset reference epoch.
 
@@ -105,6 +113,7 @@ class KeplerPropagator(Propagator[KeplerianState]):
         self._initial_state = initial_state
         self._reference_epoch_s = initial_state.epoch_s
 
+    @override
     def get_initial_epoch_s(self) -> float:
         """Return epoch of initial state (TT, s since J2000 TT).
 
@@ -115,6 +124,7 @@ class KeplerPropagator(Propagator[KeplerianState]):
         """
         return self._initial_state.epoch_s
 
+    @override
     def _propagate_to_impl(self, target_epoch_s: float) -> np.ndarray:
         """Propagate to target epoch and return Cartesian state.
 
@@ -226,14 +236,14 @@ def cartesian_to_keplerian(
     velocity_norms: np.ndarray = np.linalg.norm(velocities, axis=1)
 
     # Check for degenerate orbits
-    if np.any(position_norms < 1e-10):
+    if np.any(position_norms < ORBITAL_SINGULARITY_TOLERANCE):
         raise ValueError("Position vector has zero magnitude — degenerate orbit.")
 
     # --- Specific angular momentum ---
     angular_momentum_vectors: np.ndarray = np.cross(positions, velocities)
     angular_momenta: np.ndarray = np.linalg.norm(angular_momentum_vectors, axis=1)
 
-    if np.any(angular_momenta < 1e-10):
+    if np.any(angular_momenta < ORBITAL_SINGULARITY_TOLERANCE):
         raise ValueError(
             "Angular momentum is zero — rectilinear orbit, "
             "Keplerian elements are undefined."
@@ -257,7 +267,9 @@ def cartesian_to_keplerian(
 
     # --- Semi-major axis ---
     semi_major_axes: np.ndarray = np.full(state_vector.shape[0], np.inf, dtype=float)
-    elliptic_mask: np.ndarray = np.abs(1.0 - eccentricities) > 1e-10
+    elliptic_mask: np.ndarray = (
+        np.abs(1.0 - eccentricities) > ORBITAL_SINGULARITY_TOLERANCE
+    )
     semi_major_axes[elliptic_mask] = -mu_m3_s2 / (2.0 * energies[elliptic_mask])
 
     # --- Inclination ---
@@ -267,7 +279,7 @@ def cartesian_to_keplerian(
 
     # --- Right Ascension of the Ascending Node (RAAN / Ω) ---
     raans: np.ndarray = np.zeros(state_vector.shape[0], dtype=float)
-    equatorial_mask: np.ndarray = node_norms > 1e-10
+    equatorial_mask: np.ndarray = node_norms > ORBITAL_SINGULARITY_TOLERANCE
     raans[equatorial_mask] = np.arccos(
         np.clip(
             node_vectors[equatorial_mask, 0] / node_norms[equatorial_mask], -1.0, 1.0
@@ -280,7 +292,9 @@ def cartesian_to_keplerian(
     argument_of_periapsis: np.ndarray = np.zeros(state_vector.shape[0], dtype=float)
 
     # Case 1: Non-equatorial, eccentric orbit
-    case1_mask: np.ndarray = (node_norms > 1e-10) & (eccentricities > 1e-10)
+    case1_mask: np.ndarray = (node_norms > ORBITAL_SINGULARITY_TOLERANCE) & (
+        eccentricities > ORBITAL_SINGULARITY_TOLERANCE
+    )
     if np.any(case1_mask):
         cos_arg_peri: np.ndarray = np.sum(
             node_vectors[case1_mask] * eccentricity_vectors[case1_mask], axis=1
@@ -292,7 +306,9 @@ def cartesian_to_keplerian(
         )
 
     # Case 2: Equatorial, eccentric orbit
-    case2_mask: np.ndarray = (node_norms <= 1e-10) & (eccentricities > 1e-10)
+    case2_mask: np.ndarray = (node_norms <= ORBITAL_SINGULARITY_TOLERANCE) & (
+        eccentricities > ORBITAL_SINGULARITY_TOLERANCE
+    )
     if np.any(case2_mask):
         argument_of_periapsis[case2_mask] = np.arctan2(
             eccentricity_vectors[case2_mask, 1], eccentricity_vectors[case2_mask, 0]
@@ -304,7 +320,7 @@ def cartesian_to_keplerian(
     true_anomalies: np.ndarray = np.zeros(state_vector.shape[0], dtype=float)
 
     # Case 1: Eccentric orbit
-    case1_mask = eccentricities > 1e-10
+    case1_mask = eccentricities > ORBITAL_SINGULARITY_TOLERANCE
     if np.any(case1_mask):
         cos_true_anom: np.ndarray = np.sum(
             eccentricity_vectors[case1_mask] * positions[case1_mask], axis=1
@@ -317,7 +333,9 @@ def cartesian_to_keplerian(
         true_anomalies[quadrant_mask1] = 2.0 * np.pi - true_anomalies[quadrant_mask1]
 
     # Case 2: Circular, non-equatorial orbit
-    case2_mask = (eccentricities <= 1e-10) & (node_norms > 1e-10)
+    case2_mask = (eccentricities <= ORBITAL_SINGULARITY_TOLERANCE) & (
+        node_norms > ORBITAL_SINGULARITY_TOLERANCE
+    )
     if np.any(case2_mask):
         cos_arg_lat: np.ndarray = np.sum(
             node_vectors[case2_mask] * positions[case2_mask], axis=1
@@ -327,7 +345,9 @@ def cartesian_to_keplerian(
         true_anomalies[quadrant_mask2] = 2.0 * np.pi - true_anomalies[quadrant_mask2]
 
     # Case 3: Circular, equatorial orbit
-    case3_mask: np.ndarray = (eccentricities <= 1e-10) & (node_norms <= 1e-10)
+    case3_mask: np.ndarray = (eccentricities <= ORBITAL_SINGULARITY_TOLERANCE) & (
+        node_norms <= ORBITAL_SINGULARITY_TOLERANCE
+    )
     if np.any(case3_mask):
         true_anomalies[case3_mask] = np.arctan2(
             positions[case3_mask, 1], positions[case3_mask, 0]
@@ -752,7 +772,7 @@ def mean_motion_to_semi_major_axis(
     ----------
     https://en.wikipedia.org/wiki/Kepler%27s_laws_of_planetary_motion#Third_law
     """
-    n_rad_per_sec: float = mean_motion_rev_per_day * 2.0 * np.pi / 86400.0
+    n_rad_per_sec: float = mean_motion_rev_per_day * 2.0 * np.pi / SECONDS_PER_DAY
     return (mu_m3_s2 / n_rad_per_sec**2) ** (1.0 / 3.0)
 
 
@@ -781,4 +801,4 @@ def semi_major_axis_to_mean_motion(
     https://en.wikipedia.org/wiki/Kepler%27s_laws_of_planetary_motion#Third_law
     """
     n_rad_per_sec: float = np.sqrt(mu_m3_s2 / semi_major_axis_m**3)
-    return n_rad_per_sec * 86400.0 / (2.0 * np.pi)
+    return n_rad_per_sec * SECONDS_PER_DAY / (2.0 * np.pi)
