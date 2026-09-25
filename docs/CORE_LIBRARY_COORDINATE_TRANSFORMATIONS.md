@@ -20,6 +20,18 @@ This document covers reference frame conversions and coordinate system transform
 - `tudatpy.interface.spice`
 - `ephem_toolkit.core.spice_utils`
 
+### Supported Frames and Dispatch
+
+`Frame` includes `TEME`, `J2000`, `EME2000`, `ICRF`, `GCRF`, `ITRF1993`, and `ITRF`. The dispatcher treats `J2000`, `EME2000`, `ICRF`, and `GCRF` as equivalent inertial frames. `ITRF1993` uses the SPICE Earth-orientation model (`ITRF93`); `ITRF` uses the IAU 2006 GCRS-to-ITRS model.
+
+#### `Frame`
+Enumeration of the supported reference frames listed above.
+
+#### `convert_frame(base_frame: Frame, target_frame: Frame, epoch_tt_s: float, input_state_m: np.ndarray) -> np.ndarray | None`
+Convert a six-component Cartesian state between supported frames. Non-inertial conversions route through J2000. The state is `[x, y, z, vx, vy, vz]` in metres and metres per second. Unsupported frames raise `ValueError`.
+
+The frame APIs accept TT seconds since J2000. The value is passed to TudatPy's rotation-model methods, which evaluate rotations in ephemeris-time seconds. `spice_convert_frame` also accepts this epoch convention; frame names `ITRF` and `ITRF1993` are normalized to SPICE's `ITRF93`.
+
 ### TEME/J2000 Conversion
 
 #### `teme_to_j2000(epoch_tt_s: float, teme_state: np.ndarray) -> np.ndarray`
@@ -28,10 +40,12 @@ Convert a six-component Cartesian state from TEME to J2000 coordinates at a TT e
 #### `j2000_to_teme(epoch_tt_s: float, j2000_state: np.ndarray) -> np.ndarray`
 Convert a six-component Cartesian state from J2000 to TEME coordinates at a TT epoch.
 
+Both TEME/J2000 helpers apply the epoch-dependent rotation separately to position and velocity; they omit the rotation-matrix derivative term. Their velocities therefore are not a full time-dependent frame-state transformation. `convert_frame` uses these helpers for TEME paths and shares this limitation.
+
 ### SPICE Frame Conversion
 
 #### `spice_convert_frame(base_frame: str, target_frame: str, epoch_tt_s: float, input_state_m: np.ndarray) -> np.ndarray`
-Convert a state between SPICE frames using position and velocity rotation terms. Input and output states use metres and metres per second.
+Convert a state between SPICE frames using a 6-by-6 state transformation, including the rotation derivative term. Input and output states use metres and metres per second.
 
 ### TudatPy Rotation Models
 
@@ -62,8 +76,11 @@ Convert a body-fixed state to an inertial state using a TudatPy rotation model. 
 
 ### Constants
 
+- `EARTH_EQUATORIAL_RADIUS_M = 6378136.3` - Configured equatorial radius, in meters; used by the LLA/ECEF conversions. This differs from the WGS-84 semi-major axis of 6378137 m, so these conversions do not use the exact WGS-84 equatorial radius.
 - `EARTH_FLATTENING = 1.0 / 298.257223563` - Earth flattening factor (dimensionless), WGS-84
 - `EARTH_ECCENTRICITY_SQUARED = 2.0 * EARTH_FLATTENING - EARTH_FLATTENING**2` - Earth eccentricity squared (dimensionless), WGS-84
+
+ENU is a local tangent frame whose origin and orientation are set by `reference_lla`. The state-conversion helpers translate position relative to that fixed reference and rotate velocity components only; they do not account for motion of the reference point or a changing ENU basis.
 
 ### ECEF ↔ ENU Conversion
 
@@ -197,6 +214,8 @@ Convert ECEF position to AER coordinates relative to a reference point.
 - azimuth: Azimuth angle in radians (0 = North, π/2 = East)
 - elevation: Elevation angle in radians (0 = horizon, π/2 = zenith)
 - range: Distance in meters
+
+Azimuth is returned in `[0, 2π)` and elevation in `[-π/2, π/2]`. Azimuth is undefined on the vertical axis; the implementation returns zero there. At zero ENU range, elevation and all AER rates are also returned as zero.
 
 #### `ecef_to_aer_velocity(ecef_position: np.ndarray, ecef_velocity: np.ndarray, reference_lla: np.ndarray) -> np.ndarray`
 Convert ECEF velocity to AER rate coordinates relative to a reference point.
