@@ -13,30 +13,29 @@ This utility provides flexible slicing capabilities for OEM files:
 
 The script is built on the `ephem_toolkit.core.slice_oem` library module, which provides reusable slicing functions for programmatic use.
 
-After Poetry installation, use `slice-oem` as the canonical command. The existing `python3 src/slice_oem/slice_oem.py ...` examples remain supported during the transition.
 
 ## Synopsis
 
 ```bash
-slice-oem <input_oem> [OPTIONS]
-cat data.oem | slice-oem - [OPTIONS]
-slice-oem - [OPTIONS]
+slice-oem <input_oem|-> --output <file|-> [OPTIONS]
+cat data.oem | slice-oem - --output - [OPTIONS]
 ```
 
 ## Options
 
 | Option | Description |
 |--------|-------------|
-| `<input_oem>` | Path to input CCSDS OEM file (use `-` or omit to read from stdin) |
+| `<input_oem>` | Path to input CCSDS OEM file; use `-` to read from stdin (required) |
 | `-s`, `--slice SLICE` | Python-style slice index (e.g., `0:10`, `::2`, `5`, `-5:`) |
 | `-t`, `--time-slice TIME_SLICE` | Time slice specifier: `start[,[stop][,step]]` |
-| `--interpolate` | Enable interpolation when a stepped time slice is requested (enabled by default) |
-| `--no-interpolate` | Disable interpolation for stepped time slices |
+| `--interpolate` | Enable interpolation for time slices, including exact-time selection and range boundaries (enabled by default) |
+| `--no-interpolate` | Disable interpolation; cannot be combined with a step size |
 | `--interpolate-type <type[,degree]>` | Interpolation method: `hermite[,degree]`, `chebyshev[,degree]`, or `lagrange[,degree]` (default: `hermite,5`) |
 | `--opm` | Write the first selected state as a CCSDS OPM. Cannot be combined with `--data-only`. |
 | `--data-only` | Output state vectors only (default: OEM format) |
-| `-o`, `--output <file\|->` | Output file path (default: `-` for stdout) |
+| `-o`, `--output <file\|->` | Output file path (required); use `-` for stdout |
 | `-v`, `--verbose` | Print detailed debug information to stderr |
+| `--debug` | Print low-level debug details to stderr |
 | `-h`, `--help` | Show help message and exit |
 
 **Note**: `--slice` and `--time-slice` are mutually exclusive.
@@ -47,18 +46,12 @@ When using negative indices (e.g., `-5:` for the last 5 states), argparse interp
 
 **Method 1: Use `=` syntax (recommended)**
 ```bash
-slice-oem data.oem --slice="-5:"
+slice-oem data.oem --slice="-5:" -o -
 ```
 
-**Method 2: Use `--` to signal end of options**
+**Also works with single quotes:**
 ```bash
-slice-oem data.oem -- --slice "-5:"
-# Note: This doesn't work with argparse's standard behavior
-```
-
-**Method 3: Quote and use equals**
-```bash
-slice-oem data.oem --slice='-5:'
+slice-oem data.oem --slice='-5:' -o -
 ```
 
 The `=` syntax is the most reliable method and is recommended for all slice values that start with `-`.
@@ -92,48 +85,48 @@ start[:[stop][:step]]
 
 **First 10 states:**
 ```bash
-slice-oem data.oem --slice "0:10"
+slice-oem data.oem --slice "0:10" -o -
 ```
 
 **Every other state:**
 ```bash
-slice-oem data.oem --slice "::2"
+slice-oem data.oem --slice "::2" -o -
 ```
 
 **Single state at index 5:**
 ```bash
-slice-oem data.oem --slice "5"
+slice-oem data.oem --slice "5" -o -
 ```
 
 **Last 5 states:**
 ```bash
 # Use = syntax to avoid argparse interpreting -5 as an option
-slice-oem data.oem --slice="-5:"
+slice-oem data.oem --slice="-5:" -o -
 ```
 
 **States 10 through 20:**
 ```bash
-slice-oem data.oem --slice "10:20"
+slice-oem data.oem --slice "10:20" -o -
 ```
 
 **Every third state from index 5 to 50:**
 ```bash
-slice-oem data.oem --slice "5:50:3"
+slice-oem data.oem --slice "5:50:3" -o -
 ```
 
 **Last state:**
 ```bash
-slice-oem data.oem --slice="-1"
+slice-oem data.oem --slice="-1" -o -
 ```
 
 **All but the last 10 states:**
 ```bash
-slice-oem data.oem --slice=":-10"
+slice-oem data.oem --slice=":-10" -o -
 ```
 
 **From index 10 to the end:**
 ```bash
-slice-oem data.oem --slice "10:"
+slice-oem data.oem --slice "10:" -o -
 ```
 
 ## Time-Based Slicing
@@ -155,7 +148,7 @@ start[,[stop][,step]]
 - Zero (`0`) in start means the OEM start time; zero (`0`) in stop means the OEM end time.
 - Negative durations (e.g., `-10m`) are offsets backwards from the OEM end time, so `-10m,` extracts the last 10 minutes.
 - Both **stop** and **step** are optional and may be omitted independently:
-  - `start` (no comma) extracts a single state nearest to start
+  - `start` (no comma) extracts one state; with default interpolation enabled this is interpolated at the requested time, while `--no-interpolate` selects the first existing state at or after it
   - `start,` extracts from start to the OEM end time
   - `start,stop` extracts the time range [start, stop] (inclusive)
   - `start,,step` resamples from start to the OEM end time at the given step
@@ -189,89 +182,89 @@ start[,[stop][,step]]
 
 **First hour of data:**
 ```bash
-slice-oem data.oem --time-slice "0,1h"
+slice-oem data.oem --time-slice "0,1h" -o -
 ```
 
 **Specific time window:**
 ```bash
-slice-oem data.oem --time-slice "2024-01-01T00:00:00,2024-01-02T00:00:00"
+slice-oem data.oem --time-slice "2024-01-01T00:00:00,2024-01-02T00:00:00" -o -
 ```
 
 **Single state at specific time:**
 ```bash
-slice-oem data.oem --time-slice "2024-01-01T12:00:00"
+slice-oem data.oem --time-slice "2024-01-01T12:00:00" -o -
 ```
 
 **Last 30 minutes (from -30m to OEM end):**
 ```bash
 # Use = syntax to avoid argparse interpreting -30m as an option
-slice-oem data.oem --time-slice="-30m,"
+slice-oem data.oem --time-slice="-30m," -o -
 ```
 
 **Time window from 1 hour to 3 hours after start:**
 ```bash
-slice-oem data.oem --time-slice "1h,3h"
+slice-oem data.oem --time-slice "1h,3h" -o -
 ```
 
 **From 30 minutes after start to OEM end:**
 ```bash
-slice-oem data.oem --time-slice "30m,"
+slice-oem data.oem --time-slice "30m," -o -
 ```
 
 **From OEM start to end (full range):**
 ```bash
-slice-oem data.oem --time-slice ","     # start omitted → OEM start; stop omitted → OEM end
-slice-oem data.oem --time-slice "0,"    # explicit OEM start; stop omitted → OEM end
-slice-oem data.oem --time-slice ",0"    # start omitted → OEM start; explicit OEM end
-slice-oem data.oem --time-slice "0,0"   # explicit OEM start and OEM end
+slice-oem data.oem --time-slice "," -o -     # start omitted → OEM start; stop omitted → OEM end
+slice-oem data.oem --time-slice "0," -o -    # explicit OEM start; stop omitted → OEM end
+slice-oem data.oem --time-slice ",0" -o -    # start omitted → OEM start; explicit OEM end
+slice-oem data.oem --time-slice "0,0" -o -   # explicit OEM start and OEM end
 ```
 
 **Last 2 hours resampled at 1-minute intervals:**
 ```bash
-slice-oem data.oem --time-slice="-2h,,1m" --interpolate
+slice-oem data.oem --time-slice="-2h,,1m" --interpolate -o -
 ```
 
 ## Interpolation
 
-Generate uniformly-spaced states at specified intervals using Lagrange polynomial interpolation.
+Generate uniformly spaced states at the requested interval using the selected interpolation method. Interpolation is also used by default to evaluate exact-time selections and range boundaries.
 
 **Note**: Interpolation is **enabled by default**. Use `--no-interpolate` to disable it if needed.
 
 ### Requirements
 
 - Must use `--time-slice` (not `--slice`)
-- Must specify step size
-- Interpolation is enabled by default (use `--no-interpolate` to disable)
+- A step size is required for regularly spaced resampling, but not for exact-time selections or interpolated range boundaries.
+- Interpolation is enabled by default for time slices. Use `--no-interpolate` to select existing states only; a step size cannot be used with that option.
 
 ### Interpolation Method
 
-The script uses **8th-degree Lagrange polynomial interpolation** to compute intermediate states. This provides smooth, accurate interpolation suitable for orbital mechanics applications.
+The default is **5th-degree Hermite interpolation**. Select Hermite, Chebyshev, or Lagrange with `--interpolate-type`; the degree defaults to 5 for any selected method and can be set explicitly. If the input has too few states for the requested degree, the CLI warns that the degree will be reduced to fit the available data.
 
 ### Examples
 
 **Resample at 10-minute intervals (interpolation enabled by default):**
 ```bash
-slice-oem data.oem --time-slice "0,1h,10m"
+slice-oem data.oem --time-slice "0,1h,10m" -o -
 ```
 
 **Resample at 30-second intervals:**
 ```bash
-slice-oem data.oem --time-slice "2024-01-01T00:00:00,2024-01-01T01:00:00,30s"
+slice-oem data.oem --time-slice "2024-01-01T00:00:00,2024-01-01T01:00:00,30s" -o -
 ```
 
 **Resample last hour at 5-minute steps:**
 ```bash
-slice-oem data.oem --time-slice "-1h,,5m"
+slice-oem data.oem --time-slice="-1h,,5m" -o -
 ```
 
-**Disable interpolation (extract nearest states only):**
+**Disable interpolation (use source states only):**
 ```bash
-slice-oem data.oem --time-slice "0,1h" --no-interpolate
+slice-oem data.oem --time-slice "0,1h" --no-interpolate -o -
 ```
 
 ## Output Formats
 
-### Data-Only Format (default with `--data-only`)
+### Data-Only Format (`--data-only`)
 
 Outputs state vectors as space-separated values:
 
@@ -321,7 +314,7 @@ limits the output to that state. OPM output cannot be combined with
 
 ```bash
 slice-oem data.oem --slice "5" --opm -o state.opm
-slice-oem data.oem --time-slice "1h" --opm -o -
+slice-oem data.oem --time-slice "1h" --opm -o state.opm
 cat data.oem | slice-oem - --slice "5" --opm -o -
 ```
 ```
@@ -331,7 +324,7 @@ cat data.oem | slice-oem - --slice "5" --opm -o -
 Use `-v` or `--verbose` to print detailed information to stderr:
 
 ```bash
-slice-oem data.oem --slice "0:100" --verbose
+slice-oem data.oem --slice "0:100" --verbose -o -
 ```
 
 Output includes:
@@ -362,29 +355,26 @@ The script can read OEM data from standard input (stdin) instead of a file. This
 
 **Using `-` as the filename:**
 ```bash
-cat orbit.oem | slice-oem - --slice "0:10"
+cat orbit.oem | slice-oem - --slice "0:10" -o -
 ```
 
-**Omitting the filename entirely:**
-```bash
-cat orbit.oem | slice-oem - --slice "0:10"
-```
+The input positional argument is required. Pass `-` explicitly to read from stdin; omitting the input argument is an error.
 
 ### Examples
 
 **Pipe from another command:**
 ```bash
-curl https://example.com/orbit.oem | slice-oem - --time-slice "0,1h"
+curl https://example.com/orbit.oem | slice-oem - --time-slice "0,1h" -o -
 ```
 
 **Chain multiple operations:**
 ```bash
-cat large.oem | slice-oem - --slice "::10" | slice-oem - --time-slice "0,1h" -o -
+cat large.oem | slice-oem - --slice "::10" -o - | slice-oem - --time-slice "0,1h" -o -
 ```
 
 **Process compressed files:**
 ```bash
-gunzip -c orbit.oem.gz | slice-oem - --slice "0:100" > sliced.oem
+gunzip -c orbit.oem.gz | slice-oem - --slice "0:100" -o - > sliced.oem
 ```
 
 **Verbose output with stdin:**
@@ -406,13 +396,13 @@ When reading from stdin, verbose output will show `<stdin>` as the file source:
 ### Extract First Hour for Analysis
 
 ```bash
-slice-oem orbit.oem --time-slice "0,1h" > first_hour.txt
+slice-oem orbit.oem --time-slice "0,1h" -o - > first_hour.txt
 ```
 
 ### Downsample to 5-Minute Intervals
 
 ```bash
-slice-oem orbit.oem --time-slice "0,,5m" > downsampled.oem
+slice-oem orbit.oem --time-slice "0,,5m" -o - > downsampled.oem
 ```
 
 ### Extract Specific Time Window
@@ -420,19 +410,19 @@ slice-oem orbit.oem --time-slice "0,,5m" > downsampled.oem
 ```bash
 slice-oem orbit.oem \
   --time-slice "2024-06-15T12:00:00,2024-06-15T18:00:00" \
-  > window.oem
+  -o window.oem
 ```
 
 ### Create Reduced OEM File
 
 ```bash
-slice-oem large.oem --slice "::10" > reduced.oem
+slice-oem large.oem --slice "::10" -o - > reduced.oem
 ```
 
 ### Extract Last Orbit Pass
 
 ```bash
-slice-oem orbit.oem --time-slice "-90m," > last_pass.txt
+slice-oem orbit.oem --time-slice="-90m," -o - > last_pass.txt
 ```
 
 ## Programmatic Usage
@@ -467,12 +457,12 @@ See `tests/ephem_toolkit/core/test_slice_oem.py` for more examples.
 
 ### Interpolation Algorithm
 
-- **Method**: Lagrange polynomial interpolation
-- **Degree**: 8th-order polynomial
-- **API**: Public `LagrangeInterpolator` from the core interpolation package
+- **Method**: Hermite interpolation by default; Hermite, Chebyshev, and Lagrange are supported
+- **Degree**: 5 by default; set explicitly with `--interpolate-type <type,degree>`
+- **API**: Public interpolator implementations selected through the core interpolation factory
 - **Application**: Interpolates both position and velocity components
 
-The 8th-degree polynomial provides a good balance between accuracy and numerical stability for typical orbital trajectories. Internal helper methods are not part of the documented public interface.
+The CLI uses degree 5 when no degree is specified, including when another interpolation method is selected. Internal helper methods are not part of the documented public interface.
 
 ### Time Resolution
 
@@ -493,17 +483,18 @@ When slicing, the following metadata is preserved:
 The following metadata is updated:
 - `START_TIME` — set to first state timestamp
 - `STOP_TIME` — set to last state timestamp
+- `USEABLE_START_TIME` and `USEABLE_STOP_TIME` — recalculated for interpolation output, or cleared when no usable interpolated interval remains
 - `CREATION_DATE` — set to current time
 
 ## Dependencies
 
-- Python 3.7+
+- Python 3.9+
 - NumPy (for interpolation)
 - Local modules:
   - `ephem_toolkit.core.ccsds.oem` — OEM file parsing and writing
   - `ephem_toolkit.core.slice_oem` — Slicing logic and parsers
   - `ephem_toolkit.core.time_utils` — Time parsing and formatting
-  - `ephem_toolkit.core.interpolator.lagrange` — Lagrange interpolation
+  - `ephem_toolkit.core.interpolator` — interpolation implementations and factory
 
 ## Error Handling
 
