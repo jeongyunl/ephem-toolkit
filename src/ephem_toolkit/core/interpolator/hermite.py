@@ -226,6 +226,107 @@ class SlidingWindowHermiteInterpolator(Interpolator):
         self._invalidate_cache()
         super().clear_storage()
 
+    @override
+    def interpolate(self, independent_value: float) -> np.ndarray | None:
+        """Interpolate dependent values at a given independent value.
+
+        Uses a sliding window for high-order interpolation with caching.
+
+        Parameters
+        ----------
+        independent_value : float
+            Value at which to interpolate.
+
+        Returns
+        -------
+        np.ndarray | None
+            Interpolated dependent values, or *None* on failure.
+        """
+        if self.is_cartesian_state:
+            return self.interpolate_cartesian_state(independent_value)
+
+        if len(self.independent_values) < 1:
+            return None
+
+        window_start, local_indep, local_dep, local_derivs = self._select_window(
+            independent_value
+        )
+
+        # Use cache if window hasn't changed
+        if window_start != self._cache_window_start:
+            self._cache_q_coeffs, self._cache_t_values = (
+                self._build_divided_differences(
+                    local_indep, local_dep, local_derivs, self.dependent_dimension
+                )
+            )
+            self._cache_window_start = window_start
+
+        return self._evaluate_newton_polynomial(
+            independent_value,
+            self._cache_q_coeffs,
+            self._cache_t_values,
+            self.dependent_dimension,
+        )
+
+    def interpolate_cartesian_state(
+        self, independent_value: float
+    ) -> np.ndarray | None:
+        """Interpolate 6D Cartesian state with optimization.
+
+        Treats velocity [vx,vy,vz] as derivatives of position [x,y,z] for
+        improved accuracy. Position computed via polynomial evaluation,
+        velocity via polynomial derivative.
+
+        Parameters
+        ----------
+        independent_value : float
+            Value at which to interpolate.
+
+        Returns
+        -------
+        np.ndarray | None
+            6-element state [x, y, z, vx, vy, vz], or None on failure.
+
+        Raises
+        ------
+        ValueError
+            If dimension is not 6.
+        """
+        if self.dependent_dimension != 6:
+            raise ValueError("interpolate_cartesian_state requires dimension=6")
+
+        if len(self.independent_values) < 1:
+            return None
+
+        window_start, local_indep, local_dep, _ = self._select_window(independent_value)
+
+        # Extract position and velocity components
+        point_count = len(local_indep)
+        pos_dep = [dep_vec[0:3] for dep_vec in local_dep]
+        vel_derivs: list[list[list[float]]] = [
+            [[local_dep[pt][3 + dim]] for pt in range(point_count)] for dim in range(3)
+        ]
+
+        # Use cache if window hasn't changed
+        if window_start != self._cache_window_start:
+            self._cache_q_coeffs, self._cache_t_values = (
+                self._build_divided_differences(local_indep, pos_dep, vel_derivs, 3)
+            )
+            self._cache_window_start = window_start
+
+        position = self._evaluate_newton_polynomial(
+            independent_value, self._cache_q_coeffs, self._cache_t_values, 3
+        )
+        velocity = self._evaluate_newton_polynomial_derivative(
+            independent_value, self._cache_q_coeffs, self._cache_t_values, 3
+        )
+
+        results = np.zeros(6)
+        results[0:3] = position
+        results[3:6] = velocity
+
+        return results
+
     def _invalidate_cache(self) -> None:
         """Invalidate cached window coefficients."""
         self._cache_window_start = -1
@@ -264,12 +365,14 @@ class SlidingWindowHermiteInterpolator(Interpolator):
         if self.boundary_mode in {"widen", "edge"}:
             effective_size = min(
                 n,
-                self.window_size + min(self.boundary_window_extension, n - self.window_size),
+                self.window_size
+                + min(self.boundary_window_extension, n - self.window_size),
             )
         elif self.boundary_mode == "compact":
             effective_size = max(
                 2,
-                self.window_size - min(self.boundary_window_extension, self.window_size - 2),
+                self.window_size
+                - min(self.boundary_window_extension, self.window_size - 2),
             )
 
         if self.boundary_mode == "centered":
@@ -374,7 +477,7 @@ class SlidingWindowHermiteInterpolator(Interpolator):
             prev_col = []
 
             for m in range(point_count):
-                for n in range(derivative_size + 1):
+                for _ in range(derivative_size + 1):
                     expanded_indep.append(indep[m])
                     prev_col.append(dep[m][i])
 
@@ -383,7 +486,7 @@ class SlidingWindowHermiteInterpolator(Interpolator):
             point = 0
             t_index = 1
 
-            for t in range(order):
+            for _ in range(order):
                 tableau = []
                 for j in range(len(prev_col) - 1):
                     if expanded_indep[j + t_index] != expanded_indep[j]:
@@ -528,104 +631,3 @@ class SlidingWindowHermiteInterpolator(Interpolator):
                     product *= independent_value - self.t_values[dimension_index][m]
             term_sum += product
         return term_sum
-
-    @override
-    def interpolate(self, independent_value: float) -> np.ndarray | None:
-        """Interpolate dependent values at a given independent value.
-
-        Uses a sliding window for high-order interpolation with caching.
-
-        Parameters
-        ----------
-        independent_value : float
-            Value at which to interpolate.
-
-        Returns
-        -------
-        np.ndarray | None
-            Interpolated dependent values, or *None* on failure.
-        """
-        if self.is_cartesian_state:
-            return self.interpolate_cartesian_state(independent_value)
-
-        if len(self.independent_values) < 1:
-            return None
-
-        window_start, local_indep, local_dep, local_derivs = self._select_window(
-            independent_value
-        )
-
-        # Use cache if window hasn't changed
-        if window_start != self._cache_window_start:
-            self._cache_q_coeffs, self._cache_t_values = (
-                self._build_divided_differences(
-                    local_indep, local_dep, local_derivs, self.dependent_dimension
-                )
-            )
-            self._cache_window_start = window_start
-
-        return self._evaluate_newton_polynomial(
-            independent_value,
-            self._cache_q_coeffs,
-            self._cache_t_values,
-            self.dependent_dimension,
-        )
-
-    def interpolate_cartesian_state(
-        self, independent_value: float
-    ) -> np.ndarray | None:
-        """Interpolate 6D Cartesian state with optimization.
-
-        Treats velocity [vx,vy,vz] as derivatives of position [x,y,z] for
-        improved accuracy. Position computed via polynomial evaluation,
-        velocity via polynomial derivative.
-
-        Parameters
-        ----------
-        independent_value : float
-            Value at which to interpolate.
-
-        Returns
-        -------
-        np.ndarray | None
-            6-element state [x, y, z, vx, vy, vz], or None on failure.
-
-        Raises
-        ------
-        ValueError
-            If dimension is not 6.
-        """
-        if self.dependent_dimension != 6:
-            raise ValueError("interpolate_cartesian_state requires dimension=6")
-
-        if len(self.independent_values) < 1:
-            return None
-
-        window_start, local_indep, local_dep, _ = self._select_window(independent_value)
-
-        # Extract position and velocity components
-        point_count = len(local_indep)
-        pos_dep = [dep_vec[0:3] for dep_vec in local_dep]
-        vel_derivs: list[list[list[float]]] = [
-            [[local_dep[pt][3 + dim]] for pt in range(point_count)] for dim in range(3)
-        ]
-
-        # Use cache if window hasn't changed
-        if window_start != self._cache_window_start:
-            self._cache_q_coeffs, self._cache_t_values = (
-                self._build_divided_differences(local_indep, pos_dep, vel_derivs, 3)
-            )
-            self._cache_window_start = window_start
-
-        position = self._evaluate_newton_polynomial(
-            independent_value, self._cache_q_coeffs, self._cache_t_values, 3
-        )
-        velocity = self._evaluate_newton_polynomial_derivative(
-            independent_value, self._cache_q_coeffs, self._cache_t_values, 3
-        )
-
-        results = np.zeros(6)
-        results[0:3] = position
-        results[3:6] = velocity
-
-        return results

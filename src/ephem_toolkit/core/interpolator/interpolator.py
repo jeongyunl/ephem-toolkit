@@ -14,6 +14,9 @@ import numpy as np
 MINIMUM_REQUIRED_POINTS: int = 2
 """Minimum number of data points required to perform interpolation."""
 
+INITIAL_PREVIOUS_INDEPENDENT_VALUE: float = float("-inf")
+"""Sentinel value before any independent values have been stored."""
+
 
 class Interpolator:
     """Base interpolator supporting ordered sample storage and subclass hooks.
@@ -45,7 +48,7 @@ class Interpolator:
         self.required_points: int = MINIMUM_REQUIRED_POINTS
         """Minimum number of samples required by most interpolators."""
 
-        self.previous_independent_value: float = float("-inf")
+        self.previous_independent_value: float = INITIAL_PREVIOUS_INDEPENDENT_VALUE
         """Most recently stored independent value; enforces monotonic ordering."""
 
     def add_data_point(
@@ -134,7 +137,7 @@ class Interpolator:
 
     def reset_state(self) -> None:
         """Reset sequential bookkeeping while keeping the buffered samples intact."""
-        self.previous_independent_value = float("-inf")
+        self.previous_independent_value = INITIAL_PREVIOUS_INDEPENDENT_VALUE
 
     def clear_storage(self) -> None:
         """Remove all stored samples and reset the internal state."""

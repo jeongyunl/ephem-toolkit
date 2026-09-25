@@ -20,6 +20,7 @@ from typing_extensions import override
 from .interpolator import Interpolator
 
 DEFAULT_CHEBYSHEV_DEGREE: int = 5
+"""Default degree of the local Chebyshev interpolating polynomial."""
 RANGE_EXTRAPOLATION_TOLERANCE: float = 1.0e-12
 """Tolerance when accepting marginal out-of-range query values."""
 BOUNDARY_DEGREE_BOOST: int = 2
@@ -28,16 +29,6 @@ BOUNDARY_DEGREE_BOOST: int = 2
 
 class ChebyshevInterpolator(Interpolator):
     """Sliding-window Chebyshev interpolator for scalar or vector data."""
-
-    def __repr__(self) -> str:
-        """Return a concise summary of the interpolator configuration."""
-        return (
-            "ChebyshevInterpolator("
-            f"dimension={self.dependent_dimension}, "
-            f"degree={self.degree}, "
-            f"boundary_mode={self.boundary_mode!r}, "
-            f"boundary_window_extension={self.boundary_window_extension})"
-        )
 
     def __init__(
         self,
@@ -74,7 +65,9 @@ class ChebyshevInterpolator(Interpolator):
         self.base_degree: int = int(degree)
         """Base degree restored when the data set is reset or refilled."""
         self._degree: int = int(degree)
+        """Current degree used by the interpolator."""
         self.required_points: int = self._degree + 1
+        """Minimum sample count required for interpolation."""
 
         self.window_size: int = max(2, self._degree + 1)
         """Number of points in the local window used for the least-squares fit."""
@@ -85,21 +78,11 @@ class ChebyshevInterpolator(Interpolator):
         """Additional points used when widening or anchoring edge windows."""
 
         self._cache_window: tuple[int, int] | None = None
+        """Sample bounds corresponding to the cached least-squares fit."""
         self._cache_domain: tuple[float, float] | None = None
+        """Independent-variable domain used to scale the cached fit."""
         self._cache_coefficients: np.ndarray | None = None
-
-    @property
-    def degree(self) -> int:
-        """Current interpolation polynomial degree."""
-        return self._degree
-
-    @degree.setter
-    def degree(self, value: int) -> None:
-        if value < 1:
-            raise ValueError("degree must be at least 1")
-        self._degree = int(value)
-        self.required_points = self._degree + 1
-        self._invalidate_cache()
+        """Chebyshev coefficients for the cached window fit."""
 
     @override
     def add_data_point(
@@ -124,6 +107,107 @@ class ChebyshevInterpolator(Interpolator):
         self._degree = self.base_degree
         self.required_points = self._degree + 1
         self._invalidate_cache()
+
+    @override
+    def interpolate(self, independent_value: float) -> np.ndarray | None:
+        """Evaluate the local Chebyshev polynomial fit via a cached least-squares solve.
+
+        Parameters
+        ----------
+        independent_value : float
+            Query point at which the interpolated dependent value is evaluated.
+
+        Returns
+        -------
+        np.ndarray | None
+            Interpolated dependent vector at the query point, or *None* if the
+            value is outside the valid interpolation domain and extrapolation is
+            disabled.
+        """
+        if len(self.independent_values) < 2:
+            return None
+
+        independent_values: np.ndarray = np.asarray(
+            self.independent_values, dtype=float
+        )
+        domain_minimum: float = float(independent_values[0])
+        domain_maximum: float = float(independent_values[-1])
+
+        if independent_value < domain_minimum:
+            if not self.allow_extrapolation and (
+                independent_value < domain_minimum - RANGE_EXTRAPOLATION_TOLERANCE
+            ):
+                return None
+        elif independent_value > domain_maximum:
+            if not self.allow_extrapolation and (
+                independent_value > domain_maximum + RANGE_EXTRAPOLATION_TOLERANCE
+            ):
+                return None
+
+        window_start: int
+        window_end: int
+        effective_degree: int
+        window_start, window_end, effective_degree = self._select_window(
+            independent_values, independent_value
+        )
+        window_size: int = window_end - window_start
+        if window_size < 2:
+            return None
+
+        if self._cache_window != (window_start, window_end):
+            window_independent_values: np.ndarray = independent_values[
+                window_start:window_end
+            ]
+            domain: tuple[float, float]
+            design_matrix: np.ndarray
+            domain, design_matrix = self._fit_window(
+                window_independent_values, effective_degree
+            )
+            window_dependent_values: np.ndarray = np.asarray(
+                self.dependent_values[window_start:window_end], dtype=float
+            )
+            coefficients: np.ndarray
+            coefficients, _, _, _ = np.linalg.lstsq(
+                design_matrix, window_dependent_values, rcond=None
+            )
+
+            self._cache_window = (window_start, window_end)
+            self._cache_domain = domain
+            self._cache_coefficients = coefficients
+
+        domain_low: float
+        domain_high: float
+        domain_low, domain_high = self._cache_domain
+        scaled_query: float = (2.0 * independent_value - (domain_high + domain_low)) / (
+            domain_high - domain_low
+        )
+
+        return np.atleast_1d(
+            np_chebyshev.chebval(scaled_query, self._cache_coefficients)
+        )
+
+    @property
+    def degree(self) -> int:
+        """Current interpolation polynomial degree."""
+        return self._degree
+
+    @degree.setter
+    def degree(self, value: int) -> None:
+        if value < 1:
+            raise ValueError("degree must be at least 1")
+        self._degree = int(value)
+        self.required_points = self._degree + 1
+        self._invalidate_cache()
+
+    def __repr__(self) -> str:
+        """Return a concise summary of the interpolator configuration."""
+        return (
+            "ChebyshevInterpolator("
+            f"dimension={self.dependent_dimension}, "
+            f"degree={self.degree}, "
+            f"boundary_mode={self.boundary_mode!r}, "
+            f"boundary_window_extension={self.boundary_window_extension})"
+        )
 
     def _invalidate_cache(self) -> None:
         """Invalidate the cached window fit."""
@@ -155,8 +239,8 @@ class ChebyshevInterpolator(Interpolator):
         one-sided interpolation sensitivity that arises near the first and last
         sample.
         """
-        sample_count = len(independent_values)
-        effective_window_size = self.window_size
+        sample_count: int = len(independent_values)
+        effective_window_size: int = self.window_size
 
         if self.boundary_mode in {"widen", "edge"}:
             effective_window_size = min(
@@ -174,7 +258,11 @@ class ChebyshevInterpolator(Interpolator):
         if sample_count <= effective_window_size:
             return 0, sample_count, min(self.degree, max(1, sample_count - 1))
 
-        insertion_index = int(np.searchsorted(independent_values, independent_value))
+        insertion_index: int = int(
+            np.searchsorted(independent_values, independent_value)
+        )
+        start: int
+        end: int
 
         if self.boundary_mode == "centered":
             half_window = effective_window_size // 2
@@ -223,7 +311,7 @@ class ChebyshevInterpolator(Interpolator):
         if end - start < 2:
             return 0, sample_count, min(self.degree, max(1, sample_count - 1))
 
-        effective_degree = min(self.degree, max(1, end - start - 1))
+        effective_degree: int = min(self.degree, max(1, end - start - 1))
         return start, end, effective_degree
 
     def _fit_window(
@@ -243,80 +331,19 @@ class ChebyshevInterpolator(Interpolator):
         tuple[tuple[float, float], np.ndarray]
             The scaled domain bounds and the Chebyshev design matrix.
         """
-        domain_low = float(window_independent_values[0])
-        domain_high = float(window_independent_values[-1])
+        domain_low: float = float(window_independent_values[0])
+        domain_high: float = float(window_independent_values[-1])
         if domain_high == domain_low:
             domain_high = domain_low + 1.0
 
-        scaled_values = (2.0 * window_independent_values - (domain_high + domain_low)) / (
-            domain_high - domain_low
-        )
-        design_matrix = np_chebyshev.chebvander(scaled_values, effective_degree)
-
-        return (domain_low, domain_high), design_matrix
-
-    @override
-    def interpolate(self, independent_value: float) -> np.ndarray | None:
-        """Evaluate the local Chebyshev polynomial fit via a cached least-squares solve.
-
-        Parameters
-        ----------
-        independent_value : float
-            Query point at which the interpolated dependent value is evaluated.
-
-        Returns
-        -------
-        np.ndarray | None
-            Interpolated dependent vector at the query point, or *None* if the
-            value is outside the valid interpolation domain and extrapolation is
-            disabled.
-        """
-        if len(self.independent_values) < 2:
-            return None
-
-        independent_values = np.asarray(self.independent_values, dtype=float)
-        domain_minimum = float(independent_values[0])
-        domain_maximum = float(independent_values[-1])
-
-        if independent_value < domain_minimum:
-            if not self.allow_extrapolation and (
-                independent_value < domain_minimum - RANGE_EXTRAPOLATION_TOLERANCE
-            ):
-                return None
-        elif independent_value > domain_maximum:
-            if not self.allow_extrapolation and (
-                independent_value > domain_maximum + RANGE_EXTRAPOLATION_TOLERANCE
-            ):
-                return None
-
-        window_start, window_end, effective_degree = self._select_window(
-            independent_values, independent_value
-        )
-        window_size = window_end - window_start
-        if window_size < 2:
-            return None
-
-        if self._cache_window != (window_start, window_end):
-            window_independent_values = independent_values[window_start:window_end]
-            domain, design_matrix = self._fit_window(
-                window_independent_values, effective_degree
-            )
-            window_dependent_values = np.asarray(
-                self.dependent_values[window_start:window_end], dtype=float
-            )
-            coefficients, _, _, _ = np.linalg.lstsq(
-                design_matrix, window_dependent_values, rcond=None
-            )
-
-            self._cache_window = (window_start, window_end)
-            self._cache_domain = domain
-            self._cache_coefficients = coefficients
-
-        domain_low, domain_high = self._cache_domain
-        scaled_query = (2.0 * independent_value - (domain_high + domain_low)) / (
-            domain_high - domain_low
+        scaled_values: np.ndarray = (
+            2.0 * window_independent_values - (domain_high + domain_low)
+        ) / (domain_high - domain_low)
+        design_matrix: np.ndarray = np_chebyshev.chebvander(
+            scaled_values, effective_degree
         )
 
-        return np.atleast_1d(
-            np_chebyshev.chebval(scaled_query, self._cache_coefficients)
+        return (
+            (domain_low, domain_high),
+            design_matrix,
         )

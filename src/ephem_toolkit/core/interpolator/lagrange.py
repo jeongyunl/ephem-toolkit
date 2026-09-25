@@ -14,9 +14,11 @@ from .interpolator import Interpolator
 DEFAULT_LAGRANGE_DEGREE: int = 7
 """Default polynomial degree used by the Lagrange interpolator."""
 BOUNDARY_WINDOW_REDUCTION: int = 2
-"""Number of support points removed from edge windows to tame one-sided oscillation."""
+"""Default support-point adjustment for edge windows to limit one-sided oscillation."""
 RANGE_EXTRAPOLATION_TOLERANCE: float = 1.0e-12
 """Tolerance used when accepting marginal out-of-range query values."""
+BARYCENTRIC_DENOMINATOR_TOLERANCE: float = 1.0e-30
+"""Threshold below which a barycentric denominator is treated as zero."""
 
 
 class LagrangeInterpolator(Interpolator):
@@ -37,7 +39,7 @@ class LagrangeInterpolator(Interpolator):
         dimension: int = 1,
         degree: int = DEFAULT_LAGRANGE_DEGREE,
         boundary_mode: str = "compact",
-        boundary_window_extension: int = 2,
+        boundary_window_extension: int = BOUNDARY_WINDOW_REDUCTION,
     ) -> None:
         """Initialize the interpolator state.
 
@@ -106,6 +108,67 @@ class LagrangeInterpolator(Interpolator):
         self._cache_window_values = None
         self._cache_window_dependent_values = None
         self._cache_window_weights = None
+
+    @override
+    def interpolate(self, independent_value: float) -> np.ndarray | None:
+        """Evaluate the local Lagrange polynomial using a cached barycentric form.
+
+        Parameters
+        ----------
+        independent_value : float
+            Query value at which the polynomial is evaluated.
+
+        Returns
+        -------
+        np.ndarray | None
+            Interpolated dependent vector, or *None* if the value lies outside the
+            valid domain and extrapolation is disabled.
+        """
+        if len(self.independent_values) < 2:
+            return None
+
+        window_start, window_independent_values = self._select_window(independent_value)
+        if window_start < 0:
+            return None
+
+        window_size = len(window_independent_values)
+        if window_size == 0:
+            return None
+
+        if (
+            window_start != self._cache_window_start
+            or self._cache_window_values is None
+        ):
+            self._cache_window_start = window_start
+            self._cache_window_values = window_independent_values
+            self._cache_window_dependent_values = np.asarray(
+                self.dependent_values[window_start : window_start + window_size],
+                dtype=float,
+            )
+            self._cache_window_weights = self._barycentric_weights(
+                window_independent_values
+            )
+
+        window_values = self._cache_window_values
+        dependent_values = self._cache_window_dependent_values
+        weights = self._cache_window_weights
+
+        if independent_value == window_values[0]:
+            return dependent_values[0].copy()
+        if independent_value == window_values[-1]:
+            return dependent_values[-1].copy()
+
+        numerator = np.zeros(self.dependent_dimension, dtype=float)
+        denominator = 0.0
+        for local_index, local_independent_value in enumerate(window_values):
+            difference = independent_value - local_independent_value
+            if difference == 0.0:
+                return dependent_values[local_index].copy()
+            weight_term = weights[local_index] / difference
+            numerator += weight_term * dependent_values[local_index]
+            denominator += weight_term
+
+        return numerator / denominator
 
     def _select_window(self, independent_value: float) -> tuple[int, np.ndarray]:
         """Return the local interpolation window start and x values for a query.
@@ -205,29 +268,35 @@ class LagrangeInterpolator(Interpolator):
                 return 0, independent_values[:effective_size]
             if insertion_index >= len(independent_values) - half_window:
                 start_index = len(independent_values) - effective_size
-                return start_index, independent_values[
-                    start_index : start_index + effective_size
-                ]
+                return (
+                    start_index,
+                    independent_values[start_index : start_index + effective_size],
+                )
             start_index = insertion_index - half_window
-            start_index = max(0, min(start_index, len(independent_values) - effective_size))
-            return start_index, independent_values[
-                start_index : start_index + effective_size
-            ]
+            start_index = max(
+                0, min(start_index, len(independent_values) - effective_size)
+            )
+            return (
+                start_index,
+                independent_values[start_index : start_index + effective_size],
+            )
 
         if insertion_index <= effective_size // 2:
             return 0, independent_values[:effective_size]
         if insertion_index >= len(independent_values) - effective_size // 2:
             start_index = len(independent_values) - effective_size
-            return start_index, independent_values[
-                start_index : start_index + effective_size
-            ]
+            return (
+                start_index,
+                independent_values[start_index : start_index + effective_size],
+            )
 
         half_window = effective_size // 2
         start_index = insertion_index - half_window
         start_index = max(0, min(start_index, len(independent_values) - effective_size))
-        return start_index, independent_values[
-            start_index : start_index + effective_size
-        ]
+        return (
+            start_index,
+            independent_values[start_index : start_index + effective_size],
+        )
 
     @staticmethod
     def _barycentric_weights(window_independent_values: np.ndarray) -> np.ndarray:
@@ -250,69 +319,12 @@ class LagrangeInterpolator(Interpolator):
                 if i == j:
                     continue
                 denominator *= x_i - x_j
-            weights[i] = 1.0 / denominator if np.abs(denominator) > 1.0e-30 else 0.0
+            weights[i] = (
+                1.0 / denominator
+                if np.abs(denominator) > BARYCENTRIC_DENOMINATOR_TOLERANCE
+                else 0.0
+            )
         return weights
-
-    @override
-    def interpolate(self, independent_value: float) -> np.ndarray | None:
-        """Evaluate the local Lagrange polynomial using a cached barycentric form.
-
-        Parameters
-        ----------
-        independent_value : float
-            Query value at which the polynomial is evaluated.
-
-        Returns
-        -------
-        np.ndarray | None
-            Interpolated dependent vector, or *None* if the value lies outside the
-            valid domain and extrapolation is disabled.
-        """
-        if len(self.independent_values) < 2:
-            return None
-
-        window_start, window_independent_values = self._select_window(independent_value)
-        if window_start < 0:
-            return None
-
-        window_size = len(window_independent_values)
-        if window_size == 0:
-            return None
-
-        if (
-            window_start != self._cache_window_start
-            or self._cache_window_values is None
-        ):
-            self._cache_window_start = window_start
-            self._cache_window_values = window_independent_values
-            self._cache_window_dependent_values = np.asarray(
-                self.dependent_values[window_start : window_start + window_size],
-                dtype=float,
-            )
-            self._cache_window_weights = self._barycentric_weights(
-                window_independent_values
-            )
-
-        window_values = self._cache_window_values
-        dependent_values = self._cache_window_dependent_values
-        weights = self._cache_window_weights
-
-        if independent_value == window_values[0]:
-            return dependent_values[0].copy()
-        if independent_value == window_values[-1]:
-            return dependent_values[-1].copy()
-
-        numerator = np.zeros(self.dependent_dimension, dtype=float)
-        denominator = 0.0
-        for local_index, local_independent_value in enumerate(window_values):
-            diff = independent_value - local_independent_value
-            if diff == 0.0:
-                return dependent_values[local_index].copy()
-            weight_term = weights[local_index] / diff
-            numerator += weight_term * dependent_values[local_index]
-            denominator += weight_term
-
-        return numerator / denominator
 
     def _check_interpolation_feasibility(self, independent_value: float) -> int:
         """Return the start index of a feasible local interpolation window."""

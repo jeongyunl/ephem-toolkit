@@ -22,13 +22,13 @@ DEFAULT_CHEBYSHEV_DEGREE: int = 5
 class InterpolationType(Enum):
     """Supported interpolation methods."""
 
-    HERMITE = "hermite"
+    HERMITE: str = "hermite"
     """Hermite sliding-window interpolation with caching."""
 
-    LAGRANGE = "lagrange"
+    LAGRANGE: str = "lagrange"
     """Lagrange polynomial interpolation."""
 
-    CHEBYSHEV = "chebyshev"
+    CHEBYSHEV: str = "chebyshev"
     """Chebyshev polynomial interpolation."""
 
 

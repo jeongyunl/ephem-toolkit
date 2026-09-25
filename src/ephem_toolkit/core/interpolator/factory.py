@@ -56,6 +56,11 @@ class InterpolatorFactory:
         dependent_data : list[np.ndarray] | None, optional
             Dependent vectors paired with `data` when `data` is a list or array of
             independent values.
+        boundary_mode : str, optional
+            Window-selection strategy near the domain edges. Must be one of
+            "centered", "widen", "edge", or "compact". Default is "centered".
+        boundary_window_extension : int, optional
+            Additional sample points used to expand edge windows. Default is 0.
 
         Returns
         -------
@@ -79,6 +84,7 @@ class InterpolatorFactory:
                     file=sys.stderr,
                 )
 
+            interpolator: Interpolator
         if spec.interp_type == InterpolationType.HERMITE:
             interpolator = hermite.SlidingWindowHermiteInterpolator(
                 dimension=dimension,
