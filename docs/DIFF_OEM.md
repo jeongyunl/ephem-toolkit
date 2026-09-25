@@ -6,12 +6,11 @@ The `diff-oem` utility compares corresponding states from two CCSDS OEM (Orbit E
 
 This utility provides comparison capabilities for OEM files:
 
-- **Direct comparison**: Compare states at matching epochs
-- **Interpolated comparison**: Compare states with interpolation for non-matching epochs
+- **Reference-epoch comparison**: Compare both OEMs at the reference OEM's epochs using interpolation
 - **Time window filtering**: Limit comparison to specific time ranges
 - **Transformation stages**: Apply rotation and time-shift corrections before comparison
 - **RTN frame analysis**: View differences in the reference Radial-Tangential-Normal frame
-- **Statistical analysis**: Compute mean, standard deviation, min, and max for all metrics
+- **Statistical analysis**: Compute summary statistics for position/velocity differences and optional Cartesian components; RTN position components report standard deviation, min, and max
 
 The script is built on the `ephem_toolkit.diff_oem` package, which provides reusable comparison functions for programmatic use.
 
@@ -33,18 +32,15 @@ diff-oem <reference_oem.oem> - [OPTIONS]
 | `<comparison_oem.oem>` | Path to comparison OEM file (use `-` to read from stdin) |
 | `-v`, `--verbose` | Print detailed component-wise differences (dX, dY, dZ, dVX, dVY, dVZ) |
 | `--debug` | Print time-range determination details to stderr |
-| `--interpolate-ref` | Interpolate reference OEM at each comparison state timestamp |
-| `--interpolate-data` | Interpolate comparison OEM at each reference state timestamp (default) |
-| `--interpolate` | Interpolate both reference and comparison OEM data |
 | `--interpolate-type <type[,degree]>` | Interpolation method: `hermite`, `chebyshev`, or `lagrange` (default: hermite,5) |
-| `--rtn` | Include comparison state coordinates in the reference RTN frame |
+| `--rtn` | Include relative position and velocity differences in the reference RTN frame |
 | `--rotate` | Fit and apply a fixed 3D rotation before comparison |
 | `--rotate-xy` | Fit and apply a fixed rotation around X and Y axes only |
 | `--rotate-z` | Fit and apply a fixed rotation around Z axis only |
 | `--time-shift` | Fit and apply a constant time shift to comparison epochs |
 | `--rotate-fit-span <duration>` | Duration for rotation fitting (default: 3600s) |
 | `--start <iso8601\|duration>` | Start epoch for comparison window |
-| `--duration <duration>` | Relative stop duration from `--start` |
+| `-d`, `--duration <duration>` | Relative stop duration from `--start` |
 | `--stop <iso8601\|duration>` | Stop epoch for comparison window |
 | `-h`, `--help` | Show help message and exit |
 
@@ -52,37 +48,16 @@ diff-oem <reference_oem.oem> - [OPTIONS]
 
 ## Basic Usage
 
-### Direct Comparison
+### Default Comparison
 
-Compare two OEM files at their native epochs:
+The command uses reference OEM epochs within the overlapping, selected time range
+as query epochs. It interpolates both OEMs at those epochs using the selected
+interpolation method. There is no direct, exact-epoch-only mode or option to use
+comparison epochs as the query epochs; reported differences are evaluated at
+the reference epochs, so no time-difference column is produced.
 
 ```bash
 diff-oem reference.oem comparison.oem
-```
-
-Comparison-data interpolation is enabled by default, so comparison states are
-evaluated at reference timestamps. Use `--interpolate-ref` to evaluate
-reference states at comparison timestamps, or use `--interpolate` for both
-directions. Time differences are reported for direct state comparisons.
-
-### Interpolated Comparison
-
-By default, the comparison OEM is interpolated at reference timestamps:
-
-```bash
-diff-oem reference.oem comparison.oem --interpolate-data
-```
-
-To interpolate the reference at comparison timestamps instead:
-
-```bash
-diff-oem reference.oem comparison.oem --interpolate-ref
-```
-
-To interpolate both (compare at all unique timestamps):
-
-```bash
-diff-oem reference.oem comparison.oem --interpolate
 ```
 
 ### Verbose Output
@@ -123,7 +98,7 @@ it cannot be combined with `--stop`.
 
 **Compare first hour only:**
 ```bash
-diff-oem reference.oem comparison.oem --start 0 --stop 1h
+diff-oem reference.oem comparison.oem --start 0s --stop 1h
 ```
 
 **Compare specific time window:**
@@ -140,12 +115,14 @@ diff-oem reference.oem comparison.oem --start 30m --duration 90m
 
 ## Interpolation
 
-The script uses **Hermite polynomial interpolation** (default: 5th-degree) to compute states at non-matching epochs. Chebyshev and Lagrange interpolation are also available.
+The command always uses interpolation to evaluate both OEMs at reference epochs.
+The default is **5th-degree Hermite**. Select another method or degree with
+`--interpolate-type <type[,degree]>`.
 
 ### Interpolation Methods
 
 **Hermite interpolation** (default):
-- Uses both position and velocity data for improved accuracy
+- Uses position samples and velocity as position derivatives in Cartesian-state mode
 - Default degree: 5
 - Specify with `--interpolate-type hermite` or `--interpolate-type hermite,<degree>`
 
@@ -155,30 +132,12 @@ The script uses **Hermite polynomial interpolation** (default: 5th-degree) to co
 - Specify with `--interpolate-type chebyshev` or `--interpolate-type chebyshev,<degree>`
 
 **Lagrange interpolation**:
-- Uses position data only
-- Default degree: 7
-- Specify with `--interpolate-type lagrange` or `--interpolate-type lagrange,<degree>`
+- Interpolates all six Cartesian state components independently; velocity is not used as derivative data
+- CLI default degree: 5
+- Specify with `--interpolate-type lagrange` or `--interpolate-type lagrange,<degree>`; use `lagrange,7` for degree 7
 
-### Interpolation Modes
-
-**Default behavior** (`--interpolate-data`):
-- Comparison states are interpolated at reference timestamps
-- Useful when the reference has the desired sampling
-
-**Reference interpolation** (`--interpolate-ref`):
-- Reference states are interpolated at comparison timestamps
-- Useful when the comparison has the desired sampling
-
-**Bidirectional interpolation** (`--interpolate`):
-- Both files are interpolated at all unique timestamps
-- Provides the most comprehensive comparison
-
-### Example
-
-```bash
-# Compare with bidirectional interpolation
-diff-oem reference.oem comparison.oem --interpolate
-```
+Chebyshev interpolation also operates on the six-component state vector. The
+CLI uses degree 5 when a degree is omitted for any method.
 
 ## RTN Frame Analysis
 
@@ -187,7 +146,7 @@ The `--rtn` option transforms comparison state differences into the reference Ra
 ### RTN Frame Definition
 
 - **Radial (R)**: Along the position vector from the central body
-- **Tangential (T)**: Along the velocity vector (in the orbital plane)
+- **Tangential (T)**: In the orbital plane, perpendicular to the radial axis and aligned with the transverse component of velocity
 - **Normal (N)**: Perpendicular to the orbital plane (R × T)
 
 ### Usage
@@ -226,12 +185,12 @@ Transformation stages fit and apply corrections to the comparison OEM before com
 
 **X/Y rotation** (`--rotate-xy`):
 - Fits rotation around X and Y axes only
-- Preserves Z-axis alignment
+- Does not fit a rotation about the Z axis
 - Useful for correcting pitch and roll
 
 **Z rotation** (`--rotate-z`):
 - Fits rotation around Z axis only
-- Preserves X/Y plane alignment
+- Keeps the rotation within the XY plane
 - Useful for correcting yaw or longitude offset
 
 **Time shift** (`--time-shift`):
@@ -241,7 +200,7 @@ Transformation stages fit and apply corrections to the comparison OEM before com
 
 ### Transformation Fitting
 
-Transformations are fitted using the overlapping time range between the two OEM files. By default, rotation fitting uses the first hour of overlap (controlled by `--rotate-fit-span`).
+Transformations are fitted using the selected time range within the OEMs' overlap. By default, rotation fitting uses the first hour of that range (controlled by `--rotate-fit-span`).
 
 ### Transformation Order
 
@@ -274,7 +233,7 @@ diff-oem reference.oem comparison.oem --time-shift
 
 **Apply rotation with custom fitting span:**
 ```bash
-diff-oem reference.oem comparison.oem --rotate --rotate-fit-span 1800
+diff-oem reference.oem comparison.oem --rotate --rotate-fit-span 1800s
 ```
 
 **Apply multiple transformations in sequence:**
@@ -329,17 +288,9 @@ index  reference              position    velocity
 
 The script outputs a table with the following columns:
 
-**Without interpolation** (direct epoch matching):
+- **Every comparison** (interpolation is always used):
 - `index` — Row number (1-based)
-- `reference epoch` — Reference state timestamp (ISO 8601)
-- `comparison epoch` — Comparison state timestamp (ISO 8601)
-- `time difference (s)` — Epoch difference (comparison - reference)
-- `position difference (km)` — Euclidean distance between positions
-- `velocity difference (km/s)` — Euclidean distance between velocities
-
-**With interpolation** (one file interpolated at the other's epochs):
-- `index` — Row number (1-based)
-- `reference epoch` — Query timestamp (ISO 8601)
+- `reference epoch` — Query timestamp from the reference OEM (ISO 8601)
 - `position difference (km)` — Euclidean distance between positions
 - `velocity difference (km/s)` — Euclidean distance between velocities
 
@@ -363,7 +314,9 @@ velocity difference (km/s): +0.000123, +0.000045, +0.000050, +0.000200
 
 With `--verbose`, statistics are also computed for each component (dX, dY, dZ, dVX, dVY, dVZ).
 
-With `--rtn`, RTN statistics show standard deviation, min, and max (mean is omitted as RTN differences can be positive or negative):
+With `--rtn`, statistics are printed for the three RTN position components only;
+they show standard deviation, min, and max (mean is omitted). RTN velocity
+components appear in the table but do not currently have summary statistics.
 
 ```
 Statistics (std, min, max)
@@ -448,8 +401,7 @@ diff-oem reference.oem comparison.oem --rotate --verbose
 ```bash
 diff-oem reference.oem comparison.oem \
   --start 2024-01-01T00:00:00 \
-  --stop 2024-01-01T12:00:00 \
-  --interpolate
+  --stop 2024-01-01T12:00:00
 ```
 
 ### Analyze RTN Differences
@@ -469,7 +421,7 @@ diff-oem reference.oem comparison.oem \
 
 ```bash
 slice-oem reference.oem --slice "::10" | \
-  diff-oem - comparison.oem --interpolate-ref
+  diff-oem - comparison.oem
 ```
 
 ## Programmatic Usage
@@ -482,38 +434,43 @@ from ephem_toolkit.core.interpolator.interpolation_spec import (
   InterpolationSpec,
   InterpolationType,
 )
-from ephem_toolkit.diff_oem.comparison import compare_states, read_states
+from ephem_toolkit.diff_oem.comparison import read_states
 from ephem_toolkit.diff_oem.utils import build_comparison_pairs, compare_pairs
 
 # Read OEM files
 reference_states = read_states("reference.oem")
 comparison_states = read_states("comparison.oem")
 
-# Build comparison pairs
+# Build comparison pairs at reference epochs within the overlap
+overlap_start = max(reference_states[0][0], comparison_states[0][0])
+overlap_stop = min(reference_states[-1][0], comparison_states[-1][0])
 pairs = build_comparison_pairs(
     reference_states,
     comparison_states,
-    reference_states[0],
-    interpolate_ref=False,
-    interpolate_data=True,
-    has_time_window=False,
-    overlap_start=None,
-    overlap_stop=None,
+    overlap_start,
+    overlap_stop,
 )
 
-# Create an interpolator for comparison data at reference timestamps
+# Create interpolators for both OEMs
 interpolation_spec = InterpolationSpec(
-  interp_type=InterpolationType.HERMITE,
-  degree=5,
+    interp_type=InterpolationType.HERMITE,
+    degree=5,
 )
-reference_interpolator = None
+reference_interpolator = factory.InterpolatorFactory.create(
+    spec=interpolation_spec,
+    dimension=6,
+    is_cartesian_state=True,
+    verbose=False,
+    context="diff_oem.reference_interpolator",
+    data=reference_states,
+)
 comparison_interpolator = factory.InterpolatorFactory.create(
-  spec=interpolation_spec,
-  dimension=6,
-  is_cartesian_state=True,
-  verbose=False,
-  context="diff_oem.example",
-  data=comparison_states,
+    spec=interpolation_spec,
+    dimension=6,
+    is_cartesian_state=True,
+    verbose=False,
+    context="diff_oem.example",
+    data=comparison_states,
 )
 
 # Compare pairs
@@ -565,8 +522,8 @@ Select the method and degree with `--interpolate-type <type[,degree]>`.
 
 - Uses golden section search to minimize position residuals
 - Searches within ±1800s (30 minutes) by default
-- Samples up to 120 comparison states for efficiency
-- Converges to sub-millisecond accuracy
+- Uses up to 120 evenly selected comparison states from the first hour of the fitting range
+- Refines the best coarse-search result with golden-section search; the fitted shift is an estimate, not a guaranteed accuracy bound
 
 ### RTN Frame Transformation
 
@@ -605,9 +562,9 @@ Solution: Only one input can be read from stdin. Specify a file path for the oth
 
 **No overlapping time range:**
 ```
-(No output)
+Error: Reference and comparison OEM files have no overlapping time period
 ```
-Solution: The two OEM files have no overlapping time range. Check the time spans of both files.
+The command writes the error to stderr and exits with a non-zero status. Check the time spans of both files.
 
 **Insufficient states for transformation:**
 ```
