@@ -21,6 +21,9 @@ import numpy as np
 
 from . import wgs
 
+AER_SINGULARITY_TOLERANCE: float = 1.0e-10
+"""Tolerance used to stabilize AER calculations near singular positions."""
+
 # ===================================================================
 # ECEF to AER conversion
 # ===================================================================
@@ -321,8 +324,7 @@ def aer_to_ecef_velocity(
     >>> aer_vel = np.array([0.0, 0.0, 100.0])
     >>> ecef_vel = aer_to_ecef_velocity(aer_pos, aer_vel, ref_lla)
     """
-    # Convert AER to ENU
-    enu_position: np.ndarray = aer_to_enu(aer_position)
+    # Convert AER velocity rates to ENU
     enu_velocity: np.ndarray = aer_to_enu_velocity(aer_position, aer_velocity)
 
     # Convert ENU velocity to ECEF
@@ -488,7 +490,7 @@ def enu_to_aer(enu_position: np.ndarray) -> np.ndarray:
 
     # Handle case where horizontal_range is zero (directly overhead or at origin)
     # In this case, azimuth is undefined, but we set it to 0 by convention
-    at_zenith_or_origin: np.ndarray = horizontal_range < 1e-10
+    at_zenith_or_origin: np.ndarray = horizontal_range < AER_SINGULARITY_TOLERANCE
     if np.any(at_zenith_or_origin):
         azimuth[at_zenith_or_origin] = 0.0
         # Elevation is ±π/2 depending on sign of up
@@ -594,13 +596,13 @@ def enu_to_aer_velocity(
     # Compute range rate (radial velocity)
     # range_rate = d(range)/dt = (e·ve + n·vn + u·vu) / range
     range_rate: np.ndarray = (east * v_east + north * v_north + up * v_up) / (
-        range_val + 1e-10
+        range_val + AER_SINGULARITY_TOLERANCE
     )
 
     # Compute azimuth rate
     # az_rate = d(atan2(e, n))/dt = (n·ve - e·vn) / (e² + n²)
     azimuth_rate: np.ndarray = (north * v_east - east * v_north) / (
-        horizontal_range**2 + 1e-10
+        horizontal_range**2 + AER_SINGULARITY_TOLERANCE
     )
 
     # Compute elevation rate
@@ -608,14 +610,14 @@ def enu_to_aer_velocity(
     # el_rate = (h·vu - u·h_rate) / (h² + u²)
     # where h_rate = (e·ve + n·vn) / h
     horizontal_rate: np.ndarray = (east * v_east + north * v_north) / (
-        horizontal_range + 1e-10
+        horizontal_range + AER_SINGULARITY_TOLERANCE
     )
     elevation_rate: np.ndarray = (horizontal_range * v_up - up * horizontal_rate) / (
-        range_val**2 + 1e-10
+        range_val**2 + AER_SINGULARITY_TOLERANCE
     )
 
     # Handle singularities (at origin or zenith/nadir)
-    small_range: np.ndarray = range_val < 1e-10
+    small_range: np.ndarray = range_val < AER_SINGULARITY_TOLERANCE
     if np.any(small_range):
         range_rate[small_range] = 0.0
         azimuth_rate[small_range] = 0.0
