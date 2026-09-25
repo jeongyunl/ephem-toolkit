@@ -23,32 +23,43 @@ This document covers Two-Line Element (TLE) sets, Orbit Mean-Elements Messages (
 ### Data Structure
 
 #### `class Tle` (dataclass)
-Parsed Two-Line Element set data with all fields corresponding to the standard TLE format.
+Parsed Two-Line Element set data. Angles are stored in degrees and mean motion in revolutions per day; raw exponential-format fields remain strings.
 
 **Key Fields:**
-- `name`: Satellite name
+- `object_name`: Optional satellite name (empty for two-line input)
 - `line1`, `line2`: Raw TLE lines
 - `norad_cat_id`: NORAD catalog number
 - `classification`: U=Unclassified, C=Classified, S=Secret
+- `int_designator_year`, `int_designator_launch_number`, `int_designator_piece`: International designator components
 - `epoch_year`, `epoch_day`: Epoch (2-digit year + fractional day)
 - `mean_motion_first_derivative`: First time derivative (rev/day²)
 - `mean_motion_second_derivative`: Second time derivative (TLE exponential format)
 - `bstar`: BSTAR drag term (TLE exponential format)
+- `ephemeris_type`, `element_set_number`: TLE line-1 fields
 - `inclination_deg`, `raan_deg`, `arg_perigee_deg`, `mean_anomaly_deg`: Orbital elements (degrees)
 - `eccentricity`: Eccentricity (0.0 to 1.0)
 - `mean_motion_rev_per_day`: Mean motion (rev/day)
 - `revolution_number_at_epoch`: Revolution number at epoch
+- `line1_checksum`, `line2_checksum`: Checksums from the input; corresponding `*_expected` fields contain computed checksums
+
+`Tle` also provides dict-style field access, `to_dict()`, and `get_object_id()` (COSPAR ID from the international designator, using the 1957-2056 TLE year convention).
 
 ### Functions
 
-#### `read_tle(stream: TextIO) -> Tle`
-Parse TLE elements from a text stream. Accepts 2-line or 3-line format (with name).
+#### `read_tle(stream: TextIO | str | Path) -> Tle`
+Parse TLE elements from a text stream or file path. Accepts 2-line input or 3-line input with a name. Lines shorter than 69 characters are rejected; trailing characters beyond column 69 are ignored.
 
 #### `write_tle(dest: TextIO | str | Path, tle_data: Tle | Mapping[str, object]) -> tuple[str, str]`
 Write a TLE to a text stream or file path. Returns the formatted (line1, line2) strings.
 
 #### `datetime_to_tle_epoch(epoch_dt: datetime) -> tuple[int, float]`
-Convert a datetime object to TLE epoch components (2-digit year and fractional day).
+Convert a datetime object to a two-digit year and 1-based fractional day of year. Timezone-aware values are converted to UTC before calculating both the year and day; naive values are used without timezone conversion.
+
+#### `tle_epoch_to_datetime(epoch_year: int, epoch_day: float) -> datetime`
+Convert a two-digit TLE year and fractional day to a UTC-aware `datetime`. Years 57-99 map to 1957-1999; 00-56 map to 2000-2056.
+
+#### `tle_epoch_to_tt_s(epoch_year: int, epoch_day: float) -> float` / `tle_epoch_to_tdb_s(epoch_year: int, epoch_day: float) -> float`
+Convert a TLE epoch to TT or TDB seconds since J2000.
 
 #### `tle_epoch_to_iso8601(epoch_year: int, epoch_day: float) -> str`
 Convert TLE epoch (2-digit year + fractional day) to ISO 8601 datetime string.
@@ -59,11 +70,8 @@ Convert ISO 8601 datetime string to TLE epoch (2-digit year + fractional day).
 #### `format_tle_strings(tle_data: Tle | Mapping[str, object]) -> tuple[str, str]`
 Format TLE data into raw TLE line strings with checksums.
 
-#### `create_tle_from_brouwerian(mean_elements, mu_m3_s2, epoch_year, epoch_day, ...) -> Tle`
-Construct a TLE dataclass instance from mean Keplerian elements, with optional TLE header fields.
-
 #### `compute_tle_checksum(line_without_checksum: str) -> str`
-Return the single-digit TLE checksum character for a TLE line.
+Return the modulo-10 TLE checksum character. Digits contribute their value and each minus sign contributes 1.
 
 ---
 
@@ -91,13 +99,17 @@ Convert a TLE to a CCSDS OMM.
 
 **Returns:** The equivalent OMM representation
 
+The generated OMM uses version 2.0, TEME, UTC, and `MEAN_ELEMENT_THEORY = SGP/SGP4`; TLE-specific metadata is included in `tle_parameters`.
+
 #### `omm_to_tle(omm_obj: ccsds.omm.CcsdsOmm) -> tle.Tle`
 Convert a CCSDS OMM to a TLE.
 
 **Parameters:**
 - `omm_obj`: Parsed OMM dataclass instance
 
-**Returns:** The equivalent TLE representation (with empty line1 and line2 fields)
+**Returns:** The equivalent TLE representation (with empty `line1` and `line2` fields; use `write_tle` to format them).
+
+Conversion requires `tle_parameters`; otherwise it raises `ValueError`. `validate_sgp4_compatible_omm` separately checks the declared theory and TLE parameters; `omm_to_tle` does not invoke that helper itself.
 
 ### TLE to Osculating Keplerian
 
@@ -109,7 +121,7 @@ Extract osculating Keplerian elements at the TLE epoch.
 - `mu_m3_s2`: Gravitational parameter (m³/s²) (default: Earth WGS-84)
 - `apply_j2`: If True, apply Brouwer J2 short-period corrections; if False, use simple two-body conversion
 
-**Returns:** Osculating Keplerian elements [a, e, i, omega, RAAN, theta]
+**Returns:** `[a_m, e, i_rad, omega_rad, RAAN_rad, anomaly_rad]`, where `omega` is argument of pericenter. With `apply_j2=True`, the final element is mean anomaly in the Brouwer-corrected elements; with `False`, it is true anomaly.
 
 ---
 
@@ -151,12 +163,18 @@ Parsed CCSDS Orbit Mean-Elements Message. All angular quantities are stored in d
 - `mean_element_theory`: Mean element theory used (e.g., DSST, SGP4)
 - `epoch`: Epoch time (ISO 8601 format)
 - `mean_motion`, `eccentricity`, `inclination`, `ra_of_asc_node`, `arg_of_pericenter`, `mean_anomaly`: Orbital elements
-- `tle_parameters`: Optional `TleParameters` object containing TLE-related metadata such as `ephemeris_type`, `classification_type`, `norad_cat_id`, `element_set_no`, `rev_at_epoch`, `bstar`, `mean_motion_dot`, and `mean_motion_ddot`
+- SGP4-XP `TleParameters` may also include `bterm` and `agom`
+- `ref_frame_epoch`, `semi_major_axis`, `gm`: Optional reference-frame epoch, semi-major axis (km), and gravitational parameter (km³/s²); mean elements use either semi-major axis or mean motion
+- `spacecraft_parameters`: Optional mass, solar-radiation area/coefficient, and drag area/coefficient
+- `covariance`: Optional symmetric 6×6 state covariance and covariance frame
+- `data`: Raw parsed fields, including fields without dedicated attributes
+
+The low-level `read_omm` and `write_omm` functions operate on dictionaries; `CcsdsOmm.from_source` and `to_file` provide the structured interface.
 
 ### Functions
 
-#### `read_omm(source: TextIO | str | Path) -> tuple[dict, dict]`
-Read an OMM file and return (header, data) dictionaries.
+Optional keyword-only parameter: `validate: bool = True`; set it to `False` to skip validation.
+Read an OMM file and return `(header, data)` dictionaries. Validation is enabled by default and checks required fields, including the requirement for exactly one of `SEMI_MAJOR_AXIS` or `MEAN_MOTION`; pass `validate=False` to skip validation.
 
 #### `write_omm(dest: TextIO | str | Path, header: dict, data: dict) -> None`
 Write an OMM file from (header, data) dictionaries.
@@ -174,8 +192,7 @@ Write this OMM to a file or stream.
 **Purpose**: Read, parse, and write CCSDS Orbit Ephemeris Message (OEM) files.
 
 ### Unit Convention
-
-OEM files use kilometers (km) and km/s per the CCSDS standard. This module converts state vectors to SI units (meters and m/s) when reading, and converts back to km/km·s⁻¹ when writing. This ensures internal consistency with the project-wide SI unit convention while maintaining CCSDS-compliant file output.
+OEM files use kilometers (km) and km/s per the CCSDS standard. This module converts state vectors to SI units (meters and m/s) when reading, and converts back to km/km·s⁻¹ when writing. Input epoch strings are interpreted as UTC and converted to TT seconds since J2000 regardless of the `TIME_SYSTEM` metadata; non-UTC time-system conversion is not performed.
 
 ### Key Dependencies
 - `numpy`, `datetime`, `pathlib`, `dataclasses`
@@ -216,20 +233,28 @@ Structured CCSDS Orbit Ephemeris Message with header, metadata, and states.
 - `header`: File-level header fields (OemHeader)
 - `meta`: Metadata block fields (OemMeta)
 - `data_comments`: Comment lines before the ephemeris state data
-- `states`: List of (TT seconds since J2000, state_vector) tuples, sorted by epoch in ascending order. State vectors are 6-element arrays [x, y, z, vx, vy, vz] in meters (m) and m/s.
+- `states`: List of (TT seconds since J2000, state_vector) tuples in stored/input order. State vectors are six-element arrays [x, y, z, vx, vy, vz] in meters and m/s.
+- Ordering: `from_states` sorts by epoch, while `read` preserves file order.
 
 **Properties:**
 - `epochs`: Sorted list of epoch timestamps (TT seconds since J2000)
+- `epochs`: Epoch timestamps (TT seconds since J2000) in the same order as `states`
 - `state_vectors`: State vectors ordered by epoch, shape (N, 6) in meters and m/s
 
 **Class Methods:**
 - `CcsdsOem.read(source: TextIO | str | Path) -> CcsdsOem`: Read and construct from a file or stream
 - `CcsdsOem.from_states(states, object_name, ref_frame, center_name, time_system) -> CcsdsOem`: Create from a list of states with minimal metadata
+- `CcsdsOem.from_states(states, object_name="", object_id="", ref_frame="", center_name="", time_system="UTC") -> CcsdsOem`: Create from states with minimal metadata; sorts input by epoch
 - `CcsdsOem.parse_oem_state_line(line: str) -> tuple[float, np.ndarray] | None`: Parse a single OEM-style state line
 
 **Instance Methods:**
 - `write(dest: TextIO | str | Path) -> None`: Write this OEM to a file or stream
 - `write_state(dest: TextIO, epoch: datetime, state_vector: np.ndarray) -> None`: Write one state vector in CCSDS units
-- `write_states(dest: TextIO) -> None`: Write this object's state vectors in CCSDS units
+- `write_state(dest: TextIO, epoch: datetime, state_vector: np.ndarray, sep: str = " ") -> None`: Write one state vector in CCSDS units
+- `write_states(dest: TextIO, format_type: OemFormat = OemFormat.OEM) -> None`: Write states in OEM or CSV format
+- `write(dest: TextIO | str | Path, format_type: OemFormat = OemFormat.OEM) -> None`: Write the message to a stream or file as OEM or CSV-formatted output
 - `update_metadata(**kwargs) -> None`: Update metadata fields in-place
 - `find_state_by_timestamp(timestamp: float, tolerance: float = 0.0) -> tuple[float, np.ndarray] | None`: Find a state by timestamp using binary search
+- `find_state_by_timestamp(timestamp: float, tolerance: float = 0.0) -> tuple[float, np.ndarray] | None`: Find a state by timestamp using binary search; requires states sorted by epoch
+
+`OemFormat` defines the `OEM` and `CSV` output choices. `read` preserves source state order, so sort input before using `find_state_by_timestamp` on an unsorted OEM file.
