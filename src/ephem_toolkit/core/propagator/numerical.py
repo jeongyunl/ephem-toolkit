@@ -17,10 +17,10 @@ References:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
-from typing_extensions import override
+from typing import Any
 
 import numpy as np
+from typing_extensions import override
 from tudatpy.dynamics import (
     environment_setup,
     propagation,
@@ -34,8 +34,8 @@ from tudatpy.dynamics.propagation.dependent_variable_dictionary import (
     DependentVariableDictionary,
 )
 
-from .base import Propagator
 from .. import spice_utils
+from . import base
 
 # ===================================================================
 # Engine constants (moved from propagate_orbit/constants.py)
@@ -185,13 +185,13 @@ def _interpolate_state(
     np.ndarray
         Cartesian state [x, y, z, vx, vy, vz] in m and m/s.
     """
-    epochs = np.array([epoch_s for epoch_s, _ in state_history], dtype=float)
-    states = [state for _, state in state_history]
-    idx = int(np.argmin(np.abs(epochs - target_epoch_s)))
-    return np.asarray(states[idx], dtype=float)
+    epochs_s = np.array([epoch_s for epoch_s, _ in state_history], dtype=float)
+    state_samples_m_m_s = [state for _, state in state_history]
+    nearest_index = int(np.argmin(np.abs(epochs_s - target_epoch_s)))
+    return np.asarray(state_samples_m_m_s[nearest_index], dtype=float)
 
 
-class NumericalPropagator(Propagator[NumericalInitialState]):
+class NumericalPropagator(base.Propagator[NumericalInitialState]):
     """Perturbed numerical propagator (Tudat translational dynamics).
 
     Wraps TudatPy's ``simulator.create_dynamics_simulator``. Requires tudatpy.
@@ -213,7 +213,18 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
 
     @staticmethod
     def create_environment_and_bodies(config: NumericalPropagatorConfig) -> Any:
-        """Create environment settings, add spacecraft interfaces, and build bodies."""
+        """Create environment settings, add spacecraft interfaces, and build bodies.
+
+        Parameters
+        ----------
+        config : NumericalPropagatorConfig
+            Force-model and spacecraft configuration.
+
+        Returns
+        -------
+        Any
+            Tudat system of bodies configured for propagation.
+        """
         bodies_to_create: list[str] = list(DEFAULT_BODIES_TO_CREATE)
         if config.is_moon_gravity_on:
             bodies_to_create.append("Moon")
@@ -265,7 +276,24 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         bodies_to_propagate: list[str],
         central_bodies: list[str],
     ) -> Any:
-        """Create acceleration models for the propagated satellite."""
+        """Create acceleration models for the propagated satellite.
+
+        Parameters
+        ----------
+        config : NumericalPropagatorConfig
+            Force-model and spacecraft configuration.
+        bodies : Any
+            Tudat body system used to construct the models.
+        bodies_to_propagate : list[str]
+            Names of bodies whose states are propagated.
+        central_bodies : list[str]
+            Central body names corresponding to the propagated bodies.
+
+        Returns
+        -------
+        Any
+            Tudat acceleration models.
+        """
         satellite_acceleration_settings: dict[str, list[Any]] = {}
 
         sun_accelerations: list[Any] = []
@@ -313,8 +341,19 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
     def create_dependent_variables_to_save(
         config: NumericalPropagatorConfig,
     ) -> list[VariableSettings]:
-        """Create dependent-variable save settings for propagation."""
-        dep_vars: list[VariableSettings] = [
+        """Create dependent-variable save settings for propagation.
+
+        Parameters
+        ----------
+        config : NumericalPropagatorConfig
+            Force-model configuration that determines which variables to save.
+
+        Returns
+        -------
+        list[VariableSettings]
+            Tudat settings for the dependent variables to record.
+        """
+        dependent_variables: list[VariableSettings] = [
             dependent_variable.total_acceleration(config.satellite_name),
             dependent_variable.keplerian_state(config.satellite_name, "Earth"),
             dependent_variable.geodetic_latitude(config.satellite_name, "Earth"),
@@ -331,7 +370,7 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         ]
 
         if config.is_moon_gravity_on:
-            dep_vars.append(
+            dependent_variables.append(
                 dependent_variable.single_acceleration_norm(
                     propagation_setup.acceleration.point_mass_gravity_type,
                     config.satellite_name,
@@ -339,7 +378,7 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
                 )
             )
         if config.is_sun_gravity_on:
-            dep_vars.append(
+            dependent_variables.append(
                 dependent_variable.single_acceleration_norm(
                     propagation_setup.acceleration.point_mass_gravity_type,
                     config.satellite_name,
@@ -347,7 +386,7 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
                 )
             )
         if config.is_srp_on:
-            dep_vars.append(
+            dependent_variables.append(
                 dependent_variable.single_acceleration_norm(
                     propagation_setup.acceleration.radiation_pressure_type,
                     config.satellite_name,
@@ -355,7 +394,7 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
                 )
             )
         if config.is_earth_drag_on:
-            dep_vars.append(
+            dependent_variables.append(
                 dependent_variable.single_acceleration_norm(
                     propagation_setup.acceleration.aerodynamic_type,
                     config.satellite_name,
@@ -363,7 +402,7 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
                 )
             )
         if config.is_venus_gravity_on:
-            dep_vars.append(
+            dependent_variables.append(
                 dependent_variable.single_acceleration_norm(
                     propagation_setup.acceleration.point_mass_gravity_type,
                     config.satellite_name,
@@ -371,7 +410,7 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
                 )
             )
         if config.is_mars_gravity_on:
-            dep_vars.append(
+            dependent_variables.append(
                 dependent_variable.single_acceleration_norm(
                     propagation_setup.acceleration.point_mass_gravity_type,
                     config.satellite_name,
@@ -379,7 +418,7 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
                 )
             )
 
-        return dep_vars
+        return dependent_variables
 
     @staticmethod
     def create_translational_propagator_settings(
@@ -391,18 +430,46 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         bodies_to_propagate: list[str],
         dependent_variables_to_save: list[VariableSettings],
     ) -> Any:
-        """Create translational propagator settings."""
+        """Create translational propagator settings.
+
+        Parameters
+        ----------
+        config : NumericalPropagatorConfig
+            Force-model and integrator configuration.
+        initial_state : NumericalInitialState
+            Initial Cartesian state and epoch.
+        target_epoch_s : float
+            Termination epoch (TT, s since J2000 TT).
+        central_bodies : list[str]
+            Central body names corresponding to the propagated bodies.
+        acceleration_models : Any
+            Tudat acceleration models.
+        bodies_to_propagate : list[str]
+            Names of bodies whose states are propagated.
+        dependent_variables_to_save : list[VariableSettings]
+            Dependent-variable settings to record during propagation.
+
+        Returns
+        -------
+        Any
+            Tudat translational propagator settings.
+
+        Raises
+        ------
+        ValueError
+            If the configured integrator method is unsupported.
+        """
         try:
             coefficient_set = getattr(
                 propagation_setup.integrator.CoefficientSets,
                 config.integrator_method,
             )
-        except AttributeError as exc:
+        except AttributeError as error:
             raise ValueError(
                 f"Unsupported integrator method '{config.integrator_method}'. "
                 f"Supported methods are: {', '.join(SUPPORTED_INTEGRATOR_METHODS)}. "
                 f"Default is {DEFAULT_INTEGRATOR_METHOD}."
-            ) from exc
+            ) from error
 
         if len(config.integrator_step_size_values_s) == 1:
             integrator_settings = propagation_setup.integrator.runge_kutta_fixed_step(
@@ -451,6 +518,15 @@ class NumericalPropagator(Propagator[NumericalInitialState]):
         config: NumericalPropagatorConfig,
         initial_state: NumericalInitialState,
     ) -> None:
+        """Initialize the propagator with a fixed force model and initial state.
+
+        Parameters
+        ----------
+        config : NumericalPropagatorConfig
+            Force-model and integrator settings used for each propagation.
+        initial_state : NumericalInitialState
+            Initial Cartesian state and epoch.
+        """
         self._config: NumericalPropagatorConfig = config
         # These depend only on the model configuration, not on the propagation
         # interval, so construct them once for the propagator lifetime.
