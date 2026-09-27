@@ -82,25 +82,28 @@ the conversion matrix records the options relevant to each route.
 | `oem-to-tle` | Fit an OEM to SGP4 mean elements and format a TLE | The `oem-to-omm` fitting options, including `--fit-span`, `--fit-report`, `--source-model`, `--source-report`, `--tle-refinement`, TLE metadata options, and `-o/--output` |
 
 `omm-to-opm` and `tle-to-opm` are implemented convenience wrappers. They
-require `--fit-model numerical`, generate a reference OEM with
-`propagate-omm`/SGP4, and delegate the fit to `oem-to-opm`. Their numerical-fit
-options are the options forwarded by the wrapper, including fit span, target
-force-model settings, fixed physical parameters, provenance, and fit report.
+require `--fit-model numerical`, generate a reference OEM, and delegate the fit
+to `oem-to-opm`. `omm-to-opm` uses `propagate-omm` and its selected branch
+(DSST for DSST OMMs, SGP4 when TLE parameters are available, otherwise the
+labeled Kepler fallback); `tle-to-opm` uses SGP4. Their numerical-fit options
+are the options forwarded by the wrapper, including fit span, target force-model
+settings, fixed physical parameters, provenance, and fit report.
 
 There is no dedicated `opm-to-omm` or `opm-to-tle` command. Those routes are
 compositions of the propagation and fitting commands shown below.
 
 ## Routes to OEM
 
-### OMM(BROUWER) → OEM, OMM(SGP4) → OEM, and OMM(DSST) → OEM
+### OMM(SGP4/DSST/BROUWER/2B) → OEM
 
-Use `propagate-omm input.omm -d 6h -s 5m -o output.oem`. The declared
-`MEAN_ELEMENT_THEORY` selects the supported mean-element path. Preserve the
-OMM theory, epoch, frame, time system, and propagation settings in provenance.
+Use `propagate-omm input.omm -d 6h -s 5m -o output.oem`. OMMs with embedded
+TLE parameters use SGP4; `MEAN_ELEMENT_THEORY=DSST` uses the DSST propagator.
+Other theories without a matching propagator, including BROUWER, use the
+two-body Kepler fallback. Preserve the source OMM theory and the actual
+propagation model, epoch, frame, time system, and settings in provenance.
 
-For an unsupported declared theory, the command’s two-body fallback must be
-identified as `target_model=two-body-kepler`; it must not be described as a
-Brouwer, DSST, or other theory-specific OEM.
+The fallback must be identified as `target_model=two-body-kepler`; do not
+describe its OEM output as a Brouwer or other theory-specific ephemeris.
 
 ### OPM(2B) → OEM and OPM(NUM) → OEM
 

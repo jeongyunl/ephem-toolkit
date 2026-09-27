@@ -223,7 +223,8 @@ Note: Must be documented in Interface Control Document (ICD).
 ### OEM → OMM
 - Requires orbit fitting to mean elements
 - Fit span typically 2 hours
-- Theory selection (SGP4, DSST) affects accuracy
+- Supported fit targets are Brouwer, DSST, and SGP4; theory selection affects the fitted product and its accuracy. A two-body OMM fit target is not supported by `oem-to-omm`.
+- For osculating Keplerian elements, use OEM → OPM with the two-body fit model instead of fitting an OMM.
 - **Carried forward**: `OBJECT_NAME` and `OBJECT_ID` (unless overridden or absent), `CLASSIFICATION`, `MESSAGE_ID`, and OEM metadata comments (as OMM comments)
 - **Generated/set by current implementation**: OMM `ORIGINATOR` and `CREATION_DATE`, `MEAN_ELEMENT_THEORY`, `CENTER_NAME=EARTH`, `REF_FRAME=ICRF` for Brouwer/DSST or `TEME` for SGP4, `TIME_SYSTEM=UTC`, and fitted mean elements
 - **Not copied**: source `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`, `START_TIME`, `STOP_TIME`, usable time bounds, interpolation settings, Cartesian state vectors, acceleration, and covariance. `REF_FRAME_EPOCH` is inapplicable to the accepted fixed J2000-equivalent input frames; SGP4 output uses its own `TEME` frame.
@@ -257,7 +258,7 @@ Note: Must be documented in Interface Control Document (ICD).
 - **SGP4 frame handling**: TudatPy converts the raw TEME SGP4 solution to J2000; the runtime ephemeris reports Earth/J2000. The output `EME2000` label is accepted under the stated inertial-frame equivalence assumption
 
 ### OMM → OPM
-- Composed propagation to an intermediate OEM followed by numerical OPM fitting
+- Composed propagation to an intermediate OEM followed by two-body or numerical OPM fitting
 - **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`, `CLASSIFICATION`, `MESSAGE_ID`, and OMM comments (as OPM header comments); the output epoch is derived from the generated OEM
 - **Generated/set by current implementation**: OPM header and the context supplied by the intermediate OEM (`EARTH`, `EME2000`, `UTC`)
 - **Not copied to final OPM**: other source OMM header fields, original frame/time labels, reference-frame epoch, mean-element theory and values, TLE parameters, covariance, spacecraft parameters, and user-defined fields
@@ -287,6 +288,7 @@ Note: Must be documented in Interface Control Document (ICD).
 - Requires conversion from osculating to mean elements
 - Not directly supported (requires orbit fitting)
 - Composed OPM propagation to OEM followed by OMM fitting
+- Supported OMM fit targets are Brouwer, DSST, and SGP4; `oem-to-omm` does not support a two-body OMM target.
 - **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`, OPM header comments, `CLASSIFICATION`, and `MESSAGE_ID` through both Kepler and numerical propagation to the fitted OMM
 - **Generated/set by current implementation**: OMM header, output epoch, and target mean-element theory; `CENTER_NAME=EARTH` and `TIME_SYSTEM=UTC`; `REF_FRAME=ICRF` for Brouwer/DSST and `TEME` for SGP4 fitting
 - **Not copied**: source OPM `CREATION_DATE`/`ORIGINATOR`, other source header fields, source frame labels, osculating elements, spacecraft parameters, maneuvers, and covariance
@@ -313,7 +315,7 @@ Note: Must be documented in Interface Control Document (ICD).
 - Serialized conversion tests verify identity, context, and all TLE-specific parameters; the core converter's creation date, originator, and comments remain empty unless supplied by the calling CLI or library arguments.
 
 ### TLE → OPM
-- Composed SGP4 propagation to OEM followed by numerical OPM fitting
+- Composed SGP4 propagation to OEM followed by two-body or numerical OPM fitting
 - **Carried forward**: `OBJECT_NAME` and `OBJECT_ID` (from the TLE designator)
 - **Generated/set by current implementation**: OPM header, epoch, `CENTER_NAME=EARTH`, `REF_FRAME=EME2000`, `TIME_SYSTEM=UTC`; OPM header comments contain generated SGP4 propagation and fit provenance
 - **Lost**: TLE parameters such as `BSTAR`, `MEAN_MOTION_DOT`, `MEAN_MOTION_DDOT`, `ELEMENT_SET_NO`, `REV_AT_EPOCH`, and `CLASSIFICATION_TYPE`; TLE has no source comment field

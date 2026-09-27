@@ -19,7 +19,7 @@ the format family.
 | Source | Target | Variant | Type | Workflow / command | Source representation and model | Intermediate | Target model / theory | Key inputs and options | Status / task |
 |---|---|---|---|---|---|---|---|---|---|
 | OMM(2B) | OEM | Two-body | Propagation | `propagate-omm` | Mean elements; two-body Kepler theory | — | Two-body Cartesian ephemeris or Kepler fallback | `--duration`, `--step` | Existing theory-specific path |
-| OMM(BROUWER) | OEM | Brouwer | Propagation | `propagate-omm` | Mean elements; Brouwer theory | — | Brouwer Cartesian ephemeris or Kepler fallback | `--duration`, `--step` | Existing theory-specific path |
+| OMM(BROUWER) | OEM | Kepler fallback | Propagation | `propagate-omm` | Mean elements; Brouwer theory | — | Two-body Kepler Cartesian ephemeris | `--duration`, `--step` | Existing fallback; serialized metadata verified |
 | OMM(DSST) | OEM | DSST | Propagation | `propagate-omm` | Mean elements; DSST theory | — | Matching mean-element propagator | `--duration`, `--step` | Existing theory-specific path |
 | OMM(SGP4) | OEM | SGP4 | Propagation | `propagate-omm` | Mean elements; `MEAN_ELEMENT_THEORY=SGP4` | — | SGP4 Cartesian ephemeris | `--duration`, `--step` | Existing |
 | OMM(2B) | OPM(2B) | Two-body fit | Composed | `propagate-omm` → `oem-to-opm` | Mean-element source theory | OEM | Two-body osculating approximation | Propagation settings and fit span | Existing/composed |
@@ -35,11 +35,13 @@ the format family.
 | OMM(DSST) | TLE | Composed SGP4 refit | Propagation/fitting | `propagate-omm` → OEM → `oem-to-tle` | Mean-element source theory; unsupported theories use labeled Kepler fallback | Reference OEM | SGP4 mean elements/TLE | Propagation settings, fit span, fit report | Existing composition |
 | OMM(SGP4) | TLE | Direct SGP4 mapping | Direct mapping | `omm-to-tle` | SGP4-compatible mean elements | — | SGP4 TLE | Required TLE fields; theory validation | Existing |
 | OPM(2B) | OEM | Two-body Keplerian | Propagation | `propagate-kepler` | Osculating Cartesian/Keplerian state | — | Two-body Keplerian | `--duration`, `--step` | Existing |
+| OPM(2B) | TLE | Two-body SGP4 refit | Propagation/fitting | `propagate-kepler` → OEM → `oem-to-tle` | Osculating state; two-body Kepler propagation | Reference OEM | SGP4 mean elements/TLE | Propagation settings, fit span, fit report | Existing composition |
 | OPM(2B) | OMM(2B) | Two-body intermediate | Composed | `propagate-kepler` → `oem-to-omm` | Osculating state | Two-body OEM | Two-body mean elements | Duration, step, fit model/span | Unsupported: `oem-to-omm` has no two-body fit model |
 | OPM(2B) | OMM(BROUWER) | Two-body intermediate | Composed | `propagate-kepler` → `oem-to-omm` | Osculating state | Two-body OEM | Selected mean-element theory | Duration, step, fit model/span | Existing composition |
 | OPM(2B) | OMM(DSST) | Two-body intermediate | Composed | `propagate-kepler` → `oem-to-omm` | Osculating state | Two-body OEM | Selected mean-element theory | Duration, step, fit model/span | Existing composition |
 | OPM(2B) | OMM(SGP4) | Two-body intermediate | Composed | `propagate-kepler` → `oem-to-omm` | Osculating state | Two-body OEM | Selected mean-element theory | Duration, step, fit model/span | Existing composition |
 | OPM(NUM) | OEM | Numerical force model | Propagation | `propagate-orbit` | Osculating Cartesian state | — | Configured numerical model | `--duration`, force, gravity, integrator options | Existing |
+| OPM(NUM) | TLE | Numerical SGP4 refit | Propagation/fitting | `propagate-orbit` → OEM → `oem-to-tle` | Osculating Cartesian state; configured numerical model | Reference OEM | SGP4 mean elements/TLE | Force model, integrator, fit span, fit report | Existing composition |
 | OPM(NUM) | OMM(2B) | Numerical intermediate | Composed | `propagate-orbit` → `oem-to-omm` | Osculating Cartesian state | Numerical OEM | Two-body mean elements | Force model, integrator, fit model/span | Unsupported: `oem-to-omm` has no two-body fit model |
 | OPM(NUM) | OMM(BROUWER) | Numerical intermediate | Composed | `propagate-orbit` → `oem-to-omm` | Osculating Cartesian state | Numerical OEM | Selected mean-element theory | Force model, integrator, fit model/span | Existing composition |
 | OPM(NUM) | OMM(DSST) | Numerical intermediate | Composed | `propagate-orbit` → `oem-to-omm` | Osculating Cartesian state | Numerical OEM | Selected mean-element theory | Force model, integrator, fit model/span | Existing composition |

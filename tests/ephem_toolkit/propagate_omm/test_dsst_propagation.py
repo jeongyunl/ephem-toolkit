@@ -215,10 +215,11 @@ def test_propagate_omm_dsst_produces_states(tmp_path):
     assert output_oem.header.message_id == omm_data.message_id
 
 
-def test_propagate_omm_kepler_preserves_source_comments(tmp_path):
+@pytest.mark.parametrize("theory", ["2B", "BROUWER"])
+def test_propagate_omm_kepler_preserves_source_comments(tmp_path, theory):
     """The fallback propagation output retains input OMM comments."""
     omm_data = _round_trip_optional_omm_fields(
-        tmp_path, _make_dsst_omm(theory="2B"), "kepler"
+        tmp_path, _make_dsst_omm(theory=theory), "kepler"
     )
     start = time_utils.tt_s_to_datetime(0.0)
     stop = start + timedelta(minutes=10)
