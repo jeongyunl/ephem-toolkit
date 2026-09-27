@@ -111,6 +111,8 @@ def _round_trip_optional_omm_fields(
     omm_data: omm_mod.CcsdsOmm,
     name: str,
 ) -> omm_mod.CcsdsOmm:
+    omm_data.classification = "C"
+    omm_data.message_id = "OMM-SOURCE-MESSAGE"
     omm_data.ref_frame_epoch = "2024-01-01T00:00:00"
     omm_data.spacecraft_parameters = omm_mod.OmmSpacecraftParameters(
         mass=420000.0,
@@ -126,6 +128,8 @@ def _round_trip_optional_omm_fields(
     source_path = tmp_path / f"{name}-optional.omm"
     omm_data.to_file(source_path)
     parsed = omm_mod.CcsdsOmm.from_source(source_path)
+    assert parsed.classification == "C"
+    assert parsed.message_id == "OMM-SOURCE-MESSAGE"
     assert parsed.ref_frame_epoch == omm_data.ref_frame_epoch
     assert parsed.spacecraft_parameters == omm_data.spacecraft_parameters
     assert parsed.covariance is not None
@@ -205,6 +209,8 @@ def test_propagate_omm_dsst_produces_states(tmp_path):
     assert output_oem.header.originator == "ephem-toolkit"
     assert output_oem.header.creation_date
     assert output_oem.header.creation_date != omm_data.creation_date
+    assert output_oem.header.classification == omm_data.classification
+    assert output_oem.header.message_id == omm_data.message_id
 
 
 def test_propagate_omm_kepler_preserves_source_comments(tmp_path):
@@ -234,6 +240,8 @@ def test_propagate_omm_kepler_preserves_source_comments(tmp_path):
     assert output_oem.header.originator == "ephem-toolkit"
     assert output_oem.header.creation_date
     assert output_oem.header.creation_date != omm_data.creation_date
+    assert output_oem.header.classification == omm_data.classification
+    assert output_oem.header.message_id == omm_data.message_id
     assert any(
         "target_model=two-body-kepler" in comment
         for comment in output_oem.meta.comments
@@ -308,6 +316,8 @@ def test_propagate_omm_sgp4_writes_metadata_and_source_comments(monkeypatch, tmp
     assert output_oem.header.creation_date
     assert output_oem.header.creation_date != omm_data.creation_date
     assert output_oem.header.originator == "ephem-toolkit"
+    assert output_oem.header.classification == omm_data.classification
+    assert output_oem.header.message_id == omm_data.message_id
     _assert_omm_covariance_preserved(output_path, omm_data)
     _assert_optional_omm_fields_not_in_oem(output_path)
 
@@ -422,6 +432,8 @@ def test_propagate_omm_dsst_uses_spacecraft_parameters(monkeypatch, tmp_path):
 
     output_oem = oem_mod.CcsdsOem.read(output_path)
     assert "SOURCE_COMMENT: optional OMM fields" in output_oem.meta.comments
+    assert output_oem.header.classification == omm_data.classification
+    assert output_oem.header.message_id == omm_data.message_id
     assert len(output_oem.states) == 7
     _assert_omm_covariance_preserved(Path(output_path), omm_data)
     _assert_optional_omm_fields_not_in_oem(Path(output_path))

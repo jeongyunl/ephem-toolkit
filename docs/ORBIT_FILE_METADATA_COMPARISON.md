@@ -244,11 +244,10 @@ Note: Must be documented in Interface Control Document (ICD).
 
 ### OMM → OEM
 - Requires propagation using mean element theory
-- **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`
-- **Generated/set by current implementation**: OEM header, `CENTER_NAME=EARTH`, `REF_FRAME=EME2000`, `TIME_SYSTEM=UTC`, coverage times, and a propagation provenance comment
-- **Carried forward**: OMM comments as OEM metadata comments
+- **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`, `CLASSIFICATION`, `MESSAGE_ID`, and OMM comments as OEM metadata comments
+- **Generated/set by current implementation**: OEM `ORIGINATOR` and `CREATION_DATE`, `CENTER_NAME=EARTH`, `REF_FRAME=EME2000`, `TIME_SYSTEM=UTC`, coverage times, and a propagation provenance comment
 - **DSST inputs**: `MASS`, `DRAG_AREA`, and `DRAG_COEFF` configure drag only when all three are present; `SOLAR_RAD_AREA` and `SOLAR_RAD_COEFF` configure SRP when both are present. Kepler fallback does not use spacecraft parameters; SGP4 uses the OMM's TLE parameters instead.
-- **Not copied to OEM metadata**: other OMM header fields, source frame/time labels, reference-frame epoch, mean elements and theory, TLE parameters, spacecraft parameters, and user-defined fields
+- **Not copied to OEM metadata**: source OMM `CCSDS_OMM_VERS`, `CREATION_DATE`, `ORIGINATOR`, frame/time labels, reference-frame epoch, mean elements and theory, TLE parameters, spacecraft parameters, and user-defined fields
 - **Covariance behavior**: full OEM output carries the OMM covariance at its source epoch only when that epoch falls within the emitted state interval, using the declared `COV_REF_FRAME` or OMM `REF_FRAME` when omitted. Covariance is not evolved across the output arc; `--data-only` omits it.
 - **Frame assumption**: treat Earth-centered `EME2000`, `J2000`, `ICRF`, and `GCRF` labels as equivalent for this comparison
 - **SGP4 frame handling**: TudatPy converts the raw TEME SGP4 solution to J2000; the runtime ephemeris reports Earth/J2000. The output `EME2000` label is accepted under the stated inertial-frame equivalence assumption

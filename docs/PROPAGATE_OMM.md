@@ -107,8 +107,9 @@ parameters, and SGP4 propagation uses the embedded TLE parameters instead.
 | `SOLAR_RAD_AREA` | `srp_area_m2` |
 | `SOLAR_RAD_COEFF` | `srp_coeff` |
 
-The generated OEM carries identity, generated reference context/coverage, and
-source comments. In a full OEM output, OMM covariance is copied at its source
+The generated OEM carries identity, generated reference context/coverage,
+source comments, and OMM `CLASSIFICATION`/`MESSAGE_ID`. OEM `ORIGINATOR` and
+`CREATION_DATE` are generated for the output. In a full OEM output, OMM covariance is copied at its source
 epoch with its declared covariance frame (or the OMM reference frame when no
 `COV_REF_FRAME` is specified), provided that epoch is within the emitted state
 interval. It is not evolved to later output epochs.

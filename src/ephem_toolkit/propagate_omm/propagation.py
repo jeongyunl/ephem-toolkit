@@ -140,6 +140,8 @@ def propagate_tle_sgp4(
     source_format: str = "TLE",
     source_comments: list[str] | None = None,
     covariance: oem.OemCovariance | None = None,
+    header_classification: str = "",
+    header_message_id: str = "",
 ) -> None:
     """Propagate a TLE with SGP4 and emit OEM output.
 
@@ -197,6 +199,8 @@ def propagate_tle_sgp4(
             )
         ],
         covariance=covariance,
+        header_classification=header_classification,
+        header_message_id=header_message_id,
     )
 
 
@@ -238,6 +242,8 @@ def propagate_omm_sgp4(
         source_format="OMM",
         source_comments=omm_data.comments,
         covariance=_initial_omm_covariance(omm_data),
+        header_classification=omm_data.classification,
+        header_message_id=omm_data.message_id,
     )
 
 
@@ -344,6 +350,8 @@ def propagate_omm_dsst(
             )
         ],
         covariance=_initial_omm_covariance(omm_data),
+        header_classification=omm_data.classification,
+        header_message_id=omm_data.message_id,
     )
 
 
@@ -429,6 +437,8 @@ def propagate_omm_kepler(
             )
         ],
         covariance=_initial_omm_covariance(omm_data),
+        header_classification=omm_data.classification,
+        header_message_id=omm_data.message_id,
     )
 
 
@@ -445,6 +455,8 @@ def _write_oem_output(
     output_path: str,
     comments: list[str] | None = None,
     covariance: oem.OemCovariance | None = None,
+    header_classification: str = "",
+    header_message_id: str = "",
 ) -> None:
     """Write propagated states as OEM output.
 
@@ -488,6 +500,8 @@ def _write_oem_output(
                     [output_covariance] if output_covariance is not None else None
                 ),
             )
+            oem_obj.header.classification = header_classification
+            oem_obj.header.message_id = header_message_id
             if comments:
                 oem_obj.meta.comments.extend(comments)
             oem_obj.write(output_stream)
