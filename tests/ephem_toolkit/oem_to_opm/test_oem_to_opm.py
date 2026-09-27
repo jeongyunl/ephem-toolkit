@@ -294,16 +294,15 @@ def test_parser_accepts_max_fit_iterations() -> None:
     assert args.fit_max_iterations == 12
 
 
+@pytest.mark.parametrize("source_frame", ["J2000", "EME2000", "ICRF", "GCRF"])
 def test_main_writes_initial_state_and_osculating_elements_to_opm(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, source_frame: str
 ) -> None:
     """The OEM-to-OPM command should serialize its initial state and fit."""
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(
-        oem.CcsdsOem,
-        "read",
-        lambda *_args, **_kwargs: DummyOemData(),
-    )
+    source_oem = DummyOemData()
+    source_oem.meta.ref_frame = source_frame
+    monkeypatch.setattr(oem.CcsdsOem, "read", lambda *_args, **_kwargs: source_oem)
     monkeypatch.setattr(
         fit_osculating_kepler,
         "fit_osculating_kepler",
@@ -339,7 +338,7 @@ def test_main_writes_initial_state_and_osculating_elements_to_opm(
         "OBJECT_NAME": "SAT",
         "OBJECT_ID": "2024-001A",
         "CENTER_NAME": "EARTH",
-        "REF_FRAME": "ICRF",
+        "REF_FRAME": source_frame,
         "TIME_SYSTEM": "UTC",
     }
     assert data["X"] == pytest.approx(7000.0)
