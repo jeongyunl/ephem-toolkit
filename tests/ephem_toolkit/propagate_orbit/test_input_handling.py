@@ -22,6 +22,7 @@ from ephem_toolkit.core.propagator.numerical import (
     NumericalInitialState,
     NumericalPropagatorConfig,
 )
+from ephem_toolkit.core.ccsds.oem import CcsdsOem
 from ephem_toolkit.core.ccsds.opm import (
     CcsdsOpm,
     OpmCovariance,
@@ -31,6 +32,7 @@ from ephem_toolkit.core.ccsds.opm import (
 )
 import ephem_toolkit.core.time_utils as time_utils
 from ephem_toolkit.propagate_orbit.input_handling import build_propagation_inputs
+from ephem_toolkit.propagate_orbit.output_handling import write_state_history_oem
 from ephem_toolkit.propagate_orbit.constants import (
     DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2,
     DEFAULT_SATELLITE_DRAG_COEFFICIENT,
@@ -301,6 +303,22 @@ def test_opm_physical_parameters_are_used_unless_cli_overrides(
     assert config.srp_coefficient == 1.6
     assert not hasattr(config, "covariance")
     assert not hasattr(initial_state, "covariance")
+
+    output_path = tmp_path / "propagated.oem"
+    write_state_history_oem(
+        {
+            initial_state.epoch_s: initial_state.state_m_m_s,
+            initial_state.epoch_s + 60.0: initial_state.state_m_m_s,
+        },
+        str(output_path),
+        config,
+        data_only=False,
+    )
+    generated_oem = CcsdsOem.read(output_path)
+    assert len(generated_oem.states) == 2
+    serialized_oem = output_path.read_text(encoding="utf-8")
+    assert "COV_REF_FRAME" not in serialized_oem
+    assert "CX_X" not in serialized_oem
 
 
 # ===================================================================
