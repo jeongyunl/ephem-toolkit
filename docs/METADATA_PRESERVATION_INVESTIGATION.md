@@ -1,6 +1,6 @@
 # Orbit-File Metadata Preservation Investigation
 
-**Status:** Complete (representative audit; follow-ups listed below)
+**Status:** In progress (representative audit; prioritized follow-ups below)
 **Scope:** Representative route audit; known capability gaps documented.
 **Last updated:** 2026-09-27
 
@@ -61,8 +61,11 @@ Conversion paths often rebuild metadata from a selected subset of source fields.
 
 ## Deferred Follow-ups
 
-- **Metadata fixture breadth:** Extend serialized checks beyond representative fixtures to cover more optional-field combinations and composed route/model variants.
-- **Covariance processing:** Deferred by request. This audit covers source-epoch preservation only; covariance evolution and route-specific covariance-frame transforms are not being investigated now.
+**Completed in this continuation:** Added serialized boundary evidence for OMM(2B/Brouwer/DSST/SGP4)→OPM(2B) and TLE→OPM(2B), including intermediate OEM metadata and final OPM metadata.
+
+1. **Route-matrix reconciliation:** Match every directed route/model row in `ORBIT_FILE_CONVERSION_MATRIX.md` to focused tests and an evidence-log outcome; distinguish behavior-verified routes from source-traced or intentionally out-of-scope routes.
+2. **Audit closeout:** Refresh stale aggregate test counts and completion wording only after the matrix reconciliation; keep the representative-fixture limitation explicit.
+3. **Covariance processing:** Deferred by request. This audit covers source-epoch preservation only; covariance evolution and route-specific covariance-frame transforms are not being investigated now.
 
 ## Route Status
 
@@ -139,6 +142,10 @@ capability gaps.
      are regenerated.
    - The generated OPM frame label is `EME2000`; the SGP4 runtime reports
      Earth/J2000. This audit records those labels only, not transform accuracy.
+   - A separate OMM(DSST)→OPM(2B) composition test now re-reads both the
+     intermediate OEM and final OPM, verifying identity, comments,
+     `CLASSIFICATION`/`MESSAGE_ID`, and regenerated originator/creation date.
+     Equivalent metadata checks now cover OMM(2B/Brouwer/SGP4) and TLE→OPM(2B).
 6. **OMM(2B/BROUWER/DSST) → TLE refit**
    - DSST propagation and 2B/Brouwer-Lyddane Kepler fallback → OEM →
      `oem-to-tle` are verified for parsed TLE identity, checksums, and
@@ -181,7 +188,10 @@ Use this table as the audit proceeds. Record references to focused tests or fixt
 | OPM → OEM (`propagate-kepler`) | Identity, comments, classification/message ID, frame/time/epoch, covariance, OPM-only blocks, derived coverage, generated header | `test_propagate_kepler_writes_cartesian_states_in_si_units`; composed integration | Serialized output retains source `TOD` frame label and applicable `REF_FRAME_EPOCH`, `OBJECT_ID`/comments, `CLASSIFICATION`, and `MESSAGE_ID`; covariance and its declared frame are retained at the input epoch only; OPM `MASS` and maneuvers are omitted because OEM cannot represent them; OEM originator/date and coverage are generated |
 | OPM → OEM (`propagate-orbit`) | Identity, header comments/classification/message ID, frame/time, covariance, maneuvers, physical parameters | `test_opm_preserves_header_and_omits_opm_only_blocks`; `test_opm_physical_parameters_are_used_unless_cli_overrides`; `test_read_initial_state_rejects_non_equivalent_covariance_frame` | Serialized output verifies source-name fallback and explicit `--name` override, identity/comments, and supported `CLASSIFICATION`/`MESSAGE_ID`; OEM `ORIGINATOR`/`CREATION_DATE` are regenerated; Keplerian elements, maneuver, and mass are omitted; covariance behavior is covered separately at the input epoch only |
 | TLE/OMM → OEM propagation | Identity, frame/time, coverage, comments, generated header | `test_propagate_tle_oem_records_sgp4_provenance`; DSST/Kepler/SGP4 serialized tests plus SGP4 runtime-frame test | Direct TLE→OEM re-read verifies identity, Earth/EME2000/UTC context, provenance, regenerated OEM header, and coverage matching first/last state epochs; OMM branches verify comments, identity, context, and coverage; TudatPy SGP4 ephemeris reports Earth/J2000; no coordinate-transform accuracy claim |
-| OMM → OPM | Identity, frame/time, comments/provenance, optional-block omissions, generated header/report across DSST, SGP4, 2B, and Brouwer-Lyddane theories | DSST, SGP4, and Kepler fallback serialized wrapper tests | Identity/context/report verified; OMM comments and source header fields are carried through DSST/SGP4 and 2B/Brouwer fallback paths; covariance, spacecraft parameters, reference-frame epoch, user-defined values, and SGP4 TLE parameters are absent from final OPM; generated OPM frame label is `EME2000`; no coordinate-transform accuracy claim |
+| OMM → OPM(NUM) | Identity, frame/time, comments/provenance, optional-block omissions, generated header/report across DSST, SGP4, 2B, and Brouwer-Lyddane theories | DSST, SGP4, and Kepler fallback serialized wrapper tests | Identity/context/report verified; OMM comments and source header fields are carried through DSST/SGP4 and 2B/Brouwer fallback paths; covariance, spacecraft parameters, reference-frame epoch, user-defined values, and SGP4 TLE parameters are absent from final OPM; generated OPM frame label is `EME2000`; no coordinate-transform accuracy claim |
+| OMM(DSST) → OPM(2B) | Intermediate OEM and final OPM identity, comments, classification/message ID, regenerated headers | `test_omm_dsst_to_opm_two_body_preserves_composed_metadata` | Re-read intermediate OEM and final OPM verify identity, source comments, `CLASSIFICATION`/`MESSAGE_ID`, and regenerated originator/creation date; frame label is `EME2000` |
+| OMM(2B/BROUWER/SGP4) → OPM(2B) | Intermediate OEM and final OPM identity, comments, classification/message ID, source-model provenance, regenerated headers | `test_omm_to_opm_two_body_preserves_composed_metadata` | Re-read both boundaries verify identity, source comments and header fields; intermediate provenance records the source theory (SGP4 uses `source=OMM` with target model `SGP4`); output OPM frame is `EME2000` |
+| TLE → OPM(2B) | Intermediate OEM and final OPM identity, context, SGP4 provenance, generated headers | `test_tle_to_opm_two_body_fit_preserves_composed_metadata` | Re-read both boundaries verify identity, `EME2000` context, generated headers, and TLE/SGP4 source provenance; TLE has no CCSDS header/comments to carry |
 | TLE → OPM(NUM) | Intermediate OEM and final OPM identity, frame/time, coverage, SGP4 provenance, generated headers/report | `test_tle_to_opm_preserves_identity_and_records_sgp4_provenance` | Re-read intermediate OEM verifies identity, Earth/EME2000/UTC context, generated OEM `ORIGINATOR`/`CREATION_DATE`, TLE/SGP4 provenance, and coverage matching first/last serialized state epochs; final OPM verifies identity/context and source/report provenance; no coordinate-transform accuracy claim |
 | OEM → OMM | Identity, header comments/classification/message ID, context, theory, coverage/interpolation, optional blocks | `test_main_serializes_oem_metadata_for_each_fit_model`; real-fit `test_reconstructed_tle_preserves_elements`; `test_main_rejects_non_equivalent_input_frame_before_fitting` | Serialized Brouwer/DSST/SGP4 checks accept `J2000`, `EME2000`, `ICRF`, and `GCRF` source labels and verify each model's generated OMM frame label; source `CLASSIFICATION`/`MESSAGE_ID` carry through while OMM originator/date are regenerated; real SGP4 fit verifies identity/context, TLE parameters, and provenance; non-equivalent source frames rejected; reference-frame epoch is inapplicable to accepted fixed input frames; nonempty OEM start/stop and usable start/stop bounds, interpolation method, and interpolation degree are verified absent from fitted OMM; parsed covariance is not copied by the fitter |
 | OEM → OPM | Identity, header comments/classification/message ID, context/frame epoch, state/elements, coverage/interpolation, optional blocks | `test_main_writes_initial_state_and_osculating_elements_to_opm`; `test_numerical_fit_model_dispatches_to_shared_fitter`; accuracy-marked `test_oem_to_opm_roundtrip_accuracy` | Serialized two-body and numerical checks verify source `CLASSIFICATION`/`MESSAGE_ID` while OPM `ORIGINATOR`/`CREATION_DATE` regenerate; `J2000`, `EME2000`, `ICRF`, and `GCRF` labels are retained; applicable `TOD` `REF_FRAME_EPOCH` is retained; real-fit integration checks identity/context/comments and expected omissions; two-body elements are emitted, numerical elements are omitted; nonempty OEM start/stop and usable start/stop bounds, interpolation method, and interpolation degree are verified absent from fitted OPM |

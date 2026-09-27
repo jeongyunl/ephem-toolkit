@@ -13,6 +13,8 @@ import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.cli as core_cli
 import ephem_toolkit.core.time_utils as time_utils
 import ephem_toolkit.core.tle as tle
+from ephem_toolkit.oem_to_opm import main as oem_to_opm_main
+from ephem_toolkit.propagate_tle import main as propagate_tle_main
 import ephem_toolkit.tle_to_opm as tle_package
 import ephem_toolkit.tle_to_opm.__main__ as tle_wrapper
 from ephem_toolkit.tle_to_opm.__main__ import main
@@ -114,6 +116,46 @@ def test_tle_to_opm_dispatches_sgp4_and_delegates(monkeypatch) -> None:
     assert calls[0][0][:3] == ["--fit-model", "numerical", "-"]
     assert calls[0][0][-2:] == ["--source-model", "sgp4"]
     assert calls[0][1] == "generated OEM\n"
+
+
+def test_tle_to_opm_two_body_fit_preserves_composed_metadata(tmp_path: Path) -> None:
+    source = Path(__file__).parents[2] / "data" / "ISS-ZARYA_1998-067A.tle"
+    tle_data = tle.read_tle(source)
+    intermediate_path = tmp_path / "reference.oem"
+    output_path = tmp_path / "converted.opm"
+    assert propagate_tle_main(
+        [str(source), "--duration", "2h", "--output", str(intermediate_path)]
+    ) == 0
+    intermediate_oem = oem.CcsdsOem.read(intermediate_path)
+
+    oem_to_opm_main(
+        [
+            str(intermediate_path),
+            "--fit-model",
+            "two-body",
+            "--fit-span",
+            "2h",
+            "--source-model",
+            "sgp4",
+            "--output",
+            str(output_path),
+        ]
+    )
+
+    converted_opm = opm.CcsdsOpm.from_source(output_path)
+    assert intermediate_oem.meta.object_name == tle_data.object_name
+    assert intermediate_oem.meta.object_id == tle_data.get_object_id()
+    assert intermediate_oem.meta.ref_frame == "EME2000"
+    assert any("source=TLE" in comment for comment in intermediate_oem.meta.comments)
+    assert intermediate_oem.header.originator == "ephem-toolkit"
+    assert intermediate_oem.header.creation_date
+    assert converted_opm.metadata["OBJECT_NAME"] == tle_data.object_name
+    assert converted_opm.metadata["OBJECT_ID"] == tle_data.get_object_id()
+    assert converted_opm.metadata["REF_FRAME"] == "EME2000"
+    assert converted_opm.header.originator == "oem_to_opm"
+    assert converted_opm.header.creation_date
+    assert any("source=TLE" in comment for comment in converted_opm.header.comments)
+    assert any("source=OEM/sgp4" in comment for comment in converted_opm.header.comments)
 
 
 def test_package_entry_points_forward_arguments(monkeypatch) -> None:

@@ -20,9 +20,11 @@ from ephem_toolkit.core.ccsds.oem import CcsdsOem
 from ephem_toolkit.core.ccsds.opm import CcsdsOpm
 import ephem_toolkit.core.cli as core_cli
 import ephem_toolkit.core.time_utils as time_utils
+from ephem_toolkit.oem_to_opm import main as oem_to_opm_main
 import ephem_toolkit.omm_to_opm as omm_package
 import ephem_toolkit.omm_to_opm.__main__ as omm_wrapper
 from ephem_toolkit.omm_to_opm.__main__ import _forward_arguments, main
+from ephem_toolkit.propagate_omm import main as propagate_omm_main
 
 
 def _add_optional_omm_blocks(source_omm: CcsdsOmm) -> None:
@@ -153,6 +155,9 @@ def test_sgp4_omm_to_opm_preserves_source_comments_in_serialized_header(
     assert intermediate_oem.header.originator == "ephem-toolkit"
     assert intermediate_oem.header.creation_date
     assert intermediate_oem.header.creation_date != source_omm.creation_date
+    assert intermediate_oem.header.originator == "ephem-toolkit"
+    assert intermediate_oem.header.creation_date
+    assert intermediate_oem.header.creation_date != source_omm.creation_date
     assert abs(
         time_utils.iso8601_to_datetime(intermediate_oem.meta.start_time) - start
     ) <= timedelta(milliseconds=1)
@@ -257,6 +262,7 @@ def test_omm_to_opm_preserves_source_comments_in_serialized_header(
     assert converted_opm.header.message_id == source_omm.message_id
     assert converted_opm.header.originator == "oem_to_opm"
     assert converted_opm.header.creation_date
+    assert converted_opm.header.creation_date
     _assert_optional_omm_blocks_omitted(output_path, converted_opm)
     assert (
         "SOURCE_COMMENT: preserve through OMM-to-OPM" in converted_opm.header.comments
@@ -330,6 +336,81 @@ def test_kepler_theory_omm_to_opm_preserves_metadata(
     _assert_optional_omm_blocks_omitted(output_path, converted_opm)
     assert report["provenance"]["source"] == f"OEM/{theory}"
     assert report["provenance"]["target_model"] == "numerical-propagator"
+
+
+@pytest.mark.parametrize("theory", ["DSST", "2B", "BROUWER-LYDDANE", "SGP4"])
+def test_omm_to_opm_two_body_preserves_composed_metadata(
+    tmp_path: Path, theory: str
+) -> None:
+    if theory == "SGP4":
+        source_path = Path(__file__).parents[2] / "data" / "ISS-ZARYA_1998-067A.omm"
+    else:
+        source_path = (
+            Path(__file__).parents[1]
+            / "oem_to_tle"
+            / "data"
+            / "TEST-DSST_2020-001A.omm"
+        )
+    source_omm = CcsdsOmm.from_source(source_path)
+    source_omm.mean_element_theory = theory
+    source_omm.data["MEAN_ELEMENT_THEORY"] = theory
+    source_omm.classification = "C"
+    source_omm.message_id = f"{theory}-OPM2B-SOURCE"
+    source_omm.comments.append(f"SOURCE_COMMENT: {theory} to two-body OPM")
+    input_path = tmp_path / "source.omm"
+    intermediate_path = tmp_path / "intermediate.oem"
+    output_path = tmp_path / "output.opm"
+    source_omm.to_file(input_path)
+
+    assert propagate_omm_main(
+        [
+            str(input_path),
+            "--duration",
+            "2h",
+            "--step",
+            "5m",
+            "--output",
+            str(intermediate_path),
+        ]
+    ) == 0
+    intermediate_oem = CcsdsOem.read(intermediate_path)
+    oem_to_opm_main(
+        [
+            str(intermediate_path),
+            "--fit-model",
+            "two-body",
+            "--fit-span",
+            "2h",
+            "--output",
+            str(output_path),
+        ]
+    )
+
+    converted_opm = CcsdsOpm.from_source(output_path)
+    expected_source = "OMM" if theory == "SGP4" else f"OMM/{theory}"
+    assert intermediate_oem.meta.object_name == source_omm.object_name
+    assert intermediate_oem.meta.object_id == source_omm.object_id
+    assert intermediate_oem.meta.ref_frame == "EME2000"
+    assert intermediate_oem.header.classification == source_omm.classification
+    assert intermediate_oem.header.message_id == source_omm.message_id
+    assert any(
+        f"source={expected_source}" in comment
+        for comment in intermediate_oem.meta.comments
+    )
+    assert any(
+        f"SOURCE_COMMENT: {theory} to two-body OPM" in comment
+        for comment in intermediate_oem.meta.comments
+    )
+    assert converted_opm.metadata["OBJECT_NAME"] == source_omm.object_name
+    assert converted_opm.metadata["OBJECT_ID"] == source_omm.object_id
+    assert converted_opm.metadata["REF_FRAME"] == "EME2000"
+    assert converted_opm.header.classification == source_omm.classification
+    assert converted_opm.header.message_id == source_omm.message_id
+    assert converted_opm.header.originator == "oem_to_opm"
+    assert any(
+        f"SOURCE_COMMENT: {theory} to two-body OPM" in comment
+        for comment in converted_opm.header.comments
+    )
 
 
 def test_omm_to_opm_dispatches_declared_theory_and_delegates(monkeypatch) -> None:
