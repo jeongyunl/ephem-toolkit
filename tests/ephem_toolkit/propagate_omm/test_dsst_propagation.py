@@ -202,6 +202,9 @@ def test_propagate_omm_dsst_produces_states(tmp_path):
     assert output_oem.meta.ref_frame == "EME2000"
     assert output_oem.meta.time_system == "UTC"
     assert "SOURCE_COMMENT: keep this note" in output_oem.meta.comments
+    assert output_oem.header.originator == "ephem-toolkit"
+    assert output_oem.header.creation_date
+    assert output_oem.header.creation_date != omm_data.creation_date
 
 
 def test_propagate_omm_kepler_preserves_source_comments(tmp_path):
@@ -228,6 +231,9 @@ def test_propagate_omm_kepler_preserves_source_comments(tmp_path):
     assert output_oem.meta.ref_frame == "EME2000"
     assert output_oem.meta.time_system == "UTC"
     assert "SOURCE_COMMENT: optional OMM fields" in output_oem.meta.comments
+    assert output_oem.header.originator == "ephem-toolkit"
+    assert output_oem.header.creation_date
+    assert output_oem.header.creation_date != omm_data.creation_date
     assert any(
         "target_model=two-body-kepler" in comment
         for comment in output_oem.meta.comments
@@ -300,6 +306,7 @@ def test_propagate_omm_sgp4_writes_metadata_and_source_comments(monkeypatch, tmp
     assert "SOURCE_COMMENT: optional OMM fields" in output_oem.meta.comments
     assert any("target_model=SGP4" in comment for comment in output_oem.meta.comments)
     assert output_oem.header.creation_date
+    assert output_oem.header.creation_date != omm_data.creation_date
     assert output_oem.header.originator == "ephem-toolkit"
     _assert_omm_covariance_preserved(output_path, omm_data)
     _assert_optional_omm_fields_not_in_oem(output_path)
