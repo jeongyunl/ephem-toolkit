@@ -223,6 +223,7 @@ Note: Must be documented in Interface Control Document (ICD).
 - **Carried forward**: `OBJECT_NAME` and `OBJECT_ID` (unless overridden or absent); OEM metadata comments are copied to OMM comments
 - **Generated/set by current implementation**: header, `MEAN_ELEMENT_THEORY`, `CENTER_NAME=EARTH`, `REF_FRAME=ICRF`, `TIME_SYSTEM=UTC`, and fitted mean elements
 - **Not copied**: source `CENTER_NAME`, `REF_FRAME`, `REF_FRAME_EPOCH`, `TIME_SYSTEM`, `START_TIME`, `STOP_TIME`, usable time bounds, interpolation settings, Cartesian state vectors, acceleration, and covariance
+- **Covariance caveat**: OMM supports covariance, but the current `CcsdsOem` parser/model does not expose OEM covariance to this fit path; covariance handling is an implementation gap, not an OMM format limitation.
 - **Caution**: the fit does not transform the OEM state vectors when assigning the output `REF_FRAME`; verify non-ICRF source frames before treating the output frame label as semantically correct
 
 ### OEM → OPM
@@ -231,12 +232,14 @@ Note: Must be documented in Interface Control Document (ICD).
 - **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`; OEM metadata comments are moved to OPM header comments
 - **Generated/transformed**: OPM header and `EPOCH`; Cartesian state may be fitted, and optional Keplerian elements are emitted only for two-body fitting
 - **Not copied**: `REF_FRAME_EPOCH`, OEM coverage/interpolation fields, remaining time series, covariance, spacecraft parameters, and other unsupported optional fields
+- **Covariance caveat**: although OPM supports covariance, the current `CcsdsOem` parser/model does not expose OEM covariance to the fit path, so this omission is not a target-format limitation.
 
 ### OEM → TLE
 - Requires orbit fitting to mean elements + TLE formatting
 - Multi-step process (OEM → OMM → TLE)
 - **Preserved**: `OBJECT_NAME`, `EPOCH` (from fitted span)
-- **Lost**: Time series, interpolation, all OEM-specific metadata
+- **Lost from TLE**: Time series, interpolation, and CCSDS metadata/comments; source comments are retained in the companion fit report
+- **Generated**: SGP4-fit elements and TLE checksums
 
 ### OMM → OEM
 - Requires propagation using mean element theory
@@ -258,7 +261,7 @@ Note: Must be documented in Interface Control Document (ICD).
 - Generates standard 2-line format
 - Checksums computed automatically
 - **Preserved**: `NORAD_CAT_ID`, `EPOCH`, `MEAN_MOTION`, `ECCENTRICITY`, `INCLINATION`, `RA_OF_ASC_NODE`, `ARG_OF_PERICENTER`, `MEAN_ANOMALY`, `BSTAR`, `ELEMENT_SET_NO`, `REV_AT_EPOCH`, `CLASSIFICATION_TYPE`, `EPHEMERIS_TYPE`, `MEAN_MOTION_DOT`, `MEAN_MOTION_DDOT`
-- **Lost**: `CCSDS_OMM_VERS`, `CREATION_DATE`, `ORIGINATOR`, `MESSAGE_ID`, `COMMENT`, `MEAN_ELEMENT_THEORY`, covariance matrix, `USER_DEFINED_*`
+- **Lost**: `CCSDS_OMM_VERS`, `CREATION_DATE`, `ORIGINATOR`, `CLASSIFICATION`, `MESSAGE_ID`, `COMMENT`, `CENTER_NAME`, `REF_FRAME`, `REF_FRAME_EPOCH`, `TIME_SYSTEM`, `MEAN_ELEMENT_THEORY`, covariance matrix, spacecraft parameters, `USER_DEFINED_*`
 - For non-SGP4 OMMs, the refit path propagates OMM→OEM and fits a new SGP4 TLE. DSST propagates with DSST; current 2B/Brouwer-Lyddane routes use the labeled two-body Kepler fallback. Source comments and fit provenance belong in the companion report/intermediate OEM because TLE cannot encode them
 
 ### OPM → OEM
@@ -299,6 +302,7 @@ Note: Must be documented in Interface Control Document (ICD).
 - The CLI generates `CREATION_DATE` and `ORIGINATOR`; direct library calls to `tle_to_omm` should supply these arguments because their defaults are empty
 - The converter currently writes `CCSDS_OMM_VERS=2.0`
 - **Preserved**: `NORAD_CAT_ID`, `CLASSIFICATION_TYPE`, `EPOCH`, `MEAN_MOTION`, `ECCENTRICITY`, `INCLINATION`, `RA_OF_ASC_NODE`, `ARG_OF_PERICENTER`, `MEAN_ANOMALY`, `BSTAR`, `ELEMENT_SET_NO`, `REV_AT_EPOCH`, `MEAN_MOTION_DOT`, `MEAN_MOTION_DDOT`
+- Serialized conversion tests verify identity, context, and all TLE-specific parameters; the core converter's creation date, originator, and comments remain empty unless supplied by the calling CLI or library arguments.
 
 ### TLE → OPM
 - Composed SGP4 propagation to OEM followed by numerical OPM fitting

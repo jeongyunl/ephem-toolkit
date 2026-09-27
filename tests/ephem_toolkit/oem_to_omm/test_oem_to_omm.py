@@ -14,6 +14,7 @@ import ephem_toolkit.core.propagator.dsst as dsst
 import ephem_toolkit.core.propagator.brouwer_j2 as brouwer
 import ephem_toolkit.core.provenance as provenance
 import ephem_toolkit.core.time_utils as time_utils
+import ephem_toolkit.core.tle as tle
 import ephem_toolkit.oem_to_omm as oem_to_omm
 import ephem_toolkit.oem_to_omm.__main__ as oem_to_omm_entry
 import ephem_toolkit.oem_to_omm.fit_brouwer as fit_brouwer
@@ -364,6 +365,136 @@ def test_main_dsst_mode_fits_and_writes_omm_to_stdout(
     assert converted[0][1] is mean_elements
     assert dummy_omm.originator == "oem_to_omm"
     assert "DSST mean elements (J2 secular fit)" in dummy_omm.comments
+
+
+@pytest.mark.parametrize(
+    ("fit_model", "expected_theory", "expected_frame"),
+    [
+        ("brouwer", "BROUWER-LYDDANE", "ICRF"),
+        ("dsst", "DSST", "ICRF"),
+        ("sgp4", "SGP/SGP4", "TEME"),
+    ],
+)
+def test_main_serializes_oem_metadata_for_each_fit_model(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    fit_model: str,
+    expected_theory: str,
+    expected_frame: str,
+) -> None:
+    states = [
+        (0.0, np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0])),
+        (600.0, np.array([6_999_000.0, 4_500_000.0, 0.0, -4_800.0, 7_499.0, 0.0])),
+    ]
+    source_meta = DummyMeta("SOURCE SAT", "2024-001A")
+    source_meta.comments = ["OEM_SOURCE_COMMENT: preserve me"]
+    source_meta.ref_frame_epoch = "2000-01-01T12:00:00"
+    source_meta.start_time = "2024-01-01T00:00:00"
+    source_meta.stop_time = "2024-01-01T00:10:00"
+    source_meta.interpolation = "LAGRANGE"
+    source_meta.interpolation_degree = 7
+    monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        oem.CcsdsOem,
+        "read",
+        lambda *_args, **_kwargs: DummyOemData(states, source_meta),
+    )
+    monkeypatch.setattr(
+        provenance, "resolve_source_model", lambda *_args: ("TEST", None)
+    )
+    monkeypatch.setattr(
+        provenance, "provenance_comment", lambda **_kwargs: "FIT_PROVENANCE"
+    )
+    monkeypatch.setattr(provenance, "fit_comment", lambda **_kwargs: "FIT_SUMMARY")
+
+    fitted_elements = np.array([7_000_000.0, 0.01, 0.2, 0.3, 0.4, 0.5])
+    diagnostics = {
+        "status": "ok",
+        "span_s": 600.0,
+        "n_records": len(states),
+        "rms_position_m": 1.0,
+    }
+    if fit_model == "brouwer":
+        monkeypatch.setattr(
+            fit_brouwer,
+            "fit_brouwer",
+            lambda *_args, **_kwargs: (fitted_elements, diagnostics),
+        )
+        monkeypatch.setattr(
+            fit_brouwer,
+            "compute_brouwer_propagation_comparison",
+            lambda *_args, **_kwargs: [],
+        )
+        monkeypatch.setattr(
+            brouwer, "brouwer_mean_to_osculating", lambda elements: elements
+        )
+        monkeypatch.setattr(fit_brouwer, "format_brouwer_output", lambda *_args: "")
+    elif fit_model == "dsst":
+        monkeypatch.setattr(dsst, "DsstPerturbations", lambda **_kwargs: object())
+        monkeypatch.setattr(
+            fit_brouwer,
+            "fit_dsst_mean_elements",
+            lambda *_args, **_kwargs: (fitted_elements, diagnostics),
+        )
+    else:
+
+        def fit_tle_result(*_args, **kwargs):
+            return (
+                tle.Tle(
+                    object_name=kwargs["object_name"],
+                    int_designator_year=24,
+                    int_designator_launch_number=1,
+                    int_designator_piece="A",
+                    epoch_year=26,
+                    epoch_day=1.0,
+                    inclination_deg=10.0,
+                    raan_deg=20.0,
+                    eccentricity=0.01,
+                    arg_perigee_deg=30.0,
+                    mean_anomaly_deg=40.0,
+                    mean_motion_rev_per_day=14.0,
+                ),
+                diagnostics,
+            )
+
+        monkeypatch.setattr(fit_tle, "fit_tle", fit_tle_result)
+        monkeypatch.setattr(
+            fit_tle,
+            "compute_tle_propagation_comparison",
+            lambda *_args, **_kwargs: [],
+        )
+        monkeypatch.setattr(fit_tle, "format_tle_output", lambda *_args: "")
+
+    output_path = tmp_path / f"{fit_model}.omm"
+    oem_to_omm.main(
+        [
+            "--fit-model",
+            fit_model,
+            "--no-fit-report",
+            "input.oem",
+            "--output",
+            str(output_path),
+        ]
+    )
+
+    serialized = output_path.read_text(encoding="utf-8")
+    converted = omm.CcsdsOmm.from_source(output_path)
+    assert converted.object_name == "SOURCE SAT"
+    assert converted.object_id == "2024-001A"
+    assert converted.center_name == "EARTH"
+    assert converted.ref_frame == expected_frame
+    assert converted.time_system == "UTC"
+    assert converted.mean_element_theory == expected_theory
+    assert converted.originator == "oem_to_omm"
+    assert converted.creation_date
+    assert "OEM_SOURCE_COMMENT: preserve me" in converted.comments
+    assert "FIT_PROVENANCE" in converted.comments
+    assert "FIT_SUMMARY" in converted.comments
+    assert converted.ref_frame_epoch == ""
+    assert converted.covariance is None
+    assert converted.spacecraft_parameters is None
+    assert "START_TIME" not in serialized
+    assert "INTERPOLATION" not in serialized
 
 
 @pytest.mark.parametrize(

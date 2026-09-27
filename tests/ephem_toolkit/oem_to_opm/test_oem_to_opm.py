@@ -26,7 +26,12 @@ class DummyMeta:
     object_id = "2024-001A"
     center_name = "EARTH"
     ref_frame = "ICRF"
+    ref_frame_epoch = "2000-01-01T12:00:00"
     time_system = "UTC"
+    start_time = "2024-01-01T00:00:00"
+    stop_time = "2024-01-01T00:10:00"
+    interpolation = "LAGRANGE"
+    interpolation_degree = 7
     comments = ["EPHEMERIS_PROVENANCE: source=OPM; target_model=numerical"]
 
 
@@ -240,6 +245,23 @@ def test_numerical_fit_model_dispatches_to_shared_fitter(
     assert "original OEM" in (captured.out + captured.err)
     assert "fitted:" in (captured.out + captured.err)
     assert DummyMeta.comments[0] in output_path.read_text(encoding="utf-8")
+    header, metadata, data = opm.read_opm(output_path)
+    assert header["ORIGINATOR"] == "oem_to_opm"
+    assert header["COMMENT"][0] == DummyMeta.comments[0]
+    assert any("source=OEM/unknown" in comment for comment in header["COMMENT"])
+    assert metadata == {
+        "OBJECT_NAME": "SAT",
+        "OBJECT_ID": "2024-001A",
+        "CENTER_NAME": "EARTH",
+        "REF_FRAME": "ICRF",
+        "TIME_SYSTEM": "UTC",
+    }
+    assert data["X"] == pytest.approx(7000.0)
+    assert data["Z_DOT"] == pytest.approx(-0.2)
+    assert "SEMI_MAJOR_AXIS" not in data
+    assert "CX_X" not in data
+    assert "MASS" not in data
+    assert "MANEUVERS" not in data
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert report["configuration"]["source_comments"] == DummyMeta.comments
 
@@ -305,6 +327,8 @@ def test_main_writes_initial_state_and_osculating_elements_to_opm(
     header, metadata, data = opm.read_opm(output_path)
     assert header["CCSDS_OPM_VERS"] == pytest.approx(3.0)
     assert header["ORIGINATOR"] == "oem_to_opm"
+    assert header["COMMENT"][0] == DummyMeta.comments[0]
+    assert any("source=OEM/unknown" in comment for comment in header["COMMENT"])
     assert metadata == {
         "OBJECT_NAME": "SAT",
         "OBJECT_ID": "2024-001A",
@@ -322,6 +346,13 @@ def test_main_writes_initial_state_and_osculating_elements_to_opm(
     assert data["ARG_OF_PERICENTER"] == pytest.approx(np.degrees(0.3))
     assert data["TRUE_ANOMALY"] == pytest.approx(np.degrees(0.5))
     assert data["GM"] == pytest.approx(398600.4418)
+    assert "CX_X" not in data
+    assert "MASS" not in data
+    assert "MANEUVERS" not in data
+    serialized = output_path.read_text(encoding="utf-8")
+    assert "REF_FRAME_EPOCH" not in serialized
+    assert "START_TIME" not in serialized
+    assert "INTERPOLATION" not in serialized
 
 
 def test_report_results_supports_stdout_stream_and_file(

@@ -71,6 +71,10 @@ Track these categories where the source and target formats support them:
 - Updated [Metadata Comparison](ORBIT_FILE_METADATA_COMPARISON.md) for the audited routes, separating copied fields from generated values and identifying frame-label semantics that still need verification.
 - Final focused route suite: 110 passed across direct TLE↔OMM tests, Kepler propagation, TLE→OMM CLI, OEM→OMM/OPM fits, and OMM/TLE→OPM wrappers.
 - Latest focused regression suite: 124 passed across numerical propagation, OMM propagation, both OPM→OMM compositions, OEM→OPM, and OMM/TLE→OPM wrappers. Three environment/orbit warnings were reported (LibreSSL/urllib3 and near-equatorial DSST accuracy).
+- Added `test_main_serializes_oem_metadata_for_each_fit_model` in `test_oem_to_omm.py`. Identity, source comments, generated context/theory, and omitted OEM epoch/coverage/interpolation fields are verified against serialized OMMs; fit numerics are stubbed.
+- Extended `test_main_writes_initial_state_and_osculating_elements_to_opm` and `test_numerical_fit_model_dispatches_to_shared_fitter` in `test_oem_to_opm.py`. Parsed comments, selected identity/context, state, optional elements, and omitted OEM coverage/interpolation fields are verified for two-body and numerical fitting.
+- Extended `test_oem_to_tle_report_file_and_unknown_provenance` in `test_oem_to_tle.py`: the fitted TLE retains name/designator and valid checksums, while the source CCSDS comment is retained in the fit report rather than the TLE.
+- Extended `test_tle_to_omm_matches_reference_file` and `test_omm_to_tle_matches_reference_file` in `test_convert_tle.py` to write and reparse outputs. TLE identity, orbital/TLE parameters, and generated OMM context survive; OMM comments, covariance, spacecraft parameters, and user-defined keys do not enter TLE output.
 
 **Initial hypothesis to verify:**
 
@@ -134,14 +138,19 @@ unexpected.
    - TLE cannot retain CCSDS comments or source theory; the report and
      intermediate OEM comments record those losses and the fallback model.
 7. **OEM → OMM/OPM/TLE fit variants**
-   - Add serialized field-level checks across each fit model. Verify comments,
-     source metadata, frame/time semantics, optional covariance/physical
-     fields, and the companion report where the target cannot carry data.
+   - Serialized CLI checks now cover OMM Brouwer/DSST/SGP4, OPM two-body and
+     numerical fitting, and the direct SGP4 TLE fit. They verify identity,
+     comments, generated context/theory, representative state/element fields,
+     and expected omissions; the TLE companion report retains source comments.
+   - Still separate semantic frame validation from label serialization. OEM
+     covariance cannot yet be seeded through `CcsdsOem`, whose parser/model
+     does not expose covariance; do not classify that untested path as a
+     verified loss until reader support or a lower-level fixture exists.
 8. **Direct TLE ↔ OMM metadata coverage**
-   - Extend existing orbital round-trip tests with assertions for all
-     TLE-representable metadata and serialized OMM output. Verify expected
-     losses separately: TLE cannot carry CCSDS headers, comments, covariance,
-     spacecraft parameters, or user-defined fields.
+   - Serialized checks now re-read both directions. TLE identity, orbital and
+     TLE-specific parameters survive; TLE→OMM generates Earth/TEME/UTC context,
+     while OMM→TLE omits CCSDS headers/comments, covariance, spacecraft
+     parameters, and user-defined fields.
 
 ## Evidence Log
 
@@ -149,15 +158,15 @@ Use this table as the audit proceeds. Record references to focused tests or fixt
 
 | Route | Metadata categories checked | Outcome | Evidence / follow-up |
 |---|---|---|---|
-| TLE → OMM | Identity, context, orbital/TLE parameters, generated header | Source trace and existing conversion tests | 25 conversion tests pass; add serialized metadata assertions if broad coverage is required |
-| OMM → TLE | TLE-representable identity and parameters; CCSDS-only fields | Source trace and existing conversion tests | 25 conversion tests pass; losses are target-format limitations |
+| TLE → OMM | Identity, context, orbital/TLE parameters, generated/default header | `test_tle_to_omm_matches_reference_file` serialized parser round-trip | TLE identity, orbital/TLE parameters, and Earth/TEME/UTC + SGP/SGP4 context verified; core-library header/comment defaults are empty |
+| OMM → TLE | TLE-representable identity and parameters; CCSDS-only fields | `test_omm_to_tle_matches_reference_file` serialized parser round-trip | Identity, TLE parameters, elements, and checksums verified; comments, header fields, covariance, spacecraft parameters, and user-defined key are absent from TLE |
 | OPM → OEM (`propagate-kepler`) | Identity, comments, frame/time, derived coverage, generated header | Focused parser/output tests and composed integration | `OBJECT_ID` and OPM header comments carry through; OEM header and propagation provenance are generated |
 | OPM → OEM (`propagate-orbit`) | Identity, comments, frame/time, covariance, maneuvers, physical parameters | Focused behavior tests and serialized composition integration | Name/ID/comments carry through; incompatible context is rejected; covariance serialization and OPM physical-parameter use are capability gaps |
 | TLE/OMM → OEM propagation | Identity, frame/time, comments, generated header | DSST/Kepler/SGP4 serialized tests plus SGP4 runtime-frame test | Comments and identity verified; TudatPy converts TEME to J2000, accepted as EME2000 under the stated assumption |
 | OMM/TLE → OPM | Identity, frame/time, comments/provenance, generated header/report | DSST OMM, SGP4 OMM, and TLE serialized wrapper tests | Identity/context/report verified; OMM comments and TLE-generated provenance verified; TudatPy TEME-to-J2000 supports EME2000 under the stated assumption |
-| OEM → OMM | Identity, comments, context, coverage, covariance | Source trace | Fresh OMM defaults to ICRF/EARTH/UTC; verify frame semantics and document omissions |
-| OEM → OPM | Identity, comments, context, covariance, maneuvers, physical parameters | Source trace | Selected identity/context and comments survive; optional blocks are not copied |
-| OEM → TLE | Identity and TLE-representable fields through intermediate OMM | Wrapper/source trace | CCSDS and OEM-only metadata are discarded by final TLE format |
+| OEM → OMM | Identity, comments, context, theory, coverage/interpolation, optional blocks | `test_main_serializes_oem_metadata_for_each_fit_model` (fit numerics stubbed) | Identity/comments and generated context/theory verified; reference-frame epoch and coverage/interpolation omitted; semantic frame and covariance handling remain open |
+| OEM → OPM | Identity, comments, context, state/elements, coverage/interpolation, optional blocks | `test_main_writes_initial_state_and_osculating_elements_to_opm`; `test_numerical_fit_model_dispatches_to_shared_fitter` | Parsed identity/context/state/comments verified; two-body elements emitted, numerical elements omitted; OEM coverage/interpolation omitted; covariance source unavailable in current OEM model |
+| OEM → TLE | Identity, TLE fields/checksums, source comments/provenance | `test_oem_to_tle_report_file_and_unknown_provenance` plus composed refit tests | TLE name/designator/checksums verified; CCSDS comments are absent from TLE and retained in the fit report |
 | OPM(NUM) → OEM | Identity, comments, frame/time, covariance, maneuvers, physical parameters | Focused behavior tests and serialized composition test | Name/ID/comments carry through; unsupported context is rejected; covariance and physical-input gaps documented |
 | OPM(NUM) → OMM | Identity, comments, frame/time, theory, fit report | Brouwer/DSST/SGP4 composition integration tests | Name/ID/comments and target theory verified for all supported fit models; frame labels differ by model; semantic frame validation remains |
 | OPM(2B) → OMM | Identity, comments, frame/time, theory, fit report | Brouwer/DSST/SGP4 composition integration tests | Name/ID/comments and target theory verified for all supported fits; frame labels differ by model; semantic frame validation remains |
@@ -165,8 +174,8 @@ Use this table as the audit proceeds. Record references to focused tests or fixt
 | OMM(DSST) → OPM(NUM) | Identity, frame/time, comments, generated header/report | Serialized wrapper integration test | Identity, EARTH/EME2000/UTC, comments, originator, and report provenance verified |
 | OMM(SGP4)/TLE → OPM(NUM) | Identity, frame/time, comments/provenance, generated header/report | Serialized wrapper integration tests and SGP4 runtime-frame test | Identity/context/comments or generated provenance verified; TudatPy converts TEME to J2000, EME2000 accepted under the stated assumption |
 | OMM non-SGP4 → TLE refit | Identity, fit provenance, TLE fields, fallback labeling | DSST plus 2B/Brouwer-Lyddane fallback serialized tests | TLE identity/checksum verified; source comment and actual Kepler fallback retained in intermediate OEM/report |
-| OEM fit model variants | Comments, context, optional fields, reports | Partial source trace | Verify serialized OMM/OPM/TLE for each model |
-| Direct TLE ↔ OMM | TLE-representable metadata and serialized headers | Partial tests | Expand beyond orbital-value round trips; classify CCSDS-only losses |
+| OEM fit model variants | Comments, context, selected state/elements, representative omissions, report provenance | Targeted serialized tests across OMM/OPM/TLE models | Fit algorithms stubbed for OMM/OPM serialization checks; TLE direct fit uses a real OEM fixture; semantic frame and covariance input coverage remain |
+| Direct TLE ↔ OMM | Identity, context, all TLE parameters/elements, optional CCSDS metadata loss | `test_tle_to_omm_matches_reference_file`; `test_omm_to_tle_matches_reference_file` | Both directions are re-read after serialization; expected TLE target-format losses are verified |
 
 ## Completion Criteria
 

@@ -331,12 +331,18 @@ def test_non_sgp4_omm_to_tle_refit_records_kepler_fallback_provenance(
 def test_oem_to_tle_report_file_and_unknown_provenance(tmp_path: Path) -> None:
     """A direct OEM fit reports SGP4 provenance and writes a valid TLE."""
     source = Path("tests/data/ISS_2026-05-20_small.16m.OEM")
+    source_oem = ccsds_oem.CcsdsOem.read(source)
+    source_oem.meta.object_name = "AUDIT SAT"
+    source_oem.meta.object_id = "2024-001A"
+    source_oem.meta.comments.append("OEM_SOURCE_COMMENT: TLE metadata audit")
+    input_oem = tmp_path / "metadata-source.oem"
+    source_oem.write(input_oem)
     output_tle = tmp_path / "output.tle"
     fit_report = tmp_path / "output.fit.json"
 
     oem_to_tle_main(
         [
-            str(source),
+            str(input_oem),
             "--fit-span",
             "10m",
             "--output",
@@ -347,10 +353,19 @@ def test_oem_to_tle_report_file_and_unknown_provenance(tmp_path: Path) -> None:
     )
 
     _assert_valid_tle(output_tle.read_text(encoding="utf-8").splitlines())
+    with output_tle.open(encoding="utf-8") as tle_file:
+        converted_tle = tle.read_tle(tle_file)
+    assert converted_tle.object_name == source_oem.meta.object_name
+    assert converted_tle.get_object_id() == source_oem.meta.object_id
+    assert "OEM_SOURCE_COMMENT" not in output_tle.read_text(encoding="utf-8")
     report = json.loads(fit_report.read_text(encoding="utf-8"))
     assert report["status"] == "converged"
     assert report["provenance"]["source"] == "OEM/unknown"
     assert report["provenance"]["target_model"] == "SGP4"
+    assert (
+        "OEM_SOURCE_COMMENT: TLE metadata audit"
+        in report["configuration"]["source_comments"]
+    )
     assert report["residuals"]["position_rms_m"] >= 0.0
     assert (
         report["residuals"]["position_max_m"] >= report["residuals"]["position_rms_m"]

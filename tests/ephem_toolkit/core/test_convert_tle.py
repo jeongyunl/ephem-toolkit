@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 import core.convert_tle as conv
@@ -39,7 +40,9 @@ OMM_FILES = sorted(TEST_DATA_DIR.glob("*.omm"))
     ],
     ids=["ISS", "AMOS-17", "LEO-3"],
 )
-def test_tle_to_omm_matches_reference_file(tle_path: Path, omm_path: Path) -> None:
+def test_tle_to_omm_matches_reference_file(
+    tle_path: Path, omm_path: Path, tmp_path: Path
+) -> None:
     """Should convert TLE to OMM with orbital elements matching the reference OMM file."""
     with open(tle_path, encoding="utf-8") as fh:
         tle_data = tle.read_tle(fh)
@@ -69,6 +72,49 @@ def test_tle_to_omm_matches_reference_file(tle_path: Path, omm_path: Path) -> No
         == omm_ref.tle_parameters.element_set_no
     )
 
+    output_path = tmp_path / "converted.omm"
+    omm_result.to_file(output_path)
+    serialized_omm = omm.CcsdsOmm.from_source(output_path)
+    assert serialized_omm.object_name == omm_result.object_name
+    assert serialized_omm.object_id == omm_result.object_id
+    assert serialized_omm.epoch == omm_result.epoch
+    assert serialized_omm.mean_motion == pytest.approx(omm_result.mean_motion)
+    assert serialized_omm.eccentricity == pytest.approx(omm_result.eccentricity)
+    assert serialized_omm.inclination == pytest.approx(omm_result.inclination)
+    assert serialized_omm.ra_of_asc_node == pytest.approx(omm_result.ra_of_asc_node)
+    assert serialized_omm.arg_of_pericenter == pytest.approx(
+        omm_result.arg_of_pericenter
+    )
+    assert serialized_omm.mean_anomaly == pytest.approx(omm_result.mean_anomaly)
+    assert serialized_omm.center_name == "EARTH"
+    assert serialized_omm.ref_frame == "TEME"
+    assert serialized_omm.time_system == "UTC"
+    assert serialized_omm.mean_element_theory == "SGP/SGP4"
+    assert serialized_omm.comments == []
+    assert serialized_omm.creation_date == ""
+    assert serialized_omm.originator == ""
+    assert serialized_omm.tle_parameters.ephemeris_type == (
+        omm_result.tle_parameters.ephemeris_type
+    )
+    assert serialized_omm.tle_parameters.classification_type == (
+        omm_result.tle_parameters.classification_type
+    )
+    assert serialized_omm.tle_parameters.norad_cat_id == (
+        omm_result.tle_parameters.norad_cat_id
+    )
+    assert serialized_omm.tle_parameters.element_set_no == (
+        omm_result.tle_parameters.element_set_no
+    )
+    assert serialized_omm.tle_parameters.rev_at_epoch == (
+        omm_result.tle_parameters.rev_at_epoch
+    )
+    for field in ("bstar", "mean_motion_dot", "mean_motion_ddot"):
+        assert conv._omm_scientific_to_float(
+            getattr(serialized_omm.tle_parameters, field)
+        ) == pytest.approx(
+            conv._omm_scientific_to_float(getattr(omm_result.tle_parameters, field))
+        )
+
 
 # ===================================================================
 # 2. OMM → TLE conversion preserves orbital elements (file-based)
@@ -84,9 +130,22 @@ def test_tle_to_omm_matches_reference_file(tle_path: Path, omm_path: Path) -> No
     ],
     ids=["ISS", "AMOS-17", "LEO-3"],
 )
-def test_omm_to_tle_matches_reference_file(tle_path: Path, omm_path: Path) -> None:
+def test_omm_to_tle_matches_reference_file(
+    tle_path: Path, omm_path: Path, tmp_path: Path
+) -> None:
     """Should convert OMM to TLE with orbital elements matching the reference TLE file."""
-    omm_data = omm.CcsdsOmm.from_source(omm_path)
+    source_omm = omm.CcsdsOmm.from_source(omm_path)
+    source_omm.message_id = "SOURCE-MESSAGE-42"
+    source_omm.ref_frame_epoch = "2026-06-01T07:45:33.102720"
+    source_omm.comments.append("SOURCE_COMMENT: OMM-only metadata")
+    source_omm.spacecraft_parameters = omm.OmmSpacecraftParameters(
+        mass=420.0, drag_area=12.0, drag_coeff=2.2
+    )
+    source_omm.covariance = omm.OmmCovariance(np.eye(6), ref_frame="TEME")
+    source_omm.data["USER_DEFINED_AUDIT"] = "OMM-only value"
+    source_path = tmp_path / "metadata-source.omm"
+    source_omm.to_file(source_path)
+    omm_data = omm.CcsdsOmm.from_source(source_path)
 
     with open(tle_path, encoding="utf-8") as fh:
         tle_ref = tle.read_tle(fh)
@@ -118,6 +177,51 @@ def test_omm_to_tle_matches_reference_file(tle_path: Path, omm_path: Path) -> No
         tle_ref.mean_motion_rev_per_day, abs=1e-8
     )
     assert tle_result.revolution_number_at_epoch == tle_ref.revolution_number_at_epoch
+
+    output_path = tmp_path / "converted.tle"
+    tle.write_tle(output_path, tle_result)
+    serialized_tle = output_path.read_text(encoding="utf-8")
+    with output_path.open(encoding="utf-8") as tle_file:
+        serialized_tle_data = tle.read_tle(tle_file)
+    assert serialized_tle_data.object_name == omm_data.object_name
+    assert serialized_tle_data.get_object_id() == omm_data.object_id
+    assert serialized_tle_data.epoch_year == tle_result.epoch_year
+    assert serialized_tle_data.epoch_day == pytest.approx(tle_result.epoch_day)
+    assert serialized_tle_data.norad_cat_id == omm_data.tle_parameters.norad_cat_id
+    assert (
+        serialized_tle_data.classification
+        == omm_data.tle_parameters.classification_type
+    )
+    assert (
+        serialized_tle_data.element_set_number == omm_data.tle_parameters.element_set_no
+    )
+    assert (
+        serialized_tle_data.revolution_number_at_epoch
+        == omm_data.tle_parameters.rev_at_epoch
+    )
+    assert serialized_tle_data.bstar == tle_result.bstar
+    assert serialized_tle_data.mean_motion_first_derivative == pytest.approx(
+        tle_result.mean_motion_first_derivative
+    )
+    assert serialized_tle_data.mean_motion_second_derivative == (
+        tle_result.mean_motion_second_derivative
+    )
+    assert serialized_tle_data.mean_motion_rev_per_day == pytest.approx(
+        tle_result.mean_motion_rev_per_day
+    )
+    assert (
+        serialized_tle_data.line1_checksum
+        == serialized_tle_data.line1_checksum_expected
+    )
+    assert (
+        serialized_tle_data.line2_checksum
+        == serialized_tle_data.line2_checksum_expected
+    )
+    assert "SOURCE-MESSAGE-42" not in serialized_tle
+    assert "SOURCE_COMMENT: OMM-only metadata" not in serialized_tle
+    assert "COV_REF_FRAME" not in serialized_tle
+    assert "USER_DEFINED_AUDIT" not in serialized_tle
+    assert "MASS" not in serialized_tle
 
 
 # ===================================================================
