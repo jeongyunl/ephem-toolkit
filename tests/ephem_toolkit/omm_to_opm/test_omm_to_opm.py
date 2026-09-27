@@ -2,16 +2,54 @@
 
 import json
 from pathlib import Path
+import numpy as np
 
 import pytest
 from types import SimpleNamespace
 
-from ephem_toolkit.core.ccsds.omm import CcsdsOmm
+from ephem_toolkit.core.ccsds.omm import (
+    CcsdsOmm,
+    OmmCovariance,
+    OmmSpacecraftParameters,
+)
 from ephem_toolkit.core.ccsds.opm import CcsdsOpm
 import ephem_toolkit.core.cli as core_cli
 import ephem_toolkit.omm_to_opm as omm_package
 import ephem_toolkit.omm_to_opm.__main__ as omm_wrapper
 from ephem_toolkit.omm_to_opm.__main__ import _forward_arguments, main
+
+
+def _add_optional_omm_blocks(source_omm: CcsdsOmm) -> None:
+    source_omm.ref_frame_epoch = "2024-01-01T00:00:00"
+    source_omm.spacecraft_parameters = OmmSpacecraftParameters(
+        mass=420.0,
+        solar_rad_area=12.0,
+        solar_rad_coeff=1.3,
+        drag_area=10.0,
+        drag_coeff=2.2,
+    )
+    source_omm.covariance = OmmCovariance(np.eye(6), ref_frame=source_omm.ref_frame)
+    source_omm.data["USER_DEFINED_AUDIT"] = "OMM-only value"
+
+
+def _assert_optional_omm_blocks_omitted(output_path: Path, converted: CcsdsOpm) -> None:
+    assert converted.spacecraft_parameters is None
+    assert converted.covariance is None
+    serialized = output_path.read_text(encoding="utf-8")
+    for field in (
+        "REF_FRAME_EPOCH",
+        "MASS",
+        "SOLAR_RAD_AREA",
+        "SOLAR_RAD_COEFF",
+        "DRAG_AREA",
+        "DRAG_COEFF",
+        "COV_REF_FRAME",
+        "CX_X",
+        "USER_DEFINED_AUDIT",
+        "BSTAR",
+        "NORAD_CAT_ID",
+    ):
+        assert field not in serialized
 
 
 def test_sgp4_omm_to_opm_preserves_source_comments_in_serialized_header(
@@ -20,6 +58,7 @@ def test_sgp4_omm_to_opm_preserves_source_comments_in_serialized_header(
     source = Path(__file__).parents[2] / "data" / "ISS-ZARYA_1998-067A.omm"
     source_omm = CcsdsOmm.from_source(source)
     source_omm.comments.append("SOURCE_COMMENT: SGP4 OMM to OPM")
+    _add_optional_omm_blocks(source_omm)
     input_path = tmp_path / "source.omm"
     source_omm.to_file(input_path)
     output_path = tmp_path / "converted.opm"
@@ -46,6 +85,7 @@ def test_sgp4_omm_to_opm_preserves_source_comments_in_serialized_header(
     assert converted_opm.metadata["CENTER_NAME"] == "EARTH"
     assert converted_opm.metadata["REF_FRAME"] == "EME2000"
     assert converted_opm.metadata["TIME_SYSTEM"] == "UTC"
+    _assert_optional_omm_blocks_omitted(output_path, converted_opm)
     assert "SOURCE_COMMENT: SGP4 OMM to OPM" in converted_opm.header.comments
     assert any("source=OMM" in comment for comment in converted_opm.header.comments)
     assert report["provenance"]["target_model"] == "numerical-propagator"
@@ -85,6 +125,7 @@ def test_omm_to_opm_preserves_source_comments_in_serialized_header(
     )
     source_omm = CcsdsOmm.from_source(source)
     source_omm.comments.append("SOURCE_COMMENT: preserve through OMM-to-OPM")
+    _add_optional_omm_blocks(source_omm)
     input_path = tmp_path / "source.omm"
     source_omm.to_file(input_path)
     output_path = tmp_path / "converted.opm"
@@ -112,6 +153,7 @@ def test_omm_to_opm_preserves_source_comments_in_serialized_header(
     assert converted_opm.metadata["TIME_SYSTEM"] == "UTC"
     assert converted_opm.header.originator == "oem_to_opm"
     assert converted_opm.header.creation_date
+    _assert_optional_omm_blocks_omitted(output_path, converted_opm)
     assert (
         "SOURCE_COMMENT: preserve through OMM-to-OPM" in converted_opm.header.comments
     )

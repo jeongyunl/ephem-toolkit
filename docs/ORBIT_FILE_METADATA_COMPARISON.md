@@ -257,7 +257,9 @@ Note: Must be documented in Interface Control Document (ICD).
 - Composed propagation to an intermediate OEM followed by numerical OPM fitting
 - **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`, and OMM comments (as OPM header comments); the output epoch is derived from the generated OEM
 - **Generated/set by current implementation**: OPM header and the context supplied by the intermediate OEM (`EARTH`, `EME2000`, `UTC`)
-- **Not copied**: other source OMM header fields, original frame/time labels, mean-element theory and values, TLE parameters, covariance, and spacecraft parameters
+- **Not copied to final OPM**: other source OMM header fields, original frame/time labels, reference-frame epoch, mean-element theory and values, TLE parameters, covariance, spacecraft parameters, and user-defined fields
+- **Propagation inputs**: DSST uses complete OMM drag (`MASS`, `DRAG_AREA`, `DRAG_COEFF`) and SRP (`SOLAR_RAD_AREA`, `SOLAR_RAD_COEFF`) parameter groups during the intermediate propagation; Kepler ignores spacecraft parameters and SGP4 uses TLE parameters. These inputs are not copied into the final OPM.
+- **Covariance gap**: the intermediate OEM cannot carry OMM covariance because the current `CcsdsOem` model/writer lacks covariance support, even though OPM can represent it.
 - **SGP4 frame handling**: the intermediate TudatPy ephemeris converts TEME to J2000, so its generated OEM/OPM `EME2000` label is accepted under the stated inertial-frame equivalence assumption
 
 ### OMM → TLE
