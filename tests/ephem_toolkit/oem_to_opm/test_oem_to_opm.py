@@ -302,6 +302,9 @@ def test_main_writes_initial_state_and_osculating_elements_to_opm(
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
     source_oem = DummyOemData()
     source_oem.meta.ref_frame = source_frame
+    source_oem.header = SimpleNamespace(
+        classification="C", message_id="OEM-SOURCE-MESSAGE"
+    )
     monkeypatch.setattr(oem.CcsdsOem, "read", lambda *_args, **_kwargs: source_oem)
     monkeypatch.setattr(
         fit_osculating_kepler,
@@ -332,6 +335,8 @@ def test_main_writes_initial_state_and_osculating_elements_to_opm(
     header, metadata, data = opm.read_opm(output_path)
     assert header["CCSDS_OPM_VERS"] == pytest.approx(3.0)
     assert header["ORIGINATOR"] == "oem_to_opm"
+    assert header["CLASSIFICATION"] == "C"
+    assert header["MESSAGE_ID"] == "OEM-SOURCE-MESSAGE"
     assert header["COMMENT"][0] == DummyMeta.comments[0]
     assert any("source=OEM/unknown" in comment for comment in header["COMMENT"])
     assert metadata == {
