@@ -70,7 +70,7 @@ def read_kepler_input(source: str | None):
             ("time_system", "TIME_SYSTEM"),
         )
     }
-    return epoch, state, metadata
+    return epoch, state, metadata, tuple(message.header.comments)
 
 
 def propagate_kepler_elements(
@@ -81,6 +81,7 @@ def propagate_kepler_elements(
     data_only: bool,
     output_metadata: dict[str, str],
     output_path: str = "-",
+    source_comments: tuple[str, ...] = (),
 ) -> None:
     """Propagate Keplerian elements and write the resulting OEM."""
     elements = initial_kepler_km.astype(np.float64).copy()
@@ -109,6 +110,7 @@ def propagate_kepler_elements(
         if data_only:
             message.write_states(stream)
         else:
+            message.meta.comments.extend(source_comments)
             message.meta.comments.append(
                 provenance.provenance_comment(
                     source="OPM",

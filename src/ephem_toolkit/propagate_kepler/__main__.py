@@ -51,8 +51,9 @@ def main(argv=None) -> int:
     initial_epoch: dt.datetime
     initial_kepler_km: np.ndarray
     output_metadata: dict[str, str]
-    initial_epoch, initial_kepler_km, output_metadata = read_kepler_input(
-        cli_args.input_opm
+    source_comments: tuple[str, ...]
+    initial_epoch, initial_kepler_km, output_metadata, source_comments = (
+        read_kepler_input(cli_args.input_opm)
     )
 
     propagate_kepler_elements(
@@ -63,6 +64,7 @@ def main(argv=None) -> int:
         data_only=cli_args.data_only,
         output_metadata=output_metadata,
         output_path=cli_args.output_oem,
+        source_comments=source_comments,
     )
     return 0
 
