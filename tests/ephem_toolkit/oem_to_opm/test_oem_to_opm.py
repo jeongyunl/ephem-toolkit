@@ -30,6 +30,8 @@ class DummyMeta:
     time_system = "UTC"
     start_time = "2024-01-01T00:00:00"
     stop_time = "2024-01-01T00:10:00"
+    useable_start_time = "2024-01-01T00:01:00"
+    useable_stop_time = "2024-01-01T00:09:00"
     interpolation = "LAGRANGE"
     interpolation_degree = 7
     comments = ["EPHEMERIS_PROVENANCE: source=OPM; target_model=numerical"]
@@ -380,8 +382,15 @@ def test_main_writes_initial_state_and_osculating_elements_to_opm(
     assert "MANEUVERS" not in data
     serialized = output_path.read_text(encoding="utf-8")
     assert ("REF_FRAME_EPOCH" in serialized) is bool(source_frame_epoch)
-    assert "START_TIME" not in serialized
-    assert "INTERPOLATION" not in serialized
+    for field in (
+        "START_TIME",
+        "STOP_TIME",
+        "USEABLE_START_TIME",
+        "USEABLE_STOP_TIME",
+        "INTERPOLATION",
+        "INTERPOLATION_DEGREE",
+    ):
+        assert field not in serialized
 
 
 def test_report_results_supports_stdout_stream_and_file(
