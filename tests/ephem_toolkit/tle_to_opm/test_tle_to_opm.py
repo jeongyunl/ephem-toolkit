@@ -1,13 +1,17 @@
 """Tests for the TLE-to-OPM numerical wrapper."""
 
+import io
 import json
+import sys
 from pathlib import Path
 
 import pytest
 from types import SimpleNamespace
 
 import ephem_toolkit.core.ccsds.opm as opm
+import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.cli as core_cli
+import ephem_toolkit.core.time_utils as time_utils
 import ephem_toolkit.core.tle as tle
 import ephem_toolkit.tle_to_opm as tle_package
 import ephem_toolkit.tle_to_opm.__main__ as tle_wrapper
@@ -22,12 +26,22 @@ def test_tle_to_opm_requires_numerical_fit_model() -> None:
 
 
 def test_tle_to_opm_preserves_identity_and_records_sgp4_provenance(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     source = Path(__file__).parents[2] / "data" / "ISS-ZARYA_1998-067A.tle"
     tle_data = tle.read_tle(source)
     output_path = tmp_path / "converted.opm"
     fit_report = tmp_path / "converted.fit.json"
+    original_oem_to_opm_main = tle_wrapper.oem_to_opm_main
+    intermediate_oems = []
+
+    def capture_intermediate_oem(*args) -> None:
+        serialized_oem = sys.stdin.read()
+        intermediate_oems.append(oem.CcsdsOem.read(io.StringIO(serialized_oem)))
+        sys.stdin = io.StringIO(serialized_oem)
+        original_oem_to_opm_main(*args)
+
+    monkeypatch.setattr(tle_wrapper, "oem_to_opm_main", capture_intermediate_oem)
 
     main(
         [
@@ -44,7 +58,25 @@ def test_tle_to_opm_preserves_identity_and_records_sgp4_provenance(
     )
 
     converted_opm = opm.CcsdsOpm.from_source(output_path)
+    intermediate_oem = intermediate_oems[0]
     report = json.loads(fit_report.read_text(encoding="utf-8"))
+    first_epoch = time_utils.tt_s_to_datetime(intermediate_oem.states[0][0])
+    last_epoch = time_utils.tt_s_to_datetime(intermediate_oem.states[-1][0])
+    assert intermediate_oem.meta.object_name == tle_data.object_name
+    assert intermediate_oem.meta.object_id == tle_data.get_object_id()
+    assert intermediate_oem.meta.center_name.lower() == "earth"
+    assert intermediate_oem.meta.ref_frame == "EME2000"
+    assert intermediate_oem.meta.time_system == "UTC"
+    assert any("source=TLE" in comment for comment in intermediate_oem.meta.comments)
+    assert any("target_model=SGP4" in comment for comment in intermediate_oem.meta.comments)
+    assert intermediate_oem.header.originator == "ephem-toolkit"
+    assert intermediate_oem.header.creation_date
+    assert abs(
+        time_utils.iso8601_to_datetime(intermediate_oem.meta.start_time) - first_epoch
+    ) <= time_utils.timedelta(milliseconds=1)
+    assert abs(
+        time_utils.iso8601_to_datetime(intermediate_oem.meta.stop_time) - last_epoch
+    ) <= time_utils.timedelta(milliseconds=1)
     assert converted_opm.metadata["OBJECT_NAME"] == tle_data.object_name
     assert converted_opm.metadata["OBJECT_ID"] == tle_data.get_object_id()
     assert converted_opm.metadata["CENTER_NAME"] == "EARTH"

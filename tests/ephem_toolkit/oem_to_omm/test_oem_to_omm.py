@@ -397,6 +397,8 @@ def test_main_serializes_oem_metadata_for_each_fit_model(
     source_meta.comments = ["OEM_SOURCE_COMMENT: preserve me"]
     source_meta.start_time = "2024-01-01T00:00:00"
     source_meta.stop_time = "2024-01-01T00:10:00"
+    source_meta.useable_start_time = "2024-01-01T00:01:00"
+    source_meta.useable_stop_time = "2024-01-01T00:09:00"
     source_meta.interpolation = "LAGRANGE"
     source_meta.interpolation_degree = 7
     source_oem = DummyOemData(states, source_meta)
@@ -504,8 +506,15 @@ def test_main_serializes_oem_metadata_for_each_fit_model(
     assert "FIT_SUMMARY" in converted.comments
     assert converted.covariance is None
     assert converted.spacecraft_parameters is None
-    assert "START_TIME" not in serialized
-    assert "INTERPOLATION" not in serialized
+    for field in (
+        "START_TIME",
+        "STOP_TIME",
+        "USEABLE_START_TIME",
+        "USEABLE_STOP_TIME",
+        "INTERPOLATION",
+        "INTERPOLATION_DEGREE",
+    ):
+        assert field not in serialized
 
 
 @pytest.mark.parametrize(

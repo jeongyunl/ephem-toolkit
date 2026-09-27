@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 from pathlib import Path
 
 import numpy as np
 import pytest
 
+from ephem_toolkit.core import time_utils
 from ephem_toolkit.core.ccsds.omm import CcsdsOmm
 from ephem_toolkit.core.ccsds.oem import CcsdsOem
 from ephem_toolkit.core.ccsds.opm import (
@@ -122,9 +124,34 @@ def _write_kepler_reference_oem(tmp_path: Path) -> tuple[CcsdsOpm, Path]:
     return source_opm, reference_oem
 
 
+def _assert_opm_propagation_oem_metadata(source_opm: CcsdsOpm, oem_path: Path) -> None:
+    generated_oem = CcsdsOem.read(oem_path)
+    first_epoch = time_utils.tt_s_to_datetime(generated_oem.states[0][0])
+    last_epoch = time_utils.tt_s_to_datetime(generated_oem.states[-1][0])
+    assert generated_oem.meta.object_name == source_opm.metadata["OBJECT_NAME"]
+    assert generated_oem.meta.object_id == source_opm.metadata["OBJECT_ID"]
+    assert generated_oem.meta.center_name.lower() == "earth"
+    assert generated_oem.meta.ref_frame == "J2000"
+    assert generated_oem.meta.time_system == "UTC"
+    assert source_opm.header.comments[0] in generated_oem.meta.comments
+    assert generated_oem.header.classification == source_opm.header.classification
+    assert generated_oem.header.message_id == source_opm.header.message_id
+    assert generated_oem.header.originator == "ephem-toolkit"
+    assert generated_oem.header.creation_date
+    assert generated_oem.header.creation_date != source_opm.header.creation_date
+    assert abs(
+        time_utils.iso8601_to_datetime(generated_oem.meta.start_time) - first_epoch
+    ) <= timedelta(milliseconds=1)
+    assert abs(
+        time_utils.iso8601_to_datetime(generated_oem.meta.stop_time)
+        - last_epoch
+    ) <= timedelta(milliseconds=1)
+
+
 def test_opm_to_omm_composes_kepler_propagation_and_dsst_fit(tmp_path: Path) -> None:
     """Propagate an OPM to OEM, then fit the Cartesian arc to DSST elements."""
     source_opm, reference_oem = _write_kepler_reference_oem(tmp_path)
+    _assert_opm_propagation_oem_metadata(source_opm, reference_oem)
     output_omm = tmp_path / "output.omm"
     fit_report = tmp_path / "output.fit.json"
 
@@ -176,9 +203,7 @@ def test_opm_to_omm_composes_numerical_propagation_and_dsst_fit(tmp_path: Path) 
     fit_report = tmp_path / "numerical-output.fit.json"
 
     generated_oem = CcsdsOem.read(reference_oem)
-    assert generated_oem.meta.object_name == source_opm.metadata["OBJECT_NAME"]
-    assert generated_oem.meta.object_id == source_opm.metadata["OBJECT_ID"]
-    assert "SOURCE_COMMENT: numerical OPM input" in generated_oem.meta.comments
+    _assert_opm_propagation_oem_metadata(source_opm, reference_oem)
     oem_to_omm_main(
         [
             str(reference_oem),
