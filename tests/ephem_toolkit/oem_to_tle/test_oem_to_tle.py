@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+import ephem_toolkit.core.ccsds.omm as ccsds_omm
+import ephem_toolkit.core.tle as tle
 import ephem_toolkit.core.cli as core_cli
 import ephem_toolkit.oem_to_omm as oem_to_omm
 import ephem_toolkit.omm_to_tle as omm_to_tle
@@ -195,10 +197,15 @@ def test_composed_omm_to_tle_workflow_writes_oem_tle_and_report(tmp_path: Path) 
     output_tle = tmp_path / "output.tle"
     fit_report = tmp_path / "output.fit.json"
 
+    source_omm = ccsds_omm.CcsdsOmm.from_source(source)
+    source_omm.comments.append("SOURCE_COMMENT: DSST OMM refit")
+    source_with_comment = tmp_path / "source-with-comment.omm"
+    source_omm.to_file(source_with_comment)
+
     assert (
         propagate_omm_main(
             [
-                str(source),
+                str(source_with_comment),
                 "--duration",
                 "2h",
                 "--step",
@@ -237,6 +244,13 @@ def test_composed_omm_to_tle_workflow_writes_oem_tle_and_report(tmp_path: Path) 
     assert (
         report["residuals"]["position_max_m"] >= report["residuals"]["position_rms_m"]
     )
+    assert (
+        "SOURCE_COMMENT: DSST OMM refit" in report["configuration"]["source_comments"]
+    )
+    with output_tle.open(encoding="utf-8") as tle_file:
+        converted_tle = tle.read_tle(tle_file)
+    assert converted_tle.object_name == source_omm.object_name
+    assert converted_tle.get_object_id() == source_omm.object_id
 
 
 def test_oem_to_tle_report_file_and_unknown_provenance(tmp_path: Path) -> None:

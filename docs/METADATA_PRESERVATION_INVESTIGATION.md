@@ -62,6 +62,7 @@ Track these categories where the source and target formats support them:
 - The OMM→OPM wrapper delegates to a fitter that copies intermediate OEM metadata comments into the OPM header. Serialized OMM(DSST), OMM(SGP4), and TLE wrapper tests verify source comments or generated-only provenance reaches the OPM/report.
 - Added a serialized OMM(DSST)→OPM wrapper test: object identity, `EARTH`/`EME2000`/`UTC` context, regenerated originator, source/provenance comments in the OPM header, and fit-report source comments/target provenance are verified. The OMM→OPM and shared fitter suites pass (33 passed).
 - Added serialized SGP4 wrapper checks for OMM→OPM and TLE→OPM. OMM identity, comments, generated context/header, and fit-report comment/provenance survive; TLE identity and generated SGP4 provenance appear in the OPM/report. The OMM/TLE wrapper and shared fitter suites pass (39 passed). Both routes emit `REF_FRAME=EME2000`; TudatPy's TEME-to-J2000 conversion and the stated inertial equivalence support that label.
+- Strengthened the composed DSST OMM→TLE refit test: parsed TLE name and object designator match the source, while a distinctive OMM comment is retained in the fit report (the TLE itself cannot carry comments). The focused composition test passes.
 - Traced OMM→OPM and TLE→OPM wrappers: both generate an intermediate OEM and delegate to OEM→OPM fitting, so their context and comments reflect that generated OEM rather than copying the source message header or comments.
 - Traced OEM→OMM fitting: it selects object name and object ID and copies OEM metadata comments into output comments, but builds a fresh OMM. The builder defaults to `REF_FRAME=ICRF`, `CENTER_NAME=EARTH`, and `TIME_SYSTEM=UTC`; it does not copy OEM reference-frame epoch, coverage/interpolation metadata, covariance, or other optional blocks. The input state frame is not transformed by this metadata assignment, so non-ICRF inputs need a semantic frame check.
 - Traced OEM→OPM fitting: object name, object ID, center, frame, and time system are selected for output; OEM metadata comments are moved to OPM header comments. The builder creates a new header and does not carry covariance, maneuvers, spacecraft parameters, or OEM coverage/interpolation fields.
@@ -126,9 +127,10 @@ unexpected.
    - TudatPy converts the SGP4 TEME solution to J2000 before fitting; the
      generated OPM `EME2000` label is accepted under the stated assumption.
 6. **OMM(2B/BROUWER/DSST) → TLE refit**
-   - Check the `propagate-omm` → OEM → `oem-to-tle` composition, including
-     object identity, generated TLE fields, fit-report provenance, and loss of
-     CCSDS-only metadata at the final TLE boundary.
+   - DSST propagation → OEM → `oem-to-tle` is verified for parsed TLE identity
+     and report-only source comments/provenance.
+   - Check the remaining OMM theory/fallback variants, including generated
+     TLE fields and losses at the final TLE boundary.
 7. **OEM → OMM/OPM/TLE fit variants**
    - Add serialized field-level checks across each fit model. Verify comments,
      source metadata, frame/time semantics, optional covariance/physical
@@ -160,7 +162,7 @@ Use this table as the audit proceeds. Record references to focused tests or fixt
 | OMM → OEM theory variants | Identity, comments, generated frame/time, coverage, provenance | DSST/Kepler/SGP4 serialized tests and SGP4 runtime-frame test | Identity/comments/coverage/provenance verified; TudatPy converts TEME to J2000 and EME2000 is accepted under the stated assumption |
 | OMM(DSST) → OPM(NUM) | Identity, frame/time, comments, generated header/report | Serialized wrapper integration test | Identity, EARTH/EME2000/UTC, comments, originator, and report provenance verified |
 | OMM(SGP4)/TLE → OPM(NUM) | Identity, frame/time, comments/provenance, generated header/report | Serialized wrapper integration tests and SGP4 runtime-frame test | Identity/context/comments or generated provenance verified; TudatPy converts TEME to J2000, EME2000 accepted under the stated assumption |
-| OMM non-SGP4 → TLE refit | Identity, fit provenance, TLE fields | Route identified | Verify composed propagation/refit and final format losses |
+| OMM non-SGP4 → TLE refit | Identity, fit provenance, TLE fields | DSST composed serialized test | TLE identity verified; source comment retained in fit report; remaining theory/fallback variants need coverage |
 | OEM fit model variants | Comments, context, optional fields, reports | Partial source trace | Verify serialized OMM/OPM/TLE for each model |
 | Direct TLE ↔ OMM | TLE-representable metadata and serialized headers | Partial tests | Expand beyond orbital-value round trips; classify CCSDS-only losses |
 
