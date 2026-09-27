@@ -106,6 +106,54 @@ def _make_dsst_omm(epoch_s: float = 0.0, theory: str = "DSST") -> omm_mod.CcsdsO
     )
 
 
+def _round_trip_optional_omm_fields(
+    tmp_path: Path,
+    omm_data: omm_mod.CcsdsOmm,
+    name: str,
+) -> omm_mod.CcsdsOmm:
+    omm_data.ref_frame_epoch = "2024-01-01T00:00:00"
+    omm_data.spacecraft_parameters = omm_mod.OmmSpacecraftParameters(
+        mass=420000.0,
+        solar_rad_area=2300.0,
+        solar_rad_coeff=1.3,
+        drag_area=2500.0,
+        drag_coeff=2.2,
+    )
+    omm_data.covariance = omm_mod.OmmCovariance(np.eye(6), ref_frame="J2000")
+    omm_data.data["USER_DEFINED_AUDIT"] = "OMM-only value"
+    omm_data.comments.append("SOURCE_COMMENT: optional OMM fields")
+
+    source_path = tmp_path / f"{name}-optional.omm"
+    omm_data.to_file(source_path)
+    parsed = omm_mod.CcsdsOmm.from_source(source_path)
+    assert parsed.ref_frame_epoch == omm_data.ref_frame_epoch
+    assert parsed.spacecraft_parameters == omm_data.spacecraft_parameters
+    assert parsed.covariance is not None
+    assert parsed.data["USER_DEFINED_AUDIT"] == "OMM-only value"
+    return parsed
+
+
+def _assert_optional_omm_fields_not_in_oem(output_path: Path) -> None:
+    serialized = output_path.read_text(encoding="utf-8")
+    for field in (
+        "REF_FRAME_EPOCH",
+        "MASS",
+        "SOLAR_RAD_AREA",
+        "SOLAR_RAD_COEFF",
+        "DRAG_AREA",
+        "DRAG_COEFF",
+        "COV_REF_FRAME",
+        "CX_X",
+        "USER_DEFINED_AUDIT",
+        "MEAN_ELEMENT_THEORY",
+        "NORAD_CAT_ID",
+        "ELEMENT_SET_NO",
+        "BSTAR",
+        "MEAN_MOTION_DOT",
+    ):
+        assert field not in serialized
+
+
 # ===================================================================
 # Unit tests for propagate_omm_dsst function
 # ===================================================================
@@ -142,8 +190,9 @@ def test_propagate_omm_dsst_produces_states(tmp_path):
 
 def test_propagate_omm_kepler_preserves_source_comments(tmp_path):
     """The fallback propagation output retains input OMM comments."""
-    omm_data = _make_dsst_omm(theory="2B")
-    omm_data.comments = ["SOURCE_COMMENT: keep this note"]
+    omm_data = _round_trip_optional_omm_fields(
+        tmp_path, _make_dsst_omm(theory="2B"), "kepler"
+    )
     start = time_utils.tt_s_to_datetime(0.0)
     output_path = tmp_path / "kepler.oem"
 
@@ -162,11 +211,12 @@ def test_propagate_omm_kepler_preserves_source_comments(tmp_path):
     assert output_oem.meta.center_name == "EARTH"
     assert output_oem.meta.ref_frame == "EME2000"
     assert output_oem.meta.time_system == "UTC"
-    assert "SOURCE_COMMENT: keep this note" in output_oem.meta.comments
+    assert "SOURCE_COMMENT: optional OMM fields" in output_oem.meta.comments
     assert any(
         "target_model=two-body-kepler" in comment
         for comment in output_oem.meta.comments
     )
+    _assert_optional_omm_fields_not_in_oem(output_path)
 
 
 def test_propagate_omm_sgp4_forwards_source_comments(monkeypatch):
@@ -192,7 +242,8 @@ def test_propagate_omm_sgp4_writes_metadata_and_source_comments(monkeypatch, tmp
     omm_data = _make_dsst_omm(theory="SGP4")
     omm_data.ref_frame = "TEME"
     omm_data.comments = ["SOURCE_COMMENT: SGP4 input"]
-    omm_data.tle_parameters = omm_mod.TleParameters()
+    omm_data.tle_parameters = omm_mod.TleParameters(norad_cat_id=25544)
+    omm_data = _round_trip_optional_omm_fields(tmp_path, omm_data, "sgp4")
 
     class FakeSgp4Propagator:
         def __init__(self, _tle_object):
@@ -216,9 +267,11 @@ def test_propagate_omm_sgp4_writes_metadata_and_source_comments(monkeypatch, tmp
     assert output_oem.meta.ref_frame == "EME2000"
     assert output_oem.meta.time_system == "UTC"
     assert "SOURCE_COMMENT: SGP4 input" in output_oem.meta.comments
+    assert "SOURCE_COMMENT: optional OMM fields" in output_oem.meta.comments
     assert any("target_model=SGP4" in comment for comment in output_oem.meta.comments)
     assert output_oem.header.creation_date
     assert output_oem.header.originator == "ephem-toolkit"
+    _assert_optional_omm_fields_not_in_oem(output_path)
 
 
 def test_propagate_omm_dsst_state_count(tmp_path):
@@ -295,14 +348,17 @@ def test_propagate_omm_dsst_invalid_time_window():
         )
 
 
-def test_propagate_omm_dsst_with_spacecraft_parameters(tmp_path):
-    """propagate_omm_dsst configures drag from OMM spacecraft parameters."""
-    omm_data = _make_dsst_omm()
-    omm_data.spacecraft_parameters = omm_mod.OmmSpacecraftParameters(
-        mass=420000.0,
-        drag_area=2500.0,
-        drag_coeff=2.2,
-    )
+def test_propagate_omm_dsst_uses_spacecraft_parameters(monkeypatch, tmp_path):
+    """DSST consumes complete OMM drag and SRP spacecraft parameters."""
+    omm_data = _round_trip_optional_omm_fields(tmp_path, _make_dsst_omm(), "dsst")
+    real_propagator = DSSTPropagator
+    perturbation_configs = []
+
+    def capture_perturbations(*, initial_state, perturbations):
+        perturbation_configs.append(perturbations)
+        return real_propagator(initial_state=initial_state, perturbations=perturbations)
+
+    monkeypatch.setattr(propagation, "DSSTPropagator", capture_perturbations)
     start = time_utils.tt_s_to_datetime(0.0)
     stop = time_utils.tt_s_to_datetime(3600.0)
     output_path = str(tmp_path / "dsst_drag.oem")
@@ -312,12 +368,24 @@ def test_propagate_omm_dsst_with_spacecraft_parameters(tmp_path):
         start_time=start,
         stop_time=stop,
         step_s=600.0,
-        data_only=True,
+        data_only=False,
         output_path=output_path,
     )
 
-    lines = [l for l in Path(output_path).read_text().strip().splitlines() if l.strip()]
-    assert len(lines) == 7
+    assert len(perturbation_configs) == 1
+    perturbations = perturbation_configs[0]
+    assert perturbations.include_drag is True
+    assert perturbations.drag_area_m2 == 2500.0
+    assert perturbations.drag_coeff == 2.2
+    assert perturbations.mass_kg == 420000.0
+    assert perturbations.include_srp is True
+    assert perturbations.srp_area_m2 == 2300.0
+    assert perturbations.srp_coeff == 1.3
+
+    output_oem = oem_mod.CcsdsOem.read(output_path)
+    assert "SOURCE_COMMENT: optional OMM fields" in output_oem.meta.comments
+    assert len(output_oem.states) == 7
+    _assert_optional_omm_fields_not_in_oem(Path(output_path))
 
 
 # ===================================================================

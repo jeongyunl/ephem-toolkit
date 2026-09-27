@@ -94,13 +94,24 @@ This allows a single CLI to handle TLE-driven, DSST mean-element, and generic Ke
 
 When `MEAN_ELEMENT_THEORY = DSST` is set in the OMM metadata, the utility automatically uses the DSST semi-analytical propagator with J2 secular rates and short-period corrections.
 
-Spacecraft parameters are parsed from the OMM and used to configure drag perturbations:
+For DSST propagation, OMM spacecraft parameters configure perturbations when the
+required fields are present. Drag requires all three drag values; SRP requires
+both solar-radiation values. Kepler fallback does not use spacecraft
+parameters, and SGP4 propagation uses the embedded TLE parameters instead.
 
 | OMM Field | DSST Parameter |
 |-----------|---------------|
 | `DRAG_AREA` | `drag_area_m2` |
 | `DRAG_COEFF` | `drag_coeff` |
 | `MASS` | `mass_kg` |
+| `SOLAR_RAD_AREA` | `srp_area_m2` |
+| `SOLAR_RAD_COEFF` | `srp_coeff` |
+
+The generated OEM carries identity, generated reference context/coverage, and
+source comments, but does not carry OMM covariance, spacecraft parameters,
+reference-frame epoch, user-defined fields, or mean-element/TLE metadata.
+Covariance is an implementation gap: OEM can represent it, but the current
+`CcsdsOem` model and writer do not.
 
 ### Example DSST OMM
 

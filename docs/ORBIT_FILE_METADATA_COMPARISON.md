@@ -247,7 +247,9 @@ Note: Must be documented in Interface Control Document (ICD).
 - **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`
 - **Generated/set by current implementation**: OEM header, `CENTER_NAME=EARTH`, `REF_FRAME=EME2000`, `TIME_SYSTEM=UTC`, coverage times, and a propagation provenance comment
 - **Carried forward**: OMM comments as OEM metadata comments
-- **Not copied**: other OMM header fields, source frame/time labels, mean elements and theory fields, TLE parameters, covariance, and spacecraft parameters
+- **DSST inputs**: `MASS`, `DRAG_AREA`, and `DRAG_COEFF` configure drag only when all three are present; `SOLAR_RAD_AREA` and `SOLAR_RAD_COEFF` configure SRP when both are present. Kepler fallback does not use spacecraft parameters; SGP4 uses the OMM's TLE parameters instead.
+- **Not copied to OEM metadata**: other OMM header fields, source frame/time labels, reference-frame epoch, mean elements and theory, TLE parameters, spacecraft parameters, covariance, and user-defined fields
+- **Covariance gap**: OMM covariance is parsed but not propagated or emitted. Although OEM supports covariance, the current `CcsdsOem` model/writer does not.
 - **Frame assumption**: treat Earth-centered `EME2000`, `J2000`, `ICRF`, and `GCRF` labels as equivalent for this comparison
 - **SGP4 frame handling**: TudatPy converts the raw TEME SGP4 solution to J2000; the runtime ephemeris reports Earth/J2000. The output `EME2000` label is accepted under the stated inertial-frame equivalence assumption
 
