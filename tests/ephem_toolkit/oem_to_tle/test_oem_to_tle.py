@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
 
 import ephem_toolkit.core.ccsds.omm as ccsds_omm
 import ephem_toolkit.core.ccsds.oem as ccsds_oem
+import ephem_toolkit.core.time_utils as time_utils
 import ephem_toolkit.core.tle as tle
 import ephem_toolkit.core.cli as core_cli
 import ephem_toolkit.oem_to_omm as oem_to_omm
@@ -17,6 +19,32 @@ from ephem_toolkit.propagate_omm import main as propagate_omm_main
 from ephem_toolkit.oem_to_omm.oem_to_omm_cli import build_common_arg_parser
 import ephem_toolkit.oem_to_tle.__main__ as oem_to_tle_entry
 from ephem_toolkit.oem_to_tle import main as oem_to_tle_main
+
+
+def _assert_omm_intermediate_oem(source_omm, oem_path: Path) -> ccsds_oem.CcsdsOem:
+    intermediate_oem = ccsds_oem.CcsdsOem.read(oem_path)
+    first_epoch = time_utils.tt_s_to_datetime(intermediate_oem.states[0][0])
+    last_epoch = time_utils.tt_s_to_datetime(intermediate_oem.states[-1][0])
+    assert intermediate_oem.meta.object_name == source_omm.object_name
+    assert intermediate_oem.meta.object_id == source_omm.object_id
+    assert intermediate_oem.meta.center_name.lower() == "earth"
+    assert intermediate_oem.meta.ref_frame == "EME2000"
+    assert intermediate_oem.meta.time_system == "UTC"
+    assert intermediate_oem.header.classification == source_omm.classification
+    assert intermediate_oem.header.message_id == source_omm.message_id
+    assert intermediate_oem.header.originator == "ephem-toolkit"
+    assert intermediate_oem.header.creation_date
+    assert intermediate_oem.header.creation_date != source_omm.creation_date
+    assert any(
+        comment in intermediate_oem.meta.comments for comment in source_omm.comments
+    )
+    assert abs(
+        time_utils.iso8601_to_datetime(intermediate_oem.meta.start_time) - first_epoch
+    ) <= timedelta(milliseconds=1)
+    assert abs(
+        time_utils.iso8601_to_datetime(intermediate_oem.meta.stop_time) - last_epoch
+    ) <= timedelta(milliseconds=1)
+    return intermediate_oem
 
 
 def _assert_valid_tle(lines: list[str]) -> None:
@@ -217,6 +245,7 @@ def test_composed_omm_to_tle_workflow_writes_oem_tle_and_report(tmp_path: Path) 
         )
         == 0
     )
+    _assert_omm_intermediate_oem(source_omm, reference_oem)
     oem_to_tle_main(
         [
             str(reference_oem),
@@ -289,7 +318,7 @@ def test_non_sgp4_omm_to_tle_refit_records_kepler_fallback_provenance(
         )
         == 0
     )
-    intermediate_oem = ccsds_oem.CcsdsOem.read(reference_oem)
+    intermediate_oem = _assert_omm_intermediate_oem(source_omm, reference_oem)
     source_comment = f"SOURCE_COMMENT: {mean_element_theory} OMM refit"
     fallback_comment = next(
         comment

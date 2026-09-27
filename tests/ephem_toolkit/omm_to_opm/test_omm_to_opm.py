@@ -271,6 +271,67 @@ def test_omm_to_opm_preserves_source_comments_in_serialized_header(
     )
 
 
+@pytest.mark.parametrize("theory", ["2B", "BROUWER-LYDDANE"])
+def test_kepler_theory_omm_to_opm_preserves_metadata(
+    tmp_path: Path, monkeypatch, theory: str
+) -> None:
+    source = Path(__file__).parents[1] / "oem_to_tle" / "data" / "TEST-DSST_2020-001A.omm"
+    source_omm = CcsdsOmm.from_source(source)
+    source_omm.mean_element_theory = theory
+    source_omm.data["MEAN_ELEMENT_THEORY"] = theory
+    source_omm.classification = "C"
+    source_omm.message_id = f"OMM-{theory}-SOURCE"
+    source_omm.comments.append(f"SOURCE_COMMENT: {theory} OMM to OPM")
+    _add_optional_omm_blocks(source_omm)
+    input_path = tmp_path / f"{theory.lower()}-source.omm"
+    source_omm.to_file(input_path)
+    output_path = tmp_path / f"{theory.lower()}-converted.opm"
+    fit_report = tmp_path / f"{theory.lower()}-converted.fit.json"
+    intermediate_oems = _capture_intermediate_oem(monkeypatch)
+
+    main(
+        [
+            str(input_path),
+            "--fit-model",
+            "numerical",
+            "--fit-span",
+            "2h",
+            "--fit-report",
+            str(fit_report),
+            "--output",
+            str(output_path),
+        ]
+    )
+
+    intermediate_oem = intermediate_oems[0]
+    converted_opm = CcsdsOpm.from_source(output_path)
+    report = json.loads(fit_report.read_text(encoding="utf-8"))
+    assert intermediate_oem.meta.object_name == source_omm.object_name
+    assert intermediate_oem.meta.object_id == source_omm.object_id
+    assert intermediate_oem.meta.ref_frame == "EME2000"
+    assert intermediate_oem.header.classification == source_omm.classification
+    assert intermediate_oem.header.message_id == source_omm.message_id
+    assert intermediate_oem.header.originator == "ephem-toolkit"
+    assert intermediate_oem.header.creation_date
+    assert any(
+        f"SOURCE_COMMENT: {theory} OMM to OPM" in comment
+        for comment in intermediate_oem.meta.comments
+    )
+    assert converted_opm.metadata["OBJECT_NAME"] == source_omm.object_name
+    assert converted_opm.metadata["OBJECT_ID"] == source_omm.object_id
+    assert converted_opm.metadata["REF_FRAME"] == "EME2000"
+    assert converted_opm.header.classification == source_omm.classification
+    assert converted_opm.header.message_id == source_omm.message_id
+    assert converted_opm.header.originator == "oem_to_opm"
+    assert any(
+        f"SOURCE_COMMENT: {theory} OMM to OPM" in comment
+        for comment in converted_opm.header.comments
+    )
+    _assert_optional_omm_blocks_omitted(output_path, converted_opm)
+    assert report["provenance"]["source"] == f"OEM/{theory}"
+    assert report["provenance"]["target_model"] == "numerical-propagator"
+
+
 def test_omm_to_opm_dispatches_declared_theory_and_delegates(monkeypatch) -> None:
     import ephem_toolkit.propagate_omm.propagation as propagation
 

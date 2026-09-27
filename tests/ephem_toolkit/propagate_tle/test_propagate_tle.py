@@ -8,6 +8,9 @@ from pathlib import Path
 
 import pytest
 
+from ephem_toolkit.core.ccsds.oem import CcsdsOem
+import ephem_toolkit.core.time_utils as time_utils
+import ephem_toolkit.core.tle as tle
 import ephem_toolkit.propagate_omm as propagate_omm
 import ephem_toolkit.propagate_tle.__main__ as propagate_tle_entry
 from ephem_toolkit.propagate_tle import main as propagate_tle_main
@@ -76,10 +79,12 @@ def test_propagate_tle_produces_valid_state_vectors(tle_path: Path) -> None:
 
 
 def test_propagate_tle_oem_records_sgp4_provenance(tmp_path: Path) -> None:
+    source = TEST_DATA_DIR / "ISS-ZARYA_1998-067A.tle"
+    tle_data = tle.read_tle(source)
     output = tmp_path / "propagated.oem"
     propagate_tle_main(
         [
-            str(TEST_DATA_DIR / "ISS-ZARYA_1998-067A.tle"),
+            str(source),
             "--duration",
             "15m",
             "--step",
@@ -89,10 +94,27 @@ def test_propagate_tle_oem_records_sgp4_provenance(tmp_path: Path) -> None:
         ]
     )
 
-    assert (
+    generated_oem = CcsdsOem.read(output)
+    first_epoch = time_utils.tt_s_to_datetime(generated_oem.states[0][0])
+    last_epoch = time_utils.tt_s_to_datetime(generated_oem.states[-1][0])
+    assert generated_oem.meta.object_name == tle_data.object_name
+    assert generated_oem.meta.object_id == tle_data.get_object_id()
+    assert generated_oem.meta.center_name.lower() == "earth"
+    assert generated_oem.meta.ref_frame == "EME2000"
+    assert generated_oem.meta.time_system == "UTC"
+    assert any(
         "EPHEMERIS_PROVENANCE: source=TLE; transformation=propagation; "
-        "target_model=SGP4" in output.read_text(encoding="utf-8")
+        "target_model=SGP4" in comment
+        for comment in generated_oem.meta.comments
     )
+    assert generated_oem.header.originator == "ephem-toolkit"
+    assert generated_oem.header.creation_date
+    assert abs(
+        time_utils.iso8601_to_datetime(generated_oem.meta.start_time) - first_epoch
+    ) <= time_utils.timedelta(milliseconds=1)
+    assert abs(
+        time_utils.iso8601_to_datetime(generated_oem.meta.stop_time) - last_epoch
+    ) <= time_utils.timedelta(milliseconds=1)
 
 
 def test_main_forwards_arguments_with_tle_flag_once(

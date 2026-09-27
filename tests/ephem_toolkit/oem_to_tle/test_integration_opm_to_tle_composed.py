@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 from pathlib import Path
 
 import numpy as np
@@ -13,6 +14,8 @@ from ephem_toolkit.core.ccsds.opm import (
     OpmKeplerianElements,
     OpmStateVector,
 )
+from ephem_toolkit.core.ccsds.oem import CcsdsOem
+from ephem_toolkit.core import time_utils
 from ephem_toolkit.core.propagator.kepler import keplerian_to_cartesian
 from ephem_toolkit.oem_to_tle import main as oem_to_tle_main
 from ephem_toolkit.propagate_kepler import main as propagate_kepler_main
@@ -27,6 +30,8 @@ def _write_j2000_opm(tmp_path: Path) -> Path:
             comments=["SOURCE_COMMENT: numerical OPM input"],
             creation_date="2026-05-20T00:00:00.000",
             originator="test",
+            classification="C",
+            message_id="OPM-SOURCE-MESSAGE",
         ),
         metadata={
             "OBJECT_NAME": "NUMERICAL TEST SAT",
@@ -67,6 +72,8 @@ def _write_j2000_kepler_opm(tmp_path: Path) -> Path:
             comments=["SOURCE_COMMENT: Kepler OPM input"],
             creation_date="2026-05-20T00:00:00.000",
             originator="test",
+            classification="C",
+            message_id="OPM-SOURCE-MESSAGE",
         ),
         metadata={
             "OBJECT_NAME": "KEPLER TEST SAT",
@@ -107,6 +114,30 @@ def _assert_valid_tle(path: Path) -> None:
         assert line[68] == str(checksum % 10)
 
 
+def _assert_opm_intermediate_oem(source_path: Path, oem_path: Path) -> None:
+    source_opm = CcsdsOpm.from_source(source_path)
+    generated_oem = CcsdsOem.read(oem_path)
+    first_epoch = time_utils.tt_s_to_datetime(generated_oem.states[0][0])
+    last_epoch = time_utils.tt_s_to_datetime(generated_oem.states[-1][0])
+    assert generated_oem.meta.object_name == source_opm.metadata["OBJECT_NAME"]
+    assert generated_oem.meta.object_id == source_opm.metadata["OBJECT_ID"]
+    assert generated_oem.meta.center_name.lower() == "earth"
+    assert generated_oem.meta.ref_frame == "J2000"
+    assert generated_oem.meta.time_system == "UTC"
+    assert source_opm.header.comments[0] in generated_oem.meta.comments
+    assert generated_oem.header.classification == source_opm.header.classification
+    assert generated_oem.header.message_id == source_opm.header.message_id
+    assert generated_oem.header.originator == "ephem-toolkit"
+    assert generated_oem.header.creation_date
+    assert generated_oem.header.creation_date != source_opm.header.creation_date
+    assert abs(
+        time_utils.iso8601_to_datetime(generated_oem.meta.start_time) - first_epoch
+    ) <= timedelta(milliseconds=1)
+    assert abs(
+        time_utils.iso8601_to_datetime(generated_oem.meta.stop_time) - last_epoch
+    ) <= timedelta(milliseconds=1)
+
+
 def test_opm_to_tle_composes_kepler_propagation_and_sgp4_fit(tmp_path: Path) -> None:
     source = _write_j2000_kepler_opm(tmp_path)
     reference_oem = tmp_path / "reference.oem"
@@ -127,6 +158,7 @@ def test_opm_to_tle_composes_kepler_propagation_and_sgp4_fit(tmp_path: Path) -> 
         )
         == 0
     )
+    _assert_opm_intermediate_oem(source, reference_oem)
     oem_to_tle_main(
         [
             str(reference_oem),
@@ -158,6 +190,7 @@ def test_opm_to_tle_composes_numerical_propagation_and_sgp4_fit(tmp_path: Path) 
     propagate_orbit_main(
         [str(source), "--duration", "2h", "--output", str(reference_oem)]
     )
+    _assert_opm_intermediate_oem(source, reference_oem)
     oem_to_tle_main(
         [
             str(reference_oem),
