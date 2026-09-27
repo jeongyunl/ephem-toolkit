@@ -455,6 +455,7 @@ def test_opm_preserves_header_and_omits_opm_only_blocks(
     generated_oem = CcsdsOem.read(output_path)
     assert generated_oem.meta.object_name == "OPM METADATA SAT"
     assert generated_oem.meta.object_id == "2024-001A"
+    assert generated_oem.meta.ref_frame == "J2000"
     assert "SOURCE_COMMENT: optional OPM fields" in generated_oem.meta.comments
     assert generated_oem.header.classification == "C"
     assert generated_oem.header.message_id == "OPM-SOURCE-MESSAGE"
