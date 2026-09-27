@@ -106,6 +106,19 @@ def test_parse_arguments_accepts_canonical_fit_model(monkeypatch):
     assert args.mode == "tle"
 
 
+def test_parse_arguments_rejects_unsupported_two_body_fit_model(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["oem-to-omm", "--fit-model", "two-body", "input.oem", "--output", "-"],
+    )
+
+    with pytest.raises(SystemExit) as error:
+        oem_to_omm_cli.parse_arguments(oem_to_omm_cli.build_arg_parser())
+
+    assert error.value.code == 2
+
+
 def test_parse_arguments_accepts_deprecated_mode(monkeypatch):
     monkeypatch.setattr(
         sys,
