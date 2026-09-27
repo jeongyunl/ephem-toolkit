@@ -440,6 +440,70 @@ def test_propagate_omm_dsst_uses_spacecraft_parameters(monkeypatch, tmp_path):
 
 
 # ===================================================================
+@pytest.mark.parametrize(
+    ("parameters", "expected_drag", "expected_srp"),
+    [
+        (None, False, False),
+        (
+            omm_mod.OmmSpacecraftParameters(
+                drag_area=2500.0,
+                drag_coeff=2.2,
+                solar_rad_area=2300.0,
+                solar_rad_coeff=1.3,
+            ),
+            False,
+            True,
+        ),
+        (
+            omm_mod.OmmSpacecraftParameters(
+                mass=420000.0,
+                drag_area=2500.0,
+                drag_coeff=2.2,
+                solar_rad_area=2300.0,
+            ),
+            True,
+            False,
+        ),
+        (
+            omm_mod.OmmSpacecraftParameters(
+                mass=420000.0,
+                drag_area=2500.0,
+                drag_coeff=2.2,
+                solar_rad_coeff=1.3,
+            ),
+            True,
+            False,
+        ),
+    ],
+)
+def test_propagate_omm_dsst_ignores_incomplete_spacecraft_parameter_groups(
+    monkeypatch, parameters, expected_drag, expected_srp
+):
+    omm_data = _make_dsst_omm()
+    omm_data.spacecraft_parameters = parameters
+    captured_perturbations = []
+
+    class FakeDsstPropagator:
+        def __init__(self, *, initial_state, perturbations):
+            captured_perturbations.append(perturbations)
+
+        def propagate_to(self, epoch_s, output):
+            return epoch_s, np.zeros(6)
+
+    monkeypatch.setattr(propagation, "DSSTPropagator", FakeDsstPropagator)
+    monkeypatch.setattr(
+        propagation, "_write_oem_output", lambda *_args, **_kwargs: None
+    )
+    start = time_utils.iso8601_to_datetime(omm_data.epoch)
+    propagate_omm_main.propagate_omm_dsst(
+        omm_data, start, start, 60.0, False, "ignored.oem"
+    )
+
+    assert len(captured_perturbations) == 1
+    assert captured_perturbations[0].include_drag is expected_drag
+    assert captured_perturbations[0].include_srp is expected_srp
+
+
 # Integration tests: DSST vs Kepler comparison
 # ===================================================================
 
