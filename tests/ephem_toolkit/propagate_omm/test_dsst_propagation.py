@@ -205,6 +205,8 @@ def test_propagate_omm_dsst_produces_states(tmp_path):
     assert output_oem.meta.center_name == "EARTH"
     assert output_oem.meta.ref_frame == "EME2000"
     assert output_oem.meta.time_system == "UTC"
+    assert time_utils.iso8601_to_datetime(output_oem.meta.start_time) == start
+    assert time_utils.iso8601_to_datetime(output_oem.meta.stop_time) == stop
     assert "SOURCE_COMMENT: keep this note" in output_oem.meta.comments
     assert output_oem.header.originator == "ephem-toolkit"
     assert output_oem.header.creation_date
@@ -219,12 +221,13 @@ def test_propagate_omm_kepler_preserves_source_comments(tmp_path):
         tmp_path, _make_dsst_omm(theory="2B"), "kepler"
     )
     start = time_utils.tt_s_to_datetime(0.0)
+    stop = start + timedelta(minutes=10)
     output_path = tmp_path / "kepler.oem"
 
     propagation.propagate_omm_kepler(
         omm_data,
         start,
-        start + timedelta(minutes=10),
+        stop,
         600.0,
         False,
         str(output_path),
@@ -236,6 +239,8 @@ def test_propagate_omm_kepler_preserves_source_comments(tmp_path):
     assert output_oem.meta.center_name == "EARTH"
     assert output_oem.meta.ref_frame == "EME2000"
     assert output_oem.meta.time_system == "UTC"
+    assert time_utils.iso8601_to_datetime(output_oem.meta.start_time) == start
+    assert time_utils.iso8601_to_datetime(output_oem.meta.stop_time) == stop
     assert "SOURCE_COMMENT: optional OMM fields" in output_oem.meta.comments
     assert output_oem.header.originator == "ephem-toolkit"
     assert output_oem.header.creation_date
@@ -298,10 +303,11 @@ def test_propagate_omm_sgp4_writes_metadata_and_source_comments(monkeypatch, tmp
 
     monkeypatch.setattr(propagation, "Sgp4Propagator", FakeSgp4Propagator)
     start = time_utils.tt_s_to_datetime(0.0)
+    stop = start + timedelta(minutes=10)
     output_path = tmp_path / "sgp4.oem"
 
     propagation.propagate_omm_sgp4(
-        omm_data, start, start + timedelta(minutes=10), 600.0, False, str(output_path)
+        omm_data, start, stop, 600.0, False, str(output_path)
     )
 
     output_oem = oem_mod.CcsdsOem.read(output_path)
@@ -310,6 +316,8 @@ def test_propagate_omm_sgp4_writes_metadata_and_source_comments(monkeypatch, tmp
     assert output_oem.meta.center_name == "EARTH"
     assert output_oem.meta.ref_frame == "EME2000"
     assert output_oem.meta.time_system == "UTC"
+    assert time_utils.iso8601_to_datetime(output_oem.meta.start_time) == start
+    assert time_utils.iso8601_to_datetime(output_oem.meta.stop_time) == stop
     assert "SOURCE_COMMENT: SGP4 input" in output_oem.meta.comments
     assert "SOURCE_COMMENT: optional OMM fields" in output_oem.meta.comments
     assert any("target_model=SGP4" in comment for comment in output_oem.meta.comments)
