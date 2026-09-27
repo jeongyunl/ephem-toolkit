@@ -224,8 +224,8 @@ Note: Must be documented in Interface Control Document (ICD).
 - Requires orbit fitting to mean elements
 - Fit span typically 2 hours
 - Theory selection (SGP4, DSST) affects accuracy
-- **Carried forward**: `OBJECT_NAME` and `OBJECT_ID` (unless overridden or absent); OEM metadata comments are copied to OMM comments
-- **Generated/set by current implementation**: header, `MEAN_ELEMENT_THEORY`, `CENTER_NAME=EARTH`, `REF_FRAME=ICRF` for Brouwer/DSST or `TEME` for SGP4, `TIME_SYSTEM=UTC`, and fitted mean elements
+- **Carried forward**: `OBJECT_NAME` and `OBJECT_ID` (unless overridden or absent), `CLASSIFICATION`, `MESSAGE_ID`, and OEM metadata comments (as OMM comments)
+- **Generated/set by current implementation**: OMM `ORIGINATOR` and `CREATION_DATE`, `MEAN_ELEMENT_THEORY`, `CENTER_NAME=EARTH`, `REF_FRAME=ICRF` for Brouwer/DSST or `TEME` for SGP4, `TIME_SYSTEM=UTC`, and fitted mean elements
 - **Not copied**: source `CENTER_NAME`, `REF_FRAME`, `REF_FRAME_EPOCH`, `TIME_SYSTEM`, `START_TIME`, `STOP_TIME`, usable time bounds, interpolation settings, Cartesian state vectors, acceleration, and covariance
 - **Covariance caveat**: `CcsdsOem` can parse OEM covariance, but `oem-to-omm` does not copy it into the fitted OMM. Both formats can represent covariance, so this is a conversion capability gap.
 - **Input frame requirement**: no state transformation is applied; the fitter accepts only `J2000`, `EME2000`, `ICRF`, or `GCRF` source frames (treated as equivalent) and rejects other frame labels
