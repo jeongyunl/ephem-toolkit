@@ -53,6 +53,7 @@ Track these categories where the source and target formats support them:
 - OPM mass/drag/SRP values are parsed by the OPM model but are not consumed by `build_propagation_inputs`; the numerical model uses CLI values/defaults instead. This is a source-parameter-to-force-model gap, distinct from metadata representation in the output OEM.
 - Verified with `pytest tests/ephem_toolkit/propagate_orbit tests/ephem_toolkit/oem_to_omm/test_integration_opm_to_omm_composed.py -q` (69 passed; one LibreSSL/urllib3 warning and one near-equatorial DSST warning).
 - Verified `OBJECT_ID` end to end for OPM(2B)→OMM(DSST) and OPM(NUM)→OMM(DSST) with parser-based integration assertions; `pytest tests/ephem_toolkit/oem_to_omm/test_integration_opm_to_omm_composed.py -q` passes (2 passed, with existing environment/orbit warnings).
+- Extended the numerical OPM→OMM integration coverage to Brouwer and SGP4. All three supported fit models preserve `OBJECT_NAME`, `OBJECT_ID`, and numerical-source comments and produce fit reports with the selected target model. Serialized Brouwer/DSST OMMs use `REF_FRAME=ICRF`; SGP4 uses `REF_FRAME=TEME`. The composed test file passes (4 passed). Semantic frame transformation for fitted states remains a separate accuracy question.
 - Traced OMM/TLE→OEM propagation: it retains object name and object ID, generates an OEM header and provenance comment, and writes fixed `CENTER_NAME=EARTH`, `REF_FRAME=EME2000`, and `TIME_SYSTEM=UTC`. A serialized DSST test showed OMM comments were initially omitted; source comments are now carried into OEM metadata comments on SGP4, DSST, and Kepler paths. The `propagate-omm` suite passes (23 passed; one LibreSSL/urllib3 warning). Source OMM header fields and frame/time labels are still not generally copied.
 - The OMM→OPM wrapper delegates to a fitter that copies intermediate OEM metadata comments into the OPM header. Source OMM comments now reach that intermediate OEM; full serialized wrapper behavior remains to be verified.
 - Traced OMM→OPM and TLE→OPM wrappers: both generate an intermediate OEM and delegate to OEM→OPM fitting, so their context and comments reflect that generated OEM rather than copying the source message header or comments.
@@ -92,10 +93,11 @@ unexpected.
      physical parameters when building the numerical force model; track both
      as explicit follow-up findings.
 2. **OPM(NUM) → OMM(2B/BROUWER/DSST/SGP4)**
-   - Follow the numerical OEM into each `oem-to-omm` fit variant. Check
-     identity, comments, context labels, fit provenance, and whether output
-     metadata describes the generated state frame correctly.
-   - `OBJECT_ID` is verified for the DSST fit; cover the remaining fit models.
+   - Identity, numerical-source comments, generated context, theory label, and
+     fit-report target model are verified for Brouwer, DSST, and SGP4.
+   - Continue separately with semantic frame validation: serialized labels
+     are ICRF for Brouwer/DSST and TEME for SGP4, but this test does not prove
+     that coordinates were transformed into those frames.
 3. **OPM(2B) → OMM(2B/BROUWER/DSST/SGP4)**
    - Follow `propagate-kepler` into each OMM fit. Verify `OBJECT_ID` end to
      end, along with comments, context, generated headers, and optional-field
@@ -145,7 +147,7 @@ Use this table as the audit proceeds. Record references to focused tests or fixt
 | OEM → OPM | Identity, comments, context, covariance, maneuvers, physical parameters | Source trace | Selected identity/context and comments survive; optional blocks are not copied |
 | OEM → TLE | Identity and TLE-representable fields through intermediate OMM | Wrapper/source trace | CCSDS and OEM-only metadata are discarded by final TLE format |
 | OPM(NUM) → OEM | Identity, comments, frame/time, covariance, maneuvers, physical parameters | Focused behavior tests and serialized composition test | Name/ID/comments carry through; unsupported context is rejected; covariance and physical-input gaps documented |
-| OPM(NUM) → OMM | Identity, comments, frame/time, optional OPM fields | DSST composition integration test | `OBJECT_ID` and source comment verified end to end for DSST; other fit theories and fields remain |
+| OPM(NUM) → OMM | Identity, comments, frame/time, theory, fit report | Brouwer/DSST/SGP4 composition integration tests | Name/ID/comments and target theory verified for all supported fit models; frame labels differ by model; semantic frame validation remains |
 | OPM(2B) → OMM | Identity, frame/time, comments, optional OPM fields | DSST composition integration test | `OBJECT_ID` verified end to end for DSST; other fit theories and fields remain |
 | OMM → OEM theory variants | Identity, source comments, frame/time, coverage, provenance | DSST/Kepler serialized tests; SGP4 forwarding test | Comments verified/forwarded; verify SGP4 serialized output, other metadata, and frame semantics |
 | OMM/TLE → OPM(NUM) | Identity, frame/time, comments, generated header/report | Source trace through wrappers | Verify route-specific serialized outputs and reports |

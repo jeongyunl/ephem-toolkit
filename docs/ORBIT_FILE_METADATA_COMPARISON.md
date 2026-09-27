@@ -273,9 +273,9 @@ Note: Must be documented in Interface Control Document (ICD).
 - Requires conversion from osculating to mean elements
 - Not directly supported (requires orbit fitting)
 - Composed OPM propagation to OEM followed by OMM fitting
-- **Carried forward**: object identity where the selected propagation route emits it; output epoch and mean elements are derived
-- **Generated/set by current implementation**: OMM header and target mean-element theory; OEM→OMM currently sets `CENTER_NAME=EARTH`, `REF_FRAME=ICRF`, and `TIME_SYSTEM=UTC`
-- **Not copied**: source OPM header/comments, source frame labels, osculating elements, spacecraft parameters, maneuvers, and covariance
+- **Carried forward**: `OBJECT_NAME` and `OBJECT_ID`; numerical propagation also carries OPM header comments into the intermediate OEM and fitted OMM. The Kepler propagation path does not yet carry source OPM comments
+- **Generated/set by current implementation**: OMM header, output epoch, and target mean-element theory; `CENTER_NAME=EARTH` and `TIME_SYSTEM=UTC`; `REF_FRAME=ICRF` for Brouwer/DSST and `TEME` for SGP4 fitting
+- **Not copied**: other source OPM header fields, source frame labels, osculating elements, spacecraft parameters, maneuvers, and covariance
 
 ### OPM → TLE
 - Requires osculating-to-mean conversion + TLE formatting
