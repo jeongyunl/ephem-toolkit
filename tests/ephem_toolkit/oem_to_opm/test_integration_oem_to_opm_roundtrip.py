@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+import ephem_toolkit.core.ccsds.oem as oem
+import ephem_toolkit.core.ccsds.opm as opm
 from ephem_toolkit.core.interpolator import factory
 from ephem_toolkit.core.interpolator.interpolation_spec import (
     InterpolationSpec,
@@ -150,7 +152,22 @@ def test_oem_to_opm_roundtrip_accuracy(
 ) -> None:
     """A propagated Keplerian OPM should remain close to the source OEM."""
     reference_oem = TEST_DATA_DIR / reference_filename
-    _, propagated_oem = _run_roundtrip(reference_oem, tmp_path)
+    opm_path, propagated_oem = _run_roundtrip(reference_oem, tmp_path)
+
+    source_oem = oem.CcsdsOem.read(reference_oem)
+    fitted_opm = opm.CcsdsOpm.from_source(opm_path)
+    assert fitted_opm.metadata["OBJECT_NAME"] == source_oem.meta.object_name
+    assert fitted_opm.metadata["OBJECT_ID"] == source_oem.meta.object_id
+    assert fitted_opm.metadata["CENTER_NAME"] == (
+        source_oem.meta.center_name or "EARTH"
+    )
+    assert fitted_opm.metadata["REF_FRAME"] == (source_oem.meta.ref_frame or "ICRF")
+    assert fitted_opm.metadata["TIME_SYSTEM"] == (source_oem.meta.time_system or "UTC")
+    assert all(
+        comment in fitted_opm.header.comments for comment in source_oem.meta.comments
+    )
+    assert fitted_opm.covariance is None
+    assert fitted_opm.maneuvers == []
 
     max_position_km, max_velocity_km_s, sample_count = _max_roundtrip_error_km(
         reference_oem,
