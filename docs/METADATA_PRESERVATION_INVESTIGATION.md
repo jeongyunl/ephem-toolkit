@@ -75,11 +75,12 @@ capability gaps.
    - OPM header comments are carried into OEM metadata comments; the OEM
      header itself is regenerated.
    - Unsupported or missing center/frame/time metadata is rejected. OPM
-     maneuvers and Keplerian elements have no OEM equivalent. A serialized
-      input test confirms explicit CLI values override OPM spacecraft
-      parameters; otherwise OPM values, then defaults, configure the force
-      model. A J2000-equivalent covariance is written at the input epoch only;
-      it is not evolved across the numerical state history.
+     maneuvers and Keplerian elements have no OEM equivalent; a serialized
+     regression confirms those fields and OPM `MASS` are omitted while identity
+     and comments survive. A separate input test confirms explicit CLI values
+     override OPM spacecraft parameters; otherwise OPM values, then defaults,
+     configure the force model. A J2000-equivalent covariance is written at the
+     input epoch only; it is not evolved across the numerical state history.
 2. **OPM(NUM) → OMM(2B/BROUWER/DSST/SGP4)**
    - Identity, numerical-source comments, generated context, theory label, and
      fit-report target model are verified for Brouwer, DSST, and SGP4.
@@ -150,7 +151,7 @@ Use this table as the audit proceeds. Record references to focused tests or fixt
 | TLE → OMM | Identity, context, orbital/TLE parameters, generated/default header | `test_tle_to_omm_matches_reference_file` serialized parser round-trip | TLE identity, orbital/TLE parameters, and Earth/TEME/UTC + SGP/SGP4 context verified; core-library header/comment defaults are empty |
 | OMM → TLE | TLE-representable identity and parameters; CCSDS-only fields | `test_omm_to_tle_matches_reference_file` serialized parser round-trip | Identity, TLE parameters, elements, and checksums verified; comments, header fields, covariance, spacecraft parameters, and user-defined key are absent from TLE |
 | OPM → OEM (`propagate-kepler`) | Identity, comments, frame/time, covariance, derived coverage, generated header | `test_propagate_kepler_writes_cartesian_states_in_si_units`; composed integration | `OBJECT_ID` and comments carry through; covariance and its declared frame are retained at the input epoch only; OEM header and coverage are generated |
-| OPM → OEM (`propagate-orbit`) | Identity, comments, frame/time, covariance, maneuvers, physical parameters | `test_opm_physical_parameters_are_used_unless_cli_overrides`; `test_read_initial_state_rejects_non_equivalent_covariance_frame`; serialized composition tests | Name/ID/comments carry through; incompatible context and covariance frames are rejected; physical values use CLI-over-OPM-over-default precedence; covariance is written at the input epoch only |
+| OPM → OEM (`propagate-orbit`) | Identity, comments, frame/time, covariance, maneuvers, physical parameters | `test_opm_omits_keplerian_elements_and_maneuvers_from_oem`; `test_opm_physical_parameters_are_used_unless_cli_overrides`; `test_read_initial_state_rejects_non_equivalent_covariance_frame` | Serialized OPM with Keplerian elements, a maneuver, and mass confirms those OPM-only fields are omitted while identity/comments survive; physical values use CLI-over-OPM-over-default precedence; covariance behavior is covered separately at the input epoch only |
 | TLE/OMM → OEM propagation | Identity, frame/time, comments, generated header | DSST/Kepler/SGP4 serialized tests plus SGP4 runtime-frame test | Comments and identity verified; OEM metadata emits `EME2000`; TudatPy SGP4 ephemeris reports Earth/J2000; no coordinate-transform accuracy claim |
 | OMM/TLE → OPM | Identity, frame/time, comments/provenance, generated header/report | DSST OMM, SGP4 OMM, and TLE serialized wrapper tests | Identity/context/report verified; OMM comments and TLE-generated provenance verified; output frame label is `EME2000`; no coordinate-transform accuracy claim |
 | OEM → OMM | Identity, comments, context, theory, coverage/interpolation, optional blocks | `test_main_serializes_oem_metadata_for_each_fit_model`; real-fit `test_reconstructed_tle_preserves_elements`; `test_main_rejects_non_equivalent_input_frame_before_fitting` | Stubbed Brouwer/DSST/SGP4 checks verify branch serialization; real SGP4 fit verifies identity/header/context, TLE parameters, and provenance; non-equivalent source frames rejected; reference-frame epoch and coverage/interpolation omitted; parsed covariance is not copied by the fitter |

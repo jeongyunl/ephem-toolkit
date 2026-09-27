@@ -27,6 +27,8 @@ from ephem_toolkit.core.ccsds.opm import (
     CcsdsOpm,
     OpmCovariance,
     OpmHeader,
+    OpmKeplerianElements,
+    OpmManeuver,
     OpmSpacecraftParameters,
     OpmStateVector,
 )
@@ -357,6 +359,96 @@ def test_opm_physical_parameters_are_used_unless_cli_overrides(
         True,
     )
     assert "COVARIANCE_START" not in data_only_path.read_text(encoding="utf-8")
+
+
+def test_opm_omits_keplerian_elements_and_maneuvers_from_oem(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    source_path = tmp_path / "optional-opm-fields.opm"
+    CcsdsOpm(
+        header=OpmHeader(
+            version=3.0,
+            creation_date="2026-05-20T00:00:00.000",
+            originator="test",
+            comments=["SOURCE_COMMENT: optional OPM fields"],
+        ),
+        metadata={
+            "OBJECT_NAME": "OPM METADATA SAT",
+            "OBJECT_ID": "2024-001A",
+            "CENTER_NAME": "EARTH",
+            "REF_FRAME": "J2000",
+            "TIME_SYSTEM": "UTC",
+        },
+        state_vector=OpmStateVector(
+            epoch="2026-05-20T12:00:00.000",
+            x=7000.0,
+            y=0.0,
+            z=0.0,
+            x_dot=0.0,
+            y_dot=7.5,
+            z_dot=0.0,
+        ),
+        keplerian_elements=OpmKeplerianElements(
+            semi_major_axis=7000.0,
+            eccentricity=0.01,
+            inclination=51.6,
+            ra_of_asc_node=45.0,
+            arg_of_pericenter=30.0,
+            gm=398600.4418,
+            true_anomaly=10.0,
+        ),
+        spacecraft_parameters=OpmSpacecraftParameters(mass=500.0),
+        maneuvers=[
+            OpmManeuver(
+                man_epoch_ignition="2026-05-20T12:10:00.000",
+                man_duration=60.0,
+                man_delta_mass=-1.0,
+                man_ref_frame="RTN",
+                man_dv_1=0.001,
+                man_dv_2=0.002,
+                man_dv_3=0.003,
+            )
+        ],
+    ).to_file(source_path)
+
+    parsed_opm = CcsdsOpm.from_source(source_path)
+    assert parsed_opm.keplerian_elements is not None
+    assert len(parsed_opm.maneuvers) == 1
+    args = _make_cli_args(input_opm=str(source_path), name="OPM METADATA SAT")
+    config, initial_state, target_epoch_s = build_propagation_inputs(args)
+
+    class FakeNumericalPropagator:
+        def __init__(self, _config, _initial_state):
+            self.dependent_variable_dictionary = {}
+            self.dependent_variable_save_settings = []
+
+        def propagate_to(self, _target_epoch_s, output):
+            return [
+                (initial_state.epoch_s, initial_state.state_m_m_s),
+                (initial_state.epoch_s + 60.0, initial_state.state_m_m_s),
+            ]
+
+    monkeypatch.setattr(propagation, "NumericalPropagator", FakeNumericalPropagator)
+    output_path = tmp_path / "propagated.oem"
+    propagation.run_propagation(
+        config, initial_state, target_epoch_s, str(output_path), None, False
+    )
+
+    generated_oem = CcsdsOem.read(output_path)
+    assert generated_oem.meta.object_name == "OPM METADATA SAT"
+    assert generated_oem.meta.object_id == "2024-001A"
+    assert "SOURCE_COMMENT: optional OPM fields" in generated_oem.meta.comments
+    serialized = output_path.read_text(encoding="utf-8")
+    for field in (
+        "SEMI_MAJOR_AXIS",
+        "TRUE_ANOMALY",
+        "MAN_EPOCH_IGNITION",
+        "MAN_DURATION",
+        "MAN_DELTA_MASS",
+        "MAN_DV_1",
+        "MASS",
+    ):
+        assert field not in serialized
 
 
 def test_read_initial_state_rejects_non_equivalent_covariance_frame(
