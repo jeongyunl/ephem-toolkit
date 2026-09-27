@@ -5,7 +5,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ephem_toolkit.core.ccsds.opm import CcsdsOpm, OpmHeader, OpmStateVector
+import numpy as np
+
+from ephem_toolkit.core.ccsds.opm import (
+    CcsdsOpm,
+    OpmHeader,
+    OpmKeplerianElements,
+    OpmStateVector,
+)
+from ephem_toolkit.core.propagator.kepler import keplerian_to_cartesian
 from ephem_toolkit.oem_to_tle import main as oem_to_tle_main
 from ephem_toolkit.propagate_kepler import main as propagate_kepler_main
 from ephem_toolkit.propagate_orbit import main as propagate_orbit_main
@@ -40,6 +48,55 @@ def _write_j2000_opm(tmp_path: Path) -> Path:
     return source
 
 
+def _write_j2000_kepler_opm(tmp_path: Path) -> Path:
+    source = tmp_path / "source-kepler-j2000.opm"
+    elements_m_rad = np.array(
+        [
+            6_778_000.0,
+            0.001,
+            np.radians(51.6),
+            np.radians(30.0),
+            np.radians(45.0),
+            np.radians(10.0),
+        ]
+    )
+    state_m = keplerian_to_cartesian(elements_m_rad)
+    CcsdsOpm(
+        header=OpmHeader(
+            version=3.0,
+            comments=["SOURCE_COMMENT: Kepler OPM input"],
+            creation_date="2026-05-20T00:00:00.000",
+            originator="test",
+        ),
+        metadata={
+            "OBJECT_NAME": "KEPLER TEST SAT",
+            "OBJECT_ID": "2024-002A",
+            "CENTER_NAME": "EARTH",
+            "REF_FRAME": "J2000",
+            "TIME_SYSTEM": "UTC",
+        },
+        state_vector=OpmStateVector(
+            epoch="2026-05-20T12:00:00.000",
+            x=float(state_m[0] / 1000.0),
+            y=float(state_m[1] / 1000.0),
+            z=float(state_m[2] / 1000.0),
+            x_dot=float(state_m[3] / 1000.0),
+            y_dot=float(state_m[4] / 1000.0),
+            z_dot=float(state_m[5] / 1000.0),
+        ),
+        keplerian_elements=OpmKeplerianElements(
+            semi_major_axis=elements_m_rad[0] / 1000.0,
+            eccentricity=elements_m_rad[1],
+            inclination=np.degrees(elements_m_rad[2]),
+            ra_of_asc_node=np.degrees(elements_m_rad[4]),
+            arg_of_pericenter=np.degrees(elements_m_rad[3]),
+            gm=398600.4418,
+            true_anomaly=np.degrees(elements_m_rad[5]),
+        ),
+    ).to_file(source)
+    return source
+
+
 def _assert_valid_tle(path: Path) -> None:
     lines = path.read_text(encoding="utf-8").splitlines()[-2:]
     assert lines[0].startswith("1 ") and len(lines[0]) == 69
@@ -51,7 +108,7 @@ def _assert_valid_tle(path: Path) -> None:
 
 
 def test_opm_to_tle_composes_kepler_propagation_and_sgp4_fit(tmp_path: Path) -> None:
-    source = Path(__file__).parents[2] / "opm/sample2.opm"
+    source = _write_j2000_kepler_opm(tmp_path)
     reference_oem = tmp_path / "reference.oem"
     output_tle = tmp_path / "output.tle"
     fit_report = tmp_path / "output.fit.json"

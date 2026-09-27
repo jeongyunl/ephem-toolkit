@@ -221,10 +221,11 @@ Note: Must be documented in Interface Control Document (ICD).
 - Fit span typically 2 hours
 - Theory selection (SGP4, DSST) affects accuracy
 - **Carried forward**: `OBJECT_NAME` and `OBJECT_ID` (unless overridden or absent); OEM metadata comments are copied to OMM comments
-- **Generated/set by current implementation**: header, `MEAN_ELEMENT_THEORY`, `CENTER_NAME=EARTH`, `REF_FRAME=ICRF`, `TIME_SYSTEM=UTC`, and fitted mean elements
+- **Generated/set by current implementation**: header, `MEAN_ELEMENT_THEORY`, `CENTER_NAME=EARTH`, `REF_FRAME=ICRF` for Brouwer/DSST or `TEME` for SGP4, `TIME_SYSTEM=UTC`, and fitted mean elements
 - **Not copied**: source `CENTER_NAME`, `REF_FRAME`, `REF_FRAME_EPOCH`, `TIME_SYSTEM`, `START_TIME`, `STOP_TIME`, usable time bounds, interpolation settings, Cartesian state vectors, acceleration, and covariance
 - **Covariance caveat**: OMM supports covariance, but the current `CcsdsOem` parser/model does not expose OEM covariance to this fit path; covariance handling is an implementation gap, not an OMM format limitation.
-- **Caution**: the fit does not transform the OEM state vectors when assigning the output `REF_FRAME`; verify non-ICRF source frames before treating the output frame label as semantically correct
+- **Input frame requirement**: no state transformation is applied; the fitter accepts only `J2000`, `EME2000`, `ICRF`, or `GCRF` source frames (treated as equivalent) and rejects other frame labels
+- **SGP4 frame semantics**: the OMM records SGP4 mean elements in `TEME`; TudatPy converts propagated SGP4 states to `J2000` for arc scoring
 
 ### OEM → OPM
 - Extract single epoch from time series

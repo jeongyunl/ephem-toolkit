@@ -120,25 +120,10 @@ def _write_kepler_reference_oem(tmp_path: Path) -> tuple[CcsdsOpm, Path]:
 
 def test_opm_to_omm_composes_kepler_propagation_and_dsst_fit(tmp_path: Path) -> None:
     """Propagate an OPM to OEM, then fit the Cartesian arc to DSST elements."""
-    source = Path(__file__).parents[2] / "opm/sample2.opm"
-    reference_oem = tmp_path / "reference.oem"
+    source_opm, reference_oem = _write_kepler_reference_oem(tmp_path)
     output_omm = tmp_path / "output.omm"
     fit_report = tmp_path / "output.fit.json"
 
-    assert (
-        propagate_kepler_main(
-            [
-                str(source),
-                "--duration",
-                "2h",
-                "--step",
-                "5m",
-                "--output",
-                str(reference_oem),
-            ]
-        )
-        == 0
-    )
     oem_to_omm_main(
         [
             str(reference_oem),
@@ -154,7 +139,6 @@ def test_opm_to_omm_composes_kepler_propagation_and_dsst_fit(tmp_path: Path) -> 
     )
 
     output_text = output_omm.read_text(encoding="utf-8")
-    source_opm = CcsdsOpm.from_source(source)
     converted_omm = CcsdsOmm.from_source(output_omm)
     assert "MEAN_ELEMENT_THEORY = DSST" in output_text
     assert "target_model=two-body-kepler" in output_text

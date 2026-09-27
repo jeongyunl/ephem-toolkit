@@ -628,6 +628,48 @@ def test_main_rejects_out_of_range_tle_metadata(
     assert message in capsys.readouterr().err
 
 
+def test_main_rejects_non_equivalent_input_frame_before_fitting(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    states = [
+        (0.0, np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0])),
+        (600.0, np.array([6_999_000.0, 4_500_000.0, 0.0, -4_800.0, 7_499.0, 0.0])),
+    ]
+    source_meta = DummyMeta("FRAME TEST", "2024-001A")
+    source_meta.ref_frame = "TEME"
+    fit_calls = []
+    monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        oem.CcsdsOem,
+        "read",
+        lambda *_args, **_kwargs: DummyOemData(states, source_meta),
+    )
+    monkeypatch.setattr(dsst, "DsstPerturbations", lambda **_kwargs: object())
+    monkeypatch.setattr(
+        fit_brouwer,
+        "fit_dsst_mean_elements",
+        lambda fit_states, *_args, **_kwargs: fit_calls.append(fit_states)
+        or (np.array([7_000_000.0, 0.01, 0.2, 0.3, 0.4, 0.5]), {}),
+    )
+
+    with pytest.raises(SystemExit):
+        oem_to_omm.main(
+            [
+                "--fit-model",
+                "dsst",
+                "input.oem",
+                "--no-fit-report",
+                "--output",
+                str(tmp_path / "output.omm"),
+            ]
+        )
+
+    assert fit_calls == []
+    assert "J2000-equivalent" in capsys.readouterr().err
+
+
 @pytest.mark.parametrize("fit_model", ["dsst", "brouwer", "sgp4"])
 def test_main_reports_fitting_errors(monkeypatch, fit_model):
     states = [(0.0, np.ones(6)), (1.0, np.ones(6))]

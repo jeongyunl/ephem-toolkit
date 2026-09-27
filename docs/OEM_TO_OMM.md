@@ -80,7 +80,7 @@ oem-to-omm [-h] -o <output_omm|-> [--fit-model <brouwer|dsst|sgp4>]
 
 ### Input Format
 
-Input must be a CCSDS OEM file, supplied as a path or `-` for stdin. The command does not accept a bare file of raw state rows. At least two state vectors are required. OEM position and velocity values use the standard km and km/s units and are converted internally to m and m/s. The OEM reference frame is not transformed by this command; provide states in a frame compatible with the selected fitting and propagation model.
+Input must be a CCSDS OEM file, supplied as a path or `-` for stdin. The command does not accept a bare file of raw state rows. At least two state vectors are required. OEM position and velocity values use the standard km and km/s units and are converted internally to m and m/s. The command does not transform frames: it accepts `J2000`, `EME2000`, `ICRF`, and `GCRF` as equivalent inertial frames, and rejects other `REF_FRAME` values before fitting. Transform other source frames to a J2000-equivalent frame first.
 
 ### Output Format
 
@@ -164,7 +164,7 @@ Key algorithmic features:
 - Use at least 2 state vectors (more can improve trend estimation)
 - Span at least one orbital period for accurate mean motion estimation
 - Ensure consistent time spacing for best regression results
-- Verify the OEM reference frame is compatible with the selected model; this command does not transform frames
+- Use `J2000`, `EME2000`, `ICRF`, or `GCRF` input frames; transform other frames before fitting
 
 ### Refinement Method Selection
 
@@ -208,7 +208,7 @@ By default, a JSON fit report is written alongside the OMM output using the `.fi
 
 ### Large propagation errors
 
-- Verify input reference frame compatibility; this command does not transform frames
+- Transform OEMs with unsupported `REF_FRAME` values to a J2000-equivalent frame before fitting
 - Check for data gaps or outliers in input arc
 - Consider using longer arc for B* estimation
 

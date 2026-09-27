@@ -139,6 +139,14 @@ def main(argv: Sequence[str] | None = None) -> None:
     if len(states) < 2:
         report_error("Error: At least 2 state vectors required for fitting.")
 
+    source_ref_frame = (oem_data.meta.ref_frame or "").strip().upper()
+    if source_ref_frame not in {"J2000", "EME2000", "ICRF", "GCRF"}:
+        report_error(
+            f"Error: OEM REF_FRAME={source_ref_frame!r} is not supported for "
+            "mean-element fitting. Transform the OEM to a J2000-equivalent "
+            "frame (J2000, EME2000, ICRF, or GCRF) first."
+        )
+
     fit_span_s: float = cli_args.fit_span.total_seconds()
 
     try:
