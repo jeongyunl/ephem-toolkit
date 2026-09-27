@@ -86,6 +86,8 @@ def _patch_opm_reader(
     object_name="",
     source_comments=("SOURCE_COMMENT: input",),
     covariance=None,
+    source_classification="",
+    source_message_id="",
 ):
     """Patch the OPM reader to return fixed state, epoch, and identity."""
     return patch(
@@ -99,6 +101,8 @@ def _patch_opm_reader(
             source_comments,
             None,
             covariance,
+            source_classification,
+            source_message_id,
         ),
     )
 
@@ -139,6 +143,16 @@ def test_config_defaults_name_to_opm_object_name() -> None:
         config, _, _ = build_propagation_inputs(_make_cli_args(name=None))
 
     assert config.satellite_name == "SourceSat"
+
+
+def test_config_preserves_opm_header_metadata() -> None:
+    with _patch_opm_reader(
+        source_classification="C", source_message_id="OPM-SOURCE-MESSAGE"
+    ):
+        config, _, _ = build_propagation_inputs(_make_cli_args())
+
+    assert config.source_classification == "C"
+    assert config.source_message_id == "OPM-SOURCE-MESSAGE"
 
 
 def test_config_empty_name_uses_default() -> None:
@@ -361,7 +375,7 @@ def test_opm_physical_parameters_are_used_unless_cli_overrides(
     assert "COVARIANCE_START" not in data_only_path.read_text(encoding="utf-8")
 
 
-def test_opm_omits_keplerian_elements_and_maneuvers_from_oem(
+def test_opm_preserves_header_and_omits_opm_only_blocks(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     source_path = tmp_path / "optional-opm-fields.opm"
@@ -371,6 +385,8 @@ def test_opm_omits_keplerian_elements_and_maneuvers_from_oem(
             creation_date="2026-05-20T00:00:00.000",
             originator="test",
             comments=["SOURCE_COMMENT: optional OPM fields"],
+            classification="C",
+            message_id="OPM-SOURCE-MESSAGE",
         ),
         metadata={
             "OBJECT_NAME": "OPM METADATA SAT",
@@ -412,6 +428,8 @@ def test_opm_omits_keplerian_elements_and_maneuvers_from_oem(
     ).to_file(source_path)
 
     parsed_opm = CcsdsOpm.from_source(source_path)
+    assert parsed_opm.header.classification == "C"
+    assert parsed_opm.header.message_id == "OPM-SOURCE-MESSAGE"
     assert parsed_opm.keplerian_elements is not None
     assert len(parsed_opm.maneuvers) == 1
     args = _make_cli_args(input_opm=str(source_path), name="OPM METADATA SAT")
@@ -438,6 +456,11 @@ def test_opm_omits_keplerian_elements_and_maneuvers_from_oem(
     assert generated_oem.meta.object_name == "OPM METADATA SAT"
     assert generated_oem.meta.object_id == "2024-001A"
     assert "SOURCE_COMMENT: optional OPM fields" in generated_oem.meta.comments
+    assert generated_oem.header.classification == "C"
+    assert generated_oem.header.message_id == "OPM-SOURCE-MESSAGE"
+    assert generated_oem.header.originator == "ephem-toolkit"
+    assert generated_oem.header.creation_date
+    assert generated_oem.header.creation_date != parsed_opm.header.creation_date
     serialized = output_path.read_text(encoding="utf-8")
     for field in (
         "SEMI_MAJOR_AXIS",
@@ -536,7 +559,11 @@ def test_read_initial_state_parses_stdin_and_file_sources(
 ) -> None:
     input_state_km = np.arange(1.0, 7.0)
     message = SimpleNamespace(
-        header=SimpleNamespace(comments=["SOURCE_COMMENT: input"]),
+        header=SimpleNamespace(
+            comments=["SOURCE_COMMENT: input"],
+            classification="C",
+            message_id="OPM-SOURCE-MESSAGE",
+        ),
         metadata={
             "OBJECT_ID": "2024-001A",
             "OBJECT_NAME": "SourceSat",
@@ -571,6 +598,8 @@ def test_read_initial_state_parses_stdin_and_file_sources(
         source_comments,
         spacecraft_parameters,
         covariance,
+        source_classification,
+        source_message_id,
     ) = input_handling.read_initial_state_from_opm_file_or_stdin(
         argparse.Namespace(input_opm=input_opm)
     )
@@ -582,6 +611,8 @@ def test_read_initial_state_parses_stdin_and_file_sources(
     assert source_comments == ("SOURCE_COMMENT: input",)
     assert spacecraft_parameters is None
     assert covariance is None
+    assert source_classification == "C"
+    assert source_message_id == "OPM-SOURCE-MESSAGE"
     if input_opm == "-":
         assert isinstance(sources[0], io.StringIO)
     else:

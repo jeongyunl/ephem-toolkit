@@ -69,6 +69,8 @@ def write_state_history_oem(
                 else None
             ),
         )
+        oem.header.classification = getattr(config, "source_classification", "")
+        oem.header.message_id = getattr(config, "source_message_id", "")
         oem.meta.comments.extend(getattr(config, "source_comments", ()))
         oem.meta.comments.extend(
             [

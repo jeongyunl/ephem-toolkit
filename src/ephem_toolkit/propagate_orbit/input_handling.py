@@ -49,6 +49,8 @@ def read_initial_state_from_opm_file_or_stdin(
     tuple[str, ...],
     opm.OpmSpacecraftParameters | None,
     opm.OpmCovariance | None,
+    str,
+    str,
 ]:
     """Read one initial state record from OPM input sources.
 
@@ -66,9 +68,10 @@ def read_initial_state_from_opm_file_or_stdin(
 
     Returns
     -------
-    tuple[numpy.ndarray, datetime, str, str, tuple[str, ...], OpmSpacecraftParameters | None, OpmCovariance | None]
+    tuple[numpy.ndarray, datetime, str, str, tuple[str, ...], OpmSpacecraftParameters | None, OpmCovariance | None, str, str]
         State, UTC epoch, object ID, object name, source header comments, and
-        optional OPM spacecraft parameters, and covariance.
+        optional OPM spacecraft parameters and covariance, classification, and
+        message ID.
     """
     input_opm = cli_args.input_opm
     if input_opm == "-":
@@ -142,6 +145,8 @@ def read_initial_state_from_opm_file_or_stdin(
     object_id = str(input_opm_message.metadata.get("OBJECT_ID", ""))
     object_name = str(input_opm_message.metadata.get("OBJECT_NAME", ""))
     source_comments = tuple(input_opm_message.header.comments)
+    source_classification = input_opm_message.header.classification
+    source_message_id = input_opm_message.header.message_id
     return (
         initial_state_m_m_s,
         initial_epoch_datetime_utc,
@@ -150,6 +155,8 @@ def read_initial_state_from_opm_file_or_stdin(
         source_comments,
         input_opm_message.spacecraft_parameters,
         covariance,
+        source_classification,
+        source_message_id,
     )
 
 
@@ -188,6 +195,8 @@ def build_propagation_inputs(
         source_comments,
         opm_spacecraft_parameters,
         opm_covariance,
+        source_classification,
+        source_message_id,
     ) = read_initial_state_from_opm_file_or_stdin(cli_args)
     satellite_name = (
         cli_args.name.strip()
@@ -257,6 +266,8 @@ def build_propagation_inputs(
         is_mars_gravity_on=cli_args.mars_gravity,
         object_id=object_id,
         source_comments=source_comments,
+        source_classification=source_classification,
+        source_message_id=source_message_id,
     )
     initial_state = NumericalInitialState(
         state_m_m_s=initial_state_m_m_s,

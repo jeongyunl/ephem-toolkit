@@ -128,6 +128,10 @@ class NumericalPropagatorConfig:
     """Source object identifier to retain in generated ephemeris metadata."""
     source_comments: tuple[str, ...] = ()
     """Source OPM header comments to retain in generated ephemeris metadata."""
+    source_classification: str = ""
+    """Source OPM classification to retain in the generated OEM header."""
+    source_message_id: str = ""
+    """Source OPM message ID to retain in the generated OEM header."""
     satellite_srp_area_m2: float | None = None
     """Cannonball radiation-pressure reference area (m²), if distinct from drag area."""
 

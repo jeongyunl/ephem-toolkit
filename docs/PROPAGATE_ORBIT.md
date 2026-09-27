@@ -89,9 +89,10 @@ The numerical propagator currently supports only `CENTER_NAME=EARTH`,
 for these fields are rejected; no implicit frame or time-system conversion is
 performed.
 
-For full OEM output, OPM header comments are copied to the generated OEM
-metadata comments and the OEM header is regenerated for the propagation
-result. `--data-only` omits all metadata.
+For full OEM output, OPM header comments are copied to the OEM metadata
+comments, and OPM `CLASSIFICATION` and `MESSAGE_ID` are copied to the OEM
+header. OEM `ORIGINATOR` and `CREATION_DATE` are regenerated for the
+propagation result. `--data-only` omits all metadata.
 
 ## Boolean Values
 
