@@ -12,6 +12,7 @@ from ephem_toolkit.core.tle import read_tle, tle_epoch_to_tt_s
 
 pytest.importorskip("tudatpy")
 
+from ephem_toolkit.core import spice_utils
 from ephem_toolkit.core.propagator.sgp4 import Sgp4Propagator
 
 TEST_DATA_DIR = Path(__file__).parents[3] / "data"
@@ -21,6 +22,11 @@ ISS_TLE_PATH = TEST_DATA_DIR / "ISS-ZARYA_1998-067A.tle"
 @pytest.fixture(scope="module")
 def iss_tle():
     return read_tle(ISS_TLE_PATH)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def load_leap_seconds_kernel():
+    spice_utils.load_kernel("naif0012.tls")
 
 
 def test_sgp4_propagator_initialization(iss_tle):

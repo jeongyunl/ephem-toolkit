@@ -45,7 +45,7 @@ Track these categories where the source and target formats support them:
 - **OPM routes:** fixed identity/comment loss and enforce numerical input context. OPM→OMM model variants preserve identity/comments. For OPM(NUM)→OEM, CLI values override OPM physical parameters, omitted options use OPM values then defaults, and covariance is confirmed absent from the config and serialized OEM.
 - **OMM/TLE routes:** verified identity, comments/provenance, generated context, and reports across propagation and wrappers. DSST consumes complete OMM drag/SRP parameter groups; Kepler ignores spacecraft parameters and SGP4 uses TLE parameters. Optional blocks not represented by the OEM model are omitted; covariance is an OEM-standard capability gap in `CcsdsOem`. Non-SGP4 OMM→TLE fallback provenance is recorded; TudatPy converts SGP4 TEME states to J2000.
 - **OEM fits:** serialized checks cover OMM Brouwer/DSST/SGP4, OPM two-body/numerical, and SGP4 TLE output. Non-equivalent frames are rejected instead of relabeled; identity, comments, selected context, and representative omissions are verified.
-- Combined focused route suites passed: 406 tests, with two accuracy tests deselected and one LibreSSL warning. The full SGP4 test module still has two environment failures (`SPICE(NOLEAPSECONDS)`) because leap-second kernels are not loaded.
+- Combined focused route suites passed: 406 tests; the two accuracy cases and all eight direct SGP4 tests also pass. The SGP4 test module loads `naif0012.tls` through the shared SPICE helper. Existing LibreSSL warnings remain.
 
 **Initial hypothesis to verify:**
 
