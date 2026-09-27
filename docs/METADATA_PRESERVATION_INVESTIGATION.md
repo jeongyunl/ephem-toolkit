@@ -137,9 +137,11 @@ capability gaps.
      intermediate OEM comments record those losses and the fallback model.
 7. **OEM → OMM/OPM/TLE fit variants**
    - Serialized CLI checks cover OMM Brouwer/DSST/SGP4 and OPM two-body and
-     numerical fitting. The real SGP4 fit path also verifies generated OMM
-     identity, header/context, TLE parameters, and provenance; the TLE companion
-     report retains source comments.
+  numerical fitting. OEM→OPM preserves source `CLASSIFICATION` and
+  `MESSAGE_ID` while regenerating OPM `ORIGINATOR`/`CREATION_DATE`. The real
+  SGP4 fit path also verifies generated OMM identity, header/context, TLE
+  parameters, and provenance; the TLE companion report retains source
+  comments.
    - `oem-to-omm` now accepts only `J2000`, `EME2000`, `ICRF`, and `GCRF` input
     frames and rejects other labels before fitting; transform other inputs
     with a verified conversion supported for their source frame. OEM
@@ -164,7 +166,7 @@ Use this table as the audit proceeds. Record references to focused tests or fixt
 | TLE/OMM → OEM propagation | Identity, frame/time, comments, generated header | DSST/Kepler/SGP4 serialized tests plus SGP4 runtime-frame test | Comments and identity verified; OEM metadata emits `EME2000`; TudatPy SGP4 ephemeris reports Earth/J2000; no coordinate-transform accuracy claim |
 | OMM/TLE → OPM | Identity, frame/time, comments/provenance, generated header/report | DSST OMM, SGP4 OMM, and TLE serialized wrapper tests | Identity/context/report verified; OMM comments and TLE-generated provenance verified; output frame label is `EME2000`; no coordinate-transform accuracy claim |
 | OEM → OMM | Identity, comments, context, theory, coverage/interpolation, optional blocks | `test_main_serializes_oem_metadata_for_each_fit_model`; real-fit `test_reconstructed_tle_preserves_elements`; `test_main_rejects_non_equivalent_input_frame_before_fitting` | Stubbed Brouwer/DSST/SGP4 checks verify branch serialization; real SGP4 fit verifies identity/header/context, TLE parameters, and provenance; non-equivalent source frames rejected; reference-frame epoch and coverage/interpolation omitted; parsed covariance is not copied by the fitter |
-| OEM → OPM | Identity, comments, context, state/elements, coverage/interpolation, optional blocks | `test_main_writes_initial_state_and_osculating_elements_to_opm`; `test_numerical_fit_model_dispatches_to_shared_fitter`; accuracy-marked `test_oem_to_opm_roundtrip_accuracy` | Stubbed serialization tests verify output fields; real-fit integration checks serialized identity/context/comments and confirms covariance/maneuvers are omitted; two-body elements are emitted, numerical elements are omitted; OEM coverage/interpolation are not copied by the fitter |
+| OEM → OPM | Identity, header comments/classification/message ID, context, state/elements, coverage/interpolation, optional blocks | `test_main_writes_initial_state_and_osculating_elements_to_opm`; `test_numerical_fit_model_dispatches_to_shared_fitter`; accuracy-marked `test_oem_to_opm_roundtrip_accuracy` | Serialized test verifies source `CLASSIFICATION`/`MESSAGE_ID` survive while OPM `ORIGINATOR`/`CREATION_DATE` regenerate; real-fit integration checks identity/context/comments and expected omissions; two-body elements are emitted, numerical elements are omitted; OEM coverage/interpolation are not copied by the fitter |
 | OEM → TLE | Identity, TLE fields/checksums, source comments/provenance | `test_oem_to_tle_report_file_and_unknown_provenance` plus composed refit tests | TLE name/designator/checksums verified; CCSDS comments are absent from TLE and retained in the fit report |
 | OPM(NUM) → OEM | Identity, comments, frame/time, covariance, maneuvers, physical parameters | `test_opm_physical_parameters_are_used_unless_cli_overrides`; `test_read_initial_state_rejects_non_equivalent_covariance_frame`; serialized composition test | Name/ID/comments carry through; unsupported context and non-equivalent covariance frames are rejected; physical inputs use CLI-over-OPM-over-default precedence; covariance is preserved at input epoch only, not evolved |
 | OPM(NUM) → OMM | Identity, comments, classification/message ID, frame/time, theory, fit report | `test_opm_numerical_fit_variants_preserve_metadata`; `test_opm_to_omm_composes_numerical_propagation_and_dsst_fit` | Name/ID/comments and `CLASSIFICATION`/`MESSAGE_ID` survive real fits; OMM `ORIGINATOR`/`CREATION_DATE` regenerate; context, theory, report target, and output frame labels verified |

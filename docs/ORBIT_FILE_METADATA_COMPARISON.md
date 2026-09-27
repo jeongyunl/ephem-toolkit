@@ -230,8 +230,8 @@ Note: Must be documented in Interface Control Document (ICD).
 ### OEM → OPM
 - Extract single epoch from time series
 - Two-body conversion uses the first state; numerical fitting may produce a fitted initial state
-- **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`; OEM metadata comments are moved to OPM header comments
-- **Generated/transformed**: OPM header and `EPOCH`; Cartesian state may be fitted, and optional Keplerian elements are emitted only for two-body fitting
+- **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`, `CLASSIFICATION`, and `MESSAGE_ID`; OEM metadata comments are moved to OPM header comments
+- **Generated/transformed**: OPM `ORIGINATOR`, `CREATION_DATE`, and `EPOCH`; Cartesian state may be fitted, and optional Keplerian elements are emitted only for two-body fitting
 - **Not copied**: `REF_FRAME_EPOCH`, OEM coverage/interpolation fields, remaining time series, covariance, spacecraft parameters, and other unsupported optional fields
 - **Covariance caveat**: although OPM supports covariance, the OEM-to-OPM fitter does not copy parsed OEM covariance into the fitted OPM. This is a conversion capability gap, not a format limitation.
 

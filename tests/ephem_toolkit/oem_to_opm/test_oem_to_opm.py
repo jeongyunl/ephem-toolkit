@@ -174,7 +174,11 @@ def test_numerical_fit_model_dispatches_to_shared_fitter(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(oem.CcsdsOem, "read", lambda *_args, **_kwargs: DummyOemData())
+    dummy_oem = DummyOemData()
+    dummy_oem.header = SimpleNamespace(
+        classification="C", message_id="OEM-SOURCE-MESSAGE"
+    )
+    monkeypatch.setattr(oem.CcsdsOem, "read", lambda *_args, **_kwargs: dummy_oem)
     monkeypatch.setattr(
         fit_numerical.NumericalFitConfig,
         "to_propagator_config",
@@ -247,6 +251,8 @@ def test_numerical_fit_model_dispatches_to_shared_fitter(
     assert DummyMeta.comments[0] in output_path.read_text(encoding="utf-8")
     header, metadata, data = opm.read_opm(output_path)
     assert header["ORIGINATOR"] == "oem_to_opm"
+    assert header["CLASSIFICATION"] == "C"
+    assert header["MESSAGE_ID"] == "OEM-SOURCE-MESSAGE"
     assert header["COMMENT"][0] == DummyMeta.comments[0]
     assert any("source=OEM/unknown" in comment for comment in header["COMMENT"])
     assert metadata == {
