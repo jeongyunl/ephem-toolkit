@@ -408,9 +408,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     cli_parser.add_argument(
         "--name",
         dest="name",
-        default=DEFAULT_SATELLITE_NAME,
+        default=None,
         metavar="<name>",
-        help=f"Name of the propagated satellite body (default: {DEFAULT_SATELLITE_NAME}).",
+        help=(
+            "Name of the propagated satellite body (defaults to the OPM "
+            f"OBJECT_NAME, or {DEFAULT_SATELLITE_NAME} if absent)."
+        ),
     )
     cli_parser.add_argument(
         "--mass",

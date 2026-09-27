@@ -35,7 +35,7 @@ from .constants import DEFAULT_SATELLITE_NAME
 
 def read_initial_state_from_opm_file_or_stdin(
     cli_args: argparse.Namespace,
-) -> tuple[np.ndarray, datetime, str]:
+) -> tuple[np.ndarray, datetime, str, str, tuple[str, ...]]:
     """Read one initial state record from OPM input sources.
 
     Parameters
@@ -52,8 +52,8 @@ def read_initial_state_from_opm_file_or_stdin(
 
     Returns
     -------
-    tuple[numpy.ndarray, datetime, str]
-        ``(initial_state_m_m_s, initial_epoch_datetime_utc, object_id)``.
+    tuple[numpy.ndarray, datetime, str, str, tuple[str, ...]]
+        State, UTC epoch, object ID, object name, and source header comments.
     """
     input_opm = cli_args.input_opm
     if input_opm == "-":
@@ -83,6 +83,21 @@ def read_initial_state_from_opm_file_or_stdin(
             )
             sys.exit(1)
 
+    required_context = {
+        "CENTER_NAME": "EARTH",
+        "REF_FRAME": "J2000",
+        "TIME_SYSTEM": "UTC",
+    }
+    for field_name, expected_value in required_context.items():
+        actual_value = str(input_opm_message.metadata.get(field_name, "")).strip()
+        if actual_value.upper() != expected_value:
+            print(
+                f"Error: propagate-orbit requires {field_name}={expected_value}; "
+                f"OPM input has {field_name}={actual_value or '<missing>'}.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
     try:
         initial_epoch_datetime_utc = time_utils.iso8601_to_datetime(
             input_opm_message.state_vector.epoch
@@ -96,7 +111,15 @@ def read_initial_state_from_opm_file_or_stdin(
     )
 
     object_id = str(input_opm_message.metadata.get("OBJECT_ID", ""))
-    return initial_state_m_m_s, initial_epoch_datetime_utc, object_id
+    object_name = str(input_opm_message.metadata.get("OBJECT_NAME", ""))
+    source_comments = tuple(input_opm_message.header.comments)
+    return (
+        initial_state_m_m_s,
+        initial_epoch_datetime_utc,
+        object_id,
+        object_name,
+        source_comments,
+    )
 
 
 # ===================================================================
@@ -114,11 +137,11 @@ def build_propagation_inputs(
     cli_args : argparse.Namespace
         Parsed CLI arguments.
 
-    The OPM input reader returns the SI state vector, parsed UTC epoch, and
-    object identifier for generated OEM metadata.
+    The OPM input reader returns the SI state vector, parsed UTC epoch, object
+    identifier, and source object name for generated OEM metadata.
 
-    Empty or whitespace-only satellite names are normalized to
-    ``DEFAULT_SATELLITE_NAME``.
+    An explicit CLI name takes precedence over the source OPM name; otherwise
+    the source name is used, falling back to ``DEFAULT_SATELLITE_NAME``.
 
     Returns
     -------
@@ -126,15 +149,18 @@ def build_propagation_inputs(
         ``(config, initial_state, target_epoch_s)`` where ``target_epoch_s``
         is the propagation end epoch (TT, s since J2000 TT).
     """
-    satellite_name = cli_args.name.strip() if cli_args.name is not None else ""
-    if not satellite_name:
-        satellite_name = DEFAULT_SATELLITE_NAME
-
     (
         initial_state_m_m_s,
         initial_epoch_datetime_utc,
         object_id,
+        source_object_name,
+        source_comments,
     ) = read_initial_state_from_opm_file_or_stdin(cli_args)
+    satellite_name = (
+        cli_args.name.strip()
+        if cli_args.name and cli_args.name.strip()
+        else source_object_name.strip() or DEFAULT_SATELLITE_NAME
+    )
     (
         earth_spherical_harmonic_gravity_degree,
         earth_spherical_harmonic_gravity_order,
@@ -162,6 +188,7 @@ def build_propagation_inputs(
         is_venus_gravity_on=cli_args.venus_gravity,
         is_mars_gravity_on=cli_args.mars_gravity,
         object_id=object_id,
+        source_comments=source_comments,
     )
     initial_state = NumericalInitialState(
         state_m_m_s=initial_state_m_m_s,

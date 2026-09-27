@@ -61,12 +61,18 @@ def _make_cli_args(**overrides) -> argparse.Namespace:
     return argparse.Namespace(**defaults)
 
 
-def _patch_opm_reader(state=_STATE_M_M_S, epoch=_EPOCH_UTC, object_id="2024-001A"):
+def _patch_opm_reader(
+    state=_STATE_M_M_S,
+    epoch=_EPOCH_UTC,
+    object_id="2024-001A",
+    object_name="",
+    source_comments=("SOURCE_COMMENT: input",),
+):
     """Patch the OPM reader to return fixed state, epoch, and identity."""
     return patch(
         "ephem_toolkit.propagate_orbit.input_handling"
         ".read_initial_state_from_opm_file_or_stdin",
-        return_value=(state, epoch, object_id),
+        return_value=(state, epoch, object_id, object_name, source_comments),
     )
 
 
@@ -98,6 +104,14 @@ def test_config_satellite_name() -> None:
     with _patch_opm_reader():
         config, _, _ = build_propagation_inputs(_make_cli_args(name="MySat"))
     assert config.satellite_name == "MySat"
+
+
+def test_config_defaults_name_to_opm_object_name() -> None:
+    """The source object name is used unless --name overrides it."""
+    with _patch_opm_reader(object_name="SourceSat"):
+        config, _, _ = build_propagation_inputs(_make_cli_args(name=None))
+
+    assert config.satellite_name == "SourceSat"
 
 
 def test_config_empty_name_uses_default() -> None:
@@ -237,7 +251,14 @@ def test_read_initial_state_parses_stdin_and_file_sources(
 ) -> None:
     input_state_km = np.arange(1.0, 7.0)
     message = SimpleNamespace(
-        metadata={"OBJECT_ID": "2024-001A"},
+        header=SimpleNamespace(comments=["SOURCE_COMMENT: input"]),
+        metadata={
+            "OBJECT_ID": "2024-001A",
+            "OBJECT_NAME": "SourceSat",
+            "CENTER_NAME": "EARTH",
+            "REF_FRAME": "J2000",
+            "TIME_SYSTEM": "UTC",
+        },
         state_vector=SimpleNamespace(
             epoch="2026-05-20T12:00:00Z", values=input_state_km
         ),
@@ -256,7 +277,7 @@ def test_read_initial_state_parses_stdin_and_file_sources(
     )
     monkeypatch.setattr(sys, "stdin", io.StringIO("OPM input"))
 
-    state_m_m_s, epoch, object_id = (
+    state_m_m_s, epoch, object_id, object_name, source_comments = (
         input_handling.read_initial_state_from_opm_file_or_stdin(
             argparse.Namespace(input_opm=input_opm)
         )
@@ -265,6 +286,8 @@ def test_read_initial_state_parses_stdin_and_file_sources(
     np.testing.assert_array_equal(state_m_m_s, input_state_km * 1000.0)
     assert epoch is _EPOCH_UTC
     assert object_id == "2024-001A"
+    assert object_name == "SourceSat"
+    assert source_comments == ("SOURCE_COMMENT: input",)
     if input_opm == "-":
         assert isinstance(sources[0], io.StringIO)
     else:
@@ -318,7 +341,12 @@ def test_read_initial_state_reports_invalid_epoch(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     message = SimpleNamespace(
-        state_vector=SimpleNamespace(epoch="invalid", values=np.zeros(6))
+        metadata={
+            "CENTER_NAME": "EARTH",
+            "REF_FRAME": "J2000",
+            "TIME_SYSTEM": "UTC",
+        },
+        state_vector=SimpleNamespace(epoch="invalid", values=np.zeros(6)),
     )
     monkeypatch.setattr(
         input_handling.opm.CcsdsOpm, "from_source", lambda _source: message
@@ -336,3 +364,48 @@ def test_read_initial_state_reports_invalid_epoch(
 
     assert error.value.code == 1
     assert "invalid OPM EPOCH value" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected"),
+    [
+        ("CENTER_NAME", "MOON", "CENTER_NAME=EARTH"),
+        ("REF_FRAME", "TOD", "REF_FRAME=J2000"),
+        ("TIME_SYSTEM", "TAI", "TIME_SYSTEM=UTC"),
+    ],
+)
+def test_read_initial_state_rejects_unsupported_context(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    field: str,
+    value: str,
+    expected: str,
+) -> None:
+    metadata = {
+        "OBJECT_NAME": "SAT",
+        "OBJECT_ID": "2024-001A",
+        "CENTER_NAME": "EARTH",
+        "REF_FRAME": "J2000",
+        "TIME_SYSTEM": "UTC",
+    }
+    metadata[field] = value
+    message = SimpleNamespace(
+        metadata=metadata,
+        state_vector=SimpleNamespace(epoch="2026-05-20T12:00:00", values=np.zeros(6)),
+    )
+    monkeypatch.setattr(
+        input_handling.opm.CcsdsOpm, "from_source", lambda _source: message
+    )
+    monkeypatch.setattr(
+        input_handling.time_utils,
+        "iso8601_to_datetime",
+        lambda _epoch: _EPOCH_UTC,
+    )
+
+    with pytest.raises(SystemExit) as error:
+        input_handling.read_initial_state_from_opm_file_or_stdin(
+            argparse.Namespace(input_opm="input.opm")
+        )
+
+    assert error.value.code == 1
+    assert expected in capsys.readouterr().err

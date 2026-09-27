@@ -61,6 +61,7 @@ def write_state_history_oem(
             center_name=DEFAULT_GLOBAL_FRAME_ORIGIN,
             time_system="UTC",
         )
+        oem.meta.comments.extend(getattr(config, "source_comments", ()))
         oem.meta.comments.extend(
             [
                 provenance.provenance_comment(

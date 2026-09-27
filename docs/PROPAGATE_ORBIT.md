@@ -27,7 +27,7 @@ cat input.opm | propagate-orbit - -o - [OPTIONS]
 | `-o`, `--output <output_oem\|->` | Output OEM state history. `-` writes to stdout. |
 | `--data-only` | Write state vectors without OEM header or metadata. |
 | `--dep-vars <output_csv>` | Write dependent variables to a CSV file. |
-| `--name <name>` | Propagated satellite name. |
+| `--name <name>` | Propagated satellite name. Defaults to the input OPM `OBJECT_NAME`, or `Satellite` if absent. |
 | `--mass <kg>` | Satellite mass in kilograms. |
 | `-h`, `--help` | Show the help message and exit. |
 
@@ -72,6 +72,15 @@ but no data is piped, the command exits with an error.
 
 The input state is interpreted as a single initial Cartesian state at the OPM epoch; the command
 then integrates the trajectory for the selected `--duration`.
+
+The numerical propagator currently supports only `CENTER_NAME=EARTH`,
+`REF_FRAME=J2000`, and `TIME_SYSTEM=UTC`. Inputs with another or missing value
+for these fields are rejected; no implicit frame or time-system conversion is
+performed.
+
+For full OEM output, OPM header comments are copied to the generated OEM
+metadata comments and the OEM header is regenerated for the propagation
+result. `--data-only` omits all metadata.
 
 ## Boolean Values
 

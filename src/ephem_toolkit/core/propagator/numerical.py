@@ -126,6 +126,8 @@ class NumericalPropagatorConfig:
     """Whether Mars point-mass gravity perturbation is enabled."""
     object_id: str = ""
     """Source object identifier to retain in generated ephemeris metadata."""
+    source_comments: tuple[str, ...] = ()
+    """Source OPM header comments to retain in generated ephemeris metadata."""
 
 
 @dataclass(frozen=True)

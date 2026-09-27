@@ -26,6 +26,7 @@ def test_parse_arguments_accepts_canonical_input_and_output_flags(
     assert args.input_opm == input_opm
     assert args.output_oem is None
     assert args.duration == 7200.0
+    assert args.name is None
 
     monkeypatch.setattr(
         "sys.argv",

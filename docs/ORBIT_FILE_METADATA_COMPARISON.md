@@ -264,8 +264,8 @@ Note: Must be documented in Interface Control Document (ICD).
 - Propagator selection affects accuracy
 - Step size determines output density
 - **`propagate-kepler`**: carries `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, and `TIME_SYSTEM`; output header and coverage times are generated
-- **`propagate-orbit`**: current numerical path carries source `OBJECT_ID`, writes `CENTER_NAME=Earth`, `REF_FRAME=J2000`, and `TIME_SYSTEM=UTC`, and uses the CLI/default satellite name; whether `OBJECT_NAME` should default from the OPM remains to be verified
-- **Not copied**: Keplerian elements, source header/comments, `REF_FRAME_EPOCH`, spacecraft parameters, maneuvers, covariance, and other OPM-only fields
+- **`propagate-orbit`**: in full OEM output, carries source `OBJECT_NAME` (unless overridden by `--name`), `OBJECT_ID`, and OPM header comments; accepts only `CENTER_NAME=EARTH`, `REF_FRAME=J2000`, and `TIME_SYSTEM=UTC`, rejecting other or missing context instead of silently relabeling it. `--data-only` omits all metadata
+- **Generated/not copied**: OEM header and coverage are generated; other OPM header fields, `REF_FRAME_EPOCH`, Keplerian elements, spacecraft parameters, maneuvers, covariance, and other OPM-only fields are not copied
 
 ### OPM → OMM
 - Requires conversion from osculating to mean elements
