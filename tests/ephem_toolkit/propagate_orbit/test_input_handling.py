@@ -375,8 +375,15 @@ def test_opm_physical_parameters_are_used_unless_cli_overrides(
     assert "COVARIANCE_START" not in data_only_path.read_text(encoding="utf-8")
 
 
+@pytest.mark.parametrize(
+    ("cli_name", "expected_name"),
+    [(None, "OPM METADATA SAT"), ("CLI OVERRIDE SAT", "CLI OVERRIDE SAT")],
+)
 def test_opm_preserves_header_and_omits_opm_only_blocks(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    cli_name: str | None,
+    expected_name: str,
 ) -> None:
     source_path = tmp_path / "optional-opm-fields.opm"
     CcsdsOpm(
@@ -432,7 +439,7 @@ def test_opm_preserves_header_and_omits_opm_only_blocks(
     assert parsed_opm.header.message_id == "OPM-SOURCE-MESSAGE"
     assert parsed_opm.keplerian_elements is not None
     assert len(parsed_opm.maneuvers) == 1
-    args = _make_cli_args(input_opm=str(source_path), name="OPM METADATA SAT")
+    args = _make_cli_args(input_opm=str(source_path), name=cli_name)
     config, initial_state, target_epoch_s = build_propagation_inputs(args)
 
     class FakeNumericalPropagator:
@@ -453,7 +460,7 @@ def test_opm_preserves_header_and_omits_opm_only_blocks(
     )
 
     generated_oem = CcsdsOem.read(output_path)
-    assert generated_oem.meta.object_name == "OPM METADATA SAT"
+    assert generated_oem.meta.object_name == expected_name
     assert generated_oem.meta.object_id == "2024-001A"
     assert generated_oem.meta.ref_frame == "J2000"
     assert "SOURCE_COMMENT: optional OPM fields" in generated_oem.meta.comments
