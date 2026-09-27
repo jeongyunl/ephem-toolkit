@@ -82,7 +82,7 @@ def run_oem_to_tle(
         Standard output from oem_to_omm.
     """
     # Build object_id from international designator
-    object_id = f"{original.int_designator_year:02d}-{original.int_designator_launch_number:03d}{original.int_designator_piece or 'A'}"
+    object_id = original.get_object_id()
 
     args: list[str] = [
         "--fit-model",
@@ -120,7 +120,7 @@ def run_oem_to_tle(
     return output
 
 
-def parse_generated_tle_from_output(output: str) -> tle.Tle:
+def parse_generated_tle_from_output(output: str, original: tle.Tle) -> tle.Tle:
     """Parse TLE from oem_to_omm script output (OMM format).
 
     Parameters
@@ -138,6 +138,20 @@ def parse_generated_tle_from_output(output: str) -> tle.Tle:
         "CCSDS_OMM_VERS" in output
     ), f"Expected OMM output from oem_to_omm.py:\n{output[-500:]}"
     omm_obj: omm.CcsdsOmm = omm.CcsdsOmm.from_source(io.StringIO(output))
+    expected_object_id = original.get_object_id()
+    assert omm_obj.object_name == (original.object_name or "OBJECT")
+    assert omm_obj.object_id == expected_object_id
+    assert omm_obj.originator == "oem_to_omm"
+    assert omm_obj.creation_date
+    assert omm_obj.center_name == "EARTH"
+    assert omm_obj.ref_frame == "TEME"
+    assert omm_obj.time_system == "UTC"
+    assert omm_obj.mean_element_theory == "SGP/SGP4"
+    assert omm_obj.tle_parameters is not None
+    assert omm_obj.tle_parameters.norad_cat_id == original.norad_cat_id
+    assert omm_obj.tle_parameters.classification_type == original.classification
+    assert omm_obj.tle_parameters.rev_at_epoch == original.revolution_number_at_epoch
+    assert any("EPHEMERIS_PROVENANCE:" in comment for comment in omm_obj.comments)
     tle_partial: tle.Tle = convert_tle.omm_to_tle(omm_obj)
     line1, line2 = tle.format_tle_strings(tle_partial)
     name: str = tle_partial.object_name or ""
@@ -221,7 +235,7 @@ def tle_round_trip(request) -> tuple[tle.Tle, tle.Tle]:
         original: tle.Tle = tle.read_tle(fh)
     oem_text: str = run_propagate_tle(tle_path)
     build_output: str = run_oem_to_tle(oem_text, original)
-    reconstructed: tle.Tle = parse_generated_tle_from_output(build_output)
+    reconstructed: tle.Tle = parse_generated_tle_from_output(build_output, original)
     return original, reconstructed
 
 
