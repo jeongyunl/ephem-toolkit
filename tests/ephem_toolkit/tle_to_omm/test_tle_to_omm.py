@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import ephem_toolkit.core.ccsds.omm as omm
 import ephem_toolkit.core.convert_tle as convert_tle
 import ephem_toolkit.core.tle as tle
 import ephem_toolkit.tle_to_omm.__main__ as tle_to_omm_entry
@@ -37,6 +38,7 @@ def test_main_reads_stdin_converts_tle_and_writes_to_stdout(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     parsed_input = []
+    conversion_metadata = {}
     tle_object = object()
 
     def read_tle(stream):
@@ -47,7 +49,8 @@ def test_main_reads_stdin_converts_tle_and_writes_to_stdout(
     monkeypatch.setattr(
         convert_tle,
         "tle_to_omm",
-        lambda parsed_tle: (
+        lambda parsed_tle, **metadata: conversion_metadata.update(metadata)
+        or (
             SimpleNamespace(to_file=lambda output: output.write("OMM output\n"))
             if parsed_tle is tle_object
             else None
@@ -58,6 +61,8 @@ def test_main_reads_stdin_converts_tle_and_writes_to_stdout(
     tle_to_omm_entry.main(["-", "--output", "-"])
 
     assert parsed_input == ["TLE input\n"]
+    assert conversion_metadata["creation_date"]
+    assert conversion_metadata["originator"] == "tle_to_omm"
     assert capsys.readouterr().out == "OMM output\n"
 
 
@@ -68,6 +73,7 @@ def test_main_reads_file_and_writes_omm_to_destination(
     output_path = tmp_path / "converted.omm"
     input_path.write_text("TLE file data\n", encoding="utf-8")
     parsed_input = []
+    conversion_metadata = {}
 
     def read_tle(stream):
         parsed_input.append(stream.read())
@@ -77,7 +83,8 @@ def test_main_reads_file_and_writes_omm_to_destination(
     monkeypatch.setattr(
         convert_tle,
         "tle_to_omm",
-        lambda _tle: SimpleNamespace(
+        lambda _tle, **metadata: conversion_metadata.update(metadata)
+        or SimpleNamespace(
             to_file=lambda destination: Path(destination).write_text(
                 "OMM file data\n", encoding="utf-8"
             )
@@ -87,7 +94,21 @@ def test_main_reads_file_and_writes_omm_to_destination(
     tle_to_omm_entry.main([str(input_path), "--output", str(output_path)])
 
     assert parsed_input == ["TLE file data\n"]
+    assert conversion_metadata["creation_date"]
+    assert conversion_metadata["originator"] == "tle_to_omm"
     assert output_path.read_text(encoding="utf-8") == "OMM file data\n"
+
+
+def test_main_writes_creation_date_and_originator(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    input_path = Path(__file__).parents[2] / "data" / "ISS-ZARYA_1998-067A.tle"
+
+    tle_to_omm_entry.main([str(input_path), "--output", "-"])
+
+    header, _ = omm.read_omm(io.StringIO(capsys.readouterr().out))
+    assert header["CREATION_DATE"]
+    assert header["ORIGINATOR"] == "tle_to_omm"
 
 
 @pytest.mark.parametrize(

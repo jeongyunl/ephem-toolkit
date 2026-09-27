@@ -64,6 +64,7 @@ def read_kepler_input(source: str | None):
         out: str(message.metadata[key])
         for out, key in (
             ("object_name", "OBJECT_NAME"),
+            ("object_id", "OBJECT_ID"),
             ("ref_frame", "REF_FRAME"),
             ("center_name", "CENTER_NAME"),
             ("time_system", "TIME_SYSTEM"),

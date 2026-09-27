@@ -7,6 +7,8 @@ stdout or a file. Provides command-line interface for TLE-to-OMM conversion.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from .tle_to_omm_cli import build_arg_parser, parse_arguments
 
 
@@ -24,6 +26,7 @@ def main(argv=None) -> None:
 
     import ephem_toolkit.core.convert_tle as convert_tle
     import ephem_toolkit.core.tle as tle
+    import ephem_toolkit.core.time_utils as time_utils
 
     if cli_args.input_tle == "-":
         input_text: str = sys.stdin.read()
@@ -51,7 +54,13 @@ def main(argv=None) -> None:
         print(f"Error: {error}", file=sys.stderr)
         sys.exit(1)
 
-    omm_data: object = convert_tle.tle_to_omm(tle_data)
+    omm_data: object = convert_tle.tle_to_omm(
+        tle_data,
+        creation_date=time_utils.datetime_to_iso8601(
+            datetime.now(timezone.utc), fractional_second_places=3
+        ),
+        originator="tle_to_omm",
+    )
 
     if cli_args.output_omm == "-":
         omm_data.to_file(sys.stdout)

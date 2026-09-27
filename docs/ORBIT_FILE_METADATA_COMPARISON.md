@@ -220,14 +220,17 @@ Note: Must be documented in Interface Control Document (ICD).
 - Requires orbit fitting to mean elements
 - Fit span typically 2 hours
 - Theory selection (SGP4, DSST) affects accuracy
-- **Preserved**: `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`
-- **Lost**: `START_TIME`, `STOP_TIME`, `INTERPOLATION`, `INTERPOLATION_DEGREE`, Cartesian state vectors, acceleration data
+- **Carried forward**: `OBJECT_NAME` and `OBJECT_ID` (unless overridden or absent); OEM metadata comments are copied to OMM comments
+- **Generated/set by current implementation**: header, `MEAN_ELEMENT_THEORY`, `CENTER_NAME=EARTH`, `REF_FRAME=ICRF`, `TIME_SYSTEM=UTC`, and fitted mean elements
+- **Not copied**: source `CENTER_NAME`, `REF_FRAME`, `REF_FRAME_EPOCH`, `TIME_SYSTEM`, `START_TIME`, `STOP_TIME`, usable time bounds, interpolation settings, Cartesian state vectors, acceleration, and covariance
+- **Caution**: the fit does not transform the OEM state vectors when assigning the output `REF_FRAME`; verify non-ICRF source frames before treating the output frame label as semantically correct
 
 ### OEM → OPM
 - Extract single epoch from time series
-- First state typically used
-- **Preserved**: `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `REF_FRAME_EPOCH`, `TIME_SYSTEM`, `EPOCH`, `X`, `Y`, `Z`, `X_DOT`, `Y_DOT`, `Z_DOT`
-- **Lost**: `START_TIME`, `STOP_TIME`, `USEABLE_START_TIME`, `USEABLE_STOP_TIME`, `INTERPOLATION`, `INTERPOLATION_DEGREE`, time series data
+- Two-body conversion uses the first state; numerical fitting may produce a fitted initial state
+- **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`; OEM metadata comments are moved to OPM header comments
+- **Generated/transformed**: OPM header and `EPOCH`; Cartesian state may be fitted, and optional Keplerian elements are emitted only for two-body fitting
+- **Not copied**: `REF_FRAME_EPOCH`, OEM coverage/interpolation fields, remaining time series, covariance, spacecraft parameters, and other unsupported optional fields
 
 ### OEM → TLE
 - Requires orbit fitting to mean elements + TLE formatting
@@ -237,13 +240,16 @@ Note: Must be documented in Interface Control Document (ICD).
 
 ### OMM → OEM
 - Requires propagation using mean element theory
-- **Preserved**: `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`
-- **Lost**: `MEAN_ELEMENT_THEORY`, `MEAN_MOTION`, `ECCENTRICITY`, `INCLINATION`, `RA_OF_ASC_NODE`, `ARG_OF_PERICENTER`, `MEAN_ANOMALY`, `BSTAR`/`BTERM`, `NORAD_CAT_ID`, `ELEMENT_SET_NO`, `REV_AT_EPOCH`, `MASS`, `SOLAR_RAD_AREA`, `DRAG_AREA`
+- **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`
+- **Generated/set by current implementation**: OEM header, `CENTER_NAME=EARTH`, `REF_FRAME=EME2000`, `TIME_SYSTEM=UTC`, coverage times, and a propagation provenance comment
+- **Not copied**: OMM header fields and comments, source frame/time labels, mean elements and theory fields, TLE parameters, covariance, and spacecraft parameters
+- **Caution**: the written `EME2000` label must be checked against the propagator's returned state-frame semantics; it is not a literal preservation of the OMM `REF_FRAME`
 
 ### OMM → OPM
-- Converts mean to osculating elements
-- **Preserved**: `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`, `EPOCH`
-- **Lost**: `MEAN_ELEMENT_THEORY`, `BSTAR`/`BTERM`, `MEAN_MOTION_DOT`, `MEAN_MOTION_DDOT`/`AGOM`, `NORAD_CAT_ID`, `ELEMENT_SET_NO`, `REV_AT_EPOCH`, `CLASSIFICATION_TYPE`, `EPHEMERIS_TYPE`
+- Composed propagation to an intermediate OEM followed by numerical OPM fitting
+- **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`; the output epoch is derived from the generated OEM
+- **Generated/set by current implementation**: OPM header and the context supplied by the intermediate OEM (`EARTH`, `EME2000`, `UTC`)
+- **Not copied**: source OMM header/comments, original frame/time labels, mean-element theory and values, TLE parameters, covariance, and spacecraft parameters
 
 ### OMM → TLE
 - Generates standard 2-line format
@@ -256,14 +262,17 @@ Note: Must be documented in Interface Control Document (ICD).
 - Generates ephemeris time series from single epoch
 - Propagator selection affects accuracy
 - Step size determines output density
-- **Preserved**: `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`
-- **Lost**: `SEMI_MAJOR_AXIS`, `ECCENTRICITY`, `INCLINATION`, `RA_OF_ASC_NODE`, `ARG_OF_PERICENTER`, `TRUE_ANOMALY`/`MEAN_ANOMALY`, `MASS`, `SOLAR_RAD_AREA`, `SOLAR_RAD_COEFF`, `DRAG_AREA`, `DRAG_COEFF`, `MAN_*` (maneuvers), covariance matrix
+- **`propagate-kepler`**: carries `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, and `TIME_SYSTEM`; output header and coverage times are generated
+- **`propagate-orbit`**: current numerical path writes `CENTER_NAME=Earth`, `REF_FRAME=J2000`, and `TIME_SYSTEM=UTC`, uses the CLI/default satellite name, and does not write source `OBJECT_ID`
+- **Not copied**: Keplerian elements, source header/comments, `REF_FRAME_EPOCH`, spacecraft parameters, maneuvers, covariance, and other OPM-only fields
 
 ### OPM → OMM
 - Requires conversion from osculating to mean elements
 - Not directly supported (requires orbit fitting)
-- **Preserved**: `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`, `EPOCH`
-- **Lost**: Osculating Keplerian elements, `MASS`, spacecraft parameters, maneuvers, covariance
+- Composed OPM propagation to OEM followed by OMM fitting
+- **Carried forward**: object identity where the selected propagation route emits it; output epoch and mean elements are derived
+- **Generated/set by current implementation**: OMM header and target mean-element theory; OEM→OMM currently sets `CENTER_NAME=EARTH`, `REF_FRAME=ICRF`, and `TIME_SYSTEM=UTC`
+- **Not copied**: source OPM header/comments, source frame labels, osculating elements, spacecraft parameters, maneuvers, and covariance
 
 ### OPM → TLE
 - Requires osculating-to-mean conversion + TLE formatting
@@ -273,13 +282,16 @@ Note: Must be documented in Interface Control Document (ICD).
 
 ### TLE → OEM
 - Propagate TLE using SGP4 over time span
-- **Preserved**: `OBJECT_NAME`, `OBJECT_ID` (from NORAD ID), `CENTER_NAME` (EARTH), `REF_FRAME` (TEME), `TIME_SYSTEM` (UTC)
+- **Carried forward**: `OBJECT_NAME` and `OBJECT_ID` (from the TLE designator)
+- **Generated/set by current implementation**: `CENTER_NAME=EARTH`, `REF_FRAME=EME2000`, `TIME_SYSTEM=UTC`, coverage times, and propagation provenance
 - **Lost**: All TLE-specific parameters, mean elements, `BSTAR`, `ELEMENT_SET_NO`
+- **Caution**: the OEM frame label is not the TLE's implicit `TEME`; verify the propagator's returned frame semantics
 
 ### TLE → OMM
 - Direct conversion supported
-- OMM preserves all TLE fields
-- OMM adds CCSDS metadata structure
+- OMM maps the TLE-representable identity, orbital, and TLE-parameter fields; raw line formatting and checksums are not retained
+- The CLI generates `CREATION_DATE` and `ORIGINATOR`; direct library calls to `tle_to_omm` should supply these arguments because their defaults are empty
+- The converter currently writes `CCSDS_OMM_VERS=2.0`
 - **Preserved**: `NORAD_CAT_ID`, `CLASSIFICATION_TYPE`, `EPOCH`, `MEAN_MOTION`, `ECCENTRICITY`, `INCLINATION`, `RA_OF_ASC_NODE`, `ARG_OF_PERICENTER`, `MEAN_ANOMALY`, `BSTAR`, `ELEMENT_SET_NO`, `REV_AT_EPOCH`, `MEAN_MOTION_DOT`, `MEAN_MOTION_DDOT`
 
 ### TLE → OPM

@@ -133,6 +133,7 @@ def test_read_kepler_input_reads_opm_file() -> None:
 
     assert output_metadata == {
         "object_name": "EUTELSAT W4",
+        "object_id": "2021-028A",
         "ref_frame": "TOD",
         "center_name": "EARTH",
         "time_system": "UTC",
@@ -214,6 +215,7 @@ def test_propagate_kepler_writes_cartesian_states_in_si_units(
         "EPHEMERIS_PROVENANCE: source=OPM; transformation=propagation; "
         "target_model=two-body-kepler" in generated_oem.meta.comments
     )
+    assert generated_oem.meta.object_id == "2021-028A"
 
 
 def test_propagate_kepler_main_routes_parsed_input_and_output(
