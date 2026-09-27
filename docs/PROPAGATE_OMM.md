@@ -110,7 +110,8 @@ parameters, and SGP4 propagation uses the embedded TLE parameters instead.
 The generated OEM carries identity, generated reference context/coverage, and
 source comments. In a full OEM output, OMM covariance is copied at its source
 epoch with its declared covariance frame (or the OMM reference frame when no
-`COV_REF_FRAME` is specified); it is not evolved to later output epochs.
+`COV_REF_FRAME` is specified), provided that epoch is within the emitted state
+interval. It is not evolved to later output epochs.
 `--data-only` omits covariance along with the OEM metadata. Spacecraft
 parameters, reference-frame epoch, user-defined fields, and mean-element/TLE
 metadata are not copied to OEM.

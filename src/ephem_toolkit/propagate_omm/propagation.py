@@ -466,6 +466,17 @@ def _write_oem_output(
         if data_only:
             oem.CcsdsOem.from_states(propagated_states).write_states(output_stream)
         else:
+            output_covariance = covariance
+            if covariance is not None and propagated_states:
+                covariance_tt_s = time_utils.datetime_to_tt_s(
+                    time_utils.iso8601_to_datetime(covariance.epoch)
+                )
+                state_epochs = [epoch for epoch, _ in propagated_states]
+                if not min(state_epochs) <= covariance_tt_s <= max(state_epochs):
+                    output_covariance = None
+            else:
+                output_covariance = None
+
             oem_obj: oem.CcsdsOem = oem.CcsdsOem.from_states(
                 propagated_states,
                 object_name=object_name,
@@ -473,7 +484,9 @@ def _write_oem_output(
                 ref_frame="EME2000",
                 center_name="EARTH",
                 time_system="UTC",
-                covariances=[covariance] if covariance is not None else None,
+                covariances=(
+                    [output_covariance] if output_covariance is not None else None
+                ),
             )
             if comments:
                 oem_obj.meta.comments.extend(comments)

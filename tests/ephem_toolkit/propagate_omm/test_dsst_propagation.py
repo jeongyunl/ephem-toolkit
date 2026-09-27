@@ -235,6 +235,19 @@ def test_propagate_omm_kepler_preserves_source_comments(tmp_path):
     _assert_omm_covariance_preserved(output_path, omm_data)
     _assert_optional_omm_fields_not_in_oem(output_path)
 
+    offset_start = start + timedelta(hours=1)
+    offset_output_path = tmp_path / "kepler-offset.oem"
+    propagation.propagate_omm_kepler(
+        omm_data,
+        offset_start,
+        offset_start + timedelta(minutes=10),
+        600.0,
+        False,
+        str(offset_output_path),
+    )
+    offset_oem = oem_mod.CcsdsOem.read(offset_output_path)
+    assert offset_oem.covariances == []
+
 
 def test_propagate_omm_sgp4_forwards_source_comments(monkeypatch):
     """The SGP4 wrapper forwards OMM comments through the TLE helper."""
