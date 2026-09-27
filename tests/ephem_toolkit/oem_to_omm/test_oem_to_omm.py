@@ -369,11 +369,15 @@ def test_main_dsst_mode_fits_and_writes_omm_to_stdout(
 
 
 @pytest.mark.parametrize(
-    ("fit_model", "expected_theory", "expected_frame"),
+    ("fit_model", "expected_theory", "expected_frame", "source_frame"),
     [
-        ("brouwer", "BROUWER-LYDDANE", "ICRF"),
-        ("dsst", "DSST", "ICRF"),
-        ("sgp4", "SGP/SGP4", "TEME"),
+        (fit_model, expected_theory, expected_frame, source_frame)
+        for fit_model, expected_theory, expected_frame in (
+            ("brouwer", "BROUWER-LYDDANE", "ICRF"),
+            ("dsst", "DSST", "ICRF"),
+            ("sgp4", "SGP/SGP4", "TEME"),
+        )
+        for source_frame in ("J2000", "EME2000", "ICRF", "GCRF")
     ],
 )
 def test_main_serializes_oem_metadata_for_each_fit_model(
@@ -382,12 +386,14 @@ def test_main_serializes_oem_metadata_for_each_fit_model(
     fit_model: str,
     expected_theory: str,
     expected_frame: str,
+    source_frame: str,
 ) -> None:
     states = [
         (0.0, np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0])),
         (600.0, np.array([6_999_000.0, 4_500_000.0, 0.0, -4_800.0, 7_499.0, 0.0])),
     ]
     source_meta = DummyMeta("SOURCE SAT", "2024-001A")
+    source_meta.ref_frame = source_frame
     source_meta.comments = ["OEM_SOURCE_COMMENT: preserve me"]
     source_meta.ref_frame_epoch = "2000-01-01T12:00:00"
     source_meta.start_time = "2024-01-01T00:00:00"
