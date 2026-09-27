@@ -327,7 +327,7 @@ META_STOP
 2024-01-01T00:00:00.000000 7000.0 0.0 0.0 0.0 7.5 0.0
 """
 
-    header, meta, data_comments, states = oem.CcsdsOem._read_oem_impl(
+    header, meta, data_comments, states, _ = oem.CcsdsOem._read_oem_impl(
         io.StringIO(oem_content)
     )
 
@@ -349,7 +349,7 @@ META_STOP
 2024-01-01T00:00:00.000000 7000.0 0.0 0.0 0.0 7.5 0.0
 """
 
-    header, meta, _, states = oem.CcsdsOem._read_oem_impl(io.StringIO(oem_content))
+    header, meta, _, states, _ = oem.CcsdsOem._read_oem_impl(io.StringIO(oem_content))
 
     assert meta["CUSTOM_FLOAT"] == pytest.approx(3.14159)
     assert isinstance(meta["CUSTOM_FLOAT"], float)
@@ -368,7 +368,7 @@ META_STOP
 2024-01-01T00:02:00.000000 7200.0 0.0 0.0 0.0 7.3 0.0
 """
 
-    header, meta, _, states = oem.CcsdsOem._read_oem_impl(io.StringIO(oem_content))
+    header, meta, _, states, _ = oem.CcsdsOem._read_oem_impl(io.StringIO(oem_content))
 
     # Should only have 2 valid states (skips the short line)
     assert len(states) == 2
@@ -445,7 +445,7 @@ COMMENT Another data comment
 2024-01-01T00:00:00.000000 7000.0 0.0 0.0 0.0 7.5 0.0
 """
 
-    header, meta, data_comments, states = oem.CcsdsOem._read_oem_impl(
+    header, meta, data_comments, states, _ = oem.CcsdsOem._read_oem_impl(
         io.StringIO(oem_content)
     )
 
@@ -504,7 +504,7 @@ COMMENT Data comment
 
 def test_read_oem_from_path_string() -> None:
     """Test the internal reader accepts a path as a string."""
-    header, meta, _, states = oem.CcsdsOem._read_oem_impl(str(OEM_PATH))
+    header, meta, _, states, _ = oem.CcsdsOem._read_oem_impl(str(OEM_PATH))
 
     assert isinstance(header, dict)
     assert isinstance(meta, dict)
@@ -574,7 +574,7 @@ META_STOP
 2024-01-01T00:00:00.000000 7000.0 0.0 0.0 0.0 7.5 0.0
 """
 
-    header, meta, _, states = oem.CcsdsOem._read_oem_impl(io.StringIO(oem_content))
+    header, meta, _, states, _ = oem.CcsdsOem._read_oem_impl(io.StringIO(oem_content))
 
     timestamp, state = states[0]
     # Position should be in meters (7000 km -> 7000000 m)

@@ -29,6 +29,7 @@ def write_state_history_oem(
     dest: str,
     config: NumericalPropagatorConfig,
     data_only: bool,
+    initial_covariance: common_oem.OemCovariance | None = None,
 ) -> None:
     """Write propagated state history in OEM or data-only format.
 
@@ -43,6 +44,8 @@ def write_state_history_oem(
         Force-model configuration used to populate OEM metadata.
     data_only : bool
         Whether to write only state-vector data without OEM header or metadata.
+    initial_covariance : OemCovariance | None
+        Covariance at the input epoch. It is serialized unchanged, not propagated.
     """
     if dest == "-":
         stream = sys.stdout
@@ -60,6 +63,11 @@ def write_state_history_oem(
             ref_frame=DEFAULT_GLOBAL_FRAME_ORIENTATION,
             center_name=DEFAULT_GLOBAL_FRAME_ORIGIN,
             time_system="UTC",
+            covariances=(
+                [initial_covariance]
+                if initial_covariance is not None and not data_only
+                else None
+            ),
         )
         oem.meta.comments.extend(getattr(config, "source_comments", ()))
         oem.meta.comments.extend(

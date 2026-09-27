@@ -110,8 +110,9 @@ parameters, and SGP4 propagation uses the embedded TLE parameters instead.
 The generated OEM carries identity, generated reference context/coverage, and
 source comments, but does not carry OMM covariance, spacecraft parameters,
 reference-frame epoch, user-defined fields, or mean-element/TLE metadata.
-Covariance is an implementation gap: OEM can represent it, but the current
-`CcsdsOem` model and writer do not.
+`CcsdsOem` can serialize covariance blocks, but `propagate-omm` does not
+forward or evolve OMM covariance. Preserving it requires handling covariance
+frames and propagation to the requested epochs.
 
 ### Example DSST OMM
 

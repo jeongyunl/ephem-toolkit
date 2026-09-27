@@ -143,6 +143,10 @@ class NumericalInitialState:
     """Cartesian state vector [x, y, z, vx, vy, vz] in SI units (m, m/s)."""
     epoch_s: float
     """Epoch at which :attr:`state_m_m_s` is defined (TT, s since J2000 TT)."""
+    covariance_matrix_si: np.ndarray | None = None
+    """Initial Cartesian covariance matrix in SI covariance units, if provided."""
+    covariance_ref_frame: str | None = None
+    """Reference frame associated with :attr:`covariance_matrix_si`."""
 
 
 # ===================================================================

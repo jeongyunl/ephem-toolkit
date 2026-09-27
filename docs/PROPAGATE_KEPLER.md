@@ -66,6 +66,9 @@ By default, the command writes a CCSDS OEM state history with metadata copied fr
 OPM where available, including source OPM header comments as OEM metadata comments and a
 generated propagation-provenance comment. The OEM header is regenerated. `--data-only` omits
 the metadata header and writes only propagated state lines in the OEM data-only format.
+If the input OPM includes covariance, the OEM carries that matrix unchanged at
+the OPM epoch with its declared `COV_REF_FRAME`. Covariance is not evolved to
+later epochs; `--data-only` omits it with the metadata.
 
 State-only output uses the following format:
 

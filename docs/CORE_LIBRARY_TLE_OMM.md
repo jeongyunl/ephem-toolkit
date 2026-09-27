@@ -240,7 +240,12 @@ Structured CCSDS Orbit Ephemeris Message with header, metadata, and states.
 - `meta`: Metadata block fields (OemMeta)
 - `data_comments`: Comment lines before the ephemeris state data
 - `states`: List of (TT seconds since J2000, state_vector) tuples in stored/input order. State vectors are six-element arrays [x, y, z, vx, vy, vz] in meters and m/s.
+- `covariances`: List of `OemCovariance` records, each containing an epoch, symmetric 6×6 matrix in CCSDS covariance units, and optional `COV_REF_FRAME`
 - Ordering: `from_states` sorts by epoch, while `read` preserves file order.
+
+`OemCovariance` represents one CCSDS OEM covariance sample. Covariance matrices
+are encoded and stored in OEM file units (km², km²/s, and km²/s²); unlike state
+vectors, they are not converted to SI by `CcsdsOem`.
 
 **Properties:**
 - `epochs`: Epoch timestamps (TT seconds since J2000) in the same order as `states`
@@ -249,7 +254,7 @@ Structured CCSDS Orbit Ephemeris Message with header, metadata, and states.
 
 **Class Methods:**
 - `CcsdsOem.read(source: TextIO | str | Path) -> CcsdsOem`: Read and construct from a file or stream
-- `CcsdsOem.from_states(states, object_name="", object_id="", ref_frame="", center_name="", time_system="UTC") -> CcsdsOem`: Create from states with minimal metadata; sorts input by epoch
+- `CcsdsOem.from_states(states, object_name="", object_id="", ref_frame="", center_name="", time_system="UTC", covariances=None) -> CcsdsOem`: Create from states with minimal metadata and optional covariance samples; sorts input by epoch
 - Default `time_system` is `UTC`; the `states` timestamps are TT seconds since J2000
 - `CcsdsOem.parse_oem_state_line(line: str) -> tuple[float, np.ndarray] | None`: Parse a single OEM-style state line
 

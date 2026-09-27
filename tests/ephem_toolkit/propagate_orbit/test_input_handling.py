@@ -32,7 +32,7 @@ from ephem_toolkit.core.ccsds.opm import (
 )
 import ephem_toolkit.core.time_utils as time_utils
 from ephem_toolkit.propagate_orbit.input_handling import build_propagation_inputs
-from ephem_toolkit.propagate_orbit.output_handling import write_state_history_oem
+import ephem_toolkit.propagate_orbit.propagation as propagation
 from ephem_toolkit.propagate_orbit.constants import (
     DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2,
     DEFAULT_SATELLITE_DRAG_COEFFICIENT,
@@ -83,12 +83,21 @@ def _patch_opm_reader(
     object_id="2024-001A",
     object_name="",
     source_comments=("SOURCE_COMMENT: input",),
+    covariance=None,
 ):
     """Patch the OPM reader to return fixed state, epoch, and identity."""
     return patch(
         "ephem_toolkit.propagate_orbit.input_handling"
         ".read_initial_state_from_opm_file_or_stdin",
-        return_value=(state, epoch, object_id, object_name, source_comments, None),
+        return_value=(
+            state,
+            epoch,
+            object_id,
+            object_name,
+            source_comments,
+            None,
+            covariance,
+        ),
     )
 
 
@@ -229,7 +238,7 @@ def test_config_uses_defaults_when_opm_physical_parameters_are_absent() -> None:
 
 
 def test_opm_physical_parameters_are_used_unless_cli_overrides(
-    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     source_path = tmp_path / "physical-parameters.opm"
     covariance_matrix = np.eye(6)
@@ -294,31 +303,84 @@ def test_opm_physical_parameters_are_used_unless_cli_overrides(
         srp=True,
         drag=True,
     )
-    config, initial_state, _ = build_propagation_inputs(cli_args)
+    config, initial_state, target_epoch_s = build_propagation_inputs(cli_args)
 
     assert config.satellite_mass_kg == 81.0
     assert config.satellite_drag_area_m2 == 0.12
     assert config.satellite_srp_area_m2 == 0.12
     assert config.satellite_drag_coefficient == 2.4
     assert config.srp_coefficient == 1.6
-    assert not hasattr(config, "covariance")
-    assert not hasattr(initial_state, "covariance")
+    assert initial_state.covariance_matrix_si is not None
+    np.testing.assert_array_equal(
+        initial_state.covariance_matrix_si, covariance_matrix * 1e6
+    )
 
+    class FakeNumericalPropagator:
+        def __init__(self, _config, _initial_state):
+            self.dependent_variable_dictionary = {}
+            self.dependent_variable_save_settings = []
+
+        def propagate_to(self, _target_epoch_s, output):
+            return [
+                (initial_state.epoch_s, initial_state.state_m_m_s),
+                (initial_state.epoch_s + 60.0, initial_state.state_m_m_s),
+            ]
+
+    monkeypatch.setattr(propagation, "NumericalPropagator", FakeNumericalPropagator)
     output_path = tmp_path / "propagated.oem"
-    write_state_history_oem(
-        {
-            initial_state.epoch_s: initial_state.state_m_m_s,
-            initial_state.epoch_s + 60.0: initial_state.state_m_m_s,
-        },
-        str(output_path),
+    propagation.run_propagation(
         config,
-        data_only=False,
+        initial_state,
+        target_epoch_s,
+        str(output_path),
+        None,
+        False,
     )
     generated_oem = CcsdsOem.read(output_path)
     assert len(generated_oem.states) == 2
-    serialized_oem = output_path.read_text(encoding="utf-8")
-    assert "COV_REF_FRAME" not in serialized_oem
-    assert "CX_X" not in serialized_oem
+    assert len(generated_oem.covariances) == 1
+    assert (
+        time_utils.iso8601_to_datetime(generated_oem.covariances[0].epoch) == _EPOCH_UTC
+    )
+    assert generated_oem.covariances[0].ref_frame == "J2000"
+    np.testing.assert_array_equal(
+        generated_oem.covariances[0].matrix, covariance_matrix
+    )
+
+
+def test_read_initial_state_rejects_non_equivalent_covariance_frame(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source_path = tmp_path / "rtn-covariance.opm"
+    CcsdsOpm(
+        header=OpmHeader(
+            version=3.0,
+            creation_date="2026-05-20T00:00:00.000",
+            originator="test",
+        ),
+        metadata={
+            "OBJECT_NAME": "PARAMETER TEST SAT",
+            "OBJECT_ID": "2024-001A",
+            "CENTER_NAME": "EARTH",
+            "REF_FRAME": "J2000",
+            "TIME_SYSTEM": "UTC",
+        },
+        state_vector=OpmStateVector(
+            epoch="2026-05-20T12:00:00.000",
+            x=7000.0,
+            y=0.0,
+            z=0.0,
+            x_dot=0.0,
+            y_dot=7.5,
+            z_dot=0.0,
+        ),
+        covariance=OpmCovariance(np.eye(6), ref_frame="RTN"),
+    ).to_file(source_path)
+
+    with pytest.raises(SystemExit):
+        build_propagation_inputs(_make_cli_args(input_opm=str(source_path)))
+
+    assert "J2000-equivalent" in capsys.readouterr().err
 
 
 # ===================================================================
@@ -405,6 +467,7 @@ def test_read_initial_state_parses_stdin_and_file_sources(
         object_name,
         source_comments,
         spacecraft_parameters,
+        covariance,
     ) = input_handling.read_initial_state_from_opm_file_or_stdin(
         argparse.Namespace(input_opm=input_opm)
     )
@@ -415,6 +478,7 @@ def test_read_initial_state_parses_stdin_and_file_sources(
     assert object_name == "SourceSat"
     assert source_comments == ("SOURCE_COMMENT: input",)
     assert spacecraft_parameters is None
+    assert covariance is None
     if input_opm == "-":
         assert isinstance(sources[0], io.StringIO)
     else:

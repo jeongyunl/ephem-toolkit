@@ -70,7 +70,14 @@ def read_kepler_input(source: str | None):
             ("time_system", "TIME_SYSTEM"),
         )
     }
-    return epoch, state, metadata, tuple(message.header.comments)
+    covariance = None
+    if message.covariance is not None:
+        covariance = oem.OemCovariance(
+            epoch=message.state_vector.epoch,
+            matrix=message.covariance.matrix.copy(),
+            ref_frame=message.covariance.ref_frame,
+        )
+    return epoch, state, metadata, tuple(message.header.comments), covariance
 
 
 def propagate_kepler_elements(
@@ -82,6 +89,7 @@ def propagate_kepler_elements(
     output_metadata: dict[str, str],
     output_path: str = "-",
     source_comments: tuple[str, ...] = (),
+    covariance: oem.OemCovariance | None = None,
 ) -> None:
     """Propagate Keplerian elements and write the resulting OEM."""
     elements = initial_kepler_km.astype(np.float64).copy()
@@ -103,7 +111,11 @@ def propagate_kepler_elements(
     )
     try:
         message = (
-            oem.CcsdsOem.from_states(states, **output_metadata)
+            oem.CcsdsOem.from_states(
+                states,
+                **output_metadata,
+                covariances=[covariance] if covariance is not None else None,
+            )
             if not data_only
             else oem.CcsdsOem.from_states(states)
         )

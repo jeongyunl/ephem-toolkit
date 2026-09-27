@@ -76,6 +76,34 @@ _HEADER_KEY_ORDER: list[str] = [
 ]
 """Preferred ordering of header keys when writing OEM files."""
 
+COVARIANCE_DIMENSION: int = 6
+"""Number of position and velocity components in an OEM covariance matrix."""
+
+_COVARIANCE_KEYS: tuple[str, ...] = (
+    "CX_X",
+    "CY_X",
+    "CY_Y",
+    "CZ_X",
+    "CZ_Y",
+    "CZ_Z",
+    "CX_DOT_X",
+    "CX_DOT_Y",
+    "CX_DOT_Z",
+    "CX_DOT_X_DOT",
+    "CY_DOT_X",
+    "CY_DOT_Y",
+    "CY_DOT_Z",
+    "CY_DOT_X_DOT",
+    "CY_DOT_Y_DOT",
+    "CZ_DOT_X",
+    "CZ_DOT_Y",
+    "CZ_DOT_Z",
+    "CZ_DOT_X_DOT",
+    "CZ_DOT_Y_DOT",
+    "CZ_DOT_Z_DOT",
+)
+"""OEM covariance values in lower-triangular row order."""
+
 
 _CSV_STATE_HEADERS: list[str] = [
     "epoch",
@@ -122,6 +150,18 @@ class OemHeader:
 
     message_id: str = ""
     """Identifier for the OEM message."""
+
+
+@dataclass
+class OemCovariance:
+    """One Cartesian covariance matrix at an OEM epoch, in CCSDS file units."""
+
+    epoch: str
+    """Epoch associated with the covariance matrix."""
+    matrix: np.ndarray
+    """Symmetric 6x6 matrix using km/km/s covariance units."""
+    ref_frame: str | None = None
+    """Covariance frame; omitted when it matches the OEM reference frame."""
 
 
 @dataclass
@@ -224,6 +264,7 @@ class CcsdsOem:
         meta: OemMeta,
         data_comments: list[str],
         states: list[tuple[float, np.ndarray]],
+        covariances: list[OemCovariance] | None = None,
     ) -> None:
         """Initialise a :class:`CcsdsOem` from pre-parsed components.
 
@@ -252,6 +293,9 @@ class CcsdsOem:
         self.data_comments = data_comments
         """Comment lines from the ephemeris data section (after META_STOP, before state data)."""
 
+        self.covariances = list(covariances or [])
+        """Covariance matrices associated with epochs in this OEM."""
+
     @classmethod
     def read(cls, source: TextIO | str | Path) -> CcsdsOem:
         """Read and construct a :class:`CcsdsOem` from a file or stream.
@@ -270,7 +314,14 @@ class CcsdsOem:
         raw_meta: dict[str, Any]
         raw_data_comments: list[str]
         raw_states: list[tuple[float, np.ndarray]]
-        raw_header, raw_meta, raw_data_comments, raw_states = cls._read_oem_impl(source)
+        raw_covariances: list[OemCovariance]
+        (
+            raw_header,
+            raw_meta,
+            raw_data_comments,
+            raw_states,
+            raw_covariances,
+        ) = cls._read_oem_impl(source)
 
         header: OemHeader = OemHeader(
             version=float(raw_header.get("CCSDS_OEM_VERS", 0.0)),
@@ -302,6 +353,7 @@ class CcsdsOem:
             meta=meta,
             data_comments=raw_data_comments,
             states=raw_states,
+            covariances=raw_covariances,
         )
 
     @classmethod
@@ -313,6 +365,7 @@ class CcsdsOem:
         ref_frame: str = "",
         center_name: str = "",
         time_system: str = "UTC",
+        covariances: list[OemCovariance] | None = None,
     ) -> CcsdsOem:
         """Create a CcsdsOem from a list of states with minimal metadata.
 
@@ -333,6 +386,8 @@ class CcsdsOem:
             Central body name (e.g., EARTH).
         time_system : str, optional
             Time system (default: UTC).
+        covariances : list[OemCovariance] | None, optional
+            Covariance matrices associated with epochs in the state history.
 
         Returns
         -------
@@ -373,7 +428,13 @@ class CcsdsOem:
             meta.start_time = time_utils.datetime_to_iso8601(start_datetime)
             meta.stop_time = time_utils.datetime_to_iso8601(stop_datetime)
 
-        return cls(header=header, meta=meta, data_comments=[], states=sorted_states)
+        return cls(
+            header=header,
+            meta=meta,
+            data_comments=[],
+            states=sorted_states,
+            covariances=covariances,
+        )
 
     @property
     def epochs(self) -> list[float]:
@@ -473,6 +534,39 @@ class CcsdsOem:
             self.write_line(dest, sep=sep)
 
         self.write_states(dest, format_type=format_type)
+        if format_type is OemFormat.OEM and self.covariances:
+            self._write_covariances(dest, sep=sep)
+
+    def _write_covariances(self, dest: TextIO, sep: str = " ") -> None:
+        """Write covariance matrices as one CCSDS OEM covariance block."""
+        ref_frames = {covariance.ref_frame for covariance in self.covariances}
+        if len(ref_frames) > 1:
+            raise ValueError(
+                "OEM covariance matrices in one segment must share a frame"
+            )
+
+        self.write_line(dest, sep=sep)
+        self.write_line(dest, "COVARIANCE_START", sep=sep)
+        ref_frame = next(iter(ref_frames))
+        if ref_frame:
+            self.write_line(dest, "COV_REF_FRAME", "=", ref_frame, sep=sep)
+
+        for covariance in self.covariances:
+            if covariance.matrix.shape != (
+                COVARIANCE_DIMENSION,
+                COVARIANCE_DIMENSION,
+            ):
+                raise ValueError("OEM covariance matrix must be 6x6")
+            self.write_line(dest, "EPOCH", "=", covariance.epoch, sep=sep)
+            for row_index in range(COVARIANCE_DIMENSION):
+                row_values = covariance.matrix[row_index, : row_index + 1]
+                self.write_line(
+                    dest,
+                    *(f"{float(value):.15g}" for value in row_values),
+                    sep=sep,
+                )
+
+        self.write_line(dest, "COVARIANCE_STOP", sep=sep)
 
     def update_metadata(self, **kwargs: Any) -> None:
         """Update metadata fields in-place.
@@ -597,8 +691,9 @@ class CcsdsOem:
         dict[str, Any],
         list[str],
         list[tuple[float, np.ndarray]],
+        list[OemCovariance],
     ]:
-        """Read OEM content into header, metadata, data comments, and states."""
+        """Read OEM content into header, metadata, comments, states, and covariance."""
         if isinstance(source, (str, Path)):
             with open(source, "r", encoding="utf-8") as file_handle:
                 return CcsdsOem._read_oem_impl(file_handle)
@@ -607,12 +702,86 @@ class CcsdsOem:
         meta: dict[str, Any] = {}
         data_comments: list[str] = []
         states: list[tuple[float, np.ndarray]] = []
+        covariances: list[OemCovariance] = []
         in_meta: bool = False
         past_meta: bool = False
+        in_covariance: bool = False
+        covariance_epoch: str | None = None
+        covariance_ref_frame: str | None = None
+        covariance_rows: list[list[float]] = []
+
+        def finish_covariance() -> None:
+            nonlocal covariance_epoch, covariance_rows
+            if covariance_epoch is None:
+                if covariance_rows:
+                    raise ValueError("OEM covariance rows are missing an EPOCH")
+                return
+            if len(covariance_rows) != COVARIANCE_DIMENSION:
+                raise ValueError(
+                    "OEM covariance matrix must contain six lower-triangular rows"
+                )
+            matrix = np.zeros((COVARIANCE_DIMENSION, COVARIANCE_DIMENSION))
+            for row_index, row_values in enumerate(covariance_rows):
+                if len(row_values) != row_index + 1:
+                    raise ValueError(
+                        "OEM covariance rows must contain 1 through 6 values"
+                    )
+                matrix[row_index, : row_index + 1] = row_values
+                matrix[: row_index + 1, row_index] = row_values
+            covariances.append(
+                OemCovariance(
+                    epoch=covariance_epoch,
+                    matrix=matrix,
+                    ref_frame=covariance_ref_frame,
+                )
+            )
+            covariance_epoch = None
+            covariance_rows = []
 
         for raw_line in source:
             line: str = raw_line.strip()
             if not line:
+                continue
+
+            if line == "COVARIANCE_START":
+                if in_covariance:
+                    raise ValueError("Nested OEM COVARIANCE_START block")
+                in_covariance = True
+                covariance_epoch = None
+                covariance_ref_frame = None
+                covariance_rows = []
+                continue
+            if line == "COVARIANCE_STOP":
+                if not in_covariance:
+                    raise ValueError("OEM COVARIANCE_STOP without COVARIANCE_START")
+                finish_covariance()
+                in_covariance = False
+                continue
+            if in_covariance:
+                key_value = misc.parse_key_value_line(line)
+                if key_value is not None:
+                    key, value = key_value
+                    if key == "EPOCH":
+                        finish_covariance()
+                        try:
+                            time_utils.iso8601_to_datetime(value)
+                        except ValueError as exc:
+                            raise ValueError(
+                                f"Invalid OEM covariance EPOCH: {value}"
+                            ) from exc
+                        covariance_epoch = value
+                    elif key == "COV_REF_FRAME":
+                        covariance_ref_frame = value
+                    else:
+                        raise ValueError(f"Unsupported OEM covariance keyword: {key}")
+                    continue
+                try:
+                    row_values = [float(value) for value in line.split()]
+                except ValueError as exc:
+                    raise ValueError("Invalid OEM covariance row") from exc
+                if len(covariance_rows) >= COVARIANCE_DIMENSION:
+                    raise ValueError("Too many rows in OEM covariance matrix")
+                covariance_rows.append(row_values)
                 continue
 
             if line == "META_START":
@@ -662,7 +831,10 @@ class CcsdsOem:
                 )
                 states.append((timestamp, state_km * KILOMETERS_TO_METERS))
 
-        return header, meta, data_comments, states
+        if in_covariance:
+            raise ValueError("Unterminated OEM covariance block")
+
+        return header, meta, data_comments, states, covariances
 
     def _write_header(self, dest: TextIO, sep: str = " ") -> None:
         """Write the OEM header to a writable text stream."""

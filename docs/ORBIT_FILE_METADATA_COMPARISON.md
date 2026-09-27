@@ -223,7 +223,7 @@ Note: Must be documented in Interface Control Document (ICD).
 - **Carried forward**: `OBJECT_NAME` and `OBJECT_ID` (unless overridden or absent); OEM metadata comments are copied to OMM comments
 - **Generated/set by current implementation**: header, `MEAN_ELEMENT_THEORY`, `CENTER_NAME=EARTH`, `REF_FRAME=ICRF` for Brouwer/DSST or `TEME` for SGP4, `TIME_SYSTEM=UTC`, and fitted mean elements
 - **Not copied**: source `CENTER_NAME`, `REF_FRAME`, `REF_FRAME_EPOCH`, `TIME_SYSTEM`, `START_TIME`, `STOP_TIME`, usable time bounds, interpolation settings, Cartesian state vectors, acceleration, and covariance
-- **Covariance caveat**: OMM supports covariance, but the current `CcsdsOem` parser/model does not expose OEM covariance to this fit path; covariance handling is an implementation gap, not an OMM format limitation.
+- **Covariance caveat**: `CcsdsOem` can parse OEM covariance, but `oem-to-omm` does not copy it into the fitted OMM. Both formats can represent covariance, so this is a conversion capability gap.
 - **Input frame requirement**: no state transformation is applied; the fitter accepts only `J2000`, `EME2000`, `ICRF`, or `GCRF` source frames (treated as equivalent) and rejects other frame labels
 - **SGP4 frame semantics**: the OMM records SGP4 mean elements in `TEME`; TudatPy converts propagated SGP4 states to `J2000` for arc scoring
 
@@ -233,7 +233,7 @@ Note: Must be documented in Interface Control Document (ICD).
 - **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`; OEM metadata comments are moved to OPM header comments
 - **Generated/transformed**: OPM header and `EPOCH`; Cartesian state may be fitted, and optional Keplerian elements are emitted only for two-body fitting
 - **Not copied**: `REF_FRAME_EPOCH`, OEM coverage/interpolation fields, remaining time series, covariance, spacecraft parameters, and other unsupported optional fields
-- **Covariance caveat**: although OPM supports covariance, the current `CcsdsOem` parser/model does not expose OEM covariance to the fit path, so this omission is not a target-format limitation.
+- **Covariance caveat**: although OPM supports covariance, the OEM-to-OPM fitter does not copy parsed OEM covariance into the fitted OPM. This is a conversion capability gap, not a format limitation.
 
 ### OEM → TLE
 - Requires orbit fitting to mean elements + TLE formatting
@@ -249,7 +249,7 @@ Note: Must be documented in Interface Control Document (ICD).
 - **Carried forward**: OMM comments as OEM metadata comments
 - **DSST inputs**: `MASS`, `DRAG_AREA`, and `DRAG_COEFF` configure drag only when all three are present; `SOLAR_RAD_AREA` and `SOLAR_RAD_COEFF` configure SRP when both are present. Kepler fallback does not use spacecraft parameters; SGP4 uses the OMM's TLE parameters instead.
 - **Not copied to OEM metadata**: other OMM header fields, source frame/time labels, reference-frame epoch, mean elements and theory, TLE parameters, spacecraft parameters, covariance, and user-defined fields
-- **Covariance gap**: OMM covariance is parsed but not propagated or emitted. Although OEM supports covariance, the current `CcsdsOem` model/writer does not.
+- **Covariance gap**: `CcsdsOem` can serialize covariance, but `propagate-omm` does not forward or evolve OMM covariance. Frame-aware covariance propagation remains unsupported.
 - **Frame assumption**: treat Earth-centered `EME2000`, `J2000`, `ICRF`, and `GCRF` labels as equivalent for this comparison
 - **SGP4 frame handling**: TudatPy converts the raw TEME SGP4 solution to J2000; the runtime ephemeris reports Earth/J2000. The output `EME2000` label is accepted under the stated inertial-frame equivalence assumption
 
@@ -259,7 +259,7 @@ Note: Must be documented in Interface Control Document (ICD).
 - **Generated/set by current implementation**: OPM header and the context supplied by the intermediate OEM (`EARTH`, `EME2000`, `UTC`)
 - **Not copied to final OPM**: other source OMM header fields, original frame/time labels, reference-frame epoch, mean-element theory and values, TLE parameters, covariance, spacecraft parameters, and user-defined fields
 - **Propagation inputs**: DSST uses complete OMM drag (`MASS`, `DRAG_AREA`, `DRAG_COEFF`) and SRP (`SOLAR_RAD_AREA`, `SOLAR_RAD_COEFF`) parameter groups during the intermediate propagation; Kepler ignores spacecraft parameters and SGP4 uses TLE parameters. These inputs are not copied into the final OPM.
-- **Covariance gap**: the intermediate OEM cannot carry OMM covariance because the current `CcsdsOem` model/writer lacks covariance support, even though OPM can represent it.
+- **Covariance gap**: OMM covariance is dropped by the intermediate `propagate-omm` step, so it does not reach the final OPM. OPM and OEM can represent covariance; covariance evolution/frame handling is not implemented in this composed route.
 - **SGP4 frame handling**: the intermediate TudatPy ephemeris converts TEME to J2000, so its generated OEM/OPM `EME2000` label is accepted under the stated inertial-frame equivalence assumption
 
 ### OMM → TLE
@@ -277,7 +277,7 @@ Note: Must be documented in Interface Control Document (ICD).
 - **`propagate-kepler`**: carries `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`, and source OPM header comments; output header and coverage times are generated
 - **`propagate-orbit`**: in full OEM output, carries source `OBJECT_NAME` (unless overridden by `--name`), `OBJECT_ID`, and OPM header comments; accepts only `CENTER_NAME=EARTH`, `REF_FRAME=J2000`, and `TIME_SYSTEM=UTC`, rejecting other or missing context instead of silently relabeling it. `--data-only` omits all metadata
 - **Generated/not copied**: OEM header and coverage are generated; other OPM header fields, `REF_FRAME_EPOCH`, Keplerian elements, spacecraft parameters, maneuvers, and other OPM-only fields are not copied
-- **Covariance gap**: OPM covariance is parsed but not forwarded to the numerical config; the current `CcsdsOem` model and serializer do not support covariance. Preserving it also requires handling its covariance frame relative to the generated J2000 states
+- **Covariance behavior**: both `propagate-kepler` and `propagate-orbit` preserve OPM covariance at the input epoch without evolving it across the output arc. `propagate-kepler` retains the covariance's declared frame; `propagate-orbit` accepts only J2000-equivalent covariance frames and rejects other frames. `--data-only` omits covariance with the metadata.
 - **Propagation inputs**: explicit CLI values override OPM physical parameters; omitted values use matching OPM fields, then defaults. `--drag-area` sets both drag and SRP area; without it, OPM `DRAG_AREA` and `SOLAR_RAD_AREA` are used independently, with SRP area falling back to resolved drag area if absent. A serialized-input regression test verifies this precedence.
 
 ### OPM → OMM

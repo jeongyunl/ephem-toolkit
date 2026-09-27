@@ -79,8 +79,10 @@ CLI option is omitted. Explicit CLI values take precedence; otherwise, missing
 OPM values fall back to the documented defaults. `--drag-area` sets both the
 drag and SRP reference areas, overriding either OPM area. Without that option,
 `DRAG_AREA` and `SOLAR_RAD_AREA` are used independently; SRP area falls back to
-the resolved drag area if `SOLAR_RAD_AREA` is absent. OPM covariance is not
-forwarded to propagation or written to the output OEM.
+the resolved drag area if `SOLAR_RAD_AREA` is absent. An OPM covariance in a
+J2000-equivalent frame is written to the OEM at the input state epoch. It is
+not propagated to later epochs; other covariance frames are rejected. With
+`--data-only`, covariance is omitted with the OEM metadata.
 
 The numerical propagator currently supports only `CENTER_NAME=EARTH`,
 `REF_FRAME=J2000`, and `TIME_SYSTEM=UTC`. Inputs with another or missing value

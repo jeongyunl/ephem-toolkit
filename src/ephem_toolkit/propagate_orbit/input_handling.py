@@ -48,6 +48,7 @@ def read_initial_state_from_opm_file_or_stdin(
     str,
     tuple[str, ...],
     opm.OpmSpacecraftParameters | None,
+    opm.OpmCovariance | None,
 ]:
     """Read one initial state record from OPM input sources.
 
@@ -65,9 +66,9 @@ def read_initial_state_from_opm_file_or_stdin(
 
     Returns
     -------
-    tuple[numpy.ndarray, datetime, str, str, tuple[str, ...], OpmSpacecraftParameters | None]
+    tuple[numpy.ndarray, datetime, str, str, tuple[str, ...], OpmSpacecraftParameters | None, OpmCovariance | None]
         State, UTC epoch, object ID, object name, source header comments, and
-        optional OPM spacecraft parameters.
+        optional OPM spacecraft parameters, and covariance.
     """
     input_opm = cli_args.input_opm
     if input_opm == "-":
@@ -112,6 +113,20 @@ def read_initial_state_from_opm_file_or_stdin(
             )
             sys.exit(1)
 
+    covariance = getattr(input_opm_message, "covariance", None)
+    if covariance is not None:
+        covariance_frame = (
+            (covariance.ref_frame or required_context["REF_FRAME"]).strip().upper()
+        )
+        if covariance_frame not in {"J2000", "EME2000", "ICRF", "GCRF"}:
+            print(
+                "Error: propagate-orbit can preserve covariance only in a "
+                "J2000-equivalent frame; OPM covariance uses "
+                f"COV_REF_FRAME={covariance_frame}.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
     try:
         initial_epoch_datetime_utc = time_utils.iso8601_to_datetime(
             input_opm_message.state_vector.epoch
@@ -134,6 +149,7 @@ def read_initial_state_from_opm_file_or_stdin(
         object_name,
         source_comments,
         input_opm_message.spacecraft_parameters,
+        covariance,
     )
 
 
@@ -171,6 +187,7 @@ def build_propagation_inputs(
         source_object_name,
         source_comments,
         opm_spacecraft_parameters,
+        opm_covariance,
     ) = read_initial_state_from_opm_file_or_stdin(cli_args)
     satellite_name = (
         cli_args.name.strip()
@@ -244,5 +261,13 @@ def build_propagation_inputs(
     initial_state = NumericalInitialState(
         state_m_m_s=initial_state_m_m_s,
         epoch_s=epoch_s,
+        covariance_matrix_si=(
+            opm_covariance.matrix * 1.0e6 if opm_covariance is not None else None
+        ),
+        covariance_ref_frame=(
+            opm_covariance.ref_frame.strip().upper()
+            if opm_covariance is not None and opm_covariance.ref_frame
+            else None
+        ),
     )
     return config, initial_state, target_epoch_s

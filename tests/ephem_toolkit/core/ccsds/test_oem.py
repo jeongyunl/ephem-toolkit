@@ -25,7 +25,7 @@ OEM_PATH = TEST_DIR.parents[2] / "data" / "ISS_2026-05-20_small.OEM"
 
 def test_read_oem_from_test_file_returns_header_meta_states() -> None:
     """Should parse the sample OEM file into header, meta, and state list."""
-    header, meta, data_comments, states = oem.CcsdsOem._read_oem_impl(OEM_PATH)
+    header, meta, data_comments, states, _ = oem.CcsdsOem._read_oem_impl(OEM_PATH)
 
     assert isinstance(header, dict)
     assert isinstance(meta, dict)
@@ -57,8 +57,8 @@ def test_read_oem_from_stream_matches_file_read() -> None:
     """Should produce identical parsed content from a text stream."""
     text = OEM_PATH.read_text(encoding="utf-8")
 
-    header1, meta1, data_comments1, states1 = oem.CcsdsOem._read_oem_impl(OEM_PATH)
-    header2, meta2, data_comments2, states2 = oem.CcsdsOem._read_oem_impl(
+    header1, meta1, data_comments1, states1, _ = oem.CcsdsOem._read_oem_impl(OEM_PATH)
+    header2, meta2, data_comments2, states2, _ = oem.CcsdsOem._read_oem_impl(
         io.StringIO(text)
     )
 
@@ -78,11 +78,11 @@ def test_read_oem_from_stream_matches_file_read() -> None:
 
 def test_write_oem_round_trip_preserves_content(tmp_path: Path) -> None:
     """Should preserve header, meta, and state vectors through write/read."""
-    header1, meta1, data_comments1, states1 = oem.CcsdsOem._read_oem_impl(OEM_PATH)
+    header1, meta1, data_comments1, states1, _ = oem.CcsdsOem._read_oem_impl(OEM_PATH)
     out_path = tmp_path / "roundtrip.oem"
 
     oem.CcsdsOem.read(OEM_PATH).write(out_path)
-    header2, meta2, data_comments2, states2 = oem.CcsdsOem._read_oem_impl(out_path)
+    header2, meta2, data_comments2, states2, _ = oem.CcsdsOem._read_oem_impl(out_path)
 
     assert header2 == header1
     assert meta2 == meta1
@@ -129,6 +129,73 @@ def test_oem_comments_survive_structured_round_trip(tmp_path: Path) -> None:
     round_tripped = oem.CcsdsOem.read(output)
 
     assert comment in round_tripped.meta.comments
+
+
+def test_oem_covariance_block_survives_structured_round_trip() -> None:
+    content = """CCSDS_OEM_VERS = 2.0
+CREATION_DATE = 2026-01-01T00:00:00
+ORIGINATOR = TEST
+
+META_START
+OBJECT_NAME = COVARIANCE_TEST
+OBJECT_ID = 2024-001A
+CENTER_NAME = EARTH
+REF_FRAME = J2000
+TIME_SYSTEM = UTC
+START_TIME = 2026-01-01T00:00:00
+STOP_TIME = 2026-01-01T00:00:00
+META_STOP
+
+2026-01-01T00:00:00.000000 7000.0 0.0 0.0 0.0 7.5 0.0
+
+COVARIANCE_START
+EPOCH = 2026-01-01T00:00:00.000000
+COV_REF_FRAME = J2000
+1
+2 3
+4 5 6
+7 8 9 10
+11 12 13 14 15
+16 17 18 19 20 21
+EPOCH = 2026-01-01T00:01:00.000000
+2
+4 6
+8 10 12
+14 16 18 20
+22 24 26 28 30
+32 34 36 38 40 42
+COVARIANCE_STOP
+"""
+    expected_matrix = np.array(
+        [
+            [1, 2, 4, 7, 11, 16],
+            [2, 3, 5, 8, 12, 17],
+            [4, 5, 6, 9, 13, 18],
+            [7, 8, 9, 10, 14, 19],
+            [11, 12, 13, 14, 15, 20],
+            [16, 17, 18, 19, 20, 21],
+        ],
+        dtype=float,
+    )
+
+    parsed = oem.CcsdsOem.read(io.StringIO(content))
+
+    assert len(parsed.covariances) == 2
+    assert parsed.covariances[0].epoch == "2026-01-01T00:00:00.000000"
+    assert parsed.covariances[0].ref_frame == "J2000"
+    np.testing.assert_array_equal(parsed.covariances[0].matrix, expected_matrix)
+    assert parsed.covariances[1].epoch == "2026-01-01T00:01:00.000000"
+    np.testing.assert_array_equal(parsed.covariances[1].matrix, 2.0 * expected_matrix)
+
+    output = io.StringIO()
+    parsed.write(output)
+    round_tripped = oem.CcsdsOem.read(io.StringIO(output.getvalue()))
+    assert len(round_tripped.covariances) == 2
+    assert round_tripped.covariances[0].ref_frame == "J2000"
+    np.testing.assert_array_equal(round_tripped.covariances[0].matrix, expected_matrix)
+    np.testing.assert_array_equal(
+        round_tripped.covariances[1].matrix, 2.0 * expected_matrix
+    )
 
 
 def test_ccsds_oem_preserves_classification_and_message_id() -> None:
@@ -266,9 +333,9 @@ def _round_trip_test_oem(source: Path) -> dict:
         class_path = tmp / "roundtrip_class.oem"
 
         # Low-level round-trip
-        header, meta, data_comments, states = oem.CcsdsOem._read_oem_impl(source)
+        header, meta, data_comments, states, _ = oem.CcsdsOem._read_oem_impl(source)
         oem.CcsdsOem.read(source).write(lowlevel_path)
-        header2, meta2, data_comments2, states2 = oem.CcsdsOem._read_oem_impl(
+        header2, meta2, data_comments2, states2, _ = oem.CcsdsOem._read_oem_impl(
             lowlevel_path
         )
 
@@ -376,7 +443,7 @@ def test_read_oem_raw_state_list_returns_empty_header_and_meta() -> None:
         "2026-05-20T12:02:00.000 6900.0 200.0 100.0 0.2 7.3 0.1\n"
     )
 
-    header, meta, _, states = oem.CcsdsOem._read_oem_impl(io.StringIO(raw_states))
+    header, meta, _, states, _ = oem.CcsdsOem._read_oem_impl(io.StringIO(raw_states))
 
     assert isinstance(header, dict)
     assert isinstance(meta, dict)
@@ -410,7 +477,7 @@ def test_ccsds_oem_read_handles_raw_state_list() -> None:
 
 def test_write_states_to_stream() -> None:
     """Should write state vectors to a file handle."""
-    header, meta, _, states = oem.CcsdsOem._read_oem_impl(OEM_PATH)
+    header, meta, _, states, _ = oem.CcsdsOem._read_oem_impl(OEM_PATH)
 
     output = io.StringIO()
     oem.CcsdsOem.from_states(states).write_states(output)

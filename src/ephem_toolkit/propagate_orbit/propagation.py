@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import sys
 
+import ephem_toolkit.core.ccsds.oem as oem
+import ephem_toolkit.core.time_utils as time_utils
 from ephem_toolkit.core.propagator.base import OutputMode
 from ephem_toolkit.core.propagator.numerical import (
     NumericalInitialState,
@@ -62,13 +64,34 @@ def run_propagation(
             "Propagation output did not retain dependent-variable metadata."
         )
 
-    try:
-        write_state_history_oem(
-            state_history,
-            output_oem_path,
-            config,
-            data_only,
+    initial_covariance = None
+    covariance_matrix_si = getattr(initial_state, "covariance_matrix_si", None)
+    if covariance_matrix_si is not None:
+        initial_covariance = oem.OemCovariance(
+            epoch=time_utils.datetime_to_iso8601(
+                time_utils.tt_s_to_datetime(initial_state.epoch_s),
+                fractional_second_places=6,
+            ),
+            matrix=covariance_matrix_si / 1.0e6,
+            ref_frame=getattr(initial_state, "covariance_ref_frame", None),
         )
+
+    try:
+        if initial_covariance is None:
+            write_state_history_oem(
+                state_history,
+                output_oem_path,
+                config,
+                data_only,
+            )
+        else:
+            write_state_history_oem(
+                state_history,
+                output_oem_path,
+                config,
+                data_only,
+                initial_covariance,
+            )
     except OSError as exc:
         print(f"Error: failed to write OEM output: {exc}", file=sys.stderr)
         sys.exit(1)

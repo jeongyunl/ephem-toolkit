@@ -52,7 +52,7 @@ def main(argv=None) -> int:
     initial_kepler_km: np.ndarray
     output_metadata: dict[str, str]
     source_comments: tuple[str, ...]
-    initial_epoch, initial_kepler_km, output_metadata, source_comments = (
+    initial_epoch, initial_kepler_km, output_metadata, source_comments, covariance = (
         read_kepler_input(cli_args.input_opm)
     )
 
@@ -65,6 +65,7 @@ def main(argv=None) -> int:
         output_metadata=output_metadata,
         output_path=cli_args.output_oem,
         source_comments=source_comments,
+        covariance=covariance,
     )
     return 0
 
