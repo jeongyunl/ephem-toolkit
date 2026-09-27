@@ -127,6 +127,7 @@ def propagate_tle_sgp4(
     data_only: bool,
     output_path: str = "-",
     source_format: str = "TLE",
+    source_comments: list[str] | None = None,
 ) -> None:
     """Propagate a TLE with SGP4 and emit OEM output.
 
@@ -175,7 +176,8 @@ def propagate_tle_sgp4(
         tle_obj.get_object_id(),
         data_only,
         output_path,
-        comments=[
+        comments=list(source_comments or [])
+        + [
             provenance.provenance_comment(
                 source=source_format,
                 transformation="propagation",
@@ -221,6 +223,7 @@ def propagate_omm_sgp4(
         data_only,
         output_path,
         source_format="OMM",
+        source_comments=omm_data.comments,
     )
 
 
@@ -318,7 +321,8 @@ def propagate_omm_dsst(
         omm_data.object_id,
         data_only,
         output_path,
-        comments=[
+        comments=list(omm_data.comments)
+        + [
             provenance.provenance_comment(
                 source="OMM/DSST",
                 transformation="propagation",
@@ -401,7 +405,8 @@ def propagate_omm_kepler(
         omm_data.object_id,
         data_only,
         output_path,
-        comments=[
+        comments=list(omm_data.comments)
+        + [
             provenance.provenance_comment(
                 source=f"OMM/{omm_data.mean_element_theory.upper()}",
                 transformation="propagation (fallback)",

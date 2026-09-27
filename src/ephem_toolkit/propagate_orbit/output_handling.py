@@ -56,6 +56,7 @@ def write_state_history_oem(
         oem = common_oem.CcsdsOem.from_states(
             oem_states,
             object_name=config.satellite_name,
+            object_id=getattr(config, "object_id", ""),
             ref_frame=DEFAULT_GLOBAL_FRAME_ORIENTATION,
             center_name=DEFAULT_GLOBAL_FRAME_ORIGIN,
             time_system="UTC",

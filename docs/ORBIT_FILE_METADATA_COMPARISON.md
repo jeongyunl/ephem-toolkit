@@ -242,7 +242,8 @@ Note: Must be documented in Interface Control Document (ICD).
 - Requires propagation using mean element theory
 - **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`
 - **Generated/set by current implementation**: OEM header, `CENTER_NAME=EARTH`, `REF_FRAME=EME2000`, `TIME_SYSTEM=UTC`, coverage times, and a propagation provenance comment
-- **Not copied**: OMM header fields and comments, source frame/time labels, mean elements and theory fields, TLE parameters, covariance, and spacecraft parameters
+- **Carried forward**: OMM comments as OEM metadata comments
+- **Not copied**: other OMM header fields, source frame/time labels, mean elements and theory fields, TLE parameters, covariance, and spacecraft parameters
 - **Caution**: the written `EME2000` label must be checked against the propagator's returned state-frame semantics; it is not a literal preservation of the OMM `REF_FRAME`
 
 ### OMM → OPM
@@ -263,7 +264,7 @@ Note: Must be documented in Interface Control Document (ICD).
 - Propagator selection affects accuracy
 - Step size determines output density
 - **`propagate-kepler`**: carries `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, and `TIME_SYSTEM`; output header and coverage times are generated
-- **`propagate-orbit`**: current numerical path writes `CENTER_NAME=Earth`, `REF_FRAME=J2000`, and `TIME_SYSTEM=UTC`, uses the CLI/default satellite name, and does not write source `OBJECT_ID`
+- **`propagate-orbit`**: current numerical path carries source `OBJECT_ID`, writes `CENTER_NAME=Earth`, `REF_FRAME=J2000`, and `TIME_SYSTEM=UTC`, and uses the CLI/default satellite name; whether `OBJECT_NAME` should default from the OPM remains to be verified
 - **Not copied**: Keplerian elements, source header/comments, `REF_FRAME_EPOCH`, spacecraft parameters, maneuvers, covariance, and other OPM-only fields
 
 ### OPM → OMM

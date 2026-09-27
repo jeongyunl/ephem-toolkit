@@ -124,6 +124,8 @@ class NumericalPropagatorConfig:
     """Whether Venus point-mass gravity perturbation is enabled."""
     is_mars_gravity_on: bool
     """Whether Mars point-mass gravity perturbation is enabled."""
+    object_id: str = ""
+    """Source object identifier to retain in generated ephemeris metadata."""
 
 
 @dataclass(frozen=True)

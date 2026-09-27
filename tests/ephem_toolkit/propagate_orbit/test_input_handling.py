@@ -61,12 +61,12 @@ def _make_cli_args(**overrides) -> argparse.Namespace:
     return argparse.Namespace(**defaults)
 
 
-def _patch_opm_reader(state=_STATE_M_M_S, epoch=_EPOCH_UTC):
-    """Patch read_initial_state_from_opm_file_or_stdin to return fixed values."""
+def _patch_opm_reader(state=_STATE_M_M_S, epoch=_EPOCH_UTC, object_id="2024-001A"):
+    """Patch the OPM reader to return fixed state, epoch, and identity."""
     return patch(
         "ephem_toolkit.propagate_orbit.input_handling"
         ".read_initial_state_from_opm_file_or_stdin",
-        return_value=(state, epoch),
+        return_value=(state, epoch, object_id),
     )
 
 
@@ -237,9 +237,10 @@ def test_read_initial_state_parses_stdin_and_file_sources(
 ) -> None:
     input_state_km = np.arange(1.0, 7.0)
     message = SimpleNamespace(
+        metadata={"OBJECT_ID": "2024-001A"},
         state_vector=SimpleNamespace(
             epoch="2026-05-20T12:00:00Z", values=input_state_km
-        )
+        ),
     )
     sources = []
 
@@ -255,12 +256,15 @@ def test_read_initial_state_parses_stdin_and_file_sources(
     )
     monkeypatch.setattr(sys, "stdin", io.StringIO("OPM input"))
 
-    state_m_m_s, epoch = input_handling.read_initial_state_from_opm_file_or_stdin(
-        argparse.Namespace(input_opm=input_opm)
+    state_m_m_s, epoch, object_id = (
+        input_handling.read_initial_state_from_opm_file_or_stdin(
+            argparse.Namespace(input_opm=input_opm)
+        )
     )
 
     np.testing.assert_array_equal(state_m_m_s, input_state_km * 1000.0)
     assert epoch is _EPOCH_UTC
+    assert object_id == "2024-001A"
     if input_opm == "-":
         assert isinstance(sources[0], io.StringIO)
     else:

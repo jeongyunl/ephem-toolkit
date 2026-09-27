@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from datetime import timedelta
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,6 +12,7 @@ import numpy as np
 import pytest
 
 import ephem_toolkit.core.cli as core_cli
+import ephem_toolkit.core.ccsds.oem as oem_mod
 import ephem_toolkit.propagate_omm as propagate_omm_main
 import ephem_toolkit.propagate_omm.propagation as propagation
 from ephem_toolkit.core.consts import EARTH_GRAVITATIONAL_PARAMETER_M3_S2
@@ -112,6 +114,7 @@ def _make_dsst_omm(epoch_s: float = 0.0, theory: str = "DSST") -> omm_mod.CcsdsO
 def test_propagate_omm_dsst_produces_states(tmp_path):
     """propagate_omm_dsst writes OEM with state vectors."""
     omm_data = _make_dsst_omm()
+    omm_data.comments = ["SOURCE_COMMENT: keep this note"]
     start = time_utils.tt_s_to_datetime(0.0)
     stop = time_utils.tt_s_to_datetime(3600.0)
     output_path = str(tmp_path / "dsst.oem")
@@ -128,6 +131,55 @@ def test_propagate_omm_dsst_produces_states(tmp_path):
     content = Path(output_path).read_text()
     assert "CCSDS_OEM_VERS" in content
     assert len(content.strip().splitlines()) > 5
+    output_oem = oem_mod.CcsdsOem.read(output_path)
+    assert output_oem.meta.object_name == omm_data.object_name
+    assert output_oem.meta.object_id == omm_data.object_id
+    assert output_oem.meta.center_name == "EARTH"
+    assert output_oem.meta.ref_frame == "EME2000"
+    assert output_oem.meta.time_system == "UTC"
+    assert "SOURCE_COMMENT: keep this note" in output_oem.meta.comments
+
+
+def test_propagate_omm_kepler_preserves_source_comments(tmp_path):
+    """The fallback propagation output retains input OMM comments."""
+    omm_data = _make_dsst_omm(theory="2B")
+    omm_data.comments = ["SOURCE_COMMENT: keep this note"]
+    start = time_utils.tt_s_to_datetime(0.0)
+    output_path = tmp_path / "kepler.oem"
+
+    propagation.propagate_omm_kepler(
+        omm_data,
+        start,
+        start + timedelta(minutes=10),
+        600.0,
+        False,
+        str(output_path),
+    )
+
+    output_oem = oem_mod.CcsdsOem.read(output_path)
+    assert "SOURCE_COMMENT: keep this note" in output_oem.meta.comments
+    assert any(
+        "target_model=two-body-kepler" in comment
+        for comment in output_oem.meta.comments
+    )
+
+
+def test_propagate_omm_sgp4_forwards_source_comments(monkeypatch):
+    """The SGP4 wrapper forwards OMM comments through the TLE helper."""
+    omm_data = _make_dsst_omm(theory="SGP4")
+    omm_data.comments = ["SOURCE_COMMENT: keep this note"]
+    omm_data.tle_parameters = omm_mod.TleParameters()
+    calls = []
+    monkeypatch.setattr(
+        propagation,
+        "propagate_tle_sgp4",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+    start = time_utils.tt_s_to_datetime(0.0)
+
+    propagation.propagate_omm_sgp4(omm_data, start, start, 600.0, False, "output.oem")
+
+    assert calls[0][1]["source_comments"] == ["SOURCE_COMMENT: keep this note"]
 
 
 def test_propagate_omm_dsst_state_count(tmp_path):

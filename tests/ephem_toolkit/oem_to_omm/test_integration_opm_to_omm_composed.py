@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from ephem_toolkit.core.ccsds.omm import CcsdsOmm
+from ephem_toolkit.core.ccsds.opm import CcsdsOpm
 from ephem_toolkit.oem_to_omm import main as oem_to_omm_main
 from ephem_toolkit.propagate_kepler import main as propagate_kepler_main
 from ephem_toolkit.propagate_orbit import main as propagate_orbit_main
@@ -46,8 +48,11 @@ def test_opm_to_omm_composes_kepler_propagation_and_dsst_fit(tmp_path: Path) -> 
     )
 
     output_text = output_omm.read_text(encoding="utf-8")
+    source_id = CcsdsOpm.from_source(source).metadata["OBJECT_ID"]
+    converted_omm = CcsdsOmm.from_source(output_omm)
     assert "MEAN_ELEMENT_THEORY = DSST" in output_text
     assert "target_model=two-body-kepler" in output_text
+    assert converted_omm.object_id == source_id
     report = json.loads(fit_report.read_text(encoding="utf-8"))
     assert report["status"] == "converged"
     assert report["configuration"]["fit_model"] == "dsst"
@@ -92,8 +97,11 @@ def test_opm_to_omm_composes_numerical_propagation_and_dsst_fit(tmp_path: Path) 
     )
 
     output_text = output_omm.read_text(encoding="utf-8")
+    source_id = CcsdsOpm.from_source(source).metadata["OBJECT_ID"]
+    converted_omm = CcsdsOmm.from_source(output_omm)
     assert "MEAN_ELEMENT_THEORY = DSST" in output_text
     assert "EPHEMERIS_PROPAGATION" in output_text
+    assert converted_omm.object_id == source_id
     report = json.loads(fit_report.read_text(encoding="utf-8"))
     assert report["status"] == "converged"
     assert report["configuration"]["fit_model"] == "dsst"

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
+from ephem_toolkit.core.ccsds.oem import CcsdsOem
 from ephem_toolkit.propagate_orbit.output_handling import (
     print_pre_propagation_summary,
     write_dependent_variables_csv,
@@ -15,6 +16,7 @@ from ephem_toolkit.propagate_orbit.output_handling import (
 def test_write_state_history_oem_records_propagation_configuration(tmp_path) -> None:
     config = SimpleNamespace(
         satellite_name="TEST",
+        object_id="2024-001A",
         integrator_method="rkdp_87",
         integrator_step_size_values_s=(1.0, 10.0, 300.0),
         earth_spherical_harmonic_gravity_degree=5,
@@ -36,6 +38,7 @@ def test_write_state_history_oem_records_propagation_configuration(tmp_path) -> 
     )
 
     text = output.read_text(encoding="utf-8")
+    assert CcsdsOem.read(output).meta.object_id == "2024-001A"
     assert (
         "EPHEMERIS_PROVENANCE: source=OPM; transformation=propagation; target_model=numerical"
         in text

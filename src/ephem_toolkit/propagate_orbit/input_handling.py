@@ -35,7 +35,7 @@ from .constants import DEFAULT_SATELLITE_NAME
 
 def read_initial_state_from_opm_file_or_stdin(
     cli_args: argparse.Namespace,
-) -> tuple[np.ndarray, datetime]:
+) -> tuple[np.ndarray, datetime, str]:
     """Read one initial state record from OPM input sources.
 
     Parameters
@@ -52,8 +52,8 @@ def read_initial_state_from_opm_file_or_stdin(
 
     Returns
     -------
-    tuple[numpy.ndarray, datetime]
-        ``(initial_state_m_m_s, initial_epoch_datetime_utc)``.
+    tuple[numpy.ndarray, datetime, str]
+        ``(initial_state_m_m_s, initial_epoch_datetime_utc, object_id)``.
     """
     input_opm = cli_args.input_opm
     if input_opm == "-":
@@ -95,7 +95,8 @@ def read_initial_state_from_opm_file_or_stdin(
         input_opm_message.state_vector.values * oem.KILOMETERS_TO_METERS
     )
 
-    return initial_state_m_m_s, initial_epoch_datetime_utc
+    object_id = str(input_opm_message.metadata.get("OBJECT_ID", ""))
+    return initial_state_m_m_s, initial_epoch_datetime_utc, object_id
 
 
 # ===================================================================
@@ -113,8 +114,8 @@ def build_propagation_inputs(
     cli_args : argparse.Namespace
         Parsed CLI arguments.
 
-    The OPM input reader returns only the SI state vector and the parsed UTC
-    epoch, which are the only values needed downstream.
+    The OPM input reader returns the SI state vector, parsed UTC epoch, and
+    object identifier for generated OEM metadata.
 
     Empty or whitespace-only satellite names are normalized to
     ``DEFAULT_SATELLITE_NAME``.
@@ -132,6 +133,7 @@ def build_propagation_inputs(
     (
         initial_state_m_m_s,
         initial_epoch_datetime_utc,
+        object_id,
     ) = read_initial_state_from_opm_file_or_stdin(cli_args)
     (
         earth_spherical_harmonic_gravity_degree,
@@ -159,6 +161,7 @@ def build_propagation_inputs(
         is_sun_gravity_on=cli_args.sun_gravity,
         is_venus_gravity_on=cli_args.venus_gravity,
         is_mars_gravity_on=cli_args.mars_gravity,
+        object_id=object_id,
     )
     initial_state = NumericalInitialState(
         state_m_m_s=initial_state_m_m_s,
