@@ -70,6 +70,8 @@ def read_kepler_input(source: str | None):
             ("time_system", "TIME_SYSTEM"),
         )
     }
+    metadata["classification"] = message.header.classification
+    metadata["message_id"] = message.header.message_id
     covariance = None
     if message.covariance is not None:
         covariance = oem.OemCovariance(
@@ -110,10 +112,15 @@ def propagate_kepler_elements(
         sys.stdout if output_path == "-" else open(output_path, "w", encoding="utf-8")
     )
     try:
+        oem_metadata = {
+            key: value
+            for key, value in output_metadata.items()
+            if key not in {"classification", "message_id"}
+        }
         message = (
             oem.CcsdsOem.from_states(
                 states,
-                **output_metadata,
+                **oem_metadata,
                 covariances=[covariance] if covariance is not None else None,
             )
             if not data_only
@@ -122,6 +129,8 @@ def propagate_kepler_elements(
         if data_only:
             message.write_states(stream)
         else:
+            message.header.classification = output_metadata.get("classification", "")
+            message.header.message_id = output_metadata.get("message_id", "")
             message.meta.comments.extend(source_comments)
             message.meta.comments.append(
                 provenance.provenance_comment(

@@ -30,6 +30,8 @@ def _write_numerical_reference_oem(tmp_path: Path) -> tuple[CcsdsOpm, Path]:
             comments=["SOURCE_COMMENT: numerical OPM input"],
             creation_date="2026-05-20T00:00:00.000",
             originator="test",
+            classification="C",
+            message_id="OPM-SOURCE-MESSAGE",
         ),
         metadata={
             "OBJECT_NAME": "NUMERICAL TEST SAT",
@@ -75,6 +77,8 @@ def _write_kepler_reference_oem(tmp_path: Path) -> tuple[CcsdsOpm, Path]:
             comments=["SOURCE_COMMENT: Kepler OPM input"],
             creation_date="2026-05-20T00:00:00.000",
             originator="test",
+            classification="C",
+            message_id="OPM-SOURCE-MESSAGE",
         ),
         metadata={
             "OBJECT_NAME": "KEPLER TEST SAT",
@@ -148,6 +152,8 @@ def test_opm_to_omm_composes_kepler_propagation_and_dsst_fit(tmp_path: Path) -> 
     assert converted_omm.center_name == "EARTH"
     assert converted_omm.ref_frame == "ICRF"
     assert converted_omm.time_system == "UTC"
+    assert converted_omm.classification == source_opm.header.classification
+    assert converted_omm.message_id == source_opm.header.message_id
     assert converted_omm.originator == "oem_to_omm"
     assert converted_omm.creation_date
     assert source_opm.header.comments[0] in converted_omm.comments
@@ -196,6 +202,8 @@ def test_opm_to_omm_composes_numerical_propagation_and_dsst_fit(tmp_path: Path) 
     assert converted_omm.object_name == source_opm.metadata["OBJECT_NAME"]
     assert converted_omm.object_id == source_opm.metadata["OBJECT_ID"]
     assert converted_omm.mean_element_theory == "DSST"
+    assert converted_omm.classification == source_opm.header.classification
+    assert converted_omm.message_id == source_opm.header.message_id
     assert converted_omm.originator == "oem_to_omm"
     assert converted_omm.creation_date
     assert converted_omm.center_name == "EARTH"
@@ -253,6 +261,8 @@ def test_opm_numerical_fit_variants_preserve_metadata(
     report = json.loads(fit_report.read_text(encoding="utf-8"))
     assert converted_omm.object_name == source_opm.metadata["OBJECT_NAME"]
     assert converted_omm.object_id == source_opm.metadata["OBJECT_ID"]
+    assert converted_omm.classification == source_opm.header.classification
+    assert converted_omm.message_id == source_opm.header.message_id
     assert converted_omm.mean_element_theory == expected_theory
     assert converted_omm.originator == "oem_to_omm"
     assert converted_omm.creation_date
@@ -309,6 +319,8 @@ def test_opm_kepler_fit_variants_preserve_metadata(
     report = json.loads(fit_report.read_text(encoding="utf-8"))
     assert converted_omm.object_name == source_opm.metadata["OBJECT_NAME"]
     assert converted_omm.object_id == source_opm.metadata["OBJECT_ID"]
+    assert converted_omm.classification == source_opm.header.classification
+    assert converted_omm.message_id == source_opm.header.message_id
     assert converted_omm.mean_element_theory == expected_theory
     assert converted_omm.ref_frame == expected_frame
     assert converted_omm.originator == "oem_to_omm"

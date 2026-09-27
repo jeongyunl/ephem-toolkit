@@ -135,6 +135,9 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     states: list[tuple[float, np.ndarray]] = oem_data.states
     source_comments: list[str] = list(getattr(oem_data.meta, "comments", []))
+    source_header = getattr(oem_data, "header", None)
+    source_classification = getattr(source_header, "classification", "")
+    source_message_id = getattr(source_header, "message_id", "")
 
     if len(states) < 2:
         report_error("Error: At least 2 state vectors required for fitting.")
@@ -247,6 +250,8 @@ def main(argv: Sequence[str] | None = None) -> None:
                     mean_element_theory=mean_element_theory,
                 )
                 omm_obj.originator = "oem_to_omm"
+                omm_obj.classification = source_classification
+                omm_obj.message_id = source_message_id
                 omm_obj.comments = source_comments + [
                     provenance.provenance_comment(
                         source=f"OEM/{source_model}",
@@ -330,6 +335,8 @@ def main(argv: Sequence[str] | None = None) -> None:
                     mean_element_theory=mean_element_theory,
                 )
                 omm_obj.originator = "oem_to_omm"
+                omm_obj.classification = source_classification
+                omm_obj.message_id = source_message_id
                 omm_obj.comments = source_comments + [
                     provenance.provenance_comment(
                         source=f"OEM/{source_model}",
@@ -410,6 +417,8 @@ def main(argv: Sequence[str] | None = None) -> None:
                     originator="oem_to_omm",
                 )
                 omm_obj.originator = "oem_to_omm"
+                omm_obj.classification = source_classification
+                omm_obj.message_id = source_message_id
                 omm_obj.comments = source_comments + [
                     provenance.provenance_comment(
                         source=f"OEM/{source_model}",

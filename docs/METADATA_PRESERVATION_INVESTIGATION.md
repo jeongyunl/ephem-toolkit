@@ -83,14 +83,17 @@ capability gaps.
      configure the force model. A J2000-equivalent covariance is written at the
      input epoch only; it is not evolved across the numerical state history.
 2. **OPM(NUM) → OMM(2B/BROUWER/DSST/SGP4)**
-   - Identity, numerical-source comments, generated context, theory label, and
-     fit-report target model are verified for Brouwer, DSST, and SGP4.
+   - Identity, comments, OPM `CLASSIFICATION`/`MESSAGE_ID`, generated context,
+     theory label, and fit-report target model are verified for Brouwer, DSST,
+     and SGP4. OMM `ORIGINATOR` and `CREATION_DATE` are regenerated.
    - The input OPM label is `J2000`; generated OMM labels are `ICRF` for
      Brouwer/DSST and `TEME` for SGP4. This records metadata labels only, not
      coordinate-transform accuracy.
 3. **OPM(2B) → OMM(2B/BROUWER/DSST/SGP4)**
-   - Identity, source comments, theory labels, generated context, and fit-report
-     target model are verified for Brouwer, DSST, and SGP4.
+   - Identity, source comments, OPM `CLASSIFICATION`/`MESSAGE_ID`, theory
+     labels, generated context, and fit-report target model are verified for
+     Brouwer, DSST, and SGP4. OMM `ORIGINATOR` and `CREATION_DATE` are
+     regenerated.
    - The input OPM label is `J2000`; generated OMM labels are `ICRF` for
      Brouwer/DSST and `TEME` for SGP4. This records metadata labels only, not
      coordinate-transform accuracy.
@@ -164,8 +167,8 @@ Use this table as the audit proceeds. Record references to focused tests or fixt
 | OEM → OPM | Identity, comments, context, state/elements, coverage/interpolation, optional blocks | `test_main_writes_initial_state_and_osculating_elements_to_opm`; `test_numerical_fit_model_dispatches_to_shared_fitter`; accuracy-marked `test_oem_to_opm_roundtrip_accuracy` | Stubbed serialization tests verify output fields; real-fit integration checks serialized identity/context/comments and confirms covariance/maneuvers are omitted; two-body elements are emitted, numerical elements are omitted; OEM coverage/interpolation are not copied by the fitter |
 | OEM → TLE | Identity, TLE fields/checksums, source comments/provenance | `test_oem_to_tle_report_file_and_unknown_provenance` plus composed refit tests | TLE name/designator/checksums verified; CCSDS comments are absent from TLE and retained in the fit report |
 | OPM(NUM) → OEM | Identity, comments, frame/time, covariance, maneuvers, physical parameters | `test_opm_physical_parameters_are_used_unless_cli_overrides`; `test_read_initial_state_rejects_non_equivalent_covariance_frame`; serialized composition test | Name/ID/comments carry through; unsupported context and non-equivalent covariance frames are rejected; physical inputs use CLI-over-OPM-over-default precedence; covariance is preserved at input epoch only, not evolved |
-| OPM(NUM) → OMM | Identity, comments, frame/time, theory, fit report | `test_opm_numerical_fit_variants_preserve_metadata`; `test_opm_to_omm_composes_numerical_propagation_and_dsst_fit` | Name/ID/comments, generated context, theory, and report target verified on real fits; output frame labels are ICRF for Brouwer/DSST and TEME for SGP4 |
-| OPM(2B) → OMM | Identity, comments, frame/time, theory, fit report | `test_opm_kepler_fit_variants_preserve_metadata`; `test_opm_to_omm_composes_kepler_propagation_and_dsst_fit` | Name/ID/comments, generated context, theory, and report target verified on real fits; output frame labels are ICRF for Brouwer/DSST and TEME for SGP4 |
+| OPM(NUM) → OMM | Identity, comments, classification/message ID, frame/time, theory, fit report | `test_opm_numerical_fit_variants_preserve_metadata`; `test_opm_to_omm_composes_numerical_propagation_and_dsst_fit` | Name/ID/comments and `CLASSIFICATION`/`MESSAGE_ID` survive real fits; OMM `ORIGINATOR`/`CREATION_DATE` regenerate; context, theory, report target, and output frame labels verified |
+| OPM(2B) → OMM | Identity, comments, classification/message ID, frame/time, theory, fit report | `test_opm_kepler_fit_variants_preserve_metadata`; `test_opm_to_omm_composes_kepler_propagation_and_dsst_fit` | Name/ID/comments and `CLASSIFICATION`/`MESSAGE_ID` survive real fits; OMM `ORIGINATOR`/`CREATION_DATE` regenerate; context, theory, report target, and output frame labels verified |
 | OMM → OEM theory variants | Identity, comments, classification/message ID, generated header/context/coverage, provenance, optional OMM blocks | `test_propagate_omm_dsst_produces_states`; `test_propagate_omm_kepler_preserves_source_comments`; `test_propagate_omm_sgp4_writes_metadata_and_source_comments` | Comments/context/coverage and `CLASSIFICATION`/`MESSAGE_ID` verified on DSST, Kepler, and SGP4; `ORIGINATOR`/`CREATION_DATE` regenerated; DSST consumes complete drag/SRP groups; Kepler ignores spacecraft parameters; SGP4 uses TLE parameters; other optional blocks are omitted; covariance is retained at source epoch only when within emitted state coverage |
 | OMM(DSST) → OPM(NUM) | Identity, frame/time, classification/message ID, comments, optional blocks, generated header/report | `test_omm_to_opm_preserves_source_comments_in_serialized_header` | Identity/context/comments and source `CLASSIFICATION`/`MESSAGE_ID` verified; OPM `ORIGINATOR`/`CREATION_DATE` regenerated; optional OMM blocks and covariance are absent from final OPM; DSST spacecraft parameters are used by intermediate propagation, which retains only source-epoch covariance |
 | OMM(SGP4)/TLE → OPM(NUM) | Identity, frame/time, classification/message ID, comments/provenance, optional blocks, generated header/report | `test_sgp4_omm_to_opm_preserves_source_comments_in_serialized_header`; TLE wrapper integration tests | Identity/context/provenance and source OMM `CLASSIFICATION`/`MESSAGE_ID` verified; OPM `ORIGINATOR`/`CREATION_DATE` regenerated; SGP4 TLE parameters and other OMM optional blocks are absent from final OPM; OMM covariance is retained in the intermediate OEM at source epoch but not copied by fitting; generated OPM frame label is `EME2000` |
