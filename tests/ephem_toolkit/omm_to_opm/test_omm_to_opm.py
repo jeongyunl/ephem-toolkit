@@ -1,9 +1,10 @@
 """Tests for the OMM-to-OPM numerical wrapper."""
 
 import json
+from pathlib import Path
+
 import pytest
 from types import SimpleNamespace
-from pathlib import Path
 
 from ephem_toolkit.core.ccsds.omm import CcsdsOmm
 from ephem_toolkit.core.ccsds.opm import CcsdsOpm
@@ -11,6 +12,46 @@ import ephem_toolkit.core.cli as core_cli
 import ephem_toolkit.omm_to_opm as omm_package
 import ephem_toolkit.omm_to_opm.__main__ as omm_wrapper
 from ephem_toolkit.omm_to_opm.__main__ import _forward_arguments, main
+
+
+def test_sgp4_omm_to_opm_preserves_source_comments_in_serialized_header(
+    tmp_path: Path,
+) -> None:
+    source = Path(__file__).parents[2] / "data" / "ISS-ZARYA_1998-067A.omm"
+    source_omm = CcsdsOmm.from_source(source)
+    source_omm.comments.append("SOURCE_COMMENT: SGP4 OMM to OPM")
+    input_path = tmp_path / "source.omm"
+    source_omm.to_file(input_path)
+    output_path = tmp_path / "converted.opm"
+    fit_report = tmp_path / "converted.fit.json"
+
+    main(
+        [
+            str(input_path),
+            "--fit-model",
+            "numerical",
+            "--fit-span",
+            "2h",
+            "--fit-report",
+            str(fit_report),
+            "--output",
+            str(output_path),
+        ]
+    )
+
+    converted_opm = CcsdsOpm.from_source(output_path)
+    report = json.loads(fit_report.read_text(encoding="utf-8"))
+    assert converted_opm.metadata["OBJECT_NAME"] == source_omm.object_name
+    assert converted_opm.metadata["OBJECT_ID"] == source_omm.object_id
+    assert converted_opm.metadata["CENTER_NAME"] == "EARTH"
+    assert converted_opm.metadata["REF_FRAME"] == "EME2000"
+    assert converted_opm.metadata["TIME_SYSTEM"] == "UTC"
+    assert "SOURCE_COMMENT: SGP4 OMM to OPM" in converted_opm.header.comments
+    assert any("source=OMM" in comment for comment in converted_opm.header.comments)
+    assert report["provenance"]["target_model"] == "numerical-propagator"
+    assert (
+        "SOURCE_COMMENT: SGP4 OMM to OPM" in report["configuration"]["source_comments"]
+    )
 
 
 def test_forward_arguments_replaces_input_output_and_fit_model() -> None:
@@ -70,6 +111,7 @@ def test_omm_to_opm_preserves_source_comments_in_serialized_header(
     assert converted_opm.metadata["REF_FRAME"] == "EME2000"
     assert converted_opm.metadata["TIME_SYSTEM"] == "UTC"
     assert converted_opm.header.originator == "oem_to_opm"
+    assert converted_opm.header.creation_date
     assert (
         "SOURCE_COMMENT: preserve through OMM-to-OPM" in converted_opm.header.comments
     )

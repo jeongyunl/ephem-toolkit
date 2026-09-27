@@ -1,9 +1,14 @@
 """Tests for the TLE-to-OPM numerical wrapper."""
 
+import json
+from pathlib import Path
+
 import pytest
 from types import SimpleNamespace
 
+import ephem_toolkit.core.ccsds.opm as opm
 import ephem_toolkit.core.cli as core_cli
+import ephem_toolkit.core.tle as tle
 import ephem_toolkit.tle_to_opm as tle_package
 import ephem_toolkit.tle_to_opm.__main__ as tle_wrapper
 from ephem_toolkit.tle_to_opm.__main__ import main
@@ -14,6 +19,45 @@ def test_tle_to_opm_requires_numerical_fit_model() -> None:
         main(["input.tle", "-o", "output.opm"])
 
     assert error.value.code == 2
+
+
+def test_tle_to_opm_preserves_identity_and_records_sgp4_provenance(
+    tmp_path: Path,
+) -> None:
+    source = Path(__file__).parents[2] / "data" / "ISS-ZARYA_1998-067A.tle"
+    tle_data = tle.read_tle(source)
+    output_path = tmp_path / "converted.opm"
+    fit_report = tmp_path / "converted.fit.json"
+
+    main(
+        [
+            str(source),
+            "--fit-model",
+            "numerical",
+            "--fit-span",
+            "2h",
+            "--fit-report",
+            str(fit_report),
+            "--output",
+            str(output_path),
+        ]
+    )
+
+    converted_opm = opm.CcsdsOpm.from_source(output_path)
+    report = json.loads(fit_report.read_text(encoding="utf-8"))
+    assert converted_opm.metadata["OBJECT_NAME"] == tle_data.object_name
+    assert converted_opm.metadata["OBJECT_ID"] == tle_data.get_object_id()
+    assert converted_opm.metadata["CENTER_NAME"] == "EARTH"
+    assert converted_opm.metadata["REF_FRAME"] == "EME2000"
+    assert converted_opm.metadata["TIME_SYSTEM"] == "UTC"
+    assert converted_opm.header.originator == "oem_to_opm"
+    assert converted_opm.header.creation_date
+    assert any("source=TLE" in comment for comment in converted_opm.header.comments)
+    assert any(
+        "source=OEM/sgp4" in comment for comment in converted_opm.header.comments
+    )
+    assert report["provenance"]["source"] == "OEM/sgp4"
+    assert report["provenance"]["target_model"] == "numerical-propagator"
 
 
 def test_tle_to_opm_dispatches_sgp4_and_delegates(monkeypatch) -> None:

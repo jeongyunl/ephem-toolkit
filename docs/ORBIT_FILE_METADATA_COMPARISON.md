@@ -300,6 +300,8 @@ Note: Must be documented in Interface Control Document (ICD).
 - **Preserved**: `NORAD_CAT_ID`, `CLASSIFICATION_TYPE`, `EPOCH`, `MEAN_MOTION`, `ECCENTRICITY`, `INCLINATION`, `RA_OF_ASC_NODE`, `ARG_OF_PERICENTER`, `MEAN_ANOMALY`, `BSTAR`, `ELEMENT_SET_NO`, `REV_AT_EPOCH`, `MEAN_MOTION_DOT`, `MEAN_MOTION_DDOT`
 
 ### TLE → OPM
-- Converts mean to osculating elements (J2 correction)
-- **Preserved**: `OBJECT_NAME`, `OBJECT_ID` (from NORAD ID), `EPOCH`, `CENTER_NAME` (EARTH), `REF_FRAME` (TEME), `TIME_SYSTEM` (UTC)
-- **Lost**: `BSTAR`, `MEAN_MOTION_DOT`, `MEAN_MOTION_DDOT`, `ELEMENT_SET_NO`, `REV_AT_EPOCH`, `CLASSIFICATION_TYPE`
+- Composed SGP4 propagation to OEM followed by numerical OPM fitting
+- **Carried forward**: `OBJECT_NAME` and `OBJECT_ID` (from the TLE designator)
+- **Generated/set by current implementation**: OPM header, epoch, `CENTER_NAME=EARTH`, `REF_FRAME=EME2000`, `TIME_SYSTEM=UTC`; OPM header comments contain generated SGP4 propagation and fit provenance
+- **Lost**: TLE parameters such as `BSTAR`, `MEAN_MOTION_DOT`, `MEAN_MOTION_DDOT`, `ELEMENT_SET_NO`, `REV_AT_EPOCH`, and `CLASSIFICATION_TYPE`; TLE has no source comment field
+- **Caution**: the source TLE/SGP4 state is associated with TEME; TEME-to-EME2000 semantics remain outside the stated frame-equivalence assumption
