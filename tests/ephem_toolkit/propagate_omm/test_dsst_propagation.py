@@ -157,6 +157,11 @@ def test_propagate_omm_kepler_preserves_source_comments(tmp_path):
     )
 
     output_oem = oem_mod.CcsdsOem.read(output_path)
+    assert output_oem.meta.object_name == omm_data.object_name
+    assert output_oem.meta.object_id == omm_data.object_id
+    assert output_oem.meta.center_name == "EARTH"
+    assert output_oem.meta.ref_frame == "EME2000"
+    assert output_oem.meta.time_system == "UTC"
     assert "SOURCE_COMMENT: keep this note" in output_oem.meta.comments
     assert any(
         "target_model=two-body-kepler" in comment
@@ -180,6 +185,40 @@ def test_propagate_omm_sgp4_forwards_source_comments(monkeypatch):
     propagation.propagate_omm_sgp4(omm_data, start, start, 600.0, False, "output.oem")
 
     assert calls[0][1]["source_comments"] == ["SOURCE_COMMENT: keep this note"]
+
+
+def test_propagate_omm_sgp4_writes_metadata_and_source_comments(monkeypatch, tmp_path):
+    """The SGP4 path serializes OMM identity and comments into its OEM."""
+    omm_data = _make_dsst_omm(theory="SGP4")
+    omm_data.ref_frame = "TEME"
+    omm_data.comments = ["SOURCE_COMMENT: SGP4 input"]
+    omm_data.tle_parameters = omm_mod.TleParameters()
+
+    class FakeSgp4Propagator:
+        def __init__(self, _tle_object):
+            pass
+
+        def propagate_to(self, epoch_tt_s, output):
+            return epoch_tt_s, np.array([7e6, 0.0, 0.0, 0.0, 7e3, 0.0])
+
+    monkeypatch.setattr(propagation, "Sgp4Propagator", FakeSgp4Propagator)
+    start = time_utils.tt_s_to_datetime(0.0)
+    output_path = tmp_path / "sgp4.oem"
+
+    propagation.propagate_omm_sgp4(
+        omm_data, start, start + timedelta(minutes=10), 600.0, False, str(output_path)
+    )
+
+    output_oem = oem_mod.CcsdsOem.read(output_path)
+    assert output_oem.meta.object_name == omm_data.object_name
+    assert output_oem.meta.object_id == omm_data.object_id
+    assert output_oem.meta.center_name == "EARTH"
+    assert output_oem.meta.ref_frame == "EME2000"
+    assert output_oem.meta.time_system == "UTC"
+    assert "SOURCE_COMMENT: SGP4 input" in output_oem.meta.comments
+    assert any("target_model=SGP4" in comment for comment in output_oem.meta.comments)
+    assert output_oem.header.creation_date
+    assert output_oem.header.originator == "ephem-toolkit"
 
 
 def test_propagate_omm_dsst_state_count(tmp_path):

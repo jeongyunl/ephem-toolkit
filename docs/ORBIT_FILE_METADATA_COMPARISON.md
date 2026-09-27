@@ -244,7 +244,8 @@ Note: Must be documented in Interface Control Document (ICD).
 - **Generated/set by current implementation**: OEM header, `CENTER_NAME=EARTH`, `REF_FRAME=EME2000`, `TIME_SYSTEM=UTC`, coverage times, and a propagation provenance comment
 - **Carried forward**: OMM comments as OEM metadata comments
 - **Not copied**: other OMM header fields, source frame/time labels, mean elements and theory fields, TLE parameters, covariance, and spacecraft parameters
-- **Caution**: the written `EME2000` label must be checked against the propagator's returned state-frame semantics; it is not a literal preservation of the OMM `REF_FRAME`
+- **Frame assumption**: treat Earth-centered `EME2000`, `J2000`, `ICRF`, and `GCRF` labels as equivalent for this comparison
+- **Caution**: an SGP4 OMM may declare `TEME`, which is outside that equivalence assumption; verify the propagator's returned state-frame semantics before labeling those states `EME2000`
 
 ### OMM → OPM
 - Composed propagation to an intermediate OEM followed by numerical OPM fitting
