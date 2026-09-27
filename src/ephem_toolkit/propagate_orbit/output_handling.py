@@ -242,6 +242,12 @@ def print_pre_propagation_summary(
     print(f"Drag area [m²]: {config.satellite_drag_area_m2}")
     print(f"Solar radiation pressure: {'on' if config.is_srp_on else 'off'}")
     if config.is_srp_on:
+        srp_area = (
+            config.satellite_srp_area_m2
+            if config.satellite_srp_area_m2 is not None
+            else config.satellite_drag_area_m2
+        )
+        print(f"Solar radiation pressure area [m²]: {srp_area}")
         print(f"Solar radiation pressure coefficient: {config.srp_coefficient}")
     print(f"Aerodynamic drag: {'on' if config.is_earth_drag_on else 'off'}")
     if config.is_earth_drag_on:

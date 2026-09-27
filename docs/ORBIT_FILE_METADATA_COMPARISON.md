@@ -273,8 +273,8 @@ Note: Must be documented in Interface Control Document (ICD).
 - **`propagate-kepler`**: carries `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`, and source OPM header comments; output header and coverage times are generated
 - **`propagate-orbit`**: in full OEM output, carries source `OBJECT_NAME` (unless overridden by `--name`), `OBJECT_ID`, and OPM header comments; accepts only `CENTER_NAME=EARTH`, `REF_FRAME=J2000`, and `TIME_SYSTEM=UTC`, rejecting other or missing context instead of silently relabeling it. `--data-only` omits all metadata
 - **Generated/not copied**: OEM header and coverage are generated; other OPM header fields, `REF_FRAME_EPOCH`, Keplerian elements, spacecraft parameters, maneuvers, and other OPM-only fields are not copied
-- **Covariance gap**: the CCSDS OEM standard supports covariance, but the current `CcsdsOem` model and serializer do not. OPM covariance is dropped; preserving it also requires handling its covariance frame relative to the generated J2000 states
-- **Propagation inputs**: OPM spacecraft parameters are not used to initialize the numerical force model; the current run uses CLI values/defaults for mass, drag, and SRP
+- **Covariance gap**: OPM covariance is parsed but not forwarded to the numerical config; the current `CcsdsOem` model and serializer do not support covariance. Preserving it also requires handling its covariance frame relative to the generated J2000 states
+- **Propagation inputs**: explicit CLI values override OPM physical parameters; omitted values use matching OPM fields, then defaults. `--drag-area` sets both drag and SRP area; without it, OPM `DRAG_AREA` and `SOLAR_RAD_AREA` are used independently, with SRP area falling back to resolved drag area if absent. A serialized-input regression test verifies this precedence.
 
 ### OPM → OMM
 - Requires conversion from osculating to mean elements

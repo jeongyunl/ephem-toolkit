@@ -104,7 +104,7 @@ class NumericalPropagatorConfig:
     """Order for Earth's spherical harmonic gravity field."""
 
     satellite_drag_area_m2: float
-    """Effective drag/reference area (m²) for aerodynamic drag and SRP cannonball model."""
+    """Effective aerodynamic drag area (m²)."""
 
     is_srp_on: bool
     """Whether solar radiation pressure acceleration is enabled."""
@@ -128,6 +128,8 @@ class NumericalPropagatorConfig:
     """Source object identifier to retain in generated ephemeris metadata."""
     source_comments: tuple[str, ...] = ()
     """Source OPM header comments to retain in generated ephemeris metadata."""
+    satellite_srp_area_m2: float | None = None
+    """Cannonball radiation-pressure reference area (m²), if distinct from drag area."""
 
 
 @dataclass(frozen=True)
@@ -249,7 +251,11 @@ class NumericalPropagator(base.Propagator[NumericalInitialState]):
             occulting_bodies_dict: dict[str, list[str]] = {"Sun": ["Earth"]}
             vehicle_target_settings: Any = (
                 environment_setup.radiation_pressure.cannonball_radiation_target(
-                    config.satellite_drag_area_m2,
+                    (
+                        config.satellite_srp_area_m2
+                        if config.satellite_srp_area_m2 is not None
+                        else config.satellite_drag_area_m2
+                    ),
                     config.srp_coefficient,
                     occulting_bodies_dict,
                 )

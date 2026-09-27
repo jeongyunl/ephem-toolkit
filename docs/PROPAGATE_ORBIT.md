@@ -28,7 +28,7 @@ cat input.opm | propagate-orbit - -o - [OPTIONS]
 | `--data-only` | Write state vectors without OEM header or metadata. |
 | `--dep-vars <output_csv>` | Write dependent variables to a CSV file. |
 | `--name <name>` | Propagated satellite name. Defaults to the input OPM `OBJECT_NAME`, or `Satellite` if absent. |
-| `--mass <kg>` | Satellite mass in kilograms. |
+| `--mass <kg>` | Satellite mass in kilograms; overrides OPM `MASS`, which is used when this option is omitted. |
 | `-h`, `--help` | Show the help message and exit. |
 
 ## Numerical Model Options
@@ -42,11 +42,11 @@ cat input.opm | propagate-orbit - -o - [OPTIONS]
 | `--sun-gravity <on\|off>` | Enable or disable Sun point-mass gravity. |
 | `--venus-gravity <on\|off>` | Enable or disable Venus point-mass gravity. |
 | `--mars-gravity <on\|off>` | Enable or disable Mars point-mass gravity. |
-| `--drag-area <m2>` | Aerodynamic drag and cannonball reference area. |
+| `--drag-area <m2>` | Sets both drag and SRP reference areas; overrides OPM `DRAG_AREA` and `SOLAR_RAD_AREA`. |
 | `--drag <on\|off>` | Enable or disable aerodynamic drag. |
-| `--drag-coeff <coefficient>` | Aerodynamic drag coefficient. |
+| `--drag-coeff <coefficient>` | Aerodynamic drag coefficient; overrides OPM `DRAG_COEFF`. |
 | `--srp <on\|off>` | Enable or disable solar radiation pressure. |
-| `--srp-coeff <coefficient>` | Solar radiation pressure coefficient. |
+| `--srp-coeff <coefficient>` | Solar radiation pressure coefficient; overrides OPM `SOLAR_RAD_COEFF`. |
 
 ## Integrator Step-Size Forms
 
@@ -72,6 +72,15 @@ but no data is piped, the command exits with an error.
 
 The input state is interpreted as a single initial Cartesian state at the OPM epoch; the command
 then integrates the trajectory for the selected `--duration`.
+
+OPM spacecraft parameters (`MASS`, `DRAG_AREA`, `DRAG_COEFF`, `SOLAR_RAD_AREA`,
+and `SOLAR_RAD_COEFF`) configure the numerical force model when their matching
+CLI option is omitted. Explicit CLI values take precedence; otherwise, missing
+OPM values fall back to the documented defaults. `--drag-area` sets both the
+drag and SRP reference areas, overriding either OPM area. Without that option,
+`DRAG_AREA` and `SOLAR_RAD_AREA` are used independently; SRP area falls back to
+the resolved drag area if `SOLAR_RAD_AREA` is absent. OPM covariance is not
+forwarded to propagation or written to the output OEM.
 
 The numerical propagator currently supports only `CENTER_NAME=EARTH`,
 `REF_FRAME=J2000`, and `TIME_SYSTEM=UTC`. Inputs with another or missing value
@@ -171,8 +180,8 @@ corresponding gravity options are enabled. The global frame is Earth-centered
 
 Additional implementation details:
 
-- The propagated satellite mass is configurable with `--mass`.
-- The drag area is reused as the cannonball reference area for solar radiation pressure.
+- For mass, drag area/coefficient, and SRP area/coefficient, explicit CLI values take precedence over matching OPM values, which take precedence over documented defaults.
+- Without `--drag-area`, OPM `DRAG_AREA` and `SOLAR_RAD_AREA` configure their respective forces independently; if `SOLAR_RAD_AREA` is absent, SRP uses the resolved drag area. Explicit `--drag-area` sets both areas.
 - One integrator step-size value selects fixed-step integration; two or three values select variable-step integration.
 
 ## Requirements

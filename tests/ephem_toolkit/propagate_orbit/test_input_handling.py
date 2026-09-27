@@ -11,6 +11,7 @@ import argparse
 import io
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -21,9 +22,22 @@ from ephem_toolkit.core.propagator.numerical import (
     NumericalInitialState,
     NumericalPropagatorConfig,
 )
+from ephem_toolkit.core.ccsds.opm import (
+    CcsdsOpm,
+    OpmCovariance,
+    OpmHeader,
+    OpmSpacecraftParameters,
+    OpmStateVector,
+)
 import ephem_toolkit.core.time_utils as time_utils
 from ephem_toolkit.propagate_orbit.input_handling import build_propagation_inputs
-from ephem_toolkit.propagate_orbit.constants import DEFAULT_SATELLITE_NAME
+from ephem_toolkit.propagate_orbit.constants import (
+    DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2,
+    DEFAULT_SATELLITE_DRAG_COEFFICIENT,
+    DEFAULT_SATELLITE_MASS_KG,
+    DEFAULT_SATELLITE_NAME,
+    DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT,
+)
 import ephem_toolkit.propagate_orbit.input_handling as input_handling
 
 # ===================================================================
@@ -42,15 +56,15 @@ def _make_cli_args(**overrides) -> argparse.Namespace:
     defaults = dict(
         input_opm="input.opm",
         name="TestSat",
-        mass=30.0,
+        mass=None,
         integrator="rkdp_87",
         integrator_step_size=[10.0, 1.0, 300.0],
         earth_gravity=(5, 5),
-        drag_area=0.045,
+        drag_area=None,
         srp=False,
-        srp_coeff=1.2,
+        srp_coeff=None,
         drag=False,
-        drag_coeff=2.2,
+        drag_coeff=None,
         moon_gravity=False,
         sun_gravity=False,
         venus_gravity=False,
@@ -72,7 +86,7 @@ def _patch_opm_reader(
     return patch(
         "ephem_toolkit.propagate_orbit.input_handling"
         ".read_initial_state_from_opm_file_or_stdin",
-        return_value=(state, epoch, object_id, object_name, source_comments),
+        return_value=(state, epoch, object_id, object_name, source_comments, None),
     )
 
 
@@ -201,6 +215,94 @@ def test_config_drag_coefficient() -> None:
     assert config.satellite_drag_coefficient == 2.5
 
 
+def test_config_uses_defaults_when_opm_physical_parameters_are_absent() -> None:
+    with _patch_opm_reader():
+        config, _, _ = build_propagation_inputs(_make_cli_args())
+
+    assert config.satellite_mass_kg == DEFAULT_SATELLITE_MASS_KG
+    assert config.satellite_drag_area_m2 == DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2
+    assert config.satellite_srp_area_m2 == DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2
+    assert config.satellite_drag_coefficient == DEFAULT_SATELLITE_DRAG_COEFFICIENT
+    assert config.srp_coefficient == DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT
+
+
+def test_opm_physical_parameters_are_used_unless_cli_overrides(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "physical-parameters.opm"
+    covariance_matrix = np.eye(6)
+    source_parameters = OpmSpacecraftParameters(
+        mass=450.0,
+        solar_rad_area=20.0,
+        solar_rad_coeff=1.9,
+        drag_area=14.0,
+        drag_coeff=2.7,
+    )
+    CcsdsOpm(
+        header=OpmHeader(
+            version=3.0,
+            creation_date="2026-05-20T00:00:00.000",
+            originator="test",
+        ),
+        metadata={
+            "OBJECT_NAME": "PARAMETER TEST SAT",
+            "OBJECT_ID": "2024-001A",
+            "CENTER_NAME": "EARTH",
+            "REF_FRAME": "J2000",
+            "TIME_SYSTEM": "UTC",
+        },
+        state_vector=OpmStateVector(
+            epoch="2026-05-20T12:00:00.000",
+            x=7000.0,
+            y=0.0,
+            z=0.0,
+            x_dot=0.0,
+            y_dot=7.5,
+            z_dot=0.0,
+        ),
+        spacecraft_parameters=source_parameters,
+        covariance=OpmCovariance(covariance_matrix, ref_frame="J2000"),
+    ).to_file(source_path)
+
+    parsed_opm = CcsdsOpm.from_source(source_path)
+    assert parsed_opm.spacecraft_parameters == source_parameters
+    assert parsed_opm.covariance is not None
+    np.testing.assert_array_equal(parsed_opm.covariance.matrix, covariance_matrix)
+
+    fallback_args = _make_cli_args(
+        input_opm=str(source_path),
+        mass=None,
+        drag_area=None,
+        drag_coeff=None,
+        srp_coeff=None,
+    )
+    config, _, _ = build_propagation_inputs(fallback_args)
+    assert config.satellite_mass_kg == 450.0
+    assert config.satellite_drag_area_m2 == 14.0
+    assert config.satellite_srp_area_m2 == 20.0
+    assert config.satellite_drag_coefficient == 2.7
+    assert config.srp_coefficient == 1.9
+
+    cli_args = _make_cli_args(
+        input_opm=str(source_path),
+        mass=81.0,
+        drag_area=0.12,
+        drag_coeff=2.4,
+        srp_coeff=1.6,
+        srp=True,
+        drag=True,
+    )
+    config, initial_state, _ = build_propagation_inputs(cli_args)
+
+    assert config.satellite_mass_kg == 81.0
+    assert config.satellite_drag_area_m2 == 0.12
+    assert config.satellite_srp_area_m2 == 0.12
+    assert config.satellite_drag_coefficient == 2.4
+    assert config.srp_coefficient == 1.6
+    assert not hasattr(config, "covariance")
+    assert not hasattr(initial_state, "covariance")
+
+
 # ===================================================================
 # NumericalInitialState fields
 # ===================================================================
@@ -262,6 +364,7 @@ def test_read_initial_state_parses_stdin_and_file_sources(
         state_vector=SimpleNamespace(
             epoch="2026-05-20T12:00:00Z", values=input_state_km
         ),
+        spacecraft_parameters=None,
     )
     sources = []
 
@@ -277,10 +380,15 @@ def test_read_initial_state_parses_stdin_and_file_sources(
     )
     monkeypatch.setattr(sys, "stdin", io.StringIO("OPM input"))
 
-    state_m_m_s, epoch, object_id, object_name, source_comments = (
-        input_handling.read_initial_state_from_opm_file_or_stdin(
-            argparse.Namespace(input_opm=input_opm)
-        )
+    (
+        state_m_m_s,
+        epoch,
+        object_id,
+        object_name,
+        source_comments,
+        spacecraft_parameters,
+    ) = input_handling.read_initial_state_from_opm_file_or_stdin(
+        argparse.Namespace(input_opm=input_opm)
     )
 
     np.testing.assert_array_equal(state_m_m_s, input_state_km * 1000.0)
@@ -288,6 +396,7 @@ def test_read_initial_state_parses_stdin_and_file_sources(
     assert object_id == "2024-001A"
     assert object_name == "SourceSat"
     assert source_comments == ("SOURCE_COMMENT: input",)
+    assert spacecraft_parameters is None
     if input_opm == "-":
         assert isinstance(sources[0], io.StringIO)
     else:

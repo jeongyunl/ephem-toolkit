@@ -115,6 +115,7 @@ def test_print_pre_propagation_summary_reports_optional_outputs(
         earth_spherical_harmonic_gravity_degree=8,
         earth_spherical_harmonic_gravity_order=6,
         satellite_drag_area_m2=2.0,
+        satellite_srp_area_m2=2.0,
         is_srp_on=True,
         srp_coefficient=1.2,
         is_earth_drag_on=True,

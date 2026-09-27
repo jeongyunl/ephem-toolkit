@@ -26,7 +26,13 @@ from ephem_toolkit.core.propagator.numerical import (
     NumericalPropagatorConfig,
 )
 
-from .constants import DEFAULT_SATELLITE_NAME
+from .constants import (
+    DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2,
+    DEFAULT_SATELLITE_DRAG_COEFFICIENT,
+    DEFAULT_SATELLITE_MASS_KG,
+    DEFAULT_SATELLITE_NAME,
+    DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT,
+)
 
 # ===================================================================
 # Input readers
@@ -35,7 +41,14 @@ from .constants import DEFAULT_SATELLITE_NAME
 
 def read_initial_state_from_opm_file_or_stdin(
     cli_args: argparse.Namespace,
-) -> tuple[np.ndarray, datetime, str, str, tuple[str, ...]]:
+) -> tuple[
+    np.ndarray,
+    datetime,
+    str,
+    str,
+    tuple[str, ...],
+    opm.OpmSpacecraftParameters | None,
+]:
     """Read one initial state record from OPM input sources.
 
     Parameters
@@ -52,8 +65,9 @@ def read_initial_state_from_opm_file_or_stdin(
 
     Returns
     -------
-    tuple[numpy.ndarray, datetime, str, str, tuple[str, ...]]
-        State, UTC epoch, object ID, object name, and source header comments.
+    tuple[numpy.ndarray, datetime, str, str, tuple[str, ...], OpmSpacecraftParameters | None]
+        State, UTC epoch, object ID, object name, source header comments, and
+        optional OPM spacecraft parameters.
     """
     input_opm = cli_args.input_opm
     if input_opm == "-":
@@ -119,6 +133,7 @@ def read_initial_state_from_opm_file_or_stdin(
         object_id,
         object_name,
         source_comments,
+        input_opm_message.spacecraft_parameters,
     )
 
 
@@ -155,6 +170,7 @@ def build_propagation_inputs(
         object_id,
         source_object_name,
         source_comments,
+        opm_spacecraft_parameters,
     ) = read_initial_state_from_opm_file_or_stdin(cli_args)
     satellite_name = (
         cli_args.name.strip()
@@ -168,21 +184,56 @@ def build_propagation_inputs(
 
     integrator_step_size_values = tuple(cli_args.integrator_step_size)
 
+    opm_parameters = opm_spacecraft_parameters
+    mass = cli_args.mass
+    if mass is None:
+        mass = (
+            opm_parameters.mass
+            if opm_parameters is not None and opm_parameters.mass is not None
+            else DEFAULT_SATELLITE_MASS_KG
+        )
+    drag_area = cli_args.drag_area
+    if drag_area is None:
+        drag_area = (
+            opm_parameters.drag_area
+            if opm_parameters is not None and opm_parameters.drag_area is not None
+            else DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2
+        )
+    srp_area = drag_area
+    if cli_args.drag_area is None and opm_parameters is not None:
+        if opm_parameters.solar_rad_area is not None:
+            srp_area = opm_parameters.solar_rad_area
+    drag_coefficient = cli_args.drag_coeff
+    if drag_coefficient is None:
+        drag_coefficient = (
+            opm_parameters.drag_coeff
+            if opm_parameters is not None and opm_parameters.drag_coeff is not None
+            else DEFAULT_SATELLITE_DRAG_COEFFICIENT
+        )
+    srp_coefficient = cli_args.srp_coeff
+    if srp_coefficient is None:
+        srp_coefficient = (
+            opm_parameters.solar_rad_coeff
+            if opm_parameters is not None and opm_parameters.solar_rad_coeff is not None
+            else DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT
+        )
+
     epoch_s: float = time_utils.datetime_to_tt_s(initial_epoch_datetime_utc)
     target_epoch_s: float = epoch_s + cli_args.duration
 
     config = NumericalPropagatorConfig(
         satellite_name=satellite_name,
-        satellite_mass_kg=cli_args.mass,
+        satellite_mass_kg=mass,
         integrator_method=cli_args.integrator,
         integrator_step_size_values_s=integrator_step_size_values,
         earth_spherical_harmonic_gravity_degree=earth_spherical_harmonic_gravity_degree,
         earth_spherical_harmonic_gravity_order=earth_spherical_harmonic_gravity_order,
-        satellite_drag_area_m2=cli_args.drag_area,
+        satellite_drag_area_m2=drag_area,
+        satellite_srp_area_m2=srp_area,
         is_srp_on=cli_args.srp,
-        srp_coefficient=cli_args.srp_coeff,
+        srp_coefficient=srp_coefficient,
         is_earth_drag_on=cli_args.drag,
-        satellite_drag_coefficient=cli_args.drag_coeff,
+        satellite_drag_coefficient=drag_coefficient,
         is_moon_gravity_on=cli_args.moon_gravity,
         is_sun_gravity_on=cli_args.sun_gravity,
         is_venus_gravity_on=cli_args.venus_gravity,

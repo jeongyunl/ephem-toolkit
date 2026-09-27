@@ -43,6 +43,7 @@ def make_config(**overrides) -> NumericalPropagatorConfig:
         earth_spherical_harmonic_gravity_degree=5,
         earth_spherical_harmonic_gravity_order=5,
         satellite_drag_area_m2=0.045,
+        satellite_srp_area_m2=None,
         is_srp_on=False,
         srp_coefficient=1.2,
         is_earth_drag_on=False,
@@ -237,7 +238,9 @@ def test_numerical_propagator_state_history_aliases_internal_list() -> None:
 
     history[0] = (99.0, np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=float))
     assert prop._state_history[0][0] == 99.0
-    np.testing.assert_array_equal(prop._state_history[0][1], np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=float))
+    np.testing.assert_array_equal(
+        prop._state_history[0][1], np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=float)
+    )
 
     history[0][1][0] = -123.0
     assert prop._state_history[0][1][0] == -123.0

@@ -45,7 +45,7 @@ class PropagateOrbitArgs(argparse.Namespace):
     """Dependent-variable CSV output path or None."""
     name: str
     """Satellite name."""
-    mass: float
+    mass: float | None
     """Satellite mass in kg."""
     integrator: str
     """Integrator method identifier."""
@@ -53,15 +53,15 @@ class PropagateOrbitArgs(argparse.Namespace):
     """Integrator step-size values in seconds."""
     earth_gravity: tuple[int, int]
     """Earth gravity degree/order pair."""
-    drag_area: float
+    drag_area: float | None
     """Reference/projected area in m²."""
     srp: bool
     """Whether solar radiation pressure is enabled."""
-    srp_coeff: float
+    srp_coeff: float | None
     """Solar radiation pressure coefficient."""
     drag: bool
     """Whether aerodynamic drag is enabled."""
-    drag_coeff: float
+    drag_coeff: float | None
     """Aerodynamic drag coefficient."""
     moon_gravity: bool
     """Whether Moon gravity is enabled."""
@@ -420,10 +420,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
         dest="mass",
         type=parse_mass_kg,
         metavar="<kg>",
-        default=DEFAULT_SATELLITE_MASS_KG,
+        default=None,
         help=(
             "Mass of the propagated satellite in kilograms "
-            f"(default: {DEFAULT_SATELLITE_MASS_KG})."
+            f"(default: OPM MASS, or {DEFAULT_SATELLITE_MASS_KG} if absent)."
         ),
     )
 
@@ -494,10 +494,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         dest="drag_area",
         type=parse_drag_area_m2,
         metavar="<m²>",
-        default=DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2,
+        default=None,
         help=(
             "Drag area / average projection area of the propagated satellite in m² "
-            f"(default: {DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2})."
+            "(default: OPM DRAG_AREA, or "
+            f"{DEFAULT_CUBESAT_AVERAGE_PROJECTION_AREA_M2} if absent; also overrides "
+            "OPM SOLAR_RAD_AREA for SRP)."
         ),
     )
 
@@ -517,10 +519,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         dest="srp_coeff",
         type=parse_srp_coefficient,
         metavar="<coefficient>",
-        default=DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT,
+        default=None,
         help=(
             "Solar radiation pressure coefficient of the propagated satellite "
-            f"(default: {DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT})."
+            "(default: OPM SOLAR_RAD_COEFF, or "
+            f"{DEFAULT_SATELLITE_RADIATION_PRESSURE_COEFFICIENT} if absent)."
         ),
     )
 
@@ -540,8 +543,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         dest="drag_coeff",
         type=parse_drag_coefficient,
         metavar="<coefficient>",
-        default=DEFAULT_SATELLITE_DRAG_COEFFICIENT,
-        help=f"Drag coefficient of the propagated satellite (default: {DEFAULT_SATELLITE_DRAG_COEFFICIENT}).",
+        default=None,
+        help=(
+            "Drag coefficient of the propagated satellite "
+            f"(default: OPM DRAG_COEFF, or {DEFAULT_SATELLITE_DRAG_COEFFICIENT} if absent)."
+        ),
     )
 
     cli_parser.add_argument(
