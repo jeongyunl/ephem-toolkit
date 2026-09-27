@@ -70,6 +70,7 @@ def read_kepler_input(source: str | None):
             ("time_system", "TIME_SYSTEM"),
         )
     }
+    metadata["ref_frame_epoch"] = str(message.metadata.get("REF_FRAME_EPOCH", ""))
     metadata["classification"] = message.header.classification
     metadata["message_id"] = message.header.message_id
     covariance = None
@@ -115,7 +116,7 @@ def propagate_kepler_elements(
         oem_metadata = {
             key: value
             for key, value in output_metadata.items()
-            if key not in {"classification", "message_id"}
+            if key not in {"classification", "message_id", "ref_frame_epoch"}
         }
         message = (
             oem.CcsdsOem.from_states(
@@ -126,6 +127,8 @@ def propagate_kepler_elements(
             if not data_only
             else oem.CcsdsOem.from_states(states)
         )
+        if not data_only:
+            message.meta.ref_frame_epoch = output_metadata.get("ref_frame_epoch", "")
         if data_only:
             message.write_states(stream)
         else:

@@ -62,7 +62,6 @@ Conversion paths often rebuild metadata from a selected subset of source fields.
 ## Deferred Follow-ups
 
 - **Metadata fixture breadth:** Extend serialized checks beyond representative fixtures to cover more optional-field combinations and composed route/model variants.
-- **Frame labels:** Add metadata-focused tests for frame-label preservation and regeneration across additional routes. Numerical validation of coordinate transformations is outside this metadata audit.
 - **Covariance processing:** Deferred by request. This audit covers source-epoch preservation only; covariance evolution and route-specific covariance-frame transforms are not being investigated now.
 
 ## Route Status
@@ -84,8 +83,8 @@ capability gaps.
      override OPM spacecraft parameters; otherwise OPM values, then defaults,
      configure the force model. A J2000-equivalent covariance is written at the
      input epoch only; it is not evolved across the numerical state history.
-    Serialized output uses the `J2000` frame label, retains the source object
-    name by default, and applies an explicit `--name` override.
+     Serialized output uses the `J2000` frame label; the source object name is
+     retained by default and an explicit `--name` override is applied.
 2. **OPM(NUM) → OMM(2B/BROUWER/DSST/SGP4)**
    - Identity, comments, OPM `CLASSIFICATION`/`MESSAGE_ID`, generated context,
      theory label, and fit-report target model are verified for Brouwer, DSST,
@@ -104,7 +103,7 @@ capability gaps.
 4. **OMM → OEM by theory**
    - Exercise two-body/fallback, DSST, and SGP4 propagation. Verify identity,
      source comments, frame/time labels, generated coverage and provenance,
-      and whether optional OMM data is consumed, represented, or omitted.
+     and whether optional OMM data is consumed, represented, or omitted.
    - Identity, source comments, generated coverage/provenance, and serialized
      SGP4 metadata are covered; comments plus OMM `CLASSIFICATION` and
      `MESSAGE_ID` are retained on all three branches. OEM `ORIGINATOR` and
@@ -160,8 +159,9 @@ capability gaps.
     `REF_FRAME_EPOCH` is not applicable to these fixed input frames; SGP4
     output's `TEME` label is generated independently.
    - Serialized OEM→OPM checks verify that `J2000`, `EME2000`, `ICRF`, and
-     `GCRF` source frame labels are copied unchanged into the fitted OPM, and
-     that an applicable `TOD` `REF_FRAME_EPOCH` is retained.
+    `GCRF` source frame labels are copied unchanged into the fitted OPM, and
+    that an applicable `TOD` `REF_FRAME_EPOCH` is retained. The Kepler
+    propagation route likewise carries an applicable OPM frame epoch to OEM.
 8. **Direct TLE ↔ OMM metadata coverage**
    - Serialized checks now re-read both directions. TLE identity, orbital and
      TLE-specific parameters survive; TLE→OMM generates Earth/TEME/UTC context,
@@ -176,7 +176,7 @@ Use this table as the audit proceeds. Record references to focused tests or fixt
 |---|---|---|---|
 | TLE → OMM | Identity, context, orbital/TLE parameters, generated/default header | `test_tle_to_omm_matches_reference_file` serialized parser round-trip | TLE identity, orbital/TLE parameters, and Earth/TEME/UTC + SGP/SGP4 context verified; core-library header/comment defaults are empty |
 | OMM → TLE | TLE-representable identity and parameters; CCSDS-only fields | `test_omm_to_tle_matches_reference_file` serialized parser round-trip | Identity, TLE parameters, elements, and checksums verified; comments, header fields, covariance, spacecraft parameters, and user-defined key are absent from TLE |
-| OPM → OEM (`propagate-kepler`) | Identity, comments, classification/message ID, frame/time, covariance, derived coverage, generated header | `test_propagate_kepler_writes_cartesian_states_in_si_units`; composed integration | Serialized output retains source `TOD` frame label, `OBJECT_ID`/comments, `CLASSIFICATION`, and `MESSAGE_ID`; covariance and its declared frame are retained at the input epoch only; OEM originator/date and coverage are generated |
+| OPM → OEM (`propagate-kepler`) | Identity, comments, classification/message ID, frame/time/epoch, covariance, derived coverage, generated header | `test_propagate_kepler_writes_cartesian_states_in_si_units`; composed integration | Serialized output retains source `TOD` frame label and applicable `REF_FRAME_EPOCH`, `OBJECT_ID`/comments, `CLASSIFICATION`, and `MESSAGE_ID`; covariance and its declared frame are retained at the input epoch only; OEM originator/date and coverage are generated |
 | OPM → OEM (`propagate-orbit`) | Identity, header comments/classification/message ID, frame/time, covariance, maneuvers, physical parameters | `test_opm_preserves_header_and_omits_opm_only_blocks`; `test_opm_physical_parameters_are_used_unless_cli_overrides`; `test_read_initial_state_rejects_non_equivalent_covariance_frame` | Serialized output verifies source-name fallback and explicit `--name` override, identity/comments, and supported `CLASSIFICATION`/`MESSAGE_ID`; OEM `ORIGINATOR`/`CREATION_DATE` are regenerated; Keplerian elements, maneuver, and mass are omitted; covariance behavior is covered separately at the input epoch only |
 | TLE/OMM → OEM propagation | Identity, frame/time, comments, generated header | DSST/Kepler/SGP4 serialized tests plus SGP4 runtime-frame test | Comments and identity verified; OEM metadata emits `EME2000`; TudatPy SGP4 ephemeris reports Earth/J2000; no coordinate-transform accuracy claim |
 | OMM/TLE → OPM | Identity, frame/time, comments/provenance, generated header/report | DSST OMM, SGP4 OMM, and TLE serialized wrapper tests | Identity/context/report verified; OMM comments and TLE-generated provenance verified; output frame label is `EME2000`; no coordinate-transform accuracy claim |

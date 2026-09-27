@@ -277,9 +277,9 @@ Note: Must be documented in Interface Control Document (ICD).
 - Generates ephemeris time series from single epoch
 - Propagator selection affects accuracy
 - Step size determines output density
-- **`propagate-kepler`**: carries `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`, and source OPM header comments; output header and coverage times are generated
+- **`propagate-kepler`**: carries `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`, applicable `REF_FRAME_EPOCH`, and source OPM header comments; output header and coverage times are generated
 - **`propagate-orbit`**: in full OEM output, carries source `OBJECT_NAME` (unless overridden by `--name`), `OBJECT_ID`, OPM header comments, `CLASSIFICATION`, and `MESSAGE_ID`; accepts only `CENTER_NAME=EARTH`, `REF_FRAME=J2000`, and `TIME_SYSTEM=UTC`, rejecting other or missing context instead of silently relabeling it. `--data-only` omits all metadata
-- **Generated/not copied**: OEM `ORIGINATOR`, `CREATION_DATE`, and coverage are generated; other OPM header fields, `REF_FRAME_EPOCH`, Keplerian elements, spacecraft parameters, maneuvers, and other OPM-only fields are not copied
+- **Generated/not copied**: OEM `ORIGINATOR`, `CREATION_DATE`, and coverage are generated; other OPM header fields, Keplerian elements, spacecraft parameters, maneuvers, and other OPM-only fields are not copied. Numerical `propagate-orbit` accepts only fixed J2000-equivalent frames, for which `REF_FRAME_EPOCH` is inapplicable.
 - **Covariance behavior**: both `propagate-kepler` and `propagate-orbit` preserve OPM covariance at the input epoch without evolving it across the output arc. `propagate-kepler` retains the covariance's declared frame; `propagate-orbit` accepts only J2000-equivalent covariance frames and rejects other frames. `--data-only` omits covariance with the metadata.
 - **Propagation inputs**: explicit CLI values override OPM physical parameters; omitted values use matching OPM fields, then defaults. `--drag-area` sets both drag and SRP area; without it, OPM `DRAG_AREA` and `SOLAR_RAD_AREA` are used independently, with SRP area falling back to resolved drag area if absent. A serialized-input regression test verifies this precedence.
 
