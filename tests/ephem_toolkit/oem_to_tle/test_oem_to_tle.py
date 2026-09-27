@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import ephem_toolkit.core.ccsds.omm as ccsds_omm
+import ephem_toolkit.core.ccsds.oem as ccsds_oem
 import ephem_toolkit.core.tle as tle
 import ephem_toolkit.core.cli as core_cli
 import ephem_toolkit.oem_to_omm as oem_to_omm
@@ -25,7 +26,7 @@ def _assert_valid_tle(lines: list[str]) -> None:
     assert tle_lines[1].startswith("2 ") and len(tle_lines[1]) == 69
     for line in tle_lines:
         checksum = sum(int(character) for character in line[:68] if character.isdigit())
-        checksum += 1 if line[:68].count("-") else 0
+        checksum += line[:68].count("-")
         assert line[68] == str(checksum % 10)
 
 
@@ -251,6 +252,80 @@ def test_composed_omm_to_tle_workflow_writes_oem_tle_and_report(tmp_path: Path) 
         converted_tle = tle.read_tle(tle_file)
     assert converted_tle.object_name == source_omm.object_name
     assert converted_tle.get_object_id() == source_omm.object_id
+
+
+@pytest.mark.parametrize(
+    ("mean_element_theory", "source_model"),
+    [
+        ("BROUWER-LYDDANE", "brouwer-lyddane"),
+        ("2B", "2b"),
+    ],
+)
+def test_non_sgp4_omm_to_tle_refit_records_kepler_fallback_provenance(
+    tmp_path: Path, mean_element_theory: str, source_model: str
+) -> None:
+    source = Path(__file__).parent / "data/TEST-DSST_2020-001A.omm"
+    source_omm = ccsds_omm.CcsdsOmm.from_source(source)
+    source_omm.mean_element_theory = mean_element_theory
+    source_omm.data["MEAN_ELEMENT_THEORY"] = mean_element_theory
+    source_omm.comments.append(f"SOURCE_COMMENT: {mean_element_theory} OMM refit")
+    input_path = tmp_path / f"{source_model}.omm"
+    source_omm.to_file(input_path)
+    reference_oem = tmp_path / f"{source_model}-reference.oem"
+    output_tle = tmp_path / f"{source_model}-output.tle"
+    fit_report = tmp_path / f"{source_model}-output.fit.json"
+
+    assert (
+        propagate_omm_main(
+            [
+                str(input_path),
+                "--duration",
+                "2h",
+                "--step",
+                "5m",
+                "--output",
+                str(reference_oem),
+            ]
+        )
+        == 0
+    )
+    intermediate_oem = ccsds_oem.CcsdsOem.read(reference_oem)
+    source_comment = f"SOURCE_COMMENT: {mean_element_theory} OMM refit"
+    fallback_comment = next(
+        comment
+        for comment in intermediate_oem.meta.comments
+        if "target_model=two-body-kepler" in comment
+    )
+    assert source_comment in intermediate_oem.meta.comments
+    assert any(
+        f"source=OMM/{mean_element_theory}" in comment
+        for comment in (fallback_comment,)
+    )
+
+    oem_to_tle_main(
+        [
+            str(reference_oem),
+            "--fit-span",
+            "2h",
+            "--source-model",
+            source_model,
+            "--fit-report",
+            str(fit_report),
+            "--output",
+            str(output_tle),
+        ]
+    )
+
+    _assert_valid_tle(output_tle.read_text(encoding="utf-8").splitlines())
+    with output_tle.open(encoding="utf-8") as tle_file:
+        converted_tle = tle.read_tle(tle_file)
+    report = json.loads(fit_report.read_text(encoding="utf-8"))
+    assert converted_tle.object_name == source_omm.object_name
+    assert converted_tle.get_object_id() == source_omm.object_id
+    assert report["provenance"]["source"] == f"OEM/{source_model}"
+    assert report["provenance"]["target_model"] == "SGP4"
+    assert source_comment in report["configuration"]["source_comments"]
+    assert fallback_comment in report["configuration"]["source_comments"]
 
 
 def test_oem_to_tle_report_file_and_unknown_provenance(tmp_path: Path) -> None:

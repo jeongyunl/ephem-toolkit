@@ -259,7 +259,7 @@ Note: Must be documented in Interface Control Document (ICD).
 - Checksums computed automatically
 - **Preserved**: `NORAD_CAT_ID`, `EPOCH`, `MEAN_MOTION`, `ECCENTRICITY`, `INCLINATION`, `RA_OF_ASC_NODE`, `ARG_OF_PERICENTER`, `MEAN_ANOMALY`, `BSTAR`, `ELEMENT_SET_NO`, `REV_AT_EPOCH`, `CLASSIFICATION_TYPE`, `EPHEMERIS_TYPE`, `MEAN_MOTION_DOT`, `MEAN_MOTION_DDOT`
 - **Lost**: `CCSDS_OMM_VERS`, `CREATION_DATE`, `ORIGINATOR`, `MESSAGE_ID`, `COMMENT`, `MEAN_ELEMENT_THEORY`, covariance matrix, `USER_DEFINED_*`
-- For non-SGP4 OMMs, the refit path propagates OMM→OEM and fits a new SGP4 TLE; source comments and fit provenance belong in the companion fit report because TLE cannot encode them
+- For non-SGP4 OMMs, the refit path propagates OMM→OEM and fits a new SGP4 TLE. DSST propagates with DSST; current 2B/Brouwer-Lyddane routes use the labeled two-body Kepler fallback. Source comments and fit provenance belong in the companion report/intermediate OEM because TLE cannot encode them
 
 ### OPM → OEM
 - Requires orbit propagation over time span
