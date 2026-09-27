@@ -43,9 +43,9 @@ Track these categories where the source and target formats support them:
 - Mapped the supported routes into direct, fitting, and composed workflows.
 - **TLE↔OMM:** serialized checks verify identity, orbital elements, TLE parameters, and generated OMM context. CCSDS-only fields are omitted from TLE; CLI-generated OMM header values are covered separately.
 - **OPM routes:** fixed identity/comment loss and enforce numerical input context. OPM→OMM model variants preserve identity/comments. For OPM(NUM)→OEM, CLI values override OPM physical parameters, omitted options use OPM values then defaults, and covariance is confirmed absent from the config and serialized OEM.
-- **OMM/TLE routes:** verified identity, comments/provenance, generated context, and reports across propagation and wrappers. DSST consumes complete OMM drag/SRP parameter groups; Kepler ignores spacecraft parameters and SGP4 uses TLE parameters. OMM-only metadata is omitted from OEM output; covariance remains a `CcsdsOem` capability gap. Non-SGP4 OMM→TLE fallback provenance is recorded; TudatPy converts SGP4 TEME states to J2000.
+- **OMM/TLE routes:** verified identity, comments/provenance, generated context, and reports across propagation and wrappers. DSST consumes complete OMM drag/SRP parameter groups; Kepler ignores spacecraft parameters and SGP4 uses TLE parameters. Optional blocks not represented by the OEM model are omitted; covariance is an OEM-standard capability gap in `CcsdsOem`. Non-SGP4 OMM→TLE fallback provenance is recorded; TudatPy converts SGP4 TEME states to J2000.
 - **OEM fits:** serialized checks cover OMM Brouwer/DSST/SGP4, OPM two-body/numerical, and SGP4 TLE output. Non-equivalent frames are rejected instead of relabeled; identity, comments, selected context, and representative omissions are verified.
-- Focused suites passed: 69 `propagate-orbit`, 71 OEM-fit, and 55 direct TLE↔OMM tests. The full SGP4 test module still has two environment failures (`SPICE(NOLEAPSECONDS)`) because leap-second kernels are not loaded.
+- Combined focused route suites passed: 406 tests, with two accuracy tests deselected and one LibreSSL warning. The full SGP4 test module still has two environment failures (`SPICE(NOLEAPSECONDS)`) because leap-second kernels are not loaded.
 
 **Initial hypothesis to verify:**
 
@@ -60,10 +60,9 @@ Several conversion paths rebuild output metadata from a deliberately selected su
 
 ## Next Routes to Examine
 
-Prioritize the following routes. The source-level behavior below has been
-partially traced; the remaining work is to verify serialized results with
-representative metadata fixtures and classify losses as intentional or
-unexpected.
+The routes below summarize verified behavior and remaining gaps. For each
+optional field, distinguish target-format limitations from toolkit capability
+gaps, and record unresolved behavior explicitly.
 
 1. **OPM(NUM) → OEM (`propagate-orbit`)**
    - `OBJECT_NAME` and `OBJECT_ID` now reach the generated OEM; explicit
@@ -91,13 +90,14 @@ unexpected.
 4. **OMM → OEM by theory**
    - Exercise two-body/fallback, DSST, and SGP4 propagation. Verify identity,
      source comments, frame/time labels, generated coverage and provenance,
-     and optional OMM data that does not have an OEM representation.
+  and whether optional OMM data is consumed, represented, or omitted.
    - Identity, source comments, generated coverage/provenance, and serialized
      SGP4 metadata are covered; comments are retained on all three branches.
    - Serialized branch tests verify optional OMM spacecraft/covariance,
      reference-frame epoch, user-defined fields, and TLE parameters are not
      copied into OEM. DSST uses complete drag and SRP parameter groups;
-     Kepler ignores them and SGP4 uses the embedded TLE parameters.
+     Kepler ignores spacecraft parameters and SGP4 uses embedded TLE parameters.
+     Covariance is representable by the OEM standard but not by `CcsdsOem`.
    - Treat Earth-centered EME2000/J2000/ICRF/GCRF as equivalent per the stated
      assumption. TudatPy's TEME-to-J2000 conversion and installed runtime frame
      are verified; composed OMM→OPM comment carry-through is also verified.
