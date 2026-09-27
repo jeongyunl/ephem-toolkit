@@ -219,6 +219,18 @@ def test_omm_to_tle_matches_reference_file(
     )
     assert "SOURCE-MESSAGE-42" not in serialized_tle
     assert "SOURCE_COMMENT: OMM-only metadata" not in serialized_tle
+    for field in (
+        "CREATION_DATE",
+        "ORIGINATOR",
+        "CLASSIFICATION",
+        "REF_FRAME_EPOCH",
+        "MASS",
+        "SOLAR_RAD_AREA",
+        "SOLAR_RAD_COEFF",
+        "DRAG_AREA",
+        "DRAG_COEFF",
+    ):
+        assert field not in serialized_tle
     assert "COV_REF_FRAME" not in serialized_tle
     assert "USER_DEFINED_AUDIT" not in serialized_tle
     assert "MASS" not in serialized_tle
