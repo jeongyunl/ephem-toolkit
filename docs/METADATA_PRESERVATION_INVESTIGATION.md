@@ -49,6 +49,8 @@ Track these categories where the source and target formats support them:
 - Fixed numerical OPM→OEM identity loss in `propagate-orbit`: the reader returns both object identity fields, the config carries them, and the writer serializes them. An explicit `--name` overrides the source `OBJECT_NAME`; otherwise the source name is used, then `Satellite` as fallback.
 - Confirmed numerical propagation is Earth-centered J2000/UTC. The OPM reader now rejects missing or incompatible `CENTER_NAME`, `REF_FRAME`, and `TIME_SYSTEM`, avoiding silent frame/time relabeling. The old numerical composition fixture used `REF_FRAME=TOD`; it was replaced with an explicit J2000 fixture rather than continuing to accept the mismatch.
 - OPM header comments are now carried into OEM metadata comments; a composed numerical OPM→OEM→OMM test verifies the comment at both serialized boundaries. Other OPM header fields are regenerated, while covariance, maneuvers, spacecraft parameters, and Keplerian elements remain uncopied.
+- Classified remaining numerical OPM fields: OEM has no representation for OPM maneuvers, spacecraft parameters, or Keplerian elements. The CCSDS OEM standard supports covariance, but this toolkit's `CcsdsOem` parser/model/writer has no covariance support, so its loss is an implementation capability gap; preserving it also requires frame-aware handling when the OPM covariance frame differs from J2000.
+- OPM mass/drag/SRP values are parsed by the OPM model but are not consumed by `build_propagation_inputs`; the numerical model uses CLI values/defaults instead. This is a source-parameter-to-force-model gap, distinct from metadata representation in the output OEM.
 - Verified with `pytest tests/ephem_toolkit/propagate_orbit tests/ephem_toolkit/oem_to_omm/test_integration_opm_to_omm_composed.py -q` (69 passed; one LibreSSL/urllib3 warning and one near-equatorial DSST warning).
 - Verified `OBJECT_ID` end to end for OPM(2B)→OMM(DSST) and OPM(NUM)→OMM(DSST) with parser-based integration assertions; `pytest tests/ephem_toolkit/oem_to_omm/test_integration_opm_to_omm_composed.py -q` passes (2 passed, with existing environment/orbit warnings).
 - Traced OMM/TLE→OEM propagation: it retains object name and object ID, generates an OEM header and provenance comment, and writes fixed `CENTER_NAME=EARTH`, `REF_FRAME=EME2000`, and `TIME_SYSTEM=UTC`. A serialized DSST test showed OMM comments were initially omitted; source comments are now carried into OEM metadata comments on SGP4, DSST, and Kepler paths. The `propagate-omm` suite passes (23 passed; one LibreSSL/urllib3 warning). Source OMM header fields and frame/time labels are still not generally copied.
@@ -84,9 +86,11 @@ unexpected.
      `--name` overrides the source name.
    - OPM header comments are carried into OEM metadata comments; the OEM
      header itself is regenerated.
-   - Unsupported or missing center/frame/time metadata is rejected. Classify
-     covariance, maneuvers, and physical parameters as intentionally omitted
-     from OEM output and confirm the generated header/provenance behavior.
+   - Unsupported or missing center/frame/time metadata is rejected. OPM
+     maneuvers and Keplerian elements have no OEM equivalent. The toolkit
+     currently drops covariance despite OEM standard support and ignores OPM
+     physical parameters when building the numerical force model; track both
+     as explicit follow-up findings.
 2. **OPM(NUM) → OMM(2B/BROUWER/DSST/SGP4)**
    - Follow the numerical OEM into each `oem-to-omm` fit variant. Check
      identity, comments, context labels, fit provenance, and whether output
@@ -134,13 +138,13 @@ Use this table as the audit proceeds. Record references to focused tests or fixt
 | TLE → OMM | Identity, context, orbital/TLE parameters, generated header | Source trace and existing conversion tests | 25 conversion tests pass; add serialized metadata assertions if broad coverage is required |
 | OMM → TLE | TLE-representable identity and parameters; CCSDS-only fields | Source trace and existing conversion tests | 25 conversion tests pass; losses are target-format limitations |
 | OPM → OEM (`propagate-kepler`) | Identity, frame/time, derived coverage, generated header | Source trace and focused regression tests | `OBJECT_ID` preservation fixed; 14 tests pass |
-| OPM → OEM (`propagate-orbit`) | Identity, frame/time, generated header, optional OPM blocks | Focused behavior tests and numerical composition integration | Name/ID carry-through and Earth/J2000/UTC validation verified; document intentional optional-field omissions |
+| OPM → OEM (`propagate-orbit`) | Identity, comments, frame/time, covariance, maneuvers, physical parameters | Focused behavior tests and serialized composition integration | Name/ID/comments carry through; incompatible context is rejected; covariance serialization and OPM physical-parameter use are capability gaps |
 | TLE/OMM → OEM propagation | Identity, frame/time, comments, generated header | DSST/Kepler serialized tests and SGP4 forwarding test | OMM comments now carry through all three branches; TLE has no source comments; verify SGP4 serialized output and frame semantics |
 | OMM/TLE → OPM | Identity, frame/time, comments, generated header | Source trace through intermediate OEM and common fitter | OMM comments now reach intermediate OEM and fitter copies them to OPM header; verify full wrapper output |
 | OEM → OMM | Identity, comments, context, coverage, covariance | Source trace | Fresh OMM defaults to ICRF/EARTH/UTC; verify frame semantics and document omissions |
 | OEM → OPM | Identity, comments, context, covariance, maneuvers, physical parameters | Source trace | Selected identity/context and comments survive; optional blocks are not copied |
 | OEM → TLE | Identity and TLE-representable fields through intermediate OMM | Wrapper/source trace | CCSDS and OEM-only metadata are discarded by final TLE format |
-| OPM(NUM) → OEM | Identity, comments, frame/time, optional OPM fields | Focused behavior tests and serialized composition test | Name/ID/comments carry through; unsupported context is rejected; classify optional-field omissions |
+| OPM(NUM) → OEM | Identity, comments, frame/time, covariance, maneuvers, physical parameters | Focused behavior tests and serialized composition test | Name/ID/comments carry through; unsupported context is rejected; covariance and physical-input gaps documented |
 | OPM(NUM) → OMM | Identity, comments, frame/time, optional OPM fields | DSST composition integration test | `OBJECT_ID` and source comment verified end to end for DSST; other fit theories and fields remain |
 | OPM(2B) → OMM | Identity, frame/time, comments, optional OPM fields | DSST composition integration test | `OBJECT_ID` verified end to end for DSST; other fit theories and fields remain |
 | OMM → OEM theory variants | Identity, source comments, frame/time, coverage, provenance | DSST/Kepler serialized tests; SGP4 forwarding test | Comments verified/forwarded; verify SGP4 serialized output, other metadata, and frame semantics |
