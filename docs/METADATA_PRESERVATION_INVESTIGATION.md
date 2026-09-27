@@ -47,16 +47,14 @@ Track these categories where the source and target formats support them:
 - **OEM fits:** serialized checks cover OMM Brouwer/DSST/SGP4, OPM two-body/numerical, and SGP4 TLE output. Non-equivalent frames are rejected instead of relabeled; identity, comments, selected context, and representative omissions are verified.
 - Combined focused route suites passed: 406 tests; the two accuracy cases and all eight direct SGP4 tests also pass. The SGP4 test module loads `naif0012.tls` through the shared SPICE helper. Existing LibreSSL warnings remain.
 
-**Initial hypothesis to verify:**
+**Working conclusion:**
 
-Several conversion paths rebuild output metadata from a deliberately selected subset of source fields. Some omissions will be format limitations; others may be undocumented or unintended. The field-level fixtures and serialization checks above will distinguish these cases.
+Conversion paths often rebuild metadata from a selected subset of source fields. Serialized checks now distinguish target-format limitations from fields omitted by the current implementation, including companion-report behavior where applicable.
 
-**Not yet verified:**
+**Remaining scope and known limitations:**
 
-- Exact preservation behavior for all fields and all supported route variants.
-- Whether source comments and optional metadata survive every composed intermediate step.
-- Whether metadata claims in the comparison document match serialized outputs.
-- Whether test gaps correspond to actual conversion defects.
+- The checks are representative, not an exhaustive assertion of every field across every route and model combination.
+- `CcsdsOem` does not read or write covariance. OPM/OMM covariance therefore does not reach OEM output; adding support requires covariance-frame-aware propagation and serialization.
 
 ## Next Routes to Examine
 
