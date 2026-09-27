@@ -11,6 +11,7 @@ from ephem_toolkit.core.ccsds.omm import (
     CcsdsOmm,
     OmmCovariance,
     OmmSpacecraftParameters,
+    TleParameters,
 )
 from ephem_toolkit.core.ccsds.opm import CcsdsOpm
 import ephem_toolkit.core.cli as core_cli
@@ -32,6 +33,19 @@ def _add_optional_omm_blocks(source_omm: CcsdsOmm) -> None:
     )
     source_omm.covariance = OmmCovariance(np.eye(6), ref_frame=source_omm.ref_frame)
     source_omm.data["USER_DEFINED_AUDIT"] = "OMM-only value"
+    if source_omm.mean_element_theory.upper() in {"SGP4", "SGP/SGP4"}:
+        source_omm.tle_parameters = TleParameters(
+            ephemeris_type=2,
+            classification_type="C",
+            norad_cat_id=25544,
+            element_set_no=1234,
+            rev_at_epoch=56789,
+            bstar="1.2345E-5",
+            mean_motion_dot="2.5E-6",
+            mean_motion_ddot="3.5E-7",
+            bterm="4.5E-8",
+            agom="5.5E-9",
+        )
 
 
 def _assert_optional_omm_blocks_omitted(output_path: Path, converted: CcsdsOpm) -> None:
@@ -49,7 +63,15 @@ def _assert_optional_omm_blocks_omitted(output_path: Path, converted: CcsdsOpm) 
         "CX_X",
         "USER_DEFINED_AUDIT",
         "BSTAR",
+        "BTERM",
+        "AGOM",
+        "EPHEMERIS_TYPE",
+        "CLASSIFICATION_TYPE",
         "NORAD_CAT_ID",
+        "ELEMENT_SET_NO",
+        "REV_AT_EPOCH",
+        "MEAN_MOTION_DOT",
+        "MEAN_MOTION_DDOT",
     ):
         assert field not in serialized
 
@@ -63,6 +85,23 @@ def test_sgp4_omm_to_opm_preserves_source_comments_in_serialized_header(
     _add_optional_omm_blocks(source_omm)
     input_path = tmp_path / "source.omm"
     source_omm.to_file(input_path)
+    parsed_source_omm = CcsdsOmm.from_source(input_path)
+    assert parsed_source_omm.tle_parameters is not None
+    assert parsed_source_omm.tle_parameters.ephemeris_type == 2
+    assert parsed_source_omm.tle_parameters.classification_type == "C"
+    assert parsed_source_omm.tle_parameters.norad_cat_id == 25544
+    assert parsed_source_omm.tle_parameters.element_set_no == 1234
+    assert parsed_source_omm.tle_parameters.rev_at_epoch == 56789
+    for field in (
+        "bstar",
+        "mean_motion_dot",
+        "mean_motion_ddot",
+        "bterm",
+        "agom",
+    ):
+        assert float(getattr(parsed_source_omm.tle_parameters, field)) == pytest.approx(
+            float(getattr(source_omm.tle_parameters, field))
+        )
     output_path = tmp_path / "converted.opm"
     fit_report = tmp_path / "converted.fit.json"
 

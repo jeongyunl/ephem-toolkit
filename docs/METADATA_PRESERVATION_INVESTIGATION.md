@@ -123,7 +123,10 @@ capability gaps.
      generated provenance only.
    - Serialized DSST and SGP4 OMM wrapper tests confirm covariance,
      spacecraft parameters, reference-frame epoch, user-defined values, and
-     source TLE parameters are absent from the final OPM. The intermediate OEM
+     all SGP4 TLE parameters (`EPHEMERIS_TYPE`, `CLASSIFICATION_TYPE`,
+     `NORAD_CAT_ID`, `ELEMENT_SET_NO`, `REV_AT_EPOCH`, `BSTAR`,
+     `MEAN_MOTION_DOT`, `MEAN_MOTION_DDOT`, `BTERM`, and `AGOM`) are absent from
+     the final OPM. The intermediate OEM
      retains covariance at the OMM epoch; the OPM fitter omits it. DSST
      spacecraft parameters affect intermediate propagation, not OPM metadata.
    - OMM `CLASSIFICATION` and `MESSAGE_ID` are carried through the intermediate
