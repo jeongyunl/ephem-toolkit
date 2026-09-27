@@ -20,6 +20,8 @@ from ephem_toolkit.omm_to_opm.__main__ import _forward_arguments, main
 
 
 def _add_optional_omm_blocks(source_omm: CcsdsOmm) -> None:
+    source_omm.classification = "C"
+    source_omm.message_id = "OMM-SOURCE-MESSAGE"
     source_omm.ref_frame_epoch = "2024-01-01T00:00:00"
     source_omm.spacecraft_parameters = OmmSpacecraftParameters(
         mass=420.0,
@@ -33,6 +35,8 @@ def _add_optional_omm_blocks(source_omm: CcsdsOmm) -> None:
 
 
 def _assert_optional_omm_blocks_omitted(output_path: Path, converted: CcsdsOpm) -> None:
+    assert converted.header.classification == ""
+    assert converted.header.message_id == ""
     assert converted.spacecraft_parameters is None
     assert converted.covariance is None
     serialized = output_path.read_text(encoding="utf-8")
