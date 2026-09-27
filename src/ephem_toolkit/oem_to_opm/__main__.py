@@ -123,6 +123,8 @@ def build_opm(
     ref_frame: str,
     time_system: str,
     mu_m3_s2: float,
+    classification: str = "",
+    message_id: str = "",
 ) -> opm.CcsdsOpm:
     """Build an OPM containing the initial state and optional fitted elements.
 
@@ -160,6 +162,8 @@ def build_opm(
                 datetime.now(timezone.utc), fractional_second_places=3
             ),
             originator="oem_to_opm",
+            classification=classification,
+            message_id=message_id,
         ),
         metadata={
             "OBJECT_NAME": object_name,
@@ -228,6 +232,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     states: list[tuple[float, np.ndarray]] = oem_data.states
     source_comments = list(getattr(oem_data.meta, "comments", []))
+    source_header = getattr(oem_data, "header", None)
     verbose_message(show_progress, f"loaded {len(states)} OEM state vectors")
     debug_message(
         cli_args.debug,
@@ -465,6 +470,8 @@ def main(argv: Sequence[str] | None = None) -> None:
                 ref_frame=oem_data.meta.ref_frame or "ICRF",
                 time_system=oem_data.meta.time_system or "UTC",
                 mu_m3_s2=cli_args.mu_m3_s2,
+                classification=getattr(source_header, "classification", ""),
+                message_id=getattr(source_header, "message_id", ""),
             )
             opm_obj.header.comments.extend(source_comments)
             opm_obj.header.comments.extend(

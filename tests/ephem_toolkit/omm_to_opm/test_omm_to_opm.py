@@ -35,8 +35,6 @@ def _add_optional_omm_blocks(source_omm: CcsdsOmm) -> None:
 
 
 def _assert_optional_omm_blocks_omitted(output_path: Path, converted: CcsdsOpm) -> None:
-    assert converted.header.classification == ""
-    assert converted.header.message_id == ""
     assert converted.spacecraft_parameters is None
     assert converted.covariance is None
     serialized = output_path.read_text(encoding="utf-8")
@@ -89,6 +87,8 @@ def test_sgp4_omm_to_opm_preserves_source_comments_in_serialized_header(
     assert converted_opm.metadata["CENTER_NAME"] == "EARTH"
     assert converted_opm.metadata["REF_FRAME"] == "EME2000"
     assert converted_opm.metadata["TIME_SYSTEM"] == "UTC"
+    assert converted_opm.header.classification == source_omm.classification
+    assert converted_opm.header.message_id == source_omm.message_id
     _assert_optional_omm_blocks_omitted(output_path, converted_opm)
     assert "SOURCE_COMMENT: SGP4 OMM to OPM" in converted_opm.header.comments
     assert any("source=OMM" in comment for comment in converted_opm.header.comments)
@@ -155,6 +155,8 @@ def test_omm_to_opm_preserves_source_comments_in_serialized_header(
     assert converted_opm.metadata["CENTER_NAME"] == "EARTH"
     assert converted_opm.metadata["REF_FRAME"] == "EME2000"
     assert converted_opm.metadata["TIME_SYSTEM"] == "UTC"
+    assert converted_opm.header.classification == source_omm.classification
+    assert converted_opm.header.message_id == source_omm.message_id
     assert converted_opm.header.originator == "oem_to_opm"
     assert converted_opm.header.creation_date
     _assert_optional_omm_blocks_omitted(output_path, converted_opm)
