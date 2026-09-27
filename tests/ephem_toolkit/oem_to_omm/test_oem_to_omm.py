@@ -2,6 +2,7 @@ import sys
 from datetime import timedelta
 from io import StringIO
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -393,11 +394,15 @@ def test_main_serializes_oem_metadata_for_each_fit_model(
     source_meta.stop_time = "2024-01-01T00:10:00"
     source_meta.interpolation = "LAGRANGE"
     source_meta.interpolation_degree = 7
+    source_oem = DummyOemData(states, source_meta)
+    source_oem.header = SimpleNamespace(
+        classification="C", message_id="OEM-SOURCE-MESSAGE"
+    )
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
         oem.CcsdsOem,
         "read",
-        lambda *_args, **_kwargs: DummyOemData(states, source_meta),
+        lambda *_args, **_kwargs: source_oem,
     )
     monkeypatch.setattr(
         provenance, "resolve_source_model", lambda *_args: ("TEST", None)
@@ -485,6 +490,8 @@ def test_main_serializes_oem_metadata_for_each_fit_model(
     assert converted.ref_frame == expected_frame
     assert converted.time_system == "UTC"
     assert converted.mean_element_theory == expected_theory
+    assert converted.classification == "C"
+    assert converted.message_id == "OEM-SOURCE-MESSAGE"
     assert converted.originator == "oem_to_omm"
     assert converted.creation_date
     assert "OEM_SOURCE_COMMENT: preserve me" in converted.comments
