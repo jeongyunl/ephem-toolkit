@@ -249,9 +249,10 @@ Note: Must be documented in Interface Control Document (ICD).
 
 ### OMM → OPM
 - Composed propagation to an intermediate OEM followed by numerical OPM fitting
-- **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`; the output epoch is derived from the generated OEM
+- **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`, and OMM comments (as OPM header comments); the output epoch is derived from the generated OEM
 - **Generated/set by current implementation**: OPM header and the context supplied by the intermediate OEM (`EARTH`, `EME2000`, `UTC`)
-- **Not copied**: source OMM header/comments, original frame/time labels, mean-element theory and values, TLE parameters, covariance, and spacecraft parameters
+- **Not copied**: other source OMM header fields, original frame/time labels, mean-element theory and values, TLE parameters, covariance, and spacecraft parameters
+- **Caution**: the SGP4 input frame can be TEME, which is not included in the stated EME2000/J2000/ICRF/GCRF equivalence assumption
 
 ### OMM → TLE
 - Generates standard 2-line format

@@ -59,6 +59,7 @@ Track these categories where the source and target formats support them:
 - Traced OMM/TLE→OEM propagation: it retains object name and object ID, generates an OEM header and provenance comment, and writes fixed `CENTER_NAME=EARTH`, `REF_FRAME=EME2000`, and `TIME_SYSTEM=UTC`. A serialized DSST test showed OMM comments were initially omitted; source comments are now carried into OEM metadata comments on SGP4, DSST, and Kepler paths. The `propagate-omm` suite passes (23 passed; one LibreSSL/urllib3 warning). Source OMM header fields and frame/time labels are still not generally copied.
 - Added a serialized SGP4 OMM→OEM test using a TEME-declared input; identity, comments, generated header, coverage, provenance, and output `EME2000` label are verified. The propagation suite now passes (24 passed; one LibreSSL/urllib3 warning). Under the stated assumption, Earth-centered EME2000/J2000/ICRF/GCRF are equivalent; TEME remains outside that equivalence and needs separate validation.
 - The OMM→OPM wrapper delegates to a fitter that copies intermediate OEM metadata comments into the OPM header. Source OMM comments now reach that intermediate OEM; full serialized wrapper behavior remains to be verified.
+- Added a serialized OMM(DSST)→OPM wrapper test: object identity, `EARTH`/`EME2000`/`UTC` context, regenerated originator, source/provenance comments in the OPM header, and fit-report source comments/target provenance are verified. The OMM→OPM and shared fitter suites pass (33 passed).
 - Traced OMM→OPM and TLE→OPM wrappers: both generate an intermediate OEM and delegate to OEM→OPM fitting, so their context and comments reflect that generated OEM rather than copying the source message header or comments.
 - Traced OEM→OMM fitting: it selects object name and object ID and copies OEM metadata comments into output comments, but builds a fresh OMM. The builder defaults to `REF_FRAME=ICRF`, `CENTER_NAME=EARTH`, and `TIME_SYSTEM=UTC`; it does not copy OEM reference-frame epoch, coverage/interpolation metadata, covariance, or other optional blocks. The input state frame is not transformed by this metadata assignment, so non-ICRF inputs need a semantic frame check.
 - Traced OEM→OPM fitting: object name, object ID, center, frame, and time system are selected for output; OEM metadata comments are moved to OPM header comments. The builder creates a new header and does not carry covariance, maneuvers, spacecraft parameters, or OEM coverage/interpolation fields.
@@ -117,9 +118,10 @@ unexpected.
      assumption. Validate the SGP4/TEME-to-EME2000 state semantics separately,
      and verify composed OMM→OPM comment carry-through.
 5. **OMM/TLE → OPM(NUM)**
-   - Verify the wrapper's complete output after intermediate OEM generation
-     and OPM fitting: identity, epoch, frame/time, comments, header, and fit
-     report. Check route-specific differences between OMM and TLE inputs.
+   - OMM(DSST) wrapper output is verified for identity, epoch/context,
+     comments, header, and report.
+   - Verify SGP4 OMM and TLE wrapper outputs separately, especially source
+     comments and the TEME-to-EME2000 frame question.
 6. **OMM(2B/BROUWER/DSST) → TLE refit**
    - Check the `propagate-omm` → OEM → `oem-to-tle` composition, including
      object identity, generated TLE fields, fit-report provenance, and loss of
@@ -145,7 +147,7 @@ Use this table as the audit proceeds. Record references to focused tests or fixt
 | OPM → OEM (`propagate-kepler`) | Identity, comments, frame/time, derived coverage, generated header | Focused parser/output tests and composed integration | `OBJECT_ID` and OPM header comments carry through; OEM header and propagation provenance are generated |
 | OPM → OEM (`propagate-orbit`) | Identity, comments, frame/time, covariance, maneuvers, physical parameters | Focused behavior tests and serialized composition integration | Name/ID/comments carry through; incompatible context is rejected; covariance serialization and OPM physical-parameter use are capability gaps |
 | TLE/OMM → OEM propagation | Identity, frame/time, comments, generated header | DSST/Kepler serialized tests and SGP4 forwarding test | OMM comments now carry through all three branches; TLE has no source comments; verify SGP4 serialized output and frame semantics |
-| OMM/TLE → OPM | Identity, frame/time, comments, generated header | Source trace through intermediate OEM and common fitter | OMM comments now reach intermediate OEM and fitter copies them to OPM header; verify full wrapper output |
+| OMM/TLE → OPM | Identity, frame/time, comments, generated header/report | OMM(DSST) serialized integration plus source trace | DSST identity/context/comments/report verified; SGP4 OMM and TLE variants remain |
 | OEM → OMM | Identity, comments, context, coverage, covariance | Source trace | Fresh OMM defaults to ICRF/EARTH/UTC; verify frame semantics and document omissions |
 | OEM → OPM | Identity, comments, context, covariance, maneuvers, physical parameters | Source trace | Selected identity/context and comments survive; optional blocks are not copied |
 | OEM → TLE | Identity and TLE-representable fields through intermediate OMM | Wrapper/source trace | CCSDS and OEM-only metadata are discarded by final TLE format |
@@ -153,7 +155,8 @@ Use this table as the audit proceeds. Record references to focused tests or fixt
 | OPM(NUM) → OMM | Identity, comments, frame/time, theory, fit report | Brouwer/DSST/SGP4 composition integration tests | Name/ID/comments and target theory verified for all supported fit models; frame labels differ by model; semantic frame validation remains |
 | OPM(2B) → OMM | Identity, comments, frame/time, theory, fit report | Brouwer/DSST/SGP4 composition integration tests | Name/ID/comments and target theory verified for all supported fits; frame labels differ by model; semantic frame validation remains |
 | OMM → OEM theory variants | Identity, comments, generated frame/time, coverage, provenance | DSST/Kepler/SGP4 serialized tests | Identity/comments/coverage/provenance verified; EME2000-equivalent inertial labels accepted; SGP4 TEME semantics and composed OMM→OPM comments remain |
-| OMM/TLE → OPM(NUM) | Identity, frame/time, comments, generated header/report | Source trace through wrappers | Verify route-specific serialized outputs and reports |
+| OMM(DSST) → OPM(NUM) | Identity, frame/time, comments, generated header/report | Serialized wrapper integration test | Identity, EARTH/EME2000/UTC, comments, originator, and report provenance verified |
+| OMM(SGP4)/TLE → OPM(NUM) | Identity, frame/time, comments, generated header/report | Source trace through wrappers | Verify route-specific serialized outputs; resolve SGP4/TEME frame semantics |
 | OMM non-SGP4 → TLE refit | Identity, fit provenance, TLE fields | Route identified | Verify composed propagation/refit and final format losses |
 | OEM fit model variants | Comments, context, optional fields, reports | Partial source trace | Verify serialized OMM/OPM/TLE for each model |
 | Direct TLE ↔ OMM | TLE-representable metadata and serialized headers | Partial tests | Expand beyond orbital-value round trips; classify CCSDS-only losses |
