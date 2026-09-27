@@ -26,7 +26,9 @@ Apply these steps to every route and model variant in [Route Status](#route-stat
 
 Track these categories where the source and target formats support them:
 
-- Header: format version, creation date, originator, classification, message ID, and comments.
+- Header: format-specific version, creation date, originator, classification,
+  message ID, and comments. Treat each target format version as generated
+  schema metadata, not as a source value to preserve across conversion.
 - Object identification: object name, object ID, NORAD catalog ID, and international designator.
 - Reference context: center, frame, frame epoch, and time system.
 - Epoch and coverage: epoch, start/stop times, and usable start/stop times.
