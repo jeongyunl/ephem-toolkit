@@ -112,8 +112,9 @@ models, integrator, step size, spacecraft parameters, and output sampling.
 
 Use `propagate-tle input.tle -d 6h -s 5m -o output.oem`, or use the equivalent
 `propagate-omm input.tle --tle ...` path. Both produce an SGP4 Cartesian
-history. The output frame is TEME and the time system is UTC unless the
-command’s output contract says otherwise.
+history. TudatPy converts its TEME SGP4 solution to J2000; the generated OEM
+uses `REF_FRAME=EME2000` and `TIME_SYSTEM=UTC`. EME2000 is treated as equivalent
+to J2000 under this toolkit's inertial-frame convention.
 
 ## Routes to OMM
 

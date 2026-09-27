@@ -245,14 +245,14 @@ Note: Must be documented in Interface Control Document (ICD).
 - **Carried forward**: OMM comments as OEM metadata comments
 - **Not copied**: other OMM header fields, source frame/time labels, mean elements and theory fields, TLE parameters, covariance, and spacecraft parameters
 - **Frame assumption**: treat Earth-centered `EME2000`, `J2000`, `ICRF`, and `GCRF` labels as equivalent for this comparison
-- **Caution**: an SGP4 OMM may declare `TEME`, which is outside that equivalence assumption; verify the propagator's returned state-frame semantics before labeling those states `EME2000`
+- **SGP4 frame handling**: TudatPy converts the raw TEME SGP4 solution to J2000; the runtime ephemeris reports Earth/J2000. The output `EME2000` label is accepted under the stated inertial-frame equivalence assumption
 
 ### OMM → OPM
 - Composed propagation to an intermediate OEM followed by numerical OPM fitting
 - **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`, and OMM comments (as OPM header comments); the output epoch is derived from the generated OEM
 - **Generated/set by current implementation**: OPM header and the context supplied by the intermediate OEM (`EARTH`, `EME2000`, `UTC`)
 - **Not copied**: other source OMM header fields, original frame/time labels, mean-element theory and values, TLE parameters, covariance, and spacecraft parameters
-- **Caution**: the SGP4 input frame can be TEME, which is not included in the stated EME2000/J2000/ICRF/GCRF equivalence assumption
+- **SGP4 frame handling**: the intermediate TudatPy ephemeris converts TEME to J2000, so its generated OEM/OPM `EME2000` label is accepted under the stated inertial-frame equivalence assumption
 
 ### OMM → TLE
 - Generates standard 2-line format
@@ -290,7 +290,7 @@ Note: Must be documented in Interface Control Document (ICD).
 - **Carried forward**: `OBJECT_NAME` and `OBJECT_ID` (from the TLE designator)
 - **Generated/set by current implementation**: `CENTER_NAME=EARTH`, `REF_FRAME=EME2000`, `TIME_SYSTEM=UTC`, coverage times, and propagation provenance
 - **Lost**: All TLE-specific parameters, mean elements, `BSTAR`, `ELEMENT_SET_NO`
-- **Caution**: the OEM frame label is not the TLE's implicit `TEME`; verify the propagator's returned frame semantics
+- **SGP4 frame handling**: TudatPy converts the raw TLE/TEME solution to J2000 before OEM serialization; `EME2000` is accepted as equivalent under the stated assumption
 
 ### TLE → OMM
 - Direct conversion supported
@@ -304,4 +304,4 @@ Note: Must be documented in Interface Control Document (ICD).
 - **Carried forward**: `OBJECT_NAME` and `OBJECT_ID` (from the TLE designator)
 - **Generated/set by current implementation**: OPM header, epoch, `CENTER_NAME=EARTH`, `REF_FRAME=EME2000`, `TIME_SYSTEM=UTC`; OPM header comments contain generated SGP4 propagation and fit provenance
 - **Lost**: TLE parameters such as `BSTAR`, `MEAN_MOTION_DOT`, `MEAN_MOTION_DDOT`, `ELEMENT_SET_NO`, `REV_AT_EPOCH`, and `CLASSIFICATION_TYPE`; TLE has no source comment field
-- **Caution**: the source TLE/SGP4 state is associated with TEME; TEME-to-EME2000 semantics remain outside the stated frame-equivalence assumption
+- **SGP4 frame handling**: the intermediate TudatPy ephemeris converts TEME to J2000 before the OPM fit; the generated `EME2000` label is accepted under the stated assumption

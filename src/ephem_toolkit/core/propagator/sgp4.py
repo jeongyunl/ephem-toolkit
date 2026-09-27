@@ -18,6 +18,9 @@ class Sgp4Propagator(Propagator[tle.Tle]):
     Wraps TudatPy's ``environment_setup.ephemeris.sgp4`` ephemeris.
     Requires tudatpy to be installed.
 
+    TudatPy converts the SGP4 TEME state to its configured inertial frame;
+    this wrapper uses the API default Earth/J2000 frame.
+
     Initial state is a :class:`~ephem_toolkit.core.tle.Tle` object.
     The epoch is derived from the TLE's ``epoch_year``/``epoch_day`` fields.
     """

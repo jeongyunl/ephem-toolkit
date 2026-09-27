@@ -28,6 +28,8 @@ def test_sgp4_propagator_initialization(iss_tle):
     prop = Sgp4Propagator(initial_state=iss_tle)
     assert prop._tle is iss_tle
     assert prop._initial_state_set
+    assert prop._ephemeris.frame_origin == "Earth"
+    assert prop._ephemeris.frame_orientation == "J2000"
 
 
 def test_sgp4_propagator_initial_epoch(iss_tle):
