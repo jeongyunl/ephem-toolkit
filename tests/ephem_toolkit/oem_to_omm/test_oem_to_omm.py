@@ -395,7 +395,6 @@ def test_main_serializes_oem_metadata_for_each_fit_model(
     source_meta = DummyMeta("SOURCE SAT", "2024-001A")
     source_meta.ref_frame = source_frame
     source_meta.comments = ["OEM_SOURCE_COMMENT: preserve me"]
-    source_meta.ref_frame_epoch = "2000-01-01T12:00:00"
     source_meta.start_time = "2024-01-01T00:00:00"
     source_meta.stop_time = "2024-01-01T00:10:00"
     source_meta.interpolation = "LAGRANGE"
@@ -503,7 +502,6 @@ def test_main_serializes_oem_metadata_for_each_fit_model(
     assert "OEM_SOURCE_COMMENT: preserve me" in converted.comments
     assert "FIT_PROVENANCE" in converted.comments
     assert "FIT_SUMMARY" in converted.comments
-    assert converted.ref_frame_epoch == ""
     assert converted.covariance is None
     assert converted.spacecraft_parameters is None
     assert "START_TIME" not in serialized

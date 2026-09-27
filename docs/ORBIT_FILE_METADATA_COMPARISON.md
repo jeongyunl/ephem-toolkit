@@ -226,7 +226,7 @@ Note: Must be documented in Interface Control Document (ICD).
 - Theory selection (SGP4, DSST) affects accuracy
 - **Carried forward**: `OBJECT_NAME` and `OBJECT_ID` (unless overridden or absent), `CLASSIFICATION`, `MESSAGE_ID`, and OEM metadata comments (as OMM comments)
 - **Generated/set by current implementation**: OMM `ORIGINATOR` and `CREATION_DATE`, `MEAN_ELEMENT_THEORY`, `CENTER_NAME=EARTH`, `REF_FRAME=ICRF` for Brouwer/DSST or `TEME` for SGP4, `TIME_SYSTEM=UTC`, and fitted mean elements
-- **Not copied**: source `CENTER_NAME`, `REF_FRAME`, `REF_FRAME_EPOCH`, `TIME_SYSTEM`, `START_TIME`, `STOP_TIME`, usable time bounds, interpolation settings, Cartesian state vectors, acceleration, and covariance
+- **Not copied**: source `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`, `START_TIME`, `STOP_TIME`, usable time bounds, interpolation settings, Cartesian state vectors, acceleration, and covariance. `REF_FRAME_EPOCH` is inapplicable to the accepted fixed J2000-equivalent input frames; SGP4 output uses its own `TEME` frame.
 - **Covariance caveat**: `CcsdsOem` can parse OEM covariance, but `oem-to-omm` does not copy it into the fitted OMM. Both formats can represent covariance, so this is a conversion capability gap.
 - **Input frame requirement**: no state transformation is applied; the fitter accepts only `J2000`, `EME2000`, `ICRF`, or `GCRF` source frames (treated as equivalent) and rejects other frame labels
 - **SGP4 frame semantics**: the OMM records SGP4 mean elements in `TEME`; TudatPy converts propagated SGP4 states to `J2000` for arc scoring
@@ -234,9 +234,9 @@ Note: Must be documented in Interface Control Document (ICD).
 ### OEM → OPM
 - Extract single epoch from time series
 - Two-body conversion uses the first state; numerical fitting may produce a fitted initial state
-- **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`, `CLASSIFICATION`, and `MESSAGE_ID`; OEM metadata comments are moved to OPM header comments
+- **Carried forward**: `OBJECT_NAME`, `OBJECT_ID`, `CENTER_NAME`, `REF_FRAME`, `TIME_SYSTEM`, `CLASSIFICATION`, and `MESSAGE_ID`; `REF_FRAME_EPOCH` is copied when present and applicable to the unchanged source frame. OEM metadata comments are moved to OPM header comments
 - **Generated/transformed**: OPM `ORIGINATOR`, `CREATION_DATE`, and `EPOCH`; Cartesian state may be fitted, and optional Keplerian elements are emitted only for two-body fitting
-- **Not copied**: `REF_FRAME_EPOCH`, OEM coverage/interpolation fields, remaining time series, covariance, spacecraft parameters, and other unsupported optional fields
+- **Not copied**: OEM coverage/interpolation fields, remaining time series, covariance, spacecraft parameters, and other unsupported optional fields
 - **Covariance caveat**: although OPM supports covariance, the OEM-to-OPM fitter does not copy parsed OEM covariance into the fitted OPM. This is a conversion capability gap, not a format limitation.
 
 ### OEM → TLE

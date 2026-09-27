@@ -175,6 +175,8 @@ def test_numerical_fit_model_dispatches_to_shared_fitter(
 ) -> None:
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
     dummy_oem = DummyOemData()
+    dummy_oem.meta.ref_frame = "TOD"
+    dummy_oem.meta.ref_frame_epoch = "2024-01-01T00:00:00.000"
     dummy_oem.header = SimpleNamespace(
         classification="C", message_id="OEM-SOURCE-MESSAGE"
     )
@@ -259,7 +261,8 @@ def test_numerical_fit_model_dispatches_to_shared_fitter(
         "OBJECT_NAME": "SAT",
         "OBJECT_ID": "2024-001A",
         "CENTER_NAME": "EARTH",
-        "REF_FRAME": "ICRF",
+        "REF_FRAME": "TOD",
+        "REF_FRAME_EPOCH": "2024-01-01T00:00:00.000",
         "TIME_SYSTEM": "UTC",
     }
     assert data["X"] == pytest.approx(7000.0)
@@ -294,14 +297,27 @@ def test_parser_accepts_max_fit_iterations() -> None:
     assert args.fit_max_iterations == 12
 
 
-@pytest.mark.parametrize("source_frame", ["J2000", "EME2000", "ICRF", "GCRF"])
+@pytest.mark.parametrize(
+    ("source_frame", "source_frame_epoch"),
+    [
+        ("J2000", ""),
+        ("EME2000", ""),
+        ("ICRF", ""),
+        ("GCRF", ""),
+        ("TOD", "2024-01-01T00:00:00.000"),
+    ],
+)
 def test_main_writes_initial_state_and_osculating_elements_to_opm(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, source_frame: str
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    source_frame: str,
+    source_frame_epoch: str,
 ) -> None:
     """The OEM-to-OPM command should serialize its initial state and fit."""
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
     source_oem = DummyOemData()
     source_oem.meta.ref_frame = source_frame
+    source_oem.meta.ref_frame_epoch = source_frame_epoch
     source_oem.header = SimpleNamespace(
         classification="C", message_id="OEM-SOURCE-MESSAGE"
     )
@@ -339,13 +355,16 @@ def test_main_writes_initial_state_and_osculating_elements_to_opm(
     assert header["MESSAGE_ID"] == "OEM-SOURCE-MESSAGE"
     assert header["COMMENT"][0] == DummyMeta.comments[0]
     assert any("source=OEM/unknown" in comment for comment in header["COMMENT"])
-    assert metadata == {
+    expected_metadata = {
         "OBJECT_NAME": "SAT",
         "OBJECT_ID": "2024-001A",
         "CENTER_NAME": "EARTH",
         "REF_FRAME": source_frame,
         "TIME_SYSTEM": "UTC",
     }
+    if source_frame_epoch:
+        expected_metadata["REF_FRAME_EPOCH"] = source_frame_epoch
+    assert metadata == expected_metadata
     assert data["X"] == pytest.approx(7000.0)
     assert data["Y"] == pytest.approx(1000.0)
     assert data["Z_DOT"] == pytest.approx(-0.2)
@@ -360,7 +379,7 @@ def test_main_writes_initial_state_and_osculating_elements_to_opm(
     assert "MASS" not in data
     assert "MANEUVERS" not in data
     serialized = output_path.read_text(encoding="utf-8")
-    assert "REF_FRAME_EPOCH" not in serialized
+    assert ("REF_FRAME_EPOCH" in serialized) is bool(source_frame_epoch)
     assert "START_TIME" not in serialized
     assert "INTERPOLATION" not in serialized
 

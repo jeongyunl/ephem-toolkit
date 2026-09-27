@@ -121,6 +121,7 @@ def build_opm(
     object_id: str,
     center_name: str,
     ref_frame: str,
+    ref_frame_epoch: str = "",
     time_system: str,
     mu_m3_s2: float,
     classification: str = "",
@@ -145,6 +146,8 @@ def build_opm(
         Central body name for OPM metadata.
     ref_frame : str
         Reference frame for OPM metadata.
+    ref_frame_epoch : str
+        Epoch of the reference frame, when it is not intrinsic to its definition.
     time_system : str
         Time system for OPM metadata.
     mu_m3_s2 : float
@@ -156,6 +159,16 @@ def build_opm(
         OPM containing the initial state and, for two-body fits, fitted elements.
     """
     epoch_str = time_utils.datetime_to_iso8601(epoch, fractional_second_places=6)
+    metadata = {
+        "OBJECT_NAME": object_name,
+        "OBJECT_ID": object_id,
+        "CENTER_NAME": center_name,
+        "REF_FRAME": ref_frame,
+        "TIME_SYSTEM": time_system,
+    }
+    if ref_frame_epoch:
+        metadata["REF_FRAME_EPOCH"] = ref_frame_epoch
+
     return opm.CcsdsOpm(
         header=opm.OpmHeader(
             creation_date=time_utils.datetime_to_iso8601(
@@ -165,13 +178,7 @@ def build_opm(
             classification=classification,
             message_id=message_id,
         ),
-        metadata={
-            "OBJECT_NAME": object_name,
-            "OBJECT_ID": object_id,
-            "CENTER_NAME": center_name,
-            "REF_FRAME": ref_frame,
-            "TIME_SYSTEM": time_system,
-        },
+        metadata=metadata,
         state_vector=opm.OpmStateVector(
             epoch=epoch_str,
             x=float(initial_state_m_m_s[0] / 1000.0),
@@ -468,6 +475,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 object_id=object_id,
                 center_name=oem_data.meta.center_name or "EARTH",
                 ref_frame=oem_data.meta.ref_frame or "ICRF",
+                ref_frame_epoch=getattr(oem_data.meta, "ref_frame_epoch", "") or "",
                 time_system=oem_data.meta.time_system or "UTC",
                 mu_m3_s2=cli_args.mu_m3_s2,
                 classification=getattr(source_header, "classification", ""),
