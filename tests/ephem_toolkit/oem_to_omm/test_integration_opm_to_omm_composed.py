@@ -148,7 +148,10 @@ def test_opm_to_omm_composes_kepler_propagation_and_dsst_fit(tmp_path: Path) -> 
     assert converted_omm.center_name == "EARTH"
     assert converted_omm.ref_frame == "ICRF"
     assert converted_omm.time_system == "UTC"
+    assert converted_omm.originator == "oem_to_omm"
+    assert converted_omm.creation_date
     assert source_opm.header.comments[0] in converted_omm.comments
+    assert any("EPHEMERIS_PROVENANCE:" in comment for comment in converted_omm.comments)
     report = json.loads(fit_report.read_text(encoding="utf-8"))
     assert report["status"] == "converged"
     assert report["configuration"]["fit_model"] == "dsst"
@@ -190,8 +193,16 @@ def test_opm_to_omm_composes_numerical_propagation_and_dsst_fit(tmp_path: Path) 
     converted_omm = CcsdsOmm.from_source(output_omm)
     assert "MEAN_ELEMENT_THEORY = DSST" in output_text
     assert "EPHEMERIS_PROPAGATION" in output_text
+    assert converted_omm.object_name == source_opm.metadata["OBJECT_NAME"]
     assert converted_omm.object_id == source_opm.metadata["OBJECT_ID"]
+    assert converted_omm.mean_element_theory == "DSST"
+    assert converted_omm.originator == "oem_to_omm"
+    assert converted_omm.creation_date
+    assert converted_omm.center_name == "EARTH"
+    assert converted_omm.ref_frame == "ICRF"
+    assert converted_omm.time_system == "UTC"
     assert "SOURCE_COMMENT: numerical OPM input" in converted_omm.comments
+    assert any("EPHEMERIS_PROVENANCE:" in comment for comment in converted_omm.comments)
     report = json.loads(fit_report.read_text(encoding="utf-8"))
     assert report["status"] == "converged"
     assert report["configuration"]["fit_model"] == "dsst"
