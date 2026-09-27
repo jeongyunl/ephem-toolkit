@@ -248,8 +248,8 @@ Note: Must be documented in Interface Control Document (ICD).
 - **Generated/set by current implementation**: OEM header, `CENTER_NAME=EARTH`, `REF_FRAME=EME2000`, `TIME_SYSTEM=UTC`, coverage times, and a propagation provenance comment
 - **Carried forward**: OMM comments as OEM metadata comments
 - **DSST inputs**: `MASS`, `DRAG_AREA`, and `DRAG_COEFF` configure drag only when all three are present; `SOLAR_RAD_AREA` and `SOLAR_RAD_COEFF` configure SRP when both are present. Kepler fallback does not use spacecraft parameters; SGP4 uses the OMM's TLE parameters instead.
-- **Not copied to OEM metadata**: other OMM header fields, source frame/time labels, reference-frame epoch, mean elements and theory, TLE parameters, spacecraft parameters, covariance, and user-defined fields
-- **Covariance gap**: `CcsdsOem` can serialize covariance, but `propagate-omm` does not forward or evolve OMM covariance. Frame-aware covariance propagation remains unsupported.
+- **Not copied to OEM metadata**: other OMM header fields, source frame/time labels, reference-frame epoch, mean elements and theory, TLE parameters, spacecraft parameters, and user-defined fields
+- **Covariance behavior**: full OEM output carries the OMM covariance at its source epoch, using the declared `COV_REF_FRAME` or OMM `REF_FRAME` when omitted. Covariance is not evolved across the output arc; `--data-only` omits it.
 - **Frame assumption**: treat Earth-centered `EME2000`, `J2000`, `ICRF`, and `GCRF` labels as equivalent for this comparison
 - **SGP4 frame handling**: TudatPy converts the raw TEME SGP4 solution to J2000; the runtime ephemeris reports Earth/J2000. The output `EME2000` label is accepted under the stated inertial-frame equivalence assumption
 
@@ -259,7 +259,7 @@ Note: Must be documented in Interface Control Document (ICD).
 - **Generated/set by current implementation**: OPM header and the context supplied by the intermediate OEM (`EARTH`, `EME2000`, `UTC`)
 - **Not copied to final OPM**: other source OMM header fields, original frame/time labels, reference-frame epoch, mean-element theory and values, TLE parameters, covariance, spacecraft parameters, and user-defined fields
 - **Propagation inputs**: DSST uses complete OMM drag (`MASS`, `DRAG_AREA`, `DRAG_COEFF`) and SRP (`SOLAR_RAD_AREA`, `SOLAR_RAD_COEFF`) parameter groups during the intermediate propagation; Kepler ignores spacecraft parameters and SGP4 uses TLE parameters. These inputs are not copied into the final OPM.
-- **Covariance gap**: OMM covariance is dropped by the intermediate `propagate-omm` step, so it does not reach the final OPM. OPM and OEM can represent covariance; covariance evolution/frame handling is not implemented in this composed route.
+- **Covariance gap**: the intermediate OEM carries the source OMM covariance at its source epoch, but the OEM-to-OPM fitter does not copy it into the final OPM. Covariance evolution/frame handling is not implemented in this composed route.
 - **SGP4 frame handling**: the intermediate TudatPy ephemeris converts TEME to J2000, so its generated OEM/OPM `EME2000` label is accepted under the stated inertial-frame equivalence assumption
 
 ### OMM → TLE

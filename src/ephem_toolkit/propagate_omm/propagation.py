@@ -22,6 +22,7 @@ import ephem_toolkit.core.ccsds.omm as omm
 import ephem_toolkit.core.convert_tle as convert_tle
 import ephem_toolkit.core.provenance as provenance
 import ephem_toolkit.core.propagator.kepler as kepler
+import ephem_toolkit.core.tle as tle_mod
 from ephem_toolkit.core.propagator import (
     DSSTPropagator,
     DsstPerturbations,
@@ -32,7 +33,6 @@ from ephem_toolkit.core.propagator import (
 )
 import ephem_toolkit.core.spice_utils as spice_utils
 import ephem_toolkit.core.time_utils as time_utils
-import ephem_toolkit.core.tle as tle_mod
 
 # CLI defaults
 DEFAULT_PROPAGATION_DURATION_S: float = time_utils.SECONDS_PER_DAY
@@ -101,6 +101,17 @@ def read_omm_input(cli_value: str | None) -> omm.CcsdsOmm:
     return omm.CcsdsOmm.from_source(cli_value)
 
 
+def _initial_omm_covariance(omm_data: omm.CcsdsOmm) -> oem.OemCovariance | None:
+    """Copy OMM covariance metadata for its source epoch without propagation."""
+    if omm_data.covariance is None:
+        return None
+    return oem.OemCovariance(
+        epoch=omm_data.epoch,
+        matrix=omm_data.covariance.matrix.copy(),
+        ref_frame=omm_data.covariance.ref_frame or omm_data.ref_frame or None,
+    )
+
+
 # ===================================================================
 # TLE propagation path (SGP4)
 # ===================================================================
@@ -128,6 +139,7 @@ def propagate_tle_sgp4(
     output_path: str = "-",
     source_format: str = "TLE",
     source_comments: list[str] | None = None,
+    covariance: oem.OemCovariance | None = None,
 ) -> None:
     """Propagate a TLE with SGP4 and emit OEM output.
 
@@ -184,6 +196,7 @@ def propagate_tle_sgp4(
                 target_model="SGP4",
             )
         ],
+        covariance=covariance,
     )
 
 
@@ -224,6 +237,7 @@ def propagate_omm_sgp4(
         output_path,
         source_format="OMM",
         source_comments=omm_data.comments,
+        covariance=_initial_omm_covariance(omm_data),
     )
 
 
@@ -329,6 +343,7 @@ def propagate_omm_dsst(
                 target_model="DSST",
             )
         ],
+        covariance=_initial_omm_covariance(omm_data),
     )
 
 
@@ -413,6 +428,7 @@ def propagate_omm_kepler(
                 target_model="two-body-kepler",
             )
         ],
+        covariance=_initial_omm_covariance(omm_data),
     )
 
 
@@ -428,6 +444,7 @@ def _write_oem_output(
     data_only: bool,
     output_path: str,
     comments: list[str] | None = None,
+    covariance: oem.OemCovariance | None = None,
 ) -> None:
     """Write propagated states as OEM output.
 
@@ -456,6 +473,7 @@ def _write_oem_output(
                 ref_frame="EME2000",
                 center_name="EARTH",
                 time_system="UTC",
+                covariances=[covariance] if covariance is not None else None,
             )
             if comments:
                 oem_obj.meta.comments.extend(comments)

@@ -347,6 +347,17 @@ def test_opm_physical_parameters_are_used_unless_cli_overrides(
         generated_oem.covariances[0].matrix, covariance_matrix
     )
 
+    data_only_path = tmp_path / "propagated-data-only.oem"
+    propagation.run_propagation(
+        config,
+        initial_state,
+        target_epoch_s,
+        str(data_only_path),
+        None,
+        True,
+    )
+    assert "COVARIANCE_START" not in data_only_path.read_text(encoding="utf-8")
+
 
 def test_read_initial_state_rejects_non_equivalent_covariance_frame(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]

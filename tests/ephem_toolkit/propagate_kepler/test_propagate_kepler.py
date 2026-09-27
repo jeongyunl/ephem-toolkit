@@ -237,6 +237,20 @@ def test_propagate_kepler_writes_cartesian_states_in_si_units(
         atol=0.0,
     )
 
+    data_only_path = tmp_path / "propagated-data-only.oem"
+    propagate_kepler_elements(
+        initial_epoch=epoch_dt,
+        initial_kepler_km=kepler_km,
+        duration_s=900.0,
+        step_s=900.0,
+        data_only=True,
+        output_metadata=output_metadata,
+        output_path=str(data_only_path),
+        source_comments=source_comments,
+        covariance=covariance,
+    )
+    assert "COVARIANCE_START" not in data_only_path.read_text(encoding="utf-8")
+
 
 def test_propagate_kepler_main_routes_parsed_input_and_output(
     monkeypatch: pytest.MonkeyPatch,

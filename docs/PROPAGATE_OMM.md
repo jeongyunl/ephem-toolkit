@@ -108,11 +108,12 @@ parameters, and SGP4 propagation uses the embedded TLE parameters instead.
 | `SOLAR_RAD_COEFF` | `srp_coeff` |
 
 The generated OEM carries identity, generated reference context/coverage, and
-source comments, but does not carry OMM covariance, spacecraft parameters,
-reference-frame epoch, user-defined fields, or mean-element/TLE metadata.
-`CcsdsOem` can serialize covariance blocks, but `propagate-omm` does not
-forward or evolve OMM covariance. Preserving it requires handling covariance
-frames and propagation to the requested epochs.
+source comments. In a full OEM output, OMM covariance is copied at its source
+epoch with its declared covariance frame (or the OMM reference frame when no
+`COV_REF_FRAME` is specified); it is not evolved to later output epochs.
+`--data-only` omits covariance along with the OEM metadata. Spacecraft
+parameters, reference-frame epoch, user-defined fields, and mean-element/TLE
+metadata are not copied to OEM.
 
 ### Example DSST OMM
 

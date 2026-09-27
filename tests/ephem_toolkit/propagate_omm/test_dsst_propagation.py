@@ -142,8 +142,6 @@ def _assert_optional_omm_fields_not_in_oem(output_path: Path) -> None:
         "SOLAR_RAD_COEFF",
         "DRAG_AREA",
         "DRAG_COEFF",
-        "COV_REF_FRAME",
-        "CX_X",
         "USER_DEFINED_AUDIT",
         "MEAN_ELEMENT_THEORY",
         "NORAD_CAT_ID",
@@ -152,6 +150,24 @@ def _assert_optional_omm_fields_not_in_oem(output_path: Path) -> None:
         "MEAN_MOTION_DOT",
     ):
         assert field not in serialized
+
+
+def _assert_omm_covariance_preserved(
+    output_path: Path, source_omm: omm_mod.CcsdsOmm
+) -> None:
+    output_oem = oem_mod.CcsdsOem.read(output_path)
+    assert source_omm.covariance is not None
+    assert len(output_oem.covariances) == 1
+    assert output_oem.covariances[0].epoch == source_omm.epoch
+    assert output_oem.covariances[0].ref_frame == (
+        source_omm.covariance.ref_frame or source_omm.ref_frame
+    )
+    np.testing.assert_allclose(
+        output_oem.covariances[0].matrix,
+        source_omm.covariance.matrix,
+        rtol=1.0e-14,
+        atol=0.0,
+    )
 
 
 # ===================================================================
@@ -216,6 +232,7 @@ def test_propagate_omm_kepler_preserves_source_comments(tmp_path):
         "target_model=two-body-kepler" in comment
         for comment in output_oem.meta.comments
     )
+    _assert_omm_covariance_preserved(output_path, omm_data)
     _assert_optional_omm_fields_not_in_oem(output_path)
 
 
@@ -271,6 +288,7 @@ def test_propagate_omm_sgp4_writes_metadata_and_source_comments(monkeypatch, tmp
     assert any("target_model=SGP4" in comment for comment in output_oem.meta.comments)
     assert output_oem.header.creation_date
     assert output_oem.header.originator == "ephem-toolkit"
+    _assert_omm_covariance_preserved(output_path, omm_data)
     _assert_optional_omm_fields_not_in_oem(output_path)
 
 
@@ -385,6 +403,7 @@ def test_propagate_omm_dsst_uses_spacecraft_parameters(monkeypatch, tmp_path):
     output_oem = oem_mod.CcsdsOem.read(output_path)
     assert "SOURCE_COMMENT: optional OMM fields" in output_oem.meta.comments
     assert len(output_oem.states) == 7
+    _assert_omm_covariance_preserved(Path(output_path), omm_data)
     _assert_optional_omm_fields_not_in_oem(Path(output_path))
 
 
