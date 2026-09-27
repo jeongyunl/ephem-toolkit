@@ -1,7 +1,10 @@
 """Tests for the OMM-to-OPM numerical wrapper."""
 
+import io
 import json
 from pathlib import Path
+import sys
+from datetime import timedelta
 import numpy as np
 
 import pytest
@@ -13,8 +16,10 @@ from ephem_toolkit.core.ccsds.omm import (
     OmmSpacecraftParameters,
     TleParameters,
 )
+from ephem_toolkit.core.ccsds.oem import CcsdsOem
 from ephem_toolkit.core.ccsds.opm import CcsdsOpm
 import ephem_toolkit.core.cli as core_cli
+import ephem_toolkit.core.time_utils as time_utils
 import ephem_toolkit.omm_to_opm as omm_package
 import ephem_toolkit.omm_to_opm.__main__ as omm_wrapper
 from ephem_toolkit.omm_to_opm.__main__ import _forward_arguments, main
@@ -76,8 +81,22 @@ def _assert_optional_omm_blocks_omitted(output_path: Path, converted: CcsdsOpm) 
         assert field not in serialized
 
 
+def _capture_intermediate_oem(monkeypatch) -> list[CcsdsOem]:
+    original_main = omm_wrapper.oem_to_opm_main
+    captured = []
+
+    def capture_and_delegate(*args) -> None:
+        serialized_oem = sys.stdin.read()
+        captured.append(CcsdsOem.read(io.StringIO(serialized_oem)))
+        sys.stdin = io.StringIO(serialized_oem)
+        original_main(*args)
+
+    monkeypatch.setattr(omm_wrapper, "oem_to_opm_main", capture_and_delegate)
+    return captured
+
+
 def test_sgp4_omm_to_opm_preserves_source_comments_in_serialized_header(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch
 ) -> None:
     source = Path(__file__).parents[2] / "data" / "ISS-ZARYA_1998-067A.omm"
     source_omm = CcsdsOmm.from_source(source)
@@ -104,6 +123,7 @@ def test_sgp4_omm_to_opm_preserves_source_comments_in_serialized_header(
         )
     output_path = tmp_path / "converted.opm"
     fit_report = tmp_path / "converted.fit.json"
+    intermediate_oems = _capture_intermediate_oem(monkeypatch)
 
     main(
         [
@@ -120,7 +140,26 @@ def test_sgp4_omm_to_opm_preserves_source_comments_in_serialized_header(
     )
 
     converted_opm = CcsdsOpm.from_source(output_path)
+    intermediate_oem = intermediate_oems[0]
     report = json.loads(fit_report.read_text(encoding="utf-8"))
+    start = time_utils.iso8601_to_datetime(parsed_source_omm.epoch)
+    assert intermediate_oem.meta.object_name == source_omm.object_name
+    assert intermediate_oem.meta.object_id == source_omm.object_id
+    assert intermediate_oem.meta.center_name == "EARTH"
+    assert intermediate_oem.meta.ref_frame == "EME2000"
+    assert intermediate_oem.meta.time_system == "UTC"
+    assert intermediate_oem.header.classification == source_omm.classification
+    assert intermediate_oem.header.message_id == source_omm.message_id
+    assert intermediate_oem.header.originator == "ephem-toolkit"
+    assert intermediate_oem.header.creation_date
+    assert intermediate_oem.header.creation_date != source_omm.creation_date
+    assert abs(
+        time_utils.iso8601_to_datetime(intermediate_oem.meta.start_time) - start
+    ) <= timedelta(milliseconds=1)
+    assert abs(
+        time_utils.iso8601_to_datetime(intermediate_oem.meta.stop_time)
+        - (start + timedelta(hours=2))
+    ) <= timedelta(milliseconds=1)
     assert converted_opm.metadata["OBJECT_NAME"] == source_omm.object_name
     assert converted_opm.metadata["OBJECT_ID"] == source_omm.object_id
     assert converted_opm.metadata["CENTER_NAME"] == "EARTH"
@@ -161,7 +200,7 @@ def test_omm_to_opm_requires_numerical_fit_model() -> None:
 
 
 def test_omm_to_opm_preserves_source_comments_in_serialized_header(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch
 ) -> None:
     source = (
         Path(__file__).parents[1] / "oem_to_tle" / "data" / "TEST-DSST_2020-001A.omm"
@@ -173,6 +212,7 @@ def test_omm_to_opm_preserves_source_comments_in_serialized_header(
     source_omm.to_file(input_path)
     output_path = tmp_path / "converted.opm"
     fit_report = tmp_path / "converted.fit.json"
+    intermediate_oems = _capture_intermediate_oem(monkeypatch)
 
     main(
         [
@@ -189,6 +229,25 @@ def test_omm_to_opm_preserves_source_comments_in_serialized_header(
     )
 
     converted_opm = CcsdsOpm.from_source(output_path)
+    intermediate_oem = intermediate_oems[0]
+    start = time_utils.iso8601_to_datetime(source_omm.epoch)
+    assert intermediate_oem.meta.object_name == source_omm.object_name
+    assert intermediate_oem.meta.object_id == source_omm.object_id
+    assert intermediate_oem.meta.center_name == "EARTH"
+    assert intermediate_oem.meta.ref_frame == "EME2000"
+    assert intermediate_oem.meta.time_system == "UTC"
+    assert intermediate_oem.header.classification == source_omm.classification
+    assert intermediate_oem.header.message_id == source_omm.message_id
+    assert intermediate_oem.header.originator == "ephem-toolkit"
+    assert intermediate_oem.header.creation_date
+    assert intermediate_oem.header.creation_date != source_omm.creation_date
+    assert abs(
+        time_utils.iso8601_to_datetime(intermediate_oem.meta.start_time) - start
+    ) <= timedelta(milliseconds=1)
+    assert abs(
+        time_utils.iso8601_to_datetime(intermediate_oem.meta.stop_time)
+        - (start + timedelta(hours=2))
+    ) <= timedelta(milliseconds=1)
     assert converted_opm.metadata["OBJECT_NAME"] == source_omm.object_name
     assert converted_opm.metadata["OBJECT_ID"] == source_omm.object_id
     assert converted_opm.metadata["CENTER_NAME"] == "EARTH"
