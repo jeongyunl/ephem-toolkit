@@ -20,6 +20,7 @@ from .. import misc
 from .. import consts
 from .. import time_utils
 from ..propagator import kepler
+from . import odm
 
 DEFAULT_OMM_VERSION: float = 3.0
 """Default CCSDS OMM version (2023-04 standard)."""
@@ -176,6 +177,11 @@ def validate_omm(header: dict[str, Any], data: dict[str, Any]) -> None:
         raise ValueError(
             "Missing required OMM metadata field(s): " + ", ".join(missing)
         )
+    odm.validate_odm_context(
+        str(data["CENTER_NAME"]),
+        str(data["REF_FRAME"]),
+        str(data["TIME_SYSTEM"]),
+    )
     missing = sorted(required_elements - data.keys())
     if missing:
         raise ValueError(

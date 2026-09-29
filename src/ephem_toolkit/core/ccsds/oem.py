@@ -33,6 +33,7 @@ from typing import Any, TextIO
 
 import numpy as np
 
+from . import odm
 from .. import misc
 from .. import time_utils
 
@@ -322,6 +323,13 @@ class CcsdsOem:
             raw_states,
             raw_covariances,
         ) = cls._read_oem_impl(source)
+
+        odm.validate_odm_context(
+            str(raw_meta.get("CENTER_NAME", "")),
+            str(raw_meta.get("REF_FRAME", "")),
+            str(raw_meta.get("TIME_SYSTEM", "")),
+            require_center=False,
+        )
 
         header: OemHeader = OemHeader(
             version=float(raw_header.get("CCSDS_OEM_VERS", 0.0)),

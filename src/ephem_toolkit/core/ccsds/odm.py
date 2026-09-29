@@ -54,6 +54,26 @@ TIME_SYSTEMS: frozenset[str] = TIME_SYSTEM_VALUES
 """Alias for :data:`TIME_SYSTEM_VALUES`."""
 
 
+_TOOLKIT_REF_FRAME_VALUES: frozenset[str] = frozenset({"J2000", "ITRF93"})
+"""Reference-frame aliases accepted by existing toolkit routes."""
+
+
+def validate_odm_context(
+    center_name: str,
+    ref_frame: str,
+    time_system: str,
+    *,
+    require_center: bool = True,
+) -> None:
+    """Validate populated ODM center, reference-frame, and time-system values."""
+    if require_center and not center_name.strip():
+        raise ValueError("CENTER_NAME must not be empty")
+    if ref_frame and ref_frame not in REF_FRAME_VALUES | _TOOLKIT_REF_FRAME_VALUES:
+        raise ValueError(f"Unsupported ODM REF_FRAME: {ref_frame}")
+    if time_system and time_system not in TIME_SYSTEM_VALUES:
+        raise ValueError(f"Unsupported ODM TIME_SYSTEM: {time_system}")
+
+
 CCSDS_TIMECODE_PATTERN: re.Pattern[str] = re.compile(
     r"^(?:\s*)?(?P<yr>\d{4})-(?P<mo>\d{1,2})-(?P<dy>\d{1,2})T(?P<hr>\d{1,2}):(?P<mn>\d{1,2}):(?P<sc>\d{0,2}(?:\.\d*)?)(?:\s*)?$"
 )

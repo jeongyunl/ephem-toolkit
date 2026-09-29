@@ -88,6 +88,19 @@ def test_read_opm_requires_mass_and_negative_delta_mass_for_maneuvers() -> None:
         opm.read_opm(_minimal_opm(invalid_mass_change))
 
 
+@pytest.mark.parametrize(
+    ("key", "value", "message"),
+    [
+        ("CENTER_NAME", "   ", "CENTER_NAME"),
+        ("REF_FRAME", "UNKNOWN", "REF_FRAME"),
+        ("TIME_SYSTEM", "UNKNOWN", "TIME_SYSTEM"),
+    ],
+)
+def test_read_opm_rejects_invalid_context(key: str, value: str, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        opm.read_opm(_minimal_opm(f"{key} = {value}\n"))
+
+
 @pytest.mark.parametrize("path", OPM_FILES, ids=lambda p: p.name)
 def test_opm_dictionary_round_trip(path: Path) -> None:
     header, metadata, data = opm.read_opm(path)

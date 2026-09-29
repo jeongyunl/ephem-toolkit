@@ -27,9 +27,9 @@
 
 1. ODM meta data
     1. Strict ODM meta data validation
-        1. `REF_FRAME`
-        1. `TIME_SYSTEM`
-        1. `CENTER_NAME`
+        1. ~~`REF_FRAME` and `TIME_SYSTEM` allowlists~~ (implemented for OPM, OMM, and populated OEM context; preserves toolkit `J2000` and `ITRF93` aliases)
+        1. ~~Require nonblank `CENTER_NAME` in OPM and OMM~~ (implemented)
+        1. Decide whether OEM may omit `CENTER_NAME` and whether center names need a closed allowlist; current OEM reader preserves partial-context compatibility
     1. Utilize
         1. `SOLAR_RAD_AREA`, `SOLAR_RAD_COEFF`
         1. `DRAG_AREA`, `DRAG_COEFF`

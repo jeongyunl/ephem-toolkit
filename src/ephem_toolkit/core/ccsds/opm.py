@@ -12,6 +12,7 @@ from typing import Any, TextIO
 
 import numpy as np
 
+from . import odm
 from .. import misc
 
 DEFAULT_OPM_VERSION: float = 3.0
@@ -235,6 +236,12 @@ def validate_opm(
             raise ValueError(
                 f"Missing required OPM {name} field(s): {', '.join(missing)}"
             )
+
+    odm.validate_odm_context(
+        str(metadata["CENTER_NAME"]),
+        str(metadata["REF_FRAME"]),
+        str(metadata["TIME_SYSTEM"]),
+    )
 
     keplerian_present: set[str] = _KEPLERIAN_KEYS & data.keys()
     anomaly_present: set[str] = {"TRUE_ANOMALY", "MEAN_ANOMALY"} & data.keys()

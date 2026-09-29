@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
 import core.ccsds.odm as odm
 
 
@@ -50,9 +52,7 @@ def test_free_text_string_matches_named_groups() -> None:
 def test_numerical_value_with_optional_units_matches_named_groups() -> None:
     """The numeric value regex captures the numeric value and optional unit."""
     valid = "  -1.23e-4 [rad/s]"
-    match = re.fullmatch(
-        odm.CCSDS_NUMERICAL_VALUE_WITH_OPTIONAL_UNITS_PATTERN, valid
-    )
+    match = re.fullmatch(odm.CCSDS_NUMERICAL_VALUE_WITH_OPTIONAL_UNITS_PATTERN, valid)
     assert match is not None
     assert match.groupdict() == {
         "value": "-1.23e-4",
@@ -69,9 +69,7 @@ def test_numerical_value_with_optional_units_matches_named_groups() -> None:
 
     invalid = "abc"
     assert (
-        re.fullmatch(
-            odm.CCSDS_NUMERICAL_VALUE_WITH_OPTIONAL_UNITS_PATTERN, invalid
-        )
+        re.fullmatch(odm.CCSDS_NUMERICAL_VALUE_WITH_OPTIONAL_UNITS_PATTERN, invalid)
         is None
     )
 
@@ -133,3 +131,23 @@ def test_time_system_values_match_ccsds_odm_time_systems() -> None:
     assert odm.TIME_SYSTEM_VALUES == frozenset(expected)
     assert odm.TIME_SYSTEMS is odm.TIME_SYSTEM_VALUES
     assert odm.TIME_SYSTEM_DESCRIPTIONS["SCLK"].endswith("in ICD)")
+
+
+@pytest.mark.parametrize("ref_frame", ["J2000", "ITRF93", "ICRF"])
+def test_validate_odm_context_accepts_supported_frames(ref_frame: str) -> None:
+    odm.validate_odm_context("Earth", ref_frame, "UTC")
+
+
+@pytest.mark.parametrize(
+    ("center_name", "ref_frame", "time_system", "message"),
+    [
+        ("Earth", "UNKNOWN", "UTC", "REF_FRAME"),
+        ("Earth", "ICRF", "UNKNOWN", "TIME_SYSTEM"),
+        ("   ", "ICRF", "UTC", "CENTER_NAME"),
+    ],
+)
+def test_validate_odm_context_rejects_invalid_values(
+    center_name: str, ref_frame: str, time_system: str, message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        odm.validate_odm_context(center_name, ref_frame, time_system)

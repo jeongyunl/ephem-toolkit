@@ -48,6 +48,13 @@ def test_read_oem_from_test_file_returns_header_meta_states() -> None:
     assert first_state.shape == (6,)
 
 
+def test_read_oem_rejects_invalid_reference_frame() -> None:
+    content = OEM_PATH.read_text(encoding="utf-8").replace("EME2000", "UNKNOWN", 1)
+
+    with pytest.raises(ValueError, match="REF_FRAME"):
+        oem.CcsdsOem.read(io.StringIO(content))
+
+
 # ===================================================================
 # 2. Read OEM from stream (low-level)
 # ===================================================================
