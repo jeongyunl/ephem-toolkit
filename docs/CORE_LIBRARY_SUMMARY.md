@@ -73,6 +73,7 @@ OEM data slicing and interpolation utilities.
 - Read/write OEM files
 - Read/write OPM files
 - See: [TLE, OMM, OEM & OPM](CORE_LIBRARY_TLE_OMM.md)
+- See also: [Class/Object File I/O API Migration](CLASS_OBJECT_FILE_IO_API.md)
 
 ### Data Processing
 - Slice OEM data by time or index
