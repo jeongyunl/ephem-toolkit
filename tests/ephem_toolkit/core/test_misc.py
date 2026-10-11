@@ -273,23 +273,3 @@ def test_rotation_matrix_to_euler_angles_handles_normal_and_gimbal_lock() -> Non
     np.testing.assert_allclose(
         misc.rotation_matrix_to_euler_angles(negative_lock), [45, -90, 0]
     )
-
-
-# ===================================================================
-# 3. parse_key_value_line — shared KV parsing utility
-# ===================================================================
-
-
-def test_parse_key_value_line_valid() -> None:
-    """Should parse KEY = VALUE lines correctly."""
-    assert misc.parse_key_value_line("OBJECT_NAME = ISS") == ("OBJECT_NAME", "ISS")
-    assert misc.parse_key_value_line("KEY=VALUE") == ("KEY", "VALUE")
-    assert misc.parse_key_value_line("  KEY  =  VALUE  ") == ("KEY", "VALUE")
-    assert misc.parse_key_value_line("A = B = C") == ("A", "B = C")
-
-
-def test_parse_key_value_line_returns_none() -> None:
-    """Should return None for lines without '='."""
-    assert misc.parse_key_value_line("no equals here") is None
-    assert misc.parse_key_value_line("") is None
-    assert misc.parse_key_value_line("COMMENT some text") is None

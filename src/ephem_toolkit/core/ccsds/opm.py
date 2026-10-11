@@ -7,22 +7,19 @@ References:
 from __future__ import annotations
 
 import io
-import math
 import re
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
 from pathlib import Path
 from typing import Any, TextIO
 
 import numpy as np
 
 from . import odm
-from .. import misc
 
 DEFAULT_OPM_VERSION: float = 3.0
 """Default CCSDS OPM version (2023-04 standard)."""
 
-COVARIANCE_DIMENSION: int = 6
+COVARIANCE_DIMENSION: int = odm.COVARIANCE_DIMENSION
 """Number of position and velocity components in the covariance matrix."""
 
 _HEADER_KEYS: set[str] = {
@@ -96,73 +93,20 @@ _MANEUVER_KEYS: tuple[str, ...] = (
 )
 """OPM maneuver keys in file order."""
 
-_COVARIANCE_KEYS: tuple[str, ...] = (
-    "CX_X",
-    "CY_X",
-    "CY_Y",
-    "CZ_X",
-    "CZ_Y",
-    "CZ_Z",
-    "CX_DOT_X",
-    "CX_DOT_Y",
-    "CX_DOT_Z",
-    "CX_DOT_X_DOT",
-    "CY_DOT_X",
-    "CY_DOT_Y",
-    "CY_DOT_Z",
-    "CY_DOT_X_DOT",
-    "CY_DOT_Y_DOT",
-    "CZ_DOT_X",
-    "CZ_DOT_Y",
-    "CZ_DOT_Z",
-    "CZ_DOT_X_DOT",
-    "CZ_DOT_Y_DOT",
-    "CZ_DOT_Z_DOT",
-)
+_COVARIANCE_KEYS: tuple[str, ...] = odm.COVARIANCE_KEYS
 """OPM covariance keys in lower-triangular matrix order."""
 
-_COVARIANCE_POSITIONS: tuple[tuple[int, int], ...] = (
-    (0, 0),
-    (1, 0),
-    (1, 1),
-    (2, 0),
-    (2, 1),
-    (2, 2),
-    (3, 0),
-    (3, 1),
-    (3, 2),
-    (3, 3),
-    (4, 0),
-    (4, 1),
-    (4, 2),
-    (4, 3),
-    (4, 4),
-    (5, 0),
-    (5, 1),
-    (5, 2),
-    (5, 3),
-    (5, 4),
-    (5, 5),
-)
+_COVARIANCE_POSITIONS: tuple[tuple[int, int], ...] = odm.COVARIANCE_POSITIONS
 """Row and column indices corresponding to the covariance keys."""
 
 _UNIT_BY_KEY: dict[str, str] = {
+    **odm.ODM_UNIT_BY_KEY,
     "X": "km",
     "Y": "km",
     "Z": "km",
     "X_DOT": "km/s",
     "Y_DOT": "km/s",
     "Z_DOT": "km/s",
-    "SEMI_MAJOR_AXIS": "km",
-    "INCLINATION": "deg",
-    "RA_OF_ASC_NODE": "deg",
-    "ARG_OF_PERICENTER": "deg",
-    "TRUE_ANOMALY": "deg",
-    "MEAN_ANOMALY": "deg",
-    "GM": "km**3/s**2",
-    "MASS": "kg",
-    "SOLAR_RAD_AREA": "m**2",
-    "DRAG_AREA": "m**2",
     "MAN_DURATION": "s",
     "MAN_DELTA_MASS": "kg",
     "MAN_DV_1": "km/s",
@@ -180,9 +124,6 @@ _KEPLERIAN_KEYS: set[str] = {
     "GM",
 }
 """Keys required when OPM osculating Keplerian elements are present."""
-_UNIT_BY_KEY.update(
-    {key: "km**2" for key in ("CX_X", "CY_X", "CY_Y", "CZ_X", "CZ_Y", "CZ_Z")}
-)
 
 
 def _validate_opm_value(key: str, value: str) -> None:
@@ -191,27 +132,10 @@ def _validate_opm_value(key: str, value: str) -> None:
         raise ValueError(f"OPM keyword {key} has an empty value")
     if "[n/a]" in value.lower():
         raise ValueError("[n/a] is not permitted in an OPM")
-    unit_match = re.search(r"\s+\[([^\]]+)\]$", value)
-    if "[" in value or "]" in value:
-        if unit_match is None:
-            raise ValueError(f"Invalid unit notation for OPM keyword {key}")
-        if _UNIT_BY_KEY.get(key) != unit_match.group(1):
-            raise ValueError(f"Invalid unit for OPM keyword {key}")
-        value = value[: unit_match.start()].rstrip()
+    value = odm.validate_odm_unit(key, value, _UNIT_BY_KEY, "OPM")
     time_keys = {"CREATION_DATE", "REF_FRAME_EPOCH", "EPOCH", "MAN_EPOCH_IGNITION"}
     if key in time_keys:
-        pattern = r"\d{4}-(?:\d{2}-\d{2}|\d{3})T\d{2}:\d{2}:\d{2}(?:\.\d{1,16})?Z?"
-        if not re.fullmatch(pattern, value):
-            raise ValueError(f"Invalid OPM time value for {key}: {value}")
-        if re.match(r"\d{4}-\d{2}-\d{2}T", value):
-            normalized = value.removesuffix("Z")
-            try:
-                datetime.strptime(normalized.split(".")[0], "%Y-%m-%dT%H:%M:%S")
-            except ValueError as exc:
-                if not re.search(r"T\d{2}:\d{2}:60(?:\.|$)", normalized):
-                    raise ValueError(
-                        f"Invalid OPM time value for {key}: {value}"
-                    ) from exc
+        odm.validate_odm_datetime(value, key, "OPM")
     numeric_keys = set(_UNIT_BY_KEY) | {
         "ECCENTRICITY",
         "MAN_DURATION",
@@ -219,17 +143,7 @@ def _validate_opm_value(key: str, value: str) -> None:
         *_COVARIANCE_KEYS,
     }
     if key in numeric_keys:
-        if not re.fullmatch(r"[+-]?\d+(?:\.\d+)?(?:[Ee][+-]?\d+)?", value):
-            raise ValueError(f"Invalid numeric value for OPM keyword {key}: {value}")
-        if re.search("[Ee]", value) and not re.fullmatch(
-            r"[+-]?\d+\.\d+[Ee][+-]?\d+", value
-        ):
-            raise ValueError(f"Invalid floating-point value for OPM keyword {key}")
-        mantissa = re.split("[Ee]", value)[0].lstrip("+-").replace(".", "")
-        if len(mantissa.lstrip("0")) > 16:
-            raise ValueError(f"Too many significant digits for OPM keyword {key}")
-        if not math.isfinite(float(value)):
-            raise ValueError(f"Non-finite numeric value for OPM keyword {key}")
+        odm.validate_odm_numeric(key, value, "OPM")
 
 
 def _format_opm_number(value: Any) -> str:
@@ -241,37 +155,6 @@ def _format_opm_number(value: Any) -> str:
                 formatted = f"{mantissa}.0E{exponent}"
         return formatted
     return str(value)
-
-
-_UNIT_BY_KEY.update(
-    {
-        key: "km**2/s"
-        for key in (
-            "CX_DOT_X",
-            "CX_DOT_Y",
-            "CX_DOT_Z",
-            "CY_DOT_X",
-            "CY_DOT_Y",
-            "CY_DOT_Z",
-            "CZ_DOT_X",
-            "CZ_DOT_Y",
-            "CZ_DOT_Z",
-        )
-    }
-)
-_UNIT_BY_KEY.update(
-    {
-        key: "km**2/s**2"
-        for key in (
-            "CX_DOT_X_DOT",
-            "CY_DOT_X_DOT",
-            "CY_DOT_Y_DOT",
-            "CZ_DOT_X_DOT",
-            "CZ_DOT_Y_DOT",
-            "CZ_DOT_Z_DOT",
-        )
-    }
-)
 
 
 def validate_opm(
@@ -329,7 +212,7 @@ def validate_opm(
         | {"COV_REF_FRAME", *_COVARIANCE_KEYS, "MANEUVERS", "COMMENT"}
     )
     allowed_data.update(
-        key for key in data if re.fullmatch(r"USER_DEFINED_[A-Z0-9_]+", key)
+        key for key in data if odm.CCSDS_USER_DEFINED_KEY_PATTERN.fullmatch(key)
     )
     for name, values, allowed in (
         ("header", header, allowed_header),
@@ -346,7 +229,7 @@ def validate_opm(
             if (
                 key == "COMMENT"
                 or key == "MANEUVERS"
-                or key.startswith("USER_DEFINED_")
+                or odm.CCSDS_USER_DEFINED_KEY_PATTERN.fullmatch(key)
             ):
                 continue
             formatted = (
@@ -789,12 +672,7 @@ def _read_opm(
 
     for line_number, raw_line in enumerate(CcsdsOpm._read_lines(source), start=1):
         line = raw_line.rstrip("\r\n")
-        if len(line) > 254:
-            raise ValueError(f"OPM line {line_number} exceeds 254 characters")
-        try:
-            line.encode("ascii")
-        except UnicodeEncodeError as exc:
-            raise ValueError(f"OPM line {line_number} is not ASCII") from exc
+        odm.validate_odm_line(line, "OPM", line_number=line_number)
         if line and not line.strip():
             continue
         line = line.rstrip()
@@ -803,7 +681,7 @@ def _read_opm(
         if not saw_content and not line.startswith("CCSDS_OPM_VERS"):
             raise ValueError("CCSDS_OPM_VERS must be the first OPM line")
         saw_content = True
-        if line.startswith("COMMENT "):
+        if line.startswith(odm.CCSDS_COMMENT_PREFIX):
             if (
                 section == "metadata"
                 and {
@@ -821,11 +699,13 @@ def _read_opm(
                 if section == "header"
                 else metadata if section == "metadata" else data
             )
-            target.setdefault("COMMENT", []).append(line[len("COMMENT ") :])
+            target.setdefault("COMMENT", []).append(
+                line[len(odm.CCSDS_COMMENT_PREFIX) :]
+            )
             continue
-        if line.startswith("COMMENT"):
+        if line.startswith(odm.CCSDS_COMMENT_KEYWORD):
             raise ValueError(f"Invalid OPM COMMENT syntax on line {line_number}")
-        parsed: tuple[str, str] | None = misc.parse_key_value_line(line)
+        parsed: tuple[str, str] | None = odm.parse_kvn_assignment(line)
         if parsed is None:
             raise ValueError(f"Invalid OPM KVN assignment on line {line_number}")
         key, raw_value = parsed
@@ -862,7 +742,7 @@ def _read_opm(
             + _SPACECRAFT_ORDER
             + ("COV_REF_FRAME",)
             + _COVARIANCE_KEYS
-            or re.fullmatch(r"USER_DEFINED_[A-Z0-9_]+", key)
+            or odm.CCSDS_USER_DEFINED_KEY_PATTERN.fullmatch(key)
             or key in _MANEUVER_KEYS
         ):
             saw_data = True
@@ -871,7 +751,7 @@ def _read_opm(
                 raise ValueError(f"Duplicate OPM keyword {key}")
             if key in _MANEUVER_KEYS:
                 group = 4
-            elif key.startswith("USER_DEFINED_"):
+            elif odm.CCSDS_USER_DEFINED_KEY_PATTERN.fullmatch(key):
                 group = 5
             else:
                 group = next(
@@ -969,10 +849,10 @@ def _write_opm(
             output.write(f"{key} = {header[key]}\n")
         if key == "CCSDS_OPM_VERS":
             for comment in header.get("COMMENT", []):
-                output.write(f"COMMENT {comment}\n")
+                output.write(f"{odm.CCSDS_COMMENT_PREFIX}{comment}\n")
     output.write("\n")
     for comment in metadata.get("COMMENT", []):
-        output.write(f"COMMENT {comment}\n")
+        output.write(f"{odm.CCSDS_COMMENT_PREFIX}{comment}\n")
     for key in (
         "OBJECT_NAME",
         "OBJECT_ID",
@@ -985,7 +865,7 @@ def _write_opm(
             output.write(f"{key} = {metadata[key]}\n")
     output.write("\n")
     for comment in data.get("COMMENT", []):
-        output.write(f"COMMENT {comment}\n")
+        output.write(f"{odm.CCSDS_COMMENT_PREFIX}{comment}\n")
     data_order: tuple[str, ...] = (
         "EPOCH",
         "X",
@@ -1017,11 +897,8 @@ def _write_opm(
             if key in maneuver:
                 output.write(f"{key} = {CcsdsOpm._write_value(key, maneuver[key])}\n")
     for key, value in data.items():
-        if key.startswith("USER_DEFINED_"):
+        if odm.CCSDS_USER_DEFINED_KEY_PATTERN.fullmatch(key):
             output.write(f"{key} = {value}\n")
     for line_number, line in enumerate(output.getvalue().splitlines(), start=1):
-        if len(line) > 254:
-            raise ValueError(f"OPM output line {line_number} exceeds 254 characters")
-        if not line.isascii():
-            raise ValueError(f"OPM output line {line_number} is not ASCII")
+        odm.validate_odm_line(line, "OPM output", line_number=line_number)
     dest.write(output.getvalue())

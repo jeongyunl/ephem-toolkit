@@ -1,7 +1,6 @@
 """Common utilities shared across frame-conversion and propagation scripts.
 
-CCSDS keyword-value parsing (:func:`parse_key_value_line`),
-an RTN frame transformation (:func:`transform_to_rtn`), and angle
+An RTN frame transformation (:func:`transform_to_rtn`), and angle
 utilities (:func:`wrap_angle_rad`, :func:`unwrap_angles_rad`,
 :func:`circular_mean_angle_rad`, :func:`angle_difference_rad`,
 :func:`circular_blend_angle_rad`).
@@ -22,46 +21,6 @@ import numpy as np
 
 ANGLE_RESULTANT_TOLERANCE: float = 1.0e-15
 """Threshold for treating the circular-mean resultant as numerically zero."""
-
-# ===================================================================
-# CCSDS keyword-value parsing
-# ===================================================================
-
-
-def parse_key_value_line(line: str) -> tuple[str, str] | None:
-    """Return (key, value) from ``KEY = VALUE`` lines, or *None*.
-
-    This is a shared utility used by OEM and OMM parsers for reading
-    CCSDS keyword-value formatted files.
-
-    Parameters
-    ----------
-    line : str
-        A single line of text to parse.
-
-    Returns
-    -------
-    tuple[str, str] | None
-        A ``(key, value)`` tuple with whitespace stripped from both parts,
-        or ``None`` if the line does not contain an ``=`` character.
-
-    Examples
-    --------
-    >>> parse_key_value_line("OBJECT_NAME = ISS")
-    ('OBJECT_NAME', 'ISS')
-    >>> parse_key_value_line("some line without equals") is None
-    True
-
-    References
-    ----------
-    https://public.ccsds.org/Pubs/502x0b3e1.pdf (CCSDS 502.0-B-3 OEM)
-    https://public.ccsds.org/Pubs/502x0b2c1e2.pdf (CCSDS 502.0-B-2 OMM)
-    """
-    if "=" not in line:
-        return None
-    key, _, value = line.partition("=")
-    return key.strip(), value.strip()
-
 
 # ===================================================================
 # RTN frame transformation

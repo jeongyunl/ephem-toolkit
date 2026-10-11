@@ -35,7 +35,6 @@ from typing import Any, TextIO
 import numpy as np
 
 from . import odm
-from .. import misc
 from .. import time_utils
 
 # ===================================================================
@@ -559,7 +558,7 @@ class CcsdsOem:
         self._write_meta(dest, sep=sep)
 
         for comment in self.data_comments:
-            self.write_line(dest, "COMMENT", comment, sep=sep)
+            self.write_line(dest, odm.CCSDS_COMMENT_KEYWORD, comment, sep=sep)
         if self.data_comments:
             self.write_line(dest, sep=sep)
 
@@ -587,7 +586,7 @@ class CcsdsOem:
         self.write_line(dest, sep=sep)
         self.write_line(dest, "COVARIANCE_START", sep=sep)
         for comment in self.covariances[0].comments:
-            self.write_line(dest, "COMMENT", comment, sep=sep)
+            self.write_line(dest, odm.CCSDS_COMMENT_KEYWORD, comment, sep=sep)
         ref_frame = next(iter(ref_frames))
         if ref_frame:
             self.write_line(dest, "COV_REF_FRAME", "=", ref_frame, sep=sep)
@@ -792,17 +791,14 @@ class CcsdsOem:
 
         for raw_line in source:
             line_content = raw_line.rstrip("\r\n")
-            if len(line_content) > 254:
-                raise ValueError("OEM line exceeds the 254-character limit")
-            if any(ord(char) < 32 or ord(char) > 126 for char in line_content):
-                raise ValueError("OEM lines must contain printable ASCII only")
+            odm.validate_odm_line(line_content, "OEM")
             line: str = line_content.strip()
             comment_line = line_content.lstrip(" ")
             if not line:
                 continue
             if not first_content_seen:
                 first_content_seen = True
-                first_assignment = misc.parse_key_value_line(line)
+                first_assignment = odm.parse_kvn_assignment(line)
                 if first_assignment is None or first_assignment[0] != "CCSDS_OEM_VERS":
                     raise ValueError(
                         "CCSDS_OEM_VERS must be the first non-blank OEM line"
@@ -825,16 +821,18 @@ class CcsdsOem:
                 in_covariance = False
                 continue
             if in_covariance:
-                if comment_line.startswith("COMMENT "):
+                if comment_line.startswith(odm.CCSDS_COMMENT_PREFIX):
                     if covariance_rows or covariance_epoch is not None:
                         raise ValueError(
                             "OEM covariance comments must precede covariance data"
                         )
-                    covariance_comments.append(comment_line[len("COMMENT ") :])
+                    covariance_comments.append(
+                        comment_line[len(odm.CCSDS_COMMENT_PREFIX) :]
+                    )
                     continue
-                if comment_line == "COMMENT":
+                if comment_line == odm.CCSDS_COMMENT_KEYWORD:
                     raise ValueError("OEM comments must begin with 'COMMENT '")
-                key_value = misc.parse_key_value_line(line)
+                key_value = odm.parse_kvn_assignment(line)
                 if key_value is not None:
                     key, value = key_value
                     if key == "EPOCH":
@@ -873,10 +871,10 @@ class CcsdsOem:
                 past_meta = True
                 continue
 
-            if comment_line.startswith("COMMENT"):
-                if not comment_line.startswith("COMMENT "):
+            if comment_line.startswith(odm.CCSDS_COMMENT_KEYWORD):
+                if not comment_line.startswith(odm.CCSDS_COMMENT_PREFIX):
                     raise ValueError("OEM comments must begin with 'COMMENT '")
-                comment_text: str = comment_line[len("COMMENT ") :]
+                comment_text: str = comment_line[len(odm.CCSDS_COMMENT_PREFIX) :]
                 if in_meta:
                     if not meta_comments_open:
                         raise ValueError("OEM metadata comments must appear first")
@@ -896,7 +894,7 @@ class CcsdsOem:
                     header["COMMENT"].append(comment_text)
                 continue
 
-            key_value: tuple[str, str] | None = misc.parse_key_value_line(line)
+            key_value: tuple[str, str] | None = odm.parse_kvn_assignment(line)
             if key_value is not None and (in_meta or not CcsdsOem._is_state_line(line)):
                 key, value = key_value
                 if not key.isupper() or " " in key:
@@ -983,7 +981,7 @@ class CcsdsOem:
         if self.header.comments:
             self.write_line(dest, sep=sep)
             for comment in self.header.comments:
-                self.write_line(dest, "COMMENT", comment, sep=sep)
+                self.write_line(dest, odm.CCSDS_COMMENT_KEYWORD, comment, sep=sep)
             self.write_line(dest, sep=sep)
 
         self.write_line(
@@ -1024,7 +1022,7 @@ class CcsdsOem:
 
         # Metadata COMMENT lines are allowed only immediately after META_START.
         for comment in self.meta.comments:
-            self.write_line(dest, "COMMENT", comment, sep=sep)
+            self.write_line(dest, odm.CCSDS_COMMENT_KEYWORD, comment, sep=sep)
 
         pad: int = max(
             (

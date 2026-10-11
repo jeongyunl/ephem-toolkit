@@ -93,16 +93,11 @@ Format a timedelta into a human-readable string (e.g., `2h 30m`, `45s`, `3d 1h`)
 
 ## ephem_toolkit.core.misc - Miscellaneous Utilities
 
-**Purpose**: Shared utilities for CCSDS keyword-value parsing, RTN frame transformations, rotation matrix conversions, and angle operations. Time-related functions live in `ephem_toolkit.core.time_utils`.
+**Purpose**: Shared RTN frame transformations, rotation matrix conversions, and angle operations. Time-related functions live in `ephem_toolkit.core.time_utils`; CCSDS KVN parsing lives in `ephem_toolkit.core.ccsds.odm`.
 
 ### Key Dependencies
 - `numpy`
 - `math`
-
-### CCSDS Keyword-Value Parsing
-
-#### `parse_key_value_line(line: str) -> tuple[str, str] | None`
-Return (key, value) from `KEY = VALUE` lines, or None. Shared utility used by OEM and OMM parsers for reading CCSDS keyword-value formatted files.
 
 ### RTN Frame Transformation
 
