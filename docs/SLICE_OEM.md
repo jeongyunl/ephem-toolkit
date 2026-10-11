@@ -434,7 +434,7 @@ import ephem_toolkit.core.ccsds.oem as oem
 import ephem_toolkit.core.slice_oem as slice_oem
 
 # Read OEM file
-oem_data = oem.CcsdsOem.read("orbit.oem")
+oem_data = oem.CcsdsOem.from_file("orbit.oem")
 
 # Slice by index
 sliced_oem = slice_oem.extract_sliced_states(oem_data, slice(0, 100))
@@ -448,7 +448,7 @@ options = slice_oem.TimeSliceOptions(
 sliced_oem = slice_oem.extract_sliced_states(oem_data, options)
 
 # Write result
-sliced_oem.write("sliced.oem")
+sliced_oem.to_file("sliced.oem")
 ```
 
 See `tests/ephem_toolkit/core/test_slice_oem.py` for more examples.

@@ -7,7 +7,7 @@
 
 
 1. Propagators
-    1. ~~DSST propagator~~ (implemented)
+    1. DSST follow-ups
         1. Orekit accuracy validation (deferred) — compare J2-only < 1 km/day, J2+J3+J4 < 100 m/day for LEO
         1. Lunar/solar long-period corrections (deferred)
         1. Code coverage > 90% for DSST module
@@ -27,8 +27,6 @@
 
 1. ODM meta data
     1. Strict ODM meta data validation
-        1. ~~`REF_FRAME` and `TIME_SYSTEM` allowlists~~ (implemented for OPM, OMM, and populated OEM context; preserves toolkit `J2000` and `ITRF93` aliases)
-        1. ~~Require nonblank `CENTER_NAME` in OPM and OMM~~ (implemented)
         1. Decide whether OEM may omit `CENTER_NAME` and whether center names need a closed allowlist; current OEM reader preserves partial-context compatibility
     1. Utilize
         1. `SOLAR_RAD_AREA`, `SOLAR_RAD_COEFF`
@@ -53,9 +51,6 @@
         1. or extend CcsdsOem class?
     1. extract_states_by_time
         1. Optionally insert extra data points at boundaries to be interpolator friendly?
-
-1. Improve library API
-    1. Streamline file I/O function names and conventions
 
 1. [`diff-oem`](docs/DIFF_OEM.md)
     1. More comparison options.
