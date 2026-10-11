@@ -73,6 +73,7 @@ def _create_test_oem(
     oem_obj = oem.CcsdsOem.from_states(
         states,
         object_name="TEST_SAT",
+        object_id="2024-001A",
         ref_frame="GCRF",
         center_name="EARTH",
         time_system="UTC",

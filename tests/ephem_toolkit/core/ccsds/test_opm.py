@@ -101,6 +101,71 @@ def test_read_opm_rejects_invalid_context(key: str, value: str, message: str) ->
         opm._read_opm(_minimal_opm(f"{key} = {value}\n"))
 
 
+@pytest.mark.parametrize(
+    ("extra", "message"),
+    [
+        ("UNRECOGNIZED_KEY = value\n", "Unsupported OPM keyword"),
+        ("not a KVN assignment\n", "Invalid OPM KVN assignment"),
+        ("x = 7\n", "uppercase"),
+        ("X = 7\n", "Duplicate OPM keyword X"),
+        ("X = 1 [m]\n", "Invalid unit for OPM keyword X"),
+    ],
+)
+def test_read_opm_rejects_invalid_syntax(extra: str, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        opm._read_opm(_minimal_opm(extra), validate=False)
+
+
+def test_read_opm_rejects_out_of_order_data_keywords() -> None:
+    content = _minimal_opm().getvalue().replace("X = 1\nY = 2\n", "Y = 2\nX = 1\n")
+
+    with pytest.raises(ValueError, match="out of order"):
+        opm._read_opm(io.StringIO(content), validate=False)
+
+
+def test_read_opm_requires_version_as_first_nonblank_line() -> None:
+    content = (
+        _minimal_opm()
+        .getvalue()
+        .replace("CCSDS_OPM_VERS = 3.0\n", "CREATION_DATE = 2026-01-01T00:00:00\n")
+    )
+    content = content.replace(
+        "CREATION_DATE = 2026-01-01T00:00:00\n",
+        "CREATION_DATE = 2026-01-01T00:00:00\nCCSDS_OPM_VERS = 3.0\n",
+        1,
+    )
+
+    with pytest.raises(ValueError, match="CCSDS_OPM_VERS must be the first"):
+        opm._read_opm(io.StringIO(content), validate=False)
+
+
+def test_read_opm_rejects_non_ascii_and_overlong_lines() -> None:
+    for content, message in (
+        (_minimal_opm("COMMENT café\n"), "not ASCII"),
+        (_minimal_opm(f"COMMENT {'x' * 250}\n"), "exceeds 254"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            opm._read_opm(content, validate=False)
+
+
+def test_write_opm_rejects_unknown_data_keywords() -> None:
+    header, metadata, data = opm._read_opm(OPM_DIR / "sample1.opm")
+    data["NOT_A_STANDARD_KEY"] = 1
+
+    with pytest.raises(ValueError, match="Unsupported OPM data keyword"):
+        opm._write_opm(io.StringIO(), header, metadata, data)
+
+
+def test_write_opm_limits_float_precision_to_ccsds_maximum() -> None:
+    header, metadata, data = opm._read_opm(_minimal_opm())
+    data["X"] = 1756.1529363008328
+    output = io.StringIO()
+
+    opm._write_opm(output, header, metadata, data)
+
+    assert "X = 1756.152936300833 [km]" in output.getvalue()
+
+
 @pytest.mark.parametrize("path", OPM_FILES, ids=lambda p: p.name)
 def test_opm_dictionary_round_trip(path: Path) -> None:
     header, metadata, data = opm._read_opm(path)

@@ -7,7 +7,10 @@ References:
 from __future__ import annotations
 
 import io
+import math
+import re
 from dataclasses import asdict, dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -39,6 +42,47 @@ _METADATA_KEYS: set[str] = {
     "REF_FRAME_EPOCH",
     "TIME_SYSTEM",
 }
+_HEADER_ORDER: tuple[str, ...] = (
+    "CCSDS_OPM_VERS",
+    "CLASSIFICATION",
+    "CREATION_DATE",
+    "ORIGINATOR",
+    "MESSAGE_ID",
+)
+_METADATA_ORDER: tuple[str, ...] = (
+    "OBJECT_NAME",
+    "OBJECT_ID",
+    "CENTER_NAME",
+    "REF_FRAME",
+    "REF_FRAME_EPOCH",
+    "TIME_SYSTEM",
+)
+_STATE_ORDER: tuple[str, ...] = (
+    "EPOCH",
+    "X",
+    "Y",
+    "Z",
+    "X_DOT",
+    "Y_DOT",
+    "Z_DOT",
+)
+_KEPLERIAN_ORDER: tuple[str, ...] = (
+    "SEMI_MAJOR_AXIS",
+    "ECCENTRICITY",
+    "INCLINATION",
+    "RA_OF_ASC_NODE",
+    "ARG_OF_PERICENTER",
+    "TRUE_ANOMALY",
+    "MEAN_ANOMALY",
+    "GM",
+)
+_SPACECRAFT_ORDER: tuple[str, ...] = (
+    "MASS",
+    "SOLAR_RAD_AREA",
+    "SOLAR_RAD_COEFF",
+    "DRAG_AREA",
+    "DRAG_COEFF",
+)
 """Supported OPM metadata keys."""
 
 _MANEUVER_KEYS: tuple[str, ...] = (
@@ -139,6 +183,66 @@ _KEPLERIAN_KEYS: set[str] = {
 _UNIT_BY_KEY.update(
     {key: "km**2" for key in ("CX_X", "CY_X", "CY_Y", "CZ_X", "CZ_Y", "CZ_Z")}
 )
+
+
+def _validate_opm_value(key: str, value: str) -> None:
+    """Validate an OPM value's generic ODM time, numeric, and unit syntax."""
+    if not value:
+        raise ValueError(f"OPM keyword {key} has an empty value")
+    if "[n/a]" in value.lower():
+        raise ValueError("[n/a] is not permitted in an OPM")
+    unit_match = re.search(r"\s+\[([^\]]+)\]$", value)
+    if "[" in value or "]" in value:
+        if unit_match is None:
+            raise ValueError(f"Invalid unit notation for OPM keyword {key}")
+        if _UNIT_BY_KEY.get(key) != unit_match.group(1):
+            raise ValueError(f"Invalid unit for OPM keyword {key}")
+        value = value[: unit_match.start()].rstrip()
+    time_keys = {"CREATION_DATE", "REF_FRAME_EPOCH", "EPOCH", "MAN_EPOCH_IGNITION"}
+    if key in time_keys:
+        pattern = r"\d{4}-(?:\d{2}-\d{2}|\d{3})T\d{2}:\d{2}:\d{2}(?:\.\d{1,16})?Z?"
+        if not re.fullmatch(pattern, value):
+            raise ValueError(f"Invalid OPM time value for {key}: {value}")
+        if re.match(r"\d{4}-\d{2}-\d{2}T", value):
+            normalized = value.removesuffix("Z")
+            try:
+                datetime.strptime(normalized.split(".")[0], "%Y-%m-%dT%H:%M:%S")
+            except ValueError as exc:
+                if not re.search(r"T\d{2}:\d{2}:60(?:\.|$)", normalized):
+                    raise ValueError(
+                        f"Invalid OPM time value for {key}: {value}"
+                    ) from exc
+    numeric_keys = set(_UNIT_BY_KEY) | {
+        "ECCENTRICITY",
+        "MAN_DURATION",
+        "MAN_DELTA_MASS",
+        *_COVARIANCE_KEYS,
+    }
+    if key in numeric_keys:
+        if not re.fullmatch(r"[+-]?\d+(?:\.\d+)?(?:[Ee][+-]?\d+)?", value):
+            raise ValueError(f"Invalid numeric value for OPM keyword {key}: {value}")
+        if re.search("[Ee]", value) and not re.fullmatch(
+            r"[+-]?\d+\.\d+[Ee][+-]?\d+", value
+        ):
+            raise ValueError(f"Invalid floating-point value for OPM keyword {key}")
+        mantissa = re.split("[Ee]", value)[0].lstrip("+-").replace(".", "")
+        if len(mantissa.lstrip("0")) > 16:
+            raise ValueError(f"Too many significant digits for OPM keyword {key}")
+        if not math.isfinite(float(value)):
+            raise ValueError(f"Non-finite numeric value for OPM keyword {key}")
+
+
+def _format_opm_number(value: Any) -> str:
+    if isinstance(value, float):
+        formatted = format(value, ".16g").replace("e", "E")
+        if "E" in formatted:
+            mantissa, exponent = formatted.split("E", 1)
+            if "." not in mantissa:
+                formatted = f"{mantissa}.0E{exponent}"
+        return formatted
+    return str(value)
+
+
 _UNIT_BY_KEY.update(
     {
         key: "km**2/s"
@@ -216,6 +320,41 @@ def validate_opm(
             raise ValueError(
                 f"Missing required OPM {name} field(s): {', '.join(missing)}"
             )
+    allowed_header = set(_HEADER_KEYS) | {"COMMENT"}
+    allowed_metadata = set(_METADATA_KEYS) | {"COMMENT"}
+    allowed_data = (
+        set(_STATE_ORDER)
+        | set(_KEPLERIAN_ORDER)
+        | set(_SPACECRAFT_ORDER)
+        | {"COV_REF_FRAME", *_COVARIANCE_KEYS, "MANEUVERS", "COMMENT"}
+    )
+    allowed_data.update(
+        key for key in data if re.fullmatch(r"USER_DEFINED_[A-Z0-9_]+", key)
+    )
+    for name, values, allowed in (
+        ("header", header, allowed_header),
+        ("metadata", metadata, allowed_metadata),
+        ("data", data, allowed_data),
+    ):
+        unknown = values.keys() - allowed
+        if unknown:
+            raise ValueError(
+                f"Unsupported OPM {name} keyword(s): {', '.join(sorted(unknown))}"
+            )
+    for values in (header, metadata, data):
+        for key, value in values.items():
+            if (
+                key == "COMMENT"
+                or key == "MANEUVERS"
+                or key.startswith("USER_DEFINED_")
+            ):
+                continue
+            formatted = (
+                _format_opm_number(value)
+                if isinstance(value, (int, float))
+                else str(value)
+            )
+            _validate_opm_value(key, formatted)
 
     odm.validate_odm_context(
         str(metadata["CENTER_NAME"]),
@@ -247,6 +386,13 @@ def validate_opm(
     if maneuvers and "MASS" not in data:
         raise ValueError("OPM MASS is required when maneuvers are present")
     for index, maneuver in enumerate(maneuvers, start=1):
+        unknown = maneuver.keys() - set(_MANEUVER_KEYS)
+        if unknown:
+            raise ValueError(
+                f"Unsupported OPM maneuver keyword(s): {', '.join(sorted(unknown))}"
+            )
+        for key, value in maneuver.items():
+            _validate_opm_value(key, _format_opm_number(value))
         delta_mass = maneuver.get("MAN_DELTA_MASS")
         if delta_mass is not None and float(delta_mass) >= 0:
             raise ValueError(f"OPM maneuver {index} MAN_DELTA_MASS must be negative")
@@ -506,11 +652,13 @@ class CcsdsOpm:
         header: dict[str, Any] = {
             "CCSDS_OPM_VERS": self.header.version,
             "COMMENT": self.header.comments,
-            "CLASSIFICATION": self.header.classification,
             "CREATION_DATE": self.header.creation_date,
             "ORIGINATOR": self.header.originator,
-            "MESSAGE_ID": self.header.message_id,
         }
+        if self.header.classification:
+            header["CLASSIFICATION"] = self.header.classification
+        if self.header.message_id:
+            header["MESSAGE_ID"] = self.header.message_id
         data: dict[str, Any] = dict(self.data)
         data.update(
             {
@@ -583,12 +731,12 @@ class CcsdsOpm:
         """Return all lines from a text stream."""
         return list(source)
 
-
     @staticmethod
     def _write_value(key: str, value: Any) -> str:
         """Format a value with its OPM unit suffix when one is defined."""
         unit: str | None = _UNIT_BY_KEY.get(key)
-        return f"{value} [{unit}]" if unit else str(value)
+        formatted = _format_opm_number(value)
+        return f"{formatted} [{unit}]" if unit else formatted
 
 
 def _read_opm(
@@ -622,43 +770,161 @@ def _read_opm(
     data: dict[str, Any] = {"MANEUVERS": []}
     section: str = "header"
     current_maneuver: dict[str, Any] | None = None
+    previous_header = -1
+    previous_metadata = -1
+    previous_data_group = -1
+    previous_data_key = -1
+    data_group_order = [
+        set(_STATE_ORDER),
+        set(_KEPLERIAN_ORDER),
+        set(_SPACECRAFT_ORDER),
+        {"COV_REF_FRAME", *_COVARIANCE_KEYS},
+        set(_MANEUVER_KEYS),
+        set(),
+    ]
+    maneuver_order = {key: index for index, key in enumerate(_MANEUVER_KEYS)}
+    saw_metadata = False
+    saw_data = False
+    saw_content = False
 
-    for raw_line in CcsdsOpm._read_lines(source):
-        line: str = raw_line.strip()
+    for line_number, raw_line in enumerate(CcsdsOpm._read_lines(source), start=1):
+        line = raw_line.rstrip("\r\n")
+        if len(line) > 254:
+            raise ValueError(f"OPM line {line_number} exceeds 254 characters")
+        try:
+            line.encode("ascii")
+        except UnicodeEncodeError as exc:
+            raise ValueError(f"OPM line {line_number} is not ASCII") from exc
+        if line and not line.strip():
+            continue
+        line = line.rstrip()
         if not line:
             continue
-        if line.startswith("COMMENT"):
+        if not saw_content and not line.startswith("CCSDS_OPM_VERS"):
+            raise ValueError("CCSDS_OPM_VERS must be the first OPM line")
+        saw_content = True
+        if line.startswith("COMMENT "):
+            if (
+                section == "metadata"
+                and {
+                    "OBJECT_NAME",
+                    "OBJECT_ID",
+                    "CENTER_NAME",
+                    "REF_FRAME",
+                    "TIME_SYSTEM",
+                }
+                <= metadata.keys()
+            ):
+                section = "data"
             target: dict[str, Any] = (
                 header
                 if section == "header"
                 else metadata if section == "metadata" else data
             )
-            target.setdefault("COMMENT", []).append(line[len("COMMENT") :].strip())
+            target.setdefault("COMMENT", []).append(line[len("COMMENT ") :])
             continue
+        if line.startswith("COMMENT"):
+            raise ValueError(f"Invalid OPM COMMENT syntax on line {line_number}")
         parsed: tuple[str, str] | None = misc.parse_key_value_line(line)
         if parsed is None:
-            continue
+            raise ValueError(f"Invalid OPM KVN assignment on line {line_number}")
         key, raw_value = parsed
+        if key != key.upper():
+            raise ValueError(f"OPM keyword must be uppercase on line {line_number}")
+        _validate_opm_value(key, raw_value.strip())
         parsed_value: int | float | str = CcsdsOpm._value(raw_value)
         if key in _HEADER_KEYS and section == "header":
+            if key not in _HEADER_ORDER:
+                raise ValueError(f"Unsupported OPM header keyword: {key}")
+            position = _HEADER_ORDER.index(key)
+            if key in header:
+                raise ValueError(f"Duplicate OPM keyword {key}")
+            if position <= previous_header:
+                raise ValueError(f"OPM header keyword {key} is out of order")
+            previous_header = position
             header[key] = parsed_value
         elif key in _METADATA_KEYS:
+            if saw_data:
+                raise ValueError(f"OPM metadata keyword {key} appears after data")
+            if key in metadata:
+                raise ValueError(f"Duplicate OPM keyword {key}")
+            position = _METADATA_ORDER.index(key)
+            if position <= previous_metadata:
+                raise ValueError(f"OPM metadata keyword {key} is out of order")
+            previous_metadata = position
+            saw_metadata = True
             metadata[key] = parsed_value
             section = "metadata"
-        elif key == "MAN_EPOCH_IGNITION":
-            current_maneuver = {key: parsed_value}
-            data["MANEUVERS"].append(current_maneuver)
+        elif (
+            key
+            in _STATE_ORDER
+            + _KEPLERIAN_ORDER
+            + _SPACECRAFT_ORDER
+            + ("COV_REF_FRAME",)
+            + _COVARIANCE_KEYS
+            or re.fullmatch(r"USER_DEFINED_[A-Z0-9_]+", key)
+            or key in _MANEUVER_KEYS
+        ):
+            saw_data = True
             section = "data"
-        elif current_maneuver is not None and key in _MANEUVER_KEYS:
-            current_maneuver[key] = parsed_value
+            if key not in _MANEUVER_KEYS and key in data:
+                raise ValueError(f"Duplicate OPM keyword {key}")
+            if key in _MANEUVER_KEYS:
+                group = 4
+            elif key.startswith("USER_DEFINED_"):
+                group = 5
+            else:
+                group = next(
+                    index for index, keys in enumerate(data_group_order) if key in keys
+                )
+            if group < previous_data_group:
+                raise ValueError(f"OPM keyword {key} is out of order")
+            if group < 4:
+                order = (
+                    _STATE_ORDER
+                    if group == 0
+                    else (
+                        _KEPLERIAN_ORDER
+                        if group == 1
+                        else (
+                            _SPACECRAFT_ORDER
+                            if group == 2
+                            else ("COV_REF_FRAME", *_COVARIANCE_KEYS)
+                        )
+                    )
+                )
+                key_position = order.index(key)
+                if group == previous_data_group and key_position <= previous_data_key:
+                    raise ValueError(f"OPM keyword {key} is out of order")
+            if group != previous_data_group:
+                previous_data_key = -1
+            if key in _MANEUVER_KEYS:
+                if key == "MAN_EPOCH_IGNITION":
+                    current_maneuver = {}
+                    data["MANEUVERS"].append(current_maneuver)
+                if current_maneuver is None:
+                    raise ValueError(f"{key} appears before MAN_EPOCH_IGNITION")
+                if key in current_maneuver:
+                    raise ValueError(f"Duplicate OPM maneuver keyword {key}")
+                prior = [maneuver_order[item] for item in current_maneuver]
+                if prior and maneuver_order[key] <= max(prior):
+                    raise ValueError(f"OPM maneuver keyword {key} is out of order")
+                current_maneuver[key] = parsed_value
+            else:
+                if key in data:
+                    raise ValueError(f"Duplicate OPM keyword {key}")
+                data[key] = parsed_value
+                if group < 4:
+                    previous_data_key = order.index(key)
+            previous_data_group = group
         else:
-            data[key] = parsed_value
-            section = "data"
+            raise ValueError(f"Unsupported OPM keyword {key} on line {line_number}")
     if not data["MANEUVERS"]:
         data.pop("MANEUVERS")
     if validate:
         validate_opm(header, metadata, data)
     return header, metadata, data
+
 
 def _write_opm(
     dest: TextIO,
@@ -684,6 +950,14 @@ def _write_opm(
     data : dict[str, Any]
         State, optional element, covariance, and maneuver values.
     """
+    validate_opm(header, metadata, data)
+    for name, values in (("header", header), ("metadata", metadata), ("data", data)):
+        for comment in values.get("COMMENT", []):
+            if not isinstance(comment, str) or not comment.isascii():
+                raise ValueError(f"OPM {name} comments must contain ASCII text")
+            if "\n" in comment or "\r" in comment:
+                raise ValueError(f"OPM {name} comments must be single-line")
+    output = io.StringIO()
     for key in (
         "CCSDS_OPM_VERS",
         "CLASSIFICATION",
@@ -692,11 +966,13 @@ def _write_opm(
         "MESSAGE_ID",
     ):
         if key in header:
-            dest.write(f"{key} = {header[key]}\n")
+            output.write(f"{key} = {header[key]}\n")
         if key == "CCSDS_OPM_VERS":
             for comment in header.get("COMMENT", []):
-                dest.write(f"COMMENT {comment}\n")
-    dest.write("\n")
+                output.write(f"COMMENT {comment}\n")
+    output.write("\n")
+    for comment in metadata.get("COMMENT", []):
+        output.write(f"COMMENT {comment}\n")
     for key in (
         "OBJECT_NAME",
         "OBJECT_ID",
@@ -706,10 +982,10 @@ def _write_opm(
         "TIME_SYSTEM",
     ):
         if key in metadata:
-            dest.write(f"{key} = {metadata[key]}\n")
-    for comment in metadata.get("COMMENT", []):
-        dest.write(f"COMMENT {comment}\n")
-    dest.write("\n")
+            output.write(f"{key} = {metadata[key]}\n")
+    output.write("\n")
+    for comment in data.get("COMMENT", []):
+        output.write(f"COMMENT {comment}\n")
     data_order: tuple[str, ...] = (
         "EPOCH",
         "X",
@@ -735,13 +1011,17 @@ def _write_opm(
     )
     for key in data_order + _COVARIANCE_KEYS:
         if key in data:
-            dest.write(f"{key} = {CcsdsOpm._write_value(key, data[key])}\n")
-    for key, value in data.items():
-        if key.startswith("USER_DEFINED_"):
-            dest.write(f"{key} = {value}\n")
+            output.write(f"{key} = {CcsdsOpm._write_value(key, data[key])}\n")
     for maneuver in data.get("MANEUVERS", []):
         for key in _MANEUVER_KEYS:
             if key in maneuver:
-                dest.write(f"{key} = {CcsdsOpm._write_value(key, maneuver[key])}\n")
-    for comment in data.get("COMMENT", []):
-        dest.write(f"COMMENT {comment}\n")
+                output.write(f"{key} = {CcsdsOpm._write_value(key, maneuver[key])}\n")
+    for key, value in data.items():
+        if key.startswith("USER_DEFINED_"):
+            output.write(f"{key} = {value}\n")
+    for line_number, line in enumerate(output.getvalue().splitlines(), start=1):
+        if len(line) > 254:
+            raise ValueError(f"OPM output line {line_number} exceeds 254 characters")
+        if not line.isascii():
+            raise ValueError(f"OPM output line {line_number} is not ASCII")
+    dest.write(output.getvalue())
