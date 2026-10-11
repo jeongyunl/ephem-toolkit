@@ -125,18 +125,29 @@ graph LR
     mod_util_xform_oem --> mod_core_cli
     mod_util_omm_to_tle --> mod_core_cli
     mod_util_omm_to_opm --> mod_util_oem_to_opm
+    mod_util_omm_to_tle --> mod_core_convert_tle
+    mod_util_omm_to_tle --> mod_core_omm
+    mod_util_omm_to_tle --> mod_core_tle
     mod_util_tle_to_opm --> mod_util_oem_to_opm
+    mod_util_tle_to_opm --> mod_util_omm_to_opm
+    mod_util_tle_to_opm --> mod_util_propagate_omm
     mod_util_oem_to_tle --> mod_util_oem_to_omm
     mod_util_oem_to_tle --> mod_util_omm_to_tle
     mod_util_oem_to_tle --> mod_core_provenance
     mod_util_oem_to_tle --> mod_core_cli
     mod_util_slice_oem --> mod_core_oem
+    mod_util_slice_oem --> mod_core_opm
     mod_util_slice_oem --> mod_core_slice_oem
     mod_util_slice_oem --> mod_core_time_utils
     mod_util_slice_oem --> mod_core_cli
     mod_util_slice_oem --> mod_interpolator_spec
     mod_util_tle_info --> mod_core_cli
+    mod_util_tle_info --> mod_core_spice_utils
+    mod_util_tle_info --> mod_propagator_kepler
     mod_util_tle_to_omm --> mod_core_cli
+    mod_util_tle_to_omm --> mod_core_convert_tle
+    mod_util_tle_to_omm --> mod_core_time_utils
+    mod_util_tle_to_omm --> mod_core_tle
     mod_util_diff_oem --> mod_core_oem
     mod_util_diff_oem --> mod_core_time_utils
     mod_util_diff_oem --> mod_interpolator_factory
@@ -188,6 +199,8 @@ graph LR
     mod_util_oem_to_opm --> mod_core_provenance
     mod_util_oem_to_opm --> mod_core_cli
     mod_util_oem_to_opm --> mod_util_propagate_orbit
+    mod_util_oem_to_opm --> mod_propagator_numerical
+    mod_util_oem_to_opm --> mod_interpolator_hermite
     mod_util_oem_to_omm --> mod_core_consts
     mod_util_oem_to_omm --> mod_core_convert_tle
     mod_util_oem_to_omm --> mod_propagator_kepler
