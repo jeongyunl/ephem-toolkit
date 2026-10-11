@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import io
 import math
 
 import ephem_toolkit.core.tle as tle
@@ -120,8 +119,5 @@ def build_tle_lines(
     tuple[str, str]
         TLE line1 and line2 strings.
     """
-    buffer: io.StringIO = io.StringIO()
-    line1: str
-    line2: str
-    line1, line2 = tle.write_tle(buffer, build_tle_data(args, estimated))
-    return line1, line2
+    tle_data = build_tle_data(args, estimated)
+    return tle.format_tle_strings(tle_data)

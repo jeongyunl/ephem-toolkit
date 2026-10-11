@@ -22,7 +22,7 @@ from ephem_toolkit.oem_to_tle import main as oem_to_tle_main
 
 
 def _assert_omm_intermediate_oem(source_omm, oem_path: Path) -> ccsds_oem.CcsdsOem:
-    intermediate_oem = ccsds_oem.CcsdsOem.read(oem_path)
+    intermediate_oem = ccsds_oem.CcsdsOem.from_file(oem_path)
     first_epoch = time_utils.tt_s_to_datetime(intermediate_oem.states[0][0])
     last_epoch = time_utils.tt_s_to_datetime(intermediate_oem.states[-1][0])
     assert intermediate_oem.meta.object_name == source_omm.object_name
@@ -226,7 +226,7 @@ def test_composed_omm_to_tle_workflow_writes_oem_tle_and_report(tmp_path: Path) 
     output_tle = tmp_path / "output.tle"
     fit_report = tmp_path / "output.fit.json"
 
-    source_omm = ccsds_omm.CcsdsOmm.from_source(source)
+    source_omm = ccsds_omm.CcsdsOmm.from_file(source)
     source_omm.comments.append("SOURCE_COMMENT: DSST OMM refit")
     source_with_comment = tmp_path / "source-with-comment.omm"
     source_omm.to_file(source_with_comment)
@@ -278,7 +278,7 @@ def test_composed_omm_to_tle_workflow_writes_oem_tle_and_report(tmp_path: Path) 
         "SOURCE_COMMENT: DSST OMM refit" in report["configuration"]["source_comments"]
     )
     with output_tle.open(encoding="utf-8") as tle_file:
-        converted_tle = tle.read_tle(tle_file)
+        converted_tle = tle.Tle.read(tle_file)
     assert converted_tle.object_name == source_omm.object_name
     assert converted_tle.get_object_id() == source_omm.object_id
 
@@ -294,7 +294,7 @@ def test_non_sgp4_omm_to_tle_refit_records_kepler_fallback_provenance(
     tmp_path: Path, mean_element_theory: str, source_model: str
 ) -> None:
     source = Path(__file__).parent / "data/TEST-DSST_2020-001A.omm"
-    source_omm = ccsds_omm.CcsdsOmm.from_source(source)
+    source_omm = ccsds_omm.CcsdsOmm.from_file(source)
     source_omm.mean_element_theory = mean_element_theory
     source_omm.data["MEAN_ELEMENT_THEORY"] = mean_element_theory
     source_omm.comments.append(f"SOURCE_COMMENT: {mean_element_theory} OMM refit")
@@ -347,7 +347,7 @@ def test_non_sgp4_omm_to_tle_refit_records_kepler_fallback_provenance(
 
     _assert_valid_tle(output_tle.read_text(encoding="utf-8").splitlines())
     with output_tle.open(encoding="utf-8") as tle_file:
-        converted_tle = tle.read_tle(tle_file)
+        converted_tle = tle.Tle.read(tle_file)
     report = json.loads(fit_report.read_text(encoding="utf-8"))
     assert converted_tle.object_name == source_omm.object_name
     assert converted_tle.get_object_id() == source_omm.object_id
@@ -360,12 +360,12 @@ def test_non_sgp4_omm_to_tle_refit_records_kepler_fallback_provenance(
 def test_oem_to_tle_report_file_and_unknown_provenance(tmp_path: Path) -> None:
     """A direct OEM fit reports SGP4 provenance and writes a valid TLE."""
     source = Path("tests/data/ISS_2026-05-20_small.16m.OEM")
-    source_oem = ccsds_oem.CcsdsOem.read(source)
+    source_oem = ccsds_oem.CcsdsOem.from_file(source)
     source_oem.meta.object_name = "AUDIT SAT"
     source_oem.meta.object_id = "2024-001A"
     source_oem.meta.comments.append("OEM_SOURCE_COMMENT: TLE metadata audit")
     input_oem = tmp_path / "metadata-source.oem"
-    source_oem.write(input_oem)
+    source_oem.to_file(input_oem)
     output_tle = tmp_path / "output.tle"
     fit_report = tmp_path / "output.fit.json"
 
@@ -383,7 +383,7 @@ def test_oem_to_tle_report_file_and_unknown_provenance(tmp_path: Path) -> None:
 
     _assert_valid_tle(output_tle.read_text(encoding="utf-8").splitlines())
     with output_tle.open(encoding="utf-8") as tle_file:
-        converted_tle = tle.read_tle(tle_file)
+        converted_tle = tle.Tle.read(tle_file)
     assert converted_tle.object_name == source_oem.meta.object_name
     assert converted_tle.get_object_id() == source_oem.meta.object_id
     assert "OEM_SOURCE_COMMENT" not in output_tle.read_text(encoding="utf-8")

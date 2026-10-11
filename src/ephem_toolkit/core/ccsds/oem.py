@@ -25,6 +25,7 @@ array([6.7e6, 0.0, 0.0, 0.0, 7.5e3, 0.0])  # Position in m, velocity in m/s
 from __future__ import annotations
 
 import bisect
+import io
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -298,13 +299,13 @@ class CcsdsOem:
         """Covariance matrices associated with epochs in this OEM."""
 
     @classmethod
-    def read(cls, source: TextIO | str | Path) -> CcsdsOem:
-        """Read and construct a :class:`CcsdsOem` from a file or stream.
+    def read(cls, source: TextIO) -> CcsdsOem:
+        """Read and construct a :class:`CcsdsOem` from a text stream.
 
         Parameters
         ----------
-        source : TextIO | str | Path
-            A readable text stream, file path string, or :class:`Path`.
+        source : TextIO
+            Readable text stream.
 
         Returns
         -------
@@ -363,6 +364,23 @@ class CcsdsOem:
             states=raw_states,
             covariances=raw_covariances,
         )
+
+    @classmethod
+    def from_file(cls, path: str | Path) -> CcsdsOem:
+        """Read an OEM from a UTF-8 file."""
+        with Path(path).open("r", encoding="utf-8") as source:
+            return cls.read(source)
+
+    @classmethod
+    def from_text(cls, text: str) -> CcsdsOem:
+        """Read an OEM from serialized text."""
+        return cls.read(io.StringIO(text))
+
+    def to_text(self, format_type: OemFormat = OemFormat.OEM) -> str:
+        """Serialize this OEM to text."""
+        dest = io.StringIO()
+        self.write(dest, format_type=format_type)
+        return dest.getvalue()
 
     @classmethod
     def from_states(
@@ -513,24 +531,19 @@ class CcsdsOem:
 
     def write(
         self,
-        dest: TextIO | str | Path,
+        dest: TextIO,
         format_type: OemFormat = OemFormat.OEM,
     ) -> None:
-        """Write this OEM to a file or stream.
+        """Write this OEM to a text stream.
 
         Parameters
         ----------
-        dest : TextIO | str | Path
-            A writable text stream, file path string, or :class:`Path`.
+        dest : TextIO
+            Writable text stream.
         format_type : OemFormat, optional
             Output format, either :attr:`OemFormat.OEM` or :attr:`OemFormat.CSV`.
         """
         sep: str = "," if format_type is OemFormat.CSV else " "
-
-        if isinstance(dest, (str, Path)):
-            with open(dest, "w", encoding="utf-8") as file_handle:
-                self.write(file_handle, format_type=format_type)
-            return
 
         self._write_header(dest, sep=sep)
 
@@ -544,6 +557,15 @@ class CcsdsOem:
         self.write_states(dest, format_type=format_type)
         if format_type is OemFormat.OEM and self.covariances:
             self._write_covariances(dest, sep=sep)
+
+    def to_file(
+        self,
+        path: str | Path,
+        format_type: OemFormat = OemFormat.OEM,
+    ) -> None:
+        """Write this OEM to a UTF-8 file."""
+        with Path(path).open("w", encoding="utf-8", newline="\n") as dest:
+            self.write(dest, format_type=format_type)
 
     def _write_covariances(self, dest: TextIO, sep: str = " ") -> None:
         """Write covariance matrices as one CCSDS OEM covariance block."""
@@ -693,7 +715,7 @@ class CcsdsOem:
 
     @staticmethod
     def _read_oem_impl(
-        source: TextIO | str | Path,
+        source: TextIO,
     ) -> tuple[
         dict[str, Any],
         dict[str, Any],
@@ -702,8 +724,9 @@ class CcsdsOem:
         list[OemCovariance],
     ]:
         """Read OEM content into header, metadata, comments, states, and covariance."""
+
         if isinstance(source, (str, Path)):
-            with open(source, "r", encoding="utf-8") as file_handle:
+            with Path(source).open("r", encoding="utf-8") as file_handle:
                 return CcsdsOem._read_oem_impl(file_handle)
 
         header: dict[str, Any] = {}

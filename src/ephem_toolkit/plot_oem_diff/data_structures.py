@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 
 import numpy as np
 
+from ephem_toolkit.core.ccsds.oem import CcsdsOem
 from ephem_toolkit.core.interpolator import factory
 import ephem_toolkit.core.interpolator as interpolator
 from ephem_toolkit.core.interpolator.interpolation_spec import (
@@ -54,6 +56,38 @@ class StateHistory:
         """Initialize epochs field from state_history keys."""
         if not self.timestamps:
             self.timestamps = list(self.state_history.keys())
+
+    @classmethod
+    def from_orbit_file(
+        cls, path: str | Path, *, label: str | None = None
+    ) -> StateHistory:
+        """Read a CCSDS OEM or raw state file into a state history."""
+        source_path = Path(path)
+        if not source_path.exists():
+            raise FileNotFoundError(f"File not found: {source_path}")
+
+        try:
+            oem_data = CcsdsOem.from_file(source_path)
+        except (OSError, ValueError):
+            state_history: dict[float, np.ndarray] = {}
+            with source_path.open("r", encoding="utf-8") as source:
+                for line in source:
+                    try:
+                        parsed = CcsdsOem.parse_oem_state_line(line)
+                    except ValueError:
+                        continue
+                    if parsed is not None:
+                        timestamp, state = parsed
+                        state_history[timestamp] = state
+            if not state_history:
+                raise ValueError(f"Could not parse any state data from {source_path}")
+        else:
+            state_history = {timestamp: state for timestamp, state in oem_data.states}
+
+        return cls(
+            label=label if label is not None else source_path.name,
+            state_history=state_history,
+        )
 
     def get_start_time(self) -> float:
         """Return the earliest timestamp in the stored state history.

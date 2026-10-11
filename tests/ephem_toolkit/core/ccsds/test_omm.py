@@ -26,7 +26,7 @@ OMM_FILES = sorted((*TEST_DATA_DIR.glob("*.omm"), *TEST_OMM_DIR.glob("*.kvn")))
 
 def test_read_omm_from_file_returns_header_and_data() -> None:
     """Should parse the sample OMM file into header and data dicts."""
-    header, data = omm.read_omm(ISS_OMM_PATH)
+    header, data = omm._read_omm(ISS_OMM_PATH)
 
     assert isinstance(header, dict)
     assert isinstance(data, dict)
@@ -50,8 +50,8 @@ def test_read_omm_from_stream_matches_file_read() -> None:
     """Should produce identical parsed content from a text stream."""
     text = ISS_OMM_PATH.read_text(encoding="utf-8")
 
-    header1, data1 = omm.read_omm(ISS_OMM_PATH)
-    header2, data2 = omm.read_omm(io.StringIO(text))
+    header1, data1 = omm._read_omm(ISS_OMM_PATH)
+    header2, data2 = omm._read_omm(io.StringIO(text))
 
     assert header2 == header1
     assert data2 == data1
@@ -64,7 +64,7 @@ def test_read_omm_from_stream_matches_file_read() -> None:
 
 def test_read_omm_parses_mean_elements() -> None:
     """Should correctly parse mean Keplerian elements as numeric values."""
-    _, data = omm.read_omm(ISS_OMM_PATH)
+    _, data = omm._read_omm(ISS_OMM_PATH)
 
     assert data["EPOCH"] == "2026-06-01T07:45:33.102720"
     assert data["MEAN_MOTION"] == pytest.approx(15.49538094, abs=1e-8)
@@ -82,7 +82,7 @@ def test_read_omm_parses_mean_elements() -> None:
 
 def test_read_omm_parses_tle_parameters() -> None:
     """Should correctly parse TLE-related parameters."""
-    _, data = omm.read_omm(ISS_OMM_PATH)
+    _, data = omm._read_omm(ISS_OMM_PATH)
 
     assert data["EPHEMERIS_TYPE"] == 0
     assert data["CLASSIFICATION_TYPE"] == "U"
@@ -100,11 +100,11 @@ def test_read_omm_parses_tle_parameters() -> None:
 @pytest.mark.parametrize("omm_path", OMM_FILES, ids=[p.name for p in OMM_FILES])
 def test_write_omm_round_trip_preserves_content(tmp_path: Path, omm_path: Path) -> None:
     """Should preserve header and data through write/read round-trip."""
-    header1, data1 = omm.read_omm(omm_path)
+    header1, data1 = omm._read_omm(omm_path)
     out_path = tmp_path / "roundtrip.omm"
 
-    omm.write_omm(out_path, header1, data1)
-    header2, data2 = omm.read_omm(out_path)
+    omm._write_omm(out_path, header1, data1)
+    header2, data2 = omm._read_omm(out_path)
 
     # Header version should match
     assert header2.get("CCSDS_OMM_VERS") == header1.get("CCSDS_OMM_VERS")
@@ -125,9 +125,9 @@ def test_write_omm_round_trip_preserves_content(tmp_path: Path, omm_path: Path) 
 # ===================================================================
 
 
-def test_ccsds_omm_from_source_exposes_structured_fields() -> None:
+def test_ccsds_omm_from_file_exposes_structured_fields() -> None:
     """Should load the sample OMM into the structured class representation."""
-    ccsds_omm = omm.CcsdsOmm.from_source(ISS_OMM_PATH)
+    ccsds_omm = omm.CcsdsOmm.from_file(ISS_OMM_PATH)
 
     assert isinstance(ccsds_omm, omm.CcsdsOmm)
     assert ccsds_omm.version == pytest.approx(2.0)
@@ -150,13 +150,13 @@ def test_ccsds_omm_from_source_exposes_structured_fields() -> None:
 
 
 def test_omm_comments_survive_structured_round_trip(tmp_path: Path) -> None:
-    message = omm.CcsdsOmm.from_source(ISS_OMM_PATH)
+    message = omm.CcsdsOmm.from_file(ISS_OMM_PATH)
     comment = "EPHEMERIS_PROVENANCE: source=OEM/DSST; target_model=DSST"
     message.comments.append(comment)
     output = tmp_path / "roundtrip.omm"
 
-    message.to_file(output)
-    round_tripped = omm.CcsdsOmm.from_source(output)
+    message.write(output)
+    round_tripped = omm.CcsdsOmm.read(output)
 
     assert comment in round_tripped.comments
 
@@ -168,11 +168,11 @@ def test_omm_comments_survive_structured_round_trip(tmp_path: Path) -> None:
 
 def test_ccsds_omm_to_file_round_trip(tmp_path: Path) -> None:
     """Should preserve structured OMM content through class-based serialization."""
-    omm1 = omm.CcsdsOmm.from_source(ISS_OMM_PATH)
+    omm1 = omm.CcsdsOmm.from_file(ISS_OMM_PATH)
     out_path = tmp_path / "class_roundtrip.omm"
 
     omm1.to_file(out_path)
-    omm2 = omm.CcsdsOmm.from_source(out_path)
+    omm2 = omm.CcsdsOmm.from_file(out_path)
 
     assert omm2.object_name == omm1.object_name
     assert omm2.object_id == omm1.object_id
@@ -199,7 +199,7 @@ def test_ccsds_omm_to_file_round_trip(tmp_path: Path) -> None:
 
 def test_ccsds_omm_repr_contains_summary_information() -> None:
     """Should include object name, NORAD ID, and epoch in repr output."""
-    ccsds_omm = omm.CcsdsOmm.from_source(ISS_OMM_PATH)
+    ccsds_omm = omm.CcsdsOmm.from_file(ISS_OMM_PATH)
     text = repr(ccsds_omm)
 
     assert "CcsdsOmm" in text
@@ -216,7 +216,7 @@ def test_ccsds_omm_repr_contains_summary_information() -> None:
 
 def test_ccsds_omm_to_dict() -> None:
     """Should convert to a plain dictionary with all fields."""
-    ccsds_omm = omm.CcsdsOmm.from_source(ISS_OMM_PATH)
+    ccsds_omm = omm.CcsdsOmm.from_file(ISS_OMM_PATH)
     d = ccsds_omm.to_dict()
 
     assert isinstance(d, dict)
@@ -235,10 +235,10 @@ def test_ccsds_omm_to_dict() -> None:
 
 def test_write_omm_to_stream() -> None:
     """Should write OMM content to a StringIO stream."""
-    header, data = omm.read_omm(ISS_OMM_PATH)
+    header, data = omm._read_omm(ISS_OMM_PATH)
     buf = io.StringIO()
 
-    omm.write_omm(buf, header, data)
+    omm._write_omm(buf, header, data)
     output = buf.getvalue()
 
     assert "CCSDS_OMM_VERS" in output
@@ -287,7 +287,7 @@ BSTAR          = 0
 MEAN_MOTION_DOT = 0
 MEAN_MOTION_DDOT = 0
 """
-    header, data = omm.read_omm(io.StringIO(omm_text))
+    header, data = omm._read_omm(io.StringIO(omm_text))
 
     assert "COMMENT" in header
     assert len(header["COMMENT"]) == 2
@@ -325,7 +325,7 @@ MEAN_ANOMALY   = 300.0
 CUSTOM_NUMERIC = 42.5 [km]
 """
 
-    header, data = omm.read_omm(io.StringIO(omm_text))
+    header, data = omm._read_omm(io.StringIO(omm_text))
 
     assert "USER_DEFINED_EARTH_MODEL" not in header
     assert data["USER_DEFINED_EARTH_MODEL"] == "WGS-84"
@@ -363,8 +363,8 @@ def test_write_omm_round_trip_preserves_non_standard_keys(tmp_path: Path) -> Non
     }
     out_path = tmp_path / "custom-fields.omm"
 
-    omm.write_omm(out_path, header, data)
-    _, parsed_data = omm.read_omm(out_path)
+    omm._write_omm(out_path, header, data)
+    _, parsed_data = omm._read_omm(out_path)
 
     assert parsed_data["USER_DEFINED_EARTH_MODEL"] == "WGS-84"
     assert parsed_data["CUSTOM_NUMERIC"] == pytest.approx(42.5)
@@ -402,9 +402,9 @@ CUSTOM_NUMERIC = 42.5
     source = io.StringIO(omm_text)
     out_path = tmp_path / "structured-custom-fields.omm"
 
-    ccsds_omm = omm.CcsdsOmm.from_source(source)
+    ccsds_omm = omm.CcsdsOmm.read(source)
     ccsds_omm.to_file(out_path)
-    round_tripped = omm.CcsdsOmm.from_source(out_path)
+    round_tripped = omm.CcsdsOmm.from_file(out_path)
 
     assert round_tripped.data["USER_DEFINED_EARTH_MODEL"] == "WGS-84"
     assert round_tripped.data["CUSTOM_NUMERIC"] == pytest.approx(42.5)
@@ -437,7 +437,7 @@ RA_OF_ASC_NODE = 100.0
 ARG_OF_PERICENTER = 200.0
 MEAN_ANOMALY   = 300.0
 """
-    ccsds_omm = omm.CcsdsOmm.from_source(io.StringIO(omm_text))
+    ccsds_omm = omm.CcsdsOmm.read(io.StringIO(omm_text))
 
     assert ccsds_omm.object_name == "TEST-SAT"
     assert ccsds_omm.mean_element_theory == "DSST"
@@ -540,7 +540,7 @@ def test_keplerian_to_omm_round_trip(tmp_path: Path) -> None:
     omm1.to_file(out_path)
 
     # Read back
-    omm2 = omm.CcsdsOmm.from_source(out_path)
+    omm2 = omm.CcsdsOmm.from_file(out_path)
 
     # Verify key fields are preserved
     assert omm2.object_name == "ROUND-TRIP-TEST"
@@ -632,7 +632,7 @@ def test_ccsds_omm_round_trip_preserves_spacecraft_and_covariance(
         "COV_REF_FRAME = ICRF",
     ]
     fields.extend(f"{key} = 1.0" for key in omm._COVARIANCE_KEYS)
-    message = omm.CcsdsOmm.from_source(io.StringIO("\n".join(fields)))
+    message = omm.CcsdsOmm.read(io.StringIO("\n".join(fields)))
     output_path = tmp_path / "optional-fields.omm"
 
     assert message.tle_parameters is None
@@ -642,7 +642,7 @@ def test_ccsds_omm_round_trip_preserves_spacecraft_and_covariance(
     assert message.covariance.matrix[0, 0] == pytest.approx(1.0)
     message.to_file(output_path)
 
-    restored = omm.CcsdsOmm.from_source(output_path)
+    restored = omm.CcsdsOmm.from_file(output_path)
     assert restored.spacecraft_parameters is not None
     assert restored.spacecraft_parameters.mass == pytest.approx(12.0)
     assert restored.covariance is not None

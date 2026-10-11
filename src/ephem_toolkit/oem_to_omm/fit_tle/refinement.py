@@ -49,7 +49,7 @@ def evaluate_tle_epoch_states_m(
     """
     states: list[np.ndarray] = []
     for line1, line2 in line_pairs:
-        tle_obj = tle.read_tle(io.StringIO(f"{line1}\n{line2}"))
+        tle_obj = tle.Tle.read(io.StringIO(f"{line1}\n{line2}"))
         propagator = sgp4_propagator.Sgp4Propagator(tle_obj)
         epoch_s = propagator.get_initial_epoch_s()
         _, state = propagator.propagate_to(epoch_s)  # (6,) in meters
@@ -77,7 +77,7 @@ def evaluate_tle_states_for_offsets_m(
     list[np.ndarray] | None
         List of state vectors (6,) [x, y, z, vx, vy, vz] in m and m/s, or None on failure.
     """
-    tle_obj = tle.read_tle(io.StringIO(f"{line1}\n{line2}"))
+    tle_obj = tle.Tle.read(io.StringIO(f"{line1}\n{line2}"))
     propagator = sgp4_propagator.Sgp4Propagator(tle_obj)
     epoch_s = propagator.get_initial_epoch_s()
 

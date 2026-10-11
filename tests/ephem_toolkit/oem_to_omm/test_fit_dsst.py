@@ -160,7 +160,7 @@ def test_dsst_theory_in_output_omm(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "exists", lambda *_: True)
     monkeypatch.setattr(
         oem.CcsdsOem,
-        "read",
+        "from_file",
         lambda *_: _DummyOemData(states),
     )
     monkeypatch.setattr(
@@ -184,7 +184,7 @@ def test_dsst_omm_output_has_required_fields(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "exists", lambda *_: True)
     monkeypatch.setattr(
         oem.CcsdsOem,
-        "read",
+        "from_file",
         lambda *_: _DummyOemData(states),
     )
     monkeypatch.setattr(
@@ -241,7 +241,7 @@ def test_dsst_omm_roundtrip(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "exists", lambda *_: True)
     monkeypatch.setattr(
         oem.CcsdsOem,
-        "read",
+        "from_file",
         lambda *_: _DummyOemData(states),
     )
     monkeypatch.setattr(
@@ -253,7 +253,7 @@ def test_dsst_omm_roundtrip(monkeypatch, tmp_path):
     oem_to_omm.main()
 
     # Parse the output OMM
-    parsed = omm_mod.CcsdsOmm.from_source(output_path)
+    parsed = omm_mod.CcsdsOmm.from_file(output_path)
     assert parsed.mean_element_theory.upper() == "DSST"
     assert parsed.eccentricity >= 0.0
     assert 0.0 <= parsed.inclination <= 180.0
@@ -268,7 +268,7 @@ def test_dsst_mode_cli_verbose(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(Path, "exists", lambda *_: True)
     monkeypatch.setattr(
         oem.CcsdsOem,
-        "read",
+        "from_file",
         lambda *_: _DummyOemData(states),
     )
     monkeypatch.setattr(

@@ -88,7 +88,7 @@ def test_write_oem_round_trip_preserves_content(tmp_path: Path) -> None:
     header1, meta1, data_comments1, states1, _ = oem.CcsdsOem._read_oem_impl(OEM_PATH)
     out_path = tmp_path / "roundtrip.oem"
 
-    oem.CcsdsOem.read(OEM_PATH).write(out_path)
+    oem.CcsdsOem.from_file(OEM_PATH).to_file(out_path)
     header2, meta2, data_comments2, states2, _ = oem.CcsdsOem._read_oem_impl(out_path)
 
     assert header2 == header1
@@ -107,7 +107,7 @@ def test_write_oem_round_trip_preserves_content(tmp_path: Path) -> None:
 
 def test_ccsds_oem_read_exposes_structured_fields() -> None:
     """CcsdsOem.read() should load the sample OEM into structured fields."""
-    ccsds_oem = oem.CcsdsOem.read(OEM_PATH)
+    ccsds_oem = oem.CcsdsOem.from_file(OEM_PATH)
 
     assert isinstance(ccsds_oem.header, oem.OemHeader)
     assert isinstance(ccsds_oem.meta, oem.OemMeta)
@@ -127,12 +127,12 @@ def test_ccsds_oem_read_exposes_structured_fields() -> None:
 
 
 def test_oem_comments_survive_structured_round_trip(tmp_path: Path) -> None:
-    message = oem.CcsdsOem.read(OEM_PATH)
+    message = oem.CcsdsOem.from_file(OEM_PATH)
     comment = "EPHEMERIS_PROVENANCE: source=OPM; target_model=numerical"
     message.meta.comments.append(comment)
     output = tmp_path / "roundtrip.oem"
 
-    message.write(output)
+    message.to_file(output)
     round_tripped = oem.CcsdsOem.read(output)
 
     assert comment in round_tripped.meta.comments
@@ -270,11 +270,11 @@ def test_ccsds_oem_write_round_trip_preserves_structured_content(
     tmp_path: Path,
 ) -> None:
     """CcsdsOem.write() should preserve structured OEM content through serialization."""
-    oem1 = oem.CcsdsOem.read(OEM_PATH)
+    oem1 = oem.CcsdsOem.from_file(OEM_PATH)
     out_path = tmp_path / "class_roundtrip.oem"
 
-    oem1.write(out_path)
-    oem2 = oem.CcsdsOem.read(out_path)
+    oem1.to_file(out_path)
+    oem2 = oem.CcsdsOem.from_file(out_path)
 
     assert oem2.header == oem1.header
     assert oem2.meta == oem1.meta
@@ -284,7 +284,7 @@ def test_ccsds_oem_write_round_trip_preserves_structured_content(
 
 def test_ccsds_oem_write_to_stream() -> None:
     """CcsdsOem.write() should write to a text stream."""
-    oem1 = oem.CcsdsOem.read(OEM_PATH)
+    oem1 = oem.CcsdsOem.from_file(OEM_PATH)
     output = io.StringIO()
     oem1.write(output)
     content = output.getvalue()
@@ -295,18 +295,13 @@ def test_ccsds_oem_write_to_stream() -> None:
 
 
 # ===================================================================
-# 6. Deprecated API still works (backward compatibility)
-# ===================================================================
-
-
-# ===================================================================
-# 7. __repr__ includes key summary fields
+# 6. __repr__ includes key summary fields
 # ===================================================================
 
 
 def test_ccsds_oem_repr_contains_summary_information() -> None:
     """Should include object name, frame, and epoch count in repr output."""
-    ccsds_oem = oem.CcsdsOem.read(OEM_PATH)
+    ccsds_oem = oem.CcsdsOem.from_file(OEM_PATH)
     text = repr(ccsds_oem)
 
     assert "CcsdsOem" in text
@@ -341,7 +336,7 @@ def _round_trip_test_oem(source: Path) -> dict:
 
         # Low-level round-trip
         header, meta, data_comments, states, _ = oem.CcsdsOem._read_oem_impl(source)
-        oem.CcsdsOem.read(source).write(lowlevel_path)
+        oem.CcsdsOem.from_file(source).to_file(lowlevel_path)
         header2, meta2, data_comments2, states2, _ = oem.CcsdsOem._read_oem_impl(
             lowlevel_path
         )
@@ -360,9 +355,9 @@ def _round_trip_test_oem(source: Path) -> dict:
                     break
 
         # Class-based round-trip using new read()/write() API
-        ccsds_oem = oem.CcsdsOem.read(source)
-        ccsds_oem.write(class_path)
-        oem2 = oem.CcsdsOem.read(class_path)
+        ccsds_oem = oem.CcsdsOem.from_file(source)
+        ccsds_oem.to_file(class_path)
+        oem2 = oem.CcsdsOem.from_file(class_path)
 
         class_header_ok = ccsds_oem.header == oem2.header
         class_meta_ok = ccsds_oem.meta == oem2.meta
@@ -402,7 +397,7 @@ def test_round_trip_oem() -> None:
 
 def test_ccsds_oem_len_matches_state_count() -> None:
     """Should return correct length via __len__."""
-    ccsds_oem = oem.CcsdsOem.read(OEM_PATH)
+    ccsds_oem = oem.CcsdsOem.from_file(OEM_PATH)
 
     assert len(ccsds_oem) == len(ccsds_oem.states)
     assert len(ccsds_oem) > 0
@@ -410,7 +405,7 @@ def test_ccsds_oem_len_matches_state_count() -> None:
 
 def test_ccsds_oem_epochs_property() -> None:
     """Should extract epochs list from states."""
-    ccsds_oem = oem.CcsdsOem.read(OEM_PATH)
+    ccsds_oem = oem.CcsdsOem.from_file(OEM_PATH)
 
     epochs = ccsds_oem.epochs
     assert len(epochs) == len(ccsds_oem.states)
@@ -419,7 +414,7 @@ def test_ccsds_oem_epochs_property() -> None:
 
 def test_ccsds_oem_state_vectors_property() -> None:
     """Should extract state vectors as numpy array."""
-    ccsds_oem = oem.CcsdsOem.read(OEM_PATH)
+    ccsds_oem = oem.CcsdsOem.from_file(OEM_PATH)
 
     state_vecs = ccsds_oem.state_vectors
     assert isinstance(state_vecs, np.ndarray)
@@ -428,7 +423,7 @@ def test_ccsds_oem_state_vectors_property() -> None:
 
 def test_ccsds_oem_epochs_and_state_vectors_sorted() -> None:
     """Should return epochs and state vectors ordered by increasing epoch."""
-    ccsds_oem = oem.CcsdsOem.read(OEM_PATH)
+    ccsds_oem = oem.CcsdsOem.from_file(OEM_PATH)
 
     epochs = ccsds_oem.epochs
     assert epochs == sorted(epochs)
@@ -585,8 +580,8 @@ def test_from_states_round_trip() -> None:
         temp_path = Path(f.name)
 
     try:
-        oem_obj.write(temp_path)
-        oem_read = oem.CcsdsOem.read(temp_path)
+        oem_obj.to_file(temp_path)
+        oem_read = oem.CcsdsOem.from_file(temp_path)
 
         assert len(oem_read) == 2
         assert oem_read.meta.object_name == "TEST_SAT"
@@ -695,10 +690,10 @@ def test_integration_workflow() -> None:
         temp_path = Path(f.name)
 
     try:
-        oem_obj.write(temp_path)
+        oem_obj.to_file(temp_path)
 
         # Read back
-        oem_final = oem.CcsdsOem.read(temp_path)
+        oem_final = oem.CcsdsOem.from_file(temp_path)
 
         # Verify
         assert len(oem_final) == 3

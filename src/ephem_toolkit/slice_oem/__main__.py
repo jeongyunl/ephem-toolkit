@@ -80,7 +80,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             oem_file = "<stdin>"
         else:
             oem_file = Path(cli_args.input_oem)
-            oem_data = oem.CcsdsOem.read(oem_file)
+            oem_data = oem.CcsdsOem.from_file(oem_file)
 
         if cli_args.time_slice and cli_args.interpolate:
             interpolation_degree = cli_args.interpolate_type.degree
@@ -243,7 +243,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                             z_dot=state[5] / oem.KILOMETERS_TO_METERS,
                         ),
                     )
-                    first_state_opm.to_file(output_stream)
+                    first_state_opm.write(output_stream)
                 elif cli_args.data_only:
                     sliced_oem.write_states(output_stream)
                 else:

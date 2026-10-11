@@ -14,7 +14,7 @@ OPM_FILES = sorted((*OPM_DIR.glob("*.opm"), *OPM_DIR.glob("*.kvn")))
 
 
 def test_read_opm_parses_header_state_and_units() -> None:
-    header, metadata, data = opm.read_opm(OPM_DIR / "sample2.opm")
+    header, metadata, data = opm._read_opm(OPM_DIR / "sample2.opm")
 
     assert header["CCSDS_OPM_VERS"] == pytest.approx(3.0)
     assert header["ORIGINATOR"] == "GSOC"
@@ -26,7 +26,7 @@ def test_read_opm_parses_header_state_and_units() -> None:
 
 
 def test_read_opm_parses_covariance_and_user_defined_values() -> None:
-    _, _, data = opm.read_opm(OPM_DIR / "sample4.opm")
+    _, _, data = opm._read_opm(OPM_DIR / "sample4.opm")
 
     assert data["COV_REF_FRAME"] == "RTN"
     assert data["CZ_DOT_Z_DOT"] == pytest.approx(6.2244443386355e-10)
@@ -34,7 +34,7 @@ def test_read_opm_parses_covariance_and_user_defined_values() -> None:
 
 
 def test_ccsds_opm_exposes_optional_blocks() -> None:
-    message = opm.CcsdsOpm.from_source(OPM_DIR / "sample4.opm")
+    message = opm.CcsdsOpm.from_file(OPM_DIR / "sample4.opm")
 
     assert message.keplerian_elements is not None
     assert message.keplerian_elements.true_anomaly == pytest.approx(41.922339)
@@ -70,22 +70,22 @@ Z_DOT = 6
 
 def test_read_opm_rejects_partial_keplerian_elements() -> None:
     with pytest.raises(ValueError, match="Incomplete OPM Keplerian"):
-        opm.read_opm(_minimal_opm("ECCENTRICITY = 0.1\n"))
+        opm._read_opm(_minimal_opm("ECCENTRICITY = 0.1\n"))
 
 
 def test_read_opm_rejects_partial_covariance_matrix() -> None:
     with pytest.raises(ValueError, match="Incomplete OPM covariance"):
-        opm.read_opm(_minimal_opm("CX_X = 1\n"))
+        opm._read_opm(_minimal_opm("CX_X = 1\n"))
 
 
 def test_read_opm_requires_mass_and_negative_delta_mass_for_maneuvers() -> None:
     maneuver = "MAN_EPOCH_IGNITION = 2026-01-01T00:00:00\n"
     with pytest.raises(ValueError, match="MASS"):
-        opm.read_opm(_minimal_opm(maneuver))
+        opm._read_opm(_minimal_opm(maneuver))
 
     invalid_mass_change = "MASS = 100\n" + maneuver + "MAN_DELTA_MASS = 1\n"
     with pytest.raises(ValueError, match="must be negative"):
-        opm.read_opm(_minimal_opm(invalid_mass_change))
+        opm._read_opm(_minimal_opm(invalid_mass_change))
 
 
 @pytest.mark.parametrize(
@@ -98,16 +98,16 @@ def test_read_opm_requires_mass_and_negative_delta_mass_for_maneuvers() -> None:
 )
 def test_read_opm_rejects_invalid_context(key: str, value: str, message: str) -> None:
     with pytest.raises(ValueError, match=message):
-        opm.read_opm(_minimal_opm(f"{key} = {value}\n"))
+        opm._read_opm(_minimal_opm(f"{key} = {value}\n"))
 
 
 @pytest.mark.parametrize("path", OPM_FILES, ids=lambda p: p.name)
 def test_opm_dictionary_round_trip(path: Path) -> None:
-    header, metadata, data = opm.read_opm(path)
+    header, metadata, data = opm._read_opm(path)
     output = io.StringIO()
 
-    opm.write_opm(output, header, metadata, data)
-    parsed_header, parsed_metadata, parsed_data = opm.read_opm(
+    opm._write_opm(output, header, metadata, data)
+    parsed_header, parsed_metadata, parsed_data = opm._read_opm(
         io.StringIO(output.getvalue())
     )
 
@@ -117,7 +117,7 @@ def test_opm_dictionary_round_trip(path: Path) -> None:
 
 
 def test_ccsds_opm_structured_api() -> None:
-    message = opm.CcsdsOpm.from_source(OPM_DIR / "sample2.opm")
+    message = opm.CcsdsOpm.from_file(OPM_DIR / "sample2.opm")
 
     assert message.state_vector.values.tolist() == pytest.approx(
         [6655.9942, -40218.5751, -82.9177, 3.11548208, 0.47042605, -0.00101495]
@@ -127,12 +127,12 @@ def test_ccsds_opm_structured_api() -> None:
 
 
 def test_opm_comments_survive_structured_round_trip() -> None:
-    message = opm.CcsdsOpm.from_source(OPM_DIR / "sample2.opm")
+    message = opm.CcsdsOpm.from_file(OPM_DIR / "sample2.opm")
     comment = "EPHEMERIS_PROVENANCE: source=OEM/DSST; target_model=numerical"
     message.header.comments.append(comment)
 
     output = io.StringIO()
-    message.to_file(output)
-    round_tripped = opm.CcsdsOpm.from_source(io.StringIO(output.getvalue()))
+    message.write(output)
+    round_tripped = opm.CcsdsOpm.read(io.StringIO(output.getvalue()))
 
     assert comment in round_tripped.header.comments

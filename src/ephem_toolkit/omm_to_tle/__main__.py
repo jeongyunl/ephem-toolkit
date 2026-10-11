@@ -46,7 +46,7 @@ def main(argv=None) -> None:
             sys.exit(1)
 
     try:
-        omm_data: omm.CcsdsOmm = omm.CcsdsOmm.from_source(io.StringIO(input_text))
+        omm_data: omm.CcsdsOmm = omm.CcsdsOmm.read(io.StringIO(input_text))
     except (ValueError, KeyError) as error:
         print(f"Error: {error}", file=sys.stderr)
         sys.exit(1)
@@ -59,11 +59,11 @@ def main(argv=None) -> None:
         sys.exit(1)
 
     if cli_args.output_tle == "-":
-        tle.write_tle(sys.stdout, tle_data)
+        tle_data.write(sys.stdout)
     elif cli_args.output_tle:
-        tle.write_tle(cli_args.output_tle, tle_data)
+        tle_data.to_file(cli_args.output_tle)
     else:
-        tle.write_tle(sys.stdout, tle_data)
+        tle_data.write(sys.stdout)
 
 
 def cli(argv=None) -> int:

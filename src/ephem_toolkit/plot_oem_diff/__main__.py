@@ -59,7 +59,6 @@ def main(argv=None) -> None:
 
     from .constants import DEFAULT_INTERPOLATION_DEGREE
     from .data_structures import StateHistory, TimeUnit
-    from .file_io import read_orbit_file
     from .plotting import (
         plot_angular_separation,
         plot_orbits,
@@ -94,16 +93,16 @@ def main(argv=None) -> None:
 
     # Read reference orbit
     print(f"Reading reference orbit from {cli_args.input_oem_files[0]}...")
-    ref_state_history: dict[float, np.ndarray] = read_orbit_file(
-        cli_args.input_oem_files[0]
-    )
+    reference_history = StateHistory.from_orbit_file(cli_args.input_oem_files[0])
+    ref_state_history = reference_history.state_history
     print(f"  Loaded {len(ref_state_history)} states")
 
     # Read comparison orbits
     comparison_data: list[StateHistory] = []
     for filepath in cli_args.input_oem_files[1:]:
         print(f"Reading comparison orbit from {filepath}...")
-        state_history: dict[float, np.ndarray] = read_orbit_file(filepath)
+        orbit_history = StateHistory.from_orbit_file(filepath)
+        state_history = orbit_history.state_history
         print(f"  Loaded {len(state_history)} states")
 
         label: str = Path(filepath).name

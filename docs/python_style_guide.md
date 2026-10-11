@@ -16,19 +16,21 @@ def _parse_kv_line(line: str) -> tuple[str, str] | None:
 
 **Multi-line** for public functions:
 ```python
-def read_tle(stream: TextIO) -> Tle:
-    """Parse TLE elements from a text stream.
+class Tle:
+    @classmethod
+    def read(cls, source: TextIO) -> Tle:
+        """Parse a TLE from a readable text stream.
     
-    Parameters
-    ----------
-    stream : TextIO
-        Readable text stream containing TLE data.
+        Parameters
+        ----------
+        source : TextIO
+            Readable text stream containing TLE data.
     
-    Returns
-    -------
-    Tle
-        Parsed TLE dataclass instance.
-    """
+        Returns
+        -------
+        Tle
+            Parsed TLE dataclass instance.
+        """
 ```
 
 **Properties** use one-line:
@@ -107,7 +109,18 @@ Usage:
 ```python
 # Verb prefix (preferred)
 def parse_oem_state_line(line: str) -> tuple[float, np.ndarray] | None: ...
-def read_tle(stream: TextIO) -> Tle: ...
+
+class Tle:
+    @classmethod
+    def read(cls, source: TextIO) -> Tle: ...
+
+    @classmethod
+    def from_file(cls, path: str | Path) -> Tle: ...
+
+    def write(self, dest: TextIO) -> None: ...
+
+    def to_file(self, path: str | Path) -> None: ...
+
 def compute_tle_checksum(line: str) -> int: ...
 
 # Conversions
@@ -116,8 +129,15 @@ def cartesian_to_keplerian(state_m: np.ndarray, mu_m3_s2: float) -> np.ndarray: 
 # Class methods
 class CcsdsOem:
     @classmethod
-    def from_source(cls, source: TextIO | str | Path) -> CcsdsOem: ...
-    def to_file(self, dest: TextIO | str | Path) -> None: ...
+    def read(cls, source: TextIO) -> CcsdsOem: ...
+
+    @classmethod
+    def from_file(cls, path: str | Path) -> CcsdsOem: ...
+
+    def write(self, dest: TextIO) -> None: ...
+
+    def to_file(self, path: str | Path) -> None: ...
+
     def find_state_by_timestamp(self, timestamp: float) -> ...: ...
 ```
 
@@ -213,25 +233,31 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from core.tle import Tle
 
-@classmethod
-def read(cls, source: TextIO | str | Path) -> CcsdsOem:
-    match: re.Match[str] | None = re.fullmatch(r"...", value)
-    ...
+class CcsdsOem:
+    @classmethod
+    def read(cls, source: TextIO) -> CcsdsOem:
+        match: re.Match[str] | None = re.fullmatch(r"...", value)
+        ...
 ```
 
 ---
 
 ## 5. File I/O
 
-- **Parameter names:** Readers use `source`, writers use `dest`
-- **Recursive dispatch:** Functions accepting `TextIO | str | Path` open file and recurse
+- **Parameter names:** Stream readers use `source`; stream writers use `dest`.
+- **Separate stream and path APIs:** Object `read`/`write` methods accept
+  caller-owned streams only. Class factories `from_file` and instance
+  serializers `to_file` own opening and closing UTF-8 files.
+- **Text APIs:** Use `from_text` and `to_text` for in-memory serialized data.
+- **No recursive path dispatch:** Do not overload stream methods with
+  `str | Path`; keep filesystem ownership explicit.
 
 ```python
-def read(source: TextIO | str | Path) -> CcsdsOem:
-    if isinstance(source, (str, Path)):
-        with open(source, "r", encoding="utf-8") as fh:
-            return CcsdsOem.read(fh)
-    # ... process stream
+message = CcsdsOem.from_file("orbit.oem")
+message.to_file("copy.oem")
+
+with open("orbit.oem", encoding="utf-8") as source:
+    message = CcsdsOem.read(source)
 ```
 
 ---
@@ -299,13 +325,17 @@ class Tle:
 
 | Method | Purpose |
 |--------|---------|
-| `read(cls, source)` | OEM classmethod to construct from file/stream |
-| `write(self, dest)` | OEM instance method to write to file/stream |
+| `read(cls, source)` | Construct from a caller-owned text stream |
+| `from_file(cls, path)` | Construct from a UTF-8 file |
+| `from_text(cls, text)` | Construct from serialized text |
+| `write(self, dest)` | Write to a caller-owned text stream |
+| `to_file(self, path)` | Write to a UTF-8 file |
+| `to_text(self)` | Serialize to in-memory text |
 | `to_dict(self)` | Dict serialization via `dataclasses.asdict` |
 
-Use the names already established by each file-format class. For example,
-`CcsdsOem` uses `read()` and `write()`, while `CcsdsOmm` uses
-`from_source()` and `to_file()`.
+The CCSDS OEM, OMM, and OPM classes and `Tle` follow this consistent set of
+stream, file, and text operations. Stream methods accept streams only;
+filesystem methods accept paths only.
 
 ### 6.4 Method ordering
 

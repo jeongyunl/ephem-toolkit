@@ -59,7 +59,7 @@ def test_read_states_returns_oem_records(monkeypatch) -> None:
     states = [_create_state(0.0, 1.0), _create_state(1.0, 2.0)]
     monkeypatch.setattr(
         comparison.oem.CcsdsOem,
-        "read",
+        "from_file",
         lambda source: SimpleNamespace(states=states),
     )
 
@@ -69,7 +69,7 @@ def test_read_states_returns_oem_records(monkeypatch) -> None:
 def test_read_states_rejects_empty_oem(monkeypatch) -> None:
     monkeypatch.setattr(
         comparison.oem.CcsdsOem,
-        "read",
+        "from_file",
         lambda _source: SimpleNamespace(states=[]),
     )
 
@@ -81,7 +81,7 @@ def test_read_states_wraps_file_errors(monkeypatch) -> None:
     def raise_oserror(_source):
         raise OSError("permission denied")
 
-    monkeypatch.setattr(comparison.oem.CcsdsOem, "read", raise_oserror)
+    monkeypatch.setattr(comparison.oem.CcsdsOem, "from_file", raise_oserror)
 
     with pytest.raises(ValueError, match="Could not read file.*permission denied"):
         comparison.read_states("unreadable.oem")

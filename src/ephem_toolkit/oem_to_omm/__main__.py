@@ -131,7 +131,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         oem_path = Path(cli_args.input_oem)
         if not oem_path.exists():
             report_error(f"Error: Input file not found: {cli_args.input_oem}")
-        oem_data = oem.CcsdsOem.read(oem_path)
+        oem_data = oem.CcsdsOem.from_file(oem_path)
 
     states: list[tuple[float, np.ndarray]] = oem_data.states
     source_comments: list[str] = list(getattr(oem_data.meta, "comments", []))
@@ -270,7 +270,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                         file=sys.stderr,
                     )
                 if cli_args.output_omm == "-":
-                    omm_obj.to_file(sys.stdout)
+                    omm_obj.write(sys.stdout)
                 else:
                     omm_obj.to_file(cli_args.output_omm)
                     if cli_args.verbose:
@@ -346,7 +346,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                     fit_summary(diagnostics),
                 ]
                 if cli_args.output_omm == "-":
-                    omm_obj.to_file(sys.stdout)
+                    omm_obj.write(sys.stdout)
                 else:
                     omm_obj.to_file(cli_args.output_omm)
                     if cli_args.verbose:
@@ -430,7 +430,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                     "Compliant with CCSDS 502.0-B-3 (2023-04)",
                 ]
                 if cli_args.output_omm == "-":
-                    omm_obj.to_file(sys.stdout)
+                    omm_obj.write(sys.stdout)
                 else:
                     omm_obj.to_file(cli_args.output_omm)
                     if cli_args.verbose:

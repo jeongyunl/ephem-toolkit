@@ -230,7 +230,9 @@ def fit_tle(
     # Parse object_id if provided
     if object_id != "UNKNOWN":
         try:
-            int_year, int_launch, int_piece = convert_tle._parse_object_id(object_id)
+            int_year, int_launch, int_piece = (
+                convert_tle._parse_object_id(object_id)
+            )
             args.int_designator_year = int_year
             args.int_designator_launch_number = int_launch
             args.int_designator_piece = int_piece
@@ -900,12 +902,16 @@ def cartesian_to_tle(
     a_m, e, i_rad, omega_rad, raan_rad, M_rad = [float(x) for x in mean_elements]
     mean_motion_rev_day: float = _sgp4_mean_motion_rev_per_day(a_m)
 
-    int_year, int_launch, int_piece = convert_tle._parse_object_id(object_id)
+    int_year, int_launch, int_piece = (
+        convert_tle._parse_object_id(object_id)
+    )
     epoch_dt: datetime = time_utils.tt_s_to_datetime(epoch_timestamp)
     epoch_year, epoch_day = tle.datetime_to_tle_epoch(epoch_dt)
 
     bstar_tle: str = convert_tle._float_to_tle_exponential(0.0)
-    mean_motion_ddot_tle: str = convert_tle._float_to_tle_exponential(0.0)
+    mean_motion_ddot_tle: str = (
+        convert_tle._float_to_tle_exponential(0.0)
+    )
 
     return tle.Tle(
         object_name=object_name,

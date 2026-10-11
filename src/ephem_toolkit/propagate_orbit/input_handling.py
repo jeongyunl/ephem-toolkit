@@ -88,13 +88,13 @@ def read_initial_state_from_opm_file_or_stdin(
 
         try:
             input_text = sys.stdin.read()
-            input_opm_message = opm.CcsdsOpm.from_source(io.StringIO(input_text))
+            input_opm_message = opm.CcsdsOpm.read(io.StringIO(input_text))
         except Exception as exc:
             print(f"Error: invalid stdin OPM input: {exc}", file=sys.stderr)
             sys.exit(1)
     else:
         try:
-            input_opm_message = opm.CcsdsOpm.from_source(Path(input_opm))
+            input_opm_message = opm.CcsdsOpm.from_file(Path(input_opm))
         except Exception as exc:
             print(
                 f"Error: failed to read OPM file '{input_opm}': {exc}", file=sys.stderr

@@ -291,7 +291,7 @@ def test_opm_physical_parameters_are_used_unless_cli_overrides(
         covariance=OpmCovariance(covariance_matrix, ref_frame="J2000"),
     ).to_file(source_path)
 
-    parsed_opm = CcsdsOpm.from_source(source_path)
+    parsed_opm = CcsdsOpm.from_file(source_path)
     assert parsed_opm.spacecraft_parameters == source_parameters
     assert parsed_opm.covariance is not None
     np.testing.assert_array_equal(parsed_opm.covariance.matrix, covariance_matrix)
@@ -352,7 +352,7 @@ def test_opm_physical_parameters_are_used_unless_cli_overrides(
         None,
         False,
     )
-    generated_oem = CcsdsOem.read(output_path)
+    generated_oem = CcsdsOem.from_file(output_path)
     assert len(generated_oem.states) == 2
     assert len(generated_oem.covariances) == 1
     assert (
@@ -434,7 +434,7 @@ def test_opm_preserves_header_and_omits_opm_only_blocks(
         ],
     ).to_file(source_path)
 
-    parsed_opm = CcsdsOpm.from_source(source_path)
+    parsed_opm = CcsdsOpm.from_file(source_path)
     assert parsed_opm.header.classification == "C"
     assert parsed_opm.header.message_id == "OPM-SOURCE-MESSAGE"
     assert parsed_opm.keplerian_elements is not None
@@ -459,7 +459,7 @@ def test_opm_preserves_header_and_omits_opm_only_blocks(
         config, initial_state, target_epoch_s, str(output_path), None, False
     )
 
-    generated_oem = CcsdsOem.read(output_path)
+    generated_oem = CcsdsOem.from_file(output_path)
     assert generated_oem.meta.object_name == expected_name
     assert generated_oem.meta.object_id == "2024-001A"
     assert generated_oem.meta.ref_frame == "J2000"
@@ -590,7 +590,8 @@ def test_read_initial_state_parses_stdin_and_file_sources(
         sources.append(source)
         return message
 
-    monkeypatch.setattr(input_handling.opm.CcsdsOpm, "from_source", parse_source)
+    monkeypatch.setattr(input_handling.opm.CcsdsOpm, "read", parse_source)
+    monkeypatch.setattr(input_handling.opm.CcsdsOpm, "from_file", parse_source)
     monkeypatch.setattr(
         input_handling.time_utils,
         "iso8601_to_datetime",
@@ -649,11 +650,9 @@ def test_read_initial_state_reports_stdin_and_file_parse_errors(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(sys, "stdin", io.StringIO("bad OPM"))
-    monkeypatch.setattr(
-        input_handling.opm.CcsdsOpm,
-        "from_source",
-        lambda _source: (_ for _ in ()).throw(ValueError("invalid message")),
-    )
+    parse_error = lambda _source: (_ for _ in ()).throw(ValueError("invalid message"))
+    monkeypatch.setattr(input_handling.opm.CcsdsOpm, "read", parse_error)
+    monkeypatch.setattr(input_handling.opm.CcsdsOpm, "from_file", parse_error)
 
     with pytest.raises(SystemExit) as stdin_error:
         input_handling.read_initial_state_from_opm_file_or_stdin(
@@ -682,7 +681,7 @@ def test_read_initial_state_reports_invalid_epoch(
         state_vector=SimpleNamespace(epoch="invalid", values=np.zeros(6)),
     )
     monkeypatch.setattr(
-        input_handling.opm.CcsdsOpm, "from_source", lambda _source: message
+        input_handling.opm.CcsdsOpm, "from_file", lambda _source: message
     )
     monkeypatch.setattr(
         input_handling.time_utils,
@@ -727,7 +726,7 @@ def test_read_initial_state_rejects_unsupported_context(
         state_vector=SimpleNamespace(epoch="2026-05-20T12:00:00", values=np.zeros(6)),
     )
     monkeypatch.setattr(
-        input_handling.opm.CcsdsOpm, "from_source", lambda _source: message
+        input_handling.opm.CcsdsOpm, "from_file", lambda _source: message
     )
     monkeypatch.setattr(
         input_handling.time_utils,

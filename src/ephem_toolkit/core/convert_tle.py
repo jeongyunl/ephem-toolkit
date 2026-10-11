@@ -368,7 +368,7 @@ def omm_to_tle(omm_obj: omm.CcsdsOmm) -> tle.Tle:
     Notes
     -----
     The returned :class:`tle.Tle` will have empty ``line1`` and ``line2`` fields.
-    Use :func:`~core.tle.write_tle` to generate the formatted TLE lines.
+    Use :func:`~core.tle.format_tle_strings` to generate the formatted TLE lines.
     """
     # Ensure TLE parameters are present
     if omm_obj.tle_parameters is None:
@@ -462,7 +462,7 @@ def tle_to_osculating_keplerian(
     Parameters
     ----------
     tle_obj : tle.Tle
-        Parsed TLE dataclass (from core.tle.read_tle).
+        Parsed TLE dataclass (from :meth:`tle.Tle.read`).
     mu_m3_s2 : float
         Gravitational parameter (m³/s²).
     apply_j2 : bool

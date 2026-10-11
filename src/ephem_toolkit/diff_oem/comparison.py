@@ -39,7 +39,10 @@ def read_states(source: TextIO | str | Path) -> list[tuple[float, np.ndarray]]:
         If file cannot be read or no valid state is found.
     """
     try:
-        oem_data = oem.CcsdsOem.read(source)
+        if isinstance(source, (str, Path)):
+            oem_data = oem.CcsdsOem.from_file(source)
+        else:
+            oem_data = oem.CcsdsOem.read(source)
     except OSError as error:
         raise ValueError(f"Could not read file '{source}': {error}") from error
 

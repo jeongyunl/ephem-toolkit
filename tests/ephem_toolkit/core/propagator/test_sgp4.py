@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from ephem_toolkit.core.propagator.base import OutputMode
-from ephem_toolkit.core.tle import read_tle, tle_epoch_to_tt_s
+from ephem_toolkit.core.tle import Tle, tle_epoch_to_tt_s
 
 pytest.importorskip("tudatpy")
 
@@ -21,7 +21,7 @@ ISS_TLE_PATH = TEST_DATA_DIR / "ISS-ZARYA_1998-067A.tle"
 
 @pytest.fixture(scope="module")
 def iss_tle():
-    return read_tle(ISS_TLE_PATH)
+    return Tle.from_file(ISS_TLE_PATH)
 
 
 @pytest.fixture(scope="module", autouse=True)

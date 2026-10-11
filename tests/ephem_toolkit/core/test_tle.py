@@ -1,4 +1,4 @@
-"""Tests for core/tle.py — TLE dataclass, read_tle, and write_tle."""
+"""Tests for the TLE data model and object I/O API."""
 
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ LEO_2LINE = f"{LEO_LINE1}\n{LEO_LINE2}\n"
 
 def test_read_tle_three_line_returns_tle_dataclass() -> None:
     """Should parse a 3-line TLE and return a Tle with all fields populated."""
-    t = tle.read_tle(io.StringIO(ISS_3LINE))
+    t = tle.Tle.read(io.StringIO(ISS_3LINE))
 
     assert isinstance(t, tle.Tle)
     assert t.object_name == ISS_NAME
@@ -78,7 +78,7 @@ def test_read_tle_three_line_returns_tle_dataclass() -> None:
 
 def test_read_tle_two_line_sets_empty_name() -> None:
     """Should parse a 2-line TLE and set name to empty string."""
-    t = tle.read_tle(io.StringIO(LEO_2LINE))
+    t = tle.Tle.read(io.StringIO(LEO_2LINE))
 
     assert isinstance(t, tle.Tle)
     assert t.object_name == ""
@@ -95,13 +95,13 @@ def test_read_tle_two_line_sets_empty_name() -> None:
 def test_read_tle_raises_on_single_line() -> None:
     """Should raise ValueError when fewer than 2 non-empty lines are given."""
     with pytest.raises(ValueError, match="at least 2 non-empty lines"):
-        tle.read_tle(io.StringIO("1 25544U 98067A   24001.50000000\n"))
+        tle.Tle.read(io.StringIO("1 25544U 98067A   24001.50000000\n"))
 
 
 def test_read_tle_raises_on_empty_stream() -> None:
     """Should raise ValueError on an empty stream."""
     with pytest.raises(ValueError, match="at least 2 non-empty lines"):
-        tle.read_tle(io.StringIO(""))
+        tle.Tle.read(io.StringIO(""))
 
 
 # ===================================================================
@@ -114,7 +114,7 @@ def test_read_tle_raises_on_short_lines() -> None:
     short_line1 = ISS_LINE1[:50]
     short_line2 = ISS_LINE2[:50]
     with pytest.raises(ValueError, match="at least 69 characters"):
-        tle.read_tle(io.StringIO(f"{short_line1}\n{short_line2}\n"))
+        tle.Tle.read(io.StringIO(f"{short_line1}\n{short_line2}\n"))
 
 
 # ===================================================================
@@ -136,47 +136,14 @@ def test_compute_tle_checksum_digits_and_minus() -> None:
 
 def test_read_tle_checksums_match() -> None:
     """Parsed checksum fields should match the expected computed values."""
-    t = tle.read_tle(io.StringIO(ISS_3LINE))
+    t = tle.Tle.read(io.StringIO(ISS_3LINE))
     assert t.line1_checksum == t.line1_checksum_expected
     assert t.line2_checksum == t.line2_checksum_expected
 
 
-# ===================================================================
-# 6. Dict-style backward compatibility on Tle dataclass
-# ===================================================================
-
-
-def test_tle_getitem() -> None:
-    """Should support tle['field'] dict-style access."""
-    t = tle.read_tle(io.StringIO(ISS_3LINE))
-    assert t["norad_cat_id"] == 25544
-    assert t["object_name"] == ISS_NAME
-
-
-def test_tle_getitem_raises_keyerror_for_missing() -> None:
-    """Should raise KeyError for non-existent fields via __getitem__."""
-    t = tle.read_tle(io.StringIO(ISS_3LINE))
-    with pytest.raises(KeyError):
-        _ = t["nonexistent_field"]
-
-
-def test_tle_contains() -> None:
-    """Should support 'field in tle' membership test."""
-    t = tle.read_tle(io.StringIO(ISS_3LINE))
-    assert "norad_cat_id" in t
-    assert "nonexistent_field" not in t
-
-
-def test_tle_get_with_default() -> None:
-    """Should return default for missing keys via .get()."""
-    t = tle.read_tle(io.StringIO(ISS_3LINE))
-    assert t.get("norad_cat_id") == 25544
-    assert t.get("nonexistent", "fallback") == "fallback"
-
-
 def test_tle_to_dict() -> None:
     """Should convert to a plain dict with all fields."""
-    t = tle.read_tle(io.StringIO(ISS_3LINE))
+    t = tle.Tle.read(io.StringIO(ISS_3LINE))
     d = t.to_dict()
     assert isinstance(d, dict)
     assert d["norad_cat_id"] == 25544
@@ -185,18 +152,20 @@ def test_tle_to_dict() -> None:
 
 
 # ===================================================================
-# 7. Write TLE from Tle dataclass — valid lines with checksums
+# 6. Write TLE from Tle dataclass — valid lines with checksums
 # ===================================================================
 
 
 def test_write_tle_from_dataclass_produces_valid_lines() -> None:
     """Should write 69-char lines with correct checksums from a Tle."""
-    t = tle.read_tle(io.StringIO(ISS_3LINE))
+    t = tle.Tle.read(io.StringIO(ISS_3LINE))
     buf = io.StringIO()
-    line1, line2 = tle.write_tle(buf, t)
+    assert t.write(buf) is None
+    line1, line2 = tle.format_tle_strings(t)
 
     assert len(line1) == 69
     assert len(line2) == 69
+    assert buf.getvalue().splitlines() == [ISS_NAME, line1, line2]
     assert line1[0] == "1"
     assert line2[0] == "2"
     # Verify checksums
@@ -205,12 +174,12 @@ def test_write_tle_from_dataclass_produces_valid_lines() -> None:
 
 
 # ===================================================================
-# 8. Write TLE from plain dict (Mapping backward compatibility)
+# 7. Write TLE from field values
 # ===================================================================
 
 
-def test_write_tle_from_dict() -> None:
-    """Should accept a plain dict and produce valid TLE lines."""
+def test_write_tle_from_field_values() -> None:
+    """Should format a Tle built from field values."""
     tle_dict = {
         "object_name": "",
         "norad_cat_id": 57392,
@@ -234,16 +203,19 @@ def test_write_tle_from_dict() -> None:
         "revolution_number_at_epoch": 13635,
     }
     buf = io.StringIO()
-    line1, line2 = tle.write_tle(buf, tle_dict)
+    tle_data = tle.Tle(**tle_dict)
+    assert tle_data.write(buf) is None
+    line1, line2 = tle.format_tle_strings(tle_data)
 
     assert len(line1) == 69
     assert len(line2) == 69
+    assert buf.getvalue().splitlines() == [line1, line2]
     assert line1[68] == tle.compute_tle_checksum(line1[:68])
     assert line2[68] == tle.compute_tle_checksum(line2[:68])
 
 
 # ===================================================================
-# 9. Read → write → read round-trip preserves values
+# 8. Read → write → read round-trip preserves values
 # ===================================================================
 
 
@@ -254,13 +226,13 @@ TLE_FILES = sorted(TEST_DATA_DIR.glob("*.tle"))
 def test_round_trip_preserves_elements(tle_path: Path) -> None:
     """Should preserve all element values through a read→write→read cycle."""
     with open(tle_path, encoding="utf-8") as fh:
-        tle1 = tle.read_tle(fh)
+        tle1 = tle.Tle.read(fh)
 
     buf = io.StringIO()
-    tle.write_tle(buf, tle1)
+    tle1.write(buf)
     buf.seek(0)
 
-    tle2 = tle.read_tle(buf)
+    tle2 = tle.Tle.read(buf)
 
     assert tle2.object_name == tle1.object_name
     assert tle2.norad_cat_id == tle1.norad_cat_id
@@ -290,16 +262,17 @@ def test_round_trip_preserves_elements(tle_path: Path) -> None:
 
 
 # ===================================================================
-# 10. Write TLE to a file path (str / Path)
+# 9. Write TLE to a file path (str / Path)
 # ===================================================================
 
 
 def test_write_tle_to_file_path(tmp_path: Path) -> None:
     """Should write a TLE file when dest is a str or Path."""
-    t = tle.read_tle(io.StringIO(LEO_2LINE))
+    t = tle.Tle.read(io.StringIO(LEO_2LINE))
     out_path = tmp_path / "output.tle"
 
-    line1, line2 = tle.write_tle(out_path, t)
+    assert t.to_file(out_path) is None
+    line1, line2 = tle.format_tle_strings(t)
 
     text = out_path.read_text(encoding="utf-8")
     lines = text.strip().splitlines()
@@ -311,10 +284,10 @@ def test_write_tle_to_file_path(tmp_path: Path) -> None:
 
 def test_write_tle_to_file_path_with_name(tmp_path: Path) -> None:
     """Should include the name line when writing a named TLE to a file."""
-    t = tle.read_tle(io.StringIO(ISS_3LINE))
+    t = tle.Tle.read(io.StringIO(ISS_3LINE))
     out_path = tmp_path / "named.tle"
 
-    tle.write_tle(str(out_path), t)
+    t.to_file(out_path)
 
     text = out_path.read_text(encoding="utf-8")
     lines = text.strip().splitlines()
@@ -328,25 +301,25 @@ def test_read_tle_from_file_path(tmp_path: Path) -> None:
     tle_path = tmp_path / "iss.tle"
     tle_path.write_text(ISS_3LINE, encoding="utf-8")
 
-    t = tle.read_tle(str(tle_path))
+    t = tle.Tle.from_file(str(tle_path))
     assert isinstance(t, tle.Tle)
     assert t.object_name == ISS_NAME
     assert t.norad_cat_id == 25544
 
-    t2 = tle.read_tle(tle_path)
+    t2 = tle.Tle.from_file(tle_path)
     assert isinstance(t2, tle.Tle)
     assert t2.object_name == ISS_NAME
     assert t2.norad_cat_id == 25544
 
 
 # ===================================================================
-# 11. get_object_id returns COSPAR ID
+# 10. get_object_id returns COSPAR ID
 # ===================================================================
 
 
 def test_get_object_id_year_2000_plus() -> None:
     """Should format COSPAR ID with 4-digit year for int_designator_year < 57."""
-    t = tle.read_tle(io.StringIO(ISS_3LINE))
+    t = tle.Tle.read(io.StringIO(ISS_3LINE))
     assert t.get_object_id() == "1998-067A"
 
 

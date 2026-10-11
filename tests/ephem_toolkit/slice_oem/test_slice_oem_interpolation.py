@@ -83,7 +83,7 @@ def _create_test_oem(
     temp_path = Path(temp_file.name)
     temp_file.close()
 
-    oem_obj.write(temp_path)
+    oem_obj.to_file(temp_path)
     return temp_path, oem_obj
 
 

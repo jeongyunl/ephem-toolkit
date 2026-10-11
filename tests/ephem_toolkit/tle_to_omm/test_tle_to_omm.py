@@ -45,13 +45,18 @@ def test_main_reads_stdin_converts_tle_and_writes_to_stdout(
         parsed_input.append(stream.read())
         return tle_object
 
-    monkeypatch.setattr(tle, "read_tle", read_tle)
+    monkeypatch.setattr(tle.Tle, "read", read_tle)
     monkeypatch.setattr(
         convert_tle,
         "tle_to_omm",
         lambda parsed_tle, **metadata: conversion_metadata.update(metadata)
         or (
-            SimpleNamespace(to_file=lambda output: output.write("OMM output\n"))
+            SimpleNamespace(
+                write=lambda output: output.write("OMM output\n"),
+                to_file=lambda destination: Path(destination).write_text(
+                    "OMM output\n", encoding="utf-8"
+                ),
+            )
             if parsed_tle is tle_object
             else None
         ),
@@ -79,7 +84,7 @@ def test_main_reads_file_and_writes_omm_to_destination(
         parsed_input.append(stream.read())
         return object()
 
-    monkeypatch.setattr(tle, "read_tle", read_tle)
+    monkeypatch.setattr(tle.Tle, "read", read_tle)
     monkeypatch.setattr(
         convert_tle,
         "tle_to_omm",
@@ -106,7 +111,7 @@ def test_main_writes_creation_date_and_originator(
 
     tle_to_omm_entry.main([str(input_path), "--output", "-"])
 
-    header, _ = omm.read_omm(io.StringIO(capsys.readouterr().out))
+    header, _ = omm._read_omm(io.StringIO(capsys.readouterr().out))
     assert header["CREATION_DATE"]
     assert header["ORIGINATOR"] == "tle_to_omm"
 
@@ -150,7 +155,7 @@ def test_main_reports_empty_file_and_invalid_tle(
 
     input_path.write_text("not a TLE\n", encoding="utf-8")
     monkeypatch.setattr(
-        tle, "read_tle", lambda _stream: (_ for _ in ()).throw(ValueError("bad TLE"))
+        tle.Tle, "read", lambda _stream: (_ for _ in ()).throw(ValueError("bad TLE"))
     )
     with pytest.raises(SystemExit) as parse_error:
         tle_to_omm_entry.main([str(input_path), "--output", "-"])

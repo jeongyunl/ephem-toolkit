@@ -125,7 +125,7 @@ def _write_kepler_reference_oem(tmp_path: Path) -> tuple[CcsdsOpm, Path]:
 
 
 def _assert_opm_propagation_oem_metadata(source_opm: CcsdsOpm, oem_path: Path) -> None:
-    generated_oem = CcsdsOem.read(oem_path)
+    generated_oem = CcsdsOem.from_file(oem_path)
     first_epoch = time_utils.tt_s_to_datetime(generated_oem.states[0][0])
     last_epoch = time_utils.tt_s_to_datetime(generated_oem.states[-1][0])
     assert generated_oem.meta.object_name == source_opm.metadata["OBJECT_NAME"]
@@ -170,7 +170,7 @@ def test_opm_to_omm_composes_kepler_propagation_and_dsst_fit(tmp_path: Path) -> 
     )
 
     output_text = output_omm.read_text(encoding="utf-8")
-    converted_omm = CcsdsOmm.from_source(output_omm)
+    converted_omm = CcsdsOmm.from_file(output_omm)
     assert "MEAN_ELEMENT_THEORY = DSST" in output_text
     assert "target_model=two-body-kepler" in output_text
     assert converted_omm.object_id == source_opm.metadata["OBJECT_ID"]
@@ -202,7 +202,7 @@ def test_opm_to_omm_composes_numerical_propagation_and_dsst_fit(tmp_path: Path) 
     output_omm = tmp_path / "numerical-output.omm"
     fit_report = tmp_path / "numerical-output.fit.json"
 
-    generated_oem = CcsdsOem.read(reference_oem)
+    generated_oem = CcsdsOem.from_file(reference_oem)
     _assert_opm_propagation_oem_metadata(source_opm, reference_oem)
     oem_to_omm_main(
         [
@@ -221,7 +221,7 @@ def test_opm_to_omm_composes_numerical_propagation_and_dsst_fit(tmp_path: Path) 
     )
 
     output_text = output_omm.read_text(encoding="utf-8")
-    converted_omm = CcsdsOmm.from_source(output_omm)
+    converted_omm = CcsdsOmm.from_file(output_omm)
     assert "MEAN_ELEMENT_THEORY = DSST" in output_text
     assert "EPHEMERIS_PROPAGATION" in output_text
     assert converted_omm.object_name == source_opm.metadata["OBJECT_NAME"]
@@ -282,7 +282,7 @@ def test_opm_numerical_fit_variants_preserve_metadata(
         ]
     )
 
-    converted_omm = CcsdsOmm.from_source(output_omm)
+    converted_omm = CcsdsOmm.from_file(output_omm)
     report = json.loads(fit_report.read_text(encoding="utf-8"))
     assert converted_omm.object_name == source_opm.metadata["OBJECT_NAME"]
     assert converted_omm.object_id == source_opm.metadata["OBJECT_ID"]
@@ -319,7 +319,7 @@ def test_opm_kepler_fit_variants_preserve_metadata(
     report_target_model: str,
 ) -> None:
     source_opm, reference_oem = _write_kepler_reference_oem(tmp_path)
-    generated_oem = CcsdsOem.read(reference_oem)
+    generated_oem = CcsdsOem.from_file(reference_oem)
     assert generated_oem.meta.object_name == source_opm.metadata["OBJECT_NAME"]
     assert generated_oem.meta.object_id == source_opm.metadata["OBJECT_ID"]
     assert "SOURCE_COMMENT: Kepler OPM input" in generated_oem.meta.comments
@@ -340,7 +340,7 @@ def test_opm_kepler_fit_variants_preserve_metadata(
         ]
     )
 
-    converted_omm = CcsdsOmm.from_source(output_omm)
+    converted_omm = CcsdsOmm.from_file(output_omm)
     report = json.loads(fit_report.read_text(encoding="utf-8"))
     assert converted_omm.object_name == source_opm.metadata["OBJECT_NAME"]
     assert converted_omm.object_id == source_opm.metadata["OBJECT_ID"]

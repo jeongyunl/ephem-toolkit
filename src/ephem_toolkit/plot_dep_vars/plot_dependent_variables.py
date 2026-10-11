@@ -11,7 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import csv
-from typing import Any, cast
+import io
+from typing import Any, TextIO, cast
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -88,28 +89,43 @@ class CsvDependentVariableData:
     metadata: list[DepVarColumnMeta]
     """Per-column metadata in the same order as the CSV columns"""
 
+    @classmethod
+    def read(cls, source: TextIO) -> CsvDependentVariableData:
+        """Read and structure dependent-variable CSV data from a text stream."""
+        time_history_tt_s, headers, matrix = (
+            CsvDependentVariableData._read_dependent_variables_csv(source)
+        )
+        occurrence_counter: dict[str, int] = {}
+        columns: dict[str, np.ndarray] = {}
+        metadata: list[DepVarColumnMeta] = []
+        for column_index, header in enumerate(headers):
+            occurrence_index = occurrence_counter.get(header, 0)
+            occurrence_counter[header] = occurrence_index + 1
+            column_key = (
+                header if occurrence_index == 0 else f"{header}#dup{occurrence_index}"
+            )
+            columns[column_key] = matrix[:, column_index]
+            metadata.append(
+                parse_dep_var_column_metadata(header, column_key, occurrence_index)
+            )
+        return cls(time_history_tt_s, columns, metadata)
 
-# ===================================================================
-# CSV I/O functions
-# ===================================================================
+    @classmethod
+    def from_file(cls, path: str | Path) -> CsvDependentVariableData:
+        """Read dependent-variable data from a UTF-8 CSV file."""
+        with Path(path).open("r", newline="", encoding="utf-8") as source:
+            return cls.read(source)
 
+    @classmethod
+    def from_text(cls, text: str) -> CsvDependentVariableData:
+        """Read dependent-variable data from CSV text."""
+        return cls.read(io.StringIO(text))
 
-def read_dependent_variables_csv(
-    dep_var_csv_path: str | Path,
-) -> tuple[np.ndarray, list[str], np.ndarray]:
-    """Read dependent-variable CSV data into numeric arrays.
-
-    Parameters
-    ----------
-    dep_var_csv_path : str | Path
-        Path to the dependent-variable CSV file.
-
-    Returns
-    -------
-    tuple[np.ndarray, list[str], np.ndarray]
-        A tuple of (time_history_tt_s, dep_var_headers, dep_var_matrix).
-    """
-    with open(dep_var_csv_path, "r", newline="", encoding="utf-8") as csv_file:
+    @staticmethod
+    def _read_dependent_variables_csv(
+        csv_file: TextIO,
+    ) -> tuple[np.ndarray, list[str], np.ndarray]:
+        """Read dependent-variable CSV rows from a text stream."""
         reader = csv.reader(csv_file)
         try:
             headers = next(reader)
@@ -141,214 +157,227 @@ def read_dependent_variables_csv(
                     f"{row_number}"
                 ) from exc
 
-    if not numeric_rows:
-        return np.array([], dtype=float), headers[1:], np.empty((0, len(headers) - 1))
-
-    data = np.asarray(numeric_rows, dtype=float)
-    time_history_tt_s = data[:, 0]
-    dep_var_headers = headers[1:]
-    dep_var_matrix = data[:, 1:]
-
-    return time_history_tt_s, dep_var_headers, dep_var_matrix
-
-
-def parse_dep_var_column_metadata(
-    header: str,
-    column_key: str,
-    occurrence_index: int,
-) -> DepVarColumnMeta:
-    """Parse one dependent-variable header into structured metadata.
-
-    Parameters
-    ----------
-    header : str
-        The CSV column header string.
-    column_key : str
-        The unique dictionary key for this column.
-    occurrence_index : int
-        Zero-based count of how many times this header appeared before.
-
-    Returns
-    -------
-    DepVarColumnMeta
-        Parsed metadata for the column.
-    """
-    parts: list[str] = header.split("/")
-    dep_type: str = parts[0] if len(parts) > 0 else ""
-    acceleration_model_type: str = parts[1] if len(parts) > 1 else ""
-    associated_body: str = parts[2] if len(parts) > 2 else ""
-    secondary_body: str = parts[3] if len(parts) > 3 else ""
-    component_index: str = parts[4] if len(parts) > 4 else ""
-
-    vector_component_index: int | None = None
-    if parts and parts[-1].isdigit():
-        vector_component_index = int(parts[-1])
-
-    return DepVarColumnMeta(
-        header=header,
-        dep_type=dep_type,
-        acceleration_model_type=acceleration_model_type,
-        associated_body=associated_body,
-        secondary_body=secondary_body,
-        component_index=component_index,
-        vector_component_index=vector_component_index,
-        column_key=column_key,
-        occurrence_index=occurrence_index,
-    )
-
-
-def load_csv_dependent_variable_data(
-    dep_var_csv_path: str | Path,
-) -> CsvDependentVariableData:
-    """Load CSV dependent-variable data and parse per-column metadata.
-
-    Parameters
-    ----------
-    dep_var_csv_path : str | Path
-        Path to the dependent-variable CSV file.
-
-    Returns
-    -------
-    CsvDependentVariableData
-        Loaded data with parsed metadata.
-    """
-    time_history_tt_s, dep_var_headers, dep_var_matrix = read_dependent_variables_csv(
-        dep_var_csv_path
-    )
-
-    occurrence_counter: dict[str, int] = {}
-    dep_var_columns: dict[str, np.ndarray] = {}
-    metadata: list[DepVarColumnMeta] = []
-    for column_index, header in enumerate(dep_var_headers):
-        occurrence_index = occurrence_counter.get(header, 0)
-        occurrence_counter[header] = occurrence_index + 1
-        column_key = (
-            header if occurrence_index == 0 else f"{header}#dup{occurrence_index}"
-        )
-        dep_var_columns[column_key] = dep_var_matrix[:, column_index]
-        metadata.append(
-            parse_dep_var_column_metadata(
-                header=header,
-                column_key=column_key,
-                occurrence_index=occurrence_index,
+        if not numeric_rows:
+            return (
+                np.array([], dtype=float),
+                headers[1:],
+                np.empty((0, len(headers) - 1)),
             )
-        )
 
-    return CsvDependentVariableData(
-        time_history_tt_s=time_history_tt_s,
-        dep_var_columns=dep_var_columns,
-        metadata=metadata,
-    )
+        data = np.asarray(numeric_rows, dtype=float)
+        time_history_tt_s = data[:, 0]
+        dep_var_headers = headers[1:]
+        dep_var_matrix = data[:, 1:]
+
+        return time_history_tt_s, dep_var_headers, dep_var_matrix
+
+    @staticmethod
+    def _filter_metadata(
+        data: CsvDependentVariableData,
+        dep_type: str,
+        acceleration_model_type: str | None = None,
+        associated_body: str | None = None,
+        secondary_body: str | None = None,
+    ) -> list[DepVarColumnMeta]:
+        """Filter metadata by dependent-variable type and optional constraints.
+
+        Parameters
+        ----------
+        data : CsvDependentVariableData
+            The loaded CSV data.
+        dep_type : str
+            Dependent-variable type to match.
+        acceleration_model_type : str | None, optional
+            Acceleration model type filter (default: None).
+        associated_body : str | None, optional
+            Associated body filter (default: None).
+        secondary_body : str | None, optional
+            Secondary body filter (default: None).
+
+        Returns
+        -------
+        list[DepVarColumnMeta]
+            Matching metadata entries.
+        """
+        matching: list[DepVarColumnMeta] = []
+        for meta in data.metadata:
+            if meta.dep_type != dep_type:
+                continue
+            if (
+                acceleration_model_type is not None
+                and meta.acceleration_model_type != acceleration_model_type
+            ):
+                continue
+            if associated_body is not None and meta.associated_body != associated_body:
+                continue
+            if secondary_body is not None and meta.secondary_body != secondary_body:
+                continue
+            matching.append(meta)
+        return matching
+
+    @staticmethod
+    def _extract_scalar(
+        data: CsvDependentVariableData,
+        dep_type: str,
+        acceleration_model_type: str | None = None,
+        associated_body: str | None = None,
+        secondary_body: str | None = None,
+        occurrence_index: int = 0,
+    ) -> np.ndarray:
+        """Extract a scalar dependent-variable column.
+
+        Parameters
+        ----------
+        data : CsvDependentVariableData
+            The loaded CSV data.
+        dep_type : str
+            Dependent-variable type to extract.
+        acceleration_model_type : str | None, optional
+            Acceleration model type filter (default: None).
+        associated_body : str | None, optional
+            Associated body filter (default: None).
+        secondary_body : str | None, optional
+            Secondary body filter (default: None).
+        occurrence_index : int, optional
+            Which occurrence to extract if multiple matches (default: 0).
+
+        Returns
+        -------
+        np.ndarray
+            The scalar data array.
+
+        Raises
+        ------
+        KeyError
+            If no matching column is found.
+        """
+        matches = [
+            meta
+            for meta in CsvDependentVariableData._filter_metadata(
+                data,
+                dep_type=dep_type,
+                acceleration_model_type=acceleration_model_type,
+                associated_body=associated_body,
+                secondary_body=secondary_body,
+            )
+            if meta.vector_component_index is None
+        ]
+        if not matches:
+            raise KeyError(
+                "missing scalar dependent-variable column for "
+                f"dep_type={dep_type}, acceleration_model_type={acceleration_model_type}, "
+                f"associated_body={associated_body}, secondary_body={secondary_body}"
+            )
+        if occurrence_index >= len(matches):
+            raise KeyError(
+                "missing scalar dependent-variable column occurrence for "
+                f"dep_type={dep_type}, occurrence_index={occurrence_index}"
+            )
+        return data.dep_var_columns[matches[occurrence_index].column_key]
 
 
-# ===================================================================
-# Data extraction helpers
-# ===================================================================
 
+    @staticmethod
+    def _extract_central_body_fixed_position(
+        data: CsvDependentVariableData,
+        satellite_name: str,
+    ) -> np.ndarray:
+        """Extract Earth-fixed cartesian position with compatibility for header variants.
 
-def _filter_metadata(
-    data: CsvDependentVariableData,
-    dep_type: str,
-    acceleration_model_type: str | None = None,
-    associated_body: str | None = None,
-    secondary_body: str | None = None,
-) -> list[DepVarColumnMeta]:
-    """Filter metadata by dependent-variable type and optional constraints.
+        Parameters
+        ----------
+        data : CsvDependentVariableData
+            The loaded CSV data.
+        satellite_name : str
+            Name of the satellite for filtering.
 
-    Parameters
-    ----------
-    data : CsvDependentVariableData
-        The loaded CSV data.
-    dep_type : str
-        Dependent-variable type to match.
-    acceleration_model_type : str | None, optional
-        Acceleration model type filter (default: None).
-    associated_body : str | None, optional
-        Associated body filter (default: None).
-    secondary_body : str | None, optional
-        Secondary body filter (default: None).
+        Returns
+        -------
+        np.ndarray
+            Earth-fixed position array with shape (N, 3).
 
-    Returns
-    -------
-    list[DepVarColumnMeta]
-        Matching metadata entries.
-    """
-    matching: list[DepVarColumnMeta] = []
-    for meta in data.metadata:
-        if meta.dep_type != dep_type:
-            continue
-        if (
-            acceleration_model_type is not None
-            and meta.acceleration_model_type != acceleration_model_type
-        ):
-            continue
-        if associated_body is not None and meta.associated_body != associated_body:
-            continue
-        if secondary_body is not None and meta.secondary_body != secondary_body:
-            continue
-        matching.append(meta)
-    return matching
+        Raises
+        ------
+        KeyError
+            If no matching position columns are found.
+        """
+        candidate_dep_types: list[str] = [
+            "central_body_fixed_cartesian_position",
+            "body_fixed_relative_cartesian_position",
+        ]
+        fallback_constraints: list[tuple[str | None, str | None]] = [
+            (satellite_name, "Earth"),
+            (satellite_name, None),
+            (None, "Earth"),
+            (None, None),
+        ]
 
+        for dep_type in candidate_dep_types:
+            for associated_body, secondary_body in fallback_constraints:
+                try:
+                    return _extract_vector(
+                        data,
+                        dep_type=dep_type,
+                        associated_body=associated_body,
+                        secondary_body=secondary_body,
+                    )
+                except KeyError:
+                    continue
 
-def _extract_scalar(
-    data: CsvDependentVariableData,
-    dep_type: str,
-    acceleration_model_type: str | None = None,
-    associated_body: str | None = None,
-    secondary_body: str | None = None,
-    occurrence_index: int = 0,
-) -> np.ndarray:
-    """Extract a scalar dependent-variable column.
-
-    Parameters
-    ----------
-    data : CsvDependentVariableData
-        The loaded CSV data.
-    dep_type : str
-        Dependent-variable type to extract.
-    acceleration_model_type : str | None, optional
-        Acceleration model type filter (default: None).
-    associated_body : str | None, optional
-        Associated body filter (default: None).
-    secondary_body : str | None, optional
-        Secondary body filter (default: None).
-    occurrence_index : int, optional
-        Which occurrence to extract if multiple matches (default: 0).
-
-    Returns
-    -------
-    np.ndarray
-        The scalar data array.
-
-    Raises
-    ------
-    KeyError
-        If no matching column is found.
-    """
-    matches = [
-        meta
-        for meta in _filter_metadata(
-            data,
-            dep_type=dep_type,
-            acceleration_model_type=acceleration_model_type,
-            associated_body=associated_body,
-            secondary_body=secondary_body,
-        )
-        if meta.vector_component_index is None
-    ]
-    if not matches:
         raise KeyError(
-            "missing scalar dependent-variable column for "
-            f"dep_type={dep_type}, acceleration_model_type={acceleration_model_type}, "
-            f"associated_body={associated_body}, secondary_body={secondary_body}"
+            "missing Earth-fixed cartesian position columns in dependent-variable CSV. "
+            "Expected central_body_fixed_cartesian_position or "
+            "body_fixed_relative_cartesian_position columns."
         )
-    if occurrence_index >= len(matches):
-        raise KeyError(
-            "missing scalar dependent-variable column occurrence for "
-            f"dep_type={dep_type}, occurrence_index={occurrence_index}"
-        )
-    return data.dep_var_columns[matches[occurrence_index].column_key]
 
+    @staticmethod
+    def _extract_relative_position(
+        data: CsvDependentVariableData,
+        satellite_name: str,
+    ) -> np.ndarray:
+        """Extract relative cartesian position with compatibility for header variants.
+
+        Parameters
+        ----------
+        data : CsvDependentVariableData
+            The loaded CSV data.
+        satellite_name : str
+            Name of the satellite for filtering.
+
+        Returns
+        -------
+        np.ndarray
+            Relative position array with shape (N, 3).
+
+        Raises
+        ------
+        KeyError
+            If no matching position columns are found.
+        """
+        candidate_dep_types: list[str] = ["relative_position"]
+        fallback_constraints: list[tuple[str | None, str | None]] = [
+            (satellite_name, "Earth"),
+            (satellite_name, None),
+            (None, "Earth"),
+            (None, None),
+        ]
+
+        for dep_type in candidate_dep_types:
+            for associated_body, secondary_body in fallback_constraints:
+                try:
+                    return _extract_vector(
+                        data,
+                        dep_type=dep_type,
+                        associated_body=associated_body,
+                        secondary_body=secondary_body,
+                    )
+                except KeyError:
+                    continue
+
+        raise KeyError(
+            "missing relative cartesian position columns in dependent-variable CSV. "
+            "Expected relative_position columns."
+        )
 
 def _extract_vector(
     data: CsvDependentVariableData,
@@ -381,7 +410,7 @@ def _extract_vector(
     """
     matches = [
         meta
-        for meta in _filter_metadata(
+        for meta in CsvDependentVariableData._filter_metadata(
             data,
             dep_type=dep_type,
             associated_body=associated_body,
@@ -396,8 +425,9 @@ def _extract_vector(
         )
 
     matches.sort(key=lambda item: cast(int, item.vector_component_index))
-    return np.column_stack([data.dep_var_columns[meta.column_key] for meta in matches])
-
+    return np.column_stack(
+        [data.dep_var_columns[meta.column_key] for meta in matches]
+    )
 
 def _extract_latitude_longitude(
     data: CsvDependentVariableData,
@@ -451,7 +481,7 @@ def _extract_latitude_longitude(
         # Try to find latitude
         for lat_type in latitude_dep_types:
             try:
-                latitude_rad = _extract_scalar(
+                latitude_rad = CsvDependentVariableData._extract_scalar(
                     data,
                     dep_type=lat_type,
                     associated_body=associated_body,
@@ -467,7 +497,7 @@ def _extract_latitude_longitude(
         # Try to find longitude
         for lon_type in longitude_dep_types:
             try:
-                longitude_rad = _extract_scalar(
+                longitude_rad = CsvDependentVariableData._extract_scalar(
                     data,
                     dep_type=lon_type,
                     associated_body=associated_body,
@@ -484,14 +514,14 @@ def _extract_latitude_longitude(
     # (legacy format where both lat and lon share the same dep_type)
     for associated_body, secondary_body in fallback_constraints:
         try:
-            latitude_rad = _extract_scalar(
+            latitude_rad = CsvDependentVariableData._extract_scalar(
                 data,
                 dep_type="relative_body_aerodynamic_orientation_angle",
                 associated_body=associated_body,
                 secondary_body=secondary_body,
                 occurrence_index=0,
             )
-            longitude_rad = _extract_scalar(
+            longitude_rad = CsvDependentVariableData._extract_scalar(
                 data,
                 dep_type="relative_body_aerodynamic_orientation_angle",
                 associated_body=associated_body,
@@ -510,106 +540,59 @@ def _extract_latitude_longitude(
     )
 
 
-def _extract_central_body_fixed_position(
-    data: CsvDependentVariableData,
-    satellite_name: str,
-) -> np.ndarray:
-    """Extract Earth-fixed cartesian position with compatibility for header variants.
+# ===================================================================
+# CSV I/O functions
+# ===================================================================
+
+
+def parse_dep_var_column_metadata(
+    header: str,
+    column_key: str,
+    occurrence_index: int,
+) -> DepVarColumnMeta:
+    """Parse one dependent-variable header into structured metadata.
 
     Parameters
     ----------
-    data : CsvDependentVariableData
-        The loaded CSV data.
-    satellite_name : str
-        Name of the satellite for filtering.
+    header : str
+        The CSV column header string.
+    column_key : str
+        The unique dictionary key for this column.
+    occurrence_index : int
+        Zero-based count of how many times this header appeared before.
 
     Returns
     -------
-    np.ndarray
-        Earth-fixed position array with shape (N, 3).
-
-    Raises
-    ------
-    KeyError
-        If no matching position columns are found.
+    DepVarColumnMeta
+        Parsed metadata for the column.
     """
-    candidate_dep_types: list[str] = [
-        "central_body_fixed_cartesian_position",
-        "body_fixed_relative_cartesian_position",
-    ]
-    fallback_constraints: list[tuple[str | None, str | None]] = [
-        (satellite_name, "Earth"),
-        (satellite_name, None),
-        (None, "Earth"),
-        (None, None),
-    ]
+    parts: list[str] = header.split("/")
+    dep_type: str = parts[0] if len(parts) > 0 else ""
+    acceleration_model_type: str = parts[1] if len(parts) > 1 else ""
+    associated_body: str = parts[2] if len(parts) > 2 else ""
+    secondary_body: str = parts[3] if len(parts) > 3 else ""
+    component_index: str = parts[4] if len(parts) > 4 else ""
 
-    for dep_type in candidate_dep_types:
-        for associated_body, secondary_body in fallback_constraints:
-            try:
-                return _extract_vector(
-                    data,
-                    dep_type=dep_type,
-                    associated_body=associated_body,
-                    secondary_body=secondary_body,
-                )
-            except KeyError:
-                continue
+    vector_component_index: int | None = None
+    if parts and parts[-1].isdigit():
+        vector_component_index = int(parts[-1])
 
-    raise KeyError(
-        "missing Earth-fixed cartesian position columns in dependent-variable CSV. "
-        "Expected central_body_fixed_cartesian_position or "
-        "body_fixed_relative_cartesian_position columns."
+    return DepVarColumnMeta(
+        header=header,
+        dep_type=dep_type,
+        acceleration_model_type=acceleration_model_type,
+        associated_body=associated_body,
+        secondary_body=secondary_body,
+        component_index=component_index,
+        vector_component_index=vector_component_index,
+        column_key=column_key,
+        occurrence_index=occurrence_index,
     )
 
 
-def _extract_relative_position(
-    data: CsvDependentVariableData,
-    satellite_name: str,
-) -> np.ndarray:
-    """Extract relative cartesian position with compatibility for header variants.
-
-    Parameters
-    ----------
-    data : CsvDependentVariableData
-        The loaded CSV data.
-    satellite_name : str
-        Name of the satellite for filtering.
-
-    Returns
-    -------
-    np.ndarray
-        Relative position array with shape (N, 3).
-
-    Raises
-    ------
-    KeyError
-        If no matching position columns are found.
-    """
-    candidate_dep_types: list[str] = ["relative_position"]
-    fallback_constraints: list[tuple[str | None, str | None]] = [
-        (satellite_name, "Earth"),
-        (satellite_name, None),
-        (None, "Earth"),
-        (None, None),
-    ]
-
-    for dep_type in candidate_dep_types:
-        for associated_body, secondary_body in fallback_constraints:
-            try:
-                return _extract_vector(
-                    data,
-                    dep_type=dep_type,
-                    associated_body=associated_body,
-                    secondary_body=secondary_body,
-                )
-            except KeyError:
-                continue
-
-    raise KeyError(
-        "missing relative cartesian position columns in dependent-variable CSV. "
-        "Expected relative_position columns."
-    )
+# ===================================================================
+# Data extraction helpers
+# ===================================================================
 
 
 # ===================================================================
@@ -666,7 +649,9 @@ def plot_ground_track(
     """
     plt.figure(figsize=PLOT_STANDARD_FIGURE_SIZE_IN)
     plt.title(f"3 hour ground track of {satellite_name}")
-    latitude_rad, longitude_rad = _extract_latitude_longitude(data, satellite_name)
+    latitude_rad, longitude_rad = _extract_latitude_longitude(
+        data, satellite_name
+    )
     subset_count = int(len(relative_time_h) / HOURS_PER_DAY * PLOT_GROUND_TRACK_H)
     latitude_deg = np.rad2deg(latitude_rad[0:subset_count])
     longitude_deg = np.rad2deg(longitude_rad[0:subset_count])
@@ -802,7 +787,9 @@ def plot_satellite_body_fixed_position_history_3d(
     FuncAnimation | None
         Animation object, or None if no position data available.
     """
-    positions_m = _extract_central_body_fixed_position(data, satellite_name)
+    positions_m = CsvDependentVariableData._extract_central_body_fixed_position(
+        data, satellite_name
+    )
     if positions_m.size == 0:
         return None
     positions_km = positions_m / KILOMETERS_TO_METERS
@@ -961,7 +948,9 @@ def plot_satellite_relative_position_history_3d(
     FuncAnimation | None
         Animation object, or None if no position data available.
     """
-    positions_m = _extract_relative_position(data, satellite_name)
+    positions_m = CsvDependentVariableData._extract_relative_position(
+        data, satellite_name
+    )
     if positions_m.size == 0:
         return None
     positions_km = positions_m / KILOMETERS_TO_METERS
@@ -1139,7 +1128,7 @@ def plot_dependent_variables_from_csv(
     ValueError
         If the CSV file has no data rows.
     """
-    data = load_csv_dependent_variable_data(dep_var_csv_path)
+    data = CsvDependentVariableData.from_file(dep_var_csv_path)
     if data.time_history_tt_s.size == 0:
         raise ValueError("loaded dependent-variable CSV has no data rows for plotting")
 

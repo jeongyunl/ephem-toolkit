@@ -85,7 +85,7 @@ def _create_test_oem(
     temp_path = Path(temp_file.name)
     temp_file.close()
 
-    oem_obj.write(temp_path)
+    oem_obj.to_file(temp_path)
     return temp_path, oem_obj
 
 
@@ -178,7 +178,7 @@ def test_cli_time_slice_with_real_oem_file() -> None:
     if not oem_file.exists():
         pytest.skip(f"Test data file not found: {oem_file}")
 
-    original_oem = oem.CcsdsOem.read(oem_file)
+    original_oem = oem.CcsdsOem.from_file(oem_file)
     if len(original_oem.states) < 2:
         pytest.skip("OEM file has insufficient states")
 

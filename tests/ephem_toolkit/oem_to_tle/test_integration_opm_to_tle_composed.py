@@ -115,8 +115,8 @@ def _assert_valid_tle(path: Path) -> None:
 
 
 def _assert_opm_intermediate_oem(source_path: Path, oem_path: Path) -> None:
-    source_opm = CcsdsOpm.from_source(source_path)
-    generated_oem = CcsdsOem.read(oem_path)
+    source_opm = CcsdsOpm.from_file(source_path)
+    generated_oem = CcsdsOem.from_file(oem_path)
     first_epoch = time_utils.tt_s_to_datetime(generated_oem.states[0][0])
     last_epoch = time_utils.tt_s_to_datetime(generated_oem.states[-1][0])
     assert generated_oem.meta.object_name == source_opm.metadata["OBJECT_NAME"]

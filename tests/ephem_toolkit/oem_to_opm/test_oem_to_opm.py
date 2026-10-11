@@ -182,7 +182,7 @@ def test_numerical_fit_model_dispatches_to_shared_fitter(
     dummy_oem.header = SimpleNamespace(
         classification="C", message_id="OEM-SOURCE-MESSAGE"
     )
-    monkeypatch.setattr(oem.CcsdsOem, "read", lambda *_args, **_kwargs: dummy_oem)
+    monkeypatch.setattr(oem.CcsdsOem, "from_file", lambda *_args, **_kwargs: dummy_oem)
     monkeypatch.setattr(
         fit_numerical.NumericalFitConfig,
         "to_propagator_config",
@@ -253,7 +253,7 @@ def test_numerical_fit_model_dispatches_to_shared_fitter(
     assert "original OEM" in (captured.out + captured.err)
     assert "fitted:" in (captured.out + captured.err)
     assert DummyMeta.comments[0] in output_path.read_text(encoding="utf-8")
-    header, metadata, data = opm.read_opm(output_path)
+    header, metadata, data = opm._read_opm(output_path)
     assert header["ORIGINATOR"] == "oem_to_opm"
     assert header["CLASSIFICATION"] == "C"
     assert header["MESSAGE_ID"] == "OEM-SOURCE-MESSAGE"
@@ -323,7 +323,7 @@ def test_main_writes_initial_state_and_osculating_elements_to_opm(
     source_oem.header = SimpleNamespace(
         classification="C", message_id="OEM-SOURCE-MESSAGE"
     )
-    monkeypatch.setattr(oem.CcsdsOem, "read", lambda *_args, **_kwargs: source_oem)
+    monkeypatch.setattr(oem.CcsdsOem, "from_file", lambda *_args, **_kwargs: source_oem)
     monkeypatch.setattr(
         fit_osculating_kepler,
         "fit_osculating_kepler",
@@ -350,7 +350,7 @@ def test_main_writes_initial_state_and_osculating_elements_to_opm(
 
     oem_to_opm.main()
 
-    header, metadata, data = opm.read_opm(output_path)
+    header, metadata, data = opm._read_opm(output_path)
     assert header["CCSDS_OPM_VERS"] == pytest.approx(3.0)
     assert header["ORIGINATOR"] == "oem_to_opm"
     assert header["CLASSIFICATION"] == "C"
@@ -426,7 +426,7 @@ def test_build_opm_converts_si_state_and_omits_optional_elements(
 
     opm_object.to_file(output_path)
 
-    _, _, output_data = opm.read_opm(output_path)
+    _, _, output_data = opm._read_opm(output_path)
     assert output_data["X"] == pytest.approx(7000.0)
     assert output_data["Y_DOT"] == pytest.approx(7.5)
     assert "SEMI_MAJOR_AXIS" not in output_data

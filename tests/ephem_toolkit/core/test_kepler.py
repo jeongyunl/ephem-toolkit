@@ -49,7 +49,7 @@ STATE_ISS: np.ndarray = np.array(
 
 def _make_tle_fixture() -> tle.Tle:
     """Parse the ISS TLE for use in tests."""
-    return tle.read_tle(io.StringIO(ISS_3LINE))
+    return tle.Tle.read(io.StringIO(ISS_3LINE))
 
 
 # ===================================================================
@@ -195,7 +195,7 @@ def test_tle_to_osculating_keplerian_with_real_tle_file() -> None:
     """Should produce physically reasonable results from a real TLE file."""
     tle_path = TEST_DATA_DIR / "ISS-ZARYA_1998-067A.tle"
     with open(tle_path, "r") as f:
-        tle_obj = tle.read_tle(f)
+        tle_obj = tle.Tle.read(f)
 
     kep_elements = convert_tle.tle_to_osculating_keplerian(tle_obj)
 
@@ -581,7 +581,7 @@ def test_round_trip_tle_osculating_vs_tudatpy_keplerian(tudatpy_tle_round_trip) 
     # Get core.kepler's TLE-to-osculating conversion
     tle_path = TEST_DATA_DIR / "ISS-ZARYA_1998-067A.tle"
     with open(tle_path, "r") as f:
-        tle_obj = tle.read_tle(f)
+        tle_obj = tle.Tle.read(f)
     kep_from_tle = convert_tle.tle_to_osculating_keplerian(tle_obj)
 
     # Semi-major axis: SGP4 vs two-body Kepler's third law

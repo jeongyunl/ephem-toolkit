@@ -154,8 +154,8 @@ def test_oem_to_opm_roundtrip_accuracy(
     reference_oem = TEST_DATA_DIR / reference_filename
     opm_path, propagated_oem = _run_roundtrip(reference_oem, tmp_path)
 
-    source_oem = oem.CcsdsOem.read(reference_oem)
-    fitted_opm = opm.CcsdsOpm.from_source(opm_path)
+    source_oem = oem.CcsdsOem.from_file(reference_oem)
+    fitted_opm = opm.CcsdsOpm.from_file(opm_path)
     assert fitted_opm.metadata["OBJECT_NAME"] == source_oem.meta.object_name
     assert fitted_opm.metadata["OBJECT_ID"] == source_oem.meta.object_id
     assert fitted_opm.metadata["CENTER_NAME"] == (

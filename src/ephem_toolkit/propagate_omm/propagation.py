@@ -69,9 +69,9 @@ def read_tle_input(cli_value: str | None) -> tle_mod.Tle:
         stdin_text: str = sys.stdin.read()
         if not stdin_text.strip():
             raise ValueError("Empty stdin input. Provide TLE text on stdin.")
-        return tle_mod.read_tle(io.StringIO(stdin_text))
+        return tle_mod.Tle.read(io.StringIO(stdin_text))
 
-    return tle_mod.read_tle(cli_value)
+    return tle_mod.Tle.from_file(cli_value)
 
 
 def read_omm_input(cli_value: str | None) -> omm.CcsdsOmm:
@@ -96,20 +96,99 @@ def read_omm_input(cli_value: str | None) -> omm.CcsdsOmm:
         stdin_text: str = sys.stdin.read()
         if not stdin_text.strip():
             raise ValueError("Empty stdin input. Provide OMM text on stdin.")
-        return omm.CcsdsOmm.from_source(io.StringIO(stdin_text))
+        return omm.CcsdsOmm.read(io.StringIO(stdin_text))
 
-    return omm.CcsdsOmm.from_source(cli_value)
+    return omm.CcsdsOmm.from_file(cli_value)
 
 
-def _initial_omm_covariance(omm_data: omm.CcsdsOmm) -> oem.OemCovariance | None:
-    """Copy OMM covariance metadata for its source epoch without propagation."""
-    if omm_data.covariance is None:
-        return None
-    return oem.OemCovariance(
-        epoch=omm_data.epoch,
-        matrix=omm_data.covariance.matrix.copy(),
-        ref_frame=omm_data.covariance.ref_frame or omm_data.ref_frame or None,
-    )
+class _OmmPropagationHelpers:
+    @staticmethod
+    def _initial_omm_covariance(omm_data: omm.CcsdsOmm) -> oem.OemCovariance | None:
+        """Copy OMM covariance metadata for its source epoch without propagation."""
+        if omm_data.covariance is None:
+            return None
+        return oem.OemCovariance(
+            epoch=omm_data.epoch,
+            matrix=omm_data.covariance.matrix.copy(),
+            ref_frame=omm_data.covariance.ref_frame or omm_data.ref_frame or None,
+        )
+
+    @staticmethod
+    def _load_spice_kernels() -> None:
+        """Load SPICE kernels required for time conversion."""
+        spice_kernel_files: list[str] = [
+            "naif0012.tls",
+            "pck00011.tpc",
+        ]
+        for kernel_file in spice_kernel_files:
+            spice_utils.load_kernel(kernel_file)
+
+
+def _write_oem_output(
+    propagated_states: list[tuple[float, np.ndarray]],
+    object_name: str,
+    object_id: str,
+    data_only: bool,
+    output_path: str,
+    comments: list[str] | None = None,
+    covariance: oem.OemCovariance | None = None,
+    header_classification: str = "",
+    header_message_id: str = "",
+) -> None:
+    """Write propagated states as OEM output.
+
+    Parameters
+    ----------
+    propagated_states : list[tuple[float, np.ndarray]]
+        List of (TT seconds since J2000, state_vector) tuples.
+    object_name : str
+        Object name for OEM metadata.
+    object_id : str
+        Object ID for OEM metadata.
+    data_only : bool
+        If True, emit state lines only.
+    output_path : str
+        Output path or "-" for stdout.
+    """
+
+    def emit(output_stream: TextIO) -> None:
+        if data_only:
+            oem.CcsdsOem.from_states(propagated_states).write_states(output_stream)
+        else:
+            output_covariance = covariance
+            if covariance is not None and propagated_states:
+                covariance_tt_s = time_utils.datetime_to_tt_s(
+                    time_utils.iso8601_to_datetime(covariance.epoch)
+                )
+                state_epochs = [epoch for epoch, _ in propagated_states]
+                if not min(state_epochs) <= covariance_tt_s <= max(state_epochs):
+                    output_covariance = None
+            else:
+                output_covariance = None
+
+            oem_obj: oem.CcsdsOem = oem.CcsdsOem.from_states(
+                propagated_states,
+                object_name=object_name,
+                object_id=object_id,
+                ref_frame="EME2000",
+                center_name="EARTH",
+                time_system="UTC",
+                covariances=(
+                    [output_covariance] if output_covariance is not None else None
+                ),
+            )
+            oem_obj.header.classification = header_classification
+            oem_obj.header.message_id = header_message_id
+            if comments:
+                oem_obj.meta.comments.extend(comments)
+            oem_obj.write(output_stream)
+
+    if output_path == "-":
+        emit(sys.stdout)
+        return
+
+    with open(output_path, "w", encoding="utf-8") as output_stream:
+        emit(output_stream)
 
 
 # ===================================================================
@@ -117,17 +196,7 @@ def _initial_omm_covariance(omm_data: omm.CcsdsOmm) -> oem.OemCovariance | None:
 # ===================================================================
 
 
-def _load_spice_kernels() -> None:
-    """Load SPICE kernels required for time conversion."""
-    spice_kernel_files: list[str] = [
-        "naif0012.tls",
-        "pck00011.tpc",
-    ]
-    for kernel_file in spice_kernel_files:
-        spice_utils.load_kernel(kernel_file)
-
-
-_load_spice_kernels()
+_OmmPropagationHelpers._load_spice_kernels()
 
 
 def propagate_tle_sgp4(
@@ -241,7 +310,7 @@ def propagate_omm_sgp4(
         output_path,
         source_format="OMM",
         source_comments=omm_data.comments,
-        covariance=_initial_omm_covariance(omm_data),
+        covariance=_OmmPropagationHelpers._initial_omm_covariance(omm_data),
         header_classification=omm_data.classification,
         header_message_id=omm_data.message_id,
     )
@@ -349,7 +418,7 @@ def propagate_omm_dsst(
                 target_model="DSST",
             )
         ],
-        covariance=_initial_omm_covariance(omm_data),
+        covariance=_OmmPropagationHelpers._initial_omm_covariance(omm_data),
         header_classification=omm_data.classification,
         header_message_id=omm_data.message_id,
     )
@@ -436,7 +505,7 @@ def propagate_omm_kepler(
                 target_model="two-body-kepler",
             )
         ],
-        covariance=_initial_omm_covariance(omm_data),
+        covariance=_OmmPropagationHelpers._initial_omm_covariance(omm_data),
         header_classification=omm_data.classification,
         header_message_id=omm_data.message_id,
     )
@@ -445,73 +514,6 @@ def propagate_omm_kepler(
 # ===================================================================
 # Common OEM output
 # ===================================================================
-
-
-def _write_oem_output(
-    propagated_states: list[tuple[float, np.ndarray]],
-    object_name: str,
-    object_id: str,
-    data_only: bool,
-    output_path: str,
-    comments: list[str] | None = None,
-    covariance: oem.OemCovariance | None = None,
-    header_classification: str = "",
-    header_message_id: str = "",
-) -> None:
-    """Write propagated states as OEM output.
-
-    Parameters
-    ----------
-    propagated_states : list[tuple[float, np.ndarray]]
-        List of (TT seconds since J2000, state_vector) tuples.
-    object_name : str
-        Object name for OEM metadata.
-    object_id : str
-        Object ID for OEM metadata.
-    data_only : bool
-        If True, emit state lines only.
-    output_path : str
-        Output path or "-" for stdout.
-    """
-
-    def emit(output_stream: TextIO) -> None:
-        if data_only:
-            oem.CcsdsOem.from_states(propagated_states).write_states(output_stream)
-        else:
-            output_covariance = covariance
-            if covariance is not None and propagated_states:
-                covariance_tt_s = time_utils.datetime_to_tt_s(
-                    time_utils.iso8601_to_datetime(covariance.epoch)
-                )
-                state_epochs = [epoch for epoch, _ in propagated_states]
-                if not min(state_epochs) <= covariance_tt_s <= max(state_epochs):
-                    output_covariance = None
-            else:
-                output_covariance = None
-
-            oem_obj: oem.CcsdsOem = oem.CcsdsOem.from_states(
-                propagated_states,
-                object_name=object_name,
-                object_id=object_id,
-                ref_frame="EME2000",
-                center_name="EARTH",
-                time_system="UTC",
-                covariances=(
-                    [output_covariance] if output_covariance is not None else None
-                ),
-            )
-            oem_obj.header.classification = header_classification
-            oem_obj.header.message_id = header_message_id
-            if comments:
-                oem_obj.meta.comments.extend(comments)
-            oem_obj.write(output_stream)
-
-    if output_path == "-":
-        emit(sys.stdout)
-        return
-
-    with open(output_path, "w", encoding="utf-8") as output_stream:
-        emit(output_stream)
 
 
 # ===================================================================

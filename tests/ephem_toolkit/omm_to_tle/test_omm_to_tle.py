@@ -75,7 +75,7 @@ def test_omm_to_tle_rejects_non_sgp4_theory_before_writing(
     output = tmp_path / "output.tle"
     source.write_text("OMM", encoding="utf-8")
     non_sgp4 = omm.CcsdsOmm(mean_element_theory=theory)
-    monkeypatch.setattr(omm.CcsdsOmm, "from_source", lambda *_args: non_sgp4)
+    monkeypatch.setattr(omm.CcsdsOmm, "read", lambda *_args: non_sgp4)
     monkeypatch.setattr(
         convert_tle,
         "omm_to_tle",
@@ -109,7 +109,7 @@ def test_omm_to_tle_rejects_missing_tle_parameters_before_writing(
     output = tmp_path / "output.tle"
     source.write_text("OMM", encoding="utf-8")
     incomplete = omm.CcsdsOmm(mean_element_theory="SGP4", tle_parameters=None)
-    monkeypatch.setattr(omm.CcsdsOmm, "from_source", lambda *_args: incomplete)
+    monkeypatch.setattr(omm.CcsdsOmm, "read", lambda *_args: incomplete)
     monkeypatch.setattr(
         convert_tle,
         "omm_to_tle",
@@ -132,16 +132,20 @@ def test_omm_to_tle_main_converts_and_writes_output(
     monkeypatch, tmp_path, input_source, output_mode
 ) -> None:
     converted_omm = omm.CcsdsOmm(mean_element_theory="SGP4", tle_parameters=object())
-    tle_data = object()
+    class FakeTle:
+        def write(self, destination):
+            writes.append((destination, self))
+
+        def to_file(self, destination):
+            writes.append((destination, self))
+
+    tle_data = FakeTle()
     writes = []
     source_path = tmp_path / "input.omm"
     source_path.write_text("OMM", encoding="utf-8")
-    monkeypatch.setattr(omm.CcsdsOmm, "from_source", lambda _source: converted_omm)
+    monkeypatch.setattr(omm.CcsdsOmm, "read", lambda _source: converted_omm)
     monkeypatch.setattr(convert_tle, "validate_sgp4_compatible_omm", lambda _omm: None)
     monkeypatch.setattr(convert_tle, "omm_to_tle", lambda _omm: tle_data)
-    monkeypatch.setattr(
-        tle, "write_tle", lambda destination, data: writes.append((destination, data))
-    )
 
     input_argument = "-" if input_source == "stdin" else str(source_path)
     if input_source == "stdin":
@@ -188,7 +192,7 @@ def test_omm_to_tle_main_reports_input_and_parse_errors(
     source.write_text("OMM", encoding="utf-8")
     monkeypatch.setattr(
         omm.CcsdsOmm,
-        "from_source",
+        "read",
         lambda _source: (_ for _ in ()).throw(ValueError("invalid OMM")),
     )
     with pytest.raises(SystemExit) as parse_error:
@@ -218,7 +222,7 @@ def test_omm_to_tle_main_reports_file_read_and_conversion_errors(
     monkeypatch.setattr("builtins.open", original_open)
     monkeypatch.setattr(
         omm.CcsdsOmm,
-        "from_source",
+        "read",
         lambda _source: omm.CcsdsOmm(
             mean_element_theory="SGP4", tle_parameters=object()
         ),

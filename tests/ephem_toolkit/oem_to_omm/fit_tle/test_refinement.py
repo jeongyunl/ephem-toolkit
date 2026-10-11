@@ -43,8 +43,8 @@ def test_evaluate_tle_epoch_states_m_propagates_each_pair(monkeypatch) -> None:
     parsed_lines = []
     propagated_epochs = []
     monkeypatch.setattr(
-        refinement.tle,
-        "read_tle",
+        refinement.tle.Tle,
+        "read",
         lambda stream: parsed_lines.append(stream.read()) or object(),
     )
 
@@ -74,8 +74,8 @@ def test_evaluate_tle_states_for_offsets_m_propagates_each_offset(monkeypatch) -
     parsed_lines = []
     propagated_epochs = []
     monkeypatch.setattr(
-        refinement.tle,
-        "read_tle",
+        refinement.tle.Tle,
+        "read",
         lambda stream: parsed_lines.append(stream.read()) or object(),
     )
 

@@ -38,7 +38,7 @@ def read_orbit_file(source: str | Path) -> dict[float, np.ndarray]:
 
     # Try reading as OEM file first (more robust)
     try:
-        oem_data = CcsdsOem.read(source_path)
+        oem_data = CcsdsOem.from_file(source_path)
         # Convert to dict for compatibility with existing plotting code
         state_history = {timestamp: state for timestamp, state in oem_data.states}
         return state_history

@@ -52,11 +52,11 @@ def test_read_dependent_variables_csv_reads_numeric_data(tmp_path) -> None:
         "epoch_tt_s,speed//ISS/Earth//\n100,7.5\n160,7.4\n", encoding="utf-8"
     )
 
-    times_s, headers, values = dep_vars.read_dependent_variables_csv(csv_path)
+    data = dep_vars.CsvDependentVariableData.from_file(csv_path)
 
-    np.testing.assert_array_equal(times_s, [100.0, 160.0])
-    assert headers == ["speed//ISS/Earth//"]
-    np.testing.assert_array_equal(values, [[7.5], [7.4]])
+    np.testing.assert_array_equal(data.time_history_tt_s, [100.0, 160.0])
+    assert [item.header for item in data.metadata] == ["speed//ISS/Earth//"]
+    np.testing.assert_array_equal(data.dep_var_columns["speed//ISS/Earth//"], [7.5, 7.4])
 
 
 @pytest.mark.parametrize(
@@ -75,7 +75,7 @@ def test_read_dependent_variables_csv_rejects_invalid_input(
     csv_path.write_text(content, encoding="utf-8")
 
     with pytest.raises(ValueError, match=message):
-        dep_vars.read_dependent_variables_csv(csv_path)
+        dep_vars.CsvDependentVariableData.from_file(csv_path)
 
 
 def test_load_csv_dependent_variable_data_disambiguates_duplicate_headers(
@@ -87,7 +87,7 @@ def test_load_csv_dependent_variable_data_disambiguates_duplicate_headers(
         encoding="utf-8",
     )
 
-    data = dep_vars.load_csv_dependent_variable_data(csv_path)
+    data = dep_vars.CsvDependentVariableData.from_file(csv_path)
 
     assert list(data.dep_var_columns) == [
         "latitude//ISS/Earth//",
@@ -107,7 +107,7 @@ def test_extract_vector_orders_components_by_component_index(tmp_path) -> None:
         "100,30,10,20\n",
         encoding="utf-8",
     )
-    data = dep_vars.load_csv_dependent_variable_data(csv_path)
+    data = dep_vars.CsvDependentVariableData.from_file(csv_path)
 
     vector = dep_vars._extract_vector(
         data, "relative_position", associated_body="ISS", secondary_body="Earth"
@@ -124,7 +124,7 @@ def test_extract_latitude_longitude_supports_legacy_duplicate_type(tmp_path) -> 
         "100,0.25,-0.5\n",
         encoding="utf-8",
     )
-    data = dep_vars.load_csv_dependent_variable_data(csv_path)
+    data = dep_vars.CsvDependentVariableData.from_file(csv_path)
 
     latitude_rad, longitude_rad = dep_vars._extract_latitude_longitude(data, "ISS")
 

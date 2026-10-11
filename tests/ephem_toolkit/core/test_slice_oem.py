@@ -442,20 +442,20 @@ def test_integration_read_slice_write() -> None:
         temp_path = Path(f.name)
 
     try:
-        oem_obj.write(temp_path)
+        oem_obj.to_file(temp_path)
 
         # Read back
-        oem_read = CcsdsOem.read(temp_path)
+        oem_read = CcsdsOem.from_file(temp_path)
 
         # Slice
         sliced_oem = slice_oem.extract_sliced_states(oem_read, slice(5, 15))
 
         # Write sliced version
         sliced_path = temp_path.with_suffix(".sliced.oem")
-        sliced_oem.write(sliced_path)
+        sliced_oem.to_file(sliced_path)
 
         # Read sliced version
-        final_oem = CcsdsOem.read(sliced_path)
+        final_oem = CcsdsOem.from_file(sliced_path)
 
         # Verify
         assert len(final_oem) == 10

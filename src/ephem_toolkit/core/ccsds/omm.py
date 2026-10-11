@@ -1,7 +1,7 @@
 """Read, parse, and write CCSDS Orbit Mean-Elements Message (OMM) files.
 
-Provides low-level functions (:func:`read_omm`, :func:`write_omm`) that
-operate on plain dictionaries, and a structured :class:`CcsdsOmm` class.
+Provides a structured :class:`CcsdsOmm` class with stream, path, and text
+serialization methods.
 
 References:
     CCSDS 502.0-B-3 "Orbit Mean-Elements Message (OMM)" standard (2023-04).
@@ -9,6 +9,7 @@ References:
 
 from __future__ import annotations
 
+import io
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -37,22 +38,6 @@ COVARIANCE_DIMENSION: int = 6
 # ===================================================================
 # Internal helpers
 # ===================================================================
-
-
-def _try_numeric(value: str) -> int | float | str:
-    """Attempt to convert a CCSDS value to int or float."""
-    value = value.strip()
-    if "[" in value:
-        value = value.split("[", 1)[0].strip()
-    try:
-        return int(value)
-    except ValueError:
-        pass
-    try:
-        return float(value)
-    except ValueError:
-        pass
-    return value
 
 
 _HEADER_KEYS: set[str] = {
@@ -145,11 +130,6 @@ _UNIT_BY_KEY: dict[str, str] = {
 }
 
 
-def _write_value(key: str, value: Any) -> str:
-    unit = _UNIT_BY_KEY.get(key)
-    return f"{value} [{unit}]" if unit else str(value)
-
-
 def validate_omm(header: dict[str, Any], data: dict[str, Any]) -> None:
     """Validate mandatory and conditional CCSDS OMM fields."""
     required_header: set[str] = {"CCSDS_OMM_VERS", "CREATION_DATE", "ORIGINATOR"}
@@ -223,147 +203,9 @@ def validate_omm(header: dict[str, Any], data: dict[str, Any]) -> None:
 # ===================================================================
 
 
-def read_omm(
-    source: TextIO | str | Path,
-    *,
-    validate: bool = True,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Read an OMM file and return *(header, data)*.
-
-    Parameters
-    ----------
-    source : TextIO | str | Path
-        A readable text stream, file path string, or :class:`Path`.
-
-    Returns
-    -------
-    tuple[dict[str, Any], dict[str, Any]]
-        A 2-tuple of ``(header, data)`` where *header* contains file-level
-        keywords (``CCSDS_OMM_VERS``, ``CREATION_DATE``, ``ORIGINATOR``,
-        and any ``COMMENT`` lines), and *data* contains all remaining
-        keyword-value pairs (metadata, mean elements, and TLE parameters).
-    """
-    if isinstance(source, (str, Path)):
-        with open(source, "r", encoding="utf-8") as fh:
-            return read_omm(fh)
-
-    header: dict[str, Any] = {}
-    data: dict[str, Any] = {}
-
-    for raw_line in source:
-        line: str = raw_line.strip()
-        if not line:
-            continue
-
-        # Handle COMMENT lines
-        if line.startswith("COMMENT"):
-            comment_text: str = line[len("COMMENT") :].strip()
-            header.setdefault("COMMENT", [])
-            header["COMMENT"].append(comment_text)
-            continue
-
-        key_value: tuple[str, str] | None = misc.parse_key_value_line(line)
-        if key_value is None:
-            continue
-
-        key, value = key_value
-
-        if key in _HEADER_KEYS:
-            header[key] = _try_numeric(value) if value else value
-        else:
-            data[key] = _try_numeric(value) if value else value
-
-    if validate:
-        validate_omm(header, data)
-    return header, data
-
-
 # ===================================================================
 # Low-level writer (dict-based)
 # ===================================================================
-
-
-def write_omm(
-    dest: TextIO | str | Path,
-    header: dict[str, Any],
-    data: dict[str, Any],
-) -> None:
-    """Write an OMM file from *(header, data)* dicts.
-
-    Parameters
-    ----------
-    dest : TextIO | str | Path
-        A writable text stream, file path string, or :class:`Path`.
-    header : dict[str, Any]
-        File-level keywords (``CCSDS_OMM_VERS``, ``CREATION_DATE``,
-        ``ORIGINATOR``, and optionally ``COMMENT``).
-    data : dict[str, Any]
-        All remaining keyword-value pairs (metadata, mean elements,
-        and TLE parameters).
-    """
-    if isinstance(dest, (str, Path)):
-        with open(dest, "w", encoding="utf-8") as fh:
-            return write_omm(fh, header, data)
-
-    write_text: Callable[[str], int] = dest.write
-
-    # --- Header ---
-    version: float | int = header.get("CCSDS_OMM_VERS", DEFAULT_OMM_VERSION)
-    write_text(f"CCSDS_OMM_VERS = {version}\n")
-
-    creation_date: str | int | float = header.get("CREATION_DATE", "")
-    write_text(f"CREATION_DATE  = {creation_date}\n")
-
-    originator: str | int | float = header.get("ORIGINATOR", "")
-    write_text(f"ORIGINATOR     = {originator}\n")
-
-    for key in ("CLASSIFICATION", "MESSAGE_ID"):
-        if key in header:
-            write_text(f"{key:<15} = {header[key]}\n")
-
-    for comment in header.get("COMMENT", []):
-        write_text(f"COMMENT {comment}\n")
-
-    write_text("\n")
-
-    # --- Metadata section ---
-    for key in _META_KEY_ORDER:
-        if key in data:
-            write_text(
-                f"{key:<{max(MINIMUM_OMM_KEY_WIDTH, len(key))}} = {_write_value(key, data[key])}\n"
-            )
-
-    write_text("\n")
-
-    # --- Mean elements section ---
-    for key in _MEAN_ELEMENTS_KEY_ORDER:
-        if key in data:
-            write_text(
-                f"{key:<{max(MINIMUM_OMM_KEY_WIDTH, len(key))}} = {_write_value(key, data[key])}\n"
-            )
-
-    write_text("\n")
-
-    # --- TLE-related parameters section ---
-    for key in _TLE_PARAMS_KEY_ORDER:
-        if key in data:
-            write_text(
-                f"{key:<{max(MINIMUM_OMM_KEY_WIDTH, len(key))}} = {_write_value(key, data[key])}\n"
-            )
-
-    # --- Any extra keys not in the canonical ordering ---
-    all_ordered: set[str] = set(
-        _META_KEY_ORDER + _MEAN_ELEMENTS_KEY_ORDER + _TLE_PARAMS_KEY_ORDER
-    )
-    extra_keys: list[str] = [
-        key for key in data if key not in all_ordered and key != "COMMENT"
-    ]
-    for key in extra_keys:
-        write_text(
-            f"{key:<{max(MINIMUM_OMM_KEY_WIDTH, len(key))}} = {_write_value(key, data[key])}\n"
-        )
-
-    write_text("\n")
 
 
 # ===================================================================
@@ -496,13 +338,13 @@ class CcsdsOmm:
         return asdict(self)
 
     @classmethod
-    def from_source(cls, source: TextIO | str | Path) -> CcsdsOmm:
-        """Construct a :class:`CcsdsOmm` from a file or stream.
+    def read(cls, source: TextIO) -> CcsdsOmm:
+        """Construct a :class:`CcsdsOmm` from a text stream.
 
         Parameters
         ----------
-        source : TextIO | str | Path
-            A readable text stream, file path string, or :class:`Path`.
+        source : TextIO
+            Readable text stream.
 
         Returns
         -------
@@ -511,7 +353,7 @@ class CcsdsOmm:
         """
         header: dict[str, Any]
         data: dict[str, Any]
-        header, data = read_omm(source)
+        header, data = _read_omm(source)
 
         # Check if TLE-related parameters are present
         tle_parameters: TleParameters | None = None
@@ -586,13 +428,30 @@ class CcsdsOmm:
             data=data,
         )
 
-    def to_file(self, dest: TextIO | str | Path) -> None:
-        """Write this OMM to a file or stream.
+    @classmethod
+    def from_file(cls, path: str | Path) -> CcsdsOmm:
+        """Read this OMM from a UTF-8 file."""
+        with Path(path).open("r", encoding="utf-8") as source:
+            return cls.read(source)
+
+    @classmethod
+    def from_text(cls, text: str) -> CcsdsOmm:
+        """Read this OMM from serialized text."""
+        return cls.read(io.StringIO(text))
+
+    def to_text(self) -> str:
+        """Serialize this OMM to text."""
+        dest = io.StringIO()
+        self.write(dest)
+        return dest.getvalue()
+
+    def write(self, dest: TextIO) -> None:
+        """Write this OMM to a text stream.
 
         Parameters
         ----------
-        dest : TextIO | str | Path
-            A writable text stream, file path string, or :class:`Path`.
+        dest : TextIO
+            Writable text stream.
         """
         header_fields: dict[str, Any] = {
             "CCSDS_OMM_VERS": self.version,
@@ -661,7 +520,12 @@ class CcsdsOmm:
                 }
             )
 
-        write_omm(dest, header_fields, data)
+        _write_omm(dest, header_fields, data)
+
+    def to_file(self, path: str | Path) -> None:
+        """Write this OMM to a UTF-8 file."""
+        with Path(path).open("w", encoding="utf-8", newline="\n") as dest:
+            self.write(dest)
 
     def __repr__(self) -> str:
         """Return a concise string representation of this OMM instance."""
@@ -673,6 +537,166 @@ class CcsdsOmm:
             f"norad_cat_id={norad_id}, "
             f"epoch={self.epoch!r})"
         )
+
+    @staticmethod
+    def _try_numeric(value: str) -> int | float | str:
+        """Attempt to convert a CCSDS value to int or float."""
+        value = value.strip()
+        if "[" in value:
+            value = value.split("[", 1)[0].strip()
+        try:
+            return int(value)
+        except ValueError:
+            pass
+        try:
+            return float(value)
+        except ValueError:
+            pass
+        return value
+
+    @staticmethod
+    def _write_value(key: str, value: Any) -> str:
+        unit = _UNIT_BY_KEY.get(key)
+        return f"{value} [{unit}]" if unit else str(value)
+
+
+
+def _read_omm(
+    source: TextIO,
+    *,
+    validate: bool = True,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Read an OMM file and return *(header, data)*.
+
+    Parameters
+    ----------
+    source : TextIO | str | Path
+        A readable text stream, file path string, or :class:`Path`.
+
+    Returns
+    -------
+    tuple[dict[str, Any], dict[str, Any]]
+        A 2-tuple of ``(header, data)`` where *header* contains file-level
+        keywords (``CCSDS_OMM_VERS``, ``CREATION_DATE``, ``ORIGINATOR``,
+        and any ``COMMENT`` lines), and *data* contains all remaining
+        keyword-value pairs (metadata, mean elements, and TLE parameters).
+    """
+    if isinstance(source, (str, Path)):
+        with Path(source).open("r", encoding="utf-8") as file_handle:
+            return _read_omm(file_handle, validate=validate)
+
+    header: dict[str, Any] = {}
+    data: dict[str, Any] = {}
+
+    for raw_line in source:
+        line: str = raw_line.strip()
+        if not line:
+            continue
+
+        # Handle COMMENT lines
+        if line.startswith("COMMENT"):
+            comment_text: str = line[len("COMMENT") :].strip()
+            header.setdefault("COMMENT", [])
+            header["COMMENT"].append(comment_text)
+            continue
+
+        key_value: tuple[str, str] | None = misc.parse_key_value_line(line)
+        if key_value is None:
+            continue
+
+        key, value = key_value
+
+        if key in _HEADER_KEYS:
+            header[key] = CcsdsOmm._try_numeric(value) if value else value
+        else:
+            data[key] = CcsdsOmm._try_numeric(value) if value else value
+
+    if validate:
+        validate_omm(header, data)
+    return header, data
+
+def _write_omm(
+    dest: TextIO,
+    header: dict[str, Any],
+    data: dict[str, Any],
+) -> None:
+    """Write an OMM file from *(header, data)* dicts.
+
+    Parameters
+    ----------
+    dest : TextIO | str | Path
+        A writable text stream, file path string, or :class:`Path`.
+    header : dict[str, Any]
+        File-level keywords (``CCSDS_OMM_VERS``, ``CREATION_DATE``,
+        ``ORIGINATOR``, and optionally ``COMMENT``).
+    data : dict[str, Any]
+        All remaining keyword-value pairs (metadata, mean elements,
+        and TLE parameters).
+    """
+    if isinstance(dest, (str, Path)):
+        with Path(dest).open("w", encoding="utf-8", newline="\n") as file_handle:
+            _write_omm(file_handle, header, data)
+        return
+
+    write_text: Callable[[str], int] = dest.write
+
+    # --- Header ---
+    version: float | int = header.get("CCSDS_OMM_VERS", DEFAULT_OMM_VERSION)
+    write_text(f"CCSDS_OMM_VERS = {version}\n")
+
+    creation_date: str | int | float = header.get("CREATION_DATE", "")
+    write_text(f"CREATION_DATE  = {creation_date}\n")
+
+    originator: str | int | float = header.get("ORIGINATOR", "")
+    write_text(f"ORIGINATOR     = {originator}\n")
+
+    for key in ("CLASSIFICATION", "MESSAGE_ID"):
+        if key in header:
+            write_text(f"{key:<15} = {header[key]}\n")
+
+    for comment in header.get("COMMENT", []):
+        write_text(f"COMMENT {comment}\n")
+
+    write_text("\n")
+
+    # --- Metadata section ---
+    for key in _META_KEY_ORDER:
+        if key in data:
+            write_text(
+                f"{key:<{max(MINIMUM_OMM_KEY_WIDTH, len(key))}} = {CcsdsOmm._write_value(key, data[key])}\n"
+            )
+
+    write_text("\n")
+
+    # --- Mean elements section ---
+    for key in _MEAN_ELEMENTS_KEY_ORDER:
+        if key in data:
+            write_text(
+                f"{key:<{max(MINIMUM_OMM_KEY_WIDTH, len(key))}} = {CcsdsOmm._write_value(key, data[key])}\n"
+            )
+
+    write_text("\n")
+
+    # --- TLE-related parameters section ---
+    for key in _TLE_PARAMS_KEY_ORDER:
+        if key in data:
+            write_text(
+                f"{key:<{max(MINIMUM_OMM_KEY_WIDTH, len(key))}} = {CcsdsOmm._write_value(key, data[key])}\n"
+            )
+
+    # --- Any extra keys not in the canonical ordering ---
+    all_ordered: set[str] = set(
+        _META_KEY_ORDER + _MEAN_ELEMENTS_KEY_ORDER + _TLE_PARAMS_KEY_ORDER
+    )
+    extra_keys: list[str] = [
+        key for key in data if key not in all_ordered and key != "COMMENT"
+    ]
+    for key in extra_keys:
+        write_text(
+            f"{key:<{max(MINIMUM_OMM_KEY_WIDTH, len(key))}} = {CcsdsOmm._write_value(key, data[key])}\n"
+        )
+
+    write_text("\n")
 
 
 def keplerian_to_omm(

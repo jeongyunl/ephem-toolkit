@@ -137,7 +137,7 @@ def parse_generated_tle_from_output(output: str, original: tle.Tle) -> tle.Tle:
     assert (
         "CCSDS_OMM_VERS" in output
     ), f"Expected OMM output from oem_to_omm.py:\n{output[-500:]}"
-    omm_obj: omm.CcsdsOmm = omm.CcsdsOmm.from_source(io.StringIO(output))
+    omm_obj: omm.CcsdsOmm = omm.CcsdsOmm.read(io.StringIO(output))
     expected_object_id = original.get_object_id()
     assert omm_obj.object_name == (original.object_name or "OBJECT")
     assert omm_obj.object_id == expected_object_id
@@ -156,7 +156,7 @@ def parse_generated_tle_from_output(output: str, original: tle.Tle) -> tle.Tle:
     line1, line2 = tle.format_tle_strings(tle_partial)
     name: str = tle_partial.object_name or ""
     tle_text: str = f"{name}\n{line1}\n{line2}\n" if name else f"{line1}\n{line2}\n"
-    return tle.read_tle(io.StringIO(tle_text))
+    return tle.Tle.read(io.StringIO(tle_text))
 
 
 def test_oem_to_omm_help_uses_command_name_and_format_aware_output() -> None:
@@ -232,7 +232,7 @@ def tle_round_trip(request) -> tuple[tle.Tle, tle.Tle]:
     """
     tle_path: Path = request.param
     with open(tle_path, encoding="utf-8") as fh:
-        original: tle.Tle = tle.read_tle(fh)
+        original: tle.Tle = tle.Tle.read(fh)
     oem_text: str = run_propagate_tle(tle_path)
     build_output: str = run_oem_to_tle(oem_text, original)
     reconstructed: tle.Tle = parse_generated_tle_from_output(build_output, original)

@@ -1,8 +1,7 @@
 """Read, parse, and write NORAD Two-Line Element (TLE) sets.
 
-Provides a structured :class:`Tle` dataclass and low-level functions
-(:func:`read_tle`, :func:`write_tle`) that operate on :class:`Tle`
-instances or plain dictionaries.
+Provides a structured :class:`Tle` dataclass with stream, path, and text
+serialization methods.
 
 References:
     https://celestrak.org/NORAD/documentation/tle-fmt.php
@@ -11,8 +10,8 @@ References:
 
 from __future__ import annotations
 
+import io
 import re
-from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -116,24 +115,6 @@ class Tle:
         """Convert to a plain dictionary."""
         return asdict(self)
 
-    def __getitem__(self, key: str) -> object:
-        """Allow dict-style access for backward compatibility."""
-        try:
-            return getattr(self, key)
-        except AttributeError:
-            raise KeyError(key)
-
-    def __contains__(self, key: str) -> bool:
-        """Support ``key in tle`` for backward compatibility."""
-        return hasattr(self, key)
-
-    def get(self, key: str, default: object = None) -> object:
-        """Dict-like ``.get()`` for backward compatibility."""
-        try:
-            return getattr(self, key)
-        except AttributeError:
-            return default
-
     def __repr__(self) -> str:
         return (
             f"Tle(name={self.object_name!r}, "
@@ -160,6 +141,317 @@ class Tle:
             self.int_designator_piece.strip() if self.int_designator_piece else ""
         )
         return f"{full_year}-{self.int_designator_launch_number:03d}{piece}"
+
+    @classmethod
+    def read(cls, source: TextIO) -> Tle:
+        """Parse a TLE from a readable text stream."""
+        return Tle._read_tle(source)
+
+    @classmethod
+    def from_file(cls, path: str | Path) -> Tle:
+        """Parse a TLE from a UTF-8 file."""
+        with Path(path).open("r", encoding="utf-8") as source:
+            return cls.read(source)
+
+    @classmethod
+    def from_text(cls, text: str) -> Tle:
+        """Parse a TLE from serialized text."""
+        return cls.read(io.StringIO(text))
+
+    def write(self, dest: TextIO) -> None:
+        """Write this TLE to a text stream."""
+        line1, line2 = format_tle_strings(self)
+        if self.object_name:
+            dest.write(self.object_name + "\n")
+        dest.write(line1 + "\n")
+        dest.write(line2 + "\n")
+
+    def to_file(self, path: str | Path) -> None:
+        """Write this TLE to a UTF-8 file."""
+        with Path(path).open("w", encoding="utf-8", newline="\n") as dest:
+            self.write(dest)
+
+    def to_text(self) -> str:
+        """Serialize this TLE to text."""
+        dest = io.StringIO()
+        self.write(dest)
+        return dest.getvalue()
+
+    @staticmethod
+    def _parse_tle_exponential(field_value: str, field_name: str) -> str:
+        """Validate TLE exponential format, e.g. ``'00000-0'`` or ``'29661-4'``.
+
+        TLE exponential format represents scientific notation in a compact form:
+        the mantissa is assumed to have an implicit leading decimal point, and
+        the exponent is a single signed digit.
+
+        Parameters
+        ----------
+        field_value : str
+            Raw field value from TLE (7 or 8 characters).
+        field_name : str
+            Name of the field for error messages.
+
+        Returns
+        -------
+        str
+            Validated 8-character exponential format string.
+
+        Raises
+        ------
+        ValueError
+            If the format is invalid.
+
+        References
+        ----------
+        https://celestrak.org/NORAD/documentation/tle-fmt.php
+        """
+        value: str = field_value.strip()
+
+        if len(value) == 7:
+            value = " " + value
+
+        if len(value) != 8:
+            raise ValueError(
+                f"{field_name} must be 7 or 8 chars in TLE format "
+                f"(e.g. 00000-0,  29661-4, -12345-6)"
+            )
+
+        if not re.fullmatch(r"[ +\-]\d{5}[+\-]\d", value):
+            raise ValueError(
+                f"{field_name} must match [sign]#####<+|-># in TLE notation; "
+                f"got '{field_value}'"
+            )
+
+        return value
+
+    @staticmethod
+    def _format_first_derivative(value: float) -> str:
+        """Format first time derivative of mean motion for TLE line 1 (10 chars).
+
+        Parameters
+        ----------
+        value : float
+            First time derivative of mean motion (revolutions per day²).
+
+        Returns
+        -------
+        str
+            Formatted 10-character string for TLE line 1.
+
+        Raises
+        ------
+        ValueError
+            If the value cannot be represented in the 10-character field.
+        """
+        sign: str = "-" if value < 0 else " "
+        magnitude: str = f"{abs(value):.8f}"
+
+        if magnitude.startswith("0"):
+            magnitude = magnitude[1:]
+
+        formatted: str = sign + magnitude
+        if len(formatted) != 10:
+            raise ValueError(
+                "mean-motion-first-derivative cannot be represented in 10-char TLE field"
+            )
+        return formatted
+
+    @staticmethod
+    def _format_tle_strings(tle_data: Tle) -> tuple[str, str]:
+        """Format TLE data into line-1 and line-2 strings without checksums.
+
+        Parameters
+        ----------
+        tle_data : Tle
+            TLE data to serialize.
+
+        Returns
+        -------
+        tuple[str, str]
+            The formatted ``(line1_no_cksum, line2_no_cksum)`` strings (68 chars each,
+            without trailing checksum digits).
+
+        Raises
+        ------
+        ValueError
+            If formatting fails or line lengths are incorrect.
+        """
+        norad_cat_id: int = tle_data.norad_cat_id
+        classification: str = tle_data.classification
+        int_designator_year: int = tle_data.int_designator_year
+        int_designator_launch_number: int = tle_data.int_designator_launch_number
+        int_designator_piece: str = tle_data.int_designator_piece
+        epoch_year: int = tle_data.epoch_year
+        epoch_day: float = tle_data.epoch_day
+        mean_motion_first_derivative: float = tle_data.mean_motion_first_derivative
+        mean_motion_second_derivative: str = tle_data.mean_motion_second_derivative
+        bstar: str = tle_data.bstar
+        ephemeris_type: int = tle_data.ephemeris_type
+        element_set_number: int = tle_data.element_set_number
+        inclination_deg: float = tle_data.inclination_deg
+        raan_deg: float = tle_data.raan_deg
+        eccentricity: float = tle_data.eccentricity
+        arg_perigee_deg: float = tle_data.arg_perigee_deg
+        mean_anomaly_deg: float = tle_data.mean_anomaly_deg
+        mean_motion_rev_per_day: float = tle_data.mean_motion_rev_per_day
+        revolution_number_at_epoch: int = tle_data.revolution_number_at_epoch
+
+        sat_num: str = f"{norad_cat_id:05d}"
+        classification_char: str = classification.upper()
+
+        intl_year: str = f"{int_designator_year:02d}"
+        intl_launch: str = f"{int_designator_launch_number:03d}"
+        intl_piece: str = int_designator_piece.strip().upper().ljust(3)[:3]
+
+        ep_year: str = f"{epoch_year:02d}"
+        ep_day: str = f"{epoch_day:012.8f}"
+
+        mm_first: str = Tle._format_first_derivative(mean_motion_first_derivative)
+        mm_second: str = Tle._parse_tle_exponential(
+            mean_motion_second_derivative, "mean-motion-second-derivative"
+        )
+        bstar_fmt: str = Tle._parse_tle_exponential(bstar, "bstar")
+
+        eph_type: str = str(ephemeris_type)
+        elem_set: str = f"{element_set_number:4d}"
+
+        inclination_str: str = f"{inclination_deg:8.4f}"
+        raan_str: str = f"{raan_deg:8.4f}"
+        eccentricity_str: str = (
+            f"{int(round(eccentricity * ECCENTRICITY_SCALE_FACTOR)):07d}"
+        )
+        arg_perigee_str: str = f"{arg_perigee_deg:8.4f}"
+        mean_anomaly_str: str = f"{mean_anomaly_deg:8.4f}"
+        mean_motion_str: str = f"{mean_motion_rev_per_day:11.8f}"
+        rev_num: str = f"{revolution_number_at_epoch:05d}"
+
+        line1_no_cksum: str = (
+            f"1 {sat_num}{classification_char} "
+            f"{intl_year}{intl_launch}{intl_piece} "
+            f"{ep_year}{ep_day} "
+            f"{mm_first} {mm_second} {bstar_fmt} "
+            f"{eph_type} "
+            f"{elem_set}"
+        )
+
+        line2_no_cksum: str = (
+            f"2 {sat_num} "
+            f"{inclination_str} {raan_str} {eccentricity_str} "
+            f"{arg_perigee_str} {mean_anomaly_str} "
+            f"{mean_motion_str}{rev_num}"
+        )
+
+        if len(line1_no_cksum) != TLE_LINE_LENGTH_WITHOUT_CHECKSUM:
+            raise ValueError(
+                f"Internal formatting error: line 1 length is "
+                f"{len(line1_no_cksum)} (expected {TLE_LINE_LENGTH_WITHOUT_CHECKSUM})"
+            )
+
+        if len(line2_no_cksum) != TLE_LINE_LENGTH_WITHOUT_CHECKSUM:
+            raise ValueError(
+                f"Internal formatting error: line 2 length is "
+                f"{len(line2_no_cksum)} (expected {TLE_LINE_LENGTH_WITHOUT_CHECKSUM})"
+            )
+
+        return line1_no_cksum, line2_no_cksum
+
+    @staticmethod
+    def _read_tle(stream: TextIO) -> Tle:
+        """Parse TLE elements from a text stream.
+
+        The stream or file should contain either:
+
+        * Two lines: *line1* and *line2* of the TLE.
+        * Three lines: *name*, *line1*, and *line2* of the TLE.
+
+        Parameters
+        ----------
+        stream : TextIO
+            Readable text stream containing TLE data.
+
+        Returns
+        -------
+        Tle
+            A :class:`Tle` dataclass instance with all parsed elements.
+
+        References
+        ----------
+        https://celestrak.org/NORAD/documentation/tle-fmt.php
+        https://en.wikipedia.org/wiki/Two-line_element_set
+        """
+        lines: list[str] = [line.rstrip("\n") for line in stream if line.strip()]
+
+        if len(lines) < 2:
+            raise ValueError("Expected at least 2 non-empty lines from stream")
+
+        if lines[0].startswith("1 ") and lines[1].startswith("2 "):
+            name: str = ""
+            line1: str = lines[0]
+            line2: str = lines[1]
+        elif (
+            len(lines) >= 3 and lines[1].startswith("1 ") and lines[2].startswith("2 ")
+        ):
+            name = lines[0].strip()
+            if name.startswith("0 "):
+                name = name[2:]
+            line1 = lines[1]
+            line2 = lines[2]
+        else:
+            raise ValueError(
+                "Could not identify TLE lines. Expected either "
+                "'<line1> <line2>' or '<name> <line1> <line2>'"
+            )
+
+        if (
+            len(line1) < TLE_LINE_LENGTH_WITH_CHECKSUM
+            or len(line2) < TLE_LINE_LENGTH_WITH_CHECKSUM
+        ):
+            raise ValueError(
+                f"TLE lines must be at least {TLE_LINE_LENGTH_WITH_CHECKSUM} characters long"
+            )
+
+        line1 = line1[:TLE_LINE_LENGTH_WITH_CHECKSUM]
+        line2 = line2[:TLE_LINE_LENGTH_WITH_CHECKSUM]
+
+        if line1[0] != "1" or line2[0] != "2":
+            raise ValueError("Invalid line numbers in TLE")
+
+        eccentricity_raw: str = line2[26:33]
+
+        return Tle(
+            object_name=name,
+            line1=line1,
+            line2=line2,
+            norad_cat_id=int(line1[2:7]),
+            classification=line1[7],
+            int_designator_year=int(line1[9:11]),
+            int_designator_launch_number=int(line1[11:14]),
+            int_designator_piece=line1[14:17].strip(),
+            epoch_year=int(line1[18:20]),
+            epoch_day=float(line1[20:32]),
+            mean_motion_first_derivative=float(line1[33:43]),
+            mean_motion_second_derivative=line1[44:52].strip(),
+            bstar=line1[53:61].strip(),
+            ephemeris_type=int(line1[62]),
+            element_set_number=int(line1[64:68]),
+            line1_checksum=line1[68],
+            line1_checksum_expected=compute_tle_checksum(
+                line1[:TLE_LINE_LENGTH_WITHOUT_CHECKSUM]
+            ),
+            inclination_deg=float(line2[8:16]),
+            raan_deg=float(line2[17:25]),
+            eccentricity_raw=eccentricity_raw,
+            eccentricity=float(f"0.{eccentricity_raw}"),
+            arg_perigee_deg=float(line2[34:42]),
+            mean_anomaly_deg=float(line2[43:51]),
+            mean_motion_rev_per_day=float(line2[52:63]),
+            revolution_number_at_epoch=int(line2[63:68]),
+            line2_checksum=line2[68],
+            line2_checksum_expected=compute_tle_checksum(
+                line2[:TLE_LINE_LENGTH_WITHOUT_CHECKSUM]
+            ),
+        )
 
 
 # ===================================================================
@@ -196,250 +488,15 @@ def compute_tle_checksum(line_without_checksum: str) -> str:
     return str(checksum % 10)
 
 
-def _parse_tle_exponential(field_value: str, field_name: str) -> str:
-    """Validate TLE exponential format, e.g. ``'00000-0'`` or ``'29661-4'``.
-
-    TLE exponential format represents scientific notation in a compact form:
-    the mantissa is assumed to have an implicit leading decimal point, and
-    the exponent is a single signed digit.
-
-    Parameters
-    ----------
-    field_value : str
-        Raw field value from TLE (7 or 8 characters).
-    field_name : str
-        Name of the field for error messages.
-
-    Returns
-    -------
-    str
-        Validated 8-character exponential format string.
-
-    Raises
-    ------
-    ValueError
-        If the format is invalid.
-
-    References
-    ----------
-    https://celestrak.org/NORAD/documentation/tle-fmt.php
-    """
-    value: str = field_value.strip()
-
-    if len(value) == 7:
-        value = " " + value
-
-    if len(value) != 8:
-        raise ValueError(
-            f"{field_name} must be 7 or 8 chars in TLE format "
-            f"(e.g. 00000-0,  29661-4, -12345-6)"
-        )
-
-    if not re.fullmatch(r"[ +\-]\d{5}[+\-]\d", value):
-        raise ValueError(
-            f"{field_name} must match [sign]#####<+|-># in TLE notation; "
-            f"got '{field_value}'"
-        )
-
-    return value
-
-
-def _format_first_derivative(value: float) -> str:
-    """Format first time derivative of mean motion for TLE line 1 (10 chars).
-
-    Parameters
-    ----------
-    value : float
-        First time derivative of mean motion (revolutions per day²).
-
-    Returns
-    -------
-    str
-        Formatted 10-character string for TLE line 1.
-
-    Raises
-    ------
-    ValueError
-        If the value cannot be represented in the 10-character field.
-    """
-    sign: str = "-" if value < 0 else " "
-    magnitude: str = f"{abs(value):.8f}"
-
-    if magnitude.startswith("0"):
-        magnitude = magnitude[1:]
-
-    formatted: str = sign + magnitude
-    if len(formatted) != 10:
-        raise ValueError(
-            "mean-motion-first-derivative cannot be represented in 10-char TLE field"
-        )
-    return formatted
-
-
-def _tle_field(tle_data: Tle | Mapping[str, object], field_name: str) -> object:
-    """Retrieve a field from a :class:`Tle` instance or a :class:`Mapping`.
-
-    Parameters
-    ----------
-    tle_data : Tle | Mapping[str, object]
-        A :class:`Tle` instance or a mapping.
-    field_name : str
-        Name of the field to retrieve.
-
-    Returns
-    -------
-    object
-        The field value.
-
-    Raises
-    ------
-    AttributeError
-        If the field does not exist in a :class:`Tle` instance.
-    KeyError
-        If the field does not exist in a mapping.
-    """
-    if isinstance(tle_data, Tle):
-        return getattr(tle_data, field_name)
-    return tle_data[field_name]
-
-
-def _tle_field_opt(
-    tle_data: Tle | Mapping[str, object],
-    field_name: str,
-    default: object = None,
-) -> object:
-    """Retrieve an optional field from a :class:`Tle` or :class:`Mapping`.
-
-    Parameters
-    ----------
-    tle_data : Tle | Mapping[str, object]
-        A :class:`Tle` instance or a mapping.
-    field_name : str
-        Name of the field to retrieve.
-    default : object, optional
-        Default value if the field does not exist (default: None).
-
-    Returns
-    -------
-    object
-        The field value or the default if not found.
-    """
-    if isinstance(tle_data, Tle):
-        return getattr(tle_data, field_name, default)
-    return tle_data.get(field_name, default)  # type: ignore[union-attr]
-
-
-def _format_tle_strings(
-    tle_data: Tle | Mapping[str, object],
-) -> tuple[str, str]:
-    """Format TLE data into line-1 and line-2 strings without checksums.
-
-    Parameters
-    ----------
-    tle_data : Tle | Mapping[str, object]
-        A :class:`Tle` dataclass instance or a mapping containing the
-        parsed TLE fields returned by :func:`read_tle`.
-
-    Returns
-    -------
-    tuple[str, str]
-        The formatted ``(line1_no_cksum, line2_no_cksum)`` strings (68 chars each,
-        without trailing checksum digits).
-
-    Raises
-    ------
-    ValueError
-        If formatting fails or line lengths are incorrect.
-    """
-    norad_cat_id: int = _tle_field(tle_data, "norad_cat_id")  # type: ignore[assignment]
-    classification: str = _tle_field(tle_data, "classification")  # type: ignore[assignment]
-    int_designator_year: int = _tle_field(tle_data, "int_designator_year")  # type: ignore[assignment]
-    int_designator_launch_number: int = _tle_field(tle_data, "int_designator_launch_number")  # type: ignore[assignment]
-    int_designator_piece: str = _tle_field(tle_data, "int_designator_piece")  # type: ignore[assignment]
-    epoch_year: int = _tle_field(tle_data, "epoch_year")  # type: ignore[assignment]
-    epoch_day: float = _tle_field(tle_data, "epoch_day")  # type: ignore[assignment]
-    mean_motion_first_derivative: float = _tle_field(tle_data, "mean_motion_first_derivative")  # type: ignore[assignment]
-    mean_motion_second_derivative: str = _tle_field(tle_data, "mean_motion_second_derivative")  # type: ignore[assignment]
-    bstar: str = _tle_field(tle_data, "bstar")  # type: ignore[assignment]
-    ephemeris_type: int = _tle_field(tle_data, "ephemeris_type")  # type: ignore[assignment]
-    element_set_number: int = _tle_field(tle_data, "element_set_number")  # type: ignore[assignment]
-    inclination_deg: float = _tle_field(tle_data, "inclination_deg")  # type: ignore[assignment]
-    raan_deg: float = _tle_field(tle_data, "raan_deg")  # type: ignore[assignment]
-    eccentricity: float = _tle_field(tle_data, "eccentricity")  # type: ignore[assignment]
-    arg_perigee_deg: float = _tle_field(tle_data, "arg_perigee_deg")  # type: ignore[assignment]
-    mean_anomaly_deg: float = _tle_field(tle_data, "mean_anomaly_deg")  # type: ignore[assignment]
-    mean_motion_rev_per_day: float = _tle_field(tle_data, "mean_motion_rev_per_day")  # type: ignore[assignment]
-    revolution_number_at_epoch: int = _tle_field(tle_data, "revolution_number_at_epoch")  # type: ignore[assignment]
-
-    sat_num: str = f"{norad_cat_id:05d}"
-    classification_char: str = classification.upper()
-
-    intl_year: str = f"{int_designator_year:02d}"
-    intl_launch: str = f"{int_designator_launch_number:03d}"
-    intl_piece: str = int_designator_piece.strip().upper().ljust(3)[:3]
-
-    ep_year: str = f"{epoch_year:02d}"
-    ep_day: str = f"{epoch_day:012.8f}"
-
-    mm_first: str = _format_first_derivative(mean_motion_first_derivative)
-    mm_second: str = _parse_tle_exponential(
-        mean_motion_second_derivative, "mean-motion-second-derivative"
-    )
-    bstar_fmt: str = _parse_tle_exponential(bstar, "bstar")
-
-    eph_type: str = str(ephemeris_type)
-    elem_set: str = f"{element_set_number:4d}"
-
-    inclination_str: str = f"{inclination_deg:8.4f}"
-    raan_str: str = f"{raan_deg:8.4f}"
-    eccentricity_str: str = (
-        f"{int(round(eccentricity * ECCENTRICITY_SCALE_FACTOR)):07d}"
-    )
-    arg_perigee_str: str = f"{arg_perigee_deg:8.4f}"
-    mean_anomaly_str: str = f"{mean_anomaly_deg:8.4f}"
-    mean_motion_str: str = f"{mean_motion_rev_per_day:11.8f}"
-    rev_num: str = f"{revolution_number_at_epoch:05d}"
-
-    line1_no_cksum: str = (
-        f"1 {sat_num}{classification_char} "
-        f"{intl_year}{intl_launch}{intl_piece} "
-        f"{ep_year}{ep_day} "
-        f"{mm_first} {mm_second} {bstar_fmt} "
-        f"{eph_type} "
-        f"{elem_set}"
-    )
-
-    line2_no_cksum: str = (
-        f"2 {sat_num} "
-        f"{inclination_str} {raan_str} {eccentricity_str} "
-        f"{arg_perigee_str} {mean_anomaly_str} "
-        f"{mean_motion_str}{rev_num}"
-    )
-
-    if len(line1_no_cksum) != TLE_LINE_LENGTH_WITHOUT_CHECKSUM:
-        raise ValueError(
-            f"Internal formatting error: line 1 length is "
-            f"{len(line1_no_cksum)} (expected {TLE_LINE_LENGTH_WITHOUT_CHECKSUM})"
-        )
-
-    if len(line2_no_cksum) != TLE_LINE_LENGTH_WITHOUT_CHECKSUM:
-        raise ValueError(
-            f"Internal formatting error: line 2 length is "
-            f"{len(line2_no_cksum)} (expected {TLE_LINE_LENGTH_WITHOUT_CHECKSUM})"
-        )
-
-    return line1_no_cksum, line2_no_cksum
-
-
 def format_tle_strings(
-    tle_data: Tle | Mapping[str, object],
+    tle_data: Tle,
 ) -> tuple[str, str]:
     """Return formatted TLE lines with trailing checksum digits included.
 
     Parameters
     ----------
-    tle_data : Tle | Mapping[str, object]
-        A :class:`Tle` dataclass instance or a mapping to serialize.
+    tle_data : Tle
+        TLE data to format.
 
     Returns
     -------
@@ -448,7 +505,7 @@ def format_tle_strings(
     """
     line1_no_cksum: str
     line2_no_cksum: str
-    line1_no_cksum, line2_no_cksum = _format_tle_strings(tle_data)
+    line1_no_cksum, line2_no_cksum = Tle._format_tle_strings(tle_data)
 
     line1: str = line1_no_cksum + compute_tle_checksum(line1_no_cksum)
     line2: str = line2_no_cksum + compute_tle_checksum(line2_no_cksum)
@@ -619,148 +676,9 @@ def iso8601_to_tle_epoch(iso_str: str) -> tuple[int, float]:
 # ===================================================================
 
 
-def read_tle(stream: TextIO | str | Path) -> Tle:
-    """Parse TLE elements from a text stream or file path.
-
-    The stream or file should contain either:
-
-    * Two lines: *line1* and *line2* of the TLE.
-    * Three lines: *name*, *line1*, and *line2* of the TLE.
-
-    Parameters
-    ----------
-    stream : TextIO | str | Path
-        Readable text stream or path to a file containing TLE data.
-
-    Returns
-    -------
-    Tle
-        A :class:`Tle` dataclass instance with all parsed elements.
-
-    References
-    ----------
-    https://celestrak.org/NORAD/documentation/tle-fmt.php
-    https://en.wikipedia.org/wiki/Two-line_element_set
-    """
-    if isinstance(stream, (str, Path)):
-        with open(stream, "r", encoding="utf-8") as fh:
-            return read_tle(fh)
-
-    lines: list[str] = [line.rstrip("\n") for line in stream if line.strip()]
-
-    if len(lines) < 2:
-        raise ValueError("Expected at least 2 non-empty lines from stream")
-
-    if lines[0].startswith("1 ") and lines[1].startswith("2 "):
-        name: str = ""
-        line1: str = lines[0]
-        line2: str = lines[1]
-    elif len(lines) >= 3 and lines[1].startswith("1 ") and lines[2].startswith("2 "):
-        name = lines[0].strip()
-        if name.startswith("0 "):
-            name = name[2:]
-        line1 = lines[1]
-        line2 = lines[2]
-    else:
-        raise ValueError(
-            "Could not identify TLE lines. Expected either "
-            "'<line1> <line2>' or '<name> <line1> <line2>'"
-        )
-
-    if (
-        len(line1) < TLE_LINE_LENGTH_WITH_CHECKSUM
-        or len(line2) < TLE_LINE_LENGTH_WITH_CHECKSUM
-    ):
-        raise ValueError(
-            f"TLE lines must be at least {TLE_LINE_LENGTH_WITH_CHECKSUM} characters long"
-        )
-
-    line1 = line1[:TLE_LINE_LENGTH_WITH_CHECKSUM]
-    line2 = line2[:TLE_LINE_LENGTH_WITH_CHECKSUM]
-
-    if line1[0] != "1" or line2[0] != "2":
-        raise ValueError("Invalid line numbers in TLE")
-
-    eccentricity_raw: str = line2[26:33]
-
-    return Tle(
-        object_name=name,
-        line1=line1,
-        line2=line2,
-        norad_cat_id=int(line1[2:7]),
-        classification=line1[7],
-        int_designator_year=int(line1[9:11]),
-        int_designator_launch_number=int(line1[11:14]),
-        int_designator_piece=line1[14:17].strip(),
-        epoch_year=int(line1[18:20]),
-        epoch_day=float(line1[20:32]),
-        mean_motion_first_derivative=float(line1[33:43]),
-        mean_motion_second_derivative=line1[44:52].strip(),
-        bstar=line1[53:61].strip(),
-        ephemeris_type=int(line1[62]),
-        element_set_number=int(line1[64:68]),
-        line1_checksum=line1[68],
-        line1_checksum_expected=compute_tle_checksum(
-            line1[:TLE_LINE_LENGTH_WITHOUT_CHECKSUM]
-        ),
-        inclination_deg=float(line2[8:16]),
-        raan_deg=float(line2[17:25]),
-        eccentricity_raw=eccentricity_raw,
-        eccentricity=float(f"0.{eccentricity_raw}"),
-        arg_perigee_deg=float(line2[34:42]),
-        mean_anomaly_deg=float(line2[43:51]),
-        mean_motion_rev_per_day=float(line2[52:63]),
-        revolution_number_at_epoch=int(line2[63:68]),
-        line2_checksum=line2[68],
-        line2_checksum_expected=compute_tle_checksum(
-            line2[:TLE_LINE_LENGTH_WITHOUT_CHECKSUM]
-        ),
-    )
-
-
 # ===================================================================
 # Writer
 # ===================================================================
-
-
-def write_tle(
-    dest: TextIO | str | Path,
-    tle_data: Tle | Mapping[str, object],
-) -> tuple[str, str]:
-    """Write a TLE to a text stream or file path.
-
-    Parameters
-    ----------
-    dest : TextIO | str | Path
-        Writable text stream or destination file path.
-    tle_data : Tle | Mapping[str, object]
-        A :class:`Tle` dataclass instance or a mapping containing the
-        parsed TLE fields returned by :func:`read_tle`.
-
-    Returns
-    -------
-    tuple[str, str]
-        The formatted *(line1, line2)* strings that were written.
-
-    References
-    ----------
-    https://celestrak.org/NORAD/documentation/tle-fmt.php
-    """
-    if isinstance(dest, (str, Path)):
-        with open(dest, "w", encoding="utf-8") as fh:
-            return write_tle(fh, tle_data)
-
-    line1, line2 = format_tle_strings(tle_data)
-
-    name: str = _tle_field_opt(tle_data, "object_name", "")  # type: ignore[assignment]
-    write_text: Callable[[str], int] = dest.write
-
-    if name:
-        write_text(name + "\n")
-    write_text(line1 + "\n")
-    write_text(line2 + "\n")
-
-    return line1, line2
 
 
 # ===================================================================

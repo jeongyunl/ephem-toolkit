@@ -127,7 +127,7 @@ def _round_trip_optional_omm_fields(
 
     source_path = tmp_path / f"{name}-optional.omm"
     omm_data.to_file(source_path)
-    parsed = omm_mod.CcsdsOmm.from_source(source_path)
+    parsed = omm_mod.CcsdsOmm.from_file(source_path)
     assert parsed.classification == "C"
     assert parsed.message_id == "OMM-SOURCE-MESSAGE"
     assert parsed.ref_frame_epoch == omm_data.ref_frame_epoch
@@ -159,7 +159,7 @@ def _assert_optional_omm_fields_not_in_oem(output_path: Path) -> None:
 def _assert_omm_covariance_preserved(
     output_path: Path, source_omm: omm_mod.CcsdsOmm
 ) -> None:
-    output_oem = oem_mod.CcsdsOem.read(output_path)
+    output_oem = oem_mod.CcsdsOem.from_file(output_path)
     assert source_omm.covariance is not None
     assert len(output_oem.covariances) == 1
     assert output_oem.covariances[0].epoch == source_omm.epoch
@@ -199,7 +199,7 @@ def test_propagate_omm_dsst_produces_states(tmp_path):
     content = Path(output_path).read_text()
     assert "CCSDS_OEM_VERS" in content
     assert len(content.strip().splitlines()) > 5
-    output_oem = oem_mod.CcsdsOem.read(output_path)
+    output_oem = oem_mod.CcsdsOem.from_file(output_path)
     assert output_oem.meta.object_name == omm_data.object_name
     assert output_oem.meta.object_id == omm_data.object_id
     assert output_oem.meta.center_name == "EARTH"
@@ -234,7 +234,7 @@ def test_propagate_omm_kepler_preserves_source_comments(tmp_path, theory):
         str(output_path),
     )
 
-    output_oem = oem_mod.CcsdsOem.read(output_path)
+    output_oem = oem_mod.CcsdsOem.from_file(output_path)
     assert output_oem.meta.object_name == omm_data.object_name
     assert output_oem.meta.object_id == omm_data.object_id
     assert output_oem.meta.center_name == "EARTH"
@@ -265,7 +265,7 @@ def test_propagate_omm_kepler_preserves_source_comments(tmp_path, theory):
         False,
         str(offset_output_path),
     )
-    offset_oem = oem_mod.CcsdsOem.read(offset_output_path)
+    offset_oem = oem_mod.CcsdsOem.from_file(offset_output_path)
     assert offset_oem.covariances == []
 
 
@@ -311,7 +311,7 @@ def test_propagate_omm_sgp4_writes_metadata_and_source_comments(monkeypatch, tmp
         omm_data, start, stop, 600.0, False, str(output_path)
     )
 
-    output_oem = oem_mod.CcsdsOem.read(output_path)
+    output_oem = oem_mod.CcsdsOem.from_file(output_path)
     assert output_oem.meta.object_name == omm_data.object_name
     assert output_oem.meta.object_id == omm_data.object_id
     assert output_oem.meta.center_name == "EARTH"
@@ -439,7 +439,7 @@ def test_propagate_omm_dsst_uses_spacecraft_parameters(monkeypatch, tmp_path):
     assert perturbations.srp_area_m2 == 2300.0
     assert perturbations.srp_coeff == 1.3
 
-    output_oem = oem_mod.CcsdsOem.read(output_path)
+    output_oem = oem_mod.CcsdsOem.from_file(output_path)
     assert "SOURCE_COMMENT: optional OMM fields" in output_oem.meta.comments
     assert output_oem.header.classification == omm_data.classification
     assert output_oem.header.message_id == omm_data.message_id
@@ -501,7 +501,9 @@ def test_propagate_omm_dsst_ignores_incomplete_spacecraft_parameter_groups(
 
     monkeypatch.setattr(propagation, "DSSTPropagator", FakeDsstPropagator)
     monkeypatch.setattr(
-        propagation, "_write_oem_output", lambda *_args, **_kwargs: None
+        propagation,
+        "_write_oem_output",
+        lambda *_args, **_kwargs: None,
     )
     start = time_utils.iso8601_to_datetime(omm_data.epoch)
     propagate_omm_main.propagate_omm_dsst(
@@ -575,7 +577,7 @@ def test_main_dispatches_dsst_for_dsst_theory(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "exists", lambda *_: True)
     monkeypatch.setattr(
         omm_mod.CcsdsOmm,
-        "from_source",
+        "from_file",
         lambda *_: omm_data,
     )
     monkeypatch.setattr(
@@ -640,7 +642,7 @@ def test_main_dispatches_kepler_for_non_dsst_theory(monkeypatch, tmp_path, theor
     monkeypatch.setattr(Path, "exists", lambda *_: True)
     monkeypatch.setattr(
         omm_mod.CcsdsOmm,
-        "from_source",
+        "from_file",
         lambda *_: omm_data,
     )
 

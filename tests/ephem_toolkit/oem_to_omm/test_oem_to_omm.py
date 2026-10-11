@@ -49,6 +49,9 @@ class DummyOmmObj:
         else:
             Path(dest).write_text("OMM_OUTPUT", encoding="utf-8")
 
+    def write(self, dest):
+        dest.write("OMM_OUTPUT")
+
 
 def test_parse_arguments_fit_span_accepts_duration_strings(monkeypatch):
     """--fit-span should accept duration strings and store a timedelta."""
@@ -219,7 +222,7 @@ def test_main_brouwer_mode_uses_duration_and_writes_omm(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
         oem.CcsdsOem,
-        "read",
+        "from_file",
         lambda *_args, **_kwargs: DummyOemData(states, DummyMeta()),
     )
     monkeypatch.setattr(
@@ -280,7 +283,7 @@ def test_main_tle_mode_writes_omm_from_duration(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
         oem.CcsdsOem,
-        "read",
+        "from_file",
         lambda *_args, **_kwargs: DummyOemData(states, DummyMeta()),
     )
     monkeypatch.setattr(
@@ -333,7 +336,7 @@ def test_main_dsst_mode_fits_and_writes_omm_to_stdout(
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
         oem.CcsdsOem,
-        "read",
+        "from_file",
         lambda *_args, **_kwargs: DummyOemData(states, DummyMeta()),
     )
     monkeypatch.setattr(dsst, "DsstPerturbations", lambda **_kwargs: object())
@@ -421,7 +424,7 @@ def test_main_serializes_oem_metadata_for_each_fit_model(
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
         oem.CcsdsOem,
-        "read",
+        "from_file",
         lambda *_args, **_kwargs: source_oem,
     )
     monkeypatch.setattr(
@@ -503,7 +506,7 @@ def test_main_serializes_oem_metadata_for_each_fit_model(
     )
 
     serialized = output_path.read_text(encoding="utf-8")
-    converted = omm.CcsdsOmm.from_source(output_path)
+    converted = omm.CcsdsOmm.from_file(output_path)
     assert converted.object_name == "SOURCE SAT"
     assert converted.object_id == "2024-001A"
     assert converted.center_name == "EARTH"
@@ -570,7 +573,7 @@ def test_main_rejects_invalid_input_and_report_options(
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
         oem.CcsdsOem,
-        "read",
+        "from_file",
         lambda *_args, **_kwargs: DummyOemData(states, DummyMeta()),
     )
     if "--source-model" in argv:
@@ -637,7 +640,7 @@ def test_main_rejects_out_of_range_tle_metadata(
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
         oem.CcsdsOem,
-        "read",
+        "from_file",
         lambda *_args, **_kwargs: DummyOemData(states, DummyMeta()),
     )
     monkeypatch.setattr(
@@ -676,7 +679,7 @@ def test_main_rejects_non_equivalent_input_frame_before_fitting(
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
         oem.CcsdsOem,
-        "read",
+        "from_file",
         lambda *_args, **_kwargs: DummyOemData(states, source_meta),
     )
     monkeypatch.setattr(dsst, "DsstPerturbations", lambda **_kwargs: object())
@@ -709,7 +712,7 @@ def test_main_reports_fitting_errors(monkeypatch, fit_model):
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
         oem.CcsdsOem,
-        "read",
+        "from_file",
         lambda *_args, **_kwargs: DummyOemData(states, DummyMeta()),
     )
     monkeypatch.setattr(
@@ -746,7 +749,7 @@ def test_main_reports_dsst_omm_conversion_error(monkeypatch):
     monkeypatch.setattr(Path, "exists", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
         oem.CcsdsOem,
-        "read",
+        "from_file",
         lambda *_args, **_kwargs: DummyOemData(states, DummyMeta()),
     )
     monkeypatch.setattr(dsst, "DsstPerturbations", lambda **_kwargs: object())

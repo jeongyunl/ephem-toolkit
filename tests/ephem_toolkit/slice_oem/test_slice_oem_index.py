@@ -84,7 +84,7 @@ def _create_test_oem(
     temp_path = Path(temp_file.name)
     temp_file.close()
 
-    oem_obj.write(temp_path)
+    oem_obj.to_file(temp_path)
     return temp_path, oem_obj
 
 
@@ -110,7 +110,7 @@ def test_cli_index_slice_opm_first_state_only() -> None:
         result = _run_slice_oem([str(temp_path), "--slice", "5:10", "--opm"])
         assert result.returncode == 0
 
-        _, _, output_data = opm.read_opm(io.StringIO(result.stdout), validate=False)
+        _, _, output_data = opm._read_opm(io.StringIO(result.stdout), validate=False)
         assert output_data["EPOCH"].startswith("2024-01-01T00:05:00")
         assert output_data["X"] == original_oem.states[5][1][0] / 1000
     finally:

@@ -235,7 +235,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         oem_path = Path(cli_args.input_oem)
         if not oem_path.exists():
             report_error(f"Error: Input file not found: {cli_args.input_oem}")
-        oem_data = oem.CcsdsOem.read(oem_path)
+        oem_data = oem.CcsdsOem.from_file(oem_path)
 
     states: list[tuple[float, np.ndarray]] = oem_data.states
     source_comments = list(getattr(oem_data.meta, "comments", []))
@@ -511,7 +511,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             )
             # Output to stdout if dest is "-", otherwise to file
             if cli_args.output_opm == "-":
-                opm_obj.to_file(sys.stdout)
+                opm_obj.write(sys.stdout)
             else:
                 opm_obj.to_file(cli_args.output_opm)
                 if show_progress:

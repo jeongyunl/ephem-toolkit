@@ -49,7 +49,7 @@ def main(argv=None) -> None:
             sys.exit(1)
 
     try:
-        tle_data: tle.Tle = tle.read_tle(io.StringIO(input_text))
+        tle_data: tle.Tle = tle.Tle.read(io.StringIO(input_text))
     except ValueError as error:
         print(f"Error: {error}", file=sys.stderr)
         sys.exit(1)
@@ -63,7 +63,7 @@ def main(argv=None) -> None:
     )
 
     if cli_args.output_omm == "-":
-        omm_data.to_file(sys.stdout)
+        omm_data.write(sys.stdout)
     else:
         omm_data.to_file(cli_args.output_omm)
 

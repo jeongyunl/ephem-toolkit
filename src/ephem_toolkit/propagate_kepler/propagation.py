@@ -32,9 +32,9 @@ def read_kepler_input(source: str | None):
         text = sys.stdin.read()
         if not text.strip():
             raise ValueError("Empty stdin input. Provide OPM content on stdin.")
-        message = opm.CcsdsOpm.from_source(io.StringIO(text))
+        message = opm.CcsdsOpm.read(io.StringIO(text))
     else:
-        message = opm.CcsdsOpm.from_source(pathlib.Path(source).expanduser().resolve())
+        message = opm.CcsdsOpm.from_file(pathlib.Path(source).expanduser().resolve())
     elements = message.keplerian_elements
     if elements is None:
         raise ValueError("OPM input does not contain Keplerian elements")

@@ -189,7 +189,7 @@ def test_read_kepler_input_requires_keplerian_elements(
 ) -> None:
     monkeypatch.setattr(
         opm.CcsdsOpm,
-        "from_source",
+        "from_file",
         lambda _source: SimpleNamespace(keplerian_elements=None),
     )
 
@@ -202,7 +202,7 @@ def test_propagate_kepler_writes_cartesian_states_in_si_units(
 ) -> None:
     """The OEM writer should receive propagated states in meters and m/s."""
     opm_path = Path(__file__).parents[2] / "opm" / "sample4.opm"
-    source_opm = opm.CcsdsOpm.from_source(opm_path)
+    source_opm = opm.CcsdsOpm.from_file(opm_path)
     source_opm.header.classification = "C"
     source_opm.header.message_id = "OPM-SOURCE-MESSAGE"
     source_opm.metadata["REF_FRAME_EPOCH"] = "2024-01-01T00:00:00.000"
@@ -238,7 +238,7 @@ def test_propagate_kepler_writes_cartesian_states_in_si_units(
         covariance=covariance,
     )
 
-    generated_oem = oem.CcsdsOem.read(output_path)
+    generated_oem = oem.CcsdsOem.from_file(output_path)
     _, generated_state_m_m_s = generated_oem.states[0]
     np.testing.assert_allclose(generated_state_m_m_s, expected_state_m_m_s, rtol=1e-12)
     assert (
@@ -263,7 +263,7 @@ def test_propagate_kepler_writes_cartesian_states_in_si_units(
     assert generated_oem.covariances[0].ref_frame == "RTN"
     np.testing.assert_allclose(
         generated_oem.covariances[0].matrix,
-        opm.CcsdsOpm.from_source(opm_path).covariance.matrix,
+        opm.CcsdsOpm.from_file(opm_path).covariance.matrix,
         rtol=1.0e-14,
         atol=0.0,
     )

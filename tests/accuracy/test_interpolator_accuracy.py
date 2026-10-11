@@ -114,14 +114,14 @@ def _file_id(filename: str) -> str:
 @pytest.fixture(scope="module")
 def iss_reference_states() -> dict[float, np.ndarray]:
     """Build timestamp -> state lookup from ISS reference OEM."""
-    iss_oem = oem.CcsdsOem.read(str(DATASETS["ISS"].reference_file))
+    iss_oem = oem.CcsdsOem.from_file(str(DATASETS["ISS"].reference_file))
     return {ts: state for ts, state in iss_oem.states}
 
 
 @pytest.fixture(scope="module")
 def jpss1_reference_states() -> dict[float, np.ndarray]:
     """Build timestamp -> state lookup from JPSS-1 reference OEM."""
-    jpss_oem = oem.CcsdsOem.read(str(DATASETS["JPSS-1"].reference_file))
+    jpss_oem = oem.CcsdsOem.from_file(str(DATASETS["JPSS-1"].reference_file))
     return {ts: state for ts, state in jpss_oem.states}
 
 
@@ -137,7 +137,7 @@ def _run_useable_range_accuracy_test(
     reference_states: dict[float, np.ndarray],
 ) -> dict[str, float | int | interp_spec.InterpolationSpec]:
     """Interpolate input OEM and compare against reference across the full interpolated range."""
-    input_oem = oem.CcsdsOem.read(str(DATA_DIR / input_file))
+    input_oem = oem.CcsdsOem.from_file(str(DATA_DIR / input_file))
 
     options = slice_oem.TimeSliceOptions(
         start_time=None,
@@ -217,7 +217,7 @@ def test_interpolated_range_accuracy(
             )
             results: list[dict[str, float | int | interp_spec.InterpolationSpec]] = []
             for spec in INTERPOLATION_SPECS:
-                input_oem = oem.CcsdsOem.read(str(DATA_DIR / input_file))
+                input_oem = oem.CcsdsOem.from_file(str(DATA_DIR / input_file))
 
                 options = slice_oem.TimeSliceOptions(
                     start_time=None,

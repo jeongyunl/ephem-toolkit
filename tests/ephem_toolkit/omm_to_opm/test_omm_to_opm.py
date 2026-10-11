@@ -101,12 +101,12 @@ def test_sgp4_omm_to_opm_preserves_source_comments_in_serialized_header(
     tmp_path: Path, monkeypatch
 ) -> None:
     source = Path(__file__).parents[2] / "data" / "ISS-ZARYA_1998-067A.omm"
-    source_omm = CcsdsOmm.from_source(source)
+    source_omm = CcsdsOmm.from_file(source)
     source_omm.comments.append("SOURCE_COMMENT: SGP4 OMM to OPM")
     _add_optional_omm_blocks(source_omm)
     input_path = tmp_path / "source.omm"
     source_omm.to_file(input_path)
-    parsed_source_omm = CcsdsOmm.from_source(input_path)
+    parsed_source_omm = CcsdsOmm.from_file(input_path)
     assert parsed_source_omm.tle_parameters is not None
     assert parsed_source_omm.tle_parameters.ephemeris_type == 2
     assert parsed_source_omm.tle_parameters.classification_type == "C"
@@ -141,7 +141,7 @@ def test_sgp4_omm_to_opm_preserves_source_comments_in_serialized_header(
         ]
     )
 
-    converted_opm = CcsdsOpm.from_source(output_path)
+    converted_opm = CcsdsOpm.from_file(output_path)
     intermediate_oem = intermediate_oems[0]
     report = json.loads(fit_report.read_text(encoding="utf-8"))
     start = time_utils.iso8601_to_datetime(parsed_source_omm.epoch)
@@ -210,7 +210,7 @@ def test_omm_to_opm_preserves_source_comments_in_serialized_header(
     source = (
         Path(__file__).parents[1] / "oem_to_tle" / "data" / "TEST-DSST_2020-001A.omm"
     )
-    source_omm = CcsdsOmm.from_source(source)
+    source_omm = CcsdsOmm.from_file(source)
     source_omm.comments.append("SOURCE_COMMENT: preserve through OMM-to-OPM")
     _add_optional_omm_blocks(source_omm)
     input_path = tmp_path / "source.omm"
@@ -233,7 +233,7 @@ def test_omm_to_opm_preserves_source_comments_in_serialized_header(
         ]
     )
 
-    converted_opm = CcsdsOpm.from_source(output_path)
+    converted_opm = CcsdsOpm.from_file(output_path)
     intermediate_oem = intermediate_oems[0]
     start = time_utils.iso8601_to_datetime(source_omm.epoch)
     assert intermediate_oem.meta.object_name == source_omm.object_name
@@ -282,7 +282,7 @@ def test_kepler_theory_omm_to_opm_preserves_metadata(
     tmp_path: Path, monkeypatch, theory: str
 ) -> None:
     source = Path(__file__).parents[1] / "oem_to_tle" / "data" / "TEST-DSST_2020-001A.omm"
-    source_omm = CcsdsOmm.from_source(source)
+    source_omm = CcsdsOmm.from_file(source)
     source_omm.mean_element_theory = theory
     source_omm.data["MEAN_ELEMENT_THEORY"] = theory
     source_omm.classification = "C"
@@ -310,7 +310,7 @@ def test_kepler_theory_omm_to_opm_preserves_metadata(
     )
 
     intermediate_oem = intermediate_oems[0]
-    converted_opm = CcsdsOpm.from_source(output_path)
+    converted_opm = CcsdsOpm.from_file(output_path)
     report = json.loads(fit_report.read_text(encoding="utf-8"))
     assert intermediate_oem.meta.object_name == source_omm.object_name
     assert intermediate_oem.meta.object_id == source_omm.object_id
@@ -351,7 +351,7 @@ def test_omm_to_opm_two_body_preserves_composed_metadata(
             / "data"
             / "TEST-DSST_2020-001A.omm"
         )
-    source_omm = CcsdsOmm.from_source(source_path)
+    source_omm = CcsdsOmm.from_file(source_path)
     source_omm.mean_element_theory = theory
     source_omm.data["MEAN_ELEMENT_THEORY"] = theory
     source_omm.classification = "C"
@@ -373,7 +373,7 @@ def test_omm_to_opm_two_body_preserves_composed_metadata(
             str(intermediate_path),
         ]
     ) == 0
-    intermediate_oem = CcsdsOem.read(intermediate_path)
+    intermediate_oem = CcsdsOem.from_file(intermediate_path)
     oem_to_opm_main(
         [
             str(intermediate_path),
@@ -386,7 +386,7 @@ def test_omm_to_opm_two_body_preserves_composed_metadata(
         ]
     )
 
-    converted_opm = CcsdsOpm.from_source(output_path)
+    converted_opm = CcsdsOpm.from_file(output_path)
     expected_source = "OMM" if theory == "SGP4" else f"OMM/{theory}"
     assert intermediate_oem.meta.object_name == source_omm.object_name
     assert intermediate_oem.meta.object_id == source_omm.object_id

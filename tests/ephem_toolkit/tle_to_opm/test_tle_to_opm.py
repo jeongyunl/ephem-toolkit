@@ -31,7 +31,7 @@ def test_tle_to_opm_preserves_identity_and_records_sgp4_provenance(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     source = Path(__file__).parents[2] / "data" / "ISS-ZARYA_1998-067A.tle"
-    tle_data = tle.read_tle(source)
+    tle_data = tle.Tle.from_file(source)
     output_path = tmp_path / "converted.opm"
     fit_report = tmp_path / "converted.fit.json"
     original_oem_to_opm_main = tle_wrapper.oem_to_opm_main
@@ -59,7 +59,7 @@ def test_tle_to_opm_preserves_identity_and_records_sgp4_provenance(
         ]
     )
 
-    converted_opm = opm.CcsdsOpm.from_source(output_path)
+    converted_opm = opm.CcsdsOpm.from_file(output_path)
     intermediate_oem = intermediate_oems[0]
     report = json.loads(fit_report.read_text(encoding="utf-8"))
     first_epoch = time_utils.tt_s_to_datetime(intermediate_oem.states[0][0])
@@ -120,13 +120,13 @@ def test_tle_to_opm_dispatches_sgp4_and_delegates(monkeypatch) -> None:
 
 def test_tle_to_opm_two_body_fit_preserves_composed_metadata(tmp_path: Path) -> None:
     source = Path(__file__).parents[2] / "data" / "ISS-ZARYA_1998-067A.tle"
-    tle_data = tle.read_tle(source)
+    tle_data = tle.Tle.from_file(source)
     intermediate_path = tmp_path / "reference.oem"
     output_path = tmp_path / "converted.opm"
     assert propagate_tle_main(
         [str(source), "--duration", "2h", "--output", str(intermediate_path)]
     ) == 0
-    intermediate_oem = oem.CcsdsOem.read(intermediate_path)
+    intermediate_oem = oem.CcsdsOem.from_file(intermediate_path)
 
     oem_to_opm_main(
         [
@@ -142,7 +142,7 @@ def test_tle_to_opm_two_body_fit_preserves_composed_metadata(tmp_path: Path) -> 
         ]
     )
 
-    converted_opm = opm.CcsdsOpm.from_source(output_path)
+    converted_opm = opm.CcsdsOpm.from_file(output_path)
     assert intermediate_oem.meta.object_name == tle_data.object_name
     assert intermediate_oem.meta.object_id == tle_data.get_object_id()
     assert intermediate_oem.meta.ref_frame == "EME2000"

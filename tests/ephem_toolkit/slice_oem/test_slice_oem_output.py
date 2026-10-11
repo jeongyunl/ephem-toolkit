@@ -84,7 +84,7 @@ def _create_test_oem(
     temp_path = Path(temp_file.name)
     temp_file.close()
 
-    oem_obj.write(temp_path)
+    oem_obj.to_file(temp_path)
     return temp_path, oem_obj
 
 
@@ -160,7 +160,7 @@ def test_cli_output_can_be_redirected() -> None:
 
         output_file.write_text(result.stdout)
 
-        output_oem = oem.CcsdsOem.read(output_file)
+        output_oem = oem.CcsdsOem.from_file(output_file)
         assert len(output_oem.states) == 10
     finally:
         temp_path.unlink()
@@ -179,7 +179,7 @@ def test_cli_output_flag_to_file() -> None:
         assert result.returncode == 0
         assert output_file.exists()
 
-        output_oem = oem.CcsdsOem.read(output_file)
+        output_oem = oem.CcsdsOem.from_file(output_file)
         assert len(output_oem.states) == 10
     finally:
         temp_path.unlink()
@@ -220,7 +220,7 @@ def test_cli_opm_flag_selects_opm_format() -> None:
         assert result.returncode == 0
         assert output_file.exists()
 
-        _, _, output_data = opm.read_opm(output_file, validate=False)
+        _, _, output_data = opm._read_opm(output_file, validate=False)
         assert output_data["EPOCH"] == "2024-01-01T00:00:00.000"
         assert output_data["X"] == 7000.0
         assert output_data["X_DOT"] == 0.0

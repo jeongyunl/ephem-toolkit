@@ -203,7 +203,14 @@ def test_main_filters_histories_and_routes_plot_outputs(
         },
         "empty.oem": {},
     }
-    monkeypatch.setattr(file_io, "read_orbit_file", histories.__getitem__)
+    monkeypatch.setattr(
+        StateHistory,
+        "from_orbit_file",
+        lambda source: StateHistory(
+            label=Path(source).name,
+            state_history=histories[source],
+        ),
+    )
     plot_functions = [
         Mock(),
         Mock(),
@@ -269,7 +276,14 @@ def test_main_shows_plots_when_no_output_file_is_set(monkeypatch) -> None:
 
     histories = {"reference.oem": {float(epoch): np.ones(6) for epoch in range(5)}}
     monkeypatch.setattr(signal, "signal", lambda *_args: None)
-    monkeypatch.setattr(file_io, "read_orbit_file", histories.__getitem__)
+    monkeypatch.setattr(
+        StateHistory,
+        "from_orbit_file",
+        lambda source: StateHistory(
+            label=Path(source).name,
+            state_history=histories[source],
+        ),
+    )
     monkeypatch.setattr(plt, "get_fignums", lambda: [])
     show = Mock()
     monkeypatch.setattr(plt, "show", show)

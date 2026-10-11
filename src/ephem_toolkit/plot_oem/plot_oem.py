@@ -81,6 +81,43 @@ class OrbitSeries:
     euler_angle_rates_deg_s: np.ndarray
     """Time derivative of the Euler-angle series with shape (N, 3) in degrees per second."""
 
+    @staticmethod
+    def _compute_rtn_velocity_direction_vector(state_m: np.ndarray) -> np.ndarray:
+        """Return the velocity direction expressed in the local RTN frame."""
+        position_m: np.ndarray = state_m[0:3]
+        velocity_m_s: np.ndarray = state_m[3:6]
+
+        position_norm: float = float(np.linalg.norm(position_m))
+        if position_norm <= 1e-30:
+            return np.zeros(3, dtype=float)
+
+        radial_unit_vector: np.ndarray = position_m / position_norm
+        angular_momentum_vector: np.ndarray = np.cross(position_m, velocity_m_s)
+        angular_momentum_norm: float = float(np.linalg.norm(angular_momentum_vector))
+
+        if angular_momentum_norm <= 1e-30:
+            normal_unit_vector: np.ndarray = np.array([0.0, 0.0, 1.0], dtype=float)
+        else:
+            normal_unit_vector = angular_momentum_vector / angular_momentum_norm
+
+        transverse_unit_vector: np.ndarray = np.cross(
+            normal_unit_vector, radial_unit_vector
+        )
+        velocity_rtn: np.ndarray = np.array(
+            [
+                np.dot(velocity_m_s, radial_unit_vector),
+                np.dot(velocity_m_s, transverse_unit_vector),
+                np.dot(velocity_m_s, normal_unit_vector),
+            ],
+            dtype=float,
+        )
+
+        velocity_norm: float = float(np.linalg.norm(velocity_rtn))
+        if velocity_norm <= 1e-30:
+            return np.zeros(3, dtype=float)
+
+        return velocity_rtn / velocity_norm
+
 
 # ===================================================================
 # Time unit enum
@@ -186,7 +223,7 @@ def read_oem_states(
     if not source_path.exists():
         raise FileNotFoundError(f"File not found: {source_path}")
 
-    oem_data: oem.CcsdsOem = oem.CcsdsOem.read(source_path)
+    oem_data: oem.CcsdsOem = oem.CcsdsOem.from_file(source_path)
     if not oem_data.states:
         raise ValueError(f"No state data found in OEM file: {source_path}")
 
@@ -239,43 +276,6 @@ def filter_states_by_duration(
         raise ValueError("No states remain after duration filtering.")
 
     return filtered_timestamps_s, filtered_states_m
-
-
-def _compute_rtn_velocity_direction_vector(state_m: np.ndarray) -> np.ndarray:
-    """Return the velocity direction expressed in the local RTN frame."""
-    position_m: np.ndarray = state_m[0:3]
-    velocity_m_s: np.ndarray = state_m[3:6]
-
-    position_norm: float = float(np.linalg.norm(position_m))
-    if position_norm <= 1e-30:
-        return np.zeros(3, dtype=float)
-
-    radial_unit_vector: np.ndarray = position_m / position_norm
-    angular_momentum_vector: np.ndarray = np.cross(position_m, velocity_m_s)
-    angular_momentum_norm: float = float(np.linalg.norm(angular_momentum_vector))
-
-    if angular_momentum_norm <= 1e-30:
-        normal_unit_vector: np.ndarray = np.array([0.0, 0.0, 1.0], dtype=float)
-    else:
-        normal_unit_vector = angular_momentum_vector / angular_momentum_norm
-
-    transverse_unit_vector: np.ndarray = np.cross(
-        normal_unit_vector, radial_unit_vector
-    )
-    velocity_rtn: np.ndarray = np.array(
-        [
-            np.dot(velocity_m_s, radial_unit_vector),
-            np.dot(velocity_m_s, transverse_unit_vector),
-            np.dot(velocity_m_s, normal_unit_vector),
-        ],
-        dtype=float,
-    )
-
-    velocity_norm: float = float(np.linalg.norm(velocity_rtn))
-    if velocity_norm <= 1e-30:
-        return np.zeros(3, dtype=float)
-
-    return velocity_rtn / velocity_norm
 
 
 def compute_orbit_series(
@@ -338,7 +338,10 @@ def compute_orbit_series(
 
     if len(states_m) >= 2:
         velocity_direction_vectors: np.ndarray = np.array(
-            [_compute_rtn_velocity_direction_vector(state_m) for state_m in states_m],
+            [
+                OrbitSeries._compute_rtn_velocity_direction_vector(state_m)
+                for state_m in states_m
+            ],
             dtype=float,
         )
         direction_change_angle_deg: np.ndarray = np.zeros(len(states_m), dtype=float)

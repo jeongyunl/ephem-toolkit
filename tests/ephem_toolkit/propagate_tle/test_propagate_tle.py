@@ -80,7 +80,7 @@ def test_propagate_tle_produces_valid_state_vectors(tle_path: Path) -> None:
 
 def test_propagate_tle_oem_records_sgp4_provenance(tmp_path: Path) -> None:
     source = TEST_DATA_DIR / "ISS-ZARYA_1998-067A.tle"
-    tle_data = tle.read_tle(source)
+    tle_data = tle.Tle.from_file(source)
     output = tmp_path / "propagated.oem"
     propagate_tle_main(
         [

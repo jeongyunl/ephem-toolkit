@@ -50,7 +50,7 @@ def test_interpolated_oem_velocity_norm_matches_original_oem() -> None:
     test_dir: Path = Path(__file__).parents[3]
     oem_path: Path = test_dir / "data" / "ISS_2026-05-20_small.OEM"
 
-    all_states_float: list[tuple[float, np.ndarray]] = CcsdsOem.read(oem_path).states
+    all_states_float: list[tuple[float, np.ndarray]] = CcsdsOem.from_file(oem_path).states
     # Convert to dict for easier access by timestamp
     all_states_dict: dict[float, np.ndarray] = {
         ts: state for ts, state in all_states_float
@@ -115,7 +115,7 @@ def test_independent_variable_range() -> None:
     test_dir: Path = Path(__file__).parents[3]
     oem_path: Path = test_dir / "data" / "ISS_2026-05-20_small.OEM"
 
-    states_float: list[tuple[float, np.ndarray]] = CcsdsOem.read(oem_path).states
+    states_float: list[tuple[float, np.ndarray]] = CcsdsOem.from_file(oem_path).states
     timestamps: list = [ts for ts, _ in states_float]
     first_n_timestamps: list[float] = timestamps[:number_of_data_points]
 
@@ -157,7 +157,7 @@ def test_internal_cache_integrity() -> None:
     test_dir: Path = Path(__file__).parents[3]
     oem_path: Path = test_dir / "data" / "ISS_2026-05-20_small.OEM"
 
-    all_states_float: list[tuple[float, np.ndarray]] = CcsdsOem.read(oem_path).states
+    all_states_float: list[tuple[float, np.ndarray]] = CcsdsOem.from_file(oem_path).states
     # Convert to dict for easier access by timestamp
     all_states_dict: dict[float, np.ndarray] = {
         ts: state for ts, state in all_states_float

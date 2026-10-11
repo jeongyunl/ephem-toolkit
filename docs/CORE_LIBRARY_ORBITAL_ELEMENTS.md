@@ -229,9 +229,9 @@ SGP4 propagator wrapping TudatPy's `environment_setup.ephemeris.sgp4`. Requires 
 
 ```python
 from ephem_toolkit.core.propagator import Sgp4Propagator, OutputMode
-from ephem_toolkit.core.tle import read_tle
+from ephem_toolkit.core.tle import Tle
 
-tle_obj = read_tle("satellite.tle")
+tle_obj = Tle.from_file("satellite.tle")
 prop = Sgp4Propagator(initial_state=tle_obj)
 
 epoch_s, cartesian = prop.propagate_to(

@@ -45,9 +45,9 @@ def test_tle_to_omm_matches_reference_file(
 ) -> None:
     """Should convert TLE to OMM with orbital elements matching the reference OMM file."""
     with open(tle_path, encoding="utf-8") as fh:
-        tle_data = tle.read_tle(fh)
+        tle_data = tle.Tle.read(fh)
 
-    omm_ref = omm.CcsdsOmm.from_source(omm_path)
+    omm_ref = omm.CcsdsOmm.from_file(omm_path)
     omm_result = conv.tle_to_omm(tle_data)
 
     assert omm_result.object_name == omm_ref.object_name
@@ -74,7 +74,7 @@ def test_tle_to_omm_matches_reference_file(
 
     output_path = tmp_path / "converted.omm"
     omm_result.to_file(output_path)
-    serialized_omm = omm.CcsdsOmm.from_source(output_path)
+    serialized_omm = omm.CcsdsOmm.from_file(output_path)
     assert serialized_omm.object_name == omm_result.object_name
     assert serialized_omm.object_id == omm_result.object_id
     assert serialized_omm.epoch == omm_result.epoch
@@ -112,7 +112,9 @@ def test_tle_to_omm_matches_reference_file(
         assert conv._omm_scientific_to_float(
             getattr(serialized_omm.tle_parameters, field)
         ) == pytest.approx(
-            conv._omm_scientific_to_float(getattr(omm_result.tle_parameters, field))
+            conv._omm_scientific_to_float(
+                getattr(omm_result.tle_parameters, field)
+            )
         )
 
 
@@ -134,7 +136,7 @@ def test_omm_to_tle_matches_reference_file(
     tle_path: Path, omm_path: Path, tmp_path: Path
 ) -> None:
     """Should convert OMM to TLE with orbital elements matching the reference TLE file."""
-    source_omm = omm.CcsdsOmm.from_source(omm_path)
+    source_omm = omm.CcsdsOmm.from_file(omm_path)
     source_omm.message_id = "SOURCE-MESSAGE-42"
     source_omm.ref_frame_epoch = "2026-06-01T07:45:33.102720"
     source_omm.comments.append("SOURCE_COMMENT: OMM-only metadata")
@@ -145,10 +147,10 @@ def test_omm_to_tle_matches_reference_file(
     source_omm.data["USER_DEFINED_AUDIT"] = "OMM-only value"
     source_path = tmp_path / "metadata-source.omm"
     source_omm.to_file(source_path)
-    omm_data = omm.CcsdsOmm.from_source(source_path)
+    omm_data = omm.CcsdsOmm.from_file(source_path)
 
     with open(tle_path, encoding="utf-8") as fh:
-        tle_ref = tle.read_tle(fh)
+        tle_ref = tle.Tle.read(fh)
 
     tle_result = conv.omm_to_tle(omm_data)
 
@@ -179,10 +181,10 @@ def test_omm_to_tle_matches_reference_file(
     assert tle_result.revolution_number_at_epoch == tle_ref.revolution_number_at_epoch
 
     output_path = tmp_path / "converted.tle"
-    tle.write_tle(output_path, tle_result)
+    tle_result.to_file(output_path)
     serialized_tle = output_path.read_text(encoding="utf-8")
     with output_path.open(encoding="utf-8") as tle_file:
-        serialized_tle_data = tle.read_tle(tle_file)
+        serialized_tle_data = tle.Tle.read(tle_file)
     assert serialized_tle_data.object_name == omm_data.object_name
     assert serialized_tle_data.get_object_id() == omm_data.object_id
     assert serialized_tle_data.epoch_year == tle_result.epoch_year
@@ -245,7 +247,7 @@ def test_omm_to_tle_matches_reference_file(
 def test_tle_to_omm_to_tle_round_trip(tle_path: Path) -> None:
     """Should preserve all orbital elements through a TLE → OMM → TLE round-trip."""
     with open(tle_path, encoding="utf-8") as fh:
-        tle_original = tle.read_tle(fh)
+        tle_original = tle.Tle.read(fh)
 
     omm_converted = conv.tle_to_omm(tle_original)
     tle_recovered = conv.omm_to_tle(omm_converted)
@@ -293,7 +295,7 @@ def test_tle_to_omm_to_tle_round_trip(tle_path: Path) -> None:
 @pytest.mark.parametrize("omm_path", OMM_FILES, ids=[p.name for p in OMM_FILES])
 def test_omm_to_tle_to_omm_round_trip(omm_path: Path) -> None:
     """Should preserve all orbital elements through an OMM → TLE → OMM round-trip."""
-    omm_original = omm.CcsdsOmm.from_source(omm_path)
+    omm_original = omm.CcsdsOmm.from_file(omm_path)
 
     tle_converted = conv.omm_to_tle(omm_original)
     omm_recovered = conv.tle_to_omm(tle_converted)
@@ -429,4 +431,8 @@ def test_parse_object_id_invalid() -> None:
 def test_parse_object_id_rejects_non_tle_year_and_suffix() -> None:
     """Should reject placeholders and malformed suffixes."""
     assert conv._parse_object_id("9999-999-A") == (0, 0, "")
-    assert conv._parse_object_id("1998-067A-extra") == (0, 0, "")
+    assert conv._parse_object_id("1998-067A-extra") == (
+        0,
+        0,
+        "",
+    )

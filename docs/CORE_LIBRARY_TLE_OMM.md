@@ -42,15 +42,35 @@ Parsed Two-Line Element set data. Angles are stored in degrees and mean motion i
 - `revolution_number_at_epoch`: Revolution number at epoch
 - `line1_checksum`, `line2_checksum`: Checksums from the input; corresponding `*_expected` fields contain computed checksums
 
-`Tle` also provides dict-style field access, `to_dict()`, and `get_object_id()` (COSPAR ID from the international designator, using the 1957-2056 TLE year convention).
+`Tle` also provides `to_dict()` and `get_object_id()` (COSPAR ID from the international designator, using the 1957-2056 TLE year convention).
 
-### Functions
+### Object I/O
 
-#### `read_tle(stream: TextIO | str | Path) -> Tle`
-Parse TLE elements from a text stream or file path. Accepts 2-line input or 3-line input with a name. Lines shorter than 69 characters are rejected; trailing characters beyond column 69 are ignored.
+`Tle` owns parsing and serialization. Stream methods use caller-owned
+`TextIO`; path methods open UTF-8 files; text methods operate in memory.
 
-#### `write_tle(dest: TextIO | str | Path, tle_data: Tle | Mapping[str, object]) -> tuple[str, str]`
-Write a TLE to a text stream or file path. Returns the formatted (line1, line2) strings.
+```python
+from ephem_toolkit.core.tle import Tle
+
+tle_obj = Tle.from_file("satellite.tle")
+tle_text = tle_obj.to_text()
+parsed_again = Tle.from_text(tle_text)
+
+with open("satellite.tle", encoding="utf-8") as source:
+    tle_obj = Tle.read(source)
+```
+
+- `Tle.read(source: TextIO) -> Tle`: Parse from a readable stream.
+- `Tle.from_file(path: str | Path) -> Tle`: Parse a UTF-8 file.
+- `Tle.from_text(text: str) -> Tle`: Parse serialized text.
+- `tle_obj.write(dest: TextIO) -> None`: Write to a stream.
+- `tle_obj.to_file(path: str | Path) -> None`: Write a UTF-8 file.
+- `tle_obj.to_text() -> str`: Return the complete serialized TLE, including
+  its final newline.
+
+TLE input accepts two-line data or three-line data with a name. Lines shorter
+than 69 characters are rejected; trailing characters beyond column 69 are
+ignored.
 
 #### `datetime_to_tle_epoch(epoch_dt: datetime) -> tuple[int, float]`
 Convert a datetime object to a two-digit year and 1-based fractional day of year. Timezone-aware values are converted to UTC for the day calculation, but the year is taken before that conversion; crossing a year boundary can therefore produce mismatched year/day components. Naive values are used without timezone conversion.
@@ -67,8 +87,9 @@ Convert TLE epoch (2-digit year + fractional day) to ISO 8601 datetime string.
 #### `iso8601_to_tle_epoch(iso_str: str) -> tuple[int, float]`
 Convert ISO 8601 datetime string to TLE epoch (2-digit year + fractional day).
 
-#### `format_tle_strings(tle_data: Tle | Mapping[str, object]) -> tuple[str, str]`
-Format TLE data into raw TLE line strings with checksums.
+#### `format_tle_strings(tle_data: Tle) -> tuple[str, str]`
+Format TLE data into raw TLE line strings with checksums without performing I/O. It returns
+`(line1, line2)`; use it when callers need those lines separately from writing.
 
 #### `compute_tle_checksum(line_without_checksum: str) -> str`
 Return the modulo-10 TLE checksum character. Digits contribute their value and each minus sign contributes 1.
@@ -107,7 +128,7 @@ Convert a CCSDS OMM to a TLE.
 **Parameters:**
 - `omm_obj`: Parsed OMM dataclass instance
 
-**Returns:** The equivalent TLE representation (with empty `line1` and `line2` fields; use `write_tle` to format them).
+**Returns:** The equivalent TLE representation (with empty `line1` and `line2` fields; use `Tle.to_text()`, `Tle.write()`, or `format_tle_strings()` to format them).
 
 Conversion requires `tle_parameters`; otherwise it raises `ValueError`. `validate_sgp4_compatible_omm` separately checks the declared theory and TLE parameters; `omm_to_tle` does not invoke that helper itself.
 
@@ -167,7 +188,7 @@ Parsed CCSDS Orbit Mean-Elements Message. All angular quantities are stored in d
 - `mean_element_theory`: Mean element theory used (e.g., DSST, SGP4)
 - `epoch`: Epoch time (ISO 8601 format)
 - `mean_motion`, `eccentricity`, `inclination`, `ra_of_asc_node`, `arg_of_pericenter`, `mean_anomaly`: Orbital elements
-- `TleParameters` is created by `from_source` when TLE-related parameter fields are present
+- `TleParameters` is populated when TLE-related parameter fields are present
 - `tle_parameters`: Optional `TleParameters` for TLE/SGP-family metadata such as ephemeris type, classification, catalog ID, element set, revolution number, BSTAR, and mean-motion derivatives
 - SGP4-XP `TleParameters` may also include `bterm` and `agom`
 - `ref_frame_epoch`, `semi_major_axis`, `gm`: Optional reference-frame epoch, semi-major axis (km), and gravitational parameter (km³/s²); mean elements use either semi-major axis or mean motion
@@ -175,21 +196,16 @@ Parsed CCSDS Orbit Mean-Elements Message. All angular quantities are stored in d
 - `covariance`: Optional symmetric 6×6 state covariance and covariance frame
 - `data`: Raw parsed fields, including fields without dedicated attributes
 
-The low-level `read_omm` and `write_omm` functions operate on dictionaries; `CcsdsOmm.from_source` and `to_file` provide the structured interface.
+Use the `CcsdsOmm` object methods for parsing and serialization.
 
-### Functions
+### Object I/O
 
-#### `read_omm(source: TextIO | str | Path, *, validate: bool = True) -> tuple[dict, dict]`
-Read an OMM file and return `(header, data)` dictionaries. Validation is enabled by default and checks required fields, including the requirement for exactly one of `SEMI_MAJOR_AXIS` or `MEAN_MOTION`; pass `validate=False` to skip validation.
-
-#### `write_omm(dest: TextIO | str | Path, header: dict, data: dict) -> None`
-Write an OMM file from (header, data) dictionaries.
-
-#### `CcsdsOmm.from_source(source: TextIO | str | Path) -> CcsdsOmm`
-Construct a CcsdsOmm from a file or stream.
-
-#### `CcsdsOmm.to_file(dest: TextIO | str | Path) -> None`
-Write this OMM to a file or stream.
+- `CcsdsOmm.read(source: TextIO) -> CcsdsOmm`: Read from a caller-owned text stream.
+- `CcsdsOmm.from_file(path: str | Path) -> CcsdsOmm`: Read a UTF-8 file.
+- `CcsdsOmm.from_text(text: str) -> CcsdsOmm`: Parse serialized text.
+- `omm.write(dest: TextIO) -> None`: Write to a caller-owned text stream.
+- `omm.to_file(path: str | Path) -> None`: Write a UTF-8 file.
+- `omm.to_text() -> str`: Serialize to in-memory text.
 
 ---
 
@@ -253,13 +269,17 @@ vectors, they are not converted to SI by `CcsdsOem`.
 - `state_vectors`: State vectors in the same order as `states`, shape (N, 6) in meters and m/s
 
 **Class Methods:**
-- `CcsdsOem.read(source: TextIO | str | Path) -> CcsdsOem`: Read and construct from a file or stream
+- `CcsdsOem.read(source: TextIO) -> CcsdsOem`: Read and construct from a caller-owned text stream
+- `CcsdsOem.from_file(path: str | Path) -> CcsdsOem`: Read and construct from a UTF-8 file
+- `CcsdsOem.from_text(text: str) -> CcsdsOem`: Read and construct from serialized text
 - `CcsdsOem.from_states(states, object_name="", object_id="", ref_frame="", center_name="", time_system="UTC", covariances=None) -> CcsdsOem`: Create from states with minimal metadata and optional covariance samples; sorts input by epoch
 - Default `time_system` is `UTC`; the `states` timestamps are TT seconds since J2000
 - `CcsdsOem.parse_oem_state_line(line: str) -> tuple[float, np.ndarray] | None`: Parse a single OEM-style state line
 
 **Instance Methods:**
-- `write(dest: TextIO | str | Path, format_type: OemFormat = OemFormat.OEM) -> None`: Write this OEM to a file or stream as OEM or CSV-formatted output
+- `write(dest: TextIO, format_type: OemFormat = OemFormat.OEM) -> None`: Write this OEM to a caller-owned stream as OEM or CSV-formatted output
+- `to_file(path: str | Path, format_type: OemFormat = OemFormat.OEM) -> None`: Write a UTF-8 file as OEM or CSV-formatted output
+- `to_text(format_type: OemFormat = OemFormat.OEM) -> str`: Serialize in memory as OEM or CSV-formatted text
 - `write_state(dest: TextIO, epoch: datetime, state_vector: np.ndarray, sep: str = " ") -> None`: Write one state vector in CCSDS units; `sep` defaults to one space
 - `OemFormat` supports `OEM` and `CSV`
 - `find_state_by_timestamp(timestamp: float, tolerance: float = 0.0) -> tuple[float, np.ndarray] | None`: Binary-search sorted states; exact match is required when tolerance is zero, otherwise returns the closest state within tolerance

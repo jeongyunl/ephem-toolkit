@@ -6,6 +6,7 @@ References:
 
 from __future__ import annotations
 
+import io
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, TextIO
@@ -169,27 +170,6 @@ _UNIT_BY_KEY.update(
 )
 
 
-def _value(text: str) -> int | float | str:
-    """Parse a value and discard an optional CCSDS unit suffix."""
-    value = text.strip()
-    if "[" in value:
-        value = value.split("[", 1)[0].strip()
-    try:
-        return int(value)
-    except ValueError:
-        try:
-            return float(value)
-        except ValueError:
-            return value
-
-
-def _read_lines(source: TextIO | str | Path) -> list[str]:
-    """Return all lines from a text stream or file path."""
-    if isinstance(source, (str, Path)):
-        return Path(source).read_text(encoding="utf-8").splitlines()
-    return list(source)
-
-
 def validate_opm(
     header: dict[str, Any], metadata: dict[str, Any], data: dict[str, Any]
 ) -> None:
@@ -270,163 +250,6 @@ def validate_opm(
         delta_mass = maneuver.get("MAN_DELTA_MASS")
         if delta_mass is not None and float(delta_mass) >= 0:
             raise ValueError(f"OPM maneuver {index} MAN_DELTA_MASS must be negative")
-
-
-def read_opm(
-    source: TextIO | str | Path, *, validate: bool = True
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    """Read an OPM and return ``(header, metadata, data)`` dictionaries.
-
-    Parameters
-    ----------
-    source : TextIO | str | Path
-        Readable text stream or path to an OPM file.
-    validate : bool, optional
-        Whether to validate mandatory and conditional fields.
-
-    Returns
-    -------
-    tuple[dict[str, Any], dict[str, Any], dict[str, Any]]
-        Header, metadata, and data dictionaries.
-
-    Raises
-    ------
-    ValueError
-        If validation is enabled and required fields are missing or inconsistent.
-    """
-    header: dict[str, Any] = {}
-    metadata: dict[str, Any] = {}
-    data: dict[str, Any] = {"MANEUVERS": []}
-    section: str = "header"
-    current_maneuver: dict[str, Any] | None = None
-
-    for raw_line in _read_lines(source):
-        line: str = raw_line.strip()
-        if not line:
-            continue
-        if line.startswith("COMMENT"):
-            target: dict[str, Any] = (
-                header
-                if section == "header"
-                else metadata if section == "metadata" else data
-            )
-            target.setdefault("COMMENT", []).append(line[len("COMMENT") :].strip())
-            continue
-        parsed: tuple[str, str] | None = misc.parse_key_value_line(line)
-        if parsed is None:
-            continue
-        key, raw_value = parsed
-        parsed_value: int | float | str = _value(raw_value)
-        if key in _HEADER_KEYS and section == "header":
-            header[key] = parsed_value
-        elif key in _METADATA_KEYS:
-            metadata[key] = parsed_value
-            section = "metadata"
-        elif key == "MAN_EPOCH_IGNITION":
-            current_maneuver = {key: parsed_value}
-            data["MANEUVERS"].append(current_maneuver)
-            section = "data"
-        elif current_maneuver is not None and key in _MANEUVER_KEYS:
-            current_maneuver[key] = parsed_value
-        else:
-            data[key] = parsed_value
-            section = "data"
-    if not data["MANEUVERS"]:
-        data.pop("MANEUVERS")
-    if validate:
-        validate_opm(header, metadata, data)
-    return header, metadata, data
-
-
-def _write_value(key: str, value: Any) -> str:
-    """Format a value with its OPM unit suffix when one is defined."""
-    unit: str | None = _UNIT_BY_KEY.get(key)
-    return f"{value} [{unit}]" if unit else str(value)
-
-
-def write_opm(
-    dest: TextIO | str | Path,
-    header: dict[str, Any],
-    metadata: dict[str, Any],
-    data: dict[str, Any],
-) -> None:
-    """Write dictionaries returned by :func:`read_opm` as an OPM file.
-
-    Parameters
-    ----------
-    dest : TextIO | str | Path
-        Writable text stream or destination file path.
-    header : dict[str, Any]
-        File-level OPM keywords.
-    metadata : dict[str, Any]
-        Object and reference-frame metadata.
-    data : dict[str, Any]
-        State, optional element, covariance, and maneuver values.
-    """
-    if isinstance(dest, (str, Path)):
-        with open(dest, "w", encoding="utf-8") as stream:
-            return write_opm(stream, header, metadata, data)
-    for key in (
-        "CCSDS_OPM_VERS",
-        "CLASSIFICATION",
-        "CREATION_DATE",
-        "ORIGINATOR",
-        "MESSAGE_ID",
-    ):
-        if key in header:
-            dest.write(f"{key} = {header[key]}\n")
-        if key == "CCSDS_OPM_VERS":
-            for comment in header.get("COMMENT", []):
-                dest.write(f"COMMENT {comment}\n")
-    dest.write("\n")
-    for key in (
-        "OBJECT_NAME",
-        "OBJECT_ID",
-        "CENTER_NAME",
-        "REF_FRAME",
-        "REF_FRAME_EPOCH",
-        "TIME_SYSTEM",
-    ):
-        if key in metadata:
-            dest.write(f"{key} = {metadata[key]}\n")
-    for comment in metadata.get("COMMENT", []):
-        dest.write(f"COMMENT {comment}\n")
-    dest.write("\n")
-    data_order: tuple[str, ...] = (
-        "EPOCH",
-        "X",
-        "Y",
-        "Z",
-        "X_DOT",
-        "Y_DOT",
-        "Z_DOT",
-        "SEMI_MAJOR_AXIS",
-        "ECCENTRICITY",
-        "INCLINATION",
-        "RA_OF_ASC_NODE",
-        "ARG_OF_PERICENTER",
-        "TRUE_ANOMALY",
-        "MEAN_ANOMALY",
-        "GM",
-        "MASS",
-        "SOLAR_RAD_AREA",
-        "SOLAR_RAD_COEFF",
-        "DRAG_AREA",
-        "DRAG_COEFF",
-        "COV_REF_FRAME",
-    )
-    for key in data_order + _COVARIANCE_KEYS:
-        if key in data:
-            dest.write(f"{key} = {_write_value(key, data[key])}\n")
-    for key, value in data.items():
-        if key.startswith("USER_DEFINED_"):
-            dest.write(f"{key} = {value}\n")
-    for maneuver in data.get("MANEUVERS", []):
-        for key in _MANEUVER_KEYS:
-            if key in maneuver:
-                dest.write(f"{key} = {_write_value(key, maneuver[key])}\n")
-    for comment in data.get("COMMENT", []):
-        dest.write(f"COMMENT {comment}\n")
 
 
 @dataclass
@@ -562,7 +385,7 @@ class CcsdsOpm:
     """Parsed finite maneuvers."""
 
     @classmethod
-    def from_source(cls, source: TextIO | str | Path) -> "CcsdsOpm":
+    def read(cls, source: TextIO) -> "CcsdsOpm":
         """Construct a structured OPM message from a file or text stream.
 
         Parameters
@@ -575,7 +398,7 @@ class CcsdsOpm:
         CcsdsOpm
             Parsed structured OPM message.
         """
-        header, metadata, data = read_opm(source)
+        header, metadata, data = _read_opm(source)
         state: OpmStateVector = OpmStateVector(
             epoch=str(data.get("EPOCH", "")),
             **{
@@ -655,13 +478,30 @@ class CcsdsOpm:
         """Return the structured OPM message as a dictionary."""
         return asdict(self)
 
-    def to_file(self, dest: TextIO | str | Path) -> None:
-        """Write this structured OPM message to a file or text stream.
+    @classmethod
+    def from_file(cls, path: str | Path) -> "CcsdsOpm":
+        """Read this OPM from a UTF-8 file."""
+        with Path(path).open("r", encoding="utf-8") as source:
+            return cls.read(source)
+
+    @classmethod
+    def from_text(cls, text: str) -> "CcsdsOpm":
+        """Read this OPM from serialized text."""
+        return cls.read(io.StringIO(text))
+
+    def to_text(self) -> str:
+        """Serialize this OPM to text."""
+        dest = io.StringIO()
+        self.write(dest)
+        return dest.getvalue()
+
+    def write(self, dest: TextIO) -> None:
+        """Write this structured OPM message to a text stream.
 
         Parameters
         ----------
-        dest : TextIO or str or Path
-            Destination stream or path for the OPM file.
+        dest : TextIO
+            Destination text stream.
         """
         header: dict[str, Any] = {
             "CCSDS_OPM_VERS": self.header.version,
@@ -717,4 +557,191 @@ class CcsdsOpm:
             {key.upper(): value for key, value in asdict(item).items()}
             for item in self.maneuvers
         ]
-        write_opm(dest, header, self.metadata, data)
+        _write_opm(dest, header, self.metadata, data)
+
+    def to_file(self, path: str | Path) -> None:
+        """Write this OPM to a UTF-8 file."""
+        with Path(path).open("w", encoding="utf-8", newline="\n") as dest:
+            self.write(dest)
+
+    @staticmethod
+    def _value(text: str) -> int | float | str:
+        """Parse a value and discard an optional CCSDS unit suffix."""
+        value = text.strip()
+        if "[" in value:
+            value = value.split("[", 1)[0].strip()
+        try:
+            return int(value)
+        except ValueError:
+            try:
+                return float(value)
+            except ValueError:
+                return value
+
+    @staticmethod
+    def _read_lines(source: TextIO) -> list[str]:
+        """Return all lines from a text stream."""
+        return list(source)
+
+
+    @staticmethod
+    def _write_value(key: str, value: Any) -> str:
+        """Format a value with its OPM unit suffix when one is defined."""
+        unit: str | None = _UNIT_BY_KEY.get(key)
+        return f"{value} [{unit}]" if unit else str(value)
+
+
+def _read_opm(
+    source: TextIO, *, validate: bool = True
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Read an OPM and return ``(header, metadata, data)`` dictionaries.
+
+    Parameters
+    ----------
+    source : TextIO | str | Path
+        Readable text stream or path to an OPM file.
+    validate : bool, optional
+        Whether to validate mandatory and conditional fields.
+
+    Returns
+    -------
+    tuple[dict[str, Any], dict[str, Any], dict[str, Any]]
+        Header, metadata, and data dictionaries.
+
+    Raises
+    ------
+    ValueError
+        If validation is enabled and required fields are missing or inconsistent.
+    """
+    if isinstance(source, (str, Path)):
+        with Path(source).open("r", encoding="utf-8") as file_handle:
+            return _read_opm(file_handle, validate=validate)
+
+    header: dict[str, Any] = {}
+    metadata: dict[str, Any] = {}
+    data: dict[str, Any] = {"MANEUVERS": []}
+    section: str = "header"
+    current_maneuver: dict[str, Any] | None = None
+
+    for raw_line in CcsdsOpm._read_lines(source):
+        line: str = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("COMMENT"):
+            target: dict[str, Any] = (
+                header
+                if section == "header"
+                else metadata if section == "metadata" else data
+            )
+            target.setdefault("COMMENT", []).append(line[len("COMMENT") :].strip())
+            continue
+        parsed: tuple[str, str] | None = misc.parse_key_value_line(line)
+        if parsed is None:
+            continue
+        key, raw_value = parsed
+        parsed_value: int | float | str = CcsdsOpm._value(raw_value)
+        if key in _HEADER_KEYS and section == "header":
+            header[key] = parsed_value
+        elif key in _METADATA_KEYS:
+            metadata[key] = parsed_value
+            section = "metadata"
+        elif key == "MAN_EPOCH_IGNITION":
+            current_maneuver = {key: parsed_value}
+            data["MANEUVERS"].append(current_maneuver)
+            section = "data"
+        elif current_maneuver is not None and key in _MANEUVER_KEYS:
+            current_maneuver[key] = parsed_value
+        else:
+            data[key] = parsed_value
+            section = "data"
+    if not data["MANEUVERS"]:
+        data.pop("MANEUVERS")
+    if validate:
+        validate_opm(header, metadata, data)
+    return header, metadata, data
+
+def _write_opm(
+    dest: TextIO,
+    header: dict[str, Any],
+    metadata: dict[str, Any],
+    data: dict[str, Any],
+) -> None:
+    if isinstance(dest, (str, Path)):
+        with Path(dest).open("w", encoding="utf-8", newline="\n") as file_handle:
+            _write_opm(file_handle, header, metadata, data)
+        return
+
+    """Write parsed OPM header, metadata, and data dictionaries.
+
+    Parameters
+    ----------
+    dest : TextIO | str | Path
+        Writable text stream or destination file path.
+    header : dict[str, Any]
+        File-level OPM keywords.
+    metadata : dict[str, Any]
+        Object and reference-frame metadata.
+    data : dict[str, Any]
+        State, optional element, covariance, and maneuver values.
+    """
+    for key in (
+        "CCSDS_OPM_VERS",
+        "CLASSIFICATION",
+        "CREATION_DATE",
+        "ORIGINATOR",
+        "MESSAGE_ID",
+    ):
+        if key in header:
+            dest.write(f"{key} = {header[key]}\n")
+        if key == "CCSDS_OPM_VERS":
+            for comment in header.get("COMMENT", []):
+                dest.write(f"COMMENT {comment}\n")
+    dest.write("\n")
+    for key in (
+        "OBJECT_NAME",
+        "OBJECT_ID",
+        "CENTER_NAME",
+        "REF_FRAME",
+        "REF_FRAME_EPOCH",
+        "TIME_SYSTEM",
+    ):
+        if key in metadata:
+            dest.write(f"{key} = {metadata[key]}\n")
+    for comment in metadata.get("COMMENT", []):
+        dest.write(f"COMMENT {comment}\n")
+    dest.write("\n")
+    data_order: tuple[str, ...] = (
+        "EPOCH",
+        "X",
+        "Y",
+        "Z",
+        "X_DOT",
+        "Y_DOT",
+        "Z_DOT",
+        "SEMI_MAJOR_AXIS",
+        "ECCENTRICITY",
+        "INCLINATION",
+        "RA_OF_ASC_NODE",
+        "ARG_OF_PERICENTER",
+        "TRUE_ANOMALY",
+        "MEAN_ANOMALY",
+        "GM",
+        "MASS",
+        "SOLAR_RAD_AREA",
+        "SOLAR_RAD_COEFF",
+        "DRAG_AREA",
+        "DRAG_COEFF",
+        "COV_REF_FRAME",
+    )
+    for key in data_order + _COVARIANCE_KEYS:
+        if key in data:
+            dest.write(f"{key} = {CcsdsOpm._write_value(key, data[key])}\n")
+    for key, value in data.items():
+        if key.startswith("USER_DEFINED_"):
+            dest.write(f"{key} = {value}\n")
+    for maneuver in data.get("MANEUVERS", []):
+        for key in _MANEUVER_KEYS:
+            if key in maneuver:
+                dest.write(f"{key} = {CcsdsOpm._write_value(key, maneuver[key])}\n")
+    for comment in data.get("COMMENT", []):
+        dest.write(f"COMMENT {comment}\n")

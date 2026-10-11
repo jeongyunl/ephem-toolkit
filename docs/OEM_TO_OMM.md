@@ -148,7 +148,7 @@ Key algorithmic features:
 
 ## Related Tools
 
-- `ephem_toolkit.core.tle` — TLE dataclass, `read_tle()`, and `write_tle()` functions
+- `ephem_toolkit.core.tle` — TLE dataclass with stream, file, and text I/O methods
 - `ephem_toolkit.core.ccsds.omm` — OMM dataclass and utilities
 - `ephem_toolkit.core.kepler` — Keplerian element conversions with J2 corrections
 - `ephem_toolkit.core.ccsds.oem` — OEM parsing utilities
@@ -239,7 +239,7 @@ Detailed algorithm and strategy documentation is included below.
 Related commands and modules:
 
 - `oem-to-omm` — fit mean elements from a CCSDS OEM and write an OMM
-- `ephem_toolkit.core.tle` — shared `Tle` dataclass, `read_tle()`, and `write_tle()` functions
+- `ephem_toolkit.core.tle` — shared `Tle` dataclass with stream, file, and text I/O methods
 - `omm-to-tle` — convert an SGP4 OMM to TLE text
 - `propagate-tle` — propagate a TLE with TudatPy SGP4 and print OEM-like states
 - `propagate-omm` — propagate an OMM or TLE input and emit OEM output with automatic solver selection
@@ -413,10 +413,10 @@ This is a bounded scalar search over the drag-like parameter.
 
 Use:
 
-- `core.tle.write_tle()` when you already know the TLE fields and want to write them programmatically
+- `Tle.to_text()` or `Tle.write()` when you already know the TLE fields and want to serialize them programmatically
 - `oem-to-omm` when you have a CCSDS OEM arc and want fitted mean elements in OMM form
 - `omm-to-tle` when you want TLE text from an SGP4 OMM
-- `core.tle.read_tle()` when you want to parse an existing TLE into structured fields
+- `Tle.from_file()` or `Tle.read()` when you want to parse an existing TLE into structured fields
 
 ### Usage Examples
 

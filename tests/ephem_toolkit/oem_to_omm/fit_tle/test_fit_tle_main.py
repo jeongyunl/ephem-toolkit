@@ -242,14 +242,18 @@ def test_cartesian_to_tle_builds_tle_and_verifies_epoch_position(
         lambda *_args, **_kwargs: np.array([7.0e6, 0.01, 0.5, 0.1, 0.2, 0.3]),
     )
     monkeypatch.setattr(
-        fit_tle.convert_tle, "_parse_object_id", lambda _value: (98, 67, "A")
+        fit_tle.convert_tle,
+        "_parse_object_id",
+        lambda _value: (98, 67, "A"),
     )
     monkeypatch.setattr(
         fit_tle.time_utils, "tt_s_to_datetime", lambda _epoch: datetime(2026, 1, 1)
     )
     monkeypatch.setattr(fit_tle.tle, "datetime_to_tle_epoch", lambda _epoch: (26, 1.0))
     monkeypatch.setattr(
-        fit_tle.convert_tle, "_float_to_tle_exponential", lambda _value: "00000+0"
+        fit_tle.convert_tle,
+        "_float_to_tle_exponential",
+        lambda _value: "00000+0",
     )
     monkeypatch.setattr(fit_tle.tle, "Tle", lambda **fields: SimpleNamespace(**fields))
 
@@ -366,7 +370,9 @@ def test_fit_tle_routes_refinement_modes_and_builds_diagnostics(
         or _estimated,
     )
     monkeypatch.setattr(
-        fit_tle.convert_tle, "_parse_object_id", lambda _value: (98, 67, "A")
+        fit_tle.convert_tle,
+        "_parse_object_id",
+        lambda _value: (98, 67, "A"),
     )
 
     def build_tle_data(args, _estimated):

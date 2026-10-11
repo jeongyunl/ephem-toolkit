@@ -293,7 +293,7 @@ def test_write_oem_to_path_object() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         out_path = Path(tmpdir) / "test.oem"
 
-        oem.CcsdsOem.from_states(states, object_name="TEST").write(out_path)
+        oem.CcsdsOem.from_states(states, object_name="TEST").to_file(out_path)
 
         # Verify file was created
         assert out_path.exists()
@@ -513,7 +513,7 @@ def test_read_oem_from_path_string() -> None:
 
 def test_ccsds_oem_read_from_path_string() -> None:
     """Test CcsdsOem.read accepts path as string."""
-    oem_obj = oem.CcsdsOem.read(str(OEM_PATH))
+    oem_obj = oem.CcsdsOem.from_file(str(OEM_PATH))
 
     assert len(oem_obj) > 0
     assert oem_obj.meta.object_name == "ISS"

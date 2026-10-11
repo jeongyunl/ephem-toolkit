@@ -103,7 +103,7 @@ def main(argv: list[str] | None = None) -> None:
         oem_file_path: str | Path = "<stdin>"
     else:
         oem_file_path = Path(cli_args.input_oem)
-        oem_data = oem.CcsdsOem.read(oem_file_path)
+        oem_data = oem.CcsdsOem.from_file(oem_file_path)
 
     # Print verbose info if requested
     if cli_args.verbose:
