@@ -26,7 +26,7 @@ def test_parse_oem_state_line_raises_on_insufficient_fields() -> None:
     """Test parse_oem_state_line raises ValueError for lines with < 7 fields."""
     line = "2024-01-01T00:00:00.000000 7000.0 0.0 0.0"  # Only 4 fields
 
-    with pytest.raises(ValueError, match="does not contain 7 fields"):
+    with pytest.raises(ValueError, match="does not contain 7"):
         oem.CcsdsOem.parse_oem_state_line(line)
 
 
@@ -335,8 +335,8 @@ META_STOP
     assert isinstance(meta["INTERPOLATION_DEGREE"], int)
 
 
-def test_read_oem_with_float_metadata_values() -> None:
-    """Test reading OEM with float metadata values."""
+def test_read_oem_rejects_unsupported_metadata_keyword() -> None:
+    """OEM input must not contain keywords outside the standard keyword set."""
     oem_content = """CCSDS_OEM_VERS = 2.0
 CREATION_DATE  = 2024-01-01T00:00:00
 ORIGINATOR     = TEST
@@ -349,14 +349,12 @@ META_STOP
 2024-01-01T00:00:00.000000 7000.0 0.0 0.0 0.0 7.5 0.0
 """
 
-    header, meta, _, states, _ = oem.CcsdsOem._read_oem_impl(io.StringIO(oem_content))
-
-    assert meta["CUSTOM_FLOAT"] == pytest.approx(3.14159)
-    assert isinstance(meta["CUSTOM_FLOAT"], float)
+    with pytest.raises(ValueError, match="Unsupported OEM keyword: CUSTOM_FLOAT"):
+        oem.CcsdsOem._read_oem_impl(io.StringIO(oem_content))
 
 
-def test_read_oem_skips_short_state_lines() -> None:
-    """Test reading OEM skips state lines with insufficient fields."""
+def test_read_oem_rejects_short_state_lines() -> None:
+    """A malformed state line must not be silently ignored."""
     oem_content = """CCSDS_OEM_VERS = 2.0
 
 META_START
@@ -368,10 +366,70 @@ META_STOP
 2024-01-01T00:02:00.000000 7200.0 0.0 0.0 0.0 7.3 0.0
 """
 
-    header, meta, _, states, _ = oem.CcsdsOem._read_oem_impl(io.StringIO(oem_content))
+    with pytest.raises(ValueError, match="does not contain 7"):
+        oem.CcsdsOem._read_oem_impl(io.StringIO(oem_content))
 
-    # Should only have 2 valid states (skips the short line)
-    assert len(states) == 2
+
+def test_oem_preserves_comment_whitespace() -> None:
+    content = (
+        "CCSDS_OEM_VERS = 2.0\n"
+        "COMMENT  leading and trailing  \n"
+        "CREATION_DATE = 2024-01-01T00:00:00\n"
+        "ORIGINATOR = TEST\n"
+        "META_START\n"
+        "OBJECT_NAME = TEST\n"
+        "OBJECT_ID = 2024-001A\n"
+        "CENTER_NAME = EARTH\n"
+        "REF_FRAME = J2000\n"
+        "TIME_SYSTEM = UTC\n"
+        "START_TIME = 2024-01-01T00:00:00\n"
+        "STOP_TIME = 2024-01-01T00:00:00\n"
+        "META_STOP\n"
+        "COMMENT  data comment  \n"
+        "2024-01-01T00:00:00 7000 0 0 0 7.5 0\n"
+    )
+    parsed = oem.CcsdsOem._read_oem_impl(io.StringIO(content))
+    assert parsed[0]["COMMENT"] == [" leading and trailing  "]
+    assert parsed[2] == [" data comment  "]
+
+
+@pytest.mark.parametrize(
+    "line, message",
+    [
+        ("MADE_UP = value", "Unsupported OEM keyword"),
+        ("object_name = TEST", "Invalid OEM keyword"),
+        ("X" * 255, "254-character"),
+        ("COMMENT\tbad", "printable ASCII"),
+    ],
+)
+def test_oem_rejects_syntax_violations(line: str, message: str) -> None:
+    content = (
+        "CCSDS_OEM_VERS = 2.0\n"
+        "CREATION_DATE = 2024-01-01T00:00:00\n"
+        "ORIGINATOR = TEST\n"
+        "META_START\nMETA_STOP\n"
+        f"{line}\n"
+    )
+    with pytest.raises(ValueError, match=message):
+        oem.CcsdsOem._read_oem_impl(io.StringIO(content))
+
+
+def test_oem_requires_version_as_first_nonblank_line() -> None:
+    content = "CREATION_DATE = 2024-01-01T00:00:00\n"
+    with pytest.raises(ValueError, match="first non-blank"):
+        oem.CcsdsOem._read_oem_impl(io.StringIO(content))
+
+
+def test_oem_rejects_extra_state_fields() -> None:
+    content = """CCSDS_OEM_VERS = 2.0
+CREATION_DATE = 2024-01-01T00:00:00
+ORIGINATOR = TEST
+META_START
+META_STOP
+2024-01-01T00:00:00 7000 0 0 0 7.5 0 1
+"""
+    with pytest.raises(ValueError, match="8 fields; expected 7 or 10"):
+        oem.CcsdsOem._read_oem_impl(io.StringIO(content))
 
 
 def test_write_oem_with_empty_meta() -> None:

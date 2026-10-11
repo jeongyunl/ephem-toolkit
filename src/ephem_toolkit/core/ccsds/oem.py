@@ -78,6 +78,9 @@ _HEADER_KEY_ORDER: list[str] = [
 ]
 """Preferred ordering of header keys when writing OEM files."""
 
+_HEADER_KEYS: tuple[str, ...] = tuple(_HEADER_KEY_ORDER)
+_META_KEYS: tuple[str, ...] = tuple(_META_KEY_ORDER)
+
 COVARIANCE_DIMENSION: int = 6
 """Number of position and velocity components in an OEM covariance matrix."""
 
@@ -164,6 +167,8 @@ class OemCovariance:
     """Symmetric 6x6 matrix using km/km/s covariance units."""
     ref_frame: str | None = None
     """Covariance frame; omitted when it matches the OEM reference frame."""
+    comments: list[str] = field(default_factory=list)
+    """Comments at the beginning of the covariance data section."""
 
 
 @dataclass
@@ -245,8 +250,12 @@ class CcsdsOem:
             return None
 
         parts: list[str] = [p for tok in line.strip().split() for p in tok.split(",")]
-        if len(parts) < 7:
-            raise ValueError(f"Line does not contain 7 fields: '{line}'")
+        if len(parts) not in (7, 10):
+            if len(parts) < 7:
+                raise ValueError(f"Line does not contain 7 fields: '{line}'")
+            raise ValueError(
+                f"OEM state line contains {len(parts)} fields; expected 7 or 10: '{line}'"
+            )
 
         epoch_str: str = parts[0]
         epoch_dt: datetime = time_utils.iso8601_to_datetime(epoch_str)
@@ -577,6 +586,8 @@ class CcsdsOem:
 
         self.write_line(dest, sep=sep)
         self.write_line(dest, "COVARIANCE_START", sep=sep)
+        for comment in self.covariances[0].comments:
+            self.write_line(dest, "COMMENT", comment, sep=sep)
         ref_frame = next(iter(ref_frames))
         if ref_frame:
             self.write_line(dest, "COV_REF_FRAME", "=", ref_frame, sep=sep)
@@ -737,12 +748,20 @@ class CcsdsOem:
         in_meta: bool = False
         past_meta: bool = False
         in_covariance: bool = False
+        seen_state: bool = False
+        seen_covariance: bool = False
+        seen_header: list[str] = []
+        seen_meta: list[str] = []
+        header_comments_open = False
+        meta_comments_open = False
+        first_content_seen = False
         covariance_epoch: str | None = None
         covariance_ref_frame: str | None = None
         covariance_rows: list[list[float]] = []
+        covariance_comments: list[str] = []
 
         def finish_covariance() -> None:
-            nonlocal covariance_epoch, covariance_rows
+            nonlocal covariance_epoch, covariance_rows, covariance_comments
             if covariance_epoch is None:
                 if covariance_rows:
                     raise ValueError("OEM covariance rows are missing an EPOCH")
@@ -764,23 +783,40 @@ class CcsdsOem:
                     epoch=covariance_epoch,
                     matrix=matrix,
                     ref_frame=covariance_ref_frame,
+                    comments=list(covariance_comments),
                 )
             )
             covariance_epoch = None
             covariance_rows = []
+            covariance_comments = []
 
         for raw_line in source:
-            line: str = raw_line.strip()
+            line_content = raw_line.rstrip("\r\n")
+            if len(line_content) > 254:
+                raise ValueError("OEM line exceeds the 254-character limit")
+            if any(ord(char) < 32 or ord(char) > 126 for char in line_content):
+                raise ValueError("OEM lines must contain printable ASCII only")
+            line: str = line_content.strip()
+            comment_line = line_content.lstrip(" ")
             if not line:
                 continue
+            if not first_content_seen:
+                first_content_seen = True
+                first_assignment = misc.parse_key_value_line(line)
+                if first_assignment is None or first_assignment[0] != "CCSDS_OEM_VERS":
+                    raise ValueError(
+                        "CCSDS_OEM_VERS must be the first non-blank OEM line"
+                    )
 
             if line == "COVARIANCE_START":
-                if in_covariance:
+                if in_covariance or not past_meta or not seen_state:
                     raise ValueError("Nested OEM COVARIANCE_START block")
                 in_covariance = True
+                seen_covariance = True
                 covariance_epoch = None
                 covariance_ref_frame = None
                 covariance_rows = []
+                covariance_comments = []
                 continue
             if line == "COVARIANCE_STOP":
                 if not in_covariance:
@@ -789,6 +825,15 @@ class CcsdsOem:
                 in_covariance = False
                 continue
             if in_covariance:
+                if comment_line.startswith("COMMENT "):
+                    if covariance_rows or covariance_epoch is not None:
+                        raise ValueError(
+                            "OEM covariance comments must precede covariance data"
+                        )
+                    covariance_comments.append(comment_line[len("COMMENT ") :])
+                    continue
+                if comment_line == "COMMENT":
+                    raise ValueError("OEM comments must begin with 'COMMENT '")
                 key_value = misc.parse_key_value_line(line)
                 if key_value is not None:
                     key, value = key_value
@@ -816,21 +861,37 @@ class CcsdsOem:
                 continue
 
             if line == "META_START":
+                if in_meta or past_meta:
+                    raise ValueError("Invalid or repeated OEM META_START")
                 in_meta = True
+                meta_comments_open = True
                 continue
             if line == "META_STOP":
+                if not in_meta:
+                    raise ValueError("OEM META_STOP without META_START")
                 in_meta = False
                 past_meta = True
                 continue
 
-            if line.startswith("COMMENT"):
-                comment_text: str = line[len("COMMENT") :].strip()
+            if comment_line.startswith("COMMENT"):
+                if not comment_line.startswith("COMMENT "):
+                    raise ValueError("OEM comments must begin with 'COMMENT '")
+                comment_text: str = comment_line[len("COMMENT ") :]
                 if in_meta:
+                    if not meta_comments_open:
+                        raise ValueError("OEM metadata comments must appear first")
                     meta.setdefault("COMMENT", [])
                     meta["COMMENT"].append(comment_text)
                 elif past_meta:
+                    if seen_covariance or seen_state:
+                        raise ValueError(
+                            "OEM ephemeris comments must precede state data"
+                        )
                     data_comments.append(comment_text)
                 else:
+                    if seen_header != ["CCSDS_OEM_VERS"]:
+                        raise ValueError("OEM header comments must follow version")
+                    header_comments_open = True
                     header.setdefault("COMMENT", [])
                     header["COMMENT"].append(comment_text)
                 continue
@@ -838,6 +899,29 @@ class CcsdsOem:
             key_value: tuple[str, str] | None = misc.parse_key_value_line(line)
             if key_value is not None and (in_meta or not CcsdsOem._is_state_line(line)):
                 key, value = key_value
+                if not key.isupper() or " " in key:
+                    raise ValueError(f"Invalid OEM keyword: {key}")
+                allowed = _META_KEYS if in_meta else _HEADER_KEYS
+                if key not in allowed:
+                    raise ValueError(f"Unsupported OEM keyword: {key}")
+                if in_meta:
+                    meta_comments_open = False
+                    order = _META_KEYS
+                    seen = seen_meta
+                else:
+                    order = _HEADER_KEYS
+                    seen = seen_header
+                    if header_comments_open and key != "CCSDS_OEM_VERS":
+                        header_comments_open = False
+                if key in seen:
+                    raise ValueError(f"Duplicate OEM keyword: {key}")
+                if order.index(key) < max(
+                    (order.index(item) for item in seen), default=-1
+                ):
+                    raise ValueError(f"OEM keyword out of order: {key}")
+                seen.append(key)
+                if key == "CCSDS_OEM_VERS" and seen != ["CCSDS_OEM_VERS"]:
+                    raise ValueError("CCSDS_OEM_VERS must be the first OEM line")
                 try:
                     value = int(value)
                 except ValueError:
@@ -852,18 +936,34 @@ class CcsdsOem:
                 continue
 
             if CcsdsOem._is_state_line(line):
+                if not past_meta or in_meta or in_covariance or seen_covariance:
+                    raise ValueError("OEM ephemeris data is outside its valid section")
                 state_fields: list[str] = line.split()
-                if len(state_fields) < 7:
-                    continue
+                if len(state_fields) not in (7, 10):
+                    if len(state_fields) < 7:
+                        raise ValueError(
+                            "OEM state line does not contain 7 required fields"
+                        )
+                    raise ValueError(
+                        f"OEM state line contains {len(state_fields)} fields; "
+                        "expected 7 or 10"
+                    )
                 epoch: datetime = time_utils.iso8601_to_datetime(state_fields[0])
                 timestamp: float = time_utils.datetime_to_tt_s(epoch)
                 state_km: np.ndarray = np.array(
                     [float(value) for value in state_fields[1:7]]
                 )
                 states.append((timestamp, state_km * KILOMETERS_TO_METERS))
+                seen_state = True
+            else:
+                raise ValueError(f"Invalid OEM line: {line}")
 
         if in_covariance:
             raise ValueError("Unterminated OEM covariance block")
+        if in_meta:
+            raise ValueError("Unterminated OEM metadata block")
+        if not seen_header or seen_header[0] != "CCSDS_OEM_VERS":
+            raise ValueError("CCSDS_OEM_VERS must be the first non-blank line")
 
         return header, meta, data_comments, states, covariances
 

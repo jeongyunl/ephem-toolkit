@@ -156,6 +156,7 @@ META_STOP
 2026-01-01T00:00:00.000000 7000.0 0.0 0.0 0.0 7.5 0.0
 
 COVARIANCE_START
+COMMENT covariance provenance
 EPOCH = 2026-01-01T00:00:00.000000
 COV_REF_FRAME = J2000
 1
@@ -190,6 +191,7 @@ COVARIANCE_STOP
     assert len(parsed.covariances) == 2
     assert parsed.covariances[0].epoch == "2026-01-01T00:00:00.000000"
     assert parsed.covariances[0].ref_frame == "J2000"
+    assert parsed.covariances[0].comments == ["covariance provenance"]
     np.testing.assert_array_equal(parsed.covariances[0].matrix, expected_matrix)
     assert parsed.covariances[1].epoch == "2026-01-01T00:01:00.000000"
     np.testing.assert_array_equal(parsed.covariances[1].matrix, 2.0 * expected_matrix)
@@ -437,44 +439,27 @@ def test_ccsds_oem_epochs_and_state_vectors_sorted() -> None:
         assert np.allclose(state_vecs[idx], state, atol=1e-12, rtol=0.0)
 
 
-def test_read_oem_raw_state_list_returns_empty_header_and_meta() -> None:
-    """Should return empty dicts for header and meta when reading a raw state list."""
+def test_read_oem_rejects_raw_state_list_without_header() -> None:
+    """A raw state list is not a syntactically valid OEM."""
     raw_states = (
         "2026-05-20T12:00:00.000 6800.0 0.0 0.0 0.0 7.5 0.0\n"
         "2026-05-20T12:01:00.000 6850.0 100.0 50.0 0.1 7.4 0.05\n"
         "2026-05-20T12:02:00.000 6900.0 200.0 100.0 0.2 7.3 0.1\n"
     )
 
-    header, meta, _, states, _ = oem.CcsdsOem._read_oem_impl(io.StringIO(raw_states))
-
-    assert isinstance(header, dict)
-    assert isinstance(meta, dict)
-    assert header == {}
-    assert meta == {}
-    assert isinstance(states, list)
-    assert len(states) == 3
-    first_ts, first_state = states[0]
-    assert isinstance(first_ts, float)
-    assert first_state.shape == (6,)
+    with pytest.raises(ValueError, match="CCSDS_OEM_VERS"):
+        oem.CcsdsOem._read_oem_impl(io.StringIO(raw_states))
 
 
-def test_ccsds_oem_read_handles_raw_state_list() -> None:
-    """CcsdsOem.read() should construct an OEM with empty header/meta from a raw state list."""
+def test_ccsds_oem_read_rejects_raw_state_list() -> None:
+    """CcsdsOem.read() rejects a state list without its required OEM header."""
     raw_states = (
         "2026-05-20T12:00:00.000 6800.0 0.0 0.0 0.0 7.5 0.0\n"
         "2026-05-20T12:01:00.000 6850.0 100.0 50.0 0.1 7.4 0.05\n"
     )
 
-    ccsds_oem = oem.CcsdsOem.read(io.StringIO(raw_states))
-
-    assert isinstance(ccsds_oem.header, oem.OemHeader)
-    assert isinstance(ccsds_oem.meta, oem.OemMeta)
-    assert len(ccsds_oem) == 2
-    # All header/meta fields should be at their defaults
-    assert ccsds_oem.header.version == 0.0
-    assert ccsds_oem.header.creation_date == ""
-    assert ccsds_oem.meta.object_name == ""
-    assert ccsds_oem.meta.ref_frame == ""
+    with pytest.raises(ValueError, match="CCSDS_OEM_VERS"):
+        oem.CcsdsOem.read(io.StringIO(raw_states))
 
 
 def test_write_states_to_stream() -> None:
