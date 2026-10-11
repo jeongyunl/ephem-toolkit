@@ -9,6 +9,7 @@ This document covers Two-Line Element (TLE) sets, Orbit Mean-Elements Messages (
 3. [ephem_toolkit.core.ccsds.odm - CCSDS Orbit Data Message Definitions](#ephem_toolkitcoreccsdsodm---ccsds-orbit-data-message-definitions)
 4. [ephem_toolkit.core.ccsds.omm - Orbit Mean-Elements Message](#ephem_toolkitcoreccsdsomm---orbit-mean-elements-message)
 5. [ephem_toolkit.core.ccsds.oem - Orbit Ephemeris Message](#ephem_toolkitcoreccsdsoem---orbit-ephemeris-message)
+6. [ephem_toolkit.core.ccsds.opm - Orbit Parameter Message](#ephem_toolkitcoreccdsopm---orbit-parameter-message)
 
 ---
 
@@ -148,7 +149,7 @@ Extract osculating Keplerian elements at the TLE epoch.
 
 ## ephem_toolkit.core.ccsds.odm - CCSDS Orbit Data Message Definitions
 
-**Purpose**: Define the reference-frame and time-system identifiers permitted by CCSDS Orbit Data Messages (ODM), including OEM and OMM files.
+**Purpose**: Provide shared CCSDS ODM identifiers, covariance/unit metadata, KVN parsing, and syntax-validation helpers used by the OPM, OMM, and OEM modules.
 
 ### Constants
 
@@ -158,15 +159,37 @@ Extract osculating Keplerian elements at the TLE epoch.
 - `TIME_SYSTEM_DESCRIPTIONS`: Mapping of permitted time-system identifiers to descriptions
 - `TIME_SYSTEM_VALUES`: Immutable set of permitted time-system identifiers
 - `TIME_SYSTEMS`: Alias for `TIME_SYSTEM_VALUES`
-- `CCSDS_TIMECODE_PATTERN`: Pattern for CCSDS date/time values
+- `COVARIANCE_DIMENSION`, `COVARIANCE_KEYS`, `COVARIANCE_POSITIONS`: Shared lower-triangular covariance layout
+- `ODM_UNIT_BY_KEY`: Native units shared by OPM and OMM fields
+- `ODM_MAX_LINE_LENGTH`: Maximum KVN line length (254 characters)
+- `CCSDS_COMMENT_KEYWORD`, `CCSDS_COMMENT_PREFIX`: Shared comment tokens
+- `CCSDS_TIMECODE_PATTERN`, `CCSDS_DATETIME_VALUE_PATTERN`: Patterns for padded CCSDS date/time values
 - `CCSDS_NON_DECIMAL_STRING_PATTERN`, `CCSDS_FREE_TEXT_STRING_PATTERN`: Patterns for ODM non-decimal and free-text fields
-- `CCSDS_NUMERICAL_VALUE_WITH_OPTIONAL_UNITS_PATTERN`, `CCSDS_3VALUE_NUMERICAL_PATTERN`: Patterns for numeric fields, optionally with units, and 3-value sequences
+- `CCSDS_NUMERICAL_VALUE_WITH_OPTIONAL_UNITS_PATTERN`, `CCSDS_3VALUE_NUMERICAL_PATTERN`: Patterns for numeric fields, optionally with units, and three-value sequences
+- `CCSDS_NUMERIC_VALUE_PATTERN`, `CCSDS_FLOATING_POINT_VALUE_PATTERN`, `CCSDS_LEADING_DECIMAL_VALUE_PATTERN`: Shared numeric forms; leading-decimal syntax is exposed for OMM compatibility handling
+- `CCSDS_USER_DEFINED_KEY_PATTERN`: Pattern for permitted user-defined keywords
+
+### Shared Helpers
+
+- `validate_odm_context(center_name, ref_frame, time_system, *, require_center=True)`: Validate center, reference-frame, and time-system values. The toolkit also accepts the `J2000` and `ITRF93` frame aliases.
+- `parse_kvn_assignment(line)`: Parse one `KEY = VALUE` assignment; returns `None` if the line has no equals sign or has more than one.
+- `validate_odm_line(line, message_type, *, printable_ascii=True, line_number=None)`: Enforce the 254-character limit and printable-ASCII requirement.
+- `validate_odm_unit(key, value, units, message_type)`: Validate and remove an optional bracketed unit suffix.
+- `validate_odm_numeric(key, value, message_type, *, allow_leading_decimal=False)`: Validate numeric syntax, finite range, and up to 16 significant digits; returns the normalized value and whether leading-decimal compatibility syntax was used.
+- `validate_odm_datetime(value, key, message_type)`: Validate calendar or ordinal time syntax, date/time ranges, and leap-second notation.
 
 ---
 
 ## ephem_toolkit.core.ccsds.omm - Orbit Mean-Elements Message
 
 **Purpose**: Read, parse, and write CCSDS Orbit Mean-Elements Message (OMM) files.
+
+The OMM reader enforces the 254-character printable-ASCII line limit, requires
+the version keyword first, and checks KVN syntax, keyword order, duplicate and
+unsupported keys, numeric/time syntax, and optional units. Comments must use
+the `COMMENT ` prefix and occur at a permitted block boundary. For compatibility
+with existing OMM sources, empty required `CREATION_DATE`/`ORIGINATOR` fields
+and leading-decimal numeric values are accepted with `UserWarning`s.
 
 ### Key Dependencies
 - `dataclasses`, `pathlib`, `typing`, `datetime`
@@ -212,6 +235,14 @@ Use the `CcsdsOmm` object methods for parsing and serialization.
 ## ephem_toolkit.core.ccsds.oem - Orbit Ephemeris Message
 
 **Purpose**: Read, parse, and write CCSDS Orbit Ephemeris Message (OEM) files.
+
+The OEM reader enforces the 254-character printable-ASCII line limit and
+requires `CCSDS_OEM_VERS` first. Header and metadata use ordered KVN
+assignments; ephemeris state rows contain seven fields, or ten when acceleration
+is present, and covariance rows use the lower-triangular 6×6 layout. Duplicate
+or unsupported keywords, malformed rows, and misplaced comments are rejected.
+Comment whitespace is preserved; comments must begin with `COMMENT ` and
+appear at the beginning of their permitted section or block.
 
 ### Unit Convention
 OEM files use kilometers (km) and km/s per the CCSDS standard. This module converts state vectors to SI units (meters and m/s) when reading, and converts back to km/km·s⁻¹ when writing. Input epoch strings are interpreted as UTC and converted to TT seconds since J2000 regardless of the `TIME_SYSTEM` metadata; non-UTC time-system conversion is not performed.
@@ -287,3 +318,31 @@ vectors, they are not converted to SI by `CcsdsOem`.
 - `update_metadata(**kwargs) -> None`: Update metadata fields in-place
 
 `OemFormat` defines the `OEM` and `CSV` output choices. `read` preserves source state order, so sort input before using `find_state_by_timestamp` on an unsorted OEM file.
+
+---
+
+## ephem_toolkit.core.ccsds.opm - Orbit Parameter Message
+
+**Purpose**: Read, parse, and write CCSDS Orbit Parameter Message (OPM) files.
+
+The OPM reader enforces the 254-character printable-ASCII line limit and
+requires `CCSDS_OPM_VERS` on the first non-blank line. It rejects malformed
+KVN assignments, duplicate, unsupported, lowercase, or out-of-order keywords,
+and invalid numeric/time/unit values. Comment whitespace is preserved, and
+the writer places comments at the beginning of permitted blocks. User-defined
+data keywords matching `USER_DEFINED_[A-Z0-9_]+` are supported.
+
+Required header, metadata, and state-vector fields are checked, along with
+conditional Keplerian-element and covariance blocks and maneuver constraints.
+The writer emits OPM blocks in standard order, places comments at permitted
+block starts, limits floating-point output to 16 significant digits, and
+rejects unsupported fields or nonconforming output lines.
+
+### Object I/O
+
+- `CcsdsOpm.read(source: TextIO) -> CcsdsOpm`: Read from a caller-owned stream.
+- `CcsdsOpm.from_file(path: str | Path) -> CcsdsOpm`: Read a UTF-8 file.
+- `CcsdsOpm.from_text(text: str) -> CcsdsOpm`: Parse serialized text.
+- `opm.write(dest: TextIO) -> None`: Write to a caller-owned stream.
+- `opm.to_file(path: str | Path) -> None`: Write a UTF-8 file.
+- `opm.to_text() -> str`: Serialize to in-memory text.
