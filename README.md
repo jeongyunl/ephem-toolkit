@@ -281,11 +281,18 @@ pyproject.toml              Project configuration and dependencies
 
 ## Build and Dependencies
 
-### Python Tools
+### Requirements
 
-Typical Python dependencies used by the scripts:
+- Python 3.9 or newer
+- The package's required dependencies are installed with the project: Astropy, Astroquery, Colorama, NumPy, Pandas, and Tabulate.
+- Install the optional `plotting` extra to use the plotting commands, which requires Matplotlib:
+  ```bash
+  pip install ".[plotting]"
+  ```
+- Numerical propagation and some orbit-fitting workflows require [TudatPy](https://docs.tudat.space/en/latest/), which is not installed as a package dependency and must be installed separately using the TudatPy installation instructions.
 
-- [TudatPy](https://docs.tudat.space/en/latest/) (`tudatpy`)
-- NumPy
+To install the package without the plotting extra:
 
-Some scripts use only the Python standard library plus local helpers.
+```bash
+pip install .
+```
