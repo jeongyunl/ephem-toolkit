@@ -260,7 +260,7 @@ def test_read_omm_handles_comment_lines() -> None:
 CCSDS_OMM_VERS = 2.0
 COMMENT This is a test comment
 COMMENT Another comment
-CREATION_DATE  = 2026-06-01
+CREATION_DATE  = 2026-06-01T00:00:00
 ORIGINATOR     = TEST
 
 OBJECT_NAME    = TEST-SAT
@@ -272,7 +272,7 @@ MEAN_ELEMENT_THEORY = SGP/SGP4
 
 EPOCH          = 2026-06-01T00:00:00.000000
 MEAN_MOTION    = 15.0
-ECCENTRICITY   = .001
+ECCENTRICITY   = 0.001
 INCLINATION    = 51.0
 RA_OF_ASC_NODE = 100.0
 ARG_OF_PERICENTER = 200.0
@@ -295,13 +295,90 @@ MEAN_MOTION_DDOT = 0
     assert header["COMMENT"][1] == "Another comment"
 
 
+def test_omm_preserves_comment_whitespace_and_writes_comments_after_version() -> None:
+    source = ISS_OMM_PATH.read_text(encoding="utf-8").replace(
+        "CCSDS_OMM_VERS = 2.0\n",
+        "CCSDS_OMM_VERS = 2.0\nCOMMENT  leading and trailing  \n",
+        1,
+    )
+    header, data = omm._read_omm(io.StringIO(source))
+    assert header["COMMENT"] == [" leading and trailing  "]
+
+    output = io.StringIO()
+    omm._write_omm(output, header, data)
+    assert output.getvalue().splitlines()[1] == "COMMENT  leading and trailing  "
+
+
+@pytest.mark.parametrize(
+    "inserted, message",
+    [
+        ("MADE_UP = 1\n", "Unsupported OMM keyword"),
+        ("COMMENTARY nope\n", "COMMENT "),
+        ("not a KVN assignment\n", "Invalid OMM KVN line"),
+        ("OBJECT_NAME = duplicate\n", "Duplicate OMM keyword"),
+    ],
+)
+def test_omm_rejects_invalid_kvn_lines(inserted: str, message: str) -> None:
+    source = ISS_OMM_PATH.read_text(encoding="utf-8")
+    with pytest.raises(ValueError, match=message):
+        omm._read_omm(io.StringIO(source + inserted))
+
+
+def test_omm_rejects_overlong_and_non_ascii_lines() -> None:
+    source = ISS_OMM_PATH.read_text(encoding="utf-8")
+    with pytest.raises(ValueError, match="254-character"):
+        omm._read_omm(io.StringIO(source + "COMMENT " + ("x" * 247) + "\n"))
+    with pytest.raises(ValueError, match="printable ASCII"):
+        omm._read_omm(io.StringIO(source + "COMMENT tab\tforbidden\n"))
+
+
+def test_omm_rejects_duplicate_assignments_and_out_of_order_fields() -> None:
+    lines = ISS_OMM_PATH.read_text(encoding="utf-8").splitlines()
+    object_name = next(
+        index for index, line in enumerate(lines) if line.startswith("OBJECT_NAME")
+    )
+    object_id = next(
+        index for index, line in enumerate(lines) if line.startswith("OBJECT_ID")
+    )
+    lines[object_name], lines[object_id] = lines[object_id], lines[object_name]
+    with pytest.raises(ValueError, match="out of order"):
+        omm._read_omm(io.StringIO("\n".join(lines)))
+
+
+def test_omm_rejects_invalid_numeric_and_unit_values() -> None:
+    source = ISS_OMM_PATH.read_text(encoding="utf-8")
+    with pytest.warns(UserWarning, match="leading-decimal numeric value"):
+        omm._read_omm(io.StringIO(source))
+    with pytest.raises(ValueError, match=r"\[n/a\]"):
+        omm._read_omm(io.StringIO(source.replace("15.49538094", "15.49538094 [n/a]")))
+
+
+def test_omm_warns_and_accepts_legacy_empty_required_header_values() -> None:
+    with pytest.warns(UserWarning, match="Empty required OMM header field"):
+        parsed = omm.CcsdsOmm.from_file(ISS_OMM_PATH)
+    assert parsed.creation_date == ""
+    assert parsed.originator == ""
+
+
+def test_omm_writer_rejects_unsupported_keywords_and_overlong_lines() -> None:
+    header, data = omm._read_omm(ISS_OMM_PATH)
+    with pytest.raises(ValueError, match="Unsupported OMM keyword"):
+        omm._write_omm(io.StringIO(), header, {**data, "CUSTOM_NUMERIC": 1})
+    with pytest.raises(ValueError, match="254-character"):
+        omm._write_omm(
+            io.StringIO(),
+            header,
+            {**data, "OBJECT_NAME": "X" * 300},
+        )
+
+
 # ===================================================================
 # 12. Read OMM preserves user-defined and unknown data keys
 # ===================================================================
 
 
-def test_read_omm_accepts_user_defined_and_unknown_keys() -> None:
-    """Should retain non-standard data keys without validation errors."""
+def test_read_omm_accepts_user_defined_parameters() -> None:
+    """Should retain documented USER_DEFINED parameters."""
     omm_text = """\
 CCSDS_OMM_VERS = 3.0
 CREATION_DATE  = 2026-06-01T00:00:00.000Z
@@ -313,7 +390,6 @@ CENTER_NAME    = EARTH
 REF_FRAME      = ICRF
 TIME_SYSTEM    = UTC
 MEAN_ELEMENT_THEORY = DSST
-USER_DEFINED_EARTH_MODEL = WGS-84
 
 EPOCH          = 2026-06-01T00:00:00.000000
 MEAN_MOTION    = 15.0
@@ -322,14 +398,15 @@ INCLINATION    = 51.0
 RA_OF_ASC_NODE = 100.0
 ARG_OF_PERICENTER = 200.0
 MEAN_ANOMALY   = 300.0
-CUSTOM_NUMERIC = 42.5 [km]
+USER_DEFINED_CUSTOM_NUMERIC = 42.5
+USER_DEFINED_EARTH_MODEL = WGS-84
 """
 
     header, data = omm._read_omm(io.StringIO(omm_text))
 
     assert "USER_DEFINED_EARTH_MODEL" not in header
     assert data["USER_DEFINED_EARTH_MODEL"] == "WGS-84"
-    assert data["CUSTOM_NUMERIC"] == pytest.approx(42.5)
+    assert data["USER_DEFINED_CUSTOM_NUMERIC"] == pytest.approx(42.5)
 
 
 # ===================================================================
@@ -337,8 +414,8 @@ CUSTOM_NUMERIC = 42.5 [km]
 # ===================================================================
 
 
-def test_write_omm_round_trip_preserves_non_standard_keys(tmp_path: Path) -> None:
-    """Should write and read back user-defined and unknown data keys."""
+def test_write_omm_round_trip_preserves_user_defined_keys(tmp_path: Path) -> None:
+    """Should write and read back standard USER_DEFINED data keys."""
     header = {
         "CCSDS_OMM_VERS": 3.0,
         "CREATION_DATE": "2026-06-01T00:00:00.000Z",
@@ -359,7 +436,7 @@ def test_write_omm_round_trip_preserves_non_standard_keys(tmp_path: Path) -> Non
         "ARG_OF_PERICENTER": 200.0,
         "MEAN_ANOMALY": 300.0,
         "USER_DEFINED_EARTH_MODEL": "WGS-84",
-        "CUSTOM_NUMERIC": 42.5,
+        "USER_DEFINED_CUSTOM_NUMERIC": 42.5,
     }
     out_path = tmp_path / "custom-fields.omm"
 
@@ -367,7 +444,7 @@ def test_write_omm_round_trip_preserves_non_standard_keys(tmp_path: Path) -> Non
     _, parsed_data = omm._read_omm(out_path)
 
     assert parsed_data["USER_DEFINED_EARTH_MODEL"] == "WGS-84"
-    assert parsed_data["CUSTOM_NUMERIC"] == pytest.approx(42.5)
+    assert parsed_data["USER_DEFINED_CUSTOM_NUMERIC"] == pytest.approx(42.5)
 
 
 # ===================================================================
@@ -375,8 +452,8 @@ def test_write_omm_round_trip_preserves_non_standard_keys(tmp_path: Path) -> Non
 # ===================================================================
 
 
-def test_ccsds_omm_round_trip_preserves_non_standard_keys(tmp_path: Path) -> None:
-    """Should preserve extra data keys through the structured class API."""
+def test_ccsds_omm_round_trip_preserves_user_defined_keys(tmp_path: Path) -> None:
+    """Should preserve USER_DEFINED keys through the structured class API."""
     omm_text = """\
 CCSDS_OMM_VERS = 3.0
 CREATION_DATE  = 2026-06-01T00:00:00.000Z
@@ -397,7 +474,7 @@ RA_OF_ASC_NODE = 100.0
 ARG_OF_PERICENTER = 200.0
 MEAN_ANOMALY   = 300.0
 USER_DEFINED_EARTH_MODEL = WGS-84
-CUSTOM_NUMERIC = 42.5
+USER_DEFINED_CUSTOM_NUMERIC = 42.5
 """
     source = io.StringIO(omm_text)
     out_path = tmp_path / "structured-custom-fields.omm"
@@ -407,7 +484,7 @@ CUSTOM_NUMERIC = 42.5
     round_tripped = omm.CcsdsOmm.from_file(out_path)
 
     assert round_tripped.data["USER_DEFINED_EARTH_MODEL"] == "WGS-84"
-    assert round_tripped.data["CUSTOM_NUMERIC"] == pytest.approx(42.5)
+    assert round_tripped.data["USER_DEFINED_CUSTOM_NUMERIC"] == pytest.approx(42.5)
 
 
 # ===================================================================

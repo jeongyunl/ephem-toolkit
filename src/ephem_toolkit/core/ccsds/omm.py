@@ -10,10 +10,13 @@ References:
 from __future__ import annotations
 
 import io
+import math
+import re
+import warnings
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, TextIO
+from typing import Any, TextIO
 
 import numpy as np
 
@@ -47,6 +50,13 @@ _HEADER_KEYS: set[str] = {
     "ORIGINATOR",
     "MESSAGE_ID",
 }
+_HEADER_KEY_ORDER: tuple[str, ...] = (
+    "CCSDS_OMM_VERS",
+    "CLASSIFICATION",
+    "CREATION_DATE",
+    "ORIGINATOR",
+    "MESSAGE_ID",
+)
 
 _META_KEY_ORDER: list[str] = [
     "OBJECT_NAME",
@@ -127,11 +137,171 @@ _UNIT_BY_KEY: dict[str, str] = {
     "DRAG_AREA": "m**2",
     "MEAN_MOTION_DOT": "rev/day**2",
     "MEAN_MOTION_DDOT": "rev/day**3",
+    "BSTAR": "1/ER",
 }
+
+for covariance_key, (row, column) in zip(_COVARIANCE_KEYS, _COVARIANCE_POSITIONS):
+    if row < 3 and column < 3:
+        _UNIT_BY_KEY[covariance_key] = "km**2"
+    elif row >= 3 and column < 3:
+        _UNIT_BY_KEY[covariance_key] = "km**2/s"
+    else:
+        _UNIT_BY_KEY[covariance_key] = "km**2/s**2"
+
+_SPACECRAFT_KEY_ORDER: tuple[str, ...] = (
+    "MASS",
+    "SOLAR_RAD_AREA",
+    "SOLAR_RAD_COEFF",
+    "DRAG_AREA",
+    "DRAG_COEFF",
+)
+
+
+def _validate_omm_value(key: str, value: str) -> None:
+    """Validate generic ODM numeric, time, and optional unit syntax."""
+    if not value:
+        return
+    if "[n/a]" in value.lower():
+        raise ValueError("[n/a] is not permitted in an OMM")
+    unit_match = re.search(r"\s+\[([^\]]*)\]$", value)
+    if "[" in value or "]" in value:
+        if unit_match is None:
+            raise ValueError(f"Invalid unit notation for OMM keyword {key}")
+        expected_unit = _UNIT_BY_KEY.get(key)
+        if expected_unit is None or unit_match.group(1) != expected_unit:
+            raise ValueError(f"Invalid unit for OMM keyword {key}")
+        value = value[: unit_match.start()].rstrip()
+    if (
+        not value
+        or any(char.isspace() for char in value)
+        and key
+        not in {
+            "OBJECT_NAME",
+            "CLASSIFICATION",
+            "ORIGINATOR",
+            "MESSAGE_ID",
+        }
+        and not key.startswith("USER_DEFINED_")
+    ):
+        raise ValueError(f"Invalid whitespace in OMM value for {key}")
+    if key in {"CREATION_DATE", "EPOCH", "REF_FRAME_EPOCH"}:
+        if not re.fullmatch(
+            r"\d{4}-(?:\d{2}-\d{2}|\d{3})T\d{2}:\d{2}:\d{2}(?:\.\d{1,16})?Z?",
+            value,
+        ):
+            raise ValueError(f"Invalid OMM time value for {key}: {value}")
+        if re.match(r"\d{4}-\d{3}T", value):
+            time_text = value.removesuffix("Z")
+            formats = ("%Y-%jT%H:%M:%S.%f", "%Y-%jT%H:%M:%S")
+            valid_time = False
+            for time_format in formats:
+                try:
+                    datetime.strptime(time_text, time_format)
+                    valid_time = True
+                    break
+                except ValueError:
+                    continue
+            if not valid_time:
+                raise ValueError(f"Invalid OMM time value for {key}: {value}")
+        else:
+            time_utils.iso8601_to_datetime(value)
+    if (
+        key == "CCSDS_OMM_VERS"
+        or key in _UNIT_BY_KEY
+        or key
+        in {
+            "ECCENTRICITY",
+            "INCLINATION",
+            "RA_OF_ASC_NODE",
+            "ARG_OF_PERICENTER",
+            "MEAN_ANOMALY",
+            "EPHEMERIS_TYPE",
+            "NORAD_CAT_ID",
+            "ELEMENT_SET_NO",
+            "REV_AT_EPOCH",
+            "BTERM",
+            "AGOM",
+        }
+    ):
+        if not re.fullmatch(
+            r"[+-]?\d+(?:\.\d+)?(?:[Ee][+-]?\d+)?",
+            value,
+        ):
+            if re.fullmatch(r"[+-]?\.\d+(?:[Ee][+-]?\d+)?", value):
+                warnings.warn(
+                    f"OMM keyword {key} uses a leading-decimal numeric value "
+                    f"accepted for compatibility: {value}",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                value = re.sub(r"^([+-]?)\.", r"\g<1>0.", value)
+            else:
+                raise ValueError(
+                    f"Invalid numeric value for OMM keyword {key}: {value}"
+                )
+        if key == "CCSDS_OMM_VERS" and not re.fullmatch(r"\d+\.\d+", value):
+            raise ValueError("CCSDS_OMM_VERS must have the form x.y")
+        if re.search("[Ee]", value) and not re.fullmatch(
+            r"[+-]?\d+\.\d+[Ee][+-]?\d+", value
+        ):
+            raise ValueError(f"Invalid floating-point value for OMM keyword {key}")
+        mantissa = re.split("[Ee]", value)[0].lstrip("+-").replace(".", "")
+        significant_digits = len(mantissa.lstrip("0")) or 1
+        if significant_digits > 16:
+            raise ValueError(f"Too many significant digits for OMM keyword {key}")
+        if not math.isfinite(float(value)):
+            raise ValueError(f"Non-finite numeric value for OMM keyword {key}")
+        if key in {
+            "EPHEMERIS_TYPE",
+            "NORAD_CAT_ID",
+            "ELEMENT_SET_NO",
+            "REV_AT_EPOCH",
+        }:
+            integer = int(value)
+            if integer < -2_147_483_648 or integer > 2_147_483_647:
+                raise ValueError(f"Integer value out of range for OMM keyword {key}")
+            if not re.fullmatch(r"[+-]?\d+", value):
+                raise ValueError(f"OMM keyword {key} requires an integer")
+    if key in {"CENTER_NAME", "REF_FRAME", "TIME_SYSTEM", "MEAN_ELEMENT_THEORY"}:
+        if value != value.upper() and value != value.lower():
+            raise ValueError(f"OMM keyword {key} must use a consistent case")
 
 
 def validate_omm(header: dict[str, Any], data: dict[str, Any]) -> None:
     """Validate mandatory and conditional CCSDS OMM fields."""
+    unsupported_header = set(header) - (_HEADER_KEYS | {"COMMENT"})
+    if unsupported_header:
+        raise ValueError(
+            "Unsupported OMM header keyword(s): "
+            + ", ".join(sorted(unsupported_header))
+        )
+    supported_data = {
+        *_META_KEY_ORDER,
+        *_MEAN_ELEMENTS_KEY_ORDER,
+        *_TLE_PARAMS_KEY_ORDER,
+        *_SPACECRAFT_KEY_ORDER,
+        "COV_REF_FRAME",
+        *_COVARIANCE_KEYS,
+    }
+    unsupported_data = {
+        key
+        for key in data
+        if key not in supported_data
+        and not re.fullmatch(r"USER_DEFINED_[A-Z0-9_]+", key)
+    }
+    if unsupported_data:
+        raise ValueError(
+            "Unsupported OMM keyword(s): " + ", ".join(sorted(unsupported_data))
+        )
+    for key, value in (*header.items(), *data.items()):
+        if key != "COMMENT":
+            serialized = (
+                CcsdsOmm._write_value(key, value)
+                if isinstance(value, (float, np.floating))
+                else str(value)
+            )
+            _validate_omm_value(key, serialized)
+
     required_header: set[str] = {"CCSDS_OMM_VERS", "CREATION_DATE", "ORIGINATOR"}
     required_metadata: set[str] = {
         "OBJECT_NAME",
@@ -152,11 +322,21 @@ def validate_omm(header: dict[str, Any], data: dict[str, Any]) -> None:
     missing: list[str] = sorted(required_header - header.keys())
     if missing:
         raise ValueError("Missing required OMM header field(s): " + ", ".join(missing))
+    empty = sorted(key for key in required_header if not str(header[key]).strip())
+    if empty:
+        warnings.warn(
+            "Empty required OMM header field(s): " + ", ".join(empty),
+            UserWarning,
+            stacklevel=2,
+        )
     missing = sorted(required_metadata - data.keys())
     if missing:
         raise ValueError(
             "Missing required OMM metadata field(s): " + ", ".join(missing)
         )
+    empty = sorted(key for key in required_metadata if not str(data[key]).strip())
+    if empty:
+        raise ValueError("Empty required OMM metadata field(s): " + ", ".join(empty))
     odm.validate_odm_context(
         str(data["CENTER_NAME"]),
         str(data["REF_FRAME"]),
@@ -166,6 +346,11 @@ def validate_omm(header: dict[str, Any], data: dict[str, Any]) -> None:
     if missing:
         raise ValueError(
             "Missing required OMM mean element field(s): " + ", ".join(missing)
+        )
+    empty = sorted(key for key in required_elements if not str(data[key]).strip())
+    if empty:
+        raise ValueError(
+            "Empty required OMM mean element field(s): " + ", ".join(empty)
         )
     if not ({"SEMI_MAJOR_AXIS", "MEAN_MOTION"} & data.keys()):
         raise ValueError("OMM requires SEMI_MAJOR_AXIS or MEAN_MOTION")
@@ -557,8 +742,13 @@ class CcsdsOmm:
     @staticmethod
     def _write_value(key: str, value: Any) -> str:
         unit = _UNIT_BY_KEY.get(key)
-        return f"{value} [{unit}]" if unit else str(value)
-
+        if key == "CCSDS_OMM_VERS":
+            value_text = f"{float(value):.1f}"
+        elif isinstance(value, (float, np.floating)):
+            value_text = f"{value:.15g}"
+        else:
+            value_text = str(value)
+        return f"{value_text} [{unit}]" if unit else value_text
 
 
 def _read_omm(
@@ -587,33 +777,123 @@ def _read_omm(
 
     header: dict[str, Any] = {}
     data: dict[str, Any] = {}
+    seen_header: list[str] = []
+    seen_data: list[str] = []
+    current_group = -1
+    comment_group: int | None = None
+    first_line = True
+    mean_keys = [
+        "EPOCH",
+        "SEMI_MAJOR_AXIS",
+        "MEAN_MOTION",
+        "ECCENTRICITY",
+        "INCLINATION",
+        "RA_OF_ASC_NODE",
+        "ARG_OF_PERICENTER",
+        "MEAN_ANOMALY",
+        "GM",
+    ]
+    covariance_keys = list(_COVARIANCE_KEYS)
+    data_groups = [
+        _META_KEY_ORDER,
+        mean_keys,
+        list(_SPACECRAFT_KEY_ORDER),
+        _TLE_PARAMS_KEY_ORDER,
+        ["COV_REF_FRAME", *covariance_keys],
+    ]
 
     for raw_line in source:
+        raw_line = raw_line.rstrip("\r\n")
+        if len(raw_line) > 254:
+            raise ValueError("OMM line exceeds the 254-character limit")
+        if any(ord(char) < 32 or ord(char) > 126 for char in raw_line):
+            raise ValueError("OMM lines must contain printable ASCII only")
         line: str = raw_line.strip()
         if not line:
             continue
+        if first_line:
+            first_line = False
+            assignment = misc.parse_key_value_line(line)
+            if assignment is None or assignment[0] != "CCSDS_OMM_VERS":
+                raise ValueError("CCSDS_OMM_VERS must be the first non-blank OMM line")
 
-        # Handle COMMENT lines
-        if line.startswith("COMMENT"):
-            comment_text: str = line[len("COMMENT") :].strip()
+        comment_line = raw_line.lstrip(" ")
+        if comment_line.startswith("COMMENT"):
+            if not comment_line.startswith("COMMENT "):
+                raise ValueError("OMM comments must begin with 'COMMENT '")
+            header_comment = not seen_data and seen_header == ["CCSDS_OMM_VERS"]
+            if seen_data:
+                if comment_group is None:
+                    comment_group = current_group + 1
+            elif {
+                "CCSDS_OMM_VERS",
+                "CREATION_DATE",
+                "ORIGINATOR",
+            } <= set(seen_header):
+                comment_group = 0
+            elif not header_comment:
+                raise ValueError("OMM header comments must follow the version")
+            comment_text = comment_line[len("COMMENT ") :]
             header.setdefault("COMMENT", [])
             header["COMMENT"].append(comment_text)
             continue
 
         key_value: tuple[str, str] | None = misc.parse_key_value_line(line)
         if key_value is None:
-            continue
+            raise ValueError(f"Invalid OMM KVN line: {line}")
 
         key, value = key_value
-
+        if not key.isupper() or " " in key:
+            raise ValueError(f"Invalid OMM keyword: {key}")
         if key in _HEADER_KEYS:
+            if seen_data:
+                raise ValueError(f"OMM header keyword {key} appears after data")
+            if key in seen_header:
+                raise ValueError(f"Duplicate OMM keyword: {key}")
+            if _HEADER_KEY_ORDER.index(key) < max(
+                (_HEADER_KEY_ORDER.index(item) for item in seen_header), default=-1
+            ):
+                raise ValueError(f"OMM header keyword out of order: {key}")
+            seen_header.append(key)
+            _validate_omm_value(key, value)
             header[key] = CcsdsOmm._try_numeric(value) if value else value
-        else:
-            data[key] = CcsdsOmm._try_numeric(value) if value else value
+            continue
+
+        if key not in {
+            item for group in data_groups for item in group
+        } and not re.fullmatch(r"USER_DEFINED_[A-Z0-9_]+", key):
+            raise ValueError(f"Unsupported OMM keyword: {key}")
+        group_index = next(
+            (index for index, group in enumerate(data_groups) if key in group),
+            len(data_groups),
+        )
+        if key in seen_data:
+            raise ValueError(f"Duplicate OMM keyword: {key}")
+        if comment_group is not None:
+            if group_index < comment_group:
+                raise ValueError(
+                    "OMM comments must appear at the beginning of a data block"
+                )
+            comment_group = None
+        if group_index < current_group:
+            raise ValueError(f"OMM keyword out of order: {key}")
+        group = data_groups[group_index] if group_index < len(data_groups) else []
+        if key in group:
+            prior_group_keys = [item for item in seen_data if item in group]
+            if prior_group_keys and group.index(key) < group.index(
+                prior_group_keys[-1]
+            ):
+                raise ValueError(f"OMM keyword out of order: {key}")
+        current_group = group_index
+        seen_data.append(key)
+        _validate_omm_value(key, value)
+
+        data[key] = CcsdsOmm._try_numeric(value) if value else value
 
     if validate:
         validate_omm(header, data)
     return header, data
+
 
 def _write_omm(
     dest: TextIO,
@@ -637,12 +917,32 @@ def _write_omm(
         with Path(dest).open("w", encoding="utf-8", newline="\n") as file_handle:
             _write_omm(file_handle, header, data)
         return
+    validation_header = {
+        "CCSDS_OMM_VERS": header.get("CCSDS_OMM_VERS", DEFAULT_OMM_VERSION),
+        **{key: value for key, value in header.items() if key != "COMMENT"},
+    }
+    validate_omm(validation_header, data)
 
-    write_text: Callable[[str], int] = dest.write
+    def write_text(text: str) -> int:
+        if any(
+            ord(char) < 32 and char not in "\r\n" or ord(char) > 126 for char in text
+        ):
+            raise ValueError("OMM output must contain printable ASCII only")
+        for line in text.split("\n"):
+            line = line.rstrip("\r")
+            if len(line) > 254:
+                raise ValueError("OMM line exceeds the 254-character limit")
+        return dest.write(text)
 
     # --- Header ---
     version: float | int = header.get("CCSDS_OMM_VERS", DEFAULT_OMM_VERSION)
-    write_text(f"CCSDS_OMM_VERS = {version}\n")
+    write_text(f"CCSDS_OMM_VERS = {CcsdsOmm._write_value('CCSDS_OMM_VERS', version)}\n")
+
+    for comment in header.get("COMMENT", []):
+        write_text(f"COMMENT {comment}\n")
+
+    if "CLASSIFICATION" in header:
+        write_text(f"CLASSIFICATION = {header['CLASSIFICATION']}\n")
 
     creation_date: str | int | float = header.get("CREATION_DATE", "")
     write_text(f"CREATION_DATE  = {creation_date}\n")
@@ -650,18 +950,14 @@ def _write_omm(
     originator: str | int | float = header.get("ORIGINATOR", "")
     write_text(f"ORIGINATOR     = {originator}\n")
 
-    for key in ("CLASSIFICATION", "MESSAGE_ID"):
-        if key in header:
-            write_text(f"{key:<15} = {header[key]}\n")
-
-    for comment in header.get("COMMENT", []):
-        write_text(f"COMMENT {comment}\n")
+    if "MESSAGE_ID" in header:
+        write_text(f"MESSAGE_ID     = {header['MESSAGE_ID']}\n")
 
     write_text("\n")
 
     # --- Metadata section ---
     for key in _META_KEY_ORDER:
-        if key in data:
+        if key in data and data[key] != "":
             write_text(
                 f"{key:<{max(MINIMUM_OMM_KEY_WIDTH, len(key))}} = {CcsdsOmm._write_value(key, data[key])}\n"
             )
@@ -670,28 +966,52 @@ def _write_omm(
 
     # --- Mean elements section ---
     for key in _MEAN_ELEMENTS_KEY_ORDER:
-        if key in data:
+        if key in data and data[key] != "":
             write_text(
                 f"{key:<{max(MINIMUM_OMM_KEY_WIDTH, len(key))}} = {CcsdsOmm._write_value(key, data[key])}\n"
             )
 
     write_text("\n")
 
-    # --- TLE-related parameters section ---
-    for key in _TLE_PARAMS_KEY_ORDER:
-        if key in data:
+    for key in _SPACECRAFT_KEY_ORDER:
+        if key in data and data[key] != "":
             write_text(
                 f"{key:<{max(MINIMUM_OMM_KEY_WIDTH, len(key))}} = {CcsdsOmm._write_value(key, data[key])}\n"
             )
 
-    # --- Any extra keys not in the canonical ordering ---
-    all_ordered: set[str] = set(
-        _META_KEY_ORDER + _MEAN_ELEMENTS_KEY_ORDER + _TLE_PARAMS_KEY_ORDER
+    if any(key in data for key in _SPACECRAFT_KEY_ORDER):
+        write_text("\n")
+
+    # --- TLE-related parameters section ---
+    for key in _TLE_PARAMS_KEY_ORDER:
+        if key in data and data[key] != "":
+            write_text(
+                f"{key:<{max(MINIMUM_OMM_KEY_WIDTH, len(key))}} = {CcsdsOmm._write_value(key, data[key])}\n"
+            )
+
+    for key in ("COV_REF_FRAME", *_COVARIANCE_KEYS):
+        if key in data and data[key] != "":
+            write_text(
+                f"{key:<{max(MINIMUM_OMM_KEY_WIDTH, len(key))}} = "
+                f"{CcsdsOmm._write_value(key, data[key])}\n"
+            )
+
+    user_defined_keys = sorted(
+        key for key in data if re.fullmatch(r"USER_DEFINED_[A-Z0-9_]+", key)
     )
-    extra_keys: list[str] = [
-        key for key in data if key not in all_ordered and key != "COMMENT"
-    ]
-    for key in extra_keys:
+    unsupported = set(data) - set(
+        _META_KEY_ORDER
+        + _MEAN_ELEMENTS_KEY_ORDER
+        + _TLE_PARAMS_KEY_ORDER
+        + list(_SPACECRAFT_KEY_ORDER)
+        + ["COV_REF_FRAME", *_COVARIANCE_KEYS]
+        + user_defined_keys
+    )
+    if unsupported:
+        raise ValueError(
+            "Unsupported OMM keyword(s): " + ", ".join(sorted(unsupported))
+        )
+    for key in user_defined_keys:
         write_text(
             f"{key:<{max(MINIMUM_OMM_KEY_WIDTH, len(key))}} = {CcsdsOmm._write_value(key, data[key])}\n"
         )
