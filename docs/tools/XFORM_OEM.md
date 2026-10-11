@@ -368,5 +368,5 @@ overrides are accepted with `--x-aer`, they have no effect on its text output.
 - `diff-oem` — Compare states from two OEM files (see
   [DIFF_OEM.md](DIFF_OEM.md))
 - `ephem_toolkit.core.frame_utils` — Lower-level frame conversion implementation
-- [tudatpy_frame_conversion.md](tudatpy_frame_conversion.md) — TudatPy API and
+- [tudatpy_frame_conversion.md](../architecture/tudatpy_frame_conversion.md) — TudatPy API and
   rotation-model notes

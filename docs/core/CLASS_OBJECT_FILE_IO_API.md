@@ -14,7 +14,7 @@ The API separates path, stream, and text operations. The migration is complete,
 and this document describes the current object I/O design.
 
 The authoritative naming and type conventions remain in
-[python_style_guide.md](python_style_guide.md), especially its File I/O
+[python_style_guide.md](../development/python_style_guide.md), especially its File I/O
 section.
 
 ## Goals

@@ -224,7 +224,7 @@ Runtime depends on the number of supplied OEM records, the number of refinement 
 
 ## See Also
 
-- [README.md](../README.md) — Repository overview
+- [README.md](../../README.md) — Repository overview
 
 Detailed algorithm and strategy documentation is included below.
 

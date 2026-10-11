@@ -34,10 +34,10 @@
         1. `GM`
     1. Use units in ODM meta data (e.g., `[km]`, `[m/s]`, etc.) instead of assuming SI units
 
-1. [`propagate-omm`](docs/PROPAGATE_OMM.md)
+1. [`propagate-omm`](../tools/PROPAGATE_OMM.md)
     1. Adopt the USM analytical propagator for OMM propagation
 
-1. [`propagate-orbit`](docs/PROPAGATE_ORBIT.md)
+1. [`propagate-orbit`](../tools/PROPAGATE_ORBIT.md)
     1. give a less generic name
 
 1. Interpolators
@@ -46,18 +46,18 @@
     1. clamped cubic spline?
     1. could chebyshev interpolater be more accurate?
 
-1. [`slice-oem`](docs/SLICE_OEM.md)
+1. [`slice-oem`](../tools/SLICE_OEM.md)
     1. New stateful OemSlicer class?
         1. or extend CcsdsOem class?
     1. extract_states_by_time
         1. Optionally insert extra data points at boundaries to be interpolator friendly?
 
-1. [`diff-oem`](docs/DIFF_OEM.md)
+1. [`diff-oem`](../tools/DIFF_OEM.md)
     1. More comparison options.
         1. Osculating keplerian elements
         1. Mean Keplerian element comparisons (for x minutes of sliding window).
     1. More output format options, for example showing the differences in a table or CSV format.
-1. [`xform-oem`](docs/XFORM_OEM.md)
+1. [`xform-oem`](../tools/XFORM_OEM.md)
     1. Apply arbitrary matrix?
 
 
