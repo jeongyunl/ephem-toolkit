@@ -37,7 +37,7 @@ The first full playback demo is **step 10**. It should be possible to open a sam
 pause and seek it, and see a synchronized 3D orbit and time-series plot before implementing
 the remaining views, advanced controls or VTK.
 
-## Milestone A — Package, data and static CLI
+## Milestone A — Package, data and CLI
 
 ### 1. Scaffold the package and command
 
@@ -71,21 +71,22 @@ imports, package references or structure required to make the copy work.
 **Done when:** the new package loads and computes the same baseline series as `plot-oem`.
 **Depends on:** Step 1.
 
-### 3. Preserve static `-o` behavior and CLI compatibility
+### 3. Wire the CLI to load and prepare OEM data
 
-Copy `output.py` and the existing plotting functions needed for static output. Wire the new CLI
-to read, filter, compute and save figures through the copied functions. Keep the `plot-oem`
-options that are in scope (`-o`, `-d`, `--time-unit`) compatible.
+Add `--duration` and `--time-unit` with the same accepted values and behavior as `plot-oem`.
+Wire `play-oem` to parse the duration, load states with the new package modules, filter them,
+compute the series and print a concise processing summary. The command will become interactive
+when the GUI is implemented in step 6.
 
-- **Status:** Not started.
-- **Progress:** 0/4 checklist items.
-- [ ] Run `play-oem tests/data/ISS_2026-05-20.OEM -o <temporary-prefix>`.
-- [ ] Compare generated filenames and figure count with `plot-oem` on the same OEM.
-- [ ] Confirm duration and time-unit options behave the same in both commands.
-- [ ] Add CLI/output parity tests and run them.
+- **Status:** Done.
+- **Progress:** 4/4 checklist items.
+- [x] Add `--duration` and `--time-unit` options with the same accepted values as `plot-oem`.
+- [x] Wire CLI execution to parse options, read/filter OEM states and compute the orbit series.
+- [x] Confirm a valid OEM prints the loaded/selected state counts and processes the selected time unit.
+- [x] Add focused CLI workflow/error tests and run them.
 
-**Done when:** static `-o` mode matches `plot-oem` for filenames, figure count and selected
-options, without requiring a GUI display.
+**Done when:** `play-oem` loads a valid OEM, applies duration and time-unit options, computes its
+series and reports success without rendering figures or opening a window.
 **Depends on:** Step 2.
 
 ## Milestone B — Playback core
@@ -331,24 +332,9 @@ gap while indicating that no state is available there.
 **Done when:** no view or readout implies continuous or interpolated data across an OEM gap.
 **Depends on:** Step 16.
 
-### 18. Complete static-output compatibility
-
-Bring the expanded views and registry into `-o` output while preserving the original
-`plot-oem` figure layout and naming. Keep output usable without Tk or a display.
-
-- **Status:** Not started.
-- **Progress:** 0/4 checklist items.
-- [ ] Generate all legacy figures from the new shared series.
-- [ ] Re-compose split 3D/state-components and combined speed/altitude views as needed for parity.
-- [ ] Compare filenames, figure count and representative plotted values with `plot-oem`.
-- [ ] Run static-output tests under a headless Matplotlib backend.
-
-**Done when:** static output remains compatible and headless after all view refactors.
-**Depends on:** Step 17.
-
 ## Milestone F — Performance
 
-### 19. Optimize rendering and validate playback performance
+### 18. Optimize rendering and validate playback performance
 
 Add blitting and display decimation for 2D views, per-view throttling for Matplotlib 3D and frame
 dropping. Profile before changing algorithms; keep full-resolution data for cursor lookup.
@@ -362,11 +348,11 @@ dropping. Profile before changing algorithms; keep full-resolution data for curs
 
 **Done when:** the UI remains interactive at the performance target in N1 and cursor values
 remain correct.
-**Depends on:** Step 18.
+**Depends on:** Step 17.
 
 ## Milestone G — Optional VTK 3D backend
 
-### 20. Prototype VTK/Tk integration and add backend selection
+### 19. Prototype VTK/Tk integration and add backend selection
 
 Before implementing the full VTK scene, create a minimal VTK render window driven by the Tk
 timer. After validating event handling on the development platform, add `Trajectory3DView`
@@ -382,29 +368,28 @@ backend selection, `--3d-backend {auto,vtk,matplotlib}` and the optional `vtk` d
 
 **Done when:** the minimal integration is stable enough to proceed, and backend selection
 works with and without VTK installed.
-**Depends on:** Step 19.
+**Depends on:** Step 18.
 
-### 21. Implement the VTK trajectory scene
+### 20. Implement the VTK trajectory scene
 
 Implement the complete VTK backend behind the same view contract: orbit polyline, WGS84 Earth,
-satellite marker, direction-aware tail and trackball camera. Add offscreen PNG support where
-available.
+satellite marker, direction-aware tail and trackball camera.
 
 - **Status:** Not started.
 - **Progress:** 0/5 checklist items.
 - [ ] Build the static orbit, Earth and camera scene.
 - [ ] Update marker and tail from the same cursor state as Matplotlib.
 - [ ] Verify rotate/zoom interaction while playing and seeking.
-- [ ] Add backend contract tests, using offscreen rendering where supported.
+- [ ] Add backend contract tests, using a test-safe VTK rendering setup where supported.
 - [ ] Test explicit VTK errors and `auto` fallback when VTK/rendering is unavailable.
 
 **Done when:** VTK and Matplotlib views produce equivalent cursor state and both honor the
 same playback controls.
-**Depends on:** Step 20.
+**Depends on:** Step 19.
 
 ## Milestone H — Release readiness
 
-### 22. Cross-platform polish and smoke tests
+### 21. Cross-platform polish and smoke tests
 
 Run the application and test suite on supported platforms. Resolve lifecycle, error-message and
 window-management issues without introducing silent fallbacks.
@@ -414,26 +399,27 @@ window-management issues without introducing silent fallbacks.
 - [ ] Verify clear errors for missing Tk and explicit-but-unavailable VTK.
 - [ ] Verify `--help`, invalid arguments, SIGINT and clean window shutdown.
 - [ ] Smoke-test macOS, Linux and Windows; record any backend-specific limitations.
-- [ ] Run focused tests, static-output parity tests and performance benchmark.
+- [ ] Run focused tests and performance benchmark.
 - [ ] Resolve all failures found in these checks.
 
 **Done when:** supported workflows pass on target platforms or documented limitations are
 explicit and accepted.
-**Depends on:** Step 21.
+**Depends on:** Step 20.
 
-### 23. Publish finished-tool documentation and decide migration
+### 22. Publish finished-tool documentation and confirm command separation
 
 Write the user-facing `docs/tools/PLAY_OEM.md`, update README tool listings and
-[TODO.md](../development/TODO.md). Decide whether `plot-oem` should remain separate or become
-an alias to `play-oem -o`; deduplicate copied code only if parity is proven.
+[TODO.md](../development/TODO.md). Keep `plot-oem` as the separate static-plot command and
+`play-oem` as the interactive playback command. Share numerical/data-processing code only when
+compatibility with both commands is verified.
 
 - **Status:** Not started.
 - **Progress:** 0/4 checklist items.
 - [ ] Document installation, CLI, controls, views, backends and limitations.
 - [ ] Update README and TODO references.
-- [ ] Record the migration decision; do not replace `plot-oem` without verified parity.
+- [ ] Document the separate responsibilities of `plot-oem` and `play-oem`.
 - [ ] Review all cross-links and examples.
 
 **Done when:** user-facing documentation matches tested behavior and the migration decision is
 documented.
-**Depends on:** Step 22.
+**Depends on:** Step 21.
