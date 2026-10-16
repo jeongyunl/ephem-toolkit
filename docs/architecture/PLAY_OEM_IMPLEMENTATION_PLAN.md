@@ -45,24 +45,6 @@ the remaining views, advanced controls or VTK.
 
 ## Milestone B — Playback core
 
-### 5. Implement direction-independent cursor lookup
-
-Add `cursor.py` to resolve the OEM state and derived values at a requested timeline time.
-Use a fresh `searchsorted` lookup and the existing interpolation machinery; represent exact
-sample, interpolated, and out-of-range/gap status explicitly. Segment-aware gap behavior is
-completed in step 17; do not silently carry a previous sample forward.
-
-- **Status:** Not started.
-- **Progress:** 0/4 checklist items.
-- [ ] Implement lookup for exact samples and times between samples.
-- [ ] Return explicit status and a clear unavailable state where no valid value can be resolved.
-- [ ] Check representative position/velocity values against `core/interpolator`.
-- [ ] Test identical state values when a time is reached forward, backward and by random seek.
-
-**Done when:** cursor lookup is deterministic, direction-independent and unit-tested without
-opening a display.
-**Depends on:** Step 4.
-
 ## Milestone C — First runnable GUI and demo
 
 ### 6. Create the Tk app shell and lifecycle
@@ -429,3 +411,21 @@ reverse, sample/time stepping and observer notification.
 
 **Done when:** all clock tests pass without importing Tk or Matplotlib.
 **Depends on:** Step 3.
+
+### 5. Implement direction-independent cursor lookup
+
+Add `cursor.py` to resolve the OEM state and derived values at a requested timeline time.
+Use a fresh `searchsorted` lookup and the existing interpolation machinery; represent exact
+sample, interpolated, and out-of-range/gap status explicitly. Segment-aware gap behavior is
+completed in step 17; do not silently carry a previous sample forward.
+
+- **Status:** Done.
+- **Progress:** 4/4 checklist items.
+- [x] Implement lookup for exact samples and times between samples.
+- [x] Return explicit status and a clear unavailable state where no valid value can be resolved.
+- [x] Check representative position/velocity values against `core/interpolator`.
+- [x] Test identical state values when a time is reached forward, backward and by random seek.
+
+**Done when:** cursor lookup is deterministic, direction-independent and unit-tested without
+opening a display.
+**Depends on:** Step 4.
