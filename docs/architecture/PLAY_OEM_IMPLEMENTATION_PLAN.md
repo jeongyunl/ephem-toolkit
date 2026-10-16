@@ -47,23 +47,6 @@ the remaining views, advanced controls or VTK.
 
 ## Milestone C — First runnable GUI and demo
 
-### 9. Add basic play, pause, seek and speed controls
-
-Add the play/pause button, `Space` shortcut, timeline slider, UTC/elapsed readouts and basic
-speed selection (at least `1x` and `10x`). Slider interaction should seek; clock updates should
-update the slider without causing a feedback seek.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Wire play/pause button and `Space` to the clock.
-- [ ] Wire slider drag/click to seek.
-- [ ] Synchronize the slider from the clock using a feedback guard.
-- [ ] Wire basic speed selection and display the selected rate.
-- [ ] Test control callbacks and verify the UI remains responsive during playback.
-
-**Done when:** a user can play, pause, seek and change between at least two speeds in the GUI.
-**Depends on:** Step 8.
-
 ### 10. Add the Matplotlib 3D orbit and deliver the first demo
 
 Implement `views/trajectory3d/mpl_backend.py` from the existing `plot-oem` state-vector plotting
@@ -445,3 +428,26 @@ random seeks.
 **Implementation notes:** Clock notifications update the Matplotlib cursor and call
 `draw_idle()` on Tk 8.6+, or move the red cursor column on the legacy-Tk raster images.
 Unsubscribe the view when its window closes.
+
+### 9. Add basic play, pause, seek and speed controls
+
+Add the play/pause button, `Space` shortcut, timeline slider, UTC/elapsed readouts and basic
+speed selection (at least `1x` and `10x`). Slider interaction should seek; clock updates should
+update the slider without causing a feedback seek.
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Wire play/pause button and `Space` to the clock.
+- [x] Wire slider drag/click to seek.
+- [x] Synchronize the slider from the clock without feeding changes back into `seek()`.
+- [x] Wire basic speed selection and display the selected rate.
+- [x] Test control callbacks and verify the UI remains responsive during playback.
+
+**Done when:** a user can play, pause, seek and change between at least two speeds in the GUI.
+**Depends on:** Step 8.
+
+**Implementation notes:** Use a `PhotoImage` timeline graphic displayed in a classic Tk button
+because the native Scale is not visible on the verified macOS Tk 8.5.9 runtime. The draggable
+slider tracks a normalized timeline fraction and maps it to the clock bounds; disable seeking
+for a zero-duration timeline. Clock updates redraw the image without invoking the pointer seek
+handler.

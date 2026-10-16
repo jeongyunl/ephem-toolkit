@@ -40,13 +40,22 @@ class PlayerApp:
         self.time_unit = time_unit
         self.root = tk.Tk() if root is None else root
         self.control_window = ControlWindow(
-            self.root, self.close, self.open_speed_altitude_view
+            self.root,
+            self.close,
+            self.open_speed_altitude_view,
+            self._toggle_playback,
+            self._seek_to_fraction,
+            self._set_playback_speed,
+            timeline_enabled=clock.t_start < clock.t_end,
         )
+        self.root.bind_all("<space>", self._on_space)
+        self.root.bind_all("<KeyRelease-space>", self._on_space_release)
         self._tick_interval_ms = tick_interval_ms
         self._last_tick: float | None = None
         self._timer_id: str | None = None
         self._started = False
         self._closed = False
+        self._space_pressed = False
         self._speed_altitude_view: SpeedAltitudeView | None = None
         self._speed_altitude_window: tk.Toplevel | None = None
         self._speed_altitude_canvas: FigureCanvasTkAgg | None = None
@@ -273,6 +282,29 @@ class PlayerApp:
         if not self._closed:
             self._timer_id = self.root.after(self._tick_interval_ms, self._on_timer)
 
+    def _toggle_playback(self) -> None:
+        self.clock.toggle()
+        self._update_time_display()
+
+    def _on_space(self, _event: tk.Event) -> str:
+        if not self._space_pressed:
+            self._space_pressed = True
+            self._toggle_playback()
+        return "break"
+
+    def _on_space_release(self, _event: tk.Event) -> str:
+        self._space_pressed = False
+        return "break"
+
+    def _seek_to_fraction(self, progress: float) -> None:
+        span = self.clock.t_end - self.clock.t_start
+        self.clock.seek(self.clock.t_start + progress * span)
+        self._update_time_display()
+
+    def _set_playback_speed(self, speed: float) -> None:
+        self.clock.set_speed(speed)
+        self._update_time_display()
+
     def _on_timer(self) -> None:
         self._timer_id = None
         if self._closed:
@@ -292,7 +324,16 @@ class PlayerApp:
         utc_time = time_utils.datetime_to_iso8601(
             time_utils.tt_s_to_datetime(self.clock.t_now)
         )
-        self.control_window.update_time(f"Elapsed: {elapsed_s:.3f} s\nUTC: {utc_time}")
+        span = self.clock.t_end - self.clock.t_start
+        progress = (
+            0.0 if span == 0.0 else (self.clock.t_now - self.clock.t_start) / span
+        )
+        self.control_window.update_playback_state(
+            f"Elapsed: {elapsed_s:.3f} s\nUTC: {utc_time}",
+            progress,
+            self.clock.playing,
+            self.clock.rate,
+        )
 
     def _handle_sigint(self, _signum: int, _frame: object) -> None:
         self.close()

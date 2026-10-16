@@ -48,7 +48,7 @@ Options:
 | Option | Pros | Cons |
 |---|---|---|
 | A. Matplotlib only (TkAgg/QtAgg), control window = a Matplotlib figure with `Slider`, `Button`, `RadioButtons` | no new deps; one event loop | clunky toolbar, widget look, slider/timer coupling |
-| B. **Tkinter control window + Matplotlib figures** (`TkAgg`) | stdlib Tk, native-ish widgets (`tk.Scale`, buttons, toolbar), single Tk event loop shared by all figures; no new dependency | Tk must be available (usually bundled; not on some Linux distros); legacy Tk may have rendering limitations |
+| B. **Tkinter control window + Matplotlib figures** (`TkAgg`) | stdlib Tk, native-ish controls and toolbar, single Tk event loop shared by all figures; no new dependency | Tk must be available (usually bundled; not on some Linux distros); legacy Tk may have rendering limitations |
 | C. Qt (PySide6) | best widgets | heavy new dependency |
 
 **Decision: B**, with Tk-managed plot windows sharing one Tk root and event loop. Use Matplotlib
@@ -208,8 +208,8 @@ Details ▸ (additional OEM metadata and diagnostics)
 
 - Legacy Tk rendering must remain usable through a compatible fallback; the concrete version
   check and rendering strategy are specified in implementation-plan steps 6–8.
-- Slider (`tk.Scale`, 0…duration) → `clock.seek`; programmatic updates from the clock set the
-  slider without feeding back (guard flag).
+- Timeline seek control → `clock.seek`; clock updates move the control without feeding back
+  into `seek`.
 - Speed: log scale slider (10^0…10^3) plus preset combobox, both bound to `clock.set_speed`.
 - Direction: toggle button `◀ / ▶` (key `R`) bound to `clock.reverse`; label shows e.g. `−60x`.
 - Time entry: text field accepting `1h30m` (elapsed) or a UTC epoch; Enter → `clock.seek`; invalid input is flagged without changing `t_now`.

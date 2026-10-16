@@ -23,6 +23,7 @@ class FakeRoot:
         self.quit_called = False
         self.idle_updates = 0
         self._next_after_id = 0
+        self.bindings: dict[str, object] = {}
         self.tk = FakeTclInterpreter(patchlevel)
 
     def title(self, _title: str) -> None:
@@ -36,6 +37,9 @@ class FakeRoot:
 
     def protocol(self, name: str, callback) -> None:
         self.protocols[name] = callback
+
+    def bind_all(self, sequence: str, callback) -> None:
+        self.bindings[sequence] = callback
 
     def update_idletasks(self) -> None:
         self.idle_updates += 1
@@ -77,27 +81,94 @@ def test_control_window_uses_visible_classic_button_for_time_readout(
 ) -> None:
     root = FakeRoot()
     widgets = []
+    seek_values: list[float] = []
+    speed_values: list[float] = []
+    toggle_calls: list[bool] = []
 
     class FakeButton:
         def __init__(self, _master, **options) -> None:
             self.options = options
             self.text = options.get("text", "")
+            self.bindings: dict[str, object] = {}
             widgets.append(self)
 
         def pack(self, **_kwargs) -> None:
             pass
 
-        def configure(self, *, text: str) -> None:
-            self.text = text
+        def bind(self, sequence: str, callback) -> None:
+            self.bindings[sequence] = callback
+
+        def configure(self, **options) -> None:
+            self.options.update(options)
+            self.text = options.get("text", self.text)
+
+    class FakeFrame:
+        def __init__(self, _master, **_options) -> None:
+            pass
+
+        def pack(self, **_kwargs) -> None:
+            pass
+
+    class FakePhotoImage:
+        _next_id = 0
+
+        def __init__(self, *, master, width: int, height: int) -> None:
+            type(self)._next_id += 1
+            self.name = f"fake-control-image-{type(self)._next_id}"
+            self.tk = master.tk
+            self.width = width
+            self.height = height
+            self.put_calls: list[tuple[str, tuple[int, ...]]] = []
+
+        def __str__(self) -> str:
+            return self.name
+
+        def put(self, color: str, *, to: tuple[int, ...]) -> None:
+            self.put_calls.append((color, to))
 
     monkeypatch.setattr(control_window.tk, "Button", FakeButton)
-    window = control_window.ControlWindow(root, lambda: None, lambda: None)
+    monkeypatch.setattr(control_window.tk, "Frame", FakeFrame)
+    monkeypatch.setattr(control_window.tk, "PhotoImage", FakePhotoImage)
+    window = control_window.ControlWindow(
+        root,
+        lambda: None,
+        lambda: None,
+        lambda: toggle_calls.append(True),
+        seek_values.append,
+        speed_values.append,
+        timeline_enabled=True,
+    )
     window.update_time("Elapsed: 1 s\nUTC: example")
+    window.update_playback_state("Elapsed: 2 s\nUTC: example", 0.25, False, 10.0)
 
     assert widgets[0].options["state"] == "normal"
     assert widgets[0].options["relief"] == "flat"
-    assert widgets[0].text == "Elapsed: 1 s"
+    assert widgets[0].text == "Elapsed: 2 s"
     assert widgets[1].text == "UTC: example"
+    assert window._play_pause_button.text == "Play"
+    assert window._speed_label.text == "Speed: 10x"
+    assert window._speed_10_button.options["relief"] == "sunken"
+    assert window._timeline_button.options["image"] is window._timeline_image
+    assert window._timeline_image.width == 480
+    assert any(color == "#2878c8" for color, _to in window._timeline_image.put_calls)
+    assert seek_values == []
+    assert window._play_pause_button.bindings["<space>"](None) == "break"
+    window._play_pause_button.bindings["<space>"](None)
+    assert toggle_calls == [True]
+    window._play_pause_button.bindings["<KeyRelease-space>"](None)
+    window._play_pause_button.bindings["<space>"](None)
+    assert toggle_calls == [True, True]
+    window._timeline_button.bindings["<Button-1>"](
+        type("ClickEvent", (), {"x": 240, "y": 16})()
+    )
+    assert seek_values[-1] == 0.5
+    window._timeline_button.bindings["<B1-Motion>"](
+        type("ClickEvent", (), {"x": 354, "y": 16})()
+    )
+    assert seek_values[-1] == 0.75
+    window._speed_1_button.options["command"]()
+    window._speed_10_button.options["command"]()
+    assert speed_values == [1.0, 10.0]
 
 
 class FakeToplevel:
@@ -125,13 +196,31 @@ class FakeToplevel:
 
 
 class FakeControlWindow:
-    def __init__(self, root, on_close, _on_open_speed_altitude) -> None:
+    def __init__(
+        self,
+        root,
+        on_close,
+        _on_open_speed_altitude,
+        on_toggle_play,
+        on_seek,
+        on_set_speed,
+        *,
+        timeline_enabled,
+    ) -> None:
         self.on_close = on_close
+        self.on_toggle_play = on_toggle_play
+        self.on_seek = on_seek
+        self.on_set_speed = on_set_speed
+        self.timeline_enabled = timeline_enabled
         self.readouts: list[str] = []
+        self.states: list[tuple[float, bool, float]] = []
         root.protocol("WM_DELETE_WINDOW", on_close)
 
-    def update_time(self, text: str) -> None:
+    def update_playback_state(
+        self, text: str, progress: float, playing: bool, rate: float
+    ) -> None:
         self.readouts.append(text)
+        self.states.append((progress, playing, rate))
 
 
 def make_series():
@@ -172,6 +261,7 @@ def test_timer_advances_clock_updates_readout_and_closes(
     assert player.clock.t_now == 102.5
     assert player.control_window.readouts[-1].startswith("Elapsed: 2.500 s")
     assert "UTC:" in player.control_window.readouts[-1]
+    assert player.control_window.states[-1] == (0.025, True, 1.0)
     assert player._timer_id is not None
 
     active_timer = player._timer_id
@@ -193,6 +283,31 @@ def test_window_close_callback_stops_timer_and_destroys_root(
 
     assert root.destroyed
     assert not root.callbacks
+
+
+def test_play_pause_space_seek_and_speed_controls_update_clock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = FakeRoot()
+    player = make_app(monkeypatch, root)
+    assert player.control_window.timeline_enabled
+
+    space_callback = root.bindings["<space>"]
+    assert space_callback(None) == "break"
+    assert not player.clock.playing
+    space_callback(None)
+    assert not player.clock.playing
+    root.bindings["<KeyRelease-space>"](None)
+    player.control_window.on_toggle_play()
+    assert player.clock.playing
+
+    player.control_window.on_seek(0.5)
+    assert player.clock.t_now == 150.0
+    assert player.control_window.states[-1][0] == 0.5
+
+    player.control_window.on_set_speed(10.0)
+    assert player.clock.rate == 10.0
+    assert player.control_window.states[-1][2] == 10.0
 
 
 def test_run_handles_sigint_and_restores_previous_handler(
