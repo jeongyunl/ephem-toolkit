@@ -45,11 +45,11 @@ Create `src/ephem_toolkit/play_oem/` with `__init__.py`, `__main__.py` and `play
 Add the `play-oem` console entry point in `pyproject.toml`. Implement argument parsing for the
 input path and `--help`; do not add GUI or playback behavior yet.
 
-- **Status:** Not started.
-- **Progress:** 0/3 checklist items.
-- [ ] `play-oem --help` exits successfully and shows the command synopsis.
-- [ ] `play-oem` without an input reports a normal argparse usage error.
-- [ ] Add focused CLI/entry-point tests and run them.
+- **Status:** Done.
+- **Progress:** 3/3 checklist items.
+- [x] `play-oem --help` exits successfully and shows the command synopsis.
+- [x] `play-oem` without an input reports a normal argparse usage error.
+- [x] Add focused CLI/entry-point tests and run them.
 
 **Done when:** the installed project exposes `play-oem` and its minimal CLI tests pass.
 **Depends on:** None.
