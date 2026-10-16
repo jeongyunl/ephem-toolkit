@@ -63,10 +63,24 @@ def test_cli_reports_missing_input_file(
     assert "File not found" in capsys.readouterr().err
 
 
-def test_cli_loads_and_prepares_oem_data(capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_loads_oem_and_launches_player(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     input_oem = (
         Path(__file__).resolve().parents[2] / "data" / "ISS_2026-05-20_small.OEM"
     )
+    from ephem_toolkit.play_oem import app
+
+    launched: dict[str, object] = {}
+
+    class FakePlayerApp:
+        def __init__(self, clock) -> None:
+            launched["clock"] = clock
+
+        def run(self) -> None:
+            launched["run"] = True
+
+    monkeypatch.setattr(app, "PlayerApp", FakePlayerApp)
 
     main([str(input_oem), "--duration", "1h", "--time-unit", "minutes"])
 
@@ -74,6 +88,8 @@ def test_cli_loads_and_prepares_oem_data(capsys: pytest.CaptureFixture[str]) -> 
     assert "Loaded 721 states" in output
     assert "Using 16 states after duration filtering" in output
     assert "Prepared orbit series with 16 samples using minutes." in output
+    assert launched["run"] is True
+    assert launched["clock"].t_start < launched["clock"].t_end
 
 
 def test_cli_reports_invalid_duration(capsys: pytest.CaptureFixture[str]) -> None:

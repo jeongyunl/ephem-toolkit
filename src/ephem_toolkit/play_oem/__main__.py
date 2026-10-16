@@ -16,6 +16,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     import ephem_toolkit.core.time_utils as time_utils
 
     from .data import filter_states_by_duration, read_oem_states
+    from .app import PlayerApp
+    from .clock import PlaybackClock
     from .series import OrbitSeries, compute_orbit_series
     from .time_unit import TimeUnit
 
@@ -44,6 +46,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         f"Prepared orbit series with {len(series.elapsed_time)} samples "
         f"using {time_unit.value}."
     )
+    clock = PlaybackClock(
+        timestamps_s[0],
+        timestamps_s[-1],
+        sample_times=timestamps_s,
+    )
+    PlayerApp(clock).run()
 
 
 def cli(argv: Sequence[str] | None = None) -> int:

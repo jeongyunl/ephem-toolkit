@@ -47,23 +47,6 @@ the remaining views, advanced controls or VTK.
 
 ## Milestone C — First runnable GUI and demo
 
-### 6. Create the Tk app shell and lifecycle
-
-Add `app.py` and the initial `control_window.py`. Create one Tk root, a minimal control window,
-an `after()` timer driven by `time.monotonic()`, and reliable close/SIGINT handling. Start with
-the timer updating a visible elapsed-time label; do not open plot windows yet.
-
-- **Status:** Not started.
-- **Progress:** 0/4 checklist items.
-- [ ] Launch a Tk root from the `play-oem <input_oem>` CLI path.
-- [ ] Tick the clock from the Tk timer and display current elapsed/UTC time.
-- [ ] Stop the timer and destroy cleanly when the window closes.
-- [ ] Handle SIGINT without leaving the application process running.
-
-**Done when:** the command opens and closes a minimal functioning control window on the
-development platform.
-**Depends on:** Step 5.
-
 ### 7. Define the view lifecycle and build the first static time-series view
 
 Add the toolkit-neutral `View` protocol and a Matplotlib `speed_altitude` view. Implement
@@ -429,3 +412,20 @@ completed in step 17; do not silently carry a previous sample forward.
 **Done when:** cursor lookup is deterministic, direction-independent and unit-tested without
 opening a display.
 **Depends on:** Step 4.
+
+### 6. Create the Tk app shell and lifecycle
+
+Add `app.py` and the initial `control_window.py`. Create one Tk root, a minimal control window,
+an `after()` timer driven by `time.monotonic()`, and reliable close/SIGINT handling. Start with
+the timer updating a visible elapsed-time label; do not open plot windows yet.
+
+- **Status:** Done.
+- **Progress:** 4/4 checklist items.
+- [x] Launch a Tk root from the `play-oem <input_oem>` CLI path.
+- [x] Tick the clock from the Tk timer and display current elapsed/UTC time.
+- [x] Stop the timer and destroy cleanly when the window closes.
+- [x] Handle SIGINT without leaving the application process running.
+
+**Done when:** the command opens and closes a minimal functioning control window on the
+development platform.
+**Depends on:** Step 5.
