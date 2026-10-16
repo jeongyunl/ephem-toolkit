@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import signal
+import tempfile
 import time
 import tkinter as tk
+from collections.abc import Callable
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
@@ -14,7 +16,7 @@ from .clock import PlaybackClock
 from .control_window import ControlWindow
 from .series import OrbitSeries
 from .time_unit import TimeUnit
-from .views.speed_altitude import SpeedAltitudeView
+from .views.speed_altitude import RasterPlot, SpeedAltitudeView
 
 DEFAULT_TICK_INTERVAL_MS = 33
 
@@ -47,6 +49,12 @@ class PlayerApp:
         self._closed = False
         self._speed_altitude_view: SpeedAltitudeView | None = None
         self._speed_altitude_window: tk.Toplevel | None = None
+        self._speed_altitude_canvas: FigureCanvasTkAgg | None = None
+        self._speed_altitude_rasters: tuple[RasterPlot, ...] = ()
+        self._speed_altitude_base_images: tuple[tk.PhotoImage, ...] = ()
+        self._speed_altitude_images: tuple[tk.PhotoImage, ...] = ()
+        self._speed_altitude_cursor_x: int | None = None
+        self._unsubscribe_speed_altitude: Callable[[], None] | None = None
 
     def run(self) -> None:
         """Start the Tk event loop and restore the process signal handler on exit."""
@@ -68,6 +76,7 @@ class PlayerApp:
         self._started = True
         self._last_tick = time.monotonic()
         self._update_time_display()
+        self.root.update_idletasks()
         self._schedule_tick()
 
     def close(self) -> None:
@@ -88,16 +97,81 @@ class PlayerApp:
             self._speed_altitude_window.lift()
             return
 
+        patchlevel = str(self.root.tk.call("info", "patchlevel"))
+        try:
+            tk_version = tuple(int(part) for part in patchlevel.split(".")[:2])
+        except ValueError as exception:
+            raise RuntimeError(
+                f"could not determine Tcl/Tk version from {patchlevel!r}"
+            ) from exception
+        if len(tk_version) != 2:
+            raise RuntimeError(
+                f"could not determine Tcl/Tk version from {patchlevel!r}"
+            )
         view = SpeedAltitudeView(self.clock.t_start)
         figure = view.build(self.series, self.time_unit)
+        view.update(self.clock.t_now)
         window = tk.Toplevel(self.root)
-        window.title("Speed / Altitude")
-        canvas = FigureCanvasTkAgg(figure, master=window)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill="both", expand=True)
+        window.title(
+            "Speed / Altitude"
+            if tk_version >= (8, 6)
+            else f"Speed / Altitude (Tk {patchlevel} raster view)"
+        )
+        canvas: FigureCanvasTkAgg | None = None
+        rasters: tuple[RasterPlot, ...] = ()
+        base_images: tuple[tk.PhotoImage, ...] = ()
+        images: tuple[tk.PhotoImage, ...] = ()
+        if tk_version >= (8, 6):
+            canvas = FigureCanvasTkAgg(figure, master=window)
+            canvas.get_tk_widget().pack(fill="both", expand=True)
+        else:
+            rasters = view.render_rasters()
+            base_images_list: list[tk.PhotoImage] = []
+            images_list: list[tk.PhotoImage] = []
+            titles = ("Speed (km/s)", "Altitude (km)")
+            for title, raster in zip(titles, rasters):
+                self._pack_legacy_plot_caption(window, title)
+                with tempfile.NamedTemporaryFile(suffix=".ppm") as image_file:
+                    image_file.write(raster.ppm_data)
+                    image_file.flush()
+                    base_image = tk.PhotoImage(master=window, file=image_file.name)
+                image = tk.PhotoImage(
+                    master=window,
+                    width=raster.width,
+                    height=raster.height,
+                )
+                image.tk.call(str(image), "copy", str(base_image))
+                plot_button = tk.Button(
+                    window,
+                    image=image,
+                    relief="flat",
+                    borderwidth=0,
+                    highlightthickness=0,
+                    padx=0,
+                    pady=0,
+                    takefocus=False,
+                )
+                plot_button.pack(anchor="w", padx=12)
+                base_images_list.append(base_image)
+                images_list.append(image)
+            self._pack_legacy_plot_caption(window, self.time_unit.get_axis_label())
+            base_images = tuple(base_images_list)
+            images = tuple(images_list)
+        window.update_idletasks()
+        if canvas is not None:
+            canvas.draw()
         window.protocol("WM_DELETE_WINDOW", self.close_speed_altitude_view)
         self._speed_altitude_view = view
         self._speed_altitude_window = window
+        self._speed_altitude_canvas = canvas
+        self._speed_altitude_rasters = rasters
+        self._speed_altitude_base_images = base_images
+        self._speed_altitude_images = images
+        self._unsubscribe_speed_altitude = self.clock.subscribe(
+            self._update_speed_altitude_view
+        )
+        if rasters:
+            self._update_legacy_raster_cursor(self.clock.t_now)
 
     def close_speed_altitude_view(self) -> None:
         """Close the speed and altitude plot, leaving the control window open."""
@@ -105,11 +179,95 @@ class PlayerApp:
             return
         view = self._speed_altitude_view
         window = self._speed_altitude_window
+        unsubscribe = self._unsubscribe_speed_altitude
         self._speed_altitude_view = None
         self._speed_altitude_window = None
+        self._speed_altitude_canvas = None
+        self._speed_altitude_rasters = ()
+        self._speed_altitude_base_images = ()
+        self._speed_altitude_images = ()
+        self._speed_altitude_cursor_x = None
+        self._unsubscribe_speed_altitude = None
+        if unsubscribe is not None:
+            unsubscribe()
         view.close()
         if window is not None:
             window.destroy()
+
+    def _update_speed_altitude_view(self, t_s: float) -> None:
+        view = self._speed_altitude_view
+        if view is None:
+            return
+        view.update(t_s)
+        if self._speed_altitude_canvas is not None:
+            self._speed_altitude_canvas.draw_idle()
+        elif self._speed_altitude_rasters:
+            self._update_legacy_raster_cursor(t_s)
+
+    def _pack_legacy_plot_caption(self, window: tk.Toplevel, text: str) -> None:
+        caption = tk.Button(
+            window,
+            text=text,
+            anchor="w",
+            height=1,
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+            takefocus=False,
+            background="white",
+            foreground="black",
+        )
+        caption.pack(fill="x", padx=12, pady=(4, 0))
+
+    def _update_legacy_raster_cursor(self, t_s: float) -> None:
+        if (
+            not self._speed_altitude_rasters
+            or len(self._speed_altitude_rasters) != len(self._speed_altitude_images)
+            or len(self._speed_altitude_rasters)
+            != len(self._speed_altitude_base_images)
+        ):
+            raise RuntimeError("legacy raster plot images are not initialized")
+
+        raster = self._speed_altitude_rasters[0]
+        elapsed_time = (t_s - self.clock.t_start) / self.time_unit.get_divisor_s()
+        cursor_x = raster.cursor_column(elapsed_time)
+        if cursor_x == self._speed_altitude_cursor_x:
+            return
+
+        if self._speed_altitude_cursor_x is not None:
+            old_x = self._speed_altitude_cursor_x
+            for image, base_image, panel in zip(
+                self._speed_altitude_images,
+                self._speed_altitude_base_images,
+                self._speed_altitude_rasters,
+            ):
+                image.tk.call(
+                    str(image),
+                    "copy",
+                    str(base_image),
+                    "-from",
+                    old_x,
+                    panel.plot_top,
+                    old_x + 1,
+                    panel.plot_bottom + 1,
+                    "-to",
+                    old_x,
+                    panel.plot_top,
+                )
+
+        for image, panel in zip(
+            self._speed_altitude_images, self._speed_altitude_rasters
+        ):
+            image.put(
+                "#d62728",
+                to=(
+                    cursor_x,
+                    panel.plot_top,
+                    cursor_x + 1,
+                    panel.plot_bottom + 1,
+                ),
+            )
+        self._speed_altitude_cursor_x = cursor_x
 
     def _schedule_tick(self) -> None:
         if not self._closed:

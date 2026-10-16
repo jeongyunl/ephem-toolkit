@@ -47,22 +47,6 @@ the remaining views, advanced controls or VTK.
 
 ## Milestone C — First runnable GUI and demo
 
-### 8. Animate the time-series cursor
-
-Implement `speed_altitude.update(t_s)` and connect it to the shared playback clock. Keep the
-full series fixed while the cursor follows the clock. Ensure seeking updates the figure even
-when playback is paused.
-
-- **Status:** Not started.
-- **Progress:** 0/3 checklist items.
-- [ ] Move the cursor on clock ticks.
-- [ ] Move the cursor immediately after a seek while paused.
-- [ ] Test cursor positions at the start, an interior time and the end.
-
-**Done when:** the time-series view stays synchronized with the clock under playback and
-random seeks.
-**Depends on:** Step 7.
-
 ### 9. Add basic play, pause, seek and speed controls
 
 Add the play/pause button, `Space` shortcut, timeline slider, UTC/elapsed readouts and basic
@@ -414,6 +398,10 @@ the timer updating a visible elapsed-time label; do not open plot windows yet.
 development platform.
 **Depends on:** Step 5.
 
+**Implementation notes:** Use classic Tk buttons rather than themed widgets for the elapsed and
+UTC readouts. Keep each value on its own flat, single-line button with explicit colors; this
+keeps the readout visible on the legacy macOS Tk 8.5 runtime.
+
 ### 7. Define the view lifecycle and build the first static time-series view
 
 Add the toolkit-neutral `View` protocol and a Matplotlib `speed_altitude` view. Implement
@@ -429,3 +417,31 @@ cursor artist. Connect the view window lifecycle to the app.
 
 **Done when:** the app can open and close one static time-series view from an OEM.
 **Depends on:** Step 6.
+
+**Implementation notes:** Detect the Tcl/Tk patch level when opening the view. Tk 8.6+ uses the
+Matplotlib `TkAgg` canvas. The verified macOS Tk 8.5.9 runtime leaves `TkAgg` canvases and native
+Canvas drawings blank, but renders raster images in classic Tk buttons. Its fallback therefore
+draws the data series, grid, axes and ticks into PPM images and displays them through classic
+buttons; plot content and axes are graphical rather than text characters. Keep titles and the
+time-unit caption in separate single-line buttons, and flush Tk layout before the initial
+Matplotlib draw.
+
+### 8. Animate the time-series cursor
+
+Implement `speed_altitude.update(t_s)` and connect it to the shared playback clock. Keep the
+full series fixed while the cursor follows the clock. Ensure seeking updates the figure even
+when playback is paused.
+
+- **Status:** Done.
+- **Progress:** 3/3 checklist items.
+- [x] Move the cursor on clock ticks.
+- [x] Move the cursor immediately after a seek while paused.
+- [x] Test cursor positions at the start, an interior time and the end.
+
+**Done when:** the time-series view stays synchronized with the clock under playback and
+random seeks.
+**Depends on:** Step 7.
+
+**Implementation notes:** Clock notifications update the Matplotlib cursor and call
+`draw_idle()` on Tk 8.6+, or move the red cursor column on the legacy-Tk raster images.
+Unsubscribe the view when its window closes.
