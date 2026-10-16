@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import timedelta
+import math
 from pathlib import Path
 
 from .play_oem_cli import build_arg_parser, parse_arguments, PlayOemArgs
@@ -48,11 +50,33 @@ def main(argv: Sequence[str] | None = None) -> None:
         f"Prepared orbit series with {len(series.elapsed_time)} samples "
         f"using {time_unit.value}."
     )
+    rate = -cli_args.speed if cli_args.reverse else cli_args.speed
     clock = PlaybackClock(
         timestamps_s[0],
         timestamps_s[-1],
+        t_now=timestamps_s[-1] if rate < 0.0 else timestamps_s[0],
+        rate=rate,
+        playing=cli_args.autoplay,
+        loop=cli_args.loop,
         sample_times=timestamps_s,
     )
+    if cli_args.start is not None:
+        try:
+            parsed_start = time_utils.parse_time_or_duration(cli_args.start)
+            if isinstance(parsed_start, timedelta):
+                start_time_s = timestamps_s[0] + parsed_start.total_seconds()
+            else:
+                start_time_s = time_utils.datetime_to_tt_s(parsed_start)
+            if not timestamps_s[0] <= start_time_s <= timestamps_s[-1]:
+                raise ValueError("start time is outside the selected OEM timeline")
+            clock.seek(start_time_s)
+        except ValueError as exception:
+            print(
+                f"Error: failed to parse start time '{cli_args.start}': {exception}",
+                file=sys.stderr,
+            )
+            raise SystemExit(1) from exception
+
     cursor = OemCursor(
         timestamps_s,
         states_m,
@@ -78,6 +102,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         cursor,
         object_name,
         frame_context,
+        tick_interval_ms=math.ceil(1000 / cli_args.fps),
     ).run()
 
 

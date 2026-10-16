@@ -47,23 +47,6 @@ the remaining views, advanced controls or VTK.
 
 ## Milestone D — Complete playback and seeking
 
-### 11. Add full speed range, reverse and playback CLI options
-
-Expand the speed control to 1x–1000x with presets; add direction toggle and `R`; implement
-`--speed`, `--reverse`, `--start`, `--autoplay`, `--loop` and `--fps`. Reverse without an
-explicit start begins at the timeline end.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Add log-scale speed selection and presets through 1000x.
-- [ ] Add direction toggle and signed-rate readout; reverse without moving the cursor.
-- [ ] Implement and validate the listed CLI options.
-- [ ] Test forward/reverse boundary pause and loop behavior in the GUI and CLI.
-- [ ] Test invalid speed, start time and FPS values produce clear errors.
-
-**Done when:** the full playback range and reverse direction work from controls and CLI.
-**Depends on:** Step 10.
-
 ### 12. Add direct time entry and seek shortcuts
 
 Support elapsed-duration and UTC input, sample/time stepping, start/end shortcuts and click-to-seek.
@@ -449,3 +432,20 @@ the speed/altitude view as the default `overview`.
 **First demo / done when:** `play-oem tests/data/ISS_2026-05-20.OEM` opens the control window,
 3D orbit and speed/altitude plot; play, pause, seek and speed changes visibly work.
 **Depends on:** Step 9.
+
+### 11. Add full speed range, reverse and playback CLI options
+
+Expand the speed control to 1x–1000x with presets; add direction toggle and `R`; implement
+`--speed`, `--reverse`, `--start`, `--autoplay`, `--loop` and `--fps`. Reverse without an
+explicit start begins at the timeline end.
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Add log-scale speed selection and presets through 1000x.
+- [x] Add direction toggle and signed-rate readout; reverse without moving the cursor.
+- [x] Implement and validate the listed CLI options.
+- [x] Test forward/reverse boundary pause and loop behavior in the GUI and CLI.
+- [x] Test invalid speed, start time and FPS values produce clear errors.
+
+**Done when:** the full playback range and reverse direction work from controls and CLI.
+**Depends on:** Step 10.

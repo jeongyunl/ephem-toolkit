@@ -214,7 +214,8 @@ Details ▸ (additional OEM metadata and diagnostics)
   check and rendering strategy are specified in implementation-plan steps 6–8.
 - Timeline seek control → `clock.seek`; clock updates move the control without feeding back
   into `seek`.
-- Speed: log scale slider (10^0…10^3) plus preset combobox, both bound to `clock.set_speed`.
+- Speed: log scale slider (10^0…10^3) plus 1x/10x/100x/1000x preset buttons, all bound to
+  `clock.set_speed`.
 - Direction: toggle button `◀ / ▶` (key `R`) bound to `clock.reverse`; label shows e.g. `−60x`.
 - Time entry: text field accepting `1h30m` (elapsed) or a UTC epoch; Enter → `clock.seek`; invalid input is flagged without changing `t_now`.
 - Click-to-seek: each time-series view connects `button_press_event` (left click inside axes, toolbar zoom/pan mode inactive) → `clock.seek(x * unit_divisor)`.

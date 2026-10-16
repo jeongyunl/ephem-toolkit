@@ -54,16 +54,22 @@ class PlayerApp:
             self._toggle_playback,
             self._seek_to_fraction,
             self._set_playback_speed,
+            self._reverse_playback,
             timeline_enabled=clock.t_start < clock.t_end,
         )
         self.root.bind_all("<space>", self._on_space)
         self.root.bind_all("<KeyRelease-space>", self._on_space_release)
+        self.root.bind_all("<KeyPress-r>", self._on_reverse_key)
+        self.root.bind_all("<KeyPress-R>", self._on_reverse_key)
+        self.root.bind_all("<KeyRelease-r>", self._on_reverse_key_release)
+        self.root.bind_all("<KeyRelease-R>", self._on_reverse_key_release)
         self._tick_interval_ms = tick_interval_ms
         self._last_tick: float | None = None
         self._timer_id: str | None = None
         self._started = False
         self._closed = False
         self._space_pressed = False
+        self._reverse_key_pressed = False
         self._speed_altitude_view: SpeedAltitudeView | None = None
         self._speed_altitude_window: tk.Toplevel | None = None
         self._speed_altitude_canvas: FigureCanvasTkAgg | None = None
@@ -459,6 +465,16 @@ class PlayerApp:
         self._space_pressed = False
         return "break"
 
+    def _on_reverse_key(self, _event: tk.Event) -> str:
+        if not self._reverse_key_pressed:
+            self._reverse_key_pressed = True
+            self._reverse_playback()
+        return "break"
+
+    def _on_reverse_key_release(self, _event: tk.Event) -> str:
+        self._reverse_key_pressed = False
+        return "break"
+
     def _seek_to_fraction(self, progress: float) -> None:
         span = self.clock.t_end - self.clock.t_start
         self.clock.seek(self.clock.t_start + progress * span)
@@ -466,6 +482,10 @@ class PlayerApp:
 
     def _set_playback_speed(self, speed: float) -> None:
         self.clock.set_speed(speed)
+        self._update_time_display()
+
+    def _reverse_playback(self) -> None:
+        self.clock.reverse()
         self._update_time_display()
 
     def _on_timer(self) -> None:

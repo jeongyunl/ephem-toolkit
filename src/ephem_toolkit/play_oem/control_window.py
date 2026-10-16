@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import math
 import tkinter as tk
 
 # Classic buttons keep the readout visible with legacy Tk builds such as macOS Tk 8.5.
@@ -14,6 +15,12 @@ TIMELINE_HEIGHT_PX = 32
 TIMELINE_LEFT_PX = 12
 TIMELINE_RIGHT_PX = 468
 TIMELINE_CENTER_Y = 16
+SPEED_SCALE_WIDTH_PX = 320
+SPEED_SCALE_HEIGHT_PX = 28
+SPEED_SCALE_LEFT_PX = 12
+SPEED_SCALE_RIGHT_PX = 308
+SPEED_SCALE_CENTER_Y = 14
+SPEED_PRESETS = (1.0, 10.0, 100.0, 1000.0)
 
 
 class ControlWindow:
@@ -27,12 +34,15 @@ class ControlWindow:
         on_toggle_play: Callable[[], None],
         on_seek: Callable[[float], None],
         on_set_speed: Callable[[float], None],
+        on_reverse: Callable[[], None],
         *,
         timeline_enabled: bool,
     ) -> None:
         self.root = root
         self._on_seek = on_seek
         self._on_toggle_play = on_toggle_play
+        self._on_set_speed = on_set_speed
+        self._on_reverse = on_reverse
         self._space_pressed = False
         self._timeline_enabled = timeline_enabled
         self.root.title("play-oem")
@@ -81,7 +91,7 @@ class ControlWindow:
         self._play_pause_button.pack(side="left", padx=(16, 8), pady=(0, 8))
         self._speed_label = tk.Button(
             playback_controls,
-            text="Speed: 1x",
+            text="Speed: +1x",
             state="normal",
             relief="flat",
             borderwidth=0,
@@ -104,7 +114,94 @@ class ControlWindow:
             command=lambda: on_set_speed(10.0),
             highlightbackground=BACKGROUND_COLOR,
         )
-        self._speed_10_button.pack(side="left", padx=(0, 16), pady=(0, 8))
+        self._speed_10_button.pack(side="left", padx=(0, 4), pady=(0, 8))
+        self._speed_100_button = tk.Button(
+            playback_controls,
+            text="100x",
+            command=lambda: on_set_speed(100.0),
+            highlightbackground=BACKGROUND_COLOR,
+        )
+        self._speed_100_button.pack(side="left", padx=(0, 4), pady=(0, 8))
+        self._speed_1000_button = tk.Button(
+            playback_controls,
+            text="1000x",
+            command=lambda: on_set_speed(1000.0),
+            highlightbackground=BACKGROUND_COLOR,
+        )
+        self._speed_1000_button.pack(side="left", padx=(0, 4), pady=(0, 8))
+        self._reverse_button = tk.Button(
+            playback_controls,
+            text="Reverse",
+            command=on_reverse,
+            highlightbackground=BACKGROUND_COLOR,
+        )
+        self._reverse_button.pack(side="left", padx=(0, 16), pady=(0, 8))
+        self._speed_scale_caption = tk.Button(
+            root,
+            text="Playback speed (log scale, 1x to 1000x)",
+            anchor="w",
+            height=1,
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+            takefocus=False,
+            background=BACKGROUND_COLOR,
+            foreground=FOREGROUND_COLOR,
+        )
+        self._speed_scale_caption.pack(fill="x", padx=16, pady=(0, 0))
+        self._speed_scale_base_image = tk.PhotoImage(
+            master=root,
+            width=SPEED_SCALE_WIDTH_PX,
+            height=SPEED_SCALE_HEIGHT_PX,
+        )
+        self._speed_scale_base_image.put(
+            BACKGROUND_COLOR,
+            to=(0, 0, SPEED_SCALE_WIDTH_PX, SPEED_SCALE_HEIGHT_PX),
+        )
+        self._speed_scale_base_image.put(
+            "#8b8b8b",
+            to=(
+                SPEED_SCALE_LEFT_PX,
+                SPEED_SCALE_CENTER_Y - 2,
+                SPEED_SCALE_RIGHT_PX + 1,
+                SPEED_SCALE_CENTER_Y + 2,
+            ),
+        )
+        for preset in SPEED_PRESETS:
+            progress = math.log10(preset) / 3.0
+            tick_x = round(
+                SPEED_SCALE_LEFT_PX
+                + progress * (SPEED_SCALE_RIGHT_PX - SPEED_SCALE_LEFT_PX)
+            )
+            self._speed_scale_base_image.put(
+                "#4b4b4b",
+                to=(
+                    tick_x - 1,
+                    SPEED_SCALE_CENTER_Y - 5,
+                    tick_x + 2,
+                    SPEED_SCALE_CENTER_Y + 6,
+                ),
+            )
+        self._speed_scale_image = tk.PhotoImage(
+            master=root,
+            width=SPEED_SCALE_WIDTH_PX,
+            height=SPEED_SCALE_HEIGHT_PX,
+        )
+        self._speed_scale_button = tk.Button(
+            root,
+            image=self._speed_scale_image,
+            anchor="w",
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+            padx=0,
+            pady=0,
+            takefocus=False,
+            background=BACKGROUND_COLOR,
+        )
+        self._speed_scale_button.pack(fill="x", padx=16, pady=(0, 8))
+        self._speed_scale_button.bind("<Button-1>", self._on_speed_scale)
+        self._speed_scale_button.bind("<B1-Motion>", self._on_speed_scale)
         self._timeline_base_image = tk.PhotoImage(
             master=root,
             width=TIMELINE_WIDTH_PX,
@@ -158,11 +255,17 @@ class ControlWindow:
             self._speed_label,
             self._speed_1_button,
             self._speed_10_button,
+            self._speed_100_button,
+            self._speed_1000_button,
+            self._reverse_button,
+            self._speed_scale_caption,
+            self._speed_scale_button,
             self._timeline_button,
             self._open_overview_button,
         ):
             button.bind("<space>", self._on_space)
             button.bind("<KeyRelease-space>", self._on_space_release)
+        self._render_speed_scale(1.0)
         self._render_timeline(0.0)
         self.root.protocol("WM_DELETE_WINDOW", on_close)
 
@@ -178,14 +281,73 @@ class ControlWindow:
         """Refresh readouts and controls without seeking from the programmatic slider update."""
         self.update_time(text)
         self._play_pause_button.configure(text="Pause" if playing else "Play")
-        self._speed_label.configure(text=f"Speed: {abs(rate):g}x")
-        self._speed_1_button.configure(
-            relief="sunken" if abs(rate) == 1.0 else "raised"
-        )
-        self._speed_10_button.configure(
-            relief="sunken" if abs(rate) == 10.0 else "raised"
-        )
+        self._speed_label.configure(text=f"Speed: {rate:+g}x")
+        for button, preset in zip(
+            (
+                self._speed_1_button,
+                self._speed_10_button,
+                self._speed_100_button,
+                self._speed_1000_button,
+            ),
+            SPEED_PRESETS,
+        ):
+            button.configure(
+                relief="sunken" if math.isclose(abs(rate), preset) else "raised"
+            )
+        self._reverse_button.configure(relief="sunken" if rate < 0.0 else "raised")
+        self._render_speed_scale(abs(rate))
         self._render_timeline(progress)
+
+    def _render_speed_scale(self, speed: float) -> None:
+        progress = math.log10(min(max(speed, 1.0), 1000.0)) / 3.0
+        cursor_x = round(
+            SPEED_SCALE_LEFT_PX
+            + progress * (SPEED_SCALE_RIGHT_PX - SPEED_SCALE_LEFT_PX)
+        )
+        self._speed_scale_image.tk.call(
+            str(self._speed_scale_image),
+            "copy",
+            str(self._speed_scale_base_image),
+        )
+        self._speed_scale_image.put(
+            "#2878c8",
+            to=(
+                SPEED_SCALE_LEFT_PX,
+                SPEED_SCALE_CENTER_Y - 1,
+                cursor_x + 1,
+                SPEED_SCALE_CENTER_Y + 2,
+            ),
+        )
+        self._speed_scale_image.put(
+            "#303030",
+            to=(
+                cursor_x - 6,
+                SPEED_SCALE_CENTER_Y - 8,
+                cursor_x + 7,
+                SPEED_SCALE_CENTER_Y + 9,
+            ),
+        )
+        self._speed_scale_image.put(
+            "#f8f8f8",
+            to=(
+                cursor_x - 4,
+                SPEED_SCALE_CENTER_Y - 6,
+                cursor_x + 5,
+                SPEED_SCALE_CENTER_Y + 7,
+            ),
+        )
+
+    def _on_speed_scale(self, event: tk.Event) -> None:
+        progress = min(
+            max(
+                (event.x - SPEED_SCALE_LEFT_PX)
+                / (SPEED_SCALE_RIGHT_PX - SPEED_SCALE_LEFT_PX),
+                0.0,
+            ),
+            1.0,
+        )
+        speed = 10.0 ** (progress * 3.0)
+        self._on_set_speed(speed)
 
     def _render_timeline(self, progress: float) -> None:
         progress = min(max(progress, 0.0), 1.0)

@@ -84,6 +84,7 @@ def test_control_window_uses_visible_classic_button_for_time_readout(
     widgets = []
     seek_values: list[float] = []
     speed_values: list[float] = []
+    reverse_calls: list[bool] = []
     toggle_calls: list[bool] = []
 
     class FakeButton:
@@ -137,20 +138,28 @@ def test_control_window_uses_visible_classic_button_for_time_readout(
         lambda: toggle_calls.append(True),
         seek_values.append,
         speed_values.append,
+        lambda: reverse_calls.append(True),
         timeline_enabled=True,
     )
     window.update_time("Elapsed: 1 s\nUTC: example")
-    window.update_playback_state("Elapsed: 2 s\nUTC: example", 0.25, False, 10.0)
+    window.update_playback_state("Elapsed: 2 s\nUTC: example", 0.25, False, -10.0)
 
     assert widgets[0].options["state"] == "normal"
     assert widgets[0].options["relief"] == "flat"
     assert widgets[0].text == "Elapsed: 2 s"
     assert widgets[1].text == "UTC: example"
     assert window._play_pause_button.text == "Play"
-    assert window._speed_label.text == "Speed: 10x"
+    assert window._speed_label.text == "Speed: -10x"
     assert window._speed_10_button.options["relief"] == "sunken"
+    assert window._reverse_button.options["relief"] == "sunken"
+    window.update_playback_state("Elapsed: 2 s\nUTC: example", 0.25, False, 1000.0)
+    assert window._speed_label.text == "Speed: +1000x"
+    assert window._speed_1000_button.options["relief"] == "sunken"
+    assert window._reverse_button.options["relief"] == "raised"
     assert window._timeline_button.options["image"] is window._timeline_image
     assert window._timeline_image.width == 480
+    assert window._speed_scale_button.options["image"] is window._speed_scale_image
+    assert window._speed_scale_image.width == 320
     assert any(color == "#2878c8" for color, _to in window._timeline_image.put_calls)
     assert seek_values == []
     assert window._play_pause_button.bindings["<space>"](None) == "break"
@@ -169,7 +178,23 @@ def test_control_window_uses_visible_classic_button_for_time_readout(
     assert seek_values[-1] == 0.75
     window._speed_1_button.options["command"]()
     window._speed_10_button.options["command"]()
-    assert speed_values == [1.0, 10.0]
+    window._speed_100_button.options["command"]()
+    window._speed_1000_button.options["command"]()
+    window._reverse_button.options["command"]()
+    assert speed_values == [1.0, 10.0, 100.0, 1000.0]
+    assert reverse_calls == [True]
+    window._speed_scale_button.bindings["<Button-1>"](
+        type("ClickEvent", (), {"x": 12, "y": 14})()
+    )
+    assert speed_values[-1] == 1.0
+    window._speed_scale_button.bindings["<B1-Motion>"](
+        type("ClickEvent", (), {"x": 160, "y": 14})()
+    )
+    assert speed_values[-1] == pytest.approx(10.0**1.5)
+    window._speed_scale_button.bindings["<B1-Motion>"](
+        type("ClickEvent", (), {"x": 308, "y": 14})()
+    )
+    assert speed_values[-1] == 1000.0
 
 
 class FakeToplevel:
@@ -205,6 +230,7 @@ class FakeControlWindow:
         on_toggle_play,
         on_seek,
         on_set_speed,
+        on_reverse,
         *,
         timeline_enabled,
     ) -> None:
@@ -212,6 +238,7 @@ class FakeControlWindow:
         self.on_toggle_play = on_toggle_play
         self.on_seek = on_seek
         self.on_set_speed = on_set_speed
+        self.on_reverse = on_reverse
         self.timeline_enabled = timeline_enabled
         self.readouts: list[str] = []
         self.states: list[tuple[float, bool, float]] = []
@@ -291,6 +318,34 @@ def test_window_close_callback_stops_timer_and_destroys_root(
     assert not root.callbacks
 
 
+@pytest.mark.parametrize(
+    ("start_time", "reverse", "expected_boundary"),
+    [(199.0, False, 200.0), (101.0, True, 100.0)],
+)
+def test_app_timer_pauses_at_playback_boundaries(
+    monkeypatch: pytest.MonkeyPatch,
+    start_time: float,
+    reverse: bool,
+    expected_boundary: float,
+) -> None:
+    root = FakeRoot()
+    player = make_app(monkeypatch, root)
+    player.clock.seek(start_time)
+    if reverse:
+        player.clock.reverse()
+    monkeypatch.setattr(player, "open_overview", lambda: None)
+    monotonic_values = iter((10.0, 12.0))
+    monkeypatch.setattr(app.time, "monotonic", lambda: next(monotonic_values))
+
+    player.start()
+    root.callbacks[player._timer_id]()
+
+    assert player.clock.t_now == expected_boundary
+    assert not player.clock.playing
+    assert player.clock.rate == (-1.0 if reverse else 1.0)
+    player.close()
+
+
 def test_play_pause_space_seek_and_speed_controls_update_clock(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -314,6 +369,15 @@ def test_play_pause_space_seek_and_speed_controls_update_clock(
     player.control_window.on_set_speed(10.0)
     assert player.clock.rate == 10.0
     assert player.control_window.states[-1][2] == 10.0
+
+    root.bindings["<KeyPress-r>"](None)
+    root.bindings["<KeyPress-r>"](None)
+    assert player.clock.t_now == 150.0
+    assert player.clock.rate == -10.0
+    root.bindings["<KeyRelease-r>"](None)
+    root.bindings["<KeyPress-R>"](None)
+    assert player.clock.rate == 10.0
+    root.bindings["<KeyRelease-R>"](None)
 
 
 def test_start_opens_the_overview_and_overview_opens_both_views(

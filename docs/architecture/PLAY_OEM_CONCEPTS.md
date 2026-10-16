@@ -88,13 +88,13 @@ play-oem <input_oem> [OPTIONS]
 | `<input_oem>` | Input CCSDS OEM path (same as `plot-oem`). |
 | `-d`, `--duration <duration>` | Limit timeline to this duration from first state (same parser as `plot-oem`). |
 | `--time-unit {m,minute,minutes,h,hour,hours}` | Elapsed-time axis unit; default `hours` (same as `plot-oem`). |
-| `--speed <x>` | Initial speed multiplier (default `1`, range `-1000`…`1000`; negative plays in reverse, `0` is invalid). |
-| `--reverse` | Start playing in reverse (equivalent to negating `--speed`). With no `--start`, begins at the end of the timeline. |
-| `--start <t>` | Initial time: elapsed duration (`30m`) or UTC epoch (default: start; end when starting in reverse). |
+| `--speed <x>` | Initial signed speed multiplier (default `1`; magnitude `1`…`1000`; negative plays in reverse; zero and out-of-range values are invalid). |
+| `--reverse` | Negate `--speed`; if the effective speed is negative and `--start` is omitted, begin at the end of the timeline. |
+| `--start <t>` | Initial time within the selected timeline: elapsed duration (`30m`) or UTC epoch (default: start when moving forward, end when moving in reverse). |
 | `--plots <list>` | Comma-separated view names or groups to open at launch (default: `overview`; groups: `overview`, `state`, `motion`, `all`). |
 | `--autoplay` | Begin playing immediately. |
 | `--loop` | Restart at the end. |
-| `--fps <n>` | Max render rate (default 30). |
+| `--fps <n>` | Maximum render rate in integer frames per second (`1`…`1000`; default `30`). |
 | `--3d-backend {auto,vtk,matplotlib}` | Renderer for 3D views (default `auto`: VTK if available, else Matplotlib). Explicit `vtk` fails with an install hint if VTK is missing. |
 | `-h`, `--help` | Help. |
 
