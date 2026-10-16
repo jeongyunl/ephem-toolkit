@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import signal
 
+import numpy as np
 import pytest
 
 from ephem_toolkit.play_oem import app
 from ephem_toolkit.play_oem.clock import PlaybackClock
+from ephem_toolkit.play_oem.series import compute_orbit_series
+from ephem_toolkit.play_oem.time_unit import TimeUnit
 
 
 class FakeRoot:
@@ -45,8 +48,27 @@ class FakeRoot:
         self.destroyed = True
 
 
+class FakeToplevel:
+    def __init__(self) -> None:
+        self.protocols: dict[str, object] = {}
+        self.destroyed = False
+        self.lifted = False
+
+    def title(self, _title: str) -> None:
+        pass
+
+    def protocol(self, name: str, callback) -> None:
+        self.protocols[name] = callback
+
+    def lift(self) -> None:
+        self.lifted = True
+
+    def destroy(self) -> None:
+        self.destroyed = True
+
+
 class FakeControlWindow:
-    def __init__(self, root, on_close) -> None:
+    def __init__(self, root, on_close, _on_open_speed_altitude) -> None:
         self.on_close = on_close
         self.readouts: list[str] = []
         root.protocol("WM_DELETE_WINDOW", on_close)
@@ -55,10 +77,25 @@ class FakeControlWindow:
         self.readouts.append(text)
 
 
+def make_series():
+    return compute_orbit_series(
+        [100.0, 200.0],
+        [
+            np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]),
+            np.array([0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]),
+        ],
+        TimeUnit.MINUTES,
+    )
+
+
 def make_app(monkeypatch: pytest.MonkeyPatch, root: FakeRoot) -> app.PlayerApp:
     monkeypatch.setattr(app.tk, "Tk", lambda: root)
     monkeypatch.setattr(app, "ControlWindow", FakeControlWindow)
-    return app.PlayerApp(PlaybackClock(100.0, 200.0, playing=True))
+    return app.PlayerApp(
+        PlaybackClock(100.0, 200.0, playing=True),
+        make_series(),
+        TimeUnit.MINUTES,
+    )
 
 
 def test_timer_advances_clock_updates_readout_and_closes(
@@ -133,4 +170,60 @@ def test_tick_interval_must_be_positive(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(app, "ControlWindow", FakeControlWindow)
 
     with pytest.raises(ValueError, match="tick_interval_ms"):
-        app.PlayerApp(PlaybackClock(0.0, 1.0), tick_interval_ms=0)
+        app.PlayerApp(
+            PlaybackClock(0.0, 1.0),
+            make_series(),
+            TimeUnit.MINUTES,
+            tick_interval_ms=0,
+        )
+
+
+def test_speed_altitude_view_window_can_be_opened_raised_and_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = FakeRoot()
+    player = make_app(monkeypatch, root)
+    window = FakeToplevel()
+    monkeypatch.setattr(app.tk, "Toplevel", lambda _root: window)
+
+    class FakeView:
+        def __init__(self, t_start_s) -> None:
+            self.t_start_s = t_start_s
+            self.closed = False
+
+        def build(self, _series, _time_unit):
+            return object()
+
+        def close(self) -> None:
+            self.closed = True
+
+    class FakeWidget:
+        def pack(self, **_kwargs) -> None:
+            pass
+
+    class FakeCanvas:
+        def __init__(self, _figure, *, master) -> None:
+            assert master is window
+
+        def draw(self) -> None:
+            pass
+
+        def get_tk_widget(self):
+            return FakeWidget()
+
+    view = FakeView(100.0)
+    monkeypatch.setattr(app, "SpeedAltitudeView", lambda t_start_s: view)
+    monkeypatch.setattr(app, "FigureCanvasTkAgg", FakeCanvas)
+
+    player.open_speed_altitude_view()
+    assert player._speed_altitude_view is view
+    assert player._speed_altitude_window is window
+    player.open_speed_altitude_view()
+    assert window.lifted
+
+    window.protocols["WM_DELETE_WINDOW"]()
+
+    assert view.closed
+    assert window.destroyed
+    assert player._speed_altitude_view is None
+    assert player._speed_altitude_window is None

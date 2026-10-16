@@ -47,22 +47,6 @@ the remaining views, advanced controls or VTK.
 
 ## Milestone C — First runnable GUI and demo
 
-### 7. Define the view lifecycle and build the first static time-series view
-
-Add the toolkit-neutral `View` protocol and a Matplotlib `speed_altitude` view. Implement
-`build` to draw the static speed and altitude histories, including axis labels, units and a
-cursor artist. Connect the view window lifecycle to the app.
-
-- **Status:** Not started.
-- **Progress:** 0/4 checklist items.
-- [ ] Define a view interface with build, update and close behavior.
-- [ ] Build the speed/altitude figure from the computed series.
-- [ ] Add a cursor artist at the initial time.
-- [ ] Test building and closing the view with a non-interactive Matplotlib backend.
-
-**Done when:** the app can open and close one static time-series view from an OEM.
-**Depends on:** Step 6.
-
 ### 8. Animate the time-series cursor
 
 Implement `speed_altitude.update(t_s)` and connect it to the shared playback clock. Keep the
@@ -429,3 +413,19 @@ the timer updating a visible elapsed-time label; do not open plot windows yet.
 **Done when:** the command opens and closes a minimal functioning control window on the
 development platform.
 **Depends on:** Step 5.
+
+### 7. Define the view lifecycle and build the first static time-series view
+
+Add the toolkit-neutral `View` protocol and a Matplotlib `speed_altitude` view. Implement
+`build` to draw the static speed and altitude histories, including axis labels, units and a
+cursor artist. Connect the view window lifecycle to the app.
+
+- **Status:** Done.
+- **Progress:** 4/4 checklist items.
+- [x] Define a view interface with build, update and close behavior.
+- [x] Build the speed/altitude figure from the computed series.
+- [x] Add a cursor artist at the initial time.
+- [x] Test building and closing the view with a non-interactive Matplotlib backend.
+
+**Done when:** the app can open and close one static time-series view from an OEM.
+**Depends on:** Step 6.

@@ -6,10 +6,15 @@ import signal
 import time
 import tkinter as tk
 
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
 import ephem_toolkit.core.time_utils as time_utils
 
 from .clock import PlaybackClock
 from .control_window import ControlWindow
+from .series import OrbitSeries
+from .time_unit import TimeUnit
+from .views.speed_altitude import SpeedAltitudeView
 
 DEFAULT_TICK_INTERVAL_MS = 33
 
@@ -20,6 +25,8 @@ class PlayerApp:
     def __init__(
         self,
         clock: PlaybackClock,
+        series: OrbitSeries,
+        time_unit: TimeUnit,
         *,
         tick_interval_ms: int = DEFAULT_TICK_INTERVAL_MS,
         root: tk.Tk | None = None,
@@ -27,13 +34,19 @@ class PlayerApp:
         if tick_interval_ms < 1:
             raise ValueError("tick_interval_ms must be positive")
         self.clock = clock
+        self.series = series
+        self.time_unit = time_unit
         self.root = tk.Tk() if root is None else root
-        self.control_window = ControlWindow(self.root, self.close)
+        self.control_window = ControlWindow(
+            self.root, self.close, self.open_speed_altitude_view
+        )
         self._tick_interval_ms = tick_interval_ms
         self._last_tick: float | None = None
         self._timer_id: str | None = None
         self._started = False
         self._closed = False
+        self._speed_altitude_view: SpeedAltitudeView | None = None
+        self._speed_altitude_window: tk.Toplevel | None = None
 
     def run(self) -> None:
         """Start the Tk event loop and restore the process signal handler on exit."""
@@ -62,11 +75,41 @@ class PlayerApp:
         if self._closed:
             return
         self._closed = True
+        self.close_speed_altitude_view()
         if self._timer_id is not None:
             self.root.after_cancel(self._timer_id)
             self._timer_id = None
         self.root.quit()
         self.root.destroy()
+
+    def open_speed_altitude_view(self) -> None:
+        """Open or raise the speed and altitude plot window."""
+        if self._speed_altitude_window is not None:
+            self._speed_altitude_window.lift()
+            return
+
+        view = SpeedAltitudeView(self.clock.t_start)
+        figure = view.build(self.series, self.time_unit)
+        window = tk.Toplevel(self.root)
+        window.title("Speed / Altitude")
+        canvas = FigureCanvasTkAgg(figure, master=window)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True)
+        window.protocol("WM_DELETE_WINDOW", self.close_speed_altitude_view)
+        self._speed_altitude_view = view
+        self._speed_altitude_window = window
+
+    def close_speed_altitude_view(self) -> None:
+        """Close the speed and altitude plot, leaving the control window open."""
+        if self._speed_altitude_view is None:
+            return
+        view = self._speed_altitude_view
+        window = self._speed_altitude_window
+        self._speed_altitude_view = None
+        self._speed_altitude_window = None
+        view.close()
+        if window is not None:
+            window.destroy()
 
     def _schedule_tick(self) -> None:
         if not self._closed:

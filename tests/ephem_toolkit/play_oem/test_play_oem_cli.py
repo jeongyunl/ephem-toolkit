@@ -74,8 +74,10 @@ def test_cli_loads_oem_and_launches_player(
     launched: dict[str, object] = {}
 
     class FakePlayerApp:
-        def __init__(self, clock) -> None:
+        def __init__(self, clock, series, time_unit) -> None:
             launched["clock"] = clock
+            launched["series"] = series
+            launched["time_unit"] = time_unit
 
         def run(self) -> None:
             launched["run"] = True
@@ -90,6 +92,7 @@ def test_cli_loads_oem_and_launches_player(
     assert "Prepared orbit series with 16 samples using minutes." in output
     assert launched["run"] is True
     assert launched["clock"].t_start < launched["clock"].t_end
+    assert launched["series"].elapsed_time.size == 16
 
 
 def test_cli_reports_invalid_duration(capsys: pytest.CaptureFixture[str]) -> None:

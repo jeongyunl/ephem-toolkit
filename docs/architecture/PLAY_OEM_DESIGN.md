@@ -48,7 +48,7 @@ Options:
 | Option | Pros | Cons |
 |---|---|---|
 | A. Matplotlib only (TkAgg/QtAgg), control window = a Matplotlib figure with `Slider`, `Button`, `RadioButtons` | no new deps; one event loop | clunky toolbar, widget look, slider/timer coupling |
-| B. **Tkinter control window + Matplotlib figures** (`TkAgg`) | stdlib Tk, native-ish widgets (`ttk.Scale`, buttons, toolbar), single Tk event loop shared by all figures; no new dependency | Tk must be available (usually bundled; not on some Linux distros) |
+| B. **Tkinter control window + Matplotlib figures** (`TkAgg`) | stdlib Tk, native-ish widgets (`tk.Scale`, buttons, toolbar), single Tk event loop shared by all figures; no new dependency | Tk must be available (usually bundled; not on some Linux distros) |
 | C. Qt (PySide6) | best widgets | heavy new dependency |
 
 **Decision: B**, with Matplotlib `TkAgg` figures as `Toplevel`-backed windows managed by the
@@ -205,7 +205,10 @@ Data: object … | frame … | center … | samples … | cursor: interpolated /
 Details ▸ (additional OEM metadata and diagnostics)
 ```
 
-- Slider (`ttk.Scale`, 0…duration) → `clock.seek`; programmatic updates from the clock set the
+- Widget toolkit note: use classic `tk` widgets (`tk.Label`, `tk.Button`, `tk.Scale`) with explicit
+  colors, not `ttk`. Apple's system Python ships Tk 8.5, where `ttk` widgets render blank (yet
+  stay clickable) on recent macOS; classic widgets were verified to render correctly.
+- Slider (`tk.Scale`, 0…duration) → `clock.seek`; programmatic updates from the clock set the
   slider without feeding back (guard flag).
 - Speed: log scale slider (10^0…10^3) plus preset combobox, both bound to `clock.set_speed`.
 - Direction: toggle button `◀ / ▶` (key `R`) bound to `clock.reverse`; label shows e.g. `−60x`.

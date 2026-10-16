@@ -51,7 +51,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         timestamps_s[-1],
         sample_times=timestamps_s,
     )
-    PlayerApp(clock).run()
+    PlayerApp(clock, series, time_unit).run()
 
 
 def cli(argv: Sequence[str] | None = None) -> int:
