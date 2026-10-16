@@ -61,12 +61,12 @@ reading and duration filtering), and `series.py` (including `OrbitSeries` and co
 diagnostics). Keep this step as close to the existing implementation as possible; change only
 imports, package references or structure required to make the copy work.
 
-- **Status:** Not started.
-- **Progress:** 0/4 checklist items.
-- [ ] Read an existing test OEM through the new loader.
-- [ ] Verify duration filtering produces the same timestamps as `plot-oem`.
-- [ ] Compare computed series values with `plot-oem` for a representative OEM.
-- [ ] Add or adapt focused data/series tests and run them.
+- **Status:** Done.
+- **Progress:** 4/4 checklist items.
+- [x] Read an existing test OEM through the new loader.
+- [x] Verify duration filtering produces the same timestamps as `plot-oem`.
+- [x] Compare computed series values with `plot-oem` for a representative OEM.
+- [x] Add or adapt focused data/series tests and run them.
 
 **Done when:** the new package loads and computes the same baseline series as `plot-oem`.
 **Depends on:** Step 1.
