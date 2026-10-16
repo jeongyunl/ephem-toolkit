@@ -45,26 +45,6 @@ the remaining views, advanced controls or VTK.
 
 ## Milestone B — Playback core
 
-## Milestone C — First runnable GUI and demo
-
-### 10. Add the Matplotlib 3D orbit and deliver the first demo
-
-Implement `views/trajectory3d/mpl_backend.py` from the existing `plot-oem` state-vector plotting
-code. Draw the orbit once; update the satellite marker from `CursorState`. Open this view and
-the speed/altitude view as the default `overview`.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Draw the 3D orbit path with labeled axes and frame context.
-- [ ] Move the satellite marker from the shared cursor state.
-- [ ] Open trajectory and speed/altitude views together as `overview`.
-- [ ] Verify play, pause, seeking and basic speed changes keep both views synchronized.
-- [ ] Run a manual demo with a repository test OEM and confirm normal close/SIGINT behavior.
-
-**First demo / done when:** `play-oem tests/data/ISS_2026-05-20.OEM` opens the control window,
-3D orbit and speed/altitude plot; play, pause, seek and speed changes visibly work.
-**Depends on:** Step 9.
-
 ## Milestone D — Complete playback and seeking
 
 ### 11. Add full speed range, reverse and playback CLI options
@@ -451,3 +431,21 @@ because the native Scale is not visible on the verified macOS Tk 8.5.9 runtime. 
 slider tracks a normalized timeline fraction and maps it to the clock bounds; disable seeking
 for a zero-duration timeline. Clock updates redraw the image without invoking the pointer seek
 handler.
+
+### 10. Add the Matplotlib 3D orbit and deliver the first demo
+
+Implement `views/trajectory3d/mpl_backend.py` from the existing `plot-oem` state-vector plotting
+code. Draw the orbit once; update the satellite marker from `CursorState`. Open this view and
+the speed/altitude view as the default `overview`.
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Draw the 3D orbit path with labeled axes and frame context.
+- [x] Move the satellite marker from the shared cursor state.
+- [x] Open trajectory and speed/altitude views together as `overview`.
+- [x] Verify play, pause, seeking and basic speed changes keep both views synchronized.
+- [x] Run a manual demo with a repository test OEM and confirm normal close/SIGINT behavior.
+
+**First demo / done when:** `play-oem tests/data/ISS_2026-05-20.OEM` opens the control window,
+3D orbit and speed/altitude plot; play, pause, seek and speed changes visibly work.
+**Depends on:** Step 9.

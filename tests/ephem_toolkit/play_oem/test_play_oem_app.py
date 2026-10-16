@@ -10,6 +10,7 @@ import pytest
 
 from ephem_toolkit.play_oem import app, control_window
 from ephem_toolkit.play_oem.clock import PlaybackClock
+from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 
@@ -223,15 +224,15 @@ class FakeControlWindow:
         self.states.append((progress, playing, rate))
 
 
+def make_states() -> list[np.ndarray]:
+    return [
+        np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]),
+        np.array([0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]),
+    ]
+
+
 def make_series():
-    return compute_orbit_series(
-        [100.0, 200.0],
-        [
-            np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]),
-            np.array([0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]),
-        ],
-        TimeUnit.MINUTES,
-    )
+    return compute_orbit_series([100.0, 200.0], make_states(), TimeUnit.MINUTES)
 
 
 def make_app(monkeypatch: pytest.MonkeyPatch, root: FakeRoot) -> app.PlayerApp:
@@ -241,6 +242,9 @@ def make_app(monkeypatch: pytest.MonkeyPatch, root: FakeRoot) -> app.PlayerApp:
         PlaybackClock(100.0, 200.0, playing=True),
         make_series(),
         TimeUnit.MINUTES,
+        OemCursor([100.0, 200.0], make_states()),
+        "TEST",
+        "GCRF / Earth",
     )
 
 
@@ -249,6 +253,7 @@ def test_timer_advances_clock_updates_readout_and_closes(
 ) -> None:
     root = FakeRoot()
     player = make_app(monkeypatch, root)
+    monkeypatch.setattr(player, "open_overview", lambda: None)
     monotonic_values = iter((10.0, 12.5))
     monkeypatch.setattr(app.time, "monotonic", lambda: next(monotonic_values))
 
@@ -276,6 +281,7 @@ def test_window_close_callback_stops_timer_and_destroys_root(
 ) -> None:
     root = FakeRoot()
     player = make_app(monkeypatch, root)
+    monkeypatch.setattr(player, "open_overview", lambda: None)
     monkeypatch.setattr(app.time, "monotonic", lambda: 0.0)
 
     player.start()
@@ -310,11 +316,114 @@ def test_play_pause_space_seek_and_speed_controls_update_clock(
     assert player.control_window.states[-1][2] == 10.0
 
 
+def test_start_opens_the_overview_and_overview_opens_both_views(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = FakeRoot()
+    player = make_app(monkeypatch, root)
+    opened: list[str] = []
+    monkeypatch.setattr(
+        player,
+        "open_trajectory_view",
+        lambda: opened.append("trajectory"),
+    )
+    monkeypatch.setattr(
+        player,
+        "open_speed_altitude_view",
+        lambda: opened.append("speed-altitude"),
+    )
+    monkeypatch.setattr(app.time, "monotonic", lambda: 0.0)
+
+    player.open_overview()
+    assert opened == ["trajectory", "speed-altitude"]
+    opened.clear()
+    player.start()
+    assert opened == ["trajectory", "speed-altitude"]
+    player.close()
+
+
+def test_overview_views_stay_synchronized_during_seek_and_playback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = FakeRoot()
+    player = make_app(monkeypatch, root)
+    windows = [FakeToplevel(), FakeToplevel()]
+    monkeypatch.setattr(app.tk, "Toplevel", lambda _root: windows.pop(0))
+
+    class FakeTrajectoryView:
+        def __init__(self, *_args) -> None:
+            self.states = []
+
+        def build(self, _series, _time_unit):
+            return object()
+
+        def update_cursor(self, state) -> None:
+            self.states.append(state.t)
+
+        def close(self) -> None:
+            pass
+
+    class FakeSpeedAltitudeView:
+        def __init__(self, _t_start_s) -> None:
+            self.times = []
+
+        def build(self, _series, _time_unit):
+            return object()
+
+        def update(self, t_s: float) -> None:
+            self.times.append(t_s)
+
+        def close(self) -> None:
+            pass
+
+    class FakeWidget:
+        def pack(self, **_kwargs) -> None:
+            pass
+
+    class FakeCanvas:
+        def __init__(self, _figure, *, master) -> None:
+            assert isinstance(master, FakeToplevel)
+            self.draw_idle_count = 0
+
+        def get_tk_widget(self):
+            return FakeWidget()
+
+        def draw(self) -> None:
+            pass
+
+        def draw_idle(self) -> None:
+            self.draw_idle_count += 1
+
+    trajectory = FakeTrajectoryView()
+    speed_altitude = FakeSpeedAltitudeView(100.0)
+    monkeypatch.setattr(app, "Trajectory3DView", lambda *_args: trajectory)
+    monkeypatch.setattr(app, "SpeedAltitudeView", lambda _t_start: speed_altitude)
+    monkeypatch.setattr(app, "FigureCanvasTkAgg", FakeCanvas)
+
+    player.open_overview()
+    player.clock.pause()
+    player.clock.seek(150.0)
+    assert trajectory.states == [100.0, 150.0]
+    assert speed_altitude.times == [100.0, 150.0]
+
+    player.clock.play()
+    player.clock.tick(2.0)
+    assert trajectory.states[-1] == 152.0
+    assert speed_altitude.times[-1] == 152.0
+
+    player.control_window.on_set_speed(10.0)
+    player.clock.tick(1.0)
+    assert trajectory.states[-1] == 162.0
+    assert speed_altitude.times[-1] == 162.0
+    player.close()
+
+
 def test_run_handles_sigint_and_restores_previous_handler(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root = FakeRoot()
     player = make_app(monkeypatch, root)
+    monkeypatch.setattr(player, "open_overview", lambda: None)
     monkeypatch.setattr(app.time, "monotonic", lambda: 0.0)
     signal_handlers: list[object] = []
     previous_handler = object()
@@ -347,6 +456,9 @@ def test_tick_interval_must_be_positive(monkeypatch: pytest.MonkeyPatch) -> None
             PlaybackClock(0.0, 1.0),
             make_series(),
             TimeUnit.MINUTES,
+            OemCursor([100.0, 200.0], make_states()),
+            "TEST",
+            "GCRF / Earth",
             tick_interval_ms=0,
         )
 
@@ -428,6 +540,177 @@ def test_speed_altitude_view_window_can_be_opened_raised_and_closed(
     assert player._speed_altitude_window is None
     player.clock.seek(180.0)
     assert view.updated_times == [100.0, 150.0, 152.0]
+
+
+def test_trajectory_view_uses_shared_cursor_and_closes_cleanly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = FakeRoot()
+    player = make_app(monkeypatch, root)
+    window = FakeToplevel()
+    monkeypatch.setattr(app.tk, "Toplevel", lambda _root: window)
+
+    class FakeTrajectoryView:
+        def __init__(self, cursor, object_name, frame_context) -> None:
+            assert cursor is player.cursor
+            assert object_name == "TEST"
+            assert frame_context == "GCRF / Earth"
+            self.closed = False
+            self.states = []
+
+        def build(self, _series, _time_unit):
+            return object()
+
+        def update_cursor(self, state) -> None:
+            self.states.append(state)
+
+        def close(self) -> None:
+            self.closed = True
+
+    class FakeWidget:
+        def __init__(self, events: list[str]) -> None:
+            self.events = events
+
+        def pack(self, **_kwargs) -> None:
+            self.events.append("pack")
+
+    class FakeCanvas:
+        def __init__(self, _figure, *, master) -> None:
+            assert master is window
+            self.events = master.events
+            self.draw_idle_count = 0
+
+        def get_tk_widget(self):
+            return FakeWidget(self.events)
+
+        def draw(self) -> None:
+            self.events.append("draw")
+
+        def draw_idle(self) -> None:
+            self.draw_idle_count += 1
+
+    view = FakeTrajectoryView(player.cursor, "TEST", "GCRF / Earth")
+    monkeypatch.setattr(app, "Trajectory3DView", lambda *_args: view)
+    monkeypatch.setattr(app, "FigureCanvasTkAgg", FakeCanvas)
+
+    player.open_trajectory_view()
+    assert player._trajectory_view is view
+    assert player._trajectory_window is window
+    assert view.states[-1].t == 100.0
+    assert window.window_title == "3D Orbit"
+    canvas = player._trajectory_canvas
+    assert canvas is not None
+
+    player.clock.pause()
+    player.clock.seek(150.0)
+    assert view.states[-1].t == 150.0
+    assert canvas.draw_idle_count == 1
+    player.clock.play()
+    player.clock.tick(2.0)
+    assert view.states[-1].t == 152.0
+    assert canvas.draw_idle_count == 2
+
+    window.protocols["WM_DELETE_WINDOW"]()
+    assert view.closed
+    assert window.destroyed
+    assert player._trajectory_view is None
+    player.clock.seek(180.0)
+    assert [state.t for state in view.states] == [100.0, 150.0, 152.0]
+
+
+def test_old_tk_trajectory_uses_raster_image_for_moving_marker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = FakeRoot(patchlevel="8.5.9")
+    player = make_app(monkeypatch, root)
+    window = FakeToplevel()
+    window.tk = root.tk
+
+    class FakeTrajectoryView:
+        def __init__(self, *_args) -> None:
+            self.states = []
+            self.closed = False
+
+        def build(self, _series, _time_unit):
+            return object()
+
+        def update_cursor(self, state) -> None:
+            self.states.append(state)
+
+        def render_raster(self):
+            return FakeRaster()
+
+        def cursor_pixel(self, state) -> tuple[int, int]:
+            return (7, 7) if state.t == 100.0 else (10, 11)
+
+        def close(self) -> None:
+            self.closed = True
+
+    class FakeRaster:
+        width = 20
+        height = 20
+        ppm_data = b"P6\n20 20\n255\n" + bytes(20 * 20 * 3)
+
+    class FakeButton:
+        def __init__(self, _master, **options) -> None:
+            self.options = options
+
+        def pack(self, **_kwargs) -> None:
+            pass
+
+    class FakePhotoImage:
+        _next_id = 0
+
+        def __init__(
+            self,
+            *,
+            master,
+            file: str | None = None,
+            width: int = 0,
+            height: int = 0,
+        ) -> None:
+            type(self)._next_id += 1
+            self.name = f"fake-trajectory-image-{type(self)._next_id}"
+            self.tk = master.tk
+            self.width = width
+            self.height = height
+            self.source_data = Path(file).read_bytes() if file is not None else None
+            self.put_calls: list[tuple[str, tuple[int, ...]]] = []
+
+        def __str__(self) -> str:
+            return self.name
+
+        def put(self, color: str, *, to: tuple[int, ...]) -> None:
+            self.put_calls.append((color, to))
+
+    view = FakeTrajectoryView()
+    monkeypatch.setattr(app.tk, "Toplevel", lambda _root: window)
+    monkeypatch.setattr(app.tk, "Button", FakeButton)
+    monkeypatch.setattr(app.tk, "PhotoImage", FakePhotoImage)
+    monkeypatch.setattr(app, "Trajectory3DView", lambda *_args: view)
+
+    player.open_trajectory_view()
+    assert window.window_title == "3D Orbit (Tk 8.5.9 raster view)"
+    assert player._trajectory_base_image is not None
+    assert player._trajectory_base_image.source_data == FakeRaster.ppm_data
+    assert player._trajectory_cursor_pixel == (7, 7)
+    assert player._trajectory_image is not None
+    assert player._trajectory_image.put_calls[-2:] == [
+        ("#303030", (1, 1, 14, 14)),
+        ("#ffcc00", (3, 3, 12, 12)),
+    ]
+
+    player.clock.seek(150.0)
+    assert view.states[-1].t == 150.0
+    assert player._trajectory_cursor_pixel == (10, 11)
+    assert root.tk.image_commands
+    assert player._trajectory_image.put_calls[-2:] == [
+        ("#303030", (4, 5, 17, 18)),
+        ("#ffcc00", (6, 7, 15, 16)),
+    ]
+    player.close_trajectory_view()
+    assert view.closed
+    assert window.destroyed
 
 
 def test_old_tk_uses_graphical_raster_plot_and_updates_cursor(

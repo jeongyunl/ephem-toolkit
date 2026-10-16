@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from ephem_toolkit.play_oem import cli, main
+from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.play_oem_cli import build_arg_parser, parse_arguments
 
 
@@ -74,10 +75,15 @@ def test_cli_loads_oem_and_launches_player(
     launched: dict[str, object] = {}
 
     class FakePlayerApp:
-        def __init__(self, clock, series, time_unit) -> None:
+        def __init__(
+            self, clock, series, time_unit, cursor, object_name, frame_context
+        ) -> None:
             launched["clock"] = clock
             launched["series"] = series
             launched["time_unit"] = time_unit
+            launched["cursor"] = cursor
+            launched["object_name"] = object_name
+            launched["frame_context"] = frame_context
 
         def run(self) -> None:
             launched["run"] = True
@@ -93,6 +99,11 @@ def test_cli_loads_oem_and_launches_player(
     assert launched["run"] is True
     assert launched["clock"].t_start < launched["clock"].t_end
     assert launched["series"].elapsed_time.size == 16
+    assert isinstance(launched["cursor"], OemCursor)
+    assert launched["cursor"].t_start == launched["clock"].t_start
+    assert launched["cursor"].t_end == launched["clock"].t_end
+    assert launched["object_name"] == "ISS"
+    assert launched["frame_context"] == "EME2000 / Earth"
 
 
 def test_cli_reports_invalid_duration(capsys: pytest.CaptureFixture[str]) -> None:

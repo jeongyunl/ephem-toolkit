@@ -155,10 +155,14 @@ class Trajectory3DView(View, Protocol):
 The choice is made once at startup and shown in the control window title/status line.
 Both backends implement the same interface, so the toolbar, clock and `PlayerApp` never branch on backend.
 
-**Matplotlib/Tk backend.** Copied from `plot_state_vectors`: static orbit line and Earth sphere
-drawn in `build`; `update` moves the marker with `set_data_3d` (and the tail line). 3D axes cannot be
-blitted reliably, so the app throttles this view to ~10 fps via a per-view `max_fps`. It runs inside the
-same Tk loop as the other figures.
+**Matplotlib/Tk backend.** The initial overview draws the static orbit path, start/end markers,
+labeled axes and object/frame context in `build`; `update` moves the satellite marker from the shared
+cursor state. For Tk 8.6 and newer, the figure uses TkAgg. Older Tk versions use Matplotlib Agg to
+render a PPM image, which is loaded by classic Tk; the marker is drawn into a copy of that image as
+the cursor moves. This avoids the blank TkAgg/Canvas rendering on the repository's legacy macOS
+Tk 8.5.9 runtime without changing the graphical plot. TkAgg redraws are requested with
+`draw_idle()`; the legacy raster path updates only the cursor pixels. Earth rendering and trajectory
+tails remain planned enhancements to this backend.
 
 **VTK backend.** Scene built in `build`:
 

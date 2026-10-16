@@ -14,9 +14,11 @@ import ephem_toolkit.core.time_utils as time_utils
 
 from .clock import PlaybackClock
 from .control_window import ControlWindow
+from .cursor import CursorState, OemCursor
 from .series import OrbitSeries
 from .time_unit import TimeUnit
 from .views.speed_altitude import RasterPlot, SpeedAltitudeView
+from .views.trajectory3d import Trajectory3DView, TrajectoryRaster
 
 DEFAULT_TICK_INTERVAL_MS = 33
 
@@ -29,6 +31,9 @@ class PlayerApp:
         clock: PlaybackClock,
         series: OrbitSeries,
         time_unit: TimeUnit,
+        cursor: OemCursor,
+        object_name: str,
+        frame_context: str,
         *,
         tick_interval_ms: int = DEFAULT_TICK_INTERVAL_MS,
         root: tk.Tk | None = None,
@@ -38,11 +43,14 @@ class PlayerApp:
         self.clock = clock
         self.series = series
         self.time_unit = time_unit
+        self.cursor = cursor
+        self.object_name = object_name
+        self.frame_context = frame_context
         self.root = tk.Tk() if root is None else root
         self.control_window = ControlWindow(
             self.root,
             self.close,
-            self.open_speed_altitude_view,
+            self.open_overview,
             self._toggle_playback,
             self._seek_to_fraction,
             self._set_playback_speed,
@@ -64,6 +72,14 @@ class PlayerApp:
         self._speed_altitude_images: tuple[tk.PhotoImage, ...] = ()
         self._speed_altitude_cursor_x: int | None = None
         self._unsubscribe_speed_altitude: Callable[[], None] | None = None
+        self._trajectory_view: Trajectory3DView | None = None
+        self._trajectory_window: tk.Toplevel | None = None
+        self._trajectory_canvas: FigureCanvasTkAgg | None = None
+        self._trajectory_raster: TrajectoryRaster | None = None
+        self._trajectory_base_image: tk.PhotoImage | None = None
+        self._trajectory_image: tk.PhotoImage | None = None
+        self._trajectory_cursor_pixel: tuple[int, int] | None = None
+        self._unsubscribe_trajectory: Callable[[], None] | None = None
 
     def run(self) -> None:
         """Start the Tk event loop and restore the process signal handler on exit."""
@@ -86,6 +102,7 @@ class PlayerApp:
         self._last_tick = time.monotonic()
         self._update_time_display()
         self.root.update_idletasks()
+        self.open_overview()
         self._schedule_tick()
 
     def close(self) -> None:
@@ -93,6 +110,7 @@ class PlayerApp:
         if self._closed:
             return
         self._closed = True
+        self.close_trajectory_view()
         self.close_speed_altitude_view()
         if self._timer_id is not None:
             self.root.after_cancel(self._timer_id)
@@ -106,17 +124,7 @@ class PlayerApp:
             self._speed_altitude_window.lift()
             return
 
-        patchlevel = str(self.root.tk.call("info", "patchlevel"))
-        try:
-            tk_version = tuple(int(part) for part in patchlevel.split(".")[:2])
-        except ValueError as exception:
-            raise RuntimeError(
-                f"could not determine Tcl/Tk version from {patchlevel!r}"
-            ) from exception
-        if len(tk_version) != 2:
-            raise RuntimeError(
-                f"could not determine Tcl/Tk version from {patchlevel!r}"
-            )
+        patchlevel, tk_version = self._get_tk_version()
         view = SpeedAltitudeView(self.clock.t_start)
         figure = view.build(self.series, self.time_unit)
         view.update(self.clock.t_now)
@@ -140,10 +148,7 @@ class PlayerApp:
             titles = ("Speed (km/s)", "Altitude (km)")
             for title, raster in zip(titles, rasters):
                 self._pack_legacy_plot_caption(window, title)
-                with tempfile.NamedTemporaryFile(suffix=".ppm") as image_file:
-                    image_file.write(raster.ppm_data)
-                    image_file.flush()
-                    base_image = tk.PhotoImage(master=window, file=image_file.name)
+                base_image = self._load_legacy_ppm_image(window, raster.ppm_data)
                 image = tk.PhotoImage(
                     master=window,
                     width=raster.width,
@@ -182,6 +187,111 @@ class PlayerApp:
         if rasters:
             self._update_legacy_raster_cursor(self.clock.t_now)
 
+    def open_trajectory_view(self) -> None:
+        """Open or raise the 3D orbit view."""
+        if self._trajectory_window is not None:
+            self._trajectory_window.lift()
+            return
+
+        patchlevel, tk_version = self._get_tk_version()
+        view = Trajectory3DView(
+            self.cursor,
+            self.object_name,
+            self.frame_context,
+        )
+        figure = view.build(self.series, self.time_unit)
+        initial_state = self.cursor.lookup(self.clock.t_now)
+        view.update_cursor(initial_state)
+        window = tk.Toplevel(self.root)
+        window.title(
+            "3D Orbit"
+            if tk_version >= (8, 6)
+            else f"3D Orbit (Tk {patchlevel} raster view)"
+        )
+        canvas: FigureCanvasTkAgg | None = None
+        raster: TrajectoryRaster | None = None
+        base_image: tk.PhotoImage | None = None
+        image: tk.PhotoImage | None = None
+        if tk_version >= (8, 6):
+            canvas = FigureCanvasTkAgg(figure, master=window)
+            canvas.get_tk_widget().pack(fill="both", expand=True)
+        else:
+            raster = view.render_raster()
+            base_image = self._load_legacy_ppm_image(window, raster.ppm_data)
+            image = tk.PhotoImage(
+                master=window,
+                width=raster.width,
+                height=raster.height,
+            )
+            image.tk.call(str(image), "copy", str(base_image))
+            plot_button = tk.Button(
+                window,
+                image=image,
+                relief="flat",
+                borderwidth=0,
+                highlightthickness=0,
+                padx=0,
+                pady=0,
+                takefocus=False,
+            )
+            plot_button.pack(anchor="w", padx=12)
+        window.update_idletasks()
+        if canvas is not None:
+            canvas.draw()
+        window.protocol("WM_DELETE_WINDOW", self.close_trajectory_view)
+        self._trajectory_view = view
+        self._trajectory_window = window
+        self._trajectory_canvas = canvas
+        self._trajectory_raster = raster
+        self._trajectory_base_image = base_image
+        self._trajectory_image = image
+        self._trajectory_cursor_pixel = None
+        self._unsubscribe_trajectory = self.clock.subscribe(
+            self._update_trajectory_view
+        )
+        if raster is not None:
+            self._update_legacy_trajectory_cursor(initial_state)
+
+    def open_overview(self) -> None:
+        """Open or raise the synchronized trajectory and speed/altitude views."""
+        self.open_trajectory_view()
+        self.open_speed_altitude_view()
+
+    def close_trajectory_view(self) -> None:
+        """Close the 3D trajectory view and unsubscribe it from clock updates."""
+        if self._trajectory_view is None:
+            return
+        view = self._trajectory_view
+        window = self._trajectory_window
+        unsubscribe = self._unsubscribe_trajectory
+        self._trajectory_view = None
+        self._trajectory_window = None
+        self._trajectory_canvas = None
+        self._trajectory_raster = None
+        self._trajectory_base_image = None
+        self._trajectory_image = None
+        self._trajectory_cursor_pixel = None
+        self._unsubscribe_trajectory = None
+        if unsubscribe is not None:
+            unsubscribe()
+        view.close()
+        if window is not None:
+            window.destroy()
+
+    def _get_tk_version(self) -> tuple[str, tuple[int, int]]:
+        patchlevel = str(self.root.tk.call("info", "patchlevel"))
+        try:
+            tk_version = tuple(int(part) for part in patchlevel.split(".")[:2])
+        except ValueError as exception:
+            raise RuntimeError(
+                f"could not determine Tcl/Tk version from {patchlevel!r}"
+            ) from exception
+        if len(tk_version) != 2:
+            raise RuntimeError(
+                f"could not determine Tcl/Tk version from {patchlevel!r}"
+            )
+        return patchlevel, tk_version
+
     def close_speed_altitude_view(self) -> None:
         """Close the speed and altitude plot, leaving the control window open."""
         if self._speed_altitude_view is None:
@@ -203,6 +313,13 @@ class PlayerApp:
         if window is not None:
             window.destroy()
 
+    @staticmethod
+    def _load_legacy_ppm_image(window: tk.Toplevel, ppm_data: bytes) -> tk.PhotoImage:
+        with tempfile.NamedTemporaryFile(suffix=".ppm") as image_file:
+            image_file.write(ppm_data)
+            image_file.flush()
+            return tk.PhotoImage(master=window, file=image_file.name)
+
     def _update_speed_altitude_view(self, t_s: float) -> None:
         view = self._speed_altitude_view
         if view is None:
@@ -212,6 +329,17 @@ class PlayerApp:
             self._speed_altitude_canvas.draw_idle()
         elif self._speed_altitude_rasters:
             self._update_legacy_raster_cursor(t_s)
+
+    def _update_trajectory_view(self, t_s: float) -> None:
+        view = self._trajectory_view
+        if view is None:
+            return
+        cursor_state = self.cursor.lookup(t_s)
+        view.update_cursor(cursor_state)
+        if self._trajectory_canvas is not None:
+            self._trajectory_canvas.draw_idle()
+        elif self._trajectory_raster is not None:
+            self._update_legacy_trajectory_cursor(cursor_state)
 
     def _pack_legacy_plot_caption(self, window: tk.Toplevel, text: str) -> None:
         caption = tk.Button(
@@ -277,6 +405,41 @@ class PlayerApp:
                 ),
             )
         self._speed_altitude_cursor_x = cursor_x
+
+    def _update_legacy_trajectory_cursor(self, state: CursorState) -> None:
+        view = self._trajectory_view
+        image = self._trajectory_image
+        base_image = self._trajectory_base_image
+        if view is None or image is None or base_image is None:
+            raise RuntimeError("legacy trajectory image is not initialized")
+
+        if self._trajectory_cursor_pixel is not None:
+            old_x, old_y = self._trajectory_cursor_pixel
+            image.tk.call(
+                str(image),
+                "copy",
+                str(base_image),
+                "-from",
+                old_x - 7,
+                old_y - 7,
+                old_x + 8,
+                old_y + 8,
+                "-to",
+                old_x - 7,
+                old_y - 7,
+            )
+
+        cursor_pixel = view.cursor_pixel(state)
+        self._trajectory_cursor_pixel = cursor_pixel
+        if cursor_pixel is None:
+            return
+        cursor_x, cursor_y = cursor_pixel
+        image.put(
+            "#303030", to=(cursor_x - 6, cursor_y - 6, cursor_x + 7, cursor_y + 7)
+        )
+        image.put(
+            "#ffcc00", to=(cursor_x - 4, cursor_y - 4, cursor_x + 5, cursor_y + 5)
+        )
 
     def _schedule_tick(self) -> None:
         if not self._closed:

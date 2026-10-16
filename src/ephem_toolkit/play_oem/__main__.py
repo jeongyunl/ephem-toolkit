@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 
 from .play_oem_cli import build_arg_parser, parse_arguments, PlayOemArgs
 
@@ -18,6 +19,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     from .data import filter_states_by_duration, read_oem_states
     from .app import PlayerApp
     from .clock import PlaybackClock
+    from .cursor import OemCursor
     from .series import OrbitSeries, compute_orbit_series
     from .time_unit import TimeUnit
 
@@ -35,7 +37,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             raise SystemExit(1) from exception
 
     print(f"Reading OEM orbit from {cli_args.input_oem}...")
-    _, timestamps_s, states_m = read_oem_states(cli_args.input_oem)
+    oem_data, timestamps_s, states_m = read_oem_states(cli_args.input_oem)
     print(f"Loaded {len(states_m)} states")
     timestamps_s, states_m = filter_states_by_duration(
         timestamps_s, states_m, duration_s
@@ -51,7 +53,32 @@ def main(argv: Sequence[str] | None = None) -> None:
         timestamps_s[-1],
         sample_times=timestamps_s,
     )
-    PlayerApp(clock, series, time_unit).run()
+    cursor = OemCursor(
+        timestamps_s,
+        states_m,
+        interpolation=oem_data.meta.interpolation,
+        interpolation_degree=oem_data.meta.interpolation_degree,
+    )
+    frame_context = (
+        " / ".join(
+            value
+            for value in (
+                oem_data.meta.ref_frame.strip(),
+                oem_data.meta.center_name.strip(),
+            )
+            if value
+        )
+        or "Frame metadata unavailable"
+    )
+    object_name = oem_data.meta.object_name.strip() or Path(cli_args.input_oem).name
+    PlayerApp(
+        clock,
+        series,
+        time_unit,
+        cursor,
+        object_name,
+        frame_context,
+    ).run()
 
 
 def cli(argv: Sequence[str] | None = None) -> int:

@@ -23,7 +23,7 @@ class ControlWindow:
         self,
         root: tk.Tk,
         on_close: Callable[[], None],
-        on_open_speed_altitude: Callable[[], None],
+        on_open_overview: Callable[[], None],
         on_toggle_play: Callable[[], None],
         on_seek: Callable[[float], None],
         on_set_speed: Callable[[float], None],
@@ -144,13 +144,13 @@ class ControlWindow:
         self._timeline_button.pack(fill="x", padx=16, pady=(0, 8))
         self._timeline_button.bind("<Button-1>", self._on_timeline_seek)
         self._timeline_button.bind("<B1-Motion>", self._on_timeline_seek)
-        self._open_speed_altitude_button = tk.Button(
+        self._open_overview_button = tk.Button(
             root,
-            text="Open Speed / Altitude",
-            command=on_open_speed_altitude,
+            text="Open Overview",
+            command=on_open_overview,
             highlightbackground=BACKGROUND_COLOR,
         )
-        self._open_speed_altitude_button.pack(fill="x", padx=16, pady=(0, 16))
+        self._open_overview_button.pack(fill="x", padx=16, pady=(0, 16))
         for button in (
             self._elapsed_label,
             self._utc_label,
@@ -159,7 +159,7 @@ class ControlWindow:
             self._speed_1_button,
             self._speed_10_button,
             self._timeline_button,
-            self._open_speed_altitude_button,
+            self._open_overview_button,
         ):
             button.bind("<space>", self._on_space)
             button.bind("<KeyRelease-space>", self._on_space_release)
@@ -190,8 +190,7 @@ class ControlWindow:
     def _render_timeline(self, progress: float) -> None:
         progress = min(max(progress, 0.0), 1.0)
         cursor_x = round(
-            TIMELINE_LEFT_PX
-            + progress * (TIMELINE_RIGHT_PX - TIMELINE_LEFT_PX)
+            TIMELINE_LEFT_PX + progress * (TIMELINE_RIGHT_PX - TIMELINE_LEFT_PX)
         )
         self._timeline_image.tk.call(
             str(self._timeline_image), "copy", str(self._timeline_base_image)
@@ -207,15 +206,30 @@ class ControlWindow:
         )
         self._timeline_image.put(
             "#303030",
-            to=(cursor_x - 6, TIMELINE_CENTER_Y - 9, cursor_x + 7, TIMELINE_CENTER_Y + 10),
+            to=(
+                cursor_x - 6,
+                TIMELINE_CENTER_Y - 9,
+                cursor_x + 7,
+                TIMELINE_CENTER_Y + 10,
+            ),
         )
         self._timeline_image.put(
             "#f8f8f8",
-            to=(cursor_x - 4, TIMELINE_CENTER_Y - 7, cursor_x + 5, TIMELINE_CENTER_Y + 8),
+            to=(
+                cursor_x - 4,
+                TIMELINE_CENTER_Y - 7,
+                cursor_x + 5,
+                TIMELINE_CENTER_Y + 8,
+            ),
         )
         self._timeline_image.put(
             "#4b4b4b",
-            to=(cursor_x - 1, TIMELINE_CENTER_Y - 6, cursor_x + 2, TIMELINE_CENTER_Y + 7),
+            to=(
+                cursor_x - 1,
+                TIMELINE_CENTER_Y - 6,
+                cursor_x + 2,
+                TIMELINE_CENTER_Y + 7,
+            ),
         )
 
     def _on_timeline_seek(self, event: tk.Event) -> None:
@@ -223,8 +237,7 @@ class ControlWindow:
             return
         progress = min(
             max(
-                (event.x - TIMELINE_LEFT_PX)
-                / (TIMELINE_RIGHT_PX - TIMELINE_LEFT_PX),
+                (event.x - TIMELINE_LEFT_PX) / (TIMELINE_RIGHT_PX - TIMELINE_LEFT_PX),
                 0.0,
             ),
             1.0,
