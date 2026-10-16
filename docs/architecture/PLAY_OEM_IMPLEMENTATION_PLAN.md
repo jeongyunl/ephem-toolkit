@@ -5,10 +5,16 @@ Requirements: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md). Architecture:
 
 ## How to use this plan
 
-Work **one numbered step at a time, in order**. Do not begin a later step until the current
-step's checklist and completion criteria pass. The dependency for each step is the immediately
-preceding step; step 1 has no dependency. This strict sequence is intentional, even where work
-could theoretically be parallelized.
+Work **one pending numbered step at a time, in order**. Do not begin a later pending step until
+the current step's checklist and completion criteria pass. Keep pending steps in chronological
+dependency order; each dependency field identifies its prerequisite, including prerequisites
+that have been moved to the completed section at the end of this document. Step 1 has no
+dependency.
+
+When a step is complete, move its full entry to the `Completed steps` section at the end of this
+document. Preserve its original number, status, progress, checklist, completion criteria and
+dependency so the completion record remains auditable. The active work sequence stays at the
+beginning in dependency order.
 
 If implementation cannot progress in the documented order, stop and reevaluate the plan before
 starting work out of sequence. Update the step order, dependencies, completion criteria and
@@ -36,58 +42,6 @@ advances; do not mark a step done based only on code being written.
 The first full playback demo is **step 10**. It should be possible to open a sample OEM, play,
 pause and seek it, and see a synchronized 3D orbit and time-series plot before implementing
 the remaining views, advanced controls or VTK.
-
-## Milestone A — Package, data and CLI
-
-### 1. Scaffold the package and command
-
-Create `src/ephem_toolkit/play_oem/` with `__init__.py`, `__main__.py` and `play_oem_cli.py`.
-Add the `play-oem` console entry point in `pyproject.toml`. Implement argument parsing for the
-input path and `--help`; do not add GUI or playback behavior yet.
-
-- **Status:** Done.
-- **Progress:** 3/3 checklist items.
-- [x] `play-oem --help` exits successfully and shows the command synopsis.
-- [x] `play-oem` without an input reports a normal argparse usage error.
-- [x] Add focused CLI/entry-point tests and run them.
-
-**Done when:** the installed project exposes `play-oem` and its minimal CLI tests pass.
-**Depends on:** None.
-
-### 2. Copy and verify OEM loading and series computation
-
-Copy the relevant code from `plot_oem` into the new package: `time_unit.py`, `data.py` (OEM
-reading and duration filtering), and `series.py` (including `OrbitSeries` and computed
-diagnostics). Keep this step as close to the existing implementation as possible; change only
-imports, package references or structure required to make the copy work.
-
-- **Status:** Done.
-- **Progress:** 4/4 checklist items.
-- [x] Read an existing test OEM through the new loader.
-- [x] Verify duration filtering produces the same timestamps as `plot-oem`.
-- [x] Compare computed series values with `plot-oem` for a representative OEM.
-- [x] Add or adapt focused data/series tests and run them.
-
-**Done when:** the new package loads and computes the same baseline series as `plot-oem`.
-**Depends on:** Step 1.
-
-### 3. Wire the CLI to load and prepare OEM data
-
-Add `--duration` and `--time-unit` with the same accepted values and behavior as `plot-oem`.
-Wire `play-oem` to parse the duration, load states with the new package modules, filter them,
-compute the series and print a concise processing summary. The command will become interactive
-when the GUI is implemented in step 6.
-
-- **Status:** Done.
-- **Progress:** 4/4 checklist items.
-- [x] Add `--duration` and `--time-unit` options with the same accepted values as `plot-oem`.
-- [x] Wire CLI execution to parse options, read/filter OEM states and compute the orbit series.
-- [x] Confirm a valid OEM prints the loaded/selected state counts and processes the selected time unit.
-- [x] Add focused CLI workflow/error tests and run them.
-
-**Done when:** `play-oem` loads a valid OEM, applies duration and time-unit options, computes its
-series and reports success without rendering figures or opening a window.
-**Depends on:** Step 2.
 
 ## Milestone B — Playback core
 
@@ -423,3 +377,55 @@ compatibility with both commands is verified.
 **Done when:** user-facing documentation matches tested behavior and the migration decision is
 documented.
 **Depends on:** Step 21.
+
+## Completed steps
+
+### 1. Scaffold the package and command
+
+Create `src/ephem_toolkit/play_oem/` with `__init__.py`, `__main__.py` and `play_oem_cli.py`.
+Add the `play-oem` console entry point in `pyproject.toml`. Implement argument parsing for the
+input path and `--help`; do not add GUI or playback behavior yet.
+
+- **Status:** Done.
+- **Progress:** 3/3 checklist items.
+- [x] `play-oem --help` exits successfully and shows the command synopsis.
+- [x] `play-oem` without an input reports a normal argparse usage error.
+- [x] Add focused CLI/entry-point tests and run them.
+
+**Done when:** the installed project exposes `play-oem` and its minimal CLI tests pass.
+**Depends on:** None.
+
+### 2. Copy and verify OEM loading and series computation
+
+Copy the relevant code from `plot_oem` into the new package: `time_unit.py`, `data.py` (OEM
+reading and duration filtering), and `series.py` (including `OrbitSeries` and computed
+diagnostics). Keep this step as close to the existing implementation as possible; change only
+imports, package references or structure required to make the copy work.
+
+- **Status:** Done.
+- **Progress:** 4/4 checklist items.
+- [x] Read an existing test OEM through the new loader.
+- [x] Verify duration filtering produces the same timestamps as `plot-oem`.
+- [x] Compare computed series values with `plot-oem` for a representative OEM.
+- [x] Add or adapt focused data/series tests and run them.
+
+**Done when:** the new package loads and computes the same baseline series as `plot-oem`.
+**Depends on:** Step 1.
+
+### 3. Wire the CLI to load and prepare OEM data
+
+Add `--duration` and `--time-unit` with the same accepted values and behavior as `plot-oem`.
+Wire `play-oem` to parse the duration, load states with the new package modules, filter them,
+compute the series and print a concise processing summary. The command will become interactive
+when the GUI is implemented in step 6.
+
+- **Status:** Done.
+- **Progress:** 4/4 checklist items.
+- [x] Add `--duration` and `--time-unit` options with the same accepted values as `plot-oem`.
+- [x] Wire CLI execution to parse options, read/filter OEM states and compute the orbit series.
+- [x] Confirm a valid OEM prints the loaded/selected state counts and processes the selected time unit.
+- [x] Add focused CLI workflow/error tests and run them.
+
+**Done when:** `play-oem` loads a valid OEM, applies duration and time-unit options, computes its
+series and reports success without rendering figures or opening a window.
+**Depends on:** Step 2.
