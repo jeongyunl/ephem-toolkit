@@ -12,12 +12,12 @@ Requirements: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md). Baseline code: `sr
 | `read_oem_states`, `filter_states_by_duration` | `data.py` | copy verbatim |
 | `OrbitSeries`, `compute_orbit_series` | `series.py` | copy verbatim; add `t_s` array use for lookup |
 | `plot_*` functions (7) | `views/*.py` | split into *build* (draw static data, return artists) and *update(t)* (move cursor) |
-| `build_output_filename`, `save_or_show_figure` | `output.py` | copy; used by `-o` mode |
 | `plot_oem_cli.py` | `play_oem_cli.py` | copy; add playback options |
-| `__main__.py` | `__main__.py` | copy; branch: `-o` → static, else GUI |
+| `__main__.py` | `__main__.py` | load and prepare OEM data, then launch the interactive application |
 
-To avoid duplicated code long term, step 2 of migration makes `plot_oem` import the shared
-modules from `play_oem` (or move them to `core/`).
+Keep `plot-oem` as the separate static plotting command and `play-oem` as the interactive
+playback application. Shared numerical/data-processing code may be extracted later only after
+compatibility with both commands is verified.
 
 ## 2. Package layout
 
@@ -26,7 +26,7 @@ src/ephem_toolkit/play_oem/
   __init__.py          # cli = main
   __main__.py          # main(argv)
   play_oem_cli.py      # PlayOemArgs, build_arg_parser
-  data.py  series.py  time_unit.py  output.py   # copied from plot_oem
+  data.py  series.py  time_unit.py              # copied from plot_oem
   clock.py             # PlaybackClock (pure Python, no GUI)
   cursor.py            # CursorState lookup at t_now
   app.py               # PlayerApp: owns clock, views, control window
@@ -120,14 +120,13 @@ class View(Protocol):
 ### 4.3.1 3D trajectory backends (Matplotlib/Tk and VTK)
 
 Only the 3D trajectory is backend-pluggable; every 2D time-series view stays Matplotlib.
-The `plot-oem` "state vectors" figure is split into two views:
+The plot-oem state-vector diagnostics are split into two views:
 
 - `trajectory-3d`: the 3D orbit, Earth and satellite marker (pluggable backend).
 - `state-components`: X/Y/Z, VX/VY/VZ histories (Matplotlib).
 
 The `state` group opens the state-components view. Keep `state-vectors` as a compatibility
-alias that opens both trajectory and state-components views. In `-o` mode with the Matplotlib
-backend the two are re-composed into the original `plot-oem` figure layout so output stays at parity.
+alias that opens both trajectory and state-components views.
 
 ```
 views/trajectory3d/
@@ -184,13 +183,9 @@ same Tk loop as the other figures.
 
 Embedding in a Tk frame (`vtkTkRenderWindowInteractor`) remains a possible opt-in on Linux/Windows but is not planned for v1.
 
-**Headless / `-o`.** VTK renders offscreen (`SetOffScreenRendering(1)`) and saves with
-`vtkWindowToImageFilter` + `vtkPNGWriter` (PNG only; other extensions fall back to Matplotlib with a warning).
-If offscreen VTK is unavailable (no GL/OSMesa/EGL), `auto` falls back to Matplotlib; explicit `vtk` errors.
-
 **Testing.** The backend-neutral contract is tested on both backends: `build` + several `update` calls,
 and marker position == cursor-state position (Matplotlib: artist data; VTK: `actor.GetPosition()`).
-VTK tests use offscreen rendering and are skipped via `pytest.importorskip("vtk")`.
+VTK tests are skipped via `pytest.importorskip("vtk")`.
 
 ### 4.4 Control window
 
@@ -240,25 +235,23 @@ before the window appears, with progress printed to stdout like `plot-oem`.
 ## 5. CLI flow (`__main__.py`)
 
 1. Parse args (`PlayOemArgs`), parse duration/time-unit exactly as `plot-oem`.
-2. Read + filter states, compute series.
-3. If `--output`: use `Agg`, build all views, `update(--start or t_start)`, save with
-   `build_output_filename` suffixes identical to `plot-oem`; exit (no Tk required).
-4. Else: select `TkAgg`, create `PlayerApp`, open the requested `--plots` (default `overview`),
+2. Read and filter states, then compute the series.
+3. Select `TkAgg`, create `PlayerApp`, open the requested `--plots` (default `overview`),
    apply `--start/--speed/--reverse/--autoplay` (reverse without `--start` begins at `t_end`;
    otherwise playback starts at `t_start`),
    `mainloop()`.
    Trailing tails in trajectory views are drawn on the side behind the direction of motion.
-5. SIGINT closes all windows (reuse `plot-oem`'s handler, adapted to Tk `root.quit`).
+4. SIGINT closes all windows (reuse `plot-oem`'s handler, adapted to Tk `root.quit`).
 
 ## 6. Testing
 
 - `clock.py`: pure unit tests (`tests/play_oem/test_clock.py`).
 - Cursor lookup vs. interpolator on `tests/data/ISS_2026-05-20.OEM` and `JPSS-1.oem`.
-- Views: with `Agg`, `build` + several `update` calls without exceptions; cursor artist
+- Data loading and series tests: compare behavior with `plot-oem` on representative OEM files.
+- Views: with a non-interactive Matplotlib backend, `build` + several `update` calls without exceptions; cursor artist
   positions equal expected values.
-- `-o` parity: output filenames and figure count equal `plot-oem` for the same input.
-- CLI parse tests (speed bounds, `--start`, `--plots` validation).
-- Manual: GUI smoke script on macOS; 1000x with all views on a large OEM, check fps.
+- CLI parse and input-loading tests (`--duration`, `--time-unit`, speed bounds, `--start`, `--plots` validation).
+- Manual: GUI smoke test on macOS; 1000x with all views on a large OEM, check fps.
 
 ## 7. Implementation plan
 
@@ -271,4 +264,4 @@ The dependency-ordered, demo-first implementation sequence is maintained separat
 - VTK alongside Tk: two GUI toolkits in one process. Mitigated by pumping VTK events from the Tk timer instead of running a second loop; verify on macOS, Linux (X11/Wayland) and Windows.
 - VTK wheels may lag new Python versions; hence optional extra and automatic Matplotlib fallback.
 - Multiple Matplotlib figures in one Tk loop on macOS: use `plt.figure` with TkAgg only, never mix backends.
-- Tk absent on some Linux Pythons → clear error message and `-o` mode still works.
+- Tk absent on some Linux Pythons → report a clear GUI dependency error; core logic remains testable without a display.

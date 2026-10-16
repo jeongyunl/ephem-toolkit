@@ -10,8 +10,8 @@ the state at that clock.
 ## Name
 
 `play-oem` (package `ephem_toolkit.play_oem`). Chosen to sit beside `plot-oem`, `slice-oem`,
-`diff-oem`, etc. `plot-oem` is kept unchanged until `play-oem` reaches parity, after which
-it may become an alias (see [Migration](#migration)).
+`diff-oem`, etc. `plot-oem` remains a separate command for static diagnostic plots; `play-oem`
+is the interactive playback application.
 
 ## Concepts
 
@@ -88,7 +88,6 @@ play-oem <input_oem> [OPTIONS]
 | `<input_oem>` | Input CCSDS OEM path (same as `plot-oem`). |
 | `-d`, `--duration <duration>` | Limit timeline to this duration from first state (same parser as `plot-oem`). |
 | `--time-unit {m,minute,minutes,h,hour,hours}` | Elapsed-time axis unit; default `hours` (same as `plot-oem`). |
-| `-o`, `--output <output_plot>` | Non-interactive: save static figures exactly like `plot-oem` (at `--at` time if given) and exit. Kept for compatibility. |
 | `--speed <x>` | Initial speed multiplier (default `1`, range `-1000`…`1000`; negative plays in reverse, `0` is invalid). |
 | `--reverse` | Start playing in reverse (equivalent to negating `--speed`). With no `--start`, begins at the end of the timeline. |
 | `--start <t>` | Initial time: elapsed duration (`30m`) or UTC epoch (default: start; end when starting in reverse). |
@@ -99,13 +98,15 @@ play-oem <input_oem> [OPTIONS]
 | `--3d-backend {auto,vtk,matplotlib}` | Renderer for 3D views (default `auto`: VTK if available, else Matplotlib). Explicit `vtk` fails with an install hint if VTK is missing. |
 | `-h`, `--help` | Help. |
 
-Differences from `plot-oem` are limited to the added playback options.
+The input, `--duration`, and `--time-unit` options follow `plot-oem`. Playback options configure
+the interactive player. Use `plot-oem` for saved diagnostic plots; `play-oem` is the interactive
+playback command.
 
 **F4. Data and computation reuse**
 
 Data loading, duration filtering, series computation (RTN deltas, angular rates, distance,
-WGS84 altitude), time units and output naming are reused from `plot-oem` (copied, then
-modified only where needed—see design).
+WGS84 altitude), and time units are reused from `plot-oem` (copied, then modified only where
+needed—see design).
 
 ### Non-functional
 
@@ -120,7 +121,8 @@ modified only where needed—see design).
 - **N4a Data honesty**: indicate OEM segment boundaries and gaps; never imply continuous data or valid interpolation across a gap. Label reference frames, units, altitude reference and interpolated cursor values clearly.
 - **N5 Quality**: follow [python_style_guide.md](../development/python_style_guide.md); pure logic
   (clock, series, interpolation lookup) unit-testable without a display.
-- **N6 Headless**: `-o` mode and tests run without a display (Agg backend).
+- **N6 Testability**: playback logic, data processing and tests run without a display. Running
+  the interactive player requires its GUI toolkit and display environment.
 
 ### Out of scope (initial version)
 
@@ -129,9 +131,11 @@ modified only where needed—see design).
 
 ## Migration
 
-1. Implement `play-oem` alongside `plot-oem`.
-2. When static output parity is verified, make `plot-oem` a thin alias of `play-oem -o`.
-3. Update [TODO.md](../development/TODO.md) and README tool lists.
+1. Implement `play-oem` as a separate interactive application alongside `plot-oem`.
+2. Keep `plot-oem` as the existing command for static diagnostic figures; do not alias it to
+   `play-oem`.
+3. Share numerical/data-processing code only when behavior remains compatible with both tools.
+4. Update [TODO.md](../development/TODO.md) and README tool lists.
 
 ## Open questions
 
