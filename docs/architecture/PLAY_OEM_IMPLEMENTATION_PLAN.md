@@ -45,23 +45,6 @@ the remaining views, advanced controls or VTK.
 
 ## Milestone B — Playback core
 
-### 4. Implement and test `PlaybackClock`
-
-Add pure-Python `clock.py` with timeline bounds, current time, signed playback rate, playing
-state and loop behavior. Implement `tick`, `seek`, play/pause/toggle, speed/direction changes,
-reverse, sample/time stepping and observer notification.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Implement monotonic-time advancement and clamping at both timeline ends.
-- [ ] Implement loop wrap in forward and reverse directions.
-- [ ] Implement seek, step, speed changes and reverse without changing the current time.
-- [ ] Cover paused, playing, boundary and loop behavior with unit tests.
-- [ ] Verify observers receive updates after ticks and seeks.
-
-**Done when:** all clock tests pass without importing Tk or Matplotlib.
-**Depends on:** Step 3.
-
 ### 5. Implement direction-independent cursor lookup
 
 Add `cursor.py` to resolve the OEM state and derived values at a requested timeline time.
@@ -429,3 +412,20 @@ when the GUI is implemented in step 6.
 **Done when:** `play-oem` loads a valid OEM, applies duration and time-unit options, computes its
 series and reports success without rendering figures or opening a window.
 **Depends on:** Step 2.
+
+### 4. Implement and test `PlaybackClock`
+
+Add pure-Python `clock.py` with timeline bounds, current time, signed playback rate, playing
+state and loop behavior. Implement `tick`, `seek`, play/pause/toggle, speed/direction changes,
+reverse, sample/time stepping and observer notification.
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Implement monotonic-time advancement and clamping at both timeline ends.
+- [x] Implement loop wrap in forward and reverse directions.
+- [x] Implement seek, step, speed changes and reverse without changing the current time.
+- [x] Cover paused, playing, boundary and loop behavior with unit tests.
+- [x] Verify observers receive updates after ticks and seeks.
+
+**Done when:** all clock tests pass without importing Tk or Matplotlib.
+**Depends on:** Step 3.
