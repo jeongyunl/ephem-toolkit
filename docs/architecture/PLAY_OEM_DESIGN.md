@@ -217,7 +217,7 @@ Details ▸ (additional OEM metadata and diagnostics)
 - Speed: log scale slider (10^0…10^3) plus 1x/10x/100x/1000x preset buttons, all bound to
   `clock.set_speed`.
 - Direction: toggle button `◀ / ▶` (key `R`) bound to `clock.reverse`; label shows e.g. `−60x`.
-- Time entry: text field accepting `1h30m` (elapsed) or a UTC epoch; Enter → `clock.seek`; invalid input is flagged without changing `t_now`.
+- Time entry: click-to-type field accepting `1h30m` (elapsed) or a UTC epoch; Enter or Seek → `clock.seek`; invalid input is flagged without changing `t_now`. The visible field mirrors its editable text buffer so it remains legible on the legacy macOS Tk 8.5.9 appearance.
 - Click-to-seek: each time-series view connects `button_press_event` (left click inside axes, toolbar zoom/pan mode inactive) → `clock.seek(x * unit_divisor)`.
 - Toolbar buttons open views/groups via `PlayerApp.open_view(name)` / `open_group(name)`; an
   already-open view is raised rather than duplicated. Closing a view removes it from the active

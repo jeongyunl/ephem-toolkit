@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import signal
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -82,20 +83,30 @@ def test_control_window_uses_visible_classic_button_for_time_readout(
 ) -> None:
     root = FakeRoot()
     widgets = []
+    frames = []
     seek_values: list[float] = []
     speed_values: list[float] = []
     reverse_calls: list[bool] = []
     toggle_calls: list[bool] = []
+    time_values: list[str] = []
+    sample_steps: list[int] = []
+    second_steps: list[float] = []
+    jumps: list[str] = []
 
     class FakeButton:
         def __init__(self, _master, **options) -> None:
             self.options = options
             self.text = options.get("text", "")
             self.bindings: dict[str, object] = {}
+            self.pack_options: dict[str, object] = {}
+            self.grid_options: dict[str, object] = {}
             widgets.append(self)
 
-        def pack(self, **_kwargs) -> None:
-            pass
+        def pack(self, **kwargs) -> None:
+            self.pack_options = kwargs
+
+        def grid(self, **kwargs) -> None:
+            self.grid_options = kwargs
 
         def bind(self, sequence: str, callback) -> None:
             self.bindings[sequence] = callback
@@ -106,10 +117,49 @@ def test_control_window_uses_visible_classic_button_for_time_readout(
 
     class FakeFrame:
         def __init__(self, _master, **_options) -> None:
-            pass
+            self.column_weights: dict[int, int] = {}
+            self.options = {}
+            self.propagate_grid_geometry = True
+            frames.append(self)
 
         def pack(self, **_kwargs) -> None:
             pass
+
+        def configure(self, **kwargs) -> None:
+            self.options.update(kwargs)
+
+        def grid_columnconfigure(self, column: int, *, weight: int) -> None:
+            self.column_weights[column] = weight
+
+        def grid_propagate(self, propagate: bool) -> None:
+            self.propagate_grid_geometry = propagate
+
+    class FakeEntry:
+        def __init__(self, _master, **options) -> None:
+            self.options = options
+            self.text = ""
+            self.bindings: dict[str, object] = {}
+            self.place_options: dict[str, object] = {}
+            self.focused = False
+            self.cursor = None
+
+        def place(self, **kwargs) -> None:
+            self.place_options = kwargs
+
+        def bind(self, sequence: str, callback) -> None:
+            self.bindings[sequence] = callback
+
+        def get(self) -> str:
+            return self.text
+
+        def insert(self, _index, value: str) -> None:
+            self.text = value
+
+        def focus_force(self) -> None:
+            self.focused = True
+
+        def icursor(self, cursor) -> None:
+            self.cursor = cursor
 
     class FakePhotoImage:
         _next_id = 0
@@ -130,6 +180,7 @@ def test_control_window_uses_visible_classic_button_for_time_readout(
 
     monkeypatch.setattr(control_window.tk, "Button", FakeButton)
     monkeypatch.setattr(control_window.tk, "Frame", FakeFrame)
+    monkeypatch.setattr(control_window.tk, "Entry", FakeEntry)
     monkeypatch.setattr(control_window.tk, "PhotoImage", FakePhotoImage)
     window = control_window.ControlWindow(
         root,
@@ -139,6 +190,11 @@ def test_control_window_uses_visible_classic_button_for_time_readout(
         seek_values.append,
         speed_values.append,
         lambda: reverse_calls.append(True),
+        on_seek_to_time=time_values.append,
+        on_step_samples=sample_steps.append,
+        on_step_seconds=second_steps.append,
+        on_jump_to_start=lambda: jumps.append("start"),
+        on_jump_to_end=lambda: jumps.append("end"),
         timeline_enabled=True,
     )
     window.update_time("Elapsed: 1 s\nUTC: example")
@@ -160,6 +216,25 @@ def test_control_window_uses_visible_classic_button_for_time_readout(
     assert window._timeline_image.width == 480
     assert window._speed_scale_button.options["image"] is window._speed_scale_image
     assert window._speed_scale_image.width == 320
+    assert window._time_entry_prompt.text == "Seek to elapsed time or UTC:"
+    assert window._time_entry_prompt.options["relief"] == "flat"
+    assert window._time_entry_display_button.text == (
+        "Click to enter elapsed time or UTC"
+    )
+    assert window._time_entry_image.width == 320
+    assert any(color == "#8b8b8b" for color, _to in window._time_entry_image.put_calls)
+    assert any(color == "#292929" for color, _to in window._time_entry_image.put_calls)
+    time_entry_row = next(frame for frame in frames if frame.column_weights)
+    assert time_entry_row.options["height"] == control_window.TIME_ENTRY_FIELD_HEIGHT_PX
+    assert time_entry_row.propagate_grid_geometry is False
+    assert window._time_entry_display_button.grid_options["sticky"] == "ew"
+    assert window.time_entry.place_options == {
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1,
+    }
+    assert window._seek_time_button.grid_options["column"] == 1
     assert any(color == "#2878c8" for color, _to in window._timeline_image.put_calls)
     assert seek_values == []
     assert window._play_pause_button.bindings["<space>"](None) == "break"
@@ -183,6 +258,29 @@ def test_control_window_uses_visible_classic_button_for_time_readout(
     window._reverse_button.options["command"]()
     assert speed_values == [1.0, 10.0, 100.0, 1000.0]
     assert reverse_calls == [True]
+    window._time_entry_display_button.options["command"]()
+    assert window.time_entry.focused is True
+    assert window.time_entry.cursor == "end"
+    window.time_entry.insert(0, "1h30m")
+    window.time_entry.bindings["<KeyRelease>"](None)
+    assert window._time_entry_display_button.text == "1h30m"
+    assert window.time_entry.bindings["<Return>"](None) == "break"
+    assert time_values == ["1h30m"]
+    window._seek_time_button.options["command"]()
+    assert time_values == ["1h30m", "1h30m"]
+    window.show_time_error("invalid time")
+    assert window._time_error_label.text == "invalid time"
+    window.clear_time_error()
+    assert window._time_error_label.text == ""
+    window._navigation_buttons[0].options["command"]()
+    window._navigation_buttons[1].options["command"]()
+    window._navigation_buttons[2].options["command"]()
+    window._navigation_buttons[3].options["command"]()
+    window._navigation_buttons[4].options["command"]()
+    window._navigation_buttons[5].options["command"]()
+    assert jumps == ["start", "end"]
+    assert sample_steps == [-1, 1]
+    assert second_steps == [-60.0, 60.0]
     window._speed_scale_button.bindings["<Button-1>"](
         type("ClickEvent", (), {"x": 12, "y": 14})()
     )
@@ -232,6 +330,11 @@ class FakeControlWindow:
         on_set_speed,
         on_reverse,
         *,
+        on_seek_to_time,
+        on_step_samples,
+        on_step_seconds,
+        on_jump_to_start,
+        on_jump_to_end,
         timeline_enabled,
     ) -> None:
         self.on_close = on_close
@@ -239,6 +342,13 @@ class FakeControlWindow:
         self.on_seek = on_seek
         self.on_set_speed = on_set_speed
         self.on_reverse = on_reverse
+        self.on_seek_to_time = on_seek_to_time
+        self.on_step_samples = on_step_samples
+        self.on_step_seconds = on_step_seconds
+        self.on_jump_to_start = on_jump_to_start
+        self.on_jump_to_end = on_jump_to_end
+        self.time_entry = object()
+        self.time_errors: list[str] = []
         self.timeline_enabled = timeline_enabled
         self.readouts: list[str] = []
         self.states: list[tuple[float, bool, float]] = []
@@ -249,6 +359,12 @@ class FakeControlWindow:
     ) -> None:
         self.readouts.append(text)
         self.states.append((progress, playing, rate))
+
+    def show_time_error(self, message: str) -> None:
+        self.time_errors.append(message)
+
+    def clear_time_error(self) -> None:
+        self.time_errors.clear()
 
 
 def make_states() -> list[np.ndarray]:
@@ -266,7 +382,7 @@ def make_app(monkeypatch: pytest.MonkeyPatch, root: FakeRoot) -> app.PlayerApp:
     monkeypatch.setattr(app.tk, "Tk", lambda: root)
     monkeypatch.setattr(app, "ControlWindow", FakeControlWindow)
     return app.PlayerApp(
-        PlaybackClock(100.0, 200.0, playing=True),
+        PlaybackClock(100.0, 200.0, playing=True, sample_times=(100.0, 200.0)),
         make_series(),
         TimeUnit.MINUTES,
         OemCursor([100.0, 200.0], make_states()),
@@ -380,6 +496,70 @@ def test_play_pause_space_seek_and_speed_controls_update_clock(
     root.bindings["<KeyRelease-R>"](None)
 
 
+def test_time_entry_seeks_elapsed_and_utc_without_changing_playback_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ephem_toolkit.core import time_utils
+
+    root = FakeRoot()
+    player = make_app(monkeypatch, root)
+    player.clock.set_speed(10.0)
+    player.clock.reverse()
+
+    player.control_window.on_seek_to_time("30s")
+    assert player.clock.t_now == 130.0
+    assert player.clock.playing
+    assert player.clock.rate == -10.0
+    assert not player.control_window.time_errors
+
+    utc_time = time_utils.datetime_to_iso8601(time_utils.tt_s_to_datetime(160.0))
+    player.control_window.on_seek_to_time(utc_time)
+    assert player.clock.t_now == pytest.approx(160.0)
+    assert player.clock.playing
+    assert player.clock.rate == -10.0
+
+    player.control_window.on_seek_to_time("not-a-time")
+    assert player.clock.t_now == pytest.approx(160.0)
+    assert player.control_window.time_errors
+
+    player.control_window.on_seek_to_time("5m")
+    assert player.clock.t_now == pytest.approx(160.0)
+    assert len(player.control_window.time_errors) == 2
+    player.close()
+
+
+def test_keyboard_seek_shortcuts_and_time_entry_focus(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = FakeRoot()
+    player = make_app(monkeypatch, root)
+    original_rate = player.clock.rate
+
+    assert root.bindings["<Right>"](SimpleNamespace(widget=None)) == "break"
+    assert player.clock.t_now == 200.0
+    root.bindings["<Left>"](SimpleNamespace(widget=None))
+    assert player.clock.t_now == 100.0
+    root.bindings["<Shift-Right>"](SimpleNamespace(widget=None))
+    assert player.clock.t_now == 160.0
+    root.bindings["<Shift-Left>"](SimpleNamespace(widget=None))
+    assert player.clock.t_now == 100.0
+    root.bindings["<End>"](SimpleNamespace(widget=None))
+    assert player.clock.t_now == 200.0
+    root.bindings["<Home>"](SimpleNamespace(widget=None))
+    assert player.clock.t_now == 100.0
+    assert player.clock.playing
+    assert player.clock.rate == original_rate
+
+    entry_event = SimpleNamespace(widget=player.control_window.time_entry)
+    assert root.bindings["<Right>"](entry_event) is None
+    assert root.bindings["<space>"](entry_event) is None
+    assert root.bindings["<KeyPress-r>"](entry_event) is None
+    assert player.clock.t_now == 100.0
+    assert player.clock.playing
+    assert player.clock.rate == original_rate
+    player.close()
+
+
 def test_start_opens_the_overview_and_overview_opens_both_views(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -449,6 +629,13 @@ def test_overview_views_stay_synchronized_during_seek_and_playback(
             assert isinstance(master, FakeToplevel)
             self.draw_idle_count = 0
 
+        def mpl_connect(self, _event_name: str, callback) -> int:
+            self.click_callback = callback
+            return 17
+
+        def mpl_disconnect(self, _connection_id: int) -> None:
+            pass
+
         def get_tk_widget(self):
             return FakeWidget()
 
@@ -465,10 +652,16 @@ def test_overview_views_stay_synchronized_during_seek_and_playback(
     monkeypatch.setattr(app, "FigureCanvasTkAgg", FakeCanvas)
 
     player.open_overview()
+    speed_canvas = player._speed_altitude_canvas
+    assert speed_canvas is not None
+    speed_canvas.click_callback(SimpleNamespace(button=1, inaxes=object(), xdata=0.75))
+    assert trajectory.states == [100.0, 145.0]
+    assert speed_altitude.times == [100.0, 145.0]
+
     player.clock.pause()
-    player.clock.seek(150.0)
-    assert trajectory.states == [100.0, 150.0]
-    assert speed_altitude.times == [100.0, 150.0]
+    player.control_window.on_seek_to_time("50s")
+    assert trajectory.states == [100.0, 145.0, 150.0]
+    assert speed_altitude.times == [100.0, 145.0, 150.0]
 
     player.clock.play()
     player.clock.tick(2.0)
@@ -562,6 +755,15 @@ def test_speed_altitude_view_window_can_be_opened_raised_and_closed(
             assert master is window
             self.draw_idle_count = 0
             self.events = master.events
+            self.disconnected: list[int] = []
+            self.click_callback = None
+
+        def mpl_connect(self, _event_name: str, callback) -> int:
+            self.click_callback = callback
+            return 17
+
+        def mpl_disconnect(self, connection_id: int) -> None:
+            self.disconnected.append(connection_id)
 
         def draw(self) -> None:
             self.events.append("draw")
@@ -583,18 +785,29 @@ def test_speed_altitude_view_window_can_be_opened_raised_and_closed(
     assert window.events == ["pack", "idle", "draw"]
     canvas = player._speed_altitude_canvas
     assert canvas is not None
+    canvas.toolbar = SimpleNamespace(mode="pan/zoom")
+    canvas.click_callback(SimpleNamespace(button=1, inaxes=object(), xdata=0.5))
+    assert player.clock.t_now == 100.0
+    canvas.toolbar.mode = ""
+    canvas.click_callback(SimpleNamespace(button=1, inaxes=object(), xdata=0.5))
+    assert player.clock.t_now == 130.0
+    assert view.updated_times == [100.0, 130.0]
+    assert canvas.draw_idle_count == 1
+    canvas.click_callback(SimpleNamespace(button=3, inaxes=object(), xdata=1.0))
+    assert player.clock.t_now == 130.0
+
     player.open_speed_altitude_view()
     assert window.lifted
 
     player.clock.pause()
     player.clock.seek(150.0)
     assert view.updated_times[-1] == 150.0
-    assert canvas.draw_idle_count == 1
+    assert canvas.draw_idle_count == 2
 
     player.clock.play()
     player.clock.tick(2.0)
     assert view.updated_times[-1] == 152.0
-    assert canvas.draw_idle_count == 2
+    assert canvas.draw_idle_count == 3
 
     window.protocols["WM_DELETE_WINDOW"]()
 
@@ -603,7 +816,8 @@ def test_speed_altitude_view_window_can_be_opened_raised_and_closed(
     assert player._speed_altitude_view is None
     assert player._speed_altitude_window is None
     player.clock.seek(180.0)
-    assert view.updated_times == [100.0, 150.0, 152.0]
+    assert view.updated_times == [100.0, 130.0, 150.0, 152.0]
+    assert canvas.disconnected == [17]
 
 
 def test_trajectory_view_uses_shared_cursor_and_closes_cleanly(
@@ -821,9 +1035,14 @@ def test_old_tk_uses_graphical_raster_plot_and_updates_cursor(
         def __init__(self, _master, **kwargs) -> None:
             self.options = kwargs
             self.text = kwargs.get("text", "")
+            self.bindings: dict[str, object] = {}
+            buttons.append(self)
 
         def pack(self, **_kwargs) -> None:
             pass
+
+        def bind(self, sequence: str, callback) -> None:
+            self.bindings[sequence] = callback
 
     class FakePhotoImage:
         _next_id = 0
@@ -844,6 +1063,7 @@ def test_old_tk_uses_graphical_raster_plot_and_updates_cursor(
         def put(self, color: str, *, to: tuple[int, ...]) -> None:
             self.put_calls.append((color, to))
 
+    buttons: list[FakeButton] = []
     view = FakeView(100.0)
     monkeypatch.setattr(app.tk, "Toplevel", lambda _root: window)
     monkeypatch.setattr(app.tk, "Button", FakeButton)
@@ -873,6 +1093,14 @@ def test_old_tk_uses_graphical_raster_plot_and_updates_cursor(
         image.put_calls[-1][0] == "#d62728" for image in player._speed_altitude_images
     )
     assert root.tk.image_commands
+    plot_buttons = [button for button in buttons if "image" in button.options]
+    assert len(plot_buttons) == 2
+    plot_buttons[0].bindings["<Button-1>"](SimpleNamespace(x=4, y=5))
+    expected_time = 100.0 + (3.0 / 7.0) * 2.0 * 60.0
+    assert player.clock.t_now == pytest.approx(expected_time)
+    assert view.updated_times[-1] == pytest.approx(expected_time)
+    plot_buttons[0].bindings["<Button-1>"](SimpleNamespace(x=4, y=0))
+    assert player.clock.t_now == pytest.approx(expected_time)
 
     player.close_speed_altitude_view()
     assert view.closed

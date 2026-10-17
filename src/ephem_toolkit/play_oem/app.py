@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+import math
 import signal
 import tempfile
 import time
 import tkinter as tk
 from collections.abc import Callable
 
+from matplotlib.backend_bases import MouseEvent
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 import ephem_toolkit.core.time_utils as time_utils
@@ -55,6 +58,11 @@ class PlayerApp:
             self._seek_to_fraction,
             self._set_playback_speed,
             self._reverse_playback,
+            on_seek_to_time=self._seek_to_time,
+            on_step_samples=self._step_samples,
+            on_step_seconds=self._step_seconds,
+            on_jump_to_start=self._jump_to_start,
+            on_jump_to_end=self._jump_to_end,
             timeline_enabled=clock.t_start < clock.t_end,
         )
         self.root.bind_all("<space>", self._on_space)
@@ -63,6 +71,12 @@ class PlayerApp:
         self.root.bind_all("<KeyPress-R>", self._on_reverse_key)
         self.root.bind_all("<KeyRelease-r>", self._on_reverse_key_release)
         self.root.bind_all("<KeyRelease-R>", self._on_reverse_key_release)
+        self.root.bind_all("<Left>", self._on_previous_sample)
+        self.root.bind_all("<Right>", self._on_next_sample)
+        self.root.bind_all("<Shift-Left>", self._on_previous_minute)
+        self.root.bind_all("<Shift-Right>", self._on_next_minute)
+        self.root.bind_all("<Home>", self._on_jump_to_start)
+        self.root.bind_all("<End>", self._on_jump_to_end)
         self._tick_interval_ms = tick_interval_ms
         self._last_tick: float | None = None
         self._timer_id: str | None = None
@@ -73,6 +87,7 @@ class PlayerApp:
         self._speed_altitude_view: SpeedAltitudeView | None = None
         self._speed_altitude_window: tk.Toplevel | None = None
         self._speed_altitude_canvas: FigureCanvasTkAgg | None = None
+        self._speed_altitude_click_connection_id: int | None = None
         self._speed_altitude_rasters: tuple[RasterPlot, ...] = ()
         self._speed_altitude_base_images: tuple[tk.PhotoImage, ...] = ()
         self._speed_altitude_images: tuple[tk.PhotoImage, ...] = ()
@@ -147,6 +162,10 @@ class PlayerApp:
         if tk_version >= (8, 6):
             canvas = FigureCanvasTkAgg(figure, master=window)
             canvas.get_tk_widget().pack(fill="both", expand=True)
+            self._speed_altitude_click_connection_id = canvas.mpl_connect(
+                "button_press_event",
+                self._on_speed_altitude_plot_click,
+            )
         else:
             rasters = view.render_rasters()
             base_images_list: list[tk.PhotoImage] = []
@@ -172,6 +191,12 @@ class PlayerApp:
                     takefocus=False,
                 )
                 plot_button.pack(anchor="w", padx=12)
+                plot_button.bind(
+                    "<Button-1>",
+                    lambda event, panel=raster: self._on_legacy_plot_click(
+                        event, panel
+                    ),
+                )
                 base_images_list.append(base_image)
                 images_list.append(image)
             self._pack_legacy_plot_caption(window, self.time_unit.get_axis_label())
@@ -305,9 +330,12 @@ class PlayerApp:
         view = self._speed_altitude_view
         window = self._speed_altitude_window
         unsubscribe = self._unsubscribe_speed_altitude
+        canvas = self._speed_altitude_canvas
+        click_connection_id = self._speed_altitude_click_connection_id
         self._speed_altitude_view = None
         self._speed_altitude_window = None
         self._speed_altitude_canvas = None
+        self._speed_altitude_click_connection_id = None
         self._speed_altitude_rasters = ()
         self._speed_altitude_base_images = ()
         self._speed_altitude_images = ()
@@ -315,6 +343,8 @@ class PlayerApp:
         self._unsubscribe_speed_altitude = None
         if unsubscribe is not None:
             unsubscribe()
+        if canvas is not None and click_connection_id is not None:
+            canvas.mpl_disconnect(click_connection_id)
         view.close()
         if window is not None:
             window.destroy()
@@ -455,25 +485,130 @@ class PlayerApp:
         self.clock.toggle()
         self._update_time_display()
 
-    def _on_space(self, _event: tk.Event) -> str:
+    def _on_space(self, event: tk.Event) -> str | None:
+        if self._is_time_entry_event(event):
+            return None
         if not self._space_pressed:
             self._space_pressed = True
             self._toggle_playback()
         return "break"
 
-    def _on_space_release(self, _event: tk.Event) -> str:
+    def _on_space_release(self, event: tk.Event) -> str | None:
         self._space_pressed = False
-        return "break"
+        return None if self._is_time_entry_event(event) else "break"
 
-    def _on_reverse_key(self, _event: tk.Event) -> str:
+    def _on_reverse_key(self, event: tk.Event) -> str | None:
+        if self._is_time_entry_event(event):
+            return None
         if not self._reverse_key_pressed:
             self._reverse_key_pressed = True
             self._reverse_playback()
         return "break"
 
-    def _on_reverse_key_release(self, _event: tk.Event) -> str:
+    def _on_reverse_key_release(self, event: tk.Event) -> str | None:
         self._reverse_key_pressed = False
+        return None if self._is_time_entry_event(event) else "break"
+
+    def _is_time_entry_event(self, event: tk.Event | None) -> bool:
+        return event is not None and event.widget is self.control_window.time_entry
+
+    def _on_previous_sample(self, event: tk.Event) -> str | None:
+        return self._handle_navigation_key(event, lambda: self._step_samples(-1))
+
+    def _on_next_sample(self, event: tk.Event) -> str | None:
+        return self._handle_navigation_key(event, lambda: self._step_samples(1))
+
+    def _on_previous_minute(self, event: tk.Event) -> str | None:
+        return self._handle_navigation_key(event, lambda: self._step_seconds(-60.0))
+
+    def _on_next_minute(self, event: tk.Event) -> str | None:
+        return self._handle_navigation_key(event, lambda: self._step_seconds(60.0))
+
+    def _on_jump_to_start(self, event: tk.Event) -> str | None:
+        return self._handle_navigation_key(event, self._jump_to_start)
+
+    def _on_jump_to_end(self, event: tk.Event) -> str | None:
+        return self._handle_navigation_key(event, self._jump_to_end)
+
+    def _handle_navigation_key(
+        self, event: tk.Event, action: Callable[[], None]
+    ) -> str | None:
+        if self._is_time_entry_event(event):
+            return None
+        action()
         return "break"
+
+    def _step_samples(self, count: int) -> None:
+        self.clock.step_samples(count)
+        self._update_time_display()
+
+    def _step_seconds(self, amount: float) -> None:
+        self.clock.step(amount)
+        self._update_time_display()
+
+    def _jump_to_start(self) -> None:
+        self.clock.seek(self.clock.t_start)
+        self._update_time_display()
+
+    def _jump_to_end(self) -> None:
+        self.clock.seek(self.clock.t_end)
+        self._update_time_display()
+
+    def _seek_to_time(self, value: str) -> None:
+        try:
+            parsed_time = time_utils.parse_time_or_duration(value)
+            if isinstance(parsed_time, timedelta):
+                target_time = self.clock.t_start + parsed_time.total_seconds()
+            else:
+                target_time = time_utils.datetime_to_tt_s(parsed_time)
+            if not self.clock.t_start <= target_time <= self.clock.t_end:
+                raise ValueError("time is outside the OEM timeline")
+        except (OverflowError, ValueError) as error:
+            self.control_window.show_time_error(str(error))
+            return
+
+        self.clock.seek(target_time)
+        self.control_window.clear_time_error()
+        self._update_time_display()
+
+    def _on_speed_altitude_plot_click(self, event: MouseEvent) -> None:
+        if event.button != 1:
+            return
+        if event.inaxes is None:
+            return
+        xdata = event.xdata
+        if xdata is None or not math.isfinite(xdata):
+            return
+        canvas = self._speed_altitude_canvas
+        if canvas is None or self._navigation_mode_active(canvas):
+            return
+        self._seek_to_elapsed_time(float(xdata))
+
+    def _on_legacy_plot_click(self, event: tk.Event, raster: RasterPlot) -> None:
+        if not (
+            raster.plot_left <= event.x <= raster.plot_right
+            and raster.plot_top <= event.y <= raster.plot_bottom
+        ):
+            return
+        plot_width = raster.plot_right - raster.plot_left
+        if plot_width <= 0:
+            return
+        fraction = (event.x - raster.plot_left) / plot_width
+        elapsed_time = raster.x_start + fraction * (raster.x_end - raster.x_start)
+        self._seek_to_elapsed_time(elapsed_time)
+
+    def _seek_to_elapsed_time(self, elapsed_time: float) -> None:
+        target_time = self.clock.t_start + elapsed_time * self.time_unit.get_divisor_s()
+        self.clock.seek(target_time)
+        self._update_time_display()
+
+    @staticmethod
+    def _navigation_mode_active(canvas: FigureCanvasTkAgg) -> bool:
+        toolbar = getattr(canvas, "toolbar", None)
+        if toolbar is None:
+            manager = getattr(canvas, "manager", None)
+            toolbar = getattr(manager, "toolbar", None)
+        return bool(getattr(toolbar, "mode", None))
 
     def _seek_to_fraction(self, progress: float) -> None:
         span = self.clock.t_end - self.clock.t_start

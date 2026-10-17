@@ -20,6 +20,7 @@ SPEED_SCALE_HEIGHT_PX = 28
 SPEED_SCALE_LEFT_PX = 12
 SPEED_SCALE_RIGHT_PX = 308
 SPEED_SCALE_CENTER_Y = 14
+TIME_ENTRY_FIELD_HEIGHT_PX = 38
 SPEED_PRESETS = (1.0, 10.0, 100.0, 1000.0)
 
 
@@ -36,6 +37,11 @@ class ControlWindow:
         on_set_speed: Callable[[float], None],
         on_reverse: Callable[[], None],
         *,
+        on_seek_to_time: Callable[[str], None],
+        on_step_samples: Callable[[int], None],
+        on_step_seconds: Callable[[float], None],
+        on_jump_to_start: Callable[[], None],
+        on_jump_to_end: Callable[[], None],
         timeline_enabled: bool,
     ) -> None:
         self.root = root
@@ -43,6 +49,7 @@ class ControlWindow:
         self._on_toggle_play = on_toggle_play
         self._on_set_speed = on_set_speed
         self._on_reverse = on_reverse
+        self._on_seek_to_time = on_seek_to_time
         self._space_pressed = False
         self._timeline_enabled = timeline_enabled
         self.root.title("play-oem")
@@ -136,6 +143,119 @@ class ControlWindow:
             highlightbackground=BACKGROUND_COLOR,
         )
         self._reverse_button.pack(side="left", padx=(0, 16), pady=(0, 8))
+        time_entry_controls = tk.Frame(root, background=BACKGROUND_COLOR)
+        time_entry_controls.pack(fill="x", padx=16, pady=(0, 4))
+        self._time_entry_prompt = tk.Button(
+            time_entry_controls,
+            text="Seek to elapsed time or UTC:",
+            anchor="w",
+            height=1,
+            state="normal",
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+            takefocus=False,
+            background=BACKGROUND_COLOR,
+            foreground=FOREGROUND_COLOR,
+        )
+        self._time_entry_prompt.pack(fill="x", pady=(0, 4))
+        time_entry_row = tk.Frame(time_entry_controls, background=BACKGROUND_COLOR)
+        time_entry_row.pack(fill="x")
+        # Aqua Tk 8.5.9 maps Entry but blends it into dark mode; mirror its text visibly.
+        self._time_entry_editing = False
+        self.time_entry = tk.Entry(time_entry_row, width=28, takefocus=False)
+        self.time_entry.place(x=0, y=0, width=1, height=1)
+        self.time_entry.bind("<Return>", self._submit_time_entry)
+        self.time_entry.bind("<KeyRelease>", self._refresh_time_entry_display)
+        self.time_entry.bind("<FocusOut>", self._on_time_entry_focus_out)
+        self._time_entry_image = self._create_time_entry_image(SPEED_SCALE_WIDTH_PX)
+        time_entry_row.configure(height=TIME_ENTRY_FIELD_HEIGHT_PX)
+        time_entry_row.grid_propagate(False)
+        self._time_entry_display_button = tk.Button(
+            time_entry_row,
+            text="Click to enter elapsed time or UTC",
+            image=self._time_entry_image,
+            compound="center",
+            anchor="w",
+            justify="left",
+            padx=10,
+            pady=0,
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+            takefocus=False,
+            background=BACKGROUND_COLOR,
+            foreground="#ffffff",
+            command=self._focus_time_entry,
+        )
+        time_entry_row.grid_columnconfigure(0, weight=1)
+        self._time_entry_display_button.grid(row=0, column=0, sticky="ew")
+        self._time_entry_display_button.bind(
+            "<Configure>", self._resize_time_entry_display
+        )
+        self._seek_time_button = tk.Button(
+            time_entry_row,
+            text="Seek",
+            command=self._submit_time_entry,
+            highlightbackground=BACKGROUND_COLOR,
+        )
+        self._seek_time_button.grid(row=0, column=1, sticky="e", padx=(8, 0))
+        self._time_error_label = tk.Button(
+            root,
+            text="",
+            anchor="w",
+            height=1,
+            state="normal",
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+            takefocus=False,
+            background=BACKGROUND_COLOR,
+            foreground="#a00000",
+        )
+        self._time_error_label.pack(fill="x", padx=16, pady=(0, 4))
+        navigation_controls = tk.Frame(root, background=BACKGROUND_COLOR)
+        navigation_controls.pack(fill="x", padx=16, pady=(0, 8))
+        self._navigation_buttons = (
+            tk.Button(
+                navigation_controls,
+                text="Start",
+                command=on_jump_to_start,
+                highlightbackground=BACKGROUND_COLOR,
+            ),
+            tk.Button(
+                navigation_controls,
+                text="Previous sample",
+                command=lambda: on_step_samples(-1),
+                highlightbackground=BACKGROUND_COLOR,
+            ),
+            tk.Button(
+                navigation_controls,
+                text="-1 min",
+                command=lambda: on_step_seconds(-60.0),
+                highlightbackground=BACKGROUND_COLOR,
+            ),
+            tk.Button(
+                navigation_controls,
+                text="+1 min",
+                command=lambda: on_step_seconds(60.0),
+                highlightbackground=BACKGROUND_COLOR,
+            ),
+            tk.Button(
+                navigation_controls,
+                text="Next sample",
+                command=lambda: on_step_samples(1),
+                highlightbackground=BACKGROUND_COLOR,
+            ),
+            tk.Button(
+                navigation_controls,
+                text="End",
+                command=on_jump_to_end,
+                highlightbackground=BACKGROUND_COLOR,
+            ),
+        )
+        for button in self._navigation_buttons:
+            button.pack(side="left", padx=(0, 4))
         self._speed_scale_caption = tk.Button(
             root,
             text="Playback speed (log scale, 1x to 1000x)",
@@ -258,6 +378,8 @@ class ControlWindow:
             self._speed_100_button,
             self._speed_1000_button,
             self._reverse_button,
+            self._seek_time_button,
+            *self._navigation_buttons,
             self._speed_scale_caption,
             self._speed_scale_button,
             self._timeline_button,
@@ -274,6 +396,45 @@ class ControlWindow:
         elapsed_text, separator, utc_text = text.partition("\n")
         self._elapsed_label.configure(text=elapsed_text)
         self._utc_label.configure(text=utc_text if separator else "")
+
+    def show_time_error(self, message: str) -> None:
+        """Display a time-entry error without changing the playback clock."""
+        self._time_error_label.configure(text=message)
+
+    def clear_time_error(self) -> None:
+        """Clear a previously displayed time-entry error."""
+        self._time_error_label.configure(text="")
+
+    def _create_time_entry_image(self, width: int) -> tk.PhotoImage:
+        height = TIME_ENTRY_FIELD_HEIGHT_PX
+        image = tk.PhotoImage(master=self.root, width=width, height=height)
+        image.put("#8b8b8b", to=(0, 0, width, height))
+        if width > 4 and height > 4:
+            image.put("#292929", to=(2, 2, width - 2, height - 2))
+        return image
+
+    def _resize_time_entry_display(self, event: tk.Event) -> None:
+        width = max(1, event.width)
+        if self._time_entry_image.width() == width:
+            return
+        self._time_entry_image = self._create_time_entry_image(width)
+        self._time_entry_display_button.configure(image=self._time_entry_image)
+
+    def _focus_time_entry(self) -> None:
+        self._time_entry_editing = True
+        self.time_entry.focus_force()
+        self.time_entry.icursor("end")
+        self._refresh_time_entry_display()
+
+    def _on_time_entry_focus_out(self, _event: tk.Event) -> None:
+        self._time_entry_editing = False
+        self._refresh_time_entry_display()
+
+    def _refresh_time_entry_display(self, _event: tk.Event | None = None) -> None:
+        text = self.time_entry.get()
+        if not text and not self._time_entry_editing:
+            text = "Click to enter elapsed time or UTC"
+        self._time_entry_display_button.configure(text=text)
 
     def update_playback_state(
         self, text: str, progress: float, playing: bool, rate: float
@@ -348,6 +509,10 @@ class ControlWindow:
         )
         speed = 10.0 ** (progress * 3.0)
         self._on_set_speed(speed)
+
+    def _submit_time_entry(self, _event: tk.Event | None = None) -> str:
+        self._on_seek_to_time(self.time_entry.get())
+        return "break"
 
     def _render_timeline(self, progress: float) -> None:
         progress = min(max(progress, 0.0), 1.0)

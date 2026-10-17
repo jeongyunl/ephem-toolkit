@@ -47,23 +47,6 @@ the remaining views, advanced controls or VTK.
 
 ## Milestone D — Complete playback and seeking
 
-### 12. Add direct time entry and seek shortcuts
-
-Support elapsed-duration and UTC input, sample/time stepping, start/end shortcuts and click-to-seek.
-Plot clicks must not intercept Matplotlib pan/zoom interactions.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Parse elapsed durations and UTC epochs; show invalid input without changing the clock.
-- [ ] Add sample stepping, minute stepping and start/end keyboard shortcuts.
-- [ ] Add click-to-seek when the plot toolbar is not in pan/zoom mode.
-- [ ] Test seeks while playing, paused and reversed.
-- [ ] Verify all open views follow each seek.
-
-**Done when:** each documented random-seek interaction reaches the requested timeline time
-without altering speed or direction.
-**Depends on:** Step 11.
-
 ## Milestone E — Full dashboard and plot set
 
 ### 13. Add the view registry, groups and toolbar
@@ -449,3 +432,24 @@ explicit start begins at the timeline end.
 
 **Done when:** the full playback range and reverse direction work from controls and CLI.
 **Depends on:** Step 10.
+
+### 12. Add direct time entry and seek shortcuts
+
+Support elapsed-duration and UTC input, sample/time stepping, start/end shortcuts and click-to-seek.
+Plot clicks must not intercept Matplotlib pan/zoom interactions.
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Parse elapsed durations and UTC epochs; show invalid input without changing the clock.
+- [x] Add sample stepping, minute stepping and start/end keyboard shortcuts.
+- [x] Add click-to-seek when the plot toolbar is not in pan/zoom mode.
+- [x] Test seeks while playing, paused and reversed.
+- [x] Verify all open views follow each seek.
+
+**Done when:** each documented random-seek interaction reaches the requested timeline time
+without altering speed or direction.
+**Depends on:** Step 11.
+
+**Implementation notes:** Native Entry widgets were mapped but visually blended into the dark
+macOS Tk 8.5.9 control window. The visible input surface uses a PhotoImage-backed classic button
+that focuses an Entry text buffer and mirrors typed text; Return and Seek submit that same buffer.
