@@ -2,58 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import numpy as np
-from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
 from ..series import OrbitSeries
 from ..time_unit import TimeUnit
-
-
-@dataclass(frozen=True)
-class RasterPanel:
-    """Plot bounds and time range for one panel in the legacy Tk image."""
-
-    plot_left: int
-    plot_right: int
-    plot_top: int
-    plot_bottom: int
-    x_start: float
-    x_end: float
-
-    def cursor_column(self, elapsed_time: float) -> int:
-        if self.x_start == self.x_end:
-            return (self.plot_left + self.plot_right) // 2
-        fraction = (elapsed_time - self.x_start) / (self.x_end - self.x_start)
-        fraction = min(max(fraction, 0.0), 1.0)
-        return round(self.plot_left + fraction * (self.plot_right - self.plot_left))
-
-    def elapsed_at(self, pixel_x: int) -> float:
-        if self.plot_left == self.plot_right or self.x_start == self.x_end:
-            return self.x_start
-        fraction = (pixel_x - self.plot_left) / (self.plot_right - self.plot_left)
-        fraction = min(max(fraction, 0.0), 1.0)
-        return self.x_start + fraction * (self.x_end - self.x_start)
-
-    def contains_plot_point(self, pixel_x: int, pixel_y: int) -> bool:
-        return (
-            self.plot_left <= pixel_x <= self.plot_right
-            and self.plot_top <= pixel_y <= self.plot_bottom
-        )
-
-
-@dataclass(frozen=True)
-class StateComponentsRaster:
-    """Matplotlib-rendered panels and their coordinates for legacy Tk."""
-
-    width: int
-    height: int
-    ppm_data: bytes
-    panels: tuple[RasterPanel, ...]
+from .raster import RasterImage, render_matplotlib_raster
 
 
 class StateComponentsView:
@@ -124,37 +80,18 @@ class StateComponentsView:
         for cursor_artist in self._cursor_artists:
             cursor_artist.set_xdata([elapsed_time, elapsed_time])
 
-    def render_raster(self) -> StateComponentsRaster:
+    def render_raster(self) -> RasterImage:
         """Render the complete Matplotlib figure for legacy Tk PhotoImage display."""
         if self._figure is None or self._axes is None or self._cursor_artists is None:
             raise RuntimeError("state-components view has not been built")
         if self._elapsed_time is None:
             raise RuntimeError("state-components time data is unavailable")
 
-        cursor_visibility = tuple(
-            cursor_artist.get_visible() for cursor_artist in self._cursor_artists
+        return render_matplotlib_raster(
+            self._figure,
+            self._axes,
+            self._cursor_artists,
         )
-        for cursor_artist in self._cursor_artists:
-            cursor_artist.set_visible(False)
-        try:
-            canvas = FigureCanvasAgg(self._figure)
-            canvas.draw()
-            width, height = canvas.get_width_height()
-            renderer = canvas.get_renderer()
-            panels = tuple(
-                self._raster_panel(axes, renderer, width, height) for axes in self._axes
-            )
-            pixels = np.asarray(canvas.buffer_rgba(), dtype=np.uint8)[:, :, :3]
-            ppm_header = f"P6\n{width} {height}\n255\n".encode("ascii")
-            return StateComponentsRaster(
-                width,
-                height,
-                ppm_header + np.ascontiguousarray(pixels).tobytes(),
-                panels,
-            )
-        finally:
-            for cursor_artist, visible in zip(self._cursor_artists, cursor_visibility):
-                cursor_artist.set_visible(visible)
 
     def close(self) -> None:
         if self._figure is not None:
@@ -163,17 +100,3 @@ class StateComponentsView:
         self._axes = None
         self._cursor_artists = None
         self._elapsed_time = None
-
-    def _raster_panel(
-        self, axes: Axes, renderer, width: int, height: int
-    ) -> RasterPanel:
-        bounds = axes.get_window_extent(renderer)
-        x_start, x_end = axes.get_xlim()
-        return RasterPanel(
-            max(0, int(np.floor(bounds.x0))),
-            min(width - 1, int(np.ceil(bounds.x1)) - 1),
-            max(0, height - int(np.ceil(bounds.y1))),
-            min(height - 1, height - int(np.floor(bounds.y0)) - 1),
-            float(x_start),
-            float(x_end),
-        )

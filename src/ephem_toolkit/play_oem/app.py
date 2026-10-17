@@ -20,8 +20,9 @@ from .control_window import ControlWindow
 from .cursor import CursorState, OemCursor
 from .series import OrbitSeries
 from .time_unit import TimeUnit
-from .views.speed_altitude import RasterPlot, SpeedAltitudeView
-from .views.state_components import StateComponentsRaster, StateComponentsView
+from .views.raster import RasterImage
+from .views.speed_altitude import SpeedAltitudeView
+from .views.state_components import StateComponentsView
 from .views.trajectory3d import Trajectory3DView, TrajectoryRaster
 from .views.registry import ViewRegistry
 
@@ -104,16 +105,16 @@ class PlayerApp:
         self._speed_altitude_window: tk.Toplevel | None = None
         self._speed_altitude_canvas: FigureCanvasTkAgg | None = None
         self._speed_altitude_click_connection_id: int | None = None
-        self._speed_altitude_rasters: tuple[RasterPlot, ...] = ()
-        self._speed_altitude_base_images: tuple[tk.PhotoImage, ...] = ()
-        self._speed_altitude_images: tuple[tk.PhotoImage, ...] = ()
-        self._speed_altitude_cursor_x: int | None = None
+        self._speed_altitude_raster: RasterImage | None = None
+        self._speed_altitude_base_image: tk.PhotoImage | None = None
+        self._speed_altitude_image: tk.PhotoImage | None = None
+        self._speed_altitude_cursor_columns: tuple[int, ...] | None = None
         self._unsubscribe_speed_altitude: Callable[[], None] | None = None
         self._state_components_view: StateComponentsView | None = None
         self._state_components_window: tk.Toplevel | None = None
         self._state_components_canvas: FigureCanvasTkAgg | None = None
         self._state_components_click_connection_id: int | None = None
-        self._state_components_raster: StateComponentsRaster | None = None
+        self._state_components_raster: RasterImage | None = None
         self._state_components_base_image: tk.PhotoImage | None = None
         self._state_components_image: tk.PhotoImage | None = None
         self._state_components_cursor_columns: tuple[int, ...] | None = None
@@ -182,9 +183,9 @@ class PlayerApp:
             else f"Speed / Altitude (Tk {patchlevel} raster view)"
         )
         canvas: FigureCanvasTkAgg | None = None
-        rasters: tuple[RasterPlot, ...] = ()
-        base_images: tuple[tk.PhotoImage, ...] = ()
-        images: tuple[tk.PhotoImage, ...] = ()
+        raster: RasterImage | None = None
+        base_image: tk.PhotoImage | None = None
+        image: tk.PhotoImage | None = None
         if tk_version >= (8, 6):
             canvas = FigureCanvasTkAgg(figure, master=window)
             canvas.get_tk_widget().pack(fill="both", expand=True)
@@ -193,41 +194,30 @@ class PlayerApp:
                 self._on_speed_altitude_plot_click,
             )
         else:
-            rasters = view.render_rasters()
-            base_images_list: list[tk.PhotoImage] = []
-            images_list: list[tk.PhotoImage] = []
-            titles = ("Speed (km/s)", "Altitude (km)")
-            for title, raster in zip(titles, rasters):
-                self._pack_legacy_plot_caption(window, title)
-                base_image = self._load_legacy_ppm_image(window, raster.ppm_data)
-                image = tk.PhotoImage(
-                    master=window,
-                    width=raster.width,
-                    height=raster.height,
-                )
-                image.tk.call(str(image), "copy", str(base_image))
-                plot_button = tk.Button(
-                    window,
-                    image=image,
-                    relief="flat",
-                    borderwidth=0,
-                    highlightthickness=0,
-                    padx=0,
-                    pady=0,
-                    takefocus=False,
-                )
-                plot_button.pack(anchor="w", padx=12)
-                plot_button.bind(
-                    "<Button-1>",
-                    lambda event, panel=raster: self._on_legacy_plot_click(
-                        event, panel
-                    ),
-                )
-                base_images_list.append(base_image)
-                images_list.append(image)
-            self._pack_legacy_plot_caption(window, self.time_unit.get_axis_label())
-            base_images = tuple(base_images_list)
-            images = tuple(images_list)
+            speed_raster = view.render_raster()
+            raster = speed_raster
+            base_image = self._load_legacy_ppm_image(window, speed_raster.ppm_data)
+            image = tk.PhotoImage(
+                master=window,
+                width=speed_raster.width,
+                height=speed_raster.height,
+            )
+            image.tk.call(str(image), "copy", str(base_image))
+            plot_button = tk.Button(
+                window,
+                image=image,
+                relief="flat",
+                borderwidth=0,
+                highlightthickness=0,
+                padx=0,
+                pady=0,
+                takefocus=False,
+            )
+            plot_button.pack(anchor="w", padx=12)
+            plot_button.bind(
+                "<Button-1>",
+                lambda event: self._on_legacy_plot_click(event, speed_raster),
+            )
         window.update_idletasks()
         if canvas is not None:
             canvas.draw()
@@ -235,13 +225,14 @@ class PlayerApp:
         self._speed_altitude_view = view
         self._speed_altitude_window = window
         self._speed_altitude_canvas = canvas
-        self._speed_altitude_rasters = rasters
-        self._speed_altitude_base_images = base_images
-        self._speed_altitude_images = images
+        self._speed_altitude_raster = raster
+        self._speed_altitude_base_image = base_image
+        self._speed_altitude_image = image
+        self._speed_altitude_cursor_columns = None
         self._unsubscribe_speed_altitude = self.clock.subscribe(
             self._update_speed_altitude_view
         )
-        if rasters:
+        if raster is not None:
             self._update_legacy_raster_cursor(self.clock.t_now)
 
     def open_state_components_view(self) -> None:
@@ -261,7 +252,7 @@ class PlayerApp:
             else f"State Components (Tk {patchlevel} raster view)"
         )
         canvas: FigureCanvasTkAgg | None = None
-        raster: StateComponentsRaster | None = None
+        raster: RasterImage | None = None
         base_image: tk.PhotoImage | None = None
         image: tk.PhotoImage | None = None
         if tk_version >= (8, 6):
@@ -470,10 +461,10 @@ class PlayerApp:
         self._speed_altitude_window = None
         self._speed_altitude_canvas = None
         self._speed_altitude_click_connection_id = None
-        self._speed_altitude_rasters = ()
-        self._speed_altitude_base_images = ()
-        self._speed_altitude_images = ()
-        self._speed_altitude_cursor_x = None
+        self._speed_altitude_raster = None
+        self._speed_altitude_base_image = None
+        self._speed_altitude_image = None
+        self._speed_altitude_cursor_columns = None
         self._unsubscribe_speed_altitude = None
         if unsubscribe is not None:
             unsubscribe()
@@ -497,7 +488,7 @@ class PlayerApp:
         view.update(t_s)
         if self._speed_altitude_canvas is not None:
             self._speed_altitude_canvas.draw_idle()
-        elif self._speed_altitude_rasters:
+        elif self._speed_altitude_raster is not None:
             self._update_legacy_raster_cursor(t_s)
 
     def _update_state_components_view(self, t_s: float) -> None:
@@ -521,43 +512,21 @@ class PlayerApp:
         elif self._trajectory_raster is not None:
             self._update_legacy_trajectory_cursor(cursor_state)
 
-    def _pack_legacy_plot_caption(self, window: tk.Toplevel, text: str) -> None:
-        caption = tk.Button(
-            window,
-            text=text,
-            anchor="w",
-            height=1,
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
-            takefocus=False,
-            background="white",
-            foreground="black",
-        )
-        caption.pack(fill="x", padx=12, pady=(4, 0))
-
     def _update_legacy_raster_cursor(self, t_s: float) -> None:
-        if (
-            not self._speed_altitude_rasters
-            or len(self._speed_altitude_rasters) != len(self._speed_altitude_images)
-            or len(self._speed_altitude_rasters)
-            != len(self._speed_altitude_base_images)
-        ):
+        raster = self._speed_altitude_raster
+        image = self._speed_altitude_image
+        base_image = self._speed_altitude_base_image
+        if raster is None or image is None or base_image is None:
             raise RuntimeError("legacy raster plot images are not initialized")
 
-        raster = self._speed_altitude_rasters[0]
         elapsed_time = (t_s - self.clock.t_start) / self.time_unit.get_divisor_s()
-        cursor_x = raster.cursor_column(elapsed_time)
-        if cursor_x == self._speed_altitude_cursor_x:
+        columns = tuple(panel.cursor_column(elapsed_time) for panel in raster.panels)
+        previous_columns = self._speed_altitude_cursor_columns
+        if columns == previous_columns:
             return
 
-        if self._speed_altitude_cursor_x is not None:
-            old_x = self._speed_altitude_cursor_x
-            for image, base_image, panel in zip(
-                self._speed_altitude_images,
-                self._speed_altitude_base_images,
-                self._speed_altitude_rasters,
-            ):
+        if previous_columns is not None:
+            for old_x, panel in zip(previous_columns, raster.panels):
                 image.tk.call(
                     str(image),
                     "copy",
@@ -572,9 +541,7 @@ class PlayerApp:
                     panel.plot_top,
                 )
 
-        for image, panel in zip(
-            self._speed_altitude_images, self._speed_altitude_rasters
-        ):
+        for cursor_x, panel in zip(columns, raster.panels):
             image.put(
                 "#d62728",
                 to=(
@@ -584,7 +551,7 @@ class PlayerApp:
                     panel.plot_bottom + 1,
                 ),
             )
-        self._speed_altitude_cursor_x = cursor_x
+        self._speed_altitude_cursor_columns = columns
 
     def _update_legacy_state_components_cursor(self, t_s: float) -> None:
         raster = self._state_components_raster
@@ -780,21 +747,14 @@ class PlayerApp:
             return
         self._seek_to_elapsed_time(float(xdata))
 
-    def _on_legacy_plot_click(self, event: tk.Event, raster: RasterPlot) -> None:
-        if not (
-            raster.plot_left <= event.x <= raster.plot_right
-            and raster.plot_top <= event.y <= raster.plot_bottom
-        ):
-            return
-        plot_width = raster.plot_right - raster.plot_left
-        if plot_width <= 0:
-            return
-        fraction = (event.x - raster.plot_left) / plot_width
-        elapsed_time = raster.x_start + fraction * (raster.x_end - raster.x_start)
-        self._seek_to_elapsed_time(elapsed_time)
+    def _on_legacy_plot_click(self, event: tk.Event, raster: RasterImage) -> None:
+        for panel in raster.panels:
+            if panel.contains_plot_point(event.x, event.y):
+                self._seek_to_elapsed_time(panel.elapsed_at(event.x))
+                return
 
     def _on_legacy_state_components_click(
-        self, event: tk.Event, raster: StateComponentsRaster
+        self, event: tk.Event, raster: RasterImage
     ) -> None:
         for panel in raster.panels:
             if panel.contains_plot_point(event.x, event.y):

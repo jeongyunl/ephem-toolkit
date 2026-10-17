@@ -14,10 +14,7 @@ from ephem_toolkit.play_oem.clock import PlaybackClock
 from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_unit import TimeUnit
-from ephem_toolkit.play_oem.views.state_components import (
-    RasterPanel,
-    StateComponentsRaster,
-)
+from ephem_toolkit.play_oem.views.raster import RasterImage, RasterPanel
 
 
 class FakeRoot:
@@ -1139,26 +1136,19 @@ def test_old_tk_uses_graphical_raster_plot_and_updates_cursor(
         def update(self, t_s: float) -> None:
             self.updated_times.append(t_s)
 
-        def render_rasters(self):
-            return (FakeRaster(), FakeRaster())
+        def render_raster(self):
+            return RasterImage(
+                10,
+                10,
+                b"P6\n10 10\n255\n",
+                (
+                    RasterPanel(1, 8, 1, 4, 0.0, 2.0),
+                    RasterPanel(1, 8, 5, 8, 0.0, 2.0),
+                ),
+            )
 
         def close(self) -> None:
             self.closed = True
-
-    class FakeRaster:
-        width = 10
-        height = 10
-        ppm_data = b"P6\n10 10\n255\n"
-        plot_left = 1
-        plot_right = 8
-        x_start = 0.0
-        x_end = 2.0
-        plot_top = 1
-        plot_bottom = 8
-
-        def cursor_column(self, elapsed_time: float) -> int:
-            fraction = min(max(elapsed_time / 2.0, 0.0), 1.0)
-            return round(self.plot_left + fraction * (self.plot_right - self.plot_left))
 
     class FakeButton:
         def __init__(self, _master, **kwargs) -> None:
@@ -1202,28 +1192,26 @@ def test_old_tk_uses_graphical_raster_plot_and_updates_cursor(
     player.open_speed_altitude_view()
 
     assert player._speed_altitude_canvas is None
-    assert len(player._speed_altitude_images) == 2
-    assert player._speed_altitude_cursor_x == 1
+    assert player._speed_altitude_image is not None
+    assert player._speed_altitude_cursor_columns == (1, 1)
     assert window.window_title == "Speed / Altitude (Tk 8.5.9 raster view)"
-    assert player._speed_altitude_base_images[0].loaded_file_data is not None
-    assert player._speed_altitude_base_images[0].loaded_file_data.startswith(
+    assert player._speed_altitude_base_image is not None
+    assert player._speed_altitude_base_image.loaded_file_data is not None
+    assert player._speed_altitude_base_image.loaded_file_data.startswith(
         b"P6\n10 10\n255\n"
     )
-    assert all(
-        image.loaded_file_path is not None and not Path(image.loaded_file_path).exists()
-        for image in player._speed_altitude_base_images
-    )
-    assert all(
-        image.put_calls[-1][0] == "#d62728" for image in player._speed_altitude_images
-    )
+    assert player._speed_altitude_base_image.loaded_file_path is not None
+    assert not Path(player._speed_altitude_base_image.loaded_file_path).exists()
+    assert [call[0] for call in player._speed_altitude_image.put_calls] == [
+        "#d62728",
+        "#d62728",
+    ]
     player.clock.seek(150.0)
-    assert player._speed_altitude_cursor_x == 4
-    assert all(
-        image.put_calls[-1][0] == "#d62728" for image in player._speed_altitude_images
-    )
+    assert player._speed_altitude_cursor_columns == (4, 4)
+    assert len(player._speed_altitude_image.put_calls) == 4
     assert root.tk.image_commands
     plot_buttons = [button for button in buttons if "image" in button.options]
-    assert len(plot_buttons) == 2
+    assert len(plot_buttons) == 1
     plot_buttons[0].bindings["<Button-1>"](SimpleNamespace(x=4, y=5))
     expected_time = 100.0 + (3.0 / 7.0) * 2.0 * 60.0
     assert player.clock.t_now == pytest.approx(expected_time)
@@ -1243,7 +1231,7 @@ def test_old_tk_state_components_raster_seeks_and_updates_all_cursors(
     player = make_app(monkeypatch, root)
     window = FakeToplevel()
     window.tk = root.tk
-    raster = StateComponentsRaster(
+    raster = RasterImage(
         10,
         10,
         b"P6\n10 10\n255\n",

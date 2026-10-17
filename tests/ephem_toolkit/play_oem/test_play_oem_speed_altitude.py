@@ -8,12 +8,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_unit import TimeUnit
-from ephem_toolkit.play_oem.views.speed_altitude import (
-    AXIS_COLOR,
-    GRID_COLOR,
-    SERIES_COLOR,
-    SpeedAltitudeView,
-)
+from ephem_toolkit.play_oem.views.speed_altitude import SpeedAltitudeView
 
 
 def test_speed_altitude_view_builds_labeled_static_series_and_cursor() -> None:
@@ -41,16 +36,19 @@ def test_speed_altitude_view_builds_labeled_static_series_and_cursor() -> None:
     original_speed_x = figure.axes[0].lines[0].get_xdata().copy()
     original_speed_y = figure.axes[0].lines[0].get_ydata().copy()
     view.update(100.0)
-    raster_plots = view.render_rasters()
-    assert len(raster_plots) == 2
-    raster = raster_plots[0]
-    assert raster.ppm_data.startswith(b"P6\n760 280\n255\n")
-    assert bytes(SERIES_COLOR) in raster.ppm_data
-    assert bytes(GRID_COLOR) in raster.ppm_data
-    assert bytes(AXIS_COLOR) in raster.ppm_data
-    assert raster.cursor_column(0.0) == raster.plot_left
-    assert raster.cursor_column(1.0) == (raster.plot_left + raster.plot_right) // 2
-    assert raster.cursor_column(2.0) == raster.plot_right
+    raster = view.render_raster()
+    assert raster.ppm_data.startswith(
+        f"P6\n{raster.width} {raster.height}\n255\n".encode("ascii")
+    )
+    assert len(raster.panels) == 2
+    for panel in raster.panels:
+        start_column = panel.cursor_column(0.0)
+        end_column = panel.cursor_column(2.0)
+        assert panel.plot_left < start_column < panel.plot_right
+        assert panel.cursor_column(1.0) == (panel.plot_left + panel.plot_right) // 2
+        assert panel.plot_left < end_column < panel.plot_right
+        assert panel.elapsed_at(start_column) == pytest.approx(0.0, abs=0.01)
+        assert panel.elapsed_at(end_column) == pytest.approx(2.0, abs=0.01)
     np.testing.assert_array_equal(figure.axes[0].lines[1].get_xdata(), [0.0, 0.0])
     view.update(160.0)
     np.testing.assert_array_equal(figure.axes[0].lines[1].get_xdata(), [1.0, 1.0])

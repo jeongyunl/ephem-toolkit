@@ -318,10 +318,9 @@ cursor artist. Connect the view window lifecycle to the app.
 **Implementation notes:** Detect the Tcl/Tk patch level when opening the view. Tk 8.6+ uses the
 Matplotlib `TkAgg` canvas. The verified macOS Tk 8.5.9 runtime leaves `TkAgg` canvases and native
 Canvas drawings blank, but renders raster images in classic Tk buttons. Its fallback therefore
-draws the data series, grid, axes and ticks into PPM images and displays them through classic
-buttons; plot content and axes are graphical rather than text characters. Keep titles and the
-time-unit caption in separate single-line buttons, and flush Tk layout before the initial
-Matplotlib draw.
+uses Matplotlib Agg to rasterize the complete speed/altitude figure to one PPM image, preserving
+its standard axes, ticks, labels and styling. Keep plot clicks mapped through the rendered axes
+bounds, and flush Tk layout before the initial Matplotlib draw.
 
 ### 8. Animate the time-series cursor
 
@@ -340,7 +339,8 @@ random seeks.
 **Depends on:** Step 7.
 
 **Implementation notes:** Clock notifications update the Matplotlib cursor and call
-`draw_idle()` on Tk 8.6+, or move the red cursor column on the legacy-Tk raster images.
+`draw_idle()` on Tk 8.6+, or move synchronized red cursor columns on the legacy-Tk Matplotlib
+raster image.
 Unsubscribe the view when its window closes.
 
 ### 9. Add basic play, pause, seek and speed controls
