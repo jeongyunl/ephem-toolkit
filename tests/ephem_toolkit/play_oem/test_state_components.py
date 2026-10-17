@@ -62,26 +62,3 @@ def test_state_components_view_builds_six_labeled_plots_and_synchronized_cursors
     with pytest.raises(RuntimeError, match="not been built"):
         view.update(160.0)
 
-
-def test_state_components_legacy_raster_has_click_and_cursor_bounds():
-    view = StateComponentsView(100.0, "GCRF / Earth")
-    view.build(make_series(), TimeUnit.MINUTES)
-
-    raster = view.render_raster()
-
-    assert raster.ppm_data.startswith(
-        f"P6\n{raster.width} {raster.height}\n255\n".encode("ascii")
-    )
-    assert len(raster.panels) == 6
-    for panel in raster.panels:
-        assert panel.plot_left < panel.plot_right
-        assert panel.plot_top < panel.plot_bottom
-        start_column = panel.cursor_column(0.0)
-        end_column = panel.cursor_column(2.0)
-        assert panel.plot_left < start_column < end_column < panel.plot_right
-        assert panel.elapsed_at(start_column) == pytest.approx(0.0, abs=0.01)
-        assert panel.elapsed_at(end_column) == pytest.approx(2.0, abs=0.01)
-        assert panel.contains_plot_point(panel.plot_left, panel.plot_top)
-        assert not panel.contains_plot_point(panel.plot_left, panel.plot_top - 1)
-
-    view.close()

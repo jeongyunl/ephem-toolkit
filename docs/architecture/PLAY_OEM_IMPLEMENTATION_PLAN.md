@@ -75,28 +75,6 @@ demo must pass the migration acceptance criteria in step 23.
 
 ## Milestone I — wxPython migration
 
-### 18. Migrate Matplotlib views to wx canvases
-
-Complete the minimal canvas integration introduced in step 16. Remove TkAgg and raster-image
-display paths from the supported view runtime. Preserve plotted data, cursor synchronization,
-labels, toolbar interactions, and click-to-seek. Keep numerical view construction independent of
-wx where practical so it remains testable with a non-interactive Matplotlib backend.
-
-- **Status:** Not started.
-- **Progress:** 0/7 checklist items.
-- [ ] Add wx-native Matplotlib navigation toolbars and complete canvas lifecycle handling.
-- [ ] Remove the remaining raster fallback methods from speed/altitude and state-component views.
-- [ ] Remove the raster fallback methods from the Matplotlib 3D trajectory view.
-- [ ] Preserve plot click-to-seek while respecting active pan/zoom toolbar modes.
-- [ ] Preserve one-window-per-view behavior, raise-existing behavior, and clean close/unsubscribe.
-- [ ] Compare each migrated view's data, labels, units, and cursor locations with the step 15
-      baseline fixture using deterministic tests.
-- [ ] Test wx canvas rendering and cursor updates under the display-backed GUI test setup.
-
-**Done when:** all currently implemented plots render and update in wx windows without using a
-Tk canvas, Tk widget, or raster-image workaround.
-**Depends on:** Step 17.
-
 ### 19. Port view registry, plot selection, and cross-window synchronization
 
 Connect the existing view registry and `--plots` behavior to wx frame creation and activation.
@@ -697,3 +675,35 @@ disabled for zero-duration data. Behavior tests cover valid and invalid duration
 control and accelerator actions, focus behavior, speed/timeline mappings, and zero-span seeking.
 All 88 playback tests passed; a real macOS wx smoke test exercised the dashboard, time entry,
 direction control, plot opening, and clean close.
+
+### 18. Migrate Matplotlib views to wx canvases
+
+Complete the minimal canvas integration introduced in step 16. Remove TkAgg and raster-image
+display paths from the supported view runtime. Preserve plotted data, cursor synchronization,
+labels, toolbar interactions, and click-to-seek. Keep numerical view construction independent of
+wx where practical so it remains testable with a non-interactive Matplotlib backend.
+
+- **Status:** Done.
+- **Progress:** 7/7 checklist items.
+- [x] Add wx-native Matplotlib navigation toolbars and complete canvas lifecycle handling.
+- [x] Remove the remaining raster fallback methods from speed/altitude and state-component views.
+- [x] Remove the raster fallback methods from the Matplotlib 3D trajectory view.
+- [x] Preserve plot click-to-seek while respecting active pan/zoom toolbar modes.
+- [x] Preserve one-window-per-view behavior, raise-existing behavior, and clean close/unsubscribe.
+- [x] Compare each migrated view's data, labels, units, and cursor locations with the step 15
+      baseline fixture using deterministic tests.
+- [x] Test wx canvas rendering and cursor updates under the display-backed GUI test setup.
+
+**Done when:** all currently implemented plots render and update in wx windows without using a
+Tk canvas, Tk widget, or raster-image workaround.
+**Depends on:** Step 17.
+
+**Step 18 evidence:** added `NavigationToolbar2WxAgg` to every plot frame, connected left-clicks
+on time-series axes to the shared playback clock, and ignored plot clicks while pan/zoom is active
+or when the event has no seekable 2D time coordinate. Plot close disconnects the Matplotlib event
+callback and clock observer. Removed the speed/altitude, state-component, and 3D raster/PPM
+fallbacks and their obsolete tests. Deterministic tests compare the three view datasets, labels,
+units, 3D extents, and cursor positions with the Tk-era baseline fixture. All 89 playback tests
+passed; a real macOS wx smoke test opened all three canvases with toolbars, verified synchronized
+cursor updates and click-to-seek/pan behavior, and closed cleanly. A search of the active playback
+source and tests found no `tkinter`, `TkAgg`, `PhotoImage`, PPM, or raster references.

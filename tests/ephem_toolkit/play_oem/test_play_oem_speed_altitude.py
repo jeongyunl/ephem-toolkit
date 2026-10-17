@@ -21,7 +21,7 @@ def test_speed_altitude_view_builds_labeled_static_series_and_cursor() -> None:
         ],
         TimeUnit.MINUTES,
     )
-    view = SpeedAltitudeView(t_start_s=100.0)
+    view = SpeedAltitudeView(start_time_s=100.0)
 
     figure = view.build(series, TimeUnit.MINUTES)
     canvas = FigureCanvasAgg(figure)
@@ -36,19 +36,6 @@ def test_speed_altitude_view_builds_labeled_static_series_and_cursor() -> None:
     original_speed_x = figure.axes[0].lines[0].get_xdata().copy()
     original_speed_y = figure.axes[0].lines[0].get_ydata().copy()
     view.update(100.0)
-    raster = view.render_raster()
-    assert raster.ppm_data.startswith(
-        f"P6\n{raster.width} {raster.height}\n255\n".encode("ascii")
-    )
-    assert len(raster.panels) == 2
-    for panel in raster.panels:
-        start_column = panel.cursor_column(0.0)
-        end_column = panel.cursor_column(2.0)
-        assert panel.plot_left < start_column < panel.plot_right
-        assert panel.cursor_column(1.0) == (panel.plot_left + panel.plot_right) // 2
-        assert panel.plot_left < end_column < panel.plot_right
-        assert panel.elapsed_at(start_column) == pytest.approx(0.0, abs=0.01)
-        assert panel.elapsed_at(end_column) == pytest.approx(2.0, abs=0.01)
     np.testing.assert_array_equal(figure.axes[0].lines[1].get_xdata(), [0.0, 0.0])
     view.update(160.0)
     np.testing.assert_array_equal(figure.axes[0].lines[1].get_xdata(), [1.0, 1.0])

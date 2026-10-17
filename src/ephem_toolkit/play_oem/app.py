@@ -9,7 +9,11 @@ import signal
 import time
 
 import wx
-from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
+from matplotlib.backend_bases import MouseButton, MouseEvent
+from matplotlib.backends.backend_wxagg import (
+    FigureCanvasWxAgg,
+    NavigationToolbar2WxAgg,
+)
 
 import ephem_toolkit.core.time_utils as time_utils
 
@@ -40,6 +44,15 @@ class _OpenView:
 
     unsubscribe: Callable[[], None]
     """Callback that removes this view from clock notifications."""
+
+    canvas: FigureCanvasWxAgg
+    """Wx canvas hosting the view's Matplotlib figure."""
+
+    toolbar: NavigationToolbar2WxAgg
+    """Wx navigation toolbar associated with the canvas."""
+
+    click_callback_id: int
+    """Matplotlib event identifier used to disconnect plot seeking."""
 
 
 class PlayerApp:
@@ -276,6 +289,8 @@ class PlayerApp:
 
         view = create_view()
         frame: wx.Frame | None = None
+        canvas: FigureCanvasWxAgg | None = None
+        click_callback_id: int | None = None
         unsubscribe: Callable[[], None] | None = None
         try:
             figure = view.build(self.series, self.time_unit)
@@ -286,12 +301,19 @@ class PlayerApp:
                 size=PLOT_FRAME_SIZE,
             )
             canvas = FigureCanvasWxAgg(frame, wx.ID_ANY, figure)
+            toolbar = NavigationToolbar2WxAgg(canvas)
+            toolbar.Realize()
             layout = wx.BoxSizer(wx.VERTICAL)
+            layout.Add(toolbar, 0, wx.EXPAND)
             layout.Add(canvas, 1, wx.EXPAND)
             frame.SetSizer(layout)
             frame.Bind(
                 wx.EVT_CLOSE,
                 lambda event: self._on_view_frame_close(name, event),
+            )
+            click_callback_id = canvas.mpl_connect(
+                "button_press_event",
+                lambda event: self._on_plot_click(event, toolbar),
             )
 
             def update_view(time_s: float) -> None:
@@ -299,13 +321,22 @@ class PlayerApp:
                 canvas.draw_idle()
 
             unsubscribe = self.clock.subscribe(update_view)
-            self._open_views[name] = _OpenView(frame, view, unsubscribe)
+            self._open_views[name] = _OpenView(
+                frame,
+                view,
+                unsubscribe,
+                canvas,
+                toolbar,
+                click_callback_id,
+            )
             frame.Layout()
             canvas.draw()
             if not frame.Show():
                 raise RuntimeError(f"could not show the {name!r} plot frame")
         except Exception:
             self._open_views.pop(name, None)
+            if canvas is not None and click_callback_id is not None:
+                canvas.mpl_disconnect(click_callback_id)
             if unsubscribe is not None:
                 unsubscribe()
             if frame is not None:
@@ -313,9 +344,28 @@ class PlayerApp:
             view.close()
             raise
 
+    def _on_plot_click(
+        self, event: MouseEvent, toolbar: NavigationToolbar2WxAgg
+    ) -> None:
+        if (
+            toolbar.mode
+            or event.button != MouseButton.LEFT
+            or event.inaxes is None
+            or event.xdata is None
+            or event.inaxes.name == "3d"
+        ):
+            return
+
+        target_time_s = (
+            self.clock.t_start + event.xdata * self.time_unit.get_divisor_s()
+        )
+        self.clock.seek(target_time_s)
+        self._update_time_display()
+
     def _on_view_frame_close(self, name: str, event: wx.CloseEvent) -> None:
         opened = self._open_views.pop(name, None)
         if opened is not None:
+            opened.canvas.mpl_disconnect(opened.click_callback_id)
             opened.unsubscribe()
             opened.view.close()
         event.Skip()

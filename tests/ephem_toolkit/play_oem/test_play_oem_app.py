@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from matplotlib.backend_bases import MouseButton
 
 from ephem_toolkit.core.time_utils import tt_s_to_datetime
 from ephem_toolkit.play_oem import app
@@ -113,12 +114,40 @@ class FakeCanvas:
     def __init__(self, _parent, _id: int, _figure) -> None:
         self.draw_count = 0
         self.draw_idle_count = 0
+        self.callbacks: dict[int, tuple[str, object]] = {}
+        self.disconnected_callbacks: list[int] = []
+        self._next_callback_id = 0
 
     def draw(self) -> None:
         self.draw_count += 1
 
     def draw_idle(self) -> None:
         self.draw_idle_count += 1
+
+    def mpl_connect(self, event_name: str, callback) -> int:
+        self._next_callback_id += 1
+        self.callbacks[self._next_callback_id] = (event_name, callback)
+        return self._next_callback_id
+
+    def mpl_disconnect(self, callback_id: int) -> None:
+        self.disconnected_callbacks.append(callback_id)
+        self.callbacks.pop(callback_id, None)
+
+    def emit(self, event_name: str, event) -> None:
+        for registered_event, callback in tuple(self.callbacks.values()):
+            if registered_event == event_name:
+                callback(event)
+
+
+class FakeToolbar:
+    def __init__(self, canvas: FakeCanvas) -> None:
+        self.canvas = canvas
+        self.mode = ""
+        self.realized = False
+        canvas.toolbar = self
+
+    def Realize(self) -> None:
+        self.realized = True
 
 
 class FakeView:
@@ -232,6 +261,7 @@ def make_app(
     monkeypatch.setattr(app.wx, "Timer", FakeTimer)
     monkeypatch.setattr(app.control_window, "ControlWindow", FakeControlWindow)
     monkeypatch.setattr(app, "FigureCanvasWxAgg", lambda *args: _canvas(*args))
+    monkeypatch.setattr(app, "NavigationToolbar2WxAgg", FakeToolbar)
     monkeypatch.setattr(app.wx, "EVT_CLOSE", "close")
     monkeypatch.setattr(app.wx, "EVT_TIMER", "timer")
     monkeypatch.setattr(app.wx, "ID_ANY", -1)
@@ -370,10 +400,60 @@ def test_clock_notifications_update_views_and_existing_plot_is_raised(
     player.close()
 
 
+def test_plot_click_seeks_and_respects_toolbar_modes_and_non_time_axes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, views, canvases, _frames = make_app(
+        monkeypatch,
+        plots=("speed-altitude",),
+    )
+    player.start()
+    canvas = canvases[0]
+    click_event = SimpleNamespace(
+        button=MouseButton.LEFT,
+        inaxes=SimpleNamespace(name="rectilinear"),
+        xdata=1.0,
+    )
+
+    canvas.emit("button_press_event", click_event)
+
+    assert player.clock.t_now == 160.0
+    assert views[0].updated_times == [100.0, 160.0]
+    assert "Elapsed: 60.000 s" in player.control_window.text
+
+    for toolbar_mode in ("pan/zoom", "zoom rect"):
+        canvas.toolbar.mode = toolbar_mode
+        canvas.emit(
+            "button_press_event",
+            SimpleNamespace(
+                button=MouseButton.LEFT,
+                inaxes=SimpleNamespace(name="rectilinear"),
+                xdata=1.5,
+            ),
+        )
+        assert player.clock.t_now == 160.0
+
+    canvas.toolbar.mode = ""
+    for ignored_event in (
+        SimpleNamespace(button=MouseButton.RIGHT, inaxes=click_event.inaxes, xdata=1.5),
+        SimpleNamespace(button=MouseButton.LEFT, inaxes=None, xdata=1.5),
+        SimpleNamespace(
+            button=MouseButton.LEFT,
+            inaxes=SimpleNamespace(name="3d"),
+            xdata=1.5,
+        ),
+        SimpleNamespace(button=MouseButton.LEFT, inaxes=click_event.inaxes, xdata=None),
+    ):
+        canvas.emit("button_press_event", ignored_event)
+        assert player.clock.t_now == 160.0
+
+    player.close()
+
+
 def test_closing_one_plot_unsubscribes_only_that_view(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, views, _canvases, frames = make_app(
+    player, views, canvases, frames = make_app(
         monkeypatch,
         plots=("state-components",),
     )
@@ -384,6 +464,8 @@ def test_closing_one_plot_unsubscribes_only_that_view(
     player.clock.seek(160.0)
 
     assert plot_frame.destroyed
+    assert canvases[0].disconnected_callbacks == [1]
+    assert canvases[0].callbacks == {}
     assert views[0].closed
     assert views[0].updated_times == [100.0]
     assert not player._closed

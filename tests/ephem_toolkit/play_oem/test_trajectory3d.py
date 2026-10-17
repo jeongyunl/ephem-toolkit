@@ -51,18 +51,6 @@ def test_trajectory_view_builds_contextual_3d_orbit_and_updates_marker() -> None
     assert view._cursor_artist.get_visible()
     assert view._cursor_position_km == tuple(state.r_km)
 
-    raster = view.render_raster()
-    assert raster.width > 0
-    assert raster.height > 0
-    assert raster.ppm_data.startswith(
-        f"P6\n{raster.width} {raster.height}\n255\n".encode("ascii")
-    )
-    assert view._cursor_artist.get_visible()
-    pixel = view.cursor_pixel(state)
-    assert pixel is not None
-    assert 0 <= pixel[0] < raster.width
-    assert 0 <= pixel[1] < raster.height
-
     view.update_cursor(cursor.lookup(99.0))
     assert not view._cursor_artist.get_visible()
     assert view._cursor_position_km is None

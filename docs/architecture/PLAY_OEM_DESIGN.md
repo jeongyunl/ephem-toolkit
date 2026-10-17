@@ -145,7 +145,7 @@ alias that opens both trajectory and state-components views.
 The state-components view uses a 3-by-2 Matplotlib layout: position X/Y/Z and velocity VX/VY/VZ,
 with frame and unit labels, one shared elapsed-time axis, and synchronized cursor lines. Each 2D view
 is a `FigureCanvasWxAgg` canvas in a wx frame. Clicks map through per-axes plot bounds to preserve
-synchronized seeking. The PPM/PhotoImage raster path from the Tk implementation is removed in step 22.
+synchronized seeking. The PPM/PhotoImage raster path from the Tk implementation is removed in step 18.
 
 ```
 views/trajectory3d/
