@@ -102,6 +102,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         cursor,
         object_name,
         frame_context,
+        plots=cli_args.plots,
         tick_interval_ms=math.ceil(1000 / cli_args.fps),
     ).run()
 

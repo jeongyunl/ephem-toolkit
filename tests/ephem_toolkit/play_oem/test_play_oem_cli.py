@@ -30,7 +30,52 @@ def test_input_path_is_parsed() -> None:
     assert args.start is None
     assert not args.autoplay
     assert not args.loop
+    assert args.plots == ("overview",)
     assert args.fps == 30
+
+
+@pytest.mark.parametrize(
+    ("selection", "expected"),
+    [
+        ("overview, trajectory-3d", ("trajectory-3d", "speed-altitude")),
+        ("state", ("state-components",)),
+        (
+            "motion",
+            ("rtn", "angular-velocity", "direction-change", "distance"),
+        ),
+        (
+            "all",
+            (
+                "trajectory-3d",
+                "state-components",
+                "speed-altitude",
+                "rtn",
+                "angular-velocity",
+                "direction-change",
+                "distance",
+            ),
+        ),
+    ],
+)
+def test_plots_option_expands_names_and_groups(
+    selection: str, expected: tuple[str, ...]
+) -> None:
+    args = parse_arguments(
+        build_arg_parser(),
+        ["orbit.oem", "--plots", selection],
+    )
+
+    assert args.plots == expected
+
+
+def test_plots_option_rejects_unknown_names(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        parse_arguments(build_arg_parser(), ["orbit.oem", "--plots", "not-a-plot"])
+
+    assert exc_info.value.code == 2
+    assert "unknown plot name 'not-a-plot'" in capsys.readouterr().err
 
 
 def test_missing_input_reports_usage(capsys: pytest.CaptureFixture[str]) -> None:
@@ -137,6 +182,7 @@ def test_cli_loads_oem_and_launches_player(
             object_name,
             frame_context,
             *,
+            plots,
             tick_interval_ms,
         ) -> None:
             launched["clock"] = clock
@@ -145,6 +191,7 @@ def test_cli_loads_oem_and_launches_player(
             launched["cursor"] = cursor
             launched["object_name"] = object_name
             launched["frame_context"] = frame_context
+            launched["plots"] = plots
             launched["tick_interval_ms"] = tick_interval_ms
 
         def run(self) -> None:
@@ -166,6 +213,7 @@ def test_cli_loads_oem_and_launches_player(
     assert launched["cursor"].t_end == launched["clock"].t_end
     assert launched["object_name"] == "ISS"
     assert launched["frame_context"] == "EME2000 / Earth"
+    assert launched["plots"] == ("overview",)
     assert launched["clock"].rate == 1.0
     assert launched["clock"].t_now == launched["clock"].t_start
     assert not launched["clock"].playing
@@ -193,6 +241,7 @@ def test_cli_configures_reverse_autoplay_loop_and_elapsed_start(
             _object_name,
             _frame_context,
             *,
+            plots,
             tick_interval_ms,
         ) -> None:
             launched["clock"] = clock
@@ -261,6 +310,7 @@ def test_cli_autoplay_pauses_at_forward_and_reverse_boundaries(
             _object_name,
             _frame_context,
             *,
+            plots,
             tick_interval_ms,
         ) -> None:
             launched["clock"] = clock
@@ -299,9 +349,7 @@ def test_cli_resolves_elapsed_and_utc_start_times(
 
     _, timestamps_s, _ = read_oem_states(input_oem)
     expected_t = timestamps_s[0] + 30 * 60
-    utc_start = time_utils.datetime_to_iso8601(
-        time_utils.tt_s_to_datetime(expected_t)
-    )
+    utc_start = time_utils.datetime_to_iso8601(time_utils.tt_s_to_datetime(expected_t))
     launched: list[tuple[float, float]] = []
 
     class FakePlayerApp:
@@ -314,6 +362,7 @@ def test_cli_resolves_elapsed_and_utc_start_times(
             _object_name,
             _frame_context,
             *,
+            plots,
             tick_interval_ms,
         ) -> None:
             launched.append((clock.t_now, clock.rate))

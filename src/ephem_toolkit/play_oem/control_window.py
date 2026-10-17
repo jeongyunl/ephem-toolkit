@@ -6,6 +6,8 @@ from collections.abc import Callable
 import math
 import tkinter as tk
 
+from .views.registry import GROUP_LABELS, ViewRegistry
+
 # Classic buttons keep the readout visible with legacy Tk builds such as macOS Tk 8.5.
 BACKGROUND_COLOR = "#f0f0f0"
 FOREGROUND_COLOR = "#000000"
@@ -31,7 +33,9 @@ class ControlWindow:
         self,
         root: tk.Tk,
         on_close: Callable[[], None],
-        on_open_overview: Callable[[], None],
+        on_open_view: Callable[[str], None],
+        on_open_group: Callable[[str], None],
+        view_registry: ViewRegistry,
         on_toggle_play: Callable[[], None],
         on_seek: Callable[[float], None],
         on_set_speed: Callable[[float], None],
@@ -361,13 +365,37 @@ class ControlWindow:
         self._timeline_button.pack(fill="x", padx=16, pady=(0, 8))
         self._timeline_button.bind("<Button-1>", self._on_timeline_seek)
         self._timeline_button.bind("<B1-Motion>", self._on_timeline_seek)
-        self._open_overview_button = tk.Button(
-            root,
-            text="Open Overview",
-            command=on_open_overview,
-            highlightbackground=BACKGROUND_COLOR,
+        group_toolbar = tk.Frame(root, background=BACKGROUND_COLOR)
+        group_toolbar.pack(fill="x", padx=16, pady=(0, 4))
+        self._view_group_buttons: dict[str, tk.Button] = {}
+        for name, label in GROUP_LABELS:
+            button = tk.Button(
+                group_toolbar,
+                text=label,
+                command=lambda group=name: on_open_group(group),
+                state="normal" if view_registry.can_open(name) else "disabled",
+                highlightbackground=BACKGROUND_COLOR,
+            )
+            button.pack(side="left", padx=(0, 4))
+            self._view_group_buttons[name] = button
+        self._open_overview_button = self._view_group_buttons["overview"]
+
+        view_toolbar = tk.Frame(root, background=BACKGROUND_COLOR)
+        view_toolbar.pack(fill="x", padx=16, pady=(0, 16))
+        self._view_buttons: dict[str, tk.Button] = {}
+        for name in view_registry.registered_views:
+            button = tk.Button(
+                view_toolbar,
+                text=view_registry.label_for(name),
+                command=lambda view=name: on_open_view(view),
+                highlightbackground=BACKGROUND_COLOR,
+            )
+            button.pack(side="left", padx=(0, 4))
+            self._view_buttons[name] = button
+        self._view_toolbar_buttons = (
+            *self._view_group_buttons.values(),
+            *self._view_buttons.values(),
         )
-        self._open_overview_button.pack(fill="x", padx=16, pady=(0, 16))
         for button in (
             self._elapsed_label,
             self._utc_label,
@@ -383,7 +411,7 @@ class ControlWindow:
             self._speed_scale_caption,
             self._speed_scale_button,
             self._timeline_button,
-            self._open_overview_button,
+            *self._view_toolbar_buttons,
         ):
             button.bind("<space>", self._on_space)
             button.bind("<KeyRelease-space>", self._on_space_release)

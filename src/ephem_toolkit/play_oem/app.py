@@ -8,7 +8,7 @@ import signal
 import tempfile
 import time
 import tkinter as tk
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 from matplotlib.backend_bases import MouseEvent
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -22,6 +22,7 @@ from .series import OrbitSeries
 from .time_unit import TimeUnit
 from .views.speed_altitude import RasterPlot, SpeedAltitudeView
 from .views.trajectory3d import Trajectory3DView, TrajectoryRaster
+from .views.registry import ViewRegistry
 
 DEFAULT_TICK_INTERVAL_MS = 33
 
@@ -38,6 +39,7 @@ class PlayerApp:
         object_name: str,
         frame_context: str,
         *,
+        plots: Sequence[str] = ("overview",),
         tick_interval_ms: int = DEFAULT_TICK_INTERVAL_MS,
         root: tk.Tk | None = None,
     ) -> None:
@@ -50,10 +52,20 @@ class PlayerApp:
         self.object_name = object_name
         self.frame_context = frame_context
         self.root = tk.Tk() if root is None else root
+        self._view_registry = ViewRegistry()
+        self._view_registry.register_view(
+            "trajectory-3d", lambda: self.open_trajectory_view()
+        )
+        self._view_registry.register_view(
+            "speed-altitude", lambda: self.open_speed_altitude_view()
+        )
+        self._plots = self._view_registry.expand(plots)
         self.control_window = ControlWindow(
             self.root,
             self.close,
-            self.open_overview,
+            self.open_view,
+            self.open_group,
+            self._view_registry,
             self._toggle_playback,
             self._seek_to_fraction,
             self._set_playback_speed,
@@ -123,7 +135,7 @@ class PlayerApp:
         self._last_tick = time.monotonic()
         self._update_time_display()
         self.root.update_idletasks()
-        self.open_overview()
+        self.open_plots(self._plots)
         self._schedule_tick()
 
     def close(self) -> None:
@@ -285,8 +297,19 @@ class PlayerApp:
 
     def open_overview(self) -> None:
         """Open or raise the synchronized trajectory and speed/altitude views."""
-        self.open_trajectory_view()
-        self.open_speed_altitude_view()
+        self.open_group("overview")
+
+    def open_view(self, name: str) -> None:
+        """Open or raise an individual registered plot."""
+        self._view_registry.open_view(name)
+
+    def open_group(self, name: str) -> None:
+        """Open or raise every plot in a registered group."""
+        self._view_registry.open_group(name)
+
+    def open_plots(self, selection: Sequence[str]) -> None:
+        """Open or raise a CLI selection of plots and groups."""
+        self._view_registry.open(selection)
 
     def close_trajectory_view(self) -> None:
         """Close the 3D trajectory view and unsubscribe it from clock updates."""

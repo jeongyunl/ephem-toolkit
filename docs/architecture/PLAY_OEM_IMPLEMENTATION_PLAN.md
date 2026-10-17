@@ -49,22 +49,6 @@ the remaining views, advanced controls or VTK.
 
 ## Milestone E — Full dashboard and plot set
 
-### 13. Add the view registry, groups and toolbar
-
-Implement one registry for individual views and groups. Add toolbar actions to open/raise a view
-without duplication, and connect `--plots` to the same registry. Preserve `overview` as the
-default launch selection.
-
-- **Status:** Not started.
-- **Progress:** 0/4 checklist items.
-- [ ] Register `overview`, `state`, `motion` and `all` groups.
-- [ ] Add individual-view toolbar buttons and open/raise behavior.
-- [ ] Implement comma-separated `--plots` names/groups and validate unknown names.
-- [ ] Test group expansion and duplicate-open behavior.
-
-**Done when:** toolbar and CLI launch selections use the same tested registry.
-**Depends on:** Step 12.
-
 ### 14. Add the state-components view
 
 Split the X/Y/Z and VX/VY/VZ histories from the original state-vector plot into a dedicated
@@ -453,3 +437,24 @@ without altering speed or direction.
 **Implementation notes:** Native Entry widgets were mapped but visually blended into the dark
 macOS Tk 8.5.9 control window. The visible input surface uses a PhotoImage-backed classic button
 that focuses an Entry text buffer and mirrors typed text; Return and Seek submit that same buffer.
+
+### 13. Add the view registry, groups and toolbar
+
+Implement one registry for individual views and groups. Add toolbar actions to open/raise a view
+without duplication, and connect `--plots` to the same registry. Preserve `overview` as the
+default launch selection.
+
+- **Status:** Done.
+- **Progress:** 4/4 checklist items.
+- [x] Register `overview`, `state`, `motion` and `all` groups.
+- [x] Add individual-view toolbar buttons and open/raise behavior.
+- [x] Implement comma-separated `--plots` names/groups and validate unknown names.
+- [x] Test group expansion and duplicate-open behavior.
+
+**Done when:** toolbar and CLI launch selections use the same tested registry.
+**Depends on:** Step 12.
+
+**Implementation notes:** [registry.py](../../src/ephem_toolkit/play_oem/views/registry.py)
+defines canonical view names and group expansion for both the toolbar and CLI. The toolbar enables
+only groups whose views are implemented; the CLI reports unavailable views instead of opening
+partial groups. Registering the remaining views in Steps 14–15 enables those groups.

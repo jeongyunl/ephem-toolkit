@@ -7,11 +7,19 @@ from collections.abc import Sequence
 import math
 
 import ephem_toolkit.core.cli as cli
+from .views.registry import parse_plot_selection
 
 MIN_SPEED = 1.0
 MAX_SPEED = 1000.0
 MIN_FPS = 1
 MAX_FPS = 1000
+
+
+def _parse_plots(value: str) -> tuple[str, ...]:
+    try:
+        return parse_plot_selection(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(str(error)) from error
 
 
 class PlayOemArgs(argparse.Namespace):
@@ -33,6 +41,8 @@ class PlayOemArgs(argparse.Namespace):
     """Whether playback starts immediately."""
     loop: bool
     """Whether playback wraps at timeline boundaries."""
+    plots: tuple[str, ...]
+    """View names selected for launch."""
     fps: int
     """Maximum requested render rate."""
 
@@ -99,6 +109,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help=(
             "Time unit for time-series plots: "
             "m/minute/minutes or h/hour/hours (default: hours)."
+        ),
+    )
+    parser.add_argument(
+        "--plots",
+        type=_parse_plots,
+        default=("overview",),
+        metavar="<list>",
+        help=(
+            "Comma-separated plot names or groups to open "
+            "(default: overview; groups: overview, state, motion, all)."
         ),
     )
     parser.add_argument(

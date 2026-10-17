@@ -92,6 +92,8 @@ def test_control_window_uses_visible_classic_button_for_time_readout(
     sample_steps: list[int] = []
     second_steps: list[float] = []
     jumps: list[str] = []
+    opened_views: list[str] = []
+    opened_groups: list[str] = []
 
     class FakeButton:
         def __init__(self, _master, **options) -> None:
@@ -182,10 +184,15 @@ def test_control_window_uses_visible_classic_button_for_time_readout(
     monkeypatch.setattr(control_window.tk, "Frame", FakeFrame)
     monkeypatch.setattr(control_window.tk, "Entry", FakeEntry)
     monkeypatch.setattr(control_window.tk, "PhotoImage", FakePhotoImage)
+    view_registry = control_window.ViewRegistry()
+    view_registry.register_view("trajectory-3d", lambda: None)
+    view_registry.register_view("speed-altitude", lambda: None)
     window = control_window.ControlWindow(
         root,
         lambda: None,
-        lambda: None,
+        opened_views.append,
+        opened_groups.append,
+        view_registry,
         lambda: toggle_calls.append(True),
         seek_values.append,
         speed_values.append,
@@ -228,6 +235,14 @@ def test_control_window_uses_visible_classic_button_for_time_readout(
     assert time_entry_row.options["height"] == control_window.TIME_ENTRY_FIELD_HEIGHT_PX
     assert time_entry_row.propagate_grid_geometry is False
     assert window._time_entry_display_button.grid_options["sticky"] == "ew"
+    assert window._view_group_buttons["overview"].options["state"] == "normal"
+    assert window._view_group_buttons["state"].options["state"] == "disabled"
+    assert window._view_group_buttons["motion"].options["state"] == "disabled"
+    assert window._view_group_buttons["all"].options["state"] == "disabled"
+    window._view_group_buttons["overview"].options["command"]()
+    window._view_buttons["trajectory-3d"].options["command"]()
+    assert opened_groups == ["overview"]
+    assert opened_views == ["trajectory-3d"]
     assert window.time_entry.place_options == {
         "x": 0,
         "y": 0,
@@ -324,7 +339,9 @@ class FakeControlWindow:
         self,
         root,
         on_close,
-        _on_open_speed_altitude,
+        _on_open_view,
+        _on_open_group,
+        _view_registry,
         on_toggle_play,
         on_seek,
         on_set_speed,
@@ -396,7 +413,7 @@ def test_timer_advances_clock_updates_readout_and_closes(
 ) -> None:
     root = FakeRoot()
     player = make_app(monkeypatch, root)
-    monkeypatch.setattr(player, "open_overview", lambda: None)
+    monkeypatch.setattr(player, "open_plots", lambda _selection: None)
     monotonic_values = iter((10.0, 12.5))
     monkeypatch.setattr(app.time, "monotonic", lambda: next(monotonic_values))
 
@@ -424,7 +441,7 @@ def test_window_close_callback_stops_timer_and_destroys_root(
 ) -> None:
     root = FakeRoot()
     player = make_app(monkeypatch, root)
-    monkeypatch.setattr(player, "open_overview", lambda: None)
+    monkeypatch.setattr(player, "open_plots", lambda _selection: None)
     monkeypatch.setattr(app.time, "monotonic", lambda: 0.0)
 
     player.start()
@@ -449,7 +466,7 @@ def test_app_timer_pauses_at_playback_boundaries(
     player.clock.seek(start_time)
     if reverse:
         player.clock.reverse()
-    monkeypatch.setattr(player, "open_overview", lambda: None)
+    monkeypatch.setattr(player, "open_plots", lambda _selection: None)
     monotonic_values = iter((10.0, 12.0))
     monkeypatch.setattr(app.time, "monotonic", lambda: next(monotonic_values))
 
@@ -680,7 +697,7 @@ def test_run_handles_sigint_and_restores_previous_handler(
 ) -> None:
     root = FakeRoot()
     player = make_app(monkeypatch, root)
-    monkeypatch.setattr(player, "open_overview", lambda: None)
+    monkeypatch.setattr(player, "open_plots", lambda _selection: None)
     monkeypatch.setattr(app.time, "monotonic", lambda: 0.0)
     signal_handlers: list[object] = []
     previous_handler = object()
