@@ -75,25 +75,6 @@ demo must pass the migration acceptance criteria in step 23.
 
 ## Milestone I — wxPython migration
 
-### 19. Port view registry, plot selection, and cross-window synchronization
-
-Connect the existing view registry and `--plots` behavior to wx frame creation and activation.
-Ensure all open plot windows consume the same cursor state and remain synchronized for playback
-and every seek interaction.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Preserve canonical view names, aliases, groups, and unknown/unavailable selection errors.
-- [ ] Wire dashboard actions and `--plots` to the same registry and view-opening code.
-- [ ] Prevent duplicate windows and correctly raise/focus an existing view.
-- [ ] Verify simultaneous cursor updates and click-to-seek across every currently implemented
-      view.
-- [ ] Test closing/reopening views during playback and after seeks.
-
-**Done when:** toolbar/dashboard and CLI selections produce the same wx views, with no duplicate
-windows or stale subscriptions.
-**Depends on:** Step 18.
-
 ### 20. Prototype VTK integration with the wx event loop
 
 Before implementing or retaining a VTK scene, prove that VTK can be embedded and driven safely
@@ -707,3 +688,28 @@ units, 3D extents, and cursor positions with the Tk-era baseline fixture. All 89
 passed; a real macOS wx smoke test opened all three canvases with toolbars, verified synchronized
 cursor updates and click-to-seek/pan behavior, and closed cleanly. A search of the active playback
 source and tests found no `tkinter`, `TkAgg`, `PhotoImage`, PPM, or raster references.
+
+### 19. Port view registry, plot selection, and cross-window synchronization
+
+Connect the existing view registry and `--plots` behavior to wx frame creation and activation.
+Ensure all open plot windows consume the same cursor state and remain synchronized for playback
+and every seek interaction.
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Preserve canonical view names, aliases, groups, and unknown/unavailable selection errors.
+- [x] Wire dashboard actions and `--plots` to the same registry and view-opening code.
+- [x] Prevent duplicate windows and correctly raise/focus an existing view.
+- [x] Verify simultaneous cursor updates and click-to-seek across every currently implemented
+      view.
+- [x] Test closing/reopening views during playback and after seeks.
+
+**Done when:** toolbar/dashboard and CLI selections produce the same wx views, with no duplicate
+windows or stale subscriptions.
+**Depends on:** Step 18.
+
+**Step 19 evidence:** added integration and lifecycle tests covering CLI alias expansion,
+dashboard group and direct-view actions, unavailable selections, duplicate-window focus,
+synchronized updates across all three implemented views, click-to-seek from both time-series
+views, and close/reopen during playback after a seek. The complete `play-oem` test suite passed:
+92 tests, with 14 Matplotlib dependency deprecation warnings.

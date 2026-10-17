@@ -285,6 +285,7 @@ class PlayerApp:
         existing = self._open_views.get(name)
         if existing is not None:
             existing.frame.Raise()
+            existing.frame.SetFocus()
             return
 
         view = create_view()

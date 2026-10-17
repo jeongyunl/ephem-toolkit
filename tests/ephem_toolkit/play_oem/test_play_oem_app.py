@@ -13,6 +13,7 @@ from ephem_toolkit.core.time_utils import tt_s_to_datetime
 from ephem_toolkit.play_oem import app
 from ephem_toolkit.play_oem.clock import PlaybackClock
 from ephem_toolkit.play_oem.cursor import OemCursor
+from ephem_toolkit.play_oem.play_oem_cli import build_arg_parser, parse_arguments
 from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 
@@ -42,6 +43,7 @@ class FakeFrame:
         self.destroyed = False
         self.shown = False
         self.raised = False
+        self.focused = False
         self.sizer = None
 
     def SetSizer(self, sizer) -> None:
@@ -62,6 +64,9 @@ class FakeFrame:
 
     def Raise(self) -> None:
         self.raised = True
+
+    def SetFocus(self) -> None:
+        self.focused = True
 
     def Layout(self) -> None:
         pass
@@ -188,6 +193,8 @@ class FakeControlWindow:
     ) -> None:
         self.panel = object()
         self.callbacks = {
+            "open_view": _on_open_view,
+            "open_group": _on_open_group,
             "toggle": on_toggle_play,
             "seek": on_seek,
             "speed": on_set_speed,
@@ -385,17 +392,57 @@ def test_clock_notifications_update_views_and_existing_plot_is_raised(
 ) -> None:
     player, views, _canvases, frames = make_app(
         monkeypatch,
-        plots=("speed-altitude",),
+        plots=("overview", "trajectory-3d"),
     )
     player.start()
-    plot_frame = frames[1]
+    plot_frames = [view.frame for view in player._open_views.values()]
 
     player.clock.seek(150.0)
-    player.open_view("speed-altitude")
+    player.open_group("overview")
+    player.control_window.callbacks["open_view"]("trajectory-3d")
 
-    assert views[0].updated_times == [100.0, 150.0]
-    assert plot_frame.raised
-    assert len(frames) == 2
+    assert all(view.updated_times == [100.0, 150.0] for view in views)
+    assert all(frame.raised and frame.focused for frame in plot_frames)
+    assert len(frames) == 3
+
+    player.close()
+
+
+def test_cli_selection_opens_through_the_dashboard_registry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cli_args = parse_arguments(
+        build_arg_parser(),
+        ["orbit.oem", "--plots", "state-vectors"],
+    )
+    player, _views, _canvases, frames = make_app(monkeypatch, plots=cli_args.plots)
+
+    player.start()
+
+    assert set(player._open_views) == {"trajectory-3d", "state-components"}
+    assert len(frames) == 3
+
+    player.control_window.callbacks["open_group"]("state")
+    player.control_window.callbacks["open_view"]("trajectory-3d")
+
+    assert len(frames) == 3
+    assert all(
+        view.frame.raised and view.frame.focused for view in player._open_views.values()
+    )
+
+    player.close()
+
+
+def test_unavailable_cli_plot_selection_fails_before_opening_any_plot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, views, _canvases, frames = make_app(monkeypatch, plots=("rtn",))
+
+    with pytest.raises(ValueError, match="rtn"):
+        player.start()
+
+    assert views == []
+    assert len(frames) == 1
 
     player.close()
 
@@ -450,6 +497,34 @@ def test_plot_click_seeks_and_respects_toolbar_modes_and_non_time_axes(
     player.close()
 
 
+def test_all_open_views_stay_synchronized_for_seeks_and_time_plot_clicks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, views, canvases, _frames = make_app(
+        monkeypatch,
+        plots=("trajectory-3d", "state-components", "speed-altitude"),
+    )
+    player.start()
+    player.clock.seek(150.0)
+
+    assert all(view.updated_times[-1] == 150.0 for view in views)
+
+    for canvas, elapsed_minutes in zip(canvases[1:], (0.5, 1.0)):
+        canvas.emit(
+            "button_press_event",
+            SimpleNamespace(
+                button=MouseButton.LEFT,
+                inaxes=SimpleNamespace(name="rectilinear"),
+                xdata=elapsed_minutes,
+            ),
+        )
+        assert all(view.updated_times[-1] == player.clock.t_now for view in views)
+
+    assert player.clock.t_now == 160.0
+
+    player.close()
+
+
 def test_closing_one_plot_unsubscribes_only_that_view(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -470,6 +545,15 @@ def test_closing_one_plot_unsubscribes_only_that_view(
     assert views[0].updated_times == [100.0]
     assert not player._closed
     assert player._timer.running
+
+    player.clock.play()
+    player.open_view("state-components")
+    reopened_view = views[-1]
+    assert reopened_view.updated_times == [160.0]
+
+    player.clock.tick(1.0)
+    assert reopened_view.updated_times == [160.0, 161.0]
+    assert views[0].updated_times == [100.0]
 
     player.close()
 
