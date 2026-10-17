@@ -129,6 +129,11 @@ The plot-oem state-vector diagnostics are split into two views:
 The `state` group opens the state-components view. Keep `state-vectors` as a compatibility
 alias that opens both trajectory and state-components views.
 
+The state-components view uses a 3-by-2 Matplotlib layout: position X/Y/Z and velocity VX/VY/VZ,
+with frame and unit labels, one shared elapsed-time axis, and synchronized cursor lines. On legacy
+Tk, render the figure with Agg to a PPM image; update cursor pixels and map clicks through each
+panel's plot bounds so the fallback preserves the same seek behavior.
+
 ```
 views/trajectory3d/
   base.py            # Trajectory3DView protocol + backend selection

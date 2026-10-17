@@ -14,6 +14,10 @@ def test_registry_expands_groups_and_deduplicates_views() -> None:
         "trajectory-3d",
         "speed-altitude",
     )
+    assert registry.expand("state-vectors") == (
+        "trajectory-3d",
+        "state-components",
+    )
     assert registry.expand("all") == tuple(name for name, _ in VIEW_LABELS)
 
 

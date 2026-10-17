@@ -118,7 +118,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
         metavar="<list>",
         help=(
             "Comma-separated plot names or groups to open "
-            "(default: overview; groups: overview, state, motion, all)."
+            "(default: overview; groups: overview, state, motion, all; "
+            "alias: state-vectors)."
         ),
     )
     parser.add_argument(

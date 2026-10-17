@@ -28,6 +28,10 @@ GROUP_MEMBERS = {
     "all": tuple(name for name, _ in VIEW_LABELS),
 }
 
+ALIASES = {
+    "state-vectors": ("trajectory-3d", "state-components"),
+}
+
 _VIEW_NAMES = frozenset(name for name, _ in VIEW_LABELS)
 _GROUP_NAMES = frozenset(name for name, _ in GROUP_LABELS)
 _VIEW_LABEL_BY_NAME = dict(VIEW_LABELS)
@@ -48,6 +52,8 @@ class ViewRegistry:
         """Return a view or group label."""
         if name in _VIEW_LABEL_BY_NAME:
             return _VIEW_LABEL_BY_NAME[name]
+        if name in ALIASES:
+            return "State Vectors (compatibility)"
         for group_name, label in GROUP_LABELS:
             if name == group_name:
                 return label
@@ -74,12 +80,15 @@ class ViewRegistry:
         for name in names:
             if name in GROUP_MEMBERS:
                 members = GROUP_MEMBERS[name]
+            elif name in ALIASES:
+                members = ALIASES[name]
             elif name in _VIEW_NAMES:
                 members = (name,)
             else:
                 known_names = ", ".join(
                     [group for group, _ in GROUP_LABELS]
                     + [view for view, _ in VIEW_LABELS]
+                    + list(ALIASES)
                 )
                 raise ValueError(
                     f"unknown plot name {name!r}; choose from: {known_names}"

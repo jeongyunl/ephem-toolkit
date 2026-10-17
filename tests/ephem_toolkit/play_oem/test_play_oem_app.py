@@ -14,6 +14,10 @@ from ephem_toolkit.play_oem.clock import PlaybackClock
 from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_unit import TimeUnit
+from ephem_toolkit.play_oem.views.state_components import (
+    RasterPanel,
+    StateComponentsRaster,
+)
 
 
 class FakeRoot:
@@ -692,6 +696,114 @@ def test_overview_views_stay_synchronized_during_seek_and_playback(
     player.close()
 
 
+def test_state_group_and_compatibility_alias_use_the_registry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player = make_app(monkeypatch, FakeRoot())
+    opened: list[str] = []
+    monkeypatch.setattr(
+        player,
+        "open_trajectory_view",
+        lambda: opened.append("trajectory-3d"),
+    )
+    monkeypatch.setattr(
+        player,
+        "open_state_components_view",
+        lambda: opened.append("state-components"),
+    )
+
+    player.open_group("state")
+    assert opened == ["state-components"]
+    opened.clear()
+    player.open_plots(("state-vectors",))
+    assert opened == ["trajectory-3d", "state-components"]
+
+    player.close()
+
+
+def test_state_components_view_tracks_clicks_and_closes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = FakeRoot()
+    player = make_app(monkeypatch, root)
+    window = FakeToplevel()
+    monkeypatch.setattr(app.tk, "Toplevel", lambda _root: window)
+
+    class FakeStateComponentsView:
+        def __init__(self, t_start_s: float, frame_context: str) -> None:
+            assert t_start_s == 100.0
+            assert frame_context == "GCRF / Earth"
+            self.updated_times: list[float] = []
+            self.closed = False
+
+        def build(self, _series, _time_unit):
+            return object()
+
+        def update(self, t_s: float) -> None:
+            self.updated_times.append(t_s)
+
+        def close(self) -> None:
+            self.closed = True
+
+    class FakeWidget:
+        def __init__(self, events: list[str]) -> None:
+            self.events = events
+
+        def pack(self, **_kwargs) -> None:
+            self.events.append("pack")
+
+    class FakeCanvas:
+        def __init__(self, _figure, *, master) -> None:
+            self.events = master.events
+            self.draw_idle_count = 0
+            self.disconnected: list[int] = []
+
+        def mpl_connect(self, _event_name: str, callback) -> int:
+            self.click_callback = callback
+            return 23
+
+        def mpl_disconnect(self, connection_id: int) -> None:
+            self.disconnected.append(connection_id)
+
+        def get_tk_widget(self):
+            return FakeWidget(self.events)
+
+        def draw(self) -> None:
+            self.events.append("draw")
+
+        def draw_idle(self) -> None:
+            self.draw_idle_count += 1
+
+    view = FakeStateComponentsView(100.0, "GCRF / Earth")
+    monkeypatch.setattr(app, "StateComponentsView", lambda *_args: view)
+    monkeypatch.setattr(app, "FigureCanvasTkAgg", FakeCanvas)
+
+    player.open_state_components_view()
+    assert player._state_components_view is view
+    assert window.window_title == "State Components"
+    assert view.updated_times == [100.0]
+    canvas = player._state_components_canvas
+    assert canvas is not None
+    canvas.toolbar = SimpleNamespace(mode="pan/zoom")
+    canvas.click_callback(SimpleNamespace(button=1, inaxes=object(), xdata=0.5))
+    assert player.clock.t_now == 100.0
+    canvas.toolbar.mode = ""
+    canvas.click_callback(SimpleNamespace(button=1, inaxes=object(), xdata=0.5))
+    assert player.clock.t_now == 130.0
+    assert view.updated_times == [100.0, 130.0]
+    assert canvas.draw_idle_count == 1
+
+    player.open_group("state")
+    assert window.lifted
+    window.protocols["WM_DELETE_WINDOW"]()
+    assert view.closed
+    assert window.destroyed
+    assert canvas.disconnected == [23]
+    player.clock.seek(160.0)
+    assert view.updated_times == [100.0, 130.0]
+    player.close()
+
+
 def test_run_handles_sigint_and_restores_previous_handler(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1120,5 +1232,98 @@ def test_old_tk_uses_graphical_raster_plot_and_updates_cursor(
     assert player.clock.t_now == pytest.approx(expected_time)
 
     player.close_speed_altitude_view()
+    assert view.closed
+    assert window.destroyed
+
+
+def test_old_tk_state_components_raster_seeks_and_updates_all_cursors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = FakeRoot(patchlevel="8.5.9")
+    player = make_app(monkeypatch, root)
+    window = FakeToplevel()
+    window.tk = root.tk
+    raster = StateComponentsRaster(
+        10,
+        10,
+        b"P6\n10 10\n255\n",
+        tuple(RasterPanel(1, 8, 1, 8, 0.0, 2.0) for _ in range(6)),
+    )
+
+    class FakeView:
+        def __init__(self, _t_start_s, _frame_context) -> None:
+            self.updated_times: list[float] = []
+            self.closed = False
+
+        def build(self, _series, _time_unit):
+            return object()
+
+        def update(self, t_s: float) -> None:
+            self.updated_times.append(t_s)
+
+        def render_raster(self):
+            return raster
+
+        def close(self) -> None:
+            self.closed = True
+
+    class FakeButton:
+        def __init__(self, _master, **options) -> None:
+            self.options = options
+            self.bindings: dict[str, object] = {}
+            buttons.append(self)
+
+        def pack(self, **_kwargs) -> None:
+            pass
+
+        def bind(self, sequence: str, callback) -> None:
+            self.bindings[sequence] = callback
+
+    class FakePhotoImage:
+        _next_id = 0
+
+        def __init__(self, *, master, file: str | None = None, **_kwargs) -> None:
+            type(self)._next_id += 1
+            self.name = f"fake-state-image-{type(self)._next_id}"
+            self.tk = master.tk
+            self.loaded_file_path = file
+            self.loaded_file_data = Path(file).read_bytes() if file else None
+            self.put_calls: list[tuple[str, tuple[int, ...]]] = []
+
+        def __str__(self) -> str:
+            return self.name
+
+        def put(self, color: str, *, to: tuple[int, ...]) -> None:
+            self.put_calls.append((color, to))
+
+    buttons: list[FakeButton] = []
+    view = FakeView(100.0, "GCRF / Earth")
+    monkeypatch.setattr(app.tk, "Toplevel", lambda _root: window)
+    monkeypatch.setattr(app.tk, "Button", FakeButton)
+    monkeypatch.setattr(app.tk, "PhotoImage", FakePhotoImage)
+    monkeypatch.setattr(app, "StateComponentsView", lambda *_args: view)
+
+    player.open_state_components_view()
+
+    assert player._state_components_canvas is None
+    assert window.window_title == "State Components (Tk 8.5.9 raster view)"
+    assert player._state_components_cursor_columns == (1, 1, 1, 1, 1, 1)
+    assert player._state_components_base_image is not None
+    assert player._state_components_base_image.loaded_file_data == raster.ppm_data
+    assert player._state_components_image is not None
+    assert len(player._state_components_image.put_calls) == 6
+
+    player.clock.seek(150.0)
+    assert player._state_components_cursor_columns == (4, 4, 4, 4, 4, 4)
+    assert len(player._state_components_image.put_calls) == 12
+    assert root.tk.image_commands
+    plot_button = next(button for button in buttons if "image" in button.options)
+    plot_button.bindings["<Button-1>"](SimpleNamespace(x=4, y=5))
+    expected_time = 100.0 + (3.0 / 7.0) * 2.0 * 60.0
+    assert player.clock.t_now == pytest.approx(expected_time)
+    plot_button.bindings["<Button-1>"](SimpleNamespace(x=4, y=0))
+    assert player.clock.t_now == pytest.approx(expected_time)
+
+    player.close_state_components_view()
     assert view.closed
     assert window.destroyed

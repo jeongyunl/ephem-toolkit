@@ -39,6 +39,7 @@ def test_input_path_is_parsed() -> None:
     [
         ("overview, trajectory-3d", ("trajectory-3d", "speed-altitude")),
         ("state", ("state-components",)),
+        ("state-vectors", ("trajectory-3d", "state-components")),
         (
             "motion",
             ("rtn", "angular-velocity", "direction-change", "distance"),

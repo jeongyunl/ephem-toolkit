@@ -21,6 +21,7 @@ from .cursor import CursorState, OemCursor
 from .series import OrbitSeries
 from .time_unit import TimeUnit
 from .views.speed_altitude import RasterPlot, SpeedAltitudeView
+from .views.state_components import StateComponentsRaster, StateComponentsView
 from .views.trajectory3d import Trajectory3DView, TrajectoryRaster
 from .views.registry import ViewRegistry
 
@@ -58,6 +59,9 @@ class PlayerApp:
         )
         self._view_registry.register_view(
             "speed-altitude", lambda: self.open_speed_altitude_view()
+        )
+        self._view_registry.register_view(
+            "state-components", lambda: self.open_state_components_view()
         )
         self._plots = self._view_registry.expand(plots)
         self.control_window = ControlWindow(
@@ -105,6 +109,15 @@ class PlayerApp:
         self._speed_altitude_images: tuple[tk.PhotoImage, ...] = ()
         self._speed_altitude_cursor_x: int | None = None
         self._unsubscribe_speed_altitude: Callable[[], None] | None = None
+        self._state_components_view: StateComponentsView | None = None
+        self._state_components_window: tk.Toplevel | None = None
+        self._state_components_canvas: FigureCanvasTkAgg | None = None
+        self._state_components_click_connection_id: int | None = None
+        self._state_components_raster: StateComponentsRaster | None = None
+        self._state_components_base_image: tk.PhotoImage | None = None
+        self._state_components_image: tk.PhotoImage | None = None
+        self._state_components_cursor_columns: tuple[int, ...] | None = None
+        self._unsubscribe_state_components: Callable[[], None] | None = None
         self._trajectory_view: Trajectory3DView | None = None
         self._trajectory_window: tk.Toplevel | None = None
         self._trajectory_canvas: FigureCanvasTkAgg | None = None
@@ -143,6 +156,7 @@ class PlayerApp:
         if self._closed:
             return
         self._closed = True
+        self.close_state_components_view()
         self.close_trajectory_view()
         self.close_speed_altitude_view()
         if self._timer_id is not None:
@@ -229,6 +243,77 @@ class PlayerApp:
         )
         if rasters:
             self._update_legacy_raster_cursor(self.clock.t_now)
+
+    def open_state_components_view(self) -> None:
+        """Open or raise the synchronized Cartesian state-components view."""
+        if self._state_components_window is not None:
+            self._state_components_window.lift()
+            return
+
+        patchlevel, tk_version = self._get_tk_version()
+        view = StateComponentsView(self.clock.t_start, self.frame_context)
+        figure = view.build(self.series, self.time_unit)
+        view.update(self.clock.t_now)
+        window = tk.Toplevel(self.root)
+        window.title(
+            "State Components"
+            if tk_version >= (8, 6)
+            else f"State Components (Tk {patchlevel} raster view)"
+        )
+        canvas: FigureCanvasTkAgg | None = None
+        raster: StateComponentsRaster | None = None
+        base_image: tk.PhotoImage | None = None
+        image: tk.PhotoImage | None = None
+        if tk_version >= (8, 6):
+            canvas = FigureCanvasTkAgg(figure, master=window)
+            canvas.get_tk_widget().pack(fill="both", expand=True)
+            self._state_components_click_connection_id = canvas.mpl_connect(
+                "button_press_event",
+                self._on_state_components_plot_click,
+            )
+        else:
+            state_raster = view.render_raster()
+            raster = state_raster
+            base_image = self._load_legacy_ppm_image(window, state_raster.ppm_data)
+            image = tk.PhotoImage(
+                master=window,
+                width=state_raster.width,
+                height=state_raster.height,
+            )
+            image.tk.call(str(image), "copy", str(base_image))
+            plot_button = tk.Button(
+                window,
+                image=image,
+                relief="flat",
+                borderwidth=0,
+                highlightthickness=0,
+                padx=0,
+                pady=0,
+                takefocus=False,
+            )
+            plot_button.pack(anchor="w", padx=12)
+            plot_button.bind(
+                "<Button-1>",
+                lambda event: self._on_legacy_state_components_click(
+                    event, state_raster
+                ),
+            )
+        window.update_idletasks()
+        if canvas is not None:
+            canvas.draw()
+        window.protocol("WM_DELETE_WINDOW", self.close_state_components_view)
+        self._state_components_view = view
+        self._state_components_window = window
+        self._state_components_canvas = canvas
+        self._state_components_raster = raster
+        self._state_components_base_image = base_image
+        self._state_components_image = image
+        self._state_components_cursor_columns = None
+        self._unsubscribe_state_components = self.clock.subscribe(
+            self._update_state_components_view
+        )
+        if raster is not None:
+            self._update_legacy_state_components_cursor(self.clock.t_now)
 
     def open_trajectory_view(self) -> None:
         """Open or raise the 3D orbit view."""
@@ -332,6 +417,32 @@ class PlayerApp:
         if window is not None:
             window.destroy()
 
+    def close_state_components_view(self) -> None:
+        """Close the state-components view and unsubscribe it from clock updates."""
+        if self._state_components_view is None:
+            return
+        view = self._state_components_view
+        window = self._state_components_window
+        unsubscribe = self._unsubscribe_state_components
+        canvas = self._state_components_canvas
+        click_connection_id = self._state_components_click_connection_id
+        self._state_components_view = None
+        self._state_components_window = None
+        self._state_components_canvas = None
+        self._state_components_click_connection_id = None
+        self._state_components_raster = None
+        self._state_components_base_image = None
+        self._state_components_image = None
+        self._state_components_cursor_columns = None
+        self._unsubscribe_state_components = None
+        if unsubscribe is not None:
+            unsubscribe()
+        if canvas is not None and click_connection_id is not None:
+            canvas.mpl_disconnect(click_connection_id)
+        view.close()
+        if window is not None:
+            window.destroy()
+
     def _get_tk_version(self) -> tuple[str, tuple[int, int]]:
         patchlevel = str(self.root.tk.call("info", "patchlevel"))
         try:
@@ -388,6 +499,16 @@ class PlayerApp:
             self._speed_altitude_canvas.draw_idle()
         elif self._speed_altitude_rasters:
             self._update_legacy_raster_cursor(t_s)
+
+    def _update_state_components_view(self, t_s: float) -> None:
+        view = self._state_components_view
+        if view is None:
+            return
+        view.update(t_s)
+        if self._state_components_canvas is not None:
+            self._state_components_canvas.draw_idle()
+        elif self._state_components_raster is not None:
+            self._update_legacy_state_components_cursor(t_s)
 
     def _update_trajectory_view(self, t_s: float) -> None:
         view = self._trajectory_view
@@ -464,6 +585,47 @@ class PlayerApp:
                 ),
             )
         self._speed_altitude_cursor_x = cursor_x
+
+    def _update_legacy_state_components_cursor(self, t_s: float) -> None:
+        raster = self._state_components_raster
+        image = self._state_components_image
+        base_image = self._state_components_base_image
+        if raster is None or image is None or base_image is None:
+            raise RuntimeError("legacy state-components image is not initialized")
+
+        elapsed_time = (t_s - self.clock.t_start) / self.time_unit.get_divisor_s()
+        columns = tuple(panel.cursor_column(elapsed_time) for panel in raster.panels)
+        previous_columns = self._state_components_cursor_columns
+        if columns == previous_columns:
+            return
+
+        if previous_columns is not None:
+            for panel, old_x in zip(raster.panels, previous_columns):
+                image.tk.call(
+                    str(image),
+                    "copy",
+                    str(base_image),
+                    "-from",
+                    old_x,
+                    panel.plot_top,
+                    old_x + 1,
+                    panel.plot_bottom + 1,
+                    "-to",
+                    old_x,
+                    panel.plot_top,
+                )
+
+        for panel, cursor_x in zip(raster.panels, columns):
+            image.put(
+                "#d62728",
+                to=(
+                    cursor_x,
+                    panel.plot_top,
+                    cursor_x + 1,
+                    panel.plot_bottom + 1,
+                ),
+            )
+        self._state_components_cursor_columns = columns
 
     def _update_legacy_trajectory_cursor(self, state: CursorState) -> None:
         view = self._trajectory_view
@@ -607,6 +769,17 @@ class PlayerApp:
             return
         self._seek_to_elapsed_time(float(xdata))
 
+    def _on_state_components_plot_click(self, event: MouseEvent) -> None:
+        if event.button != 1 or event.inaxes is None:
+            return
+        xdata = event.xdata
+        if xdata is None or not math.isfinite(xdata):
+            return
+        canvas = self._state_components_canvas
+        if canvas is None or self._navigation_mode_active(canvas):
+            return
+        self._seek_to_elapsed_time(float(xdata))
+
     def _on_legacy_plot_click(self, event: tk.Event, raster: RasterPlot) -> None:
         if not (
             raster.plot_left <= event.x <= raster.plot_right
@@ -619,6 +792,14 @@ class PlayerApp:
         fraction = (event.x - raster.plot_left) / plot_width
         elapsed_time = raster.x_start + fraction * (raster.x_end - raster.x_start)
         self._seek_to_elapsed_time(elapsed_time)
+
+    def _on_legacy_state_components_click(
+        self, event: tk.Event, raster: StateComponentsRaster
+    ) -> None:
+        for panel in raster.panels:
+            if panel.contains_plot_point(event.x, event.y):
+                self._seek_to_elapsed_time(panel.elapsed_at(event.x))
+                return
 
     def _seek_to_elapsed_time(self, elapsed_time: float) -> None:
         target_time = self.clock.t_start + elapsed_time * self.time_unit.get_divisor_s()

@@ -49,22 +49,6 @@ the remaining views, advanced controls or VTK.
 
 ## Milestone E — Full dashboard and plot set
 
-### 14. Add the state-components view
-
-Split the X/Y/Z and VX/VY/VZ histories from the original state-vector plot into a dedicated
-Matplotlib view. Add it to the State group and preserve the `state-vectors` compatibility alias
-for opening both state components and the 3D trajectory.
-
-- **Status:** Not started.
-- **Progress:** 0/4 checklist items.
-- [ ] Build the position and velocity component plots with units and frame labels.
-- [ ] Add synchronized cursor artists and click-to-seek behavior.
-- [ ] Add view and alias names to the registry.
-- [ ] Test group and alias behavior.
-
-**Done when:** the State group and compatibility alias open the expected views.
-**Depends on:** Step 13.
-
 ### 15. Add remaining motion and geometry diagnostics
 
 Refactor the original RTN deltas, angular velocity, direction change and geocentric distance
@@ -457,4 +441,24 @@ default launch selection.
 **Implementation notes:** [registry.py](../../src/ephem_toolkit/play_oem/views/registry.py)
 defines canonical view names and group expansion for both the toolbar and CLI. The toolbar enables
 only groups whose views are implemented; the CLI reports unavailable views instead of opening
-partial groups. Registering the remaining views in Steps 14–15 enables those groups.
+partial groups. Step 14 enables the State group; Step 15 will enable Motion and All.
+
+### 14. Add the state-components view
+
+Split the X/Y/Z and VX/VY/VZ histories from the original state-vector plot into a dedicated
+Matplotlib view. Add it to the State group and preserve the `state-vectors` compatibility alias
+for opening both state components and the 3D trajectory.
+
+- **Status:** Done.
+- **Progress:** 4/4 checklist items.
+- [x] Build the position and velocity component plots with units and frame labels.
+- [x] Add synchronized cursor artists and click-to-seek behavior.
+- [x] Add view and alias names to the registry.
+- [x] Test group and alias behavior.
+
+**Done when:** the State group and compatibility alias open the expected views.
+**Depends on:** Step 13.
+
+**Implementation notes:** The six position and velocity component traces use one shared time
+axis and synchronized cursor lines. The legacy Tk path displays a Matplotlib-rendered PPM and
+retains click-to-seek and cursor updates without requiring Tcl/Tk 8.6.
