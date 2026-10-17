@@ -39,21 +39,256 @@ For every step, keep the status and progress fields current:
 Progress is the number of checklist items completed. Update the step's status and count as work
 advances; do not mark a step done based only on code being written.
 
-The first full playback demo is **step 10**. It should be possible to open a sample OEM, play,
-pause and seek it, and see a synchronized 3D orbit and time-series plot before implementing
-the remaining views, advanced controls or VTK.
+## Current directive — complete migration to wxPython
 
-## Milestone B — Playback core
+The original Tk implementation in completed steps 6–14 is historical work, not completion of
+the current GUI requirement. Migrate the entire existing `play-oem` GUI to wxPython before
+adding the remaining views and dashboard features. Keep the playback clock, cursor lookup,
+OEM loading, computed series, CLI semantics, and view data contract toolkit-independent where
+possible. The finished application must have one wx event loop and no runtime Tk dependency,
+Tk-specific fallback, or Tk-only GUI path. Use Matplotlib's wx canvas for plots; retain VTK as
+an optional 3D backend only if its wx integration is validated.
 
-## Milestone D — Complete playback and seeking
+Migration guardrails:
 
-## Milestone E — Full dashboard and plot set
+- Target GUI stack: `wx.App`, `wx.Frame`, `wx.Timer`, Matplotlib `FigureCanvasWxAgg`, and
+  wx-native controls (`Slider`, `TextCtrl`, `Button`, `Panel`, `Menu`) instead of Tk widgets.
+- Preserve all playback/data semantics in the model layer; only the UI and event plumbing move
+  to wxPython.
+- Keep the core CLI and data-processing code runnable in headless environments, with GUI tests
+  using `MPLBACKEND=Agg` and explicit wx-safe test fixtures when a display is unavailable.
+- The migration is not complete until the proof gate passes: no `tkinter` imports remain in the
+  active `play-oem` implementation, no `TkAgg` or `PhotoImage`/PPM fallback code remains in the
+  supported path, and the runtime installed via the documented GUI extra launches in a real wx
+  session.
+- Installation: GUI dependencies are declared as a `playback` extra in `pyproject.toml`
+  (`pip install ephem-toolkit[playback]`). The extra is added and locked in step 15 so every
+  later step can run the GUI. The base install must not require wxPython. VTK remains a
+  separate optional extra only if step 20 records `VTK-KEEP`.
 
-### 15. Add remaining motion and geometry diagnostics
+Complete the active steps below in order. Steps 15–23 cover the migration and its acceptance;
+only then resume the remaining product work. Update
+[PLAY_OEM_DESIGN.md](./PLAY_OEM_DESIGN.md) in step 15 so the architecture agrees with this
+directive. The first Tk playback demo in step 10 remains a historical milestone; a wxPython
+demo must pass the migration acceptance criteria in step 23.
 
-Refactor the original RTN deltas, angular velocity, direction change and geocentric distance
-figures into individual `build`/`update` views. Add each to the registry and Motion diagnostics
-group.
+## Milestone I — wxPython migration
+
+### 15. Define the wxPython target architecture, capture the Tk baseline and add the GUI dependency
+
+Record the wxPython decision and target event/window ownership model in
+[PLAY_OEM_DESIGN.md](./PLAY_OEM_DESIGN.md). Inventory every Tk-dependent file and helper, capture
+the current Tk behavior as a baseline before any code is replaced, and add the wxPython
+dependency so steps 16–21 can run the GUI. Do not add new Tk functionality or begin feature work
+during this migration.
+
+- **Status:** Not started.
+- **Progress:** 0/8 checklist items.
+- [ ] Update the design document to make wxPython the sole GUI framework and document the
+      wx application, frame, timer, plot-window, and shutdown ownership model.
+- [ ] Inventory Tk-dependent production code: `control_window.py`, `app.py`, and
+      `views/state_components.py` import `tkinter`; `views/raster.py`,
+      `views/speed_altitude.py`, and `views/trajectory3d/mpl_backend.py` hold PPM/PhotoImage
+      raster helpers; `tests/ephem_toolkit/play_oem/test_play_oem_app.py` uses Tk fakes. Record
+      any further matches and any Tk references in docs.
+- [ ] Capture the Tk baseline before replacing code: for `tests/data/ISS_2026-05-20.OEM`, record
+      speed, altitude, position/velocity components, 3D orbit extents, axis labels, units and
+      frame labels at start, an interior time, end, and one reverse-seek time. Commit the values as
+      a JSON fixture; keep reference PNG captures outside the repository.
+- [ ] Record the decisions the design depends on: the SIGINT mechanism (a signal handler that
+      forwards to `wx.CallAfter`, or a wx timer polling a flag), the timeline slider resolution
+      (an integer step count mapped to clock bounds), and the Matplotlib canvas strategy
+      (`FigureCanvasWxAgg` with wx-hosted toolbars).
+- [ ] Add a `playback` optional extra in `pyproject.toml` containing `wxpython` and
+      `matplotlib>=3.7`, regenerate `poetry.lock`, and record the minimum wxPython version chosen.
+- [ ] Verify wxPython wheel or install availability for each supported Python version (3.9–3.13)
+      on macOS, Linux, and Windows. For Linux, record whether a wheel or a source build is needed.
+- [ ] Specify headless CI: pure-Python tests run without a display; tests that create a `wx.App`
+      run under `xvfb-run` on Linux; Matplotlib tests set `MPLBACKEND=Agg`.
+- [ ] Define the proof gate: no `tkinter` imports, no `TkAgg` usage, and no PhotoImage/PPM
+      fallback in the supported runtime path, checked by a repeatable search recorded in the
+      step notes.
+
+**Done when:** the design and inventory are internally consistent, the baseline fixture is
+committed, the `playback` extra resolves from the lock, and `import wx` succeeds on the
+development platform. No architecture decision remains open that would change steps 16–21.
+**Depends on:** Step 14.
+
+### 16. Replace the Tk app shell and window lifecycle with wxPython
+
+Rebuild `app.py` around one `wx.App` and a primary `wx.Frame`. Replace Tk `after()` scheduling
+with `wx.Timer`, driven from monotonic elapsed time and the existing `PlaybackClock`. Migrate
+window ownership, close handling, observer cleanup, and SIGINT behavior without moving playback
+logic into widgets or starting a second event loop.
+
+- **Status:** Not started.
+- **Progress:** 0/6 checklist items.
+- [ ] Create the wx application and primary frame through the existing `play-oem` launch path.
+- [ ] Drive clock ticks with a wx timer using monotonic time and preserve configured FPS behavior.
+- [ ] Preserve startup time, autoplay, loop, reverse, speed, and CLI-selected plot behavior.
+- [ ] Define frame/view close behavior, including stopping timers and unsubscribing observers.
+- [ ] Handle normal close and SIGINT using the mechanism recorded in step 15, without a lingering
+      process or duplicate wx app instance.
+- [ ] Add lifecycle tests with wx-safe test fixtures or mocks that do not require a display.
+
+**Done when:** `play-oem` launches a minimal wx window, updates the displayed playback time,
+and shuts down cleanly while all existing clock and CLI tests continue to pass.
+**Depends on:** Step 15.
+
+### 17. Rebuild the playback control dashboard with native wx widgets
+
+Replace `control_window.py` and Tk image-backed controls with native wx controls. Preserve
+play/pause, keyboard shortcuts, timeline seeking, direct time entry, speed and direction
+controls, readouts, toolbar actions, and the no-feedback rule for programmatic slider updates.
+
+- **Status:** Not started.
+- **Progress:** 0/7 checklist items.
+- [ ] Implement native play/pause, speed, direction, elapsed/UTC readouts, and timeline controls.
+- [ ] Implement elapsed-duration and UTC entry with validation that leaves the clock unchanged
+      on invalid input.
+- [ ] Preserve sample/time stepping, start/end shortcuts, reverse, and keyboard bindings.
+- [ ] Map the integer `wx.Slider` range to clock bounds using the resolution recorded in step 15,
+      and synchronize slider updates from the clock without triggering recursive seek callbacks.
+- [ ] Preserve zero-duration timeline behavior and disable seeking when no interval exists.
+- [ ] Add wx-native layout, sizing, keyboard focus order, labeled controls, and close behavior
+      for the dashboard.
+- [ ] Port control tests to assert behavior and state transitions rather than Tk widget internals.
+
+**Done when:** every existing playback and seek interaction works through wx controls with
+equivalent validation and clock behavior.
+**Depends on:** Step 16.
+
+### 18. Migrate Matplotlib views to wx canvases
+
+Replace TkAgg and raster-image display paths with Matplotlib's wx canvas integration. Port the
+existing speed/altitude, state-components, and Matplotlib 3D trajectory views while preserving
+their plotted data, cursor synchronization, labels, toolbar interactions, and click-to-seek.
+Keep numerical view construction independent of wx where practical so it remains testable with
+a non-interactive Matplotlib backend.
+
+- **Status:** Not started.
+- **Progress:** 0/7 checklist items.
+- [ ] Establish a wx-compatible Matplotlib canvas and toolbar lifecycle for plot frames.
+- [ ] Migrate speed/altitude rendering and cursor updates to the wx canvas.
+- [ ] Migrate state-component rendering and cursor updates to the wx canvas.
+- [ ] Migrate the Matplotlib 3D orbit view and satellite marker updates to the wx canvas.
+- [ ] Preserve plot click-to-seek while respecting active pan/zoom toolbar modes.
+- [ ] Preserve one-window-per-view behavior, raise-existing behavior, and clean close/unsubscribe.
+- [ ] Compare each migrated view's data, labels, units, and cursor locations with the step 15
+      baseline fixture using deterministic tests.
+
+**Done when:** all currently implemented plots render and update in wx windows without using a
+Tk canvas, Tk widget, or raster-image workaround.
+**Depends on:** Step 17.
+
+### 19. Port view registry, plot selection, and cross-window synchronization
+
+Connect the existing view registry and `--plots` behavior to wx frame creation and activation.
+Ensure all open plot windows consume the same cursor state and remain synchronized for playback
+and every seek interaction.
+
+- **Status:** Not started.
+- **Progress:** 0/5 checklist items.
+- [ ] Preserve canonical view names, aliases, groups, and unknown/unavailable selection errors.
+- [ ] Wire dashboard actions and `--plots` to the same registry and view-opening code.
+- [ ] Prevent duplicate windows and correctly raise/focus an existing view.
+- [ ] Verify simultaneous cursor updates and click-to-seek across every currently implemented
+      view.
+- [ ] Test closing/reopening views during playback and after seeks.
+
+**Done when:** toolbar/dashboard and CLI selections produce the same wx views, with no duplicate
+windows or stale subscriptions.
+**Depends on:** Step 18.
+
+### 20. Prototype VTK integration with the wx event loop
+
+Before implementing or retaining a VTK scene, prove that VTK can be embedded and driven safely
+from the wx application on supported platforms. Do not introduce a competing GUI event loop.
+
+- **Status:** Not started.
+- **Progress:** 0/5 checklist items.
+- [ ] Open and close a minimal VTK render window hosted by a wx frame.
+- [ ] Drive VTK event processing and rendering without blocking wx timers or playback controls.
+- [ ] Verify resize, close, and interaction behavior on macOS, Linux, and Windows where available.
+- [ ] Record one outcome in the design document, `VTK-KEEP` or `VTK-DROP`, with platform
+      limitations. Step 21 implements only the recorded outcome.
+- [ ] Specify explicit-backend errors and `auto` selection/fallback behavior before adding CLI
+      or dependency changes.
+
+**Done when:** the outcome is recorded in the design. For `VTK-KEEP`, wx/VTK lifecycle and event
+handling are demonstrated on supported targets; for `VTK-DROP`, the removal is documented.
+**Depends on:** Step 19.
+
+### 21. Complete the VTK backend migration and backend selection
+
+Follow the outcome recorded in step 20. For `VTK-KEEP`, migrate the trajectory scene to wx
+embedding behind the same view contract as Matplotlib. For `VTK-DROP`, remove VTK from product
+scope, document Matplotlib as the sole 3D backend, and leave no unmaintained Tk/VTK path.
+
+- **Status:** Not started.
+- **Progress:** 0/5 checklist items.
+- [ ] For `VTK-KEEP`, implement the wx-hosted VTK orbit, WGS84 Earth, satellite marker,
+      direction-aware tail, and trackball camera. For `VTK-DROP`, remove VTK code and references.
+- [ ] Keep marker/tail state driven by the shared cursor and playback controls.
+- [ ] Implement and validate `--3d-backend {auto,vtk,matplotlib}` only if VTK is retained.
+- [ ] Test explicit VTK selection errors and `auto` behavior when VTK/rendering is unavailable.
+- [ ] Add/document an optional VTK dependency extra only if the backend is retained.
+
+**Done when:** the supported 3D backend set is fully wx-compatible, consistently selected, and
+covered by backend-specific tests and documentation.
+**Depends on:** Step 20.
+
+### 22. Remove Tk-only code and verify the dependency split
+
+Delete obsolete Tk-specific runtime code, raster helpers and tests after steps 16–21 have ported
+their behavior. Confirm that the `playback` extra added in step 15 installs from the lock and that
+the base install works without wxPython. Keep static plotting dependency behavior separate unless
+the design requires a documented adjustment.
+
+- **Status:** Not started.
+- **Progress:** 0/5 checklist items.
+- [ ] Remove Tk imports, `after()` timers, TkAgg canvas usage, Tk-specific UI paths, and Tk-only
+      test fixtures from the active implementation.
+- [ ] Remove the PPM/PhotoImage raster helpers in `raster.py`, `speed_altitude.py`,
+      `mpl_backend.py`, and `state_components.py` after confirming no supported caller remains.
+- [ ] Verify the `playback` extra installs from the lock on each target platform and record any
+      caveats in the design document.
+- [ ] Confirm the base install imports and runs `plot-oem` and other CLI tools without wxPython.
+- [ ] Run the proof gate search from step 15; classify any remaining match as migration-history
+      documentation only.
+
+**Done when:** the shipped `play-oem` runtime has no Tk dependency or fallback, the GUI installs
+through the locked `playback` extra, and the base install does not require wxPython.
+**Depends on:** Step 21.
+
+### 23. Accept the wxPython migration
+
+Run the complete focused playback test suite and manual smoke tests against the wx application.
+Treat the Tk implementation as superseded; do not mark the migration complete based only on
+unit tests or a successful import.
+
+- **Status:** Not started.
+- **Progress:** 0/6 checklist items.
+- [ ] Verify a repository OEM opens the wx control frame and default overview plots, with values
+      matching the step 15 baseline fixture.
+- [ ] Verify play, pause, seek, direct time entry, stepping, reverse, speed, loop, and autoplay.
+- [ ] Verify plot synchronization, click-to-seek, view close/reopen, and normal shutdown/SIGINT.
+- [ ] Verify `--help`, invalid arguments, missing GUI dependencies, and backend-selection errors.
+- [ ] Run focused tests on supported Python versions and smoke-test macOS, Linux, and Windows;
+      record unavailable platforms and accepted limitations.
+- [ ] Confirm all failures found in migration testing are resolved or explicitly documented.
+
+**Done when:** the existing `play-oem` feature set runs on wxPython end to end, tests pass, and
+the supported platform/dependency behavior is documented.
+**Depends on:** Step 22.
+
+## Milestone J — Complete the remaining dashboard and plot set
+
+### 24. Add remaining motion and geometry diagnostics
+
+Refactor the original RTN deltas, angular velocity, direction change, and geocentric distance
+figures into individual views using the migrated wx/Matplotlib view lifecycle. Add each to the
+registry and Motion diagnostics group.
 
 - **Status:** Not started.
 - **Progress:** 0/5 checklist items.
@@ -63,26 +298,26 @@ group.
 - [ ] Synchronize cursor and click-to-seek behavior across the new views.
 - [ ] Compare plotted data and labels with the corresponding `plot-oem` figures.
 
-**Done when:** every planned view is independently openable and synchronized.
-**Depends on:** Step 14.
+**Done when:** every planned view is independently openable and synchronized in wx.
+**Depends on:** Step 23.
 
-### 16. Add current-state readouts and OEM data context
+### 25. Add current-state readouts and OEM data context
 
-Populate the control dashboard from `CursorState` and OEM metadata. Keep common values visible
-and put less-used metadata in a collapsed details panel.
+Populate the wx control dashboard from `CursorState` and OEM metadata. Keep common values
+visible and put less-used metadata in a collapsible details panel.
 
 - **Status:** Not started.
 - **Progress:** 0/4 checklist items.
-- [ ] Display position, velocity, speed and altitude with units and validity checks.
-- [ ] Display object, frame, center, time span and sample count.
+- [ ] Display position, velocity, speed, and altitude with units and validity checks.
+- [ ] Display object, frame, center, time span, and sample count.
 - [ ] Display whether cursor values are sampled or interpolated.
-- [ ] Add a details panel for less-used metadata and test missing metadata behavior.
+- [ ] Add a details panel for less-used metadata and test missing-metadata behavior.
 
-**Done when:** the dashboard presents key state and source context without relying on plot
+**Done when:** the wx dashboard presents key state and source context without relying on plot
 windows.
-**Depends on:** Step 15.
+**Depends on:** Step 24.
 
-### 17. Implement segment and data-gap handling
+### 26. Implement segment and data-gap handling
 
 Ensure the loader/series preserve OEM segment boundaries; plot each segment separately and
 never interpolate or draw a continuous line across a gap. Keep the timeline seekable through a
@@ -97,14 +332,15 @@ gap while indicating that no state is available there.
 - [ ] Test interpolation and plotting on a multi-segment OEM.
 
 **Done when:** no view or readout implies continuous or interpolated data across an OEM gap.
-**Depends on:** Step 16.
+**Depends on:** Step 25.
 
-## Milestone F — Performance
+## Milestone K — Performance
 
-### 18. Optimize rendering and validate playback performance
+### 27. Optimize rendering and validate playback performance
 
-Add blitting and display decimation for 2D views, per-view throttling for Matplotlib 3D and frame
-dropping. Profile before changing algorithms; keep full-resolution data for cursor lookup.
+Add wx-compatible blitting and display decimation for 2D views, per-view throttling for
+Matplotlib 3D, and frame dropping as needed. Profile before changing algorithms; keep
+full-resolution data for cursor lookup.
 
 - **Status:** Not started.
 - **Progress:** 0/4 checklist items.
@@ -113,85 +349,38 @@ dropping. Profile before changing algorithms; keep full-resolution data for curs
 - [ ] Throttle Matplotlib 3D updates without slowing the playback clock.
 - [ ] Benchmark all views open at 1000x with an OEM of at least 100k samples.
 
-**Done when:** the UI remains interactive at the performance target in N1 and cursor values
+**Done when:** the wx UI remains interactive at the performance target in N1 and cursor values
 remain correct.
-**Depends on:** Step 17.
+**Depends on:** Step 26.
 
-## Milestone G — Optional VTK 3D backend
+## Milestone L — Release readiness
 
-### 19. Prototype VTK/Tk integration and add backend selection
+### 28. Cross-platform polish and publish documentation
 
-Before implementing the full VTK scene, create a minimal VTK render window driven by the Tk
-timer. After validating event handling on the development platform, add `Trajectory3DView`
-backend selection, `--3d-backend {auto,vtk,matplotlib}` and the optional `vtk` dependency.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Open and close a minimal VTK window alongside the Tk control window.
-- [ ] Pump VTK events and rendering from the Tk timer; verify interaction remains responsive.
-- [ ] Verify behavior on macOS; record any platform limitation before proceeding.
-- [ ] Add backend selection and clear behavior for auto, explicit VTK and Matplotlib.
-- [ ] Add/document the optional VTK install extra without making it a base dependency.
-
-**Done when:** the minimal integration is stable enough to proceed, and backend selection
-works with and without VTK installed.
-**Depends on:** Step 18.
-
-### 20. Implement the VTK trajectory scene
-
-Implement the complete VTK backend behind the same view contract: orbit polyline, WGS84 Earth,
-satellite marker, direction-aware tail and trackball camera.
+Run the application and test suite on supported platforms. Resolve lifecycle, error-message,
+dependency, and window-management issues without introducing silent fallbacks. Publish
+`docs/tools/PLAY_OEM.md`, update README tool listings and [TODO.md](../development/TODO.md),
+and keep `plot-oem` as the separate static-plot command.
 
 - **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Build the static orbit, Earth and camera scene.
-- [ ] Update marker and tail from the same cursor state as Matplotlib.
-- [ ] Verify rotate/zoom interaction while playing and seeking.
-- [ ] Add backend contract tests, using a test-safe VTK rendering setup where supported.
-- [ ] Test explicit VTK errors and `auto` fallback when VTK/rendering is unavailable.
-
-**Done when:** VTK and Matplotlib views produce equivalent cursor state and both honor the
-same playback controls.
-**Depends on:** Step 19.
-
-## Milestone H — Release readiness
-
-### 21. Cross-platform polish and smoke tests
-
-Run the application and test suite on supported platforms. Resolve lifecycle, error-message and
-window-management issues without introducing silent fallbacks.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Verify clear errors for missing Tk and explicit-but-unavailable VTK.
-- [ ] Verify `--help`, invalid arguments, SIGINT and clean window shutdown.
-- [ ] Smoke-test macOS, Linux and Windows; record any backend-specific limitations.
-- [ ] Run focused tests and performance benchmark.
-- [ ] Resolve all failures found in these checks.
+- **Progress:** 0/8 checklist items.
+- [ ] Verify clear errors for missing wxPython/Matplotlib and explicit-but-unavailable VTK.
+- [ ] Verify `--help`, invalid arguments, SIGINT, and clean wx window shutdown.
+- [ ] Smoke-test macOS, Linux, and Windows; record backend-specific limitations.
+- [ ] Run focused tests and the performance benchmark.
+- [ ] Document wxPython installation, CLI, controls, views, backends, and limitations.
+- [ ] Update README and TODO references and document `plot-oem` versus `play-oem`.
+- [ ] Review all cross-links and command examples against tested behavior.
+- [ ] Resolve all failures found in release checks or record an explicit accepted limitation.
 
 **Done when:** supported workflows pass on target platforms or documented limitations are
-explicit and accepted.
-**Depends on:** Step 20.
-
-### 22. Publish finished-tool documentation and confirm command separation
-
-Write the user-facing `docs/tools/PLAY_OEM.md`, update README tool listings and
-[TODO.md](../development/TODO.md). Keep `plot-oem` as the separate static-plot command and
-`play-oem` as the interactive playback command. Share numerical/data-processing code only when
-compatibility with both commands is verified.
-
-- **Status:** Not started.
-- **Progress:** 0/4 checklist items.
-- [ ] Document installation, CLI, controls, views, backends and limitations.
-- [ ] Update README and TODO references.
-- [ ] Document the separate responsibilities of `plot-oem` and `play-oem`.
-- [ ] Review all cross-links and examples.
-
-**Done when:** user-facing documentation matches tested behavior and the migration decision is
-documented.
-**Depends on:** Step 21.
+explicit and accepted, and user-facing documentation matches tested wxPython behavior.
+**Depends on:** Step 27.
 
 ## Completed steps
+
+Steps 6–14 record the Tk implementation. They keep their original status for auditability and
+are superseded by the wxPython migration in steps 15–23.
 
 ### 1. Scaffold the package and command
 
@@ -295,6 +484,8 @@ the timer updating a visible elapsed-time label; do not open plot windows yet.
 development platform.
 **Depends on:** Step 5.
 
+**Superseded by steps 15–23 (wxPython migration).** The notes below describe the Tk implementation.
+
 **Implementation notes:** Use classic Tk buttons rather than themed widgets for the elapsed and
 UTC readouts. Keep each value on its own flat, single-line button with explicit colors; this
 keeps the readout visible on the legacy macOS Tk 8.5 runtime.
@@ -314,6 +505,8 @@ cursor artist. Connect the view window lifecycle to the app.
 
 **Done when:** the app can open and close one static time-series view from an OEM.
 **Depends on:** Step 6.
+
+**Superseded by steps 15–23 (wxPython migration).** The notes below describe the Tk implementation.
 
 **Implementation notes:** Detect the Tcl/Tk patch level when opening the view. Tk 8.6+ uses the
 Matplotlib `TkAgg` canvas. The verified macOS Tk 8.5.9 runtime leaves `TkAgg` canvases and native
@@ -338,6 +531,8 @@ when playback is paused.
 random seeks.
 **Depends on:** Step 7.
 
+**Superseded by steps 15–23 (wxPython migration).** The notes below describe the Tk implementation.
+
 **Implementation notes:** Clock notifications update the Matplotlib cursor and call
 `draw_idle()` on Tk 8.6+, or move synchronized red cursor columns on the legacy-Tk Matplotlib
 raster image.
@@ -359,6 +554,8 @@ update the slider without causing a feedback seek.
 
 **Done when:** a user can play, pause, seek and change between at least two speeds in the GUI.
 **Depends on:** Step 8.
+
+**Superseded by steps 15–23 (wxPython migration).** The notes below describe the Tk implementation.
 
 **Implementation notes:** Use a `PhotoImage` timeline graphic displayed in a classic Tk button
 because the native Scale is not visible on the verified macOS Tk 8.5.9 runtime. The draggable
@@ -418,6 +615,8 @@ Plot clicks must not intercept Matplotlib pan/zoom interactions.
 without altering speed or direction.
 **Depends on:** Step 11.
 
+**Superseded by steps 15–23 (wxPython migration).** The notes below describe the Tk implementation.
+
 **Implementation notes:** Native Entry widgets were mapped but visually blended into the dark
 macOS Tk 8.5.9 control window. The visible input surface uses a PhotoImage-backed classic button
 that focuses an Entry text buffer and mirrors typed text; Return and Seek submit that same buffer.
@@ -458,6 +657,8 @@ for opening both state components and the 3D trajectory.
 
 **Done when:** the State group and compatibility alias open the expected views.
 **Depends on:** Step 13.
+
+**Superseded by steps 15–23 (wxPython migration).** The notes below describe the Tk implementation.
 
 **Implementation notes:** The six position and velocity component traces use one shared time
 axis and synchronized cursor lines. The legacy Tk path displays a Matplotlib-rendered PPM and

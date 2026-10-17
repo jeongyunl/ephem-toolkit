@@ -2,6 +2,9 @@
 
 Requirements: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md). Baseline code: `src/ephem_toolkit/plot_oem/`.
 
+GUI toolkit: **wxPython** is the sole GUI framework (§3). The earlier Tkinter design is superseded
+by the migration in [PLAY_OEM_IMPLEMENTATION_PLAN.md](./PLAY_OEM_IMPLEMENTATION_PLAN.md), steps 15–23.
+
 ## 1. Approach: copy and modify `plot-oem`
 
 `plot_oem.py` (~870 lines) mixes three things; we split them while copying:
@@ -29,17 +32,19 @@ src/ephem_toolkit/play_oem/
   data.py  series.py  time_unit.py              # copied from plot_oem
   clock.py             # PlaybackClock (pure Python, no GUI)
   cursor.py            # CursorState lookup at t_now
-  app.py               # PlayerApp: owns clock, views, control window
-  control_window.py    # slider, play/pause, speed, toolbar
+  app.py               # PlayerApp: owns wx.App, clock, views, control window
+  control_window.py    # wx.Frame: slider, play/pause, speed, toolbar
   views/
     base.py            # View protocol
-    trajectory3d/      # mpl_backend.py, vtk_backend.py (see 4.3.1)
+    trajectory3d/      # mpl_backend.py; vtk_backend.py only if VTK-KEEP (see 4.3.1)
     state_components.py speed_altitude.py rtn_deltas.py angular_velocity.py
     direction_change.py geocentric_distance.py
     registry.py        # view/group names -> factories
 ```
 
-`pyproject.toml`: add `play-oem = "ephem_toolkit.play_oem:cli"` and an optional extra `vtk = ["vtk>=9.2"]`.
+`pyproject.toml`: add `play-oem = "ephem_toolkit.play_oem:cli"` and an optional extra
+`playback = ["wxpython>=<minimum recorded in step 15>", "matplotlib>=3.7"]`. The base install does not
+require wxPython. Add `vtk = ["vtk>=9.2"]` only if step 20 records `VTK-KEEP`.
 
 ## 3. GUI toolkit decision
 
@@ -48,13 +53,14 @@ Options:
 | Option | Pros | Cons |
 |---|---|---|
 | A. Matplotlib only (TkAgg/QtAgg), control window = a Matplotlib figure with `Slider`, `Button`, `RadioButtons` | no new deps; one event loop | clunky toolbar, widget look, slider/timer coupling |
-| B. **Tkinter control window + Matplotlib figures** (`TkAgg`) | stdlib Tk, native-ish controls and toolbar, single Tk event loop shared by all figures; no new dependency | Tk must be available (usually bundled; not on some Linux distros); legacy Tk may have rendering limitations |
+| B. Tkinter control window + Matplotlib figures (`TkAgg`); superseded by D | stdlib Tk, native-ish controls and toolbar, single Tk event loop shared by all figures; no new dependency | Tk must be available (usually bundled; not on some Linux distros); legacy Tk may have rendering limitations |
 | C. Qt (PySide6) | best widgets | heavy new dependency |
+| D. **wxPython control frame + Matplotlib figures** (`WXAgg`, `FigureCanvasWxAgg`) | native widgets and toolbars on each platform; one wx event loop for the control frame and Matplotlib canvases; no Tk dependency | new GUI dependency with platform-dependent wheels; `wx.Slider` is integer-only; tests that create a `wx.App` need a display |
 
-**Decision: B**, with Tk-managed plot windows sharing one Tk root and event loop. Use Matplotlib
-`TkAgg` where supported, with a compatible fallback for legacy Tk rendering limitations. Fall
-back with a clear error if Tk is missing. The `View`/`Clock` layers are toolkit-agnostic, so C
-remains possible.
+**Decision: D (wxPython).** wxPython is the sole GUI framework for `play-oem`, per the migration
+directive. The control frame, Matplotlib plot frames, and any VTK window are owned by one `wx.App`
+and one `MainLoop()`. Tk is removed from the runtime path (implementation plan steps 15–23). The
+`View`/`Clock` layers are toolkit-agnostic, so the GUI toolkit remains replaceable.
 
 ## 4. Core components
 
@@ -107,7 +113,7 @@ class View(Protocol):
   for the satellite marker, optional trailing tail slice.
 - Plot each OEM segment separately; do not draw lines across gaps. Mark segment boundaries
   clearly, and update the cursor/readout style or status when `t_now` lies in a gap.
-- **Blitting**: after the first full draw, cache the background (`canvas.copy_from_bbox`) and
+- **Blitting** (validated in step 27 on `FigureCanvasWxAgg`): after the first full draw, cache the background (`canvas.copy_from_bbox`) and
   redraw only cursor artists with `restore_region`/`draw_artist`/`blit`. Resize/`draw_event`
   invalidates the cache. This is what makes 1000x with 7 views feasible (N1).
 - Large series are decimated for display (min/max per pixel bucket) when > ~50k points; the
@@ -118,7 +124,7 @@ class View(Protocol):
   angular velocity and direction change; `all` = every view. The same registry powers the
   toolbar and `--plots`; opening a group raises existing windows rather than duplicating them.
 
-### 4.3.1 3D trajectory backends (Matplotlib/Tk and VTK)
+### 4.3.1 3D trajectory backends (Matplotlib/wx and VTK)
 
 Only the 3D trajectory is backend-pluggable; every 2D time-series view stays Matplotlib.
 The plot-oem state-vector diagnostics are split into two views:
@@ -130,10 +136,9 @@ The `state` group opens the state-components view. Keep `state-vectors` as a com
 alias that opens both trajectory and state-components views.
 
 The state-components view uses a 3-by-2 Matplotlib layout: position X/Y/Z and velocity VX/VY/VZ,
-with frame and unit labels, one shared elapsed-time axis, and synchronized cursor lines. On legacy
-Tk, speed/altitude and state-components figures are rendered by Matplotlib Agg to a single PPM
-image per figure. Cursor overlays update only the relevant plot pixels, and clicks map through
-per-axes plot bounds to preserve synchronized seeking.
+with frame and unit labels, one shared elapsed-time axis, and synchronized cursor lines. Each 2D view
+is a `FigureCanvasWxAgg` canvas in a wx frame. Clicks map through per-axes plot bounds to preserve
+synchronized seeking. The PPM/PhotoImage raster path from the Tk implementation is removed in step 22.
 
 ```
 views/trajectory3d/
@@ -161,16 +166,13 @@ class Trajectory3DView(View, Protocol):
 The choice is made once at startup and shown in the control window title/status line.
 Both backends implement the same interface, so the toolbar, clock and `PlayerApp` never branch on backend.
 
-**Matplotlib/Tk backend.** The initial overview draws the static orbit path, start/end markers,
+**Matplotlib/wx backend.** The initial overview draws the static orbit path, start/end markers,
 labeled axes and object/frame context in `build`; `update` moves the satellite marker from the shared
-cursor state. For Tk 8.6 and newer, the figure uses TkAgg. Older Tk versions use Matplotlib Agg to
-render a PPM image, which is loaded by classic Tk; the marker is drawn into a copy of that image as
-the cursor moves. This avoids the blank TkAgg/Canvas rendering on the repository's legacy macOS
-Tk 8.5.9 runtime without changing the graphical plot. TkAgg redraws are requested with
-`draw_idle()`; the legacy raster path updates only the cursor pixels. Earth rendering and trajectory
-tails remain planned enhancements to this backend.
+cursor state. The figure is hosted in a wx frame through `FigureCanvasWxAgg`, and the Matplotlib
+navigation toolbar is hosted by wx. Redraws are requested with `draw_idle()`. Throttling this 3D
+backend is covered by step 27. Earth rendering and trajectory tails remain planned enhancements.
 
-**VTK backend.** Scene built in `build`:
+**VTK backend (only if step 20 records `VTK-KEEP`).** Scene built in `build`:
 
 - Orbit polyline: `vtkPoints` filled zero-copy from `series` position arrays via
   `vtk.util.numpy_support`, one `vtkPolyLine` cell, `vtkPolyDataMapper` → `vtkActor`.
@@ -183,16 +185,18 @@ tails remain planned enhancements to this backend.
 - Tail: a second polyline over the index range `[i(t - tail), i(t)]` (reversed side when playing in reverse); or the full path when `tail` is `None`.
 - Camera/interaction: `vtkInteractorStyleTrackballCamera` (rotate/zoom/pan) with the camera left untouched by `update`, so you can orbit while it plays.
 
-**Event loop integration.** The app owns exactly one loop (Tk). VTK is *pumped*, not run:
+**Event loop integration (validated in step 20).** The app owns exactly one loop (the wx main loop).
+VTK must not run its own loop. Two candidate approaches:
 
-1. `vtkRenderWindowInteractor.Initialize()` is called, but never `Start()`.
-2. The frame timer in `PlayerApp` calls `interactor.ProcessEvents()` and then `Render()` for each open VTK view, so mouse
-   rotate/zoom works and the window is redrawn in lockstep with the clock.
-3. The VTK window is its own top-level native window (not embedded in Tk). This avoids the unreliable
-   `vtkTkRenderWindowInteractor` embedding on macOS/Cocoa; closing it is detected through the interactor's
-   `ExitEvent`/`WindowIsCurrent` observer and unregisters the view, exactly like closing a Matplotlib window.
+1. **Embedded:** host the VTK render window in a wx panel through VTK's wx integration, so the window
+   follows wx sizing, focus, and close behavior. Use this only if step 20 confirms it works on each
+   supported platform.
+2. **Pumped separate window (fallback):** a top-level VTK window pumped from a `wx.Timer`. The timer
+   calls `interactor.ProcessEvents()` and then `Render()` for each open VTK view, so rotate/zoom works
+   and the window is redrawn in lockstep with the clock. Closing it is detected through the
+   interactor's `ExitEvent` observer and unregisters the view, like a Matplotlib window.
 
-Embedding in a Tk frame (`vtkTkRenderWindowInteractor`) remains a possible opt-in on Linux/Windows but is not planned for v1.
+The chosen approach and the `VTK-KEEP`/`VTK-DROP` outcome are recorded here after step 20.
 
 **Testing.** The backend-neutral contract is tested on both backends: `build` + several `update` calls,
 and marker position == cursor-state position (Matplotlib: artist data; VTK: `actor.GetPosition()`).
@@ -205,7 +209,7 @@ windows are open. Startup opens `overview` by default: the 3D orbit and combined
 time-series view. `--plots` can replace that selection with individual views or named groups.
 Users can open additional views at any time; the clock and readouts stay in the main window.
 
-Tk `Toplevel`/root with:
+A `wx.Frame` with wx sizers and a status bar, containing:
 
 ```
 [ ▶/⏸ ] [◀/▶] [speed ▼ 1 10 60 100 300 1000] ━━━●━━━━━━━━━━━  UTC …  elapsed …
@@ -216,14 +220,17 @@ Data: object … | frame … | center … | samples … | cursor: interpolated /
 Details ▸ (additional OEM metadata and diagnostics)
 ```
 
-- Legacy Tk rendering must remain usable through a compatible fallback; the concrete version
-  check and rendering strategy are specified in implementation-plan steps 6–8.
-- Timeline seek control → `clock.seek`; clock updates move the control without feeding back
-  into `seek`.
-- Speed: log scale slider (10^0…10^3) plus 1x/10x/100x/1000x preset buttons, all bound to
-  `clock.set_speed`.
+- Widgets: `wx.Button` for play/pause, step and direction; `wx.TextCtrl` for time entry; `wx.Slider`
+  for the timeline and speed. Native sizing and keyboard focus come from wx.
+- Timeline: a `wx.Slider` with an integer range mapped linearly to `[t_start, t_end]`. The
+  resolution (proposed 10,000 steps) is fixed in implementation-plan step 15. Slider events call
+  `clock.seek`; clock updates set the slider value under a suppression flag so they do not feed
+  back into `seek`.
+- Speed: log-scale `wx.Slider` (integer `v` in 0…300 mapped to `10^(v/100)`, i.e. 10^0…10^3) plus
+  1x/10x/100x/1000x preset buttons, all bound to `clock.set_speed`.
 - Direction: toggle button `◀ / ▶` (key `R`) bound to `clock.reverse`; label shows e.g. `−60x`.
-- Time entry: click-to-type field accepting `1h30m` (elapsed) or a UTC epoch; Enter or Seek → `clock.seek`; invalid input is flagged without changing `t_now`. The visible field mirrors its editable text buffer so it remains legible on the legacy macOS Tk 8.5.9 appearance.
+- Time entry: `wx.TextCtrl` accepting `1h30m` (elapsed) or a UTC epoch; Enter (`wx.EVT_TEXT_ENTER`) or
+  the Seek button → `clock.seek`; invalid input is flagged in the status bar without changing `t_now`.
 - Click-to-seek: each time-series view connects `button_press_event` (left click inside axes, toolbar zoom/pan mode inactive) → `clock.seek(x * unit_divisor)`.
 - Toolbar buttons open views/groups via `PlayerApp.open_view(name)` / `open_group(name)`; an
   already-open view is raised rather than duplicated. Closing a view removes it from the active
@@ -234,28 +241,31 @@ Details ▸ (additional OEM metadata and diagnostics)
   units and reference frame are visible. OEM object/frame/center/time span/sample count remain
   available as data context, with less-used metadata in the collapsed details panel.
 - Keys: `Space` play/pause, `R` reverse, `←/→` step (∓/± 1 sample), `Shift+←/→` ∓/± 1 min, `Home/End` jump to start/end.
+  These are wx accelerators on the control frame and are inactive while the time-entry field has focus.
 
 ### 4.5 `PlayerApp` and the frame loop
 
-One Tk `after(1000/fps)` timer:
+One `wx.Timer` (`wx.EVT_TIMER`) at about `1000/fps` ms:
 
 1. `dt = monotonic() - last`; `clock.tick(dt)`.
 2. Update slider and readouts.
-3. For each open view: `view.update(t_now)` then blit.
+3. For each open view: `view.update(t_now)` then redraw. Blitting, if adopted, is step 27.
 
-Only the Tk loop exists (no threads). Heavy precomputation (`compute_orbit_series`) happens once
+Only the wx main loop exists (no threads). Heavy precomputation (`compute_orbit_series`) happens once
 before the window appears, with progress printed to stdout like `plot-oem`.
 
 ## 5. CLI flow (`__main__.py`)
 
 1. Parse args (`PlayOemArgs`), parse duration/time-unit exactly as `plot-oem`.
 2. Read and filter states, then compute the series.
-3. Select `TkAgg`, create `PlayerApp`, open the requested `--plots` (default `overview`),
+3. Select the `WXAgg` Matplotlib backend, create the `wx.App` and `PlayerApp`, open the requested `--plots` (default `overview`),
    apply `--start/--speed/--reverse/--autoplay` (reverse without `--start` begins at `t_end`;
    otherwise playback starts at `t_start`),
-   `mainloop()`.
+   `wx.App.MainLoop()`.
    Trailing tails in trajectory views are drawn on the side behind the direction of motion.
-4. SIGINT closes all windows (reuse `plot-oem`'s handler, adapted to Tk `root.quit`).
+4. SIGINT closes all windows. A Python signal handler may not run promptly inside the wx main loop, so
+   the handler only forwards the request with `wx.CallAfter` to a close routine that closes the views
+   and the control frame and ends the main loop. The mechanism is fixed in implementation-plan step 15.
 
 ## 6. Testing
 
@@ -265,7 +275,9 @@ before the window appears, with progress printed to stdout like `plot-oem`.
 - Views: with a non-interactive Matplotlib backend, `build` + several `update` calls without exceptions; cursor artist
   positions equal expected values.
 - CLI parse and input-loading tests (`--duration`, `--time-unit`, speed bounds, `--start`, `--plots` validation).
-- Manual: GUI smoke test on macOS; 1000x with all views on a large OEM, check fps.
+- wx tests: tests that create a `wx.App` run under `xvfb-run` on Linux CI; pure-Python tests run without a display.
+- Baseline: wx values for `tests/data/ISS_2026-05-20.OEM` must match the Tk-era baseline fixture recorded in step 15.
+- Manual: GUI smoke tests on macOS, Linux, and Windows (step 23 checklist); 1000x with all views on a large OEM, check fps (step 27).
 
 ## 7. Implementation plan
 
@@ -275,7 +287,10 @@ The dependency-ordered, demo-first implementation sequence is maintained separat
 ## 8. Risks
 
 - Blitting with 3D axes is unreliable → the Matplotlib 3D backend updates the marker and redraws at a reduced rate (e.g. 10 fps) without blitting; VTK avoids this.
-- VTK alongside Tk: two GUI toolkits in one process. Mitigated by pumping VTK events from the Tk timer instead of running a second loop; verify on macOS, Linux (X11/Wayland) and Windows.
-- VTK wheels may lag new Python versions; hence optional extra and automatic Matplotlib fallback.
-- Multiple Matplotlib figures in one Tk loop on macOS: use `plt.figure` with TkAgg only, never mix backends.
-- Tk absent on some Linux Pythons → report a clear GUI dependency error; core logic remains testable without a display.
+- VTK alongside wx: two GUI toolkits could compete for the event loop. Mitigated by a single wx main loop, with VTK either embedded or pumped from a `wx.Timer`; verify on macOS, Linux (X11/Wayland) and Windows in step 20.
+- VTK wheels may lag new Python versions; hence optional extra and automatic Matplotlib fallback (only if `VTK-KEEP`).
+- wxPython wheels may be unavailable for some Python versions or Linux distributions. Supported combinations are recorded in step 15; a missing wx install fails with a clear install error.
+- `wx.Slider` is integer-only. The timeline and speed controls use explicit integer ranges with documented mappings (§4.4).
+- SIGINT may not be handled promptly inside the wx main loop; the `wx.CallAfter` forwarding in §5 handles it.
+- Multiple Matplotlib figures in one wx loop: use the `WXAgg` backend only and never mix backends.
+- wx absent → report a clear GUI dependency error; core logic remains testable without a display.
