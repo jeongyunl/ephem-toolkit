@@ -1,0 +1,90 @@
+{
+  "source": "ISS_2026-05-20.OEM",
+  "capture": {
+    "implementation": "pre-wx Tk implementation data and view layer",
+    "rendering_backend": "Matplotlib Agg",
+    "python": "3.9.6",
+    "matplotlib": "3.9.4",
+    "numpy": "1.26.4"
+  },
+  "oem": {
+    "sample_count": 5402,
+    "object_name": "ISS",
+    "reference_frame": "EME2000",
+    "center": "Earth",
+    "time_unit": "hours",
+    "time_axis_label": "Time from Start (hours)"
+  },
+  "plot_labels": {
+    "speed_altitude": {
+      "x": "Time from Start (hours)",
+      "y": ["Speed (km/s)", "Altitude (km)"]
+    },
+    "state_components": {
+      "x": "Time from Start (hours)",
+      "y": ["X (km)", "VX (km/s)", "Y (km)", "VY (km/s)", "Z (km)", "VZ (km/s)"],
+      "figure_title": "State Components | EME2000 / Earth"
+    },
+    "trajectory_3d": {
+      "axes": ["X (km)", "Y (km)", "Z (km)"],
+      "plot_title": "3D Orbit Trajectory",
+      "figure_title": "ISS | EME2000 / Earth",
+      "extents_km": {
+        "x": [-7467.3202163237665, 7469.553916749138],
+        "y": [-7463.5738591231475, 7473.300273949757],
+        "z": [-7476.824973089548, 7460.049159983357]
+      }
+    }
+  },
+  "checkpoints": [
+    {
+      "name": "start",
+      "sample_index": 0,
+      "time_tt_seconds": 832550469.184,
+      "utc": "2026-05-20T12:00:00.000",
+      "elapsed_seconds": 0.0,
+      "status": "exact_sample",
+      "position_km": [3232.6934915703105, -3355.03904988162, -4962.08233347144],
+      "velocity_km_s": [3.32755959716845, 6.5094943863072, -2.23604348244465],
+      "speed_km_s": 7.645002321350596,
+      "altitude_km": 439.7838097962365
+    },
+    {
+      "name": "interior",
+      "sample_index": 2701,
+      "time_tt_seconds": 833198709.184,
+      "utc": "2026-05-28T00:04:00.000",
+      "elapsed_seconds": 648240.0,
+      "status": "exact_sample",
+      "position_km": [5084.401006618571, 4505.07018519158, 265.00021551122205],
+      "velocity_km_s": [-3.33217799955794, 3.38871461161673, 6.00733200454477],
+      "speed_km_s": 7.659950048959233,
+      "altitude_km": 420.20613969351353
+    },
+    {
+      "name": "end",
+      "sample_index": 5401,
+      "time_tt_seconds": 833846469.184,
+      "utc": "2026-06-04T12:00:00.000",
+      "elapsed_seconds": 1296000.0,
+      "status": "exact_sample",
+      "position_km": [-126.555453886966, 4211.80161941447, 5319.0240123475],
+      "velocity_km_s": [-7.6605640379214, -0.31214006633362007, 0.060243838516940006],
+      "speed_km_s": 7.6671573689461106,
+      "altitude_km": 420.8426075499561
+    },
+    {
+      "name": "reverse_seek",
+      "reverse_path": ["end", "reverse_seek"],
+      "sample_index": 1350,
+      "time_tt_seconds": 832874469.184,
+      "utc": "2026-05-24T06:00:00.000",
+      "elapsed_seconds": 324000.0,
+      "status": "exact_sample",
+      "position_km": [4829.48166613358, 702.082631898673, -4743.81498843689],
+      "velocity_km_s": [1.70769014437139, 6.91995510997784, 2.76802721320107],
+      "speed_km_s": 7.646172833928964,
+      "altitude_km": 438.20098883716764
+    }
+  ]
+}

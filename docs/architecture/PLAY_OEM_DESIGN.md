@@ -43,8 +43,15 @@ src/ephem_toolkit/play_oem/
 ```
 
 `pyproject.toml`: add `play-oem = "ephem_toolkit.play_oem:cli"` and an optional extra
-`playback = ["wxpython>=<minimum recorded in step 15>", "matplotlib>=3.7"]`. The base install does not
-require wxPython. Add `vtk = ["vtk>=9.2"]` only if step 20 records `VTK-KEEP`.
+`playback = ["wxPython>=4.2.4", "matplotlib>=3.7"]`. The base install does not require wxPython.
+The wxPython minimum is 4.2.4 so the extra remains installable on Python 3.9. Add
+`vtk = ["vtk>=9.2"]` only if step 20 records `VTK-KEEP`.
+
+`__main__.py` creates exactly one `wx.App`; `PlayerApp` owns its event-loop lifecycle, playback
+clock, timer and child plot frames. `control_window.py` creates the primary `wx.Frame`; each plot
+window is another frame owned by the same application. Closing an individual plot closes only that
+view and unsubscribes it from clock updates. Closing the control frame stops the timer, closes all
+plot frames, removes observers and exits the one `MainLoop()`.
 
 ## 3. GUI toolkit decision
 
@@ -222,10 +229,9 @@ Details ▸ (additional OEM metadata and diagnostics)
 
 - Widgets: `wx.Button` for play/pause, step and direction; `wx.TextCtrl` for time entry; `wx.Slider`
   for the timeline and speed. Native sizing and keyboard focus come from wx.
-- Timeline: a `wx.Slider` with an integer range mapped linearly to `[t_start, t_end]`. The
-  resolution (proposed 10,000 steps) is fixed in implementation-plan step 15. Slider events call
-  `clock.seek`; clock updates set the slider value under a suppression flag so they do not feed
-  back into `seek`.
+- Timeline: a `wx.Slider` with an integer range 0…10,000 mapped linearly to `[t_start, t_end]`.
+  Slider events call `clock.seek`; clock updates set the slider value under a suppression flag so
+  they do not feed back into `seek`.
 - Speed: log-scale `wx.Slider` (integer `v` in 0…300 mapped to `10^(v/100)`, i.e. 10^0…10^3) plus
   1x/10x/100x/1000x preset buttons, all bound to `clock.set_speed`.
 - Direction: toggle button `◀ / ▶` (key `R`) bound to `clock.reverse`; label shows e.g. `−60x`.
@@ -263,9 +269,8 @@ before the window appears, with progress printed to stdout like `plot-oem`.
    otherwise playback starts at `t_start`),
    `wx.App.MainLoop()`.
    Trailing tails in trajectory views are drawn on the side behind the direction of motion.
-4. SIGINT closes all windows. A Python signal handler may not run promptly inside the wx main loop, so
-   the handler only forwards the request with `wx.CallAfter` to a close routine that closes the views
-   and the control frame and ends the main loop. The mechanism is fixed in implementation-plan step 15.
+4. SIGINT closes all windows. The Python signal handler forwards the request with `wx.CallAfter` to a
+   close routine that closes the views and the control frame and ends the main loop.
 
 ## 6. Testing
 
@@ -275,8 +280,10 @@ before the window appears, with progress printed to stdout like `plot-oem`.
 - Views: with a non-interactive Matplotlib backend, `build` + several `update` calls without exceptions; cursor artist
   positions equal expected values.
 - CLI parse and input-loading tests (`--duration`, `--time-unit`, speed bounds, `--start`, `--plots` validation).
-- wx tests: tests that create a `wx.App` run under `xvfb-run` on Linux CI; pure-Python tests run without a display.
-- Baseline: wx values for `tests/data/ISS_2026-05-20.OEM` must match the Tk-era baseline fixture recorded in step 15.
+- Backend-neutral Matplotlib view tests use `MPLBACKEND=Agg`; tests that create a `wx.App` use the
+  wx backend and run under `xvfb-run` on Linux CI. Pure-Python tests run without a display.
+- Baseline: wx values for `tests/data/ISS_2026-05-20.OEM` must match
+  `tests/data/play_oem_tk_baseline.json`, captured before the migration.
 - Manual: GUI smoke tests on macOS, Linux, and Windows (step 23 checklist); 1000x with all views on a large OEM, check fps (step 27).
 
 ## 7. Implementation plan
@@ -289,7 +296,9 @@ The dependency-ordered, demo-first implementation sequence is maintained separat
 - Blitting with 3D axes is unreliable → the Matplotlib 3D backend updates the marker and redraws at a reduced rate (e.g. 10 fps) without blitting; VTK avoids this.
 - VTK alongside wx: two GUI toolkits could compete for the event loop. Mitigated by a single wx main loop, with VTK either embedded or pumped from a `wx.Timer`; verify on macOS, Linux (X11/Wayland) and Windows in step 20.
 - VTK wheels may lag new Python versions; hence optional extra and automatic Matplotlib fallback (only if `VTK-KEEP`).
-- wxPython wheels may be unavailable for some Python versions or Linux distributions. Supported combinations are recorded in step 15; a missing wx install fails with a clear install error.
+- wxPython 4.2.4 has PyPI wheels for macOS and Windows on Python 3.9–3.13, but no Linux wheels;
+  Linux must build from the source distribution and needs wxGTK build dependencies. Newer wxPython
+  releases may raise the Python minimum, so keep the 4.2.4 floor while Python 3.9 is supported.
 - `wx.Slider` is integer-only. The timeline and speed controls use explicit integer ranges with documented mappings (§4.4).
 - SIGINT may not be handled promptly inside the wx main loop; the `wx.CallAfter` forwarding in §5 handles it.
 - Multiple Matplotlib figures in one wx loop: use the `WXAgg` backend only and never mix backends.

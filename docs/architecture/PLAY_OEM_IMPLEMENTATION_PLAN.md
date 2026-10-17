@@ -55,8 +55,9 @@ Migration guardrails:
   wx-native controls (`Slider`, `TextCtrl`, `Button`, `Panel`, `Menu`) instead of Tk widgets.
 - Preserve all playback/data semantics in the model layer; only the UI and event plumbing move
   to wxPython.
-- Keep the core CLI and data-processing code runnable in headless environments, with GUI tests
-  using `MPLBACKEND=Agg` and explicit wx-safe test fixtures when a display is unavailable.
+- Keep the core CLI and data-processing code runnable in headless environments. Backend-neutral
+  Matplotlib tests use `MPLBACKEND=Agg`; tests that create `wx.App` use wx under a virtual display
+  on Linux (`xvfb-run`).
 - The migration is not complete until the proof gate passes: no `tkinter` imports remain in the
   active `play-oem` implementation, no `TkAgg` or `PhotoImage`/PPM fallback code remains in the
   supported path, and the runtime installed via the documented GUI extra launches in a real wx
@@ -73,46 +74,6 @@ directive. The first Tk playback demo in step 10 remains a historical milestone;
 demo must pass the migration acceptance criteria in step 23.
 
 ## Milestone I — wxPython migration
-
-### 15. Define the wxPython target architecture, capture the Tk baseline and add the GUI dependency
-
-Record the wxPython decision and target event/window ownership model in
-[PLAY_OEM_DESIGN.md](./PLAY_OEM_DESIGN.md). Inventory every Tk-dependent file and helper, capture
-the current Tk behavior as a baseline before any code is replaced, and add the wxPython
-dependency so steps 16–21 can run the GUI. Do not add new Tk functionality or begin feature work
-during this migration.
-
-- **Status:** Not started.
-- **Progress:** 0/8 checklist items.
-- [ ] Update the design document to make wxPython the sole GUI framework and document the
-      wx application, frame, timer, plot-window, and shutdown ownership model.
-- [ ] Inventory Tk-dependent production code: `control_window.py`, `app.py`, and
-      `views/state_components.py` import `tkinter`; `views/raster.py`,
-      `views/speed_altitude.py`, and `views/trajectory3d/mpl_backend.py` hold PPM/PhotoImage
-      raster helpers; `tests/ephem_toolkit/play_oem/test_play_oem_app.py` uses Tk fakes. Record
-      any further matches and any Tk references in docs.
-- [ ] Capture the Tk baseline before replacing code: for `tests/data/ISS_2026-05-20.OEM`, record
-      speed, altitude, position/velocity components, 3D orbit extents, axis labels, units and
-      frame labels at start, an interior time, end, and one reverse-seek time. Commit the values as
-      a JSON fixture; keep reference PNG captures outside the repository.
-- [ ] Record the decisions the design depends on: the SIGINT mechanism (a signal handler that
-      forwards to `wx.CallAfter`, or a wx timer polling a flag), the timeline slider resolution
-      (an integer step count mapped to clock bounds), and the Matplotlib canvas strategy
-      (`FigureCanvasWxAgg` with wx-hosted toolbars).
-- [ ] Add a `playback` optional extra in `pyproject.toml` containing `wxpython` and
-      `matplotlib>=3.7`, regenerate `poetry.lock`, and record the minimum wxPython version chosen.
-- [ ] Verify wxPython wheel or install availability for each supported Python version (3.9–3.13)
-      on macOS, Linux, and Windows. For Linux, record whether a wheel or a source build is needed.
-- [ ] Specify headless CI: pure-Python tests run without a display; tests that create a `wx.App`
-      run under `xvfb-run` on Linux; Matplotlib tests set `MPLBACKEND=Agg`.
-- [ ] Define the proof gate: no `tkinter` imports, no `TkAgg` usage, and no PhotoImage/PPM
-      fallback in the supported runtime path, checked by a repeatable search recorded in the
-      step notes.
-
-**Done when:** the design and inventory are internally consistent, the baseline fixture is
-committed, the `playback` extra resolves from the lock, and `import wx` succeeds on the
-development platform. No architecture decision remains open that would change steps 16–21.
-**Depends on:** Step 14.
 
 ### 16. Replace the Tk app shell and window lifecycle with wxPython
 
@@ -663,3 +624,56 @@ for opening both state components and the 3D trajectory.
 **Implementation notes:** The six position and velocity component traces use one shared time
 axis and synchronized cursor lines. The legacy Tk path displays a Matplotlib-rendered PPM and
 retains click-to-seek and cursor updates without requiring Tcl/Tk 8.6.
+
+### 15. Define the wxPython target architecture, capture the Tk baseline and add the GUI dependency
+
+Record the wxPython decision and target event/window ownership model in
+[PLAY_OEM_DESIGN.md](./PLAY_OEM_DESIGN.md). Inventory every Tk-dependent file and helper, capture
+the current Tk behavior as a baseline before any code is replaced, and add the wxPython
+dependency so steps 16–21 can run the GUI. Do not add new Tk functionality or begin feature work
+during this migration.
+
+- **Status:** Done.
+- **Progress:** 8/8 checklist items.
+- [x] Update the design document to make wxPython the sole GUI framework and document the
+      wx application, frame, timer, plot-window, and shutdown ownership model.
+- [x] Inventory Tk-dependent production code: `control_window.py`, `app.py`, and
+      `views/state_components.py` import `tkinter`; `views/raster.py`,
+      `views/speed_altitude.py`, and `views/trajectory3d/mpl_backend.py` hold PPM/PhotoImage
+      raster helpers; `tests/ephem_toolkit/play_oem/test_play_oem_app.py` uses Tk fakes and mocks
+      `FigureCanvasTkAgg`. A repository search found no additional Tk-dependent production or test
+      files. Remaining design/plan references are historical alternatives or superseded Tk steps.
+- [x] Capture the Tk baseline before replacing code: for `tests/data/ISS_2026-05-20.OEM`, record
+      speed, altitude, position/velocity components, 3D orbit extents, axis labels, units and
+      frame labels at start, an interior time, end, and one reverse-seek time. Values are in
+      `tests/data/play_oem_tk_baseline.json`; four checkpoints for three views are also saved as
+      PNGs outside the repository in the session files area.
+- [x] Record the decisions the design depends on: SIGINT is forwarded with `wx.CallAfter`; the
+      timeline slider has 10,000 integer steps mapped to clock bounds; and Matplotlib uses
+      `FigureCanvasWxAgg` with wx-hosted toolbars.
+- [x] Add a `playback` optional extra in `pyproject.toml` containing `wxPython>=4.2.4` and
+      `matplotlib>=3.7`, regenerate `poetry.lock`, and record the minimum wxPython version chosen.
+- [x] Verify wxPython wheel or install availability for each supported Python version (3.9–3.13)
+      on macOS, Linux, and Windows. For Linux, record whether a wheel or a source build is needed.
+- [x] Specify headless CI: pure-Python tests run without a display; tests that create a `wx.App`
+      run under `xvfb-run` on Linux; backend-neutral Matplotlib tests set `MPLBACKEND=Agg`.
+- [x] Define the proof gate: no `tkinter` imports, no `TkAgg` usage, and no PhotoImage/PPM
+      fallback in the supported runtime path, checked by a repeatable search recorded in the
+      step notes.
+
+**Done when:** the design and inventory are internally consistent, the baseline fixture is
+committed, the `playback` extra resolves from the lock, and `import wx` succeeds on the
+development platform. No architecture decision remains open that would change steps 16–21.
+
+**Step 15 evidence and decisions:** wxPython 4.2.4 is the minimum: its PyPI release has wheels for
+macOS x86_64/arm64 and Windows (win32/win_amd64) on each supported Python version 3.9–3.13. PyPI
+publishes no Linux wheels for this release, so Linux installs build from source and require wxGTK
+build dependencies. The newer 4.3.2 release requires Python 3.10+, so the 4.2.4 floor preserves
+the existing Python 3.9 support. The regenerated lock resolves wxPython 4.2.4 on Python 3.9–3.10
+and 4.3.2 on Python 3.11–3.13. Development platform: macOS 26.7.1 arm64, Python 3.9.6; the
+matching 4.2.4 macOS arm64 wheel is available. `poetry install --extras playback` succeeded and
+`import wx` reports wxPython 4.2.4. The repeatable post-migration proof-gate search is
+`rg -n -i 'tkinter|TkAgg|PhotoImage|PPM' src/ephem_toolkit/play_oem`; it must return no matches.
+Run the same search over `tests/ephem_toolkit/play_oem` to identify Tk-only tests for removal.
+
+**Depends on:** Step 14.
