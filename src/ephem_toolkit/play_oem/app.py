@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import timedelta
 import signal
 import time
 
@@ -12,25 +13,33 @@ from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 
 import ephem_toolkit.core.time_utils as time_utils
 
-from .clock import PlaybackClock
-from .cursor import OemCursor
-from .series import OrbitSeries
-from .time_unit import TimeUnit
-from .views.base import View
-from .views.registry import ViewRegistry
-from .views.speed_altitude import SpeedAltitudeView
-from .views.state_components import StateComponentsView
-from .views.trajectory3d import Trajectory3DView
+from . import clock, control_window, cursor, series, time_unit
+from .views import base, registry, speed_altitude, state_components, trajectory3d
 
-DEFAULT_TICK_INTERVAL_MS = 33
-PLOT_FRAME_SIZE = (800, 600)
+DEFAULT_TICK_INTERVAL_MS: int = 33
+"""Default interval between playback timer events (ms)."""
+ELAPSED_TIME_DECIMAL_PLACES: int = 3
+"""Number of decimal places shown in the elapsed-time readout."""
+PLAYER_FRAME_MIN_SIZE: tuple[int, int] = (680, 360)
+"""Minimum dashboard frame size (pixels)."""
+PLAYER_FRAME_SIZE: tuple[int, int] = (800, 460)
+"""Initial dashboard frame size (pixels)."""
+PLOT_FRAME_SIZE: tuple[int, int] = (800, 600)
+"""Default plot frame size (pixels)."""
 
 
 @dataclass
 class _OpenView:
+    """Track the wx frame and clock subscription for an open plot."""
+
     frame: wx.Frame
-    view: View
+    """Frame hosting the plot."""
+
+    view: base.View
+    """Plot view rendered in the frame."""
+
     unsubscribe: Callable[[], None]
+    """Callback that removes this view from clock notifications."""
 
 
 class PlayerApp:
@@ -38,16 +47,42 @@ class PlayerApp:
 
     def __init__(
         self,
-        clock: PlaybackClock,
-        series: OrbitSeries,
-        time_unit: TimeUnit,
-        cursor: OemCursor,
+        clock: clock.PlaybackClock,
+        series: series.OrbitSeries,
+        time_unit: time_unit.TimeUnit,
+        cursor: cursor.OemCursor,
         object_name: str,
         frame_context: str,
         *,
         plots: Sequence[str] = ("overview",),
         tick_interval_ms: int = DEFAULT_TICK_INTERVAL_MS,
     ) -> None:
+        """Create the wx playback application.
+
+        Parameters
+        ----------
+        clock : clock.PlaybackClock
+            Playback state and observer source.
+        series : series.OrbitSeries
+            Computed OEM data shared by plot views.
+        time_unit : time_unit.TimeUnit
+            Display unit for plotted values.
+        cursor : cursor.OemCursor
+            OEM state lookup used by the 3D orbit view.
+        object_name : str
+            Object name used in plot titles and labels.
+        frame_context : str
+            Reference-frame context used by plot views.
+        plots : Sequence[str], optional
+            Plot names and groups to open when the application starts.
+        tick_interval_ms : int, default=DEFAULT_TICK_INTERVAL_MS
+            Interval between playback timer events, in milliseconds.
+
+        Raises
+        ------
+        ValueError
+            If ``tick_interval_ms`` is less than one.
+        """
         if tick_interval_ms < 1:
             raise ValueError("tick_interval_ms must be positive")
 
@@ -59,7 +94,7 @@ class PlayerApp:
         self.frame_context = frame_context
         self._tick_interval_ms = tick_interval_ms
 
-        self._view_registry = ViewRegistry()
+        self._view_registry = registry.ViewRegistry()
         self._view_registry.register_view("trajectory-3d", self.open_trajectory_view)
         self._view_registry.register_view(
             "speed-altitude", self.open_speed_altitude_view
@@ -74,17 +109,32 @@ class PlayerApp:
             self.wx_app = wx.App(False)
 
         self.frame = wx.Frame(None, title="play-oem")
-        self._time_display = wx.StaticText(self.frame, wx.ID_ANY, "")
+        self.control_window = control_window.ControlWindow(
+            self.frame,
+            self.open_view,
+            self.open_group,
+            self._view_registry,
+            self._toggle_playback,
+            self._seek_to_fraction,
+            self._set_playback_speed,
+            self._reverse_playback,
+            on_seek_to_time=self._seek_to_time,
+            on_step_samples=self._step_samples,
+            on_step_seconds=self._step_seconds,
+            on_jump_to_start=self._jump_to_start,
+            on_jump_to_end=self._jump_to_end,
+            timeline_enabled=clock.t_start < clock.t_end,
+        )
         layout = wx.BoxSizer(wx.VERTICAL)
-        layout.Add(self._time_display, 1, wx.EXPAND | wx.ALL, 16)
+        layout.Add(self.control_window.panel, 1, wx.EXPAND)
         self.frame.SetSizer(layout)
-        self.frame.SetMinSize((360, 100))
-        self.frame.SetSize((480, 120))
+        self.frame.SetMinSize(PLAYER_FRAME_MIN_SIZE)
+        self.frame.SetSize(PLAYER_FRAME_SIZE)
         self.frame.Bind(wx.EVT_CLOSE, self._on_frame_close)
 
         self._timer = wx.Timer(self.frame)
         self.frame.Bind(wx.EVT_TIMER, self._on_timer, self._timer)
-        self._last_tick: float | None = None
+        self._last_tick_monotonic_s: float | None = None
         self._started = False
         self._closed = False
         self._open_views: dict[str, _OpenView] = {}
@@ -110,7 +160,7 @@ class PlayerApp:
             return
 
         self._started = True
-        self._last_tick = time.monotonic()
+        self._last_tick_monotonic_s = time.monotonic()
         self._update_time_display()
         self.frame.Show()
         self.open_plots(self._plots)
@@ -128,21 +178,23 @@ class PlayerApp:
         """Open or raise the speed and altitude plot."""
         self._open_view(
             "speed-altitude",
-            lambda: SpeedAltitudeView(self.clock.t_start),
+            lambda: speed_altitude.SpeedAltitudeView(self.clock.t_start),
         )
 
     def open_state_components_view(self) -> None:
         """Open or raise the Cartesian state-components plot."""
         self._open_view(
             "state-components",
-            lambda: StateComponentsView(self.clock.t_start, self.frame_context),
+            lambda: state_components.StateComponentsView(
+                self.clock.t_start, self.frame_context
+            ),
         )
 
     def open_trajectory_view(self) -> None:
         """Open or raise the 3D orbit plot."""
         self._open_view(
             "trajectory-3d",
-            lambda: Trajectory3DView(
+            lambda: trajectory3d.Trajectory3DView(
                 self.cursor,
                 self.object_name,
                 self.frame_context,
@@ -158,13 +210,63 @@ class PlayerApp:
     def open_plots(self, selection: Sequence[str]) -> None:
         self._view_registry.open(selection)
 
+    def _toggle_playback(self) -> None:
+        self.clock.toggle()
+        self._update_time_display()
+
+    def _seek_to_fraction(self, progress: float) -> None:
+        span_s = self.clock.t_end - self.clock.t_start
+        self.clock.seek(self.clock.t_start + progress * span_s)
+        self._update_time_display()
+
+    def _set_playback_speed(self, speed: float) -> None:
+        self.clock.set_speed(speed)
+        self._update_time_display()
+
+    def _reverse_playback(self) -> None:
+        self.clock.reverse()
+        self._update_time_display()
+
+    def _step_samples(self, count: int) -> None:
+        self.clock.step_samples(count)
+        self._update_time_display()
+
+    def _step_seconds(self, amount_s: float) -> None:
+        self.clock.step(amount_s)
+        self._update_time_display()
+
+    def _jump_to_start(self) -> None:
+        self.clock.seek(self.clock.t_start)
+        self._update_time_display()
+
+    def _jump_to_end(self) -> None:
+        self.clock.seek(self.clock.t_end)
+        self._update_time_display()
+
+    def _seek_to_time(self, time_entry_text: str) -> None:
+        try:
+            parsed_time = time_utils.parse_time_or_duration(time_entry_text)
+            if isinstance(parsed_time, timedelta):
+                target_time_s = self.clock.t_start + parsed_time.total_seconds()
+            else:
+                target_time_s = time_utils.datetime_to_tt_s(parsed_time)
+            if not self.clock.t_start <= target_time_s <= self.clock.t_end:
+                raise ValueError("time is outside the OEM timeline")
+        except (OverflowError, ValueError) as error:
+            self.control_window.show_time_error(str(error))
+            return
+
+        self.clock.seek(target_time_s)
+        self.control_window.clear_time_error()
+        self._update_time_display()
+
     def close_view(self, name: str) -> None:
         """Close one plot frame and unsubscribe its view from the playback clock."""
         opened = self._open_views.get(name)
         if opened is not None:
             opened.frame.Close(force=True)
 
-    def _open_view(self, name: str, create_view: Callable[[], View]) -> None:
+    def _open_view(self, name: str, create_view: Callable[[], base.View]) -> None:
         if self._closed:
             raise RuntimeError("cannot open a view in a closed PlayerApp")
         existing = self._open_views.get(name)
@@ -192,8 +294,8 @@ class PlayerApp:
                 lambda event: self._on_view_frame_close(name, event),
             )
 
-            def update_view(t_s: float) -> None:
-                view.update(t_s)
+            def update_view(time_s: float) -> None:
+                view.update(time_s)
                 canvas.draw_idle()
 
             unsubscribe = self.clock.subscribe(update_view)
@@ -229,26 +331,30 @@ class PlayerApp:
     def _on_timer(self, _event: wx.TimerEvent) -> None:
         if self._closed:
             return
-        now = time.monotonic()
-        if self._last_tick is None:
-            self._last_tick = now
+        current_time_s = time.monotonic()
+        if self._last_tick_monotonic_s is None:
+            self._last_tick_monotonic_s = current_time_s
         else:
-            elapsed = now - self._last_tick
-            self._last_tick = now
-            self.clock.tick(elapsed)
+            elapsed_s = current_time_s - self._last_tick_monotonic_s
+            self._last_tick_monotonic_s = current_time_s
+            self.clock.tick(elapsed_s)
         self._update_time_display()
 
     def _update_time_display(self) -> None:
         elapsed_s = self.clock.t_now - self.clock.t_start
-        utc_time = time_utils.datetime_to_iso8601(
+        utc_timestamp = time_utils.datetime_to_iso8601(
             time_utils.tt_s_to_datetime(self.clock.t_now)
         )
-        playback_state = "Playing" if self.clock.playing else "Paused"
-        loop_state = "Loop" if self.clock.loop else "No loop"
-        self._time_display.SetLabel(
-            f"Elapsed: {elapsed_s:.3f} s\n"
-            f"UTC: {utc_time}\n"
-            f"{playback_state} | {self.clock.rate:+g}x | {loop_state}"
+        span_s = self.clock.t_end - self.clock.t_start
+        progress = (
+            0.0 if span_s == 0.0 else (self.clock.t_now - self.clock.t_start) / span_s
+        )
+        self.control_window.update_playback_state(
+            f"Elapsed: {elapsed_s:.{ELAPSED_TIME_DECIMAL_PLACES}f} s\n"
+            f"UTC: {utc_timestamp}",
+            progress,
+            self.clock.playing,
+            self.clock.rate,
         )
 
     def _handle_sigint(self, _signum: int, _frame: object) -> None:

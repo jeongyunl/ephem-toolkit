@@ -1,41 +1,47 @@
-"""Initial Tk control window for OEM playback."""
+"""Native wxPython playback controls."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 import math
-import tkinter as tk
 
-from .views.registry import GROUP_LABELS, ViewRegistry
+import wx
 
-# Classic buttons keep the readout visible with legacy Tk builds such as macOS Tk 8.5.
-BACKGROUND_COLOR = "#f0f0f0"
-FOREGROUND_COLOR = "#000000"
-MINIMUM_WIDTH_PX = 320
-TIMELINE_WIDTH_PX = 480
-TIMELINE_HEIGHT_PX = 32
-TIMELINE_LEFT_PX = 12
-TIMELINE_RIGHT_PX = 468
-TIMELINE_CENTER_Y = 16
-SPEED_SCALE_WIDTH_PX = 320
-SPEED_SCALE_HEIGHT_PX = 28
-SPEED_SCALE_LEFT_PX = 12
-SPEED_SCALE_RIGHT_PX = 308
-SPEED_SCALE_CENTER_Y = 14
-TIME_ENTRY_FIELD_HEIGHT_PX = 38
-SPEED_PRESETS = (1.0, 10.0, 100.0, 1000.0)
+from .views import registry
+
+BUTTON_SPACING: int = 4
+"""Spacing between adjacent playback buttons (pixels)."""
+CONTROL_SPACING: int = 8
+"""Spacing between controls within a dashboard row (pixels)."""
+LAYOUT_MARGIN: int = 12
+"""Outer spacing around dashboard controls (pixels)."""
+SECONDS_PER_MINUTE: float = 60.0
+"""Number of seconds in one minute."""
+SPEED_MAX: float = 1000.0
+"""Maximum playback speed multiplier."""
+SPEED_MIN: float = 1.0
+"""Minimum playback speed multiplier."""
+SPEED_PRESETS: tuple[float, ...] = (1.0, 10.0, 100.0, SPEED_MAX)
+"""Playback speed multipliers available as preset buttons."""
+SPEED_SLIDER_MAX: int = 300
+"""Maximum integer position of the logarithmic speed slider."""
+SPEED_SLIDER_STEPS_PER_DECADE: int = 100
+"""Number of slider positions representing one order of magnitude."""
+TIMELINE_SLIDER_MAX: int = 10_000
+"""Maximum integer position of the timeline slider."""
+TIME_ERROR_COLOR_RGB: tuple[int, int, int] = (160, 0, 0)
+"""RGB color used to display time-entry errors."""
 
 
 class ControlWindow:
-    """Display the current playback time and handle window-close requests."""
+    """Build and update the wx-native playback dashboard."""
 
     def __init__(
         self,
-        root: tk.Tk,
-        on_close: Callable[[], None],
+        parent: wx.Frame,
         on_open_view: Callable[[str], None],
         on_open_group: Callable[[str], None],
-        view_registry: ViewRegistry,
+        view_registry: registry.ViewRegistry,
         on_toggle_play: Callable[[], None],
         on_seek: Callable[[float], None],
         on_set_speed: Callable[[float], None],
@@ -48,574 +54,362 @@ class ControlWindow:
         on_jump_to_end: Callable[[], None],
         timeline_enabled: bool,
     ) -> None:
-        self.root = root
+        """Create the wx dashboard and connect its controls to playback actions.
+
+        Parameters
+        ----------
+        parent : wx.Frame
+            Frame that owns the dashboard and keyboard accelerators.
+        on_open_view : Callable[[str], None]
+            Open one registered plot view.
+        on_open_group : Callable[[str], None]
+            Open a registered group of plot views.
+        view_registry : registry.ViewRegistry
+            Registry used to label and enable available view actions.
+        on_toggle_play : Callable[[], None]
+            Toggle playback.
+        on_seek : Callable[[float], None]
+            Seek to a normalized timeline position.
+        on_set_speed : Callable[[float], None]
+            Set the playback speed multiplier.
+        on_reverse : Callable[[], None]
+            Reverse the playback direction.
+        on_seek_to_time : Callable[[str], None]
+            Seek to a duration or UTC timestamp entered by the user.
+        on_step_samples : Callable[[int], None]
+            Step by a number of OEM samples.
+        on_step_seconds : Callable[[float], None]
+            Step by a duration in seconds.
+        on_jump_to_start : Callable[[], None]
+            Seek to the beginning of the timeline.
+        on_jump_to_end : Callable[[], None]
+            Seek to the end of the timeline.
+        timeline_enabled : bool
+            Whether the timeline contains a seekable interval.
+        """
+        self._parent = parent
         self._on_seek = on_seek
-        self._on_toggle_play = on_toggle_play
         self._on_set_speed = on_set_speed
-        self._on_reverse = on_reverse
         self._on_seek_to_time = on_seek_to_time
-        self._space_pressed = False
         self._timeline_enabled = timeline_enabled
-        self.root.title("play-oem")
-        self.root.configure(background=BACKGROUND_COLOR)
-        self.root.minsize(MINIMUM_WIDTH_PX, 1)
-        self._elapsed_label = tk.Button(
-            root,
-            text="",
-            justify="left",
-            anchor="w",
-            width=38,
-            height=1,
-            state="normal",
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
-            takefocus=False,
-            background=BACKGROUND_COLOR,
-            foreground=FOREGROUND_COLOR,
-        )
-        self._elapsed_label.pack(fill="x", padx=16, pady=(12, 0))
-        self._utc_label = tk.Button(
-            root,
-            text="",
-            justify="left",
-            anchor="w",
-            width=38,
-            height=1,
-            state="normal",
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
-            takefocus=False,
-            background=BACKGROUND_COLOR,
-            foreground=FOREGROUND_COLOR,
-        )
-        self._utc_label.pack(fill="x", padx=16, pady=(0, 8))
-        playback_controls = tk.Frame(root, background=BACKGROUND_COLOR)
-        playback_controls.pack(fill="x")
-        self._play_pause_button = tk.Button(
-            playback_controls,
-            text="Play",
-            command=on_toggle_play,
-            highlightbackground=BACKGROUND_COLOR,
-        )
-        self._play_pause_button.pack(side="left", padx=(16, 8), pady=(0, 8))
-        self._speed_label = tk.Button(
-            playback_controls,
-            text="Speed: +1x",
-            state="normal",
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
-            takefocus=False,
-            background=BACKGROUND_COLOR,
-            foreground=FOREGROUND_COLOR,
-        )
-        self._speed_label.pack(side="left", padx=(0, 8), pady=(0, 8))
-        self._speed_1_button = tk.Button(
-            playback_controls,
-            text="1x",
-            command=lambda: on_set_speed(1.0),
-            highlightbackground=BACKGROUND_COLOR,
-        )
-        self._speed_1_button.pack(side="left", padx=(0, 4), pady=(0, 8))
-        self._speed_10_button = tk.Button(
-            playback_controls,
-            text="10x",
-            command=lambda: on_set_speed(10.0),
-            highlightbackground=BACKGROUND_COLOR,
-        )
-        self._speed_10_button.pack(side="left", padx=(0, 4), pady=(0, 8))
-        self._speed_100_button = tk.Button(
-            playback_controls,
-            text="100x",
-            command=lambda: on_set_speed(100.0),
-            highlightbackground=BACKGROUND_COLOR,
-        )
-        self._speed_100_button.pack(side="left", padx=(0, 4), pady=(0, 8))
-        self._speed_1000_button = tk.Button(
-            playback_controls,
-            text="1000x",
-            command=lambda: on_set_speed(1000.0),
-            highlightbackground=BACKGROUND_COLOR,
-        )
-        self._speed_1000_button.pack(side="left", padx=(0, 4), pady=(0, 8))
-        self._reverse_button = tk.Button(
-            playback_controls,
-            text="Reverse",
-            command=on_reverse,
-            highlightbackground=BACKGROUND_COLOR,
-        )
-        self._reverse_button.pack(side="left", padx=(0, 16), pady=(0, 8))
-        time_entry_controls = tk.Frame(root, background=BACKGROUND_COLOR)
-        time_entry_controls.pack(fill="x", padx=16, pady=(0, 4))
-        self._time_entry_prompt = tk.Button(
-            time_entry_controls,
-            text="Seek to elapsed time or UTC:",
-            anchor="w",
-            height=1,
-            state="normal",
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
-            takefocus=False,
-            background=BACKGROUND_COLOR,
-            foreground=FOREGROUND_COLOR,
-        )
-        self._time_entry_prompt.pack(fill="x", pady=(0, 4))
-        time_entry_row = tk.Frame(time_entry_controls, background=BACKGROUND_COLOR)
-        time_entry_row.pack(fill="x")
-        # Aqua Tk 8.5.9 maps Entry but blends it into dark mode; mirror its text visibly.
-        self._time_entry_editing = False
-        self.time_entry = tk.Entry(time_entry_row, width=28, takefocus=False)
-        self.time_entry.place(x=0, y=0, width=1, height=1)
-        self.time_entry.bind("<Return>", self._submit_time_entry)
-        self.time_entry.bind("<KeyRelease>", self._refresh_time_entry_display)
-        self.time_entry.bind("<FocusOut>", self._on_time_entry_focus_out)
-        self._time_entry_image = self._create_time_entry_image(SPEED_SCALE_WIDTH_PX)
-        time_entry_row.configure(height=TIME_ENTRY_FIELD_HEIGHT_PX)
-        time_entry_row.grid_propagate(False)
-        self._time_entry_display_button = tk.Button(
-            time_entry_row,
-            text="Click to enter elapsed time or UTC",
-            image=self._time_entry_image,
-            compound="center",
-            anchor="w",
-            justify="left",
-            padx=10,
-            pady=0,
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
-            takefocus=False,
-            background=BACKGROUND_COLOR,
-            foreground="#ffffff",
-            command=self._focus_time_entry,
-        )
-        time_entry_row.grid_columnconfigure(0, weight=1)
-        self._time_entry_display_button.grid(row=0, column=0, sticky="ew")
-        self._time_entry_display_button.bind(
-            "<Configure>", self._resize_time_entry_display
-        )
-        self._seek_time_button = tk.Button(
-            time_entry_row,
-            text="Seek",
-            command=self._submit_time_entry,
-            highlightbackground=BACKGROUND_COLOR,
-        )
-        self._seek_time_button.grid(row=0, column=1, sticky="e", padx=(8, 0))
-        self._time_error_label = tk.Button(
-            root,
-            text="",
-            anchor="w",
-            height=1,
-            state="normal",
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
-            takefocus=False,
-            background=BACKGROUND_COLOR,
-            foreground="#a00000",
-        )
-        self._time_error_label.pack(fill="x", padx=16, pady=(0, 4))
-        navigation_controls = tk.Frame(root, background=BACKGROUND_COLOR)
-        navigation_controls.pack(fill="x", padx=16, pady=(0, 8))
-        self._navigation_buttons = (
-            tk.Button(
-                navigation_controls,
-                text="Start",
-                command=on_jump_to_start,
-                highlightbackground=BACKGROUND_COLOR,
-            ),
-            tk.Button(
-                navigation_controls,
-                text="Previous sample",
-                command=lambda: on_step_samples(-1),
-                highlightbackground=BACKGROUND_COLOR,
-            ),
-            tk.Button(
-                navigation_controls,
-                text="-1 min",
-                command=lambda: on_step_seconds(-60.0),
-                highlightbackground=BACKGROUND_COLOR,
-            ),
-            tk.Button(
-                navigation_controls,
-                text="+1 min",
-                command=lambda: on_step_seconds(60.0),
-                highlightbackground=BACKGROUND_COLOR,
-            ),
-            tk.Button(
-                navigation_controls,
-                text="Next sample",
-                command=lambda: on_step_samples(1),
-                highlightbackground=BACKGROUND_COLOR,
-            ),
-            tk.Button(
-                navigation_controls,
-                text="End",
-                command=on_jump_to_end,
-                highlightbackground=BACKGROUND_COLOR,
-            ),
-        )
-        for button in self._navigation_buttons:
-            button.pack(side="left", padx=(0, 4))
-        self._speed_scale_caption = tk.Button(
-            root,
-            text="Playback speed (log scale, 1x to 1000x)",
-            anchor="w",
-            height=1,
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
-            takefocus=False,
-            background=BACKGROUND_COLOR,
-            foreground=FOREGROUND_COLOR,
-        )
-        self._speed_scale_caption.pack(fill="x", padx=16, pady=(0, 0))
-        self._speed_scale_base_image = tk.PhotoImage(
-            master=root,
-            width=SPEED_SCALE_WIDTH_PX,
-            height=SPEED_SCALE_HEIGHT_PX,
-        )
-        self._speed_scale_base_image.put(
-            BACKGROUND_COLOR,
-            to=(0, 0, SPEED_SCALE_WIDTH_PX, SPEED_SCALE_HEIGHT_PX),
-        )
-        self._speed_scale_base_image.put(
-            "#8b8b8b",
-            to=(
-                SPEED_SCALE_LEFT_PX,
-                SPEED_SCALE_CENTER_Y - 2,
-                SPEED_SCALE_RIGHT_PX + 1,
-                SPEED_SCALE_CENTER_Y + 2,
-            ),
-        )
-        for preset in SPEED_PRESETS:
-            progress = math.log10(preset) / 3.0
-            tick_x = round(
-                SPEED_SCALE_LEFT_PX
-                + progress * (SPEED_SCALE_RIGHT_PX - SPEED_SCALE_LEFT_PX)
+        self._syncing_sliders = False
+
+        self.panel = wx.Panel(parent, wx.ID_ANY)
+        layout = wx.BoxSizer(wx.VERTICAL)
+
+        self.elapsed_label = wx.StaticText(self.panel, wx.ID_ANY, "")
+        self.utc_label = wx.StaticText(self.panel, wx.ID_ANY, "")
+        for label in (self.elapsed_label, self.utc_label):
+            layout.Add(
+                label,
+                0,
+                wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
+                LAYOUT_MARGIN,
             )
-            self._speed_scale_base_image.put(
-                "#4b4b4b",
-                to=(
-                    tick_x - 1,
-                    SPEED_SCALE_CENTER_Y - 5,
-                    tick_x + 2,
-                    SPEED_SCALE_CENTER_Y + 6,
+
+        playback_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.play_pause_button = wx.Button(self.panel, wx.ID_ANY, "Play")
+        self.play_pause_button.Bind(wx.EVT_BUTTON, lambda _event: on_toggle_play())
+        playback_row.Add(self.play_pause_button, 0, wx.RIGHT, CONTROL_SPACING)
+
+        self.direction_button = wx.ToggleButton(self.panel, wx.ID_ANY, "Reverse")
+        self.direction_button.Bind(wx.EVT_BUTTON, lambda _event: on_reverse())
+        playback_row.Add(self.direction_button, 0, wx.RIGHT, CONTROL_SPACING)
+        self.speed_label = wx.StaticText(self.panel, wx.ID_ANY, "Speed: +1x")
+        playback_row.Add(
+            self.speed_label,
+            0,
+            wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+            CONTROL_SPACING,
+        )
+
+        self.speed_preset_buttons: dict[float, wx.ToggleButton] = {}
+        for preset_speed in SPEED_PRESETS:
+            button = wx.ToggleButton(self.panel, wx.ID_ANY, f"{preset_speed:g}x")
+            button.Bind(
+                wx.EVT_BUTTON,
+                lambda _event, selected_speed=preset_speed: on_set_speed(
+                    selected_speed
                 ),
             )
-        self._speed_scale_image = tk.PhotoImage(
-            master=root,
-            width=SPEED_SCALE_WIDTH_PX,
-            height=SPEED_SCALE_HEIGHT_PX,
-        )
-        self._speed_scale_button = tk.Button(
-            root,
-            image=self._speed_scale_image,
-            anchor="w",
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
-            padx=0,
-            pady=0,
-            takefocus=False,
-            background=BACKGROUND_COLOR,
-        )
-        self._speed_scale_button.pack(fill="x", padx=16, pady=(0, 8))
-        self._speed_scale_button.bind("<Button-1>", self._on_speed_scale)
-        self._speed_scale_button.bind("<B1-Motion>", self._on_speed_scale)
-        self._timeline_base_image = tk.PhotoImage(
-            master=root,
-            width=TIMELINE_WIDTH_PX,
-            height=TIMELINE_HEIGHT_PX,
-        )
-        self._timeline_base_image.put(
-            BACKGROUND_COLOR,
-            to=(0, 0, TIMELINE_WIDTH_PX, TIMELINE_HEIGHT_PX),
-        )
-        self._timeline_base_image.put(
-            "#8b8b8b",
-            to=(
-                TIMELINE_LEFT_PX,
-                TIMELINE_CENTER_Y - 2,
-                TIMELINE_RIGHT_PX + 1,
-                TIMELINE_CENTER_Y + 2,
+            playback_row.Add(button, 0, wx.RIGHT, BUTTON_SPACING)
+            self.speed_preset_buttons[preset_speed] = button
+        layout.Add(playback_row, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
+
+        entry_row = wx.BoxSizer(wx.HORIZONTAL)
+        entry_row.Add(
+            wx.StaticText(
+                self.panel,
+                wx.ID_ANY,
+                "Seek to elapsed time or UTC:",
             ),
+            0,
+            wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+            CONTROL_SPACING,
         )
-        self._timeline_image = tk.PhotoImage(
-            master=root,
-            width=TIMELINE_WIDTH_PX,
-            height=TIMELINE_HEIGHT_PX,
+        self.time_entry = wx.TextCtrl(
+            self.panel,
+            wx.ID_ANY,
+            "",
+            style=wx.TE_PROCESS_ENTER,
         )
-        self._timeline_button = tk.Button(
-            root,
-            image=self._timeline_image,
-            anchor="w",
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
-            padx=0,
-            pady=0,
-            takefocus=False,
-            background=BACKGROUND_COLOR,
-            state="normal" if timeline_enabled else "disabled",
+        self.time_entry.SetName("Seek time")
+        self.time_entry.SetHint("e.g. 1h30m or YYYY-MM-DDThh:mm:ssZ (UTC)")
+        self.time_entry.Bind(wx.EVT_TEXT_ENTER, self._submit_time_entry)
+        self.time_entry.Bind(wx.EVT_SET_FOCUS, self._disable_accelerators)
+        self.time_entry.Bind(wx.EVT_KILL_FOCUS, self._enable_accelerators)
+        entry_row.Add(self.time_entry, 1, wx.EXPAND | wx.RIGHT, CONTROL_SPACING)
+        self.seek_button = wx.Button(self.panel, wx.ID_ANY, "Seek")
+        self.seek_button.Bind(wx.EVT_BUTTON, self._submit_time_entry)
+        entry_row.Add(self.seek_button, 0)
+        layout.Add(
+            entry_row,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            LAYOUT_MARGIN,
         )
-        self._timeline_button.pack(fill="x", padx=16, pady=(0, 8))
-        self._timeline_button.bind("<Button-1>", self._on_timeline_seek)
-        self._timeline_button.bind("<B1-Motion>", self._on_timeline_seek)
-        group_toolbar = tk.Frame(root, background=BACKGROUND_COLOR)
-        group_toolbar.pack(fill="x", padx=16, pady=(0, 4))
-        self._view_group_buttons: dict[str, tk.Button] = {}
-        for name, label in GROUP_LABELS:
-            button = tk.Button(
-                group_toolbar,
-                text=label,
-                command=lambda group=name: on_open_group(group),
-                state="normal" if view_registry.can_open(name) else "disabled",
-                highlightbackground=BACKGROUND_COLOR,
-            )
-            button.pack(side="left", padx=(0, 4))
-            self._view_group_buttons[name] = button
-        self._open_overview_button = self._view_group_buttons["overview"]
 
-        view_toolbar = tk.Frame(root, background=BACKGROUND_COLOR)
-        view_toolbar.pack(fill="x", padx=16, pady=(0, 16))
-        self._view_buttons: dict[str, tk.Button] = {}
+        self.time_error_label = wx.StaticText(self.panel, wx.ID_ANY, "")
+        self.time_error_label.SetForegroundColour(wx.Colour(*TIME_ERROR_COLOR_RGB))
+        layout.Add(
+            self.time_error_label,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT,
+            LAYOUT_MARGIN,
+        )
+
+        navigation_row = wx.BoxSizer(wx.HORIZONTAL)
+        navigation_actions: tuple[tuple[str, Callable[[], None]], ...] = (
+            ("Start", on_jump_to_start),
+            ("Previous sample", lambda: on_step_samples(-1)),
+            ("-1 min", lambda: on_step_seconds(-SECONDS_PER_MINUTE)),
+            ("+1 min", lambda: on_step_seconds(SECONDS_PER_MINUTE)),
+            ("Next sample", lambda: on_step_samples(1)),
+            ("End", on_jump_to_end),
+        )
+        self.navigation_buttons: list[wx.Button] = []
+        for label, callback in navigation_actions:
+            button = wx.Button(self.panel, wx.ID_ANY, label)
+            button.Bind(wx.EVT_BUTTON, lambda _event, action=callback: action())
+            navigation_row.Add(button, 0, wx.RIGHT, BUTTON_SPACING)
+            self.navigation_buttons.append(button)
+        layout.Add(navigation_row, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
+
+        layout.Add(
+            wx.StaticText(
+                self.panel,
+                wx.ID_ANY,
+                "Timeline",
+            ),
+            0,
+            wx.LEFT | wx.RIGHT,
+            LAYOUT_MARGIN,
+        )
+        self.timeline_slider = wx.Slider(
+            self.panel,
+            wx.ID_ANY,
+            0,
+            0,
+            TIMELINE_SLIDER_MAX,
+            style=wx.SL_HORIZONTAL,
+        )
+        self.timeline_slider.SetName("Playback timeline")
+        self.timeline_slider.Enable(timeline_enabled)
+        self.timeline_slider.Bind(wx.EVT_SLIDER, self._on_timeline_slider)
+        layout.Add(
+            self.timeline_slider,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT,
+            LAYOUT_MARGIN,
+        )
+
+        layout.Add(
+            wx.StaticText(
+                self.panel,
+                wx.ID_ANY,
+                f"Playback speed (log scale, {SPEED_MIN:g}x to {SPEED_MAX:g}x)",
+            ),
+            0,
+            wx.LEFT | wx.RIGHT | wx.TOP,
+            LAYOUT_MARGIN,
+        )
+        self.speed_slider = wx.Slider(
+            self.panel,
+            wx.ID_ANY,
+            0,
+            0,
+            SPEED_SLIDER_MAX,
+            style=wx.SL_HORIZONTAL,
+        )
+        self.speed_slider.SetName("Playback speed")
+        self.speed_slider.Bind(wx.EVT_SLIDER, self._on_speed_slider)
+        layout.Add(
+            self.speed_slider,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT,
+            LAYOUT_MARGIN,
+        )
+
+        group_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.group_buttons: dict[str, wx.Button] = {}
+        for name, label in registry.GROUP_LABELS:
+            button = wx.Button(self.panel, wx.ID_ANY, label)
+            button.Enable(view_registry.can_open(name))
+            button.Bind(
+                wx.EVT_BUTTON,
+                lambda _event, group=name: on_open_group(group),
+            )
+            group_row.Add(button, 0, wx.RIGHT, BUTTON_SPACING)
+            self.group_buttons[name] = button
+        layout.Add(group_row, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
+
+        view_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.view_buttons: dict[str, wx.Button] = {}
         for name in view_registry.registered_views:
-            button = tk.Button(
-                view_toolbar,
-                text=view_registry.label_for(name),
-                command=lambda view=name: on_open_view(view),
-                highlightbackground=BACKGROUND_COLOR,
+            button = wx.Button(self.panel, wx.ID_ANY, view_registry.label_for(name))
+            button.Bind(
+                wx.EVT_BUTTON,
+                lambda _event, view=name: on_open_view(view),
             )
-            button.pack(side="left", padx=(0, 4))
-            self._view_buttons[name] = button
-        self._view_toolbar_buttons = (
-            *self._view_group_buttons.values(),
-            *self._view_buttons.values(),
+            view_row.Add(button, 0, wx.RIGHT, BUTTON_SPACING)
+            self.view_buttons[name] = button
+        layout.Add(
+            view_row,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+            LAYOUT_MARGIN,
         )
-        for button in (
-            self._elapsed_label,
-            self._utc_label,
-            self._play_pause_button,
-            self._speed_label,
-            self._speed_1_button,
-            self._speed_10_button,
-            self._speed_100_button,
-            self._speed_1000_button,
-            self._reverse_button,
-            self._seek_time_button,
-            *self._navigation_buttons,
-            self._speed_scale_caption,
-            self._speed_scale_button,
-            self._timeline_button,
-            *self._view_toolbar_buttons,
-        ):
-            button.bind("<space>", self._on_space)
-            button.bind("<KeyRelease-space>", self._on_space_release)
-        self._render_speed_scale(1.0)
-        self._render_timeline(0.0)
-        self.root.protocol("WM_DELETE_WINDOW", on_close)
 
-    def update_time(self, text: str) -> None:
-        """Update the visible elapsed-time and UTC readout."""
-        elapsed_text, separator, utc_text = text.partition("\n")
-        self._elapsed_label.configure(text=elapsed_text)
-        self._utc_label.configure(text=utc_text if separator else "")
-
-    def show_time_error(self, message: str) -> None:
-        """Display a time-entry error without changing the playback clock."""
-        self._time_error_label.configure(text=message)
-
-    def clear_time_error(self) -> None:
-        """Clear a previously displayed time-entry error."""
-        self._time_error_label.configure(text="")
-
-    def _create_time_entry_image(self, width: int) -> tk.PhotoImage:
-        height = TIME_ENTRY_FIELD_HEIGHT_PX
-        image = tk.PhotoImage(master=self.root, width=width, height=height)
-        image.put("#8b8b8b", to=(0, 0, width, height))
-        if width > 4 and height > 4:
-            image.put("#292929", to=(2, 2, width - 2, height - 2))
-        return image
-
-    def _resize_time_entry_display(self, event: tk.Event) -> None:
-        width = max(1, event.width)
-        if self._time_entry_image.width() == width:
-            return
-        self._time_entry_image = self._create_time_entry_image(width)
-        self._time_entry_display_button.configure(image=self._time_entry_image)
-
-    def _focus_time_entry(self) -> None:
-        self._time_entry_editing = True
-        self.time_entry.focus_force()
-        self.time_entry.icursor("end")
-        self._refresh_time_entry_display()
-
-    def _on_time_entry_focus_out(self, _event: tk.Event) -> None:
-        self._time_entry_editing = False
-        self._refresh_time_entry_display()
-
-    def _refresh_time_entry_display(self, _event: tk.Event | None = None) -> None:
-        text = self.time_entry.get()
-        if not text and not self._time_entry_editing:
-            text = "Click to enter elapsed time or UTC"
-        self._time_entry_display_button.configure(text=text)
+        self.panel.SetSizer(layout)
+        self._bind_accelerators(
+            parent,
+            on_toggle_play,
+            on_reverse,
+            on_step_samples,
+            on_step_seconds,
+            on_jump_to_start,
+            on_jump_to_end,
+        )
 
     def update_playback_state(
         self, text: str, progress: float, playing: bool, rate: float
     ) -> None:
-        """Refresh readouts and controls without seeking from the programmatic slider update."""
+        """Update dashboard controls from the current playback state.
+
+        Parameters
+        ----------
+        text : str
+            Formatted elapsed-time and UTC readout.
+        progress : float
+            Timeline position normalized to the range from zero to one.
+        playing : bool
+            Whether playback is active.
+        rate : float
+            Signed playback speed multiplier.
+        """
         self.update_time(text)
-        self._play_pause_button.configure(text="Pause" if playing else "Play")
-        self._speed_label.configure(text=f"Speed: {rate:+g}x")
-        for button, preset in zip(
-            (
-                self._speed_1_button,
-                self._speed_10_button,
-                self._speed_100_button,
-                self._speed_1000_button,
-            ),
-            SPEED_PRESETS,
-        ):
-            button.configure(
-                relief="sunken" if math.isclose(abs(rate), preset) else "raised"
-            )
-        self._reverse_button.configure(relief="sunken" if rate < 0.0 else "raised")
-        self._render_speed_scale(abs(rate))
-        self._render_timeline(progress)
+        self.play_pause_button.SetLabel("Pause" if playing else "Play")
+        self.speed_label.SetLabel(f"Speed: {rate:+g}x")
+        self.direction_button.SetLabel("Reverse" if rate > 0.0 else "Forward")
+        self.direction_button.SetValue(rate < 0.0)
 
-    def _render_speed_scale(self, speed: float) -> None:
-        progress = math.log10(min(max(speed, 1.0), 1000.0)) / 3.0
-        cursor_x = round(
-            SPEED_SCALE_LEFT_PX
-            + progress * (SPEED_SCALE_RIGHT_PX - SPEED_SCALE_LEFT_PX)
-        )
-        self._speed_scale_image.tk.call(
-            str(self._speed_scale_image),
-            "copy",
-            str(self._speed_scale_base_image),
-        )
-        self._speed_scale_image.put(
-            "#2878c8",
-            to=(
-                SPEED_SCALE_LEFT_PX,
-                SPEED_SCALE_CENTER_Y - 1,
-                cursor_x + 1,
-                SPEED_SCALE_CENTER_Y + 2,
-            ),
-        )
-        self._speed_scale_image.put(
-            "#303030",
-            to=(
-                cursor_x - 6,
-                SPEED_SCALE_CENTER_Y - 8,
-                cursor_x + 7,
-                SPEED_SCALE_CENTER_Y + 9,
-            ),
-        )
-        self._speed_scale_image.put(
-            "#f8f8f8",
-            to=(
-                cursor_x - 4,
-                SPEED_SCALE_CENTER_Y - 6,
-                cursor_x + 5,
-                SPEED_SCALE_CENTER_Y + 7,
-            ),
-        )
+        for preset_speed, button in self.speed_preset_buttons.items():
+            button.SetValue(bool(math.isclose(abs(rate), preset_speed)))
 
-    def _on_speed_scale(self, event: tk.Event) -> None:
-        progress = min(
-            max(
-                (event.x - SPEED_SCALE_LEFT_PX)
-                / (SPEED_SCALE_RIGHT_PX - SPEED_SCALE_LEFT_PX),
-                0.0,
-            ),
-            1.0,
-        )
-        speed = 10.0 ** (progress * 3.0)
-        self._on_set_speed(speed)
+        timeline_value = round(min(max(progress, 0.0), 1.0) * TIMELINE_SLIDER_MAX)
+        playback_speed = min(max(abs(rate), SPEED_MIN), SPEED_MAX)
+        speed_value = round(math.log10(playback_speed) * SPEED_SLIDER_STEPS_PER_DECADE)
+        self._syncing_sliders = True
+        try:
+            self.timeline_slider.SetValue(timeline_value)
+            self.speed_slider.SetValue(speed_value)
+        finally:
+            self._syncing_sliders = False
 
-    def _submit_time_entry(self, _event: tk.Event | None = None) -> str:
-        self._on_seek_to_time(self.time_entry.get())
-        return "break"
+    def update_time(self, text: str) -> None:
+        """Update the elapsed-time and UTC readouts.
 
-    def _render_timeline(self, progress: float) -> None:
-        progress = min(max(progress, 0.0), 1.0)
-        cursor_x = round(
-            TIMELINE_LEFT_PX + progress * (TIMELINE_RIGHT_PX - TIMELINE_LEFT_PX)
-        )
-        self._timeline_image.tk.call(
-            str(self._timeline_image), "copy", str(self._timeline_base_image)
-        )
-        self._timeline_image.put(
-            "#2878c8",
-            to=(
-                TIMELINE_LEFT_PX,
-                TIMELINE_CENTER_Y - 1,
-                cursor_x + 1,
-                TIMELINE_CENTER_Y + 1,
-            ),
-        )
-        self._timeline_image.put(
-            "#303030",
-            to=(
-                cursor_x - 6,
-                TIMELINE_CENTER_Y - 9,
-                cursor_x + 7,
-                TIMELINE_CENTER_Y + 10,
-            ),
-        )
-        self._timeline_image.put(
-            "#f8f8f8",
-            to=(
-                cursor_x - 4,
-                TIMELINE_CENTER_Y - 7,
-                cursor_x + 5,
-                TIMELINE_CENTER_Y + 8,
-            ),
-        )
-        self._timeline_image.put(
-            "#4b4b4b",
-            to=(
-                cursor_x - 1,
-                TIMELINE_CENTER_Y - 6,
-                cursor_x + 2,
-                TIMELINE_CENTER_Y + 7,
-            ),
-        )
+        Parameters
+        ----------
+        text : str
+            Readout text, with elapsed time and UTC separated by a newline.
+        """
+        elapsed_text, separator, utc_text = text.partition("\n")
+        self.elapsed_label.SetLabel(elapsed_text)
+        self.utc_label.SetLabel(utc_text if separator else "")
 
-    def _on_timeline_seek(self, event: tk.Event) -> None:
-        if not self._timeline_enabled:
+    def show_time_error(self, message: str) -> None:
+        """Display a time-entry validation error.
+
+        Parameters
+        ----------
+        message : str
+            Error text to show below the time-entry control.
+        """
+        self.time_error_label.SetLabel(message)
+
+    def clear_time_error(self) -> None:
+        """Clear a previously displayed time-entry error."""
+        self.time_error_label.SetLabel("")
+
+    def _on_timeline_slider(self, event: wx.CommandEvent) -> None:
+        if self._syncing_sliders or not self._timeline_enabled:
             return
-        progress = min(
-            max(
-                (event.x - TIMELINE_LEFT_PX) / (TIMELINE_RIGHT_PX - TIMELINE_LEFT_PX),
-                0.0,
+        self._on_seek(event.GetInt() / TIMELINE_SLIDER_MAX)
+
+    def _on_speed_slider(self, event: wx.CommandEvent) -> None:
+        if self._syncing_sliders:
+            return
+        self._on_set_speed(10.0 ** (event.GetInt() / SPEED_SLIDER_STEPS_PER_DECADE))
+
+    def _submit_time_entry(self, _event: wx.CommandEvent | None = None) -> None:
+        self._on_seek_to_time(self.time_entry.GetValue())
+
+    def _bind_accelerators(
+        self,
+        parent: wx.Frame,
+        on_toggle_play: Callable[[], None],
+        on_reverse: Callable[[], None],
+        on_step_samples: Callable[[int], None],
+        on_step_seconds: Callable[[float], None],
+        on_jump_to_start: Callable[[], None],
+        on_jump_to_end: Callable[[], None],
+    ) -> None:
+        actions: tuple[tuple[int, int, Callable[[], None]], ...] = (
+            (wx.ACCEL_NORMAL, wx.WXK_SPACE, on_toggle_play),
+            (wx.ACCEL_NORMAL, ord("R"), on_reverse),
+            (wx.ACCEL_NORMAL, wx.WXK_LEFT, lambda: on_step_samples(-1)),
+            (wx.ACCEL_NORMAL, wx.WXK_RIGHT, lambda: on_step_samples(1)),
+            (
+                wx.ACCEL_SHIFT,
+                wx.WXK_LEFT,
+                lambda: on_step_seconds(-SECONDS_PER_MINUTE),
             ),
-            1.0,
+            (
+                wx.ACCEL_SHIFT,
+                wx.WXK_RIGHT,
+                lambda: on_step_seconds(SECONDS_PER_MINUTE),
+            ),
+            (wx.ACCEL_NORMAL, wx.WXK_HOME, on_jump_to_start),
+            (wx.ACCEL_NORMAL, wx.WXK_END, on_jump_to_end),
         )
-        self._on_seek(progress)
+        entries: list[wx.AcceleratorEntry] = []
+        for flags, key_code, action in actions:
+            command_id = int(wx.NewIdRef())
+            entries.append(wx.AcceleratorEntry(flags, key_code, command_id))
+            parent.Bind(
+                wx.EVT_MENU,
+                lambda _event, callback=action: callback(),
+                id=command_id,
+            )
+        self._accelerator_table = wx.AcceleratorTable(entries)
+        self._empty_accelerator_table = wx.AcceleratorTable()
+        parent.SetAcceleratorTable(self._accelerator_table)
 
-    def _on_space(self, _event: tk.Event) -> str:
-        if not self._space_pressed:
-            self._space_pressed = True
-            self._on_toggle_play()
-        return "break"
+    def _disable_accelerators(self, event: wx.FocusEvent) -> None:
+        self._parent.SetAcceleratorTable(self._empty_accelerator_table)
+        event.Skip()
 
-    def _on_space_release(self, _event: tk.Event) -> str:
-        self._space_pressed = False
-        return "break"
-
-    def _on_timeline_click(self, event: tk.Event) -> str | None:
-        if self._timeline.identify(event.x, event.y) == "slider":
-            return None
-        first_x = self._timeline.coords(0.0)[0]
-        last_x = self._timeline.coords(1.0)[0]
-        if first_x == last_x:
-            return "break"
-        progress = min(max((event.x - first_x) / (last_x - first_x), 0.0), 1.0)
-        self._on_seek(progress)
-        return "break"
+    def _enable_accelerators(self, event: wx.FocusEvent) -> None:
+        self._parent.SetAcceleratorTable(self._accelerator_table)
+        event.Skip()

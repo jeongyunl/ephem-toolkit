@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from ephem_toolkit.core.time_utils import tt_s_to_datetime
 from ephem_toolkit.play_oem import app
 from ephem_toolkit.play_oem.clock import PlaybackClock
 from ephem_toolkit.play_oem.cursor import OemCursor
@@ -137,6 +138,55 @@ class FakeView:
         self.closed = True
 
 
+class FakeControlWindow:
+    def __init__(
+        self,
+        _parent,
+        _on_open_view,
+        _on_open_group,
+        _view_registry,
+        on_toggle_play,
+        on_seek,
+        on_set_speed,
+        on_reverse,
+        *,
+        on_seek_to_time,
+        on_step_samples,
+        on_step_seconds,
+        on_jump_to_start,
+        on_jump_to_end,
+        timeline_enabled,
+    ) -> None:
+        self.panel = object()
+        self.callbacks = {
+            "toggle": on_toggle_play,
+            "seek": on_seek,
+            "speed": on_set_speed,
+            "reverse": on_reverse,
+            "seek_to_time": on_seek_to_time,
+            "step_samples": on_step_samples,
+            "step_seconds": on_step_seconds,
+            "jump_to_start": on_jump_to_start,
+            "jump_to_end": on_jump_to_end,
+        }
+        self.timeline_enabled = timeline_enabled
+        self.text = ""
+        self.time_errors: list[str] = []
+
+    def update_playback_state(
+        self, text: str, progress: float, playing: bool, rate: float
+    ) -> None:
+        state = "Playing" if playing else "Paused"
+        self.text = f"{text}\n{state} | {rate:+g}x"
+        self.progress = progress
+
+    def show_time_error(self, message: str) -> None:
+        self.time_errors.append(message)
+
+    def clear_time_error(self) -> None:
+        self.time_errors.clear()
+
+
 def make_states() -> list[np.ndarray]:
     return [
         np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]),
@@ -180,6 +230,7 @@ def make_app(
     monkeypatch.setattr(app.wx, "StaticText", FakeStaticText)
     monkeypatch.setattr(app.wx, "BoxSizer", FakeBoxSizer)
     monkeypatch.setattr(app.wx, "Timer", FakeTimer)
+    monkeypatch.setattr(app.control_window, "ControlWindow", FakeControlWindow)
     monkeypatch.setattr(app, "FigureCanvasWxAgg", lambda *args: _canvas(*args))
     monkeypatch.setattr(app.wx, "EVT_CLOSE", "close")
     monkeypatch.setattr(app.wx, "EVT_TIMER", "timer")
@@ -203,9 +254,9 @@ def make_app(
         views.append(view)
         return view
 
-    monkeypatch.setattr(app, "SpeedAltitudeView", create_view)
-    monkeypatch.setattr(app, "StateComponentsView", create_view)
-    monkeypatch.setattr(app, "Trajectory3DView", create_view)
+    monkeypatch.setattr(app.speed_altitude, "SpeedAltitudeView", create_view)
+    monkeypatch.setattr(app.state_components, "StateComponentsView", create_view)
+    monkeypatch.setattr(app.trajectory3d, "Trajectory3DView", create_view)
     timestamps = [100.0, 200.0]
     series = compute_orbit_series(timestamps, make_states(), TimeUnit.MINUTES)
     player = app.PlayerApp(
@@ -246,8 +297,8 @@ def test_start_uses_one_wx_app_and_opens_the_selected_views(
     assert player.clock.rate == -10.0
     assert player.clock.playing
     assert player.clock.loop
-    assert "Elapsed: 50.000 s" in player._time_display.label
-    assert "Paused" not in player._time_display.label
+    assert "Elapsed: 50.000 s" in player.control_window.text
+    assert "Paused" not in player.control_window.text
 
     player.close()
 
@@ -266,11 +317,35 @@ def test_wx_timer_advances_clock_and_updates_playback_display_and_views(
     player._on_timer(SimpleNamespace())
 
     assert player.clock.t_now == 102.5
-    assert "Elapsed: 2.500 s" in player._time_display.label
-    assert "UTC:" in player._time_display.label
-    assert "Playing | +1x | No loop" in player._time_display.label
+    assert "Elapsed: 2.500 s" in player.control_window.text
+    assert "UTC:" in player.control_window.text
+    assert "Playing | +1x" in player.control_window.text
     assert all(view.updated_times[-1] == 102.5 for view in views)
     assert all(canvas.draw_idle_count == 1 for canvas in canvases)
+
+    player.close()
+
+
+def test_time_entry_changes_clock_only_for_valid_in_range_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+
+    player.control_window.callbacks["seek_to_time"]("not-a-time")
+    assert player.clock.t_now == 100.0
+    assert player.control_window.time_errors
+
+    player.control_window.callbacks["seek_to_time"]("10s")
+    assert player.clock.t_now == 110.0
+    assert not player.control_window.time_errors
+
+    utc_timestamp = tt_s_to_datetime(150.0).isoformat().replace("+00:00", "Z")
+    player.control_window.callbacks["seek_to_time"](utc_timestamp)
+    assert player.clock.t_now == pytest.approx(150.0)
+
+    player.control_window.callbacks["seek_to_time"]("1000s")
+    assert player.clock.t_now == pytest.approx(150.0)
+    assert player.control_window.time_errors
 
     player.close()
 
@@ -383,6 +458,7 @@ def test_existing_wx_app_is_reused_instead_of_created_twice(
     monkeypatch.setattr(app.wx, "VERTICAL", 1)
     monkeypatch.setattr(app.wx, "EXPAND", 2)
     monkeypatch.setattr(app.wx, "ALL", 4)
+    monkeypatch.setattr(app.control_window, "ControlWindow", FakeControlWindow)
 
     def fail_if_created(_redirect: bool):
         raise AssertionError("must not create a second wx.App")

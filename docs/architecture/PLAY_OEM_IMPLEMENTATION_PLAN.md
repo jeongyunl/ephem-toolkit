@@ -75,29 +75,6 @@ demo must pass the migration acceptance criteria in step 23.
 
 ## Milestone I — wxPython migration
 
-### 17. Rebuild the playback control dashboard with native wx widgets
-
-Replace `control_window.py` and Tk image-backed controls with native wx controls. Preserve
-play/pause, keyboard shortcuts, timeline seeking, direct time entry, speed and direction
-controls, readouts, toolbar actions, and the no-feedback rule for programmatic slider updates.
-
-- **Status:** Not started.
-- **Progress:** 0/7 checklist items.
-- [ ] Implement native play/pause, speed, direction, elapsed/UTC readouts, and timeline controls.
-- [ ] Implement elapsed-duration and UTC entry with validation that leaves the clock unchanged
-      on invalid input.
-- [ ] Preserve sample/time stepping, start/end shortcuts, reverse, and keyboard bindings.
-- [ ] Map the integer `wx.Slider` range to clock bounds using the resolution recorded in step 15,
-      and synchronize slider updates from the clock without triggering recursive seek callbacks.
-- [ ] Preserve zero-duration timeline behavior and disable seeking when no interval exists.
-- [ ] Add wx-native layout, sizing, keyboard focus order, labeled controls, and close behavior
-      for the dashboard.
-- [ ] Port control tests to assert behavior and state transitions rather than Tk widget internals.
-
-**Done when:** every existing playback and seek interaction works through wx controls with
-equivalent validation and clock behavior.
-**Depends on:** Step 16.
-
 ### 18. Migrate Matplotlib views to wx canvases
 
 Complete the minimal canvas integration introduced in step 16. Remove TkAgg and raster-image
@@ -688,3 +665,35 @@ remain in step 17, and toolbar/click-to-seek plus removal of PPM raster methods 
 Lifecycle tests use mocked wx windows/canvases without requiring a display. The focused wx app,
 clock and CLI tests passed (58 total), and a real macOS wx smoke test opened a plot frame, ticked
 playback and shut down cleanly.
+
+### 17. Rebuild the playback control dashboard with native wx widgets
+
+Replace `control_window.py` and Tk image-backed controls with native wx controls. Preserve
+play/pause, keyboard shortcuts, timeline seeking, direct time entry, speed and direction
+controls, readouts, toolbar actions, and the no-feedback rule for programmatic slider updates.
+
+- **Status:** Done.
+- **Progress:** 7/7 checklist items.
+- [x] Implement native play/pause, speed, direction, elapsed/UTC readouts, and timeline controls.
+- [x] Implement elapsed-duration and UTC entry with validation that leaves the clock unchanged
+      on invalid input.
+- [x] Preserve sample/time stepping, start/end shortcuts, reverse, and keyboard bindings.
+- [x] Map the integer `wx.Slider` range to clock bounds using the resolution recorded in step 15,
+      and synchronize slider updates from the clock without triggering recursive seek callbacks.
+- [x] Preserve zero-duration timeline behavior and disable seeking when no interval exists.
+- [x] Add wx-native layout, sizing, keyboard focus order, labeled controls, and close behavior
+      for the dashboard.
+- [x] Port control tests to assert behavior and state transitions rather than Tk widget internals.
+
+**Done when:** every existing playback and seek interaction works through wx controls with
+equivalent validation and clock behavior.
+**Depends on:** Step 16.
+
+**Step 17 evidence:** implemented the wx-native playback dashboard, including play/pause, reverse,
+speed presets and logarithmic slider, elapsed/UTC readouts, direct duration/UTC seek, sample and
+time stepping, start/end navigation, timeline seek, view/group actions, and focus-aware keyboard
+accelerators. Programmatic slider synchronization is guarded against feedback, and the timeline is
+disabled for zero-duration data. Behavior tests cover valid and invalid duration/UTC inputs,
+control and accelerator actions, focus behavior, speed/timeline mappings, and zero-span seeking.
+All 88 playback tests passed; a real macOS wx smoke test exercised the dashboard, time entry,
+direction control, plot opening, and clean close.
