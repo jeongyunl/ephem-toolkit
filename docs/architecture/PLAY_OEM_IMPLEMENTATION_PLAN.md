@@ -75,27 +75,6 @@ demo must pass the migration acceptance criteria in step 23.
 
 ## Milestone I — wxPython migration
 
-### 16. Replace the Tk app shell and window lifecycle with wxPython
-
-Rebuild `app.py` around one `wx.App` and a primary `wx.Frame`. Replace Tk `after()` scheduling
-with `wx.Timer`, driven from monotonic elapsed time and the existing `PlaybackClock`. Migrate
-window ownership, close handling, observer cleanup, and SIGINT behavior without moving playback
-logic into widgets or starting a second event loop.
-
-- **Status:** Not started.
-- **Progress:** 0/6 checklist items.
-- [ ] Create the wx application and primary frame through the existing `play-oem` launch path.
-- [ ] Drive clock ticks with a wx timer using monotonic time and preserve configured FPS behavior.
-- [ ] Preserve startup time, autoplay, loop, reverse, speed, and CLI-selected plot behavior.
-- [ ] Define frame/view close behavior, including stopping timers and unsubscribing observers.
-- [ ] Handle normal close and SIGINT using the mechanism recorded in step 15, without a lingering
-      process or duplicate wx app instance.
-- [ ] Add lifecycle tests with wx-safe test fixtures or mocks that do not require a display.
-
-**Done when:** `play-oem` launches a minimal wx window, updates the displayed playback time,
-and shuts down cleanly while all existing clock and CLI tests continue to pass.
-**Depends on:** Step 15.
-
 ### 17. Rebuild the playback control dashboard with native wx widgets
 
 Replace `control_window.py` and Tk image-backed controls with native wx controls. Preserve
@@ -121,22 +100,21 @@ equivalent validation and clock behavior.
 
 ### 18. Migrate Matplotlib views to wx canvases
 
-Replace TkAgg and raster-image display paths with Matplotlib's wx canvas integration. Port the
-existing speed/altitude, state-components, and Matplotlib 3D trajectory views while preserving
-their plotted data, cursor synchronization, labels, toolbar interactions, and click-to-seek.
-Keep numerical view construction independent of wx where practical so it remains testable with
-a non-interactive Matplotlib backend.
+Complete the minimal canvas integration introduced in step 16. Remove TkAgg and raster-image
+display paths from the supported view runtime. Preserve plotted data, cursor synchronization,
+labels, toolbar interactions, and click-to-seek. Keep numerical view construction independent of
+wx where practical so it remains testable with a non-interactive Matplotlib backend.
 
 - **Status:** Not started.
 - **Progress:** 0/7 checklist items.
-- [ ] Establish a wx-compatible Matplotlib canvas and toolbar lifecycle for plot frames.
-- [ ] Migrate speed/altitude rendering and cursor updates to the wx canvas.
-- [ ] Migrate state-component rendering and cursor updates to the wx canvas.
-- [ ] Migrate the Matplotlib 3D orbit view and satellite marker updates to the wx canvas.
+- [ ] Add wx-native Matplotlib navigation toolbars and complete canvas lifecycle handling.
+- [ ] Remove the remaining raster fallback methods from speed/altitude and state-component views.
+- [ ] Remove the raster fallback methods from the Matplotlib 3D trajectory view.
 - [ ] Preserve plot click-to-seek while respecting active pan/zoom toolbar modes.
 - [ ] Preserve one-window-per-view behavior, raise-existing behavior, and clean close/unsubscribe.
 - [ ] Compare each migrated view's data, labels, units, and cursor locations with the step 15
       baseline fixture using deterministic tests.
+- [ ] Test wx canvas rendering and cursor updates under the display-backed GUI test setup.
 
 **Done when:** all currently implemented plots render and update in wx windows without using a
 Tk canvas, Tk widget, or raster-image workaround.
@@ -677,3 +655,36 @@ matching 4.2.4 macOS arm64 wheel is available. `poetry install --extras playback
 Run the same search over `tests/ephem_toolkit/play_oem` to identify Tk-only tests for removal.
 
 **Depends on:** Step 14.
+
+### 16. Replace the Tk app shell and window lifecycle with wxPython
+
+Rebuild `app.py` around one `wx.App` and a primary `wx.Frame`. Replace Tk `after()` scheduling
+with `wx.Timer`, driven from monotonic elapsed time and the existing `PlaybackClock`. Migrate
+window ownership, close handling, observer cleanup, and SIGINT behavior without moving playback
+logic into widgets or starting a second event loop. To preserve `--plots` through this boundary,
+bring forward the minimal wx plot-frame and `FigureCanvasWxAgg` lifecycle for the three existing
+views; the dashboard controls remain in step 17 and toolbar/click refinements remain in step 18.
+
+- **Status:** Done.
+- **Progress:** 7/7 checklist items.
+- [x] Create the wx application and primary frame through the existing `play-oem` launch path.
+- [x] Drive clock ticks with a wx timer using monotonic time and preserve configured FPS behavior.
+- [x] Preserve startup time, autoplay, loop, reverse, speed, and CLI-selected plot behavior.
+- [x] Open the existing speed/altitude, state-components, and 3D views in wx child frames and
+      update their cursors from clock notifications.
+- [x] Define frame/view close behavior, including stopping timers and unsubscribing observers.
+- [x] Handle normal close and SIGINT using the mechanism recorded in step 15, without a lingering
+      process or duplicate wx app instance.
+- [x] Add lifecycle tests with wx-safe test fixtures or mocks that do not require a display.
+
+**Done when:** `play-oem` launches a minimal wx window, opens the requested existing plots in wx
+frames, updates the playback time and view cursors, and shuts down cleanly while clock and CLI
+tests continue to pass.
+**Depends on:** Step 15.
+
+**Step 16 evidence:** to keep the dependency order while preserving `--plots`, the initial
+`FigureCanvasWxAgg` and per-view frame lifecycle moved forward from step 18; dashboard controls
+remain in step 17, and toolbar/click-to-seek plus removal of PPM raster methods remain in step 18.
+Lifecycle tests use mocked wx windows/canvases without requiring a display. The focused wx app,
+clock and CLI tests passed (58 total), and a real macOS wx smoke test opened a plot frame, ticked
+playback and shut down cleanly.
