@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1376" height="460" viewBox="32 568 1376 460" role="img" aria-labelledby="title desc">
-  <title id="title">Unified analysis desk GUI mock-up</title>
-  <desc id="desc">A wxPython workspace with playback controls and trajectory and time-series panes together.</desc>
+  <title id="title">Archived: Unified analysis desk GUI mock-up</title>
+  <desc id="desc">A wxPython workspace with playback controls and trajectory and time-series panes, each with its own view-selection combobox.</desc>
   <defs>
     <linearGradient id="accent" x1="0" x2="1">
       <stop offset="0" stop-color="#3b82f6"/>
@@ -39,7 +39,16 @@
   <circle cx="96" cy="667" r="5" fill="#9aa8b9"/>
   <circle cx="114" cy="667" r="5" fill="#9aa8b9"/>
   <text class="muted small" x="138" y="671">play-oem — ISS_2026-05-20.OEM</text>
-  <text class="muted small" x="1355" y="671" text-anchor="end">File   Views   Playback   Help</text>
+  <rect class="button" x="900" y="655" width="106" height="24" rx="5"/>
+  <text class="ink tiny" x="953" y="671" text-anchor="middle">Open view ▾</text>
+  <rect class="button" x="1012" y="655" width="94" height="24" rx="5"/>
+  <text class="ink tiny" x="1059" y="671" text-anchor="middle">Layout ▾</text>
+  <rect class="button" x="1112" y="655" width="82" height="24" rx="5"/>
+  <text class="ink tiny" x="1153" y="671" text-anchor="middle">Fit all</text>
+  <rect class="button" x="1200" y="655" width="82" height="24" rx="5"/>
+  <text class="ink tiny" x="1241" y="671" text-anchor="middle">Reset</text>
+  <rect class="button" x="1288" y="655" width="78" height="24" rx="5"/>
+  <text class="ink tiny" x="1327" y="671" text-anchor="middle">Export</text>
   <rect x="72" y="695" width="244" height="291" rx="9" fill="#f1f5f9"/>
   <text class="ink small" x="91" y="721" font-weight="700">PLAYBACK</text>
   <text class="ink" x="91" y="754" font-size="22" font-weight="700">02:14:32</text>
@@ -59,7 +68,9 @@
   <text class="muted tiny" x="91" y="974">GCRF · Earth center</text>
   <rect class="panel" x="330" y="695" width="1038" height="166" rx="9"/>
   <text class="ink small" x="350" y="721" font-weight="700">TRAJECTORY 3D</text>
-  <text class="muted tiny" x="1344" y="721" text-anchor="end">Matplotlib · Orbit view</text>
+  <rect class="button" x="1167" y="706" width="181" height="23" rx="5"/>
+  <text class="ink tiny" x="1178" y="721">Trajectory · 3D</text>
+  <text class="muted tiny" x="1334" y="721" text-anchor="end">▾</text>
   <line class="grid" x1="350" y1="742" x2="1348" y2="742"/>
   <line class="grid" x1="350" y1="782" x2="1348" y2="782"/>
   <line class="grid" x1="350" y1="822" x2="1348" y2="822"/>
@@ -69,7 +80,9 @@
   <text class="muted tiny" x="866" y="799">Earth</text>
   <rect class="panel" x="330" y="873" width="1038" height="113" rx="9"/>
   <text class="ink small" x="350" y="899" font-weight="700">SPEED &amp; ALTITUDE</text>
-  <text class="muted tiny" x="1344" y="899" text-anchor="end">Click plot to seek</text>
+  <rect class="button" x="1167" y="884" width="181" height="23" rx="5"/>
+  <text class="ink tiny" x="1178" y="899">Speed / Altitude</text>
+  <text class="muted tiny" x="1334" y="899" text-anchor="end">▾</text>
   <line class="grid" x1="350" y1="925" x2="1348" y2="925"/>
   <line class="grid" x1="350" y1="951" x2="1348" y2="951"/>
   <line class="grid" x1="350" y1="974" x2="1348" y2="974"/>

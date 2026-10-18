@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1376" height="500" viewBox="32 1048 1376 500" role="img" aria-labelledby="title desc">
-  <title id="title">Compact telemetry panel GUI mock-up</title>
+  <title id="title">Archived: Compact telemetry panel GUI mock-up</title>
   <desc id="desc">A narrow wxPython playback and telemetry window beside detached trajectory and speed-altitude plots.</desc>
   <defs>
     <linearGradient id="accent" x1="0" x2="1">
@@ -43,6 +43,7 @@
   <text class="muted tiny" x="552" y="1190" text-anchor="end">5,402 samples</text>
   <text class="ink" x="82" y="1230" font-size="25" font-weight="700">02:14:32.400</text>
   <text class="muted small" x="82" y="1252">2026-05-20 02:14:32 UTC</text>
+  <rect x="72" y="1261" width="480" height="57" rx="9" fill="#eef2f7"/>
   <rect class="primary" x="82" y="1270" width="102" height="40" rx="8"/>
   <text class="white body" x="133" y="1296" text-anchor="middle">Ⅱ Pause</text>
   <rect class="button" x="192" y="1270" width="91" height="40" rx="8"/>
@@ -70,12 +71,24 @@
 
   <text class="muted small" x="620" y="1190" font-weight="700">DETACHED PLOT WINDOWS</text>
   <rect class="panel" x="620" y="1210" width="742" height="132" rx="10"/>
+  <rect class="chrome" x="620" y="1210" width="742" height="22" rx="10"/>
+  <rect class="chrome" x="620" y="1222" width="742" height="10"/>
+  <circle cx="636" cy="1221" r="3.5" fill="#9aa8b9"/>
+  <circle cx="649" cy="1221" r="3.5" fill="#9aa8b9"/>
+  <circle cx="662" cy="1221" r="3.5" fill="#9aa8b9"/>
   <text class="ink small" x="644" y="1238" font-weight="700">TRAJECTORY · OVERVIEW</text>
+  <text class="muted tiny" x="1344" y="1227" text-anchor="end">Separate plot window 1</text>
   <ellipse cx="985" cy="1290" rx="186" ry="35" class="orbit"/>
   <ellipse cx="985" cy="1290" rx="38" ry="20" fill="#dcecff" stroke="#93bdf8" stroke-width="1.5"/>
   <circle cx="1127" cy="1267" r="6" fill="#2563eb"/>
   <rect class="panel" x="620" y="1354" width="742" height="132" rx="10"/>
+  <rect class="chrome" x="620" y="1354" width="742" height="22" rx="10"/>
+  <rect class="chrome" x="620" y="1366" width="742" height="10"/>
+  <circle cx="636" cy="1365" r="3.5" fill="#9aa8b9"/>
+  <circle cx="649" cy="1365" r="3.5" fill="#9aa8b9"/>
+  <circle cx="662" cy="1365" r="3.5" fill="#9aa8b9"/>
   <text class="ink small" x="644" y="1382" font-weight="700">SPEED / ALTITUDE</text>
+  <text class="muted tiny" x="1344" y="1371" text-anchor="end">Separate plot window 2</text>
   <line class="grid" x1="644" y1="1410" x2="1338" y2="1410"/>
   <line class="grid" x1="644" y1="1438" x2="1338" y2="1438"/>
   <line class="grid" x1="644" y1="1466" x2="1338" y2="1466"/>

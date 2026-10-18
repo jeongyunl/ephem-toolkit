@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1376" height="440" viewBox="32 108 1376 440" role="img" aria-labelledby="title desc">
-  <title id="title">Playback strip GUI mock-up</title>
+<svg xmlns="http://www.w3.org/2000/svg" width="1376" height="740" viewBox="32 108 1376 740" role="img" aria-labelledby="title desc">
+  <title id="title">Archived: Playback strip GUI mock-up</title>
   <desc id="desc">A compact wxPython control frame with detached plot windows, playback transport, a timeline, and current-state summary.</desc>
   <defs>
     <linearGradient id="accent" x1="0" x2="1">
@@ -29,7 +29,7 @@
     </style>
   </defs>
   <!-- Concept A -->
-  <rect class="card" x="32" y="108" width="1376" height="440" rx="18"/>
+  <rect class="card" x="32" y="108" width="1376" height="740" rx="18"/>
   <text class="ink h2" x="58" y="145">A · Playback strip</text>
   <text class="muted body" x="58" y="170">Compact control frame with detached plot windows · closest to the current architecture</text>
   <rect class="window" x="58" y="190" width="1324" height="330" rx="12"/>
@@ -77,6 +77,7 @@
   <text class="muted small" x="895" y="433">v  (−6.91, −2.14, 3.02) km/s</text>
   <rect x="82" y="463" width="96" height="29" rx="14" fill="#e8f7f3"/>
   <text x="130" y="482" text-anchor="middle" fill="#087f70" font-family="Inter, sans-serif" font-size="11" font-weight="600">Interpolated</text>
+  <rect x="904" y="452" width="456" height="42" rx="8" fill="#eef2f7"/>
   <text class="muted small" x="194" y="482">Speed 7.84 km/s  ·  Altitude 421.2 km</text>
   <rect class="selected" x="916" y="458" width="108" height="32" rx="7"/>
   <text class="ink small" x="970" y="479" text-anchor="middle">Overview</text>
@@ -86,5 +87,31 @@
   <text class="ink small" x="1180" y="479" text-anchor="middle">Motion…</text>
   <rect class="button" x="1248" y="458" width="104" height="32" rx="7"/>
   <text class="ink small" x="1300" y="479" text-anchor="middle">Details ▾</text>
-
+  <text class="muted small" x="58" y="566">Separate plot windows · independently movable and resizable</text>
+  <rect class="window" x="58" y="580" width="644" height="250" rx="10"/>
+  <rect class="chrome" x="58" y="580" width="644" height="28" rx="10"/>
+  <rect class="chrome" x="58" y="596" width="644" height="12"/>
+  <circle cx="76" cy="594" r="4" fill="#9aa8b9"/>
+  <circle cx="91" cy="594" r="4" fill="#9aa8b9"/>
+  <circle cx="106" cy="594" r="4" fill="#9aa8b9"/>
+  <text class="muted small" x="124" y="598">Trajectory · 3D</text>
+  <text class="muted tiny" x="682" y="598" text-anchor="end">Plot window 1</text>
+  <ellipse cx="378" cy="714" rx="204" ry="64" class="orbit"/>
+  <ellipse cx="378" cy="714" rx="54" ry="34" fill="#dcecff" stroke="#93bdf8" stroke-width="1.5"/>
+  <circle cx="528" cy="674" r="7" fill="#2563eb"/>
+  <text class="muted tiny" x="394" y="718">Earth</text>
+  <rect class="window" x="718" y="580" width="664" height="250" rx="10"/>
+  <rect class="chrome" x="718" y="580" width="664" height="28" rx="10"/>
+  <rect class="chrome" x="718" y="596" width="664" height="12"/>
+  <circle cx="736" cy="594" r="4" fill="#9aa8b9"/>
+  <circle cx="751" cy="594" r="4" fill="#9aa8b9"/>
+  <circle cx="766" cy="594" r="4" fill="#9aa8b9"/>
+  <text class="muted small" x="784" y="598">Speed / Altitude</text>
+  <text class="muted tiny" x="1362" y="598" text-anchor="end">Plot window 2</text>
+  <line class="grid" x1="744" y1="650" x2="1357" y2="650"/>
+  <line class="grid" x1="744" y1="700" x2="1357" y2="700"/>
+  <line class="grid" x1="744" y1="750" x2="1357" y2="750"/>
+  <line class="grid" x1="744" y1="800" x2="1357" y2="800"/>
+  <path class="plot" d="M752 771 C820 725,876 777,936 740 S1048 725,1108 764 S1210 738,1266 752 S1321 728,1350 741"/>
+  <line x1="1120" y1="632" x2="1120" y2="811" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4 4"/>
 </svg>

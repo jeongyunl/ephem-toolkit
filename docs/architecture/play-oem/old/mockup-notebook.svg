@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1384" height="420" viewBox="28 104 1384 420" role="img" aria-labelledby="title desc">
-  <title id="title">Notebook-first play-oem workspace mock-up</title>
-  <desc id="desc">A wx.Notebook switches between view groups above a persistent playback bar; Overview contains trajectory and speed-altitude plots.</desc>
+  <title id="title">Archived: Notebook-first play-oem workspace mock-up</title>
+  <desc id="desc">A wx.Notebook switches between view groups above a persistent playback bar; each graphic panel has its own view-selection combobox.</desc>
   <defs>
     <style>
       .bg{fill:#eef2f7}
@@ -46,13 +46,29 @@
   <rect class="tab" x="470" y="217" width="100" height="32" rx="6"/>
   <text class="muted small" x="520" y="237" text-anchor="middle">Distance</text>
   <rect class="panel" x="76" y="258" width="635" height="160" rx="8"/>
-  <text class="ink small" x="94" y="281" font-weight="700">TRAJECTORY · 3D</text>
+  <rect class="tabon" x="94" y="266" width="198" height="23" rx="5"/>
+  <text class="ink tiny" x="104" y="281">Trajectory · 3D</text>
+  <text class="muted tiny" x="280" y="281">▾</text>
+  <rect class="tab" x="526" y="266" width="48" height="23" rx="5"/>
+  <text class="muted tiny" x="550" y="281" text-anchor="middle">Fit</text>
+  <rect class="tab" x="578" y="266" width="54" height="23" rx="5"/>
+  <text class="muted tiny" x="605" y="281" text-anchor="middle">Reset</text>
+  <rect class="tab" x="636" y="266" width="58" height="23" rx="5"/>
+  <text class="muted tiny" x="665" y="281" text-anchor="middle">More ▾</text>
   <ellipse cx="393" cy="346" rx="208" ry="48" class="orbit"/>
   <ellipse cx="393" cy="346" rx="40" ry="23" fill="#dcecff" stroke="#93bdf8" stroke-width="1.5"/>
   <circle cx="535" cy="316" r="6" class="primary"/>
   <text class="muted tiny" x="406" y="351">Earth</text>
   <rect class="panel" x="725" y="258" width="639" height="160" rx="8"/>
-  <text class="ink small" x="743" y="281" font-weight="700">SPEED / ALTITUDE</text>
+  <rect class="tabon" x="743" y="266" width="198" height="23" rx="5"/>
+  <text class="ink tiny" x="753" y="281">Speed / Altitude</text>
+  <text class="muted tiny" x="929" y="281">▾</text>
+  <rect class="tab" x="1172" y="266" width="48" height="23" rx="5"/>
+  <text class="muted tiny" x="1196" y="281" text-anchor="middle">Fit</text>
+  <rect class="tab" x="1224" y="266" width="54" height="23" rx="5"/>
+  <text class="muted tiny" x="1251" y="281" text-anchor="middle">Reset</text>
+  <rect class="tab" x="1282" y="266" width="64" height="23" rx="5"/>
+  <text class="muted tiny" x="1314" y="281" text-anchor="middle">More ▾</text>
   <line class="grid" x1="744" y1="308" x2="1345" y2="308"/>
   <line class="grid" x1="744" y1="342" x2="1345" y2="342"/>
   <line class="grid" x1="744" y1="376" x2="1345" y2="376"/>

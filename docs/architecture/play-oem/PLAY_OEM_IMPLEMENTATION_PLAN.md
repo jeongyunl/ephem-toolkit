@@ -2,7 +2,7 @@
 
 Requirements: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md). Software design:
 [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md). GUI development:
-[PLAY_OEM_GUI_DEVELOPMENT.md](./PLAY_OEM_GUI_DEVELOPMENT.md).
+[PLAY_OEM_GUI_DESIGN.md](./PLAY_OEM_GUI_DESIGN.md).
 
 ## How to use this plan
 
@@ -76,7 +76,7 @@ Migration guardrails:
 Steps 15–23 document the wxPython migration and its acceptance. The remaining dashboard and
 plot-set work follows in the active steps below. Update
 [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md) in step 15 so the architecture agrees
-with this directive. Use [PLAY_OEM_GUI_DEVELOPMENT.md](./PLAY_OEM_GUI_DEVELOPMENT.md) for
+with this directive. Use [PLAY_OEM_GUI_DESIGN.md](./PLAY_OEM_GUI_DESIGN.md) for
 GUI-focused implementation and improvement guidance. The first Tk playback demo in step 10
 remains a historical milestone; a wxPython demo must pass the migration acceptance criteria in
 step 23.

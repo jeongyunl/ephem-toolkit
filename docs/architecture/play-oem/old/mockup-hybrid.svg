@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1384" height="472" viewBox="28 984 1384 472" role="img" aria-labelledby="title desc">
-  <title id="title">Hybrid play-oem workspace mock-up</title>
-  <desc id="desc">A wx.SplitterWindow keeps the orbit visible while a wx.Notebook switches among synchronized diagnostic plots; playback controls remain fixed.</desc>
+  <title id="title">Archived: Hybrid play-oem workspace mock-up</title>
+  <desc id="desc">A wx.SplitterWindow keeps a graphic panel visible beside a wx.Notebook diagnostic panel; each panel has its own view-selection combobox and playback controls remain fixed.</desc>
   <defs>
     <style>
       .bg{fill:#eef2f7}
@@ -38,6 +38,13 @@
   <text class="muted small" x="128" y="1078">play-oem · Overview</text>
   <rect class="panel" x="72" y="1104" width="508" height="242" rx="8"/>
   <text class="ink small" x="91" y="1129" font-weight="700">TRAJECTORY · ALWAYS VISIBLE</text>
+  <rect class="tab" x="272" y="1111" width="132" height="23" rx="5"/>
+  <text class="muted tiny" x="282" y="1126">Trajectory · 3D</text>
+  <text class="muted tiny" x="392" y="1126">▾</text>
+  <rect class="tab" x="410" y="1111" width="48" height="23" rx="5"/>
+  <text class="muted tiny" x="434" y="1126" text-anchor="middle">Fit</text>
+  <rect class="tab" x="462" y="1111" width="98" height="23" rx="5"/>
+  <text class="muted tiny" x="511" y="1126" text-anchor="middle">Orbit tools</text>
   <ellipse cx="324" cy="1221" rx="197" ry="55" class="orbit"/>
   <ellipse cx="324" cy="1221" rx="43" ry="25" fill="#dcecff" stroke="#93bdf8" stroke-width="1.5"/>
   <circle cx="465" cy="1190" r="6" class="primary"/>
@@ -51,7 +58,15 @@
   <text class="muted small" x="944" y="1133" text-anchor="middle">Motion</text>
   <rect class="tab" x="1006" y="1113" width="112" height="30" rx="6"/>
   <text class="muted small" x="1062" y="1133" text-anchor="middle">Distance</text>
-  <text class="muted tiny" x="1348" y="1133" text-anchor="end">cursor: interpolated</text>
+  <rect class="tab" x="1130" y="1148" width="172" height="23" rx="5"/>
+  <text class="muted tiny" x="1140" y="1163">Speed / Altitude</text>
+  <text class="muted tiny" x="1290" y="1163">▾</text>
+  <rect class="tab" x="1130" y="1113" width="48" height="30" rx="5"/>
+  <text class="muted tiny" x="1154" y="1132" text-anchor="middle">Fit</text>
+  <rect class="tab" x="1184" y="1113" width="58" height="30" rx="5"/>
+  <text class="muted tiny" x="1213" y="1132" text-anchor="middle">Reset</text>
+  <rect class="tab" x="1248" y="1113" width="74" height="30" rx="5"/>
+  <text class="muted tiny" x="1285" y="1132" text-anchor="middle">Export</text>
   <line class="grid" x1="631" y1="1173" x2="1348" y2="1173"/>
   <line class="grid" x1="631" y1="1213" x2="1348" y2="1213"/>
   <line class="grid" x1="631" y1="1253" x2="1348" y2="1253"/>

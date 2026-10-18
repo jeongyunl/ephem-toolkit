@@ -1,4 +1,4 @@
-# `play-oem` — GUI Development and Improvement
+# `play-oem` — GUI Design
 
 This document guides implementation, validation, and iterative improvement of the
 `play-oem` graphical interface. It complements, rather than replaces:
@@ -14,96 +14,48 @@ GUI workflow, validation approach, or improvement priorities change.
 
 ## Visual design concepts
 
-These six GUI layout variants are **alternative design choices**, not stages or a
-recommended sequence. The mock-ups are illustrative proposals, not implemented screenshots;
-dimensions and colors are illustrative, and final controls should follow platform conventions.
-No layout has been selected.
+The selected final design is the three-pane analysis workspace (G) below. Its mock-ups are
+illustrative proposals, not implemented screenshots; dimensions and colors are illustrative, and
+final controls should follow platform conventions.
 
-### Candidate layout variants
+### Selected design: G. Three-pane analysis workspace
 
-#### A. Playback strip
+A vertical feature notebook sits on the left, separate from the graphics. The middle pane stacks
+zero or more independently selectable graph panels; an optional right pane can hold another
+independent stack. A shared time slider spans below all panes.
 
-Users control playback, seek, and see a compact state summary in a short, wide player while plot
-windows remain separate.
+![G. Three-pane analysis workspace](./mockup-three-pane.svg)
 
-![A. Playback strip](./mockup-playback-strip.svg)
+![G. Three-pane analysis workspace with the right pane closed](./mockup-three-pane-right-closed.svg)
 
-- **Fits:** users who want a compact player alongside one or more independently positioned plots.
-- **Trade-offs:** leaves less room for telemetry and can become crowded at narrow widths; separate
-  plot windows remain.
-- **Implementation:** retain the existing control frame and per-view plot frames; use wx sizers
-  to reorganize the transport and readouts without changing plot ownership.
+![G. Three-pane analysis workspace with the right pane closed and Playback selected](./mockup-three-pane-right-closed-playback.svg)
 
-#### B. Unified analysis desk
+- **Fits:** users who want non-graph tools kept separate from a flexible, multi-plot analysis area.
+- **Trade-offs:** several narrow panes can reduce plot readability; graph stacks need clear add,
+  remove, and empty-state behavior. The right pane should be optional so the middle pane can use
+  the available width when it is closed.
+- **Toolbar:** keep playback and non-graph features in the left vertical notebook. Give every
+  graph panel its own view-selection combobox and a compact panel-actions menu; keep the shared
+  time slider below the pane area.
+- **Implementation:** use nested splitters for left, middle, and optional right regions, with
+  vertically stacked graph hosts in the middle and right. Use a vertical-tab notebook for
+  non-graph pages such as OEM file information and playback controls. Give graph panels useful
+  minimum heights and scroll each stack when its panels do not fit. Preserve the optional right
+  pane's contents and size when closed, then restore them when reopened.
 
-Users see playback controls and several plots together in one coordinated workspace, with the
-ability to arrange or hide views to suit the current analysis.
+#### Panel and navigation behavior
 
-![B. Unified analysis desk](./mockup-analysis-desk.svg)
-
-- **Fits:** users who want all relevant plots in one coordinated workspace and value simultaneous
-  comparison.
-- **Trade-offs:** largest change to frame ownership; embedded Matplotlib/VTK panes, resizing,
-  layout persistence, and platform behavior need validation.
-- **Implementation:** host the controls and plot canvases in panels owned by one workspace frame.
-  A dockable version could use `wx.aui.AuiManager`; it needs a shared embedded-view host and
-  explicit pane lifecycle management.
-
-#### C. Compact telemetry panel
-
-Users keep current time and state visible in a narrow vertical player, with secondary controls and
-metadata tucked away until needed; plot windows stay separate.
-
-![C. Compact telemetry panel](./mockup-telemetry-panel.svg)
-
-- **Fits:** users who keep a player beside plots or on a secondary display and want telemetry
-  readily visible.
-- **Trade-offs:** taller than the playback strip; some actions are tucked behind expanders and
-  it is less suited to short screens.
-- **Implementation:** keep the separate player frame and plot frames; use `wx.CollapsiblePane`
-  for secondary controls and metadata, and adapt the vertical sizers for narrow widths.
-
-#### D. Notebook-first workspace
-
-Users switch among view groups while playback controls stay visible in a fixed toolbar or bottom
-strip. Overview displays the 3D trajectory and speed/altitude plot together; other tabs provide
-State, Motion, or distance diagnostics.
-
-![D. Notebook-first workspace](./mockup-notebook.svg)
-
-- **Fits:** compact single-window navigation when users usually inspect one diagnostic group at
-  a time.
-- **Trade-offs:** tab pages are mutually exclusive, so arbitrary plots cannot be compared
-  simultaneously. Group related diagnostics to avoid an unwieldy tab bar.
-- **Implementation:** host each page in a `wx.Panel` within one `wx.Notebook`. Update a page to
-  the current clock time when selected; avoid redrawing hidden canvases unnecessarily and verify
-  VTK initialization when its page becomes visible.
-
-#### E. Splitter-first workspace
-
-Users see two synchronized views at once, such as trajectory and speed/altitude, and can resize
-the space each receives. The secondary view can be changed as needed.
-
-![E. Splitter-first workspace](./mockup-splitter.svg)
-
-- **Fits:** side-by-side comparison when two visible views are usually sufficient.
-- **Trade-offs:** pane widths compete with plot readability on smaller displays. More simultaneous
-  views need nested splitters or detached windows.
-- **Implementation:** place two view-host panels in a `wx.SplitterWindow`, set useful minimum
-  pane sizes and an initial sash position, and define how users choose the secondary view.
-
-#### F. Hybrid: pinned trajectory plus notebook diagnostics
-
-Users keep the trajectory visible while switching among 2D diagnostics; playback controls and
-current time stay in place, with Speed/Altitude shown by default.
-
-![F. Hybrid workspace](./mockup-hybrid.svg)
-
-- **Fits:** users who want spatial context to remain visible while switching among diagnostics.
-- **Trade-offs:** the pinned trajectory consumes space; only one 2D page is visible at a time.
-- **Implementation:** use a `wx.SplitterWindow` with the trajectory host on one side and a
-  `wx.Notebook` of 2D view panels on the other. Refresh the selected page on tab change and
-  validate hidden/shown VTK behavior if VTK hosts the trajectory.
+- Put an **Add graph** action at the top of each graph stack. When a stack has no panels, show an
+  empty-state message and the same add action.
+- Give each graph panel a selector and a compact menu for moving it within its stack, duplicating
+  it, or closing it. Keep panel selectors and plot actions local to their panel.
+- Enforce a minimum plot size; scroll a stack rather than compressing panels below that minimum.
+  Resizing the splitters should redistribute space without losing the selected views.
+- Closing the right pane hides it without discarding its panel selections or size. Reopening it
+  restores that state, while the middle pane expands into the freed space when it is closed.
+- Keep accessible names and hover tooltips on icon-only notebook tabs. Support keyboard focus,
+  arrow-key navigation between tabs, and keyboard activation; the selected tab must be indicated
+  independently of hover or focus.
 
 ### Shared interaction principles
 
@@ -115,6 +67,8 @@ current time stay in place, with Speed/Altitude shown by default.
   metadata in a collapsible section.
 - Make view/group selection discoverable without dedicating a button to every view in the most
   compact layout. Do not hide essential playback actions in menus.
+- Give every graphic panel its own view-selection combobox so users can change that panel's
+  contents independently of the other panels.
 - Use wx sizers, standard controls, keyboard accelerators, and native focus behavior. Treat accent
   color as a state cue, not the only way to communicate status.
 - At narrow window sizes, let controls wrap or collapse deliberately rather than clipping labels
@@ -123,12 +77,13 @@ current time stay in place, with Speed/Altitude shown by default.
 ### wxPython integration implications
 
 The current `PlayerApp` opens each registered plot in its own `wx.Frame`; the control window is
-separate. No `wx.Notebook` or `wx.SplitterWindow` use exists in the active `src` tree. Variants A
-and C preserve the detached plot-frame model most directly. Variants B, D, E, and F embed plot
-views and require changes to the current view-host lifecycle: `_open_view` creates a `wx.Frame`,
-parents the WxAgg canvas or VTK widget to it, and stores that frame in `_OpenView`.
+separate. No `wx.Notebook` or `wx.SplitterWindow` use exists in the active `src` tree. The deferred
+multi-window concepts at the end of this document preserve the detached plot-frame model most
+directly. The selected G layout embeds plot views and requires changes to the current view-host
+lifecycle: `_open_view` creates a `wx.Frame`, parents the WxAgg canvas or VTK widget to it, and
+stores that frame in `_OpenView`.
 
-Before selecting an embedded layout, verify:
+For the selected G layout, verify:
 
 - Matplotlib canvases resize and redraw correctly as notebook pages are selected and splitter
   sashes move; splitter pane minimums and the initial sash position remain usable.
@@ -140,20 +95,6 @@ Before selecting an embedded layout, verify:
   on each supported platform. Preserve the single wx event loop and explicit backend errors.
 - Click-to-seek, zoom/pan modes, keyboard focus, and current-state readouts remain consistent
   across panes and pages.
-
-### Choosing between variants
-
-Compare the choices against the actual workflow rather than treating one as a default:
-
-- Prefer **A** when keeping the existing detached plots and minimizing layout changes matter most.
-- Prefer **B** when users need a configurable, all-in-one workspace with several panes visible.
-- Prefer **C** when a narrow player beside plots is more useful than an integrated workspace.
-- Prefer **D** when compact navigation among groups matters more than simultaneous comparison.
-- Prefer **E** when two plots should remain visible together and be resizable.
-- Prefer **F** when the trajectory should stay pinned while users switch among 2D diagnostics.
-
-The design remains open until a layout is chosen. Prototype the relevant Matplotlib interactions
-first; validate VTK separately before selecting any embedded host.
 
 ## Existing implementation context
 
@@ -304,3 +245,9 @@ A GUI improvement is complete when:
 - Performance claims have reproducible workload details and match the current implementation.
 - The implementation plan, software design, and concepts document are updated if the change
   affects their scope.
+
+## Archived design alternatives
+
+Earlier candidates and abandoned designs, with their mock-ups, are retained in the
+[`old/` archive](./old/PLAY_OEM_GUI_DESIGN_ALTERNATIVES.md). They are not part of the selected
+G design.
