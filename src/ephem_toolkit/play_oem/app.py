@@ -20,7 +20,15 @@ from matplotlib.figure import Figure
 import ephem_toolkit.core.time_utils as time_utils
 
 from . import clock, control_window, cursor, series, time_unit
-from .views import base, registry, rtn, speed_altitude, state_components, trajectory3d
+from .views import (
+    angular_velocity,
+    base,
+    registry,
+    rtn,
+    speed_altitude,
+    state_components,
+    trajectory3d,
+)
 from .views.trajectory3d import selection as trajectory3d_selection
 
 DEFAULT_TICK_INTERVAL_MS: int = 33
@@ -131,6 +139,9 @@ class PlayerApp:
             "state-components", self.open_state_components_view
         )
         self._view_registry.register_view("rtn", self.open_rtn_view)
+        self._view_registry.register_view(
+            "angular-velocity", self.open_angular_velocity_view
+        )
         self._plots = self._view_registry.expand(plots)
 
         self.wx_app = wx.GetApp()
@@ -218,6 +229,15 @@ class PlayerApp:
         self._open_view(
             "rtn",
             lambda _frame: rtn.RtnDeltaView(self.clock.t_start, self.object_name),
+        )
+
+    def open_angular_velocity_view(self) -> None:
+        """Open or raise the angular-velocity plot."""
+        self._open_view(
+            "angular-velocity",
+            lambda _frame: angular_velocity.AngularVelocityView(
+                self.clock.t_start, self.object_name
+            ),
         )
 
     def open_state_components_view(self) -> None:

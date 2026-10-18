@@ -171,13 +171,20 @@ Matplotlib dependency deprecation warnings.
 
 #### 24-4. Implement the angular-velocity view
 
-- **Status:** Not started.
-- **Progress:** 0/1 checklist items.
-- [ ] Implement the angular-velocity plot and compare its plotted values, units, and labels with
+- **Status:** Done.
+- **Progress:** 1/1 checklist items.
+- [x] Implement the angular-velocity plot and compare its plotted values, units, and labels with
       `plot-oem`.
 
 **Done when:** the angular-velocity view matches the reference calculation and presentation.
 **Depends on:** Step 24-2.
+
+**Evidence:** Added `AngularVelocityView` with deg/s and rad/s panels, reference labels and
+titles, zero-rate filtering, per-axis playback cursors, and the single-state “Not enough samples”
+message. The app opens it via `angular-velocity`. Tests compare both plotted series with
+`plot-oem`, verify labels and cursor movement, cover a one-state OEM, and exercise app selection.
+The full focused playback suite passes: 112 tests, 14 existing Matplotlib dependency deprecation
+warnings.
 
 #### 24-5. Implement the direction-change view
 
