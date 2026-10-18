@@ -81,19 +81,120 @@ demo must pass the migration acceptance criteria in step 23.
 ### 24. Add remaining motion and geometry diagnostics
 
 Refactor the original RTN deltas, angular velocity, direction change, and geocentric distance
-figures into individual views using the migrated wx/Matplotlib view lifecycle. Add each to the
-registry and Motion diagnostics group.
+figures into individual views using the migrated wx/Matplotlib view lifecycle. Preserve the
+existing calculations, units, labels, and plot behavior; add each view to the registry and Motion
+diagnostics group.
+
+#### 24-1. Inventory the existing diagnostic plots
+
+Record each plot's source data, calculation, units, labels, axes, and edge-case behavior to
+preserve.
+
+- **Status:** Done.
+- **Progress:** 1/1 checklist items.
+- [x] Compare the original `plot-oem` implementations and document the four plots' behavior.
+
+**Done when:** the required source data, formulas, labels, units, axes, and edge cases are recorded.
+**Depends on:** Step 23.
+
+**Inventory:** `compute_orbit_series` in `plot_oem/plot_oem.py` supplies the derived arrays to
+the plot helpers; the CLI passes the selected elapsed-time unit to each helper.
+
+- **RTN deltas:** For each sample after the first, call `core.misc.transform_to_rtn(current,
+  previous)` and convert the six-component relative state to km and km/s. Plot only position
+  components R/T/N against the current sample's elapsed time. Use three stacked axes titled
+  “Radial/Transverse/Normal Position Delta vs Time,” with labels in km. There are N-1 points;
+  with no deltas, show “Not enough samples.”
+- **Angular velocity:** Express each velocity direction in the local RTN basis and normalize it.
+  For each adjacent pair, compute `acos(clip(dot, -1, 1))`; divide by positive sample interval
+  for rates in deg/s and rad/s. The first sample and non-positive intervals remain zero. Plot two
+  stacked panels with separate deg/s and rad/s labels/titles; zero rates are filtered from the
+  lines. If there is not more than one sample, show “Not enough samples.”
+- **Direction change:** Convert the RTN velocity-direction components to Euler-style angles:
+  roll is zero, pitch is `atan2(radial, transverse)`, and yaw is
+  `atan2(normal, hypot(radial, transverse))`, in degrees. Euler-angle rates are adjacent raw
+  angle differences divided by positive sample intervals; the first rate is zero. Plot roll,
+  pitch, and yaw in the upper panel and their rates in the lower panel, in degrees and deg/s.
+  Empty inputs display “Not enough samples.” Preserve the current raw-difference behavior,
+  including angle wrap discontinuities.
+- **Geocentric distance:** Compute the position-vector norm in km. Plot distance and sample-to-
+  sample `np.diff(distance)` in km (not a rate), with the delta plotted at `elapsed_time[1:]`.
+  Use two stacked panels with distance/delta titles and km labels. With one sample, retain the
+  distance plot and show “Not enough samples” in the delta panel.
+
+#### 24-2. Define the wx view contracts
+
+Specify each view's name, data inputs, cursor-update behavior, and Motion-group placement. Reuse
+existing series or shared calculations where they provide the required data.
 
 - **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Add RTN delta view.
-- [ ] Add angular velocity and direction-change views.
-- [ ] Add geocentric distance view.
-- [ ] Synchronize cursor and click-to-seek behavior across the new views.
-- [ ] Compare plotted data and labels with the corresponding `plot-oem` figures.
+- **Progress:** 0/1 checklist items.
+- [ ] Record the inputs, update contract, labels, and registry names for all four views.
 
-**Done when:** every planned view is independently openable and synchronized in wx.
-**Depends on:** Step 23.
+**Done when:** each view has a clear data and lifecycle contract before implementation begins.
+**Depends on:** Step 24-1.
+
+#### 24-3. Implement the RTN-delta view
+
+- **Status:** Not started.
+- **Progress:** 0/1 checklist items.
+- [ ] Implement the RTN-delta plot and compare its plotted values, units, and labels with
+      `plot-oem`.
+
+**Done when:** the RTN-delta view matches the reference calculation and presentation.
+**Depends on:** Step 24-2.
+
+#### 24-4. Implement the angular-velocity view
+
+- **Status:** Not started.
+- **Progress:** 0/1 checklist items.
+- [ ] Implement the angular-velocity plot and compare its plotted values, units, and labels with
+      `plot-oem`.
+
+**Done when:** the angular-velocity view matches the reference calculation and presentation.
+**Depends on:** Step 24-2.
+
+#### 24-5. Implement the direction-change view
+
+- **Status:** Not started.
+- **Progress:** 0/1 checklist items.
+- [ ] Implement the direction-change plot and compare its plotted values, units, and labels with
+      `plot-oem`.
+
+**Done when:** the direction-change view matches the reference calculation and presentation.
+**Depends on:** Step 24-2.
+
+#### 24-6. Implement the geocentric-distance view
+
+- **Status:** Not started.
+- **Progress:** 0/1 checklist items.
+- [ ] Implement the geocentric-distance plot and compare its plotted values, units, and labels
+      with `plot-oem`.
+
+**Done when:** the geocentric-distance view matches the reference calculation and presentation.
+**Depends on:** Step 24-2.
+
+#### 24-7. Register the diagnostic views
+
+- **Status:** Not started.
+- **Progress:** 0/1 checklist items.
+- [ ] Register all four views for individual opening and in the Motion diagnostics group; verify
+      opening and closing each view does not disturb other open views.
+
+**Done when:** every new view opens independently and the group opens all four.
+**Depends on:** Steps 24-3, 24-4, 24-5, and 24-6.
+
+#### 24-8. Validate synchronization and regressions
+
+- **Status:** Not started.
+- **Progress:** 0/1 checklist items.
+- [ ] Verify playback updates, cursor synchronization, click-to-seek, and seek behavior across
+      all four views; run focused tests and resolve regressions.
+
+**Done when:** all four views remain synchronized and the focused tests pass.
+**Depends on:** Step 24-7.
+
+**Step 24 complete when:** substeps 24-1 through 24-8 are done.
 
 ### 25. Add current-state readouts and OEM data context
 
@@ -109,7 +210,7 @@ visible and put less-used metadata in a collapsible details panel.
 
 **Done when:** the wx dashboard presents key state and source context without relying on plot
 windows.
-**Depends on:** Step 24.
+**Depends on:** Step 24-8.
 
 ### 26. Implement segment and data-gap handling
 
