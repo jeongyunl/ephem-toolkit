@@ -127,12 +127,30 @@ the plot helpers; the CLI passes the selected elapsed-time unit to each helper.
 Specify each view's name, data inputs, cursor-update behavior, and Motion-group placement. Reuse
 existing series or shared calculations where they provide the required data.
 
-- **Status:** Not started.
-- **Progress:** 0/1 checklist items.
-- [ ] Record the inputs, update contract, labels, and registry names for all four views.
+- **Status:** Done.
+- **Progress:** 1/1 checklist items.
+- [x] Record the inputs, update contract, labels, and registry names for all four views.
 
 **Done when:** each view has a clear data and lifecycle contract before implementation begins.
 **Depends on:** Step 24-1.
+
+**View contracts:** use the existing registry names and labels: `rtn` / “RTN Deltas”,
+`angular-velocity` / “Angular Velocity”, `direction-change` / “Direction Change”, and `distance` /
+“Geocentric Distance”. All four are already members of the `motion` group.
+
+Each view follows the existing `SpeedAltitudeView`/`StateComponentsView` lifecycle:
+`build(orbit_series, time_unit) -> Figure`, `update(time_s)` with absolute TT seconds, and
+`close()`. `build` plots static history data and creates a cursor line on every time-series axis;
+`update` only moves those cursor artists. Use `time_unit.get_axis_label()` on the bottom axis,
+preserving app-level plot-click-to-seek behavior by keeping elapsed time on the x-axis.
+
+- `rtn`: `rtn_elapsed_time` and `rtn_delta_km[:, 0:3]`; three stacked R/T/N axes, km units.
+- `angular-velocity`: `elapsed_time`, `angular_velocity_deg_s`, and
+  `angular_velocity_rad_s`; two stacked axes, respectively deg/s and rad/s.
+- `direction-change`: `elapsed_time`, `euler_angles_deg`, and `euler_angle_rates_deg_s`;
+  upper axis plots roll/pitch/yaw in degrees, lower axis their rates in deg/s.
+- `distance`: `elapsed_time` and `geocentric_distance_km`; upper axis plots distance in km,
+  lower axis plots `np.diff(geocentric_distance_km)` against `elapsed_time[1:]` in km.
 
 #### 24-3. Implement the RTN-delta view
 
