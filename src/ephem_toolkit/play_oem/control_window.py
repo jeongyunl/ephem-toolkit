@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import math
+from typing import Mapping, Sequence
 
 import wx
 
+from .cursor import CursorState, CursorStatus
 from .views import registry
 
 BUTTON_SPACING: int = 4
@@ -53,6 +55,8 @@ class ControlWindow:
         on_jump_to_start: Callable[[], None],
         on_jump_to_end: Callable[[], None],
         timeline_enabled: bool,
+        context: Mapping[str, str] | None = None,
+        details: Sequence[tuple[str, str]] = (),
     ) -> None:
         """Create the wx dashboard and connect its controls to playback actions.
 
@@ -96,6 +100,50 @@ class ControlWindow:
 
         self.panel = wx.Panel(parent, wx.ID_ANY)
         layout = wx.BoxSizer(wx.VERTICAL)
+
+        self.context_label = wx.StaticText(
+            self.panel, wx.ID_ANY, self._format_context(context or {})
+        )
+        layout.Add(
+            self.context_label,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
+            LAYOUT_MARGIN,
+        )
+        self.position_label = wx.StaticText(self.panel, wx.ID_ANY, "Position: —")
+        self.velocity_label = wx.StaticText(self.panel, wx.ID_ANY, "Velocity: —")
+        self.speed_altitude_label = wx.StaticText(
+            self.panel, wx.ID_ANY, "Speed: — | Altitude: —"
+        )
+        self.cursor_status_label = wx.StaticText(
+            self.panel, wx.ID_ANY, "State: unavailable"
+        )
+        for label in (
+            self.position_label,
+            self.velocity_label,
+            self.speed_altitude_label,
+            self.cursor_status_label,
+        ):
+            layout.Add(label, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, LAYOUT_MARGIN)
+
+        self.details_pane = wx.CollapsiblePane(
+            self.panel, wx.ID_ANY, "OEM metadata details"
+        )
+        details_layout = wx.BoxSizer(wx.VERTICAL)
+        self.details_label = wx.StaticText(
+            self.details_pane.GetPane(),
+            wx.ID_ANY,
+            "\n".join(f"{key}: {value or 'Unavailable'}" for key, value in details)
+            or "No additional metadata",
+        )
+        details_layout.Add(self.details_label, 0, wx.EXPAND | wx.ALL, CONTROL_SPACING)
+        self.details_pane.GetPane().SetSizer(details_layout)
+        layout.Add(
+            self.details_pane,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
+            LAYOUT_MARGIN,
+        )
 
         self.elapsed_label = wx.StaticText(self.panel, wx.ID_ANY, "")
         self.utc_label = wx.StaticText(self.panel, wx.ID_ANY, "")
@@ -337,6 +385,44 @@ class ControlWindow:
         elapsed_text, separator, utc_text = text.partition("\n")
         self.elapsed_label.SetLabel(elapsed_text)
         self.utc_label.SetLabel(utc_text if separator else "")
+
+    @staticmethod
+    def _format_context(context: Mapping[str, str]) -> str:
+        labels = (
+            ("Object", "object"),
+            ("Frame", "frame"),
+            ("Center", "center"),
+            ("Time span", "time_span"),
+            ("Samples", "sample_count"),
+        )
+        return " | ".join(
+            f"{label}: {context.get(key) or 'Unavailable'}" for label, key in labels
+        )
+
+    def update_current_state(self, state: CursorState) -> None:
+        """Display the state at the current playback time, including unavailable data."""
+        if state.r_km is None or state.v_kms is None:
+            self.position_label.SetLabel("Position: unavailable (km)")
+            self.velocity_label.SetLabel("Velocity: unavailable (km/s)")
+        else:
+            self.position_label.SetLabel(
+                "Position (km): " + ", ".join(f"{value:.3f}" for value in state.r_km)
+            )
+            self.velocity_label.SetLabel(
+                "Velocity (km/s): " + ", ".join(f"{value:.6f}" for value in state.v_kms)
+            )
+        speed = "unavailable" if state.speed is None else f"{state.speed:.6f} km/s"
+        altitude = (
+            "unavailable" if state.altitude is None else f"{state.altitude:.3f} km"
+        )
+        self.speed_altitude_label.SetLabel(f"Speed: {speed} | Altitude: {altitude}")
+        status = {
+            CursorStatus.EXACT_SAMPLE: "sampled",
+            CursorStatus.INTERPOLATED: "interpolated",
+            CursorStatus.OUT_OF_RANGE: "out of range",
+            CursorStatus.UNAVAILABLE: "unavailable",
+        }[state.status]
+        self.cursor_status_label.SetLabel(f"State: {status}")
 
     def show_time_error(self, message: str) -> None:
         """Display a time-entry validation error.

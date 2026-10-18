@@ -207,6 +207,8 @@ class FakeControlWindow:
         on_jump_to_start,
         on_jump_to_end,
         timeline_enabled,
+        context=None,
+        details=(),
     ) -> None:
         self.panel = object()
         self.callbacks = {
@@ -223,6 +225,8 @@ class FakeControlWindow:
             "jump_to_end": on_jump_to_end,
         }
         self.timeline_enabled = timeline_enabled
+        self.context = context
+        self.details = details
         self.text = ""
         self.time_errors: list[str] = []
 
@@ -232,6 +236,9 @@ class FakeControlWindow:
         state = "Playing" if playing else "Paused"
         self.text = f"{text}\n{state} | {rate:+g}x"
         self.progress = progress
+
+    def update_current_state(self, state) -> None:
+        self.current_state = state
 
     def show_time_error(self, message: str) -> None:
         self.time_errors.append(message)

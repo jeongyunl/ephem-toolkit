@@ -104,6 +104,32 @@ def main(argv: Sequence[str] | None = None) -> None:
         or "Frame metadata unavailable"
     )
     object_name = oem_data.meta.object_name.strip() or Path(cli_args.input_oem).name
+    dashboard_context = {
+        "object": object_name,
+        "frame": oem_data.meta.ref_frame.strip(),
+        "center": oem_data.meta.center_name.strip(),
+        "time_span": (
+            f"{time_utils.datetime_to_iso8601(time_utils.tt_s_to_datetime(timestamps_s[0]))} – "
+            f"{time_utils.datetime_to_iso8601(time_utils.tt_s_to_datetime(timestamps_s[-1]))}"
+        ),
+        "sample_count": str(len(timestamps_s)),
+    }
+    metadata_details = (
+        ("Object ID", oem_data.meta.object_id),
+        ("Time system", oem_data.meta.time_system),
+        ("Frame epoch", oem_data.meta.ref_frame_epoch),
+        ("Usable start", oem_data.meta.useable_start_time),
+        ("Usable stop", oem_data.meta.useable_stop_time),
+        ("Interpolation", oem_data.meta.interpolation or ""),
+        (
+            "Interpolation degree",
+            (
+                ""
+                if oem_data.meta.interpolation_degree is None
+                else str(oem_data.meta.interpolation_degree)
+            ),
+        ),
+    )
     PlayerApp(
         clock,
         series,
@@ -111,6 +137,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         cursor,
         object_name,
         frame_context,
+        dashboard_context=dashboard_context,
+        metadata_details=metadata_details,
         plots=cli_args.plots,
         three_d_backend=cli_args.three_d_backend,
         tick_interval_ms=math.ceil(1000 / cli_args.fps),

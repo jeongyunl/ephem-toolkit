@@ -109,6 +109,15 @@ class FakePanel:
         self.sizer = sizer
 
 
+class FakeCollapsiblePane(FakeWidget):
+    def __init__(self, parent, widget_id: int, label: str) -> None:
+        super().__init__(parent, widget_id, label)
+        self.pane = FakePanel(parent, widget_id)
+
+    def GetPane(self):
+        return self.pane
+
+
 class FakeOwner:
     def __init__(self) -> None:
         self.bindings: dict[tuple[object, int], object] = {}
@@ -137,6 +146,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
     wx = control_window.wx
     for name, value in {
         "Panel": FakePanel,
+        "CollapsiblePane": FakeCollapsiblePane,
         "BoxSizer": FakeSizer,
         "StaticText": FakeWidget,
         "Button": FakeButton,
@@ -214,6 +224,14 @@ def make_window(
         on_jump_to_start=lambda: calls["start"].append(True),
         on_jump_to_end=lambda: calls["end"].append(True),
         timeline_enabled=timeline_enabled,
+        context={
+            "object": "TEST",
+            "frame": "GCRF",
+            "center": "Earth",
+            "time_span": "start – stop",
+            "sample_count": "2",
+        },
+        details=(("Object ID", "2024-001A"),),
     )
     return window, owner, calls
 
@@ -243,6 +261,47 @@ def test_native_controls_dispatch_playback_navigation_and_view_actions(
     assert not window.group_buttons["state"].enabled
     assert not window.group_buttons["motion"].enabled
     assert window.group_buttons["overview"].enabled
+
+
+def test_dashboard_formats_state_and_missing_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ephem_toolkit.play_oem.cursor import CursorState, CursorStatus
+    import numpy as np
+
+    window, _owner, _calls = make_window(monkeypatch)
+    window.update_current_state(
+        CursorState(
+            1.0,
+            np.zeros(6),
+            np.array([1.0, 2.0, 3.0]),
+            np.array([0.1, 0.2, 0.3]),
+            0.374166,
+            4.5,
+            6378.0,
+            CursorStatus.INTERPOLATED,
+        )
+    )
+    assert "Position (km): 1.000, 2.000, 3.000" == window.position_label.label
+    assert (
+        "Velocity (km/s): 0.100000, 0.200000, 0.300000" == window.velocity_label.label
+    )
+    assert "0.374166 km/s" in window.speed_altitude_label.label
+    assert window.cursor_status_label.label == "State: interpolated"
+
+    window.update_current_state(
+        CursorState(2.0, None, None, None, None, None, None, CursorStatus.OUT_OF_RANGE)
+    )
+    assert "unavailable" in window.position_label.label
+    assert "unavailable" in window.velocity_label.label
+    assert window.cursor_status_label.label == "State: out of range"
+    assert "Object: TEST" in window.context_label.label
+    assert "Samples: 2" in window.context_label.label
+    assert control_window.ControlWindow._format_context({}) == (
+        "Object: Unavailable | Frame: Unavailable | Center: Unavailable | "
+        "Time span: Unavailable | Samples: Unavailable"
+    )
+    assert window.details_label.label == "Object ID: 2024-001A"
 
 
 @pytest.mark.parametrize(

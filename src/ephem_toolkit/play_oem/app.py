@@ -80,6 +80,8 @@ class PlayerApp:
         object_name: str,
         frame_context: str,
         *,
+        dashboard_context: dict[str, str] | None = None,
+        metadata_details: Sequence[tuple[str, str]] = (),
         plots: Sequence[str] = ("overview",),
         three_d_backend: str = "auto",
         tick_interval_ms: int = DEFAULT_TICK_INTERVAL_MS,
@@ -173,6 +175,8 @@ class PlayerApp:
             on_jump_to_start=self._jump_to_start,
             on_jump_to_end=self._jump_to_end,
             timeline_enabled=clock.t_start < clock.t_end,
+            context=dashboard_context,
+            details=metadata_details,
         )
         layout = wx.BoxSizer(wx.VERTICAL)
         layout.Add(self.control_window.panel, 1, wx.EXPAND)
@@ -537,6 +541,7 @@ class PlayerApp:
             self.clock.playing,
             self.clock.rate,
         )
+        self.control_window.update_current_state(self.cursor.lookup(self.clock.t_now))
 
     def _handle_sigint(self, _signum: int, _frame: object) -> None:
         wx.CallAfter(self.close)

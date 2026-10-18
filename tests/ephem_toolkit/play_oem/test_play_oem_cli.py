@@ -242,6 +242,8 @@ def test_cli_loads_oem_and_launches_player(
             plots,
             three_d_backend,
             tick_interval_ms,
+            dashboard_context,
+            metadata_details,
         ) -> None:
             launched["clock"] = clock
             launched["series"] = series
@@ -252,6 +254,8 @@ def test_cli_loads_oem_and_launches_player(
             launched["plots"] = plots
             launched["three_d_backend"] = three_d_backend
             launched["tick_interval_ms"] = tick_interval_ms
+            launched["dashboard_context"] = dashboard_context
+            launched["metadata_details"] = metadata_details
 
         def run(self) -> None:
             launched["run"] = True
@@ -304,6 +308,8 @@ def test_cli_configures_reverse_autoplay_loop_and_elapsed_start(
             plots,
             three_d_backend,
             tick_interval_ms,
+            dashboard_context,
+            metadata_details,
         ) -> None:
             launched["clock"] = clock
             launched["three_d_backend"] = three_d_backend
@@ -378,6 +384,8 @@ def test_cli_autoplay_pauses_at_forward_and_reverse_boundaries(
             plots,
             three_d_backend,
             tick_interval_ms,
+            dashboard_context,
+            metadata_details,
         ) -> None:
             launched["clock"] = clock
 
@@ -431,6 +439,8 @@ def test_cli_resolves_elapsed_and_utc_start_times(
             plots,
             three_d_backend,
             tick_interval_ms,
+            dashboard_context,
+            metadata_details,
         ) -> None:
             launched.append((clock.t_now, clock.rate))
 

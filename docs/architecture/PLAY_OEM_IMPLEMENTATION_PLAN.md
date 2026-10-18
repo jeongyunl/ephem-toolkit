@@ -80,22 +80,6 @@ demo must pass the migration acceptance criteria in step 23.
 
 ## Milestone J — Complete the remaining dashboard and plot set
 
-### 25. Add current-state readouts and OEM data context
-
-Populate the wx control dashboard from `CursorState` and OEM metadata. Keep common values
-visible and put less-used metadata in a collapsible details panel.
-
-- **Status:** Not started.
-- **Progress:** 0/4 checklist items.
-- [ ] Display position, velocity, speed, and altitude with units and validity checks.
-- [ ] Display object, frame, center, time span, and sample count.
-- [ ] Display whether cursor values are sampled or interpolated.
-- [ ] Add a details panel for less-used metadata and test missing-metadata behavior.
-
-**Done when:** the wx dashboard presents key state and source context without relying on plot
-windows.
-**Depends on:** Step 24-8.
-
 ### 26. Implement segment and data-gap handling
 
 Ensure the loader/series preserve OEM segment boundaries; plot each segment separately and
@@ -910,3 +894,28 @@ from a repository OEM with 721 states and exited cleanly on SIGINT. The full foc
 122 tests, with 14 existing Matplotlib dependency deprecation warnings.
 
 **Step 24 complete when:** substeps 24-1 through 24-8 are done.
+
+### 25. Add current-state readouts and OEM data context
+
+Populate the wx control dashboard from `CursorState` and OEM metadata. Keep common values
+visible and put less-used metadata in a collapsible details panel.
+
+- **Status:** Done.
+- **Progress:** 4/4 checklist items.
+- [x] Display position, velocity, speed, and altitude with units and validity checks.
+- [x] Display object, frame, center, time span, and sample count.
+- [x] Display whether cursor values are sampled or interpolated.
+- [x] Add a details panel for less-used metadata and test missing-metadata behavior.
+
+**Evidence:** The wx dashboard now updates Cartesian position and velocity, speed,
+altitude, and sampled/interpolated/unavailable status from `CursorState`. It shows the
+object, frame, center, selected time span, and post-filter sample count, with remaining
+OEM metadata in a wx collapsible pane. Missing numerical state and metadata display as
+unavailable rather than stale values. Focused dashboard/app/CLI validation passed:
+`poetry run pytest -q tests/ephem_toolkit/play_oem/test_play_oem_control_window.py
+tests/ephem_toolkit/play_oem/test_play_oem_app.py
+tests/ephem_toolkit/play_oem/test_play_oem_cli.py` (71 passed).
+
+**Done when:** the wx dashboard presents key state and source context without relying on plot
+windows.
+**Depends on:** Step 24-8.
