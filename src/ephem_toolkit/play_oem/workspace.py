@@ -63,6 +63,7 @@ class Workspace:
         self._empty_states: dict[str, wx.StaticText] = {}
         self._empty_panels: dict[str, wx.Panel] = {}
         self._add_buttons: dict[str, wx.Button] = {}
+        self._pane_close_buttons: dict[str, wx.Button] = {}
         self._stack_roots: dict[str, wx.Window | None] = {
             "middle": None,
             "right": None,
@@ -72,6 +73,7 @@ class Workspace:
             "right": [],
         }
         self._right_pane_width = DEFAULT_RIGHT_PANE_WIDTH
+        self._comparison_toggle: wx.ToggleButton | None = None
         self._view_choices = view_choices
         self._on_add_graph = on_add_graph
 
@@ -184,6 +186,9 @@ class Workspace:
                 )
             self.graph_splitter.Unsplit(self.right_pane)
         self._right_pane_visible = visible
+        if self._comparison_toggle is not None:
+            self._comparison_toggle.SetValue(visible)
+        self.graph_splitter.Layout()
         if visible:
             self._request_stack_redraws("right")
 
@@ -507,6 +512,23 @@ class Workspace:
             lambda _event, stack=stack: self._request_add_graph(stack),
         )
         header.Add(add_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        if stack == "middle":
+            self._comparison_toggle = wx.ToggleButton(pane, wx.ID_ANY, "Comparison")
+            self._comparison_toggle.SetName("Toggle Comparison pane")
+            self._comparison_toggle.SetToolTip("Show or hide the Comparison pane")
+            self._comparison_toggle.SetValue(False)
+            self._comparison_toggle.Bind(
+                wx.EVT_TOGGLEBUTTON,
+                lambda _event: self.show_right_pane(self._comparison_toggle.GetValue()),
+            )
+            header.Add(self._comparison_toggle, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        else:
+            close_button = wx.Button(pane, wx.ID_ANY, "Close pane")
+            close_button.SetName("Close Comparison pane")
+            close_button.SetToolTip("Hide the Comparison pane")
+            close_button.Bind(wx.EVT_BUTTON, lambda _event: self.show_right_pane(False))
+            self._pane_close_buttons[stack] = close_button
+            header.Add(close_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
         layout.Add(header, 0, wx.EXPAND)
         stack_window = self._make_graph_stack(pane, stack)
         stack_window.SetName(f"{title} graph stack")

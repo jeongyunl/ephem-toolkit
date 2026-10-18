@@ -44,6 +44,9 @@ class FakeWidget:
     def SetValue(self, value) -> None:
         self.value = value
 
+    def GetValue(self):
+        return self.value
+
     def Enable(self, enabled: bool = True) -> None:
         self.enabled = enabled
 
@@ -168,6 +171,9 @@ class FakeGraphPanel(FakePanel):
     def draw_if_needed(self) -> None:
         self.draw_count += 1
 
+    def request_redraw(self) -> None:
+        self.draw_count += 1
+
 
 class FakeScrolledWindow(FakePanel):
     def __init__(self, parent, widget_id: int, **_kwargs) -> None:
@@ -267,6 +273,9 @@ class FakeSplitter:
     def SetSashPosition(self, sash_position: int) -> None:
         self.sash_position = sash_position
 
+    def Layout(self) -> None:
+        pass
+
     def GetSashSize(self) -> int:
         return self.sash_size
 
@@ -329,6 +338,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "SplitterWindow": FakeSplitter,
         "Simplebook": FakeSimplebook,
         "BitmapToggleButton": FakeWidget,
+        "ToggleButton": FakeWidget,
         "Slider": FakeSlider,
         "StaticText": FakeWidget,
         "Button": FakeWidget,
@@ -422,6 +432,8 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert result.right_pane.sizer.items[0][0].items[0][0].label == "Comparison"
     assert result.graph_splitter.is_split is False
     assert result.graph_splitter.unsplit_calls == [result.right_pane]
+    assert result._comparison_toggle.name == "Toggle Comparison pane"
+    assert not result._comparison_toggle.value
     assert result.content_splitter.is_split
     assert result.content_splitter.minimum_pane_size == 240
     assert result.content_splitter.sash_gravity == 0.0
@@ -439,8 +451,12 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert "Samples: 2" in info_labels
     assert "Object ID: 2024-001A" in info_labels
 
-    result.show_right_pane(True)
+    result._comparison_toggle.SetValue(True)
+    result._comparison_toggle.trigger(workspace.wx.EVT_TOGGLEBUTTON)
     assert result.graph_splitter.is_split
+    assert result._comparison_toggle.value
+    result._pane_close_buttons["right"].trigger(workspace.wx.EVT_BUTTON)
+    assert not result.graph_splitter.is_split
     result.show_right_pane(False)
     assert not result.graph_splitter.is_split
     assert result.graph_splitter.split_calls[-1][1] is result.right_pane
@@ -450,6 +466,13 @@ def test_main_pane_sashes_resize_independently_and_restore_right_width(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
+    right_panels = [
+        FakeGraphPanel(result.right_stack, f"right-{index}") for index in range(2)
+    ]
+    for panel in right_panels:
+        result.add_graph_panel(panel, "right")
+    right_stack_splitter = result._stack_splitters["right"][0]
+    right_stack_splitter.SetSashPosition(330)
 
     result.content_splitter.SetSashPosition(300)
     assert result.content_splitter.GetSashPosition() == 300
@@ -464,6 +487,9 @@ def test_main_pane_sashes_resize_independently_and_restore_right_width(
 
     result.graph_splitter.SetSashPosition(600)
     result.show_right_pane(False)
+    assert result._graph_panels["right"] == right_panels
+    assert result._stack_splitters["right"][0] is right_stack_splitter
+    assert right_stack_splitter.GetSashPosition() == 330
     result.graph_splitter.client_width = 1100
     result.show_right_pane(True)
 
@@ -473,6 +499,11 @@ def test_main_pane_sashes_resize_independently_and_restore_right_width(
         - result.graph_splitter.GetSashSize()
     )
     assert restored_width == 396
+    assert result._comparison_toggle.value
+    result.show_right_pane(False)
+    result.show_right_pane(True)
+    assert result._graph_panels["right"] == right_panels
+    assert right_stack_splitter.GetSashPosition() == 330
 
 
 def test_graph_hosts_replace_empty_state_and_restore_it_when_removed(

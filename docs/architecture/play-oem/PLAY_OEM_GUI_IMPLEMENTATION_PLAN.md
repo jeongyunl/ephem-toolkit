@@ -65,25 +65,6 @@ selections and size when closed and restore them when reopened.
 
 ## Milestone G3 — Feature navigation, optional pane, and accessibility
 
-### 10. Implement optional right-pane close and restore behavior
-
-Closing the right pane should expand the middle stack without destroying the hidden pane's
-contents, selected views, or size. Reopening should restore its state.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Close the right pane without destroying its graph panels, selected views, or stack state.
-- [ ] Expand the middle pane into available space while the right pane is closed.
-- [ ] Reopen the pane with its previous panel stack, user-adjusted width, and panel-height
-      allocations.
-- [ ] Test repeated close/reopen cycles and interaction with both side-by-side and top/bottom
-      sash resizing.
-- [ ] Manually verify both pane states at representative narrow and wide window sizes.
-
-**Done when:** pane visibility changes preserve right-pane state and use the available workspace
-area as specified.
-**Depends on:** Steps 2 and 5 and Substep 1-5.
-
 ## Milestone G4 — Integration validation and handoff
 
 ### 11. Verify keyboard and icon-button accessibility
@@ -670,3 +651,33 @@ Matplotlib/Pyparsing deprecation warnings).
 **Done when:** existing non-graph controls and readouts are available in feature pages and the
 global timeline remains synchronized.
 **Depends on:** Steps 2 and 8.
+
+### 10. Implement optional right-pane close and restore behavior
+
+Closing the right pane should expand the middle stack without destroying the hidden pane's
+contents, selected views, or size. Reopening should restore its state.
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Close the right pane without destroying its graph panels, selected views, or stack state.
+- [x] Expand the middle pane into available space while the right pane is closed.
+- [x] Reopen the pane with its previous panel stack, user-adjusted width, and panel-height
+      allocations.
+- [x] Test repeated close/reopen cycles and interaction with both side-by-side and top/bottom
+      sash resizing.
+- [x] Manually verify both pane states at representative narrow and wide window sizes.
+
+**Implementation and validation:** The Main Analysis header has a Comparison toggle, and the
+Comparison header has a Close pane action. Hiding Comparison unsplits but does not destroy its
+graph pane or panel stack, saves the adjusted width, and expands Main Analysis; reopening restores
+the right pane at its prior width. Tests exercise the toggle, close action, repeated visibility
+cycles, panel retention, and sash positions. Native wx smoke checks at 920 x 760 and 1200 x 1500
+preserved three right-stack panels, their internal sash positions (280 and 450 pixels
+respectively), and adjusted pane widths (342 and 411 pixels). A native check confirmed Main
+Analysis expanded from 622 to 951 pixels when Comparison closed. The user manually verified
+close/reopen behavior at representative narrow and wide window sizes. The full play-oem suite
+passed (**150 passed**, 14 existing Matplotlib/Pyparsing deprecation warnings).
+
+**Done when:** pane visibility changes preserve right-pane state and use the available workspace
+area as specified.
+**Depends on:** Steps 2 and 5 and Substep 1-5.

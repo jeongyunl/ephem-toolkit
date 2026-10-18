@@ -77,6 +77,8 @@ panel proportions are illustrative.
 - Closing the right pane hides it without discarding its panel selections, user-adjusted width, or
   panel-height allocations. Reopening it restores that state, while the middle pane expands into
   the freed space when it is closed.
+- Provide a **Comparison** toggle in the Main Analysis header to show or hide the optional pane,
+  and a close control in the Comparison header to hide it.
 - Give every icon button an accessible name and hover tooltip. Support keyboard focus,
   Up/Down navigation between feature pages, and keyboard activation; the selected page must be
   indicated independently of hover or focus.
