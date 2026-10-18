@@ -1160,6 +1160,11 @@ def test_sigint_is_forwarded_with_call_after_and_previous_handler_restored(
     player.run()
 
     assert frames[0].destroyed
+    assert player.frame is None
+    assert player.workspace is None
+    assert player.control_window is None
+    assert player._timer is None
+    assert not player._view_registry.registered_views
     assert len(signal_handlers) == 2
     assert signal_handlers[1] is previous_handler
 

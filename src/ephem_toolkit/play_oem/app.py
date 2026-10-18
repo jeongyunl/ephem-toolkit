@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
+import gc
 import signal
 import sys
 import time
@@ -223,7 +224,12 @@ class PlayerApp:
             try:
                 self.close()
             finally:
-                signal.signal(signal.SIGINT, previous_sigint_handler)
+                try:
+                    signal.signal(signal.SIGINT, previous_sigint_handler)
+                finally:
+                    self._release_wx_resources()
+                    # Dispose wx/Matplotlib wrapper cycles before wx teardown at exit.
+                    gc.collect()
 
     def start(self) -> None:
         """Show the application, open the selected plots and start playback ticks."""
@@ -247,6 +253,15 @@ class PlayerApp:
             return
         if not self.frame.Close(force=True) and not self._closed:
             raise RuntimeError("could not close the play-oem frame")
+
+    def _release_wx_resources(self) -> None:
+        """Drop wx wrappers and callbacks after the event loop has stopped."""
+        self._view_registry.clear()
+        self.control_window = None
+        self.workspace = None
+        self._timer = None
+        self.frame = None
+        self.wx_app = None
 
     def open_speed_altitude_view(
         self, panel_id: str | None = None, stack: str = "middle"

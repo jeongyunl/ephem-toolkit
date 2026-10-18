@@ -67,6 +67,10 @@ class ViewRegistry:
             raise ValueError(f"view is already registered: {name!r}")
         self._openers[name] = opener
 
+    def clear(self) -> None:
+        """Release registered callbacks when the owning application shuts down."""
+        self._openers.clear()
+
     def expand(self, selection: str | Sequence[str]) -> tuple[str, ...]:
         """Expand comma-separated views and groups into unique view names."""
         if isinstance(selection, str):

@@ -70,6 +70,11 @@ the `Main Analysis` graph stack and optional `Comparison` stack. Graph views are
 independently identified graph panels rather than detached plot frames. Closing one panel closes
 only its view and unsubscribes it from clock updates; closing the workspace frame stops the timer,
 closes all graph panels, removes observers and exits the one `MainLoop()`.
+The VTK view disables its interactor, finalizes the render window, removes its renderer and breaks
+both interactor/render-window links before wx destroys the panel, so native VTK resources do not
+remain in an ownership cycle until interpreter shutdown. Once the event loop stops,
+`PlayerApp.run()` releases its wx wrappers and collects remaining Python callback cycles while wx
+is still initialized, avoiding native wrapper destruction during interpreter teardown.
 
 ## 3. GUI toolkit decision
 

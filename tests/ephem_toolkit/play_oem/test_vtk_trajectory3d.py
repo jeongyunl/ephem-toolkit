@@ -24,7 +24,8 @@ def test_vtk_backend_registers_an_opengl_render_window_factory() -> None:
 
 
 class FakeRenderWindow:
-    def __init__(self) -> None:
+    def __init__(self, interactor) -> None:
+        self.interactor = interactor
         self.renderers = []
         self.finalized = False
         self.never_rendered = 0
@@ -36,16 +37,39 @@ class FakeRenderWindow:
     def GetNeverRendered(self) -> int:
         return self.never_rendered
 
+    def GetInteractor(self):
+        return self.interactor
+
     def IsA(self, class_name: str) -> bool:
         return class_name == "vtkOpenGLRenderWindow" and self.opengl
 
     def Finalize(self) -> None:
         self.finalized = True
 
+    def RemoveRenderer(self, renderer) -> None:
+        self.renderers.remove(renderer)
+
+    def SetInteractor(self, interactor) -> None:
+        self.interactor = interactor
+
+
+class FakeInteractor:
+    def __init__(self) -> None:
+        self.disabled = False
+        self.render_window = None
+
+    def Disable(self) -> None:
+        self.disabled = True
+
+    def SetRenderWindow(self, render_window) -> None:
+        self.render_window = render_window
+
 
 class FakeWidget:
     def __init__(self, _parent, _window_id: int) -> None:
-        self.render_window = FakeRenderWindow()
+        self.interactor = FakeInteractor()
+        self.render_window = FakeRenderWindow(self.interactor)
+        self.interactor.render_window = self.render_window
         self.interactor_style = None
         self.enabled = False
         self.render_count = 0
@@ -136,6 +160,11 @@ def test_vtk_view_builds_wgs84_scene_and_direction_aware_cursor_tail(
 
     view.close()
     assert widget.render_window.finalized
+    assert not widget.render_window.renderers
+    assert widget.interactor.disabled
+    assert widget.interactor.render_window is None
+    assert widget.render_window.interactor is None
+    view.close()
     with pytest.raises(RuntimeError, match="not been built"):
         view.update(160.0)
 
@@ -160,9 +189,7 @@ def test_vtk_view_reports_a_failed_initial_render(
     widget = view.build(series, TimeUnit.MINUTES)
     widget.render_window.never_rendered = 1
 
-    with pytest.raises(
-        vtk_backend.VTKBackendUnavailableError, match="initial render"
-    ):
+    with pytest.raises(vtk_backend.VTKBackendUnavailableError, match="initial render"):
         view.validate_render_context()
 
     view.close()

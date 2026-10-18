@@ -206,8 +206,18 @@ class VTKTrajectory3DView:
 
     def close(self) -> None:
         """Finalize the VTK render window and release scene references."""
-        if self._widget is not None:
-            self._widget.GetRenderWindow().Finalize()
+        widget = self._widget
+        if widget is not None:
+            render_window = widget.GetRenderWindow()
+            interactor = render_window.GetInteractor()
+            if interactor is not None:
+                interactor.Disable()
+            render_window.Finalize()
+            if self._renderer is not None:
+                render_window.RemoveRenderer(self._renderer)
+            if interactor is not None:
+                interactor.SetRenderWindow(None)
+                render_window.SetInteractor(None)
         self._widget = None
         self._renderer = None
         self._orbit_actor = None
