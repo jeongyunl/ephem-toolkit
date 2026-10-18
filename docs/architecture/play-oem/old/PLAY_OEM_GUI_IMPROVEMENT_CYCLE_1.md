@@ -2,14 +2,15 @@
 
 This report records the first post-migration GUI improvement cycle for the wxPython `play-oem`
 application. All nine items in this cycle are complete. The next cycle, focused on Controls & Info,
-is tracked in [PLAY_OEM_GUI_IMPROVEMENT_CYCLE_2_PLAN.md](./PLAY_OEM_GUI_IMPROVEMENT_CYCLE_2_PLAN.md);
-this document remains the historical record of cycle 1.
+is recorded in
+[PLAY_OEM_GUI_IMPROVEMENT_CYCLE_2.md](./PLAY_OEM_GUI_IMPROVEMENT_CYCLE_2.md); this document remains
+the historical record of cycle 1.
 
 The review was based on the running application and the migration recorded in
 [PLAY_OEM_GUI_COMPLETION_REPORT.md](./PLAY_OEM_GUI_COMPLETION_REPORT.md). Requirements:
-[PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md). Selected layout:
-[PLAY_OEM_GUI_DESIGN.md](./PLAY_OEM_GUI_DESIGN.md). Architecture:
-[PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md).
+[PLAY_OEM_CONCEPTS.md](../PLAY_OEM_CONCEPTS.md). Selected layout:
+[PLAY_OEM_GUI_DESIGN.md](../PLAY_OEM_GUI_DESIGN.md). Architecture:
+[PLAY_OEM_SOFTWARE_DESIGN.md](../PLAY_OEM_SOFTWARE_DESIGN.md).
 
 ## Cycle 1 outcomes
 

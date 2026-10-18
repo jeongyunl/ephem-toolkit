@@ -8,7 +8,7 @@ This document guides implementation, validation, and iterative improvement of th
   component contracts, backend decisions, and technical constraints.
 - [PLAY_OEM_IMPLEMENTATION_PLAN.md](./PLAY_OEM_IMPLEMENTATION_PLAN.md), the dependency-ordered
   implementation sequence and completion evidence.
-- [PLAY_OEM_GUI_COMPLETION_REPORT.md](./PLAY_OEM_GUI_COMPLETION_REPORT.md), the completed
+- [PLAY_OEM_GUI_COMPLETION_REPORT.md](./old/PLAY_OEM_GUI_COMPLETION_REPORT.md), the completed
   migration record and validation status for the selected three-pane layout.
 
 Keep those documents authoritative for their respective subjects. Update this guide when the

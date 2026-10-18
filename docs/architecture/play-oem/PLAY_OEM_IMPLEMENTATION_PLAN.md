@@ -3,7 +3,7 @@
 Requirements: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md). Software design:
 [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md). GUI development:
 [PLAY_OEM_GUI_DESIGN.md](./PLAY_OEM_GUI_DESIGN.md). Completed selected-layout record:
-[PLAY_OEM_GUI_COMPLETION_REPORT.md](./PLAY_OEM_GUI_COMPLETION_REPORT.md).
+[PLAY_OEM_GUI_WX_MIGRATION.md](./old/PLAY_OEM_GUI_WX_MIGRATION.md).
 
 ## How to use this plan
 
