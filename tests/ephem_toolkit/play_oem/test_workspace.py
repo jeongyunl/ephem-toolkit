@@ -91,6 +91,19 @@ class FakeSlider(FakeWidget):
             self.bindings["slider"](FakeEvent(value))
 
 
+class FakeChoice(FakeWidget):
+    def __init__(self, parent, widget_id, choices=(), **kwargs) -> None:
+        super().__init__(parent, widget_id, **kwargs)
+        self.choices = list(choices)
+        self.selection = -1
+
+    def SetSelection(self, selection: int) -> None:
+        self.selection = selection
+
+    def GetSelection(self) -> int:
+        return self.selection
+
+
 class FakeSizer:
     def __init__(self, _orientation: int) -> None:
         self.items = []
@@ -115,12 +128,19 @@ class FakePanel:
         self.sizer = None
         self.minimum_size = FakeSize(320, 280)
         self.name = ""
+        self.shown = True
 
     def SetSizer(self, sizer) -> None:
         self.sizer = sizer
 
     def SetName(self, name: str) -> None:
         self.name = name
+
+    def Hide(self) -> None:
+        self.shown = False
+
+    def Show(self) -> None:
+        self.shown = True
 
     def Reparent(self, parent) -> bool:
         self.parent = parent
@@ -308,6 +328,8 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "BitmapToggleButton": FakeWidget,
         "Slider": FakeSlider,
         "StaticText": FakeWidget,
+        "Button": FakeWidget,
+        "Choice": FakeChoice,
         "BoxSizer": FakeSizer,
         "ArtProvider": FakeArtProvider,
         "CallLater": FakeCallLater,
@@ -330,6 +352,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "ART_GO_FORWARD": "forward",
         "ART_INFORMATION": "information",
         "EVT_BUTTON": "button",
+        "EVT_CHOICE": "choice",
         "EVT_KEY_DOWN": "key-down",
         "EVT_SLIDER": "slider",
         "EVT_SCROLLWIN": "scroll-window",
@@ -340,7 +363,11 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def make_workspace(
-    monkeypatch: pytest.MonkeyPatch, *, timeline_enabled: bool = True
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    timeline_enabled: bool = True,
+    on_add_graph=None,
+    view_choices=(),
 ) -> tuple[workspace.Workspace, list[float], FakeFrame]:
     configure_fake_wx(monkeypatch)
     frame = FakeFrame()
@@ -357,6 +384,8 @@ def make_workspace(
             "sample_count": "2",
         },
         details=(("Object ID", "2024-001A"),),
+        view_choices=view_choices,
+        on_add_graph=on_add_graph,
     )
     return result, seeks, frame
 
@@ -377,8 +406,8 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert result.left_pane.name == workspace.CONTROLS_PANE_NAME
     assert result.middle_pane.name == workspace.MAIN_ANALYSIS_PANE_NAME
     assert result.right_pane.name == workspace.COMPARISON_PANE_NAME
-    assert result.middle_pane.sizer.items[0][0].label == "Main Analysis"
-    assert result.right_pane.sizer.items[0][0].label == "Comparison"
+    assert result.middle_pane.sizer.items[0][0].items[0][0].label == "Main Analysis"
+    assert result.right_pane.sizer.items[0][0].items[0][0].label == "Comparison"
     assert result.graph_splitter.is_split is False
     assert result.graph_splitter.unsplit_calls == [result.right_pane]
     assert result.content_splitter.is_split
@@ -439,19 +468,32 @@ def test_graph_hosts_replace_empty_state_and_restore_it_when_removed(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     host = FakeGraphPanel(result.middle_stack, "first")
-    empty_state = result._empty_states["middle"]
+    empty_panel = result._empty_panels["middle"]
 
     result.add_graph_panel(host)
 
     assert result._graph_panels["middle"] == [host]
-    assert empty_state.shown is False
+    assert empty_panel.shown is False
 
     result.remove_graph_panel(host)
 
     assert result._graph_panels["middle"] == []
-    assert empty_state.shown is True
+    assert empty_panel.shown is True
     with pytest.raises(ValueError, match="unknown graph stack"):
         result.add_graph_panel(host, "invalid")
+
+
+def test_add_graph_actions_route_to_the_correct_stack(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    added_to: list[str] = []
+    result, _seeks, _frame = make_workspace(monkeypatch, on_add_graph=added_to.append)
+
+    result._add_buttons["middle"].trigger(workspace.wx.EVT_BUTTON)
+    result._add_buttons["right"].trigger(workspace.wx.EVT_BUTTON)
+    result._empty_panels["middle"].sizer.items[1][0].trigger(workspace.wx.EVT_BUTTON)
+
+    assert added_to == ["middle", "right", "middle"]
 
 
 def test_graph_stacks_use_styled_horizontal_splitters_and_collapse_on_close(

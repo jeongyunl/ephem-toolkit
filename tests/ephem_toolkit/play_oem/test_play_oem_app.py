@@ -179,6 +179,7 @@ class FakeGraphPanelHost:
         is_visible=None,
         on_redraw_request=None,
         panel_id: str,
+        **_kwargs,
     ) -> None:
         self.parent = parent
         self.title = title
@@ -190,6 +191,9 @@ class FakeGraphPanelHost:
         self.focused = False
         self.destroyed = False
         self.redraw_requests = 0
+        self.view_choices = _kwargs.get("view_choices", ())
+        self.selected_view = _kwargs.get("selected_view")
+        self.on_view_selected = _kwargs.get("on_view_selected")
         self.__class__.instances.append(self)
 
     def set_matplotlib_content(self, toolbar, canvas) -> None:
@@ -292,9 +296,7 @@ class FakeControlWindow:
         self.text = ""
         self.time_errors: list[str] = []
 
-    def update_playback_state(
-        self, text: str, playing: bool, rate: float
-    ) -> None:
+    def update_playback_state(self, text: str, playing: bool, rate: float) -> None:
         state = "Playing" if playing else "Paused"
         self.text = f"{text}\n{state} | {rate:+g}x"
 
@@ -317,6 +319,7 @@ class FakeWorkspace:
         timeline_enabled,
         context=None,
         details=(),
+        **_kwargs,
     ) -> None:
         self.frame = frame
         self.on_seek = on_seek
@@ -643,9 +646,7 @@ def test_cli_selection_opens_through_the_dashboard_registry(
     player.control_window.callbacks["open_view"]("trajectory-3d")
 
     assert len(frames) == 1
-    assert all(
-        view.panel.focused for view in player._open_views.values()
-    )
+    assert all(view.panel.focused for view in player._open_views.values())
 
     player.close()
 
@@ -1039,10 +1040,17 @@ def test_panel_instances_can_duplicate_views_and_keep_independent_lifecycles(
     right_duplicate = player._open_panels["duplicate-right"]
 
     assert len(player._open_panels) == 3
-    assert len({default.panel_id, middle_duplicate.panel_id, right_duplicate.panel_id}) == 3
+    assert (
+        len({default.panel_id, middle_duplicate.panel_id, right_duplicate.panel_id})
+        == 3
+    )
     assert default.panel.panel_id == default.panel_id
     assert middle_duplicate.panel.panel_id == "duplicate-middle"
     assert right_duplicate.panel.parent is player.workspace.right_stack
+    assert dict(middle_duplicate.panel.view_choices)["speed-altitude"] == (
+        "Speed / Altitude"
+    )
+    assert middle_duplicate.panel.selected_view == "speed-altitude"
 
     player.clock.seek(150.0)
     player.close_panel("duplicate-middle")
@@ -1054,7 +1062,7 @@ def test_panel_instances_can_duplicate_views_and_keep_independent_lifecycles(
     assert views[2].updated_times == [100.0, 150.0, 160.0]
     assert "duplicate-middle" not in player._open_panels
 
-    player.open_panel_view("rtn", "duplicate-right", stack="right")
+    right_duplicate.panel.on_view_selected("rtn")
     assert views[2].closed
     assert player._open_panels["duplicate-right"].view_name == "rtn"
     assert player._open_panels["duplicate-right"].panel.panel_id == "duplicate-right"

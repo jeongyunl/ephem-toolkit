@@ -175,6 +175,11 @@ class PlayerApp:
             timeline_enabled=clock.t_start < clock.t_end,
             context=dashboard_context,
             details=metadata_details,
+            view_choices=tuple(
+                (name, self._view_registry.label_for(name))
+                for name in self._view_registry.registered_views
+            ),
+            on_add_graph=self._add_graph_panel,
         )
         self.control_window = control_window.ControlWindow(
             self.workspace.playback_page,
@@ -389,6 +394,32 @@ class PlayerApp:
         }
         openers[name](panel_id=panel_id, stack=stack)
 
+    def _add_graph_panel(self, stack: str) -> None:
+        if not self._view_registry.registered_views:
+            raise RuntimeError("no graph views are registered")
+        try:
+            self.open_panel_view(
+                self._view_registry.registered_views[0], uuid4().hex, stack
+            )
+        except Exception as error:
+            wx.MessageBox(
+                f"Could not add a graph panel: {error}",
+                "Graph panel error",
+                wx.OK | wx.ICON_ERROR,
+                self.frame,
+            )
+
+    def _select_panel_view(self, name: str, panel_id: str, stack: str) -> None:
+        try:
+            self.open_panel_view(name, panel_id, stack)
+        except Exception as error:
+            wx.MessageBox(
+                f"Could not create {self._view_registry.label_for(name)}: {error}",
+                "Graph view error",
+                wx.OK | wx.ICON_ERROR,
+                self.frame,
+            )
+
     def open_group(self, name: str) -> None:
         self._view_registry.open_group(name)
 
@@ -506,6 +537,14 @@ class PlayerApp:
                 is_visible=lambda: self.workspace.is_graph_panel_visible(panel),
                 on_redraw_request=self.workspace.queue_graph_redraw,
                 panel_id=panel_id,
+                view_choices=tuple(
+                    (view_name, self._view_registry.label_for(view_name))
+                    for view_name in self._view_registry.registered_views
+                ),
+                selected_view=name,
+                on_view_selected=lambda selected: self._select_panel_view(
+                    selected, panel_id, stack
+                ),
             )
             self.workspace.add_graph_panel(panel, stack=stack)
             view = create_view(panel)

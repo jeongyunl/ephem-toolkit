@@ -43,6 +43,8 @@ class Workspace:
         timeline_enabled: bool,
         context: Mapping[str, str] | None = None,
         details: Sequence[tuple[str, str]] = (),
+        view_choices: tuple[tuple[str, str], ...] = (),
+        on_add_graph: Callable[[str], None] | None = None,
     ) -> None:
         self._on_seek = on_seek
         self._timeline_enabled = timeline_enabled
@@ -58,6 +60,8 @@ class Workspace:
         self._stack_windows: dict[str, wx.ScrolledWindow] = {}
         self._stack_sizers: dict[str, wx.BoxSizer] = {}
         self._empty_states: dict[str, wx.StaticText] = {}
+        self._empty_panels: dict[str, wx.Panel] = {}
+        self._add_buttons: dict[str, wx.Button] = {}
         self._stack_roots: dict[str, wx.Window | None] = {
             "middle": None,
             "right": None,
@@ -67,6 +71,8 @@ class Workspace:
             "right": [],
         }
         self._right_pane_width = DEFAULT_RIGHT_PANE_WIDTH
+        self._view_choices = view_choices
+        self._on_add_graph = on_add_graph
 
         root = wx.BoxSizer(wx.VERTICAL)
         self.content_splitter = wx.SplitterWindow(
@@ -210,7 +216,7 @@ class Workspace:
         self._graph_panels[stack].append(panel)
         self._stack_roots[stack] = root
         empty_state = self._empty_states[stack]
-        empty_state.Hide()
+        self._empty_panels[stack].Hide()
         self._update_stack_minimum_size(stack)
         window.Layout()
         window.FitInside()
@@ -234,7 +240,7 @@ class Workspace:
             self._graph_redraw_timer = None
         self._update_stack_minimum_size(stack)
         if not self._graph_panels[stack]:
-            self._empty_states[stack].Show()
+            self._empty_panels[stack].Show()
         self._stack_windows[stack].Layout()
         self._stack_windows[stack].FitInside()
 
@@ -460,9 +466,20 @@ class Workspace:
         pane = wx.Panel(parent, wx.ID_ANY)
         pane.SetName(title)
         layout = wx.BoxSizer(wx.VERTICAL)
+        header = wx.BoxSizer(wx.HORIZONTAL)
         title_label = wx.StaticText(pane, wx.ID_ANY, title)
         title_label.SetName(title)
-        layout.Add(title_label, 0, wx.EXPAND | wx.ALL, 8)
+        header.Add(title_label, 1, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 8)
+        add_button = wx.Button(pane, wx.ID_ANY, "Add graph")
+        add_button.SetName(f"Add graph to {stack} stack")
+        add_button.SetToolTip(f"Add a graph to {title}")
+        self._add_buttons[stack] = add_button
+        add_button.Bind(
+            wx.EVT_BUTTON,
+            lambda _event, stack=stack: self._request_add_graph(stack),
+        )
+        header.Add(add_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        layout.Add(header, 0, wx.EXPAND)
         stack_window = self._make_graph_stack(pane, stack)
         stack_window.SetName(f"{title} graph stack")
         layout.Add(stack_window, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
@@ -473,14 +490,32 @@ class Workspace:
         window = wx.ScrolledWindow(parent, wx.ID_ANY, style=wx.VSCROLL)
         window.SetScrollRate(0, 20)
         sizer = wx.BoxSizer(wx.VERTICAL)
-        empty_state = wx.StaticText(window, wx.ID_ANY, "No graph panels")
-        sizer.Add(empty_state, 0, wx.ALL, 12)
+        empty_panel = wx.Panel(window, wx.ID_ANY)
+        empty_layout = wx.BoxSizer(wx.VERTICAL)
+        empty_state = wx.StaticText(empty_panel, wx.ID_ANY, "No graph panels")
+        empty_state.SetName(f"{stack} stack empty state")
+        empty_layout.Add(empty_state, 0, wx.ALL, 12)
+        add_button = wx.Button(empty_panel, wx.ID_ANY, "Add graph")
+        add_button.SetName(f"Add graph to empty {stack} stack")
+        add_button.Bind(
+            wx.EVT_BUTTON,
+            lambda _event, stack=stack: self._request_add_graph(stack),
+        )
+        empty_layout.Add(add_button, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
+        empty_panel.SetSizer(empty_layout)
+        sizer.Add(empty_panel, 0, wx.EXPAND)
         window.SetSizer(sizer)
         window.Bind(wx.EVT_SCROLLWIN, self._on_stack_scroll)
         self._stack_windows[stack] = window
         self._stack_sizers[stack] = sizer
         self._empty_states[stack] = empty_state
+        self._empty_panels[stack] = empty_panel
         return window
+
+    def _request_add_graph(self, stack: str) -> None:
+        if self._on_add_graph is None:
+            raise RuntimeError("graph-panel creation handler is not configured")
+        self._on_add_graph(stack)
 
     def _request_stack_redraws(self, stack: str) -> None:
         for panel in self._graph_panels[stack]:

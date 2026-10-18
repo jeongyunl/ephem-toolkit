@@ -63,24 +63,6 @@ selections and size when closed and restore them when reopened.
 
 ## Milestone G2 — Graph stacks and feature pages
 
-### 5. Add graph stacks, selectors, and empty states
-
-Allow each graph stack to contain zero or more graph panels. Each panel selects its view
-independently; empty stacks remain discoverable and usable.
-
-- **Status:** Not started.
-- **Progress:** 0/6 checklist items.
-- [ ] Add an **Add graph** action to the middle and optional right stack.
-- [ ] Show a clear empty state with an add action when a stack contains no panels.
-- [ ] Give each panel a view-selection combobox populated from the view registry.
-- [ ] Ensure selection changes update only the chosen panel and clean up its previous view.
-- [ ] Surface view-creation errors without leaving a broken or success-shaped panel.
-- [ ] Test empty, one-panel, and multi-panel stacks plus independent selector changes.
-
-**Done when:** both stacks support zero or more panels and each panel's view can be selected
-independently.
-**Depends on:** Steps 2 and 4 and Substep 1-5.
-
 ### 6. Implement panel actions and independent lifecycle
 
 Add local actions for moving, duplicating, and closing graph panels. A duplicate must be an
@@ -635,3 +617,28 @@ after frame resizing. In the same dark-mode run, both main sash handles measured
 **Done when:** panel identity and cleanup are correct for repeated view types, and supported
 backends work in embedded hosts.
 **Depends on:** Step 3, the three-main-pane resizing prerequisite above, and Substeps 1-2 and 1-3.
+
+### 5. Add graph stacks, selectors, and empty states
+
+Allow each graph stack to contain zero or more graph panels. Each panel selects its view
+independently; empty stacks remain discoverable and usable.
+
+- **Status:** Done.
+- **Progress:** 6/6 checklist items.
+- [x] Add an **Add graph** action to the middle and optional right stack.
+- [x] Show a clear empty state with an add action when a stack contains no panels.
+- [x] Give each panel a view-selection combobox populated from the view registry.
+- [x] Ensure selection changes update only the chosen panel and clean up its previous view.
+- [x] Surface view-creation errors without leaving a broken or success-shaped panel.
+- [x] Test empty, one-panel, and multi-panel stacks plus independent selector changes.
+
+**Implementation and validation:** Both graph panes expose an Add graph button, and empty stacks
+also show an add action. Each panel has a view selector populated with implemented registry views.
+Changing one selector replaces only that panel's view and closes the prior view; creation failures
+are shown in an error dialog and the failed panel is removed rather than left in a success-shaped
+state. Focused workspace, panel, and app tests passed (**43 passed**); the complete play-oem suite
+passed (**147 passed**, 14 existing Matplotlib/Pyparsing deprecation warnings).
+
+**Done when:** both stacks support zero or more panels and each panel's view can be selected
+independently.
+**Depends on:** Steps 2 and 4 and Substep 1-5.

@@ -74,6 +74,9 @@ class GraphPanelHost(wx.Panel):
         is_visible: Callable[[], bool] | None = None,
         on_redraw_request: Callable[[GraphPanelHost], None] | None = None,
         panel_id: str | None = None,
+        view_choices: tuple[tuple[str, str], ...] = (),
+        selected_view: str | None = None,
+        on_view_selected: Callable[[str], None] | None = None,
     ) -> None:
         super().__init__(parent, wx.ID_ANY)
         if panel_id == "":
@@ -90,6 +93,30 @@ class GraphPanelHost(wx.Panel):
         layout = wx.BoxSizer(wx.VERTICAL)
         header = wx.BoxSizer(wx.HORIZONTAL)
         self.title_label = wx.StaticText(self, wx.ID_ANY, title)
+        self.view_selector: wx.Choice | None = None
+        if view_choices:
+            self.view_selector = wx.Choice(
+                self,
+                wx.ID_ANY,
+                choices=[label for _name, label in view_choices],
+            )
+            self.view_selector.SetName(f"{title} view selector")
+            if selected_view is not None:
+                self.view_selector.SetSelection(
+                    next(
+                        index
+                        for index, (name, _label) in enumerate(view_choices)
+                        if name == selected_view
+                    )
+                )
+            if on_view_selected is not None:
+                self.view_selector.Bind(
+                    wx.EVT_CHOICE,
+                    lambda event: on_view_selected(
+                        view_choices[event.GetSelection()][0]
+                    ),
+                )
+            header.Add(self.view_selector, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
         self.close_button = wx.Button(self, wx.ID_ANY, "Close")
         self.close_button.SetName(f"Close {title} graph")
         self.close_button.SetToolTip(f"Close {title} graph")
