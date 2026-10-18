@@ -168,21 +168,36 @@ class FakeToolbar:
 
 
 class FakeGraphPanelHost:
+    instances: list[FakeGraphPanelHost] = []
+
     def __init__(
-        self, parent, title: str, on_close, *, is_visible=None, on_redraw_request=None
+        self,
+        parent,
+        title: str,
+        on_close,
+        *,
+        is_visible=None,
+        on_redraw_request=None,
+        panel_id: str,
     ) -> None:
         self.parent = parent
         self.title = title
         self.on_close = on_close
+        self.panel_id = panel_id
         self.canvas = None
         self.toolbar = None
+        self.native_content = None
         self.focused = False
         self.destroyed = False
         self.redraw_requests = 0
+        self.__class__.instances.append(self)
 
     def set_matplotlib_content(self, toolbar, canvas) -> None:
         self.toolbar = toolbar
         self.canvas = canvas
+
+    def set_native_content(self, content) -> None:
+        self.native_content = content
 
     def request_redraw(self) -> None:
         self.redraw_requests += 1
@@ -310,6 +325,7 @@ class FakeWorkspace:
         self.details = details
         self.playback_page = object()
         self.middle_stack = object()
+        self.right_stack = object()
         self.graph_panels = []
         self.progress = 0.0
         self.playback_content = None
@@ -320,10 +336,11 @@ class FakeWorkspace:
     def update_timeline(self, progress: float) -> None:
         self.progress = progress
 
-    def add_graph_panel(self, panel, _stack: str = "middle") -> None:
+    def add_graph_panel(self, panel, stack: str = "middle") -> None:
+        panel.stack = stack
         self.graph_panels.append(panel)
 
-    def remove_graph_panel(self, panel, _stack: str = "middle") -> None:
+    def remove_graph_panel(self, panel, stack: str = "middle") -> None:
         self.graph_panels.remove(panel)
 
     def draw_initial_graphs(self) -> None:
@@ -373,6 +390,7 @@ def make_app(
     frames: list[FakeFrame] = []
     views: list[FakeView] = []
     canvases: list[FakeCanvas] = []
+    FakeGraphPanelHost.instances = []
     monkeypatch.setattr(app.wx, "GetApp", lambda: None)
     monkeypatch.setattr(app.wx, "App", FakeWxApp)
     monkeypatch.setattr(
@@ -748,8 +766,10 @@ def test_auto_3d_backend_falls_back_to_matplotlib_with_warning(
     assert len(views) == 1
     assert player._selected_3d_backend == "matplotlib"
     assert player.frame.title == "play-oem (3D backend: matplotlib)"
-    assert len(frames) == 2
-    assert frames[1].destroyed
+    assert len(frames) == 1
+    assert len(FakeGraphPanelHost.instances) == 2
+    assert FakeGraphPanelHost.instances[0].destroyed
+    assert not FakeGraphPanelHost.instances[1].destroyed
     assert "falling back to Matplotlib" in capsys.readouterr().err
 
     player.close()
@@ -786,11 +806,49 @@ def test_auto_3d_backend_falls_back_when_vtk_render_context_fails(
     assert len(views) == 1
     assert vtk_view.closed
     assert player._selected_3d_backend == "matplotlib"
-    assert len(frames) == 2
-    assert frames[1].destroyed
+    assert len(frames) == 1
+    assert len(FakeGraphPanelHost.instances) == 2
+    assert FakeGraphPanelHost.instances[0].destroyed
+    assert not FakeGraphPanelHost.instances[1].destroyed
     assert "VTK did not complete its initial render" in capsys.readouterr().err
 
     player.close()
+
+
+def test_vtk_view_is_embedded_in_a_graph_panel_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    vtk_view = FakeNativeView()
+    validated_views: list[FakeView] = []
+    monkeypatch.setattr(app.wx, "Window", FakeNativeWindow)
+    monkeypatch.setattr(
+        app.trajectory3d_selection, "create_vtk_view", lambda *_args: vtk_view
+    )
+    monkeypatch.setattr(
+        app.trajectory3d_selection,
+        "validate_vtk_render_context",
+        validated_views.append,
+    )
+    player, _views, _canvases, frames = make_app(
+        monkeypatch,
+        plots=("trajectory-3d",),
+        three_d_backend="vtk",
+    )
+
+    player.start()
+
+    opened = player._open_views["trajectory-3d"]
+    assert len(frames) == 1
+    assert opened.view is vtk_view
+    assert opened.panel.native_content is not None
+    assert opened.panel.parent is player.workspace.middle_stack
+    assert opened.panel.panel_id == opened.panel_id
+    assert validated_views == [vtk_view]
+
+    player.close()
+
+    assert vtk_view.closed
+    assert opened.panel.destroyed
 
 
 def test_explicit_vtk_backend_reports_initialization_failure(
@@ -814,7 +872,10 @@ def test_explicit_vtk_backend_reports_initialization_failure(
         player.start()
 
     assert views == []
-    assert frames[1].destroyed
+    assert len(frames) == 1
+    assert len(FakeGraphPanelHost.instances) == 1
+    assert FakeGraphPanelHost.instances[0].destroyed
+    assert not player._open_panels
     assert player._selected_3d_backend is None
 
     player.close()
@@ -959,6 +1020,51 @@ def test_closing_one_plot_unsubscribes_only_that_view(
     assert reopened_view.updated_times == [160.0, 161.0]
     assert views[0].updated_times == [100.0]
 
+    player.close()
+
+
+def test_panel_instances_can_duplicate_views_and_keep_independent_lifecycles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, views, _canvases, _frames = make_app(
+        monkeypatch,
+        plots=("speed-altitude",),
+    )
+    player.start()
+    default = player._open_views["speed-altitude"]
+
+    player.open_panel_view("speed-altitude", "duplicate-middle")
+    player.open_panel_view("speed-altitude", "duplicate-right", stack="right")
+    middle_duplicate = player._open_panels["duplicate-middle"]
+    right_duplicate = player._open_panels["duplicate-right"]
+
+    assert len(player._open_panels) == 3
+    assert len({default.panel_id, middle_duplicate.panel_id, right_duplicate.panel_id}) == 3
+    assert default.panel.panel_id == default.panel_id
+    assert middle_duplicate.panel.panel_id == "duplicate-middle"
+    assert right_duplicate.panel.parent is player.workspace.right_stack
+
+    player.clock.seek(150.0)
+    player.close_panel("duplicate-middle")
+    player.clock.seek(160.0)
+
+    assert views[0].updated_times == [100.0, 150.0, 160.0]
+    assert views[1].closed
+    assert views[1].updated_times == [100.0, 150.0]
+    assert views[2].updated_times == [100.0, 150.0, 160.0]
+    assert "duplicate-middle" not in player._open_panels
+
+    player.open_panel_view("rtn", "duplicate-right", stack="right")
+    assert views[2].closed
+    assert player._open_panels["duplicate-right"].view_name == "rtn"
+    assert player._open_panels["duplicate-right"].panel.panel_id == "duplicate-right"
+    player.clock.seek(170.0)
+    assert views[-1].updated_times == [160.0, 170.0]
+
+    player.close_panel("duplicate-right")
+    player.clock.seek(180.0)
+    assert views[-1].updated_times == [160.0, 170.0]
+    assert views[0].updated_times[-1] == 180.0
     player.close()
 
 

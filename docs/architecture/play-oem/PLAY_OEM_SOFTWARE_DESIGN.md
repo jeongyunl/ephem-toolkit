@@ -32,8 +32,10 @@ src/ephem_toolkit/play_oem/
   data.py  series.py  time_unit.py              # copied from plot_oem
   clock.py             # PlaybackClock (pure Python, no GUI)
   cursor.py            # CursorState lookup at t_now
-  app.py               # PlayerApp: owns wx.App, clock, views, control window
-  control_window.py    # wx.Frame: slider, play/pause, speed, toolbar
+  app.py               # PlayerApp: owns wx.App, clock, workspace and views
+  workspace.py         # pane names, splitters, feature pages, graph stacks, timeline
+  graph_panel.py       # embedded graph-panel host and redraw scheduling
+  control_window.py    # wx.Panel: playback controls and readouts
   views/
     base.py            # View protocol
     trajectory3d/      # mpl_backend.py; vtk_backend.py only if VTK-KEEP (see 4.3.1)
@@ -63,10 +65,11 @@ input automation was unavailable, so mouse/keyboard interaction was not manually
 Other Python versions and Linux/Windows GUI runs remain unverified.
 
 `__main__.py` creates exactly one `wx.App`; `PlayerApp` owns its event-loop lifecycle, playback
-clock, timer and child plot frames. `control_window.py` creates the primary `wx.Frame`; each plot
-window is another frame owned by the same application. Closing an individual plot closes only that
-view and unsubscribes it from clock updates. Closing the control frame stops the timer, closes all
-plot frames, removes observers and exits the one `MainLoop()`.
+clock, timer and main workspace frame. `Workspace` places a `Controls & Info` feature area beside
+the `Main Analysis` graph stack and optional `Comparison` stack. Graph views are hosted inside
+independently identified graph panels rather than detached plot frames. Closing one panel closes
+only its view and unsubscribes it from clock updates; closing the workspace frame stops the timer,
+closes all graph panels, removes observers and exits the one `MainLoop()`.
 
 ## 3. GUI toolkit decision
 
@@ -77,10 +80,10 @@ Options:
 | A. Matplotlib only (TkAgg/QtAgg), control window = a Matplotlib figure with `Slider`, `Button`, `RadioButtons` | no new deps; one event loop | clunky toolbar, widget look, slider/timer coupling |
 | B. Tkinter control window + Matplotlib figures (`TkAgg`); superseded by D | stdlib Tk, native-ish controls and toolbar, single Tk event loop shared by all figures; no new dependency | Tk must be available (usually bundled; not on some Linux distros); legacy Tk may have rendering limitations |
 | C. Qt (PySide6) | best widgets | heavy new dependency |
-| D. **wxPython control frame + Matplotlib figures** (`WXAgg`, `FigureCanvasWxAgg`) | native widgets and toolbars on each platform; one wx event loop for the control frame and Matplotlib canvases; no Tk dependency | new GUI dependency with platform-dependent wheels; `wx.Slider` is integer-only; tests that create a `wx.App` need a display |
+| D. **wxPython workspace + embedded Matplotlib figures** (`WXAgg`, `FigureCanvasWxAgg`) | native widgets and toolbars on each platform; one wx event loop for controls and Matplotlib canvases; no Tk dependency | new GUI dependency with platform-dependent wheels; `wx.Slider` is integer-only; tests that create a `wx.App` need a display |
 
 **Decision: D (wxPython).** wxPython is the sole GUI framework for `play-oem`, per the migration
-directive. The control frame, Matplotlib plot frames, and any VTK window are owned by one `wx.App`
+directive. The Controls & Info pane, graph-panel hosts, and any VTK widget are owned by one `wx.App`
 and one `MainLoop()`. Tk is removed from the runtime path (implementation plan steps 15–23). The
 `View`/`Clock` layers are toolkit-agnostic, so the GUI toolkit remains replaceable.
 
@@ -164,7 +167,7 @@ alias that opens both trajectory and state-components views.
 
 The state-components view uses a 3-by-2 Matplotlib layout: position X/Y/Z and velocity VX/VY/VZ,
 with frame and unit labels, one shared elapsed-time axis, and synchronized cursor lines. Each 2D view
-is a `FigureCanvasWxAgg` canvas in a wx frame. Clicks map through per-axes plot bounds to preserve
+is a `FigureCanvasWxAgg` canvas in an embedded graph-panel host. Clicks map through per-axes plot bounds to preserve
 synchronized seeking. The PPM/PhotoImage raster path from the Tk implementation is removed in step 18.
 
 ```
@@ -191,16 +194,16 @@ class Trajectory3DView(View, Protocol):
 | `matplotlib` | Always Matplotlib. |
 
 Resolve the backend once when the first trajectory view is created and show the selected backend
-in the control window title/status line. `auto` may fall back only for a recognized VTK
+in the workspace frame title/status line. `auto` may fall back only for a recognized VTK
 installation or render-context unavailability; do not hide unrelated implementation errors with
 a broad exception handler. Both backends implement the same interface, so the toolbar, clock and
 `PlayerApp` never branch on backend.
 
 **Matplotlib/wx backend.** The initial overview draws the static orbit path, start/end markers,
 labeled axes and object/frame context in `build`; `update` moves the satellite marker from the shared
-cursor state. The figure is hosted in a wx frame through `FigureCanvasWxAgg`, and the Matplotlib
-navigation toolbar is hosted by wx. Redraws are requested with `draw_idle()` and playback updates
-are throttled to at most 10 Hz. Earth rendering and trajectory tails remain planned enhancements.
+cursor state. The figure and navigation toolbar are hosted in a `GraphPanelHost` within either
+graph stack. Redraws are requested with `draw_idle()` and playback updates are throttled to at most
+10 Hz. Earth rendering and trajectory tails remain planned enhancements.
 
 **VTK backend.** Scene built in `build`:
 
@@ -224,11 +227,11 @@ are throttled to at most 10 Hz. Earth rendering and trajectory tails remain plan
 
 **Step 20 outcome: `VTK-KEEP`; use the embedded wx interactor.** Host VTK through
 `vtkmodules.wx.wxVTKRenderWindowInteractor.wxVTKRenderWindowInteractor` inside the trajectory
-frame. Its wx event bindings deliver paint, resize, mouse, and keyboard events to the VTK
-interactor. The application owns the only GUI loop: call `widget.Enable(1)`, let wx's main loop
-drive the widget, and call `Render()` on the wx thread when the shared cursor changes. Do not call
-VTK's `Start()` or manually pump a second event loop. The VTK widget's own timer requests use
-`wx.Timer` events and therefore remain on the same loop.
+`GraphPanelHost` in Main Analysis or Comparison. Its wx event bindings deliver paint, resize, mouse,
+and keyboard events to the VTK interactor. The application owns the only GUI loop: call
+`widget.Enable(1)`, let wx's main loop drive the widget, and call `Render()` on the wx thread when
+the shared cursor changes. Do not call VTK's `Start()` or manually pump a second event loop. The
+VTK widget's own timer requests use `wx.Timer` events and therefore remain on the same loop.
 
 The prototype used wxPython 4.2.4 and VTK 9.6.2 on macOS. Eight wx timer callbacks completed while
 the scene rendered; a wx frame resize changed the VTK render-window size; simulated trackball
@@ -239,25 +242,29 @@ must be validated before claiming support there. The production fix registers th
 factory and rejects a non-OpenGL render-window class, but that guard does not replace visual
 verification of each platform's native wx/OpenGL context.
 
-After showing a VTK plot frame, the application yields pending wx paint events and verifies that
-the VTK render window completed its initial render. Backend selection errors are explicit: `vtk`
-reports a missing VTK package or failed wx/GL initialization with an install or graphics-support
-hint; `auto` falls back to Matplotlib only for those recognized VTK-unavailable conditions and
-reports the reason once. Install the optional integration with
+After showing a trajectory graph panel, the application yields pending wx paint events and verifies
+that the VTK render window completed its initial render. Backend selection errors are explicit:
+`vtk` reports a missing VTK package or failed wx/GL initialization with an install or
+graphics-support hint; `auto` falls back to Matplotlib only for those recognized VTK-unavailable
+conditions and reports the reason once. Install the optional integration with
 `pip install "ephem-toolkit[playback,vtk]"`.
 
 **Testing.** The backend-neutral contract is tested on both backends: `build` + several `update` calls,
 and marker position == cursor-state position (Matplotlib: artist data; VTK: `actor.GetPosition()`).
 VTK tests are skipped via `pytest.importorskip("vtk")`.
 
-### 4.4 Control window
+### 4.4 Workspace panes
 
-The control window is the compact dashboard and remains useful independently of which plot
-windows are open. Startup opens `overview` by default: the 3D orbit and combined speed/altitude
-time-series view. `--plots` can replace that selection with individual views or named groups.
-Users can open additional views at any time; the clock and readouts stay in the main window.
+The active workspace uses one `wx.Frame` with three named regions: **Controls & Info** at left,
+**Main Analysis** in the middle, and the optional **Comparison** pane at right. These names appear
+in visible pane headings and matching wx window names. Controls & Info contains the feature rail and
+`wx.Simplebook`; its Playback page embeds the existing control dashboard, while OEM metadata has
+its own page. Main Analysis and Comparison each contain an independently scrollable graph stack
+with per-panel lifecycle. Startup opens `overview` by default in Main Analysis: the 3D orbit and
+combined speed/altitude time-series view. `--plots` can replace that selection with individual
+views or named groups.
 
-A `wx.Frame` with wx sizers and a status bar, containing:
+The `ControlWindow` dashboard is a `wx.Panel` embedded in the Playback page, containing:
 
 ```
 [ ▶/⏸ ] [◀/▶] [speed ▼ 1 10 60 100 300 1000] ━━━●━━━━━━━━━━━  UTC …  elapsed …
@@ -268,8 +275,9 @@ Data: object … | frame … | center … | samples … | cursor: interpolated /
 Details ▸ (additional OEM metadata and diagnostics)
 ```
 
-- Widgets: `wx.Button` for play/pause, step and direction; `wx.TextCtrl` for time entry; `wx.Slider`
-  for the timeline and speed. Native sizing and keyboard focus come from wx.
+- Widgets: `wx.Button` for play/pause, step and direction; `wx.TextCtrl` for time entry; a
+  `wx.Slider` for speed. The shared timeline slider stays in the workspace footer below all panes.
+  Native sizing and keyboard focus come from wx.
 - Timeline: a `wx.Slider` with an integer range 0…10,000 mapped linearly to `[t_start, t_end]`.
   Slider events call `clock.seek`; clock updates set the slider value under a suppression flag so
   they do not feed back into `seek`.
@@ -280,15 +288,16 @@ Details ▸ (additional OEM metadata and diagnostics)
   the Seek button → `clock.seek`; invalid input is flagged in the status bar without changing `t_now`.
 - Click-to-seek: each time-series view connects `button_press_event` (left click inside axes, toolbar zoom/pan mode inactive) → `clock.seek(x * unit_divisor)`.
 - Toolbar buttons open views/groups via `PlayerApp.open_view(name)` / `open_group(name)`; an
-  already-open view is raised rather than duplicated. Closing a view removes it from the active
-  set but does not affect the clock. Closing the control window destroys all.
+  already-open default view is raised rather than duplicated. Closing one graph panel does not
+  affect the clock or other panels. Closing the workspace frame destroys all panels and stops the
+  single wx event loop.
 - Current-state readouts come from the same `CursorState` as the plots, including explicit
   sampled/interpolated/gap status. In gaps, show state values as unavailable rather than carrying
   forward the last sample. Altitude is shown only when its frame/center assumptions are valid;
   units and reference frame are visible. OEM object/frame/center/time span/sample count remain
   available as data context, with less-used metadata in the collapsed details panel.
 - Keys: `Space` play/pause, `R` reverse, `←/→` step (∓/± 1 sample), `Shift+←/→` ∓/± 1 min, `Home/End` jump to start/end.
-  These are wx accelerators on the control frame and are inactive while the time-entry field has focus.
+  These are wx accelerators on the workspace frame and are inactive while the time-entry field has focus.
 
 ### 4.5 `PlayerApp` and the frame loop
 
@@ -310,8 +319,8 @@ before the window appears, with progress printed to stdout like `plot-oem`.
    otherwise playback starts at `t_start`),
    `wx.App.MainLoop()`.
    Trailing tails in trajectory views are drawn on the side behind the direction of motion.
-4. SIGINT closes all windows. The Python signal handler forwards the request with `wx.CallAfter` to a
-   close routine that closes the views and the control frame and ends the main loop.
+4. SIGINT closes the workspace. The Python signal handler forwards the request with `wx.CallAfter` to a
+   close routine that closes hosted views and the workspace frame and ends the main loop.
 
 ## 6. Testing
 

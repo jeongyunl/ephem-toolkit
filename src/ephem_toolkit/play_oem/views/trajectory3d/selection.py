@@ -33,7 +33,7 @@ def create_vtk_view(
     Parameters
     ----------
     parent : wx.Window
-        wx frame that will own the VTK render-window widget.
+        wx graph-panel host that will own the VTK render-window widget.
     oem_cursor : cursor.OemCursor
         State lookup used to position the satellite marker.
     object_name : str
@@ -46,7 +46,7 @@ def create_vtk_view(
     Returns
     -------
     VTKTrajectory3DView
-        A view that embeds VTK in the supplied wx frame.
+        A view that embeds VTK in the supplied graph-panel host.
 
     Raises
     ------
@@ -70,7 +70,7 @@ def create_vtk_view(
 
 
 def validate_vtk_render_context(view: base.View) -> None:
-    """Verify that an embedded VTK view rendered after its wx frame was shown."""
+    """Verify that an embedded VTK view rendered after its graph panel was shown."""
     from .vtk_backend import VTKTrajectory3DView
 
     if isinstance(view, VTKTrajectory3DView):

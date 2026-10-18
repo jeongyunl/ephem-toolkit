@@ -66,7 +66,7 @@ class VTKTrajectory3DView:
         Parameters
         ----------
         parent : wx.Window
-            wx frame that owns the render-window widget.
+            Graph-panel host that owns the render-window widget.
         oem_cursor : cursor.OemCursor
             State lookup used to position the satellite marker.
         object_name : str
@@ -109,7 +109,7 @@ class VTKTrajectory3DView:
         Returns
         -------
         wx.Window
-            VTK render-window widget embedded in the parent frame.
+            VTK render-window widget embedded in the graph-panel host.
 
         Raises
         ------

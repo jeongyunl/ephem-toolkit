@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import math
 import time
+from uuid import uuid4
 
 import wx
 from matplotlib.backend_bases import DrawEvent
@@ -15,6 +16,8 @@ from matplotlib.backends.backend_wxagg import (
 
 MATPLOTLIB_REDRAW_INTERVAL_S: float = 0.033
 """Minimum interval between requested Matplotlib redraws per graph panel."""
+GRAPH_PANEL_MIN_SIZE: tuple[int, int] = (320, 280)
+"""Minimum usable graph-panel width and height in pixels."""
 
 
 class _RedrawThrottle:
@@ -61,7 +64,7 @@ class _RedrawThrottle:
 
 
 class GraphPanelHost(wx.Panel):
-    """Host a plot toolbar and canvas within a scrollable graph stack."""
+    """Host one graph-panel instance within a scrollable graph stack."""
 
     def __init__(
         self,
@@ -70,13 +73,18 @@ class GraphPanelHost(wx.Panel):
         on_close: Callable[[], None],
         is_visible: Callable[[], bool] | None = None,
         on_redraw_request: Callable[[GraphPanelHost], None] | None = None,
+        panel_id: str | None = None,
     ) -> None:
         super().__init__(parent, wx.ID_ANY)
+        if panel_id == "":
+            raise ValueError("panel_id cannot be empty")
+        self.panel_id = panel_id or uuid4().hex
         self._on_close = on_close
         self._is_visible = is_visible or self.IsShownOnScreen
         self._on_redraw_request = on_redraw_request
         self._redraw_throttle: _RedrawThrottle | None = None
         self._canvas: FigureCanvasWxAgg | None = None
+        self._native_content: wx.Window | None = None
         self._uses_constrained_layout = False
 
         layout = wx.BoxSizer(wx.VERTICAL)
@@ -92,13 +100,15 @@ class GraphPanelHost(wx.Panel):
         self.content_sizer = wx.BoxSizer(wx.VERTICAL)
         layout.Add(self.content_sizer, 1, wx.EXPAND)
         self.SetSizer(layout)
-        self.SetMinSize((320, 280))
+        self.SetMinSize(GRAPH_PANEL_MIN_SIZE)
         self.Bind(wx.EVT_SHOW, self._on_show)
 
     def set_matplotlib_content(
         self, toolbar: NavigationToolbar2WxAgg, canvas: FigureCanvasWxAgg
     ) -> None:
         """Install a Matplotlib toolbar and canvas in this panel."""
+        if self._native_content is not None:
+            raise RuntimeError("graph panel already has native content")
         self.content_sizer.Add(toolbar, 0, wx.EXPAND)
         self.content_sizer.Add(canvas, 1, wx.EXPAND)
         self._canvas = canvas
@@ -107,6 +117,14 @@ class GraphPanelHost(wx.Panel):
             self._uses_constrained_layout = True
             canvas.mpl_connect("draw_event", self._disable_constrained_layout)
             canvas.Bind(wx.EVT_SIZE, self._on_canvas_size)
+        self.Layout()
+
+    def set_native_content(self, content: wx.Window) -> None:
+        """Install native wx plot content in this panel."""
+        if self._canvas is not None or self._native_content is not None:
+            raise RuntimeError("graph panel already has content")
+        self.content_sizer.Add(content, 1, wx.EXPAND)
+        self._native_content = content
         self.Layout()
 
     def request_redraw(self) -> None:
@@ -121,6 +139,8 @@ class GraphPanelHost(wx.Panel):
         if self._on_redraw_request is not None:
             if self._canvas is not None and self._is_visible():
                 self._canvas.draw_idle()
+            elif self._native_content is not None and self._is_visible():
+                self._native_content.Refresh()
             return
         if self._redraw_throttle is not None:
             self._redraw_throttle.request()

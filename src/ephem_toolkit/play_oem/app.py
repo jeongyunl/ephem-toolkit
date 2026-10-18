@@ -8,6 +8,7 @@ from datetime import timedelta
 import signal
 import sys
 import time
+from uuid import uuid4
 
 import wx
 from matplotlib.backend_bases import MouseButton, MouseEvent
@@ -42,19 +43,23 @@ PLAYER_FRAME_MIN_SIZE: tuple[int, int] = (920, 480)
 """Minimum dashboard frame size (pixels)."""
 PLAYER_FRAME_SIZE: tuple[int, int] = (1100, 760)
 """Initial dashboard frame size (pixels)."""
-PLOT_FRAME_SIZE: tuple[int, int] = (800, 600)
-"""Default plot frame size (pixels)."""
 
 
 @dataclass
 class _OpenView:
-    """Track the wx host and clock subscription for an open plot."""
+    """Track one graph-panel instance and its clock subscription."""
 
-    frame: wx.Frame | None
-    """Detached frame used by a native-window view, if any."""
+    panel_id: str
+    """Stable identity independent of the registered view type."""
 
-    panel: GraphPanelHost | None
-    """Embedded graph-panel host used by a Matplotlib view, if any."""
+    view_name: str
+    """Registered view type hosted by this panel instance."""
+
+    stack: str
+    """Graph stack containing this panel instance."""
+
+    panel: GraphPanelHost
+    """Embedded graph-panel host."""
 
     view: base.View
     """Plot view rendered in the frame."""
@@ -198,6 +203,7 @@ class PlayerApp:
         self._started = False
         self._closed = False
         self._open_views: dict[str, _OpenView] = {}
+        self._open_panels: dict[str, _OpenView] = {}
 
     def run(self) -> None:
         """Run the wx event loop and restore the prior SIGINT handler on exit."""
@@ -235,73 +241,98 @@ class PlayerApp:
         if not self.frame.Close(force=True) and not self._closed:
             raise RuntimeError("could not close the play-oem frame")
 
-    def open_speed_altitude_view(self) -> None:
+    def open_speed_altitude_view(
+        self, panel_id: str | None = None, stack: str = "middle"
+    ) -> None:
         """Open or raise the speed and altitude plot."""
         self._open_view(
             "speed-altitude",
-            lambda _frame: speed_altitude.SpeedAltitudeView(self.clock.t_start),
+            lambda _panel: speed_altitude.SpeedAltitudeView(self.clock.t_start),
+            panel_id=panel_id,
+            stack=stack,
         )
 
-    def open_rtn_view(self) -> None:
+    def open_rtn_view(self, panel_id: str | None = None, stack: str = "middle") -> None:
         """Open or raise the RTN position-delta plot."""
         self._open_view(
             "rtn",
-            lambda _frame: rtn.RtnDeltaView(self.clock.t_start, self.object_name),
+            lambda _panel: rtn.RtnDeltaView(self.clock.t_start, self.object_name),
+            panel_id=panel_id,
+            stack=stack,
         )
 
-    def open_angular_velocity_view(self) -> None:
+    def open_angular_velocity_view(
+        self, panel_id: str | None = None, stack: str = "middle"
+    ) -> None:
         """Open or raise the angular-velocity plot."""
         self._open_view(
             "angular-velocity",
-            lambda _frame: angular_velocity.AngularVelocityView(
+            lambda _panel: angular_velocity.AngularVelocityView(
                 self.clock.t_start, self.object_name
             ),
+            panel_id=panel_id,
+            stack=stack,
         )
 
-    def open_direction_change_view(self) -> None:
+    def open_direction_change_view(
+        self, panel_id: str | None = None, stack: str = "middle"
+    ) -> None:
         """Open or raise the direction-change plot."""
         self._open_view(
             "direction-change",
-            lambda _frame: direction_change.DirectionChangeView(
+            lambda _panel: direction_change.DirectionChangeView(
                 self.clock.t_start, self.object_name
             ),
+            panel_id=panel_id,
+            stack=stack,
         )
 
-    def open_distance_view(self) -> None:
+    def open_distance_view(
+        self, panel_id: str | None = None, stack: str = "middle"
+    ) -> None:
         """Open or raise the geocentric-distance plot."""
         self._open_view(
             "distance",
-            lambda _frame: distance.GeocentricDistanceView(
+            lambda _panel: distance.GeocentricDistanceView(
                 self.clock.t_start, self.object_name
             ),
+            panel_id=panel_id,
+            stack=stack,
         )
 
-    def open_state_components_view(self) -> None:
+    def open_state_components_view(
+        self, panel_id: str | None = None, stack: str = "middle"
+    ) -> None:
         """Open or raise the Cartesian state-components plot."""
         self._open_view(
             "state-components",
-            lambda _frame: state_components.StateComponentsView(
+            lambda _panel: state_components.StateComponentsView(
                 self.clock.t_start, self.frame_context
             ),
+            panel_id=panel_id,
+            stack=stack,
         )
 
-    def open_trajectory_view(self) -> None:
+    def open_trajectory_view(
+        self, panel_id: str | None = None, stack: str = "middle"
+    ) -> None:
         """Open or raise the selected 3D orbit backend."""
         if self._selected_3d_backend == "matplotlib":
-            self._open_matplotlib_trajectory_view()
+            self._open_matplotlib_trajectory_view(panel_id, stack)
             return
 
         try:
             self._open_view(
                 "trajectory-3d",
-                lambda frame: trajectory3d_selection.create_vtk_view(
-                    frame,
+                lambda panel: trajectory3d_selection.create_vtk_view(
+                    panel,
                     self.cursor,
                     self.object_name,
                     self.frame_context,
                     lambda: self.clock.rate,
                 ),
-                native_window=True,
+                panel_id=panel_id,
+                stack=stack,
             )
         except trajectory3d_selection.VTKBackendUnavailableError as error:
             if self._requested_3d_backend == "vtk":
@@ -316,19 +347,23 @@ class PlayerApp:
                 file=sys.stderr,
             )
             self._set_3d_backend("matplotlib")
-            self._open_matplotlib_trajectory_view()
+            self._open_matplotlib_trajectory_view(panel_id, stack)
             return
 
         self._set_3d_backend("vtk")
 
-    def _open_matplotlib_trajectory_view(self) -> None:
+    def _open_matplotlib_trajectory_view(
+        self, panel_id: str | None = None, stack: str = "middle"
+    ) -> None:
         self._open_view(
             "trajectory-3d",
-            lambda _frame: trajectory3d.Trajectory3DView(
+            lambda _panel: trajectory3d.Trajectory3DView(
                 self.cursor,
                 self.object_name,
                 self.frame_context,
             ),
+            panel_id=panel_id,
+            stack=stack,
         )
         self._set_3d_backend("matplotlib")
 
@@ -338,6 +373,21 @@ class PlayerApp:
 
     def open_view(self, name: str) -> None:
         self._view_registry.open_view(name)
+
+    def open_panel_view(self, name: str, panel_id: str, stack: str = "middle") -> None:
+        """Open a view in the graph-panel instance identified by ``panel_id``."""
+        if name not in self._view_registry.registered_views:
+            raise ValueError(f"unknown view name: {name!r}")
+        openers = {
+            "trajectory-3d": self.open_trajectory_view,
+            "speed-altitude": self.open_speed_altitude_view,
+            "state-components": self.open_state_components_view,
+            "rtn": self.open_rtn_view,
+            "angular-velocity": self.open_angular_velocity_view,
+            "direction-change": self.open_direction_change_view,
+            "distance": self.open_distance_view,
+        }
+        openers[name](panel_id=panel_id, stack=stack)
 
     def open_group(self, name: str) -> None:
         self._view_registry.open_group(name)
@@ -396,34 +446,52 @@ class PlayerApp:
         self._update_time_display()
 
     def close_view(self, name: str) -> None:
-        """Close one graph host or native view frame."""
+        """Close the default panel instance for a registered view."""
         opened = self._open_views.get(name)
         if opened is not None:
-            if opened.frame is not None:
-                opened.frame.Close(force=True)
-            else:
-                self._dispose_open_view(name)
+            self.close_panel(opened.panel_id)
+
+    def close_panel(self, panel_id: str) -> None:
+        """Close one graph-panel instance by its stable identifier."""
+        self._dispose_open_view(panel_id)
 
     def _open_view(
         self,
         name: str,
         create_view: Callable[[wx.Window], base.View],
         *,
-        native_window: bool = False,
+        panel_id: str | None = None,
+        stack: str = "middle",
     ) -> None:
         if self._closed:
             raise RuntimeError("cannot open a view in a closed PlayerApp")
-        existing = self._open_views.get(name)
-        if existing is not None:
-            if existing.frame is not None:
-                existing.frame.Raise()
-            if existing.panel is not None:
-                existing.panel.SetFocus()
-            elif existing.frame is not None:
-                existing.frame.SetFocus()
-            return
+        if stack == "middle":
+            stack_parent = self.workspace.middle_stack
+        elif stack == "right":
+            stack_parent = self.workspace.right_stack
+        else:
+            raise ValueError(f"unknown graph stack {stack!r}")
 
-        frame: wx.Frame | None = None
+        is_default_instance = panel_id is None
+        if is_default_instance:
+            existing = self._open_views.get(name)
+            if existing is not None:
+                existing.panel.SetFocus()
+                return
+            panel_id = uuid4().hex
+        elif not panel_id:
+            raise ValueError("panel_id cannot be empty")
+        else:
+            existing = self._open_panels.get(panel_id)
+            if existing is not None:
+                if existing.view_name == name:
+                    existing.panel.SetFocus()
+                    return
+                self._dispose_open_view(panel_id)
+
+        if panel_id in self._open_panels:
+            raise ValueError(f"panel instance already exists: {panel_id!r}")
+
         panel: GraphPanelHost | None = None
         view: base.View | None = None
         canvas: FigureCanvasWxAgg | None = None
@@ -431,35 +499,19 @@ class PlayerApp:
         click_callback_id: int | None = None
         unsubscribe: Callable[[], None] | None = None
         try:
-            if native_window:
-                frame = wx.Frame(
-                    self.frame,
-                    title=self._view_registry.label_for(name),
-                    size=PLOT_FRAME_SIZE,
-                )
-                frame.Bind(
-                    wx.EVT_CLOSE,
-                    lambda event: self._on_view_frame_close(name, event),
-                )
-                view_parent: wx.Window = frame
-            else:
-                panel = GraphPanelHost(
-                    self.workspace.middle_stack,
-                    self._view_registry.label_for(name),
-                    lambda: self.close_view(name),
-                    is_visible=lambda: self.workspace.is_graph_panel_visible(panel),
-                    on_redraw_request=self.workspace.queue_graph_redraw,
-                )
-                self.workspace.add_graph_panel(panel)
-                view_parent = panel
-            view = create_view(view_parent)
+            panel = GraphPanelHost(
+                stack_parent,
+                self._view_registry.label_for(name),
+                lambda: self.close_panel(panel_id),
+                is_visible=lambda: self.workspace.is_graph_panel_visible(panel),
+                on_redraw_request=self.workspace.queue_graph_redraw,
+                panel_id=panel_id,
+            )
+            self.workspace.add_graph_panel(panel, stack=stack)
+            view = create_view(panel)
             content = view.build(self.series, self.time_unit)
             view.update(self.clock.t_now)
             if isinstance(content, Figure):
-                if panel is None:
-                    raise TypeError(
-                        f"{name!r} native view unexpectedly returned a Matplotlib Figure"
-                    )
                 canvas = FigureCanvasWxAgg(panel, wx.ID_ANY, content)
                 plot_toolbar = NavigationToolbar2WxAgg(canvas)
                 plot_toolbar.Realize()
@@ -470,13 +522,7 @@ class PlayerApp:
                     lambda event: self._on_plot_click(event, plot_toolbar),
                 )
             elif isinstance(content, wx.Window):
-                if frame is None:
-                    raise TypeError(
-                        f"{name!r} view returned native wx content without a native host"
-                    )
-                layout = wx.BoxSizer(wx.VERTICAL)
-                layout.Add(content, 1, wx.EXPAND)
-                frame.SetSizer(layout)
+                panel.set_native_content(content)
             else:
                 raise TypeError(
                     f"{name!r} view build returned unsupported content "
@@ -485,12 +531,14 @@ class PlayerApp:
 
             def update_view(time_s: float) -> None:
                 view.update(time_s)
-                if panel is not None:
+                if panel is not None and canvas is not None:
                     panel.request_redraw()
 
             unsubscribe = self.clock.subscribe(update_view)
             opened_state = _OpenView(
-                frame,
+                panel_id,
+                name,
+                stack,
                 panel,
                 view,
                 unsubscribe,
@@ -498,30 +546,28 @@ class PlayerApp:
                 toolbar,
                 click_callback_id,
             )
-            self._open_views[name] = opened_state
-            if frame is not None:
-                frame.Layout()
-                if not frame.Show() and not frame.IsShown():
-                    raise RuntimeError(f"could not show the {name!r} plot frame")
+            self._open_panels[panel_id] = opened_state
+            if is_default_instance:
+                self._open_views[name] = opened_state
+            self.frame.Layout()
+            panel.Layout()
+            if isinstance(content, wx.Window) and name == "trajectory-3d":
                 trajectory3d_selection.validate_vtk_render_context(view)
-            else:
-                self.frame.Layout()
-                if panel is not None:
-                    panel.Layout()
-            if canvas is not None and panel is not None:
+            if canvas is not None:
                 panel.request_redraw()
         except Exception:
-            self._open_views.pop(name, None)
+            self._open_panels.pop(panel_id, None)
+            if self._open_views.get(name) is not None:
+                if self._open_views[name].panel_id == panel_id:
+                    self._open_views.pop(name)
             if canvas is not None and click_callback_id is not None:
                 canvas.mpl_disconnect(click_callback_id)
             if unsubscribe is not None:
                 unsubscribe()
             if view is not None:
                 view.close()
-            if frame is not None:
-                frame.Destroy()
             if panel is not None:
-                self.workspace.remove_graph_panel(panel)
+                self.workspace.remove_graph_panel(panel, stack=stack)
                 panel.Destroy()
             raise
 
@@ -543,30 +589,27 @@ class PlayerApp:
         self.clock.seek(target_time_s)
         self._update_time_display()
 
-    def _dispose_open_view(self, name: str) -> None:
-        opened = self._open_views.pop(name, None)
+    def _dispose_open_view(self, panel_id: str) -> None:
+        opened = self._open_panels.pop(panel_id, None)
         if opened is not None:
+            if self._open_views.get(opened.view_name) is opened:
+                self._open_views.pop(opened.view_name)
             if opened.canvas is not None and opened.click_callback_id is not None:
                 opened.canvas.mpl_disconnect(opened.click_callback_id)
             opened.unsubscribe()
             try:
                 opened.view.close()
             finally:
-                if opened.panel is not None:
-                    self.workspace.remove_graph_panel(opened.panel)
-                    opened.panel.Destroy()
-
-    def _on_view_frame_close(self, name: str, event: wx.CloseEvent) -> None:
-        self._dispose_open_view(name)
-        event.Skip()
+                self.workspace.remove_graph_panel(opened.panel, stack=opened.stack)
+                opened.panel.Destroy()
 
     def _on_frame_close(self, event: wx.CloseEvent) -> None:
         if not self._closed:
             self._closed = True
             self._timer.Stop()
             try:
-                for name in tuple(self._open_views):
-                    self.close_view(name)
+                for panel_id in tuple(self._open_panels):
+                    self.close_panel(panel_id)
             finally:
                 self.workspace.close()
         event.Skip()

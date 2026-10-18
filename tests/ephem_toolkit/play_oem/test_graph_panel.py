@@ -1,6 +1,8 @@
-"""Behavioral tests for embedded Matplotlib graph-panel redraw scheduling."""
+"""Behavioral tests for graph-panel redraw scheduling."""
 
 from __future__ import annotations
+
+from types import SimpleNamespace
 
 import pytest
 
@@ -73,3 +75,20 @@ def test_closing_redraw_throttle_cancels_deferred_work(
     throttle.close()
 
     assert not pending.IsRunning()
+
+
+def test_scheduled_redraw_refreshes_visible_native_content() -> None:
+    native_content = SimpleNamespace(refresh_count=0)
+    native_content.Refresh = lambda: setattr(
+        native_content, "refresh_count", native_content.refresh_count + 1
+    )
+    panel = SimpleNamespace(
+        _on_redraw_request=lambda _panel: None,
+        _canvas=None,
+        _native_content=native_content,
+        _is_visible=lambda: True,
+    )
+
+    graph_panel.GraphPanelHost.draw_if_needed(panel)
+
+    assert native_content.refresh_count == 1

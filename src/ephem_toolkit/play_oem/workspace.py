@@ -7,12 +7,24 @@ from collections.abc import Callable, Mapping, Sequence
 
 import wx
 
-from .graph_panel import GraphPanelHost
+from .graph_panel import GRAPH_PANEL_MIN_SIZE, GraphPanelHost
 
 TIMELINE_SLIDER_MAX: int = 10_000
 """Maximum integer position of the timeline slider."""
 GRAPH_REDRAW_INTERVAL_MS: int = 33
 """Minimum spacing between scheduled visible graph-panel redraws (milliseconds)."""
+MIN_GRAPH_PANE_WIDTH: int = 320
+"""Minimum width for either side of the graph-stack splitter."""
+MIN_GRAPH_PANEL_HEIGHT: int = GRAPH_PANEL_MIN_SIZE[1]
+"""Minimum height for graph panels separated by horizontal stack splitters."""
+DEFAULT_RIGHT_PANE_WIDTH: int = 320
+"""Initial width of the optional right graph pane."""
+CONTROLS_PANE_NAME: str = "Controls & Info"
+"""Visible and programmatic name for the left feature pane."""
+MAIN_ANALYSIS_PANE_NAME: str = "Main Analysis"
+"""Visible and programmatic name for the middle graph pane."""
+COMPARISON_PANE_NAME: str = "Comparison"
+"""Visible and programmatic name for the optional right graph pane."""
 
 
 class Workspace:
@@ -46,25 +58,44 @@ class Workspace:
         self._stack_windows: dict[str, wx.ScrolledWindow] = {}
         self._stack_sizers: dict[str, wx.BoxSizer] = {}
         self._empty_states: dict[str, wx.StaticText] = {}
+        self._stack_roots: dict[str, wx.Window | None] = {
+            "middle": None,
+            "right": None,
+        }
+        self._stack_splitters: dict[str, list[wx.SplitterWindow]] = {
+            "middle": [],
+            "right": [],
+        }
+        self._right_pane_width = DEFAULT_RIGHT_PANE_WIDTH
 
         root = wx.BoxSizer(wx.VERTICAL)
         self.content_splitter = wx.SplitterWindow(
-            frame, wx.ID_ANY, style=wx.SP_LIVE_UPDATE
+            frame, wx.ID_ANY, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH
         )
         self.left_pane = wx.Panel(self.content_splitter, wx.ID_ANY)
+        self.left_pane.SetName(CONTROLS_PANE_NAME)
         self.graph_splitter = wx.SplitterWindow(
-            self.content_splitter, wx.ID_ANY, style=wx.SP_LIVE_UPDATE
+            self.content_splitter,
+            wx.ID_ANY,
+            style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH,
         )
-        self.middle_stack = self._make_graph_stack(self.graph_splitter, "middle")
-        self.right_stack = self._make_graph_stack(self.graph_splitter, "right")
-        self.graph_splitter.SetMinimumPaneSize(320)
+        self.middle_pane, self.middle_stack = self._make_graph_pane(
+            self.graph_splitter, "middle", MAIN_ANALYSIS_PANE_NAME
+        )
+        self.right_pane, self.right_stack = self._make_graph_pane(
+            self.graph_splitter, "right", COMPARISON_PANE_NAME
+        )
+        self.graph_splitter.SetMinimumPaneSize(MIN_GRAPH_PANE_WIDTH)
         self.graph_splitter.SetSashGravity(1.0)
-        self.graph_splitter.SplitVertically(self.middle_stack, self.right_stack, 320)
-        self.graph_splitter.Unsplit(self.right_stack)
+        self.graph_splitter.SplitVertically(
+            self.middle_pane, self.right_pane, MIN_GRAPH_PANE_WIDTH
+        )
+        self.graph_splitter.Unsplit(self.right_pane)
+        self.content_splitter.SetMinimumPaneSize(240)
+        self.content_splitter.SetSashGravity(0.0)
         self._right_pane_visible = False
 
         self._build_feature_navigation(context or {}, details)
-        self.content_splitter.SetMinimumPaneSize(240)
         self.content_splitter.SplitVertically(self.left_pane, self.graph_splitter, 240)
 
         self.timeline_panel = wx.Panel(frame, wx.ID_ANY)
@@ -115,36 +146,82 @@ class Workspace:
         if visible == self._right_pane_visible:
             return
         if visible:
+            client_width = self.graph_splitter.GetClientSize().width
+            sash_size = self.graph_splitter.GetSashSize()
+            if client_width > 0:
+                max_right_width = max(
+                    MIN_GRAPH_PANE_WIDTH,
+                    client_width - MIN_GRAPH_PANE_WIDTH - sash_size,
+                )
+                right_width = min(self._right_pane_width, max_right_width)
+                sash_position = client_width - right_width - sash_size
+            else:
+                sash_position = MIN_GRAPH_PANE_WIDTH
             self.graph_splitter.SplitVertically(
-                self.middle_stack, self.right_stack, 320
+                self.middle_pane, self.right_pane, sash_position
             )
         else:
-            self.graph_splitter.Unsplit(self.right_stack)
+            client_width = self.graph_splitter.GetClientSize().width
+            if client_width > 0:
+                self._right_pane_width = max(
+                    MIN_GRAPH_PANE_WIDTH,
+                    client_width
+                    - self.graph_splitter.GetSashPosition()
+                    - self.graph_splitter.GetSashSize(),
+                )
+            self.graph_splitter.Unsplit(self.right_pane)
         self._right_pane_visible = visible
         if visible:
             self._request_stack_redraws("right")
 
     def add_graph_panel(self, panel: GraphPanelHost, stack: str = "middle") -> None:
-        """Add a graph host to the selected scrollable stack."""
+        """Add a graph host, separating adjacent panels with horizontal splitters."""
         if stack not in self._graph_panels:
             raise ValueError(f"unknown graph stack {stack!r}")
         if panel in self._graph_panels[stack]:
             raise ValueError("graph panel is already in this stack")
+
+        window = self._stack_windows[stack]
+        sizer = self._stack_sizers[stack]
+        root = self._stack_roots[stack]
+        if root is None:
+            root = panel
+            sizer.Add(root, 1, wx.EXPAND)
+        else:
+            root_min_height = root.GetMinSize().height
+            splitter = wx.SplitterWindow(
+                window, wx.ID_ANY, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH
+            )
+            splitter.SetMinimumPaneSize(MIN_GRAPH_PANEL_HEIGHT)
+            splitter.SetSashGravity(0.5)
+            sizer.Detach(root)
+            root.Reparent(splitter)
+            panel.Reparent(splitter)
+            if not splitter.SplitHorizontally(root, panel, root_min_height):
+                root.Reparent(window)
+                panel.Reparent(window)
+                splitter.Destroy()
+                sizer.Add(root, 1, wx.EXPAND)
+                raise RuntimeError(f"could not split graph stack {stack!r}")
+            self._stack_splitters[stack].append(splitter)
+            root = splitter
+            sizer.Add(root, 1, wx.EXPAND)
+
         self._graph_panels[stack].append(panel)
+        self._stack_roots[stack] = root
         empty_state = self._empty_states[stack]
         empty_state.Hide()
-        sizer = self._stack_sizers[stack]
-        sizer.Add(panel, 0, wx.EXPAND | wx.ALL, 4)
-        window = self._stack_windows[stack]
+        self._update_stack_minimum_size(stack)
         window.Layout()
         window.FitInside()
 
     def remove_graph_panel(self, panel: GraphPanelHost, stack: str = "middle") -> None:
-        """Remove a graph host from its stack and restore the empty state if needed."""
+        """Remove a graph host and collapse its splitter without disturbing others."""
         if stack not in self._graph_panels:
             raise ValueError(f"unknown graph stack {stack!r}")
         if panel not in self._graph_panels[stack]:
             return
+        self._remove_panel_from_stack_tree(stack, panel)
         self._graph_panels[stack].remove(panel)
         if panel in self._queued_graph_redraws:
             self._pending_graph_redraws = deque(
@@ -155,7 +232,7 @@ class Workspace:
             if self._graph_redraw_timer.IsRunning():
                 self._graph_redraw_timer.Stop()
             self._graph_redraw_timer = None
-        self._stack_sizers[stack].Detach(panel)
+        self._update_stack_minimum_size(stack)
         if not self._graph_panels[stack]:
             self._empty_states[stack].Show()
         self._stack_windows[stack].Layout()
@@ -203,9 +280,101 @@ class Workspace:
         """Check whether a graph host intersects its scroll stack's viewport."""
         if not panel.IsShownOnScreen():
             return False
-        stack = panel.GetParent()
-        viewport = wx.Rect(stack.ClientToScreen((0, 0)), stack.GetClientSize())
+        stack_window = next(
+            (
+                self._stack_windows[stack]
+                for stack, panels in self._graph_panels.items()
+                if panel in panels
+            ),
+            None,
+        )
+        if stack_window is None:
+            return False
+        viewport = wx.Rect(
+            stack_window.ClientToScreen((0, 0)), stack_window.GetClientSize()
+        )
         return panel.GetScreenRect().Intersects(viewport)
+
+    def _remove_panel_from_stack_tree(self, stack: str, panel: GraphPanelHost) -> None:
+        root = self._stack_roots[stack]
+        if root is panel:
+            self._stack_sizers[stack].Detach(panel)
+            self._stack_roots[stack] = None
+            return
+        if not isinstance(root, wx.SplitterWindow):
+            raise RuntimeError(f"graph stack {stack!r} has an invalid splitter tree")
+        if not self._remove_panel_from_splitter(stack, root, panel):
+            raise RuntimeError(
+                f"graph panel {panel.panel_id!r} is missing from its stack"
+            )
+
+    def _remove_panel_from_splitter(
+        self, stack: str, splitter: wx.SplitterWindow, panel: GraphPanelHost
+    ) -> bool:
+        first = splitter.GetWindow1()
+        second = splitter.GetWindow2()
+        if first is panel or second is panel:
+            sibling = second if first is panel else first
+            stack_window = self._stack_windows[stack]
+            splitter.Unsplit(panel)
+            panel.Reparent(stack_window)
+            if splitter is self._stack_roots[stack]:
+                self._stack_sizers[stack].Detach(splitter)
+                sibling.Reparent(stack_window)
+                splitter.Destroy()
+                self._stack_sizers[stack].Add(sibling, 1, wx.EXPAND)
+                self._stack_roots[stack] = sibling
+            else:
+                parent = splitter.GetParent()
+                if not isinstance(parent, wx.SplitterWindow):
+                    raise RuntimeError(
+                        f"graph stack {stack!r} has a broken splitter hierarchy"
+                    )
+                parent_first = parent.GetWindow1()
+                parent_second = parent.GetWindow2()
+                parent_sash_position = parent.GetSashPosition()
+                parent.Unsplit(splitter)
+                sibling.Reparent(parent)
+                splitter.Destroy()
+                if parent_first is splitter:
+                    split_succeeded = parent.SplitHorizontally(
+                        sibling, parent_second, parent_sash_position
+                    )
+                else:
+                    split_succeeded = parent.SplitHorizontally(
+                        parent_first, sibling, parent_sash_position
+                    )
+                if not split_succeeded:
+                    raise RuntimeError(f"could not restore graph stack {stack!r}")
+            self._stack_splitters[stack].remove(splitter)
+            return True
+
+        if isinstance(first, wx.SplitterWindow) and self._remove_panel_from_splitter(
+            stack, first, panel
+        ):
+            return True
+        if isinstance(second, wx.SplitterWindow) and self._remove_panel_from_splitter(
+            stack, second, panel
+        ):
+            return True
+        return False
+
+    def _update_stack_minimum_size(self, stack: str) -> None:
+        def minimum_height(window: wx.Window) -> int:
+            if not isinstance(window, wx.SplitterWindow):
+                return window.GetMinSize().height
+            height = (
+                minimum_height(window.GetWindow1())
+                + minimum_height(window.GetWindow2())
+                + window.GetSashSize()
+            )
+            window.SetMinimumPaneSize(MIN_GRAPH_PANEL_HEIGHT)
+            window.SetMinSize((GRAPH_PANEL_MIN_SIZE[0], height))
+            return height
+
+        root = self._stack_roots[stack]
+        if root is not None:
+            minimum_height(root)
 
     def select_feature(self, index: int) -> None:
         """Select a feature page and keep the rail's toggle state synchronized."""
@@ -219,7 +388,11 @@ class Workspace:
     def _build_feature_navigation(
         self, context: Mapping[str, str], details: Sequence[tuple[str, str]]
     ) -> None:
-        left_layout = wx.BoxSizer(wx.HORIZONTAL)
+        left_layout = wx.BoxSizer(wx.VERTICAL)
+        title = wx.StaticText(self.left_pane, wx.ID_ANY, CONTROLS_PANE_NAME)
+        title.SetName(CONTROLS_PANE_NAME)
+        left_layout.Add(title, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8)
+        content_layout = wx.BoxSizer(wx.HORIZONTAL)
         rail = wx.BoxSizer(wx.VERTICAL)
         self.feature_book = wx.Simplebook(self.left_pane, wx.ID_ANY)
         self.feature_pages: list[wx.Panel] = []
@@ -276,9 +449,25 @@ class Workspace:
             )
         self.file_info_page.SetSizer(info_layout)
 
-        left_layout.Add(rail, 0, wx.EXPAND | wx.ALL, 4)
-        left_layout.Add(self.feature_book, 1, wx.EXPAND | wx.ALL, 4)
+        content_layout.Add(rail, 0, wx.EXPAND | wx.ALL, 4)
+        content_layout.Add(self.feature_book, 1, wx.EXPAND | wx.ALL, 4)
+        left_layout.Add(content_layout, 1, wx.EXPAND)
         self.left_pane.SetSizer(left_layout)
+
+    def _make_graph_pane(
+        self, parent: wx.Window, stack: str, title: str
+    ) -> tuple[wx.Panel, wx.ScrolledWindow]:
+        pane = wx.Panel(parent, wx.ID_ANY)
+        pane.SetName(title)
+        layout = wx.BoxSizer(wx.VERTICAL)
+        title_label = wx.StaticText(pane, wx.ID_ANY, title)
+        title_label.SetName(title)
+        layout.Add(title_label, 0, wx.EXPAND | wx.ALL, 8)
+        stack_window = self._make_graph_stack(pane, stack)
+        stack_window.SetName(f"{title} graph stack")
+        layout.Add(stack_window, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+        pane.SetSizer(layout)
+        return pane, stack_window
 
     def _make_graph_stack(self, parent: wx.Window, stack: str) -> wx.ScrolledWindow:
         window = wx.ScrolledWindow(parent, wx.ID_ANY, style=wx.VSCROLL)
