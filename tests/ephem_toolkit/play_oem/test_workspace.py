@@ -401,11 +401,19 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert [label for _page, label in result.feature_book.pages] == [
         "Playback",
         "OEM file information",
+        "State",
     ]
     assert result.feature_book.selection == 0
     assert result.feature_buttons[0].name == "Playback"
     assert result.feature_buttons[0].tooltip == "Playback"
     assert result.feature_buttons[1].name == "OEM file information"
+    assert result.feature_buttons[2].name == "State"
+    assert result.feature_buttons[2].tooltip == "State"
+    assert [page.name for page in result.feature_pages] == [
+        "Playback",
+        "OEM file information",
+        "State",
+    ]
     assert result.left_pane.name == workspace.CONTROLS_PANE_NAME
     assert result.middle_pane.name == workspace.MAIN_ANALYSIS_PANE_NAME
     assert result.right_pane.name == workspace.COMPARISON_PANE_NAME
@@ -629,6 +637,11 @@ def test_feature_rail_supports_click_and_vertical_keyboard_navigation(
     assert result.feature_buttons[0].value
     assert result.feature_buttons[0].focused
     assert not event.skipped
+
+    down_event = FakeEvent(key_code=workspace.wx.WXK_DOWN)
+    result.feature_buttons[0].trigger("key-down", down_event)
+    assert result.feature_book.selection == 1
+    assert result.feature_buttons[1].focused
 
 
 def test_global_timeline_syncs_without_recursive_seek_and_dispatches_user_seek(

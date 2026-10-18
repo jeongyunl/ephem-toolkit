@@ -33,6 +33,7 @@ class Workspace:
     _FEATURES = (
         ("Playback", wx.ART_GO_FORWARD),
         ("OEM file information", wx.ART_INFORMATION),
+        ("State", wx.ART_LIST_VIEW),
     )
 
     def __init__(
@@ -425,6 +426,7 @@ class Workspace:
 
         for index, (name, art_id) in enumerate(self._FEATURES):
             page = wx.Panel(self.feature_book, wx.ID_ANY)
+            page.SetName(name)
             self.feature_book.AddPage(page, name)
             self.feature_pages.append(page)
             bitmap = wx.ArtProvider.GetBitmap(art_id, wx.ART_BUTTON, wx.Size(24, 24))
@@ -443,6 +445,7 @@ class Workspace:
 
         self.playback_page = self.feature_pages[0]
         self.file_info_page = self.feature_pages[1]
+        self.state_page = self.feature_pages[2]
         info_layout = wx.BoxSizer(wx.VERTICAL)
         for label, key in (
             ("Object", "object"),

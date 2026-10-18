@@ -63,24 +63,6 @@ selections and size when closed and restore them when reopened.
 
 ## Milestone G2 — Graph stacks and feature pages
 
-### 8. Implement the vertical icon-button rail and feature pages
-
-Build the approved icon-only button rail and `wx.Simplebook` page host for non-graph features.
-
-- **Status:** Not started.
-- **Progress:** 0/6 checklist items.
-- [ ] Implement icon-only `wx.BitmapToggleButton` controls and `wx.Simplebook` pages for OEM
-      information, playback, state, and in-scope settings or other non-graph features.
-- [ ] Give each icon button a meaningful accessible name and hover tooltip.
-- [ ] Provide visible selected and keyboard-focus states.
-- [ ] Support keyboard focus, Up/Down navigation, and keyboard activation.
-- [ ] Test page navigation, accessible names, and tooltips.
-- [ ] Record native keyboard/screen-reader results or remaining platform-specific limitations.
-
-**Done when:** each feature page is reachable by mouse and keyboard, and icon buttons expose
-clear names, tooltips, and selected/focus state.
-**Depends on:** Step 2 and Substep 1-4.
-
 ### 9. Move existing controls and readouts into feature pages
 
 Populate the feature pages from the current control dashboard without changing playback or data
@@ -649,3 +631,31 @@ remains scheduled for the manual end-to-end checks in Step 12.
 **Done when:** every pane boundary is independently resizable, overflow is handled by scrolling,
 and panels remain usable at their defined minimum dimensions.
 **Depends on:** Step 5 and Substep 1-5.
+
+### 8. Implement the vertical icon-button rail and feature pages
+
+Build the approved icon-only button rail and `wx.Simplebook` page host for non-graph features.
+
+- **Status:** Done.
+- **Progress:** 6/6 checklist items.
+- [x] Implement icon-only `wx.BitmapToggleButton` controls and `wx.Simplebook` pages for OEM
+      information, playback, state, and in-scope settings or other non-graph features.
+- [x] Give each icon button a meaningful accessible name and hover tooltip.
+- [x] Provide visible selected and keyboard-focus states.
+- [x] Support keyboard focus, Up/Down navigation, and keyboard activation.
+- [x] Test page navigation, accessible names, and tooltips.
+- [x] Record native keyboard/screen-reader results or remaining platform-specific limitations.
+
+**Implementation and validation:** The icon rail and `wx.Simplebook` expose Playback, OEM file
+information, and State pages. Each icon button and page has a matching accessible/programmatic
+name; buttons have tooltips and native toggle selection. Click and Up/Down keyboard navigation
+update the page and selected toggle, with keyboard navigation moving focus to the selected button.
+Workspace tests and native wx smoke checks verified all page names, tooltips, and selected state.
+The full play-oem suite passed (**150 passed**, 14 existing Matplotlib/Pyparsing deprecation
+warnings). Automated macOS GUI checks could not acquire native keyboard focus from the inactive
+test process, and screen-reader exposure remains unverified; manual native validation is scheduled
+in Step 11. Page content is intentionally populated in Step 9.
+
+**Done when:** each feature page is reachable by mouse and keyboard, and icon buttons expose
+clear names, tooltips, and selected/focus state.
+**Depends on:** Step 2 and Substep 1-4.
