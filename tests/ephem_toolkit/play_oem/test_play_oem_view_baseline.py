@@ -13,7 +13,10 @@ from ephem_toolkit.play_oem.data import read_oem_states
 from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.speed_altitude import SpeedAltitudeView
-from ephem_toolkit.play_oem.views.state_components import StateComponentsView
+from ephem_toolkit.play_oem.views.state_components import (
+    MAX_STATE_COMPONENT_DISPLAY_POINTS_PER_SEGMENT,
+    StateComponentsView,
+)
 from ephem_toolkit.play_oem.views.trajectory3d import Trajectory3DView
 from ephem_toolkit.play_oem.views.plotting import MAX_DISPLAY_POINTS_PER_SEGMENT
 
@@ -79,7 +82,7 @@ def test_migrated_views_preserve_baseline_data_labels_and_cursor_locations() -> 
             )
             xdata = axes.lines[0].get_xdata()
             ydata = axes.lines[0].get_ydata()
-            assert len(xdata) <= MAX_DISPLAY_POINTS_PER_SEGMENT
+            assert len(xdata) <= MAX_STATE_COMPONENT_DISPLAY_POINTS_PER_SEGMENT
             assert xdata[0] == orbit_series.elapsed_time[0]
             assert xdata[-1] == orbit_series.elapsed_time[-1]
             np.testing.assert_allclose(

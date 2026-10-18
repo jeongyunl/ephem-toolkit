@@ -167,6 +167,46 @@ class FakeToolbar:
         return nullcontext()
 
 
+class FakeGraphPanelHost:
+    def __init__(
+        self, parent, title: str, on_close, *, is_visible=None, on_redraw_request=None
+    ) -> None:
+        self.parent = parent
+        self.title = title
+        self.on_close = on_close
+        self.canvas = None
+        self.toolbar = None
+        self.focused = False
+        self.destroyed = False
+        self.redraw_requests = 0
+
+    def set_matplotlib_content(self, toolbar, canvas) -> None:
+        self.toolbar = toolbar
+        self.canvas = canvas
+
+    def request_redraw(self) -> None:
+        self.redraw_requests += 1
+        if self.canvas is not None:
+            self.canvas.draw_idle()
+
+    def draw_if_needed(self) -> None:
+        self.request_redraw()
+
+    def draw_initial(self) -> None:
+        if self.canvas is not None:
+            self.canvas.draw()
+
+    def SetFocus(self) -> None:
+        self.focused = True
+
+    def Layout(self) -> None:
+        pass
+
+    def Destroy(self) -> bool:
+        self.destroyed = True
+        return True
+
+
 class FakeView:
     name = "fake"
 
@@ -269,6 +309,8 @@ class FakeWorkspace:
         self.context = context
         self.details = details
         self.playback_page = object()
+        self.middle_stack = object()
+        self.graph_panels = []
         self.progress = 0.0
         self.playback_content = None
 
@@ -277,6 +319,22 @@ class FakeWorkspace:
 
     def update_timeline(self, progress: float) -> None:
         self.progress = progress
+
+    def add_graph_panel(self, panel, _stack: str = "middle") -> None:
+        self.graph_panels.append(panel)
+
+    def remove_graph_panel(self, panel, _stack: str = "middle") -> None:
+        self.graph_panels.remove(panel)
+
+    def draw_initial_graphs(self) -> None:
+        for panel in self.graph_panels:
+            panel.draw_initial()
+
+    def queue_graph_redraw(self, panel) -> None:
+        panel.draw_if_needed()
+
+    def close(self) -> None:
+        pass
 
 
 def make_states() -> list[np.ndarray]:
@@ -325,6 +383,7 @@ def make_app(
     monkeypatch.setattr(app.wx, "Timer", FakeTimer)
     monkeypatch.setattr(app.control_window, "ControlWindow", FakeControlWindow)
     monkeypatch.setattr(app.workspace, "Workspace", FakeWorkspace)
+    monkeypatch.setattr(app, "GraphPanelHost", FakeGraphPanelHost)
     monkeypatch.setattr(app, "FigureCanvasWxAgg", lambda *args: _canvas(*args))
     monkeypatch.setattr(app, "NavigationToolbar2WxAgg", FakeToolbar)
     monkeypatch.setattr(app.wx, "EVT_CLOSE", "close")
@@ -385,11 +444,11 @@ def test_start_uses_one_wx_app_and_opens_the_selected_views(
     player.start()
 
     assert player.wx_app.main_loop_calls == 0
-    assert len(frames) == 2
+    assert len(frames) == 1
     assert frames[0].title == "play-oem (3D backend: matplotlib)"
-    assert frames[1].title == "State Components"
-    assert frames[0].shown and frames[1].shown
+    assert frames[0].shown
     assert len(views) == len(canvases) == 1
+    assert player._open_views["state-components"].panel in player.workspace.graph_panels
     assert views[0].updated_times == [150.0]
     assert player._timer.interval == 40
     assert player._timer.running
@@ -424,7 +483,7 @@ def test_wx_timer_advances_clock_and_updates_playback_display_and_views(
     assert "UTC:" in player.control_window.text
     assert "Playing | +1x" in player.control_window.text
     assert all(view.updated_times[-1] == 102.5 for view in views)
-    assert all(canvas.draw_idle_count == 1 for canvas in canvases)
+    assert all(canvas.draw_idle_count == 2 for canvas in canvases)
 
     player.close()
 
@@ -498,8 +557,8 @@ def test_matplotlib_3d_render_throttle_does_not_skip_clock_ticks(
     player._on_timer(SimpleNamespace())
 
     assert player.clock.t_now == pytest.approx(100.16)
-    assert views[0].updated_times == [100.0, 100.05, 100.16]
-    assert canvas.draw_idle_count == 2
+    assert views[0].updated_times == [100.0, 100.05, 100.09, 100.16]
+    assert canvas.draw_idle_count == 4
     player.close()
 
 
@@ -535,15 +594,15 @@ def test_clock_notifications_update_views_and_existing_plot_is_raised(
         plots=("overview", "trajectory-3d"),
     )
     player.start()
-    plot_frames = [view.frame for view in player._open_views.values()]
+    plot_panels = [view.panel for view in player._open_views.values()]
 
     player.clock.seek(150.0)
     player.open_group("overview")
     player.control_window.callbacks["open_view"]("trajectory-3d")
 
     assert all(view.updated_times == [100.0, 150.0] for view in views)
-    assert all(frame.raised and frame.focused for frame in plot_frames)
-    assert len(frames) == 3
+    assert all(panel.focused for panel in plot_panels)
+    assert len(frames) == 1
 
     player.close()
 
@@ -560,14 +619,14 @@ def test_cli_selection_opens_through_the_dashboard_registry(
     player.start()
 
     assert set(player._open_views) == {"trajectory-3d", "state-components"}
-    assert len(frames) == 3
+    assert len(frames) == 1
 
     player.control_window.callbacks["open_group"]("state")
     player.control_window.callbacks["open_view"]("trajectory-3d")
 
-    assert len(frames) == 3
+    assert len(frames) == 1
     assert all(
-        view.frame.raised and view.frame.focused for view in player._open_views.values()
+        view.panel.focused for view in player._open_views.values()
     )
 
     player.close()
@@ -689,7 +748,7 @@ def test_auto_3d_backend_falls_back_to_matplotlib_with_warning(
     assert len(views) == 1
     assert player._selected_3d_backend == "matplotlib"
     assert player.frame.title == "play-oem (3D backend: matplotlib)"
-    assert len(frames) == 3
+    assert len(frames) == 2
     assert frames[1].destroyed
     assert "falling back to Matplotlib" in capsys.readouterr().err
 
@@ -727,7 +786,7 @@ def test_auto_3d_backend_falls_back_when_vtk_render_context_fails(
     assert len(views) == 1
     assert vtk_view.closed
     assert player._selected_3d_backend == "matplotlib"
-    assert len(frames) == 3
+    assert len(frames) == 2
     assert frames[1].destroyed
     assert "VTK did not complete its initial render" in capsys.readouterr().err
 
@@ -878,12 +937,12 @@ def test_closing_one_plot_unsubscribes_only_that_view(
         plots=("state-components",),
     )
     player.start()
-    plot_frame = frames[1]
+    plot_panel = player._open_views["state-components"].panel
 
     player.close_view("state-components")
     player.clock.seek(160.0)
 
-    assert plot_frame.destroyed
+    assert plot_panel.destroyed
     assert canvases[0].disconnected_callbacks == [1]
     assert canvases[0].callbacks == {}
     assert views[0].closed

@@ -45,3 +45,24 @@ def test_plot_segments_keeps_gap_and_decimates_only_display_arrays() -> None:
     assert lines[0].get_xdata()[-1] == 4_999
     assert lines[1].get_xdata()[0] == 5_000
     assert len(x) == len(y) == len(segment_ids) == 10_000
+
+
+def test_plot_segments_accepts_a_tighter_display_cap_and_preserves_extrema() -> None:
+    x = np.arange(5_000, dtype=float)
+    y = np.sin(x / 100.0)
+    figure = Figure()
+    axes = figure.subplots()
+
+    (line,) = plot_segments(
+        axes,
+        x,
+        y,
+        np.zeros(len(x), dtype=int),
+        max_display_points=500,
+    )
+
+    assert len(line.get_xdata()) <= 500
+    assert line.get_xdata()[0] == x[0]
+    assert line.get_xdata()[-1] == x[-1]
+    assert np.min(line.get_ydata()) == np.min(y)
+    assert np.max(line.get_ydata()) == np.max(y)

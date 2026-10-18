@@ -42,9 +42,13 @@ def plot_segments(
     x: np.ndarray,
     y: np.ndarray,
     segment_ids: Sequence[int],
+    *,
+    max_display_points: int = MAX_DISPLAY_POINTS_PER_SEGMENT,
     **kwargs: object,
 ) -> list[Line2D]:
     """Plot contiguous segment runs separately, omitting invalid boundary samples."""
+    if max_display_points < 4:
+        raise ValueError("max_display_points must be at least four")
     ids = np.asarray(segment_ids, dtype=int)
     if x.shape[0] != y.shape[0] or ids.shape != x.shape:
         raise ValueError("x, y, and segment_ids must have matching first dimensions")
@@ -59,8 +63,8 @@ def plot_segments(
             stop += 1
         run_x = x[start:stop]
         run_y = y[start:stop]
-        if len(run_x) > MAX_DISPLAY_POINTS_PER_SEGMENT:
-            bucket_count = max(1, (MAX_DISPLAY_POINTS_PER_SEGMENT - 2) // 2)
+        if len(run_x) > max_display_points:
+            bucket_count = max(1, (max_display_points - 2) // 2)
             edges = np.linspace(0, len(run_x), bucket_count + 1, dtype=int)
             selected: list[int] = [0]
             for left, right in zip(edges[:-1], edges[1:]):

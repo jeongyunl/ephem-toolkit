@@ -50,30 +50,6 @@ selections and size when closed and restore them when reopened.
 
 ## Milestone G1 — Workspace shell and embedded view hosts
 
-### 3. Embed Matplotlib views in reusable graph-panel hosts
-
-Replace the assumption that a Matplotlib view owns a top-level `wx.Frame` with a reusable
-graph-panel host. Keep the view registry responsible for available view types and preserve the
-existing view contract.
-
-- **Status:** Not started.
-- **Progress:** 0/7 checklist items.
-- [ ] Separate Matplotlib view construction and plot-content hosting from `_open_view` frame
-      construction.
-- [ ] Parent Matplotlib canvases and navigation toolbars to graph-panel hosts while preserving
-      toolbar-mode handling and click-to-seek.
-- [ ] Update each embedded view from the shared playback clock and initialize it at the current
-      cursor time.
-- [ ] Add focused tests for Matplotlib host construction, resize/redraw, and clock-synchronized
-      updates.
-- [ ] Verify click-to-seek and Matplotlib zoom/pan toolbar behavior in an embedded host.
-- [ ] Surface view construction failures through the existing explicit error path.
-- [ ] Coalesce/throttle redraws and skip off-screen panel rendering as needed to meet the
-      seven-view responsiveness targets without dropping clock updates.
-
-**Done when:** Matplotlib views render and interact correctly in embedded graph-panel hosts.
-**Depends on:** Step 2 and Substep 1-1.
-
 ### 4. Define panel-instance lifecycle and embed supported VTK views
 
 Separate panel-instance identity from registered view type so a stack can host independent copies
@@ -536,3 +512,48 @@ semantics in this step.
 **Done when:** the workspace shell is displayed with a global timeline and testable pane
 placeholders while the existing GUI behavior remains available.
 **Depends on:** Step 1.
+
+### 3. Embed Matplotlib views in reusable graph-panel hosts
+
+Replace the assumption that a Matplotlib view owns a top-level `wx.Frame` with a reusable
+graph-panel host. Keep the view registry responsible for available view types and preserve the
+existing view contract.
+
+- **Status:** Done with an accepted performance limitation.
+- **Progress:** 7/7 checklist items.
+- [x] Separate Matplotlib view construction and plot-content hosting from `_open_view` frame
+      construction.
+- [x] Parent Matplotlib canvases and navigation toolbars to graph-panel hosts while preserving
+      toolbar-mode handling and click-to-seek.
+- [x] Update each embedded view from the shared playback clock and initialize it at the current
+      cursor time.
+- [x] Add focused tests for Matplotlib host construction, resize/redraw, and clock-synchronized
+      updates.
+- [x] Verify click-to-seek and Matplotlib zoom/pan toolbar behavior in an embedded host.
+- [x] Surface view construction failures through the existing explicit error path.
+- [x] Coalesce/throttle redraws and skip off-screen panel rendering without dropping clock updates;
+      document the measured target miss and accepted limitation.
+
+**Implementation and validation:**
+
+- Matplotlib views are hosted in reusable graph panels with embedded canvases and toolbars. View
+  updates remain subscribed to the shared clock, while redraws are coalesced and off-screen
+  panels are skipped. Construction failures use the existing explicit cleanup-and-reraise path.
+- The focused graph-panel, workspace, app, plotting, and baseline tests passed: **41 passed**.
+  A native macOS wx smoke test verified canvas resizing, click-to-seek and pan-mode suppression
+  through synthetic Matplotlib events, and clean shutdown.
+- In a 3.5-second native run with all seven registered views and the 5,402-sample
+  `ISS_2026-05-20.OEM`, playback-tick interval p95 was 93.0 ms and posted UI-callback p95/max
+  latency was 92.5/94.5 ms. The targets are 50 ms, 50 ms, and 100 ms, respectively. Thus the
+  p95 targets remain unmet; the callback maximum target passed.
+- Lowering the state-components figure DPI reduced its isolated median draw from 57.5 ms at
+  100 DPI to 49.3 ms at 50 DPI, but this would reduce display resolution and did not establish
+  that the seven-view target could be met. Partial WxAgg blitting remains disabled because it
+  previously caused stale/offset plot content after click-to-seek.
+- The user accepted the measured macOS performance limitation and requested retaining full-redraw
+  behavior. Results on other platforms remain unverified; the target miss is documented rather
+  than represented as a performance pass.
+
+**Done when:** embedded Matplotlib views render and interact correctly, and the measured
+responsiveness limitation is explicitly accepted and documented.
+**Depends on:** Step 2 and Substep 1-1.

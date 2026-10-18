@@ -20,6 +20,7 @@ from matplotlib.figure import Figure
 import ephem_toolkit.core.time_utils as time_utils
 
 from . import clock, control_window, cursor, series, time_unit, workspace
+from .graph_panel import GraphPanelHost
 from .views import (
     angular_velocity,
     base,
@@ -35,8 +36,6 @@ from .views.trajectory3d import selection as trajectory3d_selection
 
 DEFAULT_TICK_INTERVAL_MS: int = 33
 """Default interval between playback timer events (ms)."""
-MATPLOTLIB_3D_UPDATE_INTERVAL_S: float = 0.1
-"""Maximum Matplotlib 3D redraw rate in seconds."""
 ELAPSED_TIME_DECIMAL_PLACES: int = 3
 """Number of decimal places shown in the elapsed-time readout."""
 PLAYER_FRAME_MIN_SIZE: tuple[int, int] = (920, 480)
@@ -49,10 +48,13 @@ PLOT_FRAME_SIZE: tuple[int, int] = (800, 600)
 
 @dataclass
 class _OpenView:
-    """Track the wx frame and clock subscription for an open plot."""
+    """Track the wx host and clock subscription for an open plot."""
 
-    frame: wx.Frame
-    """Frame hosting the plot."""
+    frame: wx.Frame | None
+    """Detached frame used by a native-window view, if any."""
+
+    panel: GraphPanelHost | None
+    """Embedded graph-panel host used by a Matplotlib view, if any."""
 
     view: base.View
     """Plot view rendered in the frame."""
@@ -222,6 +224,7 @@ class PlayerApp:
         self._update_time_display()
         self.frame.Show()
         self.open_plots(self._plots)
+        self.workspace.draw_initial_graphs()
         if not self._timer.Start(self._tick_interval_ms):
             raise RuntimeError("could not start the wx playback timer")
 
@@ -298,6 +301,7 @@ class PlayerApp:
                     self.frame_context,
                     lambda: self.clock.rate,
                 ),
+                native_window=True,
             )
         except trajectory3d_selection.VTKBackendUnavailableError as error:
             if self._requested_3d_backend == "vtk":
@@ -392,83 +396,102 @@ class PlayerApp:
         self._update_time_display()
 
     def close_view(self, name: str) -> None:
-        """Close one plot frame and unsubscribe its view from the playback clock."""
+        """Close one graph host or native view frame."""
         opened = self._open_views.get(name)
         if opened is not None:
-            opened.frame.Close(force=True)
+            if opened.frame is not None:
+                opened.frame.Close(force=True)
+            else:
+                self._dispose_open_view(name)
 
     def _open_view(
         self,
         name: str,
-        create_view: Callable[[wx.Frame], base.View],
+        create_view: Callable[[wx.Window], base.View],
+        *,
+        native_window: bool = False,
     ) -> None:
         if self._closed:
             raise RuntimeError("cannot open a view in a closed PlayerApp")
         existing = self._open_views.get(name)
         if existing is not None:
-            existing.frame.Raise()
-            existing.frame.SetFocus()
+            if existing.frame is not None:
+                existing.frame.Raise()
+            if existing.panel is not None:
+                existing.panel.SetFocus()
+            elif existing.frame is not None:
+                existing.frame.SetFocus()
             return
 
         frame: wx.Frame | None = None
+        panel: GraphPanelHost | None = None
         view: base.View | None = None
         canvas: FigureCanvasWxAgg | None = None
         toolbar: NavigationToolbar2WxAgg | None = None
         click_callback_id: int | None = None
         unsubscribe: Callable[[], None] | None = None
-        last_render_time = [float("-inf")]
         try:
-            frame = wx.Frame(
-                self.frame,
-                title=self._view_registry.label_for(name),
-                size=PLOT_FRAME_SIZE,
-            )
-            frame.Bind(
-                wx.EVT_CLOSE,
-                lambda event: self._on_view_frame_close(name, event),
-            )
-            view = create_view(frame)
+            if native_window:
+                frame = wx.Frame(
+                    self.frame,
+                    title=self._view_registry.label_for(name),
+                    size=PLOT_FRAME_SIZE,
+                )
+                frame.Bind(
+                    wx.EVT_CLOSE,
+                    lambda event: self._on_view_frame_close(name, event),
+                )
+                view_parent: wx.Window = frame
+            else:
+                panel = GraphPanelHost(
+                    self.workspace.middle_stack,
+                    self._view_registry.label_for(name),
+                    lambda: self.close_view(name),
+                    is_visible=lambda: self.workspace.is_graph_panel_visible(panel),
+                    on_redraw_request=self.workspace.queue_graph_redraw,
+                )
+                self.workspace.add_graph_panel(panel)
+                view_parent = panel
+            view = create_view(view_parent)
             content = view.build(self.series, self.time_unit)
             view.update(self.clock.t_now)
-            layout = wx.BoxSizer(wx.VERTICAL)
             if isinstance(content, Figure):
-                canvas = FigureCanvasWxAgg(frame, wx.ID_ANY, content)
+                if panel is None:
+                    raise TypeError(
+                        f"{name!r} native view unexpectedly returned a Matplotlib Figure"
+                    )
+                canvas = FigureCanvasWxAgg(panel, wx.ID_ANY, content)
                 plot_toolbar = NavigationToolbar2WxAgg(canvas)
                 plot_toolbar.Realize()
                 toolbar = plot_toolbar
-                layout.Add(plot_toolbar, 0, wx.EXPAND)
-                layout.Add(canvas, 1, wx.EXPAND)
+                panel.set_matplotlib_content(plot_toolbar, canvas)
                 click_callback_id = canvas.mpl_connect(
                     "button_press_event",
                     lambda event: self._on_plot_click(event, plot_toolbar),
                 )
             elif isinstance(content, wx.Window):
+                if frame is None:
+                    raise TypeError(
+                        f"{name!r} view returned native wx content without a native host"
+                    )
+                layout = wx.BoxSizer(wx.VERTICAL)
                 layout.Add(content, 1, wx.EXPAND)
+                frame.SetSizer(layout)
             else:
                 raise TypeError(
                     f"{name!r} view build returned unsupported content "
                     f"{type(content).__name__!r}"
                 )
-            frame.SetSizer(layout)
 
             def update_view(time_s: float) -> None:
-                if (
-                    name == "trajectory-3d"
-                    and self.clock.playing
-                    and self._in_timer_tick
-                    and (self._last_tick_monotonic_s or 0.0) - last_render_time[0]
-                    < MATPLOTLIB_3D_UPDATE_INTERVAL_S
-                ):
-                    return
                 view.update(time_s)
-                if name == "trajectory-3d":
-                    last_render_time[0] = self._last_tick_monotonic_s or 0.0
-                if canvas is not None:
-                    canvas.draw_idle()
+                if panel is not None:
+                    panel.request_redraw()
 
             unsubscribe = self.clock.subscribe(update_view)
             opened_state = _OpenView(
                 frame,
+                panel,
                 view,
                 unsubscribe,
                 canvas,
@@ -476,13 +499,17 @@ class PlayerApp:
                 click_callback_id,
             )
             self._open_views[name] = opened_state
-            frame.Layout()
-            if canvas is not None:
-                canvas.draw()
-            if not frame.Show() and not frame.IsShown():
-                raise RuntimeError(f"could not show the {name!r} plot frame")
-            if not isinstance(content, Figure):
+            if frame is not None:
+                frame.Layout()
+                if not frame.Show() and not frame.IsShown():
+                    raise RuntimeError(f"could not show the {name!r} plot frame")
                 trajectory3d_selection.validate_vtk_render_context(view)
+            else:
+                self.frame.Layout()
+                if panel is not None:
+                    panel.Layout()
+            if canvas is not None and panel is not None:
+                panel.request_redraw()
         except Exception:
             self._open_views.pop(name, None)
             if canvas is not None and click_callback_id is not None:
@@ -493,6 +520,9 @@ class PlayerApp:
                 view.close()
             if frame is not None:
                 frame.Destroy()
+            if panel is not None:
+                self.workspace.remove_graph_panel(panel)
+                panel.Destroy()
             raise
 
     def _on_plot_click(
@@ -513,21 +543,32 @@ class PlayerApp:
         self.clock.seek(target_time_s)
         self._update_time_display()
 
-    def _on_view_frame_close(self, name: str, event: wx.CloseEvent) -> None:
+    def _dispose_open_view(self, name: str) -> None:
         opened = self._open_views.pop(name, None)
         if opened is not None:
             if opened.canvas is not None and opened.click_callback_id is not None:
                 opened.canvas.mpl_disconnect(opened.click_callback_id)
             opened.unsubscribe()
-            opened.view.close()
+            try:
+                opened.view.close()
+            finally:
+                if opened.panel is not None:
+                    self.workspace.remove_graph_panel(opened.panel)
+                    opened.panel.Destroy()
+
+    def _on_view_frame_close(self, name: str, event: wx.CloseEvent) -> None:
+        self._dispose_open_view(name)
         event.Skip()
 
     def _on_frame_close(self, event: wx.CloseEvent) -> None:
         if not self._closed:
             self._closed = True
             self._timer.Stop()
-            for name in tuple(self._open_views):
-                self.close_view(name)
+            try:
+                for name in tuple(self._open_views):
+                    self.close_view(name)
+            finally:
+                self.workspace.close()
         event.Skip()
 
     def _on_timer(self, _event: wx.TimerEvent) -> None:

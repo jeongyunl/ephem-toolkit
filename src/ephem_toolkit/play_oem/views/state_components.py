@@ -14,6 +14,8 @@ CURSOR_LINE_COLOR: str = "tab:red"
 """Color used for the playback cursor lines."""
 FIGURE_SIZE_INCHES: tuple[float, float] = (10.0, 8.0)
 """Default state-components figure size in inches."""
+MAX_STATE_COMPONENT_DISPLAY_POINTS_PER_SEGMENT: int = 500
+"""Display-point cap for each state-component line."""
 STATE_COMPONENT_COLUMN_COUNT: int = 2
 """Number of columns for position and velocity plots."""
 
@@ -99,12 +101,14 @@ class StateComponentsView:
                 orbit_series.elapsed_time,
                 orbit_series.position_km[:, row],
                 orbit_series.segment_ids,
+                max_display_points=MAX_STATE_COMPONENT_DISPLAY_POINTS_PER_SEGMENT,
             )
             plot_segments(
                 velocity_axes,
                 orbit_series.elapsed_time,
                 orbit_series.velocity_km_s[:, row],
                 orbit_series.segment_ids,
+                max_display_points=MAX_STATE_COMPONENT_DISPLAY_POINTS_PER_SEGMENT,
             )
             position_axes.set_ylabel(f"{component} (km)")
             velocity_axes.set_ylabel(f"V{component} (km/s)")

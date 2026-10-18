@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Callable, Mapping, Sequence
 
 import wx
 
+from .graph_panel import GraphPanelHost
+
 TIMELINE_SLIDER_MAX: int = 10_000
 """Maximum integer position of the timeline slider."""
+GRAPH_REDRAW_INTERVAL_MS: int = 33
+"""Minimum spacing between scheduled visible graph-panel redraws (milliseconds)."""
 
 
 class Workspace:
@@ -31,6 +36,16 @@ class Workspace:
         self._timeline_enabled = timeline_enabled
         self._syncing_timeline = False
         self._selected_feature = 0
+        self._graph_panels: dict[str, list[GraphPanelHost]] = {
+            "middle": [],
+            "right": [],
+        }
+        self._pending_graph_redraws: deque[GraphPanelHost] = deque()
+        self._queued_graph_redraws: set[GraphPanelHost] = set()
+        self._graph_redraw_timer: wx.CallLater | None = None
+        self._stack_windows: dict[str, wx.ScrolledWindow] = {}
+        self._stack_sizers: dict[str, wx.BoxSizer] = {}
+        self._empty_states: dict[str, wx.StaticText] = {}
 
         root = wx.BoxSizer(wx.VERTICAL)
         self.content_splitter = wx.SplitterWindow(
@@ -40,12 +55,8 @@ class Workspace:
         self.graph_splitter = wx.SplitterWindow(
             self.content_splitter, wx.ID_ANY, style=wx.SP_LIVE_UPDATE
         )
-        self.middle_stack = self._make_graph_placeholder(
-            self.graph_splitter, "Graph panels"
-        )
-        self.right_stack = self._make_graph_placeholder(
-            self.graph_splitter, "Optional graph panels"
-        )
+        self.middle_stack = self._make_graph_stack(self.graph_splitter, "middle")
+        self.right_stack = self._make_graph_stack(self.graph_splitter, "right")
         self.graph_splitter.SetMinimumPaneSize(320)
         self.graph_splitter.SetSashGravity(1.0)
         self.graph_splitter.SplitVertically(self.middle_stack, self.right_stack, 320)
@@ -110,6 +121,91 @@ class Workspace:
         else:
             self.graph_splitter.Unsplit(self.right_stack)
         self._right_pane_visible = visible
+        if visible:
+            self._request_stack_redraws("right")
+
+    def add_graph_panel(self, panel: GraphPanelHost, stack: str = "middle") -> None:
+        """Add a graph host to the selected scrollable stack."""
+        if stack not in self._graph_panels:
+            raise ValueError(f"unknown graph stack {stack!r}")
+        if panel in self._graph_panels[stack]:
+            raise ValueError("graph panel is already in this stack")
+        self._graph_panels[stack].append(panel)
+        empty_state = self._empty_states[stack]
+        empty_state.Hide()
+        sizer = self._stack_sizers[stack]
+        sizer.Add(panel, 0, wx.EXPAND | wx.ALL, 4)
+        window = self._stack_windows[stack]
+        window.Layout()
+        window.FitInside()
+
+    def remove_graph_panel(self, panel: GraphPanelHost, stack: str = "middle") -> None:
+        """Remove a graph host from its stack and restore the empty state if needed."""
+        if stack not in self._graph_panels:
+            raise ValueError(f"unknown graph stack {stack!r}")
+        if panel not in self._graph_panels[stack]:
+            return
+        self._graph_panels[stack].remove(panel)
+        if panel in self._queued_graph_redraws:
+            self._pending_graph_redraws = deque(
+                queued for queued in self._pending_graph_redraws if queued is not panel
+            )
+            self._queued_graph_redraws.remove(panel)
+        if not self._pending_graph_redraws and self._graph_redraw_timer is not None:
+            if self._graph_redraw_timer.IsRunning():
+                self._graph_redraw_timer.Stop()
+            self._graph_redraw_timer = None
+        self._stack_sizers[stack].Detach(panel)
+        if not self._graph_panels[stack]:
+            self._empty_states[stack].Show()
+        self._stack_windows[stack].Layout()
+        self._stack_windows[stack].FitInside()
+
+    def close(self) -> None:
+        """Stop pending graph redraw work during workspace shutdown."""
+        if self._graph_redraw_timer is not None:
+            if self._graph_redraw_timer.IsRunning():
+                self._graph_redraw_timer.Stop()
+            self._graph_redraw_timer = None
+        self._pending_graph_redraws.clear()
+        self._queued_graph_redraws.clear()
+
+    def request_visible_graph_redraws(self) -> None:
+        """Redraw graph hosts that are visible after a stack scroll."""
+        self._request_stack_redraws("middle")
+        self._request_stack_redraws("right")
+
+    def queue_graph_redraw(self, panel: GraphPanelHost) -> None:
+        """Queue one visible panel for the shared redraw budget."""
+        if not self.is_graph_panel_visible(panel):
+            return
+        if panel in self._queued_graph_redraws:
+            return
+        self._pending_graph_redraws.append(panel)
+        self._queued_graph_redraws.add(panel)
+        if self._graph_redraw_timer is None:
+            self._graph_redraw_timer = wx.CallLater(1, self._draw_next_graph_panel)
+
+    def draw_initial_graphs(self) -> None:
+        """Draw currently visible plots before the playback timer starts."""
+        if self._graph_redraw_timer is not None:
+            if self._graph_redraw_timer.IsRunning():
+                self._graph_redraw_timer.Stop()
+            self._graph_redraw_timer = None
+        pending = tuple(self._pending_graph_redraws)
+        self._pending_graph_redraws.clear()
+        self._queued_graph_redraws.clear()
+        for panel in pending:
+            if self.is_graph_panel_visible(panel):
+                panel.draw_initial()
+
+    def is_graph_panel_visible(self, panel: GraphPanelHost) -> bool:
+        """Check whether a graph host intersects its scroll stack's viewport."""
+        if not panel.IsShownOnScreen():
+            return False
+        stack = panel.GetParent()
+        viewport = wx.Rect(stack.ClientToScreen((0, 0)), stack.GetClientSize())
+        return panel.GetScreenRect().Intersects(viewport)
 
     def select_feature(self, index: int) -> None:
         """Select a feature page and keep the rail's toggle state synchronized."""
@@ -184,6 +280,40 @@ class Workspace:
         left_layout.Add(self.feature_book, 1, wx.EXPAND | wx.ALL, 4)
         self.left_pane.SetSizer(left_layout)
 
+    def _make_graph_stack(self, parent: wx.Window, stack: str) -> wx.ScrolledWindow:
+        window = wx.ScrolledWindow(parent, wx.ID_ANY, style=wx.VSCROLL)
+        window.SetScrollRate(0, 20)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        empty_state = wx.StaticText(window, wx.ID_ANY, "No graph panels")
+        sizer.Add(empty_state, 0, wx.ALL, 12)
+        window.SetSizer(sizer)
+        window.Bind(wx.EVT_SCROLLWIN, self._on_stack_scroll)
+        self._stack_windows[stack] = window
+        self._stack_sizers[stack] = sizer
+        self._empty_states[stack] = empty_state
+        return window
+
+    def _request_stack_redraws(self, stack: str) -> None:
+        for panel in self._graph_panels[stack]:
+            panel.request_redraw()
+
+    def _draw_next_graph_panel(self) -> None:
+        self._graph_redraw_timer = None
+        while self._pending_graph_redraws:
+            panel = self._pending_graph_redraws.popleft()
+            self._queued_graph_redraws.remove(panel)
+            if self.is_graph_panel_visible(panel):
+                panel.draw_if_needed()
+                break
+        if self._pending_graph_redraws:
+            self._graph_redraw_timer = wx.CallLater(
+                GRAPH_REDRAW_INTERVAL_MS, self._draw_next_graph_panel
+            )
+
+    def _on_stack_scroll(self, event: wx.ScrollWinEvent) -> None:
+        self.request_visible_graph_redraws()
+        event.Skip()
+
     def _on_feature_key_down(self, event: wx.KeyEvent) -> None:
         key_code = event.GetKeyCode()
         if key_code in (wx.WXK_UP, wx.WXK_DOWN):
@@ -194,19 +324,6 @@ class Workspace:
             self.feature_buttons[self._selected_feature].SetFocus()
             return
         event.Skip()
-
-    @staticmethod
-    def _make_graph_placeholder(parent: wx.Window, label: str) -> wx.Panel:
-        panel = wx.Panel(parent, wx.ID_ANY)
-        layout = wx.BoxSizer(wx.VERTICAL)
-        layout.Add(
-            wx.StaticText(panel, wx.ID_ANY, label),
-            0,
-            wx.ALL,
-            12,
-        )
-        panel.SetSizer(layout)
-        return panel
 
     def _on_timeline_slider(self, event: wx.CommandEvent) -> None:
         if self._syncing_timeline or not self._timeline_enabled:

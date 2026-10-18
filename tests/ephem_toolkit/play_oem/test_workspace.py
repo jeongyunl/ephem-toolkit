@@ -59,6 +59,12 @@ class FakeWidget:
     def SetFocus(self) -> None:
         self.focused = True
 
+    def Hide(self) -> None:
+        self.shown = False
+
+    def Show(self) -> None:
+        self.shown = True
+
     def trigger(self, event_type, event=None) -> None:
         self.bindings[event_type](FakeEvent() if event is None else event)
 
@@ -92,6 +98,10 @@ class FakeSizer:
     def Add(self, item, proportion: int, flags: int = 0, border: int = 0) -> None:
         self.items.append((item, proportion, flags, border))
 
+    def Detach(self, item) -> bool:
+        self.items = [entry for entry in self.items if entry[0] is not item]
+        return True
+
 
 class FakePanel:
     def __init__(self, parent, _id: int) -> None:
@@ -100,6 +110,23 @@ class FakePanel:
 
     def SetSizer(self, sizer) -> None:
         self.sizer = sizer
+
+
+class FakeScrolledWindow(FakePanel):
+    def __init__(self, parent, widget_id: int, **_kwargs) -> None:
+        super().__init__(parent, widget_id)
+
+    def SetScrollRate(self, _x_step: int, _y_step: int) -> None:
+        pass
+
+    def Bind(self, _event_type, _callback) -> None:
+        pass
+
+    def Layout(self) -> None:
+        pass
+
+    def FitInside(self) -> None:
+        pass
 
 
 class FakeSplitter:
@@ -153,11 +180,33 @@ class FakeArtProvider:
         return (art_id, size)
 
 
+class FakeCallLater:
+    calls = []
+
+    def __init__(self, delay_ms: int, callback) -> None:
+        self.delay_ms = delay_ms
+        self.callback = callback
+        self.running = True
+        self.__class__.calls.append(self)
+
+    def IsRunning(self) -> bool:
+        return self.running
+
+    def Stop(self) -> None:
+        self.running = False
+
+    def fire(self) -> None:
+        self.running = False
+        self.callback()
+
+
 def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
     wx = workspace.wx
     FakeWidget.instances = []
+    FakeCallLater.calls = []
     for name, value in {
         "Panel": FakePanel,
+        "ScrolledWindow": FakeScrolledWindow,
         "SplitterWindow": FakeSplitter,
         "Simplebook": FakeSimplebook,
         "BitmapToggleButton": FakeWidget,
@@ -165,13 +214,16 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "StaticText": FakeWidget,
         "BoxSizer": FakeSizer,
         "ArtProvider": FakeArtProvider,
+        "CallLater": FakeCallLater,
         "Size": lambda width, height: (width, height),
         "ID_ANY": -1,
         "VERTICAL": 1,
         "HORIZONTAL": 2,
         "SP_LIVE_UPDATE": 4,
+        "VSCROLL": 5,
         "EXPAND": 8,
         "ALL": 16,
+        "ALIGN_CENTER_VERTICAL": 24,
         "LEFT": 32,
         "RIGHT": 64,
         "TOP": 128,
@@ -183,6 +235,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "EVT_BUTTON": "button",
         "EVT_KEY_DOWN": "key-down",
         "EVT_SLIDER": "slider",
+        "EVT_SCROLLWIN": "scroll-window",
         "WXK_UP": 315,
         "WXK_DOWN": 317,
     }.items():
@@ -242,6 +295,61 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     result.show_right_pane(False)
     assert not result.graph_splitter.is_split
     assert result.graph_splitter.split_calls[-1][1] is result.right_stack
+
+
+def test_graph_hosts_replace_empty_state_and_restore_it_when_removed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, _seeks, _frame = make_workspace(monkeypatch)
+    host = object()
+    empty_state = result._empty_states["middle"]
+
+    result.add_graph_panel(host)
+
+    assert result._graph_panels["middle"] == [host]
+    assert empty_state.shown is False
+
+    result.remove_graph_panel(host)
+
+    assert result._graph_panels["middle"] == []
+    assert empty_state.shown is True
+    with pytest.raises(ValueError, match="unknown graph stack"):
+        result.add_graph_panel(host, "invalid")
+
+
+def test_workspace_serializes_and_coalesces_visible_graph_redraws(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, _seeks, _frame = make_workspace(monkeypatch)
+
+    class FakeGraphHost:
+        def __init__(self) -> None:
+            self.draw_count = 0
+
+        def draw_if_needed(self) -> None:
+            self.draw_count += 1
+
+    first = FakeGraphHost()
+    second = FakeGraphHost()
+    result.add_graph_panel(first)
+    result.add_graph_panel(second)
+    monkeypatch.setattr(result, "is_graph_panel_visible", lambda _panel: True)
+
+    result.queue_graph_redraw(first)
+    first_timer = result._graph_redraw_timer
+    result.queue_graph_redraw(first)
+    result.queue_graph_redraw(second)
+
+    assert first_timer is not None and first_timer.delay_ms == 1
+    first_timer.fire()
+    second_timer = result._graph_redraw_timer
+    assert first.draw_count == 1
+    assert second.draw_count == 0
+    assert second_timer is not None and second_timer.delay_ms == 33
+
+    second_timer.fire()
+    assert second.draw_count == 1
+    assert result._graph_redraw_timer is None
 
 
 def test_feature_rail_supports_click_and_vertical_keyboard_navigation(
