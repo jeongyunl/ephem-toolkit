@@ -210,7 +210,6 @@ class FakeControlWindow:
         _on_open_group,
         _view_registry,
         on_toggle_play,
-        on_seek,
         on_set_speed,
         on_reverse,
         *,
@@ -219,16 +218,13 @@ class FakeControlWindow:
         on_step_seconds,
         on_jump_to_start,
         on_jump_to_end,
-        timeline_enabled,
-        context=None,
-        details=(),
+        accelerator_parent=None,
     ) -> None:
         self.panel = object()
         self.callbacks = {
             "open_view": _on_open_view,
             "open_group": _on_open_group,
             "toggle": on_toggle_play,
-            "seek": on_seek,
             "speed": on_set_speed,
             "reverse": on_reverse,
             "seek_to_time": on_seek_to_time,
@@ -237,18 +233,15 @@ class FakeControlWindow:
             "jump_to_start": on_jump_to_start,
             "jump_to_end": on_jump_to_end,
         }
-        self.timeline_enabled = timeline_enabled
-        self.context = context
-        self.details = details
+        self.accelerator_parent = accelerator_parent
         self.text = ""
         self.time_errors: list[str] = []
 
     def update_playback_state(
-        self, text: str, progress: float, playing: bool, rate: float
+        self, text: str, playing: bool, rate: float
     ) -> None:
         state = "Playing" if playing else "Paused"
         self.text = f"{text}\n{state} | {rate:+g}x"
-        self.progress = progress
 
     def update_current_state(self, state) -> None:
         self.current_state = state
@@ -258,6 +251,32 @@ class FakeControlWindow:
 
     def clear_time_error(self) -> None:
         self.time_errors.clear()
+
+
+class FakeWorkspace:
+    def __init__(
+        self,
+        frame,
+        on_seek,
+        *,
+        timeline_enabled,
+        context=None,
+        details=(),
+    ) -> None:
+        self.frame = frame
+        self.on_seek = on_seek
+        self.timeline_enabled = timeline_enabled
+        self.context = context
+        self.details = details
+        self.playback_page = object()
+        self.progress = 0.0
+        self.playback_content = None
+
+    def set_playback_content(self, panel) -> None:
+        self.playback_content = panel
+
+    def update_timeline(self, progress: float) -> None:
+        self.progress = progress
 
 
 def make_states() -> list[np.ndarray]:
@@ -305,6 +324,7 @@ def make_app(
     monkeypatch.setattr(app.wx, "BoxSizer", FakeBoxSizer)
     monkeypatch.setattr(app.wx, "Timer", FakeTimer)
     monkeypatch.setattr(app.control_window, "ControlWindow", FakeControlWindow)
+    monkeypatch.setattr(app.workspace, "Workspace", FakeWorkspace)
     monkeypatch.setattr(app, "FigureCanvasWxAgg", lambda *args: _canvas(*args))
     monkeypatch.setattr(app, "NavigationToolbar2WxAgg", FakeToolbar)
     monkeypatch.setattr(app.wx, "EVT_CLOSE", "close")
@@ -379,6 +399,8 @@ def test_start_uses_one_wx_app_and_opens_the_selected_views(
     assert player.clock.loop
     assert "Elapsed: 50.000 s" in player.control_window.text
     assert "Paused" not in player.control_window.text
+    assert player.workspace.progress == 0.5
+    assert player.workspace.playback_content is player.control_window.panel
 
     player.close()
 
@@ -397,12 +419,26 @@ def test_wx_timer_advances_clock_and_updates_playback_display_and_views(
     player._on_timer(SimpleNamespace())
 
     assert player.clock.t_now == 102.5
+    assert player.workspace.progress == pytest.approx(0.025)
     assert "Elapsed: 2.500 s" in player.control_window.text
     assert "UTC:" in player.control_window.text
     assert "Playing | +1x" in player.control_window.text
     assert all(view.updated_times[-1] == 102.5 for view in views)
     assert all(canvas.draw_idle_count == 1 for canvas in canvases)
 
+    player.close()
+
+
+def test_workspace_timeline_uses_the_existing_fraction_seek_callback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player.start()
+
+    player.workspace.on_seek(0.5)
+
+    assert player.clock.t_now == 150.0
+    assert player.workspace.progress == 0.5
     player.close()
 
 
@@ -934,6 +970,7 @@ def test_existing_wx_app_is_reused_instead_of_created_twice(
     monkeypatch.setattr(app.wx, "EXPAND", 2)
     monkeypatch.setattr(app.wx, "ALL", 4)
     monkeypatch.setattr(app.control_window, "ControlWindow", FakeControlWindow)
+    monkeypatch.setattr(app.workspace, "Workspace", FakeWorkspace)
 
     def fail_if_created(_redirect: bool):
         raise AssertionError("must not create a second wx.App")

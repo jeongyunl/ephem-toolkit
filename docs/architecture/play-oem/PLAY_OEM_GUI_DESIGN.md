@@ -22,9 +22,9 @@ final controls should follow platform conventions.
 
 ### Selected design: G. Three-pane analysis workspace
 
-A vertical feature notebook sits on the left, separate from the graphics. The middle pane stacks
-zero or more independently selectable graph panels; an optional right pane can hold another
-independent stack. A shared time slider spans below all panes.
+A vertical icon-only feature rail sits on the left, separate from the graphics. It switches among
+non-graph pages. The middle pane stacks zero or more independently selectable graph panels; an
+optional right pane can hold another independent stack. A shared time slider spans below all panes.
 
 ![G. Three-pane analysis workspace](./mockup-three-pane.svg)
 
@@ -36,14 +36,17 @@ independent stack. A shared time slider spans below all panes.
 - **Trade-offs:** several narrow panes can reduce plot readability; graph stacks need clear add,
   remove, and empty-state behavior. The right pane should be optional so the middle pane can use
   the available width when it is closed.
-- **Toolbar:** keep playback and non-graph features in the left vertical notebook. Give every
+- **Toolbar:** keep playback and non-graph features in the left vertical feature rail. Give every
   graph panel its own view-selection combobox and a compact panel-actions menu; keep the shared
   time slider below the pane area.
 - **Implementation:** use nested splitters for left, middle, and optional right regions, with
-  vertically stacked graph hosts in the middle and right. Use a vertical-tab notebook for
-  non-graph pages such as OEM file information and playback controls. Give graph panels useful
-  minimum heights and scroll each stack when its panels do not fit. Preserve the optional right
-  pane's contents and size when closed, then restore them when reopened.
+  vertically stacked graph hosts in the middle and right. Use the vertical feature rail to switch
+  among non-graph pages such as OEM file information and playback controls. Implement the icon-only
+  navigation as `wx.BitmapToggleButton` controls selecting pages in a `wx.Simplebook`, rather than
+  `wx.Notebook`; the native notebook probe could not verify per-tab tooltips or keyboard/accessibility
+  behavior on macOS. Give graph panels useful minimum heights and scroll each stack when its panels
+  do not fit. Preserve the optional right pane's contents and size when closed, then restore them
+  when reopened.
 
 #### Panel and navigation behavior
 
@@ -55,9 +58,9 @@ independent stack. A shared time slider spans below all panes.
   Resizing the splitters should redistribute space without losing the selected views.
 - Closing the right pane hides it without discarding its panel selections or size. Reopening it
   restores that state, while the middle pane expands into the freed space when it is closed.
-- Keep accessible names and hover tooltips on icon-only notebook tabs. Support keyboard focus,
-  arrow-key navigation between tabs, and keyboard activation; the selected tab must be indicated
-  independently of hover or focus.
+- Give every icon button an accessible name and hover tooltip. Support keyboard focus,
+  Up/Down navigation between feature pages, and keyboard activation; the selected page must be
+  indicated independently of hover or focus.
 
 ### Shared interaction principles
 
@@ -87,13 +90,14 @@ stores that frame in `_OpenView`.
 
 For the selected G layout, verify:
 
-- Matplotlib canvases resize and redraw correctly as notebook pages are selected and splitter
+- Matplotlib canvases resize and redraw correctly as feature pages are selected and splitter
   sashes move; splitter pane minimums and the initial sash position remain usable.
 - Hidden views show the current cursor immediately when selected and do not create unnecessary
-  render work while invisible.
+  render work while invisible. Coalesce or throttle redraws under multi-panel load so rendering
+  cannot starve the playback clock or workspace input.
 - Closing a tab or view unsubscribes it exactly once; changing tabs does not accidentally close a
   view intended to remain available.
-- The VTK wx interactor can be hidden, resized, shown, and rendered correctly in notebook pages
+- The VTK wx interactor can be hidden, resized, shown, and rendered correctly in feature pages
   on each supported platform. Preserve the single wx event loop and explicit backend errors.
 - Click-to-seek, zoom/pan modes, keyboard focus, and current-state readouts remain consistent
   across panes and pages.

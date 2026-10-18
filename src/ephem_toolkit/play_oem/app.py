@@ -19,7 +19,7 @@ from matplotlib.figure import Figure
 
 import ephem_toolkit.core.time_utils as time_utils
 
-from . import clock, control_window, cursor, series, time_unit
+from . import clock, control_window, cursor, series, time_unit, workspace
 from .views import (
     angular_velocity,
     base,
@@ -39,9 +39,9 @@ MATPLOTLIB_3D_UPDATE_INTERVAL_S: float = 0.1
 """Maximum Matplotlib 3D redraw rate in seconds."""
 ELAPSED_TIME_DECIMAL_PLACES: int = 3
 """Number of decimal places shown in the elapsed-time readout."""
-PLAYER_FRAME_MIN_SIZE: tuple[int, int] = (680, 360)
+PLAYER_FRAME_MIN_SIZE: tuple[int, int] = (920, 480)
 """Minimum dashboard frame size (pixels)."""
-PLAYER_FRAME_SIZE: tuple[int, int] = (800, 460)
+PLAYER_FRAME_SIZE: tuple[int, int] = (1100, 760)
 """Initial dashboard frame size (pixels)."""
 PLOT_FRAME_SIZE: tuple[int, int] = (800, 600)
 """Default plot frame size (pixels)."""
@@ -162,13 +162,19 @@ class PlayerApp:
             None,
             title=f"play-oem (3D backend: {three_d_backend})",
         )
-        self.control_window = control_window.ControlWindow(
+        self.workspace = workspace.Workspace(
             self.frame,
+            self._seek_to_fraction,
+            timeline_enabled=clock.t_start < clock.t_end,
+            context=dashboard_context,
+            details=metadata_details,
+        )
+        self.control_window = control_window.ControlWindow(
+            self.workspace.playback_page,
             self.open_view,
             self.open_group,
             self._view_registry,
             self._toggle_playback,
-            self._seek_to_fraction,
             self._set_playback_speed,
             self._reverse_playback,
             on_seek_to_time=self._seek_to_time,
@@ -176,13 +182,9 @@ class PlayerApp:
             on_step_seconds=self._step_seconds,
             on_jump_to_start=self._jump_to_start,
             on_jump_to_end=self._jump_to_end,
-            timeline_enabled=clock.t_start < clock.t_end,
-            context=dashboard_context,
-            details=metadata_details,
+            accelerator_parent=self.frame,
         )
-        layout = wx.BoxSizer(wx.VERTICAL)
-        layout.Add(self.control_window.panel, 1, wx.EXPAND)
-        self.frame.SetSizer(layout)
+        self.workspace.set_playback_content(self.control_window.panel)
         self.frame.SetMinSize(PLAYER_FRAME_MIN_SIZE)
         self.frame.SetSize(PLAYER_FRAME_SIZE)
         self.frame.Bind(wx.EVT_CLOSE, self._on_frame_close)
@@ -556,10 +558,10 @@ class PlayerApp:
         self.control_window.update_playback_state(
             f"Elapsed: {elapsed_s:.{ELAPSED_TIME_DECIMAL_PLACES}f} s\n"
             f"UTC: {utc_timestamp}",
-            progress,
             self.clock.playing,
             self.clock.rate,
         )
+        self.workspace.update_timeline(progress)
         self.control_window.update_current_state(self.cursor.lookup(self.clock.t_now))
 
     def _handle_sigint(self, _signum: int, _frame: object) -> None:

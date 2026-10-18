@@ -188,13 +188,10 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def make_window(
     monkeypatch: pytest.MonkeyPatch,
-    *,
-    timeline_enabled: bool = True,
 ) -> tuple[control_window.ControlWindow, FakeOwner, dict[str, list[object]]]:
     configure_fake_wx(monkeypatch)
     calls: dict[str, list[object]] = {
         "toggle": [],
-        "seek": [],
         "speed": [],
         "reverse": [],
         "seek_time": [],
@@ -215,7 +212,6 @@ def make_window(
         calls["open_group"].append,
         registry,
         lambda: calls["toggle"].append(True),
-        calls["seek"].append,
         calls["speed"].append,
         lambda: calls["reverse"].append(True),
         on_seek_to_time=calls["seek_time"].append,
@@ -223,15 +219,7 @@ def make_window(
         on_step_seconds=calls["step_seconds"].append,
         on_jump_to_start=lambda: calls["start"].append(True),
         on_jump_to_end=lambda: calls["end"].append(True),
-        timeline_enabled=timeline_enabled,
-        context={
-            "object": "TEST",
-            "frame": "GCRF",
-            "center": "Earth",
-            "time_span": "start – stop",
-            "sample_count": "2",
-        },
-        details=(("Object ID", "2024-001A"),),
+        accelerator_parent=owner,
     )
     return window, owner, calls
 
@@ -295,13 +283,6 @@ def test_dashboard_formats_state_and_missing_values(
     assert "unavailable" in window.position_label.label
     assert "unavailable" in window.velocity_label.label
     assert window.cursor_status_label.label == "State: out of range"
-    assert "Object: TEST" in window.context_label.label
-    assert "Samples: 2" in window.context_label.label
-    assert control_window.ControlWindow._format_context({}) == (
-        "Object: Unavailable | Frame: Unavailable | Center: Unavailable | "
-        "Time span: Unavailable | Samples: Unavailable"
-    )
-    assert window.details_label.label == "Object ID: 2024-001A"
     window.update_current_state(
         CursorState(50.0, None, None, None, None, None, None, CursorStatus.GAP)
     )
@@ -327,44 +308,21 @@ def test_log_speed_slider_maps_integer_values_to_speed(
     assert calls["speed"][-1] == pytest.approx(expected)
 
 
-def test_timeline_slider_maps_to_fraction_and_programmatic_updates_do_not_seek(
+def test_playback_state_updates_readouts_and_speed_without_seeking(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     window, _owner, calls = make_window(monkeypatch)
-    window.timeline_slider.emit_event_on_set = True
+    window.speed_slider.emit_event_on_set = True
 
-    window.update_playback_state("Elapsed: 25 s\nUTC: example", 0.25, True, -10.0)
+    window.update_playback_state("Elapsed: 25 s\nUTC: example", True, -10.0)
 
-    assert window.timeline_slider.minimum == 0
-    assert window.timeline_slider.maximum == 10_000
-    assert window.timeline_slider.value == 2500
     assert window.speed_slider.value == 100
     assert window.elapsed_label.label == "Elapsed: 25 s"
     assert window.utc_label.label == "UTC: example"
     assert window.play_pause_button.label == "Pause"
     assert window.speed_label.label == "Speed: -10x"
     assert window.direction_button.label == "Forward"
-    assert not calls["seek"]
-
-    for value, expected in ((0, 0.0), (5000, 0.5), (10_000, 1.0)):
-        window.timeline_slider.trigger(
-            control_window.wx.EVT_SLIDER,
-            FakeEvent(value),
-        )
-        assert calls["seek"][-1] == expected
-
-
-def test_zero_duration_timeline_disables_seeking(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    window, _owner, calls = make_window(monkeypatch, timeline_enabled=False)
-
-    assert not window.timeline_slider.enabled
-    window.timeline_slider.trigger(
-        control_window.wx.EVT_SLIDER,
-        FakeEvent(5000),
-    )
-    assert calls["seek"] == []
+    assert not calls["speed"]
 
 
 def test_time_entry_dispatches_text_and_errors_are_visible(

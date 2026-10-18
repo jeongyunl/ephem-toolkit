@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import math
-from typing import Mapping, Sequence
 
 import wx
 
@@ -29,8 +28,6 @@ SPEED_SLIDER_MAX: int = 300
 """Maximum integer position of the logarithmic speed slider."""
 SPEED_SLIDER_STEPS_PER_DECADE: int = 100
 """Number of slider positions representing one order of magnitude."""
-TIMELINE_SLIDER_MAX: int = 10_000
-"""Maximum integer position of the timeline slider."""
 TIME_ERROR_COLOR_RGB: tuple[int, int, int] = (160, 0, 0)
 """RGB color used to display time-entry errors."""
 
@@ -40,12 +37,11 @@ class ControlWindow:
 
     def __init__(
         self,
-        parent: wx.Frame,
+        parent: wx.Window,
         on_open_view: Callable[[str], None],
         on_open_group: Callable[[str], None],
         view_registry: registry.ViewRegistry,
         on_toggle_play: Callable[[], None],
-        on_seek: Callable[[float], None],
         on_set_speed: Callable[[float], None],
         on_reverse: Callable[[], None],
         *,
@@ -54,16 +50,14 @@ class ControlWindow:
         on_step_seconds: Callable[[float], None],
         on_jump_to_start: Callable[[], None],
         on_jump_to_end: Callable[[], None],
-        timeline_enabled: bool,
-        context: Mapping[str, str] | None = None,
-        details: Sequence[tuple[str, str]] = (),
+        accelerator_parent: wx.Frame,
     ) -> None:
         """Create the wx dashboard and connect its controls to playback actions.
 
         Parameters
         ----------
-        parent : wx.Frame
-            Frame that owns the dashboard and keyboard accelerators.
+        parent : wx.Window
+            Parent of the playback controls panel.
         on_open_view : Callable[[str], None]
             Open one registered plot view.
         on_open_group : Callable[[str], None]
@@ -72,8 +66,6 @@ class ControlWindow:
             Registry used to label and enable available view actions.
         on_toggle_play : Callable[[], None]
             Toggle playback.
-        on_seek : Callable[[float], None]
-            Seek to a normalized timeline position.
         on_set_speed : Callable[[float], None]
             Set the playback speed multiplier.
         on_reverse : Callable[[], None]
@@ -88,28 +80,17 @@ class ControlWindow:
             Seek to the beginning of the timeline.
         on_jump_to_end : Callable[[], None]
             Seek to the end of the timeline.
-        timeline_enabled : bool
-            Whether the timeline contains a seekable interval.
+        accelerator_parent : wx.Frame, optional
+            Frame that owns the playback keyboard accelerators.
         """
-        self._parent = parent
-        self._on_seek = on_seek
+        self._accelerator_parent = accelerator_parent
         self._on_set_speed = on_set_speed
         self._on_seek_to_time = on_seek_to_time
-        self._timeline_enabled = timeline_enabled
         self._syncing_sliders = False
 
         self.panel = wx.Panel(parent, wx.ID_ANY)
         layout = wx.BoxSizer(wx.VERTICAL)
 
-        self.context_label = wx.StaticText(
-            self.panel, wx.ID_ANY, self._format_context(context or {})
-        )
-        layout.Add(
-            self.context_label,
-            0,
-            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
-            LAYOUT_MARGIN,
-        )
         self.position_label = wx.StaticText(self.panel, wx.ID_ANY, "Position: —")
         self.velocity_label = wx.StaticText(self.panel, wx.ID_ANY, "Velocity: —")
         self.speed_altitude_label = wx.StaticText(
@@ -125,25 +106,6 @@ class ControlWindow:
             self.cursor_status_label,
         ):
             layout.Add(label, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, LAYOUT_MARGIN)
-
-        self.details_pane = wx.CollapsiblePane(
-            self.panel, wx.ID_ANY, "OEM metadata details"
-        )
-        details_layout = wx.BoxSizer(wx.VERTICAL)
-        self.details_label = wx.StaticText(
-            self.details_pane.GetPane(),
-            wx.ID_ANY,
-            "\n".join(f"{key}: {value or 'Unavailable'}" for key, value in details)
-            or "No additional metadata",
-        )
-        details_layout.Add(self.details_label, 0, wx.EXPAND | wx.ALL, CONTROL_SPACING)
-        self.details_pane.GetPane().SetSizer(details_layout)
-        layout.Add(
-            self.details_pane,
-            0,
-            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
-            LAYOUT_MARGIN,
-        )
 
         self.elapsed_label = wx.StaticText(self.panel, wx.ID_ANY, "")
         self.utc_label = wx.StaticText(self.panel, wx.ID_ANY, "")
@@ -247,34 +209,6 @@ class ControlWindow:
             wx.StaticText(
                 self.panel,
                 wx.ID_ANY,
-                "Timeline",
-            ),
-            0,
-            wx.LEFT | wx.RIGHT,
-            LAYOUT_MARGIN,
-        )
-        self.timeline_slider = wx.Slider(
-            self.panel,
-            wx.ID_ANY,
-            0,
-            0,
-            TIMELINE_SLIDER_MAX,
-            style=wx.SL_HORIZONTAL,
-        )
-        self.timeline_slider.SetName("Playback timeline")
-        self.timeline_slider.Enable(timeline_enabled)
-        self.timeline_slider.Bind(wx.EVT_SLIDER, self._on_timeline_slider)
-        layout.Add(
-            self.timeline_slider,
-            0,
-            wx.EXPAND | wx.LEFT | wx.RIGHT,
-            LAYOUT_MARGIN,
-        )
-
-        layout.Add(
-            wx.StaticText(
-                self.panel,
-                wx.ID_ANY,
                 f"Playback speed (log scale, {SPEED_MIN:g}x to {SPEED_MAX:g}x)",
             ),
             0,
@@ -330,7 +264,7 @@ class ControlWindow:
 
         self.panel.SetSizer(layout)
         self._bind_accelerators(
-            parent,
+            self._accelerator_parent,
             on_toggle_play,
             on_reverse,
             on_step_samples,
@@ -339,17 +273,13 @@ class ControlWindow:
             on_jump_to_end,
         )
 
-    def update_playback_state(
-        self, text: str, progress: float, playing: bool, rate: float
-    ) -> None:
+    def update_playback_state(self, text: str, playing: bool, rate: float) -> None:
         """Update dashboard controls from the current playback state.
 
         Parameters
         ----------
         text : str
             Formatted elapsed-time and UTC readout.
-        progress : float
-            Timeline position normalized to the range from zero to one.
         playing : bool
             Whether playback is active.
         rate : float
@@ -364,12 +294,10 @@ class ControlWindow:
         for preset_speed, button in self.speed_preset_buttons.items():
             button.SetValue(bool(math.isclose(abs(rate), preset_speed)))
 
-        timeline_value = round(min(max(progress, 0.0), 1.0) * TIMELINE_SLIDER_MAX)
         playback_speed = min(max(abs(rate), SPEED_MIN), SPEED_MAX)
         speed_value = round(math.log10(playback_speed) * SPEED_SLIDER_STEPS_PER_DECADE)
         self._syncing_sliders = True
         try:
-            self.timeline_slider.SetValue(timeline_value)
             self.speed_slider.SetValue(speed_value)
         finally:
             self._syncing_sliders = False
@@ -385,19 +313,6 @@ class ControlWindow:
         elapsed_text, separator, utc_text = text.partition("\n")
         self.elapsed_label.SetLabel(elapsed_text)
         self.utc_label.SetLabel(utc_text if separator else "")
-
-    @staticmethod
-    def _format_context(context: Mapping[str, str]) -> str:
-        labels = (
-            ("Object", "object"),
-            ("Frame", "frame"),
-            ("Center", "center"),
-            ("Time span", "time_span"),
-            ("Samples", "sample_count"),
-        )
-        return " | ".join(
-            f"{label}: {context.get(key) or 'Unavailable'}" for label, key in labels
-        )
 
     def update_current_state(self, state: CursorState) -> None:
         """Display the state at the current playback time, including unavailable data."""
@@ -438,11 +353,6 @@ class ControlWindow:
     def clear_time_error(self) -> None:
         """Clear a previously displayed time-entry error."""
         self.time_error_label.SetLabel("")
-
-    def _on_timeline_slider(self, event: wx.CommandEvent) -> None:
-        if self._syncing_sliders or not self._timeline_enabled:
-            return
-        self._on_seek(event.GetInt() / TIMELINE_SLIDER_MAX)
 
     def _on_speed_slider(self, event: wx.CommandEvent) -> None:
         if self._syncing_sliders:
@@ -494,9 +404,9 @@ class ControlWindow:
         parent.SetAcceleratorTable(self._accelerator_table)
 
     def _disable_accelerators(self, event: wx.FocusEvent) -> None:
-        self._parent.SetAcceleratorTable(self._empty_accelerator_table)
+        self._accelerator_parent.SetAcceleratorTable(self._empty_accelerator_table)
         event.Skip()
 
     def _enable_accelerators(self, event: wx.FocusEvent) -> None:
-        self._parent.SetAcceleratorTable(self._accelerator_table)
+        self._accelerator_parent.SetAcceleratorTable(self._accelerator_table)
         event.Skip()
