@@ -154,13 +154,20 @@ preserving app-level plot-click-to-seek behavior by keeping elapsed time on the 
 
 #### 24-3. Implement the RTN-delta view
 
-- **Status:** Not started.
-- **Progress:** 0/1 checklist items.
-- [ ] Implement the RTN-delta plot and compare its plotted values, units, and labels with
+- **Status:** Done.
+- **Progress:** 1/1 checklist items.
+- [x] Implement the RTN-delta plot and compare its plotted values, units, and labels with
       `plot-oem`.
 
 **Done when:** the RTN-delta view matches the reference calculation and presentation.
 **Depends on:** Step 24-2.
+
+**Evidence:** Added `RtnDeltaView` with three stacked R/T/N position-delta axes, km labels,
+time-unit-aware x-axis, per-axis playback cursors, object legend, and the “Not enough samples”
+state for a one-state OEM. The app now opens it via the existing `rtn` registry name. Tests compare
+the plotted arrays against `plot-oem`'s `OrbitSeries`, verify labels/cursor movement and empty
+input, and exercise app selection. The full focused playback suite passes: 109 tests, 14 existing
+Matplotlib dependency deprecation warnings.
 
 #### 24-4. Implement the angular-velocity view
 

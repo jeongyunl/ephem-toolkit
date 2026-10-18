@@ -310,6 +310,7 @@ def make_app(
         return view
 
     monkeypatch.setattr(app.speed_altitude, "SpeedAltitudeView", create_view)
+    monkeypatch.setattr(app.rtn, "RtnDeltaView", create_view)
     monkeypatch.setattr(app.state_components, "StateComponentsView", create_view)
     monkeypatch.setattr(app.trajectory3d, "Trajectory3DView", create_view)
     timestamps = [100.0, 200.0]
@@ -452,12 +453,26 @@ def test_cli_selection_opens_through_the_dashboard_registry(
     player.close()
 
 
+def test_rtn_selection_opens_through_the_dashboard_registry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, views, _canvases, _frames = make_app(monkeypatch, plots=("rtn",))
+
+    player.start()
+
+    assert len(views) == 1
+    assert set(player._open_views) == {"rtn"}
+    player.close()
+
+
 def test_unavailable_cli_plot_selection_fails_before_opening_any_plot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, views, _canvases, frames = make_app(monkeypatch, plots=("rtn",))
+    player, views, _canvases, frames = make_app(
+        monkeypatch, plots=("angular-velocity",)
+    )
 
-    with pytest.raises(ValueError, match="rtn"):
+    with pytest.raises(ValueError, match="angular-velocity"):
         player.start()
 
     assert views == []
