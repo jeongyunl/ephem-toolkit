@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from ephem_toolkit.play_oem import control_window
-from ephem_toolkit.play_oem.views.registry import ViewRegistry
 
 
 class FakeEvent:
@@ -43,6 +42,9 @@ class FakeWidget:
 
     def SetName(self, name: str) -> None:
         self.name = name
+
+    def SetToolTip(self, tooltip: str) -> None:
+        self.tooltip = tooltip
 
     def SetHint(self, hint: str) -> None:
         self.hint = hint
@@ -175,15 +177,6 @@ class FakeSize:
         self.y = height
 
 
-class FakeCollapsiblePane(FakeWidget):
-    def __init__(self, parent, widget_id: int, label: str) -> None:
-        super().__init__(parent, widget_id, label)
-        self.pane = FakePanel(parent, widget_id)
-
-    def GetPane(self):
-        return self.pane
-
-
 class FakeOwner:
     def __init__(self) -> None:
         self.bindings: dict[tuple[object, int], object] = {}
@@ -213,7 +206,6 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
     for name, value in {
         "Panel": FakePanel,
         "ScrolledWindow": FakeScrolledWindow,
-        "CollapsiblePane": FakeCollapsiblePane,
         "BoxSizer": FakeSizer,
         "StaticText": FakeWidget,
         "Button": FakeButton,
@@ -270,18 +262,10 @@ def make_window(
         "step_seconds": [],
         "start": [],
         "end": [],
-        "open_view": [],
-        "open_group": [],
     }
-    registry = ViewRegistry()
-    registry.register_view("trajectory-3d", lambda: None)
-    registry.register_view("speed-altitude", lambda: None)
     owner = FakeOwner()
     window = control_window.ControlWindow(
         owner,
-        calls["open_view"].append,
-        calls["open_group"].append,
-        registry,
         lambda: calls["toggle"].append(True),
         calls["speed"].append,
         lambda: calls["reverse"].append(True),
@@ -295,7 +279,7 @@ def make_window(
     return window, owner, calls
 
 
-def test_native_controls_dispatch_playback_navigation_and_view_actions(
+def test_native_controls_dispatch_playback_and_navigation_actions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     window, _owner, calls = make_window(monkeypatch)
@@ -305,8 +289,6 @@ def test_native_controls_dispatch_playback_navigation_and_view_actions(
     window.speed_preset_buttons[10.0].trigger(control_window.wx.EVT_TOGGLEBUTTON)
     for button in window.navigation_buttons:
         button.trigger(control_window.wx.EVT_BUTTON)
-    window.group_buttons["overview"].trigger(control_window.wx.EVT_BUTTON)
-    window.view_buttons["speed-altitude"].trigger(control_window.wx.EVT_BUTTON)
 
     assert calls["toggle"] == [True]
     assert calls["reverse"] == [True]
@@ -315,11 +297,6 @@ def test_native_controls_dispatch_playback_navigation_and_view_actions(
     assert calls["step_samples"] == [-1, 1]
     assert calls["step_seconds"] == [-60.0, 60.0]
     assert calls["end"] == [True]
-    assert calls["open_group"] == ["overview"]
-    assert calls["open_view"] == ["speed-altitude"]
-    assert not window.group_buttons["state"].enabled
-    assert not window.group_buttons["motion"].enabled
-    assert window.group_buttons["overview"].enabled
 
 
 def test_playback_controls_remain_reachable_in_scrollable_page(
@@ -335,6 +312,10 @@ def test_playback_controls_remain_reachable_in_scrollable_page(
     assert window.panel.sizer.items[4][0].orientation == control_window.wx.VERTICAL
     assert window.navigation_buttons[1].parent is window.panel
     assert window.speed_preset_buttons[100.0].parent is window.panel
+    assert not hasattr(window, "view_groups_pane")
+    assert not hasattr(window, "group_buttons")
+    assert not hasattr(window, "view_choice")
+    assert not hasattr(window, "open_view_button")
     assert window.panel.fit_inside_count == 1
 
     window.panel.bindings[control_window.wx.EVT_SIZE](FakeEvent())

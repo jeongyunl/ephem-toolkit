@@ -277,9 +277,6 @@ class FakeControlWindow:
     def __init__(
         self,
         _parent,
-        _on_open_view,
-        _on_open_group,
-        _view_registry,
         on_toggle_play,
         on_set_speed,
         on_reverse,
@@ -296,8 +293,6 @@ class FakeControlWindow:
         self.state_panel = object()
         self.state_parent = state_parent
         self.callbacks = {
-            "open_view": _on_open_view,
-            "open_group": _on_open_group,
             "toggle": on_toggle_play,
             "speed": on_set_speed,
             "reverse": on_reverse,
@@ -648,7 +643,7 @@ def test_clock_notifications_update_views_and_existing_plot_is_raised(
 
     player.clock.seek(150.0)
     player.open_group("overview")
-    player.control_window.callbacks["open_view"]("trajectory-3d")
+    player.open_view("trajectory-3d")
 
     assert all(view.updated_times == [100.0, 150.0] for view in views)
     assert all(panel.focused for panel in plot_panels)
@@ -671,8 +666,8 @@ def test_cli_selection_opens_through_the_dashboard_registry(
     assert set(player._open_views) == {"trajectory-3d", "state-components"}
     assert len(frames) == 1
 
-    player.control_window.callbacks["open_group"]("state")
-    player.control_window.callbacks["open_view"]("trajectory-3d")
+    player.open_group("state")
+    player.open_view("trajectory-3d")
 
     assert len(frames) == 1
     assert all(view.panel.focused for view in player._open_views.values())

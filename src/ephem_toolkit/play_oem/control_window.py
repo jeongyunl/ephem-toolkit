@@ -8,7 +8,6 @@ import math
 import wx
 
 from .cursor import CursorState, CursorStatus
-from .views import registry
 
 BUTTON_SPACING: int = 4
 """Spacing between adjacent playback buttons (pixels)."""
@@ -38,9 +37,6 @@ class ControlWindow:
     def __init__(
         self,
         parent: wx.Window,
-        on_open_view: Callable[[str], None],
-        on_open_group: Callable[[str], None],
-        view_registry: registry.ViewRegistry,
         on_toggle_play: Callable[[], None],
         on_set_speed: Callable[[float], None],
         on_reverse: Callable[[], None],
@@ -59,12 +55,6 @@ class ControlWindow:
         ----------
         parent : wx.Window
             Parent of the playback controls panel.
-        on_open_view : Callable[[str], None]
-            Open one registered plot view.
-        on_open_group : Callable[[str], None]
-            Open a registered group of plot views.
-        view_registry : registry.ViewRegistry
-            Registry used to label and enable available view actions.
         on_toggle_play : Callable[[], None]
             Toggle playback.
         on_set_speed : Callable[[float], None]
@@ -217,6 +207,13 @@ class ControlWindow:
             button.Bind(wx.EVT_BUTTON, lambda _event, action=callback: action())
             navigation_row.Add(button, 0, wx.EXPAND | wx.BOTTOM, BUTTON_SPACING)
             self.navigation_buttons.append(button)
+        self.navigation_label = wx.StaticText(self.panel, wx.ID_ANY, "Time navigation")
+        layout.Add(
+            self.navigation_label,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
+            LAYOUT_MARGIN,
+        )
         layout.Add(navigation_row, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
 
         self.speed_scale_label = wx.StaticText(
@@ -247,36 +244,6 @@ class ControlWindow:
             LAYOUT_MARGIN,
         )
 
-        group_row = wx.BoxSizer(wx.VERTICAL)
-        self.group_buttons: dict[str, wx.Button] = {}
-        for name, label in registry.GROUP_LABELS:
-            button = wx.Button(self.panel, wx.ID_ANY, label)
-            button.Enable(view_registry.can_open(name))
-            button.Bind(
-                wx.EVT_BUTTON,
-                lambda _event, group=name: on_open_group(group),
-            )
-            group_row.Add(button, 0, wx.EXPAND | wx.BOTTOM, BUTTON_SPACING)
-            self.group_buttons[name] = button
-        layout.Add(group_row, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
-
-        view_row = wx.BoxSizer(wx.VERTICAL)
-        self.view_buttons: dict[str, wx.Button] = {}
-        for name in view_registry.registered_views:
-            button = wx.Button(self.panel, wx.ID_ANY, view_registry.label_for(name))
-            button.Bind(
-                wx.EVT_BUTTON,
-                lambda _event, view=name: on_open_view(view),
-            )
-            view_row.Add(button, 0, wx.EXPAND | wx.BOTTOM, BUTTON_SPACING)
-            self.view_buttons[name] = button
-        layout.Add(
-            view_row,
-            0,
-            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
-            LAYOUT_MARGIN,
-        )
-
         focusable_controls = (
             self.play_pause_button,
             self.direction_button,
@@ -284,8 +251,6 @@ class ControlWindow:
             self.seek_button,
             *self.navigation_buttons,
             self.speed_slider,
-            *self.group_buttons.values(),
-            *self.view_buttons.values(),
         )
         for control in focusable_controls:
             control.Bind(
@@ -310,10 +275,13 @@ class ControlWindow:
 
     def _on_panel_size(self, event: wx.SizeEvent) -> None:
         """Recalculate wrapped controls and the scrollable content after resizing."""
+        self._fit_playback_content()
+        event.Skip()
+
+    def _fit_playback_content(self) -> None:
         self._wrap_text_labels()
         self.panel.Layout()
         self.panel.FitInside()
-        event.Skip()
 
     def _wrap_text_labels(self) -> None:
         content_width = self.panel.GetClientSize().width - 2 * LAYOUT_MARGIN

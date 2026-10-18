@@ -221,9 +221,6 @@ class PlayerApp:
         )
         self.control_window = control_window.ControlWindow(
             self.workspace.playback_page,
-            self.open_view,
-            self.open_group,
-            self._view_registry,
             self._toggle_playback,
             self._set_playback_speed,
             self._reverse_playback,

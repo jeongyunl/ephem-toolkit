@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <rect width="1600" height="900" fill="#171819"/>
+  <text x="42" y="52" fill="#f0f0f0" font-family="Arial, sans-serif" font-size="30" font-weight="700">Controls &amp; Info: graph launcher alternatives</text>
+  <text x="42" y="82" fill="#b9bdc2" font-family="Arial, sans-serif" font-size="16">All options retain the same Playback controls above the launcher; these sketches compare only the lower view/group area.</text>
+
+  <g font-family="Arial, sans-serif">
+    <rect x="40" y="112" width="490" height="748" rx="12" fill="#252729" stroke="#55595e"/>
+    <text x="62" y="151" fill="#f5f5f5" font-size="23" font-weight="700">1. Hybrid (recommended)</text>
+    <text x="62" y="178" fill="#b9bdc2" font-size="15">Group buttons stay one-click; individual views use a picker.</text>
+    <rect x="62" y="198" width="446" height="642" rx="8" fill="#202224" stroke="#414549"/>
+    <text x="80" y="228" fill="#e4e7ea" font-size="16" font-weight="700">Playback</text>
+    <rect x="80" y="243" width="410" height="103" rx="6" fill="#2c2f32" stroke="#44484c"/>
+    <text x="94" y="269" fill="#d7dade" font-size="14">Current time · Play / Reverse · rate presets</text>
+    <rect x="94" y="283" width="166" height="28" rx="5" fill="#3b3e42"/>
+    <text x="108" y="302" fill="#e8e9eb" font-size="13">Seek to time…</text>
+    <rect x="270" y="283" width="66" height="28" rx="5" fill="#44484d"/>
+    <text x="286" y="302" fill="#e8e9eb" font-size="13">Seek</text>
+    <text x="94" y="332" fill="#aeb3b8" font-size="12">Start · Previous · −1 min · +1 min · Next · End</text>
+    <text x="80" y="380" fill="#c6cacf" font-size="14" font-weight="700">Graph views</text>
+    <rect x="80" y="393" width="410" height="44" rx="6" fill="#34373a" stroke="#55595e"/>
+    <text x="96" y="421" fill="#f1f2f3" font-size="15">▸ View groups</text>
+    <text x="438" y="421" fill="#aeb3b8" font-size="12" text-anchor="end">4</text>
+    <text x="80" y="470" fill="#c6cacf" font-size="14">Individual view</text>
+    <rect x="80" y="481" width="410" height="42" rx="5" fill="#34373a" stroke="#666b70"/>
+    <text x="96" y="507" fill="#f1f2f3" font-size="14">Speed / Altitude</text>
+    <text x="474" y="507" fill="#aeb3b8" font-size="15">▾</text>
+    <rect x="80" y="531" width="410" height="38" rx="5" fill="#3f4449" stroke="#666b70"/>
+    <text x="285" y="555" fill="#f1f2f3" font-size="14" text-anchor="middle">Open</text>
+    <rect x="80" y="590" width="410" height="118" rx="6" fill="#292c2f" stroke="#414549"/>
+    <text x="96" y="616" fill="#c5c9ce" font-size="13" font-weight="700">When “View groups” is expanded</text>
+    <rect x="96" y="629" width="88" height="30" rx="4" fill="#3d4145"/>
+    <rect x="190" y="629" width="72" height="30" rx="4" fill="#3d4145"/>
+    <rect x="268" y="629" width="78" height="30" rx="4" fill="#3d4145"/>
+    <rect x="352" y="629" width="56" height="30" rx="4" fill="#3d4145"/>
+    <text x="140" y="649" fill="#eef0f2" font-size="12" text-anchor="middle">Overview</text>
+    <text x="226" y="649" fill="#eef0f2" font-size="12" text-anchor="middle">State</text>
+    <text x="307" y="649" fill="#eef0f2" font-size="12" text-anchor="middle">Motion</text>
+    <text x="380" y="649" fill="#eef0f2" font-size="12" text-anchor="middle">All</text>
+    <text x="96" y="686" fill="#aeb3b8" font-size="12">Group buttons retain enabled/disabled state and one-click launch.</text>
+    <text x="80" y="744" fill="#aeb3b8" font-size="13">Compact by default; selecting an individual view takes two actions.</text>
+
+    <rect x="555" y="112" width="490" height="748" rx="12" fill="#252729" stroke="#55595e"/>
+    <text x="577" y="151" fill="#f5f5f5" font-size="23" font-weight="700">2. Separate pickers</text>
+    <text x="577" y="178" fill="#b9bdc2" font-size="15">Both catalogs stay visible as labeled select-and-open rows.</text>
+    <rect x="577" y="198" width="446" height="642" rx="8" fill="#202224" stroke="#414549"/>
+    <text x="595" y="228" fill="#e4e7ea" font-size="16" font-weight="700">Playback</text>
+    <rect x="595" y="243" width="410" height="103" rx="6" fill="#2c2f32" stroke="#44484c"/>
+    <text x="609" y="269" fill="#d7dade" font-size="14">Current time · Play / Reverse · rate presets</text>
+    <rect x="609" y="283" width="166" height="28" rx="5" fill="#3b3e42"/>
+    <text x="623" y="302" fill="#e8e9eb" font-size="13">Seek to time…</text>
+    <rect x="785" y="283" width="66" height="28" rx="5" fill="#44484d"/>
+    <text x="801" y="302" fill="#e8e9eb" font-size="13">Seek</text>
+    <text x="609" y="332" fill="#aeb3b8" font-size="12">Start · Previous · −1 min · +1 min · Next · End</text>
+    <text x="595" y="380" fill="#c6cacf" font-size="14" font-weight="700">Graph views</text>
+    <text x="595" y="414" fill="#c6cacf" font-size="13">View group</text>
+    <rect x="595" y="424" width="270" height="42" rx="5" fill="#34373a" stroke="#666b70"/>
+    <text x="611" y="450" fill="#f1f2f3" font-size="14">Overview</text>
+    <text x="842" y="450" fill="#aeb3b8" font-size="15">▾</text>
+    <rect x="875" y="424" width="130" height="42" rx="5" fill="#3f4449" stroke="#666b70"/>
+    <text x="940" y="450" fill="#f1f2f3" font-size="13" text-anchor="middle">Open group</text>
+    <text x="595" y="502" fill="#c6cacf" font-size="13">Individual view</text>
+    <rect x="595" y="512" width="270" height="42" rx="5" fill="#34373a" stroke="#666b70"/>
+    <text x="611" y="538" fill="#f1f2f3" font-size="14">Speed / Altitude</text>
+    <text x="842" y="538" fill="#aeb3b8" font-size="15">▾</text>
+    <rect x="875" y="512" width="130" height="42" rx="5" fill="#3f4449" stroke="#666b70"/>
+    <text x="940" y="538" fill="#f1f2f3" font-size="13" text-anchor="middle">Open view</text>
+    <rect x="595" y="588" width="410" height="95" rx="6" fill="#292c2f" stroke="#414549"/>
+    <text x="611" y="615" fill="#c5c9ce" font-size="13" font-weight="700">Trade-off</text>
+    <text x="611" y="641" fill="#aeb3b8" font-size="12">Clear and compact; every launch requires choosing an item</text>
+    <text x="611" y="660" fill="#aeb3b8" font-size="12">and pressing its Open button. Disabled groups need a cue.</text>
+    <text x="595" y="714" fill="#aeb3b8" font-size="13">Lowest surprise if both catalogs should remain in view.</text>
+
+    <rect x="1070" y="112" width="490" height="748" rx="12" fill="#252729" stroke="#55595e"/>
+    <text x="1092" y="151" fill="#f5f5f5" font-size="23" font-weight="700">3. Collapsible sections</text>
+    <text x="1092" y="178" fill="#b9bdc2" font-size="15">Keep every existing one-click button; expand a catalog when needed.</text>
+    <rect x="1092" y="198" width="446" height="642" rx="8" fill="#202224" stroke="#414549"/>
+    <text x="1110" y="228" fill="#e4e7ea" font-size="16" font-weight="700">Playback</text>
+    <rect x="1110" y="243" width="410" height="103" rx="6" fill="#2c2f32" stroke="#44484c"/>
+    <text x="1124" y="269" fill="#d7dade" font-size="14">Current time · Play / Reverse · rate presets</text>
+    <rect x="1124" y="283" width="166" height="28" rx="5" fill="#3b3e42"/>
+    <text x="1138" y="302" fill="#e8e9eb" font-size="13">Seek to time…</text>
+    <rect x="1300" y="283" width="66" height="28" rx="5" fill="#44484d"/>
+    <text x="1316" y="302" fill="#e8e9eb" font-size="13">Seek</text>
+    <text x="1124" y="332" fill="#aeb3b8" font-size="12">Start · Previous · −1 min · +1 min · Next · End</text>
+    <text x="1110" y="380" fill="#c6cacf" font-size="14" font-weight="700">Graph views</text>
+    <rect x="1110" y="393" width="410" height="44" rx="6" fill="#34373a" stroke="#55595e"/>
+    <text x="1126" y="421" fill="#f1f2f3" font-size="15">▸ View groups</text>
+    <rect x="1110" y="447" width="410" height="44" rx="6" fill="#34373a" stroke="#55595e"/>
+    <text x="1126" y="475" fill="#f1f2f3" font-size="15">▸ Individual views</text>
+    <rect x="1110" y="514" width="410" height="170" rx="6" fill="#292c2f" stroke="#414549"/>
+    <text x="1126" y="540" fill="#c5c9ce" font-size="13" font-weight="700">Expanded-state preview</text>
+    <rect x="1126" y="553" width="91" height="29" rx="4" fill="#3d4145"/>
+    <rect x="1223" y="553" width="64" height="29" rx="4" fill="#3d4145"/>
+    <rect x="1293" y="553" width="77" height="29" rx="4" fill="#3d4145"/>
+    <rect x="1376" y="553" width="50" height="29" rx="4" fill="#3d4145"/>
+    <text x="1171" y="572" fill="#eef0f2" font-size="11" text-anchor="middle">Overview</text>
+    <text x="1255" y="572" fill="#eef0f2" font-size="11" text-anchor="middle">State</text>
+    <text x="1331" y="572" fill="#eef0f2" font-size="11" text-anchor="middle">Motion</text>
+    <text x="1401" y="572" fill="#eef0f2" font-size="11" text-anchor="middle">All</text>
+    <rect x="1126" y="593" width="378" height="31" rx="4" fill="#35383c"/>
+    <text x="1140" y="614" fill="#d5d8dc" font-size="11">3D Orbit · State Components · Speed / Altitude · …</text>
+    <text x="1126" y="653" fill="#aeb3b8" font-size="12">Expanded lists preserve one-click launches but need scrolling.</text>
+    <text x="1110" y="714" fill="#aeb3b8" font-size="13">Most familiar interaction; compact only while sections are closed.</text>
+  </g>
+</svg>

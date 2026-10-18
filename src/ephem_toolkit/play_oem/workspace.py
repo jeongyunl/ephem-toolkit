@@ -510,16 +510,37 @@ class Workspace:
             return
         self._selected_feature = index
         self.feature_book.ChangeSelection(index)
+        self.feature_title.SetLabel(
+            f"{CONTROLS_PANE_NAME} / {self._FEATURES[index][0]}"
+        )
+        self._wrap_feature_title()
         for button_index, button in enumerate(self.feature_buttons):
             button.SetValue(button_index == index)
+
+    def _on_left_pane_size(self, event: wx.SizeEvent) -> None:
+        self._wrap_feature_title()
+        self.left_pane.Layout()
+        event.Skip()
+
+    def _wrap_feature_title(self) -> None:
+        content_width = self.left_pane.GetClientSize().width - 16
+        if content_width > 0:
+            self.feature_title.Wrap(content_width)
 
     def _build_feature_navigation(
         self, context: Mapping[str, str], details: Sequence[tuple[str, str]]
     ) -> None:
         left_layout = wx.BoxSizer(wx.VERTICAL)
-        title = wx.StaticText(self.left_pane, wx.ID_ANY, CONTROLS_PANE_NAME)
-        title.SetName(CONTROLS_PANE_NAME)
-        left_layout.Add(title, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8)
+        self.feature_title = wx.StaticText(
+            self.left_pane,
+            wx.ID_ANY,
+            f"{CONTROLS_PANE_NAME} / {self._FEATURES[0][0]}",
+        )
+        self.feature_title.SetName(CONTROLS_PANE_NAME)
+        left_layout.Add(
+            self.feature_title, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8
+        )
+        self.left_pane.Bind(wx.EVT_SIZE, self._on_left_pane_size)
         content_layout = wx.BoxSizer(wx.HORIZONTAL)
         rail = wx.BoxSizer(wx.VERTICAL)
         self.feature_book = wx.Simplebook(self.left_pane, wx.ID_ANY)

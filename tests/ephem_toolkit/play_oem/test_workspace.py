@@ -491,9 +491,7 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert result.timeline_slider.maximum == 10_000
     assert frame.sizer.items[0][0] is result.content_splitter
     assert frame.sizer.items[1][0] is result.timeline_panel
-    assert result.timeline_start_label.label == (
-        "Start UTC: 2000-01-01T00:00:00.000"
-    )
+    assert result.timeline_start_label.label == ("Start UTC: 2000-01-01T00:00:00.000")
     assert result.timeline_current_label.label == "Current UTC: "
     assert result.timeline_end_label.label == "End UTC: 2000-01-01T00:01:00.000"
 
@@ -786,9 +784,12 @@ def test_feature_rail_supports_click_and_vertical_keyboard_navigation(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
 
+    assert result.feature_title.label == "Controls & Info / Playback"
+
     result.feature_buttons[1].trigger(workspace.wx.EVT_TOGGLEBUTTON)
 
     assert result.feature_book.selection == 1
+    assert result.feature_title.label == "Controls & Info / OEM file information"
     assert result.feature_buttons[1].value
     assert not result.feature_buttons[0].value
 
@@ -803,6 +804,7 @@ def test_feature_rail_supports_click_and_vertical_keyboard_navigation(
     down_event = FakeEvent(key_code=workspace.wx.WXK_DOWN)
     result.feature_buttons[0].trigger("key-down", down_event)
     assert result.feature_book.selection == 1
+    assert result.feature_title.label == "Controls & Info / OEM file information"
     assert result.feature_buttons[1].focused
 
 
