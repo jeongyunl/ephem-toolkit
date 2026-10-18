@@ -77,6 +77,9 @@ class GraphPanelHost(wx.Panel):
         view_choices: tuple[tuple[str, str], ...] = (),
         selected_view: str | None = None,
         on_view_selected: Callable[[str], None] | None = None,
+        on_move_up: Callable[[], None] | None = None,
+        on_move_down: Callable[[], None] | None = None,
+        on_duplicate: Callable[[], None] | None = None,
     ) -> None:
         super().__init__(parent, wx.ID_ANY)
         if panel_id == "":
@@ -122,6 +125,29 @@ class GraphPanelHost(wx.Panel):
         self.close_button.SetToolTip(f"Close {title} graph")
         self.close_button.Bind(wx.EVT_BUTTON, lambda _event: self._on_close())
         header.Add(self.title_label, 1, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        self.actions_button = wx.Button(self, wx.ID_ANY, "Actions")
+        self.actions_button.SetName(f"{title} panel actions")
+        self.actions_button.SetToolTip(f"Actions for {title} graph")
+        self._actions_menu = wx.Menu()
+        for label, callback in (
+            ("Move up", on_move_up),
+            ("Move down", on_move_down),
+            ("Duplicate", on_duplicate),
+            ("Close", on_close),
+        ):
+            if callback is None:
+                continue
+            item = self._actions_menu.Append(wx.ID_ANY, label)
+            self._actions_menu.Bind(
+                wx.EVT_MENU,
+                lambda _event, action=callback: action(),
+                id=item.GetId(),
+            )
+        self.actions_button.Bind(
+            wx.EVT_BUTTON,
+            lambda _event: self.PopupMenu(self._actions_menu),
+        )
+        header.Add(self.actions_button, 0, wx.ALL, 4)
         header.Add(self.close_button, 0, wx.ALL, 4)
         layout.Add(header, 0, wx.EXPAND)
         self.content_sizer = wx.BoxSizer(wx.VERTICAL)

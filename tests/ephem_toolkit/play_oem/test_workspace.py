@@ -534,6 +534,29 @@ def test_graph_stacks_use_styled_horizontal_splitters_and_collapse_on_close(
     assert result._stack_roots["middle"] is None
 
 
+def test_moving_graph_panel_reorders_live_hosts_without_replacing_them(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, _seeks, _frame = make_workspace(monkeypatch)
+    panels = [
+        FakeGraphPanel(result.middle_stack, f"panel-{index}") for index in range(3)
+    ]
+    for panel in panels:
+        result.add_graph_panel(panel)
+
+    result.move_graph_panel(panels[0], "middle", 1)
+
+    assert result._graph_panels["middle"] == [panels[1], panels[0], panels[2]]
+    assert [panel.panel_id for panel in result._graph_panels["middle"]] == [
+        "panel-1",
+        "panel-0",
+        "panel-2",
+    ]
+    assert result._stack_roots["middle"] is not None
+    result.move_graph_panel(panels[0], "middle", -1)
+    assert result._graph_panels["middle"] == panels
+
+
 def test_workspace_serializes_and_coalesces_visible_graph_redraws(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

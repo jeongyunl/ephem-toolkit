@@ -244,6 +244,25 @@ class Workspace:
         self._stack_windows[stack].Layout()
         self._stack_windows[stack].FitInside()
 
+    def move_graph_panel(self, panel: GraphPanelHost, stack: str, offset: int) -> None:
+        """Move a live panel within its stack without recreating its view."""
+        if stack not in self._graph_panels:
+            raise ValueError(f"unknown graph stack {stack!r}")
+        panels = self._graph_panels[stack]
+        current_index = panels.index(panel)
+        target_index = min(max(current_index + offset, 0), len(panels) - 1)
+        if target_index == current_index:
+            return
+
+        reordered = list(panels)
+        reordered.insert(target_index, reordered.pop(current_index))
+        stack_window = self._stack_windows[stack]
+        for existing_panel in tuple(panels):
+            self.remove_graph_panel(existing_panel, stack)
+            existing_panel.Reparent(stack_window)
+        for existing_panel in reordered:
+            self.add_graph_panel(existing_panel, stack)
+
     def close(self) -> None:
         """Stop pending graph redraw work during workspace shutdown."""
         if self._graph_redraw_timer is not None:

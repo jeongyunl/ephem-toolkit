@@ -420,6 +420,25 @@ class PlayerApp:
                 self.frame,
             )
 
+    def _move_panel(self, panel_id: str, offset: int) -> None:
+        opened = self._open_panels.get(panel_id)
+        if opened is not None:
+            self.workspace.move_graph_panel(opened.panel, opened.stack, offset)
+
+    def _duplicate_panel(self, panel_id: str) -> None:
+        opened = self._open_panels.get(panel_id)
+        if opened is None:
+            return
+        try:
+            self.open_panel_view(opened.view_name, uuid4().hex, opened.stack)
+        except Exception as error:
+            wx.MessageBox(
+                f"Could not duplicate graph panel: {error}",
+                "Graph panel error",
+                wx.OK | wx.ICON_ERROR,
+                self.frame,
+            )
+
     def open_group(self, name: str) -> None:
         self._view_registry.open_group(name)
 
@@ -545,6 +564,9 @@ class PlayerApp:
                 on_view_selected=lambda selected: self._select_panel_view(
                     selected, panel_id, stack
                 ),
+                on_move_up=lambda: self._move_panel(panel_id, -1),
+                on_move_down=lambda: self._move_panel(panel_id, 1),
+                on_duplicate=lambda: self._duplicate_panel(panel_id),
             )
             self.workspace.add_graph_panel(panel, stack=stack)
             view = create_view(panel)

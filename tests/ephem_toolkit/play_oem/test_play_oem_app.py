@@ -194,6 +194,9 @@ class FakeGraphPanelHost:
         self.view_choices = _kwargs.get("view_choices", ())
         self.selected_view = _kwargs.get("selected_view")
         self.on_view_selected = _kwargs.get("on_view_selected")
+        self.on_duplicate = _kwargs.get("on_duplicate")
+        self.on_move_up = _kwargs.get("on_move_up")
+        self.on_move_down = _kwargs.get("on_move_down")
         self.__class__.instances.append(self)
 
     def set_matplotlib_content(self, toolbar, canvas) -> None:
@@ -1073,6 +1076,30 @@ def test_panel_instances_can_duplicate_views_and_keep_independent_lifecycles(
     player.clock.seek(180.0)
     assert views[-1].updated_times == [160.0, 170.0]
     assert views[0].updated_times[-1] == 180.0
+    player.close()
+
+
+def test_panel_action_duplicates_as_a_new_independent_instance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, views, _canvases, _frames = make_app(
+        monkeypatch,
+        plots=("speed-altitude",),
+    )
+    player.start()
+    original = player._open_views["speed-altitude"]
+
+    original.panel.on_duplicate()
+
+    assert len(player._open_panels) == 2
+    duplicate = next(
+        opened for opened in player._open_panels.values() if opened is not original
+    )
+    assert duplicate.view_name == original.view_name
+    assert duplicate.panel_id != original.panel_id
+    assert duplicate.view is not original.view
+    player.close_panel(duplicate.panel_id)
+    assert views[1].closed
     player.close()
 
 

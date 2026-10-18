@@ -63,23 +63,6 @@ selections and size when closed and restore them when reopened.
 
 ## Milestone G2 — Graph stacks and feature pages
 
-### 6. Implement panel actions and independent lifecycle
-
-Add local actions for moving, duplicating, and closing graph panels. A duplicate must be an
-independent panel instance, even when it displays the same registered view type.
-
-- **Status:** Not started.
-- **Progress:** 0/6 checklist items.
-- [ ] Add a panel menu with move within stack, duplicate, and close actions.
-- [ ] Reorder panels without losing their selected view or cursor state.
-- [ ] Duplicate a panel with a new instance ID and independent view resources.
-- [ ] Close one panel without affecting other panels, playback, or the other stack.
-- [ ] Disconnect plot callbacks and clock subscriptions and release resources exactly once.
-- [ ] Test reorder, duplicate, close, and failure/cleanup paths.
-
-**Done when:** all panel actions operate on the intended instance and lifecycle tests pass.
-**Depends on:** Step 5 and Substep 1-3.
-
 ### 7. Add resizable graph-panel splits, stack scrolling, and minimum plot sizes
 
 After the three main pane widths are resizable, allow users to adjust the heights of graph panels in
@@ -642,3 +625,28 @@ passed (**147 passed**, 14 existing Matplotlib/Pyparsing deprecation warnings).
 **Done when:** both stacks support zero or more panels and each panel's view can be selected
 independently.
 **Depends on:** Steps 2 and 4 and Substep 1-5.
+
+### 6. Implement panel actions and independent lifecycle
+
+Add local actions for moving, duplicating, and closing graph panels. A duplicate must be an
+independent panel instance, even when it displays the same registered view type.
+
+- **Status:** Done.
+- **Progress:** 6/6 checklist items.
+- [x] Add a panel menu with move within stack, duplicate, and close actions.
+- [x] Reorder panels without losing their selected view or cursor state.
+- [x] Duplicate a panel with a new instance ID and independent view resources.
+- [x] Close one panel without affecting other panels, playback, or the other stack.
+- [x] Disconnect plot callbacks and clock subscriptions and release resources exactly once.
+- [x] Test reorder, duplicate, close, and failure/cleanup paths.
+
+**Implementation and validation:** The panel Actions menu provides Move up, Move down, Duplicate,
+and Close. Reordering rebuilds the stack's splitter tree around the same live panel hosts, keeping
+their view instances, selection, cursor state, and clock subscriptions intact. Duplication opens
+the same selected view under a new panel ID with independent view resources. Closing continues to
+use the existing exactly-once callback/subscription cleanup. Tests cover reordering live hosts and
+duplicating through the panel action callback; the full play-oem suite passed (**149 passed**, 14
+existing Matplotlib/Pyparsing deprecation warnings).
+
+**Done when:** all panel actions operate on the intended instance and lifecycle tests pass.
+**Depends on:** Step 5 and Substep 1-3.
