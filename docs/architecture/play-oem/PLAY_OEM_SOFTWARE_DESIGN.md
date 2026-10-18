@@ -259,19 +259,27 @@ The active workspace uses one `wx.Frame` with three named regions: **Controls & 
 **Main Analysis** in the middle, and the optional **Comparison** pane at right. These names appear
 in visible pane headings and matching wx window names. Controls & Info contains the feature rail and
 `wx.Simplebook`; its Playback page embeds the existing control dashboard, while OEM metadata has
-its own page. Main Analysis and Comparison each contain an independently scrollable graph stack
-with per-panel lifecycle. Startup opens `overview` by default in Main Analysis: the 3D orbit and
-combined speed/altitude time-series view. `--plots` can replace that selection with individual
-views or named groups.
+its own page, and current-state readouts live on the State page. Main Analysis and Comparison each
+contain an independently scrollable graph stack with per-panel lifecycle. Startup opens `overview`
+by default in Main Analysis: the 3D orbit and combined speed/altitude time-series view. `--plots`
+can replace that selection with individual views or named groups.
 
-The `ControlWindow` dashboard is a `wx.Panel` embedded in the Playback page, containing:
+The `ControlWindow` owns a playback `wx.Panel` embedded in Playback and a separate state-readout
+`wx.Panel` embedded in State:
 
 ```
-[ ▶/⏸ ] [◀/▶] [speed ▼ 1 10 60 100 300 1000] ━━━●━━━━━━━━━━━  UTC …  elapsed …
-Readout: r=(x,y,z) km   v=(vx,vy,vz) km/s   speed=… km/s   altitude=… km (WGS84)
+[Playback page]
+[ ▶/⏸ ] [◀/▶] [speed 1 10 100 1000] ━━━●━━━━━━━━━━━ elapsed … | UTC …
+[Seek time …] [Seek] [Start] [Previous sample] [-1 min] [+1 min] [Next sample] [End]
 Toolbar: [3D Orbit] [State] [Speed/Altitude] [RTN] [Angular] [Direction] [Distance]
 Groups: [Overview] [State] [Motion diagnostics] [All]
-Data: object … | frame … | center … | samples … | cursor: interpolated / sample / gap
+
+[State page]
+r=(x,y,z) km   v=(vx,vy,vz) km/s   speed=… km/s   altitude=… km
+Cursor: interpolated / sample / gap / unavailable
+
+[OEM file information page]
+object … | frame … | center … | epochs … | samples …
 Details ▸ (additional OEM metadata and diagnostics)
 ```
 
@@ -291,11 +299,11 @@ Details ▸ (additional OEM metadata and diagnostics)
   already-open default view is raised rather than duplicated. Closing one graph panel does not
   affect the clock or other panels. Closing the workspace frame destroys all panels and stops the
   single wx event loop.
-- Current-state readouts come from the same `CursorState` as the plots, including explicit
+- Current-state readouts on State come from the same `CursorState` as the plots, including explicit
   sampled/interpolated/gap status. In gaps, show state values as unavailable rather than carrying
   forward the last sample. Altitude is shown only when its frame/center assumptions are valid;
-  units and reference frame are visible. OEM object/frame/center/time span/sample count remain
-  available as data context, with less-used metadata in the collapsed details panel.
+  units and reference frame are visible. OEM object/frame/center/time span/sample count remain on
+  the OEM file information page, with less-used metadata in its collapsed details panel.
 - Keys: `Space` play/pause, `R` reverse, `←/→` step (∓/± 1 sample), `Shift+←/→` ∓/± 1 min, `Home/End` jump to start/end.
   These are wx accelerators on the workspace frame and are inactive while the time-entry field has focus.
 

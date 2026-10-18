@@ -355,6 +355,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "ART_GO_FORWARD": "forward",
         "ART_INFORMATION": "information",
         "EVT_BUTTON": "button",
+        "EVT_TOGGLEBUTTON": "toggle-button",
         "EVT_CHOICE": "choice",
         "EVT_KEY_DOWN": "key-down",
         "EVT_SLIDER": "slider",
@@ -624,7 +625,7 @@ def test_feature_rail_supports_click_and_vertical_keyboard_navigation(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
 
-    result.feature_buttons[1].trigger("button")
+    result.feature_buttons[1].trigger(workspace.wx.EVT_TOGGLEBUTTON)
 
     assert result.feature_book.selection == 1
     assert result.feature_buttons[1].value

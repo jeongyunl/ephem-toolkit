@@ -195,8 +195,10 @@ class PlayerApp:
             on_jump_to_start=self._jump_to_start,
             on_jump_to_end=self._jump_to_end,
             accelerator_parent=self.frame,
+            state_parent=self.workspace.state_page,
         )
         self.workspace.set_playback_content(self.control_window.panel)
+        self.workspace.set_state_content(self.control_window.state_panel)
         self.frame.SetMinSize(PLAYER_FRAME_MIN_SIZE)
         self.frame.SetSize(PLAYER_FRAME_SIZE)
         self.frame.Bind(wx.EVT_CLOSE, self._on_frame_close)

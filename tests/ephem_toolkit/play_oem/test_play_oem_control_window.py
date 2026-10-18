@@ -22,6 +22,7 @@ class FakeEvent:
 
 class FakeWidget:
     def __init__(self, _parent, _id: int, label: str = "", **_kwargs) -> None:
+        self.parent = _parent
         self.label = label
         self.enabled = True
         self.name = ""
@@ -102,7 +103,8 @@ class FakeSizer:
 
 
 class FakePanel:
-    def __init__(self, _parent, _id: int) -> None:
+    def __init__(self, parent, _id: int) -> None:
+        self.parent = parent
         self.sizer = None
 
     def SetSizer(self, sizer) -> None:
@@ -258,6 +260,25 @@ def test_dashboard_formats_state_and_missing_values(
     import numpy as np
 
     window, _owner, _calls = make_window(monkeypatch)
+    assert all(
+        label.parent is window.state_panel
+        for label in (
+            window.position_label,
+            window.velocity_label,
+            window.speed_altitude_label,
+            window.cursor_status_label,
+        )
+    )
+    assert len(window.state_panel.sizer.items) == 4
+    assert all(
+        label not in [item[0] for item in window.panel.sizer.items]
+        for label in (
+            window.position_label,
+            window.velocity_label,
+            window.speed_altitude_label,
+            window.cursor_status_label,
+        )
+    )
     window.update_current_state(
         CursorState(
             1.0,

@@ -63,26 +63,6 @@ selections and size when closed and restore them when reopened.
 
 ## Milestone G2 — Graph stacks and feature pages
 
-### 9. Move existing controls and readouts into feature pages
-
-Populate the feature pages from the current control dashboard without changing playback or data
-semantics. Keep the shared time slider outside the page host below all panes.
-
-- **Status:** Not started.
-- **Progress:** 0/6 checklist items.
-- [ ] Move OEM file identity, epochs, frame, center, and sample context to the OEM information
-      page.
-- [ ] Move play/pause, reverse, speed, direct time entry, stepping, and start/end actions to the
-      playback page using existing callbacks.
-- [ ] Move position, velocity, speed, altitude, and cursor validity/status to the state page.
-- [ ] Preserve metadata details, units, gap/unavailable behavior, and error reporting.
-- [ ] Keep the global time slider below all panes and prevent recursive seek events.
-- [ ] Test page contents and verify every existing playback action remains available.
-
-**Done when:** existing non-graph controls and readouts are available in feature pages and the
-global timeline remains synchronized.
-**Depends on:** Steps 2 and 8.
-
 ## Milestone G3 — Feature navigation, optional pane, and accessibility
 
 ### 10. Implement optional right-pane close and restore behavior
@@ -651,6 +631,8 @@ information, and State pages. Each icon button and page has a matching accessibl
 name; buttons have tooltips and native toggle selection. Click and Up/Down keyboard navigation
 update the page and selected toggle, with keyboard navigation moving focus to the selected button.
 Workspace tests and native wx smoke checks verified all page names, tooltips, and selected state.
+The page-switch handler is bound to `wx.EVT_TOGGLEBUTTON`, matching the icon buttons' native event;
+a native event smoke test confirmed OEM file information selects and displays its metadata.
 The full play-oem suite passed (**150 passed**, 14 existing Matplotlib/Pyparsing deprecation
 warnings). Automated macOS GUI checks could not acquire native keyboard focus from the inactive
 test process, and screen-reader exposure remains unverified; manual native validation is scheduled
@@ -659,3 +641,32 @@ in Step 11. Page content is intentionally populated in Step 9.
 **Done when:** each feature page is reachable by mouse and keyboard, and icon buttons expose
 clear names, tooltips, and selected/focus state.
 **Depends on:** Step 2 and Substep 1-4.
+
+### 9. Move existing controls and readouts into feature pages
+
+Populate the feature pages from the current control dashboard without changing playback or data
+semantics. Keep the shared time slider outside the page host below all panes.
+
+- **Status:** Done.
+- **Progress:** 6/6 checklist items.
+- [x] Move OEM file identity, epochs, frame, center, and sample context to the OEM information
+      page.
+- [x] Move play/pause, reverse, speed, direct time entry, stepping, and start/end actions to the
+      playback page using existing callbacks.
+- [x] Move position, velocity, speed, altitude, and cursor validity/status to the state page.
+- [x] Preserve metadata details, units, gap/unavailable behavior, and error reporting.
+- [x] Keep the global time slider below all panes and prevent recursive seek events.
+- [x] Test page contents and verify every existing playback action remains available.
+
+**Implementation and validation:** The OEM information page retains its file identity, epoch,
+frame, center, sample, and metadata details. Playback controls, seek errors, elapsed/UTC readouts,
+speed/direction controls, step/navigation actions, and graph-open actions remain on Playback.
+Position, velocity, speed, altitude, and cursor-status readouts now live in a separate panel on
+State and continue to update from the same `CursorState`. The global timeline remains in the
+workspace footer and retains its seek-event suppression. Focused app, workspace, and dashboard
+tests passed (**52 passed**); the full play-oem suite passed (**150 passed**, 14 existing
+Matplotlib/Pyparsing deprecation warnings).
+
+**Done when:** existing non-graph controls and readouts are available in feature pages and the
+global timeline remains synchronized.
+**Depends on:** Steps 2 and 8.

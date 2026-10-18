@@ -281,8 +281,11 @@ class FakeControlWindow:
         on_jump_to_start,
         on_jump_to_end,
         accelerator_parent=None,
+        state_parent=None,
     ) -> None:
         self.panel = object()
+        self.state_panel = object()
+        self.state_parent = state_parent
         self.callbacks = {
             "open_view": _on_open_view,
             "open_group": _on_open_group,
@@ -330,14 +333,19 @@ class FakeWorkspace:
         self.context = context
         self.details = details
         self.playback_page = object()
+        self.state_page = object()
         self.middle_stack = object()
         self.right_stack = object()
         self.graph_panels = []
         self.progress = 0.0
         self.playback_content = None
+        self.state_content = None
 
     def set_playback_content(self, panel) -> None:
         self.playback_content = panel
+
+    def set_state_content(self, panel) -> None:
+        self.state_content = panel
 
     def update_timeline(self, progress: float) -> None:
         self.progress = progress
@@ -484,6 +492,8 @@ def test_start_uses_one_wx_app_and_opens_the_selected_views(
     assert "Paused" not in player.control_window.text
     assert player.workspace.progress == 0.5
     assert player.workspace.playback_content is player.control_window.panel
+    assert player.control_window.state_parent is player.workspace.state_page
+    assert player.workspace.state_content is player.control_window.state_panel
 
     player.close()
 

@@ -139,6 +139,12 @@ class Workspace:
         layout.Add(panel, 1, wx.EXPAND)
         self.playback_page.SetSizer(layout)
 
+    def set_state_content(self, panel: wx.Window) -> None:
+        """Place cursor state readouts in the State feature page."""
+        layout = wx.BoxSizer(wx.VERTICAL)
+        layout.Add(panel, 1, wx.EXPAND)
+        self.state_page.SetSizer(layout)
+
     def update_timeline(self, progress: float) -> None:
         """Synchronize the global timeline without emitting a seek."""
         value = round(min(max(progress, 0.0), 1.0) * TIMELINE_SLIDER_MAX)
@@ -436,7 +442,7 @@ class Workspace:
             button.SetMinSize((36, 36))
             button.SetValue(index == 0)
             button.Bind(
-                wx.EVT_BUTTON,
+                wx.EVT_TOGGLEBUTTON,
                 lambda _event, selected=index: self.select_feature(selected),
             )
             button.Bind(wx.EVT_KEY_DOWN, self._on_feature_key_down)

@@ -51,6 +51,7 @@ class ControlWindow:
         on_jump_to_start: Callable[[], None],
         on_jump_to_end: Callable[[], None],
         accelerator_parent: wx.Frame,
+        state_parent: wx.Window | None = None,
     ) -> None:
         """Create the wx dashboard and connect its controls to playback actions.
 
@@ -91,13 +92,17 @@ class ControlWindow:
         self.panel = wx.Panel(parent, wx.ID_ANY)
         layout = wx.BoxSizer(wx.VERTICAL)
 
-        self.position_label = wx.StaticText(self.panel, wx.ID_ANY, "Position: —")
-        self.velocity_label = wx.StaticText(self.panel, wx.ID_ANY, "Velocity: —")
+        self.state_panel = wx.Panel(
+            state_parent if state_parent is not None else parent, wx.ID_ANY
+        )
+        state_layout = wx.BoxSizer(wx.VERTICAL)
+        self.position_label = wx.StaticText(self.state_panel, wx.ID_ANY, "Position: —")
+        self.velocity_label = wx.StaticText(self.state_panel, wx.ID_ANY, "Velocity: —")
         self.speed_altitude_label = wx.StaticText(
-            self.panel, wx.ID_ANY, "Speed: — | Altitude: —"
+            self.state_panel, wx.ID_ANY, "Speed: — | Altitude: —"
         )
         self.cursor_status_label = wx.StaticText(
-            self.panel, wx.ID_ANY, "State: unavailable"
+            self.state_panel, wx.ID_ANY, "State: unavailable"
         )
         for label in (
             self.position_label,
@@ -105,7 +110,10 @@ class ControlWindow:
             self.speed_altitude_label,
             self.cursor_status_label,
         ):
-            layout.Add(label, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, LAYOUT_MARGIN)
+            state_layout.Add(
+                label, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, LAYOUT_MARGIN
+            )
+        self.state_panel.SetSizer(state_layout)
 
         self.elapsed_label = wx.StaticText(self.panel, wx.ID_ANY, "")
         self.utc_label = wx.StaticText(self.panel, wx.ID_ANY, "")
