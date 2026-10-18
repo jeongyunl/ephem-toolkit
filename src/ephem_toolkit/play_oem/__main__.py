@@ -19,11 +19,20 @@ def main(argv: Sequence[str] | None = None) -> None:
     import ephem_toolkit.core.time_utils as time_utils
 
     from .data import filter_states_by_duration, read_oem_states
-    from .app import PlayerApp
     from .clock import PlaybackClock
     from .cursor import OemCursor
     from .series import OrbitSeries, compute_orbit_series
     from .time_unit import TimeUnit
+
+    try:
+        from .app import PlayerApp
+    except ModuleNotFoundError as exception:
+        if exception.name != "wx" and not (exception.name or "").startswith("wx."):
+            raise
+        raise ImportError(
+            'wxPython is required to run "play-oem". Install it with '
+            '`pip install "ephem-toolkit[playback]"`.'
+        ) from exception
 
     time_unit = TimeUnit.from_string(cli_args.time_unit)
 

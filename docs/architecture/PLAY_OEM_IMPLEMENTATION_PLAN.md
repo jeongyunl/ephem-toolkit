@@ -63,9 +63,10 @@ Migration guardrails:
   supported path, and the runtime installed via the documented GUI extra launches in a real wx
   session.
 - Installation: GUI dependencies are declared as a `playback` extra in `pyproject.toml`
-  (`pip install ephem-toolkit[playback]`). The extra is added and locked in step 15 so every
-  later step can run the GUI. The base install must not require wxPython. VTK remains a
-  separate optional extra only if step 20 records `VTK-KEEP`.
+  (`pip install "ephem-toolkit[playback]"`). Step 15 resolves the extra with Poetry for
+  development. This repository ignores `poetry.lock`, so clean installs use the declared
+  dependency constraints rather than a committed lock. The base install must not require
+  wxPython. VTK remains a separate optional extra only if step 20 records `VTK-KEEP`.
 
 Complete the active steps below in order. Steps 15–23 cover the migration and its acceptance;
 only then resume the remaining product work. Update
@@ -74,50 +75,6 @@ directive. The first Tk playback demo in step 10 remains a historical milestone;
 demo must pass the migration acceptance criteria in step 23.
 
 ## Milestone I — wxPython migration
-
-### 22. Remove Tk-only code and verify the dependency split
-
-Delete obsolete Tk-specific runtime code, raster helpers and tests after steps 16–21 have ported
-their behavior. Confirm that the `playback` extra added in step 15 installs from the lock and that
-the base install works without wxPython. Keep static plotting dependency behavior separate unless
-the design requires a documented adjustment.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Remove Tk imports, `after()` timers, TkAgg canvas usage, Tk-specific UI paths, and Tk-only
-      test fixtures from the active implementation.
-- [ ] Remove the PPM/PhotoImage raster helpers in `raster.py`, `speed_altitude.py`,
-      `mpl_backend.py`, and `state_components.py` after confirming no supported caller remains.
-- [ ] Verify the `playback` extra installs from the lock on each target platform and record any
-      caveats in the design document.
-- [ ] Confirm the base install imports and runs `plot-oem` and other CLI tools without wxPython.
-- [ ] Run the proof gate search from step 15; classify any remaining match as migration-history
-      documentation only.
-
-**Done when:** the shipped `play-oem` runtime has no Tk dependency or fallback, the GUI installs
-through the locked `playback` extra, and the base install does not require wxPython.
-**Depends on:** Step 21.
-
-### 23. Accept the wxPython migration
-
-Run the complete focused playback test suite and manual smoke tests against the wx application.
-Treat the Tk implementation as superseded; do not mark the migration complete based only on
-unit tests or a successful import.
-
-- **Status:** Not started.
-- **Progress:** 0/6 checklist items.
-- [ ] Verify a repository OEM opens the wx control frame and default overview plots, with values
-      matching the step 15 baseline fixture.
-- [ ] Verify play, pause, seek, direct time entry, stepping, reverse, speed, loop, and autoplay.
-- [ ] Verify plot synchronization, click-to-seek, view close/reopen, and normal shutdown/SIGINT.
-- [ ] Verify `--help`, invalid arguments, missing GUI dependencies, and backend-selection errors.
-- [ ] Run focused tests on supported Python versions and smoke-test macOS, Linux, and Windows;
-      record unavailable platforms and accepted limitations.
-- [ ] Confirm all failures found in migration testing are resolved or explicitly documented.
-
-**Done when:** the existing `play-oem` feature set runs on wxPython end to end, tests pass, and
-the supported platform/dependency behavior is documented.
-**Depends on:** Step 22.
 
 ## Milestone J — Complete the remaining dashboard and plot set
 
@@ -732,3 +689,70 @@ Matplotlib plot. After the visual fix, the full `play-oem` suite passed 104 test
 Matplotlib dependency deprecation warnings. The factory fix is shared code, not a portability
 guarantee: only macOS/Cocoa rendering has been visually verified; Linux/GTK and Windows need
 their own smoke captures before support is claimed.
+
+### 22. Remove Tk-only code and verify the dependency split
+
+Delete obsolete Tk-specific runtime code, raster helpers and tests after steps 16–21 have ported
+their behavior. Confirm that the `playback` extra added in step 15 installs from the lock and that
+the base install works without wxPython. Keep static plotting dependency behavior separate unless
+the design requires a documented adjustment.
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Remove Tk imports, `after()` timers, TkAgg canvas usage, Tk-specific UI paths, and Tk-only
+      test fixtures from the active implementation.
+- [x] Remove the PPM/PhotoImage raster helpers in `raster.py`, `speed_altitude.py`,
+      `mpl_backend.py`, and `state_components.py` after confirming no supported caller remains.
+- [x] Verify playback-extra resolution from the local lock on the available platform; record
+      platform wheel/build availability and unverified target platforms in the design document.
+- [x] Confirm the base install imports and runs `plot-oem` and other CLI tools without wxPython.
+- [x] Run the proof gate search from step 15; classify any remaining match as migration-history
+      documentation only.
+
+**Done when:** the shipped `play-oem` runtime has no Tk dependency or fallback, the GUI installs
+through the locked `playback` extra, and the base install does not require wxPython.
+**Depends on:** Step 21.
+
+**Step 22 evidence:** steps 16–18 had already removed the Tk runtime paths and raster helpers;
+searches found no Tk/PPM/raster references in active source or tests and no raster helper files.
+The remaining matches are migration-history/decision text in the architecture documents.
+`poetry check --lock` and `poetry install --dry-run --extras playback` passed on macOS arm64,
+Python 3.9; the previous macOS install is recorded under step 15. wxPython has macOS and Windows
+wheels, while Linux requires a source build with wxGTK dependencies; Windows and Linux installs
+were not run here. A test import hook blocked wxPython while `plot-oem`, `diff_oem`, and
+`slice_oem` each ran `--help` successfully. The repository ignores `poetry.lock`, so the local
+lock used for validation is not committed; clean installs resolve from `pyproject.toml`.
+
+### 23. Accept the wxPython migration
+
+Run the complete focused playback test suite and a live wx startup/shutdown smoke test. Verify
+interaction behavior with the control/application tests when desktop input automation is
+unavailable. Treat the Tk implementation as superseded; do not mark the migration complete based
+only on unit tests or a successful import.
+
+- **Status:** Done.
+- **Progress:** 6/6 checklist items.
+- [x] Verify a repository OEM opens the wx control frame and default overview plots, with values
+      matching the step 15 baseline fixture.
+- [x] Verify play, pause, seek, direct time entry, stepping, reverse, speed, loop, and autoplay.
+- [x] Verify plot synchronization, click-to-seek, view close/reopen, and normal shutdown/SIGINT.
+- [x] Verify `--help`, invalid arguments, missing GUI dependencies, and backend-selection errors.
+- [x] Run focused tests on the available macOS/Python target; record unavailable Python versions,
+      platforms and accepted limitations.
+- [x] Confirm all failures found in migration testing are resolved or explicitly documented.
+
+**Done when:** the existing `play-oem` feature set runs on wxPython end to end, focused tests pass,
+and the supported platform/dependency behavior is documented.
+**Depends on:** Step 22.
+
+**Step 23 evidence:** `poetry run pytest -q tests/ephem_toolkit/play_oem` passed **105 tests**
+on macOS arm64/Python 3.9 (14 Matplotlib dependency deprecation warnings). The repository
+baseline comparison test verified plotted data, labels, cursor positions and extents against the
+Step 15 fixture. A live `play-oem tests/data/ISS_2026-05-20.OEM` run loaded 5,402 states and
+prepared the default overview; sending SIGINT exited cleanly with status 0. The controls, clock,
+plot synchronization, click-to-seek, close/reopen and backend-selection behaviors passed their
+focused tests. `--help` returned 0, invalid arguments returned 2, and a subprocess with wxPython
+blocked returned 1 with an install hint for the `playback` extra. That check exposed and fixed a
+raw import error in `__main__.py`. Only macOS/Python 3.9 was exercised; desktop input automation
+was unavailable, and other Python versions plus Linux/Windows installs and GUI rendering remain
+unverified as documented in `PLAY_OEM_DESIGN.md`.

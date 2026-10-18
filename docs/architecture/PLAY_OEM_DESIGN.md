@@ -48,6 +48,20 @@ The wxPython minimum is 4.2.4 so the extra remains installable on Python 3.9. Th
 backend uses `vtk = ["vtk>=9.2,<9.7"]`; the upper bound retains Python 3.9 wheels. Install both
 optional backends with `pip install "ephem-toolkit[playback,vtk]"`.
 
+Playback dependency validation was performed on macOS arm64 with Python 3.9. wxPython publishes
+wheels for macOS and Windows across the supported Python versions; it does not publish Linux
+wheels, so Linux installation requires a source build with wxGTK build dependencies. Linux and
+Windows installs and GUI rendering have not been exercised in this environment. The repository
+ignores `poetry.lock`, so local lock validation is not a committed exact dependency set; clean
+installs resolve from the optional-dependency constraints in `pyproject.toml`.
+
+The Step 23 acceptance run passed all 105 focused playback tests on macOS arm64/Python 3.9.
+The real `play-oem` command loaded the repository ISS OEM (5,402 states), opened its default
+overview and exited cleanly on SIGINT. Playback controls, baseline data/labels, plot
+synchronization, click-to-seek and view lifecycle are covered by the focused tests. Desktop
+input automation was unavailable, so mouse/keyboard interaction was not manually exercised.
+Other Python versions and Linux/Windows GUI runs remain unverified.
+
 `__main__.py` creates exactly one `wx.App`; `PlayerApp` owns its event-loop lifecycle, playback
 clock, timer and child plot frames. `control_window.py` creates the primary `wx.Frame`; each plot
 window is another frame owned by the same application. Closing an individual plot closes only that

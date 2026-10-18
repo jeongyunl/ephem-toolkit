@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -186,6 +188,35 @@ def test_cli_reports_missing_input_file(
 
     assert result == 1
     assert "File not found" in capsys.readouterr().err
+
+
+def test_cli_reports_playback_extra_when_wx_is_missing() -> None:
+    script = """
+import importlib.abc
+import sys
+
+class BlockWx(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "wx" or fullname.startswith("wx."):
+            raise ModuleNotFoundError("No module named 'wx'", name=fullname)
+        return None
+
+sys.meta_path.insert(0, BlockWx())
+from ephem_toolkit.play_oem import cli
+raise SystemExit(cli([sys.argv[1]]))
+"""
+    oem_path = Path(__file__).resolve().parents[2] / "data" / "ISS_2026-05-20_small.OEM"
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(oem_path)],
+        check=False,
+        capture_output=True,
+        cwd=Path(__file__).resolve().parents[3],
+        text=True,
+    )
+
+    assert result.returncode == 1
+    assert "wxPython is required to run" in result.stderr
+    assert 'pip install "ephem-toolkit[playback]"' in result.stderr
 
 
 def test_cli_loads_oem_and_launches_player(
