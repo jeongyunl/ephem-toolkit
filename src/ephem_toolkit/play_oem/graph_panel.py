@@ -95,7 +95,7 @@ class GraphPanelHost(wx.Panel):
 
         layout = wx.BoxSizer(wx.VERTICAL)
         header = wx.BoxSizer(wx.HORIZONTAL)
-        self.title_label = wx.StaticText(self, wx.ID_ANY, title)
+        self.title_label: wx.StaticText | None = None
         self.view_selector: wx.Choice | None = None
         if view_choices:
             self.view_selector = wx.Choice(
@@ -120,12 +120,19 @@ class GraphPanelHost(wx.Panel):
                         view_choices[event.GetSelection()][0]
                     ),
                 )
-            header.Add(self.view_selector, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+            header.Add(self.view_selector, 1, wx.EXPAND | wx.ALL, 4)
+        else:
+            self.title_label = wx.StaticText(self, wx.ID_ANY, title)
+            header.Add(
+                self.title_label,
+                1,
+                wx.ALIGN_CENTER_VERTICAL | wx.ALL,
+                4,
+            )
         self.close_button = wx.Button(self, wx.ID_ANY, "Close")
         self.close_button.SetName(f"Close {title} graph")
         self.close_button.SetToolTip(f"Close {title} graph")
         self.close_button.Bind(wx.EVT_BUTTON, lambda _event: self._on_close())
-        header.Add(self.title_label, 1, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
         self.actions_button = wx.Button(self, wx.ID_ANY, "Actions")
         self.actions_button.SetName(f"{title} panel actions")
         self.actions_button.SetToolTip(f"Actions for {title} graph")

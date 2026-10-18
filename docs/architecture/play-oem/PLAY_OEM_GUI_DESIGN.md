@@ -64,8 +64,9 @@ panel proportions are illustrative.
 
 - Put an **Add graph** action at the top of each graph stack. When a stack has no panels, show an
   empty-state message and the same add action.
-- Give each graph panel a selector and a compact menu for moving it within its stack, duplicating
-  it, or closing it. Keep panel selectors and plot actions local to their panel.
+- Give each graph panel a selector with an **Empty** option and a compact menu for moving it within
+  its stack, duplicating it, or closing it. New panels start empty until a view is selected. Keep
+  panel selectors and plot actions local to their panel.
 - Provide draggable sashes for both split orientations: vertical sashes resize side-by-side
   regions, and horizontal sashes resize top/bottom regions, including the heights of individual
   graph panels in a stack. A sash resize should affect its adjacent panes without resetting

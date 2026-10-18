@@ -259,6 +259,15 @@ class FakeNativeWindow:
     pass
 
 
+class FakeEmptyContent(FakeNativeWindow):
+    def __init__(self, _parent, _widget_id: int, label: str) -> None:
+        self.label = label
+        self.name = ""
+
+    def SetName(self, name: str) -> None:
+        self.name = name
+
+
 class FakeNativeView(FakeView):
     def build(self, _series, _time_unit) -> FakeNativeWindow:
         return FakeNativeWindow()
@@ -338,6 +347,7 @@ class FakeWorkspace:
         self.right_stack = object()
         self.graph_panels = []
         self.progress = 0.0
+        self.current_utc = ""
         self.playback_content = None
         self.state_content = None
 
@@ -347,8 +357,9 @@ class FakeWorkspace:
     def set_state_content(self, panel) -> None:
         self.state_content = panel
 
-    def update_timeline(self, progress: float) -> None:
+    def update_timeline(self, progress: float, current_utc: str) -> None:
         self.progress = progress
+        self.current_utc = current_utc
 
     def add_graph_panel(self, panel, stack: str = "middle") -> None:
         panel.stack = stack
@@ -356,6 +367,10 @@ class FakeWorkspace:
 
     def remove_graph_panel(self, panel, stack: str = "middle") -> None:
         self.graph_panels.remove(panel)
+
+    def replace_graph_panel(self, old_panel, new_panel, stack: str = "middle") -> None:
+        new_panel.stack = stack
+        self.graph_panels[self.graph_panels.index(old_panel)] = new_panel
 
     def draw_initial_graphs(self) -> None:
         for panel in self.graph_panels:
@@ -513,6 +528,7 @@ def test_wx_timer_advances_clock_and_updates_playback_display_and_views(
 
     assert player.clock.t_now == 102.5
     assert player.workspace.progress == pytest.approx(0.025)
+    assert player.workspace.current_utc in player.control_window.text
     assert "Elapsed: 2.500 s" in player.control_window.text
     assert "UTC:" in player.control_window.text
     assert "Playing | +1x" in player.control_window.text
@@ -1086,6 +1102,73 @@ def test_panel_instances_can_duplicate_views_and_keep_independent_lifecycles(
     player.clock.seek(180.0)
     assert views[-1].updated_times == [160.0, 170.0]
     assert views[0].updated_times[-1] == 180.0
+    player.close()
+
+
+def test_new_graph_panel_starts_empty_and_can_switch_between_empty_and_a_view(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, views, _canvases, _frames = make_app(
+        monkeypatch,
+        plots=("speed-altitude",),
+    )
+    monkeypatch.setattr(app.wx, "Window", FakeNativeWindow)
+    monkeypatch.setattr(app.wx, "StaticText", FakeEmptyContent)
+    player.start()
+
+    player._add_graph_panel("middle")
+
+    empty_panel = player._open_panels[FakeGraphPanelHost.instances[-1].panel_id]
+    assert empty_panel.view_name == app.EMPTY_GRAPH_VIEW
+    assert empty_panel.panel.selected_view == app.EMPTY_GRAPH_VIEW
+    assert empty_panel.panel.view_choices[0] == (app.EMPTY_GRAPH_VIEW, "Empty")
+    assert empty_panel.panel.native_content.label == "Select a graph view above"
+
+    empty_panel.panel.on_view_selected("rtn")
+    rtn_panel = player._open_panels[empty_panel.panel_id]
+    assert empty_panel.panel.destroyed
+    assert rtn_panel.view_name == "rtn"
+    assert player.workspace.graph_panels.index(rtn_panel.panel) == 1
+
+    rtn_panel.panel.on_view_selected(app.EMPTY_GRAPH_VIEW)
+    empty_again = player._open_panels[empty_panel.panel_id]
+    assert views[-1].closed
+    assert empty_again.view_name == app.EMPTY_GRAPH_VIEW
+    assert player.workspace.graph_panels.index(empty_again.panel) == 1
+
+    player.close()
+
+
+def test_failed_view_change_restores_the_original_panel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch,
+        plots=("speed-altitude",),
+    )
+    monkeypatch.setattr(app.wx, "Window", FakeNativeWindow)
+    monkeypatch.setattr(app.wx, "StaticText", FakeEmptyContent)
+
+    class FailingView(FakeView):
+        def build(self, _series, _time_unit):
+            raise RuntimeError("view initialization failed")
+
+    failed_view = FailingView()
+    errors: list[tuple[object, ...]] = []
+    monkeypatch.setattr(app.rtn, "RtnDeltaView", lambda *_args: failed_view)
+    monkeypatch.setattr(app.wx, "MessageBox", lambda *args: errors.append(args))
+    player.start()
+    player._add_graph_panel("middle")
+
+    original = player._open_panels[FakeGraphPanelHost.instances[-1].panel_id]
+    original_index = player.workspace.graph_panels.index(original.panel)
+    original.panel.on_view_selected("rtn")
+
+    assert player._open_panels[original.panel_id] is original
+    assert player.workspace.graph_panels[original_index] is original.panel
+    assert not original.panel.destroyed
+    assert failed_view.closed
+    assert len(errors) == 1
     player.close()
 
 

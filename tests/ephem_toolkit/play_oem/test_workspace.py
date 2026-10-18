@@ -193,12 +193,28 @@ class FakeGraphPanel(FakePanel):
 class FakeScrolledWindow(FakePanel):
     def __init__(self, parent, widget_id: int, **_kwargs) -> None:
         super().__init__(parent, widget_id)
+        self.always_shown_scrollbars = None
+        self.scroll_range = 0
+        self.scroll_thumb = 1
+        self.view_start = (0, 0)
 
     def SetScrollRate(self, _x_step: int, _y_step: int) -> None:
         pass
 
-    def Bind(self, _event_type, _callback) -> None:
-        pass
+    def AlwaysShowScrollbars(self, horizontal: bool, vertical: bool) -> None:
+        self.always_shown_scrollbars = (horizontal, vertical)
+
+    def GetScrollRange(self, _orientation: int) -> int:
+        return self.scroll_range
+
+    def GetScrollThumb(self, _orientation: int) -> int:
+        return self.scroll_thumb
+
+    def GetViewStart(self) -> tuple[int, int]:
+        return self.view_start
+
+    def Scroll(self, x: int, y: int) -> None:
+        self.view_start = (x, y)
 
     def Layout(self) -> None:
         pass
@@ -264,6 +280,16 @@ class FakeSplitter:
 
     def GetWindow2(self):
         return self.window2
+
+    def ReplaceWindow(self, old_window, new_window) -> bool:
+        if self.window1 is old_window:
+            self.window1 = new_window
+        elif self.window2 is old_window:
+            self.window2 = new_window
+        else:
+            return False
+        new_window.Reparent(self)
+        return True
 
     def GetParent(self):
         return self.parent
@@ -406,6 +432,8 @@ def make_workspace(
         frame,
         seeks.append,
         timeline_enabled=timeline_enabled,
+        timeline_start_utc="2000-01-01T00:00:00.000",
+        timeline_end_utc="2000-01-01T00:01:00.000",
         context={
             "object": "TEST",
             "frame": "GCRF",
@@ -446,6 +474,8 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert result.right_pane.name == workspace.COMPARISON_PANE_NAME
     assert result.middle_pane.sizer.items[0][0].items[0][0].label == "Main Analysis"
     assert result.right_pane.sizer.items[0][0].items[0][0].label == "Comparison"
+    assert result.middle_stack.always_shown_scrollbars == (False, False)
+    assert result.right_stack.always_shown_scrollbars == (False, False)
     assert result.graph_splitter.is_split is False
     assert result.graph_splitter.unsplit_calls == [result.right_pane]
     assert result._comparison_toggle.name == "Toggle Comparison pane"
@@ -461,6 +491,28 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert result.timeline_slider.maximum == 10_000
     assert frame.sizer.items[0][0] is result.content_splitter
     assert frame.sizer.items[1][0] is result.timeline_panel
+    assert result.timeline_start_label.label == (
+        "Start UTC: 2000-01-01T00:00:00.000"
+    )
+    assert result.timeline_current_label.label == "Current UTC: "
+    assert result.timeline_end_label.label == "End UTC: 2000-01-01T00:01:00.000"
+
+
+def test_graph_stack_scrollbars_are_forced_visible_only_when_content_overflows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, _seeks, _frame = make_workspace(monkeypatch)
+    stack = result.middle_stack
+
+    stack.scroll_range = 32
+    stack.scroll_thumb = 20
+    result._update_stack_scrollbar_visibility("middle")
+    assert stack.always_shown_scrollbars == (False, True)
+
+    stack.scroll_range = 20
+    stack.scroll_thumb = 20
+    result._update_stack_scrollbar_visibility("middle")
+    assert stack.always_shown_scrollbars == (False, False)
 
     info_labels = [item[0].label for item in result.file_info_page.sizer.items]
     assert "Object: TEST" in info_labels
@@ -473,9 +525,11 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert result._comparison_toggle.value
     result._pane_close_buttons["right"].trigger(workspace.wx.EVT_BUTTON)
     assert not result.graph_splitter.is_split
+    assert not result._comparison_toggle.value
     result.show_right_pane(False)
     assert not result.graph_splitter.is_split
     assert result.graph_splitter.split_calls[-1][1] is result.right_pane
+    assert not result._comparison_toggle.value
 
 
 def test_file_info_labels_wrap_to_the_available_pane_width(
@@ -652,6 +706,53 @@ def test_moving_graph_panel_reorders_live_hosts_without_replacing_them(
     assert result._graph_panels["middle"] == panels
 
 
+def test_replacing_graph_panel_preserves_order_splitter_and_scroll_position(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, _seeks, _frame = make_workspace(monkeypatch)
+    panels = [
+        FakeGraphPanel(result.middle_stack, f"panel-{index}") for index in range(3)
+    ]
+    for panel in panels:
+        result.add_graph_panel(panel)
+    result.middle_stack.view_start = (0, 7)
+    parent_splitter = panels[1].GetParent()
+    sash_position = parent_splitter.GetSashPosition()
+    replacement = FakeGraphPanel(result.middle_stack, "replacement")
+
+    result.replace_graph_panel(panels[1], replacement)
+
+    assert result._graph_panels["middle"] == [
+        panels[0],
+        replacement,
+        panels[2],
+    ]
+    assert replacement.GetParent() is parent_splitter
+    assert replacement in (
+        parent_splitter.GetWindow1(),
+        parent_splitter.GetWindow2(),
+    )
+    assert parent_splitter.GetSashPosition() == sash_position
+    assert result.middle_stack.view_start == (0, 7)
+
+
+def test_replacing_only_graph_panel_updates_stack_root(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, _seeks, _frame = make_workspace(monkeypatch)
+    original = FakeGraphPanel(result.middle_stack, "original")
+    replacement = FakeGraphPanel(result.middle_stack, "replacement")
+    result.add_graph_panel(original)
+    result.middle_stack.view_start = (0, 3)
+
+    result.replace_graph_panel(original, replacement)
+
+    assert result._stack_roots["middle"] is replacement
+    assert result._graph_panels["middle"] == [replacement]
+    assert replacement.GetParent() is result.middle_stack
+    assert result.middle_stack.view_start == (0, 3)
+
+
 def test_workspace_serializes_and_coalesces_visible_graph_redraws(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -711,9 +812,12 @@ def test_global_timeline_syncs_without_recursive_seek_and_dispatches_user_seek(
     result, seeks, _frame = make_workspace(monkeypatch)
     result.timeline_slider.emit_event_on_set = True
 
-    result.update_timeline(0.25)
+    result.update_timeline(0.25, "2000-01-01T00:00:15.000")
 
     assert result.timeline_slider.value == 2500
+    assert result.timeline_current_label.label == (
+        "Current UTC: 2000-01-01T00:00:15.000"
+    )
     assert seeks == []
     for value, expected in ((0, 0.0), (5000, 0.5), (10_000, 1.0)):
         result.timeline_slider.trigger("slider", FakeEvent(value))
@@ -736,7 +840,7 @@ def test_timeline_update_clamps_progress_to_slider_range(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
 
-    result.update_timeline(-1.0)
+    result.update_timeline(-1.0, "before start")
     assert result.timeline_slider.value == 0
-    result.update_timeline(2.0)
+    result.update_timeline(2.0, "after end")
     assert result.timeline_slider.value == 10_000

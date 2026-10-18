@@ -44,6 +44,34 @@ PLAYER_FRAME_MIN_SIZE: tuple[int, int] = (920, 480)
 """Minimum dashboard frame size (pixels)."""
 PLAYER_FRAME_SIZE: tuple[int, int] = (1100, 760)
 """Initial dashboard frame size (pixels)."""
+EMPTY_GRAPH_VIEW: str = "empty"
+"""Sentinel name for a graph panel with no selected view."""
+EMPTY_GRAPH_LABEL: str = "Empty"
+"""Selector label for an unconfigured graph panel."""
+
+
+class _EmptyGraphView:
+    """View placeholder shown before a graph type is selected."""
+
+    name = EMPTY_GRAPH_VIEW
+
+    def __init__(self, parent: wx.Window) -> None:
+        self._parent = parent
+
+    def build(
+        self, _series: series.OrbitSeries, _time_unit: time_unit.TimeUnit
+    ) -> wx.Window:
+        prompt = wx.StaticText(
+            self._parent, wx.ID_ANY, "Select a graph view above"
+        )
+        prompt.SetName("Empty graph prompt")
+        return prompt
+
+    def update(self, _t_s: float) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
 
 
 @dataclass
@@ -161,6 +189,12 @@ class PlayerApp:
         )
         self._view_registry.register_view("distance", self.open_distance_view)
         self._plots = self._view_registry.expand(plots)
+        self._panel_view_choices = (
+            (EMPTY_GRAPH_VIEW, EMPTY_GRAPH_LABEL),
+        ) + tuple(
+            (name, self._view_registry.label_for(name))
+            for name in self._view_registry.registered_views
+        )
 
         self.wx_app = wx.GetApp()
         if self.wx_app is None:
@@ -174,12 +208,15 @@ class PlayerApp:
             self.frame,
             self._seek_to_fraction,
             timeline_enabled=clock.t_start < clock.t_end,
+            timeline_start_utc=time_utils.datetime_to_iso8601(
+                time_utils.tt_s_to_datetime(clock.t_start)
+            ),
+            timeline_end_utc=time_utils.datetime_to_iso8601(
+                time_utils.tt_s_to_datetime(clock.t_end)
+            ),
             context=dashboard_context,
             details=metadata_details,
-            view_choices=tuple(
-                (name, self._view_registry.label_for(name))
-                for name in self._view_registry.registered_views
-            ),
+            view_choices=self._panel_view_choices,
             on_add_graph=self._add_graph_panel,
         )
         self.control_window = control_window.ControlWindow(
@@ -398,6 +435,14 @@ class PlayerApp:
 
     def open_panel_view(self, name: str, panel_id: str, stack: str = "middle") -> None:
         """Open a view in the graph-panel instance identified by ``panel_id``."""
+        if name == EMPTY_GRAPH_VIEW:
+            self._open_view(
+                name,
+                _EmptyGraphView,
+                panel_id=panel_id,
+                stack=stack,
+            )
+            return
         if name not in self._view_registry.registered_views:
             raise ValueError(f"unknown view name: {name!r}")
         openers = {
@@ -412,11 +457,9 @@ class PlayerApp:
         openers[name](panel_id=panel_id, stack=stack)
 
     def _add_graph_panel(self, stack: str) -> None:
-        if not self._view_registry.registered_views:
-            raise RuntimeError("no graph views are registered")
         try:
             self.open_panel_view(
-                self._view_registry.registered_views[0], uuid4().hex, stack
+                EMPTY_GRAPH_VIEW, uuid4().hex, stack
             )
         except Exception as error:
             wx.MessageBox(
@@ -431,7 +474,7 @@ class PlayerApp:
             self.open_panel_view(name, panel_id, stack)
         except Exception as error:
             wx.MessageBox(
-                f"Could not create {self._view_registry.label_for(name)}: {error}",
+                f"Could not create {self._panel_view_label(name)}: {error}",
                 "Graph view error",
                 wx.OK | wx.ICON_ERROR,
                 self.frame,
@@ -540,6 +583,7 @@ class PlayerApp:
             raise ValueError(f"unknown graph stack {stack!r}")
 
         is_default_instance = panel_id is None
+        replacing: _OpenView | None = None
         if is_default_instance:
             existing = self._open_views.get(name)
             if existing is not None:
@@ -554,12 +598,13 @@ class PlayerApp:
                 if existing.view_name == name:
                     existing.panel.SetFocus()
                     return
-                self._dispose_open_view(panel_id)
+                replacing = existing
 
-        if panel_id in self._open_panels:
+        if panel_id in self._open_panels and replacing is None:
             raise ValueError(f"panel instance already exists: {panel_id!r}")
 
         panel: GraphPanelHost | None = None
+        panel_inserted = False
         view: base.View | None = None
         canvas: FigureCanvasWxAgg | None = None
         toolbar: NavigationToolbar2WxAgg | None = None
@@ -568,15 +613,12 @@ class PlayerApp:
         try:
             panel = GraphPanelHost(
                 stack_parent,
-                self._view_registry.label_for(name),
+                self._panel_view_label(name),
                 lambda: self.close_panel(panel_id),
                 is_visible=lambda: self.workspace.is_graph_panel_visible(panel),
                 on_redraw_request=self.workspace.queue_graph_redraw,
                 panel_id=panel_id,
-                view_choices=tuple(
-                    (view_name, self._view_registry.label_for(view_name))
-                    for view_name in self._view_registry.registered_views
-                ),
+                view_choices=self._panel_view_choices,
                 selected_view=name,
                 on_view_selected=lambda selected: self._select_panel_view(
                     selected, panel_id, stack
@@ -585,7 +627,11 @@ class PlayerApp:
                 on_move_down=lambda: self._move_panel(panel_id, 1),
                 on_duplicate=lambda: self._duplicate_panel(panel_id),
             )
-            self.workspace.add_graph_panel(panel, stack=stack)
+            if replacing is None:
+                self.workspace.add_graph_panel(panel, stack=stack)
+            else:
+                self.workspace.replace_graph_panel(replacing.panel, panel, stack=stack)
+            panel_inserted = True
             view = create_view(panel)
             content = view.build(self.series, self.time_unit)
             view.update(self.clock.t_now)
@@ -612,7 +658,11 @@ class PlayerApp:
                 if panel is not None and canvas is not None:
                     panel.request_redraw()
 
-            unsubscribe = self.clock.subscribe(update_view)
+            unsubscribe = (
+                self.clock.subscribe(update_view)
+                if name != EMPTY_GRAPH_VIEW
+                else lambda: None
+            )
             opened_state = _OpenView(
                 panel_id,
                 name,
@@ -624,9 +674,6 @@ class PlayerApp:
                 toolbar,
                 click_callback_id,
             )
-            self._open_panels[panel_id] = opened_state
-            if is_default_instance:
-                self._open_views[name] = opened_state
             self.frame.Layout()
             panel.Layout()
             if isinstance(content, wx.Window) and name == "trajectory-3d":
@@ -634,7 +681,8 @@ class PlayerApp:
             if canvas is not None:
                 panel.request_redraw()
         except Exception:
-            self._open_panels.pop(panel_id, None)
+            if replacing is None:
+                self._open_panels.pop(panel_id, None)
             if self._open_views.get(name) is not None:
                 if self._open_views[name].panel_id == panel_id:
                     self._open_views.pop(name)
@@ -645,9 +693,25 @@ class PlayerApp:
             if view is not None:
                 view.close()
             if panel is not None:
-                self.workspace.remove_graph_panel(panel, stack=stack)
-                panel.Destroy()
+                try:
+                    if panel_inserted:
+                        if replacing is None:
+                            self.workspace.remove_graph_panel(panel, stack=stack)
+                        else:
+                            self.workspace.replace_graph_panel(
+                                panel, replacing.panel, stack=stack
+                            )
+                finally:
+                    panel.Destroy()
             raise
+        self._open_panels[panel_id] = opened_state
+        if is_default_instance:
+            self._open_views[name] = opened_state
+        if replacing is not None:
+            try:
+                self._release_open_view_resources(replacing)
+            finally:
+                replacing.panel.Destroy()
 
     def _on_plot_click(
         self, event: MouseEvent, toolbar: NavigationToolbar2WxAgg
@@ -667,19 +731,30 @@ class PlayerApp:
         self.clock.seek(target_time_s)
         self._update_time_display()
 
+    def _panel_view_label(self, name: str) -> str:
+        if name == EMPTY_GRAPH_VIEW:
+            return EMPTY_GRAPH_LABEL
+        return self._view_registry.label_for(name)
+
     def _dispose_open_view(self, panel_id: str) -> None:
         opened = self._open_panels.pop(panel_id, None)
-        if opened is not None:
-            if self._open_views.get(opened.view_name) is opened:
-                self._open_views.pop(opened.view_name)
-            if opened.canvas is not None and opened.click_callback_id is not None:
-                opened.canvas.mpl_disconnect(opened.click_callback_id)
-            opened.unsubscribe()
+        if opened is None:
+            return
+        try:
+            self._release_open_view_resources(opened)
+        finally:
             try:
-                opened.view.close()
-            finally:
                 self.workspace.remove_graph_panel(opened.panel, stack=opened.stack)
+            finally:
                 opened.panel.Destroy()
+
+    def _release_open_view_resources(self, opened: _OpenView) -> None:
+        if self._open_views.get(opened.view_name) is opened:
+            self._open_views.pop(opened.view_name)
+        if opened.canvas is not None and opened.click_callback_id is not None:
+            opened.canvas.mpl_disconnect(opened.click_callback_id)
+        opened.unsubscribe()
+        opened.view.close()
 
     def _on_frame_close(self, event: wx.CloseEvent) -> None:
         if not self._closed:
@@ -723,7 +798,7 @@ class PlayerApp:
             self.clock.playing,
             self.clock.rate,
         )
-        self.workspace.update_timeline(progress)
+        self.workspace.update_timeline(progress, utc_timestamp)
         self.control_window.update_current_state(self.cursor.lookup(self.clock.t_now))
 
     def _handle_sigint(self, _signum: int, _frame: object) -> None:

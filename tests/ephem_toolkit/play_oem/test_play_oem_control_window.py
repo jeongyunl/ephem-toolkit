@@ -455,9 +455,18 @@ def test_playback_state_updates_readouts_and_speed_without_seeking(
     assert window.play_pause_button.label == "Pause"
     assert window.speed_label.label == "Speed: -10x"
     assert window.direction_button.label == "Forward"
+    assert window.direction_button.value
+    assert window.speed_preset_buttons[10.0].value
     assert window.utc_label.wrap_width == 166
     assert window.speed_scale_label.wrap_width == 166
     assert window.seek_label.wrap_width == 166
+    assert not calls["speed"]
+
+    window.update_playback_state("Elapsed: 25 s\nUTC: example", False, 1.0)
+
+    assert not window.direction_button.value
+    assert window.speed_preset_buttons[1.0].value
+    assert not window.speed_preset_buttons[10.0].value
     assert not calls["speed"]
 
 

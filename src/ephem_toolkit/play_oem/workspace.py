@@ -42,6 +42,8 @@ class Workspace:
         on_seek: Callable[[float], None],
         *,
         timeline_enabled: bool,
+        timeline_start_utc: str,
+        timeline_end_utc: str,
         context: Mapping[str, str] | None = None,
         details: Sequence[tuple[str, str]] = (),
         view_choices: tuple[tuple[str, str], ...] = (),
@@ -115,6 +117,37 @@ class Workspace:
             wx.LEFT | wx.RIGHT | wx.TOP,
             12,
         )
+        time_labels = wx.BoxSizer(wx.HORIZONTAL)
+        self.timeline_start_label = wx.StaticText(
+            self.timeline_panel, wx.ID_ANY, f"Start UTC: {timeline_start_utc}"
+        )
+        self.timeline_start_label.SetName("Timeline start time (UTC)")
+        self.timeline_current_label = wx.StaticText(
+            self.timeline_panel, wx.ID_ANY, "Current UTC: "
+        )
+        self.timeline_current_label.SetName("Current timeline time (UTC)")
+        self.timeline_end_label = wx.StaticText(
+            self.timeline_panel, wx.ID_ANY, f"End UTC: {timeline_end_utc}"
+        )
+        self.timeline_end_label.SetName("Timeline end time (UTC)")
+        time_labels.Add(
+            self.timeline_start_label,
+            0,
+            wx.ALIGN_CENTER_VERTICAL,
+        )
+        time_labels.Add((0, 0), 1, wx.EXPAND)
+        time_labels.Add(
+            self.timeline_current_label,
+            0,
+            wx.ALIGN_CENTER_VERTICAL,
+        )
+        time_labels.Add((0, 0), 1, wx.EXPAND)
+        time_labels.Add(
+            self.timeline_end_label,
+            0,
+            wx.ALIGN_CENTER_VERTICAL,
+        )
+        timeline_layout.Add(time_labels, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
         self.timeline_slider = wx.Slider(
             self.timeline_panel,
             wx.ID_ANY,
@@ -147,14 +180,15 @@ class Workspace:
         layout.Add(panel, 1, wx.EXPAND)
         self.state_page.SetSizer(layout)
 
-    def update_timeline(self, progress: float) -> None:
-        """Synchronize the global timeline without emitting a seek."""
+    def update_timeline(self, progress: float, current_utc: str) -> None:
+        """Synchronize the global timeline and UTC label without emitting a seek."""
         value = round(min(max(progress, 0.0), 1.0) * TIMELINE_SLIDER_MAX)
         self._syncing_timeline = True
         try:
             self.timeline_slider.SetValue(value)
         finally:
             self._syncing_timeline = False
+        self.timeline_current_label.SetLabel(f"Current UTC: {current_utc}")
 
     def show_right_pane(self, visible: bool) -> None:
         """Show or hide the optional graph stack while retaining its contents."""
@@ -232,6 +266,7 @@ class Workspace:
         self._update_stack_minimum_size(stack)
         window.Layout()
         window.FitInside()
+        self._update_stack_scrollbar_visibility(stack)
 
     def remove_graph_panel(self, panel: GraphPanelHost, stack: str = "middle") -> None:
         """Remove a graph host and collapse its splitter without disturbing others."""
@@ -255,6 +290,51 @@ class Workspace:
             self._empty_panels[stack].Show()
         self._stack_windows[stack].Layout()
         self._stack_windows[stack].FitInside()
+        self._update_stack_scrollbar_visibility(stack)
+
+    def replace_graph_panel(
+        self,
+        old_panel: GraphPanelHost,
+        new_panel: GraphPanelHost,
+        stack: str = "middle",
+    ) -> None:
+        """Replace a graph host in place, preserving stack order and scroll position."""
+        if stack not in self._graph_panels:
+            raise ValueError(f"unknown graph stack {stack!r}")
+        panels = self._graph_panels[stack]
+        if old_panel not in panels:
+            raise ValueError("graph panel is not in this stack")
+        if new_panel in panels:
+            raise ValueError("replacement graph panel is already in this stack")
+
+        window = self._stack_windows[stack]
+        sizer = self._stack_sizers[stack]
+        root = self._stack_roots[stack]
+        view_start = window.GetViewStart()
+        if root is old_panel:
+            sizer.Detach(old_panel)
+            new_panel.Reparent(window)
+            sizer.Add(new_panel, 1, wx.EXPAND)
+            self._stack_roots[stack] = new_panel
+        else:
+            parent = old_panel.GetParent()
+            if not isinstance(parent, wx.SplitterWindow):
+                raise RuntimeError(
+                    f"graph panel {old_panel.panel_id!r} has an invalid parent"
+                )
+            new_panel.Reparent(parent)
+            if not parent.ReplaceWindow(old_panel, new_panel):
+                new_panel.Reparent(window)
+                raise RuntimeError(
+                    f"could not replace graph panel {old_panel.panel_id!r}"
+                )
+
+        panels[panels.index(old_panel)] = new_panel
+        self._update_stack_minimum_size(stack)
+        window.Layout()
+        window.FitInside()
+        self._update_stack_scrollbar_visibility(stack)
+        window.Scroll(*view_start)
 
     def move_graph_panel(self, panel: GraphPanelHost, stack: str, offset: int) -> None:
         """Move a live panel within its stack without recreating its view."""
@@ -413,6 +493,17 @@ class Workspace:
         if root is not None:
             minimum_height(root)
 
+    def _update_stack_scrollbar_visibility(self, stack: str) -> None:
+        window = self._stack_windows[stack]
+        has_overflow = window.GetScrollRange(wx.VERTICAL) > window.GetScrollThumb(
+            wx.VERTICAL
+        )
+        window.AlwaysShowScrollbars(False, has_overflow)
+
+    def _on_stack_size(self, stack: str, event: wx.SizeEvent) -> None:
+        self._update_stack_scrollbar_visibility(stack)
+        event.Skip()
+
     def select_feature(self, index: int) -> None:
         """Select a feature page and keep the rail's toggle state synchronized."""
         if not 0 <= index < len(self.feature_buttons):
@@ -552,6 +643,7 @@ class Workspace:
 
     def _make_graph_stack(self, parent: wx.Window, stack: str) -> wx.ScrolledWindow:
         window = wx.ScrolledWindow(parent, wx.ID_ANY, style=wx.VSCROLL)
+        window.AlwaysShowScrollbars(False, False)
         window.SetScrollRate(0, 20)
         sizer = wx.BoxSizer(wx.VERTICAL)
         empty_panel = wx.Panel(window, wx.ID_ANY)
@@ -570,6 +662,10 @@ class Workspace:
         sizer.Add(empty_panel, 0, wx.EXPAND)
         window.SetSizer(sizer)
         window.Bind(wx.EVT_SCROLLWIN, self._on_stack_scroll)
+        window.Bind(
+            wx.EVT_SIZE,
+            lambda event, stack=stack: self._on_stack_size(stack, event),
+        )
         self._stack_windows[stack] = window
         self._stack_sizers[stack] = sizer
         self._empty_states[stack] = empty_state

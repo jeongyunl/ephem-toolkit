@@ -7,8 +7,8 @@ workspace, not as an active plan for future work.
 Selected design: [PLAY_OEM_GUI_DESIGN.md](./PLAY_OEM_GUI_DESIGN.md). User-facing requirements:
 [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md). Software architecture:
 [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md). Broader implementation context:
-[PLAY_OEM_IMPLEMENTATION_PLAN.md](./PLAY_OEM_IMPLEMENTATION_PLAN.md). Post-migration usability
-follow-ups: [PLAY_OEM_GUI_IMPROVEMENT_PLAN.md](./PLAY_OEM_GUI_IMPROVEMENT_PLAN.md).
+[PLAY_OEM_IMPLEMENTATION_PLAN.md](./PLAY_OEM_IMPLEMENTATION_PLAN.md). First post-migration GUI
+improvement cycle: [PLAY_OEM_GUI_IMPROVEMENT_CYCLE_1.md](./PLAY_OEM_GUI_IMPROVEMENT_CYCLE_1.md).
 
 ## Outcome
 
@@ -427,17 +427,22 @@ independently; empty stacks remain discoverable and usable.
 - **Progress:** 6/6 checklist items.
 - [x] Add an **Add graph** action to the middle and optional right stack.
 - [x] Show a clear empty state with an add action when a stack contains no panels.
-- [x] Give each panel a view-selection combobox populated from the view registry.
+- [x] Give each panel a view-selection combobox with an Empty choice and all implemented registry
+      views; new panels default to Empty.
 - [x] Ensure selection changes update only the chosen panel and clean up its previous view.
 - [x] Surface view-creation errors without leaving a broken or success-shaped panel.
 - [x] Test empty, one-panel, and multi-panel stacks plus independent selector changes.
 
 **Implementation and validation:** Both graph panes expose an Add graph button, and empty stacks
-also show an add action. Each panel has a view selector populated with implemented registry views.
-Changing one selector replaces only that panel's view and closes the prior view; creation failures
-are shown in an error dialog and the failed panel is removed rather than left in a success-shaped
-state. Focused workspace, panel, and app tests passed (**43 passed**); the complete play-oem suite
-passed (**147 passed**, 14 existing Matplotlib/Pyparsing deprecation warnings).
+also show an add action. Each panel selector includes an Empty choice before the implemented
+registry views; Add graph creates a panel in that empty state. Selecting a view replaces only that
+panel's contents, and selecting Empty clears the panel while preserving its selector. Creation
+failures are shown in an error dialog and the failed panel is removed rather than left in a
+success-shaped state. View changes now replace the host in its existing splitter slot, preserving
+panel order and scroll position; failed replacements restore the previous host. Focused workspace,
+panel, and app tests passed (**52 passed**, 14 existing Matplotlib/Pyparsing deprecation warnings).
+Native wx validation confirmed that Add graph starts with Empty, the selector switches successfully
+to a registered view and back, and a nonzero stack offset remains unchanged during replacement.
 
 **Done when:** both stacks support zero or more panels and each panel's view can be selected
 independently.
