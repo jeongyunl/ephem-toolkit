@@ -198,6 +198,7 @@ class FakeSplitter:
         self.client_width = 1000
         self.sash_size = 4
         self.split_calls = []
+        self.split_orientations = []
         self.unsplit_calls = []
         self.is_split = False
         self.minimum_size = FakeSize(0, 0)
@@ -214,6 +215,7 @@ class FakeSplitter:
 
     def SplitVertically(self, first, second, sash_position: int) -> bool:
         self.split_calls.append((first, second, sash_position))
+        self.split_orientations.append("vertical")
         self.window1 = first
         self.window2 = second
         self.sash_position = sash_position
@@ -222,6 +224,7 @@ class FakeSplitter:
 
     def SplitHorizontally(self, first, second, sash_position: int) -> bool:
         self.split_calls.append((first, second, sash_position))
+        self.split_orientations.append("horizontal")
         self.window1 = first
         self.window2 = second
         self.sash_position = sash_position
@@ -532,6 +535,29 @@ def test_graph_stacks_use_styled_horizontal_splitters_and_collapse_on_close(
     assert result._stack_roots["middle"] is middle_panels[2]
     result.remove_graph_panel(middle_panels[2], "middle")
     assert result._stack_roots["middle"] is None
+
+
+def test_many_graph_panels_keep_horizontal_sashes_and_minimum_sizes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, _seeks, _frame = make_workspace(monkeypatch)
+    panels = [
+        FakeGraphPanel(result.middle_stack, f"many-{index}") for index in range(5)
+    ]
+    for panel in panels:
+        result.add_graph_panel(panel, "middle")
+
+    assert result._stack_roots["middle"].GetMinSize().height == 5 * 280 + 4 * 4
+    assert len(result._stack_splitters["middle"]) == 4
+    assert all(
+        splitter.GetMinimumPaneSize() == workspace.MIN_GRAPH_PANEL_HEIGHT
+        for splitter in result._stack_splitters["middle"]
+    )
+    assert all(
+        splitter.split_orientations == ["horizontal"]
+        for splitter in result._stack_splitters["middle"]
+    )
+    assert result._graph_panels["right"] == []
 
 
 def test_moving_graph_panel_reorders_live_hosts_without_replacing_them(

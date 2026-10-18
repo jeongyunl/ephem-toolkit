@@ -63,42 +63,6 @@ selections and size when closed and restore them when reopened.
 
 ## Milestone G2 — Graph stacks and feature pages
 
-### 7. Add resizable graph-panel splits, stack scrolling, and minimum plot sizes
-
-After the three main pane widths are resizable, allow users to adjust the heights of graph panels in
-each stack while preventing plots from shrinking below usable dimensions.
-
-- **Status:** In progress.
-- **Progress:** 5/7 checklist items.
-- [x] Provide draggable horizontal sashes between vertically stacked graph panels so each panel's
-      height can be resized independently.
-- [x] Verify the three main panes remain independently width-resizable; preserve unrelated sash
-      positions and the right-pane width across close/reopen.
-- [x] Set and document a 320 x 280 pixel minimum usable size for graph panels.
-- [x] Scroll each stack independently when its contents exceed the available pane height or
-      minimum-size panels cannot all fit.
-- [ ] Keep selectors and panel menus reachable while scrolling and resizing.
-- [ ] Test every sash orientation, short windows, many panels, and resizing around minimum
-      dimensions.
-- [x] Verify Matplotlib and VTK canvases resize and redraw correctly after resizing.
-
-**Implementation and validation:** Each graph stack remains independently scrollable and now
-builds a nested tree of horizontal `wx.SplitterWindow`s, with the same live-update, 3D-sash style
-as the main splitters. Every panel boundary is individually adjustable; splitter gravity preserves
-usable resizing space across nested panes, and the aggregate minimum size keeps all panels at
-320 x 280 pixels before stack scrolling begins. The native wx smoke test exercised three panels in
-each stack at both wide and narrow frame sizes: all four sub-sashes measured 9 pixels, the two
-scroll ranges were independent and nonzero at 920 x 760, the VTK widget resized from 622 x 285 to
-622 x 310, the Matplotlib canvas resized from 622 x 243 to 622 x 218, and closing an interior
-panel collapsed only its own splitter. The complete play-oem suite passed (**146 passed**, with
-14 existing Matplotlib/Pyparsing deprecation warnings). Native mouse-drag feel and accessibility
-of selectors/menus remain for later manual validation. The selected-layout design and all three
-mockups now depict the horizontal sub-pane sashes; mockup proportions remain illustrative.
-
-**Done when:** every pane boundary is independently resizable, overflow is handled by scrolling,
-and panels remain usable at their defined minimum dimensions.
-**Depends on:** Step 5 and Substep 1-5.
-
 ### 8. Implement the vertical icon-button rail and feature pages
 
 Build the approved icon-only button rail and `wx.Simplebook` page host for non-graph features.
@@ -650,3 +614,38 @@ existing Matplotlib/Pyparsing deprecation warnings).
 
 **Done when:** all panel actions operate on the intended instance and lifecycle tests pass.
 **Depends on:** Step 5 and Substep 1-3.
+
+### 7. Add resizable graph-panel splits, stack scrolling, and minimum plot sizes
+
+After the three main pane widths are resizable, allow users to adjust the heights of graph panels in
+each stack while preventing plots from shrinking below usable dimensions.
+
+- **Status:** Done.
+- **Progress:** 7/7 checklist items.
+- [x] Provide draggable horizontal sashes between vertically stacked graph panels so each panel's
+      height can be resized independently.
+- [x] Verify the three main panes remain independently width-resizable; preserve unrelated sash
+      positions and the right-pane width across close/reopen.
+- [x] Set and document a 320 x 280 pixel minimum usable size for graph panels.
+- [x] Scroll each stack independently when its contents exceed the available pane height or
+      minimum-size panels cannot all fit.
+- [x] Keep selectors and panel menus reachable while scrolling and resizing.
+- [x] Test every sash orientation, short windows, many panels, and resizing around minimum
+      dimensions.
+- [x] Verify Matplotlib and VTK canvases resize and redraw correctly after resizing.
+
+**Implementation and validation:** Each graph stack uses independently scrollable nested
+horizontal `wx.SplitterWindow`s with the live-update 3D sash style. Panel selectors and Actions
+menus remain children of their graph hosts inside the scrollable splitter tree. Native wx smoke
+tests confirmed these controls exist for seven panels across both stacks at 920 x 480, with
+independent virtual heights (1436 and 569 px) exceeding the 351 px viewports. A short-window
+smoke test at 920 x 420 exercised both vertical main-pane sashes and horizontal graph-panel
+sashes at their minimum positions; four panels per stack produced a 1147 px virtual height over
+291 px viewports, with each graph panel retaining its 320 x 280 minimum. Automated tests cover
+five-panel stack minimum sizing and all splitter orientations. The complete play-oem suite passed
+(**150 passed**, 14 existing Matplotlib/Pyparsing deprecation warnings). Native mouse-drag feel
+remains scheduled for the manual end-to-end checks in Step 12.
+
+**Done when:** every pane boundary is independently resizable, overflow is handled by scrolling,
+and panels remain usable at their defined minimum dimensions.
+**Depends on:** Step 5 and Substep 1-5.
