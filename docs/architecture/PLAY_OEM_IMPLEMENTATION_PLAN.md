@@ -1,7 +1,8 @@
 # `play-oem` — Implementation Plan
 
-Requirements: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md). Architecture:
-[PLAY_OEM_DESIGN.md](./PLAY_OEM_DESIGN.md).
+Requirements: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md). Software design:
+[PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md). GUI development:
+[PLAY_OEM_GUI_DEVELOPMENT.md](./PLAY_OEM_GUI_DEVELOPMENT.md).
 
 ## How to use this plan
 
@@ -28,7 +29,7 @@ and resolving the change in sequence.
 
 If the implementation approach changes in a way that affects the architecture, interfaces,
 backends, CLI behavior or other design decisions, update
-[PLAY_OEM_DESIGN.md](./PLAY_OEM_DESIGN.md) as needed before proceeding with dependent steps.
+[PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md) as needed before proceeding with dependent steps.
 If the change alters user-facing requirements or behavior, update
 [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md) as well. Keep the implementation plan and design
 consistent with the implementation.
@@ -74,9 +75,11 @@ Migration guardrails:
 
 Steps 15–23 document the wxPython migration and its acceptance. The remaining dashboard and
 plot-set work follows in the active steps below. Update
-[PLAY_OEM_DESIGN.md](./PLAY_OEM_DESIGN.md) in step 15 so the architecture agrees with this
-directive. The first Tk playback demo in step 10 remains a historical milestone; a wxPython
-demo must pass the migration acceptance criteria in step 23.
+[PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md) in step 15 so the architecture agrees
+with this directive. Use [PLAY_OEM_GUI_DEVELOPMENT.md](./PLAY_OEM_GUI_DEVELOPMENT.md) for
+GUI-focused implementation and improvement guidance. The first Tk playback demo in step 10
+remains a historical milestone; a wxPython demo must pass the migration acceptance criteria in
+step 23.
 
 ## Milestone L — Release readiness
 
@@ -392,7 +395,7 @@ retains click-to-seek and cursor updates without requiring Tcl/Tk 8.6.
 ### 15. Define the wxPython target architecture, capture the Tk baseline and add the GUI dependency
 
 Record the wxPython decision and target event/window ownership model in
-[PLAY_OEM_DESIGN.md](./PLAY_OEM_DESIGN.md). Inventory every Tk-dependent file and helper, capture
+[PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md). Inventory every Tk-dependent file and helper, capture
 the current Tk behavior as a baseline before any code is replaced, and add the wxPython
 dependency so steps 16–21 can run the GUI. Do not add new Tk functionality or begin feature work
 during this migration.
@@ -686,7 +689,7 @@ focused tests. `--help` returned 0, invalid arguments returned 2, and a subproce
 blocked returned 1 with an install hint for the `playback` extra. That check exposed and fixed a
 raw import error in `__main__.py`. Only macOS/Python 3.9 was exercised; desktop input automation
 was unavailable, and other Python versions plus Linux/Windows installs and GUI rendering remain
-unverified as documented in `PLAY_OEM_DESIGN.md`.
+unverified as documented in `PLAY_OEM_SOFTWARE_DESIGN.md`.
 
 ### 24. Add remaining motion and geometry diagnostics
 
@@ -942,7 +945,7 @@ responsiveness. The user explicitly accepted the current measured performance an
 deferring further optimization. This is an accepted deviation, not a claim that N1 was met.
 
 See the “Performance findings and deferred work” section in
-[PLAY_OEM_DESIGN.md](./PLAY_OEM_DESIGN.md) for the benchmark method, platform/backend
+[PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md) for the benchmark method, platform/backend
 caveats, unverified hypotheses, and follow-up profiling candidates. N1 retains its 15 fps
 target for future consideration.
 

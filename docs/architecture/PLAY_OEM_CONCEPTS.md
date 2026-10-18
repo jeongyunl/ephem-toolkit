@@ -1,6 +1,8 @@
 # `play-oem` — Concepts and Requirements
 
-> Status: **planned** (not yet implemented). Design: [PLAY_OEM_DESIGN.md](./PLAY_OEM_DESIGN.md).
+> Status: **planned** (not yet implemented). Software design:
+> [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md). GUI development:
+> [PLAY_OEM_GUI_DEVELOPMENT.md](./PLAY_OEM_GUI_DEVELOPMENT.md).
 
 `play-oem` is the interactive, animated successor to [`plot-oem`](../tools/PLOT_OEM.md). Where `plot-oem` renders
 static figures of a whole OEM history, `play-oem` replays the orbit through time: a

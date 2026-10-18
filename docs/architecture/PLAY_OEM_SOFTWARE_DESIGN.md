@@ -1,4 +1,4 @@
-# `play-oem` — Design
+# `play-oem` — Software Design
 
 Requirements: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md). Baseline code: `src/ephem_toolkit/plot_oem/`.
 
