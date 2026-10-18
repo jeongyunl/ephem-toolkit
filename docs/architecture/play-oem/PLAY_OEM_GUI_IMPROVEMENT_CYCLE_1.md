@@ -1,8 +1,9 @@
 # `play-oem` — GUI Improvement Cycle 1: Completion Report
 
 This report records the first post-migration GUI improvement cycle for the wxPython `play-oem`
-application. All nine items in this cycle are complete. New usability findings and follow-up work
-belong to a separate improvement cycle; this document remains the historical record of cycle 1.
+application. All nine items in this cycle are complete. The next cycle, focused on Controls & Info,
+is tracked in [PLAY_OEM_GUI_IMPROVEMENT_CYCLE_2_PLAN.md](./PLAY_OEM_GUI_IMPROVEMENT_CYCLE_2_PLAN.md);
+this document remains the historical record of cycle 1.
 
 The review was based on the running application and the migration recorded in
 [PLAY_OEM_GUI_COMPLETION_REPORT.md](./PLAY_OEM_GUI_COMPLETION_REPORT.md). Requirements:
