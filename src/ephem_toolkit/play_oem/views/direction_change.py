@@ -6,6 +6,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
 from .. import series, time_unit
+from .plotting import plot_segments
 
 CURSOR_LINE_COLOR: str = "tab:red"
 """Color used for the playback cursor lines."""
@@ -50,9 +51,11 @@ class DirectionChangeView:
 
         if orbit_series.euler_angles_deg.size:
             for component, label in enumerate(("roll", "pitch", "yaw")):
-                angle_axes.plot(
+                plot_segments(
+                    angle_axes,
                     orbit_series.elapsed_time,
                     orbit_series.euler_angles_deg[:, component],
+                    orbit_series.segment_ids,
                     linewidth=2,
                     label=f"{self._object_name} {label}",
                 )
@@ -62,9 +65,11 @@ class DirectionChangeView:
 
         if orbit_series.euler_angle_rates_deg_s.size:
             for component, label in enumerate(("roll", "pitch", "yaw")):
-                rate_axes.plot(
+                plot_segments(
+                    rate_axes,
                     orbit_series.elapsed_time,
                     orbit_series.euler_angle_rates_deg_s[:, component],
+                    orbit_series.segment_ids,
                     linewidth=2,
                     label=f"{self._object_name} {label} rate",
                 )

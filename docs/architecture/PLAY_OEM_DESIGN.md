@@ -104,6 +104,9 @@ reverse mid-play without `t_now` jump, seek while playing/reversed/paused, end-o
 ### 4.2 Cursor lookup
 
 `CursorState` = `{t, r_km, v_kms, speed, altitude, distance, status, segment_id}` at `t_now`.
+The OEM loader assigns each metadata/data segment a zero-based ID in file order and exposes
+the ID aligned with each state as `CcsdsOem.segment_ids`; `segment_id` in the cursor identifies
+the segment containing the current valid state.
 `status` distinguishes an exact OEM sample, a valid interpolated state inside a segment, and a
 time gap/out-of-segment time. In a gap, do not bridge interpolation across the gap or fabricate
 a state: keep the timeline cursor at the requested time, mark the status, and show unavailable

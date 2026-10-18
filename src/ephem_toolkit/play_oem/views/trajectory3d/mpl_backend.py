@@ -106,13 +106,16 @@ class Trajectory3DView:
         figure = Figure(figsize=FIGURE_SIZE_INCHES, constrained_layout=True)
         trajectory_axes = figure.add_subplot(1, 1, 1, projection="3d")
         positions_km = orbit_series.position_km
-        trajectory_axes.plot(
-            positions_km[:, 0],
-            positions_km[:, 1],
-            positions_km[:, 2],
-            linewidth=ORBIT_LINE_WIDTH,
-            label="Orbit",
-        )
+        for segment_id in np.unique(orbit_series.segment_ids):
+            mask = orbit_series.segment_ids == segment_id
+            segment_positions = positions_km[mask]
+            trajectory_axes.plot(
+                segment_positions[:, 0],
+                segment_positions[:, 1],
+                segment_positions[:, 2],
+                linewidth=ORBIT_LINE_WIDTH,
+                label="Orbit",
+            )
         trajectory_axes.scatter(
             [positions_km[0, 0]],
             [positions_km[0, 1]],

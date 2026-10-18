@@ -89,6 +89,7 @@ class VTKTrajectory3DView:
         self._cursor_actor: vtkActor | None = None
         self._positions_km: np.ndarray | None = None
         self._sample_times_s: np.ndarray | None = None
+        self._segment_ids: np.ndarray | None = None
 
     def build(
         self, orbit_series: series.OrbitSeries, _time_unit: time_unit.TimeUnit
@@ -140,6 +141,7 @@ class VTKTrajectory3DView:
             self._cursor.t_start
             + orbit_series.elapsed_time * _time_unit.get_divisor_s()
         )
+        self._segment_ids = orbit_series.segment_ids.copy()
         self._renderer = vtkRenderer()
         self._renderer.SetBackground(0.06, 0.09, 0.15)
         widget.GetRenderWindow().AddRenderer(self._renderer)
@@ -203,6 +205,7 @@ class VTKTrajectory3DView:
         self._cursor_actor = None
         self._positions_km = None
         self._sample_times_s = None
+        self._segment_ids = None
 
     def validate_render_context(self) -> None:
         """Ensure the shown wx widget successfully initialized its VTK context.
@@ -258,10 +261,12 @@ class VTKTrajectory3DView:
         self._get_renderer().AddActor(self._earth_actor)
 
     def _add_orbit(self) -> None:
-        if self._positions_km is None:
+        if self._positions_km is None or self._segment_ids is None:
             raise RuntimeError("orbit positions are not initialized")
         orbit_mapper = vtkPolyDataMapper()
-        orbit_mapper.SetInputData(self._create_polyline(self._positions_km))
+        orbit_mapper.SetInputData(
+            self._create_polyline(self._positions_km, self._segment_ids)
+        )
         self._orbit_actor = vtkActor()
         self._orbit_actor.SetMapper(orbit_mapper)
         self._orbit_actor.GetProperty().SetColor(ORBIT_COLOR_RGB)
@@ -294,7 +299,11 @@ class VTKTrajectory3DView:
     def _select_tail_positions(
         self, time_s: float, cursor_position_km: np.ndarray
     ) -> np.ndarray:
-        if self._positions_km is None or self._sample_times_s is None:
+        if (
+            self._positions_km is None
+            or self._sample_times_s is None
+            or self._segment_ids is None
+        ):
             raise RuntimeError("orbit positions are not initialized")
 
         sample_count = len(self._positions_km)
@@ -304,17 +313,20 @@ class VTKTrajectory3DView:
         )
         upper_index = int(np.searchsorted(self._sample_times_s, time_s, side="right"))
         lower_index = max(0, upper_index - 1)
+        segment_id = self._segment_ids[lower_index]
+        segment_start = int(np.searchsorted(self._segment_ids, segment_id, side="left"))
+        segment_end = int(np.searchsorted(self._segment_ids, segment_id, side="right"))
         is_exact_sample = self._sample_times_s[lower_index] == time_s
 
         if self._playback_rate() >= 0.0:
-            start_index = max(0, upper_index - tail_sample_count)
+            start_index = max(segment_start, upper_index - tail_sample_count)
             sample_positions_km = self._positions_km[start_index:upper_index]
             if not is_exact_sample:
                 sample_positions_km = np.vstack(
                     (sample_positions_km, cursor_position_km)
                 )
         else:
-            end_index = min(sample_count, upper_index + tail_sample_count)
+            end_index = min(segment_end, upper_index + tail_sample_count)
             sample_positions_km = np.vstack(
                 (cursor_position_km, self._positions_km[upper_index:end_index])
             )
@@ -332,18 +344,28 @@ class VTKTrajectory3DView:
         return self._renderer
 
     @staticmethod
-    def _create_polyline(positions_km: np.ndarray) -> vtkPolyData:
+    def _create_polyline(
+        positions_km: np.ndarray,
+        segment_ids: np.ndarray | None = None,
+    ) -> vtkPolyData:
         poly_data = vtkPolyData()
         points = vtkPoints()
         point_data = np.ascontiguousarray(positions_km, dtype=np.float64)
         points.SetData(numpy_to_vtk(point_data, deep=True))
         cells = vtkCellArray()
-        if len(point_data) > 1:
-            polyline = vtkPolyLine()
-            polyline.GetPointIds().SetNumberOfIds(len(point_data))
-            for point_index in range(len(point_data)):
-                polyline.GetPointIds().SetId(point_index, point_index)
-            cells.InsertNextCell(polyline)
+        ids = segment_ids if segment_ids is not None else np.zeros(len(point_data), dtype=int)
+        start = 0
+        while start < len(point_data):
+            stop = start + 1
+            while stop < len(point_data) and ids[stop] == ids[start]:
+                stop += 1
+            if stop - start > 1:
+                polyline = vtkPolyLine()
+                polyline.GetPointIds().SetNumberOfIds(stop - start)
+                for offset, point_index in enumerate(range(start, stop)):
+                    polyline.GetPointIds().SetId(offset, point_index)
+                cells.InsertNextCell(polyline)
+            start = stop
         poly_data.SetPoints(points)
         poly_data.SetLines(cells)
         return poly_data

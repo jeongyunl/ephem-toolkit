@@ -60,6 +60,12 @@ class OrbitSeries:
     euler_angle_rates_deg_s: np.ndarray
     """Time derivative of the Euler-angle series with shape (N, 3) in degrees per second."""
 
+    segment_ids: np.ndarray
+    """OEM segment identifier for each sample."""
+
+    rtn_segment_ids: np.ndarray
+    """Segment identifier for each adjacent-sample RTN delta; -1 marks a boundary."""
+
     @staticmethod
     def _compute_rtn_velocity_direction_vector(state_m: np.ndarray) -> np.ndarray:
         """Return the velocity direction expressed in the local RTN frame."""
@@ -102,6 +108,7 @@ def compute_orbit_series(
     timestamps_s: list[float],
     states_m: list[np.ndarray],
     time_unit: TimeUnit,
+    segment_ids: list[int] | np.ndarray | None = None,
 ) -> OrbitSeries:
     """Compute all derived series needed by playback and plotting routines.
 
@@ -120,6 +127,12 @@ def compute_orbit_series(
         Structured derived arrays for all requested plot products.
     """
     states_matrix_m: np.ndarray = np.array(states_m)
+    segments = np.asarray(
+        segment_ids if segment_ids is not None else np.zeros(len(states_m)),
+        dtype=int,
+    )
+    if segments.shape != (len(states_m),) or np.any(np.diff(segments) < 0):
+        raise ValueError("segment_ids must be non-decreasing and match states_m")
     position_m: np.ndarray = states_matrix_m[:, 0:3]
     velocity_m_s: np.ndarray = states_matrix_m[:, 3:6]
 
@@ -143,6 +156,10 @@ def compute_orbit_series(
     rtn_delta_list_km: list[np.ndarray] = []
     rtn_elapsed_time_list: list[float] = []
     for sample_index in range(1, len(states_m)):
+        if segments[sample_index] != segments[sample_index - 1]:
+            rtn_delta_list_km.append(np.full(6, np.nan))
+            rtn_elapsed_time_list.append(float(elapsed_time[sample_index]))
+            continue
         rtn_delta_m: np.ndarray = misc.transform_to_rtn(
             states_m[sample_index],
             states_m[sample_index - 1],
@@ -170,6 +187,8 @@ def compute_orbit_series(
         angular_velocity_rad_s: np.ndarray = np.zeros(len(states_m), dtype=float)
 
         for sample_index in range(1, len(states_m)):
+            if segments[sample_index] != segments[sample_index - 1]:
+                continue
             previous_direction = velocity_direction_vectors[sample_index - 1]
             current_direction = velocity_direction_vectors[sample_index]
             dot_product = np.dot(previous_direction, current_direction)
@@ -202,6 +221,8 @@ def compute_orbit_series(
             euler_angles_deg[sample_index] = [roll_deg, pitch_deg, yaw_deg]
 
         for sample_index in range(1, len(states_m)):
+            if segments[sample_index] != segments[sample_index - 1]:
+                continue
             delta_time_s = (
                 elapsed_time_s[sample_index] - elapsed_time_s[sample_index - 1]
             )
@@ -232,4 +253,6 @@ def compute_orbit_series(
         angular_velocity_rad_s=angular_velocity_rad_s,
         euler_angles_deg=euler_angles_deg,
         euler_angle_rates_deg_s=euler_angle_rates_deg_s,
+        segment_ids=segments,
+        rtn_segment_ids=np.where(segments[1:] == segments[:-1], segments[1:], -1),
     )

@@ -6,6 +6,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
 from .. import series, time_unit
+from .plotting import plot_segments
 
 CURSOR_LINE_COLOR: str = "tab:red"
 """Color used for the playback cursor lines."""
@@ -70,12 +71,16 @@ class AngularVelocityView:
             axes.set_title(title)
             if values.size > 1:
                 valid_mask = values != 0.0
-                axes.plot(
+                rate_lines = plot_segments(
+                    axes,
                     orbit_series.elapsed_time[valid_mask],
                     values[valid_mask],
+                    orbit_series.segment_ids[valid_mask],
                     linewidth=2,
                     label=f"{self._object_name} angular rate",
                 )
+                if not rate_lines:
+                    axes.plot([], [], linewidth=2, label=f"{self._object_name} angular rate")
                 axes.legend(loc="upper right")
             else:
                 axes.text(0.5, 0.5, "Not enough samples", ha="center", va="center")

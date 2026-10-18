@@ -421,6 +421,7 @@ class ControlWindow:
             CursorStatus.INTERPOLATED: "interpolated",
             CursorStatus.OUT_OF_RANGE: "out of range",
             CursorStatus.UNAVAILABLE: "unavailable",
+            CursorStatus.GAP: "data gap; no state available",
         }[state.status]
         self.cursor_status_label.SetLabel(f"State: {status}")
 

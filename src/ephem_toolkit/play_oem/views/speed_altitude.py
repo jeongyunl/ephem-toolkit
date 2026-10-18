@@ -6,6 +6,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
 from .. import series, time_unit
+from .plotting import plot_segments
 
 CURSOR_LINE_COLOR: str = "tab:red"
 """Color used for the playback cursor lines."""
@@ -60,11 +61,18 @@ class SpeedAltitudeView:
         axes_array = figure.subplots(2, 1, sharex=True)
         speed_axes = axes_array[0]
         altitude_axes = axes_array[1]
-        speed_axes.plot(
+        plot_segments(
+            speed_axes,
             orbit_series.elapsed_time,
             orbit_series.velocity_magnitude_km_s,
+            orbit_series.segment_ids,
         )
-        altitude_axes.plot(orbit_series.elapsed_time, orbit_series.altitude_km)
+        plot_segments(
+            altitude_axes,
+            orbit_series.elapsed_time,
+            orbit_series.altitude_km,
+            orbit_series.segment_ids,
+        )
         speed_axes.set_ylabel("Speed (km/s)")
         altitude_axes.set_ylabel("Altitude (km)")
         altitude_axes.set_xlabel(time_unit.get_axis_label())

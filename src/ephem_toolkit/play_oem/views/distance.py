@@ -7,6 +7,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
 from .. import series, time_unit
+from .plotting import plot_segments
 
 CURSOR_LINE_COLOR: str = "tab:red"
 """Color used for the playback cursor lines."""
@@ -43,9 +44,11 @@ class GeocentricDistanceView:
 
         figure = Figure(figsize=FIGURE_SIZE_INCHES, constrained_layout=True)
         distance_axes, delta_axes = figure.subplots(2, 1, sharex=True)
-        distance_axes.plot(
+        plot_segments(
+            distance_axes,
             orbit_series.elapsed_time,
             orbit_series.geocentric_distance_km,
+            orbit_series.segment_ids,
             linewidth=2,
             label=self._object_name,
         )
@@ -57,9 +60,11 @@ class GeocentricDistanceView:
 
         if orbit_series.geocentric_distance_km.size > 1:
             distance_delta_km = np.diff(orbit_series.geocentric_distance_km)
-            delta_axes.plot(
+            plot_segments(
+                delta_axes,
                 orbit_series.elapsed_time[1:],
                 distance_delta_km,
+                orbit_series.rtn_segment_ids,
                 linewidth=2,
                 label=f"{self._object_name} delta",
             )

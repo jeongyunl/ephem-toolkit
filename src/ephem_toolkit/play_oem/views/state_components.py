@@ -6,6 +6,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
 from .. import series, time_unit
+from .plotting import plot_segments
 
 CARTESIAN_COMPONENT_COUNT: int = 3
 """Number of Cartesian position or velocity components."""
@@ -89,13 +90,17 @@ class StateComponentsView:
         for row, component in enumerate(component_labels):
             position_axes = axes_array[row, 0]
             velocity_axes = axes_array[row, 1]
-            position_axes.plot(
+            plot_segments(
+                position_axes,
                 orbit_series.elapsed_time,
                 orbit_series.position_km[:, row],
+                orbit_series.segment_ids,
             )
-            velocity_axes.plot(
+            plot_segments(
+                velocity_axes,
                 orbit_series.elapsed_time,
                 orbit_series.velocity_km_s[:, row],
+                orbit_series.segment_ids,
             )
             position_axes.set_ylabel(f"{component} (km)")
             velocity_axes.set_ylabel(f"V{component} (km/s)")

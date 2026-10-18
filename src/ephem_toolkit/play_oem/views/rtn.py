@@ -6,6 +6,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
 from .. import series, time_unit
+from .plotting import plot_segments
 
 CURSOR_LINE_COLOR: str = "tab:red"
 """Color used for the playback cursor lines."""
@@ -56,9 +57,11 @@ class RtnDeltaView:
             axes.set_ylabel(labels[component])
             axes.set_title(titles[component])
             if orbit_series.rtn_delta_km.size:
-                axes.plot(
+                plot_segments(
+                    axes,
                     orbit_series.rtn_elapsed_time,
                     orbit_series.rtn_delta_km[:, component],
+                    orbit_series.rtn_segment_ids,
                     linewidth=2,
                     label=self._object_name,
                 )

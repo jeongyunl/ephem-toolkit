@@ -78,6 +78,48 @@ def test_read_oem_from_stream_matches_file_read() -> None:
         assert np.allclose(state2, state1, atol=1e-12, rtol=0.0)
 
 
+def test_ccsds_oem_assigns_zero_based_ids_to_each_segment() -> None:
+    """States in each metadata/data block share its zero-based segment ID."""
+    content = """CCSDS_OEM_VERS = 2.0
+META_START
+OBJECT_NAME = TEST
+CENTER_NAME = EARTH
+REF_FRAME = GCRF
+TIME_SYSTEM = UTC
+META_STOP
+2026-01-01T00:00:00 7000 0 0 0 7.5 0
+2026-01-01T00:00:10 7000 1 0 0 7.5 0
+META_START
+OBJECT_NAME = TEST
+CENTER_NAME = EARTH
+REF_FRAME = GCRF
+TIME_SYSTEM = UTC
+META_STOP
+2026-01-01T00:10:00 7000 2 0 0 7.5 0
+META_START
+OBJECT_NAME = TEST
+CENTER_NAME = EARTH
+REF_FRAME = GCRF
+TIME_SYSTEM = UTC
+META_STOP
+2026-01-01T00:20:00 7000 3 0 0 7.5 0
+2026-01-01T00:20:10 7000 4 0 0 7.5 0
+"""
+
+    parsed = oem.CcsdsOem.read(io.StringIO(content))
+
+    assert parsed.segment_ids == [0, 0, 1, 2, 2]
+    assert len(parsed.segment_ids) == len(parsed.states)
+
+
+def test_ccsds_oem_from_states_assigns_default_segment_id() -> None:
+    states = [(1.0, np.zeros(6)), (2.0, np.ones(6))]
+
+    parsed = oem.CcsdsOem.from_states(states)
+
+    assert parsed.segment_ids == [0, 0]
+
+
 # ===================================================================
 # 3. Write/read round-trip with low-level API
 # ===================================================================

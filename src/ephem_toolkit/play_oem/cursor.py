@@ -27,6 +27,7 @@ class CursorStatus(str, Enum):
     INTERPOLATED = "interpolated"
     OUT_OF_RANGE = "out_of_range"
     UNAVAILABLE = "unavailable"
+    GAP = "gap"
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,7 @@ class OemCursor:
         *,
         interpolation: str | None = None,
         interpolation_degree: int | None = None,
+        segment_ids: Sequence[int] | None = None,
     ) -> None:
         """Prepare ordered OEM states and optional OEM interpolation metadata."""
         self._timestamps_s = np.asarray(timestamps_s, dtype=float)
@@ -73,7 +75,15 @@ class OemCursor:
 
         self._timestamps_s = self._timestamps_s.copy()
         self._states_m = self._states_m.copy()
-        self._interpolator = self._create_interpolator(
+        self._segment_ids = np.asarray(
+            segment_ids if segment_ids is not None else np.zeros(len(self._timestamps_s)),
+            dtype=int,
+        )
+        if self._segment_ids.shape != self._timestamps_s.shape:
+            raise ValueError("segment_ids must have shape (len(timestamps_s),)")
+        if np.any(np.diff(self._segment_ids) < 0):
+            raise ValueError("segment_ids must be non-decreasing")
+        self._interpolators = self._create_interpolators(
             interpolation, interpolation_degree
         )
 
@@ -98,8 +108,13 @@ class OemCursor:
         ):
             state_m = self._states_m[sample_index].copy()
             status = CursorStatus.EXACT_SAMPLE
+            segment_id = int(self._segment_ids[sample_index])
         else:
-            state_m = self._interpolate_state(query_time, sample_index)
+            lower_index = sample_index - 1
+            segment_id = int(self._segment_ids[lower_index])
+            if segment_id != self._segment_ids[sample_index]:
+                return self._unavailable(query_time, CursorStatus.GAP)
+            state_m = self._interpolate_state(query_time, sample_index, segment_id)
             if state_m is None:
                 return self._unavailable(query_time, CursorStatus.UNAVAILABLE)
             status = CursorStatus.INTERPOLATED
@@ -115,16 +130,18 @@ class OemCursor:
             altitude=float(wgs.ecef_to_lla(state_m[:3])[2] * KILOMETERS_PER_METER),
             distance=float(np.linalg.norm(position_km)),
             status=status,
+            segment_id=segment_id,
         )
 
     def _interpolate_state(
-        self, query_time: float, upper_index: int
+        self, query_time: float, upper_index: int, segment_id: int
     ) -> np.ndarray | None:
         if self._timestamps_s.size < 2:
             return None
 
-        if self._interpolator is not None:
-            state = self._interpolator.interpolate(query_time)
+        interpolator = self._interpolators.get(segment_id)
+        if interpolator is not None:
+            state = interpolator.interpolate(query_time)
             if state is None:
                 return None
             state_array = np.asarray(state, dtype=float)
@@ -140,9 +157,9 @@ class OemCursor:
             self._states_m[upper_index] - self._states_m[lower_index]
         )
 
-    def _create_interpolator(
+    def _create_interpolators(
         self, interpolation: str | None, interpolation_degree: int | None
-    ) -> Interpolator | None:
+    ) -> dict[int, Interpolator]:
         if interpolation_degree is not None and (
             isinstance(interpolation_degree, bool)
             or not isinstance(interpolation_degree, int)
@@ -152,7 +169,7 @@ class OemCursor:
 
         interpolation_name = (interpolation or "").strip().lower()
         if not interpolation_name or interpolation_name == "linear":
-            return None
+            return {}
         try:
             interpolation_type = InterpolationType(interpolation_name)
         except ValueError as error:
@@ -162,12 +179,20 @@ class OemCursor:
 
         degree = interpolation_degree or None
         spec = InterpolationSpec(interpolation_type, degree=degree)
-        return factory.InterpolatorFactory.create(
-            spec=spec,
-            dimension=6,
-            is_cartesian_state=True,
-            data=list(zip(self._timestamps_s.tolist(), self._states_m)),
-        )
+        interpolators: dict[int, Interpolator] = {}
+        for segment_id in np.unique(self._segment_ids):
+            mask = self._segment_ids == segment_id
+            if np.count_nonzero(mask) < 2:
+                continue
+            interpolators[int(segment_id)] = factory.InterpolatorFactory.create(
+                spec=spec,
+                dimension=6,
+                is_cartesian_state=True,
+                data=list(
+                    zip(self._timestamps_s[mask].tolist(), self._states_m[mask])
+                ),
+            )
+        return interpolators
 
     def _unavailable(self, t: float, status: CursorStatus) -> CursorState:
         return CursorState(

@@ -135,6 +135,24 @@ def test_lookup_marks_out_of_range_times_unavailable(
     assert exact.status is CursorStatus.EXACT_SAMPLE
 
 
+def test_lookup_reports_gap_and_never_interpolates_between_oem_segments(
+    sample_states: tuple[list[float], list[np.ndarray]],
+) -> None:
+    _, states_m = sample_states
+    cursor = OemCursor(
+        [0.0, 10.0, 100.0, 110.0],
+        states_m,
+        segment_ids=[0, 0, 1, 1],
+    )
+
+    assert cursor.lookup(5.0).status is CursorStatus.INTERPOLATED
+    gap_state = cursor.lookup(50.0)
+    assert gap_state.status is CursorStatus.GAP
+    assert gap_state.state_m is None
+    assert gap_state.r_km is None
+    assert cursor.lookup(105.0).status is CursorStatus.INTERPOLATED
+
+
 def test_lookup_rejects_invalid_input_data_and_query(
     sample_states: tuple[list[float], list[np.ndarray]],
 ) -> None:

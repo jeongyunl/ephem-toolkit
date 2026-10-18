@@ -302,6 +302,10 @@ def test_dashboard_formats_state_and_missing_values(
         "Time span: Unavailable | Samples: Unavailable"
     )
     assert window.details_label.label == "Object ID: 2024-001A"
+    window.update_current_state(
+        CursorState(50.0, None, None, None, None, None, None, CursorStatus.GAP)
+    )
+    assert window.cursor_status_label.label == "State: data gap; no state available"
 
 
 @pytest.mark.parametrize(

@@ -275,6 +275,7 @@ class CcsdsOem:
         data_comments: list[str],
         states: list[tuple[float, np.ndarray]],
         covariances: list[OemCovariance] | None = None,
+        segment_ids: list[int] | None = None,
     ) -> None:
         """Initialise a :class:`CcsdsOem` from pre-parsed components.
 
@@ -306,6 +307,14 @@ class CcsdsOem:
         self.covariances = list(covariances or [])
         """Covariance matrices associated with epochs in this OEM."""
 
+        self.segment_ids = (
+            list(segment_ids) if segment_ids is not None else [0] * len(states)
+        )
+        """Segment identifier for each state, aligned with ``states``."""
+
+        if len(self.segment_ids) != len(states):
+            raise ValueError("segment_ids must match the number of states")
+
     @classmethod
     def read(cls, source: TextIO) -> CcsdsOem:
         """Read and construct a :class:`CcsdsOem` from a text stream.
@@ -325,13 +334,15 @@ class CcsdsOem:
         raw_data_comments: list[str]
         raw_states: list[tuple[float, np.ndarray]]
         raw_covariances: list[OemCovariance]
+        raw_segment_ids: list[int]
         (
             raw_header,
             raw_meta,
             raw_data_comments,
             raw_states,
             raw_covariances,
-        ) = cls._read_oem_impl(source)
+            raw_segment_ids,
+        ) = cls._read_oem_impl(source, include_segment_ids=True)
 
         odm.validate_odm_context(
             str(raw_meta.get("CENTER_NAME", "")),
@@ -371,6 +382,7 @@ class CcsdsOem:
             data_comments=raw_data_comments,
             states=raw_states,
             covariances=raw_covariances,
+            segment_ids=raw_segment_ids,
         )
 
     @classmethod
@@ -726,23 +738,38 @@ class CcsdsOem:
     @staticmethod
     def _read_oem_impl(
         source: TextIO,
-    ) -> tuple[
-        dict[str, Any],
-        dict[str, Any],
-        list[str],
-        list[tuple[float, np.ndarray]],
-        list[OemCovariance],
-    ]:
+        *,
+        include_segment_ids: bool = False,
+    ) -> (
+        tuple[
+            dict[str, Any],
+            dict[str, Any],
+            list[str],
+            list[tuple[float, np.ndarray]],
+            list[OemCovariance],
+        ]
+        | tuple[
+            dict[str, Any],
+            dict[str, Any],
+            list[str],
+            list[tuple[float, np.ndarray]],
+            list[OemCovariance],
+            list[int],
+        ]
+    ):
         """Read OEM content into header, metadata, comments, states, and covariance."""
 
         if isinstance(source, (str, Path)):
             with Path(source).open("r", encoding="utf-8") as file_handle:
-                return CcsdsOem._read_oem_impl(file_handle)
+                return CcsdsOem._read_oem_impl(
+                    file_handle, include_segment_ids=include_segment_ids
+                )
 
         header: dict[str, Any] = {}
         meta: dict[str, Any] = {}
         data_comments: list[str] = []
         states: list[tuple[float, np.ndarray]] = []
+        segment_ids: list[int] = []
         covariances: list[OemCovariance] = []
         in_meta: bool = False
         past_meta: bool = False
@@ -751,6 +778,7 @@ class CcsdsOem:
         seen_covariance: bool = False
         seen_header: list[str] = []
         seen_meta: list[str] = []
+        segment_id = -1
         header_comments_open = False
         meta_comments_open = False
         first_content_seen = False
@@ -859,8 +887,14 @@ class CcsdsOem:
                 continue
 
             if line == "META_START":
-                if in_meta or past_meta:
-                    raise ValueError("Invalid or repeated OEM META_START")
+                if in_meta or (past_meta and not seen_state):
+                    raise ValueError("Invalid OEM META_START")
+                if past_meta:
+                    seen_meta = []
+                    meta_comments_open = True
+                    segment_id += 1
+                else:
+                    segment_id = 0
                 in_meta = True
                 meta_comments_open = True
                 continue
@@ -952,6 +986,7 @@ class CcsdsOem:
                     [float(value) for value in state_fields[1:7]]
                 )
                 states.append((timestamp, state_km * KILOMETERS_TO_METERS))
+                segment_ids.append(segment_id)
                 seen_state = True
             else:
                 raise ValueError(f"Invalid OEM line: {line}")
@@ -963,7 +998,10 @@ class CcsdsOem:
         if not seen_header or seen_header[0] != "CCSDS_OEM_VERS":
             raise ValueError("CCSDS_OEM_VERS must be the first non-blank line")
 
-        return header, meta, data_comments, states, covariances
+        result = (header, meta, data_comments, states, covariances)
+        if include_segment_ids:
+            return (*result, segment_ids)
+        return result
 
     def _write_header(self, dest: TextIO, sep: str = " ") -> None:
         """Write the OEM header to a writable text stream."""

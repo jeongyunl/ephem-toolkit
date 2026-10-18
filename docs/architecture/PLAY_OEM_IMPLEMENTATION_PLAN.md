@@ -78,25 +78,6 @@ plot-set work follows in the active steps below. Update
 directive. The first Tk playback demo in step 10 remains a historical milestone; a wxPython
 demo must pass the migration acceptance criteria in step 23.
 
-## Milestone J — Complete the remaining dashboard and plot set
-
-### 26. Implement segment and data-gap handling
-
-Ensure the loader/series preserve OEM segment boundaries; plot each segment separately and
-never interpolate or draw a continuous line across a gap. Keep the timeline seekable through a
-gap while indicating that no state is available there.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Identify and preserve segment boundaries during loading and filtering.
-- [ ] Render each segment separately and mark boundaries in applicable views.
-- [ ] Return gap status from cursor lookup without carrying forward prior values.
-- [ ] Show unavailable state readouts and gap status while seeking through gaps.
-- [ ] Test interpolation and plotting on a multi-segment OEM.
-
-**Done when:** no view or readout implies continuous or interpolated data across an OEM gap.
-**Depends on:** Step 25.
-
 ## Milestone K — Performance
 
 ### 27. Optimize rendering and validate playback performance
@@ -919,3 +900,29 @@ tests/ephem_toolkit/play_oem/test_play_oem_cli.py` (71 passed).
 **Done when:** the wx dashboard presents key state and source context without relying on plot
 windows.
 **Depends on:** Step 24-8.
+
+### 26. Implement segment and data-gap handling
+
+Ensure the loader/series preserve OEM segment boundaries; plot each segment separately and
+never interpolate or draw a continuous line across a gap. Keep the timeline seekable through a
+gap while indicating that no state is available there.
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Identify and preserve segment boundaries during loading and filtering.
+- [x] Render each segment separately and mark boundaries in applicable views.
+- [x] Return gap status from cursor lookup without carrying forward prior values.
+- [x] Show unavailable state readouts and gap status while seeking through gaps.
+- [x] Test interpolation and plotting on a multi-segment OEM.
+
+**Evidence:** The OEM parser records per-state segment IDs while keeping the existing
+five-item `_read_oem_impl` return shape for callers; duration filtering retains the matching
+prefix of IDs. Series calculations omit cross-segment deltas/rates, cursor lookup returns a
+gap status (and uses segment-local interpolators), and 2D/3D renderers draw segment runs
+separately. The control dashboard clears state values during gaps. Multi-segment parser,
+cursor, derived-series, and rendering tests pass. Validation:
+`poetry run pytest -q tests/ephem_toolkit/play_oem` (127 passed), and the OEM parser +
+cursor/data subset passed (95 passed).
+
+**Done when:** no view or readout implies continuous or interpolated data across an OEM gap.
+**Depends on:** Step 25.

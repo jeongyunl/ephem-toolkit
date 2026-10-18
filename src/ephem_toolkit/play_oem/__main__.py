@@ -53,8 +53,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     timestamps_s, states_m = filter_states_by_duration(
         timestamps_s, states_m, duration_s
     )
+    segment_ids = oem_data.segment_ids[: len(timestamps_s)]
     print(f"Using {len(states_m)} states after duration filtering")
-    series: OrbitSeries = compute_orbit_series(timestamps_s, states_m, time_unit)
+    series: OrbitSeries = compute_orbit_series(
+        timestamps_s, states_m, time_unit, segment_ids
+    )
     print(
         f"Prepared orbit series with {len(series.elapsed_time)} samples "
         f"using {time_unit.value}."
@@ -91,6 +94,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         states_m,
         interpolation=oem_data.meta.interpolation,
         interpolation_degree=oem_data.meta.interpolation_degree,
+        segment_ids=segment_ids,
     )
     frame_context = (
         " / ".join(
