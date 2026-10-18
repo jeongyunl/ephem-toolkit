@@ -128,13 +128,17 @@ class FakePanel:
         self.parent = parent
         self.sizer = None
 
+    def SetName(self, name: str) -> None:
+        self.name = name
+
     def SetSizer(self, sizer) -> None:
         self.sizer = sizer
 
 
 class FakeScrolledWindow(FakePanel):
-    def __init__(self, parent, _id: int, **_kwargs) -> None:
+    def __init__(self, parent, _id: int, **kwargs) -> None:
         super().__init__(parent, _id)
+        self.style = kwargs.get("style", 0)
         self.bindings: dict[object, object] = {}
         self.scroll_rate = None
         self.fit_inside_count = 0
@@ -329,8 +333,18 @@ def test_playback_controls_remain_reachable_in_scrollable_page(
 
     window.panel.bindings[control_window.wx.EVT_SIZE](FakeEvent())
 
-    assert window.panel.layout_count == 1
-    assert window.panel.fit_inside_count == 2
+    assert window.panel.layout_count == 2
+    assert window.panel.fit_inside_count == 4
+
+
+def test_utc_timestamp_wraps_at_the_date_time_separator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window, _owner, _calls = make_window(monkeypatch)
+
+    window.update_time("Elapsed: 0 s\nUTC: 2026-07-06T00:00:00.000")
+
+    assert window.utc_label.label == "UTC: 2026-07-06T\n00:00:00.000"
 
 
 @pytest.mark.parametrize(
@@ -372,6 +386,12 @@ def test_dashboard_formats_state_and_missing_values(
         )
     )
     assert len(window.state_panel.sizer.items) == 4
+    assert window.state_panel.name == "Current state readout"
+    assert window.state_panel.scroll_rate == (0, 10)
+    assert window.position_label.name == "Position components (kilometers)"
+    assert window.velocity_label.name == "Velocity components (kilometers per second)"
+    assert window.speed_altitude_label.name == "Derived speed and altitude"
+    assert window.cursor_status_label.name == "Cursor data status"
     assert all(
         label not in [item[0] for item in window.panel.sizer.items]
         for label in (
@@ -393,23 +413,80 @@ def test_dashboard_formats_state_and_missing_values(
             CursorStatus.INTERPOLATED,
         )
     )
-    assert "Position (km): 1.000, 2.000, 3.000" == window.position_label.label
+    assert window.position_label.label == (
+        "Position (km)\nX: 1.000\nY: 2.000\nZ: 3.000"
+    )
     assert (
-        "Velocity (km/s): 0.100000, 0.200000, 0.300000" == window.velocity_label.label
+        window.velocity_label.label
+        == "Velocity (km/s)\nVx: 0.100000\nVy: 0.200000\nVz: 0.300000"
     )
     assert "0.374166 km/s" in window.speed_altitude_label.label
-    assert window.cursor_status_label.label == "State: interpolated"
+    assert window.speed_altitude_label.label == (
+        "Derived values\nSpeed:\n0.374166 km/s\nAltitude:\n4.500 km"
+    )
+    assert window.cursor_status_label.label == "Cursor status: interpolated"
 
     window.update_current_state(
         CursorState(2.0, None, None, None, None, None, None, CursorStatus.OUT_OF_RANGE)
     )
-    assert "unavailable" in window.position_label.label
-    assert "unavailable" in window.velocity_label.label
-    assert window.cursor_status_label.label == "State: out of range"
+    assert "X: unavailable" in window.position_label.label
+    assert "Vx: unavailable" in window.velocity_label.label
+    assert window.cursor_status_label.label == "Cursor status: out of range"
     window.update_current_state(
         CursorState(50.0, None, None, None, None, None, None, CursorStatus.GAP)
     )
-    assert window.cursor_status_label.label == "State: data gap; no state available"
+    assert (
+        window.cursor_status_label.label
+        == "Cursor status: data gap; no state available"
+    )
+
+
+def test_state_readout_preserves_component_precision_and_scroll_position(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ephem_toolkit.play_oem.cursor import CursorState, CursorStatus
+    import numpy as np
+
+    window, _owner, _calls = make_window(monkeypatch)
+    window.state_panel.Scroll(0, 7)
+    window.update_current_state(
+        CursorState(
+            3.0,
+            np.zeros(6),
+            np.array([123456789.1234, -98765432.1111, 0.0]),
+            np.array([123456.12345678, -98765.123456789, 0.0]),
+            123456.12345678,
+            987654321.1234,
+            6378.0,
+            CursorStatus.EXACT_SAMPLE,
+        )
+    )
+
+    assert "X: 123456789.123" in window.position_label.label
+    assert "Y: -98765432.111" in window.position_label.label
+    assert "Vx: 123456.123457" in window.velocity_label.label
+    assert "Vy: -98765.123457" in window.velocity_label.label
+    assert "Altitude:\n987654321.123 km" in window.speed_altitude_label.label
+    assert window.cursor_status_label.label == "Cursor status: sampled"
+    assert window.state_panel.GetViewStart() == (0, 7)
+
+    window.update_current_state(
+        CursorState(
+            4.0,
+            np.zeros(6),
+            None,
+            np.array([1.0, 2.0, 3.0]),
+            None,
+            None,
+            None,
+            CursorStatus.UNAVAILABLE,
+        )
+    )
+    assert window.position_label.label == (
+        "Position (km)\nX: unavailable\nY: unavailable\nZ: unavailable"
+    )
+    assert "Vx: 1.000000" in window.velocity_label.label
+    assert window.cursor_status_label.label == "Cursor status: unavailable"
 
 
 @pytest.mark.parametrize(

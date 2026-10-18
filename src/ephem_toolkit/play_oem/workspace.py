@@ -27,6 +27,18 @@ COMPARISON_PANE_NAME: str = "Comparison"
 """Visible and programmatic name for the optional right graph pane."""
 
 
+def _display_file_info_value(value: str | None) -> str:
+    display_value = value or "Unavailable"
+    if (
+        len(display_value) > 10
+        and display_value[4:5] == "-"
+        and display_value[7:8] == "-"
+        and display_value[10:11] == "T"
+    ):
+        return display_value.replace("T", "T\n")
+    return display_value
+
+
 class Workspace:
     """Own the feature rail, page host, graph splitters, and shared timeline."""
 
@@ -569,8 +581,24 @@ class Workspace:
         self.playback_page = self.feature_pages[0]
         self.file_info_page = self.feature_pages[1]
         self.state_page = self.feature_pages[2]
+        file_info_page_layout = wx.BoxSizer(wx.VERTICAL)
+        self.file_info_scroll = wx.ScrolledWindow(
+            self.file_info_page,
+            wx.ID_ANY,
+            style=wx.VSCROLL | wx.TAB_TRAVERSAL,
+        )
+        self.file_info_scroll.SetName("OEM information details")
+        self.file_info_scroll.SetCanFocus(True)
+        self.file_info_scroll.SetScrollRate(0, 10)
         info_layout = wx.BoxSizer(wx.VERTICAL)
+        self._file_info_section_labels: list[wx.StaticText] = []
         self._file_info_labels: list[wx.StaticText] = []
+        primary_heading = wx.StaticText(
+            self.file_info_scroll, wx.ID_ANY, "File context"
+        )
+        primary_heading.SetName("Primary OEM file context")
+        self._file_info_section_labels.append(primary_heading)
+        info_layout.Add(primary_heading, 0, wx.EXPAND | wx.ALL, 8)
         for label, key in (
             ("Object", "object"),
             ("Frame", "frame"),
@@ -579,10 +607,11 @@ class Workspace:
             ("Samples", "sample_count"),
         ):
             info_label = wx.StaticText(
-                self.file_info_page,
+                self.file_info_scroll,
                 wx.ID_ANY,
-                f"{label}: {context.get(key) or 'Unavailable'}",
+                f"{label}: {_display_file_info_value(context.get(key))}",
             )
+            info_label.SetName(f"OEM {label}")
             self._file_info_labels.append(info_label)
             info_layout.Add(
                 info_label,
@@ -590,34 +619,79 @@ class Workspace:
                 wx.EXPAND | wx.ALL,
                 8,
             )
-        for label, value in details:
-            info_label = wx.StaticText(
-                self.file_info_page,
-                wx.ID_ANY,
-                f"{label}: {value or 'Unavailable'}",
+        if details:
+            metadata_heading = wx.StaticText(
+                self.file_info_scroll, wx.ID_ANY, "OEM metadata"
             )
-            self._file_info_labels.append(info_label)
+            metadata_heading.SetName("Additional OEM metadata")
+            self._file_info_section_labels.append(metadata_heading)
             info_layout.Add(
-                info_label,
+                metadata_heading,
                 0,
                 wx.EXPAND | wx.ALL,
                 8,
             )
-        self.file_info_page.SetSizer(info_layout)
-        self.file_info_page.Bind(wx.EVT_SIZE, self._on_file_info_page_size)
+            for label, value in details:
+                info_label = wx.StaticText(
+                    self.file_info_scroll,
+                    wx.ID_ANY,
+                    f"{label}: {_display_file_info_value(value)}",
+                )
+                info_label.SetName(f"OEM {label}")
+                self._file_info_labels.append(info_label)
+                info_layout.Add(
+                    info_label,
+                    0,
+                    wx.EXPAND | wx.ALL,
+                    8,
+                )
+        self.file_info_scroll.SetSizer(info_layout)
+        file_info_page_layout.Add(self.file_info_scroll, 1, wx.EXPAND)
+        self.file_info_page.SetSizer(file_info_page_layout)
+        self.file_info_scroll.Bind(wx.EVT_SIZE, self._on_file_info_scroll_size)
+        self.file_info_scroll.Bind(wx.EVT_KEY_DOWN, self._on_file_info_scroll_key_down)
+        self.file_info_scroll.FitInside()
 
         content_layout.Add(rail, 0, wx.EXPAND | wx.ALL, 4)
         content_layout.Add(self.feature_book, 1, wx.EXPAND | wx.ALL, 4)
         left_layout.Add(content_layout, 1, wx.EXPAND)
         self.left_pane.SetSizer(left_layout)
 
-    def _on_file_info_page_size(self, event: wx.SizeEvent) -> None:
-        content_width = self.file_info_page.GetClientSize().width - 16
+    def _on_file_info_scroll_size(self, event: wx.SizeEvent) -> None:
+        self.file_info_scroll.FitInside()
+        content_width = self.file_info_scroll.GetClientSize().width - 16
         if content_width > 0:
-            for label in self._file_info_labels:
+            for label in (*self._file_info_section_labels, *self._file_info_labels):
                 label.Wrap(content_width)
-            self.file_info_page.Layout()
+            self.file_info_scroll.Layout()
+            self.file_info_scroll.FitInside()
         event.Skip()
+
+    def _on_file_info_scroll_key_down(self, event: wx.KeyEvent) -> None:
+        key_code = event.GetKeyCode()
+        current_y = self.file_info_scroll.GetViewStart()[1]
+        scroll_limit = max(
+            0,
+            self.file_info_scroll.GetScrollRange(wx.VERTICAL)
+            - self.file_info_scroll.GetScrollThumb(wx.VERTICAL),
+        )
+        page_step = max(1, self.file_info_scroll.GetScrollThumb(wx.VERTICAL) - 1)
+        if key_code == wx.WXK_UP:
+            next_y = max(0, current_y - 1)
+        elif key_code == wx.WXK_DOWN:
+            next_y = min(scroll_limit, current_y + 1)
+        elif key_code == wx.WXK_PAGEUP:
+            next_y = max(0, current_y - page_step)
+        elif key_code == wx.WXK_PAGEDOWN:
+            next_y = min(scroll_limit, current_y + page_step)
+        elif key_code == wx.WXK_HOME:
+            next_y = 0
+        elif key_code == wx.WXK_END:
+            next_y = scroll_limit
+        else:
+            event.Skip()
+            return
+        self.file_info_scroll.Scroll(0, next_y)
 
     def _make_graph_pane(
         self, parent: wx.Window, stack: str, title: str

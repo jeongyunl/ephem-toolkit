@@ -154,6 +154,9 @@ class FakePanel:
     def SetName(self, name: str) -> None:
         self.name = name
 
+    def SetCanFocus(self, can_focus: bool) -> None:
+        self.can_focus = can_focus
+
     def Hide(self) -> None:
         self.shown = False
 
@@ -191,15 +194,17 @@ class FakeGraphPanel(FakePanel):
 
 
 class FakeScrolledWindow(FakePanel):
-    def __init__(self, parent, widget_id: int, **_kwargs) -> None:
+    def __init__(self, parent, widget_id: int, **kwargs) -> None:
         super().__init__(parent, widget_id)
+        self.style = kwargs.get("style", 0)
         self.always_shown_scrollbars = None
         self.scroll_range = 0
         self.scroll_thumb = 1
         self.view_start = (0, 0)
+        self.scroll_rate = None
 
-    def SetScrollRate(self, _x_step: int, _y_step: int) -> None:
-        pass
+    def SetScrollRate(self, x_step: int, y_step: int) -> None:
+        self.scroll_rate = (x_step, y_step)
 
     def AlwaysShowScrollbars(self, horizontal: bool, vertical: bool) -> None:
         self.always_shown_scrollbars = (horizontal, vertical)
@@ -394,6 +399,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "SP_LIVE_UPDATE": 4,
         "SP_3DSASH": 1024,
         "VSCROLL": 5,
+        "TAB_TRAVERSAL": 4096,
         "EXPAND": 8,
         "ALL": 16,
         "ALIGN_CENTER_VERTICAL": 24,
@@ -414,6 +420,10 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "EVT_SCROLLWIN": "scroll-window",
         "WXK_UP": 315,
         "WXK_DOWN": 317,
+        "WXK_PAGEUP": 366,
+        "WXK_PAGEDOWN": 367,
+        "WXK_HOME": 313,
+        "WXK_END": 312,
     }.items():
         monkeypatch.setattr(wx, name, value)
 
@@ -438,10 +448,18 @@ def make_workspace(
             "object": "TEST",
             "frame": "GCRF",
             "center": "Earth",
-            "time_span": "start – stop",
+            "time_span": "2024-01-01T00:00:00 – 2024-01-02T00:00:00",
             "sample_count": "2",
         },
-        details=(("Object ID", "2024-001A"),),
+        details=(
+            ("Object ID", "2024-001A"),
+            ("Time system", "UTC"),
+            ("Frame epoch", ""),
+            ("Usable start", "2024-01-01T00:00:00"),
+            ("Usable stop", "2024-01-02T00:00:00"),
+            ("Interpolation", "Lagrange"),
+            ("Interpolation degree", "5"),
+        ),
         view_choices=view_choices,
         on_add_graph=on_add_graph,
     )
@@ -512,10 +530,35 @@ def test_graph_stack_scrollbars_are_forced_visible_only_when_content_overflows(
     result._update_stack_scrollbar_visibility("middle")
     assert stack.always_shown_scrollbars == (False, False)
 
-    info_labels = [item[0].label for item in result.file_info_page.sizer.items]
+    info_labels = [label.label for label in result._file_info_labels]
     assert "Object: TEST" in info_labels
     assert "Samples: 2" in info_labels
     assert "Object ID: 2024-001A" in info_labels
+    assert "Time system: UTC" in info_labels
+    assert "Frame epoch: Unavailable" in info_labels
+    assert "Usable start: 2024-01-01T\n00:00:00" in info_labels
+    assert "Usable stop: 2024-01-02T\n00:00:00" in info_labels
+    assert "Interpolation: Lagrange" in info_labels
+    assert "Interpolation degree: 5" in info_labels
+    time_span_label = next(
+        label for label in result._file_info_labels if label.name == "OEM Time span"
+    )
+    assert "T\n" in time_span_label.label
+    assert [label.label for label in result._file_info_section_labels] == [
+        "File context",
+        "OEM metadata",
+    ]
+    assert result.file_info_scroll.scroll_rate == (0, 10)
+    assert result.file_info_scroll.can_focus
+    assert result.file_info_scroll.style & workspace.wx.TAB_TRAVERSAL
+    assert result.file_info_scroll.name == "OEM information details"
+    assert all(label.name.startswith("OEM ") for label in result._file_info_labels)
+    assert (
+        result.file_info_scroll.sizer.items[0][0] is result._file_info_section_labels[0]
+    )
+    assert (
+        result.file_info_scroll.sizer.items[6][0] is result._file_info_section_labels[1]
+    )
 
     result._comparison_toggle.SetValue(True)
     result._comparison_toggle.trigger(workspace.wx.EVT_TOGGLEBUTTON)
@@ -534,13 +577,40 @@ def test_file_info_labels_wrap_to_the_available_pane_width(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
-    result.file_info_page.client_size = FakeSize(180, 400)
+    result.file_info_scroll.client_size = FakeSize(180, 400)
     event = FakeEvent()
 
-    result.file_info_page.bindings[workspace.wx.EVT_SIZE](event)
+    result.file_info_scroll.bindings[workspace.wx.EVT_SIZE](event)
 
     assert all(label.wrap_width == 164 for label in result._file_info_labels)
+    assert all(label.wrap_width == 164 for label in result._file_info_section_labels)
     assert event.skipped
+
+
+def test_file_info_page_supports_keyboard_scrolling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, _seeks, _frame = make_workspace(monkeypatch)
+    scroll = result.file_info_scroll
+    scroll.scroll_range = 20
+    scroll.scroll_thumb = 5
+
+    for key_code, expected_y in (
+        (workspace.wx.WXK_DOWN, 1),
+        (workspace.wx.WXK_PAGEDOWN, 5),
+        (workspace.wx.WXK_END, 15),
+        (workspace.wx.WXK_UP, 14),
+        (workspace.wx.WXK_PAGEUP, 10),
+        (workspace.wx.WXK_HOME, 0),
+    ):
+        event = FakeEvent(key_code=key_code)
+        scroll.bindings[workspace.wx.EVT_KEY_DOWN](event)
+        assert scroll.GetViewStart() == (0, expected_y)
+        assert not event.skipped
+
+    unhandled_event = FakeEvent(key_code=0)
+    scroll.bindings[workspace.wx.EVT_KEY_DOWN](unhandled_event)
+    assert unhandled_event.skipped
 
 
 def test_main_pane_sashes_resize_independently_and_restore_right_width(

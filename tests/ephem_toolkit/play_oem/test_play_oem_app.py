@@ -18,6 +18,7 @@ from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.play_oem_cli import build_arg_parser, parse_arguments
 from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_unit import TimeUnit
+from ephem_toolkit.play_oem.views.registry import VIEW_LABELS
 
 
 class FakeEvent:
@@ -1117,6 +1118,10 @@ def test_new_graph_panel_starts_empty_and_can_switch_between_empty_and_a_view(
     assert empty_panel.view_name == app.EMPTY_GRAPH_VIEW
     assert empty_panel.panel.selected_view == app.EMPTY_GRAPH_VIEW
     assert empty_panel.panel.view_choices[0] == (app.EMPTY_GRAPH_VIEW, "Empty")
+    assert empty_panel.panel.view_choices == (
+        (app.EMPTY_GRAPH_VIEW, app.EMPTY_GRAPH_LABEL),
+        *VIEW_LABELS,
+    )
     assert empty_panel.panel.native_content.label == "Select a graph view above"
 
     empty_panel.panel.on_view_selected("rtn")

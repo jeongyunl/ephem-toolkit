@@ -1,4 +1,4 @@
-# `play-oem` — Controls & Info Improvement Plan (Cycle 2)
+# `play-oem` — Controls & Info Improvement Cycle 2 Completion Report
 
 This plan defines the second post-migration GUI improvement cycle, focused on the **Controls &
 Info** pane: its feature navigation, Playback controls, OEM information, and current-state
@@ -6,8 +6,8 @@ readouts. It is informed by the four screenshots supplied for this cycle and by 
 implementation.
 
 The completed first cycle is recorded in
-[PLAY_OEM_GUI_IMPROVEMENT_CYCLE_1.md](./PLAY_OEM_GUI_IMPROVEMENT_CYCLE_1.md). Steps 6–8 remain
-active; evidence for completed Steps 1–4 is grouped at the end of this document.
+[PLAY_OEM_GUI_IMPROVEMENT_CYCLE_1.md](./PLAY_OEM_GUI_IMPROVEMENT_CYCLE_1.md). This report preserves
+the original step numbering, checklists, and evidence for all eight completed Cycle 2 steps.
 
 ## Objective and scope
 
@@ -27,12 +27,10 @@ Out of scope:
 - The shared timeline along the bottom of the workspace.
 - Changes to playback, seek, interpolation, or view-registry semantics.
 
-## How to use this plan
+## How to read this report
 
-Work one pending numbered step at a time in dependency order. Keep pending steps at the beginning
-of the document. When a step is complete, move its full entry to `Completed steps` at the end,
-preserving its original number, status, progress, checklist, completion criteria, dependency, and
-evidence. Update status and progress only after the checklist and completion criteria pass.
+Steps are listed under `Completed steps` in their original order, with completion status,
+checklists, criteria, dependencies, and supporting evidence retained.
 
 ## Initial observations
 
@@ -64,68 +62,10 @@ These screenshot observations were treated as hypotheses and assessed during com
 5. Do not repeat or undo completed Cycle 1 work: control reachability, wrapped labels, playback
    toggle behavior, graph-stack scrolling, timeline labels, or graph-panel scroll preservation.
 
-## Remaining planned steps
+## Cycle completion
 
-### 6. Improve OEM information scanability
-
-The OEM information page combines summary context with detailed fields, and long time values wrap
-in the narrow pane. Improve hierarchy without dropping metadata.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Separate primary context (object, frame, center, time span, and sample count) from secondary
-      metadata (object ID, time system, frame epoch, usable interval, and interpolation details).
-- [ ] Evaluate clear label/value styling and grouping for long values while preserving readable
-      wrapping at minimum width.
-- [ ] Keep unavailable values explicit and distinguish an unavailable field from an empty or
-      omitted field.
-- [ ] Decide, based on Step 1 and user review, whether secondary metadata should remain visible or
-      use a labeled disclosure; do not hide primary context.
-- [ ] Test representative long values, missing metadata, keyboard navigation, and accessibility
-      names.
-
-**Done when:** primary context is quickly scannable, all supplied metadata remains available, and
-long or unavailable values are clear at default and minimum widths.
-**Depends on:** Step 1.
-
-### 7. Improve current-state readout scanability
-
-The State page shows position, velocity, derived values, and cursor status in long text labels.
-Present these as a coherent readout without changing state computation.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Evaluate a structured position and velocity presentation with explicit component names and
-      units.
-- [ ] Group derived values (speed and altitude) separately from vector components.
-- [ ] Preserve the distinction among sampled, interpolated, out-of-range, unavailable, and data-gap
-      states; make the status visible alongside the values it qualifies.
-- [ ] Verify precision and wrapping for representative values, including unavailable components
-      and high-magnitude values.
-- [ ] Ensure state updates do not cause unnecessary layout jumps or move keyboard focus.
-
-**Done when:** users can identify each component, unit, derived value, and cursor-data status
-without parsing an ambiguous comma-separated string, and all states remain explicit.
-**Depends on:** Step 1.
-
-### 8. Validate the Controls & Info cycle
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Run the focused ControlWindow, workspace navigation, and app tests; add regressions for each
-      changed interaction.
-- [ ] Verify the Playback, OEM information, and State pages at default and minimum frame sizes
-      using native wx.
-- [ ] Exercise all page and control interactions with keyboard-only navigation, including focus
-      scrolling, seek errors, and playback accelerators.
-- [ ] Confirm all graph types remain available through graph-pane selectors, along with the
-      metadata set and cursor-status cases.
-- [ ] Update this plan with measured outcomes and move completed steps into a cycle completion
-      report when the cycle is finished.
-
-**Done when:** focused tests pass, native wx checks show no clipped or unreachable Controls & Info
-content, all existing behavior is preserved, and the completion evidence is recorded.
-**Depends on:** Steps 2–7.
+All eight planned steps are complete. The original plan entry point links to this completion
+report.
 
 ## Completed steps
 
@@ -290,3 +230,101 @@ behavior. Native wx confirmed the slider label wraps to two lines at both frame 
 signed programmatic changes (`-10x` to `-100x` to `+100x`) while keeping the slider and preset at
 100x selected. Changing the rate while scrolled to the slider also preserved the Playback scroll
 position.
+
+### 6. Improve OEM information scanability
+
+The OEM information page combines summary context with detailed fields, and long time values wrap
+in the narrow pane. Improve hierarchy without dropping metadata.
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Separate primary context (object, frame, center, time span, and sample count) from secondary
+      metadata (object ID, time system, frame epoch, usable interval, and interpolation details).
+- [x] Evaluate clear label/value styling and grouping for long values while preserving readable
+      wrapping at minimum width.
+- [x] Keep unavailable values explicit and distinguish an unavailable field from an empty or
+      omitted field.
+- [x] Decide, based on Step 1 and user review, whether secondary metadata should remain visible or
+      use a labeled disclosure; do not hide primary context.
+- [x] Test representative long values, missing metadata, keyboard navigation, and accessibility
+      names.
+
+**Done when:** primary context is quickly scannable, all supplied metadata remains available, and
+long or unavailable values are clear at default and minimum widths.
+**Depends on:** Step 1.
+
+**Decision and outcome:** all metadata remains on the page rather than being hidden behind a
+disclosure. The page now separates “File context” from “OEM metadata,” keeps unavailable values
+explicit, and uses a vertical scroller so details remain reachable at minimum size. ISO date-time
+values break after the `T` marker to avoid horizontal clipping in the narrow pane. Up/Down,
+Page Up/Down, Home, and End scroll the information page when it has keyboard focus; field and
+section controls have accessible names. Workspace tests cover section ordering, missing values,
+timestamp formatting, accessible names, and keyboard scroll bounds. Native wx checks at 1100×760
+and 920×480 confirmed all fields fit without scrolling at the default size, every field is
+reachable by vertical scrolling at minimum size, the primary context begins in view, and the
+scrolled content has no horizontal overflow.
+
+### 7. Improve current-state readout scanability
+
+The State page shows position, velocity, derived values, and cursor status in long text labels.
+Present these as a coherent readout without changing state computation.
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Evaluate a structured position and velocity presentation with explicit component names and
+      units.
+- [x] Group derived values (speed and altitude) separately from vector components.
+- [x] Preserve the distinction among sampled, interpolated, out-of-range, unavailable, and data-gap
+      states; make the status visible alongside the values it qualifies.
+- [x] Verify precision and wrapping for representative values, including unavailable components
+      and high-magnitude values.
+- [x] Ensure state updates do not cause unnecessary layout jumps or move keyboard focus.
+
+**Done when:** users can identify each component, unit, derived value, and cursor-data status
+without parsing an ambiguous comma-separated string, and all states remain explicit.
+**Depends on:** Step 1.
+
+**Outcome:** position is shown as X/Y/Z in kilometers, velocity as Vx/Vy/Vz in kilometers per
+second, derived speed and altitude are grouped separately, and cursor status remains explicit for
+sampled, interpolated, out-of-range, unavailable, and data-gap states. Component availability is
+handled independently. Native wx checks at the default and minimum frame sizes showed all State
+readouts in view. High-magnitude updates retained the readout positions and keyboard focus, with
+no horizontal overflow; tests verify 3-decimal position, 6-decimal velocity, missing components,
+and derived values.
+
+### 8. Validate the Controls & Info cycle
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Run the focused ControlWindow, workspace navigation, and app tests; add regressions for each
+      changed interaction.
+- [x] Verify the Playback, OEM information, and State pages at default and minimum frame sizes
+      using native wx.
+- [x] Exercise all page and control interactions with keyboard-only navigation, including focus
+      scrolling, seek errors, and playback accelerators.
+- [x] Confirm all graph types remain available through graph-pane selectors, along with the
+      metadata set and cursor-status cases.
+- [x] Update this plan with measured outcomes and move completed steps into a cycle completion
+      report when the cycle is finished.
+
+**Done when:** focused tests pass, native wx checks show no clipped or unreachable Controls & Info
+content, all existing behavior is preserved, and the completion evidence is recorded.
+**Depends on:** Steps 2–7.
+
+**Outcome:** the focused workspace, app, and ControlWindow suites pass **65 tests**. They cover
+feature-rail keyboard navigation, control focus scrolling, invalid seek feedback, playback
+accelerators, all seven registered graph choices plus Empty, all OEM metadata fields, and all five
+cursor-status cases.
+
+Native wx measurements on macOS at 1100 x 760 and 920 x 480 confirmed:
+
+- Playback viewports of 169 x 619 and 169 x 339 px respectively. The long UTC value wraps at the
+  date/time separator; every child control stays within the horizontal viewport, while the
+  vertically scrollable content remains reachable.
+- OEM information viewports of 184 x 619 and 169 x 339 px. At minimum size, all metadata remains
+  reachable in the 169 x 592 px virtual content, without horizontal overflow.
+- State readouts remain fully visible in the 184 x 619 px default and 184 x 339 px minimum page
+  viewports. Representative high-magnitude updates preserve label positions and focus.
+
+Black formatting, Python syntax parsing, and `git diff --check` passed. The test run emitted only
+existing Matplotlib/PyParsing deprecation warnings.

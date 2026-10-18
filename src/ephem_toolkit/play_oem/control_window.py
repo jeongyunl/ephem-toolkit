@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 import math
 
 import wx
@@ -85,28 +85,49 @@ class ControlWindow:
         self.panel.SetScrollRate(0, 10)
         layout = wx.BoxSizer(wx.VERTICAL)
 
-        self.state_panel = wx.Panel(
-            state_parent if state_parent is not None else parent, wx.ID_ANY
+        self.state_panel = wx.ScrolledWindow(
+            state_parent if state_parent is not None else parent,
+            wx.ID_ANY,
+            style=wx.VSCROLL | wx.TAB_TRAVERSAL,
         )
+        self.state_panel.SetName("Current state readout")
+        self.state_panel.SetScrollRate(0, 10)
         state_layout = wx.BoxSizer(wx.VERTICAL)
-        self.position_label = wx.StaticText(self.state_panel, wx.ID_ANY, "Position: —")
-        self.velocity_label = wx.StaticText(self.state_panel, wx.ID_ANY, "Velocity: —")
+        self.position_label = wx.StaticText(
+            self.state_panel,
+            wx.ID_ANY,
+            "Position (km)\nX: unavailable\nY: unavailable\nZ: unavailable",
+        )
+        self.position_label.SetName("Position components (kilometers)")
+        self.velocity_label = wx.StaticText(
+            self.state_panel,
+            wx.ID_ANY,
+            "Velocity (km/s)\nVx: unavailable\nVy: unavailable\nVz: unavailable",
+        )
+        self.velocity_label.SetName("Velocity components (kilometers per second)")
         self.speed_altitude_label = wx.StaticText(
-            self.state_panel, wx.ID_ANY, "Speed: — | Altitude: —"
+            self.state_panel,
+            wx.ID_ANY,
+            "Derived values\nSpeed: unavailable km/s\nAltitude: unavailable km",
         )
+        self.speed_altitude_label.SetName("Derived speed and altitude")
         self.cursor_status_label = wx.StaticText(
-            self.state_panel, wx.ID_ANY, "State: unavailable"
+            self.state_panel, wx.ID_ANY, "Cursor status: unavailable"
         )
-        for label in (
+        self.cursor_status_label.SetName("Cursor data status")
+        self._state_readout_labels = (
             self.position_label,
             self.velocity_label,
             self.speed_altitude_label,
             self.cursor_status_label,
-        ):
+        )
+        for label in self._state_readout_labels:
             state_layout.Add(
                 label, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, LAYOUT_MARGIN
             )
         self.state_panel.SetSizer(state_layout)
+        self.state_panel.Bind(wx.EVT_SIZE, self._on_state_panel_size)
+        self._fit_state_content()
 
         self.elapsed_label = wx.StaticText(self.panel, wx.ID_ANY, "")
         self.utc_label = wx.StaticText(self.panel, wx.ID_ANY, "")
@@ -284,8 +305,10 @@ class ControlWindow:
         event.Skip()
 
     def _fit_playback_content(self) -> None:
-        self._wrap_text_labels()
-        self.panel.Layout()
+        for _ in range(2):
+            self.panel.FitInside()
+            self._wrap_text_labels()
+            self.panel.Layout()
         self.panel.FitInside()
 
     def _wrap_text_labels(self) -> None:
@@ -366,26 +389,32 @@ class ControlWindow:
         """
         elapsed_text, separator, utc_text = text.partition("\n")
         self.elapsed_label.SetLabel(elapsed_text)
+        timestamp_separator = utc_text.rfind("T")
+        if timestamp_separator > utc_text.find(":"):
+            utc_text = (
+                f"{utc_text[:timestamp_separator + 1]}\n"
+                f"{utc_text[timestamp_separator + 1:]}"
+            )
         self.utc_label.SetLabel(utc_text if separator else "")
         self._wrap_text_labels()
 
     def update_current_state(self, state: CursorState) -> None:
         """Display the state at the current playback time, including unavailable data."""
-        if state.r_km is None or state.v_kms is None:
-            self.position_label.SetLabel("Position: unavailable (km)")
-            self.velocity_label.SetLabel("Velocity: unavailable (km/s)")
-        else:
-            self.position_label.SetLabel(
-                "Position (km): " + ", ".join(f"{value:.3f}" for value in state.r_km)
+        self.position_label.SetLabel(
+            self._format_components("Position (km)", ("X", "Y", "Z"), state.r_km, 3)
+        )
+        self.velocity_label.SetLabel(
+            self._format_components(
+                "Velocity (km/s)", ("Vx", "Vy", "Vz"), state.v_kms, 6
             )
-            self.velocity_label.SetLabel(
-                "Velocity (km/s): " + ", ".join(f"{value:.6f}" for value in state.v_kms)
-            )
+        )
         speed = "unavailable" if state.speed is None else f"{state.speed:.6f} km/s"
         altitude = (
             "unavailable" if state.altitude is None else f"{state.altitude:.3f} km"
         )
-        self.speed_altitude_label.SetLabel(f"Speed: {speed} | Altitude: {altitude}")
+        self.speed_altitude_label.SetLabel(
+            f"Derived values\nSpeed:\n{speed}\nAltitude:\n{altitude}"
+        )
         status = {
             CursorStatus.EXACT_SAMPLE: "sampled",
             CursorStatus.INTERPOLATED: "interpolated",
@@ -393,7 +422,40 @@ class ControlWindow:
             CursorStatus.UNAVAILABLE: "unavailable",
             CursorStatus.GAP: "data gap; no state available",
         }[state.status]
-        self.cursor_status_label.SetLabel(f"State: {status}")
+        self.cursor_status_label.SetLabel(f"Cursor status: {status}")
+        self._fit_state_content()
+
+    @staticmethod
+    def _format_components(
+        title: str,
+        component_names: tuple[str, str, str],
+        values: Iterable[float] | None,
+        precision: int,
+    ) -> str:
+        if values is None:
+            component_values = ("unavailable",) * len(component_names)
+        else:
+            component_values = tuple(f"{value:.{precision}f}" for value in values)
+        rows = "\n".join(
+            f"{component}: {value}"
+            for component, value in zip(component_names, component_values)
+        )
+        return f"{title}\n{rows}"
+
+    def _on_state_panel_size(self, event: wx.SizeEvent) -> None:
+        self._fit_state_content()
+        event.Skip()
+
+    def _fit_state_content(self) -> None:
+        for _ in range(2):
+            self.state_panel.FitInside()
+            content_width = self.state_panel.GetClientSize().width - 2 * LAYOUT_MARGIN
+            if content_width <= 0:
+                return
+            for label in self._state_readout_labels:
+                label.Wrap(content_width)
+            self.state_panel.Layout()
+        self.state_panel.FitInside()
 
     def show_time_error(self, message: str) -> None:
         """Display a time-entry validation error.
