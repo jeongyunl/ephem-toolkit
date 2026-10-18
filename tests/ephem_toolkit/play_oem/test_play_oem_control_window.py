@@ -28,6 +28,9 @@ class FakeWidget:
         self.name = ""
         self.hint = ""
         self.bindings: dict[object, object] = {}
+        self.wrap_width = None
+        self.position = FakeSize(0, 0)
+        self.size = FakeSize(84, 24)
 
     def Bind(self, event_type, callback) -> None:
         self.bindings[event_type] = callback
@@ -46,6 +49,21 @@ class FakeWidget:
 
     def SetForegroundColour(self, _colour) -> None:
         pass
+
+    def Wrap(self, width: int) -> None:
+        self.wrap_width = width
+
+    def GetPosition(self):
+        if isinstance(self.parent, FakeScrolledWindow):
+            return FakeSize(
+                self.position.x,
+                self.position.y
+                - self.parent.view_start.y * self.parent.scroll_pixels_per_unit.y,
+            )
+        return self.position
+
+    def GetSize(self):
+        return self.size
 
     def trigger(self, event_type, event=None) -> None:
         self.bindings[event_type](FakeEvent() if event is None else event)
@@ -95,7 +113,8 @@ class FakeSlider(FakeWidget):
 
 
 class FakeSizer:
-    def __init__(self, _orientation: int) -> None:
+    def __init__(self, orientation: int) -> None:
+        self.orientation = orientation
         self.items = []
 
     def Add(self, item, proportion: int, flags: int = 0, border: int = 0) -> None:
@@ -109,6 +128,51 @@ class FakePanel:
 
     def SetSizer(self, sizer) -> None:
         self.sizer = sizer
+
+
+class FakeScrolledWindow(FakePanel):
+    def __init__(self, parent, _id: int, **_kwargs) -> None:
+        super().__init__(parent, _id)
+        self.bindings: dict[object, object] = {}
+        self.scroll_rate = None
+        self.fit_inside_count = 0
+        self.layout_count = 0
+        self.scroll_pixels_per_unit = FakeSize(0, 10)
+        self.view_start = FakeSize(0, 0)
+        self.scroll_position = None
+
+    def GetClientSize(self):
+        return FakeSize(190, 400)
+
+    def GetViewStart(self):
+        return self.view_start.x, self.view_start.y
+
+    def GetScrollPixelsPerUnit(self):
+        return self.scroll_pixels_per_unit.x, self.scroll_pixels_per_unit.y
+
+    def Scroll(self, x: int, y: int) -> None:
+        self.scroll_position = (x, y)
+        self.view_start = FakeSize(x, y)
+
+    def Bind(self, event_type, callback) -> None:
+        self.bindings[event_type] = callback
+
+    def SetScrollRate(self, x_step: int, y_step: int) -> None:
+        self.scroll_rate = (x_step, y_step)
+
+    def FitInside(self) -> None:
+        self.fit_inside_count += 1
+
+    def Layout(self) -> None:
+        self.layout_count += 1
+
+
+class FakeSize:
+    def __init__(self, width: int, height: int) -> None:
+        self.width = width
+        self.height = height
+        self.x = width
+        self.y = height
 
 
 class FakeCollapsiblePane(FakeWidget):
@@ -148,6 +212,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
     wx = control_window.wx
     for name, value in {
         "Panel": FakePanel,
+        "ScrolledWindow": FakeScrolledWindow,
         "CollapsiblePane": FakeCollapsiblePane,
         "BoxSizer": FakeSizer,
         "StaticText": FakeWidget,
@@ -162,6 +227,8 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "ID_ANY": -1,
         "VERTICAL": 1,
         "HORIZONTAL": 2,
+        "VSCROLL": 2048,
+        "TAB_TRAVERSAL": 4096,
         "EXPAND": 4,
         "LEFT": 8,
         "RIGHT": 16,
@@ -172,6 +239,8 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "SL_HORIZONTAL": 512,
         "TE_PROCESS_ENTER": 1024,
         "EVT_BUTTON": "button",
+        "EVT_TOGGLEBUTTON": "toggle-button",
+        "EVT_SIZE": "size",
         "EVT_SLIDER": "slider",
         "EVT_TEXT_ENTER": "text-enter",
         "EVT_SET_FOCUS": "set-focus",
@@ -232,8 +301,8 @@ def test_native_controls_dispatch_playback_navigation_and_view_actions(
     window, _owner, calls = make_window(monkeypatch)
 
     window.play_pause_button.trigger(control_window.wx.EVT_BUTTON)
-    window.direction_button.trigger(control_window.wx.EVT_BUTTON)
-    window.speed_preset_buttons[10.0].trigger(control_window.wx.EVT_BUTTON)
+    window.direction_button.trigger(control_window.wx.EVT_TOGGLEBUTTON)
+    window.speed_preset_buttons[10.0].trigger(control_window.wx.EVT_TOGGLEBUTTON)
     for button in window.navigation_buttons:
         button.trigger(control_window.wx.EVT_BUTTON)
     window.group_buttons["overview"].trigger(control_window.wx.EVT_BUTTON)
@@ -251,6 +320,49 @@ def test_native_controls_dispatch_playback_navigation_and_view_actions(
     assert not window.group_buttons["state"].enabled
     assert not window.group_buttons["motion"].enabled
     assert window.group_buttons["overview"].enabled
+
+
+def test_playback_controls_remain_reachable_in_scrollable_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    window, _owner, _calls = make_window(monkeypatch)
+
+    assert window.panel.scroll_rate == (0, 10)
+    playback_row = window.panel.sizer.items[2][0]
+    assert playback_row.orientation == control_window.wx.VERTICAL
+    assert window.time_entry.parent is window.panel
+    assert window.seek_button.parent is window.panel
+    assert window.panel.sizer.items[4][0].orientation == control_window.wx.VERTICAL
+    assert window.navigation_buttons[1].parent is window.panel
+    assert window.speed_preset_buttons[100.0].parent is window.panel
+    assert window.panel.fit_inside_count == 1
+
+    window.panel.bindings[control_window.wx.EVT_SIZE](FakeEvent())
+
+    assert window.panel.layout_count == 1
+    assert window.panel.fit_inside_count == 2
+
+
+@pytest.mark.parametrize(
+    "control_name", ("time_entry", "seek_button", "last_navigation_button")
+)
+def test_keyboard_focus_scrolls_offscreen_playback_controls_into_view(
+    monkeypatch: pytest.MonkeyPatch,
+    control_name: str,
+) -> None:
+    window, _owner, _calls = make_window(monkeypatch)
+    control = {
+        "time_entry": window.time_entry,
+        "seek_button": window.seek_button,
+        "last_navigation_button": window.navigation_buttons[-1],
+    }[control_name]
+    control.position = FakeSize(0, 540)
+
+    control.trigger(control_window.wx.EVT_SET_FOCUS)
+
+    assert window.panel.scroll_position == (0, 17)
+    control.trigger(control_window.wx.EVT_SET_FOCUS)
+    assert window.panel.scroll_position == (0, 17)
 
 
 def test_dashboard_formats_state_and_missing_values(
@@ -343,6 +455,9 @@ def test_playback_state_updates_readouts_and_speed_without_seeking(
     assert window.play_pause_button.label == "Pause"
     assert window.speed_label.label == "Speed: -10x"
     assert window.direction_button.label == "Forward"
+    assert window.utc_label.wrap_width == 166
+    assert window.speed_scale_label.wrap_width == 166
+    assert window.seek_label.wrap_width == 166
     assert not calls["speed"]
 
 

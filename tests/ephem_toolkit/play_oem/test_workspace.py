@@ -33,6 +33,7 @@ class FakeWidget:
         self.name = ""
         self.tooltip = ""
         self.bindings: dict[object, object] = {}
+        self.wrap_width = None
         self.__class__.instances.append(self)
 
     def Bind(self, event_type, callback) -> None:
@@ -55,6 +56,9 @@ class FakeWidget:
 
     def SetToolTip(self, tooltip: str) -> None:
         self.tooltip = tooltip
+
+    def Wrap(self, width: int) -> None:
+        self.wrap_width = width
 
     def SetMinSize(self, size) -> None:
         self.minimum_size = size
@@ -130,11 +134,22 @@ class FakePanel:
         self.parent = parent
         self.sizer = None
         self.minimum_size = FakeSize(320, 280)
+        self.client_size = FakeSize(180, 400)
         self.name = ""
         self.shown = True
+        self.bindings = {}
 
     def SetSizer(self, sizer) -> None:
         self.sizer = sizer
+
+    def Bind(self, event_type, callback) -> None:
+        self.bindings[event_type] = callback
+
+    def GetClientSize(self) -> FakeSize:
+        return self.client_size
+
+    def Layout(self) -> None:
+        pass
 
     def SetName(self, name: str) -> None:
         self.name = name
@@ -367,6 +382,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "EVT_BUTTON": "button",
         "EVT_TOGGLEBUTTON": "toggle-button",
         "EVT_CHOICE": "choice",
+        "EVT_SIZE": "size",
         "EVT_KEY_DOWN": "key-down",
         "EVT_SLIDER": "slider",
         "EVT_SCROLLWIN": "scroll-window",
@@ -460,6 +476,19 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     result.show_right_pane(False)
     assert not result.graph_splitter.is_split
     assert result.graph_splitter.split_calls[-1][1] is result.right_pane
+
+
+def test_file_info_labels_wrap_to_the_available_pane_width(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, _seeks, _frame = make_workspace(monkeypatch)
+    result.file_info_page.client_size = FakeSize(180, 400)
+    event = FakeEvent()
+
+    result.file_info_page.bindings[workspace.wx.EVT_SIZE](event)
+
+    assert all(label.wrap_width == 164 for label in result._file_info_labels)
+    assert event.skipped
 
 
 def test_main_pane_sashes_resize_independently_and_restore_right_width(

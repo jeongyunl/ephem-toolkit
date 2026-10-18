@@ -89,7 +89,10 @@ class ControlWindow:
         self._on_seek_to_time = on_seek_to_time
         self._syncing_sliders = False
 
-        self.panel = wx.Panel(parent, wx.ID_ANY)
+        self.panel = wx.ScrolledWindow(
+            parent, wx.ID_ANY, style=wx.VSCROLL | wx.TAB_TRAVERSAL
+        )
+        self.panel.SetScrollRate(0, 10)
         layout = wx.BoxSizer(wx.VERTICAL)
 
         self.state_panel = wx.Panel(
@@ -125,46 +128,49 @@ class ControlWindow:
                 LAYOUT_MARGIN,
             )
 
-        playback_row = wx.BoxSizer(wx.HORIZONTAL)
+        playback_row = wx.BoxSizer(wx.VERTICAL)
         self.play_pause_button = wx.Button(self.panel, wx.ID_ANY, "Play")
         self.play_pause_button.Bind(wx.EVT_BUTTON, lambda _event: on_toggle_play())
-        playback_row.Add(self.play_pause_button, 0, wx.RIGHT, CONTROL_SPACING)
+        playback_row.Add(
+            self.play_pause_button, 0, wx.EXPAND | wx.BOTTOM, CONTROL_SPACING
+        )
 
         self.direction_button = wx.ToggleButton(self.panel, wx.ID_ANY, "Reverse")
-        self.direction_button.Bind(wx.EVT_BUTTON, lambda _event: on_reverse())
-        playback_row.Add(self.direction_button, 0, wx.RIGHT, CONTROL_SPACING)
+        self.direction_button.Bind(wx.EVT_TOGGLEBUTTON, lambda _event: on_reverse())
+        playback_row.Add(
+            self.direction_button, 0, wx.EXPAND | wx.BOTTOM, CONTROL_SPACING
+        )
         self.speed_label = wx.StaticText(self.panel, wx.ID_ANY, "Speed: +1x")
         playback_row.Add(
             self.speed_label,
             0,
-            wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
-            CONTROL_SPACING,
+            wx.EXPAND | wx.BOTTOM,
+            BUTTON_SPACING,
         )
 
         self.speed_preset_buttons: dict[float, wx.ToggleButton] = {}
         for preset_speed in SPEED_PRESETS:
             button = wx.ToggleButton(self.panel, wx.ID_ANY, f"{preset_speed:g}x")
             button.Bind(
-                wx.EVT_BUTTON,
+                wx.EVT_TOGGLEBUTTON,
                 lambda _event, selected_speed=preset_speed: on_set_speed(
                     selected_speed
                 ),
             )
-            playback_row.Add(button, 0, wx.RIGHT, BUTTON_SPACING)
+            playback_row.Add(button, 0, wx.EXPAND | wx.BOTTOM, BUTTON_SPACING)
             self.speed_preset_buttons[preset_speed] = button
         layout.Add(playback_row, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
 
-        entry_row = wx.BoxSizer(wx.HORIZONTAL)
-        entry_row.Add(
-            wx.StaticText(
-                self.panel,
-                wx.ID_ANY,
-                "Seek to elapsed time or UTC:",
-            ),
-            0,
-            wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
-            CONTROL_SPACING,
+        self.seek_label = wx.StaticText(
+            self.panel, wx.ID_ANY, "Seek to elapsed time or UTC:"
         )
+        layout.Add(
+            self.seek_label,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
+            LAYOUT_MARGIN,
+        )
+        entry_row = wx.BoxSizer(wx.VERTICAL)
         self.time_entry = wx.TextCtrl(
             self.panel,
             wx.ID_ANY,
@@ -176,10 +182,10 @@ class ControlWindow:
         self.time_entry.Bind(wx.EVT_TEXT_ENTER, self._submit_time_entry)
         self.time_entry.Bind(wx.EVT_SET_FOCUS, self._disable_accelerators)
         self.time_entry.Bind(wx.EVT_KILL_FOCUS, self._enable_accelerators)
-        entry_row.Add(self.time_entry, 1, wx.EXPAND | wx.RIGHT, CONTROL_SPACING)
+        entry_row.Add(self.time_entry, 0, wx.EXPAND | wx.BOTTOM, BUTTON_SPACING)
         self.seek_button = wx.Button(self.panel, wx.ID_ANY, "Seek")
         self.seek_button.Bind(wx.EVT_BUTTON, self._submit_time_entry)
-        entry_row.Add(self.seek_button, 0)
+        entry_row.Add(self.seek_button, 0, wx.EXPAND)
         layout.Add(
             entry_row,
             0,
@@ -196,7 +202,7 @@ class ControlWindow:
             LAYOUT_MARGIN,
         )
 
-        navigation_row = wx.BoxSizer(wx.HORIZONTAL)
+        navigation_row = wx.BoxSizer(wx.VERTICAL)
         navigation_actions: tuple[tuple[str, Callable[[], None]], ...] = (
             ("Start", on_jump_to_start),
             ("Previous sample", lambda: on_step_samples(-1)),
@@ -209,16 +215,17 @@ class ControlWindow:
         for label, callback in navigation_actions:
             button = wx.Button(self.panel, wx.ID_ANY, label)
             button.Bind(wx.EVT_BUTTON, lambda _event, action=callback: action())
-            navigation_row.Add(button, 0, wx.RIGHT, BUTTON_SPACING)
+            navigation_row.Add(button, 0, wx.EXPAND | wx.BOTTOM, BUTTON_SPACING)
             self.navigation_buttons.append(button)
         layout.Add(navigation_row, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
 
+        self.speed_scale_label = wx.StaticText(
+            self.panel,
+            wx.ID_ANY,
+            f"Playback speed (log scale, {SPEED_MIN:g}x to {SPEED_MAX:g}x)",
+        )
         layout.Add(
-            wx.StaticText(
-                self.panel,
-                wx.ID_ANY,
-                f"Playback speed (log scale, {SPEED_MIN:g}x to {SPEED_MAX:g}x)",
-            ),
+            self.speed_scale_label,
             0,
             wx.LEFT | wx.RIGHT | wx.TOP,
             LAYOUT_MARGIN,
@@ -240,7 +247,7 @@ class ControlWindow:
             LAYOUT_MARGIN,
         )
 
-        group_row = wx.BoxSizer(wx.HORIZONTAL)
+        group_row = wx.BoxSizer(wx.VERTICAL)
         self.group_buttons: dict[str, wx.Button] = {}
         for name, label in registry.GROUP_LABELS:
             button = wx.Button(self.panel, wx.ID_ANY, label)
@@ -249,11 +256,11 @@ class ControlWindow:
                 wx.EVT_BUTTON,
                 lambda _event, group=name: on_open_group(group),
             )
-            group_row.Add(button, 0, wx.RIGHT, BUTTON_SPACING)
+            group_row.Add(button, 0, wx.EXPAND | wx.BOTTOM, BUTTON_SPACING)
             self.group_buttons[name] = button
         layout.Add(group_row, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
 
-        view_row = wx.BoxSizer(wx.HORIZONTAL)
+        view_row = wx.BoxSizer(wx.VERTICAL)
         self.view_buttons: dict[str, wx.Button] = {}
         for name in view_registry.registered_views:
             button = wx.Button(self.panel, wx.ID_ANY, view_registry.label_for(name))
@@ -261,7 +268,7 @@ class ControlWindow:
                 wx.EVT_BUTTON,
                 lambda _event, view=name: on_open_view(view),
             )
-            view_row.Add(button, 0, wx.RIGHT, BUTTON_SPACING)
+            view_row.Add(button, 0, wx.EXPAND | wx.BOTTOM, BUTTON_SPACING)
             self.view_buttons[name] = button
         layout.Add(
             view_row,
@@ -270,7 +277,27 @@ class ControlWindow:
             LAYOUT_MARGIN,
         )
 
+        focusable_controls = (
+            self.play_pause_button,
+            self.direction_button,
+            *self.speed_preset_buttons.values(),
+            self.seek_button,
+            *self.navigation_buttons,
+            self.speed_slider,
+            *self.group_buttons.values(),
+            *self.view_buttons.values(),
+        )
+        for control in focusable_controls:
+            control.Bind(
+                wx.EVT_SET_FOCUS,
+                lambda event, focused=control: self._scroll_control_into_view(
+                    focused, event
+                ),
+            )
+
         self.panel.SetSizer(layout)
+        self.panel.FitInside()
+        self.panel.Bind(wx.EVT_SIZE, self._on_panel_size)
         self._bind_accelerators(
             self._accelerator_parent,
             on_toggle_play,
@@ -280,6 +307,44 @@ class ControlWindow:
             on_jump_to_start,
             on_jump_to_end,
         )
+
+    def _on_panel_size(self, event: wx.SizeEvent) -> None:
+        """Recalculate wrapped controls and the scrollable content after resizing."""
+        self._wrap_text_labels()
+        self.panel.Layout()
+        self.panel.FitInside()
+        event.Skip()
+
+    def _wrap_text_labels(self) -> None:
+        content_width = self.panel.GetClientSize().width - 2 * LAYOUT_MARGIN
+        if content_width <= 0:
+            return
+        for label in (
+            self.elapsed_label,
+            self.utc_label,
+            self.seek_label,
+            self.speed_scale_label,
+        ):
+            label.Wrap(content_width)
+
+    def _scroll_control_into_view(
+        self, control: wx.Window, event: wx.FocusEvent
+    ) -> None:
+        _, view_start_y = self.panel.GetViewStart()
+        _, scroll_unit_y = self.panel.GetScrollPixelsPerUnit()
+        if scroll_unit_y > 0:
+            viewport_height = self.panel.GetClientSize().height
+            control_top = control.GetPosition().y
+            control_bottom = control_top + control.GetSize().height
+            if control_top < 0:
+                scroll_top = view_start_y * scroll_unit_y + control_top
+                self.panel.Scroll(0, max(0, scroll_top // scroll_unit_y))
+            elif control_bottom > viewport_height:
+                scroll_top = control_bottom - viewport_height
+                self.panel.Scroll(
+                    0, view_start_y + (scroll_top + scroll_unit_y - 1) // scroll_unit_y
+                )
+        event.Skip()
 
     def update_playback_state(self, text: str, playing: bool, rate: float) -> None:
         """Update dashboard controls from the current playback state.
@@ -321,6 +386,7 @@ class ControlWindow:
         elapsed_text, separator, utc_text = text.partition("\n")
         self.elapsed_label.SetLabel(elapsed_text)
         self.utc_label.SetLabel(utc_text if separator else "")
+        self._wrap_text_labels()
 
     def update_current_state(self, state: CursorState) -> None:
         """Display the state at the current playback time, including unavailable data."""
@@ -412,8 +478,8 @@ class ControlWindow:
         parent.SetAcceleratorTable(self._accelerator_table)
 
     def _disable_accelerators(self, event: wx.FocusEvent) -> None:
+        self._scroll_control_into_view(self.time_entry, event)
         self._accelerator_parent.SetAcceleratorTable(self._empty_accelerator_table)
-        event.Skip()
 
     def _enable_accelerators(self, event: wx.FocusEvent) -> None:
         self._accelerator_parent.SetAcceleratorTable(self._accelerator_table)

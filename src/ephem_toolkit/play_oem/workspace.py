@@ -458,6 +458,7 @@ class Workspace:
         self.file_info_page = self.feature_pages[1]
         self.state_page = self.feature_pages[2]
         info_layout = wx.BoxSizer(wx.VERTICAL)
+        self._file_info_labels: list[wx.StaticText] = []
         for label, key in (
             ("Object", "object"),
             ("Frame", "frame"),
@@ -465,33 +466,46 @@ class Workspace:
             ("Time span", "time_span"),
             ("Samples", "sample_count"),
         ):
+            info_label = wx.StaticText(
+                self.file_info_page,
+                wx.ID_ANY,
+                f"{label}: {context.get(key) or 'Unavailable'}",
+            )
+            self._file_info_labels.append(info_label)
             info_layout.Add(
-                wx.StaticText(
-                    self.file_info_page,
-                    wx.ID_ANY,
-                    f"{label}: {context.get(key) or 'Unavailable'}",
-                ),
+                info_label,
                 0,
                 wx.EXPAND | wx.ALL,
                 8,
             )
         for label, value in details:
+            info_label = wx.StaticText(
+                self.file_info_page,
+                wx.ID_ANY,
+                f"{label}: {value or 'Unavailable'}",
+            )
+            self._file_info_labels.append(info_label)
             info_layout.Add(
-                wx.StaticText(
-                    self.file_info_page,
-                    wx.ID_ANY,
-                    f"{label}: {value or 'Unavailable'}",
-                ),
+                info_label,
                 0,
                 wx.EXPAND | wx.ALL,
                 8,
             )
         self.file_info_page.SetSizer(info_layout)
+        self.file_info_page.Bind(wx.EVT_SIZE, self._on_file_info_page_size)
 
         content_layout.Add(rail, 0, wx.EXPAND | wx.ALL, 4)
         content_layout.Add(self.feature_book, 1, wx.EXPAND | wx.ALL, 4)
         left_layout.Add(content_layout, 1, wx.EXPAND)
         self.left_pane.SetSizer(left_layout)
+
+    def _on_file_info_page_size(self, event: wx.SizeEvent) -> None:
+        content_width = self.file_info_page.GetClientSize().width - 16
+        if content_width > 0:
+            for label in self._file_info_labels:
+                label.Wrap(content_width)
+            self.file_info_page.Layout()
+        event.Skip()
 
     def _make_graph_pane(
         self, parent: wx.Window, stack: str, title: str
