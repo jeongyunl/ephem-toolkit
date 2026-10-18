@@ -75,25 +75,6 @@ demo must pass the migration acceptance criteria in step 23.
 
 ## Milestone I — wxPython migration
 
-### 20. Prototype VTK integration with the wx event loop
-
-Before implementing or retaining a VTK scene, prove that VTK can be embedded and driven safely
-from the wx application on supported platforms. Do not introduce a competing GUI event loop.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Open and close a minimal VTK render window hosted by a wx frame.
-- [ ] Drive VTK event processing and rendering without blocking wx timers or playback controls.
-- [ ] Verify resize, close, and interaction behavior on macOS, Linux, and Windows where available.
-- [ ] Record one outcome in the design document, `VTK-KEEP` or `VTK-DROP`, with platform
-      limitations. Step 21 implements only the recorded outcome.
-- [ ] Specify explicit-backend errors and `auto` selection/fallback behavior before adding CLI
-      or dependency changes.
-
-**Done when:** the outcome is recorded in the design. For `VTK-KEEP`, wx/VTK lifecycle and event
-handling are demonstrated on supported targets; for `VTK-DROP`, the removal is documented.
-**Depends on:** Step 19.
-
 ### 21. Complete the VTK backend migration and backend selection
 
 Follow the outcome recorded in step 20. For `VTK-KEEP`, migrate the trajectory scene to wx
@@ -713,3 +694,29 @@ dashboard group and direct-view actions, unavailable selections, duplicate-windo
 synchronized updates across all three implemented views, click-to-seek from both time-series
 views, and close/reopen during playback after a seek. The complete `play-oem` test suite passed:
 92 tests, with 14 Matplotlib dependency deprecation warnings.
+
+### 20. Prototype VTK integration with the wx event loop
+
+Before implementing or retaining a VTK scene, prove that VTK can be embedded and driven safely
+from the wx application on supported platforms. Do not introduce a competing GUI event loop.
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Open and close a minimal VTK render window hosted by a wx frame.
+- [x] Drive VTK event processing and rendering without blocking wx timers or playback controls.
+- [x] Verify resize, close, and interaction behavior on macOS, Linux, and Windows where available.
+- [x] Record one outcome in the design document, `VTK-KEEP` or `VTK-DROP`, with platform
+      limitations. Step 21 implements only the recorded outcome.
+- [x] Specify explicit-backend errors and `auto` selection/fallback behavior before adding CLI
+      or dependency changes.
+
+**Done when:** the outcome is recorded in the design. For `VTK-KEEP`, wx/VTK lifecycle and event
+handling are demonstrated on supported targets; for `VTK-DROP`, the removal is documented.
+**Depends on:** Step 19.
+
+**Step 20 evidence:** on macOS, wxPython 4.2.4 and VTK 9.6.2 successfully rendered a VTK scene
+inside `wxVTKRenderWindowInteractor` under the single wx main loop. Eight wx timer callbacks
+completed while rendering; resizing updated the VTK render-window dimensions; simulated
+trackball mouse input changed the camera; and closing the wx frame ended the loop cleanly.
+Linux and Windows were unavailable and remain unverified. The design records `VTK-KEEP`, the
+embedded event-loop approach, platform limitations, and backend error/fallback behavior.

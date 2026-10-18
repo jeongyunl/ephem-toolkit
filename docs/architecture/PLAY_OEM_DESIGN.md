@@ -166,12 +166,15 @@ class Trajectory3DView(View, Protocol):
 
 | `--3d-backend` | Behavior |
 |---|---|
-| `auto` (default) | `vtk` if `import vtk` succeeds and a render window can be created, else `matplotlib` (one-line notice on stderr when falling back). |
-| `vtk` | Use VTK; error with install hint (`pip install -e '.[vtk]'`) if unavailable. |
+| `auto` (default) | Use the embedded VTK backend only if VTK's wx interactor and an actual render context initialize; otherwise use Matplotlib and emit one concise stderr notice with the fallback reason. |
+| `vtk` | Require the VTK wx interactor and a working embedded render context. Fail with an actionable error and the VTK-extra install hint if either is unavailable; never silently fall back. |
 | `matplotlib` | Always Matplotlib. |
 
-The choice is made once at startup and shown in the control window title/status line.
-Both backends implement the same interface, so the toolbar, clock and `PlayerApp` never branch on backend.
+Resolve the backend once when the first trajectory view is created and show the selected backend
+in the control window title/status line. `auto` may fall back only for a recognized VTK
+installation or render-context unavailability; do not hide unrelated implementation errors with
+a broad exception handler. Both backends implement the same interface, so the toolbar, clock and
+`PlayerApp` never branch on backend.
 
 **Matplotlib/wx backend.** The initial overview draws the static orbit path, start/end markers,
 labeled axes and object/frame context in `build`; `update` moves the satellite marker from the shared
@@ -192,18 +195,25 @@ backend is covered by step 27. Earth rendering and trajectory tails remain plann
 - Tail: a second polyline over the index range `[i(t - tail), i(t)]` (reversed side when playing in reverse); or the full path when `tail` is `None`.
 - Camera/interaction: `vtkInteractorStyleTrackballCamera` (rotate/zoom/pan) with the camera left untouched by `update`, so you can orbit while it plays.
 
-**Event loop integration (validated in step 20).** The app owns exactly one loop (the wx main loop).
-VTK must not run its own loop. Two candidate approaches:
+**Step 20 outcome: `VTK-KEEP`; use the embedded wx interactor.** Host VTK through
+`vtkmodules.wx.wxVTKRenderWindowInteractor.wxVTKRenderWindowInteractor` inside the trajectory
+frame. Its wx event bindings deliver paint, resize, mouse, and keyboard events to the VTK
+interactor. The application owns the only GUI loop: call `widget.Enable(1)`, let wx's main loop
+drive the widget, and call `Render()` on the wx thread when the shared cursor changes. Do not call
+VTK's `Start()` or manually pump a second event loop. The VTK widget's own timer requests use
+`wx.Timer` events and therefore remain on the same loop.
 
-1. **Embedded:** host the VTK render window in a wx panel through VTK's wx integration, so the window
-   follows wx sizing, focus, and close behavior. Use this only if step 20 confirms it works on each
-   supported platform.
-2. **Pumped separate window (fallback):** a top-level VTK window pumped from a `wx.Timer`. The timer
-   calls `interactor.ProcessEvents()` and then `Render()` for each open VTK view, so rotate/zoom works
-   and the window is redrawn in lockstep with the clock. Closing it is detected through the
-   interactor's `ExitEvent` observer and unregisters the view, like a Matplotlib window.
+The prototype used wxPython 4.2.4 and VTK 9.6.2 on macOS. Eight wx timer callbacks completed while
+the scene rendered; a wx frame resize changed the VTK render-window size; simulated trackball
+mouse input moved the camera; and closing the frame shut down the loop cleanly. Linux and Windows
+were not available for this check and remain unverified. The VTK wx widget selects a
+`wx.glcanvas.GLCanvas` base on GTK and a `wx.Window` base elsewhere, so Linux/Windows integration
+must be validated before claiming support there.
 
-The chosen approach and the `VTK-KEEP`/`VTK-DROP` outcome are recorded here after step 20.
+Backend selection errors are explicit: `vtk` must report a missing VTK package or failed wx/GL
+initialization with an install or graphics-support hint; `auto` falls back to Matplotlib only for
+those recognized VTK-unavailable conditions and reports the reason once. Add the optional VTK
+extra and its install hint in step 21, not in this prototype step.
 
 **Testing.** The backend-neutral contract is tested on both backends: `build` + several `update` calls,
 and marker position == cursor-state position (Matplotlib: artist data; VTK: `actor.GetPosition()`).
