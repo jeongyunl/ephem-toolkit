@@ -44,8 +44,9 @@ src/ephem_toolkit/play_oem/
 
 `pyproject.toml`: add `play-oem = "ephem_toolkit.play_oem:cli"` and an optional extra
 `playback = ["wxPython>=4.2.4", "matplotlib>=3.7"]`. The base install does not require wxPython.
-The wxPython minimum is 4.2.4 so the extra remains installable on Python 3.9. Add
-`vtk = ["vtk>=9.2"]` only if step 20 records `VTK-KEEP`.
+The wxPython minimum is 4.2.4 so the extra remains installable on Python 3.9. The optional VTK
+backend uses `vtk = ["vtk>=9.2,<9.7"]`; the upper bound retains Python 3.9 wheels. Install both
+optional backends with `pip install "ephem-toolkit[playback,vtk]"`.
 
 `__main__.py` creates exactly one `wx.App`; `PlayerApp` owns its event-loop lifecycle, playback
 clock, timer and child plot frames. `control_window.py` creates the primary `wx.Frame`; each plot
@@ -182,17 +183,23 @@ cursor state. The figure is hosted in a wx frame through `FigureCanvasWxAgg`, an
 navigation toolbar is hosted by wx. Redraws are requested with `draw_idle()`. Throttling this 3D
 backend is covered by step 27. Earth rendering and trajectory tails remain planned enhancements.
 
-**VTK backend (only if step 20 records `VTK-KEEP`).** Scene built in `build`:
+**VTK backend.** Scene built in `build`:
 
-- Orbit polyline: `vtkPoints` filled zero-copy from `series` position arrays via
+- Import `vtkOpenGLRenderWindow` from `vtkmodules.vtkRenderingOpenGL2` before creating the wx
+  interactor so VTK registers its shared OpenGL render-window factory; importing
+  `vtkRenderingCore` alone can produce a wx window that initializes but remains visually blank.
+  Factory registration does not prove native context support: Cocoa, GTK and Windows rendering
+  must be visually smoke-tested independently before claiming support.
+- Orbit polyline: `vtkPoints` populated from the `series` position arrays via
   `vtk.util.numpy_support`, one `vtkPolyLine` cell, `vtkPolyDataMapper` → `vtkActor`.
-- Earth: WGS84 ellipsoid (`vtkSphereSource` scaled by the flattening), semi-transparent, plus graticule lines.
+- Earth: semi-transparent WGS84 ellipsoid (`vtkSphereSource` scaled by the flattening).
   Inertial-frame view with a static Earth in v1; a rotating, textured Earth needs the ECI→ECEF rotation at
   `t_now` (via `core/frame_utils`) and is a follow-up.
-- Satellite: small sphere actor (and optional axis/velocity arrow); `update(t_s)` only calls
+- Satellite: small sphere actor; `update(t_s)` only calls
   `actor.SetPosition(r)` from the cursor state, then `renderWindow.Render()`. The GPU draws it, so no
   blitting or decimation is needed and 1000x playback is cheap even for 100k-point orbits.
-- Tail: a second polyline over the index range `[i(t - tail), i(t)]` (reversed side when playing in reverse); or the full path when `tail` is `None`.
+- Tail: a second direction-aware polyline over the recent samples, following the cursor in forward
+  or reverse playback.
 - Camera/interaction: `vtkInteractorStyleTrackballCamera` (rotate/zoom/pan) with the camera left untouched by `update`, so you can orbit while it plays.
 
 **Step 20 outcome: `VTK-KEEP`; use the embedded wx interactor.** Host VTK through
@@ -208,12 +215,16 @@ the scene rendered; a wx frame resize changed the VTK render-window size; simula
 mouse input moved the camera; and closing the frame shut down the loop cleanly. Linux and Windows
 were not available for this check and remain unverified. The VTK wx widget selects a
 `wx.glcanvas.GLCanvas` base on GTK and a `wx.Window` base elsewhere, so Linux/Windows integration
-must be validated before claiming support there.
+must be validated before claiming support there. The production fix registers the shared OpenGL
+factory and rejects a non-OpenGL render-window class, but that guard does not replace visual
+verification of each platform's native wx/OpenGL context.
 
-Backend selection errors are explicit: `vtk` must report a missing VTK package or failed wx/GL
-initialization with an install or graphics-support hint; `auto` falls back to Matplotlib only for
-those recognized VTK-unavailable conditions and reports the reason once. Add the optional VTK
-extra and its install hint in step 21, not in this prototype step.
+After showing a VTK plot frame, the application yields pending wx paint events and verifies that
+the VTK render window completed its initial render. Backend selection errors are explicit: `vtk`
+reports a missing VTK package or failed wx/GL initialization with an install or graphics-support
+hint; `auto` falls back to Matplotlib only for those recognized VTK-unavailable conditions and
+reports the reason once. Install the optional integration with
+`pip install "ephem-toolkit[playback,vtk]"`.
 
 **Testing.** The backend-neutral contract is tested on both backends: `build` + several `update` calls,
 and marker position == cursor-state position (Matplotlib: artist data; VTK: `actor.GetPosition()`).

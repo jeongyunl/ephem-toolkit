@@ -6,6 +6,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 import signal
+import sys
 import time
 
 import wx
@@ -14,11 +15,13 @@ from matplotlib.backends.backend_wxagg import (
     FigureCanvasWxAgg,
     NavigationToolbar2WxAgg,
 )
+from matplotlib.figure import Figure
 
 import ephem_toolkit.core.time_utils as time_utils
 
 from . import clock, control_window, cursor, series, time_unit
 from .views import base, registry, speed_altitude, state_components, trajectory3d
+from .views.trajectory3d import selection as trajectory3d_selection
 
 DEFAULT_TICK_INTERVAL_MS: int = 33
 """Default interval between playback timer events (ms)."""
@@ -45,14 +48,14 @@ class _OpenView:
     unsubscribe: Callable[[], None]
     """Callback that removes this view from clock notifications."""
 
-    canvas: FigureCanvasWxAgg
-    """Wx canvas hosting the view's Matplotlib figure."""
+    canvas: FigureCanvasWxAgg | None
+    """Wx canvas hosting a Matplotlib figure, if this view uses one."""
 
-    toolbar: NavigationToolbar2WxAgg
-    """Wx navigation toolbar associated with the canvas."""
+    toolbar: NavigationToolbar2WxAgg | None
+    """Wx navigation toolbar associated with a Matplotlib canvas."""
 
-    click_callback_id: int
-    """Matplotlib event identifier used to disconnect plot seeking."""
+    click_callback_id: int | None
+    """Matplotlib event identifier used to disconnect plot seeking, if connected."""
 
 
 class PlayerApp:
@@ -68,6 +71,7 @@ class PlayerApp:
         frame_context: str,
         *,
         plots: Sequence[str] = ("overview",),
+        three_d_backend: str = "auto",
         tick_interval_ms: int = DEFAULT_TICK_INTERVAL_MS,
     ) -> None:
         """Create the wx playback application.
@@ -88,16 +92,23 @@ class PlayerApp:
             Reference-frame context used by plot views.
         plots : Sequence[str], optional
             Plot names and groups to open when the application starts.
+        three_d_backend : str, default="auto"
+            Backend used for the 3D trajectory view.
         tick_interval_ms : int, default=DEFAULT_TICK_INTERVAL_MS
             Interval between playback timer events, in milliseconds.
 
         Raises
         ------
         ValueError
-            If ``tick_interval_ms`` is less than one.
+            If ``tick_interval_ms`` is less than one or the 3D backend is invalid.
         """
         if tick_interval_ms < 1:
             raise ValueError("tick_interval_ms must be positive")
+        if three_d_backend not in trajectory3d_selection.THREE_D_BACKEND_CHOICES:
+            raise ValueError(
+                "three_d_backend must be one of "
+                f"{', '.join(trajectory3d_selection.THREE_D_BACKEND_CHOICES)}"
+            )
 
         self.clock = clock
         self.series = series
@@ -106,6 +117,10 @@ class PlayerApp:
         self.object_name = object_name
         self.frame_context = frame_context
         self._tick_interval_ms = tick_interval_ms
+        self._requested_3d_backend = three_d_backend
+        self._selected_3d_backend = (
+            "matplotlib" if three_d_backend == "matplotlib" else None
+        )
 
         self._view_registry = registry.ViewRegistry()
         self._view_registry.register_view("trajectory-3d", self.open_trajectory_view)
@@ -121,7 +136,10 @@ class PlayerApp:
         if self.wx_app is None:
             self.wx_app = wx.App(False)
 
-        self.frame = wx.Frame(None, title="play-oem")
+        self.frame = wx.Frame(
+            None,
+            title=f"play-oem (3D backend: {three_d_backend})",
+        )
         self.control_window = control_window.ControlWindow(
             self.frame,
             self.open_view,
@@ -191,28 +209,67 @@ class PlayerApp:
         """Open or raise the speed and altitude plot."""
         self._open_view(
             "speed-altitude",
-            lambda: speed_altitude.SpeedAltitudeView(self.clock.t_start),
+            lambda _frame: speed_altitude.SpeedAltitudeView(self.clock.t_start),
         )
 
     def open_state_components_view(self) -> None:
         """Open or raise the Cartesian state-components plot."""
         self._open_view(
             "state-components",
-            lambda: state_components.StateComponentsView(
+            lambda _frame: state_components.StateComponentsView(
                 self.clock.t_start, self.frame_context
             ),
         )
 
     def open_trajectory_view(self) -> None:
-        """Open or raise the 3D orbit plot."""
+        """Open or raise the selected 3D orbit backend."""
+        if self._selected_3d_backend == "matplotlib":
+            self._open_matplotlib_trajectory_view()
+            return
+
+        try:
+            self._open_view(
+                "trajectory-3d",
+                lambda frame: trajectory3d_selection.create_vtk_view(
+                    frame,
+                    self.cursor,
+                    self.object_name,
+                    self.frame_context,
+                    lambda: self.clock.rate,
+                ),
+            )
+        except trajectory3d_selection.VTKBackendUnavailableError as error:
+            if self._requested_3d_backend == "vtk":
+                raise RuntimeError(
+                    "the requested VTK 3D backend is unavailable: "
+                    f"{error}. Install it with "
+                    '`pip install "ephem-toolkit[playback,vtk]"`.'
+                ) from error
+            print(
+                "Warning: VTK 3D backend is unavailable "
+                f"({error}); falling back to Matplotlib.",
+                file=sys.stderr,
+            )
+            self._set_3d_backend("matplotlib")
+            self._open_matplotlib_trajectory_view()
+            return
+
+        self._set_3d_backend("vtk")
+
+    def _open_matplotlib_trajectory_view(self) -> None:
         self._open_view(
             "trajectory-3d",
-            lambda: trajectory3d.Trajectory3DView(
+            lambda _frame: trajectory3d.Trajectory3DView(
                 self.cursor,
                 self.object_name,
                 self.frame_context,
             ),
         )
+        self._set_3d_backend("matplotlib")
+
+    def _set_3d_backend(self, backend_name: str) -> None:
+        self._selected_3d_backend = backend_name
+        self.frame.SetTitle(f"play-oem (3D backend: {backend_name})")
 
     def open_view(self, name: str) -> None:
         self._view_registry.open_view(name)
@@ -279,7 +336,11 @@ class PlayerApp:
         if opened is not None:
             opened.frame.Close(force=True)
 
-    def _open_view(self, name: str, create_view: Callable[[], base.View]) -> None:
+    def _open_view(
+        self,
+        name: str,
+        create_view: Callable[[wx.Frame], base.View],
+    ) -> None:
         if self._closed:
             raise RuntimeError("cannot open a view in a closed PlayerApp")
         existing = self._open_views.get(name)
@@ -288,38 +349,50 @@ class PlayerApp:
             existing.frame.SetFocus()
             return
 
-        view = create_view()
         frame: wx.Frame | None = None
+        view: base.View | None = None
         canvas: FigureCanvasWxAgg | None = None
+        toolbar: NavigationToolbar2WxAgg | None = None
         click_callback_id: int | None = None
         unsubscribe: Callable[[], None] | None = None
         try:
-            figure = view.build(self.series, self.time_unit)
-            view.update(self.clock.t_now)
             frame = wx.Frame(
                 self.frame,
                 title=self._view_registry.label_for(name),
                 size=PLOT_FRAME_SIZE,
             )
-            canvas = FigureCanvasWxAgg(frame, wx.ID_ANY, figure)
-            toolbar = NavigationToolbar2WxAgg(canvas)
-            toolbar.Realize()
-            layout = wx.BoxSizer(wx.VERTICAL)
-            layout.Add(toolbar, 0, wx.EXPAND)
-            layout.Add(canvas, 1, wx.EXPAND)
-            frame.SetSizer(layout)
             frame.Bind(
                 wx.EVT_CLOSE,
                 lambda event: self._on_view_frame_close(name, event),
             )
-            click_callback_id = canvas.mpl_connect(
-                "button_press_event",
-                lambda event: self._on_plot_click(event, toolbar),
-            )
+            view = create_view(frame)
+            content = view.build(self.series, self.time_unit)
+            view.update(self.clock.t_now)
+            layout = wx.BoxSizer(wx.VERTICAL)
+            if isinstance(content, Figure):
+                canvas = FigureCanvasWxAgg(frame, wx.ID_ANY, content)
+                plot_toolbar = NavigationToolbar2WxAgg(canvas)
+                plot_toolbar.Realize()
+                toolbar = plot_toolbar
+                layout.Add(plot_toolbar, 0, wx.EXPAND)
+                layout.Add(canvas, 1, wx.EXPAND)
+                click_callback_id = canvas.mpl_connect(
+                    "button_press_event",
+                    lambda event: self._on_plot_click(event, plot_toolbar),
+                )
+            elif isinstance(content, wx.Window):
+                layout.Add(content, 1, wx.EXPAND)
+            else:
+                raise TypeError(
+                    f"{name!r} view build returned unsupported content "
+                    f"{type(content).__name__!r}"
+                )
+            frame.SetSizer(layout)
 
             def update_view(time_s: float) -> None:
                 view.update(time_s)
-                canvas.draw_idle()
+                if canvas is not None:
+                    canvas.draw_idle()
 
             unsubscribe = self.clock.subscribe(update_view)
             self._open_views[name] = _OpenView(
@@ -331,18 +404,22 @@ class PlayerApp:
                 click_callback_id,
             )
             frame.Layout()
-            canvas.draw()
-            if not frame.Show():
+            if canvas is not None:
+                canvas.draw()
+            if not frame.Show() and not frame.IsShown():
                 raise RuntimeError(f"could not show the {name!r} plot frame")
+            if not isinstance(content, Figure):
+                trajectory3d_selection.validate_vtk_render_context(view)
         except Exception:
             self._open_views.pop(name, None)
             if canvas is not None and click_callback_id is not None:
                 canvas.mpl_disconnect(click_callback_id)
             if unsubscribe is not None:
                 unsubscribe()
+            if view is not None:
+                view.close()
             if frame is not None:
                 frame.Destroy()
-            view.close()
             raise
 
     def _on_plot_click(
@@ -366,7 +443,8 @@ class PlayerApp:
     def _on_view_frame_close(self, name: str, event: wx.CloseEvent) -> None:
         opened = self._open_views.pop(name, None)
         if opened is not None:
-            opened.canvas.mpl_disconnect(opened.click_callback_id)
+            if opened.canvas is not None and opened.click_callback_id is not None:
+                opened.canvas.mpl_disconnect(opened.click_callback_id)
             opened.unsubscribe()
             opened.view.close()
         event.Skip()

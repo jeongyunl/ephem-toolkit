@@ -75,25 +75,6 @@ demo must pass the migration acceptance criteria in step 23.
 
 ## Milestone I — wxPython migration
 
-### 21. Complete the VTK backend migration and backend selection
-
-Follow the outcome recorded in step 20. For `VTK-KEEP`, migrate the trajectory scene to wx
-embedding behind the same view contract as Matplotlib. For `VTK-DROP`, remove VTK from product
-scope, document Matplotlib as the sole 3D backend, and leave no unmaintained Tk/VTK path.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] For `VTK-KEEP`, implement the wx-hosted VTK orbit, WGS84 Earth, satellite marker,
-      direction-aware tail, and trackball camera. For `VTK-DROP`, remove VTK code and references.
-- [ ] Keep marker/tail state driven by the shared cursor and playback controls.
-- [ ] Implement and validate `--3d-backend {auto,vtk,matplotlib}` only if VTK is retained.
-- [ ] Test explicit VTK selection errors and `auto` behavior when VTK/rendering is unavailable.
-- [ ] Add/document an optional VTK dependency extra only if the backend is retained.
-
-**Done when:** the supported 3D backend set is fully wx-compatible, consistently selected, and
-covered by backend-specific tests and documentation.
-**Depends on:** Step 20.
-
 ### 22. Remove Tk-only code and verify the dependency split
 
 Delete obsolete Tk-specific runtime code, raster helpers and tests after steps 16–21 have ported
@@ -720,3 +701,34 @@ completed while rendering; resizing updated the VTK render-window dimensions; si
 trackball mouse input changed the camera; and closing the wx frame ended the loop cleanly.
 Linux and Windows were unavailable and remain unverified. The design records `VTK-KEEP`, the
 embedded event-loop approach, platform limitations, and backend error/fallback behavior.
+
+### 21. Complete the VTK backend migration and backend selection
+
+Follow the outcome recorded in step 20. For `VTK-KEEP`, migrate the trajectory scene to wx
+embedding behind the same view contract as Matplotlib. For `VTK-DROP`, remove VTK from product
+scope, document Matplotlib as the sole 3D backend, and leave no unmaintained Tk/VTK path.
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] For `VTK-KEEP`, implement the wx-hosted VTK orbit, WGS84 Earth, satellite marker,
+      direction-aware tail, and trackball camera. For `VTK-DROP`, remove VTK code and references.
+- [x] Keep marker/tail state driven by the shared cursor and playback controls.
+- [x] Implement and validate `--3d-backend {auto,vtk,matplotlib}` only if VTK is retained.
+- [x] Test explicit VTK selection errors and `auto` behavior when VTK/rendering is unavailable.
+- [x] Add/document an optional VTK dependency extra only if the backend is retained.
+
+**Done when:** the supported 3D backend set is fully wx-compatible, consistently selected, and
+covered by backend-specific tests and documentation.
+**Depends on:** Step 20.
+
+**Step 21 evidence:** implemented the embedded VTK view and backend CLI selection. A captured
+visual smoke test exposed an unregistered VTK OpenGL render-window factory: the widget reported
+an initial render but displayed no scene. Importing VTK's OpenGL render-window implementation
+fixed the blank output, and startup now rejects a non-OpenGL render-window class. The optional
+VTK extra is bounded to `vtk>=9.2,<9.7`; its lock resolves to VTK 9.6.2 with CPython 3.9
+wheels for macOS, Linux and Windows. `poetry check --lock` and a dry-run install with both
+`playback` and `vtk` extras passed. The actual wx app rendered the VTK trajectory alongside a
+Matplotlib plot. After the visual fix, the full `play-oem` suite passed 104 tests with 14
+Matplotlib dependency deprecation warnings. The factory fix is shared code, not a portability
+guarantee: only macOS/Cocoa rendering has been visually verified; Linux/GTK and Windows need
+their own smoke captures before support is claimed.

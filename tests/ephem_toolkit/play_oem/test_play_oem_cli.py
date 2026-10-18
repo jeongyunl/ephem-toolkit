@@ -19,6 +19,7 @@ def test_help_shows_command_and_input(capsys: pytest.CaptureFixture[str]) -> Non
     help_output = capsys.readouterr().out
     assert "play-oem" in help_output
     assert "<input_oem>" in help_output
+    assert "--3d-backend" in help_output
 
 
 def test_input_path_is_parsed() -> None:
@@ -31,7 +32,31 @@ def test_input_path_is_parsed() -> None:
     assert not args.autoplay
     assert not args.loop
     assert args.plots == ("overview",)
+    assert args.three_d_backend == "auto"
     assert args.fps == 30
+
+
+@pytest.mark.parametrize("backend", ("auto", "vtk", "matplotlib"))
+def test_3d_backend_option_accepts_supported_choices(backend: str) -> None:
+    args = parse_arguments(
+        build_arg_parser(),
+        ["orbit.oem", "--3d-backend", backend],
+    )
+
+    assert args.three_d_backend == backend
+
+
+def test_3d_backend_option_rejects_unknown_choice(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        parse_arguments(
+            build_arg_parser(),
+            ["orbit.oem", "--3d-backend", "opengl"],
+        )
+
+    assert exc_info.value.code == 2
+    assert "invalid choice: 'opengl'" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(
@@ -184,6 +209,7 @@ def test_cli_loads_oem_and_launches_player(
             frame_context,
             *,
             plots,
+            three_d_backend,
             tick_interval_ms,
         ) -> None:
             launched["clock"] = clock
@@ -193,6 +219,7 @@ def test_cli_loads_oem_and_launches_player(
             launched["object_name"] = object_name
             launched["frame_context"] = frame_context
             launched["plots"] = plots
+            launched["three_d_backend"] = three_d_backend
             launched["tick_interval_ms"] = tick_interval_ms
 
         def run(self) -> None:
@@ -215,6 +242,7 @@ def test_cli_loads_oem_and_launches_player(
     assert launched["object_name"] == "ISS"
     assert launched["frame_context"] == "EME2000 / Earth"
     assert launched["plots"] == ("overview",)
+    assert launched["three_d_backend"] == "auto"
     assert launched["clock"].rate == 1.0
     assert launched["clock"].t_now == launched["clock"].t_start
     assert not launched["clock"].playing
@@ -243,9 +271,11 @@ def test_cli_configures_reverse_autoplay_loop_and_elapsed_start(
             _frame_context,
             *,
             plots,
+            three_d_backend,
             tick_interval_ms,
         ) -> None:
             launched["clock"] = clock
+            launched["three_d_backend"] = three_d_backend
             launched["tick_interval_ms"] = tick_interval_ms
 
         def run(self) -> None:
@@ -261,6 +291,8 @@ def test_cli_configures_reverse_autoplay_loop_and_elapsed_start(
             "--reverse",
             "--speed",
             "10",
+            "--3d-backend",
+            "matplotlib",
             "--autoplay",
             "--loop",
             "--fps",
@@ -274,6 +306,7 @@ def test_cli_configures_reverse_autoplay_loop_and_elapsed_start(
     assert clock.t_now == clock.t_end
     assert clock.playing
     assert clock.loop
+    assert launched["three_d_backend"] == "matplotlib"
     assert launched["tick_interval_ms"] == 20
     clock.tick(400.0)
     assert clock.playing
@@ -312,6 +345,7 @@ def test_cli_autoplay_pauses_at_forward_and_reverse_boundaries(
             _frame_context,
             *,
             plots,
+            three_d_backend,
             tick_interval_ms,
         ) -> None:
             launched["clock"] = clock
@@ -364,6 +398,7 @@ def test_cli_resolves_elapsed_and_utc_start_times(
             _frame_context,
             *,
             plots,
+            three_d_backend,
             tick_interval_ms,
         ) -> None:
             launched.append((clock.t_now, clock.rate))

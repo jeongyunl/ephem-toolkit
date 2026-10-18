@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from matplotlib.figure import Figure
 
 from ..series import OrbitSeries
 from ..time_unit import TimeUnit
+
+if TYPE_CHECKING:
+    import wx
 
 
 class View(Protocol):
@@ -15,8 +18,8 @@ class View(Protocol):
 
     name: str
 
-    def build(self, series: OrbitSeries, time_unit: TimeUnit) -> Figure:
-        """Build the static plot and its initial cursor artists."""
+    def build(self, series: OrbitSeries, time_unit: TimeUnit) -> Figure | wx.Window:
+        """Build the view content and its initial cursor state."""
         ...
 
     def update(self, t_s: float) -> None:

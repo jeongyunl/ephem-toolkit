@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from matplotlib.backend_bases import MouseButton
+from matplotlib.figure import Figure
 
 from ephem_toolkit.core.time_utils import tt_s_to_datetime
 from ephem_toolkit.play_oem import app
@@ -55,12 +56,19 @@ class FakeFrame:
     def SetSize(self, size) -> None:
         self.size = size
 
+    def SetTitle(self, title: str) -> None:
+        self.title = title
+
     def Bind(self, event_type, callback, _source=None) -> None:
         self.bindings[event_type] = callback
 
     def Show(self) -> bool:
+        was_shown = self.shown
         self.shown = True
-        return True
+        return not was_shown
+
+    def IsShown(self) -> bool:
+        return self.shown
 
     def Raise(self) -> None:
         self.raised = True
@@ -162,14 +170,23 @@ class FakeView:
         self.updated_times: list[float] = []
         self.closed = False
 
-    def build(self, _series, _time_unit):
-        return object()
+    def build(self, _series, _time_unit) -> Figure:
+        return Figure()
 
     def update(self, t_s: float) -> None:
         self.updated_times.append(t_s)
 
     def close(self) -> None:
         self.closed = True
+
+
+class FakeNativeWindow:
+    pass
+
+
+class FakeNativeView(FakeView):
+    def build(self, _series, _time_unit) -> FakeNativeWindow:
+        return FakeNativeWindow()
 
 
 class FakeControlWindow:
@@ -252,6 +269,7 @@ def make_app(
     monkeypatch: pytest.MonkeyPatch,
     *,
     plots: tuple[str, ...] = ("overview",),
+    three_d_backend: str = "matplotlib",
     clock: PlaybackClock | None = None,
     tick_interval_ms: int = 33,
 ) -> tuple[app.PlayerApp, list[FakeView], list[FakeCanvas], list[FakeFrame]]:
@@ -304,6 +322,7 @@ def make_app(
         "TEST",
         "GCRF / Earth",
         plots=plots,
+        three_d_backend=three_d_backend,
         tick_interval_ms=tick_interval_ms,
     )
     return player, views, canvases, frames
@@ -323,7 +342,7 @@ def test_start_uses_one_wx_app_and_opens_the_selected_views(
 
     assert player.wx_app.main_loop_calls == 0
     assert len(frames) == 2
-    assert frames[0].title == "play-oem"
+    assert frames[0].title == "play-oem (3D backend: matplotlib)"
     assert frames[1].title == "State Components"
     assert frames[0].shown and frames[1].shown
     assert len(views) == len(canvases) == 1
@@ -443,6 +462,124 @@ def test_unavailable_cli_plot_selection_fails_before_opening_any_plot(
 
     assert views == []
     assert len(frames) == 1
+
+    player.close()
+
+
+def test_auto_3d_backend_falls_back_to_matplotlib_with_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def fail_to_create_vtk_view(*_args, **_kwargs):
+        raise app.trajectory3d_selection.VTKBackendUnavailableError(
+            "OpenGL context unavailable"
+        )
+
+    monkeypatch.setattr(
+        app.trajectory3d_selection, "create_vtk_view", fail_to_create_vtk_view
+    )
+    player, views, _canvases, frames = make_app(
+        monkeypatch,
+        plots=("trajectory-3d",),
+        three_d_backend="auto",
+    )
+
+    player.start()
+
+    assert len(views) == 1
+    assert player._selected_3d_backend == "matplotlib"
+    assert player.frame.title == "play-oem (3D backend: matplotlib)"
+    assert len(frames) == 3
+    assert frames[1].destroyed
+    assert "falling back to Matplotlib" in capsys.readouterr().err
+
+    player.close()
+
+
+def test_auto_3d_backend_falls_back_when_vtk_render_context_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    vtk_view = FakeNativeView()
+
+    def fail_render_context(_view) -> None:
+        raise app.trajectory3d_selection.VTKBackendUnavailableError(
+            "VTK did not complete its initial render"
+        )
+
+    monkeypatch.setattr(app.wx, "Window", FakeNativeWindow)
+    monkeypatch.setattr(
+        app.trajectory3d_selection, "create_vtk_view", lambda *_args: vtk_view
+    )
+    monkeypatch.setattr(
+        app.trajectory3d_selection,
+        "validate_vtk_render_context",
+        fail_render_context,
+    )
+    player, views, _canvases, frames = make_app(
+        monkeypatch,
+        plots=("trajectory-3d",),
+        three_d_backend="auto",
+    )
+
+    player.start()
+
+    assert len(views) == 1
+    assert vtk_view.closed
+    assert player._selected_3d_backend == "matplotlib"
+    assert len(frames) == 3
+    assert frames[1].destroyed
+    assert "VTK did not complete its initial render" in capsys.readouterr().err
+
+    player.close()
+
+
+def test_explicit_vtk_backend_reports_initialization_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_to_create_vtk_view(*_args, **_kwargs):
+        raise app.trajectory3d_selection.VTKBackendUnavailableError(
+            "OpenGL context unavailable"
+        )
+
+    monkeypatch.setattr(
+        app.trajectory3d_selection, "create_vtk_view", fail_to_create_vtk_view
+    )
+    player, views, _canvases, frames = make_app(
+        monkeypatch,
+        plots=("trajectory-3d",),
+        three_d_backend="vtk",
+    )
+
+    with pytest.raises(RuntimeError, match="playback,vtk"):
+        player.start()
+
+    assert views == []
+    assert frames[1].destroyed
+    assert player._selected_3d_backend is None
+
+    player.close()
+
+
+def test_matplotlib_backend_does_not_load_vtk(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_if_vtk_loaded(*_args, **_kwargs):
+        raise AssertionError("Matplotlib backend must not load VTK")
+
+    monkeypatch.setattr(
+        app.trajectory3d_selection, "create_vtk_view", fail_if_vtk_loaded
+    )
+    player, views, _canvases, _frames = make_app(
+        monkeypatch,
+        plots=("trajectory-3d",),
+        three_d_backend="matplotlib",
+    )
+
+    player.start()
+
+    assert len(views) == 1
+    assert player._selected_3d_backend == "matplotlib"
 
     player.close()
 

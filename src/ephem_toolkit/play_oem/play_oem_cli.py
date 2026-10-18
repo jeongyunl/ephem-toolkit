@@ -7,6 +7,7 @@ from collections.abc import Sequence
 import math
 
 import ephem_toolkit.core.cli as cli
+from .views.trajectory3d.selection import THREE_D_BACKEND_CHOICES
 from .views.registry import parse_plot_selection
 
 MIN_SPEED = 1.0
@@ -31,6 +32,8 @@ class PlayOemArgs(argparse.Namespace):
     """Optional analysis duration string."""
     time_unit: str
     """Time unit used in time-series plots."""
+    three_d_backend: str
+    """3D trajectory rendering backend."""
     speed: float
     """Signed initial playback speed multiplier."""
     reverse: bool
@@ -109,6 +112,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help=(
             "Time unit for time-series plots: "
             "m/minute/minutes or h/hour/hours (default: hours)."
+        ),
+    )
+    parser.add_argument(
+        "--3d-backend",
+        dest="three_d_backend",
+        choices=THREE_D_BACKEND_CHOICES,
+        default="auto",
+        help=(
+            "3D trajectory backend: auto selects VTK when its wx integration is "
+            "available, vtk requires VTK, and matplotlib forces Matplotlib "
+            "(default: auto)."
         ),
     )
     parser.add_argument(

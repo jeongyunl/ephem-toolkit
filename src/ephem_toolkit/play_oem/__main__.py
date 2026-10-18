@@ -103,6 +103,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         object_name,
         frame_context,
         plots=cli_args.plots,
+        three_d_backend=cli_args.three_d_backend,
         tick_interval_ms=math.ceil(1000 / cli_args.fps),
     ).run()
 
