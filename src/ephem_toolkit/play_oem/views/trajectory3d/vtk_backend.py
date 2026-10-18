@@ -23,6 +23,7 @@ import ephem_toolkit.core.consts as consts
 import ephem_toolkit.core.wgs as wgs
 
 from ... import cursor, series, time_unit
+from ..plotting import decimate_indices
 from .selection import VTKBackendUnavailableError
 
 EARTH_COLOR_RGB: tuple[float, float, float] = (0.12, 0.32, 0.62)
@@ -88,6 +89,8 @@ class VTKTrajectory3DView:
         self._tail_poly_data: vtkPolyData | None = None
         self._cursor_actor: vtkActor | None = None
         self._positions_km: np.ndarray | None = None
+        self._orbit_display_positions_km: np.ndarray | None = None
+        self._orbit_display_segment_ids: np.ndarray | None = None
         self._sample_times_s: np.ndarray | None = None
         self._segment_ids: np.ndarray | None = None
 
@@ -137,6 +140,15 @@ class VTKTrajectory3DView:
 
         self._widget = widget
         self._positions_km = positions_km.copy()
+        display_positions: list[np.ndarray] = []
+        display_segment_ids: list[np.ndarray] = []
+        for segment_id in np.unique(orbit_series.segment_ids):
+            segment_positions = positions_km[orbit_series.segment_ids == segment_id]
+            selected = decimate_indices(segment_positions)
+            display_positions.append(segment_positions[selected])
+            display_segment_ids.append(np.full(len(selected), segment_id, dtype=int))
+        self._orbit_display_positions_km = np.concatenate(display_positions)
+        self._orbit_display_segment_ids = np.concatenate(display_segment_ids)
         self._sample_times_s = (
             self._cursor.t_start
             + orbit_series.elapsed_time * _time_unit.get_divisor_s()
@@ -204,6 +216,8 @@ class VTKTrajectory3DView:
         self._tail_poly_data = None
         self._cursor_actor = None
         self._positions_km = None
+        self._orbit_display_positions_km = None
+        self._orbit_display_segment_ids = None
         self._sample_times_s = None
         self._segment_ids = None
 
@@ -261,11 +275,17 @@ class VTKTrajectory3DView:
         self._get_renderer().AddActor(self._earth_actor)
 
     def _add_orbit(self) -> None:
-        if self._positions_km is None or self._segment_ids is None:
+        if (
+            self._orbit_display_positions_km is None
+            or self._orbit_display_segment_ids is None
+        ):
             raise RuntimeError("orbit positions are not initialized")
         orbit_mapper = vtkPolyDataMapper()
         orbit_mapper.SetInputData(
-            self._create_polyline(self._positions_km, self._segment_ids)
+            self._create_polyline(
+                self._orbit_display_positions_km,
+                self._orbit_display_segment_ids,
+            )
         )
         self._orbit_actor = vtkActor()
         self._orbit_actor.SetMapper(orbit_mapper)
@@ -353,7 +373,11 @@ class VTKTrajectory3DView:
         point_data = np.ascontiguousarray(positions_km, dtype=np.float64)
         points.SetData(numpy_to_vtk(point_data, deep=True))
         cells = vtkCellArray()
-        ids = segment_ids if segment_ids is not None else np.zeros(len(point_data), dtype=int)
+        ids = (
+            segment_ids
+            if segment_ids is not None
+            else np.zeros(len(point_data), dtype=int)
+        )
         start = 0
         while start < len(point_data):
             stop = start + 1

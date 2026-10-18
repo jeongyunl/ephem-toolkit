@@ -20,6 +20,10 @@ class GeocentricDistanceView:
 
     name: str = "distance"
 
+    @property
+    def cursor_artists(self) -> tuple[Line2D, ...]:
+        return self._cursor_artists or ()
+
     def __init__(self, start_time_s: float, object_name: str) -> None:
         """Create a geocentric-distance view anchored at an OEM start time."""
         self._start_time_s = start_time_s

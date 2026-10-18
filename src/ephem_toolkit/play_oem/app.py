@@ -35,6 +35,8 @@ from .views.trajectory3d import selection as trajectory3d_selection
 
 DEFAULT_TICK_INTERVAL_MS: int = 33
 """Default interval between playback timer events (ms)."""
+MATPLOTLIB_3D_UPDATE_INTERVAL_S: float = 0.1
+"""Maximum Matplotlib 3D redraw rate in seconds."""
 ELAPSED_TIME_DECIMAL_PLACES: int = 3
 """Number of decimal places shown in the elapsed-time readout."""
 PLAYER_FRAME_MIN_SIZE: tuple[int, int] = (680, 360)
@@ -188,6 +190,7 @@ class PlayerApp:
         self._timer = wx.Timer(self.frame)
         self.frame.Bind(wx.EVT_TIMER, self._on_timer, self._timer)
         self._last_tick_monotonic_s: float | None = None
+        self._in_timer_tick = False
         self._started = False
         self._closed = False
         self._open_views: dict[str, _OpenView] = {}
@@ -411,6 +414,7 @@ class PlayerApp:
         toolbar: NavigationToolbar2WxAgg | None = None
         click_callback_id: int | None = None
         unsubscribe: Callable[[], None] | None = None
+        last_render_time = [float("-inf")]
         try:
             frame = wx.Frame(
                 self.frame,
@@ -446,12 +450,22 @@ class PlayerApp:
             frame.SetSizer(layout)
 
             def update_view(time_s: float) -> None:
+                if (
+                    name == "trajectory-3d"
+                    and self.clock.playing
+                    and self._in_timer_tick
+                    and (self._last_tick_monotonic_s or 0.0) - last_render_time[0]
+                    < MATPLOTLIB_3D_UPDATE_INTERVAL_S
+                ):
+                    return
                 view.update(time_s)
+                if name == "trajectory-3d":
+                    last_render_time[0] = self._last_tick_monotonic_s or 0.0
                 if canvas is not None:
                     canvas.draw_idle()
 
             unsubscribe = self.clock.subscribe(update_view)
-            self._open_views[name] = _OpenView(
+            opened_state = _OpenView(
                 frame,
                 view,
                 unsubscribe,
@@ -459,6 +473,7 @@ class PlayerApp:
                 toolbar,
                 click_callback_id,
             )
+            self._open_views[name] = opened_state
             frame.Layout()
             if canvas is not None:
                 canvas.draw()
@@ -522,7 +537,11 @@ class PlayerApp:
         else:
             elapsed_s = current_time_s - self._last_tick_monotonic_s
             self._last_tick_monotonic_s = current_time_s
-            self.clock.tick(elapsed_s)
+            self._in_timer_tick = True
+            try:
+                self.clock.tick(elapsed_s)
+            finally:
+                self._in_timer_tick = False
         self._update_time_display()
 
     def _update_time_display(self) -> None:

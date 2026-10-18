@@ -23,6 +23,10 @@ class StateComponentsView:
 
     name: str = "state-components"
 
+    @property
+    def cursor_artists(self) -> tuple[Line2D, ...]:
+        return self._cursor_artists or ()
+
     def __init__(self, start_time_s: float, frame_context: str) -> None:
         """Create a state-components view for one frame context.
 

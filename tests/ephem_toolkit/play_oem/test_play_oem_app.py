@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import signal
+from contextlib import nullcontext
 from types import SimpleNamespace
 
 import numpy as np
@@ -162,6 +163,9 @@ class FakeToolbar:
     def Realize(self) -> None:
         self.realized = True
 
+    def _wait_cursor_for_draw_cm(self):
+        return nullcontext()
+
 
 class FakeView:
     name = "fake"
@@ -169,12 +173,21 @@ class FakeView:
     def __init__(self) -> None:
         self.updated_times: list[float] = []
         self.closed = False
+        self._cursor_artists = ()
+
+    @property
+    def cursor_artists(self):
+        return self._cursor_artists
 
     def build(self, _series, _time_unit) -> Figure:
-        return Figure()
+        figure = Figure()
+        self._cursor_artists = (figure.subplots().axvline(0.0),)
+        return figure
 
     def update(self, t_s: float) -> None:
         self.updated_times.append(t_s)
+        for artist in self._cursor_artists:
+            artist.set_xdata([t_s, t_s])
 
     def close(self) -> None:
         self.closed = True
@@ -390,6 +403,67 @@ def test_wx_timer_advances_clock_and_updates_playback_display_and_views(
     assert all(view.updated_times[-1] == 102.5 for view in views)
     assert all(canvas.draw_idle_count == 1 for canvas in canvases)
 
+    player.close()
+
+
+def test_matplotlib_cursor_updates_use_full_redraw_not_partial_blits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch, plots=("speed-altitude",)
+    )
+    monkeypatch.setattr(
+        app, "FigureCanvasWxAgg", lambda _parent, _id, figure: FigureCanvasAgg(figure)
+    )
+
+    player.start()
+    opened = player._open_views["speed-altitude"]
+    canvas = opened.canvas
+    assert canvas is not None and canvas.supports_blit
+    redraw_calls: list[bool] = []
+    partial_blit_calls: list[bool] = []
+    restore_region = canvas.restore_region
+    blit = canvas.blit
+    draw_idle = canvas.draw_idle
+    canvas.restore_region = lambda *args, **kwargs: (
+        partial_blit_calls.append(True),
+        restore_region(*args, **kwargs),
+    )[1]
+    canvas.blit = lambda *args, **kwargs: (
+        partial_blit_calls.append(True),
+        blit(*args, **kwargs),
+    )[1]
+    canvas.draw_idle = lambda: (redraw_calls.append(True), draw_idle())[1]
+
+    player.clock.seek(150.0)
+    assert len(redraw_calls) == 1
+    assert not partial_blit_calls
+    assert all(not artist.get_animated() for artist in opened.view.cursor_artists)
+    player.close()
+
+
+def test_matplotlib_3d_render_throttle_does_not_skip_clock_ticks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, views, canvases, _frames = make_app(
+        monkeypatch,
+        plots=("trajectory-3d",),
+        clock=make_clock(playing=True),
+    )
+    monotonic_values = iter((0.0, 0.05, 0.09, 0.16))
+    monkeypatch.setattr(app.time, "monotonic", lambda: next(monotonic_values))
+    player.start()
+    canvas = canvases[0]
+
+    player._on_timer(SimpleNamespace())
+    player._on_timer(SimpleNamespace())
+    player._on_timer(SimpleNamespace())
+
+    assert player.clock.t_now == pytest.approx(100.16)
+    assert views[0].updated_times == [100.0, 100.05, 100.16]
+    assert canvas.draw_idle_count == 2
     player.close()
 
 

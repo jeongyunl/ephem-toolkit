@@ -19,6 +19,10 @@ class SpeedAltitudeView:
 
     name: str = "speed-altitude"
 
+    @property
+    def cursor_artists(self) -> tuple[Line2D, ...]:
+        return self._cursor_artists or ()
+
     def __init__(self, start_time_s: float) -> None:
         """Create a speed/altitude view anchored at an OEM start time.
 

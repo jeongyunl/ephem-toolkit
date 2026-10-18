@@ -19,6 +19,10 @@ class AngularVelocityView:
 
     name: str = "angular-velocity"
 
+    @property
+    def cursor_artists(self) -> tuple[Line2D, ...]:
+        return self._cursor_artists or ()
+
     def __init__(self, start_time_s: float, object_name: str) -> None:
         """Create an angular-velocity view anchored at an OEM start time."""
         self._start_time_s = start_time_s
@@ -80,7 +84,9 @@ class AngularVelocityView:
                     label=f"{self._object_name} angular rate",
                 )
                 if not rate_lines:
-                    axes.plot([], [], linewidth=2, label=f"{self._object_name} angular rate")
+                    axes.plot(
+                        [], [], linewidth=2, label=f"{self._object_name} angular rate"
+                    )
                 axes.legend(loc="upper right")
             else:
                 axes.text(0.5, 0.5, "Not enough samples", ha="center", va="center")

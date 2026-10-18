@@ -15,6 +15,7 @@ from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.speed_altitude import SpeedAltitudeView
 from ephem_toolkit.play_oem.views.state_components import StateComponentsView
 from ephem_toolkit.play_oem.views.trajectory3d import Trajectory3DView
+from ephem_toolkit.play_oem.views.plotting import MAX_DISPLAY_POINTS_PER_SEGMENT
 
 TEST_DATA_DIRECTORY = Path(__file__).resolve().parents[2] / "data"
 BASELINE_PATH = TEST_DATA_DIRECTORY / "play_oem_tk_baseline.json"
@@ -51,18 +52,18 @@ def test_migrated_views_preserve_baseline_data_labels_and_cursor_locations() -> 
         speed_labels = baseline["plot_labels"]["speed_altitude"]
         assert figures[0].axes[1].get_xlabel() == speed_labels["x"]
         assert [axes.get_ylabel() for axes in figures[0].axes] == speed_labels["y"]
-        np.testing.assert_allclose(
-            figures[0].axes[0].lines[0].get_xdata(),
-            orbit_series.elapsed_time,
-        )
-        np.testing.assert_allclose(
-            figures[0].axes[0].lines[0].get_ydata(),
-            orbit_series.velocity_magnitude_km_s,
-        )
-        np.testing.assert_allclose(
-            figures[0].axes[1].lines[0].get_ydata(),
-            orbit_series.altitude_km,
-        )
+        for axes, original in zip(
+            figures[0].axes,
+            (orbit_series.velocity_magnitude_km_s, orbit_series.altitude_km),
+        ):
+            xdata = axes.lines[0].get_xdata()
+            ydata = axes.lines[0].get_ydata()
+            assert len(xdata) <= MAX_DISPLAY_POINTS_PER_SEGMENT
+            assert xdata[0] == orbit_series.elapsed_time[0]
+            assert xdata[-1] == orbit_series.elapsed_time[-1]
+            np.testing.assert_allclose(
+                [np.min(ydata), np.max(ydata)], [np.min(original), np.max(original)]
+            )
 
         component_labels = baseline["plot_labels"]["state_components"]
         assert [axes.get_ylabel() for axes in figures[1].axes] == component_labels["y"]
@@ -76,8 +77,15 @@ def test_migrated_views_preserve_baseline_data_labels_and_cursor_locations() -> 
                 if component_index % 2 == 0
                 else orbit_series.velocity_km_s[:, component_index // 2]
             )
-            np.testing.assert_allclose(axes.lines[0].get_xdata(), orbit_series.elapsed_time)
-            np.testing.assert_allclose(axes.lines[0].get_ydata(), component_values)
+            xdata = axes.lines[0].get_xdata()
+            ydata = axes.lines[0].get_ydata()
+            assert len(xdata) <= MAX_DISPLAY_POINTS_PER_SEGMENT
+            assert xdata[0] == orbit_series.elapsed_time[0]
+            assert xdata[-1] == orbit_series.elapsed_time[-1]
+            np.testing.assert_allclose(
+                [np.min(ydata), np.max(ydata)],
+                [np.min(component_values), np.max(component_values)],
+            )
 
         trajectory_labels = baseline["plot_labels"]["trajectory_3d"]
         trajectory_axes = figures[2].axes[0]
@@ -90,18 +98,27 @@ def test_migrated_views_preserve_baseline_data_labels_and_cursor_locations() -> 
         assert figures[2]._suptitle is not None
         assert figures[2]._suptitle.get_text() == trajectory_labels["figure_title"]
         trajectory_data = trajectory_axes.lines[0].get_data_3d()
+        assert len(trajectory_data[0]) <= MAX_DISPLAY_POINTS_PER_SEGMENT
         for axis_index, axis_name in enumerate(("x", "y", "z")):
             np.testing.assert_allclose(
-                trajectory_data[axis_index],
-                orbit_series.position_km[:, axis_index],
+                [
+                    np.min(trajectory_data[axis_index]),
+                    np.max(trajectory_data[axis_index]),
+                ],
+                [
+                    np.min(orbit_series.position_km[:, axis_index]),
+                    np.max(orbit_series.position_km[:, axis_index]),
+                ],
             )
             baseline_extent = trajectory_labels["extents_km"][axis_name]
             axis_extent = (
                 trajectory_axes.get_xlim()
                 if axis_name == "x"
-                else trajectory_axes.get_ylim()
-                if axis_name == "y"
-                else trajectory_axes.get_zlim()
+                else (
+                    trajectory_axes.get_ylim()
+                    if axis_name == "y"
+                    else trajectory_axes.get_zlim()
+                )
             )
             np.testing.assert_allclose(
                 axis_extent,

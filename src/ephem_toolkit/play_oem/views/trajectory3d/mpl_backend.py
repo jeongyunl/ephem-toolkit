@@ -8,6 +8,7 @@ from mpl_toolkits.mplot3d.axes3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Path3DCollection
 
 from ... import cursor, series, time_unit
+from ..plotting import MAX_MATPLOTLIB_3D_DISPLAY_POINTS, decimate_indices
 
 CARTESIAN_COMPONENT_COUNT: int = 3
 """Number of Cartesian coordinates in a position vector."""
@@ -109,6 +110,9 @@ class Trajectory3DView:
         for segment_id in np.unique(orbit_series.segment_ids):
             mask = orbit_series.segment_ids == segment_id
             segment_positions = positions_km[mask]
+            segment_positions = segment_positions[
+                decimate_indices(segment_positions, MAX_MATPLOTLIB_3D_DISPLAY_POINTS)
+            ]
             trajectory_axes.plot(
                 segment_positions[:, 0],
                 segment_positions[:, 1],

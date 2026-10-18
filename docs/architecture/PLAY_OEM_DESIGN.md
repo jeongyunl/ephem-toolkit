@@ -138,11 +138,13 @@ class View(Protocol):
   for the satellite marker, optional trailing tail slice.
 - Plot each OEM segment separately; do not draw lines across gaps. Mark segment boundaries
   clearly, and update the cursor/readout style or status when `t_now` lies in a gap.
-- **Blitting** (validated in step 27 on `FigureCanvasWxAgg`): after the first full draw, cache the background (`canvas.copy_from_bbox`) and
-  redraw only cursor artists with `restore_region`/`draw_artist`/`blit`. Resize/`draw_event`
-  invalidates the cache. This is what makes 1000x with 7 views feasible (N1).
-- Large series are decimated for display (min/max per pixel bucket) when > ~50k points; the
-  full data stays for lookup.
+- **WxAgg redraws**: use `canvas.draw_idle()` for cursor updates. Partial bitmap blitting left
+  duplicated and mispositioned plot content after click-to-seek in the reported macOS UI;
+  full redraws avoid that corruption. Re-measure performance with this redraw path before
+  considering another optimization.
+- 2D histories use min/max bucket decimation to at most 2,000 display points per segment;
+  Matplotlib 3D uses at most 500 points per segment and VTK uses the shared decimation helper.
+  The full series and cursor timestamps remain unmodified for lookup.
 - Registry maps individual views (`trajectory-3d`, `state-components`, `speed-altitude`,
   `rtn`, `angular-velocity`, `direction-change`, `distance`) and view groups to factories.
   `overview` = trajectory + speed/altitude; `state` = state components; `motion` = RTN,
@@ -197,8 +199,8 @@ a broad exception handler. Both backends implement the same interface, so the to
 **Matplotlib/wx backend.** The initial overview draws the static orbit path, start/end markers,
 labeled axes and object/frame context in `build`; `update` moves the satellite marker from the shared
 cursor state. The figure is hosted in a wx frame through `FigureCanvasWxAgg`, and the Matplotlib
-navigation toolbar is hosted by wx. Redraws are requested with `draw_idle()`. Throttling this 3D
-backend is covered by step 27. Earth rendering and trajectory tails remain planned enhancements.
+navigation toolbar is hosted by wx. Redraws are requested with `draw_idle()` and playback updates
+are throttled to at most 10 Hz. Earth rendering and trajectory tails remain planned enhancements.
 
 **VTK backend.** Scene built in `build`:
 
@@ -212,9 +214,10 @@ backend is covered by step 27. Earth rendering and trajectory tails remain plann
 - Earth: semi-transparent WGS84 ellipsoid (`vtkSphereSource` scaled by the flattening).
   Inertial-frame view with a static Earth in v1; a rotating, textured Earth needs the ECI→ECEF rotation at
   `t_now` (via `core/frame_utils`) and is a follow-up.
-- Satellite: small sphere actor; `update(t_s)` only calls
-  `actor.SetPosition(r)` from the cursor state, then `renderWindow.Render()`. The GPU draws it, so no
-  blitting or decimation is needed and 1000x playback is cheap even for 100k-point orbits.
+- Satellite: small sphere actor; `update(t_s)` moves it from the cursor state and renders on the
+  wx thread. The static orbit path is display-decimated and 3D updates are capped at 10 Hz; the
+  cursor and tail still use full-resolution samples. GPU rendering does not by itself guarantee
+  the N1 playback target.
 - Tail: a second direction-aware polyline over the recent samples, following the cursor in forward
   or reverse playback.
 - Camera/interaction: `vtkInteractorStyleTrackballCamera` (rotate/zoom/pan) with the camera left untouched by `update`, so you can orbit while it plays.
@@ -341,3 +344,55 @@ The dependency-ordered, demo-first implementation sequence is maintained separat
 - SIGINT may not be handled promptly inside the wx main loop; the `wx.CallAfter` forwarding in §5 handles it.
 - Multiple Matplotlib figures in one wx loop: use the `WXAgg` backend only and never mix backends.
 - wx absent → report a clear GUI dependency error; core logic remains testable without a display.
+
+## 8.1 Performance findings and deferred work
+
+The step-27 benchmark predates the full-redraw workaround below and used 100,000 synthetic
+orbit samples, all seven views, 1000x playback,
+and a five-second native wx measurement on macOS. It measured about 6.7 playback updates/s with
+the automatic VTK backend and about 11.4 updates/s with Matplotlib 3D throttled to 10 Hz. A
+Matplotlib run with a 5 Hz 3D cap reached about 14.4 updates/s. These short host-specific runs
+are below the N1 target of 15 updates/s; the user accepted the current behavior and requested
+that further performance work be deferred. This is an accepted deviation, not evidence that
+the target was reached.
+
+A separate headless Agg render-loop benchmark with cached blitting measured about 538 view
+updates/s across the seven views; it also predates the full-redraw workaround and is not a
+measurement of the current wx path. Agg is CPU software rendering; this result does not predict
+native wx/compositor performance. Full-resolution data remains available for cursor lookup:
+display-only 2D histories are limited to 2,000 min/max-selected points per segment, the
+Matplotlib 3D path to 500 points per segment, and the VTK display path to 2,000 points per
+segment. Playback-clock advancement is independent of the 3D render throttle.
+
+Deferred follow-ups:
+
+- Repeat the all-view benchmark on representative macOS, Linux, and Windows hardware with both
+  Matplotlib and VTK, including a real 100k-sample OEM and segmented inputs.
+- Record timer cadence, per-view update time, wx full-draw/VTK render time, and interaction
+  latency separately; report sustained and percentile values, not just short-run averages.
+- Profile the roughly 10-second 100k-state derived-series preparation observed in the synthetic
+  run. Consider vectorizing the per-sample RTN work only after profiling identifies it as a
+  relevant startup bottleneck.
+- Revisit 3D point budgets, adaptive display decimation, and render-rate/frame-dropping policy
+  against a measured input-responsiveness target. Preserve full-resolution cursor calculations.
+- Compare hardware/software rendering and compositor behavior per platform; do not infer GPU
+  acceleration from Agg or wx bitmap presentation alone.
+
+Platform/implementation-dependent considerations (hypotheses, not conclusions from the
+benchmark):
+
+- wx timer delivery, native paint scheduling, high-DPI scaling, and the compositor may change
+  actual event cadence and blit cost between macOS, GTK/Linux, and Windows. The current
+  measurements do not isolate those causes.
+- Matplotlib WxAgg still performs Matplotlib rasterization through Agg on the CPU; wx/native
+  compositing may use different presentation paths on each platform. The benchmark did not
+  measure GPU utilization.
+- VTK uses an OpenGL render window, but its frame cost and whether rendering is hardware
+  accelerated depend on the active driver/context. The successful VTK backend selection and
+  lower measured rate than Matplotlib in this run do not prove either hardware acceleration or
+  that VTK is generally slower.
+- OEM sample spacing, segment count/length, orbital geometry, figure dimensions, and display
+  scale may change decimation quality and render cost. The synthetic orbit does not represent
+  every customer OEM.
+- The 10 Hz 3D cap limits 3D marker updates independently of the clock. Consequently, the
+  N1 interaction target should be evaluated separately from 3D visual smoothness at 1000x.

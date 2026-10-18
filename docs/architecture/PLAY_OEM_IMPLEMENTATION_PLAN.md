@@ -78,25 +78,6 @@ plot-set work follows in the active steps below. Update
 directive. The first Tk playback demo in step 10 remains a historical milestone; a wxPython
 demo must pass the migration acceptance criteria in step 23.
 
-## Milestone K — Performance
-
-### 27. Optimize rendering and validate playback performance
-
-Add wx-compatible blitting and display decimation for 2D views, per-view throttling for
-Matplotlib 3D, and frame dropping as needed. Profile before changing algorithms; keep
-full-resolution data for cursor lookup.
-
-- **Status:** Not started.
-- **Progress:** 0/4 checklist items.
-- [ ] Add and test blitting with correct invalidation on resize/redraw.
-- [ ] Add display-only decimation for large histories.
-- [ ] Throttle Matplotlib 3D updates without slowing the playback clock.
-- [ ] Benchmark all views open at 1000x with an OEM of at least 100k samples.
-
-**Done when:** the wx UI remains interactive at the performance target in N1 and cursor values
-remain correct.
-**Depends on:** Step 26.
-
 ## Milestone L — Release readiness
 
 ### 28. Cross-platform polish and publish documentation
@@ -926,3 +907,45 @@ cursor/data subset passed (95 passed).
 
 **Done when:** no view or readout implies continuous or interpolated data across an OEM gap.
 **Depends on:** Step 25.
+
+### 27. Optimize rendering and validate playback performance
+
+Add responsive 2D rendering and display decimation, per-view throttling for Matplotlib 3D, and
+frame dropping as needed. Profile before changing algorithms; keep full-resolution data for
+cursor lookup.
+
+- **Status:** Done.
+- **Progress:** 4/4 checklist items.
+- [x] Use full WxAgg redraws for cursor updates after partial blitting caused plot corruption
+      during click-to-seek.
+- [x] Add display-only decimation for large histories.
+- [x] Throttle Matplotlib 3D updates without slowing the playback clock.
+- [x] Benchmark all views open at 1000x with an OEM of at least 100k samples.
+
+**Evidence and accepted deviation:** 2D playback cursors use `draw_idle()` full redraws;
+partial WxAgg bitmap blitting produced duplicated and mispositioned plot content after
+click-to-seek in the reported macOS UI. The step-27 performance measurements below predate
+this correctness fix and should not be treated as measurements of the current redraw path.
+2D histories are min/max decimated to 2,000 points per segment; Matplotlib 3D display paths
+are limited to 500 points per segment and VTK paths to 2,000 points per segment.
+Full-resolution series and cursor data remain unchanged. 3D rendering is throttled
+independently of the playback clock. Automated redraw, decimation, throttle, and
+cursor-correctness tests pass.
+
+Native wx measurements on this macOS environment used all seven views, 100,000 synthetic
+orbit samples, 1000x playback, and a five-second run: automatic VTK measured about 6.7
+playback updates/s; Matplotlib measured about 11.4 updates/s with the 10 Hz 3D cap. A
+Matplotlib run with a 5 Hz 3D cap reached about 14.4 updates/s. All native results are below
+the N1 target of 15 updates/s. A cached Agg render-loop benchmark reached about 538 view
+updates/s, but Agg is CPU software rendering and is not a substitute for native UI
+responsiveness. The user explicitly accepted the current measured performance and requested
+deferring further optimization. This is an accepted deviation, not a claim that N1 was met.
+
+See the “Performance findings and deferred work” section in
+[PLAY_OEM_DESIGN.md](./PLAY_OEM_DESIGN.md) for the benchmark method, platform/backend
+caveats, unverified hypotheses, and follow-up profiling candidates. N1 retains its 15 fps
+target for future consideration.
+
+**Done when:** the N1 target is met, or a below-target benchmark is documented and explicitly
+accepted, with cursor values remaining correct.
+**Depends on:** Step 26.

@@ -110,7 +110,12 @@ needed—see design).
 
 ### Non-functional
 
-- **N1 Performance**: at 1000x with all 7 views open, UI stays interactive (≥ 15 fps on a typical laptop, OEM of ≥ 100k samples).
+- **N1 Performance target**: at 1000x with all 7 views open, target an interactive UI
+  (at least 15 playback updates/s on a typical laptop with an OEM of at least 100k samples).
+  If a platform/backend benchmark falls below target, record the measured environment and
+  workload and obtain explicit acceptance before deferring further optimization. The current
+  macOS baseline is documented in the design; the user accepted it for now, with N1 retained
+  as a future optimization target.
 - **N2 Portability**: macOS, Linux, Windows; Python version per `pyproject.toml`.
 - **N3a 3D backends**: 3D views have two interchangeable implementations, Matplotlib/Tk (always available) and VTK
   (optional extra `vtk`, GPU-accelerated). Behavior and controls are identical; VTK is preferred when installed
