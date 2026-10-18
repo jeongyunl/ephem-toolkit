@@ -6,7 +6,7 @@ readouts. It is informed by the four screenshots supplied for this cycle and by 
 implementation.
 
 The completed first cycle is recorded in
-[PLAY_OEM_GUI_IMPROVEMENT_CYCLE_1.md](./PLAY_OEM_GUI_IMPROVEMENT_CYCLE_1.md). Steps 5–8 remain
+[PLAY_OEM_GUI_IMPROVEMENT_CYCLE_1.md](./PLAY_OEM_GUI_IMPROVEMENT_CYCLE_1.md). Steps 6–8 remain
 active; evidence for completed Steps 1–4 is grouped at the end of this document.
 
 ## Objective and scope
@@ -65,26 +65,6 @@ These screenshot observations were treated as hypotheses and assessed during com
    toggle behavior, graph-stack scrolling, timeline labels, or graph-panel scroll preservation.
 
 ## Remaining planned steps
-
-### 5. Clarify playback-rate and time-navigation controls
-
-Rate presets and the continuous logarithmic slider provide overlapping ways to select speed. Make
-their relationship and the active signed rate clear, and keep seek/navigation feedback coherent.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Verify the selected preset and slider position stay synchronized for preset clicks, slider
-      changes, reverse playback, and programmatic playback updates.
-- [ ] Make the current signed rate and direction unambiguous at the point users choose a rate.
-- [ ] Clarify the slider's logarithmic range and its relationship to the preset values without
-      adding redundant labels.
-- [ ] Keep Start/End, sample stepping, minute stepping, and direct seek distinguishable by action
-      and keyboard operation.
-- [ ] Recheck focus scrolling and accelerator behavior while editing the seek field.
-
-**Done when:** the active rate, direction, and rate-selection mechanism are understandable and
-synchronized, while all time-navigation actions retain their existing semantics.
-**Depends on:** Step 3.
 
 ### 6. Improve OEM information scanability
 
@@ -281,3 +261,32 @@ types; users can also change an existing panel's type there. Existing graph repl
 duplicate-panel workflows remain covered by app tests. Native wx measured Playback content at
 677 px in the default 619 px viewport and 693 px in the minimum 339 px viewport. It also confirmed
 that Add graph is present, the new panel defaults to Empty, and all graph types are selectable.
+
+### 5. Clarify playback-rate and time-navigation controls
+
+Rate presets and the continuous logarithmic slider provide overlapping ways to select speed. Make
+their relationship and the active signed rate clear, and keep seek/navigation feedback coherent.
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Verify the selected preset and slider position stay synchronized for preset clicks, slider
+      changes, reverse playback, and programmatic playback updates.
+- [x] Make the current signed rate and direction unambiguous at the point users choose a rate.
+- [x] Clarify the slider's logarithmic range and its relationship to the preset values without
+      adding redundant labels.
+- [x] Keep Start/End, sample stepping, minute stepping, and direct seek distinguishable by action
+      and keyboard operation.
+- [x] Recheck focus scrolling and accelerator behavior while editing the seek field.
+
+**Done when:** the active rate, direction, and rate-selection mechanism are understandable and
+synchronized, while all time-navigation actions retain their existing semantics.
+**Depends on:** Step 3.
+
+**Outcome:** the signed current rate is shown beside the presets and dynamically beside the
+slider; its tooltip explains the logarithmic scale and that the four presets mark each decade.
+Tests cover slider mappings (1x–1000x), state-to-control synchronization without emitting a
+feedback speed change, navigation labels and keyboard actions, and seek-field focus/accelerator
+behavior. Native wx confirmed the slider label wraps to two lines at both frame sizes and tracks
+signed programmatic changes (`-10x` to `-100x` to `+100x`) while keeping the slider and preset at
+100x selected. Changing the rate while scrolled to the slider also preserved the Playback scroll
+position.

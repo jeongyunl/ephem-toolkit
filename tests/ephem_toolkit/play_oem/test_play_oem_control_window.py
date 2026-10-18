@@ -297,6 +297,14 @@ def test_native_controls_dispatch_playback_and_navigation_actions(
     assert calls["step_samples"] == [-1, 1]
     assert calls["step_seconds"] == [-60.0, 60.0]
     assert calls["end"] == [True]
+    assert [button.label for button in window.navigation_buttons] == [
+        "Start",
+        "Previous sample",
+        "-1 min",
+        "+1 min",
+        "Next sample",
+        "End",
+    ]
 
 
 def test_playback_controls_remain_reachable_in_scrollable_page(
@@ -312,6 +320,7 @@ def test_playback_controls_remain_reachable_in_scrollable_page(
     assert window.panel.sizer.items[4][0].orientation == control_window.wx.VERTICAL
     assert window.navigation_buttons[1].parent is window.panel
     assert window.speed_preset_buttons[100.0].parent is window.panel
+    assert "100 slider steps per decade" in window.speed_slider.tooltip
     assert not hasattr(window, "view_groups_pane")
     assert not hasattr(window, "group_buttons")
     assert not hasattr(window, "view_choice")
@@ -435,6 +444,9 @@ def test_playback_state_updates_readouts_and_speed_without_seeking(
     assert window.utc_label.label == "UTC: example"
     assert window.play_pause_button.label == "Pause"
     assert window.speed_label.label == "Speed: -10x"
+    assert window.speed_scale_label.label == (
+        "Speed slider: -10x (log scale, 1x to 1000x)"
+    )
     assert window.direction_button.label == "Forward"
     assert window.direction_button.value
     assert window.speed_preset_buttons[10.0].value
@@ -445,6 +457,9 @@ def test_playback_state_updates_readouts_and_speed_without_seeking(
 
     window.update_playback_state("Elapsed: 25 s\nUTC: example", False, 1.0)
 
+    assert window.speed_scale_label.label == (
+        "Speed slider: +1x (log scale, 1x to 1000x)"
+    )
     assert not window.direction_button.value
     assert window.speed_preset_buttons[1.0].value
     assert not window.speed_preset_buttons[10.0].value

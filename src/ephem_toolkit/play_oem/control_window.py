@@ -216,10 +216,12 @@ class ControlWindow:
         )
         layout.Add(navigation_row, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
 
+        self._speed_scale_label_text = (
+            f"Speed slider: +{SPEED_MIN:g}x "
+            f"(log scale, {SPEED_MIN:g}x to {SPEED_MAX:g}x)"
+        )
         self.speed_scale_label = wx.StaticText(
-            self.panel,
-            wx.ID_ANY,
-            f"Playback speed (log scale, {SPEED_MIN:g}x to {SPEED_MAX:g}x)",
+            self.panel, wx.ID_ANY, self._speed_scale_label_text
         )
         layout.Add(
             self.speed_scale_label,
@@ -236,6 +238,9 @@ class ControlWindow:
             style=wx.SL_HORIZONTAL,
         )
         self.speed_slider.SetName("Playback speed")
+        self.speed_slider.SetToolTip(
+            "Log scale: 100 slider steps per decade; presets mark 1x, 10x, 100x, and 1000x."
+        )
         self.speed_slider.Bind(wx.EVT_SLIDER, self._on_speed_slider)
         layout.Add(
             self.speed_slider,
@@ -329,6 +334,14 @@ class ControlWindow:
         self.update_time(text)
         self.play_pause_button.SetLabel("Pause" if playing else "Play")
         self.speed_label.SetLabel(f"Speed: {rate:+g}x")
+        speed_scale_text = (
+            f"Speed slider: {rate:+g}x "
+            f"(log scale, {SPEED_MIN:g}x to {SPEED_MAX:g}x)"
+        )
+        if speed_scale_text != self._speed_scale_label_text:
+            self._speed_scale_label_text = speed_scale_text
+            self.speed_scale_label.SetLabel(speed_scale_text)
+            self._fit_playback_content()
         self.direction_button.SetLabel("Reverse" if rate > 0.0 else "Forward")
         self.direction_button.SetValue(rate < 0.0)
 
