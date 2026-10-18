@@ -4,7 +4,7 @@
 > [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md). GUI development:
 > [PLAY_OEM_GUI_DEVELOPMENT.md](./PLAY_OEM_GUI_DEVELOPMENT.md).
 
-`play-oem` is the interactive, animated successor to [`plot-oem`](../tools/PLOT_OEM.md). Where `plot-oem` renders
+`play-oem` is the interactive, animated successor to [`plot-oem`](../../tools/PLOT_OEM.md). Where `plot-oem` renders
 static figures of a whole OEM history, `play-oem` replays the orbit through time: a
 main control window drives a shared simulation clock, and every open plot window shows
 the state at that clock.
@@ -126,7 +126,7 @@ needed—see design).
   decision is in the design; any new dependency is added as an optional extra.
 - **N4 Determinism**: the state at `t_now` depends only on `t_now`, not on how the clock got there.
 - **N4a Data honesty**: indicate OEM segment boundaries and gaps; never imply continuous data or valid interpolation across a gap. Label reference frames, units, altitude reference and interpolated cursor values clearly.
-- **N5 Quality**: follow [python_style_guide.md](../development/python_style_guide.md); pure logic
+- **N5 Quality**: follow [python_style_guide.md](../../development/python_style_guide.md); pure logic
   (clock, series, interpolation lookup) unit-testable without a display.
 - **N6 Testability**: playback logic, data processing and tests run without a display. Running
   the interactive player requires its GUI toolkit and display environment.
@@ -142,7 +142,7 @@ needed—see design).
 2. Keep `plot-oem` as the existing command for static diagnostic figures; do not alias it to
    `play-oem`.
 3. Share numerical/data-processing code only when behavior remains compatible with both tools.
-4. Update [TODO.md](../development/TODO.md) and README tool lists.
+4. Update [TODO.md](../../development/TODO.md) and README tool lists.
 
 ## Open questions
 

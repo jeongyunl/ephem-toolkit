@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1384" height="420" viewBox="28 104 1384 420" role="img" aria-labelledby="title desc">
+  <title id="title">Notebook-first play-oem workspace mock-up</title>
+  <desc id="desc">A wx.Notebook switches between view groups above a persistent playback bar; Overview contains trajectory and speed-altitude plots.</desc>
+  <defs>
+    <style>
+      .bg{fill:#eef2f7}
+      .card{fill:#fff;stroke:#d7e0ea;stroke-width:1.5}
+      .window{fill:#f8fafc;stroke:#cbd5e1;stroke-width:1.5}
+      .chrome{fill:#e8edf3}
+      .ink{fill:#152235;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .muted{fill:#65758b;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .white{fill:#fff;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .h1{font-size:27px;font-weight:700}
+      .h2{font-size:18px;font-weight:700}
+      .body{font-size:14px}
+      .small{font-size:12px}
+      .tiny{font-size:10px}
+      .tab{fill:#e9eef5;stroke:#d2dbe6;stroke-width:1}
+      .tabon{fill:#fff;stroke:#b9c9dc;stroke-width:1.2}
+      .panel{fill:#fff;stroke:#dce4ed;stroke-width:1}
+      .sash{fill:#d2dbe6}
+      .grid{stroke:#dbe4ee;stroke-width:1}
+      .line{fill:none;stroke:#2563eb;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+      .orbit{fill:none;stroke:#22a69a;stroke-width:3;stroke-linecap:round}
+      .primary{fill:#2563eb}
+    </style>
+  </defs>
+<!-- Notebook-first -->
+  <rect class="card" x="28" y="104" width="1384" height="420" rx="18"/>
+  <text class="ink h2" x="52" y="140">1 · Notebook-first</text>
+  <text class="muted small" x="52" y="162">Switch between view groups; keep transport controls persistent</text>
+  <rect class="window" x="52" y="178" width="1336" height="328" rx="11"/>
+  <rect class="chrome" x="52" y="178" width="1336" height="32" rx="11"/>
+  <rect class="chrome" x="52" y="198" width="1336" height="12"/>
+  <circle cx="72" cy="194" r="4.5" fill="#9aa8b9"/>
+  <circle cx="89" cy="194" r="4.5" fill="#9aa8b9"/>
+  <circle cx="106" cy="194" r="4.5" fill="#9aa8b9"/>
+  <text class="muted small" x="128" y="198">play-oem · ISS_2026-05-20.OEM</text>
+  <text class="ink small" x="76" y="235" font-weight="700">Overview</text>
+  <rect class="tabon" x="158" y="217" width="104" height="32" rx="6"/>
+  <text class="ink small" x="210" y="237" text-anchor="middle">Overview</text>
+  <rect class="tab" x="268" y="217" width="88" height="32" rx="6"/>
+  <text class="muted small" x="312" y="237" text-anchor="middle">State</text>
+  <rect class="tab" x="362" y="217" width="102" height="32" rx="6"/>
+  <text class="muted small" x="413" y="237" text-anchor="middle">Motion</text>
+  <rect class="tab" x="470" y="217" width="100" height="32" rx="6"/>
+  <text class="muted small" x="520" y="237" text-anchor="middle">Distance</text>
+  <rect class="panel" x="76" y="258" width="635" height="160" rx="8"/>
+  <text class="ink small" x="94" y="281" font-weight="700">TRAJECTORY · 3D</text>
+  <ellipse cx="393" cy="346" rx="208" ry="48" class="orbit"/>
+  <ellipse cx="393" cy="346" rx="40" ry="23" fill="#dcecff" stroke="#93bdf8" stroke-width="1.5"/>
+  <circle cx="535" cy="316" r="6" class="primary"/>
+  <text class="muted tiny" x="406" y="351">Earth</text>
+  <rect class="panel" x="725" y="258" width="639" height="160" rx="8"/>
+  <text class="ink small" x="743" y="281" font-weight="700">SPEED / ALTITUDE</text>
+  <line class="grid" x1="744" y1="308" x2="1345" y2="308"/>
+  <line class="grid" x1="744" y1="342" x2="1345" y2="342"/>
+  <line class="grid" x1="744" y1="376" x2="1345" y2="376"/>
+  <path class="line" d="M754 361 C820 322,870 373,929 344 S1037 328,1092 355 S1192 335,1242 347 S1300 326,1344 340"/>
+  <line x1="1100" y1="297" x2="1100" y2="395" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4 4"/>
+  <rect x="76" y="430" width="94" height="32" rx="7" class="primary"/>
+  <text class="white small" x="123" y="450" text-anchor="middle">Ⅱ Pause</text>
+  <rect class="tab" x="178" y="430" width="76" height="32" rx="7"/>
+  <text class="ink small" x="216" y="450" text-anchor="middle">Reverse</text>
+  <text class="ink small" x="270" y="450" font-weight="700">−100×</text>
+  <text class="muted tiny" x="372" y="450">T+ 02:14:32.4 · 2026-05-20 02:14:32 UTC</text>
+  <line x1="76" y1="481" x2="1359" y2="481" stroke="#cbd5e1" stroke-width="5" stroke-linecap="round"/>
+  <line x1="76" y1="481" x2="635" y2="481" stroke="#3b82f6" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="635" cy="481" r="7" class="primary"/>
+  <text class="muted tiny" x="76" y="499">00:00</text>
+  <text class="muted tiny" x="1359" y="499" text-anchor="end">06:00</text>
+
+  </svg>

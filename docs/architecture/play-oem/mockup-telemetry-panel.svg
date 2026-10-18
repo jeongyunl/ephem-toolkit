@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1376" height="500" viewBox="32 1048 1376 500" role="img" aria-labelledby="title desc">
+  <title id="title">Compact telemetry panel GUI mock-up</title>
+  <desc id="desc">A narrow wxPython playback and telemetry window beside detached trajectory and speed-altitude plots.</desc>
+  <defs>
+    <linearGradient id="accent" x1="0" x2="1">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#14b8a6"/>
+    </linearGradient>
+    <style>
+      .bg{fill:#eef2f7}
+      .card{fill:#fff;stroke:#d7e0ea;stroke-width:1.5}
+      .window{fill:#f8fafc;stroke:#cbd5e1;stroke-width:1.5}
+      .chrome{fill:#e8edf3}
+      .ink{fill:#152235;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .muted{fill:#65758b;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .white{fill:#fff;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .h1{font-size:28px;font-weight:700}
+      .h2{font-size:19px;font-weight:700}
+      .body{font-size:15px}
+      .small{font-size:12px}
+      .tiny{font-size:10px}
+      .button{fill:#fff;stroke:#bdcad8;stroke-width:1.2}
+      .selected{fill:#e9f2ff;stroke:#6aa2f8;stroke-width:1.4}
+      .primary{fill:#2563eb}
+      .panel{fill:#fff;stroke:#dce4ed;stroke-width:1}
+      .grid{stroke:#dbe4ee;stroke-width:1}
+      .plot{fill:none;stroke:#2563eb;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+      .orbit{fill:none;stroke:#22a69a;stroke-width:3;stroke-linecap:round}
+    </style>
+  </defs>
+  <!-- Concept C -->
+  <rect class="card" x="32" y="1048" width="1376" height="500" rx="18"/>
+  <text class="ink h2" x="58" y="1085">C · Compact telemetry panel</text>
+  <text class="muted body" x="58" y="1110">Narrow vertical control window beside plots · time and state take priority</text>
+  <rect class="window" x="58" y="1130" width="518" height="390" rx="12"/>
+  <rect class="chrome" x="58" y="1130" width="518" height="34" rx="12"/>
+  <rect class="chrome" x="58" y="1151" width="518" height="13"/>
+  <circle cx="78" cy="1147" r="5" fill="#9aa8b9"/>
+  <circle cx="96" cy="1147" r="5" fill="#9aa8b9"/>
+  <circle cx="114" cy="1147" r="5" fill="#9aa8b9"/>
+  <text class="muted small" x="138" y="1151">play-oem · Player</text>
+  <text class="ink small" x="82" y="1190" font-weight="700">ISS · GCRF</text>
+  <text class="muted tiny" x="552" y="1190" text-anchor="end">5,402 samples</text>
+  <text class="ink" x="82" y="1230" font-size="25" font-weight="700">02:14:32.400</text>
+  <text class="muted small" x="82" y="1252">2026-05-20 02:14:32 UTC</text>
+  <rect class="primary" x="82" y="1270" width="102" height="40" rx="8"/>
+  <text class="white body" x="133" y="1296" text-anchor="middle">Ⅱ Pause</text>
+  <rect class="button" x="192" y="1270" width="91" height="40" rx="8"/>
+  <text class="ink small" x="237" y="1295" text-anchor="middle">◀ / ▶</text>
+  <text class="ink small" x="300" y="1295" font-weight="700">−60×</text>
+  <rect class="button" x="355" y="1270" width="82" height="40" rx="8"/>
+  <text class="ink small" x="396" y="1295" text-anchor="middle">Speed ▾</text>
+  <text class="muted small" x="82" y="1340">TIMELINE</text>
+  <line x1="93" y1="1361" x2="541" y2="1361" stroke="#cbd5e1" stroke-width="6" stroke-linecap="round"/>
+  <line x1="93" y1="1361" x2="280" y2="1361" stroke="url(#accent)" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="280" cy="1361" r="8" fill="#2563eb" stroke="#fff" stroke-width="2"/>
+  <text class="muted tiny" x="82" y="1382">00:00</text>
+  <text class="muted tiny" x="552" y="1382" text-anchor="end">06:00</text>
+  <line x1="82" y1="1400" x2="552" y2="1400" stroke="#e2e8f0"/>
+  <text class="muted tiny" x="82" y="1423">POSITION · km</text>
+  <text class="ink small" x="82" y="1445">−2,143.5   5,982.1   1,423.7</text>
+  <text class="muted tiny" x="82" y="1472">VELOCITY · km/s</text>
+  <text class="ink small" x="82" y="1494">−6.910   −2.140   3.020</text>
+  <rect x="340" y="1422" width="100" height="26" rx="13" fill="#e8f7f3"/>
+  <text x="390" y="1440" text-anchor="middle" fill="#087f70" font-family="Inter, sans-serif" font-size="10" font-weight="600">Interpolated</text>
+  <rect class="button" x="450" y="1422" width="102" height="30" rx="7"/>
+  <text class="ink small" x="501" y="1442" text-anchor="middle">Views ▾</text>
+  <rect class="button" x="82" y="1498" width="470" height="0" rx="7"/>
+  <text class="muted tiny" x="82" y="1511">Details ▸  ·  Time entry and step controls in expanded section</text>
+
+  <text class="muted small" x="620" y="1190" font-weight="700">DETACHED PLOT WINDOWS</text>
+  <rect class="panel" x="620" y="1210" width="742" height="132" rx="10"/>
+  <text class="ink small" x="644" y="1238" font-weight="700">TRAJECTORY · OVERVIEW</text>
+  <ellipse cx="985" cy="1290" rx="186" ry="35" class="orbit"/>
+  <ellipse cx="985" cy="1290" rx="38" ry="20" fill="#dcecff" stroke="#93bdf8" stroke-width="1.5"/>
+  <circle cx="1127" cy="1267" r="6" fill="#2563eb"/>
+  <rect class="panel" x="620" y="1354" width="742" height="132" rx="10"/>
+  <text class="ink small" x="644" y="1382" font-weight="700">SPEED / ALTITUDE</text>
+  <line class="grid" x1="644" y1="1410" x2="1338" y2="1410"/>
+  <line class="grid" x1="644" y1="1438" x2="1338" y2="1438"/>
+  <line class="grid" x1="644" y1="1466" x2="1338" y2="1466"/>
+  <path class="plot" d="M654 1450 C720 1420,775 1462,836 1438 S950 1427,1007 1450 S1113 1433,1170 1443 S1274 1417,1327 1434"/>
+  <line x1="1127" y1="1400" x2="1127" y2="1474" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4 4"/>
+</svg>

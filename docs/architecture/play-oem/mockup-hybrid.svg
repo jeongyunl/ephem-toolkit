@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1384" height="472" viewBox="28 984 1384 472" role="img" aria-labelledby="title desc">
+  <title id="title">Hybrid play-oem workspace mock-up</title>
+  <desc id="desc">A wx.SplitterWindow keeps the orbit visible while a wx.Notebook switches among synchronized diagnostic plots; playback controls remain fixed.</desc>
+  <defs>
+    <style>
+      .bg{fill:#eef2f7}
+      .card{fill:#fff;stroke:#d7e0ea;stroke-width:1.5}
+      .window{fill:#f8fafc;stroke:#cbd5e1;stroke-width:1.5}
+      .chrome{fill:#e8edf3}
+      .ink{fill:#152235;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .muted{fill:#65758b;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .white{fill:#fff;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .h1{font-size:27px;font-weight:700}
+      .h2{font-size:18px;font-weight:700}
+      .body{font-size:14px}
+      .small{font-size:12px}
+      .tiny{font-size:10px}
+      .tab{fill:#e9eef5;stroke:#d2dbe6;stroke-width:1}
+      .tabon{fill:#fff;stroke:#b9c9dc;stroke-width:1.2}
+      .panel{fill:#fff;stroke:#dce4ed;stroke-width:1}
+      .sash{fill:#d2dbe6}
+      .grid{stroke:#dbe4ee;stroke-width:1}
+      .line{fill:none;stroke:#2563eb;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+      .orbit{fill:none;stroke:#22a69a;stroke-width:3;stroke-linecap:round}
+      .primary{fill:#2563eb}
+    </style>
+  </defs>
+<!-- Hybrid -->
+  <rect class="card" x="28" y="984" width="1384" height="472" rx="18"/>
+  <text class="ink h2" x="52" y="1020">3 · Hybrid: pinned orbit + diagnostic notebook</text>
+  <text class="muted small" x="52" y="1042">Keep trajectory context visible while switching the right-hand analysis page</text>
+  <rect class="window" x="52" y="1058" width="1336" height="372" rx="11"/>
+  <rect class="chrome" x="52" y="1058" width="1336" height="32" rx="11"/>
+  <rect class="chrome" x="52" y="1078" width="1336" height="12"/>
+  <circle cx="72" cy="1074" r="4.5" fill="#9aa8b9"/>
+  <circle cx="89" cy="1074" r="4.5" fill="#9aa8b9"/>
+  <circle cx="106" cy="1074" r="4.5" fill="#9aa8b9"/>
+  <text class="muted small" x="128" y="1078">play-oem · Overview</text>
+  <rect class="panel" x="72" y="1104" width="508" height="242" rx="8"/>
+  <text class="ink small" x="91" y="1129" font-weight="700">TRAJECTORY · ALWAYS VISIBLE</text>
+  <ellipse cx="324" cy="1221" rx="197" ry="55" class="orbit"/>
+  <ellipse cx="324" cy="1221" rx="43" ry="25" fill="#dcecff" stroke="#93bdf8" stroke-width="1.5"/>
+  <circle cx="465" cy="1190" r="6" class="primary"/>
+  <rect class="sash" x="588" y="1104" width="9" height="242" rx="4"/>
+  <rect class="panel" x="607" y="1104" width="761" height="242" rx="8"/>
+  <rect class="tabon" x="625" y="1113" width="139" height="30" rx="6"/>
+  <text class="ink small" x="694" y="1133" text-anchor="middle">Speed / Altitude</text>
+  <rect class="tab" x="770" y="1113" width="112" height="30" rx="6"/>
+  <text class="muted small" x="826" y="1133" text-anchor="middle">State</text>
+  <rect class="tab" x="888" y="1113" width="112" height="30" rx="6"/>
+  <text class="muted small" x="944" y="1133" text-anchor="middle">Motion</text>
+  <rect class="tab" x="1006" y="1113" width="112" height="30" rx="6"/>
+  <text class="muted small" x="1062" y="1133" text-anchor="middle">Distance</text>
+  <text class="muted tiny" x="1348" y="1133" text-anchor="end">cursor: interpolated</text>
+  <line class="grid" x1="631" y1="1173" x2="1348" y2="1173"/>
+  <line class="grid" x1="631" y1="1213" x2="1348" y2="1213"/>
+  <line class="grid" x1="631" y1="1253" x2="1348" y2="1253"/>
+  <line class="grid" x1="631" y1="1293" x2="1348" y2="1293"/>
+  <path class="line" d="M642 1275 C699 1238,763 1282,817 1255 S920 1234,972 1268 S1077 1247,1130 1259 S1265 1231,1338 1247"/>
+  <line x1="1066" y1="1159" x2="1066" y2="1315" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4 4"/>
+  <text class="muted tiny" x="91" y="1322">GCRF · 5,402 samples</text>
+  <rect class="tab" x="72" y="1360" width="90" height="30" rx="7"/>
+  <text class="ink small" x="117" y="1380" text-anchor="middle">Ⅱ Pause</text>
+  <rect class="tab" x="169" y="1360" width="82" height="30" rx="7"/>
+  <text class="ink small" x="210" y="1380" text-anchor="middle">Reverse</text>
+  <text class="ink small" x="268" y="1380" font-weight="700">−60×</text>
+  <text class="muted tiny" x="340" y="1380">02:14:32 UTC</text>
+  <line x1="72" y1="1410" x2="1368" y2="1410" stroke="#cbd5e1" stroke-width="5" stroke-linecap="round"/>
+  <line x1="72" y1="1410" x2="698" y2="1410" stroke="#3b82f6" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="698" cy="1410" r="7" class="primary"/>
+</svg>

@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1376" height="460" viewBox="32 568 1376 460" role="img" aria-labelledby="title desc">
+  <title id="title">Unified analysis desk GUI mock-up</title>
+  <desc id="desc">A wxPython workspace with playback controls and trajectory and time-series panes together.</desc>
+  <defs>
+    <linearGradient id="accent" x1="0" x2="1">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#14b8a6"/>
+    </linearGradient>
+    <style>
+      .bg{fill:#eef2f7}
+      .card{fill:#fff;stroke:#d7e0ea;stroke-width:1.5}
+      .window{fill:#f8fafc;stroke:#cbd5e1;stroke-width:1.5}
+      .chrome{fill:#e8edf3}
+      .ink{fill:#152235;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .muted{fill:#65758b;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .white{fill:#fff;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .h1{font-size:28px;font-weight:700}
+      .h2{font-size:19px;font-weight:700}
+      .body{font-size:15px}
+      .small{font-size:12px}
+      .tiny{font-size:10px}
+      .button{fill:#fff;stroke:#bdcad8;stroke-width:1.2}
+      .selected{fill:#e9f2ff;stroke:#6aa2f8;stroke-width:1.4}
+      .primary{fill:#2563eb}
+      .panel{fill:#fff;stroke:#dce4ed;stroke-width:1}
+      .grid{stroke:#dbe4ee;stroke-width:1}
+      .plot{fill:none;stroke:#2563eb;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+      .orbit{fill:none;stroke:#22a69a;stroke-width:3;stroke-linecap:round}
+    </style>
+  </defs>
+  <!-- Concept B -->
+  <rect class="card" x="32" y="568" width="1376" height="460" rx="18"/>
+  <text class="ink h2" x="58" y="605">B · Unified analysis desk</text>
+  <text class="muted body" x="58" y="630">One resizable workspace with dockable wx panes · views stay together</text>
+  <rect class="window" x="58" y="650" width="1324" height="352" rx="12"/>
+  <rect class="chrome" x="58" y="650" width="1324" height="34" rx="12"/>
+  <rect class="chrome" x="58" y="671" width="1324" height="13"/>
+  <circle cx="78" cy="667" r="5" fill="#9aa8b9"/>
+  <circle cx="96" cy="667" r="5" fill="#9aa8b9"/>
+  <circle cx="114" cy="667" r="5" fill="#9aa8b9"/>
+  <text class="muted small" x="138" y="671">play-oem — ISS_2026-05-20.OEM</text>
+  <text class="muted small" x="1355" y="671" text-anchor="end">File   Views   Playback   Help</text>
+  <rect x="72" y="695" width="244" height="291" rx="9" fill="#f1f5f9"/>
+  <text class="ink small" x="91" y="721" font-weight="700">PLAYBACK</text>
+  <text class="ink" x="91" y="754" font-size="22" font-weight="700">02:14:32</text>
+  <text class="muted small" x="91" y="775">UTC · 2026-05-20</text>
+  <rect class="primary" x="91" y="792" width="98" height="36" rx="7"/>
+  <text class="white body" x="140" y="816" text-anchor="middle">Ⅱ Pause</text>
+  <rect class="button" x="198" y="792" width="98" height="36" rx="7"/>
+  <text class="ink small" x="247" y="815" text-anchor="middle">Reverse</text>
+  <text class="muted tiny" x="91" y="852">SPEED</text>
+  <text class="ink small" x="91" y="874" font-weight="600">−60×</text>
+  <line x1="132" y1="870" x2="296" y2="870" stroke="#cbd5e1" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="207" cy="870" r="7" fill="#2563eb"/>
+  <text class="muted tiny" x="91" y="900">1×</text>
+  <text class="muted tiny" x="296" y="900" text-anchor="end">1000×</text>
+  <text class="muted tiny" x="91" y="929">CURSOR · INTERPOLATED</text>
+  <text class="ink small" x="91" y="951">7.84 km/s  ·  421 km</text>
+  <text class="muted tiny" x="91" y="974">GCRF · Earth center</text>
+  <rect class="panel" x="330" y="695" width="1038" height="166" rx="9"/>
+  <text class="ink small" x="350" y="721" font-weight="700">TRAJECTORY 3D</text>
+  <text class="muted tiny" x="1344" y="721" text-anchor="end">Matplotlib · Orbit view</text>
+  <line class="grid" x1="350" y1="742" x2="1348" y2="742"/>
+  <line class="grid" x1="350" y1="782" x2="1348" y2="782"/>
+  <line class="grid" x1="350" y1="822" x2="1348" y2="822"/>
+  <ellipse cx="850" cy="794" rx="214" ry="53" class="orbit"/>
+  <ellipse cx="850" cy="794" rx="53" ry="27" fill="#dcecff" stroke="#93bdf8" stroke-width="1.5"/>
+  <circle cx="1002" cy="759" r="7" fill="#2563eb" stroke="#fff" stroke-width="2"/>
+  <text class="muted tiny" x="866" y="799">Earth</text>
+  <rect class="panel" x="330" y="873" width="1038" height="113" rx="9"/>
+  <text class="ink small" x="350" y="899" font-weight="700">SPEED &amp; ALTITUDE</text>
+  <text class="muted tiny" x="1344" y="899" text-anchor="end">Click plot to seek</text>
+  <line class="grid" x1="350" y1="925" x2="1348" y2="925"/>
+  <line class="grid" x1="350" y1="951" x2="1348" y2="951"/>
+  <line class="grid" x1="350" y1="974" x2="1348" y2="974"/>
+  <path class="plot" d="M365 958 C430 934,480 972,540 947 S650 939,704 961 S810 942,873 950 S985 930,1040 951 S1150 945,1202 959 S1290 931,1334 943"/>
+  <line x1="1002" y1="912" x2="1002" y2="978" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4 4"/>
+  <rect x="72" y="963" width="244" height="23" rx="6" fill="#e6edf5"/>
+  <text class="muted tiny" x="91" y="979">Timeline  00:00 ━━━━━●━━━━━━ 06:00</text>
+
+</svg>

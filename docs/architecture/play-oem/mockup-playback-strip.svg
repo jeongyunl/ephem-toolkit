@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1376" height="440" viewBox="32 108 1376 440" role="img" aria-labelledby="title desc">
+  <title id="title">Playback strip GUI mock-up</title>
+  <desc id="desc">A compact wxPython control frame with detached plot windows, playback transport, a timeline, and current-state summary.</desc>
+  <defs>
+    <linearGradient id="accent" x1="0" x2="1">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#14b8a6"/>
+    </linearGradient>
+    <style>
+      .bg{fill:#eef2f7}
+      .card{fill:#fff;stroke:#d7e0ea;stroke-width:1.5}
+      .window{fill:#f8fafc;stroke:#cbd5e1;stroke-width:1.5}
+      .chrome{fill:#e8edf3}
+      .ink{fill:#152235;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .muted{fill:#65758b;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .white{fill:#fff;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .h1{font-size:28px;font-weight:700}
+      .h2{font-size:19px;font-weight:700}
+      .body{font-size:15px}
+      .small{font-size:12px}
+      .tiny{font-size:10px}
+      .button{fill:#fff;stroke:#bdcad8;stroke-width:1.2}
+      .selected{fill:#e9f2ff;stroke:#6aa2f8;stroke-width:1.4}
+      .primary{fill:#2563eb}
+      .panel{fill:#fff;stroke:#dce4ed;stroke-width:1}
+      .grid{stroke:#dbe4ee;stroke-width:1}
+      .plot{fill:none;stroke:#2563eb;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+      .orbit{fill:none;stroke:#22a69a;stroke-width:3;stroke-linecap:round}
+    </style>
+  </defs>
+  <!-- Concept A -->
+  <rect class="card" x="32" y="108" width="1376" height="440" rx="18"/>
+  <text class="ink h2" x="58" y="145">A · Playback strip</text>
+  <text class="muted body" x="58" y="170">Compact control frame with detached plot windows · closest to the current architecture</text>
+  <rect class="window" x="58" y="190" width="1324" height="330" rx="12"/>
+  <rect class="chrome" x="58" y="190" width="1324" height="34" rx="12"/>
+  <rect class="chrome" x="58" y="211" width="1324" height="13"/>
+  <circle cx="78" cy="207" r="5" fill="#9aa8b9"/>
+  <circle cx="96" cy="207" r="5" fill="#9aa8b9"/>
+  <circle cx="114" cy="207" r="5" fill="#9aa8b9"/>
+  <text class="muted small" x="138" y="211">play-oem — ISS_2026-05-20.OEM</text>
+  <text class="muted small" x="1305" y="211" text-anchor="end">Matplotlib 3D</text>
+  <text class="ink small" x="82" y="250" font-weight="600">ISS · GCRF · Earth center</text>
+  <text class="muted small" x="1355" y="250" text-anchor="end">5,402 samples  ·  00:00 — 06:00 UTC</text>
+  <text class="ink" x="82" y="286" font-size="25" font-weight="700">T+ 02:14:32.400</text>
+  <text class="muted body" x="390" y="284">2026-05-20 02:14:32.400 UTC</text>
+  <rect class="primary" x="1164" y="260" width="92" height="38" rx="8"/>
+  <text class="white body" x="1210" y="285" text-anchor="middle" font-weight="600">Ⅱ Pause</text>
+  <rect class="button" x="82" y="310" width="58" height="34" rx="7"/>
+  <text class="ink small" x="111" y="332" text-anchor="middle">|◀</text>
+  <rect class="button" x="147" y="310" width="58" height="34" rx="7"/>
+  <text class="ink small" x="176" y="332" text-anchor="middle">Step ‹</text>
+  <rect class="button" x="212" y="310" width="58" height="34" rx="7"/>
+  <text class="ink small" x="241" y="332" text-anchor="middle">Step ›</text>
+  <rect class="button" x="277" y="310" width="74" height="34" rx="7"/>
+  <text class="ink small" x="314" y="332" text-anchor="middle">Reverse</text>
+  <text class="ink small" x="362" y="331" font-weight="600">−100×</text>
+  <rect class="button" x="412" y="310" width="58" height="34" rx="7"/>
+  <text class="ink small" x="441" y="332" text-anchor="middle">1×</text>
+  <rect class="button" x="476" y="310" width="58" height="34" rx="7"/>
+  <text class="ink small" x="505" y="332" text-anchor="middle">10×</text>
+  <rect class="selected" x="540" y="310" width="66" height="34" rx="7"/>
+  <text class="ink small" x="573" y="332" text-anchor="middle">100×</text>
+  <rect class="button" x="612" y="310" width="76" height="34" rx="7"/>
+  <text class="ink small" x="650" y="332" text-anchor="middle">1000×</text>
+  <text class="muted small" x="82" y="371">Timeline</text>
+  <text class="muted tiny" x="82" y="394">00:00</text>
+  <line x1="133" y1="389" x2="1326" y2="389" stroke="#cbd5e1" stroke-width="6" stroke-linecap="round"/>
+  <line x1="133" y1="389" x2="635" y2="389" stroke="url(#accent)" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="635" cy="389" r="9" fill="#2563eb" stroke="#fff" stroke-width="3"/>
+  <text class="muted tiny" x="1355" y="394" text-anchor="end">06:00</text>
+  <rect class="button" x="82" y="411" width="280" height="34" rx="7"/>
+  <text class="muted small" x="96" y="433">Seek to elapsed time or UTC…</text>
+  <rect class="button" x="370" y="411" width="76" height="34" rx="7"/>
+  <text class="ink small" x="408" y="433" text-anchor="middle">Seek</text>
+  <text class="ink small" x="470" y="433">r  (−2,143.5, 5,982.1, 1,423.7) km</text>
+  <text class="muted small" x="895" y="433">v  (−6.91, −2.14, 3.02) km/s</text>
+  <rect x="82" y="463" width="96" height="29" rx="14" fill="#e8f7f3"/>
+  <text x="130" y="482" text-anchor="middle" fill="#087f70" font-family="Inter, sans-serif" font-size="11" font-weight="600">Interpolated</text>
+  <text class="muted small" x="194" y="482">Speed 7.84 km/s  ·  Altitude 421.2 km</text>
+  <rect class="selected" x="916" y="458" width="108" height="32" rx="7"/>
+  <text class="ink small" x="970" y="479" text-anchor="middle">Overview</text>
+  <rect class="button" x="1032" y="458" width="80" height="32" rx="7"/>
+  <text class="ink small" x="1072" y="479" text-anchor="middle">State</text>
+  <rect class="button" x="1120" y="458" width="120" height="32" rx="7"/>
+  <text class="ink small" x="1180" y="479" text-anchor="middle">Motion…</text>
+  <rect class="button" x="1248" y="458" width="104" height="32" rx="7"/>
+  <text class="ink small" x="1300" y="479" text-anchor="middle">Details ▾</text>
+
+</svg>

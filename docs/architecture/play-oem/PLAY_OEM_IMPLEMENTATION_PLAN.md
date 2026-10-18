@@ -87,7 +87,7 @@ step 23.
 
 Run the application and test suite on supported platforms. Resolve lifecycle, error-message,
 dependency, and window-management issues without introducing silent fallbacks. Publish
-`docs/tools/PLAY_OEM.md`, update README tool listings and [TODO.md](../development/TODO.md),
+`docs/tools/PLAY_OEM.md`, update README tool listings and [TODO.md](../../development/TODO.md),
 and keep `plot-oem` as the separate static-plot command.
 
 - **Status:** Not started.
@@ -365,7 +365,7 @@ default launch selection.
 **Done when:** toolbar and CLI launch selections use the same tested registry.
 **Depends on:** Step 12.
 
-**Implementation notes:** [registry.py](../../src/ephem_toolkit/play_oem/views/registry.py)
+**Implementation notes:** [registry.py](../../../src/ephem_toolkit/play_oem/views/registry.py)
 defines canonical view names and group expansion for both the toolbar and CLI. The toolbar enables
 only groups whose views are implemented; the CLI reports unavailable views instead of opening
 partial groups. Step 14 enables the State group; Step 15 will enable Motion and All.
