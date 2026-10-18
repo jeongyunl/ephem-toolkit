@@ -139,20 +139,27 @@ class ControlWindow:
                 LAYOUT_MARGIN,
             )
 
-        playback_row = wx.BoxSizer(wx.VERTICAL)
+        playback_group = wx.BoxSizer(wx.VERTICAL)
+        self.playback_label = wx.StaticText(self.panel, wx.ID_ANY, "Playback")
+        playback_group.Add(
+            self.playback_label,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
+            LAYOUT_MARGIN,
+        )
         self.play_pause_button = wx.Button(self.panel, wx.ID_ANY, "Play")
         self.play_pause_button.Bind(wx.EVT_BUTTON, lambda _event: on_toggle_play())
-        playback_row.Add(
+        playback_group.Add(
             self.play_pause_button, 0, wx.EXPAND | wx.BOTTOM, CONTROL_SPACING
         )
 
         self.direction_button = wx.ToggleButton(self.panel, wx.ID_ANY, "Reverse")
         self.direction_button.Bind(wx.EVT_TOGGLEBUTTON, lambda _event: on_reverse())
-        playback_row.Add(
+        playback_group.Add(
             self.direction_button, 0, wx.EXPAND | wx.BOTTOM, CONTROL_SPACING
         )
         self.speed_label = wx.StaticText(self.panel, wx.ID_ANY, "Speed: +1x")
-        playback_row.Add(
+        playback_group.Add(
             self.speed_label,
             0,
             wx.EXPAND | wx.BOTTOM,
@@ -168,14 +175,48 @@ class ControlWindow:
                     selected_speed
                 ),
             )
-            playback_row.Add(button, 0, wx.EXPAND | wx.BOTTOM, BUTTON_SPACING)
+            playback_group.Add(button, 0, wx.EXPAND | wx.BOTTOM, BUTTON_SPACING)
             self.speed_preset_buttons[preset_speed] = button
-        layout.Add(playback_row, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
 
+        self._speed_scale_label_text = (
+            f"Speed slider: +{SPEED_MIN:g}x "
+            f"(log scale, {SPEED_MIN:g}x to {SPEED_MAX:g}x)"
+        )
+        self.speed_scale_label = wx.StaticText(
+            self.panel, wx.ID_ANY, self._speed_scale_label_text
+        )
+        playback_group.Add(
+            self.speed_scale_label,
+            0,
+            wx.LEFT | wx.RIGHT | wx.TOP,
+            LAYOUT_MARGIN,
+        )
+        self.speed_slider = wx.Slider(
+            self.panel,
+            wx.ID_ANY,
+            0,
+            0,
+            SPEED_SLIDER_MAX,
+            style=wx.SL_HORIZONTAL,
+        )
+        self.speed_slider.SetName("Playback speed")
+        self.speed_slider.SetToolTip(
+            "Log scale: 100 slider steps per decade; presets mark 1x, 10x, 100x, and 1000x."
+        )
+        self.speed_slider.Bind(wx.EVT_SLIDER, self._on_speed_slider)
+        playback_group.Add(
+            self.speed_slider,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT,
+            LAYOUT_MARGIN,
+        )
+        layout.Add(playback_group, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
+
+        seek_group = wx.BoxSizer(wx.VERTICAL)
         self.seek_label = wx.StaticText(
             self.panel, wx.ID_ANY, "Seek to elapsed time or UTC:"
         )
-        layout.Add(
+        seek_group.Add(
             self.seek_label,
             0,
             wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
@@ -197,22 +238,23 @@ class ControlWindow:
         self.seek_button = wx.Button(self.panel, wx.ID_ANY, "Seek")
         self.seek_button.Bind(wx.EVT_BUTTON, self._submit_time_entry)
         entry_row.Add(self.seek_button, 0, wx.EXPAND)
-        layout.Add(
+        seek_group.Add(
             entry_row,
             0,
             wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
             LAYOUT_MARGIN,
         )
-
         self.time_error_label = wx.StaticText(self.panel, wx.ID_ANY, "")
         self.time_error_label.SetForegroundColour(wx.Colour(*TIME_ERROR_COLOR_RGB))
-        layout.Add(
+        seek_group.Add(
             self.time_error_label,
             0,
             wx.EXPAND | wx.LEFT | wx.RIGHT,
             LAYOUT_MARGIN,
         )
+        layout.Add(seek_group, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
 
+        navigation_group = wx.BoxSizer(wx.VERTICAL)
         navigation_row = wx.BoxSizer(wx.VERTICAL)
         navigation_actions: tuple[tuple[str, Callable[[], None]], ...] = (
             ("Start", on_jump_to_start),
@@ -229,46 +271,14 @@ class ControlWindow:
             navigation_row.Add(button, 0, wx.EXPAND | wx.BOTTOM, BUTTON_SPACING)
             self.navigation_buttons.append(button)
         self.navigation_label = wx.StaticText(self.panel, wx.ID_ANY, "Time navigation")
-        layout.Add(
+        navigation_group.Add(
             self.navigation_label,
             0,
             wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
             LAYOUT_MARGIN,
         )
-        layout.Add(navigation_row, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
-
-        self._speed_scale_label_text = (
-            f"Speed slider: +{SPEED_MIN:g}x "
-            f"(log scale, {SPEED_MIN:g}x to {SPEED_MAX:g}x)"
-        )
-        self.speed_scale_label = wx.StaticText(
-            self.panel, wx.ID_ANY, self._speed_scale_label_text
-        )
-        layout.Add(
-            self.speed_scale_label,
-            0,
-            wx.LEFT | wx.RIGHT | wx.TOP,
-            LAYOUT_MARGIN,
-        )
-        self.speed_slider = wx.Slider(
-            self.panel,
-            wx.ID_ANY,
-            0,
-            0,
-            SPEED_SLIDER_MAX,
-            style=wx.SL_HORIZONTAL,
-        )
-        self.speed_slider.SetName("Playback speed")
-        self.speed_slider.SetToolTip(
-            "Log scale: 100 slider steps per decade; presets mark 1x, 10x, 100x, and 1000x."
-        )
-        self.speed_slider.Bind(wx.EVT_SLIDER, self._on_speed_slider)
-        layout.Add(
-            self.speed_slider,
-            0,
-            wx.EXPAND | wx.LEFT | wx.RIGHT,
-            LAYOUT_MARGIN,
-        )
+        navigation_group.Add(navigation_row, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
+        layout.Add(navigation_group, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
 
         focusable_controls = (
             self.play_pause_button,
@@ -318,8 +328,10 @@ class ControlWindow:
         for label in (
             self.elapsed_label,
             self.utc_label,
+            self.playback_label,
             self.seek_label,
             self.speed_scale_label,
+            self.navigation_label,
         ):
             label.Wrap(content_width)
 

@@ -319,9 +319,24 @@ def test_playback_controls_remain_reachable_in_scrollable_page(
     assert window.panel.scroll_rate == (0, 10)
     playback_row = window.panel.sizer.items[2][0]
     assert playback_row.orientation == control_window.wx.VERTICAL
+    playback_controls = [item[0] for item in playback_row.items]
+    assert window.playback_label in playback_controls
+    assert window.speed_slider in playback_controls
+    assert all(
+        button in playback_controls for button in window.speed_preset_buttons.values()
+    )
+    seek_group = window.panel.sizer.items[3][0]
+    assert window.seek_label in [item[0] for item in seek_group.items]
+    assert window.time_error_label in [item[0] for item in seek_group.items]
+    navigation_group = window.panel.sizer.items[4][0]
+    assert window.navigation_label in [item[0] for item in navigation_group.items]
     assert window.time_entry.parent is window.panel
     assert window.seek_button.parent is window.panel
-    assert window.panel.sizer.items[4][0].orientation == control_window.wx.VERTICAL
+    navigation_row = navigation_group.items[1][0]
+    assert all(
+        button in [item[0] for item in navigation_row.items]
+        for button in window.navigation_buttons
+    )
     assert window.navigation_buttons[1].parent is window.panel
     assert window.speed_preset_buttons[100.0].parent is window.panel
     assert "100 slider steps per decade" in window.speed_slider.tooltip

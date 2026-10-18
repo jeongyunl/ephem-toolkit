@@ -90,6 +90,8 @@ panel proportions are illustrative.
   state and signed speed/direction.
 - Give the timeline a large, easy-to-hit seek target. Keep precise text entry and start/end or
   sample-step actions available without crowding the primary transport row.
+- Keep playback direction and speed controls together, and separate seeking from time-navigation
+  actions with clear section labels.
 - Show a concise position/velocity summary and explicit cursor status; reveal secondary OEM
   metadata in a collapsible section.
 - Make view/group selection discoverable without dedicating a button to every view in the most
