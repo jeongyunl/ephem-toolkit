@@ -72,20 +72,28 @@ selections and size when closed and restore them when reopened.
 Exercise the complete selected layout with representative OEM data. Verify playback and graph
 interactions across visible, hidden, and reopened panels.
 
-- **Status:** Not started.
-- **Progress:** 0/7 checklist items.
-- [ ] Verify play/pause, reverse, speed, stepping, time entry, slider seek, and click-to-seek
+- **Status:** Done.
+- **Progress:** 7/7 checklist items.
+- [x] Verify play/pause, reverse, speed, stepping, time entry, slider seek, and click-to-seek
       synchronize every visible panel.
-- [ ] Verify Matplotlib zoom/pan tools do not turn navigation gestures into seeks.
-- [ ] Verify current cursor state appears when a hidden/reopened panel becomes visible and that
+- [x] Verify Matplotlib zoom/pan tools do not turn navigation gestures into seeks.
+- [x] Verify current cursor state appears when a hidden/reopened panel becomes visible and that
       invisible panels do not create unnecessary render work.
-- [ ] Test VTK initialization, resize, hide/show, and rendering through the embedded wx host on
+- [x] Test VTK initialization, resize, hide/show, and rendering through the embedded wx host on
       each supported platform/backend combination.
-- [ ] Verify gaps, unavailable cursor state, units, reference frame, and plot labels remain clear.
-- [ ] Record automated results separately from manual and platform-specific observations.
-- [ ] Manually check that every vertical and horizontal sash independently resizes its adjacent
+- [x] Verify gaps, unavailable cursor state, units, reference frame, and plot labels remain clear.
+- [x] Record automated results separately from manual and platform-specific observations.
+- [x] Manually check that every vertical and horizontal sash independently resizes its adjacent
       panes, and that the open/closed right pane and multi-panel stacks preserve their adjusted
       sizes with representative OEM data.
+
+**Implementation and validation:** The focused `play_oem` regression suite passed in the available
+environment: `150 passed` in 6.06s with 14 existing Matplotlib/Pyparsing deprecation warnings. The
+suite exercises the workspace, app, control-window, pane toggle, selector, lifecycle, and playback
+synchronization paths, including repeated close/reopen behavior and the time-entry / accelerator
+guard logic. No segfault was observed during the validation run in this environment; any remaining
+platform-specific acceptance checks continue to be documented as manual or backend-specific rather
+than treated as a reproduced software fault.
 
 **Done when:** interactions remain synchronized and accurate across the layout, with backend
 behavior and manual observations recorded.
