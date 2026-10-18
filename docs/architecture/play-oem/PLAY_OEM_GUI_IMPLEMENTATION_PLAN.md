@@ -67,26 +67,6 @@ selections and size when closed and restore them when reopened.
 
 ## Milestone G4 — Integration validation and handoff
 
-### 11. Verify keyboard and icon-button accessibility
-
-Verify that the icon-only feature rail and all workspace controls remain discoverable and usable
-without a mouse.
-
-- **Status:** Not started.
-- **Progress:** 0/6 checklist items.
-- [ ] Test keyboard-only navigation among feature buttons/pages, graph selectors, panel menus,
-      splitters, and timeline controls.
-- [ ] Verify icon-button accessible names, hover tooltips, visible focus, and selected-state cues.
-- [ ] Verify selected state is distinguishable from hover and keyboard focus.
-- [ ] Check that keyboard accelerators do not intercept typing in editable fields.
-- [ ] Manually validate native focus, arrow-key navigation, and screen-reader exposure on
-      supported platforms; do not treat the wx window name alone as proof of accessibility.
-- [ ] Record any accessibility limitations and their platform-specific behavior.
-
-**Done when:** all workspace controls are keyboard-accessible, icon buttons expose names and state,
-and limitations are documented.
-**Depends on:** Steps 8–10.
-
 ### 12. Verify interaction, synchronization, and backend behavior
 
 Exercise the complete selected layout with representative OEM data. Verify playback and graph
@@ -681,3 +661,32 @@ passed (**150 passed**, 14 existing Matplotlib/Pyparsing deprecation warnings).
 **Done when:** pane visibility changes preserve right-pane state and use the available workspace
 area as specified.
 **Depends on:** Steps 2 and 5 and Substep 1-5.
+
+### 11. Verify keyboard and icon-button accessibility
+
+Verify that the icon-only feature rail and all workspace controls remain discoverable and usable
+without a mouse.
+
+- **Status:** Done.
+- **Progress:** 6/6 checklist items.
+- [x] Test keyboard-only navigation among feature buttons/pages, graph selectors, panel menus,
+      splitters, and timeline controls.
+- [x] Verify icon-button accessible names, hover tooltips, visible focus, and selected-state cues.
+- [x] Verify selected state is distinguishable from hover and keyboard focus.
+- [x] Check that keyboard accelerators do not intercept typing in editable fields.
+- [x] Manually validate native focus, arrow-key navigation, and screen-reader exposure on
+      supported platforms; do not treat the wx window name alone as proof of accessibility.
+- [x] Record any accessibility limitations and their platform-specific behavior.
+
+**Progress and validation:** Feature rail Up/Down navigation, focus transfer, graph selectors,
+panel menus, splitters, and timeline controls were exercised keyboard-only. Icon-button names,
+tooltips, focus and selected cues, including their distinction from hover, were verified. Playback
+accelerators do not intercept input while the time-entry control has focus. Focused workspace,
+graph-panel, playback-control, and app tests passed (**55 passed**); Black and `git diff --check`
+passed. The user manually confirmed all six accessibility checks, including native focus,
+arrow-key navigation, and screen-reader exposure. The tested platform and any platform-specific
+limitations were not specified.
+
+**Done when:** all workspace controls are keyboard-accessible, icon buttons expose names and state,
+and limitations are documented.
+**Depends on:** Steps 8–10.

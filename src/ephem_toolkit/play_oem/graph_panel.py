@@ -104,6 +104,7 @@ class GraphPanelHost(wx.Panel):
                 choices=[label for _name, label in view_choices],
             )
             self.view_selector.SetName(f"{title} view selector")
+            self.view_selector.SetToolTip(f"Select a view for {title}")
             if selected_view is not None:
                 self.view_selector.SetSelection(
                     next(
