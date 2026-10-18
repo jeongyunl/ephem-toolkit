@@ -312,6 +312,8 @@ def make_app(
     monkeypatch.setattr(app.speed_altitude, "SpeedAltitudeView", create_view)
     monkeypatch.setattr(app.rtn, "RtnDeltaView", create_view)
     monkeypatch.setattr(app.angular_velocity, "AngularVelocityView", create_view)
+    monkeypatch.setattr(app.direction_change, "DirectionChangeView", create_view)
+    monkeypatch.setattr(app.distance, "GeocentricDistanceView", create_view)
     monkeypatch.setattr(app.state_components, "StateComponentsView", create_view)
     monkeypatch.setattr(app.trajectory3d, "Trajectory3DView", create_view)
     timestamps = [100.0, 200.0]
@@ -480,19 +482,70 @@ def test_angular_velocity_selection_opens_through_the_dashboard_registry(
     player.close()
 
 
-def test_unavailable_cli_plot_selection_fails_before_opening_any_plot(
+def test_direction_change_selection_opens_through_the_dashboard_registry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, views, _canvases, frames = make_app(
+    player, views, _canvases, _frames = make_app(
         monkeypatch, plots=("direction-change",)
     )
 
-    with pytest.raises(ValueError, match="direction-change"):
-        player.start()
+    player.start()
 
-    assert views == []
-    assert len(frames) == 1
+    assert len(views) == 1
+    assert set(player._open_views) == {"direction-change"}
+    player.close()
 
+
+def test_distance_selection_opens_through_the_dashboard_registry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, views, _canvases, _frames = make_app(monkeypatch, plots=("distance",))
+
+    player.start()
+
+    assert len(views) == 1
+    assert set(player._open_views) == {"distance"}
+    player.close()
+
+    player.close()
+
+
+def test_motion_group_opens_all_diagnostic_views(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, views, _canvases, _frames = make_app(monkeypatch, plots=("motion",))
+
+    player.start()
+
+    assert len(views) == 4
+    assert set(player._open_views) == {
+        "rtn",
+        "angular-velocity",
+        "direction-change",
+        "distance",
+    }
+    player.close()
+
+
+@pytest.mark.parametrize(
+    "view_name", ("rtn", "angular-velocity", "direction-change", "distance")
+)
+def test_closing_one_diagnostic_view_keeps_other_motion_views_open(
+    monkeypatch: pytest.MonkeyPatch,
+    view_name: str,
+) -> None:
+    player, views, _canvases, _frames = make_app(monkeypatch, plots=("motion",))
+    player.start()
+
+    player.close_view(view_name)
+
+    assert view_name not in player._open_views
+    assert len(player._open_views) == 3
+    view_names = ("rtn", "angular-velocity", "direction-change", "distance")
+    assert views[view_names.index(view_name)].closed
+    assert all(
+        view.closed == (name == view_name) for name, view in zip(view_names, views)
+    )
     player.close()
 
 
@@ -669,14 +722,22 @@ def test_all_open_views_stay_synchronized_for_seeks_and_time_plot_clicks(
 ) -> None:
     player, views, canvases, _frames = make_app(
         monkeypatch,
-        plots=("trajectory-3d", "state-components", "speed-altitude"),
+        plots=(
+            "trajectory-3d",
+            "state-components",
+            "speed-altitude",
+            "rtn",
+            "angular-velocity",
+            "direction-change",
+            "distance",
+        ),
     )
     player.start()
     player.clock.seek(150.0)
 
     assert all(view.updated_times[-1] == 150.0 for view in views)
 
-    for canvas, elapsed_minutes in zip(canvases[1:], (0.5, 1.0)):
+    for canvas, elapsed_minutes in zip(canvases[1:], (0.5, 1.0, 1.25, 1.5, 1.6, 1.65)):
         canvas.emit(
             "button_press_event",
             SimpleNamespace(
@@ -687,7 +748,7 @@ def test_all_open_views_stay_synchronized_for_seeks_and_time_plot_clicks(
         )
         assert all(view.updated_times[-1] == player.clock.t_now for view in views)
 
-    assert player.clock.t_now == 160.0
+    assert player.clock.t_now == 199.0
 
     player.close()
 

@@ -16,6 +16,10 @@ document. Preserve its original number, status, progress, checklist, completion 
 dependency so the completion record remains auditable. The active work sequence stays at the
 beginning in dependency order.
 
+For a numbered step with substeps, keep completed substeps under the active parent until every
+substep is done. Then move the entire parent entry, including all substep statuses and evidence,
+to `Completed steps` as one unit.
+
 If implementation cannot progress in the documented order, stop and reevaluate the plan before
 starting work out of sequence. Update the step order, dependencies, completion criteria and
 status/progress fields here so the plan reflects the actual dependency order, then continue from
@@ -68,165 +72,13 @@ Migration guardrails:
   dependency constraints rather than a committed lock. The base install must not require
   wxPython. VTK remains a separate optional extra only if step 20 records `VTK-KEEP`.
 
-Complete the active steps below in order. Steps 15–23 cover the migration and its acceptance;
-only then resume the remaining product work. Update
+Steps 15–23 document the wxPython migration and its acceptance. The remaining dashboard and
+plot-set work follows in the active steps below. Update
 [PLAY_OEM_DESIGN.md](./PLAY_OEM_DESIGN.md) in step 15 so the architecture agrees with this
 directive. The first Tk playback demo in step 10 remains a historical milestone; a wxPython
 demo must pass the migration acceptance criteria in step 23.
 
-## Milestone I — wxPython migration
-
 ## Milestone J — Complete the remaining dashboard and plot set
-
-### 24. Add remaining motion and geometry diagnostics
-
-Refactor the original RTN deltas, angular velocity, direction change, and geocentric distance
-figures into individual views using the migrated wx/Matplotlib view lifecycle. Preserve the
-existing calculations, units, labels, and plot behavior; add each view to the registry and Motion
-diagnostics group.
-
-#### 24-1. Inventory the existing diagnostic plots
-
-Record each plot's source data, calculation, units, labels, axes, and edge-case behavior to
-preserve.
-
-- **Status:** Done.
-- **Progress:** 1/1 checklist items.
-- [x] Compare the original `plot-oem` implementations and document the four plots' behavior.
-
-**Done when:** the required source data, formulas, labels, units, axes, and edge cases are recorded.
-**Depends on:** Step 23.
-
-**Inventory:** `compute_orbit_series` in `plot_oem/plot_oem.py` supplies the derived arrays to
-the plot helpers; the CLI passes the selected elapsed-time unit to each helper.
-
-- **RTN deltas:** For each sample after the first, call `core.misc.transform_to_rtn(current,
-  previous)` and convert the six-component relative state to km and km/s. Plot only position
-  components R/T/N against the current sample's elapsed time. Use three stacked axes titled
-  “Radial/Transverse/Normal Position Delta vs Time,” with labels in km. There are N-1 points;
-  with no deltas, show “Not enough samples.”
-- **Angular velocity:** Express each velocity direction in the local RTN basis and normalize it.
-  For each adjacent pair, compute `acos(clip(dot, -1, 1))`; divide by positive sample interval
-  for rates in deg/s and rad/s. The first sample and non-positive intervals remain zero. Plot two
-  stacked panels with separate deg/s and rad/s labels/titles; zero rates are filtered from the
-  lines. If there is not more than one sample, show “Not enough samples.”
-- **Direction change:** Convert the RTN velocity-direction components to Euler-style angles:
-  roll is zero, pitch is `atan2(radial, transverse)`, and yaw is
-  `atan2(normal, hypot(radial, transverse))`, in degrees. Euler-angle rates are adjacent raw
-  angle differences divided by positive sample intervals; the first rate is zero. Plot roll,
-  pitch, and yaw in the upper panel and their rates in the lower panel, in degrees and deg/s.
-  Empty inputs display “Not enough samples.” Preserve the current raw-difference behavior,
-  including angle wrap discontinuities.
-- **Geocentric distance:** Compute the position-vector norm in km. Plot distance and sample-to-
-  sample `np.diff(distance)` in km (not a rate), with the delta plotted at `elapsed_time[1:]`.
-  Use two stacked panels with distance/delta titles and km labels. With one sample, retain the
-  distance plot and show “Not enough samples” in the delta panel.
-
-#### 24-2. Define the wx view contracts
-
-Specify each view's name, data inputs, cursor-update behavior, and Motion-group placement. Reuse
-existing series or shared calculations where they provide the required data.
-
-- **Status:** Done.
-- **Progress:** 1/1 checklist items.
-- [x] Record the inputs, update contract, labels, and registry names for all four views.
-
-**Done when:** each view has a clear data and lifecycle contract before implementation begins.
-**Depends on:** Step 24-1.
-
-**View contracts:** use the existing registry names and labels: `rtn` / “RTN Deltas”,
-`angular-velocity` / “Angular Velocity”, `direction-change` / “Direction Change”, and `distance` /
-“Geocentric Distance”. All four are already members of the `motion` group.
-
-Each view follows the existing `SpeedAltitudeView`/`StateComponentsView` lifecycle:
-`build(orbit_series, time_unit) -> Figure`, `update(time_s)` with absolute TT seconds, and
-`close()`. `build` plots static history data and creates a cursor line on every time-series axis;
-`update` only moves those cursor artists. Use `time_unit.get_axis_label()` on the bottom axis,
-preserving app-level plot-click-to-seek behavior by keeping elapsed time on the x-axis.
-
-- `rtn`: `rtn_elapsed_time` and `rtn_delta_km[:, 0:3]`; three stacked R/T/N axes, km units.
-- `angular-velocity`: `elapsed_time`, `angular_velocity_deg_s`, and
-  `angular_velocity_rad_s`; two stacked axes, respectively deg/s and rad/s.
-- `direction-change`: `elapsed_time`, `euler_angles_deg`, and `euler_angle_rates_deg_s`;
-  upper axis plots roll/pitch/yaw in degrees, lower axis their rates in deg/s.
-- `distance`: `elapsed_time` and `geocentric_distance_km`; upper axis plots distance in km,
-  lower axis plots `np.diff(geocentric_distance_km)` against `elapsed_time[1:]` in km.
-
-#### 24-3. Implement the RTN-delta view
-
-- **Status:** Done.
-- **Progress:** 1/1 checklist items.
-- [x] Implement the RTN-delta plot and compare its plotted values, units, and labels with
-      `plot-oem`.
-
-**Done when:** the RTN-delta view matches the reference calculation and presentation.
-**Depends on:** Step 24-2.
-
-**Evidence:** Added `RtnDeltaView` with three stacked R/T/N position-delta axes, km labels,
-time-unit-aware x-axis, per-axis playback cursors, object legend, and the “Not enough samples”
-state for a one-state OEM. The app now opens it via the existing `rtn` registry name. Tests compare
-the plotted arrays against `plot-oem`'s `OrbitSeries`, verify labels/cursor movement and empty
-input, and exercise app selection. The full focused playback suite passes: 109 tests, 14 existing
-Matplotlib dependency deprecation warnings.
-
-#### 24-4. Implement the angular-velocity view
-
-- **Status:** Done.
-- **Progress:** 1/1 checklist items.
-- [x] Implement the angular-velocity plot and compare its plotted values, units, and labels with
-      `plot-oem`.
-
-**Done when:** the angular-velocity view matches the reference calculation and presentation.
-**Depends on:** Step 24-2.
-
-**Evidence:** Added `AngularVelocityView` with deg/s and rad/s panels, reference labels and
-titles, zero-rate filtering, per-axis playback cursors, and the single-state “Not enough samples”
-message. The app opens it via `angular-velocity`. Tests compare both plotted series with
-`plot-oem`, verify labels and cursor movement, cover a one-state OEM, and exercise app selection.
-The full focused playback suite passes: 112 tests, 14 existing Matplotlib dependency deprecation
-warnings.
-
-#### 24-5. Implement the direction-change view
-
-- **Status:** Not started.
-- **Progress:** 0/1 checklist items.
-- [ ] Implement the direction-change plot and compare its plotted values, units, and labels with
-      `plot-oem`.
-
-**Done when:** the direction-change view matches the reference calculation and presentation.
-**Depends on:** Step 24-2.
-
-#### 24-6. Implement the geocentric-distance view
-
-- **Status:** Not started.
-- **Progress:** 0/1 checklist items.
-- [ ] Implement the geocentric-distance plot and compare its plotted values, units, and labels
-      with `plot-oem`.
-
-**Done when:** the geocentric-distance view matches the reference calculation and presentation.
-**Depends on:** Step 24-2.
-
-#### 24-7. Register the diagnostic views
-
-- **Status:** Not started.
-- **Progress:** 0/1 checklist items.
-- [ ] Register all four views for individual opening and in the Motion diagnostics group; verify
-      opening and closing each view does not disturb other open views.
-
-**Done when:** every new view opens independently and the group opens all four.
-**Depends on:** Steps 24-3, 24-4, 24-5, and 24-6.
-
-#### 24-8. Validate synchronization and regressions
-
-- **Status:** Not started.
-- **Progress:** 0/1 checklist items.
-- [ ] Verify playback updates, cursor synchronization, click-to-seek, and seek behavior across
-      all four views; run focused tests and resolve regressions.
-
-**Done when:** all four views remain synchronized and the focused tests pass.
-**Depends on:** Step 24-7.
-
-**Step 24 complete when:** substeps 24-1 through 24-8 are done.
 
 ### 25. Add current-state readouts and OEM data context
 
@@ -889,3 +741,172 @@ blocked returned 1 with an install hint for the `playback` extra. That check exp
 raw import error in `__main__.py`. Only macOS/Python 3.9 was exercised; desktop input automation
 was unavailable, and other Python versions plus Linux/Windows installs and GUI rendering remain
 unverified as documented in `PLAY_OEM_DESIGN.md`.
+
+### 24. Add remaining motion and geometry diagnostics
+
+Refactor the original RTN deltas, angular velocity, direction change, and geocentric distance
+figures into individual views using the migrated wx/Matplotlib view lifecycle. Preserve the
+existing calculations, units, labels, and plot behavior; add each view to the registry and Motion
+diagnostics group.
+
+#### 24-1. Inventory the existing diagnostic plots
+
+Record each plot's source data, calculation, units, labels, axes, and edge-case behavior to
+preserve.
+
+- **Status:** Done.
+- **Progress:** 1/1 checklist items.
+- [x] Compare the original `plot-oem` implementations and document the four plots' behavior.
+
+**Done when:** the required source data, formulas, labels, units, axes, and edge cases are recorded.
+**Depends on:** Step 23.
+
+**Inventory:** `compute_orbit_series` in `plot_oem/plot_oem.py` supplies the derived arrays to
+the plot helpers; the CLI passes the selected elapsed-time unit to each helper.
+
+- **RTN deltas:** For each sample after the first, call `core.misc.transform_to_rtn(current,
+  previous)` and convert the six-component relative state to km and km/s. Plot only position
+  components R/T/N against the current sample's elapsed time. Use three stacked axes titled
+  “Radial/Transverse/Normal Position Delta vs Time,” with labels in km. There are N-1 points;
+  with no deltas, show “Not enough samples.”
+- **Angular velocity:** Express each velocity direction in the local RTN basis and normalize it.
+  For each adjacent pair, compute `acos(clip(dot, -1, 1))`; divide by positive sample interval
+  for rates in deg/s and rad/s. The first sample and non-positive intervals remain zero. Plot two
+  stacked panels with separate deg/s and rad/s labels/titles; zero rates are filtered from the
+  lines. If there is not more than one sample, show “Not enough samples.”
+- **Direction change:** Convert the RTN velocity-direction components to Euler-style angles:
+  roll is zero, pitch is `atan2(radial, transverse)`, and yaw is
+  `atan2(normal, hypot(radial, transverse))`, in degrees. Euler-angle rates are adjacent raw
+  angle differences divided by positive sample intervals; the first rate is zero. Plot roll,
+  pitch, and yaw in the upper panel and their rates in the lower panel, in degrees and deg/s.
+  Empty inputs display “Not enough samples.” Preserve the current raw-difference behavior,
+  including angle wrap discontinuities.
+- **Geocentric distance:** Compute the position-vector norm in km. Plot distance and sample-to-
+  sample `np.diff(distance)` in km (not a rate), with the delta plotted at `elapsed_time[1:]`.
+  Use two stacked panels with distance/delta titles and km labels. With one sample, retain the
+  distance plot and show “Not enough samples” in the delta panel.
+
+#### 24-2. Define the wx view contracts
+
+Specify each view's name, data inputs, cursor-update behavior, and Motion-group placement. Reuse
+existing series or shared calculations where they provide the required data.
+
+- **Status:** Done.
+- **Progress:** 1/1 checklist items.
+- [x] Record the inputs, update contract, labels, and registry names for all four views.
+
+**Done when:** each view has a clear data and lifecycle contract before implementation begins.
+**Depends on:** Step 24-1.
+
+**View contracts:** use the existing registry names and labels: `rtn` / “RTN Deltas”,
+`angular-velocity` / “Angular Velocity”, `direction-change` / “Direction Change”, and `distance` /
+“Geocentric Distance”. All four are already members of the `motion` group.
+
+Each view follows the existing `SpeedAltitudeView`/`StateComponentsView` lifecycle:
+`build(orbit_series, time_unit) -> Figure`, `update(time_s)` with absolute TT seconds, and
+`close()`. `build` plots static history data and creates a cursor line on every time-series axis;
+`update` only moves those cursor artists. Use `time_unit.get_axis_label()` on the bottom axis,
+preserving app-level plot-click-to-seek behavior by keeping elapsed time on the x-axis.
+
+- `rtn`: `rtn_elapsed_time` and `rtn_delta_km[:, 0:3]`; three stacked R/T/N axes, km units.
+- `angular-velocity`: `elapsed_time`, `angular_velocity_deg_s`, and
+  `angular_velocity_rad_s`; two stacked axes, respectively deg/s and rad/s.
+- `direction-change`: `elapsed_time`, `euler_angles_deg`, and `euler_angle_rates_deg_s`;
+  upper axis plots roll/pitch/yaw in degrees, lower axis their rates in deg/s.
+- `distance`: `elapsed_time` and `geocentric_distance_km`; upper axis plots distance in km,
+  lower axis plots `np.diff(geocentric_distance_km)` against `elapsed_time[1:]` in km.
+
+#### 24-3. Implement the RTN-delta view
+
+- **Status:** Done.
+- **Progress:** 1/1 checklist items.
+- [x] Implement the RTN-delta plot and compare its plotted values, units, and labels with
+      `plot-oem`.
+
+**Done when:** the RTN-delta view matches the reference calculation and presentation.
+**Depends on:** Step 24-2.
+
+**Evidence:** Added `RtnDeltaView` with three stacked R/T/N position-delta axes, km labels,
+time-unit-aware x-axis, per-axis playback cursors, object legend, and the “Not enough samples”
+state for a one-state OEM. The app now opens it via the existing `rtn` registry name. Tests compare
+the plotted arrays against `plot-oem`'s `OrbitSeries`, verify labels/cursor movement and empty
+input, and exercise app selection. The full focused playback suite passes: 109 tests, 14 existing
+Matplotlib dependency deprecation warnings.
+
+#### 24-4. Implement the angular-velocity view
+
+- **Status:** Done.
+- **Progress:** 1/1 checklist items.
+- [x] Implement the angular-velocity plot and compare its plotted values, units, and labels with
+      `plot-oem`.
+
+**Done when:** the angular-velocity view matches the reference calculation and presentation.
+**Depends on:** Step 24-2.
+
+**Evidence:** Added `AngularVelocityView` with deg/s and rad/s panels, reference labels and
+titles, zero-rate filtering, per-axis playback cursors, and the single-state “Not enough samples”
+message. The app opens it via `angular-velocity`. Tests compare both plotted series with
+`plot-oem`, verify labels and cursor movement, cover a one-state OEM, and exercise app selection.
+The full focused playback suite passes: 112 tests, 14 existing Matplotlib dependency deprecation
+warnings.
+
+#### 24-5. Implement the direction-change view
+
+- **Status:** Done.
+- **Progress:** 1/1 checklist items.
+- [x] Implement the direction-change plot and compare its plotted values, units, and labels with
+      `plot-oem`.
+
+**Done when:** the direction-change view matches the reference calculation and presentation.
+**Depends on:** Step 24-2.
+
+**Evidence:** Added `DirectionChangeView` with Euler-angle and Euler-angle-rate panels, matching
+the reference labels, raw-angle rates, object legends, playback cursors, and single-state empty
+handling. Tests compare both data arrays with `plot-oem`, verify labels and cursor movement, cover
+a one-state OEM, and exercise app selection.
+
+#### 24-6. Implement the geocentric-distance view
+
+- **Status:** Done.
+- **Progress:** 1/1 checklist items.
+- [x] Implement the geocentric-distance plot and compare its plotted values, units, and labels
+      with `plot-oem`.
+
+**Done when:** the geocentric-distance view matches the reference calculation and presentation.
+**Depends on:** Step 24-2.
+
+**Evidence:** Added `GeocentricDistanceView` with distance and sample-to-sample delta panels,
+km units, object legends, playback cursors, and one-state empty-delta handling. Tests compare
+distance and delta data with `plot-oem`, verify labels and cursor movement, cover a one-state
+OEM, and exercise app selection.
+
+#### 24-7. Register the diagnostic views
+
+- **Status:** Done.
+- **Progress:** 1/1 checklist items.
+- [x] Register all four views for individual opening and in the Motion diagnostics group; verify
+      opening and closing each view does not disturb other open views.
+
+**Done when:** every new view opens independently and the group opens all four.
+**Depends on:** Steps 24-3, 24-4, 24-5, and 24-6.
+
+**Evidence:** All four names are registered with `PlayerApp`; the Motion group test opens
+exactly the four diagnostics, each individual view has an app-selection test, and parametrized
+close tests verify that closing one diagnostic leaves the other three open.
+
+#### 24-8. Validate synchronization and regressions
+
+- **Status:** Done.
+- **Progress:** 1/1 checklist items.
+- [x] Verify playback updates, cursor synchronization, click-to-seek, and seek behavior across
+      all four views; run focused tests and resolve regressions.
+
+**Done when:** all four views remain synchronized and the focused tests pass.
+**Depends on:** Step 24-7.
+
+**Evidence:** Extended the shared-view seek/click test to include all four diagnostics and tested
+Motion-group opening plus independent view closure. A live wx smoke test opened the Motion group
+from a repository OEM with 721 states and exited cleanly on SIGINT. The full focused suite passed:
+122 tests, with 14 existing Matplotlib dependency deprecation warnings.
+
+**Step 24 complete when:** substeps 24-1 through 24-8 are done.

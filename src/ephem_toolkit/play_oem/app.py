@@ -23,6 +23,8 @@ from . import clock, control_window, cursor, series, time_unit
 from .views import (
     angular_velocity,
     base,
+    distance,
+    direction_change,
     registry,
     rtn,
     speed_altitude,
@@ -142,6 +144,10 @@ class PlayerApp:
         self._view_registry.register_view(
             "angular-velocity", self.open_angular_velocity_view
         )
+        self._view_registry.register_view(
+            "direction-change", self.open_direction_change_view
+        )
+        self._view_registry.register_view("distance", self.open_distance_view)
         self._plots = self._view_registry.expand(plots)
 
         self.wx_app = wx.GetApp()
@@ -236,6 +242,24 @@ class PlayerApp:
         self._open_view(
             "angular-velocity",
             lambda _frame: angular_velocity.AngularVelocityView(
+                self.clock.t_start, self.object_name
+            ),
+        )
+
+    def open_direction_change_view(self) -> None:
+        """Open or raise the direction-change plot."""
+        self._open_view(
+            "direction-change",
+            lambda _frame: direction_change.DirectionChangeView(
+                self.clock.t_start, self.object_name
+            ),
+        )
+
+    def open_distance_view(self) -> None:
+        """Open or raise the geocentric-distance plot."""
+        self._open_view(
+            "distance",
+            lambda _frame: distance.GeocentricDistanceView(
                 self.clock.t_start, self.object_name
             ),
         )
