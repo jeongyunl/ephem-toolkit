@@ -17,13 +17,11 @@ LAYOUT_MARGIN: int = 12
 """Outer spacing around dashboard controls (pixels)."""
 SECONDS_PER_MINUTE: float = 60.0
 """Number of seconds in one minute."""
-SPEED_MAX: float = 1000.0
+SPEED_MAX: float = 9000.0
 """Maximum playback speed multiplier."""
 SPEED_MIN: float = 1.0
 """Minimum playback speed multiplier."""
-SPEED_PRESETS: tuple[float, ...] = (1.0, 10.0, 100.0, SPEED_MAX)
-"""Playback speed multipliers available as preset buttons."""
-SPEED_SLIDER_MAX: int = 300
+SPEED_SLIDER_MAX: int = 396
 """Maximum integer position of the logarithmic speed slider."""
 SPEED_SLIDER_STEPS_PER_DECADE: int = 100
 """Number of slider positions representing one order of magnitude."""
@@ -166,18 +164,6 @@ class ControlWindow:
             BUTTON_SPACING,
         )
 
-        self.speed_preset_buttons: dict[float, wx.ToggleButton] = {}
-        for preset_speed in SPEED_PRESETS:
-            button = wx.ToggleButton(self.panel, wx.ID_ANY, f"{preset_speed:g}x")
-            button.Bind(
-                wx.EVT_TOGGLEBUTTON,
-                lambda _event, selected_speed=preset_speed: on_set_speed(
-                    selected_speed
-                ),
-            )
-            playback_group.Add(button, 0, wx.EXPAND | wx.BOTTOM, BUTTON_SPACING)
-            self.speed_preset_buttons[preset_speed] = button
-
         self._speed_scale_label_text = (
             f"Speed slider: +{SPEED_MIN:g}x "
             f"(log scale, {SPEED_MIN:g}x to {SPEED_MAX:g}x)"
@@ -201,7 +187,7 @@ class ControlWindow:
         )
         self.speed_slider.SetName("Playback speed")
         self.speed_slider.SetToolTip(
-            "Log scale: 100 slider steps per decade; presets mark 1x, 10x, 100x, and 1000x."
+            "Log scale: 100 slider steps per decade; buttons add 10x, 100x, or 1000x."
         )
         self.speed_slider.Bind(wx.EVT_SLIDER, self._on_speed_slider)
         playback_group.Add(
@@ -283,7 +269,6 @@ class ControlWindow:
         focusable_controls = (
             self.play_pause_button,
             self.direction_button,
-            *self.speed_preset_buttons.values(),
             self.seek_button,
             *self.navigation_buttons,
             self.speed_slider,
@@ -379,9 +364,6 @@ class ControlWindow:
             self._fit_playback_content()
         self.direction_button.SetLabel("Reverse" if rate > 0.0 else "Forward")
         self.direction_button.SetValue(rate < 0.0)
-
-        for preset_speed, button in self.speed_preset_buttons.items():
-            button.SetValue(bool(math.isclose(abs(rate), preset_speed)))
 
         playback_speed = min(max(abs(rate), SPEED_MIN), SPEED_MAX)
         speed_value = round(math.log10(playback_speed) * SPEED_SLIDER_STEPS_PER_DECADE)

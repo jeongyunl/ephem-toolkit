@@ -18,11 +18,11 @@ class View(Protocol):
 
     name: str
 
-    def build(self, series: OrbitSeries, time_unit: TimeUnit) -> Figure | wx.Window:
+    def build(self, series: OrbitSeries, time_unit: TimeUnit, /) -> Figure | wx.Window:
         """Build the view content and its initial cursor state."""
         ...
 
-    def update(self, t_s: float) -> None:
+    def update(self, t_s: float, /) -> None:
         """Move the view's cursor to an absolute OEM time."""
         ...
 

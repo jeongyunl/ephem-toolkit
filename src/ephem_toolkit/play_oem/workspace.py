@@ -60,6 +60,7 @@ class Workspace:
         timeline_enabled: bool,
         timeline_start_utc: str,
         timeline_end_utc: str,
+        timeline_tooltip_at: Callable[[float], str] | None = None,
         context: Mapping[str, str] | None = None,
         details: Sequence[tuple[str, str]] = (),
         view_choices: tuple[tuple[str, str], ...] = (),
@@ -165,7 +166,7 @@ class Workspace:
         )
         timeline_layout.Add(time_labels, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
         transport_row = wx.BoxSizer(wx.HORIZONTAL)
-        self.transport_buttons: dict[float, wx.Button] = {}
+        self.transport_buttons: dict[float, wx.ToggleButton] = {}
         for rate, glyph, direction in (
             (-1000.0, "<<< 1000×", "reverse"),
             (-100.0, "<< 100×", "reverse"),
@@ -248,6 +249,12 @@ class Workspace:
         self.timeline_slider.SetName("Playback timeline")
         self.timeline_slider.Enable(timeline_enabled)
         self.timeline_slider.Bind(wx.EVT_SLIDER, self._on_timeline_slider)
+        if timeline_tooltip_at is not None:
+            self._timeline_tooltip_at = timeline_tooltip_at
+            self._timeline_tooltip = wx.ToolTip(timeline_tooltip_at(0.0))
+            wx.ToolTip.Enable(True)
+            self.timeline_slider.SetToolTip(self._timeline_tooltip)
+            self.timeline_slider.Bind(wx.EVT_MOTION, self._on_timeline_motion)
         timeline_layout.Add(
             self.timeline_slider, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12
         )
@@ -258,6 +265,7 @@ class Workspace:
         frame.SetSizer(root)
         self._transport_playing = False
         self._transport_rate = 1.0
+        self._last_transport_state: tuple[bool, float] | None = None
 
     def _make_transport_button(
         self,
@@ -265,25 +273,28 @@ class Workspace:
         glyph: str,
         direction: str,
         on_set_transport_rate: Callable[[float], None] | None,
-    ) -> wx.Button:
+    ) -> wx.ToggleButton:
         button = wx.ToggleButton(self.timeline_panel, wx.ID_ANY, glyph)
         magnitude = abs(rate)
         button.SetName(f"Play {direction} at {magnitude:g}x")
         button.SetToolTip(
-            f"Play {direction} at {magnitude:g}x. Click again at this speed to "
-            "increase by 10x; clicking at a higher speed resets to this speed."
+            f"Increase {direction} playback speed by {magnitude:g}x, up to 9000x."
         )
         if on_set_transport_rate is not None:
             button.Bind(
                 wx.EVT_TOGGLEBUTTON,
-                lambda _event, selected_rate=rate: on_set_transport_rate(
-                    selected_rate
-                ),
+                lambda _event, selected_rate=rate: on_set_transport_rate(selected_rate),
             )
         return button
 
     def update_transport_state(self, playing: bool, rate: float) -> None:
         """Synchronize direction play/pause controls and speed presets with the clock."""
+        state = (playing, rate)
+        if self._last_transport_state == state:
+            return
+        # Rewriting unchanged native button labels on every tick prevents GTK's
+        # pending slider tooltip from appearing.
+        self._last_transport_state = state
         self._transport_playing = playing
         self._transport_rate = rate
         for selected_rate, button in self.transport_buttons.items():
@@ -330,7 +341,8 @@ class Workspace:
         value = round(min(max(progress, 0.0), 1.0) * TIMELINE_SLIDER_MAX)
         self._syncing_timeline = True
         try:
-            self.timeline_slider.SetValue(value)
+            if self.timeline_slider.GetValue() != value:
+                self.timeline_slider.SetValue(value)
         finally:
             self._syncing_timeline = False
         self.timeline_current_label.SetLabel(f"Current UTC: {current_utc}")
@@ -846,15 +858,16 @@ class Workspace:
         )
         header.Add(add_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
         if stack == "middle":
-            self._comparison_toggle = wx.ToggleButton(pane, wx.ID_ANY, "Comparison")
-            self._comparison_toggle.SetName("Toggle Comparison pane")
-            self._comparison_toggle.SetToolTip("Show or hide the Comparison pane")
-            self._comparison_toggle.SetValue(False)
-            self._comparison_toggle.Bind(
+            comparison_toggle = wx.ToggleButton(pane, wx.ID_ANY, "Comparison")
+            self._comparison_toggle = comparison_toggle
+            comparison_toggle.SetName("Toggle Comparison pane")
+            comparison_toggle.SetToolTip("Show or hide the Comparison pane")
+            comparison_toggle.SetValue(False)
+            comparison_toggle.Bind(
                 wx.EVT_TOGGLEBUTTON,
-                lambda _event: self.show_right_pane(self._comparison_toggle.GetValue()),
+                lambda _event: self.show_right_pane(comparison_toggle.GetValue()),
             )
-            header.Add(self._comparison_toggle, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+            header.Add(comparison_toggle, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
         else:
             close_button = wx.Button(pane, wx.ID_ANY, "Close pane")
             close_button.SetName("Close Comparison pane")
@@ -941,3 +954,10 @@ class Workspace:
         if self._syncing_timeline or not self._timeline_enabled:
             return
         self._on_seek(event.GetInt() / TIMELINE_SLIDER_MAX)
+
+    def _on_timeline_motion(self, event: wx.MouseEvent) -> None:
+        width = self.timeline_slider.GetClientSize().GetWidth()
+        if width > 0:
+            fraction = min(max(event.GetX() / width, 0.0), 1.0)
+            self._timeline_tooltip.SetTip(self._timeline_tooltip_at(fraction))
+        event.Skip()

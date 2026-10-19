@@ -13,7 +13,7 @@ class PlaybackClock:
     """Track playback time, speed, direction, looping and observer updates."""
 
     MIN_SPEED = 1.0
-    MAX_SPEED = 1000.0
+    MAX_SPEED = 9000.0
 
     def __init__(
         self,
@@ -118,7 +118,7 @@ class PlaybackClock:
         self._playing = not self._playing
 
     def set_speed(self, speed: float) -> None:
-        """Set speed magnitude, preserving direction and clamping it to 1x–1000x."""
+        """Set speed magnitude, preserving direction and clamping it to 1x–9000x."""
         self._validate_finite(speed, "speed")
         if speed == 0.0:
             raise ValueError("speed must not be zero")
@@ -142,6 +142,8 @@ class PlaybackClock:
             self.seek(self._t_now + amount)
             return
         if unit == "samples":
+            if isinstance(amount, bool) or not isinstance(amount, int):
+                raise ValueError("sample count must be an integer")
             self.step_samples(amount)
             return
         raise ValueError("unit must be 'seconds' or 'samples'")

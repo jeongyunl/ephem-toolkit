@@ -9,6 +9,7 @@ import gc
 import signal
 import sys
 import time
+from typing import cast
 from uuid import uuid4
 
 import wx
@@ -61,9 +62,7 @@ class _EmptyGraphView:
     def build(
         self, _series: series.OrbitSeries, _time_unit: time_unit.TimeUnit
     ) -> wx.Window:
-        prompt = wx.StaticText(
-            self._parent, wx.ID_ANY, "Select a graph view above"
-        )
+        prompt = wx.StaticText(self._parent, wx.ID_ANY, "Select a graph view above")
         prompt.SetName("Empty graph prompt")
         return prompt
 
@@ -189,22 +188,20 @@ class PlayerApp:
         )
         self._view_registry.register_view("distance", self.open_distance_view)
         self._plots = self._view_registry.expand(plots)
-        self._panel_view_choices = (
-            (EMPTY_GRAPH_VIEW, EMPTY_GRAPH_LABEL),
-        ) + tuple(
+        self._panel_view_choices = ((EMPTY_GRAPH_VIEW, EMPTY_GRAPH_LABEL),) + tuple(
             (name, self._view_registry.label_for(name))
             for name in self._view_registry.registered_views
         )
 
-        self.wx_app = wx.GetApp()
+        self.wx_app: wx.App = cast(wx.App, wx.GetApp())
         if self.wx_app is None:
             self.wx_app = wx.App(False)
 
-        self.frame = wx.Frame(
+        self.frame: wx.Frame = wx.Frame(
             None,
             title=f"play-oem (3D backend: {three_d_backend})",
         )
-        self.workspace = workspace.Workspace(
+        self.workspace: workspace.Workspace = workspace.Workspace(
             self.frame,
             self._seek_to_fraction,
             on_toggle_play=self._toggle_playback,
@@ -218,23 +215,26 @@ class PlayerApp:
             timeline_end_utc=time_utils.datetime_to_iso8601(
                 time_utils.tt_s_to_datetime(clock.t_end)
             ),
+            timeline_tooltip_at=self._timeline_tooltip_at,
             context=dashboard_context,
             details=metadata_details,
             view_choices=self._panel_view_choices,
             on_add_graph=self._add_graph_panel,
         )
-        self.control_window = control_window.ControlWindow(
-            self.workspace.playback_page,
-            self._toggle_playback,
-            self._set_playback_speed,
-            self._reverse_playback,
-            on_seek_to_time=self._seek_to_time,
-            on_step_samples=self._step_samples,
-            on_step_seconds=self._step_seconds,
-            on_jump_to_start=self._jump_to_start,
-            on_jump_to_end=self._jump_to_end,
-            accelerator_parent=self.frame,
-            state_parent=self.workspace.state_page,
+        self.control_window: control_window.ControlWindow = (
+            control_window.ControlWindow(
+                self.workspace.playback_page,
+                self._toggle_playback,
+                self._set_playback_speed,
+                self._reverse_playback,
+                on_seek_to_time=self._seek_to_time,
+                on_step_samples=self._step_samples,
+                on_step_seconds=self._step_seconds,
+                on_jump_to_start=self._jump_to_start,
+                on_jump_to_end=self._jump_to_end,
+                accelerator_parent=self.frame,
+                state_parent=self.workspace.state_page,
+            )
         )
         self.workspace.set_playback_content(self.control_window.panel)
         self.workspace.set_state_content(self.control_window.state_panel)
@@ -242,7 +242,7 @@ class PlayerApp:
         self.frame.SetSize(PLAYER_FRAME_SIZE)
         self.frame.Bind(wx.EVT_CLOSE, self._on_frame_close)
 
-        self._timer = wx.Timer(self.frame)
+        self._timer: wx.Timer = wx.Timer(self.frame)
         self.frame.Bind(wx.EVT_TIMER, self._on_timer, self._timer)
         self._last_tick_monotonic_s: float | None = None
         self._in_timer_tick = False
@@ -295,11 +295,11 @@ class PlayerApp:
     def _release_wx_resources(self) -> None:
         """Drop wx wrappers and callbacks after the event loop has stopped."""
         self._view_registry.clear()
-        self.control_window = None
-        self.workspace = None
-        self._timer = None
-        self.frame = None
-        self.wx_app = None
+        self.control_window = cast(control_window.ControlWindow, None)
+        self.workspace = cast(workspace.Workspace, None)
+        self._timer = cast(wx.Timer, None)
+        self.frame = cast(wx.Frame, None)
+        self.wx_app = cast(wx.App, None)
 
     def open_speed_altitude_view(
         self, panel_id: str | None = None, stack: str = "middle"
@@ -459,9 +459,7 @@ class PlayerApp:
 
     def _add_graph_panel(self, stack: str) -> None:
         try:
-            self.open_panel_view(
-                EMPTY_GRAPH_VIEW, uuid4().hex, stack
-            )
+            self.open_panel_view(EMPTY_GRAPH_VIEW, uuid4().hex, stack)
         except Exception as error:
             wx.MessageBox(
                 f"Could not add a graph panel: {error}",
@@ -515,18 +513,28 @@ class PlayerApp:
         self.clock.seek(self.clock.t_start + progress * span_s)
         self._update_time_display()
 
+    def _timeline_tooltip_at(self, progress: float) -> str:
+        """Format the UTC time at a timeline position for its hover tooltip."""
+        epoch_s = self.clock.t_start + progress * (
+            self.clock.t_end - self.clock.t_start
+        )
+        return time_utils.datetime_to_iso8601(time_utils.tt_s_to_datetime(epoch_s))
+
     def _set_playback_speed(self, speed: float) -> None:
         self.clock.set_speed(speed)
         self._update_time_display()
 
     def _set_transport_rate(self, rate: float) -> None:
-        """Select a signed speed, advancing one decade on a repeated same-speed click."""
+        """Add a signed transport-button increment to the current speed."""
         direction = 1 if rate > 0.0 else -1
-        base_speed = abs(rate)
-        if self.clock.rate == rate:
-            base_speed = min(base_speed * 10.0, self.clock.MAX_SPEED)
+        increment = abs(rate)
+        base_speed = min(abs(self.clock.rate) + increment, self.clock.MAX_SPEED)
         self.clock.set_direction(direction)
         self.clock.set_speed(base_speed)
+        if base_speed >= 1000.0:
+            self.workspace.transport_buttons[direction * 1000.0].SetFocus()
+        elif base_speed >= 100.0:
+            self.workspace.transport_buttons[direction * 100.0].SetFocus()
         self._update_time_display()
 
     def _play_reverse_at_unit_speed(self) -> None:
@@ -638,7 +646,8 @@ class PlayerApp:
                 stack_parent,
                 self._panel_view_label(name),
                 lambda: self.close_panel(panel_id),
-                is_visible=lambda: self.workspace.is_graph_panel_visible(panel),
+                is_visible=lambda: panel is not None
+                and self.workspace.is_graph_panel_visible(panel),
                 on_redraw_request=self.workspace.queue_graph_redraw,
                 panel_id=panel_id,
                 view_choices=self._panel_view_choices,
@@ -740,7 +749,7 @@ class PlayerApp:
         self, event: MouseEvent, toolbar: NavigationToolbar2WxAgg
     ) -> None:
         if (
-            toolbar.mode
+            getattr(toolbar, "mode", "")
             or event.button != MouseButton.LEFT
             or event.inaxes is None
             or event.xdata is None

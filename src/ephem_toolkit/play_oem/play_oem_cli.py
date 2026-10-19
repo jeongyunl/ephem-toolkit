@@ -11,7 +11,7 @@ from .views.trajectory3d.selection import THREE_D_BACKEND_CHOICES
 from .views.registry import parse_plot_selection
 
 MIN_SPEED = 1.0
-MAX_SPEED = 1000.0
+MAX_SPEED = 9000.0
 MIN_FPS = 1
 MAX_FPS = 1000
 
@@ -141,7 +141,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=_parse_speed,
         default=1.0,
         metavar="<x>",
-        help="Initial signed speed multiplier (1x–1000x; negative plays in reverse).",
+        help="Initial signed speed multiplier (1x–9000x; negative plays in reverse).",
     )
     parser.add_argument(
         "--reverse",
