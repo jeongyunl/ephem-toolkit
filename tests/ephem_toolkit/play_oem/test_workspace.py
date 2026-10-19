@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any, cast
+
 import pytest
 
 from ephem_toolkit.play_oem import workspace
@@ -32,11 +35,11 @@ class FakeWidget:
         self.enabled = True
         self.name = ""
         self.tooltip = ""
-        self.bindings: dict[object, object] = {}
+        self.bindings: dict[object, Callable[[FakeEvent], None]] = {}
         self.wrap_width = None
         self.__class__.instances.append(self)
 
-    def Bind(self, event_type, callback) -> None:
+    def Bind(self, event_type: object, callback: Callable[[FakeEvent], None]) -> None:
         self.bindings[event_type] = callback
 
     def SetLabel(self, label: str) -> None:
@@ -376,6 +379,11 @@ class FakeCallLater:
 
 def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
     wx = workspace.wx
+    # Fake controls cannot host native SuperToolTip windows; retain the message
+    # for assertions without creating GUI resources in these layout tests.
+    monkeypatch.setattr(
+        workspace, "set_tooltip", lambda widget, message: widget.SetToolTip(message)
+    )
     FakeWidget.instances = []
     FakeCallLater.calls = []
     for name, value in {
@@ -439,11 +447,15 @@ def make_workspace(
     on_play_reverse=None,
     on_play_forward=None,
     on_set_transport_rate=None,
-) -> tuple[workspace.Workspace, list[float], FakeFrame]:
+) -> tuple[Any, list[float], FakeFrame]:
     configure_fake_wx(monkeypatch)
     frame = FakeFrame()
     seeks: list[float] = []
-    result = workspace.Workspace(
+    # Monkeypatching replaces the native widgets with unrelated fake classes.
+    # Keep this construction boundary dynamic so assertions see the fake
+    # attributes rather than Workspace's production wx type annotations.
+    workspace_factory = cast(Callable[..., Any], workspace.Workspace)
+    result = workspace_factory(
         frame,
         seeks.append,
         on_toggle_play=on_toggle_play,
@@ -526,8 +538,14 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     ]
     assert result.transport_reverse_play_button.name == "Play reverse at 1x"
     assert result.transport_forward_play_button.name == "Play forward at 1x"
-    assert result.timeline_panel.sizer.items[2][0].items[3][0] is result.transport_reverse_play_button
-    assert result.timeline_panel.sizer.items[2][0].items[4][0] is result.transport_forward_play_button
+    assert (
+        result.timeline_panel.sizer.items[2][0].items[3][0]
+        is result.transport_reverse_play_button
+    )
+    assert (
+        result.timeline_panel.sizer.items[2][0].items[4][0]
+        is result.transport_forward_play_button
+    )
     assert [button.label for button in result.transport_buttons.values()] == [
         "<<< 1000×",
         "<< 100×",
@@ -738,11 +756,27 @@ def test_graph_hosts_replace_empty_state_and_restore_it_when_removed(
 
     assert result._graph_panels["middle"] == [host]
     assert empty_panel.shown is False
+    # A hidden empty state must leave both the native scroller and its sizer.
+    assert empty_panel.GetParent() is result.middle_stack.GetParent()
+    assert all(
+        item[0] is not empty_panel for item in result._stack_sizers["middle"].items
+    )
 
     result.remove_graph_panel(host)
 
     assert result._graph_panels["middle"] == []
     assert empty_panel.shown is True
+    # Restore exactly one empty-state item when the last graph is removed.
+    assert empty_panel.GetParent() is result.middle_stack
+    assert [item[0] for item in result._stack_sizers["middle"].items] == [empty_panel]
+    # Removed panels must also be parked while awaiting destruction or reuse.
+    assert host.GetParent() is result.middle_stack.GetParent()
+
+    # Reusing a parked panel must restore its scrolling parent and hide the
+    # empty state again without leaving a hidden native scroll child.
+    result.add_graph_panel(host)
+    assert host.GetParent() is result.middle_stack
+    assert empty_panel.GetParent() is result.middle_stack.GetParent()
     with pytest.raises(ValueError, match="unknown graph stack"):
         result.add_graph_panel(host, "invalid")
 
@@ -794,6 +828,10 @@ def test_graph_stacks_use_styled_horizontal_splitters_and_collapse_on_close(
 
     result.remove_graph_panel(middle_panels[0], "middle")
     assert result._stack_roots["middle"] is middle_panels[2]
+    # Both the hidden pane and its retiring splitter must leave the scroller
+    # before the collapsed stack triggers another native allocation.
+    assert middle_panels[0].GetParent() is result.middle_stack.GetParent()
+    assert middle_root.GetParent() is result.middle_stack.GetParent()
     result.remove_graph_panel(middle_panels[2], "middle")
     assert result._stack_roots["middle"] is None
 

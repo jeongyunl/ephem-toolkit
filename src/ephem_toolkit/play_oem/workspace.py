@@ -420,6 +420,8 @@ class Workspace:
         root = self._stack_roots[stack]
         if root is None:
             root = panel
+            # A reused panel may be parked outside the scroller after removal.
+            root.Reparent(window)
             sizer.Add(root, 1, wx.EXPAND)
         else:
             root_min_height = root.GetMinSize().height
@@ -443,12 +445,7 @@ class Workspace:
 
         self._graph_panels[stack].append(panel)
         self._stack_roots[stack] = root
-        empty_state = self._empty_states[stack]
-        self._empty_panels[stack].Hide()
-        self._update_stack_minimum_size(stack)
-        window.Layout()
-        window.FitInside()
-        self._update_stack_scrollbar_visibility(stack)
+        self._layout_graph_stack(stack)
 
     def remove_graph_panel(self, panel: GraphPanelHost, stack: str = "middle") -> None:
         """Remove a graph host and collapse its splitter without disturbing others."""
@@ -467,12 +464,7 @@ class Workspace:
             if self._graph_redraw_timer.IsRunning():
                 self._graph_redraw_timer.Stop()
             self._graph_redraw_timer = None
-        self._update_stack_minimum_size(stack)
-        if not self._graph_panels[stack]:
-            self._empty_panels[stack].Show()
-        self._stack_windows[stack].Layout()
-        self._stack_windows[stack].FitInside()
-        self._update_stack_scrollbar_visibility(stack)
+        self._layout_graph_stack(stack)
 
     def replace_graph_panel(
         self,
@@ -495,6 +487,9 @@ class Workspace:
         view_start = window.GetViewStart()
         if root is old_panel:
             sizer.Detach(old_panel)
+            # The replaced panel may await deferred destruction while the
+            # new layout scrolls; keep it outside GTK's scrolling children.
+            old_panel.Reparent(window.GetParent())
             new_panel.Reparent(window)
             sizer.Add(new_panel, 1, wx.EXPAND)
             self._stack_roots[stack] = new_panel
@@ -512,10 +507,7 @@ class Workspace:
                 )
 
         panels[panels.index(old_panel)] = new_panel
-        self._update_stack_minimum_size(stack)
-        window.Layout()
-        window.FitInside()
-        self._update_stack_scrollbar_visibility(stack)
+        self._layout_graph_stack(stack)
         window.Scroll(*view_start)
 
     def move_graph_panel(self, panel: GraphPanelHost, stack: str, offset: int) -> None:
@@ -598,6 +590,9 @@ class Workspace:
         root = self._stack_roots[stack]
         if root is panel:
             self._stack_sizers[stack].Detach(panel)
+            # Removing it from the sizer alone still leaves a native scroll
+            # child until the caller destroys or reuses the panel.
+            panel.Reparent(self._stack_windows[stack].GetParent())
             self._stack_roots[stack] = None
             return
         if not isinstance(root, wx.SplitterWindow):
@@ -616,10 +611,15 @@ class Workspace:
             sibling = second if first is panel else first
             stack_window = self._stack_windows[stack]
             splitter.Unsplit(panel)
-            panel.Reparent(stack_window)
+            # Unsplit hides the removed pane. Park it outside the scroller
+            # so GTK cannot allocate it during the following layout update.
+            panel.Reparent(stack_window.GetParent())
             if splitter is self._stack_roots[stack]:
                 self._stack_sizers[stack].Detach(splitter)
                 sibling.Reparent(stack_window)
+                # Destroy() is deferred: keep the retiring splitter out of
+                # native scrolling while GTK finishes deleting it.
+                splitter.Reparent(stack_window.GetParent())
                 splitter.Destroy()
                 self._stack_sizers[stack].Add(sibling, 1, wx.EXPAND)
                 self._stack_roots[stack] = sibling
@@ -658,7 +658,9 @@ class Workspace:
             return True
         return False
 
-    def _update_stack_minimum_size(self, stack: str) -> None:
+    def _layout_graph_stack(self, stack: str) -> None:
+        """Synchronize the empty state, minimum sizes, and scroll layout."""
+
         def minimum_height(window: wx.Window) -> int:
             if not isinstance(window, wx.SplitterWindow):
                 return window.GetMinSize().height
@@ -674,6 +676,25 @@ class Workspace:
         root = self._stack_roots[stack]
         if root is not None:
             minimum_height(root)
+
+        window = self._stack_windows[stack]
+        sizer = self._stack_sizers[stack]
+        empty_panel = self._empty_panels[stack]
+        if root is not None and empty_panel.GetParent() is window:
+            # wxGTK allocates even hidden direct children when scrolling.
+            # Detach and park the empty state until it is needed again.
+            empty_panel.Hide()
+            sizer.Detach(empty_panel)
+            empty_panel.Reparent(window.GetParent())
+        elif root is None and empty_panel.GetParent() is not window:
+            # Only return the empty state to the scroller when it is visible.
+            empty_panel.Reparent(window)
+            sizer.Add(empty_panel, 0, wx.EXPAND)
+            empty_panel.Show()
+
+        window.Layout()
+        window.FitInside()
+        self._update_stack_scrollbar_visibility(stack)
 
     def _update_stack_scrollbar_visibility(self, stack: str) -> None:
         window = self._stack_windows[stack]
