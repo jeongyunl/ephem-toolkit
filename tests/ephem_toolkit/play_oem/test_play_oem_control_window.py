@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any, cast
+
 import pytest
 
 from ephem_toolkit.play_oem import control_window
@@ -26,7 +29,7 @@ class FakeWidget:
         self.enabled = True
         self.name = ""
         self.hint = ""
-        self.bindings: dict[object, object] = {}
+        self.bindings: dict[object, Callable[..., object]] = {}
         self.wrap_width = None
         self.position = FakeSize(0, 0)
         self.size = FakeSize(84, 24)
@@ -139,7 +142,7 @@ class FakeScrolledWindow(FakePanel):
     def __init__(self, parent, _id: int, **kwargs) -> None:
         super().__init__(parent, _id)
         self.style = kwargs.get("style", 0)
-        self.bindings: dict[object, object] = {}
+        self.bindings: dict[object, Callable[..., object]] = {}
         self.scroll_rate = None
         self.fit_inside_count = 0
         self.layout_count = 0
@@ -183,8 +186,8 @@ class FakeSize:
 
 class FakeOwner:
     def __init__(self) -> None:
-        self.bindings: dict[tuple[object, int], object] = {}
-        self.accelerator_table = None
+        self.bindings: dict[tuple[object, int], Callable[..., object]] = {}
+        self.accelerator_table = FakeAcceleratorTable()
 
     def Bind(self, event_type, callback, *, id: int) -> None:
         self.bindings[(event_type, id)] = callback
@@ -207,6 +210,11 @@ class FakeAcceleratorTable:
 
 def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
     wx = control_window.wx
+    monkeypatch.setattr(
+        control_window,
+        "set_tooltip",
+        lambda widget, message: widget.SetToolTip(message),
+    )
     for name, value in {
         "Panel": FakePanel,
         "ScrolledWindow": FakeScrolledWindow,
@@ -255,25 +263,25 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def make_window(
     monkeypatch: pytest.MonkeyPatch,
-) -> tuple[control_window.ControlWindow, FakeOwner, dict[str, list[object]]]:
+) -> tuple[Any, FakeOwner, dict[str, list[object]]]:
     configure_fake_wx(monkeypatch)
     calls: dict[str, list[object]] = {
         "toggle": [],
         "speed": [],
         "reverse": [],
-        "seek_time": [],
         "step_samples": [],
         "step_seconds": [],
         "start": [],
         "end": [],
     }
     owner = FakeOwner()
-    window = control_window.ControlWindow(
+    # The monkeypatched wx constructors produce fakes with test-only attributes.
+    window_factory = cast(Callable[..., Any], control_window.ControlWindow)
+    window = window_factory(
         owner,
         lambda: calls["toggle"].append(True),
         calls["speed"].append,
         lambda: calls["reverse"].append(True),
-        on_seek_to_time=calls["seek_time"].append,
         on_step_samples=calls["step_samples"].append,
         on_step_seconds=calls["step_seconds"].append,
         on_jump_to_start=lambda: calls["start"].append(True),
@@ -290,13 +298,12 @@ def test_native_controls_dispatch_playback_and_navigation_actions(
 
     window.play_pause_button.trigger(control_window.wx.EVT_BUTTON)
     window.direction_button.trigger(control_window.wx.EVT_TOGGLEBUTTON)
-    window.speed_preset_buttons[10.0].trigger(control_window.wx.EVT_TOGGLEBUTTON)
     for button in window.navigation_buttons:
         button.trigger(control_window.wx.EVT_BUTTON)
 
     assert calls["toggle"] == [True]
     assert calls["reverse"] == [True]
-    assert calls["speed"] == [10.0]
+    assert calls["speed"] == []
     assert calls["start"] == [True]
     assert calls["step_samples"] == [-1, 1]
     assert calls["step_seconds"] == [-60.0, 60.0]
@@ -322,23 +329,16 @@ def test_playback_controls_remain_reachable_in_scrollable_page(
     playback_controls = [item[0] for item in playback_row.items]
     assert window.playback_label in playback_controls
     assert window.speed_slider in playback_controls
-    assert all(
-        button in playback_controls for button in window.speed_preset_buttons.values()
-    )
-    seek_group = window.panel.sizer.items[3][0]
-    assert window.seek_label in [item[0] for item in seek_group.items]
-    assert window.time_error_label in [item[0] for item in seek_group.items]
-    navigation_group = window.panel.sizer.items[4][0]
+    navigation_group = window.panel.sizer.items[3][0]
     assert window.navigation_label in [item[0] for item in navigation_group.items]
-    assert window.time_entry.parent is window.panel
-    assert window.seek_button.parent is window.panel
+    assert not hasattr(window, "time_entry")
+    assert not hasattr(window, "seek_button")
     navigation_row = navigation_group.items[1][0]
     assert all(
         button in [item[0] for item in navigation_row.items]
         for button in window.navigation_buttons
     )
     assert window.navigation_buttons[1].parent is window.panel
-    assert window.speed_preset_buttons[100.0].parent is window.panel
     assert "100 slider steps per decade" in window.speed_slider.tooltip
     assert not hasattr(window, "view_groups_pane")
     assert not hasattr(window, "group_buttons")
@@ -362,17 +362,13 @@ def test_utc_timestamp_wraps_at_the_date_time_separator(
     assert window.utc_label.label == "UTC: 2026-07-06T\n00:00:00.000"
 
 
-@pytest.mark.parametrize(
-    "control_name", ("time_entry", "seek_button", "last_navigation_button")
-)
+@pytest.mark.parametrize("control_name", ("last_navigation_button",))
 def test_keyboard_focus_scrolls_offscreen_playback_controls_into_view(
     monkeypatch: pytest.MonkeyPatch,
     control_name: str,
 ) -> None:
     window, _owner, _calls = make_window(monkeypatch)
     control = {
-        "time_entry": window.time_entry,
-        "seek_button": window.seek_button,
         "last_navigation_button": window.navigation_buttons[-1],
     }[control_name]
     control.position = FakeSize(0, 540)
@@ -537,43 +533,21 @@ def test_playback_state_updates_readouts_and_speed_without_seeking(
     assert window.play_pause_button.label == "Pause"
     assert window.speed_label.label == "Speed: -10x"
     assert window.speed_scale_label.label == (
-        "Speed slider: -10x (log scale, 1x to 1000x)"
+        "Speed slider: -10x (log scale, 1x to 9000x)"
     )
     assert window.direction_button.label == "Forward"
     assert window.direction_button.value
-    assert window.speed_preset_buttons[10.0].value
     assert window.utc_label.wrap_width == 166
     assert window.speed_scale_label.wrap_width == 166
-    assert window.seek_label.wrap_width == 166
     assert not calls["speed"]
 
     window.update_playback_state("Elapsed: 25 s\nUTC: example", False, 1.0)
 
     assert window.speed_scale_label.label == (
-        "Speed slider: +1x (log scale, 1x to 1000x)"
+        "Speed slider: +1x (log scale, 1x to 9000x)"
     )
     assert not window.direction_button.value
-    assert window.speed_preset_buttons[1.0].value
-    assert not window.speed_preset_buttons[10.0].value
     assert not calls["speed"]
-
-
-def test_time_entry_dispatches_text_and_errors_are_visible(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    window, _owner, calls = make_window(monkeypatch)
-    window.time_entry.value = "1h30m"
-
-    window.time_entry.trigger(control_window.wx.EVT_TEXT_ENTER)
-    window.seek_button.trigger(control_window.wx.EVT_BUTTON)
-    window.show_time_error("invalid time")
-    assert window.time_error_label.label == "invalid time"
-    window.clear_time_error()
-
-    assert calls["seek_time"] == ["1h30m", "1h30m"]
-    assert window.time_error_label.label == ""
-    assert window.time_entry.name == "Seek time"
-    assert "UTC" in window.time_entry.hint
 
 
 def test_accelerators_cover_playback_navigation_and_disable_for_time_entry(
@@ -602,13 +576,15 @@ def test_accelerators_cover_playback_navigation_and_disable_for_time_entry(
     assert calls["start"] == [True]
     assert calls["end"] == [True]
 
+    time_entry = FakeTextCtrl(window.panel, -1, "")
+    window.bind_time_entry(time_entry)
     focus_event = FakeEvent()
-    window.time_entry.trigger(control_window.wx.EVT_SET_FOCUS, focus_event)
+    time_entry.trigger(control_window.wx.EVT_SET_FOCUS, focus_event)
     assert focus_event.skipped
     assert owner.accelerator_table.entries == ()
 
     blur_event = FakeEvent()
-    window.time_entry.trigger(control_window.wx.EVT_KILL_FOCUS, blur_event)
+    time_entry.trigger(control_window.wx.EVT_KILL_FOCUS, blur_event)
     assert blur_event.skipped
     assert keys == {
         (entry.flags, entry.key_code) for entry in owner.accelerator_table.entries

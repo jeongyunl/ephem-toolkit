@@ -61,6 +61,7 @@ class Workspace:
         timeline_enabled: bool,
         timeline_start_utc: str,
         timeline_end_utc: str,
+        on_seek_to_time: Callable[[str], None] | None = None,
         timeline_tooltip_at: Callable[[float], str] | None = None,
         context: Mapping[str, str] | None = None,
         details: Sequence[tuple[str, str]] = (),
@@ -140,10 +141,37 @@ class Workspace:
             self.timeline_panel, wx.ID_ANY, f"Start UTC: {timeline_start_utc}"
         )
         self.timeline_start_label.SetName("Timeline start time (UTC)")
-        self.timeline_current_label = wx.StaticText(
-            self.timeline_panel, wx.ID_ANY, "Current UTC: "
+        current_time_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.timeline_current_prefix = wx.StaticText(
+            self.timeline_panel, wx.ID_ANY, "Current UTC:"
         )
-        self.timeline_current_label.SetName("Current timeline time (UTC)")
+        # Put time entry beside the current UTC prefix to replace the Playback seek form.
+        self.timeline_time_entry = wx.TextCtrl(
+            self.timeline_panel,
+            wx.ID_ANY,
+            "",
+            style=wx.TE_PROCESS_ENTER,
+        )
+        self.timeline_time_entry.SetName("Current UTC or elapsed time")
+        self.timeline_time_entry.SetHint("UTC timestamp or elapsed time, e.g. 1h30m")
+        self.timeline_time_entry.SetMinSize(wx.Size(220, -1))
+        if on_seek_to_time is not None:
+            self.timeline_time_entry.Bind(
+                wx.EVT_TEXT_ENTER,
+                lambda _event: on_seek_to_time(self.timeline_time_entry.GetValue()),
+            )
+        self.time_error_label = wx.StaticText(self.timeline_panel, wx.ID_ANY, "")
+        self.time_error_label.SetForegroundColour(wx.Colour(190, 35, 35))
+        current_time_row.Add(
+            self.timeline_current_prefix,
+            0,
+            wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+            4,
+        )
+        current_time_row.Add(
+            self.timeline_time_entry, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4
+        )
+        current_time_row.Add(self.time_error_label, 1, wx.ALIGN_CENTER_VERTICAL)
         self.timeline_end_label = wx.StaticText(
             self.timeline_panel, wx.ID_ANY, f"End UTC: {timeline_end_utc}"
         )
@@ -154,11 +182,7 @@ class Workspace:
             wx.ALIGN_CENTER_VERTICAL,
         )
         time_labels.Add((0, 0), 1, wx.EXPAND)
-        time_labels.Add(
-            self.timeline_current_label,
-            0,
-            wx.ALIGN_CENTER_VERTICAL,
-        )
+        time_labels.Add(current_time_row, 0, wx.ALIGN_CENTER_VERTICAL)
         time_labels.Add((0, 0), 1, wx.EXPAND)
         time_labels.Add(
             self.timeline_end_label,
@@ -370,7 +394,19 @@ class Workspace:
                 self.timeline_slider.SetValue(value)
         finally:
             self._syncing_timeline = False
-        self.timeline_current_label.SetLabel(f"Current UTC: {current_utc}")
+        # Preserve text the user is editing while playback updates the readout.
+        if not self.timeline_time_entry.HasFocus():
+            self.timeline_time_entry.ChangeValue(current_utc)
+
+    def show_time_error(self, message: str) -> None:
+        self.time_error_label.SetLabel(message)
+
+    def clear_time_error(self) -> None:
+        self.time_error_label.SetLabel("")
+
+    def set_current_time_entry(self, current_utc: str) -> None:
+        """Replace submitted text with the normalized current UTC timestamp."""
+        self.timeline_time_entry.ChangeValue(current_utc)
 
     def show_right_pane(self, visible: bool) -> None:
         """Show or hide the optional graph stack while retaining its contents."""

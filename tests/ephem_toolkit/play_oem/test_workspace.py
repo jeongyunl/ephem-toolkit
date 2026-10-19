@@ -60,6 +60,18 @@ class FakeWidget:
     def SetToolTip(self, tooltip: str) -> None:
         self.tooltip = tooltip
 
+    def SetHint(self, hint: str) -> None:
+        self.hint = hint
+
+    def SetForegroundColour(self, colour) -> None:
+        self.foreground_colour = colour
+
+    def ChangeValue(self, value: str) -> None:
+        self.value = value
+
+    def HasFocus(self) -> bool:
+        return getattr(self, "focused", False)
+
     def Wrap(self, width: int) -> None:
         self.wrap_width = width
 
@@ -395,12 +407,14 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "ToggleButton": FakeWidget,
         "Slider": FakeSlider,
         "StaticText": FakeWidget,
+        "TextCtrl": FakeWidget,
         "Button": FakeWidget,
         "Choice": FakeChoice,
         "BoxSizer": FakeSizer,
         "ArtProvider": FakeArtProvider,
         "CallLater": FakeCallLater,
         "Size": lambda width, height: (width, height),
+        "Colour": lambda *channels: channels,
         "ID_ANY": -1,
         "VERTICAL": 1,
         "HORIZONTAL": 2,
@@ -423,6 +437,8 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "EVT_BUTTON": "button",
         "EVT_TOGGLEBUTTON": "toggle-button",
         "EVT_CHOICE": "choice",
+        "EVT_TEXT_ENTER": "text-enter",
+        "TE_PROCESS_ENTER": 1024,
         "EVT_SIZE": "size",
         "EVT_KEY_DOWN": "key-down",
         "EVT_SLIDER": "slider",
@@ -451,6 +467,7 @@ def make_workspace(
     configure_fake_wx(monkeypatch)
     frame = FakeFrame()
     seeks: list[float] = []
+    time_seeks: list[str] = []
     # Monkeypatching replaces the native widgets with unrelated fake classes.
     # Keep this construction boundary dynamic so assertions see the fake
     # attributes rather than Workspace's production wx type annotations.
@@ -465,6 +482,7 @@ def make_workspace(
         timeline_enabled=timeline_enabled,
         timeline_start_utc="2000-01-01T00:00:00.000",
         timeline_end_utc="2000-01-01T00:01:00.000",
+        on_seek_to_time=time_seeks.append,
         context={
             "object": "TEST",
             "frame": "GCRF",
@@ -484,6 +502,7 @@ def make_workspace(
         view_choices=view_choices,
         on_add_graph=on_add_graph,
     )
+    result._test_time_seeks = time_seeks
     return result, seeks, frame
 
 
@@ -557,7 +576,11 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert frame.sizer.items[0][0] is result.content_splitter
     assert frame.sizer.items[1][0] is result.timeline_panel
     assert result.timeline_start_label.label == ("Start UTC: 2000-01-01T00:00:00.000")
-    assert result.timeline_current_label.label == "Current UTC: "
+    assert result.timeline_current_prefix.label == "Current UTC:"
+    assert result.timeline_time_entry.name == "Current UTC or elapsed time"
+    assert (
+        result.timeline_time_entry.hint == "UTC timestamp or elapsed time, e.g. 1h30m"
+    )
     assert result.timeline_end_label.label == "End UTC: 2000-01-01T00:01:00.000"
 
 
@@ -995,13 +1018,24 @@ def test_global_timeline_syncs_without_recursive_seek_and_dispatches_user_seek(
     result.update_timeline(0.25, "2000-01-01T00:00:15.000")
 
     assert result.timeline_slider.value == 2500
-    assert result.timeline_current_label.label == (
-        "Current UTC: 2000-01-01T00:00:15.000"
-    )
+    assert result.timeline_time_entry.value == "2000-01-01T00:00:15.000"
     assert seeks == []
     for value, expected in ((0, 0.0), (5000, 0.5), (10_000, 1.0)):
         result.timeline_slider.trigger("slider", FakeEvent(value))
         assert seeks[-1] == expected
+
+
+def test_current_time_editor_seeks_and_preserves_text_while_focused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, _seeks, _frame = make_workspace(monkeypatch)
+    result.timeline_time_entry.value = "1h30m"
+    result.timeline_time_entry.trigger(workspace.wx.EVT_TEXT_ENTER)
+
+    assert result._test_time_seeks == ["1h30m"]
+    result.timeline_time_entry.focused = True
+    result.update_timeline(0.5, "new UTC")
+    assert result.timeline_time_entry.value == "1h30m"
 
 
 def test_zero_duration_timeline_disables_user_seeking(

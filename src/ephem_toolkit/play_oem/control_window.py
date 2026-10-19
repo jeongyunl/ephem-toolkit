@@ -26,8 +26,6 @@ SPEED_SLIDER_MAX: int = 396
 """Maximum integer position of the logarithmic speed slider."""
 SPEED_SLIDER_STEPS_PER_DECADE: int = 100
 """Number of slider positions representing one order of magnitude."""
-TIME_ERROR_COLOR_RGB: tuple[int, int, int] = (160, 0, 0)
-"""RGB color used to display time-entry errors."""
 
 
 class ControlWindow:
@@ -40,7 +38,6 @@ class ControlWindow:
         on_set_speed: Callable[[float], None],
         on_reverse: Callable[[], None],
         *,
-        on_seek_to_time: Callable[[str], None],
         on_step_samples: Callable[[int], None],
         on_step_seconds: Callable[[float], None],
         on_jump_to_start: Callable[[], None],
@@ -60,8 +57,6 @@ class ControlWindow:
             Set the playback speed multiplier.
         on_reverse : Callable[[], None]
             Reverse the playback direction.
-        on_seek_to_time : Callable[[str], None]
-            Seek to a duration or UTC timestamp entered by the user.
         on_step_samples : Callable[[int], None]
             Step by a number of OEM samples.
         on_step_seconds : Callable[[float], None]
@@ -75,7 +70,6 @@ class ControlWindow:
         """
         self._accelerator_parent = accelerator_parent
         self._on_set_speed = on_set_speed
-        self._on_seek_to_time = on_seek_to_time
         self._syncing_sliders = False
 
         self.panel = wx.ScrolledWindow(
@@ -200,48 +194,6 @@ class ControlWindow:
         )
         layout.Add(playback_group, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
 
-        seek_group = wx.BoxSizer(wx.VERTICAL)
-        self.seek_label = wx.StaticText(
-            self.panel, wx.ID_ANY, "Seek to elapsed time or UTC:"
-        )
-        seek_group.Add(
-            self.seek_label,
-            0,
-            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
-            LAYOUT_MARGIN,
-        )
-        entry_row = wx.BoxSizer(wx.VERTICAL)
-        self.time_entry = wx.TextCtrl(
-            self.panel,
-            wx.ID_ANY,
-            "",
-            style=wx.TE_PROCESS_ENTER,
-        )
-        self.time_entry.SetName("Seek time")
-        self.time_entry.SetHint("e.g. 1h30m or YYYY-MM-DDThh:mm:ssZ (UTC)")
-        self.time_entry.Bind(wx.EVT_TEXT_ENTER, self._submit_time_entry)
-        self.time_entry.Bind(wx.EVT_SET_FOCUS, self._disable_accelerators)
-        self.time_entry.Bind(wx.EVT_KILL_FOCUS, self._enable_accelerators)
-        entry_row.Add(self.time_entry, 0, wx.EXPAND | wx.BOTTOM, BUTTON_SPACING)
-        self.seek_button = wx.Button(self.panel, wx.ID_ANY, "Seek")
-        self.seek_button.Bind(wx.EVT_BUTTON, self._submit_time_entry)
-        entry_row.Add(self.seek_button, 0, wx.EXPAND)
-        seek_group.Add(
-            entry_row,
-            0,
-            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
-            LAYOUT_MARGIN,
-        )
-        self.time_error_label = wx.StaticText(self.panel, wx.ID_ANY, "")
-        self.time_error_label.SetForegroundColour(wx.Colour(*TIME_ERROR_COLOR_RGB))
-        seek_group.Add(
-            self.time_error_label,
-            0,
-            wx.EXPAND | wx.LEFT | wx.RIGHT,
-            LAYOUT_MARGIN,
-        )
-        layout.Add(seek_group, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
-
         navigation_group = wx.BoxSizer(wx.VERTICAL)
         navigation_row = wx.BoxSizer(wx.VERTICAL)
         navigation_actions: tuple[tuple[str, Callable[[], None]], ...] = (
@@ -271,7 +223,6 @@ class ControlWindow:
         focusable_controls = (
             self.play_pause_button,
             self.direction_button,
-            self.seek_button,
             *self.navigation_buttons,
             self.speed_slider,
         )
@@ -316,7 +267,6 @@ class ControlWindow:
             self.elapsed_label,
             self.utc_label,
             self.playback_label,
-            self.seek_label,
             self.speed_scale_label,
             self.navigation_label,
         ):
@@ -453,27 +403,10 @@ class ControlWindow:
             self.state_panel.Layout()
         self.state_panel.FitInside()
 
-    def show_time_error(self, message: str) -> None:
-        """Display a time-entry validation error.
-
-        Parameters
-        ----------
-        message : str
-            Error text to show below the time-entry control.
-        """
-        self.time_error_label.SetLabel(message)
-
-    def clear_time_error(self) -> None:
-        """Clear a previously displayed time-entry error."""
-        self.time_error_label.SetLabel("")
-
     def _on_speed_slider(self, event: wx.CommandEvent) -> None:
         if self._syncing_sliders:
             return
         self._on_set_speed(10.0 ** (event.GetInt() / SPEED_SLIDER_STEPS_PER_DECADE))
-
-    def _submit_time_entry(self, _event: wx.CommandEvent | None = None) -> None:
-        self._on_seek_to_time(self.time_entry.GetValue())
 
     def _bind_accelerators(
         self,
@@ -516,9 +449,14 @@ class ControlWindow:
         self._empty_accelerator_table = wx.AcceleratorTable()
         parent.SetAcceleratorTable(self._accelerator_table)
 
+    def bind_time_entry(self, time_entry: wx.TextCtrl) -> None:
+        """Let the shared timeline editor temporarily receive playback keys."""
+        time_entry.Bind(wx.EVT_SET_FOCUS, self._disable_accelerators)
+        time_entry.Bind(wx.EVT_KILL_FOCUS, self._enable_accelerators)
+
     def _disable_accelerators(self, event: wx.FocusEvent) -> None:
-        self._scroll_control_into_view(self.time_entry, event)
         self._accelerator_parent.SetAcceleratorTable(self._empty_accelerator_table)
+        event.Skip()
 
     def _enable_accelerators(self, event: wx.FocusEvent) -> None:
         self._accelerator_parent.SetAcceleratorTable(self._accelerator_table)

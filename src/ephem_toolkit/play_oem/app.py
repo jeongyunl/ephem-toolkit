@@ -215,6 +215,7 @@ class PlayerApp:
             timeline_end_utc=time_utils.datetime_to_iso8601(
                 time_utils.tt_s_to_datetime(clock.t_end)
             ),
+            on_seek_to_time=self._seek_to_time,
             timeline_tooltip_at=self._timeline_tooltip_at,
             context=dashboard_context,
             details=metadata_details,
@@ -227,7 +228,6 @@ class PlayerApp:
                 self._toggle_playback,
                 self._set_playback_speed,
                 self._reverse_playback,
-                on_seek_to_time=self._seek_to_time,
                 on_step_samples=self._step_samples,
                 on_step_seconds=self._step_seconds,
                 on_jump_to_start=self._jump_to_start,
@@ -236,6 +236,7 @@ class PlayerApp:
                 state_parent=self.workspace.state_page,
             )
         )
+        self.control_window.bind_time_entry(self.workspace.timeline_time_entry)
         self.workspace.set_playback_content(self.control_window.panel)
         self.workspace.set_state_content(self.control_window.state_panel)
         self.frame.SetMinSize(PLAYER_FRAME_MIN_SIZE)
@@ -590,12 +591,17 @@ class PlayerApp:
             if not self.clock.t_start <= target_time_s <= self.clock.t_end:
                 raise ValueError("time is outside the OEM timeline")
         except (OverflowError, ValueError) as error:
-            self.control_window.show_time_error(str(error))
+            self.workspace.show_time_error(str(error))
             return
 
         self.clock.seek(target_time_s)
-        self.control_window.clear_time_error()
+        self.workspace.clear_time_error()
         self._update_time_display()
+        self.workspace.set_current_time_entry(
+            time_utils.datetime_to_iso8601(
+                time_utils.tt_s_to_datetime(self.clock.t_now)
+            )
+        )
 
     def close_view(self, name: str) -> None:
         """Close the default panel instance for a registered view."""

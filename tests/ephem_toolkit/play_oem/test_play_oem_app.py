@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import signal
+from collections.abc import Callable
 from contextlib import nullcontext
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 import pytest
@@ -114,7 +116,7 @@ class FakeFrame:
         self.parent = parent
         self.title = title
         self.size = size
-        self.bindings: dict[object, object] = {}
+        self.bindings: dict[object, Callable[..., object]] = {}
         self.destroyed = False
         self.shown = False
         self.raised = False
@@ -201,9 +203,10 @@ class FakeCanvas:
     def __init__(self, _parent, _id: int, _figure) -> None:
         self.draw_count = 0
         self.draw_idle_count = 0
-        self.callbacks: dict[int, tuple[str, object]] = {}
+        self.callbacks: dict[int, tuple[str, Callable[..., object]]] = {}
         self.disconnected_callbacks: list[int] = []
         self._next_callback_id = 0
+        self.toolbar: FakeToolbar | None = None
 
     def draw(self) -> None:
         self.draw_count += 1
@@ -314,7 +317,7 @@ class FakeView:
     def cursor_artists(self):
         return self._cursor_artists
 
-    def build(self, _series, _time_unit) -> Figure:
+    def build(self, _series, _time_unit) -> object:
         figure = Figure()
         self._cursor_artists = (figure.subplots().axvline(0.0),)
         return figure
@@ -354,7 +357,6 @@ class FakeControlWindow:
         on_set_speed,
         on_reverse,
         *,
-        on_seek_to_time,
         on_step_samples,
         on_step_seconds,
         on_jump_to_start,
@@ -369,7 +371,6 @@ class FakeControlWindow:
             "toggle": on_toggle_play,
             "speed": on_set_speed,
             "reverse": on_reverse,
-            "seek_to_time": on_seek_to_time,
             "step_samples": on_step_samples,
             "step_seconds": on_step_seconds,
             "jump_to_start": on_jump_to_start,
@@ -377,7 +378,9 @@ class FakeControlWindow:
         }
         self.accelerator_parent = accelerator_parent
         self.text = ""
-        self.time_errors: list[str] = []
+
+    def bind_time_entry(self, _time_entry) -> None:
+        pass
 
     def update_playback_state(self, text: str, playing: bool, rate: float) -> None:
         state = "Playing" if playing else "Paused"
@@ -385,12 +388,6 @@ class FakeControlWindow:
 
     def update_current_state(self, state) -> None:
         self.current_state = state
-
-    def show_time_error(self, message: str) -> None:
-        self.time_errors.append(message)
-
-    def clear_time_error(self) -> None:
-        self.time_errors.clear()
 
 
 class FakeWorkspace:
@@ -416,6 +413,13 @@ class FakeWorkspace:
         self.graph_panels = []
         self.progress = 0.0
         self.current_utc = ""
+        self.timeline_time_entry = object()
+        self.callbacks = {"seek_to_time": _kwargs["on_seek_to_time"]}
+        self.time_errors: list[str] = []
+        self.transport_buttons = {
+            rate: SimpleNamespace(SetFocus=lambda: None)
+            for rate in (-1000.0, -100.0, -10.0, 10.0, 100.0, 1000.0)
+        }
         self.transport_state = None
         self.playback_content = None
         self.state_content = None
@@ -428,6 +432,15 @@ class FakeWorkspace:
 
     def update_timeline(self, progress: float, current_utc: str) -> None:
         self.progress = progress
+        self.current_utc = current_utc
+
+    def show_time_error(self, message: str) -> None:
+        self.time_errors.append(message)
+
+    def clear_time_error(self) -> None:
+        self.time_errors.clear()
+
+    def set_current_time_entry(self, current_utc: str) -> None:
         self.current_utc = current_utc
 
     def update_transport_state(self, playing: bool, rate: float) -> None:
@@ -487,7 +500,7 @@ def make_app(
     three_d_backend: str = "matplotlib",
     clock: PlaybackClock | None = None,
     tick_interval_ms: int = 33,
-) -> tuple[app.PlayerApp, list[FakeView], list[FakeCanvas], list[FakeFrame]]:
+) -> tuple[Any, list[FakeView], list[FakeCanvas], list[FakeFrame]]:
     frames: list[FakeFrame] = []
     views: list[FakeView] = []
     canvases: list[FakeCanvas] = []
@@ -536,6 +549,8 @@ def make_app(
     monkeypatch.setattr(app.trajectory3d, "Trajectory3DView", create_view)
     timestamps = [100.0, 200.0]
     series = compute_orbit_series(timestamps, make_states(), TimeUnit.MINUTES)
+    # PlayerApp is typed against native wx controls; these tests replace them
+    # with fakes, so expose the resulting test instance dynamically.
     player = app.PlayerApp(
         make_clock() if clock is None else clock,
         series,
@@ -694,6 +709,7 @@ def test_matplotlib_3d_render_throttle_does_not_skip_clock_ticks(
     monkeypatch.setattr(app.time, "monotonic", lambda: next(monotonic_values))
     player.start()
     canvas = canvases[0]
+    assert canvas.toolbar is not None
 
     player._on_timer(SimpleNamespace())
     player._on_timer(SimpleNamespace())
@@ -710,21 +726,21 @@ def test_time_entry_changes_clock_only_for_valid_in_range_values(
 ) -> None:
     player, _views, _canvases, _frames = make_app(monkeypatch)
 
-    player.control_window.callbacks["seek_to_time"]("not-a-time")
+    player.workspace.callbacks["seek_to_time"]("not-a-time")
     assert player.clock.t_now == 100.0
-    assert player.control_window.time_errors
+    assert player.workspace.time_errors
 
-    player.control_window.callbacks["seek_to_time"]("10s")
+    player.workspace.callbacks["seek_to_time"]("10s")
     assert player.clock.t_now == 110.0
-    assert not player.control_window.time_errors
+    assert not player.workspace.time_errors
 
     utc_timestamp = tt_s_to_datetime(150.0).isoformat().replace("+00:00", "Z")
-    player.control_window.callbacks["seek_to_time"](utc_timestamp)
+    player.workspace.callbacks["seek_to_time"](utc_timestamp)
     assert player.clock.t_now == pytest.approx(150.0)
 
-    player.control_window.callbacks["seek_to_time"]("1000s")
+    player.workspace.callbacks["seek_to_time"]("1000s")
     assert player.clock.t_now == pytest.approx(150.0)
-    assert player.control_window.time_errors
+    assert player.workspace.time_errors
 
     player.close()
 
@@ -1036,6 +1052,7 @@ def test_plot_click_seeks_and_respects_toolbar_modes_and_non_time_axes(
     )
     player.start()
     canvas = canvases[0]
+    assert canvas.toolbar is not None
     click_event = SimpleNamespace(
         button=MouseButton.LEFT,
         inaxes=SimpleNamespace(name="rectilinear"),
@@ -1316,9 +1333,9 @@ def test_sigint_is_forwarded_with_call_after_and_previous_handler_restored(
     player, _views, _canvases, frames = make_app(
         monkeypatch, plots=("state-components",)
     )
-    signal_handlers: list[object] = []
+    signal_handlers: list[Any] = []
     previous_handler = object()
-    scheduled: list[tuple[object, tuple[object, ...]]] = []
+    scheduled: list[tuple[Any, tuple[Any, ...]]] = []
     monkeypatch.setattr(app.signal, "getsignal", lambda _signum: previous_handler)
     monkeypatch.setattr(
         app.signal,
