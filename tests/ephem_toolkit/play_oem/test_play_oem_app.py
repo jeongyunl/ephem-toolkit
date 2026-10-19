@@ -118,6 +118,14 @@ def test_transport_speed_selection_while_paused_does_not_start_playback(
     assert player.workspace.transport_state == (False, 100.0)
 
 
+def test_timeline_tooltip_omits_fractional_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+
+    assert "." not in player._timeline_tooltip_at(0.12345)
+
+
 class FakeEvent:
     def __init__(self) -> None:
         self.skipped = False

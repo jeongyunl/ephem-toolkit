@@ -8,6 +8,7 @@ from collections.abc import Callable, Mapping, Sequence
 import wx
 
 from .graph_panel import GRAPH_PANEL_MIN_SIZE, GraphPanelHost
+from .timestamp_markup import set_timestamp_label
 from .tooltips import position_tooltip_at_pointer, set_tooltip
 
 TIMELINE_SLIDER_MAX: int = 10_000
@@ -138,8 +139,10 @@ class Workspace:
             12,
         )
         time_labels = wx.BoxSizer(wx.HORIZONTAL)
-        self.timeline_start_label = wx.StaticText(
-            self.timeline_panel, wx.ID_ANY, f"Start UTC: {timeline_start_utc}"
+        # Shrink only displayed fractions; retain the full ISO-8601 timestamp.
+        self.timeline_start_label = wx.StaticText(self.timeline_panel, wx.ID_ANY, "")
+        set_timestamp_label(
+            self.timeline_start_label, f"Start UTC: {timeline_start_utc}"
         )
         self.timeline_start_label.SetName("Timeline start time (UTC)")
         current_time_row = wx.BoxSizer(wx.HORIZONTAL)
@@ -173,9 +176,8 @@ class Workspace:
             self.timeline_time_entry, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4
         )
         current_time_row.Add(self.time_error_label, 1, wx.ALIGN_CENTER_VERTICAL)
-        self.timeline_end_label = wx.StaticText(
-            self.timeline_panel, wx.ID_ANY, f"End UTC: {timeline_end_utc}"
-        )
+        self.timeline_end_label = wx.StaticText(self.timeline_panel, wx.ID_ANY, "")
+        set_timestamp_label(self.timeline_end_label, f"End UTC: {timeline_end_utc}")
         self.timeline_end_label.SetName("Timeline end time (UTC)")
         time_labels.Add(
             self.timeline_start_label,

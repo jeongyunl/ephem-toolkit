@@ -8,6 +8,7 @@ import math
 import wx
 
 from .cursor import CursorState, CursorStatus
+from .timestamp_markup import set_small_fraction_label, set_timestamp_label
 from .tooltips import set_tooltip
 
 BUTTON_SPACING: int = 4
@@ -334,14 +335,15 @@ class ControlWindow:
             Readout text, with elapsed time and UTC separated by a newline.
         """
         elapsed_text, separator, utc_text = text.partition("\n")
-        self.elapsed_label.SetLabel(elapsed_text)
+        # These read-only labels can style fractions without changing their values.
+        set_small_fraction_label(self.elapsed_label, elapsed_text)
         timestamp_separator = utc_text.rfind("T")
         if timestamp_separator > utc_text.find(":"):
             utc_text = (
                 f"{utc_text[:timestamp_separator + 1]}\n"
                 f"{utc_text[timestamp_separator + 1:]}"
             )
-        self.utc_label.SetLabel(utc_text if separator else "")
+        set_timestamp_label(self.utc_label, utc_text if separator else "")
         self._wrap_text_labels()
 
     def update_current_state(self, state: CursorState) -> None:

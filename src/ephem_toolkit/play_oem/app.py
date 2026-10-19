@@ -520,7 +520,10 @@ class PlayerApp:
         epoch_s = self.clock.t_start + progress * (
             self.clock.t_end - self.clock.t_start
         )
-        return time_utils.datetime_to_iso8601(time_utils.tt_s_to_datetime(epoch_s))
+        # Keep hover text compact; the persistent readouts retain fractions.
+        return time_utils.datetime_to_iso8601(
+            time_utils.tt_s_to_datetime(epoch_s), fractional_second_places=0
+        )
 
     def _set_playback_speed(self, speed: float) -> None:
         self.clock.set_speed(speed)
