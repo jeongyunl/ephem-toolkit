@@ -31,7 +31,8 @@ class SuperToolTipFontDemo(wx.Frame):
             wx.FONTSTYLE_NORMAL,
             wx.FONTWEIGHT_NORMAL,
         ))
-        tooltip.SetStartDelay(0)
+        # wxPython truncates this delay to whole seconds; zero fails to start its timer.
+        tooltip.SetStartDelay(1)
         tooltip.SetTarget(button)
 
         # Keep a reference for the lifetime of the target window.

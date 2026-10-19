@@ -155,7 +155,8 @@ def set_tooltip(
                 wx.FONTWEIGHT_NORMAL,
             )
         )
-        tooltip.SetStartDelay(0)
+        # wxPython truncates this delay to whole seconds; zero fails to start its timer.
+        tooltip.SetStartDelay(1)
         tooltip.SetTarget(window)
         setattr(window, "_play_oem_tooltip", tooltip)
     else:
