@@ -148,7 +148,10 @@ class GraphPanelHost(wx.Panel):
         self.close_button.Bind(wx.EVT_BUTTON, lambda _event: self._on_close())
         self.actions_button = wx.Button(self, wx.ID_ANY, "Actions")
         self.actions_button.SetName(f"{title} panel actions")
-        set_tooltip(self.actions_button, f"Actions for {title} graph")
+        # Keep the tooltip handle so menu activation can dismiss it explicitly.
+        self._actions_tooltip = set_tooltip(
+            self.actions_button, f"Actions for {title} graph"
+        )
         self._actions_menu = wx.Menu()
         for label, callback in (
             ("Move up", on_move_up),
@@ -164,9 +167,10 @@ class GraphPanelHost(wx.Panel):
                 lambda _event, action=callback: action(),
                 id=item.GetId(),
             )
+        # Handle activation centrally so keyboard clicks also dismiss the tooltip.
         self.actions_button.Bind(
             wx.EVT_BUTTON,
-            lambda _event: self.PopupMenu(self._actions_menu),
+            self._on_actions_button,
         )
         header.Add(self.actions_button, 0, wx.ALL, 4)
         header.Add(self.close_button, 0, wx.ALL, 4)
@@ -176,6 +180,12 @@ class GraphPanelHost(wx.Panel):
         self.SetSizer(layout)
         self.SetMinSize(GRAPH_PANEL_MIN_SIZE)
         self.Bind(wx.EVT_SHOW, self._on_show)
+
+    def _on_actions_button(self, _event: wx.CommandEvent) -> None:
+        # GTK requires the tooltip popup to be unmapped before opening a menu
+        # with the graph panel as parent, including keyboard activation.
+        self._actions_tooltip.DoHideNow()
+        self.PopupMenu(self._actions_menu)
 
     def set_matplotlib_content(
         self, toolbar: NavigationToolbar2WxAgg, canvas: FigureCanvasWxAgg

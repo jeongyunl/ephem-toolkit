@@ -39,6 +39,30 @@ class _PlayOemSuperToolTip(SuperToolTip):
     _pointer_screen_position: wx.Point | None = None
     _positioned_for_pointer: bool = False
 
+    def SetTarget(self, widget: wx.Window) -> None:
+        super().SetTarget(widget)
+        # Dismiss hover popups before controls open native menus or dropdowns.
+        for event_type in (wx.EVT_LEFT_DOWN, wx.EVT_RIGHT_DOWN, wx.EVT_KEY_DOWN):
+            widget.Bind(event_type, self._on_widget_interaction)
+
+    def _on_widget_interaction(self, event: wx.Event) -> None:
+        self.DoHideNow()
+        # Let the control process its normal click or key after dismissal.
+        event.Skip()
+
+    def DoHideNow(self) -> None:
+        # Cancel pending hover creation so the tooltip cannot reopen over a menu.
+        self._startTimer.Stop()
+        self._endTimer.Stop()
+        tip_window = self._superToolTip
+        # Drop the cached wrapper before destroying its native window.
+        self._superToolTip = None
+        if tip_window:
+            # Destroy() is deferred; Hide() removes the native popup from
+            # GTK's popup stack before another menu is mapped.
+            tip_window.Hide()
+            tip_window.Destroy()
+
     def SetPointerScreenPosition(self, position: wx.Point) -> None:
         self._pointer_screen_position = position
 

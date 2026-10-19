@@ -3,10 +3,37 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
 from ephem_toolkit.play_oem import graph_panel
+
+
+def test_actions_menu_dismisses_tooltip_before_opening() -> None:
+    operations: list[str] = []
+    menu = object()
+
+    def open_menu(selected_menu: object) -> None:
+        assert selected_menu is menu
+        # Mapping a menu while the tooltip is still open fails on GTK.
+        assert operations == ["hide tooltip"]
+        operations.append("open menu")
+
+    # Record ordering without native popup windows so the GTK regression can
+    # be checked in headless unit tests as well as the GUI reproduction.
+    panel = SimpleNamespace(
+        _actions_tooltip=SimpleNamespace(
+            DoHideNow=lambda: operations.append("hide tooltip")
+        ),
+        _actions_menu=menu,
+        PopupMenu=open_menu,
+    )
+    graph_panel.GraphPanelHost._on_actions_button(
+        cast(graph_panel.GraphPanelHost, panel), graph_panel.wx.CommandEvent()
+    )
+
+    assert operations == ["hide tooltip", "open menu"]
 
 
 class FakeCallLater:
@@ -47,7 +74,9 @@ def test_redraw_throttle_coalesces_requests_and_skips_hidden_panels(
     pending = throttle._timer
     throttle.request()
     assert pending is throttle._timer
-    assert pending is not None and 10 <= pending.delay_ms <= 15
+    # The monkeypatched scheduler supplies the fake timer's test-only API.
+    assert isinstance(pending, FakeCallLater)
+    assert 10 <= pending.delay_ms <= 15
 
     visible[0] = False
     now[0] = 0.1
@@ -89,6 +118,7 @@ def test_scheduled_redraw_refreshes_visible_native_content() -> None:
         _is_visible=lambda: True,
     )
 
-    graph_panel.GraphPanelHost.draw_if_needed(panel)
+    # Exercise the method with a lightweight host instead of native wx controls.
+    graph_panel.GraphPanelHost.draw_if_needed(cast(graph_panel.GraphPanelHost, panel))
 
     assert native_content.refresh_count == 1
