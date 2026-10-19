@@ -126,8 +126,11 @@ class GraphPanelHost(wx.Panel):
             if on_view_selected is not None:
                 self.view_selector.Bind(
                     wx.EVT_CHOICE,
-                    lambda event: on_view_selected(
-                        view_choices[event.GetSelection()][0]
+                    # Replacing the panel destroys this choice; defer until GTK
+                    # has finished dispatching its selection event.
+                    lambda event: wx.CallAfter(
+                        on_view_selected,
+                        view_choices[event.GetSelection()][0],
                     ),
                 )
             header.Add(self.view_selector, 1, wx.EXPAND | wx.ALL, 4)
