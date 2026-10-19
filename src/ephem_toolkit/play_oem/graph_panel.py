@@ -113,6 +113,8 @@ class GraphPanelHost(wx.Panel):
                 wx.ID_ANY,
                 choices=[label for _name, label in view_choices],
             )
+            # Keep the selector compact so it matches the smaller header actions.
+            self.view_selector.SetMinSize(wx.Size(-1, 26))
             self.view_selector.SetName(f"{title} view selector")
             set_tooltip(self.view_selector, f"Select a view for {title}")
             if selected_view is not None:
@@ -133,7 +135,7 @@ class GraphPanelHost(wx.Panel):
                         view_choices[event.GetSelection()][0],
                     ),
                 )
-            header.Add(self.view_selector, 1, wx.EXPAND | wx.ALL, 4)
+            header.Add(self.view_selector, 1, wx.EXPAND | wx.ALL, 2)
         else:
             self.title_label = wx.StaticText(self, wx.ID_ANY, title)
             header.Add(
@@ -143,10 +145,14 @@ class GraphPanelHost(wx.Panel):
                 4,
             )
         self.close_button = wx.Button(self, wx.ID_ANY, "Close")
+        # A fixed compact height reduces header space while preserving native width.
+        self.close_button.SetMinSize(wx.Size(-1, 26))
         self.close_button.SetName(f"Close {title} graph")
         set_tooltip(self.close_button, f"Close {title} graph")
         self.close_button.Bind(wx.EVT_BUTTON, lambda _event: self._on_close())
         self.actions_button = wx.Button(self, wx.ID_ANY, "Actions")
+        # Match the Close control so the header buttons have consistent proportions.
+        self.actions_button.SetMinSize(wx.Size(-1, 26))
         self.actions_button.SetName(f"{title} panel actions")
         # Keep the tooltip handle so menu activation can dismiss it explicitly.
         self._actions_tooltip = set_tooltip(
@@ -172,8 +178,8 @@ class GraphPanelHost(wx.Panel):
             wx.EVT_BUTTON,
             self._on_actions_button,
         )
-        header.Add(self.actions_button, 0, wx.ALL, 4)
-        header.Add(self.close_button, 0, wx.ALL, 4)
+        header.Add(self.actions_button, 0, wx.ALL, 2)
+        header.Add(self.close_button, 0, wx.ALL, 2)
         layout.Add(header, 0, wx.EXPAND)
         self.content_sizer = wx.BoxSizer(wx.VERTICAL)
         layout.Add(self.content_sizer, 1, wx.EXPAND)
