@@ -525,12 +525,23 @@ class PlayerApp:
         self._update_time_display()
 
     def _set_transport_rate(self, rate: float) -> None:
-        """Add a signed transport-button increment to the current speed."""
+        """Step within the selected transport speed range or select its base."""
         direction = 1 if rate > 0.0 else -1
         increment = abs(rate)
-        base_speed = min(abs(self.clock.rate) + increment, self.clock.MAX_SPEED)
+        current_speed = abs(self.clock.rate)
+        same_direction = (self.clock.rate > 0.0) == (rate > 0.0)
+        if (
+            same_direction
+            and increment <= current_speed
+            and current_speed < min(increment * 10.0, self.clock.MAX_SPEED)
+        ):
+            base_speed = min(current_speed + increment, self.clock.MAX_SPEED)
+        else:
+            base_speed = increment
         self.clock.set_direction(direction)
         self.clock.set_speed(base_speed)
+        if not self.clock.playing:
+            self.clock.play()
         if base_speed >= 1000.0:
             self.workspace.transport_buttons[direction * 1000.0].SetFocus()
         elif base_speed >= 100.0:

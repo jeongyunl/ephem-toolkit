@@ -167,6 +167,7 @@ class Workspace:
         timeline_layout.Add(time_labels, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
         transport_row = wx.BoxSizer(wx.HORIZONTAL)
         self.transport_buttons: dict[float, wx.ToggleButton] = {}
+        self._transport_button_labels: dict[float, str] = {}
         for rate, glyph, direction in (
             (-1000.0, "<<< 1000×", "reverse"),
             (-100.0, "<< 100×", "reverse"),
@@ -179,6 +180,7 @@ class Workspace:
                 on_set_transport_rate,
             )
             self.transport_buttons[rate] = button
+            self._transport_button_labels[rate] = glyph
             transport_row.Add(button, 0, wx.RIGHT, 4)
 
         self.transport_reverse_play_button = wx.Button(
@@ -236,6 +238,7 @@ class Workspace:
                 on_set_transport_rate,
             )
             self.transport_buttons[rate] = button
+            self._transport_button_labels[rate] = glyph
             transport_row.Add(button, 0, wx.RIGHT, 4)
         timeline_layout.Add(transport_row, 0, wx.ALIGN_CENTER | wx.TOP, 4)
         self.timeline_slider = wx.Slider(
@@ -277,9 +280,7 @@ class Workspace:
         button = wx.ToggleButton(self.timeline_panel, wx.ID_ANY, glyph)
         magnitude = abs(rate)
         button.SetName(f"Play {direction} at {magnitude:g}x")
-        button.SetToolTip(
-            f"Increase {direction} playback speed by {magnitude:g}x, up to 9000x."
-        )
+        button.SetToolTip(f"Increase {direction} playback speed by {magnitude:g}x")
         if on_set_transport_rate is not None:
             button.Bind(
                 wx.EVT_TOGGLEBUTTON,
@@ -297,8 +298,19 @@ class Workspace:
         self._last_transport_state = state
         self._transport_playing = playing
         self._transport_rate = rate
+        speed = abs(rate)
         for selected_rate, button in self.transport_buttons.items():
-            button.SetValue(rate == selected_rate)
+            step = abs(selected_rate)
+            in_speed_range = speed >= step and (step == 1000.0 or speed < step * 10.0)
+            active = in_speed_range and ((rate > 0.0) == (selected_rate > 0.0))
+            button.SetValue(active)
+            if active:
+                arrow_count = {10.0: 1, 100.0: 2, 1000.0: 3}[step]
+                arrow = ">" * arrow_count if rate > 0.0 else "<" * arrow_count
+                label = f"{speed:g}x {arrow}" if rate > 0.0 else f"{arrow} {speed:g}x"
+            else:
+                label = self._transport_button_labels[selected_rate]
+            button.SetLabel(label)
         reverse_active = playing and rate < 0.0
         self.transport_reverse_play_button.SetLabel(
             "Ⅱ Pause" if reverse_active else "◀ 1×"
