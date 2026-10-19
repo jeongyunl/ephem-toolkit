@@ -8,6 +8,7 @@ from collections.abc import Callable, Mapping, Sequence
 import wx
 
 from .graph_panel import GRAPH_PANEL_MIN_SIZE, GraphPanelHost
+from .tooltips import position_tooltip_at_pointer, set_tooltip
 
 TIMELINE_SLIDER_MAX: int = 10_000
 """Maximum integer position of the timeline slider."""
@@ -187,8 +188,9 @@ class Workspace:
             self.timeline_panel, wx.ID_ANY, "◀ 1×"
         )
         self.transport_reverse_play_button.SetName("Play reverse at 1x")
-        self.transport_reverse_play_button.SetToolTip(
-            "Play in reverse at 1x; pauses while playback is running."
+        set_tooltip(
+            self.transport_reverse_play_button,
+            "Play in reverse at 1x; pauses while playback is running.",
         )
         if (
             on_toggle_play is not None
@@ -208,8 +210,9 @@ class Workspace:
             self.timeline_panel, wx.ID_ANY, "▶ 1×"
         )
         self.transport_forward_play_button.SetName("Play forward at 1x")
-        self.transport_forward_play_button.SetToolTip(
-            "Play forward at 1x; pauses while playback is running."
+        set_tooltip(
+            self.transport_forward_play_button,
+            "Play forward at 1x; pauses while playback is running.",
         )
         if (
             on_toggle_play is not None
@@ -254,9 +257,13 @@ class Workspace:
         self.timeline_slider.Bind(wx.EVT_SLIDER, self._on_timeline_slider)
         if timeline_tooltip_at is not None:
             self._timeline_tooltip_at = timeline_tooltip_at
-            self._timeline_tooltip = wx.ToolTip(timeline_tooltip_at(0.0))
-            wx.ToolTip.Enable(True)
-            self.timeline_slider.SetToolTip(self._timeline_tooltip)
+            self._timeline_tooltip = set_tooltip(
+                self.timeline_slider,
+                timeline_tooltip_at(0.0),
+            )
+            # Let the motion handler position the first popup before the
+            # automatic hover timer can place it at the slider edge.
+            self._timeline_tooltip.SetStartDelay(1)
             self.timeline_slider.Bind(wx.EVT_MOTION, self._on_timeline_motion)
         timeline_layout.Add(
             self.timeline_slider, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12
@@ -280,7 +287,7 @@ class Workspace:
         button = wx.ToggleButton(self.timeline_panel, wx.ID_ANY, glyph)
         magnitude = abs(rate)
         button.SetName(f"Play {direction} at {magnitude:g}x")
-        button.SetToolTip(f"Increase {direction} playback speed by {magnitude:g}x")
+        set_tooltip(button, f"Increase {direction} playback speed by {magnitude:g}x")
         if on_set_transport_rate is not None:
             button.Bind(
                 wx.EVT_TOGGLEBUTTON,
@@ -318,10 +325,13 @@ class Workspace:
         self.transport_reverse_play_button.SetName(
             "Pause reverse playback" if reverse_active else "Play reverse at 1x"
         )
-        self.transport_reverse_play_button.SetToolTip(
-            "Pause reverse playback."
-            if reverse_active
-            else "Play in reverse at 1x; switches direction if forward playback is active."
+        set_tooltip(
+            self.transport_reverse_play_button,
+            (
+                "Pause reverse playback."
+                if reverse_active
+                else "Play in reverse at 1x; switches direction if forward playback is active."
+            ),
         )
         forward_active = playing and rate > 0.0
         self.transport_forward_play_button.SetLabel(
@@ -330,10 +340,13 @@ class Workspace:
         self.transport_forward_play_button.SetName(
             "Pause forward playback" if forward_active else "Play forward at 1x"
         )
-        self.transport_forward_play_button.SetToolTip(
-            "Pause forward playback."
-            if forward_active
-            else "Play forward at 1x; switches direction if reverse playback is active."
+        set_tooltip(
+            self.transport_forward_play_button,
+            (
+                "Pause forward playback."
+                if forward_active
+                else "Play forward at 1x; switches direction if reverse playback is active."
+            ),
         )
 
     def set_playback_content(self, panel: wx.Window) -> None:
@@ -724,7 +737,7 @@ class Workspace:
             bitmap = wx.ArtProvider.GetBitmap(art_id, wx.ART_BUTTON, wx.Size(24, 24))
             button = wx.BitmapToggleButton(self.left_pane, wx.ID_ANY, bitmap)
             button.SetName(name)
-            button.SetToolTip(name)
+            set_tooltip(button, name)
             button.SetMinSize((36, 36))
             button.SetValue(index == 0)
             button.Bind(
@@ -862,7 +875,7 @@ class Workspace:
         header.Add(title_label, 1, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 8)
         add_button = wx.Button(pane, wx.ID_ANY, "Add graph")
         add_button.SetName(f"Add graph to {stack} stack")
-        add_button.SetToolTip(f"Add a graph to {title}")
+        set_tooltip(add_button, f"Add a graph to {title}")
         self._add_buttons[stack] = add_button
         add_button.Bind(
             wx.EVT_BUTTON,
@@ -873,7 +886,7 @@ class Workspace:
             comparison_toggle = wx.ToggleButton(pane, wx.ID_ANY, "Comparison")
             self._comparison_toggle = comparison_toggle
             comparison_toggle.SetName("Toggle Comparison pane")
-            comparison_toggle.SetToolTip("Show or hide the Comparison pane")
+            set_tooltip(comparison_toggle, "Show or hide the Comparison pane")
             comparison_toggle.SetValue(False)
             comparison_toggle.Bind(
                 wx.EVT_TOGGLEBUTTON,
@@ -883,7 +896,7 @@ class Workspace:
         else:
             close_button = wx.Button(pane, wx.ID_ANY, "Close pane")
             close_button.SetName("Close Comparison pane")
-            close_button.SetToolTip("Hide the Comparison pane")
+            set_tooltip(close_button, "Hide the Comparison pane")
             close_button.Bind(wx.EVT_BUTTON, lambda _event: self.show_right_pane(False))
             self._pane_close_buttons[stack] = close_button
             header.Add(close_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
@@ -971,5 +984,10 @@ class Workspace:
         width = self.timeline_slider.GetClientSize().GetWidth()
         if width > 0:
             fraction = min(max(event.GetX() / width, 0.0), 1.0)
-            self._timeline_tooltip.SetTip(self._timeline_tooltip_at(fraction))
+            self._timeline_tooltip.SetMessage(self._timeline_tooltip_at(fraction))
+            position_tooltip_at_pointer(
+                self._timeline_tooltip,
+                self.timeline_slider,
+                event.GetPosition(),
+            )
         event.Skip()

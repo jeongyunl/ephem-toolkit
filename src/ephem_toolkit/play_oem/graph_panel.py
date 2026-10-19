@@ -5,19 +5,29 @@ from __future__ import annotations
 from collections.abc import Callable
 import math
 import time
+from typing import cast
 from uuid import uuid4
 
 import wx
+
+from .tooltips import set_tooltip
+
 from matplotlib.backend_bases import DrawEvent
 from matplotlib.backends.backend_wxagg import (
     FigureCanvasWxAgg,
     NavigationToolbar2WxAgg,
 )
+from matplotlib.figure import Figure
 
 MATPLOTLIB_REDRAW_INTERVAL_S: float = 0.033
 """Minimum interval between requested Matplotlib redraws per graph panel."""
 GRAPH_PANEL_MIN_SIZE: tuple[int, int] = (320, 280)
 """Minimum usable graph-panel width and height in pixels."""
+
+
+def _canvas_figure(canvas: object) -> Figure:
+    """Return the Matplotlib figure stored by a canvas backend."""
+    return cast(Figure, getattr(canvas, "figure"))
 
 
 class _RedrawThrottle:
@@ -104,7 +114,7 @@ class GraphPanelHost(wx.Panel):
                 choices=[label for _name, label in view_choices],
             )
             self.view_selector.SetName(f"{title} view selector")
-            self.view_selector.SetToolTip(f"Select a view for {title}")
+            set_tooltip(self.view_selector, f"Select a view for {title}")
             if selected_view is not None:
                 self.view_selector.SetSelection(
                     next(
@@ -131,11 +141,11 @@ class GraphPanelHost(wx.Panel):
             )
         self.close_button = wx.Button(self, wx.ID_ANY, "Close")
         self.close_button.SetName(f"Close {title} graph")
-        self.close_button.SetToolTip(f"Close {title} graph")
+        set_tooltip(self.close_button, f"Close {title} graph")
         self.close_button.Bind(wx.EVT_BUTTON, lambda _event: self._on_close())
         self.actions_button = wx.Button(self, wx.ID_ANY, "Actions")
         self.actions_button.SetName(f"{title} panel actions")
-        self.actions_button.SetToolTip(f"Actions for {title} graph")
+        set_tooltip(self.actions_button, f"Actions for {title} graph")
         self._actions_menu = wx.Menu()
         for label, callback in (
             ("Move up", on_move_up),
@@ -174,7 +184,7 @@ class GraphPanelHost(wx.Panel):
         self.content_sizer.Add(canvas, 1, wx.EXPAND)
         self._canvas = canvas
         self._redraw_throttle = _RedrawThrottle(self._is_visible, canvas.draw_idle)
-        if canvas.figure.get_layout_engine() is not None:
+        if _canvas_figure(canvas).get_layout_engine() is not None:
             self._uses_constrained_layout = True
             canvas.mpl_connect("draw_event", self._disable_constrained_layout)
             canvas.Bind(wx.EVT_SIZE, self._on_canvas_size)
@@ -224,13 +234,15 @@ class GraphPanelHost(wx.Panel):
 
     def _disable_constrained_layout(self, event: DrawEvent) -> None:
         if self._uses_constrained_layout:
-            event.canvas.figure.set_layout_engine(None)
+            # Matplotlib accepts None here to disable layout; its type stubs
+            # omit that documented sentinel value.
+            getattr(_canvas_figure(event.canvas), "set_layout_engine")(None)
 
     def _on_canvas_size(self, event: wx.SizeEvent) -> None:
         if (
             self._uses_constrained_layout
             and self._canvas is not None
-            and self._canvas.figure.get_layout_engine() is None
+            and _canvas_figure(self._canvas).get_layout_engine() is None
         ):
-            self._canvas.figure.set_layout_engine("constrained")
+            _canvas_figure(self._canvas).set_layout_engine("constrained")
         event.Skip()

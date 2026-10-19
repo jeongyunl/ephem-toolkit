@@ -8,6 +8,7 @@ import math
 import wx
 
 from .cursor import CursorState, CursorStatus
+from .tooltips import set_tooltip
 
 BUTTON_SPACING: int = 4
 """Spacing between adjacent playback buttons (pixels)."""
@@ -186,8 +187,9 @@ class ControlWindow:
             style=wx.SL_HORIZONTAL,
         )
         self.speed_slider.SetName("Playback speed")
-        self.speed_slider.SetToolTip(
-            "Log scale: 100 slider steps per decade; buttons add 10x, 100x, or 1000x."
+        set_tooltip(
+            self.speed_slider,
+            "Log scale: 100 slider steps per decade; buttons add 10x, 100x, or 1000x.",
         )
         self.speed_slider.Bind(wx.EVT_SLIDER, self._on_speed_slider)
         playback_group.Add(
