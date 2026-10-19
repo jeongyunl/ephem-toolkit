@@ -205,8 +205,8 @@ class PlayerApp:
             self.frame,
             self._seek_to_fraction,
             on_toggle_play=self._toggle_playback,
-            on_play_reverse=self._play_reverse_at_unit_speed,
-            on_play_forward=self._play_forward_at_unit_speed,
+            on_play_reverse=self._play_reverse_at_current_speed,
+            on_play_forward=self._play_forward_at_current_speed,
             on_set_transport_rate=self._set_transport_rate,
             timeline_enabled=clock.t_start < clock.t_end,
             timeline_start_utc=time_utils.datetime_to_iso8601(
@@ -531,7 +531,10 @@ class PlayerApp:
         increment = abs(rate)
         current_speed = abs(self.clock.rate)
         same_direction = (self.clock.rate > 0.0) == (rate > 0.0)
-        if (
+        # Unit-speed buttons select exactly 1×; larger presets add their speed step.
+        if increment == 1.0:
+            base_speed = 1.0
+        elif (
             same_direction
             and increment <= current_speed
             and current_speed < min(increment * 10.0, self.clock.MAX_SPEED)
@@ -541,23 +544,19 @@ class PlayerApp:
             base_speed = increment
         self.clock.set_direction(direction)
         self.clock.set_speed(base_speed)
-        if not self.clock.playing:
-            self.clock.play()
         if base_speed >= 1000.0:
             self.workspace.transport_buttons[direction * 1000.0].SetFocus()
         elif base_speed >= 100.0:
             self.workspace.transport_buttons[direction * 100.0].SetFocus()
         self._update_time_display()
 
-    def _play_reverse_at_unit_speed(self) -> None:
+    def _play_reverse_at_current_speed(self) -> None:
         self.clock.set_direction(-1)
-        self.clock.set_speed(1.0)
         self.clock.play()
         self._update_time_display()
 
-    def _play_forward_at_unit_speed(self) -> None:
+    def _play_forward_at_current_speed(self) -> None:
         self.clock.set_direction(1)
-        self.clock.set_speed(1.0)
         self.clock.play()
         self._update_time_display()
 

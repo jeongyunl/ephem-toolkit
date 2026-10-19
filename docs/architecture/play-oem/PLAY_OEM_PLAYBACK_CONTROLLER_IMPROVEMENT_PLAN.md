@@ -30,36 +30,37 @@ Out of scope:
 
 - Place a compact transport cluster immediately above the shared time slider at the bottom of the
   window.
-- Provide eight controls in this order, from left to right: **1000× reverse**, **100× reverse**,
-  **10× reverse**, **1× Reverse Play/Pause**, **1× Forward Play/Pause**, **10× forward**,
-  **100× forward**, **1000× forward**. Use progressively larger direction glyphs: `<<<`, `<<`,
-  `<` for reverse and `>`, `>>`, `>>>` for forward.
-- Keep the 1× Reverse Play/Pause and 1× Forward Play/Pause buttons separate. The reverse button
-  starts reverse playback at 1× when paused; the forward button starts forward playback at 1×
-  when paused. While playback is running in that button's direction, the button shows Pause (`Ⅱ`)
-  and pauses playback when clicked. While playback is running in the opposite direction, clicking
-  the other play button switches direction at 1× and continues playback.
+- Provide ten controls in this order, from left to right: **1000× reverse**, **100× reverse**,
+  **10× reverse**, **1× reverse speed**, **reverse Play/Pause**, **forward Play/Pause**,
+  **1× forward speed**, **10× forward**, **100× forward**, **1000× forward**. Use progressively
+  larger direction glyphs: `<<<`, `<<`, `<` for reverse and `>`, `>>`, `>>>` for forward.
+- Keep the 1× reverse and forward speed selectors separate from the Play/Pause buttons. The 1×
+  selectors set the signed playback speed to exactly 1× without changing whether playback is
+  paused or running. Play buttons preserve the current speed magnitude: while playback is running
+  in that button's direction, the button shows Pause (`Ⅱ`) and pauses playback when clicked;
+  otherwise it selects that direction and plays or resumes at the current speed. Switching
+  direction while playing does not change the speed.
 - Clicking a directional speed button while paused selects that signed speed without starting
   playback. Clicking it while playing selects that signed speed and continues playback in that
   direction.
-- Repeated clicks on a speed button advance through that button's directional speed series by
-  factors of ten: 10× → 100× → 1000× (cap); 100× → 1000× (cap); 1000× remains at 1000×.
-- Clicking a lower-speed button while playing in the same direction at that speed or any higher
-  multiple switches to the button's base speed. For example, clicking reverse 10× while playing
-  reverse at 100× or 1000× selects reverse 10×. A click on the opposite-direction button selects
-  that button's base speed and changes direction.
-- Forward controls select positive speeds; reverse controls select negative speeds. The two 1×
-  play buttons select their respective direction and start playback when paused. Preserve existing
-  reverse-playback behavior outside this cluster.
+- Repeated clicks on a directional speed button increase the current speed by that button's
+  magnitude while the current speed is within its progression range. For example, reverse 10×
+  advances reverse playback from 10× to 20×, then 30×; clicking at 90× advances to 100×.
+- If playback is below the button's base speed, in the opposite direction, or at/above the next
+  tenfold boundary, clicking selects the button's signed base speed. The 1× speed buttons always
+  select exactly 1× and do not use the repeated-increment behavior.
+- Forward controls select positive speeds; reverse controls select negative speeds. Speed
+  selectors do not start or pause playback. The Play/Pause buttons select their respective
+  direction while preserving speed, and pause/resume playback. Preserve existing reverse-playback
+  behavior outside this cluster.
 - Communicate the selected speed and playing state with an accessible name and state indication;
   do not rely on icon shape or color alone.
 
-The repeated-click rule applies when the current selected playback speed has the same direction
-as the clicked button and its magnitude is the button's base speed or a lower speed in that
-button's series. If the current speed has the same direction but is above the clicked button's
-base speed, the click selects the base speed instead. A click in the opposite direction selects
-the clicked button's base speed. Speed progression is capped at 1000× and must never exceed the
-application's supported maximum.
+The repeated-increment rule applies when the current selected playback speed has the same
+direction as the clicked button, is at least the button's base speed, and is below the next
+tenfold boundary. In that range, each click adds the button's magnitude, up to the clock's maximum
+speed. At or above the boundary, or when selecting an opposite direction, the click selects the
+button's base signed speed. The 1× selectors always select exactly 1×.
 
 ## Working rules
 
@@ -164,10 +165,10 @@ discoverable, separates the transport row visually from the UTC range labels, an
 horizontal space than distributing speed labels across the timeline width. The left-aligned option
 leaves the right half of the control area visually unbalanced; the speed-status option adds a
 second information line and competes with the centered UTC readout. All three retain the slider
-below the controls. The selected row orders controls from 1000× reverse through 10× reverse, distinct 1× reverse and
-forward play/pause buttons, then 10× through 1000× forward. Direction and magnitude remain visible
-in each button's accessible name and tooltip; the existing speed readout continues to show the
-signed current speed in the Playback page.
+below the controls. The selected row orders controls from 1000× reverse through 1× reverse speed, distinct reverse
+and forward play/pause buttons, then 1× through 1000× forward speed. Direction and magnitude remain
+visible in each button's accessible name and tooltip; the existing speed readout continues to show
+the signed current speed in the Playback page.
 
 For each directional speed button, a click at a lower speed (or in the other direction) selects
 that button's base signed speed. A subsequent click at exactly that speed advances by one decade,
@@ -184,8 +185,8 @@ speed. Thus clicking 10× repeatedly advances 10× → 100×, while clicking 10�
       changes, including endpoint pauses.
 - [x] Implement the signed 10×, 100×, and 1000× repeated-click progression, cap, reset to the
       directional base speed, and direction switching.
-- [x] Implement separate 1× reverse and forward play/pause behavior and their playing/paused icon
-      states.
+- [x] Keep exact 1× reverse and forward speed selection separate from play/pause; preserve the
+      current speed magnitude when the directional play buttons switch direction or resume.
 - [x] Provide accessible names and state cues for transport and speed controls, including tooltips
       or equivalent guidance for repeated-click behavior.
 - [x] Update directly related GUI design or requirements documentation if implementation decisions

@@ -197,6 +197,7 @@ class Workspace:
             (-1000.0, "<<< 1000×", "reverse"),
             (-100.0, "<< 100×", "reverse"),
             (-10.0, "< 10×", "reverse"),
+            (-1.0, "< 1×", "reverse"),
         ):
             button = self._make_transport_button(
                 rate,
@@ -209,12 +210,12 @@ class Workspace:
             transport_row.Add(button, 0, wx.RIGHT, 4)
 
         self.transport_reverse_play_button = wx.Button(
-            self.timeline_panel, wx.ID_ANY, "◀ 1×"
+            self.timeline_panel, wx.ID_ANY, "◀"
         )
-        self.transport_reverse_play_button.SetName("Play reverse at 1x")
+        self.transport_reverse_play_button.SetName("Play reverse at current speed")
         set_tooltip(
             self.transport_reverse_play_button,
-            "Play in reverse at 1x; pauses while playback is running.",
+            "Play reverse at current speed.",
         )
         if (
             on_toggle_play is not None
@@ -231,12 +232,12 @@ class Workspace:
             )
         transport_row.Add(self.transport_reverse_play_button, 0, wx.RIGHT, 4)
         self.transport_forward_play_button = wx.Button(
-            self.timeline_panel, wx.ID_ANY, "▶ 1×"
+            self.timeline_panel, wx.ID_ANY, "▶"
         )
-        self.transport_forward_play_button.SetName("Play forward at 1x")
+        self.transport_forward_play_button.SetName("Play forward at current speed")
         set_tooltip(
             self.transport_forward_play_button,
-            "Play forward at 1x; pauses while playback is running.",
+            "Play forward at current speed.",
         )
         if (
             on_toggle_play is not None
@@ -254,6 +255,7 @@ class Workspace:
         transport_row.Add(self.transport_forward_play_button, 0, wx.RIGHT, 4)
 
         for rate, glyph, direction in (
+            (1.0, "1× >", "forward"),
             (10.0, "10× >", "forward"),
             (100.0, "100× >>", "forward"),
             (1000.0, "1000× >>>", "forward"),
@@ -310,12 +312,25 @@ class Workspace:
     ) -> wx.ToggleButton:
         button = wx.ToggleButton(self.timeline_panel, wx.ID_ANY, glyph)
         magnitude = abs(rate)
-        button.SetName(f"Play {direction} at {magnitude:g}x")
-        set_tooltip(button, f"Increase {direction} playback speed by {magnitude:g}x")
+        button.SetName(f"Set {direction} playback speed to {magnitude:g}x")
+        if magnitude == 1.0:
+            message = f"Set {direction} speed to 1x."
+        else:
+            message = f"Increase {direction} speed by {magnitude:g}x."
+        set_tooltip(button, message)
         if on_set_transport_rate is not None:
+
+            def set_transport_rate(
+                _event, selected_rate: float = rate, speed_button=button
+            ) -> None:
+                on_set_transport_rate(selected_rate)
+                if abs(selected_rate) == 1.0:
+                    # Re-selecting the current rate may skip the normal state refresh.
+                    speed_button.SetValue(True)
+
             button.Bind(
                 wx.EVT_TOGGLEBUTTON,
-                lambda _event, selected_rate=rate: on_set_transport_rate(selected_rate),
+                set_transport_rate,
             )
         return button
 
@@ -332,10 +347,16 @@ class Workspace:
         speed = abs(rate)
         for selected_rate, button in self.transport_buttons.items():
             step = abs(selected_rate)
-            in_speed_range = speed >= step and (step == 1000.0 or speed < step * 10.0)
+            if step == 1.0:
+                # The 1× controls select one exact rate, not a speed range.
+                in_speed_range = speed == 1.0
+            else:
+                in_speed_range = speed >= step and (
+                    step == 1000.0 or speed < step * 10.0
+                )
             active = in_speed_range and ((rate > 0.0) == (selected_rate > 0.0))
             button.SetValue(active)
-            if active:
+            if active and step != 1.0:
                 arrow_count = {10.0: 1, 100.0: 2, 1000.0: 3}[step]
                 arrow = ">" * arrow_count if rate > 0.0 else "<" * arrow_count
                 label = f"{speed:g}x {arrow}" if rate > 0.0 else f"{arrow} {speed:g}x"
@@ -343,33 +364,33 @@ class Workspace:
                 label = self._transport_button_labels[selected_rate]
             button.SetLabel(label)
         reverse_active = playing and rate < 0.0
-        self.transport_reverse_play_button.SetLabel(
-            "Ⅱ Pause" if reverse_active else "◀ 1×"
-        )
+        self.transport_reverse_play_button.SetLabel("Ⅱ" if reverse_active else "◀")
         self.transport_reverse_play_button.SetName(
-            "Pause reverse playback" if reverse_active else "Play reverse at 1x"
+            "Pause reverse playback"
+            if reverse_active
+            else "Play reverse at current speed"
         )
         set_tooltip(
             self.transport_reverse_play_button,
             (
                 "Pause reverse playback."
                 if reverse_active
-                else "Play in reverse at 1x; switches direction if forward playback is active."
+                else "Play reverse at current speed."
             ),
         )
         forward_active = playing and rate > 0.0
-        self.transport_forward_play_button.SetLabel(
-            "Ⅱ Pause" if forward_active else "▶ 1×"
-        )
+        self.transport_forward_play_button.SetLabel("Ⅱ" if forward_active else "▶")
         self.transport_forward_play_button.SetName(
-            "Pause forward playback" if forward_active else "Play forward at 1x"
+            "Pause forward playback"
+            if forward_active
+            else "Play forward at current speed"
         )
         set_tooltip(
             self.transport_forward_play_button,
             (
                 "Pause forward playback."
                 if forward_active
-                else "Play forward at 1x; switches direction if reverse playback is active."
+                else "Play forward at current speed."
             ),
         )
 

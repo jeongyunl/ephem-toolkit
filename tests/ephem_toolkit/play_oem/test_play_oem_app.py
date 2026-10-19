@@ -27,13 +27,18 @@ from ephem_toolkit.play_oem.views.registry import VIEW_LABELS
     ("initial_rate", "selected_rate", "expected_rate"),
     [
         (1.0, 10.0, 10.0),
-        (10.0, 10.0, 100.0),
+        (10.0, 10.0, 20.0),
+        (20.0, 10.0, 30.0),
+        (90.0, 10.0, 100.0),
         (100.0, 10.0, 10.0),
         (1000.0, 100.0, 100.0),
-        (-10.0, -10.0, -100.0),
+        (-10.0, -10.0, -20.0),
         (-100.0, -10.0, -10.0),
         (1000.0, -10.0, -10.0),
-        (-1000.0, -1000.0, -1000.0),
+        (-1000.0, -1000.0, -2000.0),
+        (100.0, 1.0, 1.0),
+        (-100.0, -1.0, -1.0),
+        (100.0, -1.0, -1.0),
     ],
 )
 def test_transport_rate_selection_handles_direction_progression_and_reset(
@@ -53,32 +58,50 @@ def test_transport_rate_selection_handles_direction_progression_and_reset(
     assert player.workspace.transport_state == (True, expected_rate)
 
 
-def test_transport_reverse_play_button_starts_at_reverse_one_x(
+@pytest.mark.parametrize(
+    ("initial_rate", "direction", "expected_rate"),
+    [(100.0, -1, -100.0), (-100.0, 1, 100.0)],
+)
+def test_direction_play_button_preserves_current_speed_and_resumes(
     monkeypatch: pytest.MonkeyPatch,
+    initial_rate: float,
+    direction: int,
+    expected_rate: float,
 ) -> None:
     player, _views, _canvases, _frames = make_app(
-        monkeypatch, clock=make_clock(rate=100.0, playing=False)
+        monkeypatch, clock=make_clock(rate=initial_rate, playing=False)
     )
 
-    player._play_reverse_at_unit_speed()
+    play = (
+        player._play_reverse_at_current_speed
+        if direction < 0
+        else player._play_forward_at_current_speed
+    )
+    play()
 
-    assert player.clock.rate == -1.0
+    assert player.clock.rate == expected_rate
     assert player.clock.playing
-    assert player.workspace.transport_state == (True, -1.0)
+    assert player.workspace.transport_state == (True, expected_rate)
 
 
-def test_transport_forward_play_button_starts_at_forward_one_x(
+@pytest.mark.parametrize(
+    ("initial_rate", "selected_rate"),
+    [(100.0, -1.0), (-100.0, 1.0)],
+)
+def test_one_x_speed_button_sets_rate_without_starting_paused_playback(
     monkeypatch: pytest.MonkeyPatch,
+    initial_rate: float,
+    selected_rate: float,
 ) -> None:
     player, _views, _canvases, _frames = make_app(
-        monkeypatch, clock=make_clock(rate=-100.0, playing=False)
+        monkeypatch, clock=make_clock(rate=initial_rate, playing=False)
     )
 
-    player._play_forward_at_unit_speed()
+    player._set_transport_rate(selected_rate)
 
-    assert player.clock.rate == 1.0
-    assert player.clock.playing
-    assert player.workspace.transport_state == (True, 1.0)
+    assert player.clock.rate == selected_rate
+    assert not player.clock.playing
+    assert player.workspace.transport_state == (False, selected_rate)
 
 
 def test_transport_speed_selection_while_paused_does_not_start_playback(

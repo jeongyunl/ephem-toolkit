@@ -92,8 +92,10 @@ panel proportions are illustrative.
   sample-step actions available without crowding the primary transport row.
 - Place a centered, compact reverse/play-pause/forward transport cluster immediately above the
   shared timeline slider. Keep directional speed buttons in signed-speed order, show the selected
-  preset with a native toggle state, and use separate 1× Reverse Play/Pause and Forward Play/Pause
-  buttons. Use accessible names and tooltips to explain speed stepping and direction switching.
+  preset with a native toggle state, and keep the 1× reverse/forward speed selectors separate from
+  the directional Play/Pause buttons. Speed selectors change speed without starting or pausing;
+  Play/Pause buttons preserve the current speed magnitude while selecting direction, pausing, or
+  resuming. Use accessible names and tooltips to explain these distinct actions.
 - Keep playback direction and speed controls together, and separate seeking from time-navigation
   actions with clear section labels.
 - Show a concise position/velocity summary and explicit cursor status; reveal secondary OEM

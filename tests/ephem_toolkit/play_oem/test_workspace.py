@@ -551,24 +551,38 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
         -1000.0,
         -100.0,
         -10.0,
+        -1.0,
+        1.0,
         10.0,
         100.0,
         1000.0,
     ]
-    assert result.transport_reverse_play_button.name == "Play reverse at 1x"
-    assert result.transport_forward_play_button.name == "Play forward at 1x"
+    assert result.transport_buttons[-1.0].name == "Set reverse playback speed to 1x"
+    assert result.transport_buttons[1.0].name == "Set forward playback speed to 1x"
+    assert result.transport_buttons[-1.0].tooltip == "Set reverse speed to 1x."
+    assert result.transport_buttons[10.0].tooltip == "Increase forward speed by 10x."
     assert (
-        result.timeline_panel.sizer.items[2][0].items[3][0]
+        result.transport_reverse_play_button.tooltip
+        == "Play reverse at current speed."
+    )
+    assert result.transport_reverse_play_button.name == "Play reverse at current speed"
+    assert result.transport_forward_play_button.name == "Play forward at current speed"
+    assert result.transport_reverse_play_button.label == "◀"
+    assert result.transport_forward_play_button.label == "▶"
+    assert (
+        result.timeline_panel.sizer.items[2][0].items[4][0]
         is result.transport_reverse_play_button
     )
     assert (
-        result.timeline_panel.sizer.items[2][0].items[4][0]
+        result.timeline_panel.sizer.items[2][0].items[5][0]
         is result.transport_forward_play_button
     )
     assert [button.label for button in result.transport_buttons.values()] == [
         "<<< 1000×",
         "<< 100×",
         "< 10×",
+        "< 1×",
+        "1× >",
         "10× >",
         "100× >>",
         "1000× >>>",
@@ -599,30 +613,39 @@ def test_transport_controls_dispatch_signed_rates_and_track_play_state(
         on_set_transport_rate=rates.append,
     )
 
+    result.update_transport_state(False, 1.0)
+    result.transport_buttons[1.0].SetValue(False)
     result.transport_buttons[-1000.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
     result.transport_buttons[100.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
-    assert rates == [-1000.0, 100.0]
+    result.transport_buttons[-1.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
+    result.transport_buttons[1.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
+    assert rates == [-1000.0, 100.0, -1.0, 1.0]
+    assert result.transport_buttons[1.0].value
     result.transport_reverse_play_button.trigger(workspace.wx.EVT_BUTTON)
     assert reverse_plays == [True]
     result.update_transport_state(True, -100.0)
     assert result.transport_buttons[-100.0].value
     assert not result.transport_buttons[100.0].value
-    assert result.transport_reverse_play_button.label == "Ⅱ Pause"
+    assert result.transport_reverse_play_button.label == "Ⅱ"
     assert result.transport_reverse_play_button.name == "Pause reverse playback"
-    assert result.transport_forward_play_button.label == "▶ 1×"
+    assert result.transport_reverse_play_button.tooltip == "Pause reverse playback."
+    assert result.transport_forward_play_button.label == "▶"
+    assert (
+        result.transport_forward_play_button.tooltip == "Play forward at current speed."
+    )
     result.transport_reverse_play_button.trigger(workspace.wx.EVT_BUTTON)
     assert toggles == [True]
     result.transport_forward_play_button.trigger(workspace.wx.EVT_BUTTON)
     assert forward_plays == [True]
     result.update_transport_state(True, 10.0)
-    assert result.transport_forward_play_button.label == "Ⅱ Pause"
-    assert result.transport_reverse_play_button.label == "◀ 1×"
+    assert result.transport_forward_play_button.label == "Ⅱ"
+    assert result.transport_reverse_play_button.label == "◀"
     result.transport_forward_play_button.trigger(workspace.wx.EVT_BUTTON)
     assert toggles == [True, True]
     result.update_transport_state(False, 10.0)
-    assert result.transport_reverse_play_button.label == "◀ 1×"
-    assert result.transport_reverse_play_button.name == "Play reverse at 1x"
-    assert result.transport_forward_play_button.label == "▶ 1×"
+    assert result.transport_reverse_play_button.label == "◀"
+    assert result.transport_reverse_play_button.name == "Play reverse at current speed"
+    assert result.transport_forward_play_button.label == "▶"
 
 
 def test_graph_stack_scrollbars_are_forced_visible_only_when_content_overflows(
