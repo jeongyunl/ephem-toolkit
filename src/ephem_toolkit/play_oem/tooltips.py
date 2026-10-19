@@ -8,8 +8,6 @@ import wx
 from wx.lib.agw import supertooltip as _agw_supertooltip
 from wx.lib.agw.supertooltip import SuperToolTip
 
-TOOLTIP_FONT_SIZE: int = 8
-"""Message font size used by play-oem hover tooltips, in points."""
 TOOLTIP_HORIZONTAL_PADDING: int = 8
 """Horizontal inner padding used by play-oem tooltip windows, in pixels."""
 
@@ -139,7 +137,7 @@ class _PlayOemSuperToolTip(SuperToolTip):
 def set_tooltip(
     window: wx.Window, message: str, *, center_message: bool = True
 ) -> SuperToolTip:
-    """Attach a small-font SuperToolTip, updating it if one already exists."""
+    """Attach a platform-sized SuperToolTip, updating it if one already exists."""
     tooltip = getattr(window, "_play_oem_tooltip", None)
     if tooltip is None:
         tooltip = _PlayOemSuperToolTip(message)
@@ -147,14 +145,7 @@ def set_tooltip(
         tooltip.SetBodyImage(
             wx.Bitmap.FromRGBA(TOOLTIP_HORIZONTAL_PADDING, 1, 0, 0, 0, 0)
         )
-        tooltip.SetMessageFont(
-            wx.Font(
-                TOOLTIP_FONT_SIZE,
-                wx.FONTFAMILY_DEFAULT,
-                wx.FONTSTYLE_NORMAL,
-                wx.FONTWEIGHT_NORMAL,
-            )
-        )
+        tooltip.SetMessageFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT))
         # wxPython truncates this delay to whole seconds; zero fails to start its timer.
         tooltip.SetStartDelay(1)
         tooltip.SetTarget(window)

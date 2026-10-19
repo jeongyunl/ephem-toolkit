@@ -1,4 +1,4 @@
-"""Demonstrate a smaller message font with wx.lib.agw.SuperToolTip.
+"""Demonstrate a platform-appropriate message font with wx.lib.agw.SuperToolTip.
 
 Run with ``python examples/supertooltip_font_demo.py`` and hover over the
 button. This is a standalone check of SuperToolTip's message font control.
@@ -18,19 +18,14 @@ class SuperToolTipFontDemo(wx.Frame):
 
         label = wx.StaticText(
             panel,
-            label="Hover over the button to see the smaller tooltip message.",
+            label="Hover over the button to see the platform-sized tooltip message.",
         )
         button = wx.Button(panel, label="Hover here")
         tooltip = SuperToolTip(
-            "This message uses a smaller font set with SetMessageFont().",
+            "This message uses the system GUI font set with SetMessageFont().",
             header="SuperToolTip example",
         )
-        tooltip.SetMessageFont(wx.Font(
-            8,
-            wx.FONTFAMILY_DEFAULT,
-            wx.FONTSTYLE_NORMAL,
-            wx.FONTWEIGHT_NORMAL,
-        ))
+        tooltip.SetMessageFont(wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT))
         # wxPython truncates this delay to whole seconds; zero fails to start its timer.
         tooltip.SetStartDelay(1)
         tooltip.SetTarget(button)
