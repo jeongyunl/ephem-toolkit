@@ -53,6 +53,10 @@ class Workspace:
         frame: wx.Frame,
         on_seek: Callable[[float], None],
         *,
+        on_toggle_play: Callable[[], None] | None = None,
+        on_play_reverse: Callable[[], None] | None = None,
+        on_play_forward: Callable[[], None] | None = None,
+        on_set_transport_rate: Callable[[float], None] | None = None,
         timeline_enabled: bool,
         timeline_start_utc: str,
         timeline_end_utc: str,
@@ -160,6 +164,79 @@ class Workspace:
             wx.ALIGN_CENTER_VERTICAL,
         )
         timeline_layout.Add(time_labels, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
+        transport_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.transport_buttons: dict[float, wx.Button] = {}
+        for rate, glyph, direction in (
+            (-1000.0, "<<< 1000×", "reverse"),
+            (-100.0, "<< 100×", "reverse"),
+            (-10.0, "< 10×", "reverse"),
+        ):
+            button = self._make_transport_button(
+                rate,
+                glyph,
+                direction,
+                on_set_transport_rate,
+            )
+            self.transport_buttons[rate] = button
+            transport_row.Add(button, 0, wx.RIGHT, 4)
+
+        self.transport_reverse_play_button = wx.Button(
+            self.timeline_panel, wx.ID_ANY, "◀ 1×"
+        )
+        self.transport_reverse_play_button.SetName("Play reverse at 1x")
+        self.transport_reverse_play_button.SetToolTip(
+            "Play in reverse at 1x; pauses while playback is running."
+        )
+        if (
+            on_toggle_play is not None
+            and on_play_reverse is not None
+            and on_play_forward is not None
+        ):
+            self.transport_reverse_play_button.Bind(
+                wx.EVT_BUTTON,
+                lambda _event: (
+                    on_toggle_play()
+                    if self._transport_playing and self._transport_rate < 0.0
+                    else on_play_reverse()
+                ),
+            )
+        transport_row.Add(self.transport_reverse_play_button, 0, wx.RIGHT, 4)
+        self.transport_forward_play_button = wx.Button(
+            self.timeline_panel, wx.ID_ANY, "▶ 1×"
+        )
+        self.transport_forward_play_button.SetName("Play forward at 1x")
+        self.transport_forward_play_button.SetToolTip(
+            "Play forward at 1x; pauses while playback is running."
+        )
+        if (
+            on_toggle_play is not None
+            and on_play_reverse is not None
+            and on_play_forward is not None
+        ):
+            self.transport_forward_play_button.Bind(
+                wx.EVT_BUTTON,
+                lambda _event: (
+                    on_toggle_play()
+                    if self._transport_playing and self._transport_rate > 0.0
+                    else on_play_forward()
+                ),
+            )
+        transport_row.Add(self.transport_forward_play_button, 0, wx.RIGHT, 4)
+
+        for rate, glyph, direction in (
+            (10.0, "10× >", "forward"),
+            (100.0, "100× >>", "forward"),
+            (1000.0, "1000× >>>", "forward"),
+        ):
+            button = self._make_transport_button(
+                rate,
+                glyph,
+                direction,
+                on_set_transport_rate,
+            )
+            self.transport_buttons[rate] = button
+            transport_row.Add(button, 0, wx.RIGHT, 4)
+        timeline_layout.Add(transport_row, 0, wx.ALIGN_CENTER | wx.TOP, 4)
         self.timeline_slider = wx.Slider(
             self.timeline_panel,
             wx.ID_ANY,
@@ -179,6 +256,62 @@ class Workspace:
         root.Add(self.content_splitter, 1, wx.EXPAND)
         root.Add(self.timeline_panel, 0, wx.EXPAND)
         frame.SetSizer(root)
+        self._transport_playing = False
+        self._transport_rate = 1.0
+
+    def _make_transport_button(
+        self,
+        rate: float,
+        glyph: str,
+        direction: str,
+        on_set_transport_rate: Callable[[float], None] | None,
+    ) -> wx.Button:
+        button = wx.ToggleButton(self.timeline_panel, wx.ID_ANY, glyph)
+        magnitude = abs(rate)
+        button.SetName(f"Play {direction} at {magnitude:g}x")
+        button.SetToolTip(
+            f"Play {direction} at {magnitude:g}x. Click again at this speed to "
+            "increase by 10x; clicking at a higher speed resets to this speed."
+        )
+        if on_set_transport_rate is not None:
+            button.Bind(
+                wx.EVT_TOGGLEBUTTON,
+                lambda _event, selected_rate=rate: on_set_transport_rate(
+                    selected_rate
+                ),
+            )
+        return button
+
+    def update_transport_state(self, playing: bool, rate: float) -> None:
+        """Synchronize direction play/pause controls and speed presets with the clock."""
+        self._transport_playing = playing
+        self._transport_rate = rate
+        for selected_rate, button in self.transport_buttons.items():
+            button.SetValue(rate == selected_rate)
+        reverse_active = playing and rate < 0.0
+        self.transport_reverse_play_button.SetLabel(
+            "Ⅱ Pause" if reverse_active else "◀ 1×"
+        )
+        self.transport_reverse_play_button.SetName(
+            "Pause reverse playback" if reverse_active else "Play reverse at 1x"
+        )
+        self.transport_reverse_play_button.SetToolTip(
+            "Pause reverse playback."
+            if reverse_active
+            else "Play in reverse at 1x; switches direction if forward playback is active."
+        )
+        forward_active = playing and rate > 0.0
+        self.transport_forward_play_button.SetLabel(
+            "Ⅱ Pause" if forward_active else "▶ 1×"
+        )
+        self.transport_forward_play_button.SetName(
+            "Pause forward playback" if forward_active else "Play forward at 1x"
+        )
+        self.transport_forward_play_button.SetToolTip(
+            "Pause forward playback."
+            if forward_active
+            else "Play forward at 1x; switches direction if reverse playback is active."
+        )
 
     def set_playback_content(self, panel: wx.Window) -> None:
         """Place the playback controls in the Playback feature page."""

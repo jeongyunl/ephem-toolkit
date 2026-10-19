@@ -21,6 +21,78 @@ from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.registry import VIEW_LABELS
 
 
+@pytest.mark.parametrize(
+    ("initial_rate", "selected_rate", "expected_rate"),
+    [
+        (1.0, 10.0, 10.0),
+        (10.0, 10.0, 100.0),
+        (100.0, 10.0, 10.0),
+        (1000.0, 100.0, 100.0),
+        (-10.0, -10.0, -100.0),
+        (-100.0, -10.0, -10.0),
+        (1000.0, -10.0, -10.0),
+        (-1000.0, -1000.0, -1000.0),
+    ],
+)
+def test_transport_rate_selection_handles_direction_progression_and_reset(
+    monkeypatch: pytest.MonkeyPatch,
+    initial_rate: float,
+    selected_rate: float,
+    expected_rate: float,
+) -> None:
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch, clock=make_clock(rate=initial_rate, playing=True)
+    )
+
+    player._set_transport_rate(selected_rate)
+
+    assert player.clock.rate == expected_rate
+    assert player.clock.playing
+    assert player.workspace.transport_state == (True, expected_rate)
+
+
+def test_transport_reverse_play_button_starts_at_reverse_one_x(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch, clock=make_clock(rate=100.0, playing=False)
+    )
+
+    player._play_reverse_at_unit_speed()
+
+    assert player.clock.rate == -1.0
+    assert player.clock.playing
+    assert player.workspace.transport_state == (True, -1.0)
+
+
+def test_transport_forward_play_button_starts_at_forward_one_x(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch, clock=make_clock(rate=-100.0, playing=False)
+    )
+
+    player._play_forward_at_unit_speed()
+
+    assert player.clock.rate == 1.0
+    assert player.clock.playing
+    assert player.workspace.transport_state == (True, 1.0)
+
+
+def test_transport_speed_selection_while_paused_does_not_start_playback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch, clock=make_clock(playing=False)
+    )
+
+    player._set_transport_rate(100.0)
+
+    assert player.clock.rate == 100.0
+    assert not player.clock.playing
+    assert player.workspace.transport_state == (False, 100.0)
+
+
 class FakeEvent:
     def __init__(self) -> None:
         self.skipped = False
@@ -344,6 +416,7 @@ class FakeWorkspace:
         self.graph_panels = []
         self.progress = 0.0
         self.current_utc = ""
+        self.transport_state = None
         self.playback_content = None
         self.state_content = None
 
@@ -356,6 +429,9 @@ class FakeWorkspace:
     def update_timeline(self, progress: float, current_utc: str) -> None:
         self.progress = progress
         self.current_utc = current_utc
+
+    def update_transport_state(self, playing: bool, rate: float) -> None:
+        self.transport_state = (playing, rate)
 
     def add_graph_panel(self, panel, stack: str = "middle") -> None:
         panel.stack = stack
@@ -531,6 +607,27 @@ def test_wx_timer_advances_clock_and_updates_playback_display_and_views(
     assert all(view.updated_times[-1] == 102.5 for view in views)
     assert all(canvas.draw_idle_count == 2 for canvas in canvases)
 
+    player.close()
+
+
+def test_transport_pause_state_updates_when_playback_reaches_an_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch,
+        plots=("state-components",),
+        clock=make_clock(t_now=199.5, playing=True),
+    )
+    monotonic_values = iter((10.0, 11.0))
+    monkeypatch.setattr(app.time, "monotonic", lambda: next(monotonic_values))
+
+    player.start()
+    player._on_timer(SimpleNamespace())
+
+    assert player.clock.t_now == 200.0
+    assert not player.clock.playing
+    assert player.workspace.transport_state == (False, 1.0)
+    assert "Paused | +1x" in player.control_window.text
     player.close()
 
 

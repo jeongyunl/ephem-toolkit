@@ -207,6 +207,10 @@ class PlayerApp:
         self.workspace = workspace.Workspace(
             self.frame,
             self._seek_to_fraction,
+            on_toggle_play=self._toggle_playback,
+            on_play_reverse=self._play_reverse_at_unit_speed,
+            on_play_forward=self._play_forward_at_unit_speed,
+            on_set_transport_rate=self._set_transport_rate,
             timeline_enabled=clock.t_start < clock.t_end,
             timeline_start_utc=time_utils.datetime_to_iso8601(
                 time_utils.tt_s_to_datetime(clock.t_start)
@@ -515,6 +519,28 @@ class PlayerApp:
         self.clock.set_speed(speed)
         self._update_time_display()
 
+    def _set_transport_rate(self, rate: float) -> None:
+        """Select a signed speed, advancing one decade on a repeated same-speed click."""
+        direction = 1 if rate > 0.0 else -1
+        base_speed = abs(rate)
+        if self.clock.rate == rate:
+            base_speed = min(base_speed * 10.0, self.clock.MAX_SPEED)
+        self.clock.set_direction(direction)
+        self.clock.set_speed(base_speed)
+        self._update_time_display()
+
+    def _play_reverse_at_unit_speed(self) -> None:
+        self.clock.set_direction(-1)
+        self.clock.set_speed(1.0)
+        self.clock.play()
+        self._update_time_display()
+
+    def _play_forward_at_unit_speed(self) -> None:
+        self.clock.set_direction(1)
+        self.clock.set_speed(1.0)
+        self.clock.play()
+        self._update_time_display()
+
     def _reverse_playback(self) -> None:
         self.clock.reverse()
         self._update_time_display()
@@ -796,6 +822,7 @@ class PlayerApp:
             self.clock.rate,
         )
         self.workspace.update_timeline(progress, utc_timestamp)
+        self.workspace.update_transport_state(self.clock.playing, self.clock.rate)
         self.control_window.update_current_state(self.cursor.lookup(self.clock.t_now))
 
     def _handle_sigint(self, _signum: int, _frame: object) -> None:

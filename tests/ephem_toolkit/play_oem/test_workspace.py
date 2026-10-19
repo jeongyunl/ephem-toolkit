@@ -403,6 +403,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "EXPAND": 8,
         "ALL": 16,
         "ALIGN_CENTER_VERTICAL": 24,
+        "ALIGN_CENTER": 25,
         "LEFT": 32,
         "RIGHT": 64,
         "TOP": 128,
@@ -434,6 +435,10 @@ def make_workspace(
     timeline_enabled: bool = True,
     on_add_graph=None,
     view_choices=(),
+    on_toggle_play=None,
+    on_play_reverse=None,
+    on_play_forward=None,
+    on_set_transport_rate=None,
 ) -> tuple[workspace.Workspace, list[float], FakeFrame]:
     configure_fake_wx(monkeypatch)
     frame = FakeFrame()
@@ -441,6 +446,10 @@ def make_workspace(
     result = workspace.Workspace(
         frame,
         seeks.append,
+        on_toggle_play=on_toggle_play,
+        on_play_reverse=on_play_reverse,
+        on_play_forward=on_play_forward,
+        on_set_transport_rate=on_set_transport_rate,
         timeline_enabled=timeline_enabled,
         timeline_start_utc="2000-01-01T00:00:00.000",
         timeline_end_utc="2000-01-01T00:01:00.000",
@@ -507,11 +516,72 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert result.graph_splitter.style & workspace.wx.SP_3DSASH
     assert result.timeline_slider.minimum == 0
     assert result.timeline_slider.maximum == 10_000
+    assert list(result.transport_buttons) == [
+        -1000.0,
+        -100.0,
+        -10.0,
+        10.0,
+        100.0,
+        1000.0,
+    ]
+    assert result.transport_reverse_play_button.name == "Play reverse at 1x"
+    assert result.transport_forward_play_button.name == "Play forward at 1x"
+    assert result.timeline_panel.sizer.items[2][0].items[3][0] is result.transport_reverse_play_button
+    assert result.timeline_panel.sizer.items[2][0].items[4][0] is result.transport_forward_play_button
+    assert [button.label for button in result.transport_buttons.values()] == [
+        "<<< 1000×",
+        "<< 100×",
+        "< 10×",
+        "10× >",
+        "100× >>",
+        "1000× >>>",
+    ]
     assert frame.sizer.items[0][0] is result.content_splitter
     assert frame.sizer.items[1][0] is result.timeline_panel
     assert result.timeline_start_label.label == ("Start UTC: 2000-01-01T00:00:00.000")
     assert result.timeline_current_label.label == "Current UTC: "
     assert result.timeline_end_label.label == "End UTC: 2000-01-01T00:01:00.000"
+
+
+def test_transport_controls_dispatch_signed_rates_and_track_play_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    toggles: list[bool] = []
+    reverse_plays: list[bool] = []
+    forward_plays: list[bool] = []
+    rates: list[float] = []
+    result, _seeks, _frame = make_workspace(
+        monkeypatch,
+        on_toggle_play=lambda: toggles.append(True),
+        on_play_reverse=lambda: reverse_plays.append(True),
+        on_play_forward=lambda: forward_plays.append(True),
+        on_set_transport_rate=rates.append,
+    )
+
+    result.transport_buttons[-1000.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
+    result.transport_buttons[100.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
+    assert rates == [-1000.0, 100.0]
+    result.transport_reverse_play_button.trigger(workspace.wx.EVT_BUTTON)
+    assert reverse_plays == [True]
+    result.update_transport_state(True, -100.0)
+    assert result.transport_buttons[-100.0].value
+    assert not result.transport_buttons[100.0].value
+    assert result.transport_reverse_play_button.label == "Ⅱ Pause"
+    assert result.transport_reverse_play_button.name == "Pause reverse playback"
+    assert result.transport_forward_play_button.label == "▶ 1×"
+    result.transport_reverse_play_button.trigger(workspace.wx.EVT_BUTTON)
+    assert toggles == [True]
+    result.transport_forward_play_button.trigger(workspace.wx.EVT_BUTTON)
+    assert forward_plays == [True]
+    result.update_transport_state(True, 10.0)
+    assert result.transport_forward_play_button.label == "Ⅱ Pause"
+    assert result.transport_reverse_play_button.label == "◀ 1×"
+    result.transport_forward_play_button.trigger(workspace.wx.EVT_BUTTON)
+    assert toggles == [True, True]
+    result.update_transport_state(False, 10.0)
+    assert result.transport_reverse_play_button.label == "◀ 1×"
+    assert result.transport_reverse_play_button.name == "Play reverse at 1x"
+    assert result.transport_forward_play_button.label == "▶ 1×"
 
 
 def test_graph_stack_scrollbars_are_forced_visible_only_when_content_overflows(

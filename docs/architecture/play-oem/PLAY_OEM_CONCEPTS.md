@@ -61,6 +61,13 @@ which views are open.
    backward at the selected speed (`-1x` … `-1000x`). Reversing mid-play is seamless
    (no jump in `t_now`). Reaching `t_start` while reversed pauses (or wraps to `t_end` with `--loop`).
    Cursor state and views are identical whether a time was reached forward, backward, or by seeking.
+   The shared controller above the time slider provides `<<<` / `<<` / `<` reverse speeds, a
+   dedicated 1x Reverse Play/Pause button, a separate 1x Forward Play/Pause button, and `>` / `>>`
+   / `>>>` forward speeds for 10x, 100x, and 1000x. Each play button starts playback in its
+   direction at 1x when paused, pauses playback in that direction, or switches a running
+   playback to its direction at 1x. A speed button selects its direction and base speed; clicking
+   it again at exactly that speed advances by one decade up to 1000x, while clicking it at a
+   higher same-direction speed resets to its base speed.
 5. **Dashboard readout**: current UTC epoch, elapsed time, signed speed/direction, position
    and velocity components, speed, and altitude when valid. Keep the default readout concise;
    expose less-used values in a details panel.

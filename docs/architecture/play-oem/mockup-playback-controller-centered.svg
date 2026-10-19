@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="230" viewBox="0 0 1000 230" role="img" aria-labelledby="title desc">
+  <title id="title">Playback controller mock-up: centered compact cluster</title>
+  <desc id="desc">A centered eight-button transport cluster separates reverse and forward play/pause controls between the signed speed buttons and the full-width timeline slider.</desc>
+  <style>
+    text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#172235}
+    .muted{fill:#63738a}.button{fill:#f4f7fb;stroke:#c8d3e0}.selected{fill:#dceafe;stroke:#3979d3}.primary{fill:#2867c7}
+  </style>
+  <rect x="20" y="18" width="960" height="194" rx="12" fill="#fff" stroke="#d6deea"/>
+  <text x="44" y="48" font-size="17" font-weight="700">B · Centered compact cluster · Selected</text>
+  <text x="44" y="78" font-size="12" class="muted">Start UTC: 2026-05-20</text>
+  <text x="500" y="78" font-size="12" class="muted" text-anchor="middle">Current UTC: 02:14:32</text>
+  <text x="956" y="78" font-size="12" class="muted" text-anchor="end">End UTC: 08:14:32</text>
+  <g font-size="13" text-anchor="middle">
+    <rect class="button" x="205" y="93" width="74" height="34" rx="6"/><text x="242" y="115">&lt;&lt;&lt; 1000×</text>
+    <rect class="button" x="285" y="93" width="68" height="34" rx="6"/><text x="319" y="115">&lt;&lt; 100×</text>
+    <rect class="button" x="359" y="93" width="62" height="34" rx="6"/><text x="390" y="115">&lt; 10×</text>
+    <rect class="primary" x="427" y="93" width="80" height="34" rx="6"/><text x="467" y="115" fill="#fff">Ⅱ Pause</text>
+    <rect class="button" x="513" y="93" width="80" height="34" rx="6"/><text x="553" y="115">▶ 1×</text>
+    <rect class="button" x="599" y="93" width="62" height="34" rx="6"/><text x="630" y="115">10× &gt;</text>
+    <rect class="button" x="667" y="93" width="68" height="34" rx="6"/><text x="701" y="115">100× &gt;&gt;</text>
+    <rect class="button selected" x="741" y="93" width="74" height="34" rx="6"/><text x="778" y="115">1000× &gt;&gt;&gt;</text>
+  </g>
+  <text x="313" y="145" font-size="10" class="muted" text-anchor="middle">Reverse speeds</text>
+  <text x="467" y="145" font-size="10" fill="#2867c7" text-anchor="middle">Reverse play/pause</text>
+  <text x="553" y="145" font-size="10" class="muted" text-anchor="middle">Forward play</text>
+  <text x="740" y="145" font-size="10" class="muted" text-anchor="middle">Forward speeds</text>
+  <line x1="62" y1="176" x2="938" y2="176" stroke="#c5d0dd" stroke-width="6" stroke-linecap="round"/>
+  <line x1="62" y1="176" x2="414" y2="176" stroke="#4385df" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="414" cy="176" r="9" fill="#2867c7"/>
+</svg>
