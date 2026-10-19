@@ -58,6 +58,7 @@ class Workspace:
         on_play_reverse: Callable[[], None] | None = None,
         on_play_forward: Callable[[], None] | None = None,
         on_set_transport_rate: Callable[[float], None] | None = None,
+        on_step_samples: Callable[[int], None] | None = None,
         timeline_enabled: bool,
         timeline_start_utc: str,
         timeline_end_utc: str,
@@ -204,6 +205,7 @@ class Workspace:
                 glyph,
                 direction,
                 on_set_transport_rate,
+                on_step_samples,
             )
             self.transport_buttons[rate] = button
             self._transport_button_labels[rate] = glyph
@@ -265,6 +267,7 @@ class Workspace:
                 glyph,
                 direction,
                 on_set_transport_rate,
+                on_step_samples,
             )
             self.transport_buttons[rate] = button
             self._transport_button_labels[rate] = glyph
@@ -309,6 +312,7 @@ class Workspace:
         glyph: str,
         direction: str,
         on_set_transport_rate: Callable[[float], None] | None,
+        on_step_samples: Callable[[int], None] | None,
     ) -> wx.ToggleButton:
         button = wx.ToggleButton(self.timeline_panel, wx.ID_ANY, glyph)
         magnitude = abs(rate)
@@ -331,6 +335,11 @@ class Workspace:
             button.Bind(
                 wx.EVT_TOGGLEBUTTON,
                 set_transport_rate,
+            )
+        if abs(rate) == 1.0 and on_step_samples is not None:
+            button.Bind(
+                wx.EVT_LEFT_DCLICK,
+                lambda _event, count=-1 if rate < 0.0 else 1: on_step_samples(count),
             )
         return button
 

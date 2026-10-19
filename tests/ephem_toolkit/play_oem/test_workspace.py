@@ -463,6 +463,7 @@ def make_workspace(
     on_play_reverse=None,
     on_play_forward=None,
     on_set_transport_rate=None,
+    on_step_samples=None,
 ) -> tuple[Any, list[float], FakeFrame]:
     configure_fake_wx(monkeypatch)
     frame = FakeFrame()
@@ -479,6 +480,7 @@ def make_workspace(
         on_play_reverse=on_play_reverse,
         on_play_forward=on_play_forward,
         on_set_transport_rate=on_set_transport_rate,
+        on_step_samples=on_step_samples,
         timeline_enabled=timeline_enabled,
         timeline_start_utc="2000-01-01T00:00:00.000",
         timeline_end_utc="2000-01-01T00:01:00.000",
@@ -605,12 +607,14 @@ def test_transport_controls_dispatch_signed_rates_and_track_play_state(
     reverse_plays: list[bool] = []
     forward_plays: list[bool] = []
     rates: list[float] = []
+    sample_steps: list[int] = []
     result, _seeks, _frame = make_workspace(
         monkeypatch,
         on_toggle_play=lambda: toggles.append(True),
         on_play_reverse=lambda: reverse_plays.append(True),
         on_play_forward=lambda: forward_plays.append(True),
         on_set_transport_rate=rates.append,
+        on_step_samples=sample_steps.append,
     )
 
     result.update_transport_state(False, 1.0)
@@ -619,7 +623,10 @@ def test_transport_controls_dispatch_signed_rates_and_track_play_state(
     result.transport_buttons[100.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
     result.transport_buttons[-1.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
     result.transport_buttons[1.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
+    result.transport_buttons[-1.0].trigger(workspace.wx.EVT_LEFT_DCLICK)
+    result.transport_buttons[1.0].trigger(workspace.wx.EVT_LEFT_DCLICK)
     assert rates == [-1000.0, 100.0, -1.0, 1.0]
+    assert sample_steps == [-1, 1]
     assert result.transport_buttons[1.0].value
     result.transport_reverse_play_button.trigger(workspace.wx.EVT_BUTTON)
     assert reverse_plays == [True]

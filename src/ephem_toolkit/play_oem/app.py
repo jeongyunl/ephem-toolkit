@@ -208,6 +208,7 @@ class PlayerApp:
             on_play_reverse=self._play_reverse_at_current_speed,
             on_play_forward=self._play_forward_at_current_speed,
             on_set_transport_rate=self._set_transport_rate,
+            on_step_samples=self._step_samples,
             timeline_enabled=clock.t_start < clock.t_end,
             timeline_start_utc=time_utils.datetime_to_iso8601(
                 time_utils.tt_s_to_datetime(clock.t_start)
