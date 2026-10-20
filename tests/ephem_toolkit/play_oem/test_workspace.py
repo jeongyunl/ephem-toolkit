@@ -54,6 +54,9 @@ class FakeWidget:
     def Enable(self, enabled: bool = True) -> None:
         self.enabled = enabled
 
+    def IsEnabled(self) -> bool:
+        return self.enabled
+
     def SetName(self, name: str) -> None:
         self.name = name
 
@@ -68,6 +71,9 @@ class FakeWidget:
 
     def ChangeValue(self, value: str) -> None:
         self.value = value
+
+    def SetInsertionPointEnd(self) -> None:
+        self.insertion_point = len(self.value)
 
     def HasFocus(self) -> bool:
         return getattr(self, "focused", False)
@@ -145,7 +151,7 @@ class FakeSize:
 
 
 class FakePanel:
-    def __init__(self, parent, _id: int) -> None:
+    def __init__(self, parent, _id: int, size=None) -> None:
         self.parent = parent
         self.sizer = None
         self.minimum_size = FakeSize(320, 280)
@@ -153,6 +159,7 @@ class FakePanel:
         self.name = ""
         self.shown = True
         self.bindings = {}
+        self.size = size
 
     def SetSizer(self, sizer) -> None:
         self.sizer = sizer
@@ -171,6 +178,9 @@ class FakePanel:
 
     def SetCanFocus(self, can_focus: bool) -> None:
         self.can_focus = can_focus
+
+    def SetFocus(self) -> None:
+        self.focused = True
 
     def Hide(self) -> None:
         self.shown = False
@@ -564,8 +574,7 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert result.transport_buttons[-1.0].tooltip == "Set reverse speed to 1x."
     assert result.transport_buttons[10.0].tooltip == "Increase forward speed by 10x."
     assert (
-        result.transport_reverse_play_button.tooltip
-        == "Play reverse at current speed."
+        result.transport_reverse_play_button.tooltip == "Play reverse at current speed."
     )
     assert result.transport_reverse_play_button.name == "Play reverse at current speed"
     assert result.transport_forward_play_button.name == "Play forward at current speed"
@@ -1059,13 +1068,24 @@ def test_current_time_editor_seeks_and_preserves_text_while_focused(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
+    focus_callbacks = []
+    monkeypatch.setattr(
+        workspace.wx, "CallAfter", lambda callback: focus_callbacks.append(callback)
+    )
     result.timeline_time_entry.value = "1h30m"
     result.timeline_time_entry.trigger(workspace.wx.EVT_TEXT_ENTER)
 
     assert result._test_time_seeks == ["1h30m"]
+    assert result.timeline_time_entry.insertion_point == len("1h30m")
+    assert not getattr(result._focus_sink, "focused", False)
+    focus_callbacks.pop()()
+    assert result._focus_sink.focused
+    assert not getattr(result.transport_forward_play_button, "focused", False)
     result.timeline_time_entry.focused = True
     result.update_timeline(0.5, "new UTC")
     assert result.timeline_time_entry.value == "1h30m"
+    result.update_timeline(0.6, "updated while playing", playing=True)
+    assert result.timeline_time_entry.value == "updated while playing"
 
 
 def test_zero_duration_timeline_disables_user_seeking(

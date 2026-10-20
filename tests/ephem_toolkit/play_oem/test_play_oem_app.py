@@ -461,7 +461,9 @@ class FakeWorkspace:
     def set_state_content(self, panel) -> None:
         self.state_content = panel
 
-    def update_timeline(self, progress: float, current_utc: str) -> None:
+    def update_timeline(
+        self, progress: float, current_utc: str, *, playing: bool = False
+    ) -> None:
         self.progress = progress
         self.current_utc = current_utc
 

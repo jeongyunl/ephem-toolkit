@@ -71,6 +71,7 @@ class Workspace:
         on_add_graph: Callable[[str], None] | None = None,
     ) -> None:
         self._on_seek = on_seek
+        self._on_seek_to_time = on_seek_to_time
         self._timeline_enabled = timeline_enabled
         self._syncing_timeline = False
         self._selected_feature = 0
@@ -162,7 +163,7 @@ class Workspace:
         if on_seek_to_time is not None:
             self.timeline_time_entry.Bind(
                 wx.EVT_TEXT_ENTER,
-                lambda _event: on_seek_to_time(self.timeline_time_entry.GetValue()),
+                self._submit_timeline_time,
             )
         self.time_error_label = wx.StaticText(self.timeline_panel, wx.ID_ANY, "")
         self.time_error_label.SetForegroundColour(wx.Colour(190, 35, 35))
@@ -257,6 +258,11 @@ class Workspace:
                 ),
             )
         transport_row.Add(self.transport_forward_play_button, 0, wx.RIGHT, 4)
+        # A non-text focus target: macOS buttons refuse keyboard focus unless
+        # Full Keyboard Access is on, which leaves the text field's focus ring.
+        self._focus_sink = wx.Panel(self.timeline_panel, wx.ID_ANY, size=(1, 1))
+        self._focus_sink.SetCanFocus(True)
+        transport_row.Add(self._focus_sink, 0, wx.RIGHT, 4)
 
         for rate, glyph, direction in (
             (1.0, "1× >", "forward"),
@@ -417,7 +423,9 @@ class Workspace:
         layout.Add(panel, 1, wx.EXPAND)
         self.state_page.SetSizer(layout)
 
-    def update_timeline(self, progress: float, current_utc: str) -> None:
+    def update_timeline(
+        self, progress: float, current_utc: str, *, playing: bool = False
+    ) -> None:
         """Synchronize the global timeline and UTC label without emitting a seek."""
         value = round(min(max(progress, 0.0), 1.0) * TIMELINE_SLIDER_MAX)
         self._syncing_timeline = True
@@ -427,7 +435,7 @@ class Workspace:
         finally:
             self._syncing_timeline = False
         # Preserve text the user is editing while playback updates the readout.
-        if not self.timeline_time_entry.HasFocus():
+        if playing or not self.timeline_time_entry.HasFocus():
             self.timeline_time_entry.ChangeValue(current_utc)
 
     def show_time_error(self, message: str) -> None:
@@ -1068,6 +1076,15 @@ class Workspace:
         if self._syncing_timeline or not self._timeline_enabled:
             return
         self._on_seek(event.GetInt() / TIMELINE_SLIDER_MAX)
+
+    def _submit_timeline_time(self, _event: wx.CommandEvent) -> None:
+        if self._on_seek_to_time is not None:
+            self._on_seek_to_time(self.timeline_time_entry.GetValue())
+        # Keep an inactive selection from appearing highlighted after submit.
+        self.timeline_time_entry.SetInsertionPointEnd()
+        # Defer focus transfer until wx finishes processing Enter; otherwise
+        # the native text control can reclaim focus after this handler returns.
+        wx.CallAfter(self._focus_sink.SetFocus)
 
     def _on_timeline_motion(self, event: wx.MouseEvent) -> None:
         width = self.timeline_slider.GetClientSize().GetWidth()

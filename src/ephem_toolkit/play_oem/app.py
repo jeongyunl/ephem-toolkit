@@ -850,7 +850,9 @@ class PlayerApp:
             self.clock.playing,
             self.clock.rate,
         )
-        self.workspace.update_timeline(progress, utc_timestamp)
+        self.workspace.update_timeline(
+            progress, utc_timestamp, playing=self.clock.playing
+        )
         self.workspace.update_transport_state(self.clock.playing, self.clock.rate)
         self.control_window.update_current_state(self.cursor.lookup(self.clock.t_now))
 
