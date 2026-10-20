@@ -11,8 +11,30 @@ from wx.lib.agw.supertooltip import SuperToolTip
 TOOLTIP_HORIZONTAL_PADDING: int = 8
 """Horizontal inner padding used by play-oem tooltip windows, in pixels."""
 
+if wx.Platform == "__WXMAC__":
 
-class _VerticallyCenteredToolTipWindow(_agw_supertooltip.ToolTipWindow):
+    class _PlayOemToolTipWindow(wx.Frame, _agw_supertooltip.ToolTipWindowBase):
+        def __init__(
+            self, parent: wx.Window, class_parent: _PlayOemSuperToolTip
+        ) -> None:
+            # A normal Cocoa tooltip frame becomes key and deactivates the parent,
+            # changing the slider's active appearance; tool windows avoid activation.
+            wx.Frame.__init__(
+                self,
+                parent,
+                style=wx.NO_BORDER
+                | wx.FRAME_FLOAT_ON_PARENT
+                | wx.FRAME_NO_TASKBAR
+                | wx.POPUP_WINDOW
+                | wx.FRAME_TOOL_WINDOW,
+            )
+            _agw_supertooltip.ToolTipWindowBase.__init__(self, parent, class_parent)
+
+else:
+    _PlayOemToolTipWindow = _agw_supertooltip.ToolTipWindow
+
+
+class _VerticallyCenteredToolTipWindow(_PlayOemToolTipWindow):
     """Balance the extra top padding AGW gives its one-line message body."""
 
     def __init__(self, parent: wx.Window, class_parent: _PlayOemSuperToolTip) -> None:
@@ -96,7 +118,7 @@ class _PlayOemSuperToolTip(SuperToolTip):
         if self._center_message:
             tip_window = _VerticallyCenteredToolTipWindow(self._widget, self)
         else:
-            tip_window = _agw_supertooltip.ToolTipWindow(self._widget, self)
+            tip_window = _PlayOemToolTipWindow(self._widget, self)
         self._superToolTip = tip_window
         tip_window.CalculateBestSize()
         self._position_window(tip_window)
