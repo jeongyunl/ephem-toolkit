@@ -46,6 +46,41 @@ class TimestampMarkupDemo(wx.Frame):
         layout.Add(self.playback_label, 0, wx.BOTTOM, 10)
 
         layout.Add(
+            wx.StaticText(
+                panel,
+                label="Current UTC (click the value to edit; press Enter to apply)",
+            ),
+            0,
+        )
+        current_utc_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.current_utc_prefix = wx.StaticText(panel, label="Current UTC:")
+        current_utc_row.Add(
+            self.current_utc_prefix, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4
+        )
+        self.current_utc_host = wx.Panel(panel)
+        self.current_utc_label = wx.StaticText(self.current_utc_host, label="")
+        set_timestamp_label(self.current_utc_label, TIMESTAMP)
+        self.current_utc_label.SetCursor(wx.Cursor(wx.CURSOR_HAND))
+        self.current_utc_label.Bind(wx.EVT_LEFT_UP, self._begin_edit)
+        self.current_utc_entry = wx.TextCtrl(
+            self.current_utc_host, value=TIMESTAMP, style=wx.TE_PROCESS_ENTER
+        )
+        self.current_utc_entry.Hide()
+        self.current_utc_entry.Bind(wx.EVT_TEXT_ENTER, self._finish_edit)
+        self.current_utc_entry.Bind(wx.EVT_KILL_FOCUS, self._finish_edit)
+        label_size = self.current_utc_label.GetBestSize()
+        entry_size = self.current_utc_entry.GetBestSize()
+        self.current_utc_host.SetMinSize(
+            (
+                max(label_size.width, entry_size.width),
+                max(label_size.height, entry_size.height),
+            )
+        )
+        self.current_utc_host.Bind(wx.EVT_SIZE, self._size_current_utc_controls)
+        current_utc_row.Add(self.current_utc_host, 0, wx.TOP, 10)
+        layout.Add(current_utc_row, 0, wx.BOTTOM, 10)
+
+        layout.Add(
             wx.StaticText(panel, label="Editable timeline time (uniform font)"),
             0,
         )
@@ -66,6 +101,32 @@ class TimestampMarkupDemo(wx.Frame):
 
         panel.SetSizer(layout)
         self.Centre()
+
+    def _begin_edit(self, _event: wx.MouseEvent) -> None:
+        self.current_utc_label.Hide()
+        self.current_utc_entry.Show()
+        self.current_utc_entry.SetFocus()
+        self.current_utc_entry.SelectAll()
+        self.Layout()
+
+    def _size_current_utc_controls(self, event: wx.SizeEvent) -> None:
+        size = self.current_utc_host.GetClientSize()
+        entry_height = min(size.height, self.current_utc_entry.GetBestSize().height)
+        entry_y = size.height - entry_height
+        self.current_utc_label.SetPosition((0, 0))
+        self.current_utc_entry.SetPosition((0, entry_y))
+        self.current_utc_label.SetSize(size)
+        self.current_utc_entry.SetSize((size.width, entry_height))
+        event.Skip()
+
+    def _finish_edit(self, event: wx.Event) -> None:
+        if self.current_utc_entry.IsShown():
+            timestamp = self.current_utc_entry.GetValue()
+            set_timestamp_label(self.current_utc_label, timestamp)
+            self.current_utc_entry.Hide()
+            self.current_utc_label.Show()
+            self.Layout()
+        event.Skip()
 
 
 if __name__ == "__main__":
