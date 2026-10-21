@@ -1,0 +1,76 @@
+flowchart TB
+    %% Widget hierarchy of the play-oem window (wxPython).
+    %% Arrows run from parent to child. Edge labels give the position inside the parent.
+    %% Sizers are not drawn as nodes; their layout is described in the widget labels.
+
+    frame["Main window (frame)<br/>wx.Frame, main_sizer (vertical)"]
+
+    frame -- "top, stretch 1" --> main_splitter
+    frame -- "bottom, fixed height" --> timeline_panel
+
+    main_splitter["self.main_splitter<br/>wx.SplitterWindow, vertical sash<br/>left pane minimum 240 px"]
+    main_splitter -- "left" --> controls_pane
+    main_splitter -- "right" --> graph_panes_splitter
+
+    subgraph LEFT ["Controls and Info pane"]
+        controls_pane["self.controls_pane<br/>wx.Panel, Controls &amp; Info"]
+        controls_pane --> controls_title_label["self.controls_title_label<br/>wx.StaticText"]
+        controls_pane --> rail["feature_button_rail (sizer)<br/>self.feature_rail_buttons: 3 x wx.BitmapToggleButton<br/>Playback, OEM file information, State"]
+        controls_pane --> feature_book["self.feature_book<br/>wx.Simplebook, one page per feature"]
+
+        feature_book -- "Playback" --> playback_page["self.playback_page<br/>wx.Panel"]
+        feature_book -- "OEM file information" --> info_page["self.file_info_page<br/>wx.Panel"]
+        feature_book -- "State" --> state_page["self.state_page<br/>wx.Panel"]
+
+        playback_page --> cw_panel["ControlWindow.playback_scroller<br/>wx.ScrolledWindow, vertical scroll"]
+        cw_panel --> cw_readout["elapsed_time_label, utc_time_label"]
+        cw_panel --> cw_playback["playback_heading_label, play_pause_button,<br/>reverse_toggle_button (reverse toggle),<br/>speed_readout_label, speed_slider, speed_scale_label"]
+        cw_panel --> cw_nav["navigation_heading_label, time navigation buttons"]
+
+        info_page --> info_scroll["self.file_info_scroll<br/>wx.ScrolledWindow, vertical scroll"]
+        info_scroll --> info_labels["OEM file context and metadata headings and labels"]
+
+        state_page --> state_scroller["ControlWindow.state_scroller<br/>wx.ScrolledWindow, vertical scroll"]
+        state_scroller --> state_labels["state_position_label, state_velocity_label,<br/>state_derived_label, state_cursor_status_label"]
+    end
+
+    subgraph GRAPHS ["Graph area"]
+        graph_panes_splitter["self.graph_panes_splitter<br/>wx.SplitterWindow, vertical sash<br/>Comparison pane unsplit until toggled"]
+        graph_panes_splitter -- "left" --> main_analysis_pane
+        graph_panes_splitter -- "right, when shown" --> comparison_pane
+
+        main_analysis_pane["self.main_analysis_pane<br/>wx.Panel, Main Analysis"]
+        main_analysis_pane --> middle_header["header title, add_graph_button,<br/>comparison toggle button"]
+        main_analysis_pane --> main_analysis_stack["self.main_analysis_stack<br/>wx.ScrolledWindow, vertical scroll"]
+
+        comparison_pane["self.comparison_pane<br/>wx.Panel, Comparison, hidden by default"]
+        comparison_pane --> right_header["header title, add_graph_button,<br/>close_pane_button"]
+        comparison_pane --> comparison_stack["self.comparison_stack<br/>wx.ScrolledWindow, vertical scroll"]
+
+        main_analysis_stack --> middle_empty["empty_state_panel, empty_state_label,<br/>add_graph_button<br/>(shown when there are no graphs)"]
+        main_analysis_stack --> middle_tree["Panel tree<br/>nested horizontal wx.SplitterWindow<br/>with one GraphPanelHost per graph"]
+        main_analysis_stack --> middle_handle["bottom_resize_handle<br/>wx.Panel, 6 px tall, vertical resize cursor"]
+
+        comparison_stack --> right_empty["empty_state_panel, empty_state_label,<br/>add_graph_button"]
+        comparison_stack --> right_tree["Panel tree, same as Main Analysis"]
+        comparison_stack --> right_handle["bottom_resize_handle (Comparison)"]
+
+        middle_tree --> graph_host["GraphPanelHost<br/>wx.Panel, one per graph"]
+        graph_host --> host_header["graph_view_selector (wx.Choice) or graph_title_label,<br/>graph_actions_button, graph_close_button"]
+        graph_host --> graph_scroller["graph_scroller<br/>wx.ScrolledWindow, horizontal and vertical scroll"]
+        graph_scroller --> view_content["_canvas (Matplotlib FigureCanvasWxAgg)<br/>or _native_content (native wx content)<br/>or empty_graph_prompt"]
+    end
+
+    subgraph TIMELINE ["Bottom strip"]
+        timeline_panel["self.timeline_panel<br/>wx.Panel"]
+        timeline_panel --> time_row["self.timeline_start_label, self.timeline_current_prefix,<br/>self.timeline_time_entry, self.time_error_label,<br/>self.timeline_end_label"]
+        timeline_panel -->         transport_row["transport_sizer<br/>self.transport_reverse_play_button, self.transport_forward_play_button,<br/>self._focus_sink<br/>self.transport_speed_buttons: speed_button x 4 reverse, x 4 forward"]
+        timeline_panel --> timeline_slider["self.timeline_slider<br/>wx.Slider"]
+    end
+
+    classDef window fill:#dbeafe,stroke:#1e40af,color:#1e293b
+    classDef container fill:#e5e7eb,stroke:#374151,color:#1f2937
+    classDef scroller fill:#dcfce7,stroke:#166534,color:#14532d
+    class frame window
+    class main_splitter,graph_panes_splitter container
+    class cw_panel,state_scroller,info_scroll,main_analysis_stack,comparison_stack,graph_scroller scroller
