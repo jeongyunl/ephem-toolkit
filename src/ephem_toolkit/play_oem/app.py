@@ -815,8 +815,13 @@ class PlayerApp:
             self._closed = True
             self._timer.Stop()
             try:
-                for panel_id in tuple(self._open_panels):
-                    self.close_panel(panel_id)
+                # Releasing panels one by one mutates the scrolling splitter tree
+                # while its frame is closing. Let the frame destroy its child
+                # windows after their non-window resources have been released.
+                for opened in tuple(self._open_panels.values()):
+                    self._release_open_view_resources(opened)
+                self._open_panels.clear()
+                self._open_views.clear()
             finally:
                 self.workspace.close()
         event.Skip()

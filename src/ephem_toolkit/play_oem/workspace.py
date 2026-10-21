@@ -824,11 +824,17 @@ class Workspace:
         if root is None:
             sizer.Detach(handle)
             handle.Hide()
+            # wxGTK may allocate hidden direct children while the scroller is
+            # being laid out during shutdown. Keep the unused handle outside it.
+            if handle.GetParent() is window:
+                handle.Reparent(window.GetParent())
         else:
             # Keep panels at their requested heights rather than stretching them to
             # the viewport, and keep the resize handle directly below the stack.
             sizer.GetItem(root).SetProportion(0)
             sizer.Detach(handle)
+            if handle.GetParent() is not window:
+                handle.Reparent(window)
             sizer.Add(handle, 0, wx.EXPAND)
             handle.Show()
 
