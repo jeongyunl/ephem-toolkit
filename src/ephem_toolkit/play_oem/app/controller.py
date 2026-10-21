@@ -275,8 +275,6 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
             (opened.panel_id, opened.view_name, opened.stack)
             for opened in self._open_panels.values()
         )
-        for panel_id, _view_name, _stack in panel_layout:
-            self._dispose_open_view(panel_id)
 
         self.clock = loaded.clock
         self.series = loaded.series
@@ -303,7 +301,10 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         self._update_time_display()
         if panel_layout:
             for panel_id, view_name, stack in panel_layout:
-                self.open_panel_view(view_name, panel_id, stack)
+                # Replace each view in its existing stack slot. Clearing the
+                # whole stack first briefly exposes its empty state and forces
+                # GTK to relayout every off-screen splitter at the bottom edge.
+                self.open_panel_view(view_name, panel_id, stack, force_replace=True)
         else:
             self.open_plots(self._plots)
         self.workspace.draw_initial_graphs()

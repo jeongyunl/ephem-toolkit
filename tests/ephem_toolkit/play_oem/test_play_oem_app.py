@@ -1327,6 +1327,58 @@ def test_panel_instances_can_duplicate_views_and_keep_independent_lifecycles(
     player.close()
 
 
+def test_reloading_oem_replaces_views_without_removing_panels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, views, _canvases, _frames = make_app(
+        monkeypatch,
+        plots=("speed-altitude", "state-components", "rtn"),
+    )
+    player.start()
+    old_clock = player.clock
+    original_panels = tuple(player.workspace.graph_panels)
+    original_views = tuple(player._open_panels.values())
+    monkeypatch.setattr(
+        player.workspace, "update_oem_information", lambda *_args: None, raising=False
+    )
+    monkeypatch.setattr(
+        player.frame, "SetStatusText", lambda _text: None, raising=False
+    )
+    monkeypatch.setattr(
+        player.workspace,
+        "remove_graph_panel",
+        lambda *_args, **_kwargs: pytest.fail("reload must keep graph panels in place"),
+    )
+    loaded = app.playback_data.PlaybackData(
+        clock=make_clock(t_now=100.0),
+        series=player.series,
+        time_unit=TimeUnit.MINUTES,
+        cursor=OemCursor((100.0, 200.0), make_states()),
+        object_name="RELOADED",
+        frame_context="GCRF / Earth",
+        dashboard_context={},
+        metadata_details=(),
+        source_sample_count=2,
+        selected_sample_count=2,
+    )
+
+    player._replace_playback_data(loaded)
+
+    assert player.clock is loaded.clock
+    assert len(player.workspace.graph_panels) == len(original_panels)
+    assert all(panel.destroyed for panel in original_panels)
+    assert all(view.view.closed for view in original_views)
+    assert all(
+        refreshed.panel_id == original.panel_id
+        for refreshed, original in zip(player._open_panels.values(), original_views)
+    )
+    old_clock.seek(150.0)
+    assert all(view.updated_times == [100.0] for view in views[:3])
+    player.clock.seek(150.0)
+    assert all(view.updated_times == [100.0, 150.0] for view in views[3:])
+    player.close()
+
+
 def test_new_graph_panel_starts_empty_and_can_switch_between_empty_and_a_view(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

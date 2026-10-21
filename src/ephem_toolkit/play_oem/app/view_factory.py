@@ -23,7 +23,10 @@ class ViewFactoryMixin:
     _selected_3d_backend: str | None
 
     def open_speed_altitude_view(
-        self: PlayerAppState, panel_id: str | None = None, stack: str = "middle"
+        self: PlayerAppState,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None:
         """Open or raise the speed and altitude plot."""
         self._open_view(
@@ -31,10 +34,14 @@ class ViewFactoryMixin:
             lambda _panel: speed_altitude.SpeedAltitudeView(self.clock.t_start),
             panel_id=panel_id,
             stack=stack,
+            force_replace=force_replace,
         )
 
     def open_rtn_view(
-        self: PlayerAppState, panel_id: str | None = None, stack: str = "middle"
+        self: PlayerAppState,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None:
         """Open or raise the RTN position-delta plot."""
         self._open_view(
@@ -42,10 +49,14 @@ class ViewFactoryMixin:
             lambda _panel: rtn.RtnDeltaView(self.clock.t_start, self.object_name),
             panel_id=panel_id,
             stack=stack,
+            force_replace=force_replace,
         )
 
     def open_angular_velocity_view(
-        self: PlayerAppState, panel_id: str | None = None, stack: str = "middle"
+        self: PlayerAppState,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None:
         """Open or raise the angular-velocity plot."""
         self._open_view(
@@ -55,10 +66,14 @@ class ViewFactoryMixin:
             ),
             panel_id=panel_id,
             stack=stack,
+            force_replace=force_replace,
         )
 
     def open_direction_change_view(
-        self: PlayerAppState, panel_id: str | None = None, stack: str = "middle"
+        self: PlayerAppState,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None:
         """Open or raise the direction-change plot."""
         self._open_view(
@@ -68,10 +83,14 @@ class ViewFactoryMixin:
             ),
             panel_id=panel_id,
             stack=stack,
+            force_replace=force_replace,
         )
 
     def open_distance_view(
-        self: PlayerAppState, panel_id: str | None = None, stack: str = "middle"
+        self: PlayerAppState,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None:
         """Open or raise the geocentric-distance plot."""
         self._open_view(
@@ -81,10 +100,14 @@ class ViewFactoryMixin:
             ),
             panel_id=panel_id,
             stack=stack,
+            force_replace=force_replace,
         )
 
     def open_state_components_view(
-        self: PlayerAppState, panel_id: str | None = None, stack: str = "middle"
+        self: PlayerAppState,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None:
         """Open or raise the Cartesian state-components plot."""
         self._open_view(
@@ -94,14 +117,18 @@ class ViewFactoryMixin:
             ),
             panel_id=panel_id,
             stack=stack,
+            force_replace=force_replace,
         )
 
     def open_trajectory_view(
-        self: PlayerAppState, panel_id: str | None = None, stack: str = "middle"
+        self: PlayerAppState,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None:
         """Open or raise the selected 3D orbit backend."""
         if self._selected_3d_backend == "matplotlib":
-            self._open_matplotlib_trajectory_view(panel_id, stack)
+            self._open_matplotlib_trajectory_view(panel_id, stack, force_replace)
             return
 
         try:
@@ -116,6 +143,7 @@ class ViewFactoryMixin:
                 ),
                 panel_id=panel_id,
                 stack=stack,
+                force_replace=force_replace,
             )
         except trajectory3d_selection.VTKBackendUnavailableError as error:
             if self._requested_3d_backend == "vtk":
@@ -130,13 +158,16 @@ class ViewFactoryMixin:
                 file=sys.stderr,
             )
             self._set_3d_backend("matplotlib")
-            self._open_matplotlib_trajectory_view(panel_id, stack)
+            self._open_matplotlib_trajectory_view(panel_id, stack, force_replace)
             return
 
         self._set_3d_backend("vtk")
 
     def _open_matplotlib_trajectory_view(
-        self: PlayerAppState, panel_id: str | None = None, stack: str = "middle"
+        self: PlayerAppState,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None:
         self._open_view(
             "trajectory-3d",
@@ -147,6 +178,7 @@ class ViewFactoryMixin:
             ),
             panel_id=panel_id,
             stack=stack,
+            force_replace=force_replace,
         )
         self._set_3d_backend("matplotlib")
 

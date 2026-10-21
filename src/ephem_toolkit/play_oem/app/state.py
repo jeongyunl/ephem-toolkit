@@ -58,35 +58,65 @@ class PlayerAppState(Protocol):
         *,
         panel_id: str | None = None,
         stack: str = "middle",
+        force_replace: bool = False,
     ) -> None: ...
     def _open_matplotlib_trajectory_view(
-        self, panel_id: str | None = None, stack: str = "middle"
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None: ...
     def _set_3d_backend(self, backend_name: str) -> None: ...
     def _update_time_display(self) -> None: ...
     def open_trajectory_view(
-        self, panel_id: str | None = None, stack: str = "middle"
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None: ...
     def open_speed_altitude_view(
-        self, panel_id: str | None = None, stack: str = "middle"
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None: ...
     def open_state_components_view(
-        self, panel_id: str | None = None, stack: str = "middle"
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None: ...
     def open_rtn_view(
-        self, panel_id: str | None = None, stack: str = "middle"
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None: ...
     def open_angular_velocity_view(
-        self, panel_id: str | None = None, stack: str = "middle"
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None: ...
     def open_direction_change_view(
-        self, panel_id: str | None = None, stack: str = "middle"
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None: ...
     def open_distance_view(
-        self, panel_id: str | None = None, stack: str = "middle"
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
     ) -> None: ...
     def open_panel_view(
-        self, name: str, panel_id: str, stack: str = "middle"
+        self,
+        name: str,
+        panel_id: str,
+        stack: str = "middle",
+        *,
+        force_replace: bool = False,
     ) -> None: ...
     def _select_panel_view(self, name: str, panel_id: str, stack: str) -> None: ...
     def _move_panel(self, panel_id: str, offset: int) -> None: ...

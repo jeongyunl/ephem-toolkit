@@ -82,7 +82,8 @@ clock, timer and main workspace frame. The frame has a File menu with **Open Fil
 bar for load and error messages, and a `Workspace` that places a `Controls & Info` feature area
 beside the `Main Analysis` graph stack and optional `Comparison` stack. The workspace package
 composes its layout, feature navigation, graph stacks and shared timeline through focused modules.
-Graph views are hosted inside
+When another OEM is loaded, existing views are rebuilt in their graph-panel slots so the stack
+structure, panel sizing and scroll position remain intact. Graph views are hosted inside
 independently identified graph panels rather than detached plot frames. Closing one panel closes
 only its view and unsubscribes it from clock updates; closing the workspace frame stops the timer,
 closes all graph panels, removes observers and exits the one `MainLoop()`.

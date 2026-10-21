@@ -261,6 +261,9 @@ class GraphStackMixin:
                 raise RuntimeError(
                     f"could not replace graph panel {old_panel.panel_id!r}"
                 )
+            # ReplaceWindow leaves the old native window alive until Destroy();
+            # park it so scrolling/layout cannot allocate the retired panel.
+            old_panel.Reparent(window.GetParent())
 
         panels[panels.index(old_panel)] = new_panel
         self._graph_panel_heights[new_panel] = self._graph_panel_heights.pop(
@@ -417,6 +420,9 @@ class GraphStackMixin:
                 parent_sash_position = parent.GetSashPosition()
                 parent.Unsplit(splitter)
                 sibling.Reparent(parent)
+                # Destroy() is deferred here too; park the now-hidden nested
+                # splitter outside the visible tree before the parent relayout.
+                splitter.Reparent(stack_window.GetParent())
                 splitter.Destroy()
                 if parent_first is splitter:
                     split_succeeded = parent.SplitHorizontally(

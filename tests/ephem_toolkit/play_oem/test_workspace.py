@@ -1135,6 +1135,8 @@ def test_graph_stacks_use_styled_horizontal_splitters_and_collapse_on_close(
     right_root = result._stack_roots["right"]
     assert isinstance(middle_root, FakeSplitter)
     assert isinstance(right_root, FakeSplitter)
+    nested_middle_splitter = middle_root.GetWindow1()
+    assert isinstance(nested_middle_splitter, FakeSplitter)
     assert middle_root.style & workspace.wx.SP_3DSASH
     assert right_root.style & workspace.wx.SP_3DSASH
     assert middle_root.sash_gravity == 0.5
@@ -1146,6 +1148,8 @@ def test_graph_stacks_use_styled_horizontal_splitters_and_collapse_on_close(
     assert result._graph_panels["middle"] == [middle_panels[0], middle_panels[2]]
     assert result._stack_roots["middle"].GetMinSize().height == 2 * 280 + 4
     assert result._graph_panels["right"] == right_panels
+    # A collapsed nested splitter must be parked before GTK lays out its parent.
+    assert nested_middle_splitter.GetParent() is result.main_analysis_stack.GetParent()
 
     result.remove_graph_panel(middle_panels[0], "middle")
     assert result._stack_roots["middle"] is middle_panels[2]

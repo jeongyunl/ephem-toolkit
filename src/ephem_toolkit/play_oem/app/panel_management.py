@@ -25,7 +25,12 @@ class PanelManagementMixin:
         self._view_registry.open_view(name)
 
     def open_panel_view(
-        self: PlayerAppState, name: str, panel_id: str, stack: str = "middle"
+        self: PlayerAppState,
+        name: str,
+        panel_id: str,
+        stack: str = "middle",
+        *,
+        force_replace: bool = False,
     ) -> None:
         """Open a view in the graph-panel instance identified by ``panel_id``."""
         if name == EMPTY_GRAPH_VIEW:
@@ -34,6 +39,7 @@ class PanelManagementMixin:
                 _EmptyGraphView,
                 panel_id=panel_id,
                 stack=stack,
+                force_replace=force_replace,
             )
             return
         if name not in self._view_registry.registered_views:
@@ -47,7 +53,7 @@ class PanelManagementMixin:
             "direction-change": self.open_direction_change_view,
             "distance": self.open_distance_view,
         }
-        openers[name](panel_id=panel_id, stack=stack)
+        openers[name](panel_id=panel_id, stack=stack, force_replace=force_replace)
 
     def _add_graph_panel(self: PlayerAppState, stack: str) -> None:
         try:
@@ -115,6 +121,7 @@ class PanelManagementMixin:
         *,
         panel_id: str | None = None,
         stack: str = "middle",
+        force_replace: bool = False,
     ) -> None:
         if self._closed:
             raise RuntimeError("cannot open a view in a closed PlayerApp")
@@ -138,10 +145,12 @@ class PanelManagementMixin:
         else:
             existing = self._open_panels.get(panel_id)
             if existing is not None:
-                if existing.view_name == name:
+                if existing.view_name == name and not force_replace:
                     existing.panel.SetFocus()
                     return
                 replacing = existing
+                if force_replace and self._open_views.get(name) is existing:
+                    is_default_instance = True
 
         if panel_id in self._open_panels and replacing is None:
             raise ValueError(f"panel instance already exists: {panel_id!r}")
