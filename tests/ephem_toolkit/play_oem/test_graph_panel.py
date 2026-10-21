@@ -188,7 +188,7 @@ def test_panel_content_wheel_hands_off_to_stack_only_at_panel_scroll_edges(
         view_y=0,
     )
     host = SimpleNamespace(
-        content_scroller=panel_content,
+        graph_scroller=panel_content,
         _parent_stack_scroller=lambda: outer_stack,
     )
 

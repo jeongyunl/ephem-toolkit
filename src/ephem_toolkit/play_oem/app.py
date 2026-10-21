@@ -62,9 +62,11 @@ class _EmptyGraphView:
     def build(
         self, _series: series.OrbitSeries, _time_unit: time_unit.TimeUnit
     ) -> wx.Window:
-        prompt = wx.StaticText(self._parent, wx.ID_ANY, "Select a graph view above")
-        prompt.SetName("Empty graph prompt")
-        return prompt
+        empty_graph_prompt = wx.StaticText(
+            self._parent, wx.ID_ANY, "Select a graph view above"
+        )
+        empty_graph_prompt.SetName("Empty graph prompt")
+        return empty_graph_prompt
 
     def update(self, _t_s: float) -> None:
         pass
@@ -238,8 +240,8 @@ class PlayerApp:
             )
         )
         self.control_window.bind_time_entry(self.workspace.timeline_time_entry)
-        self.workspace.set_playback_content(self.control_window.panel)
-        self.workspace.set_state_content(self.control_window.state_panel)
+        self.workspace.set_playback_content(self.control_window.playback_scroller)
+        self.workspace.set_state_content(self.control_window.state_scroller)
         self.frame.SetMinSize(PLAYER_FRAME_MIN_SIZE)
         self.frame.SetSize(PLAYER_FRAME_SIZE)
         self.frame.Bind(wx.EVT_CLOSE, self._on_frame_close)
@@ -549,9 +551,9 @@ class PlayerApp:
         self.clock.set_direction(direction)
         self.clock.set_speed(base_speed)
         if base_speed >= 1000.0:
-            self.workspace.transport_buttons[direction * 1000.0].SetFocus()
+            self.workspace.transport_speed_buttons[direction * 1000.0].SetFocus()
         elif base_speed >= 100.0:
-            self.workspace.transport_buttons[direction * 100.0].SetFocus()
+            self.workspace.transport_speed_buttons[direction * 100.0].SetFocus()
         self._update_time_display()
 
     def _play_reverse_at_current_speed(self) -> None:
@@ -627,9 +629,9 @@ class PlayerApp:
         if self._closed:
             raise RuntimeError("cannot open a view in a closed PlayerApp")
         if stack == "middle":
-            stack_parent = self.workspace.middle_stack
+            stack_parent = self.workspace.main_analysis_stack
         elif stack == "right":
-            stack_parent = self.workspace.right_stack
+            stack_parent = self.workspace.comparison_stack
         else:
             raise ValueError(f"unknown graph stack {stack!r}")
 
@@ -684,11 +686,11 @@ class PlayerApp:
             else:
                 self.workspace.replace_graph_panel(replacing.panel, panel, stack=stack)
             panel_inserted = True
-            view = create_view(panel.content_scroller)
+            view = create_view(panel.graph_scroller)
             content = view.build(self.series, self.time_unit)
             view.update(self.clock.t_now)
             if isinstance(content, Figure):
-                canvas = FigureCanvasWxAgg(panel.content_scroller, wx.ID_ANY, content)
+                canvas = FigureCanvasWxAgg(panel.graph_scroller, wx.ID_ANY, content)
                 plot_toolbar = NavigationToolbar2WxAgg(canvas)
                 plot_toolbar.Realize()
                 toolbar = plot_toolbar

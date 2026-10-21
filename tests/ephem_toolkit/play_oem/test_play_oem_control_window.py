@@ -297,7 +297,7 @@ def test_native_controls_dispatch_playback_and_navigation_actions(
     window, _owner, calls = make_window(monkeypatch)
 
     window.play_pause_button.trigger(control_window.wx.EVT_BUTTON)
-    window.direction_button.trigger(control_window.wx.EVT_TOGGLEBUTTON)
+    window.reverse_toggle_button.trigger(control_window.wx.EVT_TOGGLEBUTTON)
     for button in window.navigation_buttons:
         button.trigger(control_window.wx.EVT_BUTTON)
 
@@ -323,14 +323,16 @@ def test_playback_controls_remain_reachable_in_scrollable_page(
 ) -> None:
     window, _owner, _calls = make_window(monkeypatch)
 
-    assert window.panel.scroll_rate == (0, 10)
-    playback_row = window.panel.sizer.items[2][0]
+    assert window.playback_scroller.scroll_rate == (0, 10)
+    playback_row = window.playback_scroller.sizer.items[2][0]
     assert playback_row.orientation == control_window.wx.VERTICAL
     playback_controls = [item[0] for item in playback_row.items]
-    assert window.playback_label in playback_controls
+    assert window.playback_heading_label in playback_controls
     assert window.speed_slider in playback_controls
-    navigation_group = window.panel.sizer.items[3][0]
-    assert window.navigation_label in [item[0] for item in navigation_group.items]
+    navigation_group = window.playback_scroller.sizer.items[3][0]
+    assert window.navigation_heading_label in [
+        item[0] for item in navigation_group.items
+    ]
     assert not hasattr(window, "time_entry")
     assert not hasattr(window, "seek_button")
     navigation_row = navigation_group.items[1][0]
@@ -338,18 +340,18 @@ def test_playback_controls_remain_reachable_in_scrollable_page(
         button in [item[0] for item in navigation_row.items]
         for button in window.navigation_buttons
     )
-    assert window.navigation_buttons[1].parent is window.panel
+    assert window.navigation_buttons[1].parent is window.playback_scroller
     assert "100 slider steps per decade" in window.speed_slider.tooltip
     assert not hasattr(window, "view_groups_pane")
     assert not hasattr(window, "group_buttons")
     assert not hasattr(window, "view_choice")
     assert not hasattr(window, "open_view_button")
-    assert window.panel.fit_inside_count == 1
+    assert window.playback_scroller.fit_inside_count == 1
 
-    window.panel.bindings[control_window.wx.EVT_SIZE](FakeEvent())
+    window.playback_scroller.bindings[control_window.wx.EVT_SIZE](FakeEvent())
 
-    assert window.panel.layout_count == 2
-    assert window.panel.fit_inside_count == 4
+    assert window.playback_scroller.layout_count == 2
+    assert window.playback_scroller.fit_inside_count == 4
 
 
 def test_utc_timestamp_wraps_at_the_date_time_separator(
@@ -359,7 +361,7 @@ def test_utc_timestamp_wraps_at_the_date_time_separator(
 
     window.update_time("Elapsed: 0 s\nUTC: 2026-07-06T00:00:00.000")
 
-    assert window.utc_label.label == "UTC: 2026-07-06T\n00:00:00.000"
+    assert window.utc_time_label.label == "UTC: 2026-07-06T\n00:00:00.000"
 
 
 @pytest.mark.parametrize("control_name", ("last_navigation_button",))
@@ -375,9 +377,9 @@ def test_keyboard_focus_scrolls_offscreen_playback_controls_into_view(
 
     control.trigger(control_window.wx.EVT_SET_FOCUS)
 
-    assert window.panel.scroll_position == (0, 17)
+    assert window.playback_scroller.scroll_position == (0, 17)
     control.trigger(control_window.wx.EVT_SET_FOCUS)
-    assert window.panel.scroll_position == (0, 17)
+    assert window.playback_scroller.scroll_position == (0, 17)
 
 
 def test_dashboard_formats_state_and_missing_values(
@@ -388,28 +390,31 @@ def test_dashboard_formats_state_and_missing_values(
 
     window, _owner, _calls = make_window(monkeypatch)
     assert all(
-        label.parent is window.state_panel
+        label.parent is window.state_scroller
         for label in (
-            window.position_label,
-            window.velocity_label,
-            window.speed_altitude_label,
-            window.cursor_status_label,
+            window.state_position_label,
+            window.state_velocity_label,
+            window.state_derived_label,
+            window.state_cursor_status_label,
         )
     )
-    assert len(window.state_panel.sizer.items) == 4
-    assert window.state_panel.name == "Current state readout"
-    assert window.state_panel.scroll_rate == (0, 10)
-    assert window.position_label.name == "Position components (kilometers)"
-    assert window.velocity_label.name == "Velocity components (kilometers per second)"
-    assert window.speed_altitude_label.name == "Derived speed and altitude"
-    assert window.cursor_status_label.name == "Cursor data status"
+    assert len(window.state_scroller.sizer.items) == 4
+    assert window.state_scroller.name == "Current state readout"
+    assert window.state_scroller.scroll_rate == (0, 10)
+    assert window.state_position_label.name == "Position components (kilometers)"
+    assert (
+        window.state_velocity_label.name
+        == "Velocity components (kilometers per second)"
+    )
+    assert window.state_derived_label.name == "Derived speed and altitude"
+    assert window.state_cursor_status_label.name == "Cursor data status"
     assert all(
-        label not in [item[0] for item in window.panel.sizer.items]
+        label not in [item[0] for item in window.playback_scroller.sizer.items]
         for label in (
-            window.position_label,
-            window.velocity_label,
-            window.speed_altitude_label,
-            window.cursor_status_label,
+            window.state_position_label,
+            window.state_velocity_label,
+            window.state_derived_label,
+            window.state_cursor_status_label,
         )
     )
     window.update_current_state(
@@ -424,30 +429,30 @@ def test_dashboard_formats_state_and_missing_values(
             CursorStatus.INTERPOLATED,
         )
     )
-    assert window.position_label.label == (
+    assert window.state_position_label.label == (
         "Position (km)\nX: 1.000\nY: 2.000\nZ: 3.000"
     )
     assert (
-        window.velocity_label.label
+        window.state_velocity_label.label
         == "Velocity (km/s)\nVx: 0.100000\nVy: 0.200000\nVz: 0.300000"
     )
-    assert "0.374166 km/s" in window.speed_altitude_label.label
-    assert window.speed_altitude_label.label == (
+    assert "0.374166 km/s" in window.state_derived_label.label
+    assert window.state_derived_label.label == (
         "Derived values\nSpeed:\n0.374166 km/s\nAltitude:\n4.500 km"
     )
-    assert window.cursor_status_label.label == "Cursor status: interpolated"
+    assert window.state_cursor_status_label.label == "Cursor status: interpolated"
 
     window.update_current_state(
         CursorState(2.0, None, None, None, None, None, None, CursorStatus.OUT_OF_RANGE)
     )
-    assert "X: unavailable" in window.position_label.label
-    assert "Vx: unavailable" in window.velocity_label.label
-    assert window.cursor_status_label.label == "Cursor status: out of range"
+    assert "X: unavailable" in window.state_position_label.label
+    assert "Vx: unavailable" in window.state_velocity_label.label
+    assert window.state_cursor_status_label.label == "Cursor status: out of range"
     window.update_current_state(
         CursorState(50.0, None, None, None, None, None, None, CursorStatus.GAP)
     )
     assert (
-        window.cursor_status_label.label
+        window.state_cursor_status_label.label
         == "Cursor status: data gap; no state available"
     )
 
@@ -459,7 +464,7 @@ def test_state_readout_preserves_component_precision_and_scroll_position(
     import numpy as np
 
     window, _owner, _calls = make_window(monkeypatch)
-    window.state_panel.Scroll(0, 7)
+    window.state_scroller.Scroll(0, 7)
     window.update_current_state(
         CursorState(
             3.0,
@@ -473,13 +478,13 @@ def test_state_readout_preserves_component_precision_and_scroll_position(
         )
     )
 
-    assert "X: 123456789.123" in window.position_label.label
-    assert "Y: -98765432.111" in window.position_label.label
-    assert "Vx: 123456.123457" in window.velocity_label.label
-    assert "Vy: -98765.123457" in window.velocity_label.label
-    assert "Altitude:\n987654321.123 km" in window.speed_altitude_label.label
-    assert window.cursor_status_label.label == "Cursor status: sampled"
-    assert window.state_panel.GetViewStart() == (0, 7)
+    assert "X: 123456789.123" in window.state_position_label.label
+    assert "Y: -98765432.111" in window.state_position_label.label
+    assert "Vx: 123456.123457" in window.state_velocity_label.label
+    assert "Vy: -98765.123457" in window.state_velocity_label.label
+    assert "Altitude:\n987654321.123 km" in window.state_derived_label.label
+    assert window.state_cursor_status_label.label == "Cursor status: sampled"
+    assert window.state_scroller.GetViewStart() == (0, 7)
 
     window.update_current_state(
         CursorState(
@@ -493,11 +498,11 @@ def test_state_readout_preserves_component_precision_and_scroll_position(
             CursorStatus.UNAVAILABLE,
         )
     )
-    assert window.position_label.label == (
+    assert window.state_position_label.label == (
         "Position (km)\nX: unavailable\nY: unavailable\nZ: unavailable"
     )
-    assert "Vx: 1.000000" in window.velocity_label.label
-    assert window.cursor_status_label.label == "Cursor status: unavailable"
+    assert "Vx: 1.000000" in window.state_velocity_label.label
+    assert window.state_cursor_status_label.label == "Cursor status: unavailable"
 
 
 @pytest.mark.parametrize(
@@ -528,16 +533,16 @@ def test_playback_state_updates_readouts_and_speed_without_seeking(
     window.update_playback_state("Elapsed: 25 s\nUTC: example", True, -10.0)
 
     assert window.speed_slider.value == 100
-    assert window.elapsed_label.label == "Elapsed: 25 s"
-    assert window.utc_label.label == "UTC: example"
+    assert window.elapsed_time_label.label == "Elapsed: 25 s"
+    assert window.utc_time_label.label == "UTC: example"
     assert window.play_pause_button.label == "Pause"
-    assert window.speed_label.label == "Speed: -10x"
+    assert window.speed_readout_label.label == "Speed: -10x"
     assert window.speed_scale_label.label == (
         "Speed slider: -10x (log scale, 1x to 9000x)"
     )
-    assert window.direction_button.label == "Forward"
-    assert window.direction_button.value
-    assert window.utc_label.wrap_width == 166
+    assert window.reverse_toggle_button.label == "Forward"
+    assert window.reverse_toggle_button.value
+    assert window.utc_time_label.wrap_width == 166
     assert window.speed_scale_label.wrap_width == 166
     assert not calls["speed"]
 
@@ -546,7 +551,7 @@ def test_playback_state_updates_readouts_and_speed_without_seeking(
     assert window.speed_scale_label.label == (
         "Speed slider: +1x (log scale, 1x to 9000x)"
     )
-    assert not window.direction_button.value
+    assert not window.reverse_toggle_button.value
     assert not calls["speed"]
 
 
@@ -576,7 +581,7 @@ def test_accelerators_cover_playback_navigation_and_disable_for_time_entry(
     assert calls["start"] == [True]
     assert calls["end"] == [True]
 
-    time_entry = FakeTextCtrl(window.panel, -1, "")
+    time_entry = FakeTextCtrl(window.playback_scroller, -1, "")
     window.bind_time_entry(time_entry)
     focus_event = FakeEvent()
     time_entry.trigger(control_window.wx.EVT_SET_FOCUS, focus_event)

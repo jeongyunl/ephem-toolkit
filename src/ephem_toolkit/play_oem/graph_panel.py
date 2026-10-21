@@ -104,31 +104,31 @@ class GraphPanelHost(wx.Panel):
         self._canvas: FigureCanvasWxAgg | None = None
         self._native_content: wx.Window | None = None
         self._uses_constrained_layout = False
-        self.content_scroller = wx.ScrolledWindow(
+        self.graph_scroller = wx.ScrolledWindow(
             self,
             wx.ID_ANY,
             style=wx.HSCROLL | wx.VSCROLL | wx.TAB_TRAVERSAL,
         )
-        self.content_scroller.SetName(f"{title} graph content")
-        self.content_scroller.SetScrollRate(10, 10)
-        self.content_scroller.Bind(wx.EVT_MOUSEWHEEL, self._on_content_mousewheel)
+        self.graph_scroller.SetName(f"{title} graph content")
+        self.graph_scroller.SetScrollRate(10, 10)
+        self.graph_scroller.Bind(wx.EVT_MOUSEWHEEL, self._on_content_mousewheel)
 
-        layout = wx.BoxSizer(wx.VERTICAL)
-        header = wx.BoxSizer(wx.HORIZONTAL)
-        self.title_label: wx.StaticText | None = None
-        self.view_selector: wx.Choice | None = None
+        panel_sizer = wx.BoxSizer(wx.VERTICAL)
+        header_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.graph_title_label: wx.StaticText | None = None
+        self.graph_view_selector: wx.Choice | None = None
         if view_choices:
-            self.view_selector = wx.Choice(
+            self.graph_view_selector = wx.Choice(
                 self,
                 wx.ID_ANY,
                 choices=[label for _name, label in view_choices],
             )
             # Keep the selector compact so it matches the smaller header actions.
-            self.view_selector.SetMinSize(wx.Size(-1, 26))
-            self.view_selector.SetName(f"{title} view selector")
-            set_tooltip(self.view_selector, f"Select a view for {title}")
+            self.graph_view_selector.SetMinSize(wx.Size(-1, 26))
+            self.graph_view_selector.SetName(f"{title} view selector")
+            set_tooltip(self.graph_view_selector, f"Select a view for {title}")
             if selected_view is not None:
-                self.view_selector.SetSelection(
+                self.graph_view_selector.SetSelection(
                     next(
                         index
                         for index, (name, _label) in enumerate(view_choices)
@@ -136,7 +136,7 @@ class GraphPanelHost(wx.Panel):
                     )
                 )
             if on_view_selected is not None:
-                self.view_selector.Bind(
+                self.graph_view_selector.Bind(
                     wx.EVT_CHOICE,
                     # Replacing the panel destroys this choice; defer until GTK
                     # has finished dispatching its selection event.
@@ -145,28 +145,28 @@ class GraphPanelHost(wx.Panel):
                         view_choices[event.GetSelection()][0],
                     ),
                 )
-            header.Add(self.view_selector, 1, wx.EXPAND | wx.ALL, 2)
+            header_sizer.Add(self.graph_view_selector, 1, wx.EXPAND | wx.ALL, 2)
         else:
-            self.title_label = wx.StaticText(self, wx.ID_ANY, title)
-            header.Add(
-                self.title_label,
+            self.graph_title_label = wx.StaticText(self, wx.ID_ANY, title)
+            header_sizer.Add(
+                self.graph_title_label,
                 1,
                 wx.ALIGN_CENTER_VERTICAL | wx.ALL,
                 4,
             )
-        self.close_button = wx.Button(self, wx.ID_ANY, "Close")
+        self.graph_close_button = wx.Button(self, wx.ID_ANY, "Close")
         # A fixed compact height reduces header space while preserving native width.
-        self.close_button.SetMinSize(wx.Size(-1, 26))
-        self.close_button.SetName(f"Close {title} graph")
-        set_tooltip(self.close_button, f"Close {title} graph")
-        self.close_button.Bind(wx.EVT_BUTTON, lambda _event: self._on_close())
-        self.actions_button = wx.Button(self, wx.ID_ANY, "Actions")
+        self.graph_close_button.SetMinSize(wx.Size(-1, 26))
+        self.graph_close_button.SetName(f"Close {title} graph")
+        set_tooltip(self.graph_close_button, f"Close {title} graph")
+        self.graph_close_button.Bind(wx.EVT_BUTTON, lambda _event: self._on_close())
+        self.graph_actions_button = wx.Button(self, wx.ID_ANY, "Actions")
         # Match the Close control so the header buttons have consistent proportions.
-        self.actions_button.SetMinSize(wx.Size(-1, 26))
-        self.actions_button.SetName(f"{title} panel actions")
+        self.graph_actions_button.SetMinSize(wx.Size(-1, 26))
+        self.graph_actions_button.SetName(f"{title} panel actions")
         # Keep the tooltip handle so menu activation can dismiss it explicitly.
         self._actions_tooltip = set_tooltip(
-            self.actions_button, f"Actions for {title} graph"
+            self.graph_actions_button, f"Actions for {title} graph"
         )
         self._actions_menu = wx.Menu()
         for label, callback in (
@@ -184,17 +184,17 @@ class GraphPanelHost(wx.Panel):
                 id=item.GetId(),
             )
         # Handle activation centrally so keyboard clicks also dismiss the tooltip.
-        self.actions_button.Bind(
+        self.graph_actions_button.Bind(
             wx.EVT_BUTTON,
             self._on_actions_button,
         )
-        header.Add(self.actions_button, 0, wx.ALL, 2)
-        header.Add(self.close_button, 0, wx.ALL, 2)
-        layout.Add(header, 0, wx.EXPAND)
+        header_sizer.Add(self.graph_actions_button, 0, wx.ALL, 2)
+        header_sizer.Add(self.graph_close_button, 0, wx.ALL, 2)
+        panel_sizer.Add(header_sizer, 0, wx.EXPAND)
         self.content_sizer = wx.BoxSizer(wx.VERTICAL)
-        self.content_scroller.SetSizer(self.content_sizer)
-        layout.Add(self.content_scroller, 1, wx.EXPAND)
-        self.SetSizer(layout)
+        self.graph_scroller.SetSizer(self.content_sizer)
+        panel_sizer.Add(self.graph_scroller, 1, wx.EXPAND)
+        self.SetSizer(panel_sizer)
         self.SetMinSize(GRAPH_PANEL_MIN_SIZE)
         self.Bind(wx.EVT_SHOW, self._on_show)
 
@@ -220,7 +220,7 @@ class GraphPanelHost(wx.Panel):
             self._uses_constrained_layout = True
             canvas.mpl_connect("draw_event", self._disable_constrained_layout)
             canvas.Bind(wx.EVT_SIZE, self._on_canvas_size)
-        self.content_scroller.FitInside()
+        self.graph_scroller.FitInside()
         self.Layout()
 
     def _on_content_mousewheel(self, event: wx.MouseEvent) -> None:
@@ -230,11 +230,11 @@ class GraphPanelHost(wx.Panel):
             event.Skip()
             return
 
-        content_position = self.content_scroller.GetViewStart()
+        content_position = self.graph_scroller.GetViewStart()
         content_limit = max(
             0,
-            self.content_scroller.GetScrollRange(wx.VERTICAL)
-            - self.content_scroller.GetScrollThumb(wx.VERTICAL),
+            self.graph_scroller.GetScrollRange(wx.VERTICAL)
+            - self.graph_scroller.GetScrollThumb(wx.VERTICAL),
         )
         if (rotation > 0 and content_position[1] > 0) or (
             rotation < 0 and content_position[1] < content_limit
@@ -282,7 +282,7 @@ class GraphPanelHost(wx.Panel):
             raise RuntimeError("graph panel already has content")
         self.content_sizer.Add(content, 1, wx.EXPAND)
         self._native_content = content
-        self.content_scroller.FitInside()
+        self.graph_scroller.FitInside()
         self.Layout()
 
     def request_redraw(self) -> None:

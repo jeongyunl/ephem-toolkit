@@ -615,37 +615,39 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
         "State",
     ]
     assert result.feature_book.selection == 0
-    assert result.feature_buttons[0].name == "Playback"
-    assert result.feature_buttons[0].tooltip == "Playback"
-    assert result.feature_buttons[1].name == "OEM file information"
-    assert result.feature_buttons[2].name == "State"
-    assert result.feature_buttons[2].tooltip == "State"
+    assert result.feature_rail_buttons[0].name == "Playback"
+    assert result.feature_rail_buttons[0].tooltip == "Playback"
+    assert result.feature_rail_buttons[1].name == "OEM file information"
+    assert result.feature_rail_buttons[2].name == "State"
+    assert result.feature_rail_buttons[2].tooltip == "State"
     assert [page.name for page in result.feature_pages] == [
         "Playback",
         "OEM file information",
         "State",
     ]
-    assert result.left_pane.name == workspace.CONTROLS_PANE_NAME
-    assert result.middle_pane.name == workspace.MAIN_ANALYSIS_PANE_NAME
-    assert result.right_pane.name == workspace.COMPARISON_PANE_NAME
-    assert result.middle_pane.sizer.items[0][0].items[0][0].label == "Main Analysis"
-    assert result.right_pane.sizer.items[0][0].items[0][0].label == "Comparison"
-    assert result.middle_stack.always_shown_scrollbars == (False, False)
-    assert result.right_stack.always_shown_scrollbars == (False, False)
-    assert result.graph_splitter.is_split is False
-    assert result.graph_splitter.unsplit_calls == [result.right_pane]
+    assert result.controls_pane.name == workspace.CONTROLS_PANE_NAME
+    assert result.main_analysis_pane.name == workspace.MAIN_ANALYSIS_PANE_NAME
+    assert result.comparison_pane.name == workspace.COMPARISON_PANE_NAME
+    assert (
+        result.main_analysis_pane.sizer.items[0][0].items[0][0].label == "Main Analysis"
+    )
+    assert result.comparison_pane.sizer.items[0][0].items[0][0].label == "Comparison"
+    assert result.main_analysis_stack.always_shown_scrollbars == (False, False)
+    assert result.comparison_stack.always_shown_scrollbars == (False, False)
+    assert result.graph_panes_splitter.is_split is False
+    assert result.graph_panes_splitter.unsplit_calls == [result.comparison_pane]
     assert result._comparison_toggle.name == "Toggle Comparison pane"
     assert not result._comparison_toggle.value
-    assert result.content_splitter.is_split
-    assert result.content_splitter.minimum_pane_size == 240
-    assert result.content_splitter.sash_gravity == 0.0
-    assert result.content_splitter.style & workspace.wx.SP_3DSASH
-    assert result.graph_splitter.minimum_pane_size == 320
-    assert result.graph_splitter.sash_gravity == 1.0
-    assert result.graph_splitter.style & workspace.wx.SP_3DSASH
+    assert result.main_splitter.is_split
+    assert result.main_splitter.minimum_pane_size == 240
+    assert result.main_splitter.sash_gravity == 0.0
+    assert result.main_splitter.style & workspace.wx.SP_3DSASH
+    assert result.graph_panes_splitter.minimum_pane_size == 320
+    assert result.graph_panes_splitter.sash_gravity == 1.0
+    assert result.graph_panes_splitter.style & workspace.wx.SP_3DSASH
     assert result.timeline_slider.minimum == 0
     assert result.timeline_slider.maximum == 10_000
-    assert list(result.transport_buttons) == [
+    assert list(result.transport_speed_buttons) == [
         -1000.0,
         -100.0,
         -10.0,
@@ -655,10 +657,16 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
         100.0,
         1000.0,
     ]
-    assert result.transport_buttons[-1.0].name == "Set reverse playback speed to 1x"
-    assert result.transport_buttons[1.0].name == "Set forward playback speed to 1x"
-    assert result.transport_buttons[-1.0].tooltip == "Set reverse speed to 1x."
-    assert result.transport_buttons[10.0].tooltip == "Increase forward speed by 10x."
+    assert (
+        result.transport_speed_buttons[-1.0].name == "Set reverse playback speed to 1x"
+    )
+    assert (
+        result.transport_speed_buttons[1.0].name == "Set forward playback speed to 1x"
+    )
+    assert result.transport_speed_buttons[-1.0].tooltip == "Set reverse speed to 1x."
+    assert (
+        result.transport_speed_buttons[10.0].tooltip == "Increase forward speed by 10x."
+    )
     assert (
         result.transport_reverse_play_button.tooltip == "Play reverse at current speed."
     )
@@ -674,7 +682,7 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
         result.timeline_panel.sizer.items[2][0].items[5][0]
         is result.transport_forward_play_button
     )
-    assert [button.label for button in result.transport_buttons.values()] == [
+    assert [button.label for button in result.transport_speed_buttons.values()] == [
         "<<< 1000×",
         "<< 100×",
         "< 10×",
@@ -686,12 +694,13 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     ]
     assert all(
         button.style == workspace.wx.BU_EXACTFIT
-        for button in result.transport_buttons.values()
+        for button in result.transport_speed_buttons.values()
     )
     assert all(
-        button.minimum_size == (44, -1) for button in result.transport_buttons.values()
+        button.minimum_size == (44, -1)
+        for button in result.transport_speed_buttons.values()
     )
-    assert frame.sizer.items[0][0] is result.content_splitter
+    assert frame.sizer.items[0][0] is result.main_splitter
     assert frame.sizer.items[1][0] is result.timeline_panel
     assert result.timeline_start_label.label == ("Start UTC: 2000-01-01T00:00:00.000")
     assert result.timeline_current_prefix.label == "Current UTC:"
@@ -720,21 +729,21 @@ def test_transport_controls_dispatch_signed_rates_and_track_play_state(
     )
 
     result.update_transport_state(False, 1.0)
-    result.transport_buttons[1.0].SetValue(False)
-    result.transport_buttons[-1000.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
-    result.transport_buttons[100.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
-    result.transport_buttons[-1.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
-    result.transport_buttons[1.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
-    result.transport_buttons[-1.0].trigger(workspace.wx.EVT_LEFT_DCLICK)
-    result.transport_buttons[1.0].trigger(workspace.wx.EVT_LEFT_DCLICK)
+    result.transport_speed_buttons[1.0].SetValue(False)
+    result.transport_speed_buttons[-1000.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
+    result.transport_speed_buttons[100.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
+    result.transport_speed_buttons[-1.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
+    result.transport_speed_buttons[1.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
+    result.transport_speed_buttons[-1.0].trigger(workspace.wx.EVT_LEFT_DCLICK)
+    result.transport_speed_buttons[1.0].trigger(workspace.wx.EVT_LEFT_DCLICK)
     assert rates == [-1000.0, 100.0, -1.0, 1.0]
     assert sample_steps == [-1, 1]
-    assert result.transport_buttons[1.0].value
+    assert result.transport_speed_buttons[1.0].value
     result.transport_reverse_play_button.trigger(workspace.wx.EVT_BUTTON)
     assert reverse_plays == [True]
     result.update_transport_state(True, -100.0)
-    assert result.transport_buttons[-100.0].value
-    assert not result.transport_buttons[100.0].value
+    assert result.transport_speed_buttons[-100.0].value
+    assert not result.transport_speed_buttons[100.0].value
     assert result.transport_reverse_play_button.label == "Ⅱ"
     assert result.transport_reverse_play_button.name == "Pause reverse playback"
     assert result.transport_reverse_play_button.tooltip == "Pause reverse playback."
@@ -761,7 +770,7 @@ def test_graph_stack_scrollbars_are_forced_visible_only_when_content_overflows(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
-    stack = result.middle_stack
+    stack = result.main_analysis_stack
 
     stack.scroll_range = 32
     stack.scroll_thumb = 20
@@ -805,14 +814,14 @@ def test_graph_stack_scrollbars_are_forced_visible_only_when_content_overflows(
 
     result._comparison_toggle.SetValue(True)
     result._comparison_toggle.trigger(workspace.wx.EVT_TOGGLEBUTTON)
-    assert result.graph_splitter.is_split
+    assert result.graph_panes_splitter.is_split
     assert result._comparison_toggle.value
     result._pane_close_buttons["right"].trigger(workspace.wx.EVT_BUTTON)
-    assert not result.graph_splitter.is_split
+    assert not result.graph_panes_splitter.is_split
     assert not result._comparison_toggle.value
     result.show_right_pane(False)
-    assert not result.graph_splitter.is_split
-    assert result.graph_splitter.split_calls[-1][1] is result.right_pane
+    assert not result.graph_panes_splitter.is_split
+    assert result.graph_panes_splitter.split_calls[-1][1] is result.comparison_pane
     assert not result._comparison_toggle.value
 
 
@@ -861,36 +870,36 @@ def test_main_pane_sashes_resize_independently_and_restore_right_width(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     right_panels = [
-        FakeGraphPanel(result.right_stack, f"right-{index}") for index in range(2)
+        FakeGraphPanel(result.comparison_stack, f"right-{index}") for index in range(2)
     ]
     for panel in right_panels:
         result.add_graph_panel(panel, "right")
     right_stack_splitter = result._stack_splitters["right"][0]
     right_stack_splitter.SetSashPosition(330)
 
-    result.content_splitter.SetSashPosition(300)
-    assert result.content_splitter.GetSashPosition() == 300
+    result.main_splitter.SetSashPosition(300)
+    assert result.main_splitter.GetSashPosition() == 300
 
     result.show_right_pane(True)
     assert (
-        result.graph_splitter.GetClientSize().width
-        - result.graph_splitter.GetSashPosition()
-        - result.graph_splitter.GetSashSize()
+        result.graph_panes_splitter.GetClientSize().width
+        - result.graph_panes_splitter.GetSashPosition()
+        - result.graph_panes_splitter.GetSashSize()
         == workspace.DEFAULT_RIGHT_PANE_WIDTH
     )
 
-    result.graph_splitter.SetSashPosition(600)
+    result.graph_panes_splitter.SetSashPosition(600)
     result.show_right_pane(False)
     assert result._graph_panels["right"] == right_panels
     assert result._stack_splitters["right"][0] is right_stack_splitter
     assert right_stack_splitter.GetSashPosition() == 330
-    result.graph_splitter.client_width = 1100
+    result.graph_panes_splitter.client_width = 1100
     result.show_right_pane(True)
 
     restored_width = (
-        result.graph_splitter.GetClientSize().width
-        - result.graph_splitter.GetSashPosition()
-        - result.graph_splitter.GetSashSize()
+        result.graph_panes_splitter.GetClientSize().width
+        - result.graph_panes_splitter.GetSashPosition()
+        - result.graph_panes_splitter.GetSashSize()
     )
     assert restored_width == 396
     assert result._comparison_toggle.value
@@ -904,7 +913,7 @@ def test_graph_hosts_replace_empty_state_and_restore_it_when_removed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
-    host = FakeGraphPanel(result.middle_stack, "first")
+    host = FakeGraphPanel(result.main_analysis_stack, "first")
     empty_panel = result._empty_panels["middle"]
 
     result.add_graph_panel(host)
@@ -912,7 +921,7 @@ def test_graph_hosts_replace_empty_state_and_restore_it_when_removed(
     assert result._graph_panels["middle"] == [host]
     assert empty_panel.shown is False
     # A hidden empty state must leave both the native scroller and its sizer.
-    assert empty_panel.GetParent() is result.middle_stack.GetParent()
+    assert empty_panel.GetParent() is result.main_analysis_stack.GetParent()
     assert all(
         item[0] is not empty_panel for item in result._stack_sizers["middle"].items
     )
@@ -922,15 +931,15 @@ def test_graph_hosts_replace_empty_state_and_restore_it_when_removed(
     assert result._graph_panels["middle"] == []
     assert empty_panel.shown is True
     # Restore exactly one empty-state item when the last graph is removed.
-    assert empty_panel.GetParent() is result.middle_stack
+    assert empty_panel.GetParent() is result.main_analysis_stack
     assert [item[0] for item in result._stack_sizers["middle"].items] == [empty_panel]
     # Removed panels must also be parked while awaiting destruction or reuse.
-    assert host.GetParent() is result.middle_stack.GetParent()
+    assert host.GetParent() is result.main_analysis_stack.GetParent()
     # Reusing a parked panel must restore its scrolling parent and hide the
     # empty state again without leaving a hidden native scroll child.
     result.add_graph_panel(host)
-    assert host.GetParent() is result.middle_stack
-    assert empty_panel.GetParent() is result.middle_stack.GetParent()
+    assert host.GetParent() is result.main_analysis_stack
+    assert empty_panel.GetParent() is result.main_analysis_stack.GetParent()
     with pytest.raises(ValueError, match="unknown graph stack"):
         result.add_graph_panel(host, "invalid")
 
@@ -940,7 +949,8 @@ def test_dragging_graph_sash_resizes_panel_above_and_keeps_panels_below(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     panels = [
-        FakeGraphPanel(result.middle_stack, f"panel-{index}") for index in range(3)
+        FakeGraphPanel(result.main_analysis_stack, f"panel-{index}")
+        for index in range(3)
     ]
     for panel in panels:
         result.add_graph_panel(panel, "middle")
@@ -990,11 +1000,12 @@ def test_bottom_handle_grows_bottom_panel_and_scroll_extends_past_it(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     panels = [
-        FakeGraphPanel(result.middle_stack, f"panel-{index}") for index in range(2)
+        FakeGraphPanel(result.main_analysis_stack, f"panel-{index}")
+        for index in range(2)
     ]
     for panel in panels:
         result.add_graph_panel(panel, "middle")
-    stack = result.middle_stack
+    stack = result.main_analysis_stack
     handle = result._stack_handles["middle"]
     root = result._stack_roots["middle"]
 
@@ -1035,11 +1046,12 @@ def test_growing_bottom_panel_keeps_stack_scroll_position(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     panels = [
-        FakeGraphPanel(result.middle_stack, f"panel-{index}") for index in range(2)
+        FakeGraphPanel(result.main_analysis_stack, f"panel-{index}")
+        for index in range(2)
     ]
     for panel in panels:
         result.add_graph_panel(panel, "middle")
-    stack = result.middle_stack
+    stack = result.main_analysis_stack
     handle = result._stack_handles["middle"]
     stack.view_start = (0, 500)
 
@@ -1073,10 +1085,11 @@ def test_graph_stacks_use_styled_horizontal_splitters_and_collapse_on_close(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     middle_panels = [
-        FakeGraphPanel(result.middle_stack, f"middle-{index}") for index in range(3)
+        FakeGraphPanel(result.main_analysis_stack, f"middle-{index}")
+        for index in range(3)
     ]
     right_panels = [
-        FakeGraphPanel(result.right_stack, f"right-{index}") for index in range(2)
+        FakeGraphPanel(result.comparison_stack, f"right-{index}") for index in range(2)
     ]
 
     for panel in middle_panels:
@@ -1104,8 +1117,8 @@ def test_graph_stacks_use_styled_horizontal_splitters_and_collapse_on_close(
     assert result._stack_roots["middle"] is middle_panels[2]
     # Both the hidden pane and its retiring splitter must leave the scroller
     # before the collapsed stack triggers another native allocation.
-    assert middle_panels[0].GetParent() is result.middle_stack.GetParent()
-    assert middle_root.GetParent() is result.middle_stack.GetParent()
+    assert middle_panels[0].GetParent() is result.main_analysis_stack.GetParent()
+    assert middle_root.GetParent() is result.main_analysis_stack.GetParent()
     result.remove_graph_panel(middle_panels[2], "middle")
     assert result._stack_roots["middle"] is None
 
@@ -1115,7 +1128,8 @@ def test_many_graph_panels_keep_horizontal_sashes_and_minimum_sizes(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     panels = [
-        FakeGraphPanel(result.middle_stack, f"many-{index}") for index in range(5)
+        FakeGraphPanel(result.main_analysis_stack, f"many-{index}")
+        for index in range(5)
     ]
     for panel in panels:
         result.add_graph_panel(panel, "middle")
@@ -1138,7 +1152,8 @@ def test_moving_graph_panel_reorders_live_hosts_without_replacing_them(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     panels = [
-        FakeGraphPanel(result.middle_stack, f"panel-{index}") for index in range(3)
+        FakeGraphPanel(result.main_analysis_stack, f"panel-{index}")
+        for index in range(3)
     ]
     for panel in panels:
         result.add_graph_panel(panel)
@@ -1161,14 +1176,15 @@ def test_replacing_graph_panel_preserves_order_splitter_and_scroll_position(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     panels = [
-        FakeGraphPanel(result.middle_stack, f"panel-{index}") for index in range(3)
+        FakeGraphPanel(result.main_analysis_stack, f"panel-{index}")
+        for index in range(3)
     ]
     for panel in panels:
         result.add_graph_panel(panel)
-    result.middle_stack.view_start = (0, 7)
+    result.main_analysis_stack.view_start = (0, 7)
     parent_splitter = panels[1].GetParent()
     sash_position = parent_splitter.GetSashPosition()
-    replacement = FakeGraphPanel(result.middle_stack, "replacement")
+    replacement = FakeGraphPanel(result.main_analysis_stack, "replacement")
 
     result.replace_graph_panel(panels[1], replacement)
 
@@ -1183,24 +1199,24 @@ def test_replacing_graph_panel_preserves_order_splitter_and_scroll_position(
         parent_splitter.GetWindow2(),
     )
     assert parent_splitter.GetSashPosition() == sash_position
-    assert result.middle_stack.view_start == (0, 7)
+    assert result.main_analysis_stack.view_start == (0, 7)
 
 
 def test_replacing_only_graph_panel_updates_stack_root(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
-    original = FakeGraphPanel(result.middle_stack, "original")
-    replacement = FakeGraphPanel(result.middle_stack, "replacement")
+    original = FakeGraphPanel(result.main_analysis_stack, "original")
+    replacement = FakeGraphPanel(result.main_analysis_stack, "replacement")
     result.add_graph_panel(original)
-    result.middle_stack.view_start = (0, 3)
+    result.main_analysis_stack.view_start = (0, 3)
 
     result.replace_graph_panel(original, replacement)
 
     assert result._stack_roots["middle"] is replacement
     assert result._graph_panels["middle"] == [replacement]
-    assert replacement.GetParent() is result.middle_stack
-    assert result.middle_stack.view_start == (0, 3)
+    assert replacement.GetParent() is result.main_analysis_stack
+    assert result.main_analysis_stack.view_start == (0, 3)
 
 
 def test_workspace_serializes_and_coalesces_visible_graph_redraws(
@@ -1208,8 +1224,8 @@ def test_workspace_serializes_and_coalesces_visible_graph_redraws(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
 
-    first = FakeGraphPanel(result.middle_stack, "first")
-    second = FakeGraphPanel(result.middle_stack, "second")
+    first = FakeGraphPanel(result.main_analysis_stack, "first")
+    second = FakeGraphPanel(result.main_analysis_stack, "second")
     result.add_graph_panel(first)
     result.add_graph_panel(second)
     monkeypatch.setattr(result, "is_graph_panel_visible", lambda _panel: True)
@@ -1236,28 +1252,28 @@ def test_feature_rail_supports_click_and_vertical_keyboard_navigation(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
 
-    assert result.feature_title.label == "Controls & Info / Playback"
+    assert result.controls_title_label.label == "Controls & Info / Playback"
 
-    result.feature_buttons[1].trigger(workspace.wx.EVT_TOGGLEBUTTON)
+    result.feature_rail_buttons[1].trigger(workspace.wx.EVT_TOGGLEBUTTON)
 
     assert result.feature_book.selection == 1
-    assert result.feature_title.label == "Controls & Info / OEM file information"
-    assert result.feature_buttons[1].value
-    assert not result.feature_buttons[0].value
+    assert result.controls_title_label.label == "Controls & Info / OEM file information"
+    assert result.feature_rail_buttons[1].value
+    assert not result.feature_rail_buttons[0].value
 
     event = FakeEvent(key_code=workspace.wx.WXK_UP)
-    result.feature_buttons[1].trigger("key-down", event)
+    result.feature_rail_buttons[1].trigger("key-down", event)
 
     assert result.feature_book.selection == 0
-    assert result.feature_buttons[0].value
-    assert result.feature_buttons[0].focused
+    assert result.feature_rail_buttons[0].value
+    assert result.feature_rail_buttons[0].focused
     assert not event.skipped
 
     down_event = FakeEvent(key_code=workspace.wx.WXK_DOWN)
-    result.feature_buttons[0].trigger("key-down", down_event)
+    result.feature_rail_buttons[0].trigger("key-down", down_event)
     assert result.feature_book.selection == 1
-    assert result.feature_title.label == "Controls & Info / OEM file information"
-    assert result.feature_buttons[1].focused
+    assert result.controls_title_label.label == "Controls & Info / OEM file information"
+    assert result.feature_rail_buttons[1].focused
 
 
 def test_global_timeline_syncs_without_recursive_seek_and_dispatches_user_seek(

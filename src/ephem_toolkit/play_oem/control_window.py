@@ -73,60 +73,60 @@ class ControlWindow:
         self._on_set_speed = on_set_speed
         self._syncing_sliders = False
 
-        self.panel = wx.ScrolledWindow(
+        self.playback_scroller = wx.ScrolledWindow(
             parent, wx.ID_ANY, style=wx.VSCROLL | wx.TAB_TRAVERSAL
         )
-        self.panel.SetScrollRate(0, 10)
-        layout = wx.BoxSizer(wx.VERTICAL)
+        self.playback_scroller.SetScrollRate(0, 10)
+        controls_sizer = wx.BoxSizer(wx.VERTICAL)
 
-        self.state_panel = wx.ScrolledWindow(
+        self.state_scroller = wx.ScrolledWindow(
             state_parent if state_parent is not None else parent,
             wx.ID_ANY,
             style=wx.VSCROLL | wx.TAB_TRAVERSAL,
         )
-        self.state_panel.SetName("Current state readout")
-        self.state_panel.SetScrollRate(0, 10)
-        state_layout = wx.BoxSizer(wx.VERTICAL)
-        self.position_label = wx.StaticText(
-            self.state_panel,
+        self.state_scroller.SetName("Current state readout")
+        self.state_scroller.SetScrollRate(0, 10)
+        state_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.state_position_label = wx.StaticText(
+            self.state_scroller,
             wx.ID_ANY,
             "Position (km)\nX: unavailable\nY: unavailable\nZ: unavailable",
         )
-        self.position_label.SetName("Position components (kilometers)")
-        self.velocity_label = wx.StaticText(
-            self.state_panel,
+        self.state_position_label.SetName("Position components (kilometers)")
+        self.state_velocity_label = wx.StaticText(
+            self.state_scroller,
             wx.ID_ANY,
             "Velocity (km/s)\nVx: unavailable\nVy: unavailable\nVz: unavailable",
         )
-        self.velocity_label.SetName("Velocity components (kilometers per second)")
-        self.speed_altitude_label = wx.StaticText(
-            self.state_panel,
+        self.state_velocity_label.SetName("Velocity components (kilometers per second)")
+        self.state_derived_label = wx.StaticText(
+            self.state_scroller,
             wx.ID_ANY,
             "Derived values\nSpeed: unavailable km/s\nAltitude: unavailable km",
         )
-        self.speed_altitude_label.SetName("Derived speed and altitude")
-        self.cursor_status_label = wx.StaticText(
-            self.state_panel, wx.ID_ANY, "Cursor status: unavailable"
+        self.state_derived_label.SetName("Derived speed and altitude")
+        self.state_cursor_status_label = wx.StaticText(
+            self.state_scroller, wx.ID_ANY, "Cursor status: unavailable"
         )
-        self.cursor_status_label.SetName("Cursor data status")
+        self.state_cursor_status_label.SetName("Cursor data status")
         self._state_readout_labels = (
-            self.position_label,
-            self.velocity_label,
-            self.speed_altitude_label,
-            self.cursor_status_label,
+            self.state_position_label,
+            self.state_velocity_label,
+            self.state_derived_label,
+            self.state_cursor_status_label,
         )
         for label in self._state_readout_labels:
-            state_layout.Add(
+            state_sizer.Add(
                 label, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, LAYOUT_MARGIN
             )
-        self.state_panel.SetSizer(state_layout)
-        self.state_panel.Bind(wx.EVT_SIZE, self._on_state_panel_size)
+        self.state_scroller.SetSizer(state_sizer)
+        self.state_scroller.Bind(wx.EVT_SIZE, self._on_state_panel_size)
         self._fit_state_content()
 
-        self.elapsed_label = wx.StaticText(self.panel, wx.ID_ANY, "")
-        self.utc_label = wx.StaticText(self.panel, wx.ID_ANY, "")
-        for label in (self.elapsed_label, self.utc_label):
-            layout.Add(
+        self.elapsed_time_label = wx.StaticText(self.playback_scroller, wx.ID_ANY, "")
+        self.utc_time_label = wx.StaticText(self.playback_scroller, wx.ID_ANY, "")
+        for label in (self.elapsed_time_label, self.utc_time_label):
+            controls_sizer.Add(
                 label,
                 0,
                 wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
@@ -134,27 +134,35 @@ class ControlWindow:
             )
 
         playback_group = wx.BoxSizer(wx.VERTICAL)
-        self.playback_label = wx.StaticText(self.panel, wx.ID_ANY, "Playback")
+        self.playback_heading_label = wx.StaticText(
+            self.playback_scroller, wx.ID_ANY, "Playback"
+        )
         playback_group.Add(
-            self.playback_label,
+            self.playback_heading_label,
             0,
             wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
             LAYOUT_MARGIN,
         )
-        self.play_pause_button = wx.Button(self.panel, wx.ID_ANY, "Play")
+        self.play_pause_button = wx.Button(self.playback_scroller, wx.ID_ANY, "Play")
         self.play_pause_button.Bind(wx.EVT_BUTTON, lambda _event: on_toggle_play())
         playback_group.Add(
             self.play_pause_button, 0, wx.EXPAND | wx.BOTTOM, CONTROL_SPACING
         )
 
-        self.direction_button = wx.ToggleButton(self.panel, wx.ID_ANY, "Reverse")
-        self.direction_button.Bind(wx.EVT_TOGGLEBUTTON, lambda _event: on_reverse())
-        playback_group.Add(
-            self.direction_button, 0, wx.EXPAND | wx.BOTTOM, CONTROL_SPACING
+        self.reverse_toggle_button = wx.ToggleButton(
+            self.playback_scroller, wx.ID_ANY, "Reverse"
         )
-        self.speed_label = wx.StaticText(self.panel, wx.ID_ANY, "Speed: +1x")
+        self.reverse_toggle_button.Bind(
+            wx.EVT_TOGGLEBUTTON, lambda _event: on_reverse()
+        )
         playback_group.Add(
-            self.speed_label,
+            self.reverse_toggle_button, 0, wx.EXPAND | wx.BOTTOM, CONTROL_SPACING
+        )
+        self.speed_readout_label = wx.StaticText(
+            self.playback_scroller, wx.ID_ANY, "Speed: +1x"
+        )
+        playback_group.Add(
+            self.speed_readout_label,
             0,
             wx.EXPAND | wx.BOTTOM,
             BUTTON_SPACING,
@@ -165,7 +173,7 @@ class ControlWindow:
             f"(log scale, {SPEED_MIN:g}x to {SPEED_MAX:g}x)"
         )
         self.speed_scale_label = wx.StaticText(
-            self.panel, wx.ID_ANY, self._speed_scale_label_text
+            self.playback_scroller, wx.ID_ANY, self._speed_scale_label_text
         )
         playback_group.Add(
             self.speed_scale_label,
@@ -174,7 +182,7 @@ class ControlWindow:
             LAYOUT_MARGIN,
         )
         self.speed_slider = wx.Slider(
-            self.panel,
+            self.playback_scroller,
             wx.ID_ANY,
             0,
             0,
@@ -193,10 +201,10 @@ class ControlWindow:
             wx.EXPAND | wx.LEFT | wx.RIGHT,
             LAYOUT_MARGIN,
         )
-        layout.Add(playback_group, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
+        controls_sizer.Add(playback_group, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
 
         navigation_group = wx.BoxSizer(wx.VERTICAL)
-        navigation_row = wx.BoxSizer(wx.VERTICAL)
+        navigation_sizer = wx.BoxSizer(wx.VERTICAL)
         navigation_actions: tuple[tuple[str, Callable[[], None]], ...] = (
             ("Start", on_jump_to_start),
             ("Previous sample", lambda: on_step_samples(-1)),
@@ -207,23 +215,29 @@ class ControlWindow:
         )
         self.navigation_buttons: list[wx.Button] = []
         for label, callback in navigation_actions:
-            button = wx.Button(self.panel, wx.ID_ANY, label)
-            button.Bind(wx.EVT_BUTTON, lambda _event, action=callback: action())
-            navigation_row.Add(button, 0, wx.EXPAND | wx.BOTTOM, BUTTON_SPACING)
-            self.navigation_buttons.append(button)
-        self.navigation_label = wx.StaticText(self.panel, wx.ID_ANY, "Time navigation")
+            navigation_button = wx.Button(self.playback_scroller, wx.ID_ANY, label)
+            navigation_button.Bind(
+                wx.EVT_BUTTON, lambda _event, action=callback: action()
+            )
+            navigation_sizer.Add(
+                navigation_button, 0, wx.EXPAND | wx.BOTTOM, BUTTON_SPACING
+            )
+            self.navigation_buttons.append(navigation_button)
+        self.navigation_heading_label = wx.StaticText(
+            self.playback_scroller, wx.ID_ANY, "Time navigation"
+        )
         navigation_group.Add(
-            self.navigation_label,
+            self.navigation_heading_label,
             0,
             wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
             LAYOUT_MARGIN,
         )
-        navigation_group.Add(navigation_row, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
-        layout.Add(navigation_group, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
+        navigation_group.Add(navigation_sizer, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
+        controls_sizer.Add(navigation_group, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
 
         focusable_controls = (
             self.play_pause_button,
-            self.direction_button,
+            self.reverse_toggle_button,
             *self.navigation_buttons,
             self.speed_slider,
         )
@@ -235,9 +249,9 @@ class ControlWindow:
                 ),
             )
 
-        self.panel.SetSizer(layout)
-        self.panel.FitInside()
-        self.panel.Bind(wx.EVT_SIZE, self._on_panel_size)
+        self.playback_scroller.SetSizer(controls_sizer)
+        self.playback_scroller.FitInside()
+        self.playback_scroller.Bind(wx.EVT_SIZE, self._on_panel_size)
         self._bind_accelerators(
             self._accelerator_parent,
             on_toggle_play,
@@ -255,39 +269,39 @@ class ControlWindow:
 
     def _fit_playback_content(self) -> None:
         for _ in range(2):
-            self.panel.FitInside()
+            self.playback_scroller.FitInside()
             self._wrap_text_labels()
-            self.panel.Layout()
-        self.panel.FitInside()
+            self.playback_scroller.Layout()
+        self.playback_scroller.FitInside()
 
     def _wrap_text_labels(self) -> None:
-        content_width = self.panel.GetClientSize().width - 2 * LAYOUT_MARGIN
+        content_width = self.playback_scroller.GetClientSize().width - 2 * LAYOUT_MARGIN
         if content_width <= 0:
             return
         for label in (
-            self.elapsed_label,
-            self.utc_label,
-            self.playback_label,
+            self.elapsed_time_label,
+            self.utc_time_label,
+            self.playback_heading_label,
             self.speed_scale_label,
-            self.navigation_label,
+            self.navigation_heading_label,
         ):
             label.Wrap(content_width)
 
     def _scroll_control_into_view(
         self, control: wx.Window, event: wx.FocusEvent
     ) -> None:
-        _, view_start_y = self.panel.GetViewStart()
-        _, scroll_unit_y = self.panel.GetScrollPixelsPerUnit()
+        _, view_start_y = self.playback_scroller.GetViewStart()
+        _, scroll_unit_y = self.playback_scroller.GetScrollPixelsPerUnit()
         if scroll_unit_y > 0:
-            viewport_height = self.panel.GetClientSize().height
+            viewport_height = self.playback_scroller.GetClientSize().height
             control_top = control.GetPosition().y
             control_bottom = control_top + control.GetSize().height
             if control_top < 0:
                 scroll_top = view_start_y * scroll_unit_y + control_top
-                self.panel.Scroll(0, max(0, scroll_top // scroll_unit_y))
+                self.playback_scroller.Scroll(0, max(0, scroll_top // scroll_unit_y))
             elif control_bottom > viewport_height:
                 scroll_top = control_bottom - viewport_height
-                self.panel.Scroll(
+                self.playback_scroller.Scroll(
                     0, view_start_y + (scroll_top + scroll_unit_y - 1) // scroll_unit_y
                 )
         event.Skip()
@@ -306,7 +320,7 @@ class ControlWindow:
         """
         self.update_time(text)
         self.play_pause_button.SetLabel("Pause" if playing else "Play")
-        self.speed_label.SetLabel(f"Speed: {rate:+g}x")
+        self.speed_readout_label.SetLabel(f"Speed: {rate:+g}x")
         speed_scale_text = (
             f"Speed slider: {rate:+g}x "
             f"(log scale, {SPEED_MIN:g}x to {SPEED_MAX:g}x)"
@@ -315,8 +329,8 @@ class ControlWindow:
             self._speed_scale_label_text = speed_scale_text
             self.speed_scale_label.SetLabel(speed_scale_text)
             self._fit_playback_content()
-        self.direction_button.SetLabel("Reverse" if rate > 0.0 else "Forward")
-        self.direction_button.SetValue(rate < 0.0)
+        self.reverse_toggle_button.SetLabel("Reverse" if rate > 0.0 else "Forward")
+        self.reverse_toggle_button.SetValue(rate < 0.0)
 
         playback_speed = min(max(abs(rate), SPEED_MIN), SPEED_MAX)
         speed_value = round(math.log10(playback_speed) * SPEED_SLIDER_STEPS_PER_DECADE)
@@ -336,22 +350,22 @@ class ControlWindow:
         """
         elapsed_text, separator, utc_text = text.partition("\n")
         # These read-only labels can style fractions without changing their values.
-        set_small_fraction_label(self.elapsed_label, elapsed_text)
+        set_small_fraction_label(self.elapsed_time_label, elapsed_text)
         timestamp_separator = utc_text.rfind("T")
         if timestamp_separator > utc_text.find(":"):
             utc_text = (
                 f"{utc_text[:timestamp_separator + 1]}\n"
                 f"{utc_text[timestamp_separator + 1:]}"
             )
-        set_timestamp_label(self.utc_label, utc_text if separator else "")
+        set_timestamp_label(self.utc_time_label, utc_text if separator else "")
         self._wrap_text_labels()
 
     def update_current_state(self, state: CursorState) -> None:
         """Display the state at the current playback time, including unavailable data."""
-        self.position_label.SetLabel(
+        self.state_position_label.SetLabel(
             self._format_components("Position (km)", ("X", "Y", "Z"), state.r_km, 3)
         )
-        self.velocity_label.SetLabel(
+        self.state_velocity_label.SetLabel(
             self._format_components(
                 "Velocity (km/s)", ("Vx", "Vy", "Vz"), state.v_kms, 6
             )
@@ -360,7 +374,7 @@ class ControlWindow:
         altitude = (
             "unavailable" if state.altitude is None else f"{state.altitude:.3f} km"
         )
-        self.speed_altitude_label.SetLabel(
+        self.state_derived_label.SetLabel(
             f"Derived values\nSpeed:\n{speed}\nAltitude:\n{altitude}"
         )
         status = {
@@ -370,7 +384,7 @@ class ControlWindow:
             CursorStatus.UNAVAILABLE: "unavailable",
             CursorStatus.GAP: "data gap; no state available",
         }[state.status]
-        self.cursor_status_label.SetLabel(f"Cursor status: {status}")
+        self.state_cursor_status_label.SetLabel(f"Cursor status: {status}")
         self._fit_state_content()
 
     @staticmethod
@@ -396,14 +410,16 @@ class ControlWindow:
 
     def _fit_state_content(self) -> None:
         for _ in range(2):
-            self.state_panel.FitInside()
-            content_width = self.state_panel.GetClientSize().width - 2 * LAYOUT_MARGIN
+            self.state_scroller.FitInside()
+            content_width = (
+                self.state_scroller.GetClientSize().width - 2 * LAYOUT_MARGIN
+            )
             if content_width <= 0:
                 return
             for label in self._state_readout_labels:
                 label.Wrap(content_width)
-            self.state_panel.Layout()
-        self.state_panel.FitInside()
+            self.state_scroller.Layout()
+        self.state_scroller.FitInside()
 
     def _on_speed_slider(self, event: wx.CommandEvent) -> None:
         if self._syncing_sliders:

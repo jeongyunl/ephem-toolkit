@@ -110,52 +110,54 @@ class Workspace:
         self._view_choices = view_choices
         self._on_add_graph = on_add_graph
 
-        root = wx.BoxSizer(wx.VERTICAL)
-        self.content_splitter = wx.SplitterWindow(
+        main_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.main_splitter = wx.SplitterWindow(
             frame, wx.ID_ANY, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH
         )
-        self.left_pane = wx.Panel(self.content_splitter, wx.ID_ANY)
-        self.left_pane.SetName(CONTROLS_PANE_NAME)
-        self.graph_splitter = wx.SplitterWindow(
-            self.content_splitter,
+        self.controls_pane = wx.Panel(self.main_splitter, wx.ID_ANY)
+        self.controls_pane.SetName(CONTROLS_PANE_NAME)
+        self.graph_panes_splitter = wx.SplitterWindow(
+            self.main_splitter,
             wx.ID_ANY,
             style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH,
         )
-        self.middle_pane, self.middle_stack = self._make_graph_pane(
-            self.graph_splitter, "middle", MAIN_ANALYSIS_PANE_NAME
+        self.main_analysis_pane, self.main_analysis_stack = self._make_graph_pane(
+            self.graph_panes_splitter, "middle", MAIN_ANALYSIS_PANE_NAME
         )
-        self.right_pane, self.right_stack = self._make_graph_pane(
-            self.graph_splitter, "right", COMPARISON_PANE_NAME
+        self.comparison_pane, self.comparison_stack = self._make_graph_pane(
+            self.graph_panes_splitter, "right", COMPARISON_PANE_NAME
         )
-        self.graph_splitter.SetMinimumPaneSize(MIN_GRAPH_PANE_WIDTH)
-        self.graph_splitter.SetSashGravity(1.0)
-        self.graph_splitter.SplitVertically(
-            self.middle_pane, self.right_pane, MIN_GRAPH_PANE_WIDTH
+        self.graph_panes_splitter.SetMinimumPaneSize(MIN_GRAPH_PANE_WIDTH)
+        self.graph_panes_splitter.SetSashGravity(1.0)
+        self.graph_panes_splitter.SplitVertically(
+            self.main_analysis_pane, self.comparison_pane, MIN_GRAPH_PANE_WIDTH
         )
-        self.graph_splitter.Unsplit(self.right_pane)
-        self.content_splitter.SetMinimumPaneSize(240)
-        self.content_splitter.SetSashGravity(0.0)
+        self.graph_panes_splitter.Unsplit(self.comparison_pane)
+        self.main_splitter.SetMinimumPaneSize(240)
+        self.main_splitter.SetSashGravity(0.0)
         self._right_pane_visible = False
 
         self._build_feature_navigation(context or {}, details)
-        self.content_splitter.SplitVertically(self.left_pane, self.graph_splitter, 240)
+        self.main_splitter.SplitVertically(
+            self.controls_pane, self.graph_panes_splitter, 240
+        )
 
         self.timeline_panel = wx.Panel(frame, wx.ID_ANY)
-        timeline_layout = wx.BoxSizer(wx.VERTICAL)
-        timeline_layout.Add(
+        timeline_sizer = wx.BoxSizer(wx.VERTICAL)
+        timeline_sizer.Add(
             wx.StaticText(self.timeline_panel, wx.ID_ANY, "Timeline"),
             0,
             wx.LEFT | wx.RIGHT | wx.TOP,
             12,
         )
-        time_labels = wx.BoxSizer(wx.HORIZONTAL)
+        time_label_sizer = wx.BoxSizer(wx.HORIZONTAL)
         # Shrink only displayed fractions; retain the full ISO-8601 timestamp.
         self.timeline_start_label = wx.StaticText(self.timeline_panel, wx.ID_ANY, "")
         set_timestamp_label(
             self.timeline_start_label, f"Start UTC: {timeline_start_utc}"
         )
         self.timeline_start_label.SetName("Timeline start time (UTC)")
-        current_time_row = wx.BoxSizer(wx.HORIZONTAL)
+        current_time_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.timeline_current_prefix = wx.StaticText(
             self.timeline_panel, wx.ID_ANY, "Current UTC:"
         )
@@ -176,35 +178,35 @@ class Workspace:
             )
         self.time_error_label = wx.StaticText(self.timeline_panel, wx.ID_ANY, "")
         self.time_error_label.SetForegroundColour(wx.Colour(190, 35, 35))
-        current_time_row.Add(
+        current_time_sizer.Add(
             self.timeline_current_prefix,
             0,
             wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
             4,
         )
-        current_time_row.Add(
+        current_time_sizer.Add(
             self.timeline_time_entry, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4
         )
-        current_time_row.Add(self.time_error_label, 1, wx.ALIGN_CENTER_VERTICAL)
+        current_time_sizer.Add(self.time_error_label, 1, wx.ALIGN_CENTER_VERTICAL)
         self.timeline_end_label = wx.StaticText(self.timeline_panel, wx.ID_ANY, "")
         set_timestamp_label(self.timeline_end_label, f"End UTC: {timeline_end_utc}")
         self.timeline_end_label.SetName("Timeline end time (UTC)")
-        time_labels.Add(
+        time_label_sizer.Add(
             self.timeline_start_label,
             0,
             wx.ALIGN_CENTER_VERTICAL,
         )
-        time_labels.Add((0, 0), 1, wx.EXPAND)
-        time_labels.Add(current_time_row, 0, wx.ALIGN_CENTER_VERTICAL)
-        time_labels.Add((0, 0), 1, wx.EXPAND)
-        time_labels.Add(
+        time_label_sizer.Add((0, 0), 1, wx.EXPAND)
+        time_label_sizer.Add(current_time_sizer, 0, wx.ALIGN_CENTER_VERTICAL)
+        time_label_sizer.Add((0, 0), 1, wx.EXPAND)
+        time_label_sizer.Add(
             self.timeline_end_label,
             0,
             wx.ALIGN_CENTER_VERTICAL,
         )
-        timeline_layout.Add(time_labels, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
-        transport_row = wx.BoxSizer(wx.HORIZONTAL)
-        self.transport_buttons: dict[float, wx.ToggleButton] = {}
+        timeline_sizer.Add(time_label_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
+        transport_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.transport_speed_buttons: dict[float, wx.ToggleButton] = {}
         self._transport_button_labels: dict[float, str] = {}
         for rate, glyph, direction in (
             (-1000.0, "<<< 1000×", "reverse"),
@@ -212,16 +214,16 @@ class Workspace:
             (-10.0, "< 10×", "reverse"),
             (-1.0, "< 1×", "reverse"),
         ):
-            button = self._make_transport_button(
+            speed_button = self._make_transport_button(
                 rate,
                 glyph,
                 direction,
                 on_set_transport_rate,
                 on_step_samples,
             )
-            self.transport_buttons[rate] = button
+            self.transport_speed_buttons[rate] = speed_button
             self._transport_button_labels[rate] = glyph
-            transport_row.Add(button, 0, wx.RIGHT, 4)
+            transport_sizer.Add(speed_button, 0, wx.RIGHT, 4)
 
         self.transport_reverse_play_button = wx.Button(
             self.timeline_panel, wx.ID_ANY, "◀"
@@ -244,7 +246,7 @@ class Workspace:
                     else on_play_reverse()
                 ),
             )
-        transport_row.Add(self.transport_reverse_play_button, 0, wx.RIGHT, 2)
+        transport_sizer.Add(self.transport_reverse_play_button, 0, wx.RIGHT, 2)
         self.transport_forward_play_button = wx.Button(
             self.timeline_panel, wx.ID_ANY, "▶"
         )
@@ -266,12 +268,12 @@ class Workspace:
                     else on_play_forward()
                 ),
             )
-        transport_row.Add(self.transport_forward_play_button, 0, wx.RIGHT, 2)
+        transport_sizer.Add(self.transport_forward_play_button, 0, wx.RIGHT, 2)
         # A non-text focus target: macOS buttons refuse keyboard focus unless
         # Full Keyboard Access is on, which leaves the text field's focus ring.
         self._focus_sink = wx.Panel(self.timeline_panel, wx.ID_ANY, size=(1, 1))
         self._focus_sink.SetCanFocus(True)
-        transport_row.Add(self._focus_sink, 0, wx.RIGHT, 2)
+        transport_sizer.Add(self._focus_sink, 0, wx.RIGHT, 2)
 
         for rate, glyph, direction in (
             (1.0, "1× >", "forward"),
@@ -279,17 +281,17 @@ class Workspace:
             (100.0, "100× >>", "forward"),
             (1000.0, "1000× >>>", "forward"),
         ):
-            button = self._make_transport_button(
+            speed_button = self._make_transport_button(
                 rate,
                 glyph,
                 direction,
                 on_set_transport_rate,
                 on_step_samples,
             )
-            self.transport_buttons[rate] = button
+            self.transport_speed_buttons[rate] = speed_button
             self._transport_button_labels[rate] = glyph
-            transport_row.Add(button, 0, wx.RIGHT, 4)
-        timeline_layout.Add(transport_row, 0, wx.ALIGN_CENTER | wx.TOP, 4)
+            transport_sizer.Add(speed_button, 0, wx.RIGHT, 4)
+        timeline_sizer.Add(transport_sizer, 0, wx.ALIGN_CENTER | wx.TOP, 4)
         self.timeline_slider = wx.Slider(
             self.timeline_panel,
             wx.ID_ANY,
@@ -311,14 +313,14 @@ class Workspace:
             # automatic hover timer can place it at the slider edge.
             self._timeline_tooltip.SetStartDelay(1)
             self.timeline_slider.Bind(wx.EVT_MOTION, self._on_timeline_motion)
-        timeline_layout.Add(
+        timeline_sizer.Add(
             self.timeline_slider, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12
         )
-        self.timeline_panel.SetSizer(timeline_layout)
+        self.timeline_panel.SetSizer(timeline_sizer)
 
-        root.Add(self.content_splitter, 1, wx.EXPAND)
-        root.Add(self.timeline_panel, 0, wx.EXPAND)
-        frame.SetSizer(root)
+        main_sizer.Add(self.main_splitter, 1, wx.EXPAND)
+        main_sizer.Add(self.timeline_panel, 0, wx.EXPAND)
+        frame.SetSizer(main_sizer)
         self._transport_playing = False
         self._transport_rate = 1.0
         self._last_transport_state: tuple[bool, float] | None = None
@@ -331,40 +333,40 @@ class Workspace:
         on_set_transport_rate: Callable[[float], None] | None,
         on_step_samples: Callable[[int], None] | None,
     ) -> wx.ToggleButton:
-        button = wx.ToggleButton(
+        speed_button = wx.ToggleButton(
             self.timeline_panel,
             wx.ID_ANY,
             glyph,
             style=wx.BU_EXACTFIT,
         )
-        button.SetMinSize(wx.Size(button.GetBestSize().width + 4, -1))
+        speed_button.SetMinSize(wx.Size(speed_button.GetBestSize().width + 4, -1))
         magnitude = abs(rate)
-        button.SetName(f"Set {direction} playback speed to {magnitude:g}x")
+        speed_button.SetName(f"Set {direction} playback speed to {magnitude:g}x")
         if magnitude == 1.0:
             message = f"Set {direction} speed to 1x."
         else:
             message = f"Increase {direction} speed by {magnitude:g}x."
-        set_tooltip(button, message)
+        set_tooltip(speed_button, message)
         if on_set_transport_rate is not None:
 
             def set_transport_rate(
-                _event, selected_rate: float = rate, speed_button=button
+                _event, selected_rate: float = rate, speed_button=speed_button
             ) -> None:
                 on_set_transport_rate(selected_rate)
                 if abs(selected_rate) == 1.0:
                     # Re-selecting the current rate may skip the normal state refresh.
                     speed_button.SetValue(True)
 
-            button.Bind(
+            speed_button.Bind(
                 wx.EVT_TOGGLEBUTTON,
                 set_transport_rate,
             )
         if abs(rate) == 1.0 and on_step_samples is not None:
-            button.Bind(
+            speed_button.Bind(
                 wx.EVT_LEFT_DCLICK,
                 lambda _event, count=-1 if rate < 0.0 else 1: on_step_samples(count),
             )
-        return button
+        return speed_button
 
     def update_transport_state(self, playing: bool, rate: float) -> None:
         """Synchronize direction play/pause controls and speed presets with the clock."""
@@ -377,7 +379,7 @@ class Workspace:
         self._transport_playing = playing
         self._transport_rate = rate
         speed = abs(rate)
-        for selected_rate, button in self.transport_buttons.items():
+        for selected_rate, button in self.transport_speed_buttons.items():
             step = abs(selected_rate)
             if step == 1.0:
                 # The 1× controls select one exact rate, not a speed range.
@@ -428,15 +430,15 @@ class Workspace:
 
     def set_playback_content(self, panel: wx.Window) -> None:
         """Place the playback controls in the Playback feature page."""
-        layout = wx.BoxSizer(wx.VERTICAL)
-        layout.Add(panel, 1, wx.EXPAND)
-        self.playback_page.SetSizer(layout)
+        page_sizer = wx.BoxSizer(wx.VERTICAL)
+        page_sizer.Add(panel, 1, wx.EXPAND)
+        self.playback_page.SetSizer(page_sizer)
 
     def set_state_content(self, panel: wx.Window) -> None:
         """Place cursor state readouts in the State feature page."""
-        layout = wx.BoxSizer(wx.VERTICAL)
-        layout.Add(panel, 1, wx.EXPAND)
-        self.state_page.SetSizer(layout)
+        page_sizer = wx.BoxSizer(wx.VERTICAL)
+        page_sizer.Add(panel, 1, wx.EXPAND)
+        self.state_page.SetSizer(page_sizer)
 
     def update_timeline(
         self, progress: float, current_utc: str, *, playing: bool = False
@@ -468,8 +470,8 @@ class Workspace:
         if visible == self._right_pane_visible:
             return
         if visible:
-            client_width = self.graph_splitter.GetClientSize().width
-            sash_size = self.graph_splitter.GetSashSize()
+            client_width = self.graph_panes_splitter.GetClientSize().width
+            sash_size = self.graph_panes_splitter.GetSashSize()
             if client_width > 0:
                 max_right_width = max(
                     MIN_GRAPH_PANE_WIDTH,
@@ -479,23 +481,23 @@ class Workspace:
                 sash_position = client_width - right_width - sash_size
             else:
                 sash_position = MIN_GRAPH_PANE_WIDTH
-            self.graph_splitter.SplitVertically(
-                self.middle_pane, self.right_pane, sash_position
+            self.graph_panes_splitter.SplitVertically(
+                self.main_analysis_pane, self.comparison_pane, sash_position
             )
         else:
-            client_width = self.graph_splitter.GetClientSize().width
+            client_width = self.graph_panes_splitter.GetClientSize().width
             if client_width > 0:
                 self._right_pane_width = max(
                     MIN_GRAPH_PANE_WIDTH,
                     client_width
-                    - self.graph_splitter.GetSashPosition()
-                    - self.graph_splitter.GetSashSize(),
+                    - self.graph_panes_splitter.GetSashPosition()
+                    - self.graph_panes_splitter.GetSashSize(),
                 )
-            self.graph_splitter.Unsplit(self.right_pane)
+            self.graph_panes_splitter.Unsplit(self.comparison_pane)
         self._right_pane_visible = visible
         if self._comparison_toggle is not None:
             self._comparison_toggle.SetValue(visible)
-        self.graph_splitter.Layout()
+        self.graph_panes_splitter.Layout()
         if visible:
             self._request_stack_redraws("right")
 
@@ -516,28 +518,28 @@ class Workspace:
             sizer.Add(root, 1, wx.EXPAND)
         else:
             root_min_height = root.GetMinSize().height
-            splitter = wx.SplitterWindow(
+            new_splitter = wx.SplitterWindow(
                 window, wx.ID_ANY, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH
             )
-            splitter.SetMinimumPaneSize(SASH_DRAG_MIN_PANE)
-            splitter.SetSashGravity(0.5)
+            new_splitter.SetMinimumPaneSize(SASH_DRAG_MIN_PANE)
+            new_splitter.SetSashGravity(0.5)
             sizer.Detach(root)
-            root.Reparent(splitter)
-            panel.Reparent(splitter)
-            if not splitter.SplitHorizontally(root, panel, root_min_height):
+            root.Reparent(new_splitter)
+            panel.Reparent(new_splitter)
+            if not new_splitter.SplitHorizontally(root, panel, root_min_height):
                 root.Reparent(window)
                 panel.Reparent(window)
-                splitter.Destroy()
+                new_splitter.Destroy()
                 sizer.Add(root, 1, wx.EXPAND)
                 raise RuntimeError(f"could not split graph stack {stack!r}")
-            splitter.Bind(
+            new_splitter.Bind(
                 wx.EVT_SPLITTER_SASH_POS_CHANGING,
-                lambda event, stack=stack, splitter=splitter: (
-                    self._on_graph_sash_changing(stack, splitter, event)
+                lambda event, stack=stack, new_splitter=new_splitter: (
+                    self._on_graph_sash_changing(stack, new_splitter, event)
                 ),
             )
-            self._stack_splitters[stack].append(splitter)
-            root = splitter
+            self._stack_splitters[stack].append(new_splitter)
+            root = new_splitter
             sizer.Add(root, 1, wx.EXPAND)
 
         self._graph_panels[stack].append(panel)
@@ -679,10 +681,10 @@ class Workspace:
         )
         if stack_window is None:
             return False
-        viewport = wx.Rect(
+        visible_rect = wx.Rect(
             stack_window.ClientToScreen((0, 0)), stack_window.GetClientSize()
         )
-        return panel.GetScreenRect().Intersects(viewport)
+        return panel.GetScreenRect().Intersects(visible_rect)
 
     def _remove_panel_from_stack_tree(self, stack: str, panel: GraphPanelHost) -> None:
         root = self._stack_roots[stack]
@@ -703,10 +705,10 @@ class Workspace:
     def _remove_panel_from_splitter(
         self, stack: str, splitter: wx.SplitterWindow, panel: GraphPanelHost
     ) -> bool:
-        first = splitter.GetWindow1()
-        second = splitter.GetWindow2()
-        if first is panel or second is panel:
-            sibling = second if first is panel else first
+        first_pane = splitter.GetWindow1()
+        second_pane = splitter.GetWindow2()
+        if first_pane is panel or second_pane is panel:
+            sibling = second_pane if first_pane is panel else first_pane
             stack_window = self._stack_windows[stack]
             splitter.Unsplit(panel)
             # Unsplit hides the removed pane. Park it outside the scroller
@@ -746,12 +748,12 @@ class Workspace:
             self._stack_splitters[stack].remove(splitter)
             return True
 
-        if isinstance(first, wx.SplitterWindow) and self._remove_panel_from_splitter(
-            stack, first, panel
+        if isinstance(first_pane, wx.SplitterWindow) and (
+            self._remove_panel_from_splitter(stack, first_pane, panel)
         ):
             return True
-        if isinstance(second, wx.SplitterWindow) and self._remove_panel_from_splitter(
-            stack, second, panel
+        if isinstance(second_pane, wx.SplitterWindow) and (
+            self._remove_panel_from_splitter(stack, second_pane, panel)
         ):
             return True
         return False
@@ -937,70 +939,74 @@ class Workspace:
 
     def select_feature(self, index: int) -> None:
         """Select a feature page and keep the rail's toggle state synchronized."""
-        if not 0 <= index < len(self.feature_buttons):
+        if not 0 <= index < len(self.feature_rail_buttons):
             return
         self._selected_feature = index
         self.feature_book.ChangeSelection(index)
-        self.feature_title.SetLabel(
+        self.controls_title_label.SetLabel(
             f"{CONTROLS_PANE_NAME} / {self._FEATURES[index][0]}"
         )
         self._wrap_feature_title()
-        for button_index, button in enumerate(self.feature_buttons):
+        for button_index, button in enumerate(self.feature_rail_buttons):
             button.SetValue(button_index == index)
 
     def _on_left_pane_size(self, event: wx.SizeEvent) -> None:
         self._wrap_feature_title()
-        self.left_pane.Layout()
+        self.controls_pane.Layout()
         event.Skip()
 
     def _wrap_feature_title(self) -> None:
-        content_width = self.left_pane.GetClientSize().width - 16
+        content_width = self.controls_pane.GetClientSize().width - 16
         if content_width > 0:
-            self.feature_title.Wrap(content_width)
+            self.controls_title_label.Wrap(content_width)
 
     def _build_feature_navigation(
         self, context: Mapping[str, str], details: Sequence[tuple[str, str]]
     ) -> None:
-        left_layout = wx.BoxSizer(wx.VERTICAL)
-        self.feature_title = wx.StaticText(
-            self.left_pane,
+        feature_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.controls_title_label = wx.StaticText(
+            self.controls_pane,
             wx.ID_ANY,
             f"{CONTROLS_PANE_NAME} / {self._FEATURES[0][0]}",
         )
-        self.feature_title.SetName(CONTROLS_PANE_NAME)
-        left_layout.Add(
-            self.feature_title, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8
+        self.controls_title_label.SetName(CONTROLS_PANE_NAME)
+        feature_sizer.Add(
+            self.controls_title_label, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8
         )
-        self.left_pane.Bind(wx.EVT_SIZE, self._on_left_pane_size)
-        content_layout = wx.BoxSizer(wx.HORIZONTAL)
-        rail = wx.BoxSizer(wx.VERTICAL)
-        self.feature_book = wx.Simplebook(self.left_pane, wx.ID_ANY)
+        self.controls_pane.Bind(wx.EVT_SIZE, self._on_left_pane_size)
+        feature_content_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        feature_button_rail = wx.BoxSizer(wx.VERTICAL)
+        self.feature_book = wx.Simplebook(self.controls_pane, wx.ID_ANY)
         self.feature_pages: list[wx.Panel] = []
-        self.feature_buttons: list[wx.BitmapToggleButton] = []
+        self.feature_rail_buttons: list[wx.BitmapToggleButton] = []
 
         for index, (name, art_id) in enumerate(self._FEATURES):
-            page = wx.Panel(self.feature_book, wx.ID_ANY)
-            page.SetName(name)
-            self.feature_book.AddPage(page, name)
-            self.feature_pages.append(page)
-            bitmap = wx.ArtProvider.GetBitmap(art_id, wx.ART_BUTTON, wx.Size(24, 24))
-            button = wx.BitmapToggleButton(self.left_pane, wx.ID_ANY, bitmap)
-            button.SetName(name)
-            set_tooltip(button, name)
-            button.SetMinSize((36, 36))
-            button.SetValue(index == 0)
-            button.Bind(
+            feature_page = wx.Panel(self.feature_book, wx.ID_ANY)
+            feature_page.SetName(name)
+            self.feature_book.AddPage(feature_page, name)
+            self.feature_pages.append(feature_page)
+            feature_icon = wx.ArtProvider.GetBitmap(
+                art_id, wx.ART_BUTTON, wx.Size(24, 24)
+            )
+            feature_button = wx.BitmapToggleButton(
+                self.controls_pane, wx.ID_ANY, feature_icon
+            )
+            feature_button.SetName(name)
+            set_tooltip(feature_button, name)
+            feature_button.SetMinSize((36, 36))
+            feature_button.SetValue(index == 0)
+            feature_button.Bind(
                 wx.EVT_TOGGLEBUTTON,
                 lambda _event, selected=index: self.select_feature(selected),
             )
-            button.Bind(wx.EVT_KEY_DOWN, self._on_feature_key_down)
-            rail.Add(button, 0, wx.EXPAND | wx.ALL, 2)
-            self.feature_buttons.append(button)
+            feature_button.Bind(wx.EVT_KEY_DOWN, self._on_feature_key_down)
+            feature_button_rail.Add(feature_button, 0, wx.EXPAND | wx.ALL, 2)
+            self.feature_rail_buttons.append(feature_button)
 
         self.playback_page = self.feature_pages[0]
         self.file_info_page = self.feature_pages[1]
         self.state_page = self.feature_pages[2]
-        file_info_page_layout = wx.BoxSizer(wx.VERTICAL)
+        file_info_sizer = wx.BoxSizer(wx.VERTICAL)
         self.file_info_scroll = wx.ScrolledWindow(
             self.file_info_page,
             wx.ID_ANY,
@@ -1009,7 +1015,7 @@ class Workspace:
         self.file_info_scroll.SetName("OEM information details")
         self.file_info_scroll.SetCanFocus(True)
         self.file_info_scroll.SetScrollRate(0, 10)
-        info_layout = wx.BoxSizer(wx.VERTICAL)
+        info_sizer = wx.BoxSizer(wx.VERTICAL)
         self._file_info_section_labels: list[wx.StaticText] = []
         self._file_info_labels: list[wx.StaticText] = []
         primary_heading = wx.StaticText(
@@ -1017,7 +1023,7 @@ class Workspace:
         )
         primary_heading.SetName("Primary OEM file context")
         self._file_info_section_labels.append(primary_heading)
-        info_layout.Add(primary_heading, 0, wx.EXPAND | wx.ALL, 8)
+        info_sizer.Add(primary_heading, 0, wx.EXPAND | wx.ALL, 8)
         for label, key in (
             ("Object", "object"),
             ("Frame", "frame"),
@@ -1032,7 +1038,7 @@ class Workspace:
             )
             info_label.SetName(f"OEM {label}")
             self._file_info_labels.append(info_label)
-            info_layout.Add(
+            info_sizer.Add(
                 info_label,
                 0,
                 wx.EXPAND | wx.ALL,
@@ -1044,7 +1050,7 @@ class Workspace:
             )
             metadata_heading.SetName("Additional OEM metadata")
             self._file_info_section_labels.append(metadata_heading)
-            info_layout.Add(
+            info_sizer.Add(
                 metadata_heading,
                 0,
                 wx.EXPAND | wx.ALL,
@@ -1058,23 +1064,23 @@ class Workspace:
                 )
                 info_label.SetName(f"OEM {label}")
                 self._file_info_labels.append(info_label)
-                info_layout.Add(
+                info_sizer.Add(
                     info_label,
                     0,
                     wx.EXPAND | wx.ALL,
                     8,
                 )
-        self.file_info_scroll.SetSizer(info_layout)
-        file_info_page_layout.Add(self.file_info_scroll, 1, wx.EXPAND)
-        self.file_info_page.SetSizer(file_info_page_layout)
+        self.file_info_scroll.SetSizer(info_sizer)
+        file_info_sizer.Add(self.file_info_scroll, 1, wx.EXPAND)
+        self.file_info_page.SetSizer(file_info_sizer)
         self.file_info_scroll.Bind(wx.EVT_SIZE, self._on_file_info_scroll_size)
         self.file_info_scroll.Bind(wx.EVT_KEY_DOWN, self._on_file_info_scroll_key_down)
         self.file_info_scroll.FitInside()
 
-        content_layout.Add(rail, 0, wx.EXPAND | wx.ALL, 4)
-        content_layout.Add(self.feature_book, 1, wx.EXPAND | wx.ALL, 4)
-        left_layout.Add(content_layout, 1, wx.EXPAND)
-        self.left_pane.SetSizer(left_layout)
+        feature_content_sizer.Add(feature_button_rail, 0, wx.EXPAND | wx.ALL, 4)
+        feature_content_sizer.Add(self.feature_book, 1, wx.EXPAND | wx.ALL, 4)
+        feature_sizer.Add(feature_content_sizer, 1, wx.EXPAND)
+        self.controls_pane.SetSizer(feature_sizer)
 
     def _on_file_info_scroll_size(self, event: wx.SizeEvent) -> None:
         self.file_info_scroll.FitInside()
@@ -1115,24 +1121,24 @@ class Workspace:
     def _make_graph_pane(
         self, parent: wx.Window, stack: str, title: str
     ) -> tuple[wx.Panel, wx.ScrolledWindow]:
-        pane = wx.Panel(parent, wx.ID_ANY)
-        pane.SetName(title)
-        layout = wx.BoxSizer(wx.VERTICAL)
-        header = wx.BoxSizer(wx.HORIZONTAL)
-        title_label = wx.StaticText(pane, wx.ID_ANY, title)
-        title_label.SetName(title)
-        header.Add(title_label, 1, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 8)
-        add_button = wx.Button(pane, wx.ID_ANY, "Add graph")
-        add_button.SetName(f"Add graph to {stack} stack")
-        set_tooltip(add_button, f"Add a graph to {title}")
-        self._add_buttons[stack] = add_button
-        add_button.Bind(
+        graph_pane = wx.Panel(parent, wx.ID_ANY)
+        graph_pane.SetName(title)
+        pane_sizer = wx.BoxSizer(wx.VERTICAL)
+        pane_header_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        pane_title_label = wx.StaticText(graph_pane, wx.ID_ANY, title)
+        pane_title_label.SetName(title)
+        pane_header_sizer.Add(pane_title_label, 1, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 8)
+        add_graph_button = wx.Button(graph_pane, wx.ID_ANY, "Add graph")
+        add_graph_button.SetName(f"Add graph to {stack} stack")
+        set_tooltip(add_graph_button, f"Add a graph to {title}")
+        self._add_buttons[stack] = add_graph_button
+        add_graph_button.Bind(
             wx.EVT_BUTTON,
             lambda _event, stack=stack: self._request_add_graph(stack),
         )
-        header.Add(add_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+        pane_header_sizer.Add(add_graph_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
         if stack == "middle":
-            comparison_toggle = wx.ToggleButton(pane, wx.ID_ANY, "Comparison")
+            comparison_toggle = wx.ToggleButton(graph_pane, wx.ID_ANY, "Comparison")
             self._comparison_toggle = comparison_toggle
             comparison_toggle.SetName("Toggle Comparison pane")
             set_tooltip(comparison_toggle, "Show or hide the Comparison pane")
@@ -1141,70 +1147,82 @@ class Workspace:
                 wx.EVT_TOGGLEBUTTON,
                 lambda _event: self.show_right_pane(comparison_toggle.GetValue()),
             )
-            header.Add(comparison_toggle, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
+            pane_header_sizer.Add(
+                comparison_toggle, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4
+            )
         else:
-            close_button = wx.Button(pane, wx.ID_ANY, "Close pane")
-            close_button.SetName("Close Comparison pane")
-            set_tooltip(close_button, "Hide the Comparison pane")
-            close_button.Bind(wx.EVT_BUTTON, lambda _event: self.show_right_pane(False))
-            self._pane_close_buttons[stack] = close_button
-            header.Add(close_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
-        layout.Add(header, 0, wx.EXPAND)
-        stack_window = self._make_graph_stack(pane, stack)
-        stack_window.SetName(f"{title} graph stack")
-        layout.Add(stack_window, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
-        pane.SetSizer(layout)
-        return pane, stack_window
+            close_pane_button = wx.Button(graph_pane, wx.ID_ANY, "Close pane")
+            close_pane_button.SetName("Close Comparison pane")
+            set_tooltip(close_pane_button, "Hide the Comparison pane")
+            close_pane_button.Bind(
+                wx.EVT_BUTTON, lambda _event: self.show_right_pane(False)
+            )
+            self._pane_close_buttons[stack] = close_pane_button
+            pane_header_sizer.Add(
+                close_pane_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4
+            )
+        pane_sizer.Add(pane_header_sizer, 0, wx.EXPAND)
+        graph_stack_window = self._make_graph_stack(graph_pane, stack)
+        graph_stack_window.SetName(f"{title} graph stack")
+        pane_sizer.Add(
+            graph_stack_window, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4
+        )
+        graph_pane.SetSizer(pane_sizer)
+        return graph_pane, graph_stack_window
 
     def _make_graph_stack(self, parent: wx.Window, stack: str) -> wx.ScrolledWindow:
-        window = wx.ScrolledWindow(parent, wx.ID_ANY, style=wx.VSCROLL)
-        window.AlwaysShowScrollbars(False, False)
-        window.SetScrollRate(0, 20)
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        empty_panel = wx.Panel(window, wx.ID_ANY)
-        empty_layout = wx.BoxSizer(wx.VERTICAL)
-        empty_state = wx.StaticText(empty_panel, wx.ID_ANY, "No graph panels")
-        empty_state.SetName(f"{stack} stack empty state")
-        empty_layout.Add(empty_state, 0, wx.ALL, 12)
-        add_button = wx.Button(empty_panel, wx.ID_ANY, "Add graph")
-        add_button.SetName(f"Add graph to empty {stack} stack")
-        add_button.Bind(
+        stack_scroller = wx.ScrolledWindow(parent, wx.ID_ANY, style=wx.VSCROLL)
+        stack_scroller.AlwaysShowScrollbars(False, False)
+        stack_scroller.SetScrollRate(0, 20)
+        stack_sizer = wx.BoxSizer(wx.VERTICAL)
+        empty_state_panel = wx.Panel(stack_scroller, wx.ID_ANY)
+        empty_state_sizer = wx.BoxSizer(wx.VERTICAL)
+        empty_state_label = wx.StaticText(
+            empty_state_panel, wx.ID_ANY, "No graph panels"
+        )
+        empty_state_label.SetName(f"{stack} stack empty state")
+        empty_state_sizer.Add(empty_state_label, 0, wx.ALL, 12)
+        add_graph_button = wx.Button(empty_state_panel, wx.ID_ANY, "Add graph")
+        add_graph_button.SetName(f"Add graph to empty {stack} stack")
+        add_graph_button.Bind(
             wx.EVT_BUTTON,
             lambda _event, stack=stack: self._request_add_graph(stack),
         )
-        empty_layout.Add(add_button, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
-        empty_panel.SetSizer(empty_layout)
-        sizer.Add(empty_panel, 0, wx.EXPAND)
-        handle = wx.Panel(window, wx.ID_ANY)
-        handle.SetMinSize(wx.Size(-1, BOTTOM_HANDLE_HEIGHT))
-        handle.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_3DSHADOW))
-        handle.SetCursor(wx.Cursor(wx.CURSOR_SIZENS))
-        handle.SetName(f"{stack} bottom panel resize handle")
-        handle.Bind(
+        empty_state_sizer.Add(add_graph_button, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
+        empty_state_panel.SetSizer(empty_state_sizer)
+        stack_sizer.Add(empty_state_panel, 0, wx.EXPAND)
+        bottom_resize_handle = wx.Panel(stack_scroller, wx.ID_ANY)
+        bottom_resize_handle.SetMinSize(wx.Size(-1, BOTTOM_HANDLE_HEIGHT))
+        bottom_resize_handle.SetBackgroundColour(
+            wx.SystemSettings.GetColour(wx.SYS_COLOUR_3DSHADOW)
+        )
+        bottom_resize_handle.SetCursor(wx.Cursor(wx.CURSOR_SIZENS))
+        bottom_resize_handle.SetName(f"{stack} bottom panel resize handle")
+        bottom_resize_handle.Bind(
             wx.EVT_LEFT_DOWN,
             lambda event, stack=stack: self._on_bottom_handle_down(stack, event),
         )
-        handle.Bind(
+        bottom_resize_handle.Bind(
             wx.EVT_MOTION,
             lambda event, stack=stack: self._on_bottom_handle_motion(stack, event),
         )
-        handle.Bind(
+        bottom_resize_handle.Bind(
             wx.EVT_LEFT_UP,
             lambda event, stack=stack: self._on_bottom_handle_up(stack, event),
         )
-        handle.Hide()
-        window.SetSizer(sizer)
-        window.Bind(wx.EVT_SCROLLWIN, self._on_stack_scroll)
-        window.Bind(
+        bottom_resize_handle.Hide()
+        stack_scroller.SetSizer(stack_sizer)
+        stack_scroller.Bind(wx.EVT_SCROLLWIN, self._on_stack_scroll)
+        stack_scroller.Bind(
             wx.EVT_SIZE,
             lambda event, stack=stack: self._on_stack_size(stack, event),
         )
-        self._stack_windows[stack] = window
-        self._stack_sizers[stack] = sizer
-        self._stack_handles[stack] = handle
-        self._empty_states[stack] = empty_state
-        self._empty_panels[stack] = empty_panel
-        return window
+        self._stack_windows[stack] = stack_scroller
+        self._stack_sizers[stack] = stack_sizer
+        self._stack_handles[stack] = bottom_resize_handle
+        self._empty_states[stack] = empty_state_label
+        self._empty_panels[stack] = empty_state_panel
+        return stack_scroller
 
     def _request_add_graph(self, stack: str) -> None:
         if self._on_add_graph is None:
@@ -1237,9 +1255,9 @@ class Workspace:
         if key_code in (wx.WXK_UP, wx.WXK_DOWN):
             direction = -1 if key_code == wx.WXK_UP else 1
             self.select_feature(
-                (self._selected_feature + direction) % len(self.feature_buttons)
+                (self._selected_feature + direction) % len(self.feature_rail_buttons)
             )
-            self.feature_buttons[self._selected_feature].SetFocus()
+            self.feature_rail_buttons[self._selected_feature].SetFocus()
             return
         event.Skip()
 

@@ -293,7 +293,7 @@ class FakeGraphPanelHost:
         self.title = title
         self.on_close = on_close
         self.panel_id = panel_id
-        self.content_scroller = object()
+        self.graph_scroller = object()
         self.canvas = None
         self.toolbar = None
         self.native_content = None
@@ -397,8 +397,8 @@ class FakeControlWindow:
         accelerator_parent=None,
         state_parent=None,
     ) -> None:
-        self.panel = object()
-        self.state_panel = object()
+        self.playback_scroller = object()
+        self.state_scroller = object()
         self.state_parent = state_parent
         self.callbacks = {
             "toggle": on_toggle_play,
@@ -441,15 +441,15 @@ class FakeWorkspace:
         self.details = details
         self.playback_page = object()
         self.state_page = object()
-        self.middle_stack = object()
-        self.right_stack = object()
+        self.main_analysis_stack = object()
+        self.comparison_stack = object()
         self.graph_panels = []
         self.progress = 0.0
         self.current_utc = ""
         self.timeline_time_entry = object()
         self.callbacks = {"seek_to_time": _kwargs["on_seek_to_time"]}
         self.time_errors: list[str] = []
-        self.transport_buttons = {
+        self.transport_speed_buttons = {
             rate: SimpleNamespace(SetFocus=lambda: None)
             for rate in (-1000.0, -100.0, -10.0, 10.0, 100.0, 1000.0)
         }
@@ -618,7 +618,7 @@ def test_start_uses_one_wx_app_and_opens_the_selected_views(
     assert frames[0].shown
     assert len(views) == len(canvases) == 1
     assert player._open_views["state-components"].panel in player.workspace.graph_panels
-    content_scroller = player._open_views["state-components"].panel.content_scroller
+    content_scroller = player._open_views["state-components"].panel.graph_scroller
     assert canvases[0].parent is content_scroller
     assert views[0].updated_times == [150.0]
     assert player._timer.interval == 40
@@ -630,9 +630,9 @@ def test_start_uses_one_wx_app_and_opens_the_selected_views(
     assert "Elapsed: 50.000 s" in player.control_window.text
     assert "Paused" not in player.control_window.text
     assert player.workspace.progress == 0.5
-    assert player.workspace.playback_content is player.control_window.panel
+    assert player.workspace.playback_content is player.control_window.playback_scroller
     assert player.control_window.state_parent is player.workspace.state_page
-    assert player.workspace.state_content is player.control_window.state_panel
+    assert player.workspace.state_content is player.control_window.state_scroller
 
     player.close()
 
@@ -1017,7 +1017,7 @@ def test_vtk_view_is_embedded_in_a_graph_panel_host(
     assert len(frames) == 1
     assert opened.view is vtk_view
     assert opened.panel.native_content is not None
-    assert opened.panel.parent is player.workspace.middle_stack
+    assert opened.panel.parent is player.workspace.main_analysis_stack
     assert opened.panel.panel_id == opened.panel_id
     assert validated_views == [vtk_view]
 
@@ -1222,7 +1222,7 @@ def test_panel_instances_can_duplicate_views_and_keep_independent_lifecycles(
     )
     assert default.panel.panel_id == default.panel_id
     assert middle_duplicate.panel.panel_id == "duplicate-middle"
-    assert right_duplicate.panel.parent is player.workspace.right_stack
+    assert right_duplicate.panel.parent is player.workspace.comparison_stack
     assert dict(middle_duplicate.panel.view_choices)["speed-altitude"] == (
         "Speed / Altitude"
     )
