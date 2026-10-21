@@ -235,7 +235,7 @@ class Workspace:
                     else on_play_reverse()
                 ),
             )
-        transport_row.Add(self.transport_reverse_play_button, 0, wx.RIGHT, 4)
+        transport_row.Add(self.transport_reverse_play_button, 0, wx.RIGHT, 2)
         self.transport_forward_play_button = wx.Button(
             self.timeline_panel, wx.ID_ANY, "▶"
         )
@@ -257,12 +257,12 @@ class Workspace:
                     else on_play_forward()
                 ),
             )
-        transport_row.Add(self.transport_forward_play_button, 0, wx.RIGHT, 4)
+        transport_row.Add(self.transport_forward_play_button, 0, wx.RIGHT, 2)
         # A non-text focus target: macOS buttons refuse keyboard focus unless
         # Full Keyboard Access is on, which leaves the text field's focus ring.
         self._focus_sink = wx.Panel(self.timeline_panel, wx.ID_ANY, size=(1, 1))
         self._focus_sink.SetCanFocus(True)
-        transport_row.Add(self._focus_sink, 0, wx.RIGHT, 4)
+        transport_row.Add(self._focus_sink, 0, wx.RIGHT, 2)
 
         for rate, glyph, direction in (
             (1.0, "1× >", "forward"),
@@ -322,7 +322,13 @@ class Workspace:
         on_set_transport_rate: Callable[[float], None] | None,
         on_step_samples: Callable[[int], None] | None,
     ) -> wx.ToggleButton:
-        button = wx.ToggleButton(self.timeline_panel, wx.ID_ANY, glyph)
+        button = wx.ToggleButton(
+            self.timeline_panel,
+            wx.ID_ANY,
+            glyph,
+            style=wx.BU_EXACTFIT,
+        )
+        button.SetMinSize(wx.Size(button.GetBestSize().width + 4, -1))
         magnitude = abs(rate)
         button.SetName(f"Set {direction} playback speed to {magnitude:g}x")
         if magnitude == 1.0:

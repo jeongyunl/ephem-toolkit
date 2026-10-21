@@ -11,9 +11,9 @@
   <text x="500" y="78" font-size="12" class="muted" text-anchor="middle">Current UTC: 02:14:32</text>
   <text x="956" y="78" font-size="12" class="muted" text-anchor="end">End UTC: 08:14:32</text>
   <g font-size="13" text-anchor="middle">
-    <rect class="button" x="205" y="93" width="74" height="34" rx="6"/><text x="242" y="115">&lt;&lt;&lt; 1000×</text>
-    <rect class="button" x="285" y="93" width="68" height="34" rx="6"/><text x="319" y="115">&lt;&lt; 100×</text>
-    <rect class="button" x="359" y="93" width="62" height="34" rx="6"/><text x="390" y="115">&lt; 10×</text>
+    <rect class="button" x="238" y="93" width="74" height="34" rx="6"/><text x="275" y="115">&lt;&lt;&lt; 1000×</text>
+    <rect class="button" x="318" y="93" width="68" height="34" rx="6"/><text x="352" y="115">&lt;&lt; 100×</text>
+    <rect class="button" x="392" y="93" width="62" height="34" rx="6"/><text x="423" y="115">&lt; 10×</text>
     <rect class="primary" x="427" y="93" width="80" height="34" rx="6"/><text x="467" y="115" fill="#fff">Ⅱ Pause</text>
     <rect class="button" x="513" y="93" width="80" height="34" rx="6"/><text x="553" y="115">▶ 1×</text>
     <rect class="button" x="599" y="93" width="62" height="34" rx="6"/><text x="630" y="115">10× &gt;</text>

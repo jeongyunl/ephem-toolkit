@@ -31,6 +31,7 @@ class FakeWidget:
 
     def __init__(self, _parent, _id: int, label: str = "", **_kwargs) -> None:
         self.label = label
+        self.style = _kwargs.get("style", 0)
         self.value = False
         self.enabled = True
         self.name = ""
@@ -50,6 +51,9 @@ class FakeWidget:
 
     def GetValue(self):
         return self.value
+
+    def GetBestSize(self):
+        return FakeSize(40, 24)
 
     def Enable(self, enabled: bool = True) -> None:
         self.enabled = enabled
@@ -83,6 +87,9 @@ class FakeWidget:
 
     def SetMinSize(self, size) -> None:
         self.minimum_size = size
+
+    def SetMaxSize(self, size) -> None:
+        self.maximum_size = size
 
     def SetFocus(self) -> None:
         self.focused = True
@@ -434,6 +441,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "TAB_TRAVERSAL": 4096,
         "EXPAND": 8,
         "ALL": 16,
+        "BU_EXACTFIT": 1,
         "ALIGN_CENTER_VERTICAL": 24,
         "ALIGN_CENTER": 25,
         "LEFT": 32,
@@ -598,6 +606,13 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
         "100× >>",
         "1000× >>>",
     ]
+    assert all(
+        button.style == workspace.wx.BU_EXACTFIT
+        for button in result.transport_buttons.values()
+    )
+    assert all(
+        button.minimum_size == (44, -1) for button in result.transport_buttons.values()
+    )
     assert frame.sizer.items[0][0] is result.content_splitter
     assert frame.sizer.items[1][0] is result.timeline_panel
     assert result.timeline_start_label.label == ("Start UTC: 2000-01-01T00:00:00.000")
