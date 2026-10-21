@@ -6,6 +6,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 import gc
+import os
 import signal
 import sys
 import time
@@ -49,6 +50,26 @@ EMPTY_GRAPH_VIEW: str = "empty"
 """Sentinel name for a graph panel with no selected view."""
 EMPTY_GRAPH_LABEL: str = "Empty"
 """Selector label for an unconfigured graph panel."""
+
+
+def _configure_settings_backend_without_session_bus() -> None:
+    """Avoid dconf warnings when Linux GUI apps have no usable session bus."""
+    if not sys.platform.startswith("linux") or "GSETTINGS_BACKEND" in os.environ:
+        return
+
+    bus_address = os.environ.get("DBUS_SESSION_BUS_ADDRESS", "")
+    socket_path = next(
+        (
+            address.partition("path=")[2].split(",", 1)[0]
+            for address in bus_address.split(";")
+            if address.startswith("unix:path=")
+        ),
+        None,
+    )
+    if not bus_address or (socket_path is not None and not os.path.exists(socket_path)):
+        # GTK's dconf backend writes through D-Bus; the in-memory backend keeps
+        # file dialogs usable in shells without a working desktop session bus.
+        os.environ["GSETTINGS_BACKEND"] = "memory"
 
 
 class _EmptyGraphView:
@@ -195,6 +216,7 @@ class PlayerApp:
             for name in self._view_registry.registered_views
         )
 
+        _configure_settings_backend_without_session_bus()
         self.wx_app: wx.App = cast(wx.App, wx.GetApp())
         if self.wx_app is None:
             self.wx_app = wx.App(False)
@@ -203,6 +225,13 @@ class PlayerApp:
             None,
             title=f"play-oem (3D backend: {three_d_backend})",
         )
+        menu_bar = wx.MenuBar()
+        file_menu = wx.Menu()
+        file_menu.Append(wx.ID_OPEN, "&Open File...\tCtrl+O")
+        menu_bar.Append(file_menu, "&File")
+        self.frame.SetMenuBar(menu_bar)
+        self.frame.CreateStatusBar()
+        self.frame.Bind(wx.EVT_MENU, self._on_open_file, id=wx.ID_OPEN)
         self.workspace: workspace.Workspace = workspace.Workspace(
             self.frame,
             self._seek_to_fraction,
@@ -299,6 +328,19 @@ class PlayerApp:
             return
         if not self.frame.Close(force=True) and not self._closed:
             raise RuntimeError("could not close the play-oem frame")
+
+    def _on_open_file(self, _event: wx.CommandEvent) -> None:
+        """Show the file picker for selecting an OEM to open."""
+        dialog = wx.FileDialog(
+            self.frame,
+            message="Open OEM file",
+            wildcard="OEM files (*.oem)|*.oem|All files (*.*)|*.*",
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+        )
+        try:
+            dialog.ShowModal()
+        finally:
+            dialog.Destroy()
 
     def _release_wx_resources(self) -> None:
         """Drop wx wrappers and callbacks after the event loop has stopped."""

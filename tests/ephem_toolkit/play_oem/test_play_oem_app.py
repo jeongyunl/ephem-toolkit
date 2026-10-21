@@ -153,6 +153,15 @@ class FakeFrame:
         self.raised = False
         self.focused = False
         self.sizer = None
+        self.menu_bar = None
+        self.status_bar = None
+
+    def SetMenuBar(self, menu_bar) -> None:
+        self.menu_bar = menu_bar
+
+    def CreateStatusBar(self):
+        self.status_bar = object()
+        return self.status_bar
 
     def SetSizer(self, sizer) -> None:
         self.sizer = sizer
@@ -166,7 +175,7 @@ class FakeFrame:
     def SetTitle(self, title: str) -> None:
         self.title = title
 
-    def Bind(self, event_type, callback, _source=None) -> None:
+    def Bind(self, event_type, callback, _source=None, **_kwargs) -> None:
         self.bindings[event_type] = callback
 
     def Show(self) -> bool:
@@ -206,6 +215,22 @@ class FakeStaticText:
 
     def SetLabel(self, label: str) -> None:
         self.label = label
+
+
+class FakeMenuBar:
+    def __init__(self) -> None:
+        self.menus = []
+
+    def Append(self, menu, title: str) -> None:
+        self.menus.append((menu, title))
+
+
+class FakeMenu:
+    def __init__(self) -> None:
+        self.items = []
+
+    def Append(self, item_id: int, label: str) -> None:
+        self.items.append((item_id, label))
 
 
 class FakeBoxSizer:
@@ -545,6 +570,8 @@ def make_app(
     monkeypatch.setattr(
         app.wx, "Frame", lambda *args, **kwargs: _frame(*args, **kwargs)
     )
+    monkeypatch.setattr(app.wx, "MenuBar", FakeMenuBar)
+    monkeypatch.setattr(app.wx, "Menu", FakeMenu)
     monkeypatch.setattr(app.wx, "StaticText", FakeStaticText)
     monkeypatch.setattr(app.wx, "BoxSizer", FakeBoxSizer)
     monkeypatch.setattr(app.wx, "Timer", FakeTimer)
@@ -1409,6 +1436,8 @@ def test_existing_wx_app_is_reused_instead_of_created_twice(
     existing_app = FakeWxApp(False)
     monkeypatch.setattr(app.wx, "GetApp", lambda: existing_app)
     monkeypatch.setattr(app.wx, "Frame", FakeFrame)
+    monkeypatch.setattr(app.wx, "MenuBar", FakeMenuBar)
+    monkeypatch.setattr(app.wx, "Menu", FakeMenu)
     monkeypatch.setattr(app.wx, "StaticText", FakeStaticText)
     monkeypatch.setattr(app.wx, "BoxSizer", FakeBoxSizer)
     monkeypatch.setattr(app.wx, "Timer", FakeTimer)
