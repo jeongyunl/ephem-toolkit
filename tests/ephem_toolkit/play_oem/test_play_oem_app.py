@@ -6,7 +6,7 @@ import signal
 from collections.abc import Callable
 from contextlib import nullcontext
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -646,6 +646,31 @@ def make_app(
         tick_interval_ms=tick_interval_ms,
     )
     return player, views, canvases, frames
+
+
+def test_open_file_dialog_accepts_lower_and_uppercase_oem_extensions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dialog_arguments: dict[str, Any] = {}
+
+    class FakeFileDialog:
+        def __init__(self, _parent: object, **kwargs: Any) -> None:
+            dialog_arguments.update(kwargs)
+
+        def ShowModal(self) -> int:
+            return app.wx.ID_CANCEL
+
+        def Destroy(self) -> None:
+            pass
+
+    monkeypatch.setattr(app.wx, "FileDialog", FakeFileDialog)
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+
+    player._on_open_file(cast(app.wx.CommandEvent, None))
+
+    assert dialog_arguments["wildcard"] == (
+        "OEM files (*.oem, *.OEM)|*.oem;*.OEM|All files (*.*)|*.*"
+    )
 
 
 def test_start_uses_one_wx_app_and_opens_the_selected_views(

@@ -38,8 +38,9 @@ panel proportions are illustrative. The implemented workspace also draws a horiz
 the shared timeline to distinguish it from the resizable analysis area.
 
 The current frame has a native **File → Open File...** menu and a status bar for load results and
-errors. Its shared footer contains the start/current/end UTC row, editable current-time field,
-directional transport and speed controls, and timeline slider. The time field accepts either UTC or
+errors. The OEM file filter accepts both `*.oem` and `*.OEM` files. Its shared footer contains the
+start/current/end UTC row, editable current-time field, directional transport and speed controls,
+and timeline slider. The time field accepts either UTC or
 elapsed-time input and selects its text when it first receives focus. These implementation details
 complement the layout proposals below; the SVG mock-ups are not screenshots of the current UI.
 

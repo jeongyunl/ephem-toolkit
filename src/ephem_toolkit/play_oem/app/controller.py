@@ -247,7 +247,7 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         dialog = wx.FileDialog(
             self.frame,
             message="Open OEM file",
-            wildcard="OEM files (*.oem)|*.oem|All files (*.*)|*.*",
+            wildcard="OEM files (*.oem, *.OEM)|*.oem;*.OEM|All files (*.*)|*.*",
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
         )
         try:
