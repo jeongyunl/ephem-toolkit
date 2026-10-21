@@ -463,6 +463,16 @@ class FakeSplitter:
         return FakeSize(self.client_width, 700)
 
 
+def stack_splitters(root) -> list[FakeSplitter]:
+    if not isinstance(root, FakeSplitter):
+        return []
+    return [
+        *stack_splitters(root.GetWindow1()),
+        *stack_splitters(root.GetWindow2()),
+        root,
+    ]
+
+
 class FakeSimplebook:
     def __init__(self, _parent, _id: int) -> None:
         self.pages = []
@@ -905,7 +915,7 @@ def test_main_pane_sashes_resize_independently_and_restore_right_width(
     ]
     for panel in right_panels:
         result.add_graph_panel(panel, "right")
-    right_stack_splitter = result._stack_splitters["right"][0]
+    right_stack_splitter = stack_splitters(result._stack_roots["right"])[0]
     right_stack_splitter.SetSashPosition(330)
 
     result.main_splitter.SetSashPosition(300)
@@ -922,7 +932,7 @@ def test_main_pane_sashes_resize_independently_and_restore_right_width(
     result.graph_panes_splitter.SetSashPosition(600)
     result.show_right_pane(False)
     assert result._graph_panels["right"] == right_panels
-    assert result._stack_splitters["right"][0] is right_stack_splitter
+    assert stack_splitters(result._stack_roots["right"])[0] is right_stack_splitter
     assert right_stack_splitter.GetSashPosition() == 330
     result.graph_panes_splitter.client_width = 1100
     result.show_right_pane(True)
@@ -985,7 +995,7 @@ def test_dragging_graph_sash_resizes_panel_above_and_keeps_panels_below(
     ]
     for panel in panels:
         result.add_graph_panel(panel, "middle")
-    inner = result._stack_splitters["middle"][0]
+    inner = stack_splitters(result._stack_roots["middle"])[0]
     root = result._stack_roots["middle"]
     assert inner.GetWindow1() is panels[0]
     # wx clamps a sash to the minimum size of the pane below it, so the
@@ -1073,6 +1083,19 @@ def test_bottom_handle_grows_bottom_panel_and_scroll_extends_past_it(
     FakeMouse.position = (0, 900)
     handle.bindings[workspace.wx.EVT_MOTION](DragEvent())
     assert result._graph_panel_heights[panels[1]] == 280 + 40
+
+
+def test_stack_size_event_refits_virtual_size(monkeypatch: pytest.MonkeyPatch) -> None:
+    result, _seeks, _frame = make_workspace(monkeypatch)
+    stack = result.main_analysis_stack
+    result.add_graph_panel(FakeGraphPanel(stack, "resized"))
+    stack.client_size = FakeSize(180, 520)
+    event = FakeEvent()
+
+    result._on_stack_size("middle", event)
+
+    assert stack.GetVirtualSize().height == FakeScrolledWindow.FIT_HEIGHT + 520
+    assert event.skipped
 
 
 def test_growing_bottom_panel_keeps_stack_scroll_position(
@@ -1173,15 +1196,13 @@ def test_many_graph_panels_keep_horizontal_sashes_and_minimum_sizes(
         result.add_graph_panel(panel, "middle")
 
     assert result._stack_roots["middle"].GetMinSize().height == 5 * 280 + 4 * 4
-    assert len(result._stack_splitters["middle"]) == 4
+    splitters = stack_splitters(result._stack_roots["middle"])
+    assert len(splitters) == 4
     assert all(
         splitter.GetMinimumPaneSize() == workspace.SASH_DRAG_MIN_PANE
-        for splitter in result._stack_splitters["middle"]
+        for splitter in splitters
     )
-    assert all(
-        splitter.split_orientations == ["horizontal"]
-        for splitter in result._stack_splitters["middle"]
-    )
+    assert all(splitter.split_orientations == ["horizontal"] for splitter in splitters)
     assert result._graph_panels["right"] == []
 
 

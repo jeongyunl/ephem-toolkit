@@ -69,17 +69,12 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         self._bottom_drag_start: dict[str, tuple[int, int]] = {}
         self._stacks_fitting: set[str] = set()
         self._stack_overflowing: dict[str, bool] = {}
-        self._empty_states: dict[str, wx.StaticText] = {}
         self._empty_panels: dict[str, wx.Panel] = {}
         self._add_buttons: dict[str, wx.Button] = {}
         self._pane_close_buttons: dict[str, wx.Button] = {}
         self._stack_roots: dict[str, wx.Window | None] = {
             "middle": None,
             "right": None,
-        }
-        self._stack_splitters: dict[str, list[wx.SplitterWindow]] = {
-            "middle": [],
-            "right": [],
         }
         self._graph_panel_heights: dict[GraphPanelHost, int] = {}
         self._right_pane_width = DEFAULT_RIGHT_PANE_WIDTH

@@ -27,7 +27,6 @@ class _GraphStackState(Protocol):
     _bottom_drag_start: dict[str, tuple[int, int]]
     _comparison_toggle: wx.ToggleButton | None
     _empty_panels: dict[str, wx.Panel]
-    _empty_states: dict[str, wx.StaticText]
     _graph_panel_heights: dict[GraphPanelHost, int]
     _graph_panels: dict[str, list[GraphPanelHost]]
     _graph_redraw_timer: wx.CallLater | None
@@ -42,7 +41,6 @@ class _GraphStackState(Protocol):
     _stack_overflowing: dict[str, bool]
     _stack_roots: dict[str, wx.Window | None]
     _stack_sizers: dict[str, wx.BoxSizer]
-    _stack_splitters: dict[str, list[wx.SplitterWindow]]
     _stack_windows: dict[str, wx.ScrolledWindow]
     _stacks_fitting: set[str]
     comparison_pane: wx.Panel
@@ -88,6 +86,10 @@ class _GraphStackState(Protocol):
     def _request_stack_redraws(self, stack: str) -> None: ...
 
     def request_visible_graph_redraws(self) -> None: ...
+
+    def _resize_graph_panel(
+        self, stack: str, panel: GraphPanelHost, height: int
+    ) -> None: ...
 
     def show_right_pane(self, visible: bool) -> None: ...
 
@@ -188,7 +190,6 @@ class GraphStackMixin:
                     self._on_graph_sash_changing(stack, new_splitter, event)
                 ),
             )
-            self._stack_splitters[stack].append(new_splitter)
             root = new_splitter
             sizer.Add(root, 1, wx.EXPAND)
 
@@ -434,7 +435,6 @@ class GraphStackMixin:
                     )
                 if not split_succeeded:
                     raise RuntimeError(f"could not restore graph stack {stack!r}")
-            self._stack_splitters[stack].remove(splitter)
             return True
 
         if isinstance(first_pane, wx.SplitterWindow) and (
@@ -469,14 +469,17 @@ class GraphStackMixin:
             # wx clamps a sash to the minimum size of the panes on both sides, so
             # panels inside a splitter advertise only a small floor. The real
             # panel floor is enforced through _graph_panel_heights.
-            for child in (window.GetWindow1(), window.GetWindow2()):
+            first_pane, second_pane = window.GetWindow1(), window.GetWindow2()
+            for child in (first_pane, second_pane):
                 if not isinstance(child, wx.SplitterWindow):
                     child.SetMinSize(
                         wx.Size(GRAPH_PANEL_MIN_SIZE[0], SASH_DRAG_MIN_PANE)
                     )
-            minimum_height(window.GetWindow1())
-            minimum_height(window.GetWindow2())
-            height = self._stack_subtree_height(window)
+            height = (
+                minimum_height(first_pane)
+                + window.GetSashSize()
+                + minimum_height(second_pane)
+            )
             window.SetMinimumPaneSize(SASH_DRAG_MIN_PANE)
             window.SetMinSize((GRAPH_PANEL_MIN_SIZE[0], height))
             return height
@@ -582,13 +585,8 @@ class GraphStackMixin:
         window.AlwaysShowScrollbars(False, has_overflow)
 
     def _on_stack_size(self: _GraphStackState, stack: str, event: wx.SizeEvent) -> None:
-        if stack not in self._stacks_fitting:
-            self._stacks_fitting.add(stack)
-            try:
-                self._update_stack_virtual_size(stack)
-                self._update_stack_scrollbar_visibility(stack)
-            finally:
-                self._stacks_fitting.discard(stack)
+        self._update_stack_virtual_size(stack)
+        self._update_stack_scrollbar_visibility(stack)
         event.Skip()
 
     def _sync_graph_panel_heights(self: _GraphStackState, stack: str) -> None:
@@ -625,11 +623,9 @@ class GraphStackMixin:
             return
         start_y, start_height = start
         # Use screen coordinates: the handle itself moves as the panel grows.
-        self._graph_panel_heights[panel] = max(
-            MIN_GRAPH_PANEL_HEIGHT, start_height + wx.GetMousePosition().y - start_y
+        self._resize_graph_panel(
+            stack, panel, start_height + wx.GetMousePosition().y - start_y
         )
-        self._layout_graph_stack(stack)
-        self._apply_graph_sash_heights(self._stack_roots[stack])
 
     def _on_bottom_handle_up(
         self: _GraphStackState, stack: str, event: wx.MouseEvent
@@ -655,9 +651,12 @@ class GraphStackMixin:
             pane = pane.GetWindow2()
         panel = cast(GraphPanelHost, pane)
         self._sync_graph_panel_heights(stack)
-        self._graph_panel_heights[panel] = max(
-            MIN_GRAPH_PANEL_HEIGHT, self._graph_panel_heights[panel] + delta
-        )
+        self._resize_graph_panel(stack, panel, self._graph_panel_heights[panel] + delta)
+
+    def _resize_graph_panel(
+        self: _GraphStackState, stack: str, panel: GraphPanelHost, height: int
+    ) -> None:
+        self._graph_panel_heights[panel] = max(MIN_GRAPH_PANEL_HEIGHT, height)
         self._layout_graph_stack(stack)
         self._apply_graph_sash_heights(self._stack_roots[stack])
 
@@ -775,7 +774,6 @@ class GraphStackMixin:
         self._stack_windows[stack] = stack_scroller
         self._stack_sizers[stack] = stack_sizer
         self._stack_handles[stack] = bottom_resize_handle
-        self._empty_states[stack] = empty_state_label
         self._empty_panels[stack] = empty_state_panel
         return stack_scroller
 
