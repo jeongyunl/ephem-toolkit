@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 import gc
+import os
 import signal
 import time
 from typing import cast
@@ -30,6 +31,7 @@ from .support import (
 from .view_factory import ViewFactoryMixin
 from .playback_actions import PlaybackActionsMixin
 from .panel_management import PanelManagementMixin
+from .status_bar import PlaybackStatusBar
 
 
 class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
@@ -51,6 +53,7 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         tick_interval_ms: int = DEFAULT_TICK_INTERVAL_MS,
         on_open_file: Callable[[str], playback_data.PlaybackData] | None = None,
         oem_loaded: bool = True,
+        loaded_file_name: str | None = None,
     ) -> None:
         """Create the wx playback application.
 
@@ -93,6 +96,8 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         self.time_unit = time_unit
         self.cursor = cursor
         self.object_name = object_name
+        self.object_id = dict(metadata_details).get("Object ID", "").strip()
+        self._loaded_file_name = loaded_file_name
         self.frame_context = frame_context
         self._tick_interval_ms = tick_interval_ms
         self._on_open_file_callback = on_open_file
@@ -138,7 +143,10 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         file_menu.Append(wx.ID_OPEN, "&Open File...\tCtrl+O")
         menu_bar.Append(file_menu, "&File")
         self.frame.SetMenuBar(menu_bar)
-        self.frame.CreateStatusBar()
+        self.status_bar = PlaybackStatusBar(self.frame)
+        self.status_bar.set_file_name(loaded_file_name)
+        if oem_loaded:
+            self.status_bar.set_object(self.object_name, self.object_id)
         self.frame.Bind(wx.EVT_MENU, self._on_open_file, id=wx.ID_OPEN)
         self.workspace: workspace.Workspace = workspace.Workspace(
             self.frame,
@@ -161,6 +169,7 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
             details=metadata_details,
             view_choices=self._panel_view_choices,
             on_add_graph=self._add_graph_panel,
+            status_bar=self.status_bar,
         )
         self.control_window: control_window.ControlWindow = (
             control_window.ControlWindow(
@@ -194,7 +203,7 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         self.workspace.set_oem_loaded(oem_loaded)
         self.control_window.set_playback_enabled(oem_loaded)
         if not oem_loaded:
-            self.frame.SetStatusText("Open an OEM file to begin playback.")
+            self.status_bar.set_message("Open an OEM file to begin playback.")
 
     def run(self) -> None:
         """Run the wx event loop and restore the prior SIGINT handler on exit."""
@@ -258,17 +267,19 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
             dialog.Destroy()
 
         if self._on_open_file_callback is None:
-            self.frame.SetStatusText("Opening another OEM is unavailable.")
+            self.status_bar.set_message("Opening another OEM is unavailable.")
             return
         try:
             loaded_data = self._on_open_file_callback(path)
         except Exception as error:
-            self.frame.SetStatusText(f"Could not open OEM: {error}")
+            self.status_bar.set_message(f"Could not open OEM: {error}")
             return
 
-        self._replace_playback_data(loaded_data)
+        self._replace_playback_data(loaded_data, os.path.basename(path))
 
-    def _replace_playback_data(self, loaded: playback_data.PlaybackData) -> None:
+    def _replace_playback_data(
+        self, loaded: playback_data.PlaybackData, file_name: str | None = None
+    ) -> None:
         """Replace file-dependent state while retaining the frame and workspace."""
         # Keep each graph's identity, type and stack so only its data is refreshed.
         panel_layout = tuple(
@@ -281,6 +292,12 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         self.time_unit = loaded.time_unit
         self.cursor = loaded.cursor
         self.object_name = loaded.object_name
+        self.object_id = dict(loaded.metadata_details).get("Object ID", "").strip()
+        if file_name is not None:
+            self._loaded_file_name = file_name
+        self.status_bar.set_file_name(self._loaded_file_name)
+        self.status_bar.set_object(self.object_name, self.object_id)
+        self.status_bar.set_message("")
         self.frame_context = loaded.frame_context
         self._last_tick_monotonic_s = time.monotonic()
         self.workspace.update_oem_information(
@@ -309,12 +326,12 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
             self.open_plots(self._plots)
         self.workspace.draw_initial_graphs()
         wx.CallAfter(self._refresh_graph_stack_layouts)
-        self.frame.SetStatusText(f"Loaded {loaded.object_name}")
 
     def _release_wx_resources(self) -> None:
         """Drop wx wrappers and callbacks after the event loop has stopped."""
         self._view_registry.clear()
         self.control_window = cast(control_window.ControlWindow, None)
+        self.status_bar = cast(PlaybackStatusBar, None)
         self.workspace = cast(workspace.Workspace, None)
         self._timer = cast(wx.Timer, None)
         self.frame = cast(wx.Frame, None)

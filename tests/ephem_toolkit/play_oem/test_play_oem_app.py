@@ -145,6 +145,22 @@ class FakeWxApp:
         self.main_loop_calls += 1
 
 
+class FakePlaybackStatusBar:
+    def __init__(self) -> None:
+        self.file_name: str | None = None
+        self.object: tuple[str, str] | None = None
+        self.message = ""
+
+    def set_file_name(self, file_name: str | None) -> None:
+        self.file_name = file_name
+
+    def set_object(self, object_name: str, object_id: str = "") -> None:
+        self.object = (object_name, object_id)
+
+    def set_message(self, message: str) -> None:
+        self.message = message
+
+
 class FakeFrame:
     def __init__(self, parent, *, title: str, size=None) -> None:
         self.parent = parent
@@ -157,14 +173,9 @@ class FakeFrame:
         self.focused = False
         self.sizer = None
         self.menu_bar = None
-        self.status_bar = None
 
     def SetMenuBar(self, menu_bar) -> None:
         self.menu_bar = menu_bar
-
-    def CreateStatusBar(self):
-        self.status_bar = object()
-        return self.status_bar
 
     def SetSizer(self, sizer) -> None:
         self.sizer = sizer
@@ -582,6 +593,7 @@ def make_app(
     monkeypatch.setattr(
         app.wx, "Frame", lambda *args, **kwargs: _frame(*args, **kwargs)
     )
+    monkeypatch.setattr(app, "PlaybackStatusBar", FakePlaybackStatusBar)
     monkeypatch.setattr(app.wx, "MenuBar", FakeMenuBar)
     monkeypatch.setattr(app.wx, "Menu", FakeMenu)
     monkeypatch.setattr(app.wx, "StaticText", FakeStaticText)
@@ -1342,9 +1354,6 @@ def test_reloading_oem_replaces_views_without_removing_panels(
         player.workspace, "update_oem_information", lambda *_args: None, raising=False
     )
     monkeypatch.setattr(
-        player.frame, "SetStatusText", lambda _text: None, raising=False
-    )
-    monkeypatch.setattr(
         player.workspace,
         "remove_graph_panel",
         lambda *_args, **_kwargs: pytest.fail("reload must keep graph panels in place"),
@@ -1539,6 +1548,7 @@ def test_existing_wx_app_is_reused_instead_of_created_twice(
     existing_app = FakeWxApp(False)
     monkeypatch.setattr(app.wx, "GetApp", lambda: existing_app)
     monkeypatch.setattr(app.wx, "Frame", FakeFrame)
+    monkeypatch.setattr(app, "PlaybackStatusBar", FakePlaybackStatusBar)
     monkeypatch.setattr(app.wx, "MenuBar", FakeMenuBar)
     monkeypatch.setattr(app.wx, "Menu", FakeMenu)
     monkeypatch.setattr(app.wx, "StaticText", FakeStaticText)

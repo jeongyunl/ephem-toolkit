@@ -45,6 +45,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         details: Sequence[tuple[str, str]] = (),
         view_choices: tuple[tuple[str, str], ...] = (),
         on_add_graph: Callable[[str], None] | None = None,
+        status_bar: wx.Window | None = None,
     ) -> None:
         self._on_seek = on_seek
         self._on_seek_to_time = on_seek_to_time
@@ -310,6 +311,8 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
 
         main_sizer.Add(self.main_splitter, 1, wx.EXPAND)
         main_sizer.Add(self.timeline_panel, 0, wx.EXPAND)
+        if status_bar is not None:
+            main_sizer.Add(status_bar, 0, wx.EXPAND)
         frame.SetSizer(main_sizer)
         self._transport_playing = False
         self._transport_rate = 1.0

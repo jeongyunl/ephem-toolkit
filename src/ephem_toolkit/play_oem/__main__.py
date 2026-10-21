@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 import math
+from pathlib import Path
 
 from .play_oem_cli import build_arg_parser, parse_arguments, PlayOemArgs
 
@@ -92,6 +93,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         tick_interval_ms=math.ceil(1000 / cli_args.fps),
         on_open_file=load_file,
         oem_loaded=cli_args.input_oem is not None,
+        loaded_file_name=(
+            Path(cli_args.input_oem).name if cli_args.input_oem is not None else None
+        ),
     )
 
     player.run()
