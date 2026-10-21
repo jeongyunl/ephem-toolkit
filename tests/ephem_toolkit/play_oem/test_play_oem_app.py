@@ -14,7 +14,10 @@ from matplotlib.backend_bases import MouseButton
 from matplotlib.figure import Figure
 
 from ephem_toolkit.core.time_utils import tt_s_to_datetime
-from ephem_toolkit.play_oem import app
+from ephem_toolkit.play_oem.app import controller as app
+from ephem_toolkit.play_oem.app import panel_management
+from ephem_toolkit.play_oem.app import support as app_support
+from ephem_toolkit.play_oem.app import view_factory
 from ephem_toolkit.play_oem.clock import PlaybackClock
 from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.play_oem_cli import build_arg_parser, parse_arguments
@@ -202,6 +205,9 @@ class FakeFrame:
         handler = self.bindings.get(app.wx.EVT_CLOSE)
         if handler is not None:
             handler(FakeEvent())
+        # A native frame destroys its descendant windows after EVT_CLOSE.
+        for panel in FakeGraphPanelHost.instances:
+            panel.Destroy()
         self.destroyed = True
         return True
 
@@ -584,9 +590,11 @@ def make_app(
     monkeypatch.setattr(app.wx, "CallAfter", lambda callback, *args: callback(*args))
     monkeypatch.setattr(app.control_window, "ControlWindow", FakeControlWindow)
     monkeypatch.setattr(app.workspace, "Workspace", FakeWorkspace)
-    monkeypatch.setattr(app, "GraphPanelHost", FakeGraphPanelHost)
-    monkeypatch.setattr(app, "FigureCanvasWxAgg", lambda *args: _canvas(*args))
-    monkeypatch.setattr(app, "NavigationToolbar2WxAgg", FakeToolbar)
+    monkeypatch.setattr(panel_management, "GraphPanelHost", FakeGraphPanelHost)
+    monkeypatch.setattr(
+        panel_management, "FigureCanvasWxAgg", lambda *args: _canvas(*args)
+    )
+    monkeypatch.setattr(panel_management, "NavigationToolbar2WxAgg", FakeToolbar)
     monkeypatch.setattr(app.wx, "EVT_CLOSE", "close")
     monkeypatch.setattr(app.wx, "EVT_TIMER", "timer")
     monkeypatch.setattr(app.wx, "ID_ANY", -1)
@@ -609,13 +617,19 @@ def make_app(
         views.append(view)
         return view
 
-    monkeypatch.setattr(app.speed_altitude, "SpeedAltitudeView", create_view)
-    monkeypatch.setattr(app.rtn, "RtnDeltaView", create_view)
-    monkeypatch.setattr(app.angular_velocity, "AngularVelocityView", create_view)
-    monkeypatch.setattr(app.direction_change, "DirectionChangeView", create_view)
-    monkeypatch.setattr(app.distance, "GeocentricDistanceView", create_view)
-    monkeypatch.setattr(app.state_components, "StateComponentsView", create_view)
-    monkeypatch.setattr(app.trajectory3d, "Trajectory3DView", create_view)
+    monkeypatch.setattr(view_factory.speed_altitude, "SpeedAltitudeView", create_view)
+    monkeypatch.setattr(view_factory.rtn, "RtnDeltaView", create_view)
+    monkeypatch.setattr(
+        view_factory.angular_velocity, "AngularVelocityView", create_view
+    )
+    monkeypatch.setattr(
+        view_factory.direction_change, "DirectionChangeView", create_view
+    )
+    monkeypatch.setattr(view_factory.distance, "GeocentricDistanceView", create_view)
+    monkeypatch.setattr(
+        view_factory.state_components, "StateComponentsView", create_view
+    )
+    monkeypatch.setattr(view_factory.trajectory3d, "Trajectory3DView", create_view)
     timestamps = [100.0, 200.0]
     series = compute_orbit_series(timestamps, make_states(), TimeUnit.MINUTES)
     # PlayerApp is typed against native wx controls; these tests replace them
@@ -739,7 +753,9 @@ def test_matplotlib_cursor_updates_use_full_redraw_not_partial_blits(
         monkeypatch, plots=("speed-altitude",)
     )
     monkeypatch.setattr(
-        app, "FigureCanvasWxAgg", lambda _parent, _id, figure: FigureCanvasAgg(figure)
+        panel_management,
+        "FigureCanvasWxAgg",
+        lambda _parent, _id, figure: FigureCanvasAgg(figure),
     )
 
     player.start()
@@ -1300,11 +1316,14 @@ def test_new_graph_panel_starts_empty_and_can_switch_between_empty_and_a_view(
     player._add_graph_panel("middle")
 
     empty_panel = player._open_panels[FakeGraphPanelHost.instances[-1].panel_id]
-    assert empty_panel.view_name == app.EMPTY_GRAPH_VIEW
-    assert empty_panel.panel.selected_view == app.EMPTY_GRAPH_VIEW
-    assert empty_panel.panel.view_choices[0] == (app.EMPTY_GRAPH_VIEW, "Empty")
+    assert empty_panel.view_name == app_support.EMPTY_GRAPH_VIEW
+    assert empty_panel.panel.selected_view == app_support.EMPTY_GRAPH_VIEW
+    assert empty_panel.panel.view_choices[0] == (
+        app_support.EMPTY_GRAPH_VIEW,
+        app_support.EMPTY_GRAPH_LABEL,
+    )
     assert empty_panel.panel.view_choices == (
-        (app.EMPTY_GRAPH_VIEW, app.EMPTY_GRAPH_LABEL),
+        (app_support.EMPTY_GRAPH_VIEW, app_support.EMPTY_GRAPH_LABEL),
         *VIEW_LABELS,
     )
     assert empty_panel.panel.native_content.label == "Select a graph view above"
@@ -1315,10 +1334,10 @@ def test_new_graph_panel_starts_empty_and_can_switch_between_empty_and_a_view(
     assert rtn_panel.view_name == "rtn"
     assert player.workspace.graph_panels.index(rtn_panel.panel) == 1
 
-    rtn_panel.panel.on_view_selected(app.EMPTY_GRAPH_VIEW)
+    rtn_panel.panel.on_view_selected(app_support.EMPTY_GRAPH_VIEW)
     empty_again = player._open_panels[empty_panel.panel_id]
     assert views[-1].closed
-    assert empty_again.view_name == app.EMPTY_GRAPH_VIEW
+    assert empty_again.view_name == app_support.EMPTY_GRAPH_VIEW
     assert player.workspace.graph_panels.index(empty_again.panel) == 1
 
     player.close()
@@ -1340,7 +1359,7 @@ def test_failed_view_change_restores_the_original_panel(
 
     failed_view = FailingView()
     errors: list[tuple[object, ...]] = []
-    monkeypatch.setattr(app.rtn, "RtnDeltaView", lambda *_args: failed_view)
+    monkeypatch.setattr(view_factory.rtn, "RtnDeltaView", lambda *_args: failed_view)
     monkeypatch.setattr(app.wx, "MessageBox", lambda *args: errors.append(args))
     player.start()
     player._add_graph_panel("middle")
@@ -1421,8 +1440,8 @@ def test_sigint_is_forwarded_with_call_after_and_previous_handler_restored(
 
     def main_loop() -> None:
         signal_handlers[0](signal.SIGINT, None)
-        assert scheduled == [(player.close, ())]
-        scheduled[0][0](*scheduled[0][1])
+        assert scheduled[-1] == (player.close, ())
+        scheduled[-1][0](*scheduled[-1][1])
 
     player.wx_app.MainLoop = main_loop
     player.run()
