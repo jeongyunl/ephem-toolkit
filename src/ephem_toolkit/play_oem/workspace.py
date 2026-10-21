@@ -152,6 +152,13 @@ class Workspace:
 
         self.timeline_panel = wx.Panel(frame, wx.ID_ANY)
         timeline_sizer = wx.BoxSizer(wx.VERTICAL)
+        # Give the timeline a clear boundary from the resizable analysis panes.
+        timeline_sizer.Add(
+            wx.StaticLine(self.timeline_panel, wx.ID_ANY),
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT,
+            8,
+        )
         timeline_sizer.Add(
             wx.StaticText(self.timeline_panel, wx.ID_ANY, "Timeline"),
             0,

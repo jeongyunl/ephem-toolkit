@@ -522,6 +522,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "BitmapToggleButton": FakeWidget,
         "ToggleButton": FakeWidget,
         "Slider": FakeSlider,
+        "StaticLine": FakeWidget,
         "StaticText": FakeWidget,
         "TextCtrl": FakeWidget,
         "Button": FakeWidget,
@@ -697,11 +698,11 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert result.transport_reverse_play_button.label == "◀"
     assert result.transport_forward_play_button.label == "▶"
     assert (
-        result.timeline_panel.sizer.items[2][0].items[4][0]
+        result.timeline_panel.sizer.items[3][0].items[4][0]
         is result.transport_reverse_play_button
     )
     assert (
-        result.timeline_panel.sizer.items[2][0].items[5][0]
+        result.timeline_panel.sizer.items[3][0].items[5][0]
         is result.transport_forward_play_button
     )
     assert [button.label for button in result.transport_speed_buttons.values()] == [
