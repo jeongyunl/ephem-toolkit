@@ -24,6 +24,7 @@ from matplotlib.figure import Figure
 import ephem_toolkit.core.time_utils as time_utils
 
 from . import clock, control_window, cursor, series, time_unit, workspace
+from . import playback_data
 from .graph_panel import GraphPanelHost
 from .views import (
     angular_velocity,
@@ -145,6 +146,8 @@ class PlayerApp:
         plots: Sequence[str] = ("overview",),
         three_d_backend: str = "auto",
         tick_interval_ms: int = DEFAULT_TICK_INTERVAL_MS,
+        on_open_file: Callable[[str], playback_data.PlaybackData] | None = None,
+        oem_loaded: bool = True,
     ) -> None:
         """Create the wx playback application.
 
@@ -189,6 +192,8 @@ class PlayerApp:
         self.object_name = object_name
         self.frame_context = frame_context
         self._tick_interval_ms = tick_interval_ms
+        self._on_open_file_callback = on_open_file
+        self._oem_loaded = oem_loaded
         self._requested_3d_backend = three_d_backend
         self._selected_3d_backend = (
             "matplotlib" if three_d_backend == "matplotlib" else None
@@ -283,6 +288,10 @@ class PlayerApp:
         self._closed = False
         self._open_views: dict[str, _OpenView] = {}
         self._open_panels: dict[str, _OpenView] = {}
+        self.workspace.set_oem_loaded(oem_loaded)
+        self.control_window.set_playback_enabled(oem_loaded)
+        if not oem_loaded:
+            self.frame.SetStatusText("Open an OEM file to begin playback.")
 
     def run(self) -> None:
         """Run the wx event loop and restore the prior SIGINT handler on exit."""
@@ -313,7 +322,8 @@ class PlayerApp:
         self._last_tick_monotonic_s = time.monotonic()
         self._update_time_display()
         self.frame.Show()
-        self.open_plots(self._plots)
+        if self._oem_loaded:
+            self.open_plots(self._plots)
         self.workspace.draw_initial_graphs()
         # The shown frame's final client size is not available until layout settles;
         # refresh then so each stack gets the correct viewport-sized scroll tail.
@@ -330,7 +340,7 @@ class PlayerApp:
             raise RuntimeError("could not close the play-oem frame")
 
     def _on_open_file(self, _event: wx.CommandEvent) -> None:
-        """Show the file picker for selecting an OEM to open."""
+        """Select an OEM and load it into this playback window."""
         dialog = wx.FileDialog(
             self.frame,
             message="Open OEM file",
@@ -338,9 +348,64 @@ class PlayerApp:
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
         )
         try:
-            dialog.ShowModal()
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            path = dialog.GetPath()
         finally:
             dialog.Destroy()
+
+        if self._on_open_file_callback is None:
+            self.frame.SetStatusText("Opening another OEM is unavailable.")
+            return
+        try:
+            loaded_data = self._on_open_file_callback(path)
+        except Exception as error:
+            self.frame.SetStatusText(f"Could not open OEM: {error}")
+            return
+
+        self._replace_playback_data(loaded_data)
+
+    def _replace_playback_data(self, loaded: playback_data.PlaybackData) -> None:
+        """Replace file-dependent state while retaining the frame and workspace."""
+        # Keep each graph's identity, type and stack so only its data is refreshed.
+        panel_layout = tuple(
+            (opened.panel_id, opened.view_name, opened.stack)
+            for opened in self._open_panels.values()
+        )
+        for panel_id, _view_name, _stack in panel_layout:
+            self._dispose_open_view(panel_id)
+
+        self.clock = loaded.clock
+        self.series = loaded.series
+        self.time_unit = loaded.time_unit
+        self.cursor = loaded.cursor
+        self.object_name = loaded.object_name
+        self.frame_context = loaded.frame_context
+        self._last_tick_monotonic_s = time.monotonic()
+        self.workspace.update_oem_information(
+            loaded.dashboard_context,
+            loaded.metadata_details,
+            time_utils.datetime_to_iso8601(
+                time_utils.tt_s_to_datetime(self.clock.t_start)
+            ),
+            time_utils.datetime_to_iso8601(
+                time_utils.tt_s_to_datetime(self.clock.t_end)
+            ),
+            self.clock.t_start < self.clock.t_end,
+        )
+        self.frame.Layout()
+        self._oem_loaded = True
+        self.workspace.set_oem_loaded(True)
+        self.control_window.set_playback_enabled(True)
+        self._update_time_display()
+        if panel_layout:
+            for panel_id, view_name, stack in panel_layout:
+                self.open_panel_view(view_name, panel_id, stack)
+        else:
+            self.open_plots(self._plots)
+        self.workspace.draw_initial_graphs()
+        wx.CallAfter(self._refresh_graph_stack_layouts)
+        self.frame.SetStatusText(f"Loaded {loaded.object_name}")
 
     def _release_wx_resources(self) -> None:
         """Drop wx wrappers and callbacks after the event loop has stopped."""
@@ -909,6 +974,8 @@ class PlayerApp:
             refresh()
 
     def _update_time_display(self) -> None:
+        if not self._oem_loaded:
+            return
         elapsed_s = self.clock.t_now - self.clock.t_start
         utc_timestamp = time_utils.datetime_to_iso8601(
             time_utils.tt_s_to_datetime(self.clock.t_now)

@@ -481,6 +481,43 @@ class Workspace:
         if playing or not self.timeline_time_entry.HasFocus():
             self.timeline_time_entry.ChangeValue(current_utc)
 
+    def update_oem_information(
+        self,
+        context: Mapping[str, str],
+        details: Sequence[tuple[str, str]],
+        start_utc: str,
+        end_utc: str,
+        timeline_enabled: bool,
+    ) -> None:
+        """Refresh file metadata and time bounds after loading another OEM."""
+        self._timeline_enabled = timeline_enabled
+        for label, key, title in zip(
+            self._file_info_labels[:5],
+            ("object", "frame", "center", "time_span", "sample_count"),
+            ("Object", "Frame", "Center", "Time span", "Samples"),
+        ):
+            label.SetLabel(f"{title}: {_display_file_info_value(context.get(key))}")
+        for label, (name, value) in zip(self._file_info_labels[5:], details):
+            label.SetLabel(f"{name}: {_display_file_info_value(value)}")
+        set_timestamp_label(self.timeline_start_label, f"Start UTC: {start_utc}")
+        set_timestamp_label(self.timeline_end_label, f"End UTC: {end_utc}")
+        self.timeline_slider.Enable(timeline_enabled)
+        self.file_info_scroll.FitInside()
+        self.file_info_scroll.Layout()
+
+    def set_oem_loaded(self, loaded: bool) -> None:
+        """Enable file-dependent workspace actions only after an OEM is loaded."""
+        self.timeline_time_entry.Enable(loaded)
+        for button in (
+            *self.transport_speed_buttons.values(),
+            self.transport_reverse_play_button,
+            self.transport_forward_play_button,
+        ):
+            button.Enable(loaded)
+        self.timeline_slider.Enable(loaded and self._timeline_enabled)
+        for button in self._add_buttons.values():
+            button.Enable(loaded)
+
     def show_time_error(self, message: str) -> None:
         self.time_error_label.SetLabel(message)
 

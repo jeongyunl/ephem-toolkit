@@ -340,6 +340,16 @@ class ControlWindow:
         finally:
             self._syncing_sliders = False
 
+    def set_playback_enabled(self, enabled: bool) -> None:
+        """Disable playback controls until a file provides a timeline."""
+        for control in (
+            self.play_pause_button,
+            self.reverse_toggle_button,
+            self.speed_slider,
+            *self.navigation_buttons,
+        ):
+            control.Enable(enabled)
+
     def update_time(self, text: str) -> None:
         """Update the elapsed-time and UTC readouts.
 

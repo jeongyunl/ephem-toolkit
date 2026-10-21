@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 import sys
+from typing import Any
 
 import pytest
 
@@ -106,14 +107,33 @@ def test_plots_option_rejects_unknown_names(
     assert "unknown plot name 'not-a-plot'" in capsys.readouterr().err
 
 
-def test_missing_input_reports_usage(capsys: pytest.CaptureFixture[str]) -> None:
-    with pytest.raises(SystemExit) as exc_info:
-        main([])
+def test_input_path_is_optional() -> None:
+    args = parse_arguments(build_arg_parser(), [])
 
-    assert exc_info.value.code == 2
-    error_output = capsys.readouterr().err
-    assert "usage:" in error_output
-    assert "<input_oem>" in error_output
+    assert args.input_oem is None
+
+
+def test_cli_without_input_starts_with_file_loading_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ephem_toolkit.play_oem import app
+
+    launched: dict[str, Any] = {}
+
+    class FakePlayerApp:
+        def __init__(self, *_args, **kwargs) -> None:
+            launched.update(kwargs)
+
+        def run(self) -> None:
+            launched["run"] = True
+
+    monkeypatch.setattr(app, "PlayerApp", FakePlayerApp)
+
+    main([])
+
+    assert launched["oem_loaded"] is False
+    assert callable(launched["on_open_file"])
+    assert launched["run"] is True
 
 
 def test_duration_and_time_unit_options_are_accepted() -> None:
@@ -227,7 +247,7 @@ def test_cli_loads_oem_and_launches_player(
     )
     from ephem_toolkit.play_oem import app
 
-    launched: dict[str, object] = {}
+    launched: dict[str, Any] = {}
 
     class FakePlayerApp:
         def __init__(
@@ -244,6 +264,8 @@ def test_cli_loads_oem_and_launches_player(
             tick_interval_ms,
             dashboard_context,
             metadata_details,
+            on_open_file=None,
+            oem_loaded=True,
         ) -> None:
             launched["clock"] = clock
             launched["series"] = series
@@ -293,7 +315,7 @@ def test_cli_configures_reverse_autoplay_loop_and_elapsed_start(
     )
     from ephem_toolkit.play_oem import app
 
-    launched: dict[str, object] = {}
+    launched: dict[str, Any] = {}
 
     class FakePlayerApp:
         def __init__(
@@ -310,6 +332,8 @@ def test_cli_configures_reverse_autoplay_loop_and_elapsed_start(
             tick_interval_ms,
             dashboard_context,
             metadata_details,
+            on_open_file=None,
+            oem_loaded=True,
         ) -> None:
             launched["clock"] = clock
             launched["three_d_backend"] = three_d_backend
@@ -369,7 +393,7 @@ def test_cli_autoplay_pauses_at_forward_and_reverse_boundaries(
     )
     from ephem_toolkit.play_oem import app
 
-    launched: dict[str, object] = {}
+    launched: dict[str, Any] = {}
 
     class FakePlayerApp:
         def __init__(
@@ -386,6 +410,8 @@ def test_cli_autoplay_pauses_at_forward_and_reverse_boundaries(
             tick_interval_ms,
             dashboard_context,
             metadata_details,
+            on_open_file=None,
+            oem_loaded=True,
         ) -> None:
             launched["clock"] = clock
 
@@ -441,6 +467,8 @@ def test_cli_resolves_elapsed_and_utc_start_times(
             tick_interval_ms,
             dashboard_context,
             metadata_details,
+            on_open_file=None,
+            oem_loaded=True,
         ) -> None:
             launched.append((clock.t_now, clock.rate))
 

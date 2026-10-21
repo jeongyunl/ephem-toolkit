@@ -26,8 +26,8 @@ def _parse_plots(value: str) -> tuple[str, ...]:
 class PlayOemArgs(argparse.Namespace):
     """Typed argument namespace for the OEM playback CLI."""
 
-    input_oem: str
-    """Path to the input CCSDS OEM file."""
+    input_oem: str | None
+    """Optional path to an initial CCSDS OEM file."""
     duration: str | None
     """Optional analysis duration string."""
     time_unit: str
@@ -83,6 +83,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         description="Interactively explore and play a CCSDS OEM ephemeris.",
         epilog=(
             "Examples:\n"
+            "  play-oem\n"
             "  play-oem orbit.oem\n"
             "  play-oem orbit.oem -d 6h --time-unit minutes"
         ),
@@ -92,7 +93,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "input_oem",
         type=str,
         metavar="<input_oem>",
-        help="Path to the input CCSDS OEM file.",
+        nargs="?",
+        default=None,
+        help="Optional path to an initial CCSDS OEM file.",
     )
     parser.add_argument(
         "-d",

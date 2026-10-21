@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import timedelta
 import math
-from pathlib import Path
 
 from .play_oem_cli import build_arg_parser, parse_arguments, PlayOemArgs
 
@@ -18,10 +16,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     import ephem_toolkit.core.time_utils as time_utils
 
-    from .data import filter_states_by_duration, read_oem_states
-    from .clock import PlaybackClock
-    from .cursor import OemCursor
-    from .series import OrbitSeries, compute_orbit_series
+    from .playback_data import empty_playback_data, load_playback_data
     from .time_unit import TimeUnit
 
     try:
@@ -34,119 +29,72 @@ def main(argv: Sequence[str] | None = None) -> None:
             '`pip install "ephem-toolkit[playback]"`.'
         ) from exception
 
-    time_unit = TimeUnit.from_string(cli_args.time_unit)
-
-    duration_s = None
-    if cli_args.duration is not None:
-        try:
-            duration_s = time_utils.parse_duration_to_seconds(cli_args.duration)
-        except ValueError as exception:
-            print(
-                f"Error: failed to parse duration '{cli_args.duration}': {exception}",
-                file=sys.stderr,
-            )
-            raise SystemExit(1) from exception
-
-    print(f"Reading OEM orbit from {cli_args.input_oem}...")
-    oem_data, timestamps_s, states_m = read_oem_states(cli_args.input_oem)
-    print(f"Loaded {len(states_m)} states")
-    timestamps_s, states_m = filter_states_by_duration(
-        timestamps_s, states_m, duration_s
-    )
-    segment_ids = oem_data.segment_ids[: len(timestamps_s)]
-    print(f"Using {len(states_m)} states after duration filtering")
-    series: OrbitSeries = compute_orbit_series(
-        timestamps_s, states_m, time_unit, segment_ids
-    )
-    print(
-        f"Prepared orbit series with {len(series.elapsed_time)} samples "
-        f"using {time_unit.value}."
-    )
-    rate = -cli_args.speed if cli_args.reverse else cli_args.speed
-    clock = PlaybackClock(
-        timestamps_s[0],
-        timestamps_s[-1],
-        t_now=timestamps_s[-1] if rate < 0.0 else timestamps_s[0],
-        rate=rate,
-        playing=cli_args.autoplay,
-        loop=cli_args.loop,
-        sample_times=timestamps_s,
-    )
-    if cli_args.start is not None:
-        try:
-            parsed_start = time_utils.parse_time_or_duration(cli_args.start)
-            if isinstance(parsed_start, timedelta):
-                start_time_s = timestamps_s[0] + parsed_start.total_seconds()
-            else:
-                start_time_s = time_utils.datetime_to_tt_s(parsed_start)
-            if not timestamps_s[0] <= start_time_s <= timestamps_s[-1]:
-                raise ValueError("start time is outside the selected OEM timeline")
-            clock.seek(start_time_s)
-        except ValueError as exception:
-            print(
-                f"Error: failed to parse start time '{cli_args.start}': {exception}",
-                file=sys.stderr,
-            )
-            raise SystemExit(1) from exception
-
-    cursor = OemCursor(
-        timestamps_s,
-        states_m,
-        interpolation=oem_data.meta.interpolation,
-        interpolation_degree=oem_data.meta.interpolation_degree,
-        segment_ids=segment_ids,
-    )
-    frame_context = (
-        " / ".join(
-            value
-            for value in (
-                oem_data.meta.ref_frame.strip(),
-                oem_data.meta.center_name.strip(),
-            )
-            if value
+    try:
+        duration_s = (
+            None
+            if cli_args.duration is None
+            else time_utils.parse_duration_to_seconds(cli_args.duration)
         )
-        or "Frame metadata unavailable"
-    )
-    object_name = oem_data.meta.object_name.strip() or Path(cli_args.input_oem).name
-    dashboard_context = {
-        "object": object_name,
-        "frame": oem_data.meta.ref_frame.strip(),
-        "center": oem_data.meta.center_name.strip(),
-        "time_span": (
-            f"{time_utils.datetime_to_iso8601(time_utils.tt_s_to_datetime(timestamps_s[0]))} – "
-            f"{time_utils.datetime_to_iso8601(time_utils.tt_s_to_datetime(timestamps_s[-1]))}"
-        ),
-        "sample_count": str(len(timestamps_s)),
-    }
-    metadata_details = (
-        ("Object ID", oem_data.meta.object_id),
-        ("Time system", oem_data.meta.time_system),
-        ("Frame epoch", oem_data.meta.ref_frame_epoch),
-        ("Usable start", oem_data.meta.useable_start_time),
-        ("Usable stop", oem_data.meta.useable_stop_time),
-        ("Interpolation", oem_data.meta.interpolation or ""),
-        (
-            "Interpolation degree",
-            (
-                ""
-                if oem_data.meta.interpolation_degree is None
-                else str(oem_data.meta.interpolation_degree)
-            ),
-        ),
-    )
-    PlayerApp(
-        clock,
-        series,
-        time_unit,
-        cursor,
-        object_name,
-        frame_context,
-        dashboard_context=dashboard_context,
-        metadata_details=metadata_details,
+    except ValueError as exception:
+        print(
+            f"Error: failed to parse duration '{cli_args.duration}': {exception}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from exception
+
+    selected_time_unit = TimeUnit.from_string(cli_args.time_unit)
+
+    def load_file(input_oem: str):
+        print(f"Reading OEM orbit from {input_oem}...")
+        loaded = load_playback_data(
+            input_oem,
+            duration_s=duration_s,
+            selected_time_unit=selected_time_unit,
+            speed=cli_args.speed,
+            reverse=cli_args.reverse,
+            autoplay=cli_args.autoplay,
+            loop=cli_args.loop,
+            start=cli_args.start,
+        )
+        print(f"Loaded {loaded.source_sample_count} states")
+        print(f"Using {loaded.selected_sample_count} states after duration filtering")
+        print(
+            f"Prepared orbit series with {len(loaded.series.elapsed_time)} samples "
+            f"using {loaded.time_unit.value}."
+        )
+        return loaded
+
+    try:
+        initial_data = (
+            load_file(cli_args.input_oem) if cli_args.input_oem is not None else None
+        )
+    except ValueError as exception:
+        if cli_args.start is None:
+            raise
+        print(
+            f"Error: failed to parse start time '{cli_args.start}': {exception}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from exception
+    if initial_data is None:
+        initial_data = empty_playback_data(selected_time_unit, cli_args.speed)
+    player = PlayerApp(
+        initial_data.clock,
+        initial_data.series,
+        initial_data.time_unit,
+        initial_data.cursor,
+        initial_data.object_name,
+        initial_data.frame_context,
+        dashboard_context=initial_data.dashboard_context,
+        metadata_details=initial_data.metadata_details,
         plots=cli_args.plots,
         three_d_backend=cli_args.three_d_backend,
         tick_interval_ms=math.ceil(1000 / cli_args.fps),
-    ).run()
+        on_open_file=load_file,
+        oem_loaded=cli_args.input_oem is not None,
+    )
+
+    player.run()
 
 
 def cli(argv: Sequence[str] | None = None) -> int:

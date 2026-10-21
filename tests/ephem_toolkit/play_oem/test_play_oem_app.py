@@ -447,6 +447,9 @@ class FakeControlWindow:
     def update_current_state(self, state) -> None:
         self.current_state = state
 
+    def set_playback_enabled(self, _enabled: bool) -> None:
+        pass
+
 
 class FakeWorkspace:
     def __init__(
@@ -487,6 +490,9 @@ class FakeWorkspace:
 
     def set_state_content(self, panel) -> None:
         self.state_content = panel
+
+    def set_oem_loaded(self, _loaded: bool) -> None:
+        pass
 
     def update_timeline(
         self, progress: float, current_utc: str, *, playing: bool = False
@@ -575,6 +581,7 @@ def make_app(
     monkeypatch.setattr(app.wx, "StaticText", FakeStaticText)
     monkeypatch.setattr(app.wx, "BoxSizer", FakeBoxSizer)
     monkeypatch.setattr(app.wx, "Timer", FakeTimer)
+    monkeypatch.setattr(app.wx, "CallAfter", lambda callback, *args: callback(*args))
     monkeypatch.setattr(app.control_window, "ControlWindow", FakeControlWindow)
     monkeypatch.setattr(app.workspace, "Workspace", FakeWorkspace)
     monkeypatch.setattr(app, "GraphPanelHost", FakeGraphPanelHost)
