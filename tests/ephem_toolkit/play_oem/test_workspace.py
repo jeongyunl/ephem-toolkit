@@ -143,16 +143,28 @@ class FakeChoice(FakeWidget):
 class FakeSizer:
     def __init__(self, _orientation: int) -> None:
         self.items = []
+        self.minimum_sizes = {}
 
     def Add(self, item, proportion: int, flags: int = 0, border: int = 0) -> None:
         self.items.append((item, proportion, flags, border))
 
     def Detach(self, item) -> bool:
+        if isinstance(item, int):
+            if 0 <= item < len(self.items):
+                removed_item = self.items.pop(item)[0]
+                self.minimum_sizes.pop(removed_item, None)
+            return True
         self.items = [entry for entry in self.items if entry[0] is not item]
+        self.minimum_sizes.pop(item, None)
         return True
 
     def GetItem(self, window) -> FakeSizerItem:
+        if isinstance(window, int):
+            window = self.items[window][0]
         return FakeSizerItem(self, window)
+
+    def GetItemCount(self) -> int:
+        return len(self.items)
 
 
 class FakeSizerItem:
@@ -170,6 +182,9 @@ class FakeSizerItem:
             )
             for item, entry_proportion, flags, border in self.sizer.items
         ]
+
+    def SetMinSize(self, size) -> None:
+        self.sizer.minimum_sizes[self.window] = size
 
 
 class FakeSize:
@@ -315,10 +330,16 @@ class FakeScrolledWindow(FakePanel):
         pass
 
     def FitInside(self) -> None:
-        self.virtual_size = FakeSize(320, self.FIT_HEIGHT)
+        padding = 0
+        if self.sizer is not None and self.sizer.items:
+            final_item = self.sizer.items[-1]
+            min_size = self.sizer.minimum_sizes.get(final_item[0])
+            if min_size is not None:
+                padding = min_size.height
+        self.virtual_size = FakeSize(320, self.FIT_HEIGHT + padding)
         # Like wx, the view cannot stay beyond the range that FitInside just set.
         x, y = self.view_start
-        max_start = max(0, self.FIT_HEIGHT - self.GetClientSize().height)
+        max_start = max(0, self.FIT_HEIGHT + padding - self.GetClientSize().height)
         self.view_start = (x, min(y, max_start))
 
     def GetVirtualSize(self) -> FakeSize:
@@ -1011,7 +1032,10 @@ def test_bottom_handle_grows_bottom_panel_and_scroll_extends_past_it(
     root = result._stack_roots["middle"]
 
     assert handle.shown
-    assert stack.sizer.items[-1][0] is handle
+    assert stack.sizer.items[-2][0] is handle
+    assert stack.sizer.minimum_sizes[stack.sizer.items[-1][0]].height == (
+        stack.GetClientSize().height
+    )
     assert result._bottom_graph_panel("middle") is panels[1]
     root_entry = next(entry for entry in stack.sizer.items if entry[0] is root)
     assert root_entry[1] == 0

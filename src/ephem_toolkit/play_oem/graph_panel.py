@@ -102,6 +102,7 @@ class GraphPanelHost(wx.Panel):
         self._on_redraw_request = on_redraw_request
         self._redraw_throttle: _RedrawThrottle | None = None
         self._canvas: FigureCanvasWxAgg | None = None
+        self._toolbar: NavigationToolbar2WxAgg | None = None
         self._native_content: wx.Window | None = None
         self._uses_constrained_layout = False
         self.graph_scroller = wx.ScrolledWindow(
@@ -115,6 +116,8 @@ class GraphPanelHost(wx.Panel):
 
         panel_sizer = wx.BoxSizer(wx.VERTICAL)
         header_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        # Retain the header sizer so natural height includes its controls and borders.
+        self._header_sizer = header_sizer
         self.graph_title_label: wx.StaticText | None = None
         self.graph_view_selector: wx.Choice | None = None
         if view_choices:
@@ -220,6 +223,8 @@ class GraphPanelHost(wx.Panel):
         toolbar.Bind(wx.EVT_MOUSEWHEEL, self._on_content_mousewheel)
         canvas.Bind(wx.EVT_MOUSEWHEEL, self._on_content_mousewheel)
         self._canvas = canvas
+        # Keep both references to measure the full plot height, including its toolbar.
+        self._toolbar = toolbar
         self._redraw_throttle = _RedrawThrottle(self._is_visible, canvas.draw_idle)
         if _canvas_figure(canvas).get_layout_engine() is not None:
             self._uses_constrained_layout = True
@@ -300,6 +305,26 @@ class GraphPanelHost(wx.Panel):
         self._native_content = content
         self.graph_scroller.FitInside()
         self.Layout()
+
+    def natural_content_height(self) -> int:
+        """Return the height needed to show the header and content without scrolling."""
+        content_height = self.content_sizer.CalcMin().height
+        if self._canvas is not None and self._toolbar is not None:
+            figure = _canvas_figure(self._canvas)
+            # A canvas can report its clipped first-layout size; the figure's
+            # inches and DPI give the intended plot height before layout settles.
+            inches_high = float(figure.get_size_inches()[1])
+            canvas_height = math.ceil(inches_high * figure.dpi)
+            content_height = max(
+                content_height,
+                canvas_height + self._toolbar.GetBestSize().height,
+            )
+        elif self._native_content is not None:
+            # Native views expose their preferred height through wx directly.
+            content_height = max(
+                content_height, self._native_content.GetBestSize().height
+            )
+        return self._header_sizer.CalcMin().height + content_height
 
     def request_redraw(self) -> None:
         """Coalesce redraw requests and defer work for hidden or off-screen panels."""

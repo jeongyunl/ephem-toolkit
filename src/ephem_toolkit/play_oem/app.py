@@ -286,6 +286,10 @@ class PlayerApp:
         self.frame.Show()
         self.open_plots(self._plots)
         self.workspace.draw_initial_graphs()
+        # The shown frame's final client size is not available until layout settles;
+        # refresh then so each stack gets the correct viewport-sized scroll tail.
+        self.frame.Layout()
+        wx.CallAfter(self._refresh_graph_stack_layouts)
         if not self._timer.Start(self._tick_interval_ms):
             raise RuntimeError("could not start the wx playback timer")
 
@@ -707,6 +711,18 @@ class PlayerApp:
                     f"{type(content).__name__!r}"
                 )
 
+            # Size a new or newly populated panel to its plot once. Replacing one
+            # populated graph with another must retain the user's chosen height.
+            if name != EMPTY_GRAPH_VIEW and (
+                replacing is None or replacing.view_name == EMPTY_GRAPH_VIEW
+            ):
+                natural_height = getattr(panel, "natural_content_height", None)
+                size_to_content = getattr(
+                    self.workspace, "size_graph_panel_to_content", None
+                )
+                if callable(natural_height) and callable(size_to_content):
+                    size_to_content(panel, natural_height())
+
             def update_view(time_s: float) -> None:
                 view.update(time_s)
                 if panel is not None and canvas is not None:
@@ -841,6 +857,14 @@ class PlayerApp:
             finally:
                 self._in_timer_tick = False
         self._update_time_display()
+
+    def _refresh_graph_stack_layouts(self) -> None:
+        """Refresh stack scroll ranges after startup layout, unless closing."""
+        if self._closed:
+            return
+        refresh = getattr(self.workspace, "refresh_graph_stack_layouts", None)
+        if callable(refresh):
+            refresh()
 
     def _update_time_display(self) -> None:
         elapsed_s = self.clock.t_now - self.clock.t_start

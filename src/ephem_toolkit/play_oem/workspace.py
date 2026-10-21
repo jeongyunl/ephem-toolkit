@@ -20,6 +20,8 @@ MIN_GRAPH_PANE_WIDTH: int = 320
 """Minimum width for either side of the graph-stack splitter."""
 MIN_GRAPH_PANEL_HEIGHT: int = GRAPH_PANEL_MIN_SIZE[1]
 """Minimum height for graph panels separated by horizontal stack splitters."""
+MAX_NATURAL_GRAPH_PANEL_HEIGHT: int = 900
+"""Maximum height assigned when sizing a new graph panel to its content."""
 SASH_DRAG_MIN_PANE: int = 1
 """wx-level pane floor for stack splitters; panel minimums are enforced by the stack layout."""
 BOTTOM_HANDLE_HEIGHT: int = 6
@@ -89,6 +91,11 @@ class Workspace:
         self._graph_redraw_timer: wx.CallLater | None = None
         self._stack_windows: dict[str, wx.ScrolledWindow] = {}
         self._stack_sizers: dict[str, wx.BoxSizer] = {}
+        # Tracks whether each stack's final sizer item is the viewport-height tail.
+        self._stack_bottom_padding_active: dict[str, bool] = {
+            "middle": False,
+            "right": False,
+        }
         self._stack_handles: dict[str, wx.Panel] = {}
         self._bottom_drag_start: dict[str, tuple[int, int]] = {}
         self._stacks_fitting: set[str] = set()
@@ -509,6 +516,8 @@ class Workspace:
         if panel in self._graph_panels[stack]:
             raise ValueError("graph panel is already in this stack")
 
+        # The new splitter is appended to the sizer, so remove the tail first.
+        self._detach_stack_bottom_padding(stack)
         window = self._stack_windows[stack]
         sizer = self._stack_sizers[stack]
         root = self._stack_roots[stack]
@@ -553,6 +562,8 @@ class Workspace:
             raise ValueError(f"unknown graph stack {stack!r}")
         if panel not in self._graph_panels[stack]:
             return
+        # Removing a panel can replace the root item that follows the tail.
+        self._detach_stack_bottom_padding(stack)
         self._remove_panel_from_stack_tree(stack, panel)
         self._graph_panels[stack].remove(panel)
         self._graph_panel_heights.pop(panel, None)
@@ -582,6 +593,8 @@ class Workspace:
         if new_panel in panels:
             raise ValueError("replacement graph panel is already in this stack")
 
+        # ReplaceWindow and root replacement change which item owns the stack slot.
+        self._detach_stack_bottom_padding(stack)
         window = self._stack_windows[stack]
         sizer = self._stack_sizers[stack]
         root = self._stack_roots[stack]
@@ -614,6 +627,31 @@ class Workspace:
         self._layout_graph_stack(stack)
         self._apply_graph_sash_heights(self._stack_roots[stack])
         window.Scroll(*view_start)
+
+    def size_graph_panel_to_content(
+        self, panel: GraphPanelHost, natural_height: int
+    ) -> None:
+        """Size a newly populated panel to its content, within usable height limits."""
+        stack = next(
+            (name for name, panels in self._graph_panels.items() if panel in panels),
+            None,
+        )
+        if stack is None:
+            raise ValueError("graph panel is not in a stack")
+        # Keep small native views usable and cap large figures; the outer stack
+        # provides scrolling when the resulting panels do not fit the viewport.
+        self._graph_panel_heights[panel] = min(
+            max(natural_height, MIN_GRAPH_PANEL_HEIGHT),
+            MAX_NATURAL_GRAPH_PANEL_HEIGHT,
+        )
+        self._layout_graph_stack(stack)
+        self._apply_graph_sash_heights(self._stack_roots[stack])
+
+    def refresh_graph_stack_layouts(self) -> None:
+        """Recalculate stack scroll ranges after the frame reaches its shown size."""
+        # Initial panel insertion can happen before GTK assigns final viewport sizes.
+        for stack in self._graph_panels:
+            self._layout_graph_stack(stack)
 
     def move_graph_panel(self, panel: GraphPanelHost, stack: str, offset: int) -> None:
         """Move a live panel within its stack without recreating its view."""
@@ -809,6 +847,11 @@ class Workspace:
         sizer = self._stack_sizers[stack]
         empty_panel = self._empty_panels[stack]
         handle = self._stack_handles[stack]
+        if self._stack_bottom_padding_active[stack]:
+            # Tree edits can append a new splitter after the spacer. Remove it
+            # first so the edit cannot mistake the spacer for the stack root.
+            sizer.Detach(sizer.GetItemCount() - 1)
+            self._stack_bottom_padding_active[stack] = False
         if root is not None and empty_panel.GetParent() is window:
             # wxGTK allocates even hidden direct children when scrolling.
             # Detach and park the empty state until it is needed again.
@@ -837,29 +880,46 @@ class Workspace:
                 handle.Reparent(window)
             sizer.Add(handle, 0, wx.EXPAND)
             handle.Show()
+            # Keep one empty viewport after the stack. This lets the user scroll
+            # the last graph fully upward instead of stopping at its bottom edge.
+            sizer.Add((0, window.GetClientSize().height), 0)
+            self._stack_bottom_padding_active[stack] = True
 
         window.Layout()
         self._update_stack_virtual_size(stack)
         self._update_stack_scrollbar_visibility(stack)
 
+    def _detach_stack_bottom_padding(self, stack: str) -> None:
+        """Remove the trailing sizer spacer before changing stack items."""
+        if not self._stack_bottom_padding_active[stack]:
+            return
+        # Structural edits can reorder sizer items, so remove the known final item
+        # while its position is still reliable and let layout add it back afterward.
+        sizer = self._stack_sizers[stack]
+        sizer.Detach(sizer.GetItemCount() - 1)
+        self._stack_bottom_padding_active[stack] = False
+
     def _update_stack_virtual_size(self, stack: str) -> None:
-        """Fit the stack to its content, plus one viewport so the bottom handle can scroll up."""
+        """Fit the stack, including trailing space for scrolling the last panel upward."""
         if stack in self._stacks_fitting:
             return
         self._stacks_fitting.add(stack)
         try:
             window = self._stack_windows[stack]
-            # FitInside resizes the scroller and re-enters the size handler. It briefly
-            # shrinks the scroll range to the content, so restore the view afterwards.
+            # FitInside can clamp the current scroll position while ranges change.
             view_start = window.GetViewStart()
-            window.FitInside()
-            if self._stack_roots[stack] is not None:
-                virtual = window.GetVirtualSize()
-                window.SetVirtualSize(
-                    wx.Size(
-                        virtual.width, virtual.height + window.GetClientSize().height
-                    )
+            if (
+                self._stack_roots[stack] is not None
+                and self._stack_bottom_padding_active[stack]
+            ):
+                # Update the spacer after viewport resizes; FitInside then keeps
+                # this extra area in its computed range rather than replacing it.
+                padding = window.GetSizer().GetItem(
+                    window.GetSizer().GetItemCount() - 1
                 )
+                padding.SetMinSize(wx.Size(0, window.GetClientSize().height))
+                window.Layout()
+            window.FitInside()
             window.Scroll(*view_start)
         finally:
             self._stacks_fitting.discard(stack)
