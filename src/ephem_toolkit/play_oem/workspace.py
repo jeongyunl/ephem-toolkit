@@ -19,6 +19,10 @@ MIN_GRAPH_PANE_WIDTH: int = 320
 """Minimum width for either side of the graph-stack splitter."""
 MIN_GRAPH_PANEL_HEIGHT: int = GRAPH_PANEL_MIN_SIZE[1]
 """Minimum height for graph panels separated by horizontal stack splitters."""
+SASH_DRAG_MIN_PANE: int = 1
+"""wx-level pane floor for stack splitters; panel minimums are enforced by the stack layout."""
+BOTTOM_HANDLE_HEIGHT: int = 6
+"""Height of the grab strip below the bottom-most graph panel that resizes that panel."""
 DEFAULT_RIGHT_PANE_WIDTH: int = 320
 """Initial width of the optional right graph pane."""
 CONTROLS_PANE_NAME: str = "Controls & Info"
@@ -84,6 +88,10 @@ class Workspace:
         self._graph_redraw_timer: wx.CallLater | None = None
         self._stack_windows: dict[str, wx.ScrolledWindow] = {}
         self._stack_sizers: dict[str, wx.BoxSizer] = {}
+        self._stack_handles: dict[str, wx.Panel] = {}
+        self._bottom_drag_start: dict[str, tuple[int, int]] = {}
+        self._stacks_fitting: set[str] = set()
+        self._stack_overflowing: dict[str, bool] = {}
         self._empty_states: dict[str, wx.StaticText] = {}
         self._empty_panels: dict[str, wx.Panel] = {}
         self._add_buttons: dict[str, wx.Button] = {}
@@ -96,6 +104,7 @@ class Workspace:
             "middle": [],
             "right": [],
         }
+        self._graph_panel_heights: dict[GraphPanelHost, int] = {}
         self._right_pane_width = DEFAULT_RIGHT_PANE_WIDTH
         self._comparison_toggle: wx.ToggleButton | None = None
         self._view_choices = view_choices
@@ -510,7 +519,7 @@ class Workspace:
             splitter = wx.SplitterWindow(
                 window, wx.ID_ANY, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH
             )
-            splitter.SetMinimumPaneSize(MIN_GRAPH_PANEL_HEIGHT)
+            splitter.SetMinimumPaneSize(SASH_DRAG_MIN_PANE)
             splitter.SetSashGravity(0.5)
             sizer.Detach(root)
             root.Reparent(splitter)
@@ -521,6 +530,12 @@ class Workspace:
                 splitter.Destroy()
                 sizer.Add(root, 1, wx.EXPAND)
                 raise RuntimeError(f"could not split graph stack {stack!r}")
+            splitter.Bind(
+                wx.EVT_SPLITTER_SASH_POS_CHANGING,
+                lambda event, stack=stack, splitter=splitter: (
+                    self._on_graph_sash_changing(stack, splitter, event)
+                ),
+            )
             self._stack_splitters[stack].append(splitter)
             root = splitter
             sizer.Add(root, 1, wx.EXPAND)
@@ -537,6 +552,7 @@ class Workspace:
             return
         self._remove_panel_from_stack_tree(stack, panel)
         self._graph_panels[stack].remove(panel)
+        self._graph_panel_heights.pop(panel, None)
         if panel in self._queued_graph_redraws:
             self._pending_graph_redraws = deque(
                 queued for queued in self._pending_graph_redraws if queued is not panel
@@ -740,28 +756,49 @@ class Workspace:
             return True
         return False
 
+    def _stack_subtree_height(self, window: wx.Window) -> int:
+        """Return the height a stack subtree needs: panel heights plus internal sashes."""
+        if not isinstance(window, wx.SplitterWindow):
+            return self._graph_panel_heights.get(window, MIN_GRAPH_PANEL_HEIGHT)
+        return (
+            self._stack_subtree_height(window.GetWindow1())
+            + window.GetSashSize()
+            + self._stack_subtree_height(window.GetWindow2())
+        )
+
     def _layout_graph_stack(self, stack: str) -> None:
         """Synchronize the empty state, minimum sizes, and scroll layout."""
 
         def minimum_height(window: wx.Window) -> int:
             if not isinstance(window, wx.SplitterWindow):
-                return window.GetMinSize().height
-            height = (
-                minimum_height(window.GetWindow1())
-                + minimum_height(window.GetWindow2())
-                + window.GetSashSize()
-            )
-            window.SetMinimumPaneSize(MIN_GRAPH_PANEL_HEIGHT)
+                return self._stack_subtree_height(window)
+            # wx clamps a sash to the minimum size of the panes on both sides, so
+            # panels inside a splitter advertise only a small floor. The real
+            # panel floor is enforced through _graph_panel_heights.
+            for child in (window.GetWindow1(), window.GetWindow2()):
+                if not isinstance(child, wx.SplitterWindow):
+                    child.SetMinSize(
+                        wx.Size(GRAPH_PANEL_MIN_SIZE[0], SASH_DRAG_MIN_PANE)
+                    )
+            minimum_height(window.GetWindow1())
+            minimum_height(window.GetWindow2())
+            height = self._stack_subtree_height(window)
+            window.SetMinimumPaneSize(SASH_DRAG_MIN_PANE)
             window.SetMinSize((GRAPH_PANEL_MIN_SIZE[0], height))
             return height
 
         root = self._stack_roots[stack]
         if root is not None:
+            if not isinstance(root, wx.SplitterWindow):
+                root.SetMinSize(
+                    wx.Size(GRAPH_PANEL_MIN_SIZE[0], self._stack_subtree_height(root))
+                )
             minimum_height(root)
 
         window = self._stack_windows[stack]
         sizer = self._stack_sizers[stack]
         empty_panel = self._empty_panels[stack]
+        handle = self._stack_handles[stack]
         if root is not None and empty_panel.GetParent() is window:
             # wxGTK allocates even hidden direct children when scrolling.
             # Detach and park the empty state until it is needed again.
@@ -774,20 +811,129 @@ class Workspace:
             sizer.Add(empty_panel, 0, wx.EXPAND)
             empty_panel.Show()
 
+        if root is None:
+            sizer.Detach(handle)
+            handle.Hide()
+        else:
+            # Keep panels at their requested heights rather than stretching them to
+            # the viewport, and keep the resize handle directly below the stack.
+            sizer.GetItem(root).SetProportion(0)
+            sizer.Detach(handle)
+            sizer.Add(handle, 0, wx.EXPAND)
+            handle.Show()
+
         window.Layout()
-        window.FitInside()
+        self._update_stack_virtual_size(stack)
         self._update_stack_scrollbar_visibility(stack)
+
+    def _update_stack_virtual_size(self, stack: str) -> None:
+        """Fit the stack to its content, plus one viewport so the bottom handle can scroll up."""
+        if stack in self._stacks_fitting:
+            return
+        self._stacks_fitting.add(stack)
+        try:
+            window = self._stack_windows[stack]
+            # FitInside resizes the scroller and re-enters the size handler. It briefly
+            # shrinks the scroll range to the content, so restore the view afterwards.
+            view_start = window.GetViewStart()
+            window.FitInside()
+            if self._stack_roots[stack] is not None:
+                virtual = window.GetVirtualSize()
+                window.SetVirtualSize(
+                    wx.Size(
+                        virtual.width, virtual.height + window.GetClientSize().height
+                    )
+                )
+            window.Scroll(*view_start)
+        finally:
+            self._stacks_fitting.discard(stack)
 
     def _update_stack_scrollbar_visibility(self, stack: str) -> None:
         window = self._stack_windows[stack]
         has_overflow = window.GetScrollRange(wx.VERTICAL) > window.GetScrollThumb(
             wx.VERTICAL
         )
+        # Only touch the scrollbars on change; each call can send another size event.
+        if self._stack_overflowing.get(stack) == has_overflow:
+            return
+        self._stack_overflowing[stack] = has_overflow
         window.AlwaysShowScrollbars(False, has_overflow)
 
     def _on_stack_size(self, stack: str, event: wx.SizeEvent) -> None:
-        self._update_stack_scrollbar_visibility(stack)
+        if stack not in self._stacks_fitting:
+            self._stacks_fitting.add(stack)
+            try:
+                self._update_stack_virtual_size(stack)
+                self._update_stack_scrollbar_visibility(stack)
+            finally:
+                self._stacks_fitting.discard(stack)
         event.Skip()
+
+    def _sync_graph_panel_heights(self, stack: str) -> None:
+        for panel in self._graph_panels[stack]:
+            self._graph_panel_heights[panel] = panel.GetSize().height
+
+    def _bottom_graph_panel(self, stack: str) -> wx.Window | None:
+        pane = self._stack_roots[stack]
+        while isinstance(pane, wx.SplitterWindow):
+            pane = pane.GetWindow2()
+        return pane
+
+    def _on_bottom_handle_down(self, stack: str, event: wx.MouseEvent) -> None:
+        panel = self._bottom_graph_panel(stack)
+        if panel is None:
+            return
+        self._sync_graph_panel_heights(stack)
+        self._bottom_drag_start[stack] = (
+            wx.GetMousePosition().y,
+            self._graph_panel_heights[panel],
+        )
+        self._stack_handles[stack].CaptureMouse()
+
+    def _on_bottom_handle_motion(self, stack: str, event: wx.MouseEvent) -> None:
+        start = self._bottom_drag_start.get(stack)
+        panel = self._bottom_graph_panel(stack)
+        if start is None or panel is None or not event.Dragging():
+            return
+        start_y, start_height = start
+        # Use screen coordinates: the handle itself moves as the panel grows.
+        self._graph_panel_heights[panel] = max(
+            MIN_GRAPH_PANEL_HEIGHT, start_height + wx.GetMousePosition().y - start_y
+        )
+        self._layout_graph_stack(stack)
+        self._apply_graph_sash_heights(self._stack_roots[stack])
+
+    def _on_bottom_handle_up(self, stack: str, event: wx.MouseEvent) -> None:
+        self._bottom_drag_start.pop(stack, None)
+        handle = self._stack_handles[stack]
+        if handle.HasCapture():
+            handle.ReleaseMouse()
+
+    def _on_graph_sash_changing(
+        self, stack: str, splitter: wx.SplitterWindow, event: wx.SplitterEvent
+    ) -> None:
+        """Resize the panel above the sash; panels below keep their heights and the stack grows."""
+        event.Veto()
+        delta = event.GetSashPosition() - splitter.GetSashPosition()
+        if delta == 0:
+            return
+        pane = splitter.GetWindow1()
+        while isinstance(pane, wx.SplitterWindow):
+            pane = pane.GetWindow2()
+        self._sync_graph_panel_heights(stack)
+        self._graph_panel_heights[pane] = max(
+            MIN_GRAPH_PANEL_HEIGHT, self._graph_panel_heights[pane] + delta
+        )
+        self._layout_graph_stack(stack)
+        self._apply_graph_sash_heights(self._stack_roots[stack])
+
+    def _apply_graph_sash_heights(self, window: wx.Window) -> None:
+        """Set every sash so each panel keeps its requested height, top-down."""
+        if not isinstance(window, wx.SplitterWindow):
+            return
+        window.SetSashPosition(self._stack_subtree_height(window.GetWindow1()))
+        self._apply_graph_sash_heights(window.GetWindow1())
+        self._apply_graph_sash_heights(window.GetWindow2())
 
     def select_feature(self, index: int) -> None:
         """Select a feature page and keep the rail's toggle state synchronized."""
@@ -1029,6 +1175,24 @@ class Workspace:
         empty_layout.Add(add_button, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
         empty_panel.SetSizer(empty_layout)
         sizer.Add(empty_panel, 0, wx.EXPAND)
+        handle = wx.Panel(window, wx.ID_ANY)
+        handle.SetMinSize(wx.Size(-1, BOTTOM_HANDLE_HEIGHT))
+        handle.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_3DSHADOW))
+        handle.SetCursor(wx.Cursor(wx.CURSOR_SIZENS))
+        handle.SetName(f"{stack} bottom panel resize handle")
+        handle.Bind(
+            wx.EVT_LEFT_DOWN,
+            lambda event, stack=stack: self._on_bottom_handle_down(stack, event),
+        )
+        handle.Bind(
+            wx.EVT_MOTION,
+            lambda event, stack=stack: self._on_bottom_handle_motion(stack, event),
+        )
+        handle.Bind(
+            wx.EVT_LEFT_UP,
+            lambda event, stack=stack: self._on_bottom_handle_up(stack, event),
+        )
+        handle.Hide()
         window.SetSizer(sizer)
         window.Bind(wx.EVT_SCROLLWIN, self._on_stack_scroll)
         window.Bind(
@@ -1037,6 +1201,7 @@ class Workspace:
         )
         self._stack_windows[stack] = window
         self._stack_sizers[stack] = sizer
+        self._stack_handles[stack] = handle
         self._empty_states[stack] = empty_state
         self._empty_panels[stack] = empty_panel
         return window

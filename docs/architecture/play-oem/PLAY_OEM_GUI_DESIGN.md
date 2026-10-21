@@ -69,8 +69,14 @@ panel proportions are illustrative.
   panel selectors and plot actions local to their panel.
 - Provide draggable sashes for both split orientations: vertical sashes resize side-by-side
   regions, and horizontal sashes resize top/bottom regions, including the heights of individual
-  graph panels in a stack. A sash resize should affect its adjacent panes without resetting
-  unrelated pane sizes or selected views.
+  graph panels in a stack. Dragging a horizontal sash changes only the height of the graph panel
+  directly above it; panels below keep their heights. The stack grows or shrinks by the same amount
+  and scrolls when it exceeds the viewport. A sash resize should not reset unrelated pane sizes or
+  selected views.
+- Below the bottom-most graph panel, a thin resize grip changes that panel's height by dragging
+  down or up. The stack scrolls one viewport past its content so the grip can be brought into view
+  and dragged further. A sash resize should not reset unrelated pane sizes or
+  selected views.
 - Keep sash handles wide enough to locate and drag, with visible theme-aware contrast in dark and
   light appearances.
 - Keep graph panels at or above a 320 x 280 pixel minimum; scroll each stack rather than
@@ -116,9 +122,13 @@ timers, and graph-panel hosts. The left/middle/right regions use nested vertical
 middle and right stack uses its own scroll window and nested horizontal splitters between graph
 panels. These sub-pane splitters use the same live-update, 3D-sash style as the main splitters.
 Every `GraphPanelHost` has a 320 x 280 pixel minimum. Matplotlib canvases and native VTK wx content
-are parented to their graph-panel host, while the workspace maintains independent panel IDs and
-clock subscriptions. Pane headings and wx window names are **Controls & Info**, **Main Analysis**,
-and **Comparison**.
+are hosted in an independent horizontal/vertical scroller inside their graph-panel host, while
+the workspace maintains independent panel IDs and clock subscriptions. Stack-level scrolling
+continues to navigate between graph panels; panel-level scrolling is for content that exceeds an
+individual panel's viewport. Mouse-wheel input scrolls panel content first and hands off to the
+containing stack when that content reaches its scroll boundary, so the entire Main Analysis or
+Comparison stack can be scrolled from over a graph panel. Pane headings and wx window names are
+**Controls & Info**, **Main Analysis**, and **Comparison**.
 
 For the selected G layout, verify:
 

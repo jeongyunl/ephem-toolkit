@@ -231,7 +231,8 @@ class FakeTimer:
 
 
 class FakeCanvas:
-    def __init__(self, _parent, _id: int, _figure) -> None:
+    def __init__(self, parent, _id: int, _figure) -> None:
+        self.parent = parent
         self.draw_count = 0
         self.draw_idle_count = 0
         self.callbacks: dict[int, tuple[str, Callable[..., object]]] = {}
@@ -292,6 +293,7 @@ class FakeGraphPanelHost:
         self.title = title
         self.on_close = on_close
         self.panel_id = panel_id
+        self.content_scroller = object()
         self.canvas = None
         self.toolbar = None
         self.native_content = None
@@ -616,6 +618,8 @@ def test_start_uses_one_wx_app_and_opens_the_selected_views(
     assert frames[0].shown
     assert len(views) == len(canvases) == 1
     assert player._open_views["state-components"].panel in player.workspace.graph_panels
+    content_scroller = player._open_views["state-components"].panel.content_scroller
+    assert canvases[0].parent is content_scroller
     assert views[0].updated_times == [150.0]
     assert player._timer.interval == 40
     assert player._timer.running

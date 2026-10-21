@@ -122,3 +122,87 @@ def test_scheduled_redraw_refreshes_visible_native_content() -> None:
     graph_panel.GraphPanelHost.draw_if_needed(cast(graph_panel.GraphPanelHost, panel))
 
     assert native_content.refresh_count == 1
+
+
+class FakeScrolledWindow:
+    def __init__(
+        self,
+        parent=None,
+        *,
+        scroll_range: int = 0,
+        scroll_thumb: int = 1,
+        view_y: int = 0,
+    ) -> None:
+        self.parent = parent
+        self.scroll_range = scroll_range
+        self.scroll_thumb = scroll_thumb
+        self.view_y = view_y
+        self.scroll_calls: list[tuple[int, int]] = []
+
+    def GetParent(self):
+        return self.parent
+
+    def GetViewStart(self) -> tuple[int, int]:
+        return 0, self.view_y
+
+    def GetScrollRange(self, _orientation: int) -> int:
+        return self.scroll_range
+
+    def GetScrollThumb(self, _orientation: int) -> int:
+        return self.scroll_thumb
+
+    def Scroll(self, x: int, y: int) -> None:
+        self.scroll_calls.append((x, y))
+        self.view_y = y
+
+
+class FakeMouseWheelEvent:
+    def __init__(self, rotation: int, delta: int = 120) -> None:
+        self.rotation = rotation
+        self.delta = delta
+        self.skipped = False
+
+    def GetWheelRotation(self) -> int:
+        return self.rotation
+
+    def GetWheelDelta(self) -> int:
+        return self.delta
+
+    def Skip(self) -> None:
+        self.skipped = True
+
+
+def test_panel_content_wheel_hands_off_to_stack_only_at_panel_scroll_edges(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(graph_panel.wx, "ScrolledWindow", FakeScrolledWindow)
+    outer_stack = FakeScrolledWindow(
+        scroll_range=30,
+        scroll_thumb=10,
+        view_y=0,
+    )
+    panel_content = FakeScrolledWindow(
+        outer_stack,
+        scroll_range=15,
+        scroll_thumb=5,
+        view_y=0,
+    )
+    host = SimpleNamespace(
+        content_scroller=panel_content,
+        _parent_stack_scroller=lambda: outer_stack,
+    )
+
+    inner_event = FakeMouseWheelEvent(-120)
+    graph_panel.GraphPanelHost._on_content_mousewheel(
+        cast(graph_panel.GraphPanelHost, host), inner_event
+    )
+    assert inner_event.skipped
+    assert outer_stack.scroll_calls == []
+
+    panel_content.view_y = 10
+    handoff_event = FakeMouseWheelEvent(-120)
+    graph_panel.GraphPanelHost._on_content_mousewheel(
+        cast(graph_panel.GraphPanelHost, host), handoff_event
+    )
+    assert not handoff_event.skipped
+    assert outer_stack.scroll_calls == [(0, 3)]

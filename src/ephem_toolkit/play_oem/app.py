@@ -684,11 +684,11 @@ class PlayerApp:
             else:
                 self.workspace.replace_graph_panel(replacing.panel, panel, stack=stack)
             panel_inserted = True
-            view = create_view(panel)
+            view = create_view(panel.content_scroller)
             content = view.build(self.series, self.time_unit)
             view.update(self.clock.t_now)
             if isinstance(content, Figure):
-                canvas = FigureCanvasWxAgg(panel, wx.ID_ANY, content)
+                canvas = FigureCanvasWxAgg(panel.content_scroller, wx.ID_ANY, content)
                 plot_toolbar = NavigationToolbar2WxAgg(canvas)
                 plot_toolbar.Realize()
                 toolbar = plot_toolbar

@@ -150,6 +150,26 @@ class FakeSizer:
         self.items = [entry for entry in self.items if entry[0] is not item]
         return True
 
+    def GetItem(self, window) -> FakeSizerItem:
+        return FakeSizerItem(self, window)
+
+
+class FakeSizerItem:
+    def __init__(self, sizer: FakeSizer, window) -> None:
+        self.sizer = sizer
+        self.window = window
+
+    def SetProportion(self, proportion: int) -> None:
+        self.sizer.items = [
+            (
+                item,
+                proportion if item is self.window else entry_proportion,
+                flags,
+                border,
+            )
+            for item, entry_proportion, flags, border in self.sizer.items
+        ]
+
 
 class FakeSize:
     def __init__(self, width: int, height: int) -> None:
@@ -163,6 +183,7 @@ class FakePanel:
         self.sizer = None
         self.minimum_size = FakeSize(320, 280)
         self.client_size = FakeSize(180, 400)
+        self.current_size = FakeSize(320, 280)
         self.name = ""
         self.shown = True
         self.bindings = {}
@@ -208,8 +229,42 @@ class FakePanel:
     def GetMinSize(self) -> FakeSize:
         return self.minimum_size
 
+    def GetSize(self) -> FakeSize:
+        return self.current_size
+
     def IsShownOnScreen(self) -> bool:
         return True
+
+    def SetBackgroundColour(self, colour) -> None:
+        self.background_colour = colour
+
+    def SetCursor(self, cursor) -> None:
+        self.cursor = cursor
+
+    def CaptureMouse(self) -> None:
+        self.captured = True
+
+    def ReleaseMouse(self) -> None:
+        self.captured = False
+
+    def HasCapture(self) -> bool:
+        return getattr(self, "captured", False)
+
+
+class FakePoint:
+    def __init__(self, x: int, y: int) -> None:
+        self.x = x
+        self.y = y
+
+
+class FakeMouse:
+    position = (0, 0)
+
+
+class FakeSystemSettings:
+    @staticmethod
+    def GetColour(colour_id):
+        return ("system-colour", colour_id)
 
 
 class FakeGraphPanel(FakePanel):
@@ -226,6 +281,8 @@ class FakeGraphPanel(FakePanel):
 
 
 class FakeScrolledWindow(FakePanel):
+    FIT_HEIGHT = 600
+
     def __init__(self, parent, widget_id: int, **kwargs) -> None:
         super().__init__(parent, widget_id)
         self.style = kwargs.get("style", 0)
@@ -257,7 +314,17 @@ class FakeScrolledWindow(FakePanel):
         pass
 
     def FitInside(self) -> None:
-        pass
+        self.virtual_size = FakeSize(320, self.FIT_HEIGHT)
+        # Like wx, the view cannot stay beyond the range that FitInside just set.
+        x, y = self.view_start
+        max_start = max(0, self.FIT_HEIGHT - self.GetClientSize().height)
+        self.view_start = (x, min(y, max_start))
+
+    def GetVirtualSize(self) -> FakeSize:
+        return getattr(self, "virtual_size", FakeSize(320, 280))
+
+    def SetVirtualSize(self, size) -> None:
+        self.virtual_size = FakeSize(*size)
 
 
 class FakeSplitter:
@@ -277,6 +344,10 @@ class FakeSplitter:
         self.is_split = False
         self.minimum_size = FakeSize(0, 0)
         self.destroyed = False
+        self.bindings = {}
+
+    def Bind(self, event_type, callback) -> None:
+        self.bindings[event_type] = callback
 
     def SetMinimumPaneSize(self, size: int) -> None:
         self.minimum_pane_size = size
@@ -347,6 +418,9 @@ class FakeSplitter:
 
     def GetSashPosition(self) -> int:
         return self.sash_position
+
+    def GetSize(self) -> FakeSize:
+        return self.minimum_size
 
     def SetSashPosition(self, sash_position: int) -> None:
         self.sash_position = sash_position
@@ -419,6 +493,9 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "Panel": FakePanel,
         "ScrolledWindow": FakeScrolledWindow,
         "SplitterWindow": FakeSplitter,
+        "SystemSettings": FakeSystemSettings,
+        "Cursor": lambda cursor_id: ("cursor", cursor_id),
+        "GetMousePosition": lambda: FakePoint(*FakeMouse.position),
         "Simplebook": FakeSimplebook,
         "BitmapToggleButton": FakeWidget,
         "ToggleButton": FakeWidget,
@@ -461,6 +538,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "EVT_KEY_DOWN": "key-down",
         "EVT_SLIDER": "slider",
         "EVT_SCROLLWIN": "scroll-window",
+        "EVT_SPLITTER_SASH_POS_CHANGING": "splitter-sash-changing",
         "WXK_UP": 315,
         "WXK_DOWN": 317,
         "WXK_PAGEUP": 366,
@@ -848,7 +926,6 @@ def test_graph_hosts_replace_empty_state_and_restore_it_when_removed(
     assert [item[0] for item in result._stack_sizers["middle"].items] == [empty_panel]
     # Removed panels must also be parked while awaiting destruction or reuse.
     assert host.GetParent() is result.middle_stack.GetParent()
-
     # Reusing a parked panel must restore its scrolling parent and hide the
     # empty state again without leaving a hidden native scroll child.
     result.add_graph_panel(host)
@@ -856,6 +933,126 @@ def test_graph_hosts_replace_empty_state_and_restore_it_when_removed(
     assert empty_panel.GetParent() is result.middle_stack.GetParent()
     with pytest.raises(ValueError, match="unknown graph stack"):
         result.add_graph_panel(host, "invalid")
+
+
+def test_dragging_graph_sash_resizes_panel_above_and_keeps_panels_below(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, _seeks, _frame = make_workspace(monkeypatch)
+    panels = [
+        FakeGraphPanel(result.middle_stack, f"panel-{index}") for index in range(3)
+    ]
+    for panel in panels:
+        result.add_graph_panel(panel, "middle")
+    inner = result._stack_splitters["middle"][0]
+    root = result._stack_roots["middle"]
+    assert inner.GetWindow1() is panels[0]
+    # wx clamps a sash to the minimum size of the pane below it, so the
+    # panels advertise only the small drag floor.
+    assert panels[1].GetMinSize().height == workspace.SASH_DRAG_MIN_PANE
+
+    class SashEvent(FakeEvent):
+        def __init__(self, position: int) -> None:
+            super().__init__()
+            self.position = position
+            self.vetoed = False
+
+        def GetSashPosition(self) -> int:
+            return self.position
+
+        def Veto(self) -> None:
+            self.vetoed = True
+
+    event = SashEvent(340)
+    result._on_graph_sash_changing("middle", inner, event)
+
+    assert event.vetoed
+    assert result._graph_panel_heights[panels[0]] == 340
+    assert result._graph_panel_heights[panels[1]] == 280
+    assert result._graph_panel_heights[panels[2]] == 280
+    assert inner.GetSashPosition() == 340
+    assert root.GetMinSize().height == 340 + 4 + 280 + 4 + 280
+
+    panels[0].current_size = FakeSize(320, 340)
+    result._on_graph_sash_changing("middle", inner, SashEvent(310))
+
+    assert result._graph_panel_heights[panels[0]] == 310
+    assert result._graph_panel_heights[panels[1]] == 280
+    assert root.GetMinSize().height == 310 + 4 + 280 + 4 + 280
+
+    result._on_graph_sash_changing("middle", inner, SashEvent(100))
+
+    assert result._graph_panel_heights[panels[0]] == workspace.MIN_GRAPH_PANEL_HEIGHT
+
+
+def test_bottom_handle_grows_bottom_panel_and_scroll_extends_past_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, _seeks, _frame = make_workspace(monkeypatch)
+    panels = [
+        FakeGraphPanel(result.middle_stack, f"panel-{index}") for index in range(2)
+    ]
+    for panel in panels:
+        result.add_graph_panel(panel, "middle")
+    stack = result.middle_stack
+    handle = result._stack_handles["middle"]
+    root = result._stack_roots["middle"]
+
+    assert handle.shown
+    assert stack.sizer.items[-1][0] is handle
+    assert result._bottom_graph_panel("middle") is panels[1]
+    root_entry = next(entry for entry in stack.sizer.items if entry[0] is root)
+    assert root_entry[1] == 0
+    # Slack equals one client viewport beyond the fitted content.
+    assert stack.GetVirtualSize().height == FakeScrolledWindow.FIT_HEIGHT + (
+        stack.GetClientSize().height
+    )
+
+    class DragEvent(FakeEvent):
+        def Dragging(self) -> bool:
+            return True
+
+    FakeMouse.position = (0, 500)
+    handle.bindings[workspace.wx.EVT_LEFT_DOWN](DragEvent())
+    assert handle.HasCapture()
+
+    FakeMouse.position = (0, 540)
+    handle.bindings[workspace.wx.EVT_MOTION](DragEvent())
+
+    assert result._graph_panel_heights[panels[1]] == 280 + 40
+    assert result._graph_panel_heights[panels[0]] == 280
+
+    handle.bindings[workspace.wx.EVT_LEFT_UP](DragEvent())
+    assert not handle.HasCapture()
+
+    FakeMouse.position = (0, 900)
+    handle.bindings[workspace.wx.EVT_MOTION](DragEvent())
+    assert result._graph_panel_heights[panels[1]] == 280 + 40
+
+
+def test_growing_bottom_panel_keeps_stack_scroll_position(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, _seeks, _frame = make_workspace(monkeypatch)
+    panels = [
+        FakeGraphPanel(result.middle_stack, f"panel-{index}") for index in range(2)
+    ]
+    for panel in panels:
+        result.add_graph_panel(panel, "middle")
+    stack = result.middle_stack
+    handle = result._stack_handles["middle"]
+    stack.view_start = (0, 500)
+
+    class DragEvent(FakeEvent):
+        def Dragging(self) -> bool:
+            return True
+
+    FakeMouse.position = (0, 500)
+    handle.bindings[workspace.wx.EVT_LEFT_DOWN](DragEvent())
+    FakeMouse.position = (0, 560)
+    handle.bindings[workspace.wx.EVT_MOTION](DragEvent())
+
+    assert stack.view_start == (0, 500)
 
 
 def test_add_graph_actions_route_to_the_correct_stack(
@@ -926,7 +1123,7 @@ def test_many_graph_panels_keep_horizontal_sashes_and_minimum_sizes(
     assert result._stack_roots["middle"].GetMinSize().height == 5 * 280 + 4 * 4
     assert len(result._stack_splitters["middle"]) == 4
     assert all(
-        splitter.GetMinimumPaneSize() == workspace.MIN_GRAPH_PANEL_HEIGHT
+        splitter.GetMinimumPaneSize() == workspace.SASH_DRAG_MIN_PANE
         for splitter in result._stack_splitters["middle"]
     )
     assert all(

@@ -21,6 +21,8 @@ from matplotlib.figure import Figure
 
 MATPLOTLIB_REDRAW_INTERVAL_S: float = 0.033
 """Minimum interval between requested Matplotlib redraws per graph panel."""
+WHEEL_SCROLL_UNITS_PER_NOTCH: int = 3
+"""Graph-stack scroll units moved per standard mouse-wheel notch."""
 GRAPH_PANEL_MIN_SIZE: tuple[int, int] = (320, 280)
 """Minimum usable graph-panel width and height in pixels."""
 
@@ -74,7 +76,7 @@ class _RedrawThrottle:
 
 
 class GraphPanelHost(wx.Panel):
-    """Host one graph-panel instance within a scrollable graph stack."""
+    """Host one graph panel with independently scrollable content."""
 
     def __init__(
         self,
@@ -102,6 +104,14 @@ class GraphPanelHost(wx.Panel):
         self._canvas: FigureCanvasWxAgg | None = None
         self._native_content: wx.Window | None = None
         self._uses_constrained_layout = False
+        self.content_scroller = wx.ScrolledWindow(
+            self,
+            wx.ID_ANY,
+            style=wx.HSCROLL | wx.VSCROLL | wx.TAB_TRAVERSAL,
+        )
+        self.content_scroller.SetName(f"{title} graph content")
+        self.content_scroller.SetScrollRate(10, 10)
+        self.content_scroller.Bind(wx.EVT_MOUSEWHEEL, self._on_content_mousewheel)
 
         layout = wx.BoxSizer(wx.VERTICAL)
         header = wx.BoxSizer(wx.HORIZONTAL)
@@ -182,7 +192,8 @@ class GraphPanelHost(wx.Panel):
         header.Add(self.close_button, 0, wx.ALL, 2)
         layout.Add(header, 0, wx.EXPAND)
         self.content_sizer = wx.BoxSizer(wx.VERTICAL)
-        layout.Add(self.content_sizer, 1, wx.EXPAND)
+        self.content_scroller.SetSizer(self.content_sizer)
+        layout.Add(self.content_scroller, 1, wx.EXPAND)
         self.SetSizer(layout)
         self.SetMinSize(GRAPH_PANEL_MIN_SIZE)
         self.Bind(wx.EVT_SHOW, self._on_show)
@@ -201,13 +212,69 @@ class GraphPanelHost(wx.Panel):
             raise RuntimeError("graph panel already has native content")
         self.content_sizer.Add(toolbar, 0, wx.EXPAND)
         self.content_sizer.Add(canvas, 1, wx.EXPAND)
+        toolbar.Bind(wx.EVT_MOUSEWHEEL, self._on_content_mousewheel)
+        canvas.Bind(wx.EVT_MOUSEWHEEL, self._on_content_mousewheel)
         self._canvas = canvas
         self._redraw_throttle = _RedrawThrottle(self._is_visible, canvas.draw_idle)
         if _canvas_figure(canvas).get_layout_engine() is not None:
             self._uses_constrained_layout = True
             canvas.mpl_connect("draw_event", self._disable_constrained_layout)
             canvas.Bind(wx.EVT_SIZE, self._on_canvas_size)
+        self.content_scroller.FitInside()
         self.Layout()
+
+    def _on_content_mousewheel(self, event: wx.MouseEvent) -> None:
+        """Scroll panel content first, handing wheel input to its stack at an edge."""
+        rotation = event.GetWheelRotation()
+        if rotation == 0:
+            event.Skip()
+            return
+
+        content_position = self.content_scroller.GetViewStart()
+        content_limit = max(
+            0,
+            self.content_scroller.GetScrollRange(wx.VERTICAL)
+            - self.content_scroller.GetScrollThumb(wx.VERTICAL),
+        )
+        if (rotation > 0 and content_position[1] > 0) or (
+            rotation < 0 and content_position[1] < content_limit
+        ):
+            event.Skip()
+            return
+
+        stack_scroller = self._parent_stack_scroller()
+        if stack_scroller is None:
+            event.Skip()
+            return
+
+        stack_position = stack_scroller.GetViewStart()
+        stack_limit = max(
+            0,
+            stack_scroller.GetScrollRange(wx.VERTICAL)
+            - stack_scroller.GetScrollThumb(wx.VERTICAL),
+        )
+        wheel_delta = max(1, event.GetWheelDelta())
+        lines = max(
+            1,
+            round(abs(rotation) / wheel_delta * WHEEL_SCROLL_UNITS_PER_NOTCH),
+        )
+        direction = -1 if rotation > 0 else 1
+        next_position = min(
+            max(stack_position[1] + direction * lines, 0),
+            stack_limit,
+        )
+        if next_position == stack_position[1]:
+            event.Skip()
+            return
+        stack_scroller.Scroll(stack_position[0], next_position)
+
+    def _parent_stack_scroller(self) -> wx.ScrolledWindow | None:
+        parent = self.GetParent()
+        while parent is not None:
+            if isinstance(parent, wx.ScrolledWindow):
+                return parent
+            parent = parent.GetParent()
+        return None
 
     def set_native_content(self, content: wx.Window) -> None:
         """Install native wx plot content in this panel."""
@@ -215,6 +282,7 @@ class GraphPanelHost(wx.Panel):
             raise RuntimeError("graph panel already has content")
         self.content_sizer.Add(content, 1, wx.EXPAND)
         self._native_content = content
+        self.content_scroller.FitInside()
         self.Layout()
 
     def request_redraw(self) -> None:
