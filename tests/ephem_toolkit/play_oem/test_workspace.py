@@ -77,6 +77,7 @@ class FakeWidget:
         self.value = value
 
     def SetInsertionPointEnd(self) -> None:
+        assert isinstance(self.value, str)
         self.insertion_point = len(self.value)
 
     def HasFocus(self) -> bool:
@@ -258,7 +259,7 @@ class FakePoint:
 
 
 class FakeMouse:
-    position = (0, 0)
+    position: tuple[int, int] = (0, 0)
 
 
 class FakeSystemSettings:
@@ -1171,8 +1172,10 @@ def test_moving_graph_panel_reorders_live_hosts_without_replacing_them(
     assert result._graph_panels["middle"] == panels
 
 
-def test_replacing_graph_panel_preserves_order_splitter_and_scroll_position(
+@pytest.mark.parametrize("panel_index", [0, 1, 2])
+def test_replacing_graph_panel_preserves_height_order_splitter_and_scroll_position(
     monkeypatch: pytest.MonkeyPatch,
+    panel_index: int,
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
     panels = [
@@ -1181,18 +1184,28 @@ def test_replacing_graph_panel_preserves_order_splitter_and_scroll_position(
     ]
     for panel in panels:
         result.add_graph_panel(panel)
+    original = panels[panel_index]
+    result._graph_panel_heights.update(zip(panels, (360, 420, 480)))
+    result._layout_graph_stack("middle")
+    result._apply_graph_sash_heights(result._stack_roots["middle"])
+    stack_height = result._stack_roots["middle"].GetMinSize().height
     result.main_analysis_stack.view_start = (0, 7)
-    parent_splitter = panels[1].GetParent()
+    parent_splitter = original.GetParent()
     sash_position = parent_splitter.GetSashPosition()
     replacement = FakeGraphPanel(result.main_analysis_stack, "replacement")
 
-    result.replace_graph_panel(panels[1], replacement)
+    result.replace_graph_panel(original, replacement)
 
-    assert result._graph_panels["middle"] == [
-        panels[0],
-        replacement,
-        panels[2],
+    expected_panels = list(panels)
+    expected_panels[panel_index] = replacement
+    assert result._graph_panels["middle"] == expected_panels
+    assert [result._graph_panel_heights[panel] for panel in expected_panels] == [
+        360,
+        420,
+        480,
     ]
+    assert original not in result._graph_panel_heights
+    assert result._stack_roots["middle"].GetMinSize().height == stack_height
     assert replacement.GetParent() is parent_splitter
     assert replacement in (
         parent_splitter.GetWindow1(),
@@ -1209,6 +1222,7 @@ def test_replacing_only_graph_panel_updates_stack_root(
     original = FakeGraphPanel(result.main_analysis_stack, "original")
     replacement = FakeGraphPanel(result.main_analysis_stack, "replacement")
     result.add_graph_panel(original)
+    original.current_size = FakeSize(640, 450)
     result.main_analysis_stack.view_start = (0, 3)
 
     result.replace_graph_panel(original, replacement)
@@ -1216,6 +1230,9 @@ def test_replacing_only_graph_panel_updates_stack_root(
     assert result._stack_roots["middle"] is replacement
     assert result._graph_panels["middle"] == [replacement]
     assert replacement.GetParent() is result.main_analysis_stack
+    assert replacement.GetMinSize().height == 450
+    assert result._graph_panel_heights[replacement] == 450
+    assert original not in result._graph_panel_heights
     assert result.main_analysis_stack.view_start == (0, 3)
 
 

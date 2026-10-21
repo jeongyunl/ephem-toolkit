@@ -194,7 +194,8 @@ def test_panel_content_wheel_hands_off_to_stack_only_at_panel_scroll_edges(
 
     inner_event = FakeMouseWheelEvent(-120)
     graph_panel.GraphPanelHost._on_content_mousewheel(
-        cast(graph_panel.GraphPanelHost, host), inner_event
+        cast(graph_panel.GraphPanelHost, host),
+        cast(graph_panel.wx.MouseEvent, inner_event),
     )
     assert inner_event.skipped
     assert outer_stack.scroll_calls == []
@@ -202,7 +203,22 @@ def test_panel_content_wheel_hands_off_to_stack_only_at_panel_scroll_edges(
     panel_content.view_y = 10
     handoff_event = FakeMouseWheelEvent(-120)
     graph_panel.GraphPanelHost._on_content_mousewheel(
-        cast(graph_panel.GraphPanelHost, host), handoff_event
+        cast(graph_panel.GraphPanelHost, host),
+        cast(graph_panel.wx.MouseEvent, handoff_event),
     )
     assert not handoff_event.skipped
     assert outer_stack.scroll_calls == [(0, 3)]
+
+
+def test_selector_wheel_scrolls_stack_without_propagating_to_choice() -> None:
+    outer_stack = FakeScrolledWindow(scroll_range=30, scroll_thumb=10)
+    host = SimpleNamespace(_parent_stack_scroller=lambda: outer_stack)
+    event = FakeMouseWheelEvent(-120)
+
+    graph_panel.GraphPanelHost._on_selector_mousewheel(
+        cast(graph_panel.GraphPanelHost, host),
+        cast(graph_panel.wx.MouseEvent, event),
+    )
+
+    assert outer_stack.scroll_calls == [(0, 3)]
+    assert not event.skipped

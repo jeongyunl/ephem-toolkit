@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import deque
 from collections.abc import Callable, Mapping, Sequence
+from typing import cast
 
 import wx
 
@@ -572,7 +573,7 @@ class Workspace:
         new_panel: GraphPanelHost,
         stack: str = "middle",
     ) -> None:
-        """Replace a graph host in place, preserving stack order and scroll position."""
+        """Replace a graph host, preserving panel height, order and scroll position."""
         if stack not in self._graph_panels:
             raise ValueError(f"unknown graph stack {stack!r}")
         panels = self._graph_panels[stack]
@@ -607,7 +608,11 @@ class Workspace:
                 )
 
         panels[panels.index(old_panel)] = new_panel
+        self._graph_panel_heights[new_panel] = self._graph_panel_heights.pop(
+            old_panel, old_panel.GetSize().height
+        )
         self._layout_graph_stack(stack)
+        self._apply_graph_sash_heights(self._stack_roots[stack])
         window.Scroll(*view_start)
 
     def move_graph_panel(self, panel: GraphPanelHost, stack: str, offset: int) -> None:
@@ -761,7 +766,10 @@ class Workspace:
     def _stack_subtree_height(self, window: wx.Window) -> int:
         """Return the height a stack subtree needs: panel heights plus internal sashes."""
         if not isinstance(window, wx.SplitterWindow):
-            return self._graph_panel_heights.get(window, MIN_GRAPH_PANEL_HEIGHT)
+            # Stack leaves are graph hosts; wx exposes splitter children as Windows.
+            return self._graph_panel_heights.get(
+                cast(GraphPanelHost, window), MIN_GRAPH_PANEL_HEIGHT
+            )
         return (
             self._stack_subtree_height(window.GetWindow1())
             + window.GetSashSize()
@@ -875,11 +883,11 @@ class Workspace:
         for panel in self._graph_panels[stack]:
             self._graph_panel_heights[panel] = panel.GetSize().height
 
-    def _bottom_graph_panel(self, stack: str) -> wx.Window | None:
+    def _bottom_graph_panel(self, stack: str) -> GraphPanelHost | None:
         pane = self._stack_roots[stack]
         while isinstance(pane, wx.SplitterWindow):
             pane = pane.GetWindow2()
-        return pane
+        return cast(GraphPanelHost | None, pane)
 
     def _on_bottom_handle_down(self, stack: str, event: wx.MouseEvent) -> None:
         panel = self._bottom_graph_panel(stack)
@@ -922,14 +930,15 @@ class Workspace:
         pane = splitter.GetWindow1()
         while isinstance(pane, wx.SplitterWindow):
             pane = pane.GetWindow2()
+        panel = cast(GraphPanelHost, pane)
         self._sync_graph_panel_heights(stack)
-        self._graph_panel_heights[pane] = max(
-            MIN_GRAPH_PANEL_HEIGHT, self._graph_panel_heights[pane] + delta
+        self._graph_panel_heights[panel] = max(
+            MIN_GRAPH_PANEL_HEIGHT, self._graph_panel_heights[panel] + delta
         )
         self._layout_graph_stack(stack)
         self._apply_graph_sash_heights(self._stack_roots[stack])
 
-    def _apply_graph_sash_heights(self, window: wx.Window) -> None:
+    def _apply_graph_sash_heights(self, window: wx.Window | None) -> None:
         """Set every sash so each panel keeps its requested height, top-down."""
         if not isinstance(window, wx.SplitterWindow):
             return

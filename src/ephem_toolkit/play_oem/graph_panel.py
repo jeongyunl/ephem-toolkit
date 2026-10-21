@@ -126,6 +126,11 @@ class GraphPanelHost(wx.Panel):
             # Keep the selector compact so it matches the smaller header actions.
             self.graph_view_selector.SetMinSize(wx.Size(-1, 26))
             self.graph_view_selector.SetName(f"{title} view selector")
+            # Keep wheel input from changing the selection while forwarding its
+            # scrolling effect to the containing graph stack.
+            self.graph_view_selector.Bind(
+                wx.EVT_MOUSEWHEEL, self._on_selector_mousewheel
+            )
             set_tooltip(self.graph_view_selector, f"Select a view for {title}")
             if selected_view is not None:
                 self.graph_view_selector.SetSelection(
@@ -242,10 +247,21 @@ class GraphPanelHost(wx.Panel):
             event.Skip()
             return
 
+        if not GraphPanelHost._scroll_stack_from_mousewheel(self, event):
+            event.Skip()
+
+    def _on_selector_mousewheel(self, event: wx.MouseEvent) -> None:
+        """Scroll the graph stack without changing the selected graph type."""
+        GraphPanelHost._scroll_stack_from_mousewheel(self, event)
+
+    def _scroll_stack_from_mousewheel(self, event: wx.MouseEvent) -> bool:
+        """Apply a wheel rotation to the containing graph stack."""
+        rotation = event.GetWheelRotation()
+        if rotation == 0:
+            return True
         stack_scroller = self._parent_stack_scroller()
         if stack_scroller is None:
-            event.Skip()
-            return
+            return False
 
         stack_position = stack_scroller.GetViewStart()
         stack_limit = max(
@@ -264,9 +280,9 @@ class GraphPanelHost(wx.Panel):
             stack_limit,
         )
         if next_position == stack_position[1]:
-            event.Skip()
-            return
+            return True
         stack_scroller.Scroll(stack_position[0], next_position)
+        return True
 
     def _parent_stack_scroller(self) -> wx.ScrolledWindow | None:
         parent = self.GetParent()
