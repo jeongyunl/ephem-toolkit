@@ -8,6 +8,7 @@ from typing import Any, cast
 import pytest
 
 from ephem_toolkit.play_oem import workspace
+from ephem_toolkit.play_oem.workspace import core, features, graph_stack, timeline
 
 
 class FakeEvent:
@@ -184,7 +185,9 @@ class FakeSizerItem:
         ]
 
     def SetMinSize(self, size) -> None:
-        self.sizer.minimum_sizes[self.window] = size
+        self.sizer.minimum_sizes[self.window] = (
+            size if isinstance(size, FakeSize) else FakeSize(*size)
+        )
 
 
 class FakeSize:
@@ -207,6 +210,9 @@ class FakePanel:
 
     def SetSizer(self, sizer) -> None:
         self.sizer = sizer
+
+    def GetSizer(self):
+        return self.sizer
 
     def Bind(self, event_type, callback) -> None:
         self.bindings[event_type] = callback
@@ -240,7 +246,7 @@ class FakePanel:
         return self.parent
 
     def SetMinSize(self, size) -> None:
-        self.minimum_size = FakeSize(*size)
+        self.minimum_size = size if isinstance(size, FakeSize) else FakeSize(*size)
 
     def GetMinSize(self) -> FakeSize:
         return self.minimum_size
@@ -506,9 +512,11 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
     wx = workspace.wx
     # Fake controls cannot host native SuperToolTip windows; retain the message
     # for assertions without creating GUI resources in these layout tests.
-    monkeypatch.setattr(
-        workspace, "set_tooltip", lambda widget, message: widget.SetToolTip(message)
-    )
+    set_fake_tooltip = lambda widget, message: widget.SetToolTip(message)
+    monkeypatch.setattr(core, "set_tooltip", set_fake_tooltip)
+    monkeypatch.setattr(features, "set_tooltip", set_fake_tooltip)
+    monkeypatch.setattr(graph_stack, "set_tooltip", set_fake_tooltip)
+    monkeypatch.setattr(timeline, "set_tooltip", set_fake_tooltip)
     FakeWidget.instances = []
     FakeCallLater.calls = []
     for name, value in {
