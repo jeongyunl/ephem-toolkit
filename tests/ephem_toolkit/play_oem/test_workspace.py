@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -1411,3 +1412,33 @@ def test_timeline_update_clamps_progress_to_slider_range(
     assert result.timeline_slider.value == 0
     result.update_timeline(2.0, "after end")
     assert result.timeline_slider.value == 10_000
+
+
+@pytest.mark.parametrize("timeline_enabled", [True, False])
+def test_disabled_timeline_motion_dismisses_tooltip(
+    monkeypatch, timeline_enabled
+) -> None:
+    result, _seeks, _frame = make_workspace(
+        monkeypatch, timeline_enabled=timeline_enabled
+    )
+    if timeline_enabled:
+        result.timeline_slider.Enable(False)
+    dismissed = []
+    result._timeline_tooltip = SimpleNamespace(DoHideNow=lambda: dismissed.append(True))
+    event = FakeEvent()
+
+    result._on_timeline_motion(event)
+
+    assert dismissed == [True]
+    assert event.skipped
+
+
+def test_unloading_oem_dismisses_timeline_tooltip(monkeypatch) -> None:
+    result, _seeks, _frame = make_workspace(monkeypatch)
+    dismissed = []
+    result._timeline_tooltip = SimpleNamespace(DoHideNow=lambda: dismissed.append(True))
+
+    result.set_oem_loaded(False)
+
+    assert not result.timeline_slider.IsEnabled()
+    assert dismissed == [True]

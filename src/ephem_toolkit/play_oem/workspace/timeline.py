@@ -180,6 +180,8 @@ class TimelineMixin:
         ):
             button.Enable(loaded)
         self.timeline_slider.Enable(loaded and self._timeline_enabled)
+        if not self.timeline_slider.IsEnabled() and hasattr(self, "_timeline_tooltip"):
+            self._timeline_tooltip.DoHideNow()
         for button in self._add_buttons.values():
             button.Enable(loaded)
 
@@ -213,6 +215,10 @@ class TimelineMixin:
         wx.CallAfter(self.timeline_time_entry.SelectAll)
 
     def _on_timeline_motion(self: _TimelineState, event: wx.MouseEvent) -> None:
+        if not self._timeline_enabled or not self.timeline_slider.IsEnabled():
+            self._timeline_tooltip.DoHideNow()
+            event.Skip()
+            return
         width = self.timeline_slider.GetClientSize().GetWidth()
         if width > 0:
             fraction = min(max(event.GetX() / width, 0.0), 1.0)
