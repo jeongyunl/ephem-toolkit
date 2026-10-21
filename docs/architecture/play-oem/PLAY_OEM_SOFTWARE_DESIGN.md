@@ -32,8 +32,21 @@ src/ephem_toolkit/play_oem/
   data.py  series.py  time_unit.py              # copied from plot_oem
   clock.py             # PlaybackClock (pure Python, no GUI)
   cursor.py            # CursorState lookup at t_now
-  app.py               # PlayerApp: owns wx.App, clock, workspace and views
-  workspace.py         # pane names, splitters, feature pages, graph stacks, timeline
+  app/
+    __init__.py        # public PlayerApp export
+    controller.py      # frame lifecycle, OEM replacement and playback timer
+    panel_management.py # graph-panel creation and view resource lifecycle
+    playback_actions.py # seek, transport and playback actions
+    state.py           # shared structural contract for app behavior modules
+    support.py          # app constants and graph-view state models
+    view_factory.py     # registered graph-view constructors and backend selection
+  workspace/
+    __init__.py        # public Workspace and layout constants
+    constants.py       # pane names, dimensions, redraw timing
+    core.py            # Workspace composition and main pane layout
+    features.py        # Controls & Info feature rail and OEM metadata page
+    graph_stack.py     # graph panes, splitters, scrolling and redraw scheduling
+    timeline.py        # shared timeline transport and time-entry behavior
   graph_panel.py       # embedded graph-panel host and redraw scheduling
   control_window.py    # wx.Panel: playback controls and readouts
   views/
@@ -65,8 +78,11 @@ input automation was unavailable, so mouse/keyboard interaction was not manually
 Other Python versions and Linux/Windows GUI runs remain unverified.
 
 `__main__.py` creates exactly one `wx.App`; `PlayerApp` owns its event-loop lifecycle, playback
-clock, timer and main workspace frame. `Workspace` places a `Controls & Info` feature area beside
-the `Main Analysis` graph stack and optional `Comparison` stack. Graph views are hosted inside
+clock, timer and main workspace frame. The frame has a File menu with **Open File...**, a status
+bar for load and error messages, and a `Workspace` that places a `Controls & Info` feature area
+beside the `Main Analysis` graph stack and optional `Comparison` stack. The workspace package
+composes its layout, feature navigation, graph stacks and shared timeline through focused modules.
+Graph views are hosted inside
 independently identified graph panels rather than detached plot frames. Closing one panel closes
 only its view and unsubscribes it from clock updates; closing the workspace frame stops the timer,
 closes all graph panels, removes observers and exits the one `MainLoop()`.
@@ -270,14 +286,21 @@ by default in Main Analysis: the 3D orbit and combined speed/altitude time-serie
 can replace that selection with individual views or named groups.
 
 The `ControlWindow` owns a playback `wx.Panel` embedded in Playback and a separate state-readout
-`wx.Panel` embedded in State:
+`wx.Panel` embedded in State. The shared timeline footer is owned by `Workspace`, outside the
+three-pane splitter:
 
 ```
 [Playback page]
-[ ▶/⏸ ] [◀/▶] [speed 1 10 100 1000] ━━━●━━━━━━━━━━━ elapsed … | UTC …
-[Seek time …] [Seek] [Start] [Previous sample] [-1 min] [+1 min] [Next sample] [End]
+Elapsed … | UTC …
+[Play] [Reverse] [Speed slider]
+[Start] [Previous sample] [-1 min] [+1 min] [Next sample] [End]
 Toolbar: [3D Orbit] [State] [Speed/Altitude] [RTN] [Angular] [Direction] [Distance]
 Groups: [Overview] [State] [Motion diagnostics] [All]
+
+[Shared timeline footer]
+Start UTC … | Current UTC [editable time] | End UTC …
+[reverse speed presets] [reverse play] [forward play] [forward speed presets]
+━━━━━━━━━━━━━━●━━━━━━━━━━━━━━
 
 [State page]
 r=(x,y,z) km   v=(vx,vy,vz) km/s   speed=… km/s   altitude=… km
@@ -288,17 +311,22 @@ object … | frame … | center … | epochs … | samples …
 Details ▸ (additional OEM metadata and diagnostics)
 ```
 
-- Widgets: `wx.Button` for play/pause, step and direction; `wx.TextCtrl` for time entry; a
-  `wx.Slider` for speed. The shared timeline slider stays in the workspace footer below all panes.
-  Native sizing and keyboard focus come from wx.
-- Timeline: a `wx.Slider` with an integer range 0…10,000 mapped linearly to `[t_start, t_end]`.
-  Slider events call `clock.seek`; clock updates set the slider value under a suppression flag so
-  they do not feed back into `seek`.
-- Speed: log-scale `wx.Slider` (integer `v` in 0…300 mapped to `10^(v/100)`, i.e. 10^0…10^3) plus
-  1x/10x/100x/1000x preset buttons, all bound to `clock.set_speed`.
-- Direction: toggle button `◀ / ▶` (key `R`) bound to `clock.reverse`; label shows e.g. `−60x`.
-- Time entry: `wx.TextCtrl` accepting `1h30m` (elapsed) or a UTC epoch; Enter (`wx.EVT_TEXT_ENTER`) or
-  the Seek button → `clock.seek`; invalid input is flagged in the status bar without changing `t_now`.
+- Playback page: the `ControlWindow` provides Play, Reverse, a log-scale speed slider, start/end
+  and sample/time-step navigation. Elapsed and current UTC labels remain visible on this page.
+- Shared timeline footer: `Workspace` places a separator, start/current/end UTC row, direction and
+  speed transport controls, and the timeline slider below the pane splitter. Its slider has an
+  integer range 0…10,000 mapped linearly to `[t_start, t_end]`. Slider events call `clock.seek`;
+  clock updates set the slider value under a suppression flag so they do not feed back into `seek`.
+- Footer time entry: a `wx.TextCtrl` accepts `1h30m` (elapsed) or a UTC epoch. Enter submits the
+  value to `clock.seek`; invalid input is shown beside the entry without changing `t_now`. Its
+  existing value is selected once when it gains focus, and later clicks place the caret normally.
+- Footer transport: signed speed presets select rates without starting or pausing. Separate reverse
+  and forward buttons start or pause playback in that direction while retaining the speed magnitude.
+  Direction-specific speed controls cover 1x, 10x, 100x and 1000x.
+- Speed slider on Playback: log-scale `wx.Slider` (integer `v` in 0…300 mapped to `10^(v/100)`,
+  i.e. 10^0…10^3), bound to the playback rate callback.
+- Native sizing and keyboard focus come from wx. The frame-level File menu provides **Open File...**;
+  the status bar reports successful loads and errors.
 - Click-to-seek: each time-series view connects `button_press_event` (left click inside axes, toolbar zoom/pan mode inactive) → `clock.seek(x * unit_divisor)`.
 - Toolbar buttons open views/groups via `PlayerApp.open_view(name)` / `open_group(name)`; an
   already-open default view is raised rather than duplicated. Closing one graph panel does not
@@ -310,9 +338,14 @@ Details ▸ (additional OEM metadata and diagnostics)
   units and reference frame are visible. OEM object/frame/center/time span/sample count remain on
   the OEM file information page, with less-used metadata in its collapsed details panel.
 - Keys: `Space` play/pause, `R` reverse, `←/→` step (∓/± 1 sample), `Shift+←/→` ∓/± 1 min, `Home/End` jump to start/end.
-  These are wx accelerators on the workspace frame and are inactive while the time-entry field has focus.
+  These are wx accelerators on the workspace frame and are inactive while the shared footer time-entry field has focus.
 
 ### 4.5 `PlayerApp` and the frame loop
+
+`PlayerApp` behavior is split across controller, view-factory, playback-action, and panel-management
+mixins. Their shared `PlayerAppState` protocol lives in `app/state.py`; `_plots` is a tuple there
+because the controller stores the expanded plot selection as an immutable tuple. The constructor
+still accepts any `Sequence[str]` for the initial plot selection.
 
 One `wx.Timer` (`wx.EVT_TIMER`) at about `1000/fps` ms:
 

@@ -3,10 +3,13 @@ flowchart TB
     %% Arrows run from parent to child. Edge labels give the position inside the parent.
     %% Sizers are not drawn as nodes; their layout is described in the widget labels.
 
-    frame["Main window (frame)<br/>wx.Frame, main_sizer (vertical)"]
+    frame["Main window<br/>wx.Frame"]
+    frame --> menu_bar["wx.MenuBar<br/>File → Open File..."]
+    frame --> main_sizer["main_sizer (vertical)"]
+    frame --> status_bar["wx.StatusBar<br/>load result and error messages"]
 
-    frame -- "top, stretch 1" --> main_splitter
-    frame -- "bottom, fixed height" --> timeline_panel
+    main_sizer -- "top, stretch 1" --> main_splitter
+    main_sizer -- "bottom, fixed height" --> timeline_panel
 
     main_splitter["self.main_splitter<br/>wx.SplitterWindow, vertical sash<br/>left pane minimum 240 px"]
     main_splitter -- "left" --> controls_pane
@@ -63,8 +66,9 @@ flowchart TB
 
     subgraph TIMELINE ["Bottom strip"]
         timeline_panel["self.timeline_panel<br/>wx.Panel"]
+        timeline_panel --> timeline_separator["wx.StaticLine<br/>visual boundary above timeline"]
         timeline_panel --> time_row["self.timeline_start_label, self.timeline_current_prefix,<br/>self.timeline_time_entry, self.time_error_label,<br/>self.timeline_end_label"]
-        timeline_panel -->         transport_row["transport_sizer<br/>self.transport_reverse_play_button, self.transport_forward_play_button,<br/>self._focus_sink<br/>self.transport_speed_buttons: speed_button x 4 reverse, x 4 forward"]
+        timeline_panel --> transport_row["transport_sizer<br/>reverse speed presets, reverse play, forward play,<br/>forward speed presets, focus sink"]
         timeline_panel --> timeline_slider["self.timeline_slider<br/>wx.Slider"]
     end
 

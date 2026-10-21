@@ -34,7 +34,14 @@ below all panes.
 ![G. Three-pane analysis workspace with the right pane closed and Playback selected](./mockup-three-pane-right-closed-playback.svg)
 
 The horizontal bars between graph panels in the mockups indicate draggable sashes; their displayed
-panel proportions are illustrative.
+panel proportions are illustrative. The implemented workspace also draws a horizontal rule above
+the shared timeline to distinguish it from the resizable analysis area.
+
+The current frame has a native **File → Open File...** menu and a status bar for load results and
+errors. Its shared footer contains the start/current/end UTC row, editable current-time field,
+directional transport and speed controls, and timeline slider. The time field accepts either UTC or
+elapsed-time input and selects its text when it first receives focus. These implementation details
+complement the layout proposals below; the SVG mock-ups are not screenshots of the current UI.
 
 - **Fits:** users who want non-graph tools kept separate from a flexible, multi-plot analysis area.
 - **Trade-offs:** several narrow panes can reduce plot readability; graph stacks need clear add,
