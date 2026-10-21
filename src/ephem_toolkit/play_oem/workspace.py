@@ -191,6 +191,12 @@ class Workspace:
                 wx.EVT_TEXT_ENTER,
                 self._submit_timeline_time,
             )
+        # Select the timestamp only when focus enters; later clicks can place
+        # the caret normally while the editor remains focused.
+        self.timeline_time_entry.Bind(
+            wx.EVT_SET_FOCUS,
+            self._on_timeline_time_focus,
+        )
         self.time_error_label = wx.StaticText(self.timeline_panel, wx.ID_ANY, "")
         self.time_error_label.SetForegroundColour(wx.Colour(190, 35, 35))
         current_time_sizer.Add(
@@ -289,6 +295,11 @@ class Workspace:
         self._focus_sink = wx.Panel(self.timeline_panel, wx.ID_ANY, size=(1, 1))
         self._focus_sink.SetCanFocus(True)
         transport_sizer.Add(self._focus_sink, 0, wx.RIGHT, 2)
+        # Blank space belongs to the panel, so move focus there instead of
+        # leaving the UTC editor looking active after a background click.
+        self.timeline_panel.Bind(
+            wx.EVT_LEFT_DOWN, lambda _event: self._focus_sink.SetFocus()
+        )
 
         for rate, glyph, direction in (
             (1.0, "1× >", "forward"),
@@ -1356,6 +1367,11 @@ class Workspace:
         # Defer focus transfer until wx finishes processing Enter; otherwise
         # the native text control can reclaim focus after this handler returns.
         wx.CallAfter(self._focus_sink.SetFocus)
+
+    def _on_timeline_time_focus(self, event: wx.FocusEvent) -> None:
+        """Select the current value once when the timeline editor gains focus."""
+        event.Skip()
+        wx.CallAfter(self.timeline_time_entry.SelectAll)
 
     def _on_timeline_motion(self, event: wx.MouseEvent) -> None:
         width = self.timeline_slider.GetClientSize().GetWidth()
