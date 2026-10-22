@@ -1,16 +1,13 @@
 # `play-oem` User Configuration
 
-> **Status: Planned.** This page describes the proposed config and state files. Until configuration
-> loading is implemented, `play-oem` does not read these files. Choose playback speed, direction,
-> and render rate in the GUI; use command-line options for file, display units, views, and backend.
-
-The user config file will let you choose defaults for `play-oem`, so you do not need to repeat
-the same display preferences and playback defaults each time you launch it. It will be plain-text
-TOML and can be edited with any text editor.
+`play-oem` reads a user config file for display and playback defaults, and an app-maintained state
+file for the window size and recent files. Both files use plain-text TOML and live in the same
+XDG-style config directory. You can edit the user config file with any text editor; the state
+file is maintained by the application.
 
 ## File location
 
-`play-oem` will use the same XDG-style location on Linux and macOS:
+`play-oem` uses the same XDG-style location on Linux and macOS:
 
 ```text
 $XDG_CONFIG_HOME/ephem-toolkit/play-oem.toml
@@ -22,13 +19,13 @@ If `XDG_CONFIG_HOME` is not set, or is empty, the default will be:
 ~/.config/ephem-toolkit/play-oem.toml
 ```
 
-The application-maintained state file will live beside it:
+The application-maintained state file lives beside it:
 
 ```text
 $XDG_CONFIG_HOME/ephem-toolkit/play-oem-state.toml
 ```
 
-When `XDG_CONFIG_HOME` is unset or empty, its default path will be:
+When `XDG_CONFIG_HOME` is unset or empty, its default path is:
 
 ```text
 ~/.config/ephem-toolkit/play-oem-state.toml
@@ -45,9 +42,9 @@ You can choose a different XDG config directory by setting `XDG_CONFIG_HOME` bef
 under `~/.config` instead. The application will not create either file just by starting; it will
 use built-in defaults and initial window settings when the files are absent.
 
-## Example file
+## User config file
 
-The proposed file structure is:
+The file structure is:
 
 ```toml
 config_version = 1
@@ -84,16 +81,24 @@ paths = [
     "/home/alex/orbits/iss.oem",
     "/home/alex/orbits/transfer.oem",
 ]
+
+[workspace]
+open_plots = ["trajectory-3d", "speed-altitude"]
 ```
 
-The state file will remember the main window size and up to 15 recently opened OEM files. The
+The state file remembers the main window size and up to 15 recently opened OEM files. The
 most recently opened file appears first. A file is added after it loads successfully; opening it
 again moves it to the top without creating a duplicate. Paths are stored as absolute paths, so
 the recent-file list works regardless of the directory from which you launch `play-oem`.
 Unavailable paths remain in the list in case a removable drive or mounted directory becomes
-available again.
+available again. Choose a path from **File → Open Recent** to reopen it.
 
-The window size will be adjusted if it does not fit the current display. Window position is not
+The state file also remembers the graph views open when you exit. On the next launch, those
+views are restored unless you provide `--plots` or set `display.plots` in `play-oem.toml`.
+The saved values are view names such as `trajectory-3d` and `speed-altitude`; plot groups are
+expanded to their individual views when saved.
+
+The window size is adjusted if it does not fit the current display. Window position is not
 saved initially, so changing monitors will not leave the window off-screen. If the state file is
 missing or invalid, `play-oem` will use safe defaults and continue; it will report a warning for
 invalid state. It will update the state file separately and will not save one-time command-line
@@ -122,10 +127,10 @@ of one hour or more. Seek to a desired time in the GUI.
 
 ## Command-line options
 
-When implemented, `play-oem --config PATH` will select a specific user config TOML file instead
-of the default location. It will not change the location of the app-maintained state file. An
-explicitly selected config file that is missing or cannot be read will produce an error. A
-missing config file at the default location will be treated as no user configuration.
+`play-oem --config PATH` selects a specific user config TOML file instead of the default location.
+It does not change the location of the app-maintained state file. An explicitly selected config
+file that is missing or cannot be read produces an error. A missing config file at the default
+location is treated as no user configuration.
 
 For settings that have a corresponding command-line option, an explicitly supplied value will take
 precedence over the config file, and the config file will take precedence over the built-in

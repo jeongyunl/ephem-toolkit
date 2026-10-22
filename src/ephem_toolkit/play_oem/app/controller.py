@@ -8,6 +8,7 @@ import math
 import os
 import signal
 import time
+import warnings
 from typing import cast
 
 import wx
@@ -16,6 +17,15 @@ import ephem_toolkit.core.time_utils as time_utils
 
 from .. import clock, control_window, cursor, series, time_unit, workspace
 from .. import playback_data
+from ..saved_state import (
+    MAX_RECENT_FILES,
+    MAX_STORED_WINDOW_DIMENSION,
+    MIN_STORED_WINDOW_DIMENSION,
+    SavedAppState,
+    normalize_recent_path,
+    remember_recent_file,
+    save_saved_state,
+)
 from ..views import registry
 from ..views.trajectory3d import selection as trajectory3d_selection
 
@@ -59,6 +69,8 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         three_d_backend: str = "auto",
         tick_interval_ms: int = DEFAULT_TICK_INTERVAL_MS,
         on_open_file: Callable[[str], playback_data.PlaybackData] | None = None,
+        saved_state: SavedAppState | None = None,
+        initial_file_path: str | None = None,
         oem_loaded: bool = True,
         loaded_file_name: str | None = None,
     ) -> None:
@@ -84,6 +96,10 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
             Backend used for the 3D trajectory view.
         tick_interval_ms : int, default=DEFAULT_TICK_INTERVAL_MS
             Interval between playback timer events, in milliseconds.
+        saved_state : SavedAppState | None, optional
+            App-maintained window and recent-file state to restore and persist.
+        initial_file_path : str | None, optional
+            Path to the successfully loaded initial OEM, added to recent files.
 
         Raises
         ------
@@ -118,6 +134,16 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         )
         self._last_frame_monotonic_s: float | None = None
         self._on_open_file_callback = on_open_file
+        self._saved_state = saved_state
+        self._persist_saved_state = saved_state is not None
+        self._recent_oem_paths = (
+            list(saved_state.recent_files[:MAX_RECENT_FILES])
+            if saved_state is not None
+            else []
+        )
+        if initial_file_path is not None and self._saved_state is not None:
+            remember_recent_file(self._saved_state, initial_file_path)
+            self._recent_oem_paths = list(self._saved_state.recent_files)
         self._oem_loaded = oem_loaded
         self._requested_3d_backend = three_d_backend
         self._selected_3d_backend: str | None = (
@@ -158,6 +184,12 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         menu_bar = wx.MenuBar()
         file_menu = wx.Menu()
         file_menu.Append(wx.ID_OPEN, "&Open File...\tCtrl+O")
+        self._recent_oem_menu: wx.Menu = wx.Menu()
+        self._recent_menu_parent: wx.Menu = self._recent_oem_menu
+        if hasattr(file_menu, "AppendSubMenu"):
+            file_menu.AppendSubMenu(self._recent_oem_menu, "Open &Recent")
+        else:
+            self._recent_menu_parent = file_menu
         menu_bar.Append(file_menu, "&File")
         self.frame.SetMenuBar(menu_bar)
         self.status_bar = PlaybackStatusBar(self.frame)
@@ -165,6 +197,8 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         if oem_loaded:
             self.status_bar.set_object(self.object_name, self.object_id)
         self.frame.Bind(wx.EVT_MENU, self._on_open_file, id=wx.ID_OPEN)
+        self._recent_menu_item_ids: list[int] = []
+        self._refresh_recent_files_menu()
         self.workspace: workspace.Workspace = workspace.Workspace(
             self.frame,
             self._seek_to_fraction,
@@ -208,7 +242,14 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         self.workspace.set_playback_content(self.control_window.playback_scroller)
         self.workspace.set_state_content(self.control_window.state_scroller)
         self.frame.SetMinSize(PLAYER_FRAME_MIN_SIZE)
-        self.frame.SetSize(PLAYER_FRAME_SIZE)
+        self._restore_saved_window_size()
+        self.frame.SetSize(
+            self._saved_state_size()
+            if self._saved_state is not None
+            else PLAYER_FRAME_SIZE
+        )
+        if self._saved_state is not None and self._saved_state.maximized:
+            self.frame.Maximize(True)
         self.frame.Bind(wx.EVT_CLOSE, self._on_frame_close)
 
         self._timer: wx.Timer = wx.Timer(self.frame)
@@ -254,6 +295,8 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         self.frame.Show()
         if self._oem_loaded:
             self.open_plots(self._plots)
+        if self._oem_loaded and self._saved_state is not None:
+            self._save_application_state(save_geometry=False)
         self.workspace.draw_initial_graphs()
         # The shown frame's final client size is not available until layout settles;
         # refresh then so each stack gets the correct viewport-sized scroll tail.
@@ -268,6 +311,114 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
             return
         if not self.frame.Close(force=True) and not self._closed:
             raise RuntimeError("could not close the play-oem frame")
+
+    def _saved_state_size(self) -> tuple[int, int]:
+        if self._saved_state is None:
+            return PLAYER_FRAME_SIZE
+        return self._saved_state.width, self._saved_state.height
+
+    def _restore_saved_window_size(self) -> None:
+        """Clamp saved dimensions to the current display before applying them."""
+        if self._saved_state is None:
+            return
+        try:
+            area = wx.Display(0).GetClientArea()
+            display_width = int(area.width)
+            display_height = int(area.height)
+        except (AttributeError, RuntimeError, TypeError):
+            return
+        if display_width <= 0 or display_height <= 0:
+            return
+        min_width = min(PLAYER_FRAME_MIN_SIZE[0], display_width)
+        min_height = min(PLAYER_FRAME_MIN_SIZE[1], display_height)
+        self.frame.SetMinSize((min_width, min_height))
+        self._saved_state.width = min(
+            display_width, max(min_width, self._saved_state.width)
+        )
+        self._saved_state.height = min(
+            display_height, max(min_height, self._saved_state.height)
+        )
+
+    def _save_application_state(self, *, save_geometry: bool = True) -> None:
+        """Persist state safely without allowing a state-file error to close the app."""
+        if not self._persist_saved_state or self._saved_state is None:
+            return
+        if save_geometry:
+            self._saved_state.maximized = self.frame.IsMaximized()
+            if not self._saved_state.maximized:
+                size = self.frame.GetSize()
+                width, height = int(size.width), int(size.height)
+                if width > 0 and height > 0:
+                    self._saved_state.width = min(
+                        MAX_STORED_WINDOW_DIMENSION,
+                        max(MIN_STORED_WINDOW_DIMENSION, width),
+                    )
+                    self._saved_state.height = min(
+                        MAX_STORED_WINDOW_DIMENSION,
+                        max(MIN_STORED_WINDOW_DIMENSION, height),
+                    )
+        self._saved_state.recent_files = list(self._recent_oem_paths[:MAX_RECENT_FILES])
+        if self._oem_loaded:
+            self._saved_state.open_plots = [
+                opened.view_name
+                for opened in self._open_panels.values()
+                if opened.view_name != EMPTY_GRAPH_VIEW
+            ]
+        try:
+            save_saved_state(self._saved_state)
+        except OSError as error:
+            warnings.warn(
+                f"Could not save play-oem state: {error}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
+    def _refresh_recent_files_menu(self) -> None:
+        """Rebuild recent-file menu items from the current state list."""
+        for item_id in self._recent_menu_item_ids:
+            self._recent_menu_parent.Delete(item_id)
+        self._recent_menu_item_ids.clear()
+        for path in self._recent_oem_paths[:MAX_RECENT_FILES]:
+            label = f"{os.path.basename(path)} — {path}".replace("&", "&&")
+            item = self._recent_menu_parent.Append(wx.ID_ANY, label)
+            item_id = item.GetId()
+            self._recent_menu_item_ids.append(item_id)
+            self.frame.Bind(
+                wx.EVT_MENU,
+                lambda _event, recent_path=path: self._load_oem_file(recent_path),
+                id=item_id,
+            )
+
+    def _remember_recent_oem(self, path: str) -> None:
+        """Record a successfully loaded OEM and update its menu entry."""
+        if self._saved_state is not None:
+            remember_recent_file(self._saved_state, path)
+            self._recent_oem_paths = list(self._saved_state.recent_files)
+        else:
+            normalized = normalize_recent_path(path)
+            self._recent_oem_paths = [
+                normalized,
+                *(
+                    item
+                    for item in self._recent_oem_paths
+                    if normalize_recent_path(item) != normalized
+                ),
+            ][:MAX_RECENT_FILES]
+        self._refresh_recent_files_menu()
+        self._save_application_state(save_geometry=False)
+
+    def _load_oem_file(self, path: str) -> None:
+        """Load an OEM path through the shared open and recent-file workflow."""
+        if self._on_open_file_callback is None:
+            self.status_bar.set_message("Opening another OEM is unavailable.")
+            return
+        try:
+            loaded_data = self._on_open_file_callback(path)
+        except Exception as error:
+            self.status_bar.set_message(f"Could not open OEM: {error}")
+            return
+        self._remember_recent_oem(path)
+        self._replace_playback_data(loaded_data, os.path.basename(path))
 
     def _on_open_file(self, _event: wx.CommandEvent) -> None:
         """Select an OEM and load it into this playback window."""
@@ -284,21 +435,17 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         finally:
             dialog.Destroy()
 
-        if self._on_open_file_callback is None:
-            self.status_bar.set_message("Opening another OEM is unavailable.")
-            return
-        try:
-            loaded_data = self._on_open_file_callback(path)
-        except Exception as error:
-            self.status_bar.set_message(f"Could not open OEM: {error}")
-            return
-
-        self._replace_playback_data(loaded_data, os.path.basename(path))
+        self._load_oem_file(path)
 
     def _replace_playback_data(
         self, loaded: playback_data.PlaybackData, file_name: str | None = None
     ) -> None:
         """Replace file-dependent state while retaining the frame and workspace."""
+        rate = self.clock.rate
+        loaded.clock.set_speed(abs(rate))
+        loaded.clock.set_direction(-1 if rate < 0.0 else 1)
+        if rate < 0.0:
+            loaded.clock.seek(loaded.clock.t_end)
         # Keep each graph's identity, type and stack so only its data is refreshed.
         panel_layout = tuple(
             (opened.panel_id, opened.view_name, opened.stack)
@@ -360,6 +507,7 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         if not self._closed:
             self._closed = True
             self._timer.Stop()
+            self._save_application_state()
             try:
                 # Releasing panels one by one mutates the scrolling splitter tree
                 # while its frame is closing. Let the frame destroy its child
@@ -418,6 +566,9 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
 
     def _update_time_display(self) -> None:
         if not self._oem_loaded:
+            self.control_window.update_playback_state(
+                "", self.clock.playing, self.clock.rate
+            )
             return
         elapsed_s = self.clock.t_now - self.clock.t_start
         utc_timestamp = time_utils.datetime_to_iso8601(

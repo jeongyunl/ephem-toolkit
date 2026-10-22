@@ -91,9 +91,9 @@ state file just because the application starts. `play-oem.toml` contains user-se
 `play-oem-state.toml` is maintained by the application and contains changeable workspace
 information, not command-line defaults.
 
-The initial supported platform policy is Linux and macOS, both using this same path. Windows
-location policy is outside this plan and must be decided before claiming config-path support
-there.
+The initial supported platform policy is Linux and macOS, both using this same path. Windows is
+outside the initial support scope and is not advertised; the path has not been validated on
+Windows.
 
 ### Explicit config selection
 
@@ -196,88 +196,9 @@ stored value is invalid, report a warning and continue with safe defaults; state
 must not prevent opening an OEM. Save updates atomically using a temporary file in the same
 directory followed by replacement. Do not write per-run CLI overrides to `play-oem.toml`.
 
-## Milestone A — Load configuration and apply defaults
+## Active work
 
-### 1. Define and document the configuration contract
-
-- **Status:** Not started.
-- **Progress:** 0/4 checklist items.
-- [ ] Confirm the Python 3.9–3.10 TOML reader and dependency declaration, while using
-      `tomllib` on Python 3.11 and later.
-- [ ] Finalize XDG path selection for unset, empty, relative, and absolute
-      `XDG_CONFIG_HOME` values.
-- [ ] Define the schema, supported keys, types, bounds, and unknown-key policy from this
-      document.
-- [ ] Record Windows path behavior before advertising config-path support on Windows.
-
-**Done when:** the supported platform and file/schema contract is documented without
-contradictions in the CLI, package requirements, software design, and user guide.
-**Depends on:** None.
-
-### 2. Implement configuration path resolution and loading
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Add a focused configuration module under `src/ephem_toolkit/play_oem/`.
-- [ ] Resolve the default file using `XDG_CONFIG_HOME` on Linux and macOS, with
-      `~/.config` fallback.
-- [ ] Load TOML without importing wxPython or starting the GUI.
-- [ ] Validate schema, types, known keys, and setting ranges; report actionable errors.
-- [ ] Keep missing default config distinct from a missing explicitly selected config.
-
-**Done when:** configuration path and loading behavior are deterministic, validated, and
-usable in a headless process.
-**Depends on:** Step 1.
-
-### 3. Merge config values with CLI arguments
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Add `--config PATH` and document it in `--help`.
-- [ ] Track whether each config-capable CLI option was explicitly provided.
-- [ ] Apply CLI-over-config-over-built-in-default precedence per setting.
-- [ ] Reuse CLI validators for config values, including plots and backend choices.
-- [ ] Preserve behavior exactly when no config file exists.
-
-**Done when:** omitted CLI options use config values, explicit CLI options win even when they
-match built-in defaults, and no-config invocations retain current defaults.
-**Depends on:** Step 2.
-
-## Milestone B — Persist workspace state separately
-
-### 4. Define and implement the separate state file
-
-- **Status:** Not started.
-- **Progress:** 0/6 checklist items.
-- [ ] Resolve `play-oem-state.toml` beside the user config using the same XDG path rules.
-- [ ] Define and validate the independent state schema and version.
-- [ ] Restore and save usable window width/height and maximized state.
-- [ ] Add successfully loaded OEM paths to a most-recent-first list capped at 15, moving
-      duplicates to the front.
-- [ ] Preserve unavailable recent paths and handle attempts to reopen them through the normal
-      file-open flow.
-- [ ] Warn and continue with defaults for invalid state; write valid updates atomically without
-      touching `play-oem.toml`.
-
-**Done when:** window size and up to 15 recent OEM files survive a restart through the separate
-state file, invalid state does not prevent startup, and the user config file remains unchanged.
-**Depends on:** Step 3.
-
-## Milestone C — Publish user documentation
-
-### 5. Publish user documentation
-
-- **Status:** Not started.
-- **Progress:** 0/4 checklist items.
-- [ ] Document both file paths for Linux and macOS and the `XDG_CONFIG_HOME` override.
-- [ ] Include example TOML structures and explain which file is user-edited versus app-maintained.
-- [ ] Document `--config`, precedence, missing-file behavior, and error behavior for user
-      config; document state recovery behavior.
-- [ ] Verify docs match the implemented schema and CLI help.
-
-**Done when:** users can locate, edit, select, and troubleshoot their config file from the
-published `play-oem` documentation.
-**Depends on:** Steps 3 and 4.
+No pending steps. Completed implementation records follow the acceptance criteria.
 
 ## Acceptance criteria
 
@@ -296,4 +217,106 @@ published `play-oem` documentation.
 
 ## Completed steps
 
-No steps completed yet.
+### 1. Define and document the configuration contract
+
+- **Status:** Done.
+- **Progress:** 4/4 checklist items.
+- [x] Confirm the Python 3.9–3.10 TOML reader and dependency declaration, while using
+      `tomllib` on Python 3.11 and later.
+- [x] Finalize XDG path selection for unset, empty, relative, and absolute
+      `XDG_CONFIG_HOME` values.
+- [x] Define the schema, supported keys, types, bounds, and unknown-key policy from this
+      document.
+- [x] Record Windows path behavior before advertising config-path support on Windows.
+
+**Evidence:** The project uses `tomllib` on Python 3.11 and later and the conditional `tomli`
+dependency on Python 3.9 and 3.10. The config and state modules share the XDG-style directory
+resolver. The Linux/macOS scope and unvalidated Windows status are documented in this plan and
+the user guide.
+
+**Done when:** the supported platform and file/schema contract is documented without
+contradictions in the CLI, package requirements, software design, and user guide.
+**Depends on:** None.
+
+### 2. Implement configuration path resolution and loading
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Add a focused configuration module under `src/ephem_toolkit/play_oem/`.
+- [x] Resolve the default file using `XDG_CONFIG_HOME` on Linux and macOS, with
+      `~/.config` fallback.
+- [x] Load TOML without importing wxPython or starting the GUI.
+- [x] Validate schema, types, known keys, and setting ranges; report actionable errors.
+- [x] Keep missing default config distinct from a missing explicitly selected config.
+
+**Evidence:** `config.py` loads and validates versioned TOML, rejects unknown or invalid
+settings, and distinguishes an absent default file from an explicitly selected missing file.
+A smoke run loaded display and playback settings and confirmed the explicit missing-path error.
+The config loader imports no wxPython modules.
+
+**Done when:** configuration path and loading behavior are deterministic, validated, and
+usable in a headless process.
+**Depends on:** Step 1.
+
+### 3. Merge config values with CLI arguments
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Add `--config PATH` and document it in `--help`.
+- [x] Track whether each config-capable CLI option was explicitly provided.
+- [x] Apply CLI-over-config-over-built-in-default precedence per setting.
+- [x] Reuse CLI validators for config values, including plots and backend choices.
+- [x] Preserve behavior exactly when no config file exists.
+
+**Evidence:** The CLI records explicit `--plots`, `--3d-backend`, and `--config` use. An
+integration smoke run loaded configured playback values while explicit plot/backend options
+overrode config values. Missing config preserves parser and GUI defaults.
+
+**Done when:** omitted CLI options use config values, explicit CLI options win even when they
+match built-in defaults, and no-config invocations retain current defaults.
+**Depends on:** Step 2.
+
+### 4. Define and implement the separate state file
+
+- **Status:** Done.
+- **Progress:** 6/6 checklist items.
+- [x] Resolve `play-oem-state.toml` beside the user config using the same XDG path rules.
+- [x] Define and validate the independent state schema and version.
+- [x] Restore and save usable window width/height and maximized state.
+- [x] Save and restore the open graph views, with explicit CLI and user config selections
+      taking precedence.
+- [x] Add successfully loaded OEM paths to a most-recent-first list capped at 15, moving
+      duplicates to the front.
+- [x] Preserve unavailable recent paths and handle attempts to reopen them through the normal
+      file-open flow.
+- [x] Warn and continue with defaults for invalid state; write valid updates atomically without
+      touching `play-oem.toml`.
+
+**Evidence:** `saved_state.py` validates and writes open view names alongside window geometry and
+recent files. The CLI restores saved views when neither `--plots` nor `display.plots` is set;
+explicit selections take precedence. The wx application saves the current open views on exit.
+Native wx window restore, plot restoration, and menu interaction were not smoke-tested in this
+environment.
+
+**Done when:** window size, open views, and up to 15 recent OEM files survive a restart through
+the separate state file, invalid state does not prevent startup, and the user config file remains
+unchanged.
+**Depends on:** Step 3.
+
+### 5. Publish user documentation
+
+- **Status:** Done.
+- **Progress:** 4/4 checklist items.
+- [x] Document both file paths for Linux and macOS and the `XDG_CONFIG_HOME` override.
+- [x] Include example TOML structures and explain which file is user-edited versus app-maintained.
+- [x] Document `--config`, precedence, missing-file behavior, and error behavior for user
+      config; document state recovery behavior.
+- [x] Verify docs match the implemented schema and CLI help.
+
+**Evidence:** [PLAY_OEM_CONFIG.md](../../tools/PLAY_OEM_CONFIG.md) documents both files,
+their TOML structures, recent-file behavior, config selection, precedence, and error handling.
+CLI help exposes `--config`.
+
+**Done when:** users can locate, edit, select, and troubleshoot their config file from the
+published `play-oem` documentation.
+**Depends on:** Steps 3 and 4.

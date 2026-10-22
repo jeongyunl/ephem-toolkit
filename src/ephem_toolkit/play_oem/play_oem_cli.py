@@ -4,10 +4,17 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
+import sys
 
 import ephem_toolkit.core.cli as cli
 from .views.trajectory3d.selection import THREE_D_BACKEND_CHOICES
 from .views.registry import parse_plot_selection
+
+_CONFIG_OPTIONS = {
+    "--plots": "plots",
+    "--3d-backend": "three_d_backend",
+    "--config": "config",
+}
 
 
 def _parse_plots(value: str) -> tuple[str, ...]:
@@ -26,6 +33,10 @@ class PlayOemArgs(argparse.Namespace):
     """3D trajectory rendering backend."""
     plots: tuple[str, ...]
     """View names selected for launch."""
+    config: str | None
+    """Optional path to a user config TOML file."""
+    provided_options: frozenset[str]
+    """Config-capable destinations explicitly supplied on the command line."""
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -71,6 +82,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "alias: state-vectors)."
         ),
     )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        metavar="<path>",
+        help="Load user defaults from this TOML file instead of the default location.",
+    )
     return parser
 
 
@@ -79,4 +97,12 @@ def parse_arguments(
     argv: Sequence[str] | None = None,
 ) -> PlayOemArgs:
     """Parse command-line arguments for OEM playback."""
-    return parser.parse_args(argv, namespace=PlayOemArgs())
+    argument_list = list(sys.argv[1:] if argv is None else argv)
+    parsed = parser.parse_args(argument_list, namespace=PlayOemArgs())
+    provided: set[str] = set()
+    for argument in argument_list:
+        option = argument.split("=", 1)[0]
+        if option in _CONFIG_OPTIONS:
+            provided.add(_CONFIG_OPTIONS[option])
+    parsed.provided_options = frozenset(provided)
+    return parsed
