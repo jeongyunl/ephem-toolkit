@@ -25,6 +25,44 @@ def test_projection_covers_poles_and_center_seam(name: str, center: float) -> No
     assert np.isfinite(y).all()
 
 
+@pytest.mark.parametrize("name", ground_track.PROJECTION_NAMES)
+def test_pan_rotates_map_without_horizontal_viewport_drift(name: str) -> None:
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    view = ground_track.GroundTrackView(
+        cast(Any, None), None, None, cast(Any, None), "Test object"
+    )
+    view.projection_name = name
+    view._figure = Figure()
+    canvas = FigureCanvasAgg(view._figure)
+    view._canvas = cast(Any, canvas)
+    view._axes = view._figure.add_subplot(111)
+    view._draw_map()
+    canvas.draw()
+    original_xlim = view._axes.get_xlim()
+    original_ylim = view._axes.get_ylim()
+    centers = []
+    for _ in range(3):
+        view._pan_map(20, 40)
+        canvas.draw()
+        centers.append(view.center_longitude_deg)
+        assert view._axes.get_xlim() == pytest.approx(original_xlim)
+        assert view._axes.get_ylim() == pytest.approx(original_ylim)
+        x, _ = view._projection(view.center_longitude_deg, 0, errcheck=True)
+        assert x == pytest.approx(0, abs=1e-6)
+    assert centers[2] < centers[1] < centers[0] < 0
+    # Zooming in permits vertical movement, bounded by the projected poles.
+    zoomed_ylim = tuple(value * 0.5 for value in original_ylim)
+    view._axes.set_ylim(zoomed_ylim)
+    view._pan_map(0, 10)
+    assert view._axes.get_ylim()[0] < zoomed_ylim[0]
+    view._pan_map(0, 10000)
+    assert view._axes.get_ylim()[0] == pytest.approx(original_ylim[0])
+    view._pan_map(0, -10000)
+    assert view._axes.get_ylim()[1] == pytest.approx(original_ylim[1])
+
+
 @pytest.mark.skipif(
     not os.environ.get("DISPLAY"), reason="requires an X display (use xvfb-run)"
 )

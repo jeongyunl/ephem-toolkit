@@ -48,7 +48,7 @@ def test_horizon_and_minimum_boundary_meet_their_elevation_angles() -> None:
     )
     np.testing.assert_allclose(horizon_elevation, 0.0, atol=1e-6)
     np.testing.assert_allclose(mask_elevation, 10.0, atol=1e-6)
-    assert footprints.horizon.latitude_rad.shape == (72,)
+    assert footprints.horizon.latitude_rad.shape == (36,)
 
 
 def test_minimum_boundary_is_inside_horizon_and_zero_reuses_horizon() -> None:
@@ -61,14 +61,14 @@ def test_minimum_boundary_is_inside_horizon_and_zero_reuses_horizon() -> None:
         f=ground_footprints.WGS84_FLATTENING,
     )
     _, _, horizon_distances = geod.inv(
-        np.full(72, -40.0),
-        np.full(72, -35.0),
+        np.full(36, -40.0),
+        np.full(36, -35.0),
         np.rad2deg(ten_degree.horizon.longitude_rad),
         np.rad2deg(ten_degree.horizon.latitude_rad),
     )
     _, _, mask_distances = geod.inv(
-        np.full(72, -40.0),
-        np.full(72, -35.0),
+        np.full(36, -40.0),
+        np.full(36, -35.0),
         np.rad2deg(minimum.longitude_rad),
         np.rad2deg(minimum.latitude_rad),
     )

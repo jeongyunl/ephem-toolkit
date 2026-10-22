@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -42,6 +43,42 @@ PROJECTION_SPECS = {
 PROJECTION_NAMES = tuple(PROJECTION_SPECS)
 DEFAULT_PROJECTION = "Robinson"
 DEFAULT_CENTER_LONGITUDE_DEG = 0.0
+
+
+class GroundTrackToolbar(NavigationToolbar2WxAgg):
+    """Rotate the map during pan without translating its horizontal viewport."""
+
+    def __init__(
+        self, canvas: FigureCanvasWxAgg, on_pan: Callable[[float, float], None]
+    ):
+        self._map_canvas: FigureCanvasWxAgg = canvas
+        self._on_pan = on_pan
+        self._pan_pointer: tuple[float, float] | None = None
+        self._pan_motion_id: int | None = None
+        super().__init__(canvas)
+
+    def press_pan(self, event: Any) -> None:
+        if event.button != 1 or event.inaxes is None:
+            return
+        self.push_current()
+        self._pan_pointer = (event.x, event.y)
+        self._pan_motion_id = self._map_canvas.mpl_connect(
+            "motion_notify_event", self.drag_pan
+        )
+
+    def drag_pan(self, event: Any) -> None:
+        if self._pan_pointer is None or event.x is None or event.y is None:
+            return
+        previous_x, previous_y = self._pan_pointer
+        self._pan_pointer = (event.x, event.y)
+        self._on_pan(event.x - previous_x, event.y - previous_y)
+
+    def release_pan(self, event: Any) -> None:
+        if self._pan_motion_id is not None:
+            self._map_canvas.mpl_disconnect(self._pan_motion_id)
+            self._pan_motion_id = None
+            self.push_current()
+        self._pan_pointer = None
 
 
 def _make_projection(name: str, center_longitude_deg: float) -> Any:
@@ -168,8 +205,9 @@ class GroundTrackView:
         self._figure = Figure(figsize=(10.0, 5.0), dpi=100)
         self._axes = self._figure.add_subplot(111)
         self._canvas = FigureCanvasWxAgg(panel, wx.ID_ANY, self._figure)
-        toolbar = NavigationToolbar2WxAgg(self._canvas)
+        toolbar = GroundTrackToolbar(self._canvas, self._pan_map)
         toolbar.Realize()
+        toolbar.Hide()
         projection = wx.Choice(panel, choices=list(PROJECTION_NAMES))
         projection.SetStringSelection(self.projection_name)
         center = wx.SpinCtrlDouble(panel, min=-180.0, max=180.0, initial=0.0, inc=1.0)
@@ -211,7 +249,6 @@ class GroundTrackView:
         self._coordinate_readout.SetName("Ground Track current coordinates")
 
         sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(toolbar, 0, wx.EXPAND)
         sizer.Add(controls, 0, wx.ALL, 6)
         sizer.Add(navigation, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
         map_row = wx.BoxSizer(wx.HORIZONTAL)
@@ -237,6 +274,7 @@ class GroundTrackView:
         zoom_out.Bind(wx.EVT_BUTTON, lambda _event: self._zoom(1.0 / 0.7))
         pan.Bind(wx.EVT_TOGGLEBUTTON, lambda _event: toolbar.pan())
         self._canvas.mpl_connect("scroll_event", self._on_scroll)
+        self._canvas.mpl_connect("button_release_event", self._on_navigation_release)
         self._axes.callbacks.connect("xlim_changed", self._on_limits_changed)
         self._horizontal_scroll.Bind(
             wx.EVT_SCROLL_THUMBTRACK, self._on_horizontal_scroll
@@ -254,6 +292,8 @@ class GroundTrackView:
         if self._figure is None or self._axes is None:
             return
         axes = self._axes
+        current_time_s = self._last_time_s
+        self._last_time_s = None
         # Clearing and rebuilding the axes changes its limits several times.
         # Those are implementation details of the redraw, not map navigation;
         # do not let the x-limit callback reinterpret them as a new center.
@@ -419,6 +459,8 @@ class GroundTrackView:
             bbox_to_anchor=(0.5, 0.01),
         )
         self._figure.subplots_adjust(left=0.1, right=0.98, bottom=0.18, top=0.9)
+        if current_time_s is not None:
+            self.update(current_time_s)
 
     def _on_projection_choice(self, event: wx.CommandEvent) -> None:
         self.projection_name = event.GetString()
@@ -484,14 +526,75 @@ class GroundTrackView:
             self._zoom(0.8 if event.button == "up" else 1.25, event.xdata, event.ydata)
 
     def _on_limits_changed(self, _axes: Any) -> None:
+        self._sync_center_from_extent()
+
+    def _pan_map(self, dx_pixels: float, dy_pixels: float) -> None:
+        if self._axes is None or self._projection is None:
+            return
+        xlim, ylim = self._axes.get_xlim(), self._axes.get_ylim()
+        width, height = self._axes.bbox.width, self._axes.bbox.height
+        if width <= 0 or height <= 0:
+            return
+        xspan = xlim[1] - xlim[0]
+        longitude, _ = self._projection(-dx_pixels * xspan / width, 0.0, inverse=True)
+        self.center_longitude_deg = _normalized_longitude(float(longitude))
+        yspan = ylim[1] - ylim[0]
+        _, pole_y = self._projection(
+            [self.center_longitude_deg, self.center_longitude_deg], [-90.0, 90.0]
+        )
+        south, north = float(min(pole_y)), float(max(pole_y))
+        if yspan >= (north - south) * (1.0 - 1.0e-10):
+            ycenter = (south + north) * 0.5
+        else:
+            ycenter = float(
+                np.clip(
+                    sum(ylim) * 0.5 - dy_pixels * yspan / height,
+                    south + yspan * 0.5,
+                    north - yspan * 0.5,
+                )
+            )
+        self._draw_map()
+        self._syncing_limits = True
+        try:
+            self._axes.set_xlim(-xspan * 0.5, xspan * 0.5)
+            self._axes.set_ylim(ycenter - yspan * 0.5, ycenter + yspan * 0.5)
+        finally:
+            self._syncing_limits = False
+        if self._center_control is not None:
+            self._center_control.SetValue(self.center_longitude_deg)
+        self._update_scrollbars()
+        if self._canvas is not None:
+            self._canvas.draw_idle()
+
+    def _on_navigation_release(self, _event: Any) -> None:
+        self._sync_center_from_extent()
+
+    def _sync_center_from_extent(self) -> None:
         if self._syncing_limits or self._axes is None or self._projection is None:
             return
         midpoint = sum(self._axes.get_xlim()) * 0.5
         longitude, _ = self._projection(midpoint, 0.0, inverse=True)
-        self.center_longitude_deg = _normalized_longitude(float(longitude))
+        center_longitude_deg = _normalized_longitude(float(longitude))
+        center_delta_deg = _normalized_longitude(
+            center_longitude_deg - self.center_longitude_deg
+        )
+        if abs(center_delta_deg) > 1.0e-7:
+            xlim = self._axes.get_xlim()
+            ylim = self._axes.get_ylim()
+            xspan = abs(xlim[1] - xlim[0])
+            self.center_longitude_deg = center_longitude_deg
+            self._draw_map()
+            # The new projection places its central meridian at x=0. Keep the
+            # current zoom and vertical view while recentering on the new lon_0.
+            self._syncing_limits = True
+            self._axes.set_xlim(-xspan * 0.5, xspan * 0.5)
+            self._axes.set_ylim(ylim)
+            self._syncing_limits = False
         if self._center_control is not None:
             self._center_control.SetValue(self.center_longitude_deg)
         self._update_scrollbars()
+        if self._canvas is not None:
+            self._canvas.draw_idle()
 
     def _update_scrollbars(self) -> None:
         if (
