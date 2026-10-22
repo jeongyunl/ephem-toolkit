@@ -129,12 +129,17 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         self._tick_interval_ms = tick_interval_ms
         # Infer the initial slider value from the existing timer interval API.
         # Keep FPS separately so millisecond rounding does not affect clock steps.
-        self._fps = min(
-            control_window.FPS_MAX,
-            max(
-                control_window.FPS_MIN,
-                round(MILLISECONDS_PER_SECOND / tick_interval_ms),
-            ),
+        restored_fps = saved_state.fps if saved_state is not None else None
+        self._fps = (
+            restored_fps
+            if restored_fps is not None
+            else min(
+                control_window.FPS_MAX,
+                max(
+                    control_window.FPS_MIN,
+                    round(MILLISECONDS_PER_SECOND / tick_interval_ms),
+                ),
+            )
         )
         self._last_frame_monotonic_s: float | None = None
         self._on_open_file_callback = on_open_file
@@ -374,12 +379,11 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
                         max(MIN_STORED_WINDOW_DIMENSION, height),
                     )
         self._saved_state.recent_files = list(self._recent_oem_paths[:MAX_RECENT_FILES])
+        self._saved_state.fps = self._fps
         for opened in self._open_panels.values():
             setter = getattr(opened.view, "set_minimum_elevation", None)
             if setter is not None:
-                minimum_elevation = getattr(
-                    opened.view, "minimum_elevation_deg", None
-                )
+                minimum_elevation = getattr(opened.view, "minimum_elevation_deg", None)
                 if isinstance(minimum_elevation, int):
                     self._saved_state.minimum_elevation_deg = minimum_elevation
                 break
@@ -587,6 +591,8 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         if not control_window.FPS_MIN <= fps <= control_window.FPS_MAX:
             raise ValueError("fps must be between 1 and 30")
         self._fps = fps
+        if self._saved_state is not None:
+            self._saved_state.fps = fps
         # Round the scheduling interval upward to whole milliseconds; the clock
         # still uses the exact requested frame period above.
         self._tick_interval_ms = (MILLISECONDS_PER_SECOND + fps - 1) // fps

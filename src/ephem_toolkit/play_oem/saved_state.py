@@ -19,7 +19,10 @@ from .config import default_config_directory
 from .views.registry import parse_plot_selection
 
 STATE_FILENAME = "play-oem-state.toml"
-STATE_VERSION = 2
+STATE_VERSION = 3
+FPS_MIN = 1
+FPS_MAX = 30
+DEFAULT_FPS = 30
 MAX_RECENT_FILES = 15
 DEFAULT_WINDOW_SIZE = (1100, 760)
 MIN_STORED_WINDOW_DIMENSION = 320
@@ -36,6 +39,7 @@ class SavedAppState:
     recent_files: list[str] = field(default_factory=list)
     open_plots: list[str] | None = None
     minimum_elevation_deg: int = 10
+    fps: int | None = None
 
 
 def default_state_path() -> Path:
@@ -75,6 +79,7 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
         "recent_files",
         "workspace",
         "ground_track",
+        "playback",
     }
     unknown_root = set(document) - allowed_root
     if unknown_root:
@@ -83,9 +88,11 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
     if (
         isinstance(version, bool)
         or not _is_int(version)
-        or version not in (1, STATE_VERSION)
+        or version not in (1, 2, STATE_VERSION)
     ):
-        return _state_error(state_path, f"state_version must be 1 or {STATE_VERSION}")
+        return _state_error(
+            state_path, f"state_version must be 1, 2, or {STATE_VERSION}"
+        )
 
     window = document.get("window", {})
     if not isinstance(window, dict):
@@ -158,6 +165,19 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
             "ground_track.minimum_elevation_deg must be an integer from 0 through 90",
         )
 
+    playback = document.get("playback", {})
+    if not isinstance(playback, dict):
+        return _state_error(state_path, "[playback] must be a TOML table")
+    if set(playback) - {"fps"}:
+        unknown = sorted(set(playback) - {"fps"})[0]
+        return _state_error(state_path, f"unknown key playback.{unknown!s}")
+    fps = playback.get("fps")
+    if fps is not None and (not _is_int(fps) or not FPS_MIN <= fps <= FPS_MAX):
+        return _state_error(
+            state_path,
+            f"playback.fps must be an integer from {FPS_MIN} through {FPS_MAX}",
+        )
+
     return SavedAppState(
         width=width,
         height=height,
@@ -165,6 +185,7 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
         recent_files=_unique_recent_paths(paths)[:MAX_RECENT_FILES],
         open_plots=list(parsed_open_plots),
         minimum_elevation_deg=minimum_elevation,
+        fps=fps,
     )
 
 
@@ -219,7 +240,9 @@ def serialize_saved_state(state: SavedAppState) -> str:
         "[workspace]\n"
         f"open_plots = [{', '.join(_toml_string(name) for name in plots)}]\n\n"
         "[ground_track]\n"
-        f"minimum_elevation_deg = {int(state.minimum_elevation_deg)}\n"
+        f"minimum_elevation_deg = {int(state.minimum_elevation_deg)}\n\n"
+        "[playback]\n"
+        f"fps = {DEFAULT_FPS if state.fps is None else int(state.fps)}\n"
     )
 
 

@@ -20,6 +20,13 @@ def test_ground_track_minimum_elevation_round_trips(tmp_path) -> None:
     assert state.minimum_elevation_deg == 42
 
 
+def test_playback_fps_round_trips(tmp_path) -> None:
+    path = tmp_path / "play-oem-state.toml"
+    path.write_text(serialize_saved_state(SavedAppState(fps=24)))
+
+    assert load_saved_state(path).fps == 24
+
+
 def test_state_version_one_migrates_with_ground_track_default(tmp_path) -> None:
     path = tmp_path / "play-oem-state.toml"
     path.write_text(
@@ -28,6 +35,7 @@ def test_state_version_one_migrates_with_ground_track_default(tmp_path) -> None:
     )
 
     assert load_saved_state(path).minimum_elevation_deg == 10
+    assert load_saved_state(path).fps is None
 
 
 def test_invalid_ground_track_preference_falls_back(tmp_path) -> None:
@@ -39,4 +47,16 @@ def test_invalid_ground_track_preference_falls_back(tmp_path) -> None:
         state = load_saved_state(path)
 
     assert state.minimum_elevation_deg == 10
+    assert observed
+
+
+def test_invalid_saved_fps_falls_back(tmp_path) -> None:
+    path = tmp_path / "play-oem-state.toml"
+    path.write_text("state_version = 3\n[playback]\nfps = 0\n")
+
+    with warnings.catch_warnings(record=True) as observed:
+        warnings.simplefilter("always")
+        state = load_saved_state(path)
+
+    assert state.fps is None
     assert observed

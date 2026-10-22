@@ -19,6 +19,8 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     user_config = load_config(cli_args.config)
     saved_state = load_saved_state()
+    initial_fps = saved_state.fps if saved_state.fps is not None else user_config.fps
+    saved_state.fps = initial_fps
     if "plots" in cli_args.provided_options:
         selected_plots = cli_args.plots
     elif user_config.plots_configured:
@@ -74,7 +76,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         metadata_details=initial_data.metadata_details,
         plots=selected_plots,
         three_d_backend=selected_backend,
-        tick_interval_ms=math.ceil(1000 / user_config.fps),
+        tick_interval_ms=math.ceil(1000 / initial_fps),
         on_open_file=load_file,
         saved_state=saved_state,
         ground_track_source=initial_data.ground_track_source,

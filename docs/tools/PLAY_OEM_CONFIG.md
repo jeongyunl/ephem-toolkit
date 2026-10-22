@@ -69,7 +69,7 @@ leave it at `1` unless a later version of this guide says otherwise.
 separately from your user-edited defaults. You normally do not need to edit it.
 
 ```toml
-state_version = 1
+state_version = 3
 
 [window]
 width = 1400
@@ -84,6 +84,12 @@ paths = [
 
 [workspace]
 open_plots = ["trajectory-3d", "speed-altitude"]
+
+[ground_track]
+minimum_elevation_deg = 10
+
+[playback]
+fps = 24
 ```
 
 The state file remembers the main window size and up to 15 recently opened OEM files. The
@@ -97,6 +103,9 @@ The state file also remembers the graph views open when you exit. On the next la
 views are restored unless you provide `--plots` or set `display.plots` in `play-oem.toml`.
 The saved values are view names such as `trajectory-3d` and `speed-altitude`; plot groups are
 expanded to their individual views when saved.
+It also saves the Playback pane's render-rate slider (1–30 FPS) when the application exits.
+That saved FPS takes precedence over `playback.fps` in the user config; the user-config value is
+used when no FPS has been saved yet. The Ground Track minimum-elevation setting is saved here too.
 
 The window size is adjusted if it does not fit the current display. Window position is not
 saved initially, so changing monitors will not leave the window off-screen. If the state file is
@@ -112,7 +121,7 @@ overrides into `play-oem.toml`.
 |---|---|
 | `speed` | Initial playback speed multiplier, from 1x through 9000x. Playback speed is currently controlled in the GUI. |
 | `reverse` | Initial direction preference for the GUI. |
-| `fps` | Initial render-rate preference from 1 through 30 frames per second. The Playback pane slider currently controls this value. |
+| `fps` | Initial render-rate preference from 1 through 30 frames per second. The Playback pane slider's current value is saved in `play-oem-state.toml` at exit. |
 
 ### Display
 
