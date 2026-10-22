@@ -1,7 +1,8 @@
 # `play-oem` — Concepts and Requirements
 
-> Status: **planned** (not yet implemented). Software design:
-> [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md). GUI development:
+> Status: **implemented**. The configuration file remains planned and is tracked in
+> [PLAY_OEM_CONFIG_PLAN.md](./PLAY_OEM_CONFIG_PLAN.md). Software design:
+> [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md). GUI design:
 > [PLAY_OEM_GUI_DESIGN.md](./PLAY_OEM_GUI_DESIGN.md).
 
 `play-oem` is the interactive, animated successor to [`plot-oem`](../../tools/PLOT_OEM.md). Where `plot-oem` renders
@@ -19,13 +20,13 @@ is the interactive playback application.
 
 | Concept | Meaning |
 |---------|---------|
-| **Timeline** | The OEM time span `[t_start, t_end]` (after `--duration` filtering). All times are shown as UTC and as elapsed time from `t_start`. |
+| **Timeline** | The full time span `[t_start, t_end]` from every state in the OEM. All times are shown as UTC and as elapsed time from `t_start`. |
 | **Playback clock** | A single shared `t_now` in the timeline. Only the clock advances; views only read it. |
-| **Playback speed** | Ratio of simulated seconds to wall-clock seconds (`|rate|` 1x … 1000x); the sign indicates direction. |
+| **Playback speed** | Ratio of simulated seconds to wall-clock seconds (`|rate|` 1x … 9000x); the sign indicates direction. |
 | **Cursor state** | The OEM state at `t_now`, interpolated from the OEM samples (using the OEM's `INTERPOLATION` metadata when present). |
 | **View** | A plot window that renders a series or trajectory and a cursor/marker at `t_now`. |
 | **View group** | A named collection of related views opened together (Overview, State, Motion diagnostics, All). |
-| **Control window** | The main dashboard: time slider, play/pause, speed and direction controls, current-state readout, data context and view toolbar. Closing it quits the app. |
+| **Control window** | The Controls & Info pane: play/pause, speed, direction and FPS controls, current-state readout, data context and view toolbar. Closing the app window quits the app. |
 
 Two kinds of views:
 
@@ -53,20 +54,19 @@ which views are open.
    - Click-to-seek: clicking on a time-series plot seeks to that time.
    - Step buttons/keys: ±1 sample, ±1 minute, jump to start/end.
    - Seeking works while playing, paused, or reversed, and never changes speed or direction.
-2. Play/Pause button (also `Space`). At either end of the timeline playback pauses
-   (or wraps with `--loop`).
-3. Speed control from `1x` up to `1000x` (log-scale slider and/or preset buttons
+2. Play/Pause button (also `Space`). Playback starts paused at the first OEM state and pauses at either timeline boundary.
+3. Speed control from `1x` up to `9000x` (log-scale slider and preset buttons
    1, 10, 60, 100, 300, 1000).
 4. **Reverse playback**: a direction control (button, and `R` key) plays the timeline
-   backward at the selected speed (`-1x` … `-1000x`). Reversing mid-play is seamless
-   (no jump in `t_now`). Reaching `t_start` while reversed pauses (or wraps to `t_end` with `--loop`).
+   backward at the selected speed (`-1x` … `-9000x`). Reversing mid-play is seamless
+   (no jump in `t_now`). Reaching `t_start` while reversed pauses.
    Cursor state and views are identical whether a time was reached forward, backward, or by seeking.
    The shared controller above the time slider provides `<<<` / `<<` / `<` reverse speeds, a
    dedicated 1x Reverse Play/Pause button, a separate 1x Forward Play/Pause button, and `>` / `>>`
    / `>>>` forward speeds for 10x, 100x, and 1000x. Each play button starts playback in its
    direction at 1x when paused, pauses playback in that direction, or switches a running
    playback to its direction at 1x. A speed button selects its direction and base speed; clicking
-   it again at exactly that speed advances by one decade up to 1000x, while clicking it at a
+   it again at exactly that speed advances by one decade up to 9000x, while clicking it at a
    higher same-direction speed resets to its base speed.
 5. **Dashboard readout**: current UTC epoch, elapsed time, signed speed/direction, position
    and velocity components, speed, and altitude when valid. Keep the default readout concise;
@@ -78,42 +78,39 @@ which views are open.
    `Motion diagnostics`, and `All`. Opening an already open view raises it; closing a view does
    not affect the clock. `All` includes the 3D orbit, state components, speed/altitude, RTN
    deltas, angular velocity, direction change, and geocentric distance.
+8. **Render rate**: an FPS slider in the Playback pane selects 1–30 frames per second (default
+   30). Playback advances by whole selected frame periods. When rendering overruns, consume all
+   elapsed frame periods in one clock update and redraw once, dropping intermediate frames.
 
 **F2. Animated views**
 
 1. All open views are synchronized to the single clock (never drift relative to each other).
-2. Rendering must keep the UI responsive at 1000x: frame rate is capped (default 30 fps)
-   and frames are dropped, not queued.
+2. Rendering must keep the UI responsive at speeds up to 9000x: the frame rate is capped at
+   30 fps and overdue frames are dropped, not queued. The playback clock catches up by advancing
+   through all elapsed frame periods in one update.
 3. Seeking works while paused or playing.
 
 **F3. CLI (very similar to `plot-oem`)**
 
 ```bash
-play-oem <input_oem> [OPTIONS]
+play-oem [<input_oem>] [OPTIONS]
 ```
 
 | Option | Description |
 |--------|-------------|
 | `<input_oem>` | Input CCSDS OEM path (same as `plot-oem`). |
-| `-d`, `--duration <duration>` | Limit timeline to this duration from first state (same parser as `plot-oem`). |
 | `--time-unit {m,minute,minutes,h,hour,hours}` | Elapsed-time axis unit; default `hours` (same as `plot-oem`). |
-| `--speed <x>` | Initial signed speed multiplier (default `1`; magnitude `1`…`1000`; negative plays in reverse; zero and out-of-range values are invalid). |
-| `--reverse` | Negate `--speed`; if the effective speed is negative and `--start` is omitted, begin at the end of the timeline. |
-| `--start <t>` | Initial time within the selected timeline: elapsed duration (`30m`) or UTC epoch (default: start when moving forward, end when moving in reverse). |
 | `--plots <list>` | Comma-separated view names or groups to open at launch (default: `overview`; groups: `overview`, `state`, `motion`, `all`). |
-| `--autoplay` | Begin playing immediately. |
-| `--loop` | Restart at the end. |
-| `--fps <n>` | Maximum render rate in integer frames per second (`1`…`1000`; default `30`). |
 | `--3d-backend {auto,vtk,matplotlib}` | Renderer for 3D views (default `auto`: VTK if available, else Matplotlib). Explicit `vtk` fails with an install hint if VTK is missing. |
 | `-h`, `--help` | Help. |
 
-The input, `--duration`, and `--time-unit` options follow `plot-oem`. Playback options configure
-the interactive player. Use `plot-oem` for saved diagnostic plots; `play-oem` is the interactive
-playback command.
+The CLI accepts an optional OEM path plus display and view-selection options. It loads the entire
+OEM; playback speed, direction, seeking, and frame rate are controlled in the GUI. Use `plot-oem`
+for saved diagnostic plots; `play-oem` is the interactive playback command.
 
 **F4. Data and computation reuse**
 
-Data loading, duration filtering, series computation (RTN deltas, angular rates, distance,
+Data loading, series computation (RTN deltas, angular rates, distance,
 WGS84 altitude), and time units are reused from `plot-oem` (copied, then modified only where
 needed—see design).
 
@@ -126,7 +123,7 @@ needed—see design).
   macOS baseline is documented in the design; the user accepted it for now, with N1 retained
   as a future optimization target.
 - **N2 Portability**: macOS, Linux, Windows; Python version per `pyproject.toml`.
-- **N3a 3D backends**: 3D views have two interchangeable implementations, Matplotlib/Tk (always available) and VTK
+- **N3a 3D backends**: 3D views have two interchangeable implementations, Matplotlib/WxAgg (always available) and VTK
   (optional extra `vtk`, GPU-accelerated). Behavior and controls are identical; VTK is preferred when installed
   and selectable via `--3d-backend`.
 - **N3 Dependencies**: prefer the existing optional `plotting` extra (Matplotlib). The GUI toolkit
@@ -153,5 +150,4 @@ needed—see design).
 
 ## Open questions
 
-- GUI toolkit (see design §3): Matplotlib widgets in-window vs. Tk/Qt control window.
 - Whether to also provide a `play-oem-diff` later.

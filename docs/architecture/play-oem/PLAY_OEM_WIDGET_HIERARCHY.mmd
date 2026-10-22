@@ -7,6 +7,7 @@ flowchart TB
     frame --> menu_bar["wx.MenuBar<br/>File → Open File..."]
     frame --> main_sizer["main_sizer (vertical)"]
     frame --> status_bar["wx.StatusBar<br/>load result and error messages"]
+    frame --> playback_timer["wx.Timer<br/>1–30 FPS selected in Playback pane<br/>elapsed frame periods advance the clock<br/>overrun redraws are dropped"]
 
     main_sizer -- "top, stretch 1" --> main_splitter
     main_sizer -- "bottom, fixed height" --> timeline_panel
@@ -28,6 +29,7 @@ flowchart TB
         playback_page --> cw_panel["ControlWindow.playback_scroller<br/>wx.ScrolledWindow, vertical scroll"]
         cw_panel --> cw_readout["elapsed_time_label, utc_time_label"]
         cw_panel --> cw_playback["playback_heading_label, play_pause_button,<br/>reverse_toggle_button (reverse toggle),<br/>speed_readout_label, speed_slider, speed_scale_label"]
+        cw_panel --> cw_fps["fps_label (1–30 FPS, default 30),<br/>fps_slider"]
         cw_panel --> cw_nav["navigation_heading_label, time navigation buttons"]
 
         info_page --> info_scroll["self.file_info_scroll<br/>wx.ScrolledWindow, vertical scroll"]

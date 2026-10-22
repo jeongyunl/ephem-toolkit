@@ -44,6 +44,12 @@ and timeline slider. The time field accepts either UTC or
 elapsed-time input and selects its text when it first receives focus. These implementation details
 complement the layout proposals below; the SVG mock-ups are not screenshots of the current UI.
 
+The Playback page also has a render-rate slider from 1 to 30 FPS, defaulting to 30 FPS. The
+selection limits the timer update rate. If rendering takes longer than a frame period, playback
+advances over all elapsed periods in one clock update and draws once; missed intermediate frames
+are dropped instead of queued. Playback speed and direction are selected in the GUI, not at launch
+through CLI flags.
+
 - **Fits:** users who want non-graph tools kept separate from a flexible, multi-plot analysis area.
 - **Trade-offs:** several narrow panes can reduce plot readability; graph stacks need clear add,
   remove, and empty-state behavior. The right pane should be optional so the middle pane can use
@@ -112,6 +118,9 @@ complement the layout proposals below; the SVG mock-ups are not screenshots of t
   resuming. Use accessible names and tooltips to explain these distinct actions.
 - Keep playback direction and speed controls together, and separate seeking from time-navigation
   actions with clear section labels.
+- Keep the render-rate slider on the Playback page, labeled with its current FPS value and bounded
+  to 1–30 FPS. Explain that a lower setting reduces redraw frequency; overruns drop intermediate
+  frames while the playback clock catches up.
 - Show a concise position/velocity summary and explicit cursor status; reveal secondary OEM
   metadata in a collapsible section.
 - Make view/group selection discoverable without dedicating a button to every view in the most
@@ -145,8 +154,8 @@ For the selected G layout, verify:
   remain usable, sash handles remain visible in dark mode, and right-pane close/reopen preserves
   user-adjusted sizes.
 - Hidden views show the current cursor immediately when selected and do not create unnecessary
-  render work while invisible. Coalesce or throttle redraws under multi-panel load so rendering
-  cannot starve the playback clock or workspace input.
+  render work while invisible. Keep redraws bounded by the selected 1–30 FPS rate; if rendering
+  overruns, drop missed redraws and keep wx input responsive while the playback clock catches up.
 - Closing a tab or view unsubscribes it exactly once; changing tabs does not accidentally close a
   view intended to remain available.
 - The VTK wx interactor can be hidden, resized, shown, and rendered correctly in feature pages

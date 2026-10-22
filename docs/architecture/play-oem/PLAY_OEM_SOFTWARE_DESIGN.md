@@ -12,10 +12,10 @@ by the migration in [PLAY_OEM_IMPLEMENTATION_PLAN.md](./PLAY_OEM_IMPLEMENTATION_
 | `plot_oem.py` piece | Destination in `play_oem/` | Change |
 |---|---|---|
 | `TimeUnit` | `time_unit.py` | copy verbatim |
-| `read_oem_states`, `filter_states_by_duration` | `data.py` | copy verbatim |
+| `read_oem_states` | `data.py` | copy verbatim; load the full OEM |
 | `OrbitSeries`, `compute_orbit_series` | `series.py` | copy verbatim; add `t_s` array use for lookup |
 | `plot_*` functions (7) | `views/*.py` | split into *build* (draw static data, return artists) and *update(t)* (move cursor) |
-| `plot_oem_cli.py` | `play_oem_cli.py` | copy; add playback options |
+| `plot_oem_cli.py` | `play_oem_cli.py` | adapt file, display, and view-selection options |
 | `__main__.py` | `__main__.py` | load and prepare OEM data, then launch the interactive application |
 
 Keep `plot-oem` as the separate static plotting command and `play-oem` as the interactive
@@ -113,15 +113,16 @@ and one `MainLoop()`. Tk is removed from the runtime path (implementation plan s
 
 ### 4.1 `PlaybackClock` (pure logic)
 
-State: `t_start`, `t_end`, `t_now` (seconds from start), `rate` (signed float, `|rate|` in 1…1000), `playing`, `loop`.
+State: `t_start`, `t_end`, `t_now` (seconds from start), `rate` (signed float, `|rate|` in 1…9000), `playing`, `loop`.
 Speed and direction are stored together as the signed `rate`; the UI shows `|rate|` plus a direction indicator.
 
 - `tick(wall_dt)`: if playing, `t_now += rate * wall_dt`; at `t_end` (forward) or `t_start` (reverse) pause, or wrap to the opposite end if `loop`.
 - `seek(t)`: clamps to `[t_start, t_end]`, sets `t_now`, keeps `rate` and `playing`; notifies observers. O(1), no replay of intermediate time.
-- `set_speed(x)` (`|x|` clamped to `[1, 1000]`, sign preserved), `set_direction(±1)` / `reverse()` (negates `rate`; `t_now` unchanged), `play()`, `pause()`, `toggle()`.
+- `set_speed(x)` (`|x|` clamped to `[1, 9000]`, sign preserved), `set_direction(±1)` / `reverse()` (negates `rate`; `t_now` unchanged), `play()`, `pause()`, `toggle()`.
 - `step(n_samples | seconds)`: seek relative to `t_now`, used by step buttons/keys.
-- Observers: `subscribe(callback(t_now))`. Wall-time driven by the app timer using
-  `time.monotonic()` deltas, so slow frames don't slow simulated time (frames drop instead).
+- Observers: `subscribe(callback(t_now))`. The app timer counts complete frame periods from
+  monotonic elapsed time. If drawing overruns, the clock advances across all elapsed periods in
+  one update and intermediate redraws are dropped.
 
 Unit tests: advance, clamp, loop wrap (both directions), speed clamp, sign preserved on speed change,
 reverse mid-play without `t_now` jump, seek while playing/reversed/paused, end-of-timeline pause — no display.
@@ -293,7 +294,7 @@ three-pane splitter:
 ```
 [Playback page]
 Elapsed … | UTC …
-[Play] [Reverse] [Speed slider]
+[Play] [Reverse] [Speed slider] [Render rate: 30 FPS] [FPS slider: 1–30]
 [Start] [Previous sample] [-1 min] [+1 min] [Next sample] [End]
 Toolbar: [3D Orbit] [State] [Speed/Altitude] [RTN] [Angular] [Direction] [Distance]
 Groups: [Overview] [State] [Motion diagnostics] [All]
@@ -312,8 +313,9 @@ object … | frame … | center … | epochs … | samples …
 Details ▸ (additional OEM metadata and diagnostics)
 ```
 
-- Playback page: the `ControlWindow` provides Play, Reverse, a log-scale speed slider, start/end
-  and sample/time-step navigation. Elapsed and current UTC labels remain visible on this page.
+- Playback page: the `ControlWindow` provides Play, Reverse, a log-scale speed slider, a render-rate
+  slider from 1 to 30 FPS (default 30), and start/end and sample/time-step navigation. Elapsed and
+  current UTC labels remain visible on this page.
 - Shared timeline footer: `Workspace` places a separator, start/current/end UTC row, direction and
   speed transport controls, and the timeline slider below the pane splitter. Its slider has an
   integer range 0…10,000 mapped linearly to `[t_start, t_end]`. Slider events call `clock.seek`;
@@ -325,7 +327,8 @@ Details ▸ (additional OEM metadata and diagnostics)
   and forward buttons start or pause playback in that direction while retaining the speed magnitude.
   Direction-specific speed controls cover 1x, 10x, 100x and 1000x.
 - Speed slider on Playback: log-scale `wx.Slider` (integer `v` in 0…300 mapped to `10^(v/100)`,
-  i.e. 10^0…10^3), bound to the playback rate callback.
+  i.e. 10^0…10^3), bound to the playback rate callback. The FPS slider selects the UI update
+  limit from 1 through 30 frames per second.
 - Native sizing and keyboard focus come from wx. The frame-level File menu provides **Open File...**;
   the status bar reports successful loads and errors.
 - Click-to-seek: each time-series view connects `button_press_event` (left click inside axes, toolbar zoom/pan mode inactive) → `clock.seek(x * unit_divisor)`.
@@ -348,23 +351,25 @@ mixins. Their shared `PlayerAppState` protocol lives in `app/state.py`; `_plots`
 because the controller stores the expanded plot selection as an immutable tuple. The constructor
 still accepts any `Sequence[str]` for the initial plot selection.
 
-One `wx.Timer` (`wx.EVT_TIMER`) at about `1000/fps` ms:
+One `wx.Timer` (`wx.EVT_TIMER`) uses a millisecond interval approximating `1000/fps`:
 
-1. `dt = monotonic() - last`; `clock.tick(dt)`.
-2. Update slider and readouts.
-3. For each open view: `view.update(t_now)` then redraw. Blitting, if adopted, is step 27.
+1. Measure monotonic elapsed time and count complete selected frame periods, retaining the
+   fractional remainder for the next event.
+2. Advance the playback clock by the sum of elapsed periods in one tick, then update the slider
+   and readouts once.
+3. Update and redraw each open view once. Any intermediate display frames missed during a slow
+   redraw are dropped rather than queued.
 
 Only the wx main loop exists (no threads). Heavy precomputation (`compute_orbit_series`) happens once
 before the window appears, with progress printed to stdout like `plot-oem`.
 
 ## 5. CLI flow (`__main__.py`)
 
-1. Parse args (`PlayOemArgs`), parse duration/time-unit exactly as `plot-oem`.
-2. Read and filter states, then compute the series.
-3. Select the `WXAgg` Matplotlib backend, create the `wx.App` and `PlayerApp`, open the requested `--plots` (default `overview`),
-   apply `--start/--speed/--reverse/--autoplay` (reverse without `--start` begins at `t_end`;
-   otherwise playback starts at `t_start`),
-   `wx.App.MainLoop()`.
+1. Parse args (`PlayOemArgs`) for the optional OEM path, time unit, 3D backend, and plot selection.
+2. Read every state in the OEM and compute the series; no duration filtering is applied.
+3. Select the `WXAgg` Matplotlib backend, create the `wx.App` and `PlayerApp`, and open the
+   requested `--plots` (default `overview`). Playback starts paused at the beginning; speed,
+   direction, seeking, and FPS are controlled in the GUI. Enter `wx.App.MainLoop()`.
    Trailing tails in trajectory views are drawn on the side behind the direction of motion.
 4. SIGINT closes the workspace. The Python signal handler forwards the request with `wx.CallAfter` to a
    close routine that closes hosted views and the workspace frame and ends the main loop.
@@ -376,12 +381,16 @@ before the window appears, with progress printed to stdout like `plot-oem`.
 - Data loading and series tests: compare behavior with `plot-oem` on representative OEM files.
 - Views: with a non-interactive Matplotlib backend, `build` + several `update` calls without exceptions; cursor artist
   positions equal expected values.
-- CLI parse and input-loading tests (`--duration`, `--time-unit`, speed bounds, `--start`, `--plots` validation).
+- CLI parse and input-loading tests for optional input, `--time-unit`, `--3d-backend`, and
+  `--plots`; verify that all OEM states are loaded.
+- Playback control tests cover the 1–30 FPS slider and timer frame-period accounting, including
+  dropped redraws after overruns.
 - Backend-neutral Matplotlib view tests use `MPLBACKEND=Agg`; tests that create a `wx.App` use the
   wx backend and run under `xvfb-run` on Linux CI. Pure-Python tests run without a display.
 - Baseline: wx values for `tests/data/ISS_2026-05-20.OEM` must match
   `tests/data/play_oem_tk_baseline.json`, captured before the migration.
-- Manual: GUI smoke tests on macOS, Linux, and Windows (step 23 checklist); 1000x with all views on a large OEM, check fps (step 27).
+- Manual: GUI smoke tests on macOS, Linux, and Windows (step 23 checklist); high-speed playback
+  with all views on a large OEM, check responsiveness and dropped-frame behavior (step 27).
 
 ## 7. Implementation plan
 

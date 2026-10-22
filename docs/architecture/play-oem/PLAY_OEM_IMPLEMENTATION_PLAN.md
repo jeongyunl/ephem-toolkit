@@ -5,6 +5,15 @@ Requirements: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md). Software design:
 [PLAY_OEM_GUI_DESIGN.md](./PLAY_OEM_GUI_DESIGN.md). Completed selected-layout record:
 [PLAY_OEM_GUI_WX_MIGRATION.md](./old/PLAY_OEM_GUI_WX_MIGRATION.md).
 
+## Current runtime behavior
+
+The completed steps below are an implementation history and may record behavior that has since
+changed. Current `play-oem` loads the full OEM file and accepts only the optional input path,
+`--time-unit`, `--plots`, `--3d-backend`, and `--help` as command-line options. Playback speed,
+direction, seeking, and render rate are controlled in the GUI. The Playback pane FPS slider ranges
+from 1 to 30 FPS (default 30). Its timer advances the clock across all complete elapsed frame
+periods, redraws once, and drops intermediate frames when rendering overruns.
+
 ## How to use this plan
 
 Work **one pending numbered step at a time, in order**. Do not begin a later pending step until

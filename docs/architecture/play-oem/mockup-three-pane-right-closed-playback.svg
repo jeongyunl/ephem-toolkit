@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1480" height="650" viewBox="0 0 1480 650" role="img" aria-labelledby="title desc">
   <title id="title">Three-pane play-oem workspace with right pane closed and Playback selected</title>
-  <desc id="desc">Playback controls are shown in the Controls and Info pane; the optional Comparison pane is closed, Main Analysis is expanded with a draggable horizontal sash between its panels, and a shared time slider remains below.</desc>
+  <desc id="desc">Playback controls, including a 1 to 30 FPS render-rate slider, are shown in the Controls and Info pane; the optional Comparison pane is closed, Main Analysis is expanded with a draggable horizontal sash between its panels, and a shared time slider remains below.</desc>
   <defs>
     <style>
       .card{fill:#fff;stroke:#d7e0ea;stroke-width:1.5}
@@ -74,10 +74,13 @@
   <text class="ink small" x="148" y="382" font-weight="700">−60×</text>
   <line x1="148" y1="400" x2="320" y2="400" stroke="#cbd5e1" stroke-width="4" stroke-linecap="round"/>
   <circle cx="214" cy="400" r="6" class="primary"/>
-  <text class="muted tiny" x="148" y="426">Cursor · interpolated</text>
-  <text class="ink tiny" x="148" y="445">7.84 km/s · 421 km</text>
-  <text class="muted tiny" x="148" y="470">Playback controls and</text>
-  <text class="muted tiny" x="148" y="486">readouts live on this page.</text>
+  <text class="muted tiny" x="148" y="426">Render rate: 30 FPS</text>
+  <line x1="148" y1="443" x2="320" y2="443" stroke="#cbd5e1" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="320" cy="443" r="6" class="primary"/>
+  <text class="muted tiny" x="148" y="466">Cursor · interpolated</text>
+  <text class="ink tiny" x="148" y="485">7.84 km/s · 421 km</text>
+  <text class="muted tiny" x="148" y="510">FPS range: 1–30</text>
+  <text class="muted tiny" x="148" y="526">Overruns drop missed frames.</text>
 
   <rect class="sash" x="339" y="150" width="6" height="412" rx="3"/>
   <rect class="panel" x="350" y="150" width="1066" height="412" rx="8"/>
