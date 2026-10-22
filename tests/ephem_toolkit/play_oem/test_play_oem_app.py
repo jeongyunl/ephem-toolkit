@@ -146,7 +146,7 @@ class FakeWxApp:
 
 
 class FakePlaybackStatusBar:
-    def __init__(self) -> None:
+    def __init__(self, _parent=None) -> None:
         self.file_name: str | None = None
         self.object: tuple[str, str] | None = None
         self.message = ""
@@ -432,6 +432,8 @@ class FakeControlWindow:
         on_set_speed,
         on_reverse,
         *,
+        on_set_fps,
+        fps,
         on_step_samples,
         on_step_seconds,
         on_jump_to_start,
@@ -445,6 +447,7 @@ class FakeControlWindow:
         self.callbacks = {
             "toggle": on_toggle_play,
             "speed": on_set_speed,
+            "fps": on_set_fps,
             "reverse": on_reverse,
             "step_samples": on_step_samples,
             "step_seconds": on_step_seconds,
@@ -727,22 +730,29 @@ def test_wx_timer_advances_clock_and_updates_playback_display_and_views(
 ) -> None:
     player, views, canvases, _frames = make_app(
         monkeypatch,
-        clock=make_clock(playing=True),
+        clock=make_clock(rate=10.0, playing=True),
     )
-    monotonic_values = iter((10.0, 12.5))
-    monkeypatch.setattr(app.time, "monotonic", lambda: next(monotonic_values))
-
     player.start()
-    player._on_timer(SimpleNamespace())
+    player.control_window.callbacks["fps"](1)
+    assert player._timer.interval == 1000
+    # Timer dispatch must preserve exact ten-second steps at 1 FPS and 10x speed.
+    for expected_time in (110.0, 120.0, 130.0):
+        player._on_timer(SimpleNamespace())
+        assert player.clock.t_now == expected_time
+        assert all(view.updated_times[-1] == expected_time for view in views)
 
-    assert player.clock.t_now == 102.5
-    assert player.workspace.progress == pytest.approx(0.025)
+    assert player.workspace.progress == pytest.approx(0.3)
     assert player.workspace.current_utc in player.control_window.text
-    assert "Elapsed: 2.500 s" in player.control_window.text
+    assert "Elapsed: 30.000 s" in player.control_window.text
     assert "UTC:" in player.control_window.text
-    assert "Playing | +1x" in player.control_window.text
-    assert all(view.updated_times[-1] == 102.5 for view in views)
-    assert all(canvas.draw_idle_count == 2 for canvas in canvases)
+    assert "Playing | +10x" in player.control_window.text
+    assert all(canvas.draw_idle_count == 4 for canvas in canvases)
+
+    # Changing FPS while playing updates both cadence and simulated step size.
+    player.control_window.callbacks["fps"](2)
+    player._on_timer(SimpleNamespace())
+    assert player._timer.interval == 500
+    assert player.clock.t_now == 135.0
 
     player.close()
 
@@ -754,9 +764,8 @@ def test_transport_pause_state_updates_when_playback_reaches_an_endpoint(
         monkeypatch,
         plots=("state-components",),
         clock=make_clock(t_now=199.5, playing=True),
+        tick_interval_ms=1000,
     )
-    monotonic_values = iter((10.0, 11.0))
-    monkeypatch.setattr(app.time, "monotonic", lambda: next(monotonic_values))
 
     player.start()
     player._on_timer(SimpleNamespace())
@@ -828,9 +837,8 @@ def test_matplotlib_3d_render_throttle_does_not_skip_clock_ticks(
         monkeypatch,
         plots=("trajectory-3d",),
         clock=make_clock(playing=True),
+        tick_interval_ms=50,
     )
-    monotonic_values = iter((0.0, 0.05, 0.09, 0.16))
-    monkeypatch.setattr(app.time, "monotonic", lambda: next(monotonic_values))
     player.start()
     canvas = canvases[0]
     assert canvas.toolbar is not None
@@ -839,8 +847,8 @@ def test_matplotlib_3d_render_throttle_does_not_skip_clock_ticks(
     player._on_timer(SimpleNamespace())
     player._on_timer(SimpleNamespace())
 
-    assert player.clock.t_now == pytest.approx(100.16)
-    assert views[0].updated_times == [100.0, 100.05, 100.09, 100.16]
+    assert player.clock.t_now == pytest.approx(100.15)
+    assert views[0].updated_times == pytest.approx([100.0, 100.05, 100.1, 100.15])
     assert canvas.draw_idle_count == 4
     player.close()
 
@@ -1368,7 +1376,6 @@ def test_reloading_oem_replaces_views_without_removing_panels(
         dashboard_context={},
         metadata_details=(),
         source_sample_count=2,
-        selected_sample_count=2,
     )
 
     player._replace_playback_data(loaded)

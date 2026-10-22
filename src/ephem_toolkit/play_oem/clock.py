@@ -39,6 +39,8 @@ class PlaybackClock:
         self._t_now = self._clamp_time(
             self._t_start if t_now is None else self._validate_time(t_now)
         )
+        # Retain the rounding residual from the previous timestamp addition.
+        self._tick_compensation = 0.0
         self._rate = math.copysign(
             min(max(abs(float(rate)), self.MIN_SPEED), self.MAX_SPEED), rate
         )
@@ -85,27 +87,40 @@ class PlaybackClock:
             self._notify_observers()
             return
 
-        next_time = self._t_now + self._rate * wall_dt
+        # Compensate for rounding when small playback increments are added to
+        # the much larger TT-seconds timestamp. This preserves sub-ULP steps
+        # across timer ticks instead of letting their error accumulate.
+        increment = self._rate * wall_dt
+        adjusted_increment = increment - self._tick_compensation
+        next_time = self._t_now + adjusted_increment
+        next_compensation = (next_time - self._t_now) - adjusted_increment
         if self._rate > 0.0 and next_time >= self._t_end:
             if self._loop:
                 self._t_now = self._t_start + (next_time - self._t_start) % span
             else:
                 self._t_now = self._t_end
                 self._playing = False
+            # A wrap or clamp establishes a new timestamp for subsequent ticks.
+            self._tick_compensation = 0.0
         elif self._rate < 0.0 and next_time <= self._t_start:
             if self._loop:
                 self._t_now = self._t_end - (self._t_start - next_time) % span
             else:
                 self._t_now = self._t_start
                 self._playing = False
+            # Apply the same residual reset when crossing the reverse boundary.
+            self._tick_compensation = 0.0
         else:
             self._t_now = next_time
+            self._tick_compensation = next_compensation
 
         self._notify_observers()
 
     def seek(self, t: float) -> None:
         """Set the current timeline time, clamping it to the configured bounds."""
         self._t_now = self._clamp_time(self._validate_time(t))
+        # An explicit seek discards any residual from the previous clock position.
+        self._tick_compensation = 0.0
         self._notify_observers()
 
     def play(self) -> None:

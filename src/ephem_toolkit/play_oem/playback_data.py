@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
 from pathlib import Path
 
 import ephem_toolkit.core.time_utils as time_utils
 import numpy as np
 
 from . import clock as playback_clock, cursor, series, time_unit
-from .data import filter_states_by_duration, read_oem_states
+from .data import read_oem_states
 
 
 @dataclass
@@ -26,50 +25,27 @@ class PlaybackData:
     dashboard_context: dict[str, str]
     metadata_details: tuple[tuple[str, str], ...]
     source_sample_count: int
-    selected_sample_count: int
 
 
 def load_playback_data(
     source: str | Path,
     *,
-    duration_s: float | None,
     selected_time_unit: time_unit.TimeUnit,
-    speed: float,
-    reverse: bool,
-    autoplay: bool,
-    loop: bool,
-    start: str | None,
 ) -> PlaybackData:
-    """Read and prepare an OEM using the selected playback options."""
+    """Read and prepare an entire OEM for playback."""
     oem_data, timestamps_s, states_m = read_oem_states(source)
     source_sample_count = len(states_m)
-    timestamps_s, states_m = filter_states_by_duration(
-        timestamps_s, states_m, duration_s
-    )
+    # Keep all samples and their segment IDs together across the full OEM span.
     segment_ids = oem_data.segment_ids[: len(timestamps_s)]
     orbit_series = series.compute_orbit_series(
         timestamps_s, states_m, selected_time_unit, segment_ids
     )
-    rate = -speed if reverse else speed
+    # Clock defaults start paused at the first sample, at 1x speed without looping.
     clock = playback_clock.PlaybackClock(
         timestamps_s[0],
         timestamps_s[-1],
-        t_now=timestamps_s[-1] if rate < 0.0 else timestamps_s[0],
-        rate=rate,
-        playing=autoplay,
-        loop=loop,
         sample_times=timestamps_s,
     )
-    if start is not None:
-        parsed_start = time_utils.parse_time_or_duration(start)
-        start_time_s = (
-            timestamps_s[0] + parsed_start.total_seconds()
-            if isinstance(parsed_start, timedelta)
-            else time_utils.datetime_to_tt_s(parsed_start)
-        )
-        if not timestamps_s[0] <= start_time_s <= timestamps_s[-1]:
-            raise ValueError("start time is outside the selected OEM timeline")
-        clock.seek(start_time_s)
 
     state_cursor = cursor.OemCursor(
         timestamps_s,
@@ -126,12 +102,11 @@ def load_playback_data(
         dashboard_context,
         metadata_details,
         source_sample_count,
-        len(states_m),
     )
 
 
 def empty_playback_data(
-    selected_time_unit: time_unit.TimeUnit, speed: float
+    selected_time_unit: time_unit.TimeUnit,
 ) -> PlaybackData:
     """Create inert backing state for the window before an OEM is selected."""
     # The existing controls expect non-empty clock and cursor objects. Keep one
@@ -140,7 +115,7 @@ def empty_playback_data(
     state = np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0])
     orbit_series = series.compute_orbit_series([timestamp], [state], selected_time_unit)
     empty_clock = playback_clock.PlaybackClock(
-        timestamp, timestamp, rate=speed, playing=False, sample_times=[timestamp]
+        timestamp, timestamp, sample_times=[timestamp]
     )
     empty_cursor = cursor.OemCursor([timestamp], [state])
     return PlaybackData(
@@ -166,6 +141,5 @@ def empty_playback_data(
             ("Interpolation", ""),
             ("Interpolation degree", ""),
         ),
-        0,
         0,
     )

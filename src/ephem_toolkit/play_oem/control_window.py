@@ -13,20 +13,36 @@ from .tooltips import set_tooltip
 
 BUTTON_SPACING: int = 4
 """Spacing between adjacent playback buttons (pixels)."""
+
 CONTROL_SPACING: int = 8
 """Spacing between controls within a dashboard row (pixels)."""
+
 LAYOUT_MARGIN: int = 12
 """Outer spacing around dashboard controls (pixels)."""
+
 SECONDS_PER_MINUTE: float = 60.0
 """Number of seconds in one minute."""
+
 SPEED_MAX: float = 9000.0
 """Maximum playback speed multiplier."""
+
 SPEED_MIN: float = 1.0
 """Minimum playback speed multiplier."""
+
 SPEED_SLIDER_MAX: int = 396
 """Maximum integer position of the logarithmic speed slider."""
+
 SPEED_SLIDER_STEPS_PER_DECADE: int = 100
 """Number of slider positions representing one order of magnitude."""
+
+FPS_MIN: int = 1
+"""Minimum selectable playback frame rate (frames per second)."""
+
+FPS_MAX: int = 60
+"""Maximum selectable playback frame rate (frames per second)."""
+
+DEFAULT_FPS: int = 30
+"""Initial frame rate when constructing playback controls without an override."""
 
 
 class ControlWindow:
@@ -39,6 +55,8 @@ class ControlWindow:
         on_set_speed: Callable[[float], None],
         on_reverse: Callable[[], None],
         *,
+        on_set_fps: Callable[[int], None] | None = None,
+        fps: int = DEFAULT_FPS,
         on_step_samples: Callable[[int], None],
         on_step_seconds: Callable[[float], None],
         on_jump_to_start: Callable[[], None],
@@ -58,6 +76,10 @@ class ControlWindow:
             Set the playback speed multiplier.
         on_reverse : Callable[[], None]
             Reverse the playback direction.
+        on_set_fps : Callable[[int], None] | None
+            Set the render rate in frames per second.
+        fps : int
+            Initial render rate in frames per second.
         on_step_samples : Callable[[int], None]
             Step by a number of OEM samples.
         on_step_seconds : Callable[[float], None]
@@ -71,6 +93,7 @@ class ControlWindow:
         """
         self._accelerator_parent = accelerator_parent
         self._on_set_speed = on_set_speed
+        self._on_set_fps = on_set_fps
         self._syncing_sliders = False
 
         self.playback_scroller = wx.ScrolledWindow(
@@ -201,6 +224,33 @@ class ControlWindow:
             wx.EXPAND | wx.LEFT | wx.RIGHT,
             LAYOUT_MARGIN,
         )
+        # Show the requested frame rate beside its slider, independently of speed.
+        self.fps_label = wx.StaticText(
+            self.playback_scroller, wx.ID_ANY, f"Render rate: {fps} FPS"
+        )
+        playback_group.Add(
+            self.fps_label,
+            0,
+            wx.LEFT | wx.RIGHT | wx.TOP,
+            LAYOUT_MARGIN,
+        )
+        self.fps_slider = wx.Slider(
+            self.playback_scroller,
+            wx.ID_ANY,
+            fps,
+            FPS_MIN,
+            FPS_MAX,
+            style=wx.SL_HORIZONTAL,
+        )
+        self.fps_slider.SetName("Playback frames per second")
+        set_tooltip(self.fps_slider, "Set the playback update rate from 1 to 60 FPS.")
+        self.fps_slider.Bind(wx.EVT_SLIDER, self._on_fps_slider)
+        playback_group.Add(
+            self.fps_slider,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT,
+            LAYOUT_MARGIN,
+        )
         controls_sizer.Add(playback_group, 0, wx.EXPAND | wx.ALL, LAYOUT_MARGIN)
 
         navigation_group = wx.BoxSizer(wx.VERTICAL)
@@ -240,6 +290,7 @@ class ControlWindow:
             self.reverse_toggle_button,
             *self.navigation_buttons,
             self.speed_slider,
+            self.fps_slider,
         )
         for control in focusable_controls:
             control.Bind(
@@ -283,6 +334,7 @@ class ControlWindow:
             self.utc_time_label,
             self.playback_heading_label,
             self.speed_scale_label,
+            self.fps_label,
             self.navigation_heading_label,
         ):
             label.Wrap(content_width)
@@ -435,6 +487,14 @@ class ControlWindow:
         if self._syncing_sliders:
             return
         self._on_set_speed(10.0 ** (event.GetInt() / SPEED_SLIDER_STEPS_PER_DECADE))
+
+    def _on_fps_slider(self, event: wx.CommandEvent) -> None:
+        """Update the playback timer rate from the FPS slider."""
+        fps = event.GetInt()
+        self.fps_label.SetLabel(f"Render rate: {fps} FPS")
+        # PlayerApp owns the timer; the dashboard only forwards the selected rate.
+        if self._on_set_fps is not None:
+            self._on_set_fps(fps)
 
     def _bind_accelerators(
         self,

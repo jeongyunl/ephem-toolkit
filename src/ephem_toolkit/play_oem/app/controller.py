@@ -6,7 +6,6 @@ from collections.abc import Callable, Sequence
 import gc
 import os
 import signal
-import time
 from typing import cast
 
 import wx
@@ -32,6 +31,9 @@ from .view_factory import ViewFactoryMixin
 from .playback_actions import PlaybackActionsMixin
 from .panel_management import PanelManagementMixin
 from .status_bar import PlaybackStatusBar
+
+MILLISECONDS_PER_SECOND = 1000
+"""Conversion factor between playback seconds and wx timer milliseconds."""
 
 
 class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
@@ -100,6 +102,15 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         self._loaded_file_name = loaded_file_name
         self.frame_context = frame_context
         self._tick_interval_ms = tick_interval_ms
+        # Infer the initial slider value from the existing timer interval API.
+        # Keep FPS separately so millisecond rounding does not affect clock steps.
+        self._fps = min(
+            control_window.FPS_MAX,
+            max(
+                control_window.FPS_MIN,
+                round(MILLISECONDS_PER_SECOND / tick_interval_ms),
+            ),
+        )
         self._on_open_file_callback = on_open_file
         self._oem_loaded = oem_loaded
         self._requested_3d_backend = three_d_backend
@@ -177,6 +188,8 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
                 self._toggle_playback,
                 self._set_playback_speed,
                 self._reverse_playback,
+                on_set_fps=self._set_playback_fps,
+                fps=self._fps,
                 on_step_samples=self._step_samples,
                 on_step_seconds=self._step_seconds,
                 on_jump_to_start=self._jump_to_start,
@@ -194,7 +207,6 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
 
         self._timer: wx.Timer = wx.Timer(self.frame)
         self.frame.Bind(wx.EVT_TIMER, self._on_timer, self._timer)
-        self._last_tick_monotonic_s: float | None = None
         self._in_timer_tick = False
         self._started = False
         self._closed = False
@@ -231,7 +243,6 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
             return
 
         self._started = True
-        self._last_tick_monotonic_s = time.monotonic()
         self._update_time_display()
         self.frame.Show()
         if self._oem_loaded:
@@ -299,7 +310,6 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         self.status_bar.set_object(self.object_name, self.object_id)
         self.status_bar.set_message("")
         self.frame_context = loaded.frame_context
-        self._last_tick_monotonic_s = time.monotonic()
         self.workspace.update_oem_information(
             loaded.dashboard_context,
             loaded.metadata_details,
@@ -356,18 +366,29 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
     def _on_timer(self, _event: wx.TimerEvent) -> None:
         if self._closed:
             return
-        current_time_s = time.monotonic()
-        if self._last_tick_monotonic_s is None:
-            self._last_tick_monotonic_s = current_time_s
-        else:
-            elapsed_s = current_time_s - self._last_tick_monotonic_s
-            self._last_tick_monotonic_s = current_time_s
-            self._in_timer_tick = True
-            try:
-                self.clock.tick(elapsed_s)
-            finally:
-                self._in_timer_tick = False
+        # Advance one frame of playback time, independent of wx scheduling delays.
+        # Use FPS directly: integer timer milliseconds only approximate 1 / FPS.
+        # At 1 FPS and 10x speed, every callback therefore advances exactly 10 s.
+        self._in_timer_tick = True
+        try:
+            self.clock.tick(1.0 / self._fps)
+        finally:
+            self._in_timer_tick = False
         self._update_time_display()
+
+    def _set_playback_fps(self, fps: int) -> None:
+        """Set the wx timer interval from the requested playback frame rate."""
+        if not control_window.FPS_MIN <= fps <= control_window.FPS_MAX:
+            raise ValueError("fps must be between 1 and 60")
+        self._fps = fps
+        # Round the scheduling interval upward to whole milliseconds; the clock
+        # still uses the exact requested frame period above.
+        self._tick_interval_ms = (MILLISECONDS_PER_SECOND + fps - 1) // fps
+        if self._started and not self._closed:
+            # Apply the new cadence immediately while preserving playback state.
+            self._timer.Stop()
+            if not self._timer.Start(self._tick_interval_ms):
+                raise RuntimeError("could not update the wx playback timer")
 
     def _refresh_graph_stack_layouts(self) -> None:
         """Refresh stack scroll ranges after startup layout, unless closing."""
