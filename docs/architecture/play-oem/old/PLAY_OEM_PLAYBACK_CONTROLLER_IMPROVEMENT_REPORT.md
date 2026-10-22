@@ -1,16 +1,20 @@
-# `play-oem` — Playback Controller Interface Improvement Plan
+# `play-oem` — Playback Controller Improvement Report
 
-This plan defines an improvement cycle for the shared playback controller at the bottom of the
-`play-oem` window. It follows the planning and completion-evidence conventions in
-[PLAY_OEM_IMPLEMENTATION_PLAN.md](./PLAY_OEM_IMPLEMENTATION_PLAN.md) and the GUI improvement
-workflow in [PLAY_OEM_GUI_DESIGN.md](./PLAY_OEM_GUI_DESIGN.md).
+This report records the completed improvement cycle for the shared playback controller at the
+bottom of the `play-oem` window. It follows the completion-evidence conventions in
+[PLAY_OEM_IMPLEMENTATION_PLAN.md](../PLAY_OEM_IMPLEMENTATION_PLAN.md) and the GUI workflow in
+[PLAY_OEM_GUI_DESIGN.md](../PLAY_OEM_GUI_DESIGN.md).
+
+All five stages are complete: baseline inspection, mock-up design, design selection, implementation,
+and focused verification. The selected centered controller is implemented above the shared
+timeline slider, and the existing seek behavior and reverse-playback controls remain available.
 
 ## Objective and scope
 
-Design and implement a compact set of playback controls directly above the shared time slider.
-The transport controls should make reverse and forward play/pause and progressively faster
-playback in either direction easy to discover and operate, without displacing or making the
-timeline harder to use.
+The cycle designed and implemented a compact set of playback controls directly above the shared
+time slider. The transport controls make reverse and forward play/pause and progressively faster
+playback in either direction easy to discover and operate without displacing or making the timeline
+harder to use.
 
 In scope:
 
@@ -62,7 +66,7 @@ tenfold boundary. In that range, each click adds the button's magnitude, up to t
 speed. At or above the boundary, or when selecting an opposite direction, the click selects the
 button's base signed speed. The 1× selectors always select exactly 1×.
 
-## Working rules
+## Design and implementation constraints
 
 1. Establish the current timeline layout and playback-clock API before proposing mock-ups.
 2. Create multiple materially distinct mock-ups; do not implement a speculative layout before
@@ -74,8 +78,8 @@ button's base signed speed. The 1× selectors always select exactly 1×.
    state.
 6. Use native wx controls and preserve keyboard focus, accessible names, and clear active-state
    feedback.
-7. Update this plan's status, progress, checklist, and evidence as work proceeds. Keep the
-   implementation and any user-facing design documentation consistent with the selected behavior.
+7. Keep the implementation and user-facing design documentation consistent with the selected
+   behavior; this report retains the completed checklists and verification evidence.
 8. Keep reverse and forward controls visually grouped or otherwise clearly distinguished, and
    keep the 1× reverse and forward play/pause controls separate and clearly named.
 
@@ -130,7 +134,7 @@ timeline panel without changing slider bounds, labels, or seek handling.
 - **Progress:** 4/4 checklist items.
 - [x] Create at least three materially distinct mock-ups showing the controller above the bottom
       time slider.
-- [x] Include all eight controls, directional glyphs, and the playing-state Pause icon in each
+- [x] Include all ten controls, directional glyphs, and the playing-state Pause icon in each
       applicable mock-up.
 - [x] Show representative paused and forward/reverse playing states, including selected speed
       feedback.
@@ -140,15 +144,15 @@ timeline panel without changing slider bounds, labels, or seek handling.
 relationship to the slider.
 **Depends on:** Step 1.
 
-**Alternatives:** [left-aligned cluster](./mockup-playback-controller-left.svg),
-[centered compact cluster](./mockup-playback-controller-centered.svg), and
-[single-row transport with speed status](./mockup-playback-controller-status.svg).
+**Alternatives:** [left-aligned cluster](../mockup-playback-controller-left.svg),
+[centered compact cluster](../mockup-playback-controller-centered.svg), and
+[single-row transport with speed status](../mockup-playback-controller-status.svg).
 
 ### 3. Evaluate mock-ups and select the final design
 
 - **Status:** Done.
 - **Progress:** 5/5 checklist items.
-- [x] Compare every mock-up against the evaluation criteria in this plan.
+- [x] Compare every mock-up against the evaluation criteria in this report.
 - [x] Check each alternative at the default and minimum window sizes using the baseline dimensions.
 - [x] Record the trade-offs and any rejected alternatives.
 - [x] Select one design and document its control order, labels/icons, selected-state feedback, and
