@@ -27,14 +27,14 @@ class PlaybackData:
     source_sample_count: int
 
 
-def load_playback_data(
-    source: str | Path,
-    *,
-    selected_time_unit: time_unit.TimeUnit,
-) -> PlaybackData:
+def load_playback_data(source: str | Path) -> PlaybackData:
     """Read and prepare an entire OEM for playback."""
     oem_data, timestamps_s, states_m = read_oem_states(source)
     source_sample_count = len(states_m)
+    # Choose the time-axis unit from the full span of this OEM.
+    selected_time_unit = time_unit.TimeUnit.for_duration(
+        timestamps_s[-1] - timestamps_s[0]
+    )
     # Keep all samples and their segment IDs together across the full OEM span.
     segment_ids = oem_data.segment_ids[: len(timestamps_s)]
     orbit_series = series.compute_orbit_series(
@@ -105,12 +105,12 @@ def load_playback_data(
     )
 
 
-def empty_playback_data(
-    selected_time_unit: time_unit.TimeUnit,
-) -> PlaybackData:
+def empty_playback_data() -> PlaybackData:
     """Create inert backing state for the window before an OEM is selected."""
     # The existing controls expect non-empty clock and cursor objects. Keep one
     # private sample behind the empty UI; playback and graph controls stay disabled.
+    # Use hours as a neutral placeholder until an OEM determines the axis unit.
+    selected_time_unit = time_unit.TimeUnit.HOURS
     timestamp = 0.0
     state = np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0])
     orbit_series = series.compute_orbit_series([timestamp], [state], selected_time_unit)

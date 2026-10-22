@@ -13,7 +13,6 @@ def main(argv: Sequence[str] | None = None) -> None:
     cli_args: PlayOemArgs = parse_arguments(build_arg_parser(), argv)
 
     from .playback_data import empty_playback_data, load_playback_data
-    from .time_unit import TimeUnit
 
     try:
         from .app import PlayerApp
@@ -25,15 +24,10 @@ def main(argv: Sequence[str] | None = None) -> None:
             '`pip install "ephem-toolkit[playback]"`.'
         ) from exception
 
-    selected_time_unit = TimeUnit.from_string(cli_args.time_unit)
-
     def load_file(input_oem: str):
         print(f"Reading OEM orbit from {input_oem}...")
         # Initial and subsequent file loads both prepare the entire OEM timeline.
-        loaded = load_playback_data(
-            input_oem,
-            selected_time_unit=selected_time_unit,
-        )
+        loaded = load_playback_data(input_oem)
         print(f"Loaded {loaded.source_sample_count} states")
         print(
             f"Prepared orbit series with {len(loaded.series.elapsed_time)} samples "
@@ -45,7 +39,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         load_file(cli_args.input_oem) if cli_args.input_oem is not None else None
     )
     if initial_data is None:
-        initial_data = empty_playback_data(selected_time_unit)
+        initial_data = empty_playback_data()
     # Playback starts with the application's defaults; FPS is adjusted in its pane.
     player = PlayerApp(
         initial_data.clock,

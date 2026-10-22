@@ -99,20 +99,20 @@ play-oem [<input_oem>] [OPTIONS]
 | Option | Description |
 |--------|-------------|
 | `<input_oem>` | Input CCSDS OEM path (same as `plot-oem`). |
-| `--time-unit {m,minute,minutes,h,hour,hours}` | Elapsed-time axis unit; default `hours` (same as `plot-oem`). |
 | `--plots <list>` | Comma-separated view names or groups to open at launch (default: `overview`; groups: `overview`, `state`, `motion`, `all`). |
 | `--3d-backend {auto,vtk,matplotlib}` | Renderer for 3D views (default `auto`: VTK if available, else Matplotlib). Explicit `vtk` fails with an install hint if VTK is missing. |
 | `-h`, `--help` | Help. |
 
-The CLI accepts an optional OEM path plus display and view-selection options. It loads the entire
-OEM; playback speed, direction, seeking, and frame rate are controlled in the GUI. Use `plot-oem`
+The CLI accepts an optional OEM path plus view-selection options. It loads the entire OEM and
+chooses minutes for timelines shorter than an hour, otherwise hours. Playback speed, direction,
+seeking, and frame rate are controlled in the GUI. Use `plot-oem`
 for saved diagnostic plots; `play-oem` is the interactive playback command.
 
 **F4. Data and computation reuse**
 
 Data loading, series computation (RTN deltas, angular rates, distance,
-WGS84 altitude), and time units are reused from `plot-oem` (copied, then modified only where
-needed—see design).
+WGS84 altitude), and time-unit conversion utilities are reused from `plot-oem` (copied, then
+modified only where needed—see design). `play-oem` selects minutes or hours from the OEM span.
 
 ### Non-functional
 

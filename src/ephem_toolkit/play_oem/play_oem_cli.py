@@ -22,8 +22,6 @@ class PlayOemArgs(argparse.Namespace):
 
     input_oem: str | None
     """Optional path to an initial CCSDS OEM file."""
-    time_unit: str
-    """Time unit used in time-series plots."""
     three_d_backend: str
     """3D trajectory rendering backend."""
     plots: tuple[str, ...]
@@ -39,7 +37,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "Examples:\n"
             "  play-oem\n"
             "  play-oem orbit.oem\n"
-            "  play-oem orbit.oem --time-unit minutes"
+            "  play-oem orbit.oem --plots overview"
         ),
     )
     parser.prog = "play-oem"
@@ -50,17 +48,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
         nargs="?",
         default=None,
         help="Optional path to an initial CCSDS OEM file.",
-    )
-    parser.add_argument(
-        "--time-unit",
-        dest="time_unit",
-        type=str,
-        default="hours",
-        choices=["m", "minute", "minutes", "h", "hour", "hours"],
-        help=(
-            "Time unit for time-series plots: "
-            "m/minute/minutes or h/hour/hours (default: hours)."
-        ),
     )
     parser.add_argument(
         "--3d-backend",

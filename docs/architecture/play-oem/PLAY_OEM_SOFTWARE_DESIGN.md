@@ -365,8 +365,9 @@ before the window appears, with progress printed to stdout like `plot-oem`.
 
 ## 5. CLI flow (`__main__.py`)
 
-1. Parse args (`PlayOemArgs`) for the optional OEM path, time unit, 3D backend, and plot selection.
-2. Read every state in the OEM and compute the series; no duration filtering is applied.
+1. Parse args (`PlayOemArgs`) for the optional OEM path, 3D backend, and plot selection.
+2. Read every state in the OEM, choose minutes for spans shorter than an hour and hours otherwise,
+   then compute the series; no duration filtering is applied.
 3. Select the `WXAgg` Matplotlib backend, create the `wx.App` and `PlayerApp`, and open the
    requested `--plots` (default `overview`). Playback starts paused at the beginning; speed,
    direction, seeking, and FPS are controlled in the GUI. Enter `wx.App.MainLoop()`.
@@ -381,8 +382,8 @@ before the window appears, with progress printed to stdout like `plot-oem`.
 - Data loading and series tests: compare behavior with `plot-oem` on representative OEM files.
 - Views: with a non-interactive Matplotlib backend, `build` + several `update` calls without exceptions; cursor artist
   positions equal expected values.
-- CLI parse and input-loading tests for optional input, `--time-unit`, `--3d-backend`, and
-  `--plots`; verify that all OEM states are loaded.
+- CLI parse and input-loading tests for optional input, `--3d-backend`, and `--plots`; verify that
+  all OEM states are loaded and the time-axis unit is selected from the full OEM span.
 - Playback control tests cover the 1–30 FPS slider and timer frame-period accounting, including
   dropped redraws after overruns.
 - Backend-neutral Matplotlib view tests use `MPLBACKEND=Agg`; tests that create a `wx.App` use the

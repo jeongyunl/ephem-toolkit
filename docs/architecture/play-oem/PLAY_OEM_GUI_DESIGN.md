@@ -47,8 +47,9 @@ complement the layout proposals below; the SVG mock-ups are not screenshots of t
 The Playback page also has a render-rate slider from 1 to 30 FPS, defaulting to 30 FPS. The
 selection limits the timer update rate. If rendering takes longer than a frame period, playback
 advances over all elapsed periods in one clock update and draws once; missed intermediate frames
-are dropped instead of queued. Playback speed and direction are selected in the GUI, not at launch
-through CLI flags.
+are dropped instead of queued. Playback speed and direction are selected in the GUI.
+Time-series axes use minutes for OEM spans shorter than one hour and hours for spans of one hour
+or more; opening another OEM selects the unit again from that file's full time span.
 
 - **Fits:** users who want non-graph tools kept separate from a flexible, multi-plot analysis area.
 - **Trade-offs:** several narrow panes can reduce plot readability; graph stacks need clear add,
