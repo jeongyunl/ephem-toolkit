@@ -17,6 +17,7 @@ import ephem_toolkit.core.time_utils as time_utils
 
 from .. import clock, control_window, cursor, series, time_unit, workspace
 from .. import playback_data
+from ..ground_track import GroundTrackCoordinates
 from ..saved_state import (
     MAX_RECENT_FILES,
     MAX_STORED_WINDOW_DIMENSION,
@@ -70,6 +71,7 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         tick_interval_ms: int = DEFAULT_TICK_INTERVAL_MS,
         on_open_file: Callable[[str], playback_data.PlaybackData] | None = None,
         saved_state: SavedAppState | None = None,
+        ground_track_source: playback_data.GroundTrackSource | None = None,
         initial_file_path: str | None = None,
         oem_loaded: bool = True,
         loaded_file_name: str | None = None,
@@ -122,6 +124,8 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         self.object_id = dict(metadata_details).get("Object ID", "").strip()
         self._loaded_file_name = loaded_file_name
         self.frame_context = frame_context
+        self._ground_track_source = ground_track_source
+        self._ground_track_coordinates: GroundTrackCoordinates | None = None
         self._tick_interval_ms = tick_interval_ms
         # Infer the initial slider value from the existing timer interval API.
         # Keep FPS separately so millisecond rounding does not affect clock steps.
@@ -177,6 +181,7 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
             "direction-change", self.open_direction_change_view
         )
         self._view_registry.register_view("distance", self.open_distance_view)
+        self._view_registry.register_view("ground-track", self.open_ground_track_view)
         self._plots = self._view_registry.expand(plots)
         self._panel_view_choices = ((EMPTY_GRAPH_VIEW, EMPTY_GRAPH_LABEL),) + tuple(
             (name, self._view_registry.label_for(name))
@@ -369,6 +374,15 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
                         max(MIN_STORED_WINDOW_DIMENSION, height),
                     )
         self._saved_state.recent_files = list(self._recent_oem_paths[:MAX_RECENT_FILES])
+        for opened in self._open_panels.values():
+            setter = getattr(opened.view, "set_minimum_elevation", None)
+            if setter is not None:
+                minimum_elevation = getattr(
+                    opened.view, "minimum_elevation_deg", None
+                )
+                if isinstance(minimum_elevation, int):
+                    self._saved_state.minimum_elevation_deg = minimum_elevation
+                break
         if self._oem_loaded:
             self._saved_state.open_plots = [
                 opened.view_name
@@ -383,6 +397,15 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
                 RuntimeWarning,
                 stacklevel=2,
             )
+
+    def _set_ground_track_minimum_elevation(self, value: int) -> None:
+        """Apply the shared mask setting to every open Ground Track panel."""
+        if self._saved_state is not None:
+            self._saved_state.minimum_elevation_deg = int(value)
+        for opened in self._open_panels.values():
+            setter = getattr(opened.view, "set_minimum_elevation", None)
+            if setter is not None:
+                setter(value)
 
     def _refresh_recent_files_menu(self) -> None:
         """Rebuild recent-file menu items from the current state list."""
@@ -480,6 +503,8 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         self.status_bar.set_object(self.object_name, self.object_id)
         self.status_bar.set_message("")
         self.frame_context = loaded.frame_context
+        self._ground_track_source = loaded.ground_track_source
+        self._ground_track_coordinates = None
         # Start the new file's playback schedule at its load time.
         self._last_frame_monotonic_s = time.monotonic()
         self.workspace.update_oem_information(

@@ -1,12 +1,13 @@
 # `play-oem` — Ground Track View Software Design
 
-This document proposes the software architecture for adding a ground-track graph view to
-`play-oem`. The feature is planned; it is not part of the current registered view set. This
+This document records the software architecture for the Ground Track graph view in
+`play-oem`. The feature is registered; live visual validation remains outstanding. This
 design follows the shared playback architecture in
 [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md) and the workspace interaction
 guidance in [PLAY_OEM_GROUND_TRACK_GUI_DESIGN.md](./PLAY_OEM_GROUND_TRACK_GUI_DESIGN.md).
 Implementation sequencing is tracked in
 [PLAY_OEM_GROUND_TRACK_IMPLEMENTATION_PLAN.md](./PLAY_OEM_GROUND_TRACK_IMPLEMENTATION_PLAN.md).
+End-user guidance is in [PLAY_OEM_GROUND_TRACK.md](../../tools/PLAY_OEM_GROUND_TRACK.md).
 
 ## Purpose
 
@@ -22,10 +23,10 @@ or closed using the existing panel controls, and it stays synchronized with othe
 - Draw a static path for all usable samples and a separate marker for the current cursor time.
 - Draw two current-time coverage boundaries: the 0° elevation horizon footprint and the
   footprint at a user-selected minimum elevation.
-- Let the user set the minimum elevation from 0° through 90°. The proposed initial default is
-  10°; treat this as a design default pending implementation review.
+- Let the user set the minimum elevation as an integer from 0° through 90°, in 1° steps. The
+  initial default is 10°.
 - Let the user set each map's center longitude and keep the value synchronized with map
-  navigation.
+  navigation; center and projection remain per-panel session preferences.
 - Draw each OEM segment independently. Do not connect across segment gaps or across the map's
   current seam at center longitude ±180°.
 - Let the user select the map projection independently in each Ground Track graph panel.
@@ -34,7 +35,7 @@ or closed using the existing panel controls, and it stays synchronized with othe
 - If the OEM center or reference frame cannot be supported, show an actionable graph-panel
   message instead of a misleading or silently incorrect path.
 - Do not change the `overview` group. Include the new view in `all` through the registry's
-  existing group construction; whether it should be in another group is an open product decision.
+  existing group construction.
 
 ## Data and coordinate pipeline
 
@@ -49,9 +50,10 @@ Proposed path preparation:
 2. For Earth-fixed `ITRF` or `ITRF1993` input, use the source positions directly. For supported
    inertial frames (`J2000`, `EME2000`, `ICRF`, `GCRF`, or `TEME`), convert each six-component
    state to `ITRF` at its TT epoch with `core.frame_utils.convert_frame`.
-3. Convert the Earth-fixed positions to WGS-84 geodetic coordinates with `core.wgs.ecef_to_lla`.
-   Keep latitude and longitude in a documented internal unit, preferably radians, and convert to
-   degrees only at the plotting boundary.
+3. Convert the Earth-fixed positions from EPSG:4978 to EPSG:4979 with pyproj's WGS-84
+   transformer. Keep latitude and longitude in radians internally and convert to degrees only
+   at the plotting boundary. Do not use the toolkit's legacy `core.wgs` ellipsoid constants for
+   this view; its equatorial radius differs from WGS-84 by 0.7 m.
 4. Build separate drawable line runs at OEM segment boundaries and longitude wrap boundaries.
    Normalize plotted longitude to `[-180°, 180°]` without drawing a line across the map.
 5. Cache the prepared path for the lifetime of the loaded OEM. Playback updates move only the
@@ -84,14 +86,13 @@ collapses to the sub-satellite point; represent it as a point or explain the zer
 When the satellite position is unavailable or invalid, hide both boundaries and show an explicit
 unavailable state.
 
-Compute boundary coordinates from the current satellite state and Earth-fixed epoch. Use a
-numerical WGS-84 surface solution that evaluates elevation against the ellipsoid's local geodetic
-normal. Do not use a spherical-Earth approximation silently. Sample azimuths around the
-sub-satellite point, solve for the boundary distance for each threshold, and split resulting
-polylines at the map seam. Keep the number of azimuth samples sufficient for a smooth outline at
-the panel's normal size and update the outline at a bounded rate so it does not impede wx input or
-playback. Profile this calculation with representative orbital altitudes before fixing a sample
-count or refresh rate.
+Compute boundary coordinates from the current satellite state and Earth-fixed epoch. Sample
+azimuths along WGS-84 geodesics from the geodetic sub-satellite point using `pyproj.Geod`; solve
+for distance until the line of sight has the requested elevation against the ellipsoid's local
+geodetic normal. Do not use a spherical-Earth approximation silently. Split resulting polylines
+at the map seam. A first implementation uses 72 azimuth samples; profiling at 420 km measured
+about 8.4 ms for a horizon-plus-mask update on the development host. Bound refresh rate and
+share results among panels so calculation does not impede wx input or playback.
 
 The minimum-elevation value is an integer number of degrees from 0 through 90, shared by Ground
 Track panels and a mutable UI preference. Save
@@ -149,12 +150,25 @@ must redraw these map layers without recomputing the OEM frame conversion.
 Decimate only the displayed static line when needed; retain full-resolution coordinates for
 marker lookup and future interactions.
 
+Use pyproj, the Python interface to PROJ, for the three map projections. Keep it in the optional
+`playback` dependency extra so base and headless installs do not acquire a map dependency. Use
+the spherical PROJ forms with a fixed authalic Earth radius for display; Earth-fixed coordinates
+and footprint calculations remain WGS-84. Supply the panel center as PROJ's `lon_0`, and verify
+both poles have finite coordinates before drawing the initial full-world extent. PROJ documents
+the Robinson and Winkel Tripel global spherical forms and their central-meridian parameter
+([Robinson](https://proj.org/en/stable/operations/projections/robin.html),
+[Winkel Tripel](https://proj.org/en/stable/operations/projections/wintri.html) with a 50.467°
+standard parallel,
+[Equidistant Cylindrical](https://proj.org/en/stable/operations/projections/eqc.html)); pyproj
+exposes forward longitude/latitude to projected-coordinate transforms
+([pyproj `Proj`](https://pyproj4.github.io/pyproj/stable/api/proj.html)).
+
 The proposed projection choices are:
 
 | Projection | Use and trade-offs |
 |---|---|
 | Equirectangular | Simple latitude/longitude reference with straight meridians and parallels; distorts shape and area increasingly toward the poles. |
-| Robinson | Compromise world projection with a familiar overall shape and less extreme polar enlargement; neither conformal nor equal-area. Proposed default, matching the selected GUI design. |
+| Robinson | Compromise world projection with a familiar overall shape and less extreme polar enlargement; neither conformal nor equal-area. Default. |
 | Winkel Tripel | Compromise projection designed to balance several kinds of global distortion; neither conformal nor equal-area. |
 
 Projection selection is a per-panel **Projection** control. Changing it resets that panel to the
@@ -184,11 +198,9 @@ replaced. Whether to persist the preferred projection and center across applicat
 belongs in the saved-state schema decision. Use a vetted projection library or well-tested
 projection routines; do not add ad hoc coordinate formulas without reference tests.
 
-The coastline source and packaging method are not decided. Prefer a local, low-resolution,
-redistributable dataset with no runtime network access and no requirement for a heavy mapping
-stack. Evaluate licensing, installed package size, visual clarity, and maintenance before
-selecting a data source. If no suitable bundled source is approved, ship the view with a clear
-graticule and defer coastlines rather than downloading map data at runtime.
+Do not include coastline outlines in the initial release. No local dataset and redistribution
+license have been approved. Show the graticule and ground track without runtime downloads; a
+coastline dataset can be proposed later with a license and package-size review.
 
 ## Failure behavior
 
@@ -231,15 +243,24 @@ Implementation should cover:
 
 Record the supported center/frame matrix and the kernel/data range used for any accuracy claim.
 
-## Decisions still required
+## Support limits and saved preferences
 
-1. Select a projection implementation and confirm it supports all proposed choices consistently
-   for path, grid, and coastline layers, including both poles.
-2. Select and approve a coastline dataset and packaging/license approach, or explicitly launch
-   without coastline outlines.
-3. Decide whether to persist the per-panel projection preference across restarts.
-4. Decide whether a nearest-track-point click-to-seek interaction is desirable after users can
-   inspect the basic synchronized marker.
-5. Decide whether the view belongs only in `all` or also in a dedicated view group.
-6. Confirm supported center-name aliases and the expected accuracy/validity range for each source
-   frame conversion.
+Accept Earth center names `EARTH` and `399`, normalized for case and surrounding whitespace.
+Reject other centers, including the Earth-Moon barycenter. Accept `ITRF`, `ITRF1993`, and the
+toolkit alias `ITRF93` as already Earth-fixed positions and convert their positions directly to
+WGS-84 geodetic coordinates. For inertial input, accept `J2000`, `EME2000`, `ICRF`, `GCRF`, and
+`TEME`, and convert to `ITRF` at the OEM epoch with the existing frame conversion utility.
+Reject other permitted ODM frame names (including `ITRF1997`, `ITRF2000`, `TOD`, `GRC`, and
+`MCI`) until a conversion route is implemented and validated.
+
+The selected inertial-to-ITRF path uses TudatPy's IAU 2006 GCRS-to-ITRS rotation model and does
+not use the bundled Earth binary PCK for Earth orientation. Direct ITRF/ITRF1993 positions also
+do not require that binary PCK's coverage. No high-precision Earth-orientation accuracy or
+unverified epoch range is promised: catch conversion/kernel initialization errors, test the
+actual OEM epoch span, and report failures in the view. ITRF1993 is treated as Earth-fixed for
+the map; this is not a centimeter-level realization transformation to WGS-84.
+
+Save the shared minimum elevation (integer 0–90°, default 10°) in the application state file.
+Keep per-panel projection and center for the current session and when an OEM is replaced, but do
+not persist them across application restarts in the first implementation. The view belongs in
+`all`, not `overview`; map clicks do not seek playback, and nearest-track-point seek is deferred.

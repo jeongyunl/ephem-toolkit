@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from ephem_toolkit.play_oem.data import filter_states_by_duration, read_oem_states
+from ephem_toolkit.play_oem.playback_data import load_playback_data
 from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.plot_oem.plot_oem import (
@@ -31,6 +32,24 @@ def test_read_oem_states_matches_plot_oem(iss_oem_path: Path) -> None:
     assert len(play_oem_data.states) == len(plot_oem_data.states)
     np.testing.assert_array_equal(play_timestamps, plot_timestamps)
     np.testing.assert_allclose(play_states, plot_states)
+
+
+def test_playback_data_exposes_ground_track_source_metadata(iss_oem_path: Path) -> None:
+    loaded = load_playback_data(iss_oem_path)
+
+    assert loaded.ground_track_source is not None
+    assert loaded.ground_track_source.center_name.strip().upper() == "EARTH"
+    assert loaded.ground_track_source.frame_name == "EME2000"
+    assert (
+        loaded.ground_track_source.timestamps_s.shape == loaded.series.segment_ids.shape
+    )
+    assert loaded.ground_track_source.states_m.shape == (
+        len(loaded.series.segment_ids),
+        6,
+    )
+    np.testing.assert_array_equal(
+        loaded.ground_track_source.segment_ids, loaded.series.segment_ids
+    )
 
 
 def test_duration_filter_matches_plot_oem(iss_oem_path: Path) -> None:
@@ -96,9 +115,7 @@ def test_series_does_not_compute_cross_segment_deltas_or_rates() -> None:
         np.array([7_000_000.0, index * 1_000.0, 0.0, 0.0, 7_500.0, 0.0])
         for index in range(4)
     ]
-    computed = compute_orbit_series(
-        timestamps, states, TimeUnit.MINUTES, [0, 0, 1, 1]
-    )
+    computed = compute_orbit_series(timestamps, states, TimeUnit.MINUTES, [0, 0, 1, 1])
 
     assert computed.segment_ids.tolist() == [0, 0, 1, 1]
     assert computed.rtn_segment_ids.tolist() == [0, -1, 1]
@@ -115,14 +132,14 @@ def test_time_series_view_plots_oem_segments_as_separate_runs() -> None:
         np.array([7_000_000.0, index * 1_000.0, 0.0, 0.0, 7_500.0, 0.0])
         for index in range(4)
     ]
-    computed = compute_orbit_series(
-        timestamps, states, TimeUnit.MINUTES, [0, 0, 1, 1]
-    )
+    computed = compute_orbit_series(timestamps, states, TimeUnit.MINUTES, [0, 0, 1, 1])
     view = SpeedAltitudeView(timestamps[0])
     figure = view.build(computed, TimeUnit.MINUTES)
     try:
         for axes in figure.axes:
-            series_lines = [line for line in axes.lines if line.get_label() != "_child0"]
+            series_lines = [
+                line for line in axes.lines if line.get_label() != "_child0"
+            ]
             assert len(series_lines) == 2
             assert [len(line.get_xdata()) for line in series_lines] == [2, 2]
     finally:

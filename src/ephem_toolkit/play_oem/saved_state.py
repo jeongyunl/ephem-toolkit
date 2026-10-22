@@ -19,7 +19,7 @@ from .config import default_config_directory
 from .views.registry import parse_plot_selection
 
 STATE_FILENAME = "play-oem-state.toml"
-STATE_VERSION = 1
+STATE_VERSION = 2
 MAX_RECENT_FILES = 15
 DEFAULT_WINDOW_SIZE = (1100, 760)
 MIN_STORED_WINDOW_DIMENSION = 320
@@ -35,6 +35,7 @@ class SavedAppState:
     maximized: bool = False
     recent_files: list[str] = field(default_factory=list)
     open_plots: list[str] | None = None
+    minimum_elevation_deg: int = 10
 
 
 def default_state_path() -> Path:
@@ -68,13 +69,23 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
 
     if not isinstance(document, dict):
         return _state_error(state_path, "the document root must be a TOML table")
-    allowed_root = {"state_version", "window", "recent_files", "workspace"}
+    allowed_root = {
+        "state_version",
+        "window",
+        "recent_files",
+        "workspace",
+        "ground_track",
+    }
     unknown_root = set(document) - allowed_root
     if unknown_root:
         return _state_error(state_path, f"unknown key {sorted(unknown_root)[0]!r}")
     version = document.get("state_version")
-    if isinstance(version, bool) or not _is_int(version) or version != STATE_VERSION:
-        return _state_error(state_path, f"state_version must be {STATE_VERSION}")
+    if (
+        isinstance(version, bool)
+        or not _is_int(version)
+        or version not in (1, STATE_VERSION)
+    ):
+        return _state_error(state_path, f"state_version must be 1 or {STATE_VERSION}")
 
     window = document.get("window", {})
     if not isinstance(window, dict):
@@ -134,12 +145,26 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
     except ValueError as error:
         return _state_error(state_path, f"invalid workspace.open_plots: {error}")
 
+    ground_track = document.get("ground_track", {})
+    if not isinstance(ground_track, dict):
+        return _state_error(state_path, "[ground_track] must be a TOML table")
+    if set(ground_track) - {"minimum_elevation_deg"}:
+        unknown = sorted(set(ground_track) - {"minimum_elevation_deg"})[0]
+        return _state_error(state_path, f"unknown key ground_track.{unknown!s}")
+    minimum_elevation = ground_track.get("minimum_elevation_deg", 10)
+    if not _is_int(minimum_elevation) or not 0 <= minimum_elevation <= 90:
+        return _state_error(
+            state_path,
+            "ground_track.minimum_elevation_deg must be an integer from 0 through 90",
+        )
+
     return SavedAppState(
         width=width,
         height=height,
         maximized=maximized,
         recent_files=_unique_recent_paths(paths)[:MAX_RECENT_FILES],
         open_plots=list(parsed_open_plots),
+        minimum_elevation_deg=minimum_elevation,
     )
 
 
@@ -192,7 +217,9 @@ def serialize_saved_state(state: SavedAppState) -> str:
         "[recent_files]\n"
         f"paths = [{path_body}]\n\n"
         "[workspace]\n"
-        f"open_plots = [{', '.join(_toml_string(name) for name in plots)}]\n"
+        f"open_plots = [{', '.join(_toml_string(name) for name in plots)}]\n\n"
+        "[ground_track]\n"
+        f"minimum_elevation_deg = {int(state.minimum_elevation_deg)}\n"
     )
 
 

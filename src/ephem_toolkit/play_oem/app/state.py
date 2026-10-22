@@ -18,6 +18,8 @@ from .. import (
     time_unit,
     workspace,
 )
+from ..ground_track import GroundTrackCoordinates
+from ..saved_state import SavedAppState
 from ..views import base, registry
 from .support import _OpenView
 
@@ -30,6 +32,9 @@ class PlayerAppState(Protocol):
     cursor: cursor.OemCursor
     frame: wx.Frame
     frame_context: str
+    _ground_track_source: playback_data.GroundTrackSource | None
+    _ground_track_coordinates: GroundTrackCoordinates | None
+    _saved_state: SavedAppState | None
     object_name: str
     series: series.OrbitSeries
     time_unit: time_unit.TimeUnit
@@ -113,6 +118,13 @@ class PlayerAppState(Protocol):
         stack: str = "middle",
         force_replace: bool = False,
     ) -> None: ...
+    def open_ground_track_view(
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None: ...
+    def _set_ground_track_minimum_elevation(self, value: int) -> None: ...
     def open_panel_view(
         self,
         name: str,

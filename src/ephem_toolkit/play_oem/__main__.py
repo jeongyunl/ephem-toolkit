@@ -77,6 +77,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         tick_interval_ms=math.ceil(1000 / user_config.fps),
         on_open_file=load_file,
         saved_state=saved_state,
+        ground_track_source=initial_data.ground_track_source,
         initial_file_path=cli_args.input_oem,
         oem_loaded=cli_args.input_oem is not None,
         loaded_file_name=(

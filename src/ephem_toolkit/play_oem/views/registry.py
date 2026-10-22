@@ -12,6 +12,7 @@ VIEW_LABELS = (
     ("angular-velocity", "Angular Velocity"),
     ("direction-change", "Direction Change"),
     ("distance", "Geocentric Distance"),
+    ("ground-track", "Ground Track"),
 )
 
 GROUP_LABELS = (

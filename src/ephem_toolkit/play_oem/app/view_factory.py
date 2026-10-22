@@ -8,12 +8,17 @@ from ..views import (
     angular_velocity,
     distance,
     direction_change,
+    ground_track as ground_track_view,
     rtn,
     speed_altitude,
     state_components,
     trajectory3d,
 )
 from ..views.trajectory3d import selection as trajectory3d_selection
+from ..ground_track import (
+    GroundTrackPreparationError,
+    prepare_ground_track,
+)
 from .state import PlayerAppState
 
 
@@ -21,6 +26,46 @@ class ViewFactoryMixin:
     """Create registered views using the current playback and OEM context."""
 
     _selected_3d_backend: str | None
+
+    def open_ground_track_view(
+        self: PlayerAppState,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None:
+        """Open a Ground Track panel, preparing its static coordinates once per OEM."""
+        source = self._ground_track_source
+        coordinates = self._ground_track_coordinates
+        error_message: str | None = None
+        if source is None:
+            error_message = "Load an Earth-centered OEM to view its ground track."
+        elif coordinates is None:
+            try:
+                coordinates = prepare_ground_track(source)
+                self._ground_track_coordinates = coordinates
+            except GroundTrackPreparationError as error:
+                error_message = str(error)
+
+        self._open_view(
+            "ground-track",
+            lambda panel: ground_track_view.GroundTrackView(
+                panel,
+                source,
+                coordinates,
+                self.cursor,
+                self.object_name,
+                error_message=error_message,
+                minimum_elevation_deg=(
+                    self._saved_state.minimum_elevation_deg
+                    if self._saved_state is not None
+                    else 10
+                ),
+                on_minimum_elevation=self._set_ground_track_minimum_elevation,
+            ),
+            panel_id=panel_id,
+            stack=stack,
+            force_replace=force_replace,
+        )
 
     def open_speed_altitude_view(
         self: PlayerAppState,

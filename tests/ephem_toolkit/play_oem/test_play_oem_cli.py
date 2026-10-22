@@ -82,6 +82,7 @@ def test_3d_backend_option_rejects_unknown_choice(
                 "angular-velocity",
                 "direction-change",
                 "distance",
+                "ground-track",
             ),
         ),
     ],

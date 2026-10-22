@@ -10,6 +10,7 @@ import numpy as np
 
 from . import clock as playback_clock, cursor, series, time_unit
 from .data import read_oem_states
+from .ground_track import GroundTrackSource
 
 
 @dataclass
@@ -25,6 +26,7 @@ class PlaybackData:
     dashboard_context: dict[str, str]
     metadata_details: tuple[tuple[str, str], ...]
     source_sample_count: int
+    ground_track_source: GroundTrackSource | None = None
 
 
 def load_playback_data(source: str | Path) -> PlaybackData:
@@ -102,6 +104,13 @@ def load_playback_data(source: str | Path) -> PlaybackData:
         dashboard_context,
         metadata_details,
         source_sample_count,
+        GroundTrackSource.from_samples(
+            timestamps_s,
+            states_m,
+            segment_ids,
+            oem_data.meta.center_name,
+            oem_data.meta.ref_frame,
+        ),
     )
 
 

@@ -1,9 +1,11 @@
 # `play-oem` — Ground Track View GUI Design
 
 This document defines the selected user-facing design for the Ground Track graph view. The
-feature is planned, not implemented. It extends the three-pane graph workspace described in
+feature is implemented; live visual validation remains outstanding. It extends the three-pane
+graph workspace described in
 [PLAY_OEM_GUI_DESIGN.md](./old/PLAY_OEM_GUI_DESIGN.md) and follows the coordinate and lifecycle
 constraints in [PLAY_OEM_GROUND_TRACK_SOFTWARE_DESIGN.md](./PLAY_OEM_GROUND_TRACK_SOFTWARE_DESIGN.md).
+For user instructions, see [PLAY_OEM_GROUND_TRACK.md](../../tools/PLAY_OEM_GROUND_TRACK.md).
 
 ## User goal
 
@@ -20,8 +22,9 @@ near those controls, while the map and full-width legend/readout use most of the
 ![Selected balanced-map Ground Track design](./mockup-ground-track-balanced-map.svg)
 
 The initial projection is Robinson, as shown in the selected design. Keep Equirectangular and
-Winkel Tripel available in the per-panel **Projection** selector. Every option must show both
-poles in the same global view; projections that clip either pole are not selectable.
+Winkel Tripel available in the per-panel **Projection** selector. Use pyproj/PROJ for these
+projections; every option must show both poles in the same global view. The initial release has
+no coastline layer, so the graticule and track remain legible without map-data downloads.
 
 The control row contains:
 
@@ -32,8 +35,7 @@ The control row contains:
 - Home, zoom-in, zoom-out, and pan controls. Wheel zoom is also available over the map.
 
 The map area shows a graticule, the complete usable OEM ground track, and a distinct marker at
-the current playback time. If a licensed, locally packaged coastline dataset is approved, draw
-subtle land outlines beneath the track. The footer identifies the track, 0° horizon footprint,
+the current playback time. Coastline outlines are deferred. The footer identifies the track, 0° horizon footprint,
 minimum-elevation footprint, and current subpoint, with a textual latitude/longitude readout.
 
 ## Map and coverage display
