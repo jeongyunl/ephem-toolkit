@@ -55,6 +55,9 @@ def _make_projection(name: str, center_longitude_deg: float) -> Any:
         proj=projection_name,
         lon_0=center_longitude_deg,
         R=EARTH_RADIUS_AUTHALIC_M,
+        # Keep center +/- 180 degrees on opposite map edges. PROJ otherwise
+        # wraps both seam longitudes to the same x coordinate for nonzero centers.
+        over=True,
         **parameters,
     )
 
@@ -251,6 +254,10 @@ class GroundTrackView:
         if self._figure is None or self._axes is None:
             return
         axes = self._axes
+        # Clearing and rebuilding the axes changes its limits several times.
+        # Those are implementation details of the redraw, not map navigation;
+        # do not let the x-limit callback reinterpret them as a new center.
+        self._syncing_limits = True
         axes.clear()
         self._track_artists.clear()
         self._projection = _make_projection(
@@ -305,6 +312,7 @@ class GroundTrackView:
         axes.set_xlim(float(world_x.min()), float(world_x.max()))
         axes.set_ylim(float(np.min(pole_y)), float(np.max(pole_y)))
         axes.margins(0.0)
+        self._syncing_limits = False
 
         if self._coordinates is None:
             message = (
