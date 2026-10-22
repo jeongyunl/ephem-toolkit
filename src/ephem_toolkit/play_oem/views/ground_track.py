@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from typing import Any
 
 import numpy as np
@@ -44,7 +43,6 @@ PROJECTION_SPECS = {
 PROJECTION_NAMES = tuple(PROJECTION_SPECS)
 DEFAULT_PROJECTION = "Robinson"
 DEFAULT_CENTER_LONGITUDE_DEG = 0.0
-FOOTPRINT_REFRESH_INTERVAL_S = 0.1
 
 
 def _make_projection(name: str, center_longitude_deg: float) -> Any:
@@ -159,8 +157,6 @@ class GroundTrackView:
         self._vertical_scroll: wx.ScrollBar | None = None
         self._on_minimum_elevation: Any = None
         self._syncing_limits = False
-        self._last_footprint_refresh_s = 0.0
-        self._last_footprint_position: tuple[float, float, float] | None = None
         self._last_time_s: float | None = None
         self._last_footprints: GroundFootprints | None = None
 
@@ -445,7 +441,6 @@ class GroundTrackView:
         self.minimum_elevation_deg = int(value)
         if self._minimum_control is not None:
             self._minimum_control.SetValue(self.minimum_elevation_deg)
-        self._last_footprint_position = None
         self._last_footprints = None
         if self._axes is not None:
             self._draw_map()
@@ -619,30 +614,16 @@ class GroundTrackView:
                 f"Lon {_longitude_label(float(np.rad2deg(longitude_rad)))}"
             )
 
-        now = time.monotonic()
-        position_key: tuple[float, float, float] = (
-            float(position_itrf_m[0]),
-            float(position_itrf_m[1]),
-            float(position_itrf_m[2]),
-        )
-        refresh_footprint = (
-            self._last_footprints is None
-            or position_key != self._last_footprint_position
-            and now - self._last_footprint_refresh_s >= FOOTPRINT_REFRESH_INTERVAL_S
-        )
-        if refresh_footprint:
-            try:
-                self._last_footprints = compute_ground_footprints(
-                    position_itrf_m,
-                    self.minimum_elevation_deg,
-                    azimuth_count=DEFAULT_AZIMUTH_COUNT,
-                )
-            except (ValueError, RuntimeError) as error:
-                self._hide_dynamic_position(f"Coverage unavailable: {error}")
-                self._canvas.draw_idle()
-                return
-            self._last_footprint_position = position_key
-            self._last_footprint_refresh_s = now
+        try:
+            self._last_footprints = compute_ground_footprints(
+                position_itrf_m,
+                self.minimum_elevation_deg,
+                azimuth_count=DEFAULT_AZIMUTH_COUNT,
+            )
+        except (ValueError, RuntimeError) as error:
+            self._hide_dynamic_position(f"Coverage unavailable: {error}")
+            self._canvas.draw_idle()
+            return
         if self._last_footprints is not None:
             if self._horizon_artist is not None:
                 self._horizon_artist.set_segments(
