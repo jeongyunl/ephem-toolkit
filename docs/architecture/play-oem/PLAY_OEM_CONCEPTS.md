@@ -3,7 +3,7 @@
 > Status: **implemented**. The configuration file remains planned and is tracked in
 > [PLAY_OEM_CONFIG_PLAN.md](./PLAY_OEM_CONFIG_PLAN.md). Software design:
 > [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md). GUI design:
-> [PLAY_OEM_GUI_DESIGN.md](./PLAY_OEM_GUI_DESIGN.md).
+> [PLAY_OEM_GUI_DESIGN.md](./old/PLAY_OEM_GUI_DESIGN.md).
 
 `play-oem` is the interactive, animated successor to [`plot-oem`](../../tools/PLOT_OEM.md). Where `plot-oem` renders
 static figures of a whole OEM history, `play-oem` replays the orbit through time: a

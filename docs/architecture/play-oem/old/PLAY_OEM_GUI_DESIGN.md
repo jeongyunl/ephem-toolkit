@@ -3,12 +3,12 @@
 This document guides implementation, validation, and iterative improvement of the
 `play-oem` graphical interface. It complements, rather than replaces:
 
-- [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md), the user-facing requirements and terminology.
-- [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md), the software architecture,
+- [PLAY_OEM_CONCEPTS.md](../PLAY_OEM_CONCEPTS.md), the user-facing requirements and terminology.
+- [PLAY_OEM_SOFTWARE_DESIGN.md](../PLAY_OEM_SOFTWARE_DESIGN.md), the software architecture,
   component contracts, backend decisions, and technical constraints.
-- [PLAY_OEM_IMPLEMENTATION_PLAN.md](./PLAY_OEM_IMPLEMENTATION_PLAN.md), the dependency-ordered
+- [PLAY_OEM_IMPLEMENTATION_PLAN.md](../PLAY_OEM_IMPLEMENTATION_PLAN.md), the dependency-ordered
   implementation sequence and completion evidence.
-- [PLAY_OEM_GUI_COMPLETION_REPORT.md](./old/PLAY_OEM_GUI_COMPLETION_REPORT.md), the completed
+- [PLAY_OEM_GUI_WX_MIGRATION.md](./PLAY_OEM_GUI_WX_MIGRATION.md), the completed
   migration record and validation status for the selected three-pane layout.
 
 Keep those documents authoritative for their respective subjects. Update this guide when the
@@ -319,5 +319,5 @@ A GUI improvement is complete when:
 ## Archived design alternatives
 
 Earlier candidates and abandoned designs, with their mock-ups, are retained in the
-[`old/` archive](./old/PLAY_OEM_GUI_DESIGN_ALTERNATIVES.md). They are not part of the selected
+[`old/` archive](./PLAY_OEM_GUI_DESIGN_ALTERNATIVES.md). They are not part of the selected
 G design.

@@ -7,9 +7,9 @@ is recorded in
 the historical record of cycle 1.
 
 The review was based on the running application and the migration recorded in
-[PLAY_OEM_GUI_COMPLETION_REPORT.md](./PLAY_OEM_GUI_COMPLETION_REPORT.md). Requirements:
+[PLAY_OEM_GUI_WX_MIGRATION.md](./PLAY_OEM_GUI_WX_MIGRATION.md). Requirements:
 [PLAY_OEM_CONCEPTS.md](../PLAY_OEM_CONCEPTS.md). Selected layout:
-[PLAY_OEM_GUI_DESIGN.md](../PLAY_OEM_GUI_DESIGN.md). Architecture:
+[PLAY_OEM_GUI_DESIGN.md](./PLAY_OEM_GUI_DESIGN.md). Architecture:
 [PLAY_OEM_SOFTWARE_DESIGN.md](../PLAY_OEM_SOFTWARE_DESIGN.md).
 
 ## Cycle 1 outcomes

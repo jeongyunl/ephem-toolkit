@@ -3,7 +3,7 @@
 This report records the completed improvement cycle for the shared playback controller at the
 bottom of the `play-oem` window. It follows the completion-evidence conventions in
 [PLAY_OEM_IMPLEMENTATION_PLAN.md](../PLAY_OEM_IMPLEMENTATION_PLAN.md) and the GUI workflow in
-[PLAY_OEM_GUI_DESIGN.md](../PLAY_OEM_GUI_DESIGN.md).
+[PLAY_OEM_GUI_DESIGN.md](./PLAY_OEM_GUI_DESIGN.md).
 
 All five stages are complete: baseline inspection, mock-up design, design selection, implementation,
 and focused verification. The selected centered controller is implemented above the shared

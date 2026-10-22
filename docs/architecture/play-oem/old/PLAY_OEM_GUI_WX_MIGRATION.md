@@ -5,9 +5,9 @@ serves as the implementation status record and acceptance evidence for the selec
 workspace, not as an active plan for future work.
 
 Selected design: [PLAY_OEM_GUI_DESIGN.md](./PLAY_OEM_GUI_DESIGN.md). User-facing requirements:
-[PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md). Software architecture:
-[PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md). Broader implementation context:
-[PLAY_OEM_IMPLEMENTATION_PLAN.md](./PLAY_OEM_IMPLEMENTATION_PLAN.md). First post-migration GUI
+[PLAY_OEM_CONCEPTS.md](../PLAY_OEM_CONCEPTS.md). Software architecture:
+[PLAY_OEM_SOFTWARE_DESIGN.md](../PLAY_OEM_SOFTWARE_DESIGN.md). Broader implementation context:
+[PLAY_OEM_IMPLEMENTATION_PLAN.md](../PLAY_OEM_IMPLEMENTATION_PLAN.md). First post-migration GUI
 improvement cycle: [PLAY_OEM_GUI_IMPROVEMENT_CYCLE_1.md](./PLAY_OEM_GUI_IMPROVEMENT_CYCLE_1.md).
 
 ## Outcome
