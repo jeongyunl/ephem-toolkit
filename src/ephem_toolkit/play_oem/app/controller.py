@@ -141,9 +141,20 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
             if saved_state is not None
             else []
         )
-        if initial_file_path is not None and self._saved_state is not None:
-            remember_recent_file(self._saved_state, initial_file_path)
-            self._recent_oem_paths = list(self._saved_state.recent_files)
+        if initial_file_path is not None:
+            if self._saved_state is not None:
+                remember_recent_file(self._saved_state, initial_file_path)
+                self._recent_oem_paths = list(self._saved_state.recent_files)
+            else:
+                normalized_initial_path = normalize_recent_path(initial_file_path)
+                self._recent_oem_paths = [
+                    normalized_initial_path,
+                    *(
+                        path
+                        for path in self._recent_oem_paths
+                        if normalize_recent_path(path) != normalized_initial_path
+                    ),
+                ][:MAX_RECENT_FILES]
         self._oem_loaded = oem_loaded
         self._requested_3d_backend = three_d_backend
         self._selected_3d_backend: str | None = (
@@ -427,6 +438,11 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
             message="Open OEM file",
             wildcard="OEM files (*.oem, *.OEM)|*.oem;*.OEM|All files (*.*)|*.*",
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+            defaultDir=(
+                os.path.dirname(self._recent_oem_paths[0])
+                if self._recent_oem_paths
+                else ""
+            ),
         )
         try:
             if dialog.ShowModal() != wx.ID_OK:
