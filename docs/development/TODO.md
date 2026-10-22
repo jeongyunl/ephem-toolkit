@@ -1,5 +1,16 @@
 # To-do list
 
+
+1. `play-oem`
+    1. Config file
+    1. Load multiple OEM files
+        1. Multi-track/file view: Tabs?
+    1. Ground stations
+        1. Visibility
+        1. Az/El/Range graph
+    1. Ground track
+    1. Real-time playback (in sync with current time)
+
 1. Better OPM support
     1. improve `oem-to-opm`, `omm-to-opm`
         1. Produce accurate osculating state vector
