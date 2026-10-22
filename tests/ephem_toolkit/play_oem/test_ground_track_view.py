@@ -56,9 +56,9 @@ def test_wx_view_builds_controls_and_updates_minimum_elevation() -> None:
     assert view._axes is not None
     assert "Ground Track" in view._axes.get_title()
     view._on_projection_choice(
-        cast(Any, type("Event", (), {"GetString": lambda _self: "Winkel Tripel"})())
+        cast(Any, type("Event", (), {"GetString": lambda _self: "Equirectangular"})())
     )
-    assert view.projection_name == "Winkel Tripel"
+    assert view.projection_name == "Equirectangular"
     view.set_minimum_elevation(15)
     assert view.minimum_elevation_deg == 15
     minimum_control = view._minimum_control

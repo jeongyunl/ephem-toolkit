@@ -30,7 +30,7 @@ The implementation is underway; this plan tracks implementation and validation c
 
 ## 1. Resolve implementation choices and record support limits
 
-Select a projection implementation that provides Equirectangular, Robinson, and Winkel Tripel
+Select a projection implementation that provides Equirectangular and Robinson
 for all map layers, supports a variable central longitude, and keeps both poles visible. Decide
 whether to bundle coastline data for the first release or ship only the graticule. Record which
 source frames and Earth-center aliases will be supported, the kernel/data validity range, and
@@ -39,7 +39,7 @@ the selected GUI design's Robinson default and the integer 10° minimum-elevatio
 
 - **Status:** Done.
 - **Progress:** 5/5 checklist items.
-- [x] Evaluate candidate projection implementations for all three projections, central-longitude
+- [x] Evaluate candidate projection implementations for both projections, central-longitude
       support, pole coverage, dependency impact, and wx/Matplotlib rendering.
 - [x] Choose and document a locally packaged coastline dataset and its license, or explicitly
       defer coastline outlines for the initial release.
@@ -53,10 +53,10 @@ the selected GUI design's Robinson default and the integer 10° minimum-elevatio
 selected GUI design, and recorded in the design documents.
 **Depends on:** Existing implementation-plan steps 23–27.
 
-**Step 1 evidence and decisions:** pyproj/PROJ is selected for all three projections and is
+**Step 1 evidence and decisions:** pyproj/PROJ is selected for both projections and is
 declared in the optional `playback` extra; projection probes with pyproj 3.6.1 and Matplotlib
 Agg produced finite points at both poles and across seam longitudes for five map centers. The
-selected Winkel Tripel operation uses its 50.467° standard parallel. Coastlines are deferred.
+Coastlines are deferred.
 Accepted centers are `EARTH` and `399`; accepted direct Earth-fixed frames are `ITRF`,
 `ITRF1993`, and alias `ITRF93`; accepted inertial frames are `J2000`, `EME2000`, `ICRF`, `GCRF`,
 and `TEME`, converted with the IAU 2006 route to ITRF. Other frame names are rejected. That route
@@ -151,7 +151,7 @@ it in `all`, not in `overview`.
       the static track split at data gaps and map seams.
 - [x] Render the distinct current marker, latitude/longitude readout, and both current-time
       footprint boundaries; update only dynamic artists during playback.
-- [x] Add Equirectangular, Robinson, and Winkel Tripel rendering using the selected projection
+- [x] Add Equirectangular and Robinson rendering using the selected projection
       implementation, validating that both poles remain visible.
 - [x] Register the view as `ground-track`, add it to the `all` group only, and preserve
       `overview` composition and existing view names.

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1120" height="720" viewBox="0 0 1120 720" role="img" aria-labelledby="title desc">
   <title id="title">Ground Track mock-up: footprint emphasis</title>
-  <desc id="desc">A full-world Winkel Tripel ground track panel emphasizing distinct horizon and minimum-elevation coverage boundaries, center longitude control, and shared elevation control. Map navigation updates the center longitude.</desc>
+  <desc id="desc">A full-world Robinson ground track panel emphasizing distinct horizon and minimum-elevation coverage boundaries, center longitude control, and shared elevation control. Map navigation updates the center longitude.</desc>
   <defs>
     <style>
       .bg{fill:#f0f3f7}.panel{fill:#fff;stroke:#d7e0e9;stroke-width:1.4}.head{fill:#e9eef4}.ink{fill:#18283d;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.muted{fill:#65758a;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -13,7 +13,7 @@
   </defs>
   <rect class="bg" width="1120" height="720"/><rect class="panel" x="22" y="20" width="1076" height="680" rx="12"/><rect class="head" x="22" y="20" width="1076" height="55" rx="12"/>
   <circle cx="48" cy="48" r="6" fill="#ef7777"/><circle cx="69" cy="48" r="6" fill="#e7bd55"/><circle cx="90" cy="48" r="6" fill="#67bd7e"/><text class="ink title" x="120" y="57">Ground Track · Coverage</text><text class="muted small" x="865" y="53">Current time  2026-10-22 14:32:10 UTC</text>
-  <rect class="control" x="62" y="98" width="218" height="42" rx="6"/><text class="muted small" x="76" y="115">Projection</text><text class="ink body" x="76" y="132">Winkel Tripel  ▾</text>
+  <rect class="control" x="62" y="98" width="218" height="42" rx="6"/><text class="muted small" x="76" y="115">Projection</text><text class="ink body" x="76" y="132">Robinson  ▾</text>
   <text class="muted small" x="62" y="166">Center longitude</text><rect class="control" x="62" y="174" width="142" height="34" rx="5"/><text class="ink body" x="76" y="196">0° E</text><text class="muted tiny" x="62" y="223">updates on pan/zoom</text>
   <text class="muted small" x="312" y="111">Minimum elevation</text><text class="ink body" x="312" y="132">10°</text>
   <line x1="404" y1="120" x2="684" y2="120" stroke="#c3cfdb" stroke-width="5" stroke-linecap="round"/><line x1="404" y1="120" x2="435" y2="120" stroke="#16877e" stroke-width="5" stroke-linecap="round"/><circle cx="435" cy="120" r="9" fill="#16877e" stroke="#fff" stroke-width="3"/>

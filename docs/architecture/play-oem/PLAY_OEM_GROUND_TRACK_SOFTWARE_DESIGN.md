@@ -150,15 +150,13 @@ must redraw these map layers without recomputing the OEM frame conversion.
 Decimate only the displayed static line when needed; retain full-resolution coordinates for
 marker lookup and future interactions.
 
-Use pyproj, the Python interface to PROJ, for the three map projections. Keep it in the optional
+Use pyproj, the Python interface to PROJ, for the two map projections. Keep it in the optional
 `playback` dependency extra so base and headless installs do not acquire a map dependency. Use
 the spherical PROJ forms with a fixed authalic Earth radius for display; Earth-fixed coordinates
 and footprint calculations remain WGS-84. Supply the panel center as PROJ's `lon_0`, and verify
 both poles have finite coordinates before drawing the initial full-world extent. PROJ documents
-the Robinson and Winkel Tripel global spherical forms and their central-meridian parameter
+the Robinson global spherical form and central-meridian parameter
 ([Robinson](https://proj.org/en/stable/operations/projections/robin.html),
-[Winkel Tripel](https://proj.org/en/stable/operations/projections/wintri.html) with a 50.467°
-standard parallel,
 [Equidistant Cylindrical](https://proj.org/en/stable/operations/projections/eqc.html)); pyproj
 exposes forward longitude/latitude to projected-coordinate transforms
 ([pyproj `Proj`](https://pyproj4.github.io/pyproj/stable/api/proj.html)).
@@ -169,7 +167,6 @@ The proposed projection choices are:
 |---|---|
 | Equirectangular | Simple latitude/longitude reference with straight meridians and parallels; distorts shape and area increasingly toward the poles. |
 | Robinson | Compromise world projection with a familiar overall shape and less extreme polar enlargement; neither conformal nor equal-area. Default. |
-| Winkel Tripel | Compromise projection designed to balance several kinds of global distortion; neither conformal nor equal-area. |
 
 Projection selection is a per-panel **Projection** control. Changing it resets that panel to the
 full-world extent around its current center longitude and leaves the shared playback time and

@@ -38,7 +38,6 @@ from .plotting import decimate_indices
 PROJECTION_SPECS = {
     "Equirectangular": ("eqc", {}),
     "Robinson": ("robin", {}),
-    "Winkel Tripel": ("wintri", {"lat_1": 50.467}),
 }
 PROJECTION_NAMES = tuple(PROJECTION_SPECS)
 DEFAULT_PROJECTION = "Robinson"

@@ -20,7 +20,7 @@ is split at OEM segment gaps and at the map seam.
 
 The map opens in Robinson projection and shows the full Earth, both poles, graticule, ground
 track, current sub-satellite point, 0° horizon, and the selected minimum-elevation footprint.
-Projection choices are Equirectangular, Robinson, and Winkel Tripel. Coastline outlines are not
+Projection choices are Equirectangular and Robinson. Coastline outlines are not
 included. The default minimum elevation is 10°; its integer control accepts 0° through 90°.
 At 0°, the two footprint boundaries coincide. At 90°, the minimum-elevation footprint contracts
 to the sub-satellite point.

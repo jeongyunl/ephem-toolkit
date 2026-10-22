@@ -21,8 +21,8 @@ near those controls, while the map and full-width legend/readout use most of the
 
 ![Selected balanced-map Ground Track design](./mockup-ground-track-balanced-map.svg)
 
-The initial projection is Robinson, as shown in the selected design. Keep Equirectangular and
-Winkel Tripel available in the per-panel **Projection** selector. Use pyproj/PROJ for these
+The initial projection is Robinson, as shown in the selected design. Keep Equirectangular
+available alongside Robinson in the per-panel **Projection** selector. Use pyproj/PROJ for these
 projections; every option must show both poles in the same global view. The initial release has
 no coastline layer, so the graticule and track remain legible without map-data downloads.
 
@@ -46,7 +46,6 @@ Offer these full-world projections:
 |---|---|
 | Equirectangular | Keeps latitude and longitude coordinates easy to read; land shapes and areas become increasingly stretched toward the poles. |
 | Robinson | Gives a balanced, familiar world-map shape with less polar enlargement; it does not preserve angles or area. This is the initial projection. |
-| Winkel Tripel | Balances several forms of global distortion and keeps a natural-looking world outline; it does not preserve angles or area. |
 
 Apply the selected projection and center longitude consistently to the map background or
 coastlines, graticule, OEM track, current marker, and both footprint boundaries. Changing
@@ -180,7 +179,7 @@ legend and coordinates along the bottom.
 
 ### Footprint emphasis
 
-Winkel Tripel map with a slider for the shared minimum-elevation mask and translucent, distinctly
+Robinson map with a slider for the shared minimum-elevation mask and translucent, distinctly
 styled horizon and mask areas.
 
 ![Unselected footprint-focused Ground Track mockup](./mockup-ground-track-footprint-focus.svg)
