@@ -1,9 +1,9 @@
 # `play-oem` User Configuration
 
 `play-oem` reads a user config file for display and playback defaults, and an app-maintained state
-file for the window size and recent files. Both files use plain-text TOML and live in the same
-XDG-style config directory. You can edit the user config file with any text editor; the state
-file is maintained by the application.
+file for window size, recent files, and open graph views. Both files use plain-text TOML and live
+in the same XDG-style config directory. You can edit the user config file with any text editor;
+the state file is maintained by the application.
 
 ## File location
 
@@ -142,5 +142,5 @@ identifies the config file and setting where possible.
 
 ## Related documentation
 
-- [Configuration development plan](../architecture/play-oem/PLAY_OEM_CONFIG_PLAN.md)
+- [Configuration implementation report](../architecture/play-oem/old/PLAY_OEM_CONFIG_REPORT.md)
 - [`play-oem` concepts and command-line options](../architecture/play-oem/PLAY_OEM_CONCEPTS.md)
