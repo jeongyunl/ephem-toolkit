@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="720" viewBox="0 0 1120 720" role="img" aria-labelledby="title desc">
+  <title id="title">Ground Track mock-up: side controls</title>
+  <desc id="desc">A graph panel with a wide equirectangular world map, both poles, moving satellite marker, two footprint boundaries, and side controls for projection, center longitude, and minimum elevation. Map navigation updates the center longitude.</desc>
+  <defs>
+    <style>
+      .bg{fill:#edf2f7}.card{fill:#fff;stroke:#d6e0e9;stroke-width:1.5}.head{fill:#e8eef4}.ink{fill:#17263a;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.muted{fill:#65758a;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .title{font-size:24px;font-weight:700}.body{font-size:14px}.small{font-size:12px}.tiny{font-size:10px}.button{fill:#fff;stroke:#c1cedb;stroke-width:1.2}.grid{stroke:#d0dbe6;stroke-width:1;stroke-dasharray:4 4}
+      .land{fill:#e0ebe3;stroke:#b8cbbb;stroke-width:1}.track{fill:none;stroke:#4d62d0;stroke-width:3.2;stroke-linecap:round}.horizon{fill:none;stroke:#df7c37;stroke-width:2.3;stroke-dasharray:7 4}.mask{fill:#4bb6a7;fill-opacity:.12;stroke:#168c7e;stroke-width:2.4}.marker{fill:#eb4769;stroke:#fff;stroke-width:3}
+    </style>
+    <clipPath id="mapClip"><rect x="72" y="223" width="755" height="400" rx="6"/></clipPath>
+  </defs>
+  <rect class="bg" width="1120" height="720"/><rect class="card" x="22" y="20" width="1076" height="680" rx="12"/><rect class="head" x="22" y="20" width="1076" height="54" rx="12"/>
+  <circle cx="48" cy="47" r="6" fill="#ef7777"/><circle cx="69" cy="47" r="6" fill="#e7bd55"/><circle cx="90" cy="47" r="6" fill="#67bd7e"/><text class="ink title" x="120" y="55">Ground Track</text><text class="muted small" x="843" y="52">Full world · both poles shown</text>
+  <rect class="button" x="72" y="105" width="48" height="42" rx="6"/><text class="ink body" x="87" y="132">⌂</text><rect class="button" x="126" y="105" width="48" height="42" rx="6"/><text class="ink body" x="141" y="132">＋</text><rect class="button" x="180" y="105" width="48" height="42" rx="6"/><text class="ink body" x="195" y="132">−</text><rect class="button" x="234" y="105" width="48" height="42" rx="6"/><text class="ink body" x="250" y="132">↔</text><text class="muted small" x="298" y="130">Wheel zoom · drag or scroll to move map</text>
+  <rect x="72" y="223" width="755" height="400" rx="6" fill="#f8fbff" stroke="#aebdcc" stroke-width="1.3"/>
+  <g clip-path="url(#mapClip)">
+    <path class="grid" d="M72 323H827 M72 423H827 M72 523H827 M223 223V623 M374 223V623 M525 223V623 M676 223V623"/>
+    <path class="land" d="M104 298l43-42 55-9 41 23-11 28 25 20-14 37-37 7-17 31-32-7-17-28-31-13-12-27-30-5z M223 411l27 16 12 36-14 31 9 34-20 23-18-35-10-41 4-34z M382 287l33-21 42 11 26 26 35-10 38 21 2 27-35 13-6 28-25 12-13 30-23 2-13-31-25-11-8-33-28-22z M434 402l22 8 13 33-10 41-24 24-14-29 3-38z M551 286l39-18 43 9 34 20 41-2 27 24-18 27-41 0-19 23-39-14-29 10-26-25-35-2-12-24z M697 505l31-13 29 15-10 18-32 6z"/>
+    <path class="track" d="M74 504 C153 473 228 376 305 351 S410 392 463 471 S562 510 621 404 S725 327 825 357"/>
+    <path class="horizon" d="M505 370 C530 341 579 339 607 360 C635 382 638 422 615 446 C592 469 549 461 526 440 C506 421 493 390 505 370Z"/>
+    <path class="mask" d="M523 381 C541 362 572 361 591 378 C609 394 610 420 593 436 C575 452 548 445 532 429 C518 415 515 394 523 381Z"/>
+    <circle class="marker" cx="559" cy="402" r="8"/>
+  </g>
+  <text class="muted tiny" x="64" y="229" text-anchor="end">90° N</text><text class="muted tiny" x="64" y="430" text-anchor="end">0°</text><text class="muted tiny" x="64" y="628" text-anchor="end">90° S</text><text class="muted tiny" x="72" y="643">180° W</text><text class="muted tiny" x="449" y="643">0°</text><text class="muted tiny" x="827" y="643" text-anchor="end">180° E</text>
+  <rect x="856" y="105" width="218" height="535" rx="8" fill="#f7f9fc" stroke="#d8e1ea"/>
+  <text class="ink body" x="876" y="137" font-weight="700">Map settings</text><text class="muted small" x="876" y="170">Projection</text><rect class="button" x="876" y="179" width="178" height="36" rx="5"/><text class="ink body" x="890" y="203">Equirectangular  ▾</text>
+  <text class="muted small" x="876" y="248">Minimum elevation</text><rect class="button" x="876" y="258" width="178" height="38" rx="5"/><text class="ink body" x="890" y="283">10°  ▾</text>
+  <text class="muted small" x="876" y="321">Center longitude</text><rect class="button" x="876" y="330" width="178" height="36" rx="5"/><text class="ink body" x="890" y="353">0° E</text><text class="muted tiny" x="876" y="382">updates on pan/zoom</text>
+  <text class="ink small" x="876" y="413" font-weight="700">Coverage outlines</text><line x1="880" y1="436" x2="910" y2="436" class="horizon"/><text class="ink small" x="918" y="441">0° horizon</text><line x1="880" y1="461" x2="910" y2="461" class="mask"/><text class="ink small" x="918" y="466">10° minimum</text>
+  <text class="ink small" x="876" y="501" font-weight="700">Current subpoint</text><text class="muted small" x="876" y="523">Lat  12.4° N</text><text class="muted small" x="876" y="543">Lon  48.7° E</text><text class="muted small" x="876" y="563">Alt  408 km</text>
+  <rect x="876" y="580" width="178" height="1" fill="#d8e1ea"/><text class="muted tiny" x="876" y="600">Scrollbars appear when zoomed.</text>
+  <text class="muted small" x="72" y="680">Track: blue · horizon: dashed orange · minimum mask: teal · current position: pink marker</text>
+</svg>

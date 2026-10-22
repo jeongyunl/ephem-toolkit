@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="720" viewBox="0 0 1120 720" role="img" aria-labelledby="title desc">
+  <title id="title">Ground Track mock-up: balanced world map</title>
+  <desc id="desc">A Robinson-style full-world map with both poles, selectable projection, center longitude and an integer-only minimum-elevation spin button ranging from 0 to 90 degrees, and two current-time footprint boundaries. Map navigation updates the center longitude.</desc>
+  <defs>
+    <style>
+      .bg{fill:#f1f4f8}.card{fill:#fff;stroke:#d5dee9;stroke-width:1.4}.chrome{fill:#e8edf3}
+      .ink{fill:#17263a;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.muted{fill:#63748b;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .title{font-size:24px;font-weight:700}.body{font-size:14px}.small{font-size:12px}.tiny{font-size:10px}
+      .btn{fill:#fff;stroke:#c4d0dd;stroke-width:1.2}.grid{fill:none;stroke:#cbd6e2;stroke-width:1;stroke-dasharray:4 4}
+      .land{fill:#e5e8d8;stroke:#c3c8a8;stroke-width:1.2}.track{fill:none;stroke:#3b5ccc;stroke-width:3;stroke-linecap:round}
+      .horizon{fill:none;stroke:#dd762d;stroke-width:2.3;stroke-dasharray:7 4}.mask{fill:#f0c94c;fill-opacity:.16;stroke:#af8d19;stroke-width:2.2}
+      .marker{fill:#e74d69;stroke:#fff;stroke-width:3}
+    </style>
+    <clipPath id="map"><path d="M127 254 Q560 208 993 254 Q1025 424 993 594 Q560 640 127 594 Q95 424 127 254Z"/></clipPath>
+  </defs>
+  <rect class="bg" width="1120" height="720"/><rect class="card" x="24" y="22" width="1072" height="676" rx="11"/>
+  <rect class="chrome" x="24" y="22" width="1072" height="54" rx="11"/><circle cx="49" cy="49" r="6" fill="#ef7777"/><circle cx="70" cy="49" r="6" fill="#e7bd55"/><circle cx="91" cy="49" r="6" fill="#67bd7e"/>
+  <text class="ink title" x="121" y="57">Ground Track</text><text class="muted small" x="916" y="54">Full OEM interval · paused</text>
+  <text class="muted small" x="66" y="120">Projection</text><rect class="btn" x="66" y="130" width="204" height="36" rx="5"/><text class="ink body" x="80" y="154">Robinson  ▾</text>
+  <text class="muted small" x="292" y="120">Minimum elevation</text><rect class="btn" x="292" y="130" width="102" height="36" rx="5"/><text class="ink body" x="307" y="154">10°</text><line x1="373" y1="130" x2="373" y2="166" stroke="#c4d0dd"/><path d="M383 146l5-6 5 6z" fill="#63748b"/><path d="M383 151l5 6 5-6z" fill="#63748b"/>
+  <text class="muted small" x="420" y="120">Center longitude</text><rect class="btn" x="420" y="130" width="132" height="36" rx="5"/><text class="ink body" x="434" y="154">0° E</text><text class="muted tiny" x="420" y="181">updates on pan/zoom</text>
+  <rect class="btn" x="826" y="130" width="39" height="36" rx="5"/><text class="ink body" x="838" y="153">⌂</text><rect class="btn" x="871" y="130" width="39" height="36" rx="5"/><text class="ink body" x="882" y="153">＋</text><rect class="btn" x="916" y="130" width="39" height="36" rx="5"/><text class="ink body" x="928" y="153">−</text><rect class="btn" x="961" y="130" width="39" height="36" rx="5"/><text class="ink body" x="973" y="153">↔</text>
+  <path d="M127 254 Q560 208 993 254 Q1025 424 993 594 Q560 640 127 594 Q95 424 127 254Z" fill="#f8fbff" stroke="#aab9ca" stroke-width="1.4"/>
+  <g clip-path="url(#map)">
+    <path class="grid" d="M104 330 Q560 290 1016 330 M100 424H1020 M104 518 Q560 558 1016 518 M270 220 Q220 424 270 628 M390 215 Q365 424 390 633 M510 211 Q500 424 510 637 M610 211 Q620 424 610 637 M730 215 Q755 424 730 633 M850 220 Q900 424 850 628"/>
+    <path class="land" d="M184 326l42-47 67-8 44 23-14 30 31 21-15 42-40 5-23 32-36-5-20-31-35-16-11-23-27-4z M319 419l29 20 11 39-18 34 9 31-21 23-17-36-13-37 5-36z M484 318l37-25 46 14 29 30 36-12 44 23 3 29-38 14-6 30-28 12-12 31-25 3-13-35-29-10-8-38-33-24z M545 450l25 9 13 38-12 43-24 27-15-28 1-45z M676 317l42-20 49 10 36 22 48-2 30 25-20 30-45 1-21 25-43-16-32 11-29-26-39-1-14-26z M843 524l34-15 34 16-12 20-34 6z"/>
+    <path class="track" d="M126 505 C236 474 303 379 407 349 S547 388 602 471 S709 517 775 404 S891 316 994 367"/>
+    <path class="horizon" d="M655 382 C680 354 727 352 754 375 C779 398 776 438 752 459 C725 482 683 468 665 445 C650 426 645 399 655 382Z"/>
+    <path class="mask" d="M674 392 C692 373 722 371 739 387 C756 404 754 431 738 445 C721 460 694 452 681 436 C669 423 667 405 674 392Z"/>
+    <circle class="marker" cx="709" cy="415" r="8"/>
+  </g>
+  <text class="muted tiny" x="559" y="242" text-anchor="middle">90° N</text><text class="muted tiny" x="559" y="613" text-anchor="middle">90° S</text><text class="muted tiny" x="122" y="616">180° W</text><text class="muted tiny" x="993" y="616" text-anchor="end">180° E</text>
+  <rect x="68" y="650" width="984" height="30" rx="5" fill="#f5f7fa"/>
+  <line x1="87" y1="665" x2="117" y2="665" class="track"/><text class="ink small" x="124" y="670">Track</text>
+  <line x1="197" y1="665" x2="227" y2="665" class="horizon"/><text class="ink small" x="234" y="670">0° horizon</text>
+  <line x1="328" y1="665" x2="358" y2="665" class="mask"/><text class="ink small" x="365" y="670">10° mask</text>
+  <circle class="marker" cx="468" cy="665" r="6"/><text class="ink small" x="482" y="670">Current subpoint</text><text class="muted small" x="805" y="670">Lat  64.1° N  ·  Lon  21.9° W</text>
+</svg>
