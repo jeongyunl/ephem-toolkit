@@ -38,7 +38,7 @@ SPEED_SLIDER_STEPS_PER_DECADE: int = 100
 FPS_MIN: int = 1
 """Minimum selectable playback frame rate (frames per second)."""
 
-FPS_MAX: int = 60
+FPS_MAX: int = 30
 """Maximum selectable playback frame rate (frames per second)."""
 
 DEFAULT_FPS: int = 30
@@ -243,7 +243,10 @@ class ControlWindow:
             style=wx.SL_HORIZONTAL,
         )
         self.fps_slider.SetName("Playback frames per second")
-        set_tooltip(self.fps_slider, "Set the playback update rate from 1 to 60 FPS.")
+        set_tooltip(
+            self.fps_slider,
+            f"Set the playback update rate from {FPS_MIN} to {FPS_MAX} FPS.",
+        )
         self.fps_slider.Bind(wx.EVT_SLIDER, self._on_fps_slider)
         playback_group.Add(
             self.fps_slider,

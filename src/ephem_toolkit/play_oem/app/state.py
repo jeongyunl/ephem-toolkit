@@ -37,6 +37,8 @@ class PlayerAppState(Protocol):
     wx_app: wx.App
     _closed: bool
     _in_timer_tick: bool
+    _last_frame_monotonic_s: float | None
+    """Time of the last consumed playback frame period, from a monotonic clock."""
     _fps: int
     """Requested frame rate used to calculate each playback time increment."""
     _oem_loaded: bool

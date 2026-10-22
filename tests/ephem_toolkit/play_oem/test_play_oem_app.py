@@ -728,6 +728,8 @@ def test_start_uses_one_wx_app_and_opens_the_selected_views(
 def test_wx_timer_advances_clock_and_updates_playback_display_and_views(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monotonic_time = [0.0]
+    monkeypatch.setattr(app.time, "monotonic", lambda: monotonic_time[0])
     player, views, canvases, _frames = make_app(
         monkeypatch,
         clock=make_clock(rate=10.0, playing=True),
@@ -737,6 +739,7 @@ def test_wx_timer_advances_clock_and_updates_playback_display_and_views(
     assert player._timer.interval == 1000
     # Timer dispatch must preserve exact ten-second steps at 1 FPS and 10x speed.
     for expected_time in (110.0, 120.0, 130.0):
+        monotonic_time[0] += 1.0
         player._on_timer(SimpleNamespace())
         assert player.clock.t_now == expected_time
         assert all(view.updated_times[-1] == expected_time for view in views)
@@ -750,6 +753,7 @@ def test_wx_timer_advances_clock_and_updates_playback_display_and_views(
 
     # Changing FPS while playing updates both cadence and simulated step size.
     player.control_window.callbacks["fps"](2)
+    monotonic_time[0] += 0.5
     player._on_timer(SimpleNamespace())
     assert player._timer.interval == 500
     assert player.clock.t_now == 135.0
@@ -760,6 +764,8 @@ def test_wx_timer_advances_clock_and_updates_playback_display_and_views(
 def test_transport_pause_state_updates_when_playback_reaches_an_endpoint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monotonic_time = [0.0]
+    monkeypatch.setattr(app.time, "monotonic", lambda: monotonic_time[0])
     player, _views, _canvases, _frames = make_app(
         monkeypatch,
         plots=("state-components",),
@@ -768,6 +774,7 @@ def test_transport_pause_state_updates_when_playback_reaches_an_endpoint(
     )
 
     player.start()
+    monotonic_time[0] += 1.0
     player._on_timer(SimpleNamespace())
 
     assert player.clock.t_now == 200.0
@@ -830,9 +837,11 @@ def test_matplotlib_cursor_updates_use_full_redraw_not_partial_blits(
     player.close()
 
 
-def test_matplotlib_3d_render_throttle_does_not_skip_clock_ticks(
+def test_slow_redraw_skips_frames_and_catches_up_the_clock(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monotonic_values = iter((0.0, 0.05, 0.09, 0.16))
+    monkeypatch.setattr(app.time, "monotonic", lambda: next(monotonic_values))
     player, views, canvases, _frames = make_app(
         monkeypatch,
         plots=("trajectory-3d",),
@@ -848,8 +857,10 @@ def test_matplotlib_3d_render_throttle_does_not_skip_clock_ticks(
     player._on_timer(SimpleNamespace())
 
     assert player.clock.t_now == pytest.approx(100.15)
-    assert views[0].updated_times == pytest.approx([100.0, 100.05, 100.1, 100.15])
-    assert canvas.draw_idle_count == 4
+    # The callback at 0.09 s misses a frame deadline and is skipped; the 0.16 s
+    # callback consumes the two elapsed periods in one step and redraws once.
+    assert views[0].updated_times == pytest.approx([100.0, 100.05, 100.15])
+    assert canvas.draw_idle_count == 3
     player.close()
 
 

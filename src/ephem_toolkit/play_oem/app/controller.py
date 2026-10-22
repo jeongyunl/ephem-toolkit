@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 import gc
+import math
 import os
 import signal
+import time
 from typing import cast
 
 import wx
@@ -34,6 +36,9 @@ from .status_bar import PlaybackStatusBar
 
 MILLISECONDS_PER_SECOND = 1000
 """Conversion factor between playback seconds and wx timer milliseconds."""
+
+FRAME_COUNT_EPSILON: float = 1e-9
+"""Tolerance in seconds for counting a frame at a timer deadline."""
 
 
 class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
@@ -111,6 +116,7 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
                 round(MILLISECONDS_PER_SECOND / tick_interval_ms),
             ),
         )
+        self._last_frame_monotonic_s: float | None = None
         self._on_open_file_callback = on_open_file
         self._oem_loaded = oem_loaded
         self._requested_3d_backend = three_d_backend
@@ -243,6 +249,7 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
             return
 
         self._started = True
+        self._last_frame_monotonic_s = time.monotonic()
         self._update_time_display()
         self.frame.Show()
         if self._oem_loaded:
@@ -310,6 +317,8 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         self.status_bar.set_object(self.object_name, self.object_id)
         self.status_bar.set_message("")
         self.frame_context = loaded.frame_context
+        # Start the new file's playback schedule at its load time.
+        self._last_frame_monotonic_s = time.monotonic()
         self.workspace.update_oem_information(
             loaded.dashboard_context,
             loaded.metadata_details,
@@ -366,20 +375,28 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
     def _on_timer(self, _event: wx.TimerEvent) -> None:
         if self._closed:
             return
-        # Advance one frame of playback time, independent of wx scheduling delays.
-        # Use FPS directly: integer timer milliseconds only approximate 1 / FPS.
-        # At 1 FPS and 10x speed, every callback therefore advances exactly 10 s.
-        self._in_timer_tick = True
-        try:
-            self.clock.tick(1.0 / self._fps)
-        finally:
-            self._in_timer_tick = False
+        current_time_s = time.monotonic()
+        if self._last_frame_monotonic_s is None or not self.clock.playing:
+            self._last_frame_monotonic_s = current_time_s
+        else:
+            elapsed_s = current_time_s - self._last_frame_monotonic_s
+            # Count elapsed frame periods and carry the remainder forward. A
+            # slow redraw advances through missed periods once, then draws once.
+            frames_due = math.floor(elapsed_s * self._fps + FRAME_COUNT_EPSILON)
+            if frames_due > 0:
+                frame_time_s = frames_due / self._fps
+                self._last_frame_monotonic_s += frame_time_s
+                self._in_timer_tick = True
+                try:
+                    self.clock.tick(frame_time_s)
+                finally:
+                    self._in_timer_tick = False
         self._update_time_display()
 
     def _set_playback_fps(self, fps: int) -> None:
         """Set the wx timer interval from the requested playback frame rate."""
         if not control_window.FPS_MIN <= fps <= control_window.FPS_MAX:
-            raise ValueError("fps must be between 1 and 60")
+            raise ValueError("fps must be between 1 and 30")
         self._fps = fps
         # Round the scheduling interval upward to whole milliseconds; the clock
         # still uses the exact requested frame period above.
@@ -389,6 +406,7 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
             self._timer.Stop()
             if not self._timer.Start(self._tick_interval_ms):
                 raise RuntimeError("could not update the wx playback timer")
+            self._last_frame_monotonic_s = time.monotonic()
 
     def _refresh_graph_stack_layouts(self) -> None:
         """Refresh stack scroll ranges after startup layout, unless closing."""
