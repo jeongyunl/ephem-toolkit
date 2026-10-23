@@ -491,7 +491,7 @@ class GroundTrackView:
 
         filename = BACKGROUND_FILES[self.background_style]
         source = matplotlib_image.imread(
-            Path(__file__).parent.parent / "assets" / filename
+            str(Path(__file__).parent.parent / "assets" / filename)
         )
         if np.issubdtype(source.dtype, np.integer):
             source = source.astype(np.float32) / np.iinfo(source.dtype).max
@@ -499,9 +499,7 @@ class GroundTrackView:
         x = np.linspace(float(world_x.min()), float(world_x.max()), width)
         y = np.linspace(float(np.min(pole_y)), float(np.max(pole_y)), height)
         projected_x, projected_y = np.meshgrid(x, y)
-        longitude, latitude = self._projection(
-            projected_x, projected_y, inverse=True
-        )
+        longitude, latitude = self._projection(projected_x, projected_y, inverse=True)
         roundtrip_x, roundtrip_y = self._projection(longitude, latitude)
         x_tolerance = (x[-1] - x[0]) / (width - 1)
         y_tolerance = (y[-1] - y[0]) / (height - 1)
