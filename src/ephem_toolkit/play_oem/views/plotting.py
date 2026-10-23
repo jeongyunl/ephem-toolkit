@@ -41,7 +41,7 @@ def plot_segments(
     axes: Axes,
     x: np.ndarray,
     y: np.ndarray,
-    segment_ids: Sequence[int],
+    segment_ids: Sequence[int] | np.ndarray,
     *,
     max_display_points: int = MAX_DISPLAY_POINTS_PER_SEGMENT,
     **kwargs: object,
