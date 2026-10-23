@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 import wx
+from matplotlib import image as matplotlib_image
 from matplotlib.backends.backend_wxagg import (
     FigureCanvasWxAgg,
     NavigationToolbar2WxAgg,
@@ -43,6 +44,13 @@ PROJECTION_SPECS = {
 PROJECTION_NAMES = tuple(PROJECTION_SPECS)
 DEFAULT_PROJECTION = "Robinson"
 DEFAULT_CENTER_LONGITUDE_DEG = 0.0
+BACKGROUND_CHOICES = ("Shaded relief", "Satellite imagery", "Political map")
+BACKGROUND_FILES = {
+    "Shaded relief": "earth_relief.jpg",
+    "Satellite imagery": "earth_satellite.jpg",
+    "Political map": "earth_map.jpg",
+}
+BACKGROUND_RENDER_SIZE = (1080, 540)
 
 
 class GroundTrackToolbar(NavigationToolbar2WxAgg):
@@ -178,6 +186,7 @@ class GroundTrackView:
         self.minimum_elevation_deg = minimum_elevation_deg
         self._on_minimum_elevation = on_minimum_elevation
         self.projection_name = DEFAULT_PROJECTION
+        self.background_style = BACKGROUND_CHOICES[0]
         self.center_longitude_deg = DEFAULT_CENTER_LONGITUDE_DEG
         self._panel: wx.Panel | None = None
         self._canvas: FigureCanvasWxAgg | None = None
@@ -210,6 +219,9 @@ class GroundTrackView:
         toolbar.Hide()
         projection = wx.Choice(panel, choices=list(PROJECTION_NAMES))
         projection.SetStringSelection(self.projection_name)
+        background = wx.Choice(panel, choices=list(BACKGROUND_CHOICES))
+        background.SetStringSelection(self.background_style)
+        background.SetName("Ground Track background")
         center = wx.SpinCtrlDouble(panel, min=-180.0, max=180.0, initial=0.0, inc=1.0)
         center.SetDigits(1)
         minimum = wx.SpinCtrl(panel, min=0, max=90, initial=self.minimum_elevation_deg)
@@ -224,6 +236,13 @@ class GroundTrackView:
             4,
         )
         controls.Add(projection, 0, wx.RIGHT, 12)
+        controls.Add(
+            wx.StaticText(panel, label="Background"),
+            0,
+            wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+            4,
+        )
+        controls.Add(background, 0, wx.RIGHT, 12)
         controls.Add(
             wx.StaticText(panel, label="Center longitude (°E)"),
             0,
@@ -266,6 +285,7 @@ class GroundTrackView:
         )
         panel.SetSizer(sizer)
         projection.Bind(wx.EVT_CHOICE, self._on_projection_choice)
+        background.Bind(wx.EVT_CHOICE, self._on_background_choice)
         center.Bind(wx.EVT_SPINCTRLDOUBLE, self._on_center_control)
         center.Bind(wx.EVT_TEXT_ENTER, self._on_center_control)
         minimum.Bind(wx.EVT_SPINCTRL, self._on_minimum_control)
@@ -352,6 +372,7 @@ class GroundTrackView:
         axes.set_xlim(float(world_x.min()), float(world_x.max()))
         axes.set_ylim(float(np.min(pole_y)), float(np.max(pole_y)))
         axes.margins(0.0)
+        self._draw_background(axes, world_x, pole_y)
         self._syncing_limits = False
 
         if self._coordinates is None:
@@ -461,6 +482,68 @@ class GroundTrackView:
         self._figure.subplots_adjust(left=0.1, right=0.98, bottom=0.18, top=0.9)
         if current_time_s is not None:
             self.update(current_time_s)
+
+    def _draw_background(
+        self, axes: Any, world_x: np.ndarray, pole_y: np.ndarray
+    ) -> None:
+        """Reproject the selected global equirectangular image into the map axes."""
+        from pathlib import Path
+
+        filename = BACKGROUND_FILES[self.background_style]
+        source = matplotlib_image.imread(
+            Path(__file__).parent.parent / "assets" / filename
+        )
+        if np.issubdtype(source.dtype, np.integer):
+            source = source.astype(np.float32) / np.iinfo(source.dtype).max
+        width, height = BACKGROUND_RENDER_SIZE
+        x = np.linspace(float(world_x.min()), float(world_x.max()), width)
+        y = np.linspace(float(np.min(pole_y)), float(np.max(pole_y)), height)
+        projected_x, projected_y = np.meshgrid(x, y)
+        longitude, latitude = self._projection(
+            projected_x, projected_y, inverse=True
+        )
+        roundtrip_x, roundtrip_y = self._projection(longitude, latitude)
+        x_tolerance = (x[-1] - x[0]) / (width - 1)
+        y_tolerance = (y[-1] - y[0]) / (height - 1)
+        valid = (
+            np.isfinite(longitude)
+            & np.isfinite(latitude)
+            & (latitude >= -90.0)
+            & (latitude <= 90.0)
+            & (np.abs(roundtrip_x - projected_x) <= x_tolerance)
+            & (np.abs(roundtrip_y - projected_y) <= y_tolerance)
+        )
+        safe_longitude = np.where(valid, longitude, 0.0)
+        safe_latitude = np.where(valid, latitude, 0.0)
+        source_columns = np.mod(safe_longitude + 180.0, 360.0) * (
+            source.shape[1] / 360.0
+        )
+        source_rows = (90.0 - safe_latitude) * (source.shape[0] / 180.0)
+        columns = np.clip(source_columns.astype(int), 0, source.shape[1] - 1)
+        rows = np.clip(source_rows.astype(int), 0, source.shape[0] - 1)
+        rendered = source[rows, columns]
+        if rendered.shape[2] == 3:
+            rendered = np.dstack((rendered, np.ones(valid.shape)))
+        rendered[~valid, 3] = 0.0
+        axes.imshow(
+            rendered,
+            extent=(
+                float(world_x.min()),
+                float(world_x.max()),
+                float(np.min(pole_y)),
+                float(np.max(pole_y)),
+            ),
+            origin="lower",
+            interpolation="bilinear",
+            aspect="equal",
+            zorder=-1,
+        )
+
+    def _on_background_choice(self, event: wx.CommandEvent) -> None:
+        self.background_style = event.GetString()
+        self._draw_map()
+        if self._canvas is not None:
+            self._canvas.draw_idle()
 
     def _on_projection_choice(self, event: wx.CommandEvent) -> None:
         self.projection_name = event.GetString()

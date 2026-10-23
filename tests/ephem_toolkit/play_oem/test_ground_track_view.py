@@ -26,7 +26,10 @@ def test_projection_covers_poles_and_center_seam(name: str, center: float) -> No
 
 
 @pytest.mark.parametrize("name", ground_track.PROJECTION_NAMES)
-def test_pan_rotates_map_without_horizontal_viewport_drift(name: str) -> None:
+@pytest.mark.parametrize("background_style", ground_track.BACKGROUND_CHOICES)
+def test_pan_rotates_map_without_horizontal_viewport_drift(
+    name: str, background_style: str
+) -> None:
     from matplotlib.backends.backend_agg import FigureCanvasAgg
     from matplotlib.figure import Figure
 
@@ -34,12 +37,17 @@ def test_pan_rotates_map_without_horizontal_viewport_drift(name: str) -> None:
         cast(Any, None), None, None, cast(Any, None), "Test object"
     )
     view.projection_name = name
+    view.background_style = background_style
     view._figure = Figure()
     canvas = FigureCanvasAgg(view._figure)
     view._canvas = cast(Any, canvas)
     view._axes = view._figure.add_subplot(111)
     view._draw_map()
     canvas.draw()
+    background = np.asarray(view._axes.images[0].get_array())
+    assert np.isfinite(background).all()
+    assert 0.0 <= float(background.min())
+    assert float(background.max()) <= 1.0
     original_xlim = view._axes.get_xlim()
     original_ylim = view._axes.get_ylim()
     centers = []

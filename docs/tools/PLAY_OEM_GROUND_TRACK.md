@@ -20,8 +20,13 @@ is split at OEM segment gaps and at the map seam.
 
 The map opens in Robinson projection and shows the full Earth, both poles, graticule, ground
 track, current sub-satellite point, 0° horizon, and the selected minimum-elevation footprint.
-Projection choices are Equirectangular and Robinson. Coastline outlines are not
-included. The default minimum elevation is 10°; its integer control accepts 0° through 90°.
+Projection choices are Equirectangular and Robinson. Choose the NASA shaded-relief, satellite
+imagery, or high-resolution political map background from the Background control. The bundled
+4320 × 2160 backgrounds work offline. The political map uses Natural Earth 1:10m country
+boundaries and labels; Natural Earth data are public domain.
+The satellite background uses NASA's global Blue Marble Next Generation composite, avoiding the
+coverage gaps in single-day satellite imagery. The shaded-relief background is NASA GIBS Blue
+Marble. The default minimum elevation is 10°; its integer control accepts 0° through 90°.
 At 0°, the two footprint boundaries coincide. At 90°, the minimum-elevation footprint contracts
 to the sub-satellite point.
 

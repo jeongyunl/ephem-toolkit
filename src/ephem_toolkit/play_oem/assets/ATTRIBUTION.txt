@@ -1,0 +1,19 @@
+Earth background imagery
+
+earth_relief.jpg
+NASA Global Imagery Browse Services (GIBS), BlueMarble_ShadedRelief_Bathymetry.
+https://gibs.earthdata.nasa.gov/
+
+earth_satellite.jpg
+NASA Global Imagery Browse Services (GIBS), BlueMarble_NextGeneration.
+https://gibs.earthdata.nasa.gov/
+
+earth_map.jpg
+Custom 4320 × 2160 political map generated from Natural Earth 1:10m Admin 0
+country boundaries and label points:
+https://github.com/nvkelso/natural-earth-vector
+Natural Earth vector and raster data are public domain:
+https://www.naturalearthdata.com/about/terms-of-use/
+
+NASA imagery is made available for public use. NASA should be credited as the
+source when used.

@@ -64,6 +64,9 @@ readme = "README.md"
 packages = [
     { include = "ephem_toolkit", from = "src" },
 ]
+include = [
+    { path = "src/ephem_toolkit/play_oem/assets/*", format = ["sdist", "wheel"] },
+]
 
 [tool.poetry-dynamic-versioning]
 enable = true
