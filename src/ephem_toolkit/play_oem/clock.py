@@ -36,6 +36,8 @@ class PlaybackClock:
 
         self._t_start = float(t_start)
         self._t_end = float(t_end)
+        self._playback_start = self._t_start
+        self._playback_end = self._t_end
         self._t_now = self._clamp_time(
             self._t_start if t_now is None else self._validate_time(t_now)
         )
@@ -56,6 +58,16 @@ class PlaybackClock:
     @property
     def t_end(self) -> float:
         return self._t_end
+
+    @property
+    def playback_start(self) -> float:
+        """Current lower playback limit, independently of OEM coverage."""
+        return self._playback_start
+
+    @property
+    def playback_end(self) -> float:
+        """Current upper playback limit, independently of OEM coverage."""
+        return self._playback_end
 
     @property
     def t_now(self) -> float:
@@ -81,7 +93,7 @@ class PlaybackClock:
         if not self._playing or wall_dt == 0.0:
             return
 
-        span = self._t_end - self._t_start
+        span = self._playback_end - self._playback_start
         if span == 0.0:
             self._playing = False
             self._notify_observers()
@@ -94,19 +106,23 @@ class PlaybackClock:
         adjusted_increment = increment - self._tick_compensation
         next_time = self._t_now + adjusted_increment
         next_compensation = (next_time - self._t_now) - adjusted_increment
-        if self._rate > 0.0 and next_time >= self._t_end:
+        if self._rate > 0.0 and next_time >= self._playback_end:
             if self._loop:
-                self._t_now = self._t_start + (next_time - self._t_start) % span
+                self._t_now = (
+                    self._playback_start + (next_time - self._playback_start) % span
+                )
             else:
-                self._t_now = self._t_end
+                self._t_now = self._playback_end
                 self._playing = False
             # A wrap or clamp establishes a new timestamp for subsequent ticks.
             self._tick_compensation = 0.0
-        elif self._rate < 0.0 and next_time <= self._t_start:
+        elif self._rate < 0.0 and next_time <= self._playback_start:
             if self._loop:
-                self._t_now = self._t_end - (self._t_start - next_time) % span
+                self._t_now = (
+                    self._playback_end - (self._playback_start - next_time) % span
+                )
             else:
-                self._t_now = self._t_start
+                self._t_now = self._playback_start
                 self._playing = False
             # Apply the same residual reset when crossing the reverse boundary.
             self._tick_compensation = 0.0
@@ -124,13 +140,37 @@ class PlaybackClock:
         self._notify_observers()
 
     def play(self) -> None:
-        self._playing = True
+        self._playing = self._playback_start < self._playback_end
 
     def pause(self) -> None:
         self._playing = False
 
     def toggle(self) -> None:
-        self._playing = not self._playing
+        if self._playing:
+            self.pause()
+        else:
+            self.play()
+
+    def set_playback_bounds(self, start_s: float, end_s: float) -> None:
+        """Atomically set playback limits inside immutable OEM coverage.
+
+        The current time is clamped once, accumulated tick rounding is cleared,
+        playback controls are preserved, and observers receive one final state.
+        """
+        start = self._validate_time(start_s)
+        end = self._validate_time(end_s)
+        if start > end:
+            raise ValueError(
+                "playback_start must be less than or equal to playback_end"
+            )
+        if start < self._t_start or end > self._t_end:
+            raise ValueError("playback bounds must lie within OEM coverage")
+
+        self._playback_start = start
+        self._playback_end = end
+        self._t_now = min(max(self._t_now, start), end)
+        self._tick_compensation = 0.0
+        self._notify_observers()
 
     def set_speed(self, speed: float) -> None:
         """Set speed magnitude, preserving direction and clamping it to 1x–9000x."""
@@ -197,7 +237,7 @@ class PlaybackClock:
             observer(self._t_now)
 
     def _clamp_time(self, t: float) -> float:
-        return min(max(float(t), self._t_start), self._t_end)
+        return min(max(float(t), self._playback_start), self._playback_end)
 
     def _validate_time(self, t: float) -> float:
         self._validate_finite(t, "t")

@@ -10,7 +10,7 @@ from matplotlib.backend_bases import MouseButton, MouseEvent
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg, NavigationToolbar2WxAgg
 from matplotlib.figure import Figure
 
-from .. import clock
+from .. import clock, time_range
 from ..graph_panel import GraphPanelHost
 from ..views import base
 from ..views.trajectory3d import selection as trajectory3d_selection
@@ -171,6 +171,7 @@ class PanelManagementMixin:
                 is_visible=lambda: panel is not None
                 and self.workspace.is_graph_panel_visible(panel),
                 on_redraw_request=self.workspace.queue_graph_redraw,
+                on_show=lambda: self._sync_open_panel(panel_id),
                 panel_id=panel_id,
                 view_choices=self._panel_view_choices,
                 selected_view=name,
@@ -188,6 +189,14 @@ class PanelManagementMixin:
             panel_inserted = True
             view = create_view(panel.graph_scroller)
             content = view.build(self.series, self.time_unit)
+            resolved_range = time_range.resolve_plot_range(
+                self.plot_time_range,
+                (self.clock.t_start, self.clock.t_end),
+                self.clock.t_now,
+            )
+            set_time_range = getattr(view, "set_time_range", None)
+            if callable(set_time_range):
+                set_time_range(resolved_range, (self.clock.t_start, self.clock.t_end))
             view.update(self.clock.t_now)
             if isinstance(content, Figure):
                 canvas = FigureCanvasWxAgg(panel.graph_scroller, wx.ID_ANY, content)
@@ -219,16 +228,8 @@ class PanelManagementMixin:
                 if callable(natural_height) and callable(size_to_content):
                     size_to_content(panel, natural_height())
 
-            def update_view(time_s: float) -> None:
-                view.update(time_s)
-                if panel is not None and canvas is not None:
-                    panel.request_redraw()
-
-            unsubscribe = (
-                self.clock.subscribe(update_view)
-                if name != EMPTY_GRAPH_VIEW
-                else lambda: None
-            )
+            # Clock updates use one controller-owned dispatch across all views.
+            unsubscribe = lambda: None
             opened_state = _OpenView(
                 panel_id,
                 name,

@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import wx
 
 from .constants import CONTROLS_PANE_NAME
-from ..timestamp_markup import set_timestamp_label
 from ..tooltips import set_tooltip
+
+if TYPE_CHECKING:
+    from .time_range_slider import TimeRangeSlider
 
 
 class _FeatureNavigationState(Protocol):
@@ -29,9 +31,7 @@ class _FeatureNavigationState(Protocol):
     file_info_scroll: wx.ScrolledWindow
     playback_page: wx.Panel
     state_page: wx.Panel
-    timeline_start_label: wx.StaticText
-    timeline_end_label: wx.StaticText
-    timeline_slider: wx.Slider
+    timeline_slider: TimeRangeSlider
 
     def select_feature(self, index: int) -> None: ...
 
@@ -71,11 +71,9 @@ class FeatureNavigationMixin:
         self: _FeatureNavigationState,
         context: Mapping[str, str],
         details: Sequence[tuple[str, str]],
-        start_utc: str,
-        end_utc: str,
         timeline_enabled: bool,
     ) -> None:
-        """Refresh file metadata and time bounds after loading another OEM."""
+        """Refresh OEM metadata and timeline availability after loading another file."""
         self._timeline_enabled = timeline_enabled
         for label, key, title in zip(
             self._file_info_labels[:5],
@@ -85,8 +83,6 @@ class FeatureNavigationMixin:
             label.SetLabel(f"{title}: {_display_file_info_value(context.get(key))}")
         for label, (name, value) in zip(self._file_info_labels[5:], details):
             label.SetLabel(f"{name}: {_display_file_info_value(value)}")
-        set_timestamp_label(self.timeline_start_label, f"Start UTC: {start_utc}")
-        set_timestamp_label(self.timeline_end_label, f"End UTC: {end_utc}")
         self.timeline_slider.Enable(timeline_enabled)
         self.file_info_scroll.FitInside()
         self.file_info_scroll.Layout()

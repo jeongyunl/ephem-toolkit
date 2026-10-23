@@ -6,7 +6,8 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
 from .. import series, time_unit
-from .plotting import plot_segments
+from .base import TimeRangeSupport
+from .plotting import SegmentedPlotHistory
 
 CURSOR_LINE_COLOR: str = "tab:red"
 """Color used for the playback cursor lines."""
@@ -14,7 +15,7 @@ FIGURE_SIZE_INCHES: tuple[float, float] = (8.0, 6.0)
 """Default speed/altitude figure size in inches."""
 
 
-class SpeedAltitudeView:
+class SpeedAltitudeView(TimeRangeSupport):
     """Plot speed and altitude histories with a shared time cursor."""
 
     name: str = "speed-altitude"
@@ -35,6 +36,7 @@ class SpeedAltitudeView:
         self._figure: Figure | None = None
         self._cursor_artists: tuple[Line2D, Line2D] | None = None
         self._time_unit_divisor_s: float = 1.0
+        self._histories: tuple[SegmentedPlotHistory, ...] = ()
 
     def build(
         self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
@@ -65,13 +67,13 @@ class SpeedAltitudeView:
         axes_array = figure.subplots(2, 1, sharex=True)
         speed_axes = axes_array[0]
         altitude_axes = axes_array[1]
-        plot_segments(
+        speed_history = SegmentedPlotHistory(
             speed_axes,
             orbit_series.elapsed_time,
             orbit_series.velocity_magnitude_km_s,
             orbit_series.segment_ids,
         )
-        plot_segments(
+        altitude_history = SegmentedPlotHistory(
             altitude_axes,
             orbit_series.elapsed_time,
             orbit_series.altitude_km,
@@ -85,8 +87,26 @@ class SpeedAltitudeView:
         self._figure = figure
         self._time_unit_divisor_s = time_unit.get_divisor_s()
         self._cursor_artists = (
-            speed_axes.axvline(0.0, color=CURSOR_LINE_COLOR, linestyle="--"),
-            altitude_axes.axvline(0.0, color=CURSOR_LINE_COLOR, linestyle="--"),
+            speed_axes.axvline(
+                0.0,
+                color=CURSOR_LINE_COLOR,
+                linestyle="--",
+                label="_child0",
+            ),
+            altitude_axes.axvline(
+                0.0,
+                color=CURSOR_LINE_COLOR,
+                linestyle="--",
+                label="_child0",
+            ),
+        )
+        self._histories = (speed_history, altitude_history)
+        self._configure_time_range(
+            (speed_axes, altitude_axes),
+            self._histories,
+            self._cursor_artists,
+            self._start_time_s,
+            self._time_unit_divisor_s,
         )
         return figure
 
@@ -108,10 +128,12 @@ class SpeedAltitudeView:
         elapsed_time_axis = (time_s - self._start_time_s) / self._time_unit_divisor_s
         for cursor_artist in self._cursor_artists:
             cursor_artist.set_xdata([elapsed_time_axis, elapsed_time_axis])
+        self._set_cursor_visibility(time_s)
 
     def close(self) -> None:
         """Release the figure and cursor artists."""
         if self._figure is not None:
+            self._close_time_range()
             self._figure.clear()
         self._figure = None
         self._cursor_artists = None

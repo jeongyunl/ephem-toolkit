@@ -12,6 +12,7 @@ from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg, NavigationToolb
 
 from .. import series, time_unit
 from ..graph_panel import GraphPanelHost
+from ..time_range import ResolvedTimeRange
 from ..views import base
 
 DEFAULT_TICK_INTERVAL_MS: int = 33
@@ -73,13 +74,18 @@ class _EmptyGraphView:
     def update(self, _t_s: float) -> None:
         pass
 
+    def set_time_range(
+        self, _bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
+    ) -> None:
+        pass
+
     def close(self) -> None:
         pass
 
 
 @dataclass
 class _OpenView:
-    """Track one graph-panel instance and its clock subscription."""
+    """Track one graph-panel instance and its deferred display state."""
 
     panel_id: str
     """Stable identity independent of the registered view type."""
@@ -107,3 +113,14 @@ class _OpenView:
 
     click_callback_id: int | None
     """Matplotlib event identifier used to disconnect plot seeking, if connected."""
+
+    range_initialized: bool = False
+    """Whether the current effective range has been sent to this view."""
+
+    pending_time_s: float | None = None
+    """Latest playback time deferred while this panel is hidden."""
+
+    pending_range: ResolvedTimeRange | None = None
+    """Latest effective range deferred while this panel is hidden."""
+
+    has_pending_range: bool = False

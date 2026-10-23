@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
 from .. import series, time_unit
-from .plotting import plot_segments
+from .base import TimeRangeSupport
+from .plotting import SegmentedPlotHistory
 
 CURSOR_LINE_COLOR: str = "tab:red"
 """Color used for the playback cursor lines."""
@@ -14,7 +16,7 @@ FIGURE_SIZE_INCHES: tuple[float, float] = (8.0, 6.0)
 """Default angular-velocity figure size in inches."""
 
 
-class AngularVelocityView:
+class AngularVelocityView(TimeRangeSupport):
     """Plot angular-rate histories in degrees and radians per second."""
 
     name: str = "angular-velocity"
@@ -30,6 +32,7 @@ class AngularVelocityView:
         self._figure: Figure | None = None
         self._cursor_artists: tuple[Line2D, Line2D] | None = None
         self._time_unit_divisor_s = 1.0
+        self._histories: tuple[SegmentedPlotHistory, ...] = ()
 
     def build(
         self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
@@ -66,6 +69,7 @@ class AngularVelocityView:
             ),
         )
         cursor_artists: list[Line2D] = []
+        histories: list[SegmentedPlotHistory] = []
 
         for axes, (values, y_label, title) in zip(axes_array, rates):
             axes.grid(True)
@@ -74,16 +78,17 @@ class AngularVelocityView:
             axes.set_ylabel(y_label)
             axes.set_title(title)
             if values.size > 1:
-                valid_mask = values != 0.0
-                rate_lines = plot_segments(
+                valid_segments = np.where(values != 0.0, orbit_series.segment_ids, -1)
+                rate_history = SegmentedPlotHistory(
                     axes,
-                    orbit_series.elapsed_time[valid_mask],
-                    values[valid_mask],
-                    orbit_series.segment_ids[valid_mask],
+                    orbit_series.elapsed_time,
+                    values,
+                    valid_segments,
                     linewidth=2,
                     label=f"{self._object_name} angular rate",
                 )
-                if not rate_lines:
+                histories.append(rate_history)
+                if not rate_history.artists:
                     axes.plot(
                         [], [], linewidth=2, label=f"{self._object_name} angular rate"
                     )
@@ -97,6 +102,14 @@ class AngularVelocityView:
         self._figure = figure
         self._cursor_artists = (cursor_artists[0], cursor_artists[1])
         self._time_unit_divisor_s = time_unit.get_divisor_s()
+        self._histories = tuple(histories)
+        self._configure_time_range(
+            (axes_array[0], axes_array[1]),
+            self._histories,
+            self._cursor_artists,
+            self._start_time_s,
+            self._time_unit_divisor_s,
+        )
         self.update(self._start_time_s)
         return figure
 
@@ -107,10 +120,12 @@ class AngularVelocityView:
         elapsed_time_axis = (time_s - self._start_time_s) / self._time_unit_divisor_s
         for cursor_artist in self._cursor_artists:
             cursor_artist.set_xdata([elapsed_time_axis, elapsed_time_axis])
+        self._set_cursor_visibility(time_s)
 
     def close(self) -> None:
         """Release the figure and cursor artists."""
         if self._figure is not None:
+            self._close_time_range()
             self._figure.clear()
         self._figure = None
         self._cursor_artists = None

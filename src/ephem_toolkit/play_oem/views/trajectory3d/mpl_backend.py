@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from matplotlib.figure import Figure
-from mpl_toolkits.mplot3d.axes3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Path3DCollection
 
 from ... import cursor, series, time_unit
+from ...time_range import ResolvedTimeRange
 from ..plotting import MAX_MATPLOTLIB_3D_DISPLAY_POINTS, decimate_indices
 
 CARTESIAN_COMPONENT_COUNT: int = 3
@@ -64,9 +66,20 @@ class Trajectory3DView:
         self._object_name: str = object_name
         self._frame_context: str = frame_context
         self._figure: Figure | None = None
-        self._axes: Axes3D | None = None
+        # Matplotlib's 3D axes API is missing from the installed type stubs.
+        self._axes: Any | None = None
         self._cursor_artist: Path3DCollection | None = None
         self._cursor_position_km: tuple[float, float, float] | None = None
+        self._positions_km: np.ndarray | None = None
+        self._sample_times_s: np.ndarray | None = None
+        self._segment_ids: np.ndarray | None = None
+        # The installed Matplotlib stubs type 3D plot lines as 2D Line2D.
+        self._orbit_artists: list[tuple[int, Any]] = []
+        self._start_artist = None
+        self._end_artist = None
+        self._range_bounds: ResolvedTimeRange | None = None
+        self._range_applied = False
+        self._current_time_s = oem_cursor.t_start
 
     def build(
         self,
@@ -107,20 +120,29 @@ class Trajectory3DView:
         figure = Figure(figsize=FIGURE_SIZE_INCHES, constrained_layout=True)
         trajectory_axes = figure.add_subplot(1, 1, 1, projection="3d")
         positions_km = orbit_series.position_km
+        self._positions_km = np.asarray(positions_km, dtype=float).copy()
+        self._segment_ids = np.asarray(orbit_series.segment_ids, dtype=int).copy()
+        self._sample_times_s = (
+            self._cursor.t_start
+            + orbit_series.elapsed_time * _time_unit.get_divisor_s()
+        )
         for segment_id in np.unique(orbit_series.segment_ids):
+            if segment_id < 0:
+                continue
             mask = orbit_series.segment_ids == segment_id
             segment_positions = positions_km[mask]
             segment_positions = segment_positions[
                 decimate_indices(segment_positions, MAX_MATPLOTLIB_3D_DISPLAY_POINTS)
             ]
-            trajectory_axes.plot(
+            (artist,) = trajectory_axes.plot(
                 segment_positions[:, 0],
                 segment_positions[:, 1],
                 segment_positions[:, 2],
                 linewidth=ORBIT_LINE_WIDTH,
                 label="Orbit",
             )
-        trajectory_axes.scatter(
+            self._orbit_artists.append((int(segment_id), artist))
+        self._start_artist = trajectory_axes.scatter(
             [positions_km[0, 0]],
             [positions_km[0, 1]],
             [positions_km[0, 2]],
@@ -129,7 +151,7 @@ class Trajectory3DView:
             marker="o",
             label="Start",
         )
-        trajectory_axes.scatter(
+        self._end_artist = trajectory_axes.scatter(
             [positions_km[-1, 0]],
             [positions_km[-1, 1]],
             [positions_km[-1, 2]],
@@ -166,6 +188,52 @@ class Trajectory3DView:
         self.update_cursor(initial_state)
         return figure
 
+    def set_time_range(
+        self, bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
+    ) -> None:
+        """Filter the orbit path and visible endpoint/current-state markers."""
+        self._range_bounds = bounds
+        self._range_applied = True
+        if (
+            self._axes is None
+            or self._positions_km is None
+            or self._sample_times_s is None
+            or self._segment_ids is None
+        ):
+            return
+        if bounds is None:
+            first = last = 0
+        else:
+            first = int(
+                np.searchsorted(self._sample_times_s, bounds.start_s, side="left")
+            )
+            last = int(
+                np.searchsorted(self._sample_times_s, bounds.end_s, side="right")
+            )
+        for segment_id, artist in self._orbit_artists:
+            segment_indices = np.flatnonzero(self._segment_ids == segment_id)
+            if not len(segment_indices):
+                artist.set_data_3d([], [], [])
+                continue
+            segment_start, segment_stop = (
+                int(segment_indices[0]),
+                int(segment_indices[-1]) + 1,
+            )
+            start = max(segment_start, first)
+            stop = min(segment_stop, last)
+            if start >= stop:
+                selected = np.empty((0, 3), dtype=float)
+            else:
+                selected = self._positions_km[start:stop]
+                if len(selected) > MAX_MATPLOTLIB_3D_DISPLAY_POINTS:
+                    selected = selected[
+                        decimate_indices(selected, MAX_MATPLOTLIB_3D_DISPLAY_POINTS)
+                    ]
+            artist.set_data_3d(selected[:, 0], selected[:, 1], selected[:, 2])
+            artist.set_marker("." if len(selected) == 1 else "None")
+        self._set_endpoint_visibility()
+        self.update(self._current_time_s)
+
     def update(self, time_s: float) -> None:
         """Resolve and display the cursor state at an absolute OEM time.
 
@@ -174,6 +242,7 @@ class Trajectory3DView:
         time_s : float
             Absolute OEM time in TT seconds since J2000.
         """
+        self._current_time_s = time_s
         self.update_cursor(self._cursor.lookup(time_s))
 
     def update_cursor(self, state: cursor.CursorState) -> None:
@@ -191,16 +260,40 @@ class Trajectory3DView:
         """
         if self._cursor_artist is None:
             raise RuntimeError("3D trajectory view has not been built")
-        if state.r_km is None:
+        in_range = not self._range_applied or (
+            self._range_bounds is not None
+            and self._range_bounds.start_s <= state.t <= self._range_bounds.end_s
+        )
+        if state.r_km is None or not in_range:
             self._cursor_artist.set_visible(False)
             self._cursor_position_km = None
             return
 
-        position = tuple(float(value) for value in state.r_km)
+        position = (
+            float(state.r_km[0]),
+            float(state.r_km[1]),
+            float(state.r_km[2]),
+        )
         self._cursor_artist.set_offsets([[position[0], position[1]]])
         self._cursor_artist.set_3d_properties([position[2]], zdir="z")
         self._cursor_artist.set_visible(True)
         self._cursor_position_km = position
+
+    def _set_endpoint_visibility(self) -> None:
+        if self._sample_times_s is None:
+            return
+        visible_start = self._contains_time(float(self._sample_times_s[0]))
+        visible_end = self._contains_time(float(self._sample_times_s[-1]))
+        if self._start_artist is not None:
+            self._start_artist.set_visible(visible_start)
+        if self._end_artist is not None:
+            self._end_artist.set_visible(visible_end)
+
+    def _contains_time(self, time_s: float) -> bool:
+        return not self._range_applied or (
+            self._range_bounds is not None
+            and self._range_bounds.start_s <= time_s <= self._range_bounds.end_s
+        )
 
     def close(self) -> None:
         """Release the figure, axes, and cursor marker."""
@@ -210,9 +303,15 @@ class Trajectory3DView:
         self._axes = None
         self._cursor_artist = None
         self._cursor_position_km = None
+        self._positions_km = None
+        self._sample_times_s = None
+        self._segment_ids = None
+        self._orbit_artists.clear()
+        self._start_artist = None
+        self._end_artist = None
 
     @staticmethod
-    def _set_equal_limits(axes: Axes3D, positions_km: np.ndarray) -> None:
+    def _set_equal_limits(axes: Any, positions_km: np.ndarray) -> None:
         lower_position_km = np.min(positions_km, axis=0)
         upper_position_km = np.max(positions_km, axis=0)
         center_position_km = (lower_position_km + upper_position_km) / 2.0

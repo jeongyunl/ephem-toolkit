@@ -8,7 +8,12 @@ import numpy as np
 import wx
 from vtkmodules.util.numpy_support import numpy_to_vtk
 from vtkmodules.vtkCommonCore import vtkPoints
-from vtkmodules.vtkCommonDataModel import vtkCellArray, vtkPolyData, vtkPolyLine
+from vtkmodules.vtkCommonDataModel import (
+    vtkCellArray,
+    vtkPolyData,
+    vtkPolyLine,
+    vtkVertex,
+)
 from vtkmodules.vtkCommonTransforms import vtkTransform
 from vtkmodules.vtkFiltersGeneral import vtkTransformPolyDataFilter
 from vtkmodules.vtkFiltersSources import vtkSphereSource
@@ -23,8 +28,9 @@ import ephem_toolkit.core.consts as consts
 import ephem_toolkit.core.wgs as wgs
 
 from ... import cursor, series, time_unit
-from ..plotting import decimate_indices
+from ...time_range import ResolvedTimeRange
 from .selection import VTKBackendUnavailableError
+from .selection import select_segmented_positions
 
 EARTH_COLOR_RGB: tuple[float, float, float] = (0.12, 0.32, 0.62)
 """Color of the WGS84 Earth."""
@@ -84,6 +90,7 @@ class VTKTrajectory3DView:
         self._widget: wxVTKRenderWindowInteractor | None = None
         self._renderer: vtkRenderer | None = None
         self._orbit_actor: vtkActor | None = None
+        self._orbit_mapper: vtkPolyDataMapper | None = None
         self._earth_actor: vtkActor | None = None
         self._tail_actor: vtkActor | None = None
         self._tail_poly_data: vtkPolyData | None = None
@@ -93,6 +100,9 @@ class VTKTrajectory3DView:
         self._orbit_display_segment_ids: np.ndarray | None = None
         self._sample_times_s: np.ndarray | None = None
         self._segment_ids: np.ndarray | None = None
+        self._range_bounds: ResolvedTimeRange | None = None
+        self._range_applied = False
+        self._current_time_s = oem_cursor.t_start
 
     def build(
         self, orbit_series: series.OrbitSeries, _time_unit: time_unit.TimeUnit
@@ -140,20 +150,20 @@ class VTKTrajectory3DView:
 
         self._widget = widget
         self._positions_km = positions_km.copy()
-        display_positions: list[np.ndarray] = []
-        display_segment_ids: list[np.ndarray] = []
-        for segment_id in np.unique(orbit_series.segment_ids):
-            segment_positions = positions_km[orbit_series.segment_ids == segment_id]
-            selected = decimate_indices(segment_positions)
-            display_positions.append(segment_positions[selected])
-            display_segment_ids.append(np.full(len(selected), segment_id, dtype=int))
-        self._orbit_display_positions_km = np.concatenate(display_positions)
-        self._orbit_display_segment_ids = np.concatenate(display_segment_ids)
         self._sample_times_s = (
             self._cursor.t_start
             + orbit_series.elapsed_time * _time_unit.get_divisor_s()
         )
         self._segment_ids = orbit_series.segment_ids.copy()
+        (
+            self._orbit_display_positions_km,
+            self._orbit_display_segment_ids,
+        ) = select_segmented_positions(
+            self._positions_km,
+            self._sample_times_s,
+            self._segment_ids,
+            (self._cursor.t_start, self._cursor.t_end),
+        )
         self._renderer = vtkRenderer()
         self._renderer.SetBackground(0.06, 0.09, 0.15)
         widget.GetRenderWindow().AddRenderer(self._renderer)
@@ -167,6 +177,46 @@ class VTKTrajectory3DView:
         self._renderer.ResetCamera()
         self._renderer.GetActiveCamera().Zoom(1.15)
         return widget
+
+    def set_time_range(
+        self, bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
+    ) -> None:
+        """Filter source positions before decimation without moving the camera."""
+        self._range_bounds = bounds
+        self._range_applied = True
+        if (
+            self._positions_km is None
+            or self._sample_times_s is None
+            or self._segment_ids is None
+            or self._orbit_mapper is None
+            or self._orbit_actor is None
+        ):
+            return
+        selected_bounds = None if bounds is None else (bounds.start_s, bounds.end_s)
+        (
+            self._orbit_display_positions_km,
+            self._orbit_display_segment_ids,
+        ) = select_segmented_positions(
+            self._positions_km,
+            self._sample_times_s,
+            self._segment_ids,
+            selected_bounds,
+        )
+        self._orbit_mapper.SetInputData(
+            self._create_polyline(
+                self._orbit_display_positions_km, self._orbit_display_segment_ids
+            )
+        )
+        self._orbit_actor.SetVisibility(len(self._orbit_display_positions_km) > 0)
+        in_range = (
+            bounds is not None
+            and bounds.start_s <= self._current_time_s <= bounds.end_s
+        )
+        if not in_range:
+            if self._cursor_actor is not None:
+                self._cursor_actor.SetVisibility(False)
+            if self._tail_actor is not None:
+                self._tail_actor.SetVisibility(False)
 
     def update(self, time_s: float) -> None:
         """Update the marker and direction-aware tail from the shared cursor.
@@ -191,8 +241,13 @@ class VTKTrajectory3DView:
         ):
             raise RuntimeError("VTK trajectory view has not been built")
 
+        self._current_time_s = time_s
         state = self._cursor.lookup(time_s)
-        if state.r_km is None:
+        in_range = not self._range_applied or (
+            self._range_bounds is not None
+            and self._range_bounds.start_s <= time_s <= self._range_bounds.end_s
+        )
+        if state.r_km is None or not in_range:
             self._cursor_actor.SetVisibility(False)
             self._tail_actor.SetVisibility(False)
         else:
@@ -221,6 +276,7 @@ class VTKTrajectory3DView:
         self._widget = None
         self._renderer = None
         self._orbit_actor = None
+        self._orbit_mapper = None
         self._earth_actor = None
         self._tail_actor = None
         self._tail_poly_data = None
@@ -299,6 +355,7 @@ class VTKTrajectory3DView:
         )
         self._orbit_actor = vtkActor()
         self._orbit_actor.SetMapper(orbit_mapper)
+        self._orbit_mapper = orbit_mapper
         self._orbit_actor.GetProperty().SetColor(ORBIT_COLOR_RGB)
         self._orbit_actor.GetProperty().SetLineWidth(2.0)
         self._get_renderer().AddActor(self._orbit_actor)
@@ -346,6 +403,21 @@ class VTKTrajectory3DView:
         segment_id = self._segment_ids[lower_index]
         segment_start = int(np.searchsorted(self._segment_ids, segment_id, side="left"))
         segment_end = int(np.searchsorted(self._segment_ids, segment_id, side="right"))
+        if self._range_applied:
+            if self._range_bounds is None:
+                return np.empty((0, 3), dtype=float)
+            range_start = int(
+                np.searchsorted(
+                    self._sample_times_s, self._range_bounds.start_s, side="left"
+                )
+            )
+            range_end = int(
+                np.searchsorted(
+                    self._sample_times_s, self._range_bounds.end_s, side="right"
+                )
+            )
+            segment_start = max(segment_start, range_start)
+            segment_end = min(segment_end, range_end)
         is_exact_sample = self._sample_times_s[lower_index] == time_s
 
         if self._playback_rate() >= 0.0:
@@ -383,6 +455,7 @@ class VTKTrajectory3DView:
         point_data = np.ascontiguousarray(positions_km, dtype=np.float64)
         points.SetData(numpy_to_vtk(point_data, deep=True))
         cells = vtkCellArray()
+        vertices = vtkCellArray()
         ids = (
             segment_ids
             if segment_ids is not None
@@ -399,7 +472,12 @@ class VTKTrajectory3DView:
                 for offset, point_index in enumerate(range(start, stop)):
                     polyline.GetPointIds().SetId(offset, point_index)
                 cells.InsertNextCell(polyline)
+            elif stop - start == 1:
+                vertex = vtkVertex()
+                vertex.GetPointIds().SetId(0, start)
+                vertices.InsertNextCell(vertex)
             start = stop
         poly_data.SetPoints(points)
         poly_data.SetLines(cells)
+        poly_data.SetVerts(vertices)
         return poly_data

@@ -6,7 +6,8 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
 from .. import series, time_unit
-from .plotting import plot_segments
+from .base import TimeRangeSupport
+from .plotting import SegmentedPlotHistory
 
 CURSOR_LINE_COLOR: str = "tab:red"
 """Color used for the playback cursor lines."""
@@ -14,7 +15,7 @@ FIGURE_SIZE_INCHES: tuple[float, float] = (8.0, 7.0)
 """Default RTN-delta figure size in inches."""
 
 
-class RtnDeltaView:
+class RtnDeltaView(TimeRangeSupport):
     """Plot sample-to-sample radial, transverse, and normal position deltas."""
 
     name: str = "rtn"
@@ -30,6 +31,7 @@ class RtnDeltaView:
         self._figure: Figure | None = None
         self._cursor_artists: tuple[Line2D, ...] | None = None
         self._time_unit_divisor_s = 1.0
+        self._histories: tuple[SegmentedPlotHistory, ...] = ()
 
     def build(
         self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
@@ -54,6 +56,7 @@ class RtnDeltaView:
         )
         labels = ("Radial Delta (km)", "Transverse Delta (km)", "Normal Delta (km)")
         cursor_artists: list[Line2D] = []
+        histories: list[SegmentedPlotHistory] = []
 
         for component, axes in enumerate(axes_array):
             axes.grid(True)
@@ -61,13 +64,15 @@ class RtnDeltaView:
             axes.set_ylabel(labels[component])
             axes.set_title(titles[component])
             if orbit_series.rtn_delta_km.size:
-                plot_segments(
-                    axes,
-                    orbit_series.rtn_elapsed_time,
-                    orbit_series.rtn_delta_km[:, component],
-                    orbit_series.rtn_segment_ids,
-                    linewidth=2,
-                    label=self._object_name,
+                histories.append(
+                    SegmentedPlotHistory(
+                        axes,
+                        orbit_series.rtn_elapsed_time,
+                        orbit_series.rtn_delta_km[:, component],
+                        orbit_series.rtn_segment_ids,
+                        linewidth=2,
+                        label=self._object_name,
+                    )
                 )
                 axes.legend(loc="upper right")
             elif component == 0:
@@ -80,6 +85,14 @@ class RtnDeltaView:
         self._figure = figure
         self._cursor_artists = tuple(cursor_artists)
         self._time_unit_divisor_s = time_unit.get_divisor_s()
+        self._histories = tuple(histories)
+        self._configure_time_range(
+            tuple(axes_array),
+            self._histories,
+            self._cursor_artists,
+            self._start_time_s,
+            self._time_unit_divisor_s,
+        )
         self.update(self._start_time_s)
         return figure
 
@@ -90,10 +103,12 @@ class RtnDeltaView:
         elapsed_time_axis = (time_s - self._start_time_s) / self._time_unit_divisor_s
         for cursor_artist in self._cursor_artists:
             cursor_artist.set_xdata([elapsed_time_axis, elapsed_time_axis])
+        self._set_cursor_visibility(time_s)
 
     def close(self) -> None:
         """Release the figure and cursor artists."""
         if self._figure is not None:
+            self._close_time_range()
             self._figure.clear()
         self._figure = None
         self._cursor_artists = None

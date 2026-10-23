@@ -14,11 +14,11 @@ for reference; none supersedes the final control contract.
 
 ## Final design
 
-![Final wx.Slider-derived widget with four unlabeled range handles at the same height](./mockup-time-range-slider-final.svg)
+![Final wx.Slider-derived widget with separate playback and plot handle rows](./mockup-time-range-slider-final.svg)
 
 Use a custom widget directly derived from `wx.Slider`, retaining its standard current-time
-thumb. Place four draggable range handles at the same height immediately above the native
-slider: two solid rounded playback grips and two outlined diamond plot grips. Shape and
+thumb. Place two draggable range handles in each of two rows above the native slider: solid
+rounded playback grips in the lower row and outlined diamond plot grips in the upper row. Shape and
 fill distinguish the ranges without relying on color. Hover/focus tooltips provide endpoint
 identity, value, and fixed/offset mode; no text appears on or beside the handles.
 
@@ -50,9 +50,11 @@ remain live; current-time overlays inside plots are hidden when outside their ef
 
 ## Selected layout and control contract
 
-Place plot endpoint fields and independent playback-bound fields above the existing shared
-playback controls. Put all four draggable range handles at the same height immediately
-above the standard slider, sharing its time scale with the native current-time thumb. The rail always represents complete
+Place the shared slider at the top of the timeline panel, with a small gap below its divider.
+Put the time readouts, plot endpoint row, playback-bound fields, and transport controls beneath
+it; omit a standalone timeline title. Put plot range handles on their own row above the playback
+range handles. Keep the playback handles immediately above the standard slider with a visible gap
+from its track. All handles share its time scale with the native current-time thumb. The rail always represents complete
 OEM coverage and never rescales to either selection. Retain OEM start/end labels.
 
 The editor contains:
@@ -65,24 +67,18 @@ The editor contains:
   displays all samples inside OEM coverage. It changes neither playback
   bounds nor time. Preserve the last valid plot endpoints for re-enabling. First enable uses
   fixed endpoints at OEM coverage limits.
-- Plot **From / To** as two compact, left-aligned rows. Put the row label, exact value input,
-  **Fixed time** checkbox, and short helper on the same baseline, in that order. The checkbox
-  sits immediately to the right of its input. Checked selects a fixed UTC timestamp;
-  unchecked selects a signed offset from current playback time. There are no separate mode
-  or Offset buttons. Explain unchecked behavior once above the rows and name the checkboxes
-  accessibly **From fixed time** and **To fixed time**.
-  Target 26–28 logical-pixel control heights with a small gap between rows, respecting native
-  theme/font minimum sizes. Fixed UTC fields fit a full timestamp; offset fields are only
-  wide enough for ordinary signed durations, rather than reserving timestamp-sized space.
-  Let longer or fractional values scroll within the editable field without losing precision.
-  Inline helpers show `Playback + 3h = 15:00 UTC` or `Stays fixed during playback`; avoid
-  separate explanatory rows in the ordinary state. Requested values survive OEM clipping.
-- **Effective plot UTC**, showing both full resolved timestamps or an explicit empty-range
-  message. Label clipping **Clipped to OEM coverage**. Do not silently replace requested
-  values with clipped endpoints.
-- One full-OEM `wx.Slider` subclass retaining the standard current-time thumb. Add four
-  draggable range handles immediately above it, all with the same vertical center: playback
-  start/end as solid green rounded grips; plot start/end as outlined blue diamonds. Shape,
+- Put **Plot range**, **From**, its exact value input and **Fixed time** checkbox, **To**,
+  its exact value input and checkbox, and **All OEM data** on one compact horizontal row.
+  Each checkbox sits immediately to the right of its input. Checked selects a fixed UTC
+  timestamp; unchecked selects a signed offset from current playback time. There are no
+  separate mode or Offset buttons. Name the checkboxes accessibly **From fixed time** and
+  **To fixed time**. Do not add a persistent effective-UTC readout row; handle tooltips show
+  resolved UTC values. Respect native theme/font minimum sizes and
+  allow long or fractional input to scroll without losing precision. Requested values survive
+  OEM clipping.
+- One full-OEM `wx.Slider` subclass retaining the standard current-time thumb. Add two rows of
+  draggable range handles above it: playback start/end in the lower row as solid green rounded
+  grips; plot start/end in the upper row as outlined blue diamonds. Shape,
   fill, and focus outline distinguish them without relying on color. No letters, names,
   timestamps, or permanent captions appear on or near the handles.
 - Show handle identity and value in hover/focus tooltips only: range, start/end, full UTC,
@@ -155,7 +151,7 @@ on playback refresh or emit recursive editing events from programmatic synchroni
   outlined/dashed editing targets with **No plot overlap** or **Plot start is after plot end**;
   coincident clipped grips must not imply a singleton selected interval.
 - Capture loss or Escape terminates a drag at its last applied valid value. Live edits are
-  not rolled back. If grips collide, fan them out horizontally at the same height, using
+  not rolled back. If grips collide, fan them out horizontally within their own row, using
   leader lines to their true time coordinates. Do not vertically stack or hide them. At drag
   start retain the pointer-to-time offset so a displaced grip does not jump. The native thumb
   remains independently reachable. Apply the same collision rule to grips within either pair.

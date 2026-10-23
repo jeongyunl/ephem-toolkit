@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from typing import cast
+
+import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
 from .. import series, time_unit
-from .plotting import plot_segments
+from .base import TimeRangeSupport
+from .plotting import SegmentedPlotHistory
 
 CARTESIAN_COMPONENT_COUNT: int = 3
 """Number of Cartesian position or velocity components."""
@@ -20,7 +24,7 @@ STATE_COMPONENT_COLUMN_COUNT: int = 2
 """Number of columns for position and velocity plots."""
 
 
-class StateComponentsView:
+class StateComponentsView(TimeRangeSupport):
     """Plot X/Y/Z position and VX/VY/VZ velocity histories."""
 
     name: str = "state-components"
@@ -44,6 +48,7 @@ class StateComponentsView:
         self._figure: Figure | None = None
         self._cursor_artists: tuple[Line2D, ...] | None = None
         self._time_unit_divisor_s: float = 1.0
+        self._histories: tuple[SegmentedPlotHistory, ...] = ()
 
     def build(
         self,
@@ -85,30 +90,38 @@ class StateComponentsView:
             raise ValueError("state component arrays must have shape (N, 3)")
 
         figure = Figure(figsize=FIGURE_SIZE_INCHES, constrained_layout=True)
-        axes_array = figure.subplots(
-            CARTESIAN_COMPONENT_COUNT,
-            STATE_COMPONENT_COLUMN_COUNT,
-            sharex=True,
+        axes_array = cast(
+            np.ndarray,
+            figure.subplots(
+                CARTESIAN_COMPONENT_COUNT,
+                STATE_COMPONENT_COLUMN_COUNT,
+                sharex=True,
+            ),
         )
         cursor_artists: list[Line2D] = []
+        histories: list[SegmentedPlotHistory] = []
         component_labels = ("X", "Y", "Z")
 
         for row, component in enumerate(component_labels):
             position_axes = axes_array[row, 0]
             velocity_axes = axes_array[row, 1]
-            plot_segments(
-                position_axes,
-                orbit_series.elapsed_time,
-                orbit_series.position_km[:, row],
-                orbit_series.segment_ids,
-                max_display_points=MAX_STATE_COMPONENT_DISPLAY_POINTS_PER_SEGMENT,
+            histories.append(
+                SegmentedPlotHistory(
+                    position_axes,
+                    orbit_series.elapsed_time,
+                    orbit_series.position_km[:, row],
+                    orbit_series.segment_ids,
+                    max_display_points=MAX_STATE_COMPONENT_DISPLAY_POINTS_PER_SEGMENT,
+                )
             )
-            plot_segments(
-                velocity_axes,
-                orbit_series.elapsed_time,
-                orbit_series.velocity_km_s[:, row],
-                orbit_series.segment_ids,
-                max_display_points=MAX_STATE_COMPONENT_DISPLAY_POINTS_PER_SEGMENT,
+            histories.append(
+                SegmentedPlotHistory(
+                    velocity_axes,
+                    orbit_series.elapsed_time,
+                    orbit_series.velocity_km_s[:, row],
+                    orbit_series.segment_ids,
+                    max_display_points=MAX_STATE_COMPONENT_DISPLAY_POINTS_PER_SEGMENT,
+                )
             )
             position_axes.set_ylabel(f"{component} (km)")
             velocity_axes.set_ylabel(f"V{component} (km/s)")
@@ -138,6 +151,14 @@ class StateComponentsView:
         self._figure = figure
         self._cursor_artists = tuple(cursor_artists)
         self._time_unit_divisor_s = time_unit.get_divisor_s()
+        self._histories = tuple(histories)
+        self._configure_time_range(
+            tuple(axes_array.flat),
+            self._histories,
+            self._cursor_artists,
+            self._start_time_s,
+            self._time_unit_divisor_s,
+        )
         self.update(self._start_time_s)
         return figure
 
@@ -159,10 +180,12 @@ class StateComponentsView:
         elapsed_time_axis = (time_s - self._start_time_s) / self._time_unit_divisor_s
         for cursor_artist in self._cursor_artists:
             cursor_artist.set_xdata([elapsed_time_axis, elapsed_time_axis])
+        self._set_cursor_visibility(time_s)
 
     def close(self) -> None:
         """Release the figure and cursor artists."""
         if self._figure is not None:
+            self._close_time_range()
             self._figure.clear()
         self._figure = None
         self._cursor_artists = None

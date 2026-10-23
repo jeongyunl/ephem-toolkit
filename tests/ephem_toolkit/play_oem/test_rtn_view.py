@@ -7,6 +7,7 @@ import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 from ephem_toolkit.play_oem.series import compute_orbit_series
+from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.rtn import RtnDeltaView
 from ephem_toolkit.plot_oem.plot_oem import (
@@ -73,6 +74,26 @@ def test_rtn_view_shows_not_enough_samples_for_one_state() -> None:
         figure = view.build(orbit_series, TimeUnit.HOURS)
         assert figure.axes[0].texts[0].get_text() == "Not enough samples"
         assert all(len(axes.lines) == 1 for axes in figure.axes)
+    finally:
+        view.close()
+
+
+def test_rtn_filter_uses_its_separate_delta_sample_axis() -> None:
+    timestamps_s = [100.0, 160.0, 220.0]
+    states_m = [
+        np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]),
+        np.array([0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]),
+        np.array([-7_000_000.0, 0.0, 0.0, 0.0, -7_500.0, 0.0]),
+    ]
+    orbit_series = compute_orbit_series(timestamps_s, states_m, TimeUnit.MINUTES)
+    view = RtnDeltaView(timestamps_s[0], "ISS")
+    figure = view.build(orbit_series, TimeUnit.MINUTES)
+    try:
+        view.set_time_range(ResolvedTimeRange(160.0, 160.0), (100.0, 220.0))
+        for axes in figure.axes:
+            np.testing.assert_array_equal(axes.lines[0].get_xdata(), [1.0])
+        view.update(160.0)
+        assert all(cursor.get_visible() for cursor in view.cursor_artists)
     finally:
         view.close()
 

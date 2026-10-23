@@ -82,11 +82,11 @@ class PlaybackActionsMixin:
         self._update_time_display()
 
     def _jump_to_start(self: PlayerAppState) -> None:
-        self.clock.seek(self.clock.t_start)
+        self.clock.seek(self.clock.playback_start)
         self._update_time_display()
 
     def _jump_to_end(self: PlayerAppState) -> None:
-        self.clock.seek(self.clock.t_end)
+        self.clock.seek(self.clock.playback_end)
         self._update_time_display()
 
     def _seek_to_time(self: PlayerAppState, time_entry_text: str) -> None:
@@ -102,8 +102,14 @@ class PlaybackActionsMixin:
             self.workspace.show_time_error(str(error))
             return
 
+        clamped_to_playback = not (
+            self.clock.playback_start <= target_time_s <= self.clock.playback_end
+        )
         self.clock.seek(target_time_s)
         self.workspace.clear_time_error()
+        self.status_bar.set_message(
+            "Time was clamped to playback limits." if clamped_to_playback else ""
+        )
         self._update_time_display()
         self.workspace.set_current_time_entry(
             time_utils.datetime_to_iso8601(

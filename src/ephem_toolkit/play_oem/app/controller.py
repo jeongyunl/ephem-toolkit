@@ -15,7 +15,7 @@ import wx
 
 import ephem_toolkit.core.time_utils as time_utils
 
-from .. import clock, control_window, cursor, series, time_unit, workspace
+from .. import clock, control_window, cursor, series, time_range, time_unit, workspace
 from .. import playback_data
 from ..ground_track import GroundTrackCoordinates
 from ..saved_state import (
@@ -43,6 +43,7 @@ from .support import (
 )
 from .view_factory import ViewFactoryMixin
 from .playback_actions import PlaybackActionsMixin
+from .time_range_actions import TimeRangeActionsMixin, full_coverage_plot_rule
 from .panel_management import PanelManagementMixin
 from .status_bar import PlaybackStatusBar
 
@@ -53,7 +54,12 @@ FRAME_COUNT_EPSILON: float = 1e-9
 """Tolerance in seconds for counting a frame at a timer deadline."""
 
 
-class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
+class PlayerApp(
+    ViewFactoryMixin,
+    PlaybackActionsMixin,
+    TimeRangeActionsMixin,
+    PanelManagementMixin,
+):
     """Own the wx application, playback timer and playback windows."""
 
     def __init__(
@@ -118,6 +124,8 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
             )
 
         self.clock = clock
+        self.clock.set_playback_bounds(self.clock.t_start, self.clock.t_end)
+        self.plot_time_range = full_coverage_plot_rule((clock.t_start, clock.t_end))
         self.series = series
         self.time_unit = time_unit
         self.cursor = cursor
@@ -230,12 +238,6 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
             on_set_transport_rate=self._set_transport_rate,
             on_step_samples=self._step_samples,
             timeline_enabled=clock.t_start < clock.t_end,
-            timeline_start_utc=time_utils.datetime_to_iso8601(
-                time_utils.tt_s_to_datetime(clock.t_start)
-            ),
-            timeline_end_utc=time_utils.datetime_to_iso8601(
-                time_utils.tt_s_to_datetime(clock.t_end)
-            ),
             on_seek_to_time=self._seek_to_time,
             timeline_tooltip_at=self._timeline_tooltip_at,
             context=dashboard_context,
@@ -243,6 +245,14 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
             view_choices=self._panel_view_choices,
             on_add_graph=self._add_graph_panel,
             status_bar=self.status_bar,
+            playback_bounds=(clock.playback_start, clock.playback_end),
+            oem_coverage=(clock.t_start, clock.t_end),
+            plot_time_range=self.plot_time_range,
+            now_s=lambda: self.clock.t_now,
+            on_playback_bounds=self._apply_playback_bounds,
+            on_plot_time_range=self._apply_plot_time_range,
+            on_plot_endpoint=self._drag_plot_endpoint,
+            on_begin_time_range_edit=self._begin_time_range_edit,
         )
         self.control_window: control_window.ControlWindow = (
             control_window.ControlWindow(
@@ -281,6 +291,7 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         self._closed = False
         self._open_views: dict[str, _OpenView] = {}
         self._open_panels: dict[str, _OpenView] = {}
+        self._clock_unsubscribe = self.clock.subscribe(self._on_clock_time_changed)
         self.workspace.set_oem_loaded(oem_loaded)
         self.control_window.set_playback_enabled(oem_loaded)
         if not oem_loaded:
@@ -333,6 +344,17 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
             return
         if not self.frame.Close(force=True) and not self._closed:
             raise RuntimeError("could not close the play-oem frame")
+
+    def _on_clock_time_changed(self, time_s: float) -> None:
+        """Resolve one shared interval before updating any live view cursors."""
+        if self._closed:
+            return
+        resolved = time_range.resolve_plot_range(
+            self.plot_time_range,
+            (self.clock.t_start, self.clock.t_end),
+            time_s,
+        )
+        self._dispatch_time_range(resolved, time_s)
 
     def _saved_state_size(self) -> tuple[int, int]:
         if self._saved_state is None:
@@ -497,6 +519,7 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
     ) -> None:
         """Replace file-dependent state while retaining the frame and workspace."""
         rate = self.clock.rate
+        loaded.clock.set_playback_bounds(loaded.clock.t_start, loaded.clock.t_end)
         loaded.clock.set_speed(abs(rate))
         loaded.clock.set_direction(-1 if rate < 0.0 else 1)
         if rate < 0.0:
@@ -507,7 +530,12 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
             for opened in self._open_panels.values()
         )
 
+        self._clock_unsubscribe()
         self.clock = loaded.clock
+        self._clock_unsubscribe = self.clock.subscribe(self._on_clock_time_changed)
+        self.plot_time_range = full_coverage_plot_rule(
+            (loaded.clock.t_start, loaded.clock.t_end)
+        )
         self.series = loaded.series
         self.time_unit = loaded.time_unit
         self.cursor = loaded.cursor
@@ -526,12 +554,6 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         self.workspace.update_oem_information(
             loaded.dashboard_context,
             loaded.metadata_details,
-            time_utils.datetime_to_iso8601(
-                time_utils.tt_s_to_datetime(self.clock.t_start)
-            ),
-            time_utils.datetime_to_iso8601(
-                time_utils.tt_s_to_datetime(self.clock.t_end)
-            ),
             self.clock.t_start < self.clock.t_end,
         )
         self.frame.Layout()
@@ -563,6 +585,7 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
     def _on_frame_close(self, event: wx.CloseEvent) -> None:
         if not self._closed:
             self._closed = True
+            self._clock_unsubscribe()
             self._timer.Stop()
             self._save_application_state()
             try:
@@ -645,6 +668,12 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         )
         self.workspace.update_timeline(
             progress, utc_timestamp, playing=self.clock.playing
+        )
+        self.workspace.set_time_range_controls(
+            (self.clock.t_start, self.clock.t_end),
+            (self.clock.playback_start, self.clock.playback_end),
+            self.plot_time_range,
+            self.clock.t_now,
         )
         self.workspace.update_transport_state(self.clock.playing, self.clock.rate)
         self.control_window.update_current_state(self.cursor.lookup(self.clock.t_now))

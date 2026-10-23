@@ -1,6 +1,7 @@
 # `play-oem` — Shared Time Range Implementation Plan
 
-> Status: **proposed**. All implementation steps and validation are pending.
+> Status: **in progress**. Steps 1–4 are implemented and verified. Step 5 is partially
+> implemented; step 6 remains pending.
 
 Software design:
 [PLAY_OEM_TIME_RANGE_SOFTWARE_DESIGN.md](./PLAY_OEM_TIME_RANGE_SOFTWARE_DESIGN.md).
@@ -41,112 +42,21 @@ evidence. Do not claim a live GUI check from a headless test result.
 
 ## 1. Implement the toolkit-independent range model
 
-Add `play_oem/time_range.py` with independent playback bounds, immutable plot endpoints,
-applied rule, and optional resolved range types with pure validation/resolution operations.
-Keep all epochs in absolute TT seconds and all
-offsets in seconds. This layer must import without GUI or rendering dependencies.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Implement the model and signatures specified in the software design, including separate
-      playback bounds, disabled filtering returning OEM coverage, and fixed plot defaults.
-- [ ] Validate independent playback bounds against OEM coverage and intersect all four plot
-      endpoint combinations with OEM coverage, independently of playback bounds; allow either offset sign on either endpoint.
-- [ ] Prove independent coverage containment with narrowed playback bounds, plots extending
-      beyond either end or disjoint from playback, inclusive/singleton selections,
-      future-only/past-only windows, wholly outside requests, and mixed endpoint crossings.
-      Validate always-reversed same-mode pairs; accept empty resolved intersections.
-- [ ] Test deterministic resolution for forward, backward, and randomly ordered playback
-      times, including validation of playback times passed to the resolver.
-- [ ] Verify imports remain toolkit-independent and record focused test evidence.
-
-**Done when:** pure tests establish the equations and failure behavior without a display,
-and immutable coverage is distinct from playback bounds and the effective plot range.
-**Depends on:** None.
+**Completed steps:** This implementation was completed and verified as recorded below.
 
 ## 2. Add playback limits and integrate every navigation path
 
-Extend `clock.py` with independent playback bounds while preserving dataset `t_start` and
-`t_end`. Add application range ownership and actions in `app/time_range_actions.py`, and
-update controller/state contracts and existing playback actions. GUI controls follow later.
-
-- **Status:** Not started.
-- **Progress:** 0/6 checklist items.
-- [ ] Add playback-bound properties/setter, atomic clamp/notification, and compensation reset;
-      preserve current rate/direction and dataset limits.
-- [ ] Apply bounds to tick, seek, sample/second stepping, both directions, singleton bounds,
-      and existing optional loop behavior.
-- [ ] Route seek fractions, typed times, plot clicks, start/end buttons, and shortcuts through
-      the same limits; keep full-coverage slider mapping and dataset-relative time parsing.
-- [ ] Implement independent playback/plot actions, pause-on-edit and timer baseline reset;
-      plot edits dispatch refreshes without calling seek or the clock bounds setter. Keep
-      separate Full OEM/All OEM data resets, enable retention, and dataset replacement reset.
-- [ ] Test playback-only clamping, plot-edit time/bounds preservation, invalid-edit atomicity,
-      failed-load retention, single-notification ordering, and stable time origin/speed.
-      Verify playback can traverse plot boundaries and empty plots without stopping. Changing
-      playback bounds preserves fixed plots; relative plots change only if clock time changes.
-- [ ] Run focused clock/application tests and record evidence for every navigation route.
-
-**Done when:** every movement respects the model's playback bounds, All OEM data
-selects all OEM history independently of playback bounds, plot edits cannot change clock time/bounds,
-and edits cannot expose an intermediate rule/time combination.
-**Depends on:** Step 1.
+**Completed steps:** Implementation and verification are recorded below.
 
 ## 3. Propagate the range and filter time-series data
 
-Extend `views/base.py` and all time-series implementations, the plotting helpers, application
-panel lifecycle, and `_OpenView` bookkeeping. Establish one controller-owned clock dispatch
-for consistent range and cursor updates. Spatial views receive the protocol method here;
-their rendering behavior is completed in step 4 before any editor is exposed.
-
-- **Status:** Not started.
-- **Progress:** 0/7 checklist items.
-- [ ] Add the optional-empty `set_time_range` contract with OEM coverage for axis fallback,
-      including the empty graph and temporary spatial-view adapters;
-      initialize a newly built view with the applied range before its first visible draw.
-- [ ] Replace individual view subscriptions with one controller dispatch, resolve bounds once,
-      update range before cursor state, and preserve cleanup on panel close/replacement.
-- [ ] Select samples inclusively by each series' timestamps, preserve contiguous valid OEM
-      runs, and decimate after filtering; retain full-resolution source computations.
-- [ ] Handle RTN's separate sample axis/segment IDs and verify all scalar/component histories.
-- [ ] Implement effective X limits, full-data Y baselines, vertical-only navigation while
-      filtering, Home behavior, singleton points, and distinct empty-overlap/no-sample states.
-      Hide plot cursor lines outside the effective range while keeping global readouts live.
-- [ ] Bound selection caches and coalesce redraws through existing panel/workspace scheduling;
-      retain only the latest pending state for hidden panels.
-- [ ] Run headless renderer/integration tests, including narrow-window extrema, gaps,
-      sample-free intervals, optional empty results, in/out-of-range cursor interpolation,
-      playback-bound independence, and changed-range/unchanged-time updates.
-
-**Done when:** all time-series data artists contain only eligible samples, all panels observe
-the same resolved state, axes follow the design, and closing views leaves no stale callbacks.
-**Depends on:** Step 2.
+**Completed steps:** Shared propagation and time-series filtering are implemented; spatial
+views received the protocol adapter and are completed in step 4.
 
 ## 4. Integrate both 3D renderers and ground-track filtering
 
-Complete range handling in `views/trajectory3d/mpl_backend.py`, `vtk_backend.py`, and
-`views/ground_track.py`, reusing full source positions and cached Earth-fixed coordinates.
-
-- **Status:** Not started.
-- **Progress:** 0/6 checklist items.
-- [ ] Filter 3D paths by timestamp before decimation in both backends, preserve contiguous
-      OEM topology, and intersect existing direction-aware tails with the range.
-- [ ] Filter ground-track samples before map-seam splitting and decimation without repeating
-      full-file frame conversion.
-- [ ] Preserve camera/spatial bounds, map projection/center/extent, and backgrounds. Gate
-      plot markers/footprints/current tail endpoints by effective-range membership as well
-      as existing interpolation/gap validity; keep global current-state readouts live.
-- [ ] Support empty intersections, no-sample/singleton paths, and transitions to All OEM data;
-      never leave stale paths or bridge gaps/seams.
-- [ ] Add backend and coordinate-selection tests for inclusive membership, tails in both
-      directions, seam crossings, in-range interpolated overlays without source samples, and
-      hidden plot overlays during playback outside plots.
-- [ ] Run available backend checks, record optional VTK skips explicitly, and verify native
-      resource cleanup with repeated panel replacement and closure.
-
-**Done when:** all view types honor the same filter with no spatial-navigation reset;
-both backend paths have automated coverage, with unavailable live checks carried to step 6.
-**Depends on:** Step 3.
+**Completed steps:** Spatial path filtering and automated coverage are recorded below. Live
+VTK context validation remains an acceptance item for step 6.
 
 ## 5. Build the shared editor and combined playback/range slider
 
@@ -158,15 +68,15 @@ seek callbacks, full-coverage mapping, tooltip behavior, and programmatic synchr
 Wire it to the application actions without duplicating the model's validation or adding an
 independent playback loop.
 
-- **Status:** Not started.
-- **Progress:** 0/8 checklist items.
-- [ ] Build playback-bound fields/Full OEM and plot Enabled/All OEM data with independent
-      mode/value fields, effective plot UTC, OEM-clipping labels, and validation feedback.
-      Use compact From/To inputs followed on the right by Fixed time checkboxes: checked
-      means fixed UTC, unchecked means playback offset. Remove separate mode buttons;
+- **Status:** In progress.
+- **Progress:** 3/8 checklist items.
+- [x] Build playback-bound fields/Full OEM and plot Enabled/All OEM data with independent
+      mode/value fields and validation feedback. Use compact same-row From/To inputs with
+      Fixed time checkboxes immediately after each: checked means fixed UTC, unchecked means
+      playback offset. Remove separate mode buttons;
       retain accessible endpoint-specific checkbox names, fitted fields, and inline helpers. Respect
       native font/theme minimum heights and preserve full editable timestamp precision.
-- [ ] Add fixed-UTC and signed-duration parsing, requested-instant-preserving checkbox toggles,
+- [x] Add fixed-UTC and signed-duration parsing, requested-instant-preserving checkbox toggles,
       Enter/focus-loss submission, Escape restoration, and invalid-draft protection.
 - [ ] Implement `TimeRangeSlider(wx.Slider)` with its native current-time thumb and four
       draggable range handles at one height immediately above the standard track: solid
@@ -176,7 +86,7 @@ independent playback loop.
 - [ ] Implement live pointer dragging, pointer capture termination, keyboard adjustment,
       plot-grip clamping only to OEM coverage, playback-grip ordering/clamping, and pause-on-edit
       without automatic resume. Route each gesture exclusively to its correct action.
-- [ ] Synchronize fields/slider/readouts without recursive events or overwriting drafts;
+- [x] Synchronize fields/slider/readouts without recursive events or overwriting drafts;
       retain existing transport controls and full-coverage seek mapping.
 - [ ] Add keyboard names/focus, status feedback, no-file/singleton states, responsive layout,
       theme-aware styles, and equivalent exact-field access to all handle operations.
@@ -188,6 +98,32 @@ independent playback loop.
       at coincident/clipped timestamps, including empty plot ranges.
 - [ ] Run a live wx editor smoke check and record environment and any remaining visual checks
       for final acceptance; do not mark unexercised interactions verified.
+- **Implemented so far:** workspace/time_range.py provides fixed UTC and signed offset
+  fields, one-row plot controls, fixed-mode checkboxes, validation feedback, Escape
+  restoration, and independent reset actions. The persistent effective UTC row was removed;
+  endpoint tooltips retain resolved UTC details.
+  workspace/time_range_slider.py subclasses wx.Slider, retains native thumb seeking, and
+  adds four same-height, named range grips with mode/value tooltips, drag capture, collision
+  fan-out, and keyboard nudging. Controller actions preserve plot/playback independence.
+- **Evidence so far:** Parser and action tests are included in the focused run below. The
+  broad workspace test module fails before the new editor is constructed because its existing
+  FakeSplitter lacks GetDefaultSashSize used by graph_stack.py. xvfb-run cannot start Xvfb
+  in this environment because /tmp/.X11-unix has unsuitable ownership and permissions; wx
+  reports no display. Native slider alignment, actual paint behavior, pointer capture, and
+  focus traversal therefore remain unverified.
+- **Startup crash correction:** The user-provided faulthandler trace located the segfault in
+  wx.Control initialization for a grip whose native parent was wx.Slider. Grips are now
+  sibling controls overlaid in the slider parent; drag and keyboard events route to the
+  TimeRangeSlider instance. This removes the crashing native-slider parent relationship.
+  The reported paint assertion is addressed by setting wx.BG_STYLE_PAINT before binding the
+  custom paint handler; the handler clears the background with AutoBufferedPaintDC. The launch
+  cannot be confirmed in this headless environment, so an on-screen rerun remains required.
+- **Checks:** PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src pytest -q over
+  test_time_range.py, test_time_range_actions.py, test_time_range_plotting.py,
+  test_time_range_editor.py, test_play_oem_clock.py, test_rtn_view.py,
+  test_ground_track_view.py, test_trajectory3d.py, and test_vtk_trajectory3d.py —
+  88 passed, 7 skipped. python -m compileall -q src/ephem_toolkit/play_oem and
+  git diff --check passed.
 
 **Done when:** the selected design works end to end with every graph and navigation route,
 and no hidden draft, duplicate event, or drag action can install an invalid applied rule.
@@ -231,4 +167,120 @@ solely because code or documentation exists.
 
 ## Completed steps
 
-None. This proposal does not record implementation or runtime-validation completion.
+### 1. Implement the toolkit-independent range model
+
+Add `play_oem/time_range.py` with independent playback bounds, immutable plot endpoints,
+applied rule, and optional resolved range types with pure validation/resolution operations.
+Keep all epochs in absolute TT seconds and all offsets in seconds. This layer imports without
+GUI or rendering dependencies.
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Implemented `PlaybackTimeRange`, `TimeRangeEndpoint`, `PlotTimeRange`, and
+      `ResolvedTimeRange` with pure validation and resolution functions.
+- [x] Validated independent playback bounds and all four endpoint mode combinations, with
+      plot resolution clipped only to OEM coverage.
+- [x] Verified out-of-playback/disjoint plot windows, inclusive singleton selections,
+      clipping, mixed endpoint crossings, and valid empty intersections.
+- [x] Verified deterministic offset resolution across ordered and randomly ordered times,
+      and rejection of invalid playback times and always-reversed same-mode pairs.
+- [x] Verified isolated model import does not load wx, Matplotlib, or VTK.
+- **Evidence:** `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src pytest -q
+  tests/ephem_toolkit/play_oem/test_time_range.py` — 23 passed. Lazy package exports preserve
+  `play_oem.cli` and `play_oem.main` while keeping model imports independent.
+- **Depends on:** None.
+- **Done when:** Pure tests establish the equations and failure behavior without a display,
+  and immutable coverage is distinct from playback bounds and the effective plot range.
+
+### 2. Add playback limits and integrate every navigation path
+
+Extend `clock.py` with independent playback bounds while preserving dataset `t_start` and
+`t_end`. Add application range ownership and actions in `app/time_range_actions.py`, and
+update controller/state contracts and existing playback actions. GUI controls follow later.
+
+- **Status:** Done.
+- **Progress:** 6/6 checklist items.
+- [x] Added read-only playback limits and an atomic setter; dataset limits remain immutable,
+      current time clamps once, tick compensation clears, and rate/direction are retained.
+- [x] Applied limits to tick, seek, second/sample stepping, both directions, singleton bounds,
+      and optional loop wraparound.
+- [x] Kept slider and tooltip mapping across OEM coverage; seek, typed time, plot-click,
+      start/end, transport steps, and existing keyboard callbacks route through bounded clock
+      behavior. Typed OEM timestamps outside playback clamp and report status.
+- [x] Added independent application range state/actions, pause and timer-baseline reset,
+      distinct Full OEM/All OEM data resets, endpoint retention, and successful-load reset.
+      Plot edits call neither `seek` nor the playback-bound setter.
+- [x] Verified invalid edits are atomic, failed opens retain both ranges, and successful
+      replacement resets both. Fixed plot bounds survive playback edits; relative rules resolve
+      against the resulting clock time. Playback changes do not use plot bounds.
+- [x] Ran focused clock, range-action, application, and control tests.
+- **Evidence:** `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src pytest -q
+  tests/ephem_toolkit/play_oem/test_play_oem_clock.py tests/ephem_toolkit/play_oem/test_time_range.py
+  tests/ephem_toolkit/play_oem/test_time_range_actions.py tests/ephem_toolkit/play_oem/test_play_oem_app.py
+  tests/ephem_toolkit/play_oem/test_play_oem_control_window.py` — 123 passed.
+- **Depends on:** Step 1.
+- **Done when:** Every movement respects playback bounds; All OEM selects all history
+  independently; plot edits preserve clock time and bounds; edit application is atomic.
+
+### 3. Propagate the range and filter time-series data
+
+Extend `views/base.py` and all time-series implementations, the plotting helpers, application
+panel lifecycle, and `_OpenView` bookkeeping. Establish one controller-owned clock dispatch
+for consistent range and cursor updates. Spatial views receive the protocol method here;
+their rendering behavior is completed in step 4 before any editor is exposed.
+
+- **Status:** Done.
+- **Progress:** 7/7 checklist items.
+- [x] Added the optional-empty `set_time_range` contract and OEM coverage fallback. Empty
+      graph and spatial adapters implement the contract; new views receive it before drawing.
+- [x] Replaced per-view clock subscriptions with one controller dispatch that resolves once,
+      applies range before cursor updates, and releases cleanly on close/replacement.
+- [x] Added reusable segmented history artists that select inclusive samples first and
+      decimate afterward while retaining full source arrays and segment gaps.
+- [x] Applied the helper to every scalar/component history. RTN uses its own elapsed-time
+      axis and segment IDs; derived source computations remain full resolution.
+- [x] Set shared X limits, preserve full-history Y baselines and user vertical zoom, lock X
+      navigation during active filtering, support singleton samples and distinct empty states,
+      and hide cursors outside the effective plot interval.
+- [x] Reused the workspace redraw queue and deferred only the latest time/range for hidden
+      panels, applying current state when each panel is shown. No per-range selection cache is
+      retained; source arrays and line artists are bounded by the loaded dataset.
+- [x] Added headless tests for narrow-window extrema, inclusive selection, segment gaps,
+      sample-free and empty intervals, singleton histories, RTN timestamps, cursor visibility,
+      axis/Y behavior, and shared dispatch lifecycle.
+- **Evidence:** `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src pytest -q
+  tests/ephem_toolkit/play_oem/test_play_oem_clock.py tests/ephem_toolkit/play_oem/test_time_range.py
+  tests/ephem_toolkit/play_oem/test_time_range_actions.py tests/ephem_toolkit/play_oem/test_time_range_plotting.py
+  tests/ephem_toolkit/play_oem/test_play_oem_app.py tests/ephem_toolkit/play_oem/test_play_oem_speed_altitude.py
+  tests/ephem_toolkit/play_oem/test_state_components.py tests/ephem_toolkit/play_oem/test_rtn_view.py
+  tests/ephem_toolkit/play_oem/test_angular_velocity_view.py tests/ephem_toolkit/play_oem/test_direction_change_view.py
+  tests/ephem_toolkit/play_oem/test_distance_view.py` — 129 passed.
+- **Depends on:** Step 2.
+- **Done when:** All time-series data artists contain only eligible samples, all panels observe
+  the same resolved state, axes follow the design, and closing views leaves no stale callbacks.
+
+### 4. Integrate both 3D renderers and ground-track filtering
+
+Complete range handling in `views/trajectory3d/mpl_backend.py`, `vtk_backend.py`, and
+`views/ground_track.py`, reusing full source positions and cached Earth-fixed coordinates.
+
+- **Status:** Done.
+- **Progress:** 6/6 checklist items.
+- [x] Filtered both 3D paths by timestamp before decimation, preserved segment topology and
+      singleton points, and intersected VTK direction-aware tails with the selected interval.
+- [x] Filtered cached ground coordinates before seam splitting and decimation, without
+      repeating Earth-frame conversion.
+- [x] Preserved full spatial bounds, camera, map projection/center/extent, and backgrounds.
+      Cursor markers, ground footprints, and VTK tails are gated by effective-range membership.
+- [x] Added explicit empty/no-sample states and replaced stale paths on range changes.
+- [x] Added inclusive path/overlay tests, forward/reverse tail coverage in the existing VTK
+      tests, seam-crossing tests, and empty/singleton selector tests.
+- [x] Ran spatial and existing OEM segment checks. VTK context/resource tests are present but
+      the current environment skips their wx/VTK display-dependent cases.
+- **Evidence:** `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=src pytest -q
+  tests/ephem_toolkit/play_oem/test_trajectory3d.py tests/ephem_toolkit/play_oem/test_vtk_trajectory3d.py
+  tests/ephem_toolkit/play_oem/test_ground_track_view.py tests/ephem_toolkit/play_oem/test_play_oem_data.py`
+  — 27 passed, 7 skipped (display/backend-dependent).
+- **Depends on:** Step 3.
+- **Done when:** All view types honor the same filter with no spatial-navigation reset;
+  both backend paths have automated coverage, with unavailable live checks carried to step 6.

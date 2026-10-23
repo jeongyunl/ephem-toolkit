@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import wx
 
 from .constants import TIMELINE_SLIDER_MAX
 from ..tooltips import SuperToolTip, position_tooltip_at_pointer, set_tooltip
+
+if TYPE_CHECKING:
+    from .time_range import TimeRangeEditor
+    from .time_range_slider import TimeRangeSlider
 
 
 class _TimelineState(Protocol):
@@ -27,7 +31,8 @@ class _TimelineState(Protocol):
     _transport_playing: bool
     _transport_rate: float
     timeline_panel: wx.ScrolledWindow
-    timeline_slider: wx.Slider
+    timeline_slider: TimeRangeSlider
+    time_range_editor: TimeRangeEditor
     timeline_time_entry: wx.TextCtrl
     time_error_label: wx.StaticText
     transport_forward_play_button: wx.Button
@@ -180,6 +185,7 @@ class TimelineMixin:
         ):
             button.Enable(loaded)
         self.timeline_slider.Enable(loaded and self._timeline_enabled)
+        self.time_range_editor.Enable(loaded)
         if not self.timeline_slider.IsEnabled() and hasattr(self, "_timeline_tooltip"):
             self._timeline_tooltip.DoHideNow()
         for button in self._add_buttons.values():

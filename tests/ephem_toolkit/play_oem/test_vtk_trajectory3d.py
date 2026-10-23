@@ -9,6 +9,7 @@ import pytest
 
 from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.series import compute_orbit_series
+from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 
 
@@ -193,6 +194,42 @@ def test_vtk_view_reports_a_failed_initial_render(
         view.validate_render_context()
 
     view.close()
+
+
+def test_vtk_range_replaces_source_path_and_gates_cursor_and_tail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("vtk")
+    pytest.importorskip("wx")
+    from ephem_toolkit.play_oem.views.trajectory3d import vtk_backend
+
+    monkeypatch.setattr(vtk_backend, "wxVTKRenderWindowInteractor", FakeWidget)
+    series, cursor = make_orbit()
+    view = vtk_backend.VTKTrajectory3DView(
+        object(), cursor, "ISS", "EME2000 / Earth", lambda: 1.0
+    )
+    widget = view.build(series, TimeUnit.MINUTES)
+    try:
+        camera = view._renderer.GetActiveCamera()
+        camera_position = tuple(camera.GetPosition())
+        view.set_time_range(ResolvedTimeRange(160.0, 160.0), (100.0, 220.0))
+        path = view._orbit_mapper.GetInput()
+        assert path.GetPoints().GetNumberOfPoints() == 1
+        assert path.GetVerts().GetNumberOfCells() == 1
+        assert view._orbit_actor.GetVisibility()
+        assert tuple(camera.GetPosition()) == camera_position
+        assert not view._cursor_actor.GetVisibility()
+        view.update(160.0)
+        assert view._cursor_actor.GetVisibility()
+        assert not view._tail_actor.GetVisibility()
+
+        view.set_time_range(None, (100.0, 220.0))
+        assert view._orbit_mapper.GetInput().GetNumberOfPoints() == 0
+        assert not view._orbit_actor.GetVisibility()
+        assert not view._cursor_actor.GetVisibility()
+        assert not view._tail_actor.GetVisibility()
+    finally:
+        view.close()
 
 
 def test_vtk_view_rejects_a_missing_opengl_window_implementation(

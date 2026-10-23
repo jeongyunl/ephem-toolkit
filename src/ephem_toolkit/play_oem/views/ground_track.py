@@ -35,6 +35,7 @@ from ..ground_track import (
 )
 from ..series import OrbitSeries
 from ..time_unit import TimeUnit
+from ..time_range import ResolvedTimeRange
 from .compact_controls import compact_controls
 from .plotting import decimate_indices
 
@@ -186,6 +187,7 @@ class GroundTrackView:
         self._parent = parent
         self._source = source
         self._coordinates = coordinates
+        self._display_coordinates = coordinates
         self._cursor = cursor
         self._object_name = object_name
         self._error_message = error_message
@@ -201,6 +203,10 @@ class GroundTrackView:
         self._axes: Any = None
         self._projection: Any = None
         self._track_artists: list[Any] = []
+        self._track_status_artist: Any = None
+        self._effective_plot_range: tuple[float, float] | None = (
+            (cursor.t_start, cursor.t_end) if coordinates is not None else None
+        )
         self._marker: Line2D | None = None
         self._horizon_artist: LineCollection | None = None
         self._minimum_artist: LineCollection | None = None
@@ -383,6 +389,7 @@ class GroundTrackView:
         self._syncing_limits = True
         axes.clear()
         self._track_artists.clear()
+        self._track_status_artist = None
         self._projection = _make_projection(
             self.projection_name, self.center_longitude_deg
         )
@@ -461,19 +468,18 @@ class GroundTrackView:
             self._figure.subplots_adjust(left=0.04, right=0.98, bottom=0.08, top=0.9)
             return
 
-        runs = split_ground_track_runs(self._coordinates, self.center_longitude_deg)
-        for run in runs:
-            xy = _project_run(self._projection, run, self.center_longitude_deg)
-            indices = decimate_indices(xy)
-            (line,) = axes.plot(
-                xy[indices, 0],
-                xy[indices, 1],
-                color="#3b5ccc",
-                linewidth=1.8,
-                solid_capstyle="round",
-                zorder=3,
-            )
-            self._track_artists.append(line)
+        self._track_status_artist = axes.text(
+            0.5,
+            0.5,
+            "",
+            ha="center",
+            va="center",
+            transform=axes.transAxes,
+            color="#344054",
+            bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "none"},
+            zorder=7,
+        )
+        self._update_track_artists()
 
         self._marker = Line2D(
             [],
@@ -818,8 +824,76 @@ class GroundTrackView:
             self._minimum_artist.set_segments([])
         if self._minimum_point_artist is not None:
             self._minimum_point_artist.set_data([], [])
+        self._last_footprints = None
         if self._coordinate_readout is not None:
             self._coordinate_readout.SetLabel(message)
+
+    def set_time_range(
+        self, bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
+    ) -> None:
+        """Filter cached Earth-fixed samples before splitting at map seams."""
+        self._effective_plot_range = (
+            None if bounds is None else (bounds.start_s, bounds.end_s)
+        )
+        if self._coordinates is not None:
+            if bounds is None:
+                selected = np.zeros(len(self._coordinates.timestamps_s), dtype=bool)
+            else:
+                selected = (self._coordinates.timestamps_s >= bounds.start_s) & (
+                    self._coordinates.timestamps_s <= bounds.end_s
+                )
+            self._display_coordinates = GroundTrackCoordinates(
+                self._coordinates.timestamps_s[selected],
+                self._coordinates.latitude_rad[selected],
+                self._coordinates.longitude_rad[selected],
+                self._coordinates.segment_ids[selected],
+                self._coordinates.source_frame,
+            )
+        self._update_track_artists()
+        if self._last_time_s is not None:
+            current_time = self._last_time_s
+            self._last_time_s = None
+            self.update(current_time)
+        if self._canvas is not None:
+            self._canvas.draw_idle()
+
+    def _update_track_artists(self) -> None:
+        if self._axes is None or self._projection is None:
+            return
+        for artist in self._track_artists:
+            try:
+                artist.remove()
+            except ValueError:
+                pass
+        self._track_artists.clear()
+        coordinates = self._display_coordinates
+        runs = (
+            split_ground_track_runs(coordinates, self.center_longitude_deg)
+            if coordinates is not None and len(coordinates.timestamps_s)
+            else ()
+        )
+        for run in runs:
+            xy = _project_run(self._projection, run, self.center_longitude_deg)
+            indices = decimate_indices(xy)
+            (line,) = self._axes.plot(
+                xy[indices, 0],
+                xy[indices, 1],
+                color="#3b5ccc",
+                linewidth=1.8,
+                solid_capstyle="round",
+                marker="o" if len(indices) == 1 else "None",
+                zorder=3,
+            )
+            self._track_artists.append(line)
+        if self._track_status_artist is not None:
+            if self._effective_plot_range is None:
+                message = "Plot range does not overlap OEM coverage"
+            elif coordinates is not None and not len(coordinates.timestamps_s):
+                message = "No ground track samples in plot range"
+            else:
+                message = ""
+            self._track_status_artist.set_text(message)
+            self._track_status_artist.set_visible(bool(message))
 
     def update(self, t_s: float, /) -> None:
         if (
@@ -833,6 +907,13 @@ class GroundTrackView:
         if self._last_time_s == t_s:
             return
         self._last_time_s = t_s
+        if (
+            self._effective_plot_range is None
+            or not self._effective_plot_range[0] <= t_s <= self._effective_plot_range[1]
+        ):
+            self._hide_dynamic_position("Playback time outside plot range")
+            self._canvas.draw_idle()
+            return
         state = self._cursor.lookup(t_s)
         if state.state_m is None:
             self._hide_dynamic_position("Current position unavailable")
@@ -924,6 +1005,7 @@ class GroundTrackView:
         self._figure = None
         self._axes = None
         self._track_artists.clear()
+        self._track_status_artist = None
         self._marker = None
         self._horizon_artist = None
         self._minimum_artist = None

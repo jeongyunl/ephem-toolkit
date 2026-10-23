@@ -7,6 +7,8 @@ from collections.abc import Callable, Mapping, Sequence
 
 import wx
 
+from ephem_toolkit.core import time_utils
+
 from ..graph_panel import GraphPanelHost
 from ..timestamp_markup import set_timestamp_label
 from ..tooltips import set_tooltip
@@ -21,6 +23,16 @@ from .constants import (
 from .features import FeatureNavigationMixin
 from .graph_stack import GraphStackMixin
 from .timeline import TimelineMixin
+from .time_range import TimeRangeEditor
+from .time_range_slider import TimeRangeSlider
+from .. import time_range as range_model
+
+
+def _playback_utc(time_s: float) -> str:
+    """Format a playback bound as UTC for the timeline labels."""
+    return time_utils.datetime_to_iso8601(
+        time_utils.tt_s_to_datetime(time_s), fractional_second_places=3
+    )
 
 
 class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
@@ -37,8 +49,6 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         on_set_transport_rate: Callable[[float], None] | None = None,
         on_step_samples: Callable[[int], None] | None = None,
         timeline_enabled: bool,
-        timeline_start_utc: str,
-        timeline_end_utc: str,
         on_seek_to_time: Callable[[str], None] | None = None,
         timeline_tooltip_at: Callable[[float], str] | None = None,
         context: Mapping[str, str] | None = None,
@@ -46,6 +56,14 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         view_choices: tuple[tuple[str, str], ...] = (),
         on_add_graph: Callable[[str], None] | None = None,
         status_bar: wx.Window | None = None,
+        playback_bounds: tuple[float, float] | None = None,
+        oem_coverage: tuple[float, float] | None = None,
+        plot_time_range: range_model.PlotTimeRange | None = None,
+        now_s: Callable[[], float] | None = None,
+        on_playback_bounds: Callable[[float, float], None] | None = None,
+        on_plot_time_range: Callable[[range_model.PlotTimeRange], None] | None = None,
+        on_plot_endpoint: Callable[[str, float], None] | None = None,
+        on_begin_time_range_edit: Callable[[], None] | None = None,
     ) -> None:
         self._on_seek = on_seek
         self._on_seek_to_time = on_seek_to_time
@@ -127,19 +145,50 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             wx.EXPAND | wx.LEFT | wx.RIGHT,
             8,
         )
-        timeline_sizer.Add(
-            wx.StaticText(self.timeline_panel, wx.ID_ANY, "Timeline"),
-            0,
-            wx.LEFT | wx.RIGHT | wx.TOP,
-            12,
+        timeline_sizer.Add((0, 44), 0)
+        coverage = oem_coverage or playback_bounds or (0.0, 1.0)
+        initial_playback = playback_bounds or coverage
+        initial_plot_rule = plot_time_range or range_model.PlotTimeRange(
+            False,
+            range_model.TimeRangeEndpoint("fixed", coverage[0]),
+            range_model.TimeRangeEndpoint("fixed", coverage[1]),
         )
+        current_time = now_s or (lambda: coverage[0])
+        self.timeline_slider = TimeRangeSlider(
+            self.timeline_panel,
+            on_playback=on_playback_bounds or (lambda _start, _end: None),
+            on_plot_endpoint=on_plot_endpoint or (lambda _name, _value: None),
+            on_begin_edit=on_begin_time_range_edit or (lambda: None),
+        )
+        self.timeline_slider.SetName("Playback timeline")
+        self.timeline_slider.Enable(timeline_enabled)
+        self.timeline_slider.Bind(wx.EVT_SLIDER, self._on_timeline_slider)
+        if timeline_tooltip_at is not None:
+            self._timeline_tooltip_at = timeline_tooltip_at
+            self._timeline_tooltip = set_tooltip(
+                self.timeline_slider,
+                timeline_tooltip_at(0.0),
+            )
+            # Let the motion handler position the first popup before the
+            # automatic hover timer can place it at the slider edge.
+            self._timeline_tooltip.SetStartDelay(1)
+            self.timeline_slider.Bind(wx.EVT_MOTION, self._on_timeline_motion)
+        timeline_sizer.Add(self.timeline_slider, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 0)
+        self.timeline_slider.set_ranges(
+            coverage, initial_playback, initial_plot_rule, current_time()
+        )
+        transport_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        # Use the slider's empty lower padding to keep transport controls near
+        # the visible track while preserving the handle-to-track clearance.
+        timeline_sizer.Add(transport_sizer, 0, wx.ALIGN_CENTER | wx.TOP, -14)
         time_label_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        # Shrink only displayed fractions; retain the full ISO-8601 timestamp.
-        self.timeline_start_label = wx.StaticText(self.timeline_panel, wx.ID_ANY, "")
+        # Show playback bounds, not OEM coverage; shrink only displayed fractions.
+        self.playback_start_label = wx.StaticText(self.timeline_panel, wx.ID_ANY, "")
         set_timestamp_label(
-            self.timeline_start_label, f"Start UTC: {timeline_start_utc}"
+            self.playback_start_label,
+            f"Start UTC: {_playback_utc(initial_playback[0])}",
         )
-        self.timeline_start_label.SetName("Timeline start time (UTC)")
+        self.playback_start_label.SetName("Playback range start time (UTC)")
         current_time_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.timeline_current_prefix = wx.StaticText(
             self.timeline_panel, wx.ID_ANY, "Current UTC:"
@@ -177,11 +226,14 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             self.timeline_time_entry, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4
         )
         current_time_sizer.Add(self.time_error_label, 1, wx.ALIGN_CENTER_VERTICAL)
-        self.timeline_end_label = wx.StaticText(self.timeline_panel, wx.ID_ANY, "")
-        set_timestamp_label(self.timeline_end_label, f"End UTC: {timeline_end_utc}")
-        self.timeline_end_label.SetName("Timeline end time (UTC)")
+        self.playback_end_label = wx.StaticText(self.timeline_panel, wx.ID_ANY, "")
+        set_timestamp_label(
+            self.playback_end_label,
+            f"End UTC: {_playback_utc(initial_playback[1])}",
+        )
+        self.playback_end_label.SetName("Playback range end time (UTC)")
         time_label_sizer.Add(
-            self.timeline_start_label,
+            self.playback_start_label,
             0,
             wx.ALIGN_CENTER_VERTICAL,
         )
@@ -189,12 +241,22 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         time_label_sizer.Add(current_time_sizer, 0, wx.ALIGN_CENTER_VERTICAL)
         time_label_sizer.Add((0, 0), 1, wx.EXPAND)
         time_label_sizer.Add(
-            self.timeline_end_label,
+            self.playback_end_label,
             0,
             wx.ALIGN_CENTER_VERTICAL,
         )
+        timeline_sizer.Add((0, 6), 0)
         timeline_sizer.Add(time_label_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
-        transport_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.time_range_editor = TimeRangeEditor(
+            self.timeline_panel,
+            playback=initial_playback,
+            plot_rule=initial_plot_rule,
+            now=current_time,
+            on_plot=on_plot_time_range or (lambda _rule: None),
+            on_begin_edit=on_begin_time_range_edit or (lambda: None),
+        )
+        timeline_sizer.Add((0, 6), 0)
+        timeline_sizer.Add(self.time_range_editor, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
         self.transport_speed_buttons: dict[float, wx.ToggleButton] = {}
         self._transport_button_labels: dict[float, str] = {}
         for rate, glyph, direction in (
@@ -285,31 +347,6 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             self.transport_speed_buttons[rate] = speed_button
             self._transport_button_labels[rate] = glyph
             transport_sizer.Add(speed_button, 0, wx.RIGHT, 4)
-        timeline_sizer.Add(transport_sizer, 0, wx.ALIGN_CENTER | wx.TOP, 4)
-        self.timeline_slider = wx.Slider(
-            self.timeline_panel,
-            wx.ID_ANY,
-            0,
-            0,
-            TIMELINE_SLIDER_MAX,
-            style=wx.SL_HORIZONTAL,
-        )
-        self.timeline_slider.SetName("Playback timeline")
-        self.timeline_slider.Enable(timeline_enabled)
-        self.timeline_slider.Bind(wx.EVT_SLIDER, self._on_timeline_slider)
-        if timeline_tooltip_at is not None:
-            self._timeline_tooltip_at = timeline_tooltip_at
-            self._timeline_tooltip = set_tooltip(
-                self.timeline_slider,
-                timeline_tooltip_at(0.0),
-            )
-            # Let the motion handler position the first popup before the
-            # automatic hover timer can place it at the slider edge.
-            self._timeline_tooltip.SetStartDelay(1)
-            self.timeline_slider.Bind(wx.EVT_MOTION, self._on_timeline_motion)
-        timeline_sizer.Add(
-            self.timeline_slider, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12
-        )
         self.timeline_panel.SetSizer(timeline_sizer)
         # Preserve the native controls' minimum widths when the frame narrows.
         # Reserve scrollbar height so the slider stays visible while scrolling.
@@ -342,6 +379,25 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         page_sizer = wx.BoxSizer(wx.VERTICAL)
         page_sizer.Add(panel, 1, wx.EXPAND)
         self.state_page.SetSizer(page_sizer)
+
+    def set_time_range_controls(
+        self,
+        coverage: tuple[float, float],
+        playback: tuple[float, float],
+        plot_rule: range_model.PlotTimeRange,
+        now_s: float,
+    ) -> None:
+        """Synchronize playback labels, plot controls, and range grips."""
+        set_timestamp_label(
+            self.playback_start_label,
+            f"Start UTC: {_playback_utc(playback[0])}",
+        )
+        set_timestamp_label(
+            self.playback_end_label,
+            f"End UTC: {_playback_utc(playback[1])}",
+        )
+        self.time_range_editor.set_state(playback, plot_rule)
+        self.timeline_slider.set_ranges(coverage, playback, plot_rule, now_s)
 
     def close(self) -> None:
         """Stop pending graph redraw work during workspace shutdown."""

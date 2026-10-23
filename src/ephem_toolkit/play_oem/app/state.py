@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import wx
 from matplotlib.backend_bases import MouseEvent
@@ -16,12 +16,16 @@ from .. import (
     playback_data,
     series,
     time_unit,
+    time_range,
     workspace,
 )
 from ..ground_track import GroundTrackCoordinates
 from ..saved_state import SavedAppState
 from ..views import base, registry
 from .support import _OpenView
+
+if TYPE_CHECKING:
+    from .status_bar import PlaybackStatusBar
 
 
 class PlayerAppState(Protocol):
@@ -50,11 +54,14 @@ class PlayerAppState(Protocol):
     _on_open_file_callback: Callable[[str], playback_data.PlaybackData] | None
     _open_panels: dict[str, _OpenView]
     _open_views: dict[str, _OpenView]
+    _clock_unsubscribe: Callable[[], None]
+    plot_time_range: time_range.PlotTimeRange
     _panel_view_choices: tuple[tuple[str, str], ...]
     _plots: tuple[str, ...]
     _requested_3d_backend: str
     _selected_3d_backend: str | None
     _started: bool
+    status_bar: PlaybackStatusBar
     _tick_interval_ms: int
     _timer: wx.Timer
     _view_registry: registry.ViewRegistry
@@ -157,3 +164,14 @@ class PlayerAppState(Protocol):
     def _jump_to_start(self) -> None: ...
     def _jump_to_end(self) -> None: ...
     def _seek_to_time(self, time_entry_text: str) -> None: ...
+    def _dispatch_time_range(
+        self,
+        resolved: time_range.ResolvedTimeRange | None,
+        time_s: float | None = None,
+    ) -> None: ...
+    def _begin_time_range_edit(self) -> None: ...
+    def _apply_playback_bounds(self, start_s: float, end_s: float) -> None: ...
+    def _apply_plot_time_range(self, rule: time_range.PlotTimeRange) -> None: ...
+    def _is_time_range_panel_visible(self, panel: object) -> bool: ...
+    def _queue_time_range_redraw(self, panel: object) -> None: ...
+    def _sync_open_panel(self, panel_id: str) -> None: ...

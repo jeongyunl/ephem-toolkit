@@ -92,6 +92,7 @@ class GraphPanelHost(wx.Panel):
         on_move_up: Callable[[], None] | None = None,
         on_move_down: Callable[[], None] | None = None,
         on_duplicate: Callable[[], None] | None = None,
+        on_show: Callable[[], None] | None = None,
     ) -> None:
         super().__init__(parent, wx.ID_ANY)
         if panel_id == "":
@@ -100,6 +101,7 @@ class GraphPanelHost(wx.Panel):
         self._on_close = on_close
         self._is_visible = is_visible or self.IsShownOnScreen
         self._on_redraw_request = on_redraw_request
+        self._on_show_callback = on_show
         self._redraw_throttle: _RedrawThrottle | None = None
         self._canvas: FigureCanvasWxAgg | None = None
         self._toolbar: NavigationToolbar2WxAgg | None = None
@@ -357,6 +359,8 @@ class GraphPanelHost(wx.Panel):
 
     def _on_show(self, event: wx.ShowEvent) -> None:
         if event.IsShown():
+            if self._on_show_callback is not None:
+                self._on_show_callback()
             self.request_redraw()
         event.Skip()
 

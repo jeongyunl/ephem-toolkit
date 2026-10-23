@@ -1306,6 +1306,47 @@ def test_closing_one_plot_unsubscribes_only_that_view(
     player.close()
 
 
+def test_controller_owns_one_clock_dispatch_and_hidden_panels_catch_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, views, _canvases, _frames = make_app(monkeypatch, plots=("speed-altitude",))
+    player.start()
+    opened = next(iter(player._open_panels.values()))
+    shown = [True]
+    monkeypatch.setattr(
+        player.workspace,
+        "is_graph_panel_visible",
+        lambda _panel: shown[0],
+        raising=False,
+    )
+    monkeypatch.setattr(
+        player.workspace,
+        "queue_graph_redraw",
+        lambda _panel: None,
+        raising=False,
+    )
+
+    assert len(player.clock._observers) == 1
+    player.open_panel_view("speed-altitude", "duplicate")
+    assert len(player.clock._observers) == 1
+    player.clock.seek(150.0)
+    assert views[0].updated_times[-1] == 150.0
+
+    shown[0] = False
+    player.clock.seek(160.0)
+    player.clock.seek(170.0)
+    assert views[0].updated_times[-1] == 150.0
+    assert opened.pending_time_s == 170.0
+    shown[0] = True
+    player._sync_open_panel(opened.panel_id)
+    assert views[0].updated_times[-1] == 170.0
+    assert opened.pending_time_s is None
+
+    player.close_panel("duplicate")
+    assert len(player.clock._observers) == 1
+    player.close()
+
+
 def test_panel_instances_can_duplicate_views_and_keep_independent_lifecycles(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1367,6 +1408,14 @@ def test_reloading_oem_replaces_views_without_removing_panels(
     )
     player.start()
     old_clock = player.clock
+    player._apply_playback_bounds(120.0, 180.0)
+    player._apply_plot_time_range(
+        app.time_range.PlotTimeRange(
+            True,
+            app.time_range.TimeRangeEndpoint("fixed", 130.0),
+            app.time_range.TimeRangeEndpoint("fixed", 170.0),
+        )
+    )
     original_panels = tuple(player.workspace.graph_panels)
     original_views = tuple(player._open_panels.values())
     monkeypatch.setattr(
@@ -1388,10 +1437,20 @@ def test_reloading_oem_replaces_views_without_removing_panels(
         metadata_details=(),
         source_sample_count=2,
     )
+    loaded.clock.set_playback_bounds(100.0, 180.0)
+    # Keep the existing clock-subscription assertions focused on replacement.
+    for view in views:
+        view.updated_times[:] = [100.0]
 
     player._replace_playback_data(loaded)
 
     assert player.clock is loaded.clock
+    assert (player.clock.playback_start, player.clock.playback_end) == (100.0, 200.0)
+    assert player.plot_time_range == app.time_range.PlotTimeRange(
+        False,
+        app.time_range.TimeRangeEndpoint("fixed", 100.0),
+        app.time_range.TimeRangeEndpoint("fixed", 200.0),
+    )
     assert len(player.workspace.graph_panels) == len(original_panels)
     assert all(panel.destroyed for panel in original_panels)
     assert all(view.view.closed for view in original_views)
@@ -1403,6 +1462,30 @@ def test_reloading_oem_replaces_views_without_removing_panels(
     assert all(view.updated_times == [100.0] for view in views[:3])
     player.clock.seek(150.0)
     assert all(view.updated_times == [100.0, 150.0] for view in views[3:])
+    player.close()
+
+
+def test_failed_oem_load_retains_session_ranges(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player._apply_playback_bounds(120.0, 180.0)
+    applied_plot_range = app.time_range.PlotTimeRange(
+        True,
+        app.time_range.TimeRangeEndpoint("fixed", 130.0),
+        app.time_range.TimeRangeEndpoint("fixed", 170.0),
+    )
+    player._apply_plot_time_range(applied_plot_range)
+    clock_before = player.clock
+    player._on_open_file_callback = lambda _path: (_ for _ in ()).throw(
+        ValueError("invalid OEM")
+    )
+
+    player._load_oem_file("broken.oem")
+
+    assert player.clock is clock_before
+    assert (player.clock.playback_start, player.clock.playback_end) == (120.0, 180.0)
+    assert player.plot_time_range == applied_plot_range
     player.close()
 
 

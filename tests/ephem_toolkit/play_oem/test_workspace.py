@@ -620,8 +620,8 @@ def make_workspace(
         on_set_transport_rate=on_set_transport_rate,
         on_step_samples=on_step_samples,
         timeline_enabled=timeline_enabled,
-        timeline_start_utc="2000-01-01T00:00:00.000",
-        timeline_end_utc="2000-01-01T00:01:00.000",
+        playback_bounds=(10.0, 90.0),
+        oem_coverage=(0.0, 100.0),
         on_seek_to_time=time_seeks.append,
         context={
             "object": "TEST",
@@ -744,13 +744,50 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     )
     assert frame.sizer.items[0][0] is result.main_splitter
     assert frame.sizer.items[1][0] is result.timeline_panel
-    assert result.timeline_start_label.label == ("Start UTC: 2000-01-01T00:00:00.000")
+    assert result.playback_start_label.label == (
+        f"Start UTC: {core._playback_utc(10.0)}"
+    )
     assert result.timeline_current_prefix.label == "Current UTC:"
     assert result.timeline_time_entry.name == "Current UTC or elapsed time"
     assert (
         result.timeline_time_entry.hint == "UTC timestamp or elapsed time, e.g. 1h30m"
     )
-    assert result.timeline_end_label.label == "End UTC: 2000-01-01T00:01:00.000"
+    assert result.playback_end_label.label == (
+        f"End UTC: {core._playback_utc(90.0)}"
+    )
+
+
+def test_playback_range_labels_track_current_playback_bounds() -> None:
+    class Label:
+        def __init__(self) -> None:
+            self.label = ""
+
+        def SetLabel(self, label: str) -> None:
+            self.label = label
+
+    start_label, end_label = Label(), Label()
+    editor_states = []
+    slider_states = []
+    result = SimpleNamespace(
+        playback_start_label=start_label,
+        playback_end_label=end_label,
+        time_range_editor=SimpleNamespace(
+            set_state=lambda *state: editor_states.append(state)
+        ),
+        timeline_slider=SimpleNamespace(
+            set_ranges=lambda *state: slider_states.append(state)
+        ),
+    )
+    plot_rule = SimpleNamespace(enabled=False)
+
+    core.Workspace.set_time_range_controls(
+        result, (0.0, 100.0), (20.0, 80.0), plot_rule, 50.0
+    )
+
+    assert start_label.label == f"Start UTC: {core._playback_utc(20.0)}"
+    assert end_label.label == f"End UTC: {core._playback_utc(80.0)}"
+    assert editor_states == [((20.0, 80.0), plot_rule)]
+    assert slider_states == [((0.0, 100.0), (20.0, 80.0), plot_rule, 50.0)]
 
 
 def test_transport_controls_dispatch_signed_rates_and_track_play_state(

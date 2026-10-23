@@ -23,8 +23,8 @@ def test_narrow_timeline_scrolls_without_shrinking_transport_buttons() -> None:
         frame,
         lambda _fraction: None,
         timeline_enabled=True,
-        timeline_start_utc="2026-10-23T00:00:00",
-        timeline_end_utc="2026-10-24T00:00:00",
+        playback_bounds=(10.0, 90.0),
+        oem_coverage=(0.0, 100.0),
     )
     try:
         frame.Show()
