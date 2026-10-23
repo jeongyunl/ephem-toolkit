@@ -271,12 +271,8 @@ class GroundTrackView:
         sizer.Add(controls, 0, wx.ALL, 6)
         sizer.Add(navigation, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
         map_row = wx.BoxSizer(wx.HORIZONTAL)
-        self._vertical_scroll = wx.ScrollBar(panel, style=wx.SB_VERTICAL)
-        self._horizontal_scroll = wx.ScrollBar(panel, style=wx.SB_HORIZONTAL)
         map_row.Add(self._canvas, 1, wx.EXPAND)
-        map_row.Add(self._vertical_scroll, 0, wx.EXPAND)
         sizer.Add(map_row, 1, wx.EXPAND)
-        sizer.Add(self._horizontal_scroll, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
         sizer.Add(
             self._coordinate_readout,
             0,
@@ -296,14 +292,6 @@ class GroundTrackView:
         self._canvas.mpl_connect("scroll_event", self._on_scroll)
         self._canvas.mpl_connect("button_release_event", self._on_navigation_release)
         self._axes.callbacks.connect("xlim_changed", self._on_limits_changed)
-        self._horizontal_scroll.Bind(
-            wx.EVT_SCROLL_THUMBTRACK, self._on_horizontal_scroll
-        )
-        self._horizontal_scroll.Bind(wx.EVT_SCROLL_LINEUP, self._on_horizontal_scroll)
-        self._horizontal_scroll.Bind(wx.EVT_SCROLL_LINEDOWN, self._on_horizontal_scroll)
-        self._vertical_scroll.Bind(wx.EVT_SCROLL_THUMBTRACK, self._on_vertical_scroll)
-        self._vertical_scroll.Bind(wx.EVT_SCROLL_LINEUP, self._on_vertical_scroll)
-        self._vertical_scroll.Bind(wx.EVT_SCROLL_LINEDOWN, self._on_vertical_scroll)
         panel.SetMinSize(wx.Size(640, 340))
         self._draw_map()
         return panel
