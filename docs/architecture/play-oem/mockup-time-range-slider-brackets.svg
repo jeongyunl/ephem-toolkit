@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="954" viewBox="0 0 1200 954" role="img" aria-labelledby="title desc">
+  <title id="title">A · Bracket grips</title>
+  <desc id="desc">Two fixed time points. Each endpoint has one value field followed by a Fixed time checkbox: checked means a fixed UTC timestamp, unchecked means an offset from playback time. OEM coverage is October 23, 2026 from 08:00 to 20:00 UTC. Independent playback bounds are 10:00 to 14:00. The main slider shows playback at 12:00 and plot range 11:00 to 15:00. A before-and-after diagram shows behavior at playback 13:00. Plotting is constrained only by OEM coverage.</desc>
+  <style>text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif} .mono{font-family:"DejaVu Sans Mono",Consolas,monospace}</style>
+  <rect width="1200" height="954" fill="#f3f6fa" />
+  <text x="24" y="36" font-size="23" fill="#24354b" font-weight="700" text-anchor="start">A · Bracket grips</text>
+  <text x="24" y="61" font-size="13" fill="#607188" font-weight="400" text-anchor="start">Two fixed time points · choose each endpoint type independently.</text>
+  <rect x="24" y="86" width="1152" height="404" rx="8" fill="#ffffff" stroke="#d7e0eb" />
+  <text x="48" y="124" font-size="14" fill="#24354b" font-weight="600" text-anchor="start">Playback bounds UTC</text>
+  <rect x="222" y="100" width="276" height="34" rx="6" fill="#f8fafd" stroke="#d7e0eb" />
+  <text x="235" y="122" font-size="13" fill="#24354b" font-weight="400" text-anchor="start">2026-10-23 10:00:00Z</text>
+  <text x="516" y="123" font-size="17" fill="#24354b" font-weight="400" text-anchor="start">→</text>
+  <rect x="550" y="100" width="276" height="34" rx="6" fill="#f8fafd" stroke="#d7e0eb" />
+  <text x="563" y="122" font-size="13" fill="#24354b" font-weight="400" text-anchor="start">2026-10-23 14:00:00Z</text>
+  <rect x="1054" y="100" width="98" height="34" rx="6" fill="#f8fafd" stroke="#d7e0eb" />
+  <text x="1103" y="122" font-size="13" fill="#24354b" font-weight="400" text-anchor="middle">Full OEM</text>
+  <text x="48" y="153" font-size="11" fill="#607188" font-weight="400" text-anchor="start">Independent of the plot range · only playback-bound edits can limit the clock</text>
+  <g transform="translate(0 76)">
+    <text x="48" y="121" font-size="16" fill="#24354b" font-weight="700" text-anchor="start">Plot range</text>
+    <rect x="160" y="103" width="18" height="18" rx="4" fill="#245ec7" stroke="#245ec7" />
+    <path d="M164 112 l4 4 7 -8" fill="none" stroke="white" stroke-width="2" />
+    <text x="186" y="117" font-size="13" fill="#24354b" font-weight="400" text-anchor="start">Enabled · all graphs</text>
+    <rect x="1020" y="100" width="132" height="31" rx="8" fill="#f5f8fc" stroke="#d7e0eb" />
+    <text x="1086" y="120" font-size="13" fill="#24354b" font-weight="400" text-anchor="middle">All OEM data</text>
+    <text x="430" y="117" font-size="11" fill="#607188" font-weight="400" text-anchor="start">Unchecked = offset from current playback time</text>
+    <text x="48" y="157" fill="#24354b" font-size="12" font-weight="600">From</text>
+    <rect x="96" y="140" width="222" height="26" rx="5" fill="#fff" stroke="#d7e0eb" />
+    <text x="107" y="157" fill="#24354b" font-size="12" font-weight="600">2026-10-23 11:00:00Z</text>
+    <rect x="330" y="145" width="16" height="16" rx="3" fill="#245ec7" stroke="#245ec7" />
+    <path d="M333 153 l3 3 6 -7" fill="none" stroke="white" stroke-width="1.8" />
+    <text x="354" y="157" fill="#24354b" font-size="12" font-weight="400">Fixed time</text>
+    <text x="432" y="157" fill="#607188" font-size="11" font-weight="400">Stays fixed during playback</text>
+    <text x="48" y="189" fill="#24354b" font-size="12" font-weight="600">To</text>
+    <rect x="96" y="172" width="222" height="26" rx="5" fill="#fff" stroke="#d7e0eb" />
+    <text x="107" y="189" fill="#24354b" font-size="12" font-weight="600">2026-10-23 15:00:00Z</text>
+    <rect x="330" y="177" width="16" height="16" rx="3" fill="#245ec7" stroke="#245ec7" />
+    <path d="M333 185 l3 3 6 -7" fill="none" stroke="white" stroke-width="1.8" />
+    <text x="354" y="189" fill="#24354b" font-size="12" font-weight="400">Fixed time</text>
+    <text x="432" y="189" fill="#607188" font-size="11" font-weight="400">Stays fixed during playback</text>
+    <g transform="translate(0 -16)">
+      <text x="48" y="239" font-size="12" fill="#607188" font-weight="400" text-anchor="start">Effective plot UTC</text>
+      <text x="176" y="239" font-size="13" fill="#24354b" font-weight="600" text-anchor="start">11:00 → 15:00 · extends beyond playback end</text>
+      <text x="1152" y="239" font-size="13" fill="#245ec7" font-weight="600" text-anchor="end">Playback 12:00 UTC · paused</text>
+      <rect x="348" y="307" width="336" height="38" rx="4" fill="#e7efff" stroke="#e7efff" />
+      <line x1="96" y1="326" x2="1104" y2="326" stroke="#c4cfdf" stroke-width="6" stroke-linecap="round" />
+      <line x1="264" y1="326" x2="600" y2="326" stroke="#96a7bc" stroke-width="10" />
+      <path d="M96 326 H264 M600 326 H1104" fill="none" stroke="#d8e0e9" stroke-width="6" stroke-dasharray="5 5" />
+      <path d="M264 312 V350 M600 312 V350" fill="none" stroke="#61748e" stroke-width="1.5" stroke-dasharray="3 3" />
+      <line x1="348" y1="326" x2="684" y2="326" stroke="#386fcb" stroke-width="6" />
+      <text x="348" y="279" font-size="12" fill="#245ec7" font-weight="600" text-anchor="middle">Fixed · 11:00 UTC</text>
+      <text x="684" y="279" font-size="12" fill="#245ec7" font-weight="600" text-anchor="middle">Fixed · 15:00 UTC</text>
+      <path d="M360 291 H348 V326 H360 M672 291 H684 V326 H672" fill="#ffffff" stroke="#245ec7" stroke-width="3" stroke-linejoin="round" />
+      <line x1="432" y1="314" x2="432" y2="343" stroke="#ac5015" stroke-width="2" />
+      <circle cx="432" cy="343" r="10" fill="#b85012" stroke="white" stroke-width="3" />
+      <text x="458" y="346" font-size="12" fill="#a14913" font-weight="600" text-anchor="start">12:00</text>
+      <line x1="96" y1="354" x2="96" y2="361" stroke="#9aacbf" stroke-width="1" />
+      <line x1="264" y1="354" x2="264" y2="361" stroke="#9aacbf" stroke-width="1" />
+      <line x1="432" y1="354" x2="432" y2="361" stroke="#9aacbf" stroke-width="1" />
+      <line x1="600" y1="354" x2="600" y2="361" stroke="#9aacbf" stroke-width="1" />
+      <line x1="768" y1="354" x2="768" y2="361" stroke="#9aacbf" stroke-width="1" />
+      <line x1="936" y1="354" x2="936" y2="361" stroke="#9aacbf" stroke-width="1" />
+      <line x1="1104" y1="354" x2="1104" y2="361" stroke="#9aacbf" stroke-width="1" />
+      <text x="96" y="382" font-size="12" fill="#607188" font-weight="400" text-anchor="middle">08:00</text>
+      <text x="264" y="382" font-size="12" fill="#607188" font-weight="400" text-anchor="middle">10:00</text>
+      <text x="432" y="382" font-size="12" fill="#607188" font-weight="400" text-anchor="middle">12:00</text>
+      <text x="600" y="382" font-size="12" fill="#607188" font-weight="400" text-anchor="middle">14:00</text>
+      <text x="768" y="382" font-size="12" fill="#607188" font-weight="400" text-anchor="middle">16:00</text>
+      <text x="936" y="382" font-size="12" fill="#607188" font-weight="400" text-anchor="middle">18:00</text>
+      <text x="1104" y="382" font-size="12" fill="#607188" font-weight="400" text-anchor="middle">20:00</text>
+      <text x="96" y="407" font-size="11" fill="#607188" font-weight="400" text-anchor="start">OEM start · 08:00 UTC</text>
+      <text x="1104" y="407" font-size="11" fill="#607188" font-weight="400" text-anchor="end">OEM end · 20:00 UTC</text>
+      <text x="600" y="407" font-size="11" fill="#607188" font-weight="400" text-anchor="middle">Playback span 10:00–14:00 · plot continues to 15:00</text>
+      <text x="32" y="461" font-size="14" fill="#24354b" font-weight="600" text-anchor="start">Each endpoint has its own type. Dragging its handle preserves that type.</text>
+      <text x="32" y="486" font-size="13" fill="#607188" font-weight="400" text-anchor="start">Plot range is independent of playback bounds and is clipped only to OEM coverage.</text>
+    </g>
+  </g>
+  <g transform="translate(0 -16)">
+    <rect x="24" y="586" width="1152" height="238" rx="7" fill="#ffffff" stroke="#d7e0eb" />
+    <text x="48" y="618" font-size="11" fill="#607188" font-weight="600" text-anchor="start">WHAT CHANGES WHEN PLAYBACK ADVANCES?</text>
+    <text x="48" y="644" font-size="16" fill="#24354b" font-weight="600" text-anchor="start">Both timestamps stay fixed.</text>
+    <text x="80" y="676" font-size="13" fill="#a14913" font-weight="600" text-anchor="start">Playback 12:00 UTC</text>
+    <line x1="80" y1="731" x2="520" y2="731" stroke="#d2dce8" stroke-width="5" />
+    <line x1="153.33333340000001" y1="731" x2="300.0000002" y2="731" stroke="#96a7bc" stroke-width="9" />
+    <line x1="190.0000001" y1="731" x2="336.6666669" y2="731" stroke="#386fcb" stroke-width="5" />
+    <path d="M198.0000001 707 H190.0000001 V731 H198.0000001 M328.6666669 707 H336.6666669 V731 H328.6666669" fill="none" stroke="#245ec7" stroke-width="2.5" />
+    <text x="190.0000001" y="700" font-size="12" fill="#245ec7" font-weight="600" text-anchor="middle">11:00</text>
+    <text x="336.6666669" y="700" font-size="12" fill="#245ec7" font-weight="600" text-anchor="middle">15:00</text>
+    <line x1="226.6666668" y1="720" x2="226.6666668" y2="745" stroke="#ac5015" stroke-width="2" />
+    <circle cx="226.6666668" cy="745" r="7" fill="#b85012" stroke="white" stroke-width="2" />
+    <text x="80" y="775" font-size="11" fill="#607188" font-weight="400" text-anchor="start">08:00</text>
+    <text x="520" y="775" font-size="11" fill="#607188" font-weight="400" text-anchor="end">20:00</text>
+    <text x="80" y="800" font-size="13" fill="#24354b" font-weight="600" text-anchor="start">Plot 11:00–15:00 UTC</text>
+    <text x="680" y="676" font-size="13" fill="#a14913" font-weight="600" text-anchor="start">Playback 13:00 UTC</text>
+    <line x1="680" y1="731" x2="1120" y2="731" stroke="#d2dce8" stroke-width="5" />
+    <line x1="753.3333334" y1="731" x2="900.0000001999999" y2="731" stroke="#96a7bc" stroke-width="9" />
+    <line x1="790.0000001" y1="731" x2="936.6666669" y2="731" stroke="#386fcb" stroke-width="5" />
+    <path d="M798.0000001 707 H790.0000001 V731 H798.0000001 M928.6666669 707 H936.6666669 V731 H928.6666669" fill="none" stroke="#245ec7" stroke-width="2.5" />
+    <text x="790.0000001" y="700" font-size="12" fill="#245ec7" font-weight="600" text-anchor="middle">11:00</text>
+    <text x="936.6666669" y="700" font-size="12" fill="#245ec7" font-weight="600" text-anchor="middle">15:00</text>
+    <line x1="863.3333335" y1="720" x2="863.3333335" y2="745" stroke="#ac5015" stroke-width="2" />
+    <circle cx="863.3333335" cy="745" r="7" fill="#b85012" stroke="white" stroke-width="2" />
+    <text x="680" y="775" font-size="11" fill="#607188" font-weight="400" text-anchor="start">08:00</text>
+    <text x="1120" y="775" font-size="11" fill="#607188" font-weight="400" text-anchor="end">20:00</text>
+    <text x="680" y="800" font-size="13" fill="#24354b" font-weight="600" text-anchor="start">Plot 11:00–15:00 UTC</text>
+    <text x="600" y="731" font-size="24" fill="#607188" font-weight="400" text-anchor="middle">→</text>
+    <rect x="24" y="844" width="1152" height="108" rx="7" fill="#ffffff" stroke="#d7e0eb" />
+    <text x="48" y="868" font-size="10" fill="#607188" font-weight="600" text-anchor="start">COINCIDENT POSITIONS</text>
+    <line x1="70" y1="920" x2="224" y2="920" stroke="#c3cfdf" stroke-width="5" />
+    <path d="M144 898 H132 V920 H144 M144 888 H156 V920 H144" fill="none" stroke="#245ec7" stroke-width="3" />
+    <line x1="144" y1="920" x2="144" y2="933" stroke="#a94c10" stroke-width="2" />
+    <circle cx="144" cy="938" r="7" fill="#b85012" stroke="white" stroke-width="2" />
+    <text x="270" y="883" font-size="14" fill="#24354b" font-weight="600" text-anchor="start">Separate grips, one time coordinate</text>
+    <text x="270" y="907" font-size="13" fill="#607188" font-weight="400" text-anchor="start">From and To stack above the rail; the playback thumb stays below it.</text>
+    <text x="270" y="930" font-size="12" fill="#607188" font-weight="400" text-anchor="start">Each target remains independently draggable and keyboard accessible.</text>
+  </g>
+</svg>
