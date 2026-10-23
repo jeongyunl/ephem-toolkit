@@ -272,11 +272,13 @@ class GroundTrackView:
         )
         controls.Add(minimum, 0)
         navigation = wx.BoxSizer(wx.HORIZONTAL)
-        home = wx.Button(controls_panel, label="Home", style=wx.BU_EXACTFIT)
+        reset_view = wx.Button(
+            controls_panel, label=" Reset view ", style=wx.BU_EXACTFIT
+        )
         zoom_in = wx.Button(controls_panel, label="+", style=wx.BU_EXACTFIT)
         zoom_out = wx.Button(controls_panel, label="−", style=wx.BU_EXACTFIT)
-        compact_controls((home, zoom_in, zoom_out))
-        for button in (home, zoom_in, zoom_out):
+        compact_controls((reset_view, zoom_in, zoom_out))
+        for button in (reset_view, zoom_in, zoom_out):
             button.SetMinSize(
                 wx.Size(max(button.FromDIP(24), button.GetBestSize().width), -1)
             )
@@ -314,7 +316,7 @@ class GroundTrackView:
         center.Bind(wx.EVT_SPINCTRLDOUBLE, self._on_center_control)
         center.Bind(wx.EVT_TEXT_ENTER, self._on_center_control)
         minimum.Bind(wx.EVT_SPINCTRL, self._on_minimum_control)
-        home.Bind(wx.EVT_BUTTON, lambda _event: self._go_home())
+        reset_view.Bind(wx.EVT_BUTTON, lambda _event: self._reset_view())
         zoom_in.Bind(wx.EVT_BUTTON, lambda _event: self._zoom(0.7))
         zoom_out.Bind(wx.EVT_BUTTON, lambda _event: self._zoom(1.0 / 0.7))
         self._canvas.mpl_connect("button_release_event", self._on_navigation_release)
@@ -622,16 +624,13 @@ class GroundTrackView:
             if self._canvas is not None:
                 self._canvas.draw_idle()
 
-    def _reset_extent(self) -> None:
-        self._draw_map()
-        if self._canvas is not None:
-            self._canvas.draw_idle()
-
-    def _go_home(self) -> None:
+    def _reset_view(self) -> None:
         self.center_longitude_deg = DEFAULT_CENTER_LONGITUDE_DEG
         if self._center_control is not None:
             self._center_control.SetValue(self.center_longitude_deg)
-        self._reset_extent()
+        self._draw_map()
+        if self._canvas is not None:
+            self._canvas.draw_idle()
 
     def _zoom(
         self, factor: float, x: float | None = None, y: float | None = None
