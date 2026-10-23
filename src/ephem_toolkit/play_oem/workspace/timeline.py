@@ -26,7 +26,7 @@ class _TimelineState(Protocol):
     _transport_button_labels: dict[float, str]
     _transport_playing: bool
     _transport_rate: float
-    timeline_panel: wx.Panel
+    timeline_panel: wx.ScrolledWindow
     timeline_slider: wx.Slider
     timeline_time_entry: wx.TextCtrl
     time_error_label: wx.StaticText

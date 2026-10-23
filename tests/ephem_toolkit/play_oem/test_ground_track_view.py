@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import gc
 import os
+from collections.abc import Iterator
 from typing import Any, cast
 
 import numpy as np
@@ -10,6 +12,18 @@ import pytest
 
 from ephem_toolkit.play_oem.ground_track import GroundTrackCoordinates
 from ephem_toolkit.play_oem.views import ground_track
+
+
+@pytest.fixture(scope="module")
+def wx_app() -> Iterator[Any]:
+    import wx
+
+    if not wx.App.IsDisplayAvailable():
+        pytest.skip("wx cannot connect to the available X display")
+    app = wx.App.Get() or wx.App(False)
+    yield app
+    # Collect Matplotlib callback cycles while the native application still lives.
+    gc.collect()
 
 
 @pytest.mark.parametrize("name", ground_track.PROJECTION_NAMES)
@@ -74,12 +88,9 @@ def test_pan_rotates_map_without_horizontal_viewport_drift(
 @pytest.mark.skipif(
     not os.environ.get("DISPLAY"), reason="requires an X display (use xvfb-run)"
 )
-def test_wx_view_builds_controls_and_updates_minimum_elevation() -> None:
+def test_wx_view_builds_controls_and_updates_minimum_elevation(wx_app: Any) -> None:
     import wx
 
-    if not wx.App.IsDisplayAvailable():
-        pytest.skip("wx cannot connect to the available X display")
-    app = wx.App.Get() or wx.App(False)
     frame = wx.Frame(None)
     coordinates = GroundTrackCoordinates(
         np.array([0.0, 10.0]),
@@ -112,4 +123,42 @@ def test_wx_view_builds_controls_and_updates_minimum_elevation() -> None:
     assert minimum_control.GetValue() == 15
     view.close()
     frame.Destroy()
-    app.ProcessPendingEvents()
+    wx_app.ProcessPendingEvents()
+
+
+@pytest.mark.skipif(
+    not os.environ.get("DISPLAY"), reason="requires an X display (use xvfb-run)"
+)
+def test_resizing_host_preserves_spin_control_sizes(wx_app: Any) -> None:
+    import wx
+
+    from ephem_toolkit.play_oem.graph_panel import GraphPanelHost
+
+    frame = wx.Frame(None, size=(1500, 600))
+    host = GraphPanelHost(frame, "Ground Track", lambda: None)
+    view = ground_track.GroundTrackView(
+        host.graph_scroller, None, None, cast(Any, None), "Test object"
+    )
+    try:
+        content = view.build(cast(Any, None), cast(Any, None))
+        host.set_native_content(content)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(host, 1, wx.EXPAND)
+        frame.SetSizer(sizer)
+        frame.Show()
+        for width in (1500, 900, 640, 400, 1500):
+            frame.SetSize((width, 600))
+            wx_app.Yield()
+            for control in (view._center_control, view._minimum_control):
+                assert control is not None
+                assert control.GetSize().width >= control.GetBestSize().width
+                assert control.GetSize().height >= control.GetBestSize().height
+            if width == 400:
+                assert (
+                    host.graph_scroller.GetVirtualSize().width
+                    > host.graph_scroller.GetClientSize().width
+                )
+    finally:
+        view.close()
+        frame.Destroy()
+        wx_app.Yield()

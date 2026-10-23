@@ -115,7 +115,10 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             self.controls_pane, self.graph_panes_splitter, 240
         )
 
-        self.timeline_panel = wx.Panel(frame, wx.ID_ANY)
+        self.timeline_panel = wx.ScrolledWindow(
+            frame, wx.ID_ANY, style=wx.HSCROLL | wx.TAB_TRAVERSAL
+        )
+        self.timeline_panel.SetScrollRate(10, 0)
         timeline_sizer = wx.BoxSizer(wx.VERTICAL)
         # Give the timeline a clear boundary from the resizable analysis panes.
         timeline_sizer.Add(
@@ -308,6 +311,16 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             self.timeline_slider, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12
         )
         self.timeline_panel.SetSizer(timeline_sizer)
+        # Preserve the native controls' minimum widths when the frame narrows.
+        # Reserve scrollbar height so the slider stays visible while scrolling.
+        self.timeline_panel.SetMinSize(
+            wx.Size(
+                -1,
+                timeline_sizer.CalcMin().height
+                + wx.SystemSettings.GetMetric(wx.SYS_HSCROLL_Y),
+            )
+        )
+        self.timeline_panel.FitInside()
 
         main_sizer.Add(self.main_splitter, 1, wx.EXPAND)
         main_sizer.Add(self.timeline_panel, 0, wx.EXPAND)

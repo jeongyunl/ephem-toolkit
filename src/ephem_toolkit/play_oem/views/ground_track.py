@@ -291,7 +291,10 @@ class GroundTrackView:
         pan.Bind(wx.EVT_TOGGLEBUTTON, lambda _event: toolbar.pan())
         self._canvas.mpl_connect("button_release_event", self._on_navigation_release)
         self._axes.callbacks.connect("xlim_changed", self._on_limits_changed)
-        panel.SetMinSize(wx.Size(640, 340))
+        # Keep the native spin controls at their requested widths. The host's
+        # scroller handles narrower windows; shrinking this row can otherwise
+        # allocate zero width to a GtkSpinButton during resize.
+        panel.SetMinSize(wx.Size(max(640, controls.CalcMin().width + 12), 340))
         self._draw_map()
         return panel
 
