@@ -20,9 +20,6 @@ MAX_NATURAL_GRAPH_PANEL_HEIGHT: int = 900
 SASH_DRAG_MIN_PANE: int = 1
 """wx-level pane floor for stack splitters; panel minimums are enforced by the stack layout."""
 
-BOTTOM_HANDLE_HEIGHT: int = 12
-"""Height of the grab strip below the bottom-most graph panel that resizes that panel."""
-
 DEFAULT_RIGHT_PANE_WIDTH: int = 320
 """Initial width of the optional right graph pane."""
 

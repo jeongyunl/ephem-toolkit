@@ -10,7 +10,6 @@ import wx
 
 from ..graph_panel import GRAPH_PANEL_MIN_SIZE, GraphPanelHost
 from .constants import (
-    BOTTOM_HANDLE_HEIGHT,
     GRAPH_REDRAW_INTERVAL_MS,
     MAX_NATURAL_GRAPH_PANEL_HEIGHT,
     MIN_GRAPH_PANEL_HEIGHT,
@@ -523,6 +522,16 @@ class GraphStackMixin:
         else:
             # Keep panels at their requested heights rather than stretching them to
             # the viewport, and keep the resize handle directly below the stack.
+            bottom_panel = self._bottom_graph_panel(stack)
+            bottom_parent = (
+                bottom_panel.GetParent() if bottom_panel is not None else None
+            )
+            handle_height = (
+                bottom_parent.GetSashSize()
+                if isinstance(bottom_parent, wx.SplitterWindow)
+                else self.graph_panes_splitter.GetDefaultSashSize()
+            )
+            handle.SetMinSize(wx.Size(-1, handle_height))
             sizer.GetItem(root).SetProportion(0)
             sizer.Detach(handle)
             if handle.GetParent() is not window:
@@ -748,7 +757,9 @@ class GraphStackMixin:
         empty_state_panel.SetSizer(empty_state_sizer)
         stack_sizer.Add(empty_state_panel, 0, wx.EXPAND)
         bottom_resize_handle = wx.Panel(stack_scroller, wx.ID_ANY)
-        bottom_resize_handle.SetMinSize(wx.Size(-1, BOTTOM_HANDLE_HEIGHT))
+        bottom_resize_handle.SetMinSize(
+            wx.Size(-1, self.graph_panes_splitter.GetDefaultSashSize())
+        )
         bottom_resize_handle.SetBackgroundColour(
             wx.SystemSettings.GetColour(wx.SYS_COLOUR_3DSHADOW)
         )

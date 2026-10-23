@@ -3,7 +3,6 @@
 import wx as wx
 
 from .constants import (
-    BOTTOM_HANDLE_HEIGHT,
     COMPARISON_PANE_NAME,
     CONTROLS_PANE_NAME,
     DEFAULT_RIGHT_PANE_WIDTH,
@@ -18,7 +17,6 @@ from .constants import (
 from .core import Workspace
 
 __all__ = [
-    "BOTTOM_HANDLE_HEIGHT",
     "COMPARISON_PANE_NAME",
     "CONTROLS_PANE_NAME",
     "DEFAULT_RIGHT_PANE_WIDTH",
