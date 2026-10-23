@@ -289,7 +289,6 @@ class GroundTrackView:
         zoom_in.Bind(wx.EVT_BUTTON, lambda _event: self._zoom(0.7))
         zoom_out.Bind(wx.EVT_BUTTON, lambda _event: self._zoom(1.0 / 0.7))
         pan.Bind(wx.EVT_TOGGLEBUTTON, lambda _event: toolbar.pan())
-        self._canvas.mpl_connect("scroll_event", self._on_scroll)
         self._canvas.mpl_connect("button_release_event", self._on_navigation_release)
         self._axes.callbacks.connect("xlim_changed", self._on_limits_changed)
         panel.SetMinSize(wx.Size(640, 340))
@@ -585,14 +584,6 @@ class GroundTrackView:
         self._axes.set_ylim(y + (ylim[0] - y) * factor, y + (ylim[1] - y) * factor)
         if self._canvas is not None:
             self._canvas.draw_idle()
-
-    def _on_scroll(self, event: Any) -> None:
-        if (
-            event.inaxes is self._axes
-            and event.xdata is not None
-            and event.ydata is not None
-        ):
-            self._zoom(0.8 if event.button == "up" else 1.25, event.xdata, event.ydata)
 
     def _on_limits_changed(self, _axes: Any) -> None:
         self._sync_center_from_extent()
