@@ -64,6 +64,12 @@ def test_pan_rotates_map_without_horizontal_viewport_drift(
     assert float(background.max()) <= 1.0
     original_xlim = view._axes.get_xlim()
     original_ylim = view._axes.get_ylim()
+    np.testing.assert_allclose(
+        view._axes.get_xticks(),
+        view._projection(np.arange(-180.0, 181.0, 60.0), np.zeros(7))[0],
+        atol=1e-5,
+    )
+    original_zero_x = view._axes.get_xticks()[3]
     centers = []
     for _ in range(3):
         view._pan_map(20, 40)
@@ -73,6 +79,26 @@ def test_pan_rotates_map_without_horizontal_viewport_drift(
         assert view._axes.get_ylim() == pytest.approx(original_ylim)
         x, _ = view._projection(view.center_longitude_deg, 0, errcheck=True)
         assert x == pytest.approx(0, abs=1e-6)
+        tick_longitudes, _ = view._projection(
+            view._axes.get_xticks(),
+            np.zeros_like(view._axes.get_xticks()),
+            inverse=True,
+        )
+        np.testing.assert_allclose(np.diff(tick_longitudes), 60.0, atol=1e-5)
+        np.testing.assert_allclose(
+            tick_longitudes / 60.0, np.round(tick_longitudes / 60.0), atol=1e-5
+        )
+        zero_index = int(np.argmin(np.abs(tick_longitudes)))
+        assert view._axes.get_xticks()[zero_index] > original_zero_x
+        assert view._axes.get_xticklabels()[zero_index].get_text() == "0°"
+        meridian = view._axes.lines[zero_index]
+        np.testing.assert_allclose(
+            meridian.get_xdata(),
+            view._projection(
+                np.zeros(181), np.linspace(-90.0, 90.0, 181), errcheck=True
+            )[0],
+            atol=1e-5,
+        )
     assert centers[2] < centers[1] < centers[0] < 0
     # Zooming in permits vertical movement, bounded by the projected poles.
     zoomed_ylim = tuple(value * 0.5 for value in original_ylim)

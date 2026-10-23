@@ -373,8 +373,13 @@ class GroundTrackView:
         axes.set_title(f"{self._object_name} · Ground Track")
         axes.grid(False)
 
-        relative_ticks = np.array([-180.0, -90.0, 0.0, 90.0, 180.0])
-        tick_longitudes = self.center_longitude_deg + relative_ticks
+        # Anchor meridians to geographic longitude so they move with the map
+        # when panning changes the projection's central meridian.
+        west = self.center_longitude_deg - 180.0
+        east = self.center_longitude_deg + 180.0
+        tick_longitudes = (
+            np.arange(np.ceil(west / 60.0), np.floor(east / 60.0) + 1) * 60.0
+        )
         tick_x, _ = self._projection(
             tick_longitudes, np.zeros_like(tick_longitudes), errcheck=True
         )
@@ -391,8 +396,7 @@ class GroundTrackView:
 
         graticule_latitudes = np.linspace(-90.0, 90.0, 181)
         graticule_longitudes = np.linspace(-180.0, 180.0, 361)
-        for relative_lon in relative_ticks:
-            longitude = self.center_longitude_deg + relative_lon
+        for longitude in tick_longitudes:
             x, y = self._projection(
                 np.full_like(graticule_latitudes, longitude),
                 graticule_latitudes,
@@ -407,7 +411,8 @@ class GroundTrackView:
             )
             axes.plot(x, y, color="#cbd6e2", linewidth=0.7, zorder=0)
 
-        world_x = np.asarray(tick_x, dtype=float)
+        edge_x, _ = self._projection([west, east], [0.0, 0.0], errcheck=True)
+        world_x = np.asarray(edge_x, dtype=float)
         pole_x, pole_y = self._projection(
             np.array([self.center_longitude_deg, self.center_longitude_deg]),
             np.array([-90.0, 90.0]),
