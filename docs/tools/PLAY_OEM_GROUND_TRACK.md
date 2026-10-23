@@ -31,7 +31,7 @@ At 0°, the two footprint boundaries coincide. At 90°, the minimum-elevation fo
 to the sub-satellite point.
 
 Center longitude is entered in degrees east and wraps to `[-180°, 180°)`. The Home button
-restores a full-world extent around the selected center. Use the toolbar's pan mode, the zoom
+restores a full-world extent around the selected center. Use the Pan button, the zoom
 buttons, the mouse wheel, or the map scrollbars to navigate. Navigation applies only to the map
 panel and does not seek the playback timeline. The center control follows horizontal map
 navigation.
@@ -40,6 +40,4 @@ The selected minimum elevation is shared by open Ground Track panels and saved i
 state file. Projection and center are per-panel session preferences and are not restored after
 restarting `play-oem`.
 
-See the [Ground Track software design](../architecture/play-oem/PLAY_OEM_GROUND_TRACK_SOFTWARE_DESIGN.md),
-[selected GUI design](../architecture/play-oem/PLAY_OEM_GROUND_TRACK_GUI_DESIGN.md), and
-[implementation plan](../architecture/play-oem/PLAY_OEM_GROUND_TRACK_IMPLEMENTATION_PLAN.md).
+See the [Ground Track implementation report](../architecture/play-oem/old/PLAY_OEM_GROUND_TRACK_IMPLEMENTATION_PLAN.md).

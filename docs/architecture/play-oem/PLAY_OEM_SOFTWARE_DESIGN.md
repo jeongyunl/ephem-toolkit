@@ -5,9 +5,7 @@ Requirements: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md). Baseline code: `sr
 GUI toolkit: **wxPython** is the sole GUI framework (§3). The earlier Tkinter design is superseded
 by the migration in [PLAY_OEM_IMPLEMENTATION_PLAN.md](./PLAY_OEM_IMPLEMENTATION_PLAN.md), steps 15–23.
 
-Proposed Ground Track view: [software design](./PLAY_OEM_GROUND_TRACK_SOFTWARE_DESIGN.md) and
-[GUI design](./PLAY_OEM_GROUND_TRACK_GUI_DESIGN.md). These documents describe a planned graph
-view; the current registry and runtime do not yet include it.
+Implemented Ground Track view: see the [completion report](./old/PLAY_OEM_GROUND_TRACK_IMPLEMENTATION_PLAN.md) and [end-user guide](../../tools/PLAY_OEM_GROUND_TRACK.md).
 
 ## 1. Approach: copy and modify `plot-oem`
 
