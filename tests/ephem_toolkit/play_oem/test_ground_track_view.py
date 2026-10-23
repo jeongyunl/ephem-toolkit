@@ -136,8 +136,15 @@ def test_resizing_host_preserves_spin_control_sizes(wx_app: Any) -> None:
 
     frame = wx.Frame(None, size=(1500, 600))
     host = GraphPanelHost(frame, "Ground Track", lambda: None)
+    coordinates = GroundTrackCoordinates(
+        np.array([0.0, 10.0]),
+        np.array([0.0, 0.1]),
+        np.array([0.0, 0.2]),
+        np.array([0, 0]),
+        "ITRF",
+    )
     view = ground_track.GroundTrackView(
-        host.graph_scroller, None, None, cast(Any, None), "Test object"
+        host.graph_scroller, None, coordinates, cast(Any, None), "Test object"
     )
     try:
         content = view.build(cast(Any, None), cast(Any, None))
@@ -146,9 +153,23 @@ def test_resizing_host_preserves_spin_control_sizes(wx_app: Any) -> None:
         sizer.Add(host, 1, wx.EXPAND)
         frame.SetSizer(sizer)
         frame.Show()
+        original_map_width = None
         for width in (1500, 900, 640, 400, 1500):
             frame.SetSize((width, 600))
             wx_app.Yield()
+            if "gtk3" in wx.PlatformInfo:
+                for child in content.GetChildren():
+                    if isinstance(
+                        child,
+                        (
+                            wx.Choice,
+                            wx.SpinCtrl,
+                            wx.SpinCtrlDouble,
+                            wx.Button,
+                            wx.ToggleButton,
+                        ),
+                    ):
+                        assert child.GetSize().height <= child.FromDIP(24)
             for control in (view._center_control, view._minimum_control):
                 assert control is not None
                 assert control.GetSize().width >= control.GetBestSize().width
@@ -158,6 +179,16 @@ def test_resizing_host_preserves_spin_control_sizes(wx_app: Any) -> None:
                     host.graph_scroller.GetVirtualSize().width
                     > host.graph_scroller.GetClientSize().width
                 )
+            assert view._canvas is not None
+            view._canvas.draw()
+            bounds = view._axes.get_window_extent()
+            if original_map_width is None:
+                original_map_width = bounds.width
+            # GTK can redistribute a few pixels when a scrollbar appears.
+            assert bounds.width >= original_map_width * 0.99
+            if width <= 640:
+                assert bounds.x0 <= 90
+                assert view._canvas.GetSize().width - bounds.x1 <= 40
     finally:
         view.close()
         frame.Destroy()

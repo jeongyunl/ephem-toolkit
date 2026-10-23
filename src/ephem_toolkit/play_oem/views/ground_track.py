@@ -35,6 +35,7 @@ from ..ground_track import (
 )
 from ..series import OrbitSeries
 from ..time_unit import TimeUnit
+from .compact_controls import compact_controls
 from .plotting import decimate_indices
 
 PROJECTION_SPECS = {
@@ -210,66 +211,94 @@ class GroundTrackView:
 
     def build(self, _series: OrbitSeries, _time_unit: TimeUnit, /) -> wx.Window:
         panel = wx.Panel(self._parent, wx.ID_ANY)
+        panel.SetWindowVariant(wx.WINDOW_VARIANT_SMALL)
         self._panel = panel
-        self._figure = Figure(figsize=(10.0, 5.0), dpi=100)
+        self._figure = Figure(figsize=(9.0, 5.0), dpi=100)
         self._axes = self._figure.add_subplot(111)
         self._canvas = FigureCanvasWxAgg(panel, wx.ID_ANY, self._figure)
+        self._canvas.SetMinSize(wx.Size(900, 500))
         toolbar = GroundTrackToolbar(self._canvas, self._pan_map)
         toolbar.Realize()
         toolbar.Hide()
-        projection = wx.Choice(panel, choices=list(PROJECTION_NAMES))
+        controls_panel = wx.ScrolledWindow(
+            panel, wx.ID_ANY, style=wx.HSCROLL | wx.TAB_TRAVERSAL
+        )
+        controls_panel.SetName("Ground Track controls")
+        controls_panel.SetScrollRate(10, 0)
+        projection = wx.Choice(controls_panel, choices=list(PROJECTION_NAMES))
         projection.SetStringSelection(self.projection_name)
-        background = wx.Choice(panel, choices=list(BACKGROUND_CHOICES))
+        background = wx.Choice(controls_panel, choices=list(BACKGROUND_CHOICES))
         background.SetStringSelection(self.background_style)
         background.SetName("Ground Track background")
-        center = wx.SpinCtrlDouble(panel, min=-180.0, max=180.0, initial=0.0, inc=1.0)
+        center = wx.SpinCtrlDouble(
+            controls_panel, min=-180.0, max=180.0, initial=0.0, inc=1.0
+        )
         center.SetDigits(1)
-        minimum = wx.SpinCtrl(panel, min=0, max=90, initial=self.minimum_elevation_deg)
+        minimum = wx.SpinCtrl(
+            controls_panel, min=0, max=90, initial=self.minimum_elevation_deg
+        )
         minimum.SetName("Minimum elevation in degrees")
+        compact_controls((projection, background, center, minimum))
         self._center_control = center
         self._minimum_control = minimum
         controls = wx.BoxSizer(wx.HORIZONTAL)
         controls.Add(
-            wx.StaticText(panel, label="Projection"),
+            wx.StaticText(controls_panel, label="Projection"),
             0,
             wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
             4,
         )
-        controls.Add(projection, 0, wx.RIGHT, 12)
+        controls.Add(projection, 0, wx.RIGHT, 8)
         controls.Add(
-            wx.StaticText(panel, label="Background"),
+            wx.StaticText(controls_panel, label="Background"),
             0,
             wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
             4,
         )
-        controls.Add(background, 0, wx.RIGHT, 12)
+        controls.Add(background, 0, wx.RIGHT, 8)
         controls.Add(
-            wx.StaticText(panel, label="Center longitude (°E)"),
+            wx.StaticText(controls_panel, label="Center longitude (°E)"),
             0,
             wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
             4,
         )
-        controls.Add(center, 0, wx.RIGHT, 12)
+        controls.Add(center, 0, wx.RIGHT, 8)
         controls.Add(
-            wx.StaticText(panel, label="Minimum elevation (°)"),
+            wx.StaticText(controls_panel, label="Minimum elevation (°)"),
             0,
             wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
             4,
         )
         controls.Add(minimum, 0)
         navigation = wx.BoxSizer(wx.HORIZONTAL)
-        home = wx.Button(panel, label="Home")
-        zoom_in = wx.Button(panel, label="+")
-        zoom_out = wx.Button(panel, label="−")
-        pan = wx.ToggleButton(panel, label="Pan")
+        home = wx.Button(controls_panel, label="Home", style=wx.BU_EXACTFIT)
+        zoom_in = wx.Button(controls_panel, label="+", style=wx.BU_EXACTFIT)
+        zoom_out = wx.Button(controls_panel, label="−", style=wx.BU_EXACTFIT)
+        pan = wx.ToggleButton(controls_panel, label="Pan", style=wx.BU_EXACTFIT)
+        compact_controls((home, zoom_in, zoom_out, pan))
         for button in (home, zoom_in, zoom_out, pan):
+            button.SetMinSize(
+                wx.Size(max(button.FromDIP(24), button.GetBestSize().width), -1)
+            )
             navigation.Add(button, 0, wx.RIGHT, 4)
+        controls_sizer = wx.BoxSizer(wx.VERTICAL)
+        controls_sizer.Add(controls, 0, wx.LEFT | wx.RIGHT | wx.TOP, 2)
+        controls_sizer.AddSpacer(2)
+        controls_sizer.Add(navigation, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 2)
+        controls_panel.SetSizer(controls_sizer)
+        controls_panel.SetMinSize(
+            wx.Size(
+                1,
+                controls_sizer.CalcMin().height
+                + wx.SystemSettings.GetMetric(wx.SYS_HSCROLL_Y),
+            )
+        )
+        controls_panel.FitInside()
         self._coordinate_readout = wx.StaticText(panel, wx.ID_ANY, "Lat —  ·  Lon —")
         self._coordinate_readout.SetName("Ground Track current coordinates")
 
         sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(controls, 0, wx.ALL, 6)
-        sizer.Add(navigation, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
+        sizer.Add(controls_panel, 0, wx.EXPAND)
         map_row = wx.BoxSizer(wx.HORIZONTAL)
         map_row.Add(self._canvas, 1, wx.EXPAND)
         sizer.Add(map_row, 1, wx.EXPAND)
@@ -291,10 +320,34 @@ class GroundTrackView:
         pan.Bind(wx.EVT_TOGGLEBUTTON, lambda _event: toolbar.pan())
         self._canvas.mpl_connect("button_release_event", self._on_navigation_release)
         self._axes.callbacks.connect("xlim_changed", self._on_limits_changed)
-        # Keep the native spin controls at their requested widths. The host's
-        # scroller handles narrower windows; shrinking this row can otherwise
-        # allocate zero width to a GtkSpinButton during resize.
-        panel.SetMinSize(wx.Size(max(640, controls.CalcMin().width + 12), 340))
+        # Keep the map's height when the window narrows; scroll instead of
+        # shrinking it. The controls row does not dictate the canvas width.
+        panel.SetMinSize(sizer.CalcMin())
+
+        def fit_controls(event: wx.SizeEvent | None = None) -> None:
+            if event is not None:
+                event.Skip()
+            if not controls_panel:
+                return
+            # GTK's compact sizes settle after creation. Discard the original
+            # best sizes before measuring the two rows again.
+            for child in controls_panel.GetChildren():
+                child.InvalidateBestSize()
+            required = controls_sizer.CalcMin()
+            height = required.height
+            if required.width > controls_panel.GetClientSize().width:
+                height += wx.SystemSettings.GetMetric(wx.SYS_HSCROLL_Y)
+            if controls_panel.GetMinSize().height == height:
+                return
+            controls_panel.SetMinSize(wx.Size(1, height))
+            controls_panel.FitInside()
+            panel.SetMinSize(sizer.CalcMin())
+            panel.Layout()
+            if isinstance(self._parent, wx.ScrolledWindow):
+                self._parent.FitInside()
+
+        controls_panel.Bind(wx.EVT_SIZE, fit_controls)
+        wx.CallAfter(fit_controls)
         self._draw_map()
         return panel
 
@@ -313,7 +366,7 @@ class GroundTrackView:
         self._projection = _make_projection(
             self.projection_name, self.center_longitude_deg
         )
-        axes.set_aspect("equal", adjustable="box")
+        axes.set_aspect("equal", adjustable="box", anchor="C")
         axes.set_xlabel("Longitude (deg)")
         axes.set_ylabel("Geodetic latitude (deg)")
         axes.set_title(f"{self._object_name} · Ground Track")
@@ -469,7 +522,7 @@ class GroundTrackView:
             frameon=False,
             bbox_to_anchor=(0.5, 0.01),
         )
-        self._figure.subplots_adjust(left=0.1, right=0.98, bottom=0.18, top=0.9)
+        self._figure.subplots_adjust(left=0.08, right=0.98, bottom=0.15, top=0.95)
         if current_time_s is not None:
             self.update(current_time_s)
 
