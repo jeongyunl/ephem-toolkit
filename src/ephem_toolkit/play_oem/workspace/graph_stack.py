@@ -599,7 +599,9 @@ class GraphStackMixin:
         pane = self._stack_roots[stack]
         while isinstance(pane, wx.SplitterWindow):
             pane = pane.GetWindow2()
-        return cast(GraphPanelHost | None, pane)
+        if pane is None:
+            return None
+        return cast(GraphPanelHost, pane)
 
     def _on_bottom_handle_down(
         self: _GraphStackState, stack: str, event: wx.MouseEvent
