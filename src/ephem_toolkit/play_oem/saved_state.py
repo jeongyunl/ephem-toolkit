@@ -22,11 +22,24 @@ STATE_FILENAME = "play-oem-state.toml"
 STATE_VERSION = 3
 FPS_MIN = 1
 FPS_MAX = 30
-DEFAULT_FPS = 30
 MAX_RECENT_FILES = 15
-DEFAULT_WINDOW_SIZE = (1100, 760)
 MIN_STORED_WINDOW_DIMENSION = 320
 MAX_STORED_WINDOW_DIMENSION = 10000
+
+# Default values are kept together for easy review and adjustment.
+DEFAULT_FPS = 30
+DEFAULT_WINDOW_SIZE = (1100, 760)
+DEFAULT_MINIMUM_ELEVATION_DEG = 10
+DEFAULT_GROUND_TRACK_PROJECTION = "Robinson"
+DEFAULT_GROUND_TRACK_BACKGROUND = "Shaded relief"
+DEFAULT_GROUND_TRACK_CENTER_LONGITUDE_DEG = 0.0
+
+GROUND_TRACK_PROJECTIONS = ("Robinson", "Equirectangular")
+GROUND_TRACK_BACKGROUNDS = ("Shaded relief", "Satellite imagery", "Political map")
+MINIMUM_ELEVATION_DEG_RANGE = (0, 90)
+CENTER_LONGITUDE_DEG_RANGE = (-180.0, 180.0)
+EMPTY_EXTENT = []
+GROUND_TRACK_EXTENT_KEYS = ("xlim", "ylim")
 
 
 @dataclass
@@ -38,7 +51,12 @@ class SavedAppState:
     maximized: bool = False
     recent_files: list[str] = field(default_factory=list)
     open_plots: list[str] | None = None
-    minimum_elevation_deg: int = 10
+    minimum_elevation_deg: int = DEFAULT_MINIMUM_ELEVATION_DEG
+    ground_track_projection: str = DEFAULT_GROUND_TRACK_PROJECTION
+    ground_track_background: str = DEFAULT_GROUND_TRACK_BACKGROUND
+    ground_track_center_longitude_deg: float = DEFAULT_GROUND_TRACK_CENTER_LONGITUDE_DEG
+    ground_track_xlim: tuple[float, float] | None = None
+    ground_track_ylim: tuple[float, float] | None = None
     fps: int | None = None
 
 
@@ -155,8 +173,25 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
     ground_track = document.get("ground_track", {})
     if not isinstance(ground_track, dict):
         return _state_error(state_path, "[ground_track] must be a TOML table")
-    if set(ground_track) - {"minimum_elevation_deg"}:
-        unknown = sorted(set(ground_track) - {"minimum_elevation_deg"})[0]
+    if set(ground_track) - {
+        "minimum_elevation_deg",
+        "projection",
+        "background",
+        "center_longitude_deg",
+        "xlim",
+        "ylim",
+    }:
+        unknown = sorted(
+            set(ground_track)
+            - {
+                "minimum_elevation_deg",
+                "projection",
+                "background",
+                "center_longitude_deg",
+                "xlim",
+                "ylim",
+            }
+        )[0]
         return _state_error(state_path, f"unknown key ground_track.{unknown!s}")
     minimum_elevation = ground_track.get("minimum_elevation_deg", 10)
     if not _is_int(minimum_elevation) or not 0 <= minimum_elevation <= 90:
@@ -164,6 +199,44 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
             state_path,
             "ground_track.minimum_elevation_deg must be an integer from 0 through 90",
         )
+    projection = ground_track.get("projection", "Robinson")
+    background = ground_track.get("background", "Shaded relief")
+    center = ground_track.get("center_longitude_deg", 0.0)
+    if projection not in ("Robinson", "Equirectangular") or background not in (
+        "Shaded relief",
+        "Satellite imagery",
+        "Political map",
+    ):
+        return _state_error(state_path, "invalid ground_track projection or background")
+    if (
+        isinstance(center, bool)
+        or not isinstance(center, (int, float))
+        or not -180 <= center <= 180
+    ):
+        return _state_error(
+            state_path,
+            "ground_track.center_longitude_deg must be from -180 through 180",
+        )
+
+    def extent(key: str) -> tuple[float, float] | None:
+        value = ground_track.get(key)
+        if value is None or value == []:
+            return None
+        if (
+            not isinstance(value, list)
+            or len(value) != 2
+            or any(
+                isinstance(v, bool) or not isinstance(v, (int, float)) for v in value
+            )
+            or value[0] >= value[1]
+        ):
+            raise ValueError(f"ground_track.{key} must be an increasing pair")
+        return (float(value[0]), float(value[1]))
+
+    try:
+        xlim, ylim = extent("xlim"), extent("ylim")
+    except ValueError as error:
+        return _state_error(state_path, error)
 
     playback = document.get("playback", {})
     if not isinstance(playback, dict):
@@ -185,6 +258,11 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
         recent_files=_unique_recent_paths(paths)[:MAX_RECENT_FILES],
         open_plots=list(parsed_open_plots),
         minimum_elevation_deg=minimum_elevation,
+        ground_track_projection=projection,
+        ground_track_background=background,
+        ground_track_center_longitude_deg=float(center),
+        ground_track_xlim=xlim,
+        ground_track_ylim=ylim,
         fps=fps,
     )
 
@@ -241,6 +319,11 @@ def serialize_saved_state(state: SavedAppState) -> str:
         f"open_plots = [{', '.join(_toml_string(name) for name in plots)}]\n\n"
         "[ground_track]\n"
         f"minimum_elevation_deg = {int(state.minimum_elevation_deg)}\n\n"
+        f"projection = {_toml_string(state.ground_track_projection)}\n"
+        f"background = {_toml_string(state.ground_track_background)}\n"
+        f"center_longitude_deg = {state.ground_track_center_longitude_deg}\n"
+        f"xlim = {list(state.ground_track_xlim) if state.ground_track_xlim else '[]'}\n"
+        f"ylim = {list(state.ground_track_ylim) if state.ground_track_ylim else '[]'}\n\n"
         "[playback]\n"
         f"fps = {DEFAULT_FPS if state.fps is None else int(state.fps)}\n"
     )

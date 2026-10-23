@@ -28,6 +28,7 @@ from ..saved_state import (
     save_saved_state,
 )
 from ..views import registry
+from ..views.ground_track import GroundTrackView
 from ..views.trajectory3d import selection as trajectory3d_selection
 
 from .support import (
@@ -381,6 +382,17 @@ class PlayerApp(ViewFactoryMixin, PlaybackActionsMixin, PanelManagementMixin):
         self._saved_state.recent_files = list(self._recent_oem_paths[:MAX_RECENT_FILES])
         self._saved_state.fps = self._fps
         for opened in self._open_panels.values():
+            view = opened.view
+            if isinstance(view, GroundTrackView) and view._axes is not None:
+                self._saved_state.ground_track_projection = view.projection_name
+                self._saved_state.ground_track_background = view.background_style
+                self._saved_state.ground_track_center_longitude_deg = (
+                    view.center_longitude_deg
+                )
+                xlim = view._axes.get_xlim()
+                ylim = view._axes.get_ylim()
+                self._saved_state.ground_track_xlim = (float(xlim[0]), float(xlim[1]))
+                self._saved_state.ground_track_ylim = (float(ylim[0]), float(ylim[1]))
             setter = getattr(opened.view, "set_minimum_elevation", None)
             if setter is not None:
                 minimum_elevation = getattr(opened.view, "minimum_elevation_deg", None)

@@ -60,6 +60,27 @@ class ViewFactoryMixin:
                     if self._saved_state is not None
                     else 10
                 ),
+                projection_name=(
+                    self._saved_state.ground_track_projection
+                    if self._saved_state
+                    else "Robinson"
+                ),
+                background_style=(
+                    self._saved_state.ground_track_background
+                    if self._saved_state
+                    else "Shaded relief"
+                ),
+                center_longitude_deg=(
+                    self._saved_state.ground_track_center_longitude_deg
+                    if self._saved_state
+                    else 0.0
+                ),
+                saved_xlim=(
+                    self._saved_state.ground_track_xlim if self._saved_state else None
+                ),
+                saved_ylim=(
+                    self._saved_state.ground_track_ylim if self._saved_state else None
+                ),
                 on_minimum_elevation=self._set_ground_track_minimum_elevation,
             ),
             panel_id=panel_id,

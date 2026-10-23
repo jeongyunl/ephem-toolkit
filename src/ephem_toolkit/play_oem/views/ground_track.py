@@ -177,6 +177,11 @@ class GroundTrackView:
         error_message: str | None = None,
         minimum_elevation_deg: int = 10,
         on_minimum_elevation: Any = None,
+        projection_name: str = DEFAULT_PROJECTION,
+        background_style: str = BACKGROUND_CHOICES[0],
+        center_longitude_deg: float = DEFAULT_CENTER_LONGITUDE_DEG,
+        saved_xlim: tuple[float, float] | None = None,
+        saved_ylim: tuple[float, float] | None = None,
     ) -> None:
         self._parent = parent
         self._source = source
@@ -186,9 +191,10 @@ class GroundTrackView:
         self._error_message = error_message
         self.minimum_elevation_deg = minimum_elevation_deg
         self._on_minimum_elevation = on_minimum_elevation
-        self.projection_name = DEFAULT_PROJECTION
-        self.background_style = BACKGROUND_CHOICES[0]
-        self.center_longitude_deg = DEFAULT_CENTER_LONGITUDE_DEG
+        self.projection_name = projection_name
+        self.background_style = background_style
+        self.center_longitude_deg = center_longitude_deg
+        self._saved_xlim, self._saved_ylim = saved_xlim, saved_ylim
         self._panel: wx.Panel | None = None
         self._canvas: FigureCanvasWxAgg | None = None
         self._figure: Figure | None = None
@@ -350,6 +356,19 @@ class GroundTrackView:
         controls_panel.Bind(wx.EVT_SIZE, fit_controls)
         wx.CallAfter(fit_controls)
         self._draw_map()
+        # Restored limits are expressed in the saved projection's coordinates.
+        # Do not let their callbacks reinterpret them as a new central meridian.
+        self._syncing_limits = True
+        try:
+            if self._saved_xlim is not None:
+                self._axes.set_xlim(self._saved_xlim)
+            if self._saved_ylim is not None:
+                self._axes.set_ylim(self._saved_ylim)
+        finally:
+            self._syncing_limits = False
+        if self._center_control is not None:
+            self._center_control.SetValue(self.center_longitude_deg)
+        self._saved_xlim = self._saved_ylim = None
         return panel
 
     def _draw_map(self) -> None:
