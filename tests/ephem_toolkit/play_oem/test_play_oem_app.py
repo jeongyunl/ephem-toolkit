@@ -1477,8 +1477,8 @@ def test_reloading_oem_replaces_views_without_removing_panels(
     assert (player.clock.playback_start, player.clock.playback_end) == (100.0, 200.0)
     assert player.plot_time_range == app.time_range.PlotTimeRange(
         True,
-        app.time_range.TimeRangeEndpoint("fixed", 100.0),
-        app.time_range.TimeRangeEndpoint("fixed", 200.0),
+        app.time_range.TimeRangeEndpoint("follow", 0.0),
+        app.time_range.TimeRangeEndpoint("follow", 0.0),
     )
     assert len(player.workspace.graph_panels) == len(original_panels)
     assert all(panel.destroyed for panel in original_panels)

@@ -45,17 +45,19 @@ def test_resolves_all_endpoint_combinations_independent_of_playback_bounds(
 ) -> None:
     # Playback is narrowed to [45, 55], but plot bounds may lie outside it.
     validate_playback_range(PlaybackTimeRange(45, 55), COVERAGE)
-    assert resolve_plot_range(PlotTimeRange(True, start, end), COVERAGE, time) == (
-        ResolvedTimeRange(*expected)
-    )
+    assert resolve_plot_range(
+        PlotTimeRange(True, start, end), COVERAGE, (45.0, 55.0), time
+    ) == ResolvedTimeRange(*expected)
 
 
 def test_disabled_filter_selects_full_coverage_and_empty_is_distinct() -> None:
-    assert resolve_plot_range(fixed(20, 80, enabled=False), COVERAGE, 50) == (
-        ResolvedTimeRange(0, 100)
-    )
-    assert resolve_plot_range(fixed(120, 130), COVERAGE, 50) is None
-    assert resolve_plot_range(fixed(50, 50), COVERAGE, 50) == ResolvedTimeRange(50, 50)
+    assert resolve_plot_range(
+        fixed(20, 80, enabled=False), COVERAGE, COVERAGE, 50
+    ) == ResolvedTimeRange(0, 100)
+    assert resolve_plot_range(fixed(120, 130), COVERAGE, COVERAGE, 50) is None
+    assert resolve_plot_range(
+        fixed(50, 50), COVERAGE, COVERAGE, 50
+    ) == ResolvedTimeRange(50, 50)
 
 
 @pytest.mark.parametrize(
@@ -73,23 +75,25 @@ def test_clips_at_oem_edges(
     time: float,
     expected: tuple[float, float],
 ) -> None:
-    assert resolve_plot_range(PlotTimeRange(True, start, end), COVERAGE, time) == (
-        ResolvedTimeRange(*expected)
-    )
+    assert resolve_plot_range(
+        PlotTimeRange(True, start, end), COVERAGE, COVERAGE, time
+    ) == ResolvedTimeRange(*expected)
 
 
 def test_mixed_endpoints_may_cross_and_resolve_empty() -> None:
     rule = PlotTimeRange(
         True, TimeRangeEndpoint("fixed", 60), TimeRangeEndpoint("offset", 0)
     )
-    assert resolve_plot_range(rule, COVERAGE, 50) is None
-    assert resolve_plot_range(rule, COVERAGE, 70) == ResolvedTimeRange(60, 70)
+    assert resolve_plot_range(rule, COVERAGE, COVERAGE, 50) is None
+    assert resolve_plot_range(rule, COVERAGE, COVERAGE, 70) == ResolvedTimeRange(60, 70)
 
 
 def test_plot_outside_playback_range_and_disjoint_from_it_is_valid() -> None:
     playback = validate_playback_range((20, 40), COVERAGE)
     assert playback == PlaybackTimeRange(20, 40)
-    assert resolve_plot_range(fixed(60, 80), COVERAGE, 30) == ResolvedTimeRange(60, 80)
+    assert resolve_plot_range(fixed(60, 80), COVERAGE, (20.0, 40.0), 30) == (
+        ResolvedTimeRange(60, 80)
+    )
 
 
 def test_relative_resolution_is_deterministic_for_arbitrary_playback_times() -> None:
@@ -98,8 +102,28 @@ def test_relative_resolution_is_deterministic_for_arbitrary_playback_times() -> 
         True, TimeRangeEndpoint("offset", -5), TimeRangeEndpoint("offset", 7)
     )
     for time in [0, 100, *[rng.uniform(0, 100) for _ in range(50)]]:
-        result = resolve_plot_range(rule, COVERAGE, time)
+        result = resolve_plot_range(rule, COVERAGE, COVERAGE, time)
         assert result == ResolvedTimeRange(max(0, time - 5), min(100, time + 7))
+
+
+def test_follow_endpoints_resolve_to_corresponding_playback_bounds() -> None:
+    rule = PlotTimeRange(
+        True, TimeRangeEndpoint("follow", 0), TimeRangeEndpoint("follow", 0)
+    )
+
+    assert resolve_plot_range(rule, COVERAGE, (20.0, 80.0), 50.0) == ResolvedTimeRange(
+        20.0, 80.0
+    )
+
+
+def test_each_endpoint_can_follow_offset_or_fixed_independently() -> None:
+    rule = PlotTimeRange(
+        True, TimeRangeEndpoint("follow", 0), TimeRangeEndpoint("offset", 10)
+    )
+
+    assert resolve_plot_range(rule, COVERAGE, (20.0, 80.0), 50.0) == ResolvedTimeRange(
+        20.0, 60.0
+    )
 
 
 @pytest.mark.parametrize("bounds", [(-1, 10), (10, 101), (20, 10), (float("nan"), 10)])
@@ -124,7 +148,7 @@ def test_rejects_invalid_plot_rules(rule: PlotTimeRange) -> None:
 @pytest.mark.parametrize("time", [-1, 101, float("inf")])
 def test_rejects_playback_time_outside_or_invalid_for_resolver(time: float) -> None:
     with pytest.raises(ValueError):
-        resolve_plot_range(fixed(0, 1), COVERAGE, time)
+        resolve_plot_range(fixed(0, 1), COVERAGE, COVERAGE, time)
 
 
 def test_import_does_not_load_gui_or_rendering_modules() -> None:

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 import math
 from typing import Literal
 
-EndpointMode = Literal["fixed", "offset"]
+EndpointMode = Literal["follow", "fixed", "offset"]
 Coverage = tuple[float, float]
 
 
@@ -45,7 +45,7 @@ class PlaybackTimeRange:
 
 @dataclass(frozen=True)
 class TimeRangeEndpoint:
-    """A fixed absolute epoch or signed offset from current playback time."""
+    """A playback-bound endpoint, fixed epoch, or offset from playback time."""
 
     mode: EndpointMode
     value_s: float
@@ -97,16 +97,23 @@ def validate_plot_range(rule: PlotTimeRange) -> PlotTimeRange:
     for label, endpoint in (("start", rule.start), ("end", rule.end)):
         if not isinstance(endpoint, TimeRangeEndpoint):
             raise ValueError(f"{label} must be a TimeRangeEndpoint")
-        if endpoint.mode not in ("fixed", "offset"):
-            raise ValueError(f"{label} mode must be 'fixed' or 'offset'")
+        if endpoint.mode not in ("follow", "fixed", "offset"):
+            raise ValueError(f"{label} mode must be 'follow', 'fixed', or 'offset'")
         _finite(endpoint.value_s, f"{label} value")
-    if rule.start.mode == rule.end.mode and rule.start.value_s > rule.end.value_s:
+    if (
+        rule.start.mode == rule.end.mode
+        and rule.start.mode != "follow"
+        and rule.start.value_s > rule.end.value_s
+    ):
         raise ValueError("plot start must not be after plot end")
     return rule
 
 
 def resolve_plot_range(
-    rule: PlotTimeRange, coverage: Coverage, t_s: float
+    rule: PlotTimeRange,
+    coverage: Coverage,
+    playback_bounds: PlaybackTimeRange | tuple[float, float],
+    t_s: float,
 ) -> ResolvedTimeRange | None:
     """Resolve and clip a plot rule to OEM coverage, independent of playback bounds.
 
@@ -114,16 +121,23 @@ def resolve_plot_range(
     resolves to the complete OEM coverage.
     """
     d0, d1 = validate_coverage(coverage)
+    playback = validate_playback_range(playback_bounds, (d0, d1))
     t = _finite(t_s, "playback time")
     if not d0 <= t <= d1:
         raise ValueError("playback time must lie within OEM coverage")
     checked = validate_plot_range(rule)
     if not checked.enabled:
         return ResolvedTimeRange(d0, d1)
-    start_requested = checked.start.value_s + (
-        t if checked.start.mode == "offset" else 0.0
-    )
-    end_requested = checked.end.value_s + (t if checked.end.mode == "offset" else 0.0)
+
+    def resolve_endpoint(endpoint: TimeRangeEndpoint, name: str) -> float:
+        if endpoint.mode == "follow":
+            return playback.start_s if name == "start" else playback.end_s
+        if endpoint.mode == "offset":
+            return endpoint.value_s + t
+        return endpoint.value_s
+
+    start_requested = resolve_endpoint(checked.start, "start")
+    end_requested = resolve_endpoint(checked.end, "end")
     if start_requested > end_requested:
         return None
     start = max(d0, start_requested)

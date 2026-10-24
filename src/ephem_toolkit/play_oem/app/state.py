@@ -51,7 +51,6 @@ class PlayerAppState(Protocol):
     _render_rate_fps: int
     """Requested render-rate FPS used to calculate each playback time increment."""
     _oem_loaded: bool
-    _plot_range_follows_playback: bool
     _on_open_file_callback: Callable[[str], playback_data.PlaybackData] | None
     _open_panels: dict[str, _OpenView]
     _open_views: dict[str, _OpenView]

@@ -11,6 +11,8 @@ from ephem_toolkit.core import time_utils
 
 from .. import time_range
 
+_ENDPOINT_MODES: tuple[time_range.EndpointMode, ...] = ("follow", "offset", "fixed")
+
 
 def _timestamp(value_s: float) -> str:
     return time_utils.datetime_to_iso8601(
@@ -27,7 +29,7 @@ def _parse_endpoint(text: str, fixed: bool) -> time_range.TimeRangeEndpoint:
             "fixed", time_utils.datetime_to_tt_s(parsed)
         )
     if not isinstance(parsed, timedelta):
-        raise ValueError("Playback offset requires a duration such as -1h or +3h")
+        raise ValueError("Offset requires a duration such as -1h or +3h")
     return time_range.TimeRangeEndpoint("offset", parsed.total_seconds())
 
 
@@ -58,7 +60,7 @@ class TimeRangeEditor(wx.Panel):
         plot_row.Add(self.plot_enabled, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
 
         self.endpoint_fields: dict[str, wx.TextCtrl] = {}
-        self.endpoint_fixed: dict[str, wx.CheckBox] = {}
+        self.endpoint_modes: dict[str, wx.Choice] = {}
         self.endpoint_labels: dict[str, wx.StaticText] = {}
         for name, label in (("start", "From"), ("end", "To")):
             endpoint_label = wx.StaticText(self, label=label)
@@ -68,13 +70,18 @@ class TimeRangeEditor(wx.Panel):
                 wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
                 4,
             )
-            field = self._field(f"Plot {label.lower()} time or playback offset")
-            field.SetMinSize(wx.Size(150, -1))
-            fixed = wx.CheckBox(self, label="Fixed time")
-            fixed.SetName(f"Plot {label.lower()} is fixed UTC time")
-            fixed.SetToolTip(
-                "Checked: fixed UTC timestamp. Unchecked: offset from current playback time."
+            mode = wx.Choice(self, choices=("Follow", "Offset", "Fixed"))
+            mode.SetName(f"Plot {label.lower()} handle mode")
+            mode.SetToolTip(
+                "Follow the playback bound, use an offset from current playback "
+                "time, or use a fixed UTC timepoint."
             )
+            mode.Bind(
+                wx.EVT_CHOICE,
+                lambda event, endpoint=name: self._change_mode(event, endpoint),
+            )
+            field = self._field(f"Plot {label.lower()} time or playback offset")
+            field.SetMinSize(wx.Size(130, -1))
             field.Bind(
                 wx.EVT_TEXT_ENTER,
                 lambda event, endpoint=name: self._submit_plot(event, endpoint),
@@ -89,13 +96,9 @@ class TimeRangeEditor(wx.Panel):
                 wx.EVT_CHAR,
                 lambda event, endpoint=name: self._escape_field(event, endpoint),
             )
-            fixed.Bind(
-                wx.EVT_CHECKBOX,
-                lambda event, endpoint=name: self._toggle_mode(event, endpoint),
-            )
+            plot_row.Add(mode, 0, wx.RIGHT, 3)
             plot_row.Add(field, 1, wx.RIGHT, 3)
-            plot_row.Add(fixed, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
-            self.endpoint_fields[name], self.endpoint_fixed[name] = field, fixed
+            self.endpoint_fields[name], self.endpoint_modes[name] = field, mode
             self.endpoint_labels[name] = endpoint_label
         self.all_oem = wx.Button(self, label="All OEM data")
         self.all_oem.SetName("Show all OEM data in plots")
@@ -127,16 +130,23 @@ class TimeRangeEditor(wx.Panel):
             self.plot_enabled.SetValue(self.plot_rule.enabled)
             for name in ("start", "end"):
                 endpoint = getattr(self.plot_rule, name)
-                self.endpoint_fixed[name].SetValue(endpoint.mode == "fixed")
+                mode = self.endpoint_modes[name]
+                mode.SetSelection(_ENDPOINT_MODES.index(endpoint.mode))
+                value_s = (
+                    self.playback[0 if name == "start" else 1]
+                    if endpoint.mode == "follow"
+                    else endpoint.value_s
+                )
                 value = (
-                    _timestamp(endpoint.value_s)
-                    if endpoint.mode == "fixed"
-                    else f"{endpoint.value_s:+g}s"
+                    f"{value_s:+g}s"
+                    if endpoint.mode == "offset"
+                    else _timestamp(value_s)
                 )
                 if not self.endpoint_fields[name].HasFocus():
                     self.endpoint_fields[name].ChangeValue(value)
                 self.endpoint_fields[name].Show(self.plot_rule.enabled)
-                self.endpoint_fixed[name].Show(self.plot_rule.enabled)
+                self.endpoint_fields[name].Enable(endpoint.mode != "follow")
+                mode.Show(self.plot_rule.enabled)
                 self.endpoint_labels[name].Show(self.plot_rule.enabled)
             self.Layout()
         finally:
@@ -148,10 +158,7 @@ class TimeRangeEditor(wx.Panel):
         if not self._syncing:
             try:
                 endpoints = {
-                    key: _parse_endpoint(
-                        self.endpoint_fields[key].GetValue(),
-                        self.endpoint_fixed[key].GetValue(),
-                    )
+                    key: self._selected_endpoint(key)
                     for key in ("start", "end")
                 }
                 candidate = time_range.PlotTimeRange(
@@ -163,52 +170,56 @@ class TimeRangeEditor(wx.Panel):
                 self.message.SetLabel("")
             except (OverflowError, ValueError) as error:
                 self.message.SetLabel(str(error))
+                self._sync()
         event.Skip()
+
+    def _selected_endpoint(self, name: str) -> time_range.TimeRangeEndpoint:
+        mode = self._selected_mode(name)
+        if mode == "follow":
+            return time_range.TimeRangeEndpoint("follow", 0.0)
+        return _parse_endpoint(
+            self.endpoint_fields[name].GetValue(), fixed=mode == "fixed"
+        )
+
+    def _selected_mode(self, name: str) -> time_range.EndpointMode:
+        selection = self.endpoint_modes[name].GetSelection()
+        if not 0 <= selection < len(_ENDPOINT_MODES):
+            raise ValueError("Select a plot endpoint mode")
+        return _ENDPOINT_MODES[selection]
 
     def _escape_field(self, event: wx.KeyEvent, name: str) -> None:
         if event.GetKeyCode() != wx.WXK_ESCAPE:
             event.Skip()
             return
-        endpoint = getattr(self.plot_rule, name)
-        field = self.endpoint_fields[name]
-        field.ChangeValue(
-            _timestamp(endpoint.value_s)
-            if endpoint.mode == "fixed"
-            else f"{endpoint.value_s:+g}s"
-        )
+        self._sync()
         self.message.SetLabel("")
 
-    def _toggle_mode(self, event: wx.CommandEvent, name: str) -> None:
+    def _change_mode(self, event: wx.CommandEvent, name: str) -> None:
         if self._syncing:
             return
         endpoint = getattr(self.plot_rule, name)
-        absolute = endpoint.value_s + (
-            self._now() if endpoint.mode == "offset" else 0.0
+        absolute = (
+            self.playback[0 if name == "start" else 1]
+            if endpoint.mode == "follow"
+            else endpoint.value_s + (self._now() if endpoint.mode == "offset" else 0.0)
         )
-        fixed = self.endpoint_fixed[name].GetValue()
-        converted = (
-            time_range.TimeRangeEndpoint("fixed", absolute)
-            if fixed
-            else time_range.TimeRangeEndpoint("offset", absolute - self._now())
-        )
-        candidate = time_range.PlotTimeRange(
-            self.plot_enabled.GetValue(),
-            converted if name == "start" else self.plot_rule.start,
-            converted if name == "end" else self.plot_rule.end,
-        )
-        self.endpoint_fields[name].ChangeValue(
-            _timestamp(absolute) if fixed else f"{converted.value_s:+g}s"
-        )
+        new_mode = self._selected_mode(name)
+        if new_mode == "follow":
+            self.endpoint_fields[name].Enable(False)
+        else:
+            value = absolute - self._now() if new_mode == "offset" else absolute
+            self.endpoint_fields[name].ChangeValue(
+                f"{value:+g}s" if new_mode == "offset" else _timestamp(value)
+            )
         self._submit_plot(event, name)
 
     def _toggle_plot(self, event: wx.CommandEvent) -> None:
         enabled = self.plot_enabled.GetValue()
         if enabled:
-            start, end = self.playback
             candidate = time_range.PlotTimeRange(
                 True,
-                time_range.TimeRangeEndpoint("fixed", start),
-                time_range.TimeRangeEndpoint("fixed", end),
+                time_range.TimeRangeEndpoint("follow", 0.0),
+                time_range.TimeRangeEndpoint("follow", 0.0),
             )
         else:
             candidate = time_range.PlotTimeRange(

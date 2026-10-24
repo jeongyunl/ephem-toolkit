@@ -192,6 +192,7 @@ class PanelManagementMixin:
             resolved_range = time_range.resolve_plot_range(
                 self.plot_time_range,
                 (self.clock.t_start, self.clock.t_end),
+                (self.clock.playback_start, self.clock.playback_end),
                 self.clock.t_now,
             )
             set_time_range = getattr(view, "set_time_range", None)

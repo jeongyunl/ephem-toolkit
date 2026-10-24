@@ -321,7 +321,9 @@ Details ▸ (additional OEM metadata and diagnostics)
   slider retains the 0…10,000 integer mapping across OEM coverage and its native current-time
   thumb; sibling grips display playback bounds and plot endpoints. Playback bounds constrain
   clock movement. By default plot filtering selects samples inside those bounds and follows
-  playback-bound edits; explicitly editing the plot range makes it independent. See
+  playback-bound edits; each plot endpoint can instead use a playback-time offset or a fixed UTC
+  timepoint. The range editor exposes a compact Follow/Offset/Fixed selector for each handle.
+  See
   [PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md](./PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md)
   for implemented behavior and current validation status. Earlier specifications are archived
   under `old/`.

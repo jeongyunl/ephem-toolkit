@@ -179,6 +179,8 @@ class TimeRangeSlider(wx.Slider):
         endpoint = (
             self._plot_rule.start if key.endswith("start") else self._plot_rule.end
         )
+        if endpoint.mode == "follow":
+            return self._playback[0 if key.endswith("start") else 1]
         return endpoint.value_s + (self._now if endpoint.mode == "offset" else 0.0)
 
     def _x_for(self, timestamp: float) -> int:
@@ -244,9 +246,11 @@ class TimeRangeSlider(wx.Slider):
                         if key.endswith("start")
                         else self._plot_rule.end
                     )
-                    mode = (
-                        "fixed UTC" if endpoint.mode == "fixed" else "playback offset"
-                    )
+                    mode = {
+                        "follow": "follows playback",
+                        "fixed": "fixed UTC",
+                        "offset": "playback offset",
+                    }[endpoint.mode]
                 utc = time_utils.datetime_to_iso8601(
                     time_utils.tt_s_to_datetime(self._time_for(key)),
                     fractional_second_places=0,
@@ -256,6 +260,8 @@ class TimeRangeSlider(wx.Slider):
                     tooltip = f"Playback {bound}: {utc} UTC"
                 else:
                     tooltip = f"{grip.GetName()}: {utc} UTC ({mode})"
+                    if endpoint.mode == "follow":
+                        tooltip += f"; drag to set a fixed timepoint"
                 set_tooltip(grip, tooltip)
             except (AttributeError, TypeError, OverflowError, ValueError):
                 set_tooltip(grip, grip.GetName())

@@ -6,13 +6,12 @@ from .. import time_range
 from .state import PlayerAppState
 
 
-def playback_range_plot_rule(bounds: tuple[float, float]) -> time_range.PlotTimeRange:
-    """Return an enabled plot filter with fixed endpoints matching playback bounds."""
-    start, end = bounds
+def playback_range_plot_rule() -> time_range.PlotTimeRange:
+    """Return an enabled plot filter whose endpoints follow playback bounds."""
     return time_range.PlotTimeRange(
         enabled=True,
-        start=time_range.TimeRangeEndpoint("fixed", start),
-        end=time_range.TimeRangeEndpoint("fixed", end),
+        start=time_range.TimeRangeEndpoint("follow", 0.0),
+        end=time_range.TimeRangeEndpoint("follow", 0.0),
     )
 
 
@@ -31,10 +30,6 @@ class TimeRangeActionsMixin:
             (start_s, end_s), (self.clock.t_start, self.clock.t_end)
         )
         self._begin_time_range_edit()
-        if self._plot_range_follows_playback:
-            self.plot_time_range = playback_range_plot_rule(
-                (bounds.start_s, bounds.end_s)
-            )
         self.clock.set_playback_bounds(bounds.start_s, bounds.end_s)
         self._update_time_display()
 
@@ -46,11 +41,15 @@ class TimeRangeActionsMixin:
     ) -> None:
         checked = time_range.validate_plot_range(rule)
         coverage = (self.clock.t_start, self.clock.t_end)
-        resolved = time_range.resolve_plot_range(checked, coverage, self.clock.t_now)
+        resolved = time_range.resolve_plot_range(
+            checked,
+            coverage,
+            (self.clock.playback_start, self.clock.playback_end),
+            self.clock.t_now,
+        )
         # Empty intersections are valid. Validate completely before changing the
         # applied value so a malformed edit cannot expose a half-updated rule.
         self._begin_time_range_edit()
-        self._plot_range_follows_playback = False
         self.plot_time_range = checked
         self._dispatch_time_range(resolved, self.clock.t_now)
         self._update_time_display()
@@ -67,10 +66,9 @@ class TimeRangeActionsMixin:
         """Apply an absolute handle position while retaining endpoint mode."""
         current = self.plot_time_range
         endpoint = getattr(current, name)
-        value = (
-            requested_s if endpoint.mode == "fixed" else requested_s - self.clock.t_now
-        )
-        replacement = time_range.TimeRangeEndpoint(endpoint.mode, value)
+        mode = "fixed" if endpoint.mode == "follow" else endpoint.mode
+        value = requested_s if mode == "fixed" else requested_s - self.clock.t_now
+        replacement = time_range.TimeRangeEndpoint(mode, value)
         self._apply_plot_time_range(
             time_range.PlotTimeRange(
                 current.enabled,
@@ -120,6 +118,7 @@ class TimeRangeActionsMixin:
         resolved = time_range.resolve_plot_range(
             self.plot_time_range,
             (self.clock.t_start, self.clock.t_end),
+            (self.clock.playback_start, self.clock.playback_end),
             self.clock.t_now,
         )
         setter = getattr(opened.view, "set_time_range", None)

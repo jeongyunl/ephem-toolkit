@@ -22,8 +22,7 @@ from ephem_toolkit.play_oem.app.time_range_actions import (
 class _ActionHost(TimeRangeActionsMixin, PlaybackActionsMixin):
     def __init__(self) -> None:
         self.clock = PlaybackClock(0.0, 100.0, t_now=50.0, playing=True)
-        self.plot_time_range = playback_range_plot_rule((0.0, 100.0))
-        self._plot_range_follows_playback = True
+        self.plot_time_range = playback_range_plot_rule()
         self._last_frame_monotonic_s = 12.0
         self.dispatches: list[ResolvedTimeRange | None] = []
         self.display_updates = 0
@@ -48,7 +47,10 @@ class _ActionHost(TimeRangeActionsMixin, PlaybackActionsMixin):
     def _on_clock_time_changed(self, time_s: float) -> None:
         self._dispatch_time_range(
             resolve_plot_range(
-                self.plot_time_range, (self.clock.t_start, self.clock.t_end), time_s
+                self.plot_time_range,
+                (self.clock.t_start, self.clock.t_end),
+                (self.clock.playback_start, self.clock.playback_end),
+                time_s,
             ),
             time_s,
         )
@@ -70,7 +72,6 @@ def test_playback_edit_clamps_clock_and_preserves_plot_rule() -> None:
     assert host.clock.t_now == 60.0
     assert not host.clock.playing
     assert host.plot_time_range == fixed_plot
-    assert not host._plot_range_follows_playback
     assert host.dispatches == [ResolvedTimeRange(10.0, 20.0)]
     assert host._last_frame_monotonic_s is None
 
@@ -80,8 +81,20 @@ def test_default_plot_range_follows_playback_bounds() -> None:
 
     host._apply_playback_bounds(60.0, 80.0)
 
-    assert host.plot_time_range == playback_range_plot_rule((60.0, 80.0))
+    assert host.plot_time_range == playback_range_plot_rule()
     assert host.dispatches == [ResolvedTimeRange(60.0, 80.0)]
+
+
+def test_playback_edit_updates_only_endpoint_in_follow_mode() -> None:
+    host = _ActionHost()
+    host.plot_time_range = PlotTimeRange(
+        True, TimeRangeEndpoint("follow", 0.0), TimeRangeEndpoint("fixed", 90.0)
+    )
+
+    host._apply_playback_bounds(60.0, 80.0)
+
+    assert host.plot_time_range.end == TimeRangeEndpoint("fixed", 90.0)
+    assert host.dispatches == [ResolvedTimeRange(60.0, 90.0)]
 
 
 def test_plot_edit_does_not_seek_or_change_playback_bounds() -> None:
@@ -100,7 +113,6 @@ def test_plot_edit_does_not_seek_or_change_playback_bounds() -> None:
     ) == before
     assert not host.clock.playing
     assert host.plot_time_range == rule
-    assert not host._plot_range_follows_playback
     assert host.dispatches == [ResolvedTimeRange(60.0, 70.0)]
 
 
@@ -130,7 +142,6 @@ def test_all_oem_action_disables_filter_and_retains_endpoints() -> None:
     host._show_all_oem_data()
 
     assert host.plot_time_range == PlotTimeRange(False, rule.start, rule.end)
-    assert not host._plot_range_follows_playback
     assert host.dispatches == [ResolvedTimeRange(0.0, 100.0)]
 
 
@@ -152,6 +163,17 @@ def test_plot_handle_drag_preserves_endpoint_mode_and_never_seeks() -> None:
         host.clock.playback_end,
     ) == before
     assert host.dispatches == [ResolvedTimeRange(10.0, 75.0)]
+
+
+def test_dragging_following_handle_detaches_it_as_fixed_timepoint() -> None:
+    host = _ActionHost()
+    host.plot_time_range = playback_range_plot_rule()
+
+    host._drag_plot_endpoint("start", 25.0)
+
+    assert host.plot_time_range.start == TimeRangeEndpoint("fixed", 25.0)
+    assert host.plot_time_range.end == TimeRangeEndpoint("follow", 0.0)
+    assert host.dispatches == [ResolvedTimeRange(25.0, 100.0)]
 
 
 def test_navigation_actions_always_use_playback_bounds() -> None:

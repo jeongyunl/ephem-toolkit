@@ -207,10 +207,7 @@ class PlayerApp(
         )
         if self._current_oem_path is not None:
             self._restore_recent_file_playback_range(self.clock, self._current_oem_path)
-        self._plot_range_follows_playback = True
-        self.plot_time_range = playback_range_plot_rule(
-            (self.clock.playback_start, self.clock.playback_end)
-        )
+        self.plot_time_range = playback_range_plot_rule()
         self._oem_loaded = oem_loaded
         self._requested_3d_backend = three_d_backend
         self._selected_3d_backend: str | None = (
@@ -388,6 +385,7 @@ class PlayerApp(
         resolved = time_range.resolve_plot_range(
             self.plot_time_range,
             (self.clock.t_start, self.clock.t_end),
+            (self.clock.playback_start, self.clock.playback_end),
             time_s,
         )
         self._dispatch_time_range(resolved, time_s)
@@ -635,10 +633,7 @@ class PlayerApp(
             normalize_recent_path(file_path) if file_path is not None else None
         )
         self._clock_unsubscribe = self.clock.subscribe(self._on_clock_time_changed)
-        self._plot_range_follows_playback = True
-        self.plot_time_range = playback_range_plot_rule(
-            (loaded.clock.playback_start, loaded.clock.playback_end)
-        )
+        self.plot_time_range = playback_range_plot_rule()
         self.series = loaded.series
         self.time_unit = loaded.time_unit
         self.cursor = loaded.cursor

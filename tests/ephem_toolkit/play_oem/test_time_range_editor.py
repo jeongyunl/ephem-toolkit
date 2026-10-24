@@ -22,7 +22,7 @@ def test_fixed_endpoint_requires_timestamp() -> None:
 
 
 def test_offset_endpoint_requires_duration() -> None:
-    with pytest.raises(ValueError, match="Playback offset requires"):
+    with pytest.raises(ValueError, match="Offset requires"):
         _parse_endpoint("2026-10-23T12:00:00Z", fixed=False)
 
 
@@ -55,7 +55,36 @@ def test_enabling_plot_range_defaults_to_playback_bounds() -> None:
     assert applied == [
         PlotTimeRange(
             True,
-            TimeRangeEndpoint("fixed", 20.0),
-            TimeRangeEndpoint("fixed", 80.0),
+            TimeRangeEndpoint("follow", 0.0),
+            TimeRangeEndpoint("follow", 0.0),
         )
     ]
+
+
+@pytest.mark.parametrize(
+    ("selection", "text", "expected"),
+    [
+        (0, "ignored", TimeRangeEndpoint("follow", 0.0)),
+        (1, "-1h", TimeRangeEndpoint("offset", -3600.0)),
+        (
+            2,
+            "2026-10-23T12:00:00Z",
+            TimeRangeEndpoint(
+                "fixed",
+                time_utils.datetime_to_tt_s(
+                    time_utils.parse_time_or_duration("2026-10-23T12:00:00Z")
+                ),
+            ),
+        ),
+    ],
+)
+def test_selected_endpoint_maps_each_handle_mode(
+    selection: int, text: str, expected: TimeRangeEndpoint
+) -> None:
+    editor = SimpleNamespace(
+        endpoint_modes={"start": SimpleNamespace(GetSelection=lambda: selection)},
+        endpoint_fields={"start": SimpleNamespace(GetValue=lambda: text)},
+    )
+    editor._selected_mode = lambda name: TimeRangeEditor._selected_mode(editor, name)
+
+    assert TimeRangeEditor._selected_endpoint(editor, "start") == expected
