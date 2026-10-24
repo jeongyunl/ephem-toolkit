@@ -35,7 +35,7 @@ def validate_coverage(coverage: Coverage) -> Coverage:
     return start, end
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class PlaybackTimeRange:
     """Independent inclusive playback limits, contained in OEM coverage."""
 
@@ -43,7 +43,7 @@ class PlaybackTimeRange:
     end_s: float
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class TimeRangeEndpoint:
     """A fixed absolute epoch or signed offset from current playback time."""
 
@@ -51,7 +51,7 @@ class TimeRangeEndpoint:
     value_s: float
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class PlotTimeRange:
     """One requested plot interval whose endpoints may use different modes."""
 
@@ -60,7 +60,7 @@ class PlotTimeRange:
     end: TimeRangeEndpoint
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ResolvedTimeRange:
     """Inclusive nonempty effective plot bounds in absolute TT seconds."""
 
