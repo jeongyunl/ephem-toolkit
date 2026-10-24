@@ -69,7 +69,7 @@ leave it at `1` unless a later version of this guide says otherwise.
 separately from your user-edited defaults. You normally do not need to edit it.
 
 ```toml
-state_version = 5
+state_version = 6
 
 [window]
 width = 1400
@@ -84,7 +84,7 @@ paths = [
 ]
 
 [recent_files.settings]
-"/home/alex/orbits/iss.oem" = { playback_range = [806400000.0, 806400600.0] }
+"/home/alex/orbits/iss.oem" = { playback_range = [806400000.0, 806400600.0], plot_range = { enabled = true, start = { mode = "follow", value_s = 0.0 }, end = { mode = "offset", value_s = 300.0 } } }
 "/home/alex/orbits/transfer.oem" = { playback_range = [806400120.0, 806400480.0] }
 
 [workspace]
@@ -101,10 +101,13 @@ the recent-file list works regardless of the directory from which you launch `pl
 Unavailable paths remain in the list in case a removable drive or mounted directory becomes
 available again. Choose a path from **File → Open Recent** to reopen it.
 The `recent_files.settings` table associates per-file settings with those absolute paths. The
-Playback range is saved as two absolute TT timestamps when a file is replaced or the application
+playback range is saved as two absolute TT timestamps when a file is replaced or the application
 exits, and is restored when that file is opened again. If the saved range no longer fits the
-file's coverage, the application reports a warning and uses the full coverage instead. This
-path-keyed table can hold additional per-file settings in future versions.
+file's coverage, the application reports a warning and uses the full coverage instead. The plot
+range rule is also saved and restored per file, including whether filtering is enabled and each
+endpoint's mode and value. Follow endpoints track their corresponding playback bound, offset
+values are seconds from current playback time, and fixed values are absolute TT timestamps.
+This path-keyed table can hold additional per-file settings in future versions.
 
 The state file also remembers the graph views open when you exit. On the next launch, those
 views are restored unless you provide `--plots` or set `display.plots` in `play-oem.toml`.

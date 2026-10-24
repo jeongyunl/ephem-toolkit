@@ -17,10 +17,15 @@ except ModuleNotFoundError:  # Python 3.9 and 3.10
     import tomli as tomllib  # type: ignore[no-redef]
 
 from .config import default_config_directory
+from .time_range import (
+    PlotTimeRange,
+    TimeRangeEndpoint,
+    validate_plot_range,
+)
 from .views.registry import parse_plot_selection
 
 STATE_FILENAME = "play-oem-state.toml"
-STATE_VERSION = 5
+STATE_VERSION = 6
 MAX_RECENT_FILES = 15
 MIN_STORED_WINDOW_DIMENSION = 320
 MAX_STORED_WINDOW_DIMENSION = 10000
@@ -47,6 +52,7 @@ class RecentFileSettings:
     """Settings associated with one recent OEM path."""
 
     playback_range: tuple[float, float] | None = None
+    plot_range: PlotTimeRange | None = None
 
 
 @dataclass
@@ -106,6 +112,42 @@ def _validated_playback_range(value: Any) -> tuple[float, float]:
     return start, end
 
 
+def _validated_plot_range(value: Any) -> PlotTimeRange:
+    if not isinstance(value, dict) or set(value) != {"enabled", "start", "end"}:
+        raise ValueError("must contain enabled, start, and end")
+    enabled = value["enabled"]
+    if not isinstance(enabled, bool):
+        raise ValueError("enabled must be a boolean")
+
+    def endpoint(name: str) -> TimeRangeEndpoint:
+        endpoint_value = value[name]
+        if not isinstance(endpoint_value, dict) or set(endpoint_value) != {
+            "mode",
+            "value_s",
+        }:
+            raise ValueError(f"{name} must contain mode and value_s")
+        mode = endpoint_value["mode"]
+        if mode not in ("follow", "fixed", "offset"):
+            raise ValueError(f"{name}.mode must be follow, fixed, or offset")
+        value_s = endpoint_value["value_s"]
+        if isinstance(value_s, bool) or not isinstance(value_s, (int, float)):
+            raise ValueError(f"{name}.value_s must be a finite number")
+        try:
+            value_s = float(value_s)
+        except OverflowError as error:
+            raise ValueError(f"{name}.value_s must be a finite number") from error
+        if not math.isfinite(value_s):
+            raise ValueError(f"{name}.value_s must be a finite number")
+        return TimeRangeEndpoint(mode, value_s)
+
+    try:
+        return validate_plot_range(
+            PlotTimeRange(enabled, endpoint("start"), endpoint("end"))
+        )
+    except OverflowError as error:
+        raise ValueError("endpoint values must be finite numbers") from error
+
+
 def load_saved_state(path: str | Path | None = None) -> SavedAppState:
     """Read saved state; missing or invalid state never prevents application startup."""
     state_path = default_state_path() if path is None else Path(path).expanduser()
@@ -134,10 +176,10 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
     if (
         isinstance(version, bool)
         or not _is_int(version)
-        or version not in (1, 2, 3, 4, STATE_VERSION)
+        or version not in (1, 2, 3, 4, 5, STATE_VERSION)
     ):
         return _state_error(
-            state_path, f"state_version must be 1, 2, 3, 4, or {STATE_VERSION}"
+            state_path, f"state_version must be 1, 2, 3, 4, 5, or {STATE_VERSION}"
         )
 
     window = document.get("window", {})
@@ -212,8 +254,8 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
                 state_path,
                 f"recent_files.settings[{file_path!r}] must be a TOML table",
             )
-        if set(settings) - {"playback_range"}:
-            unknown = sorted(set(settings) - {"playback_range"})[0]
+        if set(settings) - {"playback_range", "plot_range"}:
+            unknown = sorted(set(settings) - {"playback_range", "plot_range"})[0]
             return _state_error(
                 state_path,
                 f"unknown key recent_files.settings[{file_path!r}].{unknown}",
@@ -230,7 +272,21 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
                 )
         else:
             parsed_range = None
-        recent_file_settings[normalized_path] = RecentFileSettings(parsed_range)
+        plot_range = settings.get("plot_range")
+        if plot_range is not None:
+            try:
+                parsed_plot_range = _validated_plot_range(plot_range)
+            except ValueError as error:
+                return _state_error(
+                    state_path,
+                    f"invalid recent_files.settings[{file_path!r}].plot_range: "
+                    f"{error}",
+                )
+        else:
+            parsed_plot_range = None
+        recent_file_settings[normalized_path] = RecentFileSettings(
+            parsed_range, parsed_plot_range
+        )
 
     workspace = document.get("workspace", {})
     if not isinstance(workspace, dict):
@@ -399,11 +455,24 @@ def serialize_saved_state(state: SavedAppState) -> str:
         settings = state.recent_file_settings.get(path)
         if settings is None:
             continue
-        if settings.playback_range is None:
-            settings_body = "{}"
-        else:
+        setting_values = []
+        if settings.playback_range is not None:
             start, end = _validated_playback_range(settings.playback_range)
-            settings_body = f"{{ playback_range = [{start!r}, {end!r}] }}"
+            setting_values.append(f"playback_range = [{start!r}, {end!r}]")
+        if settings.plot_range is not None:
+            plot_range = validate_plot_range(settings.plot_range)
+            setting_values.append(
+                "plot_range = { "
+                f"enabled = {str(plot_range.enabled).lower()}, "
+                f"start = {{ mode = {_toml_string(plot_range.start.mode)}, "
+                f"value_s = {plot_range.start.value_s!r} }}, "
+                f"end = {{ mode = {_toml_string(plot_range.end.mode)}, "
+                f"value_s = {plot_range.end.value_s!r} }}"
+                " }"
+            )
+        settings_body = (
+            f"{{ {', '.join(setting_values)} }}" if setting_values else "{}"
+        )
         encoded_settings.append(f"    {_toml_string(path)} = {settings_body}")
     settings_body = "\n".join(encoded_settings)
     settings_table = f"\n{settings_body}\n" if settings_body else "\n"

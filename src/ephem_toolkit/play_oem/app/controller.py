@@ -210,6 +210,8 @@ class PlayerApp(
         if self._current_oem_path is not None:
             self._restore_recent_file_playback_range(self.clock, self._current_oem_path)
         self.plot_time_range = playback_range_plot_rule()
+        if self._current_oem_path is not None:
+            self._restore_recent_file_plot_range(self._current_oem_path)
         self._oem_loaded = oem_loaded
         self._requested_3d_backend = three_d_backend
         self._selected_3d_backend: str | None = (
@@ -472,6 +474,7 @@ class PlayerApp(
         if not self._persist_saved_state or self._saved_state is None:
             return
         self._save_current_playback_range()
+        self._save_current_plot_range()
         if save_geometry:
             self._saved_state.maximized = self.frame.IsMaximized()
             if not self._saved_state.maximized:
@@ -563,6 +566,18 @@ class PlayerApp(
             self.clock.playback_end,
         )
 
+    def _save_current_plot_range(self) -> None:
+        if (
+            self._saved_state is None
+            or not self._oem_loaded
+            or self._current_oem_path is None
+        ):
+            return
+        settings = self._saved_state.recent_file_settings.setdefault(
+            self._current_oem_path, RecentFileSettings()
+        )
+        settings.plot_range = self.plot_time_range
+
     def _restore_recent_file_playback_range(
         self, target_clock: clock.PlaybackClock, path: str
     ) -> None:
@@ -584,6 +599,24 @@ class PlayerApp(
             )
             return
         target_clock.set_playback_bounds(bounds.start_s, bounds.end_s)
+
+    def _restore_recent_file_plot_range(self, path: str) -> None:
+        if self._saved_state is None:
+            return
+        settings = self._saved_state.recent_file_settings.get(path)
+        if settings is None or settings.plot_range is None:
+            return
+        try:
+            plot_range = time_range.validate_plot_range(settings.plot_range)
+        except ValueError as error:
+            settings.plot_range = None
+            warnings.warn(
+                f"Ignoring saved plot range for {path}: {error}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return
+        self.plot_time_range = plot_range
 
     def _set_ground_track_minimum_elevation(self, value: int) -> None:
         """Apply the shared mask setting to every open Ground Track panel."""
@@ -694,6 +727,8 @@ class PlayerApp(
         )
         self._clock_unsubscribe = self.clock.subscribe(self._on_clock_time_changed)
         self.plot_time_range = playback_range_plot_rule()
+        if self._current_oem_path is not None:
+            self._restore_recent_file_plot_range(self._current_oem_path)
         self.series = loaded.series
         self.time_unit = loaded.time_unit
         self.cursor = loaded.cursor

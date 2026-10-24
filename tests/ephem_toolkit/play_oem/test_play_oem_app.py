@@ -1530,11 +1530,25 @@ def test_recent_file_playback_ranges_save_and_restore_on_switch(
 ) -> None:
     first_path = "/tmp/first.oem"
     second_path = "/tmp/second.oem"
+    first_plot_range = app.time_range.PlotTimeRange(
+        True,
+        app.time_range.TimeRangeEndpoint("fixed", 125.0),
+        app.time_range.TimeRangeEndpoint("offset", 40.0),
+    )
+    second_plot_range = app.time_range.PlotTimeRange(
+        False,
+        app.time_range.TimeRangeEndpoint("follow", 0.0),
+        app.time_range.TimeRangeEndpoint("fixed", 190.0),
+    )
     saved_state = app.SavedAppState(
         recent_files=[first_path, second_path],
         recent_file_settings={
-            first_path: app.RecentFileSettings((110.0, 190.0)),
-            second_path: app.RecentFileSettings((130.0, 170.0)),
+            first_path: app.RecentFileSettings(
+                (110.0, 190.0), first_plot_range
+            ),
+            second_path: app.RecentFileSettings(
+                (130.0, 170.0), second_plot_range
+            ),
         },
     )
     player, _views, _canvases, _frames = make_app(
@@ -1543,6 +1557,7 @@ def test_recent_file_playback_ranges_save_and_restore_on_switch(
         initial_file_path=first_path,
     )
     assert (player.clock.playback_start, player.clock.playback_end) == (110.0, 190.0)
+    assert player.plot_time_range == first_plot_range
     monkeypatch.setattr(app, "save_saved_state", lambda _state: None)
     monkeypatch.setattr(
         player.workspace,
@@ -1552,6 +1567,12 @@ def test_recent_file_playback_ranges_save_and_restore_on_switch(
     )
     player.start()
     player._apply_playback_bounds(120.0, 180.0)
+    updated_first_plot_range = app.time_range.PlotTimeRange(
+        True,
+        app.time_range.TimeRangeEndpoint("offset", -15.0),
+        app.time_range.TimeRangeEndpoint("fixed", 195.0),
+    )
+    player._apply_plot_time_range(updated_first_plot_range)
     loaded = app.playback_data.PlaybackData(
         clock=make_clock(),
         series=player.series,
@@ -1573,10 +1594,17 @@ def test_recent_file_playback_ranges_save_and_restore_on_switch(
         180.0,
     )
     assert (player.clock.playback_start, player.clock.playback_end) == (130.0, 170.0)
+    assert player.plot_time_range == second_plot_range
+    assert saved_state.recent_file_settings[first_path].plot_range == (
+        updated_first_plot_range
+    )
     player._save_application_state(save_geometry=False)
     assert saved_state.recent_file_settings[second_path].playback_range == (
         130.0,
         170.0,
+    )
+    assert saved_state.recent_file_settings[second_path].plot_range == (
+        second_plot_range
     )
     player.close()
 
