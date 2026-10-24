@@ -319,9 +319,13 @@ Details ▸ (additional OEM metadata and diagnostics)
   slider from 1 to 30 FPS (default 30), and start/end and sample/time-step navigation. Elapsed and
   current UTC labels remain visible on this page.
 - Shared timeline footer: `Workspace` places a separator, start/current/end UTC row, direction and
-  speed transport controls, and the timeline slider below the pane splitter. Its slider has an
-  integer range 0…10,000 mapped linearly to `[t_start, t_end]`. Slider events call `clock.seek`;
-  clock updates set the slider value under a suppression flag so they do not feed back into `seek`.
+  speed transport controls, and the timeline slider below the pane splitter. The range-enabled
+  slider retains the 0…10,000 integer mapping across OEM coverage and its native current-time
+  thumb; sibling grips display playback bounds and plot endpoints. Playback bounds constrain
+  clock movement while plot filtering independently selects displayed samples. See
+  [PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md](./PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md)
+  for implemented behavior and current validation status. Earlier specifications are archived
+  under `old/`.
 - Footer time entry: a `wx.TextCtrl` accepts `1h30m` (elapsed) or a UTC epoch. Enter submits the
   value to `clock.seek`; invalid input is shown beside the entry without changing `t_now`. Its
   existing value is selected once when it gains focus, and later clicks place the caret normally.

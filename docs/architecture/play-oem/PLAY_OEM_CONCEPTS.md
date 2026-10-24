@@ -3,8 +3,9 @@
 > Status: **implemented**. Configuration behavior is documented in the
 > [configuration implementation report](./old/PLAY_OEM_CONFIG_REPORT.md) and the
 > [end-user guide](../../tools/PLAY_OEM_CONFIG.md). Software design:
-> [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md). GUI design:
-> [PLAY_OEM_GUI_DESIGN.md](./old/PLAY_OEM_GUI_DESIGN.md).
+> [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md). Time-range implementation:
+> [PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md](./PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md).
+> Earlier time-range design specifications and diagrams are archived under `old/`.
 
 `play-oem` is the interactive, animated successor to [`plot-oem`](../../tools/PLOT_OEM.md). Where `plot-oem` renders
 static figures of a whole OEM history, `play-oem` replays the orbit through time: a

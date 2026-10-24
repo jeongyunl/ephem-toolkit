@@ -1,14 +1,15 @@
 # `play-oem` — Shared Time Range GUI Design
 
-> Status: **proposed**. The final four-handle wx.Slider design is selected; implementation
-> and GUI validation are pending.
+> Status: **implemented, with GUI acceptance pending**. The shared editor and four range
+> grips are present. Automated model, action, plotting, and view checks are recorded in the
+> implementation plan; native wx behavior has not been validated in a live display session.
 
 This document defines the shared time-range editor for the existing wx workspace. It extends
 the workspace interaction design in [PLAY_OEM_GUI_DESIGN.md](./old/PLAY_OEM_GUI_DESIGN.md).
 Range semantics and proposed interfaces are specified in
 [PLAY_OEM_TIME_RANGE_SOFTWARE_DESIGN.md](./PLAY_OEM_TIME_RANGE_SOFTWARE_DESIGN.md).
 Work sequencing is in
-[PLAY_OEM_TIME_RANGE_IMPLEMENTATION_PLAN.md](./PLAY_OEM_TIME_RANGE_IMPLEMENTATION_PLAN.md).
+[PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md](../PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md).
 The final SVG below defines the selected design. Earlier mockups are retained at the end
 for reference; none supersedes the final control contract.
 
@@ -17,15 +18,16 @@ for reference; none supersedes the final control contract.
 ![Final wx.Slider-derived widget with separate playback and plot handle rows](./mockup-time-range-slider-final.svg)
 
 Use a custom widget directly derived from `wx.Slider`, retaining its standard current-time
-thumb. Place two draggable range handles in each of two rows above the native slider: solid
-rounded playback grips in the lower row and outlined diamond plot grips in the upper row. Shape and
+thumb. The current widget places plot grips above playback grips, with each pair on its own
+row: solid rounded playback grips and outlined diamond plot grips. Shape and
 fill distinguish the ranges without relying on color. Hover/focus tooltips provide endpoint
 identity, value, and fixed/offset mode; no text appears on or beside the handles.
 
 Keep the plot inputs compact, each with a **Fixed time** checkbox immediately to its right.
 Playback and plot ranges are independent and share the full OEM time scale. The lower cards
 in the SVG are design annotations and tooltip examples, not additional controls or permanent
-captions beside handles. Implementation and live GUI validation remain pending.
+captions beside handles. The SVG illustrates the selected visual design; pointer alignment,
+paint behavior, focus traversal, and theme/DPI behavior still need live GUI validation.
 
 ## User goal and terminology
 
@@ -230,7 +232,7 @@ high DPI, light/dark appearance, and coincident targets. Preserve graph-stack sc
 - Plot editing and All OEM data never change playback bounds or current time.
 - Independent playback edits clamp only when required and retain plot rules; fixed plots
   remain unchanged and relative plots follow only any resulting change of clock time.
-- A direct wx.Slider subclass supports four draggable, same-height range grips plus the native
+- A direct wx.Slider subclass currently hosts four sibling grip controls plus the native
   current-time thumb; no persistent text appears on or beside grips. Test hover/focus tooltips,
   horizontal fan-out, and independent hit targets at coincident and clipped positions.
 - Retain the five alternatives and three earlier SVG studies; implement the final four-handle
@@ -243,7 +245,7 @@ high DPI, light/dark appearance, and coincident targets. Preserve graph-stack sc
 - Keep global current-state readouts live outside plots and hide out-of-range plot overlays.
 - Preserve stable Y scales, camera/map navigation, keyboard access, and focused drafts.
 - New/duplicated graphs inherit both settings; successful OEM replacement resets both.
-- Record automated and live GUI evidence separately; implementation checks remain pending.
+- Record automated and live GUI evidence separately; live GUI acceptance remains pending.
 
 ## Unselected mockups
 

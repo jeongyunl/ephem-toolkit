@@ -1,15 +1,16 @@
 # `play-oem` — Shared Time Range Software Design
 
-> Status: **proposed**. Implementation and validation are pending.
+> Status: **implemented with remaining GUI acceptance work**. The pure model, playback
+> limits, shared dispatch, and filtering are implemented. The implementation plan records
+> automated evidence and the outstanding native wx/VTK display checks.
 
-This document defines independent playback bounds and shared plot filtering for `play-oem`.
+This document describes independent playback bounds and shared plot filtering in `play-oem`.
 It extends [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md).
 User interaction and five design alternatives are specified in
 [PLAY_OEM_TIME_RANGE_GUI_DESIGN.md](./PLAY_OEM_TIME_RANGE_GUI_DESIGN.md).
 Implementation sequencing and acceptance evidence belong in
-[PLAY_OEM_TIME_RANGE_IMPLEMENTATION_PLAN.md](./PLAY_OEM_TIME_RANGE_IMPLEMENTATION_PLAN.md).
-Where the existing architecture describes full-history plotting, this proposal adds optional
-filtering; it does not claim that filtering already exists.
+[PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md](../PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md).
+The earlier architecture's full-history description is superseded by this implemented filter.
 
 ## 1. Purpose and user-facing contract
 
@@ -31,7 +32,7 @@ types defines one interval, not two disjoint intervals.
 - Retain both settings only for the current dataset session. New and duplicated graphs inherit
   them; successful OEM replacement and application restart reset both.
 
-This proposal changes neither `plot-oem` nor the CLI. It adds no dependencies, per-graph range
+This feature changes neither `plot-oem` nor the CLI. It adds no dependencies, per-graph range
 overrides, saved-state keys, disjoint interval overlays, or relative playback bounds.
 
 ## 2. OEM coverage, playback range, and plot range
@@ -92,7 +93,8 @@ Neither state changes the playback clock or its bounds.
 
 ## 3. Proposed model and interfaces
 
-Add `play_oem/time_range.py`, independent of wxPython, Matplotlib, VTK, and frame conversion.
+`play_oem/time_range.py` implements the toolkit-independent model, independent of wxPython,
+Matplotlib, VTK, and frame conversion.
 Use immutable dataclasses:
 
 | Type | Fields and contract |
