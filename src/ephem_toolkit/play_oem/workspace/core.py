@@ -178,9 +178,8 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             coverage, initial_playback, initial_plot_rule, current_time()
         )
         transport_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        # Use the slider's empty lower padding to keep transport controls near
-        # the visible track while preserving the handle-to-track clearance.
-        timeline_sizer.Add(transport_sizer, 0, wx.ALIGN_CENTER | wx.TOP, -14)
+        # Leave room for playback range grips below the slider before transport.
+        timeline_sizer.Add(transport_sizer, 0, wx.ALIGN_CENTER | wx.TOP, 10)
         time_label_sizer = wx.BoxSizer(wx.HORIZONTAL)
         # Show playback bounds, not OEM coverage; shrink only displayed fractions.
         self.playback_start_label = wx.StaticText(self.timeline_panel, wx.ID_ANY, "")

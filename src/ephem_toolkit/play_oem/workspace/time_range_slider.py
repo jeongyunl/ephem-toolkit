@@ -27,7 +27,7 @@ class _RangeGrip(wx.Control):
         self.color = wx.Colour(color)
         self.SetName(name)
         self.SetCanFocus(True)
-        self.SetMinSize(wx.Size(24, 24))
+        self.SetMinSize(wx.Size(18, 18))
         self.Bind(wx.EVT_PAINT, self._paint)
         self.Bind(wx.EVT_LEFT_DOWN, self._down)
         self.Bind(wx.EVT_LEFT_DCLICK, self._double_click)
@@ -46,18 +46,21 @@ class _RangeGrip(wx.Control):
         dc.SetPen(wx.Pen(self.color, 2))
         if self.kind == "playback":
             dc.SetBrush(wx.Brush(self.color))
-            dc.DrawRoundedRectangle(cx - 8, cy - 11, 16, 22, 4)
-            dc.SetPen(wx.Pen(wx.Colour(235, 250, 247), 1))
-            dc.DrawLine(cx - 2, cy - 6, cx - 2, cy + 6)
-            dc.DrawLine(cx + 2, cy - 6, cx + 2, cy + 6)
+            dc.DrawPolygon(
+                [
+                    wx.Point(cx, cy - 6),
+                    wx.Point(cx + 6, cy + 5),
+                    wx.Point(cx - 6, cy + 5),
+                ]
+            )
         else:
             dc.SetBrush(wx.Brush(self.GetParent().GetBackgroundColour()))
             dc.DrawPolygon(
                 [
-                    wx.Point(cx, cy - 10),
-                    wx.Point(cx + 10, cy),
-                    wx.Point(cx, cy + 10),
-                    wx.Point(cx - 10, cy),
+                    wx.Point(cx, cy - 6),
+                    wx.Point(cx + 6, cy),
+                    wx.Point(cx, cy + 6),
+                    wx.Point(cx - 6, cy),
                 ]
             )
         if self.HasFocus():
@@ -184,7 +187,7 @@ class TimeRangeSlider(wx.Slider):
             if _event is not None:
                 _event.Skip()
             return
-        height = 24
+        width = height = 18
         # Keep playback grips above the track and plot grips on their own row above them.
         centers: list[tuple[str, int]] = [
             (key, self._x_for(self._time_for(key))) for key in self._grips
@@ -206,21 +209,16 @@ class TimeRangeSlider(wx.Slider):
                 continue
             grip.Show()
             slider_position = self.GetPosition()
-            grip_y = -36 if key.startswith("plot") else -8
+            grip_y = -36 if key.startswith("plot") else 43
+            grip.SetSize((width, height))
+            grip_x = positions[key] - grip.GetSize().width // 2
             grip.SetPosition(
                 (
                     slider_position.x
-                    + max(
-                        0,
-                        min(
-                            self.GetClientSize().width - 24,
-                            positions[key] - 12,
-                        ),
-                    ),
+                    + max(0, min(self.GetClientSize().width - width, grip_x)),
                     slider_position.y + grip_y,
                 )
             )
-            grip.SetSize((24, height))
             try:
                 is_playback = key.startswith("playback")
                 if is_playback:
