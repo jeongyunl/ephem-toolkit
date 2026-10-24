@@ -183,6 +183,12 @@ class FakeFrame:
     def SetMinSize(self, _size) -> None:
         pass
 
+    def IsMaximized(self) -> bool:
+        return False
+
+    def GetSize(self):
+        return SimpleNamespace(width=1200, height=800)
+
     def SetSize(self, size) -> None:
         self.size = size
 
@@ -245,9 +251,17 @@ class FakeMenuBar:
 class FakeMenu:
     def __init__(self) -> None:
         self.items = []
+        self._next_item_id = 1
 
-    def Append(self, item_id: int, label: str) -> None:
+    def Append(self, item_id: int, label: str):
+        if item_id == app.wx.ID_ANY:
+            item_id = self._next_item_id
+            self._next_item_id += 1
         self.items.append((item_id, label))
+        return SimpleNamespace(GetId=lambda: item_id)
+
+    def Delete(self, item_id: int) -> None:
+        self.items = [item for item in self.items if item[0] != item_id]
 
 
 class FakeBoxSizer:
@@ -514,6 +528,9 @@ class FakeWorkspace:
     def set_oem_loaded(self, _loaded: bool) -> None:
         pass
 
+    def set_time_range_controls(self, *controls) -> None:
+        self.time_range_controls = controls
+
     def update_timeline(
         self, progress: float, current_utc: str, *, playing: bool = False
     ) -> None:
@@ -586,6 +603,8 @@ def make_app(
     three_d_backend: str = "matplotlib",
     clock: PlaybackClock | None = None,
     tick_interval_ms: int = 33,
+    saved_state: app.SavedAppState | None = None,
+    initial_file_path: str | None = None,
 ) -> tuple[Any, list[FakeView], list[FakeCanvas], list[FakeFrame]]:
     frames: list[FakeFrame] = []
     views: list[FakeView] = []
@@ -659,6 +678,8 @@ def make_app(
         plots=plots,
         three_d_backend=three_d_backend,
         tick_interval_ms=tick_interval_ms,
+        saved_state=saved_state,
+        initial_file_path=initial_file_path,
     )
     return player, views, canvases, frames
 
@@ -1486,6 +1507,62 @@ def test_failed_oem_load_retains_session_ranges(
     assert player.clock is clock_before
     assert (player.clock.playback_start, player.clock.playback_end) == (120.0, 180.0)
     assert player.plot_time_range == applied_plot_range
+    player.close()
+
+
+def test_recent_file_playback_ranges_save_and_restore_on_switch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_path = "/tmp/first.oem"
+    second_path = "/tmp/second.oem"
+    saved_state = app.SavedAppState(
+        recent_files=[first_path, second_path],
+        recent_file_settings={
+            first_path: app.RecentFileSettings((110.0, 190.0)),
+            second_path: app.RecentFileSettings((130.0, 170.0)),
+        },
+    )
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch,
+        saved_state=saved_state,
+        initial_file_path=first_path,
+    )
+    assert (player.clock.playback_start, player.clock.playback_end) == (110.0, 190.0)
+    monkeypatch.setattr(app, "save_saved_state", lambda _state: None)
+    monkeypatch.setattr(
+        player.workspace,
+        "update_oem_information",
+        lambda *_args: None,
+        raising=False,
+    )
+    player.start()
+    player._apply_playback_bounds(120.0, 180.0)
+    loaded = app.playback_data.PlaybackData(
+        clock=make_clock(),
+        series=player.series,
+        time_unit=TimeUnit.MINUTES,
+        cursor=OemCursor((100.0, 200.0), make_states()),
+        object_name="SECOND",
+        frame_context="GCRF / Earth",
+        dashboard_context={},
+        metadata_details=(),
+        source_sample_count=2,
+    )
+    player._on_open_file_callback = lambda _path: loaded
+
+    player._load_oem_file(second_path)
+
+    assert saved_state.recent_files[:2] == [second_path, first_path]
+    assert saved_state.recent_file_settings[first_path].playback_range == (
+        120.0,
+        180.0,
+    )
+    assert (player.clock.playback_start, player.clock.playback_end) == (130.0, 170.0)
+    player._save_application_state(save_geometry=False)
+    assert saved_state.recent_file_settings[second_path].playback_range == (
+        130.0,
+        170.0,
+    )
     player.close()
 
 

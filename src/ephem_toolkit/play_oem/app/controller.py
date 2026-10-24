@@ -22,6 +22,7 @@ from ..saved_state import (
     MAX_RECENT_FILES,
     MAX_STORED_WINDOW_DIMENSION,
     MIN_STORED_WINDOW_DIMENSION,
+    RecentFileSettings,
     SavedAppState,
     normalize_recent_path,
     remember_recent_file,
@@ -173,6 +174,13 @@ class PlayerApp(
                         if normalize_recent_path(path) != normalized_initial_path
                     ),
                 ][:MAX_RECENT_FILES]
+        self._current_oem_path = (
+            normalize_recent_path(initial_file_path)
+            if initial_file_path is not None and oem_loaded
+            else None
+        )
+        if self._current_oem_path is not None:
+            self._restore_recent_file_playback_range(self.clock, self._current_oem_path)
         self._oem_loaded = oem_loaded
         self._requested_3d_backend = three_d_backend
         self._selected_3d_backend: str | None = (
@@ -387,6 +395,7 @@ class PlayerApp(
         """Persist state safely without allowing a state-file error to close the app."""
         if not self._persist_saved_state or self._saved_state is None:
             return
+        self._save_current_playback_range()
         if save_geometry:
             self._saved_state.maximized = self.frame.IsMaximized()
             if not self._saved_state.maximized:
@@ -435,6 +444,43 @@ class PlayerApp(
                 RuntimeWarning,
                 stacklevel=2,
             )
+
+    def _save_current_playback_range(self) -> None:
+        if (
+            self._saved_state is None
+            or not self._oem_loaded
+            or self._current_oem_path is None
+        ):
+            return
+        settings = self._saved_state.recent_file_settings.setdefault(
+            self._current_oem_path, RecentFileSettings()
+        )
+        settings.playback_range = (
+            self.clock.playback_start,
+            self.clock.playback_end,
+        )
+
+    def _restore_recent_file_playback_range(
+        self, target_clock: clock.PlaybackClock, path: str
+    ) -> None:
+        if self._saved_state is None:
+            return
+        settings = self._saved_state.recent_file_settings.get(path)
+        if settings is None or settings.playback_range is None:
+            return
+        try:
+            bounds = time_range.validate_playback_range(
+                settings.playback_range, (target_clock.t_start, target_clock.t_end)
+            )
+        except ValueError as error:
+            settings.playback_range = None
+            warnings.warn(
+                f"Ignoring saved playback range for {path}: {error}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return
+        target_clock.set_playback_bounds(bounds.start_s, bounds.end_s)
 
     def _set_ground_track_minimum_elevation(self, value: int) -> None:
         """Apply the shared mask setting to every open Ground Track panel."""
@@ -489,8 +535,8 @@ class PlayerApp(
         except Exception as error:
             self.status_bar.set_message(f"Could not open OEM: {error}")
             return
+        self._replace_playback_data(loaded_data, os.path.basename(path), path)
         self._remember_recent_oem(path)
-        self._replace_playback_data(loaded_data, os.path.basename(path))
 
     def _on_open_file(self, _event: wx.CommandEvent) -> None:
         """Select an OEM and load it into this playback window."""
@@ -515,11 +561,19 @@ class PlayerApp(
         self._load_oem_file(path)
 
     def _replace_playback_data(
-        self, loaded: playback_data.PlaybackData, file_name: str | None = None
+        self,
+        loaded: playback_data.PlaybackData,
+        file_name: str | None = None,
+        file_path: str | None = None,
     ) -> None:
         """Replace file-dependent state while retaining the frame and workspace."""
+        self._save_application_state(save_geometry=False)
         rate = self.clock.rate
         loaded.clock.set_playback_bounds(loaded.clock.t_start, loaded.clock.t_end)
+        if file_path is not None:
+            self._restore_recent_file_playback_range(
+                loaded.clock, normalize_recent_path(file_path)
+            )
         loaded.clock.set_speed(abs(rate))
         loaded.clock.set_direction(-1 if rate < 0.0 else 1)
         if rate < 0.0:
@@ -532,6 +586,9 @@ class PlayerApp(
 
         self._clock_unsubscribe()
         self.clock = loaded.clock
+        self._current_oem_path = (
+            normalize_recent_path(file_path) if file_path is not None else None
+        )
         self._clock_unsubscribe = self.clock.subscribe(self._on_clock_time_changed)
         self.plot_time_range = full_coverage_plot_rule(
             (loaded.clock.t_start, loaded.clock.t_end)

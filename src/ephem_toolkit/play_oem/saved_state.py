@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import json
+import math
 import os
 from pathlib import Path
 import tempfile
@@ -19,7 +20,7 @@ from .config import default_config_directory
 from .views.registry import parse_plot_selection
 
 STATE_FILENAME = "play-oem-state.toml"
-STATE_VERSION = 3
+STATE_VERSION = 4
 FPS_MIN = 1
 FPS_MAX = 30
 MAX_RECENT_FILES = 15
@@ -43,6 +44,13 @@ GROUND_TRACK_EXTENT_KEYS = ("xlim", "ylim")
 
 
 @dataclass
+class RecentFileSettings:
+    """Settings associated with one recent OEM path."""
+
+    playback_range: tuple[float, float] | None = None
+
+
+@dataclass
 class SavedAppState:
     """Mutable application preferences stored outside the user config file."""
 
@@ -50,6 +58,7 @@ class SavedAppState:
     height: int = DEFAULT_WINDOW_SIZE[1]
     maximized: bool = False
     recent_files: list[str] = field(default_factory=list)
+    recent_file_settings: dict[str, RecentFileSettings] = field(default_factory=dict)
     open_plots: list[str] | None = None
     minimum_elevation_deg: int = DEFAULT_MINIMUM_ELEVATION_DEG
     ground_track_projection: str = DEFAULT_GROUND_TRACK_PROJECTION
@@ -76,6 +85,26 @@ def _state_error(path: Path, error: object) -> SavedAppState:
 
 def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _validated_playback_range(value: Any) -> tuple[float, float]:
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        raise ValueError("must contain exactly two timestamps")
+    timestamps: list[float] = []
+    for item in value:
+        if isinstance(item, bool) or not isinstance(item, (int, float)):
+            raise ValueError("timestamps must be finite numbers")
+        try:
+            timestamp = float(item)
+        except OverflowError as error:
+            raise ValueError("timestamps must be finite numbers") from error
+        if not math.isfinite(timestamp):
+            raise ValueError("timestamps must be finite numbers")
+        timestamps.append(timestamp)
+    start, end = timestamps
+    if start > end:
+        raise ValueError("start must not be after end")
+    return start, end
 
 
 def load_saved_state(path: str | Path | None = None) -> SavedAppState:
@@ -106,10 +135,10 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
     if (
         isinstance(version, bool)
         or not _is_int(version)
-        or version not in (1, 2, STATE_VERSION)
+        or version not in (1, 2, 3, STATE_VERSION)
     ):
         return _state_error(
-            state_path, f"state_version must be 1, 2, or {STATE_VERSION}"
+            state_path, f"state_version must be 1, 2, 3, or {STATE_VERSION}"
         )
 
     window = document.get("window", {})
@@ -135,8 +164,8 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
     recent_section = document.get("recent_files", {})
     if not isinstance(recent_section, dict):
         return _state_error(state_path, "[recent_files] must be a TOML table")
-    if set(recent_section) - {"paths"}:
-        unknown = sorted(set(recent_section) - {"paths"})[0]
+    if set(recent_section) - {"paths", "settings"}:
+        unknown = sorted(set(recent_section) - {"paths", "settings"})[0]
         return _state_error(state_path, f"unknown key recent_files.{unknown!s}")
     paths = recent_section.get("paths", [])
     if not isinstance(paths, list) or any(not isinstance(item, str) for item in paths):
@@ -147,6 +176,43 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
         return _state_error(
             state_path, "recent_files.paths must contain absolute paths"
         )
+    normalized_paths = set(_unique_recent_paths(paths)[:MAX_RECENT_FILES])
+    settings_section = recent_section.get("settings", {})
+    if not isinstance(settings_section, dict):
+        return _state_error(state_path, "[recent_files.settings] must be a TOML table")
+    recent_file_settings: dict[str, RecentFileSettings] = {}
+    for file_path, settings in settings_section.items():
+        if not Path(file_path).is_absolute():
+            return _state_error(
+                state_path, "recent_files.settings keys must be absolute paths"
+            )
+        normalized_path = normalize_recent_path(file_path)
+        if normalized_path not in normalized_paths:
+            continue
+        if not isinstance(settings, dict):
+            return _state_error(
+                state_path,
+                f"recent_files.settings[{file_path!r}] must be a TOML table",
+            )
+        if set(settings) - {"playback_range"}:
+            unknown = sorted(set(settings) - {"playback_range"})[0]
+            return _state_error(
+                state_path,
+                f"unknown key recent_files.settings[{file_path!r}].{unknown}",
+            )
+        playback_range = settings.get("playback_range")
+        if playback_range is not None:
+            try:
+                parsed_range = _validated_playback_range(playback_range)
+            except ValueError as error:
+                return _state_error(
+                    state_path,
+                    f"invalid recent_files.settings[{file_path!r}].playback_range: "
+                    f"{error}",
+                )
+        else:
+            parsed_range = None
+        recent_file_settings[normalized_path] = RecentFileSettings(parsed_range)
 
     workspace = document.get("workspace", {})
     if not isinstance(workspace, dict):
@@ -256,6 +322,7 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
         height=height,
         maximized=maximized,
         recent_files=_unique_recent_paths(paths)[:MAX_RECENT_FILES],
+        recent_file_settings=recent_file_settings,
         open_plots=list(parsed_open_plots),
         minimum_elevation_deg=minimum_elevation,
         ground_track_projection=projection,
@@ -294,6 +361,13 @@ def remember_recent_file(state: SavedAppState, path: str | Path) -> None:
             if normalize_recent_path(existing) != normalized
         ),
     ][:MAX_RECENT_FILES]
+    retained_paths = set(state.recent_files)
+    state.recent_file_settings = {
+        normalize_recent_path(existing): settings
+        for existing, settings in state.recent_file_settings.items()
+        if normalize_recent_path(existing) in retained_paths
+    }
+    state.recent_file_settings.setdefault(normalized, RecentFileSettings())
 
 
 def _toml_string(value: str) -> str:
@@ -307,6 +381,19 @@ def serialize_saved_state(state: SavedAppState) -> str:
     plots = parse_plot_selection(",".join(state.open_plots)) if state.open_plots else ()
     encoded_paths = ",\n".join(f"    {_toml_string(path)}" for path in paths)
     path_body = f"\n{encoded_paths}\n" if paths else "\n"
+    encoded_settings = []
+    for path in paths:
+        settings = state.recent_file_settings.get(path)
+        if settings is None:
+            continue
+        if settings.playback_range is None:
+            settings_body = "{}"
+        else:
+            start, end = _validated_playback_range(settings.playback_range)
+            settings_body = f"{{ playback_range = [{start!r}, {end!r}] }}"
+        encoded_settings.append(f"    {_toml_string(path)} = {settings_body}")
+    settings_body = "\n".join(encoded_settings)
+    settings_table = f"\n{settings_body}\n" if settings_body else "\n"
     return (
         f"state_version = {STATE_VERSION}\n\n"
         "[window]\n"
@@ -315,6 +402,8 @@ def serialize_saved_state(state: SavedAppState) -> str:
         f"maximized = {str(bool(state.maximized)).lower()}\n\n"
         "[recent_files]\n"
         f"paths = [{path_body}]\n\n"
+        "[recent_files.settings]\n"
+        f"{settings_table}\n"
         "[workspace]\n"
         f"open_plots = [{', '.join(_toml_string(name) for name in plots)}]\n\n"
         "[ground_track]\n"
