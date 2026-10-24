@@ -23,7 +23,6 @@ from .constants import (
 from .features import FeatureNavigationMixin
 from .graph_stack import GraphStackMixin
 from .timeline import TimelineMixin
-from .time_range import TimeRangeEditor
 from .time_range_slider import TimeRangeSlider
 from .. import time_range as range_model
 
@@ -61,7 +60,6 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         plot_time_range: range_model.PlotTimeRange | None = None,
         now_s: Callable[[], float] | None = None,
         on_playback_bounds: Callable[[float, float], None] | None = None,
-        on_plot_time_range: Callable[[range_model.PlotTimeRange], None] | None = None,
         on_plot_endpoint: Callable[[str, float], None] | None = None,
         on_plot_endpoint_mode: (
             Callable[[str, range_model.EndpointMode], None] | None
@@ -251,16 +249,6 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         )
         timeline_sizer.Add((0, 6), 0)
         timeline_sizer.Add(time_label_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
-        self.time_range_editor = TimeRangeEditor(
-            self.timeline_panel,
-            playback=initial_playback,
-            plot_rule=initial_plot_rule,
-            now=current_time,
-            on_plot=on_plot_time_range or (lambda _rule: None),
-            on_begin_edit=on_begin_time_range_edit or (lambda: None),
-        )
-        timeline_sizer.Add((0, 6), 0)
-        timeline_sizer.Add(self.time_range_editor, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
         self.playback_speed_buttons: dict[float, wx.ToggleButton] = {}
         self._playback_button_labels: dict[float, str] = {}
         for rate, glyph, direction in (
@@ -391,7 +379,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         plot_rule: range_model.PlotTimeRange,
         now_s: float,
     ) -> None:
-        """Synchronize playback labels, plot controls, and range grips."""
+        """Synchronize playback labels and range grips."""
         set_timestamp_label(
             self.playback_start_label,
             f"Start UTC: {_playback_utc(playback[0])}",
@@ -400,7 +388,6 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             self.playback_end_label,
             f"End UTC: {_playback_utc(playback[1])}",
         )
-        self.time_range_editor.set_state(playback, plot_rule)
         self.timeline_slider.set_ranges(coverage, playback, plot_rule, now_s)
 
     def close(self) -> None:

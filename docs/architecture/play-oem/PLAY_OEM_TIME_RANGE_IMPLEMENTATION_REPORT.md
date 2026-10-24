@@ -18,12 +18,11 @@ is in [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md).
 - Playback clock movement, seek, stepping, start/end navigation, and loop behavior use the
   playback bounds. Following plot endpoints track playback-bound edits independently; offset
   endpoints track playback time, and fixed endpoints remain unchanged.
-- The compact range editor provides one Follow/Offset/Fixed selector per endpoint. Follow shows
-  the current playback-bound time read-only; Offset accepts a signed duration; Fixed accepts a
-  UTC timestamp. Right-clicking either plot handle opens a compact menu for the same three modes.
-  Plot handles use a triangle for Follow, a diamond for Offset, and a square for Fixed.
-  Changing modes preserves the handle's current position where possible; choosing Follow snaps
-  it to the matching playback bound. Follow handles are not draggable or keyboard-nudgable.
+- Plot range controls use only the two timeline handles. Right-clicking either plot handle opens
+  a compact Follow/Offset/Fixed mode menu. Plot handles use a triangle for Follow, a diamond for
+  Offset, and a square for Fixed. Changing modes preserves the handle's current position where
+  possible; choosing Follow snaps it to the matching playback bound. Follow handles are not
+  draggable or keyboard-nudgable. Offset and Fixed handle positions are changed by dragging.
 - Resolution clips to OEM coverage; valid empty and singleton selections are supported. Plot
   edits do not change playback bounds or seek the clock.
 - Time-series views select inclusive samples before decimation, retain segment gaps and full
@@ -36,26 +35,23 @@ is in [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md).
   receive the latest state when shown. A loaded file restores its saved playback bounds when they
   remain valid for its coverage; the plot range starts by following those bounds. Plot-range
   customizations remain session-only.
-- The editor provides plot enable/disable, All OEM data, per-endpoint mode selectors and value
-  fields, validation feedback, and reset behavior. `TimeRangeSlider` retains the native seek thumb and
-  uses four sibling grip controls with tooltips, pointer dragging, capture-loss handling,
-  collision fan-out, and keyboard nudging.
+- The timeline no longer has a separate plot-range editor row, value inputs, enable checkbox, or
+  All OEM data button. Plot filtering remains enabled and is managed through the timeline handles.
+  `TimeRangeSlider` retains the native seek thumb and uses four sibling grip controls with
+  tooltips, pointer dragging, capture-loss handling, collision fan-out, and keyboard nudging.
 
 ## Current limitations and acceptance gaps
 
-- `workspace/time_range.py` currently exposes plot controls and All OEM data. The archived GUI
-  specification describes independent playback-bound fields and Full OEM controls; those fields
-  are not present in that editor module. Playback bounds are nevertheless managed by the clock
-  and application actions.
+- Plot endpoint timestamps and offsets are no longer editable as text; users adjust them by
+  dragging the corresponding handle. The All OEM data toggle is also unavailable in the timeline.
 - The slider's plot and playback grips occupy separate rows. Its keyboard nudge distance is
   based on OEM span (one thousandth of the span, or one second for a zero span), rather than a
   fixed one-second/minute scheme.
 - Automated coverage does not establish native slider track alignment, live painting, pointer
   capture, focus traversal, high-DPI/theme behavior, or cross-platform wx behavior. These need a
   live GUI session. VTK display/context-dependent checks are skipped in the recorded run.
-- The focused editor/workspace test history includes a workspace test failure before editor
-  construction because its `FakeSplitter` lacks `GetDefaultSashSize`. Xvfb could not start in the
-  recorded environment due to `/tmp/.X11-unix` ownership/permissions, and wx reported no display.
+- A workspace test fixture lacks `FakeSplitter.GetDefaultSashSize`; display-backed native wx
+  acceptance also requires a live GUI session.
 
 ## Verification evidence
 

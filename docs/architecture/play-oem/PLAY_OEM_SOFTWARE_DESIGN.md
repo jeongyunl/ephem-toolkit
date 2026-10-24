@@ -322,8 +322,8 @@ Details ▸ (additional OEM metadata and diagnostics)
   thumb; sibling grips display playback bounds and plot endpoints. Playback bounds constrain
   clock movement. By default plot filtering selects samples inside those bounds and follows
   playback-bound edits; each plot endpoint can instead use a playback-time offset or a fixed UTC
-  timepoint. The range editor exposes a compact Follow/Offset/Fixed selector for each handle.
-  See
+  timepoint. Right-click a plot handle to choose its mode; drag Offset and Fixed handles to
+  change their position. See
   [PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md](./PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md)
   for implemented behavior and current validation status. Earlier specifications are archived
   under `old/`.

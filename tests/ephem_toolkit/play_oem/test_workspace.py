@@ -766,14 +766,10 @@ def test_playback_range_labels_track_current_playback_bounds() -> None:
             self.label = label
 
     start_label, end_label = Label(), Label()
-    editor_states = []
     slider_states = []
     result = SimpleNamespace(
         playback_start_label=start_label,
         playback_end_label=end_label,
-        time_range_editor=SimpleNamespace(
-            set_state=lambda *state: editor_states.append(state)
-        ),
         timeline_slider=SimpleNamespace(
             set_ranges=lambda *state: slider_states.append(state)
         ),
@@ -783,10 +779,9 @@ def test_playback_range_labels_track_current_playback_bounds() -> None:
     core.Workspace.set_time_range_controls(
         result, (0.0, 100.0), (20.0, 80.0), plot_rule, 50.0
     )
-
     assert start_label.label == f"Start UTC: {core._playback_utc(20.0)}"
     assert end_label.label == f"End UTC: {core._playback_utc(80.0)}"
-    assert editor_states == [((20.0, 80.0), plot_rule)]
+    assert end_label.label == f"End UTC: {core._playback_utc(80.0)}"
     assert slider_states == [((0.0, 100.0), (20.0, 80.0), plot_rule, 50.0)]
 
 

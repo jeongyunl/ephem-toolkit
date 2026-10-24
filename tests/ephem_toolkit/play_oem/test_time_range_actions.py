@@ -132,19 +132,6 @@ def test_invalid_plot_edit_is_atomic() -> None:
     assert host.dispatches == []
 
 
-def test_all_oem_action_disables_filter_and_retains_endpoints() -> None:
-    host = _ActionHost()
-    rule = PlotTimeRange(
-        True, TimeRangeEndpoint("fixed", 20.0), TimeRangeEndpoint("fixed", 40.0)
-    )
-    host.plot_time_range = rule
-
-    host._show_all_oem_data()
-
-    assert host.plot_time_range == PlotTimeRange(False, rule.start, rule.end)
-    assert host.dispatches == [ResolvedTimeRange(0.0, 100.0)]
-
-
 def test_plot_handle_drag_preserves_endpoint_mode_and_never_seeks() -> None:
     host = _ActionHost()
     rule = PlotTimeRange(

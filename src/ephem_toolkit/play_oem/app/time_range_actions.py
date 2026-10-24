@@ -54,12 +54,6 @@ class TimeRangeActionsMixin:
         self._dispatch_time_range(resolved, self.clock.t_now)
         self._update_time_display()
 
-    def _show_all_oem_data(self: PlayerAppState) -> None:
-        current = self.plot_time_range
-        self._apply_plot_time_range(
-            time_range.PlotTimeRange(False, current.start, current.end)
-        )
-
     def _drag_plot_endpoint(
         self: PlayerAppState, name: str, requested_s: float
     ) -> None:
