@@ -27,6 +27,7 @@ class _TimelineState(Protocol):
     _timeline_tooltip: SuperToolTip
     _timeline_tooltip_at: Callable[[float], str]
     _playback_button_labels: dict[float, str]
+    playback_controls_row: wx.Panel
     _playback_playing: bool
     _playback_rate: float
     timeline_panel: wx.ScrolledWindow
@@ -58,7 +59,7 @@ class TimelineMixin:
         on_step_samples: Callable[[int], None] | None,
     ) -> wx.ToggleButton:
         speed_button = wx.ToggleButton(
-            self.timeline_panel,
+            self.playback_controls_row,
             wx.ID_ANY,
             glyph,
             style=wx.BU_EXACTFIT,
@@ -92,9 +93,7 @@ class TimelineMixin:
             )
         return speed_button
 
-    def update_playback_state(
-        self: _TimelineState, playing: bool, rate: float
-    ) -> None:
+    def update_playback_state(self: _TimelineState, playing: bool, rate: float) -> None:
         """Synchronize direction play/pause controls and speed presets with the clock."""
         state = (playing, rate)
         if self._last_playback_state == state:
@@ -222,9 +221,7 @@ class TimelineMixin:
             self._timeline_tooltip.DoHideNow()
             event.Skip()
             return
-        if not self.timeline_slider.is_pointer_over_timeline_track(
-            event.GetPosition()
-        ):
+        if not self.timeline_slider.is_pointer_over_timeline_track(event.GetPosition()):
             self._timeline_tooltip.DoHideNow()
             event.Skip()
             return

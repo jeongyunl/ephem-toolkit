@@ -129,6 +129,19 @@ class FakeSlider(FakeWidget):
             self.bindings["slider"](FakeEvent(value))
 
 
+class FakeTimeRangeSlider(FakeSlider):
+    def __init__(self, parent, **kwargs) -> None:
+        super().__init__(parent, -1, 0, 0, 10_000, **kwargs)
+        self.client_size = FakeSize(600, 74)
+        self.ranges = None
+
+    def GetClientSize(self) -> FakeSize:
+        return self.client_size
+
+    def set_ranges(self, *ranges) -> None:
+        self.ranges = ranges
+
+
 class FakeChoice(FakeWidget):
     def __init__(self, parent, widget_id, choices=(), **kwargs) -> None:
         super().__init__(parent, widget_id, **kwargs)
@@ -144,6 +157,7 @@ class FakeChoice(FakeWidget):
 
 class FakeSizer:
     def __init__(self, _orientation: int) -> None:
+        self.orientation = _orientation
         self.items = []
         self.minimum_sizes = {}
 
@@ -167,6 +181,9 @@ class FakeSizer:
 
     def GetItemCount(self) -> int:
         return len(self.items)
+
+    def CalcMin(self) -> FakeSize:
+        return FakeSize(0, 0)
 
 
 class FakeSizerItem:
@@ -261,6 +278,9 @@ class FakePanel:
     def SetBackgroundColour(self, colour) -> None:
         self.background_colour = colour
 
+    def GetBackgroundColour(self):
+        return getattr(self, "background_colour", "background")
+
     def SetCursor(self, cursor) -> None:
         self.cursor = cursor
 
@@ -288,6 +308,10 @@ class FakeSystemSettings:
     @staticmethod
     def GetColour(colour_id):
         return ("system-colour", colour_id)
+
+    @staticmethod
+    def GetMetric(_metric) -> int:
+        return 0
 
 
 class FakeGraphPanel(FakePanel):
@@ -460,6 +484,9 @@ class FakeSplitter:
     def GetSashSize(self) -> int:
         return self.sash_size
 
+    def GetDefaultSashSize(self) -> int:
+        return self.sash_size
+
     def GetClientSize(self) -> FakeSize:
         return FakeSize(self.client_width, 700)
 
@@ -528,6 +555,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(features, "set_tooltip", set_fake_tooltip)
     monkeypatch.setattr(graph_stack, "set_tooltip", set_fake_tooltip)
     monkeypatch.setattr(timeline, "set_tooltip", set_fake_tooltip)
+    monkeypatch.setattr(core, "TimeRangeSlider", FakeTimeRangeSlider)
     FakeWidget.instances = []
     FakeCallLater.calls = []
     for name, value in {
@@ -702,9 +730,7 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert (
         result.playback_speed_buttons[-1.0].name == "Set reverse playback speed to 1x"
     )
-    assert (
-        result.playback_speed_buttons[1.0].name == "Set forward playback speed to 1x"
-    )
+    assert result.playback_speed_buttons[1.0].name == "Set forward playback speed to 1x"
     assert result.playback_speed_buttons[-1.0].tooltip == "Set reverse speed to 1x."
     assert (
         result.playback_speed_buttons[10.0].tooltip == "Increase forward speed by 10x."
@@ -716,13 +742,23 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert result.playback_forward_play_button.name == "Play forward at current speed"
     assert result.playback_reverse_play_button.label == "◀"
     assert result.playback_forward_play_button.label == "▶"
-    assert (
-        result.timeline_panel.sizer.items[3][0].items[4][0]
-        is result.playback_reverse_play_button
+    assert result.timeline_panel.sizer.orientation == workspace.wx.VERTICAL
+    assert result.timeline_track_row.parent is result.timeline_panel
+    assert result.playback_controls_row.parent is result.timeline_panel
+    assert result.time_readout_row.parent is result.timeline_panel
+    assert result.timeline_track_row.sizer.orientation == workspace.wx.HORIZONTAL
+    assert result.playback_controls_row.sizer.orientation == workspace.wx.HORIZONTAL
+    assert result.time_readout_row.sizer.orientation == workspace.wx.HORIZONTAL
+    assert result.timeline_panel.sizer.items[2][0] is result.timeline_track_row
+    assert result.timeline_panel.sizer.items[4][0] is result.playback_controls_row
+    assert result.timeline_panel.sizer.items[6][0] is result.time_readout_row
+    assert result.timeline_panel.sizer.items[3][0] == (0, 4)
+    assert result.timeline_panel.sizer.items[5][0] == (0, 4)
+    assert result.playback_controls_row.sizer.items[4][0] is (
+        result.playback_reverse_play_button
     )
-    assert (
-        result.timeline_panel.sizer.items[3][0].items[5][0]
-        is result.playback_forward_play_button
+    assert result.playback_controls_row.sizer.items[5][0] is (
+        result.playback_forward_play_button
     )
     assert [button.label for button in result.playback_speed_buttons.values()] == [
         "<<< 1000×",
@@ -752,9 +788,7 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert (
         result.timeline_time_entry.hint == "UTC timestamp or elapsed time, e.g. 1h30m"
     )
-    assert result.playback_end_label.label == (
-        f"End UTC: {core._playback_utc(90.0)}"
-    )
+    assert result.playback_end_label.label == (f"End UTC: {core._playback_utc(90.0)}")
 
 
 def test_playback_range_labels_track_current_playback_bounds() -> None:
@@ -1474,14 +1508,10 @@ def test_timeline_motion_outside_track_band_dismisses_slider_tooltip() -> None:
     result = SimpleNamespace(
         _timeline_enabled=True,
         timeline_slider=slider,
-        _timeline_tooltip=SimpleNamespace(
-            DoHideNow=lambda: dismissed.append(True)
-        ),
+        _timeline_tooltip=SimpleNamespace(DoHideNow=lambda: dismissed.append(True)),
     )
     skipped = []
-    event = SimpleNamespace(
-        GetPosition=lambda: None, Skip=lambda: skipped.append(True)
-    )
+    event = SimpleNamespace(GetPosition=lambda: None, Skip=lambda: skipped.append(True))
 
     timeline.TimelineMixin._on_timeline_motion(result, event)
 

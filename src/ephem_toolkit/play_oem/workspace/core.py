@@ -146,7 +146,29 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             wx.EXPAND | wx.LEFT | wx.RIGHT,
             8,
         )
-        timeline_sizer.Add((0, 44), 0)
+        timeline_sizer.Add((0, 6), 0)
+        self.timeline_track_row = wx.Panel(self.timeline_panel, wx.ID_ANY)
+        self.timeline_track_row.SetName("Playback timeline row")
+        self.timeline_track_row.SetBackgroundColour(
+            self.timeline_panel.GetBackgroundColour()
+        )
+        timeline_track_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.timeline_track_row.SetSizer(timeline_track_sizer)
+        self.playback_controls_row = wx.Panel(self.timeline_panel, wx.ID_ANY)
+        self.playback_controls_row.SetName("Playback controls row")
+        self.playback_controls_row.SetBackgroundColour(
+            self.timeline_panel.GetBackgroundColour()
+        )
+        playback_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.playback_controls_row.SetSizer(playback_sizer)
+        self.time_readout_row = wx.Panel(self.timeline_panel, wx.ID_ANY)
+        self.time_readout_row.SetName("Playback time readout row")
+        self.time_readout_row.SetBackgroundColour(
+            self.timeline_panel.GetBackgroundColour()
+        )
+        time_label_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.time_readout_row.SetSizer(time_label_sizer)
+
         coverage = oem_coverage or playback_bounds or (0.0, 1.0)
         initial_playback = playback_bounds or coverage
         initial_plot_rule = plot_time_range or range_model.PlotTimeRange(
@@ -156,11 +178,10 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         )
         current_time = now_s or (lambda: coverage[0])
         self.timeline_slider = TimeRangeSlider(
-            self.timeline_panel,
+            self.timeline_track_row,
             on_playback=on_playback_bounds or (lambda _start, _end: None),
             on_plot_endpoint=on_plot_endpoint or (lambda _name, _value: None),
-            on_plot_endpoint_mode=on_plot_endpoint_mode
-            or (lambda _name, _mode: None),
+            on_plot_endpoint_mode=on_plot_endpoint_mode or (lambda _name, _mode: None),
             on_begin_edit=on_begin_time_range_edit or (lambda: None),
         )
         self.timeline_slider.SetName("Playback timeline")
@@ -176,16 +197,23 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             # automatic hover timer can place it at the slider edge.
             self._timeline_tooltip.SetStartDelay(1)
             self.timeline_slider.Bind(wx.EVT_MOTION, self._on_timeline_motion)
-        timeline_sizer.Add(self.timeline_slider, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 0)
+        timeline_track_sizer.Add(self.timeline_slider, 1, wx.EXPAND)
+        timeline_sizer.Add(
+            self.timeline_track_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8
+        )
         self.timeline_slider.set_ranges(
             coverage, initial_playback, initial_plot_rule, current_time()
         )
-        playback_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        # Leave room for playback range grips below the slider.
-        timeline_sizer.Add(playback_sizer, 0, wx.ALIGN_CENTER | wx.TOP, 10)
-        time_label_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        timeline_sizer.Add((0, 4), 0)
+        timeline_sizer.Add(
+            self.playback_controls_row,
+            0,
+            wx.ALIGN_CENTER | wx.LEFT | wx.RIGHT,
+            8,
+        )
+        timeline_sizer.Add((0, 4), 0)
         # Show playback bounds, not OEM coverage; shrink only displayed fractions.
-        self.playback_start_label = wx.StaticText(self.timeline_panel, wx.ID_ANY, "")
+        self.playback_start_label = wx.StaticText(self.time_readout_row, wx.ID_ANY, "")
         set_timestamp_label(
             self.playback_start_label,
             f"Start UTC: {_playback_utc(initial_playback[0])}",
@@ -193,11 +221,11 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         self.playback_start_label.SetName("Playback range start time (UTC)")
         current_time_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.timeline_current_prefix = wx.StaticText(
-            self.timeline_panel, wx.ID_ANY, "Current UTC:"
+            self.time_readout_row, wx.ID_ANY, "Current UTC:"
         )
         # Put time entry beside the current UTC prefix to replace the Playback seek form.
         self.timeline_time_entry = wx.TextCtrl(
-            self.timeline_panel,
+            self.time_readout_row,
             wx.ID_ANY,
             "",
             style=wx.TE_PROCESS_ENTER,
@@ -216,7 +244,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             wx.EVT_SET_FOCUS,
             self._on_timeline_time_focus,
         )
-        self.time_error_label = wx.StaticText(self.timeline_panel, wx.ID_ANY, "")
+        self.time_error_label = wx.StaticText(self.time_readout_row, wx.ID_ANY, "")
         self.time_error_label.SetForegroundColour(wx.Colour(190, 35, 35))
         current_time_sizer.Add(
             self.timeline_current_prefix,
@@ -228,7 +256,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             self.timeline_time_entry, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4
         )
         current_time_sizer.Add(self.time_error_label, 1, wx.ALIGN_CENTER_VERTICAL)
-        self.playback_end_label = wx.StaticText(self.timeline_panel, wx.ID_ANY, "")
+        self.playback_end_label = wx.StaticText(self.time_readout_row, wx.ID_ANY, "")
         set_timestamp_label(
             self.playback_end_label,
             f"End UTC: {_playback_utc(initial_playback[1])}",
@@ -247,8 +275,12 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             0,
             wx.ALIGN_CENTER_VERTICAL,
         )
-        timeline_sizer.Add((0, 6), 0)
-        timeline_sizer.Add(time_label_sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
+        timeline_sizer.Add(
+            self.time_readout_row,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT,
+            8,
+        )
         self.playback_speed_buttons: dict[float, wx.ToggleButton] = {}
         self._playback_button_labels: dict[float, str] = {}
         for rate, glyph, direction in (
@@ -269,7 +301,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             playback_sizer.Add(speed_button, 0, wx.RIGHT, 4)
 
         self.playback_reverse_play_button = wx.Button(
-            self.timeline_panel, wx.ID_ANY, "◀"
+            self.playback_controls_row, wx.ID_ANY, "◀"
         )
         self.playback_reverse_play_button.SetName("Play reverse at current speed")
         set_tooltip(
@@ -291,7 +323,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             )
         playback_sizer.Add(self.playback_reverse_play_button, 0, wx.RIGHT, 2)
         self.playback_forward_play_button = wx.Button(
-            self.timeline_panel, wx.ID_ANY, "▶"
+            self.playback_controls_row, wx.ID_ANY, "▶"
         )
         self.playback_forward_play_button.SetName("Play forward at current speed")
         set_tooltip(
@@ -314,7 +346,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         playback_sizer.Add(self.playback_forward_play_button, 0, wx.RIGHT, 2)
         # A non-text focus target: macOS buttons refuse keyboard focus unless
         # Full Keyboard Access is on, which leaves the text field's focus ring.
-        self._focus_sink = wx.Panel(self.timeline_panel, wx.ID_ANY, size=(1, 1))
+        self._focus_sink = wx.Panel(self.playback_controls_row, wx.ID_ANY, size=(1, 1))
         self._focus_sink.SetCanFocus(True)
         playback_sizer.Add(self._focus_sink, 0, wx.RIGHT, 2)
         # Blank space belongs to the panel, so move focus there instead of
@@ -339,6 +371,12 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             self.playback_speed_buttons[rate] = speed_button
             self._playback_button_labels[rate] = glyph
             playback_sizer.Add(speed_button, 0, wx.RIGHT, 4)
+        for row in (
+            self.timeline_track_row,
+            self.playback_controls_row,
+            self.time_readout_row,
+        ):
+            row.Bind(wx.EVT_LEFT_DOWN, lambda _event: self._focus_sink.SetFocus())
         self.timeline_panel.SetSizer(timeline_sizer)
         # Preserve the native controls' minimum widths when the frame narrows.
         # Reserve scrollbar height so the slider stays visible while scrolling.
