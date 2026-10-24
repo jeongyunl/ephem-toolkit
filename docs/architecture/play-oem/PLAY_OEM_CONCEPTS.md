@@ -28,7 +28,7 @@ is the interactive playback application.
 | **Cursor state** | The OEM state at `t_now`, interpolated from the OEM samples (using the OEM's `INTERPOLATION` metadata when present). |
 | **View** | A plot window that renders a series or trajectory and a cursor/marker at `t_now`. |
 | **View group** | A named collection of related views opened together (Overview, State, Motion diagnostics, All). |
-| **Control window** | The Controls & Info pane: a render-rate control on Playback, current-state readouts on State, and OEM context. Playback transport and navigation live in the shared timeline. Closing the app window quits the app. |
+| **Control window** | The Controls & Info pane: a render-rate control on Playback, current-state readouts on State, and OEM context. Playback controls and navigation live in the shared timeline. Closing the app window quits the app. |
 
 Two kinds of views:
 

@@ -144,7 +144,7 @@ class TimeRangeSlider(wx.Slider):
     ) -> None:
         super().__init__(parent, wx.ID_ANY, 0, 0, 10_000, style=wx.SL_HORIZONTAL)
         self.SetName("Playback timeline and time range handles")
-        # Leave a small handle-to-track gap without pushing transport controls down.
+        # Leave a small handle-to-track gap without pushing playback controls down.
         self.SetMinSize(wx.Size(-1, max(58, self.GetBestSize().height + 20)))
         self._on_playback = on_playback
         self._on_plot_endpoint = on_plot_endpoint

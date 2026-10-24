@@ -1,4 +1,4 @@
-"""Timeline, transport controls and time-entry behavior."""
+"""Timeline, playback controls and time-entry behavior."""
 
 from __future__ import annotations
 
@@ -20,24 +20,24 @@ class _TimelineState(Protocol):
 
     _add_buttons: dict[str, wx.Button]
     _focus_sink: wx.Panel
-    _last_transport_state: tuple[bool, float] | None
+    _last_playback_state: tuple[bool, float] | None
     _on_seek: Callable[[float], None]
     _on_seek_to_time: Callable[[str], None] | None
     _syncing_timeline: bool
     _timeline_enabled: bool
     _timeline_tooltip: SuperToolTip
     _timeline_tooltip_at: Callable[[float], str]
-    _transport_button_labels: dict[float, str]
-    _transport_playing: bool
-    _transport_rate: float
+    _playback_button_labels: dict[float, str]
+    _playback_playing: bool
+    _playback_rate: float
     timeline_panel: wx.ScrolledWindow
     timeline_slider: TimeRangeSlider
     time_range_editor: TimeRangeEditor
     timeline_time_entry: wx.TextCtrl
     time_error_label: wx.StaticText
-    transport_forward_play_button: wx.Button
-    transport_reverse_play_button: wx.Button
-    transport_speed_buttons: dict[float, wx.ToggleButton]
+    playback_forward_play_button: wx.Button
+    playback_reverse_play_button: wx.Button
+    playback_speed_buttons: dict[float, wx.ToggleButton]
 
     def _on_timeline_slider(self, event: wx.CommandEvent) -> None: ...
 
@@ -49,14 +49,14 @@ class _TimelineState(Protocol):
 
 
 class TimelineMixin:
-    """Implement playback transport and shared time navigation controls."""
+    """Implement playback and shared time navigation controls."""
 
-    def _make_transport_button(
+    def _make_playback_button(
         self: _TimelineState,
         rate: float,
         glyph: str,
         direction: str,
-        on_set_transport_rate: Callable[[float], None] | None,
+        on_set_playback_rate: Callable[[float], None] | None,
         on_step_samples: Callable[[int], None] | None,
     ) -> wx.ToggleButton:
         speed_button = wx.ToggleButton(
@@ -73,19 +73,19 @@ class TimelineMixin:
         else:
             message = f"Increase {direction} speed by {magnitude:g}x."
         set_tooltip(speed_button, message)
-        if on_set_transport_rate is not None:
+        if on_set_playback_rate is not None:
 
-            def set_transport_rate(
+            def set_playback_rate(
                 _event, selected_rate: float = rate, speed_button=speed_button
             ) -> None:
-                on_set_transport_rate(selected_rate)
+                on_set_playback_rate(selected_rate)
                 if abs(selected_rate) == 1.0:
                     # Re-selecting the current rate may skip the normal state refresh.
                     speed_button.SetValue(True)
 
             speed_button.Bind(
                 wx.EVT_TOGGLEBUTTON,
-                set_transport_rate,
+                set_playback_rate,
             )
         if abs(rate) == 1.0 and on_step_samples is not None:
             speed_button.Bind(
@@ -94,20 +94,20 @@ class TimelineMixin:
             )
         return speed_button
 
-    def update_transport_state(
+    def update_playback_state(
         self: _TimelineState, playing: bool, rate: float
     ) -> None:
         """Synchronize direction play/pause controls and speed presets with the clock."""
         state = (playing, rate)
-        if self._last_transport_state == state:
+        if self._last_playback_state == state:
             return
         # Rewriting unchanged native button labels on every tick prevents GTK's
         # pending slider tooltip from appearing.
-        self._last_transport_state = state
-        self._transport_playing = playing
-        self._transport_rate = rate
+        self._last_playback_state = state
+        self._playback_playing = playing
+        self._playback_rate = rate
         speed = abs(rate)
-        for selected_rate, button in self.transport_speed_buttons.items():
+        for selected_rate, button in self.playback_speed_buttons.items():
             step = abs(selected_rate)
             if step == 1.0:
                 # The 1× controls select one exact rate, not a speed range.
@@ -123,17 +123,17 @@ class TimelineMixin:
                 arrow = ">" * arrow_count if rate > 0.0 else "<" * arrow_count
                 label = f"{speed:g}x {arrow}" if rate > 0.0 else f"{arrow} {speed:g}x"
             else:
-                label = self._transport_button_labels[selected_rate]
+                label = self._playback_button_labels[selected_rate]
             button.SetLabel(label)
         reverse_active = playing and rate < 0.0
-        self.transport_reverse_play_button.SetLabel("Ⅱ" if reverse_active else "◀")
-        self.transport_reverse_play_button.SetName(
+        self.playback_reverse_play_button.SetLabel("Ⅱ" if reverse_active else "◀")
+        self.playback_reverse_play_button.SetName(
             "Pause reverse playback"
             if reverse_active
             else "Play reverse at current speed"
         )
         set_tooltip(
-            self.transport_reverse_play_button,
+            self.playback_reverse_play_button,
             (
                 "Pause reverse playback."
                 if reverse_active
@@ -141,14 +141,14 @@ class TimelineMixin:
             ),
         )
         forward_active = playing and rate > 0.0
-        self.transport_forward_play_button.SetLabel("Ⅱ" if forward_active else "▶")
-        self.transport_forward_play_button.SetName(
+        self.playback_forward_play_button.SetLabel("Ⅱ" if forward_active else "▶")
+        self.playback_forward_play_button.SetName(
             "Pause forward playback"
             if forward_active
             else "Play forward at current speed"
         )
         set_tooltip(
-            self.transport_forward_play_button,
+            self.playback_forward_play_button,
             (
                 "Pause forward playback."
                 if forward_active
@@ -179,9 +179,9 @@ class TimelineMixin:
         """Enable file-dependent workspace actions only after an OEM is loaded."""
         self.timeline_time_entry.Enable(loaded)
         for button in (
-            *self.transport_speed_buttons.values(),
-            self.transport_reverse_play_button,
-            self.transport_forward_play_button,
+            *self.playback_speed_buttons.values(),
+            self.playback_reverse_play_button,
+            self.playback_forward_play_button,
         ):
             button.Enable(loaded)
         self.timeline_slider.Enable(loaded and self._timeline_enabled)

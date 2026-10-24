@@ -38,7 +38,7 @@ src/ephem_toolkit/play_oem/
     __init__.py        # public PlayerApp export
     controller.py      # frame lifecycle, OEM replacement and playback timer
     panel_management.py # graph-panel creation and view resource lifecycle
-    playback_actions.py # seek, transport and playback actions
+    playback_actions.py # seek and playback-rate actions
     state.py           # shared structural contract for app behavior modules
     support.py          # app constants and graph-view state models
     view_factory.py     # registered graph-view constructors and backend selection
@@ -48,7 +48,7 @@ src/ephem_toolkit/play_oem/
     core.py            # Workspace composition and main pane layout
     features.py        # Controls & Info feature rail and OEM metadata page
     graph_stack.py     # graph panes, splitters, scrolling and redraw scheduling
-    timeline.py        # shared timeline transport and time-entry behavior
+    timeline.py        # shared timeline playback and time-entry behavior
   graph_panel.py       # embedded graph-panel host and redraw scheduling
   control_window.py    # wx.Panel: playback controls and readouts
   views/
@@ -315,9 +315,9 @@ Details ▸ (additional OEM metadata and diagnostics)
 ```
 
 - Settings page: the `ControlWindow` provides only a render-rate slider from 1 to 30 FPS (default
-  30). Playback transport, navigation, and current UTC are available in the shared timeline footer.
-- Shared timeline footer: `Workspace` places a separator, start/current/end UTC row, direction and
-  speed transport controls, and the timeline slider below the pane splitter. The range-enabled
+  30). Playback controls, navigation, and current UTC are available in the shared timeline footer.
+- Shared timeline footer: `Workspace` places a separator, start/current/end UTC row, playback
+  direction and speed controls, and the timeline slider below the pane splitter. The range-enabled
   slider retains the 0…10,000 integer mapping across OEM coverage and its native current-time
   thumb; sibling grips display playback bounds and plot endpoints. Playback bounds constrain
   clock movement. By default plot filtering selects samples inside those bounds and follows
@@ -328,7 +328,7 @@ Details ▸ (additional OEM metadata and diagnostics)
 - Footer time entry: a `wx.TextCtrl` accepts `1h30m` (elapsed) or a UTC epoch. Enter submits the
   value to `clock.seek`; invalid input is shown beside the entry without changing `t_now`. Its
   existing value is selected once when it gains focus, and later clicks place the caret normally.
-- Footer transport: signed speed presets select rates without starting or pausing. Separate reverse
+- Footer playback controls: signed speed presets select rates without starting or pausing. Separate reverse
   and forward buttons start or pause playback in that direction while retaining the speed magnitude.
   Direction-specific speed controls cover 1x, 10x, 100x and 1000x.
 - Settings page render-rate slider: selects the UI update limit from 1 through 30 frames per

@@ -46,7 +46,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         on_toggle_play: Callable[[], None] | None = None,
         on_play_reverse: Callable[[], None] | None = None,
         on_play_forward: Callable[[], None] | None = None,
-        on_set_transport_rate: Callable[[float], None] | None = None,
+        on_set_playback_rate: Callable[[float], None] | None = None,
         on_step_samples: Callable[[int], None] | None = None,
         timeline_enabled: bool,
         on_seek_to_time: Callable[[str], None] | None = None,
@@ -177,9 +177,9 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         self.timeline_slider.set_ranges(
             coverage, initial_playback, initial_plot_rule, current_time()
         )
-        transport_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        # Leave room for playback range grips below the slider before transport.
-        timeline_sizer.Add(transport_sizer, 0, wx.ALIGN_CENTER | wx.TOP, 10)
+        playback_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        # Leave room for playback range grips below the slider.
+        timeline_sizer.Add(playback_sizer, 0, wx.ALIGN_CENTER | wx.TOP, 10)
         time_label_sizer = wx.BoxSizer(wx.HORIZONTAL)
         # Show playback bounds, not OEM coverage; shrink only displayed fractions.
         self.playback_start_label = wx.StaticText(self.timeline_panel, wx.ID_ANY, "")
@@ -256,31 +256,31 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         )
         timeline_sizer.Add((0, 6), 0)
         timeline_sizer.Add(self.time_range_editor, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
-        self.transport_speed_buttons: dict[float, wx.ToggleButton] = {}
-        self._transport_button_labels: dict[float, str] = {}
+        self.playback_speed_buttons: dict[float, wx.ToggleButton] = {}
+        self._playback_button_labels: dict[float, str] = {}
         for rate, glyph, direction in (
             (-1000.0, "<<< 1000×", "reverse"),
             (-100.0, "<< 100×", "reverse"),
             (-10.0, "< 10×", "reverse"),
             (-1.0, "< 1×", "reverse"),
         ):
-            speed_button = self._make_transport_button(
+            speed_button = self._make_playback_button(
                 rate,
                 glyph,
                 direction,
-                on_set_transport_rate,
+                on_set_playback_rate,
                 on_step_samples,
             )
-            self.transport_speed_buttons[rate] = speed_button
-            self._transport_button_labels[rate] = glyph
-            transport_sizer.Add(speed_button, 0, wx.RIGHT, 4)
+            self.playback_speed_buttons[rate] = speed_button
+            self._playback_button_labels[rate] = glyph
+            playback_sizer.Add(speed_button, 0, wx.RIGHT, 4)
 
-        self.transport_reverse_play_button = wx.Button(
+        self.playback_reverse_play_button = wx.Button(
             self.timeline_panel, wx.ID_ANY, "◀"
         )
-        self.transport_reverse_play_button.SetName("Play reverse at current speed")
+        self.playback_reverse_play_button.SetName("Play reverse at current speed")
         set_tooltip(
-            self.transport_reverse_play_button,
+            self.playback_reverse_play_button,
             "Play reverse at current speed.",
         )
         if (
@@ -288,21 +288,21 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             and on_play_reverse is not None
             and on_play_forward is not None
         ):
-            self.transport_reverse_play_button.Bind(
+            self.playback_reverse_play_button.Bind(
                 wx.EVT_BUTTON,
                 lambda _event: (
                     on_toggle_play()
-                    if self._transport_playing and self._transport_rate < 0.0
+                    if self._playback_playing and self._playback_rate < 0.0
                     else on_play_reverse()
                 ),
             )
-        transport_sizer.Add(self.transport_reverse_play_button, 0, wx.RIGHT, 2)
-        self.transport_forward_play_button = wx.Button(
+        playback_sizer.Add(self.playback_reverse_play_button, 0, wx.RIGHT, 2)
+        self.playback_forward_play_button = wx.Button(
             self.timeline_panel, wx.ID_ANY, "▶"
         )
-        self.transport_forward_play_button.SetName("Play forward at current speed")
+        self.playback_forward_play_button.SetName("Play forward at current speed")
         set_tooltip(
-            self.transport_forward_play_button,
+            self.playback_forward_play_button,
             "Play forward at current speed.",
         )
         if (
@@ -310,20 +310,20 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             and on_play_reverse is not None
             and on_play_forward is not None
         ):
-            self.transport_forward_play_button.Bind(
+            self.playback_forward_play_button.Bind(
                 wx.EVT_BUTTON,
                 lambda _event: (
                     on_toggle_play()
-                    if self._transport_playing and self._transport_rate > 0.0
+                    if self._playback_playing and self._playback_rate > 0.0
                     else on_play_forward()
                 ),
             )
-        transport_sizer.Add(self.transport_forward_play_button, 0, wx.RIGHT, 2)
+        playback_sizer.Add(self.playback_forward_play_button, 0, wx.RIGHT, 2)
         # A non-text focus target: macOS buttons refuse keyboard focus unless
         # Full Keyboard Access is on, which leaves the text field's focus ring.
         self._focus_sink = wx.Panel(self.timeline_panel, wx.ID_ANY, size=(1, 1))
         self._focus_sink.SetCanFocus(True)
-        transport_sizer.Add(self._focus_sink, 0, wx.RIGHT, 2)
+        playback_sizer.Add(self._focus_sink, 0, wx.RIGHT, 2)
         # Blank space belongs to the panel, so move focus there instead of
         # leaving the UTC editor looking active after a background click.
         self.timeline_panel.Bind(
@@ -336,16 +336,16 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             (100.0, "100× >>", "forward"),
             (1000.0, "1000× >>>", "forward"),
         ):
-            speed_button = self._make_transport_button(
+            speed_button = self._make_playback_button(
                 rate,
                 glyph,
                 direction,
-                on_set_transport_rate,
+                on_set_playback_rate,
                 on_step_samples,
             )
-            self.transport_speed_buttons[rate] = speed_button
-            self._transport_button_labels[rate] = glyph
-            transport_sizer.Add(speed_button, 0, wx.RIGHT, 4)
+            self.playback_speed_buttons[rate] = speed_button
+            self._playback_button_labels[rate] = glyph
+            playback_sizer.Add(speed_button, 0, wx.RIGHT, 4)
         self.timeline_panel.SetSizer(timeline_sizer)
         # Preserve the native controls' minimum widths when the frame narrows.
         # Reserve scrollbar height so the slider stays visible while scrolling.
@@ -363,9 +363,9 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         if status_bar is not None:
             main_sizer.Add(status_bar, 0, wx.EXPAND)
         frame.SetSizer(main_sizer)
-        self._transport_playing = False
-        self._transport_rate = 1.0
-        self._last_transport_state: tuple[bool, float] | None = None
+        self._playback_playing = False
+        self._playback_rate = 1.0
+        self._last_playback_state: tuple[bool, float] | None = None
 
     def set_settings_content(self, settings_panel: wx.Window) -> None:
         """Place settings controls in the Settings feature page."""

@@ -44,7 +44,7 @@ from ephem_toolkit.play_oem.views.registry import VIEW_LABELS
         (100.0, -1.0, -1.0),
     ],
 )
-def test_transport_rate_selection_handles_direction_progression_and_reset(
+def test_playback_rate_selection_handles_direction_progression_and_reset(
     monkeypatch: pytest.MonkeyPatch,
     initial_rate: float,
     selected_rate: float,
@@ -54,11 +54,11 @@ def test_transport_rate_selection_handles_direction_progression_and_reset(
         monkeypatch, clock=make_clock(rate=initial_rate, playing=True)
     )
 
-    player._set_transport_rate(selected_rate)
+    player._set_playback_rate(selected_rate)
 
     assert player.clock.rate == expected_rate
     assert player.clock.playing
-    assert player.workspace.transport_state == (True, expected_rate)
+    assert player.workspace.playback_state == (True, expected_rate)
 
 
 @pytest.mark.parametrize(
@@ -84,7 +84,7 @@ def test_direction_play_button_preserves_current_speed_and_resumes(
 
     assert player.clock.rate == expected_rate
     assert player.clock.playing
-    assert player.workspace.transport_state == (True, expected_rate)
+    assert player.workspace.playback_state == (True, expected_rate)
 
 
 @pytest.mark.parametrize(
@@ -100,25 +100,25 @@ def test_one_x_speed_button_sets_rate_without_starting_paused_playback(
         monkeypatch, clock=make_clock(rate=initial_rate, playing=False)
     )
 
-    player._set_transport_rate(selected_rate)
+    player._set_playback_rate(selected_rate)
 
     assert player.clock.rate == selected_rate
     assert not player.clock.playing
-    assert player.workspace.transport_state == (False, selected_rate)
+    assert player.workspace.playback_state == (False, selected_rate)
 
 
-def test_transport_speed_selection_while_paused_does_not_start_playback(
+def test_playback_speed_selection_while_paused_does_not_start_playback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     player, _views, _canvases, _frames = make_app(
         monkeypatch, clock=make_clock(playing=False)
     )
 
-    player._set_transport_rate(100.0)
+    player._set_playback_rate(100.0)
 
     assert player.clock.rate == 100.0
     assert not player.clock.playing
-    assert player.workspace.transport_state == (False, 100.0)
+    assert player.workspace.playback_state == (False, 100.0)
 
 
 def test_timeline_tooltip_omits_fractional_seconds(
@@ -501,11 +501,11 @@ class FakeWorkspace:
         self.timeline_time_entry = object()
         self.callbacks = {"seek_to_time": _kwargs["on_seek_to_time"]}
         self.time_errors: list[str] = []
-        self.transport_speed_buttons = {
+        self.playback_speed_buttons = {
             rate: SimpleNamespace(SetFocus=lambda: None)
             for rate in (-1000.0, -100.0, -10.0, 10.0, 100.0, 1000.0)
         }
-        self.transport_state = None
+        self.playback_state = None
         self.settings_content = None
         self.state_content = None
 
@@ -536,8 +536,8 @@ class FakeWorkspace:
     def set_current_time_entry(self, current_utc: str) -> None:
         self.current_utc = current_utc
 
-    def update_transport_state(self, playing: bool, rate: float) -> None:
-        self.transport_state = (playing, rate)
+    def update_playback_state(self, playing: bool, rate: float) -> None:
+        self.playback_state = (playing, rate)
 
     def add_graph_panel(self, panel, stack: str = "middle") -> None:
         panel.stack = stack
@@ -762,7 +762,7 @@ def test_wx_timer_advances_clock_and_updates_timeline_and_views(
 
     assert player.workspace.progress == pytest.approx(0.3)
     assert player.workspace.current_utc
-    assert player.workspace.transport_state == (True, 10.0)
+    assert player.workspace.playback_state == (True, 10.0)
     assert all(canvas.draw_idle_count == 4 for canvas in canvases)
 
     # Changing FPS while playing updates both cadence and simulated step size.
@@ -791,7 +791,7 @@ def test_explicit_render_rate_is_not_reconstructed_from_rounded_interval(
     player.close()
 
 
-def test_transport_pause_state_updates_when_playback_reaches_an_endpoint(
+def test_playback_pause_state_updates_when_playback_reaches_an_endpoint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monotonic_time = [0.0]
@@ -809,7 +809,7 @@ def test_transport_pause_state_updates_when_playback_reaches_an_endpoint(
 
     assert player.clock.t_now == 200.0
     assert not player.clock.playing
-    assert player.workspace.transport_state == (False, 1.0)
+    assert player.workspace.playback_state == (False, 1.0)
     player.close()
 
 

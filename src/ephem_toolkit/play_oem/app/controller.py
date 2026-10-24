@@ -273,7 +273,7 @@ class PlayerApp(
             on_toggle_play=self._toggle_playback,
             on_play_reverse=self._play_reverse_at_current_speed,
             on_play_forward=self._play_forward_at_current_speed,
-            on_set_transport_rate=self._set_transport_rate,
+            on_set_playback_rate=self._set_playback_rate,
             on_step_samples=self._step_samples,
             timeline_enabled=clock.t_start < clock.t_end,
             on_seek_to_time=self._seek_to_time,
@@ -775,7 +775,7 @@ class PlayerApp(
             self.plot_time_range,
             self.clock.t_now,
         )
-        self.workspace.update_transport_state(self.clock.playing, self.clock.rate)
+        self.workspace.update_playback_state(self.clock.playing, self.clock.rate)
         self.control_window.update_current_state(self.cursor.lookup(self.clock.t_now))
 
     def _handle_sigint(self, _signum: int, _frame: object) -> None:

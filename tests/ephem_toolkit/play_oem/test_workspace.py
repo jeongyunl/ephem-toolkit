@@ -600,7 +600,7 @@ def make_workspace(
     on_toggle_play=None,
     on_play_reverse=None,
     on_play_forward=None,
-    on_set_transport_rate=None,
+    on_set_playback_rate=None,
     on_step_samples=None,
 ) -> tuple[Any, list[float], FakeFrame]:
     configure_fake_wx(monkeypatch)
@@ -617,7 +617,7 @@ def make_workspace(
         on_toggle_play=on_toggle_play,
         on_play_reverse=on_play_reverse,
         on_play_forward=on_play_forward,
-        on_set_transport_rate=on_set_transport_rate,
+        on_set_playback_rate=on_set_playback_rate,
         on_step_samples=on_step_samples,
         timeline_enabled=timeline_enabled,
         playback_bounds=(10.0, 90.0),
@@ -689,7 +689,7 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert result.graph_panes_splitter.style & workspace.wx.SP_3DSASH
     assert result.timeline_slider.minimum == 0
     assert result.timeline_slider.maximum == 10_000
-    assert list(result.transport_speed_buttons) == [
+    assert list(result.playback_speed_buttons) == [
         -1000.0,
         -100.0,
         -10.0,
@@ -700,31 +700,31 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
         1000.0,
     ]
     assert (
-        result.transport_speed_buttons[-1.0].name == "Set reverse playback speed to 1x"
+        result.playback_speed_buttons[-1.0].name == "Set reverse playback speed to 1x"
     )
     assert (
-        result.transport_speed_buttons[1.0].name == "Set forward playback speed to 1x"
+        result.playback_speed_buttons[1.0].name == "Set forward playback speed to 1x"
     )
-    assert result.transport_speed_buttons[-1.0].tooltip == "Set reverse speed to 1x."
+    assert result.playback_speed_buttons[-1.0].tooltip == "Set reverse speed to 1x."
     assert (
-        result.transport_speed_buttons[10.0].tooltip == "Increase forward speed by 10x."
+        result.playback_speed_buttons[10.0].tooltip == "Increase forward speed by 10x."
     )
     assert (
-        result.transport_reverse_play_button.tooltip == "Play reverse at current speed."
+        result.playback_reverse_play_button.tooltip == "Play reverse at current speed."
     )
-    assert result.transport_reverse_play_button.name == "Play reverse at current speed"
-    assert result.transport_forward_play_button.name == "Play forward at current speed"
-    assert result.transport_reverse_play_button.label == "◀"
-    assert result.transport_forward_play_button.label == "▶"
+    assert result.playback_reverse_play_button.name == "Play reverse at current speed"
+    assert result.playback_forward_play_button.name == "Play forward at current speed"
+    assert result.playback_reverse_play_button.label == "◀"
+    assert result.playback_forward_play_button.label == "▶"
     assert (
         result.timeline_panel.sizer.items[3][0].items[4][0]
-        is result.transport_reverse_play_button
+        is result.playback_reverse_play_button
     )
     assert (
         result.timeline_panel.sizer.items[3][0].items[5][0]
-        is result.transport_forward_play_button
+        is result.playback_forward_play_button
     )
-    assert [button.label for button in result.transport_speed_buttons.values()] == [
+    assert [button.label for button in result.playback_speed_buttons.values()] == [
         "<<< 1000×",
         "<< 100×",
         "< 10×",
@@ -736,11 +736,11 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     ]
     assert all(
         button.style == workspace.wx.BU_EXACTFIT
-        for button in result.transport_speed_buttons.values()
+        for button in result.playback_speed_buttons.values()
     )
     assert all(
         button.minimum_size == (44, -1)
-        for button in result.transport_speed_buttons.values()
+        for button in result.playback_speed_buttons.values()
     )
     assert frame.sizer.items[0][0] is result.main_splitter
     assert frame.sizer.items[1][0] is result.timeline_panel
@@ -790,7 +790,7 @@ def test_playback_range_labels_track_current_playback_bounds() -> None:
     assert slider_states == [((0.0, 100.0), (20.0, 80.0), plot_rule, 50.0)]
 
 
-def test_transport_controls_dispatch_signed_rates_and_track_play_state(
+def test_playback_controls_dispatch_signed_rates_and_track_play_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     toggles: list[bool] = []
@@ -803,46 +803,46 @@ def test_transport_controls_dispatch_signed_rates_and_track_play_state(
         on_toggle_play=lambda: toggles.append(True),
         on_play_reverse=lambda: reverse_plays.append(True),
         on_play_forward=lambda: forward_plays.append(True),
-        on_set_transport_rate=rates.append,
+        on_set_playback_rate=rates.append,
         on_step_samples=sample_steps.append,
     )
 
-    result.update_transport_state(False, 1.0)
-    result.transport_speed_buttons[1.0].SetValue(False)
-    result.transport_speed_buttons[-1000.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
-    result.transport_speed_buttons[100.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
-    result.transport_speed_buttons[-1.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
-    result.transport_speed_buttons[1.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
-    result.transport_speed_buttons[-1.0].trigger(workspace.wx.EVT_LEFT_DCLICK)
-    result.transport_speed_buttons[1.0].trigger(workspace.wx.EVT_LEFT_DCLICK)
+    result.update_playback_state(False, 1.0)
+    result.playback_speed_buttons[1.0].SetValue(False)
+    result.playback_speed_buttons[-1000.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
+    result.playback_speed_buttons[100.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
+    result.playback_speed_buttons[-1.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
+    result.playback_speed_buttons[1.0].trigger(workspace.wx.EVT_TOGGLEBUTTON)
+    result.playback_speed_buttons[-1.0].trigger(workspace.wx.EVT_LEFT_DCLICK)
+    result.playback_speed_buttons[1.0].trigger(workspace.wx.EVT_LEFT_DCLICK)
     assert rates == [-1000.0, 100.0, -1.0, 1.0]
     assert sample_steps == [-1, 1]
-    assert result.transport_speed_buttons[1.0].value
-    result.transport_reverse_play_button.trigger(workspace.wx.EVT_BUTTON)
+    assert result.playback_speed_buttons[1.0].value
+    result.playback_reverse_play_button.trigger(workspace.wx.EVT_BUTTON)
     assert reverse_plays == [True]
-    result.update_transport_state(True, -100.0)
-    assert result.transport_speed_buttons[-100.0].value
-    assert not result.transport_speed_buttons[100.0].value
-    assert result.transport_reverse_play_button.label == "Ⅱ"
-    assert result.transport_reverse_play_button.name == "Pause reverse playback"
-    assert result.transport_reverse_play_button.tooltip == "Pause reverse playback."
-    assert result.transport_forward_play_button.label == "▶"
+    result.update_playback_state(True, -100.0)
+    assert result.playback_speed_buttons[-100.0].value
+    assert not result.playback_speed_buttons[100.0].value
+    assert result.playback_reverse_play_button.label == "Ⅱ"
+    assert result.playback_reverse_play_button.name == "Pause reverse playback"
+    assert result.playback_reverse_play_button.tooltip == "Pause reverse playback."
+    assert result.playback_forward_play_button.label == "▶"
     assert (
-        result.transport_forward_play_button.tooltip == "Play forward at current speed."
+        result.playback_forward_play_button.tooltip == "Play forward at current speed."
     )
-    result.transport_reverse_play_button.trigger(workspace.wx.EVT_BUTTON)
+    result.playback_reverse_play_button.trigger(workspace.wx.EVT_BUTTON)
     assert toggles == [True]
-    result.transport_forward_play_button.trigger(workspace.wx.EVT_BUTTON)
+    result.playback_forward_play_button.trigger(workspace.wx.EVT_BUTTON)
     assert forward_plays == [True]
-    result.update_transport_state(True, 10.0)
-    assert result.transport_forward_play_button.label == "Ⅱ"
-    assert result.transport_reverse_play_button.label == "◀"
-    result.transport_forward_play_button.trigger(workspace.wx.EVT_BUTTON)
+    result.update_playback_state(True, 10.0)
+    assert result.playback_forward_play_button.label == "Ⅱ"
+    assert result.playback_reverse_play_button.label == "◀"
+    result.playback_forward_play_button.trigger(workspace.wx.EVT_BUTTON)
     assert toggles == [True, True]
-    result.update_transport_state(False, 10.0)
-    assert result.transport_reverse_play_button.label == "◀"
-    assert result.transport_reverse_play_button.name == "Play reverse at current speed"
-    assert result.transport_forward_play_button.label == "▶"
+    result.update_playback_state(False, 10.0)
+    assert result.playback_reverse_play_button.label == "◀"
+    assert result.playback_reverse_play_button.name == "Play reverse at current speed"
+    assert result.playback_forward_play_button.label == "▶"
 
 
 def test_graph_stack_scrollbars_are_forced_visible_only_when_content_overflows(
@@ -1421,7 +1421,7 @@ def test_current_time_editor_seeks_and_preserves_text_while_focused(
     assert not getattr(result._focus_sink, "focused", False)
     focus_callbacks.pop()()
     assert result._focus_sink.focused
-    assert not getattr(result.transport_forward_play_button, "focused", False)
+    assert not getattr(result.playback_forward_play_button, "focused", False)
     result.timeline_time_entry.focused = True
     result.update_timeline(0.5, "new UTC")
     assert result.timeline_time_entry.value == "1h30m"

@@ -14,7 +14,7 @@ from ephem_toolkit.play_oem.workspace import Workspace
 @pytest.mark.skipif(
     not os.environ.get("DISPLAY"), reason="requires an X display (use xvfb-run)"
 )
-def test_narrow_timeline_scrolls_without_shrinking_transport_buttons() -> None:
+def test_narrow_timeline_scrolls_without_shrinking_playback_buttons() -> None:
     if not wx.App.IsDisplayAvailable():
         pytest.skip("wx cannot connect to the available X display")
     app = wx.App.Get() or wx.App(False)
@@ -32,7 +32,7 @@ def test_narrow_timeline_scrolls_without_shrinking_transport_buttons() -> None:
             frame.SetSize((width, 700))
             app.Yield()
             timeline = workspace.timeline_panel
-            for button in workspace.transport_speed_buttons.values():
+            for button in workspace.playback_speed_buttons.values():
                 assert button.GetSize().width >= button.GetBestSize().width
                 assert button.GetSize().height >= button.GetBestSize().height
             assert (
@@ -45,7 +45,7 @@ def test_narrow_timeline_scrolls_without_shrinking_transport_buttons() -> None:
                 )
                 timeline.Scroll(timeline.GetScrollRange(wx.HORIZONTAL), 0)
                 app.Yield()
-                last_button = workspace.transport_speed_buttons[1000.0]
+                last_button = workspace.playback_speed_buttons[1000.0]
                 assert (
                     last_button.GetScreenRect().right <= timeline.GetScreenRect().right
                 )

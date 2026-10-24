@@ -34,8 +34,8 @@ class PlaybackActionsMixin:
         self.clock.set_speed(speed)
         self._update_time_display()
 
-    def _set_transport_rate(self: PlayerAppState, rate: float) -> None:
-        """Step within the selected transport speed range or select its base."""
+    def _set_playback_rate(self: PlayerAppState, rate: float) -> None:
+        """Step within the selected playback speed range or select its base."""
         direction = 1 if rate > 0.0 else -1
         increment = abs(rate)
         current_speed = abs(self.clock.rate)
@@ -54,9 +54,9 @@ class PlaybackActionsMixin:
         self.clock.set_direction(direction)
         self.clock.set_speed(base_speed)
         if base_speed >= 1000.0:
-            self.workspace.transport_speed_buttons[direction * 1000.0].SetFocus()
+            self.workspace.playback_speed_buttons[direction * 1000.0].SetFocus()
         elif base_speed >= 100.0:
-            self.workspace.transport_speed_buttons[direction * 100.0].SetFocus()
+            self.workspace.playback_speed_buttons[direction * 100.0].SetFocus()
         self._update_time_display()
 
     def _play_reverse_at_current_speed(self: PlayerAppState) -> None:

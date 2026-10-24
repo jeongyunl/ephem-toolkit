@@ -41,7 +41,7 @@ class PlayOemArgs(argparse.Namespace):
 
 def build_arg_parser() -> argparse.ArgumentParser:
     """Build the command-line parser for OEM playback."""
-    # CLI options select the file and views; transport settings live in the GUI.
+    # CLI options select the file and views; playback settings live in the GUI.
     parser = cli.build_arg_parser(
         description="Interactively explore and play a CCSDS OEM ephemeris.",
         epilog=(
