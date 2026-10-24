@@ -11,6 +11,27 @@ from ..tooltips import set_tooltip
 from ephem_toolkit.core import time_utils
 
 
+def _triangle_vertices(
+    kind: str, center_x: int, center_y: int
+) -> tuple[tuple[int, int], tuple[int, int], tuple[int, int]]:
+    if kind == "playback":
+        return (
+            (center_x, center_y - 6),
+            (center_x + 6, center_y + 5),
+            (center_x - 6, center_y + 5),
+        )
+    return (
+        (center_x, center_y + 5),
+        (center_x + 6, center_y - 6),
+        (center_x - 6, center_y - 6),
+    )
+
+
+def _plot_grip_y(slider_height: int, playback_grip_y: int, grip_height: int) -> int:
+    """Mirror the plot grip across the slider track from the playback grip."""
+    return slider_height - playback_grip_y - grip_height
+
+
 class _RangeGrip(wx.Control):
     def __init__(
         self,
@@ -46,23 +67,11 @@ class _RangeGrip(wx.Control):
         dc.SetPen(wx.Pen(self.color, 2))
         if self.kind == "playback":
             dc.SetBrush(wx.Brush(self.color))
-            dc.DrawPolygon(
-                [
-                    wx.Point(cx, cy - 6),
-                    wx.Point(cx + 6, cy + 5),
-                    wx.Point(cx - 6, cy + 5),
-                ]
-            )
+            vertices = _triangle_vertices(self.kind, cx, cy)
         else:
             dc.SetBrush(wx.Brush(self.GetParent().GetBackgroundColour()))
-            dc.DrawPolygon(
-                [
-                    wx.Point(cx, cy - 6),
-                    wx.Point(cx + 6, cy),
-                    wx.Point(cx, cy + 6),
-                    wx.Point(cx - 6, cy),
-                ]
-            )
+            vertices = _triangle_vertices(self.kind, cx, cy)
+        dc.DrawPolygon([wx.Point(x, y) for x, y in vertices])
         if self.HasFocus():
             dc.SetPen(
                 wx.Pen(
@@ -188,7 +197,8 @@ class TimeRangeSlider(wx.Slider):
                 _event.Skip()
             return
         width = height = 18
-        # Keep playback grips above the track and plot grips on their own row above them.
+        playback_grip_y = 43
+        # Keep the two handle rows equally spaced around the native slider track.
         centers: list[tuple[str, int]] = [
             (key, self._x_for(self._time_for(key))) for key in self._grips
         ]
@@ -209,7 +219,11 @@ class TimeRangeSlider(wx.Slider):
                 continue
             grip.Show()
             slider_position = self.GetPosition()
-            grip_y = -36 if key.startswith("plot") else 43
+            grip_y = (
+                _plot_grip_y(self.GetClientSize().height, playback_grip_y, height)
+                if key.startswith("plot")
+                else playback_grip_y
+            )
             grip.SetSize((width, height))
             grip_x = positions[key] - grip.GetSize().width // 2
             grip.SetPosition(
