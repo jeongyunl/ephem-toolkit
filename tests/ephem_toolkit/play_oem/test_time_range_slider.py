@@ -22,7 +22,7 @@ def test_plot_triangle_points_down_and_matches_playback_size() -> None:
         xs, ys = zip(*vertices)
         return max(xs) - min(xs), max(ys) - min(ys)
 
-    assert dimensions(plot) == dimensions(playback) == (12, 11)
+    assert dimensions(plot) == dimensions(playback) == (12, 8)
     assert plot[0][1] == max(y for _x, y in plot)
     assert playback[0][1] == min(y for _x, y in playback)
 
@@ -36,9 +36,9 @@ def test_plot_handle_shape_distinguishes_each_mode() -> None:
     assert len(offset) == len(fixed) == 4
     assert offset != fixed
     assert max(x for x, _y in offset) - min(x for x, _y in offset) == 12
-    assert max(y for _x, y in offset) - min(y for _x, y in offset) == 12
+    assert max(y for _x, y in offset) - min(y for _x, y in offset) == 9
     assert max(x for x, _y in fixed) - min(x for x, _y in fixed) == 10
-    assert max(y for _x, y in fixed) - min(y for _x, y in fixed) == 10
+    assert max(y for _x, y in fixed) - min(y for _x, y in fixed) == 7
 
 
 @pytest.mark.parametrize(
@@ -59,7 +59,7 @@ def test_plot_handle_tooltip_is_two_lines(mode: EndpointMode, mode_label: str) -
 
 
 def test_plot_grip_is_as_close_to_the_track_as_the_playback_grip() -> None:
-    playback_grip_y = 43
+    playback_grip_y = 39
     grip_height = 18
 
     for slider_height in (58, 74):

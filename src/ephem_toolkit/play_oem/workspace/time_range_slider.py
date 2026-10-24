@@ -16,14 +16,14 @@ def _triangle_vertices(
 ) -> tuple[tuple[int, int], ...]:
     if kind == "playback":
         return (
-            (center_x, center_y - 6),
-            (center_x + 6, center_y + 5),
-            (center_x - 6, center_y + 5),
+            (center_x, center_y - 5),
+            (center_x + 6, center_y + 3),
+            (center_x - 6, center_y + 3),
         )
     return (
-        (center_x, center_y + 5),
-        (center_x + 6, center_y - 6),
-        (center_x - 6, center_y - 6),
+        (center_x, center_y + 3),
+        (center_x + 6, center_y - 5),
+        (center_x - 6, center_y - 5),
     )
 
 
@@ -34,16 +34,16 @@ def _plot_handle_vertices(
         return _triangle_vertices("plot", center_x, center_y)
     if mode == "offset":
         return (
-            (center_x, center_y - 6),
+            (center_x, center_y - 5),
             (center_x + 6, center_y),
-            (center_x, center_y + 6),
+            (center_x, center_y + 4),
             (center_x - 6, center_y),
         )
     return (
-        (center_x - 5, center_y - 5),
-        (center_x + 5, center_y - 5),
-        (center_x + 5, center_y + 5),
-        (center_x - 5, center_y + 5),
+        (center_x - 5, center_y - 4),
+        (center_x + 5, center_y - 4),
+        (center_x + 5, center_y + 3),
+        (center_x - 5, center_y + 3),
     )
 
 
@@ -283,7 +283,7 @@ class TimeRangeSlider(wx.Control):
         dc.DrawLine(left, center_y, progress_x, center_y)
         dc.SetPen(wx.Pen(highlight, 2))
         dc.SetBrush(wx.Brush(background))
-        dc.DrawCircle(progress_x, center_y, 9)
+        dc.DrawCircle(progress_x, center_y, 6)
 
     def _playable_segment_x(self) -> tuple[int, int]:
         return self._x_for(self._playback[0]), self._x_for(self._playback[1])
@@ -432,7 +432,7 @@ class TimeRangeSlider(wx.Control):
                 _event.Skip()
             return
         width = height = 18
-        playback_grip_y = 43
+        playback_grip_y = 39
         # Keep the two handle rows equally spaced around the native slider track.
         centers: list[tuple[str, int]] = [
             (key, self._x_for(self._time_for(key))) for key in self._grips

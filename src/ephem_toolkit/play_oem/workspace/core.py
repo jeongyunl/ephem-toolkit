@@ -197,21 +197,15 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             # automatic hover timer can place it at the slider edge.
             self._timeline_tooltip.SetStartDelay(1)
             self.timeline_slider.Bind(wx.EVT_MOTION, self._on_timeline_motion)
-        timeline_track_sizer.Add(self.timeline_slider, 1, wx.EXPAND)
-        timeline_sizer.Add(
-            self.timeline_track_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8
+        timeline_track_sizer.Add(
+            self.timeline_slider,
+            1,
+            wx.EXPAND | wx.TOP | wx.BOTTOM,
+            2,
         )
         self.timeline_slider.set_ranges(
             coverage, initial_playback, initial_plot_rule, current_time()
         )
-        timeline_sizer.Add((0, 4), 0)
-        timeline_sizer.Add(
-            self.playback_controls_row,
-            0,
-            wx.ALIGN_CENTER | wx.LEFT | wx.RIGHT,
-            8,
-        )
-        timeline_sizer.Add((0, 4), 0)
         # Show playback bounds, not OEM coverage; shrink only displayed fractions.
         self.playback_start_label = wx.StaticText(self.time_readout_row, wx.ID_ANY, "")
         set_timestamp_label(
@@ -281,6 +275,11 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             wx.EXPAND | wx.LEFT | wx.RIGHT,
             8,
         )
+        timeline_sizer.Add((0, 8), 0)
+        timeline_sizer.Add(
+            self.timeline_track_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8
+        )
+        timeline_sizer.Add((0, 8), 0)
         self.playback_speed_buttons: dict[float, wx.ToggleButton] = {}
         self._playback_button_labels: dict[float, str] = {}
         for rate, glyph, direction in (
@@ -371,6 +370,12 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             self.playback_speed_buttons[rate] = speed_button
             self._playback_button_labels[rate] = glyph
             playback_sizer.Add(speed_button, 0, wx.RIGHT, 4)
+        timeline_sizer.Add(
+            self.playback_controls_row,
+            0,
+            wx.ALIGN_CENTER | wx.LEFT | wx.RIGHT,
+            8,
+        )
         for row in (
             self.timeline_track_row,
             self.playback_controls_row,

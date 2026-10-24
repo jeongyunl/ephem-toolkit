@@ -749,11 +749,12 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert result.timeline_track_row.sizer.orientation == workspace.wx.HORIZONTAL
     assert result.playback_controls_row.sizer.orientation == workspace.wx.HORIZONTAL
     assert result.time_readout_row.sizer.orientation == workspace.wx.HORIZONTAL
-    assert result.timeline_panel.sizer.items[2][0] is result.timeline_track_row
-    assert result.timeline_panel.sizer.items[4][0] is result.playback_controls_row
-    assert result.timeline_panel.sizer.items[6][0] is result.time_readout_row
-    assert result.timeline_panel.sizer.items[3][0] == (0, 4)
-    assert result.timeline_panel.sizer.items[5][0] == (0, 4)
+    assert result.timeline_track_row.sizer.items[0][3] == 2
+    assert result.timeline_panel.sizer.items[2][0] is result.time_readout_row
+    assert result.timeline_panel.sizer.items[4][0] is result.timeline_track_row
+    assert result.timeline_panel.sizer.items[6][0] is result.playback_controls_row
+    assert result.timeline_panel.sizer.items[3][0] == (0, 8)
+    assert result.timeline_panel.sizer.items[5][0] == (0, 8)
     assert result.playback_controls_row.sizer.items[4][0] is (
         result.playback_reverse_play_button
     )

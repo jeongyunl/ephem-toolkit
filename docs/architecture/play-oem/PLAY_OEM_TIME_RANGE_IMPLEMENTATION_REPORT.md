@@ -40,7 +40,7 @@ is in [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md).
   `TimeRangeSlider` uses a custom-painted track and seek thumb, colors the playable interval
   separately from seek progress, and uses four sibling grip controls with tooltips, pointer
   dragging, capture-loss handling, collision fan-out, and keyboard nudging. The playback footer
-  stacks dedicated timeline, playback-control, and time-readout row panels vertically, with
+  stacks dedicated time-readout, timeline, and playback-control row panels vertically, with
   compact padding and small gaps between rows.
 
 ## Current limitations and acceptance gaps
