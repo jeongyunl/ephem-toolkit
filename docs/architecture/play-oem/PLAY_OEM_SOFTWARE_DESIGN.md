@@ -318,12 +318,12 @@ Details ▸ (additional OEM metadata and diagnostics)
   30). Playback controls, navigation, and current UTC are available in the shared timeline footer.
 - Shared timeline footer: `Workspace` places a separator, start/current/end UTC row, playback
   direction and speed controls, and the timeline slider below the pane splitter. The range-enabled
-  slider retains the 0…10,000 integer mapping across OEM coverage and its native current-time
-  thumb; sibling grips display playback bounds and plot endpoints. Playback bounds constrain
-  clock movement. By default plot filtering selects samples inside those bounds and follows
-  playback-bound edits; each plot endpoint can instead use a playback-time offset or a fixed UTC
-  timepoint. Right-click a plot handle to choose its mode; drag Offset and Fixed handles to
-  change their position. See
+  slider uses a custom-painted track and thumb with the playable playback interval highlighted
+  separately from seek progress; sibling grips display playback bounds and plot endpoints.
+  Playback bounds constrain clock movement. By default plot filtering selects samples inside
+  those bounds and follows playback-bound edits; each plot endpoint can instead use a playback-
+  time offset or a fixed UTC timepoint. Right-click a plot handle to choose its mode; drag Offset
+  and Fixed handles to change their position. See
   [PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md](./PLAY_OEM_TIME_RANGE_IMPLEMENTATION_REPORT.md)
   for implemented behavior and current validation status. Earlier specifications are archived
   under `old/`.

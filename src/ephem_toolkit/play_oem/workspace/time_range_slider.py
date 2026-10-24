@@ -47,9 +47,7 @@ def _plot_handle_vertices(
     )
 
 
-def _plot_tooltip_text(
-    name: str, utc: str, mode: time_range.EndpointMode
-) -> str:
+def _plot_tooltip_text(name: str, utc: str, mode: time_range.EndpointMode) -> str:
     mode_label = {
         "follow": "Follow playback",
         "fixed": "Fixed time",
@@ -165,8 +163,8 @@ class _RangeGrip(wx.Control):
             event.Skip()
 
 
-class TimeRangeSlider(wx.Slider):
-    """A wx.Slider retaining its native seek thumb and adding four range grips."""
+class TimeRangeSlider(wx.Control):
+    """A portable painted seek slider with playback and plot range grips."""
 
     _KINDS = (
         ("playback_start", "Playback start", "playback", "#197765"),
@@ -184,8 +182,17 @@ class TimeRangeSlider(wx.Slider):
         on_plot_endpoint_mode: Callable[[str, time_range.EndpointMode], None],
         on_begin_edit: Callable[[], None],
     ) -> None:
-        super().__init__(parent, wx.ID_ANY, 0, 0, 10_000, style=wx.SL_HORIZONTAL)
+        super().__init__(
+            parent,
+            wx.ID_ANY,
+            style=wx.WANTS_CHARS | wx.TAB_TRAVERSAL,
+        )
+        self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
+        self.SetCanFocus(True)
         self.SetName("Playback timeline and time range handles")
+        self._minimum = 0
+        self._maximum = 10_000
+        self._value = 0
         # Leave a small handle-to-track gap without pushing playback controls down.
         self.SetMinSize(wx.Size(-1, max(58, self.GetBestSize().height + 20)))
         self._on_playback = on_playback
@@ -197,12 +204,152 @@ class TimeRangeSlider(wx.Slider):
         self._plot_rule: time_range.PlotTimeRange | None = None
         self._now = 0.0
         self._grips: dict[str, _RangeGrip] = {}
+        self._dragging = False
+        self.Bind(wx.EVT_PAINT, self._paint_track)
+        self.Bind(wx.EVT_LEFT_DOWN, self._left_down)
+        self.Bind(wx.EVT_LEFT_UP, self._left_up)
+        self.Bind(wx.EVT_MOTION, self._motion)
+        self.Bind(wx.EVT_MOUSE_CAPTURE_LOST, self._capture_lost)
+        self.Bind(wx.EVT_KEY_DOWN, self._key_down)
+        self.Bind(wx.EVT_MOUSEWHEEL, self._mouse_wheel)
+        self.Bind(wx.EVT_SET_FOCUS, self._focus_changed)
+        self.Bind(wx.EVT_KILL_FOCUS, self._focus_changed)
         for key, name, kind, color in self._KINDS:
-            # GTK native sliders are not reliable child-window hosts. Keep the
-            # grips as siblings in the slider's parent and position them over it.
+            # Sibling grips layer consistently across wx ports.
             grip = _RangeGrip(self.GetParent(), self, name, kind, color)
+            grip.Hide()
             self._grips[key] = grip
         self.Bind(wx.EVT_SIZE, self._on_size)
+
+    @property
+    def minimum(self) -> int:
+        return self._minimum
+
+    @property
+    def maximum(self) -> int:
+        return self._maximum
+
+    def SetRange(self, minimum: int, maximum: int) -> None:
+        self._minimum, self._maximum = minimum, max(minimum, maximum)
+        self.SetValue(self._value)
+
+    def GetMin(self) -> int:
+        return self._minimum
+
+    def GetMax(self) -> int:
+        return self._maximum
+
+    def GetValue(self) -> int:
+        return self._value
+
+    def SetValue(self, value: int) -> None:
+        self._value = min(max(int(value), self._minimum), self._maximum)
+        self.Refresh()
+
+    def _paint_track(self, _event: wx.PaintEvent) -> None:
+        dc = wx.AutoBufferedPaintDC(self)
+        background = self.GetBackgroundColour()
+        dc.SetBackground(wx.Brush(background))
+        dc.Clear()
+        width, height = self.GetClientSize()
+        if width <= 20 or height <= 0:
+            return
+
+        left, right = 10, width - 10
+        center_y = height // 2
+        background_luminance = (
+            background.Red() * 0.299
+            + background.Green() * 0.587
+            + background.Blue() * 0.114
+        )
+        track_color = (
+            wx.Colour("#55585d") if background_luminance < 128 else wx.Colour("#c9cdd2")
+        )
+        dc.SetPen(wx.Pen(track_color, 1))
+        dc.SetBrush(wx.Brush(track_color))
+        dc.DrawRoundedRectangle(left, center_y - 4, right - left, 8, 4)
+
+        playback_start_x, playback_end_x = self._playable_segment_x()
+        range_left, range_right = sorted((playback_start_x, playback_end_x))
+        range_width = max(4, range_right - range_left)
+        playback_color = wx.Colour("#197765")
+        dc.SetPen(wx.Pen(playback_color, 1))
+        dc.SetBrush(wx.Brush(playback_color))
+        dc.DrawRoundedRectangle(range_left, center_y - 4, range_width, 8, 4)
+
+        progress_x = self._x_for(self._now)
+        highlight = wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT)
+        dc.SetPen(wx.Pen(highlight, 2))
+        dc.DrawLine(left, center_y, progress_x, center_y)
+        dc.SetPen(wx.Pen(highlight, 2))
+        dc.SetBrush(wx.Brush(background))
+        dc.DrawCircle(progress_x, center_y, 9)
+
+    def _playable_segment_x(self) -> tuple[int, int]:
+        return self._x_for(self._playback[0]), self._x_for(self._playback[1])
+
+    def _value_at_x(self, x: int) -> int:
+        width = self.GetClientSize().width
+        fraction = min(max((x - 10) / max(1, width - 20), 0.0), 1.0)
+        return round(self._minimum + fraction * (self._maximum - self._minimum))
+
+    def _set_value_from_user(self, value: int) -> None:
+        checked_value = min(max(value, self._minimum), self._maximum)
+        if checked_value == self._value:
+            return
+        self.SetValue(checked_value)
+        event = wx.CommandEvent(wx.EVT_SLIDER.typeId, self.GetId())
+        event.SetInt(checked_value)
+        event.SetEventObject(self)
+        self.GetEventHandler().ProcessEvent(event)
+
+    def _left_down(self, event: wx.MouseEvent) -> None:
+        if not self.IsEnabled():
+            return
+        self.SetFocus()
+        self._dragging = True
+        if not self.HasCapture():
+            self.CaptureMouse()
+        self._set_value_from_user(self._value_at_x(event.GetX()))
+
+    def _left_up(self, _event: wx.MouseEvent) -> None:
+        self._dragging = False
+        if self.HasCapture():
+            self.ReleaseMouse()
+
+    def _motion(self, event: wx.MouseEvent) -> None:
+        if self._dragging and event.Dragging() and event.LeftIsDown():
+            self._set_value_from_user(self._value_at_x(event.GetX()))
+        event.Skip()
+
+    def _capture_lost(self, event: wx.MouseCaptureLostEvent) -> None:
+        self._dragging = False
+        event.Skip()
+
+    def _mouse_wheel(self, event: wx.MouseEvent) -> None:
+        rotation = event.GetWheelRotation()
+        if rotation:
+            direction = 1 if rotation > 0 else -1
+            self._set_value_from_user(self._value + direction * 100)
+
+    def _key_down(self, event: wx.KeyEvent) -> None:
+        key = event.GetKeyCode()
+        if key in (wx.WXK_LEFT, wx.WXK_RIGHT):
+            direction = -1 if key == wx.WXK_LEFT else 1
+            self._set_value_from_user(self._value + direction * 100)
+        elif key in (wx.WXK_PAGEUP, wx.WXK_PAGEDOWN):
+            direction = 1 if key == wx.WXK_PAGEUP else -1
+            self._set_value_from_user(self._value + direction * 1000)
+        elif key == wx.WXK_HOME:
+            self._set_value_from_user(self._minimum)
+        elif key == wx.WXK_END:
+            self._set_value_from_user(self._maximum)
+        else:
+            event.Skip()
+
+    def _focus_changed(self, event: wx.FocusEvent) -> None:
+        self.Refresh()
+        event.Skip()
 
     def set_ranges(
         self,
@@ -213,6 +360,7 @@ class TimeRangeSlider(wx.Slider):
     ) -> None:
         self._coverage, self._playback = coverage, playback
         self._plot_rule, self._now = plot_rule, now_s
+        self.Refresh()
         self._position_grips()
         for key, grip in self._grips.items():
             if key.startswith("plot"):
@@ -232,7 +380,9 @@ class TimeRangeSlider(wx.Slider):
     def _plot_mode(self, grip: _RangeGrip) -> time_range.EndpointMode:
         key = next(key for key, item in self._grips.items() if item is grip)
         assert self._plot_rule is not None
-        endpoint = self._plot_rule.start if key.endswith("start") else self._plot_rule.end
+        endpoint = (
+            self._plot_rule.start if key.endswith("start") else self._plot_rule.end
+        )
         return endpoint.mode
 
     def is_pointer_over_timeline_track(self, position: wx.Point) -> bool:
@@ -277,7 +427,7 @@ class TimeRangeSlider(wx.Slider):
         return 10 + round(fraction * max(0, width - 20))
 
     def _position_grips(self, _event: wx.Event | None = None) -> None:
-        if not self._grips:
+        if not self._grips or self._plot_rule is None:
             if _event is not None:
                 _event.Skip()
             return

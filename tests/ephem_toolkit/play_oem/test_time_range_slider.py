@@ -49,9 +49,7 @@ def test_plot_handle_shape_distinguishes_each_mode() -> None:
         ("fixed", "Fixed time"),
     ],
 )
-def test_plot_handle_tooltip_is_two_lines(
-    mode: EndpointMode, mode_label: str
-) -> None:
+def test_plot_handle_tooltip_is_two_lines(mode: EndpointMode, mode_label: str) -> None:
     tooltip = _plot_tooltip_text("Plot start", "2026-05-21T04:36:45", mode)
 
     assert tooltip.splitlines() == [
@@ -103,3 +101,28 @@ def test_timeline_tooltip_hotspot_is_limited_to_track_band(
         )
         is expected
     )
+
+
+def test_playable_track_segment_uses_playback_bounds_with_coverage_scale() -> None:
+    slider = SimpleNamespace(
+        _coverage=(0.0, 100.0),
+        _playback=(25.0, 75.0),
+        GetClientSize=lambda: SimpleNamespace(width=100),
+    )
+    slider._x_for = lambda value: TimeRangeSlider._x_for(slider, value)
+
+    assert TimeRangeSlider._playable_segment_x(slider) == (30, 70)
+
+
+@pytest.mark.parametrize(
+    ("x", "expected"),
+    [(10, 0), (50, 5000), (90, 10_000), (0, 0), (100, 10_000)],
+)
+def test_custom_slider_maps_pointer_to_seek_value(x: int, expected: int) -> None:
+    slider = SimpleNamespace(
+        _minimum=0,
+        _maximum=10_000,
+        GetClientSize=lambda: SimpleNamespace(width=100),
+    )
+
+    assert TimeRangeSlider._value_at_x(slider, x) == expected

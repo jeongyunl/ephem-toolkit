@@ -33,12 +33,13 @@ is in [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md).
   effective plot range.
 - A controller-owned dispatch resolves the shared range and updates visible views. Hidden views
   receive the latest state when shown. A loaded file restores its saved playback bounds when they
-  remain valid for its coverage; the plot range starts by following those bounds. Plot-range
-  customizations remain session-only.
+  remain valid for its coverage and restores that file's saved plot range; files without a saved
+  plot range follow playback bounds by default. Plot-range customizations persist per OEM file.
 - The timeline no longer has a separate plot-range editor row, value inputs, enable checkbox, or
   All OEM data button. Plot filtering remains enabled and is managed through the timeline handles.
-  `TimeRangeSlider` retains the native seek thumb and uses four sibling grip controls with
-  tooltips, pointer dragging, capture-loss handling, collision fan-out, and keyboard nudging.
+  `TimeRangeSlider` uses a custom-painted track and seek thumb, colors the playable interval
+  separately from seek progress, and uses four sibling grip controls with tooltips, pointer
+  dragging, capture-loss handling, collision fan-out, and keyboard nudging.
 
 ## Current limitations and acceptance gaps
 
@@ -47,9 +48,9 @@ is in [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md).
 - The slider's plot and playback grips occupy separate rows. Its keyboard nudge distance is
   based on OEM span (one thousandth of the span, or one second for a zero span), rather than a
   fixed one-second/minute scheme.
-- Automated coverage does not establish native slider track alignment, live painting, pointer
-  capture, focus traversal, high-DPI/theme behavior, or cross-platform wx behavior. These need a
-  live GUI session. VTK display/context-dependent checks are skipped in the recorded run.
+- Automated coverage does not establish custom track alignment, live painting, pointer capture,
+  focus traversal, high-DPI/theme behavior, or cross-platform wx behavior. These need a live GUI
+  session. VTK display/context-dependent checks are skipped in the recorded run.
 - A workspace test fixture lacks `FakeSplitter.GetDefaultSashSize`; display-backed native wx
   acceptance also requires a live GUI session.
 
