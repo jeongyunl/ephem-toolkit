@@ -21,6 +21,27 @@ def test_ground_track_minimum_elevation_round_trips(tmp_path) -> None:
     assert state.minimum_elevation_deg == 42
 
 
+def test_window_position_round_trips(tmp_path) -> None:
+    path = tmp_path / "play-oem-state.toml"
+    path.write_text(serialize_saved_state(SavedAppState(position=(-640, 120))))
+
+    state = load_saved_state(path)
+
+    assert state.position == (-640, 120)
+
+
+def test_invalid_window_position_falls_back(tmp_path) -> None:
+    path = tmp_path / "play-oem-state.toml"
+    path.write_text("state_version = 5\n[window]\nposition = [100, true]\n")
+
+    with warnings.catch_warnings(record=True) as observed:
+        warnings.simplefilter("always")
+        state = load_saved_state(path)
+
+    assert state.position is None
+    assert observed
+
+
 def test_legacy_saved_fps_is_ignored_and_not_serialized_again(tmp_path) -> None:
     path = tmp_path / "play-oem-state.toml"
     path.write_text(serialize_saved_state(SavedAppState()) + "\n[playback]\nfps = 24\n")

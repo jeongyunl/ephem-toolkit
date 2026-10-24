@@ -69,12 +69,13 @@ leave it at `1` unless a later version of this guide says otherwise.
 separately from your user-edited defaults. You normally do not need to edit it.
 
 ```toml
-state_version = 4
+state_version = 5
 
 [window]
 width = 1400
 height = 900
 maximized = false
+position = [120, 80]
 
 [recent_files]
 paths = [
@@ -93,7 +94,7 @@ open_plots = ["trajectory-3d", "speed-altitude"]
 minimum_elevation_deg = 10
 ```
 
-The state file remembers the main window size and up to 15 recently opened OEM files. The
+The state file remembers the main window size and position, and up to 15 recently opened OEM files. The
 most recently opened file appears first. A file is added after it loads successfully; opening it
 again moves it to the top without creating a duplicate. Paths are stored as absolute paths, so
 the recent-file list works regardless of the directory from which you launch `play-oem`.
@@ -116,8 +117,9 @@ accepted and is rewritten as `playback.render_rate_fps` when the selected rate i
 rate is no longer stored in the state file. The Ground Track minimum-elevation setting is saved
 here too.
 
-The window size is adjusted if it does not fit the current display. Window position is not
-saved initially, so changing monitors will not leave the window off-screen. If the state file is
+The window size is adjusted if it does not fit the current display. The saved window position is
+clamped to a connected display's work area if necessary, so a monitor change will not leave the
+window off-screen. Position is saved only while the window is not maximized. If the state file is
 missing or invalid, `play-oem` will use safe defaults and continue; it will report a warning for
 invalid state. It will update the state file separately and will not save one-time command-line
 overrides into `play-oem.toml`.

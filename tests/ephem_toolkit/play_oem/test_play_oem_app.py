@@ -173,6 +173,7 @@ class FakeFrame:
         self.focused = False
         self.sizer = None
         self.menu_bar = None
+        self.position = (0, 0)
 
     def SetMenuBar(self, menu_bar) -> None:
         self.menu_bar = menu_bar
@@ -191,6 +192,12 @@ class FakeFrame:
 
     def SetSize(self, size) -> None:
         self.size = size
+
+    def GetPosition(self):
+        return SimpleNamespace(x=self.position[0], y=self.position[1])
+
+    def SetPosition(self, position) -> None:
+        self.position = tuple(position)
 
     def SetTitle(self, title: str) -> None:
         self.title = title
@@ -1571,6 +1578,42 @@ def test_recent_file_playback_ranges_save_and_restore_on_switch(
         130.0,
         170.0,
     )
+    player.close()
+
+
+def test_window_position_is_restored_clamped_and_saved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeDisplay:
+        @staticmethod
+        def GetCount() -> int:
+            return 1
+
+        def __init__(self, _index: int) -> None:
+            pass
+
+        def GetClientArea(self):
+            return SimpleNamespace(x=0, y=0, width=1920, height=1080)
+
+    monkeypatch.setattr(app.wx, "Display", FakeDisplay)
+    monkeypatch.setattr(app, "save_saved_state", lambda _state: None)
+    saved_state = app.SavedAppState(position=(1800, 900))
+    player, _views, _canvases, frames = make_app(
+        monkeypatch,
+        saved_state=saved_state,
+    )
+
+    assert frames[0].position == (720, 280)
+    assert saved_state.position == (720, 280)
+
+    frames[0].position = (320, 140)
+    player._save_application_state()
+
+    assert saved_state.position == (320, 140)
+    frames[0].position = (500, 400)
+    frames[0].IsMaximized = lambda: True
+    player._save_application_state()
+    assert saved_state.position == (320, 140)
     player.close()
 
 

@@ -31,7 +31,9 @@ from ..ground_track import GroundTrackCoordinates
 from ..saved_state import (
     MAX_RECENT_FILES,
     MAX_STORED_WINDOW_DIMENSION,
+    MAX_STORED_WINDOW_POSITION,
     MIN_STORED_WINDOW_DIMENSION,
+    MIN_STORED_WINDOW_POSITION,
     RecentFileSettings,
     SavedAppState,
     normalize_recent_path,
@@ -314,6 +316,7 @@ class PlayerApp(
             if self._saved_state is not None
             else PLAYER_FRAME_SIZE
         )
+        self._restore_saved_window_position()
         if self._saved_state is not None and self._saved_state.maximized:
             self.frame.Maximize(True)
         self.frame.Bind(wx.EVT_CLOSE, self._on_frame_close)
@@ -417,6 +420,52 @@ class PlayerApp(
             display_height, max(min_height, self._saved_state.height)
         )
 
+    def _restore_saved_window_position(self) -> None:
+        """Restore the saved position, keeping the window inside a connected display."""
+        if self._saved_state is None or self._saved_state.position is None:
+            return
+        try:
+            displays = [
+                wx.Display(index).GetClientArea()
+                for index in range(wx.Display.GetCount())
+            ]
+            size = self.frame.GetSize()
+            width, height = int(size.width), int(size.height)
+        except (AttributeError, RuntimeError, TypeError):
+            return
+        if not displays or width <= 0 or height <= 0:
+            return
+
+        saved_x, saved_y = self._saved_state.position
+
+        def overlap_area(area: object) -> int:
+            area_x = int(getattr(area, "x"))
+            area_y = int(getattr(area, "y"))
+            area_width = int(getattr(area, "width"))
+            area_height = int(getattr(area, "height"))
+            overlap_width = max(
+                0, min(saved_x + width, area_x + area_width) - max(saved_x, area_x)
+            )
+            overlap_height = max(
+                0, min(saved_y + height, area_y + area_height) - max(saved_y, area_y)
+            )
+            return overlap_width * overlap_height
+
+        try:
+            area = max(displays, key=overlap_area)
+            area_x, area_y = int(area.x), int(area.y)
+            area_width, area_height = int(area.width), int(area.height)
+        except (AttributeError, TypeError, ValueError):
+            return
+        if area_width <= 0 or area_height <= 0:
+            return
+        x = min(saved_x, area_x + max(0, area_width - width))
+        y = min(saved_y, area_y + max(0, area_height - height))
+        x = max(area_x, x)
+        y = max(area_y, y)
+        self.frame.SetPosition((x, y))
+        self._saved_state.position = (x, y)
+
     def _save_application_state(self, *, save_geometry: bool = True) -> None:
         """Persist state safely without allowing a state-file error to close the app."""
         self._save_render_rate_config()
@@ -426,6 +475,17 @@ class PlayerApp(
         if save_geometry:
             self._saved_state.maximized = self.frame.IsMaximized()
             if not self._saved_state.maximized:
+                position = self.frame.GetPosition()
+                x, y = int(position.x), int(position.y)
+                if (
+                    MIN_STORED_WINDOW_POSITION
+                    <= x
+                    <= MAX_STORED_WINDOW_POSITION
+                    and MIN_STORED_WINDOW_POSITION
+                    <= y
+                    <= MAX_STORED_WINDOW_POSITION
+                ):
+                    self._saved_state.position = (x, y)
                 size = self.frame.GetSize()
                 width, height = int(size.width), int(size.height)
                 if width > 0 and height > 0:

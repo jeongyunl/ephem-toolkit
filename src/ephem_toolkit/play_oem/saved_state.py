@@ -20,10 +20,12 @@ from .config import default_config_directory
 from .views.registry import parse_plot_selection
 
 STATE_FILENAME = "play-oem-state.toml"
-STATE_VERSION = 4
+STATE_VERSION = 5
 MAX_RECENT_FILES = 15
 MIN_STORED_WINDOW_DIMENSION = 320
 MAX_STORED_WINDOW_DIMENSION = 10000
+MIN_STORED_WINDOW_POSITION = -100000
+MAX_STORED_WINDOW_POSITION = 100000
 
 # Default values are kept together for easy review and adjustment.
 DEFAULT_WINDOW_SIZE = (1100, 760)
@@ -54,6 +56,7 @@ class SavedAppState:
     width: int = DEFAULT_WINDOW_SIZE[0]
     height: int = DEFAULT_WINDOW_SIZE[1]
     maximized: bool = False
+    position: tuple[int, int] | None = None
     recent_files: list[str] = field(default_factory=list)
     recent_file_settings: dict[str, RecentFileSettings] = field(default_factory=dict)
     open_plots: list[str] | None = None
@@ -131,17 +134,17 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
     if (
         isinstance(version, bool)
         or not _is_int(version)
-        or version not in (1, 2, 3, STATE_VERSION)
+        or version not in (1, 2, 3, 4, STATE_VERSION)
     ):
         return _state_error(
-            state_path, f"state_version must be 1, 2, 3, or {STATE_VERSION}"
+            state_path, f"state_version must be 1, 2, 3, 4, or {STATE_VERSION}"
         )
 
     window = document.get("window", {})
     if not isinstance(window, dict):
         return _state_error(state_path, "[window] must be a TOML table")
-    if set(window) - {"width", "height", "maximized"}:
-        unknown = sorted(set(window) - {"width", "height", "maximized"})[0]
+    if set(window) - {"width", "height", "maximized", "position"}:
+        unknown = sorted(set(window) - {"width", "height", "maximized", "position"})[0]
         return _state_error(state_path, f"unknown key window.{unknown!s}")
     width = window.get("width", DEFAULT_WINDOW_SIZE[0])
     height = window.get("height", DEFAULT_WINDOW_SIZE[1])
@@ -156,6 +159,25 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
         return _state_error(state_path, "window.height is outside the supported range")
     if not isinstance(maximized, bool):
         return _state_error(state_path, "window.maximized must be true or false")
+    position_value = window.get("position")
+    position: tuple[int, int] | None = None
+    if position_value is not None:
+        if (
+            not isinstance(position_value, list)
+            or len(position_value) != 2
+            or any(
+                not _is_int(coordinate)
+                or not MIN_STORED_WINDOW_POSITION
+                <= coordinate
+                <= MAX_STORED_WINDOW_POSITION
+                for coordinate in position_value
+            )
+        ):
+            return _state_error(
+                state_path,
+                "window.position must contain two supported integer coordinates",
+            )
+        position = (position_value[0], position_value[1])
 
     recent_section = document.get("recent_files", {})
     if not isinstance(recent_section, dict):
@@ -312,6 +334,7 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
         width=width,
         height=height,
         maximized=maximized,
+        position=position,
         recent_files=_unique_recent_paths(paths)[:MAX_RECENT_FILES],
         recent_file_settings=recent_file_settings,
         open_plots=list(parsed_open_plots),
@@ -384,12 +407,19 @@ def serialize_saved_state(state: SavedAppState) -> str:
         encoded_settings.append(f"    {_toml_string(path)} = {settings_body}")
     settings_body = "\n".join(encoded_settings)
     settings_table = f"\n{settings_body}\n" if settings_body else "\n"
+    position_line = (
+        f"position = [{state.position[0]}, {state.position[1]}]\n"
+        if state.position is not None
+        else ""
+    )
     return (
         f"state_version = {STATE_VERSION}\n\n"
         "[window]\n"
         f"width = {int(state.width)}\n"
         f"height = {int(state.height)}\n"
-        f"maximized = {str(bool(state.maximized)).lower()}\n\n"
+        f"maximized = {str(bool(state.maximized)).lower()}\n"
+        f"{position_line}"
+        "\n"
         "[recent_files]\n"
         f"paths = [{path_body}]\n\n"
         "[recent_files.settings]\n"
