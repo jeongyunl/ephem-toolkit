@@ -443,11 +443,10 @@ class FakeControlWindow:
         self,
         _parent,
         on_toggle_play,
-        on_set_speed,
         on_reverse,
         *,
-        on_set_fps,
-        fps,
+        on_set_render_rate_fps,
+        render_rate_fps,
         on_step_samples,
         on_step_seconds,
         on_jump_to_start,
@@ -455,13 +454,12 @@ class FakeControlWindow:
         accelerator_parent=None,
         state_parent=None,
     ) -> None:
-        self.playback_scroller = object()
+        self.settings_scroller = object()
         self.state_scroller = object()
         self.state_parent = state_parent
         self.callbacks = {
             "toggle": on_toggle_play,
-            "speed": on_set_speed,
-            "fps": on_set_fps,
+            "render_rate": on_set_render_rate_fps,
             "reverse": on_reverse,
             "step_samples": on_step_samples,
             "step_seconds": on_step_seconds,
@@ -469,20 +467,12 @@ class FakeControlWindow:
             "jump_to_end": on_jump_to_end,
         }
         self.accelerator_parent = accelerator_parent
-        self.text = ""
 
     def bind_time_entry(self, _time_entry) -> None:
         pass
 
-    def update_playback_state(self, text: str, playing: bool, rate: float) -> None:
-        state = "Playing" if playing else "Paused"
-        self.text = f"{text}\n{state} | {rate:+g}x"
-
     def update_current_state(self, state) -> None:
         self.current_state = state
-
-    def set_playback_enabled(self, _enabled: bool) -> None:
-        pass
 
 
 class FakeWorkspace:
@@ -501,7 +491,7 @@ class FakeWorkspace:
         self.timeline_enabled = timeline_enabled
         self.context = context
         self.details = details
-        self.playback_page = object()
+        self.settings_page = object()
         self.state_page = object()
         self.main_analysis_stack = object()
         self.comparison_stack = object()
@@ -516,11 +506,11 @@ class FakeWorkspace:
             for rate in (-1000.0, -100.0, -10.0, 10.0, 100.0, 1000.0)
         }
         self.transport_state = None
-        self.playback_content = None
+        self.settings_content = None
         self.state_content = None
 
-    def set_playback_content(self, panel) -> None:
-        self.playback_content = panel
+    def set_settings_content(self, panel) -> None:
+        self.settings_content = panel
 
     def set_state_content(self, panel) -> None:
         self.state_content = panel
@@ -603,7 +593,9 @@ def make_app(
     three_d_backend: str = "matplotlib",
     clock: PlaybackClock | None = None,
     tick_interval_ms: int = 33,
+    render_rate_fps: int | None = None,
     saved_state: app.SavedAppState | None = None,
+    config_path=None,
     initial_file_path: str | None = None,
 ) -> tuple[Any, list[FakeView], list[FakeCanvas], list[FakeFrame]]:
     frames: list[FakeFrame] = []
@@ -678,7 +670,9 @@ def make_app(
         plots=plots,
         three_d_backend=three_d_backend,
         tick_interval_ms=tick_interval_ms,
+        render_rate_fps=render_rate_fps,
         saved_state=saved_state,
+        config_path=config_path,
         initial_file_path=initial_file_path,
     )
     return player, views, canvases, frames
@@ -736,27 +730,28 @@ def test_start_uses_one_wx_app_and_opens_the_selected_views(
     assert player.clock.rate == -10.0
     assert player.clock.playing
     assert player.clock.loop
-    assert "Elapsed: 50.000 s" in player.control_window.text
-    assert "Paused" not in player.control_window.text
     assert player.workspace.progress == 0.5
-    assert player.workspace.playback_content is player.control_window.playback_scroller
+    assert player.workspace.settings_content is player.control_window.settings_scroller
     assert player.control_window.state_parent is player.workspace.state_page
     assert player.workspace.state_content is player.control_window.state_scroller
 
     player.close()
 
 
-def test_wx_timer_advances_clock_and_updates_playback_display_and_views(
+def test_wx_timer_advances_clock_and_updates_timeline_and_views(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
 ) -> None:
     monotonic_time = [0.0]
     monkeypatch.setattr(app.time, "monotonic", lambda: monotonic_time[0])
+    config_path = tmp_path / "play-oem.toml"
     player, views, canvases, _frames = make_app(
         monkeypatch,
         clock=make_clock(rate=10.0, playing=True),
+        config_path=config_path,
     )
     player.start()
-    player.control_window.callbacks["fps"](1)
+    player.control_window.callbacks["render_rate"](1)
     assert player._timer.interval == 1000
     # Timer dispatch must preserve exact ten-second steps at 1 FPS and 10x speed.
     for expected_time in (110.0, 120.0, 130.0):
@@ -766,18 +761,32 @@ def test_wx_timer_advances_clock_and_updates_playback_display_and_views(
         assert all(view.updated_times[-1] == expected_time for view in views)
 
     assert player.workspace.progress == pytest.approx(0.3)
-    assert player.workspace.current_utc in player.control_window.text
-    assert "Elapsed: 30.000 s" in player.control_window.text
-    assert "UTC:" in player.control_window.text
-    assert "Playing | +10x" in player.control_window.text
+    assert player.workspace.current_utc
+    assert player.workspace.transport_state == (True, 10.0)
     assert all(canvas.draw_idle_count == 4 for canvas in canvases)
 
     # Changing FPS while playing updates both cadence and simulated step size.
-    player.control_window.callbacks["fps"](2)
+    player.control_window.callbacks["render_rate"](2)
     monotonic_time[0] += 0.5
     player._on_timer(SimpleNamespace())
     assert player._timer.interval == 500
     assert player.clock.t_now == 135.0
+
+    assert not config_path.exists()
+    player.close()
+    assert app.config.load_config(config_path).render_rate_fps == 2
+
+
+def test_explicit_render_rate_is_not_reconstructed_from_rounded_interval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch,
+        tick_interval_ms=34,
+        render_rate_fps=30,
+    )
+
+    assert player._render_rate_fps == 30
 
     player.close()
 
@@ -801,7 +810,6 @@ def test_transport_pause_state_updates_when_playback_reaches_an_endpoint(
     assert player.clock.t_now == 200.0
     assert not player.clock.playing
     assert player.workspace.transport_state == (False, 1.0)
-    assert "Paused | +1x" in player.control_window.text
     player.close()
 
 
@@ -1227,7 +1235,7 @@ def test_plot_click_seeks_and_respects_toolbar_modes_and_non_time_axes(
 
     assert player.clock.t_now == 160.0
     assert views[0].updated_times == [100.0, 160.0]
-    assert "Elapsed: 60.000 s" in player.control_window.text
+    assert player.workspace.current_utc
 
     for toolbar_mode in ("pan/zoom", "zoom rect"):
         canvas.toolbar.mode = toolbar_mode

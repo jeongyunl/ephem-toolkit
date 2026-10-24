@@ -19,8 +19,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     user_config = load_config(cli_args.config)
     saved_state = load_saved_state()
-    initial_fps = saved_state.fps if saved_state.fps is not None else user_config.fps
-    saved_state.fps = initial_fps
+    initial_render_rate_fps = user_config.render_rate_fps
     if "plots" in cli_args.provided_options:
         selected_plots = cli_args.plots
     elif user_config.plots_configured:
@@ -65,6 +64,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     if user_config.reverse and cli_args.input_oem is not None:
         initial_data.clock.seek(initial_data.clock.t_end)
 
+    player_options: dict[str, str] = {}
+    if cli_args.config is not None:
+        player_options["config_path"] = cli_args.config
+
     player = PlayerApp(
         initial_data.clock,
         initial_data.series,
@@ -76,7 +79,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         metadata_details=initial_data.metadata_details,
         plots=selected_plots,
         three_d_backend=selected_backend,
-        tick_interval_ms=math.ceil(1000 / initial_fps),
+        tick_interval_ms=math.ceil(1000 / initial_render_rate_fps),
+        render_rate_fps=initial_render_rate_fps,
         on_open_file=load_file,
         saved_state=saved_state,
         ground_track_source=initial_data.ground_track_source,
@@ -85,6 +89,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         loaded_file_name=(
             Path(cli_args.input_oem).name if cli_args.input_oem is not None else None
         ),
+        **player_options,
     )
 
     player.run()

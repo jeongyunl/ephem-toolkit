@@ -21,14 +21,11 @@ from .views.registry import parse_plot_selection
 
 STATE_FILENAME = "play-oem-state.toml"
 STATE_VERSION = 4
-FPS_MIN = 1
-FPS_MAX = 30
 MAX_RECENT_FILES = 15
 MIN_STORED_WINDOW_DIMENSION = 320
 MAX_STORED_WINDOW_DIMENSION = 10000
 
 # Default values are kept together for easy review and adjustment.
-DEFAULT_FPS = 30
 DEFAULT_WINDOW_SIZE = (1100, 760)
 DEFAULT_MINIMUM_ELEVATION_DEG = 10
 DEFAULT_GROUND_TRACK_PROJECTION = "Robinson"
@@ -66,7 +63,6 @@ class SavedAppState:
     ground_track_center_longitude_deg: float = DEFAULT_GROUND_TRACK_CENTER_LONGITUDE_DEG
     ground_track_xlim: tuple[float, float] | None = None
     ground_track_ylim: tuple[float, float] | None = None
-    fps: int | None = None
 
 
 def default_state_path() -> Path:
@@ -304,18 +300,13 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
     except ValueError as error:
         return _state_error(state_path, error)
 
+    # Older state files stored FPS here; the render rate now belongs to user config.
     playback = document.get("playback", {})
     if not isinstance(playback, dict):
         return _state_error(state_path, "[playback] must be a TOML table")
     if set(playback) - {"fps"}:
         unknown = sorted(set(playback) - {"fps"})[0]
         return _state_error(state_path, f"unknown key playback.{unknown!s}")
-    fps = playback.get("fps")
-    if fps is not None and (not _is_int(fps) or not FPS_MIN <= fps <= FPS_MAX):
-        return _state_error(
-            state_path,
-            f"playback.fps must be an integer from {FPS_MIN} through {FPS_MAX}",
-        )
 
     return SavedAppState(
         width=width,
@@ -330,7 +321,6 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
         ground_track_center_longitude_deg=float(center),
         ground_track_xlim=xlim,
         ground_track_ylim=ylim,
-        fps=fps,
     )
 
 
@@ -412,9 +402,7 @@ def serialize_saved_state(state: SavedAppState) -> str:
         f"background = {_toml_string(state.ground_track_background)}\n"
         f"center_longitude_deg = {state.ground_track_center_longitude_deg}\n"
         f"xlim = {list(state.ground_track_xlim) if state.ground_track_xlim else '[]'}\n"
-        f"ylim = {list(state.ground_track_ylim) if state.ground_track_ylim else '[]'}\n\n"
-        "[playback]\n"
-        f"fps = {DEFAULT_FPS if state.fps is None else int(state.fps)}\n"
+        f"ylim = {list(state.ground_track_ylim) if state.ground_track_ylim else '[]'}\n"
     )
 
 

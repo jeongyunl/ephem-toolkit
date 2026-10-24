@@ -137,6 +137,35 @@ def test_cli_without_input_starts_with_file_loading_available(
     assert launched["run"] is True
 
 
+def test_cli_passes_configured_render_rate_and_path_to_player(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    from ephem_toolkit.play_oem import app, saved_state
+
+    config_path = tmp_path / "custom-play-oem.toml"
+    config_path.write_text(
+        "config_version = 1\n[playback]\nrender_rate_fps = 17\n"
+    )
+    launched: dict[str, Any] = {}
+
+    class FakePlayerApp:
+        def __init__(self, *_args, **kwargs) -> None:
+            launched.update(kwargs)
+
+        def run(self) -> None:
+            launched["run"] = True
+
+    monkeypatch.setattr(app, "PlayerApp", FakePlayerApp)
+    monkeypatch.setattr(saved_state, "load_saved_state", saved_state.SavedAppState)
+
+    main(["--config", str(config_path)])
+
+    assert launched["render_rate_fps"] == 17
+    assert launched["tick_interval_ms"] == 59
+    assert launched["config_path"] == str(config_path)
+    assert launched["run"] is True
+
+
 def test_duration_and_time_unit_options_are_accepted() -> None:
     args = parse_arguments(
         build_arg_parser(),
@@ -263,6 +292,7 @@ def test_cli_loads_oem_and_launches_player(
             plots,
             three_d_backend,
             tick_interval_ms,
+            render_rate_fps,
             dashboard_context,
             metadata_details,
             on_open_file=None,
@@ -331,6 +361,7 @@ def test_cli_configures_reverse_autoplay_loop_and_elapsed_start(
             plots,
             three_d_backend,
             tick_interval_ms,
+            render_rate_fps,
             dashboard_context,
             metadata_details,
             on_open_file=None,
@@ -409,6 +440,7 @@ def test_cli_autoplay_pauses_at_forward_and_reverse_boundaries(
             plots,
             three_d_backend,
             tick_interval_ms,
+            render_rate_fps,
             dashboard_context,
             metadata_details,
             on_open_file=None,
@@ -466,6 +498,7 @@ def test_cli_resolves_elapsed_and_utc_start_times(
             plots,
             three_d_backend,
             tick_interval_ms,
+            render_rate_fps,
             dashboard_context,
             metadata_details,
             on_open_file=None,

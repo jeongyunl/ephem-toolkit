@@ -28,7 +28,7 @@ is the interactive playback application.
 | **Cursor state** | The OEM state at `t_now`, interpolated from the OEM samples (using the OEM's `INTERPOLATION` metadata when present). |
 | **View** | A plot window that renders a series or trajectory and a cursor/marker at `t_now`. |
 | **View group** | A named collection of related views opened together (Overview, State, Motion diagnostics, All). |
-| **Control window** | The Controls & Info pane: play/pause, speed, direction and FPS controls, current-state readout, data context and view toolbar. Closing the app window quits the app. |
+| **Control window** | The Controls & Info pane: a render-rate control on Playback, current-state readouts on State, and OEM context. Playback transport and navigation live in the shared timeline. Closing the app window quits the app. |
 
 Two kinds of views:
 
@@ -80,7 +80,7 @@ which views are open.
    `Motion diagnostics`, and `All`. Opening an already open view raises it; closing a view does
    not affect the clock. `All` includes the 3D orbit, state components, speed/altitude, RTN
    deltas, angular velocity, direction change, and geocentric distance.
-8. **Render rate**: an FPS slider in the Playback pane selects 1–30 frames per second (default
+8. **Render rate**: an FPS slider in the Settings pane selects 1–30 frames per second (default
    30). Playback advances by whole selected frame periods. When rendering overruns, consume all
    elapsed frame periods in one clock update and redraw once, dropping intermediate frames.
 
@@ -88,7 +88,7 @@ which views are open.
 
 1. All open views are synchronized to the single clock (never drift relative to each other).
 2. Rendering must keep the UI responsive at speeds up to 9000x: the frame rate is capped at
-   30 fps and overdue frames are dropped, not queued. The playback clock catches up by advancing
+   30 render-rate FPS and overdue frames are dropped, not queued. The playback clock catches up by advancing
    through all elapsed frame periods in one update.
 3. Seeking works while paused or playing.
 

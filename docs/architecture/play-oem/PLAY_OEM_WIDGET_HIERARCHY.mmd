@@ -7,7 +7,7 @@ flowchart TB
     frame --> menu_bar["wx.MenuBar<br/>File → Open File..."]
     frame --> main_sizer["main_sizer (vertical)"]
     frame --> status_bar["wx.StatusBar<br/>load result and error messages"]
-    frame --> playback_timer["wx.Timer<br/>1–30 FPS selected in Playback pane<br/>elapsed frame periods advance the clock<br/>overrun redraws are dropped"]
+    frame --> playback_timer["wx.Timer<br/>1–30 FPS selected in Settings pane<br/>elapsed frame periods advance the clock<br/>overrun redraws are dropped"]
 
     main_sizer -- "top, stretch 1" --> main_splitter
     main_sizer -- "bottom, fixed height" --> timeline_panel
@@ -19,18 +19,15 @@ flowchart TB
     subgraph LEFT ["Controls and Info pane"]
         controls_pane["self.controls_pane<br/>wx.Panel, Controls &amp; Info"]
         controls_pane --> controls_title_label["self.controls_title_label<br/>wx.StaticText"]
-        controls_pane --> rail["feature_button_rail (sizer)<br/>self.feature_rail_buttons: 3 x wx.BitmapToggleButton<br/>Playback, OEM file information, State"]
+        controls_pane --> rail["feature_button_rail (sizer)<br/>self.feature_rail_buttons: 3 x wx.BitmapToggleButton<br/>Settings, OEM file information, State"]
         controls_pane --> feature_book["self.feature_book<br/>wx.Simplebook, one page per feature"]
 
-        feature_book -- "Playback" --> playback_page["self.playback_page<br/>wx.Panel"]
+        feature_book -- "Settings" --> settings_page["self.settings_page<br/>wx.Panel"]
         feature_book -- "OEM file information" --> info_page["self.file_info_page<br/>wx.Panel"]
         feature_book -- "State" --> state_page["self.state_page<br/>wx.Panel"]
 
-        playback_page --> cw_panel["ControlWindow.playback_scroller<br/>wx.ScrolledWindow, vertical scroll"]
-        cw_panel --> cw_readout["elapsed_time_label, utc_time_label"]
-        cw_panel --> cw_playback["playback_heading_label, play_pause_button,<br/>reverse_toggle_button (reverse toggle),<br/>speed_readout_label, speed_slider, speed_scale_label"]
-        cw_panel --> cw_fps["fps_label (1–30 FPS, default 30),<br/>fps_slider"]
-        cw_panel --> cw_nav["navigation_heading_label, time navigation buttons"]
+        settings_page --> settings_panel["ControlWindow.settings_scroller<br/>wx.ScrolledWindow, vertical scroll"]
+        settings_panel --> render_rate["render_rate_label (1–30 FPS, default 30),<br/>render_rate_slider"]
 
         info_page --> info_scroll["self.file_info_scroll<br/>wx.ScrolledWindow, vertical scroll"]
         info_scroll --> info_labels["OEM file context and metadata headings and labels"]
@@ -79,4 +76,4 @@ flowchart TB
     classDef scroller fill:#dcfce7,stroke:#166534,color:#14532d
     class frame window
     class main_splitter,graph_panes_splitter container
-    class cw_panel,state_scroller,info_scroll,main_analysis_stack,comparison_stack,graph_scroller scroller
+    class settings_panel,state_scroller,info_scroll,main_analysis_stack,comparison_stack,graph_scroller scroller

@@ -569,7 +569,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "BOTTOM": 256,
         "SL_HORIZONTAL": 512,
         "ART_BUTTON": 1,
-        "ART_GO_FORWARD": "forward",
+        "ART_HELP_SETTINGS": "settings",
         "ART_INFORMATION": "information",
         "EVT_BUTTON": "button",
         "EVT_TOGGLEBUTTON": "toggle-button",
@@ -652,18 +652,18 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     result, _seeks, frame = make_workspace(monkeypatch)
 
     assert [label for _page, label in result.feature_book.pages] == [
-        "Playback",
+        "Settings",
         "OEM file information",
         "State",
     ]
     assert result.feature_book.selection == 0
-    assert result.feature_rail_buttons[0].name == "Playback"
-    assert result.feature_rail_buttons[0].tooltip == "Playback"
+    assert result.feature_rail_buttons[0].name == "Settings"
+    assert result.feature_rail_buttons[0].tooltip == "Settings"
     assert result.feature_rail_buttons[1].name == "OEM file information"
     assert result.feature_rail_buttons[2].name == "State"
     assert result.feature_rail_buttons[2].tooltip == "State"
     assert [page.name for page in result.feature_pages] == [
-        "Playback",
+        "Settings",
         "OEM file information",
         "State",
     ]

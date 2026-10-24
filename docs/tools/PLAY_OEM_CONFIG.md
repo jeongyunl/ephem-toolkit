@@ -52,7 +52,7 @@ config_version = 1
 [playback]
 speed = 1.0
 reverse = false
-fps = 30
+render_rate_fps = 30
 
 [display]
 three_d_backend = "auto"
@@ -91,9 +91,6 @@ open_plots = ["trajectory-3d", "speed-altitude"]
 
 [ground_track]
 minimum_elevation_deg = 10
-
-[playback]
-fps = 24
 ```
 
 The state file remembers the main window size and up to 15 recently opened OEM files. The
@@ -112,9 +109,12 @@ The state file also remembers the graph views open when you exit. On the next la
 views are restored unless you provide `--plots` or set `display.plots` in `play-oem.toml`.
 The saved values are view names such as `trajectory-3d` and `speed-altitude`; plot groups are
 expanded to their individual views when saved.
-It also saves the Playback pane's render-rate slider (1–30 FPS) when the application exits.
-That saved FPS takes precedence over `playback.fps` in the user config; the user-config value is
-used when no FPS has been saved yet. The Ground Track minimum-elevation setting is saved here too.
+When you change the Settings pane's render rate, the selected render rate FPS is saved as
+`playback.render_rate_fps` in `play-oem.toml` when the application exits. The app updates only
+that setting, preserving the other user-config values. The legacy `playback.fps` key is still
+accepted and is rewritten as `playback.render_rate_fps` when the selected rate is saved. Render
+rate is no longer stored in the state file. The Ground Track minimum-elevation setting is saved
+here too.
 
 The window size is adjusted if it does not fit the current display. Window position is not
 saved initially, so changing monitors will not leave the window off-screen. If the state file is
@@ -130,7 +130,7 @@ overrides into `play-oem.toml`.
 |---|---|
 | `speed` | Initial playback speed multiplier, from 1x through 9000x. Playback speed is currently controlled in the GUI. |
 | `reverse` | Initial direction preference for the GUI. |
-| `fps` | Initial render-rate preference from 1 through 30 frames per second. The Playback pane slider's current value is saved in `play-oem-state.toml` at exit. |
+| `render_rate_fps` | Initial render-rate preference from 1 through 30 frames per second. The Settings pane slider's current value is saved in `play-oem.toml` at exit. The legacy `fps` key is also accepted. |
 
 ### Display
 

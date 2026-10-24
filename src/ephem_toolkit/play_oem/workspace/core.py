@@ -367,11 +367,11 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         self._transport_rate = 1.0
         self._last_transport_state: tuple[bool, float] | None = None
 
-    def set_playback_content(self, panel: wx.Window) -> None:
-        """Place the playback controls in the Playback feature page."""
+    def set_settings_content(self, settings_panel: wx.Window) -> None:
+        """Place settings controls in the Settings feature page."""
         page_sizer = wx.BoxSizer(wx.VERTICAL)
-        page_sizer.Add(panel, 1, wx.EXPAND)
-        self.playback_page.SetSizer(page_sizer)
+        page_sizer.Add(settings_panel, 1, wx.EXPAND)
+        self.settings_page.SetSizer(page_sizer)
 
     def set_state_content(self, panel: wx.Window) -> None:
         """Place cursor state readouts in the State feature page."""

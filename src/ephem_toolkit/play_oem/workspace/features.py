@@ -29,7 +29,7 @@ class _FeatureNavigationState(Protocol):
     feature_rail_buttons: list[wx.BitmapToggleButton]
     file_info_page: wx.Panel
     file_info_scroll: wx.ScrolledWindow
-    playback_page: wx.Panel
+    settings_page: wx.Panel
     state_page: wx.Panel
     timeline_slider: TimeRangeSlider
 
@@ -62,7 +62,7 @@ class FeatureNavigationMixin:
     """Implement the controls rail and OEM information page."""
 
     _FEATURES = (
-        ("Playback", wx.ART_GO_FORWARD),
+        ("Settings", wx.ART_HELP_SETTINGS),
         ("OEM file information", wx.ART_INFORMATION),
         ("State", wx.ART_LIST_VIEW),
     )
@@ -155,7 +155,7 @@ class FeatureNavigationMixin:
             feature_button_rail.Add(feature_button, 0, wx.EXPAND | wx.ALL, 2)
             self.feature_rail_buttons.append(feature_button)
 
-        self.playback_page = self.feature_pages[0]
+        self.settings_page = self.feature_pages[0]
         self.file_info_page = self.feature_pages[1]
         self.state_page = self.feature_pages[2]
         file_info_sizer = wx.BoxSizer(wx.VERTICAL)

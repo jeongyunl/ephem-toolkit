@@ -267,7 +267,7 @@ def make_window(
     configure_fake_wx(monkeypatch)
     calls: dict[str, list[object]] = {
         "toggle": [],
-        "speed": [],
+        "render_rate": [],
         "reverse": [],
         "step_samples": [],
         "step_seconds": [],
@@ -280,8 +280,8 @@ def make_window(
     window = window_factory(
         owner,
         lambda: calls["toggle"].append(True),
-        calls["speed"].append,
         lambda: calls["reverse"].append(True),
+        on_set_render_rate_fps=calls["render_rate"].append,
         on_step_samples=calls["step_samples"].append,
         on_step_seconds=calls["step_seconds"].append,
         on_jump_to_start=lambda: calls["start"].append(True),
@@ -291,95 +291,31 @@ def make_window(
     return window, owner, calls
 
 
-def test_native_controls_dispatch_playback_and_navigation_actions(
+def test_settings_page_contains_only_the_render_rate_control(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     window, _owner, calls = make_window(monkeypatch)
 
-    window.play_pause_button.trigger(control_window.wx.EVT_BUTTON)
-    window.reverse_toggle_button.trigger(control_window.wx.EVT_TOGGLEBUTTON)
-    for button in window.navigation_buttons:
-        button.trigger(control_window.wx.EVT_BUTTON)
-
-    assert calls["toggle"] == [True]
-    assert calls["reverse"] == [True]
-    assert calls["speed"] == []
-    assert calls["start"] == [True]
-    assert calls["step_samples"] == [-1, 1]
-    assert calls["step_seconds"] == [-60.0, 60.0]
-    assert calls["end"] == [True]
-    assert [button.label for button in window.navigation_buttons] == [
-        "Start",
-        "Previous sample",
-        "-1 min",
-        "+1 min",
-        "Next sample",
-        "End",
+    assert window.settings_scroller.scroll_rate == (0, 10)
+    assert window.settings_scroller.name == "Settings render rate"
+    assert [item[0] for item in window.settings_scroller.sizer.items] == [
+        window.render_rate_label,
+        window.render_rate_slider,
     ]
+    assert window.render_rate_label.label == "Render rate: 30 FPS"
+    assert window.render_rate_slider.name == "Render rate (frames per second)"
+    assert window.render_rate_slider.minimum == control_window.RENDER_RATE_FPS_MIN
+    assert window.render_rate_slider.maximum == control_window.RENDER_RATE_FPS_MAX
+    assert not hasattr(window, "play_pause_button")
+    assert not hasattr(window, "reverse_toggle_button")
+    assert not hasattr(window, "speed_slider")
+    assert not hasattr(window, "navigation_buttons")
+    assert window.settings_scroller.fit_inside_count == 1
 
+    window.render_rate_slider.trigger(control_window.wx.EVT_SLIDER, FakeEvent(24))
 
-def test_playback_controls_remain_reachable_in_scrollable_page(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    window, _owner, _calls = make_window(monkeypatch)
-
-    assert window.playback_scroller.scroll_rate == (0, 10)
-    playback_row = window.playback_scroller.sizer.items[2][0]
-    assert playback_row.orientation == control_window.wx.VERTICAL
-    playback_controls = [item[0] for item in playback_row.items]
-    assert window.playback_heading_label in playback_controls
-    assert window.speed_slider in playback_controls
-    navigation_group = window.playback_scroller.sizer.items[3][0]
-    assert window.navigation_heading_label in [
-        item[0] for item in navigation_group.items
-    ]
-    assert not hasattr(window, "time_entry")
-    assert not hasattr(window, "seek_button")
-    navigation_row = navigation_group.items[1][0]
-    assert all(
-        button in [item[0] for item in navigation_row.items]
-        for button in window.navigation_buttons
-    )
-    assert window.navigation_buttons[1].parent is window.playback_scroller
-    assert "100 slider steps per decade" in window.speed_slider.tooltip
-    assert not hasattr(window, "view_groups_pane")
-    assert not hasattr(window, "group_buttons")
-    assert not hasattr(window, "view_choice")
-    assert not hasattr(window, "open_view_button")
-    assert window.playback_scroller.fit_inside_count == 1
-
-    window.playback_scroller.bindings[control_window.wx.EVT_SIZE](FakeEvent())
-
-    assert window.playback_scroller.layout_count == 2
-    assert window.playback_scroller.fit_inside_count == 4
-
-
-def test_utc_timestamp_wraps_at_the_date_time_separator(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    window, _owner, _calls = make_window(monkeypatch)
-
-    window.update_time("Elapsed: 0 s\nUTC: 2026-07-06T00:00:00.000")
-
-    assert window.utc_time_label.label == "UTC: 2026-07-06T\n00:00:00.000"
-
-
-@pytest.mark.parametrize("control_name", ("last_navigation_button",))
-def test_keyboard_focus_scrolls_offscreen_playback_controls_into_view(
-    monkeypatch: pytest.MonkeyPatch,
-    control_name: str,
-) -> None:
-    window, _owner, _calls = make_window(monkeypatch)
-    control = {
-        "last_navigation_button": window.navigation_buttons[-1],
-    }[control_name]
-    control.position = FakeSize(0, 540)
-
-    control.trigger(control_window.wx.EVT_SET_FOCUS)
-
-    assert window.playback_scroller.scroll_position == (0, 17)
-    control.trigger(control_window.wx.EVT_SET_FOCUS)
-    assert window.playback_scroller.scroll_position == (0, 17)
+    assert window.render_rate_label.label == "Render rate: 24 FPS"
+    assert calls["render_rate"] == [24]
 
 
 def test_dashboard_formats_state_and_missing_values(
@@ -408,15 +344,6 @@ def test_dashboard_formats_state_and_missing_values(
     )
     assert window.state_derived_label.name == "Derived speed and altitude"
     assert window.state_cursor_status_label.name == "Cursor data status"
-    assert all(
-        label not in [item[0] for item in window.playback_scroller.sizer.items]
-        for label in (
-            window.state_position_label,
-            window.state_velocity_label,
-            window.state_derived_label,
-            window.state_cursor_status_label,
-        )
-    )
     window.update_current_state(
         CursorState(
             1.0,
@@ -505,56 +432,6 @@ def test_state_readout_preserves_component_precision_and_scroll_position(
     assert window.state_cursor_status_label.label == "Cursor status: unavailable"
 
 
-@pytest.mark.parametrize(
-    ("position", "expected"),
-    [(0, 1.0), (100, 10.0), (200, 100.0), (300, 1000.0)],
-)
-def test_log_speed_slider_maps_integer_values_to_speed(
-    monkeypatch: pytest.MonkeyPatch,
-    position: int,
-    expected: float,
-) -> None:
-    window, _owner, calls = make_window(monkeypatch)
-
-    window.speed_slider.trigger(
-        control_window.wx.EVT_SLIDER,
-        FakeEvent(position),
-    )
-
-    assert calls["speed"][-1] == pytest.approx(expected)
-
-
-def test_playback_state_updates_readouts_and_speed_without_seeking(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    window, _owner, calls = make_window(monkeypatch)
-    window.speed_slider.emit_event_on_set = True
-
-    window.update_playback_state("Elapsed: 25 s\nUTC: example", True, -10.0)
-
-    assert window.speed_slider.value == 100
-    assert window.elapsed_time_label.label == "Elapsed: 25 s"
-    assert window.utc_time_label.label == "UTC: example"
-    assert window.play_pause_button.label == "Pause"
-    assert window.speed_readout_label.label == "Speed: -10x"
-    assert window.speed_scale_label.label == (
-        "Speed slider: -10x (log scale, 1x to 9000x)"
-    )
-    assert window.reverse_toggle_button.label == "Forward"
-    assert window.reverse_toggle_button.value
-    assert window.utc_time_label.wrap_width == 166
-    assert window.speed_scale_label.wrap_width == 166
-    assert not calls["speed"]
-
-    window.update_playback_state("Elapsed: 25 s\nUTC: example", False, 1.0)
-
-    assert window.speed_scale_label.label == (
-        "Speed slider: +1x (log scale, 1x to 9000x)"
-    )
-    assert not window.reverse_toggle_button.value
-    assert not calls["speed"]
-
-
 def test_accelerators_cover_playback_navigation_and_disable_for_time_entry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -581,7 +458,7 @@ def test_accelerators_cover_playback_navigation_and_disable_for_time_entry(
     assert calls["start"] == [True]
     assert calls["end"] == [True]
 
-    time_entry = FakeTextCtrl(window.playback_scroller, -1, "")
+    time_entry = FakeTextCtrl(window.settings_scroller, -1, "")
     window.bind_time_entry(time_entry)
     focus_event = FakeEvent()
     time_entry.trigger(control_window.wx.EVT_SET_FOCUS, focus_event)

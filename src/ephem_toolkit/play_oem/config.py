@@ -6,6 +6,8 @@ from dataclasses import dataclass
 import math
 import os
 from pathlib import Path
+import re
+import tempfile
 from typing import Any
 
 try:
@@ -20,8 +22,8 @@ from .views.trajectory3d.selection import THREE_D_BACKEND_CHOICES
 CONFIG_DIRECTORY = "ephem-toolkit"
 CONFIG_FILENAME = "play-oem.toml"
 CONFIG_VERSION = 1
-FPS_MIN = 1
-FPS_MAX = 30
+RENDER_RATE_FPS_MIN = 1
+RENDER_RATE_FPS_MAX = 30
 
 
 class ConfigError(ValueError):
@@ -34,7 +36,7 @@ class PlayOemConfig:
 
     speed: float = 1.0
     reverse: bool = False
-    fps: int = 30
+    render_rate_fps: int = RENDER_RATE_FPS_MAX
     three_d_backend: str = "auto"
     plots: tuple[str, ...] = ("overview",)
     plots_configured: bool = False
@@ -116,7 +118,12 @@ def load_config(path: str | Path | None = None) -> PlayOemConfig:
 
     playback = _table(document.get("playback", {}), "playback", config_path)
     display = _table(document.get("display", {}), "display", config_path)
-    _reject_unknown_keys(playback, {"speed", "reverse", "fps"}, "playback", config_path)
+    _reject_unknown_keys(
+        playback,
+        {"speed", "reverse", "fps", "render_rate_fps"},
+        "playback",
+        config_path,
+    )
     _reject_unknown_keys(display, {"three_d_backend", "plots"}, "display", config_path)
 
     speed = playback.get("speed", 1.0)
@@ -140,14 +147,22 @@ def load_config(path: str | Path | None = None) -> PlayOemConfig:
     if not isinstance(reverse, bool):
         raise ConfigError(f"{config_path}: playback.reverse must be true or false")
 
-    fps = playback.get("fps", FPS_MAX)
+    if "fps" in playback and "render_rate_fps" in playback:
+        raise ConfigError(
+            f"{config_path}: set only playback.render_rate_fps, not both "
+            "playback.fps and playback.render_rate_fps"
+        )
+    render_rate_fps = playback.get(
+        "render_rate_fps", playback.get("fps", RENDER_RATE_FPS_MAX)
+    )
     if (
-        isinstance(fps, bool)
-        or not isinstance(fps, int)
-        or not FPS_MIN <= fps <= FPS_MAX
+        isinstance(render_rate_fps, bool)
+        or not isinstance(render_rate_fps, int)
+        or not RENDER_RATE_FPS_MIN <= render_rate_fps <= RENDER_RATE_FPS_MAX
     ):
         raise ConfigError(
-            f"{config_path}: playback.fps must be between {FPS_MIN} and {FPS_MAX}"
+            f"{config_path}: playback.render_rate_fps must be between "
+            f"{RENDER_RATE_FPS_MIN} and {RENDER_RATE_FPS_MAX}"
         )
 
     backend = display.get("three_d_backend", "auto")
@@ -170,11 +185,139 @@ def load_config(path: str | Path | None = None) -> PlayOemConfig:
     return PlayOemConfig(
         speed=speed_value,
         reverse=reverse,
-        fps=fps,
+        render_rate_fps=render_rate_fps,
         three_d_backend=backend,
         plots=plots,
         plots_configured="plots" in display,
     )
+
+
+def _with_render_rate_fps(document: str, render_rate_fps: int) -> str:
+    newline = "\r\n" if "\r\n" in document else "\n"
+    lines = document.splitlines()
+    section_header = re.compile(r"^[ \t]*\[{1,2}[^\]]+\]{1,2}[ \t]*(?:#.*)?$")
+    playback_header = re.compile(
+        r"^[ \t]*\[[ \t]*(?:playback|\"playback\"|'playback')[ \t]*\][ \t]*(?:#.*)?$"
+    )
+    inline_playback = re.compile(
+        r"^([ \t]*playback[ \t]*=[ \t]*\{)(.*)(\}[ \t]*(?:#.*)?)$"
+    )
+    inline_rate = re.compile(
+        r"(^|,[ \t]*)(?:render_rate_fps|\"render_rate_fps\"|'render_rate_fps'|"
+        r"fps|\"fps\"|'fps')[ \t]*=[ \t]*[^,]*?([ \t]*)(?=,|$)"
+    )
+
+    for index, line in enumerate(lines):
+        inline_match = inline_playback.match(line)
+        if inline_match is None:
+            continue
+        values = inline_match.group(2)
+        rate_match = inline_rate.search(values)
+        if rate_match is None:
+            values = (
+                f"{values.rstrip()}, render_rate_fps = {render_rate_fps}"
+                if values.strip()
+                else f"render_rate_fps = {render_rate_fps}"
+            )
+        else:
+            replacement = (
+                f"{rate_match.group(1)}render_rate_fps = {render_rate_fps}"
+                f"{rate_match.group(2)}"
+            )
+            values = (
+                values[: rate_match.start()]
+                + replacement
+                + values[rate_match.end() :]
+            )
+        lines[index] = (
+            f"{inline_match.group(1)}{values}{inline_match.group(3)}"
+        )
+        updated = newline.join(lines)
+        if document.endswith(("\n", "\r")):
+            updated += newline
+        return updated
+
+    playback_start = next(
+        (index for index, line in enumerate(lines) if playback_header.match(line)),
+        None,
+    )
+
+    if playback_start is None:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.extend(("[playback]", f"render_rate_fps = {render_rate_fps}"))
+    else:
+        playback_end = next(
+            (
+                index
+                for index in range(playback_start + 1, len(lines))
+                if section_header.match(lines[index])
+            ),
+            len(lines),
+        )
+        for index in range(playback_start + 1, playback_end):
+            match = re.match(
+                r"^([ \t]*)(?:render_rate_fps|\"render_rate_fps\"|'render_rate_fps'|"
+                r"fps|\"fps\"|'fps')([ \t]*=[ \t]*)(.*?)([ \t]*(?:#.*)?)$",
+                lines[index],
+            )
+            if match is not None:
+                lines[index] = (
+                    f"{match.group(1)}render_rate_fps{match.group(2)}"
+                    f"{render_rate_fps}{match.group(4)}"
+                )
+                break
+        else:
+            lines.insert(playback_end, f"render_rate_fps = {render_rate_fps}")
+
+    updated = newline.join(lines)
+    if document.endswith(("\n", "\r")):
+        updated += newline
+    return updated
+
+
+def save_render_rate_fps(
+    render_rate_fps: int, path: str | Path | None = None
+) -> Path:
+    """Persist the selected render rate in the user configuration file."""
+    if (
+        isinstance(render_rate_fps, bool)
+        or not isinstance(render_rate_fps, int)
+        or not RENDER_RATE_FPS_MIN
+        <= render_rate_fps
+        <= RENDER_RATE_FPS_MAX
+    ):
+        raise ConfigError(
+            "playback.render_rate_fps must be between "
+            f"{RENDER_RATE_FPS_MIN} and {RENDER_RATE_FPS_MAX}"
+        )
+
+    config_path = default_config_path() if path is None else Path(path).expanduser()
+    if config_path.exists():
+        load_config(config_path)
+        document = config_path.read_text(encoding="utf-8")
+    else:
+        document = f"config_version = {CONFIG_VERSION}\n"
+    updated_document = _with_render_rate_fps(document, render_rate_fps)
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            newline="",
+            dir=config_path.parent,
+            prefix=f".{config_path.name}.",
+            delete=False,
+        ) as stream:
+            stream.write(updated_document)
+            temporary_path = stream.name
+        os.replace(temporary_path, config_path)
+    finally:
+        if temporary_path is not None and os.path.exists(temporary_path):
+            os.unlink(temporary_path)
+    return config_path
 
 
 def supplied_options(argv: list[str]) -> set[str]:

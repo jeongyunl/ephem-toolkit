@@ -6,6 +6,7 @@ from collections.abc import Callable, Sequence
 import gc
 import math
 import os
+from pathlib import Path
 import signal
 import time
 import warnings
@@ -15,7 +16,16 @@ import wx
 
 import ephem_toolkit.core.time_utils as time_utils
 
-from .. import clock, control_window, cursor, series, time_range, time_unit, workspace
+from .. import (
+    clock,
+    config,
+    control_window,
+    cursor,
+    series,
+    time_range,
+    time_unit,
+    workspace,
+)
 from .. import playback_data
 from ..ground_track import GroundTrackCoordinates
 from ..saved_state import (
@@ -34,7 +44,6 @@ from ..views.trajectory3d import selection as trajectory3d_selection
 
 from .support import (
     DEFAULT_TICK_INTERVAL_MS,
-    ELAPSED_TIME_DECIMAL_PLACES,
     EMPTY_GRAPH_LABEL,
     EMPTY_GRAPH_VIEW,
     PLAYER_FRAME_MIN_SIZE,
@@ -77,8 +86,10 @@ class PlayerApp(
         plots: Sequence[str] = ("overview",),
         three_d_backend: str = "auto",
         tick_interval_ms: int = DEFAULT_TICK_INTERVAL_MS,
+        render_rate_fps: int | None = None,
         on_open_file: Callable[[str], playback_data.PlaybackData] | None = None,
         saved_state: SavedAppState | None = None,
+        config_path: str | Path | None = None,
         ground_track_source: playback_data.GroundTrackSource | None = None,
         initial_file_path: str | None = None,
         oem_loaded: bool = True,
@@ -106,8 +117,12 @@ class PlayerApp(
             Backend used for the 3D trajectory view.
         tick_interval_ms : int, default=DEFAULT_TICK_INTERVAL_MS
             Interval between playback timer events, in milliseconds.
+        render_rate_fps : int | None, optional
+            Exact initial render rate; when omitted, infer it from the timer interval.
         saved_state : SavedAppState | None, optional
             App-maintained window and recent-file state to restore and persist.
+        config_path : str | Path | None, optional
+            User configuration file to update when the render rate changes.
         initial_file_path : str | None, optional
             Path to the successfully loaded initial OEM, added to recent files.
 
@@ -136,16 +151,28 @@ class PlayerApp(
         self._ground_track_source = ground_track_source
         self._ground_track_coordinates: GroundTrackCoordinates | None = None
         self._tick_interval_ms = tick_interval_ms
-        # Infer the initial slider value from the existing timer interval API.
-        # Keep FPS separately so millisecond rounding does not affect clock steps.
-        restored_fps = saved_state.fps if saved_state is not None else None
-        self._fps = (
-            restored_fps
-            if restored_fps is not None
+        self._config_path = config_path
+        self._render_rate_config_dirty = False
+        # Keep render-rate FPS separately so timer rounding does not affect clock steps.
+        if render_rate_fps is not None and (
+            isinstance(render_rate_fps, bool)
+            or not isinstance(render_rate_fps, int)
+            or not control_window.RENDER_RATE_FPS_MIN
+            <= render_rate_fps
+            <= control_window.RENDER_RATE_FPS_MAX
+        ):
+            raise ValueError(
+                "render_rate_fps must be between "
+                f"{control_window.RENDER_RATE_FPS_MIN} and "
+                f"{control_window.RENDER_RATE_FPS_MAX}"
+            )
+        self._render_rate_fps = (
+            render_rate_fps
+            if render_rate_fps is not None
             else min(
-                control_window.FPS_MAX,
+                control_window.RENDER_RATE_FPS_MAX,
                 max(
-                    control_window.FPS_MIN,
+                    control_window.RENDER_RATE_FPS_MIN,
                     round(MILLISECONDS_PER_SECOND / tick_interval_ms),
                 ),
             )
@@ -267,12 +294,11 @@ class PlayerApp(
         )
         self.control_window: control_window.ControlWindow = (
             control_window.ControlWindow(
-                self.workspace.playback_page,
+                self.workspace.settings_page,
                 self._toggle_playback,
-                self._set_playback_speed,
                 self._reverse_playback,
-                on_set_fps=self._set_playback_fps,
-                fps=self._fps,
+                on_set_render_rate_fps=self._set_render_rate_fps,
+                render_rate_fps=self._render_rate_fps,
                 on_step_samples=self._step_samples,
                 on_step_seconds=self._step_seconds,
                 on_jump_to_start=self._jump_to_start,
@@ -282,7 +308,7 @@ class PlayerApp(
             )
         )
         self.control_window.bind_time_entry(self.workspace.timeline_time_entry)
-        self.workspace.set_playback_content(self.control_window.playback_scroller)
+        self.workspace.set_settings_content(self.control_window.settings_scroller)
         self.workspace.set_state_content(self.control_window.state_scroller)
         self.frame.SetMinSize(PLAYER_FRAME_MIN_SIZE)
         self._restore_saved_window_size()
@@ -304,7 +330,6 @@ class PlayerApp(
         self._open_panels: dict[str, _OpenView] = {}
         self._clock_unsubscribe = self.clock.subscribe(self._on_clock_time_changed)
         self.workspace.set_oem_loaded(oem_loaded)
-        self.control_window.set_playback_enabled(oem_loaded)
         if not oem_loaded:
             self.status_bar.set_message("Open an OEM file to begin playback.")
 
@@ -396,6 +421,7 @@ class PlayerApp(
 
     def _save_application_state(self, *, save_geometry: bool = True) -> None:
         """Persist state safely without allowing a state-file error to close the app."""
+        self._save_render_rate_config()
         if not self._persist_saved_state or self._saved_state is None:
             return
         self._save_current_playback_range()
@@ -414,7 +440,6 @@ class PlayerApp(
                         max(MIN_STORED_WINDOW_DIMENSION, height),
                     )
         self._saved_state.recent_files = list(self._recent_oem_paths[:MAX_RECENT_FILES])
-        self._saved_state.fps = self._fps
         for opened in self._open_panels.values():
             view = opened.view
             if isinstance(view, GroundTrackView) and view._axes is not None:
@@ -447,6 +472,23 @@ class PlayerApp(
                 RuntimeWarning,
                 stacklevel=2,
             )
+
+    def _save_render_rate_config(self) -> None:
+        """Persist a changed render rate to the selected user configuration."""
+        if not self._render_rate_config_dirty:
+            return
+        try:
+            config.save_render_rate_fps(
+                self._render_rate_fps, self._config_path
+            )
+        except (OSError, config.ConfigError) as error:
+            warnings.warn(
+                f"Could not save play-oem render rate: {error}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        else:
+            self._render_rate_config_dirty = False
 
     def _save_current_playback_range(self) -> None:
         if (
@@ -620,7 +662,6 @@ class PlayerApp(
         self.frame.Layout()
         self._oem_loaded = True
         self.workspace.set_oem_loaded(True)
-        self.control_window.set_playback_enabled(True)
         self._update_time_display()
         if panel_layout:
             for panel_id, view_name, stack in panel_layout:
@@ -671,9 +712,11 @@ class PlayerApp(
             elapsed_s = current_time_s - self._last_frame_monotonic_s
             # Count elapsed frame periods and carry the remainder forward. A
             # slow redraw advances through missed periods once, then draws once.
-            frames_due = math.floor(elapsed_s * self._fps + FRAME_COUNT_EPSILON)
+            frames_due = math.floor(
+                elapsed_s * self._render_rate_fps + FRAME_COUNT_EPSILON
+            )
             if frames_due > 0:
-                frame_time_s = frames_due / self._fps
+                frame_time_s = frames_due / self._render_rate_fps
                 self._last_frame_monotonic_s += frame_time_s
                 self._in_timer_tick = True
                 try:
@@ -682,16 +725,22 @@ class PlayerApp(
                     self._in_timer_tick = False
         self._update_time_display()
 
-    def _set_playback_fps(self, fps: int) -> None:
-        """Set the wx timer interval from the requested playback frame rate."""
-        if not control_window.FPS_MIN <= fps <= control_window.FPS_MAX:
-            raise ValueError("fps must be between 1 and 30")
-        self._fps = fps
-        if self._saved_state is not None:
-            self._saved_state.fps = fps
+    def _set_render_rate_fps(self, render_rate_fps: int) -> None:
+        """Set the wx timer interval from the requested render rate."""
+        if not (
+            control_window.RENDER_RATE_FPS_MIN
+            <= render_rate_fps
+            <= control_window.RENDER_RATE_FPS_MAX
+        ):
+            raise ValueError("render_rate_fps must be between 1 and 30")
+        if render_rate_fps != self._render_rate_fps:
+            self._render_rate_config_dirty = True
+        self._render_rate_fps = render_rate_fps
         # Round the scheduling interval upward to whole milliseconds; the clock
         # still uses the exact requested frame period above.
-        self._tick_interval_ms = (MILLISECONDS_PER_SECOND + fps - 1) // fps
+        self._tick_interval_ms = (
+            MILLISECONDS_PER_SECOND + render_rate_fps - 1
+        ) // render_rate_fps
         if self._started and not self._closed:
             # Apply the new cadence immediately while preserving playback state.
             self._timer.Stop()
@@ -709,23 +758,13 @@ class PlayerApp(
 
     def _update_time_display(self) -> None:
         if not self._oem_loaded:
-            self.control_window.update_playback_state(
-                "", self.clock.playing, self.clock.rate
-            )
             return
-        elapsed_s = self.clock.t_now - self.clock.t_start
         utc_timestamp = time_utils.datetime_to_iso8601(
             time_utils.tt_s_to_datetime(self.clock.t_now)
         )
         span_s = self.clock.t_end - self.clock.t_start
         progress = (
             0.0 if span_s == 0.0 else (self.clock.t_now - self.clock.t_start) / span_s
-        )
-        self.control_window.update_playback_state(
-            f"Elapsed: {elapsed_s:.{ELAPSED_TIME_DECIMAL_PLACES}f} s\n"
-            f"UTC: {utc_timestamp}",
-            self.clock.playing,
-            self.clock.rate,
         )
         self.workspace.update_timeline(
             progress, utc_timestamp, playing=self.clock.playing

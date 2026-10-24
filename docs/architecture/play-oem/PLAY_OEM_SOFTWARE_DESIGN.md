@@ -283,7 +283,7 @@ VTK tests are skipped via `pytest.importorskip("vtk")`.
 The active workspace uses one `wx.Frame` with three named regions: **Controls & Info** at left,
 **Main Analysis** in the middle, and the optional **Comparison** pane at right. These names appear
 in visible pane headings and matching wx window names. Controls & Info contains the feature rail and
-`wx.Simplebook`; its Playback page embeds the existing control dashboard, while OEM metadata has
+`wx.Simplebook`; its Settings page embeds the render-rate control, while OEM metadata has
 its own page, and current-state readouts live on the State page. Main Analysis and Comparison each
 contain an independently scrollable graph stack with per-panel lifecycle. Startup opens `overview`
 by default in Main Analysis: the 3D orbit and combined speed/altitude time-series view. `--plots`
@@ -294,10 +294,9 @@ The `ControlWindow` owns a playback `wx.Panel` embedded in Playback and a separa
 three-pane splitter:
 
 ```
-[Playback page]
-Elapsed … | UTC …
-[Play] [Reverse] [Speed slider] [Render rate: 30 FPS] [FPS slider: 1–30]
-[Start] [Previous sample] [-1 min] [+1 min] [Next sample] [End]
+[Settings page]
+Render rate: 30 FPS
+[FPS slider: 1–30]
 Toolbar: [3D Orbit] [State] [Speed/Altitude] [RTN] [Angular] [Direction] [Distance]
 Groups: [Overview] [State] [Motion diagnostics] [All]
 
@@ -315,9 +314,8 @@ object … | frame … | center … | epochs … | samples …
 Details ▸ (additional OEM metadata and diagnostics)
 ```
 
-- Playback page: the `ControlWindow` provides Play, Reverse, a log-scale speed slider, a render-rate
-  slider from 1 to 30 FPS (default 30), and start/end and sample/time-step navigation. Elapsed and
-  current UTC labels remain visible on this page.
+- Settings page: the `ControlWindow` provides only a render-rate slider from 1 to 30 FPS (default
+  30). Playback transport, navigation, and current UTC are available in the shared timeline footer.
 - Shared timeline footer: `Workspace` places a separator, start/current/end UTC row, direction and
   speed transport controls, and the timeline slider below the pane splitter. The range-enabled
   slider retains the 0…10,000 integer mapping across OEM coverage and its native current-time
@@ -333,9 +331,8 @@ Details ▸ (additional OEM metadata and diagnostics)
 - Footer transport: signed speed presets select rates without starting or pausing. Separate reverse
   and forward buttons start or pause playback in that direction while retaining the speed magnitude.
   Direction-specific speed controls cover 1x, 10x, 100x and 1000x.
-- Speed slider on Playback: log-scale `wx.Slider` (integer `v` in 0…300 mapped to `10^(v/100)`,
-  i.e. 10^0…10^3), bound to the playback rate callback. The FPS slider selects the UI update
-  limit from 1 through 30 frames per second.
+- Settings page render-rate slider: selects the UI update limit from 1 through 30 frames per
+  second. Playback rate is controlled by the shared timeline footer.
 - Native sizing and keyboard focus come from wx. The frame-level File menu provides **Open File...**;
   the status bar reports successful loads and errors.
 - Click-to-seek: each time-series view connects `button_press_event` (left click inside axes, toolbar zoom/pan mode inactive) → `clock.seek(x * unit_divisor)`.
@@ -358,7 +355,8 @@ mixins. Their shared `PlayerAppState` protocol lives in `app/state.py`; `_plots`
 because the controller stores the expanded plot selection as an immutable tuple. The constructor
 still accepts any `Sequence[str]` for the initial plot selection.
 
-One `wx.Timer` (`wx.EVT_TIMER`) uses a millisecond interval approximating `1000/fps`:
+One `wx.Timer` (`wx.EVT_TIMER`) uses a millisecond interval approximating
+`1000/render_rate_fps`:
 
 1. Measure monotonic elapsed time and count complete selected frame periods, retaining the
    fractional remainder for the next event.
