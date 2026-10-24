@@ -7,13 +7,13 @@ from collections.abc import Callable
 import wx
 
 from .. import time_range
-from ..tooltips import set_tooltip
+from ..tooltips import dismiss_all_tooltips, set_tooltip
 from ephem_toolkit.core import time_utils
 
 
 def _triangle_vertices(
     kind: str, center_x: int, center_y: int
-) -> tuple[tuple[int, int], tuple[int, int], tuple[int, int]]:
+) -> tuple[tuple[int, int], ...]:
     if kind == "playback":
         return (
             (center_x, center_y - 6),
@@ -25,6 +25,37 @@ def _triangle_vertices(
         (center_x + 6, center_y - 6),
         (center_x - 6, center_y - 6),
     )
+
+
+def _plot_handle_vertices(
+    mode: time_range.EndpointMode, center_x: int, center_y: int
+) -> tuple[tuple[int, int], ...]:
+    if mode == "follow":
+        return _triangle_vertices("plot", center_x, center_y)
+    if mode == "offset":
+        return (
+            (center_x, center_y - 6),
+            (center_x + 6, center_y),
+            (center_x, center_y + 6),
+            (center_x - 6, center_y),
+        )
+    return (
+        (center_x - 5, center_y - 5),
+        (center_x + 5, center_y - 5),
+        (center_x + 5, center_y + 5),
+        (center_x - 5, center_y + 5),
+    )
+
+
+def _plot_tooltip_text(
+    name: str, utc: str, mode: time_range.EndpointMode
+) -> str:
+    mode_label = {
+        "follow": "Follow playback",
+        "fixed": "Fixed time",
+        "offset": "Playback offset",
+    }[mode]
+    return f"{name}: {utc} UTC\n{mode_label} | Right-click for mode"
 
 
 def _plot_grip_y(slider_height: int, playback_grip_y: int, grip_height: int) -> int:
@@ -52,6 +83,7 @@ class _RangeGrip(wx.Control):
         self.Bind(wx.EVT_PAINT, self._paint)
         self.Bind(wx.EVT_LEFT_DOWN, self._down)
         self.Bind(wx.EVT_LEFT_DCLICK, self._double_click)
+        self.Bind(wx.EVT_RIGHT_DOWN, self._right_down)
         self.Bind(wx.EVT_LEFT_UP, self._up)
         self.Bind(wx.EVT_MOTION, self._motion)
         self.Bind(wx.EVT_MOUSE_CAPTURE_LOST, self._capture_lost)
@@ -70,7 +102,7 @@ class _RangeGrip(wx.Control):
             vertices = _triangle_vertices(self.kind, cx, cy)
         else:
             dc.SetBrush(wx.Brush(self.GetParent().GetBackgroundColour()))
-            vertices = _triangle_vertices(self.kind, cx, cy)
+            vertices = _plot_handle_vertices(self.slider._plot_mode(self), cx, cy)
         dc.DrawPolygon([wx.Point(x, y) for x, y in vertices])
         if self.HasFocus():
             dc.SetPen(
@@ -85,6 +117,8 @@ class _RangeGrip(wx.Control):
 
     def _down(self, event: wx.MouseEvent) -> None:
         self.SetFocus()
+        if self.kind == "plot" and self.slider._plot_mode(self) == "follow":
+            return
         self._dragging = True
         if not self.HasCapture():
             self.CaptureMouse()
@@ -93,6 +127,13 @@ class _RangeGrip(wx.Control):
     def _double_click(self, event: wx.MouseEvent) -> None:
         if self.kind == "playback":
             self.slider._snap_playback_handle(self)
+        else:
+            event.Skip()
+
+    def _right_down(self, event: wx.MouseEvent) -> None:
+        if self.kind == "plot":
+            dismiss_all_tooltips()
+            self.slider._show_plot_mode_menu(self, event.GetPosition())
         else:
             event.Skip()
 
@@ -140,6 +181,7 @@ class TimeRangeSlider(wx.Slider):
         *,
         on_playback: Callable[[float, float], None],
         on_plot_endpoint: Callable[[str, float], None],
+        on_plot_endpoint_mode: Callable[[str, time_range.EndpointMode], None],
         on_begin_edit: Callable[[], None],
     ) -> None:
         super().__init__(parent, wx.ID_ANY, 0, 0, 10_000, style=wx.SL_HORIZONTAL)
@@ -148,6 +190,7 @@ class TimeRangeSlider(wx.Slider):
         self.SetMinSize(wx.Size(-1, max(58, self.GetBestSize().height + 20)))
         self._on_playback = on_playback
         self._on_plot_endpoint = on_plot_endpoint
+        self._on_plot_endpoint_mode = on_plot_endpoint_mode
         self._on_begin_edit = on_begin_edit
         self._coverage = (0.0, 1.0)
         self._playback = (0.0, 1.0)
@@ -171,6 +214,9 @@ class TimeRangeSlider(wx.Slider):
         self._coverage, self._playback = coverage, playback
         self._plot_rule, self._now = plot_rule, now_s
         self._position_grips()
+        for key, grip in self._grips.items():
+            if key.startswith("plot"):
+                grip.Refresh()
 
     def _time_for(self, key: str) -> float:
         if key.startswith("playback"):
@@ -182,6 +228,43 @@ class TimeRangeSlider(wx.Slider):
         if endpoint.mode == "follow":
             return self._playback[0 if key.endswith("start") else 1]
         return endpoint.value_s + (self._now if endpoint.mode == "offset" else 0.0)
+
+    def _plot_mode(self, grip: _RangeGrip) -> time_range.EndpointMode:
+        key = next(key for key, item in self._grips.items() if item is grip)
+        assert self._plot_rule is not None
+        endpoint = self._plot_rule.start if key.endswith("start") else self._plot_rule.end
+        return endpoint.mode
+
+    def is_pointer_over_timeline_track(self, position: wx.Point) -> bool:
+        """Restrict the slider tooltip hotspot to the narrow central track band."""
+        track_center_y = self.GetClientSize().height / 2
+        return abs(position.y - track_center_y) <= 6
+
+    def _show_plot_mode_menu(self, grip: _RangeGrip, position: wx.Point) -> None:
+        key = next(key for key, item in self._grips.items() if item is grip)
+        name = "start" if key.endswith("start") else "end"
+        assert self._plot_rule is not None
+        endpoint = self._plot_rule.start if name == "start" else self._plot_rule.end
+        labels = (
+            ("Follow playback", "follow"),
+            ("Offset from playback", "offset"),
+            ("Fixed timepoint", "fixed"),
+        )
+        menu = wx.Menu()
+        try:
+            for label, mode in labels:
+                item = menu.AppendRadioItem(wx.ID_ANY, label)
+                item.Check(endpoint.mode == mode)
+                menu.Bind(
+                    wx.EVT_MENU,
+                    lambda _event, endpoint_name=name, selected_mode=mode: (
+                        self._on_plot_endpoint_mode(endpoint_name, selected_mode)
+                    ),
+                    id=item.GetId(),
+                )
+            grip.PopupMenu(menu, position)
+        finally:
+            menu.Destroy()
 
     def _x_for(self, timestamp: float) -> int:
         start, end = self._coverage
@@ -237,20 +320,13 @@ class TimeRangeSlider(wx.Slider):
             )
             try:
                 is_playback = key.startswith("playback")
-                if is_playback:
-                    mode = "fixed UTC"
-                else:
+                if not is_playback:
                     assert self._plot_rule is not None
                     endpoint = (
                         self._plot_rule.start
                         if key.endswith("start")
                         else self._plot_rule.end
                     )
-                    mode = {
-                        "follow": "follows playback",
-                        "fixed": "fixed UTC",
-                        "offset": "playback offset",
-                    }[endpoint.mode]
                 utc = time_utils.datetime_to_iso8601(
                     time_utils.tt_s_to_datetime(self._time_for(key)),
                     fractional_second_places=0,
@@ -259,9 +335,7 @@ class TimeRangeSlider(wx.Slider):
                     bound = "start" if key.endswith("start") else "end"
                     tooltip = f"Playback {bound}: {utc} UTC"
                 else:
-                    tooltip = f"{grip.GetName()}: {utc} UTC ({mode})"
-                    if endpoint.mode == "follow":
-                        tooltip += f"; drag to set a fixed timepoint"
+                    tooltip = _plot_tooltip_text(grip.GetName(), utc, endpoint.mode)
                 set_tooltip(grip, tooltip)
             except (AttributeError, TypeError, OverflowError, ValueError):
                 set_tooltip(grip, grip.GetName())
@@ -274,10 +348,12 @@ class TimeRangeSlider(wx.Slider):
         return self._coverage[0] + fraction * (self._coverage[1] - self._coverage[0])
 
     def _drag(self, grip: _RangeGrip, point: wx.Point) -> None:
+        key = next(k for k, item in self._grips.items() if item is grip)
+        if key.startswith("plot") and self._plot_mode(grip) == "follow":
+            return
         self._on_begin_edit()
         local = grip.ClientToScreen(point)
         target = self._timestamp_at(self.ScreenToClient(local).x)
-        key = next(k for k, item in self._grips.items() if item is grip)
         if key.startswith("plot"):
             self._on_plot_endpoint("start" if key.endswith("start") else "end", target)
         else:
@@ -301,6 +377,8 @@ class TimeRangeSlider(wx.Slider):
 
     def _nudge(self, grip: _RangeGrip, direction: int) -> None:
         key = next(k for k, item in self._grips.items() if item is grip)
+        if key.startswith("plot") and self._plot_mode(grip) == "follow":
+            return
         step = (self._coverage[1] - self._coverage[0]) / 1000.0 or 1.0
         target = min(
             max(self._time_for(key) + direction * step, self._coverage[0]),

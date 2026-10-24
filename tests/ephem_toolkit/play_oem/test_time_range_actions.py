@@ -176,6 +176,21 @@ def test_dragging_following_handle_detaches_it_as_fixed_timepoint() -> None:
     assert host.dispatches == [ResolvedTimeRange(25.0, 100.0)]
 
 
+def test_changing_endpoint_mode_preserves_position_or_follows_playback() -> None:
+    host = _ActionHost()
+
+    host._set_plot_endpoint_mode("start", "fixed")
+    assert host.plot_time_range.start == TimeRangeEndpoint("fixed", 0.0)
+
+    host.clock.seek(60.0)
+    host._set_plot_endpoint_mode("start", "offset")
+    assert host.plot_time_range.start == TimeRangeEndpoint("offset", -60.0)
+
+    host._set_plot_endpoint_mode("start", "follow")
+    assert host.plot_time_range.start == TimeRangeEndpoint("follow", 0.0)
+    assert host.dispatches[-1] == ResolvedTimeRange(0.0, 100.0)
+
+
 def test_navigation_actions_always_use_playback_bounds() -> None:
     host = _ActionHost()
     host.clock.set_playback_bounds(20.0, 80.0)

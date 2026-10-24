@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+import weakref
+
 from ephem_toolkit.play_oem import tooltips
 
 
@@ -47,3 +50,38 @@ def test_set_tooltip_uses_positive_start_delay(monkeypatch) -> None:
     assert tooltip.start_delay == 1
     assert tooltip.message == "Button tooltip"
     assert tooltip.message_font is system_font
+
+
+def test_tooltip_dimensions_scale_padding_and_height_with_content() -> None:
+    assert tooltips._tooltip_dimensions([120, 80], 20) == (140, 70, 10, 10)
+    assert tooltips._tooltip_dimensions([120], 30) == (150, 60, 15, 15)
+
+
+def test_dismiss_tooltip_hides_attached_popup() -> None:
+    dismissed = []
+    window = SimpleNamespace(
+        _play_oem_tooltip=SimpleNamespace(DoHideNow=lambda: dismissed.append(True))
+    )
+
+    tooltips.dismiss_tooltip(window)
+
+    assert dismissed == [True]
+
+
+def test_dismiss_tooltip_without_attached_popup_is_safe() -> None:
+    tooltips.dismiss_tooltip(SimpleNamespace())
+
+
+def test_dismiss_all_tooltips_hides_the_active_popup(monkeypatch) -> None:
+    class ActiveTooltip:
+        dismissed = False
+
+        def DoHideNow(self) -> None:
+            self.dismissed = True
+
+    active = ActiveTooltip()
+    monkeypatch.setattr(tooltips, "_active_tooltip", weakref.ref(active))
+
+    tooltips.dismiss_all_tooltips()
+
+    assert active.dismissed

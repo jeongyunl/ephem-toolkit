@@ -10,7 +10,9 @@ import pytest
 from ephem_toolkit.play_oem import graph_panel
 
 
-def test_actions_menu_dismisses_tooltip_before_opening() -> None:
+def test_actions_menu_dismisses_tooltip_before_opening(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     operations: list[str] = []
     menu = object()
 
@@ -22,13 +24,10 @@ def test_actions_menu_dismisses_tooltip_before_opening() -> None:
 
     # Record ordering without native popup windows so the GTK regression can
     # be checked in headless unit tests as well as the GUI reproduction.
-    panel = SimpleNamespace(
-        _actions_tooltip=SimpleNamespace(
-            DoHideNow=lambda: operations.append("hide tooltip")
-        ),
-        _actions_menu=menu,
-        PopupMenu=open_menu,
+    monkeypatch.setattr(
+        graph_panel, "dismiss_all_tooltips", lambda: operations.append("hide tooltip")
     )
+    panel = SimpleNamespace(_actions_menu=menu, PopupMenu=open_menu)
     graph_panel.GraphPanelHost._on_actions_button(
         cast(graph_panel.GraphPanelHost, panel), graph_panel.wx.CommandEvent()
     )

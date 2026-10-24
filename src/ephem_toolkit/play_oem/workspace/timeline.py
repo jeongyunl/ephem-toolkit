@@ -225,6 +225,12 @@ class TimelineMixin:
             self._timeline_tooltip.DoHideNow()
             event.Skip()
             return
+        if not self.timeline_slider.is_pointer_over_timeline_track(
+            event.GetPosition()
+        ):
+            self._timeline_tooltip.DoHideNow()
+            event.Skip()
+            return
         width = self.timeline_slider.GetClientSize().GetWidth()
         if width > 0:
             fraction = min(max(event.GetX() / width, 0.0), 1.0)

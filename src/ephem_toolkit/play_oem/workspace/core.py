@@ -63,6 +63,9 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         on_playback_bounds: Callable[[float, float], None] | None = None,
         on_plot_time_range: Callable[[range_model.PlotTimeRange], None] | None = None,
         on_plot_endpoint: Callable[[str, float], None] | None = None,
+        on_plot_endpoint_mode: (
+            Callable[[str, range_model.EndpointMode], None] | None
+        ) = None,
         on_begin_time_range_edit: Callable[[], None] | None = None,
     ) -> None:
         self._on_seek = on_seek
@@ -158,6 +161,8 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             self.timeline_panel,
             on_playback=on_playback_bounds or (lambda _start, _end: None),
             on_plot_endpoint=on_plot_endpoint or (lambda _name, _value: None),
+            on_plot_endpoint_mode=on_plot_endpoint_mode
+            or (lambda _name, _mode: None),
             on_begin_edit=on_begin_time_range_edit or (lambda: None),
         )
         self.timeline_slider.SetName("Playback timeline")

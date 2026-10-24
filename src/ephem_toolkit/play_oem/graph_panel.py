@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import wx
 
-from .tooltips import set_tooltip
+from .tooltips import dismiss_all_tooltips, set_tooltip
 
 from matplotlib.backend_bases import DrawEvent
 from matplotlib.backends.backend_wxagg import (
@@ -211,7 +211,7 @@ class GraphPanelHost(wx.Panel):
     def _on_actions_button(self, _event: wx.CommandEvent) -> None:
         # GTK requires the tooltip popup to be unmapped before opening a menu
         # with the graph panel as parent, including keyboard activation.
-        self._actions_tooltip.DoHideNow()
+        dismiss_all_tooltips()
         self.PopupMenu(self._actions_menu)
 
     def set_matplotlib_content(

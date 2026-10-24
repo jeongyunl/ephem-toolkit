@@ -7,10 +7,12 @@ import random
 import pytest
 
 from ephem_toolkit.play_oem.time_range import (
+    EndpointMode,
     PlaybackTimeRange,
     PlotTimeRange,
     ResolvedTimeRange,
     TimeRangeEndpoint,
+    convert_endpoint_mode,
     resolve_plot_range,
     validate_playback_range,
     validate_plot_range,
@@ -124,6 +126,44 @@ def test_each_endpoint_can_follow_offset_or_fixed_independently() -> None:
     assert resolve_plot_range(rule, COVERAGE, (20.0, 80.0), 50.0) == ResolvedTimeRange(
         20.0, 60.0
     )
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "mode", "expected"),
+    [
+        (
+            TimeRangeEndpoint("follow", 0.0),
+            "fixed",
+            TimeRangeEndpoint("fixed", 20.0),
+        ),
+        (
+            TimeRangeEndpoint("follow", 0.0),
+            "offset",
+            TimeRangeEndpoint("offset", -30.0),
+        ),
+        (
+            TimeRangeEndpoint("offset", -10.0),
+            "fixed",
+            TimeRangeEndpoint("fixed", 40.0),
+        ),
+        (
+            TimeRangeEndpoint("fixed", 65.0),
+            "offset",
+            TimeRangeEndpoint("offset", 15.0),
+        ),
+        (
+            TimeRangeEndpoint("fixed", 65.0),
+            "follow",
+            TimeRangeEndpoint("follow", 0.0),
+        ),
+    ],
+)
+def test_converting_endpoint_mode_preserves_position_or_follows_bound(
+    endpoint: TimeRangeEndpoint,
+    mode: EndpointMode,
+    expected: TimeRangeEndpoint,
+) -> None:
+    assert convert_endpoint_mode(endpoint, mode, 50.0, 20.0) == expected
 
 
 @pytest.mark.parametrize("bounds", [(-1, 10), (10, 101), (20, 10), (float("nan"), 10)])

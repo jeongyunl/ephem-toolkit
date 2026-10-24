@@ -77,6 +77,27 @@ class TimeRangeActionsMixin:
             )
         )
 
+    def _set_plot_endpoint_mode(
+        self: PlayerAppState, name: str, mode: time_range.EndpointMode
+    ) -> None:
+        if name not in ("start", "end"):
+            raise ValueError("plot endpoint name must be 'start' or 'end'")
+        current = self.plot_time_range
+        endpoint = getattr(current, name)
+        playback_bound = (
+            self.clock.playback_start if name == "start" else self.clock.playback_end
+        )
+        converted = time_range.convert_endpoint_mode(
+            endpoint, mode, self.clock.t_now, playback_bound
+        )
+        self._apply_plot_time_range(
+            time_range.PlotTimeRange(
+                current.enabled,
+                converted if name == "start" else current.start,
+                converted if name == "end" else current.end,
+            )
+        )
+
     def _dispatch_time_range(
         self: PlayerAppState,
         resolved: time_range.ResolvedTimeRange | None,

@@ -20,7 +20,10 @@ is in [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md).
   endpoints track playback time, and fixed endpoints remain unchanged.
 - The compact range editor provides one Follow/Offset/Fixed selector per endpoint. Follow shows
   the current playback-bound time read-only; Offset accepts a signed duration; Fixed accepts a
-  UTC timestamp. Dragging a following plot handle detaches it as a fixed timepoint.
+  UTC timestamp. Right-clicking either plot handle opens a compact menu for the same three modes.
+  Plot handles use a triangle for Follow, a diamond for Offset, and a square for Fixed.
+  Changing modes preserves the handle's current position where possible; choosing Follow snaps
+  it to the matching playback bound. Follow handles are not draggable or keyboard-nudgable.
 - Resolution clips to OEM coverage; valid empty and singleton selections are supported. Plot
   edits do not change playback bounds or seek the clock.
 - Time-series views select inclusive samples before decimation, retain segment gaps and full

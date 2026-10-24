@@ -109,6 +109,35 @@ def validate_plot_range(rule: PlotTimeRange) -> PlotTimeRange:
     return rule
 
 
+def convert_endpoint_mode(
+    endpoint: TimeRangeEndpoint,
+    mode: EndpointMode,
+    current_time_s: float,
+    playback_bound_s: float,
+) -> TimeRangeEndpoint:
+    """Change endpoint mode while preserving its current absolute position."""
+    if not isinstance(endpoint, TimeRangeEndpoint):
+        raise ValueError("endpoint must be a TimeRangeEndpoint")
+    if endpoint.mode not in ("follow", "fixed", "offset"):
+        raise ValueError("endpoint mode must be 'follow', 'fixed', or 'offset'")
+    endpoint_value = _finite(endpoint.value_s, "endpoint value")
+    current = _finite(current_time_s, "playback time")
+    playback_bound = _finite(playback_bound_s, "playback bound")
+    if mode not in ("follow", "fixed", "offset"):
+        raise ValueError("mode must be 'follow', 'fixed', or 'offset'")
+    if endpoint.mode == "follow":
+        absolute = playback_bound
+    elif endpoint.mode == "offset":
+        absolute = endpoint_value + current
+    else:
+        absolute = endpoint_value
+    if mode == "follow":
+        return TimeRangeEndpoint("follow", 0.0)
+    if mode == "offset":
+        return TimeRangeEndpoint("offset", absolute - current)
+    return TimeRangeEndpoint("fixed", absolute)
+
+
 def resolve_plot_range(
     rule: PlotTimeRange,
     coverage: Coverage,

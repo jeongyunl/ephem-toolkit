@@ -287,6 +287,7 @@ class PlayerApp(
             on_playback_bounds=self._apply_playback_bounds,
             on_plot_time_range=self._apply_plot_time_range,
             on_plot_endpoint=self._drag_plot_endpoint,
+            on_plot_endpoint_mode=self._set_plot_endpoint_mode,
             on_begin_time_range_edit=self._begin_time_range_edit,
         )
         self.control_window: control_window.ControlWindow = (
