@@ -72,7 +72,7 @@ def test_dismiss_tooltip_without_attached_popup_is_safe() -> None:
     tooltips.dismiss_tooltip(SimpleNamespace())
 
 
-def test_dismiss_all_tooltips_hides_the_active_popup(monkeypatch) -> None:
+def test_dismiss_all_tooltips_hides_visible_and_pending_popups(monkeypatch) -> None:
     class ActiveTooltip:
         dismissed = False
 
@@ -80,8 +80,44 @@ def test_dismiss_all_tooltips_hides_the_active_popup(monkeypatch) -> None:
             self.dismissed = True
 
     active = ActiveTooltip()
-    monkeypatch.setattr(tooltips, "_active_tooltip", weakref.ref(active))
+    pending = ActiveTooltip()
+    monkeypatch.setattr(
+        tooltips, "_all_tooltips", weakref.WeakSet((active, pending))
+    )
 
     tooltips.dismiss_all_tooltips()
 
     assert active.dismissed
+    assert pending.dismissed
+
+
+def test_suppressed_tooltip_enter_cancels_start_timer() -> None:
+    class Timer:
+        stopped = False
+
+        def Stop(self) -> None:
+            self.stopped = True
+
+    class Event:
+        skipped = False
+
+        def Skip(self) -> None:
+            self.skipped = True
+
+    timer, event = Timer(), Event()
+    tooltip = SimpleNamespace(_startTimer=timer)
+    with tooltips.suppress_tooltips():
+        tooltips._PlayOemSuperToolTip.OnWidgetEnter(tooltip, event)
+
+    assert timer.stopped
+    assert event.skipped
+
+
+def test_suppressed_tooltip_cannot_open_from_a_pending_callback() -> None:
+    hidden = []
+    tooltip = SimpleNamespace(DoHideNow=lambda: hidden.append(True))
+
+    with tooltips.suppress_tooltips():
+        tooltips._PlayOemSuperToolTip._show_tooltip(tooltip)
+
+    assert hidden == [True]

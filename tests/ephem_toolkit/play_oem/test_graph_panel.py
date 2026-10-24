@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from types import SimpleNamespace
 from typing import cast
 
@@ -24,9 +25,12 @@ def test_actions_menu_dismisses_tooltip_before_opening(
 
     # Record ordering without native popup windows so the GTK regression can
     # be checked in headless unit tests as well as the GUI reproduction.
-    monkeypatch.setattr(
-        graph_panel, "dismiss_all_tooltips", lambda: operations.append("hide tooltip")
-    )
+    @contextmanager
+    def suppress_tooltips():
+        operations.append("hide tooltip")
+        yield
+
+    monkeypatch.setattr(graph_panel, "suppress_tooltips", suppress_tooltips)
     panel = SimpleNamespace(_actions_menu=menu, PopupMenu=open_menu)
     graph_panel.GraphPanelHost._on_actions_button(
         cast(graph_panel.GraphPanelHost, panel), graph_panel.wx.CommandEvent()

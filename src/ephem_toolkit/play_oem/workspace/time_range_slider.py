@@ -7,7 +7,7 @@ from collections.abc import Callable
 import wx
 
 from .. import time_range
-from ..tooltips import dismiss_all_tooltips, set_tooltip
+from ..tooltips import set_tooltip, suppress_tooltips
 from ephem_toolkit.core import time_utils
 
 
@@ -132,8 +132,8 @@ class _RangeGrip(wx.Control):
 
     def _right_down(self, event: wx.MouseEvent) -> None:
         if self.kind == "plot":
-            dismiss_all_tooltips()
-            self.slider._show_plot_mode_menu(self, event.GetPosition())
+            with suppress_tooltips():
+                self.slider._show_plot_mode_menu(self, event.GetPosition())
         else:
             event.Skip()
 

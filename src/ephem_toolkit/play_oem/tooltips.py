@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 import weakref
 
@@ -111,6 +113,13 @@ class _PlayOemSuperToolTip(SuperToolTip):
         for event_type in (wx.EVT_LEFT_DOWN, wx.EVT_RIGHT_DOWN, wx.EVT_KEY_DOWN):
             widget.Bind(event_type, self._on_widget_interaction)
 
+    def OnWidgetEnter(self, event: wx.MouseEvent) -> None:
+        if _tooltips_suppressed:
+            self._startTimer.Stop()
+            event.Skip()
+            return
+        super().OnWidgetEnter(event)
+
     def _on_widget_interaction(self, event: wx.Event) -> None:
         dismiss_all_tooltips()
         # Let the control process its normal click or key after dismissal.
@@ -156,6 +165,9 @@ class _PlayOemSuperToolTip(SuperToolTip):
             self._position_window(tip_window)
 
     def _show_tooltip(self) -> None:
+        if _tooltips_suppressed:
+            self.DoHideNow()
+            return
         active_tooltip = _active_tooltip_instance()
         if active_tooltip is not None and active_tooltip is not self:
             active_tooltip.DoHideNow()
@@ -210,6 +222,8 @@ class _PlayOemSuperToolTip(SuperToolTip):
 
 
 _active_tooltip: weakref.ReferenceType[_PlayOemSuperToolTip] | None = None
+_all_tooltips: weakref.WeakSet[_PlayOemSuperToolTip] = weakref.WeakSet()
+_tooltips_suppressed = 0
 
 
 def _active_tooltip_instance() -> _PlayOemSuperToolTip | None:
@@ -228,10 +242,21 @@ def _set_active_tooltip(tooltip: _PlayOemSuperToolTip) -> None:
 
 
 def dismiss_all_tooltips() -> None:
-    """Immediately hide the currently visible play-oem hover tooltip."""
-    tooltip = _active_tooltip_instance()
-    if tooltip is not None:
+    """Hide visible tooltips and cancel every pending hover timer."""
+    for tooltip in tuple(_all_tooltips):
         tooltip.DoHideNow()
+
+
+@contextmanager
+def suppress_tooltips() -> Iterator[None]:
+    """Keep tooltips hidden while a native menu is open."""
+    global _tooltips_suppressed
+    _tooltips_suppressed += 1
+    dismiss_all_tooltips()
+    try:
+        yield
+    finally:
+        _tooltips_suppressed -= 1
 
 
 def set_tooltip(
@@ -252,6 +277,8 @@ def set_tooltip(
         setattr(window, "_play_oem_tooltip", tooltip)
     else:
         tooltip.SetMessage(message)
+    if isinstance(tooltip, _PlayOemSuperToolTip):
+        _all_tooltips.add(tooltip)
     return tooltip
 
 
