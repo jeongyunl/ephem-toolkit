@@ -6,18 +6,18 @@ from .. import time_range
 from .state import PlayerAppState
 
 
-def full_coverage_plot_rule(coverage: tuple[float, float]) -> time_range.PlotTimeRange:
-    """Return the session default: disabled filtering with fixed OEM endpoints."""
-    start, end = coverage
+def playback_range_plot_rule(bounds: tuple[float, float]) -> time_range.PlotTimeRange:
+    """Return an enabled plot filter with fixed endpoints matching playback bounds."""
+    start, end = bounds
     return time_range.PlotTimeRange(
-        enabled=False,
+        enabled=True,
         start=time_range.TimeRangeEndpoint("fixed", start),
         end=time_range.TimeRangeEndpoint("fixed", end),
     )
 
 
 class TimeRangeActionsMixin:
-    """Validate and apply independent range edits owned by ``PlayerApp``."""
+    """Validate and apply playback-linked and customized plot-range edits."""
 
     def _begin_time_range_edit(self: PlayerAppState) -> None:
         self.clock.pause()
@@ -31,6 +31,10 @@ class TimeRangeActionsMixin:
             (start_s, end_s), (self.clock.t_start, self.clock.t_end)
         )
         self._begin_time_range_edit()
+        if self._plot_range_follows_playback:
+            self.plot_time_range = playback_range_plot_rule(
+                (bounds.start_s, bounds.end_s)
+            )
         self.clock.set_playback_bounds(bounds.start_s, bounds.end_s)
         self._update_time_display()
 
@@ -46,6 +50,7 @@ class TimeRangeActionsMixin:
         # Empty intersections are valid. Validate completely before changing the
         # applied value so a malformed edit cannot expose a half-updated rule.
         self._begin_time_range_edit()
+        self._plot_range_follows_playback = False
         self.plot_time_range = checked
         self._dispatch_time_range(resolved, self.clock.t_now)
         self._update_time_display()

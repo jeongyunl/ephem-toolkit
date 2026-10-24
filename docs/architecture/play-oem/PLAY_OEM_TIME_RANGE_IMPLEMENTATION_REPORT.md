@@ -1,6 +1,6 @@
 # `play-oem` — Shared Time Range Implementation Report
 
-> Status: **implemented; GUI acceptance is incomplete**. The independent range model,
+> Status: **implemented; GUI acceptance is incomplete**. The playback-linked plot range model,
 > playback limits, shared filtering, plot controls, and range grips are present. Automated
 > checks cover the model and rendering behavior. Native wx interaction and display-backed
 > acceptance have not been completed.
@@ -12,10 +12,12 @@ is in [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md).
 
 ## Implemented behavior
 
-- OEM coverage, playback bounds, and effective plot bounds are distinct. Playback bounds and
-  plot filtering are independently contained in OEM coverage; neither constrains the other.
+- OEM coverage, playback bounds, and effective plot bounds are distinct. By default, the plot
+  range follows playback bounds. Editing the plot range or selecting All OEM data makes it
+  independent until the next OEM is loaded.
 - Playback clock movement, seek, stepping, start/end navigation, and loop behavior use the
-  playback bounds. A playback-bound change clamps current time when needed.
+  playback bounds. A playback-bound change clamps current time when needed and updates the plot
+  range while it is still following playback.
 - Plot endpoints may be fixed UTC epochs or signed offsets from playback time, including mixed
   endpoint modes. Resolution clips to OEM coverage; valid empty and singleton selections are
   supported. Plot edits do not change playback bounds or seek the clock.
@@ -26,8 +28,9 @@ is in [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md).
   navigation is retained; current markers, footprints, and tails are restricted to the
   effective plot range.
 - A controller-owned dispatch resolves the shared range and updates visible views. Hidden views
-  receive the latest state when shown. Successful OEM replacement resets both range settings;
-  settings are session-only.
+  receive the latest state when shown. A loaded file restores its saved playback bounds when they
+  remain valid for its coverage; the plot range starts by following those bounds. Plot-range
+  customizations remain session-only.
 - The editor provides plot enable/disable, All OEM data, fixed/offset endpoint fields,
   validation feedback, and reset behavior. `TimeRangeSlider` retains the native seek thumb and
   uses four sibling grip controls with tooltips, pointer dragging, capture-loss handling,

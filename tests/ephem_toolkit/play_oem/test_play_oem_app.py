@@ -1468,7 +1468,7 @@ def test_reloading_oem_replaces_views_without_removing_panels(
     assert player.clock is loaded.clock
     assert (player.clock.playback_start, player.clock.playback_end) == (100.0, 200.0)
     assert player.plot_time_range == app.time_range.PlotTimeRange(
-        False,
+        True,
         app.time_range.TimeRangeEndpoint("fixed", 100.0),
         app.time_range.TimeRangeEndpoint("fixed", 200.0),
     )
