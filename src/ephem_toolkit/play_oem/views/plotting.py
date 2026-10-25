@@ -160,16 +160,23 @@ def decimate_indices(
         return np.arange(len(values))
     bucket_count = max(1, (maximum - 2) // (2 * values.shape[1]))
     edges = np.linspace(0, len(values), bucket_count + 1, dtype=int)
-    selected: list[int] = [0]
-    for left, right in zip(edges[:-1], edges[1:]):
-        if right <= left:
-            continue
-        for column in range(values.shape[1]):
-            local = values[left:right, column]
-            selected.extend(
-                (left + int(np.argmin(local)), left + int(np.argmax(local)))
+    # Every bucket is non-empty because bucket_count is below len(values) here.
+    starts = edges[:-1]
+    bucket_of_row = np.repeat(np.arange(bucket_count), np.diff(edges))
+    row_indices = np.arange(len(values))
+    extrema: list[np.ndarray] = []
+    for column in range(values.shape[1]):
+        local = np.ascontiguousarray(values[:, column])
+        for ufunc in (np.minimum, np.maximum):
+            bucket_extreme = ufunc.reduceat(local, starts)
+            # NaN never compares equal, so match NaN rows explicitly to pick the
+            # first NaN as np.argmin and np.argmax do.
+            at_extreme = (local == bucket_extreme[bucket_of_row]) | (
+                np.isnan(local) & np.isnan(bucket_extreme)[bucket_of_row]
             )
-    selected.append(len(values) - 1)
+            first_index = np.where(at_extreme, row_indices, len(values))
+            extrema.append(np.minimum.reduceat(first_index, starts))
+    selected = np.concatenate([[0], *extrema, [len(values) - 1]])
     return np.unique(selected)
 
 
