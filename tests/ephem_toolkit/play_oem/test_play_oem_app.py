@@ -528,12 +528,16 @@ class FakeWorkspace:
         self.playback_state = None
         self.settings_content = None
         self.state_content = None
+        self.neutral_focus_count = 0
 
     def set_settings_content(self, panel) -> None:
         self.settings_content = panel
 
     def set_state_content(self, panel) -> None:
         self.state_content = panel
+
+    def focus_neutral_target(self) -> None:
+        self.neutral_focus_count += 1
 
     def set_oem_loaded(self, _loaded: bool) -> None:
         pass
@@ -797,14 +801,23 @@ def test_wx_timer_advances_clock_and_updates_timeline_and_views(
     assert app.config.load_config(config_path).render_rate_fps == 2
 
 
+def test_start_moves_focus_out_of_settings_controls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+
+    player.start()
+
+    assert player.workspace.neutral_focus_count == 1
+    player.close()
+
+
 def test_interpolation_settings_update_cursor_and_save_to_config(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
     config_path = tmp_path / "play-oem.toml"
-    player, _views, _canvases, _frames = make_app(
-        monkeypatch, config_path=config_path
-    )
+    player, _views, _canvases, _frames = make_app(monkeypatch, config_path=config_path)
 
     player.control_window.callbacks["interpolation"](False, "lagrange", 3)
 
@@ -1596,12 +1609,8 @@ def test_recent_file_playback_ranges_save_and_restore_on_switch(
     saved_state = app.SavedAppState(
         recent_files=[first_path, second_path],
         recent_file_settings={
-            first_path: app.RecentFileSettings(
-                (110.0, 190.0), first_plot_range
-            ),
-            second_path: app.RecentFileSettings(
-                (130.0, 170.0), second_plot_range
-            ),
+            first_path: app.RecentFileSettings((110.0, 190.0), first_plot_range),
+            second_path: app.RecentFileSettings((130.0, 170.0), second_plot_range),
         },
     )
     player, _views, _canvases, _frames = make_app(

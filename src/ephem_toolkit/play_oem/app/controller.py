@@ -407,6 +407,7 @@ class PlayerApp(
         # refresh then so each stack gets the correct viewport-sized scroll tail.
         self.frame.Layout()
         wx.CallAfter(self._refresh_graph_stack_layouts)
+        wx.CallAfter(self.workspace.focus_neutral_target)
         if not self._timer.Start(self._tick_interval_ms):
             raise RuntimeError("could not start the wx playback timer")
 

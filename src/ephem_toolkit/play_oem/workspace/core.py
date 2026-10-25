@@ -415,6 +415,10 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         page_sizer.Add(panel, 1, wx.EXPAND)
         self.state_page.SetSizer(page_sizer)
 
+    def focus_neutral_target(self) -> None:
+        """Move keyboard focus away from settings and text-entry controls."""
+        self._focus_sink.SetFocus()
+
     def set_time_range_controls(
         self,
         coverage: tuple[float, float],
