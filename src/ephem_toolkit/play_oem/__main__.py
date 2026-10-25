@@ -46,7 +46,12 @@ def main(argv: Sequence[str] | None = None) -> None:
     def load_file(input_oem: str):
         print(f"Reading OEM orbit from {input_oem}...")
         # Initial and subsequent file loads both prepare the entire OEM timeline.
-        loaded = load_playback_data(input_oem)
+        loaded = load_playback_data(
+            input_oem,
+            use_oem_interpolation=False,
+            interpolation_method=user_config.interpolation_method,
+            interpolation_degree=user_config.interpolation_degree,
+        )
         print(f"Loaded {loaded.source_sample_count} states")
         print(
             f"Prepared orbit series with {len(loaded.series.elapsed_time)} samples "
@@ -81,6 +86,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         three_d_backend=selected_backend,
         tick_interval_ms=math.ceil(1000 / initial_render_rate_fps),
         render_rate_fps=initial_render_rate_fps,
+        use_oem_interpolation=user_config.use_oem_interpolation,
+        interpolation_method=user_config.interpolation_method,
+        interpolation_degree=user_config.interpolation_degree,
+        oem_interpolation=initial_data.oem_interpolation,
+        oem_interpolation_degree=initial_data.oem_interpolation_degree,
         on_open_file=load_file,
         saved_state=saved_state,
         ground_track_source=initial_data.ground_track_source,

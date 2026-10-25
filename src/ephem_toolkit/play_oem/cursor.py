@@ -87,6 +87,14 @@ class OemCursor:
             interpolation, interpolation_degree
         )
 
+    def set_interpolation(
+        self, interpolation: str | None, interpolation_degree: int | None
+    ) -> None:
+        """Replace the interpolation strategy used for subsequent lookups."""
+        self._interpolators = self._create_interpolators(
+            interpolation, interpolation_degree
+        )
+
     @property
     def t_start(self) -> float:
         return float(self._timestamps_s[0])

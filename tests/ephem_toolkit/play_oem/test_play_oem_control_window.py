@@ -95,6 +95,19 @@ class FakeTextCtrl(FakeWidget):
         self.value = value
 
 
+class FakeChoice(FakeWidget):
+    def __init__(self, parent, _id: int, *, choices, **kwargs) -> None:
+        super().__init__(parent, _id, **kwargs)
+        self.choices = choices
+        self.selection = 0
+
+    def SetSelection(self, selection: int) -> None:
+        self.selection = selection
+
+    def GetSelection(self) -> int:
+        return self.selection
+
+
 class FakeSlider(FakeWidget):
     def __init__(
         self,
@@ -223,6 +236,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "Button": FakeButton,
         "ToggleButton": FakeButton,
         "TextCtrl": FakeTextCtrl,
+        "Choice": FakeChoice,
         "Slider": FakeSlider,
         "AcceleratorEntry": FakeAcceleratorEntry,
         "AcceleratorTable": FakeAcceleratorTable,
@@ -246,6 +260,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "EVT_TOGGLEBUTTON": "toggle-button",
         "EVT_SIZE": "size",
         "EVT_SLIDER": "slider",
+        "EVT_CHOICE": "choice",
         "EVT_TEXT_ENTER": "text-enter",
         "EVT_SET_FOCUS": "set-focus",
         "EVT_KILL_FOCUS": "kill-focus",
@@ -268,6 +283,7 @@ def make_window(
     calls: dict[str, list[object]] = {
         "toggle": [],
         "render_rate": [],
+        "interpolation": [],
         "reverse": [],
         "step_samples": [],
         "step_seconds": [],
@@ -282,6 +298,9 @@ def make_window(
         lambda: calls["toggle"].append(True),
         lambda: calls["reverse"].append(True),
         on_set_render_rate_fps=calls["render_rate"].append,
+        on_set_interpolation=lambda use_oem, method, degree: calls[
+            "interpolation"
+        ].append((use_oem, method, degree)),
         on_step_samples=calls["step_samples"].append,
         on_step_seconds=calls["step_seconds"].append,
         on_jump_to_start=lambda: calls["start"].append(True),
@@ -291,7 +310,7 @@ def make_window(
     return window, owner, calls
 
 
-def test_settings_page_contains_only_the_render_rate_control(
+def test_settings_page_contains_render_rate_and_interpolation_controls(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     window, _owner, calls = make_window(monkeypatch)
@@ -301,11 +320,33 @@ def test_settings_page_contains_only_the_render_rate_control(
     assert [item[0] for item in window.settings_scroller.sizer.items] == [
         window.render_rate_label,
         window.render_rate_slider,
+        window.interpolation_section_label,
+        window.interpolation_mode_choice,
+        window.interpolation_method_choice,
+        window.interpolation_degree_label,
+        window.interpolation_degree_text,
+        window.interpolation_error_label,
+        window.active_interpolation_label,
     ]
     assert window.render_rate_label.label == "Render rate: 30 FPS"
     assert window.render_rate_slider.name == "Render rate (frames per second)"
     assert window.render_rate_slider.minimum == control_window.RENDER_RATE_FPS_MIN
     assert window.render_rate_slider.maximum == control_window.RENDER_RATE_FPS_MAX
+    assert window.interpolation_mode_choice.GetSelection() == (
+        control_window.USE_CONFIGURED_INTERPOLATION_SELECTION
+    )
+    assert window.interpolation_mode_choice.choices == list(
+        control_window.INTERPOLATION_MODE_CHOICES
+    )
+    assert window.interpolation_method_choice.choices == list(
+        control_window.INTERPOLATION_METHODS
+    )
+    assert window.interpolation_degree_text.GetValue() == "5"
+    assert window.active_interpolation_label.label == (
+        "Active interpolation:\nNo OEM loaded"
+    )
+    assert window.interpolation_method_choice.enabled
+    assert window.interpolation_degree_text.enabled
     assert not hasattr(window, "play_pause_button")
     assert not hasattr(window, "reverse_toggle_button")
     assert not hasattr(window, "speed_slider")
@@ -316,6 +357,49 @@ def test_settings_page_contains_only_the_render_rate_control(
 
     assert window.render_rate_label.label == "Render rate: 24 FPS"
     assert calls["render_rate"] == [24]
+
+    window.interpolation_mode_choice.SetSelection(
+        control_window.FOLLOW_OEM_METADATA_SELECTION
+    )
+    window.interpolation_mode_choice.trigger(control_window.wx.EVT_CHOICE)
+    assert not window.interpolation_method_choice.enabled
+    assert not window.interpolation_degree_text.enabled
+    assert calls["interpolation"] == [(True, "hermite", 5)]
+
+    window.interpolation_mode_choice.SetSelection(
+        control_window.USE_CONFIGURED_INTERPOLATION_SELECTION
+    )
+    window.interpolation_mode_choice.trigger(control_window.wx.EVT_CHOICE)
+    assert window.interpolation_method_choice.enabled
+    assert window.interpolation_degree_text.enabled
+    assert calls["interpolation"][-1] == (False, "hermite", 5)
+
+    window.interpolation_method_choice.SetSelection(1)
+    window.interpolation_method_choice.trigger(control_window.wx.EVT_CHOICE)
+    window.interpolation_degree_text.SetValue("7")
+    window.interpolation_degree_text.trigger(control_window.wx.EVT_TEXT_ENTER)
+    assert calls["interpolation"][-2:] == [
+        (False, "lagrange", 5),
+        (False, "lagrange", 7),
+    ]
+    window.interpolation_degree_text.SetValue("-1")
+    window.interpolation_degree_text.trigger(control_window.wx.EVT_TEXT_ENTER)
+    assert window.interpolation_error_label.label == (
+        "Interpolation degree must be a non-negative integer."
+    )
+    assert calls["interpolation"][-1] == (False, "lagrange", 7)
+
+    window.interpolation_mode_choice.SetSelection(
+        control_window.FOLLOW_OEM_METADATA_SELECTION
+    )
+    window.interpolation_mode_choice.trigger(control_window.wx.EVT_CHOICE)
+    assert not window.interpolation_method_choice.enabled
+    assert not window.interpolation_degree_text.enabled
+    assert calls["interpolation"][-1] == (True, "lagrange", 7)
+    window.update_active_interpolation("Lagrange, degree 5 (OEM metadata)")
+    assert window.active_interpolation_label.label == (
+        "Active interpolation:\nLagrange, degree 5 (OEM metadata)"
+    )
 
 
 def test_dashboard_formats_state_and_missing_values(

@@ -15,6 +15,11 @@ from typing import cast
 import wx
 
 import ephem_toolkit.core.time_utils as time_utils
+from ephem_toolkit.core.interpolator.interpolation_spec import (
+    DEFAULT_HERMITE_DEGREE,
+    InterpolationSpec,
+    InterpolationType,
+)
 
 from .. import (
     clock,
@@ -89,6 +94,11 @@ class PlayerApp(
         three_d_backend: str = "auto",
         tick_interval_ms: int = DEFAULT_TICK_INTERVAL_MS,
         render_rate_fps: int | None = None,
+        use_oem_interpolation: bool = False,
+        interpolation_method: str = InterpolationType.HERMITE.value,
+        interpolation_degree: int = DEFAULT_HERMITE_DEGREE,
+        oem_interpolation: str | None = None,
+        oem_interpolation_degree: int | None = None,
         on_open_file: Callable[[str], playback_data.PlaybackData] | None = None,
         saved_state: SavedAppState | None = None,
         config_path: str | Path | None = None,
@@ -155,6 +165,25 @@ class PlayerApp(
         self._tick_interval_ms = tick_interval_ms
         self._config_path = config_path
         self._render_rate_config_dirty = False
+        self._interpolation_config_dirty = False
+        self._use_oem_interpolation = use_oem_interpolation
+        self._interpolation_method = interpolation_method
+        self._interpolation_degree = interpolation_degree
+        self._oem_interpolation = oem_interpolation
+        self._oem_interpolation_degree = oem_interpolation_degree
+        if oem_loaded:
+            self.cursor.set_interpolation(
+                (
+                    self._oem_interpolation
+                    if self._use_oem_interpolation
+                    else self._interpolation_method
+                ),
+                (
+                    self._oem_interpolation_degree
+                    if self._use_oem_interpolation
+                    else self._interpolation_degree
+                ),
+            )
         # Keep render-rate FPS separately so timer rounding does not affect clock steps.
         if render_rate_fps is not None and (
             isinstance(render_rate_fps, bool)
@@ -300,6 +329,11 @@ class PlayerApp(
                 self._reverse_playback,
                 on_set_render_rate_fps=self._set_render_rate_fps,
                 render_rate_fps=self._render_rate_fps,
+                on_set_interpolation=self._set_interpolation_settings,
+                use_oem_interpolation=self._use_oem_interpolation,
+                interpolation_method=self._interpolation_method,
+                interpolation_degree=self._interpolation_degree,
+                active_interpolation=self._active_interpolation_summary(),
                 on_step_samples=self._step_samples,
                 on_step_seconds=self._step_seconds,
                 on_jump_to_start=self._jump_to_start,
@@ -471,6 +505,7 @@ class PlayerApp(
     def _save_application_state(self, *, save_geometry: bool = True) -> None:
         """Persist state safely without allowing a state-file error to close the app."""
         self._save_render_rate_config()
+        self._save_interpolation_config()
         if not self._persist_saved_state or self._saved_state is None:
             return
         self._save_current_playback_range()
@@ -481,12 +516,8 @@ class PlayerApp(
                 position = self.frame.GetPosition()
                 x, y = int(position.x), int(position.y)
                 if (
-                    MIN_STORED_WINDOW_POSITION
-                    <= x
-                    <= MAX_STORED_WINDOW_POSITION
-                    and MIN_STORED_WINDOW_POSITION
-                    <= y
-                    <= MAX_STORED_WINDOW_POSITION
+                    MIN_STORED_WINDOW_POSITION <= x <= MAX_STORED_WINDOW_POSITION
+                    and MIN_STORED_WINDOW_POSITION <= y <= MAX_STORED_WINDOW_POSITION
                 ):
                     self._saved_state.position = (x, y)
                 size = self.frame.GetSize()
@@ -539,9 +570,7 @@ class PlayerApp(
         if not self._render_rate_config_dirty:
             return
         try:
-            config.save_render_rate_fps(
-                self._render_rate_fps, self._config_path
-            )
+            config.save_render_rate_fps(self._render_rate_fps, self._config_path)
         except (OSError, config.ConfigError) as error:
             warnings.warn(
                 f"Could not save play-oem render rate: {error}",
@@ -550,6 +579,26 @@ class PlayerApp(
             )
         else:
             self._render_rate_config_dirty = False
+
+    def _save_interpolation_config(self) -> None:
+        """Persist changed interpolation settings to the user configuration."""
+        if not self._interpolation_config_dirty:
+            return
+        try:
+            config.save_interpolation_settings(
+                self._use_oem_interpolation,
+                self._interpolation_method,
+                self._interpolation_degree,
+                self._config_path,
+            )
+        except (OSError, config.ConfigError) as error:
+            warnings.warn(
+                f"Could not save play-oem interpolation settings: {error}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        else:
+            self._interpolation_config_dirty = False
 
     def _save_current_playback_range(self) -> None:
         if (
@@ -668,6 +717,7 @@ class PlayerApp(
             return
         try:
             loaded_data = self._on_open_file_callback(path)
+            self._configure_cursor_interpolation(loaded_data.cursor, loaded_data)
         except Exception as error:
             self.status_bar.set_message(f"Could not open OEM: {error}")
             return
@@ -732,6 +782,9 @@ class PlayerApp(
         self.series = loaded.series
         self.time_unit = loaded.time_unit
         self.cursor = loaded.cursor
+        self._oem_interpolation = loaded.oem_interpolation
+        self._oem_interpolation_degree = loaded.oem_interpolation_degree
+        self._configure_cursor_interpolation(self.cursor, loaded)
         self.object_name = loaded.object_name
         self.object_id = dict(loaded.metadata_details).get("Object ID", "").strip()
         if file_name is not None:
@@ -752,6 +805,9 @@ class PlayerApp(
         self.frame.Layout()
         self._oem_loaded = True
         self.workspace.set_oem_loaded(True)
+        self.control_window.update_active_interpolation(
+            self._active_interpolation_summary()
+        )
         self._update_time_display()
         if panel_layout:
             for panel_id, view_name, stack in panel_layout:
@@ -837,6 +893,65 @@ class PlayerApp(
             if not self._timer.Start(self._tick_interval_ms):
                 raise RuntimeError("could not update the wx playback timer")
             self._last_frame_monotonic_s = time.monotonic()
+
+    def _configure_cursor_interpolation(
+        self,
+        state_cursor: cursor.OemCursor,
+        loaded: playback_data.PlaybackData,
+    ) -> None:
+        if self._use_oem_interpolation:
+            interpolation = loaded.oem_interpolation
+            interpolation_degree = loaded.oem_interpolation_degree
+        else:
+            interpolation = self._interpolation_method
+            interpolation_degree = self._interpolation_degree
+        state_cursor.set_interpolation(interpolation, interpolation_degree)
+
+    def _set_interpolation_settings(
+        self, use_oem_metadata: bool, method: str, degree: int
+    ) -> None:
+        """Apply interpolation settings immediately and mark them for persistence."""
+        if (
+            use_oem_metadata == self._use_oem_interpolation
+            and method == self._interpolation_method
+            and degree == self._interpolation_degree
+        ):
+            return
+        if self._oem_loaded:
+            interpolation = self._oem_interpolation if use_oem_metadata else method
+            interpolation_degree = (
+                self._oem_interpolation_degree if use_oem_metadata else degree
+            )
+            self.cursor.set_interpolation(interpolation, interpolation_degree)
+        self._use_oem_interpolation = use_oem_metadata
+        self._interpolation_method = method
+        self._interpolation_degree = degree
+        self._interpolation_config_dirty = True
+        self.control_window.update_active_interpolation(
+            self._active_interpolation_summary()
+        )
+        if self._oem_loaded:
+            self._update_time_display()
+
+    def _active_interpolation_summary(self) -> str:
+        if not self._oem_loaded:
+            return "No OEM loaded"
+        if self._use_oem_interpolation:
+            interpolation = (self._oem_interpolation or "").strip().lower()
+            degree = self._oem_interpolation_degree
+            if not interpolation:
+                return "Linear (OEM metadata unspecified)"
+            if interpolation == "linear":
+                return "Linear (OEM metadata)"
+            source = "OEM metadata"
+        else:
+            interpolation = self._interpolation_method
+            degree = self._interpolation_degree
+            source = "Settings"
+
+        interpolation_type = InterpolationType(interpolation)
+        spec = InterpolationSpec(interpolation_type, degree=degree or None)
+        return f"{interpolation_type.value.title()}, degree {spec.degree} ({source})"
 
     def _refresh_graph_stack_layouts(self) -> None:
         """Refresh stack scroll ranges after startup layout, unless closing."""

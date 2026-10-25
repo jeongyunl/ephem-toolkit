@@ -6,6 +6,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import ephem_toolkit.core.time_utils as time_utils
+from ephem_toolkit.core.interpolator.interpolation_spec import (
+    DEFAULT_HERMITE_DEGREE,
+    InterpolationType,
+)
 import numpy as np
 
 from . import clock as playback_clock, cursor, series, time_unit
@@ -27,9 +31,17 @@ class PlaybackData:
     metadata_details: tuple[tuple[str, str], ...]
     source_sample_count: int
     ground_track_source: GroundTrackSource | None = None
+    oem_interpolation: str | None = None
+    oem_interpolation_degree: int | None = None
 
 
-def load_playback_data(source: str | Path) -> PlaybackData:
+def load_playback_data(
+    source: str | Path,
+    *,
+    use_oem_interpolation: bool = False,
+    interpolation_method: str = InterpolationType.HERMITE.value,
+    interpolation_degree: int = DEFAULT_HERMITE_DEGREE,
+) -> PlaybackData:
     """Read and prepare an entire OEM for playback."""
     oem_data, timestamps_s, states_m = read_oem_states(source)
     source_sample_count = len(states_m)
@@ -52,8 +64,16 @@ def load_playback_data(source: str | Path) -> PlaybackData:
     state_cursor = cursor.OemCursor(
         timestamps_s,
         states_m,
-        interpolation=oem_data.meta.interpolation,
-        interpolation_degree=oem_data.meta.interpolation_degree,
+        interpolation=(
+            oem_data.meta.interpolation
+            if use_oem_interpolation
+            else interpolation_method
+        ),
+        interpolation_degree=(
+            oem_data.meta.interpolation_degree
+            if use_oem_interpolation
+            else interpolation_degree
+        ),
         segment_ids=segment_ids,
     )
     frame_context = (
@@ -111,6 +131,8 @@ def load_playback_data(source: str | Path) -> PlaybackData:
             oem_data.meta.center_name,
             oem_data.meta.ref_frame,
         ),
+        oem_data.meta.interpolation,
+        oem_data.meta.interpolation_degree,
     )
 
 

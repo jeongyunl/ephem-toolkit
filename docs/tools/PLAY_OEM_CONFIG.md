@@ -57,6 +57,11 @@ render_rate_fps = 30
 [display]
 three_d_backend = "auto"
 plots = ["overview"]
+
+[interpolation]
+use_oem_metadata = false
+method = "hermite"
+degree = 5
 ```
 
 You can leave out settings you do not want to customize. Unspecified settings will use their
@@ -117,8 +122,9 @@ When you change the Settings pane's render rate, the selected render rate FPS is
 `playback.render_rate_fps` in `play-oem.toml` when the application exits. The app updates only
 that setting, preserving the other user-config values. The legacy `playback.fps` key is still
 accepted and is rewritten as `playback.render_rate_fps` when the selected rate is saved. Render
-rate is no longer stored in the state file. The Ground Track minimum-elevation setting is saved
-here too.
+rate is no longer stored in the state file. The Settings pane's interpolation source, method, and
+degree are also saved in `play-oem.toml` when the application exits. The Ground Track
+minimum-elevation setting is saved here too.
 
 The window size is adjusted if it does not fit the current display. The saved window position is
 clamped to a connected display's work area if necessary, so a monitor change will not leave the
@@ -143,6 +149,20 @@ overrides into `play-oem.toml`.
 |---|---|
 | `three_d_backend` | 3D renderer: `"auto"`, `"vtk"`, or `"matplotlib"`. `"auto"` selects an available supported backend. |
 | `plots` | Views or view groups to open at launch. This uses the same names and groups as `--plots`; for example, `["overview"]` or `["state", "motion"]`. |
+
+### Interpolation
+
+| Setting | Description |
+|---|---|
+| `use_oem_metadata` | When `true`, use the interpolation type and degree declared by the OEM file. The default is `false`, which uses `method` and `degree`. |
+| `method` | Interpolator to use when `use_oem_metadata = false`: `"hermite"` (default), `"lagrange"`, or `"chebyshev"`. |
+| `degree` | Non-negative interpolation degree to use when `use_oem_metadata = false`. The default is `5`, the default Hermite degree. |
+
+These interpolation options are also available in the Settings pane. **Use settings below** is the
+default and applies the selected method and degree immediately to the playback cursor. **Follow
+OEM metadata** uses the current file's interpolation metadata. Changes are saved when the
+application exits. The panel also displays the active method, degree, and source; if OEM
+interpolation metadata is absent, it reports the linear fallback.
 
 The input file is selected for an individual run. `play-oem` loads the full OEM file and chooses
 the time-axis unit automatically: minutes for OEM spans shorter than one hour, and hours for spans

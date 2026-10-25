@@ -454,6 +454,11 @@ class FakeControlWindow:
         *,
         on_set_render_rate_fps,
         render_rate_fps,
+        on_set_interpolation,
+        use_oem_interpolation,
+        interpolation_method,
+        interpolation_degree,
+        active_interpolation,
         on_step_samples,
         on_step_seconds,
         on_jump_to_start,
@@ -464,9 +469,14 @@ class FakeControlWindow:
         self.settings_scroller = object()
         self.state_scroller = object()
         self.state_parent = state_parent
+        self.active_interpolation = active_interpolation
         self.callbacks = {
             "toggle": on_toggle_play,
             "render_rate": on_set_render_rate_fps,
+            "interpolation": on_set_interpolation,
+            "use_oem_interpolation": use_oem_interpolation,
+            "interpolation_method": interpolation_method,
+            "interpolation_degree": interpolation_degree,
             "reverse": on_reverse,
             "step_samples": on_step_samples,
             "step_seconds": on_step_seconds,
@@ -477,6 +487,9 @@ class FakeControlWindow:
 
     def bind_time_entry(self, _time_entry) -> None:
         pass
+
+    def update_active_interpolation(self, summary: str) -> None:
+        self.active_interpolation = summary
 
     def update_current_state(self, state) -> None:
         self.current_state = state
@@ -782,6 +795,46 @@ def test_wx_timer_advances_clock_and_updates_timeline_and_views(
     assert not config_path.exists()
     player.close()
     assert app.config.load_config(config_path).render_rate_fps == 2
+
+
+def test_interpolation_settings_update_cursor_and_save_to_config(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    config_path = tmp_path / "play-oem.toml"
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch, config_path=config_path
+    )
+
+    player.control_window.callbacks["interpolation"](False, "lagrange", 3)
+
+    assert player._interpolation_config_dirty
+    assert player.cursor._interpolators
+    assert player.control_window.active_interpolation == "Lagrange, degree 3 (Settings)"
+    player.close()
+
+    config = app.config.load_config(config_path)
+    assert not config.use_oem_interpolation
+    assert config.interpolation_method == "lagrange"
+    assert config.interpolation_degree == 3
+
+
+def test_active_interpolation_summary_identifies_oem_metadata_source(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch, config_path=tmp_path / "play-oem.toml"
+    )
+    player._oem_interpolation = "Lagrange"
+    player._oem_interpolation_degree = 5
+
+    player.control_window.callbacks["interpolation"](True, "hermite", 5)
+
+    assert player.control_window.active_interpolation == (
+        "Lagrange, degree 5 (OEM metadata)"
+    )
+    player.close()
 
 
 def test_explicit_render_rate_is_not_reconstructed_from_rounded_interval(

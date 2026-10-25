@@ -144,7 +144,13 @@ def test_cli_passes_configured_render_rate_and_path_to_player(
 
     config_path = tmp_path / "custom-play-oem.toml"
     config_path.write_text(
-        "config_version = 1\n[playback]\nrender_rate_fps = 17\n"
+        "config_version = 1\n"
+        "[playback]\n"
+        "render_rate_fps = 17\n"
+        "[interpolation]\n"
+        "use_oem_metadata = false\n"
+        'method = "chebyshev"\n'
+        "degree = 8\n"
     )
     launched: dict[str, Any] = {}
 
@@ -163,6 +169,9 @@ def test_cli_passes_configured_render_rate_and_path_to_player(
     assert launched["render_rate_fps"] == 17
     assert launched["tick_interval_ms"] == 59
     assert launched["config_path"] == str(config_path)
+    assert launched["use_oem_interpolation"] is False
+    assert launched["interpolation_method"] == "chebyshev"
+    assert launched["interpolation_degree"] == 8
     assert launched["run"] is True
 
 

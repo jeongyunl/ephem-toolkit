@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.data import filter_states_by_duration, read_oem_states
 from ephem_toolkit.play_oem.playback_data import load_playback_data
 from ephem_toolkit.play_oem.series import compute_orbit_series
@@ -49,6 +50,44 @@ def test_playback_data_exposes_ground_track_source_metadata(iss_oem_path: Path) 
     )
     np.testing.assert_array_equal(
         loaded.ground_track_source.segment_ids, loaded.series.segment_ids
+    )
+
+
+def test_playback_cursor_can_override_oem_interpolation_metadata() -> None:
+    jp_sat_oem_path = (
+        Path(__file__).resolve().parents[2] / "data" / "JPSS-1_small.15m.oem"
+    )
+    oem_data, timestamps_s, states_m = read_oem_states(jp_sat_oem_path)
+    assert oem_data.meta.interpolation == "Lagrange"
+    assert oem_data.meta.interpolation_degree == 5
+
+    loaded_from_metadata = load_playback_data(
+        jp_sat_oem_path, use_oem_interpolation=True
+    )
+    metadata_cursor = OemCursor(
+        timestamps_s,
+        states_m,
+        interpolation=oem_data.meta.interpolation,
+        interpolation_degree=oem_data.meta.interpolation_degree,
+        segment_ids=oem_data.segment_ids[: len(timestamps_s)],
+    )
+    loaded = load_playback_data(jp_sat_oem_path)
+    reference_cursor = OemCursor(
+        timestamps_s,
+        states_m,
+        interpolation="hermite",
+        interpolation_degree=5,
+        segment_ids=oem_data.segment_ids[: len(timestamps_s)],
+    )
+    midpoint = (timestamps_s[0] + timestamps_s[1]) / 2.0
+
+    np.testing.assert_allclose(
+        loaded_from_metadata.cursor.lookup(midpoint).state_m,
+        metadata_cursor.lookup(midpoint).state_m,
+    )
+    np.testing.assert_allclose(
+        loaded.cursor.lookup(midpoint).state_m,
+        reference_cursor.lookup(midpoint).state_m,
     )
 
 

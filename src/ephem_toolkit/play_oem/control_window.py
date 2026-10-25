@@ -6,6 +6,11 @@ from collections.abc import Callable, Iterable
 
 import wx
 
+from ephem_toolkit.core.interpolator.interpolation_spec import (
+    DEFAULT_HERMITE_DEGREE,
+    InterpolationType,
+)
+
 from .cursor import CursorState, CursorStatus
 from .tooltips import set_tooltip
 
@@ -24,9 +29,17 @@ RENDER_RATE_FPS_MAX: int = 30
 DEFAULT_RENDER_RATE_FPS: int = 30
 """Initial frame rate when constructing playback controls without an override."""
 
+INTERPOLATION_MODE_CHOICES = (
+    "Follow OEM metadata",
+    "Use settings below",
+)
+FOLLOW_OEM_METADATA_SELECTION = 0
+USE_CONFIGURED_INTERPOLATION_SELECTION = 1
+INTERPOLATION_METHODS = tuple(item.value for item in InterpolationType)
+
 
 class ControlWindow:
-    """Build the render-rate settings and current-state panels."""
+    """Build interpolation/render-rate settings and current-state panels."""
 
     def __init__(
         self,
@@ -36,6 +49,11 @@ class ControlWindow:
         *,
         on_set_render_rate_fps: Callable[[int], None] | None = None,
         render_rate_fps: int = DEFAULT_RENDER_RATE_FPS,
+        on_set_interpolation: Callable[[bool, str, int], None] | None = None,
+        use_oem_interpolation: bool = False,
+        interpolation_method: str = InterpolationType.HERMITE.value,
+        interpolation_degree: int = DEFAULT_HERMITE_DEGREE,
+        active_interpolation: str = "No OEM loaded",
         on_step_samples: Callable[[int], None],
         on_step_seconds: Callable[[float], None],
         on_jump_to_start: Callable[[], None],
@@ -57,6 +75,16 @@ class ControlWindow:
             Set the render rate in frames per second.
         render_rate_fps : int
             Initial render rate in frames per second.
+        on_set_interpolation : Callable[[bool, str, int], None] | None
+            Update OEM metadata preference and configured interpolation.
+        use_oem_interpolation : bool
+            Whether to follow the current OEM file's interpolation metadata.
+        interpolation_method : str
+            Configured interpolation method.
+        interpolation_degree : int
+            Configured interpolation degree.
+        active_interpolation : str
+            Human-readable description of the currently active interpolation.
         on_step_samples : Callable[[int], None]
             Step by a number of OEM samples.
         on_step_seconds : Callable[[float], None]
@@ -70,6 +98,10 @@ class ControlWindow:
         """
         self._accelerator_parent = accelerator_parent
         self._on_set_render_rate_fps = on_set_render_rate_fps
+        self._on_set_interpolation = on_set_interpolation
+        self._use_oem_interpolation = use_oem_interpolation
+        self._interpolation_method = interpolation_method
+        self._interpolation_degree = interpolation_degree
 
         self.settings_scroller = wx.ScrolledWindow(
             parent, wx.ID_ANY, style=wx.VSCROLL | wx.TAB_TRAVERSAL
@@ -155,6 +187,116 @@ class ControlWindow:
             LAYOUT_MARGIN,
         )
 
+        self.interpolation_section_label = wx.StaticText(
+            self.settings_scroller, wx.ID_ANY, "Interpolation"
+        )
+        settings_sizer.Add(
+            self.interpolation_section_label,
+            0,
+            wx.LEFT | wx.RIGHT | wx.TOP,
+            LAYOUT_MARGIN,
+        )
+        self.interpolation_mode_choice = wx.Choice(
+            self.settings_scroller,
+            wx.ID_ANY,
+            choices=list(INTERPOLATION_MODE_CHOICES),
+        )
+        self.interpolation_mode_choice.SetName("Interpolation source")
+        self.interpolation_mode_choice.SetSelection(
+            FOLLOW_OEM_METADATA_SELECTION
+            if use_oem_interpolation
+            else USE_CONFIGURED_INTERPOLATION_SELECTION
+        )
+        set_tooltip(
+            self.interpolation_mode_choice,
+            "Follow interpolation metadata in the OEM file or use the configured "
+            "method and degree below.",
+        )
+        self.interpolation_mode_choice.Bind(
+            wx.EVT_CHOICE, self._on_interpolation_mode_choice
+        )
+        settings_sizer.Add(
+            self.interpolation_mode_choice,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
+            LAYOUT_MARGIN,
+        )
+
+        self.interpolation_method_choice = wx.Choice(
+            self.settings_scroller,
+            wx.ID_ANY,
+            choices=list(INTERPOLATION_METHODS),
+        )
+        self.interpolation_method_choice.SetName("Interpolation method")
+        self.interpolation_method_choice.SetSelection(
+            INTERPOLATION_METHODS.index(interpolation_method)
+        )
+        self.interpolation_method_choice.Bind(
+            wx.EVT_CHOICE, self._on_interpolation_method_choice
+        )
+        settings_sizer.Add(
+            self.interpolation_method_choice,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
+            LAYOUT_MARGIN,
+        )
+
+        self.interpolation_degree_label = wx.StaticText(
+            self.settings_scroller, wx.ID_ANY, "Interpolation degree"
+        )
+        settings_sizer.Add(
+            self.interpolation_degree_label,
+            0,
+            wx.LEFT | wx.RIGHT | wx.TOP,
+            LAYOUT_MARGIN,
+        )
+        self.interpolation_degree_text = wx.TextCtrl(
+            self.settings_scroller,
+            wx.ID_ANY,
+            str(interpolation_degree),
+            style=wx.TE_PROCESS_ENTER,
+        )
+        self.interpolation_degree_text.SetName("Interpolation degree")
+        set_tooltip(
+            self.interpolation_degree_text,
+            "Enter a non-negative integer degree and press Enter.",
+        )
+        self.interpolation_degree_text.Bind(
+            wx.EVT_TEXT_ENTER, self._on_interpolation_degree_enter
+        )
+        self.interpolation_degree_text.Bind(
+            wx.EVT_KILL_FOCUS, self._on_interpolation_degree_focus_lost
+        )
+        settings_sizer.Add(
+            self.interpolation_degree_text,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
+            LAYOUT_MARGIN,
+        )
+        self.interpolation_error_label = wx.StaticText(
+            self.settings_scroller, wx.ID_ANY, ""
+        )
+        self.interpolation_error_label.SetName("Interpolation setting error")
+        settings_sizer.Add(
+            self.interpolation_error_label,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
+            LAYOUT_MARGIN,
+        )
+        self.active_interpolation_label = wx.StaticText(
+            self.settings_scroller,
+            wx.ID_ANY,
+            f"Active interpolation:\n{active_interpolation}",
+        )
+        self.active_interpolation_label.SetName("Active interpolation")
+        settings_sizer.Add(
+            self.active_interpolation_label,
+            0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP,
+            LAYOUT_MARGIN,
+        )
+        self._set_interpolation_controls_enabled(not use_oem_interpolation)
+
         self.settings_scroller.SetSizer(settings_sizer)
         self.settings_scroller.FitInside()
         self._bind_accelerators(
@@ -193,6 +335,11 @@ class ControlWindow:
         }[state.status]
         self.state_cursor_status_label.SetLabel(f"Cursor status: {status}")
         self._fit_state_content()
+
+    def update_active_interpolation(self, summary: str) -> None:
+        """Display the effective interpolation strategy and its source."""
+        self.active_interpolation_label.SetLabel(f"Active interpolation:\n{summary}")
+        self.settings_scroller.FitInside()
 
     @staticmethod
     def _format_components(
@@ -234,6 +381,96 @@ class ControlWindow:
         self.render_rate_label.SetLabel(f"Render rate: {render_rate_fps} FPS")
         if self._on_set_render_rate_fps is not None:
             self._on_set_render_rate_fps(render_rate_fps)
+
+    def _on_interpolation_mode_choice(self, event: wx.CommandEvent) -> None:
+        use_oem_metadata = (
+            self.interpolation_mode_choice.GetSelection()
+            == FOLLOW_OEM_METADATA_SELECTION
+        )
+        self._set_interpolation_controls_enabled(not use_oem_metadata)
+        if self._on_interpolation_settings_changed(use_oem_metadata):
+            self._use_oem_interpolation = use_oem_metadata
+        else:
+            self.interpolation_mode_choice.SetSelection(
+                FOLLOW_OEM_METADATA_SELECTION
+                if self._use_oem_interpolation
+                else USE_CONFIGURED_INTERPOLATION_SELECTION
+            )
+            self._set_interpolation_controls_enabled(not self._use_oem_interpolation)
+        event.Skip()
+
+    def _on_interpolation_method_choice(self, event: wx.CommandEvent) -> None:
+        previous_method = self._interpolation_method
+        selected_method = INTERPOLATION_METHODS[
+            self.interpolation_method_choice.GetSelection()
+        ]
+        self._interpolation_method = selected_method
+        if not self._on_interpolation_settings_changed(
+            self._interpolation_uses_oem_metadata()
+        ):
+            self._interpolation_method = previous_method
+            self.interpolation_method_choice.SetSelection(
+                INTERPOLATION_METHODS.index(previous_method)
+            )
+        event.Skip()
+
+    def _on_interpolation_degree_enter(self, event: wx.CommandEvent) -> None:
+        self._commit_interpolation_degree()
+        event.Skip()
+
+    def _on_interpolation_degree_focus_lost(self, event: wx.FocusEvent) -> None:
+        self._commit_interpolation_degree()
+        event.Skip()
+
+    def _commit_interpolation_degree(self) -> None:
+        value = self.interpolation_degree_text.GetValue().strip()
+        try:
+            degree = int(value)
+        except ValueError:
+            self._show_interpolation_error(
+                "Interpolation degree must be a non-negative integer."
+            )
+            return
+        if degree < 0:
+            self._show_interpolation_error(
+                "Interpolation degree must be a non-negative integer."
+            )
+            return
+
+        previous_degree = self._interpolation_degree
+        self._interpolation_degree = degree
+        self._show_interpolation_error("")
+        if not self._on_interpolation_settings_changed(
+            self._interpolation_uses_oem_metadata()
+        ):
+            self._interpolation_degree = previous_degree
+            self.interpolation_degree_text.SetValue(str(previous_degree))
+
+    def _on_interpolation_settings_changed(self, use_oem_metadata: bool) -> bool:
+        try:
+            if self._on_set_interpolation is not None:
+                self._on_set_interpolation(
+                    use_oem_metadata,
+                    self._interpolation_method,
+                    self._interpolation_degree,
+                )
+        except ValueError as error:
+            self._show_interpolation_error(str(error))
+            return False
+        return True
+
+    def _interpolation_uses_oem_metadata(self) -> bool:
+        return (
+            self.interpolation_mode_choice.GetSelection()
+            == FOLLOW_OEM_METADATA_SELECTION
+        )
+
+    def _set_interpolation_controls_enabled(self, enabled: bool) -> None:
+        self.interpolation_method_choice.Enable(enabled)
+        self.interpolation_degree_text.Enable(enabled)
+
+    def _show_interpolation_error(self, message: str) -> None:
+        self.interpolation_error_label.SetLabel(message)
 
     def _bind_accelerators(
         self,
