@@ -282,3 +282,28 @@ def test_extend_coverage_rejects_nonincreasing_samples_atomically() -> None:
     assert clock.t_end == 10.0
     assert clock.step_samples(1) is None
     assert clock.t_now == 10.0
+
+
+def test_default_playback_span_caps_playback_end_and_grows_with_coverage() -> None:
+    day = 86_400.0
+    clock = PlaybackClock(
+        0.0, day, sample_times=[0.0, day], default_playback_span_s=2 * day
+    )
+    assert clock.playback_end == day
+
+    clock.extend_coverage([3 * day])
+    assert (clock.t_end, clock.playback_end) == (3 * day, 2 * day)
+
+    clock.extend_coverage([5 * day])
+    assert clock.playback_end == 2 * day
+
+
+def test_explicit_playback_bounds_override_default_span() -> None:
+    day = 86_400.0
+    clock = PlaybackClock(
+        0.0, 10 * day, sample_times=[0.0, 10 * day], default_playback_span_s=2 * day
+    )
+    assert clock.playback_end == 2 * day
+
+    clock.set_playback_bounds(3 * day, 9 * day)
+    assert (clock.playback_start, clock.playback_end) == (3 * day, 9 * day)

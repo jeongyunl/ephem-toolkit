@@ -327,6 +327,7 @@ def load_playback_data(
         timestamps_s[0],
         timestamps_s[-1],
         sample_times=timestamps_s,
+        default_playback_span_s=playback_clock.PlaybackClock.DEFAULT_PLAYBACK_SPAN_S,
     )
 
     state_cursor = cursor.OemCursor(
@@ -448,6 +449,7 @@ def playback_data_from_batch(
         first_time_s,
         last_time_s,
         sample_times=store.timestamps_s,
+        default_playback_span_s=playback_clock.PlaybackClock.DEFAULT_PLAYBACK_SPAN_S,
     )
     frame_context = " / ".join(
         value for value in (frame_name.strip(), center_name.strip()) if value

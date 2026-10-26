@@ -14,6 +14,7 @@ class PlaybackClock:
 
     MIN_SPEED = 1.0
     MAX_SPEED = 9000.0
+    DEFAULT_PLAYBACK_SPAN_S = 2.0 * 86_400.0
 
     def __init__(
         self,
@@ -25,6 +26,7 @@ class PlaybackClock:
         playing: bool = False,
         loop: bool = False,
         sample_times: Sequence[float] | None = None,
+        default_playback_span_s: float | None = None,
     ) -> None:
         self._validate_finite(t_start, "t_start")
         self._validate_finite(t_end, "t_end")
@@ -36,8 +38,13 @@ class PlaybackClock:
 
         self._t_start = float(t_start)
         self._t_end = float(t_end)
+        if default_playback_span_s is not None and not (
+            math.isfinite(default_playback_span_s) and default_playback_span_s > 0.0
+        ):
+            raise ValueError("default_playback_span_s must be positive and finite")
+        self._default_playback_span_s = default_playback_span_s
         self._playback_start = self._t_start
-        self._playback_end = self._t_end
+        self._playback_end = self._default_playback_end()
         self._playback_end_follows_coverage = True
         self._t_now = self._clamp_time(
             self._t_start if t_now is None else self._validate_time(t_now)
@@ -152,6 +159,12 @@ class PlaybackClock:
         else:
             self.play()
 
+    def _default_playback_end(self) -> float:
+        """Return coverage end, capped to the default span after the first sample."""
+        if self._default_playback_span_s is None:
+            return self._t_end
+        return min(self._t_end, self._t_start + self._default_playback_span_s)
+
     def extend_coverage(self, sample_times: Sequence[float]) -> None:
         """Extend loaded OEM coverage with strictly later samples.
 
@@ -171,7 +184,7 @@ class PlaybackClock:
 
         self._t_end = new_times[-1]
         if self._playback_end_follows_coverage:
-            self._playback_end = self._t_end
+            self._playback_end = self._default_playback_end()
         self._sample_times.extend(new_times)
         self._notify_observers()
 
