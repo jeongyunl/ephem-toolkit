@@ -167,3 +167,23 @@ def test_split_track_rejects_nonfinite_center_longitude() -> None:
 
     with pytest.raises(ValueError, match="finite"):
         ground_track.split_ground_track_runs(prepared, float("nan"))
+
+
+def test_prepare_with_bounds_converts_only_samples_near_the_window(monkeypatch) -> None:
+    source = _source([(0.0, float(index)) for index in range(100)])
+    source = ground_track.GroundTrackSource.from_samples(
+        np.arange(100, dtype=float) * 60.0,
+        source.states_m,
+        source.segment_ids,
+        source.center_name,
+        source.frame_name,
+    )
+    cache = ground_track.EarthFixedPositionCache()
+
+    coordinates = ground_track.prepare_ground_track(
+        source, position_cache=cache, bounds=(3_000.0, 3_300.0)
+    )
+
+    assert coordinates.timestamps_s[0] == 2_940.0
+    assert coordinates.timestamps_s[-1] == 3_360.0
+    assert int(cache._computed.sum()) == len(coordinates.timestamps_s)

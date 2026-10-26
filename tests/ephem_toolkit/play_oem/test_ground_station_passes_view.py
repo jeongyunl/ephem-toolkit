@@ -361,7 +361,7 @@ def test_access_and_pass_panels_share_prepared_station_history(monkeypatch) -> N
     prepared = StationAccess(station, ())
     calls: list[tuple[Any, Any, GroundStation]] = []
 
-    def prepare(source_arg, cursor_arg, station_arg, _position_cache):
+    def prepare(source_arg, cursor_arg, station_arg, _position_cache, _bounds=None):
         calls.append((source_arg, cursor_arg, station_arg))
         return prepared
 

@@ -72,6 +72,52 @@ class ViewFactoryMixin:
             source.frame_name,
         )
 
+    def _resolved_plot_range(self) -> time_range.ResolvedTimeRange | None:
+        return time_range.resolve_plot_range(
+            self.plot_time_range,
+            (self.clock.t_start, self.clock.t_end),
+            (self.clock.playback_start, self.clock.playback_end),
+            self.clock.t_now,
+        )
+
+    def _ground_track_plot_bounds(self) -> tuple[float, float]:
+        """Return the plot range in TT seconds, or a point when it is empty."""
+        resolved = time_range.resolve_plot_range(
+            self.plot_time_range,
+            (self.clock.t_start, self.clock.t_end),
+            (self.clock.playback_start, self.clock.playback_end),
+            self.clock.t_now,
+        )
+        if resolved is None:
+            return (self.clock.t_start, self.clock.t_start)
+        return (resolved.start_s, resolved.end_s)
+
+    def _prepare_ground_track_window(
+        self, bounds: tuple[float, float]
+    ) -> GroundTrackCoordinates:
+        margin_s = max(3_600.0, 0.5 * (bounds[1] - bounds[0]))
+        return prepare_ground_track(
+            self._ground_track_source,
+            position_cache=self._station_access_cache.position_cache,
+            bounds=bounds,
+            margin_s=margin_s,
+        )
+
+    def _ground_track_coordinates_for_range(
+        self, bounds: time_range.ResolvedTimeRange
+    ) -> GroundTrackCoordinates | None:
+        """Prepare coordinates for a plot range that left the prepared window."""
+        if self._ground_track_source is None:
+            return None
+        try:
+            coordinates = self._prepare_ground_track_window(
+                (bounds.start_s, bounds.end_s)
+            )
+        except GroundTrackPreparationError:
+            return None
+        self._ground_track_coordinates = coordinates
+        return coordinates
+
     def open_ground_track_view(
         self: PlayerAppState,
         panel_id: str | None = None,
@@ -135,8 +181,21 @@ class ViewFactoryMixin:
                     source.frame_name,
                 )
                 coordinates = None
+        coordinate_provider = None
         if source is None:
             error_message = "Load an Earth-centered OEM to view its ground track."
+        elif self._oem_coverage_complete:
+            # Convert only samples near the plot range; the view requests more
+            # when the range moves outside what was prepared.
+            coordinate_provider = self._ground_track_coordinates_for_range
+            try:
+                coordinates = self._prepare_ground_track_window(
+                    self._ground_track_plot_bounds()
+                )
+                self._ground_track_coordinates = coordinates
+            except GroundTrackPreparationError as error:
+                coordinates = None
+                error_message = str(error)
         elif coordinates is None:
             try:
                 coordinates = prepare_ground_track(
@@ -187,6 +246,7 @@ class ViewFactoryMixin:
                     initial_station_id=station_id
                 ),
                 on_minimum_elevation=self._set_ground_track_minimum_elevation,
+                coordinate_provider=coordinate_provider,
             ),
             panel_id=panel_id,
             stack=stack,
@@ -215,6 +275,8 @@ class ViewFactoryMixin:
                 on_seek=self._seek_from_ground_station_timeline,
                 on_station_manager=self.workspace.select_ground_stations,
                 access_cache=self._station_access_cache,
+                limit_to_range=True,
+                initial_range=self._resolved_plot_range(),
                 display_time_zone=self._display_time_zone,
             ),
             panel_id=panel_id,
@@ -263,6 +325,8 @@ class ViewFactoryMixin:
                 on_focus_pass=self._focus_ground_station_pass,
                 on_station_manager=self.workspace.select_ground_stations,
                 access_cache=self._station_access_cache,
+                limit_to_range=True,
+                initial_range=self._resolved_plot_range(),
                 initial_station_id=initial_station_id,
                 display_time_zone=self._display_time_zone,
             ),

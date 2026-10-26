@@ -19,6 +19,7 @@ from .ground_track import (
     EarthFixedPositionCache,
     GroundTrackPreparationError,
     GroundTrackSource,
+    window_indices,
 )
 
 MAX_ACCESS_SAMPLE_STEP_S = 30.0
@@ -104,8 +105,12 @@ def prepare_station_access(
     cursor: OemCursor,
     station: GroundStation,
     position_cache: EarthFixedPositionCache | None = None,
+    bounds: tuple[float, float] | None = None,
 ) -> StationAccess:
     """Prepare access intervals on a uniform grid with refined threshold crossings.
+
+    ``bounds`` limits evaluation to the samples covering that time window; its
+    edges are treated as coverage edges, so intervals reaching them are clipped.
 
     Each OEM segment is evaluated on a uniform grid with at most 30 seconds
     between epochs. Sampled local maxima are refined to detect sub-step passes.
@@ -120,6 +125,17 @@ def prepare_station_access(
     timestamps = np.asarray(source.timestamps_s, dtype=float)
     states = np.asarray(source.states_m, dtype=float)
     segments = np.asarray(source.segment_ids, dtype=int)
+    if (
+        bounds is not None
+        and timestamps.ndim == 1
+        and states.shape == (timestamps.size, 6)
+        and segments.shape == timestamps.shape
+        and timestamps.size
+    ):
+        window = slice(*window_indices(timestamps, bounds))
+        timestamps = timestamps[window]
+        states = states[window]
+        segments = segments[window]
     if (
         timestamps.ndim != 1
         or timestamps.size == 0
@@ -312,8 +328,12 @@ def _refine_peak(
     )
 
 
+ACCESS_WINDOW_MARGIN_FRACTION = 0.5
+ACCESS_WINDOW_MIN_MARGIN_S = 3_600.0
+
+
 class StationAccessCache:
-    """Share ECEF sample positions and pass histories across access views."""
+    """Share ECEF sample positions and range-limited pass histories across views."""
 
     def __init__(self, position_cache: EarthFixedPositionCache | None = None) -> None:
         self.position_cache = (
@@ -321,24 +341,46 @@ class StationAccessCache:
         )
         self._source: GroundTrackSource | None = None
         self._cursor: OemCursor | None = None
-        self._results: dict[GroundStation, StationAccess] = {}
+        self._results: dict[
+            GroundStation, tuple[tuple[float, float] | None, StationAccess]
+        ] = {}
 
     def prepare(
         self,
         source: GroundTrackSource,
         cursor: OemCursor,
         station: GroundStation,
+        bounds: tuple[float, float] | None = None,
     ) -> StationAccess:
+        """Return access for ``bounds`` (the whole source when None).
+
+        Only a margin-extended window around the bounds is evaluated, and it is
+        reused while later requests stay inside it.
+        """
         if source is not self._source or cursor is not self._cursor:
             self._source = source
             self._cursor = cursor
             self._results.clear()
-        result = self._results.get(station)
-        if result is None:
-            result = prepare_station_access(
-                source, cursor, station, self.position_cache
+        cached = self._results.get(station)
+        if cached is not None:
+            window, result = cached
+            if window is None or (
+                bounds is not None
+                and window[0] <= bounds[0]
+                and bounds[1] <= window[1]
+            ):
+                return result
+        window = None
+        if bounds is not None:
+            margin = max(
+                ACCESS_WINDOW_MIN_MARGIN_S,
+                ACCESS_WINDOW_MARGIN_FRACTION * (bounds[1] - bounds[0]),
             )
-            self._results[station] = result
+            window = (bounds[0] - margin, bounds[1] + margin)
+        result = prepare_station_access(
+            source, cursor, station, self.position_cache, window
+        )
+        self._results[station] = (window, result)
         return result
 
     def clear(self) -> None:

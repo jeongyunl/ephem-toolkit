@@ -166,19 +166,28 @@ class EarthFixedPositionCache:
         self._positions_m = None
         self._computed = None
 
-    def positions(self, source: GroundTrackSource) -> np.ndarray:
-        """Return all OEM sample positions in ITRF, converting missing samples."""
+    def positions(
+        self,
+        source: GroundTrackSource,
+        index_range: tuple[int, int] | None = None,
+    ) -> np.ndarray:
+        """Return OEM sample positions in ITRF, converting only missing samples.
+
+        ``index_range`` limits both conversion and the returned rows to
+        ``[start, stop)``; omitting it covers every sample.
+        """
         self._ensure_source(source)
         assert self._positions_m is not None
         assert self._computed is not None
         timestamps_s = np.asarray(source.timestamps_s, dtype=float)
         states_m = np.asarray(source.states_m, dtype=float)
-        for index in np.flatnonzero(~self._computed):
+        start, stop = (0, timestamps_s.size) if index_range is None else index_range
+        for index in start + np.flatnonzero(~self._computed[start:stop]):
             self._positions_m[index] = state_position_to_itrf_m(
                 states_m[index], source.frame_name, float(timestamps_s[index])
             )
             self._computed[index] = True
-        positions = self._positions_m.view()
+        positions = self._positions_m[start:stop].view()
         positions.setflags(write=False)
         return positions
 
@@ -214,12 +223,29 @@ class EarthFixedPositionCache:
         self._computed = np.zeros(timestamps_s.size, dtype=bool)
 
 
+def window_indices(
+    timestamps_s: np.ndarray,
+    bounds: tuple[float, float],
+    margin_s: float = 0.0,
+) -> tuple[int, int]:
+    """Return ``[start, stop)`` sample indices covering bounds plus one sample each side."""
+    start = int(np.searchsorted(timestamps_s, bounds[0] - margin_s, side="left"))
+    stop = int(np.searchsorted(timestamps_s, bounds[1] + margin_s, side="right"))
+    count = len(timestamps_s)
+    return max(0, start - 1), min(count, stop + 1)
+
+
 def prepare_ground_track(
     source: GroundTrackSource,
     *,
     position_cache: EarthFixedPositionCache | None = None,
+    bounds: tuple[float, float] | None = None,
+    margin_s: float = 0.0,
 ) -> GroundTrackCoordinates:
     """Convert supported OEM samples to WGS-84 geodetic coordinates.
+
+    With ``bounds``, only samples within the bounds (plus ``margin_s`` and one
+    neighbouring sample on each side) are converted.
 
     Earth-fixed coordinates use their positions directly. Supported inertial states
     are converted at each TT epoch. No GUI, plotting, or projection library is imported.
@@ -246,6 +272,13 @@ def prepare_ground_track(
         raise GroundTrackPreparationError(
             "Ground Track requires at least one OEM sample"
         )
+    index_range: tuple[int, int] | None = None
+    if bounds is not None and states_m.shape == (timestamps_s.size, 6):
+        index_range = window_indices(timestamps_s, bounds, margin_s)
+        window = slice(*index_range)
+        timestamps_s = timestamps_s[window]
+        states_m = states_m[window]
+        segment_ids = segment_ids[window]
     if states_m.shape != (timestamps_s.size, 6):
         raise GroundTrackPreparationError(
             "OEM states must have shape (number of timestamps, 6)"
@@ -264,7 +297,7 @@ def prepare_ground_track(
     if position_cache is None:
         position_cache = EarthFixedPositionCache()
     try:
-        earth_fixed_positions_m = position_cache.positions(source)
+        earth_fixed_positions_m = position_cache.positions(source, index_range)
     except GroundTrackPreparationError:
         raise
     except Exception as error:

@@ -1252,11 +1252,13 @@ class PlayerApp(
         self, layout: Sequence[tuple[str, str, str]]
     ) -> None:
         """Compute full-range station access off the UI thread, then rebuild panels."""
-        source = self._ground_track_source
+        source = self._ground_track_source_for_plot_range()
         cursor_ref = self.cursor
         cache = self._station_access_cache
         stations = tuple(self._ground_stations)
-        if source is None or not stations:
+        resolved = self._resolved_plot_range()
+        bounds = None if resolved is None else (resolved.start_s, resolved.end_s)
+        if source is None or not stations or bounds is None:
             self._rebuild_deferred_views(layout)
             return
         self.status_bar.set_message("Analyzing ground station access…")
@@ -1264,7 +1266,7 @@ class PlayerApp(
         def worker() -> None:
             try:
                 for station in stations:
-                    cache.prepare(source, cursor_ref, station)
+                    cache.prepare(source, cursor_ref, station, bounds)
             except Exception:
                 pass
             wx.CallAfter(self._rebuild_deferred_views, layout, source)
@@ -1279,7 +1281,9 @@ class PlayerApp(
         warmed_source: object | None = None,
     ) -> None:
         """Rebuild access views once their analysis is cached."""
-        if warmed_source is not None and warmed_source is not self._ground_track_source:
+        if warmed_source is not None and warmed_source is not (
+            self._ground_track_source_for_plot_range()
+        ):
             return
         self.status_bar.set_message("")
         for panel_id, view_name, stack in layout:

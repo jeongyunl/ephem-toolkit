@@ -187,8 +187,12 @@ class GroundTrackView:
         saved_ylim: tuple[float, float] | None = None,
         stations: Sequence[GroundStation] = (),
         on_open_passes: Callable[[str], None] | None = None,
+        coordinate_provider: (
+            Callable[[ResolvedTimeRange], GroundTrackCoordinates | None] | None
+        ) = None,
     ) -> None:
         self._parent = parent
+        self._coordinate_provider = coordinate_provider
         self._source = source
         self._coordinates = coordinates
         self._display_coordinates = coordinates
@@ -1145,6 +1149,15 @@ class GroundTrackView:
         self._effective_plot_range = (
             None if bounds is None else (bounds.start_s, bounds.end_s)
         )
+        if (
+            bounds is not None
+            and self._coordinate_provider is not None
+            and self._coordinates is not None
+            and not self._coordinates_cover(bounds)
+        ):
+            prepared = self._coordinate_provider(bounds)
+            if prepared is not None:
+                self._coordinates = prepared
         if self._coordinates is not None:
             if bounds is None:
                 selected = np.zeros(len(self._coordinates.timestamps_s), dtype=bool)
@@ -1166,6 +1179,16 @@ class GroundTrackView:
             self.update(current_time)
         if self._canvas is not None:
             self._canvas.draw_idle()
+
+    def _coordinates_cover(self, bounds: ResolvedTimeRange) -> bool:
+        """Return whether prepared samples already span the bounds within OEM coverage."""
+        timestamps = self._coordinates.timestamps_s
+        if not len(timestamps):
+            return False
+        return bool(
+            timestamps[0] <= max(bounds.start_s, self._cursor.t_start)
+            and timestamps[-1] >= min(bounds.end_s, self._cursor.t_end)
+        )
 
     def _update_track_artists(self) -> None:
         if self._axes is None or self._projection is None:

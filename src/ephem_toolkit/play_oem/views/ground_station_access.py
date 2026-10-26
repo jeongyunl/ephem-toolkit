@@ -50,6 +50,8 @@ class GroundStationAccessView:
         on_seek: Callable[[float], None],
         on_station_manager: Callable[[], None],
         access_cache: StationAccessCache,
+        limit_to_range: bool = False,
+        initial_range: ResolvedTimeRange | None = None,
         display_time_zone: str = UTC_DISPLAY,
     ) -> None:
         self._parent = parent
@@ -62,6 +64,8 @@ class GroundStationAccessView:
         self._on_seek = on_seek
         self._on_station_manager = on_station_manager
         self._access_cache = access_cache
+        self._limit_to_range = limit_to_range
+        self._prepare_range = initial_range
         self._display_time_zone = display_time_zone
         self._current_time_s = cursor.t_start
         self._selected_station_id = (
@@ -256,8 +260,10 @@ class GroundStationAccessView:
         self._time_range_bounds = bounds
         self._time_range_coverage = coverage
         self._time_range_applied = True
-        if was_empty != (bounds is None):
+        prepared_again = self._reprepare_for_range(bounds)
+        if prepared_again or was_empty != (bounds is None):
             self._draw_elevation_plot()
+            self.update(self._current_time_s)
             return
         self._apply_time_range()
         if self._canvas is not None:
@@ -269,17 +275,38 @@ class GroundStationAccessView:
         self._axes = None
         self._panel = None
 
+    def _reprepare_for_range(self, bounds: ResolvedTimeRange | None) -> bool:
+        """Prepare access for new bounds; return whether the results changed."""
+        if not self._limit_to_range or bounds == self._prepare_range:
+            return False
+        self._prepare_range = bounds
+        previous = self._access_results
+        self._prepare_access()
+        return len(previous) != len(self._access_results) or any(
+            old is not new for old, new in zip(previous, self._access_results)
+        )
+
     def _prepare_access(self) -> None:
         if not self._oem_loaded or self._source is None:
             self._access_results = ()
             self._preparation_error = None
             return
         results = []
+        bounds = None
+        if self._limit_to_range:
+            if self._prepare_range is None:
+                self._access_results = tuple(
+                    StationAccess(station, ()) for station in self._stations
+                )
+                return
+            bounds = (self._prepare_range.start_s, self._prepare_range.end_s)
         self._preparation_error = None
         for station in self._stations:
             try:
                 results.append(
-                    self._access_cache.prepare(self._source, self._cursor, station)
+                    self._access_cache.prepare(
+                        self._source, self._cursor, station, bounds
+                    )
                 )
             except GroundTrackPreparationError as error:
                 results.append(StationAccess(station, (), str(error)))

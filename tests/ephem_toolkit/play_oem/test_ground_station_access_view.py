@@ -199,7 +199,7 @@ def test_multiple_access_views_share_prepared_station_history(monkeypatch) -> No
     cache = StationAccessCache()
     prepare_calls = []
 
-    def prepare(source_arg, cursor_arg, station_arg, _position_cache):
+    def prepare(source_arg, cursor_arg, station_arg, _position_cache, _bounds=None):
         prepare_calls.append((source_arg, cursor_arg, station_arg))
         return station_access.StationAccess(station_arg, ())
 

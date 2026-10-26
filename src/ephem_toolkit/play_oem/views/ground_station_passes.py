@@ -72,6 +72,8 @@ class GroundStationPassesView:
         on_focus_pass: Callable[[float, float], None],
         on_station_manager: Callable[[], None],
         access_cache: StationAccessCache,
+        limit_to_range: bool = False,
+        initial_range: ResolvedTimeRange | None = None,
         initial_station_id: str | None = None,
         display_time_zone: str = UTC_DISPLAY,
     ) -> None:
@@ -85,6 +87,8 @@ class GroundStationPassesView:
         self._on_focus_pass = on_focus_pass
         self._on_station_manager = on_station_manager
         self._access_cache = access_cache
+        self._limit_to_range = limit_to_range
+        self._prepare_range = initial_range
         self._display_time_zone = display_time_zone
         self._current_time_s = cursor.t_start
         self._selected_station_id = (
@@ -280,10 +284,20 @@ class GroundStationPassesView:
             self._access_results = ()
             return
         results = []
+        bounds = None
+        if self._limit_to_range:
+            if self._prepare_range is None:
+                self._access_results = tuple(
+                    StationAccess(station, ()) for station in self._stations
+                )
+                return
+            bounds = (self._prepare_range.start_s, self._prepare_range.end_s)
         for station in self._stations:
             try:
                 results.append(
-                    self._access_cache.prepare(self._source, self._cursor, station)
+                    self._access_cache.prepare(
+                        self._source, self._cursor, station, bounds
+                    )
                 )
             except GroundTrackPreparationError as error:
                 results.append(StationAccess(station, (), str(error)))
@@ -865,6 +879,9 @@ class GroundStationPassesView:
             return
         self._time_range_bounds = bounds
         self._time_range_applied = True
+        if self._limit_to_range and bounds != self._prepare_range:
+            self._prepare_range = bounds
+            self._prepare_access()
         self._refresh_rows()
 
     def set_stations(self, stations: Sequence[GroundStation]) -> None:

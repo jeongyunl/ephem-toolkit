@@ -202,7 +202,7 @@ def test_access_cache_reuses_same_inputs_and_recomputes_changed_station(
     station = GroundStation("id", "Site", 0.0, 0.0, 0.0)
     calls = []
 
-    def prepare(source_arg, cursor_arg, station_arg, _position_cache):
+    def prepare(source_arg, cursor_arg, station_arg, _position_cache, _bounds=None):
         calls.append((source_arg, cursor_arg, station_arg))
         return station_access.StationAccess(station_arg, ())
 
@@ -240,3 +240,48 @@ def test_ground_track_and_access_share_converted_sample_positions(monkeypatch) -
     StationAccessCache(position_cache).prepare(source, _cursor(source), station)
 
     assert conversions == [0.0, 120.0, 30.0, 60.0, 90.0]
+
+
+def test_ranged_access_preparation_only_reads_samples_within_the_window(
+    monkeypatch,
+) -> None:
+    times = [float(index * 60) for index in range(1_000)]
+    source = _source(times, np.tile(_state_at_elevation(45.0), (1_000, 1)))
+    station = GroundStation("id", "Site", 0.0, 0.0, 0.0)
+    cursor = _cursor(source)
+    lookups = []
+    original_lookup = cursor.lookup
+
+    def lookup(epoch):
+        lookups.append(epoch)
+        return original_lookup(epoch)
+
+    monkeypatch.setattr(cursor, "lookup", lookup)
+    prepare_station_access(source, cursor, station, bounds=(6_000.0, 6_600.0))
+
+    assert lookups
+    assert min(lookups) >= 5_940.0
+    assert max(lookups) <= 6_660.0
+
+
+def test_access_cache_reuses_window_and_recomputes_outside_it(monkeypatch) -> None:
+    source = _source([0.0, 10.0], np.tile(_state_at_elevation(45.0), (2, 1)))
+    station = GroundStation("id", "Site", 0.0, 0.0, 0.0)
+    windows = []
+
+    def prepare(source_arg, cursor_arg, station_arg, _cache, bounds=None):
+        windows.append(bounds)
+        return station_access.StationAccess(station_arg, ())
+
+    monkeypatch.setattr(station_access, "prepare_station_access", prepare)
+    cache = StationAccessCache()
+    cursor = _cursor(source)
+
+    first = cache.prepare(source, cursor, station, (10_000.0, 20_000.0))
+    inside = cache.prepare(source, cursor, station, (12_000.0, 18_000.0))
+    outside = cache.prepare(source, cursor, station, (50_000.0, 60_000.0))
+
+    assert inside is first
+    assert outside is not first
+    assert len(windows) == 2
+    assert windows[0][0] < 10_000.0 and windows[0][1] > 20_000.0
