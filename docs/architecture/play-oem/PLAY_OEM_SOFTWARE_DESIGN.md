@@ -12,6 +12,11 @@ Implemented Ground Stations feature: see the
 [user guide](../../tools/PLAY_OEM_GROUND_STATIONS.md). The original software/GUI designs and
 mockups are archived in [old/](./old/).
 
+Proposed Ground Track station overlays and pass/sky analysis are specified in the
+[Ground Station Visual Analysis software design](./PLAY_OEM_GROUND_STATION_ANALYSIS_SOFTWARE_DESIGN.md),
+[GUI design](./PLAY_OEM_GROUND_STATION_ANALYSIS_GUI_DESIGN.md), and
+[implementation plan](./PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_PLAN.md).
+
 ## 1. Approach: copy and modify `plot-oem`
 
 `plot_oem.py` (~870 lines) mixes three things; we split them while copying:

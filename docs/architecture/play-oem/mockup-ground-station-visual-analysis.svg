@@ -1,0 +1,171 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="1120" viewBox="0 0 1680 1120" role="img" aria-labelledby="title desc">
+  <title id="title">Ground Station Visual Analysis mock-up</title>
+  <desc id="desc">Illustrative play-oem three-pane workspace with station markers on the Ground Track map, a Ground Station Passes table linked to an azimuth/elevation sky plot, and the existing elevation-over-time Access graph in Comparison.</desc>
+  <defs>
+    <style>
+      .bg{fill:#f1f4f8}.window{fill:#fff;stroke:#cbd5e1;stroke-width:1.5}.chrome{fill:#e8edf3}
+      .ink{fill:#17263a;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .muted{fill:#63748b;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .title{font-size:19px;font-weight:700}.heading{font-size:14px;font-weight:700}.body{font-size:12px}.small{font-size:10px}.tiny{font-size:9px}
+      .pane{fill:#fff;stroke:#d5dee9;stroke-width:1.2}.button{fill:#fff;stroke:#bac8d8;stroke-width:1}
+      .primary{fill:#2563eb}.primarytext{fill:#fff;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:10px;font-weight:600}
+      .rule{stroke:#e1e7ef;stroke-width:1}.grid{fill:none;stroke:#e1e7ef;stroke-width:1}
+      .land{fill:#e7eadf;stroke:#cbd2c1;stroke-width:.8}.track{fill:none;stroke:#3b5dc9;stroke-width:2.4;stroke-linecap:round}
+      .horizon{fill:none;stroke:#dd762d;stroke-width:1.8;stroke-dasharray:6 3}.mask{fill:#f0c94c;fill-opacity:.14;stroke:#af8d19;stroke-width:1.8}
+      .marker{fill:#e74d69;stroke:#fff;stroke-width:2}.station{fill:#2574c7;stroke:#fff;stroke-width:2}
+      .stationselected{fill:#0e9a83;stroke:#fff;stroke-width:2}.skyline{fill:none;stroke:#2574c7;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+      .pass{fill:#e8f3ff}.passselected{fill:#d6e8ff;stroke:#77a8e8;stroke-width:1}
+      .curve{fill:none;stroke:#2f7ebc;stroke-width:2;stroke-linecap:round}.maskline{stroke:#c74343;stroke-width:1.2;stroke-dasharray:5 3}
+      .status{fill:#e4f5ec}.statustext{fill:#17654f;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:9px;font-weight:700}
+    </style>
+    <clipPath id="map"><path d="M368 247 Q715 214 1062 247 Q1084 393 1062 538 Q715 571 368 538 Q346 393 368 247Z"/></clipPath>
+  </defs>
+  <rect class="bg" width="1680" height="1120"/>
+  <rect class="window" x="18" y="16" width="1644" height="1088" rx="14"/>
+  <path class="chrome" d="M32 16h1616a14 14 0 0 1 14 14v35H18V30a14 14 0 0 1 14-14z"/>
+  <circle cx="46" cy="40" r="5" fill="#ed7777"/><circle cx="64" cy="40" r="5" fill="#e7bd55"/><circle cx="82" cy="40" r="5" fill="#68bd7d"/>
+  <text class="muted small" x="103" y="44">play-oem · ISS_2026-05-20.OEM</text>
+
+  <rect class="pane" x="34" y="76" width="244" height="950" rx="8"/>
+  <rect x="34" y="76" width="48" height="950" rx="8" fill="#f8fafc"/>
+  <line x1="82" y1="76" x2="82" y2="1026" class="rule"/>
+  <rect x="42" y="94" width="32" height="34" rx="6" fill="#fff" stroke="#d5dee9"/>
+  <text class="muted body" x="58" y="117" text-anchor="middle">⚙</text>
+  <rect x="42" y="136" width="32" height="34" rx="6" fill="#fff" stroke="#d5dee9"/>
+  <text class="muted body" x="58" y="159" text-anchor="middle">◷</text>
+  <rect x="39" y="178" width="38" height="38" rx="7" fill="#e8f1ff" stroke="#90b6ea"/>
+  <circle cx="58" cy="194" r="6" fill="none" stroke="#2563eb" stroke-width="1.5"/><path d="M58 184v20M48 194h20" stroke="#2563eb" stroke-width="1.3"/>
+  <text class="muted tiny" x="94" y="101">CONTROLS &amp; INFO</text>
+  <text class="ink heading" x="94" y="128">Ground Stations</text>
+  <text class="muted small" x="94" y="151">2 sites configured</text>
+  <rect class="pane" x="94" y="168" width="165" height="54" rx="6"/>
+  <circle class="stationselected" cx="108" cy="188" r="5"/><text class="ink small" x="120" y="191">North Site</text>
+  <text class="muted tiny" x="120" y="207">64.15° N · 21.94° W</text>
+  <rect class="pane" x="94" y="230" width="165" height="54" rx="6"/>
+  <circle class="station" cx="108" cy="250" r="5"/><text class="ink small" x="120" y="253">South Relay</text>
+  <text class="muted tiny" x="120" y="269">−34.60° · 138.50°</text>
+  <rect class="button" x="94" y="296" width="165" height="30" rx="5"/><text class="muted small" x="176" y="315" text-anchor="middle">Manage stations…</text>
+  <text class="muted tiny" x="94" y="356">Current OEM</text>
+  <text class="ink small" x="94" y="375">ISS_2026-05-20.OEM</text>
+  <text class="muted tiny" x="94" y="398">Coverage</text>
+  <text class="ink small" x="94" y="417">12:00–18:00 UTC</text>
+
+  <rect class="pane" x="294" y="76" width="850" height="950" rx="8"/>
+  <text class="ink heading" x="312" y="101">MAIN ANALYSIS</text>
+  <rect class="button" x="1044" y="86" width="82" height="24" rx="4"/><text class="muted tiny" x="1085" y="102" text-anchor="middle">+ Add graph</text>
+
+  <rect class="pane" x="308" y="120" width="822" height="476" rx="7"/>
+  <rect x="321" y="132" width="158" height="24" rx="4" fill="#edf5ff" stroke="#a9c5e7"/>
+  <text class="ink small" x="332" y="148" font-weight="700">Ground Track</text><text class="muted tiny" x="465" y="148">▾</text>
+  <text class="muted tiny" x="500" y="148">ISS · OEM interval · paused</text>
+  <rect class="button" x="808" y="132" width="132" height="23" rx="4"/><text class="muted tiny" x="874" y="147" text-anchor="middle">Robinson ▾</text>
+  <rect class="button" x="948" y="132" width="165" height="23" rx="4"/><text class="muted tiny" x="1030" y="147" text-anchor="middle">☑ Ground Stations</text>
+  <rect class="button" x="321" y="165" width="792" height="399" rx="6"/>
+  <path d="M368 247 Q715 214 1062 247 Q1084 393 1062 538 Q715 571 368 538 Q346 393 368 247Z" fill="#f8fbff" stroke="#aab9ca" stroke-width="1.2"/>
+  <g clip-path="url(#map)">
+    <path class="grid" d="M350 320 Q715 291 1080 320 M347 393H1083 M350 466 Q715 495 1080 466 M480 225 Q450 393 480 560 M600 219 Q585 393 600 566 M715 214V571 M830 219 Q845 393 830 566 M950 225 Q980 393 950 560"/>
+    <path class="land" d="M390 330l40-42 55-8 37 20-12 28 25 18-13 36-34 5-19 27-31-5-17-27-29-13-10-21-23-4z M520 404l25 18 10 33-15 29 8 27-18 19-14-31-11-31 5-31z M668 324l34-22 39 12 25 25 30-10 38 19 2 25-33 12-5 26-24 10-11 27-22 2-11-30-25-9-7-32-29-21z M721 436l21 8 11 32-10 37-21 24-13-25 1-39z M840 322l36-17 42 9 31 19 41-2 26 22-17 26-39 1-18 21-37-14-28 9-25-23-34-1-12-22z"/>
+    <path class="track" d="M353 488 C452 454 520 376 604 347 S728 381 774 452 S861 493 918 401 S1000 321 1080 363"/>
+    <path class="horizon" d="M755 365 C778 343 817 342 840 360 C862 379 862 414 842 434 C821 454 785 448 767 430 C750 414 743 382 755 365Z"/>
+    <path class="mask" d="M770 375 C785 361 813 359 829 373 C844 386 845 411 829 425 C814 440 788 435 775 420 C763 408 760 387 770 375Z"/>
+    <circle class="marker" cx="801" cy="397" r="7"/>
+    <circle class="stationselected" cx="539" cy="378" r="7"/><circle cx="539" cy="378" r="12" fill="none" stroke="#0e9a83" stroke-width="1.5"/>
+    <circle class="station" cx="967" cy="455" r="6"/>
+  </g>
+  <text class="ink tiny" x="552" y="372">North Site</text><text class="ink tiny" x="979" y="450">South Relay</text>
+  <rect x="550" y="380" width="151" height="43" rx="5" fill="#fff" stroke="#9bb5cf"/>
+  <text class="ink tiny" x="559" y="396" font-weight="700">North Site</text><text class="muted tiny" x="559" y="410">Mask 10° · Open Passes ›</text>
+  <line x1="335" y1="550" x2="361" y2="550" class="track"/><text class="muted tiny" x="367" y="553">Ground track</text>
+  <line x1="451" y1="550" x2="477" y2="550" class="horizon"/><text class="muted tiny" x="483" y="553">0° horizon</text>
+  <line x1="563" y1="550" x2="589" y2="550" class="mask"/><text class="muted tiny" x="595" y="553">10° mask</text>
+  <circle class="stationselected" cx="707" cy="550" r="5"/><text class="muted tiny" x="718" y="553">Focused station</text>
+  <circle class="station" cx="819" cy="550" r="5"/><text class="muted tiny" x="830" y="553">Other station</text>
+
+  <rect class="pane" x="308" y="610" width="822" height="398" rx="7"/>
+  <rect x="321" y="622" width="178" height="24" rx="4" fill="#edf5ff" stroke="#a9c5e7"/>
+  <text class="ink small" x="332" y="638" font-weight="700">Ground Station Passes</text><text class="muted tiny" x="486" y="638">▾</text>
+  <rect class="button" x="804" y="622" width="172" height="23" rx="4"/><text class="muted tiny" x="890" y="637" text-anchor="middle">Station: North Site ▾</text>
+  <text class="muted tiny" x="987" y="638">3 intervals in Plot Range</text>
+  <line x1="321" y1="656" x2="1117" y2="656" class="rule"/>
+  <text class="ink tiny" x="337" y="675" font-weight="700">PLOT RANGE · 2026-05-20 12:00–18:00 UTC</text>
+  <text class="muted tiny" x="337" y="696">START UTC</text><text class="muted tiny" x="438" y="696">END UTC</text><text class="muted tiny" x="532" y="696">DURATION</text><text class="muted tiny" x="612" y="696">PEAK ELEVATION</text><text class="muted tiny" x="733" y="696">MIN RANGE</text>
+  <line x1="334" y1="704" x2="782" y2="704" class="rule"/>
+  <rect class="passselected" x="331" y="710" width="454" height="47" rx="4"/>
+  <text class="ink tiny" x="340" y="729">13:18:42</text><text class="ink tiny" x="440" y="729">13:24:10</text><text class="ink tiny" x="532" y="729">5m 28s</text><text class="ink tiny" x="612" y="729">58.4° · 13:21:16</text><text class="ink tiny" x="733" y="729">1,204 km</text>
+  <text class="muted tiny" x="340" y="746">Complete pass · selected</text>
+  <rect class="pass" x="331" y="762" width="454" height="42" rx="4"/>
+  <text class="ink tiny" x="340" y="780">15:02:05</text><text class="ink tiny" x="440" y="780">15:09:31</text><text class="ink tiny" x="532" y="780">7m 26s</text><text class="ink tiny" x="612" y="780">71.2° · 15:05:48</text><text class="ink tiny" x="733" y="780">842 km</text>
+  <text class="muted tiny" x="340" y="795">Complete pass</text>
+  <rect class="pass" x="331" y="809" width="454" height="42" rx="4"/>
+  <text class="ink tiny" x="340" y="827">17:41:00</text><text class="ink tiny" x="440" y="827">Beyond coverage</text><text class="ink tiny" x="532" y="827">—</text><text class="ink tiny" x="612" y="827">42.0° · 17:44:22</text><text class="ink tiny" x="733" y="827">1,980 km</text>
+  <text class="muted tiny" x="340" y="844">Continues beyond OEM coverage</text>
+  <rect class="button" x="334" y="868" width="112" height="28" rx="4"/><text class="muted tiny" x="390" y="886" text-anchor="middle">Focus pass</text>
+  <rect class="button" x="453" y="868" width="112" height="28" rx="4"/><text class="muted tiny" x="509" y="886" text-anchor="middle">Seek to peak</text>
+  <text class="muted tiny" x="334" y="923">Rows show passes overlapping Plot Range; full pass details remain.</text>
+  <text class="muted tiny" x="334" y="938">Focus pass changes Plot Range; it does not seek.</text>
+
+  <text class="ink tiny" x="813" y="675" font-weight="700">SELECTED PASS · SKY VIEW</text>
+  <rect class="status" x="984" y="662" width="127" height="20" rx="10"/>
+  <text class="statustext" x="1047" y="676" text-anchor="middle">PEAK 58.4°</text>
+  <circle cx="961" cy="807" r="119" fill="#f9fbfd" stroke="#aebdca" stroke-width="1.2"/>
+  <circle cx="961" cy="807" r="79" fill="none" stroke="#cbd6e2" stroke-width="1"/>
+  <circle cx="961" cy="807" r="40" fill="none" stroke="#cbd6e2" stroke-width="1"/>
+  <circle cx="961" cy="807" r="92" fill="none" stroke="#c74343" stroke-width="1.5" stroke-dasharray="5 3"/>
+  <line x1="842" y1="807" x2="1080" y2="807" class="grid"/><line x1="961" y1="688" x2="961" y2="926" class="grid"/>
+  <line x1="877" y1="723" x2="1045" y2="891" class="grid"/><line x1="1045" y1="723" x2="877" y2="891" class="grid"/>
+  <text class="muted tiny" x="961" y="681" text-anchor="middle">N · 0°</text><text class="muted tiny" x="1087" y="810">E · 90°</text><text class="muted tiny" x="961" y="941" text-anchor="middle">S · 180°</text><text class="muted tiny" x="820" y="810">W · 270°</text>
+  <text class="muted tiny" x="964" y="771">30°</text><text class="muted tiny" x="964" y="731">60°</text><text class="muted tiny" x="964" y="697">90°</text>
+  <path class="skyline" d="M905 718 C921 738 944 764 966 785 S1000 806 1017 827 S1020 850 1004 867"/>
+  <circle cx="905" cy="718" r="5" fill="#16877e" stroke="#fff" stroke-width="1.5"/>
+  <circle cx="966" cy="785" r="5" fill="#e7a52f" stroke="#fff" stroke-width="1.5"/>
+  <rect x="1000" y="863" width="9" height="9" fill="#df4d66" stroke="#fff" stroke-width="1.5"/>
+  <circle cx="968" cy="787" r="3.5" fill="#df4d66" stroke="#fff" stroke-width="1"/>
+  <text class="muted tiny" x="819" y="971">Start</text><circle cx="849" cy="968" r="4" fill="#16877e"/>
+  <text class="muted tiny" x="872" y="971">Peak</text><circle cx="900" cy="968" r="4" fill="#e7a52f"/>
+  <text class="muted tiny" x="923" y="971">End</text><rect x="948" y="964" width="8" height="8" fill="#df4d66"/>
+  <text class="muted tiny" x="971" y="971">Playhead</text><circle cx="1022" cy="968" r="4" fill="#df4d66"/>
+  <text class="muted tiny" x="819" y="990">Dashed ring: station mask · plot shows geometric look direction</text>
+
+  <rect class="pane" x="1160" y="76" width="486" height="950" rx="8"/>
+  <text class="ink heading" x="1178" y="101">COMPARISON</text>
+  <rect class="pane" x="1174" y="120" width="458" height="888" rx="7"/>
+  <rect x="1187" y="132" width="176" height="24" rx="4" fill="#edf5ff" stroke="#a9c5e7"/>
+  <text class="ink small" x="1198" y="148" font-weight="700">Ground Station Access</text><text class="muted tiny" x="1350" y="148">▾</text>
+  <text class="ink heading" x="1194" y="185">North Site · Elevation</text>
+  <text class="muted tiny" x="1194" y="202">Access · Mask 10° · Az 244° · El 28°</text>
+  <text class="muted tiny" x="1588" y="202" text-anchor="end">Plot Range</text>
+  <line x1="1215" y1="246" x2="1594" y2="246" class="grid"/><line x1="1215" y1="332" x2="1594" y2="332" class="grid"/>
+  <line x1="1215" y1="418" x2="1594" y2="418" class="grid"/><line x1="1215" y1="504" x2="1594" y2="504" class="grid"/>
+  <line x1="1215" y1="590" x2="1594" y2="590" class="grid"/><line x1="1215" y1="676" x2="1594" y2="676" class="grid"/>
+  <text class="muted tiny" x="1205" y="250" text-anchor="end">95°</text><text class="muted tiny" x="1205" y="336" text-anchor="end">75°</text>
+  <text class="muted tiny" x="1205" y="422" text-anchor="end">55°</text><text class="muted tiny" x="1205" y="508" text-anchor="end">35°</text>
+  <text class="muted tiny" x="1205" y="594" text-anchor="end">15°</text><text class="muted tiny" x="1205" y="680" text-anchor="end">0°</text>
+  <rect class="pass" x="1265" y="246" width="28" height="430" opacity=".8"/>
+  <rect class="passselected" x="1357" y="246" width="63" height="430" opacity=".7"/>
+  <rect class="pass" x="1510" y="246" width="38" height="430" opacity=".8"/>
+  <line x1="1215" y1="633" x2="1594" y2="633" class="maskline"/>
+  <path class="curve" d="M1265 633 C1273 592 1281 557 1287 558 C1292 560 1290 608 1293 633"/>
+  <path class="curve" d="M1357 633 C1370 548 1381 468 1390 450 C1403 427 1414 513 1420 633"/>
+  <path class="curve" d="M1510 633 C1519 564 1528 523 1535 532 C1542 542 1544 603 1548 633"/>
+  <line x1="1392" y1="246" x2="1392" y2="676" stroke="#df4d66" stroke-width="1.8"/>
+  <text class="muted tiny" x="1215" y="701">12:00</text><text class="muted tiny" x="1310" y="701">13:30</text>
+  <text class="muted tiny" x="1405" y="701">15:00</text><text class="muted tiny" x="1500" y="701">16:30</text><text class="muted tiny" x="1594" y="701" text-anchor="end">18:00 UTC</text>
+  <rect class="button" x="1194" y="725" width="210" height="27" rx="4"/><text class="muted tiny" x="1299" y="742" text-anchor="middle">Station: North Site ▾</text>
+  <text class="muted tiny" x="1194" y="777">Previous · 13:18–13:24 UTC · Peak 58.4°</text>
+  <text class="muted tiny" x="1194" y="798">Selected pass · 15:02–15:09 UTC</text>
+  <text class="muted tiny" x="1194" y="819">Next · 17:41 UTC · continues beyond coverage</text>
+  <line x1="1194" y1="842" x2="1613" y2="842" class="rule"/>
+  <line x1="1200" y1="865" x2="1232" y2="865" class="curve"/><text class="muted tiny" x="1239" y="868">Elevation ≥ 10°</text>
+  <line x1="1342" y1="865" x2="1374" y2="865" class="maskline"/><text class="muted tiny" x="1381" y="868">Mask</text>
+  <line x1="1450" y1="865" x2="1482" y2="865" stroke="#df4d66" stroke-width="1.8"/><text class="muted tiny" x="1489" y="868">Playback</text>
+  <text class="muted tiny" x="1194" y="911">Elevation graph retains its shared Plot Range and 0°–95° scale.</text>
+  <text class="muted tiny" x="1194" y="929">Pass selection in Main Analysis does not seek the clock.</text>
+
+  <line x1="34" y1="1040" x2="1646" y2="1040" class="rule"/>
+  <text class="muted tiny" x="48" y="1062">2026-05-20 12:00:00 UTC</text>
+  <text class="ink small" x="708" y="1062">▶   1×   ⏸   1×   ▶</text>
+  <text class="muted tiny" x="1485" y="1062">18:00:00 UTC</text>
+  <line x1="50" y1="1084" x2="1630" y2="1084" stroke="#c6d2df" stroke-width="4" stroke-linecap="round"/>
+  <line x1="50" y1="1084" x2="845" y2="1084" stroke="#2f7ebc" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="845" cy="1084" r="7" fill="#df4d66" stroke="#fff" stroke-width="2"/>
+</svg>
