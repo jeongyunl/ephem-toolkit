@@ -17,12 +17,16 @@ from ephem_toolkit.play_oem.app.time_range_actions import (
     TimeRangeActionsMixin,
     playback_range_plot_rule,
 )
+from ephem_toolkit.play_oem.display_time import format_tt
 
 
 class _ActionHost(TimeRangeActionsMixin, PlaybackActionsMixin):
     def __init__(self) -> None:
         self.clock = PlaybackClock(0.0, 100.0, t_now=50.0, playing=True)
         self.plot_time_range = playback_range_plot_rule()
+        self._active_load_first_batch = False
+        self._oem_coverage_complete = True
+        self._display_time_zone = "UTC"
         self._last_frame_monotonic_s = 12.0
         self.dispatches: list[ResolvedTimeRange | None] = []
         self.display_updates = 0
@@ -214,6 +218,4 @@ def test_typed_time_inside_oem_but_outside_playback_is_clamped_with_status() -> 
 
     assert host.clock.t_now == 80.0
     assert host.status_message == "Time was clamped to playback limits."
-    assert host.current_entry == time_utils.datetime_to_iso8601(
-        time_utils.tt_s_to_datetime(80.0)
-    )
+    assert host.current_entry == format_tt(80.0, "UTC")

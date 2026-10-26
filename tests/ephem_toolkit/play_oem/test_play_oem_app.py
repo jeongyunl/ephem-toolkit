@@ -22,6 +22,7 @@ from ephem_toolkit.play_oem.app import support as app_support
 from ephem_toolkit.play_oem.app import view_factory
 from ephem_toolkit.play_oem.clock import PlaybackClock
 from ephem_toolkit.play_oem.cursor import OemCursor
+from ephem_toolkit.play_oem.ground_track import GroundTrackSource
 from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem import time_range
 from ephem_toolkit.play_oem.play_oem_cli import build_arg_parser, parse_arguments
@@ -546,6 +547,9 @@ class FakeWorkspace:
         self.neutral_focus_count += 1
 
     def set_oem_loaded(self, _loaded: bool) -> None:
+        pass
+
+    def select_ground_stations(self) -> None:
         pass
 
     def update_oem_information(self, _context, _details, _timeline_enabled) -> None:
@@ -1955,17 +1959,34 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
     player.close()
 
 
-def test_ground_station_analysis_is_gated_until_coverage_is_complete(
+def test_ground_station_preview_is_limited_to_plot_range_until_coverage_completes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     player, _views, _canvases, _frames = make_app(monkeypatch)
+    timestamps_s = np.asarray([100.0, 120.0, 140.0, 160.0, 180.0, 200.0])
+    states_m = np.repeat(make_states()[0][None, :], len(timestamps_s), axis=0)
+    source = GroundTrackSource.from_samples(
+        timestamps_s,
+        states_m,
+        np.zeros(len(timestamps_s), dtype=int),
+        "EARTH",
+        "GCRF",
+    )
+    player._ground_track_source = source
+    player.plot_time_range = time_range.PlotTimeRange(
+        True,
+        time_range.TimeRangeEndpoint("fixed", 130.0),
+        time_range.TimeRangeEndpoint("fixed", 170.0),
+    )
     player._oem_coverage_complete = False
 
-    player.open_ground_station_access_view()
-    player.open_ground_station_passes_view()
+    preview = player._ground_track_source_for_plot_range()
 
-    assert not player._open_panels
-    assert "after OEM loading completes" in player.status_bar.message
+    assert preview is not None
+    np.testing.assert_array_equal(preview.timestamps_s, [120.0, 140.0, 160.0, 180.0])
+    np.testing.assert_array_equal(preview.states_m, states_m[1:5])
+    player._oem_coverage_complete = True
+    assert player._ground_track_source_for_plot_range() is source
     player.close()
 
 

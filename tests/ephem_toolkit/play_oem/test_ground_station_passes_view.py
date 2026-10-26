@@ -119,7 +119,7 @@ def test_plot_range_filters_by_overlap_and_keeps_full_pass_details() -> None:
     assert view._visible_intervals[1].start_s == 40.0
     assert view._visible_intervals[1].end_s == 50.0
     assert view._range_label_text == (
-        f"Plot Range: {_utc_label(19.0)} – {_utc_label(41.0)} UTC"
+        f"Plot Range: {_utc_label(19.0)} UTC – {_utc_label(41.0)} UTC"
     )
     assert view._access_results[0] is prepared
     assert cache.prepare_calls == 1

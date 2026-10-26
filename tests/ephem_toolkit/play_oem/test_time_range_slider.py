@@ -53,7 +53,7 @@ def test_plot_handle_tooltip_is_two_lines(mode: EndpointMode, mode_label: str) -
     tooltip = _plot_tooltip_text("Plot start", "2026-05-21T04:36:45", mode)
 
     assert tooltip.splitlines() == [
-        "Plot start: 2026-05-21T04:36:45 UTC",
+        "Plot start: 2026-05-21T04:36:45",
         f"{mode_label} | Right-click for mode",
     ]
 

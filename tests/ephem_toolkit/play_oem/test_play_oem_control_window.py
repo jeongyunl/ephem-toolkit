@@ -318,6 +318,8 @@ def test_settings_page_contains_render_rate_and_interpolation_controls(
     assert window.settings_scroller.scroll_rate == (0, 10)
     assert window.settings_scroller.name == "Settings render rate"
     assert [item[0] for item in window.settings_scroller.sizer.items] == [
+        window.display_time_zone_label,
+        window.display_time_zone_choice,
         window.render_rate_label,
         window.render_rate_slider,
         window.interpolation_section_label,

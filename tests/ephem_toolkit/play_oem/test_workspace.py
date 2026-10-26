@@ -151,12 +151,16 @@ class FakeTimeRangeSlider(FakeSlider):
         super().__init__(parent, -1, 0, 0, 10_000, **kwargs)
         self.client_size = FakeSize(600, 74)
         self.ranges = None
+        self.display_time_zone = "UTC"
 
     def GetClientSize(self) -> FakeSize:
         return self.client_size
 
     def set_ranges(self, *ranges) -> None:
         self.ranges = ranges
+
+    def set_display_time_zone(self, display_time_zone: str) -> None:
+        self.display_time_zone = display_time_zone
 
 
 class FakeChoice(FakeWidget):
@@ -852,14 +856,14 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert frame.sizer.items[0][0] is result.main_splitter
     assert frame.sizer.items[1][0] is result.timeline_panel
     assert result.playback_start_label.label == (
-        f"Start UTC: {core._playback_utc(10.0)}"
+        f"Start: {core.format_tt(10.0, 'UTC')}"
     )
-    assert result.timeline_current_prefix.label == "Current UTC:"
-    assert result.timeline_time_entry.name == "Current UTC or elapsed time"
+    assert result.timeline_current_prefix.label == "Current time:"
+    assert result.timeline_time_entry.name == "Current time or elapsed time"
     assert (
-        result.timeline_time_entry.hint == "UTC timestamp or elapsed time, e.g. 1h30m"
+        result.timeline_time_entry.hint == "Timestamp or elapsed time, e.g. 1h30m"
     )
-    assert result.playback_end_label.label == (f"End UTC: {core._playback_utc(90.0)}")
+    assert result.playback_end_label.label == f"End: {core.format_tt(90.0, 'UTC')}"
 
 
 def test_playback_range_labels_track_current_playback_bounds() -> None:
@@ -875,6 +879,7 @@ def test_playback_range_labels_track_current_playback_bounds() -> None:
     result = SimpleNamespace(
         playback_start_label=start_label,
         playback_end_label=end_label,
+        _display_time_zone="UTC",
         timeline_slider=SimpleNamespace(
             set_ranges=lambda *state: slider_states.append(state)
         ),
@@ -884,10 +889,11 @@ def test_playback_range_labels_track_current_playback_bounds() -> None:
     core.Workspace.set_time_range_controls(
         result, (0.0, 100.0), (20.0, 80.0), plot_rule, 50.0
     )
-    assert start_label.label == f"Start UTC: {core._playback_utc(20.0)}"
-    assert end_label.label == f"End UTC: {core._playback_utc(80.0)}"
-    assert end_label.label == f"End UTC: {core._playback_utc(80.0)}"
-    assert slider_states == [((0.0, 100.0), (20.0, 80.0), plot_rule, 50.0)]
+    assert start_label.label == f"Start: {core.format_tt(20.0, 'UTC')}"
+    assert end_label.label == f"End: {core.format_tt(80.0, 'UTC')}"
+    assert slider_states == [
+        ((0.0, 100.0), (20.0, 80.0), plot_rule, 50.0, None, None)
+    ]
 
 
 def test_playback_controls_dispatch_signed_rates_and_track_play_state(
