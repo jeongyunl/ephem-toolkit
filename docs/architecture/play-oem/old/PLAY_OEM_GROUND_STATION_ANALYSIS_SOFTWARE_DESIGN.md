@@ -1,12 +1,12 @@
 # `play-oem` — Ground Station Visual Analysis Software Design
 
-This proposal extends the implemented [Ground Track](./old/PLAY_OEM_GROUND_TRACK_SOFTWARE_DESIGN.md)
-and [Ground Stations](./old/PLAY_OEM_GROUND_STATIONS_SOFTWARE_DESIGN.md) features. It adds
+This proposal extends the implemented [Ground Track](./PLAY_OEM_GROUND_TRACK_SOFTWARE_DESIGN.md)
+and [Ground Stations](./PLAY_OEM_GROUND_STATIONS_SOFTWARE_DESIGN.md) features. It adds
 station context to the existing Ground Track map and a pass-inspection view that pairs an access
 table with a sky-oriented plot. The companion interface specification is
 [PLAY_OEM_GROUND_STATION_ANALYSIS_GUI_DESIGN.md](./PLAY_OEM_GROUND_STATION_ANALYSIS_GUI_DESIGN.md);
 the dependency-ordered work is in
-[PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_PLAN.md](./PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_PLAN.md).
+[PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_REPORT.md](./PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_REPORT.md).
 
 ## Purpose and scope
 
