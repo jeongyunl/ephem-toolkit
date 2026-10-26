@@ -56,6 +56,14 @@ class PlayerAppState(Protocol):
     _display_time_zone: str
     """Requested render-rate FPS used to calculate each playback time increment."""
     _oem_loaded: bool
+    _oem_coverage_complete: bool
+    _active_load_first_batch: bool
+    _installing_incremental_batch: bool
+    _incremental_view_refresh_pending: bool
+    _slider_bounds: tuple[float, float]
+    _playback_handle_bounds: tuple[float, float]
+    _pending_playback_bounds: tuple[float, float] | None
+    _pending_file_playback_bounds: tuple[float, float] | None
     _on_open_file_callback: Callable[[str], playback_data.PlaybackData] | None
     _open_panels: dict[str, _OpenView]
     _open_views: dict[str, _OpenView]

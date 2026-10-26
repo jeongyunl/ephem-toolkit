@@ -131,7 +131,7 @@ def test_cli_without_input_starts_with_file_loading_available(
     main([])
 
     assert launched["oem_loaded"] is False
-    assert callable(launched["on_open_file"])
+    assert launched["on_open_file"] is None
     assert launched["run"] is True
 
 
@@ -290,7 +290,7 @@ def test_cli_loads_oem_and_launches_player(
             metadata_details,
             on_open_file=None,
             oem_loaded=True,
-            **_kwargs,
+            **kwargs,
         ) -> None:
             launched["clock"] = clock
             launched["series"] = series
@@ -303,6 +303,9 @@ def test_cli_loads_oem_and_launches_player(
             launched["tick_interval_ms"] = tick_interval_ms
             launched["dashboard_context"] = dashboard_context
             launched["metadata_details"] = metadata_details
+            launched["on_open_file"] = on_open_file
+            launched["oem_loaded"] = oem_loaded
+            launched.update(kwargs)
 
         def run(self) -> None:
             launched["run"] = True
@@ -312,16 +315,15 @@ def test_cli_loads_oem_and_launches_player(
     main([str(input_oem), "--config", str(config_path)])
 
     output = capsys.readouterr().out
-    assert "Loaded 721 states" in output
-    assert "Prepared orbit series with 721 samples using hours." in output
+    assert output == ""
     assert launched["run"] is True
-    assert launched["clock"].t_start < launched["clock"].t_end
-    assert launched["series"].elapsed_time.size == 721
+    assert launched["clock"].t_start == launched["clock"].t_end
+    assert launched["series"].elapsed_time.size == 1
     assert isinstance(launched["cursor"], OemCursor)
-    assert launched["cursor"].t_start == launched["clock"].t_start
-    assert launched["cursor"].t_end == launched["clock"].t_end
-    assert launched["object_name"] == "ISS"
-    assert launched["frame_context"] == "EME2000 / Earth"
+    assert launched["object_name"] == "No OEM loaded"
+    assert launched["oem_loaded"] is False
+    assert launched["on_open_file"] is None
+    assert launched["initial_file_path"] == str(input_oem)
     assert launched["plots"] == ("trajectory-3d", "speed-altitude")
     assert launched["three_d_backend"] == "auto"
     assert launched["time_unit"].value == "hours"

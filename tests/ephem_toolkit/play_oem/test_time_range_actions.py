@@ -194,6 +194,15 @@ def test_navigation_actions_always_use_playback_bounds() -> None:
     assert host.clock.t_now == 20.0
 
 
+def test_slider_uses_declared_oem_domain_but_seek_clamps_to_loaded_coverage() -> None:
+    host = _ActionHost()
+    host._slider_bounds = (-100.0, 300.0)
+
+    host._seek_to_fraction(0.25)
+
+    assert host.clock.t_now == 0.0
+
+
 def test_typed_time_inside_oem_but_outside_playback_is_clamped_with_status() -> None:
     import ephem_toolkit.core.time_utils as time_utils
 

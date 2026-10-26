@@ -18,15 +18,18 @@ class PlaybackActionsMixin:
         self._update_time_display()
 
     def _seek_to_fraction(self: PlayerAppState, progress: float) -> None:
-        span_s = self.clock.t_end - self.clock.t_start
-        self.clock.seek(self.clock.t_start + progress * span_s)
+        slider_start, slider_end = getattr(
+            self, "_slider_bounds", (self.clock.t_start, self.clock.t_end)
+        )
+        self.clock.seek(slider_start + progress * (slider_end - slider_start))
         self._update_time_display()
 
     def _timeline_tooltip_at(self: PlayerAppState, progress: float) -> str:
         """Format the selected-zone time at a timeline position for its tooltip."""
-        epoch_s = self.clock.t_start + progress * (
-            self.clock.t_end - self.clock.t_start
+        slider_start, slider_end = getattr(
+            self, "_slider_bounds", (self.clock.t_start, self.clock.t_end)
         )
+        epoch_s = slider_start + progress * (slider_end - slider_start)
         # Keep hover text compact; the persistent readouts retain fractions.
         return format_tt(
             epoch_s, self._display_time_zone, fractional_second_places=0

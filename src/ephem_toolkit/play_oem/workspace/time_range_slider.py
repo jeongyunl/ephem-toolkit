@@ -254,7 +254,9 @@ class TimeRangeSlider(wx.Control):
         self._on_plot_endpoint_mode = on_plot_endpoint_mode
         self._on_begin_edit = on_begin_edit
         self._coverage = (0.0, 1.0)
+        self._slider_bounds = self._coverage
         self._playback = (0.0, 1.0)
+        self._playback_handles = self._playback
         self._plot_rule: time_range.PlotTimeRange | None = None
         self._display_time_zone = UTC_DISPLAY
         self._now = 0.0
@@ -419,8 +421,12 @@ class TimeRangeSlider(wx.Control):
         playback: tuple[float, float],
         plot_rule: time_range.PlotTimeRange,
         now_s: float,
+        slider_bounds: tuple[float, float] | None = None,
+        playback_handles: tuple[float, float] | None = None,
     ) -> None:
         self._coverage, self._playback = coverage, playback
+        self._slider_bounds = slider_bounds or coverage
+        self._playback_handles = playback_handles or playback
         self._plot_rule, self._now = plot_rule, now_s
         self.Refresh()
         self._position_grips()
@@ -434,7 +440,7 @@ class TimeRangeSlider(wx.Control):
 
     def _time_for(self, key: str) -> float:
         if key.startswith("playback"):
-            return self._playback[0 if key.endswith("start") else 1]
+            return self._playback_handles[0 if key.endswith("start") else 1]
         assert self._plot_rule is not None
         endpoint = (
             self._plot_rule.start if key.endswith("start") else self._plot_rule.end
@@ -487,7 +493,7 @@ class TimeRangeSlider(wx.Control):
             menu.Destroy()
 
     def _x_for(self, timestamp: float) -> int:
-        start, end = self._coverage
+        start, end = self._slider_bounds
         width = self.GetClientSize().width
         fraction = (
             0.0
@@ -578,7 +584,9 @@ class TimeRangeSlider(wx.Control):
     def _timestamp_at(self, local_x: int) -> float:
         width = self.GetClientSize().width
         fraction = min(max((local_x - 10) / max(1, width - 20), 0.0), 1.0)
-        return self._coverage[0] + fraction * (self._coverage[1] - self._coverage[0])
+        return self._slider_bounds[0] + fraction * (
+            self._slider_bounds[1] - self._slider_bounds[0]
+        )
 
     def _drag(self, grip: _RangeGrip, point: wx.Point) -> None:
         key = next(k for k, item in self._grips.items() if item is grip)
@@ -590,6 +598,7 @@ class TimeRangeSlider(wx.Control):
         if key.startswith("plot"):
             self._on_plot_endpoint("start" if key.endswith("start") else "end", target)
         else:
+            target = min(max(target, self._coverage[0]), self._coverage[1])
             start, end = self._playback
             if key.endswith("start"):
                 start = min(target, end)
@@ -612,7 +621,7 @@ class TimeRangeSlider(wx.Control):
         key = next(k for k, item in self._grips.items() if item is grip)
         if key.startswith("plot") and self._plot_mode(grip) == "follow":
             return
-        step = (self._coverage[1] - self._coverage[0]) / 1000.0 or 1.0
+        step = (self._slider_bounds[1] - self._slider_bounds[0]) / 1000.0 or 1.0
         target = min(
             max(self._time_for(key) + direction * step, self._coverage[0]),
             self._coverage[1],

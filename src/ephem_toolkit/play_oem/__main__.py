@@ -12,9 +12,11 @@ from .play_oem_cli import build_arg_parser, parse_arguments, PlayOemArgs
 def main(argv: Sequence[str] | None = None) -> None:
     """Load an OEM and prepare its derived playback series."""
     cli_args: PlayOemArgs = parse_arguments(build_arg_parser(), argv)
+    if cli_args.input_oem is not None and not Path(cli_args.input_oem).is_file():
+        raise FileNotFoundError(f"File not found: {cli_args.input_oem}")
 
     from .config import load_config, save_ground_stations
-    from .playback_data import empty_playback_data, load_playback_data
+    from .playback_data import empty_playback_data
     from .saved_state import load_saved_state
 
     user_config = load_config(cli_args.config)
@@ -48,28 +50,9 @@ def main(argv: Sequence[str] | None = None) -> None:
             '`pip install "ephem-toolkit[playback]"`.'
         ) from exception
 
-    def load_file(input_oem: str):
-        print(f"Reading OEM orbit from {input_oem}...")
-        # Initial and subsequent file loads both prepare the entire OEM timeline.
-        loaded = load_playback_data(
-            input_oem,
-            use_oem_interpolation=False,
-            interpolation_method=user_config.interpolation_method,
-            interpolation_degree=user_config.interpolation_degree,
-            display_time_zone=user_config.display_time_zone,
-        )
-        print(f"Loaded {loaded.source_sample_count} states")
-        print(
-            f"Prepared orbit series with {len(loaded.series.elapsed_time)} samples "
-            f"using {loaded.time_unit.value}."
-        )
-        return loaded
-
-    initial_data = (
-        load_file(cli_args.input_oem) if cli_args.input_oem is not None else None
-    )
-    if initial_data is None:
-        initial_data = empty_playback_data()
+    # Display the workspace first. The app starts a background load after showing
+    # its frame and installs the first valid state batch when it arrives.
+    initial_data = empty_playback_data()
     initial_data.clock.set_speed(user_config.speed)
     initial_data.clock.set_direction(-1 if user_config.reverse else 1)
     if user_config.reverse and cli_args.input_oem is not None:
@@ -98,15 +81,13 @@ def main(argv: Sequence[str] | None = None) -> None:
         interpolation_degree=user_config.interpolation_degree,
         oem_interpolation=initial_data.oem_interpolation,
         oem_interpolation_degree=initial_data.oem_interpolation_degree,
-        on_open_file=load_file,
+        on_open_file=None,
         saved_state=saved_state,
         ground_stations=ground_stations,
         ground_track_source=initial_data.ground_track_source,
         initial_file_path=cli_args.input_oem,
-        oem_loaded=cli_args.input_oem is not None,
-        loaded_file_name=(
-            Path(cli_args.input_oem).name if cli_args.input_oem is not None else None
-        ),
+        oem_loaded=False,
+        loaded_file_name=None,
         **player_options,
     )
 

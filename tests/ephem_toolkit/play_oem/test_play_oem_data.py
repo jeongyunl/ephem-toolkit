@@ -8,6 +8,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from ephem_toolkit.core.ccsds.oem import CcsdsOem
+from ephem_toolkit.core.time_utils import datetime_to_tt_s, iso8601_to_datetime
 from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.data import filter_states_by_duration, read_oem_states
 from ephem_toolkit.play_oem.playback_data import load_playback_data
@@ -33,6 +35,19 @@ def test_read_oem_states_matches_plot_oem(iss_oem_path: Path) -> None:
     assert len(play_oem_data.states) == len(plot_oem_data.states)
     np.testing.assert_array_equal(play_timestamps, plot_timestamps)
     np.testing.assert_allclose(play_states, plot_states)
+
+
+def test_loaded_playback_exposes_oem_metadata_slider_bounds(
+    iss_oem_path: Path,
+) -> None:
+    loaded = load_playback_data(iss_oem_path)
+    metadata = CcsdsOem.from_file(iss_oem_path).meta
+    expected = (
+        datetime_to_tt_s(iso8601_to_datetime(metadata.start_time)),
+        datetime_to_tt_s(iso8601_to_datetime(metadata.stop_time)),
+    )
+
+    assert loaded.slider_bounds == expected
 
 
 def test_playback_data_exposes_ground_track_source_metadata(iss_oem_path: Path) -> None:

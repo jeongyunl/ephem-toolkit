@@ -30,6 +30,8 @@ class TimeRangeActionsMixin:
             (start_s, end_s), (self.clock.t_start, self.clock.t_end)
         )
         self._begin_time_range_edit()
+        self._pending_playback_bounds = None
+        self._playback_handle_bounds = (bounds.start_s, bounds.end_s)
         self.clock.set_playback_bounds(bounds.start_s, bounds.end_s)
         self._update_time_display()
 
@@ -52,6 +54,8 @@ class TimeRangeActionsMixin:
         self._begin_time_range_edit()
         self.plot_time_range = checked
         self._dispatch_time_range(resolved, self.clock.t_now)
+        if self._active_load_first_batch and not self._oem_coverage_complete:
+            self._incremental_view_refresh_pending = True
         self._update_time_display()
 
     def _focus_ground_station_pass(

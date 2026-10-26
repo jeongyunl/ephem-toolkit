@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import ephem_toolkit.core.misc as misc
 import ephem_toolkit.core.wgs as wgs
@@ -65,6 +65,172 @@ class OrbitSeries:
 
     rtn_segment_ids: np.ndarray
     """Segment identifier for each adjacent-sample RTN delta; -1 marks a boundary."""
+
+    @staticmethod
+    def _compute_rtn_velocity_direction_vector(state_m: np.ndarray) -> np.ndarray:
+        """Return the velocity direction expressed in the local RTN frame."""
+        position_m = state_m[0:3]
+        velocity_m_s = state_m[3:6]
+        position_norm = float(np.linalg.norm(position_m))
+        if position_norm <= 1e-30:
+            return np.zeros(3, dtype=float)
+        radial_unit_vector = position_m / position_norm
+        angular_momentum_vector = np.cross(position_m, velocity_m_s)
+        angular_momentum_norm = float(np.linalg.norm(angular_momentum_vector))
+        if angular_momentum_norm <= 1e-30:
+            normal_unit_vector = np.array([0.0, 0.0, 1.0], dtype=float)
+        else:
+            normal_unit_vector = angular_momentum_vector / angular_momentum_norm
+        transverse_unit_vector = np.cross(
+            normal_unit_vector, radial_unit_vector
+        )
+        velocity_rtn = np.array(
+            [
+                np.dot(velocity_m_s, radial_unit_vector),
+                np.dot(velocity_m_s, transverse_unit_vector),
+                np.dot(velocity_m_s, normal_unit_vector),
+            ],
+            dtype=float,
+        )
+        velocity_norm = float(np.linalg.norm(velocity_rtn))
+        if velocity_norm <= 1e-30:
+            return np.zeros(3, dtype=float)
+        return velocity_rtn / velocity_norm
+
+
+_SAMPLE_SERIES_FIELDS = (
+    "elapsed_time",
+    "position_km",
+    "velocity_km_s",
+    "velocity_magnitude_km_s",
+    "geocentric_distance_km",
+    "altitude_km",
+    "direction_change_angle_deg",
+    "direction_change_rate_deg_s",
+    "angular_velocity_deg_s",
+    "angular_velocity_rad_s",
+    "euler_angles_deg",
+    "euler_angle_rates_deg_s",
+    "segment_ids",
+)
+_DELTA_SERIES_FIELDS = ("rtn_elapsed_time", "rtn_delta_km", "rtn_segment_ids")
+
+
+class OrbitSeriesAccumulator:
+    """Geometrically growing storage for progressively derived orbit samples."""
+
+    def __init__(self, initial: OrbitSeries) -> None:
+        self._sample_count = len(initial.elapsed_time)
+        self._delta_count = len(initial.rtn_elapsed_time)
+        self._sample_capacity = self._capacity_for(self._sample_count)
+        self._delta_capacity = self._capacity_for(self._delta_count)
+        self._sample_arrays = self._copy_into_capacity(
+            initial, _SAMPLE_SERIES_FIELDS, self._sample_capacity, self._sample_count
+        )
+        self._delta_arrays = self._copy_into_capacity(
+            initial, _DELTA_SERIES_FIELDS, self._delta_capacity, self._delta_count
+        )
+
+    @staticmethod
+    def _capacity_for(required: int, current: int = 0) -> int:
+        capacity = max(512, current)
+        while capacity < required:
+            capacity *= 2
+        return capacity
+
+    @staticmethod
+    def _copy_into_capacity(
+        source: OrbitSeries, names: tuple[str, ...], capacity: int, count: int
+    ) -> dict[str, np.ndarray]:
+        arrays = {}
+        for name in names:
+            values = getattr(source, name)
+            storage = np.empty((capacity, *values.shape[1:]), dtype=values.dtype)
+            storage[:count] = values
+            arrays[name] = storage
+        return arrays
+
+    def append(
+        self,
+        previous_timestamp_s: float,
+        previous_state_m: np.ndarray,
+        previous_segment_id: int,
+        timestamps_s: list[float],
+        states_m: list[np.ndarray],
+        segment_ids: list[int] | np.ndarray,
+        time_unit: TimeUnit,
+    ) -> OrbitSeries:
+        """Derive a new chunk and append it without copying prior series data."""
+        if not timestamps_s:
+            return self.snapshot()
+        local = compute_orbit_series(
+            [previous_timestamp_s, *timestamps_s],
+            [previous_state_m, *states_m],
+            time_unit,
+            [previous_segment_id, *np.asarray(segment_ids, dtype=int).tolist()],
+        )
+        elapsed_offset = float(self._sample_arrays["elapsed_time"][self._sample_count - 1])
+        local.elapsed_time[1:] += elapsed_offset
+        local.rtn_elapsed_time += elapsed_offset
+
+        next_sample_count = self._sample_count + len(timestamps_s)
+        next_delta_count = self._delta_count + len(local.rtn_elapsed_time)
+        self._ensure_capacity(
+            next_sample_count,
+            next_delta_count,
+        )
+        for name in _SAMPLE_SERIES_FIELDS:
+            self._sample_arrays[name][self._sample_count : next_sample_count] = getattr(
+                local, name
+            )[1:]
+        for name in _DELTA_SERIES_FIELDS:
+            self._delta_arrays[name][self._delta_count : next_delta_count] = getattr(
+                local, name
+            )
+        self._sample_count = next_sample_count
+        self._delta_count = next_delta_count
+        return self.snapshot()
+
+    def _ensure_capacity(self, sample_count: int, delta_count: int) -> None:
+        if sample_count > self._sample_capacity:
+            capacity = self._capacity_for(sample_count, self._sample_capacity)
+            self._sample_arrays = self._grow_arrays(
+                self._sample_arrays, _SAMPLE_SERIES_FIELDS, self._sample_count, capacity
+            )
+            self._sample_capacity = capacity
+        if delta_count > self._delta_capacity:
+            capacity = self._capacity_for(delta_count, self._delta_capacity)
+            self._delta_arrays = self._grow_arrays(
+                self._delta_arrays, _DELTA_SERIES_FIELDS, self._delta_count, capacity
+            )
+            self._delta_capacity = capacity
+
+    @staticmethod
+    def _grow_arrays(
+        arrays: dict[str, np.ndarray], names: tuple[str, ...], count: int, capacity: int
+    ) -> dict[str, np.ndarray]:
+        grown = {}
+        for name in names:
+            old = arrays[name]
+            new = np.empty((capacity, *old.shape[1:]), dtype=old.dtype)
+            new[:count] = old[:count]
+            grown[name] = new
+        return grown
+
+    def snapshot(self) -> OrbitSeries:
+        """Return stable prefix views suitable for the incremental loader queue."""
+        return OrbitSeries(
+            **{
+                **{
+                    name: values[: self._sample_count]
+                    for name, values in self._sample_arrays.items()
+                },
+                **{
+                    name: values[: self._delta_count]
+                    for name, values in self._delta_arrays.items()
+                },
+            }
+        )
 
     @staticmethod
     def _compute_rtn_velocity_direction_vector(state_m: np.ndarray) -> np.ndarray:
@@ -255,4 +421,148 @@ def compute_orbit_series(
         euler_angle_rates_deg_s=euler_angle_rates_deg_s,
         segment_ids=segments,
         rtn_segment_ids=np.where(segments[1:] == segments[:-1], segments[1:], -1),
+    )
+
+
+def append_orbit_series(
+    previous: OrbitSeries,
+    previous_timestamp_s: float,
+    previous_state_m: np.ndarray,
+    previous_segment_id: int,
+    timestamps_s: list[float],
+    states_m: list[np.ndarray],
+    segment_ids: list[int] | np.ndarray,
+    time_unit: TimeUnit,
+) -> OrbitSeries:
+    """Append derived samples, computing only the new batch and its boundary delta."""
+    if not timestamps_s:
+        return previous
+    local_timestamps = [previous_timestamp_s, *timestamps_s]
+    local_states = [previous_state_m, *states_m]
+    local_segments = [previous_segment_id, *np.asarray(segment_ids, dtype=int).tolist()]
+    local = compute_orbit_series(
+        local_timestamps, local_states, time_unit, local_segments
+    )
+    elapsed_offset = float(previous.elapsed_time[-1])
+    local.elapsed_time += elapsed_offset
+    local.rtn_elapsed_time += elapsed_offset
+
+    sample_fields = (
+        "elapsed_time",
+        "position_km",
+        "velocity_km_s",
+        "velocity_magnitude_km_s",
+        "geocentric_distance_km",
+        "altitude_km",
+        "direction_change_angle_deg",
+        "direction_change_rate_deg_s",
+        "angular_velocity_deg_s",
+        "angular_velocity_rad_s",
+        "euler_angles_deg",
+        "euler_angle_rates_deg_s",
+        "segment_ids",
+    )
+    delta_fields = ("rtn_elapsed_time", "rtn_delta_km", "rtn_segment_ids")
+    updates: dict[str, np.ndarray] = {}
+    for field_name in sample_fields:
+        old = getattr(previous, field_name)
+        new = getattr(local, field_name)[1:]
+        updates[field_name] = np.concatenate((old, new), axis=0)
+    for field_name in delta_fields:
+        old = getattr(previous, field_name)
+        new = getattr(local, field_name)
+        updates[field_name] = np.concatenate((old, new), axis=0)
+    return replace(previous, **updates)
+
+
+def align_single_sample_series(orbit_series: OrbitSeries) -> OrbitSeries:
+    """Fill sample-derived fields for a one-sample prefix with their neutral values."""
+    if len(orbit_series.elapsed_time) != 1 or len(orbit_series.direction_change_angle_deg):
+        return orbit_series
+    return replace(
+        orbit_series,
+        direction_change_angle_deg=np.zeros(1, dtype=float),
+        direction_change_rate_deg_s=np.zeros(1, dtype=float),
+        angular_velocity_deg_s=np.zeros(1, dtype=float),
+        angular_velocity_rad_s=np.zeros(1, dtype=float),
+        euler_angles_deg=np.zeros((1, 3), dtype=float),
+        euler_angle_rates_deg_s=np.zeros((1, 3), dtype=float),
+    )
+
+
+def downsample_orbit_series(
+    orbit_series: OrbitSeries,
+    max_samples: int = 2_000,
+    elapsed_bounds: tuple[float, float] | None = None,
+) -> OrbitSeries:
+    """Return plot-range data at display resolution, retaining segment edges."""
+    if max_samples < 2:
+        raise ValueError("max_samples must be at least 2")
+    sample_count = len(orbit_series.elapsed_time)
+    if sample_count <= max_samples and elapsed_bounds is None:
+        return orbit_series
+
+    def indices_for(
+        values: np.ndarray, limit: int, segment_ids: np.ndarray
+    ) -> np.ndarray:
+        length = len(values)
+        if elapsed_bounds is None:
+            candidates = np.arange(length)
+        else:
+            start = int(np.searchsorted(values, elapsed_bounds[0], side="left"))
+            stop = int(np.searchsorted(values, elapsed_bounds[1], side="right"))
+            first = max(0, start - 1)
+            last = min(length, stop + 1)
+            candidates = np.arange(first, last)
+            if not len(candidates) and length:
+                candidates = np.asarray(
+                    [index for index in (start - 1, start) if 0 <= index < length],
+                    dtype=int,
+                )
+        if len(candidates) <= limit:
+            return candidates
+
+        selected_positions = set(
+            np.linspace(0, len(candidates) - 1, limit, dtype=int).tolist()
+        )
+        candidate_segments = segment_ids[candidates]
+        changes = np.flatnonzero(candidate_segments[1:] != candidate_segments[:-1])
+        for change in changes:
+            selected_positions.update((int(change), int(change + 1)))
+        return candidates[np.asarray(sorted(selected_positions), dtype=int)]
+
+    sample_indices = indices_for(
+        orbit_series.elapsed_time, max_samples, orbit_series.segment_ids
+    )
+    rtn_indices = indices_for(
+        orbit_series.rtn_elapsed_time, max_samples, orbit_series.rtn_segment_ids
+    )
+    sample_fields = (
+        "elapsed_time",
+        "position_km",
+        "velocity_km_s",
+        "velocity_magnitude_km_s",
+        "geocentric_distance_km",
+        "altitude_km",
+        "direction_change_angle_deg",
+        "direction_change_rate_deg_s",
+        "angular_velocity_deg_s",
+        "angular_velocity_rad_s",
+        "euler_angles_deg",
+        "euler_angle_rates_deg_s",
+        "segment_ids",
+    )
+    delta_fields = ("rtn_elapsed_time", "rtn_delta_km", "rtn_segment_ids")
+    return replace(
+        orbit_series,
+        **{
+            **{
+                name: getattr(orbit_series, name)[sample_indices]
+                for name in sample_fields
+            },
+            **{
+                name: getattr(orbit_series, name)[rtn_indices]
+                for name in delta_fields
+            },
+        },
     )

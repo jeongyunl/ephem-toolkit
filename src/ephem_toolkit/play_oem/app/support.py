@@ -9,6 +9,7 @@ import sys
 
 import wx
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg, NavigationToolbar2WxAgg
+from matplotlib.figure import Figure
 
 from .. import series, time_unit
 from ..graph_panel import GraphPanelHost
@@ -70,6 +71,51 @@ class _EmptyGraphView:
         )
         empty_graph_prompt.SetName("Empty graph prompt")
         return empty_graph_prompt
+
+    def update(self, _t_s: float) -> None:
+        pass
+
+    def set_time_range(
+        self, _bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
+    ) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+
+class _PendingDataGraphView:
+    """Draw a selected graph panel while its OEM data is not available yet."""
+
+    def __init__(self, parent: wx.Window, label: str) -> None:
+        self._parent = parent
+        self._label = label
+
+    def build(
+        self, _series: series.OrbitSeries, _time_unit: time_unit.TimeUnit
+    ) -> Figure:
+        figure = Figure()
+        axes = figure.add_subplot(111)
+        axes.set_axis_off()
+        axes.text(
+            0.5,
+            0.55,
+            self._label,
+            ha="center",
+            va="center",
+            fontsize=12,
+            transform=axes.transAxes,
+        )
+        axes.text(
+            0.5,
+            0.45,
+            "Waiting for OEM data…",
+            ha="center",
+            va="center",
+            color="0.45",
+            transform=axes.transAxes,
+        )
+        return figure
 
     def update(self, _t_s: float) -> None:
         pass

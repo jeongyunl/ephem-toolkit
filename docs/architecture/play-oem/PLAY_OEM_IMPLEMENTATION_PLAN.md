@@ -25,6 +25,10 @@ controlled in the GUI. The Settings pane FPS slider ranges from 1 to 30 FPS (def
 advances the clock across all complete elapsed frame periods, redraws once, and drops intermediate
 frames when rendering overruns.
 
+The proposed large-file startup work has its own
+[incremental loading design](./PLAY_OEM_INCREMENTAL_LOADING.md) and
+[implementation plan](./PLAY_OEM_INCREMENTAL_LOADING_IMPLEMENTATION_PLAN.md).
+
 ## How to use this plan
 
 Work **one pending numbered step at a time, in order**. Do not begin a later pending step until

@@ -25,11 +25,14 @@ array([6.7e6, 0.0, 0.0, 0.0, 7.5e3, 0.0])  # Position in m, velocity in m/s
 from __future__ import annotations
 
 import bisect
+from copy import deepcopy
 import io
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
+from time import monotonic
 from typing import Any, TextIO
 
 import numpy as np
@@ -168,6 +171,16 @@ class OemCovariance:
     """Covariance frame; omitted when it matches the OEM reference frame."""
     comments: list[str] = field(default_factory=list)
     """Comments at the beginning of the covariance data section."""
+
+
+@dataclass(frozen=True)
+class OemStateBatch:
+    """A bounded batch of parsed OEM states and their metadata-segment IDs."""
+
+    states: tuple[tuple[float, np.ndarray], ...]
+    segment_ids: tuple[int, ...]
+    header: tuple[tuple[str, Any], ...]
+    meta: tuple[tuple[str, Any], ...]
 
 
 @dataclass
@@ -740,6 +753,12 @@ class CcsdsOem:
         source: TextIO,
         *,
         include_segment_ids: bool = False,
+        state_batch_size: int | None = None,
+        state_batch_interval_s: float | None = None,
+        on_state_batch: Callable[[OemStateBatch], None] | None = None,
+        retain_states: bool = True,
+        retain_comments: bool = True,
+        retain_covariances: bool = True,
     ) -> (
         tuple[
             dict[str, Any],
@@ -762,7 +781,14 @@ class CcsdsOem:
         if isinstance(source, (str, Path)):
             with Path(source).open("r", encoding="utf-8") as file_handle:
                 return CcsdsOem._read_oem_impl(
-                    file_handle, include_segment_ids=include_segment_ids
+                    file_handle,
+                    include_segment_ids=include_segment_ids,
+                    state_batch_size=state_batch_size,
+                    state_batch_interval_s=state_batch_interval_s,
+                    on_state_batch=on_state_batch,
+                    retain_states=retain_states,
+                    retain_comments=retain_comments,
+                    retain_covariances=retain_covariances,
                 )
 
         header: dict[str, Any] = {}
@@ -786,6 +812,36 @@ class CcsdsOem:
         covariance_ref_frame: str | None = None
         covariance_rows: list[list[float]] = []
         covariance_comments: list[str] = []
+        last_state_batch_time = monotonic()
+
+        if state_batch_size is not None and state_batch_size < 1:
+            raise ValueError("state_batch_size must be positive")
+        if state_batch_interval_s is not None and state_batch_interval_s <= 0.0:
+            raise ValueError("state_batch_interval_s must be positive")
+        if (state_batch_size is None) != (on_state_batch is None):
+            raise ValueError("state_batch_size and on_state_batch must be set together")
+        if state_batch_interval_s is not None and on_state_batch is None:
+            raise ValueError("state_batch_interval_s requires on_state_batch")
+        if on_state_batch is not None and retain_states:
+            raise ValueError("streaming batches require retain_states=False")
+
+        def flush_state_batch() -> None:
+            nonlocal last_state_batch_time
+            if not states:
+                return
+            assert on_state_batch is not None
+            on_state_batch(
+                OemStateBatch(
+                    tuple(states),
+                    tuple(segment_ids),
+                    deepcopy(tuple(header.items())),
+                    deepcopy(tuple(meta.items())),
+                )
+            )
+            if not retain_states:
+                states.clear()
+                segment_ids.clear()
+            last_state_batch_time = monotonic()
 
         def finish_covariance() -> None:
             nonlocal covariance_epoch, covariance_rows, covariance_comments
@@ -805,14 +861,15 @@ class CcsdsOem:
                     )
                 matrix[row_index, : row_index + 1] = row_values
                 matrix[: row_index + 1, row_index] = row_values
-            covariances.append(
-                OemCovariance(
-                    epoch=covariance_epoch,
-                    matrix=matrix,
-                    ref_frame=covariance_ref_frame,
-                    comments=list(covariance_comments),
+            if retain_covariances:
+                covariances.append(
+                    OemCovariance(
+                        epoch=covariance_epoch,
+                        matrix=matrix,
+                        ref_frame=covariance_ref_frame,
+                        comments=list(covariance_comments),
+                    )
                 )
-            )
             covariance_epoch = None
             covariance_rows = []
             covariance_comments = []
@@ -854,9 +911,10 @@ class CcsdsOem:
                         raise ValueError(
                             "OEM covariance comments must precede covariance data"
                         )
-                    covariance_comments.append(
-                        comment_line[len(odm.CCSDS_COMMENT_PREFIX) :]
-                    )
+                    if retain_comments:
+                        covariance_comments.append(
+                            comment_line[len(odm.CCSDS_COMMENT_PREFIX) :]
+                        )
                     continue
                 if comment_line == odm.CCSDS_COMMENT_KEYWORD:
                     raise ValueError("OEM comments must begin with 'COMMENT '")
@@ -912,20 +970,21 @@ class CcsdsOem:
                 if in_meta:
                     if not meta_comments_open:
                         raise ValueError("OEM metadata comments must appear first")
-                    meta.setdefault("COMMENT", [])
-                    meta["COMMENT"].append(comment_text)
+                    if retain_comments:
+                        meta.setdefault("COMMENT", []).append(comment_text)
                 elif past_meta:
                     if seen_covariance or seen_state:
                         raise ValueError(
                             "OEM ephemeris comments must precede state data"
                         )
-                    data_comments.append(comment_text)
+                    if retain_comments:
+                        data_comments.append(comment_text)
                 else:
                     if seen_header != ["CCSDS_OEM_VERS"]:
                         raise ValueError("OEM header comments must follow version")
                     header_comments_open = True
-                    header.setdefault("COMMENT", [])
-                    header["COMMENT"].append(comment_text)
+                    if retain_comments:
+                        header.setdefault("COMMENT", []).append(comment_text)
                 continue
 
             key_value: tuple[str, str] | None = odm.parse_kvn_assignment(line)
@@ -985,11 +1044,27 @@ class CcsdsOem:
                 state_km: np.ndarray = np.array(
                     [float(value) for value in state_fields[1:7]]
                 )
-                states.append((timestamp, state_km * KILOMETERS_TO_METERS))
+                state_m = state_km * KILOMETERS_TO_METERS
+                if on_state_batch is not None:
+                    state_m.setflags(write=False)
+                states.append((timestamp, state_m))
                 segment_ids.append(segment_id)
                 seen_state = True
+                if state_batch_size is not None and (
+                    len(states) >= state_batch_size
+                    or (
+                        state_batch_interval_s is not None
+                        and monotonic() - last_state_batch_time
+                        >= state_batch_interval_s
+                    )
+                ):
+                    flush_state_batch()
             else:
                 raise ValueError(f"Invalid OEM line: {line}")
+
+        # Deliver a final short batch even if EOF validation reports a malformed trailing block.
+        if state_batch_size is not None:
+            flush_state_batch()
 
         if in_covariance:
             raise ValueError("Unterminated OEM covariance block")

@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import sys
 
+import numpy as np
+
+from .. import time_range
 from ..views import (
     angular_velocity,
     distance,
@@ -19,6 +22,7 @@ from ..views import (
 from ..views.trajectory3d import selection as trajectory3d_selection
 from ..ground_track import (
     GroundTrackPreparationError,
+    GroundTrackSource,
     prepare_ground_track,
 )
 from .state import PlayerAppState
@@ -28,6 +32,45 @@ class ViewFactoryMixin:
     """Create registered views using the current playback and OEM context."""
 
     _selected_3d_backend: str | None
+
+    def _ground_track_source_for_plot_range(self) -> GroundTrackSource | None:
+        """Limit in-progress access analysis to samples near the active plot range."""
+        source = self._ground_track_source
+        if source is None or self._oem_coverage_complete:
+            return source
+        resolved = time_range.resolve_plot_range(
+            self.plot_time_range,
+            (self.clock.t_start, self.clock.t_end),
+            (self.clock.playback_start, self.clock.playback_end),
+            self.clock.t_now,
+        )
+        if resolved is None:
+            return None
+        start = int(np.searchsorted(source.timestamps_s, resolved.start_s, side="left"))
+        stop = int(np.searchsorted(source.timestamps_s, resolved.end_s, side="right"))
+        first = max(0, start - 1)
+        last = min(len(source.timestamps_s), stop + 1)
+        indices = np.arange(first, last)
+        if not len(indices):
+            indices = np.asarray(
+                [
+                    index
+                    for index in (start - 1, start)
+                    if 0 <= index < len(source.timestamps_s)
+                ],
+                dtype=int,
+            )
+        if len(indices) == len(source.timestamps_s) and np.array_equal(
+            indices, np.arange(len(source.timestamps_s))
+        ):
+            return source
+        return GroundTrackSource.from_samples(
+            source.timestamps_s[indices],
+            source.states_m[indices],
+            source.segment_ids[indices],
+            source.center_name,
+            source.frame_name,
+        )
 
     def open_ground_track_view(
         self: PlayerAppState,
@@ -39,6 +82,59 @@ class ViewFactoryMixin:
         source = self._ground_track_source
         coordinates = self._ground_track_coordinates
         error_message: str | None = None
+        if source is not None and not self._oem_coverage_complete:
+            # Ground-track preparation converts every point and runs on the UI
+            # thread. Restrict previews to the plot range and keep them bounded.
+            sample_count = len(source.timestamps_s)
+            resolved = time_range.resolve_plot_range(
+                self.plot_time_range,
+                (self.clock.t_start, self.clock.t_end),
+                (self.clock.playback_start, self.clock.playback_end),
+                self.clock.t_now,
+            )
+            if resolved is None:
+                candidates = np.arange(sample_count)
+            else:
+                start = int(
+                    np.searchsorted(source.timestamps_s, resolved.start_s, side="left")
+                )
+                stop = int(
+                    np.searchsorted(source.timestamps_s, resolved.end_s, side="right")
+                )
+                candidates = np.arange(max(0, start - 1), min(sample_count, stop + 1))
+                if not len(candidates) and sample_count:
+                    candidates = np.asarray(
+                        [
+                            index
+                            for index in (start - 1, start)
+                            if 0 <= index < sample_count
+                        ],
+                        dtype=int,
+                    )
+            if len(candidates) > 2_000:
+                selected_positions = set(
+                    np.linspace(0, len(candidates) - 1, 2_000, dtype=int).tolist()
+                )
+                candidate_segments = source.segment_ids[candidates]
+                boundaries = np.flatnonzero(
+                    candidate_segments[1:] != candidate_segments[:-1]
+                )
+                for boundary in boundaries:
+                    selected_positions.update((int(boundary), int(boundary + 1)))
+                candidates = candidates[
+                    np.asarray(sorted(selected_positions), dtype=int)
+                ]
+            if len(candidates) != sample_count or not np.array_equal(
+                candidates, np.arange(sample_count)
+            ):
+                source = GroundTrackSource.from_samples(
+                    source.timestamps_s[candidates],
+                    source.states_m[candidates],
+                    source.segment_ids[candidates],
+                    source.center_name,
+                    source.frame_name,
+                )
+                coordinates = None
         if source is None:
             error_message = "Load an Earth-centered OEM to view its ground track."
         elif coordinates is None:
@@ -103,12 +199,14 @@ class ViewFactoryMixin:
         stack: str = "middle",
         force_replace: bool = False,
     ) -> None:
-        """Open a lazily prepared multi-station access timeline."""
+        """Open access analysis for the loaded part of the active plot range."""
         self._open_view(
             "ground-station-access",
             lambda panel: ground_station_access_view.GroundStationAccessView(
                 panel,
-                self._ground_track_source if self._oem_loaded else None,
+                self._ground_track_source_for_plot_range()
+                if self._oem_loaded
+                else None,
                 self.cursor,
                 self._ground_stations,
                 self.time_unit,
@@ -131,7 +229,7 @@ class ViewFactoryMixin:
         stack: str = "middle",
         force_replace: bool = False,
     ) -> None:
-        """Open or focus a pass panel, optionally selecting the requested station."""
+        """Open or focus passes found in the loaded part of the plot range."""
         if panel_id is None:
             existing = self._open_views.get("ground-station-passes")
             if existing is not None:
@@ -154,7 +252,9 @@ class ViewFactoryMixin:
             "ground-station-passes",
             lambda panel: ground_station_passes_view.GroundStationPassesView(
                 panel,
-                self._ground_track_source if self._oem_loaded else None,
+                self._ground_track_source_for_plot_range()
+                if self._oem_loaded
+                else None,
                 self.cursor,
                 self._ground_stations,
                 self.object_name,

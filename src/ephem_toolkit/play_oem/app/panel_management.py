@@ -15,7 +15,13 @@ from ..graph_panel import GraphPanelHost
 from ..views import base
 from ..views.trajectory3d import selection as trajectory3d_selection
 from .state import PlayerAppState
-from .support import EMPTY_GRAPH_LABEL, EMPTY_GRAPH_VIEW, _EmptyGraphView, _OpenView
+from .support import (
+    EMPTY_GRAPH_LABEL,
+    EMPTY_GRAPH_VIEW,
+    _EmptyGraphView,
+    _OpenView,
+    _PendingDataGraphView,
+)
 
 
 class PanelManagementMixin:
@@ -44,6 +50,14 @@ class PanelManagementMixin:
             return
         if name not in self._view_registry.registered_views:
             raise ValueError(f"unknown view name: {name!r}")
+        if not self._oem_loaded:
+            self._open_pending_data_view(
+                name,
+                panel_id=panel_id,
+                stack=stack,
+                force_replace=force_replace,
+            )
+            return
         openers = {
             "trajectory-3d": self.open_trajectory_view,
             "speed-altitude": self.open_speed_altitude_view,
@@ -106,6 +120,29 @@ class PanelManagementMixin:
 
     def open_plots(self: PlayerAppState, selection: Sequence[str]) -> None:
         self._view_registry.open(selection)
+
+    def open_pending_plots(self: PlayerAppState, selection: Sequence[str]) -> None:
+        """Show selected graph panels before the first OEM batch is ready."""
+        for name in selection:
+            self._open_pending_data_view(name)
+
+    def _open_pending_data_view(
+        self: PlayerAppState,
+        name: str,
+        *,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None:
+        self._open_view(
+            name,
+            lambda panel: _PendingDataGraphView(
+                panel, self._panel_view_label(name)
+            ),
+            panel_id=panel_id,
+            stack=stack,
+            force_replace=force_replace,
+        )
 
     def close_view(self: PlayerAppState, name: str) -> None:
         """Close the default panel instance for a registered view."""

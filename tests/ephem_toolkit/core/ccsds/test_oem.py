@@ -78,6 +78,85 @@ def test_read_oem_from_stream_matches_file_read() -> None:
         assert np.allclose(state2, state1, atol=1e-12, rtol=0.0)
 
 
+def test_read_oem_can_emit_bounded_state_batches_before_eof() -> None:
+    """Streaming callbacks contain ordered states without retaining the whole history."""
+    content = """CCSDS_OEM_VERS = 2.0
+META_START
+OBJECT_NAME = TEST
+CENTER_NAME = EARTH
+REF_FRAME = GCRF
+TIME_SYSTEM = UTC
+META_STOP
+2026-01-01T00:00:00 7000 0 0 0 7.5 0
+2026-01-01T00:00:10 7000 1 0 0 7.5 0
+2026-01-01T00:00:20 7000 2 0 0 7.5 0
+META_START
+OBJECT_NAME = TEST
+CENTER_NAME = EARTH
+REF_FRAME = GCRF
+TIME_SYSTEM = UTC
+META_STOP
+2026-01-01T00:10:00 7000 3 0 0 7.5 0
+"""
+    source = io.StringIO(content)
+    batches: list[oem.OemStateBatch] = []
+    source_offsets: list[int] = []
+
+    def collect(batch: oem.OemStateBatch) -> None:
+        batches.append(batch)
+        source_offsets.append(source.tell())
+
+    result = oem.CcsdsOem._read_oem_impl(
+        source,
+        include_segment_ids=True,
+        state_batch_size=2,
+        on_state_batch=collect,
+        retain_states=False,
+    )
+
+    _, _, _, retained_states, _, retained_segment_ids = result
+    assert retained_states == []
+    assert retained_segment_ids == []
+    assert source_offsets[0] < len(content)
+    assert [len(batch.states) for batch in batches] == [2, 2]
+    assert all(len(batch.states) == len(batch.segment_ids) for batch in batches)
+    assert [segment_id for batch in batches for segment_id in batch.segment_ids] == [
+        0,
+        0,
+        0,
+        1,
+    ]
+
+    parsed = oem.CcsdsOem._read_oem_impl(io.StringIO(content), include_segment_ids=True)
+    streamed_states = [state for batch in batches for state in batch.states]
+    assert len(streamed_states) == len(parsed[3])
+    for streamed, expected in zip(streamed_states, parsed[3]):
+        assert streamed[0] == expected[0]
+        np.testing.assert_array_equal(streamed[1], expected[1])
+
+
+def test_read_oem_flushes_by_batch_interval_for_sparse_streams() -> None:
+    content = """CCSDS_OEM_VERS = 2.0
+META_START
+OBJECT_NAME = TEST
+CENTER_NAME = EARTH
+REF_FRAME = GCRF
+TIME_SYSTEM = UTC
+META_STOP
+2026-01-01T00:00:00 7000 0 0 0 7.5 0
+2026-01-01T00:00:10 7000 1 0 0 7.5 0
+"""
+    batches: list[oem.OemStateBatch] = []
+    oem.CcsdsOem._read_oem_impl(
+        io.StringIO(content),
+        state_batch_size=100,
+        state_batch_interval_s=1e-15,
+        on_state_batch=batches.append,
+        retain_states=False,
+    )
+    assert [len(batch.states) for batch in batches] == [1, 1]
+
+
 def test_ccsds_oem_assigns_zero_based_ids_to_each_segment() -> None:
     """States in each metadata/data block share its zero-based segment ID."""
     content = """CCSDS_OEM_VERS = 2.0

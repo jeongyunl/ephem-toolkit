@@ -38,6 +38,7 @@ class PlaybackClock:
         self._t_end = float(t_end)
         self._playback_start = self._t_start
         self._playback_end = self._t_end
+        self._playback_end_follows_coverage = True
         self._t_now = self._clamp_time(
             self._t_start if t_now is None else self._validate_time(t_now)
         )
@@ -49,7 +50,7 @@ class PlaybackClock:
         self._playing = bool(playing)
         self._loop = bool(loop)
         self._observers: list[ClockObserver] = []
-        self._sample_times = self._validate_sample_times(sample_times)
+        self._sample_times = list(self._validate_sample_times(sample_times))
 
     @property
     def t_start(self) -> float:
@@ -151,7 +152,32 @@ class PlaybackClock:
         else:
             self.play()
 
-    def set_playback_bounds(self, start_s: float, end_s: float) -> None:
+    def extend_coverage(self, sample_times: Sequence[float]) -> None:
+        """Extend loaded OEM coverage with strictly later samples.
+
+        When the playback end followed the previous coverage end, it grows with
+        coverage. The current time and playing state are preserved, so a clock
+        paused at the loaded boundary remains paused after a batch arrives.
+        """
+        new_times = tuple(self._validate_time(value) for value in sample_times)
+        if not new_times:
+            return
+        if new_times[0] <= self._t_end:
+            raise ValueError("new sample times must follow current OEM coverage")
+        if any(first >= second for first, second in zip(new_times, new_times[1:])):
+            raise ValueError("new sample times must be strictly increasing")
+        if self._sample_times and new_times[0] <= self._sample_times[-1]:
+            raise ValueError("new sample times must follow existing samples")
+
+        self._t_end = new_times[-1]
+        if self._playback_end_follows_coverage:
+            self._playback_end = self._t_end
+        self._sample_times.extend(new_times)
+        self._notify_observers()
+
+    def set_playback_bounds(
+        self, start_s: float, end_s: float, *, follow_coverage: bool = False
+    ) -> None:
         """Atomically set playback limits inside immutable OEM coverage.
 
         The current time is clamped once, accumulated tick rounding is cleared,
@@ -168,6 +194,7 @@ class PlaybackClock:
 
         self._playback_start = start
         self._playback_end = end
+        self._playback_end_follows_coverage = bool(follow_coverage)
         self._t_now = min(max(self._t_now, start), end)
         self._tick_compensation = 0.0
         self._notify_observers()

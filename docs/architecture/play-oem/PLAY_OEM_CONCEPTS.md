@@ -105,16 +105,22 @@ play-oem [<input_oem>] [OPTIONS]
 | `--3d-backend {auto,vtk,matplotlib}` | Renderer for 3D views (default `auto`: VTK if available, else Matplotlib). Explicit `vtk` fails with an install hint if VTK is missing. |
 | `-h`, `--help` | Help. |
 
-The CLI accepts an optional OEM path plus view-selection options. It loads the entire OEM and
-chooses minutes for timelines shorter than an hour, otherwise hours. Playback speed, direction,
-seeking, and frame rate are controlled in the GUI. Use `plot-oem`
+The CLI accepts an optional OEM path plus view-selection options. The window opens before parsing
+finishes; playback starts with the first validated state batch and the loaded timeline grows as
+additional batches arrive. Loading status distinguishes partial coverage from EOF validation.
+When present and valid, the slider scale uses the OEM metadata start and stop times; seeking remains
+limited to samples already loaded. Saved playback and plot range handles appear at their saved
+positions as soon as the first batch is installed, even if those playback bounds are not playable
+yet.
+Playback speed, direction, seeking, and frame rate are controlled in the GUI. Use `plot-oem`
 for saved diagnostic plots; `play-oem` is the interactive playback command.
 
 **F4. Data and computation reuse**
 
 Data loading, series computation (RTN deltas, angular rates, distance,
 WGS84 altitude), and time-unit conversion utilities are reused from `plot-oem` (copied, then
-modified only where needed—see design). `play-oem` selects minutes or hours from the OEM span.
+modified only where needed—see design). `play-oem` selects minutes or hours from observed OEM
+coverage; full-history ground-station analysis is enabled after EOF validation.
 
 ### Non-functional
 

@@ -103,15 +103,25 @@ def test_timeline_tooltip_hotspot_is_limited_to_track_band(
     )
 
 
-def test_playable_track_segment_uses_playback_bounds_with_coverage_scale() -> None:
+def test_playable_track_segment_uses_metadata_bounds_as_slider_scale() -> None:
     slider = SimpleNamespace(
         _coverage=(0.0, 100.0),
+        _slider_bounds=(0.0, 200.0),
         _playback=(25.0, 75.0),
         GetClientSize=lambda: SimpleNamespace(width=100),
     )
     slider._x_for = lambda value: TimeRangeSlider._x_for(slider, value)
 
-    assert TimeRangeSlider._playable_segment_x(slider) == (30, 70)
+    assert TimeRangeSlider._playable_segment_x(slider) == (20, 40)
+
+
+def test_slider_seek_position_uses_metadata_domain() -> None:
+    slider = SimpleNamespace(
+        _slider_bounds=(0.0, 200.0),
+        GetClientSize=lambda: SimpleNamespace(width=100),
+    )
+
+    assert TimeRangeSlider._timestamp_at(slider, 50) == 100.0
 
 
 @pytest.mark.parametrize(

@@ -52,6 +52,8 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         status_bar: wx.Window | None = None,
         playback_bounds: tuple[float, float] | None = None,
         oem_coverage: tuple[float, float] | None = None,
+        slider_bounds: tuple[float, float] | None = None,
+        playback_handle_bounds: tuple[float, float] | None = None,
         plot_time_range: range_model.PlotTimeRange | None = None,
         now_s: Callable[[], float] | None = None,
         on_playback_bounds: Callable[[float, float], None] | None = None,
@@ -180,7 +182,9 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         self.time_readout_row.SetSizer(time_label_sizer)
 
         coverage = oem_coverage or playback_bounds or (0.0, 1.0)
+        display_bounds = slider_bounds or coverage
         initial_playback = playback_bounds or coverage
+        initial_playback_handles = playback_handle_bounds or initial_playback
         initial_plot_rule = plot_time_range or range_model.PlotTimeRange(
             False,
             range_model.TimeRangeEndpoint("fixed", coverage[0]),
@@ -215,7 +219,12 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             2,
         )
         self.timeline_slider.set_ranges(
-            coverage, initial_playback, initial_plot_rule, current_time()
+            coverage,
+            initial_playback,
+            initial_plot_rule,
+            current_time(),
+            display_bounds,
+            initial_playback_handles,
         )
         # Show playback bounds, not OEM coverage; shrink only displayed fractions.
         self.playback_start_label = wx.StaticText(self.time_readout_row, wx.ID_ANY, "")
@@ -449,17 +458,26 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         playback: tuple[float, float],
         plot_rule: range_model.PlotTimeRange,
         now_s: float,
+        slider_bounds: tuple[float, float] | None = None,
+        playback_handle_bounds: tuple[float, float] | None = None,
     ) -> None:
         """Synchronize playback labels and range grips."""
         set_timestamp_label(
             self.playback_start_label,
-            f"Start: {format_tt(playback[0], self._display_time_zone)}",
+            f"Start: {format_tt((playback_handle_bounds or playback)[0], self._display_time_zone)}",
         )
         set_timestamp_label(
             self.playback_end_label,
-            f"End: {format_tt(playback[1], self._display_time_zone)}",
+            f"End: {format_tt((playback_handle_bounds or playback)[1], self._display_time_zone)}",
         )
-        self.timeline_slider.set_ranges(coverage, playback, plot_rule, now_s)
+        self.timeline_slider.set_ranges(
+            coverage,
+            playback,
+            plot_rule,
+            now_s,
+            slider_bounds,
+            playback_handle_bounds,
+        )
 
     def set_display_time_zone(self, display_time_zone: str) -> None:
         self._display_time_zone = display_time_zone

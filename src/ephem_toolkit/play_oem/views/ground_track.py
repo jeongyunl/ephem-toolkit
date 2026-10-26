@@ -319,10 +319,11 @@ class GroundTrackView:
         zoom_out = wx.Button(controls_panel, label="−", style=wx.BU_EXACTFIT)
         navigation_buttons = (reset_view, zoom_in, zoom_out)
         station_controls = (station_layer, station_labels, station_choice)
-        navigation_controls = (*navigation_buttons, *station_controls)
-        compact_controls(navigation_controls)
-        # Keep the checkbox controls tall enough for GTK's native contents, then
-        # give the adjacent buttons and station selector the same row height.
+        # Keep GTK checkboxes on their native theme sizing. Compacting their CSS
+        # padding can make GTK allocate a negative check-indicator area in narrow
+        # scrolled layouts (gtk_box_gadget_distribute: size >= 0).
+        compact_controls((*navigation_buttons, station_choice))
+        # Give adjacent buttons enough height for the native checkbox contents.
         control_height = max(
             projection.GetMinSize().height,
             station_layer.GetBestSize().height,
@@ -336,10 +337,9 @@ class GroundTrackView:
                 )
             )
             navigation.Add(button, 0, wx.RIGHT, 4)
-        for control in station_controls:
-            control.SetMinSize(wx.Size(-1, control_height))
-        for control in navigation_controls:
-            control.SetMaxSize(wx.Size(-1, control_height))
+            button.SetMaxSize(wx.Size(-1, control_height))
+        station_choice.SetMinSize(wx.Size(-1, control_height))
+        station_choice.SetMaxSize(wx.Size(-1, control_height))
         navigation.AddSpacer(8)
         navigation.Add(station_layer, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
         navigation.Add(station_labels, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)

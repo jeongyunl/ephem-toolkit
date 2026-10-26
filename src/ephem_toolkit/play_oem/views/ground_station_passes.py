@@ -47,6 +47,13 @@ def _coverage_label(interval: AccessInterval) -> str:
     return "; ".join(labels) if labels else "Complete"
 
 
+def _utc_label(time_s: float) -> str:
+    """Retain the fixed-UTC formatter used by older callers and tests."""
+    return format_tt(
+        time_s, UTC_DISPLAY, fractional_second_places=0
+    ).removesuffix(" UTC")
+
+
 class GroundStationPassesView:
     """Inspect cached pass details and their topocentric sky paths."""
 

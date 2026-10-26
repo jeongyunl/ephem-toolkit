@@ -2,6 +2,9 @@
 
 Requirements: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md). Baseline code: `src/ephem_toolkit/plot_oem/`.
 
+Large-file startup and progressive coverage are specified in the
+[incremental OEM loading design](./PLAY_OEM_INCREMENTAL_LOADING.md).
+
 GUI toolkit: **wxPython** is the sole GUI framework (§3). The earlier Tkinter design is superseded
 by the migration in [PLAY_OEM_IMPLEMENTATION_PLAN.md](./PLAY_OEM_IMPLEMENTATION_PLAN.md), steps 15–23.
 

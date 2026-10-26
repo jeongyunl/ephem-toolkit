@@ -31,6 +31,10 @@ from .. import (
     workspace,
 )
 from .. import playback_data
+from ..incremental_loader import (
+    IncrementalLoader,
+    LoadEventKind,
+)
 from ..ground_track import GroundTrackCoordinates
 from ..ground_stations import GroundStation
 from ..saved_state import (
@@ -71,6 +75,12 @@ MILLISECONDS_PER_SECOND = 1000
 
 FRAME_COUNT_EPSILON: float = 1e-9
 """Tolerance in seconds for counting a frame at a timer deadline."""
+
+INCREMENTAL_VIEW_REFRESH_INTERVAL_S: float = 5.0
+"""Maximum rate for rebuilding plots while incremental OEM data is arriving."""
+
+INCREMENTAL_PLOT_MAX_SAMPLES: int = 2_000
+"""Point limit used for responsive plot previews during incremental loading."""
 
 
 class PlayerApp(
@@ -158,6 +168,10 @@ class PlayerApp(
             )
 
         self.clock = clock
+        self._slider_bounds = (clock.t_start, clock.t_end)
+        self._playback_handle_bounds = (clock.playback_start, clock.playback_end)
+        self._pending_file_playback_bounds: tuple[float, float] | None = None
+        self._pending_playback_bounds: tuple[float, float] | None = None
         if display_time_zone not in DISPLAY_TIME_ZONES:
             raise ValueError("display_time_zone must be 'UTC' or 'local'")
         self.clock.set_playback_bounds(self.clock.t_start, self.clock.t_end)
@@ -223,6 +237,17 @@ class PlayerApp(
         )
         self._last_frame_monotonic_s: float | None = None
         self._on_open_file_callback = on_open_file
+        self._incremental_loader = IncrementalLoader()
+        self._incremental_store: playback_data.AppendablePlaybackData | None = None
+        self._active_load_generation: int | None = None
+        self._active_load_path: str | None = None
+        self._active_load_first_batch = False
+        self._active_load_failed = False
+        self._installing_incremental_batch = False
+        self._oem_coverage_complete = oem_loaded
+        self._incremental_view_refresh_pending = False
+        self._last_incremental_view_refresh_monotonic_s: float | None = None
+        self._startup_file_path = initial_file_path if not oem_loaded else None
         self._saved_state = saved_state
         self._ground_stations = (
             list(ground_stations)
@@ -236,7 +261,7 @@ class PlayerApp(
             if saved_state is not None
             else []
         )
-        if initial_file_path is not None:
+        if initial_file_path is not None and oem_loaded:
             if self._saved_state is not None:
                 remember_recent_file(self._saved_state, initial_file_path)
                 self._recent_oem_paths = list(self._saved_state.recent_files)
@@ -257,6 +282,10 @@ class PlayerApp(
         )
         if self._current_oem_path is not None:
             self._restore_recent_file_playback_range(self.clock, self._current_oem_path)
+        self._playback_handle_bounds = (
+            self.clock.playback_start,
+            self.clock.playback_end,
+        )
         self.plot_time_range = playback_range_plot_rule()
         if self._current_oem_path is not None:
             self._restore_recent_file_plot_range(self._current_oem_path)
@@ -340,6 +369,8 @@ class PlayerApp(
             status_bar=self.status_bar,
             playback_bounds=(clock.playback_start, clock.playback_end),
             oem_coverage=(clock.t_start, clock.t_end),
+            slider_bounds=self._slider_bounds,
+            playback_handle_bounds=self._playback_handle_bounds,
             plot_time_range=self.plot_time_range,
             now_s=lambda: self.clock.t_now,
             on_playback_bounds=self._apply_playback_bounds,
@@ -430,6 +461,8 @@ class PlayerApp(
         self.frame.Show()
         if self._oem_loaded:
             self.open_plots(self._plots)
+        else:
+            self.open_pending_plots(self._plots)
         if self._oem_loaded and self._saved_state is not None:
             self._save_application_state(save_geometry=False)
         self.workspace.draw_initial_graphs()
@@ -438,6 +471,8 @@ class PlayerApp(
         self.frame.Layout()
         wx.CallAfter(self._refresh_graph_stack_layouts)
         wx.CallAfter(self.workspace.focus_neutral_target)
+        if self._startup_file_path is not None:
+            self._start_incremental_load(self._startup_file_path)
         if not self._timer.Start(self._tick_interval_ms):
             raise RuntimeError("could not start the wx playback timer")
 
@@ -451,6 +486,13 @@ class PlayerApp(
     def _on_clock_time_changed(self, time_s: float) -> None:
         """Resolve one shared interval before updating any live view cursors."""
         if self._closed:
+            return
+        if self._active_load_first_batch and not self._oem_coverage_complete:
+            # Coverage extension and playback ticks both notify clock observers.
+            # Defer all plot range/cursor updates to the throttled view refresh,
+            # which rebuilds each plot from the latest prepared batch.
+            if not self._installing_incremental_batch:
+                self._incremental_view_refresh_pending = True
             return
         resolved = time_range.resolve_plot_range(
             self.plot_time_range,
@@ -533,7 +575,12 @@ class PlayerApp(
         self.frame.SetPosition((x, y))
         self._saved_state.position = (x, y)
 
-    def _save_application_state(self, *, save_geometry: bool = True) -> None:
+    def _save_application_state(
+        self,
+        *,
+        save_geometry: bool = True,
+        save_file_ranges: bool = True,
+    ) -> None:
         """Persist state safely without allowing a state-file error to close the app."""
         self._save_render_rate_config()
         self._save_display_time_zone_config()
@@ -541,8 +588,9 @@ class PlayerApp(
         self._save_ground_stations_config()
         if not self._persist_saved_state or self._saved_state is None:
             return
-        self._save_current_playback_range()
-        self._save_current_plot_range()
+        if save_file_ranges:
+            self._save_current_playback_range()
+            self._save_current_plot_range()
         if save_geometry:
             self._saved_state.maximized = self.frame.IsMaximized()
             if not self._saved_state.maximized:
@@ -705,6 +753,13 @@ class PlayerApp(
             self._saved_state is None
             or not self._oem_loaded
             or self._current_oem_path is None
+            or self._pending_playback_bounds is not None
+            or (
+                not self._oem_coverage_complete
+                and self._active_load_path is not None
+                and normalize_recent_path(self._active_load_path)
+                == self._current_oem_path
+            )
         ):
             return
         settings = self._saved_state.recent_file_settings.setdefault(
@@ -815,7 +870,9 @@ class PlayerApp(
                 id=item_id,
             )
 
-    def _remember_recent_oem(self, path: str) -> None:
+    def _remember_recent_oem(
+        self, path: str, *, save_file_ranges: bool = True
+    ) -> None:
         """Record a successfully loaded OEM and update its menu entry."""
         if self._saved_state is not None:
             remember_recent_file(self._saved_state, path)
@@ -831,12 +888,14 @@ class PlayerApp(
                 ),
             ][:MAX_RECENT_FILES]
         self._refresh_recent_files_menu()
-        self._save_application_state(save_geometry=False)
+        self._save_application_state(
+            save_geometry=False, save_file_ranges=save_file_ranges
+        )
 
     def _load_oem_file(self, path: str) -> None:
         """Load an OEM path through the shared open and recent-file workflow."""
         if self._on_open_file_callback is None:
-            self.status_bar.set_message("Opening another OEM is unavailable.")
+            self._start_incremental_load(path)
             return
         try:
             loaded_data = self._on_open_file_callback(path)
@@ -846,6 +905,332 @@ class PlayerApp(
             return
         self._replace_playback_data(loaded_data, os.path.basename(path), path)
         self._remember_recent_oem(path)
+
+    def _start_incremental_load(self, path: str) -> None:
+        """Start a replacement session while keeping the active OEM installed."""
+        preparer = playback_data.IncrementalPlaybackPreparer(
+            path,
+            use_oem_interpolation=self._use_oem_interpolation,
+            interpolation_method=self._interpolation_method,
+            interpolation_degree=self._interpolation_degree,
+            display_time_zone=self._display_time_zone,
+        )
+        self._pending_file_playback_bounds = None
+        if self._saved_state is not None:
+            settings = self._saved_state.recent_file_settings.get(
+                normalize_recent_path(path)
+            )
+            if settings is not None:
+                self._pending_file_playback_bounds = settings.playback_range
+        session = self._incremental_loader.start(path, prepare_batch=preparer)
+        self._active_load_generation = session.generation
+        self._active_load_path = path
+        self._active_load_first_batch = False
+        self._active_load_failed = False
+        self._last_incremental_view_refresh_monotonic_s = None
+        self.status_bar.set_message(f"Loading {os.path.basename(path)}…")
+
+    def _poll_incremental_load(self) -> None:
+        """Install parser events on the wx thread and accumulate progressive data."""
+        data_changed = False
+        load_completed = False
+        for event in self._incremental_loader.drain():
+            if event.generation != self._active_load_generation:
+                continue
+            path = self._active_load_path
+            if path is None:
+                continue
+            if event.kind is LoadEventKind.STARTED:
+                continue
+            if event.kind is LoadEventKind.BATCH:
+                prepared = event.prepared
+                if not isinstance(prepared, playback_data.PreparedPlaybackBatch):
+                    continue
+                try:
+                    if not self._active_load_first_batch:
+                        loaded = prepared.initial_data
+                        if loaded is None:
+                            raise RuntimeError("first prepared OEM batch has no initial data")
+                        self._incremental_store = prepared.incremental_store
+                        self._slider_bounds = prepared.slider_bounds
+                        self._replace_playback_data(
+                            loaded, os.path.basename(path), path
+                        )
+                        # The initial panel replacement is also a graph refresh.
+                        self._last_incremental_view_refresh_monotonic_s = (
+                            time.monotonic()
+                        )
+                        self._pending_playback_bounds = (
+                            self._pending_file_playback_bounds
+                        )
+                        self._playback_handle_bounds = (
+                            self._pending_playback_bounds
+                            or (self.clock.playback_start, self.clock.playback_end)
+                        )
+                        if self._pending_playback_bounds is not None and (
+                            self.clock.t_start
+                            <= self._pending_playback_bounds[0]
+                            and self._pending_playback_bounds[1] <= self.clock.t_end
+                        ):
+                            self._playback_handle_bounds = (
+                                self._pending_playback_bounds
+                            )
+                            self.clock.set_playback_bounds(
+                                *self._pending_playback_bounds
+                            )
+                            self._pending_playback_bounds = None
+                        self._pending_file_playback_bounds = None
+                        self._update_time_display()
+                        self._active_load_first_batch = True
+                        # The incremental clock only covers the loaded prefix.
+                        # Do not persist that temporary range over the saved
+                        # full-file range before EOF makes it valid to restore.
+                        self._remember_recent_oem(path, save_file_ranges=False)
+                        self._oem_coverage_complete = False
+                    else:
+                        self._installing_incremental_batch = True
+                        try:
+                            self.clock.extend_coverage(prepared.timestamps_s)
+                        finally:
+                            self._installing_incremental_batch = False
+                        self._slider_bounds = prepared.slider_bounds
+                        pending_bounds = self._pending_playback_bounds
+                        if pending_bounds is not None and (
+                            self.clock.t_start <= pending_bounds[0]
+                            and pending_bounds[1] <= self.clock.t_end
+                        ):
+                            self._pending_playback_bounds = None
+                            self._playback_handle_bounds = pending_bounds
+                            self._installing_incremental_batch = True
+                            try:
+                                self.clock.set_playback_bounds(*pending_bounds)
+                            finally:
+                                self._installing_incremental_batch = False
+                        elif pending_bounds is None:
+                            self._playback_handle_bounds = (
+                                self.clock.playback_start,
+                                self.clock.playback_end,
+                            )
+                        self.series = prepared.series
+                        self.time_unit = prepared.time_unit
+                        self.cursor = prepared.cursor
+                        self._ground_track_source = prepared.ground_track_source
+                        self._dashboard_context["sample_count"] = str(
+                            prepared.source_sample_count
+                        )
+                        self._dashboard_context["time_span"] = (
+                            f"{format_tt(self.clock.t_start, self._display_time_zone)} – "
+                            f"{format_tt(self.clock.t_end, self._display_time_zone)}"
+                        )
+                        self._ground_track_coordinates = None
+                        self._station_access_cache.clear()
+                        data_changed = True
+                        if self._batch_intersects_plot_range(prepared.timestamps_s):
+                            self._incremental_view_refresh_pending = True
+                except Exception as error:
+                    self._active_load_failed = True
+                    self._incremental_loader.cancel()
+                    self.clock.pause()
+                    prefix = (
+                        "Loaded a valid prefix, but could not prepare more OEM data: "
+                        if self._active_load_first_batch
+                        else "Could not open OEM: "
+                    )
+                    self.status_bar.set_message(prefix + str(error))
+                    continue
+                self.status_bar.set_message(
+                    f"Loading {os.path.basename(path)}: "
+                    f"{event.loaded_state_count:,} states (partial coverage)"
+                )
+            elif event.kind is LoadEventKind.COMPLETE:
+                if not self._active_load_first_batch:
+                    self.status_bar.set_message("OEM contains no state data.")
+                else:
+                    self._finish_incremental_metadata(event.completion)
+                    self._oem_coverage_complete = True
+                    self._active_load_failed = False
+                    self.status_bar.set_message("")
+                    data_changed = True
+                    load_completed = True
+            elif event.kind is LoadEventKind.FAILED:
+                message = str(event.error) if event.error is not None else "unknown error"
+                prefix = (
+                    "Loaded a valid prefix, but could not finish reading OEM: "
+                    if self._active_load_first_batch
+                    else "Could not open OEM: "
+                )
+                self.clock.pause()
+                self._active_load_failed = True
+                self.status_bar.set_message(prefix + message)
+        if data_changed and self._oem_loaded:
+            self.workspace.update_oem_information(
+                self._formatted_dashboard_context(),
+                self._formatted_metadata_details(),
+                self.clock.t_start < self.clock.t_end,
+            )
+            self._update_time_display()
+        if self._incremental_view_refresh_pending:
+            self._refresh_incremental_views(force=load_completed)
+
+    def _batch_intersects_plot_range(self, timestamps_s: Sequence[float]) -> bool:
+        """Return whether this batch contributes samples to the visible range."""
+        bounds = time_range.resolve_plot_range(
+            self.plot_time_range,
+            (self.clock.t_start, self.clock.t_end),
+            (self.clock.playback_start, self.clock.playback_end),
+            self.clock.t_now,
+        )
+        return bounds is not None and any(
+            bounds.start_s <= timestamp_s <= bounds.end_s
+            for timestamp_s in timestamps_s
+        )
+
+    def _finish_incremental_metadata(self, completion) -> None:
+        """Apply final segment metadata after the stream passes full-file validation."""
+        if completion is None:
+            return
+        meta = dict(completion.meta)
+        center_name = str(meta.get("CENTER_NAME", ""))
+        frame_name = str(meta.get("REF_FRAME", ""))
+        self._oem_interpolation = str(meta.get("INTERPOLATION", "")) or None
+        interpolation_degree = meta.get("INTERPOLATION_DEGREE")
+        self._oem_interpolation_degree = (
+            None if interpolation_degree is None else int(interpolation_degree)
+        )
+        self._metadata_details = (
+            ("Object ID", str(meta.get("OBJECT_ID", ""))),
+            ("Time system", str(meta.get("TIME_SYSTEM", ""))),
+            ("Frame epoch", str(meta.get("REF_FRAME_EPOCH", ""))),
+            ("Usable start", str(meta.get("USEABLE_START_TIME", ""))),
+            ("Usable stop", str(meta.get("USEABLE_STOP_TIME", ""))),
+            ("Interpolation", self._oem_interpolation or ""),
+            (
+                "Interpolation degree",
+                ""
+                if self._oem_interpolation_degree is None
+                else str(self._oem_interpolation_degree),
+            ),
+        )
+        self.object_id = dict(self._metadata_details).get("Object ID", "").strip()
+        metadata_slider_bounds = playback_data.oem_slider_bounds(
+            str(meta.get("START_TIME", "")),
+            str(meta.get("STOP_TIME", "")),
+            (self.clock.t_start, self.clock.t_end),
+        )
+        self._slider_bounds = (
+            min(self._slider_bounds[0], metadata_slider_bounds[0]),
+            max(self._slider_bounds[1], metadata_slider_bounds[1]),
+        )
+        final_object_name = str(meta.get("OBJECT_NAME", "")).strip()
+        if final_object_name:
+            self.object_name = final_object_name
+        self.status_bar.set_object(self.object_name, self.object_id)
+        if self._incremental_store is not None:
+            self._incremental_store.center_name = center_name
+            self._incremental_store.frame_name = frame_name
+            self._incremental_store.ground_track_source = (
+                playback_data.GroundTrackSource(
+                    self._incremental_store.timestamps_s,
+                    self._incremental_store.states_m,
+                    self._incremental_store.segment_ids,
+                    center_name,
+                    frame_name,
+                )
+            )
+            self._ground_track_source = self._incremental_store.ground_track_source
+        self.frame_context = " / ".join(
+            value for value in (frame_name.strip(), center_name.strip()) if value
+        ) or "Frame metadata unavailable"
+        self._dashboard_context.update(
+            {
+                "object": self.object_name,
+                "frame": frame_name,
+                "center": center_name,
+                "time_span": (
+                    f"{format_tt(self.clock.t_start, self._display_time_zone)} – "
+                    f"{format_tt(self.clock.t_end, self._display_time_zone)}"
+                ),
+                "sample_count": str(completion.state_count),
+            }
+        )
+        if self._use_oem_interpolation:
+            self.cursor.set_interpolation(
+                self._oem_interpolation, self._oem_interpolation_degree
+            )
+        self.control_window.update_active_interpolation(
+            self._active_interpolation_summary()
+        )
+        pending_bounds = self._pending_playback_bounds
+        if pending_bounds is None:
+            self._restore_recent_file_playback_range(
+                self.clock, normalize_recent_path(self._active_load_path or "")
+            )
+        else:
+            if (
+                self.clock.t_start <= pending_bounds[0]
+                and pending_bounds[1] <= self.clock.t_end
+            ):
+                self._pending_playback_bounds = None
+                self.clock.set_playback_bounds(*pending_bounds)
+        self._station_access_cache.clear()
+        self._incremental_view_refresh_pending = True
+
+    def _refresh_incremental_views(self, *, force: bool = False) -> None:
+        """Rebuild plots at a bounded rate, or immediately when loading ends."""
+        now = time.monotonic()
+        last_refresh = self._last_incremental_view_refresh_monotonic_s
+        if (
+            not force
+            and last_refresh is not None
+            and now - last_refresh < INCREMENTAL_VIEW_REFRESH_INTERVAL_S
+        ):
+            return
+        panel_layout = tuple(
+            (opened.panel_id, opened.view_name, opened.stack)
+            for opened in self._open_panels.values()
+        )
+        full_resolution_series = self.series
+        if not force and not self._oem_coverage_complete:
+            resolved_plot_range = time_range.resolve_plot_range(
+                self.plot_time_range,
+                (self.clock.t_start, self.clock.t_end),
+                (self.clock.playback_start, self.clock.playback_end),
+                self.clock.t_now,
+            )
+            elapsed_bounds = (
+                None
+                if resolved_plot_range is None
+                else (
+                    (resolved_plot_range.start_s - self.clock.t_start)
+                    / self.time_unit.get_divisor_s(),
+                    (resolved_plot_range.end_s - self.clock.t_start)
+                    / self.time_unit.get_divisor_s(),
+                )
+            )
+            self.series = series.downsample_orbit_series(
+                full_resolution_series,
+                INCREMENTAL_PLOT_MAX_SAMPLES,
+                elapsed_bounds,
+            )
+        try:
+            if panel_layout:
+                for panel_id, view_name, stack in panel_layout:
+                    self.open_panel_view(
+                        view_name,
+                        panel_id,
+                        stack,
+                        force_replace=True,
+                    )
+            elif self._oem_loaded:
+                self.open_plots(self._plots)
+            self.workspace.draw_initial_graphs()
+            wx.CallAfter(self._refresh_graph_stack_layouts)
+            self._last_incremental_view_refresh_monotonic_s = now
+        except Exception as error:
+            self.status_bar.set_message(f"Could not refresh OEM views: {error}")
+        finally:
+            self.series = full_resolution_series
+            self._incremental_view_refresh_pending = False
 
     def _on_open_file(self, _event: wx.CommandEvent) -> None:
         """Select an OEM and load it into this playback window."""
@@ -878,8 +1263,12 @@ class PlayerApp(
         """Replace file-dependent state while retaining the frame and workspace."""
         self._save_application_state(save_geometry=False)
         rate = self.clock.rate
-        loaded.clock.set_playback_bounds(loaded.clock.t_start, loaded.clock.t_end)
-        if file_path is not None:
+        loaded.clock.set_playback_bounds(
+            loaded.clock.t_start,
+            loaded.clock.t_end,
+            follow_coverage=loaded.incremental_store is not None,
+        )
+        if file_path is not None and loaded.incremental_store is None:
             self._restore_recent_file_playback_range(
                 loaded.clock, normalize_recent_path(file_path)
             )
@@ -895,6 +1284,17 @@ class PlayerApp(
 
         self._clock_unsubscribe()
         self.clock = loaded.clock
+        self._playback_handle_bounds = (
+            loaded.clock.playback_start,
+            loaded.clock.playback_end,
+        )
+        if loaded.incremental_store is None:
+            self._pending_file_playback_bounds = None
+            self._pending_playback_bounds = None
+        self._slider_bounds = loaded.slider_bounds or (
+            loaded.clock.t_start,
+            loaded.clock.t_end,
+        )
         self._current_oem_path = (
             normalize_recent_path(file_path) if file_path is not None else None
         )
@@ -907,7 +1307,8 @@ class PlayerApp(
         self.cursor = loaded.cursor
         self._oem_interpolation = loaded.oem_interpolation
         self._oem_interpolation_degree = loaded.oem_interpolation_degree
-        self._configure_cursor_interpolation(self.cursor, loaded)
+        if loaded.incremental_store is None:
+            self._configure_cursor_interpolation(self.cursor, loaded)
         self.object_name = loaded.object_name
         self._dashboard_context = dict(loaded.dashboard_context)
         self._metadata_details = tuple(loaded.metadata_details)
@@ -919,6 +1320,8 @@ class PlayerApp(
         self.status_bar.set_message("")
         self.frame_context = loaded.frame_context
         self._ground_track_source = loaded.ground_track_source
+        self._incremental_store = loaded.incremental_store
+        self._oem_coverage_complete = loaded.incremental_store is None
         self._ground_track_coordinates = None
         # Start the new file's playback schedule at its load time.
         self._last_frame_monotonic_s = time.monotonic()
@@ -958,6 +1361,7 @@ class PlayerApp(
     def _on_frame_close(self, event: wx.CloseEvent) -> None:
         if not self._closed:
             self._closed = True
+            self._incremental_loader.cancel()
             self._clock_unsubscribe()
             self._timer.Stop()
             self._save_application_state()
@@ -976,7 +1380,16 @@ class PlayerApp(
     def _on_timer(self, _event: wx.TimerEvent) -> None:
         if self._closed:
             return
+        self._poll_incremental_load()
         current_time_s = time.monotonic()
+        if (
+            self._active_load_first_batch
+            and not self._active_load_failed
+            and not self._oem_coverage_complete
+            and not self.clock.playing
+            and self.clock.t_now >= self.clock.t_end
+        ):
+            self.status_bar.set_message("Loading more data…")
         if not self.clock.playing:
             self._last_frame_monotonic_s = current_time_s
             return
@@ -1095,9 +1508,10 @@ class PlayerApp(
         if not self._oem_loaded:
             return
         timestamp = format_tt(self.clock.t_now, self._display_time_zone)
-        span_s = self.clock.t_end - self.clock.t_start
+        slider_start, slider_end = self._slider_bounds
+        span_s = slider_end - slider_start
         progress = (
-            0.0 if span_s == 0.0 else (self.clock.t_now - self.clock.t_start) / span_s
+            0.0 if span_s == 0.0 else (self.clock.t_now - slider_start) / span_s
         )
         self.workspace.update_timeline(
             progress, timestamp, playing=self.clock.playing
@@ -1107,6 +1521,8 @@ class PlayerApp(
             (self.clock.playback_start, self.clock.playback_end),
             self.plot_time_range,
             self.clock.t_now,
+            self._slider_bounds,
+            self._playback_handle_bounds,
         )
         self.workspace.update_playback_state(self.clock.playing, self.clock.rate)
         self.control_window.update_current_state(self.cursor.lookup(self.clock.t_now))

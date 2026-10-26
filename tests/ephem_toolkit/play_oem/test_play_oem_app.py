@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import signal
+import time
+from datetime import datetime, timezone
 from collections.abc import Callable
 from contextlib import nullcontext
 from types import SimpleNamespace
@@ -13,7 +15,7 @@ import pytest
 from matplotlib.backend_bases import MouseButton
 from matplotlib.figure import Figure
 
-from ephem_toolkit.core.time_utils import tt_s_to_datetime
+from ephem_toolkit.core.time_utils import datetime_to_tt_s, tt_s_to_datetime
 from ephem_toolkit.play_oem.app import controller as app
 from ephem_toolkit.play_oem.app import panel_management
 from ephem_toolkit.play_oem.app import support as app_support
@@ -461,6 +463,8 @@ class FakeControlWindow:
         interpolation_method,
         interpolation_degree,
         active_interpolation,
+        display_time_zone="UTC",
+        on_set_display_time_zone=None,
         on_step_samples,
         on_step_seconds,
         on_jump_to_start,
@@ -544,6 +548,9 @@ class FakeWorkspace:
     def set_oem_loaded(self, _loaded: bool) -> None:
         pass
 
+    def update_oem_information(self, _context, _details, _timeline_enabled) -> None:
+        pass
+
     def set_time_range_controls(self, *controls) -> None:
         self.time_range_controls = controls
 
@@ -623,6 +630,7 @@ def make_app(
     saved_state: app.SavedAppState | None = None,
     config_path=None,
     initial_file_path: str | None = None,
+    oem_loaded: bool = True,
 ) -> tuple[Any, list[FakeView], list[FakeCanvas], list[FakeFrame]]:
     frames: list[FakeFrame] = []
     views: list[FakeView] = []
@@ -700,6 +708,7 @@ def make_app(
         saved_state=saved_state,
         config_path=config_path,
         initial_file_path=initial_file_path,
+        oem_loaded=oem_loaded,
     )
     return player, views, canvases, frames
 
@@ -1722,6 +1731,241 @@ def test_failed_oem_load_retains_session_ranges(
     assert player.clock is clock_before
     assert (player.clock.playback_start, player.clock.playback_end) == (120.0, 180.0)
     assert player.plot_time_range == applied_plot_range
+    player.close()
+
+
+def test_incremental_replacement_keeps_old_oem_until_first_batch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch, plots=("speed-altitude",))
+    old_clock = player.clock
+    source = tmp_path / "replacement.oem"
+    source.write_text(
+        "CCSDS_OEM_VERS = 2.0\n"
+        "META_START\n"
+        "OBJECT_NAME = REPLACEMENT\n"
+        "OBJECT_ID = 2026-001A\n"
+        "CENTER_NAME = EARTH\n"
+        "REF_FRAME = GCRF\n"
+        "TIME_SYSTEM = UTC\n"
+        "META_STOP\n"
+        "2026-01-01T00:00:00 7000 0 0 0 7.5 0\n"
+        "2026-01-01T00:00:10 7000 1 0 0 7.5 0\n",
+        encoding="utf-8",
+    )
+
+    player._load_oem_file(str(source))
+    assert player.clock is old_clock
+    assert player.object_name == "TEST"
+
+    session = player._incremental_loader.session
+    assert session is not None
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        player._poll_incremental_load()
+        if session.finished and not session._events.qsize():
+            break
+        time.sleep(0.005)
+
+    assert player.clock is not old_clock
+    assert player.object_name == "REPLACEMENT"
+    assert player._current_oem_path == app.normalize_recent_path(str(source))
+    assert player._recent_oem_paths[0] == app.normalize_recent_path(str(source))
+    player.close()
+
+
+def test_start_shows_workspace_before_initial_oem_batch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    source = tmp_path / "initial.oem"
+    source.write_text(
+        "CCSDS_OEM_VERS = 2.0\n"
+        "META_START\n"
+        "OBJECT_NAME = INITIAL\n"
+        "CENTER_NAME = EARTH\n"
+        "REF_FRAME = GCRF\n"
+        "TIME_SYSTEM = UTC\n"
+        "META_STOP\n"
+        "2026-01-01T00:00:00 7000 0 0 0 7.5 0\n"
+        "2026-01-01T00:00:10 7000 1 0 0 7.5 0\n",
+        encoding="utf-8",
+    )
+    player, _views, _canvases, frames = make_app(
+        monkeypatch,
+        plots=("speed-altitude",),
+        initial_file_path=str(source),
+        oem_loaded=False,
+    )
+    assert player.object_name == "TEST"
+    assert not frames[0].shown
+    assert str(source) not in player._recent_oem_paths
+
+    player.start()
+    assert frames[0].shown
+    session = player._incremental_loader.session
+    assert session is not None
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        player._poll_incremental_load()
+        if session.finished and not session._events.qsize():
+            break
+        time.sleep(0.005)
+
+    assert player.object_name == "INITIAL"
+    assert str(source) in player._recent_oem_paths
+    player.close()
+
+
+def test_failed_incremental_replacement_leaves_current_oem_installed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch, plots=("speed-altitude",))
+    old_clock = player.clock
+    bad_source = tmp_path / "bad.oem"
+    bad_source.write_text("CCSDS_OEM_VERS = 2.0\nCOVARIANCE_STOP\n", encoding="utf-8")
+
+    player._load_oem_file(str(bad_source))
+    session = player._incremental_loader.session
+    assert session is not None
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        player._poll_incremental_load()
+        if session.finished and not session._events.qsize():
+            break
+        time.sleep(0.005)
+
+    assert player.clock is old_clock
+    assert player.object_name == "TEST"
+    assert "Could not open OEM" in player.status_bar.message
+    player.close()
+
+
+def test_incremental_batches_extend_clock_and_complete_full_history(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch, plots=("speed-altitude",)
+    )
+    player._incremental_loader = app.IncrementalLoader(batch_size=1)
+    source = tmp_path / "growing.oem"
+    source.write_text(
+        "CCSDS_OEM_VERS = 2.0\n"
+        "META_START\n"
+        "OBJECT_NAME = GROWING\n"
+        "CENTER_NAME = EARTH\n"
+        "REF_FRAME = GCRF\n"
+        "TIME_SYSTEM = UTC\n"
+        "META_STOP\n"
+        "2026-01-01T00:00:00 7000 0 0 0 7.5 0\n"
+        "2026-01-01T00:00:10 7000 1 0 0 7.5 0\n"
+        "2026-01-01T00:00:20 7000 2 0 0 7.5 0\n",
+        encoding="utf-8",
+    )
+    player._load_oem_file(str(source))
+    session = player._incremental_loader.session
+    assert session is not None
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        player._poll_incremental_load()
+        if session.finished and not session._events.qsize():
+            break
+        time.sleep(0.005)
+
+    assert player._oem_coverage_complete
+    assert player._incremental_store is not None
+    assert player._incremental_store.source_sample_count == 3
+    assert player.clock.t_end == player._incremental_store.timestamps_s[-1]
+    assert player._dashboard_context["sample_count"] == "3"
+    assert not player._incremental_view_refresh_pending
+    player.close()
+
+
+def test_incremental_load_preserves_and_restores_saved_file_ranges(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    from ephem_toolkit.play_oem.saved_state import RecentFileSettings
+
+    source = tmp_path / "range-restore.oem"
+    source.write_text(
+        "CCSDS_OEM_VERS = 2.0\n"
+        "META_START\n"
+        "OBJECT_NAME = RANGE RESTORE\n"
+        "CENTER_NAME = EARTH\n"
+        "REF_FRAME = GCRF\n"
+        "TIME_SYSTEM = UTC\n"
+        "START_TIME = 2025-12-31T23:59:00\n"
+        "STOP_TIME = 2026-01-01T00:01:00\n"
+        "META_STOP\n"
+        "2026-01-01T00:00:00 7000 0 0 0 7.5 0\n"
+        "2026-01-01T00:00:10 7000 1 0 0 7.5 0\n"
+        "2026-01-01T00:00:20 7000 2 0 0 7.5 0\n",
+        encoding="utf-8",
+    )
+    start_s = datetime_to_tt_s(datetime(2026, 1, 1, tzinfo=timezone.utc))
+    playback_range = (start_s + 5.0, start_s + 15.0)
+    plot_range = time_range.PlotTimeRange(
+        True,
+        time_range.TimeRangeEndpoint("fixed", start_s + 2.0),
+        time_range.TimeRangeEndpoint("fixed", start_s + 18.0),
+    )
+    path = app.normalize_recent_path(source)
+    saved_state = app.SavedAppState(
+        recent_files=[path],
+        recent_file_settings={
+            path: RecentFileSettings(playback_range, plot_range)
+        },
+    )
+    monkeypatch.setattr(app, "save_saved_state", lambda _state: None)
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch,
+        plots=("speed-altitude",),
+        saved_state=saved_state,
+        oem_loaded=False,
+    )
+    player._incremental_loader = app.IncrementalLoader(batch_size=1)
+    player._load_oem_file(str(source))
+    session = player._incremental_loader.session
+    assert session is not None
+
+    deadline = time.monotonic() + 3.0
+    while not player._active_load_first_batch and time.monotonic() < deadline:
+        player._poll_incremental_load()
+        time.sleep(0.005)
+    assert player._active_load_first_batch
+    assert player._slider_bounds == (
+        datetime_to_tt_s(datetime(2025, 12, 31, 23, 59, tzinfo=timezone.utc)),
+        datetime_to_tt_s(datetime(2026, 1, 1, 0, 1, tzinfo=timezone.utc)),
+    )
+    assert player._playback_handle_bounds == playback_range
+    assert (player.clock.playback_start, player.clock.playback_end) != playback_range
+    assert player.workspace.time_range_controls[2] == plot_range
+    assert player.workspace.time_range_controls[-1] == playback_range
+    player._save_current_playback_range()
+    assert saved_state.recent_file_settings[path].playback_range == playback_range
+    assert player.plot_time_range == plot_range
+
+    while time.monotonic() < deadline:
+        player._poll_incremental_load()
+        if session.finished and not session._events.qsize():
+            break
+        time.sleep(0.005)
+    assert player._oem_coverage_complete
+    assert (player.clock.playback_start, player.clock.playback_end) == playback_range
+    assert player.plot_time_range == plot_range
+    player.close()
+
+
+def test_ground_station_analysis_is_gated_until_coverage_is_complete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+    player._oem_coverage_complete = False
+
+    player.open_ground_station_access_view()
+    player.open_ground_station_passes_view()
+
+    assert not player._open_panels
+    assert "after OEM loading completes" in player.status_bar.message
     player.close()
 
 

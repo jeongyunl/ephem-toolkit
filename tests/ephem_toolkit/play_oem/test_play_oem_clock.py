@@ -247,3 +247,38 @@ def test_singleton_playback_bounds_cannot_play_or_advance() -> None:
     assert not clock.playing
     clock.tick(5.0)
     assert clock.t_now == 5.0
+
+
+def test_extend_coverage_grows_default_end_without_auto_resuming() -> None:
+    clock = PlaybackClock(0.0, 10.0, sample_times=(0.0, 10.0))
+    clock.play()
+    clock.tick(10.0)
+    assert not clock.playing
+    assert clock.t_now == 10.0
+
+    clock.extend_coverage((20.0, 30.0))
+
+    assert (clock.t_start, clock.t_end) == (0.0, 30.0)
+    assert (clock.playback_start, clock.playback_end) == (0.0, 30.0)
+    assert clock.t_now == 10.0
+    assert not clock.playing
+    clock.step_samples(1)
+    assert clock.t_now == 20.0
+
+
+def test_extend_coverage_preserves_explicit_playback_end() -> None:
+    clock = PlaybackClock(0.0, 10.0, sample_times=(0.0, 10.0))
+    clock.set_playback_bounds(0.0, 5.0)
+    clock.extend_coverage((20.0,))
+
+    assert clock.t_end == 20.0
+    assert (clock.playback_start, clock.playback_end) == (0.0, 5.0)
+
+
+def test_extend_coverage_rejects_nonincreasing_samples_atomically() -> None:
+    clock = PlaybackClock(0.0, 10.0, sample_times=(0.0, 10.0))
+    with pytest.raises(ValueError, match="follow current OEM coverage"):
+        clock.extend_coverage((10.0, 20.0))
+    assert clock.t_end == 10.0
+    assert clock.step_samples(1) is None
+    assert clock.t_now == 10.0
