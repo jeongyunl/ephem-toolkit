@@ -8,6 +8,7 @@ import math
 import os
 from pathlib import Path
 import signal
+import threading
 import time
 import warnings
 from typing import cast
@@ -78,6 +79,11 @@ FRAME_COUNT_EPSILON: float = 1e-9
 
 INCREMENTAL_VIEW_REFRESH_INTERVAL_S: float = 5.0
 """Maximum rate for rebuilding plots while incremental OEM data is arriving."""
+
+INCREMENTAL_DEFERRED_VIEWS: frozenset[str] = frozenset(
+    {"ground-station-access", "ground-station-passes"}
+)
+"""Views whose analysis is too costly to rebuild until loading completes."""
 
 INCREMENTAL_PLOT_MAX_SAMPLES: int = 2_000
 """Point limit used for responsive plot previews during incremental loading."""
@@ -1190,7 +1196,10 @@ class PlayerApp(
             for opened in self._open_panels.values()
         )
         full_resolution_series = self.series
-        if not force and not self._oem_coverage_complete:
+        if self._incremental_store is not None and (
+            not self._oem_coverage_complete
+            or len(full_resolution_series.elapsed_time) > INCREMENTAL_PLOT_MAX_SAMPLES
+        ):
             resolved_plot_range = time_range.resolve_plot_range(
                 self.plot_time_range,
                 (self.clock.t_start, self.clock.t_end),
@@ -1212,9 +1221,14 @@ class PlayerApp(
                 INCREMENTAL_PLOT_MAX_SAMPLES,
                 elapsed_bounds,
             )
+        deferred_layout: list[tuple[str, str, str]] = []
         try:
             if panel_layout:
                 for panel_id, view_name, stack in panel_layout:
+                    if view_name in INCREMENTAL_DEFERRED_VIEWS:
+                        if force:
+                            deferred_layout.append((panel_id, view_name, stack))
+                        continue
                     self.open_panel_view(
                         view_name,
                         panel_id,
@@ -1226,11 +1240,55 @@ class PlayerApp(
             self.workspace.draw_initial_graphs()
             wx.CallAfter(self._refresh_graph_stack_layouts)
             self._last_incremental_view_refresh_monotonic_s = now
+            if deferred_layout:
+                self._warm_station_access_then_refresh(deferred_layout)
         except Exception as error:
             self.status_bar.set_message(f"Could not refresh OEM views: {error}")
         finally:
             self.series = full_resolution_series
             self._incremental_view_refresh_pending = False
+
+    def _warm_station_access_then_refresh(
+        self, layout: Sequence[tuple[str, str, str]]
+    ) -> None:
+        """Compute full-range station access off the UI thread, then rebuild panels."""
+        source = self._ground_track_source
+        cursor_ref = self.cursor
+        cache = self._station_access_cache
+        stations = tuple(self._ground_stations)
+        if source is None or not stations:
+            self._rebuild_deferred_views(layout)
+            return
+        self.status_bar.set_message("Analyzing ground station access…")
+
+        def worker() -> None:
+            try:
+                for station in stations:
+                    cache.prepare(source, cursor_ref, station)
+            except Exception:
+                pass
+            wx.CallAfter(self._rebuild_deferred_views, layout, source)
+
+        threading.Thread(
+            target=worker, name="station-access-warmup", daemon=True
+        ).start()
+
+    def _rebuild_deferred_views(
+        self,
+        layout: Sequence[tuple[str, str, str]],
+        warmed_source: object | None = None,
+    ) -> None:
+        """Rebuild access views once their analysis is cached."""
+        if warmed_source is not None and warmed_source is not self._ground_track_source:
+            return
+        self.status_bar.set_message("")
+        for panel_id, view_name, stack in layout:
+            if panel_id not in self._open_panels:
+                continue
+            try:
+                self.open_panel_view(view_name, panel_id, stack, force_replace=True)
+            except Exception as error:
+                self.status_bar.set_message(f"Could not refresh OEM views: {error}")
 
     def _on_open_file(self, _event: wx.CommandEvent) -> None:
         """Select an OEM and load it into this playback window."""

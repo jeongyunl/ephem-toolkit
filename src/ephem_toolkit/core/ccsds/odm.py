@@ -165,6 +165,7 @@ CCSDS_3VALUE_NUMERICAL_PATTERN: re.Pattern[str] = re.compile(
 """Regex for multipartite CCSDS numerical values in a 3-value sequence."""
 
 ODM_MAX_LINE_LENGTH = 254
+_NON_PRINTABLE_ASCII = re.compile(r"[^\x20-\x7e]")
 """Maximum permitted length of a CCSDS ODM KVN line."""
 
 CCSDS_COMMENT_KEYWORD = "COMMENT"
@@ -217,7 +218,7 @@ def validate_odm_line(
             f"{message_type}{location} exceeds {ODM_MAX_LINE_LENGTH} characters "
             f"({ODM_MAX_LINE_LENGTH}-character limit)"
         )
-    if printable_ascii and any(ord(char) < 32 or ord(char) > 126 for char in line):
+    if printable_ascii and _NON_PRINTABLE_ASCII.search(line):
         raise ValueError(
             f"{message_type}{location} is not ASCII printable text; "
             "lines must contain printable ASCII only"

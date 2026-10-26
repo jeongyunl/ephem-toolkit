@@ -1884,6 +1884,34 @@ def test_incremental_batches_extend_clock_and_complete_full_history(
     player.close()
 
 
+def test_completed_incremental_refresh_keeps_large_plot_data_downsampled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+    sample_count = app.INCREMENTAL_PLOT_MAX_SAMPLES + 1
+    timestamps_s = np.arange(100.0, 100.0 + sample_count)
+    state = np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0])
+    full_series = app.series.compute_orbit_series(
+        timestamps_s.tolist(),
+        [state] * sample_count,
+        player.time_unit,
+    )
+    player.series = full_series
+    player._incremental_store = object()
+    player._oem_coverage_complete = True
+    player._plots = ()
+    displayed_series = []
+    player.open_plots = lambda _plots: displayed_series.append(player.series)
+    monkeypatch.setattr(app.wx, "CallAfter", lambda *_args: None)
+
+    player._refresh_incremental_views(force=True)
+
+    assert len(displayed_series) == 1
+    assert len(displayed_series[0].elapsed_time) <= app.INCREMENTAL_PLOT_MAX_SAMPLES
+    assert player.series is full_series
+    player.close()
+
+
 def test_incremental_load_preserves_and_restores_saved_file_ranges(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:

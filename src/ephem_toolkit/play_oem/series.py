@@ -319,23 +319,18 @@ def compute_orbit_series(
     geodetic_coordinates: np.ndarray = wgs.ecef_to_lla(position_m)
     altitude_km: np.ndarray = geodetic_coordinates[:, 2] * KILOMETERS_PER_METER
 
-    rtn_delta_list_km: list[np.ndarray] = []
-    rtn_elapsed_time_list: list[float] = []
-    for sample_index in range(1, len(states_m)):
-        if segments[sample_index] != segments[sample_index - 1]:
-            rtn_delta_list_km.append(np.full(6, np.nan))
-            rtn_elapsed_time_list.append(float(elapsed_time[sample_index]))
-            continue
-        rtn_delta_m: np.ndarray = misc.transform_to_rtn(
-            states_m[sample_index],
-            states_m[sample_index - 1],
-        )
-        rtn_delta_list_km.append(rtn_delta_m * KILOMETERS_PER_METER)
-        rtn_elapsed_time_list.append(float(elapsed_time[sample_index]))
-
     rtn_delta_km: np.ndarray
-    if rtn_delta_list_km:
-        rtn_delta_km = np.array(rtn_delta_list_km)
+    if len(states_m) >= 2:
+        rtn_delta_km = np.full((len(states_m) - 1, 6), np.nan)
+        same_segment = segments[1:] == segments[:-1]
+        if np.any(same_segment):
+            rtn_delta_km[same_segment] = (
+                misc.transform_to_rtn(
+                    states_matrix_m[1:][same_segment],
+                    states_matrix_m[:-1][same_segment],
+                )
+                * KILOMETERS_PER_METER
+            )
     else:
         rtn_delta_km = np.empty((0, 6))
 
@@ -411,7 +406,7 @@ def compute_orbit_series(
         velocity_magnitude_km_s=velocity_magnitude_km_s,
         geocentric_distance_km=geocentric_distance_km,
         altitude_km=altitude_km,
-        rtn_elapsed_time=np.array(rtn_elapsed_time_list),
+        rtn_elapsed_time=np.array(elapsed_time[1:], dtype=float),
         rtn_delta_km=rtn_delta_km,
         direction_change_angle_deg=direction_change_angle_deg,
         direction_change_rate_deg_s=direction_change_rate_deg_s,
