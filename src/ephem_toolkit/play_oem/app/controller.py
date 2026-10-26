@@ -912,23 +912,26 @@ class PlayerApp(
         if self._closed:
             return
         current_time_s = time.monotonic()
-        if self._last_frame_monotonic_s is None or not self.clock.playing:
+        if not self.clock.playing:
             self._last_frame_monotonic_s = current_time_s
-        else:
-            elapsed_s = current_time_s - self._last_frame_monotonic_s
-            # Count elapsed frame periods and carry the remainder forward. A
-            # slow redraw advances through missed periods once, then draws once.
-            frames_due = math.floor(
-                elapsed_s * self._render_rate_fps + FRAME_COUNT_EPSILON
-            )
-            if frames_due > 0:
-                frame_time_s = frames_due / self._render_rate_fps
-                self._last_frame_monotonic_s += frame_time_s
-                self._in_timer_tick = True
-                try:
-                    self.clock.tick(frame_time_s)
-                finally:
-                    self._in_timer_tick = False
+            return
+        if self._last_frame_monotonic_s is None:
+            self._last_frame_monotonic_s = current_time_s
+            return
+        elapsed_s = current_time_s - self._last_frame_monotonic_s
+        # Count elapsed frame periods and carry the remainder forward. A
+        # slow redraw advances through missed periods once, then draws once.
+        frames_due = math.floor(
+            elapsed_s * self._render_rate_fps + FRAME_COUNT_EPSILON
+        )
+        if frames_due > 0:
+            frame_time_s = frames_due / self._render_rate_fps
+            self._last_frame_monotonic_s += frame_time_s
+            self._in_timer_tick = True
+            try:
+                self.clock.tick(frame_time_s)
+            finally:
+                self._in_timer_tick = False
         self._update_time_display()
 
     def _set_render_rate_fps(self, render_rate_fps: int) -> None:

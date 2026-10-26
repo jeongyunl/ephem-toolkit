@@ -117,6 +117,12 @@ class _OpenView:
     range_initialized: bool = False
     """Whether the current effective range has been sent to this view."""
 
+    applied_range: ResolvedTimeRange | None = None
+    """Effective range last applied to this view, including an empty range."""
+
+    applied_coverage: tuple[float, float] | None = None
+    """OEM coverage last applied alongside the effective range."""
+
     pending_time_s: float | None = None
     """Latest playback time deferred while this panel is hidden."""
 

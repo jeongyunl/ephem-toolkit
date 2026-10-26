@@ -8,6 +8,9 @@ TIMELINE_SLIDER_MAX: int = 10_000
 GRAPH_REDRAW_INTERVAL_MS: int = 33
 """Minimum spacing between scheduled visible graph-panel redraws (milliseconds)."""
 
+GRAPH_SCROLL_SETTLE_MS: int = 120
+"""Wait for a stack scroll gesture to pause before refreshing its graphs."""
+
 MIN_GRAPH_PANE_WIDTH: int = 320
 """Minimum width for either side of the graph-stack splitter."""
 

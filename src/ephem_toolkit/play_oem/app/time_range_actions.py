@@ -119,8 +119,14 @@ class TimeRangeActionsMixin:
                 opened.pending_time_s = selected_time
                 continue
             setter = getattr(opened.view, "set_time_range", None)
-            if callable(setter):
+            if callable(setter) and (
+                not opened.range_initialized
+                or opened.applied_range != resolved
+                or opened.applied_coverage != coverage
+            ):
                 setter(resolved, coverage)
+                opened.applied_range = resolved
+                opened.applied_coverage = coverage
             opened.range_initialized = True
             opened.view.update(selected_time)
             consume = getattr(opened.view, "consume_cursor_only_update", None)
@@ -156,8 +162,15 @@ class TimeRangeActionsMixin:
             self.clock.t_now,
         )
         setter = getattr(opened.view, "set_time_range", None)
-        if callable(setter):
-            setter(resolved, (self.clock.t_start, self.clock.t_end))
+        coverage = (self.clock.t_start, self.clock.t_end)
+        if callable(setter) and (
+            not opened.range_initialized
+            or opened.applied_range != resolved
+            or opened.applied_coverage != coverage
+        ):
+            setter(resolved, coverage)
+            opened.applied_range = resolved
+            opened.applied_coverage = coverage
         opened.range_initialized = True
         opened.view.update(self.clock.t_now)
         opened.pending_time_s = None

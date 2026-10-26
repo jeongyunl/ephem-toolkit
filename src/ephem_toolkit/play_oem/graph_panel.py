@@ -80,7 +80,7 @@ class _RedrawThrottle:
 def _figure_layout(figure: Figure) -> tuple[object, ...]:
     """Return the geometry and view limits that a cached cursor background depends on."""
     return (
-        tuple(figure.bbox.bounds),
+        tuple(getattr(figure, "bbox").bounds),
         tuple((axes.get_xlim(), axes.get_ylim()) for axes in figure.axes),
     )
 
@@ -96,7 +96,7 @@ class _CursorBlitter:
 
     def capture(self) -> None:
         """Cache the just-drawn figure without animated cursors, then draw them."""
-        figure = self._canvas.figure
+        figure = _canvas_figure(self._canvas)
         self._background = None
         if self._canvas.is_saving():
             return
@@ -108,18 +108,18 @@ class _CursorBlitter:
         )
         if not self._animated:
             return
-        self._background = self._canvas.copy_from_bbox(figure.bbox)
+        self._background = self._canvas.copy_from_bbox(getattr(figure, "bbox"))
         self._layout = _figure_layout(figure)
         self._draw_animated()
 
     def redraw(self) -> bool:
         """Blit moved cursors over the cached background; False means a full draw is needed."""
-        figure = self._canvas.figure
+        figure = _canvas_figure(self._canvas)
         if self._background is None or _figure_layout(figure) != self._layout:
             return False
         self._canvas.restore_region(self._background)
         self._draw_animated()
-        self._canvas.blit(figure.bbox)
+        self._canvas.blit(getattr(figure, "bbox"))
         return True
 
     def _draw_animated(self) -> None:
@@ -450,10 +450,14 @@ class GraphPanelHost(wx.Panel):
 
     def _on_show(self, event: wx.ShowEvent) -> None:
         if event.IsShown():
-            if self._on_show_callback is not None:
-                self._on_show_callback()
-            self.request_redraw()
+            self.notify_viewport_visible()
         event.Skip()
+
+    def notify_viewport_visible(self) -> None:
+        """Synchronize deferred view data when this host enters the viewport."""
+        if self._on_show_callback is not None:
+            self._on_show_callback()
+        self.request_redraw()
 
     def _disable_constrained_layout(self, event: DrawEvent) -> None:
         if self._uses_constrained_layout:

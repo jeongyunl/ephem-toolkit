@@ -848,6 +848,8 @@ class GroundStationPassesView:
     def set_time_range(
         self, bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
     ) -> None:
+        if self._time_range_applied and bounds == self._time_range_bounds:
+            return
         self._time_range_bounds = bounds
         self._time_range_applied = True
         self._refresh_rows()

@@ -79,6 +79,11 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             "middle": [],
             "right": [],
         }
+        self._visible_graph_panels: set[GraphPanelHost] = set()
+        self._graph_scroll_timers: dict[str, wx.CallLater | None] = {
+            "middle": None,
+            "right": None,
+        }
         self._pending_graph_redraws: deque[GraphPanelHost] = deque()
         self._queued_graph_redraws: set[GraphPanelHost] = set()
         self._graph_redraw_timer: wx.CallLater | None = None
@@ -466,5 +471,9 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             if self._graph_redraw_timer.IsRunning():
                 self._graph_redraw_timer.Stop()
             self._graph_redraw_timer = None
+        for timer in self._graph_scroll_timers.values():
+            if timer is not None and timer.IsRunning():
+                timer.Stop()
+        self._graph_scroll_timers = {"middle": None, "right": None}
         self._pending_graph_redraws.clear()
         self._queued_graph_redraws.clear()

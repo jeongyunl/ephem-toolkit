@@ -334,7 +334,6 @@ class ControlWindow:
             CursorStatus.GAP: "data gap; no state available",
         }[state.status]
         self.state_cursor_status_label.SetLabel(f"Cursor status: {status}")
-        self._fit_state_content()
 
     def update_active_interpolation(self, summary: str) -> None:
         """Display the effective interpolation strategy and its source."""

@@ -11,6 +11,7 @@ import wx
 from ..graph_panel import GRAPH_PANEL_MIN_SIZE, GraphPanelHost
 from .constants import (
     GRAPH_REDRAW_INTERVAL_MS,
+    GRAPH_SCROLL_SETTLE_MS,
     MAX_NATURAL_GRAPH_PANEL_HEIGHT,
     MIN_GRAPH_PANEL_HEIGHT,
     MIN_GRAPH_PANE_WIDTH,
@@ -29,6 +30,8 @@ class _GraphStackState(Protocol):
     _graph_panel_heights: dict[GraphPanelHost, int]
     _graph_panels: dict[str, list[GraphPanelHost]]
     _graph_redraw_timer: wx.CallLater | None
+    _visible_graph_panels: set[GraphPanelHost]
+    _graph_scroll_timers: dict[str, wx.CallLater | None]
     _on_add_graph: Callable[[str], None] | None
     _pane_close_buttons: dict[str, wx.Button]
     _pending_graph_redraws: deque[GraphPanelHost]
@@ -68,7 +71,9 @@ class _GraphStackState(Protocol):
         self, stack: str, splitter: wx.SplitterWindow, event: wx.SplitterEvent
     ) -> None: ...
 
-    def _on_stack_scroll(self, event: wx.ScrollWinEvent) -> None: ...
+    def _on_stack_scroll(self, stack: str, event: wx.ScrollWinEvent) -> None: ...
+
+    def _flush_visible_graph_redraws(self, stack: str) -> None: ...
 
     def _on_stack_size(self, stack: str, event: wx.SizeEvent) -> None: ...
 
@@ -208,6 +213,7 @@ class GraphStackMixin:
         self._detach_stack_bottom_padding(stack)
         self._remove_panel_from_stack_tree(stack, panel)
         self._graph_panels[stack].remove(panel)
+        self._visible_graph_panels.discard(panel)
         self._graph_panel_heights.pop(panel, None)
         if panel in self._queued_graph_redraws:
             self._pending_graph_redraws = deque(
@@ -266,6 +272,7 @@ class GraphStackMixin:
             old_panel.Reparent(window.GetParent())
 
         panels[panels.index(old_panel)] = new_panel
+        self._visible_graph_panels.discard(old_panel)
         self._graph_panel_heights[new_panel] = self._graph_panel_heights.pop(
             old_panel, old_panel.GetSize().height
         )
@@ -320,9 +327,17 @@ class GraphStackMixin:
             self.add_graph_panel(existing_panel, stack)
 
     def request_visible_graph_redraws(self: _GraphStackState) -> None:
-        """Redraw graph hosts that are visible after a stack scroll."""
-        self._request_stack_redraws("middle")
-        self._request_stack_redraws("right")
+        """Refresh graphs only when they enter a stack's visible viewport."""
+        visible_panels = {
+            panel
+            for panels in self._graph_panels.values()
+            for panel in panels
+            if self.is_graph_panel_visible(panel)
+        }
+        newly_visible = visible_panels - self._visible_graph_panels
+        self._visible_graph_panels = visible_panels
+        for panel in newly_visible:
+            panel.notify_viewport_visible()
 
     def queue_graph_redraw(self: _GraphStackState, panel: GraphPanelHost) -> None:
         """Queue one visible panel for the shared redraw budget."""
@@ -350,6 +365,24 @@ class GraphStackMixin:
 
     def is_graph_panel_visible(self: _GraphStackState, panel: GraphPanelHost) -> bool:
         """Check whether a graph host intersects its scroll stack's viewport."""
+        # A queued redraw can outlive the native wx window (for example while
+        # deferred destruction is being processed). Check the native window
+        # before making further calls on a wrapper that may outlive it.
+        try:
+            if panel.IsBeingDeleted():
+                return False
+        except RuntimeError:
+            # wxPython keeps the Python wrapper reachable after wxWidgets has
+            # deleted its native window; calls through that wrapper then fail.
+            return False
+        if not any(panel in panels for panels in self._graph_panels.values()):
+            return False
+        stack = next(
+            stack for stack, panels in self._graph_panels.items() if panel in panels
+        )
+        scroll_timer = self._graph_scroll_timers[stack]
+        if scroll_timer is not None and scroll_timer.IsRunning():
+            return False
         if not panel.IsShownOnScreen():
             return False
         stack_window = next(
@@ -779,7 +812,10 @@ class GraphStackMixin:
         )
         bottom_resize_handle.Hide()
         stack_scroller.SetSizer(stack_sizer)
-        stack_scroller.Bind(wx.EVT_SCROLLWIN, self._on_stack_scroll)
+        stack_scroller.Bind(
+            wx.EVT_SCROLLWIN,
+            lambda event, stack=stack: self._on_stack_scroll(stack, event),
+        )
         stack_scroller.Bind(
             wx.EVT_SIZE,
             lambda event, stack=stack: self._on_stack_size(stack, event),
@@ -812,6 +848,21 @@ class GraphStackMixin:
                 GRAPH_REDRAW_INTERVAL_MS, self._draw_next_graph_panel
             )
 
-    def _on_stack_scroll(self: _GraphStackState, event: wx.ScrollWinEvent) -> None:
-        self.request_visible_graph_redraws()
+    def _on_stack_scroll(
+        self: _GraphStackState, stack: str, event: wx.ScrollWinEvent
+    ) -> None:
         event.Skip()
+        timer = self._graph_scroll_timers[stack]
+        if timer is not None and timer.IsRunning():
+            timer.Stop()
+        self._visible_graph_panels.clear()
+        self._graph_scroll_timers[stack] = wx.CallLater(
+            GRAPH_SCROLL_SETTLE_MS,
+            lambda stack=stack: self._flush_visible_graph_redraws(stack),
+        )
+
+    def _flush_visible_graph_redraws(
+        self: _GraphStackState, stack: str
+    ) -> None:
+        self._graph_scroll_timers[stack] = None
+        self.request_visible_graph_redraws()
