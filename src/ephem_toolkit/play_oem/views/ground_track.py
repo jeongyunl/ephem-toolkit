@@ -280,6 +280,9 @@ class GroundTrackView:
         self._station_labels_control = station_labels
         self._station_choice = station_choice
         compact_controls((projection, background, center, minimum))
+        # compact_controls gives Choice controls the shared 24-DIP minimum;
+        # use that explicit height instead of the larger native best size.
+        control_height = projection.GetMinSize().height
         self._center_control = center
         self._minimum_control = minimum
         controls = wx.BoxSizer(wx.HORIZONTAL)
@@ -311,28 +314,38 @@ class GroundTrackView:
             4,
         )
         controls.Add(minimum, 0)
-        controls.AddSpacer(8)
-        controls.Add(station_layer, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
-        controls.Add(station_labels, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
-        controls.Add(
-            wx.StaticText(controls_panel, label="Selected station"),
-            0,
-            wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
-            4,
-        )
-        controls.Add(station_choice, 0)
         navigation = wx.BoxSizer(wx.HORIZONTAL)
         reset_view = wx.Button(
             controls_panel, label=" Reset view ", style=wx.BU_EXACTFIT
         )
         zoom_in = wx.Button(controls_panel, label="+", style=wx.BU_EXACTFIT)
         zoom_out = wx.Button(controls_panel, label="−", style=wx.BU_EXACTFIT)
-        compact_controls((reset_view, zoom_in, zoom_out))
-        for button in (reset_view, zoom_in, zoom_out):
+        navigation_buttons = (reset_view, zoom_in, zoom_out)
+        station_controls = (station_layer, station_labels, station_choice)
+        navigation_controls = (*navigation_buttons, *station_controls)
+        compact_controls(navigation_controls)
+        for button in navigation_buttons:
             button.SetMinSize(
-                wx.Size(max(button.FromDIP(24), button.GetBestSize().width), -1)
+                wx.Size(
+                    max(button.FromDIP(24), button.GetBestSize().width),
+                    control_height,
+                )
             )
             navigation.Add(button, 0, wx.RIGHT, 4)
+        for control in station_controls:
+            control.SetMinSize(wx.Size(-1, control_height))
+        for control in navigation_controls:
+            control.SetMaxSize(wx.Size(-1, control_height))
+        navigation.AddSpacer(8)
+        navigation.Add(station_layer, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+        navigation.Add(station_labels, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+        navigation.Add(
+            wx.StaticText(controls_panel, label="Selected station"),
+            0,
+            wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+            4,
+        )
+        navigation.Add(station_choice, 0, wx.ALIGN_CENTER_VERTICAL)
         controls_sizer = wx.BoxSizer(wx.VERTICAL)
         controls_sizer.Add(controls, 0, wx.LEFT | wx.RIGHT | wx.TOP, 2)
         controls_sizer.AddSpacer(2)

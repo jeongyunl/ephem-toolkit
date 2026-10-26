@@ -35,8 +35,13 @@ def _gtk_style() -> tuple[ctypes.CDLL, int]:
     provider = gtk.gtk_css_provider_new()
     gtk.gtk_css_provider_load_from_data(
         provider,
-        b".ephem-ground-track-compact, .ephem-ground-track-compact * "
-        b"{ min-height: 20px; min-width: 0; padding: 0 4px; }",
+        b".ephem-ground-track-compact "
+        b"{ min-height: 20px; min-width: 0; padding: 0 4px; }\n"
+        b".ephem-ground-track-compact * { padding: 0 4px; }\n"
+        b".ephem-ground-track-compact check "
+        b"{ min-width: 14px; min-height: 14px; padding: 0; }\n"
+        b".ephem-ground-track-compact-check "
+        b"{ -GtkCheckButton-indicator-size: 14; }",
         -1,
         None,
     )
@@ -54,6 +59,10 @@ def compact_controls(controls: tuple[wx.Window, ...]) -> None:
     for control in controls:
         context = gtk.gtk_widget_get_style_context(int(control.GetGtkWidget()))
         gtk.gtk_style_context_add_class(context, b"ephem-ground-track-compact")
+        if isinstance(control, wx.CheckBox):
+            gtk.gtk_style_context_add_class(
+                context, b"ephem-ground-track-compact-check"
+            )
         control.InvalidateBestSize()
         if isinstance(control, wx.Choice):
             # wx caches the default combo height despite the smaller GTK padding.
