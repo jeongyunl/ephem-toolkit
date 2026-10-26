@@ -5,19 +5,21 @@ from __future__ import annotations
 from collections.abc import Callable
 import math
 import time
-from typing import cast
+from typing import Any, cast
 from uuid import uuid4
 
 import wx
 
 from .tooltips import set_tooltip, suppress_tooltips
 
+from matplotlib.axes import Axes
 from matplotlib.backend_bases import DrawEvent
 from matplotlib.backends.backend_wxagg import (
     FigureCanvasWxAgg,
     NavigationToolbar2WxAgg,
 )
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
 
 MATPLOTLIB_REDRAW_INTERVAL_S: float = 0.033
 """Minimum interval between requested Matplotlib redraws per graph panel."""
@@ -75,6 +77,56 @@ class _RedrawThrottle:
         self._draw()
 
 
+def _figure_layout(figure: Figure) -> tuple[object, ...]:
+    """Return the geometry and view limits that a cached cursor background depends on."""
+    return (
+        tuple(figure.bbox.bounds),
+        tuple((axes.get_xlim(), axes.get_ylim()) for axes in figure.axes),
+    )
+
+
+class _CursorBlitter:
+    """Refresh animated cursors over a cached background instead of a full draw."""
+
+    def __init__(self, canvas: FigureCanvasWxAgg) -> None:
+        self._canvas = canvas
+        self._animated: tuple[tuple[Axes, Line2D], ...] = ()
+        self._background: Any = None
+        self._layout: tuple[object, ...] | None = None
+
+    def capture(self) -> None:
+        """Cache the just-drawn figure without animated cursors, then draw them."""
+        figure = self._canvas.figure
+        self._background = None
+        if self._canvas.is_saving():
+            return
+        self._animated = tuple(
+            (axes, line)
+            for axes in figure.axes
+            for line in axes.lines
+            if line.get_animated()
+        )
+        if not self._animated:
+            return
+        self._background = self._canvas.copy_from_bbox(figure.bbox)
+        self._layout = _figure_layout(figure)
+        self._draw_animated()
+
+    def redraw(self) -> bool:
+        """Blit moved cursors over the cached background; False means a full draw is needed."""
+        figure = self._canvas.figure
+        if self._background is None or _figure_layout(figure) != self._layout:
+            return False
+        self._canvas.restore_region(self._background)
+        self._draw_animated()
+        self._canvas.blit(figure.bbox)
+        return True
+
+    def _draw_animated(self) -> None:
+        for axes, line in self._animated:
+            axes.draw_artist(line)
+
+
 class GraphPanelHost(wx.Panel):
     """Host one graph panel with independently scrollable content."""
 
@@ -103,6 +155,10 @@ class GraphPanelHost(wx.Panel):
         self._on_redraw_request = on_redraw_request
         self._on_show_callback = on_show
         self._redraw_throttle: _RedrawThrottle | None = None
+        self._cursor_blitter: _CursorBlitter | None = None
+        self._cursor_redraw_requested = False
+        self._full_redraw_requested = False
+        self._full_draw_scheduled = False
         self._canvas: FigureCanvasWxAgg | None = None
         self._toolbar: NavigationToolbar2WxAgg | None = None
         self._native_content: wx.Window | None = None
@@ -227,7 +283,9 @@ class GraphPanelHost(wx.Panel):
         self._canvas = canvas
         # Keep both references to measure the full plot height, including its toolbar.
         self._toolbar = toolbar
-        self._redraw_throttle = _RedrawThrottle(self._is_visible, canvas.draw_idle)
+        self._redraw_throttle = _RedrawThrottle(self._is_visible, self._flush_redraw)
+        self._cursor_blitter = _CursorBlitter(canvas)
+        canvas.mpl_connect("draw_event", self._on_canvas_draw)
         if _canvas_figure(canvas).get_layout_engine() is not None:
             self._uses_constrained_layout = True
             canvas.mpl_connect("draw_event", self._disable_constrained_layout)
@@ -330,21 +388,54 @@ class GraphPanelHost(wx.Panel):
 
     def request_redraw(self) -> None:
         """Coalesce redraw requests and defer work for hidden or off-screen panels."""
+        self.mark_redraw()
         if self._on_redraw_request is not None:
             self._on_redraw_request(self)
         else:
             self.draw_if_needed()
 
+    def mark_redraw(self, *, cursor_only: bool = False) -> None:
+        """Record the kind of the next redraw; full redraws are the default."""
+        if cursor_only:
+            self._cursor_redraw_requested = True
+        else:
+            self._full_redraw_requested = True
+
     def draw_if_needed(self) -> None:
         """Request a throttled canvas redraw after workspace scheduling."""
         if self._on_redraw_request is not None:
             if self._canvas is not None and self._is_visible():
-                self._canvas.draw_idle()
+                self._flush_redraw()
             elif self._native_content is not None and self._is_visible():
                 self._native_content.Refresh()
             return
         if self._redraw_throttle is not None:
             self._redraw_throttle.request()
+
+    def _flush_redraw(self) -> None:
+        """Blit cursor-only changes when safe; otherwise schedule a full canvas draw."""
+        if self._canvas is None:
+            return
+        cursor_only = (
+            self._cursor_redraw_requested
+            and not self._full_redraw_requested
+            and not self._full_draw_scheduled
+        )
+        self._cursor_redraw_requested = False
+        self._full_redraw_requested = False
+        if (
+            cursor_only
+            and self._cursor_blitter is not None
+            and self._cursor_blitter.redraw()
+        ):
+            return
+        self._full_draw_scheduled = True
+        self._canvas.draw_idle()
+
+    def _on_canvas_draw(self, _event: DrawEvent) -> None:
+        self._full_draw_scheduled = False
+        if self._cursor_blitter is not None:
+            self._cursor_blitter.capture()
 
     def draw_initial(self) -> None:
         """Render visible content once so playback starts after first-layout work."""

@@ -6,7 +6,10 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from typing import cast
 
+import numpy as np
 import pytest
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+from matplotlib.figure import Figure
 
 from ephem_toolkit.play_oem import graph_panel
 
@@ -225,3 +228,75 @@ def test_selector_wheel_scrolls_stack_without_propagating_to_choice() -> None:
 
     assert outer_stack.scroll_calls == [(0, 3)]
     assert not event.skipped
+
+
+class _BlitCanvas(FigureCanvasAgg):
+    """Agg canvas that accepts blits, so the cursor path runs without wx."""
+
+    def blit(self, bbox=None) -> None:
+        return None
+
+
+def test_cursor_blit_matches_full_draw_and_detects_layout_changes():
+    figure = Figure(figsize=(4, 3), dpi=100)
+    axes = figure.add_subplot(111)
+    axes.plot([0.0, 1.0, 2.0], [0.0, 1.0, 0.0])
+    cursor = axes.axvline(0.0, animated=True)
+    canvas = _BlitCanvas(figure)
+    blitter = graph_panel._CursorBlitter(canvas)
+    canvas.mpl_connect("draw_event", lambda _event: blitter.capture())
+    canvas.draw()
+
+    cursor.set_xdata([1.5, 1.5])
+    assert blitter.redraw()
+    blitted = np.asarray(canvas.buffer_rgba()).copy()
+
+    canvas.draw()
+    np.testing.assert_array_equal(blitted, np.asarray(canvas.buffer_rgba()))
+
+    axes.set_xlim(0.0, 3.0)
+    assert not blitter.redraw()
+
+
+def test_flush_redraw_blits_only_cursor_requests_without_pending_full_draw():
+    calls: list[str] = []
+
+    class FakeBlitter:
+        def __init__(self, succeeds: bool) -> None:
+            self.succeeds = succeeds
+
+        def redraw(self) -> bool:
+            calls.append("blit")
+            return self.succeeds
+
+    canvas = SimpleNamespace(draw_idle=lambda: calls.append("draw_idle"))
+    panel = SimpleNamespace(
+        _canvas=canvas,
+        _cursor_blitter=FakeBlitter(True),
+        _cursor_redraw_requested=True,
+        _full_redraw_requested=False,
+        _full_draw_scheduled=False,
+    )
+    flush = graph_panel.GraphPanelHost._flush_redraw
+
+    flush(panel)
+    assert calls == ["blit"]
+
+    calls.clear()
+    panel._full_redraw_requested = True
+    flush(panel)
+    assert calls == ["draw_idle"]
+    assert panel._full_draw_scheduled
+
+    calls.clear()
+    panel._full_redraw_requested = False
+    panel._cursor_redraw_requested = True
+    flush(panel)
+    assert calls == ["draw_idle"]
+
+    calls.clear()
+    panel._full_draw_scheduled = False
+    panel._cursor_blitter = FakeBlitter(False)
+    panel._cursor_redraw_requested = True
+    flush(panel)
+    assert calls == ["blit", "draw_idle"]

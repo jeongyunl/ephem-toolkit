@@ -111,13 +111,20 @@ class TimeRangeActionsMixin:
                 setter(resolved, coverage)
             opened.range_initialized = True
             opened.view.update(selected_time)
-            self._queue_time_range_redraw(opened.panel)
+            consume = getattr(opened.view, "consume_cursor_only_update", None)
+            cursor_only = bool(consume()) if callable(consume) else False
+            self._queue_time_range_redraw(opened.panel, cursor_only=cursor_only)
 
     def _is_time_range_panel_visible(self: PlayerAppState, panel: object) -> bool:
         checker = getattr(self.workspace, "is_graph_panel_visible", None)
         return bool(checker(panel)) if callable(checker) else True
 
-    def _queue_time_range_redraw(self: PlayerAppState, panel: object) -> None:
+    def _queue_time_range_redraw(
+        self: PlayerAppState, panel: object, *, cursor_only: bool = False
+    ) -> None:
+        mark = getattr(panel, "mark_redraw", None)
+        if callable(mark):
+            mark(cursor_only=cursor_only)
         queue = getattr(self.workspace, "queue_graph_redraw", None)
         if callable(queue):
             queue(panel)

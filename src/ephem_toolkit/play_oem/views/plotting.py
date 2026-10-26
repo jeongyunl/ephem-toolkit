@@ -43,6 +43,8 @@ class SegmentedPlotHistory:
         self.max_display_points = max_display_points
         self.empty_label = empty_label
         self._runs: list[tuple[int, int, Line2D]] = []
+        self._last_update_key: tuple[tuple[float, float] | None, bool] | None = None
+        self._last_selected_any = False
         self._empty_text = axes.text(
             0.5, 0.5, empty_label, ha="center", va="center", transform=axes.transAxes
         )
@@ -94,6 +96,14 @@ class SegmentedPlotHistory:
         Returns true when at least one source sample is selected. Passing None
         clears every data artist and shows the empty-intersection label.
         """
+        # Sample arrays never change after construction, so the same bounds
+        # always produce the same artists; skip the decimation work.
+        update_key = (
+            None if bounds is None else (float(bounds[0]), float(bounds[1])),
+            empty_range,
+        )
+        if update_key == self._last_update_key:
+            return self._last_selected_any
         if bounds is None:
             lower_index = upper_index = 0
         else:
@@ -119,6 +129,8 @@ class SegmentedPlotHistory:
             selected_any = True
         self._empty_text.set_visible(not selected_any and not empty_range)
         self._empty_range_text.set_visible(empty_range)
+        self._last_update_key = update_key
+        self._last_selected_any = selected_any
         return selected_any
 
 

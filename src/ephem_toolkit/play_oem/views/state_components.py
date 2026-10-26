@@ -28,6 +28,7 @@ class StateComponentsView(TimeRangeSupport):
     """Plot X/Y/Z position and VX/VY/VZ velocity histories."""
 
     name: str = "state-components"
+    animated_cursor_updates: bool = True
 
     @property
     def cursor_artists(self) -> tuple[Line2D, ...]:
@@ -132,6 +133,7 @@ class StateComponentsView(TimeRangeSupport):
                     0.0,
                     color=CURSOR_LINE_COLOR,
                     linestyle="--",
+                    animated=True,
                 )
             )
             cursor_artists.append(
@@ -139,6 +141,7 @@ class StateComponentsView(TimeRangeSupport):
                     0.0,
                     color=CURSOR_LINE_COLOR,
                     linestyle="--",
+                    animated=True,
                 )
             )
 

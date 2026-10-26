@@ -7,6 +7,7 @@ import pytest
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 from ephem_toolkit.play_oem.series import compute_orbit_series
+from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.state_components import StateComponentsView
 
@@ -61,4 +62,19 @@ def test_state_components_view_builds_six_labeled_plots_and_synchronized_cursors
     assert not figure.axes
     with pytest.raises(RuntimeError, match="not been built"):
         view.update(160.0)
+
+
+def test_cursor_only_update_ignores_range_changes():
+    series = make_series()
+    view = StateComponentsView(100.0, "GCRF / Earth")
+    view.build(series, TimeUnit.MINUTES)
+    view.set_time_range(ResolvedTimeRange(100.0, 220.0), (100.0, 220.0))
+    assert view.consume_cursor_only_update() is False
+
+    view.update(160.0)
+    assert view.consume_cursor_only_update() is True
+
+    view.set_time_range(ResolvedTimeRange(100.0, 160.0), (100.0, 220.0))
+    assert view.consume_cursor_only_update() is False
+    view.close()
 

@@ -45,6 +45,9 @@ class View(Protocol):
 class TimeRangeSupport:
     """Shared time-axis, range filtering, and cursor-visibility behavior."""
 
+    # Views whose per-tick update changes only animated cursor artists.
+    animated_cursor_updates: bool = False
+
     def _configure_time_range(
         self,
         axes: tuple[Axes, ...],
@@ -63,6 +66,7 @@ class TimeRangeSupport:
         self._last_cursor_time_s = start_time_s
         self._range_applied = False
         self._range_active = False
+        self._range_changed = True
         self._setting_shared_xlim = False
         self._range_xlim_callbacks = [
             (
@@ -97,6 +101,8 @@ class TimeRangeSupport:
     ) -> None:
         if not hasattr(self, "_range_axes"):
             return
+        if bounds != self._range_bounds or coverage != self._range_coverage:
+            self._range_changed = True
         self._range_bounds = bounds
         self._range_coverage = coverage
         self._range_applied = True
@@ -127,6 +133,16 @@ class TimeRangeSupport:
             self._set_cursor_visibility(self._last_cursor_time_s)
         # Keep the current vertical zoom. Home on the navigation toolbar returns
         # to its captured full-data limits; this explicit hook serves other UIs.
+
+    def consume_cursor_only_update(self) -> bool:
+        """Return whether the time range is unchanged since the previous call.
+
+        Callers pair this with a cursor ``update``; a True result means the only
+        change was to animated cursors, so a cached background can be reused.
+        """
+        range_changed = self._range_changed
+        self._range_changed = False
+        return self.animated_cursor_updates and not range_changed
 
     def restore_full_y_limits(self) -> None:
         """Restore build-time full-history Y bounds without changing shared X."""

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 from matplotlib.figure import Figure
 
+from ephem_toolkit.play_oem.views import plotting
 from ephem_toolkit.play_oem.views.plotting import (
     MAX_DISPLAY_POINTS_PER_SEGMENT,
+    SegmentedPlotHistory,
     decimate_indices,
     plot_segments,
 )
@@ -61,6 +64,39 @@ def test_decimation_matches_reference_for_ties_nans_and_columns() -> None:
             decimate_indices(values, maximum),
             _reference_decimate_indices(values, maximum),
         )
+
+
+def test_history_skips_decimation_when_range_is_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    x = np.linspace(0.0, 100.0, 10_000)
+    y = np.sin(x / 10.0)
+    segment_ids = np.zeros(len(x), dtype=int)
+    axes = Figure().subplots()
+    real_decimate = plotting.decimate_indices
+    calls: list[int] = []
+
+    def counting_decimate(values: np.ndarray, maximum: int) -> np.ndarray:
+        calls.append(len(values))
+        return real_decimate(values, maximum)
+
+    monkeypatch.setattr(plotting, "decimate_indices", counting_decimate)
+    history = SegmentedPlotHistory(axes, x, y, segment_ids)
+    constructed_calls = len(calls)
+
+    assert history.update((10.0, 50.0))
+    after_first = len(calls)
+    assert after_first > constructed_calls
+    line_x = history.artists[0].get_xdata().copy()
+
+    assert history.update((10.0, 50.0))
+    assert len(calls) == after_first
+    np.testing.assert_array_equal(history.artists[0].get_xdata(), line_x)
+
+    assert history.update((20.0, 60.0))
+    assert len(calls) > after_first
+    assert not history.update(None, empty_range=True)
+    assert not history.update(None, empty_range=True)
 
 
 def test_plot_segments_keeps_gap_and_decimates_only_display_arrays() -> None:
