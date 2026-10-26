@@ -163,6 +163,60 @@ class _RangeGrip(wx.Control):
             event.Skip()
 
 
+class _SeekGrip(wx.Control):
+    """Input target for the central current-time marker."""
+
+    def __init__(self, parent: wx.Window, slider: TimeRangeSlider) -> None:
+        super().__init__(parent, wx.ID_ANY, style=wx.WANTS_CHARS | wx.TAB_TRAVERSAL)
+        self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
+        self.slider = slider
+        self.SetName("Current playback time marker")
+        self.Bind(wx.EVT_PAINT, self._paint)
+        self.Bind(wx.EVT_LEFT_DOWN, self._down)
+        self.Bind(wx.EVT_LEFT_UP, self._up)
+        self.Bind(wx.EVT_MOTION, self._motion)
+        self.Bind(wx.EVT_MOUSE_CAPTURE_LOST, self._capture_lost)
+        self._dragging = False
+
+    def _paint(self, _event: wx.PaintEvent) -> None:
+        dc = wx.AutoBufferedPaintDC(self)
+        background = self.slider.GetBackgroundColour()
+        dc.SetBackground(wx.Brush(background))
+        dc.Clear()
+        width, height = self.GetClientSize()
+        dc.SetPen(wx.Pen(wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT), 2))
+        dc.SetBrush(wx.Brush(background))
+        dc.DrawCircle(width // 2, height // 2, 6)
+
+    def _down(self, event: wx.MouseEvent) -> None:
+        if not self.slider.IsEnabled():
+            return
+        self.slider.SetFocus()
+        self._dragging = True
+        if not self.HasCapture():
+            self.CaptureMouse()
+        self.slider._seek_from_grip(self, event.GetPosition())
+
+    def _up(self, _event: wx.MouseEvent) -> None:
+        self._dragging = False
+        if self.HasCapture():
+            self.ReleaseMouse()
+
+    def _motion(self, event: wx.MouseEvent) -> None:
+        if (
+            self.slider.IsEnabled()
+            and self._dragging
+            and event.Dragging()
+            and event.LeftIsDown()
+        ):
+            self.slider._seek_from_grip(self, event.GetPosition())
+        event.Skip()
+
+    def _capture_lost(self, event: wx.MouseCaptureLostEvent) -> None:
+        self._dragging = False
+        event.Skip()
+
+
 class TimeRangeSlider(wx.Control):
     """A portable painted seek slider with playback and plot range grips."""
 
@@ -204,6 +258,8 @@ class TimeRangeSlider(wx.Control):
         self._plot_rule: time_range.PlotTimeRange | None = None
         self._now = 0.0
         self._grips: dict[str, _RangeGrip] = {}
+        self._seek_grip = _SeekGrip(self.GetParent(), self)
+        self._seek_grip.Hide()
         self._dragging = False
         self.Bind(wx.EVT_PAINT, self._paint_track)
         self.Bind(wx.EVT_LEFT_DOWN, self._left_down)
@@ -219,6 +275,7 @@ class TimeRangeSlider(wx.Control):
             grip = _RangeGrip(self.GetParent(), self, name, kind, color)
             grip.Hide()
             self._grips[key] = grip
+        self._seek_grip.Raise()
         self.Bind(wx.EVT_SIZE, self._on_size)
 
     @property
@@ -292,6 +349,10 @@ class TimeRangeSlider(wx.Control):
         width = self.GetClientSize().width
         fraction = min(max((x - 10) / max(1, width - 20), 0.0), 1.0)
         return round(self._minimum + fraction * (self._maximum - self._minimum))
+
+    def _seek_from_grip(self, grip: _SeekGrip, point: wx.Point) -> None:
+        screen_point = grip.ClientToScreen(point)
+        self._set_value_from_user(self._value_at_x(self.ScreenToClient(screen_point).x))
 
     def _set_value_from_user(self, value: int) -> None:
         checked_value = min(max(value, self._minimum), self._maximum)
@@ -395,21 +456,25 @@ class TimeRangeSlider(wx.Control):
         name = "start" if key.endswith("start") else "end"
         assert self._plot_rule is not None
         endpoint = self._plot_rule.start if name == "start" else self._plot_rule.end
-        labels = (
+        labels: tuple[tuple[str, time_range.EndpointMode], ...] = (
             ("Follow playback", "follow"),
             ("Offset from playback", "offset"),
             ("Fixed timepoint", "fixed"),
         )
         menu = wx.Menu()
         try:
+
+            def mode_handler(
+                selected_mode: time_range.EndpointMode,
+            ) -> Callable[[wx.CommandEvent], None]:
+                return lambda _event: self._on_plot_endpoint_mode(name, selected_mode)
+
             for label, mode in labels:
                 item = menu.AppendRadioItem(wx.ID_ANY, label)
                 item.Check(endpoint.mode == mode)
                 menu.Bind(
                     wx.EVT_MENU,
-                    lambda _event, endpoint_name=name, selected_mode=mode: (
-                        self._on_plot_endpoint_mode(endpoint_name, selected_mode)
-                    ),
+                    mode_handler(mode),
                     id=item.GetId(),
                 )
             grip.PopupMenu(menu, position)
@@ -432,8 +497,9 @@ class TimeRangeSlider(wx.Control):
                 _event.Skip()
             return
         width = height = 18
-        playback_grip_y = 39
-        # Keep the two handle rows equally spaced around the native slider track.
+        # Keep endpoint hitboxes clear of the seek marker and mirror them around
+        # the track so each handle has a separate mouse target.
+        playback_grip_y = self.GetClientSize().height // 2 + 9
         centers: list[tuple[str, int]] = [
             (key, self._x_for(self._time_for(key))) for key in self._grips
         ]
@@ -470,13 +536,6 @@ class TimeRangeSlider(wx.Control):
             )
             try:
                 is_playback = key.startswith("playback")
-                if not is_playback:
-                    assert self._plot_rule is not None
-                    endpoint = (
-                        self._plot_rule.start
-                        if key.endswith("start")
-                        else self._plot_rule.end
-                    )
                 utc = time_utils.datetime_to_iso8601(
                     time_utils.tt_s_to_datetime(self._time_for(key)),
                     fractional_second_places=0,
@@ -485,10 +544,27 @@ class TimeRangeSlider(wx.Control):
                     bound = "start" if key.endswith("start") else "end"
                     tooltip = f"Playback {bound}: {utc} UTC"
                 else:
+                    assert self._plot_rule is not None
+                    endpoint = (
+                        self._plot_rule.start
+                        if key.endswith("start")
+                        else self._plot_rule.end
+                    )
                     tooltip = _plot_tooltip_text(grip.GetName(), utc, endpoint.mode)
                 set_tooltip(grip, tooltip)
             except (AttributeError, TypeError, OverflowError, ValueError):
                 set_tooltip(grip, grip.GetName())
+        seek_grip_size = 16
+        self._seek_grip.SetSize((seek_grip_size, seek_grip_size))
+        self._seek_grip.SetPosition(
+            (
+                self.GetPosition().x + self._x_for(self._now) - seek_grip_size // 2,
+                self.GetPosition().y
+                + self.GetClientSize().height // 2
+                - seek_grip_size // 2,
+            )
+        )
+        self._seek_grip.Show()
         if _event is not None:
             _event.Skip()
 
