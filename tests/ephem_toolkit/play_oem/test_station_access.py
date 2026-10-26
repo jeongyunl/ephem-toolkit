@@ -90,8 +90,17 @@ def test_pass_crossings_are_refined_and_clipped_to_coverage() -> None:
     assert interval.start_s == pytest.approx(30.0, abs=2.0)
     assert interval.end_s == pytest.approx(90.0, abs=2.0)
     assert interval.peak_elevation_deg > 50.0
+    assert interval.start_azimuth_deg == pytest.approx(90.0, abs=1e-6)
+    assert interval.end_azimuth_deg == pytest.approx(90.0, abs=1e-6)
+    assert interval.start_elevation_deg == pytest.approx(30.0, abs=1.0)
+    assert interval.end_elevation_deg == pytest.approx(30.0, abs=1.0)
     assert not interval.clipped_at_start
     assert not interval.clipped_at_end
+    profile = access.look_angle_profiles[0]
+    assert np.array_equal(profile.times_s, access.elevation_profiles[0].times_s)
+    assert np.array_equal(profile.elevations_deg, access.elevation_profiles[0].elevations_deg)
+    assert np.isfinite(profile.azimuths_deg).all()
+    assert np.all((profile.azimuths_deg >= 0.0) & (profile.azimuths_deg < 360.0))
     assert MAX_ACCESS_SAMPLE_STEP_S == 30.0
 
 

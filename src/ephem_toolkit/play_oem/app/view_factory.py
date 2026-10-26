@@ -10,6 +10,7 @@ from ..views import (
     direction_change,
     ground_track as ground_track_view,
     ground_station_access as ground_station_access_view,
+    ground_station_passes as ground_station_passes_view,
     rtn,
     speed_altitude,
     state_components,
@@ -85,6 +86,10 @@ class ViewFactoryMixin:
                 saved_ylim=(
                     self._saved_state.ground_track_ylim if self._saved_state else None
                 ),
+                stations=self._ground_stations,
+                on_open_passes=lambda station_id: self.open_ground_station_passes_view(
+                    initial_station_id=station_id
+                ),
                 on_minimum_elevation=self._set_ground_track_minimum_elevation,
             ),
             panel_id=panel_id,
@@ -112,6 +117,52 @@ class ViewFactoryMixin:
                 on_seek=self._seek_from_ground_station_timeline,
                 on_station_manager=self.workspace.select_ground_stations,
                 access_cache=self._station_access_cache,
+            ),
+            panel_id=panel_id,
+            stack=stack,
+            force_replace=force_replace,
+        )
+
+    def open_ground_station_passes_view(
+        self: PlayerAppState,
+        initial_station_id: str | None = None,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None:
+        """Open or focus a pass panel, optionally selecting the requested station."""
+        if panel_id is None:
+            existing = self._open_views.get("ground-station-passes")
+            if existing is not None:
+                if initial_station_id is not None:
+                    select_station = getattr(
+                        existing.view, "select_station_by_id", None
+                    )
+                    if callable(select_station):
+                        select_station(initial_station_id)
+                existing.panel.SetFocus()
+                return
+        elif force_replace and initial_station_id is None:
+            existing_panel = self._open_panels.get(panel_id)
+            if existing_panel is not None:
+                initial_station_id = getattr(
+                    existing_panel.view, "selected_station_id", None
+                )
+
+        self._open_view(
+            "ground-station-passes",
+            lambda panel: ground_station_passes_view.GroundStationPassesView(
+                panel,
+                self._ground_track_source if self._oem_loaded else None,
+                self.cursor,
+                self._ground_stations,
+                self.object_name,
+                oem_loaded=self._oem_loaded,
+                on_seek=self._seek_from_ground_station_timeline,
+                on_focus_pass=self._focus_ground_station_pass,
+                on_station_manager=self.workspace.select_ground_stations,
+                access_cache=self._station_access_cache,
+                initial_station_id=initial_station_id,
             ),
             panel_id=panel_id,
             stack=stack,

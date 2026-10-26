@@ -54,6 +54,18 @@ class TimeRangeActionsMixin:
         self._dispatch_time_range(resolved, self.clock.t_now)
         self._update_time_display()
 
+    def _focus_ground_station_pass(
+        self: PlayerAppState, start_s: float, end_s: float
+    ) -> None:
+        """Set the shared Plot Range to the selected OEM-bounded pass."""
+        self._apply_plot_time_range(
+            time_range.PlotTimeRange(
+                True,
+                time_range.TimeRangeEndpoint("fixed", start_s),
+                time_range.TimeRangeEndpoint("fixed", end_s),
+            )
+        )
+
     def _drag_plot_endpoint(
         self: PlayerAppState, name: str, requested_s: float
     ) -> None:

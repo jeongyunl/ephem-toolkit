@@ -58,8 +58,9 @@
   <rect x="321" y="132" width="158" height="24" rx="4" fill="#edf5ff" stroke="#a9c5e7"/>
   <text class="ink small" x="332" y="148" font-weight="700">Ground Track</text><text class="muted tiny" x="465" y="148">▾</text>
   <text class="muted tiny" x="500" y="148">ISS · OEM interval · paused</text>
-  <rect class="button" x="808" y="132" width="132" height="23" rx="4"/><text class="muted tiny" x="874" y="147" text-anchor="middle">Robinson ▾</text>
-  <rect class="button" x="948" y="132" width="165" height="23" rx="4"/><text class="muted tiny" x="1030" y="147" text-anchor="middle">☑ Ground Stations</text>
+  <rect class="button" x="808" y="132" width="106" height="23" rx="4"/><text class="muted tiny" x="861" y="147" text-anchor="middle">Robinson ▾</text>
+  <rect class="button" x="920" y="132" width="105" height="23" rx="4"/><text class="muted tiny" x="972" y="147" text-anchor="middle">☑ Stations</text>
+  <rect class="button" x="1031" y="132" width="81" height="23" rx="4"/><text class="muted tiny" x="1071" y="147" text-anchor="middle">☐ Labels</text>
   <rect class="button" x="321" y="165" width="792" height="399" rx="6"/>
   <path d="M368 247 Q715 214 1062 247 Q1084 393 1062 538 Q715 571 368 538 Q346 393 368 247Z" fill="#f8fbff" stroke="#aab9ca" stroke-width="1.2"/>
   <g clip-path="url(#map)">
@@ -73,19 +74,20 @@
     <circle class="station" cx="967" cy="455" r="6"/>
   </g>
   <text class="ink tiny" x="552" y="372">North Site</text><text class="ink tiny" x="979" y="450">South Relay</text>
-  <rect x="550" y="380" width="151" height="43" rx="5" fill="#fff" stroke="#9bb5cf"/>
-  <text class="ink tiny" x="559" y="396" font-weight="700">North Site</text><text class="muted tiny" x="559" y="410">Mask 10° · Open Passes ›</text>
   <line x1="335" y1="550" x2="361" y2="550" class="track"/><text class="muted tiny" x="367" y="553">Ground track</text>
   <line x1="451" y1="550" x2="477" y2="550" class="horizon"/><text class="muted tiny" x="483" y="553">0° horizon</text>
   <line x1="563" y1="550" x2="589" y2="550" class="mask"/><text class="muted tiny" x="595" y="553">10° mask</text>
   <circle class="stationselected" cx="707" cy="550" r="5"/><text class="muted tiny" x="718" y="553">Focused station</text>
   <circle class="station" cx="819" cy="550" r="5"/><text class="muted tiny" x="830" y="553">Other station</text>
+  <line x1="321" y1="565" x2="1117" y2="565" class="rule"/>
+  <text class="ink tiny" x="332" y="582">North Site · 0° N · 0° E · Minimum elevation 10°</text>
+  <rect class="button" x="1000" y="570" width="112" height="21" rx="4"/><text class="muted tiny" x="1056" y="584" text-anchor="middle">Open Passes</text>
 
   <rect class="pane" x="308" y="610" width="822" height="398" rx="7"/>
   <rect x="321" y="622" width="178" height="24" rx="4" fill="#edf5ff" stroke="#a9c5e7"/>
   <text class="ink small" x="332" y="638" font-weight="700">Ground Station Passes</text><text class="muted tiny" x="486" y="638">▾</text>
   <rect class="button" x="804" y="622" width="172" height="23" rx="4"/><text class="muted tiny" x="890" y="637" text-anchor="middle">Station: North Site ▾</text>
-  <text class="muted tiny" x="987" y="638">3 intervals in Plot Range</text>
+  <text class="muted tiny" x="987" y="638">OEM: 00:00–23:59 UTC</text>
   <line x1="321" y1="656" x2="1117" y2="656" class="rule"/>
   <text class="ink tiny" x="337" y="675" font-weight="700">PLOT RANGE · 2026-05-20 12:00–18:00 UTC</text>
   <text class="muted tiny" x="337" y="696">START UTC</text><text class="muted tiny" x="438" y="696">END UTC</text><text class="muted tiny" x="532" y="696">DURATION</text><text class="muted tiny" x="612" y="696">PEAK ELEVATION</text><text class="muted tiny" x="733" y="696">MIN RANGE</text>

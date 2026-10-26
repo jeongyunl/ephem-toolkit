@@ -53,3 +53,5 @@ def test_registry_reports_unimplemented_group_members_before_opening() -> None:
 def test_ground_station_access_is_in_all_but_not_overview() -> None:
     assert "ground-station-access" in view_registry.GROUP_MEMBERS["all"]
     assert "ground-station-access" not in view_registry.GROUP_MEMBERS["overview"]
+    assert "ground-station-passes" in view_registry.GROUP_MEMBERS["all"]
+    assert "ground-station-passes" not in view_registry.GROUP_MEMBERS["overview"]

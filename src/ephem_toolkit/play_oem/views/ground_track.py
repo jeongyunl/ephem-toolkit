@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+import math
 from typing import Any
 
 import numpy as np
@@ -23,6 +24,7 @@ from ..ground_footprints import (
     GroundFootprints,
     compute_ground_footprints,
 )
+from ..ground_stations import GroundStation
 from ..ground_track import (
     EARTH_RADIUS_AUTHALIC_M,
     GroundTrackCoordinates,
@@ -183,6 +185,8 @@ class GroundTrackView:
         center_longitude_deg: float = DEFAULT_CENTER_LONGITUDE_DEG,
         saved_xlim: tuple[float, float] | None = None,
         saved_ylim: tuple[float, float] | None = None,
+        stations: Sequence[GroundStation] = (),
+        on_open_passes: Callable[[str], None] | None = None,
     ) -> None:
         self._parent = parent
         self._source = source
@@ -197,6 +201,11 @@ class GroundTrackView:
         self.background_style = background_style
         self.center_longitude_deg = center_longitude_deg
         self._saved_xlim, self._saved_ylim = saved_xlim, saved_ylim
+        self._stations = tuple(stations)
+        self._on_open_passes = on_open_passes
+        self._selected_station_id: str | None = None
+        self._show_stations = True
+        self._show_station_labels = False
         self._panel: wx.Panel | None = None
         self._canvas: FigureCanvasWxAgg | None = None
         self._figure: Figure | None = None
@@ -212,11 +221,19 @@ class GroundTrackView:
         self._minimum_artist: LineCollection | None = None
         self._minimum_point_artist: Line2D | None = None
         self._coordinate_readout: wx.StaticText | None = None
+        self._station_details: wx.StaticText | None = None
+        self._station_choice: wx.Choice | None = None
+        self._station_layer_control: wx.CheckBox | None = None
+        self._station_labels_control: wx.CheckBox | None = None
+        self._open_passes_button: wx.Button | None = None
+        self._station_artists: dict[str, Line2D] = {}
+        self._station_label_artists: dict[str, Any] = {}
+        self._station_selection_artist: Line2D | None = None
+        self._map_press: tuple[float, float] | None = None
         self._center_control: wx.SpinCtrlDouble | None = None
         self._minimum_control: wx.SpinCtrl | None = None
         self._horizontal_scroll: wx.ScrollBar | None = None
         self._vertical_scroll: wx.ScrollBar | None = None
-        self._on_minimum_elevation: Any = None
         self._syncing_limits = False
         self._last_time_s: float | None = None
         self._last_footprints: GroundFootprints | None = None
@@ -251,6 +268,17 @@ class GroundTrackView:
             controls_panel, min=0, max=90, initial=self.minimum_elevation_deg
         )
         minimum.SetName("Minimum elevation in degrees")
+        station_layer = wx.CheckBox(controls_panel, wx.ID_ANY, "Ground Stations")
+        station_layer.SetName("Show Ground Stations")
+        station_layer.SetValue(self._show_stations)
+        station_labels = wx.CheckBox(controls_panel, wx.ID_ANY, "Station labels")
+        station_labels.SetName("Show station labels")
+        station_labels.SetValue(self._show_station_labels)
+        station_choice = wx.Choice(controls_panel, wx.ID_ANY)
+        station_choice.SetName("Selected Ground Track station")
+        self._station_layer_control = station_layer
+        self._station_labels_control = station_labels
+        self._station_choice = station_choice
         compact_controls((projection, background, center, minimum))
         self._center_control = center
         self._minimum_control = minimum
@@ -283,6 +311,16 @@ class GroundTrackView:
             4,
         )
         controls.Add(minimum, 0)
+        controls.AddSpacer(8)
+        controls.Add(station_layer, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+        controls.Add(station_labels, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+        controls.Add(
+            wx.StaticText(controls_panel, label="Selected station"),
+            0,
+            wx.ALIGN_CENTER_VERTICAL | wx.RIGHT,
+            4,
+        )
+        controls.Add(station_choice, 0)
         navigation = wx.BoxSizer(wx.HORIZONTAL)
         reset_view = wx.Button(
             controls_panel, label=" Reset view ", style=wx.BU_EXACTFIT
@@ -310,28 +348,49 @@ class GroundTrackView:
         controls_panel.FitInside()
         self._coordinate_readout = wx.StaticText(panel, wx.ID_ANY, "Lat —  ·  Lon —")
         self._coordinate_readout.SetName("Ground Track current coordinates")
+        self._station_details = wx.StaticText(panel, wx.ID_ANY, "No station selected")
+        self._station_details.SetName("Ground Track selected station details")
+        self._station_details.SetMinSize(
+            wx.Size(-1, self._station_details.GetBestSize().height)
+        )
+        self._open_passes_button = wx.Button(
+            panel, wx.ID_ANY, "Open Passes", style=wx.BU_EXACTFIT
+        )
+        self._open_passes_button.SetName("Open passes for selected station")
+        self._open_passes_button.Enable(False)
+        self._open_passes_button.Bind(
+            wx.EVT_BUTTON, lambda _event: self._open_selected_station_passes()
+        )
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(controls_panel, 0, wx.EXPAND)
         map_row = wx.BoxSizer(wx.HORIZONTAL)
         map_row.Add(self._canvas, 1, wx.EXPAND)
         sizer.Add(map_row, 1, wx.EXPAND)
-        sizer.Add(
-            self._coordinate_readout,
-            0,
-            wx.ALIGN_RIGHT | wx.LEFT | wx.RIGHT | wx.BOTTOM,
-            6,
+        station_details_row = wx.BoxSizer(wx.HORIZONTAL)
+        station_details_row.Add(
+            self._station_details, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 6
         )
+        station_details_row.Add(
+            self._open_passes_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6
+        )
+        sizer.Add(station_details_row, 0, wx.EXPAND | wx.BOTTOM, 2)
+        sizer.Add(self._coordinate_readout, 0, wx.ALIGN_RIGHT | wx.ALL, 6)
         panel.SetSizer(sizer)
         projection.Bind(wx.EVT_CHOICE, self._on_projection_choice)
         background.Bind(wx.EVT_CHOICE, self._on_background_choice)
         center.Bind(wx.EVT_SPINCTRLDOUBLE, self._on_center_control)
         center.Bind(wx.EVT_TEXT_ENTER, self._on_center_control)
         minimum.Bind(wx.EVT_SPINCTRL, self._on_minimum_control)
+        station_layer.Bind(wx.EVT_CHECKBOX, self._on_station_layer_toggle)
+        station_labels.Bind(wx.EVT_CHECKBOX, self._on_station_labels_toggle)
+        station_choice.Bind(wx.EVT_CHOICE, self._on_station_choice)
         reset_view.Bind(wx.EVT_BUTTON, lambda _event: self._reset_view())
         zoom_in.Bind(wx.EVT_BUTTON, lambda _event: self._zoom(0.7))
         zoom_out.Bind(wx.EVT_BUTTON, lambda _event: self._zoom(1.0 / 0.7))
         self._canvas.mpl_connect("button_release_event", self._on_navigation_release)
+        self._canvas.mpl_connect("button_press_event", self._on_map_press)
+        self._canvas.mpl_connect("button_release_event", self._on_map_release)
         self._axes.callbacks.connect("xlim_changed", self._on_limits_changed)
         # Keep the map's height when the window narrows; scroll instead of
         # shrinking it. The controls row does not dictate the canvas width.
@@ -362,6 +421,7 @@ class GroundTrackView:
         controls_panel.Bind(wx.EVT_SIZE, fit_controls)
         wx.CallAfter(fit_controls)
         self._draw_map()
+        self._refresh_station_controls()
         # Restored limits are expressed in the saved projection's coordinates.
         # Do not let their callbacks reinterpret them as a new central meridian.
         self._syncing_limits = True
@@ -449,6 +509,7 @@ class GroundTrackView:
         axes.margins(0.0)
         self._draw_background(axes, world_x, pole_y)
         self._syncing_limits = False
+        self._draw_station_artists()
 
         if self._coordinates is None:
             message = (
@@ -546,16 +607,248 @@ class GroundTrackView:
                     label=f"{self.minimum_elevation_deg}° minimum elevation",
                 ),
             )
+        if self._stations and self._show_stations:
+            handles.append(
+                Line2D(
+                    [],
+                    [],
+                    color="#d18a18",
+                    marker="^",
+                    linestyle="none",
+                    label="Ground station",
+                )
+            )
         self._figure.legend(
             handles=handles,
             loc="lower center",
-            ncol=4,
+            ncol=min(len(handles), 5),
             frameon=False,
             bbox_to_anchor=(0.5, 0.01),
         )
         self._figure.subplots_adjust(left=0.08, right=0.98, bottom=0.15, top=0.95)
         if current_time_s is not None:
             self.update(current_time_s)
+
+    def _draw_station_artists(self) -> None:
+        if self._axes is None or self._projection is None:
+            return
+        self._station_artists.clear()
+        self._station_label_artists.clear()
+        self._station_selection_artist = None
+        if not self._show_stations:
+            return
+        for station in self._stations:
+            relative_longitude = _normalized_longitude(
+                station.longitude_deg - self.center_longitude_deg
+            )
+            longitude = relative_longitude + self.center_longitude_deg
+            x, y = self._projection(longitude, station.latitude_deg, errcheck=True)
+            marker = Line2D(
+                [x],
+                [y],
+                linestyle="none",
+                marker="^",
+                markersize=8,
+                markerfacecolor="#d18a18",
+                markeredgecolor="white",
+                markeredgewidth=1.2,
+                zorder=8,
+            )
+            marker.set_pickradius(8)
+            marker.set_label(f"Ground station: {station.name}")
+            self._axes.add_line(marker)
+            self._station_artists[station.station_id] = marker
+            label = self._axes.annotate(
+                station.name,
+                (x, y),
+                xytext=(6, 6),
+                textcoords="offset points",
+                fontsize="small",
+                color="#202a35",
+                bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "none"},
+                zorder=9,
+                clip_on=True,
+            )
+            label.set_visible(
+                self._show_station_labels
+                or station.station_id == self._selected_station_id
+            )
+            self._station_label_artists[station.station_id] = label
+        self._station_selection_artist = Line2D(
+            [],
+            [],
+            linestyle="none",
+            marker="o",
+            markersize=14,
+            markerfacecolor="none",
+            markeredgecolor="#172b4d",
+            markeredgewidth=1.8,
+            zorder=7,
+            visible=False,
+        )
+        self._axes.add_line(self._station_selection_artist)
+        selected = self._station_artists.get(self._selected_station_id or "")
+        if selected is not None:
+            self._station_selection_artist.set_data(*selected.get_data())
+            self._station_selection_artist.set_visible(True)
+
+    def _refresh_station_controls(self) -> None:
+        if self._station_choice is not None:
+            self._station_choice.Clear()
+            selected_index = wx.NOT_FOUND
+            for station in self._stations:
+                self._station_choice.Append(station.name)
+                if station.station_id == self._selected_station_id:
+                    selected_index = self._station_choice.GetCount() - 1
+            self._station_choice.SetSelection(selected_index)
+        has_stations = bool(self._stations)
+        if self._station_choice is not None:
+            self._station_choice.Enable(has_stations)
+        if self._station_layer_control is not None:
+            self._station_layer_control.Enable(has_stations)
+            self._station_layer_control.SetToolTip(
+                "No ground stations are configured."
+                if not has_stations
+                else "Show or hide configured ground-station markers."
+            )
+        if self._station_labels_control is not None:
+            self._station_labels_control.Enable(has_stations and self._show_stations)
+        self._refresh_station_details()
+
+    def _refresh_station_details(self) -> None:
+        if self._station_details is None:
+            return
+        station = next(
+            (
+                item
+                for item in self._stations
+                if item.station_id == self._selected_station_id
+            ),
+            None,
+        )
+        if station is None:
+            self._station_details.SetLabel(
+                "No ground stations are configured."
+                if not self._stations
+                else "Select a ground station marker or station."
+            )
+            if self._open_passes_button is not None:
+                self._open_passes_button.Enable(False)
+            return
+        self._station_details.SetLabel(
+            f"{station.name} · "
+            f"{_latitude_label(station.latitude_deg)} · "
+            f"{_longitude_label(station.longitude_deg)} · "
+            f"Minimum elevation {station.minimum_elevation_deg}°"
+        )
+        if self._open_passes_button is not None:
+            self._open_passes_button.Enable(self._on_open_passes is not None)
+
+    def _select_station(self, station_id: str) -> None:
+        station = next(
+            (item for item in self._stations if item.station_id == station_id), None
+        )
+        if station is None:
+            return
+        self._selected_station_id = station_id
+        if self._station_choice is not None:
+            index = next(
+                index
+                for index, item in enumerate(self._stations)
+                if item.station_id == station_id
+            )
+            self._station_choice.SetSelection(index)
+        for current_id, label in self._station_label_artists.items():
+            label.set_visible(self._show_station_labels or current_id == station_id)
+        if self._station_selection_artist is not None:
+            marker = self._station_artists[station_id]
+            self._station_selection_artist.set_data(*marker.get_data())
+            self._station_selection_artist.set_visible(True)
+        self._refresh_station_details()
+        if self._canvas is not None:
+            self._canvas.draw_idle()
+
+    def _on_station_choice(self, _event: wx.CommandEvent) -> None:
+        if self._station_choice is None:
+            return
+        index = self._station_choice.GetSelection()
+        if 0 <= index < len(self._stations):
+            self._select_station(self._stations[index].station_id)
+
+    def _open_selected_station_passes(self) -> None:
+        if self._selected_station_id is not None and self._on_open_passes is not None:
+            self._on_open_passes(self._selected_station_id)
+
+    def _on_station_layer_toggle(self, event: wx.CommandEvent) -> None:
+        self._show_stations = event.IsChecked()
+        if self._station_labels_control is not None:
+            self._station_labels_control.Enable(
+                bool(self._stations) and self._show_stations
+            )
+        self._redraw_map_preserving_limits()
+
+    def _on_station_labels_toggle(self, event: wx.CommandEvent) -> None:
+        self._show_station_labels = event.IsChecked()
+        for station_id, label in self._station_label_artists.items():
+            label.set_visible(
+                self._show_station_labels or station_id == self._selected_station_id
+            )
+        if self._canvas is not None:
+            self._canvas.draw_idle()
+
+    def _on_map_press(self, event: Any) -> None:
+        if (
+            event.button == 1
+            and event.inaxes is self._axes
+            and event.x is not None
+            and event.y is not None
+        ):
+            self._map_press = (float(event.x), float(event.y))
+        else:
+            self._map_press = None
+
+    def _on_map_release(self, event: Any) -> None:
+        pressed = self._map_press
+        self._map_press = None
+        if (
+            pressed is None
+            or event.button != 1
+            or event.inaxes is not self._axes
+            or event.x is None
+            or event.y is None
+            or math.hypot(event.x - pressed[0], event.y - pressed[1]) > 5.0
+        ):
+            return
+        for station_id, marker in self._station_artists.items():
+            contains, _details = marker.contains(event)
+            if contains:
+                self._select_station(station_id)
+                return
+
+    def _redraw_map_preserving_limits(self) -> None:
+        if self._axes is None:
+            return
+        xlim, ylim = self._axes.get_xlim(), self._axes.get_ylim()
+        self._draw_map()
+        self._syncing_limits = True
+        try:
+            self._axes.set_xlim(xlim)
+            self._axes.set_ylim(ylim)
+        finally:
+            self._syncing_limits = False
+        if self._canvas is not None:
+            self._canvas.draw_idle()
+
+    def set_stations(self, stations: Sequence[GroundStation]) -> None:
+        """Refresh markers while retaining the selected station when possible."""
+        self._stations = tuple(stations)
+        if not any(
+            station.station_id == self._selected_station_id
+            for station in self._stations
+        ):
+            self._selected_station_id = None
+        self._refresh_station_controls()
+        self._redraw_map_preserving_limits()
 
     def _draw_background(
         self, axes: Any, world_x: np.ndarray, pole_y: np.ndarray

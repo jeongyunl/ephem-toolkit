@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from ephem_toolkit.play_oem.ground_track import GroundTrackCoordinates
+from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.views import ground_track
 
@@ -159,6 +160,132 @@ def test_ground_track_filters_cached_coordinates_before_seam_splitting() -> None
     view.close()
 
 
+@pytest.mark.parametrize(
+    ("projection_name", "center_longitude_deg"),
+    [
+        ("Equirectangular", -179.0),
+        ("Equirectangular", 0.0),
+        ("Robinson", 123.0),
+    ],
+)
+def test_station_markers_follow_projection_and_center_longitude(
+    projection_name: str, center_longitude_deg: float
+) -> None:
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    station = GroundStation("seam-site", "Seam Site", 12.0, 179.5, 100.0, 15)
+    view = ground_track.GroundTrackView(
+        cast(Any, None),
+        None,
+        None,
+        cast(Any, None),
+        "Test object",
+        stations=[station],
+    )
+    view.projection_name = projection_name
+    view.center_longitude_deg = center_longitude_deg
+    view._figure = Figure()
+    canvas = FigureCanvasAgg(view._figure)
+    view._canvas = cast(Any, canvas)
+    view._axes = view._figure.add_subplot(111)
+
+    view._draw_map()
+
+    relative_longitude = ground_track._normalized_longitude(
+        station.longitude_deg - center_longitude_deg
+    )
+    expected_x, expected_y = view._projection(
+        relative_longitude + center_longitude_deg,
+        station.latitude_deg,
+        errcheck=True,
+    )
+    marker = view._station_artists[station.station_id]
+    assert marker.get_xdata()[0] == pytest.approx(expected_x)
+    assert marker.get_ydata()[0] == pytest.approx(expected_y)
+    assert len(view._station_label_artists) == 1
+    view.close()
+
+
+def test_station_marker_selection_opens_passes_without_seeking() -> None:
+    from matplotlib.backend_bases import MouseEvent
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    station = GroundStation("site-id", "Site", 0.0, 0.0, 0.0, 10)
+    lookup_calls: list[float] = []
+    cursor = type(
+        "Cursor",
+        (),
+        {
+            "t_start": 0.0,
+            "t_end": 10.0,
+            "lookup": lambda _self, time_s: lookup_calls.append(time_s),
+        },
+    )()
+    opened: list[str] = []
+    view = ground_track.GroundTrackView(
+        cast(Any, None),
+        None,
+        None,
+        cast(Any, cursor),
+        "Test object",
+        stations=[station],
+        on_open_passes=opened.append,
+    )
+    view._figure = Figure()
+    canvas = FigureCanvasAgg(view._figure)
+    view._canvas = cast(Any, canvas)
+    view._axes = view._figure.add_subplot(111)
+    view._draw_map()
+    canvas.draw()
+
+    marker_x, marker_y = view._station_artists[station.station_id].get_data()
+    pixel_x, pixel_y = view._axes.transData.transform((marker_x[0], marker_y[0]))
+    press = MouseEvent("button_press_event", canvas, pixel_x, pixel_y, button=1)
+    release = MouseEvent("button_release_event", canvas, pixel_x, pixel_y, button=1)
+    view._on_map_press(press)
+    view._on_map_release(release)
+    view._open_selected_station_passes()
+
+    assert view._selected_station_id == station.station_id
+    assert opened == [station.station_id]
+    assert lookup_calls == []
+    view.close()
+
+
+def test_station_updates_retain_viewport_and_remove_stale_markers() -> None:
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    first = GroundStation("first", "First", 0.0, 0.0, 0.0)
+    replacement = GroundStation("replacement", "Replacement", 20.0, 30.0, 0.0)
+    view = ground_track.GroundTrackView(
+        cast(Any, None),
+        None,
+        None,
+        cast(Any, None),
+        "Test object",
+        stations=[first],
+    )
+    view._figure = Figure()
+    view._canvas = cast(Any, FigureCanvasAgg(view._figure))
+    view._axes = view._figure.add_subplot(111)
+    view._draw_map()
+    view._select_station(first.station_id)
+    view._axes.set_xlim(-1_000_000.0, 1_000_000.0)
+    expected_xlim = view._axes.get_xlim()
+
+    view.set_stations([replacement])
+
+    assert view._selected_station_id is None
+    assert set(view._station_artists) == {replacement.station_id}
+    assert view._axes.get_xlim() == expected_xlim
+    view.set_stations([])
+    assert not view._station_artists
+    view.close()
+
+
 @pytest.mark.skipif(
     not os.environ.get("DISPLAY"), reason="requires an X display (use xvfb-run)"
 )
@@ -178,7 +305,7 @@ def test_wx_view_builds_controls_and_updates_minimum_elevation(wx_app: Any) -> N
         frame,
         None,
         coordinates,
-        cast(Any, None),
+        cast(Any, type("CursorBounds", (), {"t_start": 0.0, "t_end": 10.0})()),
         "Test object",
         on_minimum_elevation=updates.append,
     )
@@ -190,8 +317,11 @@ def test_wx_view_builds_controls_and_updates_minimum_elevation(wx_app: Any) -> N
         cast(Any, type("Event", (), {"GetString": lambda _self: "Equirectangular"})())
     )
     assert view.projection_name == "Equirectangular"
-    view.set_minimum_elevation(15)
+    view._on_minimum_control(
+        cast(Any, type("Event", (), {"GetInt": lambda _self: 15})())
+    )
     assert view.minimum_elevation_deg == 15
+    assert updates == [15]
     minimum_control = view._minimum_control
     assert minimum_control is not None
     assert minimum_control.GetValue() == 15
@@ -218,7 +348,11 @@ def test_resizing_host_preserves_spin_control_sizes(wx_app: Any) -> None:
         "ITRF",
     )
     view = ground_track.GroundTrackView(
-        host.graph_scroller, None, coordinates, cast(Any, None), "Test object"
+        host.graph_scroller,
+        None,
+        coordinates,
+        cast(Any, type("CursorBounds", (), {"t_start": 0.0, "t_end": 10.0})()),
+        "Test object",
     )
     try:
         content = view.build(cast(Any, None), cast(Any, None))
@@ -260,8 +394,8 @@ def test_resizing_host_preserves_spin_control_sizes(wx_app: Any) -> None:
                 original_map_width = bounds.width
             # GTK can redistribute a few pixels when a scrollbar appears.
             assert bounds.width >= original_map_width * 0.99
-            if width <= 640:
-                assert bounds.x0 <= 90
+            if width <= 640 and "gtk3" in wx.PlatformInfo:
+                assert bounds.x0 <= content.FromDIP(90)
                 assert view._canvas.GetSize().width - bounds.x1 <= 40
     finally:
         view.close()

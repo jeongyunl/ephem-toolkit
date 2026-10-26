@@ -80,6 +80,7 @@ def test_3d_backend_option_rejects_unknown_choice(
                 "distance",
                 "ground-track",
                 "ground-station-access",
+                "ground-station-passes",
             ),
         ),
     ],

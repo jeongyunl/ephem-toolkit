@@ -26,10 +26,11 @@ all saved stations as small, high-contrast markers. Keep the map's existing proj
 longitude, backgrounds, pan/zoom, spacecraft track, subpoint, and coverage boundaries unchanged.
 
 - Emphasize a focused station with a selection ring and persistent name label.
-- Reveal other station names on hover, or with an optional **Station labels** toggle.
-- Selecting a marker opens a small accessible detail popover with station name, latitude,
-  longitude, and minimum-elevation mask.
-- Include **Open Passes** in the popover to open Ground Station Passes with that station selected.
+- Reveal other station names with an optional **Station labels** toggle.
+- Selecting a marker or the keyboard-accessible station selector shows an inline details row with
+  station name, latitude, longitude, and minimum-elevation mask.
+- Include **Open Passes** beside the details row to open Ground Station Passes with that station
+  selected.
 - Map clicks on station markers select a station; they never seek playback. Existing map pan,
   zoom, and center-longitude rules remain in force away from markers.
 - With zero configured stations, hide the layer toggle or disable it with an explanatory tooltip;
@@ -84,8 +85,11 @@ to the stored peak epoch. Disable each action when its required event time is un
 
 ### Sky-oriented plot
 
-Place the sky plot beside the table when the panel is wide enough; at narrow sizes, stack it below
-the table and allow the view to scroll rather than clipping controls or labels.
+Always place the full-width pass table above the sky plot, including in wide panels. Keep the table
+compact and give the sky plot roughly twice its vertical space so the polar path remains legible.
+At narrow sizes, allow the view to scroll rather than clipping controls or labels. Keep the plot
+legend below the sky path rather than over it, and wrap the selected-pass summary to the available
+panel width.
 
 - Draw azimuth clockwise from north, with N/E/S/W at 0°/90°/180°/270°.
 - Draw the horizon (0° elevation) as the outer circle and zenith (90°) at the center.
@@ -131,7 +135,7 @@ indicator.
 
 ## Accessibility and visual requirements
 
-- Give the layer toggle, station popover, selectors, pass table, and pass actions keyboard
+- Give the layer toggle, station selector and details, pass table, and pass actions keyboard
   activation and accessible names.
 - Expose the selected table row and station to assistive technology. The sky plot must have a
   textual summary of station, selected interval, mask, peak elevation, and playhead status.

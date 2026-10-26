@@ -279,6 +279,9 @@ class PlayerApp(
         self._view_registry.register_view(
             "ground-station-access", self.open_ground_station_access_view
         )
+        self._view_registry.register_view(
+            "ground-station-passes", self.open_ground_station_passes_view
+        )
         self._plots = self._view_registry.expand(plots)
         self._panel_view_choices = ((EMPTY_GRAPH_VIEW, EMPTY_GRAPH_LABEL),) + tuple(
             (name, self._view_registry.label_for(name))
@@ -722,7 +725,7 @@ class PlayerApp(
         self._refresh_open_ground_station_access()
 
     def _refresh_open_ground_station_access(self) -> None:
-        """Refresh prepared histories only for access views that already exist."""
+        """Refresh station-aware panels already open in the graph workspace."""
         for opened in tuple(self._open_panels.values()):
             setter = getattr(opened.view, "set_stations", None)
             if callable(setter):

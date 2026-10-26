@@ -47,14 +47,15 @@ require an OEM state conversion or station-access preparation.
 
 Show station markers in a separately toggleable **Ground Stations** map layer. When enabled,
 display every configured station. Keep the currently focused station visually distinct with a
-selection ring and persistent label; unselected names may be revealed on hover or through the
-station-label toggle to limit clutter. The layer is on by default when at least one station exists.
+selection ring and persistent label; reveal unselected names through the optional station-label
+toggle to limit clutter. The layer is on by default when at least one station exists.
 Store the layer toggle as a map-panel display preference, not in the station records.
 
-Selecting a station marker shows its name, coordinates, and minimum-elevation mask. Provide an
-explicit **Open Passes** action that opens the pass-inspection view for that station. Marker
-selection and map navigation never seek the shared clock. Empty station collections simply have
-no markers and no disabled map controls.
+Selecting a station marker or the keyboard-accessible station selector shows an inline details row
+with its name, coordinates, and minimum-elevation mask. Provide an explicit **Open Passes** action
+that opens the pass-inspection view for that station. Marker selection and map navigation never
+seek the shared clock. With no stations, disable the layer, label, and station-selection controls
+with an explanation; map navigation remains available.
 
 Do not draw station-centered access footprints on the map. They would require additional
 time-dependent geometry and could imply that access has been calculated before an access view is

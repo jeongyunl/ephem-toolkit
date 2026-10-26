@@ -14,6 +14,7 @@ VIEW_LABELS = (
     ("distance", "Geocentric Distance"),
     ("ground-track", "Ground Track"),
     ("ground-station-access", "Ground Station Access"),
+    ("ground-station-passes", "Ground Station Passes"),
 )
 
 GROUP_LABELS = (

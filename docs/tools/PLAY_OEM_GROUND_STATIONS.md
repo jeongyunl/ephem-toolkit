@@ -50,13 +50,47 @@ Access uses the OEM's Earth-fixed or supported inertial frame converted to ITRF.
 the shared playback cursor, including seeking and reverse playback. If playback is outside usable
 OEM data or inside a segment gap, current metrics are unavailable rather than zero.
 
+## Ground Track stations and pass inspection
+
+Open **Ground Track** to show the **Ground Stations** layer. Select a marker on the map or use
+the station selector; the details row shows the station name, coordinates, and elevation mask.
+Use **Station labels** to label all markers. **Open Passes** opens the Ground Station Passes view
+for that station. Selecting a marker does not seek playback or prepare access history. With no
+stations, the station controls are disabled and the map remains usable.
+
+Open **Ground Station Passes** from a graph panel's view selector or with
+`--plots ground-station-passes`. The view includes OEM coverage and a persistent UTC Plot Range
+readout. Its chronological table contains:
+
+- pass start and end in UTC;
+- duration when both access crossings are known;
+- peak elevation and its UTC time;
+- minimum slant range and its UTC time; and
+- coverage status for complete, coverage-boundary, or gap-limited intervals.
+
+The table lists cached access intervals that overlap Plot Range, including a pass that starts
+before or ends after the range. The full OEM-bounded pass times and metrics remain visible; Plot
+Range changes only filter the prepared results. If no cached pass overlaps, the view says so and
+suggests widening Plot Range; this is distinct from no access anywhere in OEM coverage and from
+unavailable predictions.
+
+Select a table row to inspect its sky path. Azimuth is clockwise from north, with north at the top;
+the horizon is the outside ring, zenith the center, and the station's minimum elevation is shown
+as a mask ring. The path, start/peak/end markers, and textual summary describe the selected
+pass. The playback marker appears only while the playhead is within that pass. Use **Focus pass**
+to set the shared Plot Range to the pass, or **Seek to peak** to move playback to its stored peak.
+Row selection alone does neither.
+
 ## Prediction limits
 
-Access history is prepared only when the Ground Station Access view is opened. Each valid OEM
-segment is evaluated on a uniform grid no coarser than 30 seconds, regardless of source sample
-density. Local elevation maxima are refined to catch sub-step passes, and access crossings are
-refined to within 0.5 seconds of the selected cursor interpolation. These tolerances describe the
-numerical calculation, not physical accuracy.
+Historical access is prepared lazily when either the Ground Station Access or Ground Station
+Passes view first needs it. Each valid OEM segment is evaluated on a uniform grid no coarser than
+30 seconds, regardless of source sample density. Local elevation maxima are refined to catch
+sub-step passes, and access crossings are refined to within 0.5 seconds of the selected cursor
+interpolation. These tolerances describe the numerical calculation, not physical accuracy.
+
+Both views share cached per-station histories and Earth-fixed sample positions; adding a panel or
+changing Plot Range does not repeat the historical calculation.
 
 The view reports pass predictions as unavailable when a segment contains a sample gap over five
 minutes, fewer than two samples, or would require over one million evaluation samples. Passes are

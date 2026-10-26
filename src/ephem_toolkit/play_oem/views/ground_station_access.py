@@ -338,7 +338,9 @@ class GroundStationAccessView:
                     va="center",
                     transform=axes.transAxes,
                 )
-            elif result is None or not result.elevation_profiles:
+            elif result is None or not (
+                result.look_angle_profiles or result.elevation_profiles
+            ):
                 message = (
                     result.limitation
                     if result is not None and result.limitation
@@ -370,7 +372,8 @@ class GroundStationAccessView:
         axes.set_title(f"{station.name} elevation")
         has_line = False
         mask = station.minimum_elevation_deg
-        for profile in result.elevation_profiles:
+        profiles = result.look_angle_profiles or result.elevation_profiles
+        for profile in profiles:
             times = profile.times_s
             elevations = profile.elevations_deg
             valid_indices = np.flatnonzero(np.isfinite(times) & np.isfinite(elevations))

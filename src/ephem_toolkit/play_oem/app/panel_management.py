@@ -54,6 +54,7 @@ class PanelManagementMixin:
             "distance": self.open_distance_view,
             "ground-track": self.open_ground_track_view,
             "ground-station-access": self.open_ground_station_access_view,
+            "ground-station-passes": self.open_ground_station_passes_view,
         }
         openers[name](panel_id=panel_id, stack=stack, force_replace=force_replace)
 

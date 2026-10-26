@@ -21,6 +21,7 @@ from ephem_toolkit.play_oem.app import view_factory
 from ephem_toolkit.play_oem.clock import PlaybackClock
 from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.ground_stations import GroundStation
+from ephem_toolkit.play_oem import time_range
 from ephem_toolkit.play_oem.play_oem_cli import build_arg_parser, parse_arguments
 from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_unit import TimeUnit
@@ -722,6 +723,117 @@ def test_ground_station_edits_persist_to_selected_user_config(
     loaded = app.config.load_config(config_path)
     assert loaded.ground_stations == ()
     assert loaded.ground_stations_configured
+
+
+def test_ground_station_updates_refresh_open_station_views(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+    station = GroundStation("station", "Site", 10.0, 20.0, 30.0)
+    updates: list[tuple[GroundStation, ...]] = []
+    monkeypatch.setattr(player, "_save_ground_stations_config", lambda: None)
+    player._open_panels["ground-track"] = cast(
+        Any,
+        SimpleNamespace(
+            view=SimpleNamespace(
+                set_stations=lambda stations: updates.append(tuple(stations))
+            )
+        ),
+    )
+    player._open_panels["ground-station-passes"] = cast(
+        Any,
+        SimpleNamespace(
+            view=SimpleNamespace(
+                set_stations=lambda stations: updates.append(tuple(stations))
+            )
+        ),
+    )
+
+    player._update_ground_stations([station])
+    player._update_ground_stations([])
+
+    assert updates == [(station,), (station,), (), ()]
+
+
+def test_ground_track_open_passes_callback_seeds_station_without_seeking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+    station = GroundStation("station", "Site", 10.0, 20.0, 30.0)
+    player._ground_stations = [station]
+    monkeypatch.setattr(
+        player.workspace, "select_ground_stations", lambda: None, raising=False
+    )
+    created: list[tuple[str, Any]] = []
+
+    def capture_view(name, create_view, **_kwargs) -> None:
+        created.append((name, create_view(cast(Any, None))))
+
+    monkeypatch.setattr(player, "_open_view", capture_view)
+    initial_time = player.clock.t_now
+
+    player.open_ground_track_view()
+    ground_track_view = created[-1][1]
+    ground_track_view._select_station(station.station_id)
+    ground_track_view._open_selected_station_passes()
+
+    pass_view = created[-1][1]
+    assert [name for name, _view in created] == [
+        "ground-track",
+        "ground-station-passes",
+    ]
+    assert pass_view.selected_station_id == station.station_id
+    assert player.clock.t_now == initial_time
+    assert not player._station_access_cache._results
+
+
+def test_replacing_pass_panel_for_new_oem_retains_station_selection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+    station = GroundStation("station", "Site", 10.0, 20.0, 30.0)
+    player._ground_stations = [station]
+    monkeypatch.setattr(
+        player.workspace, "select_ground_stations", lambda: None, raising=False
+    )
+    player._open_panels["panel"] = cast(
+        Any,
+        SimpleNamespace(view=SimpleNamespace(selected_station_id=station.station_id)),
+    )
+    created: list[Any] = []
+
+    def capture_view(_name, create_view, **_kwargs) -> None:
+        created.append(create_view(cast(Any, None)))
+
+    monkeypatch.setattr(player, "_open_view", capture_view)
+
+    player.open_ground_station_passes_view(
+        panel_id="panel",
+        force_replace=True,
+    )
+
+    assert len(created) == 1
+    assert created[0].selected_station_id == station.station_id
+
+
+def test_focus_ground_station_pass_changes_plot_range_without_seeking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch, clock=make_clock(t_now=150.0, playing=True)
+    )
+    initial_time = player.clock.t_now
+
+    player._focus_ground_station_pass(120.0, 180.0)
+
+    assert player.clock.t_now == initial_time
+    assert player.plot_time_range.enabled
+    assert player.plot_time_range.start == time_range.TimeRangeEndpoint(
+        "fixed", 120.0
+    )
+    assert player.plot_time_range.end == time_range.TimeRangeEndpoint(
+        "fixed", 180.0
+    )
 
 
 def test_open_file_dialog_accepts_lower_and_uppercase_oem_extensions(

@@ -41,6 +41,10 @@ class AccessInterval:
     clipped_at_end: bool = False
     limited_by_gap_at_start: bool = False
     limited_by_gap_at_end: bool = False
+    start_azimuth_deg: float | None = None
+    start_elevation_deg: float | None = None
+    end_azimuth_deg: float | None = None
+    end_elevation_deg: float | None = None
 
 
 @dataclass(frozen=True)
@@ -52,6 +56,15 @@ class ElevationProfile:
 
 
 @dataclass(frozen=True)
+class LookAngleProfile:
+    """Sampled azimuth and elevation over one contiguous OEM segment."""
+
+    times_s: np.ndarray
+    azimuths_deg: np.ndarray
+    elevations_deg: np.ndarray
+
+
+@dataclass(frozen=True)
 class StationAccess:
     """Prepared access history and any prediction limitation for a station."""
 
@@ -59,6 +72,7 @@ class StationAccess:
     intervals: tuple[AccessInterval, ...]
     limitation: str | None = None
     elevation_profiles: tuple[ElevationProfile, ...] = ()
+    look_angle_profiles: tuple[LookAngleProfile, ...] = ()
 
 
 def current_station_metrics(
@@ -133,6 +147,7 @@ def prepare_station_access(
 
     intervals: list[AccessInterval] = []
     elevation_profiles: list[ElevationProfile] = []
+    look_angle_profiles: list[LookAngleProfile] = []
     total_samples = 0
     segment_starts = np.r_[0, np.flatnonzero(np.diff(segments) != 0) + 1]
     segment_ends = np.r_[segment_starts[1:], timestamps.size]
@@ -202,17 +217,24 @@ def prepare_station_access(
                 insertion_index = int(np.searchsorted(segment_times, epoch))
                 segment_times.insert(insertion_index, epoch)
                 metrics.insert(insertion_index, peak_metrics)
-        elevation_profiles.append(
-            ElevationProfile(
-                np.asarray(segment_times, dtype=float),
-                np.asarray(
-                    [
-                        metric.elevation_deg if metric is not None else np.nan
-                        for metric in metrics
-                    ],
-                    dtype=float,
-                ),
-            )
+        profile_times = np.asarray(segment_times, dtype=float)
+        profile_azimuths = np.asarray(
+            [
+                metric.azimuth_deg if metric is not None else np.nan
+                for metric in metrics
+            ],
+            dtype=float,
+        )
+        profile_elevations = np.asarray(
+            [
+                metric.elevation_deg if metric is not None else np.nan
+                for metric in metrics
+            ],
+            dtype=float,
+        )
+        elevation_profiles.append(ElevationProfile(profile_times, profile_elevations))
+        look_angle_profiles.append(
+            LookAngleProfile(profile_times, profile_azimuths, profile_elevations)
         )
         intervals.extend(
             _intervals_for_segment(
@@ -242,6 +264,7 @@ def prepare_station_access(
         tuple(intervals),
         limitation,
         tuple(elevation_profiles),
+        tuple(look_angle_profiles),
     )
 
 
@@ -351,6 +374,7 @@ def _intervals_for_segment(
     intervals: list[AccessInterval] = []
     active_start: float | None = None
     active_start_clipped = False
+    active_start_metrics: StationMetrics | None = None
     current_values: list[tuple[float, StationMetrics]] = []
     previous_time: float | None = None
     previous_access = False
@@ -360,8 +384,9 @@ def _intervals_for_segment(
             if previous_time is None:
                 active_start = epoch
                 active_start_clipped = starts_at_coverage
+                active_start_metrics = current_metrics
             else:
-                active_start = _refine_crossing(
+                active_start, active_start_metrics = _refine_crossing(
                     station,
                     cursor,
                     source,
@@ -377,9 +402,10 @@ def _intervals_for_segment(
             if active_start is None:
                 active_start = epoch
                 active_start_clipped = starts_at_coverage
+                active_start_metrics = current_metrics
             current_values.append((epoch, current_metrics))
         if previous_access and not access and previous_time is not None:
-            end_time = _refine_crossing(
+            end_time, end_metrics = _refine_crossing(
                 station,
                 cursor,
                 source,
@@ -399,9 +425,12 @@ def _intervals_for_segment(
                         False,
                         False,
                         False,
+                        active_start_metrics,
+                        end_metrics,
                     )
                 )
             active_start = None
+            active_start_metrics = None
             current_values = []
         previous_time = epoch
         previous_access = access
@@ -415,6 +444,8 @@ def _intervals_for_segment(
                 ends_at_coverage,
                 starts_after_gap and active_start == float(sample_times[0]),
                 ends_before_gap,
+                active_start_metrics,
+                current_values[-1][1],
             )
         )
     return intervals
@@ -430,7 +461,7 @@ def _refine_crossing(
     high_s: float,
     *,
     entering: bool,
-) -> float:
+) -> tuple[float, StationMetrics]:
     while high_s - low_s > CROSSING_TIME_TOLERANCE_S:
         middle_s = (low_s + high_s) / 2.0
         state = cursor.lookup(middle_s)
@@ -444,7 +475,15 @@ def _refine_crossing(
             high_s = middle_s
         else:
             low_s = middle_s
-    return (low_s + high_s) / 2.0
+    crossing_s = (low_s + high_s) / 2.0
+    state = cursor.lookup(crossing_s)
+    if state.state_m is None:
+        raise GroundTrackPreparationError(
+            f"OEM state unavailable at an access crossing at {crossing_s:.3f}"
+        )
+    return crossing_s, _metrics_for_state(
+        station, state.state_m, source, frame_name, crossing_s, position_cache
+    )
 
 
 def _metrics_for_state(
@@ -469,6 +508,8 @@ def _make_interval(
     clipped_at_end: bool,
     limited_by_gap_at_start: bool,
     limited_by_gap_at_end: bool,
+    start_metrics: StationMetrics,
+    end_metrics: StationMetrics,
 ) -> AccessInterval:
     peak_time, peak_metrics = max(values, key=lambda item: item[1].elevation_deg)
     range_time, range_metrics = min(values, key=lambda item: item[1].slant_range_km)
@@ -483,4 +524,8 @@ def _make_interval(
         clipped_at_end,
         limited_by_gap_at_start,
         limited_by_gap_at_end,
+        start_metrics.azimuth_deg,
+        start_metrics.elevation_deg,
+        end_metrics.azimuth_deg,
+        end_metrics.elevation_deg,
     )
