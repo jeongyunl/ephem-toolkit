@@ -1395,7 +1395,7 @@ def test_feature_rail_supports_click_and_vertical_keyboard_navigation(
 ) -> None:
     result, _seeks, _frame = make_workspace(monkeypatch)
 
-    assert result.controls_title_label.label == "Controls & Info / Playback"
+    assert result.controls_title_label.label == "Controls & Info / Settings"
 
     result.feature_rail_buttons[1].trigger(workspace.wx.EVT_TOGGLEBUTTON)
 
