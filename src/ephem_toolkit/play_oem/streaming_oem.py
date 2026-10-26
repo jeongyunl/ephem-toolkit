@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from queue import Empty, Full, Queue
 from threading import Event, Thread
-from typing import Any
+from typing import Any, Union
 
 import ephem_toolkit.core.ccsds.oem as ccsds_oem
 import ephem_toolkit.core.ccsds.odm as odm
@@ -22,7 +22,7 @@ class OemStreamComplete:
     state_count: int
 
 
-OemStreamEvent = ccsds_oem.OemStateBatch | OemStreamComplete
+OemStreamEvent = Union[ccsds_oem.OemStateBatch, OemStreamComplete]
 
 
 class OemStreamError(Exception):
