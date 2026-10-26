@@ -145,6 +145,33 @@ The blit saves about 43 ms per frame, about 3.5×. Most of the remaining 17 ms i
 
 **Target:** memory and window counts return to baseline after each reload.
 
+## Ground Station Access preparation
+
+**Change.** Access preparation evaluates each valid OEM segment on a uniform grid with a maximum
+30-second step, rather than evaluating every source sample. The active `OemCursor` interpolates
+states at grid epochs; sampled local elevation maxima are refined and access crossings are bisected
+to within 0.5 seconds. This preserves the documented time tolerances while avoiding work that
+scales with dense source cadence.
+
+**Synthetic benchmark** (Python 3.9, macOS; Earth-centered ITRF circular-orbit OEM; 200,000 samples
+over 48 hours; three stations):
+
+| Measurement | Result |
+|---|---|
+| Uniform-grid evaluations across all stations | 17,283, plus refined extrema and crossings |
+| Access preparation wall time | 0.748 s |
+| Intervals found per station | 33, 0, 0 |
+| Prediction limitations | None |
+
+The prior source-sample-based loop took 21.110 seconds on the same workload. The uniform grid
+reduces the initial evaluation count from 600,000 source-sample/station pairs to 17,283 while
+retaining local-maximum refinement and 0.5-second crossing refinement. This synthetic result is
+not a guarantee for frame-conversion-heavy OEMs or unusually complex interpolation policies.
+
+**Validation.** Ground Station Access and interval tests pass, including sub-step maxima,
+crossings, source-gap limitations, and segment-boundary behavior. The complete `play-oem` suite
+passes: 376 passed, 3 skipped.
+
 ## Out of scope
 
 - Changing the decimation algorithm's output or the display point cap.

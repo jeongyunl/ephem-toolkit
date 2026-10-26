@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from ephem_toolkit.play_oem.views.registry import VIEW_LABELS, ViewRegistry
+from ephem_toolkit.play_oem.views import registry as view_registry
 
 
 def test_registry_expands_groups_and_deduplicates_views() -> None:
@@ -47,3 +48,8 @@ def test_registry_reports_unimplemented_group_members_before_opening() -> None:
         registry.open_group("state")
 
     assert opened == []
+
+
+def test_ground_station_access_is_in_all_but_not_overview() -> None:
+    assert "ground-station-access" in view_registry.GROUP_MEMBERS["all"]
+    assert "ground-station-access" not in view_registry.GROUP_MEMBERS["overview"]

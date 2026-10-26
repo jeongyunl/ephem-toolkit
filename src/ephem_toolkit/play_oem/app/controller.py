@@ -33,6 +33,7 @@ from .. import (
 )
 from .. import playback_data
 from ..ground_track import GroundTrackCoordinates
+from ..ground_stations import GroundStation
 from ..saved_state import (
     MAX_RECENT_FILES,
     MAX_STORED_WINDOW_DIMENSION,
@@ -47,6 +48,7 @@ from ..saved_state import (
 )
 from ..views import registry
 from ..views.ground_track import GroundTrackView
+from ..station_access import StationAccessCache
 from ..views.trajectory3d import selection as trajectory3d_selection
 
 from .support import (
@@ -99,6 +101,7 @@ class PlayerApp(
         interpolation_degree: int = DEFAULT_HERMITE_DEGREE,
         oem_interpolation: str | None = None,
         oem_interpolation_degree: int | None = None,
+        ground_stations: Sequence[GroundStation] | None = None,
         on_open_file: Callable[[str], playback_data.PlaybackData] | None = None,
         saved_state: SavedAppState | None = None,
         config_path: str | Path | None = None,
@@ -133,8 +136,10 @@ class PlayerApp(
             Exact initial render rate; when omitted, infer it from the timer interval.
         saved_state : SavedAppState | None, optional
             App-maintained window and recent-file state to restore and persist.
+        ground_stations : Sequence[GroundStation] | None, optional
+            Station definitions loaded from the user configuration file.
         config_path : str | Path | None, optional
-            User configuration file to update when the render rate changes.
+            User configuration file to update when settings or stations change.
         initial_file_path : str | None, optional
             Path to the successfully loaded initial OEM, added to recent files.
 
@@ -166,6 +171,7 @@ class PlayerApp(
         self._config_path = config_path
         self._render_rate_config_dirty = False
         self._interpolation_config_dirty = False
+        self._ground_stations_config_dirty = False
         self._use_oem_interpolation = use_oem_interpolation
         self._interpolation_method = interpolation_method
         self._interpolation_degree = interpolation_degree
@@ -211,6 +217,12 @@ class PlayerApp(
         self._last_frame_monotonic_s: float | None = None
         self._on_open_file_callback = on_open_file
         self._saved_state = saved_state
+        self._ground_stations = (
+            list(ground_stations)
+            if ground_stations is not None
+            else (list(saved_state.ground_stations) if saved_state is not None else [])
+        )
+        self._station_access_cache = StationAccessCache()
         self._persist_saved_state = saved_state is not None
         self._recent_oem_paths = (
             list(saved_state.recent_files[:MAX_RECENT_FILES])
@@ -264,6 +276,9 @@ class PlayerApp(
         )
         self._view_registry.register_view("distance", self.open_distance_view)
         self._view_registry.register_view("ground-track", self.open_ground_track_view)
+        self._view_registry.register_view(
+            "ground-station-access", self.open_ground_station_access_view
+        )
         self._plots = self._view_registry.expand(plots)
         self._panel_view_choices = ((EMPTY_GRAPH_VIEW, EMPTY_GRAPH_LABEL),) + tuple(
             (name, self._view_registry.label_for(name))
@@ -321,6 +336,8 @@ class PlayerApp(
             on_plot_endpoint=self._drag_plot_endpoint,
             on_plot_endpoint_mode=self._set_plot_endpoint_mode,
             on_begin_time_range_edit=self._begin_time_range_edit,
+            ground_stations=self._ground_stations,
+            on_ground_stations_changed=self._update_ground_stations,
         )
         self.control_window: control_window.ControlWindow = (
             control_window.ControlWindow(
@@ -507,6 +524,7 @@ class PlayerApp(
         """Persist state safely without allowing a state-file error to close the app."""
         self._save_render_rate_config()
         self._save_interpolation_config()
+        self._save_ground_stations_config()
         if not self._persist_saved_state or self._saved_state is None:
             return
         self._save_current_playback_range()
@@ -601,6 +619,21 @@ class PlayerApp(
         else:
             self._interpolation_config_dirty = False
 
+    def _save_ground_stations_config(self) -> None:
+        """Persist edited station definitions to the selected user configuration."""
+        if not self._ground_stations_config_dirty:
+            return
+        try:
+            config.save_ground_stations(self._ground_stations, self._config_path)
+        except (OSError, config.ConfigError) as error:
+            warnings.warn(
+                f"Could not save play-oem ground stations: {error}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        else:
+            self._ground_stations_config_dirty = False
+
     def _save_current_playback_range(self) -> None:
         if (
             self._saved_state is None
@@ -676,6 +709,29 @@ class PlayerApp(
             setter = getattr(opened.view, "set_minimum_elevation", None)
             if setter is not None:
                 setter(value)
+
+    def _update_ground_stations(self, stations: list[GroundStation]) -> None:
+        """Persist station definitions and refresh only already-open access panels."""
+        ids = [station.station_id for station in stations]
+        if len(ids) != len(set(ids)):
+            raise ValueError("ground station IDs must be unique")
+        self._ground_stations = list(stations)
+        self._ground_stations_config_dirty = True
+        self._save_ground_stations_config()
+        self._station_access_cache.retain_stations(stations)
+        self._refresh_open_ground_station_access()
+
+    def _refresh_open_ground_station_access(self) -> None:
+        """Refresh prepared histories only for access views that already exist."""
+        for opened in tuple(self._open_panels.values()):
+            setter = getattr(opened.view, "set_stations", None)
+            if callable(setter):
+                setter(self._ground_stations)
+
+    def _seek_from_ground_station_timeline(self, time_s: float) -> None:
+        """Seek playback from an access timeline click."""
+        self.clock.seek(time_s)
+        self._update_time_display()
 
     def _refresh_recent_files_menu(self) -> None:
         """Rebuild recent-file menu items from the current state list."""
@@ -928,6 +984,8 @@ class PlayerApp(
         self._interpolation_method = method
         self._interpolation_degree = degree
         self._interpolation_config_dirty = True
+        self._station_access_cache.clear()
+        self._refresh_open_ground_station_access()
         self.control_window.update_active_interpolation(
             self._active_interpolation_summary()
         )

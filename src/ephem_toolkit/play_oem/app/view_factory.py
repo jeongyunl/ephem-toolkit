@@ -9,6 +9,7 @@ from ..views import (
     distance,
     direction_change,
     ground_track as ground_track_view,
+    ground_station_access as ground_station_access_view,
     rtn,
     speed_altitude,
     state_components,
@@ -41,7 +42,10 @@ class ViewFactoryMixin:
             error_message = "Load an Earth-centered OEM to view its ground track."
         elif coordinates is None:
             try:
-                coordinates = prepare_ground_track(source)
+                coordinates = prepare_ground_track(
+                    source,
+                    position_cache=self._station_access_cache.position_cache,
+                )
                 self._ground_track_coordinates = coordinates
             except GroundTrackPreparationError as error:
                 error_message = str(error)
@@ -82,6 +86,32 @@ class ViewFactoryMixin:
                     self._saved_state.ground_track_ylim if self._saved_state else None
                 ),
                 on_minimum_elevation=self._set_ground_track_minimum_elevation,
+            ),
+            panel_id=panel_id,
+            stack=stack,
+            force_replace=force_replace,
+        )
+
+    def open_ground_station_access_view(
+        self: PlayerAppState,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None:
+        """Open a lazily prepared multi-station access timeline."""
+        self._open_view(
+            "ground-station-access",
+            lambda panel: ground_station_access_view.GroundStationAccessView(
+                panel,
+                self._ground_track_source if self._oem_loaded else None,
+                self.cursor,
+                self._ground_stations,
+                self.time_unit,
+                self.object_name,
+                oem_loaded=self._oem_loaded,
+                on_seek=self._seek_from_ground_station_timeline,
+                on_station_manager=self.workspace.select_ground_stations,
+                access_cache=self._station_access_cache,
             ),
             panel_id=panel_id,
             stack=stack,

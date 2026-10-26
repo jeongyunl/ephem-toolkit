@@ -21,7 +21,7 @@ access-oriented graph panel:
 
 ## User goals
 
-- Maintain zero or more ground stations without editing a configuration file.
+- Maintain zero or more ground stations without manually editing a configuration file.
 - See, at a glance, which stations can currently see the spacecraft.
 - Inspect the next and previous access windows over the loaded OEM's coverage.
 - Keep the station view synchronized with playback, seeking, reverse playback, and OEM replacement.
@@ -95,9 +95,9 @@ responsible for the spacecraft's global subpoint path and footprint drawing.
 4. **Pass summary:** previous and next pass details for the selected station, bounded to OEM
    coverage.
 
-The timeline should use readable height for a small station set and scrolling for larger lists.
-Do not force a fixed row count or truncate station names. Keep the time axis readable when the
-panel is resized.
+The timeline uses readable height for a small station set and scales its rows with the station
+count. Do not force a fixed row count or truncate station names. Keep the time axis readable when
+the panel is resized.
 
 ### Timeline drawing
 
@@ -106,8 +106,8 @@ panel is resized.
 - Draw a vertical playback cursor synchronized with the shared clock.
 - Mark intervals clipped by OEM coverage as **in progress at start** or **continues at end**.
 - A row without access intervals remains visible and is labeled **No access in OEM coverage**.
-- Allow a click on the time axis or an interval to seek the shared clock; clicking a row label
-  selects that station and must not seek.
+- Clicking the timeline moves the shared clock.
+- Select a station from the labeled station selector; station selection does not seek.
 - Provide a legend or accessible textual equivalent for interval, current-time cursor, and
   coverage-limited interval states.
 
@@ -142,6 +142,8 @@ azimuth, elevation, and range as unavailable. Do not substitute zero. Times shou
 - Adding or removing a station adds or removes its timeline row in every open access panel.
 - Replacing the OEM recomputes pass intervals and current metrics while preserving the panel.
 - Playback updates the cursor and selected-station details without recalculating full pass history.
+- Prepare pass history only when the access view is opened or its station/OEM inputs change;
+  clock updates refresh current metrics and the cursor only.
 - Closing the panel unsubscribes from clock updates using the existing graph-view lifecycle.
 - Do not change the existing Ground Track panel's projection, pan/zoom, footprint, or shared
   minimum-elevation behavior.

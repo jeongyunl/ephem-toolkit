@@ -21,10 +21,12 @@ from .constants import (
     TIMELINE_SLIDER_MAX,
 )
 from .features import FeatureNavigationMixin
+from .ground_stations import GroundStationsManager
 from .graph_stack import GraphStackMixin
 from .timeline import TimelineMixin
 from .time_range_slider import TimeRangeSlider
 from .. import time_range as range_model
+from ..ground_stations import GroundStation
 
 
 def _playback_utc(time_s: float) -> str:
@@ -65,6 +67,8 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             Callable[[str, range_model.EndpointMode], None] | None
         ) = None,
         on_begin_time_range_edit: Callable[[], None] | None = None,
+        ground_stations: Sequence[GroundStation] = (),
+        on_ground_stations_changed: Callable[[list[GroundStation]], None] | None = None,
     ) -> None:
         self._on_seek = on_seek
         self._on_seek_to_time = on_seek_to_time
@@ -101,6 +105,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         self._comparison_toggle: wx.ToggleButton | None = None
         self._view_choices = view_choices
         self._on_add_graph = on_add_graph
+        self._on_ground_stations_changed = on_ground_stations_changed
 
         main_sizer = wx.BoxSizer(wx.VERTICAL)
         self.main_splitter = wx.SplitterWindow(
@@ -130,6 +135,11 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         self._right_pane_visible = False
 
         self._build_feature_navigation(context or {}, details)
+        self.ground_station_manager = GroundStationsManager(
+            self.ground_stations_page,
+            ground_stations,
+            on_ground_stations_changed,
+        )
         self.main_splitter.SplitVertically(
             self.controls_pane, self.graph_panes_splitter, 240
         )
@@ -414,6 +424,19 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         page_sizer = wx.BoxSizer(wx.VERTICAL)
         page_sizer.Add(panel, 1, wx.EXPAND)
         self.state_page.SetSizer(page_sizer)
+
+    def set_ground_stations(self, stations: Sequence[GroundStation]) -> None:
+        """Update station definitions displayed in the management page."""
+        self.ground_station_manager.set_stations(stations)
+
+    def select_ground_stations(self) -> None:
+        """Navigate to the Ground Stations management page."""
+        index = next(
+            index
+            for index, (label, _icon) in enumerate(self._FEATURES)
+            if label == "Ground Stations"
+        )
+        self.select_feature(index)
 
     def focus_neutral_target(self) -> None:
         """Move keyboard focus away from settings and text-entry controls."""

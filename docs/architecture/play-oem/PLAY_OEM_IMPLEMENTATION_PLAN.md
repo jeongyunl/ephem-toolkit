@@ -12,6 +12,8 @@ The proposed Ground Stations feature has a separate
 [manager](./mockup-ground-stations-manager.svg),
 [inline station details](./mockup-ground-station-editor.svg), and
 [access panel](./mockup-ground-station-access.svg) mockups.
+See the [Ground Stations user guide](../../tools/PLAY_OEM_GROUND_STATIONS.md) for implemented
+management behavior and prediction limits.
 
 ## Current runtime behavior
 

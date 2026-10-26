@@ -79,6 +79,7 @@ def test_3d_backend_option_rejects_unknown_choice(
                 "direction-change",
                 "distance",
                 "ground-track",
+                "ground-station-access",
             ),
         ),
     ],
@@ -147,6 +148,9 @@ def test_cli_passes_configured_render_rate_and_path_to_player(
         "use_oem_metadata = false\n"
         'method = "chebyshev"\n'
         "degree = 8\n"
+        "[ground_stations]\n"
+        "stations = [{ id = \"one\", name = \"North\", latitude_deg = 64.0, "
+        "longitude_deg = -21.0, altitude_m = 45.0, minimum_elevation_deg = 12 }]\n"
     )
     launched: dict[str, Any] = {}
 
@@ -168,7 +172,40 @@ def test_cli_passes_configured_render_rate_and_path_to_player(
     assert launched["use_oem_interpolation"] is False
     assert launched["interpolation_method"] == "chebyshev"
     assert launched["interpolation_degree"] == 8
+    assert len(launched["ground_stations"]) == 1
+    assert launched["ground_stations"][0].name == "North"
     assert launched["run"] is True
+
+
+def test_cli_migrates_legacy_stations_into_user_config(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from ephem_toolkit.play_oem import app, config, saved_state
+    from ephem_toolkit.play_oem.ground_stations import GroundStation
+
+    config_path = tmp_path / "play-oem.toml"
+    config_path.write_text("config_version = 1\n")
+    station = GroundStation("legacy", "Legacy site", 10.0, 20.0, 30.0)
+    monkeypatch.setattr(
+        saved_state,
+        "load_saved_state",
+        lambda: saved_state.SavedAppState(ground_stations=[station]),
+    )
+    launched: dict[str, Any] = {}
+
+    class FakePlayerApp:
+        def __init__(self, *_args, **kwargs) -> None:
+            launched.update(kwargs)
+
+        def run(self) -> None:
+            pass
+
+    monkeypatch.setattr(app, "PlayerApp", FakePlayerApp)
+
+    main(["--config", str(config_path)])
+
+    assert launched["ground_stations"] == [station]
+    assert config.load_config(config_path).ground_stations == (station,)
 
 
 def test_static_output_option_is_not_supported() -> None:

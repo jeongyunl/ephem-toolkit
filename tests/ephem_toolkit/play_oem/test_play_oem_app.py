@@ -20,6 +20,7 @@ from ephem_toolkit.play_oem.app import support as app_support
 from ephem_toolkit.play_oem.app import view_factory
 from ephem_toolkit.play_oem.clock import PlaybackClock
 from ephem_toolkit.play_oem.cursor import OemCursor
+from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem.play_oem_cli import build_arg_parser, parse_arguments
 from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_unit import TimeUnit
@@ -700,6 +701,27 @@ def make_app(
         initial_file_path=initial_file_path,
     )
     return player, views, canvases, frames
+
+
+def test_ground_station_edits_persist_to_selected_user_config(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    config_path = tmp_path / "play-oem.toml"
+    config_path.write_text("config_version = 1\n")
+    player, _views, _canvases, _frames = make_app(
+        monkeypatch, config_path=config_path
+    )
+    station = GroundStation("station", "Site", 10.0, 20.0, 30.0)
+
+    player._update_ground_stations([station])
+
+    assert app.config.load_config(config_path).ground_stations == (station,)
+
+    player._update_ground_stations([])
+
+    loaded = app.config.load_config(config_path)
+    assert loaded.ground_stations == ()
+    assert loaded.ground_stations_configured
 
 
 def test_open_file_dialog_accepts_lower_and_uppercase_oem_extensions(

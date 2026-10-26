@@ -20,7 +20,9 @@ from .. import (
     workspace,
 )
 from ..ground_track import GroundTrackCoordinates
+from ..ground_stations import GroundStation
 from ..saved_state import SavedAppState
+from ..station_access import StationAccessCache
 from ..views import base, registry
 from .support import _OpenView
 
@@ -38,6 +40,8 @@ class PlayerAppState(Protocol):
     frame_context: str
     _ground_track_source: playback_data.GroundTrackSource | None
     _ground_track_coordinates: GroundTrackCoordinates | None
+    _ground_stations: list[GroundStation]
+    _station_access_cache: StationAccessCache
     _saved_state: SavedAppState | None
     object_name: str
     series: series.OrbitSeries
@@ -71,6 +75,12 @@ class PlayerAppState(Protocol):
         name: str,
         create_view: Callable[[wx.Window], base.View],
         *,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None: ...
+    def open_ground_station_access_view(
+        self,
         panel_id: str | None = None,
         stack: str = "middle",
         force_replace: bool = False,
@@ -132,6 +142,8 @@ class PlayerAppState(Protocol):
         force_replace: bool = False,
     ) -> None: ...
     def _set_ground_track_minimum_elevation(self, value: int) -> None: ...
+    def _update_ground_stations(self, stations: list[GroundStation]) -> None: ...
+    def _seek_from_ground_station_timeline(self, time_s: float) -> None: ...
     def open_panel_view(
         self,
         name: str,

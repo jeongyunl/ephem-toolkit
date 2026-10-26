@@ -42,12 +42,12 @@ Names are required but need not be unique; identity and view state use `station_
 display name. Allow finite altitudes below sea level. Do not silently coerce malformed numbers,
 non-finite values, or out-of-range coordinates.
 
-Store the collection in `SavedAppState` and the existing app-maintained TOML file, not in
-`play-oem.toml`: station locations are editable workspace data rather than playback defaults.
-Use a `[ground_stations]` table containing a `stations` array of inline tables. For example:
+Store station definitions in the user configuration file, `play-oem.toml`, alongside the
+playback preferences. Keep them in their own `[ground_stations]` table containing a `stations`
+array of inline tables. For example:
 
 ```toml
-state_version = 7
+config_version = 1
 
 [ground_stations]
 stations = [
@@ -56,11 +56,11 @@ stations = [
 ```
 
 The exact ID representation may be UUID text; it must remain stable through rename and edit.
-Bump the state schema version from the current version when implementing this schema. Continue
-to load all currently accepted older versions with an empty station collection. Invalid station
-data should use the existing invalid-state reporting policy rather than being silently accepted.
-Persist changes through the existing state writer and preserve unrelated window, recent-file,
-and workspace settings.
+Validate station data when loading or saving configuration, and preserve unrelated playback,
+display, interpolation, and comment content when station definitions change. For compatibility,
+read station data from legacy state files and migrate it into `play-oem.toml` when no station
+configuration is present. Continue to keep window, recent-file, and workspace settings in the
+app-maintained `play-oem-state.toml`.
 
 ## Access calculation
 
@@ -102,13 +102,16 @@ segments and refine each threshold crossing by repeatedly resolving the cursor s
 same segment. Never bridge OEM gaps. Preserve only intervals inside OEM coverage and label
 truncated intervals at the start or end of coverage as such.
 
-Sampling must not miss a pass that occurs between sparse OEM samples. Begin with a documented
-sampling/subdivision strategy informed by sample cadence and orbit motion, then refine candidate
-crossings to a documented time tolerance. If an OEM segment is too sparse to support a reliable
-prediction, present the limitation rather than claiming precise AOS/LOS times. Cache results by
-OEM identity, station identity and station definition, and invalidate them when any input changes.
-The view may reuse prepared results, but must not perform expensive whole-file work on every
-playback tick.
+Each valid OEM segment is evaluated on a uniform grid with steps no longer than 30 seconds,
+independent of the segment's source sample density. The active `OemCursor` interpolation resolves
+the state at each grid epoch. Sampled local elevation maxima are refined to detect sub-step passes,
+then AOS/LOS boundaries are bisected to within 0.5 seconds. A within-segment source sample gap
+greater than five minutes, a single-sample segment, or more than one million grid evaluations makes
+pass prediction unavailable with a visible limitation; no interval is inferred across those
+regions. These limits describe numerical resolution of the selected OEM interpolation, not
+physical orbit truth. Cache results by OEM/cursor identity and immutable station definition, and
+invalidate them when an input changes. Preparation is lazy: it starts only when the Ground Station
+Access view is opened and is never repeated on a playback tick.
 
 For each interval, retain start/end TT seconds, peak elevation and its epoch, and minimum slant
 range and its epoch. AOS and LOS are relative to the configured mask. At the OEM boundaries,
@@ -123,9 +126,11 @@ Use focused modules consistent with the current package:
 play_oem/
   ground_stations.py             # station type, validation, coordinate conversion
   station_access.py              # current metrics and cached access intervals
-  saved_state.py                 # persisted station collection and migration
+  config.py                      # persisted station collection in play-oem.toml
+  saved_state.py                 # legacy station migration and workspace state
   workspace/
     features.py                  # Ground Stations manager page
+    ground_stations.py           # expandable inline station editor
   views/
     ground_station_access.py     # access timeline and selected-station details
     registry.py                  # view name and label
@@ -137,10 +142,14 @@ play_oem/
 
 Keep station validation and access calculations independent of wxPython and Matplotlib. The
 controller owns the station collection, passes immutable snapshots to the view, persists changes,
-and invalidates derived access data. Views observe the shared clock and receive refreshed station
-or OEM data through the existing panel lifecycle. Replacing an OEM updates open access panels in
-place or rebuilds them through the established view factory; closing a panel releases its clock
-observer and plotting resources.
+and invalidates derived access data. Ground Track and Ground Station Access share an app-scoped
+ECEF sample-position cache, so exact OEM sample conversions are reused without changing cursor
+interpolation between samples. Access panels also share prepared pass histories; a new station
+definition produces a new cache key, while OEM replacement or interpolation-policy changes
+invalidate access results. Views observe the shared clock and receive refreshed station or OEM
+data through the existing panel lifecycle. Replacing an OEM updates open access panels in place or
+rebuilds them through the established view factory; closing a panel releases its clock observer and
+plotting resources.
 
 Register the individual graph view as `ground-station-access`, labeled **Ground Station Access**.
 Keep the existing `overview` group unchanged and include this view in `all` through the registry's
@@ -155,6 +164,8 @@ state with a route to station management.
 - Unsupported center/frame or failed conversion: show an actionable error in the view; keep the
   station manager and other views usable.
 - Cursor in an OEM gap: retain the historical access timeline, mark current metrics unavailable.
+- Pass touching an OEM segment gap: stop at the segment edge and identify the crossing as
+  unavailable rather than extending the interval through the gap.
 - Malformed saved station: follow the established saved-state warning/reset behavior and report
   the state-file path and reason.
 - Calculation failure for one station: identify that station and preserve results for other

@@ -9,7 +9,9 @@ from typing import Any, cast
 import pytest
 
 from ephem_toolkit.play_oem import workspace
+from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem.workspace import core, features, graph_stack, timeline
+from ephem_toolkit.play_oem.workspace import ground_stations as station_manager
 
 
 class FakeEvent:
@@ -97,6 +99,21 @@ class FakeWidget:
     def SetFocus(self) -> None:
         self.focused = True
 
+    def SetSizer(self, sizer) -> None:
+        self.sizer = sizer
+
+    def Freeze(self) -> None:
+        pass
+
+    def Thaw(self) -> None:
+        pass
+
+    def DestroyChildren(self) -> None:
+        pass
+
+    def FitInside(self) -> None:
+        pass
+
     def Hide(self) -> None:
         self.shown = False
 
@@ -155,6 +172,27 @@ class FakeChoice(FakeWidget):
         return self.selection
 
 
+class FakeTextCtrl(FakeWidget):
+    def __init__(self, parent, widget_id, value="", **kwargs) -> None:
+        super().__init__(parent, widget_id, value, **kwargs)
+        self.value = value
+
+    def GetValue(self) -> str:
+        return self.value
+
+    def SetValue(self, value: str) -> None:
+        self.value = value
+
+
+class FakeSpinCtrl(FakeTextCtrl):
+    def __init__(self, parent, widget_id, value="0", **kwargs) -> None:
+        super().__init__(parent, widget_id, value, **kwargs)
+        self.value = int(value)
+
+    def GetValue(self) -> int:
+        return self.value
+
+
 class FakeSizer:
     def __init__(self, _orientation: int) -> None:
         self.orientation = _orientation
@@ -163,6 +201,9 @@ class FakeSizer:
 
     def Add(self, item, proportion: int, flags: int = 0, border: int = 0) -> None:
         self.items.append((item, proportion, flags, border))
+
+    def Clear(self, _delete_windows: bool = False) -> None:
+        self.items.clear()
 
     def Detach(self, item) -> bool:
         if isinstance(item, int):
@@ -238,7 +279,22 @@ class FakePanel:
     def GetClientSize(self) -> FakeSize:
         return self.client_size
 
+    def SetScrollRate(self, x: int, y: int) -> None:
+        self.scroll_rate = (x, y)
+
     def Layout(self) -> None:
+        pass
+
+    def Freeze(self) -> None:
+        pass
+
+    def Thaw(self) -> None:
+        pass
+
+    def DestroyChildren(self) -> None:
+        pass
+
+    def FitInside(self) -> None:
         pass
 
     def SetName(self, name: str) -> None:
@@ -571,15 +627,24 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "Slider": FakeSlider,
         "StaticLine": FakeWidget,
         "StaticText": FakeWidget,
-        "TextCtrl": FakeWidget,
+        "TextCtrl": FakeTextCtrl,
         "Button": FakeWidget,
+        "SpinCtrl": FakeSpinCtrl,
         "Choice": FakeChoice,
+        "MessageBox": lambda *_args: 1,
         "BoxSizer": FakeSizer,
         "ArtProvider": FakeArtProvider,
         "CallLater": FakeCallLater,
         "Size": lambda width, height: (width, height),
         "Colour": lambda *channels: channels,
         "ID_ANY": -1,
+        "YES": 1,
+        "YES_NO": 2,
+        "CANCEL": 8,
+        "ICON_QUESTION": 4,
+        "ID_YES": 1,
+        "ID_NO": 0,
+        "ID_CANCEL": 2,
         "VERTICAL": 1,
         "HORIZONTAL": 2,
         "SP_LIVE_UPDATE": 4,
@@ -599,6 +664,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "ART_BUTTON": 1,
         "ART_HELP_SETTINGS": "settings",
         "ART_INFORMATION": "information",
+        "ART_LIST_VIEW": "list",
         "EVT_BUTTON": "button",
         "EVT_TOGGLEBUTTON": "toggle-button",
         "EVT_CHOICE": "choice",
@@ -682,17 +748,21 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
     assert [label for _page, label in result.feature_book.pages] == [
         "Settings",
         "OEM file information",
+        "Ground Stations",
         "State",
     ]
     assert result.feature_book.selection == 0
     assert result.feature_rail_buttons[0].name == "Settings"
     assert result.feature_rail_buttons[0].tooltip == "Settings"
     assert result.feature_rail_buttons[1].name == "OEM file information"
-    assert result.feature_rail_buttons[2].name == "State"
-    assert result.feature_rail_buttons[2].tooltip == "State"
+    assert result.feature_rail_buttons[2].name == "Ground Stations"
+    assert result.feature_rail_buttons[2].tooltip == "Ground Stations"
+    assert result.feature_rail_buttons[3].name == "State"
+    assert result.feature_rail_buttons[3].tooltip == "State"
     assert [page.name for page in result.feature_pages] == [
         "Settings",
         "OEM file information",
+        "Ground Stations",
         "State",
     ]
     assert result.controls_pane.name == workspace.CONTROLS_PANE_NAME
@@ -873,6 +943,72 @@ def test_playback_controls_dispatch_signed_rates_and_track_play_state(
     assert result.playback_reverse_play_button.label == "◀"
     assert result.playback_reverse_play_button.name == "Play reverse at current speed"
     assert result.playback_forward_play_button.label == "▶"
+
+
+def test_ground_station_manager_adds_edits_and_removes_inline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configure_fake_wx(monkeypatch)
+    saved: list[list[GroundStation]] = []
+    manager = station_manager.GroundStationsManager(
+        FakePanel(None, -1), [], saved.append
+    )
+
+    manager._on_add(FakeEvent())
+    manager._fields["name"].SetValue("North Site")
+    manager._fields["latitude_deg"].SetValue("64.1")
+    manager._fields["longitude_deg"].SetValue("-21.9")
+    manager._fields["altitude_m"].SetValue("45")
+    manager._mask_control.SetValue(12)
+    manager._fields["latitude_deg"].SetValue("91")
+    assert not manager._save_form()
+    manager._fields["latitude_deg"].SetValue("64.1")
+    assert manager._save_form()
+    assert len(manager._stations) == 1
+    added = manager._stations[0]
+    assert added.name == "North Site"
+    assert added.minimum_elevation_deg == 12
+    assert saved[-1] == [added]
+
+    manager._fields["name"].SetValue("Renamed Site")
+    assert manager._save_form()
+    edited = manager._stations[0]
+    assert edited.station_id == added.station_id
+    assert edited.name == "Renamed Site"
+
+    manager._on_remove(edited)
+    assert manager._stations == []
+    assert saved[-1] == []
+
+
+def test_ground_station_manager_keeps_dirty_row_when_switch_is_cancelled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configure_fake_wx(monkeypatch)
+    stations = [
+        GroundStation("one", "One", 0.0, 0.0, 0.0),
+        GroundStation("two", "Two", 1.0, 1.0, 0.0),
+    ]
+
+    class FakeMessageDialog:
+        def __init__(self, *_args) -> None:
+            pass
+
+        def ShowModal(self) -> int:
+            return 2
+
+        def Destroy(self) -> None:
+            pass
+
+    monkeypatch.setattr(station_manager.wx, "MessageDialog", FakeMessageDialog)
+    manager = station_manager.GroundStationsManager(FakePanel(None, -1), stations, None)
+    manager.select_station("one")
+    manager._fields["name"].SetValue("Edited")
+
+    manager.select_station("two")
+
+    assert manager._expanded_id == "one"
+    assert manager._fields["name"].GetValue() == "Edited"
 
 
 def test_graph_stack_scrollbars_are_forced_visible_only_when_content_overflows(

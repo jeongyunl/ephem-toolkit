@@ -39,8 +39,8 @@ For example, if your home directory is `/home/alex`, the default user config fil
 
 You can choose a different XDG config directory by setting `XDG_CONFIG_HOME` before starting
 `play-oem`. It must be an absolute path. If it is relative, `play-oem` will use the default
-under `~/.config` instead. The application will not create either file just by starting; it will
-use built-in defaults and initial window settings when the files are absent.
+under `~/.config` instead. The application uses built-in defaults when these files are absent.
+It creates `play-oem.toml` when a setting is saved or when legacy station definitions are migrated.
 
 ## User config file
 
@@ -62,6 +62,11 @@ plots = ["overview"]
 use_oem_metadata = false
 method = "hermite"
 degree = 5
+
+[ground_stations]
+stations = [
+  { id = "station-uuid", name = "North Site", latitude_deg = 64.1, longitude_deg = -21.9, altitude_m = 45.0, minimum_elevation_deg = 10 },
+]
 ```
 
 You can leave out settings you do not want to customize. Unspecified settings will use their
@@ -74,7 +79,7 @@ leave it at `1` unless a later version of this guide says otherwise.
 separately from your user-edited defaults. You normally do not need to edit it.
 
 ```toml
-state_version = 6
+state_version = 8
 
 [window]
 width = 1400
@@ -98,6 +103,10 @@ open_plots = ["trajectory-3d", "speed-altitude"]
 [ground_track]
 minimum_elevation_deg = 10
 ```
+
+Ground station definitions are stored in the user config file, not the state file. Station
+definitions in legacy state files are migrated to `play-oem.toml` when no `[ground_stations]`
+section is present there.
 
 The state file remembers the main window size and position, and up to 15 recently opened OEM files. The
 most recently opened file appears first. A file is added after it loads successfully; opening it

@@ -17,6 +17,7 @@ except ModuleNotFoundError:  # Python 3.9 and 3.10
     import tomli as tomllib  # type: ignore[no-redef]
 
 from .config import default_config_directory
+from .ground_stations import GroundStation, parse_ground_station_records
 from .time_range import (
     PlotTimeRange,
     TimeRangeEndpoint,
@@ -25,7 +26,7 @@ from .time_range import (
 from .views.registry import parse_plot_selection
 
 STATE_FILENAME = "play-oem-state.toml"
-STATE_VERSION = 6
+STATE_VERSION = 8
 MAX_RECENT_FILES = 15
 MIN_STORED_WINDOW_DIMENSION = 320
 MAX_STORED_WINDOW_DIMENSION = 10000
@@ -72,6 +73,8 @@ class SavedAppState:
     ground_track_center_longitude_deg: float = DEFAULT_GROUND_TRACK_CENTER_LONGITUDE_DEG
     ground_track_xlim: tuple[float, float] | None = None
     ground_track_ylim: tuple[float, float] | None = None
+    # Read only to migrate station records from state files through version 7.
+    ground_stations: list[GroundStation] = field(default_factory=list)
 
 
 def default_state_path() -> Path:
@@ -167,6 +170,7 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
         "recent_files",
         "workspace",
         "ground_track",
+        "ground_stations",
         "playback",
     }
     unknown_root = set(document) - allowed_root
@@ -176,10 +180,10 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
     if (
         isinstance(version, bool)
         or not _is_int(version)
-        or version not in (1, 2, 3, 4, 5, STATE_VERSION)
+        or not 1 <= version <= STATE_VERSION
     ):
         return _state_error(
-            state_path, f"state_version must be 1, 2, 3, 4, 5, or {STATE_VERSION}"
+            state_path, f"state_version must be from 1 through {STATE_VERSION}"
         )
 
     window = document.get("window", {})
@@ -378,6 +382,19 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
     except ValueError as error:
         return _state_error(state_path, error)
 
+    ground_stations_section = document.get("ground_stations", {})
+    if not isinstance(ground_stations_section, dict):
+        return _state_error(state_path, "[ground_stations] must be a TOML table")
+    if set(ground_stations_section) - {"stations"}:
+        unknown = sorted(set(ground_stations_section) - {"stations"})[0]
+        return _state_error(state_path, f"unknown key ground_stations.{unknown!s}")
+    try:
+        ground_stations = parse_ground_station_records(
+            ground_stations_section.get("stations", [])
+        )
+    except ValueError as error:
+        return _state_error(state_path, error)
+
     # Older state files stored FPS here; the render rate now belongs to user config.
     playback = document.get("playback", {})
     if not isinstance(playback, dict):
@@ -400,6 +417,7 @@ def load_saved_state(path: str | Path | None = None) -> SavedAppState:
         ground_track_center_longitude_deg=float(center),
         ground_track_xlim=xlim,
         ground_track_ylim=ylim,
+        ground_stations=ground_stations,
     )
 
 
@@ -470,9 +488,7 @@ def serialize_saved_state(state: SavedAppState) -> str:
                 f"value_s = {plot_range.end.value_s!r} }}"
                 " }"
             )
-        settings_body = (
-            f"{{ {', '.join(setting_values)} }}" if setting_values else "{}"
-        )
+        settings_body = f"{{ {', '.join(setting_values)} }}" if setting_values else "{}"
         encoded_settings.append(f"    {_toml_string(path)} = {settings_body}")
     settings_body = "\n".join(encoded_settings)
     settings_table = f"\n{settings_body}\n" if settings_body else "\n"

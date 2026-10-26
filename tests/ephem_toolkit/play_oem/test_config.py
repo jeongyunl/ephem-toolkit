@@ -7,9 +7,11 @@ import pytest
 from ephem_toolkit.play_oem.config import (
     ConfigError,
     load_config,
+    save_ground_stations,
     save_interpolation_settings,
     save_render_rate_fps,
 )
+from ephem_toolkit.play_oem.ground_stations import GroundStation
 
 
 def test_saving_render_rate_fps_preserves_other_config_and_comments(tmp_path) -> None:
@@ -143,6 +145,66 @@ def test_saving_interpolation_settings_creates_section_and_updates_inline_table(
     assert load_config(path).interpolation_method == "chebyshev"
     assert load_config(path).interpolation_degree == 9
     assert "use_oem_metadata = false" in path.read_text()
+
+
+def test_ground_stations_load_from_user_config(tmp_path) -> None:
+    path = tmp_path / "play-oem.toml"
+    path.write_text(
+        "config_version = 1\n"
+        "[ground_stations]\n"
+        "stations = [{ id = \"one\", name = \"North\", latitude_deg = 64.0, "
+        "longitude_deg = -21.0, altitude_m = 45.0, minimum_elevation_deg = 12 }]\n"
+    )
+
+    loaded = load_config(path)
+
+    assert loaded.ground_stations == (
+        GroundStation("one", "North", 64.0, -21.0, 45.0, 12),
+    )
+    assert loaded.ground_stations_configured
+
+
+def test_saving_ground_stations_preserves_other_config(tmp_path) -> None:
+    path = tmp_path / "play-oem.toml"
+    path.write_text(
+        "config_version = 1\n"
+        "[playback]\n"
+        "speed = 3.0 # keep this comment\n"
+        "[display]\n"
+        'three_d_backend = "auto"\n'
+        "[ground_stations]\n"
+        "# Site list managed by the team\n"
+        "stations = []\n"
+    )
+    station = GroundStation("id", "O'Hare & North", 42.0, -87.0, 180.0, 5)
+
+    save_ground_stations([station], path)
+
+    loaded = load_config(path)
+    text = path.read_text()
+    assert loaded.ground_stations == (station,)
+    assert loaded.speed == 3.0
+    assert "speed = 3.0 # keep this comment" in text
+    assert "[ground_stations]" in text
+    assert "# Site list managed by the team" in text
+
+    save_ground_stations([], path)
+
+    assert load_config(path).ground_stations == ()
+    assert "stations = []" in path.read_text()
+
+
+def test_invalid_ground_stations_are_rejected_in_user_config(tmp_path) -> None:
+    path = tmp_path / "play-oem.toml"
+    path.write_text(
+        "config_version = 1\n"
+        "[ground_stations]\n"
+        'stations = [{ id = "one", name = "bad", latitude_deg = 91, '
+        "longitude_deg = 0, altitude_m = 0, minimum_elevation_deg = 10 }]\n"
+    )
+
+    with pytest.raises(ConfigError, match="latitude_deg"):
+        load_config(path)
 
 
 @pytest.mark.parametrize(

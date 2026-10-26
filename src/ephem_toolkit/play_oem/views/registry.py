@@ -13,6 +13,7 @@ VIEW_LABELS = (
     ("direction-change", "Direction Change"),
     ("distance", "Geocentric Distance"),
     ("ground-track", "Ground Track"),
+    ("ground-station-access", "Ground Station Access"),
 )
 
 GROUP_LABELS = (

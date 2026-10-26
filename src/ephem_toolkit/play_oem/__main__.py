@@ -13,12 +13,17 @@ def main(argv: Sequence[str] | None = None) -> None:
     """Load an OEM and prepare its derived playback series."""
     cli_args: PlayOemArgs = parse_arguments(build_arg_parser(), argv)
 
-    from .config import load_config
+    from .config import load_config, save_ground_stations
     from .playback_data import empty_playback_data, load_playback_data
     from .saved_state import load_saved_state
 
     user_config = load_config(cli_args.config)
     saved_state = load_saved_state()
+    ground_stations = list(user_config.ground_stations)
+    if not user_config.ground_stations_configured and saved_state.ground_stations:
+        ground_stations = list(saved_state.ground_stations)
+        save_ground_stations(ground_stations, cli_args.config)
+        saved_state.ground_stations = []
     initial_render_rate_fps = user_config.render_rate_fps
     if "plots" in cli_args.provided_options:
         selected_plots = cli_args.plots
@@ -93,6 +98,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         oem_interpolation_degree=initial_data.oem_interpolation_degree,
         on_open_file=load_file,
         saved_state=saved_state,
+        ground_stations=ground_stations,
         ground_track_source=initial_data.ground_track_source,
         initial_file_path=cli_args.input_oem,
         oem_loaded=cli_args.input_oem is not None,

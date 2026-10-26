@@ -7,9 +7,10 @@ by the migration in [PLAY_OEM_IMPLEMENTATION_PLAN.md](./PLAY_OEM_IMPLEMENTATION_
 
 Implemented Ground Track view: see the [completion report](./old/PLAY_OEM_GROUND_TRACK_IMPLEMENTATION_PLAN.md) and [end-user guide](../../tools/PLAY_OEM_GROUND_TRACK.md).
 
-Proposed Ground Stations feature: [software design](./PLAY_OEM_GROUND_STATIONS_SOFTWARE_DESIGN.md),
+Implemented Ground Stations feature: [software design](./PLAY_OEM_GROUND_STATIONS_SOFTWARE_DESIGN.md),
 [GUI design](./PLAY_OEM_GROUND_STATIONS_GUI_DESIGN.md), and
-[implementation plan](./PLAY_OEM_GROUND_STATIONS_IMPLEMENTATION_PLAN.md).
+[implementation plan](./PLAY_OEM_GROUND_STATIONS_IMPLEMENTATION_PLAN.md), with the
+[user guide](../../tools/PLAY_OEM_GROUND_STATIONS.md).
 
 ## 1. Approach: copy and modify `plot-oem`
 
@@ -38,6 +39,8 @@ src/ephem_toolkit/play_oem/
   data.py  series.py  time_unit.py              # copied from plot_oem
   clock.py             # PlaybackClock (pure Python, no GUI)
   cursor.py            # CursorState lookup at t_now
+  ground_stations.py   # validated stations and WGS-84 topocentric geometry
+  station_access.py    # lazy access preparation and cache
   app/
     __init__.py        # public PlayerApp export
     controller.py      # frame lifecycle, OEM replacement and playback timer
@@ -51,6 +54,7 @@ src/ephem_toolkit/play_oem/
     constants.py       # pane names, dimensions, redraw timing
     core.py            # Workspace composition and main pane layout
     features.py        # Controls & Info feature rail and OEM metadata page
+    ground_stations.py # expandable inline station manager
     graph_stack.py     # graph panes, splitters, scrolling and redraw scheduling
     timeline.py        # shared timeline playback and time-entry behavior
   graph_panel.py       # embedded graph-panel host and redraw scheduling
@@ -60,6 +64,7 @@ src/ephem_toolkit/play_oem/
     trajectory3d/      # mpl_backend.py; vtk_backend.py only if VTK-KEEP (see 4.3.1)
     state_components.py speed_altitude.py rtn_deltas.py angular_velocity.py
     direction_change.py geocentric_distance.py
+    ground_station_access.py # multi-station access timeline and readouts
     registry.py        # view/group names -> factories
 ```
 

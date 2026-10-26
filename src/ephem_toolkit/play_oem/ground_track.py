@@ -152,7 +152,73 @@ def state_position_to_itrf_m(
     return converted[:3].copy()
 
 
-def prepare_ground_track(source: GroundTrackSource) -> GroundTrackCoordinates:
+class EarthFixedPositionCache:
+    """Share converted source-sample positions between Earth-fixed views."""
+
+    def __init__(self) -> None:
+        self._source: GroundTrackSource | None = None
+        self._positions_m: np.ndarray | None = None
+        self._computed: np.ndarray | None = None
+
+    def clear(self) -> None:
+        """Discard converted positions after the active OEM is replaced."""
+        self._source = None
+        self._positions_m = None
+        self._computed = None
+
+    def positions(self, source: GroundTrackSource) -> np.ndarray:
+        """Return all OEM sample positions in ITRF, converting missing samples."""
+        self._ensure_source(source)
+        assert self._positions_m is not None
+        assert self._computed is not None
+        timestamps_s = np.asarray(source.timestamps_s, dtype=float)
+        states_m = np.asarray(source.states_m, dtype=float)
+        for index in np.flatnonzero(~self._computed):
+            self._positions_m[index] = state_position_to_itrf_m(
+                states_m[index], source.frame_name, float(timestamps_s[index])
+            )
+            self._computed[index] = True
+        positions = self._positions_m.view()
+        positions.setflags(write=False)
+        return positions
+
+    def position_for_state(
+        self, source: GroundTrackSource, state_m: np.ndarray, epoch_tt_s: float
+    ) -> np.ndarray:
+        """Reuse a converted OEM sample at an exact epoch, otherwise convert state."""
+        self._ensure_source(source)
+        timestamps_s = np.asarray(source.timestamps_s, dtype=float)
+        states_m = np.asarray(source.states_m, dtype=float)
+        index = int(np.searchsorted(timestamps_s, epoch_tt_s))
+        if (
+            index < timestamps_s.size
+            and timestamps_s[index] == epoch_tt_s
+            and np.array_equal(states_m[index], state_m)
+        ):
+            assert self._positions_m is not None
+            assert self._computed is not None
+            if not self._computed[index]:
+                self._positions_m[index] = state_position_to_itrf_m(
+                    states_m[index], source.frame_name, float(epoch_tt_s)
+                )
+                self._computed[index] = True
+            return self._positions_m[index].copy()
+        return state_position_to_itrf_m(state_m, source.frame_name, epoch_tt_s)
+
+    def _ensure_source(self, source: GroundTrackSource) -> None:
+        if source is self._source:
+            return
+        timestamps_s = np.asarray(source.timestamps_s, dtype=float)
+        self._source = source
+        self._positions_m = np.empty((timestamps_s.size, 3), dtype=float)
+        self._computed = np.zeros(timestamps_s.size, dtype=bool)
+
+
+def prepare_ground_track(
+    source: GroundTrackSource,
+    *,
+    position_cache: EarthFixedPositionCache | None = None,
+) -> GroundTrackCoordinates:
     """Convert supported OEM samples to WGS-84 geodetic coordinates.
 
     Earth-fixed coordinates use their positions directly. Supported inertial states
@@ -195,23 +261,16 @@ def prepare_ground_track(source: GroundTrackSource) -> GroundTrackCoordinates:
     if np.any(np.diff(segment_ids) < 0):
         raise GroundTrackPreparationError("OEM segment IDs must be non-decreasing")
 
-    if direct_earth_fixed:
-        earth_fixed_positions_m = states_m[:, :3]
-    else:
-        try:
-            earth_fixed_positions_m = np.asarray(
-                [
-                    state_position_to_itrf_m(state, frame_name, float(epoch))
-                    for epoch, state in zip(timestamps_s, states_m)
-                ],
-                dtype=float,
-            )
-        except GroundTrackPreparationError:
-            raise
-        except Exception as error:
-            raise GroundTrackPreparationError(
-                f"Cannot convert OEM frame {frame_name!r} to ITRF: {error}"
-            ) from error
+    if position_cache is None:
+        position_cache = EarthFixedPositionCache()
+    try:
+        earth_fixed_positions_m = position_cache.positions(source)
+    except GroundTrackPreparationError:
+        raise
+    except Exception as error:
+        raise GroundTrackPreparationError(
+            f"Cannot convert OEM frame {frame_name!r} to ITRF: {error}"
+        ) from error
 
     geodetic = _ecef_to_wgs84_geodetic(earth_fixed_positions_m)
     latitude_rad = np.asarray(geodetic[:, 0], dtype=float)

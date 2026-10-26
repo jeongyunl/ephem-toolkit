@@ -64,6 +64,7 @@ class FeatureNavigationMixin:
     _FEATURES = (
         ("Settings", wx.ART_HELP_SETTINGS),
         ("OEM file information", wx.ART_INFORMATION),
+        ("Ground Stations", wx.ART_LIST_VIEW),
         ("State", wx.ART_LIST_VIEW),
     )
 
@@ -157,7 +158,8 @@ class FeatureNavigationMixin:
 
         self.settings_page = self.feature_pages[0]
         self.file_info_page = self.feature_pages[1]
-        self.state_page = self.feature_pages[2]
+        self.ground_stations_page = self.feature_pages[2]
+        self.state_page = self.feature_pages[3]
         file_info_sizer = wx.BoxSizer(wx.VERTICAL)
         self.file_info_scroll = wx.ScrolledWindow(
             self.file_info_page,

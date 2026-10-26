@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import math
 import os
 from pathlib import Path
@@ -20,6 +21,7 @@ from ephem_toolkit.core.interpolator.interpolation_spec import (
     DEFAULT_HERMITE_DEGREE,
     InterpolationType,
 )
+from .ground_stations import GroundStation, parse_ground_station_records
 from .views.registry import parse_plot_selection
 from .views.trajectory3d.selection import THREE_D_BACKEND_CHOICES
 
@@ -47,6 +49,8 @@ class PlayOemConfig:
     three_d_backend: str = "auto"
     plots: tuple[str, ...] = ("overview",)
     plots_configured: bool = False
+    ground_stations: tuple[GroundStation, ...] = ()
+    ground_stations_configured: bool = False
 
 
 def default_config_directory(
@@ -137,7 +141,13 @@ def load_config(path: str | Path | None = None) -> PlayOemConfig:
 
     _reject_unknown_keys(
         document,
-        {"config_version", "playback", "display", "interpolation"},
+        {
+            "config_version",
+            "playback",
+            "display",
+            "interpolation",
+            "ground_stations",
+        },
         "",
         config_path,
     )
@@ -154,6 +164,9 @@ def load_config(path: str | Path | None = None) -> PlayOemConfig:
     interpolation = _table(
         document.get("interpolation", {}), "interpolation", config_path
     )
+    ground_stations_section = _table(
+        document.get("ground_stations", {}), "ground_stations", config_path
+    )
     _reject_unknown_keys(
         playback,
         {"speed", "reverse", "fps", "render_rate_fps"},
@@ -167,6 +180,15 @@ def load_config(path: str | Path | None = None) -> PlayOemConfig:
         "interpolation",
         config_path,
     )
+    _reject_unknown_keys(
+        ground_stations_section, {"stations"}, "ground_stations", config_path
+    )
+    try:
+        ground_stations = parse_ground_station_records(
+            ground_stations_section.get("stations", [])
+        )
+    except ValueError as error:
+        raise ConfigError(f"{config_path}: {error}") from error
 
     use_oem_interpolation, interpolation_method, interpolation_degree = (
         _validate_interpolation_settings(
@@ -243,7 +265,121 @@ def load_config(path: str | Path | None = None) -> PlayOemConfig:
         three_d_backend=backend,
         plots=plots,
         plots_configured="plots" in display,
+        ground_stations=tuple(ground_stations),
+        ground_stations_configured="ground_stations" in document,
     )
+
+
+def _station_records_value(stations: tuple[GroundStation, ...]) -> str:
+    records = []
+    seen_ids: set[str] = set()
+    for station in stations:
+        if not isinstance(station, GroundStation):
+            raise ConfigError("ground_stations must contain GroundStation records")
+        if station.station_id in seen_ids:
+            raise ConfigError(f"duplicate ground station id: {station.station_id!r}")
+        seen_ids.add(station.station_id)
+        records.append(
+            "{ "
+            f"id = {json.dumps(station.station_id, ensure_ascii=False)}, "
+            f"name = {json.dumps(station.name, ensure_ascii=False)}, "
+            f"latitude_deg = {station.latitude_deg!r}, "
+            f"longitude_deg = {station.longitude_deg!r}, "
+            f"altitude_m = {station.altitude_m!r}, "
+            f"minimum_elevation_deg = {station.minimum_elevation_deg}"
+            " }"
+        )
+    return "[" + ", ".join(records) + "]"
+
+
+def _with_ground_stations(document: str, stations: tuple[GroundStation, ...]) -> str:
+    newline = "\r\n" if "\r\n" in document else "\n"
+    lines = document.splitlines()
+    value = _station_records_value(stations)
+    section_header = re.compile(r"^[ \t]*\[{1,2}[^\]]+\]{1,2}[ \t]*(?:#.*)?$")
+    ground_stations_header = re.compile(
+        r"^[ \t]*\[[ \t]*(?:ground_stations|\"ground_stations\"|"
+        r"'ground_stations')[ \t]*\][ \t]*(?:#.*)?$"
+    )
+    inline_ground_stations = re.compile(
+        r"^([ \t]*(?:ground_stations|\"ground_stations\"|'ground_stations')"
+        r"[ \t]*=[ \t]*\{)(.*)(\}[ \t]*(?:#.*)?)$"
+    )
+
+    for index, line in enumerate(lines):
+        inline_match = inline_ground_stations.match(line)
+        if inline_match is not None:
+            lines[index] = (
+                f"{inline_match.group(1)}stations = {value}" f"{inline_match.group(3)}"
+            )
+            updated = newline.join(lines)
+            return updated + newline if document.endswith(("\n", "\r")) else updated
+
+    section_start = next(
+        (
+            index
+            for index, line in enumerate(lines)
+            if ground_stations_header.match(line)
+        ),
+        None,
+    )
+    if section_start is None:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.extend(("[ground_stations]", f"stations = {value}"))
+    else:
+        section_end = next(
+            (
+                index
+                for index in range(section_start + 1, len(lines))
+                if section_header.match(lines[index])
+            ),
+            len(lines),
+        )
+        comments = [
+            line
+            for line in lines[section_start + 1 : section_end]
+            if line.lstrip().startswith("#")
+        ]
+        lines[section_start + 1 : section_end] = [*comments, f"stations = {value}"]
+
+    updated = newline.join(lines)
+    return updated + newline if document.endswith(("\n", "\r")) else updated
+
+
+def save_ground_stations(
+    stations: tuple[GroundStation, ...] | list[GroundStation],
+    path: str | Path | None = None,
+) -> Path:
+    """Persist station definitions in the selected user configuration file."""
+    station_tuple = tuple(stations)
+    _station_records_value(station_tuple)
+    config_path = default_config_path() if path is None else Path(path).expanduser()
+    if config_path.exists():
+        load_config(config_path)
+        document = config_path.read_text(encoding="utf-8")
+    else:
+        document = f"config_version = {CONFIG_VERSION}\n"
+    updated_document = _with_ground_stations(document, station_tuple)
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            newline="",
+            dir=config_path.parent,
+            prefix=f".{config_path.name}.",
+            delete=False,
+        ) as stream:
+            stream.write(updated_document)
+            temporary_path = stream.name
+        os.replace(temporary_path, config_path)
+    finally:
+        if temporary_path is not None and os.path.exists(temporary_path):
+            os.unlink(temporary_path)
+    return config_path
 
 
 def _with_render_rate_fps(document: str, render_rate_fps: int) -> str:
@@ -279,13 +415,9 @@ def _with_render_rate_fps(document: str, render_rate_fps: int) -> str:
                 f"{rate_match.group(2)}"
             )
             values = (
-                values[: rate_match.start()]
-                + replacement
-                + values[rate_match.end() :]
+                values[: rate_match.start()] + replacement + values[rate_match.end() :]
             )
-        lines[index] = (
-            f"{inline_match.group(1)}{values}{inline_match.group(3)}"
-        )
+        lines[index] = f"{inline_match.group(1)}{values}{inline_match.group(3)}"
         updated = newline.join(lines)
         if document.endswith(("\n", "\r")):
             updated += newline
@@ -330,16 +462,12 @@ def _with_render_rate_fps(document: str, render_rate_fps: int) -> str:
     return updated
 
 
-def save_render_rate_fps(
-    render_rate_fps: int, path: str | Path | None = None
-) -> Path:
+def save_render_rate_fps(render_rate_fps: int, path: str | Path | None = None) -> Path:
     """Persist the selected render rate in the user configuration file."""
     if (
         isinstance(render_rate_fps, bool)
         or not isinstance(render_rate_fps, int)
-        or not RENDER_RATE_FPS_MIN
-        <= render_rate_fps
-        <= RENDER_RATE_FPS_MAX
+        or not RENDER_RATE_FPS_MIN <= render_rate_fps <= RENDER_RATE_FPS_MAX
     ):
         raise ConfigError(
             "playback.render_rate_fps must be between "
@@ -418,20 +546,14 @@ def _with_interpolation_settings(
                     + f"{key_match.group(1)}{key} = {value}"
                     + contents[key_match.end() :]
                 )
-        lines[index] = (
-            f"{inline_match.group(1)}{contents}{inline_match.group(3)}"
-        )
+        lines[index] = f"{inline_match.group(1)}{contents}{inline_match.group(3)}"
         updated = newline.join(lines)
         if document.endswith(("\n", "\r")):
             updated += newline
         return updated
 
     interpolation_start = next(
-        (
-            index
-            for index, line in enumerate(lines)
-            if interpolation_header.match(line)
-        ),
+        (index for index, line in enumerate(lines) if interpolation_header.match(line)),
         None,
     )
     if interpolation_start is None:
