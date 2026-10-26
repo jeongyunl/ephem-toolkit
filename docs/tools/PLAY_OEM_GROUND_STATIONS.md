@@ -33,9 +33,12 @@ Open **Ground Station Access** from a graph panel's view selector, or use
 `overview` is unchanged. The view is available with no stations or no OEM and displays a relevant
 empty state. Use **Manage Ground Stations** to open the manager.
 
-The timeline shows geometric access intervals against the complete OEM coverage. Click the
-timeline to move playback. Choose a station to see its current access state, azimuth, elevation,
-slant range, and previous/next pass details.
+The graph shows the selected station's elevation versus time only while it is at or above that
+station's minimum-elevation mask; access intervals are marked on the curve. Its vertical scale is
+fixed at 0°–95°. It follows the application's Plot Range; adjust that range to zoom or move through
+time. The graph does not use wheel zoom or separate pan controls. Click the graph to move playback.
+Choose a station to see its current access state, azimuth, elevation, slant range, and previous/next
+pass details.
 
 - **Azimuth** is clockwise from geodetic north.
 - **Elevation** is above the local geodetic horizon.

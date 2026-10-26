@@ -44,12 +44,21 @@ class AccessInterval:
 
 
 @dataclass(frozen=True)
+class ElevationProfile:
+    """Sampled station elevation over one contiguous OEM segment."""
+
+    times_s: np.ndarray
+    elevations_deg: np.ndarray
+
+
+@dataclass(frozen=True)
 class StationAccess:
     """Prepared access history and any prediction limitation for a station."""
 
     station: GroundStation
     intervals: tuple[AccessInterval, ...]
     limitation: str | None = None
+    elevation_profiles: tuple[ElevationProfile, ...] = ()
 
 
 def current_station_metrics(
@@ -123,6 +132,7 @@ def prepare_station_access(
         )
 
     intervals: list[AccessInterval] = []
+    elevation_profiles: list[ElevationProfile] = []
     total_samples = 0
     segment_starts = np.r_[0, np.flatnonzero(np.diff(segments) != 0) + 1]
     segment_ends = np.r_[segment_starts[1:], timestamps.size]
@@ -192,6 +202,18 @@ def prepare_station_access(
                 insertion_index = int(np.searchsorted(segment_times, epoch))
                 segment_times.insert(insertion_index, epoch)
                 metrics.insert(insertion_index, peak_metrics)
+        elevation_profiles.append(
+            ElevationProfile(
+                np.asarray(segment_times, dtype=float),
+                np.asarray(
+                    [
+                        metric.elevation_deg if metric is not None else np.nan
+                        for metric in metrics
+                    ],
+                    dtype=float,
+                ),
+            )
+        )
         intervals.extend(
             _intervals_for_segment(
                 station,
@@ -215,7 +237,12 @@ def prepare_station_access(
         )
         else None
     )
-    return StationAccess(station, tuple(intervals), limitation)
+    return StationAccess(
+        station,
+        tuple(intervals),
+        limitation,
+        tuple(elevation_profiles),
+    )
 
 
 def _refine_peak(

@@ -1,14 +1,14 @@
-"""Ground Station Access timeline and live station readouts."""
+"""Ground Station Access elevation graph and live station readouts."""
 
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 
 import wx
+from matplotlib.axes import Axes
+from matplotlib.backend_bases import MouseButton
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
-from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
 import numpy as np
 
 from ephem_toolkit.core import time_utils
@@ -18,13 +18,18 @@ from ..ground_stations import GroundStation
 from ..ground_track import GroundTrackSource, GroundTrackPreparationError
 from ..series import OrbitSeries
 from ..station_access import (
-    AccessInterval,
     StationAccess,
     StationAccessCache,
     current_station_metrics,
 )
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
+from .plotting import (
+    MAX_DISPLAY_POINTS_PER_SEGMENT,
+    decimate_indices,
+    set_shared_x_limits,
+    time_bounds_to_axis,
+)
 
 
 def _utc_label(time_s: float) -> str:
@@ -34,7 +39,7 @@ def _utc_label(time_s: float) -> str:
 
 
 class GroundStationAccessView:
-    """Display multi-station access intervals and shared-clock metrics."""
+    """Display selected-station elevation and shared-clock metrics."""
 
     name = "ground-station-access"
 
@@ -76,6 +81,9 @@ class GroundStationAccessView:
         self._status_label: wx.StaticText | None = None
         self._access_results: tuple[StationAccess, ...] = ()
         self._preparation_error: str | None = None
+        self._time_range_bounds: ResolvedTimeRange | None = None
+        self._time_range_coverage = (cursor.t_start, cursor.t_end)
+        self._time_range_applied = False
         self._prepare_access()
 
     def build(self, _series: OrbitSeries, _time_unit: TimeUnit, /) -> wx.Window:
@@ -120,11 +128,11 @@ class GroundStationAccessView:
         self._figure = Figure(figsize=(9.0, 4.5), dpi=100)
         self._axes = self._figure.add_subplot(1, 1, 1)
         self._canvas = FigureCanvasWxAgg(panel, wx.ID_ANY, self._figure)
-        self._canvas.mpl_connect("button_press_event", self._on_timeline_click)
+        self._canvas.mpl_connect("button_press_event", self._on_plot_click)
         sizer.Add(self._canvas, 1, wx.EXPAND | wx.ALL, 8)
         panel.SetSizer(sizer)
         self._refresh_station_choice()
-        self._draw_timeline()
+        self._draw_elevation_plot()
         self.update(self._current_time_s)
         return panel
 
@@ -135,6 +143,15 @@ class GroundStationAccessView:
             for line in self._axes.lines:
                 if line.get_gid() == "playback-cursor":
                     line.set_xdata([cursor_x, cursor_x])
+                    line.set_visible(
+                        not self._time_range_applied
+                        or (
+                            self._time_range_bounds is not None
+                            and self._time_range_bounds.start_s
+                            <= t_s
+                            <= self._time_range_bounds.end_s
+                        )
+                    )
             self._canvas.draw_idle()
         station = self._selected_station()
         if station is None:
@@ -202,7 +219,7 @@ class GroundStationAccessView:
         )
         self._prepare_access()
         self._refresh_station_choice()
-        self._draw_timeline()
+        self._draw_elevation_plot()
         self.update(self._current_time_s)
 
     def set_oem(
@@ -219,14 +236,26 @@ class GroundStationAccessView:
         self._object_name = object_name
         self._oem_loaded = oem_loaded
         self._current_time_s = cursor.t_start
+        self._time_range_bounds = None
+        self._time_range_coverage = (cursor.t_start, cursor.t_end)
+        self._time_range_applied = False
         self._prepare_access()
-        self._draw_timeline()
+        self._draw_elevation_plot()
         self.update(self._current_time_s)
 
     def set_time_range(
-        self, _bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
+        self, bounds: ResolvedTimeRange | None, coverage: tuple[float, float], /
     ) -> None:
-        return
+        was_empty = self._time_range_applied and self._time_range_bounds is None
+        self._time_range_bounds = bounds
+        self._time_range_coverage = coverage
+        self._time_range_applied = True
+        if was_empty != (bounds is None):
+            self._draw_elevation_plot()
+            return
+        self._apply_time_range()
+        if self._canvas is not None:
+            self._canvas.draw_idle()
 
     def close(self) -> None:
         self._canvas = None
@@ -250,7 +279,7 @@ class GroundStationAccessView:
                 results.append(StationAccess(station, (), str(error)))
         self._access_results = tuple(results)
 
-    def _draw_timeline(self) -> None:
+    def _draw_elevation_plot(self) -> None:
         if self._axes is None or self._figure is None:
             return
         axes = self._axes
@@ -269,7 +298,7 @@ class GroundStationAccessView:
             axes.text(
                 0.5,
                 0.5,
-                "Load an Earth-centered OEM to view access intervals",
+                "Load an Earth-centered OEM to view elevation",
                 ha="center",
                 va="center",
                 transform=axes.transAxes,
@@ -278,29 +307,10 @@ class GroundStationAccessView:
         else:
             axes.set_axis_on()
             divisor = self._time_unit.get_divisor_s()
-            for row, station in enumerate(self._stations):
-                result = self._result_for(station.station_id)
-                intervals = result.intervals if result is not None else ()
-                for interval in intervals:
-                    self._draw_interval(row, interval, divisor)
-                if not intervals:
-                    message = (
-                        result.limitation
-                        if result is not None and result.limitation
-                        else "No access in OEM coverage"
-                    )
-                    axes.text(
-                        0.0,
-                        row,
-                        f"  {message}",
-                        va="center",
-                        ha="left",
-                        fontsize="small",
-                        color="#555555",
-                    )
-            axes.set_yticks(np.arange(len(self._stations)))
-            axes.set_yticklabels([station.name for station in self._stations])
-            axes.set_ylim(len(self._stations) - 0.5, -0.5)
+            station = self._selected_station()
+            result = (
+                self._result_for(station.station_id) if station is not None else None
+            )
             axes.set_xlim(
                 0.0,
                 max(
@@ -309,68 +319,202 @@ class GroundStationAccessView:
                 ),
             )
             axes.set_xlabel(self._time_unit.get_axis_label())
-            axes.grid(axis="x", alpha=0.25)
-            axes.legend(
-                handles=[
-                    Patch(
-                        facecolor="#2f7ebc",
-                        edgecolor="#1e5d8a",
-                        label="Geometric access",
-                    ),
-                    Line2D(
-                        [0], [0], color="#222222", linestyle="--", label="Playback time"
-                    ),
-                    Patch(
-                        facecolor="#2f7ebc",
-                        edgecolor="#1e5d8a",
-                        hatch="//",
-                        label="Coverage-limited interval",
-                    ),
-                ],
-                loc="upper right",
-                fontsize="small",
-            )
-            axes.axvline(
-                (self._current_time_s - self._cursor.t_start) / divisor,
-                color="#222222",
-                linestyle="--",
-                linewidth=1,
-                gid="playback-cursor",
-            )
+            axes.set_ylabel("Elevation (degrees)")
+            if self._time_range_applied and self._time_range_bounds is None:
+                axes.text(
+                    0.5,
+                    0.5,
+                    "No data in Plot Range",
+                    ha="center",
+                    va="center",
+                    transform=axes.transAxes,
+                )
+            elif station is None:
+                axes.text(
+                    0.5,
+                    0.5,
+                    "Select a ground station to view elevation",
+                    ha="center",
+                    va="center",
+                    transform=axes.transAxes,
+                )
+            elif result is None or not result.elevation_profiles:
+                message = (
+                    result.limitation
+                    if result is not None and result.limitation
+                    else "Elevation profile unavailable"
+                )
+                axes.text(
+                    0.5,
+                    0.5,
+                    message,
+                    ha="center",
+                    va="center",
+                    transform=axes.transAxes,
+                )
+            else:
+                self._draw_elevation_graph(axes, station, result, divisor)
+            axes.grid(axis="both", alpha=0.25)
         self._figure.tight_layout()
+        self._apply_time_range()
         if self._canvas is not None:
             self._canvas.draw_idle()
 
-    def _draw_interval(
-        self, row: int, interval: AccessInterval, divisor: float
+    def _draw_elevation_graph(
+        self,
+        axes: Axes,
+        station: GroundStation,
+        result: StationAccess,
+        divisor: float,
     ) -> None:
-        assert self._axes is not None
-        left = (interval.start_s - self._cursor.t_start) / divisor
-        width = max((interval.end_s - interval.start_s) / divisor, 1.0e-9)
-        clipped = interval.clipped_at_start or interval.clipped_at_end
-        gap_limited = interval.limited_by_gap_at_start or interval.limited_by_gap_at_end
-        self._axes.barh(
-            row,
-            width,
-            left=left,
-            height=0.55,
-            color="#2f7ebc",
-            hatch="xx" if gap_limited else ("//" if clipped else None),
-            edgecolor="#1e5d8a",
-            linewidth=0.7,
+        axes.set_title(f"{station.name} elevation")
+        has_line = False
+        mask = station.minimum_elevation_deg
+        for profile in result.elevation_profiles:
+            times = profile.times_s
+            elevations = profile.elevations_deg
+            valid_indices = np.flatnonzero(np.isfinite(times) & np.isfinite(elevations))
+            if not valid_indices.size:
+                continue
+            run_breaks = np.flatnonzero(np.diff(valid_indices) > 1) + 1
+            for run_indices in np.split(valid_indices, run_breaks):
+                run_times = times[run_indices]
+                run_elevations = elevations[run_indices]
+                for interval in result.intervals:
+                    start_s = max(interval.start_s, float(run_times[0]))
+                    end_s = min(interval.end_s, float(run_times[-1]))
+                    if start_s > end_s:
+                        continue
+                    interior_start = np.searchsorted(run_times, start_s, side="right")
+                    interior_end = np.searchsorted(run_times, end_s, side="left")
+                    plot_times = np.concatenate(
+                        (
+                            np.asarray([start_s]),
+                            run_times[interior_start:interior_end],
+                            np.asarray([end_s]),
+                        )
+                    )
+                    plot_elevations = np.interp(plot_times, run_times, run_elevations)
+                    start_limited = (
+                        interval.clipped_at_start or interval.limited_by_gap_at_start
+                    )
+                    end_limited = (
+                        interval.clipped_at_end or interval.limited_by_gap_at_end
+                    )
+                    if start_s == interval.start_s and not start_limited:
+                        plot_elevations[0] = mask
+                    if end_s == interval.end_s and not end_limited:
+                        plot_elevations[-1] = mask
+                    visible_indices = np.flatnonzero(plot_elevations >= mask)
+                    visible_breaks = np.flatnonzero(np.diff(visible_indices) > 1) + 1
+                    for visible_run in np.split(visible_indices, visible_breaks):
+                        if not visible_run.size:
+                            continue
+                        samples = np.column_stack(
+                            (plot_times[visible_run], plot_elevations[visible_run])
+                        )
+                        display_indices = decimate_indices(
+                            samples, MAX_DISPLAY_POINTS_PER_SEGMENT
+                        )
+                        axes.plot(
+                            (samples[display_indices, 0] - self._cursor.t_start)
+                            / divisor,
+                            samples[display_indices, 1],
+                            color="#2f7ebc",
+                            linewidth=1.2,
+                            marker="." if len(display_indices) == 1 else "None",
+                            label="Elevation" if not has_line else "_nolegend_",
+                        )
+                        has_line = True
+
+        axes.axhline(
+            mask,
+            color="#c74343",
+            linestyle="--",
+            linewidth=1.0,
+            label=f"Minimum elevation ({mask}°)",
+        )
+        if has_line:
+            interval_labels: set[str] = set()
+            for interval in result.intervals:
+                left = (interval.start_s - self._cursor.t_start) / divisor
+                right = (interval.end_s - self._cursor.t_start) / divisor
+                gap_limited = (
+                    interval.limited_by_gap_at_start or interval.limited_by_gap_at_end
+                )
+                coverage_limited = interval.clipped_at_start or interval.clipped_at_end
+                label = (
+                    "Gap-limited access"
+                    if gap_limited
+                    else (
+                        "Coverage-limited access"
+                        if coverage_limited
+                        else "Access interval"
+                    )
+                )
+                axes.axvspan(
+                    left,
+                    right,
+                    color="#2f7ebc",
+                    alpha=0.12,
+                    hatch="xx" if gap_limited else ("//" if coverage_limited else None),
+                    label=label if label not in interval_labels else "_nolegend_",
+                )
+                interval_labels.add(label)
+        else:
+            axes.text(
+                0.5,
+                0.5,
+                "No elevation at or above the minimum mask in OEM coverage",
+                ha="center",
+                va="center",
+                transform=axes.transAxes,
+            )
+        axes.axvline(
+            (self._current_time_s - self._cursor.t_start) / divisor,
+            color="#222222",
+            linestyle="--",
+            linewidth=1,
+            label="Playback time",
+            gid="playback-cursor",
         )
 
-    def _on_timeline_click(self, event) -> None:
+        axes.set_ylim(0.0, 95.0)
+        axes.legend(loc="upper right", fontsize="small")
+
+    def _apply_time_range(self) -> None:
+        if self._axes is None:
+            return
+        limits = time_bounds_to_axis(
+            self._time_range_bounds,
+            self._time_range_coverage,
+            self._cursor.t_start,
+            self._time_unit.get_divisor_s(),
+        )
+        set_shared_x_limits((self._axes,), limits)
+        for line in self._axes.lines:
+            if line.get_gid() == "playback-cursor":
+                line.set_visible(
+                    not self._time_range_applied
+                    or (
+                        self._time_range_bounds is not None
+                        and self._time_range_bounds.start_s
+                        <= self._current_time_s
+                        <= self._time_range_bounds.end_s
+                    )
+                )
+
+    def _on_plot_click(self, event) -> None:
         if (
-            event.inaxes is self._axes
-            and event.xdata is not None
-            and self._oem_loaded
-            and self._stations
+            event.button != MouseButton.LEFT
+            or event.inaxes is not self._axes
+            or event.xdata is None
+            or not self._oem_loaded
+            or not self._stations
         ):
-            target = (
-                self._cursor.t_start + event.xdata * self._time_unit.get_divisor_s()
-            )
-            self._on_seek(min(self._cursor.t_end, max(self._cursor.t_start, target)))
+            return
+        target = self._cursor.t_start + event.xdata * self._time_unit.get_divisor_s()
+        self._on_seek(min(self._cursor.t_end, max(self._cursor.t_start, target)))
 
     def _on_station_selected(self, _event: wx.CommandEvent) -> None:
         if self._station_choice is None:
@@ -378,8 +522,8 @@ class GroundStationAccessView:
         index = self._station_choice.GetSelection()
         if 0 <= index < len(self._stations):
             self._selected_station_id = self._stations[index].station_id
+            self._draw_elevation_plot()
             self.update(self._current_time_s)
-            self._draw_timeline()
 
     def _refresh_station_choice(self) -> None:
         if self._station_choice is None:

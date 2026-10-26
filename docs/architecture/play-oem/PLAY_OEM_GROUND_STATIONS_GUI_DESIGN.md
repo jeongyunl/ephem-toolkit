@@ -17,7 +17,7 @@ access-oriented graph panel:
 
 ![Expanded Ground Station row with inline editing](./mockup-ground-station-editor.svg)
 
-![Ground Station Access timeline and details](./mockup-ground-station-access.svg)
+![Ground Station Access elevation graph and details](./mockup-ground-station-access.svg)
 
 ## User goals
 
@@ -88,31 +88,35 @@ responsible for the spacecraft's global subpoint path and footprint drawing.
 ### Layout
 
 1. **Header:** “Ground Station Access”, current object name, and loaded OEM coverage span.
-2. **Access timeline:** one horizontal row per station, sharing a time axis across the full OEM
-   span.
+2. **Elevation graph:** elevation versus time for the selected station, sharing the application's
+   Plot Range on the time axis.
 3. **Current station details:** a selectable station list or row selection plus a concise detail
    area for the selected site.
 4. **Pass summary:** previous and next pass details for the selected station, bounded to OEM
    coverage.
 
-The timeline uses readable height for a small station set and scales its rows with the station
-count. Do not force a fixed row count or truncate station names. Keep the time axis readable when
-the panel is resized.
+Use the station selector to choose which station's elevation is graphed. Keep the time axis
+readable when the panel is resized.
 
-### Timeline drawing
+### Elevation graph
 
-- Draw a horizontal interval for each AOS-to-LOS contact window, with one row per station.
-- Use a clear visible/not-visible encoding that does not depend on color alone.
+- Plot the selected station's elevation angle against time, in degrees, only where it is at or
+  above the station's minimum-elevation mask.
+- Keep the vertical scale fixed from 0° to 95°.
+- Draw the station's minimum-elevation mask as the lower boundary/reference for the plotted curve.
+- Shade the selected station's AOS-to-LOS access intervals behind the elevation curve. Use
+  distinct hatching for intervals limited by OEM coverage or an OEM segment gap.
 - Draw a vertical playback cursor synchronized with the shared clock.
-- Mark intervals clipped by OEM coverage as **in progress at start** or **continues at end**.
-- A row without access intervals remains visible and is labeled **No access in OEM coverage**.
-- Clicking the timeline moves the shared clock.
-- Select a station from the labeled station selector; station selection does not seek.
-- Provide a legend or accessible textual equivalent for interval, current-time cursor, and
-  coverage-limited interval states.
+- The time axis follows the application's Plot Range; use its endpoints and follow rules to
+  zoom or move through time. Do not add separate viewport controls to this panel.
+- Clicking the graph moves the shared clock; changing the station selector does not seek.
+- Provide a legend or accessible textual equivalent for the elevation curve, mask, access spans,
+  and current-time cursor.
+- Reuse the elevation samples prepared for access prediction; changing Plot Range must not
+  recompute access history.
 
-The displayed access interval is based on geometric elevation meeting that station's minimum
-elevation mask. Label it as geometric access, not a guaranteed communications link.
+Displayed access spans are based on geometric elevation meeting that station's minimum elevation
+mask. Label them as geometric access, not a guaranteed communications link.
 
 ### Selected-station details
 
@@ -126,7 +130,7 @@ At the current playback time, show:
 - Previous and next AOS/LOS, pass duration, maximum elevation, and minimum range where those
   values are available.
 
-When outside usable OEM data or in a segment gap, keep the timeline visible but mark current
+When outside usable OEM data or in a segment gap, keep the graph visible but mark current
 azimuth, elevation, and range as unavailable. Do not substitute zero. Times should follow existing
 `play-oem` UTC display conventions; elapsed-time labels may be used on the chart axis.
 
@@ -139,7 +143,7 @@ azimuth, elevation, and range as unavailable. Do not substitute zero. Times shou
   disabling the station manager or unrelated views.
 - Expanding a station reveals inline editable details; saving refreshes its row and invalidates
   only the affected station's access data.
-- Adding or removing a station adds or removes its timeline row in every open access panel.
+- Adding or removing a station updates the station selector in every open access panel.
 - Replacing the OEM recomputes pass intervals and current metrics while preserving the panel.
 - Playback updates the cursor and selected-station details without recalculating full pass history.
 - Prepare pass history only when the access view is opened or its station/OEM inputs change;
@@ -150,15 +154,15 @@ azimuth, elevation, and range as unavailable. Do not substitute zero. Times shou
 
 ## Accessibility and visual requirements
 
-- Provide keyboard access to Add, Edit, Remove, station selection, and timeline seeking.
+- Provide keyboard access to Add, Edit, Remove, station selection, and graph seeking.
 - Use text/icons or line patterns as well as color for access state.
 - Include units in labels and tooltips; distinguish “elevation” from altitude.
 - Keep minimum text readable at the graph panel's minimum supported size.
 - Do not claim access when the state or frame conversion is unavailable.
-- Ensure timeline row labels and status text remain meaningful to assistive technology.
+- Ensure graph labels, legend entries, and status text remain meaningful to assistive technology.
 
 ## Deferred visual features
 
 Do not add a second global map in the first implementation. A station-location map, station
 coverage cones, antenna constraints, terrain obstruction profiles, link budget, and contact
-export can be considered separately after validating the pass timeline and live metrics.
+export can be considered separately after validating the elevation graph and live metrics.

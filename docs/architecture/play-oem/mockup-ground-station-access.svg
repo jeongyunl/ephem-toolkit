@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1480" height="900" viewBox="0 0 1480 900" role="img" aria-labelledby="title desc">
   <title id="title">Ground Station Access view mock-up</title>
-  <desc id="desc">Illustrative play-oem graph panel with a multi-station access timeline, a synchronized current-time cursor, a selected station's live azimuth, elevation, and range, and current and upcoming pass summaries. The chart uses illustrative data.</desc>
+  <desc id="desc">Illustrative play-oem graph panel with the selected ground station's elevation plotted against time, its elevation mask and access spans, a synchronized current-time cursor, live azimuth, elevation, and range, and current and upcoming pass summaries. The chart uses illustrative data.</desc>
   <defs>
     <style>
       .bg{fill:#f1f4f8}.window{fill:#fff;stroke:#cbd5e1;stroke-width:1.5}.chrome{fill:#e8edf3}
@@ -10,6 +10,8 @@
       .pane{fill:#fff;stroke:#d5dee9;stroke-width:1.2}.rule{stroke:#e1e7ef;stroke-width:1}.grid{stroke:#e1e7ef;stroke-width:1}
       .access{fill:#bfe7d7;stroke:#23866b;stroke-width:1}.upcoming{fill:#dbeafe;stroke:#477cc6;stroke-width:1}
       .clipped{fill:url(#hatch);stroke:#ad8b22;stroke-width:1}.now{stroke:#df4d66;stroke-width:2}
+      .curve{fill:none;stroke:#2f7ebc;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+      .maskline{stroke:#c74343;stroke-width:1.5;stroke-dasharray:6 4}
       .button{fill:#fff;stroke:#bac8d8;stroke-width:1.2}.badge{fill:#e4f5ec}.badgetext{fill:#17654f;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:11px;font-weight:700}
       .icon{fill:none;stroke:#687a90;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
     </style>
@@ -37,44 +39,49 @@
   <circle cx="1255" cy="206" r="4" fill="#23866b"/><text class="badgetext" x="1268" y="210">IN ACCESS · North Site</text>
 
   <rect class="pane" x="76" y="254" width="1328" height="326" rx="7"/>
-  <text class="ink heading" x="96" y="281">Access timeline</text>
-  <text class="muted tiny" x="1383" y="281" text-anchor="end">Click chart to seek · click a station name to select</text>
-  <text class="muted tiny" x="97" y="319">STATION</text>
-  <text class="muted tiny" x="382" y="319" text-anchor="middle">12:00</text>
-  <text class="muted tiny" x="548" y="319" text-anchor="middle">13:00</text>
-  <text class="muted tiny" x="714" y="319" text-anchor="middle">14:00</text>
-  <text class="muted tiny" x="880" y="319" text-anchor="middle">15:00</text>
-  <text class="muted tiny" x="1046" y="319" text-anchor="middle">16:00</text>
-  <text class="muted tiny" x="1212" y="319" text-anchor="middle">17:00</text>
-  <text class="muted tiny" x="1370" y="319" text-anchor="middle">18:00</text>
+  <text class="ink heading" x="96" y="281">North Site · Elevation profile</text>
+  <rect class="button" x="1160" y="260" width="220" height="26" rx="5"/>
+  <text class="muted tiny" x="1172" y="277">Station: North Site ▾</text>
+  <text class="muted tiny" x="1383" y="307" text-anchor="end">Plot Range · click graph to seek</text>
+  <text class="muted tiny" x="282" y="335" text-anchor="end">95°</text>
+  <text class="muted tiny" x="282" y="365" text-anchor="end">80°</text>
+  <text class="muted tiny" x="282" y="405" text-anchor="end">60°</text>
+  <text class="muted tiny" x="282" y="445" text-anchor="end">40°</text>
+  <text class="muted tiny" x="282" y="485" text-anchor="end">20°</text>
+  <text class="muted tiny" x="282" y="525" text-anchor="end">0°</text>
+  <text class="muted tiny" x="382" y="545" text-anchor="middle">12:00</text>
+  <text class="muted tiny" x="548" y="545" text-anchor="middle">13:00</text>
+  <text class="muted tiny" x="714" y="545" text-anchor="middle">14:00</text>
+  <text class="muted tiny" x="880" y="545" text-anchor="middle">15:00</text>
+  <text class="muted tiny" x="1046" y="545" text-anchor="middle">16:00</text>
+  <text class="muted tiny" x="1212" y="545" text-anchor="middle">17:00</text>
+  <text class="muted tiny" x="1378" y="545" text-anchor="middle">18:00</text>
   <line x1="300" y1="329" x2="1388" y2="329" class="grid"/>
-  <line x1="300" y1="380" x2="1388" y2="380" class="grid"/>
-  <line x1="300" y1="431" x2="1388" y2="431" class="grid"/>
-  <line x1="300" y1="482" x2="1388" y2="482" class="grid"/>
-  <line x1="300" y1="533" x2="1388" y2="533" class="grid"/>
-  <line x1="382" y1="329" x2="382" y2="533" class="grid"/>
-  <line x1="548" y1="329" x2="548" y2="533" class="grid"/>
-  <line x1="714" y1="329" x2="714" y2="533" class="grid"/>
-  <line x1="880" y1="329" x2="880" y2="533" class="grid"/>
-  <line x1="1046" y1="329" x2="1046" y2="533" class="grid"/>
-  <line x1="1212" y1="329" x2="1212" y2="533" class="grid"/>
-  <line x1="1378" y1="329" x2="1378" y2="533" class="grid"/>
-  <rect x="306" y="341" width="1080" height="37" rx="5" fill="#f5f9ff"/>
-  <text class="ink small" x="98" y="361" font-weight="700">North Site</text><text class="muted tiny" x="98" y="374">64.15°, −21.94° · mask 10°</text>
-  <rect class="clipped" x="306" y="348" width="59" height="22" rx="4"/><rect class="access" x="743" y="348" width="100" height="22" rx="4"/>
-  <rect class="upcoming" x="1167" y="348" width="62" height="22" rx="4"/>
-  <text class="ink small" x="98" y="412">Equator Station</text><text class="muted tiny" x="98" y="425">0.00°, 36.82° · mask 5°</text>
-  <rect class="access" x="481" y="399" width="48" height="22" rx="4"/><rect class="upcoming" x="1047" y="399" width="79" height="22" rx="4"/>
-  <text class="ink small" x="98" y="463">Island Station</text><text class="muted tiny" x="98" y="476">−13.16°, −72.53° · mask 10°</text>
-  <rect class="access" x="421" y="450" width="35" height="22" rx="4"/><rect class="upcoming" x="1064" y="450" width="44" height="22" rx="4"/>
-  <text class="muted tiny" x="98" y="515">Polar Station</text><text class="muted tiny" x="98" y="528">No access in OEM coverage</text>
-  <line x1="796" y1="329" x2="796" y2="533" class="now"/>
-  <rect x="754" y="300" width="84" height="20" rx="4" fill="#df4d66"/>
-  <text x="796" y="314" text-anchor="middle" fill="#fff" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="10" font-weight="700">NOW 14:30</text>
-  <rect x="96" y="546" width="13" height="13" rx="2" class="access"/><text class="muted tiny" x="116" y="557">Access interval</text>
-  <rect x="236" y="546" width="13" height="13" rx="2" class="upcoming"/><text class="muted tiny" x="256" y="557">Upcoming interval</text>
-  <rect x="395" y="546" width="13" height="13" rx="2" class="clipped"/><text class="muted tiny" x="415" y="557">OEM coverage boundary</text>
-  <line x1="566" y1="552" x2="589" y2="552" class="now"/><text class="muted tiny" x="597" y="557">Playback time</text>
+  <line x1="300" y1="359" x2="1388" y2="359" class="grid"/>
+  <line x1="300" y1="399" x2="1388" y2="399" class="grid"/>
+  <line x1="300" y1="439" x2="1388" y2="439" class="grid"/>
+  <line x1="300" y1="479" x2="1388" y2="479" class="grid"/>
+  <line x1="300" y1="519" x2="1388" y2="519" class="grid"/>
+  <line x1="382" y1="329" x2="382" y2="519" class="grid"/>
+  <line x1="548" y1="329" x2="548" y2="519" class="grid"/>
+  <line x1="714" y1="329" x2="714" y2="519" class="grid"/>
+  <line x1="880" y1="329" x2="880" y2="519" class="grid"/>
+  <line x1="1046" y1="329" x2="1046" y2="519" class="grid"/>
+  <line x1="1212" y1="329" x2="1212" y2="519" class="grid"/>
+  <line x1="1378" y1="329" x2="1378" y2="519" class="grid"/>
+  <rect x="407" y="329" width="53" height="190" fill="#2f7ebc" opacity=".10"/>
+  <rect x="741" y="329" width="119" height="190" fill="#2f7ebc" opacity=".10"/>
+  <rect x="1158" y="329" width="72" height="190" fill="#2f7ebc" opacity=".10"/>
+  <line x1="300" y1="499" x2="1388" y2="499" class="maskline"/>
+  <path class="curve" d="M407 499 C420 477 435 448 443 450 C451 452 456 480 460 499"/>
+  <path class="curve" d="M741 499 C760 462 777 430 803 421 C823 416 843 451 860 499"/>
+  <path class="curve" d="M1158 499 C1171 454 1185 429 1203 423 C1216 421 1224 460 1230 499"/>
+  <line x1="796" y1="329" x2="796" y2="519" class="now"/>
+  <text class="muted tiny" x="300" y="317">ELEVATION (DEGREES)</text>
+  <line x1="96" y1="563" x2="119" y2="563" class="curve"/><text class="muted tiny" x="127" y="567">Elevation</text>
+  <line x1="224" y1="563" x2="247" y2="563" class="maskline"/><text class="muted tiny" x="255" y="567">Minimum elevation</text>
+  <rect x="345" y="556" width="14" height="14" fill="#2f7ebc" opacity=".14"/><text class="muted tiny" x="366" y="567">Access interval</text>
+  <line x1="482" y1="563" x2="505" y2="563" class="now"/><text class="muted tiny" x="513" y="567">Playback time</text>
 
   <rect class="pane" x="76" y="596" width="630" height="190" rx="7"/>
   <text class="ink heading" x="96" y="624">North Site · Current conditions</text>
