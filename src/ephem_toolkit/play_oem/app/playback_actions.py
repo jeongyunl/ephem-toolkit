@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import timedelta
+import re
 
 import ephem_toolkit.core.time_utils as time_utils
 from .state import PlayerAppState
+from ..display_time import format_tt
 
 
 class PlaybackActionsMixin:
@@ -21,13 +23,13 @@ class PlaybackActionsMixin:
         self._update_time_display()
 
     def _timeline_tooltip_at(self: PlayerAppState, progress: float) -> str:
-        """Format the UTC time at a timeline position for its hover tooltip."""
+        """Format the selected-zone time at a timeline position for its tooltip."""
         epoch_s = self.clock.t_start + progress * (
             self.clock.t_end - self.clock.t_start
         )
         # Keep hover text compact; the persistent readouts retain fractions.
-        return time_utils.datetime_to_iso8601(
-            time_utils.tt_s_to_datetime(epoch_s), fractional_second_places=0
+        return format_tt(
+            epoch_s, self._display_time_zone, fractional_second_places=0
         )
 
     def _set_playback_speed(self: PlayerAppState, speed: float) -> None:
@@ -91,10 +93,18 @@ class PlaybackActionsMixin:
 
     def _seek_to_time(self: PlayerAppState, time_entry_text: str) -> None:
         try:
-            parsed_time = time_utils.parse_time_or_duration(time_entry_text)
+            has_local_suffix = self._display_time_zone == "local" and re.search(
+                r"\s+(?!UTC$)[A-Za-z][A-Za-z0-9+-]*$", time_entry_text.strip()
+            ) is not None
+            submitted_time = re.sub(
+                r"\s+(?:UTC|[A-Za-z][A-Za-z0-9+-]*)$", "", time_entry_text.strip()
+            )
+            parsed_time = time_utils.parse_time_or_duration(submitted_time)
             if isinstance(parsed_time, timedelta):
                 target_time_s = self.clock.t_start + parsed_time.total_seconds()
             else:
+                if has_local_suffix:
+                    parsed_time = parsed_time.replace(tzinfo=None).astimezone()
                 target_time_s = time_utils.datetime_to_tt_s(parsed_time)
             if not self.clock.t_start <= target_time_s <= self.clock.t_end:
                 raise ValueError("time is outside the OEM timeline")
@@ -112,7 +122,5 @@ class PlaybackActionsMixin:
         )
         self._update_time_display()
         self.workspace.set_current_time_entry(
-            time_utils.datetime_to_iso8601(
-                time_utils.tt_s_to_datetime(self.clock.t_now)
-            )
+            format_tt(self.clock.t_now, self._display_time_zone)
         )

@@ -7,7 +7,6 @@ from collections.abc import Callable, Mapping, Sequence
 
 import wx
 
-from ephem_toolkit.core import time_utils
 
 from ..graph_panel import GraphPanelHost
 from ..timestamp_markup import set_timestamp_label
@@ -27,13 +26,7 @@ from .timeline import TimelineMixin
 from .time_range_slider import TimeRangeSlider
 from .. import time_range as range_model
 from ..ground_stations import GroundStation
-
-
-def _playback_utc(time_s: float) -> str:
-    """Format a playback bound as UTC for the timeline labels."""
-    return time_utils.datetime_to_iso8601(
-        time_utils.tt_s_to_datetime(time_s), fractional_second_places=3
-    )
+from ..display_time import UTC_DISPLAY, format_tt
 
 
 class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
@@ -69,7 +62,9 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         on_begin_time_range_edit: Callable[[], None] | None = None,
         ground_stations: Sequence[GroundStation] = (),
         on_ground_stations_changed: Callable[[list[GroundStation]], None] | None = None,
+        display_time_zone: str = UTC_DISPLAY,
     ) -> None:
+        self._display_time_zone = display_time_zone
         self._on_seek = on_seek
         self._on_seek_to_time = on_seek_to_time
         self._timeline_enabled = timeline_enabled
@@ -199,6 +194,7 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
             on_plot_endpoint_mode=on_plot_endpoint_mode or (lambda _name, _mode: None),
             on_begin_edit=on_begin_time_range_edit or (lambda: None),
         )
+        self.timeline_slider.set_display_time_zone(display_time_zone)
         self.timeline_slider.SetName("Playback timeline")
         self.timeline_slider.Enable(timeline_enabled)
         self.timeline_slider.Bind(wx.EVT_SLIDER, self._on_timeline_slider)
@@ -225,22 +221,22 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         self.playback_start_label = wx.StaticText(self.time_readout_row, wx.ID_ANY, "")
         set_timestamp_label(
             self.playback_start_label,
-            f"Start UTC: {_playback_utc(initial_playback[0])}",
+            f"Start: {format_tt(initial_playback[0], self._display_time_zone)}",
         )
-        self.playback_start_label.SetName("Playback range start time (UTC)")
+        self.playback_start_label.SetName("Playback range start time")
         current_time_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.timeline_current_prefix = wx.StaticText(
-            self.time_readout_row, wx.ID_ANY, "Current UTC:"
+            self.time_readout_row, wx.ID_ANY, "Current time:"
         )
-        # Put time entry beside the current UTC prefix to replace the Playback seek form.
+        # Put time entry beside its prefix, replacing the Playback seek form.
         self.timeline_time_entry = wx.TextCtrl(
             self.time_readout_row,
             wx.ID_ANY,
             "",
             style=wx.TE_PROCESS_ENTER,
         )
-        self.timeline_time_entry.SetName("Current UTC or elapsed time")
-        self.timeline_time_entry.SetHint("UTC timestamp or elapsed time, e.g. 1h30m")
+        self.timeline_time_entry.SetName("Current time or elapsed time")
+        self.timeline_time_entry.SetHint("Timestamp or elapsed time, e.g. 1h30m")
         self.timeline_time_entry.SetMinSize(wx.Size(220, -1))
         if on_seek_to_time is not None:
             self.timeline_time_entry.Bind(
@@ -268,9 +264,9 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         self.playback_end_label = wx.StaticText(self.time_readout_row, wx.ID_ANY, "")
         set_timestamp_label(
             self.playback_end_label,
-            f"End UTC: {_playback_utc(initial_playback[1])}",
+            f"End: {format_tt(initial_playback[1], self._display_time_zone)}",
         )
-        self.playback_end_label.SetName("Playback range end time (UTC)")
+        self.playback_end_label.SetName("Playback range end time")
         time_label_sizer.Add(
             self.playback_start_label,
             0,
@@ -457,13 +453,17 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         """Synchronize playback labels and range grips."""
         set_timestamp_label(
             self.playback_start_label,
-            f"Start UTC: {_playback_utc(playback[0])}",
+            f"Start: {format_tt(playback[0], self._display_time_zone)}",
         )
         set_timestamp_label(
             self.playback_end_label,
-            f"End UTC: {_playback_utc(playback[1])}",
+            f"End: {format_tt(playback[1], self._display_time_zone)}",
         )
         self.timeline_slider.set_ranges(coverage, playback, plot_rule, now_s)
+
+    def set_display_time_zone(self, display_time_zone: str) -> None:
+        self._display_time_zone = display_time_zone
+        self.timeline_slider.set_display_time_zone(display_time_zone)
 
     def close(self) -> None:
         """Stop pending graph redraw work during workspace shutdown."""

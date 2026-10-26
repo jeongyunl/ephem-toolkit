@@ -22,6 +22,7 @@ from ephem_toolkit.core.interpolator.interpolation_spec import (
     InterpolationType,
 )
 from .ground_stations import GroundStation, parse_ground_station_records
+from .display_time import DISPLAY_TIME_ZONES, UTC_DISPLAY
 from .views.registry import parse_plot_selection
 from .views.trajectory3d.selection import THREE_D_BACKEND_CHOICES
 
@@ -46,6 +47,7 @@ class PlayOemConfig:
     use_oem_interpolation: bool = False
     interpolation_method: str = InterpolationType.HERMITE.value
     interpolation_degree: int = DEFAULT_HERMITE_DEGREE
+    display_time_zone: str = UTC_DISPLAY
     three_d_backend: str = "auto"
     plots: tuple[str, ...] = ("overview",)
     plots_configured: bool = False
@@ -173,7 +175,15 @@ def load_config(path: str | Path | None = None) -> PlayOemConfig:
         "playback",
         config_path,
     )
-    _reject_unknown_keys(display, {"three_d_backend", "plots"}, "display", config_path)
+    _reject_unknown_keys(
+        display, {"three_d_backend", "plots", "time_zone"}, "display", config_path
+    )
+    display_time_zone = display.get("time_zone", UTC_DISPLAY)
+    if display_time_zone not in DISPLAY_TIME_ZONES:
+        raise ConfigError(
+            f"{config_path}: display.time_zone must be one of "
+            f"{', '.join(DISPLAY_TIME_ZONES)}"
+        )
     _reject_unknown_keys(
         interpolation,
         {"use_oem_metadata", "method", "degree"},
@@ -262,6 +272,7 @@ def load_config(path: str | Path | None = None) -> PlayOemConfig:
         use_oem_interpolation=use_oem_interpolation,
         interpolation_method=interpolation_method,
         interpolation_degree=interpolation_degree,
+        display_time_zone=display_time_zone,
         three_d_backend=backend,
         plots=plots,
         plots_configured="plots" in display,
@@ -631,6 +642,101 @@ def save_interpolation_settings(
         if temporary_path is not None and os.path.exists(temporary_path):
             os.unlink(temporary_path)
     return config_path
+
+
+def save_display_time_zone(
+    display_time_zone: str, path: str | Path | None = None
+) -> Path:
+    """Persist the display time zone in the user configuration file."""
+    if display_time_zone not in DISPLAY_TIME_ZONES:
+        raise ConfigError(
+            f"display.time_zone must be one of {', '.join(DISPLAY_TIME_ZONES)}"
+        )
+    config_path = default_config_path() if path is None else Path(path).expanduser()
+    if config_path.exists():
+        load_config(config_path)
+        document = config_path.read_text(encoding="utf-8")
+    else:
+        document = f"config_version = {CONFIG_VERSION}\n"
+    lines = document.splitlines()
+    newline = "\r\n" if "\r\n" in document else "\n"
+    inline_display = re.compile(
+        r"^([ \t]*display[ \t]*=[ \t]*\{)(.*)(\}[ \t]*(?:#.*)?)$"
+    )
+    inline_key = re.compile(
+        r"(^|,[ \t]*)(?:time_zone|\"time_zone\"|'time_zone')[ \t]*=[ \t]*[^,]*"
+    )
+    for index, line in enumerate(lines):
+        inline_match = inline_display.match(line)
+        if inline_match is None:
+            continue
+        values = inline_match.group(2)
+        key_match = inline_key.search(values)
+        replacement = f'time_zone = "{display_time_zone}"'
+        if key_match is None:
+            values = f"{values.rstrip()}, {replacement}" if values.strip() else replacement
+        else:
+            values = (
+                values[: key_match.start()]
+                + f"{key_match.group(1)}{replacement}"
+                + values[key_match.end() :]
+            )
+        lines[index] = f"{inline_match.group(1)}{values}{inline_match.group(3)}"
+        break
+    else:
+        inline_match = None
+    if inline_match is not None:
+        updated = newline.join(lines)
+        if document.endswith(("\n", "\r")):
+            updated += newline
+        _write_config_document(config_path, updated)
+        return config_path
+    header = re.compile(
+        r"^[ \t]*\[[ \t]*(?:display|\"display\"|'display')[ \t]*\][ \t]*(?:#.*)?$"
+    )
+    section_header = re.compile(r"^[ \t]*\[{1,2}[^\]]+\]{1,2}[ \t]*(?:#.*)?$")
+    start = next((i for i, line in enumerate(lines) if header.match(line)), None)
+    if start is None:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.extend(("[display]", f'time_zone = "{display_time_zone}"'))
+    else:
+        end = next(
+            (i for i in range(start + 1, len(lines)) if section_header.match(lines[i])),
+            len(lines),
+        )
+        key = re.compile(
+            r"^([ \t]*)(?:time_zone|\"time_zone\"|'time_zone')([ \t]*=[ \t]*)(.*?)([ \t]*(?:#.*)?)$"
+        )
+        for i in range(start + 1, end):
+            match = key.match(lines[i])
+            if match:
+                lines[i] = (
+                    f'{match.group(1)}time_zone{match.group(2)}'
+                    f'"{display_time_zone}"{match.group(4)}'
+                )
+                break
+        else:
+            lines.insert(end, f'time_zone = "{display_time_zone}"')
+    updated = newline.join(lines) + (newline if document.endswith(("\n", "\r")) else "")
+    _write_config_document(config_path, updated)
+    return config_path
+
+
+def _write_config_document(config_path: Path, updated: str) -> None:
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", newline="", dir=config_path.parent,
+            prefix=f".{config_path.name}.", delete=False,
+        ) as stream:
+            stream.write(updated)
+            temporary_path = stream.name
+        os.replace(temporary_path, config_path)
+    finally:
+        if temporary_path is not None and os.path.exists(temporary_path):
+            os.unlink(temporary_path)
 
 
 def supplied_options(argv: list[str]) -> set[str]:

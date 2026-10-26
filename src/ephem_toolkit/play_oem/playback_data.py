@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-import ephem_toolkit.core.time_utils as time_utils
 from ephem_toolkit.core.interpolator.interpolation_spec import (
     DEFAULT_HERMITE_DEGREE,
     InterpolationType,
@@ -15,6 +14,7 @@ import numpy as np
 from . import clock as playback_clock, cursor, series, time_unit
 from .data import read_oem_states
 from .ground_track import GroundTrackSource
+from .display_time import UTC_DISPLAY, format_tt
 
 
 @dataclass
@@ -41,6 +41,7 @@ def load_playback_data(
     use_oem_interpolation: bool = False,
     interpolation_method: str = InterpolationType.HERMITE.value,
     interpolation_degree: int = DEFAULT_HERMITE_DEGREE,
+    display_time_zone: str = UTC_DISPLAY,
 ) -> PlaybackData:
     """Read and prepare an entire OEM for playback."""
     oem_data, timestamps_s, states_m = read_oem_states(source)
@@ -93,8 +94,8 @@ def load_playback_data(
         "frame": oem_data.meta.ref_frame.strip(),
         "center": oem_data.meta.center_name.strip(),
         "time_span": (
-            f"{time_utils.datetime_to_iso8601(time_utils.tt_s_to_datetime(timestamps_s[0]))} – "
-            f"{time_utils.datetime_to_iso8601(time_utils.tt_s_to_datetime(timestamps_s[-1]))}"
+            f"{format_tt(timestamps_s[0], display_time_zone)} – "
+            f"{format_tt(timestamps_s[-1], display_time_zone)}"
         ),
         "sample_count": str(len(timestamps_s)),
     }

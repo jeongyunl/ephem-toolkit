@@ -11,7 +11,7 @@ import wx
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
 
-from ephem_toolkit.core import time_utils
+from ..display_time import UTC_DISPLAY, format_tt
 
 from .. import cursor as playback_cursor
 from ..ground_stations import GroundStation
@@ -28,12 +28,6 @@ from ..time_unit import TimeUnit
 
 _TABLE_COLUMN_WIDTHS = (150, 150, 85, 190, 190, 190)
 _SKY_PANEL_MIN_WIDTH = 320
-
-
-def _utc_label(time_s: float) -> str:
-    return time_utils.datetime_to_iso8601(
-        time_utils.tt_s_to_datetime(time_s), fractional_second_places=0
-    )
 
 
 def _interval_key(interval: AccessInterval) -> tuple[float, float]:
@@ -72,6 +66,7 @@ class GroundStationPassesView:
         on_station_manager: Callable[[], None],
         access_cache: StationAccessCache,
         initial_station_id: str | None = None,
+        display_time_zone: str = UTC_DISPLAY,
     ) -> None:
         self._parent = parent
         self._source = source
@@ -83,6 +78,7 @@ class GroundStationPassesView:
         self._on_focus_pass = on_focus_pass
         self._on_station_manager = on_station_manager
         self._access_cache = access_cache
+        self._display_time_zone = display_time_zone
         self._current_time_s = cursor.t_start
         self._selected_station_id = (
             initial_station_id
@@ -379,8 +375,8 @@ class GroundStationPassesView:
             label = "Plot Range: no effective range overlaps OEM coverage"
         else:
             label = (
-                f"Plot Range: {_utc_label(bounds.start_s)} – "
-                f"{_utc_label(bounds.end_s)} UTC"
+                f"Plot Range: {self._time_label(bounds.start_s)} – "
+                f"{self._time_label(bounds.end_s)}"
             )
         self._range_label_text = label
         if self._range_label is not None:
@@ -391,8 +387,8 @@ class GroundStationPassesView:
             label = "OEM coverage: unavailable"
         else:
             label = (
-                f"OEM coverage: {_utc_label(self._cursor.t_start)} – "
-                f"{_utc_label(self._cursor.t_end)} UTC"
+                f"OEM coverage: {self._time_label(self._cursor.t_start)} – "
+                f"{self._time_label(self._cursor.t_end)}"
             )
         self._coverage_readout_text = label
         if self._coverage_label is not None:
@@ -457,8 +453,7 @@ class GroundStationPassesView:
             self._refreshing_rows = False
         self._update_actions()
 
-    @staticmethod
-    def _row_values(interval: AccessInterval) -> tuple[str, ...]:
+    def _row_values(self, interval: AccessInterval) -> tuple[str, ...]:
         uncertain_boundary = (
             interval.clipped_at_start
             or interval.clipped_at_end
@@ -471,13 +466,13 @@ class GroundStationPassesView:
             else f"{(interval.end_s - interval.start_s) / 60.0:.1f} min"
         )
         return (
-            _utc_label(interval.start_s),
-            _utc_label(interval.end_s),
+            self._time_label(interval.start_s),
+            self._time_label(interval.end_s),
             duration,
             f"{interval.peak_elevation_deg:.1f}° at "
-            f"{_utc_label(interval.peak_time_s)}",
+            f"{self._time_label(interval.peak_time_s)}",
             f"{interval.minimum_range_km:.1f} km at "
-            f"{_utc_label(interval.minimum_range_time_s)}",
+            f"{self._time_label(interval.minimum_range_time_s)}",
             _coverage_label(interval),
         )
 
@@ -811,11 +806,11 @@ class GroundStationPassesView:
         status = "No pass selected."
         if interval is not None and result is not None and station is not None:
             status = (
-                f"{station.name} · {_utc_label(interval.start_s)} – "
-                f"{_utc_label(interval.end_s)} · mask "
+                f"{station.name} · {self._time_label(interval.start_s)} – "
+                f"{self._time_label(interval.end_s)} · mask "
                 f"{station.minimum_elevation_deg}° · peak "
                 f"{interval.peak_elevation_deg:.1f}° at "
-                f"{_utc_label(interval.peak_time_s)}"
+                f"{self._time_label(interval.peak_time_s)}"
             )
             if interval.start_s <= self._current_time_s <= interval.end_s:
                 look_angle = self._look_angle_at(result, interval, self._current_time_s)
@@ -844,6 +839,17 @@ class GroundStationPassesView:
     def update(self, t_s: float, /) -> None:
         self._current_time_s = t_s
         self._update_playback_marker()
+
+    def set_display_time_zone(self, display_time_zone: str) -> None:
+        self._display_time_zone = display_time_zone
+        self._update_coverage_readout()
+        self._refresh_rows()
+        self._update_playback_marker()
+
+    def _time_label(self, time_s: float) -> str:
+        return format_tt(
+            time_s, self._display_time_zone, fractional_second_places=0
+        )
 
     def set_time_range(
         self, bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /

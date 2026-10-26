@@ -280,9 +280,6 @@ class GroundTrackView:
         self._station_labels_control = station_labels
         self._station_choice = station_choice
         compact_controls((projection, background, center, minimum))
-        # compact_controls gives Choice controls the shared 24-DIP minimum;
-        # use that explicit height instead of the larger native best size.
-        control_height = projection.GetMinSize().height
         self._center_control = center
         self._minimum_control = minimum
         controls = wx.BoxSizer(wx.HORIZONTAL)
@@ -324,6 +321,13 @@ class GroundTrackView:
         station_controls = (station_layer, station_labels, station_choice)
         navigation_controls = (*navigation_buttons, *station_controls)
         compact_controls(navigation_controls)
+        # Keep the checkbox controls tall enough for GTK's native contents, then
+        # give the adjacent buttons and station selector the same row height.
+        control_height = max(
+            projection.GetMinSize().height,
+            station_layer.GetBestSize().height,
+            station_labels.GetBestSize().height,
+        )
         for button in navigation_buttons:
             button.SetMinSize(
                 wx.Size(

@@ -160,7 +160,7 @@ class TimelineMixin:
         *,
         playing: bool = False,
     ) -> None:
-        """Synchronize the global timeline and UTC label without emitting a seek."""
+        """Synchronize the global timeline and time label without emitting a seek."""
         value = round(min(max(progress, 0.0), 1.0) * TIMELINE_SLIDER_MAX)
         self._syncing_timeline = True
         try:
@@ -194,7 +194,7 @@ class TimelineMixin:
         self.time_error_label.SetLabel("")
 
     def set_current_time_entry(self: _TimelineState, current_utc: str) -> None:
-        """Replace submitted text with the normalized current UTC timestamp."""
+        """Replace submitted text with the normalized current timestamp."""
         self.timeline_time_entry.ChangeValue(current_utc)
 
     def _on_timeline_slider(self: _TimelineState, event: wx.CommandEvent) -> None:

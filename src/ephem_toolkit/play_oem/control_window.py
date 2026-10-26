@@ -13,6 +13,7 @@ from ephem_toolkit.core.interpolator.interpolation_spec import (
 
 from .cursor import CursorState, CursorStatus
 from .tooltips import set_tooltip
+from .display_time import DISPLAY_TIME_ZONES, LOCAL_DISPLAY, UTC_DISPLAY
 
 LAYOUT_MARGIN: int = 12
 """Spacing around playback and state controls (pixels)."""
@@ -54,6 +55,8 @@ class ControlWindow:
         interpolation_method: str = InterpolationType.HERMITE.value,
         interpolation_degree: int = DEFAULT_HERMITE_DEGREE,
         active_interpolation: str = "No OEM loaded",
+        display_time_zone: str = UTC_DISPLAY,
+        on_set_display_time_zone: Callable[[str], None] | None = None,
         on_step_samples: Callable[[int], None],
         on_step_seconds: Callable[[float], None],
         on_jump_to_start: Callable[[], None],
@@ -99,6 +102,7 @@ class ControlWindow:
         self._accelerator_parent = accelerator_parent
         self._on_set_render_rate_fps = on_set_render_rate_fps
         self._on_set_interpolation = on_set_interpolation
+        self._on_set_display_time_zone = on_set_display_time_zone
         self._use_oem_interpolation = use_oem_interpolation
         self._interpolation_method = interpolation_method
         self._interpolation_degree = interpolation_degree
@@ -109,6 +113,27 @@ class ControlWindow:
         self.settings_scroller.SetName("Settings render rate")
         self.settings_scroller.SetScrollRate(0, 10)
         settings_sizer = wx.BoxSizer(wx.VERTICAL)
+
+        self.display_time_zone_label = wx.StaticText(
+            self.settings_scroller, wx.ID_ANY, "Display time zone"
+        )
+        settings_sizer.Add(
+            self.display_time_zone_label, 0,
+            wx.LEFT | wx.RIGHT | wx.TOP, LAYOUT_MARGIN,
+        )
+        self.display_time_zone_choice = wx.Choice(
+            self.settings_scroller, wx.ID_ANY,
+            choices=["UTC", "Local Time Zone"],
+        )
+        self.display_time_zone_choice.SetName("Display time zone")
+        self.display_time_zone_choice.SetSelection(
+            DISPLAY_TIME_ZONES.index(display_time_zone)
+        )
+        self.display_time_zone_choice.Bind(wx.EVT_CHOICE, self._on_display_time_zone)
+        settings_sizer.Add(
+            self.display_time_zone_choice, 0,
+            wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, LAYOUT_MARGIN,
+        )
 
         self.state_scroller = wx.ScrolledWindow(
             state_parent if state_parent is not None else parent,
@@ -380,6 +405,16 @@ class ControlWindow:
         self.render_rate_label.SetLabel(f"Render rate: {render_rate_fps} FPS")
         if self._on_set_render_rate_fps is not None:
             self._on_set_render_rate_fps(render_rate_fps)
+
+    def _on_display_time_zone(self, event: wx.CommandEvent) -> None:
+        selected = (
+            UTC_DISPLAY
+            if self.display_time_zone_choice.GetSelection() == 0
+            else LOCAL_DISPLAY
+        )
+        if self._on_set_display_time_zone is not None:
+            self._on_set_display_time_zone(selected)
+        event.Skip()
 
     def _on_interpolation_mode_choice(self, event: wx.CommandEvent) -> None:
         use_oem_metadata = (

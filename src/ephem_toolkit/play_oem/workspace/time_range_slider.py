@@ -8,7 +8,7 @@ import wx
 
 from .. import time_range
 from ..tooltips import set_tooltip, suppress_tooltips
-from ephem_toolkit.core import time_utils
+from ..display_time import UTC_DISPLAY, format_tt
 
 
 def _triangle_vertices(
@@ -47,13 +47,13 @@ def _plot_handle_vertices(
     )
 
 
-def _plot_tooltip_text(name: str, utc: str, mode: time_range.EndpointMode) -> str:
+def _plot_tooltip_text(name: str, timestamp: str, mode: time_range.EndpointMode) -> str:
     mode_label = {
         "follow": "Follow playback",
         "fixed": "Fixed time",
         "offset": "Playback offset",
     }[mode]
-    return f"{name}: {utc} UTC\n{mode_label} | Right-click for mode"
+    return f"{name}: {timestamp}\n{mode_label} | Right-click for mode"
 
 
 def _plot_grip_y(slider_height: int, playback_grip_y: int, grip_height: int) -> int:
@@ -256,6 +256,7 @@ class TimeRangeSlider(wx.Control):
         self._coverage = (0.0, 1.0)
         self._playback = (0.0, 1.0)
         self._plot_rule: time_range.PlotTimeRange | None = None
+        self._display_time_zone = UTC_DISPLAY
         self._now = 0.0
         self._grips: dict[str, _RangeGrip] = {}
         self._seek_grip = _SeekGrip(self.GetParent(), self)
@@ -427,6 +428,10 @@ class TimeRangeSlider(wx.Control):
             if key.startswith("plot"):
                 grip.Refresh()
 
+    def set_display_time_zone(self, display_time_zone: str) -> None:
+        self._display_time_zone = display_time_zone
+        self._position_grips()
+
     def _time_for(self, key: str) -> float:
         if key.startswith("playback"):
             return self._playback[0 if key.endswith("start") else 1]
@@ -536,13 +541,13 @@ class TimeRangeSlider(wx.Control):
             )
             try:
                 is_playback = key.startswith("playback")
-                utc = time_utils.datetime_to_iso8601(
-                    time_utils.tt_s_to_datetime(self._time_for(key)),
+                timestamp = format_tt(
+                    self._time_for(key), self._display_time_zone,
                     fractional_second_places=0,
                 )
                 if is_playback:
                     bound = "start" if key.endswith("start") else "end"
-                    tooltip = f"Playback {bound}: {utc} UTC"
+                    tooltip = f"Playback {bound}: {timestamp}"
                 else:
                     assert self._plot_rule is not None
                     endpoint = (
@@ -550,7 +555,9 @@ class TimeRangeSlider(wx.Control):
                         if key.endswith("start")
                         else self._plot_rule.end
                     )
-                    tooltip = _plot_tooltip_text(grip.GetName(), utc, endpoint.mode)
+                    tooltip = _plot_tooltip_text(
+                        grip.GetName(), timestamp, endpoint.mode
+                    )
                 set_tooltip(grip, tooltip)
             except (AttributeError, TypeError, OverflowError, ValueError):
                 set_tooltip(grip, grip.GetName())

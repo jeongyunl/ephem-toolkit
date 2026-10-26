@@ -14,7 +14,6 @@ from typing import cast
 
 import wx
 
-import ephem_toolkit.core.time_utils as time_utils
 from ephem_toolkit.core.interpolator.interpolation_spec import (
     DEFAULT_HERMITE_DEGREE,
     InterpolationSpec,
@@ -46,6 +45,7 @@ from ..saved_state import (
     remember_recent_file,
     save_saved_state,
 )
+from ..display_time import DISPLAY_TIME_ZONES, format_timestamp_text, format_tt
 from ..views import registry
 from ..views.ground_track import GroundTrackView
 from ..station_access import StationAccessCache
@@ -96,6 +96,7 @@ class PlayerApp(
         three_d_backend: str = "auto",
         tick_interval_ms: int = DEFAULT_TICK_INTERVAL_MS,
         render_rate_fps: int | None = None,
+        display_time_zone: str = "UTC",
         use_oem_interpolation: bool = False,
         interpolation_method: str = InterpolationType.HERMITE.value,
         interpolation_degree: int = DEFAULT_HERMITE_DEGREE,
@@ -157,6 +158,8 @@ class PlayerApp(
             )
 
         self.clock = clock
+        if display_time_zone not in DISPLAY_TIME_ZONES:
+            raise ValueError("display_time_zone must be 'UTC' or 'local'")
         self.clock.set_playback_bounds(self.clock.t_start, self.clock.t_end)
         self.series = series
         self.time_unit = time_unit
@@ -169,6 +172,10 @@ class PlayerApp(
         self._ground_track_coordinates: GroundTrackCoordinates | None = None
         self._tick_interval_ms = tick_interval_ms
         self._config_path = config_path
+        self._display_time_zone = display_time_zone
+        self._dashboard_context = dict(dashboard_context or {})
+        self._metadata_details = tuple(metadata_details)
+        self._display_time_zone_config_dirty = False
         self._render_rate_config_dirty = False
         self._interpolation_config_dirty = False
         self._ground_stations_config_dirty = False
@@ -326,8 +333,8 @@ class PlayerApp(
             timeline_enabled=clock.t_start < clock.t_end,
             on_seek_to_time=self._seek_to_time,
             timeline_tooltip_at=self._timeline_tooltip_at,
-            context=dashboard_context,
-            details=metadata_details,
+            context=self._formatted_dashboard_context(),
+            details=self._formatted_metadata_details(),
             view_choices=self._panel_view_choices,
             on_add_graph=self._add_graph_panel,
             status_bar=self.status_bar,
@@ -339,6 +346,7 @@ class PlayerApp(
             on_plot_endpoint=self._drag_plot_endpoint,
             on_plot_endpoint_mode=self._set_plot_endpoint_mode,
             on_begin_time_range_edit=self._begin_time_range_edit,
+            display_time_zone=self._display_time_zone,
             ground_stations=self._ground_stations,
             on_ground_stations_changed=self._update_ground_stations,
         )
@@ -354,6 +362,8 @@ class PlayerApp(
                 interpolation_method=self._interpolation_method,
                 interpolation_degree=self._interpolation_degree,
                 active_interpolation=self._active_interpolation_summary(),
+                display_time_zone=self._display_time_zone,
+                on_set_display_time_zone=self._set_display_time_zone,
                 on_step_samples=self._step_samples,
                 on_step_seconds=self._step_seconds,
                 on_jump_to_start=self._jump_to_start,
@@ -526,6 +536,7 @@ class PlayerApp(
     def _save_application_state(self, *, save_geometry: bool = True) -> None:
         """Persist state safely without allowing a state-file error to close the app."""
         self._save_render_rate_config()
+        self._save_display_time_zone_config()
         self._save_interpolation_config()
         self._save_ground_stations_config()
         if not self._persist_saved_state or self._saved_state is None:
@@ -601,6 +612,58 @@ class PlayerApp(
             )
         else:
             self._render_rate_config_dirty = False
+
+    def _save_display_time_zone_config(self) -> None:
+        if not self._display_time_zone_config_dirty:
+            return
+        try:
+            config.save_display_time_zone(self._display_time_zone, self._config_path)
+        except (OSError, config.ConfigError) as error:
+            warnings.warn(
+                f"Could not save play-oem display time zone: {error}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        else:
+            self._display_time_zone_config_dirty = False
+
+    def _set_display_time_zone(self, display_time_zone: str) -> None:
+        if display_time_zone == self._display_time_zone:
+            return
+        self._display_time_zone = display_time_zone
+        self._display_time_zone_config_dirty = True
+        self.workspace.set_display_time_zone(display_time_zone)
+        self.workspace.update_oem_information(
+            self._formatted_dashboard_context(),
+            self._formatted_metadata_details(),
+            self.clock.t_start < self.clock.t_end,
+        )
+        self._update_time_display()
+        for opened in (*self._open_views.values(), *self._open_panels.values()):
+            setter = getattr(opened.view, "set_display_time_zone", None)
+            if callable(setter):
+                setter(display_time_zone)
+
+    def _formatted_dashboard_context(self) -> dict[str, str]:
+        context = dict(self._dashboard_context)
+        if self._oem_loaded:
+            context["time_span"] = (
+                f"{format_tt(self.clock.t_start, self._display_time_zone)} – "
+                f"{format_tt(self.clock.t_end, self._display_time_zone)}"
+            )
+        return context
+
+    def _formatted_metadata_details(self) -> tuple[tuple[str, str], ...]:
+        timestamp_fields = {"Frame epoch", "Usable start", "Usable stop"}
+        return tuple(
+            (
+                name,
+                format_timestamp_text(value, self._display_time_zone)
+                if name in timestamp_fields
+                else value,
+            )
+            for name, value in self._metadata_details
+        )
 
     def _save_interpolation_config(self) -> None:
         """Persist changed interpolation settings to the user configuration."""
@@ -846,7 +909,9 @@ class PlayerApp(
         self._oem_interpolation_degree = loaded.oem_interpolation_degree
         self._configure_cursor_interpolation(self.cursor, loaded)
         self.object_name = loaded.object_name
-        self.object_id = dict(loaded.metadata_details).get("Object ID", "").strip()
+        self._dashboard_context = dict(loaded.dashboard_context)
+        self._metadata_details = tuple(loaded.metadata_details)
+        self.object_id = dict(self._metadata_details).get("Object ID", "").strip()
         if file_name is not None:
             self._loaded_file_name = file_name
         self.status_bar.set_file_name(self._loaded_file_name)
@@ -858,8 +923,8 @@ class PlayerApp(
         # Start the new file's playback schedule at its load time.
         self._last_frame_monotonic_s = time.monotonic()
         self.workspace.update_oem_information(
-            loaded.dashboard_context,
-            loaded.metadata_details,
+            self._formatted_dashboard_context(),
+            self._formatted_metadata_details(),
             self.clock.t_start < self.clock.t_end,
         )
         self.frame.Layout()
@@ -1029,15 +1094,13 @@ class PlayerApp(
     def _update_time_display(self) -> None:
         if not self._oem_loaded:
             return
-        utc_timestamp = time_utils.datetime_to_iso8601(
-            time_utils.tt_s_to_datetime(self.clock.t_now)
-        )
+        timestamp = format_tt(self.clock.t_now, self._display_time_zone)
         span_s = self.clock.t_end - self.clock.t_start
         progress = (
             0.0 if span_s == 0.0 else (self.clock.t_now - self.clock.t_start) / span_s
         )
         self.workspace.update_timeline(
-            progress, utc_timestamp, playing=self.clock.playing
+            progress, timestamp, playing=self.clock.playing
         )
         self.workspace.set_time_range_controls(
             (self.clock.t_start, self.clock.t_end),

@@ -53,6 +53,7 @@ class PlayerAppState(Protocol):
     _last_frame_monotonic_s: float | None
     """Time of the last consumed playback frame period, from a monotonic clock."""
     _render_rate_fps: int
+    _display_time_zone: str
     """Requested render-rate FPS used to calculate each playback time increment."""
     _oem_loaded: bool
     _on_open_file_callback: Callable[[str], playback_data.PlaybackData] | None

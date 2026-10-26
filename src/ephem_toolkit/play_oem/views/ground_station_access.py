@@ -11,7 +11,7 @@ from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.figure import Figure
 import numpy as np
 
-from ephem_toolkit.core import time_utils
+from ..display_time import UTC_DISPLAY, format_tt
 
 from .. import cursor as playback_cursor
 from ..ground_stations import GroundStation
@@ -32,12 +32,6 @@ from .plotting import (
 )
 
 
-def _utc_label(time_s: float) -> str:
-    return time_utils.datetime_to_iso8601(
-        time_utils.tt_s_to_datetime(time_s), fractional_second_places=0
-    )
-
-
 class GroundStationAccessView:
     """Display selected-station elevation and shared-clock metrics."""
 
@@ -56,6 +50,7 @@ class GroundStationAccessView:
         on_seek: Callable[[float], None],
         on_station_manager: Callable[[], None],
         access_cache: StationAccessCache,
+        display_time_zone: str = UTC_DISPLAY,
     ) -> None:
         self._parent = parent
         self._source = source
@@ -67,6 +62,7 @@ class GroundStationAccessView:
         self._on_seek = on_seek
         self._on_station_manager = on_station_manager
         self._access_cache = access_cache
+        self._display_time_zone = display_time_zone
         self._current_time_s = cursor.t_start
         self._selected_station_id = (
             self._stations[0].station_id if self._stations else None
@@ -152,6 +148,7 @@ class GroundStationAccessView:
                             <= self._time_range_bounds.end_s
                         )
                     )
+
             self._canvas.draw_idle()
         station = self._selected_station()
         if station is None:
@@ -206,6 +203,15 @@ class GroundStationAccessView:
                 f"Slant range {metrics.slant_range_km:.1f} km"
             ),
             self._pass_summary(station),
+        )
+
+    def set_display_time_zone(self, display_time_zone: str) -> None:
+        self._display_time_zone = display_time_zone
+        self.update(self._current_time_s)
+
+    def _time_label(self, time_s: float) -> str:
+        return format_tt(
+            time_s, self._display_time_zone, fractional_second_places=0
         )
 
     def set_stations(self, stations: Sequence[GroundStation]) -> None:
@@ -596,11 +602,11 @@ class GroundStationAccessView:
             if previous_interval.clipped_at_end:
                 coverage_note += " · continues beyond coverage"
             previous_label = (
-                f"Previous/active: {_utc_label(previous_interval.start_s)} – "
-                f"{_utc_label(previous_interval.end_s)} "
+                f"Previous/active: {self._time_label(previous_interval.start_s)} – "
+                f"{self._time_label(previous_interval.end_s)} "
                 f"({(previous_interval.end_s - previous_interval.start_s) / 60.0:.1f} min, "
                 f"peak {previous_interval.peak_elevation_deg:.1f}° at "
-                f"{_utc_label(previous_interval.peak_time_s)}, "
+                f"{self._time_label(previous_interval.peak_time_s)}, "
                 f"minimum range {previous_interval.minimum_range_km:.1f} km)"
                 f"{coverage_note}"
             )
@@ -614,11 +620,11 @@ class GroundStationAccessView:
             if next_interval.clipped_at_end:
                 coverage_note += " · continues beyond coverage"
             next_label = (
-                f"Next: {_utc_label(next_interval.start_s)} – "
-                f"{_utc_label(next_interval.end_s)} "
+                f"Next: {self._time_label(next_interval.start_s)} – "
+                f"{self._time_label(next_interval.end_s)} "
                 f"({(next_interval.end_s - next_interval.start_s) / 60.0:.1f} min, "
                 f"peak {next_interval.peak_elevation_deg:.1f}° at "
-                f"{_utc_label(next_interval.peak_time_s)}, "
+                f"{self._time_label(next_interval.peak_time_s)}, "
                 f"minimum range {next_interval.minimum_range_km:.1f} km)"
                 f"{coverage_note}"
             )
