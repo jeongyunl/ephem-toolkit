@@ -2,10 +2,10 @@
 
 This document proposes the software architecture for managing ground stations and displaying
 spacecraft access in `play-oem`. It extends the shared playback architecture in
-[PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md). The companion user-interface
+[PLAY_OEM_SOFTWARE_DESIGN.md](../PLAY_OEM_SOFTWARE_DESIGN.md). The companion user-interface
 specification is [PLAY_OEM_GROUND_STATIONS_GUI_DESIGN.md](./PLAY_OEM_GROUND_STATIONS_GUI_DESIGN.md);
-implementation sequencing is tracked in
-[PLAY_OEM_GROUND_STATIONS_IMPLEMENTATION_PLAN.md](./PLAY_OEM_GROUND_STATIONS_IMPLEMENTATION_PLAN.md).
+implementation is recorded in
+[PLAY_OEM_GROUND_STATIONS_IMPLEMENTATION_REPORT.md](./PLAY_OEM_GROUND_STATIONS_IMPLEMENTATION_REPORT.md).
 
 ## Purpose and scope
 
@@ -82,7 +82,7 @@ The station's elevation mask is independent of the shared Ground Track footprint
 zero-degree station mask is allowed. This model does not account for terrain or other obstructions.
 
 Use the existing Earth/frame support contract from
-[ground_track.py](../../src/ephem_toolkit/play_oem/ground_track.py): accept Earth-centered OEMs
+[ground_track.py](../../../../src/ephem_toolkit/play_oem/ground_track.py): accept Earth-centered OEMs
 and supported Earth-fixed or inertial frames, and convert inertial position states to ITRF at the
 requested TT epoch. Do not treat an unsupported frame or center as Earth-fixed. Keep frame
 conversion lazy so other views and headless paths do not import the frame-conversion stack

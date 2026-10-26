@@ -2,10 +2,10 @@
 
 This document defines the proposed user-facing design for ground-station management and the
 Ground Station Access graph panel. It extends the shared workspace in
-[PLAY_OEM_GUI_DESIGN.md](./old/PLAY_OEM_GUI_DESIGN.md) and follows the technical constraints in
+[PLAY_OEM_GUI_DESIGN.md](./PLAY_OEM_GUI_DESIGN.md) and follows the technical constraints in
 [PLAY_OEM_GROUND_STATIONS_SOFTWARE_DESIGN.md](./PLAY_OEM_GROUND_STATIONS_SOFTWARE_DESIGN.md).
-Implementation sequencing is in
-[PLAY_OEM_GROUND_STATIONS_IMPLEMENTATION_PLAN.md](./PLAY_OEM_GROUND_STATIONS_IMPLEMENTATION_PLAN.md).
+Implementation is recorded in
+[PLAY_OEM_GROUND_STATIONS_IMPLEMENTATION_REPORT.md](./PLAY_OEM_GROUND_STATIONS_IMPLEMENTATION_REPORT.md).
 
 ## Visual mockups
 

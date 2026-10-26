@@ -169,8 +169,9 @@ retaining local-maximum refinement and 0.5-second crossing refinement. This synt
 not a guarantee for frame-conversion-heavy OEMs or unusually complex interpolation policies.
 
 **Validation.** Ground Station Access and interval tests pass, including sub-step maxima,
-crossings, source-gap limitations, and segment-boundary behavior. The complete `play-oem` suite
-passes: 376 passed, 3 skipped.
+crossings, source-gap limitations, and segment-boundary behavior. The latest complete `play-oem`
+suite passes: 385 passed, 3 skipped. The benchmark above predates retaining elevation-profile
+samples for the graph and is a pass-preparation baseline.
 
 ## Out of scope
 
