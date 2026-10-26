@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1480" height="900" viewBox="0 0 1480 900" role="img" aria-labelledby="title desc">
+  <title id="title">Ground Station Access view mock-up</title>
+  <desc id="desc">Illustrative play-oem graph panel with a multi-station access timeline, a synchronized current-time cursor, a selected station's live azimuth, elevation, and range, and current and upcoming pass summaries. The chart uses illustrative data.</desc>
+  <defs>
+    <style>
+      .bg{fill:#f1f4f8}.window{fill:#fff;stroke:#cbd5e1;stroke-width:1.5}.chrome{fill:#e8edf3}
+      .ink{fill:#17263a;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .muted{fill:#63748b;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .title{font-size:22px;font-weight:700}.heading{font-size:15px;font-weight:700}.body{font-size:13px}.small{font-size:11px}.tiny{font-size:10px}
+      .pane{fill:#fff;stroke:#d5dee9;stroke-width:1.2}.rule{stroke:#e1e7ef;stroke-width:1}.grid{stroke:#e1e7ef;stroke-width:1}
+      .access{fill:#bfe7d7;stroke:#23866b;stroke-width:1}.upcoming{fill:#dbeafe;stroke:#477cc6;stroke-width:1}
+      .clipped{fill:url(#hatch);stroke:#ad8b22;stroke-width:1}.now{stroke:#df4d66;stroke-width:2}
+      .button{fill:#fff;stroke:#bac8d8;stroke-width:1.2}.badge{fill:#e4f5ec}.badgetext{fill:#17654f;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:11px;font-weight:700}
+      .icon{fill:none;stroke:#687a90;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+    </style>
+    <pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="7" height="7" fill="#fff7d8"/><line x1="0" y1="0" x2="0" y2="7" stroke="#d8b84f" stroke-width="2"/>
+    </pattern>
+  </defs>
+  <rect class="bg" width="1480" height="900"/>
+  <rect class="window" x="20" y="18" width="1440" height="864" rx="14"/>
+  <path class="chrome" d="M34 18h1412a14 14 0 0 1 14 14v35H20V32a14 14 0 0 1 14-14z"/>
+  <circle cx="47" cy="42" r="5" fill="#ed7777"/><circle cx="65" cy="42" r="5" fill="#e7bd55"/><circle cx="83" cy="42" r="5" fill="#68bd7d"/>
+  <text class="muted small" x="105" y="46">play-oem · ISS_2026-05-20.OEM</text>
+
+  <rect class="pane" x="38" y="82" width="1404" height="748" rx="8"/>
+  <text class="ink heading" x="62" y="112">MAIN ANALYSIS</text>
+  <rect class="button" x="1300" y="93" width="118" height="28" rx="5"/><text class="muted tiny" x="1359" y="111" text-anchor="middle">+ Add graph</text>
+  <rect class="pane" x="54" y="132" width="1372" height="682" rx="7"/>
+  <rect x="70" y="146" width="201" height="28" rx="5" fill="#edf5ff" stroke="#a9c5e7"/>
+  <text class="ink small" x="84" y="165" font-weight="700">Ground Station Access</text>
+  <text class="muted tiny" x="264" y="165">▾</text>
+  <rect class="button" x="1346" y="147" width="62" height="26" rx="5"/><text class="muted tiny" x="1377" y="164" text-anchor="middle">More ▾</text>
+  <text class="ink title" x="78" y="212">Ground Station Access</text>
+  <text class="muted small" x="78" y="235">ISS · 2026-05-20 12:00–18:00 UTC · Geometric access, no terrain model</text>
+  <rect class="badge" x="1237" y="191" width="163" height="30" rx="15"/>
+  <circle cx="1255" cy="206" r="4" fill="#23866b"/><text class="badgetext" x="1268" y="210">IN ACCESS · North Site</text>
+
+  <rect class="pane" x="76" y="254" width="1328" height="326" rx="7"/>
+  <text class="ink heading" x="96" y="281">Access timeline</text>
+  <text class="muted tiny" x="1383" y="281" text-anchor="end">Click chart to seek · click a station name to select</text>
+  <text class="muted tiny" x="97" y="319">STATION</text>
+  <text class="muted tiny" x="382" y="319" text-anchor="middle">12:00</text>
+  <text class="muted tiny" x="548" y="319" text-anchor="middle">13:00</text>
+  <text class="muted tiny" x="714" y="319" text-anchor="middle">14:00</text>
+  <text class="muted tiny" x="880" y="319" text-anchor="middle">15:00</text>
+  <text class="muted tiny" x="1046" y="319" text-anchor="middle">16:00</text>
+  <text class="muted tiny" x="1212" y="319" text-anchor="middle">17:00</text>
+  <text class="muted tiny" x="1370" y="319" text-anchor="middle">18:00</text>
+  <line x1="300" y1="329" x2="1388" y2="329" class="grid"/>
+  <line x1="300" y1="380" x2="1388" y2="380" class="grid"/>
+  <line x1="300" y1="431" x2="1388" y2="431" class="grid"/>
+  <line x1="300" y1="482" x2="1388" y2="482" class="grid"/>
+  <line x1="300" y1="533" x2="1388" y2="533" class="grid"/>
+  <line x1="382" y1="329" x2="382" y2="533" class="grid"/>
+  <line x1="548" y1="329" x2="548" y2="533" class="grid"/>
+  <line x1="714" y1="329" x2="714" y2="533" class="grid"/>
+  <line x1="880" y1="329" x2="880" y2="533" class="grid"/>
+  <line x1="1046" y1="329" x2="1046" y2="533" class="grid"/>
+  <line x1="1212" y1="329" x2="1212" y2="533" class="grid"/>
+  <line x1="1378" y1="329" x2="1378" y2="533" class="grid"/>
+  <rect x="306" y="341" width="1080" height="37" rx="5" fill="#f5f9ff"/>
+  <text class="ink small" x="98" y="361" font-weight="700">North Site</text><text class="muted tiny" x="98" y="374">64.15°, −21.94° · mask 10°</text>
+  <rect class="clipped" x="306" y="348" width="59" height="22" rx="4"/><rect class="access" x="743" y="348" width="100" height="22" rx="4"/>
+  <rect class="upcoming" x="1167" y="348" width="62" height="22" rx="4"/>
+  <text class="ink small" x="98" y="412">Equator Station</text><text class="muted tiny" x="98" y="425">0.00°, 36.82° · mask 5°</text>
+  <rect class="access" x="481" y="399" width="48" height="22" rx="4"/><rect class="upcoming" x="1047" y="399" width="79" height="22" rx="4"/>
+  <text class="ink small" x="98" y="463">Island Station</text><text class="muted tiny" x="98" y="476">−13.16°, −72.53° · mask 10°</text>
+  <rect class="access" x="421" y="450" width="35" height="22" rx="4"/><rect class="upcoming" x="1064" y="450" width="44" height="22" rx="4"/>
+  <text class="muted tiny" x="98" y="515">Polar Station</text><text class="muted tiny" x="98" y="528">No access in OEM coverage</text>
+  <line x1="796" y1="329" x2="796" y2="533" class="now"/>
+  <rect x="754" y="300" width="84" height="20" rx="4" fill="#df4d66"/>
+  <text x="796" y="314" text-anchor="middle" fill="#fff" font-family="Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="10" font-weight="700">NOW 14:30</text>
+  <rect x="96" y="546" width="13" height="13" rx="2" class="access"/><text class="muted tiny" x="116" y="557">Access interval</text>
+  <rect x="236" y="546" width="13" height="13" rx="2" class="upcoming"/><text class="muted tiny" x="256" y="557">Upcoming interval</text>
+  <rect x="395" y="546" width="13" height="13" rx="2" class="clipped"/><text class="muted tiny" x="415" y="557">OEM coverage boundary</text>
+  <line x1="566" y1="552" x2="589" y2="552" class="now"/><text class="muted tiny" x="597" y="557">Playback time</text>
+
+  <rect class="pane" x="76" y="596" width="630" height="190" rx="7"/>
+  <text class="ink heading" x="96" y="624">North Site · Current conditions</text>
+  <text class="muted tiny" x="96" y="647">WGS-84 · 64.1466° N, 21.9426° W · 45 m ellipsoid height</text>
+  <rect class="badge" x="96" y="664" width="114" height="28" rx="14"/>
+  <circle cx="113" cy="678" r="4" fill="#23866b"/><text class="badgetext" x="126" y="682">ACCESS</text>
+  <text class="muted tiny" x="231" y="682">Mask 10°</text>
+  <text class="muted tiny" x="96" y="723">AZIMUTH</text><text class="ink heading" x="96" y="748">114.2°</text>
+  <text class="muted tiny" x="263" y="723">ELEVATION</text><text class="ink heading" x="263" y="748">28.4°</text>
+  <text class="muted tiny" x="435" y="723">SLANT RANGE</text><text class="ink heading" x="435" y="748">811 km</text>
+
+  <rect class="pane" x="722" y="596" width="682" height="190" rx="7"/>
+  <text class="ink heading" x="742" y="624">Pass summary · North Site</text>
+  <text class="muted tiny" x="742" y="651">CURRENT PASS</text>
+  <text class="ink small" x="742" y="672">AOS 14:14 UTC</text><text class="ink small" x="906" y="672">LOS 14:50 UTC</text>
+  <text class="muted tiny" x="742" y="704">NEXT PASS</text>
+  <text class="ink small" x="742" y="725">AOS 16:50 UTC</text><text class="ink small" x="906" y="725">LOS 17:13 UTC</text>
+  <text class="muted tiny" x="742" y="756">Peak elevation 37.6° · Minimum range 612 km</text>
+
+  <rect x="40" y="844" width="1400" height="24" rx="5" fill="#f8fafc"/>
+  <text class="muted tiny" x="64" y="860">2026-05-20 14:30:00 UTC</text>
+  <text class="ink tiny" x="740" y="860" text-anchor="middle">◀◀   ◀   ▶   ▶▶</text>
+  <text class="muted tiny" x="1416" y="860" text-anchor="end">Illustrative sample data</text>
+</svg>

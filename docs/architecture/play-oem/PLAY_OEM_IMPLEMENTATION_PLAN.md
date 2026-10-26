@@ -5,6 +5,14 @@ Requirements: [PLAY_OEM_CONCEPTS.md](./PLAY_OEM_CONCEPTS.md). Software design:
 [PLAY_OEM_GUI_DESIGN.md](./old/PLAY_OEM_GUI_DESIGN.md). Completed selected-layout record:
 [PLAY_OEM_GUI_WX_MIGRATION.md](./old/PLAY_OEM_GUI_WX_MIGRATION.md).
 
+The proposed Ground Stations feature has a separate
+[software design](./PLAY_OEM_GROUND_STATIONS_SOFTWARE_DESIGN.md),
+[GUI design](./PLAY_OEM_GROUND_STATIONS_GUI_DESIGN.md), and
+[implementation plan](./PLAY_OEM_GROUND_STATIONS_IMPLEMENTATION_PLAN.md), with
+[manager](./mockup-ground-stations-manager.svg),
+[inline station details](./mockup-ground-station-editor.svg), and
+[access panel](./mockup-ground-station-access.svg) mockups.
+
 ## Current runtime behavior
 
 The completed steps below are an implementation history and may record behavior that has since

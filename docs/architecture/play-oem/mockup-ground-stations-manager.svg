@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1480" height="860" viewBox="0 0 1480 860" role="img" aria-labelledby="title desc">
+  <title id="title">Ground Stations manager mock-up</title>
+  <desc id="desc">Illustrative play-oem workspace showing the Ground Stations feature page with two saved stations, an Add Ground Station button, and edit and remove actions. The main analysis area remains available beside the manager.</desc>
+  <defs>
+    <style>
+      .bg{fill:#f1f4f8}.window{fill:#fff;stroke:#cbd5e1;stroke-width:1.5}.chrome{fill:#e8edf3}
+      .ink{fill:#17263a;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .muted{fill:#63748b;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .title{font-size:21px;font-weight:700}.heading{font-size:15px;font-weight:700}.body{font-size:13px}.small{font-size:11px}.tiny{font-size:10px}
+      .pane{fill:#fff;stroke:#d5dee9;stroke-width:1.2}.selected{fill:#edf5ff;stroke:#78a9e8;stroke-width:1.4}
+      .button{fill:#fff;stroke:#bac8d8;stroke-width:1.2}.primary{fill:#2563eb}.primarytext{fill:#fff;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:12px;font-weight:600}
+      .rule{stroke:#e1e7ef;stroke-width:1}.grid{stroke:#e3e9f0;stroke-width:1}.chart{fill:none;stroke:#3168ce;stroke-width:2.7;stroke-linecap:round}
+      .orbit{fill:none;stroke:#159887;stroke-width:3}.mutedline{fill:none;stroke:#a9b7c8;stroke-width:1.2}
+      .icon{fill:none;stroke:#687a90;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+      .activeicon{fill:none;stroke:#2563eb;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    </style>
+  </defs>
+  <rect class="bg" width="1480" height="860"/>
+  <rect class="window" x="20" y="18" width="1440" height="824" rx="14"/>
+  <path class="chrome" d="M34 18h1412a14 14 0 0 1 14 14v35H20V32a14 14 0 0 1 14-14z"/>
+  <circle cx="47" cy="42" r="5" fill="#ed7777"/><circle cx="65" cy="42" r="5" fill="#e7bd55"/><circle cx="83" cy="42" r="5" fill="#68bd7d"/>
+  <text class="muted small" x="105" y="46">play-oem · ISS_2026-05-20.OEM</text>
+
+  <rect class="pane" x="36" y="82" width="420" height="650" rx="8"/>
+  <rect x="36" y="82" width="58" height="650" rx="8" fill="#f8fafc"/>
+  <line x1="94" y1="82" x2="94" y2="732" class="rule"/>
+  <rect x="46" y="105" width="38" height="38" rx="6" fill="#fff" stroke="#d5dee9"/>
+  <g class="icon" role="img" aria-label="Settings"><title>Settings</title><circle cx="65" cy="124" r="8"/><circle cx="65" cy="124" r="2.5"/><path d="M65 112v3M65 133v3M53 124h3M74 124h3"/></g>
+  <rect x="46" y="153" width="38" height="38" rx="6" fill="#fff" stroke="#d5dee9"/>
+  <g class="icon" role="img" aria-label="OEM file information"><title>OEM file information</title><path d="M57 162h11l5 5v16H57zM68 162v5h5M60 172h9M60 177h9"/></g>
+  <rect x="46" y="201" width="38" height="38" rx="6" fill="#fff" stroke="#d5dee9"/>
+  <g class="icon" role="img" aria-label="State"><title>State</title><path d="M65 208l10 6v12l-10 6-10-6v-12zM55 214l10 6 10-6M65 220v12"/></g>
+  <rect x="43" y="249" width="44" height="42" rx="7" fill="#e8f1ff" stroke="#90b6ea" stroke-width="1.3"/>
+  <g class="activeicon" role="img" aria-label="Ground Stations selected"><title>Ground Stations selected</title><path d="M65 257v23M59 280h12M60 266a7 7 0 0 1 10 0M56 262a13 13 0 0 1 18 0M65 254v1"/></g>
+
+  <text class="muted tiny" x="112" y="111">CONTROLS &amp; INFO / GROUND STATIONS</text>
+  <text class="ink title" x="112" y="148">Ground Stations</text>
+  <text class="muted small" x="112" y="170">Manage sites used for geometric access checks.</text>
+  <rect class="primary" x="112" y="190" width="180" height="36" rx="6"/>
+  <text class="primarytext" x="132" y="213">＋  Add Ground Station</text>
+  <text class="muted tiny" x="112" y="251">2 stations</text>
+
+  <rect class="selected" x="108" y="264" width="326" height="286" rx="8"/>
+  <path d="M123 281l5 5 5-5" fill="none" stroke="#2563eb" stroke-width="1.7"/>
+  <text class="ink heading" x="143" y="291">North Site</text>
+  <text class="muted tiny" x="414" y="290" text-anchor="end">Expanded · editing</text>
+  <text class="muted tiny" x="124" y="312">Name</text>
+  <rect x="124" y="319" width="294" height="29" rx="4" fill="#fff" stroke="#9bb8dc"/>
+  <text class="ink small" x="134" y="338">North Site</text>
+  <text class="muted tiny" x="124" y="368">Latitude · degrees</text>
+  <rect x="124" y="375" width="137" height="29" rx="4" fill="#fff" stroke="#9bb8dc"/>
+  <text class="ink small" x="134" y="394">64.1466</text>
+  <text class="muted tiny" x="280" y="368">Longitude · degrees</text>
+  <rect x="280" y="375" width="138" height="29" rx="4" fill="#fff" stroke="#9bb8dc"/>
+  <text class="ink small" x="290" y="394">−21.9426</text>
+  <text class="muted tiny" x="124" y="424">Ellipsoid height · m</text>
+  <rect x="124" y="431" width="137" height="29" rx="4" fill="#fff" stroke="#9bb8dc"/>
+  <text class="ink small" x="134" y="450">45</text>
+  <text class="muted tiny" x="280" y="424">Minimum elevation</text>
+  <rect x="280" y="431" width="138" height="29" rx="4" fill="#fff" stroke="#9bb8dc"/>
+  <text class="ink small" x="290" y="450">10°</text>
+  <rect class="button" x="124" y="478" width="92" height="31" rx="5"/>
+  <text class="ink small" x="170" y="498" text-anchor="middle">Remove…</text>
+  <rect class="button" x="226" y="478" width="84" height="31" rx="5"/>
+  <text class="ink small" x="268" y="498" text-anchor="middle">Cancel</text>
+  <rect class="primary" x="320" y="478" width="98" height="31" rx="5"/>
+  <text class="primarytext" x="369" y="498" text-anchor="middle">Save</text>
+
+  <rect class="pane" x="108" y="562" width="326" height="65" rx="8"/>
+  <path d="M126 584l5 5 5-5" fill="none" stroke="#687a90" stroke-width="1.7"/>
+  <text class="ink heading" x="146" y="588">Equator Station</text>
+  <text class="muted tiny" x="124" y="611">0.0000° / 36.8219° · 1,795 m · mask 5°</text>
+  <text class="muted tiny" x="112" y="660">Expand a station to edit its details in place.</text>
+  <text class="muted tiny" x="112" y="677">Access uses the station mask; terrain is not modeled.</text>
+
+  <rect class="pane" x="472" y="82" width="970" height="650" rx="8"/>
+  <text class="ink heading" x="496" y="112">MAIN ANALYSIS</text>
+  <rect class="pane" x="490" y="128" width="934" height="270" rx="7"/>
+  <text class="ink small" x="510" y="153" font-weight="700">3D Orbit</text><text class="muted tiny" x="1384" y="153" text-anchor="end">ISS · EME2000 / Earth</text>
+  <ellipse class="orbit" cx="957" cy="280" rx="293" ry="76" transform="rotate(-12 957 280)"/>
+  <ellipse cx="957" cy="280" rx="44" ry="34" fill="#e8f1ff" stroke="#94b9e8" stroke-width="1.4"/>
+  <path d="M922 280h70M957 253v54" class="mutedline"/>
+  <circle cx="1195" cy="222" r="7" fill="#e14f67" stroke="#fff" stroke-width="2"/>
+  <text class="muted tiny" x="970" y="285">Earth</text>
+  <rect class="pane" x="490" y="412" width="934" height="300" rx="7"/>
+  <text class="ink small" x="510" y="438" font-weight="700">Speed / Altitude</text>
+  <line x1="540" y1="482" x2="1390" y2="482" class="grid"/><line x1="540" y1="530" x2="1390" y2="530" class="grid"/>
+  <line x1="540" y1="578" x2="1390" y2="578" class="grid"/><line x1="540" y1="626" x2="1390" y2="626" class="grid"/>
+  <path class="chart" d="M548 594 C615 544 660 522 726 556 S844 620 916 575 S1054 497 1122 531 S1254 602 1382 542"/>
+  <line x1="1084" y1="466" x2="1084" y2="668" stroke="#e14f67" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <rect x="40" y="750" width="1400" height="70" rx="8" fill="#f8fafc" stroke="#d5dee9"/>
+  <text class="muted small" x="66" y="778">2026-05-20 15:12:00 UTC</text>
+  <text class="ink small" x="708" y="778" text-anchor="middle">◀◀   ◀   ▶   ▶▶</text>
+  <line x1="98" y1="800" x2="1382" y2="800" stroke="#b9c8d9" stroke-width="4" stroke-linecap="round"/>
+  <line x1="98" y1="800" x2="1084" y2="800" stroke="#4381d7" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="1084" cy="800" r="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+</svg>

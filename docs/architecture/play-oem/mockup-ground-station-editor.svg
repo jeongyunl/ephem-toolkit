@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="690" viewBox="0 0 1080 690" role="img" aria-labelledby="title desc">
+  <title id="title">Expanded Ground Station details mock-up</title>
+  <desc id="desc">Close-up of an expanded station row in the Ground Stations manager. The station fields are editable directly in the expanded details, with Save, Cancel, and Remove actions in the same view.</desc>
+  <defs>
+    <style>
+      .bg{fill:#f1f4f8}.card{fill:#fff;stroke:#d5dee9;stroke-width:1.4}.expanded{fill:#f5f9ff;stroke:#78a9e8;stroke-width:1.5}
+      .ink{fill:#17263a;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .muted{fill:#63748b;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .title{font-size:21px;font-weight:700}.heading{font-size:15px;font-weight:700}.small{font-size:12px}.tiny{font-size:10px}
+      .field{fill:#fff;stroke:#9bb8dc;stroke-width:1.2}.button{fill:#fff;stroke:#bac8d8;stroke-width:1.2}
+      .primary{fill:#2563eb}.primarytext{fill:#fff;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:12px;font-weight:600}
+      .rule{stroke:#e1e7ef;stroke-width:1}
+    </style>
+  </defs>
+  <rect class="bg" width="1080" height="690"/>
+  <rect class="card" x="28" y="28" width="1024" height="634" rx="12"/>
+  <text class="muted tiny" x="60" y="70">CONTROLS &amp; INFO / GROUND STATIONS</text>
+  <text class="ink title" x="60" y="108">Ground Stations</text>
+  <rect class="primary" x="822" y="78" width="194" height="38" rx="6"/>
+  <text class="primarytext" x="919" y="102" text-anchor="middle">＋  Add Ground Station</text>
+  <text class="muted small" x="60" y="138">2 stations · expanded details are edited in place</text>
+
+  <rect class="expanded" x="58" y="160" width="964" height="390" rx="9"/>
+  <path d="M80 184l7 7 7-7" fill="none" stroke="#2563eb" stroke-width="2"/>
+  <text class="ink heading" x="108" y="193">North Site</text>
+  <text class="muted tiny" x="998" y="192" text-anchor="end">Expanded</text>
+  <line x1="80" y1="210" x2="1000" y2="210" class="rule"/>
+
+  <text class="ink small" x="80" y="245" font-weight="600">Name</text>
+  <rect class="field" x="80" y="255" width="920" height="42" rx="5"/>
+  <text class="ink small" x="96" y="281">North Site</text>
+
+  <text class="ink small" x="80" y="330" font-weight="600">Latitude</text>
+  <text class="muted tiny" x="520" y="330" text-anchor="end">degrees · −90 to +90</text>
+  <rect class="field" x="80" y="340" width="440" height="42" rx="5"/>
+  <text class="ink small" x="96" y="366">64.1466</text>
+
+  <text class="ink small" x="560" y="330" font-weight="600">Longitude</text>
+  <text class="muted tiny" x="1000" y="330" text-anchor="end">degrees · normalized to [−180, 180)</text>
+  <rect class="field" x="560" y="340" width="440" height="42" rx="5"/>
+  <text class="ink small" x="576" y="366">−21.9426</text>
+
+  <text class="ink small" x="80" y="416" font-weight="600">Ellipsoid height</text>
+  <text class="muted tiny" x="520" y="416" text-anchor="end">meters above WGS-84 ellipsoid</text>
+  <rect class="field" x="80" y="426" width="440" height="42" rx="5"/>
+  <text class="ink small" x="96" y="452">45</text>
+
+  <text class="ink small" x="560" y="416" font-weight="600">Minimum elevation</text>
+  <text class="muted tiny" x="1000" y="416" text-anchor="end">0° to 90° · 1° steps</text>
+  <rect class="field" x="560" y="426" width="440" height="42" rx="5"/>
+  <text class="ink small" x="576" y="452">10°</text>
+  <line x1="962" y1="426" x2="962" y2="468" stroke="#d6dfe9"/>
+  <path d="M978 444l7-8 7 8z" fill="#63748b"/><path d="M978 450l7 8 7-8z" fill="#63748b"/>
+
+  <line x1="80" y1="492" x2="1000" y2="492" class="rule"/>
+  <rect class="button" x="80" y="508" width="106" height="34" rx="5"/>
+  <text class="ink small" x="133" y="530" text-anchor="middle">Remove…</text>
+  <text class="muted tiny" x="208" y="529">Unsaved edits are discarded by Cancel.</text>
+  <rect class="button" x="794" y="508" width="96" height="34" rx="5"/>
+  <text class="ink small" x="842" y="530" text-anchor="middle">Cancel</text>
+  <rect class="primary" x="902" y="508" width="98" height="34" rx="5"/>
+  <text class="primarytext" x="951" y="530" text-anchor="middle">Save</text>
+
+  <rect class="card" x="58" y="568" width="964" height="64" rx="8"/>
+  <path d="M83 592l7 7 7-7" fill="none" stroke="#63748b" stroke-width="1.8"/>
+  <text class="ink heading" x="112" y="600">Equator Station</text>
+  <text class="muted small" x="1000" y="600" text-anchor="end">0.0000°, 36.8219° · mask 5°</text>
+  <text class="muted tiny" x="60" y="651">Illustrative mock-up · one station row is expanded at a time</text>
+</svg>

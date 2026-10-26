@@ -7,6 +7,10 @@ by the migration in [PLAY_OEM_IMPLEMENTATION_PLAN.md](./PLAY_OEM_IMPLEMENTATION_
 
 Implemented Ground Track view: see the [completion report](./old/PLAY_OEM_GROUND_TRACK_IMPLEMENTATION_PLAN.md) and [end-user guide](../../tools/PLAY_OEM_GROUND_TRACK.md).
 
+Proposed Ground Stations feature: [software design](./PLAY_OEM_GROUND_STATIONS_SOFTWARE_DESIGN.md),
+[GUI design](./PLAY_OEM_GROUND_STATIONS_GUI_DESIGN.md), and
+[implementation plan](./PLAY_OEM_GROUND_STATIONS_IMPLEMENTATION_PLAN.md).
+
 ## 1. Approach: copy and modify `plot-oem`
 
 `plot_oem.py` (~870 lines) mixes three things; we split them while copying:
