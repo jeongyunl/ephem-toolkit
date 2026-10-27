@@ -55,9 +55,9 @@ def _coverage_label(interval: AccessInterval) -> str:
 
 def _utc_label(time_s: float) -> str:
     """Retain the fixed-UTC formatter used by older callers and tests."""
-    return format_tt(
-        time_s, UTC_DISPLAY, fractional_second_places=0
-    ).removesuffix(" UTC")
+    return format_tt(time_s, UTC_DISPLAY, fractional_second_places=0).removesuffix(
+        " UTC"
+    )
 
 
 class GroundStationPassesView:
@@ -108,9 +108,7 @@ class GroundStationPassesView:
         requested_station_id = initial_station_id or context_station_id
         self._selected_station_id = (
             requested_station_id
-            if any(
-                station.station_id == requested_station_id for station in stations
-            )
+            if any(station.station_id == requested_station_id for station in stations)
             else (
                 None
                 if requested_station_id is not None
@@ -153,6 +151,7 @@ class GroundStationPassesView:
         self._playback_marker: Any = None
         self._refreshing_rows = False
         self._layout_orientation: int | None = None
+        self._closed = False
         self._context_unsubscribe: Callable[[], None] = lambda: None
         self._prepare_access()
         if selection_context is not None:
@@ -274,21 +273,23 @@ class GroundStationPassesView:
 
     def _on_panel_size(self, event: wx.SizeEvent) -> None:
         event.Skip()
-        wx.CallAfter(self._update_analysis_layout)
+        if not self._closed:
+            wx.CallAfter(self._update_analysis_layout)
 
     def _on_sky_panel_size(self, event: wx.SizeEvent) -> None:
         event.Skip()
-        wx.CallAfter(self._wrap_sky_summary)
+        if not self._closed:
+            wx.CallAfter(self._wrap_sky_summary)
 
     def _wrap_sky_summary(self) -> None:
-        if self._sky_summary is None or self._sky_panel is None:
+        if self._closed or self._sky_summary is None or self._sky_panel is None:
             return
         width = self._sky_panel.GetClientSize().width - self._sky_panel.FromDIP(12)
         if width > 0:
             self._sky_summary.Wrap(width)
 
     def _update_analysis_layout(self) -> None:
-        if (
+        if self._closed or (
             self._analysis_panel is None
             or self._analysis_sizer is None
             or self._table_panel is None
@@ -588,9 +589,7 @@ class GroundStationPassesView:
             self._draw_sky_plot()
             self._update_actions()
 
-    def _on_context_selection(
-        self, selection: StationAnalysisSelection
-    ) -> None:
+    def _on_context_selection(self, selection: StationAnalysisSelection) -> None:
         station_id = selection.station_id
         if station_id is not None and not any(
             station.station_id == station_id for station in self._stations
@@ -940,9 +939,7 @@ class GroundStationPassesView:
         self._update_playback_marker()
 
     def _time_label(self, time_s: float) -> str:
-        return format_tt(
-            time_s, self._display_time_zone, fractional_second_places=0
-        )
+        return format_tt(time_s, self._display_time_zone, fractional_second_places=0)
 
     def set_time_range(
         self, bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
@@ -997,6 +994,7 @@ class GroundStationPassesView:
         self._refresh_rows()
 
     def close(self) -> None:
+        self._closed = True
         self._context_unsubscribe()
         self._context_unsubscribe = lambda: None
         self._canvas = None
@@ -1012,6 +1010,8 @@ class GroundStationPassListView(GroundStationPassesView):
     heading = "Pass List"
 
     def _update_analysis_layout(self) -> None:
+        if self._closed:
+            return
         if self._analysis_panel is None or self._analysis_sizer is None:
             return
         if self._table_panel is None or self._sky_panel is None:
@@ -1034,6 +1034,8 @@ class GroundStationSkyView(GroundStationPassesView):
     heading = "Sky View"
 
     def _update_analysis_layout(self) -> None:
+        if self._closed:
+            return
         if self._analysis_panel is None or self._analysis_sizer is None:
             return
         if self._sky_panel is None or self._table_panel is None:

@@ -1224,6 +1224,61 @@ def test_graph_hosts_replace_empty_state_and_restore_it_when_removed(
         result.add_graph_panel(host, "invalid")
 
 
+def test_removing_middle_graph_preserves_remaining_panel_heights(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, _seeks, _frame = make_workspace(monkeypatch)
+    panels = [
+        FakeGraphPanel(result.main_analysis_stack, f"panel-{index}")
+        for index in range(3)
+    ]
+    for panel in panels:
+        result.add_graph_panel(panel, "middle")
+
+    result._graph_panel_heights.update(zip(panels, (360, 420, 480)))
+    result._apply_graph_sash_heights(result._stack_roots["middle"])
+
+    result.remove_graph_panel(panels[1], "middle")
+
+    remaining_splitters = stack_splitters(result._stack_roots["middle"])
+    assert len(remaining_splitters) == 1
+    assert remaining_splitters[0].GetWindow1() is panels[0]
+    assert remaining_splitters[0].GetWindow2() is panels[2]
+    assert remaining_splitters[0].GetSashPosition() == 360
+    assert result._graph_panel_heights[panels[0]] == 360
+    assert result._graph_panel_heights[panels[2]] == 480
+
+
+def test_adding_empty_graphs_preserves_existing_panel_heights(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result, _seeks, _frame = make_workspace(monkeypatch)
+    panels = [
+        FakeGraphPanel(result.main_analysis_stack, f"empty-{index}")
+        for index in range(3)
+    ]
+
+    result.add_graph_panel(panels[0], "middle")
+    result._graph_panel_heights[panels[0]] = 360
+    result.add_graph_panel(panels[1], "middle")
+
+    splitters = stack_splitters(result._stack_roots["middle"])
+    assert splitters[-1].GetSashPosition() == 360
+    assert result._graph_panel_heights[panels[0]] == 360
+    assert result._graph_panel_heights[panels[1]] == workspace.MIN_GRAPH_PANEL_HEIGHT
+
+    result.add_graph_panel(panels[2], "middle")
+
+    splitters = stack_splitters(result._stack_roots["middle"])
+    assert splitters[-1].GetSashPosition() == (
+        360 + splitters[-1].GetSashSize() + workspace.MIN_GRAPH_PANEL_HEIGHT
+    )
+    assert splitters[0].GetSashPosition() == 360
+    assert result._graph_panel_heights[panels[0]] == 360
+    assert result._graph_panel_heights[panels[1]] == workspace.MIN_GRAPH_PANEL_HEIGHT
+    assert result._graph_panel_heights[panels[2]] == workspace.MIN_GRAPH_PANEL_HEIGHT
+
+
 def test_dragging_graph_sash_resizes_panel_above_and_keeps_panels_below(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

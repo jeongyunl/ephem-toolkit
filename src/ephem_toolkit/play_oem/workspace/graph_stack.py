@@ -173,12 +173,18 @@ class GraphStackMixin:
         window = self._stack_windows[stack]
         sizer = self._stack_sizers[stack]
         root = self._stack_roots[stack]
+        adding_to_existing_stack = root is not None
         if root is None:
             root = panel
             # A reused panel may be parked outside the scroller after removal.
             root.Reparent(window)
             sizer.Add(root, 1, wx.EXPAND)
         else:
+            for existing_panel in self._graph_panels[stack]:
+                self._graph_panel_heights.setdefault(
+                    existing_panel,
+                    max(MIN_GRAPH_PANEL_HEIGHT, existing_panel.GetSize().height),
+                )
             root_min_height = root.GetMinSize().height
             new_splitter = wx.SplitterWindow(
                 window, wx.ID_ANY, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH
@@ -204,8 +210,11 @@ class GraphStackMixin:
             sizer.Add(root, 1, wx.EXPAND)
 
         self._graph_panels[stack].append(panel)
+        if adding_to_existing_stack:
+            self._graph_panel_heights.setdefault(panel, MIN_GRAPH_PANEL_HEIGHT)
         self._stack_roots[stack] = root
         self._layout_graph_stack(stack)
+        self._apply_graph_sash_heights(root)
 
     def remove_graph_panel(
         self: _GraphStackState, panel: GraphPanelHost, stack: str = "middle"
@@ -231,6 +240,7 @@ class GraphStackMixin:
                 self._graph_redraw_timer.Stop()
             self._graph_redraw_timer = None
         self._layout_graph_stack(stack)
+        self._apply_graph_sash_heights(self._stack_roots[stack])
 
     def replace_graph_panel(
         self: _GraphStackState,
@@ -753,9 +763,7 @@ class GraphStackMixin:
             self._workspace_preset_choice = preset_choice
             preset_choice.Bind(
                 wx.EVT_CHOICE,
-                lambda event: self._on_workspace_preset_selected(
-                    event.GetSelection()
-                ),
+                lambda event: self._on_workspace_preset_selected(event.GetSelection()),
             )
             pane_header_sizer.Add(
                 preset_choice, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4
@@ -814,9 +822,7 @@ class GraphStackMixin:
         graph_pane.SetSizer(pane_sizer)
         return graph_pane, graph_stack_window
 
-    def _on_workspace_preset_selected(
-        self: _GraphStackState, selection: int
-    ) -> None:
+    def _on_workspace_preset_selected(self: _GraphStackState, selection: int) -> None:
         if selection == 0:
             return
         preset_names = ("access-overview", "pass-study")
@@ -925,8 +931,6 @@ class GraphStackMixin:
             lambda stack=stack: self._flush_visible_graph_redraws(stack),
         )
 
-    def _flush_visible_graph_redraws(
-        self: _GraphStackState, stack: str
-    ) -> None:
+    def _flush_visible_graph_redraws(self: _GraphStackState, stack: str) -> None:
         self._graph_scroll_timers[stack] = None
         self.request_visible_graph_redraws()

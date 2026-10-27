@@ -34,6 +34,7 @@ from ephem_toolkit.play_oem.views.ground_station_passes import (
     _can_fit_side_by_side,
     _utc_label,
 )
+from ephem_toolkit.play_oem.views import ground_station_passes as passes_view_module
 
 
 @pytest.fixture(scope="module")
@@ -157,6 +158,34 @@ def test_pass_view_tracks_shared_stack_selection_and_unsubscribes_on_close() -> 
     view.close()
     context.select_interval(None)
     assert view._selected_interval_key == (10.0, 20.0)
+
+
+def test_deferred_layout_callback_is_ignored_after_view_close(monkeypatch) -> None:
+    view, _cache = _make_view(())
+    callbacks = []
+    monkeypatch.setattr(passes_view_module.wx, "CallAfter", callbacks.append)
+
+    class _Event:
+        skipped = False
+
+        def Skip(self) -> None:
+            self.skipped = True
+
+    class _DeletedWindow:
+        def __getattr__(self, _name: str):
+            raise AssertionError("deferred callback touched a closed wx window")
+
+    view._analysis_panel = cast(Any, _DeletedWindow())
+    view._analysis_sizer = cast(Any, _DeletedWindow())
+    view._table_panel = cast(Any, _DeletedWindow())
+    view._sky_panel = cast(Any, _DeletedWindow())
+    event = _Event()
+
+    view._on_panel_size(cast(Any, event))
+    view.close()
+    callbacks[0]()
+
+    assert event.skipped
 
 
 def test_focused_pass_list_and_sky_views_share_interval_selection() -> None:
