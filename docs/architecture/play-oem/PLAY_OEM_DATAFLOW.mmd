@@ -1,0 +1,77 @@
+flowchart TD
+    FILE[("OEM file<br/>JPSS-1: 21,601 samples")]
+
+    subgraph WORKER["Loader / preparation thread"]
+        direction TB
+        PARSE["read_oem_batches<br/>parse OEM epochs<br/>median 1.318 s"]
+        PREP["IncrementalPlaybackPreparer<br/>AppendablePlaybackData"]
+        SERIES["OrbitSeriesAccumulator<br/>compute_orbit_series on new rows<br/>full-series median 0.284 s"]
+        CURSOR["OemCursor<br/>timestamps, states, segments<br/>interpolation support"]
+        SOURCE["GroundTrackSource<br/>growing OEM sample prefix"]
+        PARSE --> PREP
+        PREP --> SERIES
+        PREP --> CURSOR
+        CURSOR --> SOURCE
+    end
+
+    subgraph UI["wx UI thread"]
+        direction TB
+        POLL["_poll_incremental_load<br/>install prepared batches"]
+        THROTTLE["Refresh throttling<br/>at most every 5 s while loading<br/>forced on completion"]
+        INPLACE["_update_incremental_panel_data<br/>reuse compatible views / figures"]
+        FALLBACK["Rebuild incompatible<br/>or structurally changed views"]
+        DEFER["Defer Access / Passes<br/>until completion"]
+        POLL --> THROTTLE
+        THROTTLE --> INPLACE
+        INPLACE -.->|"not compatible"| FALLBACK
+        THROTTLE -.->|"station panels"| DEFER
+    end
+
+    subgraph VIEWS["Range-limited graph preparation"]
+        direction TB
+        SERIESV["2D histories<br/>plot-range selection + decimation<br/>incremental series preview capped"]
+        TRAJ["3D trajectory<br/>range selection + decimation<br/>Matplotlib or VTK"]
+        TRACK["Ground Track<br/>range + margin<br/>ITRF and WGS-84 conversion"]
+        ACCESS["Access and Passes<br/>30 s grid over range + margin<br/>station-specific metrics"]
+    end
+
+    subgraph CACHES["Append-aware caches"]
+        direction TB
+        POSCACHE[("EarthFixedPositionCache<br/>retain computed prefix positions<br/>geometric capacity growth")]
+        ACCESSCACHE[("StationAccessCache<br/>share positions across stations<br/>retain safe early windows<br/>recompute tail windows")]
+    end
+
+    subgraph FRAME["Per playback frame"]
+        direction TB
+        TICK["clock.tick"]
+        LOOK["cursor.lookup"]
+        CURRENT["Current position / station metrics"]
+        TICK --> LOOK --> CURRENT
+    end
+
+    RANGE{{"Active plot range<br/>default follows first two playback days<br/>saved settings override"}}
+    FILE --> PARSE
+    SERIES --> POLL
+    SOURCE --> POLL
+    INPLACE --> SERIESV
+    INPLACE --> TRAJ
+    INPLACE --> TRACK
+    DEFER --> ACCESS
+    FALLBACK --> SERIESV
+    FALLBACK --> TRAJ
+    FALLBACK --> TRACK
+    FALLBACK --> ACCESS
+    RANGE --> SERIESV
+    RANGE --> TRAJ
+    RANGE --> TRACK
+    RANGE --> ACCESS
+    TRACK <--> POSCACHE
+    ACCESS <--> ACCESSCACHE
+    POSCACHE <--> ACCESSCACHE
+    LOOK --> TRAJ
+    CURRENT --> ACCESS
+
+    classDef hot fill:#fdd,stroke:#c33,stroke-width:2px
+    classDef retained fill:#dfd,stroke:#393
+    class PARSE,ACCESS hot
+    class INPLACE,POSCACHE,ACCESSCACHE retained
