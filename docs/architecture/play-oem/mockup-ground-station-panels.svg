@@ -1,0 +1,279 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1900" viewBox="0 0 1600 1900" role="img" aria-labelledby="title desc">
+  <title id="title">Modular Ground Station panel mockups</title>
+  <desc id="desc">Eight illustrative standalone panel mockups: Station Status, Pass Strip, Elevation Profile, Azimuth Profile, Range Profile, Pass List, Sky View, and Pass Ground Track. All plotted values are placeholders.</desc>
+  <defs>
+    <style>
+      .bg{fill:#f1f4f8}.card{fill:#fff;stroke:#cbd5e1;stroke-width:1.5}
+      .ink{fill:#17263a;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .muted{fill:#63748b;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .title{font-size:22px;font-weight:700}.heading{font-size:16px;font-weight:700}
+      .body{font-size:13px}.small{font-size:11px}.tiny{font-size:10px}
+      .plot{fill:#fbfdff;stroke:#d5dee9;stroke-width:1}
+      .rule{stroke:#e1e7ef;stroke-width:1}.grid{stroke:#e1e7ef;stroke-width:1}
+      .button{fill:#fff;stroke:#bac8d8;stroke-width:1}.select{fill:#fff;stroke:#bac8d8;stroke-width:1}
+      .blue{fill:none;stroke:#2f7ebc;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+      .green{fill:none;stroke:#16877e;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+      .orange{fill:none;stroke:#dd762d;stroke-width:2;stroke-dasharray:6 4}
+      .maskline{stroke:#c74343;stroke-width:1.5;stroke-dasharray:5 4}
+      .pass{fill:#e8f3ff}.selected{fill:#d6e8ff;stroke:#77a8e8;stroke-width:1}
+      .tag{fill:#e4f5ec}.tagtext{fill:#17654f;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:10px;font-weight:700}
+      .station{fill:#16877e;stroke:#fff;stroke-width:2}.peak{fill:#e7a52f;stroke:#fff;stroke-width:2}
+      .play{fill:#df4d66;stroke:#fff;stroke-width:2}.land{fill:#e7eadf;stroke:#cbd2c1;stroke-width:.8}
+    </style>
+  </defs>
+  <rect class="bg" width="1600" height="1900"/>
+  <text class="ink title" x="32" y="42">Ground Station Analysis · Focused Panels</text>
+  <text class="muted body" x="32" y="67">Eight independent panel concepts. Example station values and times are illustrative placeholders.</text>
+
+  <g transform="translate(32 92)">
+    <rect class="card" width="760" height="430" rx="10"/>
+    <text class="ink heading" x="20" y="30">Station Status</text>
+    <text class="muted small" x="20" y="50">Current look angles and access state at the playback epoch</text>
+    <rect class="select" x="20" y="68" width="210" height="30" rx="5"/>
+    <text class="ink small" x="32" y="88">North Site  ▾</text>
+    <rect class="tag" x="250" y="68" width="105" height="30" rx="15"/>
+    <text class="tagtext" x="302" y="87" text-anchor="middle">IN ACCESS</text>
+    <text class="muted small" x="740" y="88" text-anchor="end">14:03:00 UTC</text>
+    <rect class="plot" x="20" y="116" width="720" height="116" rx="7"/>
+    <text class="muted tiny" x="38" y="139">MINIMUM ELEVATION</text>
+    <text class="ink heading" x="38" y="169">10°</text>
+    <line class="rule" x1="190" y1="132" x2="190" y2="216"/>
+    <text class="muted tiny" x="214" y="139">AZIMUTH</text>
+    <text class="ink heading" x="214" y="169">244.1°</text>
+    <line class="rule" x1="370" y1="132" x2="370" y2="216"/>
+    <text class="muted tiny" x="394" y="139">ELEVATION</text>
+    <text class="ink heading" x="394" y="169">28.4°</text>
+    <line class="rule" x1="548" y1="132" x2="548" y2="216"/>
+    <text class="muted tiny" x="572" y="139">SLANT RANGE</text>
+    <text class="ink heading" x="572" y="169">1,820 km</text>
+    <text class="muted tiny" x="38" y="208">Station: 64.15° N · 21.94° W · 50 m</text>
+    <text class="muted small" x="20" y="267">State details</text>
+    <line class="rule" x1="20" y1="280" x2="740" y2="280"/>
+    <circle cx="29" cy="307" r="5" fill="#16877e"/>
+    <text class="ink small" x="43" y="311">Current OEM state available; elevation is above the configured mask.</text>
+    <text class="muted small" x="20" y="344">No pass history or future prediction is repeated here.</text>
+    <text class="muted tiny" x="20" y="400">If outside coverage or in an OEM gap, show “Unavailable” rather than zero values.</text>
+  </g>
+
+  <g transform="translate(808 92)">
+    <rect class="card" width="760" height="430" rx="10"/>
+    <text class="ink heading" x="20" y="30">Pass Strip</text>
+    <text class="muted small" x="20" y="50">Access intervals overlapping the shared Plot Range</text>
+    <rect class="select" x="20" y="66" width="245" height="29" rx="5"/>
+    <text class="ink small" x="32" y="85">North Site · 12:00–18:00 UTC ▾</text>
+    <text class="muted tiny" x="738" y="85" text-anchor="end">Click a band to select; does not seek.</text>
+    <rect class="plot" x="20" y="111" width="720" height="215" rx="7"/>
+    <text class="muted tiny" x="36" y="139">NORTH SITE</text>
+    <line class="grid" x1="112" y1="155" x2="710" y2="155"/>
+    <line class="grid" x1="112" y1="199" x2="710" y2="199"/>
+    <line class="grid" x1="112" y1="243" x2="710" y2="243"/>
+    <line class="grid" x1="112" y1="287" x2="710" y2="287"/>
+    <text class="muted tiny" x="36" y="180">pass A</text>
+    <text class="muted tiny" x="36" y="224">pass B</text>
+    <text class="muted tiny" x="36" y="268">pass C</text>
+    <rect class="pass" x="162" y="165" width="76" height="22" rx="5"/>
+    <rect class="selected" x="340" y="209" width="132" height="22" rx="5"/>
+    <rect class="pass" x="597" y="253" width="113" height="22" rx="5"/>
+    <line class="orange" x1="597" y1="249" x2="597" y2="280"/>
+    <text class="muted tiny" x="611" y="246">OEM limit</text>
+    <circle class="peak" cx="402" cy="220" r="5"/>
+    <line class="rule" x1="112" y1="299" x2="710" y2="299"/>
+    <text class="muted tiny" x="112" y="316">12:00</text>
+    <text class="muted tiny" x="247" y="316">13:30</text>
+    <text class="muted tiny" x="386" y="316">15:00</text>
+    <text class="muted tiny" x="525" y="316">16:30</text>
+    <text class="muted tiny" x="710" y="316" text-anchor="end">18:00 UTC</text>
+    <rect class="selected" x="20" y="346" width="15" height="11" rx="2"/>
+    <text class="muted tiny" x="42" y="356">Selected interval</text>
+    <circle class="peak" cx="171" cy="352" r="4"/>
+    <text class="muted tiny" x="182" y="356">Peak</text>
+    <line class="orange" x1="244" y1="352" x2="270" y2="352"/>
+    <text class="muted tiny" x="278" y="356">Coverage/gap-limited boundary</text>
+    <text class="muted tiny" x="20" y="402">Full OEM-bounded intervals remain visible; Plot Range filters by overlap.</text>
+  </g>
+
+  <g transform="translate(32 542)">
+    <rect class="card" width="760" height="430" rx="10"/>
+    <text class="ink heading" x="20" y="30">Elevation Profile</text>
+    <text class="muted small" x="20" y="50">One station · elevation through time · fixed 0°–95° scale</text>
+    <text class="muted tiny" x="740" y="50" text-anchor="end">Plot Range 12:00–18:00 UTC</text>
+    <rect class="plot" x="70" y="82" width="650" height="263" rx="5"/>
+    <line class="grid" x1="70" y1="102" x2="720" y2="102"/>
+    <line class="grid" x1="70" y1="155" x2="720" y2="155"/>
+    <line class="grid" x1="70" y1="208" x2="720" y2="208"/>
+    <line class="grid" x1="70" y1="261" x2="720" y2="261"/>
+    <line class="grid" x1="70" y1="314" x2="720" y2="314"/>
+    <text class="muted tiny" x="58" y="106" text-anchor="end">95°</text>
+    <text class="muted tiny" x="58" y="159" text-anchor="end">75°</text>
+    <text class="muted tiny" x="58" y="212" text-anchor="end">55°</text>
+    <text class="muted tiny" x="58" y="265" text-anchor="end">35°</text>
+    <text class="muted tiny" x="58" y="318" text-anchor="end">0°</text>
+    <rect class="pass" x="169" y="83" width="58" height="261"/>
+    <rect class="selected" x="351" y="83" width="102" height="261"/>
+    <rect class="pass" x="608" y="83" width="67" height="261"/>
+    <line class="maskline" x1="70" y1="302" x2="720" y2="302"/>
+    <path class="blue" d="M169 302 C181 266 194 221 207 219 S218 271 227 302 M351 302 C369 254 383 170 401 151 S432 229 453 302 M608 302 C620 261 638 234 650 240 S667 279 675 302"/>
+    <line class="play" x1="394" y1="82" x2="394" y2="345"/>
+    <text class="muted tiny" x="70" y="365">12:00</text>
+    <text class="muted tiny" x="232" y="365">13:30</text>
+    <text class="muted tiny" x="395" y="365">15:00</text>
+    <text class="muted tiny" x="557" y="365">16:30</text>
+    <text class="muted tiny" x="720" y="365" text-anchor="end">18:00 UTC</text>
+    <text class="muted tiny" x="20" y="405">Mask and pass bands provide context; click a time to seek playback.</text>
+  </g>
+
+  <g transform="translate(808 542)">
+    <rect class="card" width="760" height="430" rx="10"/>
+    <text class="ink heading" x="20" y="30">Azimuth Profile</text>
+    <text class="muted small" x="20" y="50">Direction of the station look angle against UTC</text>
+    <text class="muted tiny" x="740" y="50" text-anchor="end">North-wrap gaps are intentional</text>
+    <rect class="plot" x="70" y="82" width="650" height="263" rx="5"/>
+    <line class="grid" x1="70" y1="102" x2="720" y2="102"/>
+    <line class="grid" x1="70" y1="163" x2="720" y2="163"/>
+    <line class="grid" x1="70" y1="224" x2="720" y2="224"/>
+    <line class="grid" x1="70" y1="285" x2="720" y2="285"/>
+    <line class="grid" x1="70" y1="326" x2="720" y2="326"/>
+    <text class="muted tiny" x="58" y="106" text-anchor="end">360°</text>
+    <text class="muted tiny" x="58" y="167" text-anchor="end">270°</text>
+    <text class="muted tiny" x="58" y="228" text-anchor="end">180°</text>
+    <text class="muted tiny" x="58" y="289" text-anchor="end">90°</text>
+    <text class="muted tiny" x="58" y="330" text-anchor="end">0°</text>
+    <path class="green" d="M93 284 C133 257 166 215 203 179 S260 127 290 117"/>
+    <path class="green" d="M290 323 C321 307 356 276 388 251 S456 207 493 196"/>
+    <path class="green" d="M493 187 C532 169 577 145 610 133 S672 116 704 111"/>
+    <line class="play" x1="394" y1="82" x2="394" y2="345"/>
+    <text class="muted tiny" x="70" y="365">12:00</text>
+    <text class="muted tiny" x="232" y="365">13:30</text>
+    <text class="muted tiny" x="395" y="365">15:00</text>
+    <text class="muted tiny" x="557" y="365">16:30</text>
+    <text class="muted tiny" x="720" y="365" text-anchor="end">18:00 UTC</text>
+    <text class="muted tiny" x="20" y="405">Azimuth wraps at north; segments break rather than drawing a false jump.</text>
+  </g>
+
+  <g transform="translate(32 992)">
+    <rect class="card" width="760" height="430" rx="10"/>
+    <text class="ink heading" x="20" y="30">Range Profile</text>
+    <text class="muted small" x="20" y="50">Topocentric slant range against UTC · kilometres</text>
+    <text class="muted tiny" x="740" y="50" text-anchor="end">Profile data shared with access history</text>
+    <rect class="plot" x="70" y="82" width="650" height="263" rx="5"/>
+    <line class="grid" x1="70" y1="102" x2="720" y2="102"/>
+    <line class="grid" x1="70" y1="155" x2="720" y2="155"/>
+    <line class="grid" x1="70" y1="208" x2="720" y2="208"/>
+    <line class="grid" x1="70" y1="261" x2="720" y2="261"/>
+    <line class="grid" x1="70" y1="314" x2="720" y2="314"/>
+    <text class="muted tiny" x="58" y="106" text-anchor="end">40,000</text>
+    <text class="muted tiny" x="58" y="159" text-anchor="end">30,000</text>
+    <text class="muted tiny" x="58" y="212" text-anchor="end">20,000</text>
+    <text class="muted tiny" x="58" y="265" text-anchor="end">10,000</text>
+    <text class="muted tiny" x="58" y="318" text-anchor="end">0</text>
+    <rect class="selected" x="350" y="83" width="103" height="261"/>
+    <path class="blue" d="M70 112 C132 126 176 164 225 208 S300 258 351 283 C383 299 422 301 453 281 S520 222 565 179 S656 126 720 108"/>
+    <line class="play" x1="394" y1="82" x2="394" y2="345"/>
+    <circle class="peak" cx="405" cy="301" r="5"/>
+    <text class="muted tiny" x="70" y="365">12:00</text>
+    <text class="muted tiny" x="232" y="365">13:30</text>
+    <text class="muted tiny" x="395" y="365">15:00</text>
+    <text class="muted tiny" x="557" y="365">16:30</text>
+    <text class="muted tiny" x="720" y="365" text-anchor="end">18:00 UTC</text>
+    <text class="muted tiny" x="20" y="405">Break the curve at OEM gaps; never interpolate across missing coverage.</text>
+  </g>
+
+  <g transform="translate(808 992)">
+    <rect class="card" width="760" height="430" rx="10"/>
+    <text class="ink heading" x="20" y="30">Pass List</text>
+    <text class="muted small" x="20" y="50">Intervals overlapping Plot Range · full pass metrics retained</text>
+    <rect class="select" x="20" y="67" width="220" height="28" rx="5"/>
+    <text class="ink small" x="32" y="86">North Site  ▾</text>
+    <text class="muted tiny" x="740" y="86" text-anchor="end">Plot Range: 12:00–18:00 UTC</text>
+    <rect class="plot" x="20" y="109" width="720" height="225" rx="5"/>
+    <rect fill="#eef3f8" x="20" y="109" width="720" height="34" rx="5"/>
+    <text class="muted tiny" x="34" y="130">START / END UTC</text>
+    <text class="muted tiny" x="260" y="130">PEAK</text>
+    <text class="muted tiny" x="380" y="130">MIN RANGE</text>
+    <text class="muted tiny" x="535" y="130">COVERAGE</text>
+    <line class="rule" x1="20" y1="143" x2="740" y2="143"/>
+    <rect class="pass" x="21" y="144" width="718" height="59"/>
+    <text class="ink small" x="34" y="164">13:18:04 – 13:24:39</text>
+    <text class="muted tiny" x="34" y="184">6m 35s</text>
+    <text class="ink small" x="260" y="169">58.4°</text>
+    <text class="muted tiny" x="260" y="185">13:21:20</text>
+    <text class="ink small" x="380" y="169">1,420 km</text>
+    <text class="muted tiny" x="380" y="185">13:21:48</text>
+    <text class="ink small" x="535" y="169">Complete</text>
+    <rect class="selected" x="21" y="204" width="718" height="59"/>
+    <text class="ink small" x="34" y="224">15:02:11 – 15:09:02</text>
+    <text class="muted tiny" x="34" y="244">6m 51s</text>
+    <text class="ink small" x="260" y="229">42.0°</text>
+    <text class="muted tiny" x="260" y="245">15:05:26</text>
+    <text class="ink small" x="380" y="229">1,980 km</text>
+    <text class="muted tiny" x="380" y="245">15:05:33</text>
+    <text class="ink small" x="535" y="229">Complete</text>
+    <rect class="pass" x="21" y="264" width="718" height="59"/>
+    <text class="ink small" x="34" y="284">17:41:00 – beyond OEM</text>
+    <text class="muted tiny" x="34" y="304">Duration unavailable</text>
+    <text class="ink small" x="260" y="289">42.0°</text>
+    <text class="muted tiny" x="260" y="305">17:44:22</text>
+    <text class="ink small" x="380" y="289">1,980 km</text>
+    <text class="muted tiny" x="380" y="305">17:44:30</text>
+    <text class="ink small" x="535" y="289">OEM-limited end</text>
+    <rect class="button" x="20" y="352" width="124" height="30" rx="5"/>
+    <text class="muted small" x="82" y="372" text-anchor="middle">Focus pass</text>
+    <rect class="button" x="154" y="352" width="124" height="30" rx="5"/>
+    <text class="muted small" x="216" y="372" text-anchor="middle">Seek to peak</text>
+    <text class="muted tiny" x="20" y="410">Focus changes Plot Range; seeking is a separate explicit action.</text>
+  </g>
+
+  <g transform="translate(32 1442)">
+    <rect class="card" width="760" height="430" rx="10"/>
+    <text class="ink heading" x="20" y="30">Sky View</text>
+    <text class="muted small" x="20" y="50">Selected pass · azimuth clockwise from north · zenith at center</text>
+    <rect class="tag" x="620" y="19" width="120" height="25" rx="13"/>
+    <text class="tagtext" x="680" y="36" text-anchor="middle">PEAK 42.0°</text>
+    <circle cx="380" cy="247" r="142" fill="#fbfdff" stroke="#aebdca" stroke-width="1.4"/>
+    <circle cx="380" cy="247" r="95" fill="none" stroke="#cbd6e2" stroke-width="1"/>
+    <circle cx="380" cy="247" r="47" fill="none" stroke="#cbd6e2" stroke-width="1"/>
+    <circle cx="380" cy="247" r="111" fill="none" stroke="#c74343" stroke-width="1.5" stroke-dasharray="6 4"/>
+    <line class="grid" x1="238" y1="247" x2="522" y2="247"/>
+    <line class="grid" x1="380" y1="105" x2="380" y2="389"/>
+    <line class="grid" x1="280" y1="147" x2="480" y2="347"/>
+    <line class="grid" x1="480" y1="147" x2="280" y2="347"/>
+    <text class="muted tiny" x="380" y="98" text-anchor="middle">N · 0°</text>
+    <text class="muted tiny" x="532" y="251">E · 90°</text>
+    <text class="muted tiny" x="380" y="408" text-anchor="middle">S · 180°</text>
+    <text class="muted tiny" x="216" y="251">W · 270°</text>
+    <path class="blue" d="M305 128 C326 157 351 185 374 208 S417 229 441 258 S443 301 420 329"/>
+    <circle class="station" cx="305" cy="128" r="6"/>
+    <circle class="peak" cx="374" cy="208" r="6"/>
+    <rect class="play" x="436" y="253" width="11" height="11" rx="1"/>
+    <text class="muted tiny" x="20" y="421">Dashed ring = 10° station mask · geometric visibility, not radio link quality.</text>
+  </g>
+
+  <g transform="translate(808 1442)">
+    <rect class="card" width="760" height="430" rx="10"/>
+    <text class="ink heading" x="20" y="30">Pass Ground Track</text>
+    <text class="muted small" x="20" y="50">Geographic subpoint path clipped to the selected pass interval</text>
+    <rect class="select" x="20" y="67" width="240" height="28" rx="5"/>
+    <text class="ink small" x="32" y="86">15:02–15:09 UTC · North Site ▾</text>
+    <rect class="plot" x="20" y="109" width="720" height="248" rx="7"/>
+    <path class="land" d="M42 157l39-18 62 9 21 26-18 26-45 4-33 26-29-18-14-30z M225 248l27 13 22 42-18 30-24-26-18-32z M312 165l35-22 46 13 33 24 40-8 44 22-8 30-41 6-16 30-31 3-16-34-30-5-18-37-31-10z M428 269l31 8 18 32-13 33-24 9-20-31z M567 158l38-18 52 12 36 31-7 31-48 2-18 27-40-17-27 8-24-27-32-7-5-23z"/>
+    <line class="grid" x1="42" y1="234" x2="718" y2="234"/>
+    <line class="grid" x1="42" y1="169" x2="718" y2="169"/>
+    <line class="grid" x1="42" y1="299" x2="718" y2="299"/>
+    <line class="grid" x1="211" y1="119" x2="211" y2="347"/>
+    <line class="grid" x1="380" y1="119" x2="380" y2="347"/>
+    <line class="grid" x1="549" y1="119" x2="549" y2="347"/>
+    <path class="blue" d="M56 286 C147 250 205 189 283 174 S394 199 450 245 S570 292 702 199"/>
+    <circle class="station" cx="380" cy="234" r="7"/>
+    <circle class="peak" cx="394" cy="199" r="6"/>
+    <circle class="play" cx="428" cy="227" r="6"/>
+    <text class="muted tiny" x="42" y="378">180° W</text>
+    <text class="muted tiny" x="211" y="378" text-anchor="middle">90° W</text>
+    <text class="muted tiny" x="380" y="378" text-anchor="middle">0°</text>
+    <text class="muted tiny" x="549" y="378" text-anchor="middle">90° E</text>
+    <text class="muted tiny" x="718" y="378" text-anchor="end">180° E</text>
+    <circle class="station" cx="28" cy="405" r="5"/><text class="muted tiny" x="39" y="409">Station</text>
+    <circle class="peak" cx="113" cy="405" r="5"/><text class="muted tiny" x="124" y="409">Peak</text>
+    <circle class="play" cx="184" cy="405" r="5"/><text class="muted tiny" x="195" y="409">Playhead</text>
+    <text class="muted tiny" x="740" y="409" text-anchor="end">No footprint or radio-visibility claim</text>
+  </g>
+</svg>

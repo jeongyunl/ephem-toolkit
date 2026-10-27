@@ -23,11 +23,17 @@ from ..station_access import (
     StationAccess,
     StationAccessCache,
 )
+from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
 
-_TABLE_COLUMN_WIDTHS = (150, 150, 85, 190, 190, 190)
+_TABLE_COLUMN_WIDTHS = (190, 90, 150, 155, 155)
+_TABLE_PANEL_MIN_WIDTH = sum(_TABLE_COLUMN_WIDTHS)
 _SKY_PANEL_MIN_WIDTH = 320
+
+
+def _can_fit_side_by_side(available_width: int, minimum_width: int) -> bool:
+    return available_width >= minimum_width
 
 
 def _interval_key(interval: AccessInterval) -> tuple[float, float]:
@@ -58,6 +64,7 @@ class GroundStationPassesView:
     """Inspect cached pass details and their topocentric sky paths."""
 
     name = "ground-station-passes"
+    heading = "Ground Station Passes"
 
     def __init__(
         self,
@@ -72,6 +79,7 @@ class GroundStationPassesView:
         on_focus_pass: Callable[[float, float], None],
         on_station_manager: Callable[[], None],
         access_cache: StationAccessCache,
+        selection_context: StationAnalysisContext | None = None,
         limit_to_range: bool = False,
         initial_range: ResolvedTimeRange | None = None,
         initial_station_id: str | None = None,
@@ -87,23 +95,37 @@ class GroundStationPassesView:
         self._on_focus_pass = on_focus_pass
         self._on_station_manager = on_station_manager
         self._access_cache = access_cache
+        self._selection_context = selection_context
         self._limit_to_range = limit_to_range
         self._prepare_range = initial_range
         self._display_time_zone = display_time_zone
         self._current_time_s = cursor.t_start
+        context_station_id = (
+            selection_context.selection.station_id
+            if selection_context is not None
+            else None
+        )
+        requested_station_id = initial_station_id or context_station_id
         self._selected_station_id = (
-            initial_station_id
-            if any(station.station_id == initial_station_id for station in stations)
+            requested_station_id
+            if any(
+                station.station_id == requested_station_id for station in stations
+            )
             else (
                 None
-                if initial_station_id is not None
+                if requested_station_id is not None
                 else (self._stations[0].station_id if self._stations else None)
             )
         )
         self._missing_initial_station = (
-            initial_station_id is not None and self._selected_station_id is None
+            requested_station_id is not None and self._selected_station_id is None
         )
-        self._selected_interval_key: tuple[float, float] | None = None
+        self._selected_interval_key = (
+            selection_context.selection.interval_key
+            if selection_context is not None
+            and selection_context.selection.station_id == self._selected_station_id
+            else None
+        )
         self._visible_intervals: tuple[AccessInterval, ...] = ()
         self._access_results: tuple[StationAccess, ...] = ()
         self._time_range_bounds: ResolvedTimeRange | None = None
@@ -131,7 +153,14 @@ class GroundStationPassesView:
         self._playback_marker: Any = None
         self._refreshing_rows = False
         self._layout_orientation: int | None = None
+        self._context_unsubscribe: Callable[[], None] = lambda: None
         self._prepare_access()
+        if selection_context is not None:
+            self._context_unsubscribe = selection_context.subscribe(
+                self._on_context_selection
+            )
+            if self._selected_station_id != context_station_id:
+                selection_context.select_station(self._selected_station_id)
 
     @property
     def selected_station_id(self) -> str | None:
@@ -143,9 +172,9 @@ class GroundStationPassesView:
         self._panel = panel
         root = wx.BoxSizer(wx.VERTICAL)
         heading = wx.StaticText(
-            panel, wx.ID_ANY, f"Ground Station Passes — {self._object_name}"
+            panel, wx.ID_ANY, f"{self.heading} — {self._object_name}"
         )
-        heading.SetName("Ground Station Passes heading")
+        heading.SetName(f"{self.heading} heading")
         root.Add(heading, 0, wx.EXPAND | wx.ALL, 8)
 
         controls = wx.BoxSizer(wx.HORIZONTAL)
@@ -156,7 +185,7 @@ class GroundStationPassesView:
             6,
         )
         self._station_choice = wx.Choice(panel, wx.ID_ANY)
-        self._station_choice.SetName("Ground Station Passes station")
+        self._station_choice.SetName(f"{self.heading} station")
         self._station_choice.Bind(wx.EVT_CHOICE, self._on_station_selected)
         controls.Add(self._station_choice, 1, wx.EXPAND | wx.RIGHT, 8)
         manage = wx.Button(panel, wx.ID_ANY, "Manage Ground Stations")
@@ -166,13 +195,13 @@ class GroundStationPassesView:
         root.Add(controls, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
 
         self._range_label = wx.StaticText(panel, wx.ID_ANY, "")
-        self._range_label.SetName("Ground Station Passes Plot Range")
+        self._range_label.SetName(f"{self.heading} Plot Range")
         root.Add(self._range_label, 0, wx.EXPAND | wx.ALL, 8)
         self._coverage_label = wx.StaticText(panel, wx.ID_ANY, "")
-        self._coverage_label.SetName("Ground Station Passes OEM coverage")
+        self._coverage_label.SetName(f"{self.heading} OEM coverage")
         root.Add(self._coverage_label, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         self._status_label = wx.StaticText(panel, wx.ID_ANY, "")
-        self._status_label.SetName("Ground Station Passes status")
+        self._status_label.SetName(f"{self.heading} status")
         root.Add(self._status_label, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
 
         self._analysis_panel = wx.Panel(panel, wx.ID_ANY)
@@ -198,13 +227,12 @@ class GroundStationPassesView:
             wx.ID_ANY,
             style=wx.LC_REPORT | wx.LC_SINGLE_SEL | wx.LC_HRULES | wx.LC_VRULES,
         )
-        self._table.SetName("Ground Station Passes table")
-        self._table.InsertColumn(0, "Start")
-        self._table.InsertColumn(1, "End")
-        self._table.InsertColumn(2, "Duration")
-        self._table.InsertColumn(3, "Peak elevation")
-        self._table.InsertColumn(4, "Minimum range")
-        self._table.InsertColumn(5, "Coverage")
+        self._table.SetName(f"{self.heading} table")
+        self._table.InsertColumn(0, "Pass · UTC")
+        self._table.InsertColumn(1, "Duration")
+        self._table.InsertColumn(2, "Peak elevation")
+        self._table.InsertColumn(3, "Minimum range")
+        self._table.InsertColumn(4, "Coverage")
         for column, width in enumerate(_TABLE_COLUMN_WIDTHS):
             self._table.SetColumnWidth(column, panel.FromDIP(width))
         self._table.Bind(wx.EVT_LIST_ITEM_SELECTED, self._on_interval_selected)
@@ -224,7 +252,7 @@ class GroundStationPassesView:
         actions.Add(self._seek_button, 0)
         sizer.Add(actions, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 2)
         panel.SetSizer(sizer)
-        panel.SetMinSize(panel.FromDIP(wx.Size(540, 160)))
+        panel.SetMinSize(panel.FromDIP(wx.Size(_TABLE_PANEL_MIN_WIDTH, 160)))
         return panel
 
     def _build_sky_panel(self, parent: wx.Window) -> wx.Panel:
@@ -267,15 +295,28 @@ class GroundStationPassesView:
             or self._sky_panel is None
         ):
             return
-        orientation = wx.VERTICAL
+        minimum_width = self._analysis_panel.FromDIP(
+            wx.Size(_TABLE_PANEL_MIN_WIDTH + _SKY_PANEL_MIN_WIDTH + 12, 1)
+        ).width
+        orientation = (
+            wx.HORIZONTAL
+            if _can_fit_side_by_side(
+                self._analysis_panel.GetClientSize().width, minimum_width
+            )
+            else wx.VERTICAL
+        )
         if orientation == self._layout_orientation:
             self._wrap_sky_summary()
             return
         self._layout_orientation = orientation
         self._analysis_sizer.Clear(False)
         self._analysis_sizer.SetOrientation(orientation)
-        self._analysis_sizer.Add(self._table_panel, 1, wx.EXPAND | wx.ALL, 2)
-        self._analysis_sizer.Add(self._sky_panel, 2, wx.EXPAND | wx.ALL, 2)
+        if orientation == wx.HORIZONTAL:
+            self._analysis_sizer.Add(self._table_panel, 3, wx.EXPAND | wx.ALL, 2)
+            self._analysis_sizer.Add(self._sky_panel, 2, wx.EXPAND | wx.ALL, 2)
+        else:
+            self._analysis_sizer.Add(self._table_panel, 1, wx.EXPAND | wx.ALL, 2)
+            self._analysis_sizer.Add(self._sky_panel, 2, wx.EXPAND | wx.ALL, 2)
         self._analysis_panel.Layout()
         self._wrap_sky_summary()
 
@@ -487,8 +528,10 @@ class GroundStationPassesView:
             else f"{(interval.end_s - interval.start_s) / 60.0:.1f} min"
         )
         return (
-            self._time_label(interval.start_s),
-            self._time_label(interval.end_s),
+            (
+                f"{self._time_label(interval.start_s)} – "
+                f"{self._time_label(interval.end_s)}"
+            ),
             duration,
             f"{interval.peak_elevation_deg:.1f}° at "
             f"{self._time_label(interval.peak_time_s)}",
@@ -500,7 +543,11 @@ class GroundStationPassesView:
     def _update_actions(self) -> None:
         interval = self._selected_interval()
         if self._focus_button is not None:
-            self._focus_button.Enable(interval is not None)
+            self._focus_button.Enable(
+                interval is not None
+                and math.isfinite(interval.start_s)
+                and math.isfinite(interval.end_s)
+            )
         if self._seek_button is not None:
             self._seek_button.Enable(
                 interval is not None and math.isfinite(interval.peak_time_s)
@@ -526,6 +573,8 @@ class GroundStationPassesView:
             self._station_choice.SetSelection(index)
         self._missing_initial_station = False
         self._selected_interval_key = None
+        if self._selection_context is not None:
+            self._selection_context.select_station(station_id)
         self._refresh_rows()
 
     def _on_interval_selected(self, event: wx.ListEvent) -> None:
@@ -534,8 +583,31 @@ class GroundStationPassesView:
         row = event.GetIndex()
         if 0 <= row < len(self._visible_intervals):
             self._selected_interval_key = _interval_key(self._visible_intervals[row])
+            if self._selection_context is not None:
+                self._selection_context.select_interval(self._selected_interval_key)
             self._draw_sky_plot()
             self._update_actions()
+
+    def _on_context_selection(
+        self, selection: StationAnalysisSelection
+    ) -> None:
+        station_id = selection.station_id
+        if station_id is not None and not any(
+            station.station_id == station_id for station in self._stations
+        ):
+            return
+        if (
+            station_id == self._selected_station_id
+            and selection.interval_key == self._selected_interval_key
+        ):
+            return
+        station_changed = station_id != self._selected_station_id
+        self._selected_station_id = station_id
+        self._selected_interval_key = selection.interval_key
+        if station_changed:
+            self._missing_initial_station = False
+            self._refresh_station_choice()
+        self._refresh_rows()
 
     def _focus_selected_pass(self) -> None:
         interval = self._selected_interval()
@@ -925,7 +997,50 @@ class GroundStationPassesView:
         self._refresh_rows()
 
     def close(self) -> None:
+        self._context_unsubscribe()
+        self._context_unsubscribe = lambda: None
         self._canvas = None
         self._figure = None
         self._axes = None
         self._panel = None
+
+
+class GroundStationPassListView(GroundStationPassesView):
+    """Show the pass table without embedding its linked Sky View."""
+
+    name = "pass-list"
+    heading = "Pass List"
+
+    def _update_analysis_layout(self) -> None:
+        if self._analysis_panel is None or self._analysis_sizer is None:
+            return
+        if self._table_panel is None or self._sky_panel is None:
+            return
+        self._sky_panel.Hide()
+        self._table_panel.Show()
+        self._analysis_sizer.Clear(False)
+        self._analysis_sizer.SetOrientation(wx.VERTICAL)
+        self._analysis_sizer.Add(self._table_panel, 1, wx.EXPAND | wx.ALL, 2)
+        self._analysis_panel.Layout()
+
+    def _draw_sky_plot(self) -> None:
+        return
+
+
+class GroundStationSkyView(GroundStationPassesView):
+    """Show the selected-pass polar plot without embedding its list."""
+
+    name = "sky-view"
+    heading = "Sky View"
+
+    def _update_analysis_layout(self) -> None:
+        if self._analysis_panel is None or self._analysis_sizer is None:
+            return
+        if self._sky_panel is None or self._table_panel is None:
+            return
+        self._table_panel.Hide()
+        self._sky_panel.Show()
+        self._analysis_sizer.Clear(False)
+        self._analysis_sizer.SetOrientation(wx.VERTICAL)
+        self._analysis_sizer.Add(self._sky_panel, 1, wx.EXPAND | wx.ALL, 2)
+        self._analysis_panel.Layout()

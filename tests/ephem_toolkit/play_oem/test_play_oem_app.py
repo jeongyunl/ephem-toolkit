@@ -768,6 +768,81 @@ def test_ground_station_updates_refresh_open_station_views(
     assert updates == [(station,), (station,), (), ()]
 
 
+def test_legacy_saved_panel_names_open_focused_station_panels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+    opened: list[str] = []
+    monkeypatch.setattr(
+        player,
+        "_open_view",
+        lambda name, _create_view, **_kwargs: opened.append(name),
+    )
+
+    player.open_panel_view("ground-station-access", "legacy-access")
+    player.open_panel_view("ground-station-passes", "legacy-passes")
+
+    assert opened == ["elevation-profile", "pass-list"]
+
+
+def test_pass_ground_track_panel_refresh_uses_new_source_and_shared_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+    first_source = GroundTrackSource.from_samples(
+        [0.0, 10.0], np.zeros((2, 6)), [0, 0], "EARTH", "ITRF"
+    )
+    second_source = GroundTrackSource.from_samples(
+        [10.0, 20.0], np.ones((2, 6)), [0, 0], "EARTH", "ITRF"
+    )
+    created = []
+    monkeypatch.setattr(
+        player,
+        "_open_view",
+        lambda _name, create_view, **_kwargs: created.append(
+            create_view(cast(Any, None))
+        ),
+    )
+    player._ground_track_source = first_source
+
+    player.open_pass_ground_track_view(panel_id="pass-track")
+    player._ground_track_source = second_source
+    player.open_pass_ground_track_view(
+        panel_id="pass-track", force_replace=True
+    )
+
+    assert len(created) == 2
+    assert created[0]._source is first_source
+    assert created[1]._source is second_source
+    assert all(
+        view._access_cache is player._station_access_cache for view in created
+    )
+    for view in created:
+        view.close()
+
+
+def test_comparison_station_selection_follows_only_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+    main = player._station_analysis_contexts["middle"]
+    comparison = player._station_analysis_contexts["right"]
+
+    main.select_station("main-station")
+    main.select_interval((10.0, 20.0))
+    assert comparison.selection.station_id is None
+
+    player._set_follow_station_selection(True)
+    assert comparison.selection.station_id == "main-station"
+    assert comparison.selection.interval_key == (10.0, 20.0)
+
+    main.select_interval((30.0, 40.0))
+    assert comparison.selection.interval_key == (30.0, 40.0)
+    player._set_follow_station_selection(False)
+    main.select_interval((50.0, 60.0))
+    assert comparison.selection.interval_key == (30.0, 40.0)
+
+
 def test_ground_track_open_passes_callback_seeds_station_without_seeking(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

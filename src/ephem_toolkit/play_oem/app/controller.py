@@ -38,6 +38,7 @@ from ..incremental_loader import (
 )
 from ..ground_track import GroundTrackCoordinates
 from ..ground_stations import GroundStation
+from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..saved_state import (
     MAX_RECENT_FILES,
     MAX_STORED_WINDOW_DIMENSION,
@@ -81,7 +82,15 @@ INCREMENTAL_VIEW_REFRESH_INTERVAL_S: float = 5.0
 """Maximum rate for rebuilding plots while incremental OEM data is arriving."""
 
 INCREMENTAL_DEFERRED_VIEWS: frozenset[str] = frozenset(
-    {"ground-station-access", "ground-station-passes"}
+    {
+        "pass-strip",
+        "elevation-profile",
+        "azimuth-profile",
+        "range-profile",
+        "pass-list",
+        "sky-view",
+        "pass-ground-track",
+    }
 )
 """Views whose analysis is too costly to rebuild until loading completes."""
 
@@ -261,6 +270,16 @@ class PlayerApp(
             else (list(saved_state.ground_stations) if saved_state is not None else [])
         )
         self._station_access_cache = StationAccessCache()
+        self._station_analysis_contexts = {
+            "middle": StationAnalysisContext(),
+            "right": StationAnalysisContext(),
+        }
+        self._follow_station_selection = False
+        self._follow_selection_unsubscribe = (
+            self._station_analysis_contexts["middle"].subscribe(
+                self._on_main_station_selection
+            )
+        )
         self._persist_saved_state = saved_state is not None
         self._recent_oem_paths = (
             list(saved_state.recent_files[:MAX_RECENT_FILES])
@@ -319,10 +338,20 @@ class PlayerApp(
         self._view_registry.register_view("distance", self.open_distance_view)
         self._view_registry.register_view("ground-track", self.open_ground_track_view)
         self._view_registry.register_view(
-            "ground-station-access", self.open_ground_station_access_view
+            "station-status", self.open_station_status_view
+        )
+        self._view_registry.register_view("pass-strip", self.open_pass_strip_view)
+        self._view_registry.register_view(
+            "elevation-profile", self.open_elevation_profile_view
         )
         self._view_registry.register_view(
-            "ground-station-passes", self.open_ground_station_passes_view
+            "azimuth-profile", self.open_azimuth_profile_view
+        )
+        self._view_registry.register_view("range-profile", self.open_range_profile_view)
+        self._view_registry.register_view("pass-list", self.open_pass_list_view)
+        self._view_registry.register_view("sky-view", self.open_sky_view)
+        self._view_registry.register_view(
+            "pass-ground-track", self.open_pass_ground_track_view
         )
         self._plots = self._view_registry.expand(plots)
         self._panel_view_choices = ((EMPTY_GRAPH_VIEW, EMPTY_GRAPH_LABEL),) + tuple(
@@ -372,6 +401,8 @@ class PlayerApp(
             details=self._formatted_metadata_details(),
             view_choices=self._panel_view_choices,
             on_add_graph=self._add_graph_panel,
+            on_open_preset=self._open_station_preset,
+            on_follow_selection=self._set_follow_station_selection,
             status_bar=self.status_bar,
             playback_bounds=(clock.playback_start, clock.playback_end),
             oem_coverage=(clock.t_start, clock.t_end),
@@ -846,7 +877,32 @@ class PlayerApp(
         self._ground_stations_config_dirty = True
         self._save_ground_stations_config()
         self._station_access_cache.retain_stations(stations)
+        station_ids = {station.station_id for station in stations}
+        for context in self._station_analysis_contexts.values():
+            context.retain_stations(station_ids)
         self._refresh_open_ground_station_access()
+
+    def _open_station_preset(self, name: str) -> None:
+        """Open an optional station-analysis preset in Main Analysis."""
+        self._view_registry.open_group(name)
+
+    def _set_follow_station_selection(self, enabled: bool) -> None:
+        """Link Comparison to Main Analysis only when the user enables it."""
+        self._follow_station_selection = enabled
+        if enabled:
+            self._sync_comparison_station_selection()
+
+    def _on_main_station_selection(
+        self, _selection: StationAnalysisSelection
+    ) -> None:
+        if self._follow_station_selection:
+            self._sync_comparison_station_selection()
+
+    def _sync_comparison_station_selection(self) -> None:
+        selection = self._station_analysis_contexts["middle"].selection
+        comparison_context = self._station_analysis_contexts["right"]
+        comparison_context.select_station(selection.station_id)
+        comparison_context.select_interval(selection.interval_key)
 
     def _refresh_open_ground_station_access(self) -> None:
         """Refresh station-aware panels already open in the graph workspace."""
@@ -1203,6 +1259,8 @@ class PlayerApp(
             (opened.panel_id, opened.view_name, opened.stack)
             for opened in self._open_panels.values()
         )
+        for context in self._station_analysis_contexts.values():
+            context.select_interval(None)
         full_resolution_series = self.series
         if self._incremental_store is not None and (
             not self._oem_coverage_complete
@@ -1461,6 +1519,7 @@ class PlayerApp(
     def _on_frame_close(self, event: wx.CloseEvent) -> None:
         if not self._closed:
             self._closed = True
+            self._follow_selection_unsubscribe()
             self._incremental_loader.cancel()
             self._clock_unsubscribe()
             self._timer.Stop()

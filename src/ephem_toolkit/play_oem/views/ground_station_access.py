@@ -22,6 +22,7 @@ from ..station_access import (
     StationAccessCache,
     current_station_metrics,
 )
+from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
 from .plotting import (
@@ -50,6 +51,7 @@ class GroundStationAccessView:
         on_seek: Callable[[float], None],
         on_station_manager: Callable[[], None],
         access_cache: StationAccessCache,
+        selection_context: StationAnalysisContext | None = None,
         limit_to_range: bool = False,
         initial_range: ResolvedTimeRange | None = None,
         display_time_zone: str = UTC_DISPLAY,
@@ -64,13 +66,22 @@ class GroundStationAccessView:
         self._on_seek = on_seek
         self._on_station_manager = on_station_manager
         self._access_cache = access_cache
+        self._selection_context = selection_context
         self._limit_to_range = limit_to_range
         self._prepare_range = initial_range
         self._display_time_zone = display_time_zone
         self._current_time_s = cursor.t_start
-        self._selected_station_id = (
-            self._stations[0].station_id if self._stations else None
+        context_station_id = (
+            selection_context.selection.station_id
+            if selection_context is not None
+            else None
         )
+        self._selected_station_id = (
+            context_station_id
+            if any(item.station_id == context_station_id for item in self._stations)
+            else (self._stations[0].station_id if self._stations else None)
+        )
+        self._context_unsubscribe: Callable[[], None] = lambda: None
         self._panel: wx.Panel | None = None
         self._canvas: FigureCanvasWxAgg | None = None
         self._figure: Figure | None = None
@@ -85,6 +96,12 @@ class GroundStationAccessView:
         self._time_range_coverage = (cursor.t_start, cursor.t_end)
         self._time_range_applied = False
         self._prepare_access()
+        if selection_context is not None:
+            self._context_unsubscribe = selection_context.subscribe(
+                self._on_context_selection
+            )
+            if self._selected_station_id != context_station_id:
+                selection_context.select_station(self._selected_station_id)
 
     def build(self, _series: OrbitSeries, _time_unit: TimeUnit, /) -> wx.Window:
         panel = wx.Panel(self._parent, wx.ID_ANY)
@@ -231,6 +248,8 @@ class GroundStationAccessView:
         self._refresh_station_choice()
         self._draw_elevation_plot()
         self.update(self._current_time_s)
+        if self._selection_context is not None:
+            self._selection_context.select_station(self._selected_station_id)
 
     def set_oem(
         self,
@@ -270,10 +289,27 @@ class GroundStationAccessView:
             self._canvas.draw_idle()
 
     def close(self) -> None:
+        self._context_unsubscribe()
+        self._context_unsubscribe = lambda: None
         self._canvas = None
         self._figure = None
         self._axes = None
         self._panel = None
+
+    def _on_context_selection(
+        self, selection: StationAnalysisSelection
+    ) -> None:
+        station_id = selection.station_id
+        if station_id is not None and not any(
+            station.station_id == station_id for station in self._stations
+        ):
+            return
+        if station_id == self._selected_station_id:
+            return
+        self._selected_station_id = station_id
+        self._refresh_station_choice()
+        self._draw_elevation_plot()
+        self.update(self._current_time_s)
 
     def _reprepare_for_range(self, bounds: ResolvedTimeRange | None) -> bool:
         """Prepare access for new bounds; return whether the results changed."""
@@ -558,6 +594,8 @@ class GroundStationAccessView:
         index = self._station_choice.GetSelection()
         if 0 <= index < len(self._stations):
             self._selected_station_id = self._stations[index].station_id
+            if self._selection_context is not None:
+                self._selection_context.select_station(self._selected_station_id)
             self._draw_elevation_plot()
             self.update(self._current_time_s)
 

@@ -13,14 +13,22 @@ VIEW_LABELS = (
     ("direction-change", "Direction Change"),
     ("distance", "Geocentric Distance"),
     ("ground-track", "Ground Track"),
-    ("ground-station-access", "Ground Station Access"),
-    ("ground-station-passes", "Ground Station Passes"),
+    ("station-status", "Station Status"),
+    ("pass-strip", "Pass Strip"),
+    ("elevation-profile", "Elevation Profile"),
+    ("azimuth-profile", "Azimuth Profile"),
+    ("range-profile", "Range Profile"),
+    ("pass-list", "Pass List"),
+    ("sky-view", "Sky View"),
+    ("pass-ground-track", "Pass Ground Track"),
 )
 
 GROUP_LABELS = (
     ("overview", "Overview"),
     ("state", "State"),
     ("motion", "Motion"),
+    ("access-overview", "Access Overview"),
+    ("pass-study", "Pass Study"),
     ("all", "All"),
 )
 
@@ -28,11 +36,15 @@ GROUP_MEMBERS = {
     "overview": ("trajectory-3d", "speed-altitude"),
     "state": ("state-components",),
     "motion": ("rtn", "angular-velocity", "direction-change", "distance"),
+    "access-overview": ("station-status", "pass-strip", "elevation-profile"),
+    "pass-study": ("pass-list", "sky-view"),
     "all": tuple(name for name, _ in VIEW_LABELS),
 }
 
 ALIASES = {
     "state-vectors": ("trajectory-3d", "state-components"),
+    "ground-station-access": ("elevation-profile",),
+    "ground-station-passes": ("pass-list",),
 }
 
 _VIEW_NAMES = frozenset(name for name, _ in VIEW_LABELS)
@@ -55,7 +67,11 @@ class ViewRegistry:
         """Return a view or group label."""
         if name in _VIEW_LABEL_BY_NAME:
             return _VIEW_LABEL_BY_NAME[name]
-        if name in ALIASES:
+        if name == "ground-station-passes":
+            return "Pass Study"
+        if name == "ground-station-access":
+            return _VIEW_LABEL_BY_NAME[ALIASES[name][0]]
+        if name == "state-vectors":
             return "State Vectors (compatibility)"
         for group_name, label in GROUP_LABELS:
             if name == group_name:
@@ -111,7 +127,7 @@ class ViewRegistry:
 
     def open_view(self, name: str) -> None:
         """Open or raise one registered view."""
-        if name not in _VIEW_NAMES:
+        if name not in _VIEW_NAMES and name not in ALIASES:
             raise ValueError(f"unknown view name: {name!r}")
         self.open((name,))
 

@@ -101,6 +101,9 @@ def test_pass_crossings_are_refined_and_clipped_to_coverage() -> None:
     assert np.array_equal(profile.elevations_deg, access.elevation_profiles[0].elevations_deg)
     assert np.isfinite(profile.azimuths_deg).all()
     assert np.all((profile.azimuths_deg >= 0.0) & (profile.azimuths_deg < 360.0))
+    assert profile.slant_ranges_km is not None
+    assert np.isfinite(profile.slant_ranges_km).all()
+    assert np.all(profile.slant_ranges_km > 0.0)
     assert MAX_ACCESS_SAMPLE_STEP_S == 30.0
 
 
@@ -154,6 +157,12 @@ def test_access_intervals_stop_at_segment_gaps() -> None:
     assert result.intervals[1].start_s == 120.0
     assert result.intervals[1].limited_by_gap_at_start
     assert "segment gap" in result.limitation
+    assert len(result.look_angle_profiles) == 2
+    assert all(
+        profile.slant_ranges_km is not None
+        and np.isfinite(profile.slant_ranges_km).all()
+        for profile in result.look_angle_profiles
+    )
 
 
 def test_current_metrics_reject_non_earth_center() -> None:

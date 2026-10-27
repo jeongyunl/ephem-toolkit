@@ -1,0 +1,235 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="2650" viewBox="0 0 1600 2650" role="img" aria-labelledby="title desc">
+  <title id="title">Combined Ground Station workspace mockups</title>
+  <desc id="desc">Four illustrative play-oem workspace arrangements combine the modular Ground Station panels: compact responsive Pass Study, Access Overview, wide Pass Study, and two-station comparison. The compact Pass Study notes a stacked list-over-Sky-View fallback for narrow widths. All plotted data is illustrative.</desc>
+  <defs>
+    <style>
+      .bg{fill:#f1f4f8}.frame{fill:#fff;stroke:#cbd5e1;stroke-width:1.5}.chrome{fill:#e8edf3}
+      .pane{fill:#fff;stroke:#d5dee9;stroke-width:1.1}.plot{fill:#fbfdff;stroke:#d5dee9;stroke-width:1}
+      .ink{fill:#17263a;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .muted{fill:#63748b;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .title{font-size:22px;font-weight:700}.section{font-size:15px;font-weight:700}
+      .body{font-size:12px}.small{font-size:10px}.tiny{font-size:9px}
+      .grid{stroke:#e1e7ef;stroke-width:1}.rule{stroke:#e1e7ef;stroke-width:1}
+      .blue{fill:none;stroke:#2f7ebc;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round}
+      .green{fill:none;stroke:#16877e;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+      .mask{stroke:#c74343;stroke-width:1.3;stroke-dasharray:5 3}
+      .pass{fill:#e8f3ff}.selected{fill:#d6e8ff;stroke:#77a8e8;stroke-width:1}
+      .tag{fill:#e4f5ec}.tagtext{fill:#17654f;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:9px;font-weight:700}
+      .station{fill:#16877e;stroke:#fff;stroke-width:1.6}.peak{fill:#e7a52f;stroke:#fff;stroke-width:1.5}
+      .play{stroke:#df4d66;stroke-width:1.7}.land{fill:#e7eadf;stroke:#cbd2c1;stroke-width:.6}
+      .button,.select{fill:#fff;stroke:#bac8d8;stroke-width:1}.chromeDot{fill:#ed7777}
+    </style>
+  </defs>
+  <rect class="bg" width="1600" height="2650"/>
+  <text class="ink title" x="32" y="42">Ground Station Analysis · Combined Workspaces</text>
+  <text class="muted body" x="32" y="67">Illustrative arrangements using independent panels; values and plotted data are placeholders.</text>
+
+  <g transform="translate(32 88)">
+    <text class="ink section" x="0" y="22">A · Pass Study · compact side-by-side when both panels fit</text>
+    <rect class="frame" x="0" y="34" width="1536" height="520" rx="10"/>
+    <path class="chrome" d="M10 34h1516a10 10 0 0 1 10 10v24H0V44a10 10 0 0 1 10-10z"/>
+    <circle class="chromeDot" cx="18" cy="51" r="4"/><circle cx="31" cy="51" r="4" fill="#e7bd55"/><circle cx="44" cy="51" r="4" fill="#68bd7d"/>
+    <text class="muted tiny" x="60" y="54">play-oem · Pass Study</text>
+    <rect class="pane" x="14" y="78" width="218" height="411" rx="6"/>
+    <text class="muted tiny" x="28" y="99">CONTROLS &amp; INFO</text>
+    <text class="ink section" x="28" y="124">Ground Station</text>
+    <rect class="selected" x="27" y="139" width="190" height="37" rx="5"/>
+    <circle class="station" cx="42" cy="157" r="5"/>
+    <text class="ink small" x="54" y="154">North Site</text>
+    <text class="muted tiny" x="54" y="168">Mask 10° · selected</text>
+    <rect class="tag" x="28" y="192" width="96" height="22" rx="11"/>
+    <text class="tagtext" x="76" y="207" text-anchor="middle">IN ACCESS</text>
+    <text class="muted tiny" x="28" y="238">Now · 14:03 UTC</text>
+    <text class="ink small" x="28" y="257">Az 244° · El 28°</text>
+    <text class="ink small" x="28" y="274">Range 1,820 km</text>
+    <line class="rule" x1="28" y1="290" x2="218" y2="290"/>
+    <text class="muted tiny" x="28" y="312">Plot Range</text>
+    <text class="ink small" x="28" y="330">12:00–18:00 UTC</text>
+    <rect class="button" x="28" y="349" width="188" height="27" rx="4"/>
+    <text class="muted small" x="122" y="367" text-anchor="middle">Manage stations…</text>
+    <text class="muted tiny" x="28" y="410">Status is a separate panel;</text>
+    <text class="muted tiny" x="28" y="424">it does not repeat pass history.</text>
+
+    <rect class="pane" x="246" y="78" width="1276" height="411" rx="6"/>
+    <text class="muted tiny" x="262" y="99">MAIN ANALYSIS</text>
+    <text class="muted tiny" x="1494" y="99" text-anchor="end">Narrow fallback: stack Pass List above Sky View</text>
+    <rect class="plot" x="260" y="109" width="694" height="363" rx="5"/>
+    <text class="ink small" x="274" y="129" font-weight="700">Pass List · North Site</text>
+    <text class="muted tiny" x="940" y="129" text-anchor="end">12:00–18:00 UTC</text>
+    <rect fill="#eef3f8" x="272" y="139" width="670" height="25" rx="3"/>
+    <text class="muted tiny" x="282" y="155">PASS · UTC</text>
+    <text class="muted tiny" x="454" y="155">DURATION</text>
+    <text class="muted tiny" x="548" y="155">PEAK</text>
+    <text class="muted tiny" x="630" y="155">MIN RANGE</text>
+    <text class="muted tiny" x="790" y="155">COVERAGE</text>
+    <rect class="pass" x="272" y="166" width="670" height="43"/>
+    <text class="ink small" x="282" y="192">13:18–13:24</text><text class="ink small" x="454" y="192">6m 35s</text><text class="ink small" x="548" y="192">58.4°</text><text class="ink small" x="630" y="192">1,420 km</text><text class="ink small" x="790" y="192">Complete</text>
+    <rect class="selected" x="272" y="211" width="670" height="43"/>
+    <text class="ink small" x="282" y="237">15:02–15:09</text><text class="ink small" x="454" y="237">6m 51s</text><text class="ink small" x="548" y="237">42.0°</text><text class="ink small" x="630" y="237">1,980 km</text><text class="ink small" x="790" y="237">Selected</text>
+    <rect class="pass" x="272" y="256" width="670" height="43"/>
+    <text class="ink small" x="282" y="282">17:41–beyond OEM</text><text class="muted small" x="454" y="282">Unavailable</text><text class="ink small" x="548" y="282">42.0°</text><text class="ink small" x="630" y="282">1,980 km</text><text class="ink small" x="790" y="282">OEM-limited</text>
+    <text class="muted tiny" x="282" y="333">Show in Sky View · Focus pass · Seek to peak</text>
+    <text class="muted tiny" x="282" y="449">Select a row to update the linked Sky View.</text>
+    <rect class="plot" x="964" y="109" width="544" height="363" rx="5"/>
+    <text class="ink small" x="978" y="129" font-weight="700">Sky View · 15:02–15:09 UTC · peak 42.0°</text>
+    <text class="muted tiny" x="1494" y="149" text-anchor="end">Dashed ring = station mask</text>
+    <circle cx="1236" cy="299" r="116" fill="#fbfdff" stroke="#aebdca"/>
+    <circle cx="1236" cy="299" r="77" fill="none" stroke="#cbd6e2"/>
+    <circle cx="1236" cy="299" r="39" fill="none" stroke="#cbd6e2"/>
+    <circle cx="1236" cy="299" r="91" fill="none" stroke="#c74343" stroke-width="1.4" stroke-dasharray="5 4"/>
+    <line class="grid" x1="1120" y1="299" x2="1352" y2="299"/><line class="grid" x1="1236" y1="183" x2="1236" y2="415"/>
+    <text class="muted tiny" x="1236" y="179" text-anchor="middle">N</text><text class="muted tiny" x="1358" y="302">E</text>
+    <text class="muted tiny" x="1236" y="430" text-anchor="middle">S</text><text class="muted tiny" x="1112" y="302">W</text>
+    <path class="blue" d="M1178 210 C1197 233 1216 254 1234 276 S1276 301 1296 324 S1295 354 1274 371"/>
+    <circle class="station" cx="1178" cy="210" r="5"/><circle class="peak" cx="1234" cy="276" r="5"/><rect x="1291" y="319" width="10" height="10" class="play"/>
+    <text class="muted tiny" x="978" y="449">Station mask · pass path · playback marker</text>
+    <line class="rule" x1="14" y1="501" x2="1522" y2="501"/>
+    <text class="muted tiny" x="24" y="526">12:00 UTC</text><text class="ink small" x="735" y="526">▶   1×   ⏸</text><text class="muted tiny" x="1490" y="526" text-anchor="end">18:00 UTC</text>
+  </g>
+
+  <g transform="translate(32 730)">
+    <text class="ink section" x="0" y="22">B · Access Overview · current status, interval strip, and elevation</text>
+    <rect class="frame" x="0" y="34" width="1536" height="520" rx="10"/>
+    <path class="chrome" d="M10 34h1516a10 10 0 0 1 10 10v24H0V44a10 10 0 0 1 10-10z"/>
+    <circle class="chromeDot" cx="18" cy="51" r="4"/><circle cx="31" cy="51" r="4" fill="#e7bd55"/><circle cx="44" cy="51" r="4" fill="#68bd7d"/>
+    <text class="muted tiny" x="60" y="54">play-oem · Access Overview</text>
+    <rect class="pane" x="14" y="78" width="218" height="411" rx="6"/>
+    <text class="muted tiny" x="28" y="99">CONTROLS &amp; INFO</text>
+    <text class="ink section" x="28" y="124">Station Status</text>
+    <rect class="select" x="28" y="139" width="188" height="28" rx="4"/>
+    <text class="ink small" x="38" y="157">North Site ▾</text>
+    <rect class="tag" x="28" y="183" width="96" height="22" rx="11"/>
+    <text class="tagtext" x="76" y="198" text-anchor="middle">IN ACCESS</text>
+    <text class="muted tiny" x="28" y="228">14:03 UTC · Mask 10°</text>
+    <text class="ink small" x="28" y="250">Azimuth 244°</text><text class="ink small" x="28" y="268">Elevation 28°</text><text class="ink small" x="28" y="286">Range 1,820 km</text>
+    <line class="rule" x1="28" y1="304" x2="218" y2="304"/>
+    <text class="muted tiny" x="28" y="329">Station management</text>
+    <rect class="button" x="28" y="341" width="188" height="27" rx="4"/><text class="muted small" x="122" y="359" text-anchor="middle">Manage stations…</text>
+    <rect class="pane" x="246" y="78" width="910" height="411" rx="6"/>
+    <text class="muted tiny" x="262" y="99">MAIN ANALYSIS · NORTH SITE</text>
+    <rect class="plot" x="260" y="109" width="882" height="106" rx="5"/>
+    <text class="ink small" x="274" y="129" font-weight="700">Pass Strip</text>
+    <text class="muted tiny" x="1128" y="129" text-anchor="end">12:00–18:00 UTC</text>
+    <line class="grid" x1="310" y1="158" x2="1120" y2="158"/>
+    <rect class="pass" x="404" y="149" width="88" height="18" rx="4"/>
+    <rect class="selected" x="655" y="149" width="142" height="18" rx="4"/>
+    <rect class="pass" x="1005" y="149" width="115" height="18" rx="4"/>
+    <text class="muted tiny" x="310" y="191">12:00</text><text class="muted tiny" x="716" y="191" text-anchor="middle">15:00</text><text class="muted tiny" x="1120" y="191" text-anchor="end">18:00 UTC</text>
+    <line class="rule" x1="260" y1="225" x2="1142" y2="225"/>
+    <text class="ink small" x="274" y="247" font-weight="700">Elevation Profile</text>
+    <rect class="plot" x="310" y="258" width="810" height="198" rx="4"/>
+    <line class="grid" x1="310" y1="284" x2="1120" y2="284"/><line class="grid" x1="310" y1="333" x2="1120" y2="333"/><line class="grid" x1="310" y1="382" x2="1120" y2="382"/><line class="grid" x1="310" y1="431" x2="1120" y2="431"/>
+    <text class="muted tiny" x="300" y="288" text-anchor="end">95°</text><text class="muted tiny" x="300" y="337" text-anchor="end">65°</text><text class="muted tiny" x="300" y="386" text-anchor="end">35°</text><text class="muted tiny" x="300" y="435" text-anchor="end">0°</text>
+    <rect class="selected" x="655" y="259" width="142" height="196"/>
+    <line class="mask" x1="310" y1="414" x2="1120" y2="414"/>
+    <path class="blue" d="M404 414 C424 382 446 354 461 357 S481 392 492 414 M655 414 C683 366 715 327 739 323 S778 366 797 414 M1005 414 C1030 380 1050 358 1072 362 S1102 397 1120 414"/>
+    <line class="play" x1="725" y1="258" x2="725" y2="456"/>
+    <text class="muted tiny" x="310" y="474">12:00</text><text class="muted tiny" x="715" y="474" text-anchor="middle">15:00</text><text class="muted tiny" x="1120" y="474" text-anchor="end">18:00 UTC</text>
+    <rect class="pane" x="1170" y="78" width="352" height="411" rx="6"/>
+    <text class="muted tiny" x="1186" y="99">OPTIONAL COMPARISON</text>
+    <text class="ink small" x="1186" y="123" font-weight="700">Azimuth Profile</text>
+    <rect class="plot" x="1184" y="136" width="324" height="308" rx="4"/>
+    <line class="grid" x1="1218" y1="160" x2="1494" y2="160"/><line class="grid" x1="1218" y1="230" x2="1494" y2="230"/><line class="grid" x1="1218" y1="300" x2="1494" y2="300"/><line class="grid" x1="1218" y1="370" x2="1494" y2="370"/>
+    <path class="green" d="M1224 365 C1262 340 1295 290 1334 254 S1392 200 1420 183 M1420 368 C1451 348 1474 317 1490 294"/>
+    <text class="muted tiny" x="1218" y="430">UTC · wraps at north are broken</text>
+    <line class="rule" x1="14" y1="501" x2="1522" y2="501"/>
+    <text class="muted tiny" x="24" y="526">Shared playback and Plot Range apply to both analysis stacks.</text><text class="muted tiny" x="1490" y="526" text-anchor="end">Comparison may be closed</text>
+  </g>
+
+  <g transform="translate(32 1372)">
+    <text class="ink section" x="0" y="22">C · Wide Pass Study · table and sky plot side by side</text>
+    <rect class="frame" x="0" y="34" width="1536" height="520" rx="10"/>
+    <path class="chrome" d="M10 34h1516a10 10 0 0 1 10 10v24H0V44a10 10 0 0 1 10-10z"/>
+    <circle class="chromeDot" cx="18" cy="51" r="4"/><circle cx="31" cy="51" r="4" fill="#e7bd55"/><circle cx="44" cy="51" r="4" fill="#68bd7d"/>
+    <text class="muted tiny" x="60" y="54">play-oem · Pass Study · wide workspace</text>
+    <rect class="pane" x="14" y="78" width="218" height="411" rx="6"/>
+    <text class="muted tiny" x="28" y="99">CONTROLS &amp; INFO</text>
+    <text class="ink section" x="28" y="124">Ground Station</text>
+    <rect class="selected" x="27" y="139" width="190" height="37" rx="5"/>
+    <circle class="station" cx="42" cy="157" r="5"/><text class="ink small" x="54" y="154">North Site</text><text class="muted tiny" x="54" y="168">Mask 10°</text>
+    <rect class="button" x="28" y="190" width="188" height="27" rx="4"/><text class="muted small" x="122" y="208" text-anchor="middle">Manage stations…</text>
+    <text class="muted tiny" x="28" y="251">UTC Plot Range</text><text class="ink small" x="28" y="270">12:00–18:00</text>
+    <text class="muted tiny" x="28" y="309">Follow selection</text>
+    <rect class="tag" x="28" y="321" width="90" height="22" rx="11"/><text class="tagtext" x="73" y="336" text-anchor="middle">ON</text>
+    <text class="muted tiny" x="28" y="377">Comparison Sky View</text>
+    <text class="muted tiny" x="28" y="392">follows selected list row.</text>
+    <rect class="pane" x="246" y="78" width="802" height="411" rx="6"/>
+    <text class="muted tiny" x="262" y="99">MAIN ANALYSIS · PASS LIST</text>
+    <text class="muted tiny" x="1032" y="99" text-anchor="end">North Site</text>
+    <rect class="plot" x="260" y="109" width="774" height="363" rx="5"/>
+    <rect fill="#eef3f8" x="272" y="121" width="750" height="34" rx="4"/>
+    <text class="muted tiny" x="284" y="142">PASS · UTC</text><text class="muted tiny" x="478" y="142">PEAK</text><text class="muted tiny" x="580" y="142">RANGE</text><text class="muted tiny" x="704" y="142">STATUS</text>
+    <rect class="pass" x="272" y="157" width="750" height="62"/><text class="ink small" x="284" y="180">13:18–13:24</text><text class="ink small" x="478" y="180">58.4°</text><text class="ink small" x="580" y="180">1,420 km</text><text class="ink small" x="704" y="180">Complete</text>
+    <rect class="selected" x="272" y="221" width="750" height="62"/><text class="ink small" x="284" y="244">15:02–15:09</text><text class="ink small" x="478" y="244">42.0°</text><text class="ink small" x="580" y="244">1,980 km</text><text class="ink small" x="704" y="244">Selected</text>
+    <rect class="pass" x="272" y="285" width="750" height="62"/><text class="ink small" x="284" y="308">17:41–beyond OEM</text><text class="ink small" x="478" y="308">42.0°</text><text class="ink small" x="580" y="308">1,980 km</text><text class="ink small" x="704" y="308">Limited</text>
+    <text class="muted tiny" x="284" y="388">Show in Sky View · Focus pass · Seek to peak</text>
+    <rect class="pane" x="1062" y="78" width="460" height="411" rx="6"/>
+    <text class="muted tiny" x="1078" y="99">COMPARISON · SKY VIEW</text>
+    <rect class="tag" x="1398" y="85" width="108" height="20" rx="10"/><text class="tagtext" x="1452" y="99" text-anchor="middle">FOLLOWING</text>
+    <text class="ink small" x="1078" y="124" font-weight="700">North Site · 15:02–15:09 UTC</text>
+    <circle cx="1292" cy="303" r="126" fill="#fbfdff" stroke="#aebdca"/>
+    <circle cx="1292" cy="303" r="84" fill="none" stroke="#cbd6e2"/>
+    <circle cx="1292" cy="303" r="42" fill="none" stroke="#cbd6e2"/>
+    <circle cx="1292" cy="303" r="98" fill="none" stroke="#c74343" stroke-width="1.3" stroke-dasharray="5 4"/>
+    <line class="grid" x1="1166" y1="303" x2="1418" y2="303"/><line class="grid" x1="1292" y1="177" x2="1292" y2="429"/>
+    <text class="muted tiny" x="1292" y="173" text-anchor="middle">N</text><text class="muted tiny" x="1423" y="306">E</text>
+    <path class="blue" d="M1240 202 C1260 229 1279 254 1299 276 S1341 301 1365 331 S1361 366 1344 387"/>
+    <circle class="station" cx="1240" cy="202" r="5"/><circle class="peak" cx="1299" cy="276" r="5"/>
+    <text class="muted tiny" x="1078" y="460">Plot stays independent when Follow selection is off.</text>
+    <line class="rule" x1="14" y1="501" x2="1522" y2="501"/>
+    <text class="muted tiny" x="24" y="526">Use only when the workspace is wide enough for both table columns and polar axes.</text>
+  </g>
+
+  <g transform="translate(32 2014)">
+    <text class="ink section" x="0" y="22">D · Compare Stations · independent station selection, shared time context</text>
+    <rect class="frame" x="0" y="34" width="1536" height="520" rx="10"/>
+    <path class="chrome" d="M10 34h1516a10 10 0 0 1 10 10v24H0V44a10 10 0 0 1 10-10z"/>
+    <circle class="chromeDot" cx="18" cy="51" r="4"/><circle cx="31" cy="51" r="4" fill="#e7bd55"/><circle cx="44" cy="51" r="4" fill="#68bd7d"/>
+    <text class="muted tiny" x="60" y="54">play-oem · Compare Stations</text>
+    <rect class="pane" x="14" y="78" width="218" height="411" rx="6"/>
+    <text class="muted tiny" x="28" y="99">CONTROLS &amp; INFO</text>
+    <text class="ink section" x="28" y="124">Station tools</text>
+    <text class="muted tiny" x="28" y="155">North Site</text>
+    <text class="ink small" x="28" y="173">64.15° N · Mask 10°</text>
+    <text class="muted tiny" x="28" y="207">South Relay</text>
+    <text class="ink small" x="28" y="225">34.60° S · Mask 15°</text>
+    <line class="rule" x1="28" y1="245" x2="218" y2="245"/>
+    <text class="muted tiny" x="28" y="274">Shared Plot Range</text><text class="ink small" x="28" y="293">12:00–18:00 UTC</text>
+    <rect class="button" x="28" y="321" width="188" height="27" rx="4"/><text class="muted small" x="122" y="339" text-anchor="middle">Manage stations…</text>
+    <text class="muted tiny" x="28" y="389">Each stack selects its</text><text class="muted tiny" x="28" y="403">station independently.</text>
+
+    <rect class="pane" x="246" y="78" width="622" height="411" rx="6"/>
+    <text class="muted tiny" x="262" y="99">MAIN ANALYSIS · NORTH SITE</text>
+    <rect class="plot" x="260" y="109" width="594" height="92" rx="4"/>
+    <text class="ink small" x="272" y="127" font-weight="700">Pass Strip</text>
+    <line class="grid" x1="304" y1="161" x2="838" y2="161"/>
+    <rect class="selected" x="432" y="152" width="78" height="18" rx="4"/><rect class="pass" x="624" y="152" width="100" height="18" rx="4"/>
+    <text class="muted tiny" x="304" y="188">12:00</text><text class="muted tiny" x="838" y="188" text-anchor="end">18:00 UTC</text>
+    <rect class="plot" x="260" y="211" width="594" height="261" rx="4"/>
+    <text class="ink small" x="272" y="231" font-weight="700">Elevation Profile · mask 10°</text>
+    <line class="grid" x1="302" y1="253" x2="838" y2="253"/><line class="grid" x1="302" y1="307" x2="838" y2="307"/><line class="grid" x1="302" y1="361" x2="838" y2="361"/><line class="grid" x1="302" y1="415" x2="838" y2="415"/>
+    <rect class="selected" x="432" y="245" width="78" height="215"/>
+    <line class="mask" x1="302" y1="400" x2="838" y2="400"/>
+    <path class="blue" d="M432 400 C447 360 464 323 478 320 S498 366 510 400 M624 400 C644 353 669 327 683 331 S710 376 724 400"/>
+    <line class="play" x1="480" y1="245" x2="480" y2="460"/>
+    <text class="muted tiny" x="302" y="465">12:00</text><text class="muted tiny" x="838" y="465" text-anchor="end">18:00 UTC</text>
+
+    <rect class="pane" x="878" y="78" width="644" height="411" rx="6"/>
+    <text class="muted tiny" x="894" y="99">COMPARISON · SOUTH RELAY</text>
+    <rect class="plot" x="892" y="109" width="616" height="92" rx="4"/>
+    <text class="ink small" x="904" y="127" font-weight="700">Pass Strip</text>
+    <line class="grid" x1="936" y1="161" x2="1492" y2="161"/>
+    <rect class="pass" x="1026" y="152" width="118" height="18" rx="4"/><rect class="selected" x="1281" y="152" width="93" height="18" rx="4"/>
+    <text class="muted tiny" x="936" y="188">12:00</text><text class="muted tiny" x="1492" y="188" text-anchor="end">18:00 UTC</text>
+    <rect class="plot" x="892" y="211" width="616" height="261" rx="4"/>
+    <text class="ink small" x="904" y="231" font-weight="700">Elevation Profile · mask 15°</text>
+    <line class="grid" x1="936" y1="253" x2="1492" y2="253"/><line class="grid" x1="936" y1="307" x2="1492" y2="307"/><line class="grid" x1="936" y1="361" x2="1492" y2="361"/><line class="grid" x1="936" y1="415" x2="1492" y2="415"/>
+    <rect class="selected" x="1281" y="245" width="93" height="215"/>
+    <line class="mask" x1="936" y1="386" x2="1492" y2="386"/>
+    <path class="green" d="M1026 386 C1048 345 1072 322 1090 329 S1124 365 1144 386 M1281 386 C1300 352 1324 291 1343 289 S1360 346 1374 386"/>
+    <line class="play" x1="1328" y1="245" x2="1328" y2="460"/>
+    <text class="muted tiny" x="936" y="465">12:00</text><text class="muted tiny" x="1492" y="465" text-anchor="end">18:00 UTC</text>
+    <line class="rule" x1="14" y1="501" x2="1522" y2="501"/>
+    <text class="muted tiny" x="24" y="526">Playback and Plot Range are shared; station and selected pass remain stack-local.</text>
+  </g>
+</svg>

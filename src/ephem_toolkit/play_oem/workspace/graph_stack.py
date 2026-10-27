@@ -26,6 +26,8 @@ class _GraphStackState(Protocol):
     _add_buttons: dict[str, wx.Button]
     _bottom_drag_start: dict[str, tuple[int, int]]
     _comparison_toggle: wx.ToggleButton | None
+    _follow_selection_toggle: wx.CheckBox | None
+    _workspace_preset_choice: wx.Choice | None
     _empty_panels: dict[str, wx.Panel]
     _graph_panel_heights: dict[GraphPanelHost, int]
     _graph_panels: dict[str, list[GraphPanelHost]]
@@ -33,6 +35,8 @@ class _GraphStackState(Protocol):
     _visible_graph_panels: set[GraphPanelHost]
     _graph_scroll_timers: dict[str, wx.CallLater | None]
     _on_add_graph: Callable[[str], None] | None
+    _on_open_preset: Callable[[str], None] | None
+    _on_follow_selection: Callable[[bool], None] | None
     _pane_close_buttons: dict[str, wx.Button]
     _pending_graph_redraws: deque[GraphPanelHost]
     _queued_graph_redraws: set[GraphPanelHost]
@@ -149,6 +153,8 @@ class GraphStackMixin:
         self._right_pane_visible = visible
         if self._comparison_toggle is not None:
             self._comparison_toggle.SetValue(visible)
+        if self._follow_selection_toggle is not None:
+            self._follow_selection_toggle.Enable(visible)
         self.graph_panes_splitter.Layout()
         if visible:
             self._request_stack_redraws("right")
@@ -734,6 +740,26 @@ class GraphStackMixin:
         )
         pane_header_sizer.Add(add_graph_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4)
         if stack == "middle":
+            preset_choices = (
+                "Workspace preset",
+                "Access Overview",
+                "Pass Study",
+            )
+            preset_choice = wx.Choice(
+                graph_pane, wx.ID_ANY, choices=list(preset_choices)
+            )
+            preset_choice.SetName("Open workspace preset")
+            preset_choice.SetSelection(0)
+            self._workspace_preset_choice = preset_choice
+            preset_choice.Bind(
+                wx.EVT_CHOICE,
+                lambda event: self._on_workspace_preset_selected(
+                    event.GetSelection()
+                ),
+            )
+            pane_header_sizer.Add(
+                preset_choice, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4
+            )
             comparison_toggle = wx.ToggleButton(graph_pane, wx.ID_ANY, "Comparison")
             self._comparison_toggle = comparison_toggle
             comparison_toggle.SetName("Toggle Comparison pane")
@@ -745,6 +771,28 @@ class GraphStackMixin:
             )
             pane_header_sizer.Add(
                 comparison_toggle, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 4
+            )
+            follow_selection_toggle = wx.CheckBox(
+                graph_pane, wx.ID_ANY, "Follow selection"
+            )
+            follow_selection_toggle.SetName(
+                "Follow Main Analysis station and pass selection"
+            )
+            follow_selection_toggle.Enable(False)
+            follow_selection_toggle.Bind(
+                wx.EVT_CHECKBOX,
+                lambda event: (
+                    self._on_follow_selection(event.IsChecked())
+                    if self._on_follow_selection is not None
+                    else None
+                ),
+            )
+            self._follow_selection_toggle = follow_selection_toggle
+            pane_header_sizer.Add(
+                follow_selection_toggle,
+                0,
+                wx.ALIGN_CENTER_VERTICAL | wx.ALL,
+                4,
             )
         else:
             close_pane_button = wx.Button(graph_pane, wx.ID_ANY, "Close pane")
@@ -765,6 +813,22 @@ class GraphStackMixin:
         )
         graph_pane.SetSizer(pane_sizer)
         return graph_pane, graph_stack_window
+
+    def _on_workspace_preset_selected(
+        self: _GraphStackState, selection: int
+    ) -> None:
+        if selection == 0:
+            return
+        preset_names = ("access-overview", "pass-study")
+        if selection < 1 or selection > len(preset_names):
+            raise ValueError(f"unknown workspace preset selection: {selection}")
+        try:
+            if self._on_open_preset is None:
+                raise RuntimeError("workspace preset handler is not configured")
+            self._on_open_preset(preset_names[selection - 1])
+        finally:
+            if self._workspace_preset_choice is not None:
+                self._workspace_preset_choice.SetSelection(0)
 
     def _make_graph_stack(
         self: _GraphStackState, parent: wx.Window, stack: str

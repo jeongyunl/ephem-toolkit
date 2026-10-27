@@ -59,11 +59,12 @@ class ElevationProfile:
 
 @dataclass(frozen=True)
 class LookAngleProfile:
-    """Sampled azimuth and elevation over one contiguous OEM segment."""
+    """Sampled look angles and slant range over one contiguous OEM segment."""
 
     times_s: np.ndarray
     azimuths_deg: np.ndarray
     elevations_deg: np.ndarray
+    slant_ranges_km: np.ndarray | None = None
 
 
 @dataclass(frozen=True)
@@ -252,9 +253,21 @@ def prepare_station_access(
             ],
             dtype=float,
         )
+        profile_slant_ranges = np.asarray(
+            [
+                metric.slant_range_km if metric is not None else np.nan
+                for metric in metrics
+            ],
+            dtype=float,
+        )
         elevation_profiles.append(ElevationProfile(profile_times, profile_elevations))
         look_angle_profiles.append(
-            LookAngleProfile(profile_times, profile_azimuths, profile_elevations)
+            LookAngleProfile(
+                profile_times,
+                profile_azimuths,
+                profile_elevations,
+                profile_slant_ranges,
+            )
         )
         intervals.extend(
             _intervals_for_segment(

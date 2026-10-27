@@ -23,6 +23,7 @@ from ..ground_track import GroundTrackCoordinates
 from ..ground_stations import GroundStation
 from ..saved_state import SavedAppState
 from ..station_access import StationAccessCache
+from ..station_analysis import StationAnalysisContext
 from ..views import base, registry
 from .support import _OpenView
 
@@ -42,6 +43,7 @@ class PlayerAppState(Protocol):
     _ground_track_coordinates: GroundTrackCoordinates | None
     _ground_stations: list[GroundStation]
     _station_access_cache: StationAccessCache
+    _station_analysis_contexts: dict[str, StationAnalysisContext]
     _saved_state: SavedAppState | None
     object_name: str
     series: series.OrbitSeries
@@ -97,6 +99,54 @@ class PlayerAppState(Protocol):
     def open_ground_station_passes_view(
         self,
         initial_station_id: str | None = None,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None: ...
+    def open_station_status_view(
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None: ...
+    def open_pass_strip_view(
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None: ...
+    def open_elevation_profile_view(
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None: ...
+    def open_azimuth_profile_view(
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None: ...
+    def open_range_profile_view(
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None: ...
+    def open_pass_list_view(
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None: ...
+    def open_sky_view(
+        self,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None: ...
+    def open_pass_ground_track_view(
+        self,
         panel_id: str | None = None,
         stack: str = "middle",
         force_replace: bool = False,

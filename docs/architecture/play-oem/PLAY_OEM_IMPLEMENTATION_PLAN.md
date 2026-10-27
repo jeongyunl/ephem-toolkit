@@ -10,10 +10,10 @@ Ground Stations is implemented. See its
 [user guide](../../tools/PLAY_OEM_GROUND_STATIONS.md). The original software/GUI designs and
 mockups are archived in [old/](./old/).
 
-Completed Ground Track and ground-station visual analysis is summarized in the archived
-[feature implementation report](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_REPORT.md).
-Its [software design](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_SOFTWARE_DESIGN.md),
-[GUI design](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_GUI_DESIGN.md), and
+The proposed modular Ground Station Analysis redesign is described in the
+[software design](./PLAY_OEM_GROUND_STATION_ANALYSIS_SOFTWARE_DESIGN.md) and
+[GUI design](./PLAY_OEM_GROUND_STATION_ANALYSIS_GUI_DESIGN.md). The prior composite feature's
+[implementation report](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_REPORT.md) and
 [mockup](./old/mockup-ground-station-visual-analysis.svg) are archived for reference.
 
 ## Current runtime behavior

@@ -26,6 +26,9 @@ class FakeEvent:
     def GetKeyCode(self) -> int:
         return self.key_code
 
+    def IsChecked(self) -> bool:
+        return bool(self.value)
+
     def Skip(self) -> None:
         self.skipped = True
 
@@ -628,6 +631,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "Simplebook": FakeSimplebook,
         "BitmapToggleButton": FakeWidget,
         "ToggleButton": FakeWidget,
+        "CheckBox": FakeWidget,
         "Slider": FakeSlider,
         "StaticLine": FakeWidget,
         "StaticText": FakeWidget,
@@ -672,6 +676,7 @@ def configure_fake_wx(monkeypatch: pytest.MonkeyPatch) -> None:
         "EVT_BUTTON": "button",
         "EVT_TOGGLEBUTTON": "toggle-button",
         "EVT_CHOICE": "choice",
+        "EVT_CHECKBOX": "check-box",
         "EVT_TEXT_ENTER": "text-enter",
         "TE_PROCESS_ENTER": 1024,
         "EVT_SIZE": "size",
@@ -700,6 +705,8 @@ def make_workspace(
     on_play_forward=None,
     on_set_playback_rate=None,
     on_step_samples=None,
+    on_open_preset=None,
+    on_follow_selection=None,
 ) -> tuple[Any, list[float], FakeFrame]:
     configure_fake_wx(monkeypatch)
     frame = FakeFrame()
@@ -739,6 +746,8 @@ def make_workspace(
         ),
         view_choices=view_choices,
         on_add_graph=on_add_graph,
+        on_open_preset=on_open_preset,
+        on_follow_selection=on_follow_selection,
     )
     result._test_time_seeks = time_seeks
     return result, seeks, frame
@@ -864,6 +873,26 @@ def test_workspace_builds_feature_pages_split_panes_and_global_timeline(
         result.timeline_time_entry.hint == "Timestamp or elapsed time, e.g. 1h30m"
     )
     assert result.playback_end_label.label == f"End: {core.format_tt(90.0, 'UTC')}"
+
+
+def test_workspace_preset_and_comparison_follow_controls_dispatch_callbacks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    opened_presets: list[str] = []
+    follow_changes: list[bool] = []
+    result, _seeks, _frame = make_workspace(
+        monkeypatch,
+        on_open_preset=opened_presets.append,
+        on_follow_selection=follow_changes.append,
+    )
+
+    assert not result._follow_selection_toggle.IsEnabled()
+    result._on_workspace_preset_selected(2)
+    assert opened_presets == ["pass-study"]
+    assert result._workspace_preset_choice.GetSelection() == 0
+
+    result._follow_selection_toggle.bindings["check-box"](FakeEvent(value=1))
+    assert follow_changes == [True]
 
 
 def test_playback_range_labels_track_current_playback_bounds() -> None:

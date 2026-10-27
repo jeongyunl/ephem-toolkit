@@ -15,11 +15,11 @@ Implemented Ground Stations feature: see the
 [user guide](../../tools/PLAY_OEM_GROUND_STATIONS.md). The original software/GUI designs and
 mockups are archived in [old/](./old/).
 
-Completed Ground Track station overlays and pass/sky analysis are summarized in the archived
-[implementation report](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_REPORT.md). The
-[software design](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_SOFTWARE_DESIGN.md),
-[GUI design](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_GUI_DESIGN.md), and
-[mockup](./old/mockup-ground-station-visual-analysis.svg) are archived for reference.
+The modular Ground Station Analysis proposal is specified in the
+[software design](./PLAY_OEM_GROUND_STATION_ANALYSIS_SOFTWARE_DESIGN.md) and
+[GUI design](./PLAY_OEM_GROUND_STATION_ANALYSIS_GUI_DESIGN.md). The prior composite
+[implementation report](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_REPORT.md) and
+[mockup](./old/mockup-ground-station-visual-analysis.svg) remain archived for reference.
 
 ## 1. Approach: copy and modify `plot-oem`
 

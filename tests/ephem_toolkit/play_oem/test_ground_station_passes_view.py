@@ -21,13 +21,17 @@ from ephem_toolkit.play_oem.station_access import (
     StationAccessCache,
     StationAccess,
 )
+from ephem_toolkit.play_oem.station_analysis import StationAnalysisContext
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.ground_station_access import (
     GroundStationAccessView,
 )
 from ephem_toolkit.play_oem.views.ground_station_passes import (
+    GroundStationPassListView,
     GroundStationPassesView,
+    GroundStationSkyView,
+    _can_fit_side_by_side,
     _utc_label,
 )
 
@@ -87,6 +91,7 @@ def _make_view(
     profiles: tuple[LookAngleProfile, ...] = (),
     limitation: str | None = None,
     oem_loaded: bool = True,
+    selection_context: StationAnalysisContext | None = None,
 ) -> tuple[GroundStationPassesView, _AccessCache]:
     station = station or GroundStation("site", "Site", 0.0, 0.0, 0.0, 10)
     result = StationAccess(station, intervals, limitation, look_angle_profiles=profiles)
@@ -102,6 +107,7 @@ def _make_view(
         on_focus_pass=lambda _start, _end: None,
         on_station_manager=lambda: None,
         access_cache=cast(Any, cache),
+        selection_context=selection_context,
     )
     return view, cache
 
@@ -138,6 +144,49 @@ def test_range_changes_preserve_or_fallback_selection_without_repreparing() -> N
     view.set_time_range(ResolvedTimeRange(40.0, 50.0), (0.0, 100.0))
     assert view._selected_interval_key == (40.0, 50.0)
     assert cache.prepare_calls == 1
+
+
+def test_pass_view_tracks_shared_stack_selection_and_unsubscribes_on_close() -> None:
+    context = StationAnalysisContext()
+    interval = _interval(10.0, 20.0)
+    view, _cache = _make_view((interval,), selection_context=context)
+
+    context.select_interval((10.0, 20.0))
+
+    assert view._selected_interval_key == (10.0, 20.0)
+    view.close()
+    context.select_interval(None)
+    assert view._selected_interval_key == (10.0, 20.0)
+
+
+def test_focused_pass_list_and_sky_views_share_interval_selection() -> None:
+    station = GroundStation("site", "Site", 0.0, 0.0, 0.0, 10)
+    interval = _interval(10.0, 20.0)
+    context = StationAnalysisContext()
+    context.select_station(station.station_id)
+    cache = _AccessCache(StationAccess(station, (interval,)))
+    options = dict(
+        parent=cast(Any, None),
+        source=cast(Any, object()),
+        cursor=cast(Any, SimpleNamespace(t_start=0.0, t_end=100.0)),
+        stations=[station],
+        object_name="Test object",
+        oem_loaded=True,
+        on_seek=lambda _time: None,
+        on_focus_pass=lambda _start, _end: None,
+        on_station_manager=lambda: None,
+        access_cache=cast(Any, cache),
+        selection_context=context,
+    )
+    pass_list = GroundStationPassListView(**options)
+    sky_view = GroundStationSkyView(**options)
+
+    context.select_interval((10.0, 20.0))
+
+    assert pass_list._selected_interval_key == (10.0, 20.0)
+    assert sky_view._selected_interval_key == (10.0, 20.0)
+    pass_list.close()
+    sky_view.close()
 
 
 def test_station_updates_retain_pass_selection_for_a_station_that_remains() -> None:
@@ -189,11 +238,16 @@ def test_coverage_and_gap_limited_rows_do_not_claim_known_duration() -> None:
     view._refresh_rows()
 
     assert view._visible_intervals == intervals
-    assert view._row_values(intervals[0])[2] == ""
-    assert view._row_values(intervals[0])[5] == "Starts at OEM boundary"
-    assert view._row_values(intervals[1])[2] == ""
-    assert view._row_values(intervals[1])[5] == "Gap-limited end"
-    assert view._row_values(_interval(10.0, 20.0))[2] == "0.2 min"
+    assert view._row_values(intervals[0])[1] == ""
+    assert view._row_values(intervals[0])[4] == "Starts at OEM boundary"
+    assert view._row_values(intervals[1])[1] == ""
+    assert view._row_values(intervals[1])[4] == "Gap-limited end"
+    assert view._row_values(_interval(10.0, 20.0))[1] == "0.2 min"
+
+
+def test_pass_study_switches_layout_only_when_both_minimum_widths_fit() -> None:
+    assert not _can_fit_side_by_side(1_000, 1_040)
+    assert _can_fit_side_by_side(1_040, 1_040)
 
 
 def test_sky_plot_uses_clockwise_azimuth_and_cached_pass_profile() -> None:
@@ -443,12 +497,12 @@ def test_wx_pass_panel_builds_and_switches_responsive_layout(wx_app: Any) -> Non
         frame.Show()
         wx_app.Yield()
         assert view._table is not None
-        assert view._table.GetColumnCount() == 6
-        assert view._layout_orientation == wx.VERTICAL
+        assert view._table.GetColumnCount() == 5
+        assert view._layout_orientation == wx.HORIZONTAL
         assert view._table_panel is not None
         assert view._sky_panel is not None
-        assert view._sky_panel.GetPosition().y >= (
-            view._table_panel.GetPosition().y + view._table_panel.GetSize().height
+        assert view._sky_panel.GetPosition().x >= (
+            view._table_panel.GetPosition().x + view._table_panel.GetSize().width
         )
         assert view._table.GetClientSize().width >= sum(
             view._table.GetColumnWidth(column)
@@ -466,7 +520,7 @@ def test_wx_pass_panel_builds_and_switches_responsive_layout(wx_app: Any) -> Non
         frame.SetSize((1200, 600))
         wx_app.Yield()
         view._update_analysis_layout()
-        assert view._layout_orientation == wx.VERTICAL
+        assert view._layout_orientation == wx.HORIZONTAL
         assert view._table.GetClientSize().width >= sum(
             view._table.GetColumnWidth(column)
             for column in range(view._table.GetColumnCount())

@@ -12,7 +12,7 @@ from matplotlib.figure import Figure
 
 from .. import clock, time_range
 from ..graph_panel import GraphPanelHost
-from ..views import base
+from ..views import base, registry as view_registry
 from ..views.trajectory3d import selection as trajectory3d_selection
 from .state import PlayerAppState
 from .support import (
@@ -48,6 +48,13 @@ class PanelManagementMixin:
                 force_replace=force_replace,
             )
             return
+        if name in view_registry.ALIASES:
+            expanded = view_registry.ALIASES[name]
+            if len(expanded) != 1:
+                raise ValueError(
+                    f"plot alias {name!r} does not identify a single panel"
+                )
+            name = expanded[0]
         if name not in self._view_registry.registered_views:
             raise ValueError(f"unknown view name: {name!r}")
         if not self._oem_loaded:
@@ -67,8 +74,14 @@ class PanelManagementMixin:
             "direction-change": self.open_direction_change_view,
             "distance": self.open_distance_view,
             "ground-track": self.open_ground_track_view,
-            "ground-station-access": self.open_ground_station_access_view,
-            "ground-station-passes": self.open_ground_station_passes_view,
+            "station-status": self.open_station_status_view,
+            "pass-strip": self.open_pass_strip_view,
+            "elevation-profile": self.open_elevation_profile_view,
+            "azimuth-profile": self.open_azimuth_profile_view,
+            "range-profile": self.open_range_profile_view,
+            "pass-list": self.open_pass_list_view,
+            "sky-view": self.open_sky_view,
+            "pass-ground-track": self.open_pass_ground_track_view,
         }
         openers[name](panel_id=panel_id, stack=stack, force_replace=force_replace)
 
@@ -329,6 +342,7 @@ class PanelManagementMixin:
             or event.inaxes is None
             or event.xdata is None
             or event.inaxes.name == "3d"
+            or not getattr(event.inaxes, "_play_oem_seek_enabled", True)
         ):
             return
 

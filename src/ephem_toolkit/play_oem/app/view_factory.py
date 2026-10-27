@@ -14,6 +14,8 @@ from ..views import (
     ground_track as ground_track_view,
     ground_station_access as ground_station_access_view,
     ground_station_passes as ground_station_passes_view,
+    ground_station_analysis as ground_station_analysis_view,
+    ground_station_pass_track as ground_station_pass_track_view,
     rtn,
     speed_altitude,
     state_components,
@@ -21,6 +23,7 @@ from ..views import (
 )
 from ..views.trajectory3d import selection as trajectory3d_selection
 from ..ground_track import (
+    GroundTrackCoordinates,
     GroundTrackPreparationError,
     GroundTrackSource,
     prepare_ground_track,
@@ -32,6 +35,73 @@ class ViewFactoryMixin:
     """Create registered views using the current playback and OEM context."""
 
     _selected_3d_backend: str | None
+
+    def _open_station_analysis_panel(
+        self,
+        name: str,
+        panel_type: str,
+        panel_id: str | None,
+        stack: str,
+        force_replace: bool,
+    ) -> None:
+        self._open_view(
+            name,
+            lambda panel: ground_station_analysis_view.GroundStationAnalysisView(
+                panel,
+                panel_type,
+                self._ground_track_source_for_plot_range()
+                if self._oem_loaded
+                else None,
+                self.cursor,
+                self._ground_stations,
+                self.time_unit,
+                self.object_name,
+                oem_loaded=self._oem_loaded,
+                on_station_manager=self.workspace.select_ground_stations,
+                access_cache=self._station_access_cache,
+                selection_context=self._station_analysis_contexts[stack],
+                initial_range=self._resolved_plot_range(),
+                display_time_zone=self._display_time_zone,
+            ),
+            panel_id=panel_id,
+            stack=stack,
+            force_replace=force_replace,
+        )
+
+    def open_station_status_view(
+        self, panel_id: str | None = None, stack: str = "middle", force_replace: bool = False
+    ) -> None:
+        self._open_station_analysis_panel(
+            "station-status", "station-status", panel_id, stack, force_replace
+        )
+
+    def open_pass_strip_view(
+        self, panel_id: str | None = None, stack: str = "middle", force_replace: bool = False
+    ) -> None:
+        self._open_station_analysis_panel(
+            "pass-strip", "pass-strip", panel_id, stack, force_replace
+        )
+
+    def open_elevation_profile_view(
+        self, panel_id: str | None = None, stack: str = "middle", force_replace: bool = False
+    ) -> None:
+        self._open_station_analysis_panel(
+            "elevation-profile", "elevation-profile", panel_id, stack, force_replace
+        )
+
+    def open_azimuth_profile_view(
+        self, panel_id: str | None = None, stack: str = "middle", force_replace: bool = False
+    ) -> None:
+        self._open_station_analysis_panel(
+            "azimuth-profile", "azimuth-profile", panel_id, stack, force_replace
+        )
+
+    def open_range_profile_view(
+        self, panel_id: str | None = None, stack: str = "middle", force_replace: bool = False
+    ) -> None:
+        self._open_station_analysis_panel(
+            "range-profile", "range-profile", panel_id, stack, force_replace
+        )
 
     def _ground_track_source_for_plot_range(self) -> GroundTrackSource | None:
         """Limit in-progress access analysis to samples near the active plot range."""
@@ -275,6 +345,7 @@ class ViewFactoryMixin:
                 on_seek=self._seek_from_ground_station_timeline,
                 on_station_manager=self.workspace.select_ground_stations,
                 access_cache=self._station_access_cache,
+                selection_context=self._station_analysis_contexts[stack],
                 limit_to_range=True,
                 initial_range=self._resolved_plot_range(),
                 display_time_zone=self._display_time_zone,
@@ -325,9 +396,94 @@ class ViewFactoryMixin:
                 on_focus_pass=self._focus_ground_station_pass,
                 on_station_manager=self.workspace.select_ground_stations,
                 access_cache=self._station_access_cache,
+                selection_context=self._station_analysis_contexts[stack],
                 limit_to_range=True,
                 initial_range=self._resolved_plot_range(),
                 initial_station_id=initial_station_id,
+                display_time_zone=self._display_time_zone,
+            ),
+            panel_id=panel_id,
+            stack=stack,
+            force_replace=force_replace,
+        )
+
+    def _open_focused_pass_view(
+        self: PlayerAppState,
+        name: str,
+        view_class: type[ground_station_passes_view.GroundStationPassesView],
+        panel_id: str | None,
+        stack: str,
+        force_replace: bool,
+    ) -> None:
+        self._open_view(
+            name,
+            lambda panel: view_class(
+                panel,
+                self._ground_track_source_for_plot_range()
+                if self._oem_loaded
+                else None,
+                self.cursor,
+                self._ground_stations,
+                self.object_name,
+                oem_loaded=self._oem_loaded,
+                on_seek=self._seek_from_ground_station_timeline,
+                on_focus_pass=self._focus_ground_station_pass,
+                on_station_manager=self.workspace.select_ground_stations,
+                access_cache=self._station_access_cache,
+                selection_context=self._station_analysis_contexts[stack],
+                limit_to_range=True,
+                initial_range=self._resolved_plot_range(),
+                display_time_zone=self._display_time_zone,
+            ),
+            panel_id=panel_id,
+            stack=stack,
+            force_replace=force_replace,
+        )
+
+    def open_pass_list_view(
+        self: PlayerAppState,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None:
+        self._open_focused_pass_view(
+            "pass-list",
+            ground_station_passes_view.GroundStationPassListView,
+            panel_id,
+            stack,
+            force_replace,
+        )
+
+    def open_sky_view(
+        self: PlayerAppState,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None:
+        self._open_focused_pass_view(
+            "sky-view",
+            ground_station_passes_view.GroundStationSkyView,
+            panel_id,
+            stack,
+            force_replace,
+        )
+
+    def open_pass_ground_track_view(
+        self: PlayerAppState,
+        panel_id: str | None = None,
+        stack: str = "middle",
+        force_replace: bool = False,
+    ) -> None:
+        self._open_view(
+            "pass-ground-track",
+            lambda panel: ground_station_pass_track_view.GroundStationPassTrackView(
+                panel,
+                self._ground_track_source if self._oem_loaded else None,
+                self.cursor,
+                self._ground_stations,
+                oem_loaded=self._oem_loaded,
+                access_cache=self._station_access_cache,
+                selection_context=self._station_analysis_contexts[stack],
                 display_time_zone=self._display_time_zone,
             ),
             panel_id=panel_id,

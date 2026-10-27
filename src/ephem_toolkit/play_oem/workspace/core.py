@@ -49,6 +49,8 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         details: Sequence[tuple[str, str]] = (),
         view_choices: tuple[tuple[str, str], ...] = (),
         on_add_graph: Callable[[str], None] | None = None,
+        on_open_preset: Callable[[str], None] | None = None,
+        on_follow_selection: Callable[[bool], None] | None = None,
         status_bar: wx.Window | None = None,
         playback_bounds: tuple[float, float] | None = None,
         oem_coverage: tuple[float, float] | None = None,
@@ -105,8 +107,12 @@ class Workspace(FeatureNavigationMixin, GraphStackMixin, TimelineMixin):
         self._graph_panel_heights: dict[GraphPanelHost, int] = {}
         self._right_pane_width = DEFAULT_RIGHT_PANE_WIDTH
         self._comparison_toggle: wx.ToggleButton | None = None
+        self._follow_selection_toggle: wx.CheckBox | None = None
+        self._workspace_preset_choice: wx.Choice | None = None
         self._view_choices = view_choices
         self._on_add_graph = on_add_graph
+        self._on_open_preset = on_open_preset
+        self._on_follow_selection = on_follow_selection
         self._on_ground_stations_changed = on_ground_stations_changed
 
         main_sizer = wx.BoxSizer(wx.VERTICAL)

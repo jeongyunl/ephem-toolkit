@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="620" viewBox="0 0 1600 620" role="img" aria-labelledby="title desc">
+  <title id="title">Optional pass-comparison graph mockups</title>
+  <desc id="desc">Three optional small graph panels compare peak elevation, closest slant range, and complete pass duration. Values are illustrative and incomplete durations are not plotted.</desc>
+  <defs>
+    <style>
+      .bg{fill:#f1f4f8}.card{fill:#fff;stroke:#cbd5e1;stroke-width:1.5}.plot{fill:#fbfdff;stroke:#d5dee9;stroke-width:1}
+      .ink{fill:#17263a;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .muted{fill:#63748b;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .heading{font-size:15px;font-weight:700}.small{font-size:10px}.tiny{font-size:9px}
+      .grid{stroke:#e1e7ef;stroke-width:1}.rule{stroke:#e1e7ef;stroke-width:1}
+      .blue{fill:#2f7ebc;stroke:#fff;stroke-width:1.5}.green{fill:#16877e;stroke:#fff;stroke-width:1.5}
+      .orange{fill:#e7a52f;stroke:#fff;stroke-width:1.5}.mask{stroke:#c74343;stroke-width:1.3;stroke-dasharray:5 3}
+      .selected{fill:#d6e8ff;stroke:#77a8e8;stroke-width:1}.bar{fill:#b8d5f0}
+    </style>
+  </defs>
+  <rect class="bg" width="1600" height="620"/>
+  <text class="ink heading" x="30" y="35">Optional Pass Comparison Panels</text>
+  <text class="muted small" x="30" y="56">Simple per-pass views using existing AccessInterval metrics · illustrative values only</text>
+
+  <g transform="translate(30 78)">
+    <rect class="card" width="495" height="510" rx="9"/>
+    <text class="ink heading" x="16" y="28">Peak Elevation per Pass</text>
+    <text class="muted tiny" x="16" y="47">Pass time vs. maximum elevation · degrees</text>
+    <rect class="plot" x="58" y="76" width="415" height="337" rx="4"/>
+    <line class="grid" x1="58" y1="105" x2="473" y2="105"/><line class="grid" x1="58" y1="179" x2="473" y2="179"/><line class="grid" x1="58" y1="253" x2="473" y2="253"/><line class="grid" x1="58" y1="327" x2="473" y2="327"/><line class="grid" x1="58" y1="386" x2="473" y2="386"/>
+    <text class="muted tiny" x="50" y="109" text-anchor="end">90°</text><text class="muted tiny" x="50" y="183" text-anchor="end">70°</text><text class="muted tiny" x="50" y="257" text-anchor="end">50°</text><text class="muted tiny" x="50" y="331" text-anchor="end">30°</text><text class="muted tiny" x="50" y="390" text-anchor="end">10°</text>
+    <line class="mask" x1="58" y1="386" x2="473" y2="386"/>
+    <rect class="selected" x="247" y="77" width="60" height="335"/>
+    <line class="grid" x1="58" y1="386" x2="473" y2="386"/>
+    <circle class="blue" cx="117" cy="196" r="7"/><circle class="green" cx="277" cy="300" r="8"/><circle class="orange" cx="420" cy="300" r="7"/>
+    <text class="muted tiny" x="117" y="408" text-anchor="middle">13:21</text><text class="muted tiny" x="277" y="408" text-anchor="middle">15:05</text><text class="muted tiny" x="420" y="408" text-anchor="middle">17:44</text>
+    <text class="muted tiny" x="16" y="445">Selected pass highlighted · mask shown for context.</text>
+    <text class="muted tiny" x="16" y="465">Select a point to seed linked pass detail views.</text>
+    <text class="muted tiny" x="16" y="493">Metric: peak_elevation_deg at peak_time_s.</text>
+  </g>
+
+  <g transform="translate(552 78)">
+    <rect class="card" width="495" height="510" rx="9"/>
+    <text class="ink heading" x="16" y="28">Closest Range per Pass</text>
+    <text class="muted tiny" x="16" y="47">Pass time vs. minimum slant range · kilometres</text>
+    <rect class="plot" x="58" y="76" width="415" height="337" rx="4"/>
+    <line class="grid" x1="58" y1="105" x2="473" y2="105"/><line class="grid" x1="58" y1="179" x2="473" y2="179"/><line class="grid" x1="58" y1="253" x2="473" y2="253"/><line class="grid" x1="58" y1="327" x2="473" y2="327"/><line class="grid" x1="58" y1="386" x2="473" y2="386"/>
+    <text class="muted tiny" x="50" y="109" text-anchor="end">40,000</text><text class="muted tiny" x="50" y="183" text-anchor="end">30,000</text><text class="muted tiny" x="50" y="257" text-anchor="end">20,000</text><text class="muted tiny" x="50" y="331" text-anchor="end">10,000</text><text class="muted tiny" x="50" y="390" text-anchor="end">2,000</text>
+    <rect class="selected" x="247" y="77" width="60" height="335"/>
+    <circle class="blue" cx="117" cy="363" r="7"/><circle class="green" cx="277" cy="384" r="8"/><circle class="orange" cx="420" cy="384" r="7"/>
+    <text class="muted tiny" x="117" y="408" text-anchor="middle">13:21</text><text class="muted tiny" x="277" y="408" text-anchor="middle">15:05</text><text class="muted tiny" x="420" y="408" text-anchor="middle">17:44</text>
+    <text class="muted tiny" x="16" y="445">Lower points indicate a closer pass.</text>
+    <text class="muted tiny" x="16" y="465">Selection can follow the Pass List or remain local.</text>
+    <text class="muted tiny" x="16" y="493">Metric: minimum_range_km at minimum_range_time_s.</text>
+  </g>
+
+  <g transform="translate(1074 78)">
+    <rect class="card" width="495" height="510" rx="9"/>
+    <text class="ink heading" x="16" y="28">Pass Duration</text>
+    <text class="muted tiny" x="16" y="47">Duration bars only when both interval boundaries are known</text>
+    <rect class="plot" x="58" y="76" width="415" height="337" rx="4"/>
+    <line class="grid" x1="58" y1="105" x2="473" y2="105"/><line class="grid" x1="58" y1="179" x2="473" y2="179"/><line class="grid" x1="58" y1="253" x2="473" y2="253"/><line class="grid" x1="58" y1="327" x2="473" y2="327"/><line class="grid" x1="58" y1="386" x2="473" y2="386"/>
+    <text class="muted tiny" x="50" y="109" text-anchor="end">12 min</text><text class="muted tiny" x="50" y="183" text-anchor="end">9 min</text><text class="muted tiny" x="50" y="257" text-anchor="end">6 min</text><text class="muted tiny" x="50" y="331" text-anchor="end">3 min</text><text class="muted tiny" x="50" y="390" text-anchor="end">0 min</text>
+    <rect class="bar" x="95" y="223" width="44" height="163" rx="3"/>
+    <rect class="selected" x="255" y="216" width="44" height="170" rx="3"/>
+    <rect x="398" y="126" width="44" height="118" rx="3" fill="none" stroke="#dd762d" stroke-width="2" stroke-dasharray="5 4"/>
+    <text class="muted tiny" x="117" y="408" text-anchor="middle">13:18</text><text class="muted tiny" x="277" y="408" text-anchor="middle">15:02</text><text class="muted tiny" x="420" y="408" text-anchor="middle">17:41</text>
+    <text class="muted tiny" x="16" y="445">Dashed outline: boundary unknown; no duration assigned.</text>
+    <text class="muted tiny" x="16" y="465">Never present a clipped interval as a complete duration.</text>
+    <text class="muted tiny" x="16" y="493">Derived from end_s − start_s for complete intervals only.</text>
+  </g>
+</svg>

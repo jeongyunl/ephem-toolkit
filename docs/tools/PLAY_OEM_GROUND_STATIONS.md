@@ -26,19 +26,28 @@ the configuration file when it does not already define stations.
 
 The station elevation mask is independent from the Ground Track footprint setting.
 
-## View access
+## Focused Ground Station panels
 
-Open **Ground Station Access** from a graph panel's view selector, or use
-`--plots ground-station-access` when starting `play-oem`. The `all` view group includes it;
-`overview` is unchanged. The view is available with no stations or no OEM and displays a relevant
-empty state. Use **Manage Ground Stations** to open the manager.
+The graph selector offers Station Status, Pass Strip, Elevation Profile, Azimuth Profile, Range
+Profile, Pass List, Sky View, and Pass Ground Track. Choose **Access Overview** or **Pass Study**
+from the preset selector in the Main Analysis header. Access Overview opens Station Status, Pass
+Strip, and Elevation Profile; Pass Study opens Pass List and Sky View as separate, stackable graph
+panels. Presets are also available through `--plots access-overview` and `--plots pass-study`;
+they do not change the default `overview` group. Older selections remain supported:
+`ground-station-access` opens Elevation Profile and `ground-station-passes` opens Pass List.
 
-The graph shows the selected station's elevation versus time only while it is at or above that
-station's minimum-elevation mask; access intervals are marked on the curve. Its vertical scale is
-fixed at 0°–95°. It follows the application's Plot Range; adjust that range to zoom or move through
-time. The graph does not use wheel zoom or separate pan controls. Click the graph to move playback.
-Choose a station to see its current access state, azimuth, elevation, slant range, and previous/next
-pass details.
+Station Status, Pass Strip, and the time profiles are available with no stations or no OEM and
+display a relevant empty state. Use **Manage Ground Stations** to open the manager.
+
+Station Status shows current access, azimuth, elevation, and slant range. Elevation Profile plots
+elevation against time with access intervals and the station mask; its vertical scale is fixed at
+0°–95°. Each Elevation, Azimuth, and Range Profile has its own **Show only above minimum
+elevation** checkbox, checked by default. When checked, below-mask samples are omitted, leaving a
+gap in the plotted line; uncheck it to show the full profile. Azimuth Profile also breaks the line
+at north-wrap discontinuities, and Range Profile shows slant range in kilometers. Pass Strip shows
+access intervals over Plot Range and distinguishes OEM-boundary and segment-gap limitations.
+Time profiles follow the application's Plot Range; adjust it to zoom or move through time. Click
+a time profile to move playback.
 
 - **Azimuth** is clockwise from geodetic north.
 - **Elevation** is above the local geodetic horizon.
@@ -55,12 +64,12 @@ OEM data or inside a segment gap, current metrics are unavailable rather than ze
 Open **Ground Track** to show the **Ground Stations** layer. Select a marker on the map or use
 the station selector; the details row shows the station name, coordinates, and elevation mask.
 Use **Station labels** to label all markers. **Open Passes** opens the Ground Station Passes view
-for that station. Selecting a marker does not seek playback or prepare access history. With no
-stations, the station controls are disabled and the map remains usable.
+for that station in the responsive Pass Study layout. Selecting a marker does not seek playback or
+prepare access history. With no stations, the station controls are disabled and the map remains
+usable.
 
-Open **Ground Station Passes** from a graph panel's view selector or with
-`--plots ground-station-passes`. The view includes OEM coverage and a persistent UTC Plot Range
-readout. Its chronological table contains:
+Open **Pass List** or **Sky View** independently, or choose **Pass Study** to open both. The
+chronological Pass List contains:
 
 - pass start and end in UTC;
 - duration when both access crossings are known;
@@ -74,22 +83,26 @@ Range changes only filter the prepared results. If no cached pass overlaps, the 
 suggests widening Plot Range; this is distinct from no access anywhere in OEM coverage and from
 unavailable predictions.
 
-Select a table row to inspect its sky path. Azimuth is clockwise from north, with north at the top;
+Select a row to synchronize it with Sky View and Pass Ground Track in that graph stack. Use
+**Follow selection** in the Main Analysis header to optionally synchronize station/pass selection
+from Main Analysis into Comparison; it is off by default. Azimuth is clockwise from north, with
+north at the top;
 the horizon is the outside ring, zenith the center, and the station's minimum elevation is shown
 as a mask ring. The path, start/peak/end markers, and textual summary describe the selected
 pass. The playback marker appears only while the playhead is within that pass. Use **Focus pass**
 to set the shared Plot Range to the pass, or **Seek to peak** to move playback to its stored peak.
-Row selection alone does neither.
+Row selection alone does neither. Pass Ground Track displays only the selected pass and marks the
+selected station; it does not imply radio visibility.
 
 ## Prediction limits
 
-Historical access is prepared lazily when either the Ground Station Access or Ground Station
-Passes view first needs it. Each valid OEM segment is evaluated on a uniform grid no coarser than
+Historical access is prepared lazily when a time-based Ground Station panel first needs it. Each
+valid OEM segment is evaluated on a uniform grid no coarser than
 30 seconds, regardless of source sample density. Local elevation maxima are refined to catch
 sub-step passes, and access crossings are refined to within 0.5 seconds of the selected cursor
 interpolation. These tolerances describe the numerical calculation, not physical accuracy.
 
-Both views share cached per-station histories and Earth-fixed sample positions; adding a panel or
+All panels share cached per-station histories and Earth-fixed sample positions; adding a panel or
 changing Plot Range does not repeat the historical calculation.
 
 The view reports pass predictions as unavailable when a segment contains a sample gap over five
@@ -99,7 +112,7 @@ visually marked and described as in progress at the start or continuing beyond t
 that reaches an OEM segment gap is labeled as gap-limited. Terrain, buildings, atmospheric
 refraction, antenna characteristics, link budgets, and station schedules are not modeled.
 
-For implementation and GUI details, see the
-[Ground Stations implementation report](../architecture/play-oem/old/PLAY_OEM_GROUND_STATIONS_IMPLEMENTATION_REPORT.md),
-[archived software design](../architecture/play-oem/old/PLAY_OEM_GROUND_STATIONS_SOFTWARE_DESIGN.md), and
-[archived GUI design](../architecture/play-oem/old/PLAY_OEM_GROUND_STATIONS_GUI_DESIGN.md).
+For current technical and workspace details, see the
+[Ground Station software design](../architecture/play-oem/PLAY_OEM_GROUND_STATION_ANALYSIS_SOFTWARE_DESIGN.md),
+[GUI design](../architecture/play-oem/PLAY_OEM_GROUND_STATION_ANALYSIS_GUI_DESIGN.md), and
+[implementation plan](../architecture/play-oem/PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_PLAN.md).
