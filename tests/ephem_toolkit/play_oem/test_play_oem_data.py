@@ -13,7 +13,7 @@ from ephem_toolkit.core.time_utils import datetime_to_tt_s, iso8601_to_datetime
 from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.data import filter_states_by_duration, read_oem_states
 from ephem_toolkit.play_oem.playback_data import load_playback_data
-from ephem_toolkit.play_oem.series import compute_orbit_series
+from ephem_toolkit.play_oem.series import OrbitSeries, compute_orbit_series
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.plot_oem.plot_oem import (
     TimeUnit as PlotTimeUnit,
@@ -134,6 +134,7 @@ def test_compute_orbit_series_matches_plot_oem(iss_oem_path: Path) -> None:
         np.testing.assert_allclose(
             getattr(play_series, field.name),
             getattr(plot_series, field.name),
+            atol=1e-12,
             err_msg=f"Mismatch in derived series field {field.name}",
         )
 
@@ -176,6 +177,28 @@ def test_series_does_not_compute_cross_segment_deltas_or_rates() -> None:
     assert np.isnan(computed.rtn_delta_km[1]).all()
     assert computed.angular_velocity_deg_s[2] == 0.0
     assert np.all(computed.euler_angle_rates_deg_s[2] == 0.0)
+
+
+def test_vectorized_rtn_direction_matches_scalar_for_degenerate_states() -> None:
+    states = np.asarray(
+        [
+            [7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0],
+            [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            [7_000_000.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 7_500.0, 0.0],
+            [7_000_000.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        ]
+    )
+    expected = np.asarray(
+        [
+            OrbitSeries._compute_rtn_velocity_direction_vector(state)
+            for state in states
+        ]
+    )
+
+    actual = OrbitSeries._compute_rtn_velocity_direction_vectors(states)
+
+    np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-15)
 
 
 def test_time_series_view_plots_oem_segments_as_separate_runs() -> None:

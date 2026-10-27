@@ -112,6 +112,32 @@ class DirectionChangeView(TimeRangeSupport):
         self.update(self._start_time_s)
         return figure
 
+    def update_data(
+        self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
+    ) -> bool:
+        datasets = []
+        if orbit_series.euler_angles_deg.size:
+            datasets.extend(
+                (
+                    orbit_series.elapsed_time,
+                    orbit_series.euler_angles_deg[:, component],
+                    orbit_series.segment_ids,
+                )
+                for component in range(3)
+            )
+        if orbit_series.euler_angle_rates_deg_s.size:
+            datasets.extend(
+                (
+                    orbit_series.elapsed_time,
+                    orbit_series.euler_angle_rates_deg_s[:, component],
+                    orbit_series.segment_ids,
+                )
+                for component in range(3)
+            )
+        return self._update_history_data(
+            datasets, self._start_time_s, time_unit.get_divisor_s()
+        )
+
     def update(self, time_s: float) -> None:
         """Move each cursor line to an absolute OEM time."""
         if self._cursor_artists is None:

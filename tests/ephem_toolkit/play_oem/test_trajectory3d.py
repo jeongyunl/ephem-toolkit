@@ -87,6 +87,39 @@ def test_trajectory_range_filters_before_decimation_and_gates_markers() -> None:
         view.close()
 
 
+def test_trajectory_data_update_preserves_figure_and_orbit_artist() -> None:
+    orbit, cursor = make_orbit()
+    view = Trajectory3DView(cursor, "ISS", "EME2000 / Earth")
+    figure = view.build(orbit, TimeUnit.MINUTES)
+    axes = figure.axes[0]
+    orbit_artist = axes.lines[0]
+    appended_state = np.array([0.0, -7_000_000.0, 0.0, 7_500.0, 0.0, 0.0])
+    cursor.append([280.0], [appended_state], [0])
+    updated = compute_orbit_series(
+        [100.0, 160.0, 220.0, 280.0],
+        [
+            np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]),
+            np.array([0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]),
+            np.array([-7_000_000.0, 0.0, 0.0, 0.0, -7_500.0, 0.0]),
+            appended_state,
+        ],
+        TimeUnit.MINUTES,
+    )
+
+    try:
+        assert view.update_data(updated, TimeUnit.MINUTES)
+        view.set_time_range(ResolvedTimeRange(100.0, 280.0), (100.0, 280.0))
+
+        assert view._figure is figure
+        assert axes.lines[0] is orbit_artist
+        np.testing.assert_array_equal(
+            orbit_artist.get_data_3d()[0], updated.position_km[:, 0]
+        )
+        np.testing.assert_array_equal(view._end_artist._offsets3d[0], [0.0])
+    finally:
+        view.close()
+
+
 def test_shared_spatial_selector_preserves_segment_ids_and_inclusive_edges() -> None:
     positions = np.arange(12, dtype=float).reshape(4, 3)
     times = np.array([0.0, 1.0, 2.0, 3.0])

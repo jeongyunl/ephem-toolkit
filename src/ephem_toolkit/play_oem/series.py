@@ -97,6 +97,44 @@ class OrbitSeries:
             return np.zeros(3, dtype=float)
         return velocity_rtn / velocity_norm
 
+    @staticmethod
+    def _compute_rtn_velocity_direction_vectors(states_m: np.ndarray) -> np.ndarray:
+        """Return velocity directions in the local RTN frame for many states."""
+        positions_m = states_m[:, :3]
+        velocities_m_s = states_m[:, 3:6]
+        position_norms = np.linalg.norm(positions_m, axis=1)
+        valid_positions = position_norms > 1e-30
+        radial_unit_vectors = np.zeros_like(positions_m)
+        radial_unit_vectors[valid_positions] = (
+            positions_m[valid_positions] / position_norms[valid_positions, None]
+        )
+
+        angular_momentum_vectors = np.cross(positions_m, velocities_m_s)
+        angular_momentum_norms = np.linalg.norm(angular_momentum_vectors, axis=1)
+        valid_angular_momentum = angular_momentum_norms > 1e-30
+        normal_unit_vectors = np.zeros_like(positions_m)
+        normal_unit_vectors[:, 2] = 1.0
+        normal_unit_vectors[valid_angular_momentum] = (
+            angular_momentum_vectors[valid_angular_momentum]
+            / angular_momentum_norms[valid_angular_momentum, None]
+        )
+        transverse_unit_vectors = np.cross(normal_unit_vectors, radial_unit_vectors)
+
+        velocity_rtn = np.column_stack(
+            (
+                np.einsum("ij,ij->i", velocities_m_s, radial_unit_vectors),
+                np.einsum("ij,ij->i", velocities_m_s, transverse_unit_vectors),
+                np.einsum("ij,ij->i", velocities_m_s, normal_unit_vectors),
+            )
+        )
+        velocity_norms = np.linalg.norm(velocity_rtn, axis=1)
+        valid_velocities = valid_positions & (velocity_norms > 1e-30)
+        directions = np.zeros_like(velocity_rtn)
+        directions[valid_velocities] = (
+            velocity_rtn[valid_velocities] / velocity_norms[valid_velocities, None]
+        )
+        return directions
+
 
 _SAMPLE_SERIES_FIELDS = (
     "elapsed_time",
@@ -335,12 +373,8 @@ def compute_orbit_series(
         rtn_delta_km = np.empty((0, 6))
 
     if len(states_m) >= 2:
-        velocity_direction_vectors: np.ndarray = np.array(
-            [
-                OrbitSeries._compute_rtn_velocity_direction_vector(state_m)
-                for state_m in states_m
-            ],
-            dtype=float,
+        velocity_direction_vectors = OrbitSeries._compute_rtn_velocity_direction_vectors(
+            states_matrix_m
         )
         direction_change_angle_deg: np.ndarray = np.zeros(len(states_m), dtype=float)
         direction_change_rate_deg_s: np.ndarray = np.zeros(len(states_m), dtype=float)

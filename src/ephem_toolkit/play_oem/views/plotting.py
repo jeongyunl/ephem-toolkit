@@ -42,6 +42,7 @@ class SegmentedPlotHistory:
             raise ValueError("x must be ordered")
         self.max_display_points = max_display_points
         self.empty_label = empty_label
+        self._line_kwargs = dict(kwargs)
         self._runs: list[tuple[int, int, Line2D]] = []
         self._last_update_key: tuple[tuple[float, float] | None, bool] | None = None
         self._last_selected_any = False
@@ -96,8 +97,7 @@ class SegmentedPlotHistory:
         Returns true when at least one source sample is selected. Passing None
         clears every data artist and shows the empty-intersection label.
         """
-        # Sample arrays never change after construction, so the same bounds
-        # always produce the same artists; skip the decimation work.
+        # Skip decimation when neither the selected bounds nor source data changed.
         update_key = (
             None if bounds is None else (float(bounds[0]), float(bounds[1])),
             empty_range,
@@ -132,6 +132,71 @@ class SegmentedPlotHistory:
         self._last_update_key = update_key
         self._last_selected_any = selected_any
         return selected_any
+
+    def can_replace_data(
+        self,
+        x: np.ndarray,
+        y: np.ndarray,
+        segment_ids: Sequence[int] | np.ndarray,
+    ) -> bool:
+        """Return whether new samples can replace this history's source arrays."""
+        x_values = np.asarray(x)
+        y_values = np.asarray(y)
+        ids = np.asarray(segment_ids)
+        if not (
+            x_values.ndim == 1
+            and ids.ndim == 1
+            and y_values.ndim >= 1
+            and y_values.shape[0] == x_values.shape[0]
+            and ids.shape == x_values.shape
+            and not np.any(np.diff(x_values) < 0.0)
+        ):
+            return False
+        run_starts = (ids >= 0) & np.r_[True, ids[1:] != ids[:-1]]
+        return np.count_nonzero(run_starts) == len(self._runs)
+
+    def replace_data(
+        self,
+        x: np.ndarray,
+        y: np.ndarray,
+        segment_ids: Sequence[int] | np.ndarray,
+    ) -> None:
+        """Replace source samples while retaining line artists for existing runs."""
+        x_values = np.asarray(x, dtype=float)
+        y_values = np.asarray(y, dtype=float)
+        ids = np.asarray(segment_ids, dtype=int)
+        if not self.can_replace_data(x_values, y_values, ids):
+            raise ValueError("replacement history arrays have incompatible shapes")
+
+        ranges: list[tuple[int, int]] = []
+        start = 0
+        while start < len(ids):
+            segment_id = ids[start]
+            if segment_id < 0:
+                start += 1
+                continue
+            stop = start + 1
+            while stop < len(ids) and ids[stop] == segment_id:
+                stop += 1
+            ranges.append((start, stop))
+            start = stop
+
+        old_lines = [line for _, _, line in self._runs]
+        lines = old_lines[: len(ranges)]
+        for line in old_lines[len(ranges) :]:
+            line.remove()
+        while len(lines) < len(ranges):
+            (line,) = self.axes.plot([], [], **self._line_kwargs)
+            lines.append(line)
+
+        self.x = x_values
+        self.y = y_values
+        self.segment_ids = ids
+        self._runs = [
+            (start, stop, line)
+            for (start, stop), line in zip(ranges, lines)
+        ]
+        self._last_update_key = None
 
 
 def time_bounds_to_axis(

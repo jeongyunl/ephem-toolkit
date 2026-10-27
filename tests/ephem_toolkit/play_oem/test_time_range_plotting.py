@@ -103,3 +103,99 @@ def test_time_range_support_axis_limits_do_not_change_y_scale() -> None:
         assert figure.axes[0].get_xlim() == (0.25, 0.75)
     finally:
         view.close()
+
+
+def test_speed_altitude_data_update_preserves_figure_and_line_artists() -> None:
+    from dataclasses import replace
+
+    from ephem_toolkit.play_oem.series import OrbitSeries
+    from ephem_toolkit.play_oem.time_unit import TimeUnit
+    from ephem_toolkit.play_oem.views.speed_altitude import SpeedAltitudeView
+
+    values = np.array([1.0, 4.0, 2.0])
+    orbit = OrbitSeries(
+        elapsed_time=np.array([0.0, 1.0, 2.0]),
+        position_km=np.ones((3, 3)),
+        velocity_km_s=np.ones((3, 3)),
+        velocity_magnitude_km_s=values,
+        geocentric_distance_km=values + 1,
+        altitude_km=values + 2,
+        rtn_elapsed_time=np.array([1.0, 2.0]),
+        rtn_delta_km=np.ones((2, 6)),
+        direction_change_angle_deg=values,
+        direction_change_rate_deg_s=values,
+        angular_velocity_deg_s=values,
+        angular_velocity_rad_s=values,
+        euler_angles_deg=np.ones((3, 3)),
+        euler_angle_rates_deg_s=np.ones((3, 3)),
+        segment_ids=np.array([0, 0, 0]),
+        rtn_segment_ids=np.array([0, 0]),
+    )
+    view = SpeedAltitudeView(100.0)
+    figure = view.build(orbit, TimeUnit.MINUTES)
+    lines = tuple(view._histories[0].artists)
+    figure.axes[0].set_ylim(0.0, 5.0)
+    updated = replace(
+        orbit,
+        elapsed_time=np.array([0.0, 1.0, 2.0, 3.0]),
+        velocity_magnitude_km_s=np.array([2.0, 3.0, 4.0, 5.0]),
+        altitude_km=np.array([10.0, 20.0, 30.0, 40.0]),
+        segment_ids=np.array([0, 0, 0, 0]),
+    )
+
+    try:
+        assert view.update_data(updated, TimeUnit.MINUTES)
+        view.set_time_range(ResolvedTimeRange(100.0, 160.0), (100.0, 280.0))
+
+        assert view._figure is figure
+        assert view._histories[0].artists[0] is lines[0]
+        assert len(view._histories[0].artists) == 1
+        np.testing.assert_array_equal(lines[0].get_xdata(), [0.0, 1.0])
+        assert figure.axes[0].get_ylim() == (0.0, 5.0)
+        assert figure.axes[1].get_ylim()[1] > 40.0
+        changed_structure = replace(
+            updated, segment_ids=np.array([0, 0, 1, 1])
+        )
+        assert not view.update_data(changed_structure, TimeUnit.MINUTES)
+    finally:
+        view.close()
+
+
+def test_time_series_views_accept_appended_data_in_place() -> None:
+    from ephem_toolkit.play_oem.series import compute_orbit_series
+    from ephem_toolkit.play_oem.time_unit import TimeUnit
+    from ephem_toolkit.play_oem.views.angular_velocity import AngularVelocityView
+    from ephem_toolkit.play_oem.views.direction_change import DirectionChangeView
+    from ephem_toolkit.play_oem.views.distance import GeocentricDistanceView
+    from ephem_toolkit.play_oem.views.rtn import RtnDeltaView
+    from ephem_toolkit.play_oem.views.speed_altitude import SpeedAltitudeView
+    from ephem_toolkit.play_oem.views.state_components import StateComponentsView
+
+    states = [
+        np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]),
+        np.array([0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]),
+        np.array([-7_000_000.0, 0.0, 0.0, 0.0, -7_500.0, 0.0]),
+        np.array([0.0, -7_000_000.0, 0.0, 7_500.0, 0.0, 0.0]),
+    ]
+    initial = compute_orbit_series(
+        [100.0, 160.0, 220.0], states[:3], TimeUnit.MINUTES
+    )
+    updated = compute_orbit_series(
+        [100.0, 160.0, 220.0, 280.0], states, TimeUnit.MINUTES
+    )
+    views = (
+        SpeedAltitudeView(100.0),
+        AngularVelocityView(100.0, "ISS"),
+        DirectionChangeView(100.0, "ISS"),
+        GeocentricDistanceView(100.0, "ISS"),
+        RtnDeltaView(100.0, "ISS"),
+        StateComponentsView(100.0, "GCRF / Earth"),
+    )
+
+    for view in views:
+        figure = view.build(initial, TimeUnit.MINUTES)
+        try:
+            assert view.update_data(updated, TimeUnit.MINUTES)
+            assert figure.axes
+        finally:
+            view.close()

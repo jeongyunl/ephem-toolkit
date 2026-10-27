@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
 
 from matplotlib.figure import Figure
+import numpy as np
 
 from ..series import OrbitSeries
 from ..time_range import ResolvedTimeRange
@@ -148,6 +150,60 @@ class TimeRangeSupport:
         """Restore build-time full-history Y bounds without changing shared X."""
         for axis, limits in zip(self._range_axes, self._full_y_limits):
             axis.set_ylim(*limits)
+
+    def _update_history_data(
+        self,
+        datasets: Sequence[tuple[np.ndarray, np.ndarray, np.ndarray]],
+        start_time_s: float,
+        divisor_s: float,
+    ) -> bool:
+        """Replace time-series samples without rebuilding the figure."""
+        if (
+            not hasattr(self, "_range_histories")
+            or start_time_s != self._range_start_time_s
+            or divisor_s != self._range_divisor_s
+            or len(datasets) != len(self._range_histories)
+        ):
+            return False
+        if not all(
+            history.can_replace_data(x, y, segment_ids)
+            for history, (x, y, segment_ids) in zip(
+                self._range_histories, datasets
+            )
+        ):
+            return False
+
+        y_limits = tuple(axis.get_ylim() for axis in self._range_axes)
+        y_autoscale = tuple(axis.get_autoscaley_on() for axis in self._range_axes)
+        for history, (x, y, segment_ids) in zip(self._range_histories, datasets):
+            history.replace_data(x, y, segment_ids)
+            if len(history.x):
+                history.update((float(history.x[0]), float(history.x[-1])))
+            else:
+                history.update(None, empty_range=True)
+        for axis, limits, autoscale in zip(
+            self._range_axes, y_limits, y_autoscale
+        ):
+            axis.relim()
+            if autoscale:
+                axis.autoscale_view(scalex=False, scaley=True)
+            else:
+                axis.set_ylim(*limits)
+        if any(y_autoscale):
+            self._full_y_limits = tuple(axis.get_ylim() for axis in self._range_axes)
+        current_limits = time_bounds_to_axis(
+            self._range_bounds,
+            self._range_coverage,
+            self._range_start_time_s,
+            self._range_divisor_s,
+        )
+        for history in self._range_histories:
+            history.update(
+                None if self._range_bounds is None else current_limits,
+                empty_range=self._range_bounds is None,
+            )
+        self._range_changed = True
+        return True
 
     def _close_time_range(self) -> None:
         for axis, callback_id in getattr(self, "_range_xlim_callbacks", ()):

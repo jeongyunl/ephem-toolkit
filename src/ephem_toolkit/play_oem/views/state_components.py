@@ -165,6 +165,29 @@ class StateComponentsView(TimeRangeSupport):
         self.update(self._start_time_s)
         return figure
 
+    def update_data(
+        self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
+    ) -> bool:
+        datasets = []
+        for component in range(CARTESIAN_COMPONENT_COUNT):
+            datasets.append(
+                (
+                    orbit_series.elapsed_time,
+                    orbit_series.position_km[:, component],
+                    orbit_series.segment_ids,
+                )
+            )
+            datasets.append(
+                (
+                    orbit_series.elapsed_time,
+                    orbit_series.velocity_km_s[:, component],
+                    orbit_series.segment_ids,
+                )
+            )
+        return self._update_history_data(
+            datasets, self._start_time_s, time_unit.get_divisor_s()
+        )
+
     def update(self, time_s: float) -> None:
         """Move every component cursor to an absolute OEM time.
 

@@ -187,3 +187,29 @@ def test_prepare_with_bounds_converts_only_samples_near_the_window(monkeypatch) 
     assert coordinates.timestamps_s[0] == 2_940.0
     assert coordinates.timestamps_s[-1] == 3_360.0
     assert int(cache._computed.sum()) == len(coordinates.timestamps_s)
+
+
+def test_position_cache_retains_converted_prefix_after_source_append(monkeypatch) -> None:
+    source = _source([(0.0, 0.0), (1.0, 1.0)])
+    cache = ground_track.EarthFixedPositionCache()
+    original_converter = ground_track.state_position_to_itrf_m
+    conversions = []
+
+    def convert(state, frame_name, epoch):
+        conversions.append(epoch)
+        return original_converter(state, frame_name, epoch)
+
+    monkeypatch.setattr(ground_track, "state_position_to_itrf_m", convert)
+    cache.positions(source)
+    appended_source = ground_track.GroundTrackSource.from_samples(
+        [0.0, 10.0, 20.0],
+        np.vstack((source.states_m, source.states_m[-1])),
+        [0, 0, 0],
+        source.center_name,
+        source.frame_name,
+    )
+
+    positions = cache.positions(appended_source)
+
+    assert conversions == [0.0, 10.0, 20.0]
+    assert positions.shape == (3, 3)

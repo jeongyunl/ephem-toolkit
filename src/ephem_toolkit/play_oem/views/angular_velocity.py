@@ -113,6 +113,26 @@ class AngularVelocityView(TimeRangeSupport):
         self.update(self._start_time_s)
         return figure
 
+    def update_data(
+        self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
+    ) -> bool:
+        datasets = []
+        for values in (
+            orbit_series.angular_velocity_deg_s,
+            orbit_series.angular_velocity_rad_s,
+        ):
+            if values.size > 1:
+                datasets.append(
+                    (
+                        orbit_series.elapsed_time,
+                        values,
+                        np.where(values != 0.0, orbit_series.segment_ids, -1),
+                    )
+                )
+        return self._update_history_data(
+            datasets, self._start_time_s, time_unit.get_divisor_s()
+        )
+
     def update(self, time_s: float) -> None:
         """Move each cursor line to an absolute OEM time."""
         if self._cursor_artists is None:

@@ -994,6 +994,7 @@ class PlayerApp(
                         self._remember_recent_oem(path, save_file_ranges=False)
                         self._oem_coverage_complete = False
                     else:
+                        previous_coverage_end_s = self.clock.t_end
                         self._installing_incremental_batch = True
                         try:
                             self.clock.extend_coverage(prepared.timestamps_s)
@@ -1020,6 +1021,11 @@ class PlayerApp(
                         self.series = prepared.series
                         self.time_unit = prepared.time_unit
                         self.cursor = prepared.cursor
+                        self._station_access_cache.retain_after_append(
+                            prepared.ground_track_source,
+                            prepared.cursor,
+                            previous_coverage_end_s,
+                        )
                         self._ground_track_source = prepared.ground_track_source
                         self._dashboard_context["sample_count"] = str(
                             prepared.source_sample_count
@@ -1028,10 +1034,12 @@ class PlayerApp(
                             f"{format_tt(self.clock.t_start, self._display_time_zone)} – "
                             f"{format_tt(self.clock.t_end, self._display_time_zone)}"
                         )
-                        self._ground_track_coordinates = None
-                        self._station_access_cache.clear()
                         data_changed = True
-                        if self._batch_intersects_plot_range(prepared.timestamps_s):
+                        batch_intersects_range = self._batch_intersects_plot_range(
+                            prepared.timestamps_s
+                        )
+                        if batch_intersects_range:
+                            self._ground_track_coordinates = None
                             self._incremental_view_refresh_pending = True
                 except Exception as error:
                     self._active_load_failed = True
@@ -1229,6 +1237,8 @@ class PlayerApp(
                         if force:
                             deferred_layout.append((panel_id, view_name, stack))
                         continue
+                    if self._update_incremental_panel_data(panel_id):
+                        continue
                     self.open_panel_view(
                         view_name,
                         panel_id,
@@ -1247,6 +1257,34 @@ class PlayerApp(
         finally:
             self.series = full_resolution_series
             self._incremental_view_refresh_pending = False
+
+    def _update_incremental_panel_data(self, panel_id: str) -> bool:
+        opened = self._open_panels.get(panel_id)
+        if opened is None:
+            return False
+        update_data = getattr(opened.view, "update_data", None)
+        if not callable(update_data) or not update_data(self.series, self.time_unit):
+            return False
+
+        resolved_range = time_range.resolve_plot_range(
+            self.plot_time_range,
+            (self.clock.t_start, self.clock.t_end),
+            (self.clock.playback_start, self.clock.playback_end),
+            self.clock.t_now,
+        )
+        coverage = (self.clock.t_start, self.clock.t_end)
+        set_time_range = getattr(opened.view, "set_time_range", None)
+        if callable(set_time_range):
+            set_time_range(resolved_range, coverage)
+        opened.applied_range = resolved_range
+        opened.applied_coverage = coverage
+        opened.range_initialized = True
+        opened.view.update(self.clock.t_now)
+        if opened.canvas is not None:
+            opened.canvas.draw_idle()
+        else:
+            opened.panel.request_redraw()
+        return True
 
     def _warm_station_access_then_refresh(
         self, layout: Sequence[tuple[str, str, str]]

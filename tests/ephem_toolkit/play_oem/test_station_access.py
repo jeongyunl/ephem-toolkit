@@ -202,7 +202,14 @@ def test_access_cache_reuses_same_inputs_and_recomputes_changed_station(
     station = GroundStation("id", "Site", 0.0, 0.0, 0.0)
     calls = []
 
-    def prepare(source_arg, cursor_arg, station_arg, _position_cache, _bounds=None):
+    def prepare(
+        source_arg,
+        cursor_arg,
+        station_arg,
+        _position_cache,
+        _bounds=None,
+        _shared_positions=None,
+    ):
         calls.append((source_arg, cursor_arg, station_arg))
         return station_access.StationAccess(station_arg, ())
 
@@ -242,6 +249,66 @@ def test_ground_track_and_access_share_converted_sample_positions(monkeypatch) -
     assert conversions == [0.0, 120.0, 30.0, 60.0, 90.0]
 
 
+def test_access_cache_shares_off_sample_positions_across_stations(monkeypatch) -> None:
+    source = _source(
+        [0.0, 120.0],
+        np.tile(_state_at_elevation(45.0), (2, 1)),
+    )
+    cursor = _cursor(source)
+    position_cache = ground_track.EarthFixedPositionCache()
+    original_converter = ground_track.state_position_to_itrf_m
+    conversions = []
+
+    def convert(state, frame_name, epoch):
+        conversions.append(epoch)
+        return original_converter(state, frame_name, epoch)
+
+    monkeypatch.setattr(ground_track, "state_position_to_itrf_m", convert)
+    stations = [
+        GroundStation("first", "First", 0.0, 0.0, 0.0, 10),
+        GroundStation("second", "Second", 0.0, 0.0, 0.0, 10),
+    ]
+    cache = StationAccessCache(position_cache)
+
+    first = cache.prepare(source, cursor, stations[0])
+    second = cache.prepare(source, cursor, stations[1])
+
+    assert conversions == [0.0, 30.0, 60.0, 90.0, 120.0]
+    assert first.intervals == second.intervals
+    for first_profile, second_profile in zip(
+        first.elevation_profiles, second.elevation_profiles
+    ):
+        np.testing.assert_array_equal(first_profile.times_s, second_profile.times_s)
+        np.testing.assert_array_equal(
+            first_profile.elevations_deg, second_profile.elevations_deg
+        )
+
+
+def test_access_cache_discards_shared_positions_when_source_changes(monkeypatch) -> None:
+    source = _source(
+        [0.0, 120.0],
+        np.tile(_state_at_elevation(45.0), (2, 1)),
+    )
+    original_converter = ground_track.state_position_to_itrf_m
+    conversions = []
+
+    def convert(state, frame_name, epoch):
+        conversions.append(epoch)
+        return original_converter(state, frame_name, epoch)
+
+    monkeypatch.setattr(ground_track, "state_position_to_itrf_m", convert)
+    cache = StationAccessCache()
+    station = GroundStation("site", "Site", 0.0, 0.0, 0.0, 10)
+    cache.prepare(source, _cursor(source), station)
+
+    updated_states = source.states_m.copy()
+    updated_states[:, 1] += 1_000.0
+    updated_source = _source([0.0, 120.0], updated_states)
+    cache.prepare(updated_source, _cursor(updated_source), station)
+
+    assert conversions == [0.0, 30.0, 60.0, 90.0, 120.0] * 2
+
+
 def test_ranged_access_preparation_only_reads_samples_within_the_window(
     monkeypatch,
 ) -> None:
@@ -269,7 +336,14 @@ def test_access_cache_reuses_window_and_recomputes_outside_it(monkeypatch) -> No
     station = GroundStation("id", "Site", 0.0, 0.0, 0.0)
     windows = []
 
-    def prepare(source_arg, cursor_arg, station_arg, _cache, bounds=None):
+    def prepare(
+        source_arg,
+        cursor_arg,
+        station_arg,
+        _cache,
+        bounds=None,
+        _shared_positions=None,
+    ):
         windows.append(bounds)
         return station_access.StationAccess(station_arg, ())
 
@@ -285,3 +359,47 @@ def test_access_cache_reuses_window_and_recomputes_outside_it(monkeypatch) -> No
     assert outside is not first
     assert len(windows) == 2
     assert windows[0][0] < 10_000.0 and windows[0][1] > 20_000.0
+
+
+def test_access_cache_retains_safe_windows_and_drops_tail_windows(monkeypatch) -> None:
+    times = np.arange(0.0, 6_001.0, 60.0).tolist()
+    state = _state_at_elevation(45.0)
+    source = _source(times, np.tile(state, (len(times), 1)))
+    cursor = _cursor(source)
+    stations = [
+        GroundStation("early", "Early", 0.0, 0.0, 0.0),
+        GroundStation("tail", "Tail", 0.0, 0.0, 0.0),
+    ]
+    calls = []
+
+    def prepare(
+        source_arg,
+        cursor_arg,
+        station_arg,
+        _position_cache,
+        bounds=None,
+        _shared_positions=None,
+    ):
+        calls.append((source_arg, station_arg, bounds))
+        return station_access.StationAccess(station_arg, ())
+
+    monkeypatch.setattr(station_access, "prepare_station_access", prepare)
+    cache = StationAccessCache()
+    cache.prepare(source, cursor, stations[0], (0.0, 60.0))
+    cache.prepare(source, cursor, stations[1], (5_880.0, 5_940.0))
+
+    appended_source = _source(
+        [*times, 6_060.0],
+        np.tile(state, (len(times) + 1, 1)),
+    )
+    cursor.append([6_060.0], [state], [0])
+    cache.retain_after_append(appended_source, cursor, 6_000.0)
+
+    retained = cache.prepare(appended_source, cursor, stations[0], (0.0, 60.0))
+    recomputed = cache.prepare(
+        appended_source, cursor, stations[1], (5_880.0, 5_940.0)
+    )
+
+    assert retained.intervals == ()
+    assert recomputed.intervals == ()
+    assert len(calls) == 3

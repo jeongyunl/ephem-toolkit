@@ -19,6 +19,7 @@ from .ground_track import (
     EarthFixedPositionCache,
     GroundTrackPreparationError,
     GroundTrackSource,
+    source_prefix_matches,
     window_indices,
 )
 
@@ -106,6 +107,7 @@ def prepare_station_access(
     station: GroundStation,
     position_cache: EarthFixedPositionCache | None = None,
     bounds: tuple[float, float] | None = None,
+    shared_positions: dict[float, np.ndarray] | None = None,
 ) -> StationAccess:
     """Prepare access intervals on a uniform grid with refined threshold crossings.
 
@@ -203,6 +205,7 @@ def prepare_station_access(
                     source.frame_name,
                     epoch,
                     position_cache,
+                    shared_positions,
                 )
             )
         substep_access = [
@@ -212,6 +215,7 @@ def prepare_station_access(
                 source,
                 source.frame_name,
                 position_cache,
+                shared_positions,
                 segment_times[index - 1],
                 segment_times[index + 1],
             )
@@ -259,6 +263,7 @@ def prepare_station_access(
                 source,
                 source.frame_name,
                 position_cache,
+                shared_positions,
                 segment_times,
                 metrics,
                 starts_at_coverage=start_index == 0,
@@ -289,7 +294,8 @@ def _refine_peak(
     cursor: OemCursor,
     source: GroundTrackSource,
     frame_name: str,
-    position_cache: EarthFixedPositionCache,
+    position_cache: EarthFixedPositionCache | None,
+    shared_positions: dict[float, np.ndarray] | None,
     low_s: float,
     high_s: float,
 ) -> tuple[float, StationMetrics]:
@@ -305,7 +311,13 @@ def _refine_peak(
                 f"OEM state unavailable while refining an access pass at {epoch:.3f}"
             )
         return _metrics_for_state(
-            station, resolved.state_m, source, frame_name, epoch, position_cache
+            station,
+            resolved.state_m,
+            source,
+            frame_name,
+            epoch,
+            position_cache,
+            shared_positions,
         )
 
     first_metrics = evaluate(first_s)
@@ -344,6 +356,9 @@ class StationAccessCache:
         self._results: dict[
             GroundStation, tuple[tuple[float, float] | None, StationAccess]
         ] = {}
+        self._shared_positions_by_window: dict[
+            tuple[float, float] | None, dict[float, np.ndarray]
+        ] = {}
 
     def prepare(
         self,
@@ -361,6 +376,7 @@ class StationAccessCache:
             self._source = source
             self._cursor = cursor
             self._results.clear()
+            self._shared_positions_by_window.clear()
         cached = self._results.get(station)
         if cached is not None:
             window, result = cached
@@ -378,7 +394,12 @@ class StationAccessCache:
             )
             window = (bounds[0] - margin, bounds[1] + margin)
         result = prepare_station_access(
-            source, cursor, station, self.position_cache, window
+            source,
+            cursor,
+            station,
+            self.position_cache,
+            window,
+            self._shared_positions_by_window.setdefault(window, {}),
         )
         self._results[station] = (window, result)
         return result
@@ -388,6 +409,54 @@ class StationAccessCache:
         self._source = None
         self._cursor = None
         self._results.clear()
+        self._shared_positions_by_window.clear()
+
+    def retain_after_append(
+        self,
+        source: GroundTrackSource,
+        cursor: OemCursor,
+        previous_coverage_end_s: float,
+    ) -> None:
+        """Retain analyses safely separated from an appended coverage tail."""
+        previous_source = self._source
+        if (
+            previous_source is None
+            or self._cursor is not cursor
+            or not source_prefix_matches(previous_source, source)
+        ):
+            self._source = source
+            self._cursor = cursor
+            self._results.clear()
+            self._shared_positions_by_window.clear()
+            return
+
+        previous_timestamps = np.asarray(previous_source.timestamps_s, dtype=float)
+        previous_segments = np.asarray(previous_source.segment_ids, dtype=int)
+        within_segment_gaps = np.diff(previous_timestamps)[
+            np.diff(previous_segments) == 0
+        ]
+        maximum_gap_s = (
+            float(np.max(within_segment_gaps))
+            if within_segment_gaps.size
+            else MAX_SOURCE_SAMPLE_GAP_S
+        )
+        interpolation_name = (cursor._interpolation or "").strip().lower()
+        default_degree = 7 if interpolation_name == "lagrange" else 5
+        support_points = max(2, (cursor._interpolation_degree or default_degree) + 1)
+        safe_end_s = previous_coverage_end_s - maximum_gap_s * support_points
+
+        self._results = {
+            station: cached
+            for station, cached in self._results.items()
+            if cached[0] is not None and cached[0][1] < safe_end_s
+        }
+        self._shared_positions_by_window = {
+            window: positions
+            for window, positions in self._shared_positions_by_window.items()
+            if window is not None and window[1] < safe_end_s
+        }
+        self._source = source
+        self._cursor = cursor
 
     def retain_stations(self, stations: Sequence[GroundStation]) -> None:
         """Discard cached results for removed or edited station definitions."""
@@ -404,7 +473,8 @@ def _intervals_for_segment(
     cursor: OemCursor,
     source: GroundTrackSource,
     frame_name: str,
-    position_cache: EarthFixedPositionCache,
+    position_cache: EarthFixedPositionCache | None,
+    shared_positions: dict[float, np.ndarray] | None,
     sample_times: Sequence[float],
     metrics: Sequence[StationMetrics | None],
     *,
@@ -434,6 +504,7 @@ def _intervals_for_segment(
                     source,
                     frame_name,
                     position_cache,
+                    shared_positions,
                     previous_time,
                     epoch,
                     entering=True,
@@ -453,6 +524,7 @@ def _intervals_for_segment(
                 source,
                 frame_name,
                 position_cache,
+                shared_positions,
                 previous_time,
                 epoch,
                 entering=False,
@@ -498,7 +570,8 @@ def _refine_crossing(
     cursor: OemCursor,
     source: GroundTrackSource,
     frame_name: str,
-    position_cache: EarthFixedPositionCache,
+    position_cache: EarthFixedPositionCache | None,
+    shared_positions: dict[float, np.ndarray] | None,
     low_s: float,
     high_s: float,
     *,
@@ -510,7 +583,13 @@ def _refine_crossing(
         access = (
             state.state_m is not None
             and _metrics_for_state(
-                station, state.state_m, source, frame_name, middle_s, position_cache
+                station,
+                state.state_m,
+                source,
+                frame_name,
+                middle_s,
+                position_cache,
+                shared_positions,
             ).access
         )
         if access == entering:
@@ -524,7 +603,13 @@ def _refine_crossing(
             f"OEM state unavailable at an access crossing at {crossing_s:.3f}"
         )
     return crossing_s, _metrics_for_state(
-        station, state.state_m, source, frame_name, crossing_s, position_cache
+        station,
+        state.state_m,
+        source,
+        frame_name,
+        crossing_s,
+        position_cache,
+        shared_positions,
     )
 
 
@@ -535,10 +620,18 @@ def _metrics_for_state(
     frame_name: str,
     epoch_s: float,
     position_cache: EarthFixedPositionCache | None,
+    shared_positions: dict[float, np.ndarray] | None = None,
 ) -> StationMetrics:
-    if position_cache is None:
+    if position_cache is None and shared_positions is None:
         return station_metrics(station, state_m, frame_name, epoch_s)
-    ecef_position_m = position_cache.position_for_state(source, state_m, epoch_s)
+    if shared_positions is not None and epoch_s in shared_positions:
+        ecef_position_m = shared_positions[epoch_s]
+    else:
+        if position_cache is None:
+            position_cache = EarthFixedPositionCache()
+        ecef_position_m = position_cache.position_for_state(source, state_m, epoch_s)
+        if shared_positions is not None:
+            shared_positions[epoch_s] = ecef_position_m
     return station_metrics_from_ecef(station, ecef_position_m)
 
 

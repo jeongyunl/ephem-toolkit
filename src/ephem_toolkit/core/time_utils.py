@@ -251,21 +251,24 @@ def iso8601_to_datetime(epoch_str: str) -> datetime:
             "with optional fractional seconds and 'Z' timezone indicator."
         )
 
-    # Determine separator (T or space)
-    separator_char: str = match.group(4)
-    separator: str = "T" if separator_char == "T" else " "
-
-    # Determine if fractional seconds are present
-    has_fractional: bool = match.group(8) is not None
-
-    # Build the format string based on detected format
-    if has_fractional:
-        format_str: str = f"%Y-%m-%d{separator}%H:%M:%S.%f"
-    else:
-        format_str = f"%Y-%m-%d{separator}%H:%M:%S"
-
     try:
-        return datetime.strptime(s, format_str).replace(tzinfo=timezone.utc)
+        fraction = match.group(8)
+        if fraction is not None and len(fraction) > 6:
+            separator = "T" if match.group(4) == "T" else " "
+            return datetime.strptime(
+                s, f"%Y-%m-%d{separator}%H:%M:%S.%f"
+            ).replace(tzinfo=timezone.utc)
+        microsecond = 0 if fraction is None else int(fraction.ljust(6, "0"))
+        return datetime(
+            int(match.group(1)),
+            int(match.group(2)),
+            int(match.group(3)),
+            int(match.group(5)),
+            int(match.group(6)),
+            int(match.group(7)),
+            microsecond,
+            tzinfo=timezone.utc,
+        )
     except ValueError as e:
         raise ValueError(
             f"Unable to parse epoch string '{epoch_str}'. "

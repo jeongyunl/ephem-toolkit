@@ -188,6 +188,57 @@ class Trajectory3DView:
         self.update_cursor(initial_state)
         return figure
 
+    def update_data(
+        self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
+    ) -> bool:
+        positions_km = np.asarray(orbit_series.position_km, dtype=float)
+        segment_ids = np.asarray(orbit_series.segment_ids, dtype=int)
+        if (
+            self._axes is None
+            or positions_km.ndim != 2
+            or positions_km.shape[1] != CARTESIAN_COMPONENT_COUNT
+            or positions_km.shape[0] == 0
+            or not np.all(np.isfinite(positions_km))
+            or segment_ids.shape != positions_km.shape[:1]
+            or orbit_series.elapsed_time.shape != positions_km.shape[:1]
+        ):
+            return False
+        segment_ids_present = [
+            int(segment_id)
+            for segment_id in np.unique(segment_ids)
+            if segment_id >= 0
+        ]
+        if segment_ids_present != [segment_id for segment_id, _ in self._orbit_artists]:
+            return False
+
+        self._positions_km = positions_km.copy()
+        self._segment_ids = segment_ids.copy()
+        self._sample_times_s = (
+            self._cursor.t_start
+            + orbit_series.elapsed_time * time_unit.get_divisor_s()
+        )
+        for segment_id, artist in self._orbit_artists:
+            segment_positions = positions_km[segment_ids == segment_id]
+            segment_positions = segment_positions[
+                decimate_indices(
+                    segment_positions, MAX_MATPLOTLIB_3D_DISPLAY_POINTS
+                )
+            ]
+            artist.set_data_3d(
+                segment_positions[:, 0],
+                segment_positions[:, 1],
+                segment_positions[:, 2],
+            )
+        for marker, position in (
+            (self._start_artist, positions_km[0]),
+            (self._end_artist, positions_km[-1]),
+        ):
+            if marker is not None:
+                marker.set_offsets([[position[0], position[1]]])
+                marker.set_3d_properties([position[2]], zdir="z")
+        self._set_endpoint_visibility()
+        return True
+
     def set_time_range(
         self, bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
     ) -> None:

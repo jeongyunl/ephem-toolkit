@@ -1912,6 +1912,50 @@ def test_completed_incremental_refresh_keeps_large_plot_data_downsampled(
     player.close()
 
 
+def test_incremental_panel_data_update_reuses_view_and_canvas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+    calls = []
+
+    class UpdatableView:
+        def update_data(self, orbit_series, time_unit):
+            calls.append(("data", orbit_series, time_unit))
+            return True
+
+        def set_time_range(self, bounds, coverage):
+            calls.append(("range", bounds, coverage))
+
+        def update(self, time_s):
+            calls.append(("cursor", time_s))
+
+    view = UpdatableView()
+    canvas = FakeCanvas(None, 0, None)
+    opened = SimpleNamespace(
+        view=view,
+        canvas=canvas,
+        panel=SimpleNamespace(),
+        applied_range=None,
+        applied_coverage=None,
+        range_initialized=False,
+    )
+    player._open_panels["incremental"] = opened
+
+    assert player._update_incremental_panel_data("incremental")
+
+    assert opened.view is view
+    assert opened.canvas is canvas
+    assert opened.range_initialized
+    assert calls[0][0] == "data"
+    assert calls[0][1] is player.series
+    assert calls[0][2] is player.time_unit
+    assert calls[1][0] == "range"
+    assert calls[2] == ("cursor", player.clock.t_now)
+    assert canvas.draw_idle_count == 1
+    player._open_panels.pop("incremental")
+    player.close()
+
+
 def test_incremental_load_preserves_and_restores_saved_file_ranges(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:

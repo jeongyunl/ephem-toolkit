@@ -96,6 +96,21 @@ class RtnDeltaView(TimeRangeSupport):
         self.update(self._start_time_s)
         return figure
 
+    def update_data(
+        self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
+    ) -> bool:
+        datasets = tuple(
+            (
+                orbit_series.rtn_elapsed_time,
+                orbit_series.rtn_delta_km[:, component],
+                orbit_series.rtn_segment_ids,
+            )
+            for component in range(3)
+        )
+        return self._update_history_data(
+            datasets, self._start_time_s, time_unit.get_divisor_s()
+        )
+
     def update(self, time_s: float) -> None:
         """Move each cursor line to an absolute OEM time."""
         if self._cursor_artists is None:

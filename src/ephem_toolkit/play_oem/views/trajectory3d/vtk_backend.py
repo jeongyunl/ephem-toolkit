@@ -178,6 +178,55 @@ class VTKTrajectory3DView:
         self._renderer.GetActiveCamera().Zoom(1.15)
         return widget
 
+    def update_data(
+        self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
+    ) -> bool:
+        positions_km = np.asarray(orbit_series.position_km, dtype=float)
+        segment_ids = np.asarray(orbit_series.segment_ids, dtype=int)
+        if (
+            self._widget is None
+            or self._orbit_mapper is None
+            or self._orbit_actor is None
+            or positions_km.ndim != 2
+            or positions_km.shape[1] != 3
+            or positions_km.shape[0] == 0
+            or not np.all(np.isfinite(positions_km))
+            or segment_ids.shape != positions_km.shape[:1]
+            or orbit_series.elapsed_time.shape != positions_km.shape[:1]
+        ):
+            return False
+
+        self._positions_km = positions_km.copy()
+        self._sample_times_s = (
+            self._cursor.t_start
+            + orbit_series.elapsed_time * time_unit.get_divisor_s()
+        )
+        self._segment_ids = segment_ids.copy()
+        if self._range_applied:
+            selected_bounds = (
+                None
+                if self._range_bounds is None
+                else (self._range_bounds.start_s, self._range_bounds.end_s)
+            )
+        else:
+            selected_bounds = (self._cursor.t_start, self._cursor.t_end)
+        (
+            self._orbit_display_positions_km,
+            self._orbit_display_segment_ids,
+        ) = select_segmented_positions(
+            self._positions_km,
+            self._sample_times_s,
+            self._segment_ids,
+            selected_bounds,
+        )
+        self._orbit_mapper.SetInputData(
+            self._create_polyline(
+                self._orbit_display_positions_km, self._orbit_display_segment_ids
+            )
+        )
+        self._orbit_actor.SetVisibility(len(self._orbit_display_positions_km) > 0)
+        return True
+
     def set_time_range(
         self, bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
     ) -> None:

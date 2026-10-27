@@ -110,6 +110,26 @@ class SpeedAltitudeView(TimeRangeSupport):
         )
         return figure
 
+    def update_data(
+        self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
+    ) -> bool:
+        return self._update_history_data(
+            (
+                (
+                    orbit_series.elapsed_time,
+                    orbit_series.velocity_magnitude_km_s,
+                    orbit_series.segment_ids,
+                ),
+                (
+                    orbit_series.elapsed_time,
+                    orbit_series.altitude_km,
+                    orbit_series.segment_ids,
+                ),
+            ),
+            self._start_time_s,
+            time_unit.get_divisor_s(),
+        )
+
     def update(self, time_s: float) -> None:
         """Move both cursor lines to an absolute OEM time.
 

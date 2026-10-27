@@ -48,6 +48,26 @@ class GroundTrackSource:
         )
 
 
+def source_prefix_matches(
+    previous: GroundTrackSource, current: GroundTrackSource
+) -> bool:
+    """Return whether ``previous`` is an unchanged prefix of ``current``."""
+    previous_count = len(previous.timestamps_s)
+    if (
+        previous.center_name != current.center_name
+        or previous.frame_name != current.frame_name
+        or len(current.timestamps_s) < previous_count
+    ):
+        return False
+    return (
+        np.array_equal(previous.timestamps_s, current.timestamps_s[:previous_count])
+        and np.array_equal(previous.states_m, current.states_m[:previous_count])
+        and np.array_equal(
+            previous.segment_ids, current.segment_ids[:previous_count]
+        )
+    )
+
+
 @dataclass(frozen=True)
 class GroundTrackCoordinates:
     """Prepared WGS-84 geodetic samples in radians and TT seconds."""
@@ -218,9 +238,34 @@ class EarthFixedPositionCache:
         if source is self._source:
             return
         timestamps_s = np.asarray(source.timestamps_s, dtype=float)
+        old_count = (
+            0 if self._source is None else len(self._source.timestamps_s)
+        )
+        if (
+            self._source is not None
+            and self._positions_m is not None
+            and self._computed is not None
+            and source_prefix_matches(self._source, source)
+        ):
+            capacity = self._positions_m.shape[0]
+            if timestamps_s.size > capacity:
+                capacity = max(capacity, 512)
+                while capacity < timestamps_s.size:
+                    capacity *= 2
+                positions = np.empty((capacity, 3), dtype=float)
+                computed = np.zeros(capacity, dtype=bool)
+                positions[:old_count] = self._positions_m[:old_count]
+                computed[:old_count] = self._computed[:old_count]
+                self._positions_m = positions
+                self._computed = computed
+            self._source = source
+            return
         self._source = source
-        self._positions_m = np.empty((timestamps_s.size, 3), dtype=float)
-        self._computed = np.zeros(timestamps_s.size, dtype=bool)
+        capacity = 512
+        while capacity < timestamps_s.size:
+            capacity *= 2
+        self._positions_m = np.empty((capacity, 3), dtype=float)
+        self._computed = np.zeros(capacity, dtype=bool)
 
 
 def window_indices(

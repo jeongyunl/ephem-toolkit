@@ -170,6 +170,46 @@ def test_vtk_view_builds_wgs84_scene_and_direction_aware_cursor_tail(
         view.update(160.0)
 
 
+def test_vtk_data_update_preserves_widget_and_updates_orbit_polyline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("vtk")
+    pytest.importorskip("wx")
+    from ephem_toolkit.play_oem.views.trajectory3d import vtk_backend
+
+    monkeypatch.setattr(vtk_backend, "wxVTKRenderWindowInteractor", FakeWidget)
+    orbit, cursor = make_orbit()
+    view = vtk_backend.VTKTrajectory3DView(
+        object(), cursor, "ISS", "EME2000 / Earth", lambda: 1.0
+    )
+    widget = view.build(orbit, TimeUnit.MINUTES)
+    appended_state = np.array([0.0, -7_000_000.0, 0.0, 7_500.0, 0.0, 0.0])
+    cursor.append([280.0], [appended_state], [0])
+    updated = compute_orbit_series(
+        [100.0, 160.0, 220.0, 280.0],
+        [
+            np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]),
+            np.array([0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]),
+            np.array([-7_000_000.0, 0.0, 0.0, 0.0, -7_500.0, 0.0]),
+            appended_state,
+        ],
+        TimeUnit.MINUTES,
+    )
+
+    try:
+        assert view.update_data(updated, TimeUnit.MINUTES)
+        view.set_time_range(ResolvedTimeRange(100.0, 280.0), (100.0, 280.0))
+        view.update(280.0)
+
+        assert view._widget is widget
+        assert view._orbit_mapper is not None
+        points = view._orbit_mapper.GetInput().GetPoints()
+        assert points.GetNumberOfPoints() == 4
+        assert points.GetPoint(3) == pytest.approx(tuple(updated.position_km[-1]))
+    finally:
+        view.close()
+
+
 def test_vtk_view_reports_a_failed_initial_render(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
