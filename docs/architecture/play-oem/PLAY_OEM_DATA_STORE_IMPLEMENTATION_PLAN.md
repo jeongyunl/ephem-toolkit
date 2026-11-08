@@ -21,6 +21,9 @@ loader measurements are consolidated in the design and this plan.
 - Raw rows are parsed into final store-owned buffers; do not stage or copy the orbit dataset.
 - Derived data is computed on demand, for requested ranges, and written once to its final
   store-owned buffer. Views return slices, not gathered or concatenated arrays.
+- Keep application and view call sites on a snapshot-bound read context with typed results;
+  centralize tier subscriptions and lifecycle handling instead of repeating low-level store
+  interactions in each consumer.
 - Preserve numerical output, interpolation behavior, segments/gaps, cancellation, incremental
   coverage, and existing playback semantics.
 - Keep expensive derivation off the loader and wx event-loop paths. `state_at` must not trigger
@@ -67,12 +70,14 @@ target tiers or APIs as shipped in the current-state diagram. Keep benchmark res
 design's performance section, not in the current dataflow document or diagram.
 
 The [public query contract](./PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md#public-interface) is
-normative: ranged queries return `StoreQuery[T]` with an epoch/revision stamp and explicit time
-coverage; `ColumnGroupView` exposes read-only tier-buffer views with column names and segment
-bounds. Series keys are `kinematics`, `rtn`, `direction-rates`, and `distance-delta`; tier notices
-identify the affected group or station and use tier-local row spans. Ground Track, Earth-fixed,
-series, and station-access queries share that contract. Point queries such as `state_at` and
-`station_metrics_at` remain non-blocking and do not materialize history tiers.
+normative: low-level ranged queries return `StoreQuery[T]` with an epoch/revision stamp and
+explicit time coverage; `ColumnGroupView` exposes read-only tier-buffer views with column names
+and segment bounds. Application and view consumers use a snapshot-bound read context that
+provides typed, range-bound query methods and explicit empty/partial results. Series keys are
+`kinematics`, `rtn`, `direction-rates`, and `distance-delta`; tier notices identify the affected
+group or station and use tier-local row spans. Ground Track, Earth-fixed, series, and station-access
+queries share that contract. Point queries such as `state_at` and `station_metrics_at` remain
+non-blocking and do not materialize history tiers.
 
 | Current graph types | Shared data or computation | Separate outputs that remain distinct |
 |---|---|---|
@@ -154,9 +159,9 @@ direct loading before the view migration is complete.
 Migrate consumers only after Step 5 provides all required query outputs. Preserve plot labels,
 values, segmentation, click-to-seek, empty/partial behavior, and 3D backend behavior.
 
-- **Status:** In progress (the first two view groups are migrated; Ground Track and station views
-  remain).
-- **Progress:** 2/5 checklist items.
+- **Status:** In progress (the first two view groups are migrated; the caller-facing read context
+  is implemented and validated; Ground Track and station-view migrations are next).
+- **Progress:** 3/6 checklist items.
 - [x] Migrate RTN Deltas, Angular Velocity, Direction Change, and Geocentric Distance to
       range-limited series-group queries; use the validated `speed-altitude` path as the pattern
       and request only fields each view uses. Store paths share derived-column buffers, apply
@@ -165,16 +170,28 @@ values, segmentation, click-to-seek, empty/partial behavior, and 3D backend beha
 - [x] Migrate State Components and 3D trajectory views to raw snapshot columns. State Components
       paths and the Matplotlib 3D backend use raw-backed inputs; the VTK backend packs only its
       range-limited, decimated display path. Preserve segment, range, cursor, and camera behavior.
+- [x] Promote `StoreViewContext` to a snapshot-bound consumer read facade. Add a factory and
+      `refresh()` so one context binds a stable snapshot, display unit, plot range, and coverage;
+      provide bound methods for series, state, Ground Track, Earth-fixed, and station queries.
+      Keep query results typed and revision-stamped, expose selected groups without manual mapping
+      unpacking, and represent empty/no-range results explicitly rather than returning `None`.
+      Add a shared view-binding helper for tier subscriptions, context replacement, and cleanup;
+      retain non-blocking behavior, read-only views, leases, and zero-copy plotting adapters.
 - [ ] Migrate Ground Track and Pass Ground Track to typed Earth-fixed, Ground Track, and footprint
-      results; preserve map, seam, range, and station-selection behavior.
+      results through the bound read context; preserve map, seam, range, and station-selection
+      behavior.
 - [ ] Migrate station status, pass strip, profiles, pass list, and sky view to typed
-      station-profile/access and point-metric results; reuse shared store buffers.
+      station-profile/access and point-metric results through the bound read context; reuse shared
+      store buffers.
 - [ ] Verify empty, partial, loading, failed, cancelled, and multi-segment render states;
-      confirm plotting buffer sharing and resource release on close/replacement.
+      confirm plotting buffer sharing, stable-snapshot refresh behavior, and resource release on
+      close/replacement.
 
 **Done when:** every registered view builds and updates from typed store inputs, preserves current
 visual/numerical and interaction behavior, requests only needed ranges/tiers, and creates no hidden
-orbit-sized `OrbitSeries` projection or downsampled copy.
+orbit-sized `OrbitSeries` projection or downsampled copy. Callers use one snapshot-bound context per
+refresh rather than passing the store, snapshot, and range to each query; tier-interest and cleanup
+boilerplate is handled by the shared binding helper.
 **Depends on:** Step 5.
 
 ### 7. Migrate loading and controller state to `OemDataStore`
@@ -183,13 +200,17 @@ Wire direct store loading only after all views consume the store contract. Prese
 ordered coverage, user ranges, metadata, errors, cancellation, and replacement semantics.
 
 - **Status:** Blocked on Step 6 (the active controller still uses `IncrementalPlaybackPreparer`).
-- **Progress:** 0/6 checklist items.
+- **Progress:** 0/7 checklist items.
 - [ ] Create and own one store per playback epoch; route initial and incremental OEM loading
-      through store-owned reservations and raw-append notices without parser-batch-to-playback
-      staging or delaying the first usable raw samples.
+      through the loader's direct-store mode and raw-append notices without parser-batch-to-playback
+      staging or delaying the first usable raw samples. Keep reservation, commit, and abort calls
+      inside the loader sink, not in the controller or views.
 - [ ] Replace `PlaybackData`'s derived-data fields and controller references to `series`,
-      `time_unit`, `cursor`, `_incremental_store`, and `_ground_track_source` with store/snapshot
-      queries where appropriate; extend `PlaybackClock` from committed timestamps.
+      `time_unit`, `cursor`, `_incremental_store`, and `_ground_track_source` with store-backed
+      reader contexts where appropriate; extend `PlaybackClock` from committed timestamps.
+- [ ] Capture or refresh one snapshot-bound reader context per append, tier, range, or policy
+      update and share it with affected views. Route point-state queries through this context
+      instead of exposing store/snapshot pairs at each call site.
 - [ ] Publish range hints on plot-range, playback-range, seek, drag, and view-open/close changes;
       apply tier/append notices to the affected views without blocking wx event handling.
 - [ ] Replace the station warm-up thread and polling refresh work with store prefetch and notices;
@@ -464,11 +485,14 @@ store query, including the distance-delta, Ground Track/footprint, and station-m
 no view needs to create an orbit-sized projection.
 **Depends on:** Steps 1–4.
 
-**Evidence:** The store-backed `speed-altitude` vertical slice and first two Step 6 view groups
+**Evidence:** The store-backed `speed-altitude` vertical slice, the first two Step 6 view groups,
+and the snapshot-bound consumer context and binding lifecycle
 validate range-limited inputs, display transforms, segment boundaries, buffer sharing, cursor and
 range updates, empty states, stable limits, backend-specific display packing, and tier-interest
-release. Ground Track queries reuse the Earth-fixed tier, return map-centered seam-split groups, and
-use a bounded cache; point queries cover station metrics and footprints. Validation:
+release. Context tests cover snapshot refresh, no-range typed results, range replacement, and
+subscription cleanup/rebinding. Ground Track queries reuse the Earth-fixed tier, return map-centered
+seam-split groups, and use a bounded cache; point queries cover station metrics and footprints.
+Validation:
 `python3 -m pytest tests/ephem_toolkit/play_oem tests/ephem_toolkit/core/interpolator -q`
-passed (665 passed, 4 skipped). `git diff --check` and `compileall` passed. Step 6 continues with
+passed (666 passed, 4 skipped). `git diff --check` and `compileall` passed. Step 6 next migrates
 Ground Track and Pass Ground Track; the active application still uses `OrbitSeries`.

@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import replace
-
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -15,9 +12,9 @@ from matplotlib.text import Text
 from matplotlib.transforms import Affine2D
 
 from .. import series, time_unit
-from ..oem_data_store import ColumnGroupView, SeriesGroups, StoreQuery
+from ..oem_data_store import ColumnGroupView, StoreQuery
 from ..time_range import ResolvedTimeRange
-from .base import StoreViewContext, TimeRangeSupport
+from .base import StoreViewBinding, StoreViewContext, TimeRangeSupport
 from .plotting import (
     MAX_DISPLAY_POINTS_PER_SEGMENT,
     SegmentedPlotHistory,
@@ -54,8 +51,8 @@ class SpeedAltitudeView(TimeRangeSupport):
         self._time_unit_divisor_s: float = 1.0
         self._histories: tuple[SegmentedPlotHistory, ...] = ()
         self._store_context: StoreViewContext | None = None
-        self._store_query: StoreQuery[SeriesGroups] | None = None
-        self._store_tier_unsubscribe: Callable[[], None] | None = None
+        self._store_query: StoreQuery[tuple[ColumnGroupView, ...]] | None = None
+        self._store_binding = StoreViewBinding(("series",))
         self._store_patches: tuple[
             tuple[PathPatch | Line2D, ...], tuple[PathPatch | Line2D, ...]
         ] = ((), ())
@@ -185,26 +182,18 @@ class SpeedAltitudeView(TimeRangeSupport):
     ) -> None:
         if self._figure is None:
             raise RuntimeError("speed/altitude view has not been built")
-        previous = self._store_context
-        if previous is None or (
-            previous.store is not context.store
-            or previous.snapshot.epoch != context.snapshot.epoch
-        ):
-            if self._store_tier_unsubscribe is not None:
-                self._store_tier_unsubscribe()
-            self._store_tier_unsubscribe = context.subscribe_tier("series")
-
+        self._store_binding.bind(context)
         self._store_context = context
         self._store_start_time_s = context.coverage[0]
         self._time_unit_divisor_s = context.time_unit.get_divisor_s()
         self._figure.axes[1].set_xlabel(context.time_unit.get_axis_label())
         self._remove_store_patches()
 
-        query = context.query_series(
-            ("kinematics",), max_samples=MAX_DISPLAY_POINTS_PER_SEGMENT
+        query = context.series(
+            "kinematics", max_samples=MAX_DISPLAY_POINTS_PER_SEGMENT
         )
         self._store_query = query
-        groups = () if query is None else query.value["kinematics"]
+        groups = query.value
         speed_patches, altitude_patches = self._add_store_patches(
             groups, self._figure.axes[0], self._figure.axes[1], context
         )
@@ -312,7 +301,7 @@ class SpeedAltitudeView(TimeRangeSupport):
             super().set_time_range(bounds, coverage)
             return
         self._apply_store_context(
-            replace(self._store_context, plot_range=bounds, coverage=coverage),
+            self._store_binding.with_range(bounds, coverage),
             rescale_y=False,
         )
 
@@ -372,9 +361,7 @@ class SpeedAltitudeView(TimeRangeSupport):
         if self._figure is not None:
             self._close_time_range()
             self._figure.clear()
-        if self._store_tier_unsubscribe is not None:
-            self._store_tier_unsubscribe()
-        self._store_tier_unsubscribe = None
+        self._store_binding.close()
         self._store_context = None
         self._store_query = None
         self._store_patches = ((), ())

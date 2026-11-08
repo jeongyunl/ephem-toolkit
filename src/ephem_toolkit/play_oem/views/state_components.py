@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 from typing import cast
 
 import numpy as np
@@ -331,7 +330,7 @@ class StateComponentsView(TimeRangeSupport):
             super().set_time_range(bounds, coverage)
             return
         self._apply_store_context(
-            replace(self._store_context, plot_range=bounds, coverage=coverage),
+            self._store_context.with_range(bounds, coverage),
             rescale_y=False,
         )
 

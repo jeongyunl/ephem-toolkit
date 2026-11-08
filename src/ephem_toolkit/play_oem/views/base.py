@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import ceil
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar, cast
 
 from matplotlib.axes import Axes
 from matplotlib.artist import Artist
@@ -19,13 +20,21 @@ import numpy as np
 
 from ..oem_data_store import (
     ColumnGroupView,
+    EarthFixedPositions,
+    GroundTrackGroups,
     OemDataStore,
     SeriesGroupName,
     SeriesGroups,
+    SERIES_GROUPS,
+    StationAccessView,
     StoreQuery,
     StoreSnapshot,
     TierName,
+    TimeCoverage,
 )
+from ..cursor import CursorState
+from ..ground_footprints import GroundFootprints
+from ..ground_stations import GroundStation, StationMetrics
 from ..series import OrbitSeries
 from ..time_range import ResolvedTimeRange, validate_coverage
 from ..time_unit import TimeUnit
@@ -38,6 +47,8 @@ from .plotting import (
 
 if TYPE_CHECKING:
     import wx
+
+_ViewQueryValue = TypeVar("_ViewQueryValue")
 
 
 class View(Protocol):
@@ -66,13 +77,25 @@ class View(Protocol):
 
 @dataclass(frozen=True)
 class StoreViewContext:
-    """Typed store input for a view's range-limited queries."""
+    """Snapshot-bound data reader plus view-owned range and display settings."""
 
     store: OemDataStore
     snapshot: StoreSnapshot
     time_unit: TimeUnit
     plot_range: ResolvedTimeRange | None
     coverage: tuple[float, float]
+
+    @classmethod
+    def capture(
+        cls,
+        store: OemDataStore,
+        *,
+        time_unit: TimeUnit,
+        plot_range: ResolvedTimeRange | None,
+        coverage: tuple[float, float],
+    ) -> StoreViewContext:
+        """Capture one stable snapshot for a set of related view queries."""
+        return cls(store, store.snapshot(), time_unit, plot_range, coverage)
 
     def __post_init__(self) -> None:
         if not isinstance(self.store, OemDataStore):
@@ -83,25 +106,187 @@ class StoreViewContext:
             raise TypeError("time_unit must be a TimeUnit")
         object.__setattr__(self, "coverage", validate_coverage(self.coverage))
 
+    @property
+    def bounds_s(self) -> tuple[float, float] | None:
+        if self.plot_range is None:
+            return None
+        return self.plot_range.start_s, self.plot_range.end_s
+
+    def refresh(self) -> StoreViewContext:
+        """Capture the latest committed prefix with the same view settings."""
+        return replace(self, snapshot=self.store.snapshot())
+
+    def with_range(
+        self,
+        plot_range: ResolvedTimeRange | None,
+        coverage: tuple[float, float],
+    ) -> StoreViewContext:
+        """Return a context with updated range state and the same snapshot."""
+        return replace(self, plot_range=plot_range, coverage=coverage)
+
+    def _empty_query(
+        self, value: _ViewQueryValue
+    ) -> StoreQuery[_ViewQueryValue]:
+        return StoreQuery(
+            self.snapshot.epoch,
+            self.snapshot.revision,
+            self.snapshot.policy_revision,
+            value,
+            TimeCoverage(None, (), True),
+        )
+
+    def series_groups(
+        self,
+        groups: Sequence[SeriesGroupName],
+        *,
+        max_samples: int | None = None,
+        wait: bool = False,
+    ) -> StoreQuery[SeriesGroups]:
+        """Query named groups over the bound range without exposing the snapshot."""
+        selected_groups = tuple(dict.fromkeys(groups))
+        unknown_groups = set(selected_groups).difference(SERIES_GROUPS)
+        if unknown_groups:
+            raise ValueError(f"unsupported series groups: {sorted(unknown_groups)}")
+        bounds = self.bounds_s
+        if bounds is None:
+            return self._empty_query(
+                MappingProxyType({group: () for group in selected_groups})
+            )
+        return self.store.series(
+            self.snapshot,
+            bounds,
+            groups=selected_groups,
+            max_samples=max_samples,
+            wait=wait,
+        )
+
+    def series(
+        self,
+        group: SeriesGroupName,
+        *,
+        max_samples: int | None = None,
+        wait: bool = False,
+    ) -> StoreQuery[tuple[ColumnGroupView, ...]]:
+        """Query one series group as segments instead of a name-keyed mapping."""
+        query = self.series_groups((group,), max_samples=max_samples, wait=wait)
+        return replace(query, value=query.value[group])
+
     def query_series(
         self,
         groups: Sequence[SeriesGroupName],
         *,
         max_samples: int | None = None,
-    ) -> StoreQuery[SeriesGroups] | None:
-        """Query only selected groups over the effective plot range."""
-        if self.plot_range is None:
-            return None
-        return self.store.series(
-            self.snapshot,
-            (self.plot_range.start_s, self.plot_range.end_s),
-            groups=groups,
-            max_samples=max_samples,
+        wait: bool = False,
+    ) -> StoreQuery[SeriesGroups]:
+        """Compatibility spelling for a multi-group series query."""
+        return self.series_groups(groups, max_samples=max_samples, wait=wait)
+
+    def state_at(self, t_s: float) -> CursorState:
+        """Resolve a point state against this context's stable snapshot."""
+        return self.store.state_at(self.snapshot, t_s)
+
+    def earth_fixed_positions(
+        self, *, margin_s: float = 0.0, wait: bool = False
+    ) -> StoreQuery[EarthFixedPositions]:
+        bounds = self.bounds_s
+        if bounds is None:
+            return self._empty_query(())
+        return self.store.earth_fixed_positions(
+            self.snapshot, bounds, margin_s=margin_s, wait=wait
         )
+
+    def ground_track(
+        self,
+        *,
+        margin_s: float = 0.0,
+        center_longitude_deg: float = 0.0,
+        wait: bool = False,
+    ) -> StoreQuery[GroundTrackGroups]:
+        bounds = self.bounds_s
+        if bounds is None:
+            return self._empty_query(())
+        return self.store.ground_track(
+            self.snapshot,
+            bounds,
+            margin_s=margin_s,
+            center_longitude_deg=center_longitude_deg,
+            wait=wait,
+        )
+
+    def station_access(
+        self,
+        station: GroundStation,
+        *,
+        minimum_elevation_deg: int | None = None,
+        wait: bool = False,
+    ) -> StoreQuery[StationAccessView]:
+        bounds = self.bounds_s
+        if bounds is None:
+            return self._empty_query(StationAccessView(station, (), (), None))
+        return self.store.station_access(
+            self.snapshot,
+            station,
+            bounds,
+            minimum_elevation_deg=minimum_elevation_deg,
+            wait=wait,
+        )
+
+    def station_metrics_at(
+        self, station: GroundStation, t_s: float
+    ) -> StationMetrics | None:
+        return self.store.station_metrics_at(self.snapshot, station, t_s)
+
+    def footprints(
+        self, t_s: float, minimum_elevation_deg: float
+    ) -> GroundFootprints | None:
+        return self.store.footprints(self.snapshot, t_s, minimum_elevation_deg)
 
     def subscribe_tier(self, tier: TierName) -> Callable[[], None]:
         """Register this open view's interest in a derived store tier."""
         return self.store.subscribe_tier(tier)
+
+
+class StoreViewBinding:
+    """Own tier subscriptions for a view as its bound store context changes."""
+
+    def __init__(self, tiers: Sequence[TierName] = ()) -> None:
+        self._tiers = tuple(dict.fromkeys(tiers))
+        self._store: OemDataStore | None = None
+        self._unsubscribers: list[Callable[[], None]] = []
+        self._context: StoreViewContext | None = None
+
+    def bind(self, context: StoreViewContext) -> None:
+        if self._store is not context.store:
+            self._unsubscribe()
+            self._store = context.store
+            self._unsubscribers = [
+                context.subscribe_tier(tier) for tier in self._tiers
+            ]
+        self._context = context
+
+    @property
+    def context(self) -> StoreViewContext | None:
+        return self._context
+
+    def with_range(
+        self,
+        plot_range: ResolvedTimeRange | None,
+        coverage: tuple[float, float],
+    ) -> StoreViewContext:
+        if self._context is None:
+            raise RuntimeError("store view binding has not been bound")
+        self._context = self._context.with_range(plot_range, coverage)
+        return self._context
+
+    def close(self) -> None:
+        self._unsubscribe()
+        self._store = None
+        self._context = None
+
+    def _unsubscribe(self) -> None:
+        for unsubscribe in self._unsubscribers:
+            unsubscribe()
+        self._unsubscribers.clear()
 
 
 class StoreView(Protocol):

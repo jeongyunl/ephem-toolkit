@@ -12,7 +12,7 @@ from ephem_toolkit.play_oem.oem_data_store import OemDataStore
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
 from ephem_toolkit.play_oem.views.angular_velocity import AngularVelocityView
-from ephem_toolkit.play_oem.views.base import StoreViewContext
+from ephem_toolkit.play_oem.views.base import StoreViewBinding, StoreViewContext
 from ephem_toolkit.play_oem.views.direction_change import DirectionChangeView
 from ephem_toolkit.play_oem.views.distance import GeocentricDistanceView
 from ephem_toolkit.play_oem.views.rtn import RtnDeltaView
@@ -45,12 +45,11 @@ def _store_context(
         groups=("rtn", "direction-rates", "kinematics", "distance-delta"),
         wait=True,
     )
-    return StoreViewContext(
+    return StoreViewContext.capture(
         store,
-        snapshot,
-        TimeUnit.MINUTES,
-        plot_range,
-        (100.0, 280.0),
+        time_unit=TimeUnit.MINUTES,
+        plot_range=plot_range,
+        coverage=(100.0, 280.0),
     )
 
 
@@ -81,6 +80,60 @@ def _assert_store_paths(
         np.testing.assert_allclose(
             data[:, 1], vertices[:, 1] * scale_y, atol=1e-12
         )
+
+
+def test_store_view_context_refresh_and_binding_lifecycle() -> None:
+    store = OemDataStore()
+    store.begin(2)
+    first = store.reserve(1)
+    first.raw[0] = [100.0, 7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0]
+    first.segment_ids[0] = 0
+    store.commit(first, 1)
+
+    context = StoreViewContext.capture(
+        store,
+        time_unit=TimeUnit.MINUTES,
+        plot_range=ResolvedTimeRange(100.0, 220.0),
+        coverage=(100.0, 220.0),
+    )
+    assert context.snapshot.sample_count == 1
+
+    second = store.reserve(1)
+    second.raw[0] = [220.0, 0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0]
+    second.segment_ids[0] = 0
+    store.commit(second, 1)
+    refreshed = context.refresh()
+    assert context.snapshot.sample_count == 1
+    assert refreshed.snapshot.sample_count == 2
+
+    no_range = context.with_range(None, context.coverage)
+    assert no_range.snapshot is context.snapshot
+    empty_query = no_range.series("kinematics")
+    assert empty_query.value == ()
+    assert empty_query.coverage.requested_s is None
+
+    other_store = OemDataStore()
+    other_store.begin(1)
+    other_context = StoreViewContext.capture(
+        other_store,
+        time_unit=TimeUnit.MINUTES,
+        plot_range=None,
+        coverage=(100.0, 100.0),
+    )
+    binding = StoreViewBinding(("series",))
+    binding.bind(context)
+    binding.bind(refreshed)
+    assert store._tier_interest["series"] == 1
+    assert binding.context is refreshed
+    bound_range = binding.with_range(None, context.coverage)
+    assert binding.context is bound_range
+    assert bound_range.snapshot is refreshed.snapshot
+    binding.bind(other_context)
+    assert "series" not in store._tier_interest
+    assert other_store._tier_interest["series"] == 1
+    binding.close()
+    assert binding.context is None
+    assert "series" not in other_store._tier_interest
 
 
 @pytest.mark.parametrize(
@@ -117,7 +170,11 @@ def test_store_history_views_use_store_owned_paths(
     FigureCanvasAgg(figure).draw()
 
     assert view._store_query is not None
-    groups = view._store_query.value[query_group]
+    groups = (
+        view._store_query.value[query_group]
+        if view_type is GeocentricDistanceView
+        else view._store_query.value
+    )
     assert groups
     if view_type is DirectionChangeView:
         assert len(view._store_artists[0]) == 6
@@ -226,11 +283,13 @@ def test_store_history_views_handle_empty_ranges(
     figure = view.build_from_store(context)
     FigureCanvasAgg(figure).draw()
 
+    assert view._store_query is not None
     if plot_range is None:
-        assert view._store_query is None
-    else:
-        assert view._store_query is not None
+        assert view._store_query.coverage.requested_s is None
+    if view_type is GeocentricDistanceView:
         assert not any(view._store_query.value.values())
+    else:
+        assert not view._store_query.value
     assert all(not artists for artists in view._store_artists)
     assert all(
         artist.get_visible() for artist in view._store_empty_artists or ()
@@ -249,12 +308,11 @@ def test_store_history_views_handle_empty_ranges(
 def test_store_history_views_report_insufficient_samples(view_type) -> None:
     store = OemDataStore()
     store.begin(1)
-    context = StoreViewContext(
+    context = StoreViewContext.capture(
         store,
-        store.snapshot(),
-        TimeUnit.MINUTES,
-        ResolvedTimeRange(100.0, 100.0),
-        (100.0, 100.0),
+        time_unit=TimeUnit.MINUTES,
+        plot_range=ResolvedTimeRange(100.0, 100.0),
+        coverage=(100.0, 100.0),
     )
     view = view_type(100.0, "Test spacecraft")
     figure = view.build_from_store(context)

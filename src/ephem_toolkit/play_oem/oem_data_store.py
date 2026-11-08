@@ -159,9 +159,9 @@ def _freeze_metadata(
 
 @dataclass(frozen=True)
 class TimeCoverage:
-    """Requested time bounds and the spans currently covered by a query."""
+    """Requested bounds and covered spans; None means no effective query range."""
 
-    requested_s: TimeBounds
+    requested_s: TimeBounds | None
     covered_s: tuple[TimeBounds, ...]
     complete: bool
 

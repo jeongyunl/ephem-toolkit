@@ -32,12 +32,11 @@ def _store_context() -> StoreViewContext:
     reservation.segment_ids[:] = [0, 0, 1, 1]
     store.commit(reservation, len(timestamps_s))
     store.mark_complete(epoch, (), ())
-    return StoreViewContext(
+    return StoreViewContext.capture(
         store,
-        store.snapshot(),
-        TimeUnit.MINUTES,
-        ResolvedTimeRange(100.0, 280.0),
-        (100.0, 280.0),
+        time_unit=TimeUnit.MINUTES,
+        plot_range=ResolvedTimeRange(100.0, 280.0),
+        coverage=(100.0, 280.0),
     )
 
 

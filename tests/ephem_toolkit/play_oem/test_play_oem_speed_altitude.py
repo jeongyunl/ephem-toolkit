@@ -76,12 +76,11 @@ def _store_context(*, complete: bool) -> StoreViewContext:
 
     snapshot = store.snapshot()
     store.series(snapshot, (100.0, 280.0), groups=("kinematics",), wait=True)
-    return StoreViewContext(
+    return StoreViewContext.capture(
         store,
-        snapshot,
-        TimeUnit.MINUTES,
-        ResolvedTimeRange(100.0, 280.0),
-        (100.0, 280.0),
+        time_unit=TimeUnit.MINUTES,
+        plot_range=ResolvedTimeRange(100.0, 280.0),
+        coverage=(100.0, 280.0),
     )
 
 
@@ -94,8 +93,7 @@ def test_speed_altitude_store_view_shares_query_buffers_and_preserves_segments()
 
     query = view._store_query
     assert query is not None
-    assert tuple(query.value) == ("kinematics",)
-    group = query.value["kinematics"][0]
+    group = query.value[0]
     assert len(group.segment_bounds) == 2
     assert len(view._store_patches[0]) == 2
     assert all(isinstance(patch, PathPatch) for patch in view._store_patches[0])
@@ -131,35 +129,27 @@ def test_speed_altitude_store_view_shares_query_buffers_and_preserves_segments()
 def test_speed_altitude_store_view_handles_empty_and_partial_coverage() -> None:
     empty_store = OemDataStore()
     empty_store.begin(1)
-    empty_context = StoreViewContext(
+    empty_context = StoreViewContext.capture(
         empty_store,
-        empty_store.snapshot(),
-        TimeUnit.MINUTES,
-        None,
-        (100.0, 100.0),
+        time_unit=TimeUnit.MINUTES,
+        plot_range=None,
+        coverage=(100.0, 100.0),
     )
     empty_view = SpeedAltitudeView(start_time_s=100.0)
     empty_figure = empty_view.build_from_store(empty_context)
     FigureCanvasAgg(empty_figure).draw()
-    assert empty_view._store_query is None
+    assert empty_view._store_query is not None
+    assert empty_view._store_query.coverage.requested_s is None
+    assert not empty_view._store_query.value
     assert not empty_view._store_patches[0]
     assert all(artist.get_visible() for artist in empty_view._store_empty_artists or ())
     empty_view.close()
 
     partial_context = _store_context(complete=False)
-    partial_context = StoreViewContext(
-        partial_context.store,
-        partial_context.snapshot,
-        partial_context.time_unit,
-        ResolvedTimeRange(100.0, 400.0),
-        (100.0, 400.0),
+    partial_context = partial_context.with_range(
+        ResolvedTimeRange(100.0, 400.0), (100.0, 400.0)
     )
-    partial_context.store.series(
-        partial_context.snapshot,
-        (100.0, 400.0),
-        groups=("kinematics",),
-        wait=True,
-    )
+    partial_context.series("kinematics", wait=True)
     partial_view = SpeedAltitudeView(start_time_s=100.0)
     partial_figure = partial_view.build_from_store(partial_context)
     FigureCanvasAgg(partial_figure).draw()

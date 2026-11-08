@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import replace
-
 from matplotlib.artist import Artist
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.text import Text
 
 from .. import series, time_unit
-from ..oem_data_store import SeriesGroups, StoreQuery
+from ..oem_data_store import ColumnGroupView, StoreQuery
 from ..time_range import ResolvedTimeRange
 from .base import (
     StoreViewContext,
+    StoreViewBinding,
     TimeRangeSupport,
     add_store_series_paths,
     clear_store_series_artists,
@@ -51,8 +49,8 @@ class RtnDeltaView(TimeRangeSupport):
         self._time_unit_divisor_s = 1.0
         self._histories: tuple[SegmentedPlotHistory, ...] = ()
         self._store_context: StoreViewContext | None = None
-        self._store_query: StoreQuery[SeriesGroups] | None = None
-        self._store_tier_unsubscribe: Callable[[], None] | None = None
+        self._store_query: StoreQuery[tuple[ColumnGroupView, ...]] | None = None
+        self._store_binding = StoreViewBinding(("series",))
         self._store_artists: tuple[tuple[Artist, ...], ...] = ((), (), ())
         self._store_empty_artists: tuple[Text, ...] | None = None
         self._store_start_time_s = start_time_s
@@ -116,15 +114,7 @@ class RtnDeltaView(TimeRangeSupport):
     ) -> None:
         if self._figure is None:
             raise RuntimeError("RTN-delta view has not been built")
-        previous = self._store_context
-        if previous is None or (
-            previous.store is not context.store
-            or previous.snapshot.epoch != context.snapshot.epoch
-        ):
-            if self._store_tier_unsubscribe is not None:
-                self._store_tier_unsubscribe()
-            self._store_tier_unsubscribe = context.subscribe_tier("series")
-
+        self._store_binding.bind(context)
         self._store_context = context
         self._store_start_time_s = context.coverage[0]
         self._time_unit_divisor_s = context.time_unit.get_divisor_s()
@@ -135,9 +125,9 @@ class RtnDeltaView(TimeRangeSupport):
         for axes, artists in zip(self._figure.axes, self._store_artists):
             clear_store_series_artists(axes, artists)
 
-        query = context.query_series(("rtn",))
+        query = context.series("rtn")
         self._store_query = query
-        groups = () if query is None else query.value["rtn"]
+        groups = query.value
         columns = ("delta_r_m", "delta_t_m", "delta_n_m")
         artists_by_axis: list[tuple[Artist, ...]] = []
         for axes, column in zip(self._figure.axes, columns):
@@ -266,7 +256,7 @@ class RtnDeltaView(TimeRangeSupport):
             super().set_time_range(bounds, coverage)
             return
         self._apply_store_context(
-            replace(self._store_context, plot_range=bounds, coverage=coverage),
+            self._store_binding.with_range(bounds, coverage),
             rescale_y=False,
         )
 
@@ -296,9 +286,7 @@ class RtnDeltaView(TimeRangeSupport):
         if self._figure is not None:
             self._close_time_range()
             self._figure.clear()
-        if self._store_tier_unsubscribe is not None:
-            self._store_tier_unsubscribe()
-        self._store_tier_unsubscribe = None
+        self._store_binding.close()
         self._store_context = None
         self._store_query = None
         self._store_artists = ((), (), ())

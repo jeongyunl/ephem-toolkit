@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import replace
 from math import ceil
 
 import numpy as np
@@ -301,7 +300,7 @@ class VTKTrajectory3DView:
         """Filter source positions before decimation without moving the camera."""
         if self._store_context is not None:
             self.update_from_store(
-                replace(self._store_context, plot_range=bounds, coverage=_coverage)
+                self._store_context.with_range(bounds, _coverage)
             )
             return
         self._range_bounds = bounds
@@ -375,9 +374,7 @@ class VTKTrajectory3DView:
                 self._tail_actor.SetVisibility(False)
                 self._widget.Render()
                 return
-            state = self._store_context.store.state_at(
-                self._store_context.snapshot, time_s
-            )
+            state = self._store_context.state_at(time_s)
         elif self._cursor is not None:
             state = self._cursor.lookup(time_s)
         else:

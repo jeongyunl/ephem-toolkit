@@ -29,12 +29,15 @@ prioritized cancellable range prefetch, partial-coverage results, and chunk-comp
 Station-access profiles are also lazy, chunked, and shared across minimum-elevation changes.
 Derived results write directly into final tier buffers without orbit-sized temporary arrays.
 Per-chunk LRU eviction protects active ranges and leased views, and evicted chunks are recomputed
-before they can be returned again. Consumer lifecycle coordination and consumer migration remain
-in progress: `SpeedAltitudeView`, RTN Deltas, Angular Velocity, Direction Change, and Geocentric
-Distance have store-backed paths, while the other registered views and active player/controller
-remain unmigrated. Consequently the application-wide no-copy goal has not yet been achieved. See
-the [implementation plan](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md) for the staged work and
-the performance evidence below for the retained measurements and open gates.
+before they can be returned again. Speed / Altitude, RTN Deltas, Angular Velocity, Direction
+Change, Geocentric Distance, State Components, and both 3D backends have store-backed paths.
+Ground Track, station views, and the active player/controller remain unmigrated. The existing
+`StoreViewContext` reduces query
+plumbing, but it is not yet a complete caller-facing read API: callers still unpack generic query
+values, and some point-query paths reach through to the store and snapshot. The application-wide
+no-copy goal has therefore not yet been achieved. See the
+[implementation plan](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md) for the staged work and the
+performance evidence below for the retained measurements and open gates.
 
 `OemDataStore.begin` takes an explicit capacity. For the opt-in loader path,
 `OemDataStore.capacity_for_file` counts physical lines outside `COVARIANCE_START` /
@@ -165,8 +168,10 @@ flowchart TD
 ```
 
 `OemDataStore` is created once per application and outlives individual OEM files. It is the only
-object that holds OEM-derived arrays. Views and the controller hold a store reference and a
-`StoreSnapshot`, never their own copies of source samples.
+object that holds OEM-derived arrays. The controller captures one immutable `StoreSnapshot` per
+refresh and supplies a snapshot-bound read context to views; views do not capture snapshots or
+pass the store and snapshot separately to each query. Neither the controller nor views own copies
+of source samples.
 
 ### Tiers and ownership
 
@@ -196,7 +201,7 @@ flowchart LR
         DASH["Dashboard and metadata"]
     end
     subgraph STORE["OemDataStore"]
-        API["Public API<br/>reserve, commit, state_at, snapshot,<br/>queries, set_range_hint, prefetch"]
+        API["Public API<br/>loader: reserve / commit<br/>reader: snapshot-bound queries"]
         RAW["Raw samples<br/>time, state, segments"]
         INTERP["Stateless interpolation"]
         SER["Series groups"]
@@ -742,6 +747,11 @@ prefix invariant is guaranteed by construction instead of re-verified.
 
 ### Public interface
 
+The low-level store API below remains available to the loader, scheduler, and specialized
+consumers. Application and view call sites use a snapshot-bound read context instead. This keeps
+one stable snapshot, effective plot range, display unit, and coverage together, so callers do not
+repeat the store/snapshot/range arguments for every query.
+
 ```python
 from __future__ import annotations
 
@@ -921,6 +931,51 @@ class OemDataStore:
     def subscribe_tier(self, tier: TierName) -> Callable[[], None]
 ```
 
+#### Snapshot-bound consumer API
+
+Promote the existing `StoreViewContext` to the normal read facade (renaming it only if a broader
+name is needed). A context factory captures the current snapshot and caller-owned view state;
+`refresh()` returns a new context for the latest snapshot while preserving that state.
+All view queries on one refresh use the same snapshot and therefore the same epoch, append
+revision, and interpolation-policy revision.
+
+```python
+context = StoreViewContext.capture(
+    store,
+    time_unit=display_unit,
+    plot_range=resolved_range,
+    coverage=coverage,
+)
+rtn = context.series("rtn")
+state = context.state_at(now_s)
+next_context = context.refresh()
+```
+
+The consumer facade exposes bound methods for series, state, Earth-fixed positions, Ground Track,
+station access, station metrics, and footprints. Each method delegates to the existing store query
+and retains its typed result and revision/coverage envelope. Single-group queries expose their
+segments directly; multi-group queries provide named group access so a caller need not index a
+generic mapping such as `query.value["rtn"]`. Empty or unavailable ranges are represented by the
+same typed result shape with explicit status/coverage, not a special `None` return. Query failures
+remain explicit.
+
+Range queries remain non-blocking by default. Results identify ready, partial, and pending
+coverage; they retain read-only views and chunk leases rather than copying samples. A plotting
+adapter consumes these toolkit-neutral results and applies axis transforms or creates artists.
+The store does not return Matplotlib artists, convert history to display units, or block the UI
+while waiting for derived chunks.
+
+Use one small view-binding helper to manage a view's context replacement, requested tier
+subscriptions, and unsubscribe-on-close lifecycle. Individual views specify which tiers they
+need and how to render results; they do not call `subscribe_tier` or manually coordinate snapshot
+identity. The controller refreshes the context once per relevant notice/range update and shares it
+with affected views.
+
+Raw reservation and commit APIs remain loader-level primitives. The application uses
+`IncrementalLoader.start(..., store=...)`; only the loader's ingestion sink handles reservation,
+commit, abort, and batch publication. Do not add a convenience write API that stages or copies an
+orbit-sized input.
+
 These value types are implemented in `play_oem.oem_data_store`; the active raw snapshot includes
 the lifecycle fields shown above. The implementation provides non-blocking range queries for
 series, Earth-fixed positions, Ground Track coordinates, and station access; missing work is
@@ -960,10 +1015,11 @@ bounds. State Components and 3D positions come from the raw tier.
 `TimeCoverage.covered_s` may contain multiple spans when segments, gaps, or pending chunks split
 the result. `StoreQuery`
 stamps results with the snapshot's epoch, append
-revision, and interpolation-policy revision; consumers discard notifications or results from a
-different epoch/policy. `SeriesGroups`, `EarthFixedPositions`, and
-`GroundTrackGroups` expose read-only `("t", "longitude", "latitude")` column-group views per
-map-centered run, including interpolated seam endpoints. The store bounds this range-result cache;
+revision, and interpolation-policy revision; the shared view-binding helper rejects stale
+notifications or results, so individual views do not repeat epoch/policy checks. `SeriesGroups`,
+`EarthFixedPositions`, and `GroundTrackGroups` expose read-only `("t", "longitude", "latitude")`
+column-group views per map-centered run, including interpolated seam endpoints. The store bounds
+this range-result cache;
 views share its final arrays instead of preparing independent full-range coordinate copies. For
 station access,
 each profile group is a view of the shared `[t, azimuth, elevation, range]` tier; intervals are

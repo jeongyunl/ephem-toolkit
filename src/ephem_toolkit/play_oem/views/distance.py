@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import replace
-
 import numpy as np
 from matplotlib.artist import Artist
 from matplotlib.figure import Figure
@@ -15,6 +12,7 @@ from .. import series, time_unit
 from ..oem_data_store import SeriesGroups, StoreQuery
 from ..time_range import ResolvedTimeRange
 from .base import (
+    StoreViewBinding,
     StoreViewContext,
     TimeRangeSupport,
     add_store_series_paths,
@@ -53,7 +51,7 @@ class GeocentricDistanceView(TimeRangeSupport):
         self._histories: tuple[SegmentedPlotHistory, ...] = ()
         self._store_context: StoreViewContext | None = None
         self._store_query: StoreQuery[SeriesGroups] | None = None
-        self._store_tier_unsubscribe: Callable[[], None] | None = None
+        self._store_binding = StoreViewBinding(("series",))
         self._store_artists: tuple[tuple[Artist, ...], tuple[Artist, ...]] = (
             (),
             (),
@@ -123,15 +121,7 @@ class GeocentricDistanceView(TimeRangeSupport):
     ) -> None:
         if self._figure is None:
             raise RuntimeError("geocentric-distance view has not been built")
-        previous = self._store_context
-        if previous is None or (
-            previous.store is not context.store
-            or previous.snapshot.epoch != context.snapshot.epoch
-        ):
-            if self._store_tier_unsubscribe is not None:
-                self._store_tier_unsubscribe()
-            self._store_tier_unsubscribe = context.subscribe_tier("series")
-
+        self._store_binding.bind(context)
         self._store_context = context
         self._store_start_time_s = context.coverage[0]
         self._time_unit_divisor_s = context.time_unit.get_divisor_s()
@@ -142,10 +132,10 @@ class GeocentricDistanceView(TimeRangeSupport):
         for axes, artists in zip(self._figure.axes, self._store_artists):
             clear_store_series_artists(axes, artists)
 
-        query = context.query_series(("kinematics", "distance-delta"))
+        query = context.series_groups(("kinematics", "distance-delta"))
         self._store_query = query
-        kinematics = () if query is None else query.value["kinematics"]
-        distance_deltas = () if query is None else query.value["distance-delta"]
+        kinematics = query.value["kinematics"]
+        distance_deltas = query.value["distance-delta"]
         distance_artists = add_store_series_paths(
             self._figure.axes[0],
             kinematics,
@@ -310,7 +300,7 @@ class GeocentricDistanceView(TimeRangeSupport):
             super().set_time_range(bounds, coverage)
             return
         self._apply_store_context(
-            replace(self._store_context, plot_range=bounds, coverage=coverage),
+            self._store_binding.with_range(bounds, coverage),
             rescale_y=False,
         )
 
@@ -340,9 +330,7 @@ class GeocentricDistanceView(TimeRangeSupport):
         if self._figure is not None:
             self._close_time_range()
             self._figure.clear()
-        if self._store_tier_unsubscribe is not None:
-            self._store_tier_unsubscribe()
-        self._store_tier_unsubscribe = None
+        self._store_binding.close()
         self._store_context = None
         self._store_query = None
         self._store_artists = ((), ())

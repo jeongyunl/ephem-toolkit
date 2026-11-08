@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 from typing import Any
 
 import numpy as np
@@ -312,7 +311,7 @@ class Trajectory3DView:
         """Filter the orbit path and visible endpoint/current-state markers."""
         if self._store_context is not None:
             self.update_from_store(
-                replace(self._store_context, plot_range=bounds, coverage=_coverage)
+                self._store_context.with_range(bounds, _coverage)
             )
             return
         self._range_bounds = bounds
@@ -370,9 +369,7 @@ class Trajectory3DView:
             if self._store_context.snapshot.sample_count == 0:
                 self._hide_cursor()
                 return
-            state = self._store_context.store.state_at(
-                self._store_context.snapshot, time_s
-            )
+            state = self._store_context.state_at(time_s)
         elif self._cursor is not None:
             state = self._cursor.lookup(time_s)
         else:
