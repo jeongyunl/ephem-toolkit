@@ -6,7 +6,7 @@ Station Passes composites into small graph-panel views that share one station-ac
 The previous implementation is recorded in the archived
 [implementation report](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_REPORT.md).
 The interface and workspace configurations for this proposal are in the
-[GUI design](./PLAY_OEM_GROUND_STATION_ANALYSIS_GUI_DESIGN.md).
+[GUI design](./PLAY_OEM_GROUND_STATION_ANALYSIS_2_GUI_DESIGN.md).
 
 ## Goals
 

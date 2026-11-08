@@ -37,6 +37,6 @@ is placed below the full-width pass table.
 
 The completed feature's design and mockup are retained for reference:
 
-- [Software design](./PLAY_OEM_GROUND_STATION_ANALYSIS_SOFTWARE_DESIGN.md)
-- [GUI design](./PLAY_OEM_GROUND_STATION_ANALYSIS_GUI_DESIGN.md)
+- [Software design](./PLAY_OEM_GROUND_STATION_ANALYSIS_2_SOFTWARE_DESIGN.md)
+- [GUI design](./PLAY_OEM_GROUND_STATION_ANALYSIS_2_GUI_DESIGN.md)
 - [Visual mockup](./mockup-ground-station-visual-analysis.svg)

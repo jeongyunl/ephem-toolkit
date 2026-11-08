@@ -16,8 +16,8 @@ Implemented Ground Stations feature: see the
 mockups are archived in [old/](./old/).
 
 The modular Ground Station Analysis proposal is specified in the
-[software design](./PLAY_OEM_GROUND_STATION_ANALYSIS_SOFTWARE_DESIGN.md) and
-[GUI design](./PLAY_OEM_GROUND_STATION_ANALYSIS_GUI_DESIGN.md). The prior composite
+[software design](./PLAY_OEM_GROUND_STATION_ANALYSIS_2_SOFTWARE_DESIGN.md) and
+[GUI design](./PLAY_OEM_GROUND_STATION_ANALYSIS_2_GUI_DESIGN.md). The prior composite
 [implementation report](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_REPORT.md) and
 [mockup](./old/mockup-ground-station-visual-analysis.svg) remain archived for reference.
 

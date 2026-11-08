@@ -6,7 +6,7 @@ graph view containing a pass table and sky-oriented plot. It extends the shared
 [Ground Track](./PLAY_OEM_GROUND_TRACK_GUI_DESIGN.md) and
 [Ground Station Access](./PLAY_OEM_GROUND_STATIONS_GUI_DESIGN.md) designs. Technical
 contracts are in
-[PLAY_OEM_GROUND_STATION_ANALYSIS_SOFTWARE_DESIGN.md](./PLAY_OEM_GROUND_STATION_ANALYSIS_SOFTWARE_DESIGN.md).
+[PLAY_OEM_GROUND_STATION_ANALYSIS_2_SOFTWARE_DESIGN.md](./PLAY_OEM_GROUND_STATION_ANALYSIS_2_SOFTWARE_DESIGN.md).
 The mockup is illustrative, not a screenshot:
 
 ![Ground Track station markers, Ground Station Passes table, and linked sky plot](./mockup-ground-station-visual-analysis.svg)

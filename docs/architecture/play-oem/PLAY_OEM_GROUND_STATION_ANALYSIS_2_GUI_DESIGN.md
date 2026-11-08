@@ -2,7 +2,7 @@
 
 **Status: Design baseline; visual acceptance remains in progress.** This document describes eight
 focused panels that can be arranged in the existing three-pane analysis workspace. The technical
-contract is in the [modular software design](./PLAY_OEM_GROUND_STATION_ANALYSIS_SOFTWARE_DESIGN.md);
+contract is in the [modular software design](./PLAY_OEM_GROUND_STATION_ANALYSIS_2_SOFTWARE_DESIGN.md);
 the earlier composite design and implementation report are archived in [`old/`](./old/).
 
 ## Design goals

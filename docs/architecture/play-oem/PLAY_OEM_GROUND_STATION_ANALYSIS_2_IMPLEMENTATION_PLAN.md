@@ -1,8 +1,8 @@
 # `play-oem` — Ground Station Analysis Implementation Plan
 
-Requirements and panel behavior: [PLAY_OEM_GROUND_STATION_ANALYSIS_SOFTWARE_DESIGN.md](./PLAY_OEM_GROUND_STATION_ANALYSIS_SOFTWARE_DESIGN.md).
+Requirements and panel behavior: [PLAY_OEM_GROUND_STATION_ANALYSIS_2_SOFTWARE_DESIGN.md](./PLAY_OEM_GROUND_STATION_ANALYSIS_2_SOFTWARE_DESIGN.md).
 Workspace and visual behavior:
-[PLAY_OEM_GROUND_STATION_ANALYSIS_GUI_DESIGN.md](./PLAY_OEM_GROUND_STATION_ANALYSIS_GUI_DESIGN.md).
+[PLAY_OEM_GROUND_STATION_ANALYSIS_2_GUI_DESIGN.md](./PLAY_OEM_GROUND_STATION_ANALYSIS_2_GUI_DESIGN.md).
 The prior composite implementation is recorded in the archived
 [implementation report](./old/PLAY_OEM_GROUND_STATION_ANALYSIS_IMPLEMENTATION_REPORT.md).
 
