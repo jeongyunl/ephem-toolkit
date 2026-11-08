@@ -34,15 +34,16 @@ An experimental raw tier, direct parser-to-store ingestion, and opt-in
 `IncrementalLoadSession` store mode exist. The store supports fixed-capacity raw reservations,
 committed-prefix snapshots, epoch/revision checks, segment bounds, lifecycle states, and
 generation-tagged append events. Automatic capacity sizing runs on the loader worker, excludes
-covariance-block lines, and is cancellable. Typed snapshot/query/notice contracts and a reusable
-chunk memo are implemented, but derived query methods are not yet wired to them. This path is not
-yet used by the active player/controller.
+covariance-block lines, and is cancellable. Step 3 adds point-state queries, lazy series groups,
+and memoized Earth-fixed position queries. Series and Earth-fixed queries currently compute
+requested chunks synchronously on the caller; range scheduling and notices remain in Step 4.
+This path is not yet used by the active player/controller.
 
 Stateless mode on the existing core interpolators and zero-copy plotting primitives are
-implemented and validated; lazy derived tiers, the range scheduler, and consumer migration remain
-outstanding. The application still uses eager `PlaybackData` preparation,
-`OemCursor`, `OrbitSeriesAccumulator`, and separate Ground Track/station-access/footprint caches;
-therefore the application-wide no-copy goal has not been achieved.
+implemented and validated; lazy series and Earth-fixed tiers exist, while the range scheduler and
+consumer migration remain outstanding. The application still uses eager `PlaybackData`
+preparation, `OemCursor`, `OrbitSeriesAccumulator`, and separate Ground Track/station-access/
+footprint caches; therefore the application-wide no-copy goal has not been achieved.
 
 Historical automatic-sizing measurements counted physical lines and reserved 172,833 rows for
 21,601 JPSS-1 states because covariance rows contributed to the bound. Current sizing excludes
@@ -139,31 +140,6 @@ underway; `Blocked` — a documented dependency prevents progress; `Done` — ch
 criteria pass. Progress is the number of completed checklist items.
 
 ## Active implementation sequence
-
-### 3. Add lazy interpolation and series tiers
-
-Use the memo primitive to compute requested derived columns only. Keep display transforms outside
-the store so changing a time unit or plot style does not recompute physical values.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Implement lazily requested series column groups using the existing computations as numerical
-      references; write results directly to reserved final buffers rather than temporary
-      full-length arrays.
-- [ ] Store raw-backed position and velocity as views; avoid kilometer-scaled and elapsed-time
-      copies by applying units/origins in the view/artist transform.
-- [ ] Add Earth-fixed position chunks and memoized interpolation support using the zero-copy
-      primitives from Step 2; Ground Track, Pass Ground Track, and station views must reuse the
-      same Earth-fixed sample positions.
-- [ ] Implement requested-range queries with segment-aware margins, covered spans, and read-only
-      group views; a request must compute only intersecting absent/tentative chunks.
-- [ ] Test chunk boundaries, request order, partial prefixes, multi-segment inputs, append-tail
-      invalidation, memo hits, and display-unit changes against one-shot reference outputs.
-
-**Done when:** every tier remains absent until requested, repeated requests reuse complete
-chunks, appends recompute only tentative tails, and results match the current implementation
-without O(sample-count) temporary allocations.
-**Depends on:** Steps 1–2.
 
 ### 4. Implement range scheduling, playback-time queries, and station-access tiers
 
@@ -405,3 +381,38 @@ VTK 9.6.2 probes show that `numpy_to_vtk(deep=False)` shares packed C-contiguous
 but not strided columns; the VTK backend now retains its NumPy point buffers and avoids the
 additional `deep=True` copy. Pylance syntax and diagnostics requests timed out; focused pytest
 imports exercised the changed modules. `git diff --check` passed.
+
+### 3. Add lazy interpolation and series tiers
+
+Use the memo primitive to compute requested derived columns only. Keep display transforms outside
+the store so changing a time unit or plot style does not recompute physical values.
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Implement lazily requested series column groups using the existing computations as numerical
+      references; write results directly to reserved final buffers rather than temporary
+      full-length arrays.
+- [x] Store raw-backed position and velocity as views; avoid kilometer-scaled and elapsed-time
+      copies by applying units/origins in the view/artist transform.
+- [x] Add Earth-fixed position chunks with memoization and stateless interpolation support using
+      the zero-copy primitives from Step 2; expose one shared Earth-fixed sample-position tier for
+      Ground Track, Pass Ground Track, and station-view migration.
+- [x] Implement requested-range queries with segment-aware margins, covered spans, and read-only
+      group views; a request must compute only intersecting absent/tentative chunks.
+- [x] Test chunk boundaries, request order, partial prefixes, multi-segment inputs, append-tail
+      invalidation, memo hits, and display-unit changes against one-shot reference outputs.
+
+**Done when:** every tier remains absent until requested, repeated requests reuse complete
+chunks, appends recompute only tentative tails, and results match the current implementation
+without O(sample-count) temporary allocations.
+**Depends on:** Steps 1–2.
+
+**Evidence:** The focused store suite passed (37 tests), and the combined play-oem plus core
+interpolator suite passed (571 passed, 4 skipped). Coverage includes point-query parity and policy
+changes, lazy group selection, one-sample RTN overlap at a chunk boundary, partial loading
+coverage, append-tail recomputation, request-order parity, memo hits, display-unit changes, and
+Earth-fixed views. The implementation writes into per-tier reserved buffers and returns read-only
+slices; it does not call the orbit-sized `compute_orbit_series` reference path. Pylance diagnostics
+and syntax requests timed out; pytest imports exercised the changed modules. Range scheduling,
+consumer wiring, and application-wide elimination of parallel derived-data owners remain for
+Steps 4–7.

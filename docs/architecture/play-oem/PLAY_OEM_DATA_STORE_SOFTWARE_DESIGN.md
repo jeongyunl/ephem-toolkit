@@ -23,9 +23,13 @@ The raw snapshot records `LOADING`, `COMPLETE`, `FAILED`, or `CANCELLED`; EOF-va
 metadata are attached only on completion, and failures preserve a committed prefix with an error
 message. Cancellation preserves the committed prefix but prevents further reservations. Lazy
 query/result types, the public raw `StoreSnapshot`, the reusable `ChunkMemo` primitive, and
-stateless mode on the existing core interpolators now exist. Derived query methods/tiers, full
-consumer lifecycle coordination, and consumer migration remain to be implemented. Consequently
-the application-wide no-copy goal has not yet been achieved. See the
+stateless mode on the existing core interpolators now exist. The store provides point-state
+queries through one reusable stateless interpolator, lazy chunked series groups, and memoized
+Earth-fixed position queries. Series and Earth-fixed queries currently compute requested chunks
+synchronously on the caller and write directly into final tier buffers without orbit-sized
+temporary arrays. The range scheduler, asynchronous prefetch, full consumer lifecycle coordination,
+and consumer migration remain to be implemented. Consequently the application-wide no-copy
+goal has not yet been achieved. See the
 [implementation plan](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md) for the staged work and
 the performance evidence below for the retained measurements and open gates.
 
@@ -891,16 +895,20 @@ class OemDataStore:
 ```
 
 These value types are implemented in `play_oem.oem_data_store`; the active raw snapshot includes
-the lifecycle fields shown above. Derived query methods and notice publication remain for later
-steps.
+the lifecycle fields shown above. The implementation provides `state_at(snapshot, t_s)`,
+`series(snapshot, bounds_s, groups, max_samples)`, and
+`earth_fixed_positions(snapshot, bounds_s, margin_s)`. The latter two lazily compute only the
+requested chunks, but currently do so synchronously; prefetch, notice publication, and the other
+query methods remain for later steps.
 
-`TimeBounds` are TT-second bounds. Range-query methods are non-blocking: they return computed
-views and explicit coverage while missing chunks are queued for the store worker. `prefetch`
-accepts the same tier/range selection and returns a cancellable future; it does not return a second
-copy of query data. `kinematics` contains speed, distance, and altitude; `rtn` contains RTN deltas;
-`direction-rates` contains direction-change and angular-rate fields that share adjacent-sample
-work. State Components and 3D positions come from the raw tier. `TimeCoverage.covered_s` may
-contain multiple spans when segments, gaps, or pending chunks split the result. `StoreQuery`
+Target contract: `TimeBounds` are TT-second bounds. Range-query methods are non-blocking: they
+return computed views and explicit coverage while missing chunks are queued for the store worker.
+`prefetch` accepts the same tier/range selection and returns a cancellable future; it does not
+return a second copy of query data. `kinematics` contains speed, distance, and altitude; `rtn`
+contains RTN deltas; `direction-rates` contains direction-change and angular-rate fields that
+share adjacent-sample work. State Components and 3D positions come from the raw tier.
+`TimeCoverage.covered_s` may contain multiple spans when segments, gaps, or pending chunks split
+the result. `StoreQuery`
 stamps results with the snapshot's epoch, append
 revision, and interpolation-policy revision; consumers discard notifications or results from a
 different epoch/policy. `SeriesGroups`, `EarthFixedPositions`, and
