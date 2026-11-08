@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections import OrderedDict
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from enum import Enum
@@ -29,6 +30,7 @@ from ephem_toolkit.core.interpolator.interpolation_spec import (
 from ephem_toolkit.core.interpolator.interpolator import Interpolator
 from .chunk_memo import ChunkMemo, ChunkMemoCounters, ChunkState
 from .clock import SampleTimes
+from .ground_footprints import GroundFootprints, compute_ground_footprints
 from .cursor import CursorState, CursorStatus
 from .ground_stations import (
     GroundStation,
@@ -37,8 +39,11 @@ from .ground_stations import (
 )
 from .ground_track import (
     EARTH_CENTERS,
+    GroundTrackCoordinates,
     GroundTrackSource,
     GroundTrackPreparationError,
+    _ecef_to_wgs84_geodetic,
+    split_ground_track_runs,
     state_position_to_itrf_m,
 )
 from .series import OrbitSeries
@@ -57,14 +62,18 @@ from .time_unit import TimeUnit
 
 T = TypeVar("T")
 TimeBounds = tuple[float, float]
-SeriesGroupName = Literal["kinematics", "rtn", "direction-rates"]
+SeriesGroupName = Literal[
+    "kinematics", "rtn", "direction-rates", "distance-delta"
+]
 SERIES_GROUPS: tuple[SeriesGroupName, ...] = (
     "kinematics",
     "rtn",
     "direction-rates",
+    "distance-delta",
 )
 DERIVED_CHUNK_SIZE = 4096
 KINEMATICS_COLUMNS = ("t", "speed_m_s", "distance_m", "altitude_m")
+DISTANCE_DELTA_COLUMNS = ("t", "delta_distance_m")
 RTN_COLUMNS = (
     "t",
     "delta_r_m",
@@ -86,12 +95,14 @@ DIRECTION_RATE_COLUMNS = (
     "yaw_rate_rad_s",
 )
 EARTH_FIXED_COLUMNS = ("t", "x_itrf", "y_itrf", "z_itrf")
+GROUND_TRACK_COLUMNS = ("t", "longitude", "latitude")
 STATION_PROFILE_COLUMNS = ("t", "azimuth_deg", "elevation_deg", "range_km")
 _SERIES_COLUMNS: Mapping[SeriesGroupName, tuple[str, ...]] = MappingProxyType(
     {
         "kinematics": KINEMATICS_COLUMNS,
         "rtn": RTN_COLUMNS,
         "direction-rates": DIRECTION_RATE_COLUMNS,
+        "distance-delta": DISTANCE_DELTA_COLUMNS,
     }
 )
 TierName = Literal[
@@ -185,6 +196,7 @@ class QueryRequest:
     max_samples: int | None = None
     minimum_elevation_deg: float | None = None
     margin_s: float = 0.0
+    center_longitude_deg: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -500,10 +512,16 @@ class OemDataStore:
         self._series_memos: dict[SeriesGroupName, ChunkMemo[int, RowSpan]] = {}
         self._earth_fixed_buffer: np.ndarray | None = None
         self._earth_fixed_memo: ChunkMemo[int, RowSpan] = ChunkMemo()
+        self._ground_track_cache: OrderedDict[
+            tuple[object, ...], StoreQuery[GroundTrackGroups]
+        ] = OrderedDict()
         self._station_profiles: dict[tuple[object, ...], _StationProfileTier] = {}
         self._station_interval_cache: dict[
             tuple[object, ...], tuple[AccessInterval, ...]
         ] = {}
+        self._footprint_cache: OrderedDict[
+            tuple[object, ...], GroundFootprints
+        ] = OrderedDict()
         self._scheduler_lock = RLock()
         self._scheduler_executor = ThreadPoolExecutor(
             max_workers=1,
@@ -668,6 +686,15 @@ class OemDataStore:
                 _validate_elevation_threshold(minimum_elevation),
                 request.margin_s,
             )
+        elif request.tier == "ground-track":
+            margin = _validate_nonnegative_finite(request.margin_s, "margin_s")
+            center = _normalize_longitude(request.center_longitude_deg)
+            request = QueryRequest(
+                request.tier,
+                bounds,
+                margin_s=margin,
+                center_longitude_deg=center,
+            )
         else:
             raise ValueError(f"prefetch does not support tier: {request.tier!r}")
         self._validate_snapshot_epoch(snapshot)
@@ -712,6 +739,9 @@ class OemDataStore:
             return 4
         bounds = _validate_time_bounds(request.bounds_s)
         if request.tier == "earth-fixed":
+            margin = _validate_nonnegative_finite(request.margin_s, "margin_s")
+            bounds = (bounds[0] - margin, bounds[1] + margin)
+        elif request.tier == "ground-track":
             margin = _validate_nonnegative_finite(request.margin_s, "margin_s")
             bounds = (bounds[0] - margin, bounds[1] + margin)
         elif request.tier == "station-access":
@@ -805,6 +835,9 @@ class OemDataStore:
         if work.request.tier == "earth-fixed":
             margin = _validate_nonnegative_finite(work.request.margin_s, "margin_s")
             bounds = (bounds[0] - margin, bounds[1] + margin)
+        elif work.request.tier == "ground-track":
+            margin = _validate_nonnegative_finite(work.request.margin_s, "margin_s")
+            bounds = (bounds[0] - margin, bounds[1] + margin)
         elif work.request.tier == "station-access":
             margin = max(
                 ACCESS_WINDOW_MIN_MARGIN_S,
@@ -868,6 +901,15 @@ class OemDataStore:
                 request.station,
                 request.bounds_s,
                 minimum_elevation_deg=request.minimum_elevation_deg,
+                wait=True,
+                _cancel_event=work.future.cancel_event,
+            )
+        elif request.tier == "ground-track":
+            self.ground_track(
+                work.snapshot,
+                request.bounds_s,
+                margin_s=request.margin_s,
+                center_longitude_deg=request.center_longitude_deg,
                 wait=True,
                 _cancel_event=work.future.cancel_event,
             )
@@ -1095,7 +1137,9 @@ class OemDataStore:
         self._earth_fixed_memo.clear()
         self._series_buffers.clear()
         self._earth_fixed_buffer = None
+        self._ground_track_cache.clear()
         self._clear_station_tiers_locked()
+        self._footprint_cache.clear()
         self._chunk_access_order.clear()
         self._chunk_ranges.clear()
         self._epoch += 1
@@ -1236,6 +1280,7 @@ class OemDataStore:
                 self._sample_times._publish_validated_count(stop)
                 self._revision += 1
                 self._clear_station_tiers_locked()
+                self._ground_track_cache.clear()
                 notice = RawAppendNotice(
                     self._epoch,
                     self._revision,
@@ -1346,6 +1391,87 @@ class OemDataStore:
             status=status,
             segment_id=segment_id,
         )
+
+    def station_metrics_at(
+        self,
+        snapshot: StoreSnapshot,
+        station: GroundStation,
+        t_s: float,
+    ) -> StationMetrics | None:
+        """Return station metrics at a valid current state without extrapolation."""
+        self._validate_snapshot_epoch(snapshot)
+        if not isinstance(station, GroundStation):
+            raise TypeError("station must be a GroundStation")
+        query_time = _validate_query_time(t_s)
+        metadata = dict(snapshot.meta)
+        frame_name = metadata.get("REF_FRAME")
+        center_name = metadata.get("CENTER_NAME")
+        if not isinstance(frame_name, str) or not isinstance(center_name, str):
+            if snapshot.status is LoadStatus.COMPLETE:
+                raise GroundTrackPreparationError(
+                    "Station metrics require CENTER_NAME and REF_FRAME metadata"
+                )
+            return None
+        if center_name.strip().upper() not in EARTH_CENTERS:
+            raise GroundTrackPreparationError(
+                f"Station metrics require an Earth-centered OEM; found {center_name!r}"
+            )
+        state = self.state_at(snapshot, query_time)
+        if state.status not in (
+            CursorStatus.EXACT_SAMPLE,
+            CursorStatus.INTERPOLATED,
+        ) or state.state_m is None:
+            return None
+        return station_metrics(station, state.state_m, frame_name, query_time)
+
+    def footprints(
+        self,
+        snapshot: StoreSnapshot,
+        t_s: float,
+        min_elevation_deg: float,
+    ) -> GroundFootprints | None:
+        """Return current-time footprint boundaries, or ``None`` without a state."""
+        self._validate_snapshot_epoch(snapshot)
+        query_time = _validate_query_time(t_s)
+        minimum_elevation = _validate_elevation_threshold(min_elevation_deg)
+        metadata = dict(snapshot.meta)
+        frame_name = metadata.get("REF_FRAME")
+        center_name = metadata.get("CENTER_NAME")
+        if not isinstance(frame_name, str) or not isinstance(center_name, str):
+            if snapshot.status is LoadStatus.COMPLETE:
+                raise GroundTrackPreparationError(
+                    "Footprints require CENTER_NAME and REF_FRAME metadata"
+                )
+            return None
+        if center_name.strip().upper() not in EARTH_CENTERS:
+            raise GroundTrackPreparationError(
+                f"Footprints require an Earth-centered OEM; found {center_name!r}"
+            )
+        state = self.state_at(snapshot, query_time)
+        if state.status not in (
+            CursorStatus.EXACT_SAMPLE,
+            CursorStatus.INTERPOLATED,
+        ) or state.state_m is None:
+            return None
+        position = state_position_to_itrf_m(state.state_m, frame_name, query_time)
+        cache_key = (
+            snapshot.epoch,
+            query_time,
+            tuple(float(value) for value in position),
+            minimum_elevation,
+        )
+        with self._lock:
+            cached = self._footprint_cache.get(cache_key)
+            if cached is not None:
+                self._footprint_cache.move_to_end(cache_key)
+                return cached
+        result = compute_ground_footprints(position, minimum_elevation)
+        with self._lock:
+            self._footprint_cache[cache_key] = result
+            self._footprint_cache.move_to_end(cache_key)
+            while len(self._footprint_cache) > 32:
+                self._footprint_cache.popitem(last=False)
+        return result
 
     def series(
         self,
@@ -1662,6 +1788,189 @@ class OemDataStore:
         )
         self._evict_derived_buffers()
         return query
+
+    def ground_track(
+        self,
+        snapshot: StoreSnapshot,
+        bounds_s: TimeBounds,
+        margin_s: float = 0.0,
+        center_longitude_deg: float = 0.0,
+        *,
+        wait: bool = False,
+        _cancel_event: Event | None = None,
+    ) -> StoreQuery[GroundTrackGroups]:
+        """Return map-centered, seam-split coordinates for the requested range."""
+        bounds = _validate_time_bounds(bounds_s)
+        margin = _validate_nonnegative_finite(margin_s, "margin_s")
+        center = _normalize_longitude(center_longitude_deg)
+        self._validate_snapshot_epoch(snapshot)
+        if not isinstance(wait, bool):
+            raise ValueError("wait must be a boolean")
+        if _cancel_event is not None and _cancel_event.is_set():
+            raise CancelledError()
+
+        key = (
+            snapshot.epoch,
+            snapshot.revision,
+            snapshot.policy_revision,
+            bounds,
+            margin,
+            center,
+        )
+        with self._lock:
+            cached = self._ground_track_cache.get(key)
+            if cached is not None:
+                self._ground_track_cache.move_to_end(key)
+                return cached
+
+        if snapshot.sample_count == 0:
+            return StoreQuery(
+                snapshot.epoch,
+                snapshot.revision,
+                snapshot.policy_revision,
+                (),
+                _time_coverage(snapshot, bounds),
+            )
+
+        metadata = dict(snapshot.meta)
+        frame_name = metadata.get("REF_FRAME")
+        center_name = metadata.get("CENTER_NAME")
+        if not isinstance(frame_name, str) or not isinstance(center_name, str):
+            if snapshot.status is LoadStatus.COMPLETE:
+                raise GroundTrackPreparationError(
+                    "Ground Track requires CENTER_NAME and REF_FRAME metadata"
+                )
+            return StoreQuery(
+                snapshot.epoch,
+                snapshot.revision,
+                snapshot.policy_revision,
+                (),
+                TimeCoverage(bounds, (), False),
+            )
+        if center_name.strip().upper() not in EARTH_CENTERS:
+            raise GroundTrackPreparationError(
+                f"Ground Track requires an Earth-centered OEM; found {center_name!r}"
+            )
+
+        if not wait:
+            self.prefetch(
+                snapshot,
+                QueryRequest(
+                    "ground-track",
+                    bounds,
+                    margin_s=margin,
+                    center_longitude_deg=center,
+                ),
+            )
+            return StoreQuery(
+                snapshot.epoch,
+                snapshot.revision,
+                snapshot.policy_revision,
+                (),
+                TimeCoverage(bounds, (), False),
+            )
+
+        earth_fixed = self.earth_fixed_positions(
+            snapshot,
+            bounds,
+            margin,
+            wait=True,
+            _cancel_event=_cancel_event,
+        )
+        groups: list[ColumnGroupView] = []
+        normalized_frame = frame_name.strip().upper()
+        if normalized_frame == "ITRF93":
+            normalized_frame = "ITRF1993"
+        for earth_group in earth_fixed.value:
+            ecef_values = earth_group.values
+            geodetic = _ecef_to_wgs84_geodetic(ecef_values[:, 1:4])
+            if not np.isfinite(geodetic).all():
+                raise GroundTrackPreparationError(
+                    "WGS-84 conversion returned non-finite geodetic coordinates"
+                )
+            if np.any(geodetic[:, 2] < -1.0e-3):
+                raise GroundTrackPreparationError(
+                    "OEM contains an Earth-fixed position inside the WGS-84 ellipsoid"
+                )
+            for segment in earth_group.segment_bounds:
+                if segment.first >= segment.stop:
+                    continue
+                segment_values = ecef_values[segment.first : segment.stop]
+                segment_geodetic = geodetic[segment.first : segment.stop]
+                coordinates = GroundTrackCoordinates(
+                    timestamps_s=segment_values[:, 0],
+                    latitude_rad=segment_geodetic[:, 0],
+                    longitude_rad=segment_geodetic[:, 1],
+                    segment_ids=np.zeros(len(segment_values), dtype=np.int64),
+                    source_frame=normalized_frame,
+                )
+                for run in split_ground_track_runs(coordinates, center):
+                    run_values = np.column_stack(
+                        (
+                            run.timestamps_s,
+                            run.longitude_relative_rad,
+                            run.latitude_rad,
+                        )
+                    )
+                    groups.append(
+                        ColumnGroupView(
+                            run_values,
+                            GROUND_TRACK_COLUMNS,
+                            (RowSpan(0, len(run_values)),),
+                        )
+                    )
+
+        result = StoreQuery(
+            snapshot.epoch,
+            snapshot.revision,
+            snapshot.policy_revision,
+            tuple(groups),
+            earth_fixed.coverage,
+        )
+        result_bytes = sum(group.values.nbytes for group in result.value)
+        if (
+            result.coverage.complete
+            and result_bytes <= self._derived_memory_budget_bytes
+        ):
+            with self._lock:
+                cached_bytes = sum(
+                    sum(group.values.nbytes for group in cached_result.value)
+                    for cached_result in self._ground_track_cache.values()
+                )
+                while (
+                    self._ground_track_cache
+                    and cached_bytes + result_bytes
+                    > self._derived_memory_budget_bytes
+                ):
+                    _, evicted = self._ground_track_cache.popitem(last=False)
+                    cached_bytes -= sum(
+                        group.values.nbytes for group in evicted.value
+                    )
+                self._ground_track_cache[key] = result
+                self._ground_track_cache.move_to_end(key)
+                while len(self._ground_track_cache) > 4:
+                    self._ground_track_cache.popitem(last=False)
+            self._evict_derived_buffers()
+
+        expanded_bounds = (bounds[0] - margin, bounds[1] + margin)
+        first_row = int(
+            np.searchsorted(snapshot.raw[:, 0], expanded_bounds[0], side="left")
+        )
+        stop_row = int(
+            np.searchsorted(snapshot.raw[:, 0], expanded_bounds[1], side="right")
+        )
+        if first_row < stop_row:
+            self._publish_notice(
+                TierNotice(
+                    snapshot.epoch,
+                    "ground-track",
+                    None,
+                    None,
+                    first_row,
+                    stop_row,
+                )
+            )
+        return result
 
     def station_access(
         self,
@@ -2275,6 +2584,19 @@ class OemDataStore:
                     self._policy_revision,
                 )
             resident_bytes = sum(candidate[-1] for candidate in candidates)
+            resident_bytes += sum(
+                sum(group.values.nbytes for group in query.value)
+                for query in self._ground_track_cache.values()
+            )
+            if resident_bytes <= self._derived_memory_budget_bytes:
+                return
+
+            while (
+                self._ground_track_cache
+                and resident_bytes > self._derived_memory_budget_bytes
+            ):
+                _, evicted = self._ground_track_cache.popitem(last=False)
+                resident_bytes -= sum(group.values.nbytes for group in evicted.value)
             if resident_bytes <= self._derived_memory_budget_bytes:
                 return
 
@@ -2474,6 +2796,18 @@ def _validate_time_bounds(bounds_s: TimeBounds) -> TimeBounds:
     if not math.isfinite(start) or not math.isfinite(stop) or start > stop:
         raise ValueError("time bounds must be finite and ordered")
     return start, stop
+
+
+def _normalize_longitude(value: float) -> float:
+    if isinstance(value, bool):
+        raise ValueError("center_longitude_deg must be finite")
+    try:
+        longitude = float(value)
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError("center_longitude_deg must be finite") from error
+    if not math.isfinite(longitude):
+        raise ValueError("center_longitude_deg must be finite")
+    return ((longitude + 180.0) % 360.0) - 180.0
 
 
 def _validate_nonnegative_finite(value: float, name: str) -> float:
@@ -2852,7 +3186,7 @@ def _series_segment_spans(
         origin = start
     first_view_row = math.ceil((start - origin) / stride)
     spans = []
-    delta_offset = 1 if group == "rtn" else 0
+    delta_offset = 1 if group in ("rtn", "distance-delta") else 0
     for segment_start, segment_stop in snapshot.segment_bounds:
         first = max(start, int(segment_start) + delta_offset)
         end = min(stop, int(segment_stop))
@@ -2891,6 +3225,17 @@ def _write_series_chunk(
                 output[row, 1:] = misc.transform_to_rtn(
                     raw[row, 1:7],
                     raw[row - 1, 1:7],
+                )
+        return
+
+    if group == "distance-delta":
+        for row in range(start, stop):
+            output[row, 0] = raw[row, 0]
+            output[row, 1] = 0.0
+            if row > 0 and segments[row] == segments[row - 1]:
+                output[row, 1] = (
+                    np.linalg.norm(raw[row, 1:4])
+                    - np.linalg.norm(raw[row - 1, 1:4])
                 )
         return
 

@@ -10,7 +10,8 @@ from ephem_toolkit.core.interpolator.interpolation_spec import (
     InterpolationSpec,
     InterpolationType,
 )
-from ephem_toolkit.play_oem.cursor import CursorStatus, OemCursor
+from ephem_toolkit.play_oem.cursor import CursorStatus, OemCursor, StoreCursor
+from ephem_toolkit.play_oem.oem_data_store import OemDataStore
 
 
 @pytest.fixture
@@ -47,6 +48,54 @@ def test_lookup_returns_exact_sample_and_derived_values(
     assert result.speed == pytest.approx(np.linalg.norm(result.v_kms))
     assert result.distance == pytest.approx(np.linalg.norm(result.r_km))
     assert result.altitude is not None
+
+
+def test_store_cursor_uses_read_only_raw_views_and_refreshes_prefix() -> None:
+    store = OemDataStore()
+    epoch = store.begin(3)
+    first = store.reserve(2)
+    first.raw[:] = (
+        (0.0, 7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0),
+        (1.0, 7_000_100.0, 200.0, 300.0, 0.0, 7_501.0, 0.0),
+    )
+    first.segment_ids[:] = (0, 0)
+    store.commit(first, 2)
+
+    snapshot = store.snapshot()
+    cursor = StoreCursor(store, snapshot)
+
+    assert np.shares_memory(cursor.timestamps_s, snapshot.raw)
+    assert np.shares_memory(cursor.states_m, snapshot.raw)
+    assert np.shares_memory(cursor.segment_ids, snapshot.segment_ids)
+    assert not cursor.timestamps_s.flags.writeable
+    assert not cursor.states_m.flags.writeable
+    assert not cursor.segment_ids.flags.writeable
+    np.testing.assert_array_equal(cursor.lookup(1.0).state_m, snapshot.raw[1, 1:7])
+
+    second = store.reserve(1, epoch=epoch)
+    second.raw[0] = (2.0, 7_000_200.0, 400.0, 600.0, 0.0, 7_502.0, 0.0)
+    second.segment_ids[0] = 0
+    store.commit(second, 1)
+    cursor.refresh(store.snapshot())
+
+    assert cursor.t_end == 2.0
+    assert len(cursor.timestamps_s) == 3
+    np.testing.assert_array_equal(cursor.lookup(2.0).state_m, cursor.states_m[-1])
+
+
+def test_store_cursor_rejects_snapshot_from_replaced_epoch() -> None:
+    store = OemDataStore()
+    store.begin(1)
+    reservation = store.reserve(1)
+    reservation.raw[0] = (1.0, 7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0)
+    reservation.segment_ids[0] = 0
+    store.commit(reservation, 1)
+    cursor = StoreCursor(store, store.snapshot())
+
+    store.begin(1)
+
+    with pytest.raises(RuntimeError, match="epoch has changed"):
+        cursor.refresh(store.snapshot())
 
 
 def test_lookup_linearly_interpolates_state_when_metadata_is_absent(

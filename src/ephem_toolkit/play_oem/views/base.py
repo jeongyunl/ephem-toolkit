@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from matplotlib.axes import Axes
@@ -11,8 +12,16 @@ from matplotlib.lines import Line2D
 from matplotlib.figure import Figure
 import numpy as np
 
+from ..oem_data_store import (
+    OemDataStore,
+    SeriesGroupName,
+    SeriesGroups,
+    StoreQuery,
+    StoreSnapshot,
+    TierName,
+)
 from ..series import OrbitSeries
-from ..time_range import ResolvedTimeRange
+from ..time_range import ResolvedTimeRange, validate_coverage
 from ..time_unit import TimeUnit
 from .plotting import SegmentedPlotHistory, set_shared_x_limits, time_bounds_to_axis
 
@@ -41,6 +50,60 @@ class View(Protocol):
 
     def close(self) -> None:
         """Release the view's plot resources."""
+        ...
+
+
+@dataclass(frozen=True)
+class StoreViewContext:
+    """Typed store input for a view's range-limited queries."""
+
+    store: OemDataStore
+    snapshot: StoreSnapshot
+    time_unit: TimeUnit
+    plot_range: ResolvedTimeRange | None
+    coverage: tuple[float, float]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.store, OemDataStore):
+            raise TypeError("store must be an OemDataStore")
+        if not isinstance(self.snapshot, StoreSnapshot):
+            raise TypeError("snapshot must be a StoreSnapshot")
+        if not isinstance(self.time_unit, TimeUnit):
+            raise TypeError("time_unit must be a TimeUnit")
+        object.__setattr__(self, "coverage", validate_coverage(self.coverage))
+
+    def query_series(
+        self,
+        groups: Sequence[SeriesGroupName],
+        *,
+        max_samples: int | None = None,
+    ) -> StoreQuery[SeriesGroups] | None:
+        """Query only selected groups over the effective plot range."""
+        if self.plot_range is None:
+            return None
+        return self.store.series(
+            self.snapshot,
+            (self.plot_range.start_s, self.plot_range.end_s),
+            groups=groups,
+            max_samples=max_samples,
+        )
+
+    def subscribe_tier(self, tier: TierName) -> Callable[[], None]:
+        """Register this open view's interest in a derived store tier."""
+        return self.store.subscribe_tier(tier)
+
+
+class StoreView(Protocol):
+    """Store-query view lifecycle used by the unified player."""
+
+    name: str
+
+    def build_from_store(self, context: StoreViewContext, /) -> Figure | wx.Window:
+        """Build from a stable store snapshot and its range-limited queries."""
+        ...
+
+    def update_from_store(self, context: StoreViewContext, /) -> None:
+        """Refresh from a newer snapshot or changed plot range."""
         ...
 
 

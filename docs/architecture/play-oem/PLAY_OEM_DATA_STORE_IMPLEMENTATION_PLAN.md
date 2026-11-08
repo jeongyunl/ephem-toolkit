@@ -67,9 +67,9 @@ design's performance section, not in the current dataflow document or diagram.
 The [public query contract](./PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md#public-interface) is
 normative: ranged queries return `StoreQuery[T]` with an epoch/revision stamp and explicit time
 coverage; `ColumnGroupView` exposes read-only tier-buffer views with column names and segment
-bounds. Series keys are `kinematics`, `rtn`, and `direction-rates`; tier notices identify the
-affected group or station and use tier-local row spans. Ground Track, Earth-fixed, series, and
-station-access queries share that contract. Point queries such as `state_at` and
+bounds. Series keys are `kinematics`, `rtn`, `direction-rates`, and `distance-delta`; tier notices
+identify the affected group or station and use tier-local row spans. Ground Track, Earth-fixed,
+series, and station-access queries share that contract. Point queries such as `state_at` and
 `station_metrics_at` remain non-blocking and do not materialize history tiers.
 
 | Current graph types | Shared data or computation | Separate outputs that remain distinct |
@@ -141,112 +141,73 @@ criteria pass. Progress is the number of completed checklist items.
 
 ## Active implementation sequence
 
-### 4. Implement range scheduling, playback-time queries, and station-access tiers
-
-Add range-driven work and partial-coverage reporting without blocking playback or the GUI thread.
-
-- **Status:** Done.
-- **Progress:** 5/5 checklist items.
-- [x] Add `RangeHint`, prioritized prefetch requests, generation cancellation, covered-span
-      results, and chunk-completion notices; concurrent identical requests must share one
-      computation.
-- [x] Replace copied clock sample lists with `SampleTimes` over the raw timestamp column while
-      preserving seek, sample-step, and coverage-extension behavior.
-- [x] Implement typed anchored, chunked station look-angle profile views and derive requested
-      access intervals from them; profile graphs and pass graphs must share the same per-station
-      `StoreQuery[StationAccessView]`, and minimum-elevation changes must not recompute profiles.
-- [x] Add range-based per-chunk eviction with active-view/in-flight-draw lifetime protection and
-      deterministic recomputation; do not invalidate unaffected chunks in the same buffer.
-- [x] Test that playback `state_at` performs no chunk computation, range dragging cancels stale
-      work within one chunk, and partial requests never appear complete.
-
-**Done when:** ranges and playback stay independent, prefetch is cancellable and deduplicated,
-station results match the current implementation, and resident derived memory respects the
-documented budget plus active ranges.
-**Depends on:** Steps 2–3.
-
-**Progress evidence:** Store, clock, and station-access tests cover request deduplication,
-generation cancellation, partial coverage, station interval parity, threshold-only interval
-changes, pair-view lifetime, per-chunk eviction, and deterministic recomputation. Validation:
-`python3 -m pytest tests/ephem_toolkit/play_oem tests/ephem_toolkit/core/interpolator -q`
-passed (636 passed, 4 skipped). Step 4 is complete; mmap advice remains platform-dependent and the
-budget can be exceeded while active ranges or live views prevent eligible eviction.
-
-### 5. Migrate loading and controller state to `OemDataStore`
-
-Replace the active player data path only after the store API and requested tiers it consumes are
-stable. Preserve early playback, ordered coverage, user ranges, metadata, errors, and replacement
-semantics.
-
-- **Status:** Not started.
-- **Progress:** 0/6 checklist items.
-- [ ] Route initial and incremental OEM loading through store-owned reservations; remove the
-      parser-batch-to-playback-data staging path without delaying the first usable raw samples.
-- [ ] Replace `PlaybackData`'s derived-data fields and controller references to `series`,
-      `time_unit`, `cursor`, `_incremental_store`, and `_ground_track_source` with store/snapshot
-      queries where appropriate.
-- [ ] Publish range hints on plot-range, playback-range, seek, drag, and view-open/close changes.
-- [ ] Replace the station warm-up thread and polling refresh work with store prefetch and notices;
-      keep wx event handling limited to applying notices and updating views.
-- [ ] Coordinate metadata finalization, failed/cancelled prefixes, replacement, stale notices,
-      saved ranges, and `PlaybackClock` coverage through one epoch-aware lifecycle.
-- [ ] Complete the integration and scheduling measurements against the headless gates in
-      [Performance policy and acceptance](#performance-policy-and-acceptance), using headless
-      benchmarks only.
-
-**Done when:** the active player loads and consumes one authoritative store, preserves current
-behavior, and has no orbit-sized staging or parallel controller copies.
-**Depends on:** Steps 1–4.
+Steps 4 and 5 are complete. **Next is Step 6:** migrate views to store queries. **Step 7 wires
+the active loader/controller, and Step 8 removes duplicate ownership and superseded paths.** The
+direct `RAW_APPEND` event path and `StoreCursor` adapter exist, but `PlayerApp` still uses
+`IncrementalPlaybackPreparer`, and `View.build` still requires an `OrbitSeries`. Do not activate
+direct loading before the view migration is complete.
 
 ### 6. Migrate views to store snapshots and range queries
 
-Change view contracts after the controller can provide stable snapshots and lazy queries. Preserve
-plot labels, values, segmentation, click-to-seek, and 3D backend behavior.
+Migrate consumers only after Step 5 provides all required query outputs. Preserve plot labels,
+values, segmentation, click-to-seek, empty/partial behavior, and 3D backend behavior.
 
 - **Status:** Not started.
 - **Progress:** 0/4 checklist items.
-- [ ] Change 2D history views to consume range-limited series-group views and draw through the
-      zero-copy-friendly path; keep plot-range axes and seek mapping equivalent.
-- [ ] Change 3D trajectory views to consume raw position views or record a measured, explicit
-      backend exception where the toolkit requires a copy.
-- [ ] Change Ground Track, Pass Ground Track, and station views (Station Status, Pass Strip,
-      Elevation / Azimuth / Range Profiles, Pass List, Sky View) to consume typed store query
-      results and coverage, reusing shared Earth-fixed buffers instead of receiving independent
-      source arrays and cache objects.
-- [ ] Verify empty, partial, loading, failed, cancelled, and multi-segment render states; ensure
-      views release subscriptions and snapshots safely on close/replacement.
+- [ ] Migrate 2D history views to range-limited series-group queries; use the validated
+      `speed-altitude` path as the pattern and request only fields each view uses.
+- [ ] Migrate State Components and 3D trajectory views to raw position/velocity views, retaining
+      only the explicitly measured VTK/backend-specific copy.
+- [ ] Migrate Ground Track, Pass Ground Track, and station views to typed Earth-fixed,
+      footprint, station-profile/access, and point-metric results; reuse shared store buffers.
+- [ ] Verify empty, partial, loading, failed, cancelled, and multi-segment render states;
+      confirm plotting buffer sharing and resource release on close/replacement.
 
-**Done when:** all active views use the store as their source of orbit data and retain current
-visual/numerical and interaction behavior without hidden full-range copies.
+**Done when:** every registered view builds and updates from typed store inputs, preserves current
+visual/numerical and interaction behavior, requests only needed ranges/tiers, and creates no hidden
+orbit-sized `OrbitSeries` projection or downsampled copy.
 **Depends on:** Step 5.
 
-### 7. Consolidate derived caches and remove duplicate ownership
+### 7. Migrate loading and controller state to `OemDataStore`
 
-Move every remaining OEM-derived cache under the store and remove legacy cache invalidation rules.
+Wire direct store loading only after all views consume the store contract. Preserve early playback,
+ordered coverage, user ranges, metadata, errors, cancellation, and replacement semantics.
+
+- **Status:** Blocked on Step 6 (the active controller still uses `IncrementalPlaybackPreparer`).
+- **Progress:** 0/6 checklist items.
+- [ ] Create and own one store per playback epoch; route initial and incremental OEM loading
+      through store-owned reservations and raw-append notices without parser-batch-to-playback
+      staging or delaying the first usable raw samples.
+- [ ] Replace `PlaybackData`'s derived-data fields and controller references to `series`,
+      `time_unit`, `cursor`, `_incremental_store`, and `_ground_track_source` with store/snapshot
+      queries where appropriate; extend `PlaybackClock` from committed timestamps.
+- [ ] Publish range hints on plot-range, playback-range, seek, drag, and view-open/close changes;
+      apply tier/append notices to the affected views without blocking wx event handling.
+- [ ] Replace the station warm-up thread and polling refresh work with store prefetch and notices;
+      keep wx event handling limited to applying notices and updating views.
+- [ ] Coordinate metadata finalization, failed/cancelled prefixes, replacement epochs, stale
+      notices, saved ranges, interpolation policy, and clock coverage through one lifecycle.
+- [ ] Test direct initial/incremental loading, early playback, replacement, failure, cancellation,
+      and scheduling; complete headless measurements against the gates in
+      [Performance policy and acceptance](#performance-policy-and-acceptance).
+
+**Done when:** the active player loads and consumes one authoritative store, preserves current
+behavior, and has no orbit-sized staging or parallel controller copies.
+**Depends on:** Step 6.
+
+### 8. Consolidate ownership, remove superseded paths, and accept the migration
+
+After every consumer is store-backed, remove duplicate caches and obsolete preparation paths,
+update architecture documentation, and run final correctness/performance gates.
 
 - **Status:** Not started.
-- **Progress:** 0/4 checklist items.
-- [ ] Move Ground Track coordinates, footprints, Earth-fixed positions, station access, and
-      station metrics into epoch/policy-aware store tiers; keep one shared Earth-fixed position
-      tier while retaining distinct WGS-84 and station-relative products.
+- **Progress:** 0/8 checklist items.
 - [ ] Remove `GroundTrackSource`, `source_prefix_matches`, controller-held Ground Track arrays,
       app-scoped `EarthFixedPositionCache`/`StationAccessCache`, and the module footprint cache.
-- [ ] Verify frame changes create a new epoch and interpolation-policy changes invalidate only
-      interpolation/access products.
+- [ ] Ensure frame changes are represented in epoch/query identity and interpolation-policy
+      changes invalidate only dependent interpolation/access products.
 - [ ] Test cache retention for unaffected ranges, invalidation around support margins, safe
       eviction while views are drawing, and identical results after recomputation.
-
-**Done when:** all analysis/plot-derived orbit data has one store owner and cache invalidation uses
-only explicit epoch, revision, frame, and policy identity.
-**Depends on:** Steps 4–6.
-
-### 8. Remove superseded paths and accept the unified-store migration
-
-Delete obsolete preparation and dataflow paths after every active consumer has migrated. Update
-architecture documents and run the complete validation suite.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
 - [ ] Remove `AppendablePlaybackData`, `PreparedPlaybackBatch`, `IncrementalPlaybackPreparer`,
       `OrbitSeriesAccumulator`, and unused `load_playback_data`/`playback_data_from_batch`
       compatibility paths.
@@ -263,7 +224,7 @@ architecture documents and run the complete validation suite.
 **Done when:** the store design's validation criteria pass, superseded paths are removed, the
 dataflow documentation matches the implementation, and all remaining exceptions/limitations are
 explicitly documented.
-**Depends on:** Step 7.
+**Depends on:** Steps 5–7.
 
 ## Deferred, separate work
 
@@ -422,4 +383,82 @@ Earth-fixed views. The implementation writes into per-tier reserved buffers and 
 slices; it does not call the orbit-sized `compute_orbit_series` reference path. Pylance diagnostics
 and syntax requests timed out; pytest imports exercised the changed modules. Range scheduling,
 consumer wiring, and application-wide elimination of parallel derived-data owners remain for
-Steps 4–7.
+Steps 5–7.
+
+### 4. Implement range scheduling, playback-time queries, and station-access tiers
+
+Add range-driven work and partial-coverage reporting without blocking playback or the GUI thread.
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Add `RangeHint`, prioritized prefetch requests, generation cancellation, covered-span
+      results, and chunk-completion notices; concurrent identical requests must share one
+      computation.
+- [x] Replace copied clock sample lists with `SampleTimes` over the raw timestamp column while
+      preserving seek, sample-step, and coverage-extension behavior.
+- [x] Implement typed anchored, chunked station look-angle profile views and derive requested
+      access intervals from them; profile graphs and pass graphs must share the same per-station
+      `StoreQuery[StationAccessView]`, and minimum-elevation changes must not recompute profiles.
+- [x] Add range-based per-chunk eviction with active-view/in-flight-draw lifetime protection and
+      deterministic recomputation; do not invalidate unaffected chunks in the same buffer.
+- [x] Test that playback `state_at` performs no chunk computation, range dragging cancels stale
+      work within one chunk, and partial requests never appear complete.
+
+**Done when:** ranges and playback stay independent, prefetch is cancellable and deduplicated,
+station results match the current implementation, and resident derived memory respects the
+documented budget plus active ranges.
+**Depends on:** Steps 2–3.
+
+**Progress evidence:** Store, clock, and station-access tests cover request deduplication,
+generation cancellation, partial coverage, station interval parity, threshold-only interval
+changes, pair-view lifetime, per-chunk eviction, and deterministic recomputation. Validation:
+`python3 -m pytest tests/ephem_toolkit/play_oem tests/ephem_toolkit/core/interpolator -q`
+passed (636 passed, 4 skipped). Step 4 is complete; mmap advice remains platform-dependent and the
+budget can be exceeded while active ranges or live views prevent eligible eviction.
+
+### 5. Complete the store-backed view input contract
+
+Inventory each registered view against the implemented query APIs, then close data gaps before
+migrating view consumers. Preserve the zero-copy and lazy-query rules; derived view inputs must be
+store-owned rather than computed or assembled by each panel.
+
+- **Status:** Done.
+- **Progress:** 6/6 checklist items.
+- [x] Inventory registered view values and interactions against store APIs, recording uncovered
+      products before view migration.
+- [x] Define typed view inputs for the store, stable snapshot, display unit, plot range, and
+      coverage; provide tier-interest subscription and release semantics.
+- [x] Implement the `speed-altitude` vertical slice using only range-limited `kinematics`;
+      verify empty/partial coverage, range changes, numerical transforms, segmentation, buffer
+      sharing, and tier-interest release.
+- [x] Add a lazy, segment-aware `distance-delta` series group for Geocentric Distance; update the
+      public query contract and test parity, range coverage, append, and segment-boundary behavior.
+- [x] Add footprints and current station-metric point queries, with footprint results cached by
+      the store and no per-view orbit-sized arrays.
+- [x] Add store-owned range-limited Ground Track coordinates, reusing Earth-fixed positions and
+      preserving segment and map-seam run boundaries without per-view full-range arrays.
+
+**Inventory against current store queries:**
+
+| Registered views | Existing store input | Gap to close before migration |
+|---|---|---|
+| State Components; 3D Orbit | Raw snapshot states, timestamps, and segment bounds | None for data inputs; handle the VTK backend's measured packed-array exception. |
+| Speed / Altitude | `kinematics` | None; exercised by the vertical slice. |
+| RTN Deltas | `rtn` | None. |
+| Angular Velocity; Direction Change | `direction-rates` | None. |
+| Geocentric Distance | `kinematics`, `distance-delta` | None; distance delta is a lazy segment-aware group. |
+| Ground Track; Pass Ground Track | Earth-fixed positions, map-centered Ground Track groups, footprint point query, and station-access intervals for pass selection | None for query inputs. |
+| Station Status; Pass Strip; Elevation / Azimuth / Range Profiles; Pass List; Sky View | Station profile/access query and station-metric point query | None for query inputs. |
+
+**Done when:** every registered view's required input is available through a typed, range-aware
+store query, including the distance-delta, Ground Track/footprint, and station-metric products;
+no view needs to create an orbit-sized projection.
+**Depends on:** Steps 1–4.
+
+**Evidence:** The store-backed `speed-altitude` vertical slice validates range-limited plotting,
+display transforms, buffer sharing, and tier-interest lifecycle. Ground Track queries reuse the
+Earth-fixed tier, return map-centered seam-split groups, and use a bounded cache; point queries
+cover station metrics and footprints. Validation:
+`python3 -m pytest tests/ephem_toolkit/play_oem tests/ephem_toolkit/core/interpolator -q`
+passed (645 passed, 4 skipped). `git diff --check` and `compileall` passed. Step 6 can now migrate
+the remaining views; the active application still uses `OrbitSeries`.

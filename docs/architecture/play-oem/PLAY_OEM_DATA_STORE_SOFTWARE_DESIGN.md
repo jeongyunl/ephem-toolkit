@@ -751,7 +751,9 @@ from typing import Generic, Literal, TypeVar, Union
 
 T = TypeVar("T")
 TimeBounds = tuple[float, float]  # TT seconds
-SeriesGroupName = Literal["kinematics", "rtn", "direction-rates"]
+SeriesGroupName = Literal[
+    "kinematics", "rtn", "direction-rates", "distance-delta"
+]
 TierName = Literal[
     "series", "earth-fixed", "ground-track", "station-access", "footprints"
 ]
@@ -791,6 +793,7 @@ class QueryRequest:
     max_samples: int | None = None
     minimum_elevation_deg: float | None = None
     margin_s: float = 0.0
+    center_longitude_deg: float = 0.0
 
 @dataclass(frozen=True)
 class ColumnGroupView:
@@ -799,7 +802,7 @@ class ColumnGroupView:
     segment_bounds: tuple[RowSpan, ...]
 
 SeriesGroups = Mapping[SeriesGroupName, tuple[ColumnGroupView, ...]]
-GroundTrackGroups = tuple[ColumnGroupView, ...]  # ("t", "longitude", "latitude") per run
+GroundTrackGroups = tuple[ColumnGroupView, ...]  # per map-centered, seam-split run
 EarthFixedPositions = tuple[ColumnGroupView, ...]
 
 @dataclass(frozen=True)
@@ -898,6 +901,7 @@ class OemDataStore:
     ) -> StoreQuery[EarthFixedPositions]
     def ground_track(
         self, snapshot: StoreSnapshot, bounds_s: TimeBounds, margin_s: float = 0.0,
+        center_longitude_deg: float = 0.0, *, wait: bool = False,
     ) -> StoreQuery[GroundTrackGroups]
     def station_access(
         self, snapshot: StoreSnapshot, station: GroundStation, bounds_s: TimeBounds,
@@ -917,38 +921,49 @@ class OemDataStore:
 
 These value types are implemented in `play_oem.oem_data_store`; the active raw snapshot includes
 the lifecycle fields shown above. The implementation provides non-blocking range queries for
-series, Earth-fixed positions, and station access; missing work is queued by `prefetch`, and
-`wait=True` is available for synchronous callers and tests. Playback timestamps use a live
-`SampleTimes` view over the raw time column. Station profiles are computed lazily on a grid
+series, Earth-fixed positions, Ground Track coordinates, and station access; missing work is
+queued by `prefetch`, and
+`wait=True` is available for synchronous callers and tests. Ground Track requests reuse the
+Earth-fixed tier and cache a bounded number of range-limited, map-centered seam-split results.
+Playback timestamps use a live `SampleTimes` view over the raw time column. Station profiles are
+computed lazily on a grid
 anchored at each segment start, shared across minimum-elevation changes, and use the store's
 point-state interpolation without constructing an `OemCursor` copy of the orbit history.
 
 The memory-budget implementation evicts completed derived chunks individually in LRU order.
 It protects chunks referenced by live `ColumnGroupView` or derived NumPy views, and chunks in
-active ranges. On platforms with mmap advice, eviction advises only the selected pages of the
+active ranges. Ground Track range results are also counted and evicted as bounded LRU query
+results. On platforms with mmap advice, chunk eviction advises only the selected pages of the
 chunk's private anonymous mapping, then invalidates its memo entry while holding the store and memo
-locks; a later query recomputes
-the chunk before exposing it. The budget counts computed derived data, but can be exceeded while
+locks; a later query recomputes the chunk before exposing it. The budget can be exceeded while
 live views or active ranges prevent eligible eviction, and operating-system page advice does not
-guarantee an immediate RSS reduction. If mmap advice is unavailable, eviction is disabled. Raw
-storage remains independent of this policy.
+guarantee an immediate RSS reduction. If mmap advice is unavailable, chunk eviction is disabled;
+Ground Track result-cache eviction remains available. Raw storage remains independent of this
+policy.
 
-Ground Track and footprints remain target interfaces rather than implemented `OemDataStore`
-queries. Station profile layouts are currently rebuilt after each raw append; incremental
-tail-only profile extension is not yet implemented.
+Footprints and current station metrics are implemented as current-state point queries; footprint
+results are held in a bounded store-local cache. The ranged Ground Track coordinate query remains
+a target interface rather than an implemented `OemDataStore` query. Station profile layouts are
+currently rebuilt after each raw append; incremental tail-only profile extension is not yet
+implemented.
 
 Target contract: `TimeBounds` are TT-second bounds. Range-query methods are non-blocking: they
 return computed views and explicit coverage while missing chunks are queued for the store worker.
 `prefetch` accepts the same tier/range selection and returns a cancellable future; it does not
 return a second copy of query data. `kinematics` contains speed, distance, and altitude; `rtn`
 contains RTN deltas; `direction-rates` contains direction-change and angular-rate fields that
-share adjacent-sample work. State Components and 3D positions come from the raw tier.
+share adjacent-sample work; `distance-delta` contains geocentric-distance changes between adjacent
+samples. Delta groups omit the first sample in each OEM segment, represented by their segment
+bounds. State Components and 3D positions come from the raw tier.
 `TimeCoverage.covered_s` may contain multiple spans when segments, gaps, or pending chunks split
 the result. `StoreQuery`
 stamps results with the snapshot's epoch, append
 revision, and interpolation-policy revision; consumers discard notifications or results from a
 different epoch/policy. `SeriesGroups`, `EarthFixedPositions`, and
-`GroundTrackGroups` expose read-only column-group views plus segment bounds. For station access,
+`GroundTrackGroups` expose read-only `("t", "longitude", "latitude")` column-group views per
+map-centered run, including interpolated seam endpoints. The store bounds this range-result cache;
+views share its final arrays instead of preparing independent full-range coordinate copies. For
+station access,
 each profile group is a view of the shared `[t, azimuth, elevation, range]` tier; intervals are
 small derived records, not orbit-sized arrays. `ColumnGroupView.pair("t", "altitude", rows=...)` returns a read-only plotting view for
 `Path`/`PathPatch`; no field is returned as a separate copied array and none is in display units
@@ -962,7 +977,8 @@ when the interpolation policy changes. `footprints` resolves the current
 state and reuses its Earth-fixed position internally; callers do not pass a separately converted
 position. `TimeCoverage.complete` means all required data within the requested in-coverage span is
 ready; OEM segment gaps remain represented as breaks, not as pending work. `TierNotice` reports a
-completed tier-local row span, after which consumers query again for a `StoreQuery`.
+completed tier-local row span, after which consumers query again for a `StoreQuery`. Ground Track
+notice spans use the corresponding source-row indices before seam-endpoint expansion.
 `RawReservation` exposes writable raw and segment-ID views exclusively to the loader;
 only `commit` makes its validated prefix visible to snapshots. The loader abandons its writable
 views after commit or abort. Its contract and cancellation semantics are specified under

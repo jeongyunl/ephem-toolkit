@@ -14,7 +14,8 @@ from ephem_toolkit.core import misc
 from ephem_toolkit.core.ccsds.oem import CcsdsOem
 from ephem_toolkit.play_oem.chunk_memo import ChunkState
 from ephem_toolkit.play_oem.cursor import CursorStatus, OemCursor
-from ephem_toolkit.play_oem.ground_stations import GroundStation
+from ephem_toolkit.play_oem.ground_footprints import compute_ground_footprints
+from ephem_toolkit.play_oem.ground_stations import GroundStation, station_metrics
 from ephem_toolkit.play_oem.ground_track import GroundTrackSource
 import ephem_toolkit.play_oem.oem_data_store as oem_data_store
 from ephem_toolkit.play_oem.station_access import prepare_station_access
@@ -62,8 +63,9 @@ def _store_with_samples(
     *,
     metadata: tuple[tuple[str, object], ...] = (),
     complete: bool = True,
+    derived_memory_budget_bytes: int = 256 * 1024 * 1024,
 ) -> OemDataStore:
-    store = OemDataStore()
+    store = OemDataStore(derived_memory_budget_bytes)
     epoch = store.begin(len(times))
     reservation = store.reserve(len(times))
     reservation.raw[:, 0] = times
@@ -457,6 +459,149 @@ def test_state_at_matches_cursor_without_copying_sample_history(
         assert store._earth_fixed_buffer is None
 
 
+def test_point_queries_reuse_raw_state_without_materializing_history_tiers() -> None:
+    times, states, segments = _series_samples()
+    metadata = (("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF93"))
+    store = _store_with_samples(times, states, segments, metadata=metadata)
+    snapshot = store.snapshot()
+    station = GroundStation("station", "Test Station", 35.0, -117.0, 100.0)
+
+    metrics = store.station_metrics_at(snapshot, station, 0.0)
+    expected_metrics = station_metrics(station, states[0], "ITRF93", 0.0)
+    assert metrics == expected_metrics
+    assert store.station_metrics_at(snapshot, station, 210.0) is None
+    assert store.station_metrics_at(snapshot, station, 500.0) is None
+
+    footprints = store.footprints(snapshot, 0.0, 10)
+    expected_footprints = compute_ground_footprints(states[0, :3], 10)
+    assert footprints is not None
+    np.testing.assert_allclose(
+        footprints.horizon.latitude_rad,
+        expected_footprints.horizon.latitude_rad,
+    )
+    np.testing.assert_allclose(
+        footprints.horizon.longitude_rad,
+        expected_footprints.horizon.longitude_rad,
+    )
+    assert store.footprints(snapshot, 0.0, 10) is footprints
+    assert store.footprints(snapshot, 210.0, 10) is None
+    assert store._earth_fixed_buffer is None
+
+
+def test_ground_track_query_reuses_earth_fixed_positions_and_splits_map_seams() -> None:
+    times = np.array([0.0, 10.0, 20.0, 30.0])
+    longitudes_rad = np.deg2rad([170.0, -170.0, -160.0, 170.0])
+    radius_m = 6_378_137.0 + 400_000.0
+    positions = np.column_stack(
+        (
+            radius_m * np.cos(longitudes_rad),
+            radius_m * np.sin(longitudes_rad),
+            np.zeros(times.size),
+        )
+    )
+    states = np.column_stack((positions, np.zeros_like(positions)))
+    segments = np.array([0, 0, 0, 1], dtype=np.int64)
+    metadata = (("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF"))
+    store = _store_with_samples(times, states, segments, metadata=metadata)
+    snapshot = store.snapshot()
+
+    across_zero = store.ground_track(snapshot, (0.0, 30.0), wait=True)
+
+    assert across_zero.coverage.complete
+    assert [len(group.values) for group in across_zero.value] == [2, 3, 1]
+    np.testing.assert_allclose(
+        np.rad2deg(across_zero.value[0].values[:, 1]), [170.0, 180.0], atol=1e-8
+    )
+    np.testing.assert_allclose(
+        np.rad2deg(across_zero.value[1].values[:, 1]),
+        [-180.0, -170.0, -160.0],
+        atol=1e-8,
+    )
+    assert across_zero.value[0].values[-1, 0] == pytest.approx(5.0)
+    assert across_zero.value[1].values[0, 0] == pytest.approx(5.0)
+    assert all(
+        group.columns == ("t", "longitude", "latitude")
+        for group in across_zero.value
+    )
+    assert all(not group.values.flags.writeable for group in across_zero.value)
+    assert store._earth_fixed_buffer is not None
+    assert store.ground_track(snapshot, (0.0, 30.0), wait=True) is across_zero
+
+    around_180 = store.ground_track(
+        snapshot, (0.0, 30.0), center_longitude_deg=180.0, wait=True
+    )
+    assert len(around_180.value) == 2
+    np.testing.assert_allclose(
+        np.rad2deg(around_180.value[0].values[:, 1]), [-10.0, 10.0, 20.0], atol=1e-8
+    )
+
+
+def test_ground_track_query_is_range_limited_and_prefetchable() -> None:
+    times = np.array([0.0, 10.0, 20.0, 30.0])
+    longitudes_rad = np.deg2rad([10.0, 20.0, 30.0, 40.0])
+    radius_m = 6_378_137.0 + 400_000.0
+    positions = np.column_stack(
+        (
+            radius_m * np.cos(longitudes_rad),
+            radius_m * np.sin(longitudes_rad),
+            np.zeros(times.size),
+        )
+    )
+    states = np.column_stack((positions, np.zeros_like(positions)))
+    metadata = (("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF"))
+    store = _store_with_samples(
+        times, states, np.zeros(times.size, dtype=np.int64), metadata=metadata
+    )
+    snapshot = store.snapshot()
+
+    pending = store.ground_track(snapshot, (10.0, 20.0), margin_s=10.0)
+    assert pending.value == ()
+    assert not pending.coverage.complete
+    future = store.prefetch(
+        snapshot,
+        QueryRequest(
+            "ground-track",
+            (10.0, 20.0),
+            margin_s=10.0,
+            center_longitude_deg=360.0,
+        ),
+    )
+    future.result(timeout=5)
+
+    ready = store.ground_track(snapshot, (10.0, 20.0), margin_s=10.0)
+    assert ready.coverage.complete
+    assert len(ready.value) == 1
+    np.testing.assert_array_equal(ready.value[0].values[:, 0], times)
+
+
+def test_ground_track_result_cache_respects_derived_memory_budget() -> None:
+    times = np.array([0.0, 10.0, 20.0])
+    longitudes_rad = np.deg2rad([10.0, 20.0, 30.0])
+    radius_m = 6_378_137.0 + 400_000.0
+    positions = np.column_stack(
+        (
+            radius_m * np.cos(longitudes_rad),
+            radius_m * np.sin(longitudes_rad),
+            np.zeros(times.size),
+        )
+    )
+    states = np.column_stack((positions, np.zeros_like(positions)))
+    metadata = (("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF"))
+    store = _store_with_samples(
+        times,
+        states,
+        np.zeros(times.size, dtype=np.int64),
+        metadata=metadata,
+        derived_memory_budget_bytes=1,
+    )
+
+    result = store.ground_track(store.snapshot(), (0.0, 20.0), wait=True)
+
+    assert result.coverage.complete
+    assert len(result.value) == 1
+    assert store._ground_track_cache == {}
+
+
 def test_state_at_rejects_snapshot_after_interpolation_policy_change() -> None:
     times, states, segments = _series_samples()
     store = _store_with_samples(times, states, segments)
@@ -480,11 +625,17 @@ def test_series_groups_are_lazy_chunked_views_matching_reference_computations() 
         snapshot, (60.0, 360.0), groups=("kinematics",), wait=True
     )
 
-    assert set(result.value) == {"kinematics", "rtn", "direction-rates"}
-    assert set(store._series_buffers) == {"kinematics", "rtn", "direction-rates"}
+    expected_groups = {
+        "kinematics",
+        "rtn",
+        "direction-rates",
+        "distance-delta",
+    }
+    assert set(result.value) == expected_groups
+    assert set(store._series_buffers) == expected_groups
     assert store.series_chunk_counters("kinematics").chunks_computed == 1
     assert store.series_chunk_counters("kinematics").hits == 1
-    for group_name in ("kinematics", "rtn", "direction-rates"):
+    for group_name in expected_groups:
         view = _one_group(result, group_name).values
         assert np.shares_memory(view, store._series_buffers[group_name])
         assert not view.flags.writeable
@@ -508,6 +659,21 @@ def test_series_groups_are_lazy_chunked_views_matching_reference_computations() 
     np.testing.assert_allclose(
         kinematics[:, 3],
         reference.altitude_km[1:5] * 1000.0,
+    )
+
+    distance_delta = _one_group(result, "distance-delta")
+    expected_distance_delta = np.diff(reference.geocentric_distance_km) * 1000.0
+    np.testing.assert_allclose(
+        distance_delta.values[:2, 1],
+        expected_distance_delta[:2],
+    )
+    np.testing.assert_allclose(
+        distance_delta.values[3:4, 1],
+        expected_distance_delta[3:4],
+    )
+    assert distance_delta.segment_bounds == (
+        RowSpan(0, 2),
+        RowSpan(3, 4),
     )
 
     rtn = _one_group(result, "rtn").values
@@ -568,6 +734,76 @@ def test_series_queries_compute_only_requested_groups_and_stride_views() -> None
         RowSpan(0, 2),
         RowSpan(2, 3),
     )
+
+
+def test_distance_delta_series_is_lazy_and_segment_aware() -> None:
+    times, states, segments = _series_samples()
+    store = _store_with_samples(times, states, segments)
+    snapshot = store.snapshot()
+
+    assert store.series_chunk_counters("distance-delta").chunks_computed == 0
+    query = store.series(
+        snapshot,
+        (60.0, 360.0),
+        groups=("distance-delta",),
+        wait=True,
+    )
+
+    assert set(query.value) == {"distance-delta"}
+    assert set(store._series_buffers) == {"distance-delta"}
+    group = _one_group(query, "distance-delta")
+    assert group.columns == ("t", "delta_distance_m")
+    assert group.segment_bounds == (RowSpan(0, 2), RowSpan(3, 4))
+    expected_distance = np.linalg.norm(states[:, :3], axis=1)
+    expected_delta = np.diff(expected_distance)
+    np.testing.assert_allclose(
+        group.values[:2, 1],
+        expected_delta[:2],
+    )
+    np.testing.assert_allclose(group.values[3:4, 1], expected_delta[3:4])
+    assert query.coverage.covered_s == ((60.0, 120.0), (300.0, 360.0))
+    assert store.series_chunk_counters("distance-delta").chunks_computed == 1
+
+
+def test_distance_delta_recomputes_tentative_tail_after_append() -> None:
+    times, states, segments = _series_samples()
+    store = OemDataStore()
+    epoch = store.begin(len(times))
+    first = store.reserve(3)
+    first.raw[:, 0] = times[:3]
+    first.raw[:, 1:7] = states[:3]
+    first.segment_ids[:] = segments[:3]
+    store.commit(first, 3)
+    first_snapshot = store.snapshot()
+    store.series(
+        first_snapshot,
+        (times[0], times[2]),
+        groups=("distance-delta",),
+        wait=True,
+    )
+
+    tail = store.reserve(3)
+    tail.raw[:, 0] = times[3:]
+    tail.raw[:, 1:7] = states[3:]
+    tail.segment_ids[:] = segments[3:]
+    store.commit(tail, 3)
+    store.mark_complete(epoch, (), ())
+
+    snapshot = store.snapshot()
+    query = store.series(
+        snapshot,
+        (times[0], times[-1]),
+        groups=("distance-delta",),
+        wait=True,
+    )
+    group = _one_group(query, "distance-delta")
+    expected_distance = np.linalg.norm(states[:, :3], axis=1)
+    expected_delta = np.diff(expected_distance)
+
+    assert group.segment_bounds == (RowSpan(1, 3), RowSpan(4, 6))
+    np.testing.assert_allclose(group.values[1:3, 1], expected_delta[:2])
+    np.testing.assert_allclose(group.values[4:6, 1], expected_delta[3:5])
+    assert query.coverage.complete
 
 
 def test_series_results_do_not_depend_on_group_request_order() -> None:

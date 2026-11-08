@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 import math
 from threading import RLock
-from typing import Sequence
+from typing import TYPE_CHECKING, Sequence
 
 import numpy as np
 
@@ -17,6 +17,9 @@ from ephem_toolkit.core.interpolator.interpolation_spec import (
     InterpolationType,
 )
 from ephem_toolkit.core.interpolator.interpolator import Interpolator
+
+if TYPE_CHECKING:
+    from .oem_data_store import OemDataStore, StoreSnapshot
 
 KILOMETERS_PER_METER = 0.001
 
@@ -368,3 +371,63 @@ class OemCursor:
         if not math.isfinite(query_time):
             raise ValueError("query time must be a finite number")
         return query_time
+
+
+class StoreCursor:
+    """Cursor-compatible point queries over a store snapshot without history copies."""
+
+    def __init__(self, store: OemDataStore, snapshot: StoreSnapshot) -> None:
+        if snapshot.epoch != store.epoch:
+            raise RuntimeError("store epoch has changed")
+        self._store = store
+        self._snapshot = snapshot
+
+    @property
+    def t_start(self) -> float:
+        if self._snapshot.sample_count == 0:
+            raise ValueError("store snapshot has no samples")
+        return float(self._snapshot.raw[0, 0])
+
+    @property
+    def t_end(self) -> float:
+        if self._snapshot.sample_count == 0:
+            raise ValueError("store snapshot has no samples")
+        return float(self._snapshot.raw[-1, 0])
+
+    @property
+    def timestamps_s(self) -> np.ndarray:
+        """Return the snapshot's read-only timestamps without copying them."""
+        return self._snapshot.raw[:, 0]
+
+    @property
+    def states_m(self) -> np.ndarray:
+        """Return a read-only strided view of the snapshot's raw SI states."""
+        return self._snapshot.raw[:, 1:7]
+
+    @property
+    def segment_ids(self) -> np.ndarray:
+        """Return the snapshot's read-only segment IDs."""
+        return self._snapshot.segment_ids
+
+    def refresh(self, snapshot: StoreSnapshot) -> None:
+        """Advance to a newer committed prefix of the same store epoch."""
+        if snapshot.epoch != self._snapshot.epoch:
+            raise RuntimeError("store epoch has changed")
+        if snapshot.sample_count < self._snapshot.sample_count:
+            raise ValueError("store snapshot cannot move backwards")
+        self._snapshot = snapshot
+
+    def set_interpolation(
+        self, interpolation: str | None, interpolation_degree: int | None
+    ) -> None:
+        """Update the store policy used by subsequent state queries."""
+        from .oem_data_store import InterpolationPolicy
+
+        self._store.set_interpolation(
+            InterpolationPolicy(interpolation or "linear", interpolation_degree)
+        )
+        self.refresh(self._store.snapshot())
+
+    def lookup(self, t: float) -> CursorState:
+        """Resolve a point query against the currently bound store snapshot."""
+        return self._store.state_at(self._snapshot, t)
