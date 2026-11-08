@@ -163,6 +163,28 @@ class ChunkMemo(Generic[K, T]):
             self._remove_entry_locked(key, entry)
             return True
 
+    def evict(
+        self,
+        key: K,
+        release: Callable[[], None],
+        *,
+        epoch: int,
+        policy_revision: int,
+    ) -> bool:
+        """Release one completed chunk before invalidating it atomically."""
+        with self._lock:
+            entry = self._entries.get(key)
+            if (
+                entry is None
+                or entry.epoch != epoch
+                or entry.policy_revision != policy_revision
+                or entry.state not in (ChunkState.COMPLETE, ChunkState.TENTATIVE)
+            ):
+                return False
+            release()
+            self._remove_entry_locked(key, entry)
+            return True
+
     def clear(self) -> None:
         """Invalidate all entries, including computations still in flight."""
         with self._lock:

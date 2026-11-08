@@ -227,3 +227,77 @@ def test_clear_counts_cached_entries_as_evictions() -> None:
     assert memo.state(0, epoch=1, policy_revision=0) is ChunkState.ABSENT
     assert memo.state(1, epoch=1, policy_revision=0) is ChunkState.ABSENT
     assert memo.counters.evictions == 2
+
+
+def test_evict_releases_only_matching_completed_or_tentative_entry() -> None:
+    memo: ChunkMemo[int, int] = ChunkMemo()
+    memo.get_or_compute(0, lambda: 1, epoch=1, policy_revision=0)
+    memo.get_or_compute(1, lambda: 2, epoch=1, policy_revision=0, tentative=True)
+    released: list[int] = []
+
+    assert not memo.evict(
+        0,
+        lambda: released.append(0),
+        epoch=2,
+        policy_revision=0,
+    )
+    assert not memo.evict(
+        2,
+        lambda: released.append(2),
+        epoch=1,
+        policy_revision=0,
+    )
+    assert memo.evict(
+        0,
+        lambda: released.append(0),
+        epoch=1,
+        policy_revision=0,
+    )
+    assert memo.evict(
+        1,
+        lambda: released.append(1),
+        epoch=1,
+        policy_revision=0,
+    )
+
+    assert released == [0, 1]
+    assert memo.state(0, epoch=1, policy_revision=0) is ChunkState.ABSENT
+    assert memo.state(1, epoch=1, policy_revision=0) is ChunkState.ABSENT
+    assert memo.counters.evictions == 2
+
+
+def test_evict_does_not_release_a_computing_entry() -> None:
+    memo: ChunkMemo[str, int] = ChunkMemo()
+    started = Event()
+    release = Event()
+    errors: list[Exception] = []
+
+    def compute() -> int:
+        started.set()
+        assert release.wait(3)
+        return 1
+
+    def request() -> None:
+        try:
+            memo.get_or_compute("chunk", compute, epoch=1, policy_revision=0)
+        except Exception as error:
+            errors.append(error)
+
+    worker = Thread(target=request)
+    worker.start()
+    assert started.wait(3)
+    try:
+        assert not memo.evict(
+            "chunk",
+            lambda: pytest.fail("computing entries must not be released"),
+            epoch=1,
+            policy_revision=0,
+        )
+        assert memo.state("chunk", epoch=1, policy_revision=0) is ChunkState.COMPUTING
+    finally:
+        release.set()
+        worker.join(3)
+
+    assert not worker.is_alive()
+    assert errors == []
+    assert memo.state("chunk", epoch=1, policy_revision=0) is ChunkState.COMPLETE

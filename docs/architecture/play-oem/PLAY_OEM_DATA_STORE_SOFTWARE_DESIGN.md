@@ -24,12 +24,13 @@ metadata are attached only on completion, and failures preserve a committed pref
 message. Cancellation preserves the committed prefix but prevents further reservations. Lazy
 query/result types, the public raw `StoreSnapshot`, the reusable `ChunkMemo` primitive, and
 stateless mode on the existing core interpolators now exist. The store provides point-state
-queries through one reusable stateless interpolator, lazy chunked series groups, and memoized
-Earth-fixed position queries. Series and Earth-fixed queries currently compute requested chunks
-synchronously on the caller and write directly into final tier buffers without orbit-sized
-temporary arrays. The range scheduler, asynchronous prefetch, full consumer lifecycle coordination,
-and consumer migration remain to be implemented. Consequently the application-wide no-copy
-goal has not yet been achieved. See the
+queries through one reusable stateless interpolator, lazy chunked series and Earth-fixed tiers,
+prioritized cancellable range prefetch, partial-coverage results, and chunk-completion notices.
+Station-access profiles are also lazy, chunked, and shared across minimum-elevation changes.
+Derived results write directly into final tier buffers without orbit-sized temporary arrays.
+Per-chunk LRU eviction protects active ranges and leased views, and evicted chunks are recomputed
+before they can be returned again. Consumer lifecycle coordination and consumer migration remain
+to be implemented. Consequently the application-wide no-copy goal has not yet been achieved. See the
 [implementation plan](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md) for the staged work and
 the performance evidence below for the retained measurements and open gates.
 
@@ -789,6 +790,7 @@ class QueryRequest:
     series_groups: tuple[SeriesGroupName, ...] = ()
     max_samples: int | None = None
     minimum_elevation_deg: float | None = None
+    margin_s: float = 0.0
 
 @dataclass(frozen=True)
 class ColumnGroupView:
@@ -796,9 +798,9 @@ class ColumnGroupView:
     columns: tuple[str, ...]
     segment_bounds: tuple[RowSpan, ...]
 
-SeriesGroups = Mapping[SeriesGroupName, ColumnGroupView]
+SeriesGroups = Mapping[SeriesGroupName, tuple[ColumnGroupView, ...]]
 GroundTrackGroups = tuple[ColumnGroupView, ...]  # ("t", "longitude", "latitude") per run
-EarthFixedPositions = ColumnGroupView  # ("t", "x_itrf", "y_itrf", "z_itrf")
+EarthFixedPositions = tuple[ColumnGroupView, ...]
 
 @dataclass(frozen=True)
 class LookAngleProfileView:
@@ -855,7 +857,18 @@ class StoreSnapshot:
     status: LoadStatus
     failure: str | None
 
+@dataclass(frozen=True)
+class RangeHint:
+    plot: TimeBounds | None
+    playback: TimeBounds
+    now_s: float
+    dragging: bool = False
+
 class OemDataStore:
+    def __init__(
+        self, derived_memory_budget_bytes: int = 256 * 1024 * 1024,
+    ) -> None: ...
+
     # Mutation (loader thread or reset on UI thread)
     def begin(self, metadata: OemMetadata, policy: InterpolationPolicy) -> None
     def reserve(self, max_rows: int) -> RawReservation
@@ -863,25 +876,32 @@ class OemDataStore:
     def abort(self, reservation: RawReservation) -> None
     def finalize(self, metadata: OemMetadata) -> None
     def set_interpolation(self, policy: InterpolationPolicy) -> None
+    def set_range_hint(self, hint: RangeHint) -> None
     def clear(self) -> None
+    def close(self) -> None
 
     # Queries (any thread; range queries use one immutable snapshot)
     def snapshot(self) -> StoreSnapshot
-    def state_at(self, t_s: float) -> CursorState  # latest committed raw prefix
+    @property
+    def sample_times(self) -> SampleTimes
+    def state_at(self, snapshot: StoreSnapshot, t_s: float) -> CursorState
     def series(
         self, snapshot: StoreSnapshot, bounds_s: TimeBounds,
         groups: Sequence[SeriesGroupName] | None = None,
         max_samples: int | None = None,
+        *, wait: bool = False,
     ) -> StoreQuery[SeriesGroups]
     def prefetch(self, snapshot: StoreSnapshot, request: QueryRequest) -> Future[None]
     def earth_fixed_positions(
         self, snapshot: StoreSnapshot, bounds_s: TimeBounds, margin_s: float = 0.0,
+        *, wait: bool = False,
     ) -> StoreQuery[EarthFixedPositions]
     def ground_track(
         self, snapshot: StoreSnapshot, bounds_s: TimeBounds, margin_s: float = 0.0,
     ) -> StoreQuery[GroundTrackGroups]
     def station_access(
         self, snapshot: StoreSnapshot, station: GroundStation, bounds_s: TimeBounds,
+        minimum_elevation_deg: int | None = None, *, wait: bool = False,
     ) -> StoreQuery[StationAccessView]
     def station_metrics_at(
         self, snapshot: StoreSnapshot, station: GroundStation, t_s: float,
@@ -892,14 +912,30 @@ class OemDataStore:
 
     # Notifications
     def subscribe(self, callback: Callable[[StoreNotice], None]) -> Callable[[], None]
+    def subscribe_tier(self, tier: TierName) -> Callable[[], None]
 ```
 
 These value types are implemented in `play_oem.oem_data_store`; the active raw snapshot includes
-the lifecycle fields shown above. The implementation provides `state_at(snapshot, t_s)`,
-`series(snapshot, bounds_s, groups, max_samples)`, and
-`earth_fixed_positions(snapshot, bounds_s, margin_s)`. The latter two lazily compute only the
-requested chunks, but currently do so synchronously; prefetch, notice publication, and the other
-query methods remain for later steps.
+the lifecycle fields shown above. The implementation provides non-blocking range queries for
+series, Earth-fixed positions, and station access; missing work is queued by `prefetch`, and
+`wait=True` is available for synchronous callers and tests. Playback timestamps use a live
+`SampleTimes` view over the raw time column. Station profiles are computed lazily on a grid
+anchored at each segment start, shared across minimum-elevation changes, and use the store's
+point-state interpolation without constructing an `OemCursor` copy of the orbit history.
+
+The memory-budget implementation evicts completed derived chunks individually in LRU order.
+It protects chunks referenced by live `ColumnGroupView` or derived NumPy views, and chunks in
+active ranges. On platforms with mmap advice, eviction advises only the selected pages of the
+chunk's private anonymous mapping, then invalidates its memo entry while holding the store and memo
+locks; a later query recomputes
+the chunk before exposing it. The budget counts computed derived data, but can be exceeded while
+live views or active ranges prevent eligible eviction, and operating-system page advice does not
+guarantee an immediate RSS reduction. If mmap advice is unavailable, eviction is disabled. Raw
+storage remains independent of this policy.
+
+Ground Track and footprints remain target interfaces rather than implemented `OemDataStore`
+queries. Station profile layouts are currently rebuilt after each raw append; incremental
+tail-only profile extension is not yet implemented.
 
 Target contract: `TimeBounds` are TT-second bounds. Range-query methods are non-blocking: they
 return computed views and explicit coverage while missing chunks are queued for the store worker.
@@ -1097,15 +1133,16 @@ Computed from row count × 56 bytes, not measured. Derived groups add memory onl
 view requested.
 
 **Residency and eviction.** Raw rows are always resident. Derived column groups are evicted by
-range: when the committed derived memory exceeds a budget (default 256 MB, a setting), the store
-releases chunks, least recently used first, that lie outside the union of the plot range plus its
-priority 2 margin, the playback range, and the window around `now_s`. Releasing a chunk marks it
-absent and returns its pages to the operating system with `mmap.madvise(MADV_DONTNEED)` on the
-reserved buffer, which makes the buffers `mmap`-backed anonymous mappings rather than `ndarray`
-allocations; views are `np.frombuffer` over them. A later query recomputes the chunk. Eviction never
-touches views held by an in-flight draw: a chunk with outstanding view references (a reference count
-kept by the snapshot) is skipped. Where `madvise` is unavailable the budget is advisory and
-eviction is disabled. Eviction counters are exposed per tier.
+chunk: when computed derived data exceeds a budget (default 256 MB, a setting), the store selects
+least-recently-used completed chunks outside active plot/playback ranges. A chunk with an
+outstanding `ColumnGroupView` or derived NumPy view lease is skipped, including views retained by
+an in-flight draw. The store advises only that chunk's pages in a private anonymous mmap with
+`MADV_FREE` when available, otherwise `MADV_DONTNEED`, and atomically invalidates the memo entry.
+Advice is platform-dependent and may not immediately lower RSS; correctness does not depend on
+pages being discarded immediately because a subsequent query recomputes the invalidated chunk
+before returning it. Where mmap advice is unavailable, eviction is disabled. The accounted budget
+can be exceeded while active ranges or live views prevent eligible eviction. Eviction counters
+are exposed per tier.
 
 Raw samples remain fully resident, written once. Each derived quantity exists in exactly one
 reserved buffer and is computed only for chunks a view has requested, so a session that shows

@@ -35,15 +35,15 @@ An experimental raw tier, direct parser-to-store ingestion, and opt-in
 committed-prefix snapshots, epoch/revision checks, segment bounds, lifecycle states, and
 generation-tagged append events. Automatic capacity sizing runs on the loader worker, excludes
 covariance-block lines, and is cancellable. Step 3 adds point-state queries, lazy series groups,
-and memoized Earth-fixed position queries. Series and Earth-fixed queries currently compute
-requested chunks synchronously on the caller; range scheduling and notices remain in Step 4.
-This path is not yet used by the active player/controller.
+and memoized Earth-fixed position queries. Step 4 adds prioritized cancellable range prefetch,
+partial-coverage results, chunk notices, live playback timestamps, station-access profiles, and
+per-chunk derived-data eviction. This path is not yet used by the active player/controller.
 
 Stateless mode on the existing core interpolators and zero-copy plotting primitives are
-implemented and validated; lazy series and Earth-fixed tiers exist, while the range scheduler and
-consumer migration remain outstanding. The application still uses eager `PlaybackData`
-preparation, `OemCursor`, `OrbitSeriesAccumulator`, and separate Ground Track/station-access/
-footprint caches; therefore the application-wide no-copy goal has not been achieved.
+implemented and validated; the query, scheduling, and station-access tiers exist, while consumer
+migration remains outstanding. The application still uses eager `PlaybackData` preparation,
+`OemCursor`, `OrbitSeriesAccumulator`, and separate Ground Track/station-access/footprint caches;
+therefore the application-wide no-copy goal has not been achieved.
 
 Historical automatic-sizing measurements counted physical lines and reserved 172,833 rows for
 21,601 JPSS-1 states because covariance rows contributed to the bound. Current sizing excludes
@@ -145,25 +145,32 @@ criteria pass. Progress is the number of completed checklist items.
 
 Add range-driven work and partial-coverage reporting without blocking playback or the GUI thread.
 
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Add `RangeHint`, prioritized prefetch requests, generation cancellation, covered-span
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Add `RangeHint`, prioritized prefetch requests, generation cancellation, covered-span
       results, and chunk-completion notices; concurrent identical requests must share one
       computation.
-- [ ] Replace copied clock sample lists with `SampleTimes` over the raw timestamp column while
+- [x] Replace copied clock sample lists with `SampleTimes` over the raw timestamp column while
       preserving seek, sample-step, and coverage-extension behavior.
-- [ ] Implement typed anchored, chunked station look-angle profile views and derive requested
+- [x] Implement typed anchored, chunked station look-angle profile views and derive requested
       access intervals from them; profile graphs and pass graphs must share the same per-station
       `StoreQuery[StationAccessView]`, and minimum-elevation changes must not recompute profiles.
-- [ ] Add range-based eviction with active-view/in-flight-draw lifetime protection and deterministic
-      recomputation of evicted chunks.
-- [ ] Test that playback `state_at` performs no chunk computation, range dragging cancels stale
+- [x] Add range-based per-chunk eviction with active-view/in-flight-draw lifetime protection and
+      deterministic recomputation; do not invalidate unaffected chunks in the same buffer.
+- [x] Test that playback `state_at` performs no chunk computation, range dragging cancels stale
       work within one chunk, and partial requests never appear complete.
 
 **Done when:** ranges and playback stay independent, prefetch is cancellable and deduplicated,
 station results match the current implementation, and resident derived memory respects the
 documented budget plus active ranges.
 **Depends on:** Steps 2–3.
+
+**Progress evidence:** Store, clock, and station-access tests cover request deduplication,
+generation cancellation, partial coverage, station interval parity, threshold-only interval
+changes, pair-view lifetime, per-chunk eviction, and deterministic recomputation. Validation:
+`python3 -m pytest tests/ephem_toolkit/play_oem tests/ephem_toolkit/core/interpolator -q`
+passed (636 passed, 4 skipped). Step 4 is complete; mmap advice remains platform-dependent and the
+budget can be exceeded while active ranges or live views prevent eligible eviction.
 
 ### 5. Migrate loading and controller state to `OemDataStore`
 

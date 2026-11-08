@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import gc
 import math
+from concurrent.futures import CancelledError
 from threading import Event, Thread
 
 import numpy as np
@@ -12,11 +14,17 @@ from ephem_toolkit.core import misc
 from ephem_toolkit.core.ccsds.oem import CcsdsOem
 from ephem_toolkit.play_oem.chunk_memo import ChunkState
 from ephem_toolkit.play_oem.cursor import CursorStatus, OemCursor
+from ephem_toolkit.play_oem.ground_stations import GroundStation
+from ephem_toolkit.play_oem.ground_track import GroundTrackSource
+import ephem_toolkit.play_oem.oem_data_store as oem_data_store
+from ephem_toolkit.play_oem.station_access import prepare_station_access
 from ephem_toolkit.play_oem.oem_data_store import (
     ColumnGroupView,
     InterpolationPolicy,
     LoadStatus,
     OemDataStore,
+    QueryRequest,
+    RangeHint,
     RowSpan,
     StoreSnapshot,
 )
@@ -65,6 +73,12 @@ def _store_with_samples(
     if complete:
         store.mark_complete(epoch, (), metadata)
     return store
+
+
+def _one_group(query, name: str) -> ColumnGroupView:
+    views = query.value[name]
+    assert len(views) == 1
+    return views[0]
 
 
 def test_commit_publishes_zero_copy_prefix_and_preserves_snapshots() -> None:
@@ -381,6 +395,28 @@ def test_snapshot_position_and_velocity_columns_are_raw_backed_views() -> None:
     assert not snapshot.velocities_m_s.flags.writeable
 
 
+def test_store_sample_times_share_raw_timestamp_column_and_follow_commits() -> None:
+    store = OemDataStore()
+    store.begin(3)
+    sample_times = store.sample_times
+    assert len(sample_times) == 0
+
+    first = store.reserve(2)
+    _fill(first, [10.0, 20.0], [0, 0])
+    store.commit(first, 2)
+
+    snapshot = store.snapshot()
+    assert len(sample_times) == 2
+    assert np.shares_memory(sample_times.values, snapshot.raw)
+    np.testing.assert_array_equal(sample_times.values, [10.0, 20.0])
+
+    appended = store.reserve(1)
+    _fill(appended, [30.0], [0])
+    store.commit(appended, 1)
+    assert len(sample_times) == 3
+    np.testing.assert_array_equal(sample_times.values, [10.0, 20.0, 30.0])
+
+
 @pytest.mark.parametrize(
     ("method", "degree"),
     [(None, None), ("hermite", 3), ("lagrange", 3), ("chebyshev", 3)],
@@ -400,6 +436,8 @@ def test_state_at_matches_cursor_without_copying_sample_history(
     if method is not None:
         store.set_interpolation(InterpolationPolicy(method, degree))
     snapshot = store.snapshot()
+    assert store._series_buffers == {}
+    assert store._earth_fixed_buffer is None
 
     for query_time in (0.0, 30.0, 120.0, 210.0, 300.0, 330.0, 420.0, 500.0):
         expected = cursor.lookup(query_time)
@@ -415,6 +453,8 @@ def test_state_at_matches_cursor_without_copying_sample_history(
         assert actual.speed == pytest.approx(expected.speed)
         assert actual.altitude == pytest.approx(expected.altitude)
         assert actual.distance == pytest.approx(expected.distance)
+        assert store._series_buffers == {}
+        assert store._earth_fixed_buffer is None
 
 
 def test_state_at_rejects_snapshot_after_interpolation_policy_change() -> None:
@@ -435,15 +475,17 @@ def test_series_groups_are_lazy_chunked_views_matching_reference_computations() 
     snapshot = store.snapshot()
     assert store._series_buffers == {}
 
-    result = store.series(snapshot, (60.0, 360.0))
-    repeated = store.series(snapshot, (60.0, 360.0), groups=("kinematics",))
+    result = store.series(snapshot, (60.0, 360.0), wait=True)
+    repeated = store.series(
+        snapshot, (60.0, 360.0), groups=("kinematics",), wait=True
+    )
 
     assert set(result.value) == {"kinematics", "rtn", "direction-rates"}
     assert set(store._series_buffers) == {"kinematics", "rtn", "direction-rates"}
     assert store.series_chunk_counters("kinematics").chunks_computed == 1
     assert store.series_chunk_counters("kinematics").hits == 1
     for group_name in ("kinematics", "rtn", "direction-rates"):
-        view = result.value[group_name].values
+        view = _one_group(result, group_name).values
         assert np.shares_memory(view, store._series_buffers[group_name])
         assert not view.flags.writeable
         np.testing.assert_array_equal(view[:, 0], times[1:5])
@@ -454,7 +496,7 @@ def test_series_groups_are_lazy_chunked_views_matching_reference_computations() 
         TimeUnit.for_duration(float(times[-1] - times[0])),
         segments,
     )
-    kinematics = result.value["kinematics"].values
+    kinematics = _one_group(result, "kinematics").values
     np.testing.assert_allclose(
         kinematics[:, 1],
         reference.velocity_magnitude_km_s[1:5] * 1000.0,
@@ -468,19 +510,19 @@ def test_series_groups_are_lazy_chunked_views_matching_reference_computations() 
         reference.altitude_km[1:5] * 1000.0,
     )
 
-    rtn = result.value["rtn"].values
+    rtn = _one_group(result, "rtn").values
     np.testing.assert_array_equal(rtn[:, 1:], store._series_buffers["rtn"][1:5, 1:])
     np.testing.assert_allclose(
         rtn[1:, 1:],
         reference.rtn_delta_km[1:4] * 1000.0,
         equal_nan=True,
     )
-    assert result.value["rtn"].segment_bounds == (
+    assert _one_group(result, "rtn").segment_bounds == (
         RowSpan(0, 2),
         RowSpan(3, 4),
     )
 
-    direction = result.value["direction-rates"].values
+    direction = _one_group(result, "direction-rates").values
     np.testing.assert_allclose(
         direction[:, 1],
         np.deg2rad(reference.direction_change_angle_deg[1:5]),
@@ -501,7 +543,7 @@ def test_series_groups_are_lazy_chunked_views_matching_reference_computations() 
     )
     assert result.coverage.covered_s == ((60.0, 120.0), (300.0, 360.0))
     assert result.coverage.complete
-    assert repeated.value["kinematics"].values.shape == (4, 4)
+    assert _one_group(repeated, "kinematics").values.shape == (4, 4)
 
 
 def test_series_queries_compute_only_requested_groups_and_stride_views() -> None:
@@ -509,14 +551,20 @@ def test_series_queries_compute_only_requested_groups_and_stride_views() -> None
     store = _store_with_samples(times, states, segments)
     snapshot = store.snapshot()
 
-    query = store.series(snapshot, (0.0, 420.0), groups=("kinematics",), max_samples=3)
+    query = store.series(
+        snapshot,
+        (0.0, 420.0),
+        groups=("kinematics",),
+        max_samples=3,
+        wait=True,
+    )
 
     assert set(query.value) == {"kinematics"}
     assert set(store._series_buffers) == {"kinematics"}
-    view = query.value["kinematics"].values
+    view = _one_group(query, "kinematics").values
     assert view.shape == (3, 4)
     assert np.shares_memory(view, store._series_buffers["kinematics"])
-    assert query.value["kinematics"].segment_bounds == (
+    assert _one_group(query, "kinematics").segment_bounds == (
         RowSpan(0, 2),
         RowSpan(2, 3),
     )
@@ -531,17 +579,19 @@ def test_series_results_do_not_depend_on_group_request_order() -> None:
         first_store.snapshot(),
         (0.0, 420.0),
         groups=("kinematics", "rtn"),
+        wait=True,
     )
     second = second_store.series(
         second_store.snapshot(),
         (0.0, 420.0),
         groups=("rtn", "kinematics"),
+        wait=True,
     )
 
     for group in ("kinematics", "rtn"):
         np.testing.assert_array_equal(
-            first.value[group].values,
-            second.value[group].values,
+            _one_group(first, group).values,
+            _one_group(second, group).values,
         )
 
 
@@ -576,8 +626,9 @@ def test_time_unit_change_does_not_recompute_or_rescale_series() -> None:
         first_snapshot,
         (times[0], times[full_chunk_size - 1]),
         groups=("kinematics",),
+        wait=True,
     )
-    original_values = first.value["kinematics"].values.copy()
+    original_values = _one_group(first, "kinematics").values.copy()
 
     appended = store.reserve(1)
     appended.raw[:, 0] = times[full_chunk_size:]
@@ -591,9 +642,12 @@ def test_time_unit_change_does_not_recompute_or_rescale_series() -> None:
         next_snapshot,
         (times[0], times[full_chunk_size - 1]),
         groups=("kinematics",),
+        wait=True,
     )
 
-    np.testing.assert_array_equal(repeated.value["kinematics"].values, original_values)
+    np.testing.assert_array_equal(
+        _one_group(repeated, "kinematics").values, original_values
+    )
     assert store.series_chunk_counters("kinematics").chunks_computed == 1
     assert store.series_chunk_counters("kinematics").hits == 1
 
@@ -606,6 +660,7 @@ def test_interpolation_policy_change_preserves_series_chunks() -> None:
         snapshot,
         (0.0, 420.0),
         groups=("kinematics",),
+        wait=True,
     )
 
     store.set_interpolation(InterpolationPolicy("lagrange", 3))
@@ -614,14 +669,197 @@ def test_interpolation_policy_change_preserves_series_chunks() -> None:
         next_snapshot,
         (0.0, 420.0),
         groups=("kinematics",),
+        wait=True,
     )
 
     np.testing.assert_array_equal(
-        repeated.value["kinematics"].values,
-        first.value["kinematics"].values,
+        _one_group(repeated, "kinematics").values,
+        _one_group(first, "kinematics").values,
     )
     assert store.series_chunk_counters("kinematics").chunks_computed == 1
     assert store.series_chunk_counters("kinematics").hits == 1
+
+
+def test_prefetch_deduplicates_identical_requests_and_publishes_chunk_notice(
+    monkeypatch,
+) -> None:
+    times, states, segments = _series_samples()
+    store = _store_with_samples(times, states, segments)
+    snapshot = store.snapshot()
+    request = QueryRequest(
+        "series",
+        (0.0, 420.0),
+        series_groups=("kinematics",),
+    )
+    entered = Event()
+    release = Event()
+    notices = []
+    original_write = oem_data_store._write_series_chunk
+
+    def blocked_write(*args, **kwargs) -> None:
+        entered.set()
+        assert release.wait(3)
+        original_write(*args, **kwargs)
+
+    monkeypatch.setattr(
+        "ephem_toolkit.play_oem.oem_data_store._write_series_chunk",
+        blocked_write,
+    )
+    store.subscribe(notices.append)
+    first = store.prefetch(snapshot, request)
+    try:
+        assert entered.wait(3)
+        second = store.prefetch(snapshot, request)
+        assert second is first
+    finally:
+        release.set()
+        try:
+            first.result(timeout=3)
+        finally:
+            store.close()
+
+    assert store.series_chunk_counters("kinematics").chunks_computed == 1
+    assert len(notices) == 1
+    assert notices[0].tier == "series"
+    assert notices[0].group == "kinematics"
+    assert (notices[0].first_row, notices[0].stop_row) == (0, len(times))
+
+
+def test_range_hint_prioritizes_active_tier_ranges() -> None:
+    store = OemDataStore()
+    unsubscribe = store.subscribe_tier("series")
+    store.set_range_hint(
+        RangeHint(
+            plot=(100.0, 200.0),
+            playback=(0.0, 1000.0),
+            now_s=150.0,
+        )
+    )
+
+    def priority(bounds: tuple[float, float]) -> int:
+        return store._priority_for_request(
+            QueryRequest("series", bounds),
+            store._range_hint,
+        )
+
+    assert priority((120.0, 180.0)) == 1
+    assert priority((0.0, 50.0)) == 2
+    assert priority((500.0, 600.0)) == 3
+    assert priority((1100.0, 1200.0)) == 4
+    unsubscribe()
+    store.close()
+
+
+def test_nonblocking_series_query_does_not_report_uncomputed_data_complete() -> None:
+    times, states, segments = _series_samples()
+    store = _store_with_samples(times, states, segments)
+    snapshot = store.snapshot()
+    request = QueryRequest(
+        "series",
+        (times[0], times[-1]),
+        series_groups=("kinematics",),
+    )
+    store.set_range_hint(
+        RangeHint(
+            plot=(10_000.0, 20_000.0),
+            playback=(10_000.0, 20_000.0),
+            now_s=15_000.0,
+            dragging=True,
+        )
+    )
+
+    partial = store.series(
+        snapshot,
+        request.bounds_s,
+        groups=request.series_groups,
+    )
+
+    assert partial.value["kinematics"] == ()
+    assert partial.coverage.covered_s == ()
+    assert not partial.coverage.complete
+
+    store.set_range_hint(
+        RangeHint(
+            plot=request.bounds_s,
+            playback=request.bounds_s,
+            now_s=times[0],
+        )
+    )
+    store.prefetch(snapshot, request).result(timeout=3)
+    completed = store.series(
+        snapshot,
+        request.bounds_s,
+        groups=request.series_groups,
+    )
+    assert len(completed.value["kinematics"]) == 1
+    assert completed.coverage.complete
+    store.close()
+
+
+def test_range_hint_cancels_stale_work_between_chunks(monkeypatch) -> None:
+    sample_count = 4098
+    indices = np.arange(sample_count, dtype=float)
+    times = indices * 60.0
+    states = np.column_stack(
+        (
+            7_000_000.0 + indices,
+            indices**2,
+            50_000.0 + 2.0 * indices,
+            -indices,
+            7_500.0 - 0.1 * indices,
+            2.0 * indices,
+        )
+    )
+    store = _store_with_samples(
+        times,
+        states,
+        np.zeros(sample_count, dtype=np.int64),
+    )
+    snapshot = store.snapshot()
+    entered = Event()
+    release = Event()
+    original_write = oem_data_store._write_series_chunk
+
+    def blocked_write(*args, **kwargs) -> None:
+        entered.set()
+        assert release.wait(3)
+        original_write(*args, **kwargs)
+
+    monkeypatch.setattr(
+        "ephem_toolkit.play_oem.oem_data_store._write_series_chunk",
+        blocked_write,
+    )
+    future = store.prefetch(
+        snapshot,
+        QueryRequest(
+            "series",
+            (times[0], times[-1]),
+            series_groups=("kinematics",),
+        ),
+    )
+    try:
+        assert entered.wait(3)
+        store.set_range_hint(
+            RangeHint(
+                plot=(300_000.0, 360_000.0),
+                playback=(300_000.0, 360_000.0),
+                now_s=330_000.0,
+            )
+        )
+    finally:
+        release.set()
+
+    try:
+        with pytest.raises(CancelledError):
+            future.result(timeout=3)
+    finally:
+        store.close()
+    assert store._series_memos["kinematics"].state(
+        0,
+        epoch=snapshot.epoch,
+        policy_revision=0,
+    ) is ChunkState.ABSENT
+    store.close()
 
 
 def test_loading_append_recomputes_only_the_tentative_series_tail() -> None:
@@ -639,6 +877,7 @@ def test_loading_append_recomputes_only_the_tentative_series_tail() -> None:
         first_snapshot,
         (0.0, 420.0),
         groups=("kinematics",),
+        wait=True,
     )
     assert not partial.coverage.complete
     assert partial.coverage.covered_s == ((0.0, 60.0),)
@@ -652,10 +891,15 @@ def test_loading_append_recomputes_only_the_tentative_series_tail() -> None:
     appended.segment_ids[:] = segments[2:3]
     store.commit(appended, 1)
     next_snapshot = store.snapshot()
-    query = store.series(next_snapshot, (0.0, 120.0), groups=("kinematics",))
+    query = store.series(
+        next_snapshot,
+        (0.0, 120.0),
+        groups=("kinematics",),
+        wait=True,
+    )
 
     assert store.series_chunk_counters("kinematics").chunks_computed == 2
-    assert query.value["kinematics"].values.shape == (3, 4)
+    assert _one_group(query, "kinematics").values.shape == (3, 4)
 
 
 def test_rtn_chunk_boundary_reads_one_previous_raw_sample() -> None:
@@ -680,6 +924,7 @@ def test_rtn_chunk_boundary_reads_one_previous_raw_sample() -> None:
         snapshot,
         (times[4096], times[4097]),
         groups=("rtn",),
+        wait=True,
     )
 
     assert store._series_memos["rtn"].state(
@@ -689,8 +934,8 @@ def test_rtn_chunk_boundary_reads_one_previous_raw_sample() -> None:
         1, epoch=snapshot.epoch, policy_revision=0
     ) is ChunkState.COMPLETE
     expected = misc.transform_to_rtn(states[4096], states[4095])
-    np.testing.assert_allclose(query.value["rtn"].values[0, 1:], expected)
-    assert query.value["rtn"].segment_bounds == (RowSpan(0, 2),)
+    np.testing.assert_allclose(_one_group(query, "rtn").values[0, 1:], expected)
+    assert _one_group(query, "rtn").segment_bounds == (RowSpan(0, 2),)
 
 
 def test_earth_fixed_positions_are_lazy_memoized_read_only_views() -> None:
@@ -704,19 +949,263 @@ def test_earth_fixed_positions_are_lazy_memoized_read_only_views() -> None:
     snapshot = store.snapshot()
     assert store._earth_fixed_buffer is None
 
-    query = store.earth_fixed_positions(snapshot, (60.0, 360.0), margin_s=0.0)
-    repeated = store.earth_fixed_positions(snapshot, (60.0, 360.0))
+    query = store.earth_fixed_positions(
+        snapshot, (60.0, 360.0), margin_s=0.0, wait=True
+    )
+    repeated = store.earth_fixed_positions(snapshot, (60.0, 360.0), wait=True)
 
-    values = query.value.values
+    assert len(query.value) == 1
+    values = query.value[0].values
     assert values.shape == (4, 4)
     assert np.shares_memory(values, store._earth_fixed_buffer)
     assert not values.flags.writeable
     np.testing.assert_array_equal(values[:, 0], times[1:5])
     np.testing.assert_array_equal(values[:, 1:], states[1:5, :3])
-    assert query.value.segment_bounds == (RowSpan(0, 2), RowSpan(2, 4))
-    assert repeated.value.values.shape == values.shape
+    assert query.value[0].segment_bounds == (RowSpan(0, 2), RowSpan(2, 4))
+    assert repeated.value[0].values.shape == values.shape
     assert store.earth_fixed_chunk_counters.chunks_computed == 1
     assert store.earth_fixed_chunk_counters.hits == 1
+
+
+def test_station_profiles_are_lazy_shared_and_threshold_independent() -> None:
+    elevations = np.array([0.0, 60.0, 0.0])
+    states = np.column_stack(
+        (
+            6_378_137.0 + np.sin(np.deg2rad(elevations)) * 1_000_000.0,
+            np.cos(np.deg2rad(elevations)) * 1_000_000.0,
+            np.zeros(3),
+            np.zeros((3, 3)),
+        )
+    )
+    store = _store_with_samples(
+        np.array([0.0, 60.0, 120.0]),
+        states,
+        np.zeros(3, dtype=np.int64),
+        metadata=(("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF")),
+    )
+    station = GroundStation("equator", "Equator", 0.0, 0.0, 0.0, 10)
+    snapshot = store.snapshot()
+
+    assert store._station_profiles == {}
+    first = store.station_access(snapshot, station, (0.0, 120.0), wait=True)
+    profile = first.value.profiles[0].group
+    assert profile.columns == (
+        "t",
+        "azimuth_deg",
+        "elevation_deg",
+        "range_km",
+    )
+    tier = next(iter(store._station_profiles.values()))
+    assert np.shares_memory(profile.values, tier.buffer)
+    assert tier.memo.counters.chunks_computed == 1
+    assert not profile.values.flags.writeable
+    assert len(first.value.intervals) == 1
+    reference_source = GroundTrackSource.from_samples(
+        snapshot.raw[:, 0],
+        snapshot.raw[:, 1:7],
+        snapshot.segment_ids,
+        "EARTH",
+        "ITRF",
+    )
+    reference = prepare_station_access(
+        reference_source,
+        OemCursor(
+            snapshot.raw[:, 0],
+            snapshot.raw[:, 1:7],
+            segment_ids=snapshot.segment_ids,
+        ),
+        station,
+    )
+    assert first.value.intervals[0].start_s == pytest.approx(
+        reference.intervals[0].start_s, abs=1.0
+    )
+    assert first.value.intervals[0].end_s == pytest.approx(
+        reference.intervals[0].end_s, abs=1.0
+    )
+
+    raised_threshold = store.station_access(
+        snapshot,
+        station,
+        (0.0, 120.0),
+        minimum_elevation_deg=50,
+        wait=True,
+    )
+
+    assert raised_threshold.value.station.minimum_elevation_deg == 50
+    assert np.shares_memory(
+        raised_threshold.value.profiles[0].group.values,
+        profile.values,
+    )
+    assert len(store._station_profiles) == 1
+    assert tier.memo.counters.chunks_computed == 1
+    assert len(raised_threshold.value.intervals) == 1
+    assert (
+        raised_threshold.value.intervals[0].peak_elevation_deg
+        >= first.value.intervals[0].peak_elevation_deg
+    )
+
+
+def test_nonblocking_station_query_reports_pending_coverage(monkeypatch) -> None:
+    elevations = np.array([0.0, 60.0, 0.0])
+    states = np.column_stack(
+        (
+            6_378_137.0 + np.sin(np.deg2rad(elevations)) * 1_000_000.0,
+            np.cos(np.deg2rad(elevations)) * 1_000_000.0,
+            np.zeros(3),
+            np.zeros((3, 3)),
+        )
+    )
+    store = _store_with_samples(
+        np.array([0.0, 60.0, 120.0]),
+        states,
+        np.zeros(3, dtype=np.int64),
+        metadata=(("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF")),
+    )
+    station = GroundStation("equator", "Equator", 0.0, 0.0, 0.0, 10)
+    snapshot = store.snapshot()
+    entered = Event()
+    release = Event()
+    original_metrics = oem_data_store.station_metrics
+
+    def blocked_metrics(*args, **kwargs):
+        entered.set()
+        assert release.wait(3)
+        return original_metrics(*args, **kwargs)
+
+    monkeypatch.setattr(oem_data_store, "station_metrics", blocked_metrics)
+    future = None
+    try:
+        partial = store.station_access(snapshot, station, (0.0, 120.0))
+        assert entered.wait(3)
+        assert partial.value.profiles == ()
+        assert partial.value.intervals == ()
+        assert not partial.coverage.complete
+        future = store.prefetch(
+            snapshot,
+            QueryRequest(
+                "station-access",
+                (0.0, 120.0),
+                station=station,
+            ),
+        )
+    finally:
+        release.set()
+        if future is not None:
+            future.result(timeout=3)
+        store.close()
+
+
+def test_derived_buffer_eviction_waits_for_views_and_recomputes() -> None:
+    times, states, segments = _series_samples()
+    store = OemDataStore(derived_memory_budget_bytes=1)
+    epoch = store.begin(len(times))
+    reservation = store.reserve(len(times))
+    reservation.raw[:, 0] = times
+    reservation.raw[:, 1:7] = states
+    reservation.segment_ids[:] = segments
+    store.commit(reservation, len(times))
+    store.mark_complete(epoch, (), ())
+    snapshot = store.snapshot()
+
+    active = store.series(
+        snapshot, (times[0], times[-1]), groups=("kinematics",), wait=True
+    )
+    expected = _one_group(active, "kinematics").values.copy()
+    old_memo = store._series_memos["kinematics"]
+    assert "kinematics" in store._series_buffers
+
+    competing = store.series(
+        snapshot, (times[0], times[-1]), groups=("rtn",), wait=True
+    )
+    assert "kinematics" in store._series_buffers
+    del active
+    gc.collect()
+
+    latest = store.series(
+        snapshot,
+        (times[0], times[-1]),
+        groups=("direction-rates",),
+        wait=True,
+    )
+    assert "kinematics" in store._series_buffers
+    assert old_memo.state(0, epoch=snapshot.epoch, policy_revision=0) is ChunkState.ABSENT
+    assert old_memo.counters.evictions == 1
+    np.testing.assert_array_equal(
+        _one_group(competing, "rtn").values[:, 0], times
+    )
+    np.testing.assert_array_equal(
+        _one_group(latest, "direction-rates").values[:, 0], times
+    )
+
+    recomputed = store.series(
+        snapshot, (times[0], times[-1]), groups=("kinematics",), wait=True
+    )
+    np.testing.assert_array_equal(_one_group(recomputed, "kinematics").values, expected)
+
+
+def test_pair_view_keeps_its_chunk_pinned_after_parent_views_are_released() -> None:
+    times, states, segments = _series_samples()
+    store = _store_with_samples(times, states, segments)
+    store._derived_memory_budget_bytes = 1
+    snapshot = store.snapshot()
+    query = store.series(
+        snapshot, (times[0], times[-1]), groups=("kinematics",), wait=True
+    )
+    group = _one_group(query, "kinematics")
+    pair = group.pair("t", "speed_m_s")
+    memo = store._series_memos["kinematics"]
+    del query, group
+    gc.collect()
+
+    store.series(snapshot, (times[0], times[-1]), groups=("rtn",), wait=True)
+    assert memo.state(0, epoch=snapshot.epoch, policy_revision=0) is ChunkState.COMPLETE
+    assert memo.counters.evictions == 0
+    np.testing.assert_array_equal(pair[:, 0], times)
+
+    del pair
+    gc.collect()
+    store.series(
+        snapshot,
+        (times[0], times[-1]),
+        groups=("direction-rates",),
+        wait=True,
+    )
+    assert memo.state(0, epoch=snapshot.epoch, policy_revision=0) is ChunkState.ABSENT
+    assert memo.counters.evictions == 1
+
+
+def test_chunk_eviction_preserves_other_ready_chunks(monkeypatch) -> None:
+    monkeypatch.setattr(oem_data_store, "DERIVED_CHUNK_SIZE", 2)
+    monkeypatch.setattr(oem_data_store, "_madvise_chunk", lambda *args: None)
+    times, states, segments = _series_samples()
+    store = _store_with_samples(times, states, segments)
+    store._derived_memory_budget_bytes = 1
+    snapshot = store.snapshot()
+    memo = store._series_storage(snapshot, "kinematics")[1]
+
+    first = store.series(
+        snapshot, (times[0], times[1]), groups=("kinematics",), wait=True
+    )
+    expected_first_chunk = _one_group(first, "kinematics").values.copy()
+    del first
+    gc.collect()
+
+    second = store.series(
+        snapshot, (times[2], times[3]), groups=("kinematics",), wait=True
+    )
+    assert memo.state(0, epoch=snapshot.epoch, policy_revision=0) is ChunkState.ABSENT
+    assert memo.state(1, epoch=snapshot.epoch, policy_revision=0) is ChunkState.COMPLETE
+    assert memo.counters.evictions == 1
+
+    recomputed = store.series(
+        snapshot, (times[0], times[1]), groups=("kinematics",), wait=True
+    )
+    np.testing.assert_array_equal(
+        _one_group(recomputed, "kinematics").values,
+        expected_first_chunk,
+    )
+    assert memo.state(1, epoch=snapshot.epoch, policy_revision=0) is ChunkState.COMPLETE
+    assert len(_one_group(second, "kinematics").values) == 2
 
 
 def test_clear_during_validation_cannot_publish_into_new_epoch(monkeypatch) -> None:

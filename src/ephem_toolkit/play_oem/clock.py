@@ -6,7 +6,71 @@ import math
 from bisect import bisect_left, bisect_right
 from collections.abc import Callable, Sequence
 
+import numpy as np
+
 ClockObserver = Callable[[float], None]
+
+
+class SampleTimes(Sequence[float]):
+    """A read-only view of sample times with a separately published length."""
+
+    def __init__(self, values: np.ndarray, sample_count: int) -> None:
+        if not isinstance(values, np.ndarray) or values.ndim != 1:
+            raise ValueError("values must be a one-dimensional NumPy array")
+        if values.dtype.kind != "f" or values.flags.writeable:
+            raise ValueError("values must be a read-only floating-point array")
+        self._values = np.asarray(memoryview(values).toreadonly())
+        self._sample_count = 0
+        self.set_sample_count(sample_count)
+
+    @property
+    def values(self) -> np.ndarray:
+        """Return the committed timestamp prefix without copying."""
+        return self._values[: self._sample_count]
+
+    def set_sample_count(self, sample_count: int) -> None:
+        """Publish a validated, monotonically increasing timestamp prefix."""
+        if (
+            isinstance(sample_count, bool)
+            or not isinstance(sample_count, int)
+            or sample_count < self._sample_count
+            or sample_count > self._values.size
+        ):
+            raise ValueError("sample_count must extend the available prefix")
+        if sample_count == self._sample_count:
+            return
+        first_new = self._sample_count
+        previous = (
+            float(self._values[first_new - 1]) if first_new else -math.inf
+        )
+        for value in self._values[first_new:sample_count]:
+            timestamp = float(value)
+            if not math.isfinite(timestamp) or timestamp <= previous:
+                raise ValueError("sample times must be finite and strictly increasing")
+            previous = timestamp
+        self._sample_count = sample_count
+
+    def _publish_validated_count(self, sample_count: int) -> None:
+        """Publish a prefix already validated by the owning raw-data store."""
+        if (
+            isinstance(sample_count, bool)
+            or not isinstance(sample_count, int)
+            or sample_count < self._sample_count
+            or sample_count > self._values.size
+        ):
+            raise ValueError("sample_count must extend the available prefix")
+        self._sample_count = sample_count
+
+    def searchsorted(self, value: float, *, side: str = "left") -> int:
+        """Search the published prefix without converting it to a Python list."""
+        return int(np.searchsorted(self.values, value, side=side))
+
+    def __len__(self) -> int:
+        return self._sample_count
+
+    def __getitem__(self, index: int | slice) -> float | np.ndarray:
+        result = self.values[index]
+        return float(result) if isinstance(index, int) else result
 
 
 class PlaybackClock:
@@ -57,7 +121,7 @@ class PlaybackClock:
         self._playing = bool(playing)
         self._loop = bool(loop)
         self._observers: list[ClockObserver] = []
-        self._sample_times = list(self._validate_sample_times(sample_times))
+        self._sample_times = self._validate_sample_times(sample_times)
 
     @property
     def t_start(self) -> float:
@@ -165,27 +229,41 @@ class PlaybackClock:
             return self._t_end
         return min(self._t_end, self._t_start + self._default_playback_span_s)
 
-    def extend_coverage(self, sample_times: Sequence[float]) -> None:
+    def extend_coverage(self, sample_times: Sequence[float] | float) -> None:
         """Extend loaded OEM coverage with strictly later samples.
 
         When the playback end followed the previous coverage end, it grows with
         coverage. The current time and playing state are preserved, so a clock
         paused at the loaded boundary remains paused after a batch arrives.
         """
-        new_times = tuple(self._validate_time(value) for value in sample_times)
-        if not new_times:
-            return
-        if new_times[0] <= self._t_end:
-            raise ValueError("new sample times must follow current OEM coverage")
-        if any(first >= second for first, second in zip(new_times, new_times[1:])):
-            raise ValueError("new sample times must be strictly increasing")
-        if self._sample_times and new_times[0] <= self._sample_times[-1]:
-            raise ValueError("new sample times must follow existing samples")
+        if isinstance(self._sample_times, SampleTimes):
+            if isinstance(sample_times, bool) or not isinstance(
+                sample_times, (int, float)
+            ):
+                raise TypeError("sample_times must be the new coverage end")
+            new_end = self._validate_time(sample_times)
+            if not self._sample_times or self._sample_times[-1] != new_end:
+                raise ValueError("sample_times must publish the new coverage end")
+            if new_end <= self._t_end:
+                raise ValueError("new sample times must follow current OEM coverage")
+        else:
+            if isinstance(sample_times, (int, float)):
+                raise TypeError("sample_times must be a sequence for copied clock input")
+            new_times = tuple(self._validate_time(value) for value in sample_times)
+            if not new_times:
+                return
+            if new_times[0] <= self._t_end:
+                raise ValueError("new sample times must follow current OEM coverage")
+            if any(first >= second for first, second in zip(new_times, new_times[1:])):
+                raise ValueError("new sample times must be strictly increasing")
+            if self._sample_times and new_times[0] <= self._sample_times[-1]:
+                raise ValueError("new sample times must follow existing samples")
+            new_end = new_times[-1]
+            self._sample_times = (*self._sample_times, *new_times)
 
-        self._t_end = new_times[-1]
+        self._t_end = new_end
         if self._playback_end_follows_coverage:
             self._playback_end = self._default_playback_end()
-        self._sample_times.extend(new_times)
         self._notify_observers()
 
     def set_playback_bounds(
@@ -253,10 +331,20 @@ class PlaybackClock:
             self.seek(self._t_now)
             return
 
-        if count > 0:
-            index = bisect_right(self._sample_times, self._t_now) + count - 1
+        if isinstance(self._sample_times, SampleTimes):
+            if count > 0:
+                index = self._sample_times.searchsorted(
+                    self._t_now, side="right"
+                ) + count - 1
+            else:
+                index = self._sample_times.searchsorted(
+                    self._t_now, side="left"
+                ) + count
         else:
-            index = bisect_left(self._sample_times, self._t_now) + count
+            if count > 0:
+                index = bisect_right(self._sample_times, self._t_now) + count - 1
+            else:
+                index = bisect_left(self._sample_times, self._t_now) + count
         index = min(max(index, 0), len(self._sample_times) - 1)
         self.seek(self._sample_times[index])
 
@@ -285,9 +373,17 @@ class PlaybackClock:
 
     def _validate_sample_times(
         self, sample_times: Sequence[float] | None
-    ) -> tuple[float, ...]:
+    ) -> Sequence[float]:
         if sample_times is None:
             return ()
+
+        if isinstance(sample_times, SampleTimes):
+            values = sample_times
+            if values and (
+                values[0] < self._t_start or values[-1] > self._t_end
+            ):
+                raise ValueError("sample_times must lie within the timeline bounds")
+            return values
 
         values = tuple(self._validate_time(t) for t in sample_times)
         if any(t < self._t_start or t > self._t_end for t in values):

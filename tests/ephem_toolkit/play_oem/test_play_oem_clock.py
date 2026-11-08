@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
-from ephem_toolkit.play_oem.clock import PlaybackClock
+from ephem_toolkit.play_oem.clock import PlaybackClock, SampleTimes
 
 
 def test_tick_advances_by_signed_rate_and_pauses_at_forward_end() -> None:
@@ -307,3 +308,31 @@ def test_explicit_playback_bounds_override_default_span() -> None:
 
     clock.set_playback_bounds(3 * day, 9 * day)
     assert (clock.playback_start, clock.playback_end) == (3 * day, 9 * day)
+
+
+def test_sample_times_wraps_read_only_array_and_publishes_appends() -> None:
+    backing = np.array([0.0, 10.0, 20.0, 30.0])
+    backing.setflags(write=False)
+    sample_times = SampleTimes(backing, 2)
+
+    assert np.shares_memory(sample_times.values, backing)
+    assert not sample_times.values.flags.writeable
+    assert len(sample_times) == 2
+    sample_times.set_sample_count(3)
+    assert tuple(sample_times) == (0.0, 10.0, 20.0)
+
+
+def test_clock_uses_live_sample_times_for_extension_and_sample_stepping() -> None:
+    backing = np.array([0.0, 10.0, 20.0, 30.0])
+    backing.setflags(write=False)
+    sample_times = SampleTimes(backing, 2)
+    clock = PlaybackClock(0.0, 10.0, sample_times=sample_times)
+
+    sample_times.set_sample_count(3)
+    clock.extend_coverage(20.0)
+    clock.step_samples(1)
+    clock.step_samples(1)
+
+    assert clock.t_end == 20.0
+    assert clock.playback_end == 20.0
+    assert clock.t_now == 20.0

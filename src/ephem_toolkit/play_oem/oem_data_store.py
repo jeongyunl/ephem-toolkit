@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
+from dataclasses import dataclass, field, replace
 from enum import Enum
+import heapq
+from itertools import tee
+import logging
 import math
+import mmap
+import weakref
 from pathlib import Path
 from threading import Event, RLock
 from types import MappingProxyType
-from typing import Generic, Literal, TypeVar, Union, TYPE_CHECKING
+from typing import Generic, Literal, TypeVar, Union
 
 import numpy as np
 
@@ -21,20 +27,33 @@ from ephem_toolkit.core.interpolator.interpolation_spec import (
     InterpolationType,
 )
 from ephem_toolkit.core.interpolator.interpolator import Interpolator
-from .chunk_memo import ChunkMemo, ChunkMemoCounters
+from .chunk_memo import ChunkMemo, ChunkMemoCounters, ChunkState
+from .clock import SampleTimes
 from .cursor import CursorState, CursorStatus
+from .ground_stations import (
+    GroundStation,
+    StationMetrics,
+    station_metrics,
+)
 from .ground_track import (
     EARTH_CENTERS,
+    GroundTrackSource,
     GroundTrackPreparationError,
     state_position_to_itrf_m,
 )
 from .series import OrbitSeries
+from .station_access import (
+    ACCESS_WINDOW_MARGIN_FRACTION,
+    ACCESS_WINDOW_MIN_MARGIN_S,
+    CROSSING_TIME_TOLERANCE_S,
+    MAX_ACCESS_SAMPLE_STEP_S,
+    MAX_ACCESS_SAMPLES,
+    MAX_SOURCE_SAMPLE_GAP_S,
+    AccessInterval,
+    _intervals_for_segment,
+    _refine_peak,
+)
 from .time_unit import TimeUnit
-
-if TYPE_CHECKING:
-    from .ground_stations import GroundStation
-    from .station_access import AccessInterval
-
 
 T = TypeVar("T")
 TimeBounds = tuple[float, float]
@@ -67,6 +86,7 @@ DIRECTION_RATE_COLUMNS = (
     "yaw_rate_rad_s",
 )
 EARTH_FIXED_COLUMNS = ("t", "x_itrf", "y_itrf", "z_itrf")
+STATION_PROFILE_COLUMNS = ("t", "azimuth_deg", "elevation_deg", "range_km")
 _SERIES_COLUMNS: Mapping[SeriesGroupName, tuple[str, ...]] = MappingProxyType(
     {
         "kinematics": KINEMATICS_COLUMNS,
@@ -77,6 +97,7 @@ _SERIES_COLUMNS: Mapping[SeriesGroupName, tuple[str, ...]] = MappingProxyType(
 TierName = Literal[
     "series", "earth-fixed", "ground-track", "station-access", "footprints"
 ]
+_LOGGER = logging.getLogger(__name__)
 
 
 class LoadStatus(str, Enum):
@@ -163,21 +184,127 @@ class QueryRequest:
     series_groups: tuple[SeriesGroupName, ...] = ()
     max_samples: int | None = None
     minimum_elevation_deg: float | None = None
+    margin_s: float = 0.0
 
 
 @dataclass(frozen=True)
+class RangeHint:
+    """Current plot and playback interest used to prioritize derived work."""
+
+    plot: TimeBounds | None
+    playback: TimeBounds
+    now_s: float
+    dragging: bool = False
+
+    def __post_init__(self) -> None:
+        if self.plot is not None:
+            object.__setattr__(self, "plot", _validate_time_bounds(self.plot))
+        object.__setattr__(self, "playback", _validate_time_bounds(self.playback))
+        object.__setattr__(self, "now_s", _validate_query_time(self.now_s))
+        if not isinstance(self.dragging, bool):
+            raise ValueError("dragging must be a boolean")
+
+
+class _PrefetchFuture(Future[None]):
+    def __init__(self) -> None:
+        super().__init__()
+        self.cancel_event = Event()
+
+    def cancel(self) -> bool:
+        self.cancel_event.set()
+        return super().cancel()
+
+
+@dataclass(order=True)
+class _ScheduledWork:
+    priority: int
+    sequence: int
+    key: tuple[int, int, int, QueryRequest] = field(compare=False)
+    snapshot: StoreSnapshot = field(compare=False)
+    request: QueryRequest = field(compare=False)
+    future: _PrefetchFuture = field(compare=False)
+    generation: int = field(compare=False)
+
+
+@dataclass(frozen=True)
+class _StationSegmentLayout:
+    segment_id: int
+    raw_start: int
+    raw_stop: int
+    start_s: float
+    end_s: float
+    regular_count: int
+    row_count: int
+    base_index: int
+
+
+@dataclass
+class _StationProfileTier:
+    station_key: tuple[str, float, float, float]
+    buffer: np.ndarray
+    memo: ChunkMemo[int, RowSpan]
+    layouts: tuple[_StationSegmentLayout, ...] = ()
+    row_count: int = 0
+
+
+class _StoreStationCursor:
+    def __init__(
+        self,
+        store: OemDataStore,
+        snapshot: StoreSnapshot,
+        policy: InterpolationPolicy,
+    ) -> None:
+        self.store = store
+        self.snapshot = snapshot
+        self._interpolation = policy.method
+        self._interpolation_degree = policy.degree
+
+    def lookup(self, t_s: float) -> CursorState:
+        return self.store.state_at(self.snapshot, t_s)
+
+
+class _ChunkLease:
+    def __init__(
+        self,
+        store: OemDataStore,
+        chunk_keys: tuple[tuple[int, int], ...],
+    ) -> None:
+        self.chunk_keys = chunk_keys
+        store._pin_chunks(chunk_keys)
+        weakref.finalize(
+            self,
+            OemDataStore._release_chunks,
+            weakref.ref(store),
+            chunk_keys,
+        )
+
+
+class _LeasedArray(np.ndarray):
+    def __array_finalize__(self, source: object) -> None:
+        self._chunk_lease = (
+            getattr(source, "_chunk_lease", None)
+            if isinstance(source, np.ndarray) and np.may_share_memory(self, source)
+            else None
+        )
+
+
+@dataclass(frozen=True, eq=False)
 class ColumnGroupView:
     """Read-only view of a store-owned derived column group."""
 
     values: np.ndarray
     columns: tuple[str, ...]
     segment_bounds: tuple[RowSpan, ...]
+    lease: _ChunkLease | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if self.values.ndim != 2 or self.values.shape[1] != len(self.columns):
             raise ValueError("column-group shape must match its column names")
-        view = np.asarray(memoryview(self.values).toreadonly())
+        lease = self.lease or getattr(self.values, "_chunk_lease", None)
+        view = np.asarray(memoryview(self.values).toreadonly()).view(_LeasedArray)
+        view._chunk_lease = lease
         object.__setattr__(self, "values", view)
+        object.__setattr__(self, "lease", lease)
 
     def pair(
         self,
@@ -203,9 +330,9 @@ class ColumnGroupView:
         return pair
 
 
-SeriesGroups = Mapping[SeriesGroupName, ColumnGroupView]
+SeriesGroups = Mapping[SeriesGroupName, tuple[ColumnGroupView, ...]]
 GroundTrackGroups = tuple[ColumnGroupView, ...]
-EarthFixedPositions = ColumnGroupView
+EarthFixedPositions = tuple[ColumnGroupView, ...]
 
 
 @dataclass(frozen=True)
@@ -335,8 +462,21 @@ class OemDataStore:
     the current epoch.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self, derived_memory_budget_bytes: int = 256 * 1024 * 1024
+    ) -> None:
+        if (
+            isinstance(derived_memory_budget_bytes, bool)
+            or not isinstance(derived_memory_budget_bytes, int)
+            or derived_memory_budget_bytes < 1
+        ):
+            raise ValueError("derived_memory_budget_bytes must be a positive integer")
         self._lock = RLock()
+        self._derived_memory_budget_bytes = derived_memory_budget_bytes
+        self._chunk_access_order: dict[tuple[int, int], int] = {}
+        self._chunk_ranges: dict[tuple[int, int], tuple[TimeBounds, ...]] = {}
+        self._buffer_touch_sequence = 0
+        self._pinned_chunks: dict[tuple[int, int], int] = {}
         self._epoch = 0
         self._revision = 0
         self._policy_revision = 0
@@ -347,6 +487,7 @@ class OemDataStore:
         self._sample_count = 0
         self._raw: np.ndarray | None = None
         self._segment_ids: np.ndarray | None = None
+        self._sample_times: SampleTimes | None = None
         self._segment_bounds: list[tuple[int, int, int]] = []
         self._max_gap_s = 0.0
         self._status = LoadStatus.EMPTY
@@ -359,6 +500,27 @@ class OemDataStore:
         self._series_memos: dict[SeriesGroupName, ChunkMemo[int, RowSpan]] = {}
         self._earth_fixed_buffer: np.ndarray | None = None
         self._earth_fixed_memo: ChunkMemo[int, RowSpan] = ChunkMemo()
+        self._station_profiles: dict[tuple[object, ...], _StationProfileTier] = {}
+        self._station_interval_cache: dict[
+            tuple[object, ...], tuple[AccessInterval, ...]
+        ] = {}
+        self._scheduler_lock = RLock()
+        self._scheduler_executor = ThreadPoolExecutor(
+            max_workers=1,
+            thread_name_prefix="oem-derived",
+        )
+        self._scheduled_work: dict[
+            tuple[int, int, int, QueryRequest], _ScheduledWork
+        ] = {}
+        self._work_queue: list[_ScheduledWork] = []
+        self._active_work: _ScheduledWork | None = None
+        self._scheduler_drain_active = False
+        self._scheduler_closed = False
+        self._task_sequence = 0
+        self._range_generation = 0
+        self._range_hint: RangeHint | None = None
+        self._tier_interest: dict[TierName, int] = {}
+        self._notice_subscribers: list[Callable[[StoreNotice], None]] = []
 
     @staticmethod
     def _make_state_interpolator(policy: InterpolationPolicy) -> Interpolator:
@@ -393,6 +555,351 @@ class OemDataStore:
             self._interpolation_policy = policy
             self._state_interpolator = interpolator
             self._policy_revision += 1
+            self._clear_station_tiers_locked()
+
+    def set_range_hint(self, hint: RangeHint) -> None:
+        """Replace current range interest and cancel stale queued work."""
+        if not isinstance(hint, RangeHint):
+            raise TypeError("hint must be a RangeHint")
+        with self._scheduler_lock:
+            if hint == self._range_hint:
+                return
+            self._range_generation += 1
+            self._range_hint = hint
+            for key, work in tuple(self._scheduled_work.items()):
+                priority = self._priority_for_request(work.request, hint)
+                stale_during_drag = hint.dragging and priority > 1
+                stale_range = priority > 2
+                if work.generation < self._range_generation and (
+                    stale_during_drag or stale_range
+                ):
+                    work.future.cancel()
+                    if work is not self._active_work:
+                        self._scheduled_work.pop(key, None)
+                    continue
+                work.priority = priority
+                work.generation = self._range_generation
+            heapq.heapify(self._work_queue)
+            self._start_scheduler_drain_locked()
+
+    def subscribe_tier(self, tier: TierName) -> Callable[[], None]:
+        """Register an open view's interest in a derived tier."""
+        if tier not in ("series", "earth-fixed", "ground-track", "station-access", "footprints"):
+            raise ValueError(f"unsupported derived tier: {tier!r}")
+        with self._scheduler_lock:
+            self._tier_interest[tier] = self._tier_interest.get(tier, 0) + 1
+            self._reprioritize_queued_work_locked()
+
+        def unsubscribe() -> None:
+            with self._scheduler_lock:
+                count = self._tier_interest.get(tier, 0)
+                if count <= 1:
+                    self._tier_interest.pop(tier, None)
+                else:
+                    self._tier_interest[tier] = count - 1
+                self._reprioritize_queued_work_locked()
+
+        return unsubscribe
+
+    def subscribe(self, callback: Callable[[StoreNotice], None]) -> Callable[[], None]:
+        """Subscribe to append, reset, and derived-tier notices."""
+        if not callable(callback):
+            raise TypeError("callback must be callable")
+        with self._scheduler_lock:
+            self._notice_subscribers.append(callback)
+
+        def unsubscribe() -> None:
+            with self._scheduler_lock:
+                if callback in self._notice_subscribers:
+                    self._notice_subscribers.remove(callback)
+
+        return unsubscribe
+
+    def prefetch(
+        self, snapshot: StoreSnapshot, request: QueryRequest
+    ) -> Future[None]:
+        """Queue a prioritized, cancellable range request."""
+        if not isinstance(request, QueryRequest):
+            raise TypeError("request must be a QueryRequest")
+        bounds = _validate_time_bounds(request.bounds_s)
+        if request.tier == "series":
+            groups = tuple(dict.fromkeys(request.series_groups))
+            unknown_groups = set(groups).difference(SERIES_GROUPS)
+            if unknown_groups:
+                raise ValueError(f"unsupported series groups: {sorted(unknown_groups)}")
+            if request.max_samples is not None and (
+                isinstance(request.max_samples, bool)
+                or not isinstance(request.max_samples, int)
+                or request.max_samples < 1
+            ):
+                raise ValueError("max_samples must be a positive integer")
+            request = QueryRequest(
+                request.tier,
+                bounds,
+                request.station,
+                groups,
+                request.max_samples,
+                request.minimum_elevation_deg,
+                request.margin_s,
+            )
+        elif request.tier == "earth-fixed":
+            margin = _validate_nonnegative_finite(request.margin_s, "margin_s")
+            request = QueryRequest(
+                request.tier,
+                bounds,
+                request.station,
+                request.series_groups,
+                request.max_samples,
+                request.minimum_elevation_deg,
+                margin,
+            )
+        elif request.tier == "station-access":
+            if not isinstance(request.station, GroundStation):
+                raise ValueError("station-access requests require a GroundStation")
+            minimum_elevation = request.minimum_elevation_deg
+            if minimum_elevation is None:
+                minimum_elevation = float(request.station.minimum_elevation_deg)
+            request = QueryRequest(
+                request.tier,
+                bounds,
+                request.station,
+                request.series_groups,
+                request.max_samples,
+                _validate_elevation_threshold(minimum_elevation),
+                request.margin_s,
+            )
+        else:
+            raise ValueError(f"prefetch does not support tier: {request.tier!r}")
+        self._validate_snapshot_epoch(snapshot)
+        key = (snapshot.epoch, snapshot.revision, snapshot.policy_revision, request)
+        with self._scheduler_lock:
+            if self._scheduler_closed:
+                raise RuntimeError("store scheduler is closed")
+            existing = self._scheduled_work.get(key)
+            if existing is not None:
+                return existing.future
+            future = _PrefetchFuture()
+            self._task_sequence += 1
+            work = _ScheduledWork(
+                self._priority_for_request(request, self._range_hint),
+                self._task_sequence,
+                key,
+                snapshot,
+                request,
+                future,
+                self._range_generation,
+            )
+            self._scheduled_work[key] = work
+            heapq.heappush(self._work_queue, work)
+            self._start_scheduler_drain_locked()
+            return future
+
+    def close(self) -> None:
+        """Cancel pending range work and stop the background worker."""
+        with self._scheduler_lock:
+            if self._scheduler_closed:
+                return
+            self._scheduler_closed = True
+        self._cancel_scheduled_work()
+        self._scheduler_executor.shutdown(wait=True, cancel_futures=True)
+
+    def _priority_for_request(
+        self, request: QueryRequest, hint: RangeHint | None
+    ) -> int:
+        if hint is None:
+            return 4
+        if self._tier_interest.get(request.tier, 0) == 0:
+            return 4
+        bounds = _validate_time_bounds(request.bounds_s)
+        if request.tier == "earth-fixed":
+            margin = _validate_nonnegative_finite(request.margin_s, "margin_s")
+            bounds = (bounds[0] - margin, bounds[1] + margin)
+        elif request.tier == "station-access":
+            margin = max(
+                ACCESS_WINDOW_MIN_MARGIN_S,
+                ACCESS_WINDOW_MARGIN_FRACTION * (bounds[1] - bounds[0]),
+            )
+            bounds = (bounds[0] - margin, bounds[1] + margin)
+        if hint.plot is not None:
+            plot = hint.plot
+            width = max(plot[1] - plot[0], 1.0)
+            if _ranges_intersect(bounds, plot):
+                return 1
+            expanded = (plot[0] - width, plot[1] + width)
+            if _ranges_intersect(bounds, expanded) or (
+                abs((bounds[0] + bounds[1]) / 2.0 - hint.now_s) <= width
+            ):
+                return 2
+        if _ranges_intersect(bounds, hint.playback):
+            return 3
+        return 4
+
+    def _reprioritize_queued_work_locked(self) -> None:
+        for work in self._work_queue:
+            work.priority = self._priority_for_request(work.request, self._range_hint)
+            work.generation = self._range_generation
+        heapq.heapify(self._work_queue)
+        if self._active_work is not None:
+            self._active_work.priority = self._priority_for_request(
+                self._active_work.request, self._range_hint
+            )
+        self._start_scheduler_drain_locked()
+
+    def _start_scheduler_drain_locked(self) -> None:
+        if self._scheduler_closed or self._scheduler_drain_active or not self._work_queue:
+            return
+        self._scheduler_drain_active = True
+        try:
+            self._scheduler_executor.submit(self._drain_scheduler_queue)
+        except RuntimeError:
+            self._scheduler_drain_active = False
+            raise
+
+    def _drain_scheduler_queue(self) -> None:
+        while True:
+            with self._scheduler_lock:
+                if self._scheduler_closed or not self._work_queue:
+                    self._scheduler_drain_active = False
+                    return
+                eligible = [
+                    work
+                    for work in self._work_queue
+                    if not work.future.cancelled()
+                    and (
+                        self._range_hint is None
+                        or not self._range_hint.dragging
+                        or (
+                            work.priority == 1
+                            and self._request_rows(work) <= DERIVED_CHUNK_SIZE
+                        )
+                    )
+                ]
+                if not eligible:
+                    self._scheduler_drain_active = False
+                    return
+                work = min(eligible)
+                self._work_queue.remove(work)
+                heapq.heapify(self._work_queue)
+                self._active_work = work
+            if not work.future.set_running_or_notify_cancel():
+                self._finish_scheduled_work(work)
+                continue
+            try:
+                self._run_prefetch(work)
+            except CancelledError as error:
+                if not work.future.done():
+                    work.future.set_exception(error)
+            except Exception as error:
+                if not work.future.done():
+                    work.future.set_exception(error)
+            else:
+                if not work.future.done():
+                    work.future.set_result(None)
+            finally:
+                self._finish_scheduled_work(work)
+
+    @staticmethod
+    def _request_rows(work: _ScheduledWork) -> int:
+        snapshot = work.snapshot
+        bounds = _validate_time_bounds(work.request.bounds_s)
+        if work.request.tier == "earth-fixed":
+            margin = _validate_nonnegative_finite(work.request.margin_s, "margin_s")
+            bounds = (bounds[0] - margin, bounds[1] + margin)
+        elif work.request.tier == "station-access":
+            margin = max(
+                ACCESS_WINDOW_MIN_MARGIN_S,
+                ACCESS_WINDOW_MARGIN_FRACTION * (bounds[1] - bounds[0]),
+            )
+            bounds = (bounds[0] - margin, bounds[1] + margin)
+            requested_rows = 0
+            for raw_start_value, raw_stop_value in snapshot.segment_bounds:
+                raw_start, raw_stop = int(raw_start_value), int(raw_stop_value)
+                if raw_stop - raw_start < 2:
+                    continue
+                start_s = float(snapshot.raw[raw_start, 0])
+                end_s = float(snapshot.raw[raw_stop - 1, 0])
+                count = max(
+                    2,
+                    math.ceil((end_s - start_s) / MAX_ACCESS_SAMPLE_STEP_S) + 1,
+                )
+                layout = _StationSegmentLayout(
+                    int(snapshot.segment_ids[raw_start]),
+                    raw_start,
+                    raw_stop,
+                    start_s,
+                    end_s,
+                    count,
+                    count,
+                    0,
+                )
+                first, stop = _station_profile_row_range(layout, bounds)
+                requested_rows += max(0, stop - first)
+            return requested_rows
+        start = int(np.searchsorted(snapshot.raw[:, 0], bounds[0], side="left"))
+        stop = int(np.searchsorted(snapshot.raw[:, 0], bounds[1], side="right"))
+        return stop - start
+
+    def _run_prefetch(self, work: _ScheduledWork) -> None:
+        if work.future.cancel_event.is_set():
+            raise CancelledError()
+        request = work.request
+        if request.tier == "series":
+            self.series(
+                work.snapshot,
+                request.bounds_s,
+                groups=request.series_groups or None,
+                max_samples=request.max_samples,
+                wait=True,
+                _cancel_event=work.future.cancel_event,
+            )
+        elif request.tier == "earth-fixed":
+            self.earth_fixed_positions(
+                work.snapshot,
+                request.bounds_s,
+                request.margin_s,
+                wait=True,
+                _cancel_event=work.future.cancel_event,
+            )
+        elif request.tier == "station-access":
+            if request.station is None:
+                raise ValueError("station-access requests require a GroundStation")
+            self.station_access(
+                work.snapshot,
+                request.station,
+                request.bounds_s,
+                minimum_elevation_deg=request.minimum_elevation_deg,
+                wait=True,
+                _cancel_event=work.future.cancel_event,
+            )
+        else:
+            raise ValueError(f"prefetch does not support tier: {request.tier!r}")
+
+    def _finish_scheduled_work(self, work: _ScheduledWork) -> None:
+        with self._scheduler_lock:
+            if self._scheduled_work.get(work.key) is work:
+                self._scheduled_work.pop(work.key, None)
+            if self._active_work is work:
+                self._active_work = None
+
+    def _cancel_scheduled_work(self) -> None:
+        with self._scheduler_lock:
+            for work in tuple(self._scheduled_work.values()):
+                work.future.cancel()
+            self._work_queue.clear()
+            self._scheduled_work = {
+                key: work
+                for key, work in self._scheduled_work.items()
+                if work is self._active_work
+            }
+
+    def _publish_notice(self, notice: TierNotice) -> None:
+        with self._scheduler_lock:
+            subscribers = tuple(self._notice_subscribers)
+        for callback in subscribers:
+            try:
+                callback(notice)
+            except Exception:
+                _LOGGER.exception("Store notice subscriber failed")
 
     @property
     def capacity(self) -> int:
@@ -411,6 +918,14 @@ class OemDataStore:
         """Lifecycle state of the current epoch."""
         with self._lock:
             return self._status
+
+    @property
+    def sample_times(self) -> SampleTimes:
+        """Return the live read-only timestamp view for the active epoch."""
+        with self._lock:
+            if self._sample_times is None:
+                raise RuntimeError("store timestamps are not allocated")
+            return self._sample_times
 
     @staticmethod
     def capacity_for_file(
@@ -470,6 +985,9 @@ class OemDataStore:
             self._reset_locked()
             self._raw = raw
             self._segment_ids = segment_ids
+            timestamp_view = raw[:, 0].view()
+            timestamp_view.setflags(write=False)
+            self._sample_times = SampleTimes(timestamp_view, 0)
             self._status = LoadStatus.LOADING
             return self._epoch
 
@@ -502,6 +1020,9 @@ class OemDataStore:
                 return False
             self._raw = raw
             self._segment_ids = segment_ids
+            timestamp_view = raw[:, 0].view()
+            timestamp_view.setflags(write=False)
+            self._sample_times = SampleTimes(timestamp_view, 0)
             return True
 
     def clear(self) -> None:
@@ -566,6 +1087,7 @@ class OemDataStore:
             return True
 
     def _reset_locked(self) -> None:
+        self._cancel_scheduled_work()
         if self._reservation is not None:
             self._reservation._close()
         for memo in self._series_memos.values():
@@ -573,12 +1095,16 @@ class OemDataStore:
         self._earth_fixed_memo.clear()
         self._series_buffers.clear()
         self._earth_fixed_buffer = None
+        self._clear_station_tiers_locked()
+        self._chunk_access_order.clear()
+        self._chunk_ranges.clear()
         self._epoch += 1
         self._revision = 0
         self._policy_revision = 0
         self._sample_count = 0
         self._raw = None
         self._segment_ids = None
+        self._sample_times = None
         self._segment_bounds = []
         self._max_gap_s = 0.0
         self._status = LoadStatus.EMPTY
@@ -587,6 +1113,17 @@ class OemDataStore:
         self._failure = None
         self._reservation = None
         self._validating = False
+
+    def _clear_station_tiers_locked(self) -> None:
+        for tier in self._station_profiles.values():
+            tier.memo.clear()
+            buffer_id = _mapped_buffer_id(tier.buffer)
+            for key in tuple(self._chunk_access_order):
+                if key[0] == buffer_id:
+                    self._chunk_access_order.pop(key, None)
+                    self._chunk_ranges.pop(key, None)
+        self._station_profiles.clear()
+        self._station_interval_cache.clear()
 
     def reserve(self, max_rows: int, *, epoch: int | None = None) -> RawReservation:
         """Reserve up to ``max_rows`` in the unpublished suffix."""
@@ -683,6 +1220,8 @@ class OemDataStore:
                 previous_segment = segment
             with self._lock:
                 self._check_reservation_locked(reservation)
+                if self._sample_times is None:
+                    raise RuntimeError("store timestamps are not allocated")
                 stop = self._sample_count + count
                 for start, segment in boundaries:
                     if self._segment_bounds:
@@ -694,7 +1233,9 @@ class OemDataStore:
                     self._segment_bounds[-1] = (segment, start, stop)
                 self._max_gap_s = max(self._max_gap_s, max_gap)
                 self._sample_count = stop
+                self._sample_times._publish_validated_count(stop)
                 self._revision += 1
+                self._clear_station_tiers_locked()
                 notice = RawAppendNotice(
                     self._epoch,
                     self._revision,
@@ -812,20 +1353,27 @@ class OemDataStore:
         bounds_s: TimeBounds,
         groups: Sequence[SeriesGroupName] | None = None,
         max_samples: int | None = None,
+        *,
+        wait: bool = False,
+        _cancel_event: Event | None = None,
     ) -> StoreQuery[SeriesGroups]:
-        """Lazily compute requested series groups and return read-only range views."""
+        """Return available group slices and queue missing chunks unless ``wait``."""
         bounds = _validate_time_bounds(bounds_s)
         self._validate_snapshot_epoch(snapshot)
         selected_groups = SERIES_GROUPS if groups is None else tuple(dict.fromkeys(groups))
         unknown_groups = set(selected_groups).difference(SERIES_GROUPS)
         if unknown_groups:
             raise ValueError(f"unsupported series groups: {sorted(unknown_groups)}")
+        if not isinstance(wait, bool):
+            raise ValueError("wait must be a boolean")
         if max_samples is not None and (
             isinstance(max_samples, bool)
             or not isinstance(max_samples, int)
             or max_samples < 1
         ):
             raise ValueError("max_samples must be a positive integer")
+        if _cancel_event is not None and _cancel_event.is_set():
+            raise CancelledError()
         if snapshot.sample_count == 0:
             return StoreQuery(
                 snapshot.epoch,
@@ -833,7 +1381,7 @@ class OemDataStore:
                 snapshot.policy_revision,
                 MappingProxyType(
                     {
-                        group: _empty_column_group(_SERIES_COLUMNS[group])
+                        group: ()
                         for group in selected_groups
                     }
                 ),
@@ -842,52 +1390,140 @@ class OemDataStore:
 
         start = int(np.searchsorted(snapshot.raw[:, 0], bounds[0], side="left"))
         stop = int(np.searchsorted(snapshot.raw[:, 0], bounds[1], side="right"))
-        result: dict[SeriesGroupName, ColumnGroupView] = {}
-        for group in selected_groups:
-            if start == stop:
-                result[group] = _empty_column_group(_SERIES_COLUMNS[group])
-                continue
-            buffer, memo = self._series_storage(snapshot, group)
-            self._compute_series_range(snapshot, group, start, stop, buffer, memo)
-            stride = 1
-            row_count = stop - start
-            if max_samples is not None and row_count > max_samples:
-                stride = math.ceil(row_count / max_samples)
-            values = buffer[start:stop:stride]
-            spans = _series_segment_spans(snapshot, group, start, stop, stride)
-            result[group] = ColumnGroupView(
-                values,
-                _SERIES_COLUMNS[group],
-                spans,
+        if not wait and start < stop and selected_groups:
+            self.prefetch(
+                snapshot,
+                QueryRequest(
+                    "series",
+                    bounds,
+                    series_groups=selected_groups,
+                    max_samples=max_samples,
+                ),
             )
+        result: dict[SeriesGroupName, tuple[ColumnGroupView, ...]] = {}
+        ready_by_group: list[tuple[RowSpan, ...]] = []
+        for group in selected_groups:
+            if _cancel_event is not None and _cancel_event.is_set():
+                raise CancelledError()
+            if start == stop:
+                result[group] = ()
+                ready_by_group.append(())
+                continue
+            if wait:
+                buffer, memo = self._series_storage(snapshot, group)
+                self._compute_series_range(
+                    snapshot,
+                    group,
+                    start,
+                    stop,
+                    buffer,
+                    memo,
+                    cancel_event=_cancel_event,
+                    on_chunk=lambda span: self._publish_notice(
+                        TierNotice(
+                            snapshot.epoch,
+                            "series",
+                            group,
+                            None,
+                            span.first,
+                            span.stop,
+                        )
+                    ),
+                )
+            else:
+                with self._lock:
+                    buffer = self._series_buffers.get(group)
+                    memo = self._series_memos.get(group)
+            if buffer is None or memo is None:
+                ready_spans = ()
+                group_views = ()
+            else:
+                stride = 1
+                row_count = stop - start
+                if max_samples is not None and row_count > max_samples:
+                    stride = math.ceil(row_count / max_samples)
+                with self._lock:
+                    self._touch_chunks_locked(buffer, start, stop, bounds)
+                    ready_spans = _memo_row_spans(
+                        memo,
+                        start,
+                        stop,
+                        snapshot.sample_count,
+                        snapshot.epoch,
+                        0,
+                    )
+                    group_views = tuple(
+                        self._make_column_group_view(
+                            buffer[
+                                start
+                                + math.ceil((span.first - start) / stride)
+                                * stride : span.stop : stride
+                            ],
+                            _SERIES_COLUMNS[group],
+                            _series_segment_spans(
+                                snapshot,
+                                group,
+                                start
+                                + math.ceil((span.first - start) / stride)
+                                * stride,
+                                span.stop,
+                                stride,
+                                origin=start,
+                            ),
+                            buffer,
+                            span.first,
+                            span.stop,
+                        )
+                        for span in ready_spans
+                        if start
+                        + math.ceil((span.first - start) / stride) * stride
+                        < span.stop
+                    )
+            ready_by_group.append(ready_spans)
+            result[group] = group_views
 
-        return StoreQuery(
+        base_coverage = _time_coverage(snapshot, bounds)
+        if selected_groups:
+            common_spans = ready_by_group[0]
+            for spans in ready_by_group[1:]:
+                common_spans = _intersect_row_spans(common_spans, spans)
+            coverage = _coverage_for_rows(
+                snapshot,
+                bounds,
+                common_spans,
+                base_coverage.complete
+                and sum(span.stop - span.first for span in common_spans)
+                == stop - start,
+            )
+        else:
+            coverage = base_coverage
+        query = StoreQuery(
             snapshot.epoch,
             snapshot.revision,
             snapshot.policy_revision,
             MappingProxyType(result),
-            _time_coverage(snapshot, bounds),
+            coverage,
         )
+        self._evict_derived_buffers()
+        return query
 
     def earth_fixed_positions(
         self,
         snapshot: StoreSnapshot,
         bounds_s: TimeBounds,
         margin_s: float = 0.0,
+        *,
+        wait: bool = False,
+        _cancel_event: Event | None = None,
     ) -> StoreQuery[EarthFixedPositions]:
-        """Lazily materialize ITRF sample positions for a requested time range."""
+        """Return available ITRF slices and queue missing chunks unless ``wait``."""
         bounds = _validate_time_bounds(bounds_s)
         self._validate_snapshot_epoch(snapshot)
-        if isinstance(margin_s, bool):
-            raise ValueError("margin_s must be a finite non-negative number")
-        try:
-            margin = float(margin_s)
-        except (TypeError, ValueError, OverflowError) as error:
-            raise ValueError(
-                "margin_s must be a finite non-negative number"
-            ) from error
-        if not math.isfinite(margin) or margin < 0.0:
-            raise ValueError("margin_s must be a finite non-negative number")
+        if not isinstance(wait, bool):
+            raise ValueError("wait must be a boolean")
+        if _cancel_event is not None and _cancel_event.is_set():
+            raise CancelledError()
+        margin = _validate_nonnegative_finite(margin_s, "margin_s")
         metadata = dict(snapshot.meta)
         frame_name = metadata.get("REF_FRAME")
         center_name = metadata.get("CENTER_NAME")
@@ -896,12 +1532,11 @@ class OemDataStore:
                 raise GroundTrackPreparationError(
                     "Earth-fixed positions require CENTER_NAME and REF_FRAME metadata"
                 )
-            empty = _empty_column_group(EARTH_FIXED_COLUMNS)
             return StoreQuery(
                 snapshot.epoch,
                 snapshot.revision,
                 snapshot.policy_revision,
-                empty,
+                (),
                 TimeCoverage(bounds, (), False),
             )
         if center_name.strip().upper() not in EARTH_CENTERS:
@@ -910,12 +1545,11 @@ class OemDataStore:
             )
 
         if snapshot.sample_count == 0:
-            empty = _empty_column_group(EARTH_FIXED_COLUMNS)
             return StoreQuery(
                 snapshot.epoch,
                 snapshot.revision,
                 snapshot.policy_revision,
-                empty,
+                (),
                 _time_coverage(snapshot, bounds),
             )
 
@@ -926,26 +1560,541 @@ class OemDataStore:
         stop = int(
             np.searchsorted(snapshot.raw[:, 0], expanded_bounds[1], side="right")
         )
+        original_start = int(
+            np.searchsorted(snapshot.raw[:, 0], bounds[0], side="left")
+        )
+        original_stop = int(
+            np.searchsorted(snapshot.raw[:, 0], bounds[1], side="right")
+        )
+        if not wait and start < stop:
+            self.prefetch(
+                snapshot,
+                QueryRequest(
+                    "earth-fixed",
+                    bounds,
+                    margin_s=margin,
+                ),
+            )
         if start == stop:
-            group = _empty_column_group(EARTH_FIXED_COLUMNS)
-        else:
+            return StoreQuery(
+                snapshot.epoch,
+                snapshot.revision,
+                snapshot.policy_revision,
+                (),
+                _time_coverage(snapshot, bounds),
+            )
+        if wait:
             buffer, memo = self._earth_fixed_storage(snapshot)
             self._compute_earth_fixed_range(
-                snapshot, frame_name, start, stop, buffer, memo
+                snapshot,
+                frame_name,
+                start,
+                stop,
+                buffer,
+                memo,
+                cancel_event=_cancel_event,
+                on_chunk=lambda span: self._publish_notice(
+                    TierNotice(
+                        snapshot.epoch,
+                        "earth-fixed",
+                        None,
+                        None,
+                        span.first,
+                        span.stop,
+                    )
+                ),
             )
-            group = ColumnGroupView(
-                buffer[start:stop],
-                EARTH_FIXED_COLUMNS,
-                _point_segment_spans(snapshot, start, stop),
-            )
-
-        return StoreQuery(
+        else:
+            with self._lock:
+                buffer = self._earth_fixed_buffer
+                memo = self._earth_fixed_memo if buffer is not None else None
+        if buffer is None or memo is None:
+            ready_spans = ()
+            groups = ()
+        else:
+            with self._lock:
+                self._touch_chunks_locked(
+                    buffer,
+                    start,
+                    stop,
+                    expanded_bounds,
+                )
+                ready_spans = _memo_row_spans(
+                    memo,
+                    start,
+                    stop,
+                    snapshot.sample_count,
+                    snapshot.epoch,
+                    0,
+                )
+                groups = tuple(
+                    self._make_column_group_view(
+                        buffer[span.first : span.stop],
+                        EARTH_FIXED_COLUMNS,
+                        _point_segment_spans(snapshot, span.first, span.stop),
+                        buffer,
+                        span.first,
+                        span.stop,
+                    )
+                    for span in ready_spans
+                )
+        in_bounds_spans = _intersect_row_spans(
+            ready_spans,
+            (RowSpan(original_start, original_stop),)
+            if original_start < original_stop
+            else (),
+        )
+        base_coverage = _time_coverage(snapshot, bounds)
+        coverage = _coverage_for_rows(
+            snapshot,
+            bounds,
+            in_bounds_spans,
+            base_coverage.complete
+            and sum(span.stop - span.first for span in in_bounds_spans)
+            == original_stop - original_start,
+        )
+        query = StoreQuery(
             snapshot.epoch,
             snapshot.revision,
             snapshot.policy_revision,
-            group,
-            _time_coverage(snapshot, bounds),
+            groups,
+            coverage,
         )
+        self._evict_derived_buffers()
+        return query
+
+    def station_access(
+        self,
+        snapshot: StoreSnapshot,
+        station: GroundStation,
+        bounds_s: TimeBounds,
+        minimum_elevation_deg: int | None = None,
+        *,
+        wait: bool = False,
+        _cancel_event: Event | None = None,
+    ) -> StoreQuery[StationAccessView]:
+        """Return station profiles and access intervals, queueing missing work."""
+        bounds = _validate_time_bounds(bounds_s)
+        self._validate_snapshot_epoch(snapshot)
+        if not isinstance(station, GroundStation):
+            raise TypeError("station must be a GroundStation")
+        if not isinstance(wait, bool):
+            raise ValueError("wait must be a boolean")
+        threshold = (
+            station.minimum_elevation_deg
+            if minimum_elevation_deg is None
+            else _validate_elevation_threshold(minimum_elevation_deg)
+        )
+        selected_station = replace(station, minimum_elevation_deg=threshold)
+        if _cancel_event is not None and _cancel_event.is_set():
+            raise CancelledError()
+
+        if snapshot.sample_count == 0:
+            empty = StationAccessView(selected_station, (), (), None)
+            return StoreQuery(
+                snapshot.epoch,
+                snapshot.revision,
+                snapshot.policy_revision,
+                empty,
+                _time_coverage(snapshot, bounds),
+            )
+
+        metadata = dict(snapshot.meta)
+        frame_name = metadata.get("REF_FRAME")
+        center_name = metadata.get("CENTER_NAME")
+        if not isinstance(frame_name, str) or not isinstance(center_name, str):
+            if snapshot.status is LoadStatus.COMPLETE:
+                raise GroundTrackPreparationError(
+                    "Station access requires CENTER_NAME and REF_FRAME metadata"
+                )
+            value = StationAccessView(selected_station, (), (), None)
+            return StoreQuery(
+                snapshot.epoch,
+                snapshot.revision,
+                snapshot.policy_revision,
+                value,
+                TimeCoverage(bounds, (), False),
+            )
+        if center_name.strip().upper() not in EARTH_CENTERS:
+            raise GroundTrackPreparationError(
+                f"Station access requires an Earth-centered OEM; found {center_name!r}"
+            )
+
+        margin = max(
+            ACCESS_WINDOW_MIN_MARGIN_S,
+            ACCESS_WINDOW_MARGIN_FRACTION * (bounds[1] - bounds[0]),
+        )
+        expanded_bounds = (bounds[0] - margin, bounds[1] + margin)
+        tier, limitation = self._station_profile_storage(snapshot, selected_station)
+        if limitation is not None:
+            value = StationAccessView(selected_station, (), (), limitation)
+            return StoreQuery(
+                snapshot.epoch,
+                snapshot.revision,
+                snapshot.policy_revision,
+                value,
+                TimeCoverage(bounds, (), _time_coverage(snapshot, bounds).complete),
+            )
+        if not wait:
+            self.prefetch(
+                snapshot,
+                QueryRequest(
+                    "station-access",
+                    bounds,
+                    station=selected_station,
+                    minimum_elevation_deg=float(threshold),
+                ),
+            )
+
+        layout_ranges: list[tuple[_StationSegmentLayout, int, int]] = []
+        for layout in tier.layouts:
+            first, stop = _station_profile_row_range(layout, expanded_bounds)
+            if first < stop:
+                layout_ranges.append((layout, first, stop))
+        with self._lock:
+            for layout, first, stop in layout_ranges:
+                self._touch_chunks_locked(
+                    tier.buffer,
+                    layout.base_index + first,
+                    layout.base_index + stop,
+                    expanded_bounds,
+                )
+
+        cache_key = (
+            snapshot.epoch,
+            snapshot.revision,
+            snapshot.policy_revision,
+            tier.station_key,
+            bounds,
+            threshold,
+        )
+        with self._lock:
+            cached_intervals = self._station_interval_cache.get(cache_key)
+
+        if wait:
+            self._compute_station_profile_ranges(
+                snapshot,
+                selected_station,
+                tier,
+                frame_name,
+                layout_ranges,
+                cancel_event=_cancel_event,
+            )
+
+        profile_views: list[LookAngleProfileView] = []
+        intervals: list[AccessInterval] = []
+        coverage_spans: list[TimeBounds] = []
+        cursor = _StoreStationCursor(self, snapshot, self._interpolation_policy)
+        source = GroundTrackSource(
+            snapshot.raw[:, 0],
+            snapshot.raw[:, 1:7],
+            snapshot.segment_ids,
+            center_name,
+            frame_name,
+        )
+        ready_values: list[
+            tuple[_StationSegmentLayout, int, int, np.ndarray]
+        ] = []
+        for layout, first, stop in layout_ranges:
+            first_row = layout.base_index + first
+            stop_row = layout.base_index + stop
+            with self._lock:
+                ready = _memo_row_spans(
+                    tier.memo,
+                    first_row,
+                    stop_row,
+                    tier.row_count,
+                    snapshot.epoch,
+                    snapshot.policy_revision,
+                )
+                for span in ready:
+                    values = tier.buffer[span.first : span.stop]
+                    profile_views.append(
+                        LookAngleProfileView(
+                            self._make_column_group_view(
+                                values,
+                                STATION_PROFILE_COLUMNS,
+                                (RowSpan(0, len(values)),),
+                                tier.buffer,
+                                span.first,
+                                span.stop,
+                            )
+                        )
+                    )
+                    ready_values.append((layout, first, stop, values))
+
+        for layout, first, stop, values in ready_values:
+            first_time = float(values[0, 0])
+            stop_time = float(values[-1, 0])
+            covered_start = max(bounds[0], first_time)
+            covered_stop = min(bounds[1], stop_time)
+            if covered_start <= covered_stop:
+                coverage_spans.append((covered_start, covered_stop))
+            if len(values) < 2 or cached_intervals is not None:
+                continue
+            events = _station_profile_events(
+                values,
+                selected_station,
+                cursor,
+                source,
+                frame_name,
+                threshold,
+            )
+            timed_events, metric_events = tee(events)
+            intervals.extend(
+                _intervals_for_segment(
+                    selected_station,
+                    cursor,
+                    source,
+                    frame_name,
+                    None,
+                    None,
+                    (event[0] for event in timed_events),
+                    (event[1] for event in metric_events),
+                    starts_at_coverage=first == 0,
+                    ends_at_coverage=stop == layout.row_count,
+                    starts_after_gap=layout.raw_start > 0,
+                    ends_before_gap=layout.raw_stop < snapshot.sample_count,
+                )
+            )
+
+        base_coverage = _time_coverage(snapshot, bounds)
+        requested_rows_ready = all(
+            sum(span.stop - span.first for span in _memo_row_spans(
+                tier.memo,
+                layout.base_index + first,
+                layout.base_index + stop,
+                tier.row_count,
+                snapshot.epoch,
+                snapshot.policy_revision,
+            ))
+            == stop - first
+            for layout, first, stop in layout_ranges
+        )
+        coverage = TimeCoverage(
+            bounds,
+            tuple(coverage_spans),
+            base_coverage.complete and requested_rows_ready,
+        )
+        value = StationAccessView(
+            selected_station,
+            tuple(profile_views),
+            cached_intervals if cached_intervals is not None else tuple(intervals),
+            (
+                "An access interval reaches an OEM segment gap; "
+                "its crossing is unavailable."
+                if any(
+                    interval.limited_by_gap_at_start
+                    or interval.limited_by_gap_at_end
+                    for interval in (
+                        cached_intervals
+                        if cached_intervals is not None
+                        else intervals
+                    )
+                )
+                else None
+            ),
+        )
+        result = StoreQuery(
+            snapshot.epoch,
+            snapshot.revision,
+            snapshot.policy_revision,
+            value,
+            coverage,
+        )
+        if requested_rows_ready and snapshot.status is LoadStatus.COMPLETE:
+            with self._lock:
+                self._station_interval_cache[cache_key] = value.intervals
+                if len(self._station_interval_cache) > 128:
+                    oldest = next(iter(self._station_interval_cache))
+                    self._station_interval_cache.pop(oldest)
+        self._evict_derived_buffers()
+        return result
+
+    def _station_profile_storage(
+        self, snapshot: StoreSnapshot, station: GroundStation
+    ) -> tuple[_StationProfileTier, str | None]:
+        station_key = (
+            station.station_id,
+            station.latitude_deg,
+            station.longitude_deg,
+            station.altitude_m,
+        )
+        key = (
+            snapshot.epoch,
+            snapshot.revision,
+            snapshot.policy_revision,
+            *station_key,
+        )
+        with self._lock:
+            if snapshot.epoch != self._epoch:
+                raise RuntimeError("store epoch has changed")
+            tier = self._station_profiles.get(key)
+            if tier is not None:
+                return tier, None
+            layouts: list[_StationSegmentLayout] = []
+            base_index = 0
+            for raw_start_value, raw_stop_value in snapshot.segment_bounds:
+                raw_start, raw_stop = int(raw_start_value), int(raw_stop_value)
+                if raw_stop - raw_start < 2:
+                    empty_tier = _StationProfileTier(
+                        station_key,
+                        np.empty((0, len(STATION_PROFILE_COLUMNS))),
+                        ChunkMemo(),
+                    )
+                    return (
+                        empty_tier,
+                        "Access intervals unavailable: an OEM segment has fewer "
+                        "than two samples.",
+                    )
+                maximum_source_gap = max(
+                    (
+                        float(
+                            snapshot.raw[index + 1, 0]
+                            - snapshot.raw[index, 0]
+                        )
+                        for index in range(raw_start, raw_stop - 1)
+                    ),
+                    default=0.0,
+                )
+                if maximum_source_gap > MAX_SOURCE_SAMPLE_GAP_S:
+                    empty_tier = _StationProfileTier(
+                        station_key,
+                        np.empty((0, len(STATION_PROFILE_COLUMNS))),
+                        ChunkMemo(),
+                    )
+                    return (
+                        empty_tier,
+                        "Access intervals unavailable: OEM sample spacing exceeds "
+                        "five minutes.",
+                    )
+                start_s = float(snapshot.raw[raw_start, 0])
+                end_s = float(snapshot.raw[raw_stop - 1, 0])
+                regular_count = max(
+                    2,
+                    math.ceil((end_s - start_s) / MAX_ACCESS_SAMPLE_STEP_S) + 1,
+                )
+                if base_index + regular_count > MAX_ACCESS_SAMPLES:
+                    empty_tier = _StationProfileTier(
+                        station_key,
+                        np.empty((0, len(STATION_PROFILE_COLUMNS))),
+                        ChunkMemo(),
+                    )
+                    return (
+                        empty_tier,
+                        "Access intervals unavailable: OEM coverage requires too "
+                        "many samples.",
+                    )
+                layouts.append(
+                    _StationSegmentLayout(
+                        int(snapshot.segment_ids[raw_start]),
+                        raw_start,
+                        raw_stop,
+                        start_s,
+                        end_s,
+                        regular_count,
+                        regular_count,
+                        base_index,
+                    )
+                )
+                base_index += regular_count
+            tier = _StationProfileTier(
+                station_key,
+                _mapped_float_array(
+                    (base_index, len(STATION_PROFILE_COLUMNS))
+                ),
+                ChunkMemo(),
+                tuple(layouts),
+                base_index,
+            )
+            self._station_profiles[key] = tier
+            return tier, None
+
+    def _compute_station_profile_ranges(
+        self,
+        snapshot: StoreSnapshot,
+        station: GroundStation,
+        tier: _StationProfileTier,
+        frame_name: str,
+        ranges: Sequence[tuple[_StationSegmentLayout, int, int]],
+        *,
+        cancel_event: Event | None,
+    ) -> None:
+        chunks = sorted(
+            {
+                chunk_index
+                for layout, first, stop in ranges
+                for chunk_index in range(
+                    (layout.base_index + first) // DERIVED_CHUNK_SIZE,
+                    (layout.base_index + stop - 1) // DERIVED_CHUNK_SIZE + 1,
+                )
+            }
+        )
+        for chunk_index in chunks:
+            if cancel_event is not None and cancel_event.is_set():
+                raise CancelledError()
+            chunk_start = chunk_index * DERIVED_CHUNK_SIZE
+            chunk_stop = min(chunk_start + DERIVED_CHUNK_SIZE, tier.row_count)
+            computed = False
+
+            def compute() -> RowSpan:
+                nonlocal computed
+                computed = True
+                for layout in tier.layouts:
+                    first = max(chunk_start, layout.base_index)
+                    stop = min(
+                        chunk_stop,
+                        layout.base_index + layout.row_count,
+                    )
+                    if first >= stop:
+                        continue
+                    for row_index in range(first, stop):
+                        if cancel_event is not None and cancel_event.is_set():
+                            raise CancelledError()
+                        epoch_s = _station_profile_row_time(
+                            layout, row_index - layout.base_index
+                        )
+                        state = self.state_at(snapshot, epoch_s)
+                        row = tier.buffer[row_index]
+                        row[0] = epoch_s
+                        if state.state_m is None:
+                            row[1:] = np.nan
+                            continue
+                        metrics = station_metrics(
+                            station,
+                            state.state_m,
+                            frame_name,
+                            epoch_s,
+                        )
+                        row[1:] = (
+                            metrics.azimuth_deg,
+                            metrics.elevation_deg,
+                            metrics.slant_range_km,
+                        )
+                return RowSpan(chunk_start, chunk_stop)
+
+            tier.memo.get_or_compute(
+                chunk_index,
+                compute,
+                epoch=snapshot.epoch,
+                policy_revision=snapshot.policy_revision,
+                tentative=(
+                    snapshot.status is LoadStatus.LOADING
+                    and chunk_stop < chunk_start + DERIVED_CHUNK_SIZE
+                ),
+                cancel_event=cancel_event,
+            )
+            if computed:
+                self._publish_notice(
+                    TierNotice(
+                        snapshot.epoch,
+                        "station-access",
+                        None,
+                        station.station_id,
+                        chunk_start,
+                        chunk_stop,
+                    )
+                )
 
     def _validate_snapshot_epoch(self, snapshot: StoreSnapshot) -> None:
         with self._lock:
@@ -975,9 +2124,8 @@ class OemDataStore:
                 raise RuntimeError("store has no active epoch")
             buffer = self._series_buffers.get(group)
             if buffer is None:
-                buffer = np.empty(
+                buffer = _mapped_float_array(
                     (len(self._raw), len(_SERIES_COLUMNS[group])),
-                    dtype=np.float64,
                 )
                 self._series_buffers[group] = buffer
             memo = self._series_memos.get(group)
@@ -985,6 +2133,200 @@ class OemDataStore:
                 memo = ChunkMemo()
                 self._series_memos[group] = memo
             return buffer, memo
+
+    def _touch_chunks_locked(
+        self,
+        buffer: np.ndarray,
+        first_row: int,
+        stop_row: int,
+        bounds: TimeBounds | None = None,
+    ) -> None:
+        if first_row >= stop_row:
+            return
+        buffer_id = _mapped_buffer_id(buffer)
+        first_chunk = first_row // DERIVED_CHUNK_SIZE
+        last_chunk = (stop_row - 1) // DERIVED_CHUNK_SIZE
+        for chunk_index in range(first_chunk, last_chunk + 1):
+            key = (buffer_id, chunk_index)
+            self._buffer_touch_sequence += 1
+            self._chunk_access_order[key] = self._buffer_touch_sequence
+            if bounds is not None:
+                self._chunk_ranges[key] = (bounds,)
+
+    def _pin_chunks(self, chunk_keys: tuple[tuple[int, int], ...]) -> None:
+        with self._lock:
+            for key in chunk_keys:
+                self._pinned_chunks[key] = self._pinned_chunks.get(key, 0) + 1
+
+    @staticmethod
+    def _release_chunks(
+        store_ref: weakref.ReferenceType[OemDataStore],
+        chunk_keys: tuple[tuple[int, int], ...],
+    ) -> None:
+        store = store_ref()
+        if store is None:
+            return
+        with store._lock:
+            for key in chunk_keys:
+                count = store._pinned_chunks.get(key, 0)
+                if count <= 1:
+                    store._pinned_chunks.pop(key, None)
+                else:
+                    store._pinned_chunks[key] = count - 1
+
+    def _make_column_group_view(
+        self,
+        values: np.ndarray,
+        columns: tuple[str, ...],
+        segment_bounds: tuple[RowSpan, ...],
+        owner_buffer: np.ndarray,
+        first_row: int,
+        stop_row: int,
+    ) -> ColumnGroupView:
+        buffer_id = _mapped_buffer_id(owner_buffer)
+        chunk_keys = tuple(
+            (buffer_id, chunk_index)
+            for chunk_index in range(
+                first_row // DERIVED_CHUNK_SIZE,
+                (stop_row - 1) // DERIVED_CHUNK_SIZE + 1,
+            )
+        )
+        lease = _ChunkLease(self, chunk_keys)
+        return ColumnGroupView(values, columns, segment_bounds, lease)
+
+    def _evict_derived_buffers(self) -> None:
+        with self._lock:
+            candidates: list[
+                tuple[
+                    int,
+                    int,
+                    Literal["series", "earth-fixed", "station-access"],
+                    int,
+                    np.ndarray,
+                    ChunkMemo[int, RowSpan],
+                    int,
+                    int,
+                    int,
+                ]
+            ] = []
+
+            def add_candidates(
+                kind: Literal["series", "earth-fixed", "station-access"],
+                buffer: np.ndarray,
+                memo: ChunkMemo[int, RowSpan],
+                row_count: int,
+                columns: int,
+                policy_revision: int,
+            ) -> None:
+                buffer_id = _mapped_buffer_id(buffer)
+                for chunk_index in range(
+                    math.ceil(row_count / DERIVED_CHUNK_SIZE)
+                ):
+                    if memo.state(
+                        chunk_index,
+                        epoch=self._epoch,
+                        policy_revision=policy_revision,
+                    ) not in (ChunkState.COMPLETE, ChunkState.TENTATIVE):
+                        continue
+                    chunk_rows = min(
+                        DERIVED_CHUNK_SIZE,
+                        row_count - chunk_index * DERIVED_CHUNK_SIZE,
+                    )
+                    chunk_key = (buffer_id, chunk_index)
+                    candidates.append(
+                        (
+                            self._chunk_access_order.get(chunk_key, 0),
+                            buffer_id,
+                            kind,
+                            chunk_index,
+                            buffer,
+                            memo,
+                            row_count,
+                            columns,
+                            chunk_rows * columns * np.dtype(np.float64).itemsize,
+                        )
+                    )
+
+            for group, buffer in self._series_buffers.items():
+                add_candidates(
+                    "series",
+                    buffer,
+                    self._series_memos[group],
+                    len(buffer),
+                    len(_SERIES_COLUMNS[group]),
+                    0,
+                )
+            if self._earth_fixed_buffer is not None:
+                add_candidates(
+                    "earth-fixed",
+                    self._earth_fixed_buffer,
+                    self._earth_fixed_memo,
+                    len(self._earth_fixed_buffer),
+                    len(EARTH_FIXED_COLUMNS),
+                    0,
+                )
+            for tier in self._station_profiles.values():
+                add_candidates(
+                    "station-access",
+                    tier.buffer,
+                    tier.memo,
+                    tier.row_count,
+                    len(STATION_PROFILE_COLUMNS),
+                    self._policy_revision,
+                )
+            resident_bytes = sum(candidate[-1] for candidate in candidates)
+            if resident_bytes <= self._derived_memory_budget_bytes:
+                return
+
+            advice = getattr(mmap, "MADV_FREE", getattr(mmap, "MADV_DONTNEED", None))
+            if advice is None or not hasattr(mmap.mmap, "madvise"):
+                return
+
+            for candidate in sorted(candidates, key=lambda item: item[:4]):
+                if resident_bytes <= self._derived_memory_budget_bytes:
+                    break
+                (
+                    _,
+                    buffer_id,
+                    kind,
+                    chunk_index,
+                    buffer,
+                    memo,
+                    row_count,
+                    columns,
+                    chunk_bytes,
+                ) = candidate
+                chunk_key = (buffer_id, chunk_index)
+                if self._pinned_chunks.get(chunk_key, 0):
+                    continue
+                if any(
+                    _range_is_active(bounds, self._range_hint)
+                    for bounds in self._chunk_ranges.get(chunk_key, ())
+                ):
+                    continue
+
+                if not memo.evict(
+                    chunk_index,
+                    lambda: _madvise_chunk(
+                        buffer,
+                        chunk_index,
+                        row_count,
+                        columns,
+                        advice,
+                    ),
+                    epoch=self._epoch,
+                    policy_revision=(
+                        self._policy_revision
+                        if kind == "station-access"
+                        else 0
+                    ),
+                ):
+                    continue
+                if kind == "station-access":
+                    self._station_interval_cache.clear()
+                self._chunk_access_order.pop(chunk_key, None)
+                self._chunk_ranges.pop(chunk_key, None)
+                resident_bytes -= chunk_bytes
 
     def _earth_fixed_storage(
         self, snapshot: StoreSnapshot
@@ -995,9 +2337,8 @@ class OemDataStore:
             if self._raw is None:
                 raise RuntimeError("store has no active epoch")
             if self._earth_fixed_buffer is None:
-                self._earth_fixed_buffer = np.empty(
-                    (len(self._raw), len(EARTH_FIXED_COLUMNS)),
-                    dtype=np.float64,
+                self._earth_fixed_buffer = _mapped_float_array(
+                    (len(self._raw), len(EARTH_FIXED_COLUMNS))
                 )
             return self._earth_fixed_buffer, self._earth_fixed_memo
 
@@ -1009,19 +2350,29 @@ class OemDataStore:
         stop: int,
         buffer: np.ndarray,
         memo: ChunkMemo[int, RowSpan],
+        *,
+        cancel_event: Event | None = None,
+        on_chunk: Callable[[RowSpan], None] | None = None,
     ) -> None:
         first_chunk = start // DERIVED_CHUNK_SIZE
         last_chunk = (stop - 1) // DERIVED_CHUNK_SIZE
         for chunk_index in range(first_chunk, last_chunk + 1):
+            if cancel_event is not None and cancel_event.is_set():
+                raise CancelledError()
             chunk_start = chunk_index * DERIVED_CHUNK_SIZE
             chunk_stop = min(chunk_start + DERIVED_CHUNK_SIZE, snapshot.sample_count)
             tentative = (
                 snapshot.status is LoadStatus.LOADING
                 and chunk_stop < chunk_start + DERIVED_CHUNK_SIZE
             )
+            computed = False
 
             def compute() -> RowSpan:
+                nonlocal computed
+                if cancel_event is not None and cancel_event.is_set():
+                    raise CancelledError()
                 _write_series_chunk(snapshot, group, chunk_start, chunk_stop, buffer)
+                computed = True
                 return RowSpan(chunk_start, chunk_stop)
 
             span = memo.get_or_compute(
@@ -1030,18 +2381,23 @@ class OemDataStore:
                 epoch=snapshot.epoch,
                 policy_revision=0,
                 tentative=tentative,
+                cancel_event=cancel_event,
             )
             if span.stop < chunk_stop:
                 memo.invalidate(chunk_index)
+                computed = False
                 span = memo.get_or_compute(
                     chunk_index,
                     compute,
                     epoch=snapshot.epoch,
                     policy_revision=0,
                     tentative=tentative,
+                    cancel_event=cancel_event,
                 )
                 if span.stop < chunk_stop:
                     raise RuntimeError("series chunk is not fully computed")
+            if computed and on_chunk is not None:
+                on_chunk(RowSpan(chunk_start, chunk_stop))
 
     def _compute_earth_fixed_range(
         self,
@@ -1051,21 +2407,31 @@ class OemDataStore:
         stop: int,
         buffer: np.ndarray,
         memo: ChunkMemo[int, RowSpan],
+        *,
+        cancel_event: Event | None = None,
+        on_chunk: Callable[[RowSpan], None] | None = None,
     ) -> None:
         first_chunk = start // DERIVED_CHUNK_SIZE
         last_chunk = (stop - 1) // DERIVED_CHUNK_SIZE
         for chunk_index in range(first_chunk, last_chunk + 1):
+            if cancel_event is not None and cancel_event.is_set():
+                raise CancelledError()
             chunk_start = chunk_index * DERIVED_CHUNK_SIZE
             chunk_stop = min(chunk_start + DERIVED_CHUNK_SIZE, snapshot.sample_count)
             tentative = (
                 snapshot.status is LoadStatus.LOADING
                 and chunk_stop < chunk_start + DERIVED_CHUNK_SIZE
             )
+            computed = False
 
             def compute() -> RowSpan:
+                nonlocal computed
+                if cancel_event is not None and cancel_event.is_set():
+                    raise CancelledError()
                 _write_earth_fixed_chunk(
                     snapshot, frame_name, chunk_start, chunk_stop, buffer
                 )
+                computed = True
                 return RowSpan(chunk_start, chunk_stop)
 
             span = memo.get_or_compute(
@@ -1074,18 +2440,23 @@ class OemDataStore:
                 epoch=snapshot.epoch,
                 policy_revision=0,
                 tentative=tentative,
+                cancel_event=cancel_event,
             )
             if span.stop < chunk_stop:
                 memo.invalidate(chunk_index)
+                computed = False
                 span = memo.get_or_compute(
                     chunk_index,
                     compute,
                     epoch=snapshot.epoch,
                     policy_revision=0,
                     tentative=tentative,
+                    cancel_event=cancel_event,
                 )
                 if span.stop < chunk_stop:
                     raise RuntimeError("Earth-fixed chunk is not fully computed")
+            if computed and on_chunk is not None:
+                on_chunk(RowSpan(chunk_start, chunk_stop))
 
 
 def _validate_time_bounds(bounds_s: TimeBounds) -> TimeBounds:
@@ -1103,6 +2474,298 @@ def _validate_time_bounds(bounds_s: TimeBounds) -> TimeBounds:
     if not math.isfinite(start) or not math.isfinite(stop) or start > stop:
         raise ValueError("time bounds must be finite and ordered")
     return start, stop
+
+
+def _validate_nonnegative_finite(value: float, name: str) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"{name} must be a finite non-negative number")
+    try:
+        converted = float(value)
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError(f"{name} must be a finite non-negative number") from error
+    if not math.isfinite(converted) or converted < 0.0:
+        raise ValueError(f"{name} must be a finite non-negative number")
+    return converted
+
+
+def _mapped_float_array(shape: tuple[int, int]) -> np.ndarray:
+    rows, columns = shape
+    if rows < 1:
+        return np.empty(shape, dtype=np.float64)
+    flags = getattr(mmap, "MAP_PRIVATE", None)
+    anonymous_flag = getattr(
+        mmap,
+        "MAP_ANONYMOUS",
+        getattr(mmap, "MAP_ANON", None),
+    )
+    if flags is None or anonymous_flag is None:
+        mapping = mmap.mmap(
+            -1, rows * columns * np.dtype(np.float64).itemsize
+        )
+    else:
+        mapping = mmap.mmap(
+            -1,
+            rows * columns * np.dtype(np.float64).itemsize,
+            flags=flags | anonymous_flag,
+            prot=mmap.PROT_READ | mmap.PROT_WRITE,
+        )
+    return np.ndarray(shape, dtype=np.float64, buffer=mapping)
+
+
+def _mapping_for_buffer(buffer: np.ndarray) -> mmap.mmap | None:
+    owner: object = buffer
+    while isinstance(owner, np.ndarray):
+        owner = owner.base
+    return owner if isinstance(owner, mmap.mmap) else None
+
+
+def _mapped_buffer_id(buffer: np.ndarray) -> int:
+    mapping = _mapping_for_buffer(buffer)
+    return id(mapping) if mapping is not None else id(buffer)
+
+
+def _madvise_chunk(
+    buffer: np.ndarray,
+    chunk_index: int,
+    row_count: int,
+    columns: int,
+    advice: int,
+) -> None:
+    mapping = _mapping_for_buffer(buffer)
+    if mapping is None:
+        raise RuntimeError("derived buffer is not backed by an mmap")
+    bytes_per_row = columns * np.dtype(np.float64).itemsize
+    start = chunk_index * DERIVED_CHUNK_SIZE * bytes_per_row
+    rows = min(DERIVED_CHUNK_SIZE, row_count - chunk_index * DERIVED_CHUNK_SIZE)
+    length = rows * bytes_per_row
+    if length:
+        mapping.madvise(advice, start, length)
+
+
+def _range_is_active(bounds: TimeBounds, hint: RangeHint | None) -> bool:
+    if hint is None:
+        return False
+    plot_width = (
+        max(hint.plot[1] - hint.plot[0], 1.0)
+        if hint.plot is not None
+        else max(hint.playback[1] - hint.playback[0], 1.0)
+    )
+    active_ranges = [hint.playback, (hint.now_s - plot_width, hint.now_s + plot_width)]
+    if hint.plot is not None:
+        active_ranges.append(
+            (hint.plot[0] - plot_width, hint.plot[1] + plot_width)
+        )
+    return any(_ranges_intersect(bounds, active) for active in active_ranges)
+
+
+def _validate_elevation_threshold(value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("minimum_elevation_deg must be an integer from 0 through 90")
+    converted = float(value)
+    if (
+        not math.isfinite(converted)
+        or converted < 0
+        or converted > 90
+        or not converted.is_integer()
+    ):
+        raise ValueError("minimum_elevation_deg must be an integer from 0 through 90")
+    return int(converted)
+
+
+def _station_profile_row_time(layout: _StationSegmentLayout, index: int) -> float:
+    if index == layout.regular_count - 1:
+        return layout.end_s
+    step = (layout.end_s - layout.start_s) / (layout.regular_count - 1)
+    return layout.start_s + index * step
+
+
+def _station_profile_row_range(
+    layout: _StationSegmentLayout, bounds: TimeBounds
+) -> tuple[int, int]:
+    def insertion_index(target: float, *, right: bool) -> int:
+        low = 0
+        high = layout.row_count
+        while low < high:
+            middle = (low + high) // 2
+            value = _station_profile_row_time(layout, middle)
+            if value < target or (right and value == target):
+                low = middle + 1
+            else:
+                high = middle
+        return low
+
+    first = max(0, insertion_index(bounds[0], right=False) - 1)
+    stop = min(layout.row_count, insertion_index(bounds[1], right=True) + 1)
+    return first, stop
+
+
+def _station_metrics_from_profile_row(
+    row: np.ndarray, minimum_elevation_deg: int
+) -> StationMetrics | None:
+    if not np.isfinite(row).all():
+        return None
+    return StationMetrics(
+        float(row[1]),
+        float(row[2]),
+        float(row[3]),
+        float(row[2]) >= minimum_elevation_deg,
+    )
+
+
+def _station_profile_events(
+    values: np.ndarray,
+    station: GroundStation,
+    cursor: _StoreStationCursor,
+    source: GroundTrackSource,
+    frame_name: str,
+    minimum_elevation_deg: int,
+) -> Iterator[tuple[float, StationMetrics | None]]:
+    def sample(index: int) -> tuple[float, StationMetrics | None]:
+        row = values[index]
+        return float(row[0]), _station_metrics_from_profile_row(
+            row, minimum_elevation_deg
+        )
+
+    if len(values) == 0:
+        return
+    yield sample(0)
+    last_peak_time: float | None = None
+    for index in range(1, len(values) - 1):
+        previous = sample(index - 1)
+        current = sample(index)
+        following = sample(index + 1)
+        current_metrics = current[1]
+        previous_metrics = previous[1]
+        following_metrics = following[1]
+        refined: tuple[float, StationMetrics] | None = None
+        if (
+            current_metrics is not None
+            and not current_metrics.access
+            and previous_metrics is not None
+            and following_metrics is not None
+            and current_metrics.elevation_deg >= previous_metrics.elevation_deg
+            and current_metrics.elevation_deg >= following_metrics.elevation_deg
+        ):
+            peak_time, peak_metrics = _refine_peak(
+                station,
+                cursor,
+                source,
+                frame_name,
+                None,
+                None,
+                previous[0],
+                following[0],
+            )
+            peak_metrics = StationMetrics(
+                peak_metrics.azimuth_deg,
+                peak_metrics.elevation_deg,
+                peak_metrics.slant_range_km,
+                peak_metrics.elevation_deg >= minimum_elevation_deg,
+            )
+            if (
+                peak_metrics.access
+                and all(
+                    abs(peak_time - sample_time) > CROSSING_TIME_TOLERANCE_S
+                    for sample_time in (
+                        previous[0],
+                        current[0],
+                        following[0],
+                    )
+                )
+                and (
+                    last_peak_time is None
+                    or abs(peak_time - last_peak_time) > CROSSING_TIME_TOLERANCE_S
+                )
+            ):
+                refined = peak_time, peak_metrics
+                last_peak_time = peak_time
+        if refined is not None and refined[0] < current[0]:
+            yield refined
+        yield current
+        if refined is not None and refined[0] >= current[0]:
+            yield refined
+    if len(values) > 1:
+        yield sample(len(values) - 1)
+
+
+def _ranges_intersect(first: TimeBounds, second: TimeBounds) -> bool:
+    return first[0] <= second[1] and second[0] <= first[1]
+
+
+def _memo_row_spans(
+    memo: ChunkMemo[int, RowSpan],
+    start: int,
+    stop: int,
+    sample_count: int,
+    epoch: int,
+    policy_revision: int,
+) -> tuple[RowSpan, ...]:
+    if start >= stop:
+        return ()
+    spans: list[RowSpan] = []
+    first_chunk = start // DERIVED_CHUNK_SIZE
+    last_chunk = (stop - 1) // DERIVED_CHUNK_SIZE
+    for chunk_index in range(first_chunk, last_chunk + 1):
+        if memo.state(
+            chunk_index,
+            epoch=epoch,
+            policy_revision=policy_revision,
+        ) not in (ChunkState.COMPLETE, ChunkState.TENTATIVE):
+            continue
+        first = max(start, chunk_index * DERIVED_CHUNK_SIZE)
+        end = min(
+            stop,
+            sample_count,
+            (chunk_index + 1) * DERIVED_CHUNK_SIZE,
+        )
+        if first >= end:
+            continue
+        if spans and spans[-1].stop == first:
+            spans[-1] = RowSpan(spans[-1].first, end)
+        else:
+            spans.append(RowSpan(first, end))
+    return tuple(spans)
+
+
+def _intersect_row_spans(
+    first: Sequence[RowSpan],
+    second: Sequence[RowSpan],
+) -> tuple[RowSpan, ...]:
+    intersections: list[RowSpan] = []
+    left = right = 0
+    while left < len(first) and right < len(second):
+        start = max(first[left].first, second[right].first)
+        stop = min(first[left].stop, second[right].stop)
+        if start < stop:
+            intersections.append(RowSpan(start, stop))
+        if first[left].stop <= second[right].stop:
+            left += 1
+        else:
+            right += 1
+    return tuple(intersections)
+
+
+def _coverage_for_rows(
+    snapshot: StoreSnapshot,
+    bounds: TimeBounds,
+    spans: Sequence[RowSpan],
+    complete: bool,
+) -> TimeCoverage:
+    covered: list[TimeBounds] = []
+    for span in spans:
+        for segment_start, segment_stop in snapshot.segment_bounds:
+            first = max(span.first, int(segment_start))
+            stop = min(span.stop, int(segment_stop))
+            if first >= stop:
+                continue
+            start_s = max(bounds[0], float(snapshot.raw[first, 0]))
+            stop_s = min(bounds[1], float(snapshot.raw[stop - 1, 0]))
+            if start_s <= stop_s:
+                if covered and covered[-1][1] == start_s:
+                    covered[-1] = (covered[-1][0], stop_s)
+                else:
+                    covered.append((start_s, stop_s))
+    return TimeCoverage(bounds, tuple(covered), complete)
 
 
 def _validate_query_time(t_s: float) -> float:
@@ -1182,7 +2845,12 @@ def _series_segment_spans(
     start: int,
     stop: int,
     stride: int,
+    *,
+    origin: int | None = None,
 ) -> tuple[RowSpan, ...]:
+    if origin is None:
+        origin = start
+    first_view_row = math.ceil((start - origin) / stride)
     spans = []
     delta_offset = 1 if group == "rtn" else 0
     for segment_start, segment_stop in snapshot.segment_bounds:
@@ -1190,8 +2858,8 @@ def _series_segment_spans(
         end = min(stop, int(segment_stop))
         if first >= end:
             continue
-        first_in_view = math.ceil((first - start) / stride)
-        end_in_view = math.ceil((end - start) / stride)
+        first_in_view = math.ceil((first - origin) / stride) - first_view_row
+        end_in_view = math.ceil((end - origin) / stride) - first_view_row
         if first_in_view < end_in_view:
             spans.append(RowSpan(first_in_view, end_in_view))
     return tuple(spans)
