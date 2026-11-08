@@ -4,15 +4,21 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from math import ceil
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from matplotlib.axes import Axes
+from matplotlib.artist import Artist
 from matplotlib.lines import Line2D
 
 from matplotlib.figure import Figure
+from matplotlib.path import Path
+from matplotlib.patches import PathPatch
+from matplotlib.transforms import Affine2D
 import numpy as np
 
 from ..oem_data_store import (
+    ColumnGroupView,
     OemDataStore,
     SeriesGroupName,
     SeriesGroups,
@@ -23,7 +29,12 @@ from ..oem_data_store import (
 from ..series import OrbitSeries
 from ..time_range import ResolvedTimeRange, validate_coverage
 from ..time_unit import TimeUnit
-from .plotting import SegmentedPlotHistory, set_shared_x_limits, time_bounds_to_axis
+from .plotting import (
+    MAX_DISPLAY_POINTS_PER_SEGMENT,
+    SegmentedPlotHistory,
+    set_shared_x_limits,
+    time_bounds_to_axis,
+)
 
 if TYPE_CHECKING:
     import wx
@@ -105,6 +116,106 @@ class StoreView(Protocol):
     def update_from_store(self, context: StoreViewContext, /) -> None:
         """Refresh from a newer snapshot or changed plot range."""
         ...
+
+
+def add_store_series_paths(
+    axes: Axes,
+    groups: Sequence[ColumnGroupView],
+    value_column: str,
+    time_origin_s: float,
+    time_divisor_s: float,
+    *,
+    scale_y: float = 1.0,
+    color: str = "C0",
+    label: str | None = None,
+    linewidth: float = 1.5,
+    mask_zero: bool = False,
+    minimum_samples: int = 1,
+) -> tuple[Artist, ...]:
+    """Plot strided store views without copying their coordinate values."""
+    artists: list[Artist] = []
+    current_label = label
+    for group in groups:
+        for span in group.segment_bounds:
+            sample_count = span.stop - span.first
+            if sample_count < minimum_samples:
+                continue
+            stride = max(1, ceil(sample_count / MAX_DISPLAY_POINTS_PER_SEGMENT))
+            points = group.pair(
+                "t",
+                value_column,
+                slice(span.first, span.stop, stride),
+            )
+            transform = Affine2D.from_values(
+                1.0 / time_divisor_s,
+                0.0,
+                0.0,
+                scale_y,
+                -time_origin_s / time_divisor_s,
+                0.0,
+            ) + axes.transData
+            if mask_zero and len(points) == 1 and points[0, 1] == 0.0:
+                continue
+            codes = np.full(len(points), Path.LINETO, dtype=Path.code_type)
+            codes[0] = Path.MOVETO
+            if mask_zero:
+                invalid = points[:, 1] == 0.0
+                codes[invalid] = Path.MOVETO
+                codes[1:][invalid[:-1]] = Path.MOVETO
+            artist = PathPatch(
+                Path(points, codes, readonly=True),
+                facecolor="none",
+                edgecolor=color,
+                linewidth=linewidth,
+                label=current_label or "_nolegend_",
+                transform=transform,
+            )
+            axes.add_patch(artist)
+            artists.append(artist)
+            current_label = None
+    return tuple(artists)
+
+
+def clear_store_series_artists(axes: Axes, artists: Sequence[Artist]) -> None:
+    for artist in artists:
+        artist.remove()
+    legend = axes.get_legend()
+    if legend is not None:
+        legend.remove()
+
+
+def store_empty_label(
+    context: StoreViewContext, *, not_enough_samples: bool = False
+) -> str:
+    if context.plot_range is None:
+        return "Plot range does not overlap OEM coverage"
+    if not_enough_samples:
+        return "Not enough samples"
+    return "No samples in plot range"
+
+
+def set_store_series_y_limits(
+    axes: Axes,
+    groups: Sequence[ColumnGroupView],
+    value_columns: Sequence[str],
+    *,
+    scale_y: float = 1.0,
+) -> None:
+    lower = float("inf")
+    upper = float("-inf")
+    for group in groups:
+        for column in value_columns:
+            values = group.values[:, group.columns.index(column)]
+            column_lower = float(np.fmin.reduce(values, initial=np.inf))
+            column_upper = float(np.fmax.reduce(values, initial=-np.inf))
+            if not np.isfinite(column_lower) or not np.isfinite(column_upper):
+                continue
+            lower = min(lower, column_lower * scale_y)
+            upper = max(upper, column_upper * scale_y)
+    if lower == float("inf"):
+        return
+    padding = max((upper - lower) * 0.05, abs(upper) * 0.005, 0.001)
+    axes.set_ylim(lower - padding, upper + padding)
 
 
 class TimeRangeSupport:

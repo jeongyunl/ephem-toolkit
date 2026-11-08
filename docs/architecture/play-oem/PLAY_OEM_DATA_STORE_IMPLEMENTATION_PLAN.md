@@ -40,10 +40,11 @@ partial-coverage results, chunk notices, live playback timestamps, station-acces
 per-chunk derived-data eviction. This path is not yet used by the active player/controller.
 
 Stateless mode on the existing core interpolators and zero-copy plotting primitives are
-implemented and validated; the query, scheduling, and station-access tiers exist, while consumer
-migration remains outstanding. The application still uses eager `PlaybackData` preparation,
-`OemCursor`, `OrbitSeriesAccumulator`, and separate Ground Track/station-access/footprint caches;
-therefore the application-wide no-copy goal has not been achieved.
+implemented and validated. The `speed-altitude` view and the remaining four 2D history views now
+support typed store inputs; State Components, 3D, Ground Track, and station-view migration remain.
+The application still uses eager `PlaybackData` preparation, `OemCursor`, `OrbitSeriesAccumulator`,
+and separate Ground Track/station-access/footprint caches; therefore the application-wide no-copy
+goal has not been achieved.
 
 Historical automatic-sizing measurements counted physical lines and reserved 172,833 rows for
 21,601 JPSS-1 states because covariance rows contributed to the bound. Current sizing excludes
@@ -152,14 +153,19 @@ direct loading before the view migration is complete.
 Migrate consumers only after Step 5 provides all required query outputs. Preserve plot labels,
 values, segmentation, click-to-seek, empty/partial behavior, and 3D backend behavior.
 
-- **Status:** Not started.
-- **Progress:** 0/4 checklist items.
-- [ ] Migrate 2D history views to range-limited series-group queries; use the validated
-      `speed-altitude` path as the pattern and request only fields each view uses.
+- **Status:** In progress (2D history views are migrated; State Components and 3D are next).
+- **Progress:** 1/5 checklist items.
+- [x] Migrate RTN Deltas, Angular Velocity, Direction Change, and Geocentric Distance to
+      range-limited series-group queries; use the validated `speed-altitude` path as the pattern
+      and request only fields each view uses. Store paths share derived-column buffers, apply
+      display transforms, preserve segment breaks and cursor/range behavior, and release tier
+      interest on close.
 - [ ] Migrate State Components and 3D trajectory views to raw position/velocity views, retaining
       only the explicitly measured VTK/backend-specific copy.
-- [ ] Migrate Ground Track, Pass Ground Track, and station views to typed Earth-fixed,
-      footprint, station-profile/access, and point-metric results; reuse shared store buffers.
+- [ ] Migrate Ground Track and Pass Ground Track to typed Earth-fixed, Ground Track, and footprint
+      results; preserve map, seam, range, and station-selection behavior.
+- [ ] Migrate station status, pass strip, profiles, pass list, and sky view to typed
+      station-profile/access and point-metric results; reuse shared store buffers.
 - [ ] Verify empty, partial, loading, failed, cancelled, and multi-segment render states;
       confirm plotting buffer sharing and resource release on close/replacement.
 
@@ -455,10 +461,11 @@ store query, including the distance-delta, Ground Track/footprint, and station-m
 no view needs to create an orbit-sized projection.
 **Depends on:** Steps 1–4.
 
-**Evidence:** The store-backed `speed-altitude` vertical slice validates range-limited plotting,
-display transforms, buffer sharing, and tier-interest lifecycle. Ground Track queries reuse the
-Earth-fixed tier, return map-centered seam-split groups, and use a bounded cache; point queries
+**Evidence:** The store-backed `speed-altitude` vertical slice and first Step 6 history-view slice
+validate range-limited queries, display transforms, segment boundaries, buffer sharing, cursor and
+range updates, empty states, stable Y limits, and tier-interest release. Ground Track queries reuse
+the Earth-fixed tier, return map-centered seam-split groups, and use a bounded cache; point queries
 cover station metrics and footprints. Validation:
 `python3 -m pytest tests/ephem_toolkit/play_oem tests/ephem_toolkit/core/interpolator -q`
-passed (645 passed, 4 skipped). `git diff --check` and `compileall` passed. Step 6 can now migrate
-the remaining views; the active application still uses `OrbitSeries`.
+passed (662 passed, 4 skipped). `git diff --check` and `compileall` passed. Step 6 continues with
+State Components and 3D; the active application still uses `OrbitSeries`.

@@ -30,8 +30,10 @@ Station-access profiles are also lazy, chunked, and shared across minimum-elevat
 Derived results write directly into final tier buffers without orbit-sized temporary arrays.
 Per-chunk LRU eviction protects active ranges and leased views, and evicted chunks are recomputed
 before they can be returned again. Consumer lifecycle coordination and consumer migration remain
-to be implemented. Consequently the application-wide no-copy goal has not yet been achieved. See the
-[implementation plan](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md) for the staged work and
+in progress: `SpeedAltitudeView`, RTN Deltas, Angular Velocity, Direction Change, and Geocentric
+Distance have store-backed paths, while the other registered views and active player/controller
+remain unmigrated. Consequently the application-wide no-copy goal has not yet been achieved. See
+the [implementation plan](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md) for the staged work and
 the performance evidence below for the retained measurements and open gates.
 
 `OemDataStore.begin` takes an explicit capacity. For the opt-in loader path,

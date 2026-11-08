@@ -2,12 +2,30 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import replace
+
+from matplotlib.artist import Artist
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
+from matplotlib.text import Text
 
 from .. import series, time_unit
-from .base import TimeRangeSupport
-from .plotting import SegmentedPlotHistory
+from ..oem_data_store import SeriesGroups, StoreQuery
+from ..time_range import ResolvedTimeRange
+from .base import (
+    StoreViewContext,
+    TimeRangeSupport,
+    add_store_series_paths,
+    clear_store_series_artists,
+    set_store_series_y_limits,
+    store_empty_label,
+)
+from .plotting import (
+    SegmentedPlotHistory,
+    set_shared_x_limits,
+    time_bounds_to_axis,
+)
 
 CURSOR_LINE_COLOR: str = "tab:red"
 """Color used for the playback cursor lines."""
@@ -32,6 +50,136 @@ class RtnDeltaView(TimeRangeSupport):
         self._cursor_artists: tuple[Line2D, ...] | None = None
         self._time_unit_divisor_s = 1.0
         self._histories: tuple[SegmentedPlotHistory, ...] = ()
+        self._store_context: StoreViewContext | None = None
+        self._store_query: StoreQuery[SeriesGroups] | None = None
+        self._store_tier_unsubscribe: Callable[[], None] | None = None
+        self._store_artists: tuple[tuple[Artist, ...], ...] = ((), (), ())
+        self._store_empty_artists: tuple[Text, ...] | None = None
+        self._store_start_time_s = start_time_s
+
+    def build_from_store(self, context: StoreViewContext) -> Figure:
+        """Build from range-limited RTN columns owned by the data store."""
+        if self._figure is not None:
+            raise RuntimeError("RTN-delta view has already been built")
+        figure = Figure(figsize=FIGURE_SIZE_INCHES, constrained_layout=True)
+        axes_array = figure.subplots(3, 1, sharex=True)
+        titles = (
+            "Radial Position Delta vs Time",
+            "Transverse Position Delta vs Time",
+            "Normal Position Delta vs Time",
+        )
+        labels = ("Radial Delta (km)", "Transverse Delta (km)", "Normal Delta (km)")
+        empty_artists: list[Text] = []
+        cursor_artists: list[Line2D] = []
+        for component, axes in enumerate(axes_array):
+            axes.grid(True)
+            axes.ticklabel_format(style="plain", axis="y")
+            axes.set_ylabel(labels[component])
+            axes.set_title(titles[component])
+            empty_artists.append(
+                axes.text(
+                    0.5,
+                    0.5,
+                    "",
+                    ha="center",
+                    va="center",
+                    transform=axes.transAxes,
+                )
+            )
+            cursor_artists.append(
+                axes.axvline(0.0, color=CURSOR_LINE_COLOR, linestyle="--")
+            )
+        axes_array[-1].set_xlabel(context.time_unit.get_axis_label())
+
+        self._figure = figure
+        self._cursor_artists = tuple(cursor_artists)
+        self._store_empty_artists = tuple(empty_artists)
+        self._time_unit_divisor_s = context.time_unit.get_divisor_s()
+        self._configure_time_range(
+            tuple(axes_array),
+            (),
+            self._cursor_artists,
+            context.coverage[0],
+            self._time_unit_divisor_s,
+        )
+        self._apply_store_context(context)
+        return figure
+
+    def update_from_store(self, context: StoreViewContext) -> None:
+        """Refresh the RTN histories from a newer store snapshot or range."""
+        if self._store_context is None:
+            raise RuntimeError("RTN-delta view was not built from a store")
+        self._apply_store_context(context)
+
+    def _apply_store_context(
+        self, context: StoreViewContext, *, rescale_y: bool = True
+    ) -> None:
+        if self._figure is None:
+            raise RuntimeError("RTN-delta view has not been built")
+        previous = self._store_context
+        if previous is None or (
+            previous.store is not context.store
+            or previous.snapshot.epoch != context.snapshot.epoch
+        ):
+            if self._store_tier_unsubscribe is not None:
+                self._store_tier_unsubscribe()
+            self._store_tier_unsubscribe = context.subscribe_tier("series")
+
+        self._store_context = context
+        self._store_start_time_s = context.coverage[0]
+        self._time_unit_divisor_s = context.time_unit.get_divisor_s()
+        self._range_start_time_s = self._store_start_time_s
+        self._range_divisor_s = self._time_unit_divisor_s
+        self._figure.axes[-1].set_xlabel(context.time_unit.get_axis_label())
+        super().set_time_range(context.plot_range, context.coverage)
+        for axes, artists in zip(self._figure.axes, self._store_artists):
+            clear_store_series_artists(axes, artists)
+
+        query = context.query_series(("rtn",))
+        self._store_query = query
+        groups = () if query is None else query.value["rtn"]
+        columns = ("delta_r_m", "delta_t_m", "delta_n_m")
+        artists_by_axis: list[tuple[Artist, ...]] = []
+        for axes, column in zip(self._figure.axes, columns):
+            artists = add_store_series_paths(
+                axes,
+                groups,
+                column,
+                self._store_start_time_s,
+                self._time_unit_divisor_s,
+                scale_y=0.001,
+                color="C0",
+                label=self._object_name,
+                linewidth=2,
+            )
+            artists_by_axis.append(artists)
+            if artists:
+                axes.legend(loc="upper right")
+                if rescale_y:
+                    set_store_series_y_limits(
+                        axes, groups, (column,), scale_y=0.001
+                    )
+        self._store_artists = tuple(artists_by_axis)
+        if self._store_empty_artists is not None:
+            for empty_artist, artists in zip(
+                self._store_empty_artists, self._store_artists
+            ):
+                empty_artist.set_text(
+                    store_empty_label(
+                        context,
+                        not_enough_samples=context.snapshot.sample_count < 2,
+                    )
+                )
+                empty_artist.set_visible(not artists)
+
+        limits = time_bounds_to_axis(
+            context.plot_range,
+            context.coverage,
+            self._store_start_time_s,
+            self._time_unit_divisor_s,
+        )
+        set_shared_x_limits(tuple(self._figure.axes), limits)
+        self.update(self._last_cursor_time_s)
 
     def build(
         self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
@@ -111,10 +259,33 @@ class RtnDeltaView(TimeRangeSupport):
             datasets, self._start_time_s, time_unit.get_divisor_s()
         )
 
+    def set_time_range(
+        self, bounds: ResolvedTimeRange | None, coverage: tuple[float, float], /
+    ) -> None:
+        if self._store_context is None:
+            super().set_time_range(bounds, coverage)
+            return
+        self._apply_store_context(
+            replace(self._store_context, plot_range=bounds, coverage=coverage),
+            rescale_y=False,
+        )
+
     def update(self, time_s: float) -> None:
         """Move each cursor line to an absolute OEM time."""
         if self._cursor_artists is None:
             raise RuntimeError("RTN-delta view has not been built")
+        if self._store_context is not None:
+            self._last_cursor_time_s = time_s
+            elapsed_time_axis = (
+                time_s - self._store_start_time_s
+            ) / self._time_unit_divisor_s
+            for cursor_artist in self._cursor_artists:
+                cursor_artist.set_xdata([elapsed_time_axis, elapsed_time_axis])
+            bounds = self._store_context.plot_range
+            visible = bounds is not None and bounds.start_s <= time_s <= bounds.end_s
+            for cursor_artist in self._cursor_artists:
+                cursor_artist.set_visible(visible)
+            return
         elapsed_time_axis = (time_s - self._start_time_s) / self._time_unit_divisor_s
         for cursor_artist in self._cursor_artists:
             cursor_artist.set_xdata([elapsed_time_axis, elapsed_time_axis])
@@ -125,5 +296,12 @@ class RtnDeltaView(TimeRangeSupport):
         if self._figure is not None:
             self._close_time_range()
             self._figure.clear()
+        if self._store_tier_unsubscribe is not None:
+            self._store_tier_unsubscribe()
+        self._store_tier_unsubscribe = None
+        self._store_context = None
+        self._store_query = None
+        self._store_artists = ((), (), ())
+        self._store_empty_artists = None
         self._figure = None
         self._cursor_artists = None
