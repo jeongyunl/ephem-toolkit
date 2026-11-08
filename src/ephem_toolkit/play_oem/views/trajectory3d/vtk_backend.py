@@ -94,6 +94,8 @@ class VTKTrajectory3DView:
         self._earth_actor: vtkActor | None = None
         self._tail_actor: vtkActor | None = None
         self._tail_poly_data: vtkPolyData | None = None
+        self._orbit_point_data: np.ndarray | None = None
+        self._tail_point_data: np.ndarray | None = None
         self._cursor_actor: vtkActor | None = None
         self._positions_km: np.ndarray | None = None
         self._orbit_display_positions_km: np.ndarray | None = None
@@ -219,11 +221,10 @@ class VTKTrajectory3DView:
             self._segment_ids,
             selected_bounds,
         )
-        self._orbit_mapper.SetInputData(
-            self._create_polyline(
-                self._orbit_display_positions_km, self._orbit_display_segment_ids
-            )
+        poly_data, self._orbit_point_data = self._create_polyline(
+            self._orbit_display_positions_km, self._orbit_display_segment_ids
         )
+        self._orbit_mapper.SetInputData(poly_data)
         self._orbit_actor.SetVisibility(len(self._orbit_display_positions_km) > 0)
         return True
 
@@ -251,11 +252,10 @@ class VTKTrajectory3DView:
             self._segment_ids,
             selected_bounds,
         )
-        self._orbit_mapper.SetInputData(
-            self._create_polyline(
-                self._orbit_display_positions_km, self._orbit_display_segment_ids
-            )
+        poly_data, self._orbit_point_data = self._create_polyline(
+            self._orbit_display_positions_km, self._orbit_display_segment_ids
         )
+        self._orbit_mapper.SetInputData(poly_data)
         self._orbit_actor.SetVisibility(len(self._orbit_display_positions_km) > 0)
         in_range = (
             bounds is not None
@@ -329,6 +329,8 @@ class VTKTrajectory3DView:
         self._earth_actor = None
         self._tail_actor = None
         self._tail_poly_data = None
+        self._orbit_point_data = None
+        self._tail_point_data = None
         self._cursor_actor = None
         self._positions_km = None
         self._orbit_display_positions_km = None
@@ -396,12 +398,11 @@ class VTKTrajectory3DView:
         ):
             raise RuntimeError("orbit positions are not initialized")
         orbit_mapper = vtkPolyDataMapper()
-        orbit_mapper.SetInputData(
-            self._create_polyline(
-                self._orbit_display_positions_km,
-                self._orbit_display_segment_ids,
-            )
+        poly_data, self._orbit_point_data = self._create_polyline(
+            self._orbit_display_positions_km,
+            self._orbit_display_segment_ids,
         )
+        orbit_mapper.SetInputData(poly_data)
         self._orbit_actor = vtkActor()
         self._orbit_actor.SetMapper(orbit_mapper)
         self._orbit_mapper = orbit_mapper
@@ -484,7 +485,7 @@ class VTKTrajectory3DView:
         return np.asarray(sample_positions_km, dtype=float)
 
     def _set_polyline(self, poly_data: vtkPolyData, positions_km: np.ndarray) -> None:
-        updated_data = self._create_polyline(positions_km)
+        updated_data, self._tail_point_data = self._create_polyline(positions_km)
         poly_data.SetPoints(updated_data.GetPoints())
         poly_data.SetLines(updated_data.GetLines())
         poly_data.Modified()
@@ -498,11 +499,11 @@ class VTKTrajectory3DView:
     def _create_polyline(
         positions_km: np.ndarray,
         segment_ids: np.ndarray | None = None,
-    ) -> vtkPolyData:
+    ) -> tuple[vtkPolyData, np.ndarray]:
         poly_data = vtkPolyData()
         points = vtkPoints()
         point_data = np.ascontiguousarray(positions_km, dtype=np.float64)
-        points.SetData(numpy_to_vtk(point_data, deep=True))
+        points.SetData(numpy_to_vtk(point_data, deep=False))
         cells = vtkCellArray()
         vertices = vtkCellArray()
         ids = (
@@ -529,4 +530,4 @@ class VTKTrajectory3DView:
         poly_data.SetPoints(points)
         poly_data.SetLines(cells)
         poly_data.SetVerts(vertices)
-        return poly_data
+        return poly_data, point_data

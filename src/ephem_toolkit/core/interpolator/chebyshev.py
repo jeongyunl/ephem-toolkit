@@ -85,28 +85,12 @@ class ChebyshevInterpolator(Interpolator):
         """Chebyshev coefficients for the cached window fit."""
 
     @override
-    def add_data_point(
-        self, independent_value: float, dependent_data: np.ndarray
-    ) -> None:
-        """Append a new independently ordered sample pair."""
-        super().add_data_point(independent_value, dependent_data)
-        self._invalidate_cache()
-
-    @override
     def reset_state(self) -> None:
         """Reset sliding-state bookkeeping while retaining stored samples."""
         super().reset_state()
         self._degree = self.base_degree
         self.required_points = self._degree + 1
-        self._invalidate_cache()
-
-    @override
-    def clear_storage(self) -> None:
-        """Clear all sample data and restore the default state."""
-        super().clear_storage()
-        self._degree = self.base_degree
-        self.required_points = self._degree + 1
-        self._invalidate_cache()
+        self._on_data_changed()
 
     @override
     def interpolate(self, independent_value: float) -> np.ndarray | None:
@@ -214,6 +198,11 @@ class ChebyshevInterpolator(Interpolator):
         self._cache_window = None
         self._cache_domain = None
         self._cache_coefficients = None
+
+    @override
+    def _on_data_changed(self) -> None:
+        """Invalidate the cached fit after interpolation data changes."""
+        self._invalidate_cache()
 
     def _select_window(
         self, independent_values: np.ndarray, independent_value: float

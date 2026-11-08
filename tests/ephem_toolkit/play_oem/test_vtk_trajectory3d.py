@@ -24,6 +24,23 @@ def test_vtk_backend_registers_an_opengl_render_window_factory() -> None:
     assert render_window.IsA("vtkOpenGLRenderWindow")
 
 
+def test_vtk_numpy_sharing_requires_contiguous_point_data() -> None:
+    pytest.importorskip("vtk")
+    from vtkmodules.util.numpy_support import numpy_to_vtk, vtk_to_numpy
+
+    source = np.arange(60, dtype=np.float64).reshape((10, 6))
+    strided_points = source[:, ::2]
+    packed_points = np.ascontiguousarray(strided_points)
+
+    shallow_strided = vtk_to_numpy(numpy_to_vtk(strided_points, deep=False))
+    shallow_packed = vtk_to_numpy(numpy_to_vtk(packed_points, deep=False))
+    deep_packed = vtk_to_numpy(numpy_to_vtk(packed_points, deep=True))
+
+    assert not np.shares_memory(shallow_strided, strided_points)
+    assert np.shares_memory(shallow_packed, packed_points)
+    assert not np.shares_memory(deep_packed, packed_points)
+
+
 class FakeRenderWindow:
     def __init__(self, interactor) -> None:
         self.interactor = interactor
@@ -206,6 +223,12 @@ def test_vtk_data_update_preserves_widget_and_updates_orbit_polyline(
         points = view._orbit_mapper.GetInput().GetPoints()
         assert points.GetNumberOfPoints() == 4
         assert points.GetPoint(3) == pytest.approx(tuple(updated.position_km[-1]))
+        from vtkmodules.util.numpy_support import vtk_to_numpy
+
+        assert view._orbit_point_data is not None
+        assert np.shares_memory(
+            vtk_to_numpy(points.GetData()), view._orbit_point_data
+        )
     finally:
         view.close()
 

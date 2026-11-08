@@ -22,10 +22,10 @@ into the player/controller**, which still uses its previous preparation and cons
 The raw snapshot records `LOADING`, `COMPLETE`, `FAILED`, or `CANCELLED`; EOF-validated header and
 metadata are attached only on completion, and failures preserve a committed prefix with an error
 message. Cancellation preserves the committed prefix but prevents further reservations. Lazy
-query/result types, the public raw `StoreSnapshot`, and the reusable `ChunkMemo` primitive now
-exist. Derived query methods/tiers, stateless interpolation, full consumer lifecycle coordination,
-and consumer migration remain to be implemented. Consequently the application-wide no-copy goal
-has not yet been achieved. See the
+query/result types, the public raw `StoreSnapshot`, the reusable `ChunkMemo` primitive, and
+stateless mode on the existing core interpolators now exist. Derived query methods/tiers, full
+consumer lifecycle coordination, and consumer migration remain to be implemented. Consequently
+the application-wide no-copy goal has not yet been achieved. See the
 [implementation plan](./PLAY_OEM_DATA_STORE_IMPLEMENTATION_PLAN.md) for the staged work and
 the performance evidence below for the retained measurements and open gates.
 
@@ -318,7 +318,8 @@ from them (series fields, ITRF positions, WGS-84 coordinates, access samples):
    `Path` built on a `float64` `(N, 2)` array keeps a reference to it, even when the array is
    strided, and `PathPatch(path, fill=False)` and `LineCollection` draw it without copying.
    Verified on Matplotlib 3.9.4: contiguous, column-sliced, row-strided, and both strided
-   together all share memory with the source, survive a draw, and see in-place updates.
+   together all share memory with the source, survive an Agg draw, and see in-place updates.
+   The `ColumnGroupView.pair()` regression test checks the same property for strided pairs.
    Fancy-indexed columns and `float32` input copy. Each tier therefore stores
    row-major column groups with the time column first, `[t, f1, f2, ...]`, so that any plotted
    pair `(t, fk)` is the zero-copy view `group[lo:hi, 0::k][:, :2]`, and a pair `(f1, f2)` such
@@ -349,11 +350,16 @@ from them (series fields, ITRF positions, WGS-84 coordinates, access samples):
    with NaN separator rows. Invalid
    samples inside a segment are stored as non-finite values, which Matplotlib already breaks lines
    on.
-8. **Stateless interpolation.** Interpolation evaluates the polynomial over the raw rows around the
-   query time, reading them as views. Interpolator objects must not retain point copies; this
-   requires an evaluator-over-views form of the `core.interpolator` Hermite, Lagrange, and
-   Chebyshev routines (a prerequisite of this design). The only allowed temporaries are
-   `O(degree)` scratch rows per query.
+8. **Stateless interpolation.** `InterpolatorFactory.create(..., stateless=True)` returns the
+   existing core interpolator configured for view evaluation. Its `interpolate_view` method
+   selects a centered support window from the raw views and runs the existing Hermite, Lagrange,
+   or Chebyshev implementation on the same interpolator instance; it creates no interpolator per
+   query. It clears support-row references and scratch caches before returning. `spec=None` selects
+   linear interpolation, and exact samples are read-only row views. The only allowed temporaries
+   are the fixed-size result vector and `O(degree)` support and scratch values per query. This
+   policy forbids allocations proportional to the orbit length, not every small per-query result.
+   Stateless mode currently requires centered windows with no boundary extension; other boundary
+   policies are rejected rather than silently changing the selected support rows.
 9. **No cross-tier duplication.** A tier references the tier below it. Station access reads ITRF
    positions from the Earth-fixed tier; Ground Track reads them from the same buffers.
    Per-window position dictionaries are removed.
@@ -450,10 +456,11 @@ violations:
 - **Matplotlib 3D** (`mplot3d`) projects every vertex to 2D on each draw, producing
   Matplotlib-owned arrays. Pass it column views of the raw group (`[:, 1:4]` position components)
   and scale by axis, not by copy. The projection output cannot be avoided.
-- **VTK** accepts only tuple-contiguous point arrays, so a strided `(N, 3)` view of the raw group
-  is not zero-copy. Evaluate `vtkSOADataArrayTemplate` (one contiguous array per component) or
-  VTK's strided array support before accepting a copy; if neither is viable, the VTK backend copies
-  its decimated range and nothing else, and the exception is recorded here.
+- **VTK** requires tuple-contiguous point data for `numpy_to_vtk` to share memory. Measured with
+  VTK 9.6.2, `deep=False` shares a C-contiguous `float64` array, but copies a strided raw-column
+  view; `deep=True` copies even contiguous input. A strided source therefore needs one packed
+  point buffer. The backend uses `deep=False` and retains each NumPy buffer for the VTK array's
+  lifetime, avoiding a second deep copy. This layout buffer is the explicit VTK exception.
 - **Small analysis products** (access intervals, pass metrics, footprint boundary points,
   `CursorState`) are not copies of orbit data and are allocated normally. Station-access profile
   samples are new data on a 30-second grid and are stored once, in the access tier.
@@ -899,9 +906,15 @@ revision, and interpolation-policy revision; consumers discard notifications or 
 different epoch/policy. `SeriesGroups`, `EarthFixedPositions`, and
 `GroundTrackGroups` expose read-only column-group views plus segment bounds. For station access,
 each profile group is a view of the shared `[t, azimuth, elevation, range]` tier; intervals are
-small derived records, not orbit-sized arrays. `pair(group, "t", "altitude")` returns the plotting
-view `group[:, 0::k][:, :2]` for `Path`/`PathPatch`; no field is returned as a separate copied
-array and none is in display units (zero-copy rules 4 and 5). `footprints` resolves the current
+small derived records, not orbit-sized arrays. `ColumnGroupView.pair("t", "altitude", rows=...)` returns a read-only plotting view for
+`Path`/`PathPatch`; no field is returned as a separate copied array and none is in display units
+(zero-copy rules 4 and 5). An interpolator created with
+`InterpolatorFactory.create(spec, dimension=6, is_cartesian_state=True, stateless=True)` evaluates
+directly over `snapshot.raw[:, 0]`, `snapshot.raw[:, 1:7]`, and `snapshot.segment_ids` through
+`interpolate_view`; the same configured object is reused across calls and retains no input arrays.
+Stateless evaluation uses centered support windows without boundary extension; exact samples are
+views, while an interpolated result is a fixed-size vector. The store configures another instance
+when the interpolation policy changes. `footprints` resolves the current
 state and reuses its Earth-fixed position internally; callers do not pass a separately converted
 position. `TimeCoverage.complete` means all required data within the requested in-coverage span is
 ready; OEM segment gaps remain represented as breaks, not as pending work. `TierNotice` reports a
@@ -1255,11 +1268,11 @@ separate deferred design decision, not a prerequisite or a substitute for first-
 1. **Store skeleton:** add `OemDataStore`, `StoreSnapshot`, notices, and epoch/revision logic
    with the raw tier and the chunked-memo primitive (state, in-flight de-duplication, counters).
    Equivalence tests against one-shot derivation for several batch sizes and chunk sizes.
-2. **Zero-copy prerequisites:** add a view-based evaluator to `core.interpolator` (Hermite,
-   Lagrange, Chebyshev, linear) that reads raw rows without retaining points; change the OEM stream
-   to fill exclusive store-owned reservations; add reserved-buffer tiers and the `pair()` view helper with the allocation and
-   `np.shares_memory` tests; benchmark a full-range `PathPatch` draw against the current
-   decimated `Line2D` path to settle rule 6, and the VTK point-array options.
+2. **Zero-copy prerequisites:** add and validate stateless mode on existing `core.interpolator`
+   classes for Hermite, Lagrange, Chebyshev, and linear evaluation over support-row views; add the
+   `ColumnGroupView.pair()` helper with allocation and `np.shares_memory` tests; validate
+   `PathPatch`/`LineCollection` sharing through an Agg draw; and measure the VTK point-array
+   sharing behavior to define its single packed-buffer exception.
 3. **Lazy tiers:** implement series, Earth-fixed, and interpolation tiers on the memo primitive
    by wrapping the existing `compute_orbit_series` and conversion routines; remove
    `OrbitSeriesAccumulator` and the time-unit rebuild.
@@ -1349,6 +1362,12 @@ Dotted edges mark work outside the store that a step depends on.
   [performance report](./PLAY_OEM_PERFORMANCE_REPORT.md).
 - Interpolation results from the stateless evaluator match the current interpolators to within
   floating-point tolerance for linear, Hermite, Lagrange, and Chebyshev, across segment boundaries.
+- Stateless mode reuses the configured existing interpolator instance across evaluations,
+  materializes only selected support rows, and clears all sample references after each call.
+  Polynomial paths use the existing concrete algorithms rather than duplicating formulas.
+- Headless Agg tests verify that `PathPatch` and `LineCollection` path vertices share the
+  `ColumnGroupView.pair()` buffer through a draw and reflect in-place source updates. VTK 9.6.2
+  tests verify shallow sharing for packed point arrays and copying for strided input.
 - Chunked results are identical to one-shot derivation for any chunk size and request order,
   including requests that straddle chunk boundaries and segment boundaries.
 - Laziness: after `begin`/`commit`, no derived tier's computed-chunk counter increases; a request
@@ -1364,8 +1383,7 @@ Dotted edges mark work outside the store that a step depends on.
 
 ## Deferred choices
 
-- The VTK point-array strategy (SOA arrays, strided arrays, or a bounded copy) and whether the
-  Matplotlib 3D view may be restricted to a zero-copy-friendly projection.
+- Whether the Matplotlib 3D view may be restricted to a zero-copy-friendly projection.
 - Physical-page commitment for reserved buffers on Windows and Linux has not been measured. The
   macOS probe above is not generalized; the fallback remains a conservative file-derived capacity
   bound with an explicit allocation/overflow failure, never reallocation.

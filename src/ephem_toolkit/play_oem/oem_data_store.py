@@ -109,6 +109,29 @@ class ColumnGroupView:
         view = np.asarray(memoryview(self.values).toreadonly())
         object.__setattr__(self, "values", view)
 
+    def pair(
+        self,
+        first: str,
+        second: str,
+        rows: slice = slice(None),
+    ) -> np.ndarray:
+        """Return a read-only two-column view without gathering or copying."""
+        try:
+            first_index = self.columns.index(first)
+            second_index = self.columns.index(second)
+        except ValueError as error:
+            raise ValueError("pair columns must exist in this column group") from error
+        if first_index == second_index:
+            raise ValueError("pair columns must be distinct")
+
+        lower_index = min(first_index, second_index)
+        upper_index = max(first_index, second_index)
+        step = upper_index - lower_index
+        pair = self.values[rows, lower_index : upper_index + 1 : step]
+        if first_index > second_index:
+            pair = pair[:, ::-1]
+        return pair
+
 
 SeriesGroups = Mapping[SeriesGroupName, ColumnGroupView]
 GroundTrackGroups = tuple[ColumnGroupView, ...]

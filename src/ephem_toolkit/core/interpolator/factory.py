@@ -21,7 +21,7 @@ class InterpolatorFactory:
 
     @staticmethod
     def create(
-        spec: InterpolationSpec,
+        spec: InterpolationSpec | None,
         dimension: int = 6,
         is_cartesian_state: bool = False,
         verbose: bool = False,
@@ -36,13 +36,15 @@ class InterpolatorFactory:
         dependent_data: list[np.ndarray] | None = None,
         boundary_mode: str = "centered",
         boundary_window_extension: int = 0,
+        stateless: bool = False,
     ) -> Interpolator:
         """Create an interpolator instance from a specification.
 
         Parameters
         ----------
-        spec : InterpolationSpec
+        spec : InterpolationSpec | None
             Interpolation specification with a type and optional polynomial degree.
+            Required unless `stateless=True`, where `None` selects linear evaluation.
         dimension : int, optional
             Number of components in each dependent data vector. Default is 6.
         is_cartesian_state : bool, optional
@@ -59,8 +61,15 @@ class InterpolatorFactory:
         boundary_mode : str, optional
             Window-selection strategy near the domain edges. Must be one of
             "centered", "widen", "edge", or "compact". Default is "centered".
+            Stateless mode requires "centered".
         boundary_window_extension : int, optional
             Additional sample points used to expand edge windows. Default is 0.
+            Stateless mode requires 0.
+        stateless : bool, optional
+            Return an existing interpolator configured to evaluate caller-owned
+            views. Pass ``spec=None`` for linear interpolation in this mode.
+            The configured instance is reused across calls; it does not retain
+            input arrays.
 
         Returns
         -------
@@ -73,42 +82,69 @@ class InterpolatorFactory:
             If the interpolation type is unsupported or the supplied parameters are
             invalid.
         """
-        if verbose:
-            print(f"[{context}] Creating interpolator:", file=sys.stderr)
-            print(f"[{context}]   Type: {spec.interp_type.value}", file=sys.stderr)
-            print(f"[{context}]   Degree: {spec.degree}", file=sys.stderr)
-            print(f"[{context}]   Dimension: {dimension}", file=sys.stderr)
-            if spec.interp_type == InterpolationType.HERMITE:
+        if stateless and (data is not None or dependent_data is not None):
+            raise ValueError("stateless interpolators cannot be created with stored data")
+        if spec is None and not stateless:
+            raise ValueError("spec is required unless stateless mode is enabled")
+        if stateless and (
+            boundary_mode != "centered" or boundary_window_extension != 0
+        ):
+            raise ValueError(
+                "stateless interpolation requires centered windows without extension"
+            )
+
+        interpolator: Interpolator
+        if spec is None:
+            if is_cartesian_state:
+                raise ValueError(
+                    "linear interpolation cannot use Cartesian-state Hermite mode"
+                )
+            from .interpolator import Interpolator as BaseInterpolator
+
+            interpolator = BaseInterpolator(dimension=dimension)
+        else:
+            if verbose:
+                print(f"[{context}] Creating interpolator:", file=sys.stderr)
                 print(
-                    f"[{context}]   Cartesian state: {is_cartesian_state}",
-                    file=sys.stderr,
+                    f"[{context}]   Type: {spec.interp_type.value}", file=sys.stderr
+                )
+                print(f"[{context}]   Degree: {spec.degree}", file=sys.stderr)
+                print(f"[{context}]   Dimension: {dimension}", file=sys.stderr)
+                if spec.interp_type == InterpolationType.HERMITE:
+                    print(
+                        f"[{context}]   Cartesian state: {is_cartesian_state}",
+                        file=sys.stderr,
+                    )
+
+            if spec.interp_type == InterpolationType.HERMITE:
+                interpolator = hermite.SlidingWindowHermiteInterpolator(
+                    dimension=dimension,
+                    degree=spec.degree,
+                    is_cartesian_state=is_cartesian_state,
+                    boundary_mode=boundary_mode,
+                    boundary_window_extension=boundary_window_extension,
+                )
+            elif spec.interp_type == InterpolationType.LAGRANGE:
+                interpolator = lagrange.LagrangeInterpolator(
+                    dimension=dimension,
+                    degree=spec.degree,
+                    boundary_mode=boundary_mode,
+                    boundary_window_extension=boundary_window_extension,
+                )
+            elif spec.interp_type == InterpolationType.CHEBYSHEV:
+                interpolator = chebyshev.ChebyshevInterpolator(
+                    dimension=dimension,
+                    degree=spec.degree,
+                    boundary_mode=boundary_mode,
+                    boundary_window_extension=boundary_window_extension,
+                )
+            else:
+                raise ValueError(
+                    f"Unsupported interpolation type: {spec.interp_type}"
                 )
 
-            interpolator: Interpolator
-        if spec.interp_type == InterpolationType.HERMITE:
-            interpolator = hermite.SlidingWindowHermiteInterpolator(
-                dimension=dimension,
-                degree=spec.degree,
-                is_cartesian_state=is_cartesian_state,
-                boundary_mode=boundary_mode,
-                boundary_window_extension=boundary_window_extension,
-            )
-        elif spec.interp_type == InterpolationType.LAGRANGE:
-            interpolator = lagrange.LagrangeInterpolator(
-                dimension=dimension,
-                degree=spec.degree,
-                boundary_mode=boundary_mode,
-                boundary_window_extension=boundary_window_extension,
-            )
-        elif spec.interp_type == InterpolationType.CHEBYSHEV:
-            interpolator = chebyshev.ChebyshevInterpolator(
-                dimension=dimension,
-                degree=spec.degree,
-                boundary_mode=boundary_mode,
-                boundary_window_extension=boundary_window_extension,
-            )
-        else:
-            raise ValueError(f"Unsupported interpolation type: {spec.interp_type}")
+        if stateless:
+            interpolator._enable_stateless_mode(spec, is_cartesian_state)
 
         if verbose:
             print(

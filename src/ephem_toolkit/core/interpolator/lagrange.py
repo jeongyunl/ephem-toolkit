@@ -81,29 +81,8 @@ class LagrangeInterpolator(Interpolator):
         self._cache_window_weights: np.ndarray | None = None
 
     @override
-    def add_data_point(
-        self, independent_value: float, dependent_data: np.ndarray
-    ) -> None:
-        """Append a new independently ordered sample pair."""
-        super().add_data_point(independent_value, dependent_data)
-        self._cache_window_start = -1
-        self._cache_window_values = None
-        self._cache_window_dependent_values = None
-        self._cache_window_weights = None
-
-    @override
-    def reset_state(self) -> None:
-        """Reset sliding-state bookkeeping while retaining stored samples."""
-        super().reset_state()
-        self._cache_window_start = -1
-        self._cache_window_values = None
-        self._cache_window_dependent_values = None
-        self._cache_window_weights = None
-
-    @override
-    def clear_storage(self) -> None:
-        """Clear all sample data and restore the default state."""
-        super().clear_storage()
+    def _on_data_changed(self) -> None:
+        """Invalidate the cached window after interpolation data changes."""
         self._cache_window_start = -1
         self._cache_window_values = None
         self._cache_window_dependent_values = None

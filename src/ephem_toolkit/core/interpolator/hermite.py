@@ -164,7 +164,7 @@ class SlidingWindowHermiteInterpolator(Interpolator):
                 self.derivatives[i][index].append(derivative_data[i])
                 added = True
 
-        self._invalidate_cache()
+        self._on_data_changed()
         return added
 
     def set_derivative_data(
@@ -209,22 +209,21 @@ class SlidingWindowHermiteInterpolator(Interpolator):
                     elif len(self.derivatives[i][index]) > derivative_index:
                         self.derivatives[i][index][derivative_index] = deriv_val[i]
 
-        self._invalidate_cache()
+        self._on_data_changed()
 
     @override
-    def clear_storage(self) -> None:
-        """Remove all stored samples, derivatives, and reset state.
+    def _on_data_changed(self) -> None:
+        """Invalidate polynomial coefficients after interpolation data changes."""
+        self._invalidate_cache()
+        super()._on_data_changed()
 
-        Returns
-        -------
-        None
-            This method clears the current storage and resets the interpolator.
-        """
+    @override
+    def _on_samples_changed(self) -> None:
+        """Clear derivative metadata when the sample rows are replaced."""
         self.derivatives.clear()
         self.q_coeffs.clear()
         self.t_values.clear()
-        self._invalidate_cache()
-        super().clear_storage()
+        super()._on_samples_changed()
 
     @override
     def interpolate(self, independent_value: float) -> np.ndarray | None:

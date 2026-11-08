@@ -82,6 +82,48 @@ def test_column_group_view_is_read_only_without_copying() -> None:
         group.values.setflags(write=True)
 
 
+def test_column_group_pair_is_a_read_only_strided_view() -> None:
+    source = np.arange(70_000, dtype=float).reshape((10_000, 7))
+    group = ColumnGroupView(
+        source,
+        ("t", "x", "y", "z", "vx", "vy", "vz"),
+        (RowSpan(0, len(source)),),
+    )
+
+    pair = group.pair("t", "z", slice(10, 20))
+    reversed_pair = group.pair("z", "t", slice(20, 30))
+
+    assert pair.shape == (10, 2)
+    assert np.shares_memory(pair, source)
+    assert not pair.flags.writeable
+    np.testing.assert_array_equal(pair, source[10:20, [0, 3]])
+    assert np.shares_memory(reversed_pair, source)
+    assert not reversed_pair.flags.writeable
+    np.testing.assert_array_equal(
+        reversed_pair, source[20:30, [3, 0]]
+    )
+
+
+@pytest.mark.parametrize(
+    ("first", "second", "message"),
+    [
+        ("unknown", "y", "must exist"),
+        ("x", "x", "must be distinct"),
+    ],
+)
+def test_column_group_pair_rejects_invalid_columns(
+    first: str, second: str, message: str
+) -> None:
+    group = ColumnGroupView(
+        np.arange(6, dtype=float).reshape((2, 3)),
+        ("t", "x", "y"),
+        (RowSpan(0, 2),),
+    )
+
+    with pytest.raises(ValueError, match=message):
+        group.pair(first, second)
+
+
 @pytest.mark.parametrize(
     ("times", "segments", "error"),
     [

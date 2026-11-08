@@ -38,10 +38,11 @@ covariance-block lines, and is cancellable. Typed snapshot/query/notice contract
 chunk memo are implemented, but derived query methods are not yet wired to them. This path is not
 yet used by the active player/controller.
 
-Stateless interpolation, lazy derived tiers, the range scheduler, and consumer migration remain
-outstanding. The application still uses eager `PlaybackData` preparation, `OemCursor`,
-`OrbitSeriesAccumulator`, and separate Ground Track/station-access/footprint caches; therefore the
-application-wide no-copy goal has not been achieved.
+Stateless mode on the existing core interpolators and zero-copy plotting primitives are
+implemented and validated; lazy derived tiers, the range scheduler, and consumer migration remain
+outstanding. The application still uses eager `PlaybackData` preparation,
+`OemCursor`, `OrbitSeriesAccumulator`, and separate Ground Track/station-access/footprint caches;
+therefore the application-wide no-copy goal has not been achieved.
 
 Historical automatic-sizing measurements counted physical lines and reserved 172,833 rows for
 21,601 JPSS-1 states because covariance rows contributed to the bound. Current sizing excludes
@@ -138,29 +139,6 @@ underway; `Blocked` — a documented dependency prevents progress; `Done` — ch
 criteria pass. Progress is the number of completed checklist items.
 
 ## Active implementation sequence
-
-### 2. Establish zero-copy interpolation and plotting primitives
-
-Create the primitives needed to read raw rows and derived buffers without retaining point-by-point
-interpolators or allocating orbit-sized display arrays.
-
-- **Status:** Not started.
-- **Progress:** 0/5 checklist items.
-- [ ] Implement a stateless, view-based evaluator for linear, Hermite, Lagrange, and Chebyshev
-      interpolation; verify outputs against the current cursor/interpolators, including
-      interpolation-policy changes and segment edges.
-- [ ] Make the evaluator read only the required raw support rows and avoid retaining copies of
-      sample points or segment-wide interpolator state.
-- [ ] Define reserved-buffer column groups and a `pair()` view helper for plot fields; verify
-      read-only behavior and `np.shares_memory` for slices and pairs.
-- [ ] Validate zero-copy Matplotlib `PathPatch`/`LineCollection` paths through a draw and decide
-      the documented VTK point-array exception from measured behavior.
-- [ ] Add allocation tests proving the evaluator and plot-view construction allocate no
-      orbit-sized state or derived arrays.
-
-**Done when:** supported interpolation results match the reference within floating-point
-tolerance, and raw/plot views share their store buffers without orbit-sized copies.
-**Depends on:** Step 1.
 
 ### 3. Add lazy interpolation and series tiers
 
@@ -391,3 +369,39 @@ measurements were 11.821/42.137 ms on ISS and 13.106/486.874 ms on JPSS-1. These
 include raw validation/storage and bounded session handoff, not derived preparation or GUI
 behavior; the automatic-capacity results predate the covariance-excluding bound. Full evidence is
 in the [store design](./PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md#performance-evidence-and-acceptance).
+
+### 2. Establish zero-copy interpolation and plotting primitives
+
+Create the primitives needed to read raw rows and derived buffers without retaining point-by-point
+interpolators or allocating orbit-sized display arrays.
+
+- **Status:** Done.
+- **Progress:** 5/5 checklist items.
+- [x] Implement a stateless, view-based evaluator for linear, Hermite, Lagrange, and Chebyshev
+      interpolation; verify outputs against the current cursor/interpolators, including
+      interpolation-policy changes and segment edges.
+- [x] Make the evaluator read only the required raw support rows and avoid retaining copies of
+      sample points or segment-wide interpolator state.
+- [x] Define reserved-buffer column groups and a `pair()` view helper for plot fields; verify
+      read-only behavior and `np.shares_memory` for slices and pairs.
+- [x] Validate zero-copy Matplotlib `PathPatch`/`LineCollection` paths through a draw and decide
+      the documented VTK point-array exception from measured behavior.
+- [x] Add allocation tests proving the evaluator and plot-view construction allocate no
+      orbit-sized state or derived arrays.
+
+**Done when:** supported interpolation results match the reference within floating-point
+tolerance, and raw/plot views share their store buffers without orbit-sized copies.
+**Depends on:** Step 1.
+
+**Evidence:** The focused view-evaluator, core-interpolator, store, Agg plotting, VTK, cursor, and
+3D trajectory test set passed (111 tests). A
+100,000-sample allocation guard confirms a Chebyshev query uses exactly six support rows, those
+rows share the input state buffer, and NumPy array conversions stay bounded to 64 elements. The
+same configured interpolator is reused across multiple queries, its `interpolate_view` path does
+not call the factory, and it clears support references after evaluation. Exact-sample results are
+read-only views, and weakref tests confirm input arrays are not retained. Matplotlib 3.9.4 Agg
+tests verify that `PathPatch` and `LineCollection` share strided pair vertices through a draw.
+VTK 9.6.2 probes show that `numpy_to_vtk(deep=False)` shares packed C-contiguous `float64` data
+but not strided columns; the VTK backend now retains its NumPy point buffers and avoids the
+additional `deep=True` copy. Pylance syntax and diagnostics requests timed out; focused pytest
+imports exercised the changed modules. `git diff --check` passed.
