@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 import numpy as np
 from matplotlib.figure import Figure
+from matplotlib.ticker import FuncFormatter
 from mpl_toolkits.mplot3d.art3d import Path3DCollection
 
 from ... import cursor, series, time_unit
 from ...time_range import ResolvedTimeRange
+from ..base import StoreViewContext
 from ..plotting import MAX_MATPLOTLIB_3D_DISPLAY_POINTS, decimate_indices
 
 CARTESIAN_COMPONENT_COUNT: int = 3
@@ -47,7 +50,7 @@ class Trajectory3DView:
 
     def __init__(
         self,
-        oem_cursor: cursor.OemCursor,
+        oem_cursor: cursor.OemCursor | None,
         object_name: str,
         frame_context: str,
     ) -> None:
@@ -62,7 +65,7 @@ class Trajectory3DView:
         frame_context : str
             Reference-frame and origin description displayed in the title.
         """
-        self._cursor: cursor.OemCursor = oem_cursor
+        self._cursor: cursor.OemCursor | None = oem_cursor
         self._object_name: str = object_name
         self._frame_context: str = frame_context
         self._figure: Figure | None = None
@@ -79,7 +82,65 @@ class Trajectory3DView:
         self._end_artist = None
         self._range_bounds: ResolvedTimeRange | None = None
         self._range_applied = False
-        self._current_time_s = oem_cursor.t_start
+        self._current_time_s = 0.0 if oem_cursor is None else oem_cursor.t_start
+        self._store_context: StoreViewContext | None = None
+        self._store_positions_m: np.ndarray | None = None
+        self._store_sample_times_s: np.ndarray | None = None
+
+    def build_from_store(self, context: StoreViewContext) -> Figure:
+        """Build from raw position columns without an OrbitSeries projection."""
+        if self._figure is not None:
+            raise RuntimeError("3D trajectory view has already been built")
+        figure = Figure(figsize=FIGURE_SIZE_INCHES, constrained_layout=True)
+        trajectory_axes = figure.add_subplot(1, 1, 1, projection="3d")
+        trajectory_axes.set_xlabel("X (km)")
+        trajectory_axes.set_ylabel("Y (km)")
+        trajectory_axes.set_zlabel("Z (km)")
+        trajectory_axes.set_title("3D Orbit Trajectory")
+        self._set_kilometer_tick_formatters(trajectory_axes)
+        self._axes = trajectory_axes
+        self._figure = figure
+        self._store_context = context
+        self._range_bounds = context.plot_range
+        self._range_applied = True
+        self._current_time_s = context.coverage[0]
+        self._store_positions_m = context.snapshot.positions_m
+        self._store_sample_times_s = context.snapshot.raw[:, 0]
+        self._cursor_artist = trajectory_axes.scatter(
+            [],
+            [],
+            [],
+            c=CURSOR_MARKER_COLOR,
+            edgecolors=CURSOR_EDGE_COLOR,
+            s=CURSOR_MARKER_SIZE,
+            marker="o",
+            depthshade=False,
+            label="Playback cursor",
+        )
+        self._refresh_store_trajectory(reset_limits=True)
+        figure.suptitle(
+            " | ".join(
+                part for part in (self._object_name, self._frame_context) if part
+            )
+        )
+        if context.snapshot.sample_count:
+            self.update(context.coverage[0])
+        return figure
+
+    def update_from_store(self, context: StoreViewContext) -> None:
+        """Refresh raw-backed trajectory paths from a newer snapshot or range."""
+        if self._store_context is None or self._figure is None:
+            raise RuntimeError("3D trajectory view was not built from a store")
+        previous_sample_count = self._store_context.snapshot.sample_count
+        self._store_context = context
+        self._range_bounds = context.plot_range
+        self._store_positions_m = context.snapshot.positions_m
+        self._store_sample_times_s = context.snapshot.raw[:, 0]
+        self._refresh_store_trajectory(
+            reset_limits=previous_sample_count == 0
+            and context.snapshot.sample_count > 0
+        )
+        self.update(self._current_time_s)
 
     def build(
         self,
@@ -109,6 +170,8 @@ class Trajectory3DView:
         """
         if self._figure is not None:
             raise RuntimeError("3D trajectory view has already been built")
+        if self._cursor is None:
+            raise RuntimeError("legacy 3D build requires an OEM cursor")
         if (
             orbit_series.position_km.ndim != 2
             or orbit_series.position_km.shape[1] != CARTESIAN_COMPONENT_COUNT
@@ -191,6 +254,10 @@ class Trajectory3DView:
     def update_data(
         self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
     ) -> bool:
+        if self._store_context is not None:
+            return False
+        if self._cursor is None:
+            return False
         positions_km = np.asarray(orbit_series.position_km, dtype=float)
         segment_ids = np.asarray(orbit_series.segment_ids, dtype=int)
         if (
@@ -243,6 +310,11 @@ class Trajectory3DView:
         self, bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
     ) -> None:
         """Filter the orbit path and visible endpoint/current-state markers."""
+        if self._store_context is not None:
+            self.update_from_store(
+                replace(self._store_context, plot_range=bounds, coverage=_coverage)
+            )
+            return
         self._range_bounds = bounds
         self._range_applied = True
         if (
@@ -294,7 +366,18 @@ class Trajectory3DView:
             Absolute OEM time in TT seconds since J2000.
         """
         self._current_time_s = time_s
-        self.update_cursor(self._cursor.lookup(time_s))
+        if self._store_context is not None:
+            if self._store_context.snapshot.sample_count == 0:
+                self._hide_cursor()
+                return
+            state = self._store_context.store.state_at(
+                self._store_context.snapshot, time_s
+            )
+        elif self._cursor is not None:
+            state = self._cursor.lookup(time_s)
+        else:
+            raise RuntimeError("3D trajectory view has no active data source")
+        self.update_cursor(state)
 
     def update_cursor(self, state: cursor.CursorState) -> None:
         """Move or hide the satellite marker from a resolved cursor state.
@@ -316,8 +399,7 @@ class Trajectory3DView:
             and self._range_bounds.start_s <= state.t <= self._range_bounds.end_s
         )
         if state.r_km is None or not in_range:
-            self._cursor_artist.set_visible(False)
-            self._cursor_position_km = None
+            self._hide_cursor()
             return
 
         position = (
@@ -325,16 +407,27 @@ class Trajectory3DView:
             float(state.r_km[1]),
             float(state.r_km[2]),
         )
-        self._cursor_artist.set_offsets([[position[0], position[1]]])
-        self._cursor_artist.set_3d_properties([position[2]], zdir="z")
+        scale = 1000.0 if self._store_context is not None else 1.0
+        self._cursor_artist.set_offsets(
+            [[position[0] * scale, position[1] * scale]]
+        )
+        self._cursor_artist.set_3d_properties([position[2] * scale], zdir="z")
         self._cursor_artist.set_visible(True)
         self._cursor_position_km = position
 
     def _set_endpoint_visibility(self) -> None:
-        if self._sample_times_s is None:
+        sample_times_s = (
+            self._store_sample_times_s
+            if self._store_context is not None
+            else self._sample_times_s
+        )
+        if sample_times_s is None:
             return
-        visible_start = self._contains_time(float(self._sample_times_s[0]))
-        visible_end = self._contains_time(float(self._sample_times_s[-1]))
+        if not len(sample_times_s):
+            visible_start = visible_end = False
+        else:
+            visible_start = self._contains_time(float(sample_times_s[0]))
+            visible_end = self._contains_time(float(sample_times_s[-1]))
         if self._start_artist is not None:
             self._start_artist.set_visible(visible_start)
         if self._end_artist is not None:
@@ -357,9 +450,148 @@ class Trajectory3DView:
         self._positions_km = None
         self._sample_times_s = None
         self._segment_ids = None
+        self._store_context = None
+        self._store_positions_m = None
+        self._store_sample_times_s = None
         self._orbit_artists.clear()
         self._start_artist = None
         self._end_artist = None
+
+    def _refresh_store_trajectory(self, *, reset_limits: bool = False) -> None:
+        if (
+            self._axes is None
+            or self._store_context is None
+            or self._store_positions_m is None
+            or self._store_sample_times_s is None
+        ):
+            raise RuntimeError("store-backed trajectory data is not initialized")
+        for _, artist in self._orbit_artists:
+            artist.remove()
+        self._orbit_artists.clear()
+        snapshot = self._store_context.snapshot
+        for segment_start, segment_stop in snapshot.segment_bounds:
+            first = int(segment_start)
+            stop = int(segment_stop)
+            if self._range_bounds is None:
+                first = stop
+            else:
+                first = max(
+                    first,
+                    int(
+                        np.searchsorted(
+                            self._store_sample_times_s,
+                            self._range_bounds.start_s,
+                            side="left",
+                        )
+                    ),
+                )
+                stop = min(
+                    stop,
+                    int(
+                        np.searchsorted(
+                            self._store_sample_times_s,
+                            self._range_bounds.end_s,
+                            side="right",
+                        )
+                    ),
+                )
+            if first >= stop:
+                continue
+            count = stop - first
+            stride = max(
+                1,
+                int(np.ceil(count / MAX_MATPLOTLIB_3D_DISPLAY_POINTS)),
+            )
+            segment_positions_m = self._store_positions_m[first:stop:stride]
+            (artist,) = self._axes.plot(
+                segment_positions_m[:, 0],
+                segment_positions_m[:, 1],
+                segment_positions_m[:, 2],
+                linewidth=ORBIT_LINE_WIDTH,
+                label="Orbit",
+            )
+            segment_id = int(snapshot.segment_ids[int(segment_start)])
+            self._orbit_artists.append((segment_id, artist))
+
+        if snapshot.sample_count:
+            first_position_m = self._store_positions_m[0]
+            last_position_m = self._store_positions_m[-1]
+            self._start_artist = self._set_endpoint_artist(
+                self._start_artist,
+                first_position_m,
+                START_MARKER_COLOR,
+                START_MARKER_SIZE,
+                "o",
+                "Start",
+            )
+            self._end_artist = self._set_endpoint_artist(
+                self._end_artist,
+                last_position_m,
+                END_MARKER_COLOR,
+                END_MARKER_SIZE,
+                "x",
+                "End",
+            )
+        else:
+            if self._start_artist is not None:
+                self._start_artist.remove()
+            if self._end_artist is not None:
+                self._end_artist.remove()
+            self._start_artist = None
+            self._end_artist = None
+
+        if snapshot.sample_count and reset_limits:
+            self._set_equal_limits(self._axes, self._store_positions_m)
+        elif not snapshot.sample_count and reset_limits:
+            self._axes.set_xlim(-1.0, 1.0)
+            self._axes.set_ylim(-1.0, 1.0)
+            self._axes.set_zlim(-1.0, 1.0)
+        self._set_endpoint_visibility()
+        if self._cursor_artist is not None:
+            self._cursor_artist.set_visible(False)
+        if self._orbit_artists or self._start_artist is not None:
+            self._axes.legend(loc="upper left")
+        else:
+            legend = self._axes.get_legend()
+            if legend is not None:
+                legend.remove()
+
+    def _set_endpoint_artist(
+        self,
+        artist: Path3DCollection | None,
+        position_m: np.ndarray,
+        color: str,
+        size: float,
+        marker: str,
+        label: str,
+    ) -> Path3DCollection:
+        if self._axes is None:
+            raise RuntimeError("3D trajectory axes have not been initialized")
+        if artist is None:
+            return self._axes.scatter(
+                [position_m[0]],
+                [position_m[1]],
+                [position_m[2]],
+                c=color,
+                s=size,
+                marker=marker,
+                label=label,
+            )
+        artist.set_offsets([[position_m[0], position_m[1]]])
+        artist.set_3d_properties([position_m[2]], zdir="z")
+        return artist
+
+    def _hide_cursor(self) -> None:
+        if self._cursor_artist is not None:
+            self._cursor_artist.set_visible(False)
+        self._cursor_position_km = None
+
+    @staticmethod
+    def _set_kilometer_tick_formatters(axes: Any) -> None:
+        formatter = FuncFormatter(lambda value, _position: f"{value / 1000.0:g}")
+        axes.xaxis.set_major_formatter(formatter)
+        axes.yaxis.set_major_formatter(formatter)
+        axes.zaxis.set_major_formatter(formatter)
 
     @staticmethod
     def _set_equal_limits(axes: Any, positions_km: np.ndarray) -> None:

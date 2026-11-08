@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
+from math import ceil
 
 import numpy as np
 import wx
@@ -29,6 +31,8 @@ import ephem_toolkit.core.wgs as wgs
 
 from ... import cursor, series, time_unit
 from ...time_range import ResolvedTimeRange
+from ..base import StoreViewContext
+from ..plotting import MAX_MATPLOTLIB_3D_DISPLAY_POINTS
 from .selection import VTKBackendUnavailableError
 from .selection import select_segmented_positions
 
@@ -62,7 +66,7 @@ class VTKTrajectory3DView:
     def __init__(
         self,
         parent: wx.Window,
-        oem_cursor: cursor.OemCursor,
+        oem_cursor: cursor.OemCursor | None,
         object_name: str,
         frame_context: str,
         playback_rate: Callable[[], float],
@@ -104,7 +108,11 @@ class VTKTrajectory3DView:
         self._segment_ids: np.ndarray | None = None
         self._range_bounds: ResolvedTimeRange | None = None
         self._range_applied = False
-        self._current_time_s = oem_cursor.t_start
+        self._current_time_s = 0.0 if oem_cursor is None else oem_cursor.t_start
+        self._store_context: StoreViewContext | None = None
+        self._store_positions_m: np.ndarray | None = None
+        self._store_sample_times_s: np.ndarray | None = None
+        self._store_display_spans: tuple[tuple[int, int], ...] = ()
 
     def build(
         self, orbit_series: series.OrbitSeries, _time_unit: time_unit.TimeUnit
@@ -134,6 +142,8 @@ class VTKTrajectory3DView:
         """
         if self._widget is not None:
             raise RuntimeError("VTK trajectory view has already been built")
+        if self._cursor is None:
+            raise RuntimeError("legacy VTK build requires an OEM cursor")
         positions_km = np.asarray(orbit_series.position_km, dtype=float)
         if (
             positions_km.ndim != 2
@@ -180,9 +190,54 @@ class VTKTrajectory3DView:
         self._renderer.GetActiveCamera().Zoom(1.15)
         return widget
 
+    def build_from_store(self, context: StoreViewContext) -> wx.Window:
+        """Build from raw positions, packing only the bounded VTK display path."""
+        if self._widget is not None:
+            raise RuntimeError("VTK trajectory view has already been built")
+        self._store_context = context
+        self._range_bounds = context.plot_range
+        self._range_applied = True
+        self._current_time_s = context.coverage[0]
+        self._store_positions_m = context.snapshot.positions_m
+        self._store_sample_times_s = context.snapshot.raw[:, 0]
+        self._refresh_store_display_path()
+
+        try:
+            widget = wxVTKRenderWindowInteractor(self._parent, wx.ID_ANY)
+        except (ImportError, OSError, RuntimeError) as error:
+            self._store_context = None
+            self._store_positions_m = None
+            self._store_sample_times_s = None
+            self._orbit_display_positions_km = None
+            self._store_display_spans = ()
+            raise VTKBackendUnavailableError(
+                f"could not create the embedded VTK render window: {error}"
+            ) from error
+
+        self._widget = widget
+        self._renderer = vtkRenderer()
+        self._renderer.SetBackground(0.06, 0.09, 0.15)
+        widget.GetRenderWindow().AddRenderer(self._renderer)
+        widget.SetInteractorStyle(vtkInteractorStyleTrackballCamera())
+        widget.Enable(1)
+
+        self._add_earth()
+        self._add_orbit()
+        self._add_tail()
+        self._add_cursor_marker()
+        self._renderer.ResetCamera()
+        self._renderer.GetActiveCamera().Zoom(1.15)
+        if context.snapshot.sample_count:
+            self.update(context.coverage[0])
+        return widget
+
     def update_data(
         self, orbit_series: series.OrbitSeries, time_unit: time_unit.TimeUnit
     ) -> bool:
+        if self._store_context is not None:
+            return False
+        if self._cursor is None:
+            return False
         positions_km = np.asarray(orbit_series.position_km, dtype=float)
         segment_ids = np.asarray(orbit_series.segment_ids, dtype=int)
         if (
@@ -228,10 +283,27 @@ class VTKTrajectory3DView:
         self._orbit_actor.SetVisibility(len(self._orbit_display_positions_km) > 0)
         return True
 
+    def update_from_store(self, context: StoreViewContext) -> None:
+        """Refresh the bounded VTK path from a newer raw snapshot or range."""
+        if self._store_context is None or self._widget is None:
+            raise RuntimeError("VTK trajectory view was not built from a store")
+        self._store_context = context
+        self._range_bounds = context.plot_range
+        self._store_positions_m = context.snapshot.positions_m
+        self._store_sample_times_s = context.snapshot.raw[:, 0]
+        self._refresh_store_display_path()
+        self._set_store_orbit_input()
+        self.update(self._current_time_s)
+
     def set_time_range(
         self, bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
     ) -> None:
         """Filter source positions before decimation without moving the camera."""
+        if self._store_context is not None:
+            self.update_from_store(
+                replace(self._store_context, plot_range=bounds, coverage=_coverage)
+            )
+            return
         self._range_bounds = bounds
         self._range_applied = True
         if (
@@ -285,13 +357,31 @@ class VTKTrajectory3DView:
             or self._cursor_actor is None
             or self._tail_actor is None
             or self._tail_poly_data is None
-            or self._positions_km is None
-            or self._sample_times_s is None
+            or (
+                self._store_context is None
+                and (
+                    self._positions_km is None
+                    or self._sample_times_s is None
+                    or self._segment_ids is None
+                )
+            )
         ):
             raise RuntimeError("VTK trajectory view has not been built")
 
         self._current_time_s = time_s
-        state = self._cursor.lookup(time_s)
+        if self._store_context is not None:
+            if self._store_context.snapshot.sample_count == 0:
+                self._cursor_actor.SetVisibility(False)
+                self._tail_actor.SetVisibility(False)
+                self._widget.Render()
+                return
+            state = self._store_context.store.state_at(
+                self._store_context.snapshot, time_s
+            )
+        elif self._cursor is not None:
+            state = self._cursor.lookup(time_s)
+        else:
+            raise RuntimeError("VTK trajectory view has no active data source")
         in_range = not self._range_applied or (
             self._range_bounds is not None
             and self._range_bounds.start_s <= time_s <= self._range_bounds.end_s
@@ -302,7 +392,11 @@ class VTKTrajectory3DView:
         else:
             self._cursor_actor.SetPosition(*(float(value) for value in state.r_km))
             self._cursor_actor.SetVisibility(True)
-            tail_positions_km = self._select_tail_positions(time_s, state.r_km)
+            tail_positions_km = (
+                self._select_store_tail_positions(time_s, state.r_km)
+                if self._store_context is not None
+                else self._select_tail_positions(time_s, state.r_km)
+            )
             self._set_polyline(self._tail_poly_data, tail_positions_km)
             self._tail_actor.SetVisibility(len(tail_positions_km) > 1)
 
@@ -337,6 +431,10 @@ class VTKTrajectory3DView:
         self._orbit_display_segment_ids = None
         self._sample_times_s = None
         self._segment_ids = None
+        self._store_context = None
+        self._store_positions_m = None
+        self._store_sample_times_s = None
+        self._store_display_spans = ()
 
     def validate_render_context(self) -> None:
         """Ensure the shown wx widget successfully initialized its VTK context.
@@ -392,22 +490,28 @@ class VTKTrajectory3DView:
         self._get_renderer().AddActor(self._earth_actor)
 
     def _add_orbit(self) -> None:
-        if (
-            self._orbit_display_positions_km is None
-            or self._orbit_display_segment_ids is None
-        ):
+        if self._orbit_display_positions_km is None:
             raise RuntimeError("orbit positions are not initialized")
         orbit_mapper = vtkPolyDataMapper()
-        poly_data, self._orbit_point_data = self._create_polyline(
-            self._orbit_display_positions_km,
-            self._orbit_display_segment_ids,
-        )
+        if self._store_context is not None:
+            poly_data, self._orbit_point_data = self._create_polyline(
+                self._orbit_display_positions_km,
+                segment_spans=self._store_display_spans,
+            )
+        elif self._orbit_display_segment_ids is not None:
+            poly_data, self._orbit_point_data = self._create_polyline(
+                self._orbit_display_positions_km,
+                self._orbit_display_segment_ids,
+            )
+        else:
+            raise RuntimeError("orbit segment metadata is not initialized")
         orbit_mapper.SetInputData(poly_data)
         self._orbit_actor = vtkActor()
         self._orbit_actor.SetMapper(orbit_mapper)
         self._orbit_mapper = orbit_mapper
         self._orbit_actor.GetProperty().SetColor(ORBIT_COLOR_RGB)
         self._orbit_actor.GetProperty().SetLineWidth(2.0)
+        self._orbit_actor.SetVisibility(len(self._orbit_display_positions_km) > 0)
         self._get_renderer().AddActor(self._orbit_actor)
 
     def _add_tail(self) -> None:
@@ -484,6 +588,140 @@ class VTKTrajectory3DView:
             )
         return np.asarray(sample_positions_km, dtype=float)
 
+    def _refresh_store_display_path(self) -> None:
+        if (
+            self._store_context is None
+            or self._store_positions_m is None
+            or self._store_sample_times_s is None
+        ):
+            raise RuntimeError("store-backed orbit positions are not initialized")
+        snapshot = self._store_context.snapshot
+        bounds = self._store_context.plot_range
+        position_views: list[np.ndarray] = []
+        segment_spans: list[tuple[int, int]] = []
+        first_selected = 0
+        last_selected = 0
+        if bounds is not None:
+            first_selected = int(
+                np.searchsorted(
+                    self._store_sample_times_s, bounds.start_s, side="left"
+                )
+            )
+            last_selected = int(
+                np.searchsorted(
+                    self._store_sample_times_s, bounds.end_s, side="right"
+                )
+            )
+        point_offset = 0
+        for segment_start, segment_stop in snapshot.segment_bounds:
+            first = max(int(segment_start), first_selected)
+            stop = min(int(segment_stop), last_selected)
+            if first >= stop:
+                continue
+            count = stop - first
+            stride = max(1, ceil(count / MAX_MATPLOTLIB_3D_DISPLAY_POINTS))
+            segment_view = self._store_positions_m[first:stop:stride]
+            position_views.append(segment_view)
+            segment_spans.append((point_offset, point_offset + len(segment_view)))
+            point_offset += len(segment_view)
+        if position_views:
+            display_positions_km = np.concatenate(position_views, axis=0)
+            np.multiply(display_positions_km, 0.001, out=display_positions_km)
+        else:
+            display_positions_km = np.empty((0, 3), dtype=np.float64)
+        self._orbit_display_positions_km = display_positions_km
+        self._orbit_display_segment_ids = None
+        self._store_display_spans = tuple(segment_spans)
+
+    def _set_store_orbit_input(self) -> None:
+        if self._orbit_mapper is None or self._orbit_actor is None:
+            raise RuntimeError("VTK orbit actor has not been initialized")
+        if self._orbit_display_positions_km is None:
+            raise RuntimeError("store-backed orbit path is not initialized")
+        poly_data, self._orbit_point_data = self._create_polyline(
+            self._orbit_display_positions_km,
+            segment_spans=self._store_display_spans,
+        )
+        self._orbit_mapper.SetInputData(poly_data)
+        self._orbit_actor.SetVisibility(len(self._orbit_display_positions_km) > 0)
+
+    def _select_store_tail_positions(
+        self, time_s: float, cursor_position_km: np.ndarray
+    ) -> np.ndarray:
+        if (
+            self._store_context is None
+            or self._store_positions_m is None
+            or self._store_sample_times_s is None
+        ):
+            raise RuntimeError("store-backed orbit positions are not initialized")
+        if self._range_bounds is None:
+            return np.empty((0, 3), dtype=np.float64)
+
+        sample_count = len(self._store_positions_m)
+        upper_index = int(
+            np.searchsorted(self._store_sample_times_s, time_s, side="right")
+        )
+        lower_index = min(max(upper_index - 1, 0), sample_count - 1)
+        segment_start = segment_stop = 0
+        for first, stop in self._store_context.snapshot.segment_bounds:
+            if int(first) <= lower_index < int(stop):
+                segment_start, segment_stop = int(first), int(stop)
+                break
+        if segment_stop <= segment_start:
+            return np.empty((0, 3), dtype=np.float64)
+
+        range_start = int(
+            np.searchsorted(
+                self._store_sample_times_s,
+                self._range_bounds.start_s,
+                side="left",
+            )
+        )
+        range_stop = int(
+            np.searchsorted(
+                self._store_sample_times_s,
+                self._range_bounds.end_s,
+                side="right",
+            )
+        )
+        segment_start = max(segment_start, range_start)
+        segment_stop = min(segment_stop, range_stop)
+        tail_count = min(
+            MAX_MATPLOTLIB_3D_DISPLAY_POINTS,
+            max(
+                TAIL_MINIMUM_SAMPLE_COUNT,
+                int(ceil(sample_count * TAIL_SAMPLE_FRACTION)),
+            ),
+        )
+        is_exact_sample = self._store_sample_times_s[lower_index] == time_s
+        if self._playback_rate() >= 0.0:
+            first = max(segment_start, upper_index - tail_count)
+            stop = min(segment_stop, upper_index)
+            source = self._store_positions_m[first:stop]
+            includes_cursor = not is_exact_sample
+        else:
+            first = max(segment_start, upper_index)
+            stop = min(segment_stop, upper_index + tail_count)
+            source = self._store_positions_m[first:stop]
+            includes_cursor = True
+
+        source_limit = MAX_MATPLOTLIB_3D_DISPLAY_POINTS - int(includes_cursor)
+        stride = max(1, ceil(len(source) / max(1, source_limit)))
+        source = source[::stride]
+        cursor_count = 1 if includes_cursor else 0
+        if self._playback_rate() >= 0.0:
+            result = np.empty((len(source) + cursor_count, 3), dtype=np.float64)
+            if len(source):
+                np.multiply(source, 0.001, out=result[: len(source)])
+            if includes_cursor:
+                result[-1] = cursor_position_km
+        else:
+            result = np.empty((len(source) + 1, 3), dtype=np.float64)
+            result[0] = cursor_position_km
+            if len(source):
+                np.multiply(source, 0.001, out=result[1:])
+        return result
+
     def _set_polyline(self, poly_data: vtkPolyData, positions_km: np.ndarray) -> None:
         updated_data, self._tail_point_data = self._create_polyline(positions_km)
         poly_data.SetPoints(updated_data.GetPoints())
@@ -499,6 +737,8 @@ class VTKTrajectory3DView:
     def _create_polyline(
         positions_km: np.ndarray,
         segment_ids: np.ndarray | None = None,
+        *,
+        segment_spans: tuple[tuple[int, int], ...] | None = None,
     ) -> tuple[vtkPolyData, np.ndarray]:
         poly_data = vtkPolyData()
         points = vtkPoints()
@@ -506,16 +746,24 @@ class VTKTrajectory3DView:
         points.SetData(numpy_to_vtk(point_data, deep=False))
         cells = vtkCellArray()
         vertices = vtkCellArray()
-        ids = (
-            segment_ids
-            if segment_ids is not None
-            else np.zeros(len(point_data), dtype=int)
-        )
-        start = 0
-        while start < len(point_data):
-            stop = start + 1
-            while stop < len(point_data) and ids[stop] == ids[start]:
-                stop += 1
+        if segment_spans is not None:
+            ranges = segment_spans
+        else:
+            ids = (
+                segment_ids
+                if segment_ids is not None
+                else np.zeros(len(point_data), dtype=int)
+            )
+            ranges_list: list[tuple[int, int]] = []
+            start = 0
+            while start < len(point_data):
+                stop = start + 1
+                while stop < len(point_data) and ids[stop] == ids[start]:
+                    stop += 1
+                ranges_list.append((start, stop))
+                start = stop
+            ranges = tuple(ranges_list)
+        for start, stop in ranges:
             if stop - start > 1:
                 polyline = vtkPolyLine()
                 polyline.GetPointIds().SetNumberOfIds(stop - start)
@@ -526,7 +774,6 @@ class VTKTrajectory3DView:
                 vertex = vtkVertex()
                 vertex.GetPointIds().SetId(0, start)
                 vertices.InsertNextCell(vertex)
-            start = stop
         poly_data.SetPoints(points)
         poly_data.SetLines(cells)
         poly_data.SetVerts(vertices)

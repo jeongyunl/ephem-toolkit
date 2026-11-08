@@ -8,9 +8,11 @@ import numpy as np
 import pytest
 
 from ephem_toolkit.play_oem.cursor import OemCursor
+from ephem_toolkit.play_oem.oem_data_store import OemDataStore
 from ephem_toolkit.play_oem.series import compute_orbit_series
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
 from ephem_toolkit.play_oem.time_unit import TimeUnit
+from ephem_toolkit.play_oem.views.base import StoreViewContext
 
 
 def test_vtk_backend_registers_an_opengl_render_window_factory() -> None:
@@ -118,6 +120,33 @@ def make_orbit():
     return (
         compute_orbit_series(timestamps_s, states_m, TimeUnit.MINUTES),
         OemCursor(timestamps_s, states_m),
+    )
+
+
+def make_store_context() -> StoreViewContext:
+    timestamps_s = np.array([100.0, 160.0, 220.0, 280.0])
+    states_m = np.array(
+        [
+            [7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0],
+            [0.0, 7_000_000.0, 0.0, -7_500.0, 0.0, 0.0],
+            [-7_000_000.0, 0.0, 0.0, 0.0, -7_500.0, 0.0],
+            [0.0, -7_000_000.0, 0.0, 7_500.0, 0.0, 0.0],
+        ]
+    )
+    store = OemDataStore()
+    epoch = store.begin(len(timestamps_s))
+    reservation = store.reserve(len(timestamps_s))
+    reservation.raw[:, 0] = timestamps_s
+    reservation.raw[:, 1:7] = states_m
+    reservation.segment_ids[:] = [0, 0, 1, 1]
+    store.commit(reservation, len(timestamps_s))
+    store.mark_complete(epoch, (), ())
+    return StoreViewContext(
+        store,
+        store.snapshot(),
+        TimeUnit.MINUTES,
+        ResolvedTimeRange(100.0, 280.0),
+        (100.0, 280.0),
     )
 
 
@@ -321,3 +350,56 @@ def test_vtk_view_rejects_a_missing_opengl_window_implementation(
         view.validate_render_context()
 
     view.close()
+
+
+def test_vtk_store_view_packs_only_bounded_paths_and_updates_range(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("vtk")
+    pytest.importorskip("wx")
+    from vtkmodules.util.numpy_support import vtk_to_numpy
+
+    from ephem_toolkit.play_oem.views.trajectory3d import vtk_backend
+
+    monkeypatch.setattr(vtk_backend, "wxVTKRenderWindowInteractor", FakeWidget)
+    context = make_store_context()
+    view = vtk_backend.VTKTrajectory3DView(
+        object(), None, "ISS", "EME2000 / Earth", lambda: 1.0
+    )
+    widget = view.build_from_store(context)
+    try:
+        assert isinstance(widget, FakeWidget)
+        assert view._store_positions_m is not None
+        assert np.shares_memory(view._store_positions_m, context.snapshot.raw)
+        assert view._orbit_display_positions_km is not None
+        assert view._orbit_display_positions_km.shape == (4, 3)
+        assert view._store_display_spans == ((0, 2), (2, 4))
+
+        assert view._orbit_mapper is not None
+        points = view._orbit_mapper.GetInput().GetPoints()
+        assert points.GetNumberOfPoints() == 4
+        assert np.shares_memory(
+            vtk_to_numpy(points.GetData()), view._orbit_display_positions_km
+        )
+        assert points.GetPoint(0) == pytest.approx((7000.0, 0.0, 0.0))
+
+        camera = view._renderer.GetActiveCamera()
+        camera_position = tuple(camera.GetPosition())
+        view.set_time_range(ResolvedTimeRange(160.0, 220.0), context.coverage)
+        assert view._orbit_mapper.GetInput().GetNumberOfPoints() == 2
+        assert view._orbit_mapper.GetInput().GetLines().GetNumberOfCells() == 0
+        assert view._orbit_mapper.GetInput().GetVerts().GetNumberOfCells() == 2
+        assert tuple(camera.GetPosition()) == camera_position
+        view.update(220.0)
+        assert view._cursor_actor.GetVisibility()
+        assert not view._tail_actor.GetVisibility()
+
+        view.set_time_range(None, context.coverage)
+        assert view._orbit_mapper.GetInput().GetNumberOfPoints() == 0
+        assert not view._orbit_actor.GetVisibility()
+        assert not view._cursor_actor.GetVisibility()
+        assert not view._tail_actor.GetVisibility()
+    finally:
+        view.close()
+
+    assert view._store_positions_m is None

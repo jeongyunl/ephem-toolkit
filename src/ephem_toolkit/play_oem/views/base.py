@@ -176,6 +176,64 @@ def add_store_series_paths(
     return tuple(artists)
 
 
+def add_raw_state_paths(
+    axes: Axes,
+    snapshot: StoreSnapshot,
+    value_column: int,
+    time_origin_s: float,
+    time_divisor_s: float,
+    *,
+    bounds: ResolvedTimeRange | None,
+    maximum_samples_per_segment: int,
+    scale_y: float,
+    color: str = "C0",
+    linewidth: float = 1.5,
+) -> tuple[Artist, ...]:
+    """Plot strided raw-state columns while keeping path vertices store-backed."""
+    if not 1 <= value_column < snapshot.raw.shape[1]:
+        raise ValueError("state column must be between 1 and 6")
+    if maximum_samples_per_segment < 1:
+        raise ValueError("maximum_samples_per_segment must be positive")
+    if bounds is None or snapshot.sample_count == 0:
+        return ()
+
+    times = snapshot.raw[:, 0]
+    range_start = int(np.searchsorted(times, bounds.start_s, side="left"))
+    range_stop = int(np.searchsorted(times, bounds.end_s, side="right"))
+    artists: list[Artist] = []
+    for segment_start, segment_stop in snapshot.segment_bounds:
+        first = max(int(segment_start), range_start)
+        stop = min(int(segment_stop), range_stop)
+        sample_count = stop - first
+        if sample_count <= 0:
+            continue
+        stride = max(1, ceil(sample_count / maximum_samples_per_segment))
+        column_stride = value_column
+        points = snapshot.raw[
+            first:stop:stride, 0 : value_column + 1 : column_stride
+        ]
+        codes = np.full(len(points), Path.LINETO, dtype=Path.code_type)
+        codes[0] = Path.MOVETO
+        transform = Affine2D.from_values(
+            1.0 / time_divisor_s,
+            0.0,
+            0.0,
+            scale_y,
+            -time_origin_s / time_divisor_s,
+            0.0,
+        ) + axes.transData
+        artist = PathPatch(
+            Path(points, codes, readonly=True),
+            facecolor="none",
+            edgecolor=color,
+            linewidth=linewidth,
+            transform=transform,
+        )
+        axes.add_patch(artist)
+        artists.append(artist)
+    return tuple(artists)
+
+
 def clear_store_series_artists(axes: Axes, artists: Sequence[Artist]) -> None:
     for artist in artists:
         artist.remove()
@@ -214,6 +272,22 @@ def set_store_series_y_limits(
             upper = max(upper, column_upper * scale_y)
     if lower == float("inf"):
         return
+    padding = max((upper - lower) * 0.05, abs(upper) * 0.005, 0.001)
+    axes.set_ylim(lower - padding, upper + padding)
+
+
+def set_raw_state_y_limits(
+    axes: Axes,
+    snapshot: StoreSnapshot,
+    value_column: int,
+    *,
+    scale_y: float,
+) -> None:
+    if snapshot.sample_count == 0:
+        return
+    values = snapshot.raw[:, value_column]
+    lower = float(np.min(values)) * scale_y
+    upper = float(np.max(values)) * scale_y
     padding = max((upper - lower) * 0.05, abs(upper) * 0.005, 0.001)
     axes.set_ylim(lower - padding, upper + padding)
 

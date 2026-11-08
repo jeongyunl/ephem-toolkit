@@ -2,15 +2,26 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import cast
 
 import numpy as np
+from matplotlib.artist import Artist
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
+from matplotlib.text import Text
 
 from .. import series, time_unit
-from .base import TimeRangeSupport
-from .plotting import SegmentedPlotHistory
+from ..time_range import ResolvedTimeRange
+from .base import (
+    StoreViewContext,
+    TimeRangeSupport,
+    add_raw_state_paths,
+    clear_store_series_artists,
+    set_raw_state_y_limits,
+    store_empty_label,
+)
+from .plotting import SegmentedPlotHistory, set_shared_x_limits, time_bounds_to_axis
 
 CARTESIAN_COMPONENT_COUNT: int = 3
 """Number of Cartesian position or velocity components."""
@@ -50,6 +61,131 @@ class StateComponentsView(TimeRangeSupport):
         self._cursor_artists: tuple[Line2D, ...] | None = None
         self._time_unit_divisor_s: float = 1.0
         self._histories: tuple[SegmentedPlotHistory, ...] = ()
+        self._store_context: StoreViewContext | None = None
+        self._store_artists: tuple[tuple[Artist, ...], ...] = ((), (), (), (), (), ())
+        self._store_empty_artists: tuple[Text, ...] | None = None
+        self._store_start_time_s = start_time_s
+
+    def build_from_store(self, context: StoreViewContext) -> Figure:
+        """Build from raw state columns without an OrbitSeries projection."""
+        if self._figure is not None:
+            raise RuntimeError("state-components view has already been built")
+        figure = Figure(figsize=FIGURE_SIZE_INCHES, constrained_layout=True)
+        axes_array = cast(
+            np.ndarray,
+            figure.subplots(
+                CARTESIAN_COMPONENT_COUNT,
+                STATE_COMPONENT_COLUMN_COUNT,
+                sharex=True,
+            ),
+        )
+        cursor_artists: list[Line2D] = []
+        empty_artists: list[Text] = []
+        component_columns = ((1, 4), (2, 5), (3, 6))
+        for row, (position_column, velocity_column) in enumerate(component_columns):
+            position_axes = axes_array[row, 0]
+            velocity_axes = axes_array[row, 1]
+            component = ("X", "Y", "Z")[row]
+            position_axes.set_ylabel(f"{component} (km)")
+            velocity_axes.set_ylabel(f"V{component} (km/s)")
+            position_axes.grid(True)
+            velocity_axes.grid(True)
+            for axes in (position_axes, velocity_axes):
+                empty_artists.append(
+                    axes.text(
+                        0.5,
+                        0.5,
+                        "",
+                        ha="center",
+                        va="center",
+                        transform=axes.transAxes,
+                    )
+                )
+                cursor_artists.append(
+                    axes.axvline(
+                        0.0,
+                        color=CURSOR_LINE_COLOR,
+                        linestyle="--",
+                        animated=True,
+                    )
+                )
+        axes_array[0, 0].set_title("Position")
+        axes_array[0, 1].set_title("Velocity")
+        axes_array[2, 0].set_xlabel(context.time_unit.get_axis_label())
+        axes_array[2, 1].set_xlabel(context.time_unit.get_axis_label())
+        figure.suptitle(f"State Components | {self._frame_context}")
+
+        self._figure = figure
+        self._cursor_artists = tuple(cursor_artists)
+        self._store_empty_artists = tuple(empty_artists)
+        self._time_unit_divisor_s = context.time_unit.get_divisor_s()
+        self._configure_time_range(
+            tuple(axes_array.flat),
+            (),
+            self._cursor_artists,
+            context.coverage[0],
+            self._time_unit_divisor_s,
+        )
+        self._apply_store_context(context)
+        return figure
+
+    def update_from_store(self, context: StoreViewContext) -> None:
+        """Refresh raw-state paths from a newer snapshot or plot range."""
+        if self._store_context is None:
+            raise RuntimeError("state-components view was not built from a store")
+        self._apply_store_context(context)
+
+    def _apply_store_context(
+        self, context: StoreViewContext, *, rescale_y: bool = True
+    ) -> None:
+        if self._figure is None:
+            raise RuntimeError("state-components view has not been built")
+        self._store_context = context
+        self._store_start_time_s = context.coverage[0]
+        self._time_unit_divisor_s = context.time_unit.get_divisor_s()
+        self._range_start_time_s = self._store_start_time_s
+        self._range_divisor_s = self._time_unit_divisor_s
+        self._figure.axes[4].set_xlabel(context.time_unit.get_axis_label())
+        self._figure.axes[5].set_xlabel(context.time_unit.get_axis_label())
+        super().set_time_range(context.plot_range, context.coverage)
+        for axes, artists in zip(self._figure.axes, self._store_artists):
+            clear_store_series_artists(axes, artists)
+
+        columns = (1, 4, 2, 5, 3, 6)
+        artists_by_axis: list[tuple[Artist, ...]] = []
+        for axes, column in zip(self._figure.axes, columns):
+            artists = add_raw_state_paths(
+                axes,
+                context.snapshot,
+                column,
+                self._store_start_time_s,
+                self._time_unit_divisor_s,
+                bounds=context.plot_range,
+                maximum_samples_per_segment=MAX_STATE_COMPONENT_DISPLAY_POINTS_PER_SEGMENT,
+                scale_y=0.001,
+                linewidth=1.5,
+            )
+            artists_by_axis.append(artists)
+            if rescale_y:
+                set_raw_state_y_limits(
+                    axes, context.snapshot, column, scale_y=0.001
+                )
+        self._store_artists = tuple(artists_by_axis)
+        if self._store_empty_artists is not None:
+            for empty_artist, artists in zip(
+                self._store_empty_artists, self._store_artists
+            ):
+                empty_artist.set_text(store_empty_label(context))
+                empty_artist.set_visible(not artists)
+
+        limits = time_bounds_to_axis(
+            context.plot_range,
+            context.coverage,
+            self._store_start_time_s,
+            self._time_unit_divisor_s,
+        )
+        set_shared_x_limits(tuple(self._figure.axes), limits)
+        self.update(self._last_cursor_time_s)
 
     def build(
         self,
@@ -188,6 +324,17 @@ class StateComponentsView(TimeRangeSupport):
             datasets, self._start_time_s, time_unit.get_divisor_s()
         )
 
+    def set_time_range(
+        self, bounds: ResolvedTimeRange | None, coverage: tuple[float, float], /
+    ) -> None:
+        if self._store_context is None:
+            super().set_time_range(bounds, coverage)
+            return
+        self._apply_store_context(
+            replace(self._store_context, plot_range=bounds, coverage=coverage),
+            rescale_y=False,
+        )
+
     def update(self, time_s: float) -> None:
         """Move every component cursor to an absolute OEM time.
 
@@ -203,6 +350,18 @@ class StateComponentsView(TimeRangeSupport):
         """
         if self._cursor_artists is None:
             raise RuntimeError("state-components view has not been built")
+        if self._store_context is not None:
+            self._last_cursor_time_s = time_s
+            elapsed_time_axis = (
+                time_s - self._store_start_time_s
+            ) / self._time_unit_divisor_s
+            for cursor_artist in self._cursor_artists:
+                cursor_artist.set_xdata([elapsed_time_axis, elapsed_time_axis])
+            bounds = self._store_context.plot_range
+            visible = bounds is not None and bounds.start_s <= time_s <= bounds.end_s
+            for cursor_artist in self._cursor_artists:
+                cursor_artist.set_visible(visible)
+            return
         elapsed_time_axis = (time_s - self._start_time_s) / self._time_unit_divisor_s
         for cursor_artist in self._cursor_artists:
             cursor_artist.set_xdata([elapsed_time_axis, elapsed_time_axis])
@@ -213,5 +372,8 @@ class StateComponentsView(TimeRangeSupport):
         if self._figure is not None:
             self._close_time_range()
             self._figure.clear()
+        self._store_context = None
+        self._store_artists = ((), (), (), (), (), ())
+        self._store_empty_artists = None
         self._figure = None
         self._cursor_artists = None

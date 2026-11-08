@@ -40,8 +40,9 @@ partial-coverage results, chunk notices, live playback timestamps, station-acces
 per-chunk derived-data eviction. This path is not yet used by the active player/controller.
 
 Stateless mode on the existing core interpolators and zero-copy plotting primitives are
-implemented and validated. The `speed-altitude` view and the remaining four 2D history views now
-support typed store inputs; State Components, 3D, Ground Track, and station-view migration remain.
+implemented and validated. The `speed-altitude` view, four 2D history views, State Components, and
+both 3D trajectory backends now support typed store inputs; Ground Track and station-view migration
+remain.
 The application still uses eager `PlaybackData` preparation, `OemCursor`, `OrbitSeriesAccumulator`,
 and separate Ground Track/station-access/footprint caches; therefore the application-wide no-copy
 goal has not been achieved.
@@ -153,15 +154,17 @@ direct loading before the view migration is complete.
 Migrate consumers only after Step 5 provides all required query outputs. Preserve plot labels,
 values, segmentation, click-to-seek, empty/partial behavior, and 3D backend behavior.
 
-- **Status:** In progress (2D history views are migrated; State Components and 3D are next).
-- **Progress:** 1/5 checklist items.
+- **Status:** In progress (the first two view groups are migrated; Ground Track and station views
+  remain).
+- **Progress:** 2/5 checklist items.
 - [x] Migrate RTN Deltas, Angular Velocity, Direction Change, and Geocentric Distance to
       range-limited series-group queries; use the validated `speed-altitude` path as the pattern
       and request only fields each view uses. Store paths share derived-column buffers, apply
       display transforms, preserve segment breaks and cursor/range behavior, and release tier
       interest on close.
-- [ ] Migrate State Components and 3D trajectory views to raw position/velocity views, retaining
-      only the explicitly measured VTK/backend-specific copy.
+- [x] Migrate State Components and 3D trajectory views to raw snapshot columns. State Components
+      paths and the Matplotlib 3D backend use raw-backed inputs; the VTK backend packs only its
+      range-limited, decimated display path. Preserve segment, range, cursor, and camera behavior.
 - [ ] Migrate Ground Track and Pass Ground Track to typed Earth-fixed, Ground Track, and footprint
       results; preserve map, seam, range, and station-selection behavior.
 - [ ] Migrate station status, pass strip, profiles, pass list, and sky view to typed
@@ -461,11 +464,11 @@ store query, including the distance-delta, Ground Track/footprint, and station-m
 no view needs to create an orbit-sized projection.
 **Depends on:** Steps 1–4.
 
-**Evidence:** The store-backed `speed-altitude` vertical slice and first Step 6 history-view slice
-validate range-limited queries, display transforms, segment boundaries, buffer sharing, cursor and
-range updates, empty states, stable Y limits, and tier-interest release. Ground Track queries reuse
-the Earth-fixed tier, return map-centered seam-split groups, and use a bounded cache; point queries
-cover station metrics and footprints. Validation:
+**Evidence:** The store-backed `speed-altitude` vertical slice and first two Step 6 view groups
+validate range-limited inputs, display transforms, segment boundaries, buffer sharing, cursor and
+range updates, empty states, stable limits, backend-specific display packing, and tier-interest
+release. Ground Track queries reuse the Earth-fixed tier, return map-centered seam-split groups, and
+use a bounded cache; point queries cover station metrics and footprints. Validation:
 `python3 -m pytest tests/ephem_toolkit/play_oem tests/ephem_toolkit/core/interpolator -q`
-passed (662 passed, 4 skipped). `git diff --check` and `compileall` passed. Step 6 continues with
-State Components and 3D; the active application still uses `OrbitSeries`.
+passed (665 passed, 4 skipped). `git diff --check` and `compileall` passed. Step 6 continues with
+Ground Track and Pass Ground Track; the active application still uses `OrbitSeries`.
