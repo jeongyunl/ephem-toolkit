@@ -179,6 +179,74 @@ def test_posix_tt_round_trip():
     assert result_posix == pytest.approx(original_posix, abs=1e-3)
 
 
+@pytest.mark.parametrize(
+    "effective_date,tai_minus_utc",
+    [
+        (datetime(1972, 1, 1, tzinfo=timezone.utc), 10),
+        (datetime(1972, 7, 1, tzinfo=timezone.utc), 11),
+        (datetime(1973, 1, 1, tzinfo=timezone.utc), 12),
+        (datetime(1974, 1, 1, tzinfo=timezone.utc), 13),
+        (datetime(1975, 1, 1, tzinfo=timezone.utc), 14),
+        (datetime(1976, 1, 1, tzinfo=timezone.utc), 15),
+        (datetime(1977, 1, 1, tzinfo=timezone.utc), 16),
+        (datetime(1978, 1, 1, tzinfo=timezone.utc), 17),
+        (datetime(1979, 1, 1, tzinfo=timezone.utc), 18),
+        (datetime(1980, 1, 1, tzinfo=timezone.utc), 19),
+        (datetime(1981, 7, 1, tzinfo=timezone.utc), 20),
+        (datetime(1982, 7, 1, tzinfo=timezone.utc), 21),
+        (datetime(1983, 7, 1, tzinfo=timezone.utc), 22),
+        (datetime(1985, 7, 1, tzinfo=timezone.utc), 23),
+        (datetime(1988, 1, 1, tzinfo=timezone.utc), 24),
+        (datetime(1990, 1, 1, tzinfo=timezone.utc), 25),
+        (datetime(1991, 1, 1, tzinfo=timezone.utc), 26),
+        (datetime(1992, 7, 1, tzinfo=timezone.utc), 27),
+        (datetime(1993, 7, 1, tzinfo=timezone.utc), 28),
+        (datetime(1994, 7, 1, tzinfo=timezone.utc), 29),
+        (datetime(1996, 1, 1, tzinfo=timezone.utc), 30),
+        (datetime(1997, 7, 1, tzinfo=timezone.utc), 31),
+        (datetime(1999, 1, 1, tzinfo=timezone.utc), 32),
+        (datetime(2006, 1, 1, tzinfo=timezone.utc), 33),
+        (datetime(2009, 1, 1, tzinfo=timezone.utc), 34),
+        (datetime(2012, 7, 1, tzinfo=timezone.utc), 35),
+        (datetime(2015, 7, 1, tzinfo=timezone.utc), 36),
+        (datetime(2017, 1, 1, tzinfo=timezone.utc), 37),
+        (datetime(2036, 1, 1, tzinfo=timezone.utc), 37),
+    ],
+)
+def test_tt_conversion_uses_historical_leap_seconds(effective_date, tai_minus_utc):
+    """Should use the known TAI−UTC offset and hold it after the last leap second."""
+    posix_s = effective_date.timestamp()
+    tt_s = time_utils.posix_to_tt_s(posix_s)
+    utc_elapsed_s = posix_s - time_utils._UTC_J2000_AS_POSIX_TIMESTAMP
+    assert tt_s - utc_elapsed_s == pytest.approx(tai_minus_utc + 32.184)
+    assert time_utils.tt_s_to_datetime(tt_s) == effective_date
+
+
+def test_tt_conversion_does_not_use_tudat_time_converter(monkeypatch):
+    """TT/UTC conversions should use the local leap-second table."""
+
+    class FailingConverter:
+        def convert_time(self, **kwargs):
+            raise AssertionError("TT conversion must not use Tudat")
+
+    monkeypatch.setattr(time_utils, "_tudat_time_scale_converter", FailingConverter())
+    utc_dt = datetime(2017, 1, 1, tzinfo=timezone.utc)
+    tt_s = time_utils.datetime_to_tt_s(utc_dt)
+    assert time_utils.posix_to_tt_s(utc_dt.timestamp()) == pytest.approx(tt_s)
+    assert time_utils.tt_s_to_datetime(tt_s) == utc_dt
+
+
+def test_tt_during_leap_second_maps_to_preceding_datetime_second():
+    """datetime cannot represent :60, so the leap-second interval maps back to :59."""
+    leap_second_start_tt = (
+        datetime(2017, 1, 1, tzinfo=timezone.utc).timestamp()
+        - time_utils._UTC_J2000_AS_POSIX_TIMESTAMP
+        + 68.184
+    )
+    result = time_utils.tt_s_to_datetime(leap_second_start_tt + 0.5)
+    assert result == datetime(2016, 12, 31, 23, 59, 59, 500000, tzinfo=timezone.utc)
+
+
 def test_tt_and_tdb_close_at_j2000():
     """TT and TDB should be nearly identical at J2000 epoch."""
     j2000_epoch = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc)

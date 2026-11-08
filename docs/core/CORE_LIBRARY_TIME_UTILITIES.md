@@ -30,6 +30,12 @@ Convert a datetime object to TT (Terrestrial Time) seconds since J2000. Naive da
 #### `tt_s_to_datetime(tt_s: float) -> datetime`
 Convert TT seconds since J2000 to a UTC datetime object.
 
+These conversions use the historical positive leap-second dates through 2017-01-01,
+then hold TAI−UTC at 37 seconds for later dates. Before 1972, they use a fixed
+10-second TAI−UTC offset; UTC's earlier rate adjustments are not modeled. Because
+Python `datetime` and POSIX timestamps cannot represent `23:59:60`, TT instants
+within a leap second map to the preceding UTC second.
+
 #### `datetime_to_tdb_s(dt: datetime) -> float`
 Convert a datetime object to TDB (Barycentric Dynamical Time) seconds since J2000. Naive datetimes are treated as UTC; timezone-aware values are converted to UTC first. TDB conversion functions remain available, while TT is the primary internal time scale.
 

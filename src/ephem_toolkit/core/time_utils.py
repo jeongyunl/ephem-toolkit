@@ -25,6 +25,7 @@ References:
 from __future__ import annotations
 
 import re
+from bisect import bisect_right
 from datetime import datetime, timedelta, timezone
 
 try:
@@ -40,13 +41,64 @@ except ImportError as exc:
 _tudat_time_scale_converter: time_representation.TimeScaleConverter = (
     time_representation.default_time_scale_converter()
 )
-"""Tudat time scale converter for UTC ↔ TT/TDB conversions."""
+"""Tudat time scale converter for UTC ↔ TDB conversions."""
 
 _UTC_J2000_AS_DATETIME: datetime = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
 """UTC J2000 epoch (2000-01-01 12:00:00 UTC)"""
 
 _UTC_J2000_AS_POSIX_TIMESTAMP: float = _UTC_J2000_AS_DATETIME.timestamp()
 """J2000 epoch as POSIX timestamp (seconds since Unix epoch)."""
+
+_INITIAL_TAI_MINUS_UTC_SECONDS: float = 10.0
+"""TAI−UTC at the start of 1972; also used as the pre-1972 approximation."""
+
+_TT_MINUS_TAI_SECONDS: float = 32.184
+"""The constant TT−TAI offset in seconds."""
+
+_LEAP_SECOND_EFFECTIVE_DATES: tuple[datetime, ...] = (
+    datetime(1972, 7, 1, tzinfo=timezone.utc),
+    datetime(1973, 1, 1, tzinfo=timezone.utc),
+    datetime(1974, 1, 1, tzinfo=timezone.utc),
+    datetime(1975, 1, 1, tzinfo=timezone.utc),
+    datetime(1976, 1, 1, tzinfo=timezone.utc),
+    datetime(1977, 1, 1, tzinfo=timezone.utc),
+    datetime(1978, 1, 1, tzinfo=timezone.utc),
+    datetime(1979, 1, 1, tzinfo=timezone.utc),
+    datetime(1980, 1, 1, tzinfo=timezone.utc),
+    datetime(1981, 7, 1, tzinfo=timezone.utc),
+    datetime(1982, 7, 1, tzinfo=timezone.utc),
+    datetime(1983, 7, 1, tzinfo=timezone.utc),
+    datetime(1985, 7, 1, tzinfo=timezone.utc),
+    datetime(1988, 1, 1, tzinfo=timezone.utc),
+    datetime(1990, 1, 1, tzinfo=timezone.utc),
+    datetime(1991, 1, 1, tzinfo=timezone.utc),
+    datetime(1992, 7, 1, tzinfo=timezone.utc),
+    datetime(1993, 7, 1, tzinfo=timezone.utc),
+    datetime(1994, 7, 1, tzinfo=timezone.utc),
+    datetime(1996, 1, 1, tzinfo=timezone.utc),
+    datetime(1997, 7, 1, tzinfo=timezone.utc),
+    datetime(1999, 1, 1, tzinfo=timezone.utc),
+    datetime(2006, 1, 1, tzinfo=timezone.utc),
+    datetime(2009, 1, 1, tzinfo=timezone.utc),
+    datetime(2012, 7, 1, tzinfo=timezone.utc),
+    datetime(2015, 7, 1, tzinfo=timezone.utc),
+    datetime(2017, 1, 1, tzinfo=timezone.utc),
+)
+"""UTC instants when each historical positive leap second took effect."""
+
+_LEAP_SECOND_EFFECTIVE_POSIX: tuple[float, ...] = tuple(
+    effective_date.timestamp() for effective_date in _LEAP_SECOND_EFFECTIVE_DATES
+)
+
+_LEAP_SECOND_TT_EFFECTIVE_SECONDS: tuple[float, ...] = tuple(
+    effective_posix
+    - _UTC_J2000_AS_POSIX_TIMESTAMP
+    + _INITIAL_TAI_MINUS_UTC_SECONDS
+    + index
+    + _TT_MINUS_TAI_SECONDS
+    for index, effective_posix in enumerate(_LEAP_SECOND_EFFECTIVE_POSIX)
+)
+"""TT instants at which the UTC representation enters each leap second."""
 
 
 _ISO8601_PATTERN: re.Pattern[str] = re.compile(
@@ -153,12 +205,10 @@ def posix_to_tt_s(posix_s: float) -> float:
     float
         TT seconds since J2000 epoch (s).
     """
+    leap_seconds: int = bisect_right(_LEAP_SECOND_EFFECTIVE_POSIX, posix_s)
+    tai_minus_utc_s: float = _INITIAL_TAI_MINUS_UTC_SECONDS + leap_seconds
     utc_j2000_s: float = posix_s - _UTC_J2000_AS_POSIX_TIMESTAMP
-    return _tudat_time_scale_converter.convert_time(
-        input_value=utc_j2000_s,
-        input_scale=TimeScales.utc_scale,
-        output_scale=TimeScales.tt_scale,
-    )
+    return utc_j2000_s + tai_minus_utc_s + _TT_MINUS_TAI_SECONDS
 
 
 def datetime_to_tt_s(dt: datetime) -> float:
@@ -178,12 +228,10 @@ def datetime_to_tt_s(dt: datetime) -> float:
         dt = dt.replace(tzinfo=timezone.utc)
     else:
         dt = dt.astimezone(timezone.utc)
+    leap_seconds: int = bisect_right(_LEAP_SECOND_EFFECTIVE_DATES, dt)
+    tai_minus_utc_s: float = _INITIAL_TAI_MINUS_UTC_SECONDS + leap_seconds
     utc_j2000_s: float = (dt - _UTC_J2000_AS_DATETIME).total_seconds()
-    return _tudat_time_scale_converter.convert_time(
-        input_value=utc_j2000_s,
-        input_scale=TimeScales.utc_scale,
-        output_scale=TimeScales.tt_scale,
-    )
+    return utc_j2000_s + tai_minus_utc_s + _TT_MINUS_TAI_SECONDS
 
 
 def tt_s_to_datetime(tt_s: float) -> datetime:
@@ -199,11 +247,9 @@ def tt_s_to_datetime(tt_s: float) -> datetime:
     datetime
         UTC datetime object.
     """
-    utc_j2000_s: float = _tudat_time_scale_converter.convert_time(
-        input_value=tt_s,
-        input_scale=TimeScales.tt_scale,
-        output_scale=TimeScales.utc_scale,
-    )
+    leap_seconds: int = bisect_right(_LEAP_SECOND_TT_EFFECTIVE_SECONDS, tt_s)
+    tai_minus_utc_s: float = _INITIAL_TAI_MINUS_UTC_SECONDS + leap_seconds
+    utc_j2000_s: float = tt_s - tai_minus_utc_s - _TT_MINUS_TAI_SECONDS
     return _UTC_J2000_AS_DATETIME + timedelta(seconds=utc_j2000_s)
 
 
@@ -255,9 +301,9 @@ def iso8601_to_datetime(epoch_str: str) -> datetime:
         fraction = match.group(8)
         if fraction is not None and len(fraction) > 6:
             separator = "T" if match.group(4) == "T" else " "
-            return datetime.strptime(
-                s, f"%Y-%m-%d{separator}%H:%M:%S.%f"
-            ).replace(tzinfo=timezone.utc)
+            return datetime.strptime(s, f"%Y-%m-%d{separator}%H:%M:%S.%f").replace(
+                tzinfo=timezone.utc
+            )
         microsecond = 0 if fraction is None else int(fraction.ljust(6, "0"))
         return datetime(
             int(match.group(1)),
