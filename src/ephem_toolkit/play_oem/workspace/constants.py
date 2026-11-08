@@ -17,6 +17,9 @@ MIN_GRAPH_PANE_WIDTH: int = 320
 MIN_GRAPH_PANEL_HEIGHT: int = GRAPH_PANEL_MIN_SIZE[1]
 """Minimum height for graph panels separated by horizontal stack splitters."""
 
+DEFAULT_GRAPH_PANEL_HEIGHT: int = 280
+"""Initial height for graph panels before the user resizes them."""
+
 MAX_NATURAL_GRAPH_PANEL_HEIGHT: int = 900
 """Maximum height assigned when sizing a new graph panel to its content."""
 

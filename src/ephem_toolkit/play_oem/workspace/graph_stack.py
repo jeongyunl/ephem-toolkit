@@ -12,6 +12,7 @@ from ..graph_panel import GRAPH_PANEL_MIN_SIZE, GraphPanelHost
 from .constants import (
     GRAPH_REDRAW_INTERVAL_MS,
     GRAPH_SCROLL_SETTLE_MS,
+    DEFAULT_GRAPH_PANEL_HEIGHT,
     MAX_NATURAL_GRAPH_PANEL_HEIGHT,
     MIN_GRAPH_PANEL_HEIGHT,
     MIN_GRAPH_PANE_WIDTH,
@@ -211,7 +212,7 @@ class GraphStackMixin:
 
         self._graph_panels[stack].append(panel)
         if adding_to_existing_stack:
-            self._graph_panel_heights.setdefault(panel, MIN_GRAPH_PANEL_HEIGHT)
+            self._graph_panel_heights.setdefault(panel, DEFAULT_GRAPH_PANEL_HEIGHT)
         self._stack_roots[stack] = root
         self._layout_graph_stack(stack)
         self._apply_graph_sash_heights(root)
@@ -703,14 +704,17 @@ class GraphStackMixin:
     ) -> None:
         """Resize the panel above the sash; panels below keep their heights and the stack grows."""
         event.Veto()
-        delta = event.GetSashPosition() - splitter.GetSashPosition()
+        # With SP_LIVE_UPDATE, wx may already report the proposed sash position
+        # from GetSashPosition() while this changing event is being dispatched.
+        # Compare against the stored layout instead of that transient position.
+        first_pane_height = self._stack_subtree_height(splitter.GetWindow1())
+        delta = event.GetSashPosition() - first_pane_height
         if delta == 0:
             return
         pane = splitter.GetWindow1()
         while isinstance(pane, wx.SplitterWindow):
             pane = pane.GetWindow2()
         panel = cast(GraphPanelHost, pane)
-        self._sync_graph_panel_heights(stack)
         self._resize_graph_panel(stack, panel, self._graph_panel_heights[panel] + delta)
 
     def _resize_graph_panel(

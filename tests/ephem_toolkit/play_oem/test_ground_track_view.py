@@ -160,6 +160,40 @@ def test_ground_track_filters_cached_coordinates_before_seam_splitting() -> None
     view.close()
 
 
+def test_ground_track_axes_follow_canvas_height_without_fixed_aspect() -> None:
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    coordinates = GroundTrackCoordinates(
+        np.array([0.0, 10.0]),
+        np.array([0.0, 0.1]),
+        np.array([0.0, 0.2]),
+        np.array([0, 0]),
+        "ITRF",
+    )
+    view = ground_track.GroundTrackView(
+        cast(Any, None),
+        None,
+        coordinates,
+        cast(Any, type("CursorBounds", (), {"t_start": 0.0, "t_end": 10.0})()),
+        "Test object",
+    )
+    view._figure = Figure(figsize=(8.0, 4.0), dpi=100)
+    canvas = FigureCanvasAgg(view._figure)
+    view._canvas = cast(Any, canvas)
+    view._axes = view._figure.add_subplot(111)
+    view._draw_map()
+
+    canvas.draw()
+    tall_axes_height = view._axes.get_window_extent().height
+    view._figure.set_size_inches(8.0, 2.0)
+    canvas.draw()
+
+    assert view._axes.get_aspect() == "auto"
+    assert view._axes.get_window_extent().height < tall_axes_height
+    view.close()
+
+
 @pytest.mark.parametrize(
     ("projection_name", "center_longitude_deg"),
     [
@@ -357,6 +391,9 @@ def test_resizing_host_preserves_spin_control_sizes(wx_app: Any) -> None:
     try:
         content = view.build(cast(Any, None), cast(Any, None))
         host.set_native_content(content)
+        assert content.GetMinSize().height == 64
+        assert view._canvas is not None
+        assert view._canvas.GetMinSize().height == 64
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(host, 1, wx.EXPAND)
         frame.SetSizer(sizer)

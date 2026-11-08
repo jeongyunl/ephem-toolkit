@@ -426,7 +426,7 @@ class GroundStationAccessView:
             else:
                 self._draw_elevation_graph(axes, station, result, divisor)
             axes.grid(axis="both", alpha=0.25)
-        self._figure.tight_layout()
+        self._figure.tight_layout(pad=0.1)
         self._apply_time_range()
         if self._canvas is not None:
             self._canvas.draw_idle()

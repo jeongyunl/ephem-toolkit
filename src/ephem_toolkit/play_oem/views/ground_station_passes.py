@@ -251,7 +251,7 @@ class GroundStationPassesView:
         actions.Add(self._seek_button, 0)
         sizer.Add(actions, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 2)
         panel.SetSizer(sizer)
-        panel.SetMinSize(panel.FromDIP(wx.Size(_TABLE_PANEL_MIN_WIDTH, 160)))
+        panel.SetMinSize(panel.FromDIP(wx.Size(64, 64)))
         return panel
 
     def _build_sky_panel(self, parent: wx.Window) -> wx.Panel:
@@ -260,14 +260,14 @@ class GroundStationPassesView:
         self._figure = Figure(figsize=(5.0, 4.5), dpi=100)
         self._axes = self._figure.add_subplot(111, projection="polar")
         self._canvas = FigureCanvasWxAgg(panel, wx.ID_ANY, self._figure)
-        self._canvas.SetMinSize(panel.FromDIP(wx.Size(300, 330)))
+        self._canvas.SetMinSize(panel.FromDIP(wx.Size(64, 64)))
         self._sky_summary = wx.StaticText(panel, wx.ID_ANY, "")
         self._sky_summary.SetName("Selected pass sky plot summary")
         self._sky_summary.Wrap(panel.FromDIP(420))
         sizer.Add(self._canvas, 1, wx.EXPAND | wx.ALL, 2)
         sizer.Add(self._sky_summary, 0, wx.EXPAND | wx.ALL, 6)
         panel.SetSizer(sizer)
-        panel.SetMinSize(panel.FromDIP(wx.Size(_SKY_PANEL_MIN_WIDTH, 400)))
+        panel.SetMinSize(panel.FromDIP(wx.Size(64, 64)))
         panel.Bind(wx.EVT_SIZE, self._on_sky_panel_size)
         return panel
 
@@ -878,9 +878,19 @@ class GroundStationPassesView:
                 fontsize="small",
             )
             legend.set_in_layout(False)
-            figure.tight_layout(rect=(0.0, 0.18, 1.0, 1.0))
+            figure.subplots_adjust(
+                left=0.08,
+                right=0.92,
+                bottom=0.28,
+                top=0.92,
+            )
         else:
-            figure.tight_layout()
+            figure.subplots_adjust(
+                left=0.08,
+                right=0.92,
+                bottom=0.08,
+                top=0.92,
+            )
         self._update_playback_marker()
         if self._canvas is not None:
             self._canvas.draw_idle()

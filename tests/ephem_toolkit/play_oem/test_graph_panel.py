@@ -14,6 +14,35 @@ from matplotlib.figure import Figure
 from ephem_toolkit.play_oem import graph_panel
 
 
+def test_minimum_panel_size_and_figure_padding() -> None:
+    assert graph_panel.GRAPH_PANEL_MIN_SIZE == (64, 64)
+
+    figure = Figure()
+    figure.add_subplot(111)
+    minimum_sizes: list[tuple[int, int]] = []
+    canvas = SimpleNamespace(
+        figure=figure,
+        SetMinSize=minimum_sizes.append,
+    )
+    graph_panel._configure_matplotlib_canvas(
+        cast(graph_panel.FigureCanvasWxAgg, canvas)
+    )
+    assert minimum_sizes == [(64, 64)]
+    assert figure.subplotpars.left < 0.125
+    assert figure.subplotpars.right > 0.9
+    assert figure.subplotpars.bottom < 0.11
+    assert figure.subplotpars.top > 0.88
+
+    constrained_figure = Figure(constrained_layout=True)
+    constrained_figure.add_subplot(111)
+    graph_panel._minimize_figure_padding(constrained_figure)
+    layout = constrained_figure.get_layout_engine().get()
+    assert layout["w_pad"] == 0.01
+    assert layout["h_pad"] == 0.01
+    assert layout["wspace"] == 0.01
+    assert layout["hspace"] == 0.01
+
+
 def test_actions_menu_dismisses_tooltip_before_opening(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

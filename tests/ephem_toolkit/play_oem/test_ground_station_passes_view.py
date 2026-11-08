@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gc
 import os
+import warnings
 from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any, cast
@@ -15,6 +16,7 @@ import pytest
 
 from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem import station_access
+from ephem_toolkit.play_oem import graph_panel
 from ephem_toolkit.play_oem.station_access import (
     AccessInterval,
     LookAngleProfile,
@@ -329,6 +331,53 @@ def test_sky_plot_uses_clockwise_azimuth_and_cached_pass_profile() -> None:
     view.update(25.0)
     assert len(view._playback_marker.get_xdata()) == 0
     assert "Playhead outside selected pass" in view._sky_summary_text
+    view.close()
+
+
+def test_sky_plot_draws_at_minimum_size_without_layout_warning() -> None:
+    station = GroundStation("site", "Site", 0.0, 0.0, 0.0, 10)
+    interval = AccessInterval(
+        0.0,
+        20.0,
+        30.0,
+        10.0,
+        500.0,
+        10.0,
+        start_azimuth_deg=350.0,
+        start_elevation_deg=10.0,
+        end_azimuth_deg=10.0,
+        end_elevation_deg=10.0,
+    )
+    profile = LookAngleProfile(
+        np.asarray([0.0, 10.0, 20.0]),
+        np.asarray([350.0, 0.0, 10.0]),
+        np.asarray([10.0, 30.0, 10.0]),
+    )
+    view, _cache = _make_view((interval,), station=station, profiles=(profile,))
+    figure = Figure(figsize=(0.64, 0.64), dpi=100)
+    canvas = FigureCanvasAgg(figure)
+    view._figure = figure
+    view._axes = figure.add_subplot(111, projection="polar")
+    view._canvas = cast(Any, canvas)
+    view._refresh_rows()
+
+    with warnings.catch_warnings(record=True) as warnings_record:
+        warnings.simplefilter("always")
+        view._draw_sky_plot()
+        graph_panel._minimize_figure_padding(figure)
+        canvas.draw()
+
+    assert not any(
+        issubclass(warning.category, UserWarning)
+        and "Tight layout not applied" in str(warning.message)
+        for warning in warnings_record
+    )
+    assert figure.subplotpars.left == 0.08
+    assert figure.subplotpars.right == 0.92
+    assert figure.subplotpars.bottom == 0.28
+    assert figure.subplotpars.top == 0.92
+    assert np.any(np.asarray(canvas.buffer_rgba())[:, :, :3] != 255)
+    assert view._axes.lines
     view.close()
 
 

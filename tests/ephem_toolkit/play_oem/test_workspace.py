@@ -11,6 +11,7 @@ import pytest
 from ephem_toolkit.play_oem import workspace
 from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem.workspace import core, features, graph_stack, timeline
+from ephem_toolkit.play_oem.workspace.constants import DEFAULT_GRAPH_PANEL_HEIGHT
 from ephem_toolkit.play_oem.workspace import ground_stations as station_manager
 
 
@@ -1265,18 +1266,18 @@ def test_adding_empty_graphs_preserves_existing_panel_heights(
     splitters = stack_splitters(result._stack_roots["middle"])
     assert splitters[-1].GetSashPosition() == 360
     assert result._graph_panel_heights[panels[0]] == 360
-    assert result._graph_panel_heights[panels[1]] == workspace.MIN_GRAPH_PANEL_HEIGHT
+    assert result._graph_panel_heights[panels[1]] == DEFAULT_GRAPH_PANEL_HEIGHT
 
     result.add_graph_panel(panels[2], "middle")
 
     splitters = stack_splitters(result._stack_roots["middle"])
     assert splitters[-1].GetSashPosition() == (
-        360 + splitters[-1].GetSashSize() + workspace.MIN_GRAPH_PANEL_HEIGHT
+        360 + splitters[-1].GetSashSize() + DEFAULT_GRAPH_PANEL_HEIGHT
     )
     assert splitters[0].GetSashPosition() == 360
     assert result._graph_panel_heights[panels[0]] == 360
-    assert result._graph_panel_heights[panels[1]] == workspace.MIN_GRAPH_PANEL_HEIGHT
-    assert result._graph_panel_heights[panels[2]] == workspace.MIN_GRAPH_PANEL_HEIGHT
+    assert result._graph_panel_heights[panels[1]] == DEFAULT_GRAPH_PANEL_HEIGHT
+    assert result._graph_panel_heights[panels[2]] == DEFAULT_GRAPH_PANEL_HEIGHT
 
 
 def test_dragging_graph_sash_resizes_panel_above_and_keeps_panels_below(
@@ -1308,6 +1309,9 @@ def test_dragging_graph_sash_resizes_panel_above_and_keeps_panels_below(
         def Veto(self) -> None:
             self.vetoed = True
 
+    # Live-update splitters may already report the proposed sash position
+    # while the changing event is dispatched.
+    inner.SetSashPosition(340)
     event = SashEvent(340)
     result._on_graph_sash_changing("middle", inner, event)
 
@@ -1325,7 +1329,7 @@ def test_dragging_graph_sash_resizes_panel_above_and_keeps_panels_below(
     assert result._graph_panel_heights[panels[1]] == 280
     assert root.GetMinSize().height == 310 + 4 + 280 + 4 + 280
 
-    result._on_graph_sash_changing("middle", inner, SashEvent(100))
+    result._on_graph_sash_changing("middle", inner, SashEvent(34))
 
     assert result._graph_panel_heights[panels[0]] == workspace.MIN_GRAPH_PANEL_HEIGHT
 
@@ -1458,12 +1462,16 @@ def test_graph_stacks_use_styled_horizontal_splitters_and_collapse_on_close(
     assert right_root.style & workspace.wx.SP_3DSASH
     assert middle_root.sash_gravity == 0.5
     assert right_root.sash_gravity == 0.5
-    assert middle_root.GetMinSize().height == 3 * 280 + 2 * 4
-    assert right_root.GetMinSize().height == 2 * 280 + 4
+    assert middle_root.GetMinSize().height == (
+        3 * DEFAULT_GRAPH_PANEL_HEIGHT + 2 * 4
+    )
+    assert right_root.GetMinSize().height == 2 * DEFAULT_GRAPH_PANEL_HEIGHT + 4
 
     result.remove_graph_panel(middle_panels[1], "middle")
     assert result._graph_panels["middle"] == [middle_panels[0], middle_panels[2]]
-    assert result._stack_roots["middle"].GetMinSize().height == 2 * 280 + 4
+    assert result._stack_roots["middle"].GetMinSize().height == (
+        2 * DEFAULT_GRAPH_PANEL_HEIGHT + 4
+    )
     assert result._graph_panels["right"] == right_panels
     # A collapsed nested splitter must be parked before GTK lays out its parent.
     assert nested_middle_splitter.GetParent() is result.main_analysis_stack.GetParent()
@@ -1489,7 +1497,9 @@ def test_many_graph_panels_keep_horizontal_sashes_and_minimum_sizes(
     for panel in panels:
         result.add_graph_panel(panel, "middle")
 
-    assert result._stack_roots["middle"].GetMinSize().height == 5 * 280 + 4 * 4
+    assert result._stack_roots["middle"].GetMinSize().height == (
+        5 * DEFAULT_GRAPH_PANEL_HEIGHT + 4 * 4
+    )
     splitters = stack_splitters(result._stack_roots["middle"])
     assert len(splitters) == 4
     assert all(

@@ -18,6 +18,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
 from .. import cursor as playback_cursor
+from ..graph_panel import GRAPH_PANEL_MIN_SIZE
 from ..ground_footprints import (
     DEFAULT_AZIMUTH_COUNT,
     GroundFootprintBoundary,
@@ -249,7 +250,7 @@ class GroundTrackView:
         self._figure = Figure(figsize=(9.0, 5.0), dpi=100)
         self._axes = self._figure.add_subplot(111)
         self._canvas = FigureCanvasWxAgg(panel, wx.ID_ANY, self._figure)
-        self._canvas.SetMinSize(wx.Size(900, 500))
+        self._canvas.SetMinSize(GRAPH_PANEL_MIN_SIZE)
         toolbar = GroundTrackToolbar(self._canvas, self._pan_map)
         toolbar.Realize()
         toolbar.pan()
@@ -415,7 +416,7 @@ class GroundTrackView:
         self._axes.callbacks.connect("xlim_changed", self._on_limits_changed)
         # Keep the map's height when the window narrows; scroll instead of
         # shrinking it. The controls row does not dictate the canvas width.
-        panel.SetMinSize(sizer.CalcMin())
+        panel.SetMinSize(GRAPH_PANEL_MIN_SIZE)
 
         def fit_controls(event: wx.SizeEvent | None = None) -> None:
             if event is not None:
@@ -434,7 +435,6 @@ class GroundTrackView:
                 return
             controls_panel.SetMinSize(wx.Size(1, height))
             controls_panel.FitInside()
-            panel.SetMinSize(sizer.CalcMin())
             panel.Layout()
             if isinstance(self._parent, wx.ScrolledWindow):
                 self._parent.FitInside()
@@ -474,7 +474,7 @@ class GroundTrackView:
         self._projection = _make_projection(
             self.projection_name, self.center_longitude_deg
         )
-        axes.set_aspect("equal", adjustable="box", anchor="C")
+        axes.set_aspect("auto")
         axes.set_xlabel("Longitude (deg)")
         axes.set_ylabel("Geodetic latitude (deg)")
         axes.set_title(f"{self._object_name} · Ground Track")
@@ -921,7 +921,7 @@ class GroundTrackView:
             ),
             origin="lower",
             interpolation="bilinear",
-            aspect="equal",
+            aspect="auto",
             zorder=-1,
         )
 

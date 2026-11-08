@@ -12,6 +12,7 @@ import wx
 
 from .tooltips import set_tooltip, suppress_tooltips
 
+from matplotlib import rcParams
 from matplotlib.axes import Axes
 from matplotlib.backend_bases import DrawEvent
 from matplotlib.backends.backend_wxagg import (
@@ -25,13 +26,52 @@ MATPLOTLIB_REDRAW_INTERVAL_S: float = 0.033
 """Minimum interval between requested Matplotlib redraws per graph panel."""
 WHEEL_SCROLL_UNITS_PER_NOTCH: int = 3
 """Graph-stack scroll units moved per standard mouse-wheel notch."""
-GRAPH_PANEL_MIN_SIZE: tuple[int, int] = (320, 280)
-"""Minimum usable graph-panel width and height in pixels."""
+GRAPH_PANEL_MIN_SIZE: tuple[int, int] = (64, 64)
+"""Minimum graph-panel width and height in pixels."""
 
 
 def _canvas_figure(canvas: object) -> Figure:
     """Return the Matplotlib figure stored by a canvas backend."""
     return cast(Figure, getattr(canvas, "figure"))
+
+
+def _minimize_figure_padding(figure: Figure) -> None:
+    """Reduce whitespace around every embedded figure while retaining labels."""
+    layout_engine = figure.get_layout_engine()
+    if layout_engine is not None:
+        layout_engine.set(
+            w_pad=0.01,
+            h_pad=0.01,
+            wspace=0.01,
+            hspace=0.01,
+        )
+        return
+
+    subplot_params = figure.subplotpars
+    default_params = (
+        rcParams["figure.subplot.left"],
+        rcParams["figure.subplot.right"],
+        rcParams["figure.subplot.bottom"],
+        rcParams["figure.subplot.top"],
+        rcParams["figure.subplot.wspace"],
+        rcParams["figure.subplot.hspace"],
+    )
+    current_params = (
+        subplot_params.left,
+        subplot_params.right,
+        subplot_params.bottom,
+        subplot_params.top,
+        subplot_params.wspace,
+        subplot_params.hspace,
+    )
+    if current_params == default_params:
+        figure.tight_layout(pad=0.1)
+
+
+def _configure_matplotlib_canvas(canvas: FigureCanvasWxAgg) -> None:
+    """Apply shared spacing and minimum-size settings to an embedded plot."""
+    _minimize_figure_padding(_canvas_figure(canvas))
+    canvas.SetMinSize(GRAPH_PANEL_MIN_SIZE)
 
 
 class _RedrawThrottle:
@@ -276,6 +316,7 @@ class GraphPanelHost(wx.Panel):
         """Install a Matplotlib toolbar and canvas in this panel."""
         if self._native_content is not None:
             raise RuntimeError("graph panel already has native content")
+        _configure_matplotlib_canvas(canvas)
         self.content_sizer.Add(toolbar, 0, wx.EXPAND)
         self.content_sizer.Add(canvas, 1, wx.EXPAND)
         toolbar.Bind(wx.EVT_MOUSEWHEEL, self._on_content_mousewheel)
@@ -361,6 +402,13 @@ class GraphPanelHost(wx.Panel):
         """Install native wx plot content in this panel."""
         if self._canvas is not None or self._native_content is not None:
             raise RuntimeError("graph panel already has content")
+        pending = [content]
+        while pending:
+            window = pending.pop()
+            if isinstance(window, FigureCanvasWxAgg):
+                _configure_matplotlib_canvas(window)
+            else:
+                pending.extend(window.GetChildren())
         self.content_sizer.Add(content, 1, wx.EXPAND)
         self._native_content = content
         self.graph_scroller.FitInside()
