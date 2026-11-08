@@ -124,6 +124,25 @@ def test_validate_odm_line_enforces_common_length_and_ascii_rules() -> None:
         odm.validate_odm_line("COMMENT café", "ODM")
 
 
+def test_validate_odm_line_matches_printable_ascii_for_all_ascii_characters() -> None:
+    odm.validate_odm_line("", "ODM")
+    for code in range(128):
+        line = f"a{chr(code)}z"
+        if 32 <= code <= 126:
+            odm.validate_odm_line(line, "ODM")
+        else:
+            with pytest.raises(ValueError, match="ODM line 7 is not ASCII printable"):
+                odm.validate_odm_line(line, "ODM", line_number=7)
+        odm.validate_odm_line(line, "ODM", printable_ascii=False)
+    for line in ("café", "\u00a0", "\u200b", "\U0001f600"):
+        with pytest.raises(ValueError, match="printable ASCII"):
+            odm.validate_odm_line(line, "ODM")
+        odm.validate_odm_line(line, "ODM", printable_ascii=False)
+    odm.validate_odm_line("x" * 254, "ODM")
+    with pytest.raises(ValueError, match="line 9 exceeds 254"):
+        odm.validate_odm_line("\x00" * 255, "ODM", line_number=9)
+
+
 def test_validate_odm_units_and_numeric_forms() -> None:
     units = {"X": "km"}
     assert odm.validate_odm_unit("X", "1 [km]", units, "OPM") == "1"

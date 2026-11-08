@@ -6,12 +6,6 @@ This document describes how OEM data flows through `play-oem` into its graphs, i
 incremental loading, range-limited analysis, cache retention, and in-place panel refresh.
 The dataflow diagram is [PLAY_OEM_DATAFLOW.mmd](./PLAY_OEM_DATAFLOW.mmd).
 
-On `tests/data/JPSS-1.oem` (21,601 samples across 15 days), the latest three-run medians
-were 1.318 s for parsing, 0.284 s for `compute_orbit_series`, and 1.642 s for full playback
-preparation. Ground Track and station-access analyses are limited to the active plot range
-plus their support margins. During incremental loading, compatible views update existing
-artists instead of rebuilding their panels.
-
 The default playback range is the first two days of the OEM, and the default plot range
 follows playback. Saved settings override those defaults.
 
@@ -29,15 +23,27 @@ follows playback. Saved settings override those defaults.
    are deferred during loading and their analyses are warmed off-thread at completion.
 
 3. **Prepare visible graph data.**
-   - **2D histories** receive the current (possibly downsampled) `OrbitSeries`. Their
-     `SegmentedPlotHistory` instances select samples inside the plot bounds and decimate each
-     displayed segment.
-   - **3D trajectory** views select plot-range samples and decimate the displayed path in the
+   - **2D histories** (State Components, Speed / Altitude, RTN Deltas, Angular Velocity,
+     Direction Change, and Geocentric Distance) receive the current (possibly downsampled)
+     `OrbitSeries`. Their `SegmentedPlotHistory` instances select samples inside the plot bounds
+     and decimate each displayed segment.
+   - **3D Orbit** views select plot-range samples and decimate the displayed path in the
      Matplotlib or VTK backend.
-   - **Ground Track** converts only source samples in the plot range plus a margin to
-     Earth-fixed and WGS-84 coordinates.
-   - **Ground Station Access and Passes** evaluate a 30-second grid over the plot range plus
-     an analysis margin. Per-window Earth-fixed positions are shared across stations.
+   - **Ground Track** and **Pass Ground Track** use `prepare_ground_track` to convert bounded
+     source samples to WGS-84 coordinates. Pass Ground Track limits the same preparation to the
+     selected pass interval.
+   - **Station Status, Pass Strip, Elevation / Azimuth / Range Profiles, Pass List, and Sky View**
+     consume per-station access results. The profile views use the same sampled look-angle
+     profiles (time, azimuth, elevation, and range); pass views use the access intervals derived
+     from those samples.
+
+Ground Track preparation and station analysis share the same `EarthFixedPositionCache` for
+sample ITRF positions. Their downstream calculations are distinct: Ground Track converts those
+positions to WGS-84 latitude/longitude, while station analysis transforms spacecraft-minus-station
+ECEF vectors into local ENU and derives azimuth, elevation, and range. Current station status
+uses the playback cursor state and station-metric calculation; it is not simply a lookup in a
+precomputed profile. Footprints are Ground Track-specific results computed from the current
+Earth-fixed position and elevation mask.
 
 4. **Refresh existing panels.** Time-series views update their history arrays and retain line
    artists when their segment structure remains compatible. Both 3D backends update their
@@ -47,58 +53,27 @@ follows playback. Saved settings override those defaults.
 
 5. **Retain caches across appends.** Ground Track Earth-fixed positions are retained when the
    new sample source is an unchanged prefix extension, with geometrically grown backing
-   storage. Station-access results are retained only for analysis windows conservatively
-   separated from the old coverage edge by an interpolation-support margin. Tail windows are
-   recomputed; a changed source prefix or interpolation policy invalidates cached results.
-   Ground Track plot coordinates are invalidated when an appended batch intersects the active
-   plot range.
+   storage; the same position cache is used by station analysis and Pass Ground Track.
+   Station-access results are retained only for analysis windows conservatively separated from
+   the old coverage edge by an interpolation-support margin. Tail windows are recomputed; a
+   changed source prefix or interpolation policy invalidates cached results. Ground Track plot
+   coordinates are invalidated when an appended batch intersects the active plot range.
 
 6. **Playback.** Each frame advances the clock and resolves the cursor state. Ground-station
    views derive the current station metrics from that state. This per-frame cursor and station
    calculation is distinct from the static range analyses above.
 
-## Latest measurements
-
-Three-run medians on Python 3.9.6 / macOS 26.7.1 arm64, unprofiled, using
-`tests/data/JPSS-1.oem`:
-
-| Stage | Baseline | Latest | Notes |
-|---|---:|---:|---|
-| OEM parsing | 1.715 s | 1.318 s | Fixed-format timestamp fast path |
-| `compute_orbit_series` | 1.438 s | 0.284 s | Batched RTN direction calculations |
-| Full playback preparation | 3.219 s | 1.642 s | 49% faster overall |
-| One-day Ground Track conversion | 0.451 s | 0.453 s | Approximately unchanged |
-| One-day Access, 1 station | 2.780 s | 2.759 s | Approximately unchanged |
-| One-day Access, 3 stations | 6.938 s | 5.393 s | Shared position conversions |
-| One-day Access, 10 stations | 21.440 s | 14.613 s | Station-specific metric work remains |
-
-In the final visible wx probe, panel refreshes retained all 50 observed view and figure
-identities across 25 refreshes; synchronous refreshes peaked at 12 ms. During loading, timer
-gaps had a 33.6 ms median and a 757.5 ms maximum, with three gaps over 100 ms. Post-load timer
-gaps peaked at 22.2 ms, with none over 100 ms. The probe does not isolate the cause of the
-remaining loading-time delays.
-
-See [PLAY_OEM_DATA_PATH_PERFORMANCE_REPORT.md](./old/PLAY_OEM_DATA_PATH_PERFORMANCE_REPORT.md)
-for implementation and validation details, and
-[PLAY_OEM_PERFORMANCE_REPORT.md](./PLAY_OEM_PERFORMANCE_REPORT.md) for playback render-rate
-measurements.
-
 ## Remaining efficiency considerations
 
 - Access analysis still scales with station count because topocentric metrics are station
   specific, even though Earth-fixed position conversions are shared.
-- Rare timer delays remain during loading. Their cause has not been isolated; further
-  scheduling changes should follow measurements of loader-thread CPU/GIL activity and
-  per-tick batch installation.
 - Ground Track and access results intentionally include support margins, so their analyzed
   data window can extend beyond the visible plot boundaries.
 
 ## Related documents
 
-- [PLAY_OEM_DATA_PATH_PERFORMANCE_REPORT.md](./old/PLAY_OEM_DATA_PATH_PERFORMANCE_REPORT.md):
-  completed data-path optimization report
-- [PLAY_OEM_PERFORMANCE_REPORT.md](./PLAY_OEM_PERFORMANCE_REPORT.md): playback render-rate
-  measurements
 - [PLAY_OEM_INCREMENTAL_LOADING.md](./PLAY_OEM_INCREMENTAL_LOADING.md): incremental loading
   design
+- [PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md](./PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md): target
+  unified-store architecture and performance evidence
 - [PLAY_OEM_SOFTWARE_DESIGN.md](./PLAY_OEM_SOFTWARE_DESIGN.md): overall software design

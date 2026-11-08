@@ -33,7 +33,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from time import monotonic
-from typing import Any, TextIO
+from typing import Any, Protocol, TextIO
 
 import numpy as np
 
@@ -181,6 +181,18 @@ class OemStateBatch:
     segment_ids: tuple[int, ...]
     header: tuple[tuple[str, Any], ...]
     meta: tuple[tuple[str, Any], ...]
+
+
+class OemStateRowSink(Protocol):
+    """Provide final writable state rows for non-retaining OEM parsing."""
+
+    def reserve_row(self, timestamp: float, segment_id: int) -> np.ndarray:
+        """Return the seven-column destination row."""
+        ...
+
+    def finish_row(self) -> None:
+        """Accept a fully parsed destination row."""
+        ...
 
 
 @dataclass
@@ -756,6 +768,7 @@ class CcsdsOem:
         state_batch_size: int | None = None,
         state_batch_interval_s: float | None = None,
         on_state_batch: Callable[[OemStateBatch], None] | None = None,
+        state_row_sink: OemStateRowSink | None = None,
         retain_states: bool = True,
         retain_comments: bool = True,
         retain_covariances: bool = True,
@@ -786,6 +799,7 @@ class CcsdsOem:
                     state_batch_size=state_batch_size,
                     state_batch_interval_s=state_batch_interval_s,
                     on_state_batch=on_state_batch,
+                    state_row_sink=state_row_sink,
                     retain_states=retain_states,
                     retain_comments=retain_comments,
                     retain_covariances=retain_covariances,
@@ -824,6 +838,8 @@ class CcsdsOem:
             raise ValueError("state_batch_interval_s requires on_state_batch")
         if on_state_batch is not None and retain_states:
             raise ValueError("streaming batches require retain_states=False")
+        if state_row_sink is not None and (retain_states or on_state_batch is not None):
+            raise ValueError("state row streaming requires exclusive non-retaining mode")
 
         def flush_state_batch() -> None:
             nonlocal last_state_batch_time
@@ -853,15 +869,16 @@ class CcsdsOem:
                 raise ValueError(
                     "OEM covariance matrix must contain six lower-triangular rows"
                 )
-            matrix = np.zeros((COVARIANCE_DIMENSION, COVARIANCE_DIMENSION))
             for row_index, row_values in enumerate(covariance_rows):
                 if len(row_values) != row_index + 1:
                     raise ValueError(
                         "OEM covariance rows must contain 1 through 6 values"
                     )
-                matrix[row_index, : row_index + 1] = row_values
-                matrix[: row_index + 1, row_index] = row_values
             if retain_covariances:
+                matrix = np.zeros((COVARIANCE_DIMENSION, COVARIANCE_DIMENSION))
+                for row_index, row_values in enumerate(covariance_rows):
+                    matrix[row_index, : row_index + 1] = row_values
+                    matrix[: row_index + 1, row_index] = row_values
                 covariances.append(
                     OemCovariance(
                         epoch=covariance_epoch,
@@ -918,7 +935,7 @@ class CcsdsOem:
                     continue
                 if comment_line == odm.CCSDS_COMMENT_KEYWORD:
                     raise ValueError("OEM comments must begin with 'COMMENT '")
-                key_value = odm.parse_kvn_assignment(line)
+                key_value = odm.parse_kvn_assignment(line) if "=" in line else None
                 if key_value is not None:
                     key, value = key_value
                     if key == "EPOCH":
@@ -987,7 +1004,9 @@ class CcsdsOem:
                         header.setdefault("COMMENT", []).append(comment_text)
                 continue
 
-            key_value: tuple[str, str] | None = odm.parse_kvn_assignment(line)
+            key_value: tuple[str, str] | None = (
+                odm.parse_kvn_assignment(line) if "=" in line else None
+            )
             if key_value is not None and (in_meta or not CcsdsOem._is_state_line(line)):
                 key, value = key_value
                 if not key.isupper() or " " in key:
@@ -1041,14 +1060,21 @@ class CcsdsOem:
                     )
                 epoch: datetime = time_utils.iso8601_to_datetime(state_fields[0])
                 timestamp: float = time_utils.datetime_to_tt_s(epoch)
-                state_km: np.ndarray = np.array(
-                    [float(value) for value in state_fields[1:7]]
-                )
-                state_m = state_km * KILOMETERS_TO_METERS
-                if on_state_batch is not None:
-                    state_m.setflags(write=False)
-                states.append((timestamp, state_m))
-                segment_ids.append(segment_id)
+                if state_row_sink is not None:
+                    row = state_row_sink.reserve_row(timestamp, segment_id)
+                    row[0] = timestamp
+                    for column in range(1, 7):
+                        row[column] = float(state_fields[column]) * KILOMETERS_TO_METERS
+                    state_row_sink.finish_row()
+                else:
+                    state_km: np.ndarray = np.array(
+                        [float(value) for value in state_fields[1:7]]
+                    )
+                    state_m = state_km * KILOMETERS_TO_METERS
+                    if on_state_batch is not None:
+                        state_m.setflags(write=False)
+                    states.append((timestamp, state_m))
+                    segment_ids.append(segment_id)
                 seen_state = True
                 if state_batch_size is not None and (
                     len(states) >= state_batch_size

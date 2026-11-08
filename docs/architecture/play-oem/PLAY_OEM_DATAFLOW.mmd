@@ -1,11 +1,11 @@
 flowchart TD
-    FILE[("OEM file<br/>JPSS-1: 21,601 samples")]
+    FILE[("OEM file")]
 
     subgraph WORKER["Loader / preparation thread"]
         direction TB
-        PARSE["read_oem_batches<br/>parse OEM epochs<br/>median 1.318 s"]
+        PARSE["read_oem_batches<br/>parse OEM epochs"]
         PREP["IncrementalPlaybackPreparer<br/>AppendablePlaybackData"]
-        SERIES["OrbitSeriesAccumulator<br/>compute_orbit_series on new rows<br/>full-series median 0.284 s"]
+        SERIES["OrbitSeriesAccumulator<br/>compute_orbit_series on new rows"]
         CURSOR["OemCursor<br/>timestamps, states, segments<br/>interpolation support"]
         SOURCE["GroundTrackSource<br/>growing OEM sample prefix"]
         PARSE --> PREP
@@ -29,24 +29,30 @@ flowchart TD
 
     subgraph VIEWS["Range-limited graph preparation"]
         direction TB
-        SERIESV["2D histories<br/>plot-range selection + decimation<br/>incremental series preview capped"]
-        TRAJ["3D trajectory<br/>range selection + decimation<br/>Matplotlib or VTK"]
-        TRACK["Ground Track<br/>range + margin<br/>ITRF and WGS-84 conversion"]
-        ACCESS["Access and Passes<br/>30 s grid over range + margin<br/>station-specific metrics"]
+        SERIESV["State Components, Speed / Altitude,<br/>RTN Deltas, Angular Velocity,<br/>Direction Change, Geocentric Distance"]
+        TRAJ["3D Orbit<br/>range selection + decimation<br/>Matplotlib or VTK"]
+        TRACK["Ground Track<br/>range + margin"]
+        ACCESS["Station Status, Pass Strip,<br/>Elevation / Azimuth / Range Profiles,<br/>Pass List, Sky View"]
+        PASS_TRACK["Pass Ground Track<br/>selected pass interval"]
     end
 
-    subgraph CACHES["Append-aware caches"]
+    subgraph SHARED["Shared range intermediates and caches"]
         direction TB
-        POSCACHE[("EarthFixedPositionCache<br/>retain computed prefix positions<br/>geometric capacity growth")]
-        ACCESSCACHE[("StationAccessCache<br/>share positions across stations<br/>retain safe early windows<br/>recompute tail windows")]
+        POSCACHE[("EarthFixedPositionCache<br/>shared ITRF sample positions")]
+        GEODETIC["GroundTrackCoordinates<br/>WGS-84 latitude / longitude"]
+        ACCESSCACHE[("StationAccessCache<br/>per-station results by analysis window")]
+        PROFILES["Look-angle profiles<br/>time, azimuth, elevation, range"]
+        INTERVALS["Access intervals<br/>pass bounds and summary metrics"]
+        FOOTPRINTS["Footprints<br/>current ECEF position + elevation mask"]
     end
 
     subgraph FRAME["Per playback frame"]
         direction TB
         TICK["clock.tick"]
         LOOK["cursor.lookup"]
-        CURRENT["Current position / station metrics"]
-        TICK --> LOOK --> CURRENT
+        CURRENT["Current state"]
+        CURRENT_ECEF["Current ITRF / ECEF position"]
+        TICK --> LOOK --> CURRENT --> CURRENT_ECEF
     end
 
     RANGE{{"Active plot range<br/>default follows first two playback days<br/>saved settings override"}}
@@ -57,21 +63,40 @@ flowchart TD
     INPLACE --> TRAJ
     INPLACE --> TRACK
     DEFER --> ACCESS
+    INPLACE --> PASS_TRACK
     FALLBACK --> SERIESV
     FALLBACK --> TRAJ
     FALLBACK --> TRACK
     FALLBACK --> ACCESS
+    FALLBACK --> PASS_TRACK
     RANGE --> SERIESV
     RANGE --> TRAJ
     RANGE --> TRACK
     RANGE --> ACCESS
-    TRACK <--> POSCACHE
-    ACCESS <--> ACCESSCACHE
-    POSCACHE <--> ACCESSCACHE
+    RANGE --> PASS_TRACK
+    SOURCE --> POSCACHE
+    TRACK -->|"requests ITRF samples"| POSCACHE
+    PASS_TRACK -->|"requests pass-bounded ITRF samples"| POSCACHE
+    POSCACHE --> GEODETIC
+    GEODETIC --> TRACK
+    GEODETIC --> PASS_TRACK
+    ACCESS -->|"requests station analysis"| ACCESSCACHE
+    CURSOR --> ACCESSCACHE
+    POSCACHE -->|"reuses sample positions"| ACCESSCACHE
+    ACCESSCACHE --> PROFILES
+    ACCESSCACHE --> INTERVALS
+    PROFILES --> ACCESS
+    INTERVALS --> ACCESS
+    INTERVALS -->|"selected interval"| PASS_TRACK
+    CURRENT_ECEF --> TRACK
+    CURRENT_ECEF --> FOOTPRINTS
+    FOOTPRINTS --> TRACK
     LOOK --> TRAJ
-    CURRENT --> ACCESS
+    CURRENT_ECEF -->|"station_metrics_from_ecef"| ACCESS
+    SERIES --> SERIESV
+    SERIES --> TRAJ
 
     classDef hot fill:#fdd,stroke:#c33,stroke-width:2px
     classDef retained fill:#dfd,stroke:#393
     class PARSE,ACCESS hot
-    class INPLACE,POSCACHE,ACCESSCACHE retained
+    class INPLACE,POSCACHE,ACCESSCACHE,PROFILES,INTERVALS retained

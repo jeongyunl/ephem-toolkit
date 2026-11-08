@@ -24,6 +24,7 @@ from ephem_toolkit.play_oem.clock import PlaybackClock
 from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.ground_track import GroundTrackSource
 from ephem_toolkit.play_oem.ground_stations import GroundStation
+from ephem_toolkit.play_oem.incremental_loader import LoadEvent, LoadEventKind
 from ephem_toolkit.play_oem import time_range
 from ephem_toolkit.play_oem.play_oem_cli import build_arg_parser, parse_arguments
 from ephem_toolkit.play_oem.series import compute_orbit_series
@@ -1917,6 +1918,21 @@ def test_failed_incremental_replacement_leaves_current_oem_installed(
     assert player.object_name == "TEST"
     assert "Could not open OEM" in player.status_bar.message
     player.close()
+
+
+def test_controller_ignores_stale_incremental_events() -> None:
+    events = [
+        LoadEvent(1, LoadEventKind.BATCH, 100),
+        LoadEvent(1, LoadEventKind.COMPLETE, 100),
+        LoadEvent(1, LoadEventKind.FAILED, 100),
+    ]
+    controller = SimpleNamespace(
+        _incremental_loader=SimpleNamespace(drain=lambda: events),
+        _active_load_generation=2,
+        _incremental_view_refresh_pending=False,
+    )
+    app.PlayerApp._poll_incremental_load(controller)
+    assert not controller._incremental_view_refresh_pending
 
 
 def test_incremental_batches_extend_clock_and_complete_full_history(
