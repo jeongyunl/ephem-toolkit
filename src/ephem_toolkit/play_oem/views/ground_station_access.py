@@ -15,16 +15,17 @@ from ..display_time import UTC_DISPLAY, format_tt
 
 from .. import cursor as playback_cursor
 from ..ground_stations import GroundStation
-from ..ground_track import GroundTrackSource, GroundTrackPreparationError
+from ..oem_data_store import StationAccessView, StoreQuery
 from ..series import OrbitSeries
-from ..station_access import (
-    StationAccess,
-    StationAccessCache,
-    current_station_metrics,
-)
+from ..station_access import StationAccess
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
+from .base import (
+    StoreViewBinding,
+    StoreViewContext,
+    station_access_from_store,
+)
 from .plotting import (
     MAX_DISPLAY_POINTS_PER_SEGMENT,
     decimate_indices,
@@ -41,7 +42,6 @@ class GroundStationAccessView:
     def __init__(
         self,
         parent: wx.Window,
-        source: GroundTrackSource | None,
         cursor: playback_cursor.OemCursor,
         stations: Sequence[GroundStation],
         time_unit: TimeUnit,
@@ -50,14 +50,12 @@ class GroundStationAccessView:
         oem_loaded: bool,
         on_seek: Callable[[float], None],
         on_station_manager: Callable[[], None],
-        access_cache: StationAccessCache | None,
         selection_context: StationAnalysisContext | None = None,
         limit_to_range: bool = False,
         initial_range: ResolvedTimeRange | None = None,
         display_time_zone: str = UTC_DISPLAY,
     ) -> None:
         self._parent = parent
-        self._source = source
         self._cursor = cursor
         self._stations = tuple(stations)
         self._time_unit = time_unit
@@ -65,11 +63,6 @@ class GroundStationAccessView:
         self._oem_loaded = oem_loaded
         self._on_seek = on_seek
         self._on_station_manager = on_station_manager
-        self._access_cache = (
-            access_cache
-            if access_cache is not None
-            else (StationAccessCache() if source is not None else None)
-        )
         self._selection_context = selection_context
         self._limit_to_range = limit_to_range
         self._prepare_range = initial_range
@@ -95,6 +88,9 @@ class GroundStationAccessView:
         self._pass_label: wx.StaticText | None = None
         self._status_label: wx.StaticText | None = None
         self._access_results: tuple[StationAccess, ...] = ()
+        self._store_context: StoreViewContext | None = None
+        self._store_binding = StoreViewBinding(("station-access",))
+        self._store_queries: dict[str, StoreQuery[StationAccessView]] = {}
         self._preparation_error: str | None = None
         self._time_range_bounds: ResolvedTimeRange | None = None
         self._time_range_coverage = (cursor.t_start, cursor.t_end)
@@ -108,6 +104,9 @@ class GroundStationAccessView:
                 selection_context.select_station(self._selected_station_id)
 
     def build(self, _series: OrbitSeries, _time_unit: TimeUnit, /) -> wx.Window:
+        return self._build_panel()
+
+    def _build_panel(self) -> wx.Window:
         panel = wx.Panel(self._parent, wx.ID_ANY)
         self._panel = panel
         sizer = wx.BoxSizer(wx.VERTICAL)
@@ -157,6 +156,27 @@ class GroundStationAccessView:
         self.update(self._current_time_s)
         return panel
 
+    def build_from_store(self, context: StoreViewContext, /) -> wx.Window:
+        self._store_binding.bind(context)
+        self._store_context = context
+        self._time_range_bounds = context.plot_range
+        self._time_range_applied = True
+        self._prepare_range = context.plot_range
+        self._prepare_access()
+        return self._build_panel()
+
+    def update_from_store(self, context: StoreViewContext, /) -> None:
+        if self._store_context is None:
+            raise RuntimeError("Ground Station Access view was not built from a store")
+        self._store_binding.bind(context)
+        self._store_context = context
+        self._time_range_bounds = context.plot_range
+        self._time_range_applied = True
+        self._prepare_range = context.plot_range
+        self._prepare_access()
+        self._draw_elevation_plot()
+        self.update(self._current_time_s)
+
     def update(self, t_s: float, /) -> None:
         self._current_time_s = t_s
         if self._axes is not None and self._canvas is not None:
@@ -197,18 +217,11 @@ class GroundStationAccessView:
         else:
             self._set_labels("", "", "")
         try:
-            if self._source is None:
+            if self._store_context is None:
                 metrics = None
             else:
-                assert self._access_cache is not None
-                metrics = current_station_metrics(
-                    station,
-                    self._cursor,
-                    t_s,
-                    self._source,
-                    self._access_cache.position_cache,
-                )
-        except GroundTrackPreparationError as error:
+                metrics = self._store_context.station_metrics_at(station, t_s)
+        except ValueError as error:
             self._set_labels(str(error), "Current metrics unavailable.", "")
             return
         if metrics is None:
@@ -255,27 +268,6 @@ class GroundStationAccessView:
         if self._selection_context is not None:
             self._selection_context.select_station(self._selected_station_id)
 
-    def set_oem(
-        self,
-        source: GroundTrackSource | None,
-        cursor: playback_cursor.OemCursor,
-        object_name: str,
-        *,
-        oem_loaded: bool,
-    ) -> None:
-        """Refresh prepared passes when the application loads another OEM."""
-        self._source = source
-        self._cursor = cursor
-        self._object_name = object_name
-        self._oem_loaded = oem_loaded
-        self._current_time_s = cursor.t_start
-        self._time_range_bounds = None
-        self._time_range_coverage = (cursor.t_start, cursor.t_end)
-        self._time_range_applied = False
-        self._prepare_access()
-        self._draw_elevation_plot()
-        self.update(self._current_time_s)
-
     def set_time_range(
         self, bounds: ResolvedTimeRange | None, coverage: tuple[float, float], /
     ) -> None:
@@ -283,6 +275,8 @@ class GroundStationAccessView:
         self._time_range_bounds = bounds
         self._time_range_coverage = coverage
         self._time_range_applied = True
+        if self._store_context is not None:
+            self._store_context = self._store_binding.with_range(bounds, coverage)
         prepared_again = self._reprepare_for_range(bounds)
         if prepared_again or was_empty != (bounds is None):
             self._draw_elevation_plot()
@@ -295,6 +289,9 @@ class GroundStationAccessView:
     def close(self) -> None:
         self._context_unsubscribe()
         self._context_unsubscribe = lambda: None
+        self._store_binding.close()
+        self._store_context = None
+        self._store_queries.clear()
         self._canvas = None
         self._figure = None
         self._axes = None
@@ -327,35 +324,26 @@ class GroundStationAccessView:
         )
 
     def _prepare_access(self) -> None:
-        if not self._oem_loaded or self._source is None:
+        self._store_queries.clear()
+        if self._store_context is None:
             self._access_results = ()
             self._preparation_error = None
             return
-        results = []
-        bounds = None
-        if self._limit_to_range:
-            if self._prepare_range is None:
-                self._access_results = tuple(
-                    StationAccess(station, ()) for station in self._stations
-                )
-                return
-            bounds = (self._prepare_range.start_s, self._prepare_range.end_s)
+        if not self._oem_loaded:
+            self._access_results = ()
+            self._preparation_error = None
+            return
         self._preparation_error = None
-        if self._source is None:
+        if self._limit_to_range and self._prepare_range is None:
             self._access_results = tuple(
                 StationAccess(station, ()) for station in self._stations
             )
             return
-        assert self._access_cache is not None
+        results = []
         for station in self._stations:
-            try:
-                results.append(
-                    self._access_cache.prepare(
-                        self._source, self._cursor, station, bounds
-                    )
-                )
-            except GroundTrackPreparationError as error:
-                results.append(StationAccess(station, (), str(error)))
+            query = self._store_context.station_access(station)
+            self._store_queries[station.station_id] = query
+            results.append(station_access_from_store(query.value))
         self._access_results = tuple(results)
 
     def _draw_elevation_plot(self) -> None:

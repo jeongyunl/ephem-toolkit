@@ -2380,10 +2380,7 @@ class OemDataStore:
                 _intervals_for_segment(
                     selected_station,
                     cursor,
-                    None,
                     frame_name,
-                    None,
-                    None,
                     (event[0] for event in timed_events),
                     (event[1] for event in metric_events),
                     starts_at_coverage=first == 0,
@@ -3208,10 +3205,7 @@ def _station_profile_events(
             peak_time, peak_metrics = _refine_peak(
                 station,
                 cursor,
-                None,
                 frame_name,
-                None,
-                None,
                 previous[0],
                 following[0],
             )

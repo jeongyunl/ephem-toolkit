@@ -8,7 +8,6 @@ from ephem_toolkit.core import time_utils
 import numpy as np
 
 from . import clock as playback_clock, cursor, series, time_unit
-from .ground_track import GroundTrackSource
 
 
 @dataclass
@@ -24,7 +23,6 @@ class PlaybackData:
     dashboard_context: dict[str, str]
     metadata_details: tuple[tuple[str, str], ...]
     source_sample_count: int
-    ground_track_source: GroundTrackSource | None = None
     oem_interpolation: str | None = None
     oem_interpolation_degree: int | None = None
     slider_bounds: tuple[float, float] | None = None

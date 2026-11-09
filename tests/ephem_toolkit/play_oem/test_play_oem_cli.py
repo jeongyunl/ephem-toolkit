@@ -144,7 +144,8 @@ def test_cli_without_input_starts_with_file_loading_available(
     main([])
 
     assert launched["oem_loaded"] is False
-    assert launched["on_open_file"] is None
+    assert launched["initial_file_path"] is None
+    assert "on_open_file" not in launched
     assert launched["run"] is True
 
 

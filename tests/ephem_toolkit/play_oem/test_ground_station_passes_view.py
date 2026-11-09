@@ -15,13 +15,11 @@ from matplotlib.figure import Figure
 import pytest
 
 from ephem_toolkit.play_oem.ground_stations import GroundStation
-from ephem_toolkit.play_oem import station_access
 from ephem_toolkit.play_oem import graph_panel
 from ephem_toolkit.play_oem.oem_data_store import OemDataStore
 from ephem_toolkit.play_oem.station_access import (
     AccessInterval,
     LookAngleProfile,
-    StationAccessCache,
     StationAccess,
 )
 from ephem_toolkit.play_oem.station_analysis import StationAnalysisContext
@@ -52,16 +50,6 @@ def wx_app() -> Iterator[Any]:
     gc.collect()
 
 
-class _AccessCache:
-    def __init__(self, result: StationAccess) -> None:
-        self.result = result
-        self.prepare_calls = 0
-
-    def prepare(self, *_args: Any) -> StationAccess:
-        self.prepare_calls += 1
-        return self.result
-
-
 def _interval(
     start_s: float,
     end_s: float,
@@ -89,6 +77,14 @@ def _interval(
     )
 
 
+def _set_complete_store_status(view: GroundStationPassesView) -> None:
+    view._store_context = cast(
+        Any,
+        SimpleNamespace(snapshot=SimpleNamespace(status="complete", failure=None)),
+    )
+    view._refresh_rows()
+
+
 def _make_view(
     intervals: tuple[AccessInterval, ...],
     *,
@@ -97,13 +93,11 @@ def _make_view(
     limitation: str | None = None,
     oem_loaded: bool = True,
     selection_context: StationAnalysisContext | None = None,
-) -> tuple[GroundStationPassesView, _AccessCache]:
+) -> tuple[GroundStationPassesView, None]:
     station = station or GroundStation("site", "Site", 0.0, 0.0, 0.0, 10)
     result = StationAccess(station, intervals, limitation, look_angle_profiles=profiles)
-    cache = _AccessCache(result)
     view = GroundStationPassesView(
         cast(Any, None),
-        cast(Any, object()),
         cast(Any, SimpleNamespace(t_start=0.0, t_end=100.0)),
         [station],
         "Test object",
@@ -111,10 +105,10 @@ def _make_view(
         on_seek=lambda _time: None,
         on_focus_pass=lambda _start, _end: None,
         on_station_manager=lambda: None,
-        access_cache=cast(Any, cache),
         selection_context=selection_context,
     )
-    return view, cache
+    view._access_results = (result,)
+    return view, None
 
 
 def test_plot_range_filters_by_overlap_and_keeps_full_pass_details() -> None:
@@ -133,7 +127,6 @@ def test_plot_range_filters_by_overlap_and_keeps_full_pass_details() -> None:
         f"Plot Range: {_utc_label(19.0)} UTC – {_utc_label(41.0)} UTC"
     )
     assert view._access_results[0] is prepared
-    assert cache.prepare_calls == 1
 
 
 def test_range_changes_preserve_or_fallback_selection_without_repreparing() -> None:
@@ -148,7 +141,6 @@ def test_range_changes_preserve_or_fallback_selection_without_repreparing() -> N
     view._current_time_s = 15.0
     view.set_time_range(ResolvedTimeRange(40.0, 50.0), (0.0, 100.0))
     assert view._selected_interval_key == (40.0, 50.0)
-    assert cache.prepare_calls == 1
 
 
 def test_store_sky_path_bounds_profile_samples() -> None:
@@ -196,7 +188,6 @@ def test_store_pass_view_uses_leased_station_access() -> None:
     store.station_access(context.snapshot, station, (0.0, 120.0), wait=True)
     view = GroundStationPassesView(
         cast(Any, None),
-        None,
         cast(Any, SimpleNamespace(t_start=0.0, t_end=120.0)),
         [station],
         "Test object",
@@ -204,7 +195,6 @@ def test_store_pass_view_uses_leased_station_access() -> None:
         on_seek=lambda _time: None,
         on_focus_pass=lambda _start, _end: None,
         on_station_manager=lambda: None,
-        access_cache=cast(Any, _AccessCache(StationAccess(station, ()))),
         limit_to_range=True,
         initial_range=bounds,
     )
@@ -250,7 +240,6 @@ def test_store_pass_view_reports_terminal_load_state(
     station = GroundStation("site", "Site", 0.0, 0.0, 0.0)
     view = GroundStationPassesView(
         cast(Any, None),
-        None,
         cast(Any, SimpleNamespace(t_start=0.0, t_end=100.0)),
         [station],
         "Test object",
@@ -258,7 +247,6 @@ def test_store_pass_view_reports_terminal_load_state(
         on_seek=lambda _time: None,
         on_focus_pass=lambda _start, _end: None,
         on_station_manager=lambda: None,
-        access_cache=cast(Any, _AccessCache(StationAccess(station, ()))),
         limit_to_range=True,
         initial_range=context.plot_range,
     )
@@ -321,10 +309,8 @@ def test_focused_pass_list_and_sky_views_share_interval_selection() -> None:
     interval = _interval(10.0, 20.0)
     context = StationAnalysisContext()
     context.select_station(station.station_id)
-    cache = _AccessCache(StationAccess(station, (interval,)))
     options = dict(
         parent=cast(Any, None),
-        source=cast(Any, object()),
         cursor=cast(Any, SimpleNamespace(t_start=0.0, t_end=100.0)),
         stations=[station],
         object_name="Test object",
@@ -332,11 +318,13 @@ def test_focused_pass_list_and_sky_views_share_interval_selection() -> None:
         on_seek=lambda _time: None,
         on_focus_pass=lambda _start, _end: None,
         on_station_manager=lambda: None,
-        access_cache=cast(Any, cache),
         selection_context=context,
     )
     pass_list = GroundStationPassListView(**options)
     sky_view = GroundStationSkyView(**options)
+    for view in (pass_list, sky_view):
+        view._access_results = (StationAccess(station, (interval,)),)
+        view._refresh_rows()
 
     context.select_interval((10.0, 20.0))
 
@@ -355,14 +343,14 @@ def test_station_updates_retain_pass_selection_for_a_station_that_remains() -> N
     view.set_stations([station])
 
     assert view.selected_station_id == station.station_id
-    assert view._selected_interval_key == (20.0, 30.0)
-    assert cache.prepare_calls == 2
+    assert view._selected_interval_key is None
 
 
 def test_no_overlap_no_access_and_unsupported_states_are_distinct() -> None:
     view, _cache = _make_view((_interval(10.0, 20.0),))
     view.set_time_range(ResolvedTimeRange(70.0, 80.0), (0.0, 100.0))
     assert not view._visible_intervals
+    _set_complete_store_status(view)
     assert view._status_text == (
         "No access intervals overlap the current Plot Range. "
         "Widen the shared Plot Range to see more passes."
@@ -370,16 +358,19 @@ def test_no_overlap_no_access_and_unsupported_states_are_distinct() -> None:
 
     no_access, _cache = _make_view(())
     no_access.set_time_range(ResolvedTimeRange(70.0, 80.0), (0.0, 100.0))
+    _set_complete_store_status(no_access)
     assert "No access intervals in OEM coverage" in no_access._status_text
 
     unsupported, _cache = _make_view(
         (), limitation="Unsupported Earth-centered frame."
     )
     unsupported.set_time_range(ResolvedTimeRange(70.0, 80.0), (0.0, 100.0))
+    _set_complete_store_status(unsupported)
     assert unsupported._status_text == "Unsupported Earth-centered frame."
 
     no_effective_range, _cache = _make_view((_interval(10.0, 20.0),))
     no_effective_range.set_time_range(None, (0.0, 100.0))
+    _set_complete_store_status(no_effective_range)
     assert no_effective_range._range_label_text == (
         "Plot Range: no effective range overlaps OEM coverage"
     )
@@ -549,10 +540,8 @@ def test_pass_actions_focus_range_or_seek_only_when_invoked() -> None:
     sought: list[float] = []
     station = GroundStation("site", "Site", 0.0, 0.0, 0.0)
     result = StationAccess(station, (interval,))
-    cache = _AccessCache(result)
     view = GroundStationPassesView(
         cast(Any, None),
-        cast(Any, object()),
         cast(Any, SimpleNamespace(t_start=0.0, t_end=100.0)),
         [station],
         "Test object",
@@ -560,8 +549,8 @@ def test_pass_actions_focus_range_or_seek_only_when_invoked() -> None:
         on_seek=sought.append,
         on_focus_pass=lambda start, end: focused.append((start, end)),
         on_station_manager=lambda: None,
-        access_cache=cast(Any, cache),
     )
+    view._access_results = (result,)
     view._refresh_rows()
 
     assert not focused
@@ -577,7 +566,6 @@ def test_empty_and_missing_station_states_are_explicit() -> None:
     cursor = cast(Any, SimpleNamespace(t_start=0.0, t_end=100.0))
     empty = GroundStationPassesView(
         cast(Any, None),
-        None,
         cursor,
         [],
         "Test object",
@@ -585,9 +573,6 @@ def test_empty_and_missing_station_states_are_explicit() -> None:
         on_seek=lambda _time: None,
         on_focus_pass=lambda _start, _end: None,
         on_station_manager=lambda: None,
-        access_cache=cast(Any, _AccessCache(StationAccess(
-            GroundStation("unused", "Unused", 0.0, 0.0, 0.0), ()
-        ))),
     )
     empty._refresh_rows()
     assert "No ground stations are configured" in empty._status_text
@@ -595,7 +580,6 @@ def test_empty_and_missing_station_states_are_explicit() -> None:
     station = GroundStation("available", "Available", 0.0, 0.0, 0.0)
     missing = GroundStationPassesView(
         cast(Any, None),
-        None,
         cursor,
         [station],
         "Test object",
@@ -603,62 +587,11 @@ def test_empty_and_missing_station_states_are_explicit() -> None:
         on_seek=lambda _time: None,
         on_focus_pass=lambda _start, _end: None,
         on_station_manager=lambda: None,
-        access_cache=cast(Any, _AccessCache(StationAccess(station, ()))),
         initial_station_id="removed",
     )
     missing._refresh_rows()
     assert missing.selected_station_id is None
     assert "requested station is no longer configured" in missing._status_text
-
-
-def test_access_and_pass_panels_share_prepared_station_history(monkeypatch) -> None:
-    station = GroundStation("site", "Site", 0.0, 0.0, 0.0)
-    source = object()
-    cursor = SimpleNamespace(t_start=0.0, t_end=100.0)
-    cache = StationAccessCache()
-    prepared = StationAccess(station, ())
-    calls: list[tuple[Any, Any, GroundStation]] = []
-
-    def prepare(
-        source_arg,
-        cursor_arg,
-        station_arg,
-        _position_cache,
-        _bounds=None,
-        _shared_positions=None,
-    ):
-        calls.append((source_arg, cursor_arg, station_arg))
-        return prepared
-
-    monkeypatch.setattr(station_access, "prepare_station_access", prepare)
-    access_view = GroundStationAccessView(
-        cast(Any, None),
-        cast(Any, source),
-        cast(Any, cursor),
-        [station],
-        TimeUnit.MINUTES,
-        "Test object",
-        oem_loaded=True,
-        on_seek=lambda _time: None,
-        on_station_manager=lambda: None,
-        access_cache=cache,
-    )
-    passes_view = GroundStationPassesView(
-        cast(Any, None),
-        cast(Any, source),
-        cast(Any, cursor),
-        [station],
-        "Test object",
-        oem_loaded=True,
-        on_seek=lambda _time: None,
-        on_focus_pass=lambda _start, _end: None,
-        on_station_manager=lambda: None,
-        access_cache=cache,
-    )
-
-    assert len(calls) == 1
-    assert access_view._access_results[0] is prepared
-    assert passes_view._access_results[0] is prepared
 
 
 @pytest.mark.skipif(
@@ -677,7 +610,6 @@ def test_wx_pass_panel_builds_and_switches_responsive_layout(wx_app: Any) -> Non
     )
     view = GroundStationPassesView(
         frame,
-        cast(Any, object()),
         cast(Any, SimpleNamespace(t_start=0.0, t_end=100.0)),
         [station],
         "Test object",
@@ -685,14 +617,9 @@ def test_wx_pass_panel_builds_and_switches_responsive_layout(wx_app: Any) -> Non
         on_seek=lambda _time: None,
         on_focus_pass=lambda _start, _end: None,
         on_station_manager=lambda: None,
-        access_cache=cast(
-            Any,
-            _AccessCache(
-                StationAccess(
-                    station, (interval,), look_angle_profiles=(profile,)
-                )
-            ),
-        ),
+    )
+    view._access_results = (
+        StationAccess(station, (interval,), look_angle_profiles=(profile,)),
     )
     try:
         content = view.build(cast(Any, None), cast(Any, None))

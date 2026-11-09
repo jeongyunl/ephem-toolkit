@@ -160,6 +160,9 @@ class _OpenView:
     click_callback_id: int | None
     """Matplotlib event identifier used to disconnect plot seeking, if connected."""
 
+    requires_store_rebuild: bool = False
+    """Whether this view was opened before an OEM store became available."""
+
     range_initialized: bool = False
     """Whether the current effective range has been sent to this view."""
 

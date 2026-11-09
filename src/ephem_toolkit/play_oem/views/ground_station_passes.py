@@ -15,14 +15,12 @@ from ..display_time import UTC_DISPLAY, format_tt
 
 from .. import cursor as playback_cursor
 from ..ground_stations import GroundStation
-from ..ground_track import GroundTrackSource, GroundTrackPreparationError
 from ..oem_data_store import StationAccessView, StoreQuery
 from ..series import OrbitSeries
 from ..station_access import (
     AccessInterval,
     LookAngleProfile,
     StationAccess,
-    StationAccessCache,
 )
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
@@ -77,7 +75,6 @@ class GroundStationPassesView:
     def __init__(
         self,
         parent: wx.Window,
-        source: GroundTrackSource | None,
         cursor: playback_cursor.OemCursor,
         stations: Sequence[GroundStation],
         object_name: str,
@@ -86,7 +83,6 @@ class GroundStationPassesView:
         on_seek: Callable[[float], None],
         on_focus_pass: Callable[[float, float], None],
         on_station_manager: Callable[[], None],
-        access_cache: StationAccessCache | None,
         selection_context: StationAnalysisContext | None = None,
         limit_to_range: bool = False,
         initial_range: ResolvedTimeRange | None = None,
@@ -94,7 +90,6 @@ class GroundStationPassesView:
         display_time_zone: str = UTC_DISPLAY,
     ) -> None:
         self._parent = parent
-        self._source = source
         self._cursor = cursor
         self._stations = tuple(stations)
         self._object_name = object_name
@@ -102,11 +97,6 @@ class GroundStationPassesView:
         self._on_seek = on_seek
         self._on_focus_pass = on_focus_pass
         self._on_station_manager = on_station_manager
-        self._access_cache = (
-            access_cache
-            if access_cache is not None
-            else (StationAccessCache() if source is not None else None)
-        )
         self._selection_context = selection_context
         self._limit_to_range = limit_to_range
         self._prepare_range = initial_range
@@ -380,34 +370,9 @@ class GroundStationPassesView:
                 results.append(station_access_from_store(query.value))
             self._access_results = tuple(results)
             return
-        if self._source is None:
-            self._access_results = ()
-            return
-        results = []
-        bounds = None
-        if self._limit_to_range:
-            if self._prepare_range is None:
-                self._access_results = tuple(
-                    StationAccess(station, ()) for station in self._stations
-                )
-                return
-            bounds = (self._prepare_range.start_s, self._prepare_range.end_s)
-        if self._source is None:
-            self._access_results = tuple(
-                StationAccess(station, ()) for station in self._stations
-            )
-            return
-        assert self._access_cache is not None
-        for station in self._stations:
-            try:
-                results.append(
-                    self._access_cache.prepare(
-                        self._source, self._cursor, station, bounds
-                    )
-                )
-            except GroundTrackPreparationError as error:
-                results.append(StationAccess(station, (), str(error)))
-        self._access_results = tuple(results)
+        self._access_results = tuple(
+            StationAccess(station, ()) for station in self._stations
+        )
 
     def _refresh_station_choice(self) -> None:
         if self._station_choice is None:
@@ -510,9 +475,7 @@ class GroundStationPassesView:
             self._range_label.SetLabel(label)
 
     def _update_coverage_readout(self) -> None:
-        if not self._oem_loaded or (
-            self._source is None and self._store_context is None
-        ):
+        if not self._oem_loaded or self._store_context is None:
             label = "OEM coverage: unavailable"
         else:
             label = (
@@ -537,9 +500,7 @@ class GroundStationPassesView:
                 )
             else:
                 message = "No ground stations are configured. Add a station to inspect passes."
-        elif not self._oem_loaded or (
-            self._source is None and self._store_context is None
-        ):
+        elif not self._oem_loaded or self._store_context is None:
             message = "Load an Earth-centered OEM to inspect station passes."
         elif load_status is not None:
             message = load_status
@@ -1088,14 +1049,12 @@ class GroundStationPassesView:
 
     def set_oem(
         self,
-        source: GroundTrackSource | None,
         cursor: playback_cursor.OemCursor,
         object_name: str,
         *,
         oem_loaded: bool,
     ) -> None:
         """Refresh pass data after an OEM is replaced."""
-        self._source = source
         self._store_binding.close()
         self._store_context = None
         self._store_queries.clear()

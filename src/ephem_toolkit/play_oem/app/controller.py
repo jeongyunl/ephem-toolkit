@@ -66,7 +66,6 @@ from ..display_time import DISPLAY_TIME_ZONES, format_timestamp_text, format_tt
 from ..views import registry
 from ..views.base import StoreViewContext
 from ..views.ground_track import GroundTrackView
-from ..station_access import StationAccessCache
 from ..views.trajectory3d import selection as trajectory3d_selection
 
 from .support import (
@@ -92,19 +91,6 @@ FRAME_COUNT_EPSILON: float = 1e-9
 
 INCREMENTAL_VIEW_REFRESH_INTERVAL_S: float = 5.0
 """Maximum rate for rebuilding plots while incremental OEM data is arriving."""
-
-INCREMENTAL_DEFERRED_VIEWS: frozenset[str] = frozenset(
-    {
-        "pass-strip",
-        "elevation-profile",
-        "azimuth-profile",
-        "range-profile",
-        "pass-list",
-        "sky-view",
-        "pass-ground-track",
-    }
-)
-"""Views whose analysis is too costly to rebuild until loading completes."""
 
 class PlayerApp(
     ViewFactoryMixin,
@@ -136,10 +122,8 @@ class PlayerApp(
         oem_interpolation: str | None = None,
         oem_interpolation_degree: int | None = None,
         ground_stations: Sequence[GroundStation] | None = None,
-        on_open_file: Callable[[str], playback_data.PlaybackData] | None = None,
         saved_state: SavedAppState | None = None,
         config_path: str | Path | None = None,
-        ground_track_source: playback_data.GroundTrackSource | None = None,
         initial_file_path: str | None = None,
         oem_loaded: bool = True,
         loaded_file_name: str | None = None,
@@ -205,7 +189,6 @@ class PlayerApp(
         self.object_id = dict(metadata_details).get("Object ID", "").strip()
         self._loaded_file_name = loaded_file_name
         self.frame_context = frame_context
-        self._ground_track_source = ground_track_source
         self._tick_interval_ms = tick_interval_ms
         self._config_path = config_path
         self._display_time_zone = display_time_zone
@@ -258,7 +241,6 @@ class PlayerApp(
             )
         )
         self._last_frame_monotonic_s: float | None = None
-        self._on_open_file_callback = on_open_file
         self._incremental_loader = IncrementalLoader()
         self._oem_store: OemDataStore | None = None
         self._pending_oem_store: OemDataStore | None = None
@@ -285,7 +267,6 @@ class PlayerApp(
             if ground_stations is not None
             else (list(saved_state.ground_stations) if saved_state is not None else [])
         )
-        self._station_access_cache = StationAccessCache() if oem_loaded else None
         self._station_analysis_contexts = {
             "middle": StationAnalysisContext(),
             "right": StationAnalysisContext(),
@@ -671,6 +652,14 @@ class PlayerApp(
             opened = self._open_panels.get(panel_id)
             if opened is None:
                 continue
+            if opened.requires_store_rebuild:
+                self.open_panel_view(
+                    opened.view_name,
+                    panel_id,
+                    opened.stack,
+                    force_replace=True,
+                )
+                continue
             view_context = context.with_range(
                 self._resolved_plot_range(),
                 (self.clock.t_start, self.clock.t_end),
@@ -1045,8 +1034,6 @@ class PlayerApp(
         self._ground_stations = list(stations)
         self._ground_stations_config_dirty = True
         self._save_ground_stations_config()
-        if self._station_access_cache is not None:
-            self._station_access_cache.retain_stations(stations)
         station_ids = {station.station_id for station in stations}
         for context in self._station_analysis_contexts.values():
             context.retain_stations(station_ids)
@@ -1126,17 +1113,7 @@ class PlayerApp(
 
     def _load_oem_file(self, path: str) -> None:
         """Load an OEM path through the shared open and recent-file workflow."""
-        if self._on_open_file_callback is None:
-            self._start_incremental_load(path)
-            return
-        try:
-            loaded_data = self._on_open_file_callback(path)
-            self._configure_cursor_interpolation(loaded_data.cursor, loaded_data)
-        except Exception as error:
-            self.status_bar.set_message(f"Could not open OEM: {error}")
-            return
-        self._replace_playback_data(loaded_data, os.path.basename(path), path)
-        self._remember_recent_oem(path)
+        self._start_incremental_load(path)
 
     def _start_incremental_load(self, path: str) -> None:
         """Start a replacement session while keeping the active OEM installed."""
@@ -1304,8 +1281,6 @@ class PlayerApp(
             self._pending_oem_store = store
             self._retired_oem_store = previous_store
             self.series = playback_data.empty_playback_data().series
-            self._ground_track_source = None
-            self._station_access_cache = None
             self._oem_loaded = True
             self.workspace.set_oem_loaded(True)
             self._current_oem_path = normalize_recent_path(path)
@@ -1486,8 +1461,6 @@ class PlayerApp(
             ):
                 self._pending_playback_bounds = None
                 self.clock.set_playback_bounds(*pending_bounds)
-        if self._station_access_cache is not None:
-            self._station_access_cache.clear()
         if self._store_view_context is not None:
             self._store_view_context = self._store_view_context.refresh()
             self._publish_range_hint()
@@ -1521,18 +1494,11 @@ class PlayerApp(
         )
         for context in self._station_analysis_contexts.values():
             context.select_interval(None)
-        deferred_layout: list[tuple[str, str, str]] = []
         refresh_succeeded = False
         try:
             if panel_layout:
                 for panel_id, view_name, stack in panel_layout:
-                    if not store_backed and view_name in INCREMENTAL_DEFERRED_VIEWS:
-                        if force:
-                            deferred_layout.append((panel_id, view_name, stack))
-                        continue
-                    if not store_backed and self._update_incremental_panel_data(
-                        panel_id
-                    ):
+                    if self._update_incremental_panel_data(panel_id):
                         continue
                     self.open_panel_view(
                         view_name,
@@ -1546,8 +1512,6 @@ class PlayerApp(
             wx.CallAfter(self._refresh_graph_stack_layouts)
             self._last_incremental_view_refresh_monotonic_s = now
             refresh_succeeded = True
-            if deferred_layout and not store_backed:
-                self._warm_station_access_then_refresh(deferred_layout)
         except Exception as error:
             self.status_bar.set_message(f"Could not refresh OEM views: {error}")
         finally:
@@ -1590,52 +1554,6 @@ class PlayerApp(
             opened.panel.request_redraw()
         return True
 
-    def _warm_station_access_then_refresh(
-        self, layout: Sequence[tuple[str, str, str]]
-    ) -> None:
-        """Compute full-range station access off the UI thread, then rebuild panels."""
-        source = self._ground_track_source_for_plot_range()
-        cursor_ref = self.cursor
-        cache = self._station_access_cache
-        stations = tuple(self._ground_stations)
-        resolved = self._resolved_plot_range()
-        bounds = None if resolved is None else (resolved.start_s, resolved.end_s)
-        if source is None or cache is None or not stations or bounds is None:
-            self._rebuild_deferred_views(layout)
-            return
-        self.status_bar.set_message("Analyzing ground station access…")
-
-        def worker() -> None:
-            try:
-                for station in stations:
-                    cache.prepare(source, cursor_ref, station, bounds)
-            except Exception:
-                pass
-            wx.CallAfter(self._rebuild_deferred_views, layout, source)
-
-        threading.Thread(
-            target=worker, name="station-access-warmup", daemon=True
-        ).start()
-
-    def _rebuild_deferred_views(
-        self,
-        layout: Sequence[tuple[str, str, str]],
-        warmed_source: object | None = None,
-    ) -> None:
-        """Rebuild access views once their analysis is cached."""
-        if warmed_source is not None and warmed_source is not (
-            self._ground_track_source_for_plot_range()
-        ):
-            return
-        self.status_bar.set_message("")
-        for panel_id, view_name, stack in layout:
-            if panel_id not in self._open_panels:
-                continue
-            try:
-                self.open_panel_view(view_name, panel_id, stack, force_replace=True)
-            except Exception as error:
-                self.status_bar.set_message(f"Could not refresh OEM views: {error}")
-
     def _on_open_file(self, _event: wx.CommandEvent) -> None:
         """Select an OEM and load it into this playback window."""
         dialog = wx.FileDialog(
@@ -1657,104 +1575,6 @@ class PlayerApp(
             dialog.Destroy()
 
         self._load_oem_file(path)
-
-    def _replace_playback_data(
-        self,
-        loaded: playback_data.PlaybackData,
-        file_name: str | None = None,
-        file_path: str | None = None,
-    ) -> None:
-        """Replace file-dependent state while retaining the frame and workspace."""
-        self._save_application_state(save_geometry=False)
-        rate = self.clock.rate
-        loaded.clock.set_playback_bounds(
-            loaded.clock.t_start,
-            loaded.clock.t_end,
-        )
-        if file_path is not None:
-            self._restore_recent_file_playback_range(
-                loaded.clock, normalize_recent_path(file_path)
-            )
-        loaded.clock.set_speed(abs(rate))
-        loaded.clock.set_direction(-1 if rate < 0.0 else 1)
-        if rate < 0.0:
-            loaded.clock.seek(loaded.clock.t_end)
-        # Keep each graph's identity, type and stack so only its data is refreshed.
-        panel_layout = tuple(
-            (opened.panel_id, opened.view_name, opened.stack)
-            for opened in self._open_panels.values()
-        )
-
-        self._clock_unsubscribe()
-        self._store_notice_unsubscribe()
-        previous_store = self._oem_store
-        self._oem_store = None
-        self._pending_oem_store = None
-        self._retired_oem_store = None
-        self._store_view_context = None
-        self.clock = loaded.clock
-        self._playback_handle_bounds = (
-            loaded.clock.playback_start,
-            loaded.clock.playback_end,
-        )
-        self._pending_file_playback_bounds = None
-        self._pending_playback_bounds = None
-        self._slider_bounds = loaded.slider_bounds or (
-            loaded.clock.t_start,
-            loaded.clock.t_end,
-        )
-        self._current_oem_path = (
-            normalize_recent_path(file_path) if file_path is not None else None
-        )
-        self._clock_unsubscribe = self.clock.subscribe(self._on_clock_time_changed)
-        self.plot_time_range = playback_range_plot_rule()
-        if self._current_oem_path is not None:
-            self._restore_recent_file_plot_range(self._current_oem_path)
-        self.series = loaded.series
-        self.time_unit = loaded.time_unit
-        self.cursor = loaded.cursor
-        self._oem_interpolation = loaded.oem_interpolation
-        self._oem_interpolation_degree = loaded.oem_interpolation_degree
-        self._configure_cursor_interpolation(self.cursor, loaded)
-        self.object_name = loaded.object_name
-        self._dashboard_context = dict(loaded.dashboard_context)
-        self._metadata_details = tuple(loaded.metadata_details)
-        self.object_id = dict(self._metadata_details).get("Object ID", "").strip()
-        if file_name is not None:
-            self._loaded_file_name = file_name
-        self.status_bar.set_file_name(self._loaded_file_name)
-        self.status_bar.set_object(self.object_name, self.object_id)
-        self.status_bar.set_message("")
-        self.frame_context = loaded.frame_context
-        self._ground_track_source = loaded.ground_track_source
-        self._station_access_cache = StationAccessCache()
-        self._oem_coverage_complete = True
-        # Start the new file's playback schedule at its load time.
-        self._last_frame_monotonic_s = time.monotonic()
-        self.workspace.update_oem_information(
-            self._formatted_dashboard_context(),
-            self._formatted_metadata_details(),
-            self.clock.t_start < self.clock.t_end,
-        )
-        self.frame.Layout()
-        self._oem_loaded = True
-        self.workspace.set_oem_loaded(True)
-        self.control_window.update_active_interpolation(
-            self._active_interpolation_summary()
-        )
-        self._update_time_display()
-        if panel_layout:
-            for panel_id, view_name, stack in panel_layout:
-                # Replace each view in its existing stack slot. Clearing the
-                # whole stack first briefly exposes its empty state and forces
-                # GTK to relayout every off-screen splitter at the bottom edge.
-                self.open_panel_view(view_name, panel_id, stack, force_replace=True)
-        else:
-            self.open_plots(self._plots)
-        self.workspace.draw_initial_graphs()
-        wx.CallAfter(self._refresh_graph_stack_layouts)
-        if previous_store is not None:
-            previous_store.close()
 
     def _release_wx_resources(self) -> None:
         """Drop wx wrappers and callbacks after the event loop has stopped."""
@@ -1862,19 +1682,6 @@ class PlayerApp(
                 raise RuntimeError("could not update the wx playback timer")
             self._last_frame_monotonic_s = time.monotonic()
 
-    def _configure_cursor_interpolation(
-        self,
-        state_cursor: cursor.OemCursor,
-        loaded: playback_data.PlaybackData,
-    ) -> None:
-        if self._use_oem_interpolation:
-            interpolation = loaded.oem_interpolation
-            interpolation_degree = loaded.oem_interpolation_degree
-        else:
-            interpolation = self._interpolation_method
-            interpolation_degree = self._interpolation_degree
-        state_cursor.set_interpolation(interpolation, interpolation_degree)
-
     def _set_interpolation_settings(
         self, use_oem_metadata: bool, method: str, degree: int
     ) -> None:
@@ -1895,8 +1702,6 @@ class PlayerApp(
         self._interpolation_method = method
         self._interpolation_degree = degree
         self._interpolation_config_dirty = True
-        if self._station_access_cache is not None:
-            self._station_access_cache.clear()
         if self._store_view_context is not None:
             self._store_view_context = self._store_view_context.refresh()
             self._queue_store_view_refresh()

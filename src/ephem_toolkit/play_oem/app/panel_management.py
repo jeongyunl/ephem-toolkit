@@ -250,6 +250,7 @@ class PanelManagementMixin:
             coverage = (self.clock.t_start, self.clock.t_end)
             store_context = self._store_view_context
             store_builder = getattr(view, "build_from_store", None)
+            requires_store_rebuild = store_context is None and callable(store_builder)
             if store_context is not None and callable(store_builder):
                 store_context = store_context.with_range(resolved_range, coverage)
                 self._store_view_context = store_context
@@ -302,6 +303,7 @@ class PanelManagementMixin:
                 canvas,
                 toolbar,
                 click_callback_id,
+                requires_store_rebuild=requires_store_rebuild,
             )
             self.frame.Layout()
             panel.Layout()

@@ -17,20 +17,16 @@ from matplotlib.collections import LineCollection
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
-from .. import cursor as playback_cursor
 from ..graph_panel import GRAPH_PANEL_MIN_SIZE
 from ..ground_footprints import (
-    DEFAULT_AZIMUTH_COUNT,
     GroundFootprintBoundary,
     GroundFootprints,
-    compute_ground_footprints,
 )
 from ..ground_stations import GroundStation
 from ..ground_track import (
     EARTH_RADIUS_AUTHALIC_M,
     GroundTrackCoordinates,
     GroundTrackPreparationError,
-    GroundTrackSource,
     GroundTrackRun,
     _ecef_to_wgs84_geodetic,
     split_ground_track_runs,
@@ -42,7 +38,7 @@ from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
 from .base import StoreViewBinding, StoreViewContext
 from .compact_controls import compact_controls
-from .plotting import bounded_sample_indices, decimate_indices
+from .plotting import bounded_sample_indices
 
 PROJECTION_SPECS = {
     "Equirectangular": ("eqc", {}),
@@ -175,12 +171,8 @@ class GroundTrackView:
     def __init__(
         self,
         parent: wx.Window,
-        source: GroundTrackSource | None,
-        coordinates: GroundTrackCoordinates | None,
-        cursor: playback_cursor.OemCursor,
         object_name: str,
         *,
-        error_message: str | None = None,
         minimum_elevation_deg: int = 10,
         on_minimum_elevation: Any = None,
         projection_name: str = DEFAULT_PROJECTION,
@@ -190,18 +182,9 @@ class GroundTrackView:
         saved_ylim: tuple[float, float] | None = None,
         stations: Sequence[GroundStation] = (),
         on_open_passes: Callable[[str], None] | None = None,
-        coordinate_provider: (
-            Callable[[ResolvedTimeRange], GroundTrackCoordinates | None] | None
-        ) = None,
     ) -> None:
         self._parent = parent
-        self._coordinate_provider = coordinate_provider
-        self._source = source
-        self._coordinates = coordinates
-        self._display_coordinates = coordinates
-        self._cursor = cursor
         self._object_name = object_name
-        self._error_message = error_message
         self.minimum_elevation_deg = minimum_elevation_deg
         self._on_minimum_elevation = on_minimum_elevation
         self.projection_name = projection_name
@@ -220,9 +203,7 @@ class GroundTrackView:
         self._projection: Any = None
         self._track_artists: list[Any] = []
         self._track_status_artist: Any = None
-        self._effective_plot_range: tuple[float, float] | None = (
-            (cursor.t_start, cursor.t_end) if coordinates is not None else None
-        )
+        self._effective_plot_range: tuple[float, float] | None = None
         self._marker: Line2D | None = None
         self._horizon_artist: LineCollection | None = None
         self._minimum_artist: LineCollection | None = None
@@ -564,16 +545,12 @@ class GroundTrackView:
         self._syncing_limits = False
         self._draw_station_artists()
 
-        if self._coordinates is None and self._store_context is None:
-            message = (
-                self._error_message
-                or "Load an Earth-centered OEM to view its ground track."
-            )
+        if self._store_context is None:
             axes.set_axis_off()
             axes.text(
                 0.5,
                 0.5,
-                message,
+                "Load an Earth-centered OEM to view its ground track.",
                 ha="center",
                 va="center",
                 wrap=True,
@@ -1177,46 +1154,12 @@ class GroundTrackView:
     def set_time_range(
         self, bounds: ResolvedTimeRange | None, _coverage: tuple[float, float], /
     ) -> None:
-        """Apply a range to store queries or prepared legacy coordinates."""
-        if self._store_context is not None:
-            context = self._store_binding.with_range(bounds, _coverage)
-            self._store_context = context
-            self._effective_plot_range = context.bounds_s
-            self._update_track_artists()
-            if self._last_time_s is not None:
-                current_time = self._last_time_s
-                self._last_time_s = None
-                self.update(current_time)
-            if self._canvas is not None:
-                self._canvas.draw_idle()
+        """Apply a range to the bound store query."""
+        if self._store_context is None:
             return
-
-        self._effective_plot_range = (
-            None if bounds is None else (bounds.start_s, bounds.end_s)
-        )
-        if (
-            bounds is not None
-            and self._coordinate_provider is not None
-            and self._coordinates is not None
-            and not self._coordinates_cover(bounds)
-        ):
-            prepared = self._coordinate_provider(bounds)
-            if prepared is not None:
-                self._coordinates = prepared
-        if self._coordinates is not None:
-            if bounds is None:
-                selected = np.zeros(len(self._coordinates.timestamps_s), dtype=bool)
-            else:
-                selected = (self._coordinates.timestamps_s >= bounds.start_s) & (
-                    self._coordinates.timestamps_s <= bounds.end_s
-                )
-            self._display_coordinates = GroundTrackCoordinates(
-                self._coordinates.timestamps_s[selected],
-                self._coordinates.latitude_rad[selected],
-                self._coordinates.longitude_rad[selected],
-                self._coordinates.segment_ids[selected],
-                self._coordinates.source_frame,
-            )
+        context = self._store_binding.with_range(bounds, _coverage)
+        self._store_context = context
+        self._effective_plot_range = context.bounds_s
         self._update_track_artists()
         if self._last_time_s is not None:
             current_time = self._last_time_s
@@ -1224,16 +1167,6 @@ class GroundTrackView:
             self.update(current_time)
         if self._canvas is not None:
             self._canvas.draw_idle()
-
-    def _coordinates_cover(self, bounds: ResolvedTimeRange) -> bool:
-        """Return whether prepared samples already span the bounds within OEM coverage."""
-        timestamps = self._coordinates.timestamps_s
-        if not len(timestamps):
-            return False
-        return bool(
-            timestamps[0] <= max(bounds.start_s, self._cursor.t_start)
-            and timestamps[-1] >= min(bounds.end_s, self._cursor.t_end)
-        )
 
     def _update_track_artists(self) -> None:
         if self._axes is None or self._projection is None:
@@ -1244,13 +1177,15 @@ class GroundTrackView:
             except ValueError:
                 pass
         self._track_artists.clear()
-        coordinates = self._display_coordinates
-        store_query = None
-        if self._store_context is not None:
-            store_query = self._store_context.ground_track(
+        store_query = (
+            None
+            if self._store_context is None
+            else self._store_context.ground_track(
                 center_longitude_deg=self.center_longitude_deg
             )
-            self._store_track_query = store_query
+        )
+        self._store_track_query = store_query
+        if store_query is not None:
             for group in store_query.value:
                 longitude_index = group.columns.index("longitude")
                 latitude_index = group.columns.index("latitude")
@@ -1277,38 +1212,19 @@ class GroundTrackView:
                         zorder=3,
                     )
                     self._track_artists.append(line)
-        else:
-            runs = (
-                split_ground_track_runs(coordinates, self.center_longitude_deg)
-                if coordinates is not None and len(coordinates.timestamps_s)
-                else ()
-            )
-            for run in runs:
-                xy = _project_run(self._projection, run, self.center_longitude_deg)
-                indices = decimate_indices(xy)
-                (line,) = self._axes.plot(
-                    xy[indices, 0],
-                    xy[indices, 1],
-                    color="#3b5ccc",
-                    linewidth=1.8,
-                    solid_capstyle="round",
-                    marker="o" if len(indices) == 1 else "None",
-                    zorder=3,
-                )
-                self._track_artists.append(line)
         if self._track_status_artist is not None:
             if self._effective_plot_range is None:
                 message = "Plot range does not overlap OEM coverage"
-            elif store_query is not None and not store_query.value:
+            elif store_query is None:
+                message = "Ground track data is loading"
+            elif not store_query.value:
                 message = (
                     "Ground track data is loading"
                     if not store_query.coverage.complete
                     else "No ground track samples in plot range"
                 )
-            elif store_query is not None and not store_query.coverage.complete:
+            elif not store_query.coverage.complete:
                 message = "Ground track coverage is partial"
-            elif coordinates is not None and not len(coordinates.timestamps_s):
-                message = "No ground track samples in plot range"
             else:
                 message = ""
             self._track_status_artist.set_text(message)
@@ -1316,8 +1232,7 @@ class GroundTrackView:
 
     def update(self, t_s: float, /) -> None:
         context = self._store_context
-        source = self._source
-        if context is None and (self._coordinates is None or source is None):
+        if context is None:
             return
         if self._axes is None or self._projection is None or self._canvas is None:
             return
@@ -1331,22 +1246,13 @@ class GroundTrackView:
             self._hide_dynamic_position("Playback time outside plot range")
             self._canvas.draw_idle()
             return
-        state = (
-            context.state_at(t_s)
-            if context is not None
-            else self._cursor.lookup(t_s)
-        )
+        state = context.state_at(t_s)
         if state.state_m is None:
             self._hide_dynamic_position("Current position unavailable")
             self._canvas.draw_idle()
             return
         try:
-            if context is not None:
-                frame_name = dict(context.snapshot.meta).get("REF_FRAME")
-            elif source is not None:
-                frame_name = source.frame_name
-            else:
-                raise RuntimeError("Ground Track source is unavailable")
+            frame_name = dict(context.snapshot.meta).get("REF_FRAME")
             if not isinstance(frame_name, str):
                 raise GroundTrackPreparationError(
                     "Ground Track requires REF_FRAME metadata"
@@ -1381,14 +1287,8 @@ class GroundTrackView:
             )
 
         try:
-            self._last_footprints = (
-                context.footprints(t_s, self.minimum_elevation_deg)
-                if context is not None
-                else compute_ground_footprints(
-                    position_itrf_m,
-                    self.minimum_elevation_deg,
-                    azimuth_count=DEFAULT_AZIMUTH_COUNT,
-                )
+            self._last_footprints = context.footprints(
+                t_s, self.minimum_elevation_deg
             )
         except (ValueError, RuntimeError) as error:
             self._hide_dynamic_position(f"Coverage unavailable: {error}")

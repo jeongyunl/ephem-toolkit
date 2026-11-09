@@ -22,7 +22,6 @@ from ephem_toolkit.play_oem.app import support as app_support
 from ephem_toolkit.play_oem.app import view_factory
 from ephem_toolkit.play_oem.clock import PlaybackClock
 from ephem_toolkit.play_oem.cursor import OemCursor
-from ephem_toolkit.play_oem.ground_track import GroundTrackSource
 from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem.incremental_loader import (
     IncrementalLoader,
@@ -791,42 +790,6 @@ def test_legacy_saved_panel_names_open_focused_station_panels(
     assert opened == ["elevation-profile", "pass-list"]
 
 
-def test_pass_ground_track_panel_refresh_uses_new_source_and_shared_cache(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
-    first_source = GroundTrackSource.from_samples(
-        [0.0, 10.0], np.zeros((2, 6)), [0, 0], "EARTH", "ITRF"
-    )
-    second_source = GroundTrackSource.from_samples(
-        [10.0, 20.0], np.ones((2, 6)), [0, 0], "EARTH", "ITRF"
-    )
-    created = []
-    monkeypatch.setattr(
-        player,
-        "_open_view",
-        lambda _name, create_view, **_kwargs: created.append(
-            create_view(cast(Any, None))
-        ),
-    )
-    player._ground_track_source = first_source
-
-    player.open_pass_ground_track_view(panel_id="pass-track")
-    player._ground_track_source = second_source
-    player.open_pass_ground_track_view(
-        panel_id="pass-track", force_replace=True
-    )
-
-    assert len(created) == 2
-    assert created[0]._source is first_source
-    assert created[1]._source is second_source
-    assert all(
-        view._access_cache is player._station_access_cache for view in created
-    )
-    for view in created:
-        view.close()
-
-
 def test_comparison_station_selection_follows_only_when_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -878,7 +841,7 @@ def test_ground_track_open_passes_callback_seeds_station_without_seeking(
     ]
     assert pass_view.selected_station_id == station.station_id
     assert player.clock.t_now == initial_time
-    assert not player._station_access_cache._results
+    assert not hasattr(player, "_station_access_cache")
 
 
 def test_replacing_pass_panel_for_new_oem_retains_station_selection(
@@ -1729,96 +1692,6 @@ def test_panel_instances_can_duplicate_views_and_keep_independent_lifecycles(
     player.close()
 
 
-def test_reloading_oem_replaces_views_without_removing_panels(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    player, views, _canvases, _frames = make_app(
-        monkeypatch,
-        plots=("speed-altitude", "state-components", "rtn"),
-    )
-    player.start()
-    old_clock = player.clock
-    player._apply_playback_bounds(120.0, 180.0)
-    player._apply_plot_time_range(
-        app.time_range.PlotTimeRange(
-            True,
-            app.time_range.TimeRangeEndpoint("fixed", 130.0),
-            app.time_range.TimeRangeEndpoint("fixed", 170.0),
-        )
-    )
-    original_panels = tuple(player.workspace.graph_panels)
-    original_views = tuple(player._open_panels.values())
-    monkeypatch.setattr(
-        player.workspace, "update_oem_information", lambda *_args: None, raising=False
-    )
-    monkeypatch.setattr(
-        player.workspace,
-        "remove_graph_panel",
-        lambda *_args, **_kwargs: pytest.fail("reload must keep graph panels in place"),
-    )
-    loaded = app.playback_data.PlaybackData(
-        clock=make_clock(t_now=100.0),
-        series=player.series,
-        time_unit=TimeUnit.MINUTES,
-        cursor=OemCursor((100.0, 200.0), make_states()),
-        object_name="RELOADED",
-        frame_context="GCRF / Earth",
-        dashboard_context={},
-        metadata_details=(),
-        source_sample_count=2,
-    )
-    loaded.clock.set_playback_bounds(100.0, 180.0)
-    # Keep the existing clock-subscription assertions focused on replacement.
-    for view in views:
-        view.updated_times[:] = [100.0]
-
-    player._replace_playback_data(loaded)
-
-    assert player.clock is loaded.clock
-    assert (player.clock.playback_start, player.clock.playback_end) == (100.0, 200.0)
-    assert player.plot_time_range == app.time_range.PlotTimeRange(
-        True,
-        app.time_range.TimeRangeEndpoint("follow", 0.0),
-        app.time_range.TimeRangeEndpoint("follow", 0.0),
-    )
-    assert len(player.workspace.graph_panels) == len(original_panels)
-    assert all(panel.destroyed for panel in original_panels)
-    assert all(view.view.closed for view in original_views)
-    assert all(
-        refreshed.panel_id == original.panel_id
-        for refreshed, original in zip(player._open_panels.values(), original_views)
-    )
-    old_clock.seek(150.0)
-    assert all(view.updated_times == [100.0] for view in views[:3])
-    player.clock.seek(150.0)
-    assert all(view.updated_times == [100.0, 150.0] for view in views[3:])
-    player.close()
-
-
-def test_failed_oem_load_retains_session_ranges(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
-    player._apply_playback_bounds(120.0, 180.0)
-    applied_plot_range = app.time_range.PlotTimeRange(
-        True,
-        app.time_range.TimeRangeEndpoint("fixed", 130.0),
-        app.time_range.TimeRangeEndpoint("fixed", 170.0),
-    )
-    player._apply_plot_time_range(applied_plot_range)
-    clock_before = player.clock
-    player._on_open_file_callback = lambda _path: (_ for _ in ()).throw(
-        ValueError("invalid OEM")
-    )
-
-    player._load_oem_file("broken.oem")
-
-    assert player.clock is clock_before
-    assert (player.clock.playback_start, player.clock.playback_end) == (120.0, 180.0)
-    assert player.plot_time_range == applied_plot_range
-    player.close()
-
-
 def test_incremental_replacement_keeps_old_oem_until_first_batch(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
@@ -2039,7 +1912,7 @@ def test_incremental_store_appends_extend_clock_and_complete_full_history(
 
     assert player._oem_coverage_complete
     assert player._oem_store is not None
-    assert player._station_access_cache is None
+    assert not hasattr(player, "_station_access_cache")
     assert player._oem_store.snapshot().sample_count == 3
     assert player.clock.t_end == player._oem_store.sample_times[-1]
     assert isinstance(player.cursor, app.cursor.StoreCursor)
@@ -2119,6 +1992,36 @@ def test_incremental_panel_data_update_reuses_view_and_canvas(
     assert calls[2] == ("cursor", player.clock.t_now)
     assert canvas.draw_idle_count == 1
     player._open_panels.pop("incremental")
+    player.close()
+
+
+def test_store_refresh_rebuilds_panels_opened_before_the_store(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    player, _views, _canvases, _frames = make_app(monkeypatch)
+    opened = SimpleNamespace(
+        panel_id="pre-store",
+        view_name="speed-altitude",
+        stack="middle",
+        requires_store_rebuild=True,
+    )
+    player._open_panels[opened.panel_id] = opened
+    player._pending_store_view_ids.add(opened.panel_id)
+    player._store_view_context = object()
+    replacements = []
+    player.open_panel_view = lambda *args, **kwargs: replacements.append(
+        (args, kwargs)
+    )
+
+    player._refresh_store_views()
+
+    assert replacements == [
+        (
+            ("speed-altitude", "pre-store", "middle"),
+            {"force_replace": True},
+        )
+    ]
+    player._open_panels.pop(opened.panel_id)
     player.close()
 
 
@@ -2205,109 +2108,36 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
     player.close()
 
 
-def test_ground_station_preview_reuses_source_until_coverage_completes(
+def test_initial_recent_file_ranges_are_applied_and_saved(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    player, _views, _canvases, _frames = make_app(monkeypatch)
-    timestamps_s = np.asarray([100.0, 120.0, 140.0, 160.0, 180.0, 200.0])
-    states_m = np.repeat(make_states()[0][None, :], len(timestamps_s), axis=0)
-    source = GroundTrackSource.from_samples(
-        timestamps_s,
-        states_m,
-        np.zeros(len(timestamps_s), dtype=int),
-        "EARTH",
-        "GCRF",
-    )
-    player._ground_track_source = source
-    player.plot_time_range = time_range.PlotTimeRange(
-        True,
-        time_range.TimeRangeEndpoint("fixed", 130.0),
-        time_range.TimeRangeEndpoint("fixed", 170.0),
-    )
-    player._oem_coverage_complete = False
-
-    assert player._ground_track_source_for_plot_range() is source
-    player._oem_coverage_complete = True
-    assert player._ground_track_source_for_plot_range() is source
-    player.close()
-
-
-def test_recent_file_playback_ranges_save_and_restore_on_switch(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    first_path = "/tmp/first.oem"
-    second_path = "/tmp/second.oem"
-    first_plot_range = app.time_range.PlotTimeRange(
+    file_path = "/tmp/first.oem"
+    plot_range = app.time_range.PlotTimeRange(
         True,
         app.time_range.TimeRangeEndpoint("fixed", 125.0),
         app.time_range.TimeRangeEndpoint("offset", 40.0),
     )
-    second_plot_range = app.time_range.PlotTimeRange(
-        False,
-        app.time_range.TimeRangeEndpoint("follow", 0.0),
-        app.time_range.TimeRangeEndpoint("fixed", 190.0),
-    )
     saved_state = app.SavedAppState(
-        recent_files=[first_path, second_path],
+        recent_files=[file_path],
         recent_file_settings={
-            first_path: app.RecentFileSettings((110.0, 190.0), first_plot_range),
-            second_path: app.RecentFileSettings((130.0, 170.0), second_plot_range),
+            file_path: app.RecentFileSettings((110.0, 190.0), plot_range),
         },
     )
+    monkeypatch.setattr(app, "save_saved_state", lambda _state: None)
     player, _views, _canvases, _frames = make_app(
         monkeypatch,
         saved_state=saved_state,
-        initial_file_path=first_path,
+        initial_file_path=file_path,
     )
+
     assert (player.clock.playback_start, player.clock.playback_end) == (110.0, 190.0)
-    assert player.plot_time_range == first_plot_range
-    monkeypatch.setattr(app, "save_saved_state", lambda _state: None)
-    monkeypatch.setattr(
-        player.workspace,
-        "update_oem_information",
-        lambda *_args: None,
-        raising=False,
-    )
-    player.start()
+    assert player.plot_time_range == plot_range
+
     player._apply_playback_bounds(120.0, 180.0)
-    updated_first_plot_range = app.time_range.PlotTimeRange(
-        True,
-        app.time_range.TimeRangeEndpoint("offset", -15.0),
-        app.time_range.TimeRangeEndpoint("fixed", 195.0),
-    )
-    player._apply_plot_time_range(updated_first_plot_range)
-    loaded = app.playback_data.PlaybackData(
-        clock=make_clock(),
-        series=player.series,
-        time_unit=TimeUnit.MINUTES,
-        cursor=OemCursor((100.0, 200.0), make_states()),
-        object_name="SECOND",
-        frame_context="GCRF / Earth",
-        dashboard_context={},
-        metadata_details=(),
-        source_sample_count=2,
-    )
-    player._on_open_file_callback = lambda _path: loaded
-
-    player._load_oem_file(second_path)
-
-    assert saved_state.recent_files[:2] == [second_path, first_path]
-    assert saved_state.recent_file_settings[first_path].playback_range == (
+    player._save_application_state(save_geometry=False)
+    assert saved_state.recent_file_settings[file_path].playback_range == (
         120.0,
         180.0,
-    )
-    assert (player.clock.playback_start, player.clock.playback_end) == (130.0, 170.0)
-    assert player.plot_time_range == second_plot_range
-    assert saved_state.recent_file_settings[first_path].plot_range == (
-        updated_first_plot_range
-    )
-    player._save_application_state(save_geometry=False)
-    assert saved_state.recent_file_settings[second_path].playback_range == (
-        130.0,
-        170.0,
-    )
-    assert saved_state.recent_file_settings[second_path].plot_range == (
-        second_plot_range
     )
     player.close()
 

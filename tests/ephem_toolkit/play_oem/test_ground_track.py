@@ -1,147 +1,74 @@
-"""Headless tests for Earth-fixed Ground Track data preparation."""
+"""Headless tests for Ground Track coordinate and seam handling."""
 
 from __future__ import annotations
 
 import numpy as np
 import pytest
-from pyproj import Transformer
 
 from ephem_toolkit.play_oem import ground_track
 
-_WGS84_GEODETIC_TO_ECEF = Transformer.from_crs("EPSG:4979", "EPSG:4978", always_xy=True)
 
-
-def _source(
-    geodetic_deg: list[tuple[float, float]],
-    *,
-    segment_ids: list[int] | None = None,
-    center_name: str = "EARTH",
-    frame_name: str = "ITRF",
-) -> ground_track.GroundTrackSource:
-    longitudes_deg = np.asarray([lon for lat, lon in geodetic_deg], dtype=float)
-    latitudes_deg = np.asarray([lat for lat, lon in geodetic_deg], dtype=float)
-    altitudes = np.zeros(len(geodetic_deg), dtype=float)
-    if len(geodetic_deg) == 1:
-        longitudes_m, latitudes_m, altitudes_m = _WGS84_GEODETIC_TO_ECEF.transform(
-            float(longitudes_deg[0]), float(latitudes_deg[0]), 0.0
-        )
-        longitudes_m = [longitudes_m]
-        latitudes_m = [latitudes_m]
-        altitudes_m = [altitudes_m]
-    else:
-        longitudes_m, latitudes_m, altitudes_m = _WGS84_GEODETIC_TO_ECEF.transform(
-            longitudes_deg, latitudes_deg, altitudes
-        )
-    positions = np.column_stack((longitudes_m, latitudes_m, altitudes_m))
-    states = np.column_stack((positions, np.zeros_like(positions)))
-    count = len(geodetic_deg)
-    return ground_track.GroundTrackSource.from_samples(
+def _coordinates(
+    points: list[tuple[float, float]], segment_ids: list[int] | None = None
+) -> ground_track.GroundTrackCoordinates:
+    count = len(points)
+    return ground_track.GroundTrackCoordinates(
         np.arange(count, dtype=float) * 10.0,
-        states,
-        segment_ids if segment_ids is not None else [0] * count,
-        center_name,
-        frame_name,
+        np.deg2rad([latitude for latitude, _ in points]),
+        np.deg2rad([longitude for _, longitude in points]),
+        np.asarray(segment_ids if segment_ids is not None else [0] * count),
+        "ITRF",
     )
 
 
-def test_source_from_typed_samples_shares_input_arrays() -> None:
-    timestamps = np.array([0.0, 10.0], dtype=np.float64)
-    states = np.arange(12, dtype=np.float64).reshape(2, 6)
-    segments = np.array([0, 0], dtype=np.int64)
+def test_state_position_to_itrf_normalizes_earth_fixed_alias() -> None:
+    state = np.array([6_878_137.0, 1.0, 2.0, 0.0, 7_500.0, 0.0])
 
-    source = ground_track.GroundTrackSource.from_samples(
-        timestamps, states, segments, "EARTH", "ITRF"
-    )
+    position = ground_track.state_position_to_itrf_m(state, "itrf93", 5.0)
 
-    assert np.shares_memory(source.timestamps_s, timestamps)
-    assert np.shares_memory(source.states_m, states)
-    assert np.shares_memory(source.segment_ids, segments)
+    np.testing.assert_array_equal(position, state[:3])
+    assert not np.shares_memory(position, state)
 
 
-def test_prepare_direct_earth_fixed_positions_returns_wgs84_radians() -> None:
-    prepared = ground_track.prepare_ground_track(
-        _source([(0.0, 0.0), (45.0, 90.0), (-90.0, -45.0)], frame_name="ITRF93")
-    )
-
-    np.testing.assert_allclose(prepared.latitude_rad, np.deg2rad([0.0, 45.0, -90.0]))
-    np.testing.assert_allclose(prepared.longitude_rad[:2], np.deg2rad([0.0, 90.0]))
-    assert prepared.source_frame == "ITRF1993"
-
-
-def test_prepare_normalizes_earth_center_and_itrf_frame_alias() -> None:
-    prepared = ground_track.prepare_ground_track(
-        _source([(0.0, 180.0)], center_name=" 399 ", frame_name="itrf93")
-    )
-
-    assert prepared.source_frame == "ITRF1993"
-    assert prepared.longitude_rad[0] == pytest.approx(np.pi)
-
-
-def test_prepare_converts_inertial_states_at_each_tt_epoch(monkeypatch) -> None:
-    direct = _source([(10.0, -75.0), (11.0, -74.0)])
+def test_state_position_to_itrf_converts_inertial_state_at_epoch(monkeypatch) -> None:
     calls: list[tuple[str, float]] = []
+    state = np.array([6_878_137.0, 0.0, 0.0, 0.0, 7_500.0, 0.0])
 
-    def convert(frame_name: str, epoch_tt_s: float, state_m: np.ndarray) -> np.ndarray:
-        calls.append((frame_name, epoch_tt_s))
-        return state_m
+    def convert(frame: str, epoch: float, value: np.ndarray) -> np.ndarray:
+        calls.append((frame, epoch))
+        return value
 
     monkeypatch.setattr(ground_track, "_convert_inertial_state_to_itrf", convert)
-    inertial = ground_track.GroundTrackSource.from_samples(
-        direct.timestamps_s,
-        direct.states_m,
-        direct.segment_ids,
-        "earth",
-        "GCRF",
+
+    np.testing.assert_array_equal(
+        ground_track.state_position_to_itrf_m(state, "GCRF", 42.0), state[:3]
     )
-
-    prepared = ground_track.prepare_ground_track(inertial)
-
-    assert calls == [("GCRF", 0.0), ("GCRF", 10.0)]
-    np.testing.assert_allclose(prepared.latitude_rad, np.deg2rad([10.0, 11.0]))
-    np.testing.assert_allclose(prepared.longitude_rad, np.deg2rad([-75.0, -74.0]))
+    assert calls == [("GCRF", 42.0)]
 
 
-@pytest.mark.parametrize("center", ["MARS", "EARTH BARYCENTER", ""])
-def test_prepare_rejects_non_earth_centers(center: str) -> None:
-    with pytest.raises(
-        ground_track.GroundTrackPreparationError, match="Earth-centered"
-    ):
-        ground_track.prepare_ground_track(_source([(0.0, 0.0)], center_name=center))
-
-
-@pytest.mark.parametrize("frame", ["ITRF2000", "ITRF1997", "TOD", "UNKNOWN"])
-def test_prepare_rejects_unsupported_frames(frame: str) -> None:
-    with pytest.raises(ground_track.GroundTrackPreparationError, match="not supported"):
-        ground_track.prepare_ground_track(_source([(0.0, 0.0)], frame_name=frame))
-
-
-def test_prepare_reports_frame_conversion_failure(monkeypatch) -> None:
-    def fail(_frame_name: str, _epoch_tt_s: float, _state_m: np.ndarray) -> np.ndarray:
-        raise RuntimeError("kernel range is unavailable")
-
-    monkeypatch.setattr(ground_track, "_convert_inertial_state_to_itrf", fail)
-    with pytest.raises(ground_track.GroundTrackPreparationError, match="kernel range"):
-        ground_track.prepare_ground_track(_source([(0.0, 0.0)], frame_name="J2000"))
-
-
-def test_prepare_rejects_positions_inside_the_wgs84_ellipsoid() -> None:
-    source = ground_track.GroundTrackSource.from_samples(
-        [0.0], [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]], [0], "EARTH", "ITRF"
-    )
-
-    with pytest.raises(ground_track.GroundTrackPreparationError, match="inside"):
-        ground_track.prepare_ground_track(source)
+@pytest.mark.parametrize(
+    ("state", "frame", "message"),
+    [
+        (np.zeros(5), "ITRF", "invalid"),
+        (np.full(6, np.nan), "ITRF", "invalid"),
+        (np.ones(6), "TOD", "not supported"),
+    ],
+)
+def test_state_position_to_itrf_rejects_invalid_input(
+    state: np.ndarray, frame: str, message: str
+) -> None:
+    with pytest.raises(ground_track.GroundTrackPreparationError, match=message):
+        ground_track.state_position_to_itrf_m(state, frame, 0.0)
 
 
 def test_split_track_runs_at_segments_and_eastward_date_line() -> None:
-    prepared = ground_track.prepare_ground_track(
-        _source(
+    runs = ground_track.split_ground_track_runs(
+        _coordinates(
             [(0.0, 170.0), (10.0, -170.0), (20.0, -160.0), (30.0, 170.0)],
-            segment_ids=[0, 0, 0, 1],
-        )
+            [0, 0, 0, 1],
+        ),
+        0.0,
     )
-
-    runs = ground_track.split_ground_track_runs(prepared, 0.0)
 
     assert len(runs) == 3
     np.testing.assert_allclose(
@@ -156,12 +83,10 @@ def test_split_track_runs_at_segments_and_eastward_date_line() -> None:
 
 
 def test_split_track_handles_westward_date_line_and_adjustable_center() -> None:
-    prepared = ground_track.prepare_ground_track(
-        _source([(-5.0, -170.0), (5.0, 170.0)])
-    )
+    coordinates = _coordinates([(-5.0, -170.0), (5.0, 170.0)])
 
-    across_zero = ground_track.split_ground_track_runs(prepared, 0.0)
-    around_180 = ground_track.split_ground_track_runs(prepared, 180.0)
+    across_zero = ground_track.split_ground_track_runs(coordinates, 0.0)
+    around_180 = ground_track.split_ground_track_runs(coordinates, 180.0)
 
     assert len(across_zero) == 2
     np.testing.assert_allclose(
@@ -177,68 +102,5 @@ def test_split_track_handles_westward_date_line_and_adjustable_center() -> None:
 
 
 def test_split_track_rejects_nonfinite_center_longitude() -> None:
-    prepared = ground_track.prepare_ground_track(_source([(0.0, 0.0)]))
-
     with pytest.raises(ValueError, match="finite"):
-        ground_track.split_ground_track_runs(prepared, float("nan"))
-
-
-def test_prepare_with_bounds_converts_only_samples_near_the_window(monkeypatch) -> None:
-    source = _source([(0.0, float(index)) for index in range(100)])
-    source = ground_track.GroundTrackSource.from_samples(
-        np.arange(100, dtype=float) * 60.0,
-        source.states_m,
-        source.segment_ids,
-        source.center_name,
-        source.frame_name,
-    )
-    cache = ground_track.EarthFixedPositionCache()
-
-    coordinates = ground_track.prepare_ground_track(
-        source, position_cache=cache, bounds=(3_000.0, 3_300.0)
-    )
-
-    assert coordinates.timestamps_s[0] == 2_940.0
-    assert coordinates.timestamps_s[-1] == 3_360.0
-    assert int(cache._computed.sum()) == len(coordinates.timestamps_s)
-
-
-def test_prepare_max_samples_keeps_segment_edges_without_cropping_source() -> None:
-    count = 2_501
-    segment_ids = [0] * 1_000 + [1] * 1_000 + [2] * 501
-    source = _source([(0.0, 0.0)] * count, segment_ids=segment_ids)
-
-    coordinates = ground_track.prepare_ground_track(source, max_samples=2_000)
-
-    assert 2_000 <= len(coordinates.timestamps_s) <= 2_004
-    assert set(coordinates.segment_ids) == {0, 1, 2}
-    for boundary_sample in (999, 1_000, 1_999, 2_000):
-        assert boundary_sample * 10.0 in coordinates.timestamps_s
-    assert source.timestamps_s.size == count
-    assert source.states_m.shape == (count, 6)
-
-
-def test_position_cache_retains_converted_prefix_after_source_append(monkeypatch) -> None:
-    source = _source([(0.0, 0.0), (1.0, 1.0)])
-    cache = ground_track.EarthFixedPositionCache()
-    original_converter = ground_track.state_position_to_itrf_m
-    conversions = []
-
-    def convert(state, frame_name, epoch):
-        conversions.append(epoch)
-        return original_converter(state, frame_name, epoch)
-
-    monkeypatch.setattr(ground_track, "state_position_to_itrf_m", convert)
-    cache.positions(source)
-    appended_source = ground_track.GroundTrackSource.from_samples(
-        [0.0, 10.0, 20.0],
-        np.vstack((source.states_m, source.states_m[-1])),
-        [0, 0, 0],
-        source.center_name,
-        source.frame_name,
-    )
-
-    positions = cache.positions(appended_source)
-
-    assert conversions == [0.0, 10.0, 20.0]
-    assert positions.shape == (3, 3)
+        ground_track.split_ground_track_runs(_coordinates([(0.0, 0.0)]), float("nan"))

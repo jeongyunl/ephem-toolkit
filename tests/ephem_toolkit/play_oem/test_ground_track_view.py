@@ -10,7 +10,6 @@ from typing import Any, cast
 import numpy as np
 import pytest
 
-from ephem_toolkit.play_oem.ground_track import GroundTrackCoordinates
 from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem.oem_data_store import OemDataStore
 from ephem_toolkit.play_oem.time_range import ResolvedTimeRange
@@ -54,7 +53,7 @@ def test_pan_rotates_map_without_horizontal_viewport_drift(
     from matplotlib.figure import Figure
 
     view = ground_track.GroundTrackView(
-        cast(Any, None), None, None, cast(Any, None), "Test object"
+        cast(Any, None), "Test object"
     )
     view.projection_name = name
     view.background_style = background_style
@@ -117,53 +116,6 @@ def test_pan_rotates_map_without_horizontal_viewport_drift(
     assert view._axes.get_ylim()[1] == pytest.approx(original_ylim[1])
 
 
-def test_ground_track_filters_cached_coordinates_before_seam_splitting() -> None:
-    from matplotlib.backends.backend_agg import FigureCanvasAgg
-    from matplotlib.figure import Figure
-
-    coordinates = GroundTrackCoordinates(
-        np.arange(5, dtype=float),
-        np.zeros(5),
-        np.deg2rad(np.array([-10.0, 170.0, 179.0, -179.0, -170.0])),
-        np.zeros(5, dtype=int),
-        "ITRF",
-    )
-    view = ground_track.GroundTrackView(
-        cast(Any, None),
-        None,
-        coordinates,
-        cast(Any, type("CursorBounds", (), {"t_start": 0.0, "t_end": 4.0})()),
-        "Test object",
-    )
-    view._figure = Figure()
-    canvas = FigureCanvasAgg(view._figure)
-    view._canvas = cast(Any, canvas)
-    view._axes = view._figure.add_subplot(111)
-    view._draw_map()
-    before = (view._axes.get_xlim(), view._axes.get_ylim())
-
-    view.set_time_range(ResolvedTimeRange(1.0, 3.0), (0.0, 4.0))
-
-    assert len(view._track_artists) == 2
-    assert (view._axes.get_xlim(), view._axes.get_ylim()) == before
-    projected_east = view._projection(np.array([170.0, 179.0, 180.0]), np.zeros(3))[0]
-    projected_west = view._projection(np.array([-180.0, -179.0]), np.zeros(2))[0]
-    np.testing.assert_allclose(view._track_artists[0].get_xdata(), projected_east)
-    np.testing.assert_allclose(view._track_artists[1].get_xdata(), projected_west)
-
-    view.set_time_range(None, (0.0, 4.0))
-    assert not view._track_artists
-    assert view._track_status_artist.get_visible()
-    assert view._track_status_artist.get_text() == (
-        "Plot range does not overlap OEM coverage"
-    )
-
-    view.set_time_range(ResolvedTimeRange(1.1, 1.9), (0.0, 4.0))
-    assert not view._track_artists
-    assert view._track_status_artist.get_text() == "No ground track samples in plot range"
-    view.close()
-
-
 def test_ground_track_store_view_uses_bound_queries_and_point_footprints() -> None:
     from matplotlib.backends.backend_agg import FigureCanvasAgg
     from matplotlib.figure import Figure
@@ -196,7 +148,7 @@ def test_ground_track_store_view_uses_bound_queries_and_point_footprints() -> No
     )
 
     view = ground_track.GroundTrackView(
-        cast(Any, None), None, None, cast(Any, None), "Test object"
+        cast(Any, None), "Test object"
     )
     view._store_binding.bind(context)
     view._store_context = context
@@ -235,19 +187,8 @@ def test_ground_track_axes_follow_canvas_height_without_fixed_aspect() -> None:
     from matplotlib.backends.backend_agg import FigureCanvasAgg
     from matplotlib.figure import Figure
 
-    coordinates = GroundTrackCoordinates(
-        np.array([0.0, 10.0]),
-        np.array([0.0, 0.1]),
-        np.array([0.0, 0.2]),
-        np.array([0, 0]),
-        "ITRF",
-    )
     view = ground_track.GroundTrackView(
-        cast(Any, None),
-        None,
-        coordinates,
-        cast(Any, type("CursorBounds", (), {"t_start": 0.0, "t_end": 10.0})()),
-        "Test object",
+        cast(Any, None), "Test object"
     )
     view._figure = Figure(figsize=(8.0, 4.0), dpi=100)
     canvas = FigureCanvasAgg(view._figure)
@@ -281,9 +222,6 @@ def test_station_markers_follow_projection_and_center_longitude(
 
     station = GroundStation("seam-site", "Seam Site", 12.0, 179.5, 100.0, 15)
     view = ground_track.GroundTrackView(
-        cast(Any, None),
-        None,
-        None,
         cast(Any, None),
         "Test object",
         stations=[station],
@@ -331,9 +269,6 @@ def test_station_marker_selection_opens_passes_without_seeking() -> None:
     opened: list[str] = []
     view = ground_track.GroundTrackView(
         cast(Any, None),
-        None,
-        None,
-        cast(Any, cursor),
         "Test object",
         stations=[station],
         on_open_passes=opened.append,
@@ -367,9 +302,6 @@ def test_station_updates_retain_viewport_and_remove_stale_markers() -> None:
     replacement = GroundStation("replacement", "Replacement", 20.0, 30.0, 0.0)
     view = ground_track.GroundTrackView(
         cast(Any, None),
-        None,
-        None,
-        cast(Any, None),
         "Test object",
         stations=[first],
     )
@@ -398,19 +330,9 @@ def test_wx_view_builds_controls_and_updates_minimum_elevation(wx_app: Any) -> N
     import wx
 
     frame = wx.Frame(None)
-    coordinates = GroundTrackCoordinates(
-        np.array([0.0, 10.0]),
-        np.deg2rad(np.array([0.0, 10.0])),
-        np.deg2rad(np.array([0.0, 20.0])),
-        np.array([0, 0]),
-        "ITRF",
-    )
     updates: list[int] = []
     view = ground_track.GroundTrackView(
         frame,
-        None,
-        coordinates,
-        cast(Any, type("CursorBounds", (), {"t_start": 0.0, "t_end": 10.0})()),
         "Test object",
         on_minimum_elevation=updates.append,
     )
@@ -445,18 +367,8 @@ def test_resizing_host_preserves_spin_control_sizes(wx_app: Any) -> None:
 
     frame = wx.Frame(None, size=(1500, 600))
     host = GraphPanelHost(frame, "Ground Track", lambda: None)
-    coordinates = GroundTrackCoordinates(
-        np.array([0.0, 10.0]),
-        np.array([0.0, 0.1]),
-        np.array([0.0, 0.2]),
-        np.array([0, 0]),
-        "ITRF",
-    )
     view = ground_track.GroundTrackView(
         host.graph_scroller,
-        None,
-        coordinates,
-        cast(Any, type("CursorBounds", (), {"t_start": 0.0, "t_end": 10.0})()),
         "Test object",
     )
     try:

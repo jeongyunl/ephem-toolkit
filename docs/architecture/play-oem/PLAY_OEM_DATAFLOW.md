@@ -57,11 +57,12 @@ follows playback. Saved settings override those defaults.
    Current station metrics and footprints are derived at the playback time; they are not
    lookups into the range-profile results.
 
-## Remaining compatibility
+## Ownership and performance boundaries
 
-The loader no longer publishes prepared state batches or maintains a second derived-data
-owner. Some view builders still accept legacy `GroundTrackSource` and station-cache inputs
-for non-store contexts; store-backed application views use `OemDataStore`.
+All registered views use store-bound query builders. The application does not retain
+`GroundTrackSource`, `EarthFixedPositionCache`, or `StationAccessCache` owners, and Ground Track
+and station views do not have non-store data fallbacks. Each load generation owns one
+`OemDataStore`; a replacement store is installed only after it has usable rows.
 
 ## Remaining efficiency considerations
 

@@ -47,12 +47,14 @@ replacement has committed usable rows, then releases the old store after replaci
 
 Stateless mode on the existing core interpolators and zero-copy plotting primitives are
 implemented and validated. Every registered data view has a store-backed builder, and panel
-creation dispatches through `StoreViewContext` when that builder is available. Step 7 now wires
+creation dispatches through `StoreViewContext`. Step 7 now wires
 the active player to direct parser-to-store loading, live sample-time playback, snapshot-bound
 view contexts, range hints, queued store notices, and store-backed station prefetch. Replacement,
 failure, cancellation, metadata finalization, and stale-notice handling are coordinated on that
-path. Step 8 has removed the prepared-batch path and duplicate derived-series owners; its
-remaining scope is legacy view ownership and copy cleanup. Step 7 is still in progress because
+path. Step 8 has removed the prepared-batch path, duplicate derived-series owners, and legacy
+Ground Track/station source/cache ownership. Pre-store view builders remain available only until
+the first store is ready, when store-capable views are rebuilt through the store path. Step 7 is
+still in progress because
 the JPSS-1 automatic-capacity first-append gate failed; the application's end-to-end no-copy and
 responsiveness acceptance gates are not yet complete.
 
@@ -162,18 +164,13 @@ deferred and remains unresolved; its deferral does not imply acceptance. Step 8 
 After every consumer is store-backed, remove duplicate caches and obsolete preparation paths,
 update architecture documentation, and run final correctness/performance gates.
 
-- **Status:** In progress (the module-level footprint LRU and controller-held Ground Track
-  coordinate reference have been removed, and store station queries no longer construct a
-  temporary `GroundTrackSource`; store-backed app mode no longer retains the legacy
-  `StationAccessCache`; typed arrays passed through the remaining
-  `GroundTrackSource.from_samples` helper are now shared rather than copied; the unused one-shot
-  `load_playback_data` path and prepared-batch loader/derived-data owners have been removed;
-  frame and interpolation-policy cache identity is verified; current-state dataflow documentation
-  now distinguishes the default store path from remaining view fallbacks; cache retention,
-  support-margin recomputation, view-pinned eviction, and identical recomputation are covered;
-  the first checklist item remains incomplete).
-- **Progress:** 4/8 checklist items.
-- [ ] Remove `GroundTrackSource`, `source_prefix_matches`, controller-held Ground Track arrays,
+- **Status:** In progress (the prepared-batch path, legacy source/cache owners, controller-held
+  Ground Track arrays, and module footprint LRU are removed; frame and interpolation-policy cache
+  identity is verified; store cache retention, support-margin recomputation, view-pinned eviction,
+  and identical recomputation are covered; broad fixture validation, headless measurements, and
+  final ownership review remain).
+- **Progress:** 6/8 checklist items.
+- [x] Remove `GroundTrackSource`, `source_prefix_matches`, controller-held Ground Track arrays,
       app-scoped `EarthFixedPositionCache`/`StationAccessCache`, and the module footprint cache.
 - [x] Ensure frame changes are represented in epoch/query identity and interpolation-policy
       changes invalidate only dependent interpolation/access products.
@@ -189,13 +186,27 @@ update architecture documentation, and run final correctness/performance gates.
       allocation, and view regressions on ISS, JPSS-1, and multi-segment fixtures.
 - [ ] Run headless performance and memory benchmarks against the recorded baseline; document
       remaining UI gates as unverified rather than inferring them from headless results.
-- [ ] Review for residual duplicate owners, orbit-sized copies, eager derived work, stale-cache
-      identity checks, and unhandled load lifecycle states.
+- [x] Review residual ownership and lifecycle paths. Store-backed builders serve loaded data;
+      views opened before the first store are rebuilt through those builders when the store arrives.
+      Remaining `OrbitSeries` builders are pre-store fallbacks, and their orbit-sized copies are
+      not used to render loaded store data. Point-state vectors and bounded display samples remain
+      intentional small or range-limited outputs.
 
 **Done when:** the store design's validation criteria pass, superseded paths are removed, the
 dataflow documentation matches the implementation, and all remaining exceptions/limitations are
 explicitly documented.
 **Depends on:** Steps 5–7.
+
+**Evidence to date:** `python3 -m pytest tests/ephem_toolkit/play_oem
+tests/ephem_toolkit/core/interpolator -q` passed (643 passed, 4 skipped); `compileall` and
+`git diff --check` passed. A one-reported-repeat, headless JPSS-1 diagnostic measured 24.314 ms
+first raw append, 0.498495 s validated completion, and 90.0 MiB process peak RSS; a separate
+one-repeat data-layer run measured 0.517627 s ingestion and range-query times documented in the
+[store design](./PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md#post-cleanup-headless-diagnostic).
+These diagnostics are not paired baseline comparisons and do not pass either performance gate.
+The Step 7 gate remains deferred; GUI responsiveness was not measured.
+After the pre-store view rebuild transition was added, focused app lifecycle tests passed
+(77 passed); package `compileall` and `git diff --check` passed.
 
 ## Deferred, separate work
 

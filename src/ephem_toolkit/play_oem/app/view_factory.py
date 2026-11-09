@@ -20,12 +20,6 @@ from ..views import (
     trajectory3d,
 )
 from ..views.trajectory3d import selection as trajectory3d_selection
-from ..ground_track import (
-    GroundTrackCoordinates,
-    GroundTrackPreparationError,
-    GroundTrackSource,
-    prepare_ground_track,
-)
 from .state import PlayerAppState
 
 
@@ -47,16 +41,12 @@ class ViewFactoryMixin:
             lambda panel: ground_station_analysis_view.GroundStationAnalysisView(
                 panel,
                 panel_type,
-                self._ground_track_source_for_plot_range()
-                if self._oem_loaded
-                else None,
                 self.cursor,
                 self._ground_stations,
                 self.time_unit,
                 self.object_name,
                 oem_loaded=self._oem_loaded,
                 on_station_manager=self.workspace.select_ground_stations,
-                access_cache=self._station_access_cache,
                 selection_context=self._station_analysis_contexts[stack],
                 initial_range=self._resolved_plot_range(),
                 display_time_zone=self._display_time_zone,
@@ -101,12 +91,6 @@ class ViewFactoryMixin:
             "range-profile", "range-profile", panel_id, stack, force_replace
         )
 
-    def _ground_track_source_for_plot_range(self) -> GroundTrackSource | None:
-        """Return the shared source; consumers limit work to their requested range."""
-        if self._store_view_context is not None:
-            return None
-        return self._ground_track_source
-
     def _resolved_plot_range(self) -> time_range.ResolvedTimeRange | None:
         return time_range.resolve_plot_range(
             self.plot_time_range,
@@ -115,101 +99,18 @@ class ViewFactoryMixin:
             self.clock.t_now,
         )
 
-    def _ground_track_plot_bounds(self) -> tuple[float, float]:
-        """Return the plot range in TT seconds, or a point when it is empty."""
-        resolved = time_range.resolve_plot_range(
-            self.plot_time_range,
-            (self.clock.t_start, self.clock.t_end),
-            (self.clock.playback_start, self.clock.playback_end),
-            self.clock.t_now,
-        )
-        if resolved is None:
-            return (self.clock.t_start, self.clock.t_start)
-        return (resolved.start_s, resolved.end_s)
-
-    def _prepare_ground_track_window(
-        self, bounds: tuple[float, float]
-    ) -> GroundTrackCoordinates:
-        margin_s = max(3_600.0, 0.5 * (bounds[1] - bounds[0]))
-        return prepare_ground_track(
-            self._ground_track_source,
-            position_cache=(
-                None
-                if self._station_access_cache is None
-                else self._station_access_cache.position_cache
-            ),
-            bounds=bounds,
-            margin_s=margin_s,
-        )
-
-    def _ground_track_coordinates_for_range(
-        self, bounds: time_range.ResolvedTimeRange
-    ) -> GroundTrackCoordinates | None:
-        """Prepare coordinates for a plot range that left the prepared window."""
-        if self._ground_track_source is None:
-            return None
-        try:
-            coordinates = self._prepare_ground_track_window(
-                (bounds.start_s, bounds.end_s)
-            )
-        except GroundTrackPreparationError:
-            return None
-        return coordinates
-
     def open_ground_track_view(
         self: PlayerAppState,
         panel_id: str | None = None,
         stack: str = "middle",
         force_replace: bool = False,
     ) -> None:
-        """Open a Ground Track panel, preparing its static coordinates once per OEM."""
-        store_backed = self._store_view_context is not None
-        source = None if store_backed else self._ground_track_source
-        coordinates: GroundTrackCoordinates | None = None
-        error_message: str | None = None
-        coordinate_provider = None
-        if source is None:
-            error_message = "Load an Earth-centered OEM to view its ground track."
-        elif self._oem_coverage_complete:
-            # Convert only samples near the plot range; the view requests more
-            # when the range moves outside what was prepared.
-            coordinate_provider = self._ground_track_coordinates_for_range
-            try:
-                coordinates = self._prepare_ground_track_window(
-                    self._ground_track_plot_bounds()
-                )
-            except GroundTrackPreparationError as error:
-                coordinates = None
-                error_message = str(error)
-        elif coordinates is None:
-            try:
-                resolved = self._resolved_plot_range()
-                coordinates = prepare_ground_track(
-                    source,
-                    position_cache=(
-                        None
-                        if self._station_access_cache is None
-                        else self._station_access_cache.position_cache
-                    ),
-                    bounds=(
-                        None
-                        if resolved is None
-                        else (resolved.start_s, resolved.end_s)
-                    ),
-                    max_samples=2_000,
-                )
-            except GroundTrackPreparationError as error:
-                error_message = str(error)
-
+        """Open a Ground Track panel backed by the active OEM store."""
         self._open_view(
             "ground-track",
             lambda panel: ground_track_view.GroundTrackView(
                 panel,
-                source,
-                coordinates,
-                self.cursor,
                 self.object_name,
-                error_message=error_message,
                 minimum_elevation_deg=(
                     self._saved_state.minimum_elevation_deg
                     if self._saved_state is not None
@@ -241,7 +142,6 @@ class ViewFactoryMixin:
                     initial_station_id=station_id
                 ),
                 on_minimum_elevation=self._set_ground_track_minimum_elevation,
-                coordinate_provider=coordinate_provider,
             ),
             panel_id=panel_id,
             stack=stack,
@@ -259,9 +159,6 @@ class ViewFactoryMixin:
             "ground-station-access",
             lambda panel: ground_station_access_view.GroundStationAccessView(
                 panel,
-                self._ground_track_source_for_plot_range()
-                if self._oem_loaded
-                else None,
                 self.cursor,
                 self._ground_stations,
                 self.time_unit,
@@ -269,7 +166,6 @@ class ViewFactoryMixin:
                 oem_loaded=self._oem_loaded,
                 on_seek=self._seek_from_ground_station_timeline,
                 on_station_manager=self.workspace.select_ground_stations,
-                access_cache=self._station_access_cache,
                 selection_context=self._station_analysis_contexts[stack],
                 limit_to_range=True,
                 initial_range=self._resolved_plot_range(),
@@ -310,9 +206,6 @@ class ViewFactoryMixin:
             "ground-station-passes",
             lambda panel: ground_station_passes_view.GroundStationPassesView(
                 panel,
-                self._ground_track_source_for_plot_range()
-                if self._oem_loaded
-                else None,
                 self.cursor,
                 self._ground_stations,
                 self.object_name,
@@ -320,7 +213,6 @@ class ViewFactoryMixin:
                 on_seek=self._seek_from_ground_station_timeline,
                 on_focus_pass=self._focus_ground_station_pass,
                 on_station_manager=self.workspace.select_ground_stations,
-                access_cache=self._station_access_cache,
                 selection_context=self._station_analysis_contexts[stack],
                 limit_to_range=True,
                 initial_range=self._resolved_plot_range(),
@@ -344,9 +236,6 @@ class ViewFactoryMixin:
             name,
             lambda panel: view_class(
                 panel,
-                self._ground_track_source_for_plot_range()
-                if self._oem_loaded
-                else None,
                 self.cursor,
                 self._ground_stations,
                 self.object_name,
@@ -354,7 +243,6 @@ class ViewFactoryMixin:
                 on_seek=self._seek_from_ground_station_timeline,
                 on_focus_pass=self._focus_ground_station_pass,
                 on_station_manager=self.workspace.select_ground_stations,
-                access_cache=self._station_access_cache,
                 selection_context=self._station_analysis_contexts[stack],
                 limit_to_range=True,
                 initial_range=self._resolved_plot_range(),
@@ -403,11 +291,9 @@ class ViewFactoryMixin:
             "pass-ground-track",
             lambda panel: ground_station_pass_track_view.GroundStationPassTrackView(
                 panel,
-                self._ground_track_source if self._oem_loaded else None,
                 self.cursor,
                 self._ground_stations,
                 oem_loaded=self._oem_loaded,
-                access_cache=self._station_access_cache,
                 selection_context=self._station_analysis_contexts[stack],
                 display_time_zone=self._display_time_zone,
             ),

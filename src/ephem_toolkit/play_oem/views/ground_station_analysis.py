@@ -15,17 +15,11 @@ from matplotlib.figure import Figure
 from ..display_time import UTC_DISPLAY, format_tt
 from .. import cursor as playback_cursor
 from ..ground_stations import GroundStation
-from ..ground_track import (
-    GroundTrackPreparationError,
-    GroundTrackSource,
-)
 from ..oem_data_store import StationAccessView, StoreQuery
 from ..series import OrbitSeries
 from ..station_access import (
     AccessInterval,
     StationAccess,
-    StationAccessCache,
-    current_station_metrics,
 )
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
@@ -48,7 +42,6 @@ class GroundStationAnalysisView:
         self,
         parent: wx.Window,
         panel_type: str,
-        source: GroundTrackSource | None,
         cursor: playback_cursor.OemCursor,
         stations: Sequence[GroundStation],
         time_unit: TimeUnit,
@@ -56,7 +49,6 @@ class GroundStationAnalysisView:
         *,
         oem_loaded: bool,
         on_station_manager: Callable[[], None],
-        access_cache: StationAccessCache | None,
         selection_context: StationAnalysisContext,
         initial_range: ResolvedTimeRange | None,
         display_time_zone: str = UTC_DISPLAY,
@@ -66,18 +58,12 @@ class GroundStationAnalysisView:
         self.name = panel_type
         self._parent = parent
         self._panel_type = panel_type
-        self._source = source
         self._cursor = cursor
         self._stations = tuple(stations)
         self._time_unit = time_unit
         self._object_name = object_name
         self._oem_loaded = oem_loaded
         self._on_station_manager = on_station_manager
-        self._access_cache = (
-            access_cache
-            if access_cache is not None
-            else (StationAccessCache() if source is not None else None)
-        )
         self._selection_context = selection_context
         self._display_time_zone = display_time_zone
         self._time_range = initial_range
@@ -324,19 +310,6 @@ class GroundStationAnalysisView:
                     query.value
                 )
             return
-        if self._source is None or self._time_range is None:
-            return
-        bounds = (self._time_range.start_s, self._time_range.end_s)
-        assert self._access_cache is not None
-        for station in self._stations:
-            try:
-                self._results[station.station_id] = self._access_cache.prepare(
-                    self._source, self._cursor, station, bounds
-                )
-            except GroundTrackPreparationError as error:
-                self._results[station.station_id] = StationAccess(
-                    station, (), str(error)
-                )
 
     def _draw(self) -> None:
         if self._axes is None:
@@ -555,9 +528,7 @@ class GroundStationAnalysisView:
         load_status = store_load_status_message(self._store_context)
         if station is None:
             message = "No ground stations are configured. Add a station to continue."
-        elif not self._oem_loaded or (
-            self._source is None and self._store_context is None
-        ):
+        elif not self._oem_loaded or self._store_context is None:
             message = "Load an Earth-centered OEM to view station analysis."
         elif load_status is not None:
             message = load_status
@@ -606,34 +577,13 @@ class GroundStationAnalysisView:
         if (
             station is None
             or not self._oem_loaded
-            or (self._source is None and self._store_context is None)
+            or self._store_context is None
         ):
             metrics_text = ""
         else:
-            try:
-                if self._store_context is not None:
-                    metrics = self._store_context.station_metrics_at(
-                        station, self._current_time_s
-                    )
-                else:
-                    source = self._source
-                    if source is not None:
-                        assert self._access_cache is not None
-                    metrics = (
-                        None
-                        if source is None
-                        else current_station_metrics(
-                            station,
-                            self._cursor,
-                            self._current_time_s,
-                            source,
-                            self._access_cache.position_cache,
-                        )
-                    )
-            except GroundTrackPreparationError as error:
-                if self._status_label is not None:
-                    self._status_label.SetLabel(str(error))
-                metrics = None
+            metrics = self._store_context.station_metrics_at(
+                station, self._current_time_s
+            )
             metrics_text = (
                 "Current OEM state unavailable (outside coverage or in a segment gap)."
                 if metrics is None

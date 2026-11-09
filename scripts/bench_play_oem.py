@@ -16,24 +16,17 @@ try:
 except ImportError:
     resource = None
 
-from ephem_toolkit.play_oem.data import read_oem_states
-from ephem_toolkit.play_oem.cursor import OemCursor
 from ephem_toolkit.play_oem.ground_stations import GroundStation
-from ephem_toolkit.play_oem.ground_track import (
-    EarthFixedPositionCache,
-    GroundTrackSource,
-    prepare_ground_track,
-    state_position_to_itrf_m,
-)
 from ephem_toolkit.play_oem.incremental_loader import (
     IncrementalLoader,
     LoadEventKind,
 )
-from ephem_toolkit.play_oem.oem_data_store import OemDataStore, RawAppendNotice
-from ephem_toolkit.play_oem.series import compute_orbit_series
-from ephem_toolkit.play_oem.station_access import StationAccessCache
+from ephem_toolkit.play_oem.oem_data_store import (
+    OemDataStore,
+    RawAppendNotice,
+    StoreSnapshot,
+)
 from ephem_toolkit.play_oem.streaming_oem import read_oem_into_store
-from ephem_toolkit.play_oem.time_unit import TimeUnit
 
 
 _STATION_LOCATIONS = (
@@ -242,84 +235,86 @@ def run_parser_benchmarks(source: Path, repeats: int) -> None:
 
 
 def run_data_benchmarks(source: Path, repeats: int, range_days: float) -> None:
-    """Measure parser, derived-series, range conversion, and station access costs."""
-    parsed_oem, timestamps_s, states_m = read_oem_states(source)
-    segment_ids = parsed_oem.segment_ids[: len(timestamps_s)]
-    selected_time_unit = TimeUnit.for_duration(timestamps_s[-1] - timestamps_s[0])
+    """Measure direct-store ingestion and lazy, range-bound analysis queries."""
 
-    def prepare_eager_reference() -> tuple[OemCursor, GroundTrackSource]:
-        parsed, timestamps, states = read_oem_states(source)
-        segments = parsed.segment_ids[: len(timestamps)]
-        selected_unit = TimeUnit.for_duration(timestamps[-1] - timestamps[0])
-        compute_orbit_series(timestamps, states, selected_unit, segments)
-        cursor = OemCursor(timestamps, states, segment_ids=segments)
-        ground_track_source = GroundTrackSource(
-            cursor.timestamps_s,
-            cursor.states_m,
-            cursor.segment_ids,
-            parsed.meta.center_name,
-            parsed.meta.ref_frame,
+    def read_store() -> tuple[OemDataStore, StoreSnapshot]:
+        store = OemDataStore()
+        store.begin(OemDataStore.capacity_for_file(source))
+        completion = read_oem_into_store(
+            source,
+            store,
+            batch_size=512,
+            on_append=lambda _notice: None,
+            cancel_event=Event(),
         )
-        return cursor, ground_track_source
+        snapshot = store.snapshot()
+        if completion.state_count != snapshot.sample_count:
+            store.close()
+            raise RuntimeError("store and completion counts do not match")
+        return store, snapshot
 
-    parse_samples = _measure(lambda: read_oem_states(source), repeats)
-    series_samples = _measure(
-        lambda: compute_orbit_series(
-            timestamps_s, states_m, selected_time_unit, segment_ids
-        ),
+    ingest_samples = _measure(
+        lambda: measure_store_ingest(source, OemDataStore.capacity_for_file(source)),
         repeats,
     )
-    preparation_samples = _measure(prepare_eager_reference, repeats)
+    store, snapshot = read_store()
+    try:
+        start_s = float(snapshot.raw[0, 0])
+        end_s = float(snapshot.raw[-1, 0])
+        range_end_s = min(start_s + range_days * 86_400.0, end_s)
+        if range_end_s <= start_s:
+            raise ValueError("the OEM must span a positive time range")
+        bounds = (start_s, range_end_s)
+    finally:
+        store.close()
 
-    playback_cursor, source_track = prepare_eager_reference()
-    start_s = float(playback_cursor.timestamps_s[0])
-    end_s = float(playback_cursor.timestamps_s[-1])
-    range_end_s = min(start_s + range_days * 86_400.0, end_s)
-    bounds = (start_s, range_end_s)
-    if range_end_s <= start_s:
-        raise ValueError("the OEM must span a positive time range")
+    def measure_queries(
+        query: Callable[
+            [OemDataStore, StoreSnapshot, tuple[float, float]], None
+        ],
+    ) -> list[float]:
+        samples = []
+        for _ in range(repeats):
+            query_store, query_snapshot = read_store()
+            started = time.perf_counter()
+            try:
+                query(query_store, query_snapshot, bounds)
+                samples.append(time.perf_counter() - started)
+            finally:
+                query_store.close()
+        return samples
 
-    sample_index = len(playback_cursor.timestamps_s) // 2
-    state_position_to_itrf_m(
-        playback_cursor.states_m[sample_index],
-        source_track.frame_name,
-        float(playback_cursor.timestamps_s[sample_index]),
+    ground_track_samples = measure_queries(
+        lambda query_store, query_snapshot, query_bounds: query_store.ground_track(
+            query_snapshot, query_bounds, wait=True
+        )
     )
-    ground_track_samples = _measure(
-        lambda: prepare_ground_track(
-            source_track,
-            position_cache=EarthFixedPositionCache(),
-            bounds=bounds,
-        ),
-        repeats,
-    )
-
     print(f"Input: {source}")
     print(
-        f"Samples: {len(playback_cursor.timestamps_s)}; "
+        f"Samples: {snapshot.sample_count}; "
         f"coverage: {(end_s - start_s) / 86_400.0:.3f} days; "
         f"range: {(range_end_s - start_s) / 86_400.0:.3f} days"
     )
-    _print_measurement("OEM parse", parse_samples)
-    _print_measurement("compute_orbit_series", series_samples)
-    _print_measurement("Eager full-history preparation (reference)", preparation_samples)
-    _print_measurement("Ground Track range conversion", ground_track_samples)
+    _print_measurement("Direct raw-store ingestion", ingest_samples)
+    _print_measurement("Lazy Ground Track range query", ground_track_samples)
 
     for station_count in (1, 3, 10):
         stations = _stations(station_count)
 
-        def prepare_access() -> None:
-            cache = StationAccessCache()
+        def prepare_access(
+            query_store: OemDataStore,
+            query_snapshot: StoreSnapshot,
+            query_bounds: tuple[float, float],
+        ) -> None:
             for station in stations:
-                cache.prepare(
-                    source_track,
-                    playback_cursor,
-                    station,
-                    bounds,
+                query_store.station_access(
+                    query_snapshot, station, query_bounds, wait=True
                 )
 
-        samples = _measure(prepare_access, repeats)
-        _print_measurement(f"Access analysis ({station_count} stations)", samples)
+        _print_measurement(
+            f"Lazy station access ({station_count} stations)",
+            measure_queries(prepare_access),
+        )
 
 
 def run_gui_stall_probe(source: Path) -> None:
@@ -339,7 +334,6 @@ def run_gui_stall_probe(source: Path) -> None:
         initial_data.frame_context,
         dashboard_context=initial_data.dashboard_context,
         metadata_details=initial_data.metadata_details,
-        ground_track_source=initial_data.ground_track_source,
         initial_file_path=str(source),
         oem_loaded=False,
     )
@@ -362,7 +356,7 @@ def run_gui_stall_probe(source: Path) -> None:
     original_open_panel_view = player.open_panel_view
     original_poll = player._poll_incremental_load
     original_start_load = player._start_incremental_load
-    original_replace_data = player._replace_playback_data
+    original_install_snapshot = player._install_store_snapshot
     original_set_loaded = [player.workspace.set_oem_loaded]
     first_installed_at: list[Optional[float]] = [None]
     request_at: list[Optional[float]] = [None]
@@ -387,11 +381,11 @@ def run_gui_stall_probe(source: Path) -> None:
         if player._active_load_first_batch and first_installed_at[0] is None:
             first_installed_at[0] = time.perf_counter()
 
-    def observe_replace_data(*args, **kwargs) -> None:
+    def observe_install_snapshot(*args, **kwargs) -> None:
         started = time.perf_counter()
         inside_initial_install[0] = True
         try:
-            original_replace_data(*args, **kwargs)
+            original_install_snapshot(*args, **kwargs)
         finally:
             inside_initial_install[0] = False
             initial_install_s.append(time.perf_counter() - started)
@@ -460,7 +454,7 @@ def run_gui_stall_probe(source: Path) -> None:
     player.open_panel_view = observe_open_panel_view
     player._poll_incremental_load = observe_poll
     player._start_incremental_load = observe_start_load
-    player._replace_playback_data = observe_replace_data
+    player._install_store_snapshot = observe_install_snapshot
     player.workspace.set_oem_loaded = observe_set_loaded
     result = {"failed": False, "timed_out": False}
     started_at = time.perf_counter()
@@ -499,7 +493,7 @@ def run_gui_stall_probe(source: Path) -> None:
             del player.open_panel_view
             del player._poll_incremental_load
             del player._start_incremental_load
-            del player._replace_playback_data
+            del player._install_store_snapshot
             del player.workspace.set_oem_loaded
             original_set_loaded.clear()
             player.frame.Close(force=True)

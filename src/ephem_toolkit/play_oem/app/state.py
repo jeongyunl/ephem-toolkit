@@ -13,7 +13,6 @@ from .. import (
     clock,
     control_window,
     cursor,
-    playback_data,
     series,
     time_unit,
     time_range,
@@ -22,7 +21,6 @@ from .. import (
 from ..ground_stations import GroundStation
 from ..oem_data_store import OemDataStore
 from ..saved_state import SavedAppState
-from ..station_access import StationAccessCache
 from ..station_analysis import StationAnalysisContext
 from ..views import base, registry
 from ..views.base import StoreViewContext
@@ -40,12 +38,10 @@ class PlayerAppState(Protocol):
     cursor: cursor.OemCursor
     frame: wx.Frame
     frame_context: str
-    _ground_track_source: playback_data.GroundTrackSource | None
     _oem_store: OemDataStore | None
     _store_view_context: StoreViewContext | None
     _range_dragging: bool
     _ground_stations: list[GroundStation]
-    _station_access_cache: StationAccessCache | None
     _station_analysis_contexts: dict[str, StationAnalysisContext]
     _saved_state: SavedAppState | None
     object_name: str
@@ -69,7 +65,6 @@ class PlayerAppState(Protocol):
     _playback_handle_bounds: tuple[float, float]
     _pending_playback_bounds: tuple[float, float] | None
     _pending_file_playback_bounds: tuple[float, float] | None
-    _on_open_file_callback: Callable[[str], playback_data.PlaybackData] | None
     _open_panels: dict[str, _OpenView]
     _open_views: dict[str, _OpenView]
     _clock_unsubscribe: Callable[[], None]
