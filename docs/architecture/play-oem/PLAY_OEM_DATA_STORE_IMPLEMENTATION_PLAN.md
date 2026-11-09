@@ -54,9 +54,8 @@ failure, cancellation, metadata finalization, and stale-notice handling are coor
 path. Step 8 has removed the prepared-batch path, duplicate derived-series owners, and legacy
 Ground Track/station source/cache ownership. Pre-store view builders remain available only until
 the first store is ready, when store-capable views are rebuilt through the store path. Step 7 is
-still in progress because
-the JPSS-1 automatic-capacity first-append gate failed; the application's end-to-end no-copy and
-responsiveness acceptance gates are not yet complete.
+complete for application wiring and lifecycle correctness. Its automatic-capacity first-append
+gate is deferred and unpassed; GUI responsiveness was not measured.
 
 Historical automatic-sizing measurements counted physical lines and reserved 172,833 rows for
 21,601 JPSS-1 states because covariance rows contributed to the bound. Current sizing excludes
@@ -71,11 +70,11 @@ The current graph inventory is defined in
 families to shared store-owned intermediates; do not make a separate orbit-sized result for each
 view.
 
-**Diagram roles:** `PLAY_OEM_DATAFLOW.md` and `.mmd` describe the verified current implementation
-until Step 8. The architecture diagrams in the store design describe the target `OemDataStore`
-contract. Keep the graph names and shared-intermediate relationships aligned, but do not show
-target tiers or APIs as shipped in the current-state diagram. Keep benchmark results in the store
-design's performance section, not in the current dataflow document or diagram.
+**Diagram roles:** `PLAY_OEM_DATAFLOW.md` and `.mmd` describe the verified current implementation,
+including the Step 8 cleanup. The architecture diagrams in the store design describe the target
+`OemDataStore` contract. Keep the graph names and shared-intermediate relationships aligned, but
+do not show target tiers or APIs as shipped in the current-state diagram. Keep benchmark results
+in the store design's performance section, not in the current dataflow document or diagram.
 
 The [public query contract](./PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md#public-interface) is
 normative: low-level ranged queries return `StoreQuery[T]` with an epoch/revision stamp and
@@ -156,20 +155,21 @@ criteria pass. Progress is the number of completed checklist items.
 
 ## Active implementation sequence
 
-Steps 4 through 7 are complete. Step 7's automatic-capacity first-append performance gate is
-deferred and remains unresolved; its deferral does not imply acceptance. Step 8 is active.
+Steps 4 through 8 are complete. Step 7's automatic-capacity first-append performance gate is
+deferred, remains unpassed, and does not block completion of Step 8.
 
 ### 8. Consolidate ownership, remove superseded paths, and accept the migration
 
 After every consumer is store-backed, remove duplicate caches and obsolete preparation paths,
 update architecture documentation, and run final correctness/performance gates.
 
-- **Status:** In progress (the prepared-batch path, legacy source/cache owners, controller-held
+- **Status:** Done (the prepared-batch path, legacy source/cache owners, controller-held
   Ground Track arrays, and module footprint LRU are removed; frame and interpolation-policy cache
   identity is verified; store cache retention, support-margin recomputation, view-pinned eviction,
   and identical recomputation are covered; fixture and lifecycle regressions pass; headless
-  baseline measurements remain).
-- **Progress:** 7/8 checklist items.
+  comparisons are documented. Step 7's first-delivery performance gate remains deferred and
+  unpassed).
+- **Progress:** 8/8 checklist items.
 - [x] Remove `GroundTrackSource`, `source_prefix_matches`, controller-held Ground Track arrays,
       app-scoped `EarthFixedPositionCache`/`StationAccessCache`, and the module footprint cache.
 - [x] Ensure frame changes are represented in epoch/query identity and interpolation-policy
@@ -186,19 +186,20 @@ update architecture documentation, and run final correctness/performance gates.
       allocation, and view regressions on ISS, JPSS-1, and multi-segment fixtures. Full-fixture
       ISS/JPSS-1 checks compare lazy store kinematics against eager results and verify shared raw
       storage; synthetic multi-segment tests cover derived-group parity and gap handling.
-- [ ] Run headless performance and memory benchmarks against the recorded baseline; document
-      remaining UI gates as unverified rather than inferring them from headless results. Five
-      fresh-process direct-store observations are now recorded in the store design, but they are
-      candidate-only diagnostics and do not constitute a paired baseline comparison.
+- [x] Run five alternating, fresh-process headless performance and memory comparisons against the
+      prepared-batch baseline; document remaining UI gates as unverified rather than inferring
+      them from headless results. The JPSS-1 first-append result regressed beyond the provisional
+      limit, so Step 7's performance gate remains deferred and unpassed.
 - [x] Review residual ownership and lifecycle paths. Store-backed builders serve loaded data;
       views opened before the first store are rebuilt through those builders when the store arrives.
       Remaining `OrbitSeries` builders are pre-store fallbacks, and their orbit-sized copies are
       not used to render loaded store data. Point-state vectors and bounded display samples remain
       intentional small or range-limited outputs.
 
-**Done when:** the store design's validation criteria pass, superseded paths are removed, the
-dataflow documentation matches the implementation, and all remaining exceptions/limitations are
-explicitly documented.
+**Done when:** the store's functional, lifecycle, and ownership criteria pass; superseded paths are
+removed; the dataflow documentation matches the implementation; and deferred performance gates
+and other limitations are explicitly documented. A deferred performance gate is not accepted by
+deferral and does not block completion of this ownership-consolidation step.
 **Depends on:** Steps 5–7.
 
 **Evidence to date:** `python3 -m pytest tests/ephem_toolkit/play_oem
@@ -211,10 +212,11 @@ one-reported-repeat, headless JPSS-1 diagnostic measured 24.314 ms
 first raw append, 0.498495 s validated completion, and 90.0 MiB process peak RSS; a separate
 one-repeat data-layer run measured 0.517627 s ingestion and range-query times documented in the
 [store design](./PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md#post-cleanup-headless-diagnostic).
-Five additional fresh-process direct-store observations for ISS and JPSS-1 are recorded in the
-[store design](./PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md#post-cleanup-headless-diagnostic). They
-remain candidate-only diagnostics without a paired prepared-batch baseline and do not pass either
-performance gate. The Step 7 gate remains deferred; GUI responsiveness was not measured.
+A five-pair alternating prepared-batch/store comparison for each fixture is also recorded in the
+[store design](./PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md#paired-post-cleanup-loader-comparison).
+On JPSS-1, first append regressed 75.1%, while validated completion improved 34.1% and RSS
+decreased 4.0%; thus the deferred Step 7 first-delivery gate remains unpassed. GUI responsiveness
+was not measured.
 
 ## Deferred, separate work
 

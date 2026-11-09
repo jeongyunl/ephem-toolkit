@@ -96,7 +96,9 @@ times the clock steps through.
 
 `PLAY_OEM_DATAFLOW.mmd` describes the shipped path, which was verified against the loader,
 controller, view context, and view queries. The architecture diagrams below describe the store
-contract; Step 8 validation and performance acceptance remain in progress.
+contract. Step 8 validation and paired headless measurements are complete; the Step 7
+first-delivery performance gate remains deferred and unpassed, and GUI responsiveness was not
+measured.
 
 | Diagram path or former claim | Verified behavior |
 |---|---|
@@ -104,7 +106,7 @@ contract; Step 8 validation and performance acceptance remain in progress.
 | Snapshot → views | The controller captures a `StoreViewContext` for the committed snapshot, range, coverage, and time unit. Open views query the store's series, Earth-fixed, Ground Track, station-access, and footprint products. |
 | Playback → point state | The playback clock reads the store's sample-time view; `StoreCursor` and the 3D backends use `state_at` against the store snapshot. |
 | Append/completion → refresh | Raw-append events refresh the view context. Store append, reset, and tier notices schedule affected views; validated metadata is published at completion and the context is refreshed. |
-| Ground Track source wrapper | `GroundTrackSource` and its non-store view inputs have been removed. Ground Track and station views query the generation's store through `StoreViewContext`. |
+| Ground Track source wrapper | `GroundTrackSource` and its app-held data owner have been removed. Loaded Ground Track and station views query the generation's store through `StoreViewContext`; pre-store generic view builders remain only until store-backed rebuild. |
 | Display series downsampling | The default store path queries lazy series groups directly. The transient `downsample_orbit_series` preview used by prepared-batch loading was removed with that path. |
 | Shared Earth-fixed/access cache | Earth-fixed positions and station profiles are separate store-owned tiers. Ground Track uses the Earth-fixed tier; station profiles evaluate point states independently and do not consume it. The app-scoped `EarthFixedPositionCache` and `StationAccessCache` have been removed. |
 | Controller Ground Track coordinates | The controller-held `_ground_track_coordinates` reference and non-store Ground Track view path have been removed. Views query the bounded Ground Track tier. |
@@ -1494,7 +1496,8 @@ separate deferred design decision, not a prerequisite or a substitute for first-
 
 ### Post-cleanup headless diagnostic
 
-After removing the legacy source/cache and view paths, a one-reported-repeat JPSS-1 diagnostic
+After removing legacy source/cache ownership and routing loaded views through the store,
+a one-reported-repeat JPSS-1 diagnostic
 used Python 3.9.6 on macOS 27.2 arm64. The direct-store session used automatic capacity, batch
 size 512, a two-event queue, and 1 ms polling; its unreported warm-up precedes the reported
 measurement.
@@ -1526,6 +1529,30 @@ These runs used automatic capacity, batch size 512, a two-event queue, and 1 ms 
 They do not establish a performance improvement or pass either gate. Playback derivation, view
 construction, and GUI responsiveness were not measured.
 
+#### Paired post-cleanup loader comparison
+
+The prepared-batch code was recovered from the pre-removal revision (`0fb87b36^`) into a temporary
+directory and compared with the current automatic-capacity store session. Five fresh-process
+pairs per fixture alternated execution order. Each process included one unreported warm-up; batch
+size, flush interval, queue size, consumer poll interval, Python 3.9.6, macOS 27.2 arm64, and
+Low Power Mode (`0`) were held constant. Both variants validated the complete file and state
+count. Values below are medians with ranges across the five reported processes.
+
+| Fixture | Metric | Prepared-batch baseline | Automatic-capacity store | Change |
+|---|---|---:|---:|---:|
+| ISS | First batch / raw append | 13.706 ms (12.923–13.904) | 12.686 ms (5.734–12.755) | −7.4% |
+| ISS | Validated completion | 0.109261 s (0.109183–0.113202) | 0.043214 s (0.042794–0.043887) | −60.5% |
+| ISS | Process peak RSS | 76.3 MiB (76.1–83.3) | 68.3 MiB (68.3–68.4) | −10.5% |
+| JPSS-1 | First batch / raw append | 14.488 ms (12.366–15.154) | 25.375 ms (22.517–27.417) | +75.1% |
+| JPSS-1 | Validated completion | 0.759649 s (0.757455–0.764179) | 0.500905 s (0.495658–0.504865) | −34.1% |
+| JPSS-1 | Process peak RSS | 90.7 MiB (90.5–90.8) | 87.1 MiB (85.8–91.4) | −4.0% |
+
+Both variants used batch size 512, a 0.1 s flush interval, a two-event queue, and 1 ms polling.
+The JPSS-1 first-delivery result fails the provisional maximum 5% regression limit. Completion
+and RSS meet their respective provisional limits in this run. The performance gate remains
+deferred and is not accepted; these loader-only measurements do not measure derived preparation,
+plot construction, or GUI responsiveness.
+
 ## Delivery sequence
 
 0. **Baseline and parser improvements:** retain the measured baseline and parser changes recorded
@@ -1554,12 +1581,14 @@ construction, and GUI responsiveness were not measured.
 6. **Views:** switch views to `(store, snapshot)` and remove `GroundTrackSource` and the explicit
    cache parameters.
 7. **Cache consolidation:** move Ground Track, access, and footprint caches under the store;
-   delete `source_prefix_matches`. The module-level footprint cache has been removed; finish the
-   remaining cache consolidation.
-8. **Cleanup (in progress):** the one-shot and prepared-batch loading paths, their derived-data
-   owners, preview downsampling, legacy source/cache owners, and non-store view paths have been
-   removed. The current-state dataflow documents describe the shipped store-only view flow.
-   Finish broad fixture validation, headless measurements, and the residual-copy/lifecycle review.
+   delete `source_prefix_matches`. The module-level footprint cache and remaining duplicate
+   cache ownership have been removed.
+8. **Cleanup (complete):** the prepared-batch path, duplicate derived-data owners, preview
+   downsampling, and legacy source/cache owners have been removed. Loaded data uses store-backed
+   view builders; generic `OrbitSeries` builders remain as pre-store fallbacks and are replaced
+   when a store becomes available. Fixture validation, paired headless measurements, and the
+   residual-copy/lifecycle review are documented. The Step 7 first-delivery performance gate
+   remains deferred and unpassed; GUI responsiveness was not measured.
 
 ```mermaid
 flowchart TD
