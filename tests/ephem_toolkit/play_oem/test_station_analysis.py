@@ -7,6 +7,7 @@ from typing import Any, cast
 
 from matplotlib.figure import Figure
 import numpy as np
+import pytest
 
 from ephem_toolkit.play_oem.ground_stations import GroundStation
 from ephem_toolkit.play_oem.oem_data_store import (
@@ -255,6 +256,157 @@ def test_store_station_view_reports_pending_access_coverage() -> None:
         assert labels[-1] == "Station data is loading."
     finally:
         view.close()
+        store.close()
+
+
+@pytest.mark.parametrize(
+    ("terminal_state", "expected_message"),
+    (
+        ("failed", "OEM load failed: reader broke"),
+        ("cancelled", "OEM loading was cancelled; showing available data."),
+    ),
+)
+def test_store_station_view_reports_terminal_load_state(
+    terminal_state: str, expected_message: str
+) -> None:
+    store, context, station = _station_store_context(complete=False)
+    if terminal_state == "failed":
+        store.mark_failed(context.snapshot.epoch, RuntimeError("reader broke"))
+    else:
+        assert store.cancel_if_epoch(context.snapshot.epoch)
+    context = context.refresh()
+    view = GroundStationAnalysisView(
+        cast(Any, None),
+        "range-profile",
+        cast(Any, None),
+        cast(Any, SimpleNamespace(t_start=0.0, t_end=120.0)),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        access_cache=cast(Any, _PreparedAccess(StationAccess(station, ()))),
+        selection_context=StationAnalysisContext(),
+        initial_range=context.plot_range,
+    )
+    view._build_panel = lambda: cast(Any, None)
+    labels: list[str] = []
+    view._status_label = SimpleNamespace(SetLabel=labels.append)
+
+    try:
+        view.build_from_store(context)
+        view._update_status_text()
+
+        assert labels[-1] == expected_message
+    finally:
+        view.close()
+        assert "station-access" not in store._tier_interest
+        store.close()
+
+
+def test_store_station_view_renders_empty_access_as_empty_not_loading() -> None:
+    store = OemDataStore()
+    epoch = store.begin(1)
+    store.mark_complete(
+        epoch, (), (("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF"))
+    )
+    context = StoreViewContext.capture(
+        store,
+        time_unit=TimeUnit.MINUTES,
+        plot_range=ResolvedTimeRange(0.0, 120.0),
+        coverage=(0.0, 120.0),
+    )
+    station = GroundStation("equator", "Equator", 0.0, 0.0, 0.0, 10)
+    view = GroundStationAnalysisView(
+        cast(Any, None),
+        "range-profile",
+        cast(Any, None),
+        cast(Any, SimpleNamespace(t_start=0.0, t_end=120.0)),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        access_cache=cast(Any, _PreparedAccess(StationAccess(station, ()))),
+        selection_context=StationAnalysisContext(),
+        initial_range=context.plot_range,
+    )
+    view._build_panel = lambda: cast(Any, None)
+    labels: list[str] = []
+    view._status_label = SimpleNamespace(SetLabel=labels.append)
+
+    try:
+        view.build_from_store(context)
+        view._update_status_text()
+
+        assert view._store_queries[station.station_id].coverage.complete
+        assert labels[-1] == "No station profile samples are available in this range."
+    finally:
+        view.close()
+        assert "station-access" not in store._tier_interest
+        store.close()
+
+
+def test_store_station_profile_keeps_multi_segment_runs_separate() -> None:
+    elevations = np.asarray([0.0, 60.0, 0.0, 0.0, 60.0, 0.0])
+    states = np.column_stack(
+        (
+            6_378_137.0 + np.sin(np.deg2rad(elevations)) * 1_000_000.0,
+            np.cos(np.deg2rad(elevations)) * 1_000_000.0,
+            np.zeros(6),
+            np.zeros((6, 3)),
+        )
+    )
+    times = np.asarray([0.0, 60.0, 120.0, 240.0, 300.0, 360.0])
+    store = OemDataStore()
+    epoch = store.begin(len(times))
+    reservation = store.reserve(len(times))
+    reservation.raw[:, 0] = times
+    reservation.raw[:, 1:7] = states
+    reservation.segment_ids[:] = [0, 0, 0, 1, 1, 1]
+    store.commit(reservation, len(times))
+    store.mark_complete(
+        epoch, (), (("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF"))
+    )
+    context = StoreViewContext.capture(
+        store,
+        time_unit=TimeUnit.MINUTES,
+        plot_range=ResolvedTimeRange(0.0, 360.0),
+        coverage=(0.0, 360.0),
+    )
+    station = GroundStation("equator", "Equator", 0.0, 0.0, 0.0, 10)
+    store.station_access(context.snapshot, station, (0.0, 360.0), wait=True)
+    view = GroundStationAnalysisView(
+        cast(Any, None),
+        "range-profile",
+        cast(Any, None),
+        cast(Any, SimpleNamespace(t_start=0.0, t_end=360.0)),
+        [station],
+        TimeUnit.MINUTES,
+        "Test object",
+        oem_loaded=True,
+        on_station_manager=lambda: None,
+        access_cache=cast(Any, _PreparedAccess(StationAccess(station, ()))),
+        selection_context=StationAnalysisContext(),
+        initial_range=context.plot_range,
+    )
+    view._build_panel = lambda: cast(Any, None)
+    figure = Figure()
+    view._figure = figure
+    view._axes = figure.add_subplot(111)
+
+    try:
+        view.build_from_store(context)
+        result = view._results[station.station_id]
+        view._draw_profile(result, station)
+
+        assert len(result.look_angle_profiles) == 2
+        assert len(view._axes.lines) == 2
+        assert view._axes.lines[0].get_xdata()[-1] == 2.0
+        assert view._axes.lines[1].get_xdata()[0] == 4.0
+    finally:
+        view.close()
+        assert "station-access" not in store._tier_interest
         store.close()
 
 

@@ -22,6 +22,7 @@ from ..oem_data_store import (
     ColumnGroupView,
     EarthFixedPositions,
     GroundTrackGroups,
+    LoadStatus,
     OemDataStore,
     SeriesGroupName,
     SeriesGroups,
@@ -306,6 +307,20 @@ def station_access_from_store(value: StationAccessView) -> StationAccess:
         value.limitation,
         look_angle_profiles=tuple(profiles),
     )
+
+
+def store_load_status_message(context: StoreViewContext | None) -> str | None:
+    """Describe terminal load states while allowing committed-prefix data to render."""
+    if context is None:
+        return None
+    snapshot = context.snapshot
+    if snapshot.status is LoadStatus.FAILED:
+        if snapshot.failure:
+            return f"OEM load failed: {snapshot.failure}"
+        return "OEM load failed."
+    if snapshot.status is LoadStatus.CANCELLED:
+        return "OEM loading was cancelled; showing available data."
+    return None
 
 
 class StoreView(Protocol):

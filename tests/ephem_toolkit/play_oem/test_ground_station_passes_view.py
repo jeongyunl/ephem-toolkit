@@ -225,6 +225,56 @@ def test_store_pass_view_uses_leased_station_access() -> None:
         store.close()
 
 
+@pytest.mark.parametrize(
+    ("terminal_state", "expected_message"),
+    (
+        ("failed", "OEM load failed: reader broke"),
+        ("cancelled", "OEM loading was cancelled; showing available data."),
+    ),
+)
+def test_store_pass_view_reports_terminal_load_state(
+    terminal_state: str, expected_message: str
+) -> None:
+    store = OemDataStore()
+    epoch = store.begin(1)
+    if terminal_state == "failed":
+        store.mark_failed(epoch, RuntimeError("reader broke"))
+    else:
+        assert store.cancel_if_epoch(epoch)
+    context = StoreViewContext.capture(
+        store,
+        time_unit=TimeUnit.MINUTES,
+        plot_range=ResolvedTimeRange(0.0, 100.0),
+        coverage=(0.0, 100.0),
+    )
+    station = GroundStation("site", "Site", 0.0, 0.0, 0.0)
+    view = GroundStationPassesView(
+        cast(Any, None),
+        None,
+        cast(Any, SimpleNamespace(t_start=0.0, t_end=100.0)),
+        [station],
+        "Test object",
+        oem_loaded=True,
+        on_seek=lambda _time: None,
+        on_focus_pass=lambda _start, _end: None,
+        on_station_manager=lambda: None,
+        access_cache=cast(Any, _AccessCache(StationAccess(station, ()))),
+        limit_to_range=True,
+        initial_range=context.plot_range,
+    )
+    view._build_panel = lambda: cast(Any, None)
+
+    try:
+        view.build_from_store(context)
+        view._update_status(station, view._result_for(station.station_id))
+
+        assert view._status_text == expected_message
+    finally:
+        view.close()
+        assert "station-access" not in store._tier_interest
+        store.close()
+
+
 def test_pass_view_tracks_shared_stack_selection_and_unsubscribes_on_close() -> None:
     context = StationAnalysisContext()
     interval = _interval(10.0, 20.0)

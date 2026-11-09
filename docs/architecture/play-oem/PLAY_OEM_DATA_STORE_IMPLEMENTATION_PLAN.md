@@ -148,20 +148,18 @@ criteria pass. Progress is the number of completed checklist items.
 
 ## Active implementation sequence
 
-Steps 4 and 5 are complete. **Next is Step 6:** migrate views to store queries. **Step 7 wires
-the active loader/controller, and Step 8 removes duplicate ownership and superseded paths.** The
-direct `RAW_APPEND` event path and `StoreCursor` adapter exist, but `PlayerApp` still uses
-`IncrementalPlaybackPreparer`, and `View.build` still requires an `OrbitSeries`. Do not activate
-direct loading before the view migration is complete.
+Steps 4, 5, and 6 are complete. **Next is Step 7:** wire the active loader/controller to the
+store-backed views. **Step 8 removes duplicate ownership and superseded paths.** The direct
+`RAW_APPEND` event path and `StoreCursor` adapter exist, but `PlayerApp` still uses
+`IncrementalPlaybackPreparer` and the legacy `View.build` path.
 
 ### 6. Migrate views to store snapshots and range queries
 
 Migrate consumers only after Step 5 provides all required query outputs. Preserve plot labels,
 values, segmentation, click-to-seek, empty/partial behavior, and 3D backend behavior.
 
-- **Status:** In progress (all planned view groups now expose store-backed build/update paths;
-  final range-state, failure-state, snapshot-refresh, and cleanup verification remains).
-- **Progress:** 5/6 checklist items.
+- **Status:** Done.
+- **Progress:** 6/6 checklist items.
 - [x] Migrate RTN Deltas, Angular Velocity, Direction Change, and Geocentric Distance to
       range-limited series-group queries; use the validated `speed-altitude` path as the pattern
       and request only fields each view uses. Store paths share derived-column buffers, apply
@@ -184,9 +182,11 @@ values, segmentation, click-to-seek, empty/partial behavior, and 3D backend beha
       station-profile/access and point-metric results through the bound read context; reuse shared
       store buffers. Profile adapters retain leased store columns, and profile/sky plotting bounds
       display samples per segment.
-- [ ] Verify empty, partial, loading, failed, cancelled, and multi-segment render states;
+- [x] Verify empty, partial, loading, failed, cancelled, and multi-segment render states;
       confirm plotting buffer sharing, stable-snapshot refresh behavior, and resource release on
-      close/replacement.
+      close/replacement. Station views distinguish pending, terminal-failure, and cancelled
+      snapshots; preserve separate profile runs across segments; and release station-tier interest
+      on close. Shared binding tests verify subscription cleanup when replacing stores.
 
 **Done when:** every registered view builds and updates from typed store inputs, preserves current
 visual/numerical and interaction behavior, requests only needed ranges/tiers, and creates no hidden
@@ -200,7 +200,8 @@ boilerplate is handled by the shared binding helper.
 Wire direct store loading only after all views consume the store contract. Preserve early playback,
 ordered coverage, user ranges, metadata, errors, cancellation, and replacement semantics.
 
-- **Status:** Blocked on Step 6 (the active controller still uses `IncrementalPlaybackPreparer`).
+- **Status:** Not started (Step 6 is complete; the active controller still uses
+  `IncrementalPlaybackPreparer`).
 - **Progress:** 0/7 checklist items.
 - [ ] Create and own one store per playback epoch; route initial and incremental OEM loading
       through the loader's direct-store mode and raw-append notices without parser-batch-to-playback
@@ -495,10 +496,10 @@ map paths use bounded display sampling rather than constructing an orbit-sized p
 Context tests cover snapshot refresh, no-range typed results, range replacement, and subscription
 cleanup/rebinding. Ground Track queries reuse the Earth-fixed tier, return map-centered seam-split
 groups, and use a bounded cache; point queries cover station metrics and footprints. Station profile
-adapters are verified to share store-owned columns; station view tests cover pending-to-ready
-snapshot refresh, pending coverage messaging, bounded profile/sky samples, and pass-query reuse;
-legacy station selection/range regression tests remain green. Validation:
+adapters share store-owned columns; station view tests cover pending-to-ready snapshot refresh,
+empty-versus-loading distinction, terminal failure/cancellation messages, multi-segment separation,
+bounded samples, and close cleanup. Shared binding tests cover cleanup on store replacement; legacy
+station selection/range regression tests remain green. Validation:
 `python3 -m pytest tests/ephem_toolkit/play_oem tests/ephem_toolkit/core/interpolator -q`
-passed (675 passed, 4 skipped). `git diff --check` and `compileall` passed. The remaining Step 6
-item verifies partial/failure/cancellation and multi-segment view states plus snapshot refresh and
-cleanup; the active application still uses `OrbitSeries` until Step 7.
+passed (681 passed, 4 skipped). `git diff --check` and `compileall` passed. Step 7 now wires the
+active application, which still uses `OrbitSeries`, to the completed store-backed view contract.

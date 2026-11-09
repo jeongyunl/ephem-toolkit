@@ -30,7 +30,12 @@ from ..station_access import (
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
-from .base import StoreViewBinding, StoreViewContext, station_access_from_store
+from .base import (
+    StoreViewBinding,
+    StoreViewContext,
+    station_access_from_store,
+    store_load_status_message,
+)
 from .plotting import bounded_sample_indices
 
 _PROFILE_TYPES = frozenset(("elevation-profile", "azimuth-profile", "range-profile"))
@@ -542,12 +547,15 @@ class GroundStationAnalysisView:
 
     def _update_status_text(self) -> None:
         station = self._selected_station()
+        load_status = store_load_status_message(self._store_context)
         if station is None:
             message = "No ground stations are configured. Add a station to continue."
         elif not self._oem_loaded or (
             self._source is None and self._store_context is None
         ):
             message = "Load an Earth-centered OEM to view station analysis."
+        elif load_status is not None:
+            message = load_status
         elif self._time_range is None and self._panel_type != "station-status":
             message = "The current Plot Range does not overlap OEM coverage."
         else:

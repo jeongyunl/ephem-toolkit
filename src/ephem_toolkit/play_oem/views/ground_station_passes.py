@@ -27,7 +27,12 @@ from ..station_access import (
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..time_range import ResolvedTimeRange
 from ..time_unit import TimeUnit
-from .base import StoreViewBinding, StoreViewContext, station_access_from_store
+from .base import (
+    StoreViewBinding,
+    StoreViewContext,
+    station_access_from_store,
+    store_load_status_message,
+)
 from .plotting import bounded_sample_indices
 
 _TABLE_COLUMN_WIDTHS = (190, 90, 150, 155, 155)
@@ -511,6 +516,7 @@ class GroundStationPassesView:
     def _update_status(
         self, station: GroundStation | None, result: StationAccess | None
     ) -> None:
+        load_status = store_load_status_message(self._store_context)
         if station is None:
             if self._stations:
                 message = (
@@ -525,6 +531,8 @@ class GroundStationPassesView:
             self._source is None and self._store_context is None
         ):
             message = "Load an Earth-centered OEM to inspect station passes."
+        elif load_status is not None:
+            message = load_status
         elif result is None:
             message = "Pass history is unavailable."
         elif result.limitation:

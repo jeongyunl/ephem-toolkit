@@ -965,6 +965,11 @@ adapter consumes these toolkit-neutral results and applies axis transforms or cr
 The store does not return Matplotlib artists, convert history to display units, or block the UI
 while waiting for derived chunks.
 
+Views distinguish pending coverage from terminal `FAILED` and `CANCELLED` load states using the
+bound snapshot. They continue to render any committed prefix, but report a failure message or
+cancellation notice instead of presenting terminal data as still loading or as a complete empty
+result. Separate segment views remain separate plot runs so a data gap is never bridged.
+
 Use one small view-binding helper to manage a view's context replacement, requested tier
 subscriptions, and unsubscribe-on-close lifecycle. Individual views specify which tiers they
 need and how to render results; they do not call `subscribe_tier` or manually coordinate snapshot
