@@ -48,7 +48,6 @@ from ..incremental_loader import (
     IncrementalLoader,
     LoadEventKind,
 )
-from ..ground_track import GroundTrackCoordinates
 from ..ground_stations import GroundStation
 from ..station_analysis import StationAnalysisContext, StationAnalysisSelection
 from ..saved_state import (
@@ -211,7 +210,6 @@ class PlayerApp(
         self._loaded_file_name = loaded_file_name
         self.frame_context = frame_context
         self._ground_track_source = ground_track_source
-        self._ground_track_coordinates: GroundTrackCoordinates | None = None
         self._tick_interval_ms = tick_interval_ms
         self._config_path = config_path
         self._display_time_zone = display_time_zone
@@ -292,7 +290,7 @@ class PlayerApp(
             if ground_stations is not None
             else (list(saved_state.ground_stations) if saved_state is not None else [])
         )
-        self._station_access_cache = StationAccessCache()
+        self._station_access_cache = StationAccessCache() if oem_loaded else None
         self._station_analysis_contexts = {
             "middle": StationAnalysisContext(),
             "right": StationAnalysisContext(),
@@ -1052,7 +1050,8 @@ class PlayerApp(
         self._ground_stations = list(stations)
         self._ground_stations_config_dirty = True
         self._save_ground_stations_config()
-        self._station_access_cache.retain_stations(stations)
+        if self._station_access_cache is not None:
+            self._station_access_cache.retain_stations(stations)
         station_ids = {station.station_id for station in stations}
         for context in self._station_analysis_contexts.values():
             context.retain_stations(station_ids)
@@ -1308,11 +1307,12 @@ class PlayerApp(
                         self.series = prepared.series
                         self.time_unit = prepared.time_unit
                         self.cursor = prepared.cursor
-                        self._station_access_cache.retain_after_append(
-                            prepared.ground_track_source,
-                            prepared.cursor,
-                            previous_coverage_end_s,
-                        )
+                        if self._station_access_cache is not None:
+                            self._station_access_cache.retain_after_append(
+                                prepared.ground_track_source,
+                                prepared.cursor,
+                                previous_coverage_end_s,
+                            )
                         self._ground_track_source = prepared.ground_track_source
                         self._dashboard_context["sample_count"] = str(
                             prepared.source_sample_count
@@ -1326,7 +1326,6 @@ class PlayerApp(
                             prepared.timestamps_s
                         )
                         if batch_intersects_range:
-                            self._ground_track_coordinates = None
                             self._incremental_view_refresh_pending = True
                 except Exception as error:
                     self._active_load_failed = True
@@ -1420,8 +1419,7 @@ class PlayerApp(
             self._incremental_store = None
             self.series = playback_data.empty_playback_data().series
             self._ground_track_source = None
-            self._ground_track_coordinates = None
-            self._station_access_cache.clear()
+            self._station_access_cache = None
             self._oem_loaded = True
             self.workspace.set_oem_loaded(True)
             self._current_oem_path = normalize_recent_path(path)
@@ -1628,7 +1626,8 @@ class PlayerApp(
             ):
                 self._pending_playback_bounds = None
                 self.clock.set_playback_bounds(*pending_bounds)
-        self._station_access_cache.clear()
+        if self._station_access_cache is not None:
+            self._station_access_cache.clear()
         if self._store_view_context is not None:
             self._store_view_context = self._store_view_context.refresh()
             self._publish_range_hint()
@@ -1768,7 +1767,7 @@ class PlayerApp(
         stations = tuple(self._ground_stations)
         resolved = self._resolved_plot_range()
         bounds = None if resolved is None else (resolved.start_s, resolved.end_s)
-        if source is None or not stations or bounds is None:
+        if source is None or cache is None or not stations or bounds is None:
             self._rebuild_deferred_views(layout)
             return
         self.status_bar.set_message("Analyzing ground station access…")
@@ -1899,8 +1898,8 @@ class PlayerApp(
         self.frame_context = loaded.frame_context
         self._ground_track_source = loaded.ground_track_source
         self._incremental_store = loaded.incremental_store
+        self._station_access_cache = StationAccessCache()
         self._oem_coverage_complete = loaded.incremental_store is None
-        self._ground_track_coordinates = None
         # Start the new file's playback schedule at its load time.
         self._last_frame_monotonic_s = time.monotonic()
         self.workspace.update_oem_information(
@@ -2067,7 +2066,8 @@ class PlayerApp(
         self._interpolation_method = method
         self._interpolation_degree = degree
         self._interpolation_config_dirty = True
-        self._station_access_cache.clear()
+        if self._station_access_cache is not None:
+            self._station_access_cache.clear()
         if self._store_view_context is not None:
             self._store_view_context = self._store_view_context.refresh()
             self._queue_store_view_refresh()

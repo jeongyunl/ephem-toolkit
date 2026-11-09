@@ -19,7 +19,6 @@ from .. import (
     time_range,
     workspace,
 )
-from ..ground_track import GroundTrackCoordinates
 from ..ground_stations import GroundStation
 from ..oem_data_store import OemDataStore
 from ..saved_state import SavedAppState
@@ -42,12 +41,11 @@ class PlayerAppState(Protocol):
     frame: wx.Frame
     frame_context: str
     _ground_track_source: playback_data.GroundTrackSource | None
-    _ground_track_coordinates: GroundTrackCoordinates | None
     _oem_store: OemDataStore | None
     _store_view_context: StoreViewContext | None
     _range_dragging: bool
     _ground_stations: list[GroundStation]
-    _station_access_cache: StationAccessCache
+    _station_access_cache: StationAccessCache | None
     _station_analysis_contexts: dict[str, StationAnalysisContext]
     _saved_state: SavedAppState | None
     object_name: str

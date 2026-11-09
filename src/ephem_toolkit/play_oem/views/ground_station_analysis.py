@@ -56,7 +56,7 @@ class GroundStationAnalysisView:
         *,
         oem_loaded: bool,
         on_station_manager: Callable[[], None],
-        access_cache: StationAccessCache,
+        access_cache: StationAccessCache | None,
         selection_context: StationAnalysisContext,
         initial_range: ResolvedTimeRange | None,
         display_time_zone: str = UTC_DISPLAY,
@@ -73,7 +73,11 @@ class GroundStationAnalysisView:
         self._object_name = object_name
         self._oem_loaded = oem_loaded
         self._on_station_manager = on_station_manager
-        self._access_cache = access_cache
+        self._access_cache = (
+            access_cache
+            if access_cache is not None
+            else (StationAccessCache() if source is not None else None)
+        )
         self._selection_context = selection_context
         self._display_time_zone = display_time_zone
         self._time_range = initial_range
@@ -323,6 +327,7 @@ class GroundStationAnalysisView:
         if self._source is None or self._time_range is None:
             return
         bounds = (self._time_range.start_s, self._time_range.end_s)
+        assert self._access_cache is not None
         for station in self._stations:
             try:
                 self._results[station.station_id] = self._access_cache.prepare(
@@ -612,6 +617,8 @@ class GroundStationAnalysisView:
                     )
                 else:
                     source = self._source
+                    if source is not None:
+                        assert self._access_cache is not None
                     metrics = (
                         None
                         if source is None

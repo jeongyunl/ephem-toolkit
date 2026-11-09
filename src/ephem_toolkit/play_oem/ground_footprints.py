@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from functools import lru_cache
 from numbers import Integral
 from typing import Any
 
@@ -126,8 +125,7 @@ def _boundary_at_elevation(
     )
 
 
-@lru_cache(maxsize=32)
-def _compute_ground_footprints_cached(
+def _compute_ground_footprints(
     position: tuple[float, float, float], minimum_elevation_deg: int, azimuth_count: int
 ) -> GroundFootprints:
     satellite_ecef_m = np.asarray(position, dtype=float)
@@ -173,7 +171,7 @@ def compute_ground_footprints(
     *,
     azimuth_count: int = DEFAULT_AZIMUTH_COUNT,
 ) -> GroundFootprints:
-    """Compute WGS-84 horizon and mask boundaries, sharing repeated panel work."""
+    """Compute WGS-84 horizon and mask boundaries."""
     if isinstance(minimum_elevation_deg, bool) or not isinstance(
         minimum_elevation_deg, Integral
     ):
@@ -191,6 +189,6 @@ def compute_ground_footprints(
     position = np.asarray(satellite_ecef_m, dtype=float)
     if position.shape != (3,) or not np.isfinite(position).all():
         raise GroundFootprintError("Satellite position must be a finite ECEF vector")
-    return _compute_ground_footprints_cached(
+    return _compute_ground_footprints(
         tuple(float(value) for value in position), minimum_elevation_deg, azimuth_count
     )

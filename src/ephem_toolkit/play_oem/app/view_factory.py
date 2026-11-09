@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import sys
 
-import numpy as np
-
 from .. import time_range
 from ..views import (
     angular_velocity,
@@ -104,45 +102,10 @@ class ViewFactoryMixin:
         )
 
     def _ground_track_source_for_plot_range(self) -> GroundTrackSource | None:
-        """Limit in-progress access analysis to samples near the active plot range."""
+        """Return the shared source; consumers limit work to their requested range."""
         if self._store_view_context is not None:
             return None
-        source = self._ground_track_source
-        if source is None or self._oem_coverage_complete:
-            return source
-        resolved = time_range.resolve_plot_range(
-            self.plot_time_range,
-            (self.clock.t_start, self.clock.t_end),
-            (self.clock.playback_start, self.clock.playback_end),
-            self.clock.t_now,
-        )
-        if resolved is None:
-            return None
-        start = int(np.searchsorted(source.timestamps_s, resolved.start_s, side="left"))
-        stop = int(np.searchsorted(source.timestamps_s, resolved.end_s, side="right"))
-        first = max(0, start - 1)
-        last = min(len(source.timestamps_s), stop + 1)
-        indices = np.arange(first, last)
-        if not len(indices):
-            indices = np.asarray(
-                [
-                    index
-                    for index in (start - 1, start)
-                    if 0 <= index < len(source.timestamps_s)
-                ],
-                dtype=int,
-            )
-        if len(indices) == len(source.timestamps_s) and np.array_equal(
-            indices, np.arange(len(source.timestamps_s))
-        ):
-            return source
-        return GroundTrackSource.from_samples(
-            source.timestamps_s[indices],
-            source.states_m[indices],
-            source.segment_ids[indices],
-            source.center_name,
-            source.frame_name,
-        )
+        return self._ground_track_source
 
     def _resolved_plot_range(self) -> time_range.ResolvedTimeRange | None:
         return time_range.resolve_plot_range(
@@ -170,7 +133,11 @@ class ViewFactoryMixin:
         margin_s = max(3_600.0, 0.5 * (bounds[1] - bounds[0]))
         return prepare_ground_track(
             self._ground_track_source,
-            position_cache=self._station_access_cache.position_cache,
+            position_cache=(
+                None
+                if self._station_access_cache is None
+                else self._station_access_cache.position_cache
+            ),
             bounds=bounds,
             margin_s=margin_s,
         )
@@ -187,7 +154,6 @@ class ViewFactoryMixin:
             )
         except GroundTrackPreparationError:
             return None
-        self._ground_track_coordinates = coordinates
         return coordinates
 
     def open_ground_track_view(
@@ -199,61 +165,8 @@ class ViewFactoryMixin:
         """Open a Ground Track panel, preparing its static coordinates once per OEM."""
         store_backed = self._store_view_context is not None
         source = None if store_backed else self._ground_track_source
-        coordinates = None if store_backed else self._ground_track_coordinates
+        coordinates: GroundTrackCoordinates | None = None
         error_message: str | None = None
-        if source is not None and not self._oem_coverage_complete:
-            # Ground-track preparation converts every point and runs on the UI
-            # thread. Restrict previews to the plot range and keep them bounded.
-            sample_count = len(source.timestamps_s)
-            resolved = time_range.resolve_plot_range(
-                self.plot_time_range,
-                (self.clock.t_start, self.clock.t_end),
-                (self.clock.playback_start, self.clock.playback_end),
-                self.clock.t_now,
-            )
-            if resolved is None:
-                candidates = np.arange(sample_count)
-            else:
-                start = int(
-                    np.searchsorted(source.timestamps_s, resolved.start_s, side="left")
-                )
-                stop = int(
-                    np.searchsorted(source.timestamps_s, resolved.end_s, side="right")
-                )
-                candidates = np.arange(max(0, start - 1), min(sample_count, stop + 1))
-                if not len(candidates) and sample_count:
-                    candidates = np.asarray(
-                        [
-                            index
-                            for index in (start - 1, start)
-                            if 0 <= index < sample_count
-                        ],
-                        dtype=int,
-                    )
-            if len(candidates) > 2_000:
-                selected_positions = set(
-                    np.linspace(0, len(candidates) - 1, 2_000, dtype=int).tolist()
-                )
-                candidate_segments = source.segment_ids[candidates]
-                boundaries = np.flatnonzero(
-                    candidate_segments[1:] != candidate_segments[:-1]
-                )
-                for boundary in boundaries:
-                    selected_positions.update((int(boundary), int(boundary + 1)))
-                candidates = candidates[
-                    np.asarray(sorted(selected_positions), dtype=int)
-                ]
-            if len(candidates) != sample_count or not np.array_equal(
-                candidates, np.arange(sample_count)
-            ):
-                source = GroundTrackSource.from_samples(
-                    source.timestamps_s[candidates],
-                    source.states_m[candidates],
-                    source.segment_ids[candidates],
-                    source.center_name,
-                    source.frame_name,
-                )
-                coordinates = None
         coordinate_provider = None
         if source is None:
             error_message = "Load an Earth-centered OEM to view its ground track."
@@ -265,17 +178,26 @@ class ViewFactoryMixin:
                 coordinates = self._prepare_ground_track_window(
                     self._ground_track_plot_bounds()
                 )
-                self._ground_track_coordinates = coordinates
             except GroundTrackPreparationError as error:
                 coordinates = None
                 error_message = str(error)
         elif coordinates is None:
             try:
+                resolved = self._resolved_plot_range()
                 coordinates = prepare_ground_track(
                     source,
-                    position_cache=self._station_access_cache.position_cache,
+                    position_cache=(
+                        None
+                        if self._station_access_cache is None
+                        else self._station_access_cache.position_cache
+                    ),
+                    bounds=(
+                        None
+                        if resolved is None
+                        else (resolved.start_s, resolved.end_s)
+                    ),
+                    max_samples=2_000,
                 )
-                self._ground_track_coordinates = coordinates
             except GroundTrackPreparationError as error:
                 error_message = str(error)
 

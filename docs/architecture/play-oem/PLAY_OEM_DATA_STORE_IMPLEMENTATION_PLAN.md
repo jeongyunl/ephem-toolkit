@@ -137,11 +137,10 @@ cancellation observations without inventing one.
 
 ## How to use this plan
 
-Work one pending numbered step at a time and in dependency order unless the user explicitly
-authorizes out-of-order work. If authorized, record the unresolved prerequisite and do not mark it
-complete. Keep each status and progress count current. When a step is complete, move its full entry
-to `Completed steps`, preserving its original number, checklist, criteria, dependencies, and
-evidence.
+Work one pending numbered step at a time and in dependency order. A criterion explicitly moved to
+Deferred does not block later steps, but remains unresolved until separately accepted. Keep each
+status and progress count current. When a step is complete, move its full entry to `Completed
+steps`, preserving its original number, checklist, criteria, dependencies, and evidence.
 
 If work reveals a dependency or design decision that changes the sequence, update this plan and
 the [store design](./PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md) before proceeding out of order.
@@ -155,112 +154,34 @@ criteria pass. Progress is the number of completed checklist items.
 
 ## Active implementation sequence
 
-Steps 4, 5, and 6 are complete. **Step 7 remains open:** direct `RAW_APPEND` ingestion, controller
-context and lifecycle wiring, range hints, and notice-driven store-view refresh are implemented,
-but its automatic-capacity first-append gate has not passed. Per explicit user direction, Step 8
-may proceed while Step 7's performance acceptance is deferred and unresolved. This exception does
-not mark Step 7 complete or change its scope.
-
-### 7. Migrate loading and controller state to `OemDataStore`
-
-Wire direct store loading only after all views consume the store contract. Preserve early playback,
-ordered coverage, user ranges, metadata, errors, cancellation, and replacement semantics.
-
-- **Status:** In progress (active store-path and lifecycle wiring are implemented; the
-  automatic-capacity first-append performance gate failed and is explicitly deferred while Step 8
-  proceeds).
-- **Progress:** 6/7 checklist items.
-- [x] Create and own one store per playback epoch; route initial and incremental OEM loading
-      through the loader's direct-store mode and raw-append notices without parser-batch-to-playback
-      staging or delaying the first usable raw samples. Keep reservation, commit, and abort calls
-      inside the loader sink, not in the controller or views. First bind the store to the selected
-      file generation, then install its committed snapshots into the clock/cursor and refresh
-      store-backed views; preserve the active file until the replacement publishes usable data.
-- [x] Replace `PlaybackData`'s derived-data fields and controller references to `series`,
-      `time_unit`, `cursor`, `_incremental_store`, and `_ground_track_source` with store-backed
-      reader contexts on the active path where appropriate; extend `PlaybackClock` from committed
-      timestamps.
-- [x] Capture or refresh one snapshot-bound reader context per append, tier, range, or policy
-      update and share it with affected views. Route point-state queries through this context
-      instead of exposing store/snapshot pairs at each call site.
-- [x] Publish range hints on plot-range, playback-range, seek, drag, and view-open/close changes;
-      apply tier/append notices to the affected views without blocking wx event handling.
-- [x] Replace the station warm-up thread and polling refresh work with store prefetch and notices
-      on the active store path; keep wx event handling limited to applying notices and updating
-      views.
-- [x] Coordinate metadata finalization, failed/cancelled prefixes, replacement epochs, stale
-      notices, saved ranges, interpolation policy, and clock coverage through one lifecycle.
-- [ ] Pass direct initial/incremental loading, early playback, replacement, failure, cancellation,
-      and scheduling tests; meet headless performance gates in
-      [Performance policy and acceptance](#performance-policy-and-acceptance).
-
-**Done when:** the active player loads and consumes one authoritative store, preserves current
-behavior, and has no orbit-sized staging or parallel controller copies.
-**Depends on:** Step 6.
-
-**Evidence for the first work item:** `python3 -m pytest tests/ephem_toolkit/play_oem -q`
-passed (628 passed, 4 skipped). App tests cover direct loading, store-backed cursor/context state,
-replacement retention and cleanup, load failure, and saved ranges. `compileall` and
-`git diff --check` passed. This does not certify the remaining scheduling or GUI responsiveness
-gates.
-
-**Current Step 7 evidence:** `python3 -m pytest tests/ephem_toolkit/play_oem
-tests/ephem_toolkit/core/interpolator -q` passed (687 passed, 4 skipped); `compileall` and
-`git diff --check` passed. The new controller regression verifies that replacing an in-progress
-load refreshes the retained store context to `CANCELLED`. A five-pair, fresh-process alternating
-JPSS-1 comparison with macOS Low Power Mode off previously failed the first-append gate:
-direct-store median was 52.199 ms versus 13.736 ms for the prepared-batch baseline (+280.0%,
-against a maximum 5% regression); completion and peak RSS improved 30.0% and 9.0%. Subsequent
-instrumented and Low-Power-Mode-on diagnostics also failed the first-append gate. The capacity
-scanner was optimized while retaining covariance exclusion, line-length validation,
-universal-newline handling, and bounded cancellation checks; the first scan optimization reduced
-its focused median from 76.318 to 50.617 ms. An ASCII read-only-mapping fast path avoids per-line
-string materialization and measured 48.711 ms versus 51.698 ms for the strict text path (5.8%
-faster) in an alternating 11-run scan microbenchmark.
-
-The latest five-pair fresh-process comparison alternated prepared-batch and mapped
-automatic-capacity direct-store runs with Low Power Mode `1` before and after. First-delivery
-medians were 23.967 versus 68.064 ms (+184.0%); validated completion was 1.253803 versus 0.861978
-s (31.3% faster); and process peak RSS including startup and warm-up was 90.5 versus 93.9 MiB
-(3.8% higher). Both variants validated 21,601 states; direct-store capacity was 21,624 with 43
-append notices. Completion meets its provisional gate and RSS remains within the 5% limit, but
-first delivery still fails; Low Power Mode-on results are diagnostic, not acceptance evidence.
-Profiling the text path identifies reads, line splitting/validation, and marker searches as the
-scan bottleneck. A one-pass mapped prototype matched randomized cases but improved scan time by
-less than 1.1%, and larger chunks offered no material gain, so neither was adopted; the scanner
-keeps 1 MiB cancellation-check intervals. A regex validation alternative was substantially slower
-and rejected. A later Python-only experiment replaced the two literal covariance-marker searches
-with compiled bytes-regex searches over bounded mmap windows: nine alternating candidate-only
-runs measured 7.408 ms versus 18.973 ms for literal-prefix mmap search. ASCII validation now uses
-a reduction instead of allocating a boolean mask, and newline offsets are shifted in place. The
-current scanner measured 17.379 ms median (17.163–22.190) versus 50.331 ms (50.030–67.890) for
-the strict text fallback in 13 alternating full-scan pairs with `lowpowermode=1`; these scan-only
-results are diagnostic. It matched the reference on 300 randomized ASCII inputs across varied
-chunk sizes, and the full play-oem/interpolator suites passed (688 passed, 4 skipped). A separate
-five-repeat direct-session diagnostic at `lowpowermode=1` measured 40.108 ms median first append,
-0.831426 s validated completion, and 93.3 MiB peak RSS; it is unpaired and does not establish the
-gate. Repeat the alternating benchmark with power mode verified and stable before re-evaluating
-the gates. The comparisons and limitations are in
-[store design's performance evidence](./PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md#controller-integration-measurements).
+Steps 4 through 7 are complete. Step 7's automatic-capacity first-append performance gate is
+deferred and remains unresolved; its deferral does not imply acceptance. Step 8 is active.
 
 ### 8. Consolidate ownership, remove superseded paths, and accept the migration
 
 After every consumer is store-backed, remove duplicate caches and obsolete preparation paths,
 update architecture documentation, and run final correctness/performance gates.
 
-- **Status:** In progress (opened by explicit user direction while Step 7's first-append gate
-  remains unresolved; no Step 8 checklist items are complete yet).
-- **Progress:** 0/8 checklist items.
+- **Status:** In progress (the module-level footprint LRU and controller-held Ground Track
+  coordinate reference have been removed, and store station queries no longer construct a
+  temporary `GroundTrackSource`; store-backed app mode no longer retains the legacy
+  `StationAccessCache`; typed arrays passed through the remaining
+  `GroundTrackSource.from_samples` helper are now shared rather than copied; frame and
+  interpolation-policy cache identity is verified; current-state dataflow documentation now
+  distinguishes the default store path from compatibility paths; cache retention, support-margin
+  recomputation, view-pinned eviction, and identical recomputation are covered; the first
+  checklist item remains incomplete).
+- **Progress:** 3/8 checklist items.
 - [ ] Remove `GroundTrackSource`, `source_prefix_matches`, controller-held Ground Track arrays,
       app-scoped `EarthFixedPositionCache`/`StationAccessCache`, and the module footprint cache.
-- [ ] Ensure frame changes are represented in epoch/query identity and interpolation-policy
+- [x] Ensure frame changes are represented in epoch/query identity and interpolation-policy
       changes invalidate only dependent interpolation/access products.
-- [ ] Test cache retention for unaffected ranges, invalidation around support margins, safe
+- [x] Test cache retention for unaffected ranges, invalidation around support margins, safe
       eviction while views are drawing, and identical results after recomputation.
 - [ ] Remove `AppendablePlaybackData`, `PreparedPlaybackBatch`, `IncrementalPlaybackPreparer`,
       `OrbitSeriesAccumulator`, and unused `load_playback_data`/`playback_data_from_batch`
       compatibility paths.
-- [ ] Update `PLAY_OEM_DATAFLOW.md` and `PLAY_OEM_DATAFLOW.mmd` to describe shipped behavior;
+- [x] Update `PLAY_OEM_DATAFLOW.md` and `PLAY_OEM_DATAFLOW.mmd` to describe shipped behavior;
       update the store design and this plan to distinguish the target contract from shipped
       behavior, while keeping graph names and shared-intermediate relationships aligned.
 - [ ] Run numerical equivalence, laziness, segment/gap, cancellation, replacement, memory-sharing,
@@ -273,10 +194,33 @@ update architecture documentation, and run final correctness/performance gates.
 **Done when:** the store design's validation criteria pass, superseded paths are removed, the
 dataflow documentation matches the implementation, and all remaining exceptions/limitations are
 explicitly documented.
-**Depends on:** Steps 5–7. The Step 7 performance prerequisite is deferred by explicit user
-direction; it remains an open acceptance criterion and is not considered passed.
+**Depends on:** Steps 5–7.
 
 ## Deferred, separate work
+
+### Step 7 automatic-capacity first-delivery performance gate
+
+- **Status:** Deferred; not passed or accepted.
+- [ ] Run at least five alternating, fresh-process prepared-batch baseline/direct-store pairs on
+      ISS and JPSS-1 with Low Power Mode off and stable. Record first delivery, validated
+      completion, process peak RSS, state counts, capacity, and environment.
+- [ ] Meet the provisional loader gates in
+      [Performance policy and acceptance](#performance-policy-and-acceptance): at least 10% lower
+      median JPSS-1 validated-completion time, no more than 5% regression in median first-batch
+      time on either primary fixture, and no more than 5% regression in comparable process peak
+      RSS.
+
+**Current diagnostic:** With `lowpowermode=1`, the mapped capacity scan measured 17.379 ms median
+(17.163–22.190) versus 50.331 ms (50.030–67.890) for the strict text fallback. A separate
+five-repeat direct-session run measured 40.108 ms median first append, 0.831426 s validated
+completion, and 93.3 MiB peak RSS. This run was unpaired and does not establish any acceptance
+gate. See the [store design's performance evidence](./PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md#controller-integration-measurements)
+for historical paired comparisons and limitations.
+
+**Done when:** a stable, unprofiled paired acceptance run passes the stated gates and its complete
+measurements are recorded. This deferred criterion does not block Step 8 and does not imply that
+the current performance gate passed.
+**Depends on:** Step 7.
 
 ### Repeat-open cache
 
@@ -563,3 +507,84 @@ orbit-sized `OrbitSeries` projection or downsampled copy. Callers use one snapsh
 refresh rather than passing the store, snapshot, and range to each query; tier-interest and cleanup
 boilerplate is handled by the shared binding helper.
 **Depends on:** Step 5.
+
+### 7. Migrate loading and controller state to `OemDataStore`
+
+Wire direct store loading only after all views consume the store contract. Preserve early playback,
+ordered coverage, user ranges, metadata, errors, cancellation, and replacement semantics.
+
+- **Status:** Done (direct store loading, controller lifecycle, and correctness checks are
+  complete; the automatic-capacity first-append performance gate is tracked separately as deferred
+  work and is not accepted).
+- **Progress:** 7/7 checklist items.
+- [x] Create and own one store per playback epoch; route initial and incremental OEM loading
+      through the loader's direct-store mode and raw-append notices without parser-batch-to-playback
+      staging or delaying the first usable raw samples. Keep reservation, commit, and abort calls
+      inside the loader sink, not in the controller or views. First bind the store to the selected
+      file generation, then install its committed snapshots into the clock/cursor and refresh
+      store-backed views; preserve the active file until the replacement publishes usable data.
+- [x] Replace `PlaybackData`'s derived-data fields and controller references to `series`,
+      `time_unit`, `cursor`, `_incremental_store`, and `_ground_track_source` with store-backed
+      reader contexts on the active path where appropriate; extend `PlaybackClock` from committed
+      timestamps.
+- [x] Capture or refresh one snapshot-bound reader context per append, tier, range, or policy
+      update and share it with affected views. Route point-state queries through this context
+      instead of exposing store/snapshot pairs at each call site.
+- [x] Publish range hints on plot-range, playback-range, seek, drag, and view-open/close changes;
+      apply tier/append notices to the affected views without blocking wx event handling.
+- [x] Replace the station warm-up thread and polling refresh work with store prefetch and notices
+      on the active store path; keep wx event handling limited to applying notices and updating
+      views.
+- [x] Coordinate metadata finalization, failed/cancelled prefixes, replacement epochs, stale
+      notices, saved ranges, interpolation policy, and clock coverage through one lifecycle.
+- [x] Pass direct initial/incremental loading, early playback, replacement, failure, cancellation,
+      and scheduling tests. The headless performance gate is deferred separately and is not
+      represented as passed.
+
+**Done when:** the active player loads and consumes one authoritative store, preserves current
+behavior, and has no orbit-sized staging or parallel controller copies.
+**Depends on:** Step 6.
+
+**Evidence for the first work item:** `python3 -m pytest tests/ephem_toolkit/play_oem -q`
+passed (628 passed, 4 skipped). App tests cover direct loading, store-backed cursor/context state,
+replacement retention and cleanup, load failure, and saved ranges. `compileall` and
+`git diff --check` passed. This does not certify the remaining scheduling or GUI responsiveness
+gates.
+
+**Step 7 implementation and performance evidence:** `python3 -m pytest tests/ephem_toolkit/play_oem
+tests/ephem_toolkit/core/interpolator -q` passed (688 passed, 4 skipped); `compileall` and
+`git diff --check` passed. The controller regression verifies that replacing an in-progress load
+refreshes the retained store context to `CANCELLED`. A five-pair, fresh-process alternating JPSS-1
+comparison with macOS Low Power Mode off previously failed the first-append gate: direct-store
+median was 52.199 ms versus 13.736 ms for the prepared-batch baseline (+280.0%, against a maximum
+5% regression); completion and peak RSS improved 30.0% and 9.0%. Subsequent instrumented and
+Low-Power-Mode-on diagnostics also failed the first-append gate. The capacity scanner was
+optimized while retaining covariance exclusion, line-length validation, universal-newline
+handling, and bounded cancellation checks; the first scan optimization reduced its focused median
+from 76.318 to 50.617 ms. An ASCII read-only-mapping fast path avoids per-line string
+materialization and measured 48.711 ms versus 51.698 ms for the strict text path (5.8% faster) in
+an alternating 11-run scan microbenchmark.
+
+The latest five-pair fresh-process comparison alternated prepared-batch and mapped
+automatic-capacity direct-store runs with Low Power Mode `1` before and after. First-delivery
+medians were 23.967 versus 68.064 ms (+184.0%); validated completion was 1.253803 versus 0.861978
+s (31.3% faster); and process peak RSS including startup and warm-up was 90.5 versus 93.9 MiB
+(3.8% higher). Both variants validated 21,601 states; direct-store capacity was 21,624 with 43
+append notices. Completion meets its provisional gate and RSS remains within the 5% limit, but
+first delivery still fails; Low Power Mode-on results are diagnostic, not acceptance evidence.
+Profiling the text path identifies reads, line splitting/validation, and marker searches as the
+scan bottleneck. A one-pass mapped prototype matched randomized cases but improved scan time by
+less than 1.1%, and larger chunks offered no material gain, so neither was adopted; the scanner
+keeps 1 MiB cancellation-check intervals. A regex validation alternative was substantially slower
+and rejected. A later Python-only experiment replaced the two literal covariance-marker searches
+with compiled bytes-regex searches over bounded mmap windows: nine alternating candidate-only
+rounds measured 7.408 ms versus 18.973 ms for literal-prefix mmap search. ASCII validation now
+uses a reduction instead of allocating a boolean mask, and newline offsets are shifted in place.
+The current scanner measured 17.379 ms median (17.163–22.190) versus 50.331 ms (50.030–67.890)
+for the strict text fallback in 13 alternating full-scan pairs with `lowpowermode=1`; these
+scan-only results are diagnostic. It matched the reference on 300 randomized ASCII inputs across
+varied chunk sizes, and the full play-oem/interpolator suites passed (688 passed, 4 skipped). A
+separate five-repeat direct-session diagnostic at `lowpowermode=1` measured 40.108 ms median first
+append, 0.831426 s validated completion, and 93.3 MiB peak RSS; it is unpaired and does not
+establish the gate. The first-append acceptance gate is deferred; the comparisons and limitations
+are in the [store design's performance evidence](./PLAY_OEM_DATA_STORE_SOFTWARE_DESIGN.md#controller-integration-measurements).

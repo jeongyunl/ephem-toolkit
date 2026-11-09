@@ -43,7 +43,7 @@ class GroundStationPassTrackView:
         stations: Sequence[GroundStation],
         *,
         oem_loaded: bool,
-        access_cache: StationAccessCache,
+        access_cache: StationAccessCache | None,
         selection_context: StationAnalysisContext,
         display_time_zone: str = UTC_DISPLAY,
     ) -> None:
@@ -52,7 +52,11 @@ class GroundStationPassTrackView:
         self._cursor = cursor
         self._stations = tuple(stations)
         self._oem_loaded = oem_loaded
-        self._access_cache = access_cache
+        self._access_cache = (
+            access_cache
+            if access_cache is not None
+            else (StationAccessCache() if source is not None else None)
+        )
         self._selection_context = selection_context
         self._display_time_zone = display_time_zone
         self._prepared_interval_key: tuple[float, float] | None = None
@@ -182,6 +186,7 @@ class GroundStationPassTrackView:
             else:
                 try:
                     if self._prepared_interval_key != selection.interval_key:
+                        assert self._access_cache is not None
                         self._prepared_coordinates = prepare_ground_track(
                             self._source,
                             position_cache=self._access_cache.position_cache,

@@ -44,6 +44,20 @@ def _source(
     )
 
 
+def test_source_from_typed_samples_shares_input_arrays() -> None:
+    timestamps = np.array([0.0, 10.0], dtype=np.float64)
+    states = np.arange(12, dtype=np.float64).reshape(2, 6)
+    segments = np.array([0, 0], dtype=np.int64)
+
+    source = ground_track.GroundTrackSource.from_samples(
+        timestamps, states, segments, "EARTH", "ITRF"
+    )
+
+    assert np.shares_memory(source.timestamps_s, timestamps)
+    assert np.shares_memory(source.states_m, states)
+    assert np.shares_memory(source.segment_ids, segments)
+
+
 def test_prepare_direct_earth_fixed_positions_returns_wgs84_radians() -> None:
     prepared = ground_track.prepare_ground_track(
         _source([(0.0, 0.0), (45.0, 90.0), (-90.0, -45.0)], frame_name="ITRF93")
@@ -187,6 +201,21 @@ def test_prepare_with_bounds_converts_only_samples_near_the_window(monkeypatch) 
     assert coordinates.timestamps_s[0] == 2_940.0
     assert coordinates.timestamps_s[-1] == 3_360.0
     assert int(cache._computed.sum()) == len(coordinates.timestamps_s)
+
+
+def test_prepare_max_samples_keeps_segment_edges_without_cropping_source() -> None:
+    count = 2_501
+    segment_ids = [0] * 1_000 + [1] * 1_000 + [2] * 501
+    source = _source([(0.0, 0.0)] * count, segment_ids=segment_ids)
+
+    coordinates = ground_track.prepare_ground_track(source, max_samples=2_000)
+
+    assert 2_000 <= len(coordinates.timestamps_s) <= 2_004
+    assert set(coordinates.segment_ids) == {0, 1, 2}
+    for boundary_sample in (999, 1_000, 1_999, 2_000):
+        assert boundary_sample * 10.0 in coordinates.timestamps_s
+    assert source.timestamps_s.size == count
+    assert source.states_m.shape == (count, 6)
 
 
 def test_position_cache_retains_converted_prefix_after_source_append(monkeypatch) -> None:

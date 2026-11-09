@@ -306,7 +306,7 @@ def prepare_station_access(
 def _refine_peak(
     station: GroundStation,
     cursor: OemCursor,
-    source: GroundTrackSource,
+    source: GroundTrackSource | None,
     frame_name: str,
     position_cache: EarthFixedPositionCache | None,
     shared_positions: dict[float, np.ndarray] | None,
@@ -485,7 +485,7 @@ class StationAccessCache:
 def _intervals_for_segment(
     station: GroundStation,
     cursor: OemCursor,
-    source: GroundTrackSource,
+    source: GroundTrackSource | None,
     frame_name: str,
     position_cache: EarthFixedPositionCache | None,
     shared_positions: dict[float, np.ndarray] | None,
@@ -659,7 +659,7 @@ def _intervals_for_segment(
 def _refine_crossing(
     station: GroundStation,
     cursor: OemCursor,
-    source: GroundTrackSource,
+    source: GroundTrackSource | None,
     frame_name: str,
     position_cache: EarthFixedPositionCache | None,
     shared_positions: dict[float, np.ndarray] | None,
@@ -707,7 +707,7 @@ def _refine_crossing(
 def _metrics_for_state(
     station: GroundStation,
     state_m: np.ndarray,
-    source: GroundTrackSource,
+    source: GroundTrackSource | None,
     frame_name: str,
     epoch_s: float,
     position_cache: EarthFixedPositionCache | None,
@@ -718,6 +718,8 @@ def _metrics_for_state(
     if shared_positions is not None and epoch_s in shared_positions:
         ecef_position_m = shared_positions[epoch_s]
     else:
+        if source is None:
+            raise ValueError("A GroundTrackSource is required for cached positions")
         if position_cache is None:
             position_cache = EarthFixedPositionCache()
         ecef_position_m = position_cache.position_for_state(source, state_m, epoch_s)

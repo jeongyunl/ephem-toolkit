@@ -393,10 +393,10 @@ def load_playback_data(
         dashboard_context,
         metadata_details,
         source_sample_count,
-        GroundTrackSource.from_samples(
-            timestamps_s,
-            states_m,
-            segment_ids,
+        GroundTrackSource(
+            state_cursor.timestamps_s,
+            state_cursor.states_m,
+            state_cursor.segment_ids,
             oem_data.meta.center_name,
             oem_data.meta.ref_frame,
         ),

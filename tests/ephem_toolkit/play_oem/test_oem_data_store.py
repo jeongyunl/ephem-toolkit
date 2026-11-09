@@ -636,6 +636,37 @@ def test_ground_track_query_reuses_earth_fixed_positions_and_splits_map_seams() 
     )
 
 
+def test_ground_track_cache_survives_interpolation_policy_change() -> None:
+    times = np.array([0.0, 10.0, 20.0])
+    longitudes_rad = np.deg2rad([10.0, 20.0, 30.0])
+    radius_m = 6_378_137.0 + 400_000.0
+    positions = np.column_stack(
+        (
+            radius_m * np.cos(longitudes_rad),
+            radius_m * np.sin(longitudes_rad),
+            np.zeros(times.size),
+        )
+    )
+    states = np.column_stack((positions, np.zeros_like(positions)))
+    metadata = (("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF"))
+    store = _store_with_samples(
+        times,
+        states,
+        np.zeros(times.size, dtype=np.int64),
+        metadata=metadata,
+    )
+    first_snapshot = store.snapshot()
+    first = store.ground_track(first_snapshot, (0.0, 20.0), wait=True)
+
+    store.set_interpolation(InterpolationPolicy("lagrange", 3))
+    next_snapshot = store.snapshot()
+    repeated = store.ground_track(next_snapshot, (0.0, 20.0), wait=True)
+
+    assert repeated.policy_revision == next_snapshot.policy_revision
+    assert repeated.value is first.value
+    assert len(store._ground_track_cache) == 1
+
+
 def test_ground_track_query_is_range_limited_and_prefetchable() -> None:
     times = np.array([0.0, 10.0, 20.0, 30.0])
     longitudes_rad = np.deg2rad([10.0, 20.0, 30.0, 40.0])
@@ -1061,6 +1092,32 @@ def test_prefetch_deduplicates_identical_requests_and_publishes_chunk_notice(
     assert (notices[0].first_row, notices[0].stop_row) == (0, len(times))
 
 
+def test_prefetch_keys_policy_revision_only_for_station_access(monkeypatch) -> None:
+    times, states, segments = _series_samples()
+    store = _store_with_samples(times, states, segments)
+    monkeypatch.setattr(store, "_start_scheduler_drain_locked", lambda: None)
+    snapshot = store.snapshot()
+    ground_track_request = QueryRequest("ground-track", (0.0, 420.0))
+    station = GroundStation("station", "Test Station", 35.0, -117.0, 100.0)
+    station_request = QueryRequest(
+        "station-access",
+        (0.0, 420.0),
+        station=station,
+    )
+
+    ground_track_first = store.prefetch(snapshot, ground_track_request)
+    station_first = store.prefetch(snapshot, station_request)
+    store.set_interpolation(InterpolationPolicy("lagrange", 3))
+    next_snapshot = store.snapshot()
+
+    ground_track_next = store.prefetch(next_snapshot, ground_track_request)
+    station_next = store.prefetch(next_snapshot, station_request)
+    store.close()
+
+    assert ground_track_next is ground_track_first
+    assert station_next is not station_first
+
+
 def test_range_hint_prioritizes_active_tier_ranges() -> None:
     store = OemDataStore()
     unsubscribe = store.subscribe_tier("series")
@@ -1379,6 +1436,40 @@ def test_station_profiles_are_lazy_shared_and_threshold_independent() -> None:
         raised_threshold.value.intervals[0].peak_elevation_deg
         >= first.value.intervals[0].peak_elevation_deg
     )
+
+
+def test_station_access_recomputes_policy_dependent_support_margin() -> None:
+    times = np.arange(0.0, 12_001.0, 60.0)
+    states = np.tile(
+        np.array([7_378_137.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        (times.size, 1),
+    )
+    store = _store_with_samples(
+        times,
+        states,
+        np.zeros(times.size, dtype=np.int64),
+        metadata=(("CENTER_NAME", "EARTH"), ("REF_FRAME", "ITRF")),
+    )
+    station = GroundStation("equator", "Equator", 0.0, 0.0, 0.0)
+    bounds = (6_000.0, 6_060.0)
+
+    first_snapshot = store.snapshot()
+    first = store.station_access(first_snapshot, station, bounds, wait=True)
+    first_profile = first.value.profiles[0].group.values
+    first_tier = next(iter(store._station_profiles.values()))
+
+    store.set_interpolation(InterpolationPolicy("lagrange", 3))
+    next_snapshot = store.snapshot()
+    repeated = store.station_access(next_snapshot, station, bounds, wait=True)
+    repeated_profile = repeated.value.profiles[0].group.values
+    repeated_tier = next(iter(store._station_profiles.values()))
+
+    assert first_profile[0, 0] < bounds[0]
+    assert first_profile[-1, 0] > bounds[1]
+    np.testing.assert_array_equal(repeated_profile, first_profile)
+    assert repeated_tier is not first_tier
+    assert first_tier.memo.counters.chunks_computed == 1
+    assert repeated_tier.memo.counters.chunks_computed == 1
 
 
 def test_nonblocking_station_query_reports_pending_coverage(monkeypatch) -> None:

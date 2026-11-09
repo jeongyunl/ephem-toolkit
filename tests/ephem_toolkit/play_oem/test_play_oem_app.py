@@ -2039,6 +2039,7 @@ def test_incremental_batches_extend_clock_and_complete_full_history(
 
     assert player._oem_coverage_complete
     assert player._oem_store is not None
+    assert player._station_access_cache is None
     assert player._incremental_store is None
     assert player._oem_store.snapshot().sample_count == 3
     assert player.clock.t_end == player._oem_store.sample_times[-1]
@@ -2233,7 +2234,7 @@ def test_incremental_load_preserves_and_restores_saved_file_ranges(
     player.close()
 
 
-def test_ground_station_preview_is_limited_to_plot_range_until_coverage_completes(
+def test_ground_station_preview_reuses_source_until_coverage_completes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     player, _views, _canvases, _frames = make_app(monkeypatch)
@@ -2254,11 +2255,7 @@ def test_ground_station_preview_is_limited_to_plot_range_until_coverage_complete
     )
     player._oem_coverage_complete = False
 
-    preview = player._ground_track_source_for_plot_range()
-
-    assert preview is not None
-    np.testing.assert_array_equal(preview.timestamps_s, [120.0, 140.0, 160.0, 180.0])
-    np.testing.assert_array_equal(preview.states_m, states_m[1:5])
+    assert player._ground_track_source_for_plot_range() is source
     player._oem_coverage_complete = True
     assert player._ground_track_source_for_plot_range() is source
     player.close()

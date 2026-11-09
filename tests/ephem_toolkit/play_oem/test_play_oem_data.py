@@ -63,6 +63,15 @@ def test_playback_data_exposes_ground_track_source_metadata(iss_oem_path: Path) 
         len(loaded.series.segment_ids),
         6,
     )
+    assert np.shares_memory(
+        loaded.ground_track_source.timestamps_s, loaded.cursor.timestamps_s
+    )
+    assert np.shares_memory(
+        loaded.ground_track_source.states_m, loaded.cursor.states_m
+    )
+    assert np.shares_memory(
+        loaded.ground_track_source.segment_ids, loaded.cursor.segment_ids
+    )
     np.testing.assert_array_equal(
         loaded.ground_track_source.segment_ids, loaded.series.segment_ids
     )

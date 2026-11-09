@@ -50,7 +50,7 @@ class GroundStationAccessView:
         oem_loaded: bool,
         on_seek: Callable[[float], None],
         on_station_manager: Callable[[], None],
-        access_cache: StationAccessCache,
+        access_cache: StationAccessCache | None,
         selection_context: StationAnalysisContext | None = None,
         limit_to_range: bool = False,
         initial_range: ResolvedTimeRange | None = None,
@@ -65,7 +65,11 @@ class GroundStationAccessView:
         self._oem_loaded = oem_loaded
         self._on_seek = on_seek
         self._on_station_manager = on_station_manager
-        self._access_cache = access_cache
+        self._access_cache = (
+            access_cache
+            if access_cache is not None
+            else (StationAccessCache() if source is not None else None)
+        )
         self._selection_context = selection_context
         self._limit_to_range = limit_to_range
         self._prepare_range = initial_range
@@ -193,17 +197,17 @@ class GroundStationAccessView:
         else:
             self._set_labels("", "", "")
         try:
-            metrics = (
-                current_station_metrics(
+            if self._source is None:
+                metrics = None
+            else:
+                assert self._access_cache is not None
+                metrics = current_station_metrics(
                     station,
                     self._cursor,
                     t_s,
                     self._source,
                     self._access_cache.position_cache,
                 )
-                if self._source is not None
-                else None
-            )
         except GroundTrackPreparationError as error:
             self._set_labels(str(error), "Current metrics unavailable.", "")
             return
@@ -337,6 +341,12 @@ class GroundStationAccessView:
                 return
             bounds = (self._prepare_range.start_s, self._prepare_range.end_s)
         self._preparation_error = None
+        if self._source is None:
+            self._access_results = tuple(
+                StationAccess(station, ()) for station in self._stations
+            )
+            return
+        assert self._access_cache is not None
         for station in self._stations:
             try:
                 results.append(

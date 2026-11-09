@@ -1,102 +1,107 @@
 flowchart TD
     FILE[("OEM file")]
 
-    subgraph WORKER["Loader / preparation thread"]
+    subgraph WORKER["Default loader path"]
         direction TB
-        PARSE["read_oem_batches<br/>parse OEM epochs"]
-        PREP["IncrementalPlaybackPreparer<br/>AppendablePlaybackData"]
-        SERIES["OrbitSeriesAccumulator<br/>compute_orbit_series on new rows"]
-        CURSOR["OemCursor<br/>timestamps, states, segments<br/>interpolation support"]
-        SOURCE["GroundTrackSource<br/>growing OEM sample prefix"]
-        PARSE --> PREP
-        PREP --> SERIES
-        PREP --> CURSOR
-        CURSOR --> SOURCE
+        CAPACITY["Optional capacity scan"]
+        PARSE["read_oem_into_store<br/>parse state rows"]
+        COMMIT["Reserve, fill, validate,<br/>commit raw rows"]
+        RAW_EVENT["Generation-tagged<br/>raw-append event"]
+        COMPLETE["Validated completion<br/>and metadata"]
+        CAPACITY --> PARSE
+        PARSE --> COMMIT
+        COMMIT --> RAW_EVENT
+        PARSE --> COMPLETE
     end
 
-    subgraph UI["wx UI thread"]
+    subgraph STORE["OemDataStore"]
         direction TB
-        POLL["_poll_incremental_load<br/>install prepared batches"]
-        THROTTLE["Refresh throttling<br/>at most every 5 s while loading<br/>forced on completion"]
-        INPLACE["_update_incremental_panel_data<br/>reuse compatible views / figures"]
-        FALLBACK["Rebuild incompatible<br/>or structurally changed views"]
-        DEFER["Defer Access / Passes<br/>until completion"]
-        POLL --> THROTTLE
-        THROTTLE --> INPLACE
-        INPLACE -.->|"not compatible"| FALLBACK
-        THROTTLE -.->|"station panels"| DEFER
+        RAW["Raw tier<br/>times, states, segments, metadata"]
+        POLICY["Interpolation policy<br/>and point-state evaluator"]
+        SERIES["Lazy series chunks<br/>named 2D history groups"]
+        EARTH_FIXED["Lazy Earth-fixed<br/>ITRF position chunks"]
+        GROUND_TRACK["Ground Track tier<br/>range-bounded WGS-84 groups"]
+        ACCESS["Station-access tier<br/>profiles and intervals"]
+        FOOTPRINT["Bounded footprints<br/>from point state and elevation mask"]
+        SCHEDULER["Range hints and<br/>prioritized prefetch"]
+        RAW --> POLICY
+        RAW --> SERIES
+        RAW --> EARTH_FIXED
+        EARTH_FIXED --> GROUND_TRACK
+        POLICY --> ACCESS
+        POLICY --> FOOTPRINT
+        EARTH_FIXED --> FOOTPRINT
+        SCHEDULER --> SERIES
+        SCHEDULER --> EARTH_FIXED
+        SCHEDULER --> GROUND_TRACK
+        SCHEDULER --> ACCESS
+        SCHEDULER --> FOOTPRINT
     end
 
-    subgraph VIEWS["Range-limited graph preparation"]
+    subgraph APP["wx application"]
         direction TB
-        SERIESV["State Components, Speed / Altitude,<br/>RTN Deltas, Angular Velocity,<br/>Direction Change, Geocentric Distance"]
-        TRAJ["3D Orbit<br/>range selection + decimation<br/>Matplotlib or VTK"]
-        TRACK["Ground Track<br/>range + margin"]
-        ACCESS["Station Status, Pass Strip,<br/>Elevation / Azimuth / Range Profiles,<br/>Pass List, Sky View"]
-        PASS_TRACK["Pass Ground Track<br/>selected pass interval"]
+        CONTROLLER["Controller<br/>generation and event handling"]
+        CONTEXT["StoreViewContext<br/>snapshot, range, coverage"]
+        CLOCK["PlaybackClock<br/>store-backed sample times"]
+        RANGE["Playback and plot<br/>range hints"]
+        TIER_NOTICE["Append, reset, and<br/>tier notices"]
+        CONTROLLER --> CONTEXT
+        CONTROLLER --> CLOCK
+        CONTROLLER --> RANGE
+        RAW --> TIER_NOTICE
+        SERIES --> TIER_NOTICE
+        EARTH_FIXED --> TIER_NOTICE
+        GROUND_TRACK --> TIER_NOTICE
+        ACCESS --> TIER_NOTICE
+        FOOTPRINT --> TIER_NOTICE
+        TIER_NOTICE --> CONTROLLER
     end
 
-    subgraph SHARED["Shared range intermediates and caches"]
+    subgraph VIEWS["Store-backed views"]
         direction TB
-        POSCACHE[("EarthFixedPositionCache<br/>shared ITRF sample positions")]
-        GEODETIC["GroundTrackCoordinates<br/>WGS-84 latitude / longitude"]
-        ACCESSCACHE[("StationAccessCache<br/>per-station results by analysis window")]
-        PROFILES["Look-angle profiles<br/>time, azimuth, elevation, range"]
-        INTERVALS["Access intervals<br/>pass bounds and summary metrics"]
-        FOOTPRINTS["Footprints<br/>current ECEF position + elevation mask"]
+        HISTORIES["2D histories<br/>State, kinematics, RTN,<br/>direction rates, distance"]
+        TRAJECTORY["3D Orbit<br/>bounded raw display path"]
+        TRACK_VIEW["Ground Track"]
+        STATION_VIEWS["Station Status, Pass Strip,<br/>profiles, Pass List, Sky View"]
+        PASS_TRACK["Pass Ground Track"]
+        CURRENT_METRICS["Current station metrics"]
     end
 
-    subgraph FRAME["Per playback frame"]
+    FILE --> CAPACITY
+    COMMIT --> RAW
+    RAW_EVENT --> CONTROLLER
+    COMPLETE --> CONTROLLER
+    RANGE --> CONTEXT
+    RANGE --> SCHEDULER
+    CONTEXT --> SERIES
+    CONTEXT --> GROUND_TRACK
+    CONTEXT --> ACCESS
+    CONTEXT --> FOOTPRINT
+    CONTEXT --> RAW
+    RAW -->|"read-only position, time, segment views"| TRAJECTORY
+    CLOCK -->|"state_at(t)"| POLICY
+    POLICY --> TRAJECTORY
+    POLICY --> CURRENT_METRICS
+    POLICY --> FOOTPRINT
+    SERIES --> HISTORIES
+    GROUND_TRACK --> TRACK_VIEW
+    GROUND_TRACK --> PASS_TRACK
+    ACCESS --> STATION_VIEWS
+    ACCESS -->|"selected access interval"| PASS_TRACK
+    FOOTPRINT --> TRACK_VIEW
+    CURRENT_METRICS --> STATION_VIEWS
+
+    subgraph LEGACY["Prepared-batch compatibility path (not the default)"]
         direction TB
-        TICK["clock.tick"]
-        LOOK["cursor.lookup"]
-        CURRENT["Current state"]
-        CURRENT_ECEF["Current ITRF / ECEF position"]
-        TICK --> LOOK --> CURRENT --> CURRENT_ECEF
+        BATCH["read_oem_batches"]
+        PREPARE["IncrementalPlaybackPreparer<br/>AppendablePlaybackData"]
+        OWNERS["OrbitSeriesAccumulator, OemCursor,<br/>GroundTrackSource, station caches"]
+        BATCH --> PREPARE --> OWNERS
     end
 
-    RANGE{{"Active plot range<br/>default follows first two playback days<br/>saved settings override"}}
-    FILE --> PARSE
-    SERIES --> POLL
-    SOURCE --> POLL
-    INPLACE --> SERIESV
-    INPLACE --> TRAJ
-    INPLACE --> TRACK
-    DEFER --> ACCESS
-    INPLACE --> PASS_TRACK
-    FALLBACK --> SERIESV
-    FALLBACK --> TRAJ
-    FALLBACK --> TRACK
-    FALLBACK --> ACCESS
-    FALLBACK --> PASS_TRACK
-    RANGE --> SERIESV
-    RANGE --> TRAJ
-    RANGE --> TRACK
-    RANGE --> ACCESS
-    RANGE --> PASS_TRACK
-    SOURCE --> POSCACHE
-    TRACK -->|"requests ITRF samples"| POSCACHE
-    PASS_TRACK -->|"requests pass-bounded ITRF samples"| POSCACHE
-    POSCACHE --> GEODETIC
-    GEODETIC --> TRACK
-    GEODETIC --> PASS_TRACK
-    ACCESS -->|"requests station analysis"| ACCESSCACHE
-    CURSOR --> ACCESSCACHE
-    POSCACHE -->|"reuses sample positions"| ACCESSCACHE
-    ACCESSCACHE --> PROFILES
-    ACCESSCACHE --> INTERVALS
-    PROFILES --> ACCESS
-    INTERVALS --> ACCESS
-    INTERVALS -->|"selected interval"| PASS_TRACK
-    CURRENT_ECEF --> TRACK
-    CURRENT_ECEF --> FOOTPRINTS
-    FOOTPRINTS --> TRACK
-    LOOK --> TRAJ
-    CURRENT_ECEF -->|"station_metrics_from_ecef"| ACCESS
-    SERIES --> SERIESV
-    SERIES --> TRAJ
-
-    classDef hot fill:#fdd,stroke:#c33,stroke-width:2px
-    classDef retained fill:#dfd,stroke:#393
-    class PARSE,ACCESS hot
-    class INPLACE,POSCACHE,ACCESSCACHE,PROFILES,INTERVALS retained
+    classDef store fill:#e8f1ff,stroke:#2463a6,stroke-width:2px
+    classDef view fill:#f4f4f4,stroke:#666
+    classDef legacy fill:#eee,stroke:#888,stroke-dasharray:5 5
+    class RAW,POLICY,SERIES,EARTH_FIXED,GROUND_TRACK,ACCESS,FOOTPRINT store
+    class HISTORIES,TRAJECTORY,TRACK_VIEW,STATION_VIEWS,PASS_TRACK,CURRENT_METRICS view
+    class BATCH,PREPARE,OWNERS legacy

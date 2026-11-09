@@ -41,7 +41,6 @@ from .ground_stations import (
 from .ground_track import (
     EARTH_CENTERS,
     GroundTrackCoordinates,
-    GroundTrackSource,
     GroundTrackPreparationError,
     _ecef_to_wgs84_geodetic,
     split_ground_track_runs,
@@ -952,7 +951,10 @@ class OemDataStore:
         else:
             raise ValueError(f"prefetch does not support tier: {request.tier!r}")
         self._validate_snapshot_epoch(snapshot)
-        key = (snapshot.epoch, snapshot.revision, snapshot.policy_revision, request)
+        policy_revision = (
+            snapshot.policy_revision if request.tier == "station-access" else 0
+        )
+        key = (snapshot.epoch, snapshot.revision, policy_revision, request)
         with self._scheduler_lock:
             if self._scheduler_closed:
                 raise RuntimeError("store scheduler is closed")
@@ -2037,7 +2039,6 @@ class OemDataStore:
         key = (
             snapshot.epoch,
             snapshot.revision,
-            snapshot.policy_revision,
             bounds,
             margin,
             center,
@@ -2046,7 +2047,15 @@ class OemDataStore:
             cached = self._ground_track_cache.get(key)
             if cached is not None:
                 self._ground_track_cache.move_to_end(key)
-                return cached
+                if cached.policy_revision == snapshot.policy_revision:
+                    return cached
+                return StoreQuery(
+                    snapshot.epoch,
+                    snapshot.revision,
+                    snapshot.policy_revision,
+                    cached.value,
+                    cached.coverage,
+                )
 
         if snapshot.sample_count == 0:
             return StoreQuery(
@@ -2319,13 +2328,6 @@ class OemDataStore:
         intervals: list[AccessInterval] = []
         coverage_spans: list[TimeBounds] = []
         cursor = _StoreStationCursor(self, snapshot, self._interpolation_policy)
-        source = GroundTrackSource(
-            snapshot.raw[:, 0],
-            snapshot.raw[:, 1:7],
-            snapshot.segment_ids,
-            center_name,
-            frame_name,
-        )
         ready_values: list[
             tuple[_StationSegmentLayout, int, int, np.ndarray]
         ] = []
@@ -2370,7 +2372,6 @@ class OemDataStore:
                 values,
                 selected_station,
                 cursor,
-                source,
                 frame_name,
                 threshold,
             )
@@ -2379,7 +2380,7 @@ class OemDataStore:
                 _intervals_for_segment(
                     selected_station,
                     cursor,
-                    source,
+                    None,
                     frame_name,
                     None,
                     None,
@@ -3175,7 +3176,6 @@ def _station_profile_events(
     values: np.ndarray,
     station: GroundStation,
     cursor: _StoreStationCursor,
-    source: GroundTrackSource,
     frame_name: str,
     minimum_elevation_deg: int,
 ) -> Iterator[tuple[float, StationMetrics | None]]:
@@ -3208,7 +3208,7 @@ def _station_profile_events(
             peak_time, peak_metrics = _refine_peak(
                 station,
                 cursor,
-                source,
+                None,
                 frame_name,
                 None,
                 None,

@@ -38,11 +38,11 @@ class GroundTrackSource:
         center_name: str,
         frame_name: str,
     ) -> GroundTrackSource:
-        """Create an immutable-by-convention copy of the OEM ground-track inputs."""
+        """Wrap typed OEM arrays without copying; normalize lists and other dtypes."""
         return cls(
-            np.asarray(timestamps_s, dtype=float).copy(),
-            np.asarray(states_m, dtype=float).copy(),
-            np.asarray(segment_ids, dtype=int).copy(),
+            np.asarray(timestamps_s, dtype=np.float64),
+            np.asarray(states_m, dtype=np.float64),
+            np.asarray(segment_ids, dtype=np.int64),
             center_name,
             frame_name,
         )
@@ -286,6 +286,7 @@ def prepare_ground_track(
     position_cache: EarthFixedPositionCache | None = None,
     bounds: tuple[float, float] | None = None,
     margin_s: float = 0.0,
+    max_samples: int | None = None,
 ) -> GroundTrackCoordinates:
     """Convert supported OEM samples to WGS-84 geodetic coordinates.
 
@@ -295,6 +296,12 @@ def prepare_ground_track(
     Earth-fixed coordinates use their positions directly. Supported inertial states
     are converted at each TT epoch. No GUI, plotting, or projection library is imported.
     """
+    if max_samples is not None and (
+        isinstance(max_samples, bool)
+        or not isinstance(max_samples, int)
+        or max_samples < 1
+    ):
+        raise ValueError("max_samples must be a positive integer")
     center_name = source.center_name.strip().upper()
     if center_name not in EARTH_CENTERS:
         raise GroundTrackPreparationError(
@@ -318,8 +325,10 @@ def prepare_ground_track(
             "Ground Track requires at least one OEM sample"
         )
     index_range: tuple[int, int] | None = None
+    index_start = 0
     if bounds is not None and states_m.shape == (timestamps_s.size, 6):
         index_range = window_indices(timestamps_s, bounds, margin_s)
+        index_start = index_range[0]
         window = slice(*index_range)
         timestamps_s = timestamps_s[window]
         states_m = states_m[window]
@@ -339,10 +348,38 @@ def prepare_ground_track(
     if np.any(np.diff(segment_ids) < 0):
         raise GroundTrackPreparationError("OEM segment IDs must be non-decreasing")
 
+    selected_indices: np.ndarray | None = None
+    if max_samples is not None and timestamps_s.size > max_samples:
+        selected_positions = set(
+            np.linspace(0, timestamps_s.size - 1, max_samples, dtype=int).tolist()
+        )
+        boundaries = np.flatnonzero(segment_ids[1:] != segment_ids[:-1])
+        for boundary in boundaries:
+            selected_positions.update((int(boundary), int(boundary + 1)))
+        selected_indices = np.asarray(sorted(selected_positions), dtype=np.int64)
+
     if position_cache is None:
         position_cache = EarthFixedPositionCache()
     try:
-        earth_fixed_positions_m = position_cache.positions(source, index_range)
+        if selected_indices is None:
+            earth_fixed_positions_m = position_cache.positions(source, index_range)
+            output_timestamps_s = timestamps_s
+            output_segment_ids = segment_ids
+        else:
+            earth_fixed_positions_m = np.empty(
+                (selected_indices.size, 3), dtype=float
+            )
+            for output_index, sample_index in enumerate(selected_indices):
+                source_index = index_start + int(sample_index)
+                earth_fixed_positions_m[output_index] = (
+                    position_cache.position_for_state(
+                        source,
+                        source.states_m[source_index],
+                        float(source.timestamps_s[source_index]),
+                    )
+                )
+            output_timestamps_s = timestamps_s[selected_indices]
+            output_segment_ids = segment_ids[selected_indices]
     except GroundTrackPreparationError:
         raise
     except Exception as error:
@@ -363,10 +400,10 @@ def prepare_ground_track(
         )
 
     return GroundTrackCoordinates(
-        timestamps_s=timestamps_s.copy(),
+        timestamps_s=output_timestamps_s.copy(),
         latitude_rad=latitude_rad,
         longitude_rad=longitude_rad,
-        segment_ids=segment_ids.copy(),
+        segment_ids=output_segment_ids.copy(),
         source_frame=frame_name,
     )
 
